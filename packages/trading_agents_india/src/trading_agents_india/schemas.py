@@ -49,9 +49,13 @@ class PaperTicket:
     news_summary: str = ""
     sentiment_summary: str = ""
     technical_summary: str = ""
+    chain_watcher_summary: str = ""
     risk_summary: str = ""
     boss_summary: str = ""
+    trader_summary: str = ""
+    premium_lean: dict[str, Any] = field(default_factory=dict)
     reports: list[dict[str, Any]] = field(default_factory=list)
+    handoffs: list[dict[str, Any]] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -73,12 +77,16 @@ class SessionResult:
     live_gate: dict[str, Any] = field(default_factory=dict)
     live_order_attempt: Optional[dict[str, Any]] = None
     personas_cited: list[dict[str, Any]] = field(default_factory=list)
+    handoffs: list[dict[str, Any]] = field(default_factory=list)
+    clock: dict[str, Any] = field(default_factory=dict)
+    mix_inputs: dict[str, Any] = field(default_factory=dict)
     paper_watch_mixes: list[str] = field(
         default_factory=lambda: [
             "MIX-DEFAULT-BUY",
             "MIX-TA-FLOW-RISK",
             "MIX-TA-EVENT-HOLD",
             "MIX-TA-EXEC-SANITY",
+            "MIX-TA-MARKET-HOURS",
         ]
     )
 
@@ -96,6 +104,9 @@ class SessionResult:
             "live_gate": self.live_gate,
             "live_order_attempt": self.live_order_attempt,
             "personas_cited": self.personas_cited,
+            "handoffs": self.handoffs,
+            "clock": self.clock,
+            "mix_inputs": self.mix_inputs,
             "paper_watch_mixes": self.paper_watch_mixes,
             "execution": "refused",
             "gate": "not RESEARCH_READY_FOR_PROGRAMMING",

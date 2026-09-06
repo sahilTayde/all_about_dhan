@@ -1,5 +1,42 @@
 # Handoff log — Team 00 Orchestrator
 
+## As of now (2026-09-06) — Market-hours paper agent loop
+
+IST poll loop + chain watcher + handoffs + dual ledger in `packages/trading_agents_india`. PAPER only; LIVE refuses; KEEP_ALL; gate not RESEARCH_READY.
+
+Newest first.
+
+---
+
+```text
+From:     teams/00_orchestrator (boss)
+To:       04_quant / 05_analysis / 07_coding / 08_testing / 09_review
+Date:     2026-09-06
+Status:   MARKET_HOURS_LOOP / PAPER ONLY / ORDERS REFUSED
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Summary:
+Accepted: session_runner (45s default tick; MIX-CLOCK-CAS dead-bands);
+  structured AgentHandoff chain; Option Chain Watcher persona; OPTIDX premium
+  lean else INDEX proxy HYPOTHESIS; MIX-DEFAULT-BUY + MIX-TA-* + PhD notes as
+  reason inputs; MIX-TA-MARKET-HOURS PAPER_WATCH; dual ledger sqlite +
+  data/recon/paper_watch/; tests PAPER vs LIVE refuse + dry simulation.
+Rejected: Live orders; win rates; STRAT deletes; overwrite transcripts.sqlite;
+  claiming 15s tick ready.
+UNKNOWN / DATA_INSUFFICIENT: live OI wall parser; OPTIDX dual CE/PE; India
+  sentiment; EVENT_MEMORY analogs; 15s tick readiness vs chain 1/3s budget.
+
+Artifacts:
+- teams/00_orchestrator/docs/PLAN_MARKET_HOURS_PAPER_AGENTS.md
+- packages/trading_agents_india/ (session_runner, handoffs, hooks/chain, premium)
+- teams/04_quant/docs/MIX_CATALOG.md §18 MIX-TA-MARKET-HOURS
+- teams/00_orchestrator/docs/CONTINUE_NEXT_CHAT.md
+Next: run market-hours during IST session with DHAN_* when ready (data only);
+  do not promote; CF fail=30 ASR still pending.
+```
+
+---
+
 ## As of now (2026-09-06) — TradingAgents India paper agents ADOPTED_SKELETON
 
 EXTERNAL [TradingAgents](https://github.com/TauricResearch/TradingAgents) (Apache-2.0) studied; additive `packages/trading_agents_india` paper loop; separate KB; KEEP_ALL intact; orders refused; gate not RESEARCH_READY.

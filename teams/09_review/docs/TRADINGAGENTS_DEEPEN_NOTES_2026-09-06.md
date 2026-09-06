@@ -13,9 +13,14 @@ Plan: [`ADOPT_TRADINGAGENTS.md`](../../00_orchestrator/docs/ADOPT_TRADINGAGENTS.
 
 - `mode=PAPER|LIVE` with LIVE **always refusing** orders (`mode.py` + optional `dhan_client.ExecutionClient` refuse).
 - Persona registry (`personas.py`) mapping TradingAgents names → India desk → teams 00–09.
+- **Option Chain Watcher** persona + `hooks/chain.py` (Dhan if tokens else fixtures; fake-breakout/thin-wall = HYPOTHESIS).
+- OPTIDX premium lean (`hooks/premium.py`) else INDEX proxy labeled HYPOTHESIS.
+- Structured **handoffs** (`handoffs.py`); trader paper CE/PE only.
+- **Market-hours session runner** (`session_runner.py`): IST dead-bands + 45s tick; dual ledger sqlite + `data/recon/paper_watch/`.
 - News hook (`hooks/news.py`): Dhan news **DI** if no API; Moneycontrol via desk_intel RSS when importable; no CNBC/StockTwits invent.
-- MIX §18: `MIX-TA-FLOW-RISK`, `MIX-TA-EVENT-HOLD`, `MIX-TA-EXEC-SANITY` — PAPER_WATCH / WAITING; not default; not promote.
+- MIX §18: `MIX-TA-FLOW-RISK`, `MIX-TA-EVENT-HOLD`, `MIX-TA-EXEC-SANITY`, `MIX-TA-MARKET-HOURS` — PAPER_WATCH / WAITING; not default; not promote.
 - Session log remains `data/knowledge/trading_agents_india.sqlite` — **does not** touch `transcripts.sqlite`.
+- Plan: [`PLAN_MARKET_HOURS_PAPER_AGENTS.md`](../../00_orchestrator/docs/PLAN_MARKET_HOURS_PAPER_AGENTS.md).
 
 ## Red-team checks
 

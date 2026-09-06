@@ -3,11 +3,12 @@
 **Date:** 2026-09-06  
 **Layer:** `HYPOTHESIS` (orchestration design) + `SOURCE_FACT` (what the clone contains)  
 **Gate:** **not** `RESEARCH_READY_FOR_PROGRAMMING`  
-**Status:** `ADOPTED_SKELETON` / **DEEPENED_PAPER** / **UNVALIDATED** — paper signals only  
+**Status:** `ADOPTED_SKELETON` / **DEEPENED_PAPER** / **MARKET_HOURS_LOOP** / **UNVALIDATED** — paper signals only  
 **EXTERNAL:** [TauricResearch/TradingAgents](https://github.com/TauricResearch/TradingAgents) (Apache-2.0)  
 **Local clone:** `research/TradingAgents/` (shallow; **do not** treat as our product; gitignored nested tree)  
 **Design council (2026-09-06):** [`OPENAI_DESIGN_COUNCIL_2026-09-06.md`](OPENAI_DESIGN_COUNCIL_2026-09-06.md) — OpenAI `gpt-5.4` + founder desk; verdict `APPROVE_WITH_GUARDRAILS`  
-**MIX paper-watch:** `MIX-TA-FLOW-RISK`, `MIX-TA-EVENT-HOLD`, `MIX-TA-EXEC-SANITY` ([`MIX_CATALOG.md`](../../04_quant/docs/MIX_CATALOG.md) §18) — not default, not promote
+**Market-hours plan:** [`PLAN_MARKET_HOURS_PAPER_AGENTS.md`](PLAN_MARKET_HOURS_PAPER_AGENTS.md)  
+**MIX paper-watch:** `MIX-TA-FLOW-RISK`, `MIX-TA-EVENT-HOLD`, `MIX-TA-EXEC-SANITY`, `MIX-TA-MARKET-HOURS` ([`MIX_CATALOG.md`](../../04_quant/docs/MIX_CATALOG.md) §18) — not default, not promote
 
 Education ≠ advice. No live Dhan orders. No `/alerts/orders`. No win rates. KEEP_ALL STRAT-001–014.
 
@@ -64,6 +65,7 @@ Registry: `packages/trading_agents_india/personas.py` — TradingAgents name →
 | News Analyst | `news_analyst` | India Event / News Filter | 05 |
 | Sentiment Analyst | `sentiment_analyst` | India Sentiment (DI) | 05 |
 | Market Analyst | `technical_analyst` | Index Regime / Chain Lean | 04 |
+| Option Chain Watcher | `chain_watcher` | 3m Chain / Wall Hypothesis | 05/04 |
 | Fundamentals Analyst | skipped | Macro/CAS note only | 03 |
 | Bull / Bear Researcher | `bull_researcher` / `bear_researcher` | CE / PE-Hold challengers | 02/04 |
 | Research Manager + Portfolio Manager | `boss_research_manager` | Boss desk + final paper call | 00 |
@@ -210,6 +212,18 @@ LIVE            → evaluate founder allow + TRADING_AGENTS_LIVE_GATE + RESEARCH
 python -m trading_agents_india session --dry-run
 python -m trading_agents_india session --mode PAPER --gather-news
 python -m trading_agents_india session --mode LIVE   # documents refuse
+python -m trading_agents_india market-hours --simulate --max-ticks 2
+python -m trading_agents_india market-hours --tick-seconds 45 --max-ticks 4
+python -m trading_agents_india clock
 python -m trading_agents_india session --dry-run --use-llm
 python -m trading_agents_india personas
 ```
+
+### Market-hours loop (2026-09-06 deepen)
+
+- Session runner: IST shell 09:00–15:30; active paper 09:30–15:00; dead-bands → HOLD (`MIX-CLOCK-CAS`).
+- Default tick **45s** (30–60 band); path toward **15s** documented in plan — not default.
+- Dual ledger: `trading_agents_india.sqlite` + `data/recon/paper_watch/`.
+- Handoffs: structured messages; trader paper CE/PE only; execution refused.
+- Chain watcher persona + OPTIDX premium lean (else INDEX proxy `HYPOTHESIS`).
+- Reasons cite `MIX-DEFAULT-BUY` + `MIX-TA-*` + optional PhD snippets (inputs, not deletes).

@@ -138,6 +138,15 @@ Also pending (transcripts already **yes**): **Phase-11 bind** Yush `hvyf6frvCcA`
 
 Rate limits: `packages/dhan-client/docs/RATE_LIMITS.md`
 
+### Agent RAG / EOD recon
+
+**Last EOD stub:** 2026-09-06 (`python -m agent_rag eod-recon`)
+- session_kind: `UNKNOWN` (score_track=`ANALOG_MEMORY`)
+- RETUNE_PROPOSAL: **`BACKTEST_REQUIRED`** (no auto-retune; `keep_current_strategy: true`)
+- recon: `data/recon/EOD_RECON_2026-09-06.json`
+- KB: `data/knowledge/agent_rag.sqlite` ([`AGENT_RAG.md`](../../01_research/docs/AGENT_RAG.md)) — does **not** touch `transcripts.sqlite`
+- Paper agents backtest rollup: [`BACKTEST_PAPER_AGENTS_2026-09-06.md`](../../06_backtesting/docs/BACKTEST_PAPER_AGENTS_2026-09-06.md) — **NO_PROMOTE**
+
 ## Do not
 
 - Invent win rates or code live strategies  
@@ -150,20 +159,25 @@ Rate limits: `packages/dhan-client/docs/RATE_LIMITS.md`
 
 ## External org structure — TradingAgents adoption (2026-09-06)
 
-**Status:** `ADOPTED_SKELETON` / **DEEPENED_PAPER** / **UNVALIDATED** / paper only  
+**Status:** `ADOPTED_SKELETON` / **DEEPENED_PAPER** / **MARKET_HOURS_LOOP** / **UNVALIDATED** / paper only  
 **EXTERNAL:** [TauricResearch/TradingAgents](https://github.com/TauricResearch/TradingAgents) (Apache-2.0)  
 **Clone:** `research/TradingAgents/` (gitignored nested tree; re-clone if missing)  
 **Study notes:** [`ADOPT_TRADINGAGENTS.md`](ADOPT_TRADINGAGENTS.md)  
+**Market-hours plan:** [`PLAN_MARKET_HOURS_PAPER_AGENTS.md`](PLAN_MARKET_HOURS_PAPER_AGENTS.md)  
 **Design council:** [`OPENAI_DESIGN_COUNCIL_2026-09-06.md`](OPENAI_DESIGN_COUNCIL_2026-09-06.md) (`gpt-5.4` + desk; `APPROVE_WITH_GUARDRAILS`)  
-**Package:** `packages/trading_agents_india` — personas + `mode=PAPER|LIVE` (LIVE refuses) + India news hook  
+**Package:** `packages/trading_agents_india` — personas + chain watcher + handoffs + IST poll loop + `mode=PAPER|LIVE` (LIVE refuses)  
 **KB:** `data/knowledge/trading_agents_india.sqlite` (separate from `transcripts.sqlite`)  
-**MIX paper-watch (not default):** `MIX-TA-FLOW-RISK`, `MIX-TA-EVENT-HOLD`, `MIX-TA-EXEC-SANITY` — MIX_CATALOG §18  
+**Ledger:** `data/recon/paper_watch/MIX-TA-*/` + `MIX-DEFAULT-BUY/`  
+**MIX paper-watch (not default):** `MIX-TA-FLOW-RISK`, `MIX-TA-EVENT-HOLD`, `MIX-TA-EXEC-SANITY`, `MIX-TA-MARKET-HOURS` — MIX_CATALOG §18  
 **09 notes:** [`TRADINGAGENTS_ADOPTION_REVIEW_2026-09-06.md`](../../09_review/docs/TRADINGAGENTS_ADOPTION_REVIEW_2026-09-06.md), [`TRADINGAGENTS_DEEPEN_NOTES_2026-09-06.md`](../../09_review/docs/TRADINGAGENTS_DEEPEN_NOTES_2026-09-06.md)
 
 **Run:**
 ```bash
 pip install -e packages/trading_agents_india
 python -m trading_agents_india session --dry-run
+python -m trading_agents_india market-hours --simulate --max-ticks 2
+python -m trading_agents_india market-hours --tick-seconds 45 --max-ticks 4
+python -m trading_agents_india clock
 python -m trading_agents_india session --mode PAPER --gather-news
 python -m trading_agents_india session --mode LIVE          # always refuses
 python -m trading_agents_india session --dry-run --use-llm  # needs OPENAI_API_KEY
@@ -171,7 +185,7 @@ python -m trading_agents_india personas
 python -m trading_agents_india review-plan
 ```
 
-**Still DI / gated:** Dhan news API absent in client; Moneycontrol RSS VERIFY IF STABLE; India sentiment feed; EVENT_MEMORY analogs empty; LIVE founder allow + `TRADING_AGENTS_LIVE_GATE` default off; no live orders. KEEP_ALL unchanged. Not `RESEARCH_READY_FOR_PROGRAMMING`.
+**Still DI / gated:** Dhan news API absent in client; Moneycontrol RSS VERIFY IF STABLE; India sentiment feed; EVENT_MEMORY analogs empty; live OI wall parser; OPTIDX dual CE/PE; LIVE founder allow + `TRADING_AGENTS_LIVE_GATE` default off; no live orders. KEEP_ALL unchanged. Not `RESEARCH_READY_FOR_PROGRAMMING`.
 
 Prior blocker `NEED_GITHUB_URL` is **cleared** by this URL. Do not mass-rewrite `teams/` — additive package only.
 
@@ -180,4 +194,3 @@ Prior blocker `NEED_GITHUB_URL` is **cleared** by this URL. Do not mass-rewrite 
 ## External org structure (blocked) — SUPERSEDED
 
 ~~**Status:** `NEED_GITHUB_URL`~~ → see **TradingAgents adoption** above.
-

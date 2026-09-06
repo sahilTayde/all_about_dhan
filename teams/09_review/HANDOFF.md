@@ -1,5 +1,33 @@
 # Handoff log — Team 09 Review
 
+## As of now (2026-09-06) — Market-hours paper agents deepen (NOTES_ONLY)
+
+Verified additive market-hours loop docs against KEEP_ALL. **Not** a five-pass. **Not** RESEARCH_READY.
+
+Newest first.
+
+---
+
+```text
+From:     teams/09_review
+To:       00 / 04 / 07 / 08
+Date:     2026-09-06
+Status:   NOTES_ONLY
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: PLAN_MARKET_HOURS_PAPER_AGENTS + package deepen (runner, handoffs,
+  chain watcher, premium INDEX proxy label, PAPER vs LIVE refuse tests).
+Rejected: Live orders; win rates; STRAT deletes; claiming RESEARCH_READY;
+  Docs Auditor as five-pass substitute.
+UNKNOWN / DI: live OI walls; OPTIDX dual book; 15s tick vs chain budget.
+
+Artifacts:
+- teams/09_review/docs/TRADINGAGENTS_DEEPEN_NOTES_2026-09-06.md
+- teams/00_orchestrator/docs/PLAN_MARKET_HOURS_PAPER_AGENTS.md
+```
+
+---
+
 ## As of now (2026-09-06) — TradingAgents adoption design review (NOTES_ONLY)
 
 EXTERNAL TradingAgents role graph adapted into `packages/trading_agents_india`. Design verification recorded. **Not** a five-pass. **Not** RESEARCH_READY. OpenAI key DI at adopt time → local fallback review.

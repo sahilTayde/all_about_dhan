@@ -31,6 +31,9 @@ class MarketContext:
         "(SIGNAL_STAGING)."
     )
     data_gaps: list[str] = field(default_factory=list)
+    chain_watch: dict[str, Any] = field(default_factory=dict)
+    premium_lean: dict[str, Any] = field(default_factory=dict)
+    mix_inputs: dict[str, Any] = field(default_factory=dict)
 
     def to_prompt_blob(self) -> dict[str, Any]:
         return {
@@ -51,6 +54,9 @@ class MarketContext:
                 for n in self.news
             ],
             "data_gaps": self.data_gaps,
+            "chain_watch": self.chain_watch,
+            "premium_lean": self.premium_lean,
+            "mix_inputs": self.mix_inputs,
         }
 
 

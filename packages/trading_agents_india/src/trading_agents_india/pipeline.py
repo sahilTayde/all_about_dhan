@@ -1,9 +1,9 @@
-"""Orchestration pipeline: analysts → debate → boss → trader → risk → paper ticket."""
+"""Orchestration pipeline: analysts → chain → debate → boss → trader → risk → paper ticket."""
 
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Optional, Sequence
+from typing import Any, Optional, Sequence
 from zoneinfo import ZoneInfo
 
 from trading_agents_india import COMPLIANCE_NOTE
@@ -11,6 +11,7 @@ from trading_agents_india.agents import (
     run_bear,
     run_boss,
     run_bull,
+    run_chain_watcher,
     run_news_analyst,
     run_risk,
     run_sentiment_analyst,
@@ -19,11 +20,15 @@ from trading_agents_india.agents import (
 )
 from trading_agents_india.config import Settings, load_settings
 from trading_agents_india.fixtures import MarketContext, fixture_contexts
+from trading_agents_india.handoffs import build_handoff_chain
+from trading_agents_india.hooks.chain import watch_chain
 from trading_agents_india.hooks.desk import try_load_desk_context
 from trading_agents_india.hooks.event_memory import classify_session_kind
 from trading_agents_india.hooks.news import gather_news
+from trading_agents_india.hooks.premium import resolve_premium_lean
 from trading_agents_india.kb import AgentKB
 from trading_agents_india.llm import LlmClient
+from trading_agents_india.mix_inputs import build_reason_inputs
 from trading_agents_india.mode import (
     Mode,
     attempt_live_order,
@@ -45,11 +50,46 @@ def _now_ist() -> str:
         return datetime.utcnow().isoformat(timespec="seconds") + "Z"
 
 
+def _enrich_context(
+    ctx: MarketContext,
+    *,
+    prefer_live_chain: bool,
+    mix_inputs: dict[str, Any],
+) -> MarketContext:
+    watch = watch_chain(
+        ctx.underlying,
+        fixture_lean=ctx.chain_lean,
+        prefer_live=prefer_live_chain,
+    )
+    premium = resolve_premium_lean(
+        ctx.underlying,
+        prefer_live=prefer_live_chain,
+        trend_plain=ctx.trend_plain,
+        chain_lean=ctx.chain_lean,
+    )
+    gaps = list(ctx.data_gaps) + list(watch.data_gaps) + list(premium.data_gaps)
+    return MarketContext(
+        underlying=ctx.underlying,
+        chain_lean=ctx.chain_lean,
+        trend_plain=ctx.trend_plain,
+        news=list(ctx.news),
+        session_kind_hint=ctx.session_kind_hint,
+        sentiment_label=ctx.sentiment_label,
+        technical_note=ctx.technical_note,
+        data_gaps=list(dict.fromkeys(gaps)),
+        chain_watch=watch.to_dict(),
+        premium_lean=premium.to_dict(),
+        mix_inputs=mix_inputs,
+    )
+
+
 def _resolve_context(
     underlying: str,
     *,
     prefer_desk: bool,
     gather_india_news: bool,
+    prefer_live_chain: bool,
+    mix_inputs: dict[str, Any],
 ) -> tuple[MarketContext, list[str]]:
     gaps: list[str] = []
     fixtures = fixture_contexts()
@@ -66,7 +106,6 @@ def _resolve_context(
         bundle = gather_news(prefer_live_rss=False)
         gaps.extend(bundle.data_gaps)
         if bundle.items:
-            # Overlay India news; keep fixture lean/trend (do not invent chain).
             ctx = MarketContext(
                 underlying=ctx.underlying,
                 chain_lean=ctx.chain_lean,
@@ -76,8 +115,13 @@ def _resolve_context(
                 sentiment_label=ctx.sentiment_label,
                 technical_note=ctx.technical_note,
                 data_gaps=list(ctx.data_gaps) + list(bundle.data_gaps),
+                chain_watch=dict(ctx.chain_watch),
+                premium_lean=dict(ctx.premium_lean),
+                mix_inputs=dict(ctx.mix_inputs),
             )
-    return ctx, gaps
+    ctx = _enrich_context(ctx, prefer_live_chain=prefer_live_chain, mix_inputs=mix_inputs)
+    gaps.extend(ctx.data_gaps)
+    return ctx, list(dict.fromkeys(gaps))
 
 
 def run_underlying_session(
@@ -91,7 +135,8 @@ def run_underlying_session(
     news = run_news_analyst(ctx, llm)
     sentiment = run_sentiment_analyst(ctx, llm)
     technical = run_technical_analyst(ctx, llm)
-    reports.extend([news, sentiment, technical])
+    chain = run_chain_watcher(ctx, llm)
+    reports.extend([news, sentiment, technical, chain])
 
     bull = run_bull(ctx, reports, llm)
     bear = run_bear(ctx, reports, llm)
@@ -106,12 +151,18 @@ def run_underlying_session(
     risk = run_risk(ctx, trader, session_kind, llm)
     reports.append(risk)
 
+    handoffs = build_handoff_chain(reports)
+
     risk_veto = session_kind in ("NEWS_DAY", "EXPIRY")
     if not risk_veto and risk.lean_hint == "HOLD":
-        # Neutral/no-edge HOLD is WATCH, not necessarily a hard news veto
         risk_veto = any(
             c.startswith(("NEWS_DAY", "EXPIRY", "cited_news")) for c in risk.citations
         )
+    # Chain watcher soft veto on thin wall / fake breakout when no strong tech align
+    watch_flag = str((ctx.chain_watch or {}).get("hypothesis_flag") or "NONE")
+    if watch_flag in ("THIN_WALL_HYPOTHESIS", "BOTH_HYPOTHESIS") and session_kind == "NORMAL":
+        if technical.lean_hint == "HOLD" or chain.lean_hint == "HOLD":
+            risk_veto = risk_veto  # keep; lean may already be HOLD from chain
 
     lean = risk.lean_hint if lean_ok(risk.lean_hint) else "HOLD"
     if risk_veto:
@@ -131,12 +182,19 @@ def run_underlying_session(
         for c in risk.citations
         if c.startswith(("NEWS_DAY", "EXPIRY", "cited_news", "neutral_risk"))
     ]
+    if watch_flag != "NONE":
+        vetoes.append(f"chain_watcher:{watch_flag}")
+
+    mix_lines = list((ctx.mix_inputs or {}).get("reason_lines") or [])
     reasons = [
         f"boss: {boss.summary[:180]}",
         f"tech: {technical.summary[:120]}",
+        f"chain: {chain.summary[:120]}",
         f"bull: {bull.summary[:100]}",
         f"bear: {bear.summary[:100]}",
+        f"trader: paper {trader.lean_hint} (execution refused)",
     ]
+    reasons.extend(mix_lines[:8])
     if vetoes:
         reasons.extend(vetoes[:4])
 
@@ -144,7 +202,6 @@ def run_underlying_session(
     for r in reports:
         gaps.extend(r.data_gaps)
     gaps.extend(ctx.data_gaps)
-    # de-dupe preserve order
     seen = set()
     uniq_gaps = []
     for g in gaps:
@@ -162,15 +219,19 @@ def run_underlying_session(
         session_kind=session_kind,
         default_mix_cited=settings.default_mix,
         confidence=min(0.72, float(risk.confidence)),
-        data_gaps=uniq_gaps[:12],
+        data_gaps=uniq_gaps[:16],
         bull_summary=bull.summary,
         bear_summary=bear.summary,
         news_summary=news.summary,
         sentiment_summary=sentiment.summary,
         technical_summary=technical.summary,
+        chain_watcher_summary=chain.summary,
         risk_summary=risk.summary,
         boss_summary=boss.summary,
+        trader_summary=trader.summary,
+        premium_lean=dict(ctx.premium_lean or {}),
         reports=[r.to_dict() for r in reports],
+        handoffs=[h.to_dict() for h in handoffs],
     )
 
 
@@ -181,15 +242,18 @@ def run_session(
     use_llm: bool = False,
     prefer_desk: bool = False,
     gather_india_news: bool = False,
+    prefer_live_chain: bool = False,
     persist: bool = True,
     mode: Optional[str] = None,
     settings: Optional[Settings] = None,
+    clock_snapshot: Optional[dict[str, Any]] = None,
 ) -> SessionResult:
     settings = settings or load_settings()
     names = tuple(underlyings) if underlyings else settings.underlyings
     llm: Optional[LlmClient] = None
     openai_used = False
     session_gaps: list[str] = []
+    mix_inputs = build_reason_inputs(settings.repo_root)
 
     resolved_mode: Mode
     if mode is not None:
@@ -225,16 +289,20 @@ def run_session(
         session_gaps.append("DATA_INSUFFICIENT: OPENAI_API_KEY not set in env/.env")
 
     tickets: list[PaperTicket] = []
+    all_handoffs: list[dict[str, Any]] = []
     for name in names:
         ctx, gaps = _resolve_context(
             name,
             prefer_desk=prefer_desk,
             gather_india_news=gather_india_news,
+            prefer_live_chain=prefer_live_chain,
+            mix_inputs=mix_inputs,
         )
         session_gaps.extend(gaps)
-        tickets.append(run_underlying_session(ctx, settings, llm if use_llm else None))
+        ticket = run_underlying_session(ctx, settings, llm if use_llm else None)
+        tickets.append(ticket)
+        all_handoffs.extend(ticket.handoffs)
 
-    # mode string for KB: PAPER (incl dry-run) or LIVE (still refused)
     mode_label: Mode = resolved_mode
 
     result = SessionResult(
@@ -249,6 +317,9 @@ def run_session(
         live_gate=live_gate.to_dict(),
         live_order_attempt=live_attempt,
         personas_cited=registry_payload(),
+        handoffs=all_handoffs,
+        clock=dict(clock_snapshot or {}),
+        mix_inputs=mix_inputs,
     )
 
     if persist:

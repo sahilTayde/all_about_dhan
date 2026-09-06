@@ -24,19 +24,23 @@ python -m trading_agents_india session --dry-run
 python -m trading_agents_india session --dry-run --underlying NIFTY
 python -m trading_agents_india session --mode PAPER --gather-news
 python -m trading_agents_india session --mode LIVE              # refuses orders
+python -m trading_agents_india market-hours --simulate --max-ticks 2
+python -m trading_agents_india market-hours --tick-seconds 45 --max-ticks 4
+python -m trading_agents_india clock
 python -m trading_agents_india session --dry-run --use-llm      # needs OPENAI_API_KEY
 python -m trading_agents_india personas
 python -m trading_agents_india review-plan
 ```
 
-## KB
+## KB + ledger
 
 Creates **`data/knowledge/trading_agents_india.sqlite`** on first run.  
+Market-hours ticks also append **`data/recon/paper_watch/MIX-*/YYYY-MM-DD.jsonl`**.  
 Does **not** modify `data/knowledge/transcripts.sqlite`.
 
 ## Paper-watch MIX (not default)
 
-`MIX-TA-FLOW-RISK`, `MIX-TA-EVENT-HOLD`, `MIX-TA-EXEC-SANITY` — see MIX_CATALOG §18.
+`MIX-TA-FLOW-RISK`, `MIX-TA-EVENT-HOLD`, `MIX-TA-EXEC-SANITY`, `MIX-TA-MARKET-HOURS` — see MIX_CATALOG §18.
 
 ## Mapping
 

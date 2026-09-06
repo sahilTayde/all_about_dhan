@@ -1,5 +1,34 @@
 # Handoff log — Team 04 Quant
 
+## As of now (2026-09-06) — MIX-TA-MARKET-HOURS PAPER_WATCH
+
+Named ledger MIX for IST market-hours agent poll. Not default. Not promote. Orders refused.
+
+Newest first.
+
+---
+
+```text
+From:     teams/04_quant
+To:       00 / 05 / 07 / 09
+Date:     2026-09-06
+Status:   PAPER_WATCH catalog row
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: MIX-TA-MARKET-HOURS (PROJECT_MIX) beside existing MIX-TA-*;
+  cites MIX-CLOCK-CAS dead-bands; reasons may cite MIX-DEFAULT-BUY + MIX-TA-*
+  as inputs (not silent deletes). KEEP_ALL.
+Rejected: Promote; customer_default; live agent orders; STRAT-015+.
+UNKNOWN: 15s tick readiness; live OI wall parser.
+
+Artifacts:
+- teams/04_quant/docs/MIX_CATALOG.md §18
+- teams/00_orchestrator/docs/PLAN_MARKET_HOURS_PAPER_AGENTS.md
+Next: paper ledger only during session; do not swap default ticket.
+```
+
+---
+
 ## As of now (2026-09-06) — MIX-CF-ANDREA-* + MIX-CF-OMOR-* catalog rows
 
 EXTERNAL Chart Fanatics Phase-10 ASR guests. Separate from prior CF (incl. Fabio). Andrea absorb OF PARKED; Omor KZ/ADR DI; structure proxies BACKTEST_BOOK. Not default.

@@ -46,6 +46,13 @@ PERSONAS: tuple[Persona, ...] = (
         notes="5m ST/MACD/RSI confirm-or-kill only",
     ),
     Persona(
+        trading_agents_name="Option Chain Watcher",
+        pipeline_role="chain_watcher",
+        india_role="3m Chain / Wall Hypothesis Analyst",
+        our_team="05/04",
+        notes="Dhan chain if tokens else fixtures; fake-breakout/thin-wall = HYPOTHESIS; DI if no data",
+    ),
+    Persona(
         trading_agents_name="Fundamentals Analyst",
         pipeline_role="fundamentals_skipped",
         india_role="Macro / Policy Context (CAS note only)",

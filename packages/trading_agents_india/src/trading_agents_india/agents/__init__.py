@@ -154,23 +154,82 @@ def run_technical_analyst(ctx: MarketContext, llm: Optional[LlmClient] = None) -
         lean = "BUY_CE"
     elif ctx.chain_lean == "PE":
         lean = "BUY_PE"
+    prem = ctx.premium_lean or {}
+    prem_note = ""
+    if prem:
+        prem_note = (
+            f" Premium lean source={prem.get('source')} lean={prem.get('lean')} "
+            f"layer={prem.get('layer')}."
+        )
     fallback = AgentReport(
         role="technical_analyst",
         summary=(
             f"Chain lean fixture={ctx.chain_lean}; trend={ctx.trend_plain}. "
-            f"{ctx.technical_note} Indicators confirm-or-kill only."
+            f"{ctx.technical_note} Indicators confirm-or-kill only.{prem_note}"
         ),
         lean_hint=lean,
         confidence=0.4 if lean != "HOLD" else 0.25,
         citations=["teams/04_quant/docs/SIGNAL_STAGING.md"],
-        data_gaps=list(ctx.data_gaps),
+        data_gaps=list(ctx.data_gaps) + list(prem.get("data_gaps") or []),
     )
     return _llm_report(
         llm,
         role="technical_analyst",
         system=(
             "Technical analyst for NSE index options. 5m ST/MACD/RSI are confirm-or-kill, not entry. "
-            "Map chain lean CE→BUY_CE, PE→BUY_PE, else HOLD. JSON fields as usual."
+            "Map chain lean CE→BUY_CE, PE→BUY_PE, else HOLD. "
+            "If premium_lean.source=index_proxy, label HYPOTHESIS. JSON fields as usual."
+        ),
+        user=json.dumps(ctx.to_prompt_blob()),
+        fallback=fallback,
+    )
+
+
+def run_chain_watcher(ctx: MarketContext, llm: Optional[LlmClient] = None) -> AgentReport:
+    """Option chain watcher — fake-breakout / thin-wall hypotheses; DI if no data."""
+    watch = ctx.chain_watch or {}
+    flag = str(watch.get("hypothesis_flag") or "NONE")
+    source = str(watch.get("source") or "fixture")
+    lean: Lean = "HOLD"
+    if ctx.chain_lean == "CE":
+        lean = "BUY_CE"
+    elif ctx.chain_lean == "PE":
+        lean = "BUY_PE"
+    # Thin wall / fake breakout → do not force directional; prefer HOLD overlay
+    if flag in ("THIN_WALL_HYPOTHESIS", "FAKE_BREAKOUT_HYPOTHESIS", "BOTH_HYPOTHESIS"):
+        if lean != "HOLD":
+            # Soften: keep lean_hint from chain but note hypothesis risk in summary
+            pass
+    walls = watch.get("wall_notes") or []
+    summary = str(watch.get("summary") or (
+        f"Chain watcher {ctx.underlying}: source={source} flag={flag}. "
+        "Fake-breakout/thin-wall are HYPOTHESIS only."
+    ))
+    if walls:
+        summary = summary + " " + "; ".join(str(w) for w in walls[:3])
+    gaps = list(ctx.data_gaps) + list(watch.get("data_gaps") or [])
+    if source in ("fixture", "unavailable"):
+        gaps.append("DATA_INSUFFICIENT: live chain walls not validated")
+    fallback = AgentReport(
+        role="chain_watcher",
+        summary=summary,
+        lean_hint=lean if flag == "NONE" else "HOLD",
+        confidence=0.35 if source == "dhan_live" else 0.2,
+        layer="HYPOTHESIS",
+        citations=[
+            "teams/05_analysis/docs/DESK_INTELLIGENCE.md",
+            "packages/trading_agents_india/hooks/chain.py",
+        ],
+        data_gaps=gaps,
+    )
+    return _llm_report(
+        llm,
+        role="chain_watcher",
+        system=(
+            "You are the India option-chain watcher. Flag fake-breakout and thin-wall "
+            "as HYPOTHESIS only. If data insufficient, say DATA_INSUFFICIENT. "
+            "Never invent OI walls. Prefer HOLD when walls are thin or breakout suspect. "
+            "JSON: summary, lean_hint (BUY_CE|BUY_PE|HOLD), confidence, citations, data_gaps."
         ),
         user=json.dumps(ctx.to_prompt_blob()),
         fallback=fallback,
@@ -283,17 +342,24 @@ def run_boss(
 
 
 def run_trader(boss: AgentReport, session_kind: SessionKind) -> AgentReport:
+    """Paper CE/PE/HOLD only — never places live orders."""
     lean = boss.lean_hint if session_kind == "NORMAL" else "HOLD"
+    if lean not in ("BUY_CE", "BUY_PE", "HOLD"):
+        lean = "HOLD"
     return _stamp_persona(
         AgentReport(
             role="trader",
             summary=(
                 f"Paper trader proposal: {lean}. Execution refused. "
-                "No /alerts/orders. Levels not invented when DATA_INSUFFICIENT."
+                "Emits paper CE/PE/HOLD only. No /alerts/orders. "
+                "Levels not invented when DATA_INSUFFICIENT."
             ),
-            lean_hint=lean,
+            lean_hint=lean,  # type: ignore[arg-type]
             confidence=boss.confidence * 0.9,
-            citations=["packages/desk-intel paper_signal adapter pattern"],
+            citations=[
+                "packages/desk-intel paper_signal adapter pattern",
+                "trading_agents_india.handoffs trader→risk",
+            ],
             data_gaps=["DATA_INSUFFICIENT: option premium fill model not claimed"],
         )
     )

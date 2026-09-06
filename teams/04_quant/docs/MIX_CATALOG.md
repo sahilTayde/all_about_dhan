@@ -1686,6 +1686,26 @@ docs:
   - packages/dhan-client/src/dhan_client/execution.py
 ```
 
+```yaml
+mix_id: MIX-TA-MARKET-HOURS
+origin: PROJECT_MIX
+origin_note: |
+  Market-hours paper agent poll loop (IST 09:30–15:00 active; MIX-CLOCK-CAS
+  dead-bands 09:00–09:30 + 15:00–15:30 → HOLD). Ledger:
+  data/recon/paper_watch/MIX-TA-MARKET-HOURS/ + trading_agents_india.sqlite.
+  Default tick 45s (30–60 band); path toward 15s documented, not default.
+  Not a promote. Not customer default. Orders refused.
+styles: [OPTION_BUYER]
+customer_default: false
+status: PAPER_WATCH
+proxy_status: WAITING
+of_required: false
+not_merged_into: [MIX-DEFAULT-BUY, MIX-TA-FLOW-RISK, STRAT-001]
+docs:
+  - teams/00_orchestrator/docs/PLAN_MARKET_HOURS_PAPER_AGENTS.md
+  - packages/trading_agents_india/src/trading_agents_india/session_runner.py
+```
+
 ---
 
 ## HANDOFF
