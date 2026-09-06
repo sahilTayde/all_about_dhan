@@ -98,6 +98,7 @@ Full SDLC: [`docs/SDLC.md`](docs/SDLC.md). **Score sheet:** [`docs/MASTER_REQUIR
 | API | `apps/api/` |
 | Handoff between teams | [`docs/HANDOFF.md`](docs/HANDOFF.md) + the team's `HANDOFF.md` |
 | **TradingAgents India paper agents** | [`ADOPT_TRADINGAGENTS.md`](teams/00_orchestrator/docs/ADOPT_TRADINGAGENTS.md), package `packages/trading_agents_india` (`python -m trading_agents_india session --dry-run`). EXTERNAL Apache-2.0. No live orders. |
+| **Agent RAG (speed KB)** | [`AGENT_RAG.md`](teams/01_research/docs/AGENT_RAG.md), package `packages/agent_rag` — `data/knowledge/agent_rag.sqlite` (FTS5; **not** `transcripts.sqlite`). `python -m agent_rag query "…"`, `paper-backtest`, `eod-recon`. |
 | Review gate | [`docs/REVIEW.md`](docs/REVIEW.md), `teams/09_review/`, Docs Auditor [`DOCS_AUDITOR.md`](teams/09_review/docs/DOCS_AUDITOR.md) |
 
 Full map: [`docs/INDEX.md`](docs/INDEX.md).

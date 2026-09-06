@@ -9,6 +9,7 @@
   python -m desk_intel poll-chain --interval 3m --offline
   python -m desk_intel status
   python -m desk_intel audit-docs
+  python -m desk_intel eod-recon --day 2026-09-06
   python -m docs_auditor
 """
 
@@ -209,6 +210,30 @@ def cmd_pre_market(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_eod_recon(args: argparse.Namespace) -> int:
+    """Thin alias → agent_rag eod-recon. No production param writes."""
+    try:
+        from agent_rag.eod_recon import run_eod_recon
+    except ImportError:
+        print(
+            json.dumps(
+                {
+                    "error": "agent_rag not installed — pip install -e packages/agent_rag",
+                    "retune_proposal": {"status": "BACKTEST_REQUIRED"},
+                    "promote": False,
+                }
+            )
+        )
+        return 1
+    out = run_eod_recon(
+        day=(getattr(args, "day", None) or None) or None,
+        offline=True,
+        update_continue=not bool(getattr(args, "no_continue", False)),
+    )
+    print(json.dumps(out, indent=2, default=str))
+    return 0
+
+
 def cmd_nightly(args: argparse.Namespace) -> int:
     cfg = load_desk_workspace()
     fixture_signals = None
@@ -374,6 +399,24 @@ def build_parser() -> argparse.ArgumentParser:
         "audit-docs",
         help="Standing Docs Auditor (09). Exit 1 if STALE/MISSING/CONTRADICTS.",
     )
+    eod = sub.add_parser(
+        "eod-recon",
+        parents=[common],
+        help=(
+            "EOD stub: paper ledger → session tag → RETUNE_PROPOSAL "
+            "BACKTEST_REQUIRED (agent_rag). No auto-retune."
+        ),
+    )
+    eod.add_argument(
+        "--day",
+        default="",
+        help="YYYY-MM-DD (default IST today). Alias of python -m agent_rag eod-recon.",
+    )
+    eod.add_argument(
+        "--no-continue",
+        action="store_true",
+        help="Do not patch CONTINUE_NEXT_CHAT.md",
+    )
     sub.add_parser(
         "ingest-news",
         parents=[common],
@@ -411,6 +454,7 @@ def main(argv: Optional[list[str]] = None) -> int:
         "pre-market": cmd_pre_market,
         "nightly": cmd_nightly,
         "post-market": cmd_nightly,
+        "eod-recon": cmd_eod_recon,
         "audit-docs": cmd_audit_docs,
         "ingest-news": cmd_ingest_news,
         "poll-chain": cmd_poll_chain,
