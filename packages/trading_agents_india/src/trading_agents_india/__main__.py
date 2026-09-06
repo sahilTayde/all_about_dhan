@@ -8,24 +8,47 @@ import sys
 from pathlib import Path
 
 
+def _resolve_flag_triple(
+    *,
+    explicit_on: bool,
+    explicit_off: bool,
+    default: bool,
+) -> bool:
+    """Precedence: --no-* wins over --*; else default."""
+    if explicit_off:
+        return False
+    if explicit_on:
+        return True
+    return default
+
+
 def cmd_session(args: argparse.Namespace) -> int:
+    from trading_agents_india.config import load_settings
     from trading_agents_india.pipeline import run_session
 
+    settings = load_settings()
     underlyings = None
     if args.underlying:
         underlyings = [u.strip().upper() for u in args.underlying.split(",") if u.strip()]
     mode = getattr(args, "mode", None) or ("PAPER" if args.dry_run or args.paper else "PAPER")
     if getattr(args, "live", False):
         mode = "LIVE"
+    # session: LLM stays opt-in unless --use-llm (soft-default is market-hours only)
+    use_llm = _resolve_flag_triple(
+        explicit_on=bool(args.use_llm),
+        explicit_off=bool(args.no_llm),
+        default=False,
+    )
     result = run_session(
         underlyings=underlyings,
         dry_run=bool(args.dry_run) and mode != "LIVE",
-        use_llm=bool(args.use_llm),
-        prefer_desk=bool(args.prefer_desk),
-        gather_india_news=bool(args.gather_news),
+        use_llm=use_llm,
+        prefer_desk=bool(args.prefer_desk) and not bool(args.no_prefer_desk),
+        gather_india_news=bool(args.gather_news) and not bool(args.no_gather_news),
         prefer_live_chain=bool(getattr(args, "live_chain", False)),
         persist=not bool(args.no_persist),
         mode=mode,
+        settings=settings,
     )
     payload = result.to_dict()
     print(json.dumps(payload, indent=2, ensure_ascii=False))
@@ -34,9 +57,11 @@ def cmd_session(args: argparse.Namespace) -> int:
 
 def cmd_market_hours(args: argparse.Namespace) -> int:
     """IST poll loop (or dry simulation). Appends paper_watch + sqlite."""
+    from trading_agents_india.config import load_settings
     from trading_agents_india.session_clock import DEFAULT_TICK_SECONDS
     from trading_agents_india.session_runner import run_market_hours_loop
 
+    settings = load_settings()
     underlyings = None
     if args.underlying:
         underlyings = [u.strip().upper() for u in args.underlying.split(",") if u.strip()]
@@ -44,19 +69,36 @@ def cmd_market_hours(args: argparse.Namespace) -> int:
     if getattr(args, "live", False):
         mode = "LIVE"
     tick = int(args.tick_seconds) if args.tick_seconds else DEFAULT_TICK_SECONDS
+    # Soft defaults (Astra A/C + founder): LLM when key; desk+news on; live-chain off
+    use_llm = _resolve_flag_triple(
+        explicit_on=bool(args.use_llm),
+        explicit_off=bool(args.no_llm),
+        default=bool(settings.openai_key_present),
+    )
+    prefer_desk = _resolve_flag_triple(
+        explicit_on=bool(args.prefer_desk),
+        explicit_off=bool(args.no_prefer_desk),
+        default=True,
+    )
+    gather_news = _resolve_flag_triple(
+        explicit_on=bool(args.gather_news),
+        explicit_off=bool(args.no_gather_news),
+        default=True,
+    )
     result = run_market_hours_loop(
         underlyings=underlyings,
         mode=mode,
         tick_seconds=tick,
         max_ticks=int(args.max_ticks),
         simulate=bool(args.simulate),
-        use_llm=bool(args.use_llm),
-        prefer_desk=bool(args.prefer_desk),
-        gather_india_news=bool(args.gather_news),
+        use_llm=use_llm,
+        prefer_desk=prefer_desk,
+        gather_india_news=gather_news,
         prefer_live_chain=bool(args.live_chain),
         persist=not bool(args.no_persist),
         write_paper_watch=not bool(args.no_paper_watch),
         stop_outside_shell=bool(args.stop_outside_shell),
+        settings=settings,
     )
     print(json.dumps(result.to_dict(), indent=2, ensure_ascii=False))
     return 0
@@ -111,11 +153,25 @@ def main(argv: list[str] | None = None) -> int:
     sub = parser.add_subparsers(dest="cmd", required=True)
 
     def _add_common_session_flags(p: argparse.ArgumentParser) -> None:
-        p.add_argument("--use-llm", action="store_true", help="Call OpenAI when key present")
+        p.add_argument(
+            "--use-llm",
+            action="store_true",
+            help="Force OpenAI on (market-hours already defaults on when key present)",
+        )
+        p.add_argument(
+            "--no-llm",
+            action="store_true",
+            help="Force rules-only path (no OpenAI calls)",
+        )
         p.add_argument(
             "--prefer-desk",
             action="store_true",
-            help="Try desk_intel news fixtures before pure local fixtures",
+            help="Prefer desk_intel news fixtures (market-hours soft-default on)",
+        )
+        p.add_argument(
+            "--no-prefer-desk",
+            action="store_true",
+            help="Skip desk_intel bridge",
         )
         p.add_argument(
             "--gather-news",
@@ -123,9 +179,14 @@ def main(argv: list[str] | None = None) -> int:
             help="Probe Dhan news API (DI if absent) + Moneycontrol via desk_intel RSS",
         )
         p.add_argument(
+            "--no-gather-news",
+            action="store_true",
+            help="Skip India news gather",
+        )
+        p.add_argument(
             "--live-chain",
             action="store_true",
-            help="Try Dhan optionchain + OPTIDX premium; else fixtures / INDEX proxy",
+            help="Try Dhan optionchain + OPTIDX premium; else fixtures / INDEX proxy (opt-in)",
         )
         p.add_argument("--underlying", default="", help="Comma list: NIFTY,BANKNIFTY,SENSEX")
         p.add_argument("--no-persist", action="store_true")

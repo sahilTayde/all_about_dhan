@@ -26,6 +26,7 @@ from trading_agents_india.hooks.desk import try_load_desk_context
 from trading_agents_india.hooks.event_memory import classify_session_kind
 from trading_agents_india.hooks.news import gather_news
 from trading_agents_india.hooks.premium import resolve_premium_lean
+from trading_agents_india.hooks.rag import fetch_rag_context
 from trading_agents_india.kb import AgentKB
 from trading_agents_india.llm import LlmClient
 from trading_agents_india.mix_inputs import build_reason_inputs
@@ -80,6 +81,7 @@ def _enrich_context(
         chain_watch=watch.to_dict(),
         premium_lean=premium.to_dict(),
         mix_inputs=mix_inputs,
+        rag_context=list(ctx.rag_context),
     )
 
 
@@ -118,10 +120,29 @@ def _resolve_context(
                 chain_watch=dict(ctx.chain_watch),
                 premium_lean=dict(ctx.premium_lean),
                 mix_inputs=dict(ctx.mix_inputs),
+                rag_context=list(ctx.rag_context),
             )
     ctx = _enrich_context(ctx, prefer_live_chain=prefer_live_chain, mix_inputs=mix_inputs)
     gaps.extend(ctx.data_gaps)
     return ctx, list(dict.fromkeys(gaps))
+
+
+def _attach_rag(ctx: MarketContext) -> MarketContext:
+    snippets, rag_gaps = fetch_rag_context(ctx.underlying)
+    return MarketContext(
+        underlying=ctx.underlying,
+        chain_lean=ctx.chain_lean,
+        trend_plain=ctx.trend_plain,
+        news=list(ctx.news),
+        session_kind_hint=ctx.session_kind_hint,
+        sentiment_label=ctx.sentiment_label,
+        technical_note=ctx.technical_note,
+        data_gaps=list(dict.fromkeys(list(ctx.data_gaps) + rag_gaps)),
+        chain_watch=dict(ctx.chain_watch),
+        premium_lean=dict(ctx.premium_lean),
+        mix_inputs=dict(ctx.mix_inputs),
+        rag_context=snippets,
+    )
 
 
 def run_underlying_session(
@@ -299,6 +320,9 @@ def run_session(
             mix_inputs=mix_inputs,
         )
         session_gaps.extend(gaps)
+        if use_llm:
+            ctx = _attach_rag(ctx)
+            session_gaps.extend(ctx.data_gaps)
         ticket = run_underlying_session(ctx, settings, llm if use_llm else None)
         tickets.append(ticket)
         all_handoffs.extend(ticket.handoffs)

@@ -72,7 +72,11 @@ class LlmClient:
         user: str,
         max_tokens: int = 700,
     ) -> tuple[Optional[dict[str, Any]], list[str]]:
-        """Return (parsed_dict_or_None, data_gaps)."""
+        """Return (parsed_dict_or_None, data_gaps).
+
+        gpt-6 / astra / o-series spend completion budget on reasoning — bump floor
+        so visible JSON is not truncated to empty ``finish_reason=length``.
+        """
         gaps: list[str] = []
         if not self.enabled or self._client is None:
             gaps.append(
@@ -81,8 +85,11 @@ class LlmClient:
             if self.last_error:
                 gaps.append(f"UNKNOWN: {self.last_error}")
             return None, gaps
+        budget = int(max_tokens)
+        if uses_max_completion_tokens(self.model):
+            budget = max(budget, 4000)
         try:
-            params = build_chat_completion_params(self.model, max_tokens=max_tokens)
+            params = build_chat_completion_params(self.model, max_tokens=budget)
             resp = self._client.chat.completions.create(
                 **params,
                 response_format={"type": "json_object"},
@@ -92,7 +99,17 @@ class LlmClient:
                 ],
             )
             text = (resp.choices[0].message.content or "").strip()
-            return json.loads(text), gaps
+            if not text:
+                gaps.append(
+                    "DATA_INSUFFICIENT: OpenAI returned empty content "
+                    f"(finish may be length; model={self.model})"
+                )
+                return None, gaps
+            parsed = extract_json_object(text)
+            if parsed is None:
+                gaps.append("DATA_INSUFFICIENT: OpenAI content was not valid JSON object")
+                return None, gaps
+            return parsed, gaps
         except Exception as exc:  # noqa: BLE001
             gaps.append(f"DATA_INSUFFICIENT: OpenAI call failed ({type(exc).__name__})")
             self.last_error = type(exc).__name__

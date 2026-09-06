@@ -176,6 +176,34 @@ def test_clock_dead_band_and_active() -> None:
     assert afternoon.in_dead_band is True
 
 
+def test_clock_shell_open_at_0900_and_weekend() -> None:
+    open_shell = snapshot(datetime(2026, 9, 4, 9, 0, tzinfo=IST))
+    assert open_shell.in_session_shell is True
+    assert open_shell.in_dead_band is True
+    assert open_shell.allow_directional_paper is False
+    # 2026-09-06 is Sunday — outside shell
+    sunday = snapshot(datetime(2026, 9, 6, 11, 0, tzinfo=IST))
+    assert sunday.in_session_shell is False
+    assert sunday.allow_directional_paper is False
+
+
+def test_rag_hook_fail_soft() -> None:
+    from trading_agents_india.hooks.rag import fetch_rag_context
+
+    snippets, gaps = fetch_rag_context("NIFTY", limit=2)
+    assert isinstance(snippets, list)
+    assert isinstance(gaps, list)
+    assert len(snippets) <= 2
+
+
+def test_cli_flag_triple_precedence() -> None:
+    from trading_agents_india.__main__ import _resolve_flag_triple
+
+    assert _resolve_flag_triple(explicit_on=False, explicit_off=True, default=True) is False
+    assert _resolve_flag_triple(explicit_on=True, explicit_off=False, default=False) is True
+    assert _resolve_flag_triple(explicit_on=False, explicit_off=False, default=True) is True
+
+
 def test_index_proxy_premium_labeled_hypothesis() -> None:
     r = index_proxy_lean("NIFTY", chain_lean="CE")
     assert r.source == "index_proxy"

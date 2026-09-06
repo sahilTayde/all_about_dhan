@@ -164,9 +164,10 @@ Rate limits: `packages/dhan-client/docs/RATE_LIMITS.md`
 **Clone:** `research/TradingAgents/` (gitignored nested tree; re-clone if missing)  
 **Study notes:** [`ADOPT_TRADINGAGENTS.md`](ADOPT_TRADINGAGENTS.md)  
 **Market-hours plan:** [`PLAN_MARKET_HOURS_PAPER_AGENTS.md`](PLAN_MARKET_HOURS_PAPER_AGENTS.md)  
+**Astra review (gpt-6-astra + gpt-4o, paper-today):** [`open_ai_astra_review.md`](open_ai_astra_review.md) · runbook [`PAPER_MARKET_HOURS_RUNBOOK.md`](PAPER_MARKET_HOURS_RUNBOOK.md)  
 **Market-hours council:** [`OPENAI_MARKET_HOURS_PAPER_COUNCIL_2026-09-06.md`](OPENAI_MARKET_HOURS_PAPER_COUNCIL_2026-09-06.md) (`gpt-5.4` + desk; `APPROVE_WITH_GUARDRAILS`)  
 **Design council (TradingAgents deepen):** [`OPENAI_DESIGN_COUNCIL_2026-09-06.md`](OPENAI_DESIGN_COUNCIL_2026-09-06.md) (`gpt-5.4` + desk; `APPROVE_WITH_GUARDRAILS`)  
-**Package:** `packages/trading_agents_india` — personas + chain watcher + handoffs + IST poll loop + `mode=PAPER|LIVE` (LIVE refuses)  
+**Package:** `packages/trading_agents_india` — personas + chain watcher + handoffs + IST poll loop + `mode=PAPER|LIVE` (LIVE refuses); market-hours soft-defaults LLM when key + desk/news; `--live-chain` opt-in; bounded `agent_rag` in LLM prompts  
 **KB:** `data/knowledge/trading_agents_india.sqlite` (separate from `transcripts.sqlite`)  
 **Ledger:** `data/recon/paper_watch/MIX-TA-*/` + `MIX-DEFAULT-BUY/`  
 **MIX paper-watch (not default):** `MIX-TA-FLOW-RISK`, `MIX-TA-EVENT-HOLD`, `MIX-TA-EXEC-SANITY`, `MIX-TA-MARKET-HOURS` — MIX_CATALOG §18  
@@ -177,13 +178,15 @@ Rate limits: `packages/dhan-client/docs/RATE_LIMITS.md`
 pip install -e packages/trading_agents_india
 python -m trading_agents_india session --dry-run
 python -m trading_agents_india market-hours --simulate --max-ticks 2
-python -m trading_agents_india market-hours --tick-seconds 45 --max-ticks 4
+python -m trading_agents_india market-hours --simulate --no-llm --max-ticks 1
+python -m trading_agents_india market-hours --tick-seconds 45 --max-ticks 4 --stop-outside-shell
+python -m trading_agents_india market-hours --live-chain --max-ticks 2   # data only
 python -m trading_agents_india clock
 python -m trading_agents_india session --mode PAPER --gather-news
 python -m trading_agents_india session --mode LIVE          # always refuses
-python -m trading_agents_india session --dry-run --use-llm  # needs OPENAI_API_KEY
+python -m trading_agents_india session --dry-run --use-llm  # session: LLM opt-in
 python -m trading_agents_india personas
-python -m trading_agents_india review-plan
+python -m agent_rag eod-recon --offline
 ```
 
 ### Still open (market-hours paper) — **empty**
@@ -204,6 +207,13 @@ Prior three “still open” items from the 2026-09-06 summary are **closed this
 | DEPTH-DECODE-VALIDATION | 02/03 prove WS quote/full/depth offsets + history replay | Before un-parking depth |
 | IST-LIVE-DATA-PAPER | Run `market-hours` (not `--simulate`) with `DHAN_*` data-only | Next IST session when asked |
 | CF-RETRY-30 + Phase-11 | Chart Fanatics fail=30 ASR; bind Yush + Marco return | Research track (see above) |
+
+### Astra paper-today ship (2026-09-06)
+
+- Review: [`open_ai_astra_review.md`](open_ai_astra_review.md) (root pointer `open_ai_astra_review.md`)
+- Runbook: [`PAPER_MARKET_HOURS_RUNBOOK.md`](PAPER_MARKET_HOURS_RUNBOOK.md)
+- Implemented: market-hours soft-default LLM + desk/news; `--no-llm`; Astra token floor; bounded RAG prompts; clock weekend/09:00 tests; EOD cron docs; live-chain stays opt-in
+- Verdict: **ReadyIsolatedResearch** / supervised CLI paper — **not** promote, **not** live orders
 
 **Still DI / gated (standing):** Dhan news API absent in client; Moneycontrol RSS VERIFY IF STABLE; India sentiment feed; EVENT_MEMORY analogs empty; live OI wall parser; OPTIDX dual CE/PE; LIVE founder allow + `TRADING_AGENTS_LIVE_GATE` default off; no live orders. KEEP_ALL unchanged. Not `RESEARCH_READY_FOR_PROGRAMMING`.
 

@@ -3,19 +3,26 @@
     "source": "mock",
     "placeholder": true,
     "label": "PAPER",
-    "asOf": "2026-09-06T15:40:00+05:30",
-    "note": "Read-only seed for a future /desk paper-agents panel. Not wired this phase. Use CLI: python -m trading_agents_india market-hours --simulate. Not a fill. Not a promote. Confidence ≠ win rate."
+    "asOf": "2026-09-06T23:45:00+00:00",
+    "note": "Read-only seed for a future /desk paper-agents panel. Not a live wire. Not a fill. Not a promote. Confidence ≠ win rate. Astra review: teams/00_orchestrator/docs/open_ai_astra_review.md"
   },
   "phase_status": {
     "desk_wire": "CLOSED_THIS_PHASE",
     "use_cli": "python -m trading_agents_india market-hours --simulate --max-ticks 2",
+    "runbook": "teams/00_orchestrator/docs/PAPER_MARKET_HOURS_RUNBOOK.md",
     "backlog": "UI-DESK-PAPER-AGENTS — wire persona board / blotter on /desk when asked"
   },
   "session": {
     "mix": "MIX-TA-MARKET-HOURS",
     "mode": "PAPER",
     "execution": "refused",
-    "promote": "NO_PROMOTE"
+    "promote": "NO_PROMOTE",
+    "defaults": {
+      "use_llm": "on when OPENAI_API_KEY present; --no-llm to disable",
+      "prefer_desk": true,
+      "gather_news": true,
+      "live_chain": false
+    }
   },
   "underlyings": ["NIFTY", "BANKNIFTY", "SENSEX"],
   "last_leans": {
@@ -38,10 +45,9 @@
       "note": "Mock NEWS_DAY-style hold; not live tape"
     }
   },
-  "depth": {
-    "status": "PARKED",
-    "layer": "DATA_INSUFFICIENT",
-    "claims_alpha": false,
-    "note": "Sub-second Dhan depth alpha parked until WS decode + history VALIDATION"
-  }
+  "honesty": [
+    "Synthetic fixture — not current market observation",
+    "KEEP_ALL STRAT-001–014",
+    "No live orders"
+  ]
 }

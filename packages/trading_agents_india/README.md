@@ -25,12 +25,18 @@ python -m trading_agents_india session --dry-run --underlying NIFTY
 python -m trading_agents_india session --mode PAPER --gather-news
 python -m trading_agents_india session --mode LIVE              # refuses orders
 python -m trading_agents_india market-hours --simulate --max-ticks 2
-python -m trading_agents_india market-hours --tick-seconds 45 --max-ticks 4
+# market-hours soft-defaults: LLM on if OPENAI_API_KEY; prefer-desk+gather-news on;
+# live-chain OFF. Opt out: --no-llm --no-prefer-desk --no-gather-news
+python -m trading_agents_india market-hours --tick-seconds 45 --max-ticks 4 --stop-outside-shell
+python -m trading_agents_india market-hours --live-chain --max-ticks 2   # data only; orders refuse
 python -m trading_agents_india clock
-python -m trading_agents_india session --dry-run --use-llm      # needs OPENAI_API_KEY
+python -m trading_agents_india session --dry-run --use-llm      # session: LLM still opt-in
 python -m trading_agents_india personas
 python -m trading_agents_india review-plan
 ```
+
+Runbook: [`teams/00_orchestrator/docs/PAPER_MARKET_HOURS_RUNBOOK.md`](../../teams/00_orchestrator/docs/PAPER_MARKET_HOURS_RUNBOOK.md)  
+Astra review: [`teams/00_orchestrator/docs/open_ai_astra_review.md`](../../teams/00_orchestrator/docs/open_ai_astra_review.md)
 
 ## KB + ledger
 
