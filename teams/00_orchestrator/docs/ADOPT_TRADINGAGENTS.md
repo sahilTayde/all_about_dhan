@@ -7,6 +7,7 @@
 **EXTERNAL:** [TauricResearch/TradingAgents](https://github.com/TauricResearch/TradingAgents) (Apache-2.0)  
 **Local clone:** `research/TradingAgents/` (shallow; **do not** treat as our product; gitignored nested tree)  
 **Design council (2026-09-06):** [`OPENAI_DESIGN_COUNCIL_2026-09-06.md`](OPENAI_DESIGN_COUNCIL_2026-09-06.md) — OpenAI `gpt-5.4` + founder desk; verdict `APPROVE_WITH_GUARDRAILS`  
+**Market-hours council (2026-09-06):** [`OPENAI_MARKET_HOURS_PAPER_COUNCIL_2026-09-06.md`](OPENAI_MARKET_HOURS_PAPER_COUNCIL_2026-09-06.md) — `APPROVE_WITH_GUARDRAILS` (PAPER build-first; LIVE refuse)  
 **Market-hours plan:** [`PLAN_MARKET_HOURS_PAPER_AGENTS.md`](PLAN_MARKET_HOURS_PAPER_AGENTS.md)  
 **MIX paper-watch:** `MIX-TA-FLOW-RISK`, `MIX-TA-EVENT-HOLD`, `MIX-TA-EXEC-SANITY`, `MIX-TA-MARKET-HOURS` ([`MIX_CATALOG.md`](../../04_quant/docs/MIX_CATALOG.md) §18) — not default, not promote
 
@@ -194,14 +195,16 @@ LIVE            → evaluate founder allow + TRADING_AGENTS_LIVE_GATE + RESEARCH
 
 ## 9. HANDOFF
 
-**Accepted:** Role graph + structured paper leans + separate KB + news-as-hold + `mode=PAPER|LIVE` refuse + persona aliases + `MIX-TA-*` PAPER_WATCH rows + OpenAI design council 2026-09-06.  
-**Rejected:** Broker exec, US fundamentals alpha, social as fact, STRAT deletes, LangGraph monorepo rewrite, inventing Dhan news headlines.  
-**UNKNOWN / DATA_INSUFFICIENT:** Dhan news API; Moneycontrol RSS stability; India sentiment feed; EVENT_MEMORY analogs empty; live chain without tokens; LIVE founder flags (default off).
+**Accepted:** Role graph + structured paper leans + separate KB + news-as-hold + `mode=PAPER|LIVE` refuse + persona aliases + `MIX-TA-*` PAPER_WATCH rows + OpenAI design council 2026-09-06 + **market-hours paper council** (`APPROVE_WITH_GUARDRAILS`).  
+**Rejected:** Broker exec, US fundamentals alpha, social as fact, STRAT deletes, LangGraph monorepo rewrite, inventing Dhan news headlines, depth alpha before decode VALIDATION.  
+**UNKNOWN / DATA_INSUFFICIENT:** Dhan news API; Moneycontrol RSS stability; India sentiment feed; EVENT_MEMORY analogs empty; live chain without tokens; LIVE founder flags (default off); WS full/depth offsets.
 
 **Artifacts:**
 - This file
 - [`OPENAI_DESIGN_COUNCIL_2026-09-06.md`](OPENAI_DESIGN_COUNCIL_2026-09-06.md)
-- `packages/trading_agents_india/` (`mode.py`, `personas.py`, `hooks/news.py`)
+- [`OPENAI_MARKET_HOURS_PAPER_COUNCIL_2026-09-06.md`](OPENAI_MARKET_HOURS_PAPER_COUNCIL_2026-09-06.md)
+- [`PLAN_MARKET_HOURS_PAPER_AGENTS.md`](PLAN_MARKET_HOURS_PAPER_AGENTS.md)
+- `packages/trading_agents_india/` (`mode.py`, `personas.py`, `hooks/news.py`, market-hours skeleton)
 - `teams/09_review/docs/TRADINGAGENTS_ADOPTION_REVIEW_2026-09-06.md`
 - `teams/09_review/docs/TRADINGAGENTS_DEEPEN_NOTES_2026-09-06.md`
 - `data/knowledge/trading_agents_india.sqlite` (created on first run)

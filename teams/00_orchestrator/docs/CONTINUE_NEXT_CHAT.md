@@ -164,7 +164,8 @@ Rate limits: `packages/dhan-client/docs/RATE_LIMITS.md`
 **Clone:** `research/TradingAgents/` (gitignored nested tree; re-clone if missing)  
 **Study notes:** [`ADOPT_TRADINGAGENTS.md`](ADOPT_TRADINGAGENTS.md)  
 **Market-hours plan:** [`PLAN_MARKET_HOURS_PAPER_AGENTS.md`](PLAN_MARKET_HOURS_PAPER_AGENTS.md)  
-**Design council:** [`OPENAI_DESIGN_COUNCIL_2026-09-06.md`](OPENAI_DESIGN_COUNCIL_2026-09-06.md) (`gpt-5.4` + desk; `APPROVE_WITH_GUARDRAILS`)  
+**Market-hours council:** [`OPENAI_MARKET_HOURS_PAPER_COUNCIL_2026-09-06.md`](OPENAI_MARKET_HOURS_PAPER_COUNCIL_2026-09-06.md) (`gpt-5.4` + desk; `APPROVE_WITH_GUARDRAILS`)  
+**Design council (TradingAgents deepen):** [`OPENAI_DESIGN_COUNCIL_2026-09-06.md`](OPENAI_DESIGN_COUNCIL_2026-09-06.md) (`gpt-5.4` + desk; `APPROVE_WITH_GUARDRAILS`)  
 **Package:** `packages/trading_agents_india` — personas + chain watcher + handoffs + IST poll loop + `mode=PAPER|LIVE` (LIVE refuses)  
 **KB:** `data/knowledge/trading_agents_india.sqlite` (separate from `transcripts.sqlite`)  
 **Ledger:** `data/recon/paper_watch/MIX-TA-*/` + `MIX-DEFAULT-BUY/`  
