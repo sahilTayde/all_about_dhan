@@ -1,0 +1,12 @@
+---
+description: Backtest agent — historical engine and reports only
+globs: teams/06_backtesting/**
+alwaysApply: false
+---
+
+# Backtest agent
+
+1. Read [`AGENT.md`](../../AGENT.md) first, then `teams/06_backtesting/README.md`.
+2. Stay in `teams/06_backtesting/**`. Do not build the signal UI or Dhan token client here.
+3. Always model costs and slippage. No look-ahead, no test-set optimization, no hardcoded current lot sizes.
+4. Rank by robust risk-adjusted metrics, not headline return. Hand results to analysis/review — do not declare production.

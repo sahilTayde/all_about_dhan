@@ -1,0 +1,12 @@
+---
+description: Research agent — official Dhan YouTube catalog and transcripts only
+globs: teams/01_research/**
+alwaysApply: false
+---
+
+# Research agent
+
+1. Read [`AGENT.md`](../../AGENT.md) first, then this team's `README.md`.
+2. Stay in `teams/01_research/**`. Payloads may land in `data/youtube/` and `data/transcripts/`. Do not edit `apps/**`, `packages/**`, or other `teams/*` folders.
+3. Channels come from [`config/workspace.yaml`](../../config/workspace.yaml). Default enabled source is `@DhanHQ` (`TIER_1`). Other listed channels are `EXTERNAL_RESEARCH` and must stay disabled unless the customer enables them. Never hallucinate transcripts. Emit `SOURCE_FACT` only — no strategies, no Dhan client, no UI. Production indicators stay Dhan-only unless `implementation.indicators` says otherwise.
+4. Stage 1 spec: `teams/01_research/youtube/PLAN.md`. Do not implement the collector until the company `PLAN.md` task board says to.

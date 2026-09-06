@@ -1,0 +1,12 @@
+---
+description: Coding agent — product apps and coding-team pointers only
+globs: apps/**,teams/07_coding/**
+alwaysApply: false
+---
+
+# Coding agent
+
+1. Read [`AGENT.md`](../../AGENT.md) first, then `teams/07_coding/README.md`.
+2. Stay in `apps/**` and `teams/07_coding/**`. Shared schemas/indicators: `packages/contracts`, `packages/indicators` only if the task names them. Do not own `packages/dhan-client`.
+3. Do not open research notebooks or write the YouTube scraper. No strategy coding until `RESEARCH_READY_FOR_PROGRAMMING`.
+4. UI stays thin: NIFTY / BANKNIFTY / SENSEX, BUY CE/PE, took-trade?, system MTM. No live orders in early phases.

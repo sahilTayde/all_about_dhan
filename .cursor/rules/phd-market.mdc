@@ -1,0 +1,14 @@
+---
+description: PhD market — chain, clocks, lots, VWAP object, SENSEX=BSE
+globs: teams/03_phd_market/**
+alwaysApply: false
+---
+
+# 03 PhD market
+
+1. Read `AGENT.md`, stay in `teams/03_phd_market/**` (CAS home `cas/`).
+2. Job is **VALIDATION**: NSE vs BSE, FUTIDX vs OPTIDX vs cash index, expiry/lots `FROM_CONTRACT`, session clocks.
+3. VWAP/volume on **cash NIFTY/SENSEX calculation** = `unsupported`. Use **futures or option tape**.
+4. Chain: `POST /optionchain` documented fields; poll **3m**; 1 unique / 3s. OI walls are **heuristics**, not laws.
+5. CAS = Closing Auction Session 15:15–15:35 IST on F&O **cash names**. F&O session **15:40** is **VERIFY**. Daily CAS bias is `UNVALIDATED`.
+6. Do not freeze Tuesday NIFTY / lot constants from a video. Comment on 04 strike/clock specs. No invented fills.

@@ -1,0 +1,472 @@
+# =============================================================================
+# MASTER WORKSPACE FILE (the one customer-facing config)
+# =============================================================================
+#
+# Change URLs and books HERE. Change API keys in gitignored `.env` (names only
+# below). Never paste keys into this file, chat, or git.
+#
+# Switch YouTube source (example):
+#   1. Set the channel you want: sources.youtube[].url  (or handle)
+#   2. Set enabled: true on that row; enabled: false on channels you do not want
+#   3. Non-Dhan rows stay tier: EXTERNAL_RESEARCH (do not silently promote them)
+#   4. Re-run catalog/transcripts. Agents cluster by topic — not one blob.
+#
+# Today the enabled source is official @DhanHQ (TIER_1). Zerodha / Market Analyst
+# Academy / Master Bull are disabled placeholders — this repo will not scrape
+# them unless you enable them.
+#
+# Secrets: values are NOT here. This file lists variable names and may use
+# ${YOUTUBE_API_KEY} interpolation, which is filled from `.env` at load time.
+#
+# Optional gitignored overlay: config/workspace.local.yaml (merged on top).
+# Prefer editing this file for URLs; keep keys in `.env`.
+#
+# Policy (keep honest):
+# - Default source remains official Dhan while the dhanhq row is enabled TIER_1.
+# - Non-Dhan channels are EXTERNAL_RESEARCH. Production indicators stay Dhan-only
+#   unless implementation.broker / implementation.indicators say otherwise.
+# - Education ≠ proof. Topic strategy docs are UNVALIDATED / HYPOTHESIS.
+#   Never claim guaranteed profits. See docs/COMPLIANCE.md.
+# =============================================================================
+
+schema_version: 1
+
+# Broker used for production indicator implementations (packages/indicators).
+# Leave `dhan` unless you intentionally retarget. Non-Dhan YouTube is research
+# only and does not change this by itself.
+implementation:
+  broker: dhan
+  indicators: dhan_only   # dhan_only | follow_broker
+
+markets:
+  - id: NIFTY
+    type: INDEX_OPTION
+    enabled: true
+    # VERIFY FROM Dhan instrument master. Official option-chain example uses 13 unnamed.
+    dhan_underlying_scrip: 13
+    dhan_underlying_seg: IDX_I
+    option_quote_seg: NSE_FNO
+  - id: BANKNIFTY
+    type: INDEX_OPTION
+    enabled: true
+    # VERIFY FROM instrument master. Common Dhan IDX_I mapping — not hardcoded in Python.
+    dhan_underlying_scrip: 25
+    dhan_underlying_seg: IDX_I
+    option_quote_seg: NSE_FNO
+  - id: SENSEX
+    type: INDEX_OPTION
+    enabled: true
+    # VERIFY FROM instrument master. SENSEX options quote on BSE_FNO.
+    dhan_underlying_scrip: 51
+    dhan_underlying_seg: IDX_I
+    option_quote_seg: BSE_FNO
+
+# Variable NAMES. Values live in repo-root `.env` (gitignored).
+# Interpolation: any string in this file may use ${VAR_NAME} from the environment.
+secrets_from_env:
+  youtube_api_key: ${YOUTUBE_API_KEY}
+  dhan_client_id: ${DHAN_CLIENT_ID}
+  dhan_access_token: ${DHAN_ACCESS_TOKEN}
+  dhan_refresh_token: ${DHAN_REFRESH_TOKEN}
+  dhan_client_secret: ${DHAN_CLIENT_SECRET}
+
+sources:
+  youtube:
+    # --- enabled default: official Dhan -------------------------------------
+    - id: dhanhq
+      handle: "@DhanHQ"
+      url: https://www.youtube.com/@DhanHQ
+      playlists_url: https://www.youtube.com/@DhanHQ/playlists
+      tier: TIER_1
+      origin: DHAN-DERIVED
+      enabled: true
+
+    # --- disabled examples: switch by URL + enabled: true -------------------
+    # VERIFY the handle/URL on the channel page before enabling.
+    # These are EXTERNAL_RESEARCH. Ideas only. Do not replace Dhan transcripts
+    # as production indicator SOURCE_FACT while implementation.indicators is dhan_only.
+    - id: zerodha
+      handle: "@ZerodhaVarsity"
+      url: https://www.youtube.com/@ZerodhaVarsity
+      playlists_url: https://www.youtube.com/@ZerodhaVarsity/playlists
+      tier: EXTERNAL_RESEARCH
+      origin: EXTERNAL_RESEARCH
+      enabled: false
+    - id: market_analyst_academy
+      handle: "@MarketAnalystAcademy"
+      url: https://www.youtube.com/@MarketAnalystAcademy
+      playlists_url: https://www.youtube.com/@MarketAnalystAcademy/playlists
+      tier: EXTERNAL_RESEARCH
+      origin: EXTERNAL_RESEARCH
+      enabled: false
+    - id: master_bull
+      handle: "@MasterBull"
+      url: https://www.youtube.com/@MasterBull
+      playlists_url: https://www.youtube.com/@MasterBull/playlists
+      tier: EXTERNAL_RESEARCH
+      origin: EXTERNAL_RESEARCH
+      enabled: false
+
+  # Independent VALIDATION references (not transcript sources, not proof of edge).
+  books:
+    - id: murphy_ta
+      title: Technical Analysis of the Financial Markets
+      author: John J. Murphy
+      url: https://www.penguinrandomhouse.com/books/118407/technical-analysis-of-the-financial-markets-by-john-j-murphy/
+      use: VALIDATION
+      enabled: true
+    - id: natenberg_ovp
+      title: Option Volatility and Pricing
+      author: Sheldon Natenberg
+      url: https://www.mhprofessional.com/option-volatility-and-pricing-9780071476508-usa
+      use: VALIDATION
+      enabled: true
+
+  # ---------------------------------------------------------------------------
+  # Desk intelligence — global + national economic news (RSS / official feeds).
+  # Customers edit URLs here. Do NOT depend on a brittle Moneycontrol HTML scrape.
+  # Historical Moneycontrol RSS paths: VERIFY IF STABLE; disable if they 404.
+  # Cite sources. Headlines tagged MACRO_EVENT in desk_intel when keywords match.
+  # ---------------------------------------------------------------------------
+  news:
+    - id: moneycontrol_economy
+      url: https://www.moneycontrol.com/rss/economy.xml
+      kind: rss
+      region: IN
+      tags: [MACRO_EVENT]
+      enabled: true
+      note: >
+        Historical Moneycontrol RSS path (community-cited). Official /news/rss/
+        page currently shows no content — VERIFY IF STABLE. If 404/HTML, set
+        enabled: false. Not an HTML scrape.
+    - id: moneycontrol_latest
+      url: https://www.moneycontrol.com/rss/latestnews.xml
+      kind: rss
+      region: IN
+      tags: [MACRO_EVENT]
+      enabled: true
+      note: Historical Moneycontrol RSS — VERIFY IF STABLE. Same caveat as economy.
+    - id: moneycontrol_global
+      url: https://www.moneycontrol.com/rss/internationalmarkets.xml
+      kind: rss
+      region: GLOBAL
+      tags: [MACRO_EVENT]
+      enabled: false
+      note: Historical path. Enable if it still returns RSS 2.0/Atom.
+    - id: rbi_rss_index
+      url: https://rbi.org.in/Scripts/rss.aspx
+      kind: official
+      region: IN
+      tags: [MACRO_EVENT, RBI]
+      enabled: true
+      note: >
+        Official RBI RSS explainer (https://rbi.org.in/Scripts/rss.aspx).
+        Press releases: https://www.rbi.org.in/Scripts/BS_PressReleaseDisplay.aspx
+        Direct XML URL is VERIFY FROM RBI — parser skips non-RSS HTML.
+    - id: fed_press
+      url: https://www.federalreserve.gov/feeds/press_all.xml
+      kind: rss
+      region: US
+      tags: [MACRO_EVENT, FOMC]
+      enabled: true
+      note: Official Federal Reserve press RSS.
+    - id: bls_latest
+      url: https://www.bls.gov/feed/bls_latest.rss
+      kind: rss
+      region: US
+      tags: [MACRO_EVENT, CPI, NFP]
+      enabled: true
+      note: Official BLS latest-releases RSS (CPI / employment prints).
+    - id: eia_today
+      url: https://www.eia.gov/rss/todayinenergy.xml
+      kind: rss
+      region: US
+      tags: [MACRO_EVENT, CRUDE]
+      enabled: true
+      note: Official EIA Today in Energy RSS (crude / energy).
+    - id: bbc_business
+      url: https://feeds.bbci.co.uk/news/business/rss.xml
+      kind: rss
+      region: GLOBAL
+      tags: [MACRO_EVENT]
+      enabled: true
+      note: Public BBC News business RSS — global headlines, not a broker feed.
+
+  # ---------------------------------------------------------------------------
+  # PRE_MARKET tape — GIFT / SGX / pre-open / US-close+Asia.
+  # Not DhanHQ endpoints. kind: rss = fetch feed; verify/todo = documented URL
+  # only (do not HTML-scrape quotes). --offline uses fixtures.
+  # ---------------------------------------------------------------------------
+  pre_open:
+    - id: nse_preopen_page
+      url: https://www.nseindia.com/market-data/pre-open-market-cm-and-emerge-market
+      kind: verify
+      region: IN
+      tags: [PRE_OPEN]
+      enabled: true
+      note: >
+        NSE cash pre-open is typically 09:00–09:08 IST (VERIFY FROM NSE circular).
+        HTML page, not RSS. No DhanHQ pre-open REST is documented. Fixture in --offline.
+
+  # Closing Auction Session (official CAS) — VERIFY pages, not a Dhan REST.
+  cas:
+    - id: nse_closing_auction_session
+      url: https://www.nseindia.com/static/products-services/closing-auction-session
+      kind: verify
+      region: IN
+      tags: [CAS, CLOSING_AUCTION]
+      enabled: true
+      note: >
+        Official NSE CAS product page. Phase 1 = F&O cash stocks.
+        Session 15:15–15:35 IST. Indicative index during order entry.
+        Not periodic-call-auction. Not a JSON API.
+    - id: nse_periodic_call_auction
+      url: https://www.nseindia.com/static/products-services/equity-market-periodic-call-auction
+      kind: verify
+      region: IN
+      tags: [PCA]
+      enabled: true
+      note: Illiquid periodic call auction — do not treat as index CAS.
+    - id: nse_market_timings
+      url: https://www.nseindia.com/static/market-data/market-timings
+      kind: verify
+      region: IN
+      tags: [SESSION]
+      enabled: true
+      note: >
+        Equity derivatives close 15:40. HTML table may still show pre-CAS
+        cash 15:30 (page dated 04/08/2025) — prefer the CAS product page.
+    - id: bse_cas_notice_20260610_41
+      url: https://www.bseindia.com/downloads/UploadDocs/Notices/20260610-41/20260610-41.pdf
+      kind: verify
+      region: IN
+      tags: [CAS, SENSEX, BSE]
+      enabled: true
+      note: BSE operating guidelines for Closing Auction Session (SENSEX names).
+
+  gift_nifty:
+    - id: nse_gift_nifty_page
+      url: https://www.nseindia.com/market-data/gift-nifty
+      kind: verify
+      region: IN
+      tags: [GIFT_NIFTY]
+      enabled: true
+      note: >
+        GIFT Nifty (NSE IFSC) succeeded SGX Nifty. Exchange HTML page — not a
+        documented JSON API and not a Dhan endpoint. VERIFY if NSE publishes
+        a public delayed quote/RSS. Fixture in --offline.
+    - id: sgx_derivatives_delayed
+      url: https://www.sgx.com/derivatives/delayed-prices
+      kind: verify
+      region: SG
+      tags: [SGX]
+      enabled: true
+      note: >
+        SGX delayed-prices HTML. SGX Nifty futures migrated to NSE IFSC (GIFT).
+        VERIFY whether any public XML/JSON remains. Do not invent Dhan SGX REST.
+
+  global_tape:
+    - id: yahoo_finance_news
+      url: https://finance.yahoo.com/news/rssindex
+      kind: rss
+      region: US
+      tags: [US_CLOSE, GLOBAL]
+      enabled: true
+      note: Public Yahoo Finance news RSS — US close / overnight headlines. VERIFY IF STABLE.
+    - id: moneycontrol_global_tape
+      url: https://www.moneycontrol.com/rss/internationalmarkets.xml
+      kind: rss
+      region: GLOBAL
+      tags: [ASIA, GLOBAL]
+      enabled: true
+      note: Same historical Moneycontrol path as sources.news moneycontrol_global. VERIFY IF STABLE.
+
+# Desk intelligence poll + keyword maps (customer-editable).
+# 3m = default full Dhan option-chain snapshot.
+# Dhan rate limit is 1 unique chain request / 3 seconds — 3 minutes between
+# *full* chain calls is well inside that budget. Do not poll full chain every 1m.
+# 1m = optional ATM±N strike-buildup via market-quote, NOT a full chain poll.
+# Last snapshot is remembered so OI / PCR / ATM CE–PE Δ can feed trend/buildup.
+desk_intel:
+  snapshots_dir: data/desk_intel/snapshots
+  signals_dir: data/desk_intel/signals
+  ledger_dir: data/desk_intel/ledger
+  recon_dir: data/recon
+  phd_handoff_dir: teams/02_phd_math/docs/handoffs
+  cas_calls_dir: teams/03_phd_market/cas/calls
+  news_lookback_hours: 18
+  event_veto_minutes: 60
+  opening_drive_until: "09:45"
+  poll:
+    chain_interval: 3m
+    strike_buildup_interval: 1m
+    strike_buildup_enabled: false
+    remember_last_snapshot: true
+    atm_wing: 5
+    option_chain_min_seconds: 3
+    quote_min_seconds: 1.0
+  # Fusion schema for dashboard bind. Values may be mock until rolling windows exist.
+  sentiment:
+    windows: [10m, 15m, 30m, 1h]
+  keywords:
+    macro_event:
+      - GDP
+      - PMI
+      - CPI
+      - WPI
+      - IIP
+      - RBI
+      - MPC
+      - repo
+      - FOMC
+      - Fed
+      - NFP
+      - payroll
+      - crude
+      - oil
+      - Brent
+      - WTI
+      - USDINR
+      - rupee
+      - dollar
+      - inflation
+      - hawkish
+      - dovish
+      - rate hike
+      - rate cut
+      - MOSPI
+      - budget
+      - fiscal
+    risk_off:
+      - hawkish
+      - rate hike
+      - inflation surge
+      - CPI hot
+      - war
+      - geopolitical
+      - default
+      - crash
+      - selloff
+      - risk-off
+      - crude jumps
+      - oil jumps
+      - rupee falls
+      - rupee slides
+      - dollar surge
+      - tighten
+    risk_on:
+      - dovish
+      - rate cut
+      - stimulus
+      - GDP beat
+      - PMI expansion
+      - ceasefire
+      - risk-on
+      - crude falls
+      - oil drops
+      - rupee gains
+      - inflation cools
+    no_trade:
+      - circuit
+      - trading halt
+      - result day
+      - unknown print
+      - data delayed
+
+# Scheduled desk jobs (IST). PRE_MARKET before 09:15; POST_MARKET after close.
+# F&O close 15:30 vs 15:40 is VERIFY — do not hardcode forever.
+# See teams/03_phd_market/docs/VALIDATION_MARKET.md
+jobs:
+  pre_market:
+    enabled: true
+    before_ist: "09:15"
+    note: >
+      Before cash/F&O open. News + govt-calendar keywords, US close / Asia,
+      GIFT Nifty / SGX if a public source exists, Dhan chain snapshot if token,
+      regime note. CLI: python -m desk_intel morning | pre-market
+      or python -m jobs pre-market.
+  post_market:
+    enabled: true
+    after_ist: "15:40"
+    session_close_ist: UNKNOWN
+    session_close_note: >
+      VERIFY FROM NSE/BSE circular. Classic continuous F&O close 15:30 IST.
+      2026 secondary press: equity derivatives 15:40 from 3 Aug 2026.
+      Job runs after 15:40 so both clocks have passed. Do not treat as eternal.
+    note: >
+      Nightly recon + PhD handoff (shadow paper P/L vs user P/L).
+      Also copies cas_calls[] from teams/03_phd_market/cas/calls/ if present.
+      Ends with Docs Auditor (09) — python -m docs_auditor.
+      CLI: python -m desk_intel nightly | post-market or python -m jobs post-market.
+  docs_auditor:
+    enabled: true
+    cadence: daily
+    note: >
+      Standing Docs Auditor (team 09_review). After any requirement change AND
+      at the end of POST_MARKET nightly. Compare MASTER_REQUIREMENTS / AGENT.md /
+      team HANDOFFs vs code (3m chain, signal states, CAS, retune gate, no live
+      orders). Flag STALE / MISSING / CONTRADICTS. Exit 1 if stale.
+      CLI: python -m docs_auditor  or  python -m desk_intel audit-docs
+      or included at the end of python -m jobs post-market.
+      Never prints secrets. No web scrape. No live Dhan.
+
+pipeline:
+  catalog:
+    csv: data/youtube/video_catalog.csv
+    json: data/youtube/video_catalog.json
+    external_candidates: data/youtube/external_candidates.md
+  transcripts:
+    raw: data/transcripts/raw
+    normalized: data/transcripts/normalized
+    parked: data/transcripts/parked_tomorrow
+  english:
+    normalized: data/transcripts/normalized_en
+  topic_extract:
+    dir: data/topics
+  strategy_docs:
+    dir: teams/04_quant/docs/topics
+  run_report: teams/01_research/youtube/docs/RUN_REPORT.md
+  topic_clusters:
+    - id: options_buying
+      title: Options buying
+      tags: [OPTIONS]
+      match: any
+    - id: vwap
+      title: VWAP
+      tags: [VWAP]
+      match: any
+    - id: rsi_supertrend
+      title: RSI + Supertrend
+      tags: [RSI, SUPERTREND]
+      match: all
+    - id: macd
+      title: MACD
+      tags: [MACD]
+      match: any
+    - id: option_chain
+      title: Option chain
+      tags: [OPTION_CHAIN]
+      match: any
+    - id: scalping
+      title: Scalping
+      tags: [SCALPING]
+      match: any
+
+# Which team owns each pipeline step (orchestrator routing).
+agent_routing:
+  catalog: 01_research
+  transcripts: 01_research
+  english: 01_research
+  topic_extract: 01_research
+  source_fact: 01_research
+  validation_math: 02_phd_math
+  validation_market: 03_phd_market
+  strategy_docs: 04_quant
+  analysis: 05_analysis
+  desk_intel: 05_analysis
+  desk_intel_chain: dhan-client
+  desk_intel_market: 03_phd_market
+  cas_analyst: 03_phd_market
+  docs_auditor: 09_review
+  backtest: 06_backtesting
+  review: 09_review

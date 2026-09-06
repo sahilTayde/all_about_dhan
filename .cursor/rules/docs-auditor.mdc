@@ -1,0 +1,21 @@
+---
+description: Docs Auditor must run after any requirement change and as the last nightly step
+globs: AGENT.md,PLAN.md,docs/MASTER_REQUIREMENTS.md,docs/HANDOFF.md,docs/SDLC.md,docs/INDEX.md,teams/**/HANDOFF.md,teams/**/docs/HANDOFF*.md,config/workspace.yaml,teams/06_backtesting/docs/RETUNE_GATE.md,teams/03_phd_market/cas/**,teams/04_quant/docs/SIGNAL_STAGING.md,teams/00_orchestrator/docs/TASK_DOCS_AUDITOR.md,teams/09_review/docs/DOCS_AUDITOR.md,.cursor/rules/docs-auditor.mdc,.cursor/hooks.json
+alwaysApply: true
+---
+
+# Docs Auditor (standing — always on)
+
+After you edit requirements, `AGENT.md`, `MASTER_REQUIREMENTS.md`, any `HANDOFF.md`, `PLAN.md`, or `config/workspace.yaml` poll/jobs, you **must** run:
+
+```bash
+python -m docs_auditor
+```
+
+or `python -m desk_intel audit-docs`.
+
+Do **not** merge requirement changes if the auditor exits 1. Fix `MISSING` / `STALE` / `CONTRADICTS` or update the manager sheet.
+
+Nightly POST_MARKET (`python -m desk_intel nightly` / `python -m jobs post-market`) already runs the auditor **last** — that is the daily path, **not** a substitute for running after your edits.
+
+Charter: `teams/09_review/docs/DOCS_AUDITOR.md`. Never print secrets. No live Dhan. Do not restart npm.

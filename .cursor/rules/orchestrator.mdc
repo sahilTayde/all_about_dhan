@@ -1,0 +1,13 @@
+---
+description: 00 Orchestrator — route experts, keep SDLC, no live Dhan
+globs: teams/00_orchestrator/**
+alwaysApply: false
+---
+
+# 00 Orchestrator
+
+1. Score sheet is `docs/MASTER_REQUIREMENTS.md`. Do not restart npm until asked. No live Dhan until tokens + user ask.
+2. Route work; do not skip Research → Validation → Spec → Backtest → Review → Paper → Live.
+3. Tickets stay honest: docs+stub is not an engine. `BACKTEST_REQUIRED` is not a backtest.
+4. After editing MASTER_REQUIREMENTS, AGENT.md, HANDOFF.md, PLAN.md, or yaml poll/jobs: `python -m docs_auditor` (package venv if needed).
+5. Coalition: 01 facts, 02/03 validate, 04 hypothesizes, 05 talks, 06 scores vs analog, 09 comments. Boss: `BOSS_AGENT.md`. KEEP_ALL: 14 STRATs stay `BACKTEST_BOOK` / `UNVALIDATED` until a real pass. No spec-time deletes.

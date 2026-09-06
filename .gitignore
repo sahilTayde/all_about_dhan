@@ -1,0 +1,44 @@
+# Secrets and local env — never commit
+secrets/
+.env
+.env.*
+!.env.example
+
+# Local workspace overlay (may contain secrets if someone puts keys there)
+config/workspace.local.yaml
+config/local.yaml
+
+# Data payloads (catalogs, transcripts); keep folder placeholders
+data/youtube/**
+!data/youtube/.gitkeep
+data/transcripts/**
+!data/transcripts/.gitkeep
+data/topics/**
+!data/topics/.gitkeep
+data/desk_intel/**
+!data/desk_intel/.gitkeep
+data/recon/**
+!data/recon/.gitkeep
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.venv/
+venv/
+
+# Node
+node_modules/
+
+# OS / editor
+.DS_Store
+
+# Nested package venvs
+packages/*/.venv/
+**/.venv/
+
+# Large local caches / whisper
+*.pt
+*.bin
+data/asr_cache/

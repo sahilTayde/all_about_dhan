@@ -1,0 +1,40 @@
+# docs/INDEX.md — if the task is X, open these files
+
+Always start with [`AGENT.md`](../AGENT.md). **Morning / frontier review:** [`docs/MASTER_REQUIREMENTS.md`](MASTER_REQUIREMENTS.md) then [`REVIEW_BRIEF_FOR_FRONTIER_MODEL.md`](../teams/00_orchestrator/docs/REVIEW_BRIEF_FOR_FRONTIER_MODEL.md). Then open only the paths below. Do not roam. **Do not restart npm until asked.**
+
+| Task | Open |
+|------|------|
+| **Master requirements (morning sheet)** | [`docs/MASTER_REQUIREMENTS.md`](MASTER_REQUIREMENTS.md) |
+| Company status / this week's work | [`PLAN.md`](../PLAN.md), [`docs/SDLC.md`](SDLC.md), [`STATUS.md`](../teams/00_orchestrator/docs/STATUS.md) |
+| **Customer URLs / books / YouTube source switch** | [`config/workspace.yaml`](../config/workspace.yaml) — customers change this file |
+| **Desk intel / morning MARKET_SIGNAL** | [`teams/05_analysis/docs/DESK_INTELLIGENCE.md`](../teams/05_analysis/docs/DESK_INTELLIGENCE.md), [`packages/desk-intel/README.md`](../packages/desk-intel/README.md), persona [`teams/00_orchestrator/docs/PERSONA_DESK.md`](../teams/00_orchestrator/docs/PERSONA_DESK.md). Poll: **3m** chain + last snapshot ([`TASK_CUSTOMER_DESK.md`](../teams/00_orchestrator/docs/TASK_CUSTOMER_DESK.md)). Jobs: [`TASK_PRE_POST_MARKET_JOBS.md`](../teams/00_orchestrator/docs/TASK_PRE_POST_MARKET_JOBS.md). Retune gate: [`TASK_RETUNE_GATE.md`](../teams/00_orchestrator/docs/TASK_RETUNE_GATE.md), [`RETUNE_GATE.md`](../teams/06_backtesting/docs/RETUNE_GATE.md) |
+| **Staged signals (WATCH / EARLY / CONFIRMED / IN-PROGRESS)** | Ticket [`TASK_STAGED_SIGNALS.md`](../teams/00_orchestrator/docs/TASK_STAGED_SIGNALS.md) (`IN_PROGRESS`; live `DHAN_*` **TODO**), [`SIGNAL_STAGING.md`](../teams/04_quant/docs/SIGNAL_STAGING.md) (live **IN-PROGRESS** then ACHIEVED/STOPPED/INVALIDATED), postmortem [`MISSED_TRADE_POSTMORTEM.md`](../teams/09_review/docs/MISSED_TRADE_POSTMORTEM.md) |
+| YouTube scrape / catalog / transcripts | [`teams/01_research/youtube/ANALYSIS.md`](../teams/01_research/youtube/ANALYSIS.md) (day-to-day; full spec [`PLAN.md`](../teams/01_research/youtube/PLAN.md)), [`teams/01_research/README.md`](../teams/01_research/README.md), later `teams/01_research/youtube/src/` |
+| Topic → per-topic strategy docs | [`teams/01_research/docs/TOPIC_STRATEGY_PIPELINE.md`](../teams/01_research/docs/TOPIC_STRATEGY_PIPELINE.md), [`teams/04_quant/docs/topics/`](../teams/04_quant/docs/topics/) |
+| Research charter, 3-layer model, status labels, source hierarchy | [`docs/RESEARCH.md`](RESEARCH.md) |
+| Dhan ecosystem URL classes (promo ≠ evidence) | [`teams/01_research/docs/DHAN_ECOSYSTEM.md`](../teams/01_research/docs/DHAN_ECOSYSTEM.md) |
+| Official Dhan indicators (API vs chart-only) | [`teams/01_research/docs/DHAN_OFFICIAL_INDICATORS.md`](../teams/01_research/docs/DHAN_OFFICIAL_INDICATORS.md), [`teams/02_phd_math/docs/DHAN_INDICATOR_API_MAP.md`](../teams/02_phd_math/docs/DHAN_INDICATOR_API_MAP.md), [`research/indicator_knowledge_base.md`](../research/indicator_knowledge_base.md) |
+| Desk persona seed | [`teams/00_orchestrator/docs/PERSONA.md`](../teams/00_orchestrator/docs/PERSONA.md); operator checklist [`PERSONA_DESK.md`](../teams/00_orchestrator/docs/PERSONA_DESK.md) |
+| Education ≠ advice, provenance, SEBI pointer | [`docs/COMPLIANCE.md`](COMPLIANCE.md) |
+| Independent math / indicator / Greeks check | [`teams/02_phd_math/README.md`](../teams/02_phd_math/README.md). Nightly packet is **REVIEW** not auto-apply: [`handoffs/README.md`](../teams/02_phd_math/docs/handoffs/README.md) |
+| Exchange, lots, SENSEX/BSE, trading hours | [`teams/03_phd_market/README.md`](../teams/03_phd_market/README.md) |
+| **CAS (Closing Auction Session)** | [`teams/03_phd_market/cas/README.md`](../teams/03_phd_market/cas/README.md), research [`RESEARCH.md`](../teams/03_phd_market/cas/RESEARCH.md), strategies [`CAS_STRATEGIES.md`](../teams/03_phd_market/cas/CAS_STRATEGIES.md), tape scan [`CAS_FROM_DHAN_VIDEOS.md`](../teams/01_research/docs/handoffs/CAS_FROM_DHAN_VIDEOS.md), ticket [`TASK_CAS_ANALYST.md`](../teams/00_orchestrator/docs/TASK_CAS_ANALYST.md) |
+| **Transcript coalition / algo handoff (docs only)** | Ticket [`TASK_TRANSCRIPT_COALITION.md`](../teams/00_orchestrator/docs/TASK_TRANSCRIPT_COALITION.md). Bind [`TRANSCRIPT_STRATEGY_BIND.md`](../teams/01_research/docs/handoffs/TRANSCRIPT_STRATEGY_BIND.md). Packets [`OPTIONS_INDEX_PACKET.md`](../teams/01_research/docs/handoffs/OPTIONS_INDEX_PACKET.md), [`TA_STRUCTURE_PACKET.md`](../teams/01_research/docs/handoffs/TA_STRUCTURE_PACKET.md), [`EQUITY_ETF_PACKET.md`](../teams/01_research/docs/handoffs/EQUITY_ETF_PACKET.md). YAML shape [`ALGO_HANDOFF.md`](../teams/04_quant/docs/ALGO_HANDOFF.md) (**do not code**). Notes [`COALITION_REVIEW.md`](../teams/09_review/docs/COALITION_REVIEW.md). Clocks [`TRANSCRIPT_MARKET_NOTES.md`](../teams/03_phd_market/docs/TRANSCRIPT_MARKET_NOTES.md) |
+| **Expert coalition / engine mix (docs only)** | Board [`EXPERT_COALITION.md`](../teams/00_orchestrator/docs/EXPERT_COALITION.md). Boss [`BOSS_AGENT.md`](../teams/00_orchestrator/docs/BOSS_AGENT.md). KEEP_ALL [`MIX_CATALOG.md`](../teams/04_quant/docs/MIX_CATALOG.md). Mix [`ENGINE_MIX.md`](../teams/04_quant/docs/ENGINE_MIX.md) (`UNVALIDATED`). 09 [`KEEP_ALL_REVIEW.md`](../teams/09_review/docs/KEEP_ALL_REVIEW.md) — **not** a pass. |
+| Strategy spec / hypotheses | [`teams/04_quant/README.md`](../teams/04_quant/README.md), [`MASTER_STRATEGY_PLAN.md`](../teams/04_quant/docs/MASTER_STRATEGY_PLAN.md), staging [`SIGNAL_STAGING.md`](../teams/04_quant/docs/SIGNAL_STAGING.md), algo YAML [`ALGO_HANDOFF.md`](../teams/04_quant/docs/ALGO_HANDOFF.md) |
+| Scorecards, missed-signal analysis, desk intel | [`teams/05_analysis/README.md`](../teams/05_analysis/README.md), [`teams/05_analysis/docs/DESK_INTELLIGENCE.md`](../teams/05_analysis/docs/DESK_INTELLIGENCE.md) |
+| Backtest / OOS / walk-forward / costs | [`teams/06_backtesting/README.md`](../teams/06_backtesting/README.md), retune gate [`RETUNE_GATE.md`](../teams/06_backtesting/docs/RETUNE_GATE.md) |
+| Token / DhanHQ client | [`packages/dhan-client/README.md`](../packages/dhan-client/README.md), [`docs/SECURITY.md`](SECURITY.md) |
+| Desk intel package | [`packages/desk-intel/README.md`](../packages/desk-intel/README.md) |
+| Shared schemas | [`packages/contracts/README.md`](../packages/contracts/README.md) |
+| Indicator implementations | [`packages/indicators/README.md`](../packages/indicators/README.md) |
+| Signal UI — **customer `/` vs internal `/desk`** | [`apps/web/README.md`](../apps/web/README.md) — ticket + IN-PROGRESS + CasPanel; book P/L **MOCK**. `/desk` is research-only |
+| FastAPI backend | [`apps/api/README.md`](../apps/api/README.md) |
+| Coding team pointers | [`teams/07_coding/README.md`](../teams/07_coding/README.md) |
+| QA / paper checks | [`teams/08_testing/README.md`](../teams/08_testing/README.md) |
+| Five-pass + red-team before coding a strategy | [`docs/REVIEW.md`](REVIEW.md), [`teams/09_review/README.md`](../teams/09_review/README.md), postmortem [`MISSED_TRADE_POSTMORTEM.md`](../teams/09_review/docs/MISSED_TRADE_POSTMORTEM.md) |
+| **Docs vs code (Docs Auditor)** | Charter [`DOCS_AUDITOR.md`](../teams/09_review/docs/DOCS_AUDITOR.md), ticket [`TASK_DOCS_AUDITOR.md`](../teams/00_orchestrator/docs/TASK_DOCS_AUDITOR.md), latest [`AUDIT_LATEST.md`](../teams/00_orchestrator/docs/AUDIT_LATEST.md). `python -m docs_auditor` |
+| Resume tomorrow / wake-up | [`HANDOFF_TOMORROW.md`](../teams/00_orchestrator/docs/HANDOFF_TOMORROW.md) — read MASTER_REQUIREMENTS first; do not restart npm |
+| Move work between teams | [`docs/HANDOFF.md`](HANDOFF.md) + the team's `HANDOFF.md` |
+| Secrets / tokens | [`docs/SECURITY.md`](SECURITY.md), [`.env.example`](../.env.example). YouTube key how-to: [`teams/01_research/youtube/README.md`](../teams/01_research/youtube/README.md) |
+| Task allocation notes | [`teams/00_orchestrator/README.md`](../teams/00_orchestrator/README.md) |

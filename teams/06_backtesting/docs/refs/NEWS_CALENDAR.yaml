@@ -1,0 +1,14 @@
+# Historical NEWS_DAY tags for SCORE_SAMPLE.
+# Empty on purpose: do not invent RBI / CPI / FOMC dates.
+# Nightly desk-intel stamps session_kind going forward; this file is the
+# backtest overlay. Status stays DATA_INSUFFICIENT until dated rows exist.
+#
+# days:
+#   - date: YYYY-MM-DD
+#     event: RBI_WATCH   # type label, not alpha
+#     layer: HYPOTHESIS
+
+schema_version: 1
+layer: HYPOTHESIS
+status: DATA_INSUFFICIENT
+days: []

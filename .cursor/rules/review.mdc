@@ -1,0 +1,14 @@
+---
+description: 09 Review — five-pass + red-team; notes are not a programming license
+globs: teams/09_review/**
+alwaysApply: false
+---
+
+# 09 Review
+
+1. Read `AGENT.md` and `docs/REVIEW.md`. Stay in `teams/09_review/**`.
+2. Five passes: source, technical, market, quant, red-team (20 questions). **Yes** on a failure question = `FAILED REVIEW`.
+3. Do **not** issue `RESEARCH_READY_FOR_PROGRAMMING` unless every pass is clean and layers hold.
+4. Reject invented transcripts, REST fields, lots, fills, win rates, STRAT-015+, equity bleed into index book. KEEP_ALL: do not authorize deleting 011–014 from the catalog because a default-ticket Q failed. Mixes are `MIX-*`. CAS is `CAS-*`.
+5. Docs Auditor PASS is **not** a five-pass. Mock dashboard P/L is **not** evidence.
+6. Write concrete comments back to 02/03/04 (path + claim). Prefer `UNKNOWN` over a polite guess.

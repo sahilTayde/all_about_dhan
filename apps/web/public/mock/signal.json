@@ -1,0 +1,431 @@
+{
+  "meta": {
+    "source": "mock",
+    "placeholder": true,
+    "asOf": "2026-09-01T14:10:00+05:30",
+    "note": "UI-only mock. No live strategy. No DhanHQ calls from the browser. Not a fill. Not advice."
+  },
+  "underlyings": ["NIFTY", "BANKNIFTY", "SENSEX"],
+  "sentiment": {
+    "source": "mock",
+    "note": "Mock fusion placeholder. Not an indicator readout.",
+    "windows": ["1h", "30m", "15m", "10m"],
+    "byUnderlying": {
+      "NIFTY": {
+        "1h": "BEARISH",
+        "30m": "BEARISH",
+        "15m": "SIDEWAYS",
+        "10m": "BEARISH"
+      },
+      "BANKNIFTY": {
+        "1h": "BEARISH",
+        "30m": "BEARISH",
+        "15m": "BEARISH",
+        "10m": "SIDEWAYS"
+      },
+      "SENSEX": {
+        "1h": "SIDEWAYS",
+        "30m": "BULLISH",
+        "15m": "BEARISH",
+        "10m": "BEARISH"
+      }
+    }
+  },
+  "cas": {
+    "source": "mock",
+    "label": "Close auction / cash bias",
+    "note": "Mock. Official CAS is NSE/BSE Closing Auction Session (15:15–15:35 IST) for F&O cash names. Not a live tape. Not a win rate.",
+    "asOf": "2026-09-01T15:22:00+05:30",
+    "layer": "UNVALIDATED",
+    "byUnderlying": {
+      "NIFTY": {
+        "bias": "SIDEWAYS",
+        "confidence": 0.2,
+        "headline": "No live auction book in mock — SIDEWAYS until IEP / indicative index exists.",
+        "asOf": "2026-09-01T15:22:00+05:30",
+        "layer": "UNVALIDATED"
+      },
+      "BANKNIFTY": {
+        "bias": "SIDEWAYS",
+        "confidence": 0.2,
+        "headline": "Mock. Bank heavy-weights are CAS Phase 1 if they have stock F&O. No live imbalance.",
+        "asOf": "2026-09-01T15:22:00+05:30",
+        "layer": "UNVALIDATED"
+      },
+      "SENSEX": {
+        "bias": "SIDEWAYS",
+        "confidence": 0.2,
+        "headline": "Mock. SENSEX close is BSE CAS, not the NSE book. No live indicative index.",
+        "asOf": "2026-09-01T15:22:00+05:30",
+        "layer": "UNVALIDATED"
+      }
+    }
+  },
+  "todaysBook": {
+    "source": "mock",
+    "label": "MOCK",
+    "sessionDate": "2026-09-01",
+    "note": "Mock ledger. Not live P/L. Not production marks.",
+    "summary": {
+      "customerTaken": 1,
+      "platformShadow": 2,
+      "openTickets": 1,
+      "pointsCaptured": 226
+    },
+    "rows": [
+      {
+        "id": "book-nifty-am",
+        "underlying": "NIFTY",
+        "side": "BUY_PE",
+        "strike": 24750,
+        "points": 24,
+        "result": "WIN",
+        "path": "CUSTOMER",
+        "note": "Mock closed ticket taken by the customer."
+      },
+      {
+        "id": "book-nifty-live",
+        "underlying": "NIFTY",
+        "side": "BUY_PE",
+        "strike": 24850,
+        "points": 18.5,
+        "result": "OPEN",
+        "path": "OPEN",
+        "note": "Mock open ticket. Marks are placeholders."
+      },
+      {
+        "id": "book-bn-shadow",
+        "underlying": "BANKNIFTY",
+        "side": "BUY_PE",
+        "strike": 51000,
+        "points": 230,
+        "result": "WIN",
+        "path": "SHADOW",
+        "note": "Customer skipped. Platform shadow-papered to target."
+      },
+      {
+        "id": "book-sx-shadow",
+        "underlying": "SENSEX",
+        "side": "BUY_CE",
+        "strike": 81000,
+        "points": -28,
+        "result": "LOSS",
+        "path": "SHADOW",
+        "note": "Customer skipped. Platform marked the withdrawn path."
+      }
+    ]
+  },
+  "signals": {
+    "NIFTY": {
+      "id": "mock-nifty-001",
+      "underlying": "NIFTY",
+      "side": "BUY_PE",
+      "strike": 24850,
+      "entry": 95,
+      "stop": 62,
+      "target": 155,
+      "expiry": "placeholder",
+      "customer": {
+        "headline": "Put ticket live — you decide",
+        "note": "Strike and levels issued. Ticket stays IN-PROGRESS until the path closes. Not a fill. Not advice. Orders refused."
+      },
+      "ticket": {
+        "unit": "INDEX_POINTS_PROXY",
+        "levels_ready": true,
+        "levels_note": "Mock paper levels. Live paper uses index ref until option premium binds."
+      },
+      "confidence": {
+        "score_pct": 55,
+        "band": "higher_agreement",
+        "label": "Higher agreement",
+        "side": "BUY_PE",
+        "eligible_count": 1,
+        "eligible": [
+          {
+            "mix_id": "MIX-DEFAULT-BUY",
+            "label": "Session trend stack",
+            "side": "BUY_PE",
+            "state": "CONFIRMED",
+            "why": "Futures-style session average + trend tools agree on one side."
+          }
+        ],
+        "why": "Futures-style session average + trend tools agree on one side.",
+        "fairness": "This is a desk agreement score (stage + how many playbooks agree). It is NOT a win rate and NOT a promise the trade will work.",
+        "customer_decide": true,
+        "orders": "refused",
+        "cap": 72
+      },
+      "systemOutcome": {
+        "mtmPts": 18.5,
+        "comment": "Mock mark-to-market in option points. Not live P&L."
+      },
+      "lifecycle": {
+        "outcome": null,
+        "priorStage": null,
+        "headline": "",
+        "note": "Still open. Skip still gets a shadow paper path below.",
+        "closedAt": "",
+        "shadowPaper": {
+          "mtmPts": 18.5,
+          "comment": "You skipped. Platform tracked this path anyway (mock). Not a fill, not advice."
+        }
+      },
+      "staged": {
+        "state": "EARLY",
+        "waiting": true,
+        "waitLabel": "Not confirmed — wait ~2 min",
+        "lean": "BUY_PE",
+        "headline": "PE lean before Supertrend flip",
+        "note": "Inspired by a lagged 5m Supertrend / MACD miss: impulsive tape first, lagging TA after. Mock only — not a live tape, not a reconstructed 24100 fill, not a guaranteed trade.",
+        "lights": [
+          {
+            "id": "supertrend",
+            "label": "Supertrend",
+            "state": "lagging",
+            "detail": "Not flipped yet — EARLY can still show"
+          },
+          {
+            "id": "rsi",
+            "label": "RSI",
+            "state": "leaning",
+            "detail": "Mock: weakening vs prior bar"
+          },
+          {
+            "id": "ema9",
+            "label": "EMA 9",
+            "state": "leaning",
+            "detail": "Mock: price under EMA 9"
+          },
+          {
+            "id": "macd",
+            "label": "MACD",
+            "state": "lagging",
+            "detail": "Cross not in yet — often after the move"
+          }
+        ],
+        "factors": [
+          {
+            "id": "news_bias",
+            "label": "News bias",
+            "on": true,
+            "detail": "Mock RISK_OFF overlay"
+          },
+          {
+            "id": "chain_oi",
+            "label": "Chain OI",
+            "on": true,
+            "detail": "Mock PE buildup near ATM"
+          },
+          {
+            "id": "pa_candle",
+            "label": "PA candle",
+            "on": true,
+            "detail": "Mock impulsive red (5m)"
+          },
+          {
+            "id": "supertrend",
+            "label": "Supertrend",
+            "on": false,
+            "detail": "Still waiting for flip"
+          },
+          {
+            "id": "macd",
+            "label": "MACD",
+            "on": false,
+            "detail": "No histogram cross yet"
+          }
+        ]
+      }
+    },
+    "BANKNIFTY": {
+      "id": "mock-banknifty-001",
+      "underlying": "BANKNIFTY",
+      "side": "BUY_PE",
+      "strike": 51000,
+      "entry": 410,
+      "stop": 290,
+      "target": 640,
+      "expiry": "placeholder",
+      "customer": {
+        "headline": "Target hit — ticket closed",
+        "note": "Was live; mock target 640 printed. A return from lunch shows ACHIEVED, not an open ticket. Not advice."
+      },
+      "systemOutcome": {
+        "mtmPts": 230,
+        "comment": "Mock: premium reached target. Not live P&L."
+      },
+      "lifecycle": {
+        "outcome": "ACHIEVED",
+        "priorStage": "CONFIRMED",
+        "headline": "Target hit — paper path closed",
+        "note": "Was CONFIRMED; mock target 640 printed. A customer back from lunch should see ACHIEVED, not a live CONFIRMED ticket. Not advice.",
+        "closedAt": "2026-09-01T13:42:00+05:30",
+        "shadowPaper": {
+          "mtmPts": 230,
+          "comment": "You skipped. Platform booked the mock target anyway. Not a fill, not advice."
+        }
+      },
+      "staged": {
+        "state": "CONFIRMED",
+        "waiting": false,
+        "waitLabel": "",
+        "lean": "BUY_PE",
+        "headline": "Lagging TA agreed with the PE lean",
+        "note": "Last honesty stage before close was CONFIRMED. Outcome above is the lunch-return label.",
+        "lights": [
+          {
+            "id": "supertrend",
+            "label": "Supertrend",
+            "state": "confirm",
+            "detail": "Mock: flipped with the lean"
+          },
+          {
+            "id": "rsi",
+            "label": "RSI",
+            "state": "confirm",
+            "detail": "Mock: still in the PE direction"
+          },
+          {
+            "id": "ema9",
+            "label": "EMA 9",
+            "state": "confirm",
+            "detail": "Mock: price holds under EMA 9"
+          },
+          {
+            "id": "macd",
+            "label": "MACD",
+            "state": "confirm",
+            "detail": "Mock: cross in — later than EARLY"
+          }
+        ],
+        "factors": [
+          {
+            "id": "news_bias",
+            "label": "News bias",
+            "on": true,
+            "detail": "Mock: headline still agrees"
+          },
+          {
+            "id": "chain_oi",
+            "label": "Chain OI",
+            "on": true,
+            "detail": "Mock PE writing / buildup"
+          },
+          {
+            "id": "pa_candle",
+            "label": "PA candle",
+            "on": true,
+            "detail": "Mock: follow-through into target"
+          },
+          {
+            "id": "supertrend",
+            "label": "Supertrend",
+            "on": true,
+            "detail": "Flip was in"
+          },
+          {
+            "id": "macd",
+            "label": "MACD",
+            "on": true,
+            "detail": "Cross was in"
+          }
+        ]
+      }
+    },
+    "SENSEX": {
+      "id": "mock-sensex-001",
+      "underlying": "SENSEX",
+      "side": "BUY_CE",
+      "strike": 81000,
+      "entry": 240,
+      "stop": 165,
+      "target": 390,
+      "expiry": "placeholder",
+      "customer": {
+        "headline": "Lean withdrawn — tape reversed",
+        "note": "Was an early call lean. Impulse failed. Lunch-return label is INVALIDATED, not an open ticket. Mock only, not advice."
+      },
+      "systemOutcome": {
+        "mtmPts": -28,
+        "comment": "Mock: lean withdrawn after reversal. Not live P&L."
+      },
+      "lifecycle": {
+        "outcome": "INVALIDATED",
+        "priorStage": "EARLY",
+        "headline": "Lean withdrawn — tape reversed after EARLY",
+        "note": "Was EARLY CE. Impulse failed; do not still show CONFIRMED. Customer back from lunch: INVALIDATED. Mock only, not advice.",
+        "closedAt": "2026-09-01T12:18:00+05:30",
+        "shadowPaper": {
+          "mtmPts": -28,
+          "comment": "You skipped. Platform still marked the failed EARLY path (mock). Not a fill, not advice."
+        }
+      },
+      "staged": {
+        "state": "EARLY",
+        "waiting": false,
+        "waitLabel": "",
+        "lean": "BUY_CE",
+        "headline": "CE lean was early — then reversed",
+        "note": "Prior stage EARLY only. Outcome is INVALIDATED so this is not a live ticket.",
+        "lights": [
+          {
+            "id": "supertrend",
+            "label": "Supertrend",
+            "state": "against",
+            "detail": "Mock: never flipped with the CE lean"
+          },
+          {
+            "id": "rsi",
+            "label": "RSI",
+            "state": "against",
+            "detail": "Mock: bounce faded"
+          },
+          {
+            "id": "ema9",
+            "label": "EMA 9",
+            "state": "against",
+            "detail": "Mock: price lost EMA 9"
+          },
+          {
+            "id": "macd",
+            "label": "MACD",
+            "state": "against",
+            "detail": "Mock: no CE cross — reversal"
+          }
+        ],
+        "factors": [
+          {
+            "id": "news_bias",
+            "label": "News bias",
+            "on": false,
+            "detail": "Mock: overlay no longer agrees"
+          },
+          {
+            "id": "chain_oi",
+            "label": "Chain OI",
+            "on": false,
+            "detail": "Mock: CE buildup faded"
+          },
+          {
+            "id": "pa_candle",
+            "label": "PA candle",
+            "on": false,
+            "detail": "Mock: impulse reclaimed — reversal"
+          },
+          {
+            "id": "supertrend",
+            "label": "Supertrend",
+            "on": false,
+            "detail": "Did not confirm"
+          },
+          {
+            "id": "macd",
+            "label": "MACD",
+            "on": false,
+            "detail": "Did not confirm"
+          }
+        ]
+      }
+    }
+  }
+}

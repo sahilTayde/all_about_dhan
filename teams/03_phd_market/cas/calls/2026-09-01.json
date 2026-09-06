@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "day": "2026-09-01",
+  "layer": "UNVALIDATED",
+  "retune": "BACKTEST_REQUIRED",
+  "source": "teams/03_phd_market/cas/notes/2026-09-01.md",
+  "calls": [
+    {
+      "underlying": "NIFTY",
+      "mechanism": "CLOSING_AUCTION_SESSION",
+      "bias": "SIDEWAYS",
+      "confidence": 0.2,
+      "window": "research_only",
+      "as_of_ist": "2026-09-01T16:05:00+05:30",
+      "realized_bias": null,
+      "close_vs_ref_pts": null,
+      "notes": "UNVALIDATED. DATA_INSUFFICIENT — official CAS clocks only; no live IEP/indicative index.",
+      "retune": "BACKTEST_REQUIRED"
+    },
+    {
+      "underlying": "BANKNIFTY",
+      "mechanism": "CLOSING_AUCTION_SESSION",
+      "bias": "SIDEWAYS",
+      "confidence": 0.2,
+      "window": "research_only",
+      "as_of_ist": "2026-09-01T16:05:00+05:30",
+      "realized_bias": null,
+      "close_vs_ref_pts": null,
+      "notes": "UNVALIDATED. Same research-only book. BANKNIFTY cash names are CAS Phase 1 if they have stock F&O.",
+      "retune": "BACKTEST_REQUIRED"
+    },
+    {
+      "underlying": "SENSEX",
+      "mechanism": "CLOSING_AUCTION_SESSION",
+      "bias": "SIDEWAYS",
+      "confidence": 0.2,
+      "window": "research_only",
+      "as_of_ist": "2026-09-01T16:05:00+05:30",
+      "realized_bias": null,
+      "close_vs_ref_pts": null,
+      "notes": "UNVALIDATED. BSE CAS (notice 20260610-41). Do not reuse NSE indicative index.",
+      "retune": "BACKTEST_REQUIRED"
+    }
+  ]
+}

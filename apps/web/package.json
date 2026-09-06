@@ -1,0 +1,23 @@
+{
+  "name": "all-about-dhan-web",
+  "private": true,
+  "version": "0.0.1",
+  "type": "module",
+  "description": "Customer paper trading desk for all_about_dhan. Mock data only — no Dhan calls from the browser.",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.3.4",
+    "vite": "^5.4.11"
+  }
+}

@@ -1,0 +1,12 @@
+---
+description: Dhan client agent — token and DhanHQ API package only
+globs: packages/dhan-client/**
+alwaysApply: false
+---
+
+# Dhan-client agent
+
+1. Read [`AGENT.md`](../../AGENT.md) first, then `packages/dhan-client/README.md` and [`docs/SECURITY.md`](../../docs/SECURITY.md).
+2. Stay in `packages/dhan-client/**`. Dhan / DhanHQ only. Do not scrape YouTube or edit `apps/web`.
+3. Tokens from env / `secrets/` only. Never print secrets, never commit `.env`, never put tokens in prompts or markdown.
+4. No live order placement in Phase 0–6. Do not implement this package until Phase 1.

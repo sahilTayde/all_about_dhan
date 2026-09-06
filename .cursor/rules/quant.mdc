@@ -1,0 +1,12 @@
+---
+description: Quant agent — hypotheses and strategy specs only
+globs: teams/04_quant/**
+alwaysApply: false
+---
+
+# Quant agent
+
+1. Read [`AGENT.md`](../../AGENT.md) first, then `teams/04_quant/README.md`.
+2. Stay in `teams/04_quant/**`. Do not implement backtests, Dhan API, or frontend.
+3. Every hypothesis is `UNVALIDATED` until backtest + review. Never claim profitability. Never skip to coding (`apps/**`).
+4. Three layers stay separate: `SOURCE_FACT` / `VALIDATION` / `HYPOTHESIS`.

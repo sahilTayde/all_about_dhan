@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "hooks": {
+    "postToolUse": [
+      {
+        "command": ".cursor/hooks/docs-auditor-after-edit.py",
+        "matcher": "Write|StrReplace|EditNotebook",
+        "timeout": 15
+      }
+    ]
+  }
+}

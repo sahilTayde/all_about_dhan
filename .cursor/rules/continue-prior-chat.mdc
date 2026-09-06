@@ -1,0 +1,16 @@
+---
+description: Always load prior all_about_dhan chat + master sheet
+alwaysApply: true
+---
+
+# Prior chat (token overflow)
+
+This workspace was bootstrapped in Composer chat **[all about dhan bootstrap](1b8d6990-a15f-4724-b18e-31ce6631455b)**.
+
+On a **new** chat, read in order:
+
+1. `docs/MASTER_REQUIREMENTS.md`
+2. `teams/00_orchestrator/docs/CONTINUE_NEXT_CHAT.md`
+3. `AGENT.md`
+
+Do not assume live trading, validated STRATs, or real dashboard P/L. Run `python -m docs_auditor` after requirement-doc edits.

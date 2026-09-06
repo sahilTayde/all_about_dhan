@@ -1,0 +1,29 @@
+import React, { useEffect, useState } from "react";
+import { createRoot } from "react-dom/client";
+import App from "./App.jsx";
+import { InternalDesk } from "./InternalDesk.jsx";
+import "./index.css";
+
+function usePathname() {
+  const [path, setPath] = useState(() => window.location.pathname);
+  useEffect(() => {
+    const onPop = () => setPath(window.location.pathname);
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, []);
+  return path;
+}
+
+function Root() {
+  const path = usePathname();
+  if (path === "/desk" || path.startsWith("/desk/")) {
+    return <InternalDesk />;
+  }
+  return <App />;
+}
+
+createRoot(document.getElementById("root")).render(
+  <React.StrictMode>
+    <Root />
+  </React.StrictMode>
+);

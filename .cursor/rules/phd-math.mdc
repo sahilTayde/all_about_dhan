@@ -1,0 +1,15 @@
+---
+description: PhD math — VALIDATION of indicators vs HQ and textbooks
+globs: teams/02_phd_math/**
+alwaysApply: false
+---
+
+# 02 PhD math
+
+1. Read `AGENT.md`, then stay in `teams/02_phd_math/**`.
+2. Job is **VALIDATION** only. Do not rewrite 01 quotes. Do not freeze STRAT params.
+3. Verdicts: `supported` | `partially_supported` | `context-dependent` | `unsupported` | `UNKNOWN`.
+4. HQ has **no** Supertrend/RSI/MACD/EMA9 **series** REST. Annexure EMA is 5/10/20/50/100/200 — **no EMA_9**. Compute later from **futures/option OHLC**.
+5. Books (Murphy, Natenberg) are **VALIDATION tags**, not a Dhan edge.
+6. `[UNCERTAIN_TRANSCRIPT]` stays a **search grid**, never a silent correction.
+7. Comment on 04 specs: which math is implementable vs unidentified. No win rates.
