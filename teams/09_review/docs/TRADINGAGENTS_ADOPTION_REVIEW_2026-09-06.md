@@ -3,9 +3,9 @@
 **Team:** 09_review
 **Layer:** `HYPOTHESIS`
 **Gate:** **not RESEARCH_READY_FOR_PROGRAMMING**
-**Verdict:** `ADOPT_SKELETON_OK_WITH_GAPS`
-**Reviewer:** local_rule_fallback
-**OpenAI used:** `False` (key_present=False)
+**Verdict:** `strict`
+**Reviewer:** openai:gpt-4o
+**OpenAI used:** `True` (key_present=True)
 
 EXTERNAL reference: [TauricResearch/TradingAgents](https://github.com/TauricResearch/TradingAgents) (Apache-2.0).
 Plan: [`ADOPT_TRADINGAGENTS.md`](../../00_orchestrator/docs/ADOPT_TRADINGAGENTS.md).
@@ -14,72 +14,90 @@ This is **NOTES_ONLY** / design verification — **not** a five-pass product pas
 
 ## Accept
 
-- Additive packages/trading_agents_india does not rewrite monorepo or KEEP_ALL catalog
-- News/MACRO_EVENT mapped to ticket HOLD aligned with EVENT_MEMORY / SIGNAL_FUSION
-- Separate SQLite KB preserves transcripts.sqlite
-- Structured CE/PE/HOLD + risk veto matches paper-only mandate
-- TradingAgents roles mapped onto 00/04/05/06 without inventing STRAT-015+
+- Role graph: analysts → bull/bear → boss → trader → risk triad → final
+- Structured outputs (lean + reasons + veto)
+- News + sentiment as inputs, not silent
+- Risk debate can veto trader
+- Separate memory store
+- Apache-2.0 citation
 
 ## Reject / watch
 
-- Do not import US equity fundamentals / StockTwits as India SOURCE_FACT
-- Do not claim CONFIRMED/IN-PROGRESS from agent loop alone (v0 caps at EARLY)
-- Do not treat Docs Auditor PASS or this review as product gate
-- LangGraph full port deferred — sequential pipeline is enough for paper dry-run
+- Live broker execution / order APIs
+- US equity Buy/Sell as customer ticket
+- Fundamentals analyst as NIFTY alpha
+- StockTwits / Reddit as SOURCE_FACT
+- yfinance / Alpha Vantage as Dhan truth
+- MACD/RSI as customer entry
+- Deleting STRAT-001–014 / inventing STRAT-015+
+- Claiming win rates / RESEARCH_READY
+- Overwriting transcripts.sqlite
+- Mass LangGraph rewrite of monorepo
 
 ## DATA_INSUFFICIENT / UNKNOWN
 
-- OPENAI_API_KEY not present in workspace .env at adopt time — live frontier call skipped
+- India sentiment feed
 - EVENT_MEMORY analogs empty
-- Live Dhan chain optional; fixtures used for dry-run
-- India sentiment feed not wired
+- Live chain without tokens
+- (Superseded) OpenAI key absence at first adopt pass — key now present and validated; see Frontier pass below
+
+## Frontier pass (validated key)
+
+- `OPENAI_API_KEY`: present (non-empty, length bucket `len>=20`); value never logged
+- Model: `gpt-4o` (`openai:gpt-4o` reviewer)
+- `python -m trading_agents_india review-plan`: **pass** (`openai_used=true`)
+- `python -m trading_agents_india session --dry-run --use-llm`: **pass** (`openai_used=true`, execution refused, gate remains **not RESEARCH_READY_FOR_PROGRAMMING**)
+- Frontier verdict from review-plan: `strict` (NOTES_ONLY / HYPOTHESIS — not a five-pass product gate)
+- Dry-run tickets: NIFTY/BANKNIFTY/SENSEX paper leans only; NEWS_DAY → HOLD; no live Dhan orders
+- Parser note: confidence labels (e.g. Low/Medium/High) now coerced to 0–1 so LLM JSON cannot crash the session loop
 
 ## Must keep
 
 - KEEP_ALL STRAT-001–014
-- No live Dhan orders / no /alerts/orders
-- Layers SOURCE_FACT / VALIDATION / HYPOTHESIS
-- Apache-2.0 citation for TradingAgents
 
-## Fallback note
+## Notes
 
-Frontier OpenAI review unavailable; recorded careful local verification against BOSS_AGENT / EVENT_MEMORY / KEEP_ALL constraints.
+The adoption plan is well-structured with a clear separation of accepted and rejected elements. The focus on maintaining compliance with Apache-2.0 and ensuring no live orders or execution aligns with the desk's guidelines. The plan is cautious about integrating external data sources and emphasizes the importance of maintaining existing strategies and documentation. The data insufficiencies noted are critical for future integration and should be addressed before any progression towards live environments.
 
 ## Raw JSON
 
 ```json
 {
-  "verdict": "ADOPT_SKELETON_OK_WITH_GAPS",
-  "openai_used": false,
+  "verdict": "strict",
+  "openai_used": true,
+  "reviewer": "openai:gpt-4o",
   "layer": "HYPOTHESIS",
   "gate": "not RESEARCH_READY_FOR_PROGRAMMING",
   "accept": [
-    "Additive packages/trading_agents_india does not rewrite monorepo or KEEP_ALL catalog",
-    "News/MACRO_EVENT mapped to ticket HOLD aligned with EVENT_MEMORY / SIGNAL_FUSION",
-    "Separate SQLite KB preserves transcripts.sqlite",
-    "Structured CE/PE/HOLD + risk veto matches paper-only mandate",
-    "TradingAgents roles mapped onto 00/04/05/06 without inventing STRAT-015+"
+    "Role graph: analysts → bull/bear → boss → trader → risk triad → final",
+    "Structured outputs (lean + reasons + veto)",
+    "News + sentiment as inputs, not silent",
+    "Risk debate can veto trader",
+    "Separate memory store",
+    "Apache-2.0 citation"
   ],
   "reject_or_watch": [
-    "Do not import US equity fundamentals / StockTwits as India SOURCE_FACT",
-    "Do not claim CONFIRMED/IN-PROGRESS from agent loop alone (v0 caps at EARLY)",
-    "Do not treat Docs Auditor PASS or this review as product gate",
-    "LangGraph full port deferred — sequential pipeline is enough for paper dry-run"
+    "Live broker execution / order APIs",
+    "US equity Buy/Sell as customer ticket",
+    "Fundamentals analyst as NIFTY alpha",
+    "StockTwits / Reddit as SOURCE_FACT",
+    "yfinance / Alpha Vantage as Dhan truth",
+    "MACD/RSI as customer entry",
+    "Deleting STRAT-001–014 / inventing STRAT-015+",
+    "Claiming win rates / RESEARCH_READY",
+    "Overwriting transcripts.sqlite",
+    "Mass LangGraph rewrite of monorepo"
   ],
   "data_insufficient": [
-    "OPENAI_API_KEY not present in workspace .env at adopt time — live frontier call skipped",
+    "OpenAI key not visible in workspace .env at adopt time",
+    "India sentiment feed",
     "EVENT_MEMORY analogs empty",
-    "Live Dhan chain optional; fixtures used for dry-run",
-    "India sentiment feed not wired"
+    "Live chain without tokens"
   ],
   "must_keep": [
-    "KEEP_ALL STRAT-001–014",
-    "No live Dhan orders / no /alerts/orders",
-    "Layers SOURCE_FACT / VALIDATION / HYPOTHESIS",
-    "Apache-2.0 citation for TradingAgents"
+    "KEEP_ALL STRAT-001–014"
   ],
-  "reviewer": "local_rule_fallback",
-  "note": "Frontier OpenAI review unavailable; recorded careful local verification against BOSS_AGENT / EVENT_MEMORY / KEEP_ALL constraints."
+  "notes": "The adoption plan is well-structured with a clear separation of accepted and rejected elements. The focus on maintaining compliance with Apache-2.0 and ensuring no live orders or execution aligns with the desk's guidelines. The plan is cautious about integrating external data sources and emphasizes the importance of maintaining existing strategies and documentation. The data insufficiencies noted are critical for future integration and should be addressed before any progression towards live environments."
 }
 ```
 

@@ -14,6 +14,37 @@ from trading_agents_india.hooks.event_memory import (
 from trading_agents_india.llm import LlmClient
 from trading_agents_india.schemas import AgentReport, Lean, SessionKind
 
+_CONF_LABELS = {
+    "very low": 0.15,
+    "low": 0.25,
+    "medium": 0.5,
+    "med": 0.5,
+    "moderate": 0.5,
+    "high": 0.75,
+    "very high": 0.9,
+}
+
+
+def _parse_confidence(raw: object, default: float) -> float:
+    """Accept 0-1 floats, percents, or Low/Medium/High labels from the LLM."""
+    if raw is None or raw is False or raw == "":
+        return default
+    if isinstance(raw, (int, float)):
+        val = float(raw)
+        if val > 1.0 and val <= 100.0:
+            val = val / 100.0
+        return max(0.0, min(1.0, val))
+    text = str(raw).strip().lower().replace("%", "")
+    if text in _CONF_LABELS:
+        return _CONF_LABELS[text]
+    try:
+        val = float(text)
+    except ValueError:
+        return default
+    if val > 1.0 and val <= 100.0:
+        val = val / 100.0
+    return max(0.0, min(1.0, val))
+
 
 def _llm_report(
     llm: Optional[LlmClient],
@@ -36,7 +67,7 @@ def _llm_report(
         role=role,
         summary=str(parsed.get("summary") or fallback.summary),
         lean_hint=lean,  # type: ignore[arg-type]
-        confidence=float(parsed.get("confidence") or fallback.confidence),
+        confidence=_parse_confidence(parsed.get("confidence"), fallback.confidence),
         layer="HYPOTHESIS",
         citations=list(parsed.get("citations") or fallback.citations),
         data_gaps=list(parsed.get("data_gaps") or []) + gaps,
@@ -97,7 +128,8 @@ def run_sentiment_analyst(ctx: MarketContext, llm: Optional[LlmClient] = None) -
         role="sentiment_analyst",
         system=(
             "You are sentiment analyst for Indian index options. If data is insufficient, say so. "
-            "Do not invent Reddit/StockTwits reads. JSON: summary, lean_hint, confidence, citations, data_gaps."
+            "Do not invent Reddit/StockTwits reads. "
+            "JSON: summary, lean_hint (BUY_CE|BUY_PE|HOLD), confidence (number 0-1 only), citations[], data_gaps[]."
         ),
         user=json.dumps(ctx.to_prompt_blob()),
         fallback=fallback,
