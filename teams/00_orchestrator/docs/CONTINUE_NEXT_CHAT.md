@@ -46,6 +46,14 @@ SL/TP backtest: [`BACKTEST_SLTP_2026-09-06.md`](../../06_backtesting/docs/BACKTE
 
 Also pending (transcripts already **yes**): **Phase-11 bind** Yush `hvyf6frvCcA` + Marco return `T_djSNBmV00`.
 
+### Workspace reclaim + Transcript KB (2026-09-06)
+
+- **SQLite:** [`data/knowledge/transcripts.sqlite`](../../../data/knowledge/transcripts.sqlite) — videos / transcripts / binds / docs + **FTS5** (no vector index). How-to: [`TRANSCRIPT_KB.md`](../../01_research/docs/TRANSCRIPT_KB.md). Rebuild: `python scripts/build_transcript_kb.py`.
+- **Deleted (safe):** 16 CF `audio/*.m4a` (~1.2G; each had `.asr.txt` + `*_TRANSCRIPT.md`), `apps/web/node_modules`, nested `teams/01_research/youtube/.venv`, `__pycache__` / `.pytest_cache` / `.DS_Store` / `apps/web/dist`. Size ~**2.0G → ~760M**.
+- **Kept on purpose:** MD + ASR text, binds, root `.venv`, `packages/docs-auditor/.venv`, **`data/recon/ohlc` (~421M)** — ask before deleting.
+- **fail=30 retry path (unchanged):** [`RETRY_TOMORROW.md`](../../01_research/docs/chart_fanatics/RETRY_TOMORROW.md) — ASR first; start `xUyqIjCfZzg`; captions still 429. After new ASR, rebuild KB.
+
+
 ### Chart Fanatics Phase-1+2+3+3B–3I+4+5+6+7+8+9+10 (2026-09-06) — Phase-10 bind DONE; Phase-3I ASR DONE; fail=30 remain; Phase-11 bind next
 
 **CF Phase-2 (priority Fabio) done.** Phase-3 captions still **429**. **Phase-3B–3G ASR** landed **12** videos (inventory **yes=13** with Fabio captions). **Phase-4 Marco+Mayne**, **Phase-5 Marci+Tori**, **Phase-6 TG+Kane**, **Phase-7 Umar+Forest**, **Phase-8 Carmine+Jadecap**, **Phase-9 Usman+Brando** bind+MIX+proxy **DONE**.

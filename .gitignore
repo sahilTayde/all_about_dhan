@@ -42,3 +42,18 @@ packages/*/.venv/
 *.pt
 *.bin
 data/asr_cache/
+
+# Knowledge DB WAL sidecars (commit the .sqlite when useful)
+data/knowledge/*.sqlite-wal
+data/knowledge/*.sqlite-shm
+data/knowledge/RECLAIM_REPORT.json
+
+# Build / ASR audio (reinstallable / regenerable)
+apps/web/dist/
+*.m4a
+data/**/audio/*.m4a
+
+# Tool caches inside repo
+.cache/
+**/yt-dlp-cache/
+**/.huggingface/
