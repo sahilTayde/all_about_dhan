@@ -1,6 +1,7 @@
-"""Hooks package (desk, event memory, India news, chain, premium)."""
+"""Hooks package (desk, event memory, India news, chain, premium, depth)."""
 
 from trading_agents_india.hooks.chain import watch_chain
+from trading_agents_india.hooks.depth import fetch_depth_snapshot
 from trading_agents_india.hooks.desk import try_load_desk_context
 from trading_agents_india.hooks.event_memory import classify_session_kind
 from trading_agents_india.hooks.news import gather_news, try_dhan_news
@@ -13,4 +14,5 @@ __all__ = [
     "try_dhan_news",
     "watch_chain",
     "resolve_premium_lean",
+    "fetch_depth_snapshot",
 ]

@@ -186,7 +186,26 @@ python -m trading_agents_india personas
 python -m trading_agents_india review-plan
 ```
 
-**Still DI / gated:** Dhan news API absent in client; Moneycontrol RSS VERIFY IF STABLE; India sentiment feed; EVENT_MEMORY analogs empty; live OI wall parser; OPTIDX dual CE/PE; LIVE founder allow + `TRADING_AGENTS_LIVE_GATE` default off; no live orders. KEEP_ALL unchanged. Not `RESEARCH_READY_FOR_PROGRAMMING`.
+### Still open (market-hours paper) — **empty**
+
+Prior three “still open” items from the 2026-09-06 summary are **closed this phase**:
+
+| Item | Close |
+|------|--------|
+| Continuous sub-second Dhan depth alpha | **PARKED / DATA_INSUFFICIENT** — `hooks/depth.py` DI-only; no alpha until decode+history |
+| `/desk` UI wire | **CLOSED this phase** — use CLI `market-hours`; mock seed `apps/web/public/mock/paper_agents.json` |
+| Promote / research-ready | **NO_PROMOTE** — reopen only after 06 OOS+`NORMAL` + 09 five-pass **passes** |
+
+### Future backlog (not “still open”)
+
+| ID | Item | When |
+|----|------|------|
+| **UI-DESK-PAPER-AGENTS** | Wire `/desk` persona board / blotter to paper ledger or `paper_agents.json` | Founder asks; no npm restart until asked |
+| DEPTH-DECODE-VALIDATION | 02/03 prove WS quote/full/depth offsets + history replay | Before un-parking depth |
+| IST-LIVE-DATA-PAPER | Run `market-hours` (not `--simulate`) with `DHAN_*` data-only | Next IST session when asked |
+| CF-RETRY-30 + Phase-11 | Chart Fanatics fail=30 ASR; bind Yush + Marco return | Research track (see above) |
+
+**Still DI / gated (standing):** Dhan news API absent in client; Moneycontrol RSS VERIFY IF STABLE; India sentiment feed; EVENT_MEMORY analogs empty; live OI wall parser; OPTIDX dual CE/PE; LIVE founder allow + `TRADING_AGENTS_LIVE_GATE` default off; no live orders. KEEP_ALL unchanged. Not `RESEARCH_READY_FOR_PROGRAMMING`.
 
 Prior blocker `NEED_GITHUB_URL` is **cleared** by this URL. Do not mass-rewrite `teams/` — additive package only.
 

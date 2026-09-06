@@ -1,7 +1,7 @@
 # PLAN — Market-hours paper agents (build board)
 
 **Date:** 2026-09-06  
-**Status:** `SKELETON_IN_PROGRESS` / **UNVALIDATED** / paper only  
+**Status:** `PAPER_LOOP_SHIPPED` / **UNVALIDATED** / paper only  
 **Gate:** **not** `RESEARCH_READY_FOR_PROGRAMMING`  
 **Council:** [`OPENAI_MARKET_HOURS_PAPER_COUNCIL_2026-09-06.md`](OPENAI_MARKET_HOURS_PAPER_COUNCIL_2026-09-06.md) — OpenAI `gpt-5.4` + 00 desk → **`APPROVE_WITH_GUARDRAILS`**  
 **Adopt map:** [`ADOPT_TRADINGAGENTS.md`](ADOPT_TRADINGAGENTS.md)  
@@ -9,6 +9,14 @@
 **EXTERNAL:** [TauricResearch/TradingAgents](https://github.com/TauricResearch/TradingAgents) (Apache-2.0)
 
 No live orders. No win rates. KEEP_ALL STRAT-001–014. Does **not** touch `transcripts.sqlite`.
+
+### Phase close-out (2026-09-06) — three prior “still open” items
+
+| # | Item | This-phase close | Status |
+|---|------|------------------|--------|
+| A | Continuous sub-second Dhan depth alpha | Honest park — no fake edge | **CLOSED:** `PARKED` / `DATA_INSUFFICIENT` (stub `hooks/depth.py`) |
+| B | `/desk` UI wire for paper market-hours agents | Prefer CLI over half-broken UI | **CLOSED this phase** → use `market-hours` CLI; mock seed `apps/web/public/mock/paper_agents.json`; backlog **UI-DESK-PAPER-AGENTS** |
+| C | Promote / research-ready | Explicit refuse | **CLOSED:** **`NO_PROMOTE`** until 06 OOS+`NORMAL` + 09 five-pass **passes** |
 
 ---
 
@@ -42,28 +50,28 @@ From **09:00 IST** session shell, run a TradingAgents-style multi-persona graph 
 
 ### P1 — next
 
-| # | Todo | Owner | Done when |
-|---|------|-------|-----------|
-| 8 | Confirm-or-kill 5m ST/MACD/RSI on `/desk` only | 04 / 07 | Never on customer entry soup |
-| 9 | RAG retrieval via `agent_rag` (FTS5) for personas | 01 / 05 | `python -m agent_rag query` used in session context |
-| 10 | EOD recon job → `RETUNE_PROPOSAL` `BACKTEST_REQUIRED` | 05 / 06 | `eod-recon` JSON + no auto-retune |
-| 11 | Paper/backtest rollup + optional OpenAI review notes | 06 / 09 | `paper-backtest` + `NO_PROMOTE` default |
-| 12 | Dashboard hooks: persona board, chain, blotter on `/desk` | 07 | Labeled PAPER/MOCK; no live fills |
+| # | Todo | Owner | Done when | Phase note |
+|---|------|-------|-----------|------------|
+| 8 | Confirm-or-kill 5m ST/MACD/RSI on `/desk` only | 04 / 07 | Never on customer entry soup | Future backlog |
+| 9 | RAG retrieval via `agent_rag` (FTS5) for personas | 01 / 05 | `python -m agent_rag query` used in session context | Skeleton done; deepen later |
+| 10 | EOD recon job → `RETUNE_PROPOSAL` `BACKTEST_REQUIRED` | 05 / 06 | `eod-recon` JSON + no auto-retune | **Done** (stub path) |
+| 11 | Paper/backtest rollup + optional OpenAI review notes | 06 / 09 | `paper-backtest` + `NO_PROMOTE` default | **Done** — stamped **`NO_PROMOTE`** |
+| 12 | Dashboard hooks: persona board, chain, blotter on `/desk` | 07 | Labeled PAPER/MOCK; no live fills | **CLOSED this phase** — backlog **UI-DESK-PAPER-AGENTS**; CLI is source of truth |
 
 ### P2 — docs / ops
 
-| # | Todo | Owner | Done when |
-|---|------|-------|-----------|
-| 13 | Runbooks + CONTINUE_NEXT_CHAT pointer | 00 | Linked from ADOPT + CONTINUE |
-| 14 | Rate-limit runbook (chain 1/3s; charts 1/5s; quote 1/s) | 07 | Cite [`RATE_LIMITS.md`](../../../packages/dhan-client/docs/RATE_LIMITS.md) |
-| 15 | WS full/depth decode VALIDATION (02/03) before any DI claim drop | 02 / 03 | Decode tests; else stay DI |
+| # | Todo | Owner | Done when | Phase note |
+|---|------|-------|-----------|------------|
+| 13 | Runbooks + CONTINUE_NEXT_CHAT pointer | 00 | Linked from ADOPT + CONTINUE | **Done** |
+| 14 | Rate-limit runbook (chain 1/3s; charts 1/5s; quote 1/s) | 07 | Cite [`RATE_LIMITS.md`](../../../packages/dhan-client/docs/RATE_LIMITS.md) | Cite exists |
+| 15 | WS full/depth decode VALIDATION (02/03) before any DI claim drop | 02 / 03 | Decode tests; else stay DI | **CLOSED this phase as PARKED / DI** — stub `hooks/depth.py`; reopen only after decode+history |
 
-### Explicitly deferred
+### Explicitly deferred / parked
 
 - Live order routing / ExecutionClient enable.
-- Depth/orderbook alpha; tick microstructure models.
+- **Depth/orderbook alpha; tick microstructure** — **PARKED / DATA_INSUFFICIENT** (not “TODO open”).
 - Auto-fill as truth; cross-broker adapters; news sentiment alpha.
-- STRAT-015+; promote any MIX from thin paper samples.
+- STRAT-015+; **promote** any MIX — **CLOSED: NO_PROMOTE** this phase (gate unchanged).
 
 ---
 
@@ -190,25 +198,32 @@ Default stamp: **`NO_PROMOTE`**.
 
 | Surface | Where | Content | Label |
 |---------|-------|---------|-------|
-| Persona board | `/desk` | Handoffs, disagreements, holds | PAPER |
-| Premium / chain | `/desk` | Selected CE/PE + chain guards | PAPER / DI |
-| Trade blotter | `/desk` | Trader-confirmed paper fills | PAPER |
+| Persona board | `/desk` | Handoffs, disagreements, holds | PAPER — **not wired this phase** |
+| Premium / chain | `/desk` | Selected CE/PE + chain guards | PAPER / DI — backlog |
+| Trade blotter | `/desk` | Trader-confirmed paper fills | PAPER — backlog |
 | Recon lab | `/desk` or recon MD/JSON | EOD scorecards | UNVALIDATED |
 | Customer ticket | `/` | Trend + chain + news talk | No indicator soup; confidence ≠ wr |
+| Mock seed (read-only) | `apps/web/public/mock/paper_agents.json` | Last-lean placeholder | MOCK / PAPER |
 
-Do not show MOCK P/L as proven edge.
+**Desk wire this phase:** **CLOSED**. Operator path = CLI `python -m trading_agents_india market-hours`. Backlog ticket **UI-DESK-PAPER-AGENTS** (CONTINUE). Do not show MOCK P/L as proven edge.
+
+## Promote gate — **NO_PROMOTE** (closed this phase)
+
+Default stamp remains **`NO_PROMOTE`**. Do **not** set `RESEARCH_READY_FOR_PROGRAMMING`. Re-open promote discussion only after **06 OOS + `NORMAL` score pass** and **09 five-pass passes** (notes ≠ pass).
 
 ---
 
-## Depth interest (honest DI)
+## Depth interest (honest DI) — **PARKED this phase**
 
 | Claim | Status |
 |-------|--------|
-| Sub-second tape for paper guards | **Only** if using Dhan Live Market Feed WS |
-| Documented packets | ticker / quote / full (see Dhan docs) |
+| Sub-second tape for paper guards | **PARKED** — not claimed |
+| Documented packets | ticker / quote / full (see Dhan Live Market Feed docs) — **exist as docs** |
 | Repo | `dhan_client.decode`: ticker OK; quote/full/depth **placeholder** |
-| Build rule | Persist raw experimental packets separately; **exclude from alpha + promote** until 02/03 VALIDATION |
-| Not default | Do not block P0 on depth — use charts + 3m chain + quote REST |
+| Package stub | `packages/trading_agents_india` `hooks/depth.py` → always `DATA_INSUFFICIENT`, `claims_alpha=False` |
+| Build rule | Persist raw experimental packets separately; **exclude from alpha + promote** until 02/03 VALIDATION + history replay |
+| Not default | Do not block paper loop on depth — use charts + 3m chain + quote REST |
+| Unblock when | Decode offsets proven in tests **and** replayable history exists — until then stay DI |
 
 ---
 
@@ -248,20 +263,23 @@ python -m agent_rag rebuild && python -m agent_rag query "MIX-TA"
 
 ## HANDOFF (for next implementation agents)
 
-**Build first (in order):**
+**This phase closed (2026-09-06):**
 
-1. Harden clock + market-hours loop tests (simulate).
-2. Finish premium + chain hooks with explicit `SOURCE_FACT` / `HYPOTHESIS` / `DATA_INSUFFICIENT` layers.
-3. Trader-only paper ledger API + refuse LIVE.
-4. Wire persona handoffs → boss brief → blotter.
-5. Hook `agent_rag` retrieval into session context (read-only).
-6. EOD recon + paper-backtest rollup stamped `NO_PROMOTE`.
-7. `/desk` surfaces last (after ledger exists).
+1. Depth alpha → **PARKED / DI** (`hooks/depth.py`).
+2. `/desk` paper agents wire → **CLOSED**; CLI + mock JSON seed; backlog **UI-DESK-PAPER-AGENTS**.
+3. Promote → **NO_PROMOTE** until OOS+`NORMAL` + five-pass.
 
-**Do not in this pass:** full live engine, depth alpha, STRAT deletes, overwrite transcripts KB, invent wr, restart npm unless founder asks.
+**Still useful next (true backlog only):**
 
-**Accepted:** Council `APPROVE_WITH_GUARDRAILS`; PAPER market-hours plan; DI depth; reuse agent_rag.  
-**Rejected:** Live unlock; auto-fills; second RAG path invent; depth-as-edge.  
+1. IST session with `DHAN_*` data-only: `market-hours` (not simulate) when founder asks.
+2. **UI-DESK-PAPER-AGENTS** — wire `/desk` to paper ledger / `paper_agents.json` when asked (no npm restart until asked).
+3. Decode VALIDATION (02/03) before ever un-parking depth.
+4. CF fail=30 ASR + Phase-11 bind (separate track).
+
+**Do not:** full live engine, invent depth edge, half-wire `/desk`, overwrite transcripts KB, invent wr, restart npm unless founder asks, set RESEARCH_READY.
+
+**Accepted:** Council `APPROVE_WITH_GUARDRAILS`; PAPER market-hours loop; DI depth park; reuse agent_rag; explicit NO_PROMOTE.  
+**Rejected:** Live unlock; auto-fills; depth-as-edge; promote from thin paper.  
 **UNKNOWN / DI:** OPTIDX history completeness; WS full/depth offsets; EVENT_MEMORY empty; India sentiment SOURCE_FACT.
 
-After edits to this PLAN / council / ADOPT: run `python -m docs_auditor`.
+After edits to this PLAN / council / ADOPT / CONTINUE: run `python -m docs_auditor`.

@@ -1,5 +1,37 @@
 # Handoff log — Team 00 Orchestrator
 
+## As of now (2026-09-06) — Closed three market-hours “still open” items
+
+Depth **PARKED/DI**, `/desk` wire **CLOSED** (CLI + mock seed), promote **NO_PROMOTE**. Still-open list empty; true backlog only.
+
+Newest first.
+
+---
+
+```text
+From:     teams/00_orchestrator (boss)
+To:       02 / 03 / 07 / 09
+Date:     2026-09-06
+Status:   PHASE_CLOSE / PAPER ONLY / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Summary:
+Accepted: hooks/depth.py DI-only; PLAN + CONTINUE + README + ADOPT park notes;
+  desk wire closed → market-hours CLI; mock paper_agents.json seed;
+  promote explicitly NO_PROMOTE until OOS+NORMAL + five-pass.
+Rejected: Fake depth alpha; half-wired /desk npm path; RESEARCH_READY claim.
+UNKNOWN / DATA_INSUFFICIENT: WS quote/full/depth offsets (parked).
+
+Artifacts:
+- packages/trading_agents_india/src/trading_agents_india/hooks/depth.py
+- apps/web/public/mock/paper_agents.json
+- PLAN_MARKET_HOURS_PAPER_AGENTS.md phase close-out
+- CONTINUE_NEXT_CHAT.md (still open empty; backlog UI-DESK-PAPER-AGENTS)
+Next: IST data-only market-hours when asked; CF fail=30 ASR; desk UI only if asked.
+```
+
+---
+
 ## As of now (2026-09-06) — Market-hours paper agent loop
 
 IST poll loop + chain watcher + handoffs + dual ledger in `packages/trading_agents_india`. PAPER only; LIVE refuses; KEEP_ALL; gate not RESEARCH_READY.

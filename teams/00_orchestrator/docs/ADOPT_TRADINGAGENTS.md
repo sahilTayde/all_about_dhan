@@ -172,7 +172,22 @@ On `NEWS_DAY` / `MACRO_EVENT` / risk veto → **HOLD** (ticket hold). Catalog un
 1. **Now:** local dry/paper loop in `packages/trading_agents_india` (fixtures + optional OpenAI + `mode=PAPER|LIVE` refuse).  
 2. **Next:** hook live desk-intel morning JSON when `DHAN_*` present (data only); Moneycontrol RSS via desk_intel (`--gather-news`).  
 3. **Later:** optional LangGraph port *inside* the package; never replace 01–09 docs. Founder allow + live gate still required for any LIVE attempt.  
-4. **Not yet:** live orders, promote gate, filled win rates, RESEARCH_READY.
+4. **Not yet:** live orders, promote gate, filled win rates, RESEARCH_READY.  
+   **Promote this phase:** explicitly **`NO_PROMOTE`** until 06 OOS+`NORMAL` + 09 five-pass **passes**.
+
+### Depth / WS tape (honest)
+
+| Piece | Status |
+|-------|--------|
+| Dhan Live Market Feed docs (ticker / quote / full) | Exist (SOURCE_FACT docs) |
+| `dhan_client.decode` ticker | OK |
+| quote / full / depth offsets | Placeholder → **DATA_INSUFFICIENT** |
+| `trading_agents_india.hooks.depth` | Stub returns DI only; `claims_alpha=False` |
+| Sub-second depth alpha | **PARKED** — do not claim until decode+history VALIDATION |
+
+### `/desk` paper-agents wire
+
+**CLOSED this phase.** Use CLI `market-hours`. Mock seed: `apps/web/public/mock/paper_agents.json`. Backlog **UI-DESK-PAPER-AGENTS** in CONTINUE.
 
 ### NEWS wiring (honest)
 
@@ -195,16 +210,17 @@ LIVE            → evaluate founder allow + TRADING_AGENTS_LIVE_GATE + RESEARCH
 
 ## 9. HANDOFF
 
-**Accepted:** Role graph + structured paper leans + separate KB + news-as-hold + `mode=PAPER|LIVE` refuse + persona aliases + `MIX-TA-*` PAPER_WATCH rows + OpenAI design council 2026-09-06 + **market-hours paper council** (`APPROVE_WITH_GUARDRAILS`).  
-**Rejected:** Broker exec, US fundamentals alpha, social as fact, STRAT deletes, LangGraph monorepo rewrite, inventing Dhan news headlines, depth alpha before decode VALIDATION.  
-**UNKNOWN / DATA_INSUFFICIENT:** Dhan news API; Moneycontrol RSS stability; India sentiment feed; EVENT_MEMORY analogs empty; live chain without tokens; LIVE founder flags (default off); WS full/depth offsets.
+**Accepted:** Role graph + structured paper leans + separate KB + news-as-hold + `mode=PAPER|LIVE` refuse + persona aliases + `MIX-TA-*` PAPER_WATCH rows + OpenAI design council 2026-09-06 + **market-hours paper council** (`APPROVE_WITH_GUARDRAILS`) + phase close-out (depth PARKED, desk wire CLOSED→CLI, **NO_PROMOTE**).  
+**Rejected:** Broker exec, US fundamentals alpha, social as fact, STRAT deletes, LangGraph monorepo rewrite, inventing Dhan news headlines, depth alpha before decode VALIDATION, promote from thin paper, half-wired `/desk` UI.  
+**UNKNOWN / DATA_INSUFFICIENT:** Dhan news API; Moneycontrol RSS stability; India sentiment feed; EVENT_MEMORY analogs empty; live chain without tokens; LIVE founder flags (default off); WS full/depth offsets (parked).
 
 **Artifacts:**
 - This file
 - [`OPENAI_DESIGN_COUNCIL_2026-09-06.md`](OPENAI_DESIGN_COUNCIL_2026-09-06.md)
 - [`OPENAI_MARKET_HOURS_PAPER_COUNCIL_2026-09-06.md`](OPENAI_MARKET_HOURS_PAPER_COUNCIL_2026-09-06.md)
 - [`PLAN_MARKET_HOURS_PAPER_AGENTS.md`](PLAN_MARKET_HOURS_PAPER_AGENTS.md)
-- `packages/trading_agents_india/` (`mode.py`, `personas.py`, `hooks/news.py`, market-hours skeleton)
+- `packages/trading_agents_india/` (`mode.py`, `personas.py`, `hooks/news.py`, `hooks/depth.py`, market-hours loop)
+- `apps/web/public/mock/paper_agents.json` (read-only seed; not wired)
 - `teams/09_review/docs/TRADINGAGENTS_ADOPTION_REVIEW_2026-09-06.md`
 - `teams/09_review/docs/TRADINGAGENTS_DEEPEN_NOTES_2026-09-06.md`
 - `data/knowledge/trading_agents_india.sqlite` (created on first run)

@@ -8,6 +8,7 @@ from pathlib import Path
 from trading_agents_india.config import Settings
 from trading_agents_india.fixtures import fixture_contexts
 from trading_agents_india.handoffs import HANDOFF_GRAPH, build_handoff_chain
+from trading_agents_india.hooks.depth import fetch_depth_snapshot
 from trading_agents_india.hooks.event_memory import classify_session_kind
 from trading_agents_india.hooks.premium import index_proxy_lean
 from trading_agents_india.mix_inputs import PAPER_INPUT_MIXES, build_reason_inputs
@@ -62,6 +63,15 @@ def test_nifty_can_early_ce_without_llm(tmp_path: Path) -> None:
     assert "MIX-DEFAULT-BUY" in t.default_mix_cited
     assert t.premium_lean.get("source") in ("index_proxy", "optidx_rolling", "unavailable")
     assert t.premium_lean.get("layer") in ("HYPOTHESIS", "SOURCE_FACT")
+
+
+def test_depth_hook_is_di_only() -> None:
+    snap = fetch_depth_snapshot("NIFTY")
+    assert snap.status == "DATA_INSUFFICIENT"
+    assert snap.layer == "DATA_INSUFFICIENT"
+    assert snap.claims_alpha is False
+    assert snap.packets_seen == 0
+    assert any("PARKED" in g for g in snap.data_gaps)
 
 
 def test_session_kind_helper() -> None:

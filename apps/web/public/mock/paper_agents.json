@@ -1,0 +1,47 @@
+{
+  "meta": {
+    "source": "mock",
+    "placeholder": true,
+    "label": "PAPER",
+    "asOf": "2026-09-06T15:40:00+05:30",
+    "note": "Read-only seed for a future /desk paper-agents panel. Not wired this phase. Use CLI: python -m trading_agents_india market-hours --simulate. Not a fill. Not a promote. Confidence ≠ win rate."
+  },
+  "phase_status": {
+    "desk_wire": "CLOSED_THIS_PHASE",
+    "use_cli": "python -m trading_agents_india market-hours --simulate --max-ticks 2",
+    "backlog": "UI-DESK-PAPER-AGENTS — wire persona board / blotter on /desk when asked"
+  },
+  "session": {
+    "mix": "MIX-TA-MARKET-HOURS",
+    "mode": "PAPER",
+    "execution": "refused",
+    "promote": "NO_PROMOTE"
+  },
+  "underlyings": ["NIFTY", "BANKNIFTY", "SENSEX"],
+  "last_leans": {
+    "NIFTY": {
+      "lean": "HOLD",
+      "stage": "WATCH",
+      "layer": "HYPOTHESIS",
+      "note": "Mock seed — replace from paper ledger / session JSON later"
+    },
+    "BANKNIFTY": {
+      "lean": "HOLD",
+      "stage": "WATCH",
+      "layer": "HYPOTHESIS",
+      "note": "Mock seed — replace from paper ledger / session JSON later"
+    },
+    "SENSEX": {
+      "lean": "HOLD",
+      "stage": "VETOED",
+      "layer": "HYPOTHESIS",
+      "note": "Mock NEWS_DAY-style hold; not live tape"
+    }
+  },
+  "depth": {
+    "status": "PARKED",
+    "layer": "DATA_INSUFFICIENT",
+    "claims_alpha": false,
+    "note": "Sub-second Dhan depth alpha parked until WS decode + history VALIDATION"
+  }
+}

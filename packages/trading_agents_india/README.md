@@ -42,6 +42,22 @@ Does **not** modify `data/knowledge/transcripts.sqlite`.
 
 `MIX-TA-FLOW-RISK`, `MIX-TA-EVENT-HOLD`, `MIX-TA-EXEC-SANITY`, `MIX-TA-MARKET-HOURS` — see MIX_CATALOG §18.
 
+## Depth / sub-second tape — **PARKED / DATA_INSUFFICIENT**
+
+Dhan Live Market Feed **docs** cover ticker / quote / full packets. In-repo `dhan_client.decode`: ticker OK; quote/full/depth still **placeholder**.
+
+This package exposes `hooks/depth.py` → always returns `DATA_INSUFFICIENT` with `claims_alpha=False`.  
+**We will not claim** continuous depth alpha until decode offsets are validated (02/03) **and** history replay exists. Market-hours paper does **not** depend on depth.
+
+## `/desk` wire — **CLOSED this phase**
+
+Operator path: CLI above (`market-hours`). Read-only mock seed (not a live wire): `apps/web/public/mock/paper_agents.json`.  
+UI backlog: **UI-DESK-PAPER-AGENTS** in [`CONTINUE_NEXT_CHAT.md`](../../teams/00_orchestrator/docs/CONTINUE_NEXT_CHAT.md). Do not restart npm for this.
+
+## Promote — **NO_PROMOTE**
+
+Paper rollups stay **`NO_PROMOTE`**. Not `RESEARCH_READY_FOR_PROGRAMMING` until 06 OOS+`NORMAL` + 09 five-pass **passes**.
+
 ## Mapping
 
 See [`teams/00_orchestrator/docs/ADOPT_TRADINGAGENTS.md`](../../teams/00_orchestrator/docs/ADOPT_TRADINGAGENTS.md)  
