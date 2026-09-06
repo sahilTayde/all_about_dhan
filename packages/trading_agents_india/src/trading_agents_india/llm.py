@@ -8,6 +8,40 @@ import re
 from typing import Any, Optional
 
 
+def uses_max_completion_tokens(model: str) -> bool:
+    """True for gpt-6 / astra / o-series models that reject max_tokens and/or temperature."""
+    m = (model or "").strip().lower()
+    if not m:
+        return False
+    if "astra" in m or "gpt-6" in m:
+        return True
+    # o1 / o3 / o4 reasoning-style ids (o1, o1-mini, o3-mini, …)
+    if re.match(r"^o[0-9]", m):
+        return True
+    return False
+
+
+def build_chat_completion_params(
+    model: str,
+    *,
+    max_tokens: int,
+    temperature: float = 0.2,
+) -> dict[str, Any]:
+    """
+    Model-aware chat.completions.create kwargs (excluding messages / response_format).
+
+    gpt-6-astra and o-series: max_completion_tokens, no temperature.
+    gpt-4o / gpt-5.4 and peers: temperature + max_tokens (existing behavior).
+    """
+    params: dict[str, Any] = {"model": model}
+    if uses_max_completion_tokens(model):
+        params["max_completion_tokens"] = max_tokens
+    else:
+        params["temperature"] = temperature
+        params["max_tokens"] = max_tokens
+    return params
+
+
 class LlmClient:
     """Thin wrapper. If key or package missing → DATA_INSUFFICIENT path."""
 
@@ -48,10 +82,9 @@ class LlmClient:
                 gaps.append(f"UNKNOWN: {self.last_error}")
             return None, gaps
         try:
+            params = build_chat_completion_params(self.model, max_tokens=max_tokens)
             resp = self._client.chat.completions.create(
-                model=self.model,
-                temperature=0.2,
-                max_tokens=max_tokens,
+                **params,
                 response_format={"type": "json_object"},
                 messages=[
                     {"role": "system", "content": system},
