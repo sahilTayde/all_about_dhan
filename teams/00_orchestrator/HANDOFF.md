@@ -1,5 +1,41 @@
 # Handoff log — Team 00 Orchestrator
 
+## As of now (2026-09-06) — TradingAgents India paper agents ADOPTED_SKELETON
+
+EXTERNAL [TradingAgents](https://github.com/TauricResearch/TradingAgents) (Apache-2.0) studied; additive `packages/trading_agents_india` paper loop; separate KB; KEEP_ALL intact; orders refused; gate not RESEARCH_READY.
+
+Newest first.
+
+---
+
+```text
+From:     teams/00_orchestrator (boss)
+To:       05_analysis / 04_quant / 06_backtesting / 09_review / 07_coding
+Date:     2026-09-06
+Status:   ADOPTED_SKELETON / PAPER ONLY / ORDERS REFUSED
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Summary:
+Accepted: Role graph (news/sentiment/tech → bull/bear → boss → trader → risk)
+  mapped to India CE/PE/HOLD paper tickets; NEWS_DAY hold; new SQLite KB;
+  ADOPT_TRADINGAGENTS.md; 09 design review notes.
+Rejected: Live orders; STRAT-015+; overwrite transcripts.sqlite; US fundamentals/
+  StockTwits as SOURCE_FACT; LangGraph monorepo rewrite; win-rate claims.
+UNKNOWN / DATA_INSUFFICIENT: OPENAI_API_KEY not in workspace .env at adopt;
+  India sentiment feed; EVENT_MEMORY analogs empty; live chain without tokens.
+
+Artifacts:
+- teams/00_orchestrator/docs/ADOPT_TRADINGAGENTS.md
+- packages/trading_agents_india/
+- data/knowledge/trading_agents_india.sqlite (created on first run)
+- teams/09_review/docs/TRADINGAGENTS_ADOPTION_REVIEW_2026-09-06.md
+- teams/00_orchestrator/docs/CONTINUE_NEXT_CHAT.md
+Next: put OPENAI_API_KEY in .env if LLM path desired; wire prefer-desk to live
+  morning JSON when DHAN_* present; do not promote; CF fail=30 ASR still pending.
+```
+
+---
+
 ## As of now (2026-09-06) — Chart Fanatics Phase-6 TG + Kane DONE
 
 ASR binds → `MIX-CF-TG-*` + `MIX-CF-KANE-*` BACKTEST_BOOK proxies; separate from Fabio/Marco/Mayne/Marci/Tori. Remaining CF fail=40 need ASR/caption later. KEEP_ALL. Orders refused. Title 90% not product metric.

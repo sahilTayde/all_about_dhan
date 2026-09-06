@@ -148,10 +148,31 @@ Rate limits: `packages/dhan-client/docs/RATE_LIMITS.md`
 
 ---
 
-## External org structure (blocked)
+## External org structure — TradingAgents adoption (2026-09-06)
 
-**Status:** `NEED_GITHUB_URL`  
-User wants to adopt company/agents/knowledge-base **orchestration patterns** from an external GitHub repo they called “one good github repo.” **No URL was pasted** in chat (2026-09-06). Transcripts only have `dhan-oss/DhanHQ-py` / PAT settings — **not** the intended template.
+**Status:** `ADOPTED_SKELETON` / **UNVALIDATED** / paper only  
+**EXTERNAL:** [TauricResearch/TradingAgents](https://github.com/TauricResearch/TradingAgents) (Apache-2.0)  
+**Clone:** `research/TradingAgents/` (gitignored nested tree; re-clone if missing)  
+**Study notes:** [`ADOPT_TRADINGAGENTS.md`](ADOPT_TRADINGAGENTS.md)  
+**Package:** `packages/trading_agents_india` — local multi-agent paper CE/PE/HOLD loop  
+**KB:** `data/knowledge/trading_agents_india.sqlite` (separate from `transcripts.sqlite`)  
+**09 review:** [`TRADINGAGENTS_ADOPTION_REVIEW_2026-09-06.md`](../../09_review/docs/TRADINGAGENTS_ADOPTION_REVIEW_2026-09-06.md)
 
-**Do not invent a repo.** When URL arrives: shallow clone read-only → compare vs `AGENT.md` / `teams/` / `MASTER_REQUIREMENTS` / `.cursor/rules` → write `teams/00_orchestrator/docs/ADOPT_EXTERNAL_ORG_STRUCTURE.md` (KEEP_ALL, Dhan-only, no live orders). Plan first; no mass rewrite.
+**Run:**
+```bash
+pip install -e packages/trading_agents_india
+python -m trading_agents_india session --dry-run
+python -m trading_agents_india session --dry-run --use-llm   # needs OPENAI_API_KEY
+python -m trading_agents_india review-plan
+```
+
+**Still DI:** OpenAI key was not in workspace `.env` at adopt time (rule fallback); India sentiment feed; EVENT_MEMORY analogs empty; live Dhan chain optional. No live orders. KEEP_ALL unchanged. Not `RESEARCH_READY_FOR_PROGRAMMING`.
+
+Prior blocker `NEED_GITHUB_URL` is **cleared** by this URL. Do not mass-rewrite `teams/` — additive package only.
+
+---
+
+## External org structure (blocked) — SUPERSEDED
+
+~~**Status:** `NEED_GITHUB_URL`~~ → see **TradingAgents adoption** above.
 

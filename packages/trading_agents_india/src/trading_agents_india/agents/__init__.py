@@ -1,0 +1,308 @@
+"""Agent role implementations (TradingAgents-inspired, India paper rules)."""
+
+from __future__ import annotations
+
+import json
+from typing import Optional
+
+from trading_agents_india.fixtures import MarketContext
+from trading_agents_india.hooks.event_memory import (
+    analog_memory_note,
+    classify_session_kind,
+    news_hold_reasons,
+)
+from trading_agents_india.llm import LlmClient
+from trading_agents_india.schemas import AgentReport, Lean, SessionKind
+
+
+def _llm_report(
+    llm: Optional[LlmClient],
+    *,
+    role: str,
+    system: str,
+    user: str,
+    fallback: AgentReport,
+) -> AgentReport:
+    if llm is None:
+        return fallback
+    parsed, gaps = llm.complete_json(system=system, user=user)
+    if not parsed:
+        fallback.data_gaps = list(fallback.data_gaps) + gaps
+        return fallback
+    lean = str(parsed.get("lean_hint", fallback.lean_hint)).upper()
+    if lean not in ("BUY_CE", "BUY_PE", "HOLD"):
+        lean = fallback.lean_hint
+    return AgentReport(
+        role=role,
+        summary=str(parsed.get("summary") or fallback.summary),
+        lean_hint=lean,  # type: ignore[arg-type]
+        confidence=float(parsed.get("confidence") or fallback.confidence),
+        layer="HYPOTHESIS",
+        citations=list(parsed.get("citations") or fallback.citations),
+        data_gaps=list(parsed.get("data_gaps") or []) + gaps,
+        used_llm=True,
+    )
+
+
+def run_news_analyst(ctx: MarketContext, llm: Optional[LlmClient] = None) -> AgentReport:
+    session_kind = classify_session_kind(ctx.news, ctx.session_kind_hint)
+    hold = news_hold_reasons(ctx, session_kind)
+    headlines = "; ".join(n.headline for n in ctx.news) or "no headlines"
+    fallback = AgentReport(
+        role="news_analyst",
+        summary=(
+            f"News pass for {ctx.underlying}: {headlines}. "
+            f"session_kind={session_kind}. "
+            + ("Ticket HOLD on news/event." if session_kind == "NEWS_DAY" else "No MACRO_EVENT hold forced.")
+            + " News is veto/hold overlay, not entry alpha."
+        ),
+        lean_hint="HOLD" if session_kind in ("NEWS_DAY", "EXPIRY") else "HOLD",
+        confidence=0.35,
+        citations=[n.source_url for n in ctx.news],
+        data_gaps=list(ctx.data_gaps),
+    )
+    if session_kind == "NEWS_DAY":
+        fallback.lean_hint = "HOLD"
+        fallback.citations = fallback.citations + hold[:2]
+    return _llm_report(
+        llm,
+        role="news_analyst",
+        system=(
+            "You are the India desk news analyst for NIFTY/BANKNIFTY/SENSEX index options. "
+            "News/MACRO_EVENT = hold the customer ticket, never fake alpha, never delete strategies. "
+            "Return JSON: summary, lean_hint (BUY_CE|BUY_PE|HOLD), confidence 0-1, citations[], data_gaps[]. "
+            "Prefer HOLD on NEWS_DAY."
+        ),
+        user=json.dumps(ctx.to_prompt_blob()),
+        fallback=fallback,
+    )
+
+
+def run_sentiment_analyst(ctx: MarketContext, llm: Optional[LlmClient] = None) -> AgentReport:
+    fallback = AgentReport(
+        role="sentiment_analyst",
+        summary=(
+            f"Sentiment for {ctx.underlying}: {ctx.sentiment_label}. "
+            "India index social/news sentiment feed not validated — no StockTwits import."
+        ),
+        lean_hint="HOLD",
+        confidence=0.1,
+        data_gaps=[
+            "DATA_INSUFFICIENT: India social sentiment feed not wired",
+            "REJECT: StockTwits/Reddit as SOURCE_FACT for NSE index options",
+        ],
+    )
+    return _llm_report(
+        llm,
+        role="sentiment_analyst",
+        system=(
+            "You are sentiment analyst for Indian index options. If data is insufficient, say so. "
+            "Do not invent Reddit/StockTwits reads. JSON: summary, lean_hint, confidence, citations, data_gaps."
+        ),
+        user=json.dumps(ctx.to_prompt_blob()),
+        fallback=fallback,
+    )
+
+
+def run_technical_analyst(ctx: MarketContext, llm: Optional[LlmClient] = None) -> AgentReport:
+    lean: Lean = "HOLD"
+    if ctx.chain_lean == "CE":
+        lean = "BUY_CE"
+    elif ctx.chain_lean == "PE":
+        lean = "BUY_PE"
+    fallback = AgentReport(
+        role="technical_analyst",
+        summary=(
+            f"Chain lean fixture={ctx.chain_lean}; trend={ctx.trend_plain}. "
+            f"{ctx.technical_note} Indicators confirm-or-kill only."
+        ),
+        lean_hint=lean,
+        confidence=0.4 if lean != "HOLD" else 0.25,
+        citations=["teams/04_quant/docs/SIGNAL_STAGING.md"],
+        data_gaps=list(ctx.data_gaps),
+    )
+    return _llm_report(
+        llm,
+        role="technical_analyst",
+        system=(
+            "Technical analyst for NSE index options. 5m ST/MACD/RSI are confirm-or-kill, not entry. "
+            "Map chain lean CE→BUY_CE, PE→BUY_PE, else HOLD. JSON fields as usual."
+        ),
+        user=json.dumps(ctx.to_prompt_blob()),
+        fallback=fallback,
+    )
+
+
+def run_bull(ctx: MarketContext, prior: list[AgentReport], llm: Optional[LlmClient] = None) -> AgentReport:
+    tech = next((r for r in prior if r.role == "technical_analyst"), None)
+    hint: Lean = tech.lean_hint if tech and tech.lean_hint == "BUY_CE" else "BUY_CE"
+    fallback = AgentReport(
+        role="bull_researcher",
+        summary=(
+            f"Bull case {ctx.underlying}: argue CE only if chain/trend support; "
+            f"still subordinate to news hold. Prior tech={tech.lean_hint if tech else 'n/a'}."
+        ),
+        lean_hint=hint if ctx.chain_lean == "CE" else "HOLD",
+        confidence=0.45 if ctx.chain_lean == "CE" else 0.2,
+        citations=["TradingAgents bull role adapted"],
+    )
+    return _llm_report(
+        llm,
+        role="bull_researcher",
+        system=(
+            "Bull researcher for India index CE buys. Challenge weak CE cases. "
+            "Never override NEWS_DAY hold. JSON: summary, lean_hint, confidence, citations, data_gaps."
+        ),
+        user=json.dumps({"ctx": ctx.to_prompt_blob(), "prior": [r.to_dict() for r in prior]}),
+        fallback=fallback,
+    )
+
+
+def run_bear(ctx: MarketContext, prior: list[AgentReport], llm: Optional[LlmClient] = None) -> AgentReport:
+    tech = next((r for r in prior if r.role == "technical_analyst"), None)
+    fallback = AgentReport(
+        role="bear_researcher",
+        summary=(
+            f"Bear case {ctx.underlying}: argue PE or HOLD; emphasize event risk and false CE sprays. "
+            f"Prior tech={tech.lean_hint if tech else 'n/a'}."
+        ),
+        lean_hint="BUY_PE" if ctx.chain_lean == "PE" else "HOLD",
+        confidence=0.45 if ctx.chain_lean == "PE" else 0.35,
+        citations=["TradingAgents bear role adapted"],
+    )
+    return _llm_report(
+        llm,
+        role="bear_researcher",
+        system=(
+            "Bear researcher for India index options. Prefer HOLD/PE when mixed or news risk. "
+            "JSON: summary, lean_hint, confidence, citations, data_gaps."
+        ),
+        user=json.dumps({"ctx": ctx.to_prompt_blob(), "prior": [r.to_dict() for r in prior]}),
+        fallback=fallback,
+    )
+
+
+def run_boss(
+    ctx: MarketContext,
+    prior: list[AgentReport],
+    session_kind: SessionKind,
+    default_mix: str,
+    llm: Optional[LlmClient] = None,
+) -> AgentReport:
+    if session_kind in ("NEWS_DAY", "EXPIRY"):
+        lean: Lean = "HOLD"
+    else:
+        bull = next((r for r in prior if r.role == "bull_researcher"), None)
+        bear = next((r for r in prior if r.role == "bear_researcher"), None)
+        tech = next((r for r in prior if r.role == "technical_analyst"), None)
+        if tech and tech.lean_hint in ("BUY_CE", "BUY_PE") and tech.lean_hint == (
+            bull.lean_hint if bull else tech.lean_hint
+        ):
+            lean = tech.lean_hint
+        elif tech and bear and tech.lean_hint == bear.lean_hint and tech.lean_hint != "HOLD":
+            lean = tech.lean_hint
+        else:
+            lean = "HOLD"
+    fallback = AgentReport(
+        role="boss_research_manager",
+        summary=(
+            f"Boss desk call for {ctx.underlying}: lean={lean}, session={session_kind}, "
+            f"default book cited={default_mix} (KEEP_ALL; not a promote). "
+            f"{analog_memory_note()}"
+        ),
+        lean_hint=lean,
+        confidence=0.5 if lean != "HOLD" else 0.3,
+        citations=[
+            "teams/00_orchestrator/docs/BOSS_AGENT.md",
+            "teams/04_quant/docs/MIX_CATALOG.md",
+        ],
+        data_gaps=["DATA_INSUFFICIENT: EVENT_MEMORY analogs empty"],
+    )
+    return _llm_report(
+        llm,
+        role="boss_research_manager",
+        system=(
+            "You are the 00 boss desk. Mandate=customer profitability over SDLC, not a claimed win rate. "
+            "KEEP_ALL STRAT-001–014. NEWS_DAY→HOLD. Cite MIX-DEFAULT-BUY as default book only. "
+            "JSON: summary, lean_hint, confidence, citations, data_gaps."
+        ),
+        user=json.dumps(
+            {
+                "ctx": ctx.to_prompt_blob(),
+                "session_kind": session_kind,
+                "default_mix": default_mix,
+                "prior": [r.to_dict() for r in prior],
+            }
+        ),
+        fallback=fallback,
+    )
+
+
+def run_trader(boss: AgentReport, session_kind: SessionKind) -> AgentReport:
+    lean = boss.lean_hint if session_kind == "NORMAL" else "HOLD"
+    return AgentReport(
+        role="trader",
+        summary=(
+            f"Paper trader proposal: {lean}. Execution refused. "
+            "No /alerts/orders. Levels not invented when DATA_INSUFFICIENT."
+        ),
+        lean_hint=lean,
+        confidence=boss.confidence * 0.9,
+        citations=["packages/desk-intel paper_signal adapter pattern"],
+        data_gaps=["DATA_INSUFFICIENT: option premium fill model not claimed"],
+    )
+
+
+def run_risk(
+    ctx: MarketContext,
+    trader: AgentReport,
+    session_kind: SessionKind,
+    llm: Optional[LlmClient] = None,
+) -> AgentReport:
+    vetoes = news_hold_reasons(ctx, session_kind)
+    if session_kind != "NORMAL":
+        lean: Lean = "HOLD"
+        summary = (
+            f"Risk triad (agg/cons/neutral collapsed for v0): VETO lean→HOLD. "
+            + "; ".join(vetoes[:3])
+        )
+        conf = 0.7
+    else:
+        lean = trader.lean_hint
+        summary = (
+            "Risk triad: no NEWS_DAY/EXPIRY veto. Conservative hat still caps confidence; "
+            "aggressive hat may not force size. Neutral hat: paper lean only."
+        )
+        conf = 0.45
+        if trader.lean_hint == "HOLD":
+            vetoes.append("neutral_risk: no directional edge after debate")
+    fallback = AgentReport(
+        role="risk_committee",
+        summary=summary,
+        lean_hint=lean,
+        confidence=conf,
+        citations=[
+            "teams/06_backtesting/docs/EVENT_MEMORY.md",
+            "teams/05_analysis/docs/SIGNAL_FUSION.md",
+        ],
+        data_gaps=list(ctx.data_gaps),
+    )
+    # Attach veto strings into citations for downstream
+    fallback.citations = fallback.citations + vetoes
+    return _llm_report(
+        llm,
+        role="risk_committee",
+        system=(
+            "Risk committee for India index options paper desk. "
+            "On NEWS_DAY/EXPIRY you MUST lean HOLD and list vetoes. Never approve live orders. "
+            "JSON: summary, lean_hint, confidence, citations (include veto strings), data_gaps."
+        ),
+        user=json.dumps(
+            {
+                "ctx": ctx.to_prompt_blob(),
+                "trader": trader.to_dict(),
+                "session_kind": session_kind,
+            }
+        ),
+        fallback=fallback,
+    )

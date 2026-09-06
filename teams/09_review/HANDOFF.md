@@ -1,5 +1,33 @@
 # Handoff log — Team 09 Review
 
+## As of now (2026-09-06) — TradingAgents adoption design review (NOTES_ONLY)
+
+EXTERNAL TradingAgents role graph adapted into `packages/trading_agents_india`. Design verification recorded. **Not** a five-pass. **Not** RESEARCH_READY. OpenAI key DI at adopt time → local fallback review.
+
+Newest first.
+
+---
+
+```text
+From:     teams/09_review
+To:       00 / 04 / 05 / 07
+Date:     2026-09-06
+Status:   NOTES_ONLY
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Summary:
+Accepted additive paper agent skeleton + NEWS_DAY hold + separate KB +
+Apache-2.0 citation. Rejected live orders, STRAT-015+, social-as-fact,
+CONFIRMED from agent loop alone, gate promote.
+DATA_INSUFFICIENT: OPENAI_API_KEY absent in .env at review time;
+EVENT_MEMORY empty; India sentiment feed.
+Artifacts:
+- teams/09_review/docs/TRADINGAGENTS_ADOPTION_REVIEW_2026-09-06.md
+- teams/00_orchestrator/docs/ADOPT_TRADINGAGENTS.md
+```
+
+---
+
 ## As of now (2026-09-06) — CF Andrea+Omor Phase-10 notes only (not a five-pass pass)
 
 EXTERNAL MIX-CF-ANDREA/OMOR accepted into KEEP_ALL catalog. ASR caveat. Andrea ≠ Fabio. OF absorb + KZ DI. Proxies not promote. Notes ≠ pass.

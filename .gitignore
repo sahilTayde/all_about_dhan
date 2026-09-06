@@ -48,6 +48,9 @@ data/knowledge/*.sqlite-wal
 data/knowledge/*.sqlite-shm
 data/knowledge/RECLAIM_REPORT.json
 
+# EXTERNAL shallow clone (re-clone via ADOPT_TRADINGAGENTS.md); nested .git
+research/TradingAgents/
+
 # Build / ASR audio (reinstallable / regenerable)
 apps/web/dist/
 *.m4a

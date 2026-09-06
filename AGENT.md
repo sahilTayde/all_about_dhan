@@ -97,6 +97,7 @@ Full SDLC: [`docs/SDLC.md`](docs/SDLC.md). **Score sheet:** [`docs/MASTER_REQUIR
 | Signal UI | `apps/web/` — **customer desk** `/` (ticket + **IN-PROGRESS** + **CasPanel** + **confidence box**; book P/L **MOCK**) vs internal **`/desk`**. Mock: http://localhost:5173 · `/desk`. Ticket shape: [`CUSTOMER_TICKET.md`](teams/05_analysis/docs/CUSTOMER_TICKET.md). |
 | API | `apps/api/` |
 | Handoff between teams | [`docs/HANDOFF.md`](docs/HANDOFF.md) + the team's `HANDOFF.md` |
+| **TradingAgents India paper agents** | [`ADOPT_TRADINGAGENTS.md`](teams/00_orchestrator/docs/ADOPT_TRADINGAGENTS.md), package `packages/trading_agents_india` (`python -m trading_agents_india session --dry-run`). EXTERNAL Apache-2.0. No live orders. |
 | Review gate | [`docs/REVIEW.md`](docs/REVIEW.md), `teams/09_review/`, Docs Auditor [`DOCS_AUDITOR.md`](teams/09_review/docs/DOCS_AUDITOR.md) |
 
 Full map: [`docs/INDEX.md`](docs/INDEX.md).
@@ -108,6 +109,8 @@ Full map: [`docs/INDEX.md`](docs/INDEX.md).
 **YouTube:** `YOUTUBE_API_KEY` is in repo-root `.env` (never in chat). Key validated HTTP 200. How-to: [`teams/01_research/youtube/README.md`](teams/01_research/youtube/README.md). **Channel list:** [`config/workspace.yaml`](config/workspace.yaml) — default enabled source is [https://www.youtube.com/@DhanHQ](https://www.youtube.com/@DhanHQ). To switch channel, change the URL/`enabled` flags there; do not hard-code a new channel in Python.
 
 **Later (Phase 1):** `DHAN_CLIENT_ID`, `DHAN_ACCESS_TOKEN`, and Dhan's documented refresh fields — `.env` / `secrets/` only. Names: [`.env.example`](.env.example) and `secrets_from_env` in workspace.yaml. Rules: [`docs/SECURITY.md`](docs/SECURITY.md).
+
+**Optional (paper agents):** `OPENAI_API_KEY` / `OPENAI_MODEL` for `packages/trading_agents_india` LLM path — empty → rule fallback. Never paste keys into chat.
 
 ---
 
