@@ -3,13 +3,14 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
-from typing import Any, Literal, Optional
+from typing import Any, Literal, Optional  # Mode used on SessionResult
 
 Lean = Literal["BUY_CE", "BUY_PE", "HOLD"]
 Stage = Literal["WATCH", "EARLY", "VETOED"]
 SessionKind = Literal["NORMAL", "NEWS_DAY", "EXPIRY"]
 Layer = Literal["SOURCE_FACT", "VALIDATION", "HYPOTHESIS"]
 Underlying = Literal["NIFTY", "BANKNIFTY", "SENSEX"]
+Mode = Literal["PAPER", "LIVE"]
 
 
 @dataclass
@@ -22,6 +23,8 @@ class AgentReport:
     citations: list[str] = field(default_factory=list)
     data_gaps: list[str] = field(default_factory=list)
     used_llm: bool = False
+    trading_agents_name: str = ""
+    india_role: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -57,7 +60,7 @@ class PaperTicket:
 @dataclass
 class SessionResult:
     as_of_ist: str
-    mode: str
+    mode: Mode
     openai_used: bool
     openai_key_present: bool
     tickets: list[PaperTicket]
@@ -67,6 +70,17 @@ class SessionResult:
     )
     kb_path: Optional[str] = None
     data_gaps: list[str] = field(default_factory=list)
+    live_gate: dict[str, Any] = field(default_factory=dict)
+    live_order_attempt: Optional[dict[str, Any]] = None
+    personas_cited: list[dict[str, Any]] = field(default_factory=list)
+    paper_watch_mixes: list[str] = field(
+        default_factory=lambda: [
+            "MIX-DEFAULT-BUY",
+            "MIX-TA-FLOW-RISK",
+            "MIX-TA-EVENT-HOLD",
+            "MIX-TA-EXEC-SANITY",
+        ]
+    )
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -79,6 +93,10 @@ class SessionResult:
             "external_ref": self.external_ref,
             "kb_path": self.kb_path,
             "data_gaps": self.data_gaps,
+            "live_gate": self.live_gate,
+            "live_order_attempt": self.live_order_attempt,
+            "personas_cited": self.personas_cited,
+            "paper_watch_mixes": self.paper_watch_mixes,
             "execution": "refused",
             "gate": "not RESEARCH_READY_FOR_PROGRAMMING",
         }

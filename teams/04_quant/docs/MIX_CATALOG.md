@@ -1621,12 +1621,79 @@ docs:
 
 ---
 
+## 18. TradingAgents India — `MIX-TA-*` (EXTERNAL_RESEARCH, PAPER_WATCH)
+
+**Date:** 2026-09-06  
+**Origin:** [TauricResearch/TradingAgents](https://github.com/TauricResearch/TradingAgents) (Apache-2.0) adapted for NSE index options.  
+**Council:** [`OPENAI_DESIGN_COUNCIL_2026-09-06.md`](../../00_orchestrator/docs/OPENAI_DESIGN_COUNCIL_2026-09-06.md)  
+**Adopt:** [`ADOPT_TRADINGAGENTS.md`](../../00_orchestrator/docs/ADOPT_TRADINGAGENTS.md)  
+**Package:** `packages/trading_agents_india`  
+**Policy:** KEEP_ALL. **Not** customer default. Paper-watch **alongside** `MIX-DEFAULT-BUY`. No STRAT-015+. Metrics **null**. Not a promote.
+
+Council aliases: `MIX-TA-001`→`MIX-TA-FLOW-RISK`, `MIX-TA-002`→`MIX-TA-EVENT-HOLD`, `MIX-TA-003`→`MIX-TA-EXEC-SANITY`.
+
+```yaml
+mix_id: MIX-TA-FLOW-RISK
+origin: EXTERNAL_RESEARCH
+origin_note: |
+  TradingAgents-style bull/bear + risk triad wrapper around CE/PE buy-first lean.
+  HYPOTHESIS only. India: NIFTY/BANKNIFTY/SENSEX expiry + premium decay awareness.
+  Paper session via packages/trading_agents_india. Not a coded live strategy.
+styles: [OPTION_BUYER]
+customer_default: false
+status: PAPER_WATCH
+proxy_status: WAITING
+of_required: false
+not_merged_into: [MIX-DEFAULT-BUY, STRAT-001, STRAT-002, STRAT-003]
+docs:
+  - teams/00_orchestrator/docs/ADOPT_TRADINGAGENTS.md
+  - teams/00_orchestrator/docs/OPENAI_DESIGN_COUNCIL_2026-09-06.md
+```
+
+```yaml
+mix_id: MIX-TA-EVENT-HOLD
+origin: EXTERNAL_RESEARCH
+origin_note: |
+  Index regime + event-risk overlay that may only HOLD / downgrade — never invent alpha.
+  SOURCE_FACT path: desk_intel Moneycontrol RSS when wired; else DATA_INSUFFICIENT.
+  Aligns EVENT_MEMORY: news = ticket hold, not catalog delete.
+styles: [OPTION_BUYER, POSITION]
+customer_default: false
+status: PAPER_WATCH
+proxy_status: WAITING
+of_required: false
+not_merged_into: [MIX-DEFAULT-BUY, MIX-TA-FLOW-RISK]
+docs:
+  - teams/06_backtesting/docs/EVENT_MEMORY.md
+  - teams/00_orchestrator/docs/OPENAI_DESIGN_COUNCIL_2026-09-06.md
+```
+
+```yaml
+mix_id: MIX-TA-EXEC-SANITY
+origin: EXTERNAL_RESEARCH
+origin_note: |
+  PAPER execution sanity: spread / liquidity / slippage checks as HYPOTHESIS gates.
+  LIVE path = DhanHQ-only stub; mode=LIVE always refuses orders until founder+gate
+  (default refuse). DATA_INSUFFICIENT for live fill model.
+styles: [OPTION_BUYER]
+customer_default: false
+status: WAITING
+proxy_status: DATA_INSUFFICIENT
+of_required: false
+not_merged_into: [MIX-DEFAULT-BUY, MIX-TA-FLOW-RISK]
+docs:
+  - packages/trading_agents_india/src/trading_agents_india/mode.py
+  - packages/dhan-client/src/dhan_client/execution.py
+```
+
+---
+
 ## HANDOFF
 
-**Accepted:** KEEP_ALL. STRAT-001–014 all `BACKTEST_BOOK`. MIX-* namespace. 013/014 seller tags, IDs unchanged. 010 parked-not-dropped. MIX-CONFLICT-STRIKE labeled CONFLICT. §8 scan IDs (`WEB-DERIVED` / `PROJECT_MIX`) named including MIX-CLOCK-CAS overlay and MIX-ML-LOGIT / MIX-ML-LOGIT-XR; metrics null; `customer_default: false`. `MIX-DEFAULT-BUY` unchanged. **§9 SL/TP MIX rows** including own `MIX-DESK-IQ-ATR-RR2` (`PROJECT_MIX`). **§10 `MIX-CF-FABIO-TREND-NY` + `MIX-CF-FABIO-MR-RANGE`** (`EXTERNAL_RESEARCH`, PARKED OF, proxy BACKTEST_BOOK). **§11 `MIX-CF-MARCO-LIQ-TRAP` + `MIX-CF-MARCO-INT-EXT` + `MIX-CF-MAYNE-ICT-HTF` + `MIX-CF-MAYNE-BREAKER`** (`EXTERNAL_RESEARCH`, ASR caveat, separate from Fabio). **§12 `MIX-CF-MARCI-RIZZY` + `MIX-CF-MARCI-BB-REALITY` + `MIX-CF-TORI-TL-BOUNCE` + `MIX-CF-TORI-TL-BREAK`** (`EXTERNAL_RESEARCH`, ASR caveat, separate from Fabio/Marco/Mayne). **§13 `MIX-CF-TG-TRIDENT` + `MIX-CF-TG-EMA-WAVE` + `MIX-CF-KANE-EQ50` + `MIX-CF-KANE-PO3-SMT`** (`EXTERNAL_RESEARCH`, ASR caveat, separate from prior CF guests; title 90% not product metric). **§14 `MIX-CF-UMAR-MORNING-TOP` + `MIX-CF-UMAR-OPENING-DRIVE` + `MIX-CF-FOREST-VPE-EDGE` + `MIX-CF-FOREST-POC-RETEST`** (`EXTERNAL_RESEARCH`, ASR caveat; opening drive DI; separate from prior CF guests). **§15 `MIX-CF-CARMINE-ABSORB` + `MIX-CF-CARMINE-FAIL-BREAK` + `MIX-CF-CARMINE-OPEN-HOLD` + `MIX-CF-JADECAP-SWING-FAIL` + `MIX-CF-JADECAP-SESSION-LIQ` + `MIX-CF-JADECAP-FVG-DRAW`** (`EXTERNAL_RESEARCH`, ASR caveat; Carmine absorb OF PARKED/DI; Jade session-liq DI; separate from prior CF guests). **§16 `MIX-CF-USMAN-*` + `MIX-CF-BRANDO-*`** (`EXTERNAL_RESEARCH`, ASR caveat; Usman mostly DI options literacy; Brando HTF proxies BACKTEST_BOOK; size-zero vs price-stop KEEP_ALL; separate from prior CF guests). **§17 `MIX-CF-ANDREA-*` + `MIX-CF-OMOR-*`** (`EXTERNAL_RESEARCH`, ASR caveat; Andrea ≠ Fabio; OF absorb PARKED; Omor KZ/ADR DI; structure proxies BACKTEST_BOOK; separate from prior CF guests).
+**Accepted:** KEEP_ALL. STRAT-001–014 all `BACKTEST_BOOK`. MIX-* namespace. 013/014 seller tags, IDs unchanged. 010 parked-not-dropped. MIX-CONFLICT-STRIKE labeled CONFLICT. §8 scan IDs (`WEB-DERIVED` / `PROJECT_MIX`) named including MIX-CLOCK-CAS overlay and MIX-ML-LOGIT / MIX-ML-LOGIT-XR; metrics null; `customer_default: false`. `MIX-DEFAULT-BUY` unchanged. **§9 SL/TP MIX rows** including own `MIX-DESK-IQ-ATR-RR2` (`PROJECT_MIX`). **§10 `MIX-CF-FABIO-TREND-NY` + `MIX-CF-FABIO-MR-RANGE`** (`EXTERNAL_RESEARCH`, PARKED OF, proxy BACKTEST_BOOK). **§11 `MIX-CF-MARCO-LIQ-TRAP` + `MIX-CF-MARCO-INT-EXT` + `MIX-CF-MAYNE-ICT-HTF` + `MIX-CF-MAYNE-BREAKER`** (`EXTERNAL_RESEARCH`, ASR caveat, separate from Fabio). **§12 `MIX-CF-MARCI-RIZZY` + `MIX-CF-MARCI-BB-REALITY` + `MIX-CF-TORI-TL-BOUNCE` + `MIX-CF-TORI-TL-BREAK`** (`EXTERNAL_RESEARCH`, ASR caveat, separate from Fabio/Marco/Mayne). **§13 `MIX-CF-TG-TRIDENT` + `MIX-CF-TG-EMA-WAVE` + `MIX-CF-KANE-EQ50` + `MIX-CF-KANE-PO3-SMT`** (`EXTERNAL_RESEARCH`, ASR caveat, separate from prior CF guests; title 90% not product metric). **§14 `MIX-CF-UMAR-MORNING-TOP` + `MIX-CF-UMAR-OPENING-DRIVE` + `MIX-CF-FOREST-VPE-EDGE` + `MIX-CF-FOREST-POC-RETEST`** (`EXTERNAL_RESEARCH`, ASR caveat; opening drive DI; separate from prior CF guests). **§15 `MIX-CF-CARMINE-ABSORB` + `MIX-CF-CARMINE-FAIL-BREAK` + `MIX-CF-CARMINE-OPEN-HOLD` + `MIX-CF-JADECAP-SWING-FAIL` + `MIX-CF-JADECAP-SESSION-LIQ` + `MIX-CF-JADECAP-FVG-DRAW`** (`EXTERNAL_RESEARCH`, ASR caveat; Carmine absorb OF PARKED/DI; Jade session-liq DI; separate from prior CF guests). **§16 `MIX-CF-USMAN-*` + `MIX-CF-BRANDO-*`** (`EXTERNAL_RESEARCH`, ASR caveat; Usman mostly DI options literacy; Brando HTF proxies BACKTEST_BOOK; size-zero vs price-stop KEEP_ALL; separate from prior CF guests). **§17 `MIX-CF-ANDREA-*` + `MIX-CF-OMOR-*`** (`EXTERNAL_RESEARCH`, ASR caveat; Andrea ≠ Fabio; OF absorb PARKED; Omor KZ/ADR DI; structure proxies BACKTEST_BOOK; separate from prior CF guests). **§18 `MIX-TA-FLOW-RISK` + `MIX-TA-EVENT-HOLD` + `MIX-TA-EXEC-SANITY`** (`EXTERNAL_RESEARCH` / TradingAgents Apache-2.0; PAPER_WATCH / WAITING; not promote).
 
-**Rejected:** Deleting teacher recipes. Silent 002-on-003. Invented fills/lots/win rates. STRAT-015+. Relabeling ORB 09:15–09:30 or CPR as `DHAN-DERIVED`. Promoting a scan onto the customer ticket. Claiming US GEX = NIFTY edge. Silent hardcoded `STOP_PTS` as named strategy. Clubbing Fabio/Marco/Mayne/Marci/Tori/TG/Kane/Umar/Forest/Carmine/Jadecap/Usman/Brando/Andrea/Omor into DEFAULT-BUY / IQCapital / each other. Inventing Carmine DOM fields, Jade Asia/London NSE boxes, Usman OI/greeks, Brando India headlines, Andrea ES footprint fields, or Omor IST killzones. Merging Andrea into `MIX-CF-FABIO-*`. Promoting title $6k→$10M / 30M funding rhetoric.
+**Rejected:** Deleting teacher recipes. Silent 002-on-003. Invented fills/lots/win rates. STRAT-015+. Relabeling ORB 09:15–09:30 or CPR as `DHAN-DERIVED`. Promoting a scan onto the customer ticket. Claiming US GEX = NIFTY edge. Silent hardcoded `STOP_PTS` as named strategy. Clubbing Fabio/Marco/Mayne/Marci/Tori/TG/Kane/Umar/Forest/Carmine/Jadecap/Usman/Brando/Andrea/Omor into DEFAULT-BUY / IQCapital / each other. Inventing Carmine DOM fields, Jade Asia/London NSE boxes, Usman OI/greeks, Brando India headlines, Andrea ES footprint fields, or Omor IST killzones. Merging Andrea into `MIX-CF-FABIO-*`. Promoting title $6k→$10M / 30M funding rhetoric. Promoting `MIX-TA-*` or treating TradingAgents US equity stack as India SOURCE_FACT. Live agent orders.
 
-**UNKNOWN / DATA_INSUFFICIENT:** 004 EMA lengths. 010 HQ OF history. 003 “103.” 006 delta. Live IEP feed (CAS). Analog memory empty. Scan params (BB k, Keltner, SAR AF, ADX period, body/range windows). No HQ ORB/CPR/ADX series. **NIFTY GEX / naive GEX construction. OF footprint history. Fabio NQ OF → NSE map; Marco/Mayne NY/Asia/London/crypto clocks → IST; Marci NY-open avoid / Tori 4H week → NSE; TG London KZ NY → IST; Kane EST 9:15–11 / SMT NQ–ES → single NIFTY; Umar ET open/cut + OF tape; Forest overnight H/L + true VAP → NSE; Carmine DOM/heatmap/delta + ET open-hold → NSE; Jadecap Asia/London/midnight open → NSE; Usman OPTIDX OI/greeks + US Fri 0DTE → NIFTY weekly; Brando Fed/tariff news join + size-zero premium ledger; Andrea ES footprint/VP/Deep Charts + NY OR → NSE; Omor London/NY/Asia KZ + ADR + FX SMT → NSE. ASR noun errors (Buma Ashraf; Osman Astra; brand-a-k-a-leaf; Andrea Chimney; Omore/MBB; boat≈close; PLC≈POC; Car mine; rate≈raid; Markime Commodule≈MMM). TG EMA 13 vs 15.**
+**UNKNOWN / DATA_INSUFFICIENT:** 004 EMA lengths. 010 HQ OF history. 003 “103.” 006 delta. Live IEP feed (CAS). Analog memory empty. Scan params (BB k, Keltner, SAR AF, ADX period, body/range windows). No HQ ORB/CPR/ADX series. **NIFTY GEX / naive GEX construction. OF footprint history. Fabio NQ OF → NSE map; Marco/Mayne NY/Asia/London/crypto clocks → IST; Marci NY-open avoid / Tori 4H week → NSE; TG London KZ NY → IST; Kane EST 9:15–11 / SMT NQ–ES → single NIFTY; Umar ET open/cut + OF tape; Forest overnight H/L + true VAP → NSE; Carmine DOM/heatmap/delta + ET open-hold → NSE; Jadecap Asia/London/midnight open → NSE; Usman OPTIDX OI/greeks + US Fri 0DTE → NIFTY weekly; Brando Fed/tariff news join + size-zero premium ledger; Andrea ES footprint/VP/Deep Charts + NY OR → NSE; Omor London/NY/Asia KZ + ADR + FX SMT → NSE. ASR noun errors (Buma Ashraf; Osman Astra; brand-a-k-a-leaf; Andrea Chimney; Omore/MBB; boat≈close; PLC≈POC; Car mine; rate≈raid; Markime Commodule≈MMM). TG EMA 13 vs 15.** DhanHQ news API surface absent in client; Moneycontrol RSS VERIFY IF STABLE; India social sentiment unwired; LIVE founder+gate flags default refuse.
 
-Next: 06 may **schedule** books; it may not claim an edge. 03 owns `CAS-*`. Scan queue is **not** a promote. SL/TP overlays score on fixtures before any promote. CF remaining **fail=32** need ASR/caption later — do not deep-analyze the fail queue.
+Next: 06 may **schedule** books; it may not claim an edge. 03 owns `CAS-*`. Scan queue is **not** a promote. SL/TP overlays score on fixtures before any promote. CF remaining **fail=32** need ASR/caption later — do not deep-analyze the fail queue. `MIX-TA-*` stay paper-watch only.

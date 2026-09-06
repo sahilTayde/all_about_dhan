@@ -3,11 +3,15 @@
 **Date:** 2026-09-06  
 **Layer:** `HYPOTHESIS` (orchestration design) + `SOURCE_FACT` (what the clone contains)  
 **Gate:** **not** `RESEARCH_READY_FOR_PROGRAMMING`  
-**Status:** `ADOPTED_SKELETON` / **UNVALIDATED** — paper signals only  
+**Status:** `ADOPTED_SKELETON` / **DEEPENED_PAPER** / **UNVALIDATED** — paper signals only  
 **EXTERNAL:** [TauricResearch/TradingAgents](https://github.com/TauricResearch/TradingAgents) (Apache-2.0)  
-**Local clone:** `research/TradingAgents/` (shallow; **do not** treat as our product; gitignored nested tree)
+**Local clone:** `research/TradingAgents/` (shallow; **do not** treat as our product; gitignored nested tree)  
+**Design council (2026-09-06):** [`OPENAI_DESIGN_COUNCIL_2026-09-06.md`](OPENAI_DESIGN_COUNCIL_2026-09-06.md) — OpenAI `gpt-5.4` + founder desk; verdict `APPROVE_WITH_GUARDRAILS`  
+**MIX paper-watch:** `MIX-TA-FLOW-RISK`, `MIX-TA-EVENT-HOLD`, `MIX-TA-EXEC-SANITY` ([`MIX_CATALOG.md`](../../04_quant/docs/MIX_CATALOG.md) §18) — not default, not promote
 
 Education ≠ advice. No live Dhan orders. No `/alerts/orders`. No win rates. KEEP_ALL STRAT-001–014.
+
+**Mode:** `PAPER` (default) | `LIVE` (stub: DhanHQ-only path; **always refuses** orders until founder allow + live gate + `RESEARCH_READY` — currently all refuse). See `packages/trading_agents_india/mode.py`.
 
 ---
 
@@ -47,6 +51,26 @@ Analysts (market / social-sentiment / news / fundamentals)
 | Portfolio Manager | Final rating | Map to **00 default call** (`MIX-DEFAULT-BUY` book remains catalog) |
 | Memory log | Markdown decision memory | New SQLite `trading_agents_india.sqlite` — **not** `transcripts.sqlite` |
 | Checkpoint | LangGraph SQLite resume | Optional later; v0 uses simple session rows |
+| Mode | US live/paper brokers | **`PAPER` default**; **`LIVE` → refuse** (DhanHQ stub only) |
+
+---
+
+## 2b. Persona display names (deepen 2026-09-06)
+
+Registry: `packages/trading_agents_india/personas.py` — TradingAgents name → India role → our team.
+
+| TradingAgents | Pipeline role | India role | Team |
+|---------------|---------------|------------|------|
+| News Analyst | `news_analyst` | India Event / News Filter | 05 |
+| Sentiment Analyst | `sentiment_analyst` | India Sentiment (DI) | 05 |
+| Market Analyst | `technical_analyst` | Index Regime / Chain Lean | 04 |
+| Fundamentals Analyst | skipped | Macro/CAS note only | 03 |
+| Bull / Bear Researcher | `bull_researcher` / `bear_researcher` | CE / PE-Hold challengers | 02/04 |
+| Research Manager + Portfolio Manager | `boss_research_manager` | Boss desk + final paper call | 00 |
+| Trader | `trader` | Paper Execution Coordinator | 07/08 |
+| Risk triad / Risk Manager | `risk_committee` | Premium risk & loss gate | 06 |
+
+CLI: `python -m trading_agents_india personas`
 
 ---
 
@@ -142,23 +166,50 @@ On `NEWS_DAY` / `MACRO_EVENT` / risk veto → **HOLD** (ticket hold). Catalog un
 
 ## 8. End-state vision (honest path)
 
-1. **Now:** local dry/paper loop in `packages/trading_agents_india` (fixtures + optional OpenAI).  
-2. **Next:** hook live desk-intel morning JSON when `DHAN_*` present (data only).  
-3. **Later:** optional LangGraph port *inside* the package; never replace 01–09 docs.  
+1. **Now:** local dry/paper loop in `packages/trading_agents_india` (fixtures + optional OpenAI + `mode=PAPER|LIVE` refuse).  
+2. **Next:** hook live desk-intel morning JSON when `DHAN_*` present (data only); Moneycontrol RSS via desk_intel (`--gather-news`).  
+3. **Later:** optional LangGraph port *inside* the package; never replace 01–09 docs. Founder allow + live gate still required for any LIVE attempt.  
 4. **Not yet:** live orders, promote gate, filled win rates, RESEARCH_READY.
+
+### NEWS wiring (honest)
+
+| Source | Status |
+|--------|--------|
+| DhanHQ news API | **DATA_INSUFFICIENT** — not exposed in `dhan_client` skeleton (quotes/chain/charts only) |
+| Moneycontrol | Prefer **RSS** via `desk_intel` + `workspace.yaml` (`VERIFY IF STABLE`); not HTML scrape |
+| CNBC / StockTwits / Reddit | **REJECT** as India SOURCE_FACT |
+
+### PAPER vs LIVE
+
+```text
+PAPER (default) → paper ledger in trading_agents_india.sqlite; execution refused
+LIVE            → evaluate founder allow + TRADING_AGENTS_LIVE_GATE + RESEARCH_READY
+                  → always refuse in this package; may call dhan_client.ExecutionClient
+                    which also refuses; broker path name = dhanhq only
+```
 
 ---
 
 ## 9. HANDOFF
 
-**Accepted:** Role graph + structured paper leans + separate KB + news-as-hold.  
-**Rejected:** Broker exec, US fundamentals alpha, social as fact, STRAT deletes, LangGraph monorepo rewrite.  
-**UNKNOWN / DATA_INSUFFICIENT:** OpenAI key not visible in workspace `.env` at adopt time (fallback path required); India sentiment feed; EVENT_MEMORY analogs empty; live chain without tokens.
+**Accepted:** Role graph + structured paper leans + separate KB + news-as-hold + `mode=PAPER|LIVE` refuse + persona aliases + `MIX-TA-*` PAPER_WATCH rows + OpenAI design council 2026-09-06.  
+**Rejected:** Broker exec, US fundamentals alpha, social as fact, STRAT deletes, LangGraph monorepo rewrite, inventing Dhan news headlines.  
+**UNKNOWN / DATA_INSUFFICIENT:** Dhan news API; Moneycontrol RSS stability; India sentiment feed; EVENT_MEMORY analogs empty; live chain without tokens; LIVE founder flags (default off).
 
 **Artifacts:**
 - This file
-- `packages/trading_agents_india/`
+- [`OPENAI_DESIGN_COUNCIL_2026-09-06.md`](OPENAI_DESIGN_COUNCIL_2026-09-06.md)
+- `packages/trading_agents_india/` (`mode.py`, `personas.py`, `hooks/news.py`)
 - `teams/09_review/docs/TRADINGAGENTS_ADOPTION_REVIEW_2026-09-06.md`
+- `teams/09_review/docs/TRADINGAGENTS_DEEPEN_NOTES_2026-09-06.md`
 - `data/knowledge/trading_agents_india.sqlite` (created on first run)
+- MIX §18: `MIX-TA-FLOW-RISK`, `MIX-TA-EVENT-HOLD`, `MIX-TA-EXEC-SANITY`
 
-**Run:** `python -m trading_agents_india session --dry-run` (from repo root with package installed / `PYTHONPATH`).
+**Run:**
+```bash
+python -m trading_agents_india session --dry-run
+python -m trading_agents_india session --mode PAPER --gather-news
+python -m trading_agents_india session --mode LIVE   # documents refuse
+python -m trading_agents_india session --dry-run --use-llm
+python -m trading_agents_india personas
+```

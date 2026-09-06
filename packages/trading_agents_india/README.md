@@ -5,7 +5,8 @@ Local multi-agent **paper** signal orchestration for NIFTY / BANKNIFTY / SENSEX 
 Inspired by [TauricResearch/TradingAgents](https://github.com/TauricResearch/TradingAgents) (**Apache-2.0** EXTERNAL reference).  
 Adapted for this monorepo’s coalition (`teams/00–09`), KEEP_ALL STRAT-001–014, and DhanHQ-only desk rules.
 
-**Not** financial advice. **No live orders.** Gate is **not** `RESEARCH_READY_FOR_PROGRAMMING`.
+**Not** financial advice. **No live orders.** Gate is **not** `RESEARCH_READY_FOR_PROGRAMMING`.  
+**Mode:** `PAPER` (default) | `LIVE` (always refuses; DhanHQ stub only).
 
 ## Install
 
@@ -21,8 +22,11 @@ pip install -e "packages/trading_agents_india[openai]"
 ```bash
 python -m trading_agents_india session --dry-run
 python -m trading_agents_india session --dry-run --underlying NIFTY
-python -m trading_agents_india session --dry-run --use-llm   # needs OPENAI_API_KEY; else honest fallback
-python -m trading_agents_india review-plan                  # frontier design review notes helper
+python -m trading_agents_india session --mode PAPER --gather-news
+python -m trading_agents_india session --mode LIVE              # refuses orders
+python -m trading_agents_india session --dry-run --use-llm      # needs OPENAI_API_KEY
+python -m trading_agents_india personas
+python -m trading_agents_india review-plan
 ```
 
 ## KB
@@ -30,6 +34,11 @@ python -m trading_agents_india review-plan                  # frontier design re
 Creates **`data/knowledge/trading_agents_india.sqlite`** on first run.  
 Does **not** modify `data/knowledge/transcripts.sqlite`.
 
+## Paper-watch MIX (not default)
+
+`MIX-TA-FLOW-RISK`, `MIX-TA-EVENT-HOLD`, `MIX-TA-EXEC-SANITY` — see MIX_CATALOG §18.
+
 ## Mapping
 
-See [`teams/00_orchestrator/docs/ADOPT_TRADINGAGENTS.md`](../../teams/00_orchestrator/docs/ADOPT_TRADINGAGENTS.md).
+See [`teams/00_orchestrator/docs/ADOPT_TRADINGAGENTS.md`](../../teams/00_orchestrator/docs/ADOPT_TRADINGAGENTS.md)  
+and [`OPENAI_DESIGN_COUNCIL_2026-09-06.md`](../../teams/00_orchestrator/docs/OPENAI_DESIGN_COUNCIL_2026-09-06.md).

@@ -12,6 +12,7 @@ from trading_agents_india.hooks.event_memory import (
     news_hold_reasons,
 )
 from trading_agents_india.llm import LlmClient
+from trading_agents_india.personas import resolve_by_pipeline_role
 from trading_agents_india.schemas import AgentReport, Lean, SessionKind
 
 _CONF_LABELS = {
@@ -46,6 +47,14 @@ def _parse_confidence(raw: object, default: float) -> float:
     return max(0.0, min(1.0, val))
 
 
+def _stamp_persona(report: AgentReport) -> AgentReport:
+    persona = resolve_by_pipeline_role(report.role)
+    if persona:
+        report.trading_agents_name = persona.trading_agents_name
+        report.india_role = persona.india_role
+    return report
+
+
 def _llm_report(
     llm: Optional[LlmClient],
     *,
@@ -54,6 +63,7 @@ def _llm_report(
     user: str,
     fallback: AgentReport,
 ) -> AgentReport:
+    _stamp_persona(fallback)
     if llm is None:
         return fallback
     parsed, gaps = llm.complete_json(system=system, user=user)
@@ -63,15 +73,17 @@ def _llm_report(
     lean = str(parsed.get("lean_hint", fallback.lean_hint)).upper()
     if lean not in ("BUY_CE", "BUY_PE", "HOLD"):
         lean = fallback.lean_hint
-    return AgentReport(
-        role=role,
-        summary=str(parsed.get("summary") or fallback.summary),
-        lean_hint=lean,  # type: ignore[arg-type]
-        confidence=_parse_confidence(parsed.get("confidence"), fallback.confidence),
-        layer="HYPOTHESIS",
-        citations=list(parsed.get("citations") or fallback.citations),
-        data_gaps=list(parsed.get("data_gaps") or []) + gaps,
-        used_llm=True,
+    return _stamp_persona(
+        AgentReport(
+            role=role,
+            summary=str(parsed.get("summary") or fallback.summary),
+            lean_hint=lean,  # type: ignore[arg-type]
+            confidence=_parse_confidence(parsed.get("confidence"), fallback.confidence),
+            layer="HYPOTHESIS",
+            citations=list(parsed.get("citations") or fallback.citations),
+            data_gaps=list(parsed.get("data_gaps") or []) + gaps,
+            used_llm=True,
+        )
     )
 
 
@@ -272,16 +284,18 @@ def run_boss(
 
 def run_trader(boss: AgentReport, session_kind: SessionKind) -> AgentReport:
     lean = boss.lean_hint if session_kind == "NORMAL" else "HOLD"
-    return AgentReport(
-        role="trader",
-        summary=(
-            f"Paper trader proposal: {lean}. Execution refused. "
-            "No /alerts/orders. Levels not invented when DATA_INSUFFICIENT."
-        ),
-        lean_hint=lean,
-        confidence=boss.confidence * 0.9,
-        citations=["packages/desk-intel paper_signal adapter pattern"],
-        data_gaps=["DATA_INSUFFICIENT: option premium fill model not claimed"],
+    return _stamp_persona(
+        AgentReport(
+            role="trader",
+            summary=(
+                f"Paper trader proposal: {lean}. Execution refused. "
+                "No /alerts/orders. Levels not invented when DATA_INSUFFICIENT."
+            ),
+            lean_hint=lean,
+            confidence=boss.confidence * 0.9,
+            citations=["packages/desk-intel paper_signal adapter pattern"],
+            data_gaps=["DATA_INSUFFICIENT: option premium fill model not claimed"],
+        )
     )
 
 

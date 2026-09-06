@@ -57,3 +57,35 @@ def test_nifty_can_early_ce_without_llm(tmp_path: Path) -> None:
 def test_session_kind_helper() -> None:
     ctx = fixture_contexts()["SENSEX"]
     assert classify_session_kind(ctx.news, ctx.session_kind_hint) == "NEWS_DAY"
+
+
+def test_live_mode_refuses_orders(tmp_path: Path) -> None:
+    settings = Settings(
+        repo_root=Path(__file__).resolve().parents[3],
+        kb_path=tmp_path / "tai_live.sqlite",
+        openai_model="gpt-4o",
+        openai_key_present=False,
+    )
+    result = run_session(
+        underlyings=["NIFTY"],
+        dry_run=False,
+        use_llm=False,
+        persist=False,
+        mode="LIVE",
+        settings=settings,
+    )
+    assert result.mode == "LIVE"
+    assert result.live_gate.get("orders_allowed") is False
+    assert result.live_order_attempt is not None
+    assert result.live_order_attempt.get("execution") == "refused"
+    payload = result.to_dict()
+    assert payload["execution"] == "refused"
+
+
+def test_personas_registry_has_trading_agents_names() -> None:
+    from trading_agents_india.personas import registry_payload
+
+    names = {p["trading_agents_name"] for p in registry_payload()}
+    assert "News Analyst" in names
+    assert "Bull Researcher" in names
+    assert "Trader" in names

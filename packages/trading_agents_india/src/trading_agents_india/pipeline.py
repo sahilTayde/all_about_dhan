@@ -21,8 +21,16 @@ from trading_agents_india.config import Settings, load_settings
 from trading_agents_india.fixtures import MarketContext, fixture_contexts
 from trading_agents_india.hooks.desk import try_load_desk_context
 from trading_agents_india.hooks.event_memory import classify_session_kind
+from trading_agents_india.hooks.news import gather_news
 from trading_agents_india.kb import AgentKB
 from trading_agents_india.llm import LlmClient
+from trading_agents_india.mode import (
+    Mode,
+    attempt_live_order,
+    evaluate_live_gate,
+    normalize_mode,
+)
+from trading_agents_india.personas import registry_payload
 from trading_agents_india.schemas import PaperTicket, SessionResult, Stage
 
 
@@ -41,18 +49,35 @@ def _resolve_context(
     underlying: str,
     *,
     prefer_desk: bool,
+    gather_india_news: bool,
 ) -> tuple[MarketContext, list[str]]:
     gaps: list[str] = []
     fixtures = fixture_contexts()
     base = fixtures.get(underlying.upper())
     if base is None:
         raise ValueError(f"unsupported underlying: {underlying}")
+    ctx = base
     if prefer_desk:
         desk_ctx, desk_gaps = try_load_desk_context(underlying)
         gaps.extend(desk_gaps)
         if desk_ctx is not None:
-            return desk_ctx, gaps
-    return base, gaps
+            ctx = desk_ctx
+    if gather_india_news:
+        bundle = gather_news(prefer_live_rss=False)
+        gaps.extend(bundle.data_gaps)
+        if bundle.items:
+            # Overlay India news; keep fixture lean/trend (do not invent chain).
+            ctx = MarketContext(
+                underlying=ctx.underlying,
+                chain_lean=ctx.chain_lean,
+                trend_plain=ctx.trend_plain,
+                news=list(bundle.items),
+                session_kind_hint=ctx.session_kind_hint,
+                sentiment_label=ctx.sentiment_label,
+                technical_note=ctx.technical_note,
+                data_gaps=list(ctx.data_gaps) + list(bundle.data_gaps),
+            )
+    return ctx, gaps
 
 
 def run_underlying_session(
@@ -101,7 +126,11 @@ def run_underlying_session(
     else:
         stage = "EARLY"  # v0: never CONFIRMED from agent loop alone
 
-    vetoes = [c for c in risk.citations if c.startswith(("NEWS_DAY", "EXPIRY", "cited_news", "neutral_risk"))]
+    vetoes = [
+        c
+        for c in risk.citations
+        if c.startswith(("NEWS_DAY", "EXPIRY", "cited_news", "neutral_risk"))
+    ]
     reasons = [
         f"boss: {boss.summary[:180]}",
         f"tech: {technical.summary[:120]}",
@@ -151,7 +180,9 @@ def run_session(
     dry_run: bool = True,
     use_llm: bool = False,
     prefer_desk: bool = False,
+    gather_india_news: bool = False,
     persist: bool = True,
+    mode: Optional[str] = None,
     settings: Optional[Settings] = None,
 ) -> SessionResult:
     settings = settings or load_settings()
@@ -159,6 +190,26 @@ def run_session(
     llm: Optional[LlmClient] = None
     openai_used = False
     session_gaps: list[str] = []
+
+    resolved_mode: Mode
+    if mode is not None:
+        resolved_mode = normalize_mode(mode)
+    elif dry_run:
+        resolved_mode = "PAPER"
+    else:
+        resolved_mode = "PAPER"
+
+    live_gate = evaluate_live_gate(resolved_mode)
+    session_gaps.extend(live_gate.reasons)
+    live_attempt = None
+    if resolved_mode == "LIVE":
+        live_attempt = attempt_live_order(
+            mode="LIVE",
+            payload={"note": "trading_agents_india LIVE stub — always refuse"},
+        )
+        session_gaps.append(
+            "VALIDATION: LIVE mode requested — orders refused (see live_order_attempt)"
+        )
 
     if use_llm:
         llm = LlmClient(settings.openai_model, enabled=True)
@@ -175,19 +226,29 @@ def run_session(
 
     tickets: list[PaperTicket] = []
     for name in names:
-        ctx, gaps = _resolve_context(name, prefer_desk=prefer_desk)
+        ctx, gaps = _resolve_context(
+            name,
+            prefer_desk=prefer_desk,
+            gather_india_news=gather_india_news,
+        )
         session_gaps.extend(gaps)
         tickets.append(run_underlying_session(ctx, settings, llm if use_llm else None))
 
+    # mode string for KB: PAPER (incl dry-run) or LIVE (still refused)
+    mode_label: Mode = resolved_mode
+
     result = SessionResult(
         as_of_ist=_now_ist(),
-        mode="dry-run" if dry_run else "paper",
+        mode=mode_label,
         openai_used=openai_used,
         openai_key_present=settings.openai_key_present,
         tickets=tickets,
         compliance=COMPLIANCE_NOTE,
         kb_path=str(settings.kb_path),
         data_gaps=list(dict.fromkeys(session_gaps)),
+        live_gate=live_gate.to_dict(),
+        live_order_attempt=live_attempt,
+        personas_cited=registry_payload(),
     )
 
     if persist:

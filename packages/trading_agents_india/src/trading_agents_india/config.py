@@ -55,7 +55,7 @@ def load_settings(
         openai_model
         or os.getenv("OPENAI_MODEL")
         or os.getenv("TRADING_AGENTS_INDIA_MODEL")
-        or "gpt-4o"
+        or "gpt-5.4"
     )
     kb = kb_path or (root / "data" / "knowledge" / "trading_agents_india.sqlite")
     return Settings(

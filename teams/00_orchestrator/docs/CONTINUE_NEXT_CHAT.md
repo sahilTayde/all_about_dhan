@@ -150,23 +150,28 @@ Rate limits: `packages/dhan-client/docs/RATE_LIMITS.md`
 
 ## External org structure — TradingAgents adoption (2026-09-06)
 
-**Status:** `ADOPTED_SKELETON` / **UNVALIDATED** / paper only  
+**Status:** `ADOPTED_SKELETON` / **DEEPENED_PAPER** / **UNVALIDATED** / paper only  
 **EXTERNAL:** [TauricResearch/TradingAgents](https://github.com/TauricResearch/TradingAgents) (Apache-2.0)  
 **Clone:** `research/TradingAgents/` (gitignored nested tree; re-clone if missing)  
 **Study notes:** [`ADOPT_TRADINGAGENTS.md`](ADOPT_TRADINGAGENTS.md)  
-**Package:** `packages/trading_agents_india` — local multi-agent paper CE/PE/HOLD loop  
+**Design council:** [`OPENAI_DESIGN_COUNCIL_2026-09-06.md`](OPENAI_DESIGN_COUNCIL_2026-09-06.md) (`gpt-5.4` + desk; `APPROVE_WITH_GUARDRAILS`)  
+**Package:** `packages/trading_agents_india` — personas + `mode=PAPER|LIVE` (LIVE refuses) + India news hook  
 **KB:** `data/knowledge/trading_agents_india.sqlite` (separate from `transcripts.sqlite`)  
-**09 review:** [`TRADINGAGENTS_ADOPTION_REVIEW_2026-09-06.md`](../../09_review/docs/TRADINGAGENTS_ADOPTION_REVIEW_2026-09-06.md)
+**MIX paper-watch (not default):** `MIX-TA-FLOW-RISK`, `MIX-TA-EVENT-HOLD`, `MIX-TA-EXEC-SANITY` — MIX_CATALOG §18  
+**09 notes:** [`TRADINGAGENTS_ADOPTION_REVIEW_2026-09-06.md`](../../09_review/docs/TRADINGAGENTS_ADOPTION_REVIEW_2026-09-06.md), [`TRADINGAGENTS_DEEPEN_NOTES_2026-09-06.md`](../../09_review/docs/TRADINGAGENTS_DEEPEN_NOTES_2026-09-06.md)
 
 **Run:**
 ```bash
 pip install -e packages/trading_agents_india
 python -m trading_agents_india session --dry-run
-python -m trading_agents_india session --dry-run --use-llm   # needs OPENAI_API_KEY
+python -m trading_agents_india session --mode PAPER --gather-news
+python -m trading_agents_india session --mode LIVE          # always refuses
+python -m trading_agents_india session --dry-run --use-llm  # needs OPENAI_API_KEY
+python -m trading_agents_india personas
 python -m trading_agents_india review-plan
 ```
 
-**Still DI:** OpenAI key was not in workspace `.env` at adopt time (rule fallback); India sentiment feed; EVENT_MEMORY analogs empty; live Dhan chain optional. No live orders. KEEP_ALL unchanged. Not `RESEARCH_READY_FOR_PROGRAMMING`.
+**Still DI / gated:** Dhan news API absent in client; Moneycontrol RSS VERIFY IF STABLE; India sentiment feed; EVENT_MEMORY analogs empty; LIVE founder allow + `TRADING_AGENTS_LIVE_GATE` default off; no live orders. KEEP_ALL unchanged. Not `RESEARCH_READY_FOR_PROGRAMMING`.
 
 Prior blocker `NEED_GITHUB_URL` is **cleared** by this URL. Do not mass-rewrite `teams/` — additive package only.
 
