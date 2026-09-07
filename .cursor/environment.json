@@ -1,0 +1,15 @@
+{
+  "name": "all_about_dhan",
+  "install": "bash .cursor/install.sh",
+  "terminals": [
+    {
+      "name": "api",
+      "command": "source .venv/bin/activate && python -m api"
+    },
+    {
+      "name": "web",
+      "command": "cd apps/web && npm run dev -- --host 127.0.0.1"
+    }
+  ],
+  "ports": [8000, 5173]
+}
