@@ -12,6 +12,7 @@ from trading_agents_india.hooks.depth import fetch_depth_snapshot
 from trading_agents_india.hooks.event_memory import classify_session_kind
 from trading_agents_india.hooks.premium import index_proxy_lean
 from trading_agents_india.mix_inputs import PAPER_INPUT_MIXES, build_reason_inputs
+from trading_agents_india.paper_ledger import PaperLedger
 from trading_agents_india.pipeline import run_session
 from trading_agents_india.session_clock import IST, snapshot
 from trading_agents_india.session_runner import run_market_hours_loop
@@ -164,6 +165,45 @@ def test_dry_market_hours_simulation(tmp_path: Path) -> None:
     payload = runner.to_dict()
     assert payload["execution"] == "refused"
     assert "path_toward_faster" in payload
+    typed = PaperLedger(settings.kb_path)
+    assert len(typed.events("SIGNAL")) == 2
+    assert len(typed.events("SHADOW_TRADE")) == 2
+    assert typed.events("SHADOW_TRADE")[1]["status"] == "SHADOW_SKIPPED"
+
+
+def test_market_hours_pause_guards_hold_and_refuse(tmp_path: Path) -> None:
+    settings = _settings(tmp_path, "paused.sqlite")
+    runner = run_market_hours_loop(
+        underlyings=["NIFTY"],
+        mode="PAPER",
+        max_ticks=1,
+        simulate=True,
+        use_llm=False,
+        persist=False,
+        settings=settings,
+        paper_paused=True,
+    )
+    ticket = runner.ticks[0].result.tickets[0]
+    assert ticket.lean == "HOLD"
+    assert ticket.risk_veto is True
+    assert "PAPER_PAUSED" in ticket.vetoes
+    assert ticket.execution == "refused"
+
+
+def test_live_mode_never_writes_paper_ledger(tmp_path: Path) -> None:
+    settings = _settings(tmp_path, "live.sqlite")
+    runner = run_market_hours_loop(
+        underlyings=["NIFTY"],
+        mode="LIVE",
+        max_ticks=1,
+        simulate=True,
+        use_llm=False,
+        persist=False,
+        settings=settings,
+    )
+    assert runner.mode == "LIVE"
+    assert runner.to_dict()["execution"] == "refused"
+    assert PaperLedger(settings.kb_path).events() == []
 
 
 def test_clock_dead_band_and_active() -> None:

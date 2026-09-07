@@ -13,6 +13,12 @@ from typing import Any, Callable, Optional, Sequence
 
 from trading_agents_india.config import Settings, load_settings
 from trading_agents_india.ledger import PAPER_WATCH_MIXES, append_agent_paper_tick
+from trading_agents_india.paper_ledger import (
+    PaperLedger,
+    PaperTrade,
+    Provenance,
+    SignalRecord,
+)
 from trading_agents_india.pipeline import run_session
 from trading_agents_india.schemas import SessionResult
 from trading_agents_india.session_clock import (
@@ -69,20 +75,42 @@ class RunnerResult:
         }
 
 
-def _force_hold_tickets(result: SessionResult, clock: ClockSnapshot) -> SessionResult:
+def _force_hold_tickets(
+    result: SessionResult,
+    clock: ClockSnapshot,
+    *,
+    paper_paused: bool = False,
+    calendar_known: bool = True,
+) -> SessionResult:
     """Outside active paper window: keep audit trail but force HOLD leans."""
-    if clock.allow_directional_paper:
+    guard_reason = ""
+    if paper_paused:
+        guard_reason = "global PAPER pause"
+    elif not calendar_known:
+        guard_reason = "calendar UNKNOWN — PAPER pause"
+    if clock.allow_directional_paper and not guard_reason:
         return result
     for t in result.tickets:
         t.lean = "HOLD"
         t.stage = "WATCH" if not clock.in_dead_band else "VETOED"
-        if clock.in_dead_band:
+        if clock.in_dead_band or guard_reason:
             t.risk_veto = True
-            note = f"session_clock: {clock.reason}"
+            note = (
+                f"paper_guard: {guard_reason}"
+                if guard_reason
+                else f"session_clock: {clock.reason}"
+            )
             if note not in t.reasons:
                 t.reasons = [note] + list(t.reasons)
-            if "MIX-CLOCK-CAS" not in t.vetoes:
-                t.vetoes = list(t.vetoes) + ["MIX-CLOCK-CAS dead-band"]
+            veto = (
+                "PAPER_PAUSED"
+                if paper_paused
+                else "CALENDAR_UNKNOWN"
+                if not calendar_known
+                else "MIX-CLOCK-CAS dead-band"
+            )
+            if veto not in t.vetoes:
+                t.vetoes = list(t.vetoes) + [veto]
         else:
             note = f"session_clock: {clock.reason}"
             if note not in t.reasons:
@@ -108,6 +136,8 @@ def run_market_hours_loop(
     sleep_fn: Callable[[float], None] = time.sleep,
     settings: Optional[Settings] = None,
     stop_outside_shell: bool = False,
+    paper_paused: bool = False,
+    calendar_known: bool = True,
 ) -> RunnerResult:
     """Poll loop. ``simulate=True`` runs max_ticks without sleeping (dry session)."""
     settings = settings or load_settings()
@@ -146,7 +176,12 @@ def run_market_hours_loop(
             settings=settings,
             clock_snapshot=clock.to_dict(),
         )
-        result = _force_hold_tickets(result, clock)
+        result = _force_hold_tickets(
+            result,
+            clock,
+            paper_paused=paper_paused,
+            calendar_known=calendar_known,
+        )
 
         ledger_paths: list[str] = []
         if write_paper_watch and resolved_mode == "PAPER":
@@ -163,6 +198,62 @@ def run_market_hours_loop(
                 from trading_agents_india.kb import AgentKB
 
                 AgentKB(settings.kb_path).save_session(result.to_dict())
+
+            # The typed ledger is a second, append-only audit surface.  Every
+            # signal gets a shadow outcome, including SKIPPED/HOLD/VETOED
+            # signals; none of these are customer fills or commission events.
+            ledger = PaperLedger(
+                settings.kb_path,
+                settings.repo_root
+                / "data"
+                / "recon"
+                / "paper_ledger"
+                / f"{clock.as_of_ist.date().isoformat()}.jsonl",
+            )
+            for ticket in result.tickets:
+                signal_id = f"{clock.as_of_ist.date().isoformat()}:{i}:{ticket.underlying}"
+                provenance = Provenance(
+                    source="trading_agents_india.fixture_or_desk",
+                    layer=ticket.layer,
+                    observed_at_ist=result.as_of_ist,
+                    freshness_status="UNKNOWN"
+                    if ticket.data_gaps
+                    else "FIXTURE",
+                    data_gaps=list(ticket.data_gaps),
+                )
+                ledger.append_contract(
+                    "SIGNAL",
+                    SignalRecord(
+                        signal_id=signal_id,
+                        underlying=ticket.underlying,
+                        lean=ticket.lean,
+                        stage=ticket.stage,
+                        as_of_ist=result.as_of_ist,
+                        strategy_or_mix_id=ticket.default_mix_cited,
+                        provenance=provenance,
+                        vetoed=ticket.risk_veto,
+                        reasons=list(ticket.reasons),
+                    ),
+                    {"signal_id": signal_id},
+                )
+                ledger.append_contract(
+                    "SHADOW_TRADE",
+                    PaperTrade(
+                        trade_id=f"{signal_id}:shadow",
+                        signal_id=signal_id,
+                        underlying=ticket.underlying,
+                        side=ticket.lean,
+                        status="SHADOW_OPEN" if ticket.lean != "HOLD" else "SHADOW_SKIPPED",
+                        quantity_lots=None,
+                        entry=None,
+                        exit=None,
+                        realized_pnl=None,
+                        shadow=True,
+                        as_of_ist=result.as_of_ist,
+                        provenance=provenance,
+                    ),
+                    {"trade_id": f"{signal_id}:shadow"},
+                )
 
         ticks.append(
             TickRecord(

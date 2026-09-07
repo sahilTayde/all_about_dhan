@@ -155,6 +155,15 @@ KB: `data/knowledge/agent_rag.sqlite` — does **not** touch `transcripts.sqlite
 
 ---
 
+### Agent RAG / EOD recon
+
+**Last EOD stub:** 2026-09-07 (`python -m agent_rag eod-recon`)
+- session_kind: `UNKNOWN` (score_track=`ANALOG_MEMORY`)
+- RETUNE_PROPOSAL: **`BACKTEST_REQUIRED`** (no auto-retune; `keep_current_strategy: true`)
+- recon: `data/recon/EOD_RECON_2026-09-07.json`
+- KB: `data/knowledge/agent_rag.sqlite` ([`AGENT_RAG.md`](../../01_research/docs/AGENT_RAG.md)) — does **not** touch `transcripts.sqlite`
+- Paper agents backtest rollup: [`BACKTEST_PAPER_AGENTS_2026-09-07.md`](../../06_backtesting/docs/BACKTEST_PAPER_AGENTS_2026-09-07.md) — **NO_PROMOTE**
+
 ## Do not
 
 - Invent win rates or code live strategies  

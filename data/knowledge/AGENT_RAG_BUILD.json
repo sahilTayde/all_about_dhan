@@ -1,15 +1,15 @@
 {
   "db": "data/knowledge/agent_rag.sqlite",
-  "doc_count": 234,
+  "doc_count": 290,
   "counts": {
     "mix": 137,
     "strat": 14,
     "cf_binds": 16,
     "adopt": 6,
-    "paper": 50,
+    "paper": 106,
     "backtest_md": 11
   },
-  "built_at": "2026-09-06T22:40:33Z",
+  "built_at": "2026-09-07T00:55:42Z",
   "embeddings": "skipped",
   "transcripts_sqlite_untouched": true
 }

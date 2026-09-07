@@ -25,6 +25,7 @@ class AgentReport:
     used_llm: bool = False
     trading_agents_name: str = ""
     india_role: str = ""
+    provenance: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -56,6 +57,7 @@ class PaperTicket:
     premium_lean: dict[str, Any] = field(default_factory=dict)
     reports: list[dict[str, Any]] = field(default_factory=list)
     handoffs: list[dict[str, Any]] = field(default_factory=list)
+    provenance: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -89,6 +91,8 @@ class SessionResult:
             "MIX-TA-MARKET-HOURS",
         ]
     )
+    session_id: str = ""
+    run_id: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         return {

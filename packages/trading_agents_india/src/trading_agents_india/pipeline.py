@@ -20,7 +20,7 @@ from trading_agents_india.agents import (
 )
 from trading_agents_india.config import Settings, load_settings
 from trading_agents_india.fixtures import MarketContext, fixture_contexts
-from trading_agents_india.handoffs import build_handoff_chain
+from trading_agents_india.handoffs import build_handoff_chain, validate_handoff_chain
 from trading_agents_india.hooks.chain import watch_chain
 from trading_agents_india.hooks.desk import try_load_desk_context
 from trading_agents_india.hooks.event_memory import classify_session_kind
@@ -172,7 +172,17 @@ def run_underlying_session(
     risk = run_risk(ctx, trader, session_kind, llm)
     reports.append(risk)
 
+    provenance = {
+        "source": str((ctx.premium_lean or {}).get("source") or "fixture_or_desk"),
+        "layer": "HYPOTHESIS",
+        "observed_at_ist": _now_ist(),
+        "freshness_status": "STALE" if ctx.data_gaps else "FIXTURE",
+        "data_gaps": list(ctx.data_gaps),
+    }
+    for report in reports:
+        report.provenance = dict(provenance)
     handoffs = build_handoff_chain(reports)
+    handoff_errors = validate_handoff_chain(handoffs)
 
     risk_veto = session_kind in ("NEWS_DAY", "EXPIRY")
     if not risk_veto and risk.lean_hint == "HOLD":
@@ -187,6 +197,9 @@ def run_underlying_session(
 
     lean = risk.lean_hint if lean_ok(risk.lean_hint) else "HOLD"
     if risk_veto:
+        lean = "HOLD"
+    if handoff_errors:
+        risk_veto = True
         lean = "HOLD"
 
     stage: Stage
@@ -218,6 +231,7 @@ def run_underlying_session(
     reasons.extend(mix_lines[:8])
     if vetoes:
         reasons.extend(vetoes[:4])
+    reasons.extend(handoff_errors[:4])
 
     gaps: list[str] = []
     for r in reports:
@@ -253,6 +267,7 @@ def run_underlying_session(
         premium_lean=dict(ctx.premium_lean or {}),
         reports=[r.to_dict() for r in reports],
         handoffs=[h.to_dict() for h in handoffs],
+        provenance=provenance,
     )
 
 
@@ -268,6 +283,8 @@ def run_session(
     mode: Optional[str] = None,
     settings: Optional[Settings] = None,
     clock_snapshot: Optional[dict[str, Any]] = None,
+    session_id: str = "",
+    run_id: str = "",
 ) -> SessionResult:
     settings = settings or load_settings()
     names = tuple(underlyings) if underlyings else settings.underlyings
@@ -344,6 +361,8 @@ def run_session(
         handoffs=all_handoffs,
         clock=dict(clock_snapshot or {}),
         mix_inputs=mix_inputs,
+        session_id=session_id,
+        run_id=run_id,
     )
 
     if persist:
