@@ -18,7 +18,7 @@ Read in order:
 
 Gate: NOT RESEARCH_READY_FOR_PROGRAMMING. PAPER only. NO_PROMOTE. STRATs UNVALIDATED. Dashboard P/L is MOCK. No live orders. Do not restart npm / Vite until I ask. Never print secrets.
 
-Left off: **Process P0/P1 remainders shipped 2026-09-07 (workstream B):** news docs consistency (gather-news soft OFF); founder digest at stop/15:35 + CE/PE/HOLD honesty; API `top_veto_reasons`/`meta.veto_banner` complete via live reasons + `paper_latest_signals.json`; shared LLM cooldown clear-race + restart backoff; daemon tick 90s. Reports: `PROCESS_FIXES_SHIPPED_2026-09-07.md`, `EOD_LEARNING_AUDIT_2026-09-07.md`. Still open for **C:** P1-3 STRAT DI bind/summarize; premium Stop swing; deep retune. Do not restart npm/paper ops until asked.
+Left off: **Process P0/P1 remainders shipped+committed 2026-09-07 (`853aacd`):** news docs consistency (gather-news soft OFF); founder digest at stop/15:35 + CE/PE/HOLD honesty; API `top_veto_reasons`/`meta.veto_banner` via live reasons + `paper_latest_signals.json`; shared LLM cooldown clear-race + restart backoff; daemon tick 90s. Reports: `PROCESS_FIXES_SHIPPED_2026-09-07.md`, `EOD_LEARNING_AUDIT_2026-09-07.md`. Still open for **C deepening:** premium Stop swing live path; full DI summarize-once UX; deep retune. Paper evaluators module landed in same commit — verify next NSE PAPER. Do not restart npm/paper ops until asked.
 ```
 
 
