@@ -43,11 +43,12 @@ Left off: TradingAgents India paper agents + market-hours CLI (Astra gpt-6-astra
 | Ref | Meaning |
 |-----|---------|
 | Tag `pre-external-org-baseline` | `ad756475` — before TradingAgents / external-org adoption |
-| Tip `main` (handoff) | `568ad80` — *Ship customer paper dashboard with Astra UX agreement.* |
-| Prior tip | `0f716f0` — Astra paper-today review + market-hours soft defaults |
+| Tip `main` | latest on `origin/main` after this handoff (`git log -1 --oneline`) |
+| Last feature ship | `568ad80` — Ship customer paper dashboard with Astra UX agreement |
+| Astra paper-today | `0f716f0` — review + market-hours soft defaults |
 | Remote | `origin/main` @ `https://github.com/sahilTayde/all_about_dhan.git` |
 
-Recent ship chain (newest first): `568ad80` → `0f716f0` → `f8283bc` (gpt-6-astra chat params) → `15084ce` (park depth / desk CLI / NO_PROMOTE) → `afae20a` (market-hours council).
+Recent ship chain (newest first after handoff): handoff CONTINUE refresh → `568ad80` → `0f716f0` → `f8283bc` (gpt-6-astra chat params) → `15084ce` (park depth / desk CLI / NO_PROMOTE) → `afae20a` (market-hours council).
 
 ---
 
