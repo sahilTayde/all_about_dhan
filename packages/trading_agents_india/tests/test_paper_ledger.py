@@ -1,6 +1,7 @@
 from pathlib import Path
 
 from trading_agents_india.paper_ledger import (
+    CandidateAuditRecord,
     CustomerAction,
     PaperLedger,
     PaperTrade,
@@ -87,6 +88,44 @@ def test_append_is_idempotent_across_restart(tmp_path: Path) -> None:
     second = PaperLedger(db, jsonl)
     assert len(second.events("SIGNAL")) == 1
     assert len(jsonl.read_text().splitlines()) == 1
+
+
+def test_candidate_audit_is_restart_idempotent_and_preserves_veto(tmp_path: Path) -> None:
+    db = tmp_path / "ledger.sqlite"
+    jsonl = tmp_path / "ledger.jsonl"
+    observation = CandidateAuditRecord(
+        observation_id="obs-1",
+        candidate_id="STRAT-003",
+        strategy_or_mix_id="STRAT-003",
+        underlying="NIFTY",
+        timeframe="3m",
+        source="fixture_adapter",
+        provenance={"layer": "HYPOTHESIS"},
+        as_of_ist="2026-09-04T11:00:00+05:30",
+        freshness={"status": "STALE"},
+        raw_lean="BUY_CE",
+        final_lean="HOLD",
+        outcome="VETOED",
+        vetoes=["MIX-CLOCK-CAS dead-band"],
+        confidence_components={
+            "data_quality": 0.0,
+            "consensus_quality": 0.0,
+            "freshness_quality": 0.0,
+            "veto_penalty": 1.0,
+        },
+        confidence=0.0,
+    )
+    first = PaperLedger(db, jsonl)
+    assert first.record_candidate_observation(observation)
+    assert not first.record_candidate_observation(observation)
+    reopened = PaperLedger(db, jsonl)
+    assert not reopened.record_candidate_observation(observation)
+    rows = reopened.events("CANDIDATE_OBSERVATION")
+    assert len(rows) == 1
+    assert rows[0]["outcome"] == "VETOED"
+    assert rows[0]["vetoes"] == ["MIX-CLOCK-CAS dead-band"]
+    assert rows[0]["execution"] == "refused"
+    assert len(jsonl.read_text(encoding="utf-8").splitlines()) == 1
 
 
 def test_customer_correction_and_shadow_reconciliation(tmp_path: Path) -> None:

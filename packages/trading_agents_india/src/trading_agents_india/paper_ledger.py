@@ -56,6 +56,29 @@ class SignalRecord:
 
 
 @dataclass(frozen=True)
+class CandidateAuditRecord:
+    observation_id: str
+    candidate_id: str
+    strategy_or_mix_id: str
+    underlying: str
+    timeframe: str
+    source: str
+    provenance: dict[str, Any]
+    as_of_ist: str
+    freshness: dict[str, Any]
+    raw_lean: str
+    final_lean: str
+    outcome: str
+    vetoes: list[str] = field(default_factory=list)
+    confidence_components: dict[str, float] = field(default_factory=dict)
+    confidence: float = 0.0
+    execution: str = "refused"
+    data_gaps: list[str] = field(default_factory=list)
+    status: str = "UNVALIDATED"
+    promote: bool = False
+
+
+@dataclass(frozen=True)
 class PaperTrade:
     trade_id: str
     signal_id: str
@@ -290,6 +313,14 @@ class PaperLedger:
             "FEE_ASSESSMENT", assessment, {"trade_id": assessment.trade_id}
         )
 
+    def record_candidate_observation(self, observation: CandidateAuditRecord) -> bool:
+        """Append a candidate observation without replacing aggregate signals."""
+        return self.append_contract(
+            "CANDIDATE_OBSERVATION",
+            observation,
+            {"observation_id": observation.observation_id},
+        )
+
     def reconcile(self, day: str) -> EODReconciliation:
         rows = self.events()
         day_rows = [
@@ -355,6 +386,27 @@ class PaperLedger:
     def export_eod(self, day: str, output_path: Optional[Path] = None) -> dict[str, Any]:
         """Return and optionally write a stable, fixture-only EOD export."""
         export = asdict(self.reconcile(day))
+        candidate_rows = [
+            row
+            for row in self.events("CANDIDATE_OBSERVATION")
+            if str(row.get("as_of_ist") or "").startswith(day)
+        ]
+        outcomes = Counter(str(row.get("outcome")) for row in candidate_rows)
+        export["candidate_audit"] = {
+            "observation_count": len(candidate_rows),
+            "candidate_ids": sorted(
+                {str(row.get("candidate_id")) for row in candidate_rows}
+            ),
+            "outcome_counts": dict(sorted(outcomes.items())),
+            "marks_available": any(
+                row.get("outcome") in {"ACHIEVED", "STOPPED", "INVALIDATED", "LOST"}
+                for row in candidate_rows
+            ),
+            "note": (
+                "Candidate observations are PAPER audit data. Missing marks remain "
+                "DATA_INSUFFICIENT; no P/L or outcome is fabricated."
+            ),
+        }
         export["metadata"] = {
             "mode": "PAPER",
             "promote": "NO_PROMOTE",

@@ -168,6 +168,16 @@ def test_dry_market_hours_simulation(tmp_path: Path) -> None:
     typed = PaperLedger(settings.kb_path)
     assert len(typed.events("SIGNAL")) == 2
     assert len(typed.events("SHADOW_TRADE")) == 2
+    candidate_rows = typed.events("CANDIDATE_OBSERVATION")
+    assert len(candidate_rows) == 2 * 19
+    assert {row["candidate_id"] for row in candidate_rows} >= {
+        "STRAT-001",
+        "STRAT-014",
+        "MIX-DEFAULT-BUY",
+    }
+    assert any(row["outcome"] == "VETOED" for row in candidate_rows)
+    assert any(row["outcome"] == "DATA_INSUFFICIENT" for row in candidate_rows)
+    assert all(row["execution"] == "refused" for row in candidate_rows)
     assert typed.events("SHADOW_TRADE")[1]["status"] == "SHADOW_SKIPPED"
 
 

@@ -6,6 +6,7 @@ No auto-retune. No production param writes. Aligns EVENT_MEMORY / RETUNE_GATE.
 from __future__ import annotations
 
 import json
+from collections import Counter
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Optional
@@ -51,6 +52,48 @@ def _load_nightly_recon(root: Path, day: str) -> Optional[dict[str, Any]]:
     except json.JSONDecodeError:
         return None
     return raw if isinstance(raw, dict) else None
+
+
+def _load_candidate_audit(root: Path, day: str) -> dict[str, Any]:
+    """Summarize PAPER candidate observations without deriving marks or P/L."""
+    path = root / "data" / "recon" / "paper_ledger" / f"{day}.jsonl"
+    if not path.is_file():
+        return {
+            "missing": True,
+            "observation_count": 0,
+            "note": "DATA_INSUFFICIENT — no candidate audit mirror for day",
+        }
+    rows: list[dict[str, Any]] = []
+    try:
+        with path.open(encoding="utf-8") as fh:
+            for line in fh:
+                if not line.strip():
+                    continue
+                row = json.loads(line)
+                if row.get("event_type") == "CANDIDATE_OBSERVATION":
+                    rows.append(row)
+    except (OSError, json.JSONDecodeError):
+        return {
+            "missing": True,
+            "observation_count": 0,
+            "note": "DATA_INSUFFICIENT — candidate audit mirror unreadable",
+        }
+    outcomes = Counter(str(row.get("outcome")) for row in rows)
+    return {
+        "missing": False,
+        "observation_count": len(rows),
+        "candidate_ids": sorted({str(row.get("candidate_id")) for row in rows}),
+        "outcome_counts": dict(sorted(outcomes.items())),
+        "marks_available": any(
+            row.get("outcome") in {"ACHIEVED", "STOPPED", "INVALIDATED", "LOST"}
+            for row in rows
+        ),
+        "pnl_available": False,
+        "note": (
+            "PAPER observations only; marks and P/L are absent unless an "
+            "authoritative mark adapter appends them."
+        ),
+    }
 
 
 def _classify_session(
@@ -198,6 +241,7 @@ def run_eod_recon(
     day = day or _ist_today()
     ledger = _load_ledger(root, day)
     nightly = _load_nightly_recon(root, day)
+    candidate_audit = _load_candidate_audit(root, day)
     session = _classify_session(
         day=day, ledger=ledger, nightly=nightly, offline=offline
     )
@@ -217,6 +261,7 @@ def run_eod_recon(
             ),
             "note": ledger.get("note"),
         },
+        "candidate_audit": candidate_audit,
         "session": session,
         "event_memory": {
             "score_sample_eligible": bool(session.get("usable_for_retune_sample")),

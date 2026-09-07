@@ -12,8 +12,10 @@ from datetime import datetime
 from typing import Any, Callable, Optional, Sequence
 
 from trading_agents_india.config import Settings, load_settings
+from trading_agents_india.candidate_audit import build_candidate_observations
 from trading_agents_india.ledger import PAPER_WATCH_MIXES, append_agent_paper_tick
 from trading_agents_india.paper_ledger import (
+    CandidateAuditRecord,
     PaperLedger,
     PaperTrade,
     Provenance,
@@ -236,6 +238,14 @@ def run_market_hours_loop(
                     ),
                     {"signal_id": signal_id},
                 )
+                for observation in build_candidate_observations(
+                    ticket,
+                    as_of_ist=result.as_of_ist,
+                    tick_index=i,
+                ):
+                    ledger.record_candidate_observation(
+                        CandidateAuditRecord(**observation.to_dict())
+                    )
                 ledger.append_contract(
                     "SHADOW_TRADE",
                     PaperTrade(

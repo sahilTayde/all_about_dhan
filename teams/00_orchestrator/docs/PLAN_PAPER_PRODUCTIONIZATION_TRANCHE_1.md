@@ -62,7 +62,8 @@ existing 09 five-pass and 06 OOS+NORMAL gates remain binding.
 
 ## Next safe tranche
 
-Implemented in `packages/trading_agents_india`:
+Implemented in `packages/trading_agents_india` (candidate-audit tranche; still
+`PAPER_ONLY`):
 
 - `paper_fixture.PaperFixtureAdapter` records `TOOK`, `SKIPPED`, `UNKNOWN`, and
   append-only `CORRECTED` declarations by signal ID; declarations are not fills.
@@ -75,5 +76,15 @@ Implemented in `packages/trading_agents_india`:
 - Focused tests cover adapter actions, SQLite restart plus JSONL replay, and
   EOD fee totals. No live endpoint, order path, promotion, or UI wiring was
   added.
+- `candidate_audit.py` emits one append-only `CANDIDATE_OBSERVATION` for every
+  existing `STRAT-001`–`STRAT-014` and current PAPER `MIX-*` row per
+  underlying/tick. The aggregate default mix is the only currently bound
+  evaluator; all other rows are retained as `DATA_INSUFFICIENT` rather than
+  silently skipped. Raw and final leans, `VETOED`/`STALE`/`HOLD` outcomes,
+  provenance/freshness, vetoes, bounded data/consensus confidence components,
+  and `execution=refused` are recorded.
+- `agent_rag eod-recon` now reads the candidate audit mirror and reports row
+  counts/outcomes only. It does not fabricate marks, P/L, or promotion evidence;
+  the retune status remains `BACKTEST_REQUIRED`.
 
 Do not wire live orders or promote until the existing 06/09 gates pass.
