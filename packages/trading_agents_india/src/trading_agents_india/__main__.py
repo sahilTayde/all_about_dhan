@@ -69,7 +69,8 @@ def cmd_market_hours(args: argparse.Namespace) -> int:
     if getattr(args, "live", False):
         mode = "LIVE"
     tick = int(args.tick_seconds) if args.tick_seconds else DEFAULT_TICK_SECONDS
-    # Soft defaults (Astra A/C + founder): LLM when key; desk+news on; live-chain off
+    # Soft defaults (2026-09-07): LLM when key; prefer-desk on for soft sentiment;
+    # gather-news OFF mid-session (pre-market owns news gather); live-chain off.
     use_llm = _resolve_flag_triple(
         explicit_on=bool(args.use_llm),
         explicit_off=bool(args.no_llm),
@@ -83,8 +84,13 @@ def cmd_market_hours(args: argparse.Namespace) -> int:
     gather_news = _resolve_flag_triple(
         explicit_on=bool(args.gather_news),
         explicit_off=bool(args.no_gather_news),
-        default=True,
+        default=False,
     )
+    # P0-4: when LLM on and tick not explicitly raised, floor at 90s.
+    if use_llm and not args.tick_seconds:
+        tick = max(tick, 90)
+    elif use_llm:
+        tick = max(tick, 90)
     result = run_market_hours_loop(
         underlyings=underlyings,
         mode=mode,
@@ -166,7 +172,7 @@ def main(argv: list[str] | None = None) -> int:
         p.add_argument(
             "--prefer-desk",
             action="store_true",
-            help="Prefer desk_intel news fixtures (market-hours soft-default on)",
+            help="Prefer desk_intel news (soft sentiment; BIG_NEWS only vetoes). Soft-default on.",
         )
         p.add_argument(
             "--no-prefer-desk",
@@ -176,7 +182,7 @@ def main(argv: list[str] | None = None) -> int:
         p.add_argument(
             "--gather-news",
             action="store_true",
-            help="Probe Dhan news API (DI if absent) + Moneycontrol via desk_intel RSS",
+            help="Mid-session news gather (soft default OFF — prefer pre-market). Soft context unless BIG_NEWS.",
         )
         p.add_argument(
             "--no-gather-news",

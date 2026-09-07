@@ -25,9 +25,10 @@ python -m trading_agents_india session --dry-run --underlying NIFTY
 python -m trading_agents_india session --mode PAPER --gather-news
 python -m trading_agents_india session --mode LIVE              # refuses orders
 python -m trading_agents_india market-hours --simulate --max-ticks 2
-# market-hours soft-defaults: LLM on if OPENAI_API_KEY; prefer-desk+gather-news on;
-# live-chain OFF. Opt out: --no-llm --no-prefer-desk --no-gather-news
-python -m trading_agents_india market-hours --tick-seconds 45 --max-ticks 4 --stop-outside-shell
+# market-hours soft-defaults: LLM on if OPENAI_API_KEY; prefer-desk ON;
+# gather-news OFF (pre-market owns news); live-chain OFF; tick ≥90s when LLM.
+# Opt out: --no-llm --no-prefer-desk. Opt in mid-session news: --gather-news
+python -m trading_agents_india market-hours --tick-seconds 90 --max-ticks 4 --stop-outside-shell
 python -m trading_agents_india market-hours --live-chain --max-ticks 2   # data only; orders refuse
 python -m trading_agents_india clock
 python -m trading_agents_india session --dry-run --use-llm      # session: LLM still opt-in

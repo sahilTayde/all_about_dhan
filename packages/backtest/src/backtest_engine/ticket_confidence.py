@@ -14,6 +14,7 @@ from backtest_engine.levels import (
     DEFAULT_LEVELS_METHOD,
     DESK_PLACEHOLDER_STOP_PTS,
     build_levels,
+    quarantine_index_proxy_from_customer_ticket,
     round_strike,
 )
 
@@ -61,7 +62,7 @@ def paper_levels(
     atr_mult: float = 1.5,
     rr: float = 2.0,
 ) -> dict[str, Any]:
-    """Named-strategy paper ticket. Default MIX-SLTP-ATR-R2 when ATR available."""
+    """Named-strategy paper levels (may be INDEX_POINTS_PROXY for chart/research)."""
     return build_levels(
         underlying=underlying,
         lean=lean if lean in ("CE", "PE") else "SKIP",
@@ -71,6 +72,45 @@ def paper_levels(
         atr_value=atr_value,
         atr_mult=atr_mult,
         rr=rr,
+        bars=bars,
+    )
+
+
+def customer_ticket_levels(
+    *,
+    underlying: str,
+    lean: str,
+    spot: Optional[float],
+    state: str,
+    method_id: str = DEFAULT_LEVELS_METHOD,
+    atr_value: Optional[float] = None,
+    bars: Optional[Sequence[Bar]] = None,
+    atr_mult: float = 1.5,
+    rr: float = 2.0,
+    option_ltp: Optional[float] = None,
+    premium_meta: Optional[dict[str, Any]] = None,
+) -> dict[str, Any]:
+    """Customer `/` ticket: premium Entry/SL/Target only — never index masquerade.
+
+    When option_ltp is set, binds MIX-SLTP-PREM-PCT premium levels. Else DI with gap.
+    """
+    raw = paper_levels(
+        underlying=underlying,
+        lean=lean,
+        spot=spot,
+        state=state,
+        method_id=method_id,
+        atr_value=atr_value,
+        bars=bars,
+        atr_mult=atr_mult,
+        rr=rr,
+    )
+    return quarantine_index_proxy_from_customer_ticket(
+        raw,
+        underlying_spot=spot,
+        option_ltp=option_ltp,
+        lean=lean,
+        premium_meta=premium_meta,
         bars=bars,
     )
 

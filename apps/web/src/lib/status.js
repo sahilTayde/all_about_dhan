@@ -172,9 +172,27 @@ export function isWaitingStatus(status) {
 
 export function formatLevel(value) {
   if (value === "" || value == null) return "—";
+  const raw = String(value).trim();
+  const upper = raw.toUpperCase();
+  if (
+    upper === "DATA_INSUFFICIENT" ||
+    upper === "DI" ||
+    upper === "UNKNOWN" ||
+    upper === "N/A" ||
+    upper === "NA"
+  ) {
+    return upper === "UNKNOWN" ? "UNKNOWN" : "DATA_INSUFFICIENT";
+  }
+  if (raw === "—" || raw === "-") return "—";
   const n = Number(value);
-  if (Number.isNaN(n)) return String(value);
+  if (Number.isNaN(n)) return raw;
   return n.toLocaleString("en-IN");
+}
+
+/** Premium Entry/SL/Target: empty → DATA_INSUFFICIENT (never invent a number). */
+export function formatPremiumSlot(value) {
+  if (value === "" || value == null) return "DATA_INSUFFICIENT";
+  return formatLevel(value);
 }
 
 export function formatPts(n) {
@@ -219,4 +237,70 @@ export function paperBookStats(rows) {
     pointsCaptured: points,
     winPct,
   };
+}
+
+/**
+ * Sort paper/fixture book rows newest-first by timeIst (HH:MM or HH:MM:SS).
+ * Documented UX: founder sees latest ticket at top.
+ */
+export function sortBookRowsNewestFirst(rows) {
+  const list = Array.isArray(rows) ? [...rows] : [];
+  return list.sort((a, b) => {
+    const ta = String(a?.timeIst || a?.time || "00:00");
+    const tb = String(b?.timeIst || b?.time || "00:00");
+    if (ta === tb) return 0;
+    return ta < tb ? 1 : -1;
+  });
+}
+
+/**
+ * Customer CE/PE ticket strip = option premium labels.
+ * Index overlays belong on the chart — never relabel index as Entry/Stop/Target.
+ */
+export function levelFieldDefs(unit) {
+  const u = String(unit || "OPTION_PREMIUM").toUpperCase();
+  // INDEX_POINTS_* is quarantined at the SignalCard — still label as premium slots.
+  if (u === "INDEX_POINTS_PROXY" || u === "INDEX_POINTS" || u.includes("PREMIUM") || !u) {
+    return [
+      { key: "strike", label: "Strike" },
+      { key: "entry", label: "Entry (premium)" },
+      { key: "stop", label: "Stop (premium)" },
+      { key: "target", label: "Target (premium)" },
+    ];
+  }
+  return [
+    { key: "strike", label: "Strike" },
+    { key: "entry", label: "Entry (premium)" },
+    { key: "stop", label: "Stop (premium)" },
+    { key: "target", label: "Target (premium)" },
+  ];
+}
+
+
+/**
+ * Top customer-facing veto / hold reasons when WAITING (no indicator soup).
+ * Prefers signal.top_veto_reasons / meta.veto_banner / staged.vetoes.
+ */
+export function topVetoReasons(signal, deskMeta) {
+  const fromSignal = Array.isArray(signal?.top_veto_reasons)
+    ? signal.top_veto_reasons
+    : Array.isArray(signal?.vetoes)
+      ? signal.vetoes
+      : Array.isArray(signal?.staged?.vetoes)
+        ? signal.staged.vetoes
+        : [];
+  const fromMeta = Array.isArray(deskMeta?.veto_banner)
+    ? deskMeta.veto_banner
+    : Array.isArray(deskMeta?.top_veto_reasons)
+      ? deskMeta.top_veto_reasons
+      : [];
+  const merged = [...fromSignal, ...fromMeta]
+    .map((r) => String(r || "").trim())
+    .filter(Boolean);
+  const out = [];
+  for (const r of merged) {
+    if (!out.includes(r)) out.push(r);
+    if (out.length >= 3) break;
+  }
+  return out;
 }

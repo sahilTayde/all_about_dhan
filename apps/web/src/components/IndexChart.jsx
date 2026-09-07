@@ -4,7 +4,7 @@ import { formatLevel, sideCopy } from "../lib/status.js";
 
 /**
  * MT5-like underlying index path (MOCK/PAPER).
- * Premium entry/SL/target stay on the ticket — only index-unit overlays plot here.
+ * Chart overlays may show index entry/SL/TP. Customer ticket premium slots stay separate.
  */
 export function IndexChart({ chart, signal, status }) {
   const wrapRef = useRef(null);
@@ -16,7 +16,7 @@ export function IndexChart({ chart, signal, status }) {
   const label = chart?.label || "MOCK";
   const note =
     chart?.note ||
-    "Underlying index path — MOCK. Premium levels stay on the ticket. Not a fill. Not advice.";
+    "Underlying index path — MOCK. Index overlays here are not option premium. Not a fill.";
 
   useEffect(() => {
     if (!wrapRef.current || bars.length === 0) return undefined;

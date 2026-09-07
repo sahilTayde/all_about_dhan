@@ -54,14 +54,15 @@ python -m trading_agents_india market-hours --simulate --max-ticks 2
 Market-hours defaults when flags omitted:
 
 - `--use-llm` **on** if `OPENAI_API_KEY` present (override with `--no-llm`)
-- `--prefer-desk` **on** (override `--no-prefer-desk`)
-- `--gather-news` **on** (override `--no-gather-news`)
+- `--prefer-desk` **on** (override `--no-prefer-desk`) — soft/pre-market sentiment; **BIG_NEWS only** mid-session veto
+- `--gather-news` **off** (pre-market owns news gather; pass `--gather-news` only if founder wants mid-session soft context)
 - `--live-chain` **off** (pass explicitly to try Dhan chain/premium)
+- tick floor **≥90s** when LLM is on (P0-4)
 
 ```bash
 python -m trading_agents_india market-hours \
   --max-ticks 8 \
-  --tick-seconds 45 \
+  --tick-seconds 90 \
   --stop-outside-shell \
   --live-chain
 ```

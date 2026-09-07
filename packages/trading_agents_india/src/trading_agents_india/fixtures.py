@@ -80,7 +80,7 @@ def fixture_contexts() -> dict[str, MarketContext]:
                 NewsItem(
                     headline="Fixture RBI / policy calendar quiet — no MACRO_EVENT in window",
                     source_url="https://example.invalid/fixture/nifty-quiet",
-                    tags=["FIXTURE"],
+                    tags=["FIXTURE", "ROUTINE"],
                     risk_bias="MIXED",
                     summary="Dry-run quiet day; not a live print.",
                 )
@@ -98,7 +98,7 @@ def fixture_contexts() -> dict[str, MarketContext]:
                 NewsItem(
                     headline="Fixture: bank results chatter — not a scheduled MACRO_EVENT",
                     source_url="https://example.invalid/fixture/bn-mixed",
-                    tags=["FIXTURE"],
+                    tags=["FIXTURE", "ROUTINE"],
                     risk_bias="MIXED",
                     summary="Mixed tape fixture.",
                 )
@@ -115,7 +115,7 @@ def fixture_contexts() -> dict[str, MarketContext]:
                 NewsItem(
                     headline="Fixture GLOBAL risk-off headline in window — treat as NEWS_DAY hold",
                     source_url="https://example.invalid/fixture/sensex-news",
-                    tags=["MACRO_EVENT", "FIXTURE", "NEWS_DAY"],
+                    tags=["BIG_NEWS", "MACRO_EVENT", "FIXTURE", "NEWS_DAY", "GEOPOLITICAL_SHOCK"],
                     risk_bias="RISK_OFF",
                     summary="Shock fixture: ticket hold, not alpha.",
                 )

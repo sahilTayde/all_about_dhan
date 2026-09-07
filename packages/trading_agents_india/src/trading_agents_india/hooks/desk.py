@@ -36,12 +36,21 @@ def try_load_desk_context(underlying: str) -> tuple[Optional[MarketContext], lis
 
     mapped: list[NewsItem] = []
     for ev in events[:8]:
+        tags = list(getattr(ev, "tags", []) or [])
+        # Offline desk ingest is fixture-backed — never treat as live BIG_NEWS
+        # unless the event itself carries BIG_NEWS.
+        tags_u = {str(t).upper() for t in tags}
+        if "BIG_NEWS" not in tags_u:
+            if "FIXTURE" not in tags_u:
+                tags.append("FIXTURE")
+            if "ROUTINE" not in tags_u:
+                tags.append("ROUTINE")
         mapped.append(
             NewsItem(
                 headline=getattr(ev, "headline", "") or getattr(ev, "event", "news"),
                 source_url=getattr(ev, "cited_url", "")
                 or getattr(ev, "source_url", "https://example.invalid/desk"),
-                tags=list(getattr(ev, "tags", []) or []),
+                tags=tags,
                 risk_bias=getattr(ev, "risk_bias", "MIXED") or "MIXED",
                 summary=getattr(ev, "summary", "") or "",
             )
@@ -56,7 +65,7 @@ def try_load_desk_context(underlying: str) -> tuple[Optional[MarketContext], lis
             chain_lean=base.chain_lean,
             trend_plain=base.trend_plain + " (news overlaid from desk_intel fixtures)",
             news=mapped,
-            session_kind_hint=base.session_kind_hint,
+            session_kind_hint="NORMAL",  # desk fixtures ≠ live BIG_NEWS day
             sentiment_label=base.sentiment_label,
             technical_note=base.technical_note,
             data_gaps=list(base.data_gaps) + gaps,

@@ -3,9 +3,15 @@
     "source": "mock",
     "placeholder": true,
     "asOf": "2026-09-06T18:30:00+05:30",
-    "note": "UI MOCK paper desk. No live strategy. No Dhan from browser. Not a fill. Not advice. Confidence \u2260 win rate.",
+    "note": "UI MOCK / FIXTURE paper desk. Customer ticket Entry/SL/Target = option premium or DATA_INSUFFICIENT \u2014 never INDEX levels. Chart overlays keep index entrySpot/stopSpot/targetSpot. fixtureBook is demo-only; todaysBook is PAPER-only. No live strategy. No Dhan from browser. Not a fill. Not advice. Confidence \u2260 win rate. Veto banner: top_veto_reasons / meta.veto_banner when WAITING.",
     "label": "MOCK",
-    "waiting_demo": "Set any signal.side to HOLD to show WAITING FOR NEXT SIGNAL empty window."
+    "waiting_demo": "Set any signal.side to HOLD to show WAITING FOR NEXT SIGNAL empty window.",
+    "fixture_vs_paper": "FIXTURE=demo wiring (fixtureBook). PAPER=customer paper book (todaysBook). Never club.",
+    "veto_banner": [
+      "Demo hold reasons appear when side is HOLD (WAITING).",
+      "Live PAPER overlays top_veto_reasons from the agent ticket.",
+      "BIG_NEWS only \u2014 routine news is pre-market sentiment."
+    ]
   },
   "underlyings": [
     "NIFTY",
@@ -73,110 +79,23 @@
     }
   },
   "todaysBook": {
-    "source": "mock",
-    "label": "MOCK",
-    "sessionDate": "2026-09-06",
-    "note": "Mock paper ledger only. Cumulative points / win% are PAPER \u2014 not confidence, not live P/L.",
+    "source": "paper",
+    "label": "PAPER",
+    "sessionDate": "2026-09-07",
+    "note": "Customer PAPER book only \u2014 not clubbed with FIXTURE demo. Entry/SL/Target are option premium when bound; else DATA_INSUFFICIENT. Spot column = underlying index. Empty until PAPER signals bind. Win% is historical paper only \u2014 not confidence.",
+    "sort": "newest_first",
+    "unit": "OPTION_PREMIUM",
     "summary": {
-      "customerTaken": 1,
-      "platformShadow": 2,
-      "openTickets": 1,
-      "closedCount": 3,
-      "winCount": 2,
-      "winPct": 66.7,
-      "pointsCaptured": 226
+      "customerTaken": 0,
+      "platformShadow": 0,
+      "openTickets": 0,
+      "closedCount": 0,
+      "winCount": 0,
+      "winPct": null,
+      "pointsCaptured": 0
     },
-    "ledger_schema_note": "Fields align with teams/07_coding/docs/ASTRA_DASHBOARD_REVIEW.md nightly ledger list.",
-    "rows": [
-      {
-        "id": "book-nifty-am",
-        "signal_id": "mock-nifty-am",
-        "trade_id": "paper-nifty-am",
-        "timeIst": "10:22",
-        "underlying": "NIFTY",
-        "side": "BUY_PE",
-        "strike": 24750,
-        "spot": 24782,
-        "entry": 88,
-        "stop": 55,
-        "target": 145,
-        "lots": 1,
-        "points": 24,
-        "result": "WIN",
-        "outcome": "success",
-        "displayed_status": "TARGET HIT",
-        "raw_status": "ACHIEVED",
-        "path": "CUSTOMER",
-        "mode": "MOCK",
-        "note": "Mock closed ticket taken by the customer."
-      },
-      {
-        "id": "book-nifty-live",
-        "signal_id": "mock-nifty-001",
-        "trade_id": "paper-nifty-open",
-        "timeIst": "13:40",
-        "underlying": "NIFTY",
-        "side": "BUY_PE",
-        "strike": 24850,
-        "spot": 24840,
-        "entry": 95,
-        "stop": 62,
-        "target": 155,
-        "lots": 1,
-        "points": 18.5,
-        "result": "OPEN",
-        "outcome": "open",
-        "displayed_status": "IN-PROGRESS",
-        "raw_status": "IN-PROGRESS",
-        "path": "OPEN",
-        "mode": "MOCK",
-        "note": "Mock open ticket. Marks are placeholders."
-      },
-      {
-        "id": "book-bn-shadow",
-        "signal_id": "mock-banknifty-001",
-        "trade_id": "paper-bn-shadow",
-        "timeIst": "11:05",
-        "underlying": "BANKNIFTY",
-        "side": "BUY_PE",
-        "strike": 51000,
-        "spot": 50920,
-        "entry": 410,
-        "stop": 290,
-        "target": 640,
-        "lots": 1,
-        "points": 230,
-        "result": "WIN",
-        "outcome": "success",
-        "displayed_status": "TARGET HIT",
-        "raw_status": "ACHIEVED",
-        "path": "SHADOW",
-        "mode": "MOCK",
-        "note": "Customer skipped. Platform shadow-papered to target."
-      },
-      {
-        "id": "book-sx-shadow",
-        "signal_id": "mock-sensex-001",
-        "trade_id": "paper-sx-shadow",
-        "timeIst": "12:18",
-        "underlying": "SENSEX",
-        "side": "BUY_CE",
-        "strike": 81000,
-        "spot": 80880,
-        "entry": 240,
-        "stop": 165,
-        "target": 390,
-        "lots": 1,
-        "points": -28,
-        "result": "LOSS",
-        "outcome": "loss",
-        "displayed_status": "INVALIDATED",
-        "raw_status": "INVALIDATED",
-        "path": "SHADOW",
-        "mode": "MOCK",
-        "note": "Customer skipped. Platform marked the withdrawn path."
-      }
-    ]
+    "ledger_schema_note": "PAPER rows only. FIXTURE demo lives under fixtureBook.",
+    "rows": []
   },
   "signals": {
     "NIFTY": {
@@ -184,18 +103,22 @@
       "underlying": "NIFTY",
       "side": "BUY_PE",
       "strike": 24850,
-      "entry": 95,
-      "stop": 62,
-      "target": 155,
+      "entry": "DATA_INSUFFICIENT",
+      "stop": "DATA_INSUFFICIENT",
+      "target": "DATA_INSUFFICIENT",
       "expiry": "placeholder",
       "customer": {
         "headline": "Put ticket live \u2014 you decide",
-        "note": "Strike and premium levels on the ticket. Index path on the chart. Not a fill. Not advice. Orders refused."
+        "note": "Strike shown. Premium Entry/SL/Target DATA_INSUFFICIENT until option LTP binds. Underlying index path on the chart. Not a fill. Not advice. Orders refused."
       },
       "ticket": {
-        "unit": "INDEX_POINTS_PROXY",
-        "levels_ready": true,
-        "levels_note": "Mock paper levels. Live paper uses index ref until option premium binds."
+        "unit": "OPTION_PREMIUM",
+        "levels_ready": false,
+        "levels_note": "DATA_INSUFFICIENT: option premium LTP unbound. Index path on chart only (entrySpot/stopSpot/targetSpot). Not a fill. LIVE paper must not invent premium from index.",
+        "index_entry": 24840,
+        "index_stop": 24895,
+        "index_target": 24755,
+        "underlying_spot": 24840
       },
       "confidence": {
         "score_pct": 55,
@@ -232,7 +155,7 @@
       },
       "systemOutcome": {
         "mtmPts": 18.5,
-        "comment": "Mock mark-to-market in option points. Not live P&L."
+        "comment": "Mock mark-to-market in INDEX_POINTS_PROXY. Not live P&L."
       },
       "lifecycle": {
         "outcome": null,
@@ -261,14 +184,15 @@
           "Score version: agreement_v1 \u2014 capped, uncalibrated."
         ],
         "liquidity": [
-          "MOCK: option premium LTP not bound \u2014 ticket uses paper premium placeholders.",
+          "FIXTURE: customer ticket Entry/SL/Target = DATA_INSUFFICIENT (premium LTP unbound).",
+          "Index overlays quarantined to chart \u2014 not premium slots.",
           "Spread / depth: DATA_INSUFFICIENT on this fixture."
         ]
       },
       "chart": {
         "label": "MOCK",
         "unit": "INDEX_POINTS",
-        "note": "Underlying NIFTY path \u2014 MOCK. Premium entry/SL/target stay on the ticket (not plotted as spot).",
+        "note": "Underlying NIFTY path \u2014 MOCK. Index overlays (entry/SL/TP) are index spot levels, not option premium. Customer ticket premium slots stay DI until LTP binds.",
         "bars": [
           {
             "t": 1756698300,
@@ -494,16 +418,19 @@
           "stopSpot": 24895,
           "targetSpot": 24755
         }
-      }
+      },
+      "spot": 24840,
+      "underlying_spot": 24840,
+      "top_veto_reasons": []
     },
     "BANKNIFTY": {
       "id": "mock-banknifty-001",
       "underlying": "BANKNIFTY",
       "side": "BUY_PE",
       "strike": 51000,
-      "entry": 410,
-      "stop": 290,
-      "target": 640,
+      "entry": "DATA_INSUFFICIENT",
+      "stop": "DATA_INSUFFICIENT",
+      "target": "DATA_INSUFFICIENT",
       "expiry": "placeholder",
       "customer": {
         "headline": "Target hit \u2014 ticket closed",
@@ -511,7 +438,7 @@
       },
       "systemOutcome": {
         "mtmPts": 230,
-        "comment": "Mock: premium reached target. Not live P&L."
+        "comment": "Mock: index-proxy target reached. Not live P&L."
       },
       "lifecycle": {
         "outcome": "ACHIEVED",
@@ -606,13 +533,15 @@
           "MOCK closed path. Indicator confirm was after the lean."
         ],
         "liquidity": [
-          "MOCK premium marks \u2014 not live fills."
+          "FIXTURE: customer ticket Entry/SL/Target = DATA_INSUFFICIENT (premium LTP unbound).",
+          "Index overlays quarantined to chart \u2014 not premium slots.",
+          "Spread / depth: DATA_INSUFFICIENT on this fixture."
         ]
       },
       "chart": {
         "label": "MOCK",
         "unit": "INDEX_POINTS",
-        "note": "BANKNIFTY MOCK path with target-hit exit marker.",
+        "note": "Underlying BANKNIFTY path \u2014 MOCK. Index overlays (entry/SL/TP) are index spot levels, not option premium. Customer ticket premium slots stay DI until LTP binds.",
         "bars": [
           {
             "t": 1756698300,
@@ -825,16 +754,28 @@
           "exitPrice": 51147.2,
           "exitLabel": "TARGET HIT"
         }
-      }
+      },
+      "ticket": {
+        "unit": "OPTION_PREMIUM",
+        "levels_ready": false,
+        "levels_note": "DATA_INSUFFICIENT: option premium LTP unbound. Index path on chart only (entrySpot/stopSpot/targetSpot). Not a fill. LIVE paper must not invent premium from index.",
+        "index_entry": 50980,
+        "index_stop": 51240,
+        "index_target": 50680,
+        "underlying_spot": 50980
+      },
+      "spot": 50980,
+      "underlying_spot": 50980,
+      "top_veto_reasons": []
     },
     "SENSEX": {
       "id": "mock-sensex-001",
       "underlying": "SENSEX",
-      "side": "BUY_CE",
+      "side": "HOLD",
       "strike": 81000,
-      "entry": 240,
-      "stop": 165,
-      "target": 390,
+      "entry": "DATA_INSUFFICIENT",
+      "stop": "DATA_INSUFFICIENT",
+      "target": "DATA_INSUFFICIENT",
       "expiry": "placeholder",
       "customer": {
         "headline": "Lean withdrawn \u2014 tape reversed",
@@ -856,12 +797,12 @@
         }
       },
       "staged": {
-        "state": "EARLY",
+        "state": "VETOED",
         "waiting": false,
         "waitLabel": "",
         "lean": "BUY_CE",
-        "headline": "CE lean was early \u2014 then reversed",
-        "note": "Prior stage EARLY only. Outcome is INVALIDATED so this is not a live ticket.",
+        "headline": "Holding \u2014 big news / clock",
+        "note": "Demo WAITING with veto banner.",
         "lights": [
           {
             "id": "supertrend",
@@ -937,13 +878,15 @@
           "MOCK: early call lean reversed \u2014 INVALIDATED."
         ],
         "liquidity": [
-          "MOCK only."
+          "FIXTURE: customer ticket Entry/SL/Target = DATA_INSUFFICIENT (premium LTP unbound).",
+          "Index overlays quarantined to chart \u2014 not premium slots.",
+          "Spread / depth: DATA_INSUFFICIENT on this fixture."
         ]
       },
       "chart": {
         "label": "MOCK",
         "unit": "INDEX_POINTS",
-        "note": "SENSEX MOCK path \u2014 lean invalidated; no live chase.",
+        "note": "Underlying SENSEX path \u2014 MOCK. Index overlays (entry/SL/TP) are index spot levels, not option premium. Customer ticket premium slots stay DI until LTP binds.",
         "bars": [
           {
             "t": 1756698300,
@@ -1133,7 +1076,135 @@
           "stopSpot": 80940,
           "targetSpot": 81480
         }
-      }
+      },
+      "ticket": {
+        "unit": "OPTION_PREMIUM",
+        "levels_ready": false,
+        "levels_note": "DATA_INSUFFICIENT: option premium LTP unbound. Index path on chart only (entrySpot/stopSpot/targetSpot). Not a fill. LIVE paper must not invent premium from index.",
+        "index_entry": 81120,
+        "index_stop": 80940,
+        "index_target": 81480,
+        "underlying_spot": 81120
+      },
+      "spot": 81120,
+      "underlying_spot": 81120,
+      "top_veto_reasons": [
+        "BIG_NEWS: hold customer ticket \u2014 not alpha",
+        "cited_news: Fixture GLOBAL risk-off headline (demo)",
+        "MIX-CLOCK-CAS dead-band (demo afternoon)"
+      ]
     }
+  },
+  "fixtureBook": {
+    "source": "fixture",
+    "label": "FIXTURE",
+    "sessionDate": "2026-09-06",
+    "note": "Demo UI wiring only (FIXTURE). Spot = underlying index. Entry/SL/Target quarantined as DATA_INSUFFICIENT (no invented premium). Sorted newest-first. Not customer paper P/L.",
+    "sort": "newest_first",
+    "unit": "OPTION_PREMIUM",
+    "summary": {
+      "customerTaken": 1,
+      "platformShadow": 2,
+      "openTickets": 1,
+      "closedCount": 3,
+      "winCount": 2,
+      "winPct": 66.7,
+      "pointsCaptured": 226
+    },
+    "ledger_schema_note": "Fields align with teams/07_coding/docs/ASTRA_DASHBOARD_REVIEW.md nightly ledger list.",
+    "rows": [
+      {
+        "id": "book-nifty-live",
+        "signal_id": "mock-nifty-001",
+        "trade_id": "paper-nifty-open",
+        "timeIst": "13:40",
+        "underlying": "NIFTY",
+        "side": "BUY_PE",
+        "strike": 24850,
+        "spot": 24840,
+        "entry": "DATA_INSUFFICIENT",
+        "stop": "DATA_INSUFFICIENT",
+        "target": "DATA_INSUFFICIENT",
+        "lots": 1,
+        "points": 18.5,
+        "result": "OPEN",
+        "outcome": "open",
+        "displayed_status": "IN-PROGRESS",
+        "raw_status": "IN-PROGRESS",
+        "path": "OPEN",
+        "mode": "FIXTURE",
+        "note": "Mock open ticket. Marks are placeholders. Spot = underlying index. Entry/SL/Target = DATA_INSUFFICIENT (no invented option premium). FIXTURE demo only.",
+        "unit": "OPTION_PREMIUM"
+      },
+      {
+        "id": "book-sx-shadow",
+        "signal_id": "mock-sensex-001",
+        "trade_id": "paper-sx-shadow",
+        "timeIst": "12:18",
+        "underlying": "SENSEX",
+        "side": "BUY_CE",
+        "strike": 81000,
+        "spot": 80880,
+        "entry": "DATA_INSUFFICIENT",
+        "stop": "DATA_INSUFFICIENT",
+        "target": "DATA_INSUFFICIENT",
+        "lots": 1,
+        "points": -28,
+        "result": "LOSS",
+        "outcome": "loss",
+        "displayed_status": "INVALIDATED",
+        "raw_status": "INVALIDATED",
+        "path": "SHADOW",
+        "mode": "FIXTURE",
+        "note": "Customer skipped. Platform marked the withdrawn path. Spot = underlying index. Entry/SL/Target = DATA_INSUFFICIENT (no invented option premium). FIXTURE demo only.",
+        "unit": "OPTION_PREMIUM"
+      },
+      {
+        "id": "book-bn-shadow",
+        "signal_id": "mock-banknifty-001",
+        "trade_id": "paper-bn-shadow",
+        "timeIst": "11:05",
+        "underlying": "BANKNIFTY",
+        "side": "BUY_PE",
+        "strike": 51000,
+        "spot": 50920,
+        "entry": "DATA_INSUFFICIENT",
+        "stop": "DATA_INSUFFICIENT",
+        "target": "DATA_INSUFFICIENT",
+        "lots": 1,
+        "points": 230,
+        "result": "WIN",
+        "outcome": "success",
+        "displayed_status": "TARGET HIT",
+        "raw_status": "ACHIEVED",
+        "path": "SHADOW",
+        "mode": "FIXTURE",
+        "note": "Customer skipped. Platform shadow-papered to target. Spot = underlying index. Entry/SL/Target = DATA_INSUFFICIENT (no invented option premium). FIXTURE demo only.",
+        "unit": "OPTION_PREMIUM"
+      },
+      {
+        "id": "book-nifty-am",
+        "signal_id": "mock-nifty-am",
+        "trade_id": "paper-nifty-am",
+        "timeIst": "10:22",
+        "underlying": "NIFTY",
+        "side": "BUY_PE",
+        "strike": 24750,
+        "spot": 24782,
+        "entry": "DATA_INSUFFICIENT",
+        "stop": "DATA_INSUFFICIENT",
+        "target": "DATA_INSUFFICIENT",
+        "lots": 1,
+        "points": 24,
+        "result": "WIN",
+        "outcome": "success",
+        "displayed_status": "TARGET HIT",
+        "raw_status": "ACHIEVED",
+        "path": "CUSTOMER",
+        "mode": "FIXTURE",
+        "note": "Mock closed ticket taken by the customer. Spot = underlying index. Entry/SL/Target = DATA_INSUFFICIENT (no invented option premium). FIXTURE demo only.",
+        "unit": "OPTION_PREMIUM"
+      }
+    ]
   }
 }

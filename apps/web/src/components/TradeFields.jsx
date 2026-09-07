@@ -1,8 +1,8 @@
 const FIELDS = [
   { key: "strike", label: "Strike", hint: "Index option strike" },
-  { key: "entry", label: "Entry", hint: "Premium (placeholder)" },
-  { key: "stop", label: "Stop-loss", hint: "Premium stop-loss (placeholder)" },
-  { key: "target", label: "Target", hint: "Premium target (placeholder)" },
+  { key: "entry", label: "Entry (premium)", hint: "Option premium entry — never index spot" },
+  { key: "stop", label: "Stop (premium)", hint: "Option premium stop — DATA_INSUFFICIENT if LTP unbound" },
+  { key: "target", label: "Target (premium)", hint: "Option premium target — do not invent from index" },
 ];
 
 export function TradeFields({ values, onChange }) {

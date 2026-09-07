@@ -58,14 +58,18 @@ export default function App() {
 
   const mockSignal = desk?.signals?.[underlying];
   const live = livePaper?.underlyings?.[underlying];
+  // LIVE PAPER levels win when present. Index proxy never fills premium slots.
   const signal = live && mockSignal
     ? {
         ...mockSignal,
         side: live.side,
-        strike: live.strike ?? "",
-        entry: live.entry ?? "",
-        stop: live.stop ?? "",
-        target: live.target ?? "",
+        strike: live.strike != null && live.strike !== "" ? live.strike : "",
+        entry: live.entry != null && live.entry !== "" ? live.entry : "",
+        stop: live.stop != null && live.stop !== "" ? live.stop : "",
+        target: live.target != null && live.target !== "" ? live.target : "",
+        underlying_spot:
+          live.underlying_spot ?? live.spot ?? live.ticket?.underlying_spot ?? "",
+        spot: live.underlying_spot ?? live.spot ?? live.ticket?.underlying_spot ?? "",
         staged: {
           state: live.state,
           headline: live.headline,
@@ -73,17 +77,30 @@ export default function App() {
         },
         customer: { headline: live.headline, note: live.note },
         lifecycle: mockSignal.lifecycle || {},
-        ticket: live.ticket,
+        ticket: live.ticket || {
+          unit: "OPTION_PREMIUM",
+          levels_ready: false,
+          levels_note:
+            "LIVE PAPER lean without bound option premium — DATA_INSUFFICIENT. Refusing index-as-premium.",
+        },
         confidence: live.confidence,
         chart: mockSignal.chart,
         confidenceDetail: mockSignal.confidenceDetail,
+        top_veto_reasons:
+          live.top_veto_reasons ||
+          mockSignal.top_veto_reasons ||
+          live.vetoes ||
+          mockSignal.vetoes,
+        vetoes: live.vetoes || mockSignal.vetoes,
       }
     : mockSignal;
   const sourceLabel = live
     ? "LIVE PAPER"
     : apiMode() === "remote"
       ? "API"
-      : "MOCK";
+      : desk?.meta?.source === "fixture" || desk?.meta?.placeholder
+        ? "FIXTURE"
+        : "MOCK";
   const status = customerStatus(signal);
   const waiting = isWaitingStatus(status);
   const confidence =
@@ -150,6 +167,7 @@ export default function App() {
         signal={signal}
         confidence={confidence}
         ticket={ticket}
+        deskMeta={desk?.meta}
       />
 
       <IndexChart chart={chart} signal={signal} status={status} />
@@ -171,7 +189,7 @@ export default function App() {
         </div>
       )}
 
-      <TodaysBook book={desk.todaysBook} />
+      <TodaysBook book={desk.todaysBook} fixtureBook={desk.fixtureBook} />
 
       <details className="desk-context">
         <summary>Desk context (sentiment · close auction) — not the ticket</summary>

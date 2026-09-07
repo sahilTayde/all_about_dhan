@@ -2,22 +2,23 @@
 
 from __future__ import annotations
 
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
-from api.models import PaperDesk, TookTradeRecord, mock_desk, utc_now_iso
+from api.models import TookTradeRecord, mock_desk_payload, utc_now_iso
 
 
 class SignalStore:
     def __init__(self) -> None:
-        self.desk: PaperDesk = mock_desk()
+        self.desk: dict[str, Any] = mock_desk_payload()
         self.took_trade: Dict[str, TookTradeRecord] = {}
 
-    def paper_desk(self) -> PaperDesk:
+    def paper_desk(self) -> dict[str, Any]:
         return self.desk
 
-    def signal_by_id(self, signal_id: str):
-        for row in self.desk.signals.values():
-            if row.id == signal_id:
+    def signal_by_id(self, signal_id: str) -> Optional[dict[str, Any]]:
+        signals = self.desk.get("signals") or {}
+        for row in signals.values():
+            if isinstance(row, dict) and row.get("id") == signal_id:
                 return row
         return None
 

@@ -18,8 +18,9 @@ Read in order:
 
 Gate: NOT RESEARCH_READY_FOR_PROGRAMMING. PAPER only. NO_PROMOTE. STRATs UNVALIDATED. Dashboard P/L is MOCK. No live orders. Do not restart npm / Vite until I ask. Never print secrets.
 
-Left off: TradingAgents India paper agents + market-hours CLI (Astra gpt-6-astra) shipped; customer `/` Astra UX shipped; web servers stopped. Next: (A) next NSE session run paper market-hours per PAPER_MARKET_HOURS_RUNBOOK.md; (B) CF RETRY_TOMORROW fail=30 ASR; (C) Phase-11 bind Yush+Marco return when asked.
+Left off: **Process P0/P1 remainders shipped 2026-09-07 (workstream B):** news docs consistency (gather-news soft OFF); founder digest at stop/15:35 + CE/PE/HOLD honesty; API `top_veto_reasons`/`meta.veto_banner` complete via live reasons + `paper_latest_signals.json`; shared LLM cooldown clear-race + restart backoff; daemon tick 90s. Reports: `PROCESS_FIXES_SHIPPED_2026-09-07.md`, `EOD_LEARNING_AUDIT_2026-09-07.md`. Still open for **C:** P1-3 STRAT DI bind/summarize; premium Stop swing; deep retune. Do not restart npm/paper ops until asked.
 ```
+
 
 ---
 
@@ -107,6 +108,28 @@ Artifacts: `data/knowledge/trading_agents_india.sqlite`, `data/recon/paper_watch
 
 ---
 
+## Process fixes — shipped 2026-09-07
+
+Prior diagnosis: [`data/recon/PROCESS_IMPROVEMENT_2026-09-07.md`](../../../data/recon/PROCESS_IMPROVEMENT_2026-09-07.md).  
+Shipped: [`data/recon/PROCESS_FIXES_SHIPPED_2026-09-07.md`](../../../data/recon/PROCESS_FIXES_SHIPPED_2026-09-07.md).  
+EOD learning honesty: [`data/recon/EOD_LEARNING_AUDIT_2026-09-07.md`](../../../data/recon/EOD_LEARNING_AUDIT_2026-09-07.md).
+
+**Do not restart** paper ops / npm until founder asks (`paper_ops_STOPPED.flag`).
+
+| P | Status | Notes |
+|---|--------|-------|
+| P0-1 BIG_NEWS-only veto | **SHIPPED** | Routine/fixture Brent/RBI ≠ mid-session HOLD |
+| P0-2 `/` veto banner | **SHIPPED** | `top_veto_reasons` / meta.veto_banner (+ ledger snapshot) |
+| P0-3 EOD paper_ledger | **SHIPPED** | `ledger.missing=false`, signal_count=582 |
+| P0-4 LLM budget | **SHIPPED** | lean roles + shared cooldown + 90s floor + restart backoff |
+| P1 attention/digest | **SHIPPED** (scan≠ship) | `ATTENTION_QUEUE_*` + `FOUNDER_DIGEST_*` at stop/15:35 |
+
+Still open (**workstream C**): P1-3 STRAT DI bind/summarize; premium Stop swing / OPTIDX live bind; deep retune engine. CF ASR + Phase-11 when asked. No `process-improve` CLI yet.
+
+**Canvas (2026-09-07):** DI noise unplugged from primary ops board — see [`PAPER_OPS_CANVAS.md`](PAPER_OPS_CANVAS.md) + [`data/recon/CANVAS_UNPLUG_2026-09-07.md`](../../../data/recon/CANVAS_UNPLUG_2026-09-07.md). Monitor rewrite keeps collapsed DI / parked fixtures.
+
+---
+
 ## Do first on research track (not market-hours)
 
 ### Chart Fanatics — **RETRY_TOMORROW** (fail=30 locked)
@@ -158,9 +181,10 @@ KB: `data/knowledge/agent_rag.sqlite` — does **not** touch `transcripts.sqlite
 ### Agent RAG / EOD recon
 
 **Last EOD stub:** 2026-09-07 (`python -m agent_rag eod-recon`)
-- session_kind: `UNKNOWN` (score_track=`ANALOG_MEMORY`)
-- RETUNE_PROPOSAL: **`BACKTEST_REQUIRED`** (no auto-retune; `keep_current_strategy: true`)
+- session_kind: `NORMAL` (score_track=`SCORE_SAMPLE`)
+- RETUNE_PROPOSAL: **`BACKTEST_REQUIRED`** / tune_status=`RAN_NO_TUNE` (no auto-retune; `keep_current_strategy: true`; `production_params_written: false`)
 - recon: `data/recon/EOD_RECON_2026-09-07.json`
+- retune artifact: `data/recon/RETUNE_PROPOSAL_2026-09-07.json`
 - KB: `data/knowledge/agent_rag.sqlite` ([`AGENT_RAG.md`](../../01_research/docs/AGENT_RAG.md)) — does **not** touch `transcripts.sqlite`
 - Paper agents backtest rollup: [`BACKTEST_PAPER_AGENTS_2026-09-07.md`](../../06_backtesting/docs/BACKTEST_PAPER_AGENTS_2026-09-07.md) — **NO_PROMOTE**
 

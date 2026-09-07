@@ -58,6 +58,8 @@ class PaperTicket:
     reports: list[dict[str, Any]] = field(default_factory=list)
     handoffs: list[dict[str, Any]] = field(default_factory=list)
     provenance: dict[str, Any] = field(default_factory=dict)
+    top_veto_reasons: list[str] = field(default_factory=list)
+    premarket_sentiment: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)

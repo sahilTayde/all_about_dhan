@@ -1,28 +1,134 @@
-"""News / EVENT_MEMORY alignment hooks. News holds ticket; does not fake alpha."""
+"""News / EVENT_MEMORY alignment hooks.
+
+Customer-ticket policy (2026-09-07 process fix):
+  - Mid-session hard HOLD/VETO **only** on BIG_NEWS (or EXPIRY / NO_TRADE halt).
+  - Routine / fixture / soft MACRO noise is **pre-market sentiment context**, not a
+    continuous ticket killer.
+  - News never deletes STRATs (KEEP_ALL). Never claimed alpha.
+"""
 
 from __future__ import annotations
 
-from typing import Iterable
+from typing import Iterable, Literal, Optional
 
 from trading_agents_india.fixtures import MarketContext, NewsItem
 from trading_agents_india.schemas import SessionKind
 
+NewsSeverity = Literal["BIG_NEWS", "ROUTINE", "SOFT"]
 
-MACRO_TAGS = frozenset({"MACRO_EVENT", "NEWS_DAY", "CPI", "FED", "RBI", "WAR", "CIRCUIT"})
+# Mid-session customer-ticket veto — explicit big-news only.
+BIG_NEWS_TAGS = frozenset(
+    {
+        "BIG_NEWS",
+        "WAR",
+        "CIRCUIT",
+        "HALT",
+        "CRASH",
+        "FOMC_PRINT",
+        "CPI_PRINT",
+        "RBI_POLICY",
+        "BUDGET_DAY",
+        "GEOPOLITICAL_SHOCK",
+    }
+)
+
+# Soft / calendar stamps — pre-market sentiment only (not mid-session veto).
+SOFT_MACRO_TAGS = frozenset(
+    {"MACRO_EVENT", "NEWS_DAY", "CPI", "FED", "RBI", "CRUDE", "EIA", "MPC"}
+)
+
+ROUTINE_TAGS = frozenset({"FIXTURE", "ROUTINE", "PREMARKET_CONTEXT"})
+
+
+def news_item_severity(item: NewsItem) -> NewsSeverity:
+    """Classify one headline for customer-ticket gate.
+
+    BIG_NEWS → mid-session HOLD/VETO.
+    ROUTINE → fixture / dry overlay — never veto.
+    SOFT → live-ish macro without BIG_NEWS tag — pre-market sentiment only.
+    """
+    tags = {str(t).upper() for t in (item.tags or [])}
+    if tags & BIG_NEWS_TAGS:
+        return "BIG_NEWS"
+    if str(item.risk_bias or "").upper() == "NO_TRADE":
+        return "BIG_NEWS"
+    if tags & ROUTINE_TAGS:
+        return "ROUTINE"
+    if tags & SOFT_MACRO_TAGS:
+        return "SOFT"
+    return "SOFT"
+
+
+def big_news_items(news: Iterable[NewsItem]) -> list[NewsItem]:
+    return [n for n in news if news_item_severity(n) == "BIG_NEWS"]
+
+
+def soft_news_items(news: Iterable[NewsItem]) -> list[NewsItem]:
+    """Non-veto headlines for pre-market / soft sentiment context."""
+    return [n for n in news if news_item_severity(n) != "BIG_NEWS"]
+
+
+def score_premarket_sentiment(news: Iterable[NewsItem]) -> dict[str, object]:
+    """Pre-market path: gather/score impact without holding the live ticket.
+
+    Returns a soft label + cited headlines. Not alpha. Not a win rate.
+    """
+    items = list(news)
+    big = big_news_items(items)
+    soft = soft_news_items(items)
+    risk_offs = sum(1 for n in soft if str(n.risk_bias).upper() == "RISK_OFF")
+    risk_ons = sum(1 for n in soft if str(n.risk_bias).upper() == "RISK_ON")
+    if big:
+        label = "BIG_NEWS_HOLD"
+        bias = "NO_TRADE"
+    elif risk_offs > risk_ons and risk_offs > 0:
+        label = "SOFT_RISK_OFF"
+        bias = "RISK_OFF"
+    elif risk_ons > risk_offs and risk_ons > 0:
+        label = "SOFT_RISK_ON"
+        bias = "RISK_ON"
+    elif soft:
+        label = "SOFT_MIXED"
+        bias = "MIXED"
+    else:
+        label = "QUIET"
+        bias = "MIXED"
+    return {
+        "label": label,
+        "bias": bias,
+        "big_news_count": len(big),
+        "soft_news_count": len(soft),
+        "headlines": [n.headline for n in (big + soft)[:6]],
+        "note": (
+            "Pre-market sentiment / impact context only. "
+            "Mid-session hard veto requires BIG_NEWS. Not a fill. Not alpha."
+        ),
+        "layer": "HYPOTHESIS",
+    }
 
 
 def classify_session_kind(news: Iterable[NewsItem], hint: str = "NORMAL") -> SessionKind:
-    """Align with desk RETUNE_GATE / EVENT_MEMORY: NEWS_DAY vs NORMAL vs EXPIRY."""
-    if (hint or "").upper() == "EXPIRY":
+    """Align with EVENT_MEMORY — but customer NEWS_DAY only on BIG_NEWS.
+
+    EXPIRY hint still forces EXPIRY.
+    NEWS_DAY hint alone does **not** force a hold when headlines are only
+    fixture/routine/soft macro; those stay NORMAL with soft sentiment context.
+    Empty news + explicit NEWS_DAY hint → NEWS_DAY (calendar-forced day).
+    """
+    hint_u = (hint or "NORMAL").upper()
+    if hint_u == "EXPIRY":
         return "EXPIRY"
-    if (hint or "").upper() == "NEWS_DAY":
+
+    items = list(news)
+    if big_news_items(items):
         return "NEWS_DAY"
-    for item in news:
-        tags = {t.upper() for t in (item.tags or [])}
-        if tags & MACRO_TAGS or item.risk_bias == "NO_TRADE":
+
+    if hint_u == "NEWS_DAY":
+        if not items:
             return "NEWS_DAY"
-        if item.risk_bias == "RISK_OFF" and "MACRO_EVENT" in tags:
-            return "NEWS_DAY"
+        # Hint present but only routine/soft fixtures → do not kill the ticket.
+        return "NORMAL"
+
     return "NORMAL"
 
 
@@ -31,14 +137,53 @@ def news_hold_reasons(ctx: MarketContext, session_kind: SessionKind) -> list[str
     reasons: list[str] = []
     if session_kind == "NEWS_DAY":
         reasons.append(
-            "NEWS_DAY / MACRO_EVENT: hold customer ticket (SIGNAL_FUSION / EVENT_MEMORY) — not alpha"
+            "BIG_NEWS: hold customer ticket (SIGNAL_FUSION / EVENT_MEMORY) — not alpha"
         )
     if session_kind == "EXPIRY":
         reasons.append("EXPIRY: gamma/pin risk — no EARLY promote from agent loop")
-    for item in ctx.news:
-        if "MACRO_EVENT" in (item.tags or []) or session_kind == "NEWS_DAY":
-            reasons.append(f"cited_news: {item.headline} ({item.source_url})")
+    for item in big_news_items(ctx.news):
+        reasons.append(f"cited_news: {item.headline} ({item.source_url})")
+    # Soft/routine context is citation-only when not vetoing — never a hard hold string.
+    if session_kind == "NORMAL":
+        soft = soft_news_items(ctx.news)
+        if soft:
+            reasons.append(
+                f"premarket_sentiment: {score_premarket_sentiment(soft).get('label')} "
+                "(soft context — not a mid-session veto)"
+            )
     return reasons
+
+
+def top_veto_reasons(
+    *,
+    session_kind: SessionKind,
+    vetoes: Optional[Iterable[str]] = None,
+    reasons: Optional[Iterable[str]] = None,
+    limit: int = 3,
+) -> list[str]:
+    """Customer-facing top veto / hold reasons (no indicator soup)."""
+    out: list[str] = []
+    for src in (vetoes or [], reasons or []):
+        for raw in src:
+            text = str(raw or "").strip()
+            if not text:
+                continue
+            # Keep boss/tech/chain/bull/bear chatter off the customer banner.
+            if text.startswith(
+                ("boss:", "tech:", "chain:", "bull:", "bear:", "trader:", "input_mix:", "phd_note:")
+            ):
+                continue
+            if text not in out:
+                out.append(text)
+            if len(out) >= limit:
+                return out[:limit]
+    if session_kind in ("NEWS_DAY", "EXPIRY") and not out:
+        out.append(
+            "BIG_NEWS hold"
+            if session_kind == "NEWS_DAY"
+            else "EXPIRY hold — no EARLY promote"
+        )
+    return out[:limit]
 
 
 def analog_memory_note() -> str:

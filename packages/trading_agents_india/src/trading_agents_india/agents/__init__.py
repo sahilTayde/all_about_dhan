@@ -10,6 +10,7 @@ from trading_agents_india.hooks.event_memory import (
     analog_memory_note,
     classify_session_kind,
     news_hold_reasons,
+    score_premarket_sentiment,
 )
 from trading_agents_india.llm import LlmClient
 from trading_agents_india.personas import resolve_by_pipeline_role
@@ -24,6 +25,10 @@ _CONF_LABELS = {
     "high": 0.75,
     "very high": 0.9,
 }
+
+# Default LLM budget: boss + risk + news only (cut ~25 calls/tick fan-out).
+# Others stay rules-only unless Settings/env expands the set.
+LLM_LEAN_ROLES = frozenset({"news_analyst", "boss_research_manager", "risk_committee"})
 
 
 def _parse_confidence(raw: object, default: float) -> float:
@@ -62,9 +67,15 @@ def _llm_report(
     system: str,
     user: str,
     fallback: AgentReport,
+    allow_llm: bool = True,
 ) -> AgentReport:
     _stamp_persona(fallback)
-    if llm is None:
+    if llm is None or not allow_llm or role not in LLM_LEAN_ROLES:
+        return fallback
+    if getattr(llm, "skip_all", False):
+        fallback.data_gaps = list(fallback.data_gaps) + [
+            "DATA_INSUFFICIENT: LLM skipped this tick (big-news veto / calendar / budget)"
+        ]
         return fallback
     parsed, gaps = llm.complete_json(system=system, user=user)
     if not parsed:
@@ -90,16 +101,23 @@ def _llm_report(
 def run_news_analyst(ctx: MarketContext, llm: Optional[LlmClient] = None) -> AgentReport:
     session_kind = classify_session_kind(ctx.news, ctx.session_kind_hint)
     hold = news_hold_reasons(ctx, session_kind)
+    sentiment = score_premarket_sentiment(ctx.news)
     headlines = "; ".join(n.headline for n in ctx.news) or "no headlines"
+    if session_kind == "NEWS_DAY":
+        hold_line = "Ticket HOLD — BIG_NEWS only."
+    else:
+        hold_line = (
+            f"No mid-session news veto; premarket_sentiment={sentiment.get('label')} "
+            "(soft context)."
+        )
     fallback = AgentReport(
         role="news_analyst",
         summary=(
             f"News pass for {ctx.underlying}: {headlines}. "
-            f"session_kind={session_kind}. "
-            + ("Ticket HOLD on news/event." if session_kind == "NEWS_DAY" else "No MACRO_EVENT hold forced.")
-            + " News is veto/hold overlay, not entry alpha."
+            f"session_kind={session_kind}. {hold_line} "
+            "BIG_NEWS holds the ticket; routine/fixture news is sentiment only — not alpha."
         ),
-        lean_hint="HOLD" if session_kind in ("NEWS_DAY", "EXPIRY") else "HOLD",
+        lean_hint="HOLD",
         confidence=0.35,
         citations=[n.source_url for n in ctx.news],
         data_gaps=list(ctx.data_gaps),
@@ -112,11 +130,12 @@ def run_news_analyst(ctx: MarketContext, llm: Optional[LlmClient] = None) -> Age
         role="news_analyst",
         system=(
             "You are the India desk news analyst for NIFTY/BANKNIFTY/SENSEX index options. "
-            "News/MACRO_EVENT = hold the customer ticket, never fake alpha, never delete strategies. "
-            "Return JSON: summary, lean_hint (BUY_CE|BUY_PE|HOLD), confidence 0-1, citations[], data_gaps[]. "
-            "Prefer HOLD on NEWS_DAY."
+            "Hold the customer ticket ONLY on BIG_NEWS (war/circuit/policy print/shock). "
+            "Routine/fixture MACRO noise is pre-market sentiment context — not a mid-session veto. "
+            "Never fake alpha, never delete strategies. "
+            "Return JSON: summary, lean_hint (BUY_CE|BUY_PE|HOLD), confidence 0-1, citations[], data_gaps[]."
         ),
-        user=json.dumps(ctx.to_prompt_blob()),
+        user=json.dumps({**ctx.to_prompt_blob(), "premarket_sentiment": sentiment}),
         fallback=fallback,
     )
 
@@ -326,7 +345,7 @@ def run_boss(
         role="boss_research_manager",
         system=(
             "You are the 00 boss desk. Mandate=customer profitability over SDLC, not a claimed win rate. "
-            "KEEP_ALL STRAT-001–014. NEWS_DAY→HOLD. Cite MIX-DEFAULT-BUY as default book only. "
+            "KEEP_ALL STRAT-001–014. BIG_NEWS/NEWS_DAY→HOLD only; routine news is soft context. Cite MIX-DEFAULT-BUY as default book only. "
             "JSON: summary, lean_hint, confidence, citations, data_gaps."
         ),
         user=json.dumps(
@@ -406,7 +425,7 @@ def run_risk(
         role="risk_committee",
         system=(
             "Risk committee for India index options paper desk. "
-            "On NEWS_DAY/EXPIRY you MUST lean HOLD and list vetoes. Never approve live orders. "
+            "On BIG_NEWS NEWS_DAY/EXPIRY you MUST lean HOLD and list vetoes. Routine news is not a veto. Never approve live orders. "
             "JSON: summary, lean_hint, confidence, citations (include veto strings), data_gaps."
         ),
         user=json.dumps(

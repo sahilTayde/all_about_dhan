@@ -53,6 +53,9 @@ class SignalRecord:
     contract_version: str = CONTRACT_VERSION
     vetoed: bool = False
     reasons: list[str] = field(default_factory=list)
+    vetoes: list[str] = field(default_factory=list)
+    top_veto_reasons: list[str] = field(default_factory=list)
+    session_kind: str = "NORMAL"
 
 
 @dataclass(frozen=True)

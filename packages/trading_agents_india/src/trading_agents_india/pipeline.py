@@ -23,7 +23,11 @@ from trading_agents_india.fixtures import MarketContext, fixture_contexts
 from trading_agents_india.handoffs import build_handoff_chain, validate_handoff_chain
 from trading_agents_india.hooks.chain import watch_chain
 from trading_agents_india.hooks.desk import try_load_desk_context
-from trading_agents_india.hooks.event_memory import classify_session_kind
+from trading_agents_india.hooks.event_memory import (
+    classify_session_kind,
+    score_premarket_sentiment,
+    top_veto_reasons,
+)
 from trading_agents_india.hooks.news import gather_news
 from trading_agents_india.hooks.premium import resolve_premium_lean
 from trading_agents_india.hooks.rag import fetch_rag_context
@@ -151,25 +155,31 @@ def run_underlying_session(
     llm: Optional[LlmClient],
 ) -> PaperTicket:
     session_kind = classify_session_kind(ctx.news, ctx.session_kind_hint)
+    premarket = score_premarket_sentiment(ctx.news)
+    # Skip OpenAI fan-out when already hard-vetoed (big news / expiry).
+    active_llm = llm
+    if llm is not None and session_kind in ("NEWS_DAY", "EXPIRY"):
+        llm.skip_all = True  # type: ignore[attr-defined]
+        active_llm = llm
     reports = []
 
-    news = run_news_analyst(ctx, llm)
-    sentiment = run_sentiment_analyst(ctx, llm)
-    technical = run_technical_analyst(ctx, llm)
-    chain = run_chain_watcher(ctx, llm)
+    news = run_news_analyst(ctx, active_llm)
+    sentiment = run_sentiment_analyst(ctx, active_llm)
+    technical = run_technical_analyst(ctx, active_llm)
+    chain = run_chain_watcher(ctx, active_llm)
     reports.extend([news, sentiment, technical, chain])
 
-    bull = run_bull(ctx, reports, llm)
-    bear = run_bear(ctx, reports, llm)
+    bull = run_bull(ctx, reports, active_llm)
+    bear = run_bear(ctx, reports, active_llm)
     reports.extend([bull, bear])
 
-    boss = run_boss(ctx, reports, session_kind, settings.default_mix, llm)
+    boss = run_boss(ctx, reports, session_kind, settings.default_mix, active_llm)
     reports.append(boss)
 
     trader = run_trader(boss, session_kind)
     reports.append(trader)
 
-    risk = run_risk(ctx, trader, session_kind, llm)
+    risk = run_risk(ctx, trader, session_kind, active_llm)
     reports.append(risk)
 
     provenance = {
@@ -187,7 +197,7 @@ def run_underlying_session(
     risk_veto = session_kind in ("NEWS_DAY", "EXPIRY")
     if not risk_veto and risk.lean_hint == "HOLD":
         risk_veto = any(
-            c.startswith(("NEWS_DAY", "EXPIRY", "cited_news")) for c in risk.citations
+            c.startswith(("NEWS_DAY", "EXPIRY", "cited_news", "BIG_NEWS")) for c in risk.citations
         )
     # Chain watcher soft veto on thin wall / fake breakout when no strong tech align
     watch_flag = str((ctx.chain_watch or {}).get("hypothesis_flag") or "NONE")
@@ -214,7 +224,7 @@ def run_underlying_session(
     vetoes = [
         c
         for c in risk.citations
-        if c.startswith(("NEWS_DAY", "EXPIRY", "cited_news", "neutral_risk"))
+        if c.startswith(("NEWS_DAY", "EXPIRY", "cited_news", "BIG_NEWS", "neutral_risk", "MIX-CLOCK", "PAPER_PAUSED", "CALENDAR"))
     ]
     if watch_flag != "NONE":
         vetoes.append(f"chain_watcher:{watch_flag}")
@@ -244,6 +254,9 @@ def run_underlying_session(
             seen.add(g)
             uniq_gaps.append(g)
 
+    banner = top_veto_reasons(
+        session_kind=session_kind, vetoes=vetoes, reasons=reasons, limit=3
+    )
     return PaperTicket(
         underlying=ctx.underlying,  # type: ignore[arg-type]
         lean=lean,  # type: ignore[arg-type]
@@ -268,6 +281,8 @@ def run_underlying_session(
         reports=[r.to_dict() for r in reports],
         handoffs=[h.to_dict() for h in handoffs],
         provenance=provenance,
+        top_veto_reasons=banner,
+        premarket_sentiment=dict(premarket),
     )
 
 
@@ -315,9 +330,7 @@ def run_session(
 
     if use_llm:
         llm = LlmClient(settings.openai_model, enabled=True)
-        if llm.enabled:
-            openai_used = True
-        else:
+        if not llm.enabled:
             session_gaps.append(
                 "DATA_INSUFFICIENT: --use-llm requested but OpenAI unavailable — rule fallback"
             )
@@ -340,9 +353,28 @@ def run_session(
         if use_llm:
             ctx = _attach_rag(ctx)
             session_gaps.extend(ctx.data_gaps)
+        if llm is not None:
+            llm.skip_all = False  # type: ignore[attr-defined]
+        # Clock / calendar closed → skip LLM for this tick entirely.
+        clock = clock_snapshot or {}
+        if llm is not None and (
+            clock.get("allow_directional_paper") is False
+            or clock.get("in_dead_band") is True
+            or not clock.get("in_session_shell", True)
+        ):
+            llm.skip_all = True  # type: ignore[attr-defined]
         ticket = run_underlying_session(ctx, settings, llm if use_llm else None)
         tickets.append(ticket)
         all_handoffs.extend(ticket.handoffs)
+
+    # Honest flag: only true when at least one OpenAI JSON call succeeded this tick.
+    if llm is not None and llm.success_count > 0:
+        openai_used = True
+    elif use_llm and llm is not None and llm.fail_count > 0 and llm.last_error:
+        session_gaps.append(
+            f"DATA_INSUFFICIENT: OpenAI enabled but no successful call "
+            f"(last_error_class={llm.last_error_class})"
+        )
 
     mode_label: Mode = resolved_mode
 

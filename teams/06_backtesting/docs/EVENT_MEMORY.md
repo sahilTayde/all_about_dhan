@@ -7,6 +7,8 @@
 
 Education ≠ advice. **No live orders.** This file has **no backtest results**. Do **not** invent P/L, expectancy, profit factor, drawdown, win rates, or analog path numbers. Today every analog payload is **empty** / `DATA_INSUFFICIENT`.
 
+**Customer ticket (2026-09-07):** mid-session HOLD/VETO only on **BIG_NEWS** (war/circuit/policy print/shock/`NO_TRADE`). Fixture/routine MACRO rows are **pre-market sentiment** for ANALOG/context — they do **not** force `NEWS_DAY` on the live ticket. SCORE_SAMPLE still requires honest `NORMAL`.
+
 Extends — does not replace — [`RETUNE_GATE.md`](RETUNE_GATE.md): session tags `NEWS_DAY` / `EXPIRY` / `NORMAL`; nightly `RETUNE_PROPOSAL` stays `BACKTEST_REQUIRED`; default **keep current strategy**; no auto-retune.
 
 ---

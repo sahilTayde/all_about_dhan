@@ -21,7 +21,11 @@ from backtest_engine.indicators import Bar
 from backtest_engine.paper_watch import append_paper_event
 from backtest_engine.patterns import lean_gap, lean_range_exp
 from backtest_engine.resample import resample
-from backtest_engine.ticket_confidence import confidence_from_books, paper_levels
+from backtest_engine.option_premium_ltp import fetch_atm_option_premium_ltp
+from backtest_engine.ticket_confidence import (
+    confidence_from_books,
+    customer_ticket_levels,
+)
 
 IST = timezone(timedelta(hours=5, minutes=30))
 
@@ -232,31 +236,68 @@ class PaperSignalEngine:
             lean = row.get("lean")
             state = str(row.get("state") or "WATCH")
             bars_3m = resample(self.books[name].bars(), 3) if name in self.books else []
-            levels = paper_levels(
+            spot_val = spots.get(name)
+            premium_meta: dict[str, Any] = {}
+            option_ltp = None
+            # Only fetch OPTIDX/optionchain LTP when we have a CE/PE lean to ticket.
+            if lean in ("CE", "PE") and state in ("CONFIRMED", "IN-PROGRESS"):
+                quote = fetch_atm_option_premium_ltp(
+                    name,
+                    lean,
+                    prefer_live=True,
+                    spot_hint=spot_val,
+                )
+                premium_meta = {
+                    "reason": quote.reason,
+                    "source": quote.source,
+                    "expiry": quote.expiry,
+                    "strike": quote.strike,
+                    "underlying_spot": quote.underlying_spot or spot_val,
+                    "ok": quote.ok,
+                    "data_gaps": list(quote.data_gaps),
+                }
+                if quote.ok and quote.ltp is not None:
+                    option_ltp = quote.ltp
+                row["premium_quote"] = quote.to_dict()
+            # Customer ticket = option premium slots only. Index ATR proxy is
+            # quarantined to index_* / chart — never fake premium from index.
+            # When option_ltp binds, Entry/Target fill via MIX-SLTP-PREM-PCT.
+            levels = customer_ticket_levels(
                 underlying=name,
                 lean=lean if lean in ("CE", "PE") else "SKIP",
-                spot=spots.get(name),
+                spot=spot_val,
                 state=state,
                 method_id="MIX-DESK-IQ-ATR-RR2",
                 bars=bars_3m,
+                option_ltp=option_ltp,
+                premium_meta=premium_meta or None,
             )
             conf = confidence_from_books(
                 underlying=name,
                 default_row=row,
                 club_row=club_book.get(name),
             )
-            # Only put strike/entry/stop/target on the ticket when CONFIRMED+
-            if state == "CONFIRMED" and levels.get("levels_ready"):
-                row["strike"] = levels["strike"]
-                row["entry"] = levels["entry"]
-                row["stop"] = levels["stop"]
-                row["target"] = levels["target"]
+            row["underlying_spot"] = (
+                levels.get("underlying_spot")
+                if levels.get("underlying_spot") is not None
+                else spot_val
+            )
+            if state == "CONFIRMED" and lean in ("CE", "PE"):
+                row["strike"] = levels.get("strike") or ""
+                # Premium LTP unbound → honest empty / DI, not index numbers.
+                row["entry"] = levels.get("entry") if levels.get("entry") is not None else ""
+                row["stop"] = levels.get("stop") if levels.get("stop") is not None else ""
+                row["target"] = levels.get("target") if levels.get("target") is not None else ""
+                if levels.get("expiry"):
+                    row["expiry"] = levels.get("expiry")
                 row["side"] = "BUY_CE" if lean == "CE" else "BUY_PE"
                 row["headline"] = (
                     f"{'BUY CALL' if lean == 'CE' else 'BUY PUT'} — paper ticket. "
                     "You decide. Not a fill."
                 )
-                row["note"] = levels["levels_note"]
+                row["note"] = levels.get("levels_note") or (
+                    "DATA_INSUFFICIENT: option premium unbound. Orders refused."
+                )
             elif state == "EARLY":
                 row["strike"] = ""
                 row["entry"] = ""
@@ -267,6 +308,7 @@ class PaperSignalEngine:
             if name in club_book:
                 club_book[name]["ticket"] = levels
                 club_book[name]["confidence"] = conf
+                club_book[name]["underlying_spot"] = row.get("underlying_spot")
 
         payload = {
             "kind": "paper_signal",

@@ -61,18 +61,54 @@ _CALENDAR_EVENTS = frozenset(
 _METRICS_REQUIRED = ("expectancy", "profit_factor", "max_drawdown")
 
 
+_BIG_NEWS_TAGS = frozenset(
+    {
+        "BIG_NEWS",
+        "WAR",
+        "CIRCUIT",
+        "HALT",
+        "CRASH",
+        "FOMC_PRINT",
+        "CPI_PRINT",
+        "RBI_POLICY",
+        "BUDGET_DAY",
+        "GEOPOLITICAL_SHOCK",
+    }
+)
+_ROUTINE_TAGS = frozenset({"FIXTURE", "ROUTINE", "PREMARKET_CONTEXT"})
+
+
+def event_is_big_news(event: NewsEvent) -> bool:
+    """Mid-session / SCORE_SAMPLE NEWS_DAY only for explicit big news."""
+    tags = {str(t).upper() for t in (event.tags or [])}
+    if tags & _BIG_NEWS_TAGS:
+        return True
+    if str(getattr(event, "risk_bias", "") or "").upper() == "NO_TRADE":
+        return True
+    return False
+
+
 def event_is_news_or_calendar(event: NewsEvent) -> bool:
-    """True when the headline is a print/calendar row, not a generic RSS stamp."""
+    """True when the headline is a print/calendar row, not a generic RSS stamp.
+
+    Fixture/routine overlays are pre-market sentiment context — they do **not**
+    force NEWS_DAY for SCORE_SAMPLE or customer veto unless tagged BIG_NEWS.
+    """
     tags = {str(t) for t in (event.tags or [])}
-    if tags & _CALENDAR_TAGS:
+    tags_u = {str(t).upper() for t in tags}
+    if tags_u & _ROUTINE_TAGS and not (tags_u & _BIG_NEWS_TAGS):
+        return False
+    if event_is_big_news(event):
+        return True
+    if tags & _CALENDAR_TAGS and not (tags_u & _ROUTINE_TAGS):
         return True
     hits = {str(k).lower() for k in (event.keywords_hit or [])}
-    if hits & _MACRO_KEYWORDS:
+    if hits & _MACRO_KEYWORDS and not (tags_u & _ROUTINE_TAGS):
         return True
-    if str(event.event or "") in _CALENDAR_EVENTS:
+    if str(event.event or "") in _CALENDAR_EVENTS and not (tags_u & _ROUTINE_TAGS):
         return True
     source = str(event.source_id or "").lower()
-    if "calendar" in source:
+    if "calendar" in source and not (tags_u & _ROUTINE_TAGS):
         return True
     return False
 
@@ -84,14 +120,17 @@ def _news_day_reasons(
     reasons: list[str] = []
     for event in events or []:
         if event_is_news_or_calendar(event):
+            prefix = "big_news" if event_is_big_news(event) else "news+calendar"
             reasons.append(
-                f"news+calendar: {event.event or event.source_id} ({event.headline[:80]})"
+                f"{prefix}: {event.event or event.source_id} ({event.headline[:80]})"
             )
     for sig in signals:
-        if "MACRO_EVENT" in (sig.tags or []):
-            reasons.append(f"signal:{sig.id}:MACRO_EVENT")
+        tags = {str(t).upper() for t in (sig.tags or [])}
+        if tags & _BIG_NEWS_TAGS:
+            reasons.append(f"signal:{sig.id}:BIG_NEWS")
+        # Soft MACRO_EVENT / PREMARKET_CONTEXT on signals must not force NEWS_DAY.
         for veto in sig.vetoes or []:
-            if "event_window" in veto:
+            if "event_window" in veto or "BIG_NEWS" in veto:
                 reasons.append(f"signal:{sig.id}:event_window")
                 break
     return reasons

@@ -130,3 +130,11 @@ ROOM TO EDIT: weights, veto minutes, opening-drive cutoff.
 ## Compliance
 
 Never present this as investment advice or a guaranteed profit. Layer label is `HYPOTHESIS`. See [`docs/COMPLIANCE.md`](../../../docs/COMPLIANCE.md).
+
+## News severity (2026-09-07)
+
+- **PRE_MARKET:** gather news → sentiment / impact (`score_premarket_sentiment`).
+- **Mid-session:** soft context only unless tagged **BIG_NEWS** (or halt/`NO_TRADE`).
+- Fixture Brent/RBI rows are **ROUTINE** — not a customer-ticket veto.
+- Code: `packages/trading_agents_india/hooks/event_memory.py`, `desk_intel.retune_gate.event_is_big_news`.
+

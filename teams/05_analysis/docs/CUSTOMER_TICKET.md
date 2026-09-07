@@ -33,15 +33,18 @@ Plain playbook names on `/` (not STRAT soup):
 
 ## Levels (honest — named method)
 
-Paper levels use a **named MIX / method id**, not silent hardcoded index points.
+Paper **index** ATR levels may exist for chart / research (`index_*`).  
+Customer ticket **Entry / Stop / Target** for BUY_CE / BUY_PE are **option premium** only.
 
 | Default method | Rule |
 |----------------|------|
-| `MIX-DESK-IQ-ATR-RR2` / `MIX-SLTP-ATR-R2` | Wilder ATR(14)×1.5 stop from entry; target R×2. Needs ATR seed from recent bars. |
-| Fallback | If ATR missing → `levels_ready=false` + `DATA_INSUFFICIENT` (no fake points). |
-| Deprecated | `DESK_PLACEHOLDER` fixed pts (NIFTY 30 / BN 60 / SENSEX 100) only if explicitly selected — labeled deprecated. |
+| `MIX-DESK-IQ-ATR-RR2` / `MIX-SLTP-ATR-R2` | Wilder ATR(14)×1.5 stop from index entry; target R×2 — kept as `index_*` for chart. |
+| Customer premium slots | Bound when ATM option LTP exists (`POST /optionchain`). Entry = LTP. Target = entry×1.25 (`MIX-SLTP-PREM-PCT` mid of STRAT-002 20–30%). **Stop (premium slot)** stays `DATA_INSUFFICIENT` unless an explicit `stop_pct` is passed — teacher stop is **underlying recent-swing**, not a premium-% invent. **PAPER rule `MIX-SLTP-SWING-STOP`:** when INDEX/FUTIDX bars exist, bind `index_stop` / `stop_underlying` = last confirmed fractal swing (CE→swing low, PE→swing high; wing=2 HYPOTHESIS). Chart uses `index_stop`; customer premium Stop remains DI until a greek map exists. |
+| Fallback | If ATR missing → index builder `levels_ready=false`. Premium still DI until chain binds. |
+| Gap reason | When LTP missing: `levels_note` / UI shows e.g. `OPTIDX premium not fetched` / dry_run / expiry empty — never paste index prints into Entry/SL/Target. |
+| Deprecated | `DESK_PLACEHOLDER` fixed pts (NIFTY 30 / BN 60 / SENSEX 100) only if explicitly selected — labeled deprecated; still quarantined off customer premium slots. |
 
-Unit: `INDEX_POINTS_PROXY`. Option premium LTP still UNKNOWN until chain binds.  
+Unit on customer ticket: `OPTION_PREMIUM` (DI until LTP). Chart overlays may show index entrySpot/stopSpot/targetSpot separately.  
 Backtest of ATR overlay on NIFTY INDEX 3m: **FAIL** — see [`BACKTEST_SLTP_2026-09-06.md`](../../06_backtesting/docs/BACKTEST_SLTP_2026-09-06.md). Do **not** paste that wr into confidence.
 
 ## Must not
@@ -52,4 +55,4 @@ Backtest of ATR overlay on NIFTY INDEX 3m: **FAIL** — see [`BACKTEST_SLTP_2026
 - Claim `RESEARCH_READY_FOR_PROGRAMMING`.  
 - Silent hardcoded stops presented as a strategy.
 
-Code: `levels.py` · `ticket_confidence.py` · `live_signals.py` · `ConfidenceBox.jsx` · `SignalCard.jsx`.
+Code: `levels.py` · `option_premium_ltp.py` · `ticket_confidence.py` · `live_signals.py` · [`PREMIUM_SWING_STOP.md`](PREMIUM_SWING_STOP.md) · `ConfidenceBox.jsx` · `SignalCard.jsx`.

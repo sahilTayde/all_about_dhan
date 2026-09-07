@@ -6,6 +6,7 @@ Dead-band / outside shell → HOLD-only paper emission.
 
 from __future__ import annotations
 
+import json
 import time
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -213,7 +214,9 @@ def run_market_hours_loop(
                 / f"{clock.as_of_ist.date().isoformat()}.jsonl",
             )
             for ticket in result.tickets:
-                signal_id = f"{clock.as_of_ist.date().isoformat()}:{i}:{ticket.underlying}"
+                # Include as_of_ist so restarting market-hours (tick_index resets)
+                # still appends new SIGNAL/SHADOW rows instead of colliding on day:tick.
+                signal_id = f"{result.as_of_ist}:{i}:{ticket.underlying}"
                 provenance = Provenance(
                     source="trading_agents_india.fixture_or_desk",
                     layer=ticket.layer,
@@ -235,6 +238,9 @@ def run_market_hours_loop(
                         provenance=provenance,
                         vetoed=ticket.risk_veto,
                         reasons=list(ticket.reasons),
+                        vetoes=list(ticket.vetoes),
+                        top_veto_reasons=list(getattr(ticket, "top_veto_reasons", []) or []),
+                        session_kind=str(ticket.session_kind),
                     ),
                     {"signal_id": signal_id},
                 )
@@ -273,6 +279,57 @@ def run_market_hours_loop(
                 ledger_paths=ledger_paths,
             )
         )
+
+        # Ops heartbeat: long --max-ticks runs otherwise print nothing until exit.
+        leans = {t.underlying: t.lean for t in result.tickets}
+        llm_err = None
+        for gap in list(getattr(result, "data_gaps", None) or []):
+            g = str(gap)
+            if "rate-limit" in g.lower() or "ratelimit" in g.lower():
+                llm_err = "RateLimitError" if "rate-limited" in g.lower() else "RateLimitCooldown"
+                break
+            if "connection cooldown" in g.lower():
+                llm_err = "APIConnectionCooldown"
+                break
+            if "OpenAI call failed (" in g:
+                # Class name only — never message body / secrets.
+                start = g.rfind("(") + 1
+                end = g.rfind(")")
+                if start > 0 and end > start:
+                    llm_err = g[start:end]
+                    break
+            if "last_error_class=" in g:
+                llm_err = g.split("last_error_class=", 1)[-1].strip(" )")
+                break
+        heartbeat = {
+            "event": "market_hours_tick",
+            "tick_index": i,
+            "max_ticks": int(max_ticks),
+            "mode": resolved_mode,
+            "as_of_ist": result.as_of_ist,
+            "in_session_shell": clock.in_session_shell,
+            "allow_directional_paper": clock.allow_directional_paper,
+            "leans": leans,
+            "openai_used": bool(getattr(result, "openai_used", False)),
+            "use_llm": bool(use_llm),
+            "prefer_live_chain": bool(prefer_live_chain),
+            "llm_last_error_class": llm_err,
+            "llm_calls_per_tick": sum(
+                1
+                for t in result.tickets
+                for r in (t.reports or [])
+                if isinstance(r, dict) and r.get("used_llm")
+            ),
+            "top_veto_reasons": {
+                t.underlying: list(getattr(t, "top_veto_reasons", []) or [])[:3]
+                for t in result.tickets
+            },
+            "ledger_paths": ledger_paths,
+            "execution": "refused",
+            "gate": "not RESEARCH_READY_FOR_PROGRAMMING",
+            "promote": "NO_PROMOTE",
+        }
+        print(json.dumps(heartbeat, ensure_ascii=False), flush=True)
 
         if i + 1 >= max_ticks:
             break

@@ -36,19 +36,19 @@ def _plain_signal(*, expiry: str = "2026-09-10", tags=None, vetoes=None) -> Mark
     )
 
 
-def test_fixture_news_is_calendar_or_print() -> None:
-    assert any(event_is_news_or_calendar(e) for e in FIXTURE_NEWS)
+def test_fixture_routine_news_is_not_calendar_news_day() -> None:
+    """Fixture Brent/RBI overlays are pre-market sentiment — not NEWS_DAY."""
+    assert all(not event_is_news_or_calendar(e) for e in FIXTURE_NEWS)
 
 
-def test_session_news_day_from_calendar_news() -> None:
+def test_session_normal_from_fixture_routine_news() -> None:
     tag = classify_session(
         day="2026-09-01",
         signals=[_plain_signal()],
         events=list(FIXTURE_NEWS),
     )
-    assert tag.kind == "NEWS_DAY"
-    assert "NEWS_DAY" in tag.flags
-    assert tag.usable_for_retune_sample is False
+    assert tag.kind == "NORMAL"
+    assert tag.usable_for_retune_sample is True
 
 
 def test_session_expiry_when_sheet_is_today() -> None:
@@ -73,15 +73,15 @@ def test_session_normal_when_quiet() -> None:
     assert tag.usable_for_retune_sample is True
 
 
-def test_news_and_expiry_flags_together() -> None:
+def test_expiry_alone_when_only_fixture_news() -> None:
     tag = classify_session(
         day="2026-09-03",
         signals=[_plain_signal(expiry="2026-09-03")],
         events=list(FIXTURE_NEWS),
     )
-    assert tag.kind == "NEWS_DAY"
-    assert "NEWS_DAY" in tag.flags
+    assert tag.kind == "EXPIRY"
     assert "EXPIRY" in tag.flags
+    assert "NEWS_DAY" not in tag.flags
     assert tag.usable_for_retune_sample is False
 
 
@@ -152,4 +152,27 @@ def test_run_nightly_emits_proposal_without_persist() -> None:
     assert proposal["status"] == NIGHTLY_RETUNE_STATUS
     assert proposal["backtest_results"] is None
     assert proposal["keep_current_strategy"] is True
-    assert out["session_kind"] == "NEWS_DAY"
+    assert out["session_kind"] == "NORMAL"
+
+
+def test_big_news_forces_news_day() -> None:
+    from desk_intel.schema import NewsEvent
+
+    big = NewsEvent(
+        event="GEOPOLITICAL_SHOCK",
+        time_ist="2026-09-01T07:10:00+05:30",
+        source_id="fixture_shock",
+        source_url="https://example.invalid/shock",
+        headline="War / circuit risk headline",
+        tags=["BIG_NEWS", "GEOPOLITICAL_SHOCK", "MACRO_EVENT"],
+        risk_bias="RISK_OFF",
+        surprise_vs_consensus=None,
+        keywords_hit=["war"],
+        cited_url="https://example.invalid/shock",
+        summary="Shock — hold ticket.",
+        layer="HYPOTHESIS",
+    )
+    assert event_is_news_or_calendar(big)
+    tag = classify_session(day="2026-09-01", signals=[_plain_signal()], events=[big])
+    assert tag.kind == "NEWS_DAY"
+    assert tag.usable_for_retune_sample is False

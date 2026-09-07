@@ -1,22 +1,24 @@
 import {
   customerStatus,
   formatLevel,
+  formatPremiumSlot,
   isWaitingStatus,
+  levelFieldDefs,
   sideCopy,
   slugState,
+  topVetoReasons,
 } from "../lib/status.js";
 import { ConfidenceBox } from "./ConfidenceBox.jsx";
 
-const LEVELS = [
-  { key: "strike", label: "Strike" },
-  { key: "entry", label: "Entry (premium)" },
-  { key: "stop", label: "Stop-loss" },
-  { key: "target", label: "Target" },
-];
-
-export function SignalCard({ signal, fields, confidence, ticket }) {
+/**
+ * Customer ticket for BUY_CE / BUY_PE: Entry/SL/Target are option premium only.
+ * INDEX_POINTS_PROXY numbers never occupy those slots — show DI / UNKNOWN instead.
+ * Underlying index spot is labeled separately when present.
+ */
+export function SignalCard({ signal, fields, confidence, ticket, deskMeta }) {
   const status = customerStatus(signal);
   const waiting = isWaitingStatus(status);
+  const vetoReasons = waiting ? topVetoReasons(signal, deskMeta) : [];
   const side = waiting ? { action: "—", option: "—", kind: "unk" } : sideCopy(signal.side);
   const closed = Boolean(signal.lifecycle?.outcome);
   const headline = waiting
@@ -27,7 +29,12 @@ export function SignalCard({ signal, fields, confidence, ticket }) {
   const note = waiting
     ? "Signal window is blank until the desk issues a new paper lean. Not advice."
     : signal.customer?.note || (closed ? signal.lifecycle?.note : "") || "";
-  const levels = waiting
+  const unit = ticket?.unit || signal?.ticket?.unit || "OPTION_PREMIUM";
+  const unitUpper = String(unit).toUpperCase();
+  const indexMasquerade =
+    unitUpper === "INDEX_POINTS_PROXY" || unitUpper === "INDEX_POINTS";
+
+  const rawLevels = waiting
     ? { strike: "", entry: "", stop: "", target: "" }
     : fields || {
         strike: signal.strike,
@@ -35,12 +42,33 @@ export function SignalCard({ signal, fields, confidence, ticket }) {
         stop: signal.stop,
         target: signal.target,
       };
+
+  // Never let index proxy numbers render in premium slots.
+  const levels = waiting
+    ? rawLevels
+    : indexMasquerade
+      ? {
+          strike: rawLevels.strike,
+          entry: "DATA_INSUFFICIENT",
+          stop: "DATA_INSUFFICIENT",
+          target: "DATA_INSUFFICIENT",
+        }
+      : rawLevels;
+
+  const levelDefs = levelFieldDefs("OPTION_PREMIUM");
+  const underlyingSpot = waiting
+    ? null
+    : signal?.underlying_spot ?? signal?.spot ?? ticket?.underlying_spot ?? null;
   const unitNote = waiting
     ? ""
     : ticket?.levels_note ||
-      (ticket?.unit === "INDEX_POINTS_PROXY"
-        ? "Paper levels — premium on ticket; index path on the chart."
-        : "");
+      ticket?.levels_gap ||
+      ticket?.stop_gap ||
+      (indexMasquerade
+        ? "DATA_INSUFFICIENT: option premium unbound. Index levels quarantined to the chart — not Entry/SL/Target."
+        : !ticket?.levels_ready
+          ? "DATA_INSUFFICIENT: OPTIDX premium not fetched / LTP unbound. Not a fill."
+          : "");
 
   return (
     <div className="signal-layout">
@@ -65,6 +93,19 @@ export function SignalCard({ signal, fields, confidence, ticket }) {
               WAITING FOR NEXT SIGNAL
             </h2>
             <p className="muted">{note}</p>
+            {vetoReasons.length > 0 ? (
+              <div className="veto-banner" role="status" aria-label="Hold reasons">
+                <p className="veto-banner__title">Why the desk is holding</p>
+                <ul className="veto-banner__list">
+                  {vetoReasons.map((reason) => (
+                    <li key={reason}>{reason}</li>
+                  ))}
+                </ul>
+                <p className="veto-banner__note muted">
+                  Overlay hold only — not a deleted strategy. Not advice.
+                </p>
+              </div>
+            ) : null}
           </div>
         ) : (
           <>
@@ -85,12 +126,22 @@ export function SignalCard({ signal, fields, confidence, ticket }) {
             </div>
 
             <dl className="level-strip">
-              {LEVELS.map(({ key, label }) => (
+              {levelDefs.map(({ key, label }) => (
                 <div key={key}>
                   <dt>{label}</dt>
-                  <dd>{formatLevel(levels[key])}</dd>
+                  <dd>
+                    {key === "strike"
+                      ? formatLevel(levels[key])
+                      : formatPremiumSlot(levels[key])}
+                  </dd>
                 </div>
               ))}
+              {underlyingSpot != null && underlyingSpot !== "" && (
+                <div>
+                  <dt>Underlying spot</dt>
+                  <dd>{formatLevel(underlyingSpot)}</dd>
+                </div>
+              )}
             </dl>
 
             {unitNote && <p className="signal-card__unit muted">{unitNote}</p>}

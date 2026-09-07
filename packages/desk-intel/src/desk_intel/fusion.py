@@ -34,10 +34,13 @@ def _event_in_veto_window(
     minutes: int,
     now: Optional[datetime] = None,
 ) -> list[NewsEvent]:
+    """Mid-session hard veto window — BIG_NEWS only (not fixture MACRO)."""
+    from desk_intel.retune_gate import event_is_big_news
+
     current = now or now_ist()
     hot: list[NewsEvent] = []
     for event in events:
-        if "MACRO_EVENT" not in (event.tags or []):
+        if not event_is_big_news(event):
             continue
         when = parse_rss_datetime(event.time_ist)
         if when is None:
@@ -59,8 +62,8 @@ def _checklist_vetoes(
     hot = _event_in_veto_window(events, settings.event_veto_minutes)
     if hot:
         vetoes.append(
-            f"event_window: {len(hot)} MACRO_EVENT headline(s) within "
-            f"{settings.event_veto_minutes}m — do not let a canned indicator override the print"
+            f"event_window: {len(hot)} BIG_NEWS headline(s) within "
+            f"{settings.event_veto_minutes}m — hold customer ticket (not alpha)"
         )
     if news_bias == "NO_TRADE":
         vetoes.append("news_regime NO_TRADE (halt / unknown print keywords)")
@@ -207,8 +210,14 @@ def fuse_one(
             "Crude 90→95-style move: possible energy/INR/risk-off HYPOTHESIS, not automatic PE spray"
         )
     tags = ["DESK_INTEL", "HYPOTHESIS"]
-    if any("MACRO_EVENT" in e.tags for e in events):
+    from desk_intel.retune_gate import event_is_big_news
+
+    if any(event_is_big_news(e) for e in events):
+        tags.append("BIG_NEWS")
         tags.append("MACRO_EVENT")
+    elif any("MACRO_EVENT" in (e.tags or []) for e in events):
+        # Soft/fixture macro → pre-market context only (not NEWS_DAY)
+        tags.append("PREMARKET_CONTEXT")
     conf = _confidence(lean, news_bias, chain, vetoes, events)
     signal = MarketSignal(
         id=f"desk-{chain.underlying.lower()}-{uuid4().hex[:8]}",

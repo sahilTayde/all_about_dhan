@@ -1431,3 +1431,29 @@ a {
     grid-template-columns: 1fr 1fr;
   }
 }
+
+
+/* Customer hold / veto banner (WAITING) — plain language, no indicator soup */
+.veto-banner {
+  margin-top: 1rem;
+  padding: 0.85rem 1rem;
+  border-left: 3px solid var(--vetoed, #9b7bb8);
+  background: color-mix(in srgb, var(--vetoed, #9b7bb8) 12%, transparent);
+  text-align: left;
+}
+.veto-banner__title {
+  margin: 0 0 0.4rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+.veto-banner__list {
+  margin: 0;
+  padding-left: 1.1rem;
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+.veto-banner__note {
+  margin: 0.55rem 0 0;
+  font-size: 0.75rem;
+}

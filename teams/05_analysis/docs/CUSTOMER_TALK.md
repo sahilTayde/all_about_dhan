@@ -6,7 +6,7 @@
 **Date:** 2026-09-03  
 **Surface:** customer `/` only. Indicator soup and STRAT IDs stay on internal `/desk`.
 
-Education ≠ advice. **No live orders.** The product is **not** only algo / indicator / quant. An agent **reviews the ticket** against trend, option chain, and latest big news, then **suggests and talks**. News is a **hold**, not a new STRAT, not secret alpha.
+Education ≠ advice. **No live orders.** The product is **not** only algo / indicator / quant. An agent **reviews the ticket** against trend, option chain, and latest big news, then **suggests and talks**. **BIG_NEWS** is a **hold**; routine/fixture news is pre-market sentiment — not a new STRAT, not secret alpha.
 
 **Suggested ticket UI:** [`CUSTOMER_TICKET.md`](CUSTOMER_TICKET.md) — CE/PE + stop/target + right-rail **agreement** confidence (capped; not a win rate). Customer Yes/No.
 
@@ -67,7 +67,7 @@ Speak the **state word** + direction chip + honesty line ([`SIGNAL_STAGING.md`](
 | EXPIRED | “Window closed. Do not chase.” |
 | **VETOED** | **HOLD** — “Holding this ticket. Overlay, not a deleted strategy. Do not take this print.” See §3. |
 
-On `NEWS_DAY` / `EXPIRY`: **no EARLY, no CONFIRMED.** Stay WATCH or HOLD. Suggest wait until the print is digested **and** one **3m** chain has printed (PERSONA_DESK). That is a **ticket hold**, not a catalog delete.
+On `NEWS_DAY` (**BIG_NEWS only**) / `EXPIRY`: **no EARLY, no CONFIRMED.** Stay WATCH or HOLD. Suggest wait until the print is digested **and** one **3m** chain has printed (PERSONA_DESK). That is a **ticket hold**, not a catalog delete. Routine MACRO fixtures do **not** force this.
 
 ### Step B — Trend in plain words
 
@@ -92,17 +92,20 @@ Do not say “MACD crossed.” Do not name STRAT IDs. Catalog: [`MIX_CATALOG.md`
 
 **Never:** “PCR is extreme so buy puts.” No numeric PCR threshold. Extreme PCR without price is **not** a signal ([`CHAIN_METRICS.md`](../../03_phd_market/docs/CHAIN_METRICS.md)). Walls are a **heuristic**, not a magnet proof. If chain is fixture: “Chain is a dry-run snapshot until live tokens.”
 
-### Step D — News (cite RSS; MACRO_EVENT = hold)
+### Step D — News (cite RSS; **BIG_NEWS = hold only**)
 
-Pull the latest **big** items already in schema (`NewsEvent.headline`, `cited_url` or `source_url`, `time_ist`, `tags`). Speak:
+Gather/score news **mostly in PRE_MARKET** for sentiment and market-impact talk. Mid-session: soft context unless **BIG_NEWS**.
 
-> “Latest cited headline: **{headline}** ({source_id}). Link: {cited_url}. Tagged {MACRO_EVENT / RISK_OFF / …}.”
+Pull the latest items already in schema (`NewsEvent.headline`, `cited_url` or `source_url`, `time_ist`, `tags`). Speak:
+
+> “Latest cited headline: **{headline}** ({source_id}). Link: {cited_url}. Tagged {BIG_NEWS / MACRO_EVENT / RISK_OFF / …}.”
 
 | Tag | Talk | Not |
 |-----|------|-----|
-| `MACRO_EVENT` / session `NEWS_DAY` | **Hold the customer ticket.** No EARLY / CONFIRMED. “Scheduled print or shock is in the window. We wait for one 3-minute chain after it.” | “Secret alpha.” “Buy because CPI.” New STRAT. Delete teacher strategies. |
-| RISK_OFF vs call-side spray (or RISK_ON vs put-side spray) | Hold / do not spray that side until tape or chain yields. | Automatic put buy on crude language. |
-| `NO_TRADE` / halt language | Hold. | |
+| `BIG_NEWS` / session `NEWS_DAY` (big only) | **Hold the customer ticket.** No EARLY / CONFIRMED. “Shock or hard print is in the window. We wait for one 3-minute chain after it.” | “Secret alpha.” New STRAT. Delete teacher strategies. |
+| Fixture / `ROUTINE` / soft `MACRO_EVENT` (Brent chatter, RBI watch without policy print) | **Pre-market sentiment / impact context only.** Do **not** hold the live ticket all day. | Treating dry fixtures as a live MACRO_EVENT veto. |
+| RISK_OFF vs call-side spray (or RISK_ON vs put-side spray) | Soft caution; hard hold only with BIG_NEWS or `NO_TRADE`. | Automatic put buy on crude language. |
+| `NO_TRADE` / halt language | Hold (treated as BIG_NEWS). | |
 
 YAML sources to cite (do not scrape HTML): Fed press, BLS, EIA, BBC business, RBI (XML when verified), Moneycontrol RSS **if stable**. Disable a yaml row if it 404s. `surprise_vs_consensus` stays UNKNOWN unless a calendar adapter exists.
 
@@ -131,7 +134,7 @@ One suggestion, matching the hold map:
 | Mixing, overlay clean, not news/expiry | “Stay on WATCH. Not a signal.” |
 | Leading mix agrees, `NORMAL` session | EARLY honesty copy. Still not a fill. |
 | 04 stack confirms (internal) | CONFIRMED honesty copy. 05 did not promote. |
-| `NEWS_DAY` / `MACRO_EVENT` / analog empty | **Hold ticket.** Teacher strategies remain in the backtest catalog. |
+| `NEWS_DAY` / `BIG_NEWS` / analog empty | **Hold ticket.** Teacher strategies remain in the backtest catalog. |
 | Trend vs chain vs headline conflict | Hold. Name the conflict in plain words. |
 | 15:15–15:40 | CAS sentence + no new size from CAS bias. |
 
