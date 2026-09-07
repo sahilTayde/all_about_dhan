@@ -26,6 +26,10 @@ CATALOG_CANDIDATES: tuple[str, ...] = tuple(
         "MIX-TA-EVENT-HOLD",
         "MIX-TA-EXEC-SANITY",
         "MIX-TA-MARKET-HOURS",
+        "MIX-CF-OKALA-IN-LEVEL",
+        "MIX-CF-OKALA-IN-FORK",
+        "MIX-CF-OKALA-IN-H-CROSS",
+        "MIX-CF-OKALA-IN-REPAIR",
     ]
 )
 

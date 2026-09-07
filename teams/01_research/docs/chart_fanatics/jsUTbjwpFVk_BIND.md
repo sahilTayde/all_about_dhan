@@ -267,8 +267,8 @@ Kill only after 06 OOS+`NORMAL` on a **named** evaluator — not because title W
 
 ## HANDOFF (01)
 
-**Accepted:** Okala as **observation-gated magnet MR** + structure books (fork / H+cross / repair); rich **miss/recovery** (no chase); BT **search grid** for 06; `portable_if_magnets_observed` HYPOTHESIS; NQ teacher seed; phone PA-only; WR claims null; OpenAI suggest archived as HYPOTHESIS aid.  
-**Rejected:** Brittle xx80/xx20-only forever; auto-inherit India digits; chase after near-miss; inventing NSE clocks; clubbing into Jadecap/Omor/STRAT/IQ; coding live; promoting on 65%/70%; claiming OpenAI fixes BT WR; blaming CF×8 FAILs on Okala (catalog-only, not in matrix).  
-**UNKNOWN / DATA_INSUFFICIENT:** Timed VTT; NQ→India level map; exact cross geometry; repair wick under TF change; IST session boxes.
+**Accepted:** Okala as **observation-gated magnet MR** + structure books (fork / H+cross / repair); rich **miss/recovery** (no chase); BT **search grid** for 06; `portable_if_magnets_observed` HYPOTHESIS; NQ teacher seed; phone PA-only; WR claims null; OpenAI suggest archived as HYPOTHESIS aid. **2026-09-07 founder:** India adaptation cells with **robust WR > 50%** (n≥20) accepted as **`FOUNDER_PAPER_ACCEPT` starter** for **PAPER** CE/PE notify only — optimize next quarter; still UNVALIDATED for live.  
+**Rejected:** Brittle xx80/xx20-only forever; auto-inherit India digits; chase after near-miss; inventing NSE clocks; clubbing into Jadecap/Omor/STRAT/IQ; coding live; promoting on 65%/70%; claiming OpenAI fixes BT WR; blaming CF×8 FAILs on Okala (catalog-only, not in matrix). **Live promote** of Okala-IN / flipping `RESEARCH_READY_FOR_PROGRAMMING` / marketing cell WR as product.  
+**UNKNOWN / DATA_INSUFFICIENT:** Timed VTT; NQ→India level map; exact cross geometry; repair wick under TF change; IST session boxes; BANKNIFTY paper-eligible cells this run (none above gate).
 
-**Next:** 04 catalog notes updated. 06 evaluator **not** wired — when bound, use searchable grid under **NO_PROMOTE**. 02/03 comment (no veto). **NO_PROMOTE.**
+**Next:** Paper detector `okala_in_paper` + `live_signals` notify path — see [`OKALA_IN_PAPER_SIGNAL_ENABLE_2026-09-07.md`](../../../../data/recon/OKALA_IN_PAPER_SIGNAL_ENABLE_2026-09-07.md). 06 OOS+`NORMAL` still required before any live consider. **NO_PROMOTE.**

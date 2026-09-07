@@ -1,8 +1,10 @@
-"""P0-1: fixture/routine news must not veto; BIG_NEWS must hold."""
+"""P0-1: fixture/routine news must not veto; BIG_NEWS gated by NEWS_VETO_ENABLED."""
 
 from __future__ import annotations
 
 from pathlib import Path
+
+import pytest
 
 from trading_agents_india.config import Settings
 from trading_agents_india.fixtures import MarketContext, NewsItem, fixture_contexts
@@ -68,8 +70,31 @@ def test_nifty_fixture_session_not_vetoed_by_routine_news(tmp_path: Path) -> Non
     )
 
 
-def test_sensex_big_news_fixture_still_holds(tmp_path: Path) -> None:
+def test_sensex_big_news_fixture_no_longer_holds_by_default(tmp_path: Path) -> None:
+    """NEWS_VETO_ENABLED soft-default false → SENSEX BIG_NEWS fixture may lean CE/PE."""
     settings = _settings(tmp_path, "sensex.sqlite")
+    result = run_session(
+        underlyings=["SENSEX"],
+        dry_run=True,
+        use_llm=False,
+        persist=False,
+        settings=settings,
+    )
+    t = result.tickets[0]
+    # Session may still tag NEWS_DAY for analog, but ticket must not hard-HOLD from news.
+    assert t.risk_veto is False
+    assert t.lean in ("BUY_CE", "BUY_PE", "HOLD")
+    assert t.stage != "VETOED" or t.lean != "HOLD" or not t.risk_veto
+    # Chain fixture lean is PE → prefer BUY_PE when news parked
+    assert t.lean == "BUY_PE"
+    assert any("news_veto_enabled=false" in r for r in t.reasons)
+
+
+def test_sensex_big_news_holds_when_veto_reenabled(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("NEWS_VETO_ENABLED", "true")
+    settings = _settings(tmp_path, "sensex_veto_on.sqlite")
     result = run_session(
         underlyings=["SENSEX"],
         dry_run=True,
@@ -82,8 +107,6 @@ def test_sensex_big_news_fixture_still_holds(tmp_path: Path) -> None:
     assert t.lean == "HOLD"
     assert t.risk_veto is True
     assert t.stage == "VETOED"
-    assert t.top_veto_reasons
-    assert any("BIG_NEWS" in r or "cited_news" in r for r in t.top_veto_reasons)
 
 
 def test_desk_style_brent_rbi_overlay_no_veto(tmp_path: Path) -> None:

@@ -47,6 +47,22 @@ PLAIN = {
         "label": "VWAP lean + ATR risk",
         "why": "Session stack lean with ATR stop and 2R target (external interview club).",
     },
+    "MIX-CF-OKALA-IN-LEVEL": {
+        "label": "Okala India level (paper starter)",
+        "why": "FOUNDER_PAPER_ACCEPT magnet reaction — PAPER notify only, not a win-rate claim.",
+    },
+    "MIX-CF-OKALA-IN-FORK": {
+        "label": "Okala India fork (paper starter)",
+        "why": "FOUNDER_PAPER_ACCEPT fork reclaim — PAPER notify only, not a win-rate claim.",
+    },
+    "MIX-CF-OKALA-IN-H-CROSS": {
+        "label": "Okala India H-cross (paper starter)",
+        "why": "FOUNDER_PAPER_ACCEPT H+cross stand-in — PAPER notify only, not a win-rate claim.",
+    },
+    "MIX-CF-OKALA-IN-REPAIR": {
+        "label": "Okala India repair (paper starter)",
+        "why": "FOUNDER_PAPER_ACCEPT repair confluence — PAPER notify only, not a win-rate claim.",
+    },
 }
 
 
@@ -89,11 +105,23 @@ def customer_ticket_levels(
     rr: float = 2.0,
     option_ltp: Optional[float] = None,
     premium_meta: Optional[dict[str, Any]] = None,
+    stop_pct: Optional[float] = None,
+    target_pct: Optional[float] = None,
+    paper_starter_premium_stop: bool = False,
 ) -> dict[str, Any]:
     """Customer `/` ticket: premium Entry/SL/Target only — never index masquerade.
 
     When option_ltp is set, binds MIX-SLTP-PREM-PCT premium levels. Else DI with gap.
+    ``paper_starter_premium_stop`` (or stop_pct) fills premium Stop = entry×(1−pct)
+    for Okala PAPER starter tickets (HYPOTHESIS until swing/greek map).
     """
+    meta = dict(premium_meta or {})
+    if paper_starter_premium_stop:
+        meta["paper_starter_premium_stop"] = True
+        if stop_pct is None:
+            stop_pct = 0.25
+        if target_pct is None:
+            target_pct = 0.25
     raw = paper_levels(
         underlying=underlying,
         lean=lean,
@@ -110,8 +138,10 @@ def customer_ticket_levels(
         underlying_spot=spot,
         option_ltp=option_ltp,
         lean=lean,
-        premium_meta=premium_meta,
+        premium_meta=meta or None,
         bars=bars,
+        stop_pct=stop_pct,
+        target_pct=target_pct,
     )
 
 
@@ -130,6 +160,7 @@ def confidence_from_books(
     underlying: str,
     default_row: dict[str, Any],
     club_row: Optional[dict[str, Any]] = None,
+    okala_row: Optional[dict[str, Any]] = None,
 ) -> dict[str, Any]:
     """Agreement score across predefined paper books. Not a predicted win %."""
     d_lean = default_row.get("lean")
@@ -172,7 +203,32 @@ def confidence_from_books(
             why_bits.append(meta["why"])
             score = max(score, STAGE_BASE.get(c_state, 15))
 
-    if d_state == "VETOED" or (d_lean not in ("CE", "PE") and c_lean not in ("CE", "PE")):
+    okala = okala_row or {}
+    o_lean = okala.get("lean")
+    o_state = str(okala.get("state") or "WATCH").upper()
+    o_mix = str(okala.get("mix_id") or "")
+    if o_mix not in PLAIN:
+        o_mix = "MIX-CF-OKALA-IN-H-CROSS"
+    if o_lean in ("CE", "PE") and o_state not in ("VETOED", "EXPIRED"):
+        meta = PLAIN[o_mix]
+        eligible.append(
+            {
+                "mix_id": str(okala.get("mix_id") or o_mix),
+                "label": meta["label"],
+                "side": "BUY_CE" if o_lean == "CE" else "BUY_PE",
+                "state": o_state,
+                "why": meta["why"],
+            }
+        )
+        if d_lean == o_lean and d_lean in ("CE", "PE"):
+            score += 12
+            why_bits.append("Okala India paper starter agrees on the same side.")
+        elif not any(e.get("mix_id") == "MIX-DEFAULT-BUY" for e in eligible):
+            why_bits.append(meta["why"])
+            score = max(score, STAGE_BASE.get(o_state, 15))
+
+    active_extra = (c_lean in ("CE", "PE")) or (o_lean in ("CE", "PE"))
+    if d_state == "VETOED" or (d_lean not in ("CE", "PE") and not active_extra):
         score = 0
 
     score = min(int(score), CONFIDENCE_CAP)
@@ -182,6 +238,8 @@ def confidence_from_books(
         side = "BUY_CE" if d_lean == "CE" else "BUY_PE"
     elif c_lean in ("CE", "PE"):
         side = "BUY_CE" if c_lean == "CE" else "BUY_PE"
+    elif o_lean in ("CE", "PE"):
+        side = "BUY_CE" if o_lean == "CE" else "BUY_PE"
 
     return {
         "underlying": underlying,

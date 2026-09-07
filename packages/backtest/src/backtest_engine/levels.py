@@ -430,6 +430,8 @@ def quarantine_index_proxy_from_customer_ticket(
     lean: Optional[str] = None,
     premium_meta: Optional[dict[str, Any]] = None,
     bars: Optional[Sequence[Bar]] = None,
+    stop_pct: Optional[float] = None,
+    target_pct: Optional[float] = None,
 ) -> dict[str, Any]:
     """Move INDEX_POINTS_PROXY entry/stop/target off customer premium slots.
 
@@ -437,6 +439,8 @@ def quarantine_index_proxy_from_customer_ticket(
     stay empty until option premium LTP binds — never invent premium from index.
     When option_ltp is provided, bind MIX-SLTP-PREM-PCT premium levels.
     When bars are provided, MIX-SLTP-SWING-STOP fills index_stop / stop_underlying.
+    Explicit ``stop_pct`` (or premium_meta.stop_pct / paper_starter_premium_stop)
+    fills the premium Stop slot for PAPER starter tickets.
     """
     out = dict(levels or {})
     unit = str(out.get("unit") or "").upper()
@@ -447,6 +451,20 @@ def quarantine_index_proxy_from_customer_ticket(
         idx_entry = out.get("index_entry", out.get("entry") if unit.startswith("INDEX") else None)
         idx_stop = out.get("index_stop", out.get("stop") if unit.startswith("INDEX") else None)
         idx_target = out.get("index_target", out.get("target") if unit.startswith("INDEX") else None)
+        use_stop = stop_pct
+        if use_stop is None and meta.get("stop_pct") is not None:
+            use_stop = float(meta["stop_pct"])
+        if use_stop is None and meta.get("paper_starter_premium_stop"):
+            use_stop = 0.25  # PAPER starter HYPOTHESIS: entry×0.75
+        use_target = (
+            float(target_pct)
+            if target_pct is not None
+            else (
+                float(meta["target_pct"])
+                if meta.get("target_pct") is not None
+                else DEFAULT_PREMIUM_TARGET_PCT
+            )
+        )
         bound = bind_option_premium_levels(
             option_ltp=float(option_ltp),
             lean=str(lean),
@@ -456,6 +474,8 @@ def quarantine_index_proxy_from_customer_ticket(
                 if underlying_spot is not None
                 else meta.get("underlying_spot")
             ),
+            target_pct=use_target,
+            stop_pct=use_stop,
             expiry=meta.get("expiry"),
             premium_source=str(meta.get("source") or "dhan_optionchain"),
             bars=bars,

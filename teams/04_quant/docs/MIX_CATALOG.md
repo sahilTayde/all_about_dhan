@@ -1632,7 +1632,7 @@ docs:
 **Market scope:** `teacher_examples=NQ` · `portable_if_magnets_observed=HYPOTHESIS` — India = separate adaptation MIX later (not auto-inherit; not forbidden forever).  
 **Miss/recovery:** BIND captures ASR no-chase + next-magnet / H-continuation paths; BT grid searchable.  
 **OpenAI suggest:** `data/recon/CF_OPENAI_OKALA_BIND_SUGGEST_2026-09-07.md` = HYPOTHESIS aid only — does **not** fix win rates.  
-**Evaluator:** **catalog only** until 06 binds a `run_cf_okala` (or equivalent) — sibling CF×8 evaluators do **not** include Okala; do not fake a book row / do not blame CF×8 FAILs on this catalog. Future 06 stub: `okala_magnet_modulus_search` + `okala_no_chase` — no grid run yet.
+**Evaluator:** sibling CF×8 runners do **not** include Okala teacher NQ books. **India adaptation BT (2026-09-07):** `python -m backtest_engine okala-in` → `MIX-CF-OKALA-IN-*` grid on local INDEX OHLC — **HYPOTHESIS port** / **VALIDATION WR only** / **NO_PROMOTE** (see §18b). Teacher catalog rows stay `win_rate: null`.
 
 ```yaml
 mix_id: MIX-CF-OKALA-8020-LEVEL
@@ -1642,7 +1642,7 @@ origin_note: |
   SOURCE_FACT: magnets noticed on NQ; reaction+structure; 10m+200s; 10pt SL / ~15 TP1 / BE; NY open prefer; no OF/indicators.
   miss/recovery + magnet observation protocol + BT search grid in BIND (rev 2026-09-07).
   magnet_modulus=observable|searchable · market_scope=teacher_examples_NQ;portability=observation_gated · win_rate=null · NO_PROMOTE.
-  ASR. India digit map DATA_INSUFFICIENT (adaptation MIX later). Catalog only — NOT in CF×8 runners.
+  ASR. India digit map = separate adaptation MIX-CF-OKALA-IN-* (PROJECT_MIX port; not auto-inherit). Catalog win_rate null.
 styles: [SCALPER, OPTION_BUYER]
 customer_default: false
 status: BACKTEST_BOOK
@@ -1653,7 +1653,7 @@ evaluator_bound: false
 magnet_modulus: observable|searchable
 market_scope: teacher_examples_NQ;portability=observation_gated
 win_rate: null
-not_merged_into: [MIX-DEFAULT-BUY, MIX-CF-JADECAP-SWING-FAIL, MIX-CF-OMOR-PDH-REVERSAL, MIX-CF-OKALA-FORK, MIX-DESK-IQ-ATR-RR2]
+not_merged_into: [MIX-DEFAULT-BUY, MIX-CF-JADECAP-SWING-FAIL, MIX-CF-OMOR-PDH-REVERSAL, MIX-CF-OKALA-FORK, MIX-DESK-IQ-ATR-RR2, MIX-CF-OKALA-IN-LEVEL]
 docs:
   - teams/01_research/docs/chart_fanatics/jsUTbjwpFVk_BIND.md
 ```
@@ -1665,7 +1665,7 @@ origin_note: |
   Same Okala video — fork mean-reversion long after capitulation.
   SOURCE_FACT: test prior low without break on 200s; 10/15 risk; confluence with levels/repair; late-short cleanup.
   magnet_modulus=observable|searchable · market_scope=teacher_examples_NQ;portability=observation_gated · win_rate=null · NO_PROMOTE.
-  ASR. Catalog only until 06 binds evaluator (not in CF×8).
+  ASR. India port = MIX-CF-OKALA-IN-FORK (not in CF×8).
 styles: [SCALPER, OPTION_BUYER]
 customer_default: false
 status: BACKTEST_BOOK
@@ -1676,7 +1676,7 @@ evaluator_bound: false
 magnet_modulus: observable|searchable
 market_scope: teacher_examples_NQ;portability=observation_gated
 win_rate: null
-not_merged_into: [MIX-DEFAULT-BUY, MIX-CF-OKALA-8020-LEVEL, MIX-CF-MARCO-LIQ-TRAP, MIX-CF-JADECAP-SWING-FAIL]
+not_merged_into: [MIX-DEFAULT-BUY, MIX-CF-OKALA-8020-LEVEL, MIX-CF-MARCO-LIQ-TRAP, MIX-CF-JADECAP-SWING-FAIL, MIX-CF-OKALA-IN-FORK]
 docs:
   - teams/01_research/docs/chart_fanatics/jsUTbjwpFVk_BIND.md
 ```
@@ -1688,7 +1688,7 @@ origin_note: |
   Same Okala video — lowercase-H structure + cross-section short continuation.
   SOURCE_FACT: bounce 20→80; H rollover; retest cross (±80); 10/15; not blind short 80; miss-long recovery path.
   magnet_modulus=observable|searchable · market_scope=teacher_examples_NQ;portability=observation_gated · win_rate=null · NO_PROMOTE.
-  ASR. Catalog only until 06 binds evaluator (not in CF×8).
+  ASR. India port = MIX-CF-OKALA-IN-H-CROSS. Exact cross geometry remains underdefined.
 styles: [SCALPER, OPTION_BUYER]
 customer_default: false
 status: BACKTEST_BOOK
@@ -1699,7 +1699,7 @@ evaluator_bound: false
 magnet_modulus: observable|searchable
 market_scope: teacher_examples_NQ;portability=observation_gated
 win_rate: null
-not_merged_into: [MIX-DEFAULT-BUY, MIX-CF-OKALA-8020-LEVEL, MIX-CF-OKALA-FORK, MIX-CF-CARMINE-FAIL-BREAK]
+not_merged_into: [MIX-DEFAULT-BUY, MIX-CF-OKALA-8020-LEVEL, MIX-CF-OKALA-FORK, MIX-CF-CARMINE-FAIL-BREAK, MIX-CF-OKALA-IN-H-CROSS]
 docs:
   - teams/01_research/docs/chart_fanatics/jsUTbjwpFVk_BIND.md
 ```
@@ -1711,7 +1711,7 @@ origin_note: |
   Same Okala video — repair / no-wick magnet (target + confluence, not blind entry).
   SOURCE_FACT: body-open no wick = unfilled participation magnet until touched.
   magnet_modulus=observable|searchable · market_scope=teacher_examples_NQ;portability=observation_gated · win_rate=null · NO_PROMOTE.
-  ASR. 200s wick geometry → India 3m = DATA_INSUFFICIENT. Catalog only (not in CF×8).
+  ASR. India port = MIX-CF-OKALA-IN-REPAIR (confluence gate only).
 styles: [SCALPER, OPTION_BUYER]
 customer_default: false
 status: BACKTEST_BOOK
@@ -1722,9 +1722,232 @@ evaluator_bound: false
 magnet_modulus: observable|searchable
 market_scope: teacher_examples_NQ;portability=observation_gated
 win_rate: null
-not_merged_into: [MIX-DEFAULT-BUY, MIX-CF-OKALA-8020-LEVEL, MIX-CF-OKALA-FORK, MIX-CF-OKALA-H-CROSS]
+not_merged_into: [MIX-DEFAULT-BUY, MIX-CF-OKALA-8020-LEVEL, MIX-CF-OKALA-FORK, MIX-CF-OKALA-H-CROSS, MIX-CF-OKALA-IN-REPAIR]
 docs:
   - teams/01_research/docs/chart_fanatics/jsUTbjwpFVk_BIND.md
+```
+
+---
+
+## 18b. Chart Fanatics — Okala India adaptation (`MIX-CF-OKALA-IN-*`)
+
+**Date:** 2026-09-07 (rev: **FOUNDER_PAPER_ACCEPT** paper CE/PE notify)  
+**Origin:** `PROJECT_MIX` / observation-gated port of §18 teacher book — **not** NQ identity; **not** `DHAN-DERIVED`; **not** STRAT-015+.  
+**Bind:** [`jsUTbjwpFVk_BIND.md`](../../01_research/docs/chart_fanatics/jsUTbjwpFVk_BIND.md)  
+**Runner:** `python -m backtest_engine okala-in` · package `packages/backtest` (`okala_in_proxy.py`, `run_okala_in.py`)  
+**Paper detector:** `backtest_engine.okala_in_paper` → wired in `live_signals.PaperSignalEngine` + `paper_evaluators` (`okala_in_paper` bind)  
+**Artifacts:** `data/recon/OKALA_IN_BACKTEST_2026-09-07.md` + `.json` · enable note [`OKALA_IN_PAPER_SIGNAL_ENABLE_2026-09-07.md`](../../../data/recon/OKALA_IN_PAPER_SIGNAL_ENABLE_2026-09-07.md)  
+**Honesty:** India BT is **HYPOTHESIS adaptation**. WR cells = **VALIDATION** research only. Catalog `win_rate: null`. **NO_PROMOTE** live.  
+**Founder accept (PAPER only):** cells with **robust WR > 50%** and **n ≥ 20** are a **starter** for generating **PAPER** buy CE/PE notifies. Optimize next quarter. Still **UNVALIDATED** for live. Do **not** flip `RESEARCH_READY_FOR_PROGRAMMING`. Do **not** treat cell WR as product marketing.
+
+### Paper-eligible cells (recon 2026-09-07 · wr_robust > 0.50 · n≥20)
+
+| Cell | MIX | n | wr_robust |
+|------|-----|---|-----------|
+| `NIFTY\|1m\|bearish\|30:40\|H_CROSS` | `MIX-CF-OKALA-IN-H-CROSS` | 87 | 59.5% |
+| `NIFTY\|1m\|choppy\|10:0\|H_CROSS` | `MIX-CF-OKALA-IN-H-CROSS` | 252 | 51.1% |
+| `NIFTY\|1m\|sideways\|30:80\|H_CROSS` | `MIX-CF-OKALA-IN-H-CROSS` | 125 | 50.8% |
+| `NIFTY\|5m\|sideways\|60:50\|REPAIR` | `MIX-CF-OKALA-IN-REPAIR` | 285 | 50.2% |
+
+Runtime rule (same gate): any future recon cell with `wr_robust > 0.50` and `n ≥ 20` is paper-eligible. BANKNIFTY had **no** cells above the gate in this run — detector still watches BN, emits only if a cell qualifies.  
+CE vs PE: pattern lean from coded rules (H_CROSS → PE; FORK → CE; LEVEL/REPAIR → long-residue CE / short-residue PE). BIG_NEWS mid-session still holds.
+
+```yaml
+mix_id: MIX-CF-OKALA-IN-LEVEL
+origin: PROJECT_MIX
+origin_note: |
+  India INDEX adaptation of MIX-CF-OKALA-8020-LEVEL.
+  Magnet residues searchable (seed 20260907; 10 pairs; 80/20 not fixed).
+  ATR-scaled SL/TP from NQ 10/15 (HYPOTHESIS). Regimes: ADX+SMA slope+Kaufman ER.
+  Unit: INDEX points proxy ≠ option premium. NO_PROMOTE live.
+  FOUNDER_PAPER_ACCEPT: paper_enable when robust WR>50% cell matches; starter only.
+styles: [SCALPER, OPTION_BUYER]
+customer_default: false
+status: PAPER_WATCH
+proxy_status: BACKTEST_BOOK
+paper_enable: true
+founder_paper_accept: true
+evaluator_bound: true
+evaluator: backtest_engine.okala_in_paper
+win_rate: null
+metrics: {win_rate: null, expectancy: null, profit_factor: null, max_drawdown: null}
+promote: false
+NO_PROMOTE: true
+not_merged_into: [MIX-DEFAULT-BUY, MIX-CF-OKALA-8020-LEVEL, STRAT-001, STRAT-003]
+docs:
+  - teams/01_research/docs/chart_fanatics/jsUTbjwpFVk_BIND.md
+  - data/recon/OKALA_IN_BACKTEST_2026-09-07.md
+  - data/recon/OKALA_IN_PAPER_SIGNAL_ENABLE_2026-09-07.md
+```
+
+```yaml
+mix_id: MIX-CF-OKALA-IN-FORK
+origin: PROJECT_MIX
+origin_note: |
+  India fork long proxy — FOUNDER_PAPER_ACCEPT when robust cell qualifies.
+  No eligible FORK cell in 2026-09-07 recon (gate wr_robust>50%). NO_PROMOTE.
+styles: [SCALPER, OPTION_BUYER]
+customer_default: false
+status: PAPER_WATCH
+paper_enable: true
+founder_paper_accept: true
+win_rate: null
+promote: false
+NO_PROMOTE: true
+not_merged_into: [MIX-DEFAULT-BUY, MIX-CF-OKALA-FORK]
+```
+
+```yaml
+mix_id: MIX-CF-OKALA-IN-H-CROSS
+origin: PROJECT_MIX
+origin_note: |
+  India H+cross short stand-in — three NIFTY 1m cells FOUNDER_PAPER_ACCEPT.
+  Exact cross geometry still underdefined. NO_PROMOTE live.
+styles: [SCALPER, OPTION_BUYER]
+customer_default: false
+status: PAPER_WATCH
+paper_enable: true
+founder_paper_accept: true
+win_rate: null
+promote: false
+NO_PROMOTE: true
+not_merged_into: [MIX-DEFAULT-BUY, MIX-CF-OKALA-H-CROSS]
+```
+
+```yaml
+mix_id: MIX-CF-OKALA-IN-REPAIR
+origin: PROJECT_MIX
+origin_note: |
+  LEVEL + repair confluence — NIFTY 5m sideways 60:50 cell FOUNDER_PAPER_ACCEPT.
+  Not blind repair entry. NO_PROMOTE live.
+styles: [SCALPER, OPTION_BUYER]
+customer_default: false
+status: PAPER_WATCH
+paper_enable: true
+founder_paper_accept: true
+win_rate: null
+promote: false
+NO_PROMOTE: true
+not_merged_into: [MIX-DEFAULT-BUY, MIX-CF-OKALA-REPAIR]
+```
+
+### HANDOFF (04 · founder paper accept)
+
+**Accepted:** Paper-enable `MIX-CF-OKALA-IN-*` for robust WR>50% / n≥20 cells as **FOUNDER_PAPER_ACCEPT** starter CE/PE notify; detector reuse of `okala_in_proxy`; BIG_NEWS still holds; catalog `win_rate=null`; optimize next quarter.  
+**Rejected:** Live promote; `/alerts/orders`; flipping `RESEARCH_READY_FOR_PROGRAMMING`; claiming 09 five-pass; marketing cell WR as product; STRAT-015+; merging into `MIX-DEFAULT-BUY`.  
+**UNKNOWN / DATA_INSUFFICIENT:** BANKNIFTY paper cells (none above gate this run); premium bind when chain missing (directional intent + DI on levels); next-quarter retune.  
+**NO_PROMOTE.**
+
+---
+
+## 18c. Chart Fanatics — OpenAI BIND + India overnight rollup (`MIX-CF-*-IN-*`)
+
+**Date:** 2026-09-07 (workstream C)  
+**Scope:** All usable CF transcripts (**yes=18**): OpenAI suggest → BIND refresh → India `MIX-*-IN-*` where portable.  
+**OpenAI batch:** `data/recon/CF_OPENAI_BATCH_STATUS_2026-09-07.json` — **ok=17** / **fail=0** (Okala suggest already existed).  
+**Skips:** [`data/recon/CF_OVERNIGHT_SKIPS_2026-09-07.md`](../../../data/recon/CF_OVERNIGHT_SKIPS_2026-09-07.md) — hard **SKIP** = Tori TL geometry (no India options wrapper); others **PARTIAL** (OHLC proxy OK; OF-native PARKED).  
+**Scripts:** `scripts/cf_openai_bind_batch.py` · `scripts/cf_openai_materialize.py`  
+**Runners:** primary `python -m backtest_engine cf-overnight` · Okala unchanged `okala-in` · sibling probe `backtest_engine.cf_india_proxy` (**does not rewrite** `okala_in_proxy`)  
+**Honesty:** observation-gated levels; miss/recovery in BINDs; teacher WR claims null; catalog `win_rate=null`; soft news veto stays parked; **NO_PROMOTE**; no STRAT-015+.
+
+Representative India adaptation MIX ids (full set under `teams/04_quant/docs/candidates/MIX-CF-*-IN-*.md`):
+
+| Family | Example IN MIX | Decision |
+|--------|----------------|----------|
+| Fabio | `MIX-CF-FABIO-IN-TREND-OHLC` / `MIX-CF-FABIO-IN-MR-OHLC` | PARTIAL |
+| Marco | `MIX-CF-MARCO-IN-01`…`03` | PARTIAL |
+| Mayne | `MIX-CF-MAYNE-IN-OHLC-03` | PARTIAL |
+| Marci | `MIX-CF-MARCI-IN-RIZZY-NIFTY` | PARTIAL |
+| Tori | — | **SKIP** |
+| TG / Kane | `MIX-CF-TG-IN-*` / `MIX-CF-KANE-IN-*` | PARTIAL |
+| Umar / Forest | `MIX-CF-UMAR-IN-*` / `MIX-CF-FOREST-IN-*` | PARTIAL |
+| Carmine / Jade | `MIX-CF-CARMINE-IN-*` / `MIX-CF-JADECAP-IN-*` | PARTIAL |
+| Usman / Brando | `MIX-CF-USMAN-IN-*` / `MIX-CF-BRANDO-IN-*` | PARTIAL |
+| Andrea / Omor | `MIX-CF-ANDREA-*-IN-*` / `MIX-CF-OMOR-*-IN-*` | PARTIAL |
+| Okala | `MIX-CF-OKALA-IN-*` (§18b) | PORT (prior) |
+| Yush | `MIX-CF-YUSH-IN-*` (§18d) | PARTIAL |
+| Marco DaVinci | `MIX-CF-MARCO-DAV-IN-OHLC-SWEEP-CEPE` (§18e) | PARTIAL |
+
+---
+
+## 18d. Chart Fanatics — Trader Yush (`MIX-CF-YUSH-*`)
+
+**ASR caveat:** Phase-3I `ASR_WHISPER` / `[ASR]`. Guest **Trader Yush**. Title **74%** = CLAIM only.  
+**Bind:** [`hvyf6frvCcA_BIND.md`](../../01_research/docs/chart_fanatics/hvyf6frvCcA_BIND.md)  
+**OpenAI:** `data/recon/CF_OPENAI_YUSH_BIND_SUGGEST_2026-09-07.md`  
+**Candidates:** [`MIX-CF-YUSH-AOI-REACTION.md`](candidates/MIX-CF-YUSH-AOI-REACTION.md), [`MIX-CF-YUSH-IN-OHLC-PARTIAL.md`](candidates/MIX-CF-YUSH-IN-OHLC-PARTIAL.md), [`MIX-CF-YUSH-IN-RETRY-RETEST.md`](candidates/MIX-CF-YUSH-IN-RETRY-RETEST.md), [`MIX-CF-YUSH-IN-RANGE-TREND-SWITCH.md`](candidates/MIX-CF-YUSH-IN-RANGE-TREND-SWITCH.md)  
+**Do not** merge into Fabio/Carmine OF books or STRAT-001–014. **No STRAT-015+.**
+
+```yaml
+mix_id: MIX-CF-YUSH-AOI-REACTION
+origin: EXTERNAL_RESEARCH
+origin_note: |
+  Chart Fanatics hvyf6frvCcA guest Trader Yush — AOI (≥2 of PDH/PDL/ORB/VP/big-trades/delta)
+  + reaction gate; miss → retest only. ASR. OF preferred; India OHLC PARTIAL.
+  Title 74% CLAIM · win_rate=null · NO_PROMOTE.
+styles: [SCALPER, OPTION_BUYER]
+customer_default: false
+status: BACKTEST_BOOK
+of_teacher_preferred: true
+asr_caveat: true
+not_merged_into: [MIX-DEFAULT-BUY, MIX-CF-FABIO-TREND-NY, MIX-CF-CARMINE-ABSORB]
+docs:
+  - teams/01_research/docs/chart_fanatics/hvyf6frvCcA_BIND.md
+```
+
+```yaml
+mix_id: MIX-CF-YUSH-IN-OHLC-PARTIAL
+origin: PROJECT_MIX
+origin_note: |
+  India observation-gated OHLC proxy of Yush AOI/reaction (VP/OF approximated).
+  PARTIAL · win_rate=null · NO_PROMOTE.
+styles: [SCALPER, OPTION_BUYER]
+customer_default: false
+status: BACKTEST_BOOK
+india_decision: PARTIAL
+not_merged_into: [MIX-DEFAULT-BUY, MIX-CF-YUSH-AOI-REACTION]
+docs:
+  - teams/01_research/docs/chart_fanatics/hvyf6frvCcA_BIND.md
+```
+
+---
+
+## 18e. Chart Fanatics — Marco DaVinci return (`MIX-CF-MARCO-DAV-*`)
+
+**ASR caveat:** Phase-3I `ASR_WHISPER`. Guest **Marco** return ep — **KEEP_ALL separate** from §11 `MIX-CF-MARCO-LIQ-TRAP` / `INT-EXT`.  
+**Bind:** [`T_djSNBmV00_BIND.md`](../../01_research/docs/chart_fanatics/T_djSNBmV00_BIND.md)  
+**OpenAI:** `data/recon/CF_OPENAI_MARCO-DAV_BIND_SUGGEST_2026-09-07.md`  
+**Candidates:** [`MIX-CF-MARCO-DAV.md`](candidates/MIX-CF-MARCO-DAV.md), [`MIX-CF-MARCO-DAV-IN-OHLC-SWEEP-CEPE.md`](candidates/MIX-CF-MARCO-DAV-IN-OHLC-SWEEP-CEPE.md)  
+**No STRAT-015+.** **NO_PROMOTE.**
+
+```yaml
+mix_id: MIX-CF-MARCO-DAV
+origin: EXTERNAL_RESEARCH
+origin_note: |
+  Chart Fanatics T_djSNBmV00 Marco return — DaVinci engineered-liquidity + fractal sweep/take.
+  ASR. Separate from DAnXM7C16h0 MIX-CF-MARCO-LIQ-TRAP. win_rate=null · NO_PROMOTE.
+styles: [SCALPER, OPTION_BUYER]
+customer_default: false
+status: BACKTEST_BOOK
+asr_caveat: true
+not_merged_into: [MIX-DEFAULT-BUY, MIX-CF-MARCO-LIQ-TRAP, MIX-CF-MARCO-INT-EXT]
+docs:
+  - teams/01_research/docs/chart_fanatics/T_djSNBmV00_BIND.md
+```
+
+```yaml
+mix_id: MIX-CF-MARCO-DAV-IN-OHLC-SWEEP-CEPE
+origin: PROJECT_MIX
+origin_note: |
+  India OHLC proxy: engineered liquidity + sweep/take → directional CE/PE.
+  PARTIAL · observation-gated · win_rate=null · NO_PROMOTE.
+styles: [SCALPER, OPTION_BUYER]
+customer_default: false
+status: BACKTEST_BOOK
+india_decision: PARTIAL
+not_merged_into: [MIX-DEFAULT-BUY, MIX-CF-MARCO-DAV, MIX-CF-MARCO-LIQ-TRAP]
+docs:
+  - teams/01_research/docs/chart_fanatics/T_djSNBmV00_BIND.md
 ```
 
 ---
@@ -1818,9 +2041,9 @@ docs:
 
 ## HANDOFF
 
-**Accepted:** KEEP_ALL. STRAT-001–014 all `BACKTEST_BOOK`. MIX-* namespace. 013/014 seller tags, IDs unchanged. 010 parked-not-dropped. MIX-CONFLICT-STRIKE labeled CONFLICT. §8 scan IDs (`WEB-DERIVED` / `PROJECT_MIX`) named including MIX-CLOCK-CAS overlay and MIX-ML-LOGIT / MIX-ML-LOGIT-XR; metrics null; `customer_default: false`. `MIX-DEFAULT-BUY` unchanged. **§9 SL/TP MIX rows** including own `MIX-DESK-IQ-ATR-RR2` (`PROJECT_MIX`). **§10 `MIX-CF-FABIO-TREND-NY` + `MIX-CF-FABIO-MR-RANGE`** (`EXTERNAL_RESEARCH`, PARKED OF, proxy BACKTEST_BOOK). **§11 `MIX-CF-MARCO-LIQ-TRAP` + `MIX-CF-MARCO-INT-EXT` + `MIX-CF-MAYNE-ICT-HTF` + `MIX-CF-MAYNE-BREAKER`** (`EXTERNAL_RESEARCH`, ASR caveat, separate from Fabio). **§12 `MIX-CF-MARCI-RIZZY` + `MIX-CF-MARCI-BB-REALITY` + `MIX-CF-TORI-TL-BOUNCE` + `MIX-CF-TORI-TL-BREAK`** (`EXTERNAL_RESEARCH`, ASR caveat, separate from Fabio/Marco/Mayne). **§13 `MIX-CF-TG-TRIDENT` + `MIX-CF-TG-EMA-WAVE` + `MIX-CF-KANE-EQ50` + `MIX-CF-KANE-PO3-SMT`** (`EXTERNAL_RESEARCH`, ASR caveat, separate from prior CF guests; title 90% not product metric). **§14 `MIX-CF-UMAR-MORNING-TOP` + `MIX-CF-UMAR-OPENING-DRIVE` + `MIX-CF-FOREST-VPE-EDGE` + `MIX-CF-FOREST-POC-RETEST`** (`EXTERNAL_RESEARCH`, ASR caveat; opening drive DI; separate from prior CF guests). **§15 `MIX-CF-CARMINE-ABSORB` + `MIX-CF-CARMINE-FAIL-BREAK` + `MIX-CF-CARMINE-OPEN-HOLD` + `MIX-CF-JADECAP-SWING-FAIL` + `MIX-CF-JADECAP-SESSION-LIQ` + `MIX-CF-JADECAP-FVG-DRAW`** (`EXTERNAL_RESEARCH`, ASR caveat; Carmine absorb OF PARKED/DI; Jade session-liq DI; separate from prior CF guests). **§16 `MIX-CF-USMAN-*` + `MIX-CF-BRANDO-*`** (`EXTERNAL_RESEARCH`, ASR caveat; Usman mostly DI options literacy; Brando HTF proxies BACKTEST_BOOK; size-zero vs price-stop KEEP_ALL; separate from prior CF guests). **§17 `MIX-CF-ANDREA-*` + `MIX-CF-OMOR-*`** (`EXTERNAL_RESEARCH`, ASR caveat; Andrea ≠ Fabio; OF absorb PARKED; Omor KZ/ADR DI; structure proxies BACKTEST_BOOK; separate from prior CF guests). **§18 `MIX-CF-OKALA-*`** (`EXTERNAL_RESEARCH`, ASR; catalog only / not CF×8; magnets observable|searchable; portability observation-gated; miss/recovery + BT grid in BIND; OpenAI suggest HYPOTHESIS only; win_rate=null; NO_PROMOTE). **§19 `MIX-TA-FLOW-RISK` + `MIX-TA-EVENT-HOLD` + `MIX-TA-EXEC-SANITY`** (`EXTERNAL_RESEARCH` / TradingAgents Apache-2.0; PAPER_WATCH / WAITING; not promote).
+**Accepted:** KEEP_ALL. STRAT-001–014 all `BACKTEST_BOOK`. MIX-* namespace. 013/014 seller tags, IDs unchanged. 010 parked-not-dropped. MIX-CONFLICT-STRIKE labeled CONFLICT. §8 scan IDs (`WEB-DERIVED` / `PROJECT_MIX`) named including MIX-CLOCK-CAS overlay and MIX-ML-LOGIT / MIX-ML-LOGIT-XR; metrics null; `customer_default: false`. `MIX-DEFAULT-BUY` unchanged. **§9 SL/TP MIX rows** including own `MIX-DESK-IQ-ATR-RR2` (`PROJECT_MIX`). **§10 `MIX-CF-FABIO-TREND-NY` + `MIX-CF-FABIO-MR-RANGE`** (`EXTERNAL_RESEARCH`, PARKED OF, proxy BACKTEST_BOOK). **§11 `MIX-CF-MARCO-LIQ-TRAP` + `MIX-CF-MARCO-INT-EXT` + `MIX-CF-MAYNE-ICT-HTF` + `MIX-CF-MAYNE-BREAKER`** (`EXTERNAL_RESEARCH`, ASR caveat, separate from Fabio). **§12 `MIX-CF-MARCI-RIZZY` + `MIX-CF-MARCI-BB-REALITY` + `MIX-CF-TORI-TL-BOUNCE` + `MIX-CF-TORI-TL-BREAK`** (`EXTERNAL_RESEARCH`, ASR caveat, separate from Fabio/Marco/Mayne). **§13 `MIX-CF-TG-TRIDENT` + `MIX-CF-TG-EMA-WAVE` + `MIX-CF-KANE-EQ50` + `MIX-CF-KANE-PO3-SMT`** (`EXTERNAL_RESEARCH`, ASR caveat, separate from prior CF guests; title 90% not product metric). **§14 `MIX-CF-UMAR-MORNING-TOP` + `MIX-CF-UMAR-OPENING-DRIVE` + `MIX-CF-FOREST-VPE-EDGE` + `MIX-CF-FOREST-POC-RETEST`** (`EXTERNAL_RESEARCH`, ASR caveat; opening drive DI; separate from prior CF guests). **§15 `MIX-CF-CARMINE-ABSORB` + `MIX-CF-CARMINE-FAIL-BREAK` + `MIX-CF-CARMINE-OPEN-HOLD` + `MIX-CF-JADECAP-SWING-FAIL` + `MIX-CF-JADECAP-SESSION-LIQ` + `MIX-CF-JADECAP-FVG-DRAW`** (`EXTERNAL_RESEARCH`, ASR caveat; Carmine absorb OF PARKED/DI; Jade session-liq DI; separate from prior CF guests). **§16 `MIX-CF-USMAN-*` + `MIX-CF-BRANDO-*`** (`EXTERNAL_RESEARCH`, ASR caveat; Usman mostly DI options literacy; Brando HTF proxies BACKTEST_BOOK; size-zero vs price-stop KEEP_ALL; separate from prior CF guests). **§17 `MIX-CF-ANDREA-*` + `MIX-CF-OMOR-*`** (`EXTERNAL_RESEARCH`, ASR caveat; Andrea ≠ Fabio; OF absorb PARKED; Omor KZ/ADR DI; structure proxies BACKTEST_BOOK; separate from prior CF guests). **§18 `MIX-CF-OKALA-*`** (`EXTERNAL_RESEARCH`, ASR; catalog only / not CF×8; magnets observable|searchable; portability observation-gated; miss/recovery + BT grid in BIND; OpenAI suggest HYPOTHESIS only; win_rate=null; NO_PROMOTE). **§18b `MIX-CF-OKALA-IN-*`** FOUNDER_PAPER_ACCEPT PAPER only. **§18c overnight OpenAI+India IN rollup** (ok=17/fail=0; Tori SKIP). **§18d `MIX-CF-YUSH-*`**. **§18e `MIX-CF-MARCO-DAV-*`** (separate from §11 Marco). **§19 `MIX-TA-FLOW-RISK` + `MIX-TA-EVENT-HOLD` + `MIX-TA-EXEC-SANITY`** (`EXTERNAL_RESEARCH` / TradingAgents Apache-2.0; PAPER_WATCH / WAITING; not promote).
 
-**Rejected:** Deleting teacher recipes. Silent 002-on-003. Invented fills/lots/win rates. STRAT-015+. Relabeling ORB 09:15–09:30 or CPR as `DHAN-DERIVED`. Promoting a scan onto the customer ticket. Claiming US GEX = NIFTY edge. Silent hardcoded `STOP_PTS` as named strategy. Clubbing Fabio/Marco/Mayne/Marci/Tori/TG/Kane/Umar/Forest/Carmine/Jadecap/Usman/Brando/Andrea/Omor/Okala into DEFAULT-BUY / IQCapital / each other. Inventing Carmine DOM fields, Jade Asia/London NSE boxes, Usman OI/greeks, Brando India headlines, Andrea ES footprint fields, Omor IST killzones, or Okala NIFTY digit clocks without magnet-observation adaptation MIX. Merging Andrea into `MIX-CF-FABIO-*`. Promoting title $6k→$10M / 30M funding rhetoric / Okala 65% title WR. Promoting `MIX-TA-*` or treating TradingAgents US equity stack as India SOURCE_FACT. Claiming OpenAI fixes Okala/CF backtest WR. Live agent orders.
+**Rejected:** Deleting teacher recipes. Silent 002-on-003. Invented fills/lots/win rates. STRAT-015+. Relabeling ORB 09:15–09:30 or CPR as `DHAN-DERIVED`. Promoting a scan onto the customer ticket. Claiming US GEX = NIFTY edge. Silent hardcoded `STOP_PTS` as named strategy. Clubbing Fabio/Marco/Mayne/Marci/Tori/TG/Kane/Umar/Forest/Carmine/Jadecap/Usman/Brando/Andrea/Omor/Okala/Yush/Marco-DAV into DEFAULT-BUY / IQCapital / each other. Inventing Carmine DOM fields, Jade Asia/London NSE boxes, Usman OI/greeks, Brando India headlines, Andrea ES footprint fields, Omor IST killzones, or Okala NIFTY digit clocks without magnet-observation adaptation MIX. Merging Andrea into `MIX-CF-FABIO-*` or Marco-DAV into `MIX-CF-MARCO-LIQ-TRAP`. Promoting title $6k→$10M / 30M funding rhetoric / Okala 65% / Yush 74% title WR. Promoting `MIX-TA-*` or treating TradingAgents US equity stack as India SOURCE_FACT. Claiming OpenAI fixes Okala/CF backtest WR. Live agent orders. Re-enabling soft news veto overnight.
 
 **UNKNOWN / DATA_INSUFFICIENT:** 004 EMA lengths. 010 HQ OF history. 003 “103.” 006 delta. Live IEP feed (CAS). Analog memory empty. Scan params (BB k, Keltner, SAR AF, ADX period, body/range windows). No HQ ORB/CPR/ADX series. **NIFTY GEX / naive GEX construction. OF footprint history. Fabio NQ OF → NSE map; Marco/Mayne NY/Asia/London/crypto clocks → IST; Marci NY-open avoid / Tori 4H week → NSE; TG London KZ NY → IST; Kane EST 9:15–11 / SMT NQ–ES → single NIFTY; Umar ET open/cut + OF tape; Forest overnight H/L + true VAP → NSE; Carmine DOM/heatmap/delta + ET open-hold → NSE; Jadecap Asia/London/midnight open → NSE; Usman OPTIDX OI/greeks + US Fri 0DTE → NIFTY weekly; Brando Fed/tariff news join + size-zero premium ledger; Andrea ES footprint/VP/Deep Charts + NY OR → NSE; Omor London/NY/Asia KZ + ADR + FX SMT → NSE. ASR noun errors (Buma Ashraf; Osman Astra; brand-a-k-a-leaf; Andrea Chimney; Omore/MBB; boat≈close; PLC≈POC; Car mine; rate≈raid; Markime Commodule≈MMM). TG EMA 13 vs 15.** DhanHQ news API surface absent in client; Moneycontrol RSS VERIFY IF STABLE; India social sentiment unwired; LIVE founder+gate flags default refuse.
 

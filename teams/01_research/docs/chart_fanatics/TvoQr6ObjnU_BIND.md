@@ -1,7 +1,7 @@
 # BIND — `TvoQr6ObjnU` · Andrea Cimi (Chart Fanatics)
 
 **Team:** 01_research  
-**Date:** 2026-09-06  
+**Date:** 2026-09-06 (rev: OpenAI+India overnight 2026-09-07)
 **Layer:** `SOURCE_FACT` (`ASR_WHISPER` — **not** YouTube captions)  
 **Video:** https://www.youtube.com/watch?v=TvoQr6ObjnU  
 **Title marketing:** “world’s BEST Scalpers” / “PERFECT Sniper Entries” / live $6k–$7k session rhetoric — **education + marketing**; product metrics stay null  
@@ -9,6 +9,7 @@
 **Raw ASR:** `data/transcripts/external_chart_fanatics/TvoQr6ObjnU.asr.txt`  
 **Timed VTT:** `DATA_INSUFFICIENT` — anchors are **ASR paragraph order**, not clocks.  
 **Origin tag for any MIX:** `EXTERNAL_RESEARCH` / Chart Fanatics guest — **not** `DHAN-DERIVED`.  
+**OpenAI aid (HYPOTHESIS only):** [`../../../../data/recon/CF_OPENAI_ANDREA_BIND_SUGGEST_2026-09-07.md`](../../../../data/recon/CF_OPENAI_ANDREA_BIND_SUGGEST_2026-09-07.md) — does **not** fix win rates.
 **KEEP_ALL:** do **not** club into STRAT-001–014, IQCapital MIXes, prior `MIX-CF-*` (including **`MIX-CF-FABIO-*`**), or `MIX-DEFAULT-BUY`. Inventory stub guest Fabio was **wrong** — guest is **Andrea Cimi**; Fabio is mentor / NQ comparison only.
 
 ---
@@ -155,3 +156,180 @@ of_tape: required for teacher precision — DATA_INSUFFICIENT / PARKED without I
 **UNKNOWN / DATA_INSUFFICIENT:** Timed VTT; India OF/VP history; exact OR minutes; ASR “Andrea Chimney.”
 
 **Next:** 04 names `MIX-CF-ANDREA-*` only. 02/03 comment (no veto). 06: OF arms PARKED/DI; OHLC proxies honest — no promote.
+---
+
+## OpenAI + India refresh — 2026-09-07
+
+**OpenAI aid (HYPOTHESIS only):** [`../../../../data/recon/CF_OPENAI_ANDREA_BIND_SUGGEST_2026-09-07.md`](../../../../data/recon/CF_OPENAI_ANDREA_BIND_SUGGEST_2026-09-07.md) — does **not** fix win rates.  
+**India decision:** `PARTIAL` · of_required=False · ohcl_proxy_ok=True  
+**Rationale:** Transcript provides clear mechanics (failed-auction/value rotation, ORB acceptance behavior, stop-run fade short horizon) but does NOT provide DhanHQ/India-specific orderflow/DOM/footprint fields or volume-profile construction parameters. We can backtest OHLC-derived proxies for probe/acceptance/rotation and prior-day sweep/rejection, while marking true OF/absorption as optional layer only if equivalent data is available in India toolchain.  
+**India analogs:** Failed auction/value rotation => value-band proxy using multi-session VWAP bands or rolling high/low range as fair value approximation., ORB acceptance => breakout + retest-hold + continuation closes (behavioral acceptance proxy)., Stop-run cascade sweep => prior-day H/L sweep detection using OHLC, then rejection close back inside prior-day boundary.  
+**KEEP_ALL / NO_PROMOTE** · `win_rate=null` · no STRAT-015+ · soft news veto stays parked.
+
+### Honesty banner (rev)
+
+```text
+openai_suggest: HYPOTHESIS aid only — does not fix WR / does not VALIDATION
+magnet_or_level: observable|searchable — not sacred
+market_scope: teacher_examples=US/NQ/etc; portable_if_observed=HYPOTHESIS
+india_decision: PARTIAL
+catalog_win_rate: null
+NO_PROMOTE: true
+This BIND is rebuilt from spoken mechanics in the transcript. True absorption/footprint/DOM confirmation is not fully India-specified; therefore India implementation is PARTIAL OHLC-proxy first, with optional OF layer only if equivalent data exists. win_rate remains null until post-implementation backtest.
+```
+
+### Core edge (formalization · HYPOTHESIS)
+
+Auction/liquidity mechanics (failed auction + OF acceptance, plus stop-run fade ≠ always-reversal) used as discretionary gating to avoid “late on the party” entries; relies on liquidity participation and absorption/initiative rather than just candle structure. (No verified win_rate in transcript.)
+
+### Observation protocol (HYPOTHESIS)
+
+{
+  "layering_rule": "Only convert spoken constructs into BIND parameters when explicit; otherwise keep as OBSERVATION→HYPOTHESIS until validated by India OHLC/derived proxies.",
+  "required_inputs_by_model": {
+    "failed_auction_value_pingpong": [
+      "Session/Composite volume profile proxy (or substitute: multi-session high/low range + VWAP bands)",
+      "Extreme probe relative to current value area (VAH/VAL concept as proxy)",
+      "Absorption/initiative proxy from order-flow metrics; if unavailable in India, use OHLC behavioral proxy (stall+rejection near level)"
+    ],
+    "orb_acceptance_continuation": [
+      "Opening range definition (time-box in India: 09:15-09:30 or re-observed by desk)",
+      "Break direction and whether price builds outside OR candle",
+      "OF acceptance proxy (tight post-break continuation vs quick mean-revert; volume spike vs fade)"
+    ],
+    "stoprun_fade_book_resilience": [
+      "Prior-day high/low sweep detection (OHLC proxy)",
+      "Immediate rebound structure (lower high after sweep for short; higher low after sweep for long)",
+      "Avoid calling full reversal; expect short-term mean reversion only"
+    ],
+    "true_absorption_of_par
+
+### Entry models (HYPOTHESIS)
+
+[
+  {
+    "model_id": "MODEL-ANDREA-VA-FailedAuction-PingPong",
+    "teacher_claim": "Failed auction/absorption + initiative flip; test outside fair value then trade toward opposite side of value area (ping-pong).",
+    "entry_logic_hypothesis": [
+      "Define fair value/value area from multi-session volume profile (or proxy bands).",
+      "Wait for a probe outside value area (below VAL or above VAH) with signs of absorption/initiative flip (OF in ideal case).",
+      "Enter on confirmation: price stops expanding and begins to rotate back toward value (early entry allowed if control flips, per transcript)."
+    ],
+    "india_ohlc_entry_proxy": [
+      "Probe condition: wick/body excursion beyond prior value-band proxy followed by 1-2 bars of stall + reclaim/rotation.",
+      "Confirmation: consecutive closes moving back toward the value midpoint with diminishing range."
+    ],
+    "miss_entry_rules_if_spoken": [
+      "No-chase rule (HYPOTHESIS): if rotation fails to start promptly after probe, stand down (he emphasizes waiting for correct control/initiative, not candles late).",
+      "Recovery (HYPOTHESIS): allow re-entry on the next value-area touch after a fresh probe fails (cap number of attempts per session)."
+    ],
+    "win_rate": null
+  },
+  {
+    "model_id": "MODEL-ANDREA-ORB-Acceptance",
+    "teacher_claim": "Opening range breakout where acceptance/participation supports continuation; may enter before break using bubbles/control (discretion).",
+    "entry_logic_h
+
+### Miss-entry / recovery (HYPOTHESIS)
+
+{
+  "principles_from_transcript": [
+    "No-chase when you’re late: model should gate on control/initiative/acceptance, not on merely seeing breakout after-the-fact.",
+    "Distinguish absorption vs stop-run/exhaustion; similar candle shapes require deeper participation signals (OF in ideal case)."
+  ],
+  "for_backtests_rules_template": [
+    {
+      "rule_name": "NO-CHASE-FAILED_ACCEPTANCE",
+      "trigger": "ORB breaks OR boundary then returns inside OR range within M minutes/bars (failed acceptance proxy).",
+      "action": "Do not enter on that first break; only consider second attempt."
+    },
+    {
+      "rule_name": "1-RECOVERY-ON-RETEST",
+      "trigger": "After initial probe/acceptance confirmation, price overshoots target/entry invalidation but then re-rotates toward value boundary within K bars.",
+      "action": "Permit at most 1 recovery entry; otherwise flat."
+    },
+    {
+      "rule_name": "CANCEL-ON-DEEP-RE-ACCELERATION",
+      "trigger": "Post-entry structure violates the invalidation swing before first target/partial.",
+      "action": "Full exit / do not re-enter in same direction that session."
+    }
+  ]
+}
+
+### Risk shell (HYPOTHESIS)
+
+{
+  "instrument_mapping": "Options: use directionality from OHLC proxy (long->CE, short->PE). Keep strike selection method in backtest grid; do not assume fixed DTE/lot sizes.",
+  "invalidation_logic_hypothesis": [
+    "Failed-auction: invalidation if rotation continues away from value and expands range beyond probe extreme.",
+    "ORB: invalidation if price re-enters and holds back inside OR range with closes returning to OR.",
+    "Stop-run fade: invalidation if price retakes the swept extreme and holds."
+  ],
+  "profit_management_hypothesis": [
+    "Use value-area or mid-band targets (or ne
+
+### Market portability
+
+{
+  "portability_summary": "Mechanics (auction/liquidity, absorption vs stop-run, VA/value rotation, OR acceptance) are portable conceptually, but true OF/DOM signals are likely vendor/toolchain dependent in India. Therefore implement as OHLC-first proxies with optional OF layer if available.",
+  "highest_risk_transfer_points": [
+    "Footprint/DOM/heatmap-based absorption confirmation (DATA_INSUFFICIENT for India in this plan).",
+    "Volume profile '70%/1σ' constructions require the same VP implementation to be equivalent."
+  ]
+}
+
+### Backtest search grid (for 06)
+
+{
+  "base_parameters_common": {
+    "expiry_style": [
+      "nearest weekly (re-observe)"
+    ],
+    "strike_offset": [
+      "ITM/ATM/OTM grid (no hardcoded offsets)"
+    ],
+    "entry_mode": [
+      "bar-close confirmation",
+      "intrabar proxy (if OHLC-only, keep close-based)"
+    ],
+    "attempt_cap_per_session": [
+      1,
+      2
+    ]
+  },
+  "model_specific_grids": {
+    "failed_auction_value_pingpong": {
+      "value_band_proxy": [
+        "VWAP±k*ATR",
+        "rolling session midpoint±k",
+        "previous day VA proxy from OHLC ranges (if VP unavailable)"
+      ],
+      "probe_distance": [
+        "below VAL-proxy threshold",
+        "above VAH-proxy threshold (grid both sides)"
+      ],
+      "rotation_confirmation_bars": [
+        1,
+        2,
+        3
+      ],
+      "no_chase_condition": [
+        "if rotation not started within N bars after probe"
+      ],
+      "target_proxy": [
+        "value-midpoint",
+        "opposite band boundary",
+        "prior swing mean"
+ 
+
+### Proposed MIX ids (KEEP_ALL)
+
+| mix_id | role | note |
+|--------|------|------|
+| `MIX-CF-ANDREA-VA-PARTIAL-IN-01` | india | OHLC-first failed-auction/value-pingpong using fair-value band proxy + probe/rotation confirmation; OF-absorption optional. |
+| `MIX-CF-ANDREA-ORB-PARTIAL-IN-02` | india | India ORB acceptance continuation with miss-entry no-chase on failed acceptance then 1 recovery attempt. |
+| `MIX-CF-ANDREA-STOPRUN-PARTIAL-IN-03` | india | Prior-day sweep rejection fade with strict short-horizon exit; no full-session reversal assumption. |
+
+**Accepted:** observation-gated formalization; India `PARTIAL`; teacher WR claims null.  
+**Rejected:** auto-inherit US digits/clocks/OF thresholds; STRAT-015+; claiming OpenAI fixed BT.  
+**UNKNOWN / DATA_INSUFFICIENT:** timed VTT; Dhan historical OF/tape when of_required.

@@ -1,14 +1,16 @@
 """News / EVENT_MEMORY alignment hooks.
 
-Customer-ticket policy (2026-09-07 process fix):
-  - Mid-session hard HOLD/VETO **only** on BIG_NEWS (or EXPIRY / NO_TRADE halt).
-  - Routine / fixture / soft MACRO noise is **pre-market sentiment context**, not a
-    continuous ticket killer.
+Customer-ticket policy (2026-09-07 process fix + founder simplify):
+  - Soft-default: ``NEWS_VETO_ENABLED=false`` → news does **not** HOLD the
+    customer paper ticket (notes / analog only). Re-enable with env true.
+  - When enabled: mid-session hard HOLD/VETO only on BIG_NEWS (or EXPIRY /
+    NO_TRADE halt). Routine / fixture / soft MACRO = pre-market sentiment.
   - News never deletes STRATs (KEEP_ALL). Never claimed alpha.
 """
 
 from __future__ import annotations
 
+import os
 from typing import Iterable, Literal, Optional
 
 from trading_agents_india.fixtures import MarketContext, NewsItem
@@ -16,7 +18,7 @@ from trading_agents_india.schemas import SessionKind
 
 NewsSeverity = Literal["BIG_NEWS", "ROUTINE", "SOFT"]
 
-# Mid-session customer-ticket veto — explicit big-news only.
+# Mid-session customer-ticket veto — explicit big-news only (when enabled).
 BIG_NEWS_TAGS = frozenset(
     {
         "BIG_NEWS",
@@ -40,10 +42,19 @@ SOFT_MACRO_TAGS = frozenset(
 ROUTINE_TAGS = frozenset({"FIXTURE", "ROUTINE", "PREMARKET_CONTEXT"})
 
 
+def news_veto_enabled() -> bool:
+    """Soft-default OFF. Founder parked news HOLD on paper customer path.
+
+    Set NEWS_VETO_ENABLED=true|1|yes|on to restore BIG_NEWS / NEWS_DAY holds.
+    """
+    raw = (os.environ.get("NEWS_VETO_ENABLED") or "false").strip().lower()
+    return raw in ("1", "true", "yes", "on")
+
+
 def news_item_severity(item: NewsItem) -> NewsSeverity:
     """Classify one headline for customer-ticket gate.
 
-    BIG_NEWS → mid-session HOLD/VETO.
+    BIG_NEWS → mid-session HOLD/VETO **only when** news_veto_enabled().
     ROUTINE → fixture / dry overlay — never veto.
     SOFT → live-ish macro without BIG_NEWS tag — pre-market sentiment only.
     """
@@ -79,8 +90,8 @@ def score_premarket_sentiment(news: Iterable[NewsItem]) -> dict[str, object]:
     risk_offs = sum(1 for n in soft if str(n.risk_bias).upper() == "RISK_OFF")
     risk_ons = sum(1 for n in soft if str(n.risk_bias).upper() == "RISK_ON")
     if big:
-        label = "BIG_NEWS_HOLD"
-        bias = "NO_TRADE"
+        label = "BIG_NEWS_HOLD" if news_veto_enabled() else "BIG_NEWS_NOTED"
+        bias = "NO_TRADE" if news_veto_enabled() else "MIXED"
     elif risk_offs > risk_ons and risk_offs > 0:
         label = "SOFT_RISK_OFF"
         bias = "RISK_OFF"
@@ -99,9 +110,15 @@ def score_premarket_sentiment(news: Iterable[NewsItem]) -> dict[str, object]:
         "big_news_count": len(big),
         "soft_news_count": len(soft),
         "headlines": [n.headline for n in (big + soft)[:6]],
+        "news_veto_enabled": news_veto_enabled(),
         "note": (
             "Pre-market sentiment / impact context only. "
-            "Mid-session hard veto requires BIG_NEWS. Not a fill. Not alpha."
+            + (
+                "Mid-session hard veto requires BIG_NEWS."
+                if news_veto_enabled()
+                else "NEWS_VETO_ENABLED=false — news does not HOLD the paper ticket."
+            )
+            + " Not a fill. Not alpha."
         ),
         "layer": "HYPOTHESIS",
     }
@@ -114,6 +131,8 @@ def classify_session_kind(news: Iterable[NewsItem], hint: str = "NORMAL") -> Ses
     NEWS_DAY hint alone does **not** force a hold when headlines are only
     fixture/routine/soft macro; those stay NORMAL with soft sentiment context.
     Empty news + explicit NEWS_DAY hint → NEWS_DAY (calendar-forced day).
+    Tagging NEWS_DAY for analog is fine even when NEWS_VETO_ENABLED=false —
+    the pipeline must not HOLD solely from that tag while the flag is off.
     """
     hint_u = (hint or "NORMAL").upper()
     if hint_u == "EXPIRY":
@@ -133,8 +152,25 @@ def classify_session_kind(news: Iterable[NewsItem], hint: str = "NORMAL") -> Ses
 
 
 def news_hold_reasons(ctx: MarketContext, session_kind: SessionKind) -> list[str]:
-    """Ticket hold reasons. Never a catalog delete. Never claimed alpha."""
+    """Ticket hold reasons. Never a catalog delete. Never claimed alpha.
+
+    When NEWS_VETO_ENABLED=false, emit notes only — do not phrase as hard HOLD.
+    """
     reasons: list[str] = []
+    if not news_veto_enabled():
+        if session_kind == "NEWS_DAY" or big_news_items(ctx.news):
+            reasons.append(
+                "news_noted: BIG_NEWS/NEWS_DAY present but NEWS_VETO_ENABLED=false "
+                "(parked — does not HOLD paper ticket)"
+            )
+        soft = soft_news_items(ctx.news)
+        if soft:
+            reasons.append(
+                f"premarket_sentiment: {score_premarket_sentiment(soft).get('label')} "
+                "(soft context — not a mid-session veto)"
+            )
+        return reasons
+
     if session_kind == "NEWS_DAY":
         reasons.append(
             "BIG_NEWS: hold customer ticket (SIGNAL_FUSION / EVENT_MEMORY) — not alpha"
@@ -177,7 +213,7 @@ def top_veto_reasons(
                 out.append(text)
             if len(out) >= limit:
                 return out[:limit]
-    if session_kind in ("NEWS_DAY", "EXPIRY") and not out:
+    if news_veto_enabled() and session_kind in ("NEWS_DAY", "EXPIRY") and not out:
         out.append(
             "BIG_NEWS hold"
             if session_kind == "NEWS_DAY"

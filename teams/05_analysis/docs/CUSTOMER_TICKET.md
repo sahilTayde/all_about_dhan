@@ -39,7 +39,7 @@ Customer ticket **Entry / Stop / Target** for BUY_CE / BUY_PE are **option premi
 | Default method | Rule |
 |----------------|------|
 | `MIX-DESK-IQ-ATR-RR2` / `MIX-SLTP-ATR-R2` | Wilder ATR(14)×1.5 stop from index entry; target R×2 — kept as `index_*` for chart. |
-| Customer premium slots | Bound when ATM option LTP exists (`POST /optionchain`). Entry = LTP. Target = entry×1.25 (`MIX-SLTP-PREM-PCT` mid of STRAT-002 20–30%). **Stop (premium slot)** stays `DATA_INSUFFICIENT` unless an explicit `stop_pct` is passed — teacher stop is **underlying recent-swing**, not a premium-% invent. **PAPER rule `MIX-SLTP-SWING-STOP`:** when INDEX/FUTIDX bars exist, bind `index_stop` / `stop_underlying` = last confirmed fractal swing (CE→swing low, PE→swing high; wing=2 HYPOTHESIS). Chart uses `index_stop`; customer premium Stop remains DI until a greek map exists. |
+| Customer premium slots | Bound when ATM option LTP exists (`POST /optionchain`). Entry = LTP. Target = entry×1.25 (`MIX-SLTP-PREM-PCT`). **Okala PAPER starter Stop** = entry×0.75 (`paper_starter_premium_stop` / `NEWS_VETO_ENABLED=false` path) — HYPOTHESIS until swing/greek map. Teacher swing stop still fills `index_stop` when bars exist. |
 | Fallback | If ATR missing → index builder `levels_ready=false`. Premium still DI until chain binds. |
 | Gap reason | When LTP missing: `levels_note` / UI shows e.g. `OPTIDX premium not fetched` / dry_run / expiry empty — never paste index prints into Entry/SL/Target. |
 | Deprecated | `DESK_PLACEHOLDER` fixed pts (NIFTY 30 / BN 60 / SENSEX 100) only if explicitly selected — labeled deprecated; still quarantined off customer premium slots. |

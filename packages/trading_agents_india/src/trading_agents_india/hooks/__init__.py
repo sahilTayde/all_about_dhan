@@ -6,6 +6,7 @@ from trading_agents_india.hooks.desk import try_load_desk_context
 from trading_agents_india.hooks.event_memory import (
     classify_session_kind,
     news_item_severity,
+    news_veto_enabled,
     score_premarket_sentiment,
     top_veto_reasons,
 )
@@ -17,6 +18,7 @@ __all__ = [
     "try_load_desk_context",
     "classify_session_kind",
     "news_item_severity",
+    "news_veto_enabled",
     "score_premarket_sentiment",
     "top_veto_reasons",
     "gather_news",

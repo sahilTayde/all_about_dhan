@@ -19,7 +19,7 @@ Read in order:
 
 Gate: NOT RESEARCH_READY_FOR_PROGRAMMING. PAPER only. NO_PROMOTE. STRATs UNVALIDATED. Dashboard P/L is MOCK. No live orders. Do not restart npm / Vite until I ask. Never print secrets.
 
-Left off: **Overnight A done** — CF full inventory `data/recon/CF_OVERNIGHT_INVENTORY_2026-09-07.md` (47: ok=18 fail=29 hard_skip=0). Queues: ASR retry=29 (`cf_overnight_queue_transcript_retry.json`, start `xUyqIjCfZzg`); OpenAI+BIND=2 Yush+Marco return (`cf_overnight_queue_openai_bind.json`); backtest=16 usable MIX-CF-* (`cf_overnight_queue_backtest.json`). Simple signal path still shipped (Okala-IN PAPER). Prefer PDH/FVG alts over skip. Do not restart npm/paper ops.
+Left off: **Overnight D done (CF BT + paper wire)** — `cf-overnight` 7560 cells; **167** structure + **4** Okala FOUNDER_PAPER_ACCEPT wired via `cf_paper_registry` / `HOW_SIGNALS_WORK.md`. Rollup `CF_OVERNIGHT_BACKTEST_ROLLUP_2026-09-07.md`. TG/Kane 0 accepts; Yush/Marco-DAV skipped (no lean). Prior C: OpenAI ok=17; Yush+Marco-DAV BINDs. PAPER · NO_PROMOTE. Do not restart npm/paper ops.
 ```
 
 
@@ -141,7 +141,7 @@ EOD learning honesty: [`data/recon/EOD_LEARNING_AUDIT_2026-09-07.md`](../../../d
 | P0-4 LLM budget | **SHIPPED** | lean roles + shared cooldown + 90s floor + restart backoff |
 | P1 attention/digest | **SHIPPED** (scan≠ship) | `ATTENTION_QUEUE_*` + `FOUNDER_DIGEST_*` at stop/15:35 |
 
-Still open (**workstream C**): P1-3 STRAT DI bind/summarize; premium Stop swing / OPTIDX live bind; deep retune engine. CF ASR + Phase-11 when asked. No `process-improve` CLI yet.
+Still open: P1-3 STRAT DI bind/summarize; premium Stop swing / OPTIDX live bind; deep retune engine. CF ASR fail=29. Overnight C OpenAI+BIND+India **done**. No `process-improve` CLI yet.
 
 **Canvas (2026-09-07):** DI noise unplugged from primary ops board — see [`PAPER_OPS_CANVAS.md`](PAPER_OPS_CANVAS.md) + [`data/recon/CANVAS_UNPLUG_2026-09-07.md`](../../../data/recon/CANVAS_UNPLUG_2026-09-07.md). Monitor rewrite keeps collapsed DI / parked fixtures.
 
@@ -155,12 +155,12 @@ Still open (**workstream C**): P1-3 STRAT DI bind/summarize; premium Stop swing 
 |----------|------|
 | Full inventory (md+json) | [`data/recon/CF_OVERNIGHT_INVENTORY_2026-09-07.md`](../../../data/recon/CF_OVERNIGHT_INVENTORY_2026-09-07.md) · `.json` twin |
 | ASR fail queue | [`data/recon/cf_overnight_queue_transcript_retry.json`](../../../data/recon/cf_overnight_queue_transcript_retry.json) (**29**) |
-| OpenAI+BIND queue | [`data/recon/cf_overnight_queue_openai_bind.json`](../../../data/recon/cf_overnight_queue_openai_bind.json) (**2**) |
+| OpenAI+BIND queue | [`data/recon/cf_overnight_queue_openai_bind.json`](../../../data/recon/cf_overnight_queue_openai_bind.json) (**DONE** overnight C) |
 | Backtest queue | [`data/recon/cf_overnight_queue_backtest.json`](../../../data/recon/cf_overnight_queue_backtest.json) (**16**) |
 
 **Counts:** total **47** · transcript ok **18** · fail **29** · hard skip **0** · queued ASR **29** · queued OpenAI+BIND **2** · queued backtest **16**.  
 **Skip policy:** hard-skip only if unmappable even with alts (PDH→prev day high, FVG→imbalance, US short→PE). Psychology `8HxT9WQ-uD0` = `process_only` (still ASR @ P3).  
-**Sibling order:** (1) ASR from `xUyqIjCfZzg` · (2) Phase-11 OpenAI+BIND `hvyf6frvCcA` + `T_djSNBmV00` · (3) BT/re-validate existing `MIX-CF-*` (Okala-IN already PAPER path).
+**Sibling order:** (1) ASR from `xUyqIjCfZzg` · (2) ~~Phase-11 OpenAI+BIND~~ **DONE overnight C** · (3) BT/re-validate existing `MIX-CF-*` via `cf-overnight` (Okala-IN already PAPER path).
 
 ---
 
@@ -170,9 +170,9 @@ Still open (**workstream C**): P1-3 STRAT DI bind/summarize; premium Stop swing 
 
 Canonical fail list: [`RETRY_TOMORROW.md`](../../01_research/docs/chart_fanatics/RETRY_TOMORROW.md) + overnight queue JSON above. Prefer **ASR** (audio→whisper); do not caption-hammer. Start at `xUyqIjCfZzg`. **Cleared 2026-09-07:** `jsUTbjwpFVk` Okala → BIND + `MIX-CF-OKALA-*` / `MIX-CF-OKALA-IN-*`. Captions still 429 on this host.
 
-### Phase-11 bind (pending — queued)
+### Phase-11 bind — **DONE** (overnight C 2026-09-07)
 
-Transcripts already **yes** (Phase-3I ASR): Trader Yush `hvyf6frvCcA` + Marco return `T_djSNBmV00` → see `cf_overnight_queue_openai_bind.json`. Do **not** auto-club into existing `MIX-CF-MARCO-*`. Inventory **yes=18 / fail=29**.
+Yush `hvyf6frvCcA` + Marco DaVinci `T_djSNBmV00` BINDs + `MIX-CF-YUSH-*` / `MIX-CF-MARCO-DAV-*`. Do **not** auto-club Marco-DAV into `MIX-CF-MARCO-LIQ-TRAP`. OpenAI batch **ok=17 / fail=0**; hard SKIP=Tori. See MIX_CATALOG §18c–18e + [`CF_OVERNIGHT_SKIPS_2026-09-07.md`](../../../data/recon/CF_OVERNIGHT_SKIPS_2026-09-07.md). Inventory **yes=18 / fail=29**.
 
 ---
 

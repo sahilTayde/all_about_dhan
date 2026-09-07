@@ -3,13 +3,21 @@
     "as_of": "2026-09-07",
     "purpose": "Has full transcript; needs OpenAI+BIND refresh and/or India portability formalization",
     "count": 2,
-    "note": "Do not auto-club into STRAT-001\u2013014 or prior MIX-CF-*. Inventory owns queues only.",
+    "note": "Yush+Marco-DAV BIND+OpenAI+India MIX shipped; do not auto-club Marco-DAV into MIX-CF-MARCO-LIQ-TRAP",
     "gates": [
       "PAPER",
       "NO_PROMOTE",
       "no STRAT-015+",
       "MIX-CF-* only"
-    ]
+    ],
+    "status": "DONE_OVERNIGHT_C_2026-09-07",
+    "openai_batch": {
+      "ok": 17,
+      "fail": 0,
+      "skips_hard": [
+        "VTEQ2fhGLqE"
+      ]
+    }
   },
   "videos": [
     {

@@ -10,6 +10,7 @@ from trading_agents_india.hooks.event_memory import (
     analog_memory_note,
     classify_session_kind,
     news_hold_reasons,
+    news_veto_enabled,
     score_premarket_sentiment,
 )
 from trading_agents_india.llm import LlmClient
@@ -103,8 +104,12 @@ def run_news_analyst(ctx: MarketContext, llm: Optional[LlmClient] = None) -> Age
     hold = news_hold_reasons(ctx, session_kind)
     sentiment = score_premarket_sentiment(ctx.news)
     headlines = "; ".join(n.headline for n in ctx.news) or "no headlines"
-    if session_kind == "NEWS_DAY":
-        hold_line = "Ticket HOLD — BIG_NEWS only."
+    if session_kind == "NEWS_DAY" and news_veto_enabled():
+        hold_line = "Ticket HOLD — BIG_NEWS (NEWS_VETO_ENABLED)."
+    elif session_kind == "NEWS_DAY":
+        hold_line = (
+            "NEWS_DAY noted but NEWS_VETO_ENABLED=false — does not HOLD paper ticket."
+        )
     else:
         hold_line = (
             f"No mid-session news veto; premarket_sentiment={sentiment.get('label')} "
@@ -115,14 +120,14 @@ def run_news_analyst(ctx: MarketContext, llm: Optional[LlmClient] = None) -> Age
         summary=(
             f"News pass for {ctx.underlying}: {headlines}. "
             f"session_kind={session_kind}. {hold_line} "
-            "BIG_NEWS holds the ticket; routine/fixture news is sentiment only — not alpha."
+            "News is notes/analog — not alpha. KEEP_ALL."
         ),
         lean_hint="HOLD",
         confidence=0.35,
         citations=[n.source_url for n in ctx.news],
         data_gaps=list(ctx.data_gaps),
     )
-    if session_kind == "NEWS_DAY":
+    if session_kind == "NEWS_DAY" and news_veto_enabled():
         fallback.lean_hint = "HOLD"
         fallback.citations = fallback.citations + hold[:2]
     return _llm_report(
@@ -130,12 +135,19 @@ def run_news_analyst(ctx: MarketContext, llm: Optional[LlmClient] = None) -> Age
         role="news_analyst",
         system=(
             "You are the India desk news analyst for NIFTY/BANKNIFTY/SENSEX index options. "
-            "Hold the customer ticket ONLY on BIG_NEWS (war/circuit/policy print/shock). "
+            "Hold the customer ticket ONLY when NEWS_VETO_ENABLED and BIG_NEWS. "
+            "When NEWS_VETO_ENABLED=false, note headlines but do not force HOLD. "
             "Routine/fixture MACRO noise is pre-market sentiment context — not a mid-session veto. "
             "Never fake alpha, never delete strategies. "
             "Return JSON: summary, lean_hint (BUY_CE|BUY_PE|HOLD), confidence 0-1, citations[], data_gaps[]."
         ),
-        user=json.dumps({**ctx.to_prompt_blob(), "premarket_sentiment": sentiment}),
+        user=json.dumps(
+            {
+                **ctx.to_prompt_blob(),
+                "premarket_sentiment": sentiment,
+                "news_veto_enabled": news_veto_enabled(),
+            }
+        ),
         fallback=fallback,
     )
 
@@ -311,24 +323,33 @@ def run_boss(
     default_mix: str,
     llm: Optional[LlmClient] = None,
 ) -> AgentReport:
-    if session_kind in ("NEWS_DAY", "EXPIRY"):
+    hard_news = news_veto_enabled() and session_kind in ("NEWS_DAY", "EXPIRY")
+    if hard_news:
         lean: Lean = "HOLD"
     else:
         bull = next((r for r in prior if r.role == "bull_researcher"), None)
         bear = next((r for r in prior if r.role == "bear_researcher"), None)
         tech = next((r for r in prior if r.role == "technical_analyst"), None)
+        chain = next((r for r in prior if r.role == "chain_watcher"), None)
         if tech and tech.lean_hint in ("BUY_CE", "BUY_PE") and tech.lean_hint == (
             bull.lean_hint if bull else tech.lean_hint
         ):
             lean = tech.lean_hint
         elif tech and bear and tech.lean_hint == bear.lean_hint and tech.lean_hint != "HOLD":
             lean = tech.lean_hint
+        elif chain and chain.lean_hint in ("BUY_CE", "BUY_PE"):
+            lean = chain.lean_hint
+        elif ctx.chain_lean == "CE":
+            lean = "BUY_CE"
+        elif ctx.chain_lean == "PE":
+            lean = "BUY_PE"
         else:
             lean = "HOLD"
     fallback = AgentReport(
         role="boss_research_manager",
         summary=(
             f"Boss desk call for {ctx.underlying}: lean={lean}, session={session_kind}, "
+            f"news_veto_enabled={news_veto_enabled()}, "
             f"default book cited={default_mix} (KEEP_ALL; not a promote). "
             f"{analog_memory_note()}"
         ),
@@ -337,6 +358,7 @@ def run_boss(
         citations=[
             "teams/00_orchestrator/docs/BOSS_AGENT.md",
             "teams/04_quant/docs/MIX_CATALOG.md",
+            "teams/00_orchestrator/docs/HOW_SIGNALS_WORK.md",
         ],
         data_gaps=["DATA_INSUFFICIENT: EVENT_MEMORY analogs empty"],
     )
@@ -345,13 +367,15 @@ def run_boss(
         role="boss_research_manager",
         system=(
             "You are the 00 boss desk. Mandate=customer profitability over SDLC, not a claimed win rate. "
-            "KEEP_ALL STRAT-001–014. BIG_NEWS/NEWS_DAY→HOLD only; routine news is soft context. Cite MIX-DEFAULT-BUY as default book only. "
+            "KEEP_ALL STRAT-001–014. When NEWS_VETO_ENABLED, BIG_NEWS/NEWS_DAY→HOLD; when false, prefer "
+            "strategy/chain CE|PE over news soup. Cite MIX-DEFAULT-BUY as default book only. "
             "JSON: summary, lean_hint, confidence, citations, data_gaps."
         ),
         user=json.dumps(
             {
                 "ctx": ctx.to_prompt_blob(),
                 "session_kind": session_kind,
+                "news_veto_enabled": news_veto_enabled(),
                 "default_mix": default_mix,
                 "prior": [r.to_dict() for r in prior],
             }
@@ -362,7 +386,10 @@ def run_boss(
 
 def run_trader(boss: AgentReport, session_kind: SessionKind) -> AgentReport:
     """Paper CE/PE/HOLD only — never places live orders."""
-    lean = boss.lean_hint if session_kind == "NORMAL" else "HOLD"
+    if news_veto_enabled() and session_kind != "NORMAL":
+        lean = "HOLD"
+    else:
+        lean = boss.lean_hint
     if lean not in ("BUY_CE", "BUY_PE", "HOLD"):
         lean = "HOLD"
     return _stamp_persona(
@@ -391,7 +418,8 @@ def run_risk(
     llm: Optional[LlmClient] = None,
 ) -> AgentReport:
     vetoes = news_hold_reasons(ctx, session_kind)
-    if session_kind != "NORMAL":
+    hard = news_veto_enabled() and session_kind != "NORMAL"
+    if hard:
         lean: Lean = "HOLD"
         summary = (
             f"Risk triad (agg/cons/neutral collapsed for v0): VETO lean→HOLD. "
@@ -401,8 +429,9 @@ def run_risk(
     else:
         lean = trader.lean_hint
         summary = (
-            "Risk triad: no NEWS_DAY/EXPIRY veto. Conservative hat still caps confidence; "
-            "aggressive hat may not force size. Neutral hat: paper lean only."
+            "Risk triad: news veto parked or NORMAL session. "
+            "Conservative hat still caps confidence; aggressive hat may not force size. "
+            f"news_veto_enabled={news_veto_enabled()}."
         )
         conf = 0.45
         if trader.lean_hint == "HOLD":
@@ -415,6 +444,7 @@ def run_risk(
         citations=[
             "teams/06_backtesting/docs/EVENT_MEMORY.md",
             "teams/05_analysis/docs/SIGNAL_FUSION.md",
+            "teams/00_orchestrator/docs/HOW_SIGNALS_WORK.md",
         ],
         data_gaps=list(ctx.data_gaps),
     )
@@ -425,7 +455,8 @@ def run_risk(
         role="risk_committee",
         system=(
             "Risk committee for India index options paper desk. "
-            "On BIG_NEWS NEWS_DAY/EXPIRY you MUST lean HOLD and list vetoes. Routine news is not a veto. Never approve live orders. "
+            "On BIG_NEWS NEWS_DAY/EXPIRY you MUST lean HOLD only when NEWS_VETO_ENABLED. "
+            "When NEWS_VETO_ENABLED=false, do not veto solely for news. Never approve live orders. "
             "JSON: summary, lean_hint, confidence, citations (include veto strings), data_gaps."
         ),
         user=json.dumps(
@@ -433,6 +464,7 @@ def run_risk(
                 "ctx": ctx.to_prompt_blob(),
                 "trader": trader.to_dict(),
                 "session_kind": session_kind,
+                "news_veto_enabled": news_veto_enabled(),
             }
         ),
         fallback=fallback,

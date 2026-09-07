@@ -123,3 +123,40 @@ def test_build_observations_provenance_flags() -> None:
     assert by_id["STRAT-001"].outcome == "DATA_INSUFFICIENT"
     # Unbound stubs list the shared unbound id set once in provenance
     assert "STRAT-014" in by_id["STRAT-004"].provenance["unbound_evaluator_ids"]
+    # Okala-IN bound (FOUNDER_PAPER_ACCEPT) — news soft-default does not VETO
+    assert by_id["MIX-CF-OKALA-IN-H-CROSS"].provenance["candidate_evaluator_available"] is True
+    # Without bars → DI; news alone must not force VETOED when NEWS_VETO_ENABLED=false
+    assert by_id["MIX-CF-OKALA-IN-H-CROSS"].outcome in ("DATA_INSUFFICIENT", "WATCH")
+    assert by_id["MIX-CF-OKALA-IN-H-CROSS"].outcome != "VETOED"
+    assert by_id["MIX-TA-EVENT-HOLD"].outcome == "ALLOW"
+
+def test_okala_in_bound_not_unbound_di() -> None:
+    assert "MIX-CF-OKALA-IN-H-CROSS" in bound_candidate_ids()
+    result = evaluate_candidate("MIX-CF-OKALA-IN-H-CROSS", _ticket())
+    assert result.available is True
+    assert result.outcome == "DATA_INSUFFICIENT"
+    assert any("Okala-IN" in g or "okala" in g.lower() for g in result.data_gaps)
+    assert result.provenance_extra.get("founder_label") == "FOUNDER_PAPER_ACCEPT"
+    assert result.provenance_extra.get("NO_PROMOTE") is True
+
+
+def test_okala_in_big_news_veto_only_when_enabled(monkeypatch) -> None:
+    ticket = _ticket(
+        lean="HOLD",
+        stage="VETOED",
+        risk_veto=True,
+        vetoes=["BIG_NEWS: hold customer ticket"],
+        session_kind="NEWS_DAY",
+        top_veto_reasons=["BIG_NEWS hold"],
+    )
+    # Soft-default: news does not veto Okala
+    monkeypatch.delenv("NEWS_VETO_ENABLED", raising=False)
+    result = evaluate_candidate("MIX-CF-OKALA-IN-REPAIR", ticket)
+    assert result.available is True
+    assert result.outcome != "VETOED"
+
+    monkeypatch.setenv("NEWS_VETO_ENABLED", "true")
+    result_on = evaluate_candidate("MIX-CF-OKALA-IN-REPAIR", ticket)
+    assert result_on.available is True
+    assert result_on.outcome == "VETOED"
+    assert result_on.final_lean == "HOLD"

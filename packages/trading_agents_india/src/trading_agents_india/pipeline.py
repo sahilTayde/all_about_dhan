@@ -25,6 +25,7 @@ from trading_agents_india.hooks.chain import watch_chain
 from trading_agents_india.hooks.desk import try_load_desk_context
 from trading_agents_india.hooks.event_memory import (
     classify_session_kind,
+    news_veto_enabled,
     score_premarket_sentiment,
     top_veto_reasons,
 )
@@ -156,9 +157,13 @@ def run_underlying_session(
 ) -> PaperTicket:
     session_kind = classify_session_kind(ctx.news, ctx.session_kind_hint)
     premarket = score_premarket_sentiment(ctx.news)
-    # Skip OpenAI fan-out when already hard-vetoed (big news / expiry).
+    # Skip OpenAI fan-out when hard-vetoed (big news / expiry) **and** veto enabled.
     active_llm = llm
-    if llm is not None and session_kind in ("NEWS_DAY", "EXPIRY"):
+    if (
+        llm is not None
+        and news_veto_enabled()
+        and session_kind in ("NEWS_DAY", "EXPIRY")
+    ):
         llm.skip_all = True  # type: ignore[attr-defined]
         active_llm = llm
     reports = []
@@ -194,11 +199,14 @@ def run_underlying_session(
     handoffs = build_handoff_chain(reports)
     handoff_errors = validate_handoff_chain(handoffs)
 
-    risk_veto = session_kind in ("NEWS_DAY", "EXPIRY")
-    if not risk_veto and risk.lean_hint == "HOLD":
-        risk_veto = any(
-            c.startswith(("NEWS_DAY", "EXPIRY", "cited_news", "BIG_NEWS")) for c in risk.citations
-        )
+    risk_veto = False
+    if news_veto_enabled():
+        risk_veto = session_kind in ("NEWS_DAY", "EXPIRY")
+        if not risk_veto and risk.lean_hint == "HOLD":
+            risk_veto = any(
+                c.startswith(("NEWS_DAY", "EXPIRY", "cited_news", "BIG_NEWS"))
+                for c in risk.citations
+            )
     # Chain watcher soft veto on thin wall / fake breakout when no strong tech align
     watch_flag = str((ctx.chain_watch or {}).get("hypothesis_flag") or "NONE")
     if watch_flag in ("THIN_WALL_HYPOTHESIS", "BOTH_HYPOTHESIS") and session_kind == "NORMAL":
@@ -208,9 +216,20 @@ def run_underlying_session(
     lean = risk.lean_hint if lean_ok(risk.lean_hint) else "HOLD"
     if risk_veto:
         lean = "HOLD"
-    if handoff_errors:
-        risk_veto = True
-        lean = "HOLD"
+    # Handoff hygiene gaps are recorded — they must NOT kill CE/PE (founder:
+    # agents/notes must not block when strategy/chain fires). Live orders stay refused.
+    handoff_soft_gaps = list(handoff_errors)
+
+    # When news veto is parked, prefer strategy / chain / tech CE|PE over soup HOLD.
+    if lean == "HOLD" and not risk_veto and not news_veto_enabled():
+        for cand in (technical.lean_hint, chain.lean_hint, trader.lean_hint):
+            if lean_ok(cand) and cand in ("BUY_CE", "BUY_PE"):
+                lean = cand
+                break
+        if lean == "HOLD" and ctx.chain_lean == "CE":
+            lean = "BUY_CE"
+        elif lean == "HOLD" and ctx.chain_lean == "PE":
+            lean = "BUY_PE"
 
     stage: Stage
     if risk_veto:
@@ -221,12 +240,26 @@ def run_underlying_session(
     else:
         stage = "EARLY"  # v0: never CONFIRMED from agent loop alone
 
-    vetoes = [
-        c
-        for c in risk.citations
-        if c.startswith(("NEWS_DAY", "EXPIRY", "cited_news", "BIG_NEWS", "neutral_risk", "MIX-CLOCK", "PAPER_PAUSED", "CALENDAR"))
-    ]
-    if watch_flag != "NONE":
+    vetoes = []
+    if news_veto_enabled():
+        vetoes = [
+            c
+            for c in risk.citations
+            if c.startswith(
+                (
+                    "NEWS_DAY",
+                    "EXPIRY",
+                    "cited_news",
+                    "BIG_NEWS",
+                    "neutral_risk",
+                    "MIX-CLOCK",
+                    "PAPER_PAUSED",
+                    "CALENDAR",
+                )
+            )
+        ]
+    # Soft chain flags are notes, not hard ticket killers while news veto is parked.
+    if watch_flag != "NONE" and (news_veto_enabled() or watch_flag.startswith("NO_TRADE")):
         vetoes.append(f"chain_watcher:{watch_flag}")
 
     mix_lines = list((ctx.mix_inputs or {}).get("reason_lines") or [])
@@ -237,16 +270,20 @@ def run_underlying_session(
         f"bull: {bull.summary[:100]}",
         f"bear: {bear.summary[:100]}",
         f"trader: paper {trader.lean_hint} (execution refused)",
+        f"news_veto_enabled={str(news_veto_enabled()).lower()}",
     ]
     reasons.extend(mix_lines[:8])
     if vetoes:
         reasons.extend(vetoes[:4])
-    reasons.extend(handoff_errors[:4])
+    if watch_flag != "NONE" and f"chain_watcher:{watch_flag}" not in vetoes:
+        reasons.append(f"chain_watcher:{watch_flag} (soft note — not a hard HOLD)")
+    reasons.extend(handoff_soft_gaps[:4])
 
     gaps: list[str] = []
     for r in reports:
         gaps.extend(r.data_gaps)
     gaps.extend(ctx.data_gaps)
+    gaps.extend(handoff_soft_gaps)
     seen = set()
     uniq_gaps = []
     for g in gaps:
