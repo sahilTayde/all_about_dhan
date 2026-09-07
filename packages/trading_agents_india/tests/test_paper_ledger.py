@@ -30,6 +30,8 @@ def test_fee_semantics_keep_unknown_components_pending() -> None:
         trade_id="t1", gross_pnl=1000, gross_costs=100, lots=1
     )
     assert fee.success_commission is None
+    assert fee.external_commission_owner == "separate_company_api"
+    assert "does not calculate or charge" in fee.external_commission_note
     assert fee.customer_net_profit is None
     assert fee.status == "PENDING"
     assert "service_charge_per_lot" in fee.unresolved
@@ -50,7 +52,7 @@ def test_fee_semantics_mark_unknown_profit_as_unknown() -> None:
     assert fee.customer_net_profit is None
 
 
-def test_fee_known_and_shadow_never_commission() -> None:
+def test_fee_known_uses_only_known_configured_costs() -> None:
     fee = assess_fees(
         trade_id="t1",
         gross_pnl=1000,
@@ -59,8 +61,8 @@ def test_fee_known_and_shadow_never_commission() -> None:
         service_charge_per_lot=10,
         statutory_components=5,
     )
-    assert fee.success_commission == 43.75
-    assert fee.customer_net_profit == 831.25
+    assert fee.success_commission is None
+    assert fee.customer_net_profit == 875.0
     shadow = assess_fees(
         trade_id="shadow",
         gross_pnl=1000,
@@ -70,7 +72,8 @@ def test_fee_known_and_shadow_never_commission() -> None:
         statutory_components=0,
         shadow=True,
     )
-    assert shadow.success_commission == 0
+    assert shadow.success_commission is None
+    assert shadow.customer_net_profit == 900.0
 
 
 def test_append_is_idempotent_across_restart(tmp_path: Path) -> None:
@@ -201,6 +204,6 @@ def test_eod_export_reports_fee_totals_and_unresolved_state(tmp_path: Path) -> N
     assert export["fee_status"] == "KNOWN"
     assert export["gross_pnl_total"] == 1000.0
     assert export["gross_costs_total"] == 100.0
-    assert export["commission_total"] == 43.75
-    assert export["customer_net_total"] == 831.25
+    assert export["commission_total"] is None
+    assert export["customer_net_total"] == 875.0
     assert export["unresolved"] == []

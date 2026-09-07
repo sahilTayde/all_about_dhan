@@ -11,12 +11,16 @@ contracts around the existing sequential agent graph.
   `FeeAssessment`, and `EODReconciliation`.
 - SQLite append-only events with a stable SHA-256 event key and a JSONL mirror.
   Replaying a session is idempotent; restart does not duplicate events.
-- Customer fee semantics: 5% of positive realized customer profit after known
-  gross, service, and statutory costs; service charge per lot is configurable and initially unset.
-  Unresolved service/statutory values remain `PENDING` and are never treated as
-  zero. Gross costs, commission, and customer net are separate fields.
+- Customer fee semantics: customer net is gross P/L less known buy/sell broker
+  charges, known exchange/statutory components, and configured service charges.
+  Service charge per lot is configurable and initially unset. Unresolved
+  service/statutory values remain `PENDING` and are never treated as zero.
+  The separate company API owns the 5% commission; this repository records
+  `external_commission_owner` for integration but does not calculate or charge
+  that commission. The legacy commission output remains null. Gross costs,
+  commission ownership, and customer net are separate fields.
 - HOLD/VETOED/SKIPPED signals receive a separately marked shadow-paper outcome.
-  Shadow outcomes do not create customer commission.
+  Shadow outcomes do not create customer commission events.
 - Provenance, layer, freshness status, and data-gap fields are carried by
   signal/trade records. Existing fixture/live-data refusal behavior remains.
 - Global `PAPER` pause and unknown-calendar pause hooks force deterministic
@@ -66,7 +70,8 @@ Implemented in `packages/trading_agents_india`:
   ledger idempotently without duplicating mirror rows.
 - `PaperLedger.export_eod()` emits deterministic counts, action counts, fee
   status/unresolved fields, available gross/cost/commission/net totals,
-  duplicate/mirror indicators, and explicit `PAPER` / `NO_PROMOTE` metadata.
+  external commission ownership metadata, duplicate/mirror indicators, and
+  explicit `PAPER` / `NO_PROMOTE` metadata.
 - Focused tests cover adapter actions, SQLite restart plus JSONL replay, and
   EOD fee totals. No live endpoint, order path, promotion, or UI wiring was
   added.

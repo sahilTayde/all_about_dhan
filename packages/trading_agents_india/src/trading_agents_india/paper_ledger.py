@@ -90,13 +90,14 @@ class FeeAssessment:
     gross_pnl: Optional[float]
     gross_costs: Optional[float]
     success_commission: Optional[float]
+    external_commission_owner: str
+    external_commission_note: str
     service_charge_per_lot: Optional[float]
     service_charge_total: Optional[float]
     statutory_components: Optional[float]
     customer_net_profit: Optional[float]
     status: FeeStatus
     unresolved: list[str] = field(default_factory=list)
-    commission_rate: float = 0.05
     contract_version: str = CONTRACT_VERSION
     assessed_at_ist: str = ""
 
@@ -137,9 +138,10 @@ def assess_fees(
 ) -> FeeAssessment:
     """Assess customer fees without silently converting unknown costs to zero.
 
-    The 5% success commission is based on positive realized customer profit
-    after known gross costs, before the commission itself.  Shadow trades never
-    receive customer commission.
+    The separate company API owns the success commission.  This repository
+    records that ownership for downstream integration but never calculates or
+    charges it.  Known gross P/L, broker charges, statutory components, and
+    configured service charges are the only inputs to customer net P/L.
     """
     unresolved: list[str] = []
     if gross_pnl is None:
@@ -158,21 +160,11 @@ def assess_fees(
         service_total = float(service_charge_per_lot) * int(lots)
     if statutory_components is None:
         unresolved.append("statutory_components")
-    realized_customer_profit = None
+    customer_net_profit = None
     if base_profit is not None and service_total is not None and statutory_components is not None:
-        realized_customer_profit = (
+        customer_net_profit = (
             base_profit - service_total - float(statutory_components)
         )
-    commission = (
-        0.0
-        if shadow and realized_customer_profit is not None
-        else max(0.0, realized_customer_profit * 0.05)
-        if realized_customer_profit is not None
-        else None
-    )
-    net = None
-    if realized_customer_profit is not None:
-        net = realized_customer_profit - float(commission or 0)
     status: FeeStatus = (
         "UNKNOWN"
         if any(item in unresolved for item in ("gross_pnl", "gross_costs", "lots"))
@@ -184,11 +176,16 @@ def assess_fees(
         trade_id=trade_id,
         gross_pnl=gross_pnl,
         gross_costs=gross_costs,
-        success_commission=commission,
+        success_commission=None,
+        external_commission_owner="separate_company_api",
+        external_commission_note=(
+            "Separate company API is authoritative for the 5% commission; "
+            "this PAPER ledger does not calculate or charge it."
+        ),
         service_charge_per_lot=service_charge_per_lot,
         service_charge_total=service_total,
         statutory_components=statutory_components,
-        customer_net_profit=net,
+        customer_net_profit=customer_net_profit,
         status=status,
         unresolved=unresolved,
     )
