@@ -18,7 +18,7 @@ Read in order:
 
 Gate: NOT RESEARCH_READY_FOR_PROGRAMMING. PAPER only. NO_PROMOTE. STRATs UNVALIDATED. Dashboard P/L is MOCK. No live orders. Do not restart npm / Vite until I ask. Never print secrets.
 
-Left off: **Process P0/P1 remainders shipped+committed 2026-09-07 (`853aacd`):** news docs consistency (gather-news soft OFF); founder digest at stop/15:35 + CE/PE/HOLD honesty; API `top_veto_reasons`/`meta.veto_banner` via live reasons + `paper_latest_signals.json`; shared LLM cooldown clear-race + restart backoff; daemon tick 90s. Reports: `PROCESS_FIXES_SHIPPED_2026-09-07.md`, `EOD_LEARNING_AUDIT_2026-09-07.md`. Still open for **C deepening:** premium Stop swing live path; full DI summarize-once UX; deep retune. Paper evaluators module landed in same commit — verify next NSE PAPER. Do not restart npm/paper ops until asked.
+Left off: **CF Okala BIND rev + OpenAI suggest 2026-09-07 (NO_PROMOTE):** OpenAI OK (`gpt-5.4-nano`) → `data/recon/CF_OPENAI_OKALA_BIND_SUGGEST_2026-09-07.md`. BIND rewritten: magnet observation protocol; rich miss/recovery (no chase); searchable BT grid; `market_scope=teacher_examples_NQ;portability=observation_gated` (India adaptation MIX later, not forever forbidden). MIX-CF-OKALA-* still **catalog only** — **not** in CF×8 runners (matrix FAILs ≠ this book). Title 65% WR = marketing; OpenAI does **not** fix WR. Recon `data/recon/CF_BIND_jsUTbjwpFVk_2026-09-07.md`. Do not restart npm/paper ops. Still open: CF fail=29 ASR; Phase-11 Yush/Marco bind; workstream C DI/premium Stop.
 ```
 
 
@@ -132,13 +132,13 @@ Still open (**workstream C**): P1-3 STRAT DI bind/summarize; premium Stop swing 
 
 ## Do first on research track (not market-hours)
 
-### Chart Fanatics — **RETRY_TOMORROW** (fail=30 locked)
+### Chart Fanatics — **RETRY** (fail=29)
 
-[`teams/01_research/docs/chart_fanatics/RETRY_TOMORROW.md`](../../01_research/docs/chart_fanatics/RETRY_TOMORROW.md) — all **30** failed videos (no full transcript). Prefer **ASR** (audio→whisper); do not caption-hammer. Start at `xUyqIjCfZzg`. Update inventory after each success. Captions still 429 on this host.
+[`teams/01_research/docs/chart_fanatics/RETRY_TOMORROW.md`](../../01_research/docs/chart_fanatics/RETRY_TOMORROW.md) — **29** failed videos (no full transcript). Prefer **ASR** (audio→whisper); do not caption-hammer. Start at `xUyqIjCfZzg`. **Cleared 2026-09-07:** `jsUTbjwpFVk` Okala → BIND + `MIX-CF-OKALA-*` catalog only (65% title = marketing). Captions still 429 on this host.
 
 ### Phase-11 bind (pending)
 
-Transcripts already **yes** (Phase-3I ASR): Trader Yush `hvyf6frvCcA` + Marco return `T_djSNBmV00`. Bind when founder asks — do **not** auto-club into existing `MIX-CF-MARCO-*`. Inventory **yes=17 / fail=30**.
+Transcripts already **yes** (Phase-3I ASR): Trader Yush `hvyf6frvCcA` + Marco return `T_djSNBmV00`. Bind when founder asks — do **not** auto-club into existing `MIX-CF-MARCO-*`. Inventory **yes=18 / fail=29**.
 
 ---
 
@@ -164,7 +164,7 @@ SL/TP: harvest + ATR MIX + NIFTY INDEX 3m backtest **FAIL** — see `BACKTEST_SL
 
 ## Chart Fanatics status (condensed)
 
-Phase-2→10 bind+MIX+proxy **DONE** (Fabio → Andrea/Omor). Phase-3I ASR **DONE** (Yush + Marco return). Channel `@chart-fanatics` · inventory **yes=17 / fail=30**. All CF proxy books honest **NO_PROMOTE**. Do not merge CF mixes into `MIX-DEFAULT-BUY` / STRAT-001–014 / IQCapital / Fabio.
+Phase-2→10 bind+MIX+proxy **DONE** (Fabio → Andrea/Omor). Phase-3I ASR **DONE** (Yush + Marco return). Phase-3J **DONE** Okala `jsUTbjwpFVk` ASR+BIND+`MIX-CF-OKALA-*` **catalog only**; BIND **rev** + OpenAI suggest (observation-gated portability · miss/recovery · BT grid · NO_PROMOTE; not in CF×8). Channel `@chart-fanatics` · inventory **yes=18 / fail=29**. All CF proxy books honest **NO_PROMOTE**. Do not merge CF mixes into `MIX-DEFAULT-BUY` / STRAT-001–014 / IQCapital / Fabio. Title WR claims (65%/70%/74%/90%/…) ≠ product metrics.
 
 Transcript KB: `data/knowledge/transcripts.sqlite` + FTS5 — [`TRANSCRIPT_KB.md`](../../01_research/docs/TRANSCRIPT_KB.md). Rebuild: `python scripts/build_transcript_kb.py`. After new ASR, rebuild KB. Do not delete `data/recon/ohlc` without asking.
 
@@ -208,4 +208,5 @@ KB: `data/knowledge/agent_rag.sqlite` — does **not** touch `transcripts.sqlite
 | UI-DESK-PAPER-AGENTS | Wire `/desk` to paper ledger when founder asks |
 | DEPTH-DECODE-VALIDATION | Before un-parking depth alpha |
 | IST-LIVE-DATA-PAPER | `market-hours` without `--simulate` + data-only `DHAN_*` |
-| CF-RETRY-30 + Phase-11 | ASR fails; bind Yush + Marco return |
+| CF-RETRY-29 + Phase-11 | ASR fails; bind Yush + Marco return; Okala catalog done |
+

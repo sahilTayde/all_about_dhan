@@ -1,8 +1,8 @@
 # Chart Fanatics — Channel Inventory (Phase 1)
 
-**Retrieved:** 2026-09-06T18:26:37Z  
+**Retrieved:** 2026-09-07 (Okala ASR + bind); prior inventory stamp 2026-09-06T18:26:37Z  
 **Layer:** `SOURCE_FACT` (channel metadata + caption fetch status). Education ≠ edge. **Not** DHAN-DERIVED.  
-**Phase:** 1 inventory + 2 Fabio bind + Phase-4–10 binds; Phase-3 captions **0** (429); **Phase-3B–3I ASR** sixteen videos. See `PHASE3I_ASR_LOG.md`.
+**Phase:** 1 inventory + 2 Fabio bind + Phase-4–10 binds; Phase-3 captions **0** (429); **Phase-3B–3I ASR** sixteen videos; **Phase-3J ASR+bind** `jsUTbjwpFVk` (Okala). See `PHASE3J_ASR_LOG.md`.
 
 ## Channel
 
@@ -127,6 +127,18 @@
 | Log | [`PHASE3I_ASR_LOG.md`](PHASE3I_ASR_LOG.md) |
 | IDs | `hvyf6frvCcA` (Trader Yush), `T_djSNBmV00` (Marco return) |
 
+## Phase-3J ASR + bind (2026-09-07)
+
+| Field | Value |
+|-------|-------|
+| Scope | Founder ask: retry **`jsUTbjwpFVk`** (prop firm 65% title) → ASR → BIND → `MIX-CF-OKALA-*` |
+| Successes | **1** full ASR transcript + BIND + 4 catalog MIX rows |
+| Tool | `ASR_WHISPER` / faster-whisper `base` int8 CPU (yt-dlp android fmt 18 → m4a) |
+| Log | [`PHASE3J_ASR_LOG.md`](PHASE3J_ASR_LOG.md) |
+| Guest | **Okala** (description; ASR O'Cala) |
+| MIX | `MIX-CF-OKALA-8020-LEVEL` / `FORK` / `H-CROSS` / `REPAIR` — **catalog only** (no 06 evaluator) |
+| Honesty | Title 65% / spoken 70% / mid-low 70s = **claims only** · **NO_PROMOTE** |
+
 ## Playlists (yt-dlp `@chart-fanatics/playlists`)
 
 | Playlist ID | Title |
@@ -180,7 +192,7 @@ Status: `yes` = caption text on disk; `fail` = attempted, no caption body; `part
 | 301,504 | 1h11m22s | yes | `T_djSNBmV00` | The ONE Liquidity Trading Pattern That Actually Works (Precise Entries | Phase-3I **ASR** `T_djSNBmV00_TRANSCRIPT.md` + audio/m4a (captions still 429; guest **Marco** return) |
 | 280,453 | 3h49m38s | fail | `xUyqIjCfZzg` | Trading LIVE with TWO World Class Order Flow Scalpers (FT Fabio Valent | IpBlocked (youtube-transcript-api); yt-dlp subs 429 |
 | 253,169 | 1h28m07s | fail | `SMSqQTBxjc0` | The ONLY Break And Retest Trading Strategy You’ll EVER Need (Step By S | IpBlocked (youtube-transcript-api); yt-dlp subs 429 |
-| 251,710 | 1h13m14s | fail | `jsUTbjwpFVk` | COPY This Prop Firm Simple Trading Strategy with 65% Win Rate ($5+ Mil | IpBlocked (youtube-transcript-api); yt-dlp subs 429 |
+| 251,710 | 1h13m14s | yes | `jsUTbjwpFVk` | COPY This Prop Firm Simple Trading Strategy with 65% Win Rate ($5+ Mil | Phase-3J **ASR** `jsUTbjwpFVk_TRANSCRIPT.md` + BIND + `MIX-CF-OKALA-*` (guest **Okala**; title 65%=marketing) |
 | 238,062 | 1h12m19s | fail | `Jx5cJ_qb31U` | COPY This CRAZY Simple 98% Win Rate Trading Strategy | IpBlocked (youtube-transcript-api); yt-dlp subs 429 |
 | 230,085 | 1h10m18s | fail | `PZDWQgtqt2I` | This SIMPLE ICT Futures Trading Strategy Made Her Over $100,000 - Tanj | IpBlocked (youtube-transcript-api); yt-dlp subs 429 |
 | 224,988 | 1h31m11s | fail | `_qeFh1ADss8` | $100+ Million Trader: His BEST Trading Strategy (Market Wizard) | IpBlocked (youtube-transcript-api); yt-dlp subs 429 |
@@ -209,12 +221,12 @@ Status: `yes` = caption text on disk; `fail` = attempted, no caption body; `part
 | 66,591 | 1h45m07s | fail | `KkTTCKr-3Ew` | Pass Prop Firms Using This ICT & Orderflow Futures Trading Strategy ($ | not re-fetched (capacity); stub/IpBlocked from prior — no caption body |
 | 47,942 | 1h12m14s | fail | `EcTRlLYvhXU` | COPY The BEST Gap Up Short Trading Strategy That Has Made Millions (Pr | not re-fetched (capacity); stub/IpBlocked from prior — no caption body |
 
-**Counts:** yes=17 · fail=30 · partial=0 · catalogued=47  
-**Phase-3:** captions still blocked · **Phase-3B–3I:** 16 promoted to yes via ASR (through Trader Yush / Marco return)
+**Counts:** yes=18 · fail=29 · partial=0 · catalogued=47  
+**Phase-3:** captions still blocked · **Phase-3B–3J:** 17 promoted to yes via ASR (through Okala `jsUTbjwpFVk`)
 
 ### Retry tomorrow (do not drop)
 
-**Locked queue:** [`RETRY_TOMORROW.md`](RETRY_TOMORROW.md) — all **30** fail IDs (views-desc) + ASR method. Stub `*_TRANSCRIPT.md` headers ≠ full body. Resume Monday+ from top (`xUyqIjCfZzg` …).
+**Locked queue:** [`RETRY_TOMORROW.md`](RETRY_TOMORROW.md) — **29** remaining fail IDs (views-desc) + ASR method. Stub `*_TRANSCRIPT.md` headers ≠ full body. Resume from top (`xUyqIjCfZzg` …). `jsUTbjwpFVk` **removed** (ASR+BIND done).
 
 ## Paths
 
@@ -225,8 +237,8 @@ Status: `yes` = caption text on disk; `fail` = attempted, no caption body; `part
 
 ## HANDOFF
 
-- **Accepted:** Channel ID confirmed; Fabio captions + Phase-3B–3I ASR (**16** ASR + Fabio = **yes=17**); latest Phase-3I: `hvyf6frvCcA` (Trader Yush), `T_djSNBmV00` (Marco return). Inventory yes=17 / fail=30. **Fail queue locked in `RETRY_TOMORROW.md` for tomorrow.** Phase-10 bind (Andrea/Omor) already DONE prior.
-- **Rejected:** Claiming remaining guests understood; clubbing CF mixes into STRAT/IQ/prior CF rows; treating ASR as official YouTube captions; treating stub MD as full transcript.
-- **UNKNOWN / DATA_INSUFFICIENT:** Captions for remaining fail rows (still 429); ASR proper-noun quality (Yush ↔ use/You're; Marco Acetum spelling); timed VTT.
-- **Next:** **Tomorrow** — ASR retry fail=30 per `RETRY_TOMORROW.md`. Also Phase-11 bind for **Trader Yush** / **Marco** return when asked (already yes).
+- **Accepted:** Channel ID confirmed; Fabio captions + Phase-3B–3J ASR (**17** ASR + Fabio = **yes=18**); Phase-3J: `jsUTbjwpFVk` (Okala) ASR+BIND+`MIX-CF-OKALA-*` catalog. Inventory yes=18 / fail=29. Fail queue updated in `RETRY_TOMORROW.md`.
+- **Rejected:** Claiming remaining guests understood; clubbing CF mixes into STRAT/IQ/prior CF rows; treating ASR as official YouTube captions; treating title 65%/spoken 70% as product WR; wiring Okala into CF×8 evaluator without 06 bind.
+- **UNKNOWN / DATA_INSUFFICIENT:** Captions for remaining fail rows (still 429); ASR proper-noun quality; timed VTT; NQ 80/20 → NIFTY digit map.
+- **Next:** ASR retry fail=29 per `RETRY_TOMORROW.md`. Phase-11 bind for **Trader Yush** / **Marco** return when asked. Okala = catalog-only until 06 evaluator.
 
