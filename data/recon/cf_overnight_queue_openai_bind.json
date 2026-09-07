@@ -1,0 +1,44 @@
+{
+  "meta": {
+    "as_of": "2026-09-07",
+    "purpose": "Has full transcript; needs OpenAI+BIND refresh and/or India portability formalization",
+    "count": 2,
+    "note": "Do not auto-club into STRAT-001\u2013014 or prior MIX-CF-*. Inventory owns queues only.",
+    "gates": [
+      "PAPER",
+      "NO_PROMOTE",
+      "no STRAT-015+",
+      "MIX-CF-* only"
+    ]
+  },
+  "videos": [
+    {
+      "video_id": "hvyf6frvCcA",
+      "title": "74% Win Rate Trader Shares His EXACT OrderFlow Strategy ($2M+ Payouts)",
+      "views": 315988,
+      "priority": "P0",
+      "india_portable_guess": "yes_with_alts",
+      "india_portable_note": "Orderflow strategy title \u2192 structure/imbalance alts; OF precision DI until bind",
+      "url": "https://www.youtube.com/watch?v=hvyf6frvCcA",
+      "guest_guess": "Trader Yush",
+      "transcript_artifact": "hvyf6frvCcA.asr.txt",
+      "existing_bind": false,
+      "existing_mix": [],
+      "bind_hint": "Phase-11 new BIND + optional OpenAI suggest; keep separate MIX-CF-* namespace"
+    },
+    {
+      "video_id": "T_djSNBmV00",
+      "title": "The ONE Liquidity Trading Pattern That Actually Works (Precise Entries",
+      "views": 301504,
+      "priority": "P0",
+      "india_portable_guess": "yes_with_alts",
+      "india_portable_note": "Liquidity pattern \u2192 raid/reclaim INDEX; keep separate from MIX-CF-MARCO-* until bind",
+      "url": "https://www.youtube.com/watch?v=T_djSNBmV00",
+      "guest_guess": "Marco (return)",
+      "transcript_artifact": "T_djSNBmV00.asr.txt",
+      "existing_bind": false,
+      "existing_mix": [],
+      "bind_hint": "Phase-11 new BIND + optional OpenAI suggest; keep separate MIX-CF-* namespace"
+    }
+  ]
+}

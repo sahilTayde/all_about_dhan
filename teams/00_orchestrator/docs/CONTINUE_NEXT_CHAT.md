@@ -1,6 +1,6 @@
 # Continue here — next Composer chat
 
-**Handoff frozen:** 2026-09-06 (tokens exhausted; work saved on `main`).  
+**Handoff frozen:** 2026-09-07 (overnight A — CF inventory/queues + simple signal path).  
 **Prior conversation (token-heavy):** [all about dhan bootstrap](1b8d6990-a15f-4724-b18e-31ce6631455b)
 
 ---
@@ -14,11 +14,12 @@ Read in order:
 1. docs/MASTER_REQUIREMENTS.md
 2. teams/00_orchestrator/docs/CONTINUE_NEXT_CHAT.md
 3. AGENT.md
-4. teams/00_orchestrator/docs/REVIEW_BRIEF_FOR_FRONTIER_MODEL.md
+4. teams/00_orchestrator/docs/HOW_SIGNALS_WORK.md
+5. teams/00_orchestrator/docs/REVIEW_BRIEF_FOR_FRONTIER_MODEL.md
 
 Gate: NOT RESEARCH_READY_FOR_PROGRAMMING. PAPER only. NO_PROMOTE. STRATs UNVALIDATED. Dashboard P/L is MOCK. No live orders. Do not restart npm / Vite until I ask. Never print secrets.
 
-Left off: **CF Okala BIND rev + OpenAI suggest 2026-09-07 (NO_PROMOTE):** OpenAI OK (`gpt-5.4-nano`) → `data/recon/CF_OPENAI_OKALA_BIND_SUGGEST_2026-09-07.md`. BIND rewritten: magnet observation protocol; rich miss/recovery (no chase); searchable BT grid; `market_scope=teacher_examples_NQ;portability=observation_gated` (India adaptation MIX later, not forever forbidden). MIX-CF-OKALA-* still **catalog only** — **not** in CF×8 runners (matrix FAILs ≠ this book). Title 65% WR = marketing; OpenAI does **not** fix WR. Recon `data/recon/CF_BIND_jsUTbjwpFVk_2026-09-07.md`. Do not restart npm/paper ops. Still open: CF fail=29 ASR; Phase-11 Yush/Marco bind; workstream C DI/premium Stop.
+Left off: **Overnight A done** — CF full inventory `data/recon/CF_OVERNIGHT_INVENTORY_2026-09-07.md` (47: ok=18 fail=29 hard_skip=0). Queues: ASR retry=29 (`cf_overnight_queue_transcript_retry.json`, start `xUyqIjCfZzg`); OpenAI+BIND=2 Yush+Marco return (`cf_overnight_queue_openai_bind.json`); backtest=16 usable MIX-CF-* (`cf_overnight_queue_backtest.json`). Simple signal path still shipped (Okala-IN PAPER). Prefer PDH/FVG alts over skip. Do not restart npm/paper ops.
 ```
 
 
@@ -34,8 +35,24 @@ Left off: **CF Okala BIND rev + OpenAI suggest 2026-09-07 (NO_PROMOTE):** OpenAI
 | Live Dhan orders | **refused** (always) |
 | Dashboard P/L | **MOCK** / paper labels |
 | npm / Vite | **stopped** — do **not** restart until founder asks |
+| `NEWS_VETO_ENABLED` | **false** (soft-default) — re-enable later for BIG_NEWS HOLD |
 
 09 five-pass has **not** passed. Notes ≠ pass. Mandate ≠ “you are profitable.”
+
+---
+
+## Simple signal path (2026-09-07) — read first
+
+| Topic | Path |
+|-------|------|
+| Plain English | [`HOW_SIGNALS_WORK.md`](HOW_SIGNALS_WORK.md) |
+| Recon note | [`data/recon/SIMPLE_SIGNAL_PATH_2026-09-07.md`](../../../data/recon/SIMPLE_SIGNAL_PATH_2026-09-07.md) |
+| Detector | `packages/backtest/.../okala_in_paper.py` → `detect_okala_signal` |
+| Wire | `live_signals.PaperSignalEngine` + `paper_evaluators` |
+| Dry-run | `python -m backtest_engine okala-signal --underlying NIFTY --option-ltp 100` |
+
+**Path:** bars → Okala pattern → CE/PE → premium Entry=LTP / Stop=entry×0.75 / Target=entry×1.25 → paper card.  
+**BN/SENSEX:** `FOUNDER_STARTER_EXTEND` (same rules, caution). **NIFTY:** robust WR>50% cells when they match.
 
 ---
 
@@ -130,15 +147,32 @@ Still open (**workstream C**): P1-3 STRAT DI bind/summarize; premium Stop swing 
 
 ---
 
+## Overnight plan (2026-09-07) — Chart Fanatics workstream A
+
+**Owner this turn:** inventory / triage / queues only — **do not** rewrite sibling BIND bodies.
+
+| Artifact | Path |
+|----------|------|
+| Full inventory (md+json) | [`data/recon/CF_OVERNIGHT_INVENTORY_2026-09-07.md`](../../../data/recon/CF_OVERNIGHT_INVENTORY_2026-09-07.md) · `.json` twin |
+| ASR fail queue | [`data/recon/cf_overnight_queue_transcript_retry.json`](../../../data/recon/cf_overnight_queue_transcript_retry.json) (**29**) |
+| OpenAI+BIND queue | [`data/recon/cf_overnight_queue_openai_bind.json`](../../../data/recon/cf_overnight_queue_openai_bind.json) (**2**) |
+| Backtest queue | [`data/recon/cf_overnight_queue_backtest.json`](../../../data/recon/cf_overnight_queue_backtest.json) (**16**) |
+
+**Counts:** total **47** · transcript ok **18** · fail **29** · hard skip **0** · queued ASR **29** · queued OpenAI+BIND **2** · queued backtest **16**.  
+**Skip policy:** hard-skip only if unmappable even with alts (PDH→prev day high, FVG→imbalance, US short→PE). Psychology `8HxT9WQ-uD0` = `process_only` (still ASR @ P3).  
+**Sibling order:** (1) ASR from `xUyqIjCfZzg` · (2) Phase-11 OpenAI+BIND `hvyf6frvCcA` + `T_djSNBmV00` · (3) BT/re-validate existing `MIX-CF-*` (Okala-IN already PAPER path).
+
+---
+
 ## Do first on research track (not market-hours)
 
 ### Chart Fanatics — **RETRY** (fail=29)
 
-[`teams/01_research/docs/chart_fanatics/RETRY_TOMORROW.md`](../../01_research/docs/chart_fanatics/RETRY_TOMORROW.md) — **29** failed videos (no full transcript). Prefer **ASR** (audio→whisper); do not caption-hammer. Start at `xUyqIjCfZzg`. **Cleared 2026-09-07:** `jsUTbjwpFVk` Okala → BIND + `MIX-CF-OKALA-*` catalog only (65% title = marketing). Captions still 429 on this host.
+Canonical fail list: [`RETRY_TOMORROW.md`](../../01_research/docs/chart_fanatics/RETRY_TOMORROW.md) + overnight queue JSON above. Prefer **ASR** (audio→whisper); do not caption-hammer. Start at `xUyqIjCfZzg`. **Cleared 2026-09-07:** `jsUTbjwpFVk` Okala → BIND + `MIX-CF-OKALA-*` / `MIX-CF-OKALA-IN-*`. Captions still 429 on this host.
 
-### Phase-11 bind (pending)
+### Phase-11 bind (pending — queued)
 
-Transcripts already **yes** (Phase-3I ASR): Trader Yush `hvyf6frvCcA` + Marco return `T_djSNBmV00`. Bind when founder asks — do **not** auto-club into existing `MIX-CF-MARCO-*`. Inventory **yes=18 / fail=29**.
+Transcripts already **yes** (Phase-3I ASR): Trader Yush `hvyf6frvCcA` + Marco return `T_djSNBmV00` → see `cf_overnight_queue_openai_bind.json`. Do **not** auto-club into existing `MIX-CF-MARCO-*`. Inventory **yes=18 / fail=29**.
 
 ---
 
@@ -164,7 +198,7 @@ SL/TP: harvest + ATR MIX + NIFTY INDEX 3m backtest **FAIL** — see `BACKTEST_SL
 
 ## Chart Fanatics status (condensed)
 
-Phase-2→10 bind+MIX+proxy **DONE** (Fabio → Andrea/Omor). Phase-3I ASR **DONE** (Yush + Marco return). Phase-3J **DONE** Okala `jsUTbjwpFVk` ASR+BIND+`MIX-CF-OKALA-*` **catalog only**; BIND **rev** + OpenAI suggest (observation-gated portability · miss/recovery · BT grid · NO_PROMOTE; not in CF×8). Channel `@chart-fanatics` · inventory **yes=18 / fail=29**. All CF proxy books honest **NO_PROMOTE**. Do not merge CF mixes into `MIX-DEFAULT-BUY` / STRAT-001–014 / IQCapital / Fabio. Title WR claims (65%/70%/74%/90%/…) ≠ product metrics.
+Phase-2→10 bind+MIX+proxy **DONE** (Fabio → Andrea/Omor). Phase-3I ASR **DONE** (Yush + Marco return). Phase-3J **DONE** Okala `jsUTbjwpFVk` ASR+BIND+`MIX-CF-OKALA-*` catalog; BIND **rev** + OpenAI suggest. **India adaptation BT DONE 2026-09-07:** `MIX-CF-OKALA-IN-*` via `okala-in` runner — **HYPOTHESIS port** / reports under `data/recon/OKALA_IN_BACKTEST_2026-09-07.*`. **FOUNDER_PAPER_ACCEPT 2026-09-07:** robust WR>50% cells → PAPER CE/PE notify via `okala_in_paper` / `live_signals` — **NO_PROMOTE** live · catalog `win_rate=null` · see `OKALA_IN_PAPER_SIGNAL_ENABLE_2026-09-07.md`. **Overnight A 2026-09-07:** full triage [`CF_OVERNIGHT_INVENTORY_2026-09-07.md`](../../../data/recon/CF_OVERNIGHT_INVENTORY_2026-09-07.md) · yes=18 / fail=29 / hard_skip=0 · sibling queues ASR/BIND/BT. Channel `@chart-fanatics`. Do not merge CF mixes into `MIX-DEFAULT-BUY` / STRAT-001–014 / IQCapital / Fabio. Title WR claims (65%/70%/74%/90%/…) ≠ product metrics.
 
 Transcript KB: `data/knowledge/transcripts.sqlite` + FTS5 — [`TRANSCRIPT_KB.md`](../../01_research/docs/TRANSCRIPT_KB.md). Rebuild: `python scripts/build_transcript_kb.py`. After new ASR, rebuild KB. Do not delete `data/recon/ohlc` without asking.
 
@@ -208,5 +242,5 @@ KB: `data/knowledge/agent_rag.sqlite` — does **not** touch `transcripts.sqlite
 | UI-DESK-PAPER-AGENTS | Wire `/desk` to paper ledger when founder asks |
 | DEPTH-DECODE-VALIDATION | Before un-parking depth alpha |
 | IST-LIVE-DATA-PAPER | `market-hours` without `--simulate` + data-only `DHAN_*` |
-| CF-RETRY-29 + Phase-11 | ASR fails; bind Yush + Marco return; Okala catalog done |
+| CF-RETRY-29 + Phase-11 | Overnight A queued: ASR 29 + OpenAI bind 2 + BT 16; Okala catalog/IN done |
 

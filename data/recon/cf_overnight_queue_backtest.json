@@ -1,0 +1,289 @@
+{
+  "meta": {
+    "as_of": "2026-09-07",
+    "purpose": "Has usable BIND + MIX-CF-* catalog rows \u2014 backtest / re-validate / India adaptation (NO_PROMOTE)",
+    "count": 16,
+    "gates": [
+      "PAPER",
+      "NO_PROMOTE",
+      "no STRAT-015+",
+      "MIX-CF-* only"
+    ],
+    "note": "Okala already has MIX-CF-OKALA-IN-* paper path; others are CF\u00d78 proxy books \u2014 FAIL\u2260delete."
+  },
+  "videos": [
+    {
+      "video_id": "tvERE-Beu2U",
+      "title": "Trading LIVE with the #1 Scalper in the WORLD (EXTREME Accuracy)",
+      "views": 4028375,
+      "priority": "P1",
+      "india_portable_guess": "yes_with_alts",
+      "india_portable_note": "NY imbalance/trend scalp \u2192 IST session remap + INDEX OHLC; OF PARKED",
+      "url": "https://www.youtube.com/watch?v=tvERE-Beu2U",
+      "guest_guess": "Fabio Valentini",
+      "bind_path": "teams/01_research/docs/chart_fanatics/tvERE-Beu2U_BIND.md",
+      "existing_mix": [
+        "MIX-CF-FABIO-TREND-NY",
+        "MIX-CF-FABIO-MR-RANGE"
+      ],
+      "transcript": "ok"
+    },
+    {
+      "video_id": "DAnXM7C16h0",
+      "title": "STEAL This EASY Liquidity TRAP Trading Strategy - $500K+ (PERFECT Snip",
+      "views": 1272415,
+      "priority": "P1",
+      "india_portable_guess": "yes_with_alts",
+      "india_portable_note": "Liquidity trap \u2192 swing high/low raid+reclaim on NIFTY/BN/SENSEX",
+      "url": "https://www.youtube.com/watch?v=DAnXM7C16h0",
+      "guest_guess": "Marco",
+      "bind_path": "teams/01_research/docs/chart_fanatics/DAnXM7C16h0_BIND.md",
+      "existing_mix": [
+        "MIX-CF-MARCO-LIQ-TRAP",
+        "MIX-CF-MARCO-INT-EXT"
+      ],
+      "transcript": "ok"
+    },
+    {
+      "video_id": "coBMd1vk2Lo",
+      "title": "The SIMPLE $10 Million ICT Blueprint They Don\u2019t Want You To See (Forex",
+      "views": 1010712,
+      "priority": "P1",
+      "india_portable_guess": "yes_with_alts",
+      "india_portable_note": "ICT HTF/breaker \u2192 structure on INDEX; FX session clocks = DI",
+      "url": "https://www.youtube.com/watch?v=coBMd1vk2Lo",
+      "guest_guess": "Trader Mayne",
+      "bind_path": "teams/01_research/docs/chart_fanatics/coBMd1vk2Lo_BIND.md",
+      "existing_mix": [
+        "MIX-CF-MAYNE-ICT-HTF",
+        "MIX-CF-MAYNE-BREAKER"
+      ],
+      "transcript": "ok"
+    },
+    {
+      "video_id": "AVVM-FyewLg",
+      "title": "STEAL This SIMPLE Trading Strategy from The WORLD's #2 Futures Trader",
+      "views": 950121,
+      "priority": "P1",
+      "india_portable_guess": "yes_with_alts",
+      "india_portable_note": "Measured-move / BB \u2192 ATR/structure proxy on INDEX",
+      "url": "https://www.youtube.com/watch?v=AVVM-FyewLg",
+      "guest_guess": "Marci Silfrain",
+      "bind_path": "teams/01_research/docs/chart_fanatics/AVVM-FyewLg_BIND.md",
+      "existing_mix": [
+        "MIX-CF-MARCI-RIZZY",
+        "MIX-CF-MARCI-BB-REALITY"
+      ],
+      "transcript": "ok"
+    },
+    {
+      "video_id": "VTEQ2fhGLqE",
+      "title": "Making $500,000 Using This SIMPLE Futures Strategy - Tori Trades (Simp",
+      "views": 808732,
+      "priority": "P1",
+      "india_portable_guess": "yes_with_alts",
+      "india_portable_note": "Trendline bounce/break \u2192 INDEX OHLC TL books",
+      "url": "https://www.youtube.com/watch?v=VTEQ2fhGLqE",
+      "guest_guess": "Tori Trades",
+      "bind_path": "teams/01_research/docs/chart_fanatics/VTEQ2fhGLqE_BIND.md",
+      "existing_mix": [
+        "MIX-CF-TORI-TL-BOUNCE",
+        "MIX-CF-TORI-TL-BREAK"
+      ],
+      "transcript": "ok"
+    },
+    {
+      "video_id": "ADnslyKOwFE",
+      "title": "STEAL This INSANE Simple 90% Win Rate Trading Strategy (1:20+ RR) - TG",
+      "views": 703663,
+      "priority": "P1",
+      "india_portable_guess": "yes_with_alts",
+      "india_portable_note": "FVG trident \u2192 imbalance/gap proxy; London box \u2192 IST DI",
+      "url": "https://www.youtube.com/watch?v=ADnslyKOwFE",
+      "guest_guess": "TG Capital",
+      "bind_path": "teams/01_research/docs/chart_fanatics/ADnslyKOwFE_BIND.md",
+      "existing_mix": [
+        "MIX-CF-TG-TRIDENT",
+        "MIX-CF-TG-EMA-WAVE"
+      ],
+      "transcript": "ok"
+    },
+    {
+      "video_id": "HNuRp9Z1bMs",
+      "title": "Worlds BEST NQ Scalper Reveals His A+ Trading Strategy",
+      "views": 684193,
+      "priority": "P1",
+      "india_portable_guess": "yes_with_alts",
+      "india_portable_note": "EQ50 / PO3-SMT \u2192 midrange + structure; true SMT multi-asset DI",
+      "url": "https://www.youtube.com/watch?v=HNuRp9Z1bMs",
+      "guest_guess": "Trader Kane",
+      "bind_path": "teams/01_research/docs/chart_fanatics/HNuRp9Z1bMs_BIND.md",
+      "existing_mix": [
+        "MIX-CF-KANE-EQ50",
+        "MIX-CF-KANE-PO3-SMT"
+      ],
+      "transcript": "ok"
+    },
+    {
+      "video_id": "IUo5AwmsE9A",
+      "title": "12 Years of Trading Knowledge in 2 Hours - Umar Ashraf",
+      "views": 620547,
+      "priority": "P1",
+      "india_portable_guess": "yes_with_alts",
+      "india_portable_note": "Morning top / opening drive \u2192 NSE open window HYPOTHESIS",
+      "url": "https://www.youtube.com/watch?v=IUo5AwmsE9A",
+      "guest_guess": "Umar Ashraf",
+      "bind_path": "teams/01_research/docs/chart_fanatics/IUo5AwmsE9A_BIND.md",
+      "existing_mix": [
+        "MIX-CF-UMAR-MORNING-TOP",
+        "MIX-CF-UMAR-OPENING-DRIVE"
+      ],
+      "transcript": "ok"
+    },
+    {
+      "video_id": "q_MdVlZ1SH4",
+      "title": "The ONE Trading Indicator That Will EXPOSE The Truth About The Markets",
+      "views": 524494,
+      "priority": "P1",
+      "india_portable_guess": "yes_with_alts",
+      "india_portable_note": "VPE/POC \u2192 volume-profile proxy; relative volume on INDEX",
+      "url": "https://www.youtube.com/watch?v=q_MdVlZ1SH4",
+      "guest_guess": "Forest Knight",
+      "bind_path": "teams/01_research/docs/chart_fanatics/q_MdVlZ1SH4_BIND.md",
+      "existing_mix": [
+        "MIX-CF-FOREST-VPE-EDGE",
+        "MIX-CF-FOREST-POC-RETEST"
+      ],
+      "transcript": "ok"
+    },
+    {
+      "video_id": "UhkRRqO1gQM",
+      "title": "LIVE TRADING - How He Made $40,000+ Trading using OrderFlow (Full Mast",
+      "views": 458084,
+      "priority": "P2",
+      "india_portable_guess": "conditional_of",
+      "india_portable_note": "Orderflow absorb/fail-break \u2192 structure proxy OK; DOM/tape India DI/PARKED",
+      "url": "https://www.youtube.com/watch?v=UhkRRqO1gQM",
+      "guest_guess": "Carmine Rosato",
+      "bind_path": "teams/01_research/docs/chart_fanatics/UhkRRqO1gQM_BIND.md",
+      "existing_mix": [
+        "MIX-CF-CARMINE-ABSORB",
+        "MIX-CF-CARMINE-FAIL-BREAK",
+        "MIX-CF-CARMINE-OPEN-HOLD"
+      ],
+      "transcript": "ok"
+    },
+    {
+      "video_id": "8OX-mcSHWhg",
+      "title": "Worlds BEST Prop Firm Trader Reveals SIMPLE Trading Strategy - Jadecap",
+      "views": 454365,
+      "priority": "P1",
+      "india_portable_guess": "yes_with_alts",
+      "india_portable_note": "PDH/PDL swing-fail / FVG-draw \u2192 prev-day high/low + imbalance",
+      "url": "https://www.youtube.com/watch?v=8OX-mcSHWhg",
+      "guest_guess": "Jadecap",
+      "bind_path": "teams/01_research/docs/chart_fanatics/8OX-mcSHWhg_BIND.md",
+      "existing_mix": [
+        "MIX-CF-JADECAP-SWING-FAIL",
+        "MIX-CF-JADECAP-SESSION-LIQ",
+        "MIX-CF-JADECAP-FVG-DRAW"
+      ],
+      "transcript": "ok"
+    },
+    {
+      "video_id": "6Bdv-_YUQ0s",
+      "title": "Options Trading for Beginners: Super Simple - 2 Hour FREE Course",
+      "views": 388031,
+      "priority": "P1",
+      "india_portable_guess": "yes",
+      "india_portable_note": "US options education already mapped to MIX-CF-USMAN-* OPTIDX hypotheses",
+      "url": "https://www.youtube.com/watch?v=6Bdv-_YUQ0s",
+      "guest_guess": "Usman Ashraf",
+      "bind_path": "teams/01_research/docs/chart_fanatics/6Bdv-_YUQ0s_BIND.md",
+      "existing_mix": [
+        "MIX-CF-USMAN-OI-STRIKE",
+        "MIX-CF-USMAN-0DTE-GAMMA",
+        "MIX-CF-USMAN-WEEKLY-SIZE",
+        "MIX-CF-USMAN-PRICE-STOP"
+      ],
+      "transcript": "ok"
+    },
+    {
+      "video_id": "yLuH8YZXORQ",
+      "title": "Trading $6,000 to OVER $10+ Million Using This Strategy",
+      "views": 377903,
+      "priority": "P1",
+      "india_portable_guess": "yes_with_alts",
+      "india_portable_note": "HTF reclaim / round break \u2192 INDEX levels; CE/PE buy-first",
+      "url": "https://www.youtube.com/watch?v=yLuH8YZXORQ",
+      "guest_guess": "Brando / Leaf",
+      "bind_path": "teams/01_research/docs/chart_fanatics/yLuH8YZXORQ_BIND.md",
+      "existing_mix": [
+        "MIX-CF-BRANDO-HTF-RECLAIM",
+        "MIX-CF-BRANDO-ROUND-BREAK",
+        "MIX-CF-BRANDO-HTF-BOUNCE",
+        "MIX-CF-BRANDO-SIZE-ZERO",
+        "MIX-CF-BRANDO-NEWS-ALIGN"
+      ],
+      "transcript": "ok"
+    },
+    {
+      "video_id": "TvoQr6ObjnU",
+      "title": "Trading LIVE with One of the World's BEST Scalpers (PERFECT Sniper Ent",
+      "views": 357442,
+      "priority": "P2",
+      "india_portable_guess": "conditional_of",
+      "india_portable_note": "Failed auction / ORB \u2192 OHLC proxy weak; ES footprint/DOM India DI/PARKED",
+      "url": "https://www.youtube.com/watch?v=TvoQr6ObjnU",
+      "guest_guess": "Andrea Cimi",
+      "bind_path": "teams/01_research/docs/chart_fanatics/TvoQr6ObjnU_BIND.md",
+      "existing_mix": [
+        "MIX-CF-ANDREA-FAIL-AUCTION",
+        "MIX-CF-ANDREA-ORB-ACCEPT",
+        "MIX-CF-ANDREA-STOP-FADE",
+        "MIX-CF-ANDREA-ABSORB"
+      ],
+      "transcript": "ok"
+    },
+    {
+      "video_id": "IB-fyWI5j8w",
+      "title": "TAKE This EASY ICT Trading Strategy For Prop Firms (INSANE Entries)",
+      "views": 322585,
+      "priority": "P1",
+      "india_portable_guess": "yes_with_alts",
+      "india_portable_note": "PDH\u2192prev day high; OTE/FVG\u2192fib/imbalance; killzones IST = DI (do not invent)",
+      "url": "https://www.youtube.com/watch?v=IB-fyWI5j8w",
+      "guest_guess": "Omor / NBB",
+      "bind_path": "teams/01_research/docs/chart_fanatics/IB-fyWI5j8w_BIND.md",
+      "existing_mix": [
+        "MIX-CF-OMOR-MMM-FRAME",
+        "MIX-CF-OMOR-OTE",
+        "MIX-CF-OMOR-PDH-REVERSAL",
+        "MIX-CF-OMOR-KZ-ADR"
+      ],
+      "transcript": "ok"
+    },
+    {
+      "video_id": "jsUTbjwpFVk",
+      "title": "COPY This Prop Firm Simple Trading Strategy with 65% Win Rate ($5+ Mil",
+      "views": 251710,
+      "priority": "P1",
+      "india_portable_guess": "yes_adapted",
+      "india_portable_note": "NQ magnets \u2192 MIX-CF-OKALA-IN-* observation-gated (PAPER FOUNDER_PAPER_ACCEPT; NO_PROMOTE)",
+      "url": "https://www.youtube.com/watch?v=jsUTbjwpFVk",
+      "guest_guess": "Okala",
+      "bind_path": "teams/01_research/docs/chart_fanatics/jsUTbjwpFVk_BIND.md",
+      "existing_mix": [
+        "MIX-CF-OKALA-8020-LEVEL",
+        "MIX-CF-OKALA-FORK",
+        "MIX-CF-OKALA-H-CROSS",
+        "MIX-CF-OKALA-REPAIR",
+        "MIX-CF-OKALA-IN-LEVEL",
+        "MIX-CF-OKALA-IN-FORK",
+        "MIX-CF-OKALA-IN-H-CROSS",
+        "MIX-CF-OKALA-IN-REPAIR"
+      ],
+      "transcript": "ok"
+    }
+  ]
+}

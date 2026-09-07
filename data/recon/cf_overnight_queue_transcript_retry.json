@@ -1,0 +1,336 @@
+{
+  "meta": {
+    "as_of": "2026-09-07",
+    "purpose": "ASR retry queue (fail transcripts) \u2014 prefer whisper; do not caption-hammer",
+    "count": 29,
+    "method": "yt-dlp android audio \u2192 faster-whisper base int8 \u2192 {id}.asr.txt + {id}_TRANSCRIPT.md",
+    "start_at": "xUyqIjCfZzg",
+    "gates": [
+      "PAPER",
+      "NO_PROMOTE",
+      "no STRAT-015+",
+      "MIX-CF-* only"
+    ]
+  },
+  "videos": [
+    {
+      "video_id": "xUyqIjCfZzg",
+      "title": "Trading LIVE with TWO World Class Order Flow Scalpers (FT Fabio Valent",
+      "views": 280453,
+      "priority": "P0",
+      "india_portable_guess": "conditional_of",
+      "india_portable_note": "LIVE OF scalpers \u2192 structure alts; tape DI",
+      "url": "https://www.youtube.com/watch?v=xUyqIjCfZzg",
+      "guest_guess": "Fabio + Carmine (LIVE OF)",
+      "duration": "3h49m38s"
+    },
+    {
+      "video_id": "SMSqQTBxjc0",
+      "title": "The ONLY Break And Retest Trading Strategy You\u2019ll EVER Need (Step By S",
+      "views": 253169,
+      "priority": "P0",
+      "india_portable_guess": "yes_with_alts",
+      "india_portable_note": "Break & retest \u2192 INDEX B/R",
+      "url": "https://www.youtube.com/watch?v=SMSqQTBxjc0",
+      "guest_guess": null,
+      "duration": "1h28m07s"
+    },
+    {
+      "video_id": "Jx5cJ_qb31U",
+      "title": "COPY This CRAZY Simple 98% Win Rate Trading Strategy",
+      "views": 238062,
+      "priority": "P0",
+      "india_portable_guess": "yes_with_alts",
+      "india_portable_note": "Simple PA strategy title \u2192 CE/PE structure HYPOTHESIS after ASR",
+      "url": "https://www.youtube.com/watch?v=Jx5cJ_qb31U",
+      "guest_guess": null,
+      "duration": "1h12m19s"
+    },
+    {
+      "video_id": "PZDWQgtqt2I",
+      "title": "This SIMPLE ICT Futures Trading Strategy Made Her Over $100,000 - Tanj",
+      "views": 230085,
+      "priority": "P0",
+      "india_portable_guess": "yes_with_alts",
+      "india_portable_note": "ICT futures \u2192 structure/imbalance; session clocks DI",
+      "url": "https://www.youtube.com/watch?v=PZDWQgtqt2I",
+      "guest_guess": "Tanja (ICT)",
+      "duration": "1h10m18s"
+    },
+    {
+      "video_id": "_qeFh1ADss8",
+      "title": "$100+ Million Trader: His BEST Trading Strategy (Market Wizard)",
+      "views": 224988,
+      "priority": "P0",
+      "india_portable_guess": "yes_with_alts",
+      "india_portable_note": "Market wizard best strategy \u2014 triage after ASR; assume PA/structure portable",
+      "url": "https://www.youtube.com/watch?v=_qeFh1ADss8",
+      "guest_guess": null,
+      "duration": "1h31m11s"
+    },
+    {
+      "video_id": "52ZsDmFHqyY",
+      "title": "If You Only Watch One Trading Strategy Video, Make It This",
+      "views": 223438,
+      "priority": "P0",
+      "india_portable_guess": "yes_with_alts",
+      "india_portable_note": "Generic strategy video \u2014 triage after ASR",
+      "url": "https://www.youtube.com/watch?v=52ZsDmFHqyY",
+      "guest_guess": null,
+      "duration": "1h07m43s"
+    },
+    {
+      "video_id": "jHsD2-2K_Kk",
+      "title": "How To Trade Real Fair Value Gaps with Extreme Accuracy - Carmine Rosa",
+      "views": 223222,
+      "priority": "P0",
+      "india_portable_guess": "yes_with_alts",
+      "india_portable_note": "FVG \u2192 imbalance/gap proxy on INDEX",
+      "url": "https://www.youtube.com/watch?v=jHsD2-2K_Kk",
+      "guest_guess": "Carmine Rosato (FVG)",
+      "duration": "1h14m45s"
+    },
+    {
+      "video_id": "SQEtBHOJW6I",
+      "title": "LIVE Trading with a $1M+ Order Flow Trader (INSANE RESULTS)",
+      "views": 219399,
+      "priority": "P0",
+      "india_portable_guess": "conditional_of",
+      "india_portable_note": "LIVE orderflow \u2192 structure proxy; OF DI",
+      "url": "https://www.youtube.com/watch?v=SQEtBHOJW6I",
+      "guest_guess": null,
+      "duration": "2h51m38s"
+    },
+    {
+      "video_id": "yZpzG8R3Ayk",
+      "title": "PRO Trader Reveals Super Simple Trading Strategy (How The Markets Real",
+      "views": 215127,
+      "priority": "P0",
+      "india_portable_guess": "yes_with_alts",
+      "india_portable_note": "Simple strategy title \u2014 PA portable guess",
+      "url": "https://www.youtube.com/watch?v=yZpzG8R3Ayk",
+      "guest_guess": null,
+      "duration": "1h20m39s"
+    },
+    {
+      "video_id": "WDdvnd9vLbM",
+      "title": "If You Only Watch One Trading Process Video, Make It This",
+      "views": 210733,
+      "priority": "P0",
+      "india_portable_guess": "yes_with_alts",
+      "india_portable_note": "Trading process \u2014 desk process + structure after ASR",
+      "url": "https://www.youtube.com/watch?v=WDdvnd9vLbM",
+      "guest_guess": null,
+      "duration": "1h24m45s"
+    },
+    {
+      "video_id": "YzYDUEUOZ4k",
+      "title": "COPY This EXACT Entry System to Become a Millionaire Trader",
+      "views": 206323,
+      "priority": "P0",
+      "india_portable_guess": "yes_with_alts",
+      "india_portable_note": "Entry system \u2014 structure portable guess",
+      "url": "https://www.youtube.com/watch?v=YzYDUEUOZ4k",
+      "guest_guess": null,
+      "duration": "1h06m30s"
+    },
+    {
+      "video_id": "VDK200OHNSo",
+      "title": "Trading $50M At 25 Using One SIMPLE Market Cycle Strategy (4 Stages) -",
+      "views": 184576,
+      "priority": "P1",
+      "india_portable_guess": "yes_with_alts",
+      "india_portable_note": "Market cycle stages \u2192 regime tags HYPOTHESIS",
+      "url": "https://www.youtube.com/watch?v=VDK200OHNSo",
+      "guest_guess": null,
+      "duration": "1h40m26s"
+    },
+    {
+      "video_id": "mDNcx2Dhhms",
+      "title": "STEAL This $100 Million Dollar Trading Strategy (Used by Market Wizard",
+      "views": 169465,
+      "priority": "P1",
+      "india_portable_guess": "yes_with_alts",
+      "india_portable_note": "Strategy title \u2014 triage after ASR",
+      "url": "https://www.youtube.com/watch?v=mDNcx2Dhhms",
+      "guest_guess": null,
+      "duration": "57m14s"
+    },
+    {
+      "video_id": "8HxT9WQ-uD0",
+      "title": "Master The Mental Game of Trading In 60 Minutes (STOP TILT/FOMO)",
+      "views": 167098,
+      "priority": "P3",
+      "india_portable_guess": "process_only",
+      "india_portable_note": "Mental/tilt/FOMO \u2192 desk process notes; no CE/PE entry recipe expected",
+      "url": "https://www.youtube.com/watch?v=8HxT9WQ-uD0",
+      "guest_guess": null,
+      "duration": "1h00m54s"
+    },
+    {
+      "video_id": "UIGZtoGGPH4",
+      "title": "If You Only Watch One ICT Trading Video, Make It This (LIVE Trading)",
+      "views": 162291,
+      "priority": "P1",
+      "india_portable_guess": "yes_with_alts",
+      "india_portable_note": "ICT LIVE \u2192 structure/imbalance; clocks DI",
+      "url": "https://www.youtube.com/watch?v=UIGZtoGGPH4",
+      "guest_guess": null,
+      "duration": "1h13m29s"
+    },
+    {
+      "video_id": "xl4QHqlBCfk",
+      "title": "STEAL This Trading Champion\u2019s Exact Strategy - Math Based Models for P",
+      "views": 158828,
+      "priority": "P1",
+      "india_portable_guess": "yes_with_alts",
+      "india_portable_note": "Math models for prop \u2192 rule/structure HYPOTHESIS after ASR",
+      "url": "https://www.youtube.com/watch?v=xl4QHqlBCfk",
+      "guest_guess": null,
+      "duration": "2h42m09s"
+    },
+    {
+      "video_id": "TyHTEtArsS4",
+      "title": "Master ALGO Trading In Less Than 90 Minutes (NO Coding) / $1M+ Profits",
+      "views": 157881,
+      "priority": "P1",
+      "india_portable_guess": "yes_with_alts",
+      "india_portable_note": "Algo no-code \u2192 rule automation HYPOTHESIS (not live code)",
+      "url": "https://www.youtube.com/watch?v=TyHTEtArsS4",
+      "guest_guess": null,
+      "duration": "1h25m00s"
+    },
+    {
+      "video_id": "nMhywubR2xc",
+      "title": "STEAL This 7 Figure Liquidity HACK for Your Trading (Any Asset & Timef",
+      "views": 156135,
+      "priority": "P1",
+      "india_portable_guess": "yes_with_alts",
+      "india_portable_note": "Liquidity hack \u2192 swing liquidity / PDH-PDL alts",
+      "url": "https://www.youtube.com/watch?v=nMhywubR2xc",
+      "guest_guess": null,
+      "duration": "1h22m07s"
+    },
+    {
+      "video_id": "35cyqDz-ej8",
+      "title": "STEAL This INSANE 1-Minute Market Maker Trading Strategy (75% Win Rate",
+      "views": 128365,
+      "priority": "P1",
+      "india_portable_guess": "yes_with_alts",
+      "india_portable_note": "1m market-maker \u2192 microstructure structure proxy; OF DI",
+      "url": "https://www.youtube.com/watch?v=35cyqDz-ej8",
+      "guest_guess": null,
+      "duration": "2h29m41s"
+    },
+    {
+      "video_id": "_wpg45NdMkM",
+      "title": "20 Years Of Institutional Trading Knowledge In 70 Minutes ($20M+ AUM)",
+      "views": 116897,
+      "priority": "P1",
+      "india_portable_guess": "yes_with_alts",
+      "india_portable_note": "Institutional knowledge \u2014 triage after ASR",
+      "url": "https://www.youtube.com/watch?v=_wpg45NdMkM",
+      "guest_guess": null,
+      "duration": "1h11m55s"
+    },
+    {
+      "video_id": "9D9ck-ZI6V0",
+      "title": "Trading Made SIMPLE - Use These 3 Specific Steps To Master Any Market",
+      "views": 116054,
+      "priority": "P1",
+      "india_portable_guess": "yes_with_alts",
+      "india_portable_note": "3 steps any market \u2014 portable process/structure guess",
+      "url": "https://www.youtube.com/watch?v=9D9ck-ZI6V0",
+      "guest_guess": null,
+      "duration": "1h06m40s"
+    },
+    {
+      "video_id": "70UtrLU6RAg",
+      "title": "Verified $5M+ Trader: LIVE Trading Using His EXACT Strategy",
+      "views": 110130,
+      "priority": "P1",
+      "india_portable_guess": "yes_with_alts",
+      "india_portable_note": "LIVE exact strategy \u2014 triage after ASR",
+      "url": "https://www.youtube.com/watch?v=70UtrLU6RAg",
+      "guest_guess": null,
+      "duration": "2h09m41s"
+    },
+    {
+      "video_id": "EZ_L7zovyrw",
+      "title": "COPY These 3 Simple Steps To Master The TREND Trading Futures - Anthon",
+      "views": 93733,
+      "priority": "P2",
+      "india_portable_guess": "yes_with_alts",
+      "india_portable_note": "Trend futures \u2192 INDEX trend CE/PE",
+      "url": "https://www.youtube.com/watch?v=EZ_L7zovyrw",
+      "guest_guess": "Anthony (trend)",
+      "duration": "46m28s"
+    },
+    {
+      "video_id": "4BgkLlwgpvo",
+      "title": "Wall Street's EXACT Formula To Measure FEAR In The Markets (Trade This",
+      "views": 87119,
+      "priority": "P2",
+      "india_portable_guess": "yes_with_alts",
+      "india_portable_note": "Fear formula \u2192 India VIX/PCR analogs (not US VIX copy)",
+      "url": "https://www.youtube.com/watch?v=4BgkLlwgpvo",
+      "guest_guess": null,
+      "duration": "1h38m39s"
+    },
+    {
+      "video_id": "0_NSmOWVbpA",
+      "title": "If You Only Watch ONE Market Cycle Trading Video, Make It This (500%+",
+      "views": 83488,
+      "priority": "P2",
+      "india_portable_guess": "yes_with_alts",
+      "india_portable_note": "Market cycle \u2192 regime HYPOTHESIS",
+      "url": "https://www.youtube.com/watch?v=0_NSmOWVbpA",
+      "guest_guess": null,
+      "duration": "48m43s"
+    },
+    {
+      "video_id": "2Ug0jyDvoek",
+      "title": "Simple ONE Candle Trading Strategy Thats Profited Millions (80%+ Win R",
+      "views": 76895,
+      "priority": "P2",
+      "india_portable_guess": "yes_with_alts",
+      "india_portable_note": "One-candle \u2192 PA pattern HYPOTHESIS",
+      "url": "https://www.youtube.com/watch?v=2Ug0jyDvoek",
+      "guest_guess": null,
+      "duration": "2h05m41s"
+    },
+    {
+      "video_id": "SInAfwX3X3A",
+      "title": "Copy this Complete In-Depth 85%+ Win Rate Short Trading Strategy - US",
+      "views": 74264,
+      "priority": "P2",
+      "india_portable_guess": "yes_with_alts",
+      "india_portable_note": "US short strategy \u2192 PE buy / short-bias INDEX options (not stock locate)",
+      "url": "https://www.youtube.com/watch?v=SInAfwX3X3A",
+      "guest_guess": null,
+      "duration": "2h17m11s"
+    },
+    {
+      "video_id": "KkTTCKr-3Ew",
+      "title": "Pass Prop Firms Using This ICT & Orderflow Futures Trading Strategy ($",
+      "views": 66591,
+      "priority": "P2",
+      "india_portable_guess": "yes_with_alts",
+      "india_portable_note": "ICT+OF prop \u2192 structure/imbalance; OF PARKED",
+      "url": "https://www.youtube.com/watch?v=KkTTCKr-3Ew",
+      "guest_guess": null,
+      "duration": "1h45m07s"
+    },
+    {
+      "video_id": "EcTRlLYvhXU",
+      "title": "COPY The BEST Gap Up Short Trading Strategy That Has Made Millions (Pr",
+      "views": 47942,
+      "priority": "P2",
+      "india_portable_guess": "yes_with_alts",
+      "india_portable_note": "Gap-up short \u2192 NSE gap-fade with PE (not equity locate)",
+      "url": "https://www.youtube.com/watch?v=EcTRlLYvhXU",
+      "guest_guess": null,
+      "duration": "1h12m14s"
+    }
+  ]
+}
