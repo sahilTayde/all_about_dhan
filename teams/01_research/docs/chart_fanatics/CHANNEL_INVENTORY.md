@@ -210,18 +210,18 @@ Status: `yes` = caption text on disk; `fail` = attempted, no caption body; `part
 | 223,222 | 1h14m45s | fail | `jHsD2-2K_Kk` | How To Trade Real Fair Value Gaps with Extreme Accuracy - Carmine Rosa | IpBlocked (youtube-transcript-api); yt-dlp subs 429 |
 | 219,399 | 2h51m38s | fail | `SQEtBHOJW6I` | LIVE Trading with a $1M+ Order Flow Trader (INSANE RESULTS) | not re-fetched (capacity); stub/IpBlocked from prior — no caption body |
 | 215,127 | 1h20m39s | fail | `yZpzG8R3Ayk` | PRO Trader Reveals Super Simple Trading Strategy (How The Markets Real | not re-fetched (capacity); stub/IpBlocked from prior — no caption body |
-| 210,733 | 1h24m45s | fail | `WDdvnd9vLbM` | If You Only Watch One Trading Process Video, Make It This | not re-fetched (capacity); stub/IpBlocked from prior — no caption body |
+| 210,733 | 1h24m45s | yes | `WDdvnd9vLbM` | If You Only Watch One Trading Process Video, Make It This | not re-fetched (capacity); stub/IpBlocked from prior — no caption body |
 | 206,323 | 1h06m30s | yes | `YzYDUEUOZ4k` | COPY This EXACT Entry System to Become a Millionaire Trader | not re-fetched (capacity); stub/IpBlocked from prior — no caption body |
 | 184,576 | 1h40m26s | fail | `VDK200OHNSo` | Trading $50M At 25 Using One SIMPLE Market Cycle Strategy (4 Stages) - | not re-fetched (capacity); stub/IpBlocked from prior — no caption body |
 | 169,465 | 57m14s | yes | `mDNcx2Dhhms` | STEAL This $100 Million Dollar Trading Strategy (Used by Market Wizard | not re-fetched (capacity); stub/IpBlocked from prior — no caption body |
 | 167,098 | 1h00m54s | yes | `8HxT9WQ-uD0` | Master The Mental Game of Trading In 60 Minutes (STOP TILT/FOMO) | not re-fetched (capacity); stub/IpBlocked from prior — no caption body |
-| 162,291 | 1h13m29s | fail | `UIGZtoGGPH4` | If You Only Watch One ICT Trading Video, Make It This (LIVE Trading) | not re-fetched (capacity); stub/IpBlocked from prior — no caption body |
+| 162,291 | 1h13m29s | yes | `UIGZtoGGPH4` | If You Only Watch One ICT Trading Video, Make It This (LIVE Trading) | not re-fetched (capacity); stub/IpBlocked from prior — no caption body |
 | 158,828 | 2h42m09s | fail | `xl4QHqlBCfk` | STEAL This Trading Champion’s Exact Strategy - Math Based Models for P | not re-fetched (capacity); stub/IpBlocked from prior — no caption body |
 | 157,881 | 1h25m00s | fail | `TyHTEtArsS4` | Master ALGO Trading In Less Than 90 Minutes (NO Coding) / $1M+ Profits | not re-fetched (capacity); stub/IpBlocked from prior — no caption body |
 | 156,135 | 1h22m07s | fail | `nMhywubR2xc` | STEAL This 7 Figure Liquidity HACK for Your Trading (Any Asset & Timef | not re-fetched (capacity); stub/IpBlocked from prior — no caption body |
 | 128,365 | 2h29m41s | fail | `35cyqDz-ej8` | STEAL This INSANE 1-Minute Market Maker Trading Strategy (75% Win Rate | not re-fetched (capacity); stub/IpBlocked from prior — no caption body |
 | 116,897 | 1h11m55s | fail | `_wpg45NdMkM` | 20 Years Of Institutional Trading Knowledge In 70 Minutes ($20M+ AUM) | not re-fetched (capacity); stub/IpBlocked from prior — no caption body |
-| 116,054 | 1h06m40s | fail | `9D9ck-ZI6V0` | Trading Made SIMPLE - Use These 3 Specific Steps To Master Any Market | not re-fetched (capacity); stub/IpBlocked from prior — no caption body |
+| 116,054 | 1h06m40s | yes | `9D9ck-ZI6V0` | Trading Made SIMPLE - Use These 3 Specific Steps To Master Any Market | not re-fetched (capacity); stub/IpBlocked from prior — no caption body |
 | 110,130 | 2h09m41s | fail | `70UtrLU6RAg` | Verified $5M+ Trader: LIVE Trading Using His EXACT Strategy | not re-fetched (capacity); stub/IpBlocked from prior — no caption body |
 | 93,733 | 46m28s | yes | `EZ_L7zovyrw` | COPY These 3 Simple Steps To Master The TREND Trading Futures - Anthon | not re-fetched (capacity); stub/IpBlocked from prior — no caption body |
 | 87,119 | 1h38m39s | fail | `4BgkLlwgpvo` | Wall Street's EXACT Formula To Measure FEAR In The Markets (Trade This | not re-fetched (capacity); stub/IpBlocked from prior — no caption body |
@@ -229,9 +229,9 @@ Status: `yes` = caption text on disk; `fail` = attempted, no caption body; `part
 | 76,895 | 2h05m41s | fail | `2Ug0jyDvoek` | Simple ONE Candle Trading Strategy Thats Profited Millions (80%+ Win R | not re-fetched (capacity); stub/IpBlocked from prior — no caption body |
 | 74,264 | 2h17m11s | fail | `SInAfwX3X3A` | Copy this Complete In-Depth 85%+ Win Rate Short Trading Strategy - US  | not re-fetched (capacity); stub/IpBlocked from prior — no caption body |
 | 66,591 | 1h45m07s | fail | `KkTTCKr-3Ew` | Pass Prop Firms Using This ICT & Orderflow Futures Trading Strategy ($ | not re-fetched (capacity); stub/IpBlocked from prior — no caption body |
-| 47,942 | 1h12m14s | fail | `EcTRlLYvhXU` | COPY The BEST Gap Up Short Trading Strategy That Has Made Millions (Pr | not re-fetched (capacity); stub/IpBlocked from prior — no caption body |
+| 47,942 | 1h12m14s | yes | `EcTRlLYvhXU` | COPY The BEST Gap Up Short Trading Strategy That Has Made Millions (Pr | not re-fetched (capacity); stub/IpBlocked from prior — no caption body |
 
-**Counts:** yes=27 · fail=20 · partial=0 · catalogued=47  
+**Counts:** yes=31 · fail=16 · partial=0 · catalogued=47  
 **Phase-3:** captions still blocked · **Phase-3B–3J:** 17 promoted to yes via ASR (through Okala `jsUTbjwpFVk`)
 
 ### Retry tomorrow (do not drop)
