@@ -2,14 +2,25 @@
   "meta": {
     "source": "mock",
     "placeholder": true,
-    "asOf": "2026-09-01T14:10:00+05:30",
-    "note": "UI-only mock. No live strategy. No DhanHQ calls from the browser. Not a fill. Not advice."
+    "asOf": "2026-09-06T18:30:00+05:30",
+    "note": "UI MOCK paper desk. No live strategy. No Dhan from browser. Not a fill. Not advice. Confidence \u2260 win rate.",
+    "label": "MOCK",
+    "waiting_demo": "Set any signal.side to HOLD to show WAITING FOR NEXT SIGNAL empty window."
   },
-  "underlyings": ["NIFTY", "BANKNIFTY", "SENSEX"],
+  "underlyings": [
+    "NIFTY",
+    "BANKNIFTY",
+    "SENSEX"
+  ],
   "sentiment": {
     "source": "mock",
     "note": "Mock fusion placeholder. Not an indicator readout.",
-    "windows": ["1h", "30m", "15m", "10m"],
+    "windows": [
+      "1h",
+      "30m",
+      "15m",
+      "10m"
+    ],
     "byUnderlying": {
       "NIFTY": {
         "1h": "BEARISH",
@@ -34,14 +45,14 @@
   "cas": {
     "source": "mock",
     "label": "Close auction / cash bias",
-    "note": "Mock. Official CAS is NSE/BSE Closing Auction Session (15:15–15:35 IST) for F&O cash names. Not a live tape. Not a win rate.",
+    "note": "Mock. Official CAS is NSE/BSE Closing Auction Session (15:15\u201315:35 IST) for F&O cash names. Not a live tape. Not a win rate.",
     "asOf": "2026-09-01T15:22:00+05:30",
     "layer": "UNVALIDATED",
     "byUnderlying": {
       "NIFTY": {
         "bias": "SIDEWAYS",
         "confidence": 0.2,
-        "headline": "No live auction book in mock — SIDEWAYS until IEP / indicative index exists.",
+        "headline": "No live auction book in mock \u2014 SIDEWAYS until IEP / indicative index exists.",
         "asOf": "2026-09-01T15:22:00+05:30",
         "layer": "UNVALIDATED"
       },
@@ -64,53 +75,105 @@
   "todaysBook": {
     "source": "mock",
     "label": "MOCK",
-    "sessionDate": "2026-09-01",
-    "note": "Mock ledger. Not live P/L. Not production marks.",
+    "sessionDate": "2026-09-06",
+    "note": "Mock paper ledger only. Cumulative points / win% are PAPER \u2014 not confidence, not live P/L.",
     "summary": {
       "customerTaken": 1,
       "platformShadow": 2,
       "openTickets": 1,
+      "closedCount": 3,
+      "winCount": 2,
+      "winPct": 66.7,
       "pointsCaptured": 226
     },
+    "ledger_schema_note": "Fields align with teams/07_coding/docs/ASTRA_DASHBOARD_REVIEW.md nightly ledger list.",
     "rows": [
       {
         "id": "book-nifty-am",
+        "signal_id": "mock-nifty-am",
+        "trade_id": "paper-nifty-am",
+        "timeIst": "10:22",
         "underlying": "NIFTY",
         "side": "BUY_PE",
         "strike": 24750,
+        "spot": 24782,
+        "entry": 88,
+        "stop": 55,
+        "target": 145,
+        "lots": 1,
         "points": 24,
         "result": "WIN",
+        "outcome": "success",
+        "displayed_status": "TARGET HIT",
+        "raw_status": "ACHIEVED",
         "path": "CUSTOMER",
+        "mode": "MOCK",
         "note": "Mock closed ticket taken by the customer."
       },
       {
         "id": "book-nifty-live",
+        "signal_id": "mock-nifty-001",
+        "trade_id": "paper-nifty-open",
+        "timeIst": "13:40",
         "underlying": "NIFTY",
         "side": "BUY_PE",
         "strike": 24850,
+        "spot": 24840,
+        "entry": 95,
+        "stop": 62,
+        "target": 155,
+        "lots": 1,
         "points": 18.5,
         "result": "OPEN",
+        "outcome": "open",
+        "displayed_status": "IN-PROGRESS",
+        "raw_status": "IN-PROGRESS",
         "path": "OPEN",
+        "mode": "MOCK",
         "note": "Mock open ticket. Marks are placeholders."
       },
       {
         "id": "book-bn-shadow",
+        "signal_id": "mock-banknifty-001",
+        "trade_id": "paper-bn-shadow",
+        "timeIst": "11:05",
         "underlying": "BANKNIFTY",
         "side": "BUY_PE",
         "strike": 51000,
+        "spot": 50920,
+        "entry": 410,
+        "stop": 290,
+        "target": 640,
+        "lots": 1,
         "points": 230,
         "result": "WIN",
+        "outcome": "success",
+        "displayed_status": "TARGET HIT",
+        "raw_status": "ACHIEVED",
         "path": "SHADOW",
+        "mode": "MOCK",
         "note": "Customer skipped. Platform shadow-papered to target."
       },
       {
         "id": "book-sx-shadow",
+        "signal_id": "mock-sensex-001",
+        "trade_id": "paper-sx-shadow",
+        "timeIst": "12:18",
         "underlying": "SENSEX",
         "side": "BUY_CE",
         "strike": 81000,
+        "spot": 80880,
+        "entry": 240,
+        "stop": 165,
+        "target": 390,
+        "lots": 1,
         "points": -28,
         "result": "LOSS",
+        "outcome": "loss",
+        "displayed_status": "INVALIDATED",
+        "raw_status": "INVALIDATED",
         "path": "SHADOW",
+        "mode": "MOCK",
         "note": "Customer skipped. Platform marked the withdrawn path."
       }
     ]
@@ -126,8 +189,8 @@
       "target": 155,
       "expiry": "placeholder",
       "customer": {
-        "headline": "Put ticket live — you decide",
-        "note": "Strike and levels issued. Ticket stays IN-PROGRESS until the path closes. Not a fill. Not advice. Orders refused."
+        "headline": "Put ticket live \u2014 you decide",
+        "note": "Strike and premium levels on the ticket. Index path on the chart. Not a fill. Not advice. Orders refused."
       },
       "ticket": {
         "unit": "INDEX_POINTS_PROXY",
@@ -139,18 +202,30 @@
         "band": "higher_agreement",
         "label": "Higher agreement",
         "side": "BUY_PE",
-        "eligible_count": 1,
+        "eligible_count": 2,
         "eligible": [
           {
             "mix_id": "MIX-DEFAULT-BUY",
             "label": "Session trend stack",
             "side": "BUY_PE",
             "state": "CONFIRMED",
-            "why": "Futures-style session average + trend tools agree on one side."
+            "why": "Index futures and the session trend point the same way."
+          },
+          {
+            "mix_id": "MIX-CLUB-GR",
+            "label": "Gap + expansion",
+            "side": "BUY_PE",
+            "state": "WATCH",
+            "why": "Second playbook agrees on the put side (paper)."
           }
         ],
-        "why": "Futures-style session average + trend tools agree on one side.",
-        "fairness": "This is a desk agreement score (stage + how many playbooks agree). It is NOT a win rate and NOT a promise the trade will work.",
+        "why_bullets": [
+          "Index futures and session trend agree on the put side.",
+          "Chain snapshot shows puts participating near ATM (MOCK).",
+          "No news veto on this mock ticket."
+        ],
+        "why": "Index futures and the session trend point the same way.",
+        "fairness": "Desk agreement score (stage + playbook agreement). NOT a win rate. NOT a promise the trade will work. PAPER only.",
         "customer_decide": true,
         "orders": "refused",
         "cap": 72
@@ -171,70 +246,254 @@
         }
       },
       "staged": {
-        "state": "EARLY",
-        "waiting": true,
-        "waitLabel": "Not confirmed — wait ~2 min",
+        "state": "IN-PROGRESS",
+        "waiting": false,
+        "waitLabel": "",
         "lean": "BUY_PE",
-        "headline": "PE lean before Supertrend flip",
-        "note": "Inspired by a lagged 5m Supertrend / MACD miss: impulsive tape first, lagging TA after. Mock only — not a live tape, not a reconstructed 24100 fill, not a guaranteed trade.",
-        "lights": [
+        "headline": "Paper put path open",
+        "note": "Customer surface uses honesty labels only. Tech detail behind (i)."
+      },
+      "confidenceDetail": {
+        "layer": "HYPOTHESIS",
+        "hypothesis": [
+          "MOCK: 5m trend tools lagged the impulse \u2014 used as confirm/kill only, not hero entry.",
+          "MOCK: RSI / MACD / Supertrend notes belong here, not on the ticket.",
+          "Score version: agreement_v1 \u2014 capped, uncalibrated."
+        ],
+        "liquidity": [
+          "MOCK: option premium LTP not bound \u2014 ticket uses paper premium placeholders.",
+          "Spread / depth: DATA_INSUFFICIENT on this fixture."
+        ]
+      },
+      "chart": {
+        "label": "MOCK",
+        "unit": "INDEX_POINTS",
+        "note": "Underlying NIFTY path \u2014 MOCK. Premium entry/SL/target stay on the ticket (not plotted as spot).",
+        "bars": [
           {
-            "id": "supertrend",
-            "label": "Supertrend",
-            "state": "lagging",
-            "detail": "Not flipped yet — EARLY can still show"
+            "t": 1756698300,
+            "v": 24888.65
           },
           {
-            "id": "rsi",
-            "label": "RSI",
-            "state": "leaning",
-            "detail": "Mock: weakening vs prior bar"
+            "t": 1756698360,
+            "v": 24887.7
           },
           {
-            "id": "ema9",
-            "label": "EMA 9",
-            "state": "leaning",
-            "detail": "Mock: price under EMA 9"
+            "t": 1756698420,
+            "v": 24887.15
           },
           {
-            "id": "macd",
-            "label": "MACD",
-            "state": "lagging",
-            "detail": "Cross not in yet — often after the move"
+            "t": 1756698480,
+            "v": 24887.0
+          },
+          {
+            "t": 1756698540,
+            "v": 24887.25
+          },
+          {
+            "t": 1756698600,
+            "v": 24885.9
+          },
+          {
+            "t": 1756698660,
+            "v": 24884.95
+          },
+          {
+            "t": 1756698720,
+            "v": 24884.4
+          },
+          {
+            "t": 1756698780,
+            "v": 24884.25
+          },
+          {
+            "t": 1756698840,
+            "v": 24884.5
+          },
+          {
+            "t": 1756698900,
+            "v": 24883.15
+          },
+          {
+            "t": 1756698960,
+            "v": 24882.2
+          },
+          {
+            "t": 1756699020,
+            "v": 24881.65
+          },
+          {
+            "t": 1756699080,
+            "v": 24881.5
+          },
+          {
+            "t": 1756699140,
+            "v": 24881.75
+          },
+          {
+            "t": 1756699200,
+            "v": 24880.4
+          },
+          {
+            "t": 1756699260,
+            "v": 24879.45
+          },
+          {
+            "t": 1756699320,
+            "v": 24878.9
+          },
+          {
+            "t": 1756699380,
+            "v": 24878.75
+          },
+          {
+            "t": 1756699440,
+            "v": 24879.0
+          },
+          {
+            "t": 1756699500,
+            "v": 24877.65
+          },
+          {
+            "t": 1756699560,
+            "v": 24876.7
+          },
+          {
+            "t": 1756699620,
+            "v": 24876.15
+          },
+          {
+            "t": 1756699680,
+            "v": 24876.0
+          },
+          {
+            "t": 1756699740,
+            "v": 24876.25
+          },
+          {
+            "t": 1756699800,
+            "v": 24874.9
+          },
+          {
+            "t": 1756699860,
+            "v": 24873.95
+          },
+          {
+            "t": 1756699920,
+            "v": 24873.4
+          },
+          {
+            "t": 1756699980,
+            "v": 24873.25
+          },
+          {
+            "t": 1756700040,
+            "v": 24873.5
+          },
+          {
+            "t": 1756700100,
+            "v": 24872.15
+          },
+          {
+            "t": 1756700160,
+            "v": 24871.2
+          },
+          {
+            "t": 1756700220,
+            "v": 24870.65
+          },
+          {
+            "t": 1756700280,
+            "v": 24870.5
+          },
+          {
+            "t": 1756700340,
+            "v": 24870.75
+          },
+          {
+            "t": 1756700400,
+            "v": 24869.4
+          },
+          {
+            "t": 1756700460,
+            "v": 24868.45
+          },
+          {
+            "t": 1756700520,
+            "v": 24867.9
+          },
+          {
+            "t": 1756700580,
+            "v": 24867.75
+          },
+          {
+            "t": 1756700640,
+            "v": 24868.0
+          },
+          {
+            "t": 1756700700,
+            "v": 24866.65
+          },
+          {
+            "t": 1756700760,
+            "v": 24865.7
+          },
+          {
+            "t": 1756700820,
+            "v": 24865.15
+          },
+          {
+            "t": 1756700880,
+            "v": 24865.0
+          },
+          {
+            "t": 1756700940,
+            "v": 24865.25
+          },
+          {
+            "t": 1756701000,
+            "v": 24863.9
+          },
+          {
+            "t": 1756701060,
+            "v": 24862.95
+          },
+          {
+            "t": 1756701120,
+            "v": 24862.4
+          },
+          {
+            "t": 1756701180,
+            "v": 24862.25
+          },
+          {
+            "t": 1756701240,
+            "v": 24862.5
+          },
+          {
+            "t": 1756701300,
+            "v": 24861.15
+          },
+          {
+            "t": 1756701360,
+            "v": 24860.2
+          },
+          {
+            "t": 1756701420,
+            "v": 24859.65
+          },
+          {
+            "t": 1756701480,
+            "v": 24859.5
           }
         ],
-        "factors": [
-          {
-            "id": "news_bias",
-            "label": "News bias",
-            "on": true,
-            "detail": "Mock RISK_OFF overlay"
-          },
-          {
-            "id": "chain_oi",
-            "label": "Chain OI",
-            "on": true,
-            "detail": "Mock PE buildup near ATM"
-          },
-          {
-            "id": "pa_candle",
-            "label": "PA candle",
-            "on": true,
-            "detail": "Mock impulsive red (5m)"
-          },
-          {
-            "id": "supertrend",
-            "label": "Supertrend",
-            "on": false,
-            "detail": "Still waiting for flip"
-          },
-          {
-            "id": "macd",
-            "label": "MACD",
-            "on": false,
-            "detail": "No histogram cross yet"
-          }
-        ]
+        "overlays": {
+          "signalAt": 1756699980,
+          "signalPrice": 24873.25,
+          "entrySpot": 24840,
+          "stopSpot": 24895,
+          "targetSpot": 24755
+        }
       }
     },
     "BANKNIFTY": {
@@ -247,7 +506,7 @@
       "target": 640,
       "expiry": "placeholder",
       "customer": {
-        "headline": "Target hit — ticket closed",
+        "headline": "Target hit \u2014 ticket closed",
         "note": "Was live; mock target 640 printed. A return from lunch shows ACHIEVED, not an open ticket. Not advice."
       },
       "systemOutcome": {
@@ -257,7 +516,7 @@
       "lifecycle": {
         "outcome": "ACHIEVED",
         "priorStage": "CONFIRMED",
-        "headline": "Target hit — paper path closed",
+        "headline": "Target hit \u2014 paper path closed",
         "note": "Was CONFIRMED; mock target 640 printed. A customer back from lunch should see ACHIEVED, not a live CONFIRMED ticket. Not advice.",
         "closedAt": "2026-09-01T13:42:00+05:30",
         "shadowPaper": {
@@ -295,7 +554,7 @@
             "id": "macd",
             "label": "MACD",
             "state": "confirm",
-            "detail": "Mock: cross in — later than EARLY"
+            "detail": "Mock: cross in \u2014 later than EARLY"
           }
         ],
         "factors": [
@@ -330,6 +589,242 @@
             "detail": "Cross was in"
           }
         ]
+      },
+      "confidence": {
+        "score_pct": 48,
+        "band": "moderate",
+        "label": "Closed \u2014 target",
+        "eligible": [],
+        "why_bullets": [
+          "Paper target printed on the mock path.",
+          "Historical paper result only \u2014 not a forecast."
+        ],
+        "fairness": "Agreement score archived with the ticket. Not a win rate."
+      },
+      "confidenceDetail": {
+        "hypothesis": [
+          "MOCK closed path. Indicator confirm was after the lean."
+        ],
+        "liquidity": [
+          "MOCK premium marks \u2014 not live fills."
+        ]
+      },
+      "chart": {
+        "label": "MOCK",
+        "unit": "INDEX_POINTS",
+        "note": "BANKNIFTY MOCK path with target-hit exit marker.",
+        "bars": [
+          {
+            "t": 1756698300,
+            "v": 51198.0
+          },
+          {
+            "t": 1756698360,
+            "v": 51196.4
+          },
+          {
+            "t": 1756698420,
+            "v": 51195.2
+          },
+          {
+            "t": 1756698480,
+            "v": 51194.4
+          },
+          {
+            "t": 1756698540,
+            "v": 51194.0
+          },
+          {
+            "t": 1756698600,
+            "v": 51192.0
+          },
+          {
+            "t": 1756698660,
+            "v": 51190.4
+          },
+          {
+            "t": 1756698720,
+            "v": 51189.2
+          },
+          {
+            "t": 1756698780,
+            "v": 51188.4
+          },
+          {
+            "t": 1756698840,
+            "v": 51188.0
+          },
+          {
+            "t": 1756698900,
+            "v": 51186.0
+          },
+          {
+            "t": 1756698960,
+            "v": 51184.4
+          },
+          {
+            "t": 1756699020,
+            "v": 51183.2
+          },
+          {
+            "t": 1756699080,
+            "v": 51182.4
+          },
+          {
+            "t": 1756699140,
+            "v": 51182.0
+          },
+          {
+            "t": 1756699200,
+            "v": 51180.0
+          },
+          {
+            "t": 1756699260,
+            "v": 51178.4
+          },
+          {
+            "t": 1756699320,
+            "v": 51177.2
+          },
+          {
+            "t": 1756699380,
+            "v": 51176.4
+          },
+          {
+            "t": 1756699440,
+            "v": 51176.0
+          },
+          {
+            "t": 1756699500,
+            "v": 51174.0
+          },
+          {
+            "t": 1756699560,
+            "v": 51172.4
+          },
+          {
+            "t": 1756699620,
+            "v": 51171.2
+          },
+          {
+            "t": 1756699680,
+            "v": 51170.4
+          },
+          {
+            "t": 1756699740,
+            "v": 51170.0
+          },
+          {
+            "t": 1756699800,
+            "v": 51168.0
+          },
+          {
+            "t": 1756699860,
+            "v": 51166.4
+          },
+          {
+            "t": 1756699920,
+            "v": 51165.2
+          },
+          {
+            "t": 1756699980,
+            "v": 51164.4
+          },
+          {
+            "t": 1756700040,
+            "v": 51164.0
+          },
+          {
+            "t": 1756700100,
+            "v": 51162.0
+          },
+          {
+            "t": 1756700160,
+            "v": 51160.4
+          },
+          {
+            "t": 1756700220,
+            "v": 51159.2
+          },
+          {
+            "t": 1756700280,
+            "v": 51158.4
+          },
+          {
+            "t": 1756700340,
+            "v": 51158.0
+          },
+          {
+            "t": 1756700400,
+            "v": 51156.0
+          },
+          {
+            "t": 1756700460,
+            "v": 51154.4
+          },
+          {
+            "t": 1756700520,
+            "v": 51153.2
+          },
+          {
+            "t": 1756700580,
+            "v": 51152.4
+          },
+          {
+            "t": 1756700640,
+            "v": 51152.0
+          },
+          {
+            "t": 1756700700,
+            "v": 51150.0
+          },
+          {
+            "t": 1756700760,
+            "v": 51148.4
+          },
+          {
+            "t": 1756700820,
+            "v": 51147.2
+          },
+          {
+            "t": 1756700880,
+            "v": 51146.4
+          },
+          {
+            "t": 1756700940,
+            "v": 51146.0
+          },
+          {
+            "t": 1756701000,
+            "v": 51144.0
+          },
+          {
+            "t": 1756701060,
+            "v": 51142.4
+          },
+          {
+            "t": 1756701120,
+            "v": 51141.2
+          },
+          {
+            "t": 1756701180,
+            "v": 51140.4
+          },
+          {
+            "t": 1756701240,
+            "v": 51140.0
+          }
+        ],
+        "overlays": {
+          "signalAt": 1756699500,
+          "signalPrice": 51174.0,
+          "entrySpot": 50980,
+          "stopSpot": 51240,
+          "targetSpot": 50680,
+          "exitAt": 1756700820,
+          "exitPrice": 51147.2,
+          "exitLabel": "TARGET HIT"
+        }
       }
     },
     "SENSEX": {
@@ -342,7 +837,7 @@
       "target": 390,
       "expiry": "placeholder",
       "customer": {
-        "headline": "Lean withdrawn — tape reversed",
+        "headline": "Lean withdrawn \u2014 tape reversed",
         "note": "Was an early call lean. Impulse failed. Lunch-return label is INVALIDATED, not an open ticket. Mock only, not advice."
       },
       "systemOutcome": {
@@ -352,7 +847,7 @@
       "lifecycle": {
         "outcome": "INVALIDATED",
         "priorStage": "EARLY",
-        "headline": "Lean withdrawn — tape reversed after EARLY",
+        "headline": "Lean withdrawn \u2014 tape reversed after EARLY",
         "note": "Was EARLY CE. Impulse failed; do not still show CONFIRMED. Customer back from lunch: INVALIDATED. Mock only, not advice.",
         "closedAt": "2026-09-01T12:18:00+05:30",
         "shadowPaper": {
@@ -365,7 +860,7 @@
         "waiting": false,
         "waitLabel": "",
         "lean": "BUY_CE",
-        "headline": "CE lean was early — then reversed",
+        "headline": "CE lean was early \u2014 then reversed",
         "note": "Prior stage EARLY only. Outcome is INVALIDATED so this is not a live ticket.",
         "lights": [
           {
@@ -390,7 +885,7 @@
             "id": "macd",
             "label": "MACD",
             "state": "against",
-            "detail": "Mock: no CE cross — reversal"
+            "detail": "Mock: no CE cross \u2014 reversal"
           }
         ],
         "factors": [
@@ -410,7 +905,7 @@
             "id": "pa_candle",
             "label": "PA candle",
             "on": false,
-            "detail": "Mock: impulse reclaimed — reversal"
+            "detail": "Mock: impulse reclaimed \u2014 reversal"
           },
           {
             "id": "supertrend",
@@ -425,6 +920,219 @@
             "detail": "Did not confirm"
           }
         ]
+      },
+      "confidence": {
+        "score_pct": 22,
+        "band": "low",
+        "label": "Invalidated",
+        "eligible": [],
+        "why_bullets": [
+          "Lean withdrawn after the impulse failed.",
+          "Do not chase an invalidated paper path."
+        ],
+        "fairness": "Low agreement after reversal. Not a win rate."
+      },
+      "confidenceDetail": {
+        "hypothesis": [
+          "MOCK: early call lean reversed \u2014 INVALIDATED."
+        ],
+        "liquidity": [
+          "MOCK only."
+        ]
+      },
+      "chart": {
+        "label": "MOCK",
+        "unit": "INDEX_POINTS",
+        "note": "SENSEX MOCK path \u2014 lean invalidated; no live chase.",
+        "bars": [
+          {
+            "t": 1756698300,
+            "v": 81199.5
+          },
+          {
+            "t": 1756698360,
+            "v": 81199.4
+          },
+          {
+            "t": 1756698420,
+            "v": 81199.7
+          },
+          {
+            "t": 1756698480,
+            "v": 81200.4
+          },
+          {
+            "t": 1756698540,
+            "v": 81201.5
+          },
+          {
+            "t": 1756698600,
+            "v": 81201.0
+          },
+          {
+            "t": 1756698660,
+            "v": 81200.9
+          },
+          {
+            "t": 1756698720,
+            "v": 81201.2
+          },
+          {
+            "t": 1756698780,
+            "v": 81201.9
+          },
+          {
+            "t": 1756698840,
+            "v": 81203.0
+          },
+          {
+            "t": 1756698900,
+            "v": 81202.5
+          },
+          {
+            "t": 1756698960,
+            "v": 81202.4
+          },
+          {
+            "t": 1756699020,
+            "v": 81202.7
+          },
+          {
+            "t": 1756699080,
+            "v": 81203.4
+          },
+          {
+            "t": 1756699140,
+            "v": 81204.5
+          },
+          {
+            "t": 1756699200,
+            "v": 81204.0
+          },
+          {
+            "t": 1756699260,
+            "v": 81203.9
+          },
+          {
+            "t": 1756699320,
+            "v": 81204.2
+          },
+          {
+            "t": 1756699380,
+            "v": 81204.9
+          },
+          {
+            "t": 1756699440,
+            "v": 81206.0
+          },
+          {
+            "t": 1756699500,
+            "v": 81205.5
+          },
+          {
+            "t": 1756699560,
+            "v": 81205.4
+          },
+          {
+            "t": 1756699620,
+            "v": 81205.7
+          },
+          {
+            "t": 1756699680,
+            "v": 81206.4
+          },
+          {
+            "t": 1756699740,
+            "v": 81207.5
+          },
+          {
+            "t": 1756699800,
+            "v": 81207.0
+          },
+          {
+            "t": 1756699860,
+            "v": 81206.9
+          },
+          {
+            "t": 1756699920,
+            "v": 81207.2
+          },
+          {
+            "t": 1756699980,
+            "v": 81207.9
+          },
+          {
+            "t": 1756700040,
+            "v": 81209.0
+          },
+          {
+            "t": 1756700100,
+            "v": 81208.5
+          },
+          {
+            "t": 1756700160,
+            "v": 81208.4
+          },
+          {
+            "t": 1756700220,
+            "v": 81208.7
+          },
+          {
+            "t": 1756700280,
+            "v": 81209.4
+          },
+          {
+            "t": 1756700340,
+            "v": 81210.5
+          },
+          {
+            "t": 1756700400,
+            "v": 81210.0
+          },
+          {
+            "t": 1756700460,
+            "v": 81209.9
+          },
+          {
+            "t": 1756700520,
+            "v": 81210.2
+          },
+          {
+            "t": 1756700580,
+            "v": 81210.9
+          },
+          {
+            "t": 1756700640,
+            "v": 81212.0
+          },
+          {
+            "t": 1756700700,
+            "v": 81211.5
+          },
+          {
+            "t": 1756700760,
+            "v": 81211.4
+          },
+          {
+            "t": 1756700820,
+            "v": 81211.7
+          },
+          {
+            "t": 1756700880,
+            "v": 81212.4
+          },
+          {
+            "t": 1756700940,
+            "v": 81213.5
+          }
+        ],
+        "overlays": {
+          "signalAt": 1756699200,
+          "signalPrice": 81204.0,
+          "entrySpot": 81120,
+          "stopSpot": 80940,
+          "targetSpot": 81480
+        }
       }
     }
   }

@@ -1,11 +1,13 @@
 import { useEffect, useState } from "react";
 import { apiMode, fetchPaperDesk } from "./lib/signalApi.js";
 import { subscribePaperSignals } from "./lib/liveSignals.js";
+import { customerStatus, isWaitingStatus } from "./lib/status.js";
 import { Header } from "./components/Header.jsx";
 import { UnderlyingPicker } from "./components/UnderlyingPicker.jsx";
 import { MarketSentiment } from "./components/MarketSentiment.jsx";
 import { CasPanel } from "./components/CasPanel.jsx";
 import { SignalCard } from "./components/SignalCard.jsx";
+import { IndexChart } from "./components/IndexChart.jsx";
 import { TookTrade } from "./components/TookTrade.jsx";
 import { SystemOutcome } from "./components/SystemOutcome.jsx";
 import { TodaysBook } from "./components/TodaysBook.jsx";
@@ -70,9 +72,11 @@ export default function App() {
           note: live.note,
         },
         customer: { headline: live.headline, note: live.note },
-        lifecycle: {},
+        lifecycle: mockSignal.lifecycle || {},
         ticket: live.ticket,
         confidence: live.confidence,
+        chart: mockSignal.chart,
+        confidenceDetail: mockSignal.confidenceDetail,
       }
     : mockSignal;
   const sourceLabel = live
@@ -80,18 +84,30 @@ export default function App() {
     : apiMode() === "remote"
       ? "API"
       : "MOCK";
+  const status = customerStatus(signal);
+  const waiting = isWaitingStatus(status);
   const confidence =
-    signal?.confidence ||
-    live?.confidence || {
-      score_pct: 0,
-      band: "none",
-      label: "No active lean",
-      eligible: [],
-      why: "Connect live paper or wait for a lean.",
-      fairness:
-        "Agreement score only. Not a win rate. Not a fill promise. You decide.",
-    };
-  const ticket = signal?.ticket || live?.ticket || null;
+    waiting
+      ? {
+          score_pct: null,
+          band: "none",
+          label: "Waiting for next signal",
+          eligible: [],
+          why_bullets: [],
+          fairness:
+            "Agreement score only when a lean is active. Not a win rate.",
+        }
+      : signal?.confidence ||
+        live?.confidence || {
+          score_pct: 0,
+          band: "none",
+          label: "No active lean",
+          eligible: [],
+          why: "Connect live paper or wait for a lean.",
+          fairness:
+            "Agreement score only. Not a win rate. Not a fill promise. You decide.",
+        };
+  const ticket = waiting ? null : signal?.ticket || live?.ticket || null;
 
   if (error) {
     return (
@@ -113,10 +129,16 @@ export default function App() {
   }
 
   const sentiment = desk.sentiment?.byUnderlying?.[underlying] || {};
+  const chart = signal.chart || desk.charts?.[underlying] || null;
 
   return (
-    <div className="shell">
-      <Header sourceLabel={sourceLabel} onInfo={() => setLegendOpen(true)} />
+    <div className="shell shell--customer">
+      <Header
+        sourceLabel={sourceLabel}
+        onInfo={() => setLegendOpen(true)}
+        title="Paper desk"
+        sub="One suggested ticket · MOCK / PAPER · not advice · orders refused"
+      />
 
       <UnderlyingPicker
         underlyings={desk.underlyings}
@@ -124,36 +146,42 @@ export default function App() {
         onChange={handleUnderlying}
       />
 
-      <MarketSentiment
-        windows={desk.sentiment?.windows}
-        values={sentiment}
-        source={desk.sentiment?.source || desk.meta?.source}
-      />
-
-      <CasPanel cas={desk.cas} underlying={underlying} />
-
       <SignalCard
         signal={signal}
         confidence={confidence}
         ticket={ticket}
       />
 
-      <div className="desk-split">
-        <TookTrade
-          value={tookTrade}
-          onChange={setTookTrade}
-          fill={userFill}
-          onFillChange={handleFill}
-        />
-        <SystemOutcome
-          tookTrade={tookTrade}
-          outcome={signal.systemOutcome}
-          lifecycle={signal.lifecycle}
-          userFill={userFill}
-        />
-      </div>
+      <IndexChart chart={chart} signal={signal} status={status} />
+
+      {!waiting && (
+        <div className="desk-split">
+          <TookTrade
+            value={tookTrade}
+            onChange={setTookTrade}
+            fill={userFill}
+            onFillChange={handleFill}
+          />
+          <SystemOutcome
+            tookTrade={tookTrade}
+            outcome={signal.systemOutcome}
+            lifecycle={signal.lifecycle}
+            userFill={userFill}
+          />
+        </div>
+      )}
 
       <TodaysBook book={desk.todaysBook} />
+
+      <details className="desk-context">
+        <summary>Desk context (sentiment · close auction) — not the ticket</summary>
+        <MarketSentiment
+          windows={desk.sentiment?.windows}
+          values={sentiment}
+          source={desk.sentiment?.source || desk.meta?.source}
+        />
+        <CasPanel cas={desk.cas} underlying={underlying} />
+      </details>
 
       <p className="as-of muted">
         As of {desk.meta?.asOf ?? "—"} · {desk.meta?.note}
@@ -161,11 +189,6 @@ export default function App() {
 
       <Disclaimer />
       <LegendDialog open={legendOpen} onClose={() => setLegendOpen(false)} />
-
-      {/* TODO(charts): optional premium / spot panel beside levels — later. */}
-      {/* TODO(signals): stack more than one active signal on this desk. */}
-      {/* TODO(api): GET /paper/signal should include sentiment + todaysBook + customer copy. */}
-      {/* TODO(jobs): recon job stamps lifecycle.outcome — not live Dhan from this UI. */}
     </div>
   );
 }

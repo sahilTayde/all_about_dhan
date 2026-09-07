@@ -721,6 +721,160 @@ a {
   background: #171a1d;
 }
 
+.status-pill--newsignal {
+  color: var(--watch);
+  border-color: #6b5a1e;
+  background: #1c180c;
+}
+
+.status-pill--newentry {
+  color: var(--confirmed);
+  border-color: #1f5a40;
+  background: #0f1f18;
+}
+
+.status-pill--donotenter {
+  color: var(--early);
+  border-color: #6b3a14;
+  background: #22150c;
+}
+
+.status-pill--stoplosshit {
+  color: var(--stopped);
+  border-color: #6b4423;
+  background: #241910;
+}
+
+.status-pill--targethit {
+  color: var(--achieved);
+  border-color: #1a5a52;
+  background: #0e1f1d;
+}
+
+.status-pill--tradecompleted {
+  color: var(--sideways);
+  border-color: #4a5563;
+  background: #151a20;
+}
+
+.status-pill--waitingfornextsignal {
+  color: var(--ink-soft);
+  border-color: var(--line-strong);
+  background: var(--surface-2);
+}
+
+.signal-card--waiting {
+  min-height: 12rem;
+  display: grid;
+  align-content: center;
+}
+
+.signal-card__empty {
+  padding: 1.25rem 0.25rem 0.5rem;
+  text-align: center;
+}
+
+.signal-card__wait-title {
+  margin: 0 0 0.55rem;
+  font-size: clamp(1.05rem, 2.2vw, 1.35rem);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+
+.signal-card__lot {
+  margin: 0.35rem 0 0;
+  font-size: 0.82rem;
+}
+
+.confidence-box__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.confidence-box__paper {
+  margin-left: 0.35rem;
+  font-size: 0.72rem;
+  letter-spacing: 0.12em;
+  vertical-align: middle;
+  color: var(--ink-soft);
+  font-weight: 650;
+}
+
+.confidence-detail {
+  margin-top: 0.85rem;
+  padding: 0.65rem 0.7rem;
+  border: 1px dashed var(--line-strong);
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.18);
+  font-size: 0.84rem;
+}
+
+.confidence-detail__layer {
+  margin: 0 0 0.35rem;
+  font-size: 0.68rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.confidence-detail ul {
+  margin: 0.4rem 0 0;
+  padding-left: 1.1rem;
+}
+
+.index-chart__note {
+  margin: 0 0 0.45rem;
+}
+
+.index-chart__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem 1rem;
+  margin: 0 0 0.55rem;
+  font-size: 0.78rem;
+}
+
+.index-chart__canvas {
+  width: 100%;
+  min-height: 280px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: linear-gradient(180deg, rgba(16, 21, 28, 0.9), rgba(11, 14, 19, 0.95));
+}
+
+.desk-context {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  padding: 0.55rem 0.85rem 0.85rem;
+}
+
+.desk-context > summary {
+  cursor: pointer;
+  list-style: none;
+  font-size: 0.72rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  padding: 0.35rem 0;
+}
+
+.desk-context > summary::-webkit-details-marker {
+  display: none;
+}
+
+.desk-context[open] > summary {
+  margin-bottom: 0.65rem;
+  color: var(--accent);
+}
+
+.shell--customer {
+  max-width: 1120px;
+}
+
 /* Sentiment */
 .sentiment__hint {
   margin: 0 0 0.65rem;

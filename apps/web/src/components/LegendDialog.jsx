@@ -38,9 +38,10 @@ export function LegendDialog({ open, onClose }) {
         </div>
         <p className="muted">
           Color is paired with a word. Status is not a fill and not advice.
+          Confidence is agreement, not a win rate. MOCK / PAPER only.
         </p>
 
-        <h3 className="legend-dialog__sub">Ticket status</h3>
+        <h3 className="legend-dialog__sub">Ticket status (customer honesty)</h3>
         <ul className="legend-list">
           {STATE_LEGEND.map((row) => (
             <li key={row.id}>

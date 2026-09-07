@@ -165,6 +165,7 @@ Rate limits: `packages/dhan-client/docs/RATE_LIMITS.md`
 **Study notes:** [`ADOPT_TRADINGAGENTS.md`](ADOPT_TRADINGAGENTS.md)  
 **Market-hours plan:** [`PLAN_MARKET_HOURS_PAPER_AGENTS.md`](PLAN_MARKET_HOURS_PAPER_AGENTS.md)  
 **Astra review (gpt-6-astra + gpt-4o, paper-today):** [`open_ai_astra_review.md`](open_ai_astra_review.md) · runbook [`PAPER_MARKET_HOURS_RUNBOOK.md`](PAPER_MARKET_HOURS_RUNBOOK.md)  
+**Customer `/` dashboard UX (Astra `APPROVE_WITH_GUARDRAILS`):** [`../../07_coding/docs/ASTRA_DASHBOARD_REVIEW.md`](../../07_coding/docs/ASTRA_DASHBOARD_REVIEW.md) — ticket + index chart + confidence (i) + paper book; `lightweight-charts` installed once under `apps/web` (do **not** restart npm until asked; `npm run build` verified)  
 **Market-hours council:** [`OPENAI_MARKET_HOURS_PAPER_COUNCIL_2026-09-06.md`](OPENAI_MARKET_HOURS_PAPER_COUNCIL_2026-09-06.md) (`gpt-5.4` + desk; `APPROVE_WITH_GUARDRAILS`)  
 **Design council (TradingAgents deepen):** [`OPENAI_DESIGN_COUNCIL_2026-09-06.md`](OPENAI_DESIGN_COUNCIL_2026-09-06.md) (`gpt-5.4` + desk; `APPROVE_WITH_GUARDRAILS`)  
 **Package:** `packages/trading_agents_india` — personas + chain watcher + handoffs + IST poll loop + `mode=PAPER|LIVE` (LIVE refuses); market-hours soft-defaults LLM when key + desk/news; `--live-chain` opt-in; bounded `agent_rag` in LLM prompts  

@@ -1,10 +1,37 @@
 # Handoff log — Team 07 Coding
 
-## As of now (2026-09-06) — ticket layout + confidence box on `/`
+## As of now (2026-09-06) — customer `/` paper dashboard (Astra UX)
 
-Signal card + right confidence box. Live paper attaches strike/entry/stop/target when CONFIRMED. Orders refused. Do not restart npm until asked.
+Single-ticket hero + index chart (`lightweight-charts`) + confidence rail + paper book. MOCK/PAPER only. Orders refused. `npm install` once for chart dep — do not restart npm until asked.
 
 Newest first.
+
+---
+
+```text
+From:     teams/07_coding
+To:       00 / 05 / 09
+Date:     2026-09-06
+Status:   customer paper dashboard MOCK / NOT RESEARCH_READY
+Gate:     No live orders. Do not restart npm until asked.
+
+Summary:
+Astra+desk APPROVE_WITH_GUARDRAILS. Honesty labels on `/`.
+Index chart (index units only). Confidence (i) = HYPOTHESIS detail.
+Paper book + ledger field list for nightly review.
+Sentiment/CAS collapsed below ticket.
+
+Artifacts:
+- teams/07_coding/docs/ASTRA_DASHBOARD_REVIEW.md
+- apps/web/src/components/IndexChart.jsx
+- apps/web/src/components/{SignalCard,ConfidenceBox,TodaysBook}.jsx
+- apps/web/public/mock/{signal,paper_agents}.json
+- apps/web package: lightweight-charts@4.2.1
+
+Ledger fields (nightly later):
+signal_id, trade_id, raw_status, displayed_status, spot, entry/SL/target premium,
+lots=1 PAPER, realized_points, outcome, confidence_score, is_mock, execution_mode=PAPER
+```
 
 ---
 

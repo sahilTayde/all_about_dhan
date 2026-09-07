@@ -3,14 +3,15 @@
     "source": "mock",
     "placeholder": true,
     "label": "PAPER",
-    "asOf": "2026-09-06T23:45:00+00:00",
-    "note": "Read-only seed for a future /desk paper-agents panel. Not a live wire. Not a fill. Not a promote. Confidence ≠ win rate. Astra review: teams/00_orchestrator/docs/open_ai_astra_review.md"
+    "asOf": "2026-09-06T23:55:00+00:00",
+    "note": "Seed for /desk paper-agents + customer book shape. Not a live wire. Not a fill. Not a promote. Confidence ≠ win rate. UX: teams/07_coding/docs/ASTRA_DASHBOARD_REVIEW.md"
   },
   "phase_status": {
     "desk_wire": "CLOSED_THIS_PHASE",
+    "customer_slash": "MOCK wired — ticket + chart + confidence + paper book",
     "use_cli": "python -m trading_agents_india market-hours --simulate --max-ticks 2",
     "runbook": "teams/00_orchestrator/docs/PAPER_MARKET_HOURS_RUNBOOK.md",
-    "backlog": "UI-DESK-PAPER-AGENTS — wire persona board / blotter on /desk when asked"
+    "backlog": "UI-DESK-PAPER-AGENTS — wire persona board when asked"
   },
   "session": {
     "mix": "MIX-TA-MARKET-HOURS",
@@ -27,27 +28,58 @@
   "underlyings": ["NIFTY", "BANKNIFTY", "SENSEX"],
   "last_leans": {
     "NIFTY": {
-      "lean": "HOLD",
-      "stage": "WATCH",
+      "lean": "BUY_PE",
+      "stage": "IN-PROGRESS",
+      "displayed_status": "IN-PROGRESS",
       "layer": "HYPOTHESIS",
-      "note": "Mock seed — replace from paper ledger / session JSON later"
+      "note": "Mock seed aligned with apps/web/public/mock/signal.json"
     },
     "BANKNIFTY": {
-      "lean": "HOLD",
-      "stage": "WATCH",
+      "lean": "BUY_PE",
+      "stage": "ACHIEVED",
+      "displayed_status": "TARGET HIT",
       "layer": "HYPOTHESIS",
-      "note": "Mock seed — replace from paper ledger / session JSON later"
+      "note": "Mock closed target"
     },
     "SENSEX": {
       "lean": "HOLD",
-      "stage": "VETOED",
+      "stage": "INVALIDATED",
+      "displayed_status": "INVALIDATED",
       "layer": "HYPOTHESIS",
-      "note": "Mock NEWS_DAY-style hold; not live tape"
+      "note": "Mock withdrawn lean"
     }
   },
+  "paper_ledger_fields": [
+    "signal_id",
+    "trade_id",
+    "raw_status",
+    "displayed_status",
+    "signal_at",
+    "simulated_fill_at",
+    "simulated_exit_at",
+    "timezone",
+    "underlying",
+    "strike",
+    "side",
+    "lot_count",
+    "spot_at_entry",
+    "entry_premium",
+    "stop_premium",
+    "target_premium",
+    "exit_premium",
+    "exit_reason",
+    "realized_points",
+    "outcome",
+    "confidence_score",
+    "reason_snapshot",
+    "data_as_of",
+    "is_mock",
+    "execution_mode"
+  ],
   "honesty": [
     "Synthetic fixture — not current market observation",
     "KEEP_ALL STRAT-001–014",
-    "No live orders"
+    "No live orders",
+    "Paper win% ≠ confidence"
   ]
 }

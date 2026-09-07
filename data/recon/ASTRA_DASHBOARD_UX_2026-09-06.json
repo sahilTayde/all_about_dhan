@@ -1,0 +1,110 @@
+{
+  "model": "gpt-6-astra",
+  "gaps": [],
+  "last_error": null,
+  "response": {
+    "verdict": "APPROVE_WITH_GUARDRAILS",
+    "layout": {
+      "hero": "SOURCE_FACT: Preserve the dark desk system, existing typography and restrained gold accents. Make one suggested PAPER ticket the primary task: index, expiry, strike, CE/PE BUY, lifecycle status, entry/limit, SL, target and 1 lot paper. Place the underlying chart beside or immediately below it, with confidence in the right rail. Any interaction must say PAPER and must not route live orders.",
+      "deprioritize": [
+        "Remove sentiment/CAS panels from above the ticket.",
+        "Move strategy names, indicators and technical diagnostics into optional detail.",
+        "Place today's paper book below the ticket/chart workspace.",
+        "Avoid competing signal cards, promotional performance claims and purple AI styling."
+      ],
+      "empty_state": "Show exactly WAITING FOR NEXT SIGNAL when no eligible suggested ticket or active paper trade exists. Leave the signal window otherwise empty; remove stale ticket values, confidence and trade overlays. A retained background chart must remain labeled PAPER / MOCK as applicable."
+    },
+    "status_map": {
+      "WATCH": "NEW SIGNAL",
+      "EARLY": "DO NOT ENTER",
+      "CONFIRMED": "NEW ENTRY",
+      "IN-PROGRESS": "IN-PROGRESS",
+      "VETOED": "DO NOT ENTER",
+      "STOPPED": "STOP LOSS HIT",
+      "ACHIEVED": "TARGET HIT",
+      "EXPIRED": "INVALIDATED",
+      "LOST": "INVALIDATED"
+    },
+    "chart": {
+      "lib": "lightweight-charts",
+      "series": "MT5-like underlying-index price path using timestamped candles or a line, with a readable price axis, crosshair and Asia/Kolkata timestamps. Use separate styling for historical price and any hypothetical annotations; do not draw a predicted continuation.",
+      "markers": [
+        "CE BUY or PE BUY at signal time; distinguish suggestion from simulated fill.",
+        "Underlying reference at signal or simulated entry time.",
+        "Underlying entry/limit, stop and target lines only when those levels are defined in underlying-price units.",
+        "Simulated exit markers labeled STOP LOSS HIT or TARGET HIT when supported by the paper ledger."
+      ],
+      "honesty": "SOURCE_FACT: PAPER only, no live orders. Label generated paths MOCK prominently. Option-premium entry/SL/target values must not be plotted against the spot-price axis; show them in the ticket or a separate premium pane. Label data source, timestamp and freshness. No invented fill markers."
+    },
+    "confidence_rail": {
+      "hero_bullets": "Show 'Signal confidence: N% \u2014 PAPER', followed by up to three plain-language reasons supported by available inputs, such as 'Price remains inside the entry zone' or 'Quote is recent'. Label simulated reasons MOCK. Add 'Model score, not a win probability'. If the score is unavailable or stale, show unavailable rather than a fabricated percentage.",
+      "info_detail": "The (i) opens 'HYPOTHESIS / PAPER \u2014 technical and liquidity detail'. Separate SOURCE_FACT inputs and timestamps from VALIDATION checks and HYPOTHESIS interpretation. Include score definition/version, freshness, spread/depth availability, fill/slippage assumptions and limitations. Strategy/indicator diagnostics belong here, not in the hero."
+    },
+    "paper_book": {
+      "columns": [
+        "Signal/trade time \u2014 IST",
+        "Index / expiry / strike / CE or PE",
+        "Lifecycle status",
+        "Paper outcome: success / loss / flat / open / no entry",
+        "Spot at entry \u2014 index points",
+        "Entry \u2014 option premium",
+        "SL \u2014 option premium",
+        "Target \u2014 option premium",
+        "Exit \u2014 option premium",
+        "Quantity \u2014 1 lot PAPER, with contract units",
+        "Realized premium points",
+        "Data mode \u2014 PAPER / MOCK"
+      ],
+      "summary": [
+        "Today's closed paper successes, losses and flats; open and unfilled signals listed separately.",
+        "Cumulative realized premium points \u2014 PAPER; MOCK when generated data contributes. State period and gross/net basis.",
+        "Paper win% = profitable closed paper trades / all closed paper trades, including flats; exclude open and unfilled tickets. Show numerator, denominator and N/A for zero closed trades.",
+        "Historical paper win% is separate from confidence and is not a forecast."
+      ],
+      "ledger_fields_for_nightly": [
+        "signal_id, trade_id, event_id, lifecycle_version",
+        "raw_status, displayed_status, transition_reason",
+        "signal_at, simulated_fill_at, simulated_exit_at, timezone",
+        "index, instrument_id, expiry, strike, option_type, side",
+        "lot_count, lot_size, quantity",
+        "spot_reference, spot_timestamp, price_unit",
+        "entry_limit, planned_stop, planned_target, simulated_entry, simulated_exit",
+        "fill_model_version, slippage_assumption, fees_assumption",
+        "exit_reason, realized_premium_points, outcome",
+        "confidence_score, score_version, reason_snapshot",
+        "data_source, data_as_of, is_mock, execution_mode=PAPER",
+        "validation_flags, correction_version, nightly_reconciliation_result"
+      ]
+    },
+    "accepted": [
+      "Single-ticket hierarchy using SignalCard, ConfidenceBox and TodaysBook.",
+      "Dark desk aesthetic with restrained gold.",
+      "Underlying chart, explainable confidence rail and auditable paper book.",
+      "Consistent customer-facing status vocabulary with PAPER/MOCK disclosures."
+    ],
+    "rejected": [
+      "Sentiment/CAS clutter above the suggested ticket.",
+      "Customer-facing STRAT names or indicator soup.",
+      "Confidence presented as future win rate.",
+      "Live-order controls, unlabeled mock data or simulated fills presented as executions.",
+      "Option-premium levels drawn directly on an underlying-price axis."
+    ],
+    "risks": [
+      "HYPOTHESIS: status_map is a conservative display proposal, not verified backend semantics. VALIDATION must confirm WATCH versus EARLY and whether CONFIRMED means entry-eligible or actually simulated-filled; NEW ENTRY must not imply a fill without one.",
+      "LOST is ambiguous. Default INVALIDATED blocks entry but must not create a realized loss. Require a reason code; verified stop exits map to STOP LOSS HIT.",
+      "EXPIRED maps to INVALIDATED only for an unfilled signal. An already-filled position requires a recorded exit and outcome, not silent invalidation.",
+      "TRADE COMPLETED is derived from reconciled paper closure when no more specific terminal label applies. Preserve stop/target outcomes in the book. WAITING FOR NEXT SIGNAL is derived from absence of an eligible ticket or active trade, not a forced one-to-one legacy mapping.",
+      "VALIDATION: missing, stale or failed data must block NEW ENTRY and expose the data issue; the empty-state message must not conceal a feed failure.",
+      "Premium points, spot points and quantity-weighted P&L are different measures. Define units before implementing summaries.",
+      "Paper fills, spread and slippage assumptions can materially inflate apparent performance; show sample size and MOCK provenance."
+    ],
+    "impl_order": [
+      "Validate lifecycle semantics, units, data provenance and paper-fill rules; add status-transition tests.",
+      "Build the single-ticket layout and exact empty state; remove above-ticket clutter.",
+      "Implement lightweight-charts with unit-safe overlays and PAPER/MOCK labels.",
+      "Add confidence reasons, unavailable/stale handling and layered information detail.",
+      "Implement ledger-backed paper book and denominator-safe summaries.",
+      "Test invalidation, expiry after fill, ambiguous LOST, feed failure, terminal-to-empty transitions and nightly reconciliation; verify no live-order path."
+    ]
+  }
+}

@@ -161,13 +161,34 @@ python -m agent_rag eod-recon --offline
 
 ---
 
+## 9. Customer `/` paper dashboard UX (Astra + desk, 2026-09-06)
+
+**Verdict:** `APPROVE_WITH_GUARDRAILS`  
+**Canonical UX:** [`teams/07_coding/docs/ASTRA_DASHBOARD_REVIEW.md`](../../07_coding/docs/ASTRA_DASHBOARD_REVIEW.md)  
+**Raw:** [`data/recon/ASTRA_DASHBOARD_UX_2026-09-06.json`](../../../data/recon/ASTRA_DASHBOARD_UX_2026-09-06.json)
+
+Agreed before / with implementation:
+
+1. **One job** — suggested PAPER ticket + index chart + right-rail confidence; empty → **WAITING FOR NEXT SIGNAL**.
+2. **No soup on hero** — STRAT / RSI / MACD / ST / VWAP / order-book detail only behind **(i)** (HYPOTHESIS/paper).
+3. **Status vocabulary** — NEW SIGNAL · NEW ENTRY · IN-PROGRESS · DO NOT ENTER · INVALIDATED · STOP LOSS HIT · TARGET HIT · TRADE COMPLETED · WAITING FOR NEXT SIGNAL (map in 07 review).
+4. **Chart** — `lightweight-charts` on **index** path; premium levels stay on ticket; MOCK/PAPER labels.
+5. **Book** — paper-only cumulative points / win%; ledger fields documented for nightly review.
+6. Sentiment / CAS **below** ticket workspace (not above). Dark desk kept; no purple AI look.
+
+Desk tweak vs Astra raw: closed `LOST` (non-stop) → **TRADE COMPLETED**, not INVALIDATED.
+
+---
+
 ## HANDOFF
 
 ```text
 HANDOFF
 From: 00 / Astra council (gpt-6-astra + gpt-4o)
 To:   07 / 05 / 06 / 09
-Accepted: Review doc; paper-today A/B/C/D/E/F/G/H + P0; LIVE refuse; KEEP_ALL; NO_PROMOTE.
-Rejected: Live orders; promote; live-chain default; EOD clears BACKTEST_REQUIRED.
+Accepted: Review doc; paper-today A/B/C/D/E/F/G/H + P0; LIVE refuse; KEEP_ALL; NO_PROMOTE;
+          §9 customer `/` UX APPROVE_WITH_GUARDRAILS + implement paper dashboard.
+Rejected: Live orders; promote; live-chain default; EOD clears BACKTEST_REQUIRED;
+          indicator soup on / hero; confidence as win rate.
 UNKNOWN: Live OPTIDX/chain quality today depends on tokens + exchange open.
 ```
