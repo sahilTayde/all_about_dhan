@@ -1,5 +1,7 @@
 # HANDOFF_TOMORROW — where we left off
 
+**Wake-up 2026-09-08:** paste [`CONTINUE_NEXT_CHAT.md`](CONTINUE_NEXT_CHAT.md) as the first message of a **new** chat. Do not reload the bootstrap thread. Body below is 2026-09-01 history.
+
 **Date:** 2026-09-01 (session end). Catalog `retrieved_at`: 2026-08-31T03:15:28Z (not re-fetched).  
 **Phase:** 0→2 overlap + Phase 6 **mock** + Phase 1 **skeleton**. SOURCE_FACT still partial. **No strategy code.** **Not** `RESEARCH_READY_FOR_PROGRAMMING`.
 

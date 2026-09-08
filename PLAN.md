@@ -12,7 +12,7 @@ Agents: read [`AGENT.md`](AGENT.md) first. **Score:** [`docs/MASTER_REQUIREMENTS
 
 **Research → Independent validation → Strategy spec → Backtest → Review → Paper UI → Live**
 
-Honest phase: **0–2 overlap** plus Phase 1 **data**, Phase 3 **paper engine** (FAIL proxy), Phase 6 **mock** + optional live paper WS. **Not** `RESEARCH_READY_FOR_PROGRAMMING`. No live orders. Proxy ratings are UNVALIDATED.
+Honest phase: **0–2 overlap** plus Phase 1 **data**, Phase 3 **paper engine** (FAIL proxy), Phase 6 **mock** + optional live paper WS. **Not** `RESEARCH_READY_FOR_PROGRAMMING`. No live orders. Proxy ratings are UNVALIDATED. **Wake-up 2026-09-08:** [`CONTINUE_NEXT_CHAT.md`](teams/00_orchestrator/docs/CONTINUE_NEXT_CHAT.md) — paper ops stopped; next track strategies (KEEP_ALL, **NO_PROMOTE**).
 
 | Phase | Name | Status |
 |-------|------|--------|

@@ -84,18 +84,19 @@ No secrets recorded here.
 ## Open first (human / frontier model)
 
 1. [`docs/MASTER_REQUIREMENTS.md`](../../../docs/MASTER_REQUIREMENTS.md)
-2. [`REVIEW_BRIEF_FOR_FRONTIER_MODEL.md`](REVIEW_BRIEF_FOR_FRONTIER_MODEL.md)
-3. [`HANDOFF_TOMORROW.md`](HANDOFF_TOMORROW.md)
-4. [`docs/SDLC.md`](../../../docs/SDLC.md)
-5. [`AGENT.md`](../../../AGENT.md)
+2. [`CONTINUE_NEXT_CHAT.md`](CONTINUE_NEXT_CHAT.md) — 2026-09-08 left-off
+3. [`REVIEW_BRIEF_FOR_FRONTIER_MODEL.md`](REVIEW_BRIEF_FOR_FRONTIER_MODEL.md)
+4. [`HANDOFF_TOMORROW.md`](HANDOFF_TOMORROW.md) — 2026-09-01 history
+5. [`docs/SDLC.md`](../../../docs/SDLC.md)
+6. [`AGENT.md`](../../../AGENT.md)
 
-Do **not** start with `npm run dev`. Do **not** treat mock dashboard numbers as marks.
+Do **not** start with `npm run dev`. Do **not** treat mock dashboard numbers as marks. Do **not** restart paper ops until asked.
 
 ---
 
 ## Next step
 
-Continue catalog `STOCK_ONLY` titles only when English appears. **Do not code strategies.** Keep DRAFT / UNVALIDATED / WAITING_FOR_EDIT. Live Dhan only after tokens + user ask.
+**2026-09-08:** strategies track when founder asks (KEEP_ALL, **NO_PROMOTE**). Wake-up: [`CONTINUE_NEXT_CHAT.md`](CONTINUE_NEXT_CHAT.md). Continue catalog `STOCK_ONLY` titles only when English appears. **Do not code live strategies.** Keep DRAFT / UNVALIDATED / WAITING_FOR_EDIT. Live Dhan only after tokens + user ask.
 
 ### Catalog counts (disk)
 

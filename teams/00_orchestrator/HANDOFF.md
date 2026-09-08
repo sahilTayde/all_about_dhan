@@ -1,5 +1,40 @@
 # Handoff log — Team 00 Orchestrator
 
+## As of now (2026-09-08) — Token-reset left-off
+
+Wake-up is [`CONTINUE_NEXT_CHAT.md`](docs/CONTINUE_NEXT_CHAT.md) — do not reload the bootstrap chat.
+
+```text
+From:     teams/00_orchestrator (boss)
+To:       04 / 06 / 07 / 09
+Date:     2026-09-08
+Status:   PHASE_PAUSE / PAPER STOPPED / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Summary:
+Accepted: PAPER market-hours gather (live chain ATM/PCR + INDEX 1m +
+  gpt-5.4-nano max_completion_tokens) on origin/main; founder stop
+  11:54 IST; paper_ops_STOPPED.flag; news gather off; orders refused;
+  KEEP_ALL; compact CONTINUE for a new chat.
+Rejected: Restart paper/npm without asking; git-add TAI sqlite; commit
+  .env; promote; live orders; STRAT-015+; reload token-heavy thread.
+UNKNOWN / DATA_INSUFFICIENT: Cloud env Save may be incomplete
+  (personal Override; re-propose bld-20260908-755da165-a259-46ed-a39d-a7f4581233c7
+  if Save is gone); EVENT_MEMORY empty; unbound STRAT DI.
+
+Artifacts:
+- origin/main @ 4edb503
+- teams/00_orchestrator/docs/CONTINUE_NEXT_CHAT.md
+- teams/00_orchestrator/docs/PAPER_MARKET_HOURS_RUNBOOK.md
+- packages/trading_agents_india hooks/chain.py + hooks/index_bars.py
+Next: strategies (KEEP_ALL, NO_PROMOTE) when founder asks. Do not
+  restart paper ops / npm until asked.
+```
+
+Newest first.
+
+---
+
 ## As of now (2026-09-06) — Closed three market-hours “still open” items
 
 Depth **PARKED/DI**, `/desk` wire **CLOSED** (CLI + mock seed), promote **NO_PROMOTE**. Still-open list empty; true backlog only.

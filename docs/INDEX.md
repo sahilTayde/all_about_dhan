@@ -34,7 +34,7 @@ Always start with [`AGENT.md`](../AGENT.md). **Morning / frontier review:** [`do
 | QA / paper checks | [`teams/08_testing/README.md`](../teams/08_testing/README.md) |
 | Five-pass + red-team before coding a strategy | [`docs/REVIEW.md`](REVIEW.md), [`teams/09_review/README.md`](../teams/09_review/README.md), postmortem [`MISSED_TRADE_POSTMORTEM.md`](../teams/09_review/docs/MISSED_TRADE_POSTMORTEM.md) |
 | **Docs vs code (Docs Auditor)** | Charter [`DOCS_AUDITOR.md`](../teams/09_review/docs/DOCS_AUDITOR.md), ticket [`TASK_DOCS_AUDITOR.md`](../teams/00_orchestrator/docs/TASK_DOCS_AUDITOR.md), latest [`AUDIT_LATEST.md`](../teams/00_orchestrator/docs/AUDIT_LATEST.md). `python -m docs_auditor` |
-| Resume tomorrow / wake-up | [`HANDOFF_TOMORROW.md`](../teams/00_orchestrator/docs/HANDOFF_TOMORROW.md) — read MASTER_REQUIREMENTS first; do not restart npm |
+| Resume / new chat | [`CONTINUE_NEXT_CHAT.md`](../teams/00_orchestrator/docs/CONTINUE_NEXT_CHAT.md) — 2026-09-08 left-off; do not reload bootstrap. History: [`HANDOFF_TOMORROW.md`](../teams/00_orchestrator/docs/HANDOFF_TOMORROW.md). Do not restart npm / paper ops |
 | Move work between teams | [`docs/HANDOFF.md`](HANDOFF.md) + the team's `HANDOFF.md` |
 | Secrets / tokens | [`docs/SECURITY.md`](SECURITY.md), [`.env.example`](../.env.example). YouTube key how-to: [`teams/01_research/youtube/README.md`](../teams/01_research/youtube/README.md) |
 | Task allocation notes | [`teams/00_orchestrator/README.md`](../teams/00_orchestrator/README.md) |

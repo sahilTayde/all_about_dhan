@@ -4,7 +4,8 @@
 **Audience:** user + frontier-model reviewer. **Do not restart `npm` until asked.**  
 **How to use:** this file is the score. Evidence lives in the linked paths. If a ticket says `DONE` but the artifact is a stub, the **row status here wins**.
 
-**Gate:** **not** `RESEARCH_READY_FOR_PROGRAMMING`. Do not place live orders. Do not invent win rates. Proxy backtest ratings are **UNVALIDATED**.
+**Gate:** **not** `RESEARCH_READY_FOR_PROGRAMMING`. Do not place live orders. Do not invent win rates. Proxy backtest ratings are **UNVALIDATED**.  
+**Wake-up (2026-09-08):** new chat starts at [`CONTINUE_NEXT_CHAT.md`](../teams/00_orchestrator/docs/CONTINUE_NEXT_CHAT.md). This sheet stays the score.
 
 Review brief: [`teams/00_orchestrator/docs/REVIEW_BRIEF_FOR_FRONTIER_MODEL.md`](../teams/00_orchestrator/docs/REVIEW_BRIEF_FOR_FRONTIER_MODEL.md).  
 SDLC: [`docs/SDLC.md`](SDLC.md). Orchestrator snapshot: [`teams/00_orchestrator/docs/STATUS.md`](../teams/00_orchestrator/docs/STATUS.md).
@@ -356,11 +357,12 @@ Research → Independent validation → Strategy spec → Backtest → Review �
 ## Open first (reviewer)
 
 1. This file.  
-2. [`REVIEW_BRIEF_FOR_FRONTIER_MODEL.md`](../teams/00_orchestrator/docs/REVIEW_BRIEF_FOR_FRONTIER_MODEL.md) — what **not** to trust.  
-3. [`AGENT.md`](../AGENT.md) — roster + golden rules.  
-4. [`teams/00_orchestrator/docs/HANDOFF_TOMORROW.md`](../teams/00_orchestrator/docs/HANDOFF_TOMORROW.md).  
-5. Then jump via [`docs/INDEX.md`](INDEX.md). **Do not scan the whole tree.**  
-6. **Do not** `npm install` / `npm run dev` until the user asks.
+2. [`CONTINUE_NEXT_CHAT.md`](../teams/00_orchestrator/docs/CONTINUE_NEXT_CHAT.md) — 2026-09-08 left-off (do not reload the bootstrap chat).  
+3. [`REVIEW_BRIEF_FOR_FRONTIER_MODEL.md`](../teams/00_orchestrator/docs/REVIEW_BRIEF_FOR_FRONTIER_MODEL.md) — what **not** to trust.  
+4. [`AGENT.md`](../AGENT.md) — roster + golden rules.  
+5. [`teams/00_orchestrator/docs/HANDOFF_TOMORROW.md`](../teams/00_orchestrator/docs/HANDOFF_TOMORROW.md) — 2026-09-01 history; wake-up is CONTINUE.  
+6. Then jump via [`docs/INDEX.md`](INDEX.md). **Do not scan the whole tree.**  
+7. **Do not** `npm install` / `npm run dev` until the user asks.
 
 ---
 
