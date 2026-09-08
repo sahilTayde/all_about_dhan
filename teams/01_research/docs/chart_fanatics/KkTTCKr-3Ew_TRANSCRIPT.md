@@ -13,8 +13,8 @@
 **Quality:** `[ASR]` — automatic speech recognition; expect name/term errors (futures jargon, proper nouns). Education ≠ edge.  
 **Timed VTT:** `DATA_INSUFFICIENT` (ASR plain text only)  
 **Layer:** `SOURCE_FACT` (ASR) — education ≠ edge. **Not** DHAN-DERIVED. **Keep separate** from `@iqcapital_io` / STRAT-001–014.  
-**Retrieved:** 2026-09-07T19:19:13Z  
-**Chars (collapsed):** 63462  
+**Retrieved:** 2026-09-07T19:31:03Z  
+**Chars (collapsed):** 63904  
 **Audio:** `data/transcripts/external_chart_fanatics/audio/KkTTCKr-3Ew.m4a`  
 **Raw ASR:** `data/transcripts/external_chart_fanatics/KkTTCKr-3Ew.asr.txt`
 
@@ -354,128 +354,138 @@ we're going to protect myself because I don't like the volume right now. I'm goi
 
 Nice, nice, nice, really nice move. I have almost $1,500 here. Let's see the pace. Yeah, I'm going to drill my stock over here. Almost secured.
 
-$1,000. We are facing a possible apex. I don't want to. I don't want to be greedy. I'm just going to close with this.
+$1,000. We are facing a possible apex. So I don't want to, I don't want to be greedy. I'm just going to close with this. It's really nice for me.
 
-It's really nice for me. It's $3,100. Let's see the volume. That last piece of volume is getting nice. But we're getting close to the point of control.
+It's $3,100. Let's see the volume. That last piece of volume is getting nice. But we're getting close to the point of control. So I'm just going to close with $14,000, $14,000.
 
-So I'm just going to close with $14,000. $14,000. That's a pretty amazing formula. So I hope you like how I use the book map and price action as a confirmation to get into a trade.
+That's a pretty amazing formula. I hope you like how I use the book map and price action as a confirmation to get into a trade. Yeah, that was my cue. He wants a trade too.
 
-Yeah, that was my cue. He wants a trade too. So thank you very much. See you tomorrow with another example. Good morning.
+So thank you very much. See you tomorrow with another example. Good morning. Today is the last day of this series. I'm today looking for a buy.
 
-Today is the last day of this series. I'm today looking for a bias. It's still an overall bullish bias. We have seen the price has respect the trend like real, real, real good on the four hours.
+It's still an overall bullish bias. We have seen the price has respect. The trend like real, real, real good on the four hours. It's respecting this trend inside the range. So I'm looking to buy
 
-It's respecting this trend inside the range. So I'm looking to buy minimum to the previous daily hike. I would love to see a distribution over this one.
+minimum to the previous daily hike. I would love to see a distribution over this one. But I know that this one and this one will be key levels and the price might go lower.
 
-But I know that this one and this one will be key levels. And the price might go lower. So I'm just looking for a nice buy setup. If the price confirms with the volume and the order flow,
+So I'm just looking for a nice buy setup if the price comes firmly with the volume and the order flow. I will take a scope at the open. What I want to see, I want to see sellers volume getting in right now.
 
-I will take a scope at the open. What I want to see, I want to see sellers volume getting in right now. If you use, if you can see, the volume delta is really low.
+If you use, if you can see, the volume delta is really low. Even though it's positive, it's not the best for a buy right now. So I want to see buyers getting in the price. I want to see the agren source flipping the puck
 
-Even though it's positive, it's not the best for a buy right now. So I want to see buyers getting in the price. I want to see the aggressors flipping the puck and then using it as a support to buy higher. I see that there is some nice levels of liquidity on the upper side.
+and then using it as a support to buy higher. I see that there's some nice levels of liquidity on the upper side. But that doesn't mean that the price cannot strip the seller side first. So I'm just going to wait until everything is aligned. So this is one of the things that I like the most about book map is that
 
-But that doesn't mean that the price cannot strip the seller's high first. So I'm just going to wait until everything is aligned. So this is one of the things that I like the most about
+it gives me the perspective of what the market is really doing on real time. So I don't have to guess. You see the open, I want to see a nice puck flip. If the buyer's volume doesn't come in, I will just wait until. See?
 
-BookMap is that it gives me the perspective of what the market is really doing on real time. So I don't have to guess. You see the open, I want to see a nice puck flip. If the buyer's volume doesn't come in,
+Now, as you know, you're seeing something, I want to see back up. See if it is still native. So let's just wait a little bit more. As I say, the price went to that buyer's liquidity like really, really fast. Let's see if it continues.
 
-I will just wait until. See? Now as we know you're seeing something, I want to see back up. See if it is still native.
+One of my entry models is break and retest. So if we can see a nice breakout, we can take a continuation towards the opposite liquidity. Okay. Now, now this is happening. Look this right here.
 
-So let's just wait a little bit more. As I say, the price went to that buyer's high liquidity like really, really fast. Let's see if it continues. One of my entry models is break and retail.
+We have a big order. Maybe it's a real order, but what I have seen in my experience, this might be as proof. It's something that is put in there just to attract or reject the price. But it's the height. You see, they just took it out before even the price went there.
 
-So if we can see a nice breakout, we can take a continuation towards the opposite liquidity. Okay. Now this is happening.
+So maybe this was some kind of inducement right there. We see a really nice breakout. So let's see if the price give us a continuation. Continuation setups are really, really nice. Really nice setup.
 
-Look at this. Right here we have a big order. Maybe it's a real order, but what I have seen in my experience, this might be as poof.
+It also might fail to displace the previous daily height. So I have to watch how you know, I don't want to get caught in the middle of a counter-volume. So right now the price hasn't given me anything yet because I see a for volume here, but it hasn't inverted it yet.
 
-It's something that is put in there just to attract or reject the price. But it's the height. You see, they just took it out before even the price went there. So maybe this was some kind of inducement right there.
+If you can see the price has, we check this song. So I cannot say that like this is an AFV, but at the same time, we have the previous daily height on the opposite. The point of control is it's without the sound. You don't want to sell towards the point of control like suicide.
 
-We see a really nice breakout. So let's see if the price give us a continuation. Continuation setups are really, really nice setup. It also might fail to displace the previous daily height.
+One interesting thing is that tomorrow is open Friday. So I was expecting the price to sell maybe to this area. Maybe to this BPR area and then buy like real strong, but I don't see any any intent right now. I don't I can figure out like what they want. So let's just wait.
 
-So I have to watch how you know, I don't want to get caught in the middle of a counter-volume. So right now the price hasn't given me anything yet. Because I see a for volume here, but it hasn't inverted it yet.
+This is the most powerful tool that the traders have. Patience. We see a pop recalculation. That means that the volume is really heavy right here. We see a pop flip.
 
-If you can see the price has, we jagged this zone. So I cannot say that like this is an AFV, but at the same time, we have the previous daily height on the opposite. So I don't know. The point of control is, it's without the sound.
+Let's see what happens. I'm gonna... I really don't trust any movement right here. We have plenty of liquidity on the upper side. So just wait.
 
-You don't want to sell towards the point of control, it's like suicide. One interesting thing is that tomorrow is open Friday. So I was expecting the price to sell maybe to this area, maybe to this, my BPR area and then buy like real strong. But I don't see any any intents right now.
+Nice volume there. That's nice, really nice volume there. Not the prices and country in the VWAP. So we are going to get into a lower low volume zone. So we might see explosive movement if it goes to the downside to this area.
 
-I can free out like what they want. So let's just wait. This is the most powerful tool that the traders have, is patience. We see a pop recalculation. That means that the volume is really heavy right here.
+Because we are still in a high volume area. We took some liquidity there. If it rejects the VWAP and invert me in this with nice volume, I might take a buy here. I don't see any buying volume right now.
 
-We see a pop flip. Let's see what happens. I really don't trust any movement right here. We have plenty of liquidity on the upper side. So just wait.
+Let's see. We need a strong, strong buying volume right now. I don't like how the CVDN, the volume, are behaving. I enter a by position here. If it keeps respecting the point of control,
 
-Nice volume there. Nice, really nice volume there. Not the prices and country in the VWAP. So we are going to get into a lower low volume zone. So we might see explosive movement if it goes to the downside to this area.
+we are just fine. But if it breaks below, it might be a close-in signal. So I'm gonna be real. Say there's nice liquidity on the upper side. So this might be a good trade.
 
-Because we are still in a high volume area. We took some liquidity there. If it rejects the VWAP and invert me in this with nice volume, I might take a buy here. But I don't see any buying volume right now. Let's see.
+And there's a low volume area. If the price goes to that area, we might see more explosive movement. The only thing that I don't like right now is the volume. It's really low. That's not good.
 
-We need a strong volume right now. I don't like how the CVDN, the volume are behaving. I enter a by position here. If it keeps respecting the point of control, we are just fine. But if it breaks below, it might be a close-in signal.
+I want to see nice volume. Buying volume. Oh, go, go. That's what I want to see. Spokesive movements
 
-So I'm going to be like real. I said, there's nice liquidity on the upper side. This might be a good trade. And there's a low volume area. If the price goes to that area, we might seem like more explosive movement.
+to the liquidity. I don't see support on the buying side. Buyers. We need buyers. We need buyers.
 
-The only thing that I don't like right now is the volume. It's really low. That's not good. Want to see nice volume. Buy in volume.
+Let's go. Let's go. I'm gonna protect this order. So I'm moving my stop loss to break even. Let's wait for it.
 
-Oh, go, go. That's what I want to see. Spokesive movement to the liquidity. I don't see support on the buying side. Buyers.
+I might trade this trade. If you're in real close to the previous day, I think. Oh, it already took it. Yeah.
 
-We need buyers. We need buyers. Let's go. Let's go. I'm going to protect this order.
+Yeah, we have to be really careful here. If we do an inversion, we might close this trade. Yeah. We need buyers right now. We need buyers.
 
-So I'm moving my stop loss to break even. That's sweet for it. I might trade this trade. If getting real close to the previous day, the liquidity will be a good trade.
+If it goes like this, this is a recent close. So it's having a lot of volume. So yeah, I'm going to close this. Yeah. It took the previous daily high and it inverted.
 
-We have to be really careful here. If we do an inversion, we might close this trade. We need buyers right now. We need buyers. If it goes like this, this is a recent close.
+So it's almost like I fell to this place. Yeah. It might go lower now. So let's see if he gives us an opportunity to sell. This is a change in stay-off delivery right here.
 
-So it's having a lot of volume. So yeah, I'm going to close this. Yeah. It took the previous day high and it inverted. So it's almost like a fail to this place.
+It's not giving us the entry. I'll go back. You're doing the first night was a real nice entry but that previous daily high was a really, really strong resistance. We have seen in the past.
 
-Yeah, it might go lower now. So let's see if it gives us an opportunity to so. This is a change in stay-off delivery right here. It's not giving us the entry. I'll go back.
+That's why when I see the recent close, I just close it. I'm not going to risk it. A park retes will be really nice. It's not that clear.
 
-You're doing it. The first night was a real nice entry, but that previous day, the high was a really, really strong resistance. We have seen in the past. That's why when I saw the recent close, I just closed it.
+The point of control just basically we recalibrate here but I don't see like selling volume. Getting in. I don't know. Let's just wait.
 
-You know, I'm not going to risk it. You know, a park retest will be really nice. It's not that clear. The point of control just, um, basically, um, we recalibrate here, but I don't see like selling volume getting in.
+It's kind of crazy but like in the last few days, Asia has behaved more clear and structural than the near session. The near session has been amassed lately. Right now it's just a piano on five minutes. The piano looked
 
-So, I don't know. Let's just wait. It's kind of crazy, but like in the last few days, Asia has behaved more, more clear and structural than the near session. The near session has been amassed lately.
+like a Beethoven-esque. If we want to sell here, we need volume. We need volume for you. And I'm not seeing volume right now. Okay.
 
-Like right now, it's just a piano on five minutes. The piano looked Beethoven's stack. If we want to sell here, we need volume. We need volume for you.
+Okay, nice. Nice. If I have none of these, that risk. Of course. Why not?
 
-And I'm not seeing volume right now. Okay. Okay, nice. Nice. If I have nothing, that risk, yeah.
+Come on, behave. Behave. What's your doing? Right now I'm trading with my big traders farm,
 
-Of course. Why not? Come on, behave, behave. What's we're doing? Right now, I'm trading with my, um,
+200k funded account. So even a low risk represent like a real nice game. So I might protect this. I want to see the price going below the power enough control.
 
-big traders farm, 200K funded account. So, even a low risk, represent a like a real nice game. So, I might protect this.
+I don't like the price used in the point of control as a support. So this might be a sign to close this early. Let's view it sometime. But I really don't like this. Well, I don't like this.
 
-I want to see the price going below the power enough control. I don't like the price used in the point of control. I support it. So, this might be a sign to close this early. Let's give it some time.
+You see that? Usually when that happens, there's a new algorithm that have entered the market. And usually when that happens,
 
-But I really don't like this. Well, I don't like this. You see that? Usually when that happens, there's a new algorithm
+there's a big manipulation coming. Right now it's 10 a.m. It's the macro opening. So we have to be really, really careful right now. I'm ready to close it.
 
-that have entered the market. And usually, when that happens, there's a big manipulation coming. Right now, it's 10 AM. It's the macro opening.
+If I see volume, I guess, really ready. Bro, give me this straight. I just want to finish this series. Give me this.
 
-So, we have to be really, really careful right now. I'm ready to close it. If I see volume, I guess. Me really ready. Bro, give me this straight.
+As soon as the price goes below the VWAP, we might see more expansive movement. But for now, if you stay right there, it's like compressing between the point of control and the VWAP.
 
-I just want to finish this series. Give me this. As soon as the price, um, goes below the VWAP, we might see more expansive movement.
+And that's not good for you. That's not good at all. 3D for our candle. I don't like this. The price went below the VWAP.
 
-But for now, if it stays right there, it's like compressing between the point of control and the VWAP. That's not good for you. That's not good at all.
+That's a good signal. Let's see if it's getting some volume there. It's going to this area of low volume. We might see more explosive movement. If we go below this area,
 
-It's too deep for our candle. I don't like this. The price went below the VWAP. That's a good signal. Let's see if it's getting some volume there.
+to this low volume area, could this are not good market condition? I'm just going to protect myself. No, I don't want to be like stubborn or not. I will be just fine with a break even today.
 
-It's going to the, to this area of low volume, we might see more explosive movement. If we, if we go below this area, to this low volume area, to this are not good market condition.
+So I can have a break even or I can have... I think I will have a break even. Sketchy market conditions. The piano. Piano Thursdays.
 
-I'm just going to protect myself. No, I don't want to be like stubborn or not. I will be just fine with a break even today. So, I can have a break even or I can have, I think we'll have a break even.
+So I was going to take one more entry but I don't know. The price is still in the same area. It hasn't invalidated my entry point but it doesn't have all my confirmation aligned. So it's okay.
 
-Sketchy market conditions, the Piano, Piano Thursdays. So, I was going to take like one more entry but I don't know, like, no, the price is still in the same area. It hasn't like invalidate my entry going but
+Now one of the things that is powerful about the Bookmap is it not only gives you the signal when you have a new tray. It also tells you when to close. One.
 
-it doesn't have all my confirmation aligns so it's okay. Now, one of the, the thing that is powerful about the Bookmap is it not only gives you, like, the signal when you have a detray, it also tells you when, when to close one. No, it gives you reason to close right now.
+You know, it gives you a reason to close. Even though I close that, it has an invalidated my tray idea. But I'm just not going to risk giving this market conditions. So I think it was a good tray though.
 
-Even though I close that, it has an invalidate my trade idea. Well, I'm just not going to risk you in this market conditions. So, I think it wasn't due trade though. No, acute trade management. Let's wait a few minutes to see if the price
+No, a good tray management. Let's wait a few minutes to see if the price decides to do something. If not, we can't close for the day.
 
-decides to do something. If not, we can't close for the day. I'm saying risk, I'm telling to my student that the last day of the series and last night, I just decided to do a piano session with us today. When the price do this kind of move on, like,
+I was saying risk. I'm telling you to my student that the last day of the series and last day just decided to do a piano session with us today. When the price do this kind of movement. Like one of the things that I don't like about this
 
-what I, one of the things that I don't like about this and why I move to breakeven is even though I have the ODE on the downside and in my go lower, this accumulation can make the conditions to just have a liquidity strap on my manipulation higher and then you see the real movement to the downside. So, that's why I'm going to wait a few more minutes.
+and why I move to break even is even though I have the ODE on the downside and in my go lower, this accumulation can make the conditions to just have a liquidity transfer of manipulation higher and then you see the real
 
-If I don't see anything clear, I'm just going to call it the first day. It was real good because we did. Actually, we won $100. We are $100 up. That's the power of knowing when to take profits.
+movement to the downside. So that's why I'm going to wait a few more minutes. If I don't see anything clear, I'm just going to call it for the day. It was real good because we did.
 
-Let's see if it gives us a continuation. I have to break that support level. That's a really strong support level right now. That's my setup for continuations. Let's see if in one minute we'll still have the opportunity.
+Actually, we won $100. We are $100 up. That's the power of knowing when to take profits. We have a lot of money to make money. Now it's going to be evolving.
 
-I'm going to take the risk. But think, Nakisha, what are you doing? Go, oh, that's not the pretty strong buying volume. That's not good at all. That wasn't a good trade.
+Let's see if it gives us a continuation. Have to break that support level. That's a really strong support level right now. That's my setup for continuations. Let's see if in one minute,
 
-So, now I'm going to call it a day. Now we'll ask $400. So, it's okay. I tell you, I will ask a little bit more than $400. $2.9.
+we'll see how the opportunity is going to take the risk. I think in the case of what are you doing? Go. That's not the
 
-Now I'm calling it a day. I'm just going to be done with this. The price doesn't know what to do. If you want to check out Abraham's links are in the description below. Make sure you go check him out as well in the
+pretty strong buying volume. That's not good at all. That wasn't a good trade. So now I'm going to call it a day. Now we lost $400.
 
-Charfenex Discord and Charfenex Live. He trades live on Charfenex Live every single Wednesday. So, you can check him out and communicate with him while he's trading live. And see him do this because I've seen him do it. I've seen him take a 30 second time frame trade and achieve a one to five in like
+So it's okay. I think I will have a little bit more than $400. $29. Now I'm calling it a day. I'm just going to be done with this.
 
-three, four minutes which blew me away. And that was during a trading competition that was going on in the pro-perform space as well. Which he placed really incredibly highly across tens of thousands of traders. So it's an absolute honor to have Abraham with us. Links in the description drop a comment with your biggest takeaway from this episode.
+The price doesn't know what to do. Whatever that wraps us up for today's episode. An incredible breakdown of not only the book map, but how to utilize ICT concepts with the book map, using order flow so that you can actually have
 
-Any questions I may have missed or any questions for Abraham throw them in there and we'll check them out. But other episodes are on screen right now. Hit like, hit subscribe. And until next time everyone, this has been Charfenex.
+really precise entries, confidence in the markets. And not only that, what was really great was to see that top-down approach. A lot of people always focus on entries, but to actually see how do we get there,
 
-Take care.
+and how do we build our trading in a full and proper manner was amazing to see. Now if you want to check out Abraham's links are in the description below. Make sure you go check him out as well
+
+in the Charfernac's Discord and Charfernac's Live. He trades live on Charfernac's Live every single Wednesday. So you can check him out and communicate with him while he's trading live and see him do this, because I've seen him do it.
+
+I've seen him take a 30 second timeframe trade and achieve a one to five in like three, four minutes, which blew me away. And that was during a trading competition that was going on in the pro-perform space as well,
+
+which he placed really incredibly highly across tens of thousands of traders. So it's an absolute honor to have Abraham with us. Links in the description. Drop a comment with your biggest takeaway
+
+from this episode. Any questions I may have missed or any questions for Abraham, throw them in there and we'll check them out. But other episodes are on screen right now.
+
+Hit like, hit subscribe. And until next time everyone, this has been Charfernac's Take A.
