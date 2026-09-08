@@ -1,15 +1,21 @@
 {
   "name": "all_about_dhan",
   "install": "bash .cursor/install.sh",
+  "start": "true",
+  "ports": [
+    { "name": "api", "port": 8000 },
+    { "name": "web", "port": 5173 }
+  ],
   "terminals": [
     {
       "name": "api",
-      "command": "source .venv/bin/activate && python -m api"
+      "command": "source .venv/bin/activate && python -m api",
+      "description": "FastAPI paper desk. Orders refused. No live Dhan orders."
     },
     {
       "name": "web",
-      "command": "cd apps/web && npm run dev -- --host 127.0.0.1"
+      "command": "cd apps/web && npm run dev -- --host 127.0.0.1",
+      "description": "Vite customer mock desk. Do not treat dashboard P/L as live."
     }
-  ],
-  "ports": [8000, 5173]
+  ]
 }
