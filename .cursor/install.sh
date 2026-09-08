@@ -41,4 +41,45 @@ if [ -d apps/web ]; then
   ( cd apps/web && npm ci )
 fi
 
+# Cursor Cloud secrets are injected as process env vars — never via git.
+# Materialize a gitignored .env so load_dotenv() paths work on the VM.
+# Values are not printed.
+python3 - <<'PY'
+from pathlib import Path
+import os
+
+root = Path.cwd()
+keys = [
+    "YOUTUBE_API_KEY",
+    "OPENAI_API_KEY",
+    "OPENAI_MODEL",
+    "DHAN_CLIENT_ID",
+    "DHAN_ACCESS_TOKEN",
+    "DHAN_REFRESH_TOKEN",
+    "DHAN_CLIENT_SECRET",
+]
+lines = []
+present = 0
+for key in keys:
+    val = os.environ.get(key)
+    if val is None or not str(val).strip():
+        continue
+    present += 1
+    # Preserve value as-is; do not log it.
+    lines.append(f"{key}={val}\n")
+# Paper default: news veto stays off unless the environment overrides it.
+if "NEWS_VETO_ENABLED" not in os.environ:
+    lines.append("NEWS_VETO_ENABLED=false\n")
+elif str(os.environ.get("NEWS_VETO_ENABLED") or "").strip():
+    lines.append(f"NEWS_VETO_ENABLED={os.environ['NEWS_VETO_ENABLED']}\n")
+
+path = root / ".env"
+if lines:
+    path.write_text("".join(lines), encoding="utf-8")
+    path.chmod(0o600)
+    print(f"[install] wrote gitignored .env with {present} secret keys from environ (values not logged)")
+else:
+    print("[install] no cloud secrets in environ — dry-run / fixtures only")
+PY
+
 echo "[install] done"
