@@ -103,11 +103,17 @@ def _persist_shared() -> None:
 
 
 def uses_max_completion_tokens(model: str) -> bool:
-    """True for gpt-6 / astra / o-series models that reject max_tokens and/or temperature."""
+    """True for models that reject max_tokens (want max_completion_tokens).
+
+    gpt-5.4-nano / gpt-5.4, gpt-6 / astra, and o-series all 400 on max_tokens.
+    """
     m = (model or "").strip().lower()
     if not m:
         return False
     if "astra" in m or "gpt-6" in m:
+        return True
+    # gpt-5 / gpt-5.4 / gpt-5.4-nano — live 400 unsupported_parameter=max_tokens
+    if m.startswith("gpt-5"):
         return True
     # o1 / o3 / o4 reasoning-style ids (o1, o1-mini, o3-mini, …)
     if re.match(r"^o[0-9]", m):
@@ -124,8 +130,8 @@ def build_chat_completion_params(
     """
     Model-aware chat.completions.create kwargs (excluding messages / response_format).
 
-    gpt-6-astra and o-series: max_completion_tokens, no temperature.
-    gpt-4o / gpt-5.4 and peers: temperature + max_tokens (existing behavior).
+    gpt-5.4* / gpt-6-astra / o-series: max_completion_tokens, no temperature.
+    gpt-4o and peers: temperature + max_tokens.
     """
     params: dict[str, Any] = {"model": model}
     if uses_max_completion_tokens(model):

@@ -39,6 +39,7 @@ def _spawn(cmd: list[str], log_path: Path) -> int:
     env = os.environ.copy()
     env["PYTHONUNBUFFERED"] = "1"
     env.setdefault("TAI_LLM_COOLDOWN_PATH", str(RECON / "llm_cooldown.json"))
+    env.setdefault("NEWS_VETO_ENABLED", "false")
     # New session so Cursor/shell teardown does not SIGHUP the child.
     proc = subprocess.Popen(
         cmd,
@@ -95,6 +96,7 @@ def build_paper_cmd(*, live_chain: bool, tick_seconds: int = 90, max_ticks: int 
         str(max_ticks),
         # Soft-default: prefer-desk on; gather-news OFF; LLM on if key (force --use-llm).
         "--use-llm",
+        "--no-gather-news",
     ]
     if live_chain:
         cmd.append("--live-chain")
@@ -154,7 +156,7 @@ def main() -> int:
         "--live-chain" if live_chain else "(no --live-chain: Dhan credentials missing)",
         "--tick-seconds 90",
         "--max-ticks 900",
-        "(gather-news soft-default OFF; prefer-desk soft-default ON)",
+        "(--no-gather-news; prefer-desk soft-default ON; NEWS_VETO_ENABLED=false)",
         "(real clock; no --simulate; no --stop-outside-shell)",
     ]
     payload = {
