@@ -40,8 +40,9 @@ def test_sensex_fixture_is_news_day_hold(tmp_path: Path) -> None:
     t = result.tickets[0]
     assert t.underlying == "SENSEX"
     assert t.session_kind == "NEWS_DAY"
-    assert t.lean == "HOLD"
-    assert t.risk_veto is True
+    # NEWS_VETO_ENABLED default false: analog NEWS_DAY, not a hard HOLD.
+    assert t.risk_veto is False
+    assert t.lean in ("BUY_CE", "BUY_PE", "HOLD")
     assert t.execution == "refused"
     assert settings.kb_path.is_file()
     assert t.chain_watcher_summary
@@ -169,11 +170,16 @@ def test_dry_market_hours_simulation(tmp_path: Path) -> None:
     assert len(typed.events("SIGNAL")) == 2
     assert len(typed.events("SHADOW_TRADE")) == 2
     candidate_rows = typed.events("CANDIDATE_OBSERVATION")
-    assert len(candidate_rows) == 2 * 19
+    from trading_agents_india.candidate_audit import (
+        KEEP_ALL_UNBOUND_DI,
+        working_score_ids,
+    )
+
+    assert len(candidate_rows) == 2 * (len(working_score_ids()) + 1)
     assert {row["candidate_id"] for row in candidate_rows} >= {
-        "STRAT-001",
-        "STRAT-014",
+        KEEP_ALL_UNBOUND_DI,
         "MIX-DEFAULT-BUY",
+        "STRAT-003",
     }
     assert any(row["outcome"] == "VETOED" for row in candidate_rows)
     assert any(row["outcome"] == "DATA_INSUFFICIENT" for row in candidate_rows)

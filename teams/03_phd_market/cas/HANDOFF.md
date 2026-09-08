@@ -1,5 +1,23 @@
 # Handoff log — CAS analyst (03)
 
+## As of now (2026-09-08) — CAS-* off PAPER candidate scoring
+
+```text
+From:     teams/03_phd_market/cas
+To:       00 / 04 / 09
+Date:     2026-09-08
+Status:   DRAFT / UNVALIDATED
+Gate:     NOT RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: CAS-001–005 stay UNVALIDATED; no DHAN-DERIVED CAS recipe;
+  not in PAPER working-score list.
+Rejected: CONFIRMED from CAS; STRAT-015+.
+```
+
+Newest first.
+
+---
+
 ## As of now (2026-09-01)
 
 CAS = **Closing Auction Session**. YouTube **45** verified + **45** English. `config/workspace.yaml`. Dhan **dry-run, no orders**. Customer `/`: ticket + **IN-PROGRESS** + **CasPanel**; book P/L **MOCK**. Internal **`/desk`**. Chain **3m**. Nightly `cas_calls[]` retune **BACKTEST_REQUIRED**. Daily book **UNVALIDATED** / `DATA_INSUFFICIENT`. STRATs **UNVALIDATED**. Not `RESEARCH_READY_FOR_PROGRAMMING`.

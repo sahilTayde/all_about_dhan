@@ -346,7 +346,12 @@ def run_market_hours_loop(
                     "stop": (t.premium_lean or {}).get("stop"),
                     "target": (t.premium_lean or {}).get("target"),
                     "source": (t.premium_lean or {}).get("source"),
+                    "chain_lean": (t.premium_lean or {}).get("chain_lean"),
                 }
+                for t in result.tickets
+            },
+            "lean_mix": {
+                t.underlying: getattr(t, "lean_mix_cited", "") or ""
                 for t in result.tickets
             },
             "ledger_paths": ledger_paths,

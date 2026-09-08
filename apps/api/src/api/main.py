@@ -106,8 +106,8 @@ def create_app() -> FastAPI:
     def paper_live_signals() -> dict:
         """Last paper-signal snapshot from /ws/signals. Empty until a client connected.
 
-        Includes MIX-DEFAULT-BUY (customer ticket path) and MIX-CLUB-GR (PAPER_WATCH
-        parallel). Orders refused. Not a fill.
+        Includes MIX-DEFAULT-BUY (customer ticket path). MIX-CLUB-GR is PARKED
+        on the working ticket (KEEP_ALL). Okala-IN PAPER_WATCH. Orders refused.
         """
         snap = getattr(app.state, "live_paper", None)
         if not snap:
@@ -115,12 +115,18 @@ def create_app() -> FastAPI:
                 "kind": "paper_signal",
                 "orders": "refused",
                 "customer_default_mix": "MIX-DEFAULT-BUY",
-                "paper_watch_mixes": ["MIX-CLUB-GR"],
+                "paper_watch_mixes": [
+                    "MIX-CF-OKALA-IN-LEVEL",
+                    "MIX-CF-OKALA-IN-FORK",
+                    "MIX-CF-OKALA-IN-H-CROSS",
+                    "MIX-CF-OKALA-IN-REPAIR",
+                    "MIX-CF-STRUCTURE",
+                ],
                 "underlyings": {},
                 "books": {},
                 "note": (
                     "Connect /ws/signals?live=1 for Dhan ticks + optionchain premium bind. "
-                    "MIX-CLUB-GR paper-watches in parallel. Not a fill."
+                    "MIX-CLUB-GR PARKED working path. Not a fill."
                 ),
             }
         return snap

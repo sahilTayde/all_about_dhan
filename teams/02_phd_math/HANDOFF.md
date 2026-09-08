@@ -1,5 +1,24 @@
 # Handoff log — Team 02 PhD math
 
+## As of now (2026-09-08) — INDEX resample ≠ teacher TF (VALIDATION)
+
+```text
+From:     teams/02_phd_math
+To:       00 / 03 / 04 / 06
+Date:     2026-09-08
+Status:   VALIDATION note
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: MIX-003-INDEX-PROXY / MIX-006-INDEX-PROXY must stay labeled PROXY
+  (INDEX 1m resample is not FUTIDX 3m or OPTIDX 2m). Impulse frac is HYPOTHESIS.
+  No Supertrend series API — 5m ST/MACD still confirm-or-kill, not entry.
+Rejected: Collapsing PROXY into SOURCE_FACT; inventing win rates.
+```
+
+Newest first.
+
+---
+
 ## As of now (2026-09-06) — CF Andrea+Omor computability notes (no veto)
 
 ASR guests. ADD HYPOTHESIS proxy params only. Do not delete MIX-CF-ANDREA/OMOR. Andrea OF absorb PARKED; Omor KZ DI. Andrea ≠ Fabio.

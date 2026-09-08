@@ -76,20 +76,22 @@ IDs **stay these IDs forever**. `WAITING` / `PARKED` = not default ticket.
 
 | ID | Style tags | Ticket role | Default? | Notes |
 |----|------------|-------------|----------|-------|
-| STRAT-001 | OPTION_BUYER, POSITION | primary (HAUS) | no — `MIX-HAUS-001` | Index-only yaml = `PROJECT_MIX`. 2h parent `NOT_IN_EN` |
-| STRAT-002 | OPTION_BUYER | strike overlay | with 001 only | **Never silently on 003** |
-| STRAT-003 | OPTION_BUYER | primary (Gokul 3m) | yes inside `MIX-GOKUL-003` / `MIX-DEFAULT-BUY` | ST “103” **WEAK** |
+| STRAT-001 | OPTION_BUYER, POSITION | WAITING proxy `MIX-HAUS-001` | no | Dual-TF (hourly+5/10m). INDEX 1m ≠ parent/child. **Not deleted.** |
+| STRAT-002 | OPTION_BUYER | WAITING overlay on 001 only | no | **Never silently on 003** |
+| STRAT-003 | OPTION_BUYER | primary (Gokul 3m) | yes inside `MIX-GOKUL-003` / `MIX-DEFAULT-BUY` | ST “103” **WEAK**. Paper tape = INDEX resample **PROJECT** — not frozen as FUT 3m |
 | STRAT-004 | OPTION_BUYER, SCALPER | confirm / scalp | no — `PARKED` lengths `NOT_IN_EN` | **Not deleted.** `MIX-SCALP-004` |
-| STRAT-005 | OPTION_BUYER | strike overlay | with 003 | ITM/max ATM. OTM not recommended in-video |
-| STRAT-006 | OPTION_BUYER, SCALPER | primary (Mukul 2m) | no — `MIX-SCALP-006` / `MIX-MUKUL-006` | VIX>15–16 caution. Delta **WEAK** |
+| STRAT-005 | OPTION_BUYER | strike overlay | with 003 | ITM/max ATM. OTM not recommended in-video. PAPER overlay **unbound** (needs chain/greeks) |
+| STRAT-006 | OPTION_BUYER, SCALPER | WAITING proxy `MIX-SCALP-006` | no | Spoken **2m**. HQ `{1,5,15}` — do not pretend INDEX 1m is 2m |
 | STRAT-007 | OPTION_BUYER | filter (Himanshu clock) | in HAUS mix; AND with 009 is `PROJECT_MIX` | Keep as its own filter |
 | STRAT-008 | OPTION_BUYER | filter (mixed-index) | in Gokul mix | DHAN-DERIVED same video as 003 |
 | STRAT-009 | OPTION_BUYER | filter (09:45 / 15:15) | in Gokul mix | Start **09:45**, not 10:00 |
-| STRAT-010 | OPTION_BUYER (overlay) | OF gate | no — `PARKED` `DATA_INSUFFICIENT` | **Not dropped.** `MIX-OF-010` |
-| STRAT-011 | OPTION_BUYER (+ equity-native pieces) | reversal alt | no — `MIX-REV-011` | Origin **`PROJECT_MIX`**. gA5 **fill was sell** |
-| STRAT-012 | OPTION_BUYER (overlay) | candle/S/R | optional | **`PROJECT_MIX`** on 001/003. `MIX-PA-012` |
+| STRAT-010 | OPTION_BUYER (overlay) | OF gate | no — `PARKED` `DATA_INSUFFICIENT` | **Not dropped.** `MIX-OF-010`. HQ OF history never |
+| STRAT-011 | OPTION_BUYER (+ equity-native pieces) | WAITING reversal alt | no — `MIX-REV-011` | Origin **`PROJECT_MIX`**. stocks/gold; gA5 **fill was sell** |
+| STRAT-012 | OPTION_BUYER (overlay) | WAITING candle/S/R | optional | **`PROJECT_MIX`** on 001/003. `MIX-PA-012` |
 | STRAT-013 | **OPTION_SELLER**, POSITION | bull put credit | no — `WAITING` not buy UI | **Keep ID 013.** `MIX-SELL-013` |
 | STRAT-014 | **OPTION_SELLER**, POSITION | 1-3-2 call ratio | no — `WAITING` not buy UI | **Keep ID 014.** `MIX-SELL-014` |
+
+**Working-path scoring (PAPER catalog, 2026-09-08):** bound = `MIX-DEFAULT-BUY` + STRAT-003/007/008/009 + `MIX-TA-*` + `MIX-CF-OKALA-IN-*`. Unbound KEEP_ALL IDs collapse to one `KEEP_ALL-UNBOUND-DI` observation. `MIX-CLUB-GR` PARKED off confidence (not killed).
 
 **Confirmation:** STRAT-001, 002, 003, 004, 005, 006, 007, 008, 009, 010, 011, 012, 013, 014 are all **`BACKTEST_BOOK`**. None deleted.
 
@@ -157,6 +159,8 @@ attached: {primary: [STRAT-001], overlay_strike: [STRAT-002], filter: [STRAT-007
 not_attached: [STRAT-003, STRAT-005]  # do not soup Gokul strike onto HAUS
 macd_role: HAUS_ENTRY                 # buy child-candle high — not staging confirm
 customer_default: false
+working_path: WAITING
+proxy_note: "INDEX 1m is not HAUS hourly+5m. Dual-TF adapter not on PAPER tick."
 ```
 
 ### MIX-DEFAULT-BUY
@@ -191,6 +195,8 @@ not_attached: [STRAT-001, STRAT-002, STRAT-003, STRAT-005, STRAT-007, STRAT-009]
 caution: VIX_above_15_to_16_beginners_skip_buy_scalp   # conditional, not blanket
 delta: WEAK
 customer_default: false
+working_path: WAITING
+proxy_note: "HQ charts enum {1,5,15,25,60} — not spoken 2m. Do not pretend INDEX 1m is Mukul 2m."
 ```
 
 ### MIX-SCALP-004
@@ -664,10 +670,13 @@ customer_default: false
 ```yaml
 mix_id: MIX-CLUB-GR
 origin: PROJECT_MIX
-origin_note: "GAP ∧ RANGE-EXP. Optimistic 2y NIFTY 69.4% wr n=36 WEAK. After-cost 44.4% FAIL promote. KEEP + PAPER_WATCH in market hours. Not customer default."
+origin_note: "GAP ∧ RANGE-EXP. Optimistic 2y NIFTY 69.4% wr n=36 WEAK. After-cost 44.4% FAIL promote. SCORE_SAMPLE empty → PARK working path, not kill. Not customer default."
 styles: [OPTION_BUYER]
 customer_default: false
-paper_watch: true
+paper_watch: false
+working_path: PARKED
+kill: false
+kill_note: "After-cost FAIL promote. SCORE_SAMPLE empty — PARK not kill."
 paper_watch_doc: teams/04_quant/docs/PAPER_WATCH_CLUB_GR.md
 recorded:
   optimistic_2026-09-03: {underlying: NIFTY, wr: 0.694, n: 36, rating: WEAK}
@@ -2039,9 +2048,69 @@ docs:
 
 ---
 
+## 20. Gather lean MIX (`MIX-LEAN-*` / PROXY / HOLD) — WAITING, NO_PROMOTE
+
+**Date:** 2026-09-08  
+**Short specs:** [`candidates/MIX-LEAN-SPOT-ATM.md`](candidates/MIX-LEAN-SPOT-ATM.md) · [`MIX-IMPULSE-1M.md`](candidates/MIX-IMPULSE-1M.md) · [`MIX-003-INDEX-PROXY.md`](candidates/MIX-003-INDEX-PROXY.md) · [`MIX-006-INDEX-PROXY.md`](candidates/MIX-006-INDEX-PROXY.md) · [`MIX-PCR-EXTREME-HOLD.md`](candidates/MIX-PCR-EXTREME-HOLD.md) · [`MIX-SELL-CREDIT-PARK.md`](candidates/MIX-SELL-CREDIT-PARK.md)  
+**Code:** `packages/trading_agents_india/lean_mix.py`  
+**Policy:** KEEP_ALL. **Not** customer default. **No** `STRAT-015+`. `MIX-DEFAULT-BUY` stays `UNVALIDATED` customer default. EARLY is valid. Never `CONFIRMED` from these rows.
+
+```yaml
+mix_id: MIX-LEAN-SPOT-ATM
+origin: PROJECT-DERIVED
+customer_default: false
+status: WAITING
+NO_PROMOTE: true
+```
+
+```yaml
+mix_id: MIX-IMPULSE-1M
+origin: PROJECT-DERIVED
+customer_default: false
+status: WAITING
+NO_PROMOTE: true
+```
+
+```yaml
+mix_id: MIX-003-INDEX-PROXY
+recipe_origin: DHAN-DERIVED
+path_origin: PROJECT-DERIVED
+proxy_label: INDEX_RESAMPLE_NE_FUTIDX
+customer_default: false
+status: WAITING
+```
+
+```yaml
+mix_id: MIX-006-INDEX-PROXY
+recipe_origin: DHAN-DERIVED
+path_origin: PROJECT-DERIVED
+proxy_label: INDEX_RESAMPLE_NE_OPTIDX
+customer_default: false
+status: WAITING
+```
+
+```yaml
+mix_id: MIX-PCR-EXTREME-HOLD
+origin: PROJECT-DERIVED
+role: HOLD_overlay
+customer_default: false
+status: WAITING
+```
+
+```yaml
+mix_id: MIX-SELL-CREDIT-PARK
+origin: DHAN-DERIVED
+attached: [STRAT-013, STRAT-014]
+evaluate_as_buy: false
+customer_default: false
+status: WAITING
+```
+
+---
+
 ## HANDOFF
 
-**Accepted:** KEEP_ALL. STRAT-001–014 all `BACKTEST_BOOK`. MIX-* namespace. 013/014 seller tags, IDs unchanged. 010 parked-not-dropped. MIX-CONFLICT-STRIKE labeled CONFLICT. §8 scan IDs (`WEB-DERIVED` / `PROJECT_MIX`) named including MIX-CLOCK-CAS overlay and MIX-ML-LOGIT / MIX-ML-LOGIT-XR; metrics null; `customer_default: false`. `MIX-DEFAULT-BUY` unchanged. **§9 SL/TP MIX rows** including own `MIX-DESK-IQ-ATR-RR2` (`PROJECT_MIX`). **§10 `MIX-CF-FABIO-TREND-NY` + `MIX-CF-FABIO-MR-RANGE`** (`EXTERNAL_RESEARCH`, PARKED OF, proxy BACKTEST_BOOK). **§11 `MIX-CF-MARCO-LIQ-TRAP` + `MIX-CF-MARCO-INT-EXT` + `MIX-CF-MAYNE-ICT-HTF` + `MIX-CF-MAYNE-BREAKER`** (`EXTERNAL_RESEARCH`, ASR caveat, separate from Fabio). **§12 `MIX-CF-MARCI-RIZZY` + `MIX-CF-MARCI-BB-REALITY` + `MIX-CF-TORI-TL-BOUNCE` + `MIX-CF-TORI-TL-BREAK`** (`EXTERNAL_RESEARCH`, ASR caveat, separate from Fabio/Marco/Mayne). **§13 `MIX-CF-TG-TRIDENT` + `MIX-CF-TG-EMA-WAVE` + `MIX-CF-KANE-EQ50` + `MIX-CF-KANE-PO3-SMT`** (`EXTERNAL_RESEARCH`, ASR caveat, separate from prior CF guests; title 90% not product metric). **§14 `MIX-CF-UMAR-MORNING-TOP` + `MIX-CF-UMAR-OPENING-DRIVE` + `MIX-CF-FOREST-VPE-EDGE` + `MIX-CF-FOREST-POC-RETEST`** (`EXTERNAL_RESEARCH`, ASR caveat; opening drive DI; separate from prior CF guests). **§15 `MIX-CF-CARMINE-ABSORB` + `MIX-CF-CARMINE-FAIL-BREAK` + `MIX-CF-CARMINE-OPEN-HOLD` + `MIX-CF-JADECAP-SWING-FAIL` + `MIX-CF-JADECAP-SESSION-LIQ` + `MIX-CF-JADECAP-FVG-DRAW`** (`EXTERNAL_RESEARCH`, ASR caveat; Carmine absorb OF PARKED/DI; Jade session-liq DI; separate from prior CF guests). **§16 `MIX-CF-USMAN-*` + `MIX-CF-BRANDO-*`** (`EXTERNAL_RESEARCH`, ASR caveat; Usman mostly DI options literacy; Brando HTF proxies BACKTEST_BOOK; size-zero vs price-stop KEEP_ALL; separate from prior CF guests). **§17 `MIX-CF-ANDREA-*` + `MIX-CF-OMOR-*`** (`EXTERNAL_RESEARCH`, ASR caveat; Andrea ≠ Fabio; OF absorb PARKED; Omor KZ/ADR DI; structure proxies BACKTEST_BOOK; separate from prior CF guests). **§18 `MIX-CF-OKALA-*`** (`EXTERNAL_RESEARCH`, ASR; catalog only / not CF×8; magnets observable|searchable; portability observation-gated; miss/recovery + BT grid in BIND; OpenAI suggest HYPOTHESIS only; win_rate=null; NO_PROMOTE). **§18b `MIX-CF-OKALA-IN-*`** FOUNDER_PAPER_ACCEPT PAPER only. **§18c overnight OpenAI+India IN rollup** (ok=17/fail=0; Tori SKIP). **§18d `MIX-CF-YUSH-*`**. **§18e `MIX-CF-MARCO-DAV-*`** (separate from §11 Marco). **§19 `MIX-TA-FLOW-RISK` + `MIX-TA-EVENT-HOLD` + `MIX-TA-EXEC-SANITY`** (`EXTERNAL_RESEARCH` / TradingAgents Apache-2.0; PAPER_WATCH / WAITING; not promote).
+**Accepted:** KEEP_ALL. STRAT-001–014 all `BACKTEST_BOOK`. MIX-* namespace. 013/014 seller tags, IDs unchanged. 010 parked-not-dropped. **2026-09-08 working-path:** 001/002/006 WAITING proxies (INDEX 1m ≠ HAUS MTF / Mukul 2m); unbound STRATs collapse to `KEEP_ALL-UNBOUND-DI`; `MIX-CLUB-GR` PARKED off confidence (SCORE_SAMPLE empty → not kill). MIX-CONFLICT-STRIKE labeled CONFLICT. §8 scan IDs (`WEB-DERIVED` / `PROJECT_MIX`) named including MIX-CLOCK-CAS overlay and MIX-ML-LOGIT / MIX-ML-LOGIT-XR; metrics null; `customer_default: false`. `MIX-DEFAULT-BUY` unchanged. **§9 SL/TP MIX rows** including own `MIX-DESK-IQ-ATR-RR2` (`PROJECT_MIX`). **§10 `MIX-CF-FABIO-TREND-NY` + `MIX-CF-FABIO-MR-RANGE`** (`EXTERNAL_RESEARCH`, PARKED OF, proxy BACKTEST_BOOK). **§11 `MIX-CF-MARCO-LIQ-TRAP` + `MIX-CF-MARCO-INT-EXT` + `MIX-CF-MAYNE-ICT-HTF` + `MIX-CF-MAYNE-BREAKER`** (`EXTERNAL_RESEARCH`, ASR caveat, separate from Fabio). **§12 `MIX-CF-MARCI-RIZZY` + `MIX-CF-MARCI-BB-REALITY` + `MIX-CF-TORI-TL-BOUNCE` + `MIX-CF-TORI-TL-BREAK`** (`EXTERNAL_RESEARCH`, ASR caveat, separate from Fabio/Marco/Mayne). **§13 `MIX-CF-TG-TRIDENT` + `MIX-CF-TG-EMA-WAVE` + `MIX-CF-KANE-EQ50` + `MIX-CF-KANE-PO3-SMT`** (`EXTERNAL_RESEARCH`, ASR caveat, separate from prior CF guests; title 90% not product metric). **§14 `MIX-CF-UMAR-MORNING-TOP` + `MIX-CF-UMAR-OPENING-DRIVE` + `MIX-CF-FOREST-VPE-EDGE` + `MIX-CF-FOREST-POC-RETEST`** (`EXTERNAL_RESEARCH`, ASR caveat; opening drive DI; separate from prior CF guests). **§15 `MIX-CF-CARMINE-ABSORB` + `MIX-CF-CARMINE-FAIL-BREAK` + `MIX-CF-CARMINE-OPEN-HOLD` + `MIX-CF-JADECAP-SWING-FAIL` + `MIX-CF-JADECAP-SESSION-LIQ` + `MIX-CF-JADECAP-FVG-DRAW`** (`EXTERNAL_RESEARCH`, ASR caveat; Carmine absorb OF PARKED/DI; Jade session-liq DI; separate from prior CF guests). **§16 `MIX-CF-USMAN-*` + `MIX-CF-BRANDO-*`** (`EXTERNAL_RESEARCH`, ASR caveat; Usman mostly DI options literacy; Brando HTF proxies BACKTEST_BOOK; size-zero vs price-stop KEEP_ALL; separate from prior CF guests). **§17 `MIX-CF-ANDREA-*` + `MIX-CF-OMOR-*`** (`EXTERNAL_RESEARCH`, ASR caveat; Andrea ≠ Fabio; OF absorb PARKED; Omor KZ/ADR DI; structure proxies BACKTEST_BOOK; separate from prior CF guests). **§18 `MIX-CF-OKALA-*`** (`EXTERNAL_RESEARCH`, ASR; catalog only / not CF×8; magnets observable|searchable; portability observation-gated; miss/recovery + BT grid in BIND; OpenAI suggest HYPOTHESIS only; win_rate=null; NO_PROMOTE). **§18b `MIX-CF-OKALA-IN-*`** FOUNDER_PAPER_ACCEPT PAPER only. **§18c overnight OpenAI+India IN rollup** (ok=17/fail=0; Tori SKIP). **§18d `MIX-CF-YUSH-*`**. **§18e `MIX-CF-MARCO-DAV-*`** (separate from §11 Marco). **§19 `MIX-TA-FLOW-RISK` + `MIX-TA-EVENT-HOLD` + `MIX-TA-EXEC-SANITY`** (`EXTERNAL_RESEARCH` / TradingAgents Apache-2.0; PAPER_WATCH / WAITING; not promote). **§20 `MIX-LEAN-*` / INDEX-PROXY / PCR-HOLD / SELL-CREDIT-PARK** WAITING UNVALIDATED `customer_default: false` NO_PROMOTE; DEFAULT-BUY not rewritten.
 
 **Rejected:** Deleting teacher recipes. Silent 002-on-003. Invented fills/lots/win rates. STRAT-015+. Relabeling ORB 09:15–09:30 or CPR as `DHAN-DERIVED`. Promoting a scan onto the customer ticket. Claiming US GEX = NIFTY edge. Silent hardcoded `STOP_PTS` as named strategy. Clubbing Fabio/Marco/Mayne/Marci/Tori/TG/Kane/Umar/Forest/Carmine/Jadecap/Usman/Brando/Andrea/Omor/Okala/Yush/Marco-DAV into DEFAULT-BUY / IQCapital / each other. Inventing Carmine DOM fields, Jade Asia/London NSE boxes, Usman OI/greeks, Brando India headlines, Andrea ES footprint fields, Omor IST killzones, or Okala NIFTY digit clocks without magnet-observation adaptation MIX. Merging Andrea into `MIX-CF-FABIO-*` or Marco-DAV into `MIX-CF-MARCO-LIQ-TRAP`. Promoting title $6k→$10M / 30M funding rhetoric / Okala 65% / Yush 74% title WR. Promoting `MIX-TA-*` or treating TradingAgents US equity stack as India SOURCE_FACT. Claiming OpenAI fixes Okala/CF backtest WR. Live agent orders. Re-enabling soft news veto overnight.
 

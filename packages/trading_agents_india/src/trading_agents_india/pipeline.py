@@ -32,6 +32,7 @@ from trading_agents_india.hooks.event_memory import (
 from trading_agents_india.hooks.index_bars import fetch_index_bars
 from trading_agents_india.hooks.news import gather_news
 from trading_agents_india.hooks.premium import resolve_premium_lean
+from trading_agents_india.lean_mix import pick_customer_lean
 from trading_agents_india.hooks.rag import fetch_rag_context
 from trading_agents_india.kb import AgentKB
 from trading_agents_india.llm import LlmClient
@@ -99,6 +100,7 @@ def _enrich_context(
     prem["pcr_oi"] = watch.pcr_oi
     prem["strike_count"] = watch.strike_count
     prem["expiry"] = watch.expiry
+    prem["chain_lean"] = watch.chain_lean
     return MarketContext(
         underlying=ctx.underlying,
         chain_lean=live_lean,
@@ -334,6 +336,62 @@ def run_underlying_session(
     banner = top_veto_reasons(
         session_kind=session_kind, vetoes=vetoes, reasons=reasons, limit=3
     )
+    prem = dict(ctx.premium_lean or {})
+    lean_mix_cited = ""
+    # Gather ticket from INDEX 1m + ATM/PCR. Do not fake CONFIRMED.
+    # News veto / hard risk still wins. MIX-DEFAULT-BUY is not rewritten.
+    if not risk_veto and session_kind == "NORMAL":
+        draft = PaperTicket(
+            underlying=ctx.underlying,  # type: ignore[arg-type]
+            lean=lean,  # type: ignore[arg-type]
+            stage=stage,
+            reasons=reasons,
+            risk_veto=False,
+            vetoes=vetoes,
+            session_kind=session_kind,
+            premium_lean=prem,
+            index_bars=list(ctx.index_bars),
+            index_bar_meta=dict(ctx.index_bar_meta or {}),
+            data_gaps=uniq_gaps,
+        )
+        picked = pick_customer_lean(draft, bars=list(ctx.index_bars) or None)
+        if picked.outcome == "HOLD" and picked.mix_id == "MIX-PCR-EXTREME-HOLD":
+            lean = "HOLD"
+            stage = "WATCH"
+            lean_mix_cited = picked.mix_id
+            reasons = [picked.reasons[0]] + reasons if picked.reasons else reasons
+        elif picked.lean in ("BUY_CE", "BUY_PE"):
+            lean = picked.lean
+            stage = "EARLY" if picked.stage == "EARLY" else "WATCH"
+            lean_mix_cited = picked.mix_id
+            reasons = list(picked.reasons[:2]) + reasons
+            if picked.entry is not None:
+                prem["entry"] = picked.entry
+                prem["option_ltp"] = picked.entry
+            else:
+                prem["entry"] = None
+                prem["stop"] = None
+                prem["target"] = None
+            prem["stop"] = picked.stop
+            prem["target"] = picked.target
+            uniq_gaps = list(dict.fromkeys(uniq_gaps + picked.data_gaps))[:16]
+
+    # Collapse unbound PARKED DI chatter on the customer ticket.
+    uniq_gaps = [
+        g
+        for g in uniq_gaps
+        if "PAPER evaluator unbound" not in g
+        and "PARKED/WAITING/NOT_CODED" not in g
+    ]
+    if any(
+        "PAPER evaluator unbound" in g
+        for g in (list(ctx.data_gaps) + gaps)
+    ):
+        uniq_gaps.append(
+            "DATA_INSUFFICIENT: unbound PARKED/WAITING STRATs collapsed (KEEP_ALL — not deleted)"
+        )
+        uniq_gaps = list(dict.fromkeys(uniq_gaps))[:16]
+
     return PaperTicket(
         underlying=ctx.underlying,  # type: ignore[arg-type]
         lean=lean,  # type: ignore[arg-type]
@@ -343,6 +401,7 @@ def run_underlying_session(
         vetoes=vetoes,
         session_kind=session_kind,
         default_mix_cited=settings.default_mix,
+        lean_mix_cited=lean_mix_cited,
         confidence=min(0.72, float(risk.confidence)),
         data_gaps=uniq_gaps[:16],
         bull_summary=bull.summary,
@@ -354,7 +413,7 @@ def run_underlying_session(
         risk_summary=risk.summary,
         boss_summary=boss.summary,
         trader_summary=trader.summary,
-        premium_lean=dict(ctx.premium_lean or {}),
+        premium_lean=prem,
         reports=[r.to_dict() for r in reports],
         handoffs=[h.to_dict() for h in handoffs],
         provenance=provenance,

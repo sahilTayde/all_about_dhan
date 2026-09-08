@@ -1,8 +1,9 @@
 """Paper staged signals from Dhan live-market-feed ticks. No orders. No indicator soup on customer copy.
 
-Runs MIX-DEFAULT-BUY (customer ticket path), MIX-CLUB-GR (PAPER_WATCH parallel),
-and MIX-CF-* FOUNDER_PAPER_ACCEPT starters (Okala + structure overnight registry)
-side by side.
+Runs MIX-DEFAULT-BUY (customer ticket path) and MIX-CF-* FOUNDER_PAPER_ACCEPT
+starters (Okala + structure overnight registry) side by side.
+MIX-CLUB-GR stays KEEP_ALL catalog / BACKTEST_BOOK but is PARKED on the working
+ticket (after-cost FAIL; SCORE_SAMPLE empty → not a MIX kill).
 """
 
 from __future__ import annotations
@@ -283,27 +284,23 @@ class PaperSignalEngine:
                 lean=use,
                 spot=spots.get(name),
                 state=state,
-                algo=f"{MIX_CLUB_GR} paper_watch",
-                paper_watch=True,
+                algo=f"{MIX_CLUB_GR} PARKED working_path",
+                paper_watch=False,
                 mix_id=MIX_CLUB_GR,
+                extra={
+                    "working_path": "PARKED",
+                    "keep_all": True,
+                    "customer_default": False,
+                    "recorded_optimistic_wr": "0.694_n36_WEAK_not_promote",
+                    "recorded_after_cost_wr": "0.444_n36_FAIL_as_promote",
+                    "note": (
+                        "PARKED from customer scoring. After-cost FAIL; "
+                        "SCORE_SAMPLE empty so not a MIX kill. KEEP_ALL."
+                    ),
+                },
             )
-            row["recorded_optimistic_wr"] = "0.694_n36_WEAK_not_promote"
-            row["recorded_after_cost_wr"] = "0.444_n36_FAIL_as_promote"
             club_book[name] = row
-            prev = self._last_club_lean.get(name)
-            if use != prev and use in ("CE", "PE", "SKIP"):
-                append_paper_event(
-                    MIX_CLUB_GR,
-                    {
-                        "underlying": name,
-                        "lean": use,
-                        "prev_lean": prev,
-                        "state": state,
-                        "spot": spots.get(name),
-                        "note": "Shadow only. Optimistic 69% kept on book; after-cost 44% FAIL promote.",
-                    },
-                )
-                self._last_club_lean[name] = use
+            # Do not append_paper_event — working-path park (KEEP_ALL row remains).
 
         # Okala India FOUNDER_PAPER_ACCEPT — NIFTY / BANKNIFTY / SENSEX.
         for name in YAML_INDEX.values():
@@ -600,7 +597,7 @@ class PaperSignalEngine:
             conf = confidence_from_books(
                 underlying=name,
                 default_row=default_book.get(name) or row,
-                club_row=club_book.get(name),
+                club_row=None,
                 okala_row=okala_book.get(name),
             )
             row["underlying_spot"] = (
@@ -654,7 +651,7 @@ class PaperSignalEngine:
                 okala_book[name]["confidence"] = conf
                 okala_book[name]["underlying_spot"] = row.get("underlying_spot")
 
-        paper_watch_mixes = [MIX_CLUB_GR, *OKALA_MIXES, "MIX-CF-STRUCTURE"]
+        paper_watch_mixes = [*OKALA_MIXES, "MIX-CF-STRUCTURE"]
         books_out: dict[str, Any] = {
             MIX_DEFAULT: default_book,
             MIX_CLUB_GR: club_book,
@@ -683,7 +680,8 @@ class PaperSignalEngine:
             "books": books_out,
             "note": (
                 "Default ticket = MIX-DEFAULT-BUY. "
-                "MIX-CLUB-GR + MIX-CF-OKALA-IN-* + structure CF overnight are PAPER_WATCH. "
+                "MIX-CLUB-GR is PARKED on the working ticket (KEEP_ALL; not killed — "
+                "SCORE_SAMPLE empty). MIX-CF-OKALA-IN-* + structure CF overnight are PAPER_WATCH. "
                 f"Robust WR>50% cells = {FOUNDER_LABEL} via cf_paper_registry. "
                 f"NEWS_VETO_ENABLED={str(news_veto_enabled()).lower()}. "
                 "Confidence is agreement / data-quality, not a win rate. "

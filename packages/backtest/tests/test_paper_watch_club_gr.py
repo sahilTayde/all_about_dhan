@@ -30,11 +30,12 @@ def test_paper_engine_exposes_parallel_club_book():
     snap = eng.snapshot()
     assert snap["orders"] == "refused"
     assert snap["customer_default_mix"] == "MIX-DEFAULT-BUY"
-    assert "MIX-CLUB-GR" in snap["paper_watch_mixes"]
+    assert "MIX-CLUB-GR" not in snap["paper_watch_mixes"]
     assert "MIX-CF-OKALA-IN-H-CROSS" in snap["paper_watch_mixes"]
     assert "MIX-CLUB-GR" in snap["books"]
     assert "NIFTY" in snap["books"]["MIX-CLUB-GR"]
-    assert snap["books"]["MIX-CLUB-GR"]["NIFTY"]["paper_watch"] is True
+    assert snap["books"]["MIX-CLUB-GR"]["NIFTY"]["paper_watch"] is False
+    assert snap["books"]["MIX-CLUB-GR"]["NIFTY"].get("working_path") == "PARKED"
     assert snap["books"]["MIX-DEFAULT-BUY"]["NIFTY"]["customer_default"] is True
 
 

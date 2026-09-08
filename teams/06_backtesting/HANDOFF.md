@@ -1,5 +1,43 @@
 # Handoff log — Team 06 Backtesting
 
+## As of now (2026-09-08) — MIX-003/006 INDEX PROXY not a promote
+
+```text
+From:     teams/06_backtesting
+To:       00 / 02 / 03 / 04 / 09
+Date:     2026-09-08
+Status:   PROXY labeled / WAITING / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: INDEX 1m resample may score MIX-003-INDEX-PROXY / MIX-006-INDEX-PROXY
+  as WAITING PROXY (≠ spoken FUTIDX 3m / OPTIDX 2m). Not a promote. Not OOS.
+Rejected: Treating resample as teacher tape; win-rate paste; STRAT delete.
+UNKNOWN / DATA_INSUFFICIENT: continuous FUTIDX; VIX filter; SCORE_SAMPLE empty.
+```
+
+Newest first.
+
+---
+
+## As of now (2026-09-08) — CLUB-GR PARK not kill (SCORE_SAMPLE empty)
+
+```text
+From:     teams/06_backtesting
+To:       00 / 04 / 09
+Date:     2026-09-08
+Status:   NO_PROMOTE / PARK working path
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: Documented after-cost MIX-CLUB-GR NIFTY 44.4% FAIL promote
+  (BACKTEST_HONEST_2026-09-06). SCORE_SAMPLE n=0 → cannot kill MIX.
+  FUTIDX stitch DATA_INSUFFICIENT. Option-premium books historically FAIL.
+Rejected: Promote; invent P/L; OOS+NORMAL kill claim.
+```
+
+Newest first.
+
+---
+
 ## As of now (2026-09-06) — CF Andrea+Omor NIFTY OHLC proxies; honest; **no promote**
 
 ASR guests. Andrea absorb OF PARKED; Omor KZ/ADR DI; six structure proxies. INDEX points ≠ option premium. Andrea ≠ Fabio. Podcast wr ignored.

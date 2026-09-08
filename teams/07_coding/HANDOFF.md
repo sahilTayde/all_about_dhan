@@ -1,5 +1,23 @@
 # Handoff log — Team 07 Coding
 
+## As of now (2026-09-08) — live-signals empty snapshot: CLUB-GR PARKED
+
+```text
+From:     teams/07_coding
+To:       00 / 05
+Date:     2026-09-08
+Status:   paper snapshot copy
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: GET /paper/live-signals empty default lists Okala-IN + structure
+  PAPER_WATCH, not MIX-CLUB-GR. Do not restart npm.
+Rejected: Live orders.
+```
+
+Newest first.
+
+---
+
 ## As of now (2026-09-06) — customer `/` paper dashboard (Astra UX)
 
 Single-ticket hero + index chart (`lightweight-charts`) + confidence rail + paper book. MOCK/PAPER only. Orders refused. `npm install` once for chart dep — do not restart npm until asked.

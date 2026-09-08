@@ -59,7 +59,7 @@ Left off 2026-09-08: PAPER market-hours ran --mode PAPER --tick-seconds 90 --use
 
 **Cloud env:** personal Override may not have fully Saved. If Save is gone, re-propose successful build `bld-20260908-755da165-a259-46ed-a39d-a7f4581233c7`. This laptop chat is not booted from that snapshot.
 
-**Next founder track:** **strategies** — KEEP_ALL `STRAT-001`–`014` stay `BACKTEST_BOOK` / `UNVALIDATED`. No `STRAT-015+`. New clubs = `MIX-*`. Use 2026-09-08 sqlite as gather evidence only; 2026-09-07 tagged sqlite is a separate vetoed book. **NO_PROMOTE.**
+**Next founder track:** **strategies working path** — KEEP_ALL `STRAT-001`–`014` stay `BACKTEST_BOOK` / `UNVALIDATED`. Unbound PAPER scorers collapse to `KEEP_ALL-UNBOUND-DI`. `MIX-LEAN-SPOT-ATM` / `MIX-IMPULSE-1M` WAITING gather WATCH/EARLY (**NO_PROMOTE**). `MIX-DEFAULT-BUY` unchanged. `MIX-CLUB-GR` PARKED (not killed). No `STRAT-015+`. **NO_PROMOTE.**
 
 ---
 

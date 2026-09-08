@@ -4,10 +4,12 @@ from __future__ import annotations
 
 from trading_agents_india.candidate_audit import (
     CATALOG_CANDIDATES,
+    KEEP_ALL_UNBOUND_DI,
     build_candidate_observations,
+    parked_score_ids,
+    working_score_ids,
 )
 from trading_agents_india.paper_evaluators import (
-    BARS_MISSING_DI,
     UNBOUND_AGGREGATE_DI,
     bound_candidate_ids,
     evaluate_candidate,
@@ -39,11 +41,15 @@ def test_bound_and_unbound_ids_cover_catalog() -> None:
     assert bound.isdisjoint(unbound)
     assert "MIX-DEFAULT-BUY" in bound
     assert "STRAT-003" in bound
-    assert "STRAT-001" in bound
-    assert "STRAT-006" in bound
+    assert "STRAT-001" in unbound
+    assert "STRAT-002" in unbound
+    assert "STRAT-006" in unbound
+    assert "STRAT-013" in bound
+    assert "STRAT-014" in bound
+    assert "MIX-LEAN-SPOT-ATM" in bound
     assert "STRAT-004" in unbound
     assert "STRAT-010" in unbound
-    assert "STRAT-013" in unbound
+    assert "STRAT-011" in unbound
     for cid in CATALOG_CANDIDATES:
         assert cid in bound or cid in unbound
 
@@ -82,11 +88,11 @@ def test_strat_003_veto_mirrors_ticket() -> None:
     assert result.final_lean == "HOLD"
 
 
-def test_strat_001_bound_but_bars_missing() -> None:
+def test_strat_001_waiting_proxy_collapsed_di() -> None:
     result = evaluate_candidate("STRAT-001", _ticket())
-    assert result.available is True
+    assert result.available is False
     assert result.outcome == "DATA_INSUFFICIENT"
-    assert BARS_MISSING_DI in result.data_gaps
+    assert result.data_gaps == [UNBOUND_AGGREGATE_DI]
 
 
 def test_clock_filter_fires_on_dead_band() -> None:
@@ -114,15 +120,21 @@ def test_build_observations_provenance_flags() -> None:
         as_of_ist="2026-09-07T12:00:00+05:30",
         tick_index=0,
     )
-    assert len(rows) == len(CATALOG_CANDIDATES)
+    assert KEEP_ALL_UNBOUND_DI in {r.candidate_id for r in rows}
+    assert len(rows) == len(working_score_ids()) + 1
     by_id = {r.candidate_id: r for r in rows}
     assert by_id["MIX-DEFAULT-BUY"].provenance["candidate_evaluator_available"] is True
-    assert by_id["STRAT-004"].provenance["candidate_evaluator_available"] is False
-    assert by_id["STRAT-004"].data_gaps == [UNBOUND_AGGREGATE_DI]
-    assert by_id["STRAT-001"].provenance["candidate_evaluator_available"] is True
-    assert by_id["STRAT-001"].outcome == "DATA_INSUFFICIENT"
-    # Unbound stubs list the shared unbound id set once in provenance
-    assert "STRAT-014" in by_id["STRAT-004"].provenance["unbound_evaluator_ids"]
+    assert "STRAT-004" not in by_id
+    collapsed = by_id[KEEP_ALL_UNBOUND_DI]
+    assert collapsed.provenance["candidate_evaluator_available"] is False
+    assert collapsed.data_gaps == [UNBOUND_AGGREGATE_DI]
+    assert "STRAT-001" in collapsed.provenance["unbound_evaluator_ids"]
+    assert "STRAT-013" not in collapsed.provenance["unbound_evaluator_ids"]
+    assert "STRAT-014" not in collapsed.provenance["unbound_evaluator_ids"]
+    assert set(parked_score_ids()) <= set(collapsed.provenance["unbound_evaluator_ids"])
+    assert by_id["MIX-SELL-CREDIT-PARK"].outcome == "PARKED"
+    assert by_id["STRAT-013"].outcome == "PARKED"
+    assert by_id["MIX-LEAN-SPOT-ATM"].provenance["candidate_evaluator_available"] is True
     # Okala-IN bound (FOUNDER_PAPER_ACCEPT) — news soft-default does not VETO
     assert by_id["MIX-CF-OKALA-IN-H-CROSS"].provenance["candidate_evaluator_available"] is True
     # Without bars → DI; news alone must not force VETOED when NEWS_VETO_ENABLED=false

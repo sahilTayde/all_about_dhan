@@ -1,5 +1,68 @@
 # Handoff log — Team 00 Orchestrator
 
+## As of now (2026-09-08) — MIX-LEAN first gather ticket (WAITING)
+
+```text
+From:     teams/00_orchestrator (boss)
+To:       01 / 02 / 03 / 04 / 05 / 06 / 09
+Date:     2026-09-08
+Status:   WAITING MIX evaluators / PAPER / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+Layers:   SOURCE_FACT gather · VALIDATION PCR-without-price · HYPOTHESIS lean
+
+Accepted: smallest MIX-LEAN path so INDEX 1m + ATM/PCR gather can emit
+  WATCH/EARLY; PROXY 003/006 labeled; PCR HOLD overlay; 013/014 never buy;
+  KEEP_ALL; DEFAULT-BUY unchanged; unbound PARKED DI collapsed
+  (KEEP_ALL-UNBOUND-DI).
+Rejected: Promote; live Dhan orders; win rates; /alerts/orders; npm restart;
+  sqlite git-add; STRAT-015+; STRAT deletes.
+UNKNOWN / DATA_INSUFFICIENT: FUTIDX/OPTIDX not this path; EVENT_MEMORY empty;
+  5m ST/MACD still confirm-or-kill (no fake CONFIRMED).
+
+Artifacts:
+- packages/trading_agents_india lean_mix.py + paper_evaluators
+- teams/04_quant/docs/MIX_CATALOG.md §20
+Next: do not restart paper/npm until asked.
+```
+
+Newest first.
+
+---
+
+## As of now (2026-09-08) — Founder strategy working-path cleanup (KEEP_ALL)
+
+```text
+From:     teams/00_orchestrator (00+01+09)
+To:       04 / 06 / 07 / founder
+Date:     2026-09-08
+Status:   WORKING_PATH_PARK / NO_PROMOTE / KEEP_ALL
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Summary:
+Accepted: Park hungry PAPER scorers without deleting STRAT-001–014.
+  Bound tick = MIX-DEFAULT-BUY + 003/007/008/009 + MIX-TA-* + Okala-IN.
+  Unbound KEEP_ALL collapse to KEEP_ALL-UNBOUND-DI.
+  MIX-HAUS-001 / MIX-SCALP-006 WAITING proxies (do not pretend INDEX 1m
+  is HAUS MTF or Mukul 2m). MIX-CLUB-GR PARKED off confidence
+  (after-cost FAIL; SCORE_SAMPLE empty → not kill).
+  Transcript files deleted: none (Dhan EN + CF retry queue kept).
+Rejected: STRAT-015+; file-delete STRAT-001–014; MIX kill without
+  OOS+NORMAL; promote; live orders; git-add sqlite; restart npm;
+  deleting CF/Dhan transcripts the founder still needs.
+UNKNOWN / DATA_INSUFFICIENT: 004 EMA lengths; 010 HQ OF; FUTIDX stitch;
+  SCORE_SAMPLE empty; CF fail ASR queue.
+
+Artifacts:
+- packages/trading_agents_india paper_evaluators + candidate_audit
+- packages/backtest live_signals (CLUB-GR unlink)
+- teams/04_quant/docs/MIX_CATALOG.md §4 working-path
+Next: founder other videos. Do not restart paper/npm until asked.
+```
+
+Newest first.
+
+---
+
 ## As of now (2026-09-08) — Token-reset left-off
 
 Wake-up is [`CONTINUE_NEXT_CHAT.md`](docs/CONTINUE_NEXT_CHAT.md) — do not reload the bootstrap chat.

@@ -29,7 +29,9 @@ Score = stage base + bonus if a second paper playbook agrees on the **same** sid
 Plain playbook names on `/` (not STRAT soup):
 
 - **Session trend stack** ← `MIX-DEFAULT-BUY`
-- **Gap + expansion** ← `MIX-CLUB-GR` (PAPER_WATCH)
+- **Okala India paper starter** ← `MIX-CF-OKALA-IN-*` (`FOUNDER_PAPER_ACCEPT`, **NO_PROMOTE**)
+
+`MIX-CLUB-GR` (gap + expansion) stays KEEP_ALL / BACKTEST_BOOK but is **PARKED** on the working ticket (after-cost FAIL; SCORE_SAMPLE empty → not a MIX kill). It does **not** add to desk confidence.
 
 ## Levels (honest — named method)
 

@@ -1,5 +1,49 @@
 # Handoff log — Team 09 Review
 
+## As of now (2026-09-08) — MIX-LEAN NOTES_ONLY (not five-pass)
+
+```text
+From:     teams/09_review
+To:       00 / 04 / 06
+Date:     2026-09-08
+Status:   NOTES_ONLY
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: WAITING MIX-LEAN path is MIX-* not STRAT-015+; DEFAULT-BUY not
+  rewritten; 013/014 not buy entries; no fake CONFIRMED; layers hold.
+Rejected: Five-pass pass; RESEARCH_READY; Docs Auditor as product gate;
+  promote; win rates.
+UNKNOWN: gather quality vs live session still UNVALIDATED.
+```
+
+Newest first.
+
+---
+
+## As of now (2026-09-08) — Founder working-path notes (NOTES_ONLY)
+
+```text
+From:     teams/09_review
+To:       00 / 04 / 06
+Date:     2026-09-08
+Status:   NOTES_ONLY
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: KEEP_ALL. Park vs kill: MIX-CLUB-GR after-cost FAIL but
+  SCORE_SAMPLE empty → PARK not REJECTED. 013/014 stay WAITING sell.
+  Collapse DI for unbound evaluators. No promote. No five-pass pass.
+Rejected: Deleting STRAT-001–014; STRAT-015+; inventing P/L; treating
+  INDEX 1m as FUT 3m / Mukul 2m / HAUS hourly.
+UNKNOWN: 09 five-pass still FAILED REVIEW historically.
+
+Artifacts:
+- this HANDOFF; MIX_CATALOG working-path; candidate_audit collapse
+```
+
+Newest first.
+
+---
+
 ## As of now (2026-09-06) — Market-hours paper agents deepen (NOTES_ONLY)
 
 Verified additive market-hours loop docs against KEEP_ALL. **Not** a five-pass. **Not** RESEARCH_READY.

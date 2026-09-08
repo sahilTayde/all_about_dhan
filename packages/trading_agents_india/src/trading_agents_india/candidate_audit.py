@@ -13,6 +13,7 @@ from typing import Any, Iterable, Optional
 
 from trading_agents_india.paper_evaluators import (
     EVALUATOR_BINDS,
+    UNBOUND_AGGREGATE_DI,
     evaluate_candidate,
     unbound_candidate_ids,
 )
@@ -30,8 +31,32 @@ CATALOG_CANDIDATES: tuple[str, ...] = tuple(
         "MIX-CF-OKALA-IN-FORK",
         "MIX-CF-OKALA-IN-H-CROSS",
         "MIX-CF-OKALA-IN-REPAIR",
+        "MIX-LEAN-SPOT-ATM",
+        "MIX-IMPULSE-1M",
+        "MIX-003-INDEX-PROXY",
+        "MIX-006-INDEX-PROXY",
+        "MIX-PCR-EXTREME-HOLD",
+        "MIX-SELL-CREDIT-PARK",
     ]
 )
+
+# Scoring collapse id — not STRAT-015+. KEEP_ALL parked IDs live in provenance.
+KEEP_ALL_UNBOUND_DI = "KEEP_ALL-UNBOUND-DI"
+
+
+def working_score_ids(catalog: Iterable[str] = CATALOG_CANDIDATES) -> list[str]:
+    """PAPER tick scoring list: bound evaluators only (customer updates)."""
+    out: list[str] = []
+    for cid in catalog:
+        bind = EVALUATOR_BINDS.get(cid)
+        if bind is not None and bind.available:
+            out.append(cid)
+    return out
+
+
+def parked_score_ids(catalog: Iterable[str] = CATALOG_CANDIDATES) -> list[str]:
+    working = set(working_score_ids(catalog))
+    return [cid for cid in catalog if cid not in working]
 
 
 @dataclass(frozen=True)
@@ -101,44 +126,91 @@ def build_candidate_observations(
     source: str = "trading_agents_india.catalog_adapter",
     candidate_ids: Iterable[str] = CATALOG_CANDIDATES,
     bars: Optional[list[Any]] = None,
+    collapse_parked: bool = True,
 ) -> list[CandidateObservation]:
-    """Build one record for every known candidate without silent omission."""
+    """Score working-path candidates; collapse PARKED/WAITING KEEP_ALL into one DI row.
+
+    IDs are not deleted. ``collapse_parked=False`` emits one row per catalog id
+    (KEEP_ALL audit). Default PAPER ticks collapse so unbound DI does not drown
+    MIX-DEFAULT-BUY / Okala-IN / clock filters.
+    """
+    catalog = tuple(candidate_ids)
     rows: list[CandidateObservation] = []
     unbound = unbound_candidate_ids()
-    for candidate_id in candidate_ids:
+    working = working_score_ids(catalog) if collapse_parked else list(catalog)
+    parked = parked_score_ids(catalog) if collapse_parked else []
+
+    def _row(candidate_id: str) -> CandidateObservation:
         bind = EVALUATOR_BINDS.get(candidate_id)
         timeframe = bind.timeframe if bind else "UNSUPPORTED"
         result = evaluate_candidate(candidate_id, ticket, bars=bars)
         gaps = list(dict.fromkeys(result.data_gaps))
         components = _components(ticket, available=result.available)
+        return CandidateObservation(
+            observation_id=f"{as_of_ist}:{tick_index}:{ticket.underlying}:{candidate_id}",
+            candidate_id=candidate_id,
+            strategy_or_mix_id=candidate_id,
+            underlying=ticket.underlying,
+            timeframe=timeframe,
+            source=source,
+            provenance={
+                **ticket.provenance,
+                "catalog_adapter": "paper_evaluators_v1",
+                "candidate_evaluator_available": result.available,
+                "unbound_evaluator_ids": unbound if not result.available else [],
+                **result.provenance_extra,
+            },
+            as_of_ist=as_of_ist,
+            freshness={
+                "status": "STALE" if ticket.data_gaps else "FRESHNESS_UNKNOWN",
+                "data_gaps": gaps,
+            },
+            raw_lean=result.raw_lean,
+            final_lean=result.final_lean,
+            outcome=result.outcome,
+            vetoes=list(result.vetoes),
+            confidence_components=components,
+            confidence=_confidence(components),
+            data_gaps=gaps,
+            status=(bind.catalog_status if bind else "UNVALIDATED"),
+        )
+
+    for candidate_id in working:
+        rows.append(_row(candidate_id))
+
+    if collapse_parked and parked:
+        components = _components(ticket, available=False)
         rows.append(
             CandidateObservation(
-                observation_id=f"{as_of_ist}:{tick_index}:{ticket.underlying}:{candidate_id}",
-                candidate_id=candidate_id,
-                strategy_or_mix_id=candidate_id,
+                observation_id=f"{as_of_ist}:{tick_index}:{ticket.underlying}:{KEEP_ALL_UNBOUND_DI}",
+                candidate_id=KEEP_ALL_UNBOUND_DI,
+                strategy_or_mix_id=KEEP_ALL_UNBOUND_DI,
                 underlying=ticket.underlying,
-                timeframe=timeframe,
+                timeframe="collapsed",
                 source=source,
                 provenance={
                     **ticket.provenance,
                     "catalog_adapter": "paper_evaluators_v1",
-                    "candidate_evaluator_available": result.available,
-                    "unbound_evaluator_ids": unbound if not result.available else [],
-                    **result.provenance_extra,
+                    "candidate_evaluator_available": False,
+                    "unbound_evaluator_ids": list(parked),
+                    "keep_all": True,
+                    "collapse_di": True,
+                    "bind_kind": "collapsed_parked",
+                    "catalog_status": "PARKED",
                 },
                 as_of_ist=as_of_ist,
                 freshness={
                     "status": "STALE" if ticket.data_gaps else "FRESHNESS_UNKNOWN",
-                    "data_gaps": gaps,
+                    "data_gaps": [UNBOUND_AGGREGATE_DI],
                 },
-                raw_lean=result.raw_lean,
-                final_lean=result.final_lean,
-                outcome=result.outcome,
-                vetoes=list(result.vetoes),
+                raw_lean="HOLD",
+                final_lean="HOLD",
+                outcome="DATA_INSUFFICIENT",
+                vetoes=[],
                 confidence_components=components,
                 confidence=_confidence(components),
-                data_gaps=gaps,
-                status=(bind.catalog_status if bind else "UNVALIDATED"),
+                data_gaps=[UNBOUND_AGGREGATE_DI],
+                status="PARKED",
             )
         )
     return rows
