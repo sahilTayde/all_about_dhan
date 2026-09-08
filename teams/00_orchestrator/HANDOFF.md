@@ -23,7 +23,7 @@ UNKNOWN / DATA_INSUFFICIENT: Cloud env Save may be incomplete
   if Save is gone); EVENT_MEMORY empty; unbound STRAT DI.
 
 Artifacts:
-- origin/main @ 4edb503
+- origin/main includes 4edb503 (gather+env+CF); this CONTINUE is the wake-up
 - teams/00_orchestrator/docs/CONTINUE_NEXT_CHAT.md
 - teams/00_orchestrator/docs/PAPER_MARKET_HOURS_RUNBOOK.md
 - packages/trading_agents_india hooks/chain.py + hooks/index_bars.py

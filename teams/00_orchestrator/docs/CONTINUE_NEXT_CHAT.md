@@ -19,7 +19,7 @@ Read in order:
 
 Gate: NOT RESEARCH_READY_FOR_PROGRAMMING. PAPER only. NO_PROMOTE. STRATs UNVALIDATED. Dashboard P/L is MOCK. No live orders. Do not restart npm / Vite / paper ops until I ask. Never print secrets.
 
-Left off 2026-09-08: PAPER market-hours ran --mode PAPER --tick-seconds 90 --use-llm --no-gather-news --live-chain; founder stop 11:54 IST; paper_ops_STOPPED.flag present. Gather (live chain ATM/PCR + INDEX 1m + gpt-5.4-nano max_completion_tokens) + Cloud Agent env + CF transcript markdown are on origin/main @ 4edb503. Next: strategies (KEEP_ALL, no STRAT-015+, no promote, no live orders). Local trading_agents_india.sqlite is working-tree only — do not git-add. Cloud env Save may still be incomplete.
+Left off 2026-09-08: PAPER market-hours ran --mode PAPER --tick-seconds 90 --use-llm --no-gather-news --live-chain; founder stop 11:54 IST; paper_ops_STOPPED.flag present. Gather (live chain ATM/PCR + INDEX 1m + gpt-5.4-nano max_completion_tokens) + Cloud Agent env + CF transcript markdown are on origin/main (feature 4edb503). Next: strategies (KEEP_ALL, no STRAT-015+, no promote, no live orders). Local trading_agents_india.sqlite is working-tree only — do not git-add. Cloud env Save may still be incomplete.
 ```
 
 ---
@@ -43,7 +43,7 @@ Left off 2026-09-08: PAPER market-hours ran --mode PAPER --tick-seconds 90 --use
 
 ## What is true as of 2026-09-08
 
-**Git:** `origin/main` tip `4edb503` — `https://github.com/sahilTayde/all_about_dhan.git`
+**Git:** `origin/main` includes `4edb503` (gather/env/CF). This CONTINUE file is the wake-up. Confirm with `git log -1 --oneline origin/main`. Remote `https://github.com/sahilTayde/all_about_dhan.git`
 
 **Shipped on main (this slice):**
 
