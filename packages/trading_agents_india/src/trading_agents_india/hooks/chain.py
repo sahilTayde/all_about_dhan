@@ -36,6 +36,13 @@ class ChainWatchResult:
     data_gaps: list[str] = field(default_factory=list)
     wall_notes: list[str] = field(default_factory=list)
     raw_keys: list[str] = field(default_factory=list)
+    spot: Optional[float] = None
+    strike_count: int = 0
+    atm_strike: Optional[float] = None
+    pcr_oi: Optional[float] = None
+    atm_ce_ltp: Optional[float] = None
+    atm_pe_ltp: Optional[float] = None
+    expiry: Optional[str] = None
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -71,14 +78,101 @@ def _fixture_watch(underlying: str, chain_lean: ChainLean) -> ChainWatchResult:
     )
 
 
+def _metrics_from_dhan_payload(
+    payload: dict[str, Any],
+    *,
+    underlying: str,
+    expiry: Optional[str],
+) -> tuple[ChainLean, list[str], dict[str, Any]]:
+    """Parse documented Dhan ``data.oc`` / ``last_price`` via desk-intel.
+
+    Lean from ATM±N OI buildup (CHAIN_METRICS VALIDATION stub) — not a promote.
+    """
+    meta: dict[str, Any] = {
+        "spot": None,
+        "strike_count": 0,
+        "atm_strike": None,
+        "pcr_oi": None,
+        "atm_ce_ltp": None,
+        "atm_pe_ltp": None,
+        "expiry": expiry,
+    }
+    try:
+        from desk_intel.option_chain_poller import (
+            atm_index,
+            compute_chain_bias,
+            parse_oc,
+            unwrap_chain_payload,
+        )
+        from desk_intel.schema import ChainSnapshot
+        from desk_intel.time_ist import now_ist_iso
+    except Exception:
+        return _parse_chain_lean_from_payload(payload)[0], [
+            "DATA_INSUFFICIENT: desk_intel chain parser unavailable — NEUTRAL"
+        ], meta
+
+    data = unwrap_chain_payload(payload)
+    if not data:
+        lean, gaps = _parse_chain_lean_from_payload(payload)
+        gaps.append("DATA_INSUFFICIENT: option-chain payload has no data.oc")
+        return lean, gaps, meta
+
+    spot_raw = data.get("last_price")
+    try:
+        spot = float(spot_raw) if spot_raw not in (None, "") else None
+    except (TypeError, ValueError):
+        spot = None
+    rows = parse_oc(data.get("oc"))
+    meta["spot"] = spot
+    meta["strike_count"] = len(rows)
+    if not rows:
+        return "NEUTRAL", [
+            "DATA_INSUFFICIENT: option-chain oc empty after parse — NEUTRAL"
+        ], meta
+
+    idx = atm_index(rows, spot)
+    atm = rows[idx] if idx is not None else None
+    if atm is not None:
+        meta["atm_strike"] = float(atm.strike)
+        meta["atm_ce_ltp"] = atm.ce_ltp
+        meta["atm_pe_ltp"] = atm.pe_ltp
+
+    snap = ChainSnapshot(
+        underlying=underlying,
+        expiry=expiry,
+        spot=spot,
+        as_of_ist=now_ist_iso(),
+        mode="full_chain_3m",
+        dry_run=False,
+        strikes=rows,
+        source="dhan_option_chain",
+        note="agent tick parse — CHAIN_METRICS VALIDATION stub",
+    )
+
+    class _Wing:
+        atm_wing = 2
+
+    bias = compute_chain_bias(snap, _Wing())  # type: ignore[arg-type]
+    lean = str(bias.lean or "NEUTRAL").upper()
+    if lean not in ("CE", "PE", "NEUTRAL", "NO_TRADE"):
+        lean = "NEUTRAL"
+    meta["pcr_oi"] = bias.pcr_oi
+    meta["atm_strike"] = bias.atm_strike if bias.atm_strike is not None else meta["atm_strike"]
+    gaps: list[str] = []
+    if lean == "NEUTRAL":
+        gaps.append(
+            "VALIDATION: chain oc parsed; ATM±N buildup not decisive — lean NEUTRAL (not missing payload)"
+        )
+    return lean, gaps, meta  # type: ignore[return-value]
+
+
 def _parse_chain_lean_from_payload(payload: dict[str, Any]) -> tuple[ChainLean, list[str]]:
-    """Honest minimal parse — prefer explicit bias fields; else DI→NEUTRAL."""
+    """Fallback: explicit bias fields only; else DI→NEUTRAL."""
     gaps: list[str] = []
     for key in ("chain_lean", "lean", "bias", "option_bias"):
         val = payload.get(key)
         if isinstance(val, str) and val.upper() in ("CE", "PE", "NEUTRAL", "NO_TRADE"):
             return val.upper(), gaps  # type: ignore[return-value]
-    # Nested data common in Dhan responses — do not invent OI walls
     data = payload.get("data")
     if isinstance(data, dict):
         for key in ("chain_lean", "lean"):
@@ -143,9 +237,15 @@ def try_fetch_dhan_chain(underlying: str) -> Optional[ChainWatchResult]:
             )
         raw = client.option_chain.chain({**body_u, "Expiry": expiry})
         client.close()
-        lean, gaps = _parse_chain_lean_from_payload(raw if isinstance(raw, dict) else {})
+        lean, gaps, meta = _metrics_from_dhan_payload(
+            raw if isinstance(raw, dict) else {},
+            underlying=und,
+            expiry=expiry,
+        )
         flag, walls = _hypotheses_from_lean(lean)
         keys = sorted(raw.keys()) if isinstance(raw, dict) else []
+        pcr = meta.get("pcr_oi")
+        pcr_txt = f"{pcr:.2f}" if isinstance(pcr, float) else "n/a"
         return ChainWatchResult(
             underlying=und,
             source="dhan_live",
@@ -153,7 +253,9 @@ def try_fetch_dhan_chain(underlying: str) -> Optional[ChainWatchResult]:
             hypothesis_flag=flag,
             summary=(
                 f"Chain watcher ({und}): Dhan POST /optionchain lean={lean}; "
-                f"flag={flag}. Wall notes are HYPOTHESIS unless OI parse validated."
+                f"spot={meta.get('spot')} atm={meta.get('atm_strike')} "
+                f"strikes={meta.get('strike_count')} PCR(OI)={pcr_txt}; "
+                f"flag={flag}. Buildup lean is CHAIN_METRICS VALIDATION stub."
             ),
             layer="SOURCE_FACT" if lean != "NEUTRAL" or "DATA_INSUFFICIENT" not in str(gaps) else "HYPOTHESIS",
             data_gaps=gaps
@@ -162,6 +264,13 @@ def try_fetch_dhan_chain(underlying: str) -> Optional[ChainWatchResult]:
             ],
             wall_notes=walls,
             raw_keys=keys[:24],
+            spot=meta.get("spot"),
+            strike_count=int(meta.get("strike_count") or 0),
+            atm_strike=meta.get("atm_strike"),
+            pcr_oi=meta.get("pcr_oi"),
+            atm_ce_ltp=meta.get("atm_ce_ltp"),
+            atm_pe_ltp=meta.get("atm_pe_ltp"),
+            expiry=expiry,
         )
     except Exception as exc:  # noqa: BLE001
         return ChainWatchResult(

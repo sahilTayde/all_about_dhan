@@ -35,6 +35,8 @@ class MarketContext:
     premium_lean: dict[str, Any] = field(default_factory=dict)
     mix_inputs: dict[str, Any] = field(default_factory=dict)
     rag_context: list[dict[str, Any]] = field(default_factory=list)
+    index_bars: list[Any] = field(default_factory=list)
+    index_bar_meta: dict[str, Any] = field(default_factory=dict)
 
     def to_prompt_blob(self) -> dict[str, Any]:
         return {
@@ -65,10 +67,14 @@ class MarketContext:
         }
 
 
+# Seeded on dry fixtures. Dropped in pipeline when live Dhan chain actually lands.
+DRY_RUN_CHAIN_GAP = "DATA_INSUFFICIENT: live Dhan chain not required for dry-run fixtures"
+
+
 def fixture_contexts() -> dict[str, MarketContext]:
     """Deterministic dry-run inputs. Not live Dhan quotes."""
     common_gaps = [
-        "DATA_INSUFFICIENT: live Dhan chain not required for dry-run fixtures",
+        DRY_RUN_CHAIN_GAP,
         "DATA_INSUFFICIENT: EVENT_MEMORY analog store empty",
     ]
     return {

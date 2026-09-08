@@ -9,7 +9,7 @@ from typing import Any, Literal, Optional
 from trading_agents_india.session_clock import now_ist
 
 PremiumLean = Literal["BUY_CE", "BUY_PE", "HOLD"]
-PremiumSource = Literal["optidx_rolling", "index_proxy", "unavailable"]
+PremiumSource = Literal["optidx_rolling", "optionchain_atm", "index_proxy", "unavailable"]
 
 _INDEX_HINTS = {
     "NIFTY": ("13", "IDX_I", "INDEX"),
@@ -27,6 +27,11 @@ class PremiumLeanResult:
     summary: str
     data_gaps: list[str] = field(default_factory=list)
     bar_count: int = 0
+    option_ltp: Optional[float] = None
+    entry: Optional[float] = None
+    stop: Optional[float] = None
+    target: Optional[float] = None
+    atm_strike: Optional[float] = None
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -163,7 +168,55 @@ def resolve_premium_lean(
     prefer_live: bool = False,
     trend_plain: str = "",
     chain_lean: str = "NEUTRAL",
+    chain_watch: Optional[dict[str, Any]] = None,
 ) -> PremiumLeanResult:
+    watch = chain_watch or {}
+    atm_ce = watch.get("atm_ce_ltp")
+    atm_pe = watch.get("atm_pe_ltp")
+    side = str(chain_lean or "").upper()
+    ltp = None
+    if side == "CE":
+        ltp = atm_ce
+    elif side == "PE":
+        ltp = atm_pe
+    elif atm_ce is not None or atm_pe is not None:
+        ltp = atm_ce if atm_ce is not None else atm_pe
+    if prefer_live and ltp not in (None, ""):
+        try:
+            px = float(ltp)
+        except (TypeError, ValueError):
+            px = None
+        if px is not None and px > 0:
+            lean: PremiumLean = "HOLD"
+            if side == "CE":
+                lean = "BUY_CE"
+            elif side == "PE":
+                lean = "BUY_PE"
+            strike = watch.get("atm_strike")
+            try:
+                strike_f = float(strike) if strike not in (None, "") else None
+            except (TypeError, ValueError):
+                strike_f = None
+            return PremiumLeanResult(
+                underlying=underlying.upper(),
+                lean=lean,
+                source="optionchain_atm",
+                layer="SOURCE_FACT",
+                summary=(
+                    f"ATM option last_price={px} from live optionchain "
+                    f"(side={side or 'n/a'} strike={strike_f}). "
+                    "Entry=LTP · Stop=0.75× · Target=1.25× PAPER starter. Not a fill."
+                ),
+                bar_count=0,
+                option_ltp=px,
+                entry=px,
+                stop=round(px * 0.75, 2),
+                target=round(px * 1.25, 2),
+                atm_strike=strike_f,
+                data_gaps=[
+                    "VALIDATION: ATM last_price from POST /optionchain — PAPER starter levels only"
+                ],
+            )
     if prefer_live:
         opt = try_optidx_premium_lean(underlying)
         if opt is not None and opt.source == "optidx_rolling":
