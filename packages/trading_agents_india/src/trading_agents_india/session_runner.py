@@ -248,6 +248,7 @@ def run_market_hours_loop(
                     ticket,
                     as_of_ist=result.as_of_ist,
                     tick_index=i,
+                    bars=list(getattr(ticket, "index_bars", None) or []),
                 ):
                     ledger.record_candidate_observation(
                         CandidateAuditRecord(**observation.to_dict())
@@ -322,6 +323,30 @@ def run_market_hours_loop(
             ),
             "top_veto_reasons": {
                 t.underlying: list(getattr(t, "top_veto_reasons", []) or [])[:3]
+                for t in result.tickets
+            },
+            "index_bars": {
+                t.underlying: int((getattr(t, "index_bar_meta", None) or {}).get("bar_count") or 0)
+                for t in result.tickets
+            },
+            "index_bar_source": {
+                t.underlying: str(
+                    (getattr(t, "index_bar_meta", None) or {}).get("source") or "unavailable"
+                )
+                for t in result.tickets
+            },
+            "chain_metrics": {
+                t.underlying: {
+                    "lean": (t.premium_lean or {}).get("lean"),
+                    "spot": (t.premium_lean or {}).get("spot"),
+                    "pcr_oi": (t.premium_lean or {}).get("pcr_oi"),
+                    "strikes": (t.premium_lean or {}).get("strike_count"),
+                    "option_ltp": (t.premium_lean or {}).get("option_ltp"),
+                    "entry": (t.premium_lean or {}).get("entry"),
+                    "stop": (t.premium_lean or {}).get("stop"),
+                    "target": (t.premium_lean or {}).get("target"),
+                    "source": (t.premium_lean or {}).get("source"),
+                }
                 for t in result.tickets
             },
             "ledger_paths": ledger_paths,

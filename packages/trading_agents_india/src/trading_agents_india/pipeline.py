@@ -19,7 +19,7 @@ from trading_agents_india.agents import (
     run_trader,
 )
 from trading_agents_india.config import Settings, load_settings
-from trading_agents_india.fixtures import MarketContext, fixture_contexts
+from trading_agents_india.fixtures import DRY_RUN_CHAIN_GAP, MarketContext, fixture_contexts
 from trading_agents_india.handoffs import build_handoff_chain, validate_handoff_chain
 from trading_agents_india.hooks.chain import watch_chain
 from trading_agents_india.hooks.desk import try_load_desk_context
@@ -29,6 +29,7 @@ from trading_agents_india.hooks.event_memory import (
     score_premarket_sentiment,
     top_veto_reasons,
 )
+from trading_agents_india.hooks.index_bars import fetch_index_bars
 from trading_agents_india.hooks.news import gather_news
 from trading_agents_india.hooks.premium import resolve_premium_lean
 from trading_agents_india.hooks.rag import fetch_rag_context
@@ -56,6 +57,16 @@ def _now_ist() -> str:
         return datetime.utcnow().isoformat(timespec="seconds") + "Z"
 
 
+def drop_stale_dry_run_chain_gap(
+    gaps: Sequence[str], *, chain_source: str
+) -> list[str]:
+    """Keep EVENT_MEMORY / other DI; drop fixture-only chain gap after live parse."""
+    cleaned = list(gaps)
+    if chain_source == "dhan_live":
+        cleaned = [g for g in cleaned if g != DRY_RUN_CHAIN_GAP]
+    return list(dict.fromkeys(cleaned))
+
+
 def _enrich_context(
     ctx: MarketContext,
     *,
@@ -71,12 +82,26 @@ def _enrich_context(
         ctx.underlying,
         prefer_live=prefer_live_chain,
         trend_plain=ctx.trend_plain,
-        chain_lean=ctx.chain_lean,
+        chain_lean=watch.chain_lean if watch.source == "dhan_live" else ctx.chain_lean,
+        chain_watch=watch.to_dict(),
     )
-    gaps = list(ctx.data_gaps) + list(watch.data_gaps) + list(premium.data_gaps)
+    index = fetch_index_bars(ctx.underlying, prefer_live=prefer_live_chain)
+    gaps = (
+        list(ctx.data_gaps)
+        + list(watch.data_gaps)
+        + list(premium.data_gaps)
+        + list(index.data_gaps)
+    )
+    gaps = drop_stale_dry_run_chain_gap(gaps, chain_source=watch.source)
+    live_lean = watch.chain_lean if watch.source == "dhan_live" else ctx.chain_lean
+    prem = premium.to_dict()
+    prem["spot"] = watch.spot
+    prem["pcr_oi"] = watch.pcr_oi
+    prem["strike_count"] = watch.strike_count
+    prem["expiry"] = watch.expiry
     return MarketContext(
         underlying=ctx.underlying,
-        chain_lean=ctx.chain_lean,
+        chain_lean=live_lean,
         trend_plain=ctx.trend_plain,
         news=list(ctx.news),
         session_kind_hint=ctx.session_kind_hint,
@@ -84,9 +109,11 @@ def _enrich_context(
         technical_note=ctx.technical_note,
         data_gaps=list(dict.fromkeys(gaps)),
         chain_watch=watch.to_dict(),
-        premium_lean=premium.to_dict(),
+        premium_lean=prem,
         mix_inputs=mix_inputs,
         rag_context=list(ctx.rag_context),
+        index_bars=list(index.bars),
+        index_bar_meta=index.to_dict(),
     )
 
 
@@ -126,6 +153,8 @@ def _resolve_context(
                 premium_lean=dict(ctx.premium_lean),
                 mix_inputs=dict(ctx.mix_inputs),
                 rag_context=list(ctx.rag_context),
+                index_bars=list(ctx.index_bars),
+                index_bar_meta=dict(ctx.index_bar_meta),
             )
     ctx = _enrich_context(ctx, prefer_live_chain=prefer_live_chain, mix_inputs=mix_inputs)
     gaps.extend(ctx.data_gaps)
@@ -147,6 +176,8 @@ def _attach_rag(ctx: MarketContext) -> MarketContext:
         premium_lean=dict(ctx.premium_lean),
         mix_inputs=dict(ctx.mix_inputs),
         rag_context=snippets,
+        index_bars=list(ctx.index_bars),
+        index_bar_meta=dict(ctx.index_bar_meta),
     )
 
 
@@ -154,6 +185,8 @@ def run_underlying_session(
     ctx: MarketContext,
     settings: Settings,
     llm: Optional[LlmClient],
+    *,
+    gather_india_news: bool = False,
 ) -> PaperTicket:
     session_kind = classify_session_kind(ctx.news, ctx.session_kind_hint)
     premarket = score_premarket_sentiment(ctx.news)
@@ -167,9 +200,14 @@ def run_underlying_session(
         llm.skip_all = True  # type: ignore[attr-defined]
         active_llm = llm
     reports = []
+    if llm is not None:
+        # Fresh per-underlying budget so NIFTY TickBudget does not starve BN/SENSEX.
+        llm.call_count = 0  # type: ignore[attr-defined]
+    # Founder: no news API mid-session — keep news/sentiment on rules only.
+    news_llm = active_llm if gather_india_news else None
 
-    news = run_news_analyst(ctx, active_llm)
-    sentiment = run_sentiment_analyst(ctx, active_llm)
+    news = run_news_analyst(ctx, news_llm)
+    sentiment = run_sentiment_analyst(ctx, news_llm)
     technical = run_technical_analyst(ctx, active_llm)
     chain = run_chain_watcher(ctx, active_llm)
     reports.extend([news, sentiment, technical, chain])
@@ -193,6 +231,8 @@ def run_underlying_session(
         "observed_at_ist": _now_ist(),
         "freshness_status": "STALE" if ctx.data_gaps else "FIXTURE",
         "data_gaps": list(ctx.data_gaps),
+        "index_bar_count": int((ctx.index_bar_meta or {}).get("bar_count") or 0),
+        "index_bar_source": str((ctx.index_bar_meta or {}).get("source") or "unavailable"),
     }
     for report in reports:
         report.provenance = dict(provenance)
@@ -320,6 +360,8 @@ def run_underlying_session(
         provenance=provenance,
         top_veto_reasons=banner,
         premarket_sentiment=dict(premarket),
+        index_bars=list(ctx.index_bars),
+        index_bar_meta=dict(ctx.index_bar_meta or {}),
     )
 
 
@@ -400,7 +442,12 @@ def run_session(
             or not clock.get("in_session_shell", True)
         ):
             llm.skip_all = True  # type: ignore[attr-defined]
-        ticket = run_underlying_session(ctx, settings, llm if use_llm else None)
+        ticket = run_underlying_session(
+            ctx,
+            settings,
+            llm if use_llm else None,
+            gather_india_news=gather_india_news,
+        )
         tickets.append(ticket)
         all_handoffs.extend(ticket.handoffs)
 

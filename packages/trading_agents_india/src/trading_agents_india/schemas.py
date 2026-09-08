@@ -60,9 +60,13 @@ class PaperTicket:
     provenance: dict[str, Any] = field(default_factory=dict)
     top_veto_reasons: list[str] = field(default_factory=list)
     premarket_sentiment: dict[str, Any] = field(default_factory=dict)
+    index_bars: list[Any] = field(default_factory=list, repr=False)
+    index_bar_meta: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
-        return asdict(self)
+        payload = asdict(self)
+        payload.pop("index_bars", None)  # keep OHLC out of KB / JSON dumps
+        return payload
 
 
 @dataclass

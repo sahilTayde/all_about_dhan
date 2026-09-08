@@ -26,9 +26,19 @@ def test_gpt6_family_and_o_series() -> None:
     assert "temperature" not in o1
 
 
+def test_gpt54_nano_uses_max_completion_tokens() -> None:
+    """Live 2026-09-08: gpt-5.4-nano 400s on max_tokens (unsupported_parameter)."""
+    assert uses_max_completion_tokens("gpt-5.4-nano") is True
+    assert uses_max_completion_tokens("gpt-5.4") is True
+    assert uses_max_completion_tokens("GPT-5.4-NANO") is True
+    params = build_chat_completion_params("gpt-5.4-nano", max_tokens=700)
+    assert params == {"model": "gpt-5.4-nano", "max_completion_tokens": 700}
+    assert "max_tokens" not in params
+    assert "temperature" not in params
+
+
 def test_classic_gpt4o_keeps_temperature_and_max_tokens() -> None:
     assert uses_max_completion_tokens("gpt-4o") is False
-    assert uses_max_completion_tokens("gpt-5.4") is False
     params = build_chat_completion_params("gpt-4o", max_tokens=500, temperature=0.2)
     assert params == {
         "model": "gpt-4o",

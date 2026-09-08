@@ -11,6 +11,7 @@ from trading_agents_india.hooks.event_memory import (
     top_veto_reasons,
 )
 from trading_agents_india.hooks.news import gather_news, try_dhan_news
+from trading_agents_india.hooks.index_bars import fetch_index_bars
 from trading_agents_india.hooks.premium import resolve_premium_lean
 from trading_agents_india.hooks.rag import fetch_rag_context
 
@@ -25,6 +26,7 @@ __all__ = [
     "try_dhan_news",
     "watch_chain",
     "resolve_premium_lean",
+    "fetch_index_bars",
     "fetch_depth_snapshot",
     "fetch_rag_context",
 ]

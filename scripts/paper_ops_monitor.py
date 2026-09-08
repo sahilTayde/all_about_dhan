@@ -348,6 +348,21 @@ def _di_why_rows(
     return rows[:5]
 
 
+def _side_counts(sides: dict | None) -> tuple[int, int, int]:
+    """Ledger SIGNAL.lean is BUY_CE/BUY_PE/HOLD — do not look for bare CE/PE."""
+    hold = ce = pe = 0
+    for raw, n in (sides or {}).items():
+        key = str(raw or "").upper()
+        count = int(n or 0)
+        if key in ("HOLD", "NONE", "?", ""):
+            hold += count
+        elif key in ("BUY_CE", "CE", "CALL", "BUY_CALL"):
+            ce += count
+        elif key in ("BUY_PE", "PE", "PUT", "BUY_PUT"):
+            pe += count
+    return hold, ce, pe
+
+
 def _veto_rows(ledger: dict, clock: dict, section_ts: str) -> list[list[str]]:
     """Top customer-ticket veto / HOLD reasons — primary canvas table."""
     rows: list[list[str]] = []
@@ -408,6 +423,9 @@ def _log_meta() -> dict:
             "last_openai_used": None,
             "last_tick": None,
             "last_llm_error_class": None,
+            "last_index_bars": {},
+            "last_index_bar_source": {},
+            "last_chain_metrics": {},
         }
     st = best.stat()
     age = max(0.0, time.time() - st.st_mtime)
@@ -415,6 +433,9 @@ def _log_meta() -> dict:
     last_openai = None
     last_tick = None
     last_err = None
+    last_index_bars: dict = {}
+    last_index_src: dict = {}
+    last_chain: dict = {}
     try:
         data = best.read_bytes()
         text = data[-12000:].decode("utf-8", errors="replace")
@@ -434,6 +455,15 @@ def _log_meta() -> dict:
                 err = obj.get("llm_last_error_class")
                 if err:
                     last_err = str(err)[:64]
+                ib = obj.get("index_bars")
+                if isinstance(ib, dict):
+                    last_index_bars = {str(k): int(v or 0) for k, v in ib.items()}
+                src = obj.get("index_bar_source")
+                if isinstance(src, dict):
+                    last_index_src = {str(k): str(v) for k, v in src.items()}
+                cm = obj.get("chain_metrics")
+                if isinstance(cm, dict):
+                    last_chain = cm
                 break
     except Exception:
         tail = "unreadable"
@@ -446,6 +476,9 @@ def _log_meta() -> dict:
         "last_openai_used": last_openai,
         "last_tick": last_tick,
         "last_llm_error_class": last_err,
+        "last_index_bars": last_index_bars,
+        "last_index_bar_source": last_index_src,
+        "last_chain_metrics": last_chain,
     }
 
 
@@ -1225,6 +1258,22 @@ def _render_canvas(payload: dict) -> str:
     openai_used = payload.get("openai_used")
     llm_status = payload.get("llm_status") or ("ON" if llm.get("llm_enabled") else "OFF")
     llm_error_class = payload.get("llm_last_error_class") or "none"
+    log_meta = payload.get("log") or {}
+    index_bars = log_meta.get("last_index_bars") or {}
+    index_src = log_meta.get("last_index_bar_source") or {}
+    nifty_bars = int(index_bars.get("NIFTY") or 0)
+    index_src_one = str(index_src.get("NIFTY") or next(iter(index_src.values()), "unavailable"))
+    index_tone = "success" if nifty_bars >= 80 and "dhan" in index_src_one else "warning"
+    chain_meta = log_meta.get("last_chain_metrics") or {}
+    nifty_chain = chain_meta.get("NIFTY") if isinstance(chain_meta.get("NIFTY"), dict) else {}
+    nifty_ltp = nifty_chain.get("option_ltp")
+    nifty_spot = nifty_chain.get("spot")
+    chain_ltp_txt = (
+        f"LTP {nifty_ltp} · spot {nifty_spot}"
+        if nifty_ltp not in (None, "")
+        else "LTP n/a"
+    )
+    chain_ltp_tone = "success" if nifty_ltp not in (None, "") else "warning"
     sections = payload.get("section_ts") or {}
     overall = payload["updated_at"]
     attention = payload.get("attention") or {}
@@ -1257,9 +1306,7 @@ def _render_canvas(payload: dict) -> str:
     )
     shell_tone = "success" if clock.get("in_session_shell") else "info"
     sides = ledger.get("signal_sides") or {}
-    hold_n = int(sides.get("HOLD") or 0)
-    ce_n = int(sides.get("CE") or 0)
-    pe_n = int(sides.get("PE") or 0)
+    hold_n, ce_n, pe_n = _side_counts(sides)
     digest_path = f"data/recon/FOUNDER_DIGEST_{day}.md" if day else "data/recon/FOUNDER_DIGEST_*.md"
     queue_path = f"data/recon/ATTENTION_QUEUE_{day}.md" if day else "data/recon/ATTENTION_QUEUE_*.md"
     att_path = str(attention.get("path") or queue_path)
@@ -1371,6 +1418,17 @@ export default function PaperOperationsMonitor() {{
         <Stat label="openai_used" value={_js_str(used_txt)} tone="{used_tone}" />
         <Stat label="LLM last error" value={_js_str(str(llm_error_class)[:40])} tone="{err_tone}" />
         <Stat label="API / Vite" value={_js_str(("UP" if api_up else "DOWN") + " / " + ("UP" if website_up else "DOWN"))} tone={_js_str("danger" if (not api_up or not website_up) else "success")} />
+      </Grid>
+
+      <Grid columns={{4}} gap={{12}}>
+        <Stat label="INDEX 1m NIFTY" value={_js_str(str(nifty_bars))} tone="{index_tone}" />
+        <Stat label="INDEX 1m BN" value={_js_str(str(int(index_bars.get("BANKNIFTY") or 0)))} tone="{index_tone}" />
+        <Stat label="INDEX 1m SENSEX" value={_js_str(str(int(index_bars.get("SENSEX") or 0)))} tone="{index_tone}" />
+        <Stat label="INDEX source" value={_js_str(index_src_one[:28])} tone="{index_tone}" />
+      </Grid>
+      <Grid columns={{2}} gap={{12}}>
+        <Stat label="NIFTY ATM premium" value={_js_str(chain_ltp_txt)} tone="{chain_ltp_tone}" />
+        <Stat label="News API" value="OFF" tone="info" />
       </Grid>
 
       <Callout tone="info" title="Ops guardrail">
@@ -1495,6 +1553,7 @@ def _build_paper_cmd(live_chain: bool, tick_seconds: int = 90) -> list[str]:
         str(max(90, int(tick_seconds))),
         "--max-ticks",
         "900",
+        "--no-gather-news",
     ]
     if live_chain:
         cmd.append("--live-chain")
@@ -1526,6 +1585,7 @@ def _maybe_restart_paper(paper_alive: bool, pids: dict) -> dict | None:
         "TAI_LLM_COOLDOWN_PATH",
         str(RECON / "llm_cooldown.json"),
     )
+    env.setdefault("NEWS_VETO_ENABLED", "false")
     llm = _llm_flags(pids)
     live_chain = bool(llm.get("live_chain"))
     # P0-4: ≥90s when LLM (daemon previously used 60).
@@ -1663,7 +1723,9 @@ def collect(monitor_pid: int | None = None, allow_restart: bool = False) -> dict
     data_mode = (
         f"Production-like PAPER: LLM={'ON' if llm.get('llm_enabled') else 'OFF'}, "
         f"status={llm_status}, live_chain={bool(llm.get('live_chain'))}, real IST clock, no --simulate. "
-        "Orders always refused. Rate-limit → temporary rule fallback then retry LLM. "
+        f"INDEX 1m bars={log.get('last_index_bars') or {}} src={log.get('last_index_bar_source') or {}}. "
+        "News API off (--no-gather-news). Orders always refused. "
+        "Rate-limit → temporary rule fallback then retry LLM. "
         "Transient connection errors → in-call backoff retry."
     )
     payload = {
@@ -1757,6 +1819,9 @@ def write_status(payload: dict) -> None:
         "leans": leans.get("leans") or {},
         "top_veto_reasons": leans.get("top_veto_reasons") or {},
         "founder_digest": payload.get("founder_digest"),
+        "index_bars": (payload.get("log") or {}).get("last_index_bars") or {},
+        "index_bar_source": (payload.get("log") or {}).get("last_index_bar_source") or {},
+        "chain_metrics": (payload.get("log") or {}).get("last_chain_metrics") or {},
         "gate": "not RESEARCH_READY_FOR_PROGRAMMING",
         "mode": "PAPER",
         "promote": "NO_PROMOTE",
