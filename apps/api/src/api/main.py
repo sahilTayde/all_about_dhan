@@ -107,7 +107,7 @@ def create_app() -> FastAPI:
         """Last paper-signal snapshot from /ws/signals. Empty until a client connected.
 
         Includes MIX-DEFAULT-BUY (customer ticket path). MIX-CLUB-GR is PARKED
-        on the working ticket (KEEP_ALL). Okala-IN PAPER_WATCH. Orders refused.
+        on the working ticket (KEEP_ALL). MIX-CF / Okala notify removed.
         """
         snap = getattr(app.state, "live_paper", None)
         if not snap:
@@ -115,13 +115,7 @@ def create_app() -> FastAPI:
                 "kind": "paper_signal",
                 "orders": "refused",
                 "customer_default_mix": "MIX-DEFAULT-BUY",
-                "paper_watch_mixes": [
-                    "MIX-CF-OKALA-IN-LEVEL",
-                    "MIX-CF-OKALA-IN-FORK",
-                    "MIX-CF-OKALA-IN-H-CROSS",
-                    "MIX-CF-OKALA-IN-REPAIR",
-                    "MIX-CF-STRUCTURE",
-                ],
+                "paper_watch_mixes": [],
                 "underlyings": {},
                 "books": {},
                 "note": (

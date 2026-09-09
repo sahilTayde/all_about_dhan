@@ -68,7 +68,7 @@ Left off 2026-09-08: PAPER market-hours ran --mode PAPER --tick-seconds 90 --use
 | Topic | Path |
 |-------|------|
 | Plain English | [`HOW_SIGNALS_WORK.md`](HOW_SIGNALS_WORK.md) |
-| Okala-IN PAPER accept | [`OKALA_IN_PAPER_ACCEPT.md`](../../04_quant/docs/OKALA_IN_PAPER_ACCEPT.md) — **NO_PROMOTE** |
+| Cleanup canvas | [`/cleanup`](../../../apps/web/public/cleanup-canvas.html) — DhanHQ-only reset board |
 | Market-hours runbook | [`PAPER_MARKET_HOURS_RUNBOOK.md`](PAPER_MARKET_HOURS_RUNBOOK.md) |
 
 Do not start the paper loop unless founder asks. If they do: `--no-gather-news --live-chain`; respect `paper_ops_STOPPED.flag`.
@@ -79,8 +79,7 @@ Do not start the paper loop unless founder asks. If they do: `--no-gather-news -
 
 | Slice | Pointer |
 |-------|---------|
-| Overnight D (CF BT + paper wire) | [`HOW_SIGNALS_WORK.md`](HOW_SIGNALS_WORK.md) · local `data/recon/CF_OVERNIGHT_BACKTEST_ROLLUP_2026-09-07.md` |
-| Overnight A (CF inventory) | local `data/recon/CF_OVERNIGHT_INVENTORY_2026-09-07.md` · [`RETRY_TOMORROW.md`](../../01_research/docs/chart_fanatics/RETRY_TOMORROW.md) |
+| Overnight archives (CF) | **Removed** 2026-09-09 DhanHQ-only reset. |
 | Process P0/P1 2026-09-07 | `data/recon/PROCESS_FIXES_SHIPPED_2026-09-07.md` |
 | Paper-agents rollup | [`BACKTEST_PAPER_AGENTS_2026-09-08.md`](../../06_backtesting/docs/BACKTEST_PAPER_AGENTS_2026-09-08.md) — **NO_PROMOTE** |
 | 00 HANDOFF log | [`HANDOFF.md`](../HANDOFF.md) (newest first) |

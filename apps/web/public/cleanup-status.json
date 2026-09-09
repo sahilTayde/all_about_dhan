@@ -1,0 +1,93 @@
+{
+  "title": "Founder cleanup canvas",
+  "updated_ist": "2026-09-10T05:25:00+05:30",
+  "phase": "DhanHQ-only reset — first pass finished",
+  "keep": [
+    "@DhanHQ transcripts (raw / normalized / normalized_en / parked)",
+    "YouTube collector + Dhan API / indicator docs",
+    "5y INDEX/FUTIDX OHLC (data/recon/ohlc ~471MB)",
+    "Last-week gather book trading_agents_india.sqlite",
+    "STRAT-001–014 + MIX-LEAN + MIX-DEFAULT-BUY"
+  ],
+  "remove_rule": "Chart Fanatics, IQ Capital, MIX-CF, Okala paper notify, CF ASR/music",
+  "agents": [
+    {
+      "id": "A0",
+      "name": "00 canvas",
+      "task": "Monitoring page + phase board",
+      "status": "done"
+    },
+    {
+      "id": "A1",
+      "name": "01 research wipe",
+      "task": "Deleted CF/IQ audio+transcripts+BIND (~1.8GB → 11MB DhanHQ)",
+      "status": "done"
+    },
+    {
+      "id": "A2",
+      "name": "04/06 catalog wipe",
+      "task": "MIX-CF candidates + CF backtest/math/review docs gone",
+      "status": "done"
+    },
+    {
+      "id": "A3",
+      "name": "07/engine unwire",
+      "task": "Paper desk = MIX-DEFAULT-BUY only; CF CLI returns removed",
+      "status": "done"
+    },
+    {
+      "id": "A4",
+      "name": "KB sqlite",
+      "task": "transcripts.sqlite deleted (was 100% CF/IQ); RAG CF rows purged",
+      "status": "done"
+    },
+    {
+      "id": "A5",
+      "name": "09 auditor",
+      "task": "docs_auditor PASS; lean/paper tests 21 passed",
+      "status": "done"
+    }
+  ],
+  "phases": [
+    {
+      "id": "P0",
+      "name": "Canvas live",
+      "detail": "Open /cleanup or /cleanup-canvas.html",
+      "status": "done",
+      "removed": "0",
+      "kept": "page + JSON"
+    },
+    {
+      "id": "P1",
+      "name": "External media + KB files",
+      "detail": "Chart Fanatics ASR/music + IQ transcripts + BIND md",
+      "status": "done",
+      "removed": "~1.8GB + BIND/transcript md",
+      "kept": "DhanHQ transcript folders"
+    },
+    {
+      "id": "P2",
+      "name": "MIX-CF strategy paper",
+      "detail": "MIX-CF candidates; catalog §10–18 stub",
+      "status": "done",
+      "removed": "MIX-CF-* + Okala-IN",
+      "kept": "STRAT-001–014, MIX-LEAN-*, MIX-DEFAULT-BUY"
+    },
+    {
+      "id": "P3",
+      "name": "Engine + tests",
+      "detail": "No MIX-CF notify on customer ticket",
+      "status": "done",
+      "removed": "okala/cf_* modules",
+      "kept": "dhan-client, youtube collector, lean_mix"
+    },
+    {
+      "id": "P4",
+      "name": "Sqlite + auditor",
+      "detail": "Gather + 5y OHLC kept. Auditor PASS.",
+      "status": "done",
+      "removed": "transcripts.sqlite (CF/IQ only)",
+      "kept": "trading_agents_india.sqlite, data/recon/ohlc"
+    }
+  ]
+}

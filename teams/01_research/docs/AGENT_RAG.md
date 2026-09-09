@@ -24,7 +24,7 @@ Layer: retrieval aid only. Contents stay tagged `SOURCE_FACT` / `VALIDATION` / `
 |------|--------|
 | `mix_snippet` / `mix_banner` | `teams/04_quant/docs/MIX_CATALOG.md` (`### MIX-*` sections) |
 | `strat_summary` | `teams/04_quant/docs/candidates/STRAT-*.md` (truncated) |
-| `cf_bind` | `teams/01_research/docs/chart_fanatics/*_BIND.md` |
+| `cf_bind` | **removed** 2026-09-09 (Chart Fanatics wipe) |
 | `strat_bind` | `TRANSCRIPT_STRATEGY_BIND.md` |
 | `adopt_note` | ADOPT / design council / 09 TradingAgents notes + EVENT_MEMORY / RETUNE_GATE |
 | `paper_session` / `paper_note` | `data/knowledge/trading_agents_india.sqlite` (read-only) |

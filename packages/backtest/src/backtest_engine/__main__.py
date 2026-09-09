@@ -16,16 +16,24 @@ from backtest_engine.run_club import run_club
 from backtest_engine.run_honest import run_honest
 from backtest_engine.run_scan import run_scan
 from backtest_engine.run_sltp import run_sltp
-from backtest_engine.run_cf_fabio import run_cf_fabio
-from backtest_engine.run_cf_marco_mayne import run_cf_marco_mayne
-from backtest_engine.run_cf_marci_tori import run_cf_marci_tori
-from backtest_engine.run_cf_tg_kane import run_cf_tg_kane
-from backtest_engine.run_cf_umar_forest import run_cf_umar_forest
-from backtest_engine.run_cf_carmine_jadecap import run_cf_carmine_jadecap
-from backtest_engine.run_cf_usman_brando import run_cf_usman_brando
-from backtest_engine.run_cf_andrea_omor import run_cf_andrea_omor
-from backtest_engine.run_okala_in import run_okala_in
-from backtest_engine.run_cf_overnight import run_cf_overnight
+
+_CF_GONE = frozenset(
+    {
+        "cf-fabio",
+        "cf-marco-mayne",
+        "cf-marci-tori",
+        "cf-tg-kane",
+        "cf-umar-forest",
+        "cf-carmine-jadecap",
+        "cf-usman-brando",
+        "cf-andrea-omor",
+        "okala-in",
+        "okala-signal",
+        "cf-overnight",
+        "cf-india",
+        "cf-signal",
+    }
+)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -148,6 +156,12 @@ def main(argv: list[str] | None = None) -> int:
     else:
         dry = None
     cmd = args.cmd or "books"
+    if cmd in _CF_GONE:
+        print(
+            "removed: Chart Fanatics / Okala CLI (DhanHQ-only reset 2026-09-09)",
+            file=sys.stderr,
+        )
+        return 2
     if cmd == "cf-signal":
         from backtest_engine.cf_paper_registry import detect_cf_signal, registry_meta
         from backtest_engine.indicators import Bar

@@ -1,5 +1,28 @@
 # Handoff log — Team 00 Orchestrator
 
+## As of now (2026-09-09) — DhanHQ-only cleanup (founder)
+
+```text
+From:     teams/00_orchestrator (00)
+To:       01 / 04 / 06 / 07 / 09 / founder
+Date:     2026-09-09
+Status:   WORKING_PATH reset / PAPER / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+Layers:   SOURCE_FACT @DhanHQ + Dhan gather · HYPOTHESIS MIX-LEAN
+
+Accepted: wipe Chart Fanatics / IQ Capital media+KB+MIX-CF+Okala paper notify;
+  keep @DhanHQ transcripts, youtube collector, Dhan API/indicator docs,
+  5y data/recon/ohlc, last-week trading_agents_india.sqlite, STRAT-001–014,
+  MIX-DEFAULT-BUY, MIX-LEAN-*. Canvas at /cleanup.
+Rejected: Delete STRAT-001–014; promote; live orders; git-add sqlite.
+UNKNOWN: next DhanHQ video bind after founder watches more @DhanHQ.
+
+Artifacts:
+- apps/web /cleanup + public/cleanup-canvas.html
+- MIX_CATALOG §10–18 REMOVED stub
+Next: rebuild strategies from @DhanHQ only.
+```
+
 ## As of now (2026-09-08) — MIX-LEAN first gather ticket (WAITING)
 
 ```text
