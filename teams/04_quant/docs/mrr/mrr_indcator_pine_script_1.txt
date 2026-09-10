@@ -1,0 +1,19 @@
+//@version=5
+indicator("Exact MRR Region (Option Premium Chart)", overlay=true, timeframe="")
+
+// --- Inputs ---
+mrr_len = input.int(20, title="MRR Base Period", minval=1)
+use_vwap = input.bool(true, title="Weight MRR by Volume")
+
+// --- MRR Calculation ---
+mrr_line = use_vwap ? ta.vwma(close, mrr_len) : ta.ema(close, mrr_len)
+
+// --- Visual Color & State ---
+mrr_color = close >= mrr_line ? color.rgb(0, 180, 136) : color.rgb(255, 82, 82)
+
+// --- Plots ---
+plot(mrr_line, title="MRR Baseline", color=mrr_color, linewidth=2)
+
+// Optional Entry Markers
+plotshape(ta.crossover(close, mrr_line), title="Above MRR", style=shape.triangleup, location=location.belowbar, color=color.green, size=size.small)
+plotshape(ta.crossunder(close, mrr_line), title="Below MRR", style=shape.triangledown, location=location.abovebar, color=color.red, size=size.small)

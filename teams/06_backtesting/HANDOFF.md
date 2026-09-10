@@ -1,5 +1,24 @@
 # Handoff log — Team 06 Backtesting
 
+## As of now (2026-09-10) — MRR shadow book (NO_PROMOTE)
+
+```text
+From:     teams/06_backtesting
+To:       00 / 02 / 04 / 09
+Date:     2026-09-10
+Status:   VALIDATION / UNVALIDATED / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: Land MRR_BACKTEST_2026-09-10.md as the tracked shadow report
+  for MIX-DUAL-INDEX-MASTER. Harness scripts/backtest_mrr.py uses
+  PROJECT next-bar-open fills; SENSEX CALL cache is a research lead
+  only. NIFTY arm FAIL stays recorded.
+Rejected: Treating gross premium points as customer P/L; promoting
+  Pine indicators to strategies; INDEX volume as option premium.
+UNKNOWN: Brokerage/spread/slippage; live OPTIDX OHLC vs cache; whether
+  SENSEX lead survives expiry-week and strike-bucket OOS.
+```
+
 ## As of now (2026-09-10) — History APIs vs promote
 
 ```text

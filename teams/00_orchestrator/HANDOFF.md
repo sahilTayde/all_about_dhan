@@ -1,5 +1,21 @@
 # Handoff log — Team 00 Orchestrator
 
+## As of now (2026-09-10) — Commit MIX-DUAL / MRR from other chat
+
+```text
+From:     teams/00_orchestrator
+To:       04 / 06 / 09 / founder
+Date:     2026-09-10
+Status:   BOOKED / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: Commit the other-chat MRR indicator work onto main:
+  MIX-DUAL-INDEX-MASTER, Pine copies, shadow report, lean_mix HOLD
+  until premium OHLC. Thorough harness replay later, not this commit.
+Rejected: Promote; live orders; restart paper / npm; git-add sqlite.
+UNKNOWN: Same-session CALL premium OHLC arrays still missing.
+```
+
 ## As of now (2026-09-10) — Founder `/pm` + PAPER REST loop (asked)
 
 ```text

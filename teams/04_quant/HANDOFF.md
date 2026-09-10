@@ -1,5 +1,24 @@
 # Handoff log — Team 04 Quant
 
+## As of now (2026-09-10) — MIX-DUAL-INDEX-MASTER (MRR Pine, NO_PROMOTE)
+
+```text
+From:     teams/04_quant
+To:       00 / 03 / 06 / 09
+Date:     2026-09-10
+Status:   BACKTEST_REQUIRED / UNVALIDATED / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: PROJECT-DERIVED MIX-DUAL-INDEX-MASTER as current-testing row
+  only. SENSEX CALL premium 1m + spot VWAP/EMA21 gate. Pine lives under
+  docs/mrr/. Paper-watch records audit/blocker, not customer ticket.
+  KEEP_ALL 001–014. No STRAT-015+.
+Rejected: Promote measured SENSEX OOS; NIFTY arm (FAIL in cache pass);
+  BANKNIFTY until a separate spec; rewrite MIX-DEFAULT-BUY; live orders.
+UNKNOWN: Real fills/spread/brokerage; expiry-week walk-forward; same-day
+  replay until rolling 1m CALL premium OHLC is persisted.
+```
+
 ## As of now (2026-09-10) — MIX may only use HQ fields that exist
 
 ```text
