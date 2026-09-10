@@ -1,5 +1,44 @@
 # Handoff log — Team 05 Analysis
 
+## As of now (2026-09-09) — Dealer fast-path standards
+
+```text
+From:     teams/05_analysis
+To:       00 / 07 / 09
+Date:     2026-09-09
+Status:   SPEC / NOT_CODED
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: dealer feasibility and stale kill are deterministic/local; counsel is
+  advisory and cached; exit/kill/expire beats entry; customer copy stays simple.
+Rejected: LLM-generated CE/PE; keeping dead IN-PROGRESS; raw indicator soup on /;
+  fake fills.
+UNKNOWN: no code yet for reason codes or TTL by stage.
+
+Artifacts: docs/FRONT_DESK.md, docs/CUSTOMER_PORTAL_UX.md
+```
+
+## As of now (2026-09-09) — D5 Front desk dealer spec
+
+```text
+From:     teams/05_analysis
+To:       00 / 07 / 09 / founder
+Date:     2026-09-09
+Status:   SPEC / UNVALIDATED
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: Dealer boss; FEASIBILITY_REJECTED on fantasy SL/target (150/96/250 lesson);
+  counsel reviews our ticket; mistake book → nightly faculty; / vs /pm split.
+Rejected: Live orders; invented fills; indicator soup on customer /.
+UNKNOWN: rules not coded.
+
+Artifacts: docs/FRONT_DESK.md, SKILL.md
+```
+
+Newest first.
+
+---
+
 ## As of now (2026-09-08) — MIX-PCR-EXTREME-HOLD + lean ticket talk
 
 ```text

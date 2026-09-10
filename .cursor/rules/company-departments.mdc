@@ -1,0 +1,22 @@
+---
+description: Five company departments overlay 00–09 (founder org)
+alwaysApply: true
+---
+
+# Company departments
+
+Founder org: [`docs/COMPANY_DEPARTMENTS.md`](docs/COMPANY_DEPARTMENTS.md). Founder requirements trace: [`docs/FOUNDER_REQUIREMENTS_TRACE.md`](docs/FOUNDER_REQUIREMENTS_TRACE.md). Product standards: [`docs/PRODUCT_ARCHITECTURE_STANDARDS.md`](docs/PRODUCT_ARCHITECTURE_STANDARDS.md), [`docs/TOKEN_ML_STRATEGY.md`](docs/TOKEN_ML_STRATEGY.md), [`docs/CUSTOMER_PORTAL_UX.md`](docs/CUSTOMER_PORTAL_UX.md). **Do not delete or renumber** teams 00–09.
+
+| Dept | Boss | Founder talks? |
+|------|------|----------------|
+| D1 Engineering | 07 | No — reports to PM |
+| D2 Faculty | 00 Dean / 04 vice | No |
+| D3 Docs | 09 | No |
+| D4 PM + `/pm` | 00 PM | **Yes — only this** |
+| D5 Front desk | 05 | Customer `/` |
+
+SQLite + FTS5 now. No MySQL/embeddings as day-1. No auto-retune. No live orders. Signal-company language; execution paper/shadow until gate. Dealer kills fantasy SL/target. Tokens = pre/post + counsel, not KB reread. **Zero LLM calls on the market-hours fast path**; customer `/` reads a compact precomputed payload.
+
+Each team `SKILL.md` is an operational playbook: duties, inputs, output template, quality bar, books/training, and must-not rules. Analysts must return root cause + next backtestable change, not only `FAIL`.
+
+After requirement/HANDOFF/PLAN/AGENT edits: `python -m docs_auditor`.

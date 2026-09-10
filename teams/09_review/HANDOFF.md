@@ -1,5 +1,22 @@
 # Handoff log — Team 09 Review
 
+## As of now (2026-09-09) — D3 documentation agent skill
+
+```text
+From:     teams/09_review
+To:       00 / founder
+Date:     2026-09-09
+Status:   NOTES_ONLY
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: Docs Boss + documentation agent SKILL; auditor still standing;
+  org overlay is not a five-pass.
+Rejected: RESEARCH_READY from org docs; auditor PASS as product gate.
+UNKNOWN: founder /pm not coded so service board is still markdown.
+
+Artifacts: SKILL.md, docs/COMPANY_DEPARTMENTS.md
+```
+
 ## As of now (2026-09-08) — MIX-LEAN NOTES_ONLY (not five-pass)
 
 ```text

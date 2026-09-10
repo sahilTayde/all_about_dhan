@@ -32,6 +32,8 @@ Implement **product** code only after `RESEARCH_READY_FOR_PROGRAMMING`. Real app
 
 - **Customer desk `/`** in [`apps/web`](../../apps/web): ticket + **IN-PROGRESS** + **CasPanel**; book P/L labeled **MOCK**. No Dhan in the browser. No strategy logic.
 - **Internal `/desk`**: research view (honesty stages, indicator lights). **Not** the customer product. How to run: [`apps/web/README.md`](../../apps/web/README.md) — **do not restart npm until asked**.
+- **Founder `/pm`**: spec only ([`FOUNDER_PM.md`](../00_orchestrator/docs/FOUNDER_PM.md)). **Not built.**
+- D1 sections: [`docs/ENGINEERING_SECTIONS.md`](docs/ENGINEERING_SECTIONS.md).
 - FastAPI skeleton in [`apps/api`](../../apps/api): `/health`, `/paper/signal`, optional `/ws/feed`. Dry-run; orders refused.
 
 ## As of now (2026-09-01) / your prerequisite

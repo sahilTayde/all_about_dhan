@@ -2,9 +2,11 @@
 
 Thin **Vite + React** UI for all_about_dhan. The default route is a **customer trading desk**: one live ticket, issued levels, take/skip, shadow paper, session book, and tape sentiment. **Not investment advice.** Owned by team 07_coding.
 
-Engineers can open [`/desk`](http://localhost:5173/desk) for the research view (honesty stages, indicator lights, factor checklist). That route is **not** the customer product.
+Engineers can open [`/desk`](http://localhost:5173/desk) for the research view (honesty stages, indicator lights, factor checklist). That route is **not** the customer product. Founder `/pm` is specified but **not built** yet.
 
 Stack: Vite + React (JavaScript). No server render. No Dhan in the browser.
+
+UX standard: [`docs/CUSTOMER_PORTAL_UX.md`](../../docs/CUSTOMER_PORTAL_UX.md). Architecture standard: [`docs/PRODUCT_ARCHITECTURE_STANDARDS.md`](../../docs/PRODUCT_ARCHITECTURE_STANDARDS.md).
 
 ## How to run
 
@@ -45,6 +47,8 @@ Copy `.env.example` to `.env` only if you want a remote API later. Leave `VITE_A
 - Took-trade **Yes / No** with lots / spot / P-L; skip still shows **shadow paper**
 - Stale-signal outcomes so lunch-return is not a leftover live ticket
 - Disclaimer: not advice
+
+The customer payload should stay compact and precomputed. No raw chain, no LLM call, and no Dhan call from the browser.
 
 ## What was removed from the customer page
 
@@ -121,5 +125,7 @@ Later: set `VITE_API_URL` (for example `http://127.0.0.1:8000`). The loader will
 - `TODO(auth)` — paper-user session
 - `TODO(charts)` — premium / spot chart
 - `TODO(strategy)` — real side/levels only after `RESEARCH_READY_FOR_PROGRAMMING`
+- `TODO(pm)` — founder `/pm` health canvas (vendor keys, rate limits, chain freshness, API, RAG, nightly, auditor)
+- `TODO(dealer)` — `FEASIBILITY_REJECTED` / `DEALER_KILLED` state so fantasy SL/target never stays live
 
 See [`teams/07_coding/README.md`](../../teams/07_coding/README.md).

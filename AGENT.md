@@ -12,20 +12,34 @@ Never skip: **Research → Independent validation → Strategy spec → Backtest
 
 ---
 
+## Company departments (founder view)
+
+Signal company (Stratzy / Algoji / Quantman *class*). Teams **00–09 stay**. Overlay: [`docs/COMPANY_DEPARTMENTS.md`](docs/COMPANY_DEPARTMENTS.md). Standards: [`PRODUCT_ARCHITECTURE_STANDARDS.md`](docs/PRODUCT_ARCHITECTURE_STANDARDS.md), [`TOKEN_ML_STRATEGY.md`](docs/TOKEN_ML_STRATEGY.md), [`CUSTOMER_PORTAL_UX.md`](docs/CUSTOMER_PORTAL_UX.md). Founder talks to the **D4 PM** (`/pm` spec — not built). Customer **`/`** vs research **`/desk`**. **No live orders.**
+
+| Dept | Boss | Teams / chairs |
+|------|------|----------------|
+| D1 Engineering | 07 | 07/08 + RAG/SQL/ML/nightly/backtest **code** |
+| D2 Faculty | 00 Dean, 04 vice | 01 librarian; 02 math+**stats**; 03 market; 04 quant+**algo**; 05 fusion; 06 score |
+| D3 Docs | 09 | Docs Auditor + documentation agent |
+| D4 PM / monitor | 00 PM | Founder canvas; vendor/key health |
+| D5 Front desk | 05 Dealer | Customer portal + feasibility kill + counsel |
+
+Skills: each team `SKILL.md` is an operational playbook (duties, inputs, outputs, quality bar, books/training). Founder trace: [`FOUNDER_REQUIREMENTS_TRACE.md`](docs/FOUNDER_REQUIREMENTS_TRACE.md). Dual-model counsel: [`COUNSEL_ORG_2026-09-09.md`](teams/00_orchestrator/docs/COUNSEL_ORG_2026-09-09.md), [`COUNSEL_SCALE_2026-09-09.md`](teams/00_orchestrator/docs/COUNSEL_SCALE_2026-09-09.md), [`COUNSEL_SKILLS_2026-09-09.md`](teams/00_orchestrator/docs/COUNSEL_SKILLS_2026-09-09.md). Fast path has **zero LLM calls**; tokens are for pre/post market and counsel on compact facts.
+
 ## Roster
 
 | ID | Team | Job | Home |
 |----|------|-----|------|
-| 00 | Orchestrator | Task board, SDLC gates, routing | `teams/00_orchestrator/` |
+| 00 | Orchestrator | Task board, SDLC gates, routing; **D4 PM** + Faculty Dean | `teams/00_orchestrator/` |
 | 01 | Research | YouTube catalog + transcripts (channels from `config/workspace.yaml`; default `@DhanHQ`) | `teams/01_research/` |
-| 02 | PhD math | Independent math / indicator / Greeks validation | `teams/02_phd_math/` |
+| 02 | PhD math | Independent math / indicator / Greeks validation; **PhD Statistics** role | `teams/02_phd_math/` |
 | 03 | PhD market | Exchange, microstructure, contract rules; **CAS analyst** (Closing Auction Session) | `teams/03_phd_market/` · CAS home `teams/03_phd_market/cas/` |
-| 04 | Quant | Testable hypotheses; **staged signals** (WATCH → EARLY → CONFIRMED → IN-PROGRESS) | `teams/04_quant/` |
-| 05 | Analysis | Scorecards, ablation; **desk-intel** (news + **3m** chain → MARKET_SIGNAL) | `teams/05_analysis/` · `packages/desk-intel/` |
+| 04 | Quant | Testable hypotheses; **staged signals** (WATCH → EARLY → CONFIRMED → IN-PROGRESS); **PhD Algo** role | `teams/04_quant/` |
+| 05 | Analysis | Scorecards, ablation; **desk-intel** (news + **3m** chain → MARKET_SIGNAL); **D5 dealer** | `teams/05_analysis/` · `packages/desk-intel/` |
 | 06 | Backtesting | Historical tests, OOS, costs; **retune gate** (`RETUNE_PROPOSAL` `BACKTEST_REQUIRED`) | `teams/06_backtesting/` |
-| 07 | Coding | Product: **customer desk** (`/`) vs internal **`/desk`**; code in `apps/` + `packages/` | `teams/07_coding/` · `apps/web/` · `apps/api/` |
+| 07 | Coding | Product: **customer desk** (`/`) vs internal **`/desk`**; **D1**; code in `apps/` + `packages/` | `teams/07_coding/` · `apps/web/` · `apps/api/` |
 | 08 | Testing | QA, fixtures, paper-trade checks | `teams/08_testing/` |
-| 09 | Review | Five-pass + red-team; `RESEARCH_READY_FOR_PROGRAMMING`; **Docs Auditor** (after requirement change + nightly) | `teams/09_review/` · charter `teams/09_review/docs/DOCS_AUDITOR.md` |
+| 09 | Review | Five-pass + red-team; `RESEARCH_READY_FOR_PROGRAMMING`; **Docs Auditor** (after requirement change + nightly); **D3** | `teams/09_review/` · charter `teams/09_review/docs/DOCS_AUDITOR.md` |
 
 Shared code: `packages/dhan-client`, `packages/desk-intel`, `packages/docs-auditor`, `packages/contracts`, `packages/indicators`.  
 Product: `apps/api` (FastAPI dry-run; orders refused), `apps/web` (**customer** `/` vs research **`/desk`**; MOCK JSON, no Dhan in the browser).
@@ -74,6 +88,7 @@ Full SDLC: [`docs/SDLC.md`](docs/SDLC.md). **Score sheet:** [`docs/MASTER_REQUIR
 | If the task is… | Open |
 |-----------------|------|
 | **Morning / frontier review** | [`docs/MASTER_REQUIREMENTS.md`](docs/MASTER_REQUIREMENTS.md), [`REVIEW_BRIEF_FOR_FRONTIER_MODEL.md`](teams/00_orchestrator/docs/REVIEW_BRIEF_FOR_FRONTIER_MODEL.md), this file. Do not restart npm. |
+| **Company departments / bosses** | [`docs/COMPANY_DEPARTMENTS.md`](docs/COMPANY_DEPARTMENTS.md), [`docs/FOUNDER_REQUIREMENTS_TRACE.md`](docs/FOUNDER_REQUIREMENTS_TRACE.md), [`docs/PRODUCT_ARCHITECTURE_STANDARDS.md`](docs/PRODUCT_ARCHITECTURE_STANDARDS.md), team `SKILL.md`, PM [`FOUNDER_PM.md`](teams/00_orchestrator/docs/FOUNDER_PM.md), dealer [`FRONT_DESK.md`](teams/05_analysis/docs/FRONT_DESK.md) |
 | Any agent session | This file, then [`docs/INDEX.md`](docs/INDEX.md) |
 | **Customer URLs / books / source switch** | [`config/workspace.yaml`](config/workspace.yaml) — **this is the file customers change** |
 | **Desk intel (news + chain bias)** | [`teams/05_analysis/docs/DESK_INTELLIGENCE.md`](teams/05_analysis/docs/DESK_INTELLIGENCE.md), [`packages/desk-intel/`](packages/desk-intel/), persona [`teams/00_orchestrator/docs/PERSONA_DESK.md`](teams/00_orchestrator/docs/PERSONA_DESK.md). News URLs + poll intervals: `sources.news[]` / `desk_intel` in workspace.yaml (**3m** full chain default). Ticket [`TASK_CUSTOMER_DESK.md`](teams/00_orchestrator/docs/TASK_CUSTOMER_DESK.md). Jobs: [`TASK_PRE_POST_MARKET_JOBS.md`](teams/00_orchestrator/docs/TASK_PRE_POST_MARKET_JOBS.md). **Retune gate:** [`TASK_RETUNE_GATE.md`](teams/00_orchestrator/docs/TASK_RETUNE_GATE.md), spec [`RETUNE_GATE.md`](teams/06_backtesting/docs/RETUNE_GATE.md). Nightly ends with **Docs Auditor**. |

@@ -1,5 +1,42 @@
 # Handoff log — Team 07 Coding
 
+## As of now (2026-09-09) — Fast app engineering standards
+
+```text
+From:     teams/07_coding
+To:       00 / 05 / 08 / 09
+Date:     2026-09-09
+Status:   SPEC / NOT_CODED
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: fast path reads precomputed signal payload; no browser Dhan/LLM;
+  SQLite append-only events + read model; /pm SLO cards; customer mobile-first
+  UX; dealer feasibility state hooks.
+Rejected: compute strategy in browser; raw chain in customer payload; live orders;
+  day-1 vector DB or DB server migration.
+UNKNOWN: schema and components not implemented.
+
+Artifacts: docs/ENGINEERING_SECTIONS.md, docs/PRODUCT_ARCHITECTURE_STANDARDS.md,
+  docs/TOKEN_ML_STRATEGY.md, docs/CUSTOMER_PORTAL_UX.md
+```
+
+## As of now (2026-09-09) — D1 sections + /pm spec
+
+```text
+From:     teams/07_coding
+To:       00 / 08 / 09 / founder
+Date:     2026-09-09
+Status:   SPEC / PARTIAL
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: Engineering boss; C1–C8 section bosses; coding docs in teams/07_coding/docs;
+  SQLite+FTS5 now; /pm TODO; one site three views.
+Rejected: Live orders; npm restart unasked; git-add sqlite; auto-retune.
+UNKNOWN: /pm, warehouse DDL, local ML not coded.
+
+Artifacts: docs/ENGINEERING_SECTIONS.md, SKILL.md
+```
+
 ## As of now (2026-09-08) — live-signals empty snapshot: CLUB-GR PARKED
 
 ```text

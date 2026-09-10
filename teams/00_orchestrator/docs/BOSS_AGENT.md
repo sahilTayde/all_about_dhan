@@ -6,7 +6,9 @@
 **Gate:** **not** `RESEARCH_READY_FOR_PROGRAMMING`  
 **Status:** `DRAFT` / `UNVALIDATED`
 
-This is the **boss desk**. One job: **make the customer profitable over time**. That is a **mandate**, not a published win rate, not MOCK dashboard P/L, not “SEBI RA on a video said so.”
+This is the **boss desk** (Faculty Dean + ticket call). Founder **daily** talk is the **D4 PM** ([`FOUNDER_PM.md`](FOUNDER_PM.md)), not this file. Org overlay: [`COMPANY_DEPARTMENTS.md`](../../../docs/COMPANY_DEPARTMENTS.md).
+
+One job: **make the customer profitable over time**. That is a **mandate**, not a published win rate, not MOCK dashboard P/L, not “SEBI RA on a video said so.”
 
 Persona mix (must all be present in a call):
 
