@@ -105,6 +105,15 @@ CF ASR fail queue still exists (`RETRY_TOMORROW.md`). Not the next default ticke
 
 ---
 
+### Agent RAG / EOD recon
+
+**Last EOD stub:** 2026-09-10 (`python -m agent_rag eod-recon`)
+- session_kind: `NORMAL` (score_track=`SCORE_SAMPLE`)
+- RETUNE_PROPOSAL: **`BACKTEST_REQUIRED`** / tune_status=`RAN_NO_TUNE` (no auto-retune; `keep_current_strategy: true`; `production_params_written: false`)
+- recon: `data/recon/EOD_RECON_2026-09-10.json`
+- retune artifact: `data/recon/RETUNE_PROPOSAL_2026-09-10.json`
+- KB: `data/knowledge/agent_rag.sqlite` ([`AGENT_RAG.md`](../../01_research/docs/AGENT_RAG.md)) — does **not** touch `transcripts.sqlite`
+- Paper agents backtest rollup: [`BACKTEST_PAPER_AGENTS_2026-09-10.md`](../../06_backtesting/docs/BACKTEST_PAPER_AGENTS_2026-09-10.md) — **NO_PROMOTE**
 ## Do not
 
 - Invent win rates or code live strategies

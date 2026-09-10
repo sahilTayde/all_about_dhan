@@ -1,11 +1,11 @@
-# BACKTEST_PAPER_AGENTS — 2026-09-07
+# BACKTEST_PAPER_AGENTS — 2026-09-10
 
 **Team:** 06_backtesting (+ agent_rag rollup)
 **Status:** `HYPOTHESIS` / **UNVALIDATED** / **not a promote**
 **Gate:** `keep_current_strategy: true` · **not** `RESEARCH_READY_FOR_PROGRAMMING`
 
-Artifact: `data/recon/BACKTEST_PAPER_AGENTS_2026-09-07.json`
-Command: `python -m agent_rag paper-backtest --day 2026-09-07`
+Artifact: `data/recon/BACKTEST_PAPER_AGENTS_2026-09-10.json`
+Command: `python -m agent_rag paper-backtest --day 2026-09-10`
 
 ## Verdict
 
