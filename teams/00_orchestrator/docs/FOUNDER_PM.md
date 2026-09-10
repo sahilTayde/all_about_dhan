@@ -28,6 +28,7 @@ Blocks:
 6. **Honesty** — gate unset; P/L MOCK; KEEP_ALL; no promote.
 7. **Speed** — cached API latency, WebSocket heartbeat, payload age.
 8. **Data/RAG freshness** — warehouse last write, RAG last rebuild, nightly last success.
+9. **Live counsel** — OpenAI/Gemini ok/split/timeout, token budget used, last risk-review reason.
 
 Customer ticket detail stays on `/`. Infra + next action stay on `/pm`.
 
@@ -52,6 +53,7 @@ Customer ticket detail stays on `/`. Infra + next action stay on `/pm`.
 | API | health up, cached signal p95 under target | slow / mock only | down |
 | Dhan | auth ok, chain fresh | fixture / delayed | 401 / 429 / pull fail |
 | LLM counsel | keys ok or intentionally off | one provider down | both down during requested counsel |
+| LLM token budget | under session cap | nearing cap | cap exhausted and counsel requested |
 | RAG | rebuilt after latest docs | stale but usable | missing index |
 | Nightly | latest report ready | not due | missed before pre-market |
 | Portal | payload fresh | stale banner | build/API failure |

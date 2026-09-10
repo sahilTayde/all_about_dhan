@@ -4,7 +4,7 @@ Always start with [`AGENT.md`](../AGENT.md). **Morning / frontier review:** [`do
 
 | Task | Open |
 |------|------|
-| **Company departments / bosses / skills** | [`COMPANY_DEPARTMENTS.md`](COMPANY_DEPARTMENTS.md), [`FOUNDER_REQUIREMENTS_TRACE.md`](FOUNDER_REQUIREMENTS_TRACE.md), [`PRODUCT_ARCHITECTURE_STANDARDS.md`](PRODUCT_ARCHITECTURE_STANDARDS.md), [`TOKEN_ML_STRATEGY.md`](TOKEN_ML_STRATEGY.md), [`CUSTOMER_PORTAL_UX.md`](CUSTOMER_PORTAL_UX.md), [`FOUNDER_PM.md`](../teams/00_orchestrator/docs/FOUNDER_PM.md), [`FRONT_DESK.md`](../teams/05_analysis/docs/FRONT_DESK.md), [`ENGINEERING_SECTIONS.md`](../teams/07_coding/docs/ENGINEERING_SECTIONS.md), each team `SKILL.md` |
+| **Company departments / bosses / skills** | [`COMPANY_DEPARTMENTS.md`](COMPANY_DEPARTMENTS.md), [`FOUNDER_REQUIREMENTS_TRACE.md`](FOUNDER_REQUIREMENTS_TRACE.md), competitor baseline [`COMPETITIVE_PRODUCT_BASELINE.md`](COMPETITIVE_PRODUCT_BASELINE.md), [`PRODUCT_ARCHITECTURE_STANDARDS.md`](PRODUCT_ARCHITECTURE_STANDARDS.md), [`TOKEN_ML_STRATEGY.md`](TOKEN_ML_STRATEGY.md), [`CUSTOMER_PORTAL_UX.md`](CUSTOMER_PORTAL_UX.md), [`FOUNDER_PM.md`](../teams/00_orchestrator/docs/FOUNDER_PM.md), [`FRONT_DESK.md`](../teams/05_analysis/docs/FRONT_DESK.md), [`ENGINEERING_SECTIONS.md`](../teams/07_coding/docs/ENGINEERING_SECTIONS.md), each team `SKILL.md` |
 | **Master requirements (morning sheet)** | [`docs/MASTER_REQUIREMENTS.md`](MASTER_REQUIREMENTS.md) |
 | Company status / this week's work | [`PLAN.md`](../PLAN.md), [`docs/SDLC.md`](SDLC.md), [`STATUS.md`](../teams/00_orchestrator/docs/STATUS.md) |
 | **Customer URLs / books / YouTube source switch** | [`config/workspace.yaml`](../config/workspace.yaml) — customers change this file |
