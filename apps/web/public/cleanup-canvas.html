@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Cleanup canvas — all_about_dhan</title>
+  <style>
+    :root {
+      --bg: #0b0e13;
+      --surface: #141a22;
+      --ink: #e8edf2;
+      --muted: #8b97a5;
+      --line: #2a333d;
+      --done: #3dcc8c;
+      --progress: #e87722;
+      --pending: #7b8794;
+      --accent: #c9a227;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", Helvetica, Arial, sans-serif;
+      background: var(--bg);
+      color: var(--ink);
+      padding: 28px 24px 48px;
+    }
+    h1 { font-size: 1.55rem; margin: 0 0 6px; }
+    .sub { color: var(--muted); margin: 0 0 22px; font-size: 0.95rem; }
+    .legend { display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 22px; }
+    .pill {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 4px 10px; border-radius: 999px; border: 1px solid var(--line);
+      font-size: 12px; letter-spacing: 0.04em; text-transform: uppercase;
+    }
+    .dot { width: 9px; height: 9px; border-radius: 50%; }
+    .dot.done, .card.done { --c: var(--done); }
+    .dot.progress, .card.in_progress { --c: var(--progress); }
+    .dot.pending, .card.pending { --c: var(--pending); }
+    .dot { background: var(--c, var(--pending)); }
+    .card {
+      border: 1px solid var(--line);
+      border-left: 5px solid var(--c, var(--pending));
+      background: var(--surface);
+      border-radius: 10px;
+      padding: 12px 14px;
+    }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
+    .status {
+      font-size: 11px; font-weight: 700; letter-spacing: 0.08em;
+      text-transform: uppercase; color: var(--c, var(--pending));
+    }
+    h2 { font-size: 0.85rem; color: var(--accent); margin: 28px 0 10px; letter-spacing: 0.08em; text-transform: uppercase; }
+    .keep { color: var(--muted); font-size: 0.9rem; }
+    .keep li { margin: 4px 0; }
+    a { color: #8eb4ff; }
+  </style>
+</head>
+<body>
+  <h1>Cleanup canvas</h1>
+  <p class="sub" id="meta">Loading status… Open this file or <code>/cleanup</code> on the desk.</p>
+  <div class="legend">
+    <span class="pill"><span class="dot done"></span> Completed</span>
+    <span class="pill"><span class="dot progress"></span> In progress</span>
+    <span class="pill"><span class="dot pending"></span> Pending / not finished</span>
+  </div>
+  <h2>Agents</h2>
+  <div class="grid" id="agents"></div>
+  <h2>Phases</h2>
+  <div class="grid" id="phases"></div>
+  <h2>Keep (DhanHQ desk)</h2>
+  <ul class="keep" id="keep"></ul>
+  <script>
+    function cls(s) {
+      s = (s || "pending").toLowerCase();
+      if (s === "done" || s === "completed" || s === "finished") return "done";
+      if (s === "in_progress" || s === "progress") return "in_progress";
+      return "pending";
+    }
+    function label(s) {
+      const c = cls(s);
+      return c === "done" ? "Completed" : c === "in_progress" ? "In progress" : "Pending";
+    }
+    function card(item, extra) {
+      const c = cls(item.status);
+      return `<article class="card ${c}">
+        <div class="status">${label(item.status)}</div>
+        <strong>${item.name || item.id}</strong>
+        <div class="keep">${item.task || item.detail || ""}</div>
+        ${extra || ""}
+      </article>`;
+    }
+    async function load() {
+      try {
+        const r = await fetch("cleanup-status.json?t=" + Date.now());
+        const d = await r.json();
+        document.getElementById("meta").textContent =
+          (d.phase || "") + " · updated " + (d.updated_ist || "");
+        document.getElementById("agents").innerHTML = (d.agents || []).map((a) => card(a)).join("");
+        document.getElementById("phases").innerHTML = (d.phases || []).map((p) =>
+          card(p, `<div class="keep">Removed: ${p.removed || "—"}<br/>Kept: ${p.kept || "—"}</div>`)
+        ).join("");
+        document.getElementById("keep").innerHTML = (d.keep || []).map((k) => `<li>${k}</li>`).join("");
+      } catch (e) {
+        document.getElementById("meta").textContent =
+          "Could not load cleanup-status.json (open via Vite /cleanup or same folder).";
+      }
+    }
+    load();
+    setInterval(load, 8000);
+  </script>
+</body>
+</html>

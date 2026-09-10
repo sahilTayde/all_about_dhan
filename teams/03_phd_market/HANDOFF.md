@@ -1,5 +1,41 @@
 # Handoff log — Team 03 PhD market
 
+## As of now (2026-09-08) — PCR-without-price HOLD (CHAIN_METRICS)
+
+```text
+From:     teams/03_phd_market
+To:       00 / 04 / 05
+Date:     2026-09-08
+Status:   VALIDATION note
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: MIX-PCR-EXTREME-HOLD follows CHAIN_METRICS — extreme PCR without
+  price is not a signal; INDEX last ≠ FUTIDX. ATM OI wall lean is heuristic.
+Rejected: PCR numeric law; treating INDEX resample as FUTIDX/OPTIDX.
+```
+
+Newest first.
+
+---
+
+## As of now (2026-09-08) — CAS-* stay off PAPER scoring
+
+```text
+From:     teams/03_phd_market
+To:       00 / 04 / 09
+Date:     2026-09-08
+Status:   VALIDATION note
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: CAS-001–005 UNVALIDATED; no DHAN-DERIVED CAS recipe;
+  stay off candidate_audit scoring (WATCH reason only).
+Rejected: CONFIRMED from CAS; STRAT-015+.
+```
+
+Newest first.
+
+---
+
 ## As of now (2026-09-06) — CF Andrea+Omor transfer notes
 
 ASR guests ES OF / FX ICT → NSE. Andrea OF PARKED; Omor London/NY KZ DI. Andrea ≠ Fabio. Do not veto.

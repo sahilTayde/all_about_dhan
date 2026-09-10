@@ -41,6 +41,7 @@ class PaperTicket:
     vetoes: list[str]
     session_kind: SessionKind
     default_mix_cited: str = "MIX-DEFAULT-BUY"
+    lean_mix_cited: str = ""
     layer: Layer = "HYPOTHESIS"
     execution: str = "refused"
     confidence: float = 0.0
@@ -95,6 +96,12 @@ class SessionResult:
             "MIX-TA-EVENT-HOLD",
             "MIX-TA-EXEC-SANITY",
             "MIX-TA-MARKET-HOURS",
+            "MIX-LEAN-SPOT-ATM",
+            "MIX-IMPULSE-1M",
+            "MIX-003-INDEX-PROXY",
+            "MIX-006-INDEX-PROXY",
+            "MIX-PCR-EXTREME-HOLD",
+            "MIX-SELL-CREDIT-PARK",
         ]
     )
     session_id: str = ""

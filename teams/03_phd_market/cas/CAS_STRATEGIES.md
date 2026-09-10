@@ -61,7 +61,7 @@ Grep of `data/transcripts/normalized_en/` (2026-09-03):
 | `CAS` as the 2026 close auction | **No matches** (not used as that acronym). |
 | Timestamp lines `[15:35]` / `[15:40]` | YouTube **offsets**, not IST clocks. |
 
-**Verdict:** **`DATA_INSUFFICIENT` for any `DHAN-DERIVED` CAS STRAT.** Do not pretend a Dhan video taught a Closing Auction Session option-buy recipe.
+**Verdict:** **`DATA_INSUFFICIENT` for any `DHAN-DERIVED` CAS STRAT.** Do not pretend a Dhan video taught a Closing Auction Session option-buy recipe. **Working path:** CAS-001–005 stay off PAPER candidate scoring (WATCH reason only; never CONFIRMED).
 
 Related but **not** CAS: Gokul (`2RnBT9DDDNI` 23:48–24:06) flatten **before 15:15** / ignore 09:15–09:45 = **STRAT-009** (`DHAN-DERIVED` trader heuristic). That clock **coincides** with CAS CTS end on F&O-cash names; the speaker did **not** name CAS. Keep 009. Do not rewrite it as CAS-003.
 

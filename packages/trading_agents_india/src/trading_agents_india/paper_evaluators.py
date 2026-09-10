@@ -92,23 +92,23 @@ EVALUATOR_BINDS: dict[str, EvaluatorBind] = {
     ),
     "STRAT-001": EvaluatorBind(
         candidate_id="STRAT-001",
-        available=True,
-        bind_kind="algo_needs_bars",
-        catalog_status="BACKTEST_BOOK",
+        available=False,
+        bind_kind="stub_waiting",
+        catalog_status="WAITING",
         timeframe="60m+5m",
         layer="HYPOTHESIS",
-        module="backtest_engine.algos.strat_001_child / run_strat_001",
-        reason=BARS_MISSING_DI,
+        module="WAITING (MIX-HAUS-001 proxy — INDEX 1m is not hourly+5m)",
+        reason=UNBOUND_AGGREGATE_DI,
     ),
     "STRAT-002": EvaluatorBind(
         candidate_id="STRAT-002",
-        available=True,
-        bind_kind="premium_overlay",
-        catalog_status="OVERLAY",
+        available=False,
+        bind_kind="stub_overlay",
+        catalog_status="WAITING",
         timeframe="option-premium",
         layer="HYPOTHESIS",
-        module="backtest_engine.levels.bind_option_premium_levels",
-        reason="Premium target overlay (MIX-SLTP-PREM-PCT); not an entry lean",
+        module="WAITING (HAUS OTM overlay — never on MIX-DEFAULT-BUY / 003)",
+        reason=UNBOUND_AGGREGATE_DI,
     ),
     "STRAT-003": EvaluatorBind(
         candidate_id="STRAT-003",
@@ -145,13 +145,13 @@ EVALUATOR_BINDS: dict[str, EvaluatorBind] = {
     ),
     "STRAT-006": EvaluatorBind(
         candidate_id="STRAT-006",
-        available=True,
-        bind_kind="algo_needs_bars",
-        catalog_status="BACKTEST_BOOK",
+        available=False,
+        bind_kind="stub_waiting",
+        catalog_status="WAITING",
         timeframe="2m",
         layer="HYPOTHESIS",
-        module="backtest_engine.algos.strat_006_leans / run_strat_006",
-        reason=BARS_MISSING_DI,
+        module="WAITING (MIX-SCALP-006 — HQ {1,5,15} is not Mukul 2m)",
+        reason=UNBOUND_AGGREGATE_DI,
     ),
     "STRAT-007": EvaluatorBind(
         candidate_id="STRAT-007",
@@ -215,75 +215,83 @@ EVALUATOR_BINDS: dict[str, EvaluatorBind] = {
     ),
     "STRAT-013": EvaluatorBind(
         candidate_id="STRAT-013",
-        available=False,
-        bind_kind="stub_waiting",
+        available=True,
+        bind_kind="sell_credit_park",
         catalog_status="WAITING",
         timeframe="UNSUPPORTED",
-        layer="HYPOTHESIS",
-        module="WAITING (sell credit — not Phase-1 buy)",
-        reason=UNBOUND_AGGREGATE_DI,
+        layer="SOURCE_FACT",
+        module="trading_agents_india.lean_mix.score_sell_credit_park",
+        reason="Seller book — never a buy entry (MIX-SELL-CREDIT-PARK)",
     ),
     "STRAT-014": EvaluatorBind(
         candidate_id="STRAT-014",
-        available=False,
-        bind_kind="stub_waiting",
+        available=True,
+        bind_kind="sell_credit_park",
         catalog_status="WAITING",
         timeframe="UNSUPPORTED",
-        layer="HYPOTHESIS",
-        module="WAITING (call ratio sell — not Phase-1 buy)",
-        reason=UNBOUND_AGGREGATE_DI,
+        layer="SOURCE_FACT",
+        module="trading_agents_india.lean_mix.score_sell_credit_park",
+        reason="Seller book — never a buy entry (MIX-SELL-CREDIT-PARK)",
     ),
-    "MIX-CF-OKALA-IN-LEVEL": EvaluatorBind(
-        candidate_id="MIX-CF-OKALA-IN-LEVEL",
+    "MIX-LEAN-SPOT-ATM": EvaluatorBind(
+        candidate_id="MIX-LEAN-SPOT-ATM",
         available=True,
-        bind_kind="okala_in_paper",
-        catalog_status="PAPER_WATCH",
-        timeframe="1m-15m",
+        bind_kind="lean_mix",
+        catalog_status="WAITING",
+        timeframe="INDEX-1m+ATM",
         layer="HYPOTHESIS",
-        module="backtest_engine.okala_in_paper",
-        reason=(
-            "FOUNDER_PAPER_ACCEPT starter — robust WR>50% cells only; "
-            "PAPER CE/PE notify; NO_PROMOTE live; win_rate claim null"
-        ),
+        module="trading_agents_india.lean_mix.score_lean_spot_atm",
+        reason="PROJECT-DERIVED gather ticket: INDEX last + ATM OI wall; NO_PROMOTE",
     ),
-    "MIX-CF-OKALA-IN-FORK": EvaluatorBind(
-        candidate_id="MIX-CF-OKALA-IN-FORK",
+    "MIX-IMPULSE-1M": EvaluatorBind(
+        candidate_id="MIX-IMPULSE-1M",
         available=True,
-        bind_kind="okala_in_paper",
-        catalog_status="PAPER_WATCH",
-        timeframe="1m-15m",
+        bind_kind="lean_mix",
+        catalog_status="WAITING",
+        timeframe="1m",
         layer="HYPOTHESIS",
-        module="backtest_engine.okala_in_paper",
-        reason=(
-            "FOUNDER_PAPER_ACCEPT starter — robust WR>50% cells only; "
-            "PAPER CE/PE notify; NO_PROMOTE live; win_rate claim null"
-        ),
+        module="trading_agents_india.lean_mix.score_impulse_1m",
+        reason="PROJECT-DERIVED 1m impulse; ATM LTP for ticket numbers only; NO_PROMOTE",
     ),
-    "MIX-CF-OKALA-IN-H-CROSS": EvaluatorBind(
-        candidate_id="MIX-CF-OKALA-IN-H-CROSS",
+    "MIX-003-INDEX-PROXY": EvaluatorBind(
+        candidate_id="MIX-003-INDEX-PROXY",
         available=True,
-        bind_kind="okala_in_paper",
-        catalog_status="PAPER_WATCH",
-        timeframe="1m-15m",
+        bind_kind="lean_mix",
+        catalog_status="WAITING",
+        timeframe="3m-INDEX-proxy",
         layer="HYPOTHESIS",
-        module="backtest_engine.okala_in_paper",
-        reason=(
-            "FOUNDER_PAPER_ACCEPT starter — robust WR>50% cells only; "
-            "PAPER CE/PE notify; NO_PROMOTE live; win_rate claim null"
-        ),
+        module="trading_agents_india.lean_mix.score_003_index_proxy",
+        reason="DHAN-DERIVED recipe on PROJECT-DERIVED INDEX resample ≠ FUTIDX; PROXY",
     ),
-    "MIX-CF-OKALA-IN-REPAIR": EvaluatorBind(
-        candidate_id="MIX-CF-OKALA-IN-REPAIR",
+    "MIX-006-INDEX-PROXY": EvaluatorBind(
+        candidate_id="MIX-006-INDEX-PROXY",
         available=True,
-        bind_kind="okala_in_paper",
-        catalog_status="PAPER_WATCH",
-        timeframe="1m-15m",
+        bind_kind="lean_mix",
+        catalog_status="WAITING",
+        timeframe="2m-INDEX-proxy",
         layer="HYPOTHESIS",
-        module="backtest_engine.okala_in_paper",
-        reason=(
-            "FOUNDER_PAPER_ACCEPT starter — robust WR>50% cells only; "
-            "PAPER CE/PE notify; NO_PROMOTE live; win_rate claim null"
-        ),
+        module="trading_agents_india.lean_mix.score_006_index_proxy",
+        reason="DHAN-DERIVED recipe on PROJECT-DERIVED INDEX resample ≠ OPTIDX; PROXY",
+    ),
+    "MIX-PCR-EXTREME-HOLD": EvaluatorBind(
+        candidate_id="MIX-PCR-EXTREME-HOLD",
+        available=True,
+        bind_kind="lean_mix",
+        catalog_status="WAITING",
+        timeframe="chain-overlay",
+        layer="VALIDATION",
+        module="trading_agents_india.lean_mix.score_pcr_extreme_hold",
+        reason="HOLD overlay: PCR without price is not entry; KEEP_ALL STRATs",
+    ),
+    "MIX-SELL-CREDIT-PARK": EvaluatorBind(
+        candidate_id="MIX-SELL-CREDIT-PARK",
+        available=True,
+        bind_kind="sell_credit_park",
+        catalog_status="WAITING",
+        timeframe="UNSUPPORTED",
+        layer="SOURCE_FACT",
+        module="trading_agents_india.lean_mix.score_sell_credit_park",
+        reason="013+014 never evaluated as buy entries",
     ),
 }
 
@@ -325,6 +333,8 @@ def evaluate_candidate(
 ) -> EvaluatorResult:
     """Return lean/VETO/DI for one catalog row. Never invent fills or win rates."""
     bind = EVALUATOR_BINDS.get(candidate_id)
+    if bars is None:
+        bars = list(getattr(ticket, "index_bars", None) or []) or None
     if bind is None:
         return EvaluatorResult(
             available=False,
@@ -369,10 +379,47 @@ def evaluate_candidate(
 
     # --- aggregate / watch mirrors ---
     if bind.bind_kind in ("aggregate_ticket", "paper_watch_mirror"):
+        cited = str(getattr(ticket, "lean_mix_cited", "") or "")
+        lean_driven = cited.startswith(("MIX-LEAN", "MIX-IMPULSE", "MIX-PCR"))
+        if bind.bind_kind == "aggregate_ticket" and lean_driven:
+            return EvaluatorResult(
+                available=True,
+                raw_lean="HOLD",
+                final_lean="HOLD",
+                outcome="WATCH",
+                data_gaps=list(ticket.data_gaps),
+                vetoes=vetoes,
+                provenance_extra={
+                    **base_prov,
+                    "NO_PROMOTE": True,
+                    "customer_default": True,
+                    "status": "UNVALIDATED",
+                    "note": (
+                        "MIX-DEFAULT-BUY left UNVALIDATED customer default — "
+                        f"not rewritten; gather ticket cited {cited}"
+                    ),
+                },
+            )
         return _from_ticket(ticket, vetoes, base_prov, inherit=True)
 
     if bind.bind_kind == "default_mix_constituent":
-        # STRAT-003 inherits default mix lean only when that mix is cited.
+        # STRAT-003 inherits default mix lean only when that mix is cited
+        # and the ticket was not rewritten by a WAITING lean MIX.
+        cited = str(getattr(ticket, "lean_mix_cited", "") or "")
+        if cited.startswith(("MIX-LEAN", "MIX-IMPULSE", "MIX-PCR")):
+            return EvaluatorResult(
+                available=True,
+                raw_lean="HOLD",
+                final_lean="HOLD",
+                outcome="WATCH",
+                data_gaps=list(ticket.data_gaps),
+                vetoes=vetoes,
+                provenance_extra={
+                    **base_prov,
+                    "note": "STRAT-003 not inheriting WAITING lean MIX ticket",
+                    "NO_PROMOTE": True,
+                },
+            )
         if ticket.default_mix_cited == "MIX-DEFAULT-BUY":
             return _from_ticket(ticket, vetoes, base_prov, inherit=True)
         gaps = list(ticket.data_gaps) + [
@@ -566,116 +613,40 @@ def evaluate_candidate(
             provenance_extra=base_prov,
         )
 
-    if bind.bind_kind == "okala_in_paper":
-        # FOUNDER_PAPER_ACCEPT — bound, not permanently unbound DI.
-        try:
-            from trading_agents_india.hooks.event_memory import news_veto_enabled as _nve
-        except Exception:  # pragma: no cover
-            from backtest_engine.okala_in_paper import news_veto_enabled as _nve
+    if bind.bind_kind == "sell_credit_park":
+        from trading_agents_india.lean_mix import score_sell_credit_park
 
-        if (
-            _nve()
-            and ticket.risk_veto
-            and _has_any(blob, ("BIG_NEWS", "NEWS_DAY", "BIG_NEWS_HOLD", "EVENT_WINDOW"))
-        ):
-            return EvaluatorResult(
-                available=True,
-                raw_lean="HOLD",
-                final_lean="HOLD",
-                outcome="VETOED",
-                data_gaps=list(ticket.data_gaps),
-                vetoes=vetoes or ["BIG_NEWS"],
-                provenance_extra={
-                    **base_prov,
-                    "founder_label": "FOUNDER_PAPER_ACCEPT",
-                    "NO_PROMOTE": True,
-                    "news_veto_enabled": True,
-                },
-            )
-        if not bars:
-            return EvaluatorResult(
-                available=True,
-                raw_lean="HOLD",
-                final_lean="HOLD",
-                outcome="DATA_INSUFFICIENT",
-                data_gaps=list(
-                    dict.fromkeys(
-                        list(ticket.data_gaps)
-                        + [
-                            "DATA_INSUFFICIENT: Okala-IN paper detector needs INDEX bars "
-                            "on this agent tick — refusing fake lean (bound, not unbound)"
-                        ]
-                    )
-                ),
-                vetoes=vetoes,
-                provenance_extra={
-                    **base_prov,
-                    "founder_label": "FOUNDER_PAPER_ACCEPT",
-                    "NO_PROMOTE": True,
-                    "paper_enable": True,
-                    "news_veto_enabled": _nve(),
-                },
-            )
-        try:
-            from backtest_engine.okala_in_paper import detect_okala_paper_signals
-        except Exception as exc:  # pragma: no cover
-            return EvaluatorResult(
-                available=True,
-                raw_lean="HOLD",
-                final_lean="HOLD",
-                outcome="DATA_INSUFFICIENT",
-                data_gaps=list(ticket.data_gaps)
-                + [f"DATA_INSUFFICIENT: okala_in_paper import failed ({exc.__class__.__name__})"],
-                vetoes=vetoes,
-                provenance_extra=base_prov,
-            )
-        und = str(ticket.underlying or "").upper()
-        hits = detect_okala_paper_signals(
-            und,
-            bars,
-            session_kind=str(ticket.session_kind or "") if _nve() else "NORMAL",
-            veto_reasons=(
-                list(ticket.top_veto_reasons) + list(ticket.vetoes) if _nve() else []
-            ),
-        )
-        hit = next((h for h in hits if h.mix_id == candidate_id), None)
-        if hit is None:
-            return EvaluatorResult(
-                available=True,
-                raw_lean="HOLD",
-                final_lean="HOLD",
-                outcome="WATCH",
-                data_gaps=list(ticket.data_gaps),
-                vetoes=vetoes,
-                provenance_extra={
-                    **base_prov,
-                    "founder_label": "FOUNDER_PAPER_ACCEPT",
-                    "NO_PROMOTE": True,
-                    "okala_hits": len(hits),
-                    "news_veto_enabled": _nve(),
-                },
-            )
-        lean_side = "BUY_CE" if hit.lean == "CE" else "BUY_PE"
+        hit = score_sell_credit_park(ticket, bars=bars)
         return EvaluatorResult(
             available=True,
-            raw_lean=lean_side,
-            final_lean=lean_side,
-            outcome=lean_side,
-            data_gaps=list(ticket.data_gaps) + list(hit.data_gaps),
+            raw_lean="HOLD",
+            final_lean="HOLD",
+            outcome="PARKED",
+            data_gaps=[],
+            vetoes=[],
+            provenance_extra={**base_prov, **hit.provenance, "NO_PROMOTE": True},
+        )
+
+    if bind.bind_kind == "lean_mix":
+        from trading_agents_india.lean_mix import score_mix
+
+        hit = score_mix(candidate_id, ticket, bars=bars)
+        return EvaluatorResult(
+            available=True,
+            raw_lean=hit.lean,
+            final_lean=hit.lean,
+            outcome=hit.outcome,
+            data_gaps=list(dict.fromkeys(list(ticket.data_gaps) + list(hit.data_gaps))),
             vetoes=vetoes,
             provenance_extra={
                 **base_prov,
-                "founder_label": "FOUNDER_PAPER_ACCEPT",
+                **hit.provenance,
+                "mix_stage": hit.stage,
+                "mix_reasons": hit.reasons,
+                "entry": hit.entry,
+                "stop": hit.stop,
+                "target": hit.target,
                 "NO_PROMOTE": True,
-                "eligibility": hit.eligibility,
-                "okala_cell": hit.cell,
-                "okala_setup": hit.setup,
-                "okala_regime": hit.regime,
-                "research_wr_robust": hit.wr_robust,
-                "research_n": hit.n,
-                "win_rate_claim": None,
-                "reasons": hit.reasons,
-                "news_veto_enabled": _nve(),
             },
         )
 

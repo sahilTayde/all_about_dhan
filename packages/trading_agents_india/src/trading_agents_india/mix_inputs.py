@@ -14,6 +14,12 @@ PAPER_INPUT_MIXES = (
     "MIX-TA-EVENT-HOLD",
     "MIX-TA-EXEC-SANITY",
     "MIX-TA-MARKET-HOURS",
+    "MIX-LEAN-SPOT-ATM",
+    "MIX-IMPULSE-1M",
+    "MIX-PCR-EXTREME-HOLD",
+    "MIX-003-INDEX-PROXY",
+    "MIX-006-INDEX-PROXY",
+    "MIX-SELL-CREDIT-PARK",
 )
 
 # Short optional note paths (read if present; never invent content).

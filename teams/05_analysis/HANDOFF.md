@@ -1,5 +1,43 @@
 # Handoff log — Team 05 Analysis
 
+## As of now (2026-09-08) — MIX-PCR-EXTREME-HOLD + lean ticket talk
+
+```text
+From:     teams/05_analysis
+To:       00 / 03 / 04 / 09
+Date:     2026-09-08
+Status:   overlay note / UNVALIDATED
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: extreme PCR / PCR-without-price = HOLD ticket (CUSTOMER_TALK),
+  not alpha, not catalog delete; ATM LTP for Entry/SL/TP else empty;
+  EARLY valid; no indicator soup on `/`.
+Rejected: PCR numeric laws; mixing INDEX pts into premium SL/TP; promote.
+UNKNOWN: live 3m snapshot Δ vs ATM wall still HYPOTHESIS.
+```
+
+Newest first.
+
+---
+
+## As of now (2026-09-08) — CLUB-GR off customer confidence
+
+```text
+From:     teams/05_analysis
+To:       07 / 04 / 00
+Date:     2026-09-08
+Status:   CUSTOMER_TICKET working-path
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: `/` playbooks = MIX-DEFAULT-BUY + Okala-IN notify.
+  MIX-CLUB-GR PARKED (KEEP_ALL). Confidence does not add club agreement.
+Rejected: Gap+expansion as a second customer playbook; win rates.
+```
+
+Newest first.
+
+---
+
 ## As of now (2026-09-06) — customer ticket + confidence box
 
 Suggested CE/PE + stop/target + right-rail **agreement** confidence. Customer decides. Not a win rate. Not a fill.

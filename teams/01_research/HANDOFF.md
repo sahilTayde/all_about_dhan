@@ -1,5 +1,51 @@
 # Handoff log — Team 01 Research
 
+## As of now (2026-09-08) — MIX-LEAN is PROJECT-DERIVED (no new STRAT)
+
+```text
+From:     teams/01_research
+To:       00 / 04 / 09
+Date:     2026-09-08
+Status:   SOURCE_FACT note
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: MIX-LEAN-* / MIX-IMPULSE-1M are PROJECT-DERIVED (not a Dhan video
+  recipe). 003/006 recipes stay DHAN-DERIVED; INDEX resample path is not
+  spoken FUTIDX/OPTIDX. No STRAT-015+. Teacher books not deleted.
+Rejected: Relabeling lean MIX as DHAN-DERIVED; transcript deletes.
+```
+
+Newest first.
+
+---
+
+## As of now (2026-09-08) — Founder working-path: no transcript deletes
+
+```text
+From:     teams/01_research
+To:       00 / 04 / 09
+Date:     2026-09-08
+Status:   SOURCE_FACT corpus kept
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Summary:
+Accepted: Keep Dhan normalized_en + parked_tomorrow + CF retry queue.
+  US Chart Fanatics transcripts stay as EXTERNAL_RESEARCH for PARKED MIX-CF.
+Rejected: Deleting CF fail-queue or unprocessed Dhan videos.
+  Treating CF OF/US sessions as DhanHQ working-book recipes.
+UNKNOWN: remaining CF ASR fail list in RETRY_TOMORROW.md.
+
+Transcript files deleted: (none)
+
+Artifacts:
+- teams/01_research/docs/chart_fanatics/RETRY_TOMORROW.md (untouched queue)
+- teams/01_research/docs/handoffs/TRANSCRIPT_STRATEGY_BIND.md (unchanged binds)
+```
+
+Newest first.
+
+---
+
 ## As of now (2026-09-06) — CF fail=30 locked for RETRY TOMORROW
 
 Founder ask: keep every failed Chart Fanatics video documented for tomorrow retry.

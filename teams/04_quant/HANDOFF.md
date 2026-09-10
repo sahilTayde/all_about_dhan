@@ -1,5 +1,62 @@
 # Handoff log — Team 04 Quant
 
+## As of now (2026-09-08) — MIX-LEAN gather ticket (WAITING, NO_PROMOTE)
+
+```text
+From:     teams/04_quant
+To:       00 / 01 / 02 / 03 / 05 / 06 / 09
+Date:     2026-09-08
+Status:   WAITING MIX rows + PAPER evaluators
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+Layers:   SOURCE_FACT (INDEX 1m + optionchain_atm when gather works)
+          VALIDATION (03 PCR-without-price is not a signal)
+          HYPOTHESIS (CE/PE WATCH/EARLY; INDEX proxy ≠ FUTIDX/OPTIDX)
+
+Accepted: MIX-LEAN-SPOT-ATM + MIX-IMPULSE-1M fire WATCH/EARLY from gather;
+  empty SL/TP if no ATM LTP; MIX-003/006-INDEX-PROXY WAITING PROXY labeled;
+  MIX-PCR-EXTREME-HOLD HOLD overlay (no STRAT delete);
+  MIX-SELL-CREDIT-PARK parks 013/014 as non-buy; MIX-DEFAULT-BUY left
+  UNVALIDATED customer default; EARLY valid; no CONFIRMED from 5m ST/MACD.
+Rejected: Promote; STRAT-015+; STRAT deletes; rewrite DEFAULT-BUY; win rates;
+  live orders; invented PCR numeric law.
+UNKNOWN / DATA_INSUFFICIENT: FUTIDX/OPTIDX tape still not this path;
+  analog EVENT_MEMORY empty; 004 lengths; 010 OF history.
+
+Artifacts:
+- teams/04_quant/docs/MIX_CATALOG.md §20
+- packages/trading_agents_india/src/trading_agents_india/lean_mix.py
+Next: paper gather can score these MIX rows. Do not promote.
+```
+
+Newest first.
+
+---
+
+## As of now (2026-09-08) — Working-path WAITING/PARK (KEEP_ALL)
+
+```text
+From:     teams/04_quant
+To:       00 / 06 / 09
+Date:     2026-09-08
+Status:   HYPOTHESIS working-path flags
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: MIX-HAUS-001 + MIX-SCALP-006 working_path WAITING (proxy, not
+  INDEX 1m = teacher TF). MIX-CLUB-GR working_path PARKED / paper_watch
+  false (not kill). STRAT-001–014 IDs unchanged BACKTEST_BOOK.
+Rejected: STRAT-015+; promote; MIX kill; pretend FUT 3m / 2m on INDEX 1m.
+UNKNOWN: 004 lengths; 010 OF history.
+
+Artifacts:
+- teams/04_quant/docs/MIX_CATALOG.md
+- teams/04_quant/docs/ENGINE_MIX.md
+- teams/04_quant/docs/PAPER_WATCH_CLUB_GR.md
+```
+
+Newest first.
+
+---
+
 ## As of now (2026-09-06) — MIX-TA-MARKET-HOURS PAPER_WATCH
 
 Named ledger MIX for IST market-hours agent poll. Not default. Not promote. Orders refused.
