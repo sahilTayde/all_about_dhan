@@ -1,5 +1,33 @@
 # Handoff log — Team 01 Research
 
+## As of now (2026-09-10) — Dhan algo marketplace (Stratzy) study
+
+```text
+From:     teams/01_research
+To:       00 / 03 / 04 / 06
+Date:     2026-09-10
+Status:   SOURCE_FACT scrape + WEB-DERIVED literature / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: algos.dhan.co Stratzy scrape (79 algos, 4 families) recorded as
+  SOURCE_FACT in docs/DHAN_ALGO_MARKETPLACE_STRATZY.md. Two disclosed
+  credit-spread recipes; "Hamiltonian/entropy/eigenvalues" decoded as
+  IV-surface shape statistics (econophysics branding, Baaquie lineage).
+  Feed-sensitivity lesson: same SkewHunter took CE on Dhan and PE on
+  Stratzy 23-Jun-2026 (different feeds) -> dead-band mandatory. Skew
+  literature grounded (Xing/Zhang/Zhao 2010; Fu et al. 2016; Ratcliff
+  2013; Cremers-Weinbaum 2010). 04 clubs the concepts as MIX-ALGO-*
+  (catalog section 21). Chain IV per strike both sides is Dhan-sourceable;
+  gap = chain_iv_stats gather ticket.
+Rejected: Marketplace returns as expectations; subscribing/deploying any
+  algo; one-sided books; treating branding as secret sauce; promotes.
+UNKNOWN: Exact SkewHunter trigger/SL; GRID re-entry grids; Index Sniper
+  logic (-261% 1y display); kurtosis-straddle trigger; costs on our fills.
+
+Artifacts: docs/DHAN_ALGO_MARKETPLACE_STRATZY.md,
+  04 MIX_CATALOG.md section 21, 04 candidates/MIX-ALGO-SKEW-BUY.md
+```
+
 ## As of now (2026-09-10) — HQ docs vs transcripts
 
 ```text

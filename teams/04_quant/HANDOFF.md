@@ -1,5 +1,35 @@
 # Handoff log — Team 04 Quant
 
+## As of now (2026-09-10) — MIX-ALGO-* clubs from marketplace study (NO_PROMOTE)
+
+```text
+From:     teams/04_quant
+To:       00 / 01 / 03 / 06 / 09
+Date:     2026-09-10
+Status:   Catalog section 21 added / all UNVALIDATED / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: Four clubs from 01's algos.dhan.co study, WEB-DERIVED concepts
+  with PROJECT construction: MIX-ALGO-SKEW-BUY (skew tilt picks CE/PE
+  side, premium-tape dual gate confirms entry, dead-band + hysteresis
+  mandatory, EOD flat, 40% TSL shell; BACKTEST_REQUIRED, blocked on
+  chain_iv_stats gather ticket); MIX-ALGO-IV-REGIME-HOLD (flat IV
+  surface + quiet RV => suppress premium buys; WAITING); MIX-ALGO-RR-SHELL
+  (exit shells as explicit overlay params; WAITING); MIX-ALGO-CREDIT-PARK
+  (seller family parked with India short-vol citations; PARKED). KEEP_ALL
+  001-014. No STRAT-015+. Both CE and PE always evaluated.
+Rejected: Copying undisclosed SkewHunter params; raw thresholds without
+  dead-band; marketplace returns as claims; MIX-DEFAULT-BUY rewrite;
+  orders; promoting any MIX-ALGO-* row.
+UNKNOWN: Intraday survival of weekly-horizon skew evidence after costs;
+  ATM±k / dead-band / momentum-lookback grid (06 owns); IV history depth
+  starts only when the gather ticket starts.
+
+Artifacts: docs/MIX_CATALOG.md section 21,
+  docs/candidates/MIX-ALGO-SKEW-BUY.md,
+  01 docs/DHAN_ALGO_MARKETPLACE_STRATZY.md
+```
+
 ## As of now (2026-09-10) — MIX-DUAL-INDEX-MASTER (MRR Pine, NO_PROMOTE)
 
 ```text

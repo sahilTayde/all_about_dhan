@@ -1,5 +1,29 @@
 # Handoff log — Team 00 Orchestrator
 
+## As of now (2026-09-10) — Marketplace study clubbed as MIX-ALGO-* (boss call)
+
+```text
+From:     teams/00_orchestrator (boss desk)
+To:       01 / 03 / 04 / 06 / 09 / founder
+Date:     2026-09-10
+Status:   STUDY LANDED / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: Founder ask — deep study of algos.dhan.co (Stratzy manager +
+  option-buying pages) and build our own strategy from it. 01 wrote the
+  research book (scrape SOURCE_FACT, literature WEB-DERIVED, honest
+  lessons: feed-sensitivity CE/PE flip, buy-side selection effect,
+  one-sided books fail, shells repeat). 04 clubbed four MIX-ALGO-* rows
+  (catalog section 21); flagship MIX-ALGO-SKEW-BUY reuses our premium
+  tape as entry confirm. Default customer ticket unchanged.
+Rejected: Subscribing to / mirroring any marketplace algo; return
+  displays as customer claims; new STRAT rows; coding a live strategy;
+  starting chain_iv_stats gather without a founder-visible ticket.
+UNKNOWN: chain_iv_stats gather ticket (IV curve persistence) is the
+  single blocker for skew-buy and IV-hold evaluation — needs
+  scheduling, not silent scope creep.
+```
+
 ## As of now (2026-09-10) — Premium tape persisted (blocker resolved)
 
 ```text
