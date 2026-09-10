@@ -293,6 +293,19 @@ EVALUATOR_BINDS: dict[str, EvaluatorBind] = {
         module="trading_agents_india.lean_mix.score_sell_credit_park",
         reason="013+014 never evaluated as buy entries",
     ),
+    "MIX-DUAL-INDEX-MASTER": EvaluatorBind(
+        candidate_id="MIX-DUAL-INDEX-MASTER",
+        available=True,
+        bind_kind="lean_mix",
+        catalog_status="BACKTEST_REQUIRED",
+        timeframe="1m-SENSEX-CALL-premium+spot",
+        layer="HYPOTHESIS",
+        module="trading_agents_india.lean_mix.score_dual_index_master",
+        reason=(
+            "PROJECT-DERIVED SENSEX CALL premium candidate; records spot gate and "
+            "premium-OHLC blocker only until 1m premium tape is persisted"
+        ),
+    ),
 }
 
 

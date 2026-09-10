@@ -19,6 +19,7 @@ LEAN_MIX_IDS = (
     "MIX-006-INDEX-PROXY",
     "MIX-PCR-EXTREME-HOLD",
     "MIX-SELL-CREDIT-PARK",
+    "MIX-DUAL-INDEX-MASTER",
 )
 
 
@@ -50,6 +51,45 @@ def _last_close(bars: Optional[list[Any]]) -> Optional[float]:
     if not bars:
         return None
     return _close(bars[-1])
+
+
+def _bar_field(bar: Any, field: str) -> Optional[float]:
+    try:
+        if isinstance(bar, dict):
+            return float(bar[field])
+        return float(getattr(bar, field))
+    except (TypeError, ValueError, KeyError, AttributeError):
+        return None
+
+
+def _ema(values: list[float], length: int) -> list[Optional[float]]:
+    out: list[Optional[float]] = [None] * len(values)
+    if len(values) < length:
+        return out
+    seed = sum(values[:length]) / length
+    out[length - 1] = seed
+    prev = seed
+    k = 2.0 / (length + 1.0)
+    for i in range(length, len(values)):
+        prev = values[i] * k + prev * (1.0 - k)
+        out[i] = prev
+    return out
+
+
+def _session_vwap_last(bars: list[Any]) -> Optional[float]:
+    num = 0.0
+    den = 0.0
+    for bar in bars:
+        high = _bar_field(bar, "high")
+        low = _bar_field(bar, "low")
+        close = _bar_field(bar, "close")
+        if high is None or low is None or close is None:
+            continue
+        volume = _bar_field(bar, "volume")
+        weight = volume if volume and volume > 0 else 1.0
+        num += ((high + low + close) / 3.0) * weight
+        den += weight
+    return num / den if den else None
 
 
 def _premium_levels(prem: dict[str, Any], side: str) -> tuple[Optional[float], Optional[float], Optional[float]]:
@@ -489,6 +529,126 @@ def score_sell_credit_park(_ticket: Any, *, bars: Optional[list[Any]] = None) ->
     )
 
 
+def score_dual_index_master(ticket: Any, *, bars: Optional[list[Any]] = None) -> MixScore:
+    """SENSEX-only shadow candidate from MRR dual-index backtest.
+
+    Current market loop has index bars and one ATM option LTP, but not a
+    rolling 1m CALL premium OHLC tape. Therefore this scorer records readiness
+    and blockers only; it never emits a tradable signal.
+    """
+    underlying = str(getattr(ticket, "underlying", "") or "").upper()
+    if underlying == "NIFTY":
+        return MixScore(
+            mix_id="MIX-DUAL-INDEX-MASTER",
+            available=True,
+            lean="HOLD",
+            stage="PARKED",
+            outcome="PARKED",
+            data_gaps=[],
+            reasons=[
+                "MIX-DUAL-INDEX-MASTER: NIFTY arm failed latest 1m CALL premium backtest",
+                "Recorded for audit only; do not promote or route customer ticket",
+            ],
+            provenance={
+                "origin": "PROJECT-DERIVED",
+                "layer": "HYPOTHESIS",
+                "NO_PROMOTE": True,
+                "customer_default": False,
+                "latest_shadow_oos_expectancy": -3.3988,
+            },
+        )
+    if underlying == "BANKNIFTY":
+        return MixScore(
+            mix_id="MIX-DUAL-INDEX-MASTER",
+            available=True,
+            lean="HOLD",
+            stage="PARKED",
+            outcome="PARKED",
+            data_gaps=[],
+            reasons=[
+                "MIX-DUAL-INDEX-MASTER: BANKNIFTY not part of dual-index spec",
+                "Avoid until separate BANKNIFTY risk/spot rules exist",
+            ],
+            provenance={
+                "origin": "PROJECT-DERIVED",
+                "layer": "HYPOTHESIS",
+                "NO_PROMOTE": True,
+                "customer_default": False,
+            },
+        )
+    if underlying != "SENSEX":
+        return MixScore(
+            mix_id="MIX-DUAL-INDEX-MASTER",
+            available=True,
+            lean="HOLD",
+            stage="WATCH",
+            outcome="DATA_INSUFFICIENT",
+            data_gaps=[f"DATA_INSUFFICIENT: unsupported underlying {underlying or '?'}"],
+            reasons=["MIX-DUAL-INDEX-MASTER supports SENSEX working path only"],
+            provenance={"origin": "PROJECT-DERIVED", "NO_PROMOTE": True, "customer_default": False},
+        )
+    gaps: list[str] = []
+    if not bars or len(bars) < 25:
+        gaps.append("DATA_INSUFFICIENT: SENSEX index 1m bars <25 for spot VWAP/EMA21 gate")
+        spot_bullish = False
+        spot = None
+        spot_vwap = None
+        spot_ema21 = None
+    else:
+        closes = [_close(b) for b in bars]
+        valid_closes = [c for c in closes if c is not None]
+        spot = valid_closes[-1] if valid_closes else None
+        spot_vwap = _session_vwap_last(bars)
+        ema21 = _ema(valid_closes, 21)
+        spot_ema21 = ema21[-1] if ema21 else None
+        spot_bullish = (
+            spot is not None
+            and spot_vwap is not None
+            and spot_ema21 is not None
+            and spot > spot_vwap
+            and spot > spot_ema21
+        )
+    prem = getattr(ticket, "premium_lean", None) or {}
+    premium_source = str(prem.get("source") or "")
+    option_ltp = prem.get("option_ltp") or prem.get("ltp") or prem.get("entry")
+    gaps.append(
+        "DATA_INSUFFICIENT: MIX-DUAL-INDEX-MASTER needs rolling 1m SENSEX CALL premium OHLC "
+        "for MRR/VWAP/SuperTrend/EMA/volume replay; current loop has only snapshot LTP"
+    )
+    if option_ltp in (None, ""):
+        gaps.append("DATA_INSUFFICIENT: SENSEX CALL option LTP missing on ticket")
+    outcome = "DATA_INSUFFICIENT" if spot_bullish else "WATCH"
+    return MixScore(
+        mix_id="MIX-DUAL-INDEX-MASTER",
+        available=True,
+        lean="HOLD",
+        stage="WATCH",
+        outcome=outcome,
+        data_gaps=list(dict.fromkeys(gaps)),
+        reasons=[
+            f"MIX-DUAL-INDEX-MASTER SENSEX spot_bullish={spot_bullish}",
+            "Waiting on option premium OHLC persistence before paper-watch signals",
+            "Latest cached backtest positive but UNVALIDATED; NO_PROMOTE",
+        ],
+        provenance={
+            "origin": "PROJECT-DERIVED",
+            "layer": "HYPOTHESIS",
+            "NO_PROMOTE": True,
+            "customer_default": False,
+            "spot": spot,
+            "spot_vwap": spot_vwap,
+            "spot_ema21": spot_ema21,
+            "spot_bullish": spot_bullish,
+            "premium_source": premium_source,
+            "option_ltp_present": option_ltp not in (None, ""),
+            "latest_shadow_report": "teams/06_backtesting/docs/MRR_BACKTEST_2026-09-10.md",
+            "latest_shadow_oos_win_rate": 0.3711,
+            "latest_shadow_oos_expectancy": 4.8399,
+            "win_rate_claim": None,
+        },
+    )
+
+
 SCORERS = {
     "MIX-LEAN-SPOT-ATM": score_lean_spot_atm,
     "MIX-IMPULSE-1M": score_impulse_1m,
@@ -496,6 +656,7 @@ SCORERS = {
     "MIX-006-INDEX-PROXY": score_006_index_proxy,
     "MIX-PCR-EXTREME-HOLD": score_pcr_extreme_hold,
     "MIX-SELL-CREDIT-PARK": score_sell_credit_park,
+    "MIX-DUAL-INDEX-MASTER": score_dual_index_master,
 }
 
 

@@ -33,6 +33,7 @@ CATALOG_CANDIDATES: tuple[str, ...] = tuple(
         "MIX-006-INDEX-PROXY",
         "MIX-PCR-EXTREME-HOLD",
         "MIX-SELL-CREDIT-PARK",
+        "MIX-DUAL-INDEX-MASTER",
     ]
 )
 

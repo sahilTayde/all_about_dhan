@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from trading_agents_india.lean_mix import (
     pick_customer_lean,
+    score_dual_index_master,
     score_impulse_1m,
     score_lean_spot_atm,
     score_pcr_extreme_hold,
@@ -149,3 +150,32 @@ def test_default_buy_not_rewritten_when_lean_mix_cited() -> None:
     assert result.final_lean == "HOLD"
     assert result.outcome == "WATCH"
     assert "not rewritten" in str(result.provenance_extra.get("note"))
+
+
+def test_dual_index_master_sensex_waits_for_premium_ohlc() -> None:
+    ticket = _ticket(
+        underlying="SENSEX",
+        premium_lean={
+            "source": "optionchain_atm",
+            "option_ltp": 100.0,
+        },
+    )
+    hit = score_dual_index_master(ticket, bars=_bars(n=30, start=74000.0, step=10.0))
+    assert hit.lean == "HOLD"
+    assert hit.outcome == "DATA_INSUFFICIENT"
+    assert hit.provenance["NO_PROMOTE"] is True
+    assert any("CALL premium OHLC" in gap for gap in hit.data_gaps)
+    result = evaluate_candidate(
+        "MIX-DUAL-INDEX-MASTER",
+        ticket,
+        bars=_bars(n=30, start=74000.0, step=10.0),
+    )
+    assert result.final_lean == "HOLD"
+    assert result.provenance_extra.get("mix_stage") == "WATCH"
+
+
+def test_dual_index_master_nifty_failed_arm_parked() -> None:
+    hit = score_dual_index_master(_ticket(underlying="NIFTY"), bars=_bars(n=30))
+    assert hit.lean == "HOLD"
+    assert hit.outcome == "PARKED"
+    assert hit.provenance["latest_shadow_oos_expectancy"] < 0
