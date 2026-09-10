@@ -1,5 +1,70 @@
 # Handoff log — Team 00 Orchestrator
 
+## As of now (2026-09-09) — Department skill playbooks rewritten
+
+```text
+From:     teams/00_orchestrator (00 after founder correction + Gemini/OpenAI)
+To:       D1–D5 / 01–09 / founder
+Date:     2026-09-09
+Status:   SKILL PLAYBOOKS / DOCS DONE / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: founder requirement trace; team SKILL.md rewritten from short roles into
+  operational playbooks (duties, inputs, output templates, quality bars,
+  books/training, must-not rules). Counsel ALIGNED that this was required.
+Rejected: shallow role-only skills; analyst FAIL without next test; LLM-generated
+  CE/PE; docs that hide MOCK or service state.
+UNKNOWN: playbooks not yet enforced by code; /pm not built; warehouse not built.
+
+Artifacts: docs/FOUNDER_REQUIREMENTS_TRACE.md, COUNSEL_SKILLS_2026-09-09.md,
+  teams/00_orchestrator/SKILL.md through teams/09_review/SKILL.md
+Next: code the warehouse + dealer feasibility + /pm in that order.
+```
+
+## As of now (2026-09-09) — Scale / token / UX standards
+
+```text
+From:     teams/00_orchestrator (00 after second Gemini+OpenAI review)
+To:       D1 / D4 / D5 / 09 / founder
+Date:     2026-09-09
+Status:   ARCHITECTURE SPEC / PARTIAL / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: zero LLM calls on market-hours fast path; precomputed customer read
+  model; SQLite+FTS5 now; local ML first; PM SLO cards; dealer state machine
+  kill/expire > entry; customer UX mobile-first/no indicator soup.
+Rejected: day-1 Rust/Go rewrite; universal 3-second TTL; bracket/live-order
+  language; hosted vector DB day-1; fake win rates.
+UNKNOWN: warehouse schema not coded; /pm not coded; local ML baseline not coded.
+
+Artifacts: docs/PRODUCT_ARCHITECTURE_STANDARDS.md, docs/TOKEN_ML_STRATEGY.md,
+  docs/CUSTOMER_PORTAL_UX.md, COUNSEL_SCALE_2026-09-09.md
+Next: build warehouse events + dealer feasibility before UX polish.
+```
+
+## As of now (2026-09-09) — Company departments overlay
+
+```text
+From:     teams/00_orchestrator (00 after Gemini+OpenAI)
+To:       D1–D5 / 01–09 / founder
+Date:     2026-09-09
+Status:   ORG SPEC / PARTIAL / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: Keep 00–09; overlay D1 Engineering, D2 Faculty (Algo+Stats as roles),
+  D3 Docs, D4 PM (/pm), D5 Front desk. SQLite+FTS5 now. Founder talks to PM.
+  Signal-company language; execution paper/shadow; dealer feasibility kill.
+  Nightly updates docs/RAG/SQL and PROPOSES code + backtest; no auto-retune.
+  Books assigned per chair in workspace.yaml. Both models AGREE_WITH_CAVEATS.
+Rejected: Renumber/delete teams; MySQL/embeddings day-1; live orders; win rates;
+  merge customer / into /desk; STRAT-015+; silent production param write.
+UNKNOWN: /pm not coded; warehouse DDL not coded; local ML not coded.
+
+Artifacts: docs/COMPANY_DEPARTMENTS.md, FOUNDER_PM.md, FRONT_DESK.md,
+  ENGINEERING_SECTIONS.md, team SKILL.md, COUNSEL_ORG_2026-09-09.md
+Next: code /pm + dealer kill when founder asks (do not restart npm unasked).
+```
+
 ## As of now (2026-09-09) — DhanHQ-only cleanup (founder)
 
 ```text

@@ -46,6 +46,7 @@ SDLC: [`docs/SDLC.md`](SDLC.md). Orchestrator snapshot: [`teams/00_orchestrator/
 | 9 | Paper/shadow vs user lots; 30% capital quality bar | **PARTIAL** | Spec + ledger stubs. No real P/L. Quality bar is a **product penalty**, not a measured metric. |
 | 10 | Token for live Dhan validation | **PARTIAL** | Data plan **Active** (profile 2026-09-03). Live GET `/profile` + POST quote/chain/charts **worked**. **Orders still refused.** Do not paste tokens in chat. |
 | 11 | Standing **Docs Auditor** (after requirement change + nightly) | **DONE** (checker) | `python -m docs_auditor`. Real fail paths (stub sheet, `1m` chain, missing nightly hook). Latest: [`AUDIT_LATEST.md`](../teams/00_orchestrator/docs/AUDIT_LATEST.md). |
+| 12 | Company departments + fast/scalable product architecture | **PARTIAL** | Org + operational skills + founder trace + architecture/token/UX standards **written** 2026-09-09 ([`COMPANY_DEPARTMENTS.md`](COMPANY_DEPARTMENTS.md), [`FOUNDER_REQUIREMENTS_TRACE.md`](FOUNDER_REQUIREMENTS_TRACE.md), [`PRODUCT_ARCHITECTURE_STANDARDS.md`](PRODUCT_ARCHITECTURE_STANDARDS.md)). Gemini+OpenAI aligned: rewrite skills as playbooks, **zero LLM fast path**, SQLite+FTS5 now, local ML first. `/pm`, warehouse DDL, local ML, dealer kill **not coded**. 00–09 **kept**. **No live orders.** |
 
 ---
 
@@ -335,6 +336,27 @@ python -m docs_auditor
 python -m desk_intel audit-docs
 python -m jobs post-market --offline
 ```
+
+---
+
+## 12. Company departments overlay — **PARTIAL** (docs; product not coded)
+
+Ticket: founder org 2026-09-09. Counsel: [`COUNSEL_ORG_2026-09-09.md`](../teams/00_orchestrator/docs/COUNSEL_ORG_2026-09-09.md) (Gemini + OpenAI **AGREE_WITH_CAVEATS**). Charter: [`COMPANY_DEPARTMENTS.md`](COMPANY_DEPARTMENTS.md).
+
+| Piece | Status |
+|-------|--------|
+| Keep 00–09; overlay D1–D5 | **DONE** (docs) |
+| Faculty / department `SKILL.md` playbooks | **DONE** — duties, inputs/outputs, quality bars, books/training, founder requirement |
+| Founder requirements trace | **DONE** — [`FOUNDER_REQUIREMENTS_TRACE.md`](FOUNDER_REQUIREMENTS_TRACE.md) |
+| Books in yaml | **DONE** (VALIDATION tags, not edge) |
+| Founder `/pm` canvas | **TODO** (spec + SLO cards [`FOUNDER_PM.md`](../teams/00_orchestrator/docs/FOUNDER_PM.md)) |
+| Dealer feasibility kill | **TODO** (spec + reason codes [`FRONT_DESK.md`](../teams/05_analysis/docs/FRONT_DESK.md)) |
+| Fast architecture standards | **DONE** (docs) — [`PRODUCT_ARCHITECTURE_STANDARDS.md`](PRODUCT_ARCHITECTURE_STANDARDS.md) |
+| Token + local ML standards | **DONE** (docs) — [`TOKEN_ML_STRATEGY.md`](TOKEN_ML_STRATEGY.md); **zero LLM fast path** |
+| Customer UX standard | **DONE** (docs) — [`CUSTOMER_PORTAL_UX.md`](CUSTOMER_PORTAL_UX.md) |
+| SQLite warehouse + FTS RAG | **PARTIAL** — FTS exists; warehouse DDL / local ML / optional sqlite-vec **TODO** |
+| MySQL / embeddings day-1 | **rejected** (counsel) |
+| Live orders | **refused** |
 
 ---
 

@@ -93,6 +93,7 @@ CF ASR fail queue still exists (`RETRY_TOMORROW.md`). Not the next default ticke
 | Read first | Path |
 |------------|------|
 | Master sheet | `docs/MASTER_REQUIREMENTS.md` |
+| Company departments | [`docs/COMPANY_DEPARTMENTS.md`](../../../docs/COMPANY_DEPARTMENTS.md) |
 | Agents | `AGENT.md` |
 | Review brief | `teams/00_orchestrator/docs/REVIEW_BRIEF_FOR_FRONTIER_MODEL.md` |
 | Boss | `teams/00_orchestrator/docs/BOSS_AGENT.md` |

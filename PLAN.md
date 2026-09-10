@@ -2,7 +2,7 @@
 
 Working name: **all_about_dhan**. Broker: **Dhan / DhanHQ only**. First markets: **NIFTY, BANKNIFTY, SENSEX index options** (CE/PE buy). Swing/positional later.
 
-This file is the **company** plan. The long Codex YouTube research plan lives at [`teams/01_research/youtube/PLAN.md`](teams/01_research/youtube/PLAN.md) — do not duplicate it here.
+This file is the **company** plan. Founder org (five departments on top of 00–09): [`docs/COMPANY_DEPARTMENTS.md`](docs/COMPANY_DEPARTMENTS.md). Requirement trace: [`docs/FOUNDER_REQUIREMENTS_TRACE.md`](docs/FOUNDER_REQUIREMENTS_TRACE.md). Product standards: [`docs/PRODUCT_ARCHITECTURE_STANDARDS.md`](docs/PRODUCT_ARCHITECTURE_STANDARDS.md) + [`docs/TOKEN_ML_STRATEGY.md`](docs/TOKEN_ML_STRATEGY.md) + [`docs/CUSTOMER_PORTAL_UX.md`](docs/CUSTOMER_PORTAL_UX.md). The long Codex YouTube research plan lives at [`teams/01_research/youtube/PLAN.md`](teams/01_research/youtube/PLAN.md) — do not duplicate it here.
 
 Agents: read [`AGENT.md`](AGENT.md) first. **Score:** [`docs/MASTER_REQUIREMENTS.md`](docs/MASTER_REQUIREMENTS.md). Phases: [`docs/SDLC.md`](docs/SDLC.md). Morning brief: [`teams/00_orchestrator/docs/REVIEW_BRIEF_FOR_FRONTIER_MODEL.md`](teams/00_orchestrator/docs/REVIEW_BRIEF_FOR_FRONTIER_MODEL.md).
 
@@ -50,6 +50,8 @@ Collector has run. Generic DhanHQ client + FastAPI exist (orders refused). Paper
 - [ ] Staged signals — **docs `IN_PROGRESS`**; live `DHAN_*` **TODO** (do not call)
 - [x] CAS analyst (Closing Auction Session) — research + `cas_calls[]` + CasPanel mock; ticket **`IN_PROGRESS`**; daily book **UNVALIDATED** / `DATA_INSUFFICIENT`; no win rates
 - [ ] Transcript coalition — KEEP_ALL + MIX/CAS docs + bind applied; ticket [`TASK_TRANSCRIPT_COALITION.md`](teams/00_orchestrator/docs/TASK_TRANSCRIPT_COALITION.md) **`IN_PROGRESS`**; 14 STRATs stay **UNVALIDATED**; not `RESEARCH_READY_FOR_PROGRAMMING`
+- [ ] Company departments overlay (2026-09-09) — **docs done**; operational `SKILL.md` playbooks done; `/pm` + warehouse + dealer feasibility **not coded**. Charter [`COMPANY_DEPARTMENTS.md`](docs/COMPANY_DEPARTMENTS.md)
+- [ ] Fast/scalable app standards (2026-09-09) — **docs done**; code TODO: append-only warehouse, read model, local ML baseline, `/pm` SLO cards. Standards [`PRODUCT_ARCHITECTURE_STANDARDS.md`](docs/PRODUCT_ARCHITECTURE_STANDARDS.md)
 
 ---
 

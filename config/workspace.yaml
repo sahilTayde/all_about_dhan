@@ -114,12 +114,66 @@ sources:
       author: John J. Murphy
       url: https://www.penguinrandomhouse.com/books/118407/technical-analysis-of-the-financial-markets-by-john-j-murphy/
       use: VALIDATION
+      chair: phd_quant
       enabled: true
     - id: natenberg_ovp
       title: Option Volatility and Pricing
       author: Sheldon Natenberg
       url: https://www.mhprofessional.com/option-volatility-and-pricing-9780071476508-usa
       use: VALIDATION
+      chair: phd_math
+      enabled: true
+    - id: passarelli_greeks
+      title: Trading Options Greeks
+      author: Dan Passarelli
+      url: https://www.wiley.com/en-us/Trading+Options+Greeks%3A+How+Time%2C+Volatility%2C+and+Other+Pricing+Factors+Drive+Profits%2C+2nd+Edition-p-9781118133163
+      use: VALIDATION
+      chair: phd_math
+      enabled: true
+    - id: hull_ofod
+      title: Options, Futures, and Other Derivatives
+      author: John C. Hull
+      url: https://www.pearson.com/en-us/subject-catalog/p/options-futures-and-other-derivatives/P200000003466
+      use: VALIDATION
+      chair: phd_math
+      enabled: true
+    - id: lopez_afml
+      title: Advances in Financial Machine Learning
+      author: Marcos López de Prado
+      url: https://www.wiley.com/en-us/Advances+in+Financial+Machine+Learning-p-9781119482086
+      use: VALIDATION
+      chair: phd_statistics
+      note: Method (purged CV, overlap) — not our P/L and not a promote.
+      enabled: true
+    - id: harris_exchanges
+      title: Trading and Exchanges
+      author: Larry Harris
+      url: https://global.oup.com/academic/product/trading-and-exchanges-9780195144703
+      use: VALIDATION
+      chair: phd_market
+      enabled: true
+    - id: shah_eat_options
+      title: Everything About Trading Options
+      author: Prashant Shah
+      url: https://algotest.in/blog/best-books-on-options-trading-india/
+      use: VALIDATION
+      chair: phd_market
+      note: India chain/OI classroom. Publisher page VERIFY. Not a Dhan edge.
+      enabled: true
+    - id: mcmillan_oasi
+      title: Options as a Strategic Investment
+      author: Lawrence G. McMillan
+      url: https://www.penguinrandomhouse.com/books/112014/options-as-a-strategic-investment-by-lawrence-g-mcmillan/
+      use: VALIDATION
+      chair: phd_quant
+      enabled: true
+    - id: douglas_zone
+      title: Trading in the Zone
+      author: Mark Douglas
+      url: https://www.penguinrandomhouse.com/books/42949/trading-in-the-zone-by-mark-douglas/
+      use: VALIDATION
+      chair: front_desk
+      note: Discipline. Not a MIX recipe.
       enabled: true
 
   # ---------------------------------------------------------------------------

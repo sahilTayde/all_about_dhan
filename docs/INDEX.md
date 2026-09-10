@@ -4,6 +4,7 @@ Always start with [`AGENT.md`](../AGENT.md). **Morning / frontier review:** [`do
 
 | Task | Open |
 |------|------|
+| **Company departments / bosses / skills** | [`COMPANY_DEPARTMENTS.md`](COMPANY_DEPARTMENTS.md), [`FOUNDER_REQUIREMENTS_TRACE.md`](FOUNDER_REQUIREMENTS_TRACE.md), [`PRODUCT_ARCHITECTURE_STANDARDS.md`](PRODUCT_ARCHITECTURE_STANDARDS.md), [`TOKEN_ML_STRATEGY.md`](TOKEN_ML_STRATEGY.md), [`CUSTOMER_PORTAL_UX.md`](CUSTOMER_PORTAL_UX.md), [`FOUNDER_PM.md`](../teams/00_orchestrator/docs/FOUNDER_PM.md), [`FRONT_DESK.md`](../teams/05_analysis/docs/FRONT_DESK.md), [`ENGINEERING_SECTIONS.md`](../teams/07_coding/docs/ENGINEERING_SECTIONS.md), each team `SKILL.md` |
 | **Master requirements (morning sheet)** | [`docs/MASTER_REQUIREMENTS.md`](MASTER_REQUIREMENTS.md) |
 | Company status / this week's work | [`PLAN.md`](../PLAN.md), [`docs/SDLC.md`](SDLC.md), [`STATUS.md`](../teams/00_orchestrator/docs/STATUS.md) |
 | **Customer URLs / books / YouTube source switch** | [`config/workspace.yaml`](../config/workspace.yaml) — customers change this file |
@@ -28,7 +29,7 @@ Always start with [`AGENT.md`](../AGENT.md). **Morning / frontier review:** [`do
 | Desk intel package | [`packages/desk-intel/README.md`](../packages/desk-intel/README.md) |
 | Shared schemas | [`packages/contracts/README.md`](../packages/contracts/README.md) |
 | Indicator implementations | [`packages/indicators/README.md`](../packages/indicators/README.md) |
-| Signal UI — **customer `/` vs internal `/desk`** | [`apps/web/README.md`](../apps/web/README.md) — ticket + IN-PROGRESS + CasPanel; book P/L **MOCK**. `/desk` is research-only |
+| Signal UI — **customer `/` vs internal `/desk`** | [`apps/web/README.md`](../apps/web/README.md), UX standard [`CUSTOMER_PORTAL_UX.md`](CUSTOMER_PORTAL_UX.md) — ticket + IN-PROGRESS + CasPanel; book P/L **MOCK**. `/desk` is research-only |
 | FastAPI backend | [`apps/api/README.md`](../apps/api/README.md) |
 | Coding team pointers | [`teams/07_coding/README.md`](../teams/07_coding/README.md) |
 | QA / paper checks | [`teams/08_testing/README.md`](../teams/08_testing/README.md) |

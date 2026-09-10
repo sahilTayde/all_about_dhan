@@ -31,6 +31,8 @@ Review:   (n/a | five-pass pending | FAILED REVIEW | passed)
 
 ## Usual flow
 
+Founder org (who talks to whom): [`COMPANY_DEPARTMENTS.md`](COMPANY_DEPARTMENTS.md). Pipeline IDs below stay 00–09.
+
 ```text
 00_orchestrator
   → 01_research          (catalog, transcripts, SOURCE_FACT)
