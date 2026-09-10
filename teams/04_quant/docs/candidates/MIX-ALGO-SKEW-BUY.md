@@ -14,7 +14,7 @@ markets: [NIFTY, SENSEX]
 excluded_markets:
   BANKNIFTY: "no premium-tape/spot rules written; avoid until separate spec"
 inputs:
-  chain_iv_stats: "per-snapshot ATM±k skew tilt (mean OTM-PE IV − mean OTM-CE IV), smile curvature, tilt momentum — GATHER TICKET NOT BUILT YET"
+  chain_iv_stats: "per-snapshot ATM±k skew tilt, smile curvature, IV entropy — chain_iv.py, live-validated 2026-09-10 14:22 IST; history accumulates only while a ticker/loop runs it (no Dhan backfill)"
   premium_tape: "rolling ATM 1m CE+PE bars (premium_tape.py, already persisting)"
   spot: "INDEX 1m previous completed bar"
 side_pick:
@@ -48,7 +48,7 @@ orders: REFUSED
 - Dead-band + hysteresis mandatory before any threshold flip (23-Jun-2026 CE/PE flip lesson).
 - Both sides (CE and PE) always evaluated — one-sided books rejected (Only-Calls −36.91% 1y on the marketplace's own display).
 - EOD hard exit; no overnight long premium.
-- Blocked on the `chain_iv_stats` gather ticket: paper loop persists ATM/PCR only today, not the IV curve.
+- `chain_iv_stats` gather landed 2026-09-10 (`trading_agents_india/chain_iv.py` + `scripts/run_chain_iv_ticker.py`): parses `implied_volatility` per strike both sides from the documented `POST /optionchain` payload (desk_intel `parse_oc` drops it), computes skew tilt / curvature / normalized IV entropy over ATM±5, persists per-day snapshots to `data/recon/chain_iv/{UND}_iv_stats_{day}.json`. First live run (founder-invoked 5-min ticker, 14:22 IST): NIFTY tilt +0.68, BANKNIFTY and SENSEX ticking, IV present on all strikes. Remaining blocker is **history depth**: snapshots exist only while a ticker/loop runs; backtest needs weeks of accumulation.
 
 ## Rejected
 

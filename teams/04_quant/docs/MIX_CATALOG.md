@@ -958,7 +958,7 @@ latest_shadow_report: teams/06_backtesting/docs/MRR_BACKTEST_2026-09-10.md
 mix_id: MIX-ALGO-SKEW-BUY
 origin: WEB-DERIVED concept / PROJECT construction
 role: buy-first directional candidate (skew tilt picks side, premium tape confirms)
-blocked_on: chain_iv_stats gather ticket (IV curve not persisted yet)
+blocked_on: IV-stat history depth (gather chain_iv.py landed + live-validated 2026-09-10; no Dhan backfill, needs weeks of snapshots)
 customer_default: false
 status: BACKTEST_REQUIRED
 NO_PROMOTE: true
@@ -970,7 +970,7 @@ mix_id: MIX-ALGO-IV-REGIME-HOLD
 origin: WEB-DERIVED concept / PROJECT construction
 role: HOLD_overlay (flat/low-entropy IV surface + quiet morning RV => decay day => suppress premium buys)
 family: joins MIX-PCR-EXTREME-HOLD overlay family
-blocked_on: chain_iv_stats gather ticket
+blocked_on: IV-stat history depth (gather chain_iv.py landed 2026-09-10)
 customer_default: false
 status: WAITING
 NO_PROMOTE: true

@@ -1,5 +1,36 @@
 # Handoff log — Team 04 Quant
 
+## As of now (2026-09-10) — chain_iv_stats gather landed + live-validated
+
+```text
+From:     teams/04_quant
+To:       00 / 03 / 06 / 09
+Date:     2026-09-10
+Status:   CODE + LIVE 5-MIN TICKER (founder-invoked) / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: chain_iv.py parses implied_volatility per strike both sides from
+  the documented POST /optionchain payload (desk_intel parse_oc drops it)
+  and persists per-snapshot skew_tilt / curvature / normalized IV entropy
+  (ATM±5) to data/recon/chain_iv/{UND}_iv_stats_{day}.json (upsert by ts).
+  scripts/run_chain_iv_ticker.py ran 5 min live 14:24-14:29 IST at the
+  documented >=3s call spacing: 46 snapshots, NIFTY 231/231 strikes with
+  IV, BANKNIFTY 359/359, SENSEX 123-125/183 (BSE far wings unquoted).
+  Observed: NIFTY tilt 0.50-0.92, BANKNIFTY 0.28-0.73 flat curvature,
+  SENSEX tilt 2.0-3.6 with curvature 3+ on its 0DTE chain. 9 new tests.
+Rejected: Treating one 5-min window as signal evidence; restarting the
+  standing paper loop (founder asked for 5 min only); cross-index tilt
+  comparison without tenor normalization; promotes; orders.
+UNKNOWN: Nearest-expiry selection mixes tenors (SENSEX 0DTE 09-10,
+  NIFTY weekly 09-15, BANKNIFTY monthly 09-29) — 02/06 must decide a
+  tenor rule before tilt thresholds mean anything. History depth starts
+  today; no Dhan IV backfill. Dead-band width still a backtest grid.
+
+Artifacts: packages/trading_agents_india/src/trading_agents_india/chain_iv.py,
+  tests/test_chain_iv.py, scripts/run_chain_iv_ticker.py,
+  candidates/MIX-ALGO-SKEW-BUY.md (blocker note updated)
+```
+
 ## As of now (2026-09-10) — MIX-ALGO-* clubs from marketplace study (NO_PROMOTE)
 
 ```text

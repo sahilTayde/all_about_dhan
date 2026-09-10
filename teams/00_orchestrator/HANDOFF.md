@@ -1,5 +1,28 @@
 # Handoff log — Team 00 Orchestrator
 
+## As of now (2026-09-10) — chain_iv_stats ticket executed on founder ask
+
+```text
+From:     teams/00_orchestrator (boss desk)
+To:       02 / 03 / 04 / 06 / founder
+Date:     2026-09-10
+Status:   GATHER LIVE-VALIDATED / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: Founder confirmed IV comes from the market-hours option-chain
+  REST call and asked for a 5-min ticker run + tests. 04 built chain_iv.py
+  (IV-surface stats persist) and the one-shot ticker; ran live 14:24-14:29
+  IST, 46 snapshots across NIFTY/BANKNIFTY/SENSEX, offline load + momentum
+  verified, full suite green. MIX-ALGO-SKEW-BUY blocker moves from
+  "gather missing" to "history depth" — accumulation needs a scheduled
+  run (paper loop still STOPPED; founder has not asked to restart it).
+Rejected: Restarting the standing paper loop off a 5-min ask; reading
+  signal meaning into one 5-min window; promotes; orders.
+UNKNOWN: Tenor rule for cross-index tilt (SENSEX ticked its 0DTE chain,
+  BANKNIFTY its monthly). Whether to schedule the ticker daily —
+  founder decision, flagged not assumed.
+```
+
 ## As of now (2026-09-10) — Marketplace study clubbed as MIX-ALGO-* (boss call)
 
 ```text

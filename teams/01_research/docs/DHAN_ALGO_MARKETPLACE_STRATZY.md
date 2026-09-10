@@ -42,7 +42,7 @@ Stratzy: SEBI RA **INH000009180**, 79 algos on Dhan, "deployed by 12.5K users", 
 
 ## 4. Can we source the inputs from DhanHQ? (03 check)
 
-Per [`DHAN_API_END_TO_END.md`](../../03_phd_market/docs/DHAN_API_END_TO_END.md): the option chain gives **IV per strike, both sides** + OI + greeks + LTP every 3s per unique underlying. So per snapshot we can compute: ATM±k skew tilt (mean OTM-PE IV − mean OTM-CE IV), smile curvature (2nd difference across strikes), IV dispersion/entropy, and their per-tick momentum. Premium tape (1m CE+PE ATM) already persists (`premium_tape.py`). India VIX close is public NSE data. **Gap:** the paper loop persists ATM/PCR snapshots but not the full IV curve — one gather ticket (`chain_iv_stats`) unlocks the whole family. Order-flow delta stays unavailable (unchanged).
+Per [`DHAN_API_END_TO_END.md`](../../03_phd_market/docs/DHAN_API_END_TO_END.md): the option chain gives **IV per strike, both sides** + OI + greeks + LTP every 3s per unique underlying. So per snapshot we can compute: ATM±k skew tilt (mean OTM-PE IV − mean OTM-CE IV), smile curvature (2nd difference across strikes), IV dispersion/entropy, and their per-tick momentum. Premium tape (1m CE+PE ATM) already persists (`premium_tape.py`). India VIX close is public NSE data. **Gap (closed 2026-09-10):** the paper loop persisted ATM/PCR snapshots but not the full IV curve. The `chain_iv_stats` gather now exists (`trading_agents_india/chain_iv.py` + `scripts/run_chain_iv_ticker.py`), live-validated same day — remaining gap is history **depth** (no Dhan IV backfill; snapshots accumulate only while a ticker/loop runs). Order-flow delta stays unavailable (unchanged).
 
 ## 5. Our clubs (PROJECT — new MIX rows, no STRAT-015+)
 
