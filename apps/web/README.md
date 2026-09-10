@@ -6,7 +6,7 @@ Engineers can open [`/desk`](http://localhost:5173/desk) for the research view (
 
 Stack: Vite + React (JavaScript). No server render. No Dhan in the browser.
 
-UX standard: [`docs/CUSTOMER_PORTAL_UX.md`](../../docs/CUSTOMER_PORTAL_UX.md). Architecture standard: [`docs/PRODUCT_ARCHITECTURE_STANDARDS.md`](../../docs/PRODUCT_ARCHITECTURE_STANDARDS.md).
+UX standard: [`docs/CUSTOMER_PORTAL_UX.md`](../../docs/CUSTOMER_PORTAL_UX.md). Architecture standard: [`docs/PRODUCT_ARCHITECTURE_STANDARDS.md`](../../docs/PRODUCT_ARCHITECTURE_STANDARDS.md). Competitive baseline: [`docs/COMPETITIVE_PRODUCT_BASELINE.md`](../../docs/COMPETITIVE_PRODUCT_BASELINE.md).
 
 ## How to run
 
@@ -46,6 +46,7 @@ Copy `.env.example` to `.env` only if you want a remote API later. Leave `VITE_A
 - **Today’s book** (labeled **MOCK**): trades, strike, points, win/loss, **customer-taken vs platform shadow** counts
 - Took-trade **Yes / No** with lots / spot / P-L; skip still shows **shadow paper**
 - Stale-signal outcomes so lunch-return is not a leftover live ticket
+- Future risk counsel feed: `RISK_REVIEW` / `PARTIAL_BOOK_REVIEW` / `EXIT_REVIEW` as review warnings, not executed orders
 - Disclaimer: not advice
 
 The customer payload should stay compact and precomputed. No raw chain, no LLM call, and no Dhan call from the browser.
@@ -127,5 +128,7 @@ Later: set `VITE_API_URL` (for example `http://127.0.0.1:8000`). The loader will
 - `TODO(strategy)` — real side/levels only after `RESEARCH_READY_FOR_PROGRAMMING`
 - `TODO(pm)` — founder `/pm` health canvas (vendor keys, rate limits, chain freshness, API, RAG, nightly, auditor)
 - `TODO(dealer)` — `FEASIBILITY_REJECTED` / `DEALER_KILLED` state so fantasy SL/target never stays live
+- `TODO(alerts)` — in-app sound/toast first; Telegram/webhook later
+- `TODO(counsel)` — async live risk counsel feed from compact state, token-budgeted
 
 See [`teams/07_coding/README.md`](../../teams/07_coding/README.md).

@@ -10,6 +10,7 @@ Product standards:
 - Architecture / speed: [`PRODUCT_ARCHITECTURE_STANDARDS.md`](../../../docs/PRODUCT_ARCHITECTURE_STANDARDS.md)
 - Token + ML: [`TOKEN_ML_STRATEGY.md`](../../../docs/TOKEN_ML_STRATEGY.md)
 - Customer UX: [`CUSTOMER_PORTAL_UX.md`](../../../docs/CUSTOMER_PORTAL_UX.md)
+- Competitive baseline: [`COMPETITIVE_PRODUCT_BASELINE.md`](../../../docs/COMPETITIVE_PRODUCT_BASELINE.md)
 
 | ID | Section | Boss reviews | Code home |
 |----|---------|--------------|-----------|
@@ -17,6 +18,7 @@ Product standards:
 | C2 | Warehouse | Append-only events, features, signals, ticket events, outcomes, provenance | `data/knowledge/*.sqlite` (do not git-add) |
 | C3 | RAG | FTS rebuild; later local embeddings/sqlite-vec only if needed | `packages/agent_rag` |
 | C4 | Local ML | Zero-token fast path: rules → logistic/tree → LightGBM/XGBoost-style tabular models | TBD under `packages/` — not started |
+| C4b | Live LLM counsel | Async risk review on compact state; token cache/budget | `packages/trading_agents_india` / API adapter — not started |
 | C5 | Backtest | Costs, OOS, no invented fills | `packages/backtest` |
 | C6 | Nightly | Auditor last; no auto-retune | `packages/desk-intel` |
 | C7 | Portals | `/` `/desk` `/pm` | `apps/web` |
@@ -31,6 +33,7 @@ Material merge: section boss + 07. If the change touches signal language or gate
 - Customer `/` reads a compact precomputed signal payload.
 - Browser never calls Dhan and never calls LLMs.
 - Fast path uses local features, local feasibility, and cached read models only.
+- LLM counsel may run during market only as async risk review; it must not block local HOLD/kill behavior.
 - Every signal/ticket write is idempotent and carries source snapshot, feature version, model version, and reason code.
 - Exit / kill / expire wins over new entry.
 - `/pm` must show vendor key health, 401/429, chain freshness, API status, RAG age, nightly age, and auditor status.

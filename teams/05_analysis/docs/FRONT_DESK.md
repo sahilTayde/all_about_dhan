@@ -10,7 +10,7 @@
 
 ## Job
 
-Act like a **dealer**: publish a ticket only if trend + **3m** chain + cited news + **feasibility** agree. If Gemini/OpenAI say exit/reversal on **our** facts, the dealer **kills or holds** — they still do not invent a new strike from a vibe. Fast path uses local rules only; counsel is advisory and cached.
+Act like a **dealer**: publish a ticket only if trend + **3m** chain + cited news + **feasibility** agree. If Gemini/OpenAI say exit/reversal on **our** facts, the dealer **kills, holds, or issues a partial-book / exit-review warning** — they still do not invent a new strike from a vibe. Fast path uses local rules only; counsel is advisory and cached.
 
 Nightly (or a background poll) stores the published ticket + outcome + **mistake note**. Faculty uses that note to propose the next parameter change. Do not keep a dead IN-PROGRESS on the portal.
 
@@ -38,8 +38,23 @@ Minimum reason codes:
 | `STOP_FEASIBILITY_FAIL` | Stop unrealistic or inconsistent with long premium |
 | `STALE_TAPE` | Data age exceeds stage TTL |
 | `COUNSEL_SPLIT` | Gemini/OpenAI disagree on our reasoning |
+| `OI_REVERSAL_REVIEW` | OI / premium path changed enough for live risk counsel |
+| `PARTIAL_BOOK_REVIEW` | Favorable move exists but reversal risk rose; review booking some lots |
+| `EXIT_REVIEW` | Setup invalidation/reversal risk rose; review exit / no new entry |
 | `NEWS_HOLD` | Cited event makes entry unsafe |
 | `CHAIN_DATA_INSUFFICIENT` | 3m chain not fresh enough |
+
+## Live Counsel Loop
+
+Triggered only when a material change happens:
+
+- sudden OI unwind/build against ticket
+- premium velocity fades near target
+- spot rejects an important level
+- news shock appears
+- ticket approaches stop / target / invalidation
+
+Input to LLM = compact JSON state. Output = advisory reason code. Final customer state still comes from local deterministic rules + dealer boss. Counsel cannot place orders or create a fresh ticket.
 
 ---
 

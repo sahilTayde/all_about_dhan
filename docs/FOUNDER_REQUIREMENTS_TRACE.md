@@ -30,6 +30,8 @@
 | Front desk talks to departments and counsel | D5/05 | skill rewritten |
 | Front desk learns from mistakes | D5 + nightly + 06 | mistake loop specified; storage pending |
 | Kill unrealistic tickets like 150/96/250 NIFTY CE | D5 + 02 | reason codes written; code pending |
+| LLM should notice sudden OI/risk change and advise partial booking/exit review | D5 + LLM counsel + D1 | live risk counsel spec written; code pending |
+| Study reference products and build one step ahead | 00 + D1 + D5 | competitive baseline written; code pending |
 | Treat as real signal company, not toy paper trading | 00 | accepted; live orders still refused |
 
 ---
@@ -66,4 +68,5 @@ Good output is a feasible, fresh, clear customer ticket or an honest HOLD / `DEA
 4. RAG does not yet include all API/book chunks.
 5. Local ML baseline not trained.
 6. Customer UX standard not yet implemented in UI.
+7. Competitive alert/scanner/live-counsel baseline not implemented.
 

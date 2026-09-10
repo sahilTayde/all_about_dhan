@@ -36,7 +36,7 @@ Founder
 
 Teams `00`–`09` still do the work. A **department boss** reviews that work and, when the change is material, runs **Gemini + OpenAI counsel** (`COUNSEL_PROVIDER=both`). Neither model places an order.
 
-Product engineering standard: [`PRODUCT_ARCHITECTURE_STANDARDS.md`](PRODUCT_ARCHITECTURE_STANDARDS.md). Token/ML standard: [`TOKEN_ML_STRATEGY.md`](TOKEN_ML_STRATEGY.md). Customer UX standard: [`CUSTOMER_PORTAL_UX.md`](CUSTOMER_PORTAL_UX.md).
+Product engineering standard: [`PRODUCT_ARCHITECTURE_STANDARDS.md`](PRODUCT_ARCHITECTURE_STANDARDS.md). Token/ML standard: [`TOKEN_ML_STRATEGY.md`](TOKEN_ML_STRATEGY.md). Customer UX standard: [`CUSTOMER_PORTAL_UX.md`](CUSTOMER_PORTAL_UX.md). Competitive baseline: [`COMPETITIVE_PRODUCT_BASELINE.md`](COMPETITIVE_PRODUCT_BASELINE.md).
 
 ---
 
@@ -79,7 +79,7 @@ Internal research view stays **`/desk`**. Do **not** dump indicator soup on `/`.
 
 **RAG vs vectors (counsel ALIGNED):** **FTS5 now**. Embeddings / sqlite-vec when FTS misses API+book questions. API docs + book extracts go into the same store with `SOURCE_FACT` / `VALIDATION` / `HYPOTHESIS` tags.
 
-**Tokens:** retrieval = local. Tokens = pre-market, post-market, dealer sanity, faculty “what to change,” and counsel on our call — not “read Natenberg again.” **No LLM calls on the market-hours fast path.**
+**Tokens:** retrieval = local. Tokens = pre-market, post-market, dealer sanity, faculty “what to change,” and counsel on our call — not “read Natenberg again.” **No blocking LLM calls on the market-hours fast path.** Live LLM risk counsel is allowed only as asynchronous advisory review on compact state changes.
 
 ---
 
@@ -146,7 +146,7 @@ Do **not** make the founder read Composer to know the desk is down.
 
 **Boss:** 05. **Site:** customer `/` (clubbed with `/pm` as **one app, two tabs**). Spec: [`FRONT_DESK.md`](../teams/05_analysis/docs/FRONT_DESK.md).
 
-The dealer is a **trader/dealer system**: gathers from department bosses + **3m** chain + cited news + Gemini/OpenAI **counsel on our ticket** (they do not invent CE/PE). Publishes only a **feasible** ticket.
+The dealer is a **trader/dealer system**: gathers from department bosses + **3m** chain + cited news + Gemini/OpenAI **counsel on our ticket** (they do not invent CE/PE). Publishes only a **feasible** ticket and can issue partial-book / exit-review warnings when OI, premium velocity, or news changes materially.
 
 **Hard lesson (founder):** a NIFTY CE near premium **150**, stop **96**, target **250** that never printed — that ticket must die. State: `FEASIBILITY_REJECTED` / `DEALER_KILLED` with a rule id. **No invented fill. No leftover IN-PROGRESS.** Exit/kill/expire has priority over new entry.
 

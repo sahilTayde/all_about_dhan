@@ -13,6 +13,7 @@ This is the engineering standard for building a quick, scalable, low-token tradi
 Gemini and OpenAI both supported the main direction:
 
 - Keep **LLMs off the fast path**.
+- Add a separate **live LLM risk counsel loop** for compact state review (OI shock, premium reversal, news), never for order execution.
 - Use **local deterministic checks + local ML** for day-to-day signal gating.
 - Keep **SQLite + FTS5 now**, add clearer schemas, retention, indexes, and read models.
 - Use one site with three views: customer `/`, research `/desk`, founder `/pm`.
@@ -31,10 +32,12 @@ Rejected:
 | Path | Time | Allowed | Not allowed |
 |------|------|---------|-------------|
 | **Fast path** | Market hours | Dhan feed/REST snapshots, local feature compute, local feasibility rules, cached read model, WebSocket/UI push | LLM calls, book/RAG scan, parameter sweeps, doc writes |
-| **Near-real-time path** | 3m / stage clock | Chain snapshot, sentiment windows, dealer feasibility, stale-ticket kill, PM health | Full backtest, vector rebuild |
+| **Near-real-time path** | 3m / stage clock | Chain snapshot, sentiment windows, dealer feasibility, stale-ticket kill, PM health, async LLM risk counsel on compact JSON | Full backtest, vector rebuild, blocking the customer ticket on LLM latency |
 | **Batch path** | Pre/post/nightly | Backtest, parameter sweeps, RAG rebuild, docs update, model evaluation, mistake book, counsel review | Live execution, production auto-retune |
 
 **Rule:** customer `/` reads a **precomputed ticket read model**. It should not compute strategy logic in the browser and should never call Dhan.
+
+**LLM counsel rule:** OpenAI/Gemini can run during market hours only as an **advisory risk reviewer**. They may say `RISK_REVIEW`, `PARTIAL_BOOK_REVIEW`, `EXIT_REVIEW`, `HOLD`, or `DATA_INSUFFICIENT` from compact facts. They cannot invent a fresh CE/PE ticket, cannot place orders, and cannot override deterministic hard stops.
 
 ---
 
@@ -50,6 +53,7 @@ These are engineering targets, not trading performance claims.
 | Local signal evaluation | under 500 ms after required data is present |
 | Full chain poll | 3m default; never switch to 1m full-chain without rate-limit proof |
 | Dhan / LLM vendor errors | visible on `/pm` within one poll cycle |
+| Live LLM counsel | async only; stale/timeout does not block local HOLD/kill logic |
 | Nightly report freshness | visible before next pre-market checklist |
 
 If a target cannot be measured yet, mark it `UNKNOWN`, not green.
@@ -97,7 +101,8 @@ Standing rule: **zero LLM calls on the fast path**.
 | Indicator math | local Python |
 | Dealer feasibility | deterministic rules |
 | Regime / hold-vs-trade classifier | local tabular model first |
-| Customer copy | templated + cached, LLM only for pre/post-market summary |
+| Live risk review | Gemini/OpenAI on compact changed-state JSON, cached and rate-limited |
+| Customer copy | templated + cached, LLM only for pre/post-market summary or advisory risk text |
 | Deep review | Gemini + OpenAI counsel on short JSON facts |
 
 Fine-tuning an LLM is **not** the next step. First train small local models on clean feature/outcome tables. Only after enough labeled sessions exist should we consider distillation or fine-tuning.
@@ -160,8 +165,9 @@ Customer sees graceful “market data delayed / signal paused.” Founder sees t
 
 1. Warehouse schema + idempotent ticket events.
 2. Dealer feasibility rules and stale-ticket state machine.
-3. `/pm` health canvas.
-4. Customer UX refresh on top of the new read model.
-5. Local model feature table + baseline classifier.
-6. Optional sqlite-vec only after FTS misses real questions.
+3. Live LLM counsel wrapper (async, token-budgeted, non-executing).
+4. `/pm` health canvas.
+5. Customer UX refresh on top of the new read model.
+6. Local model feature table + baseline classifier.
+7. Optional sqlite-vec only after FTS misses real questions.
 

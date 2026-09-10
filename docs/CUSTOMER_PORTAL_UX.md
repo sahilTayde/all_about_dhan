@@ -4,6 +4,8 @@
 **Surface:** customer `/`  
 **Goal:** beautiful, fast, simple, trustworthy signal portal.
 
+Competitive baseline: [`COMPETITIVE_PRODUCT_BASELINE.md`](COMPETITIVE_PRODUCT_BASELINE.md).
+
 ---
 
 ## Experience Promise
@@ -28,6 +30,7 @@ No indicator soup. No fake win rate. No dead ticket left live.
 | Ticket card | Strike, entry, stop, target, quantity note, expiry/time |
 | Dealer note | Plain English: trend + 3m chain + cited news |
 | Risk strip | “Invalid if...” + stale timer |
+| Live counsel feed | Short risk warnings: OI reversal, partial-book review, exit-review |
 | Outcome strip | ACHIEVED / STOPPED / INVALIDATED / EXPIRED / DEALER_KILLED |
 | Book | Today only, clearly MOCK/PAPER/SHADOW until real |
 | Help | `(i)` legend, short |
@@ -67,6 +70,7 @@ Use high contrast, large numbers, and touch-friendly buttons. Avoid tiny dense t
 - If data is missing, say `DATA_INSUFFICIENT`.
 - If the book is mock/paper/shadow, label it in the card header.
 - If counsel is split, do not present the ticket as clean.
+- If live risk counsel says partial-book / exit-review, show it as a **review warning**, not an executed order.
 - Never display backtest proxy win rate as customer performance.
 
 ---
@@ -82,4 +86,20 @@ customer_copy: Target is not realistic for current premium path. Holding this ca
 ```
 
 No fake fill, no silent target change, no leftover IN-PROGRESS.
+
+---
+
+## Match the Market Standard
+
+We must match competitor expectations without copying bad claims:
+
+- in-app sound/toast alert
+- mobile-first card
+- entry/SL/target/invalidation
+- risk/reward sanity
+- option-chain context
+- today report
+- later Telegram/webhook alert
+
+We must be better through dealer intelligence, mistake learning, and clean risk counsel.
 

@@ -1,5 +1,29 @@
 # Handoff log — Team 00 Orchestrator
 
+## As of now (2026-09-09) — Competitor baseline + live LLM risk counsel
+
+```text
+From:     teams/00_orchestrator (VP council: product / quant / risk / engineering / customer)
+To:       D1 / D2 / D4 / D5 / 09 / founder
+Date:     2026-09-09
+Status:   COMPETITIVE BASELINE / SPEC / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: match competitor baseline (alerts, risk/reward, scanners, option-chain
+  context, reports, AI assistant category) while making our edge DhanHQ index-only
+  dealer intelligence + mistake learning + local ML + async live LLM risk counsel.
+  LLM may issue RISK_REVIEW / PARTIAL_BOOK_REVIEW / EXIT_REVIEW from compact facts.
+Rejected: 100% accuracy claims; live orders; LLM-created CE/PE; wide 200-stock
+  scope before index-options core; stale IN-PROGRESS; raw indicator soup on /.
+UNKNOWN: Stockara direct page returned 409; use snippets as VERIFY only.
+
+Artifacts: docs/COMPETITIVE_PRODUCT_BASELINE.md,
+  docs/TOKEN_ML_STRATEGY.md, docs/CUSTOMER_PORTAL_UX.md,
+  COMPETITOR_VP_COUNCIL_2026-09-09.md
+Next: DATA-001 warehouse, DEALER-001 feasibility/state machine, PM-001 /pm,
+  LLM-001 async counsel loop, UI-001 customer command center.
+```
+
 ## As of now (2026-09-09) — Department skill playbooks rewritten
 
 ```text

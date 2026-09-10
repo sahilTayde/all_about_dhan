@@ -5,7 +5,7 @@ alwaysApply: true
 
 # Company departments
 
-Founder org: [`docs/COMPANY_DEPARTMENTS.md`](docs/COMPANY_DEPARTMENTS.md). Founder requirements trace: [`docs/FOUNDER_REQUIREMENTS_TRACE.md`](docs/FOUNDER_REQUIREMENTS_TRACE.md). Product standards: [`docs/PRODUCT_ARCHITECTURE_STANDARDS.md`](docs/PRODUCT_ARCHITECTURE_STANDARDS.md), [`docs/TOKEN_ML_STRATEGY.md`](docs/TOKEN_ML_STRATEGY.md), [`docs/CUSTOMER_PORTAL_UX.md`](docs/CUSTOMER_PORTAL_UX.md). **Do not delete or renumber** teams 00–09.
+Founder org: [`docs/COMPANY_DEPARTMENTS.md`](docs/COMPANY_DEPARTMENTS.md). Founder requirements trace: [`docs/FOUNDER_REQUIREMENTS_TRACE.md`](docs/FOUNDER_REQUIREMENTS_TRACE.md). Competitive baseline: [`docs/COMPETITIVE_PRODUCT_BASELINE.md`](docs/COMPETITIVE_PRODUCT_BASELINE.md). Product standards: [`docs/PRODUCT_ARCHITECTURE_STANDARDS.md`](docs/PRODUCT_ARCHITECTURE_STANDARDS.md), [`docs/TOKEN_ML_STRATEGY.md`](docs/TOKEN_ML_STRATEGY.md), [`docs/CUSTOMER_PORTAL_UX.md`](docs/CUSTOMER_PORTAL_UX.md). **Do not delete or renumber** teams 00–09.
 
 | Dept | Boss | Founder talks? |
 |------|------|----------------|
@@ -15,7 +15,7 @@ Founder org: [`docs/COMPANY_DEPARTMENTS.md`](docs/COMPANY_DEPARTMENTS.md). Found
 | D4 PM + `/pm` | 00 PM | **Yes — only this** |
 | D5 Front desk | 05 | Customer `/` |
 
-SQLite + FTS5 now. No MySQL/embeddings as day-1. No auto-retune. No live orders. Signal-company language; execution paper/shadow until gate. Dealer kills fantasy SL/target. Tokens = pre/post + counsel, not KB reread. **Zero LLM calls on the market-hours fast path**; customer `/` reads a compact precomputed payload.
+SQLite + FTS5 now. No MySQL/embeddings as day-1. No auto-retune. No live orders. Signal-company language; execution paper/shadow until gate. Dealer kills fantasy SL/target. Tokens = pre/post + counsel, not KB reread. **Zero blocking LLM calls on the market-hours fast path**; async live LLM counsel may issue risk-review / partial-book-review / exit-review from compact state. Customer `/` reads a compact precomputed payload.
 
 Each team `SKILL.md` is an operational playbook: duties, inputs, output template, quality bar, books/training, and must-not rules. Analysts must return root cause + next backtestable change, not only `FAIL`.
 
