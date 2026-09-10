@@ -529,12 +529,18 @@ def score_sell_credit_park(_ticket: Any, *, bars: Optional[list[Any]] = None) ->
     )
 
 
-def score_dual_index_master(ticket: Any, *, bars: Optional[list[Any]] = None) -> MixScore:
+def score_dual_index_master(
+    ticket: Any,
+    *,
+    bars: Optional[list[Any]] = None,
+    premium_bars: Optional[list[Any]] = None,
+) -> MixScore:
     """SENSEX-only shadow candidate from MRR dual-index backtest.
 
-    Current market loop has index bars and one ATM option LTP, but not a
-    rolling 1m CALL premium OHLC tape. Therefore this scorer records readiness
-    and blockers only; it never emits a tradable signal.
+    With a persisted rolling 1m CALL premium tape (``premium_bars``) the full
+    premium gate is evaluated (same math as scripts/backtest_mrr.py). Without
+    it, this scorer records readiness and blockers only. Either way the output
+    is paper-watch observation: NO_PROMOTE, never a customer ticket rewrite.
     """
     underlying = str(getattr(ticket, "underlying", "") or "").upper()
     if underlying == "NIFTY":
@@ -611,25 +617,53 @@ def score_dual_index_master(ticket: Any, *, bars: Optional[list[Any]] = None) ->
     prem = getattr(ticket, "premium_lean", None) or {}
     premium_source = str(prem.get("source") or "")
     option_ltp = prem.get("option_ltp") or prem.get("ltp") or prem.get("entry")
-    gaps.append(
-        "DATA_INSUFFICIENT: MIX-DUAL-INDEX-MASTER needs rolling 1m SENSEX CALL premium OHLC "
-        "for MRR/VWAP/SuperTrend/EMA/volume replay; current loop has only snapshot LTP"
-    )
     if option_ltp in (None, ""):
         gaps.append("DATA_INSUFFICIENT: SENSEX CALL option LTP missing on ticket")
-    outcome = "DATA_INSUFFICIENT" if spot_bullish else "WATCH"
+
+    gate: dict[str, Any] = {"evaluated": False, "reason": "no premium tape passed"}
+    lean: str = "HOLD"
+    reasons: list[str]
+    if premium_bars:
+        from trading_agents_india.premium_tape import dual_master_gate
+
+        gate = dual_master_gate(list(premium_bars))
+    if gate.get("evaluated"):
+        premium_pass = bool(gate.get("all_pass"))
+        if premium_pass and spot_bullish:
+            lean = "BUY_CE"
+            outcome = "WATCH"
+            reasons = [
+                "MIX-DUAL-INDEX-MASTER SENSEX: premium gate + spot gate all pass",
+                "Paper-watch observation only — 5m confirm-or-kill not applied; NO_PROMOTE",
+            ]
+        else:
+            failed = [k for k, v in (gate.get("conditions") or {}).items() if not v]
+            if not spot_bullish:
+                failed.append("spot_bullish")
+            outcome = "WATCH"
+            reasons = [
+                "MIX-DUAL-INDEX-MASTER SENSEX: gate evaluated on persisted premium tape",
+                f"Failed conditions: {', '.join(failed) or 'none'}",
+            ]
+    else:
+        gaps.append(
+            "DATA_INSUFFICIENT: MIX-DUAL-INDEX-MASTER needs rolling 1m SENSEX CALL premium OHLC "
+            "for MRR/VWAP/SuperTrend/EMA/volume replay; current loop has only snapshot LTP"
+        )
+        outcome = "DATA_INSUFFICIENT" if spot_bullish else "WATCH"
+        reasons = [
+            f"MIX-DUAL-INDEX-MASTER SENSEX spot_bullish={spot_bullish}",
+            "Waiting on option premium OHLC persistence before paper-watch signals",
+        ]
+    reasons.append("Latest cached backtest positive but UNVALIDATED; NO_PROMOTE")
     return MixScore(
         mix_id="MIX-DUAL-INDEX-MASTER",
         available=True,
-        lean="HOLD",
+        lean=lean,  # type: ignore[arg-type]
         stage="WATCH",
         outcome=outcome,
         data_gaps=list(dict.fromkeys(gaps)),
-        reasons=[
-            f"MIX-DUAL-INDEX-MASTER SENSEX spot_bullish={spot_bullish}",
-            "Waiting on option premium OHLC persistence before paper-watch signals",
-            "Latest cached backtest positive but UNVALIDATED; NO_PROMOTE",
-        ],
+        reasons=reasons,
         provenance={
             "origin": "PROJECT-DERIVED",
             "layer": "HYPOTHESIS",
@@ -641,6 +675,7 @@ def score_dual_index_master(ticket: Any, *, bars: Optional[list[Any]] = None) ->
             "spot_bullish": spot_bullish,
             "premium_source": premium_source,
             "option_ltp_present": option_ltp not in (None, ""),
+            "premium_gate": gate,
             "latest_shadow_report": "teams/06_backtesting/docs/MRR_BACKTEST_2026-09-10.md",
             "latest_shadow_oos_win_rate": 0.3711,
             "latest_shadow_oos_expectancy": 4.8399,
@@ -660,7 +695,13 @@ SCORERS = {
 }
 
 
-def score_mix(mix_id: str, ticket: Any, *, bars: Optional[list[Any]] = None) -> MixScore:
+def score_mix(
+    mix_id: str,
+    ticket: Any,
+    *,
+    bars: Optional[list[Any]] = None,
+    premium_bars: Optional[list[Any]] = None,
+) -> MixScore:
     fn = SCORERS.get(mix_id)
     if fn is None:
         return MixScore(
@@ -673,6 +714,8 @@ def score_mix(mix_id: str, ticket: Any, *, bars: Optional[list[Any]] = None) -> 
             reasons=[],
             provenance={"NO_PROMOTE": True},
         )
+    if mix_id == "MIX-DUAL-INDEX-MASTER":
+        return score_dual_index_master(ticket, bars=bars, premium_bars=premium_bars)
     return fn(ticket, bars=bars)
 
 

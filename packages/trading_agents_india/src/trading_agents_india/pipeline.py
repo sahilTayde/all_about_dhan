@@ -30,6 +30,7 @@ from trading_agents_india.hooks.event_memory import (
     top_veto_reasons,
 )
 from trading_agents_india.hooks.index_bars import fetch_index_bars
+from trading_agents_india.premium_tape import gather_premium_tape, load_tape_bars
 from trading_agents_india.hooks.news import gather_news
 from trading_agents_india.hooks.premium import resolve_premium_lean
 from trading_agents_india.lean_mix import pick_customer_lean
@@ -87,11 +88,16 @@ def _enrich_context(
         chain_watch=watch.to_dict(),
     )
     index = fetch_index_bars(ctx.underlying, prefer_live=prefer_live_chain)
+    tape = gather_premium_tape(ctx.underlying, prefer_live=prefer_live_chain)
+    tape_bars = (
+        load_tape_bars(ctx.underlying, side="ce") if tape.source != "unavailable" else []
+    )
     gaps = (
         list(ctx.data_gaps)
         + list(watch.data_gaps)
         + list(premium.data_gaps)
         + list(index.data_gaps)
+        + list(tape.data_gaps)
     )
     gaps = drop_stale_dry_run_chain_gap(gaps, chain_source=watch.source)
     live_lean = watch.chain_lean if watch.source == "dhan_live" else ctx.chain_lean
@@ -101,6 +107,8 @@ def _enrich_context(
     prem["strike_count"] = watch.strike_count
     prem["expiry"] = watch.expiry
     prem["chain_lean"] = watch.chain_lean
+    prem["premium_ohlc_present"] = len(tape_bars) >= 30
+    prem["premium_bars_1m_ce"] = len(tape_bars)
     return MarketContext(
         underlying=ctx.underlying,
         chain_lean=live_lean,
@@ -116,6 +124,8 @@ def _enrich_context(
         rag_context=list(ctx.rag_context),
         index_bars=list(index.bars),
         index_bar_meta=index.to_dict(),
+        premium_bars=list(tape_bars),
+        premium_tape_meta=tape.to_dict(),
     )
 
 
@@ -157,6 +167,8 @@ def _resolve_context(
                 rag_context=list(ctx.rag_context),
                 index_bars=list(ctx.index_bars),
                 index_bar_meta=dict(ctx.index_bar_meta),
+                premium_bars=list(ctx.premium_bars),
+                premium_tape_meta=dict(ctx.premium_tape_meta),
             )
     ctx = _enrich_context(ctx, prefer_live_chain=prefer_live_chain, mix_inputs=mix_inputs)
     gaps.extend(ctx.data_gaps)
@@ -180,6 +192,8 @@ def _attach_rag(ctx: MarketContext) -> MarketContext:
         rag_context=snippets,
         index_bars=list(ctx.index_bars),
         index_bar_meta=dict(ctx.index_bar_meta),
+        premium_bars=list(ctx.premium_bars),
+        premium_tape_meta=dict(ctx.premium_tape_meta),
     )
 
 
@@ -352,6 +366,8 @@ def run_underlying_session(
             premium_lean=prem,
             index_bars=list(ctx.index_bars),
             index_bar_meta=dict(ctx.index_bar_meta or {}),
+            premium_bars=list(ctx.premium_bars),
+            premium_tape_meta=dict(ctx.premium_tape_meta or {}),
             data_gaps=uniq_gaps,
         )
         picked = pick_customer_lean(draft, bars=list(ctx.index_bars) or None)
@@ -421,6 +437,8 @@ def run_underlying_session(
         premarket_sentiment=dict(premarket),
         index_bars=list(ctx.index_bars),
         index_bar_meta=dict(ctx.index_bar_meta or {}),
+        premium_bars=list(ctx.premium_bars),
+        premium_tape_meta=dict(ctx.premium_tape_meta or {}),
     )
 
 

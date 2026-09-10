@@ -68,4 +68,13 @@ These are gross premium points before brokerage, spread, slippage, taxes, liquid
 
 - Real option fills, slippage, spread, brokerage, taxes, and depth-aware execution.
 - Whether SENSEX result survives walk-forward by expiry week, strike bucket, and volatility regime.
-- Current-day replay, because today’s paper-watch files do not persist OHLC arrays.
+
+## Premium tape (resolved 2026-09-10)
+
+Current-day replay was blocked because paper-watch files did not persist OHLC arrays.
+`trading_agents_india/premium_tape.py` now persists rolling ATM 1m CE+PE bars per day
+(`data/recon/premium_tape/{UND}_ATM_1m_{day}.json`) and `score_dual_index_master`
+evaluates the full premium gate (MRR/VWAP/SuperTrend/EMA/volume/window — identical math
+to `scripts/backtest_mrr.py`) when the tape is present. First live validation
+2026-09-10 ~13:36 IST: 262 bars, gate honestly FAILED (premium below MRR/VWAP,
+SuperTrend bearish) → HOLD. Still `BACKTEST_REQUIRED` / `NO_PROMOTE`.

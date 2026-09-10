@@ -33,9 +33,12 @@ never writes customer prose directly (skill §87 principle).
 3. `WAIT` ⇒ status `WATCHING`. `NO_TRADE` ⇒ `INACTIVE`.
 4. `apply_expiry()` flips ACTIVE/WATCHING to `EXPIRED` past `valid_until_ist`.
 
-**Consequence today:** because 1m option-premium OHLC is not yet persisted, every BUY lean
-renders as `WAIT` with `DOWNGRADED_MISSING_PREMIUM_OHLC`. That is correct and intentional —
-the same blocker gates `MIX-DUAL-INDEX-MASTER`. Persisting the premium tape unlocks both.
+**Premium tape (2026-09-10):** `trading_agents_india/premium_tape.py` now persists rolling
+ATM 1m CE+PE bars per day under `data/recon/premium_tape/` from documented
+`POST /charts/rollingoption` (one call per side), and the market-hours gather wires it into
+tickets (`premium_bars`, `premium_ohlc_present`). When the gather runs `--live-chain`, BUY_*
+cards can render and `MIX-DUAL-INDEX-MASTER` evaluates its full premium gate (same math as
+the shadow harness). Without a live tape the old downgrade path still applies.
 
 ## v2 (needs founder ask + data)
 

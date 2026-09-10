@@ -643,7 +643,8 @@ def evaluate_candidate(
     if bind.bind_kind == "lean_mix":
         from trading_agents_india.lean_mix import score_mix
 
-        hit = score_mix(candidate_id, ticket, bars=bars)
+        premium_bars = list(getattr(ticket, "premium_bars", None) or []) or None
+        hit = score_mix(candidate_id, ticket, bars=bars, premium_bars=premium_bars)
         return EvaluatorResult(
             available=True,
             raw_lean=hit.lean,

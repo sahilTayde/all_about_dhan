@@ -1,5 +1,26 @@
 # Handoff log — Team 00 Orchestrator
 
+## As of now (2026-09-10) — Premium tape persisted (blocker resolved)
+
+```text
+From:     teams/00_orchestrator
+To:       03 / 04 / 05 / 06 / founder
+Date:     2026-09-10
+Status:   CODE + LIVE ONE-SHOT / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: premium_tape.py — rolling ATM 1m CE+PE bars from documented
+  /charts/rollingoption (one call per side), persisted per day under
+  data/recon/premium_tape/. Wired into market-hours gather (ticket
+  premium_bars + premium_ohlc_present) and into MIX-DUAL scorer with
+  harness-identical math. Live one-shot 13:36 IST: 262 bars x 3
+  indices, both sides; SENSEX gate honestly FAILED -> HOLD.
+Rejected: Restarting the 90s paper loop (founder has not asked);
+  claiming the tape is a fill model; promoting MIX-DUAL.
+UNKNOWN: Rolling ATM = strike follows spot, not one fixed contract —
+  06 must treat tape replay accordingly. PE-side gate rules unwritten.
+```
+
 ## As of now (2026-09-10) — Gemini-session signal format adopted (boss call)
 
 ```text

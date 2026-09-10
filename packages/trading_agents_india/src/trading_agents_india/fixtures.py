@@ -37,6 +37,8 @@ class MarketContext:
     rag_context: list[dict[str, Any]] = field(default_factory=list)
     index_bars: list[Any] = field(default_factory=list)
     index_bar_meta: dict[str, Any] = field(default_factory=dict)
+    premium_bars: list[Any] = field(default_factory=list)
+    premium_tape_meta: dict[str, Any] = field(default_factory=dict)
 
     def to_prompt_blob(self) -> dict[str, Any]:
         return {
