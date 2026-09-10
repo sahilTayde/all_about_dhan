@@ -1,5 +1,27 @@
 # Handoff log — Team 05 Analysis
 
+## As of now (2026-09-10) — DESK_SIGNAL_JSON v1 from founder Gemini session
+
+```text
+From:     teams/05_analysis (+04)
+To:       00 / 02 / 03 / 07 / founder
+Date:     2026-09-10
+Status:   FORMAT SHIPPED (code+tests) / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: Founder's GEMINI_SKILL session format as the web-app signal
+  contract. signal_schema.py enforces: veto override, BUY_* downgrade
+  without invalidation/validity/premium-OHLC, confidence null under
+  data-quality 40, order_flow UNAVAILABLE, win_rate_claim always null.
+  4 counsel rounds (2 ALIGNED) hardened it. Docs: DESK_SIGNAL_JSON.md +
+  gemini_signal/GEMINI_SIGNAL_LEARNING.md.
+Rejected: Treating transcript confidence 88-98 as win probability;
+  claiming order-flow delta we cannot source; frontend prose from the
+  model instead of JSON; promote from one good afternoon.
+UNKNOWN: Same-day premium OHLC persistence (blocks BUY_* rendering and
+  MIX-DUAL alike). Position-aware exit coaching = v2 after ledger join.
+```
+
 ## As of now (2026-09-10) — Dealer reads HQ fields only
 
 ```text

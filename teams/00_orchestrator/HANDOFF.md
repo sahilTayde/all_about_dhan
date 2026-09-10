@@ -1,5 +1,28 @@
 # Handoff log — Team 00 Orchestrator
 
+## As of now (2026-09-10) — Gemini-session signal format adopted (boss call)
+
+```text
+From:     teams/00_orchestrator (boss desk)
+To:       02 / 03 / 04 / 05 / 07 / 09 / founder
+Date:     2026-09-10
+Status:   FORMAT ADOPTED / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: Founder's Gemini/Dhan-web session as a FORMAT teacher, not an
+  alpha claim. Its strength was risk coaching + dual-chart confirmation
+  + invalidation on every reply. Desk ships DESK_SIGNAL_JSON v1
+  (signal_schema.py) after 4 Gemini+OpenAI counsel rounds. Order-flow
+  delta stays DATA_INSUFFICIENT (no Dhan surface). Frontend renders
+  from JSON only.
+Rejected: "Gemini was profitable so copy the calls"; inventing order
+  flow; win-rate promises ("big profits" needs 06 OOS + 09 five-pass);
+  new STRAT rows (format is not a strategy).
+UNKNOWN: today_gemini_reply_laerning.txt was EMPTY (0 bytes) — founder
+  may re-export it. Premium 1m OHLC persistence is the next code
+  ticket; it unlocks BUY_* cards and MIX-DUAL paper-watch together.
+```
+
 ## As of now (2026-09-10) — Commit MIX-DUAL / MRR from other chat
 
 ```text
