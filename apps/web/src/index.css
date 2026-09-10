@@ -1507,5 +1507,13 @@ a {
 .cleanup-card.done .cleanup-status { color: var(--yes); }
 .cleanup-card.in_progress .cleanup-status { color: var(--early); }
 .cleanup-card.pending .cleanup-status { color: var(--expired); }
+.cleanup-card.founder-green { border-left-color: var(--yes); }
+.cleanup-card.founder-amber { border-left-color: var(--warn); }
+.cleanup-card.founder-red { border-left-color: var(--no); }
+.cleanup-card.founder-grey { border-left-color: var(--expired); }
+.cleanup-card.founder-green .cleanup-status { color: var(--yes); }
+.cleanup-card.founder-amber .cleanup-status { color: var(--warn); }
+.cleanup-card.founder-red .cleanup-status { color: var(--no); }
+.cleanup-card.founder-grey .cleanup-status { color: var(--expired); }
 .cleanup-card p { margin: 6px 0 0; color: var(--ink-soft); font-size: 0.9rem; }
 .cleanup-keep { color: var(--ink-soft); }

@@ -1,5 +1,23 @@
 # Handoff log — Team 01 Research
 
+## As of now (2026-09-10) — HQ docs vs transcripts
+
+```text
+From:     teams/01_research
+To:       00 / 03 / 04
+Date:     2026-09-10
+Status:   SOURCE_FACT classification
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: dhanhq.co/docs/v2 + dhan-oss/dhanhq-skills are TIER_2_SECONDARY
+  (how APIs work). trading-apis marketing is NOT_EVIDENCE for rate limits.
+  Transcripts remain TIER_1 for spoken recipes. No STRAT-015+.
+Rejected: Treating skill PCR/max-pain pages as teacher SOURCE_FACT.
+UNKNOWN: docs.dhanhq.co/skills and /api/v2 409 this fetch.
+
+Artifacts: docs/DHAN_ECOSYSTEM.md, 03 DHAN_API_END_TO_END.md
+```
+
 ## As of now (2026-09-08) — MIX-LEAN is PROJECT-DERIVED (no new STRAT)
 
 ```text

@@ -2,7 +2,7 @@
 
 **Department:** D4  
 **Boss:** 00 Project Manager  
-**Layer:** `HYPOTHESIS` (spec). UI **not built**. Do not restart npm until asked.  
+**Layer:** `HYPOTHESIS` (spec) + **PARTIAL UI**. Route **`/pm`**. Polls `GET /founder/status` (no secrets). Start Vite + API when the founder asks.  
 **Counsel:** Gemini+OpenAI **ALIGNED** — one site, founder tab separate from customer `/`. Scale review: [`COUNSEL_SCALE_2026-09-09.md`](COUNSEL_SCALE_2026-09-09.md).
 
 The founder talks to **this boss only** during market hours. The PM pulls status from D1–D5 bosses. Chat is backup.

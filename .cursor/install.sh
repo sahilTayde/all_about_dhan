@@ -31,6 +31,7 @@ python -m pip install \
   -e packages/desk-intel \
   -e packages/docs-auditor \
   -e packages/agent_rag \
+  -e packages/warehouse \
   -e packages/trading_agents_india \
   -e apps/api \
   pytest
@@ -53,6 +54,10 @@ keys = [
     "YOUTUBE_API_KEY",
     "OPENAI_API_KEY",
     "OPENAI_MODEL",
+    "GEMINI_KEY",
+    "GEMINI_API_KEY",
+    "GEMINI_MODEL",
+    "COUNSEL_PROVIDER",
     "DHAN_CLIENT_ID",
     "DHAN_ACCESS_TOKEN",
     "DHAN_REFRESH_TOKEN",

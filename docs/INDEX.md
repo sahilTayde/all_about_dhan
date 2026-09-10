@@ -13,6 +13,7 @@ Always start with [`AGENT.md`](../AGENT.md). **Morning / frontier review:** [`do
 | YouTube scrape / catalog / transcripts | [`teams/01_research/youtube/ANALYSIS.md`](../teams/01_research/youtube/ANALYSIS.md) (day-to-day; full spec [`PLAN.md`](../teams/01_research/youtube/PLAN.md)), [`teams/01_research/README.md`](../teams/01_research/README.md), later `teams/01_research/youtube/src/` |
 | Topic → per-topic strategy docs | [`teams/01_research/docs/TOPIC_STRATEGY_PIPELINE.md`](../teams/01_research/docs/TOPIC_STRATEGY_PIPELINE.md), [`teams/04_quant/docs/topics/`](../teams/04_quant/docs/topics/) |
 | Research charter, 3-layer model, status labels, source hierarchy | [`docs/RESEARCH.md`](RESEARCH.md) |
+| **DhanHQ API end-to-end (what exists / what we call)** | [`teams/03_phd_market/docs/DHAN_API_END_TO_END.md`](../teams/03_phd_market/docs/DHAN_API_END_TO_END.md) |
 | Dhan ecosystem URL classes (promo ≠ evidence) | [`teams/01_research/docs/DHAN_ECOSYSTEM.md`](../teams/01_research/docs/DHAN_ECOSYSTEM.md) |
 | Official Dhan indicators (API vs chart-only) | [`teams/01_research/docs/DHAN_OFFICIAL_INDICATORS.md`](../teams/01_research/docs/DHAN_OFFICIAL_INDICATORS.md), [`teams/02_phd_math/docs/DHAN_INDICATOR_API_MAP.md`](../teams/02_phd_math/docs/DHAN_INDICATOR_API_MAP.md), [`research/indicator_knowledge_base.md`](../research/indicator_knowledge_base.md) |
 | Desk persona seed | [`teams/00_orchestrator/docs/PERSONA.md`](../teams/00_orchestrator/docs/PERSONA.md); operator checklist [`PERSONA_DESK.md`](../teams/00_orchestrator/docs/PERSONA_DESK.md) |
@@ -25,11 +26,12 @@ Always start with [`AGENT.md`](../AGENT.md). **Morning / frontier review:** [`do
 | Strategy spec / hypotheses | [`teams/04_quant/README.md`](../teams/04_quant/README.md), [`MASTER_STRATEGY_PLAN.md`](../teams/04_quant/docs/MASTER_STRATEGY_PLAN.md), staging [`SIGNAL_STAGING.md`](../teams/04_quant/docs/SIGNAL_STAGING.md), algo YAML [`ALGO_HANDOFF.md`](../teams/04_quant/docs/ALGO_HANDOFF.md) |
 | Scorecards, missed-signal analysis, desk intel | [`teams/05_analysis/README.md`](../teams/05_analysis/README.md), [`teams/05_analysis/docs/DESK_INTELLIGENCE.md`](../teams/05_analysis/docs/DESK_INTELLIGENCE.md) |
 | Backtest / OOS / walk-forward / costs | [`teams/06_backtesting/README.md`](../teams/06_backtesting/README.md), retune gate [`RETUNE_GATE.md`](../teams/06_backtesting/docs/RETUNE_GATE.md) |
-| Token / DhanHQ client | [`packages/dhan-client/README.md`](../packages/dhan-client/README.md), [`docs/SECURITY.md`](SECURITY.md) |
+| Token / DhanHQ client | [`packages/dhan-client/README.md`](../packages/dhan-client/README.md), [`docs/SECURITY.md`](SECURITY.md), [`DHAN_API_END_TO_END.md`](../teams/03_phd_market/docs/DHAN_API_END_TO_END.md) |
 | Desk intel package | [`packages/desk-intel/README.md`](../packages/desk-intel/README.md) |
 | Shared schemas | [`packages/contracts/README.md`](../packages/contracts/README.md) |
 | Indicator implementations | [`packages/indicators/README.md`](../packages/indicators/README.md) |
 | Signal UI — **customer `/` vs internal `/desk`** | [`apps/web/README.md`](../apps/web/README.md), UX standard [`CUSTOMER_PORTAL_UX.md`](CUSTOMER_PORTAL_UX.md) — ticket + IN-PROGRESS + CasPanel; book P/L **MOCK**. `/desk` is research-only |
+| **Founder PM `/pm`** | [`FOUNDER_PM.md`](../teams/00_orchestrator/docs/FOUNDER_PM.md) — agents + services + issues. Not customer `/`. |
 | FastAPI backend | [`apps/api/README.md`](../apps/api/README.md) |
 | Coding team pointers | [`teams/07_coding/README.md`](../teams/07_coding/README.md) |
 | QA / paper checks | [`teams/08_testing/README.md`](../teams/08_testing/README.md) |

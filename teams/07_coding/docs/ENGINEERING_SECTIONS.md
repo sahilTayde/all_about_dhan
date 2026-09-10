@@ -15,10 +15,10 @@ Product standards:
 | ID | Section | Boss reviews | Code home |
 |----|---------|--------------|-----------|
 | C1 | Dhan / API | SafeMode still refuses orders | `packages/dhan-client`, `apps/api` |
-| C2 | Warehouse | Append-only events, features, signals, ticket events, outcomes, provenance | `data/knowledge/*.sqlite` (do not git-add) |
+| C2 | Warehouse | Append-only events, features, signals, ticket events, outcomes, provenance | `packages/warehouse` → `data/knowledge/warehouse.sqlite` (do not git-add) |
 | C3 | RAG | FTS rebuild; later local embeddings/sqlite-vec only if needed | `packages/agent_rag` |
 | C4 | Local ML | Zero-token fast path: rules → logistic/tree → LightGBM/XGBoost-style tabular models | TBD under `packages/` — not started |
-| C4b | Live LLM counsel | Async risk review on compact state; token cache/budget | `packages/trading_agents_india` / API adapter — not started |
+| C4b | Live LLM counsel | Async risk review on compact state; token cache/budget | `packages/trading_agents_india` counsel + job CLI; async loop **TODO** |
 | C5 | Backtest | Costs, OOS, no invented fills | `packages/backtest` |
 | C6 | Nightly | Auditor last; no auto-retune | `packages/desk-intel` |
 | C7 | Portals | `/` `/desk` `/pm` | `apps/web` |
@@ -38,4 +38,4 @@ Material merge: section boss + 07. If the change touches signal language or gate
 - Exit / kill / expire wins over new entry.
 - `/pm` must show vendor key health, 401/429, chain freshness, API status, RAG age, nightly age, and auditor status.
 
-**Still TODO:** `/pm`, warehouse DDL, local ML, dealer feasibility in API, optional sqlite-vec/embeddings.
+**Still TODO:** `/pm`, warehouse live ingest, local ML, dealer wire to customer `/`, optional sqlite-vec/embeddings.

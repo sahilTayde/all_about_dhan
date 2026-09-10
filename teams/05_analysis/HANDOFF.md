@@ -1,5 +1,38 @@
 # Handoff log — Team 05 Analysis
 
+## As of now (2026-09-10) — Dealer reads HQ fields only
+
+```text
+From:     teams/05_analysis
+To:       00 / 03 / 04
+Date:     2026-09-10
+Status:   VALIDATION note
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: Bid/ask + day range from quote/chain are liquidity hints.
+  Constituent LTP = HOLD overlay, not a stock scanner. Funds/positions
+  are later customer book — not alpha.
+Rejected: Inventing fills from depth; treating INDEX volume as VWAP.
+```
+
+## As of now (2026-09-09) — DEALER-001 feasibility coded
+
+```text
+From:     teams/05_analysis
+To:       00 / 07 / 09
+Date:     2026-09-09
+Status:   FEASIBILITY CODED / NOT ON PORTAL
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: evaluate_long_premium — stop/target geometry, R vs typical range,
+  stale TTL, NEWS_HOLD, kill priority. Customer stage still WATCH/VETOED
+  plus FEASIBILITY_REJECTED / DEALER_KILLED on ticket_events.
+Rejected: LLM-drawn strike; keep dead IN-PROGRESS; npm restart.
+UNKNOWN: not wired to apps/web or /ws/signals.
+
+Artifacts: packages/warehouse/src/warehouse/feasibility.py, FRONT_DESK.md
+```
+
 ## As of now (2026-09-09) — Dealer fast-path standards
 
 ```text

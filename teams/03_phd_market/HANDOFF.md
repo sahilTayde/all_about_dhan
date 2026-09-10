@@ -1,5 +1,55 @@
 # Handoff log — Team 03 PhD market
 
+## As of now (2026-09-10) — WS-first gather (skill pack re-read)
+
+```text
+From:     teams/03_phd_market
+To:       00 / 05 / 07
+Date:     2026-09-10
+Status:   VALIDATION / gather plan
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: Official skill live-feed.md — snapshots REST, live MarketFeed WS.
+  Full chain has no WS. 20/200 depth optional and heavier. WS replaces
+  quote 1/s loop, not optionchain.
+Rejected: Pretend WS carries greeks; poll LTP in session.
+```
+
+## As of now (2026-09-10) — HQ API inventory
+
+```text
+From:     teams/03_phd_market
+To:       00 / 01 / 04 / 07
+Date:     2026-09-10
+Status:   SOURCE_FACT inventory
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: Official v2 field lists for profile, IP, quotes, charts,
+  optionchain, rollingoption, WS packets, instruments. INDEX≠FUTIDX≠OPTIDX.
+  Chain 1 unique/3s. Intervals 1/5/15/25/60 only.
+Rejected: Invent weights, 3m REST, INDEX volume as tape, order writes.
+UNKNOWN: swagger 409; forever GET path; depth WS host if moved.
+
+Artifacts: docs/DHAN_API_END_TO_END.md
+```
+
+## As of now (2026-09-10) — Desk-book constituents / chain
+
+```text
+From:     teams/03_phd_market
+To:       00 / 04 / 05 / 06
+Date:     2026-09-10
+Status:   VALIDATION note
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: persist parsed HQ chain rows; cash names matter for index
+  direction. Weights not in Dhan REST — DATA_INSUFFICIENT until NSE/BSE file.
+Rejected: Treat INDEX volume as VWAP; invent lots/weights; 1m full chain.
+UNKNOWN: current official basket vs our VERIFY name list.
+
+Artifacts: DATA_PLAN_DESK_BOOK.md
+```
+
 ## As of now (2026-09-08) — PCR-without-price HOLD (CHAIN_METRICS)
 
 ```text

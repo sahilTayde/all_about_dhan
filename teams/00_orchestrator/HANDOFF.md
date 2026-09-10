@@ -1,5 +1,139 @@
 # Handoff log — Team 00 Orchestrator
 
+## As of now (2026-09-10) — Founder `/pm` + PAPER REST loop (asked)
+
+```text
+From:     teams/00_orchestrator
+To:       D1 / D4 / founder
+Date:     2026-09-10
+Status:   /pm PARTIAL · PAPER loop on founder ask
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: GET /founder/status + /pm board (agents/services/issues, no
+  secrets). Founder asked commit→main, start REST --live-chain in
+  background, start founder site. npm is allowed for this ask.
+Rejected: Live orders; WS-first this start; promote.
+```
+
+## As of now (2026-09-10) — Gather = WS-first; no skill code copy
+
+```text
+From:     00 after GitHub dhan-oss/dhanhq-skills (SKILL + live-feed +
+          option-chain + examples/scripts listing)
+To:       D1 / 03 / 05 / founder
+Date:     2026-09-10
+Status:   GATHER PLAN / NO CODE / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: Live tape on ONE MarketFeed socket (INDEX + FUTIDX + ATM Full).
+  Chain + history stay REST. No quote-loop. Do not vendor skill scripts
+  (place_order / helpers). Existing dhan_client.feed is enough.
+Rejected: Copy dhanhq-skills into packages; FullDepth/OrderUpdate default;
+  1s /marketfeed/ltp; start paper loop this turn.
+UNKNOWN: SDK Depth=19 vs annexure 21/23 — use official annexure until coded.
+
+Artifacts: DHAN_API_END_TO_END.md § Efficient gather
+```
+
+## As of now (2026-09-10) — Dhan API end-to-end book
+
+```text
+From:     00 after 01/02/03/04/05/06/09 + official HQ fetch
+To:       D1 / D2 / D5 / founder
+Date:     2026-09-10
+Status:   SOURCE_FACT inventory / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: one desk book DHAN_API_END_TO_END.md — all HQ families, field
+  lists from official pages, USE vs NEVER. Official skills = knowledge
+  only. Counsel job DHAN_API_REVIEW (Gemini+OpenAI review API use, no CE/PE).
+Rejected: Second client; MCP/skill place_order; invent 3m/1w REST; sandbox
+  as tape; live orders; npm/paper loop.
+UNKNOWN: swagger 409 this session; forever list path; 20-level host drift.
+
+Artifacts: teams/03_phd_market/docs/DHAN_API_END_TO_END.md
+```
+
+## As of now (2026-09-10) — Faculty desk-book (chain + constituents)
+
+```text
+From:     00 after 01/02/03/04/05/06/09
+To:       D1 / D2 / D5 / founder
+Date:     2026-09-10
+Status:   DATA-002 / PARTIAL / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: founder correction — compact ATM/PCR was not a desk book.
+  Store every parsed strike CE/PE LTP/OI/volume/greeks; ATM CE and PE
+  strike + HYPOTHESIS premium SL/TP; constituent *names* + Dhan LTP so
+  04/05 can reason about heavy-name shock vs index. Weights NULL.
+Rejected: Invent NSE/BSE official weights; stock-option customer default;
+  0.75/1.25 as a theorem; poll loop; live orders.
+UNKNOWN: live basket reconstitution; BSE vs NSE id for some Sensex names.
+
+Artifacts: DATA_PLAN_DESK_BOOK.md, warehouse/desk_book.py
+```
+
+## As of now (2026-09-10) — Multi-TF OHLC book (HQ + resample)
+
+```text
+From:     teams/00_orchestrator
+To:       02 / 04 / 06 / 07 / founder
+Date:     2026-09-10
+Status:   OHLC STORE / PARTIAL / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: unified ohlc_bars; HQ 1/5/15/60 + daily; 3m from 1m; 1w from 1d;
+  CLI candles --live (one-shot) + bars --tf. Same reader for history and
+  later live ticks. INDEX only this ticket.
+Rejected: Invent HQ 3m/week interval; poll loop; live orders; npm.
+UNKNOWN: 25m HQ unused; FUTIDX/OPTIDX candles not in this pull.
+
+Artifacts: warehouse/ohlc.py, candles.py, ohlc_bars
+Next: backtests/MIX can load_bars; still NO_PROMOTE.
+```
+
+## As of now (2026-09-10) — Live data probe + one-shot warehouse ingest
+
+```text
+From:     teams/00_orchestrator
+To:       D1 / D5 / 07 / 09 / founder
+Date:     2026-09-10
+Status:   DATA PROBE + INGEST / PAPER / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: founder refreshed Dhan web token; GET /profile 200; dataPlan Active;
+  LTP + NIFTY/BN/SENSEX chains + 5m INDEX 200; place_order still refused;
+  warehouse ingest CLI (compact ATM/PCR + 1m bars + MIX score + dealer);
+  paper market-hours loop NOT started.
+Rejected: Live orders; npm restart; git-add sqlite; promote MIX/STRAT.
+UNKNOWN: desk_intel --live morning not run; SENSEX nearest expiry is session day.
+
+Artifacts: data/recon/PAPER_PROBE_2026-09-10.json, packages/warehouse/ingest.py
+Next: /pm when founder allows npm. Loop only if founder asks.
+```
+
+## As of now (2026-09-09) — DATA-001 + DEALER-001 coded
+
+```text
+From:     teams/00_orchestrator
+To:       D1 / D5 / 07 / 09 / founder
+Date:     2026-09-09
+Status:   WAREHOUSE + FEASIBILITY / PARTIAL / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: SQLite warehouse schema (WAL, append-only, counsel cache);
+  deterministic long-premium feasibility (founder 150/96/250 lesson);
+  refuse opening transcripts / trading_agents / agent_rag sqlite.
+  Counsel job CLI stays PAPER review only.
+Rejected: Live orders; git-add warehouse.sqlite; npm restart; promote;
+  invent LTP; wire dealer to customer / without founder ask.
+UNKNOWN: live gather not written into warehouse yet; /pm not coded.
+
+Artifacts: packages/warehouse, teams/07_coding/docs/WAREHOUSE.md
+Next: ingest paper gather into warehouse, then PM-001 /pm (do not start npm).
+```
+
 ## As of now (2026-09-09) — Competitor baseline + live LLM risk counsel
 
 ```text
@@ -87,6 +221,24 @@ UNKNOWN: /pm not coded; warehouse DDL not coded; local ML not coded.
 Artifacts: docs/COMPANY_DEPARTMENTS.md, FOUNDER_PM.md, FRONT_DESK.md,
   ENGINEERING_SECTIONS.md, team SKILL.md, COUNSEL_ORG_2026-09-09.md
 Next: code /pm + dealer kill when founder asks (do not restart npm unasked).
+```
+
+## As of now (2026-09-09) — Counsel job templates (Gemini/OpenAI)
+
+```text
+From:     teams/00_orchestrator (00)
+To:       04 / 05 / 09 / founder
+Date:     2026-09-09
+Status:   PAPER counsel templates / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: job templates + router (SIGNAL_REVIEW = check our reasoning, not generate; VALIDATE_GATHER,
+  CONFIRM_STAGE, REVIEW_NOTES, WEB_FACT_PACK, DHANHQ_BIND, COUNSEL_NEXT).
+  Cursor fills slots; Gemini lite / OpenAI nano reason. No Google SERP scrape.
+Rejected: Invented LTP; sell-premium as default; CONFIRMED without 5m fact.
+UNKNOWN: live gather snapshot at counsel time.
+
+Artifacts: counsel_templates.py, counsel_jobs.py, COUNSEL_LLM.md
 ```
 
 ## As of now (2026-09-09) — DhanHQ-only cleanup (founder)

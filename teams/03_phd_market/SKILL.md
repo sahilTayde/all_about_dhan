@@ -13,7 +13,7 @@ description: Runs Indian market microstructure validation: NSE/BSE clocks, lots,
 
 1. Validate exchange clocks, holidays, pre-open, normal session, expiry behavior, and CAS = **Closing Auction Session**.
 2. Verify lot sizes from instrument master. Never hardcode.
-3. Read chain as positioning: OI, previous OI, PCR, ATM CE/PE spread, strike buildup. No invented PCR law.
+3. Read chain as positioning: OI, previous OI, PCR, ATM CE/PE spread, strike buildup. No invented PCR law. Full HQ inventory: [`docs/DHAN_API_END_TO_END.md`](docs/DHAN_API_END_TO_END.md) — only fields on that page exist.
 4. Identify event regimes: gap day, circuit, macro, expiry, CAS, low-liquidity.
 5. Tell 04 which market constraint changes a strategy: hold, park, split into new MIX, or mark `DATA_INSUFFICIENT`.
 6. Tell 05 when the customer should HOLD even if indicators look good.

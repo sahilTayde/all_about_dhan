@@ -22,6 +22,30 @@ def _resolve_flag_triple(
     return default
 
 
+def cmd_counsel_job(args: argparse.Namespace) -> int:
+    from trading_agents_india.counsel_jobs import route_job, run_job
+    from trading_agents_india.counsel_templates import list_jobs
+
+    if args.list:
+        print(json.dumps(list_jobs(), indent=2, ensure_ascii=False))
+        return 0
+    job_id = (args.job or "").strip()
+    if args.route and not job_id:
+        job_id = route_job(args.route).job_id
+    if not job_id:
+        print(json.dumps({"ok": False, "data_gaps": ["need --job or --route"]}, indent=2))
+        return 2
+    slots: dict[str, str] = {}
+    for item in args.slot or []:
+        if "=" not in item:
+            continue
+        k, _, v = item.partition("=")
+        slots[k.strip()] = v.strip()
+    payload = run_job(job_id, slots=slots, extra_prompt=args.route or "", dry=bool(args.dry))
+    print(json.dumps(payload, indent=2, ensure_ascii=False))
+    return 0 if payload.get("ok") or payload.get("dry") else 1
+
+
 def cmd_session(args: argparse.Namespace) -> int:
     from trading_agents_india.config import load_settings
     from trading_agents_india.pipeline import run_session
@@ -249,6 +273,14 @@ def main(argv: list[str] | None = None) -> int:
 
     p_clk = sub.add_parser("clock", help="Print IST session / dead-band snapshot")
     p_clk.set_defaults(func=cmd_clock)
+
+    p_cj = sub.add_parser("counsel-job", help="Gemini/OpenAI job template (PAPER counsel)")
+    p_cj.add_argument("--list", action="store_true", help="Print job templates")
+    p_cj.add_argument("--route", default="", help="Free text → pick a job_id")
+    p_cj.add_argument("--job", default="", help="Job id e.g. SIGNAL_REVIEW")
+    p_cj.add_argument("--slot", action="append", default=[], help="key=value (repeat)")
+    p_cj.add_argument("--dry", action="store_true", help="Pack facts; do not call APIs")
+    p_cj.set_defaults(func=cmd_counsel_job)
 
     args = parser.parse_args(argv)
     if getattr(args, "paper", False) and not getattr(args, "live", False):

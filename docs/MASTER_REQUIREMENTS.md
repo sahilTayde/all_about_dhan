@@ -44,9 +44,9 @@ SDLC: [`docs/SDLC.md`](SDLC.md). Orchestrator snapshot: [`teams/00_orchestrator/
 | 7 | Dashboard: ticket SL/target, (i) legend, book, sentiment windows, `/desk` internal | **PARTIAL** | Customer `/` MOCK: suggested ticket + index chart + honesty labels + confidence (i) + paper book ([`ASTRA_DASHBOARD_REVIEW.md`](../teams/07_coding/docs/ASTRA_DASHBOARD_REVIEW.md)). Sentiment/CAS below ticket. Not live fills. Confidence ≠ win rate. |
 | 8 | CAS analyst (NIFTY / BANKNIFTY / SENSEX) | **PARTIAL** | Folder + research + `cas_calls[]` + CasPanel **exist**. **CAS-001–005** defined (`CAS_STRATEGIES.md`) `UNVALIDATED`. No Dhan-video CAS recipe (`DATA_INSUFFICIENT`). No win rates. |
 | 9 | Paper/shadow vs user lots; 30% capital quality bar | **PARTIAL** | Spec + ledger stubs. No real P/L. Quality bar is a **product penalty**, not a measured metric. |
-| 10 | Token for live Dhan validation | **PARTIAL** | Data plan **Active** (profile 2026-09-03). Live GET `/profile` + POST quote/chain/charts **worked**. **Orders still refused.** Do not paste tokens in chat. |
+| 10 | Token for live Dhan validation | **PARTIAL** | Data plan **Active** (profile 2026-09-10; validity field on file, not in chat). Live GET `/profile` + LTP + 3 chains + 5m INDEX **200**. **Orders still refused.** Do not paste tokens. Paper loop **not** started. |
 | 11 | Standing **Docs Auditor** (after requirement change + nightly) | **DONE** (checker) | `python -m docs_auditor`. Real fail paths (stub sheet, `1m` chain, missing nightly hook). Latest: [`AUDIT_LATEST.md`](../teams/00_orchestrator/docs/AUDIT_LATEST.md). |
-| 12 | Company departments + fast/scalable competitive product baseline | **PARTIAL** | Org + operational skills + founder trace + architecture/token/UX + competitor baseline **written** 2026-09-09 ([`COMPANY_DEPARTMENTS.md`](COMPANY_DEPARTMENTS.md), [`FOUNDER_REQUIREMENTS_TRACE.md`](FOUNDER_REQUIREMENTS_TRACE.md), [`COMPETITIVE_PRODUCT_BASELINE.md`](COMPETITIVE_PRODUCT_BASELINE.md), [`PRODUCT_ARCHITECTURE_STANDARDS.md`](PRODUCT_ARCHITECTURE_STANDARDS.md)). Gemini+OpenAI aligned: rewrite skills as playbooks, no **blocking** LLM fast path, live LLM risk counsel allowed on compact state, SQLite+FTS5 now, local ML first. `/pm`, warehouse DDL, local ML, dealer kill, alerts/scanner **not coded**. 00–09 **kept**. **No live orders.** |
+| 12 | Company departments + fast/scalable competitive product baseline | **PARTIAL** | Org + skills + baseline **written**. Warehouse + dealer + counsel **coded**. `/pm` **PARTIAL** (agents/services). Paper loop starts only on founder ask. 00–09 **kept**. **No live orders.** |
 
 ---
 
@@ -124,9 +124,10 @@ Loader: `config/load.py`. Overlay `config/workspace.local.yaml` is gitignored.
 | No live orders in Phase 0–6 | **DONE** | [`packages/dhan-client/src/dhan_client/execution.py`](../packages/dhan-client/src/dhan_client/execution.py) — `place_order` / modify / cancel / super / forever all raise `SafeModeError` |
 | Conditional Trigger `/alerts/orders` not wired | **DONE** | No matches in `packages/dhan-client`. Docs-only. **Do not live-trade it.** |
 | Browser never calls Dhan | **DONE** | [`apps/web/README.md`](../apps/web/README.md) |
-| Live quote / chain / feed | **TODO** | See §10. Skeleton client exists; token check not run this session. |
+| Live quote / chain / feed | **PARTIAL** | Probe 200 (2026-09-10). Paper loop not started. Inventory: [`DHAN_API_END_TO_END.md`](../teams/03_phd_market/docs/DHAN_API_END_TO_END.md). |
+| One HQ API book for D1 + D2 | **DONE** (docs) | Same file. Official fields only. Writes NEVER. |
 
-Generic client + FastAPI dry-run: `packages/dhan-client`, `apps/api` (`GET /health`, mock `GET /paper/signal`). Orders refused.
+Generic client + FastAPI dry-run: `packages/dhan-client`, `apps/api` (`GET /health`, mock `GET /paper/signal`). Orders refused. **Do not add a second Dhan client.**
 
 ---
 
@@ -177,7 +178,7 @@ Operator checklist: [`PERSONA_DESK.md`](../teams/00_orchestrator/docs/PERSONA_DE
 | POST_MARKET after close | **PARTIAL** | yaml `after_ist: "15:40"`. F&O close **15:30 vs 15:40** is **UNKNOWN** / **VERIFY FROM circular**. |
 | `MARKET_SIGNAL` fusion | **PARTIAL** | Bias / regime. Adapter JSON shape exists. `apps/api` still mock — **not wired**. |
 | Sentiment windows 10m / 15m / 30m / 1h | **PARTIAL** | Schema slots. **Mock bind.** Not measured rolling windows. |
-| Live `POST /optionchain` | **TODO** | Empty `DHAN_*` → fixtures. See §10. |
+| Live `POST /optionchain` | **PARTIAL** | Paper-probe **200** 2026-09-10 (NIFTY/BN/SENSEX). Desk 3m poll loop **not** started. See §10. |
 
 Dry-run (do **not** start npm for this):
 
@@ -298,20 +299,21 @@ Do not quote mock book points as performance.
 
 ---
 
-## 10. Token TODO for live Dhan validation — **TODO**
+## 10. Token TODO for live Dhan validation — **PARTIAL**
 
-**Do not call live Dhan in overnight / review.** Conceptual follow-up on [`TASK_STAGED_SIGNALS.md`](../teams/00_orchestrator/docs/TASK_STAGED_SIGNALS.md) and [`TASK_DESK_INTELLIGENCE.md`](../teams/00_orchestrator/docs/TASK_DESK_INTELLIGENCE.md).
+Live **data** probed **2026-09-10** (IST ~09:15). **Orders still refused.** Never paste tokens. Do not start paper market-hours unless asked.
 
 | Check | Status |
 |-------|--------|
 | `YOUTUBE_API_KEY` validated (catalog era) | **DONE** (prior). Not needed for this review. Never paste into chat. |
-| `DHAN_CLIENT_ID` + `DHAN_ACCESS_TOKEN` in gitignored `.env` | **TODO** / **BLOCKED** until the user puts them there |
-| `python -m dhan_client status` | **TODO** |
-| `python -m desk_intel --live morning` | **TODO** |
-| `python -m desk_intel --live poll-chain --interval 3m` | **TODO** |
-| Confirm chain rate-limit gate (1 unique / 3 s) | **TODO** |
-| Confirm `execution.place_order` still **refuses** with tokens present | **TODO** (must stay refused) |
-| Token refresh field names | **VERIFY FROM DOCS** | `.env.example` notes RenewToken vs `DHAN_REFRESH_TOKEN` |
+| `DHAN_CLIENT_ID` + `DHAN_ACCESS_TOKEN` in gitignored `.env` | **DONE** (present 2026-09-10; values never in git/chat) |
+| `python -m dhan_client status` | **DONE** — `dry_run=false`; access names set |
+| `python -m dhan_client profile` + `paper-probe` | **DONE** 2026-09-10 — GET `/profile` 200; `dataPlan` Active; LTP + 3 chains + 5m INDEX 200; report `data/recon/PAPER_PROBE_2026-09-10.json` |
+| `python -m desk_intel --live morning` | **TODO** (not this slice) |
+| `python -m desk_intel --live poll-chain --interval 3m` | **TODO** (not a paper loop; not started) |
+| Confirm chain rate-limit gate (1 unique / 3 s) | **PARTIAL** — ingest sleeps 3.2s between underlyings |
+| Confirm `execution.place_order` still **refuses** with tokens present | **DONE** 2026-09-10 — `place_order_refused: true` |
+| Token refresh field names | **VERIFY FROM DOCS** — `.env.example` notes RenewToken vs `DHAN_REFRESH_TOKEN` |
 
 If tokens empty: keep fixtures. Do not invent a live chain.
 
@@ -355,8 +357,9 @@ Ticket: founder org 2026-09-09. Counsel: [`COUNSEL_ORG_2026-09-09.md`](../teams/
 | Token + local ML standards | **DONE** (docs) — [`TOKEN_ML_STRATEGY.md`](TOKEN_ML_STRATEGY.md); **zero blocking LLM fast path** |
 | Customer UX standard | **DONE** (docs) — [`CUSTOMER_PORTAL_UX.md`](CUSTOMER_PORTAL_UX.md) |
 | Competitive baseline | **DONE** (docs) — [`COMPETITIVE_PRODUCT_BASELINE.md`](COMPETITIVE_PRODUCT_BASELINE.md); Stockara direct fetch 409 → `VERIFY` snippets |
-| Live LLM risk counsel | **PARTIAL** — spec only; async advisory on compact state (`RISK_REVIEW`, `PARTIAL_BOOK_REVIEW`, `EXIT_REVIEW`), no execution |
-| SQLite warehouse + FTS RAG | **PARTIAL** — FTS exists; warehouse DDL / local ML / optional sqlite-vec **TODO** |
+| Live LLM risk counsel | **PARTIAL** — `packages/trading_agents_india` counsel + job templates (Gemini lite / OpenAI nano). Async market-hours loop **TODO**. No execution |
+| SQLite warehouse + FTS RAG | **PARTIAL** — OHLC TFs + **desk-book** (full chain strikes, ATM CE/PE HYPOTHESIS levels, constituent LTPs). Official index **weights** `DATA_INSUFFICIENT`. Loop / local ML **TODO** |
+| Dealer feasibility | **PARTIAL** — `python -m warehouse check-ticket` (FEASIBILITY_REJECTED / DEALER_KILLED). Not wired to customer `/` |
 | MySQL / embeddings day-1 | **rejected** (counsel) |
 | Live orders | **refused** |
 

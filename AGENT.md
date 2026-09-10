@@ -12,6 +12,20 @@ Never skip: **Research → Independent validation → Strategy spec → Backtest
 
 ---
 
+## Talk to the founder (standing)
+
+Use **simple English**. Do not hide behind jargon.
+
+Every founder-facing reply must include:
+
+1. **Now** — what is true today (one short block).
+2. **Why** — if something is WAITING, PARKED, removed, or `DATA_INSUFFICIENT`, say the reason in plain words (what we have vs what the recipe needs).
+3. **Next** — one action you recommend. The founder can approve, change, or skip it.
+
+Do not dump ID tables without the why. KEEP_ALL IDs stay in the book even when they cannot fire. Gemini/OpenAI review our call; they do not invent buy/sell. No live orders. Do not restart npm / paper until asked.
+
+---
+
 ## Company departments (founder view)
 
 Signal company (Stratzy / Algoji / Quantman *class*). Teams **00–09 stay**. Overlay: [`docs/COMPANY_DEPARTMENTS.md`](docs/COMPANY_DEPARTMENTS.md). Standards: [`PRODUCT_ARCHITECTURE_STANDARDS.md`](docs/PRODUCT_ARCHITECTURE_STANDARDS.md), [`TOKEN_ML_STRATEGY.md`](docs/TOKEN_ML_STRATEGY.md), [`CUSTOMER_PORTAL_UX.md`](docs/CUSTOMER_PORTAL_UX.md). Founder talks to the **D4 PM** (`/pm` spec — not built). Customer **`/`** vs research **`/desk`**. **No live orders.**
@@ -41,7 +55,7 @@ Skills: each team `SKILL.md` is an operational playbook (duties, inputs, outputs
 | 08 | Testing | QA, fixtures, paper-trade checks | `teams/08_testing/` |
 | 09 | Review | Five-pass + red-team; `RESEARCH_READY_FOR_PROGRAMMING`; **Docs Auditor** (after requirement change + nightly); **D3** | `teams/09_review/` · charter `teams/09_review/docs/DOCS_AUDITOR.md` |
 
-Shared code: `packages/dhan-client`, `packages/desk-intel`, `packages/docs-auditor`, `packages/contracts`, `packages/indicators`.  
+Shared code: `packages/dhan-client`, `packages/desk-intel`, `packages/docs-auditor`, `packages/contracts`, `packages/indicators`, `packages/warehouse` (DATA-001; do not git-add `warehouse.sqlite`).  
 Product: `apps/api` (FastAPI dry-run; orders refused), `apps/web` (**customer** `/` vs research **`/desk`**; MOCK JSON, no Dhan in the browser).
 
 ---
@@ -50,7 +64,7 @@ Product: `apps/api` (FastAPI dry-run; orders refused), `apps/web` (**customer** 
 
 **Phase 0–2 overlap** plus Phase 1 Dhan **data**, Phase 3 **paper engine** (INDEX proxy **FAIL** + option-premium **FAIL** + after-cost club **FAIL**, not a promote), Phase 6 paper-UI **mock** + optional live-signal WS. Not a paper gate. **Not** `RESEARCH_READY_FOR_PROGRAMMING`.
 
-Catalog + 45 transcripts + 45 English companions exist. SOURCE_FACT **partial**. **English STRAT bind** [`TRANSCRIPT_STRATEGY_BIND.md`](teams/01_research/docs/handoffs/TRANSCRIPT_STRATEGY_BIND.md). **Engine mix** (`ENGINE_MIX.md` / `MIX_CATALOG.md` KEEP_ALL) still `UNVALIDATED`; 09 five-pass **FAILED REVIEW**. **Boss** [`BOSS_AGENT.md`](teams/00_orchestrator/docs/BOSS_AGENT.md). Generic DhanHQ client (**orders refused**). Dashboard `apps/web` = **MOCK** unless `/ws/signals` paper overlay. **No live orders.** Honest leftover 2026-09-06: after-cost CLUB-GR NIFTY **44% wr FAIL** (69% was optimistic); SCORE_SAMPLE empty; continuous FUTIDX **DATA_INSUFFICIENT** ([`BACKTEST_HONEST_2026-09-06.md`](teams/06_backtesting/docs/BACKTEST_HONEST_2026-09-06.md)). FUTIDX CSV ids resolved 2026-09-03. Chain **3m**. Docs Auditor standing. **2026-09-09:** Chart Fanatics / MIX-CF / Okala paper path removed (DhanHQ-only reset). **2026-09-08:** PAPER market-hours gather stopped 11:54 IST (`paper_ops_STOPPED.flag`). Lean MIX WAITING evaluators (`MIX-LEAN-SPOT-ATM` / `MIX-IMPULSE-1M`) can score INDEX 1m + ATM/PCR — **NO_PROMOTE**. Next chat starts at [`CONTINUE_NEXT_CHAT.md`](teams/00_orchestrator/docs/CONTINUE_NEXT_CHAT.md). Do not restart paper ops / npm until asked. Next track: strategies (KEEP_ALL, **NO_PROMOTE**).
+Catalog + 45 transcripts + 45 English companions exist. SOURCE_FACT **partial**. **English STRAT bind** [`TRANSCRIPT_STRATEGY_BIND.md`](teams/01_research/docs/handoffs/TRANSCRIPT_STRATEGY_BIND.md). **Engine mix** (`ENGINE_MIX.md` / `MIX_CATALOG.md` KEEP_ALL) still `UNVALIDATED`; 09 five-pass **FAILED REVIEW**. **Boss** [`BOSS_AGENT.md`](teams/00_orchestrator/docs/BOSS_AGENT.md). Generic DhanHQ client (**orders refused**). Dashboard `apps/web` = **MOCK** unless `/ws/signals` paper overlay. **No live orders.** Honest leftover 2026-09-06: after-cost CLUB-GR NIFTY **44% wr FAIL** (69% was optimistic); SCORE_SAMPLE empty; continuous FUTIDX **DATA_INSUFFICIENT** ([`BACKTEST_HONEST_2026-09-06.md`](teams/06_backtesting/docs/BACKTEST_HONEST_2026-09-06.md)). FUTIDX CSV ids resolved 2026-09-03. Chain **3m**. Docs Auditor standing. **2026-09-09:** Chart Fanatics / MIX-CF / Okala paper path removed (DhanHQ-only reset). **2026-09-08:** PAPER market-hours gather stopped 11:54 IST (`paper_ops_STOPPED.flag`). Lean MIX WAITING evaluators (`MIX-LEAN-SPOT-ATM` / `MIX-IMPULSE-1M`) can score INDEX 1m + ATM/PCR — **NO_PROMOTE**. Next chat starts at [`CONTINUE_NEXT_CHAT.md`](teams/00_orchestrator/docs/CONTINUE_NEXT_CHAT.md). Do not restart paper ops / npm until asked. **2026-09-09:** warehouse + dealer feasibility coded. **2026-09-10:** HQ API inventory [`DHAN_API_END_TO_END.md`](teams/03_phd_market/docs/DHAN_API_END_TO_END.md) — developers/analysts share one book. Next: `/pm` when founder asks. KEEP_ALL, **NO_PROMOTE**.
 
 Full SDLC: [`docs/SDLC.md`](docs/SDLC.md). **Score sheet:** [`docs/MASTER_REQUIREMENTS.md`](docs/MASTER_REQUIREMENTS.md). Company board: [`PLAN.md`](PLAN.md). Snapshot: [`teams/00_orchestrator/docs/STATUS.md`](teams/00_orchestrator/docs/STATUS.md). Wake-up: [`HANDOFF_TOMORROW.md`](teams/00_orchestrator/docs/HANDOFF_TOMORROW.md).
 
@@ -96,6 +110,7 @@ Full SDLC: [`docs/SDLC.md`](docs/SDLC.md). **Score sheet:** [`docs/MASTER_REQUIR
 | **Docs vs code drift** | Charter [`DOCS_AUDITOR.md`](teams/09_review/docs/DOCS_AUDITOR.md), ticket [`TASK_DOCS_AUDITOR.md`](teams/00_orchestrator/docs/TASK_DOCS_AUDITOR.md), report [`AUDIT_LATEST.md`](teams/00_orchestrator/docs/AUDIT_LATEST.md). `python -m docs_auditor` or `python -m desk_intel audit-docs`. **No requirement merge without auditor.** |
 | YouTube catalog / transcripts | `teams/01_research/youtube/ANALYSIS.md`, `teams/01_research/` |
 | Topic → per-topic strategy docs | [`teams/01_research/docs/TOPIC_STRATEGY_PIPELINE.md`](teams/01_research/docs/TOPIC_STRATEGY_PIPELINE.md), [`teams/04_quant/docs/topics/`](teams/04_quant/docs/topics/) |
+| **DhanHQ API inventory (all endpoints + what we may call)** | [`teams/03_phd_market/docs/DHAN_API_END_TO_END.md`](teams/03_phd_market/docs/DHAN_API_END_TO_END.md) — developers + analysts. Official docs only. Orders never. |
 | Dhan ecosystem URLs / what is not evidence | [`teams/01_research/docs/DHAN_ECOSYSTEM.md`](teams/01_research/docs/DHAN_ECOSYSTEM.md), [`docs/RESEARCH.md`](docs/RESEARCH.md) |
 | **Official Dhan indicators (API vs chart)** | [`teams/01_research/docs/DHAN_OFFICIAL_INDICATORS.md`](teams/01_research/docs/DHAN_OFFICIAL_INDICATORS.md), [`teams/02_phd_math/docs/DHAN_INDICATOR_API_MAP.md`](teams/02_phd_math/docs/DHAN_INDICATOR_API_MAP.md), [`research/indicator_knowledge_base.md`](research/indicator_knowledge_base.md) |
 | Desk persona seed (OI / stop hunts / news) | [`teams/00_orchestrator/docs/PERSONA.md`](teams/00_orchestrator/docs/PERSONA.md); operator confirm/veto checklist [`PERSONA_DESK.md`](teams/00_orchestrator/docs/PERSONA_DESK.md) |
@@ -108,12 +123,13 @@ Full SDLC: [`docs/SDLC.md`](docs/SDLC.md). **Score sheet:** [`docs/MASTER_REQUIR
 | Strategy spec / hypotheses | [`teams/04_quant/docs/MASTER_STRATEGY_PLAN.md`](teams/04_quant/docs/MASTER_STRATEGY_PLAN.md) (v0.1 DRAFT, **14 candidates, no win rates**; coalition banner). Staging: [`SIGNAL_STAGING.md`](teams/04_quant/docs/SIGNAL_STAGING.md). Algo YAML: [`ALGO_HANDOFF.md`](teams/04_quant/docs/ALGO_HANDOFF.md) |
 | Resume tomorrow | [`teams/00_orchestrator/docs/HANDOFF_TOMORROW.md`](teams/00_orchestrator/docs/HANDOFF_TOMORROW.md) — read MASTER_REQUIREMENTS first; do not restart npm until asked |
 | Backtest | `teams/06_backtesting/`, [`docs/REVIEW.md`](docs/REVIEW.md), retune gate [`RETUNE_GATE.md`](teams/06_backtesting/docs/RETUNE_GATE.md) |
-| Dhan token / DhanHQ API | `packages/dhan-client/`, [`docs/SECURITY.md`](docs/SECURITY.md) |
-| Signal UI | `apps/web/` — **customer desk** `/` (ticket + **IN-PROGRESS** + **CasPanel** + **confidence box**; book P/L **MOCK**) vs internal **`/desk`**. Mock: http://localhost:5173 · `/desk`. Ticket shape: [`CUSTOMER_TICKET.md`](teams/05_analysis/docs/CUSTOMER_TICKET.md). |
+| Dhan token / DhanHQ API | `packages/dhan-client/`, [`docs/SECURITY.md`](docs/SECURITY.md), inventory [`DHAN_API_END_TO_END.md`](teams/03_phd_market/docs/DHAN_API_END_TO_END.md) |
+| Signal UI | `apps/web/` — **customer desk** `/` vs research **`/desk`** vs founder **`/pm`**. Mock: http://localhost:5173/pm. Ticket shape: [`CUSTOMER_TICKET.md`](teams/05_analysis/docs/CUSTOMER_TICKET.md). |
 | API | `apps/api/` |
 | Handoff between teams | [`docs/HANDOFF.md`](docs/HANDOFF.md) + the team's `HANDOFF.md` |
 | **TradingAgents India paper agents** | [`ADOPT_TRADINGAGENTS.md`](teams/00_orchestrator/docs/ADOPT_TRADINGAGENTS.md), package `packages/trading_agents_india` (`python -m trading_agents_india session --dry-run`). EXTERNAL Apache-2.0. No live orders. |
 | **Agent RAG (speed KB)** | [`AGENT_RAG.md`](teams/01_research/docs/AGENT_RAG.md), package `packages/agent_rag` — `data/knowledge/agent_rag.sqlite` (FTS5; **not** `transcripts.sqlite`). `python -m agent_rag query "…"`, `paper-backtest`, `eod-recon`. |
+| **Warehouse + dealer** | [`WAREHOUSE.md`](teams/07_coding/docs/WAREHOUSE.md), [`DATA_PLAN_DESK_BOOK.md`](teams/00_orchestrator/docs/DATA_PLAN_DESK_BOOK.md), `packages/warehouse` — `candles` / `desk-book`. Counsel: [`COUNSEL_LLM.md`](teams/00_orchestrator/docs/COUNSEL_LLM.md). |
 | Review gate | [`docs/REVIEW.md`](docs/REVIEW.md), `teams/09_review/`, Docs Auditor [`DOCS_AUDITOR.md`](teams/09_review/docs/DOCS_AUDITOR.md) |
 
 Full map: [`docs/INDEX.md`](docs/INDEX.md).

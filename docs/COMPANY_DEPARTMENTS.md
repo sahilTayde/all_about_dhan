@@ -12,9 +12,9 @@
 
 | | |
 |--|--|
-| **Now** | We have a research factory (`00`–`09`), a mock customer desk, and written standards for fast architecture, token control, ML, and UX. We do **not** yet have a founder health canvas, a warehouse schema, vector RAG, local ML, or a dealer feasibility gate. |
+| **Now** | We have a research factory (`00`–`09`), a mock customer desk, written standards, a paper warehouse schema (`packages/warehouse`), and a local dealer feasibility check. We do **not** yet have a founder `/pm` canvas, live warehouse ingest, vector RAG, or local ML. |
 | **Why overlay, not rebuild** | Counsel: renumbering breaks provenance, auditor paths, and the SDLC gate. The 00–09 roster is the **pipeline**. Departments are **who the founder talks to** and **who reviews whom**. |
-| **Next** | Build the platform in this order: warehouse/event schema → dealer `FEASIBILITY_REJECTED` → `/pm` health canvas → customer UX refresh → local ML baseline. Do **not** restart npm until the founder asks. |
+| **Next** | Wire gather into the warehouse, then `/pm` health canvas, then customer UX refresh, then local ML baseline. Do **not** restart npm until the founder asks. |
 
 ---
 
@@ -218,6 +218,5 @@ Accepted: Overlay 5 departments on 00–09; SQLite+FTS5 now; one site three view
 Rejected: Delete/renumber 00–09; MySQL or embeddings as day-1; auto-retune;
           merge customer portal into /desk; live orders; win rates;
           STRAT-015+; treating auditor PASS as research-ready.
-UNKNOWN:  /pm not coded; warehouse schema not coded; dealer rules not coded;
-          sqlite-vec not scheduled.
+UNKNOWN:  /pm not coded; live warehouse ingest not coded; sqlite-vec not scheduled.
 ```

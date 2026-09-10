@@ -1,5 +1,19 @@
 # Handoff log — Team 06 Backtesting
 
+## As of now (2026-09-10) — History APIs vs promote
+
+```text
+From:     teams/06_backtesting
+To:       00 / 02 / 03 / 04 / 09
+Date:     2026-09-10
+Status:   VALIDATION / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: Daily + intraday charts and rollingoption ATM± are the official
+  history surfaces. Knowing them does not promote prior FAIL premium OOS.
+Rejected: Treating sandbox or INDEX volume as option premium history.
+```
+
 ## As of now (2026-09-08) — MIX-003/006 INDEX PROXY not a promote
 
 ```text

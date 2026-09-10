@@ -1,5 +1,19 @@
 # Handoff log — Team 09 Review
 
+## As of now (2026-09-10) — API book is NOTES_ONLY
+
+```text
+From:     teams/09_review
+To:       00 / 03 / founder
+Date:     2026-09-10
+Status:   NOTES_ONLY
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: End-to-end HQ inventory is documentation, not a five-pass.
+  Writes remain refused. KEEP_ALL. No RESEARCH_READY from “we listed APIs.”
+Rejected: Promote; auditor PASS as product gate.
+```
+
 ## As of now (2026-09-09) — D3 documentation agent skill
 
 ```text

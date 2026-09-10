@@ -1,5 +1,21 @@
 # Handoff log — Team 04 Quant
 
+## As of now (2026-09-10) — MIX may only use HQ fields that exist
+
+```text
+From:     teams/04_quant
+To:       00 / 03 / 06 / 09
+Date:     2026-09-10
+Status:   VALIDATION note / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: Design against DHAN_API_END_TO_END.md. Honest ticket = spot +
+  ATM LTP from chain/ltp. SL/TP still HYPOTHESIS. KEEP_ALL 001–014.
+  No new STRAT from “we found more APIs.”
+Rejected: Fake 3m REST; ScanX RSI as entry; skill iron-condor as default.
+UNKNOWN: FUTIDX/OPTIDX candles still not default warehouse.
+```
+
 ## As of now (2026-09-08) — MIX-LEAN gather ticket (WAITING, NO_PROMOTE)
 
 ```text

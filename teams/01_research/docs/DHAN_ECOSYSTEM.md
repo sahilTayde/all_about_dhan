@@ -37,7 +37,12 @@ Cannot replace `@DhanHQ` transcripts. Do not scrape these as if they were educat
 
 | Surface | URL | Class | Notes |
 |---------|-----|-------|--------|
-| DhanHQ API docs | https://dhanhq.co/docs/v2/ | `TIER_2_SECONDARY` | Existing official API starting point (also live-market-feed, historical-data, option-chain, **conditional-trigger**, Python SDK under the same docs family). Use for endpoints, auth, data shapes — not for strategy rules. **Indicator names** live in Annexure + Conditional Trigger only; charts are OHLC. Clubbed catalog: [`DHAN_OFFICIAL_INDICATORS.md`](DHAN_OFFICIAL_INDICATORS.md). |
+| DhanHQ API docs | https://dhanhq.co/docs/v2/ | `TIER_2_SECONDARY` | Existing official API starting point (also live-market-feed, historical-data, option-chain, **conditional-trigger**, Python SDK under the same docs family). Use for endpoints, auth, data shapes — not for strategy rules. **Indicator names** live in Annexure + Conditional Trigger only; charts are OHLC. Clubbed catalog: [`DHAN_OFFICIAL_INDICATORS.md`](DHAN_OFFICIAL_INDICATORS.md). **Desk inventory (developers + analysts):** [`../03_phd_market/docs/DHAN_API_END_TO_END.md`](../../03_phd_market/docs/DHAN_API_END_TO_END.md). |
+| API hub + skills | https://docs.dhanhq.co/ · https://docs.dhanhq.co/skills/ · https://docs.dhanhq.co/api/v2/ | `TIER_2_SECONDARY` | Hub, SKILL.md pack (`dhan-oss/dhanhq-skills`), OpenAPI UI. Fetch of `/skills/` and `/api/v2/` returned 409 this session — use `dhanhq.co/docs/v2/` + GitHub pack. MCP/Cloud **trade** tools are not our write path. |
+| Trading APIs marketing | https://dhanhq.co/trading-apis | `NOT_EVIDENCE` *for limits* | Product marketing (₹0 trading, Data fee, sandbox). **Do not code rate limits from this page** — use v2 Introduction. |
+| Live / sandbox swagger | https://api.dhan.co/v2/#/ · https://sandbox.dhan.co/v2/#/ | `TIER_2_SECONDARY` | Schema browser (`UserIPResponse`, etc.). Sandbox ≠ NSE tape. |
+| Option chain (alias) | https://dhanhq.co/docs/v2/option-chain/ | `TIER_2_SECONDARY` | Same as `/docs/v2/option-chain/`. |
+| Official agent skills | https://github.com/dhan-oss/dhanhq-skills | `TIER_2_SECONDARY` | How Dhan wants coding agents to call HQ. Knowledge OK; **order helpers rejected** (our SafeMode). |
 | API portal | https://dhanhq.co/ | `TIER_2_SECONDARY` | Product/docs home for DhanHQ APIs. |
 | ScanX (product) | https://scanx.trade/ | `TIER_2_SECONDARY` | Screener / live-market product. Secondary reference for *what ScanX shows*, not for entry/exit rules. |
 | ScanX shortlink | https://bit.ly/scanxtrade | `NOT_EVIDENCE` | Marketing redirect. Cite `scanx.trade` if the product is in scope; never cite the shortlink as evidence. |

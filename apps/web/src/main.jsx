@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import App from "./App.jsx";
 import { CleanupCanvas } from "./CleanupCanvas.jsx";
+import { FounderPm } from "./FounderPm.jsx";
 import { InternalDesk } from "./InternalDesk.jsx";
 import "./index.css";
 
@@ -17,6 +18,9 @@ function usePathname() {
 
 function Root() {
   const path = usePathname();
+  if (path === "/pm" || path.startsWith("/pm/")) {
+    return <FounderPm />;
+  }
   if (path === "/desk" || path.startsWith("/desk/")) {
     return <InternalDesk />;
   }

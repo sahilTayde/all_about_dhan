@@ -149,10 +149,10 @@ Research `/desk`:
 
 ## First Build Tickets
 
-1. **DATA-001 Warehouse schema:** append-only market events, chain snapshots, feature rows, signals, ticket events, outcomes, research sources.
-2. **DEALER-001 Feasibility/state machine:** `FEASIBILITY_REJECTED`, `DEALER_KILLED`, stale TTL by stage, exit/kill priority.
-3. **PM-001 Founder canvas:** `/pm` cards for service/key/rate-limit/data freshness + next action.
-4. **LLM-001 Live counsel loop:** asynchronous Gemini/OpenAI risk review on compact state snapshots with token budget.
+1. **DATA-001 Warehouse schema:** **PARTIAL** — `packages/warehouse` DDL + CLI. Live gather ingest **TODO**.
+2. **DEALER-001 Feasibility/state machine:** **PARTIAL** — `warehouse.feasibility` (`FEASIBILITY_REJECTED`, `DEALER_KILLED`, TTL, kill priority). Not on `/`.
+3. **PM-001 Founder canvas:** `/pm` cards for service/key/rate-limit/data freshness + next action. **TODO** (do not restart npm).
+4. **LLM-001 Live counsel loop:** **PARTIAL** — counsel + job templates coded; async market-hours loop **TODO**.
 5. **UI-001 Customer command center:** beautiful mobile-first ticket + risk counsel feed + alert controls.
 6. **ML-001 Local baseline:** feature table + deterministic model/rules for hold-vs-trade and exit-review shadow labels.
 

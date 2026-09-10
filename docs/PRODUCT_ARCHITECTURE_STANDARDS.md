@@ -69,7 +69,8 @@ SQLite remains the correct default while we are single-workspace, paper/shadow, 
 | Tier | Purpose | Minimum columns |
 |------|---------|-----------------|
 | `raw_market_events` | Immutable source packets | source, symbol, segment, received_at, payload_hash, payload_json |
-| `bars_1m` / `bars_5m` | Canonical OHLCV / OI bars | symbol, ts, open, high, low, close, volume, oi, source |
+| `bars_1m` / `bars_5m` | Legacy 1m/5m copies | symbol, ts, open, high, low, close, volume, oi, source |
+| `ohlc_bars` | All analysis TFs | symbol, timeframe (`1m`/`3m`/`5m`/`15m`/`60m`/`1d`/`1w`), ts, OHLC, volume, oi, source, origin (`dhan_*` or `resample_*`) |
 | `chain_snapshots` | Option-chain state | underlying, ts, expiry, atm, pcr, payload_hash |
 | `features` | Reproducible model inputs | symbol, ts, feature_set_version, feature_json |
 | `signals` | Exact ticket decision | signal_id, ts, underlying, stage, side, levels_json, model_version, feature_set_version |

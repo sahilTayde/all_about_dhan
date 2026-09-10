@@ -47,6 +47,7 @@ data/asr_cache/
 # Knowledge DB WAL sidecars (commit the .sqlite when useful)
 data/knowledge/*.sqlite-wal
 data/knowledge/*.sqlite-shm
+data/knowledge/warehouse.sqlite
 data/knowledge/RECLAIM_REPORT.json
 
 # EXTERNAL shallow clone (re-clone via ADOPT_TRADINGAGENTS.md); nested .git

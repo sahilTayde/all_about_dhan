@@ -1,5 +1,20 @@
 # Handoff log — Team 02 PhD math
 
+## As of now (2026-09-10) — HQ fields vs computed TA
+
+```text
+From:     teams/02_phd_math
+To:       00 / 03 / 04 / 06
+Date:     2026-09-10
+Status:   VALIDATION note
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: Store chain greeks/IV as numbers, not P(win). Official intraday
+  intervals 1/5/15/25/60; 3m/1w are derived. Annexure EMA set has no EMA_9.
+  ST/MACD/RSI still computed from our OHLC — not a Dhan series API.
+Rejected: Treating skill analysis patterns as theorems.
+```
+
 ## As of now (2026-09-08) — INDEX resample ≠ teacher TF (VALIDATION)
 
 ```text

@@ -1,5 +1,70 @@
 # Handoff log — Team 07 Coding
 
+## As of now (2026-09-10) — Code only USE paths in HQ book
+
+```text
+From:     teams/07_coding
+To:       00 / 03 / 08
+Date:     2026-09-10
+Status:   DOCS BIND / NO NEW CLIENT
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: packages/dhan-client remains the only HTTP client. New calls
+  must exist on DHAN_API_END_TO_END.md USE/STORE list. Writes stay refused.
+Rejected: pip-wrapping a second dhanhq bot; MCP trade; /alerts/orders.
+```
+
+## As of now (2026-09-10) — multi-TF ohlc_bars
+
+```text
+From:     teams/07_coding
+To:       02 / 04 / 06 / 00
+Date:     2026-09-10
+Status:   OHLC CODED / LIVE PULL DONE / NO LOOP
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: ohlc_bars + load_bars; candles --live wrote INDEX 1m/5m/15m/60m/1d
+  and resampled 3m/1w. Reader is the same for history and a later live tick.
+Rejected: Fake HQ 3m REST; poll loop; OPTIDX/FUTIDX candles this ticket.
+UNKNOWN: INDEX volume still not a VWAP tape (02).
+
+Artifacts: warehouse/ohlc.py, candles.py
+```
+
+## As of now (2026-09-10) — one-shot warehouse ingest
+
+```text
+From:     teams/07_coding
+To:       00 / 05 / 08 / 09
+Date:     2026-09-10
+Status:   INGEST CODED / LIVE ONCE / NO LOOP
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: python -m warehouse ingest --live wrote compact chain + 1m bars +
+  MIX score + dealer HOLD (no typical premium range). Probe JSON ingested.
+Rejected: Poll loop; full OC persist; git-add sqlite; live orders; npm.
+UNKNOWN: MIX EARLY leans are WAITING / NO_PROMOTE — dealer did not publish.
+
+Artifacts: packages/warehouse/ingest.py, data/knowledge/warehouse.sqlite (local)
+```
+
+## As of now (2026-09-09) — DATA-001 warehouse package
+
+```text
+From:     teams/07_coding
+To:       00 / 05 / 08 / 09
+Date:     2026-09-09
+Status:   WAREHOUSE CODED / PARTIAL
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: packages/warehouse schema + CLI; WAL; indexes; counsel_events cache
+  keys; protected KB paths; gitignore warehouse.sqlite.
+Rejected: Live ingest; git-add sqlite; browser Dhan; live orders.
+UNKNOWN: no production writers from desk_intel / trading_agents yet.
+
+Artifacts: packages/warehouse, docs/WAREHOUSE.md
+```
+
 ## As of now (2026-09-09) — Fast app engineering standards
 
 ```text

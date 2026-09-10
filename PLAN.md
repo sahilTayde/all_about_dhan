@@ -50,8 +50,8 @@ Collector has run. Generic DhanHQ client + FastAPI exist (orders refused). Paper
 - [ ] Staged signals — **docs `IN_PROGRESS`**; live `DHAN_*` **TODO** (do not call)
 - [x] CAS analyst (Closing Auction Session) — research + `cas_calls[]` + CasPanel mock; ticket **`IN_PROGRESS`**; daily book **UNVALIDATED** / `DATA_INSUFFICIENT`; no win rates
 - [ ] Transcript coalition — KEEP_ALL + MIX/CAS docs + bind applied; ticket [`TASK_TRANSCRIPT_COALITION.md`](teams/00_orchestrator/docs/TASK_TRANSCRIPT_COALITION.md) **`IN_PROGRESS`**; 14 STRATs stay **UNVALIDATED**; not `RESEARCH_READY_FOR_PROGRAMMING`
-- [ ] Company departments overlay (2026-09-09) — **docs done**; operational `SKILL.md` playbooks done; `/pm` + warehouse + dealer feasibility **not coded**. Charter [`COMPANY_DEPARTMENTS.md`](docs/COMPANY_DEPARTMENTS.md)
-- [ ] Fast/scalable app standards (2026-09-09) — **docs done**; code TODO: append-only warehouse, read model, local ML baseline, `/pm` SLO cards. Standards [`PRODUCT_ARCHITECTURE_STANDARDS.md`](docs/PRODUCT_ARCHITECTURE_STANDARDS.md)
+- [ ] Company departments overlay (2026-09-09) — **docs done**; operational `SKILL.md` playbooks done; warehouse DDL + dealer feasibility **coded** (`packages/warehouse`); `/pm` **not coded**. Charter [`COMPANY_DEPARTMENTS.md`](docs/COMPANY_DEPARTMENTS.md)
+- [ ] Fast/scalable app standards (2026-09-09) — **docs done**; warehouse schema **PARTIAL**; TODO: live ingest, read model, local ML, `/pm` SLO cards. Standards [`PRODUCT_ARCHITECTURE_STANDARDS.md`](docs/PRODUCT_ARCHITECTURE_STANDARDS.md)
 - [ ] Competitive baseline (2026-09-09) — **docs done** from AmiSignals / Stockara (`VERIFY`) / Trend Finder / BreakingTrade; code TODO: alerts, scanner/watchlist, risk counsel feed, PM health, ML mistake loop. Baseline [`COMPETITIVE_PRODUCT_BASELINE.md`](docs/COMPETITIVE_PRODUCT_BASELINE.md)
 
 ---

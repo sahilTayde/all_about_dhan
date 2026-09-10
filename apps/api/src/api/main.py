@@ -9,6 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from api.config import load_api_settings
 from api.desk_merge import merge_live_paper_into_desk
+from api.founder_status import build_founder_status
 from api.models import TookTradeBody, TookTradeRecord
 from api.premium_bind import bind_premiums_onto_desk
 from api.store import SignalStore
@@ -52,6 +53,11 @@ def create_app() -> FastAPI:
             "paper_live": bool(getattr(app.state, "live_paper", None)),
             "orders": "refused",
         }
+
+    @app.get("/founder/status")
+    def founder_status() -> dict:
+        """D4 /pm board. Disk + ports only. Never returns tokens."""
+        return build_founder_status()
 
     def _desk(*, bind_premium: bool = True) -> dict[str, Any]:
         store: SignalStore = app.state.store

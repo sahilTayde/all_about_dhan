@@ -20,6 +20,8 @@ Nightly (or a background poll) stores the published ticket + outcome + **mistake
 
 Example that must never stay live: NIFTY CE premium near **150**, stop **96**, target **250** when that target is not reachable on a realistic same-session move (ATR / typical premium path / time-to-expiry).  
 
+Code: `warehouse.feasibility.evaluate_long_premium` — `python -m warehouse check-ticket`. Not wired to customer `/` yet.
+
 Rules (deterministic, no fill invented):
 
 1. Stop and target must be on the **same side of reality** as a long premium (target > entry > stop for a long CE/PE).  
