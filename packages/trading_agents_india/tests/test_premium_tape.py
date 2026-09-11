@@ -175,3 +175,15 @@ def test_scorer_keeps_blocker_without_tape() -> None:
     hit = score_dual_index_master(_ticket(), bars=_spot_bars(), premium_bars=None)
     assert hit.lean == "HOLD"
     assert any("CALL premium OHLC" in g for g in hit.data_gaps)
+
+
+def test_strike_label_paths_and_validation(tmp_path, monkeypatch) -> None:
+    from trading_agents_india.premium_tape import _tape_path, gather_premium_tape
+
+    monkeypatch.setattr(premium_tape, "tape_dir", lambda: tmp_path)
+    assert _tape_path("NIFTY", "2026-09-11", "ATM+1").name == "NIFTY_ATMp1_1m_2026-09-11.json"
+    assert _tape_path("NIFTY", "2026-09-11", "ATM-2").name == "NIFTY_ATMm2_1m_2026-09-11.json"
+    # Unknown labels refused (Dhan silently falls back to ATM on bad labels).
+    res = gather_premium_tape("NIFTY", prefer_live=True, strike_label="OTM9")
+    assert res.source == "unavailable"
+    assert any("refused" in g for g in res.data_gaps)

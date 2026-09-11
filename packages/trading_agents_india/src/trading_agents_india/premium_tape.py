@@ -103,8 +103,21 @@ def _day_of(ts: int) -> str:
     return datetime.fromtimestamp(ts, tz=IST).date().isoformat()
 
 
-def _tape_path(underlying: str, day: str) -> Path:
-    return tape_dir() / f"{underlying.upper()}_ATM_1m_{day}.json"
+# Verified live 2026-09-11 (with requiredData "strike" cross-check): the
+# documented labels ATM / ATM+N / ATM-N work in BOTH directions (ATM-1 CALL
+# returned the strike below spot with a richer ITM premium). The undocumented
+# "ITMn"/"OTMn" aliases both map n steps ABOVE spot only, and any unknown
+# label silently falls back to ATM — so only documented labels are allowed
+# here, and a typo can never masquerade as ATM data.
+ALLOWED_STRIKE_LABELS = ("ATM", "ATM+1", "ATM-1", "ATM+2", "ATM-2")
+
+
+def _file_label(strike_label: str) -> str:
+    return strike_label.upper().replace("+", "p").replace("-", "m")
+
+
+def _tape_path(underlying: str, day: str, strike_label: str = "ATM") -> Path:
+    return tape_dir() / f"{underlying.upper()}_{_file_label(strike_label)}_1m_{day}.json"
 
 
 def persist_tape(
@@ -113,6 +126,7 @@ def persist_tape(
     ce: list[TapeBar],
     pe: list[TapeBar],
     source: str,
+    strike_label: str = "ATM",
 ) -> list[str]:
     """Upsert bars into per-day JSON files (merge by ts). Returns written days."""
     by_day: dict[str, dict[str, dict[int, TapeBar]]] = {}
@@ -122,7 +136,7 @@ def persist_tape(
             by_day.setdefault(day, {"ce": {}, "pe": {}})[side][bar.ts] = bar
     written: list[str] = []
     for day, sides in sorted(by_day.items()):
-        path = _tape_path(underlying, day)
+        path = _tape_path(underlying, day, strike_label)
         existing = {"ce": {}, "pe": {}}
         if path.is_file():
             try:
@@ -140,11 +154,15 @@ def persist_tape(
                 "underlying": underlying.upper(),
                 "day": day,
                 "interval": "1m",
-                "strike": "ATM",
+                "strike": strike_label.upper(),
                 "source": source,
                 "updated_at_ist": now_ist().isoformat(timespec="seconds"),
                 "layer": "SOURCE_FACT",
-                "note": "Rolling ATM series — strike follows spot; not one fixed contract.",
+                "note": (
+                    "Rolling series — strike follows spot; not one fixed contract. "
+                    "ATM+N = N steps above spot (OTM for CE / ITM for PE); "
+                    "ATM-N = N steps below spot (ITM for CE / OTM for PE)."
+                ),
             },
             "ce": [asdict(existing["ce"][k]) for k in sorted(existing["ce"])],
             "pe": [asdict(existing["pe"][k]) for k in sorted(existing["pe"])],
@@ -159,9 +177,10 @@ def load_tape_bars(
     *,
     day: Optional[str] = None,
     side: str = "ce",
+    strike_label: str = "ATM",
 ) -> list[TapeBar]:
     day = day or now_ist().date().isoformat()
-    path = _tape_path(underlying, day)
+    path = _tape_path(underlying, day, strike_label)
     if not path.is_file():
         return []
     try:
@@ -175,10 +194,25 @@ def load_tape_bars(
         return []
 
 
-def gather_premium_tape(underlying: str, *, prefer_live: bool = False) -> PremiumTapeResult:
-    """Fetch today's rolling ATM 1m ce+pe bars and persist. Fail soft."""
+def gather_premium_tape(
+    underlying: str,
+    *,
+    prefer_live: bool = False,
+    strike_label: str = "ATM",
+) -> PremiumTapeResult:
+    """Fetch today's rolling 1m ce+pe bars for one strike label and persist."""
     und = underlying.upper()
+    label = strike_label.upper()
     today = now_ist().date().isoformat()
+    if label not in ALLOWED_STRIKE_LABELS:
+        return PremiumTapeResult(
+            underlying=und,
+            source="unavailable",
+            data_gaps=[
+                f"UNKNOWN: strike label {label} refused — Dhan silently falls back "
+                "to ATM on unknown labels; only " + "/".join(ALLOWED_STRIKE_LABELS)
+            ],
+        )
     hint = _UNDERLYING_HINTS.get(und)
     if hint is None:
         return PremiumTapeResult(
@@ -187,15 +221,15 @@ def gather_premium_tape(underlying: str, *, prefer_live: bool = False) -> Premiu
             data_gaps=[f"UNKNOWN: no OPTIDX hint for {und}"],
         )
     if not prefer_live:
-        cached = load_tape_bars(und, day=today, side="ce")
+        cached = load_tape_bars(und, day=today, side="ce", strike_label=label)
         if cached:
             return PremiumTapeResult(
                 underlying=und,
                 source="cache",
                 day=today,
                 ce_count=len(cached),
-                pe_count=len(load_tape_bars(und, day=today, side="pe")),
-                path=str(_tape_path(und, today)),
+                pe_count=len(load_tape_bars(und, day=today, side="pe", strike_label=label)),
+                path=str(_tape_path(und, today, label)),
             )
         return PremiumTapeResult(
             underlying=und,
@@ -233,7 +267,7 @@ def gather_premium_tape(underlying: str, *, prefer_live: bool = False) -> Premiu
                 "instrument": "OPTIDX",
                 "expiryFlag": "WEEK",
                 "expiryCode": 1,
-                "strike": "ATM",
+                "strike": label,
                 "drvOptionType": option_type,
                 "requiredData": ["open", "high", "low", "close", "volume"],
                 "fromDate": start.strftime("%Y-%m-%d"),
@@ -252,7 +286,7 @@ def gather_premium_tape(underlying: str, *, prefer_live: bool = False) -> Premiu
                 source="unavailable",
                 data_gaps=["DATA_INSUFFICIENT: rollingoption returned no ce/pe bars"],
             )
-        persist_tape(und, ce=ce, pe=pe, source="dhan_rollingoption_1m")
+        persist_tape(und, ce=ce, pe=pe, source="dhan_rollingoption_1m", strike_label=label)
         today_ce = [b for b in ce if _day_of(b.ts) == today]
         today_pe = [b for b in pe if _day_of(b.ts) == today]
         return PremiumTapeResult(
@@ -261,7 +295,7 @@ def gather_premium_tape(underlying: str, *, prefer_live: bool = False) -> Premiu
             day=today,
             ce_count=len(today_ce),
             pe_count=len(today_pe),
-            path=str(_tape_path(und, today)),
+            path=str(_tape_path(und, today, label)),
         )
     except Exception as exc:  # noqa: BLE001
         return PremiumTapeResult(

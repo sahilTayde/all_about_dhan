@@ -1,5 +1,30 @@
 # Handoff log — Team 00 Orchestrator
 
+## As of now (2026-09-11) — Token refreshed; tickers live; ITM tape unlocked
+
+```text
+From:     teams/00_orchestrator (boss desk)
+To:       03 / 04 / 06 / founder
+Date:     2026-09-11 (11:30 IST)
+Status:   BACKGROUND COLLECTION RUNNING / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: Founder refreshed DHAN_ACCESS_TOKEN; verified with one chain
+  call. Running in background until ~15:30 IST: chain IV ticker (30s
+  rounds) + premium tape ticker (15-min rounds, self-healing backfill)
+  now collecting NINE series — 3 indices x ATM/ATM+1/ATM-1, both sides.
+  ITM probe result (03 book updated): documented ATM+/-N labels work in
+  both directions (verified with per-bar strike field); undocumented
+  ITMn/OTMn aliases both map n steps ABOVE spot; unknown labels silently
+  fall back to ATM -> whitelist enforced in premium_tape.py. Today reads
+  as a down day (NIFTY -130, skew tilt 1.2-1.8 vs 0.3-0.9 yesterday) —
+  the regime contrast the signal-lab grid needs for the day-type split.
+Rejected: Trusting ITMn/OTMn aliases; unvalidated label strings;
+  reading one morning's tilt as signal.
+UNKNOWN: Whether ATM+/-N beyond +/-2 needed; EOD grid rerun scheduled
+  after close (founder may ask or nightly picks up the tape).
+```
+
 ## As of now (2026-09-11) — Live gather blocked on token; lab ran on tape
 
 ```text

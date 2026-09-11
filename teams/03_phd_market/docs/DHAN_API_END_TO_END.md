@@ -220,6 +220,13 @@ Rolling **ATM±** history up to **5 years**, **≤30 days** / call, minute inter
 
 06 already ran option-premium OOS on this surface — **FAIL, no promote**. Still the correct **premium** history API.
 
+**Strike-label semantics (verified live 2026-09-11, NIFTY, with `requiredData: ["strike"]` cross-check):**
+
+- Documented `ATM` / `ATM+N` / `ATM-N` work **both directions**: `ATM-1` CALL returned the strike one step **below** spot with a richer ITM premium; `ATM+N` steps above. Use only these.
+- Undocumented `ITMn` / `OTMn` aliases are a trap: **both** map to the strike n steps **above** spot (identical data), regardless of side.
+- **Unknown labels silently fall back to ATM** (a bogus string returns ATM data with no error). `premium_tape.ALLOWED_STRIKE_LABELS` whitelists the documented labels so a typo can never masquerade as ATM.
+- The response fills only the side matching `drvOptionType` — one call per side (unchanged).
+
 ### G. Live market feed WebSocket — USE when founder starts paper loop
 
 `wss://api-feed.dhan.co?version=2&token=…&clientId=…&authType=2`
