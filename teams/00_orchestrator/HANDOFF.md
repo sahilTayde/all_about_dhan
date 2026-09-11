@@ -1,5 +1,28 @@
 # Handoff log — Team 00 Orchestrator
 
+## As of now (2026-09-11) — Live gather blocked on token; lab ran on tape
+
+```text
+From:     teams/00_orchestrator (boss desk)
+To:       04 / 06 / founder
+Date:     2026-09-11
+Status:   FOUNDER ACTION NEEDED (token) / lab complete on persisted tape
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: Founder asked to start the live ticker + grid-test strategies.
+  Dhan API rejected all live calls at 09:24 IST ("access token invalid
+  or expired" — worked 15:35 IST the day before, daily rollover). Ticker
+  stopped after error loop; no live data collected 09-11. The signal-lab
+  grid ran fully on persisted 09-09/09-10 tape instead (see 04 HANDOFF).
+  Key boss read: improvement lever is regime HOLD (flat-IV decay days),
+  not entry tuning; MIX-DUAL strictness validated as least-bad filter.
+Rejected: Guessing/printing token values; retry-looping the API all day;
+  tuning entries on two decay days.
+UNKNOWN: When founder regenerates the token. On refresh: restart
+  run_chain_iv_ticker + gather_premium_tape (backfills yesterday), and
+  probe rollingoption ITM strikes (still untested).
+```
+
 ## As of now (2026-09-10) — chain_iv_stats ticket executed on founder ask
 
 ```text

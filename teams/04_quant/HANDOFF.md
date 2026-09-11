@@ -1,5 +1,34 @@
 # Handoff log — Team 04 Quant
 
+## As of now (2026-09-11) — Signal-lab grid: entries anti-edged on decay days
+
+```text
+From:     teams/04_quant (with 06)
+To:       00 / 02 / 06 / 09 / founder
+Date:     2026-09-11
+Status:   VALIDATION measurement / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: signal_lab.py grid (founder ask): 1/3/5/10m x 5 gates (incl new
+  pullback) x 4 overlays (S/R opening-range, volume-profile POC) on real
+  persisted tape 09-09 + 09-10, 3 indices, CE+PE, 1764 signals, next-bar
+  entry, 15/30m forward + SL25/TP50 shell. Result: ALL combos negative;
+  unconditional drift ~0 but gated entries -3.5%/15m => breakout entries
+  bought local tops. dual_full (MIX-DUAL baseline) least bad -3.6% shell;
+  every relaxation worse. VP/SR overlays measured harmful on chop days.
+  IV entropy ~0.999 on 09-10 = flat-surface decay day: first supporting
+  evidence for MIX-ALGO-IV-REGIME-HOLD as the actual improvement lever.
+Rejected: Entry tuning on 2 decay days; promoting any combo; deleting
+  VP/SR ideas before trend-day tape; win-rate claims.
+UNKNOWN: Trend-day behavior (no trending session in tape); ITM tape
+  (Dhan token expired 09-11 morning — founder must regenerate before
+  live gather resumes); spot joins; costs/fills.
+
+Artifacts: signal_lab.py, tests/test_signal_lab.py,
+  scripts/run_signal_lab.py, 06 docs/SIGNAL_LAB_2026-09-11.md,
+  data/recon/signal_lab/signal_lab_2026-09-11_0930.json
+```
+
 ## As of now (2026-09-10) — chain_iv_stats gather landed + live-validated
 
 ```text
