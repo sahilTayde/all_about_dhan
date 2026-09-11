@@ -43,3 +43,14 @@ Full table: `data/recon/signal_lab/signal_lab_2026-09-11_0930.json`. Every combi
 **UNKNOWN / DATA_INSUFFICIENT:** trend-day behavior (no trending session in the tape yet); ITM tape (token expired before probe); spot-side trend/S-R joins (index 1m bars not persisted per day); costs/slippage/fills; whether 3m-pullback's positive 15m survives more days.
 
 **Next:** accumulate more tape days (ticker daily once token refreshed), rerun grid split by day type (IV entropy high/low), then let 02/06 formalize the HOLD threshold.
+
+## Day-type split addendum (2026-09-11, 13:54 IST — includes a real down day)
+
+Token refreshed; tickers ran live. 2026-09-11 was a trending down day (NIFTY PE session +53% at midday; skew tilt 1.3–1.8 vs 0.3–0.9 on the flat days). `scripts/run_signal_lab_daysplit.py` compared all three days, ATM plus (for 09-11) ATM+1/ATM-1 tape:
+
+- **The anti-edge is regime-robust:** signals-minus-drift stayed negative on ALL three days, both sides, all moneyness: −1.9% to −3.7% per 15m. Even on the trend day, rising-edge breakout entries bought local premium tops. This is now a three-day, ~2,800-signal measurement, not a decay-day artifact.
+- **3m beats 1m consistently** (pooled edge: 3m pullback −0.48% vs 1m pullback −3.62%; same ordering for ema_trend and mrr_vwap). The 1m timeframe chases noise. MIX-DUAL is specified on 1m — a 3m variant belongs in the next backtest grid.
+- **The only green cells cluster on PE side + 3m + trend/pullback gates on falling days** (e.g. 09-10 NIFTY PE 3m pullback +4.4% @15m / +37% shell; 09-10 BANKNIFTY PE dual_novol shell +15.6%). Skew tilt was elevated exactly then — directional support for MIX-ALGO-SKEW-BUY's side-selection thesis (tilt picks PE), though every n is small.
+- 12 of 139 combo-rows positive; none survive as a rule yet (n=3–11 each). No promote. What is promoted: **negative knowledge** — 1m breakout-chasing is measurably anti-edged on this product and should be excluded from future candidate designs.
+
+Result files: `data/recon/signal_lab/daysplit_2026-09-11_1354.json` (+ partial-day run `daysplit_2026-09-11_1138.json`).

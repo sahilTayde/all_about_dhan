@@ -1,5 +1,34 @@
 # Handoff log — Team 04 Quant
 
+## As of now (2026-09-11, 13:54 IST) — Day-split: anti-edge is regime-robust
+
+```text
+From:     teams/04_quant (with 06)
+To:       00 / 02 / 06 / 09 / founder
+Date:     2026-09-11
+Status:   VALIDATION measurement (3 days incl. a trend day) / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: Day-split runner compared 09-09/09-10 (flat decay) vs 09-11
+  (down trend, tilt 1.3-1.8, NIFTY PE +53% midday), ATM + ATM+/-1.
+  Signals-minus-drift negative on ALL days/sides/moneyness (-1.9 to
+  -3.7%/15m, ~2,800 signals): 1m rising-edge breakout entries buy local
+  premium tops in every regime tested. 3m consistently beats 1m. Only
+  green cells: PE side + 3m + trend/pullback on falling days (n=3-11),
+  where skew tilt was elevated — directional support for
+  MIX-ALGO-SKEW-BUY side selection. Negative knowledge promoted to
+  design rule: exclude 1m breakout-chasing from future candidates;
+  schedule a 3m MIX-DUAL variant in the next 06 grid.
+Rejected: Promoting any green cell (small n); treating partial-day
+  shell numbers as outcomes; win-rate claims.
+UNKNOWN: Whether PE+3m+tilt cells survive more trend days and costs;
+  formal IV-entropy HOLD threshold (02/06); EOD full-session rerun.
+
+Artifacts: scripts/run_signal_lab_daysplit.py,
+  06 docs/SIGNAL_LAB_2026-09-11.md (addendum),
+  data/recon/signal_lab/daysplit_2026-09-11_1354.json
+```
+
 ## As of now (2026-09-11) — Signal-lab grid: entries anti-edged on decay days
 
 ```text
