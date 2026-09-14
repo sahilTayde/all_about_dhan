@@ -1,5 +1,27 @@
 # Handoff log — Team 06 Backtesting
 
+## As of now (2026-09-14) — TV-EP factory (MIX-TV-EP-*) NO_PROMOTE
+
+```text
+From:     teams/06_backtesting (+ 02/04 engineering)
+To:       00 / 01 / 04 / 09
+Date:     2026-09-14
+Status:   HYPOTHESIS / harness coded / UNVALIDATED / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: Repeatable TV Editor Picks factory — registry (sma_cross,
+  macd_hist, stub), param×tf×index×premium grid, TREND/RANGE split,
+  paper board JSON+MD. Catalog filled MIX-TV-EP-001..023 from live
+  Editors’ Picks strategy badges (stub adapters) plus 024–025 textbook
+  calibrators. IDs MIX-TV-EP-NNN. Stub still writes a DATA_INSUFFICIENT row.
+Rejected: STRAT-015+; Pine dumps; promoting WATCH to customer /; live
+  Dhan orders; starting npm / paper hours; treating fixture P/L as truth.
+UNKNOWN: INDEX/OPTIDX cache on this clone; named EP ports; SCORE_SAMPLE
+  (NEWS_CALENDAR empty). Paper-live attaches later to the same board.
+```
+
+Spec: [`docs/TV_EP_BACKTEST_FACTORY.md`](docs/TV_EP_BACKTEST_FACTORY.md). CLI: `python -m backtest_engine tv-ep-grid`.
+
 ## As of now (2026-09-10) — MRR shadow book (NO_PROMOTE)
 
 ```text

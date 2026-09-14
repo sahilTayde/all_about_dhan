@@ -1,5 +1,30 @@
 # Handoff log — Team 01 Research
 
+## As of now (2026-09-14) — TradingView Editors’ Picks strategies ingest
+
+```text
+From:     teams/01_research
+To:       00 / 04 / 06 / 09
+Date:     2026-09-14
+Status:   SOURCE_FACT listing + RULES_EXTRACTED inputs / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: Current TV Editors’ Picks filter script_type=strategies = 23
+  strategy-badge scripts. Unfiltered EP listing = 760 unique slugs
+  (656 Indicator / 50 Library / 23 Strategy). MIX-TV-EP-001..023
+  assigned. Public pine-facade used only to extract input names/defaults
+  + rule summary. Pine not committed. KEEP_ALL; STRAT-001-014 untouched.
+Rejected: STRAT-015+. Deleting templates/BTC/grain pines. Full Pine in git.
+  Win rates. Live orders. Relabeling EP as DHAN-DERIVED. Promoting to /.
+UNKNOWN: Historical EP strategies no longer on the live Editors’ list.
+  JS-only extra strategy pages (SSR has no page-2; query pagination
+  repeats page 1). Per-chart Strategy Tester reports. NSE/OPTIDX port.
+
+Artifacts: refernece_tradingview/editors_picks/{INDEX.md,catalog.json,catalog.csv,ingest_schema.json}
+  docs/TV_EDITOR_PICK_INGEST.md
+  04 MIX_CATALOG.md section 22
+```
+
 ## As of now (2026-09-10) — Dhan algo marketplace (Stratzy) study
 
 ```text

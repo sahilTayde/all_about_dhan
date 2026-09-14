@@ -1,0 +1,67 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://all_about_dhan.local/tv-ep-catalog.schema.json",
+  "title": "TradingView Editor Picks catalog (no Pine source)",
+  "type": "object",
+  "required": ["schema_version", "source", "entries"],
+  "additionalProperties": true,
+  "properties": {
+    "schema_version": { "type": "integer", "const": 1 },
+    "source": { "type": "string", "const": "tradingview_editors_picks" },
+    "script_type": { "type": "string", "enum": ["strategies", "indicators"] },
+    "retrieved_at": { "type": ["string", "null"] },
+    "notes": { "type": "string" },
+    "entries": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/entry" }
+    }
+  },
+  "$defs": {
+    "param": {
+      "type": "object",
+      "required": ["type", "default"],
+      "properties": {
+        "type": { "type": "string", "enum": ["int", "float"] },
+        "default": { "type": ["integer", "number"] },
+        "grid": {
+          "type": "array",
+          "items": { "type": ["integer", "number"] },
+          "minItems": 1
+        }
+      }
+    },
+    "entry": {
+      "type": "object",
+      "required": ["ep_id", "mix_id", "adapter"],
+      "additionalProperties": true,
+      "properties": {
+        "ep_id": {
+          "type": "string",
+          "pattern": "^EP-[0-9]{3,}$",
+          "description": "Catalog slot. Not a STRAT-015+."
+        },
+        "mix_id": {
+          "type": "string",
+          "pattern": "^MIX-TV-EP-[0-9]{3,}$"
+        },
+        "title": { "type": "string" },
+        "author": { "type": "string" },
+        "tv_url": { "type": "string" },
+        "adapter": {
+          "type": "string",
+          "enum": ["sma_cross", "macd_hist", "stub"],
+          "description": "Python adapter id. stub = DATA_INSUFFICIENT until ported."
+        },
+        "input_schema": {
+          "type": "object",
+          "additionalProperties": { "$ref": "#/$defs/param" }
+        },
+        "pine_copied": { "type": "boolean", "const": false },
+        "origin": {
+          "type": "string"
+        },
+        "notes": { "type": "string" }
+      }
+    }
+  }
+}

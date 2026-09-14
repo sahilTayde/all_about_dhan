@@ -1,0 +1,43 @@
+{
+  "schema_id": "tv-editor-pick-ingest-v1",
+  "id_namespace": "MIX-TV-EP-NNN",
+  "forbidden_ids": [
+    "STRAT-015+"
+  ],
+  "keep_all_teachers": "STRAT-001\u2013014 unchanged",
+  "origin": [
+    "WEB-DERIVED",
+    "TV-EDITOR-PICK"
+  ],
+  "statuses": [
+    "INGESTED",
+    "RULES_EXTRACTED",
+    "PORT_PENDING",
+    "BACKTEST_QUEUED",
+    "TESTED_FAIL",
+    "TESTED_PARK",
+    "NEVER_DISCARD"
+  ],
+  "fields": [
+    "mix_id",
+    "ep_id",
+    "title",
+    "author",
+    "tv_url",
+    "license_visibility",
+    "long_short",
+    "asset_class_guess",
+    "default_tf",
+    "inputs",
+    "rule_summary",
+    "primary_status",
+    "origin",
+    "origin_tag",
+    "pine_copied",
+    "customer_default",
+    "NO_PROMOTE",
+    "metrics"
+  ],
+  "pine_policy": "Do not commit full Pine. Store URL + rule_summary + input names/defaults only.",
+  "gate": "not RESEARCH_READY_FOR_PROGRAMMING; no live orders; win_rate=null"
+}
