@@ -1,5 +1,20 @@
 # Handoff log — Team 04 Quant
 
+## As of now (2026-09-14) — TV-EP CE/PE mapping KEEP_ALL board (NO_PROMOTE)
+
+```text
+From:     teams/04_quant (id namespace) + 06 validate
+To:       00 / 06 / 09
+Date:     2026-09-14
+Status:   HYPOTHESIS / UNVALIDATED / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: MIX-TV-EP-001–023 never dropped from the founder board. TV long→BUY_CE,
+  TV short→BUY_PE. Customer default still MIX-DEFAULT-BUY / CE-PE buy first.
+Rejected: STRAT-015+; equity short as default; promoting WATCH; TV tester clone.
+UNKNOWN: OOS+NORMAL; real INDEX/OPTIDX cache.
+```
+
 ## As of now (2026-09-14) — MIX-TV-EP-001..023 named adapters (NO_PROMOTE)
 
 ```text
