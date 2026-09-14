@@ -1,5 +1,24 @@
 # Handoff log — Team 04 Quant
 
+## As of now (2026-09-14) — MIX-TV-EP-001..023 Editors’ Picks catalog
+
+```text
+From:     teams/04_quant + 01 research
+To:       00 / 06 / 09
+Date:     2026-09-14
+Status:   HYPOTHESIS named MIX rows / UNVALIDATED / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: MIX catalog §22 = 23 current TV Editors’ Picks strategy badges
+  as MIX-TV-EP-001 through MIX-TV-EP-023 (listing order). Origin
+  WEB-DERIVED / TV-EDITOR-PICK. adapter stub. KEEP_ALL STRAT-001–014.
+  MIX-DEFAULT-BUY unchanged. Pine not in git. NEVER_DISCARD test rows.
+Rejected: STRAT-015+; aliasing 001/002 to SMA/MACD textbook adapters;
+  promoting EP onto /; win rates; live orders; Pine dumps.
+UNKNOWN: Historical EP no longer on the live Editors’ list; JS-only extra
+  strategy pages; per-chart tester reports; OPTIDX+cost port.
+```
+
 ## As of now (2026-09-11, 13:54 IST) — Day-split: anti-edge is regime-robust
 
 ```text

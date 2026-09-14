@@ -5,7 +5,8 @@
 
 Master file (URLs, books, secret *names*): [`config/workspace.yaml`](../../../config/workspace.yaml).  
 Keys: repo-root `.env` only.  
-Official indicator defs (API vs chart): [`DHAN_OFFICIAL_INDICATORS.md`](DHAN_OFFICIAL_INDICATORS.md). Each topic file in `teams/04_quant/docs/topics/` must cite that catalog.
+Official indicator defs (API vs chart): [`DHAN_OFFICIAL_INDICATORS.md`](DHAN_OFFICIAL_INDICATORS.md). Each topic file in `teams/04_quant/docs/topics/` must cite that catalog.  
+TradingView Editors’ Picks (community pines, not Dhan tape): [`TV_EDITOR_PICK_INGEST.md`](TV_EDITOR_PICK_INGEST.md) → `MIX-TV-EP-*` only.
 
 ---
 

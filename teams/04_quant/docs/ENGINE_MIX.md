@@ -10,7 +10,7 @@
 **Transcript bind (SOURCE_FACT, English wins):** [`TRANSCRIPT_STRATEGY_BIND.md`](../../01_research/docs/handoffs/TRANSCRIPT_STRATEGY_BIND.md)  
 **Teacher MIX clubs (01 tape):** [`TRANSCRIPT_ANALYST.md`](../../01_research/docs/handoffs/TRANSCRIPT_ANALYST.md) — DHAN-DERIVED vs PROJECT_MIX.  
 **02 first option-premium charter:** `MIX-GOKUL-003-009` = 003 + **009 only** (no 007, no 008). [`MIX_CATALOG.md`](MIX_CATALOG.md) / `MIX-ABL-CLOCKS` arm A. Customer default remains `MIX-DEFAULT-BUY` (`PROJECT_MIX`). Do not promote.  
-**KEEP_ALL catalog (STRAT + MIX-*):** [`MIX_CATALOG.md`](MIX_CATALOG.md) — `WAITING`/`PARKED` = not default ticket, **not deleted**. No `STRAT-015+`.
+**KEEP_ALL catalog (STRAT + MIX-*):** [`MIX_CATALOG.md`](MIX_CATALOG.md) — `WAITING`/`PARKED` = not default ticket, **not deleted**. No `STRAT-015+`. **TV Editors’ Picks** are `MIX-TV-EP-001`–`023` ([`refernece_tradingview/editors_picks/INDEX.md`](../../../refernece_tradingview/editors_picks/INDEX.md)) — **not** this engine’s customer ticket.
 
 ---
 
@@ -583,5 +583,6 @@ Reject this mix if you will not own the compute path (no series REST).
 **UNKNOWN / DATA_INSUFFICIENT**
 
 - Super Scalper EMA lengths (`NOT_IN_EN`). OF history (010). 3m/2m resample. MACD ×3 vs ×4. HAUS MA 100 vs 300 / 9 vs 10. 2Rn “103.” pvmvki delta. 012 pattern **rule-detail**.
+- TV Editors’ Picks Strategy Tester reports (per-chart). NSE/OPTIDX port of `MIX-TV-EP-*` (not this engine mix).
 
-Next: 02/03/05/09 comment on §7. Keep `PROJECT_MIX` labeled. 06 does not code live. Still not a pass.
+Next: 02/03/05/09 comment on §7. Keep `PROJECT_MIX` labeled. 06 does not code live. Still not a pass. `MIX-TV-EP-*` stay off `MIX-DEFAULT-BUY`.

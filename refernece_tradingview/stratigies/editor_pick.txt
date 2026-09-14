@@ -1,0 +1,6 @@
+editor_pick_stratigies --> https://www.tradingview.com/scripts/editors-picks/?script_type=strategies
+editor_pick_indicators --> https://www.tradingview.com/scripts/editors-picks/?script_type=indicators
+
+# Snapshot 2026-09-14: 23 strategy badges cataloged as MIX-TV-EP-001..023
+# Durable inventory: ../editors_picks/INDEX.md  (do not paste Pine here)
+# Playbook: teams/01_research/docs/TV_EDITOR_PICK_INGEST.md
