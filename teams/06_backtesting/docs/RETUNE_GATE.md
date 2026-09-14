@@ -70,6 +70,10 @@ There are **no invented numbers** in this repo for (a) or (b). Empty engine ⇒ 
 | Hand markdown to 02 as **REVIEW** | Treat 02 as a writer of production params |
 | Persist paper ledger + `data/recon/YYYY-MM-DD.json` | Live-trade or rewrite `apps/web` |
 
+### Paper session tuner (`tv-ep-paper-tune`)
+
+Same gate. May emit extra `RETUNE_PROPOSAL` JSON **and** a local paper param file under `data/recon/tv_ep_paper_params_*.json`. It **will not** write `MIX-DEFAULT-BUY` production params. Spec: [`TV_EP_PAPER_TUNE.md`](TV_EP_PAPER_TUNE.md).
+
 ---
 
 ## `RETUNE_PROPOSAL` (JSON stub)

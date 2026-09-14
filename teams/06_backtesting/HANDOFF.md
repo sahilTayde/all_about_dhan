@@ -1,5 +1,28 @@
 # Handoff log — Team 06 Backtesting
 
+## As of now (2026-09-14) — TV-EP paper session tuner (NO_PROMOTE)
+
+```text
+From:     teams/06_backtesting + 05 dual-tape
+To:       00 / 04 / 09 / founder
+Date:     2026-09-14
+Status:   HYPOTHESIS / PAPER CLI / UNVALIDATED / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: Bounded paper tuner python -m backtest_engine tv-ep-paper-tune
+  (alias trading_agents_india paper-tune). Shortlist MIX-TV-EP-005/010/016
+  + MIX-DEFAULT-BUY paper proxy. One MIX at a time, ≤3 param tweaks, next-
+  premium score, mistake_notes, RETUNE_PROPOSAL BACKTEST_REQUIRED + local
+  data/recon/tv_ep_paper_params_*.json. Dual-tape PREMIUM_DIVERGENCE blocks
+  new tickets. Leaderboard paper_sessions[] append. KEEP_ALL MIX-TV-EP.
+Rejected: Auto-write MIX-DEFAULT-BUY / workspace.yaml; live Dhan orders;
+  blocking LLM; STRAT-015+; promote on one green replay; infinite poll.
+UNKNOWN: Same-calendar INDEX+CE+PE 1m (INDEX cache last 2026-09-03; ATM
+  premium tape last 2026-09-11 — clock-align dry session only).
+```
+
+Spec: [`docs/TV_EP_PAPER_TUNE.md`](docs/TV_EP_PAPER_TUNE.md).
+
 ## As of now (2026-09-14) — 1m real-cache TV-EP grid (NIFTY 23500 PE)
 
 ```text

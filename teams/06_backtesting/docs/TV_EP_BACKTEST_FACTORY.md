@@ -110,11 +110,11 @@ PYTHONPATH=packages/backtest/src:packages/dhan-client/src:packages/trading_agent
 
 ---
 
-## Paper-live later (same board)
+## Paper-live / paper-tune (same board)
 
-Append `paper_live[]` ticks onto `data/recon/tv_ep_leaderboard.json` after a founder-started paper session. Status stays `WATCH`/`PARK`/`TESTED_FAIL`. **Still `NO_PROMOTE`.** Do not write customer `/`. Same honesty banners as [`ITM_CHAMPION_PAPER_BOARD.md`](ITM_CHAMPION_PAPER_BOARD.md).
+Append `paper_sessions[]` from `python -m backtest_engine tv-ep-paper-tune`. Dual-tape `PREMIUM_DIVERGENCE` blocks new paper tickets. Status stays `WATCH`/`PARK`/`TESTED_FAIL`. **Still `NO_PROMOTE`.** Do not write customer `/`. One green replay day is **not** OOS.
 
-Retune: [`RETUNE_GATE.md`](RETUNE_GATE.md) — nightly `BACKTEST_REQUIRED`; event days out of SCORE_SAMPLE when the calendar has dates.
+Retune: [`RETUNE_GATE.md`](RETUNE_GATE.md) — nightly `BACKTEST_REQUIRED`; paper tuner also emits `BACKTEST_REQUIRED` + local `data/recon/tv_ep_paper_params_*.json` only. Never auto-write `MIX-DEFAULT-BUY`. How-to: [`TV_EP_PAPER_TUNE.md`](TV_EP_PAPER_TUNE.md).
 
 ---
 

@@ -219,6 +219,20 @@ def main(argv: list[str] | None = None) -> int:
         "tv-ep-counsel",
         help="ONE joint Gemini+OpenAI review of the TV-EP factory design (not each EP).",
     )
+    p_tune = sub.add_parser(
+        "tv-ep-paper-tune",
+        help="PAPER session tuner (one MIX at a time, ≤3 tweaks, dual-tape gate). NO_PROMOTE.",
+    )
+    p_tune.add_argument(
+        "--mix",
+        nargs="+",
+        default=None,
+        help="Shortlist default: 005 010 016 MIX-DEFAULT-BUY. One MIX internally.",
+    )
+    p_tune.add_argument("--underlying", default="NIFTY", choices=("NIFTY", "BANKNIFTY", "SENSEX"))
+    p_tune.add_argument("--max-ticks", type=int, default=90, help="Cap paper ticks / replay bars.")
+    p_tune.add_argument("--max-tweaks", type=int, default=3, help="Param grid cap per MIX per day.")
+    p_tune.add_argument("--no-write", action="store_true")
     args = parser.parse_args(argv)
     dry: bool | None
     if args.live:
@@ -228,6 +242,16 @@ def main(argv: list[str] | None = None) -> int:
     else:
         dry = None
     cmd = args.cmd or "books"
+    if cmd == "tv-ep-paper-tune":
+        from backtest_engine.tv_ep.paper_tune import main as tune_main
+
+        mix = getattr(args, "mix", None)
+        argv_t = ["--underlying", str(args.underlying), "--max-ticks", str(args.max_ticks), "--max-tweaks", str(args.max_tweaks)]
+        if mix:
+            argv_t = ["--mix", *mix, *argv_t]
+        if getattr(args, "no_write", False):
+            argv_t.append("--no-write")
+        return tune_main(argv_t)
     if cmd == "tv-ep-grid":
         from backtest_engine.run_tv_ep_grid import run as run_tv
         from backtest_engine.tv_ep.grid import run_tv_ep_grid

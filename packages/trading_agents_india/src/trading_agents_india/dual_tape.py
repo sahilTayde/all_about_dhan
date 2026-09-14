@@ -197,8 +197,8 @@ def gather_underlying(
     today = now_ist().date().isoformat()
     ce_bars = load_tape_bars(und, day=today, side="ce", strike_label="ATM")
     pe_bars = load_tape_bars(und, day=today, side="pe", strike_label="ATM")
-    if not ce_bars and simulate:
-        # After-hours simulate: last cached day on disk (any).
+    if not ce_bars:
+        # After-hours / live miss: last cached day on disk (any).
         from trading_agents_india.premium_tape import tape_dir
 
         folder = tape_dir()
@@ -207,7 +207,7 @@ def gather_underlying(
             day = matches[-1].name.rsplit("_", 1)[-1].removesuffix(".json")
             ce_bars = load_tape_bars(und, day=day, side="ce")
             pe_bars = load_tape_bars(und, day=day, side="pe")
-            gaps.append(f"simulate: using cached premium tape day {day}")
+            gaps.append(f"cache: using premium tape day {day}")
     ce_ltp = _bar_close(ce_bars[-1]) if ce_bars else None
     pe_ltp = _bar_close(pe_bars[-1]) if pe_bars else None
     if ce_ltp is None and simulate:
@@ -235,9 +235,8 @@ def gather_underlying(
     prev = prev or {}
     prev_strike = prev.get("atm_strike")
     wrong = False
-    if chain.atm_strike is None and (ce_ltp is None or pe_ltp is None):
-        wrong = True
-        gaps.append("WRONG_STRIKE: no ATM strike and incomplete CE/PE")
+    if chain.atm_strike is None and ce_ltp is None and pe_ltp is None:
+        gaps.append("DATA_INSUFFICIENT: no ATM strike and no CE/PE LTP")
     elif prev_strike is not None and chain.atm_strike is not None:
         try:
             if abs(float(chain.atm_strike) - float(prev_strike)) > 0:
