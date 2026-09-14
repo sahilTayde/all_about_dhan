@@ -2,6 +2,27 @@
 
 **Agents:** read **only the newest block**. Do not ingest this whole log. New files: [`docs/FILE_CREATION.md`](../../docs/FILE_CREATION.md). Append here — do not create `HANDOFF_TOMORROW.md` or extra `CONTINUE_*`.
 
+## As of now (2026-09-14) — TV-EP paper tuner (bounded, NO_PROMOTE)
+
+```text
+From:     teams/00_orchestrator (boss desk)
+To:       06 / 05 / 09 / founder
+Date:     2026-09-14
+Status:   PAPER CLI / UNVALIDATED / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: Route founder “live agent retune like ML search” to 06
+  tv-ep-paper-tune + sibling PREMIUM_DIVERGENCE. RETUNE_GATE: BACKTEST_REQUIRED
+  proposals + local data/recon paper params only; MIX-DEFAULT-BUY production
+  untouched. 09:15 IST = cache/poll replay. Zero LLM on this path. KEEP_ALL
+  MIX-TV-EP. No STRAT-015+.
+Rejected: Auto-promote; silent param write; infinite token/API loop;
+  live Dhan orders; npm restart.
+UNKNOWN: Same-calendar INDEX+CE+PE 1m at next open.
+Doc:      teams/06_backtesting/docs/TV_EP_PAPER_TUNE.md
+CLI:      python -m backtest_engine tv-ep-paper-tune
+```
+
 ## As of now (2026-09-14) — Dual tape + desk divergence (founder start paper)
 
 ```text

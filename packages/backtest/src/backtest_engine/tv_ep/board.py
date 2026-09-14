@@ -123,7 +123,8 @@ def _md(report: dict[str, Any], *, desk: bool) -> str:
         "",
         "## Paper-live later",
         "",
-        "Attach ticks to **this** JSON (`paper_live[]` later). Still `NO_PROMOTE`. Do not write customer `/`.",
+        "Attach ticks to **this** JSON (`paper_sessions[]` / `paper_live[]`). Still `NO_PROMOTE`. Do not write customer `/`.",
+        "Paper tuner: [`TV_EP_PAPER_TUNE.md`](TV_EP_PAPER_TUNE.md) — `python -m backtest_engine tv-ep-paper-tune`.",
         "",
     ]
     if desk:
