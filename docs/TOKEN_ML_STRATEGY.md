@@ -121,7 +121,8 @@ Fine-tuning an LLM is not first. The first useful models are small, local, fast,
 | Phase | Model | Input | Output | Gate |
 |-------|-------|-------|--------|------|
 | ML-0 | Rules | stage, chain freshness, levels | HOLD / feasible / stale | unit tests |
-| ML-1 | Logistic regression / tree | features table | hold-vs-trade probability bucket | shadow only |
+| ML-001 | KMeans (k=4) + IsolationForest | 1m INDEX/CE/PE returns + spread + residual | TREND_UP/DN / RANGE / DIVERGE + HOLD/DIVERGENCE overlay | shadow; `NO_PROMOTE`; [`ML_001_LOCAL_PATTERN.md`](../teams/04_quant/docs/ML_001_LOCAL_PATTERN.md) |
+| ML-1 | Logistic regression / tree | features table | hold-vs-trade probability bucket | shadow only; skip if labels `DATA_INSUFFICIENT` |
 | ML-2 | LightGBM / XGBoost | richer chain + bar features | regime / confidence bucket | OOS + 09 review |
 | ML-3 | Exit / partial-book assist | favorable/adverse excursion, OI delta, premium velocity | exit-review / partial-book-review bucket | shadow only |
 | ML-3b | Calibrated ensemble | multiple models | dealer assist only | no auto-promote |

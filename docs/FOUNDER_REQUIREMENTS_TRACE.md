@@ -14,7 +14,7 @@
 | DB for candles, options, wins/losses, backtests, research references | D1 C2 + 06 | schema standard written; DDL pending |
 | Coding docs in one place for juniors/founder | D1 + D3 | `teams/07_coding/docs/` defined |
 | API KB + books KB in RAG/vector app | 01 + D1 C3 | FTS5 now; sqlite-vec later |
-| ML models to reduce token burn | D1 C4 + D2 | roadmap written; local model pending |
+| ML models to reduce token burn | D1 C4 + D2 | ML-001 KMeans+IF overlay coded (`packages/desk-ml`); logistic still pending labels |
 | Burn tokens mostly for pre/post and model sanity | D1/D5 | policy written; cache pending |
 | Nightly updates docs/RAG/SQL, reviews, reports, changes code proposals, backtests | D1 C6 + D3 + 06 | policy written; full factory pending |
 | Backtesting section | 06 | exists; skill rewritten |
@@ -66,7 +66,7 @@ Good output is a feasible, fresh, clear customer ticket or an honest HOLD / `DEA
 2. Warehouse DDL not built.
 3. Dealer feasibility not coded.
 4. RAG does not yet include all API/book chunks.
-5. Local ML baseline not trained.
+5. Local ML-001 overlay coded; supervised hold-vs-trade still `DATA_INSUFFICIENT`; not promoted.
 6. Customer UX standard not yet implemented in UI.
 7. Competitive alert/scanner/live-counsel baseline not implemented.
 

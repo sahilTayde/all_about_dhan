@@ -172,6 +172,16 @@ def cmd_clock(_args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_index_ce_pe_eda(_args: argparse.Namespace) -> int:
+    """Holiday-safe: read OHLC + premium_tape cache only. No Dhan fetch."""
+    from trading_agents_india.index_ce_pe_formulas import run_cache_eda
+
+    payload = run_cache_eda()
+    print(json.dumps(payload, indent=2, ensure_ascii=False))
+    ok_any = any(r.get("ok") for r in payload.get("reports") or [])
+    return 0 if ok_any else 2
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="trading-agents-india",
@@ -273,6 +283,12 @@ def main(argv: list[str] | None = None) -> int:
 
     p_clk = sub.add_parser("clock", help="Print IST session / dead-band snapshot")
     p_clk.set_defaults(func=cmd_clock)
+
+    p_eda = sub.add_parser(
+        "index-ce-pe-eda",
+        help="02 math: cache-only INDEX vs CE vs PE EDA + MIX-FORM-* (no fetch)",
+    )
+    p_eda.set_defaults(func=cmd_index_ce_pe_eda)
 
     p_cj = sub.add_parser("counsel-job", help="Gemini/OpenAI job template (PAPER counsel)")
     p_cj.add_argument("--list", action="store_true", help="Print job templates")
