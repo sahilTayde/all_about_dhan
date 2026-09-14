@@ -53,6 +53,7 @@ def _md(report: dict[str, Any], *, desk: bool) -> str:
         f"PARK: {counts.get('PARK')} · DATA_INSUFFICIENT: {counts.get('DATA_INSUFFICIENT')}",
         f"- event calendar: {report.get('event_calendar')}",
         f"- prefer_strike: {report.get('prefer_strike')} (unused unless OPTIDX universe exists)",
+        f"- tapes: {', '.join(sorted((report.get('tapes_used') or {}).keys()) or ['fixture/none'])}",
         "",
         "## KEEP_ALL MIX rows (never delete because FAIL / PARK / DI / n=0)",
         "",
