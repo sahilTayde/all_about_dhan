@@ -358,7 +358,7 @@ Ticket: founder org 2026-09-09. Counsel how-to: [`COUNSEL_LLM.md`](../teams/00_o
 | Customer UX standard | **DONE** (docs) — [`CUSTOMER_PORTAL_UX.md`](CUSTOMER_PORTAL_UX.md) |
 | Competitive baseline | **DONE** (docs) — [`COMPETITIVE_PRODUCT_BASELINE.md`](COMPETITIVE_PRODUCT_BASELINE.md); Stockara direct fetch 409 → `VERIFY` snippets |
 | Live LLM risk counsel | **PARTIAL** — `packages/trading_agents_india` counsel + job templates (Gemini lite / OpenAI nano). Async market-hours loop **TODO**. No execution |
-| SQLite warehouse + FTS RAG | **PARTIAL** — OHLC TFs + **desk-book** (full chain strikes, ATM CE/PE HYPOTHESIS levels, constituent LTPs). Official index **weights** `DATA_INSUFFICIENT`. Loop **TODO**. Local ML-001 overlay **PARTIAL** (`packages/desk-ml`, `NO_PROMOTE`) |
+| SQLite warehouse + FTS RAG | **PARTIAL** — OHLC TFs + **desk-book** (full chain strikes, ATM CE/PE HYPOTHESIS levels, constituent LTPs). Official index **weights** `DATA_INSUFFICIENT`. Loop / local ML **TODO** |
 | Dealer feasibility | **PARTIAL** — `python -m warehouse check-ticket` (FEASIBILITY_REJECTED / DEALER_KILLED). Not wired to customer `/` |
 | MySQL / embeddings day-1 | **rejected** (counsel) |
 | Live orders | **refused** |

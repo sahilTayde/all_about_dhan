@@ -154,5 +154,5 @@ Research `/desk`:
 3. **PM-001 Founder canvas:** `/pm` cards for service/key/rate-limit/data freshness + next action. **TODO** (do not restart npm).
 4. **LLM-001 Live counsel loop:** **PARTIAL** — counsel + job templates coded; async market-hours loop **TODO**.
 5. **UI-001 Customer command center:** beautiful mobile-first ticket + risk counsel feed + alert controls.
-6. **ML-001 Local baseline:** **PARTIAL** — `packages/desk-ml` KMeans+IsolationForest overlay on 1m INDEX/CE/PE (`HOLD` / `DIVERGENCE` / regime). Supervised hold-vs-trade still `DATA_INSUFFICIENT` this ticket. Shadow only; `NO_PROMOTE`. Spec [`ML_001_LOCAL_PATTERN.md`](../teams/04_quant/docs/ML_001_LOCAL_PATTERN.md).
+6. **ML-001 Local baseline:** feature table + deterministic model/rules for hold-vs-trade and exit-review shadow labels.
 

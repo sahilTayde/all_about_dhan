@@ -1,20 +1,5 @@
 # Handoff log — Team 07 Coding
 
-## As of now (2026-09-14) — packages/desk-ml ML-001 (no Dhan loop)
-
-```text
-From:     teams/07_coding
-To:       00 / 04 / 08
-Date:     2026-09-14
-Status:   OVERLAY CODED / CACHE FIT ONLY / NO_PROMOTE
-Gate:     not RESEARCH_READY_FOR_PROGRAMMING
-
-Accepted: New packages/desk-ml: feature builder, stdlib KMeans+IF,
-  fit/score CLI, JSON under data/recon/ml/. Consumes recon ohlc +
-  premium_tape. Does not poll Dhan. Execution refused.
-Rejected: sklearn as hard dep; live orders; writing MIX params.
-```
-
 ## As of now (2026-09-10) — Code only USE paths in HQ book
 
 ```text
