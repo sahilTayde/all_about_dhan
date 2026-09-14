@@ -19,8 +19,24 @@ Read in order:
 
 Gate: NOT RESEARCH_READY_FOR_PROGRAMMING. PAPER only. NO_PROMOTE. STRATs UNVALIDATED. Dashboard P/L is MOCK. No live orders. Do not restart npm / Vite / paper ops until I ask. Never print secrets.
 
-Left off 2026-09-08: PAPER market-hours ran --mode PAPER --tick-seconds 90 --use-llm --no-gather-news --live-chain; founder stop 11:54 IST; paper_ops_STOPPED.flag present. Gather (live chain ATM/PCR + INDEX 1m + gpt-5.4-nano max_completion_tokens) + Cloud Agent env + CF transcript markdown are on origin/main (feature 4edb503). Next: strategies (KEEP_ALL, no STRAT-015+, no promote, no live orders). Local trading_agents_india.sqlite is working-tree only — do not git-add. Cloud env Save may still be incomplete.
+Left off 2026-09-13: ITM champion PAPER board ready (MIX-CHAMP-* + desk leaderboard + assumed IST VWAP). Docs: teams/06_backtesting/docs/ITM_CHAMPION_PAPER_BOARD.md. CLI: python -m backtest_engine.run_itm_champions. Tuesday = PAPER watch only (prefer ITM PE near spot); live Super Orders refused. Next freeze only after live board evidence; then walk-forward OOS. KEEP_ALL. NO_PROMOTE. Local trading_agents_india.sqlite is working-tree only — do not git-add.
 ```
+
+---
+
+## Left-off 2026-09-13 — ITM champions / Tuesday paper
+
+| Topic | State |
+|-------|--------|
+| Champion catalog | `packages/backtest/src/backtest_engine/itm_champions.py` (`MIX-CHAMP-*`) |
+| Leaderboard runner | `python -m backtest_engine.run_itm_champions` → `data/recon/itm_champion_leaderboard.json` |
+| Desk UI | `/desk` → **ITM champion leaderboard** (wins, streaks, success %, P/L) |
+| API | `GET /paper/backtests/itm-champions` |
+| Spec | [`teams/06_backtesting/docs/ITM_CHAMPION_PAPER_BOARD.md`](../../06_backtesting/docs/ITM_CHAMPION_PAPER_BOARD.md) |
+| VWAP | IST session; volume when >0; equal-weight **assume** if vol=0 |
+| Strike sweep lab | `data/recon/itm_strike_sweep.json` (10 PE + 10 CE × 1m/5m) |
+| Live orders | **REFUSED** |
+| Next | (1) live PAPER session on board (2) walk-forward OOS (3) freeze discussion — still NO_PROMOTE |
 
 ---
 

@@ -1517,3 +1517,201 @@ a {
 .cleanup-card.founder-grey .cleanup-status { color: var(--expired); }
 .cleanup-card p { margin: 6px 0 0; color: var(--ink-soft); font-size: 0.9rem; }
 .cleanup-keep { color: var(--ink-soft); }
+
+.itm-scalp-panel {
+  grid-column: 1 / -1;
+}
+.itm-scalp-contract {
+  margin: 0.25rem 0 0.75rem;
+  font-family: var(--mono);
+  font-size: 0.9rem;
+}
+.itm-scalp-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.itm-scalp-stats > div {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+.itm-scalp-pnl {
+  font-size: 1.35rem;
+  font-variant-numeric: tabular-nums;
+}
+.itm-scalp-pnl--win { color: var(--ce); }
+.itm-scalp-pnl--loss { color: var(--pe); }
+.itm-scalp-table-wrap {
+  overflow-x: auto;
+  margin-bottom: 10px;
+}
+.itm-scalp-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+}
+.itm-scalp-table th,
+.itm-scalp-table td {
+  text-align: left;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--line);
+}
+.itm-scalp-table th {
+  color: var(--ink-soft);
+  font-weight: 600;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.itm-scalp-table .pos { color: var(--ce); }
+.itm-scalp-table .neg { color: var(--pe); }
+.itm-scalp-honesty {
+  margin: 0;
+  padding-left: 1.1rem;
+  color: var(--ink-soft);
+  font-size: 0.85rem;
+}
+.itm-scalp-honesty li { margin: 0.2rem 0; }
+
+.itm-scalp-fix {
+  color: var(--warn);
+  font-size: 0.9rem;
+  margin: 0.4rem 0 0.6rem;
+}
+.itm-scalp-legs {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 14px;
+  margin: 12px 0;
+}
+.itm-scalp-leg {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 12px;
+  background: var(--surface-2);
+}
+.itm-scalp-leg h3 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 6px;
+  font-size: 1rem;
+}
+.itm-scalp-diamond {
+  width: 12px;
+  height: 12px;
+  transform: rotate(45deg);
+  display: inline-block;
+}
+.itm-scalp-leg--yellow .itm-scalp-diamond {
+  background: #e8c547;
+  box-shadow: 0 0 0 1px rgba(232, 197, 71, 0.4);
+}
+.itm-scalp-leg--blue .itm-scalp-diamond {
+  background: #5b9cff;
+  box-shadow: 0 0 0 1px rgba(91, 156, 255, 0.4);
+}
+.itm-scalp-leg--yellow {
+  border-left: 3px solid #e8c547;
+}
+.itm-scalp-leg--blue {
+  border-left: 3px solid #5b9cff;
+}
+
+/* ITM champion paper leaderboard (/desk) */
+.champ-board {
+  grid-column: 1 / -1;
+}
+.champ-crown {
+  margin: 0.75rem 0 1rem;
+  padding: 0.85rem 1rem;
+  border-left: 3px solid var(--ce, #3d8b6e);
+  background: linear-gradient(
+    105deg,
+    rgba(61, 139, 110, 0.12),
+    transparent 70%
+  );
+}
+.champ-crown-label {
+  margin: 0;
+  font-size: 0.75rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  opacity: 0.75;
+}
+.champ-crown-name {
+  margin: 0.2rem 0;
+  font-size: 1.25rem;
+  font-weight: 650;
+}
+.champ-crown-meta {
+  margin: 0;
+  font-size: 0.9rem;
+}
+.champ-table-wrap {
+  overflow-x: auto;
+}
+.champ-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.88rem;
+}
+.champ-table th,
+.champ-table td {
+  padding: 0.45rem 0.55rem;
+  text-align: left;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+.champ-table th {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  opacity: 0.7;
+}
+.champ-row--lead td {
+  background: rgba(61, 139, 110, 0.08);
+}
+.champ-id {
+  font-size: 0.72rem;
+  opacity: 0.65;
+  font-family: ui-monospace, monospace;
+}
+.champ-table .pos {
+  color: var(--ce, #3d8b6e);
+}
+.champ-table .neg {
+  color: var(--pe, #c45c5c);
+}
+.champ-vwap {
+  margin-top: 0.75rem;
+  font-size: 0.82rem;
+  opacity: 0.8;
+}
+.champ-next {
+  margin-top: 1rem;
+}
+.champ-next h3 {
+  margin: 0 0 0.35rem;
+  font-size: 0.95rem;
+}
+.champ-next ol {
+  margin: 0;
+  padding-left: 1.2rem;
+}
+.champ-honesty {
+  margin: 0.85rem 0 0;
+  padding-left: 1.1rem;
+  font-size: 0.8rem;
+  opacity: 0.75;
+}
+.champ-honesty li {
+  margin: 0.2rem 0;
+}
+

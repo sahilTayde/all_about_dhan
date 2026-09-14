@@ -42,17 +42,19 @@ def bars_from_chart(payload: dict) -> list[Bar]:
 
 
 def session_vwap(bars: list[Bar], *, equal_weight_if_no_volume: bool = False) -> list[float | None]:
-    """Cumulative typical-price VWAP. Resets when calendar day (UTC date of ts) changes.
+    """Cumulative typical-price VWAP. Resets on Asia/Kolkata session date.
 
-    IST session split is applied by the caller via clocks. INDEX volume is UNKNOWN
-    as a VWAP tape — equal-weight fallback is a PROJECT ablation, not FUTIDX.
+    OPTIDX volume from Dhan charts is used when >0. Equal-weight fallback is a
+    PROJECT assume for zero-volume bars / offline backtest — not exchange VWAP.
     """
+    from backtest_engine.clocks import session_date_ist
+
     out: list[float | None] = []
     num = 0.0
     den = 0.0
     last_day = None
     for bar in bars:
-        day = bar.ts // 86400
+        day = session_date_ist(bar.ts)
         if last_day is not None and day != last_day:
             num = 0.0
             den = 0.0
@@ -166,6 +168,22 @@ def ema(values: list[float], length: int) -> list[float | None]:
     return out
 
 
+def wma(values: list[float], length: int) -> list[float | None]:
+    """Weighted moving average (linear weights 1..length). Pine ta.wma."""
+    out: list[float | None] = []
+    if length <= 0:
+        return [None] * len(values)
+    denom = length * (length + 1) / 2.0
+    for i in range(len(values)):
+        if i + 1 < length:
+            out.append(None)
+            continue
+        window = values[i + 1 - length : i + 1]
+        num = sum(v * (j + 1) for j, v in enumerate(window))
+        out.append(num / denom)
+    return out
+
+
 def sma(values: list[float], length: int) -> list[float | None]:
     out: list[float | None] = []
     for i in range(len(values)):
@@ -174,6 +192,37 @@ def sma(values: list[float], length: int) -> list[float | None]:
             continue
         window = values[i + 1 - length : i + 1]
         out.append(sum(window) / length)
+    return out
+
+
+def session_vwap_of(
+    bars: list[Bar],
+    source: list[float],
+    *,
+    equal_weight_if_no_volume: bool = False,
+) -> list[float | None]:
+    """Session VWAP of an explicit source series (Pine ta.vwap(source)).
+
+    Resets on Asia/Kolkata session date. Equal-weight = assumed VWAP when vol=0.
+    """
+    from backtest_engine.clocks import session_date_ist
+
+    if len(source) != len(bars):
+        raise ValueError("source length must match bars")
+    out: list[float | None] = []
+    num = 0.0
+    den = 0.0
+    last_day = None
+    for i, bar in enumerate(bars):
+        day = session_date_ist(bar.ts)
+        if last_day is not None and day != last_day:
+            num = 0.0
+            den = 0.0
+        last_day = day
+        weight = bar.volume if bar.volume > 0 else (1.0 if equal_weight_if_no_volume else 0.0)
+        num += source[i] * weight
+        den += weight
+        out.append((num / den) if den else None)
     return out
 
 

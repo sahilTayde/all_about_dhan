@@ -1,0 +1,836 @@
+{
+  "title": "ITM option premium lab \u2014 NIFTY 23500 PE vs 23500 CE",
+  "window": {
+    "from": "2026-08-01T09:15:00+05:30",
+    "to": "2026-09-12T15:30:00+05:30"
+  },
+  "contracts": {
+    "PE": {
+      "security_id": "47298",
+      "strike": 23500,
+      "lot": 65
+    },
+    "CE": {
+      "security_id": "47297",
+      "strike": 23500,
+      "lot": 65
+    }
+  },
+  "promotion": "NO_PROMOTE",
+  "orders": "refused",
+  "verdict": "UNVALIDATED",
+  "live_auto_trade": "REFUSED \u2014 paper/shadow signals only until gate",
+  "eda": {
+    "pe_bars": 7185,
+    "ce_aligned_bars": 4614,
+    "pe_close_first": 82.8,
+    "pe_close_last": 112.9,
+    "pe_return_pct": 36.35,
+    "ce_return_pct": -91.85,
+    "mean_1m_return": 0.0003823938634185745,
+    "std_1m_return": 0.028275450386968968,
+    "autocorr_lag1": -0.033009129191919194,
+    "pe_ce_return_corr": -0.7521551795999688,
+    "volume_zero_frac": 0.18580375782881003,
+    "volume_mean": 92483.04940848991,
+    "volume_p90": 289640.0,
+    "sessions": [
+      {
+        "day": "2026-08-18",
+        "open": 82.8,
+        "high": 82.8,
+        "low": 50.65,
+        "close": 55.15,
+        "range": 32.15,
+        "volume": 5070.0,
+        "bars": 257
+      },
+      {
+        "day": "2026-08-19",
+        "open": 64.05,
+        "high": 69.75,
+        "low": 57.8,
+        "close": 63.6,
+        "range": 11.950000000000003,
+        "volume": 57070.0,
+        "bars": 384
+      },
+      {
+        "day": "2026-08-20",
+        "open": 45.0,
+        "high": 45.0,
+        "low": 31.8,
+        "close": 35.65,
+        "range": 13.2,
+        "volume": 82550.0,
+        "bars": 385
+      },
+      {
+        "day": "2026-08-21",
+        "open": 31.4,
+        "high": 35.35,
+        "low": 30.0,
+        "close": 30.5,
+        "range": 5.350000000000001,
+        "volume": 68185.0,
+        "bars": 384
+      },
+      {
+        "day": "2026-08-24",
+        "open": 30.5,
+        "high": 40.2,
+        "low": 22.05,
+        "close": 35.3,
+        "range": 18.150000000000002,
+        "volume": 192595.0,
+        "bars": 385
+      },
+      {
+        "day": "2026-08-25",
+        "open": 34.85,
+        "high": 35.9,
+        "low": 18.3,
+        "close": 29.0,
+        "range": 17.599999999999998,
+        "volume": 374725.0,
+        "bars": 385
+      },
+      {
+        "day": "2026-08-26",
+        "open": 22.15,
+        "high": 22.15,
+        "low": 14.4,
+        "close": 18.55,
+        "range": 7.749999999999998,
+        "volume": 320645.0,
+        "bars": 385
+      },
+      {
+        "day": "2026-08-27",
+        "open": 18.6,
+        "high": 31.3,
+        "low": 16.65,
+        "close": 30.8,
+        "range": 14.650000000000002,
+        "volume": 410020.0,
+        "bars": 385
+      },
+      {
+        "day": "2026-08-28",
+        "open": 29.85,
+        "high": 33.35,
+        "low": 22.15,
+        "close": 22.75,
+        "range": 11.200000000000003,
+        "volume": 447915.0,
+        "bars": 385
+      },
+      {
+        "day": "2026-08-31",
+        "open": 29.8,
+        "high": 37.65,
+        "low": 23.45,
+        "close": 24.95,
+        "range": 14.2,
+        "volume": 1674465.0,
+        "bars": 385
+      },
+      {
+        "day": "2026-09-01",
+        "open": 27.4,
+        "high": 45.1,
+        "low": 20.1,
+        "close": 39.45,
+        "range": 25.0,
+        "volume": 2332265.0,
+        "bars": 385
+      },
+      {
+        "day": "2026-09-02",
+        "open": 49.65,
+        "high": 74.15,
+        "low": 48.0,
+        "close": 51.55,
+        "range": 26.150000000000006,
+        "volume": 2709720.0,
+        "bars": 385
+      },
+      {
+        "day": "2026-09-03",
+        "open": 46.15,
+        "high": 46.15,
+        "low": 27.1,
+        "close": 45.55,
+        "range": 19.049999999999997,
+        "volume": 3801785.0,
+        "bars": 385
+      },
+      {
+        "day": "2026-09-04",
+        "open": 41.8,
+        "high": 41.85,
+        "low": 22.7,
+        "close": 24.0,
+        "range": 19.150000000000002,
+        "volume": 4859725.0,
+        "bars": 385
+      },
+      {
+        "day": "2026-09-07",
+        "open": 26.05,
+        "high": 46.45,
+        "low": 25.8,
+        "close": 42.85,
+        "range": 20.650000000000002,
+        "volume": 10685155.0,
+        "bars": 385
+      },
+      {
+        "day": "2026-09-08",
+        "open": 49.45,
+        "high": 63.65,
+        "low": 42.3,
+        "close": 56.75,
+        "range": 21.35,
+        "volume": 21859110.0,
+        "bars": 385
+      },
+      {
+        "day": "2026-09-09",
+        "open": 77.05,
+        "high": 135.5,
+        "low": 73.8,
+        "close": 135.1,
+        "range": 61.7,
+        "volume": 345195110.0,
+        "bars": 385
+      },
+      {
+        "day": "2026-09-10",
+        "open": 124.0,
+        "high": 153.6,
+        "low": 100.2,
+        "close": 125.1,
+        "range": 53.39999999999999,
+        "volume": 175587165.0,
+        "bars": 385
+      },
+      {
+        "day": "2026-09-11",
+        "open": 206.1,
+        "high": 277.65,
+        "low": 108.65,
+        "close": 112.9,
+        "range": 168.99999999999997,
+        "volume": 93827435.0,
+        "bars": 385
+      }
+    ],
+    "note": "PE vs CE same-strike 1m return correlation expected negative (inverse premium moves). Autocorr tests momentum vs mean-revert."
+  },
+  "grid_size": 74,
+  "top_20": [
+    {
+      "mix_id": "MIX-ITM-LAB-BB-MEANREV",
+      "params": {
+        "length": 20,
+        "mult": 2.5,
+        "sl": null,
+        "tp": null,
+        "family": "bb"
+      },
+      "trade_count": 72,
+      "wins": 44,
+      "losses": 28,
+      "win_rate": 0.6111111111111112,
+      "gross_pnl_inr": 6831.5,
+      "after_cost_pnl_inr": 2053.93,
+      "avg_trade_inr": 94.88,
+      "max_dd_inr": -2944.5
+    },
+    {
+      "mix_id": "MIX-ITM-LAB-VWAP-RSI-CROSS-CEFILT",
+      "params": {
+        "rsi_en": 60,
+        "rsi_ex": 55,
+        "sl": 0.2,
+        "tp": 0.4,
+        "family": "cross_cefilt"
+      },
+      "trade_count": 26,
+      "wins": 9,
+      "losses": 17,
+      "win_rate": 0.34615384615384615,
+      "gross_pnl_inr": 2691.0,
+      "after_cost_pnl_inr": 1135.22,
+      "avg_trade_inr": 103.5,
+      "max_dd_inr": -499.2
+    },
+    {
+      "mix_id": "MIX-ITM-LAB-VWAP-RSI-CROSS",
+      "params": {
+        "rsi_en": 60,
+        "rsi_ex": 55,
+        "sl": 0.2,
+        "tp": 0.4,
+        "family": "cross"
+      },
+      "trade_count": 27,
+      "wins": 10,
+      "losses": 17,
+      "win_rate": 0.37037037037037035,
+      "gross_pnl_inr": 2694.25,
+      "after_cost_pnl_inr": 1093.2,
+      "avg_trade_inr": 99.79,
+      "max_dd_inr": -499.2
+    },
+    {
+      "mix_id": "MIX-ITM-LAB-VWAP-RSI-CROSS-CEFILT",
+      "params": {
+        "rsi_en": 60,
+        "rsi_ex": 55,
+        "sl": 0.15,
+        "tp": 0.3,
+        "family": "cross_cefilt"
+      },
+      "trade_count": 26,
+      "wins": 9,
+      "losses": 17,
+      "win_rate": 0.34615384615384615,
+      "gross_pnl_inr": 1934.56,
+      "after_cost_pnl_inr": 386.35,
+      "avg_trade_inr": 74.41,
+      "max_dd_inr": -427.21
+    },
+    {
+      "mix_id": "MIX-ITM-LAB-VWAP-RSI-CROSS",
+      "params": {
+        "rsi_en": 60,
+        "rsi_ex": 55,
+        "sl": 0.15,
+        "tp": 0.3,
+        "family": "cross"
+      },
+      "trade_count": 27,
+      "wins": 10,
+      "losses": 17,
+      "win_rate": 0.37037037037037035,
+      "gross_pnl_inr": 1937.81,
+      "after_cost_pnl_inr": 344.33,
+      "avg_trade_inr": 71.77,
+      "max_dd_inr": -427.21
+    },
+    {
+      "mix_id": "MIX-ITM-LAB-VWAP-RSI-CROSS-CEFILT",
+      "params": {
+        "rsi_en": 60,
+        "rsi_ex": 55,
+        "sl": null,
+        "tp": null,
+        "family": "cross_cefilt"
+      },
+      "trade_count": 26,
+      "wins": 9,
+      "losses": 17,
+      "win_rate": 0.34615384615384615,
+      "gross_pnl_inr": 1267.5,
+      "after_cost_pnl_inr": -274.04,
+      "avg_trade_inr": 48.75,
+      "max_dd_inr": -513.5
+    },
+    {
+      "mix_id": "MIX-ITM-LAB-VWAP-RSI-CROSS",
+      "params": {
+        "rsi_en": 60,
+        "rsi_ex": 55,
+        "sl": null,
+        "tp": null,
+        "family": "cross"
+      },
+      "trade_count": 27,
+      "wins": 10,
+      "losses": 17,
+      "win_rate": 0.37037037037037035,
+      "gross_pnl_inr": 1270.75,
+      "after_cost_pnl_inr": -316.06,
+      "avg_trade_inr": 47.06,
+      "max_dd_inr": -513.5
+    },
+    {
+      "mix_id": "MIX-ITM-LAB-VWAP-RSI-CROSS-CEFILT",
+      "params": {
+        "rsi_en": 60,
+        "rsi_ex": 55,
+        "sl": 0.1,
+        "tp": 0.2,
+        "family": "cross_cefilt"
+      },
+      "trade_count": 26,
+      "wins": 9,
+      "losses": 17,
+      "win_rate": 0.34615384615384615,
+      "gross_pnl_inr": 1178.12,
+      "after_cost_pnl_inr": -362.52,
+      "avg_trade_inr": 45.31,
+      "max_dd_inr": -355.22
+    },
+    {
+      "mix_id": "MIX-ITM-LAB-VWAP-RSI-CROSS",
+      "params": {
+        "rsi_en": 60,
+        "rsi_ex": 55,
+        "sl": 0.1,
+        "tp": 0.2,
+        "family": "cross"
+      },
+      "trade_count": 27,
+      "wins": 10,
+      "losses": 17,
+      "win_rate": 0.37037037037037035,
+      "gross_pnl_inr": 1181.38,
+      "after_cost_pnl_inr": -404.54,
+      "avg_trade_inr": 43.75,
+      "max_dd_inr": -355.22
+    },
+    {
+      "mix_id": "MIX-ITM-LAB-BB-MEANREV",
+      "params": {
+        "length": 20,
+        "mult": 2.0,
+        "sl": null,
+        "tp": null,
+        "family": "bb"
+      },
+      "trade_count": 114,
+      "wins": 70,
+      "losses": 44,
+      "win_rate": 0.6140350877192983,
+      "gross_pnl_inr": 8037.25,
+      "after_cost_pnl_inr": -410.44,
+      "avg_trade_inr": 70.5,
+      "max_dd_inr": -3292.25
+    },
+    {
+      "mix_id": "MIX-ITM-LAB-VWAP-RSI-CROSS",
+      "params": {
+        "rsi_en": 70,
+        "rsi_ex": 68,
+        "sl": 0.1,
+        "tp": 0.2,
+        "family": "cross"
+      },
+      "trade_count": 6,
+      "wins": 1,
+      "losses": 5,
+      "win_rate": 0.16666666666666666,
+      "gross_pnl_inr": -202.48,
+      "after_cost_pnl_inr": -522.4,
+      "avg_trade_inr": -33.75,
+      "max_dd_inr": -325.97
+    },
+    {
+      "mix_id": "MIX-ITM-LAB-VWAP-RSI-CROSS-CEFILT",
+      "params": {
+        "rsi_en": 70,
+        "rsi_ex": 68,
+        "sl": 0.1,
+        "tp": 0.2,
+        "family": "cross_cefilt"
+      },
+      "trade_count": 6,
+      "wins": 1,
+      "losses": 5,
+      "win_rate": 0.16666666666666666,
+      "gross_pnl_inr": -202.48,
+      "after_cost_pnl_inr": -522.4,
+      "avg_trade_inr": -33.75,
+      "max_dd_inr": -325.97
+    },
+    {
+      "mix_id": "MIX-ITM-LAB-VWAP-RSI-CROSS",
+      "params": {
+        "rsi_en": 70,
+        "rsi_ex": 68,
+        "sl": 0.15,
+        "tp": 0.3,
+        "family": "cross"
+      },
+      "trade_count": 6,
+      "wins": 1,
+      "losses": 5,
+      "win_rate": 0.16666666666666666,
+      "gross_pnl_inr": -274.46,
+      "after_cost_pnl_inr": -593.66,
+      "avg_trade_inr": -45.74,
+      "max_dd_inr": -397.96
+    },
+    {
+      "mix_id": "MIX-ITM-LAB-VWAP-RSI-CROSS-CEFILT",
+      "params": {
+        "rsi_en": 70,
+        "rsi_ex": 68,
+        "sl": 0.15,
+        "tp": 0.3,
+        "family": "cross_cefilt"
+      },
+      "trade_count": 6,
+      "wins": 1,
+      "losses": 5,
+      "win_rate": 0.16666666666666666,
+      "gross_pnl_inr": -274.46,
+      "after_cost_pnl_inr": -593.66,
+      "avg_trade_inr": -45.74,
+      "max_dd_inr": -397.96
+    },
+    {
+      "mix_id": "MIX-ITM-LAB-VWAP-RSI-CROSS",
+      "params": {
+        "rsi_en": 70,
+        "rsi_ex": 68,
+        "sl": 0.2,
+        "tp": 0.4,
+        "family": "cross"
+      },
+      "trade_count": 6,
+      "wins": 1,
+      "losses": 5,
+      "win_rate": 0.16666666666666666,
+      "gross_pnl_inr": -346.45,
+      "after_cost_pnl_inr": -664.93,
+      "avg_trade_inr": -57.74,
+      "max_dd_inr": -469.95
+    },
+    {
+      "mix_id": "MIX-ITM-LAB-VWAP-RSI-CROSS-CEFILT",
+      "params": {
+        "rsi_en": 70,
+        "rsi_ex": 68,
+        "sl": 0.2,
+        "tp": 0.4,
+        "family": "cross_cefilt"
+      },
+      "trade_count": 6,
+      "wins": 1,
+      "losses": 5,
+      "win_rate": 0.16666666666666666,
+      "gross_pnl_inr": -346.45,
+      "after_cost_pnl_inr": -664.93,
+      "avg_trade_inr": -57.74,
+      "max_dd_inr": -469.95
+    },
+    {
+      "mix_id": "MIX-ITM-LAB-VWAP-RSI-CROSS",
+      "params": {
+        "rsi_en": 70,
+        "rsi_ex": 68,
+        "sl": null,
+        "tp": null,
+        "family": "cross"
+      },
+      "trade_count": 6,
+      "wins": 1,
+      "losses": 5,
+      "win_rate": 0.16666666666666666,
+      "gross_pnl_inr": -360.75,
+      "after_cost_pnl_inr": -679.09,
+      "avg_trade_inr": -60.13,
+      "max_dd_inr": -484.25
+    },
+    {
+      "mix_id": "MIX-ITM-LAB-VWAP-RSI-CROSS-CEFILT",
+      "params": {
+        "rsi_en": 70,
+        "rsi_ex": 68,
+        "sl": null,
+        "tp": null,
+        "family": "cross_cefilt"
+      },
+      "trade_count": 6,
+      "wins": 1,
+      "losses": 5,
+      "win_rate": 0.16666666666666666,
+      "gross_pnl_inr": -360.75,
+      "after_cost_pnl_inr": -679.09,
+      "avg_trade_inr": -60.13,
+      "max_dd_inr": -484.25
+    },
+    {
+      "mix_id": "MIX-ITM-LAB-VWAP-RSI-CROSS",
+      "params": {
+        "rsi_en": 65,
+        "rsi_ex": 60,
+        "sl": 0.1,
+        "tp": 0.2,
+        "family": "cross"
+      },
+      "trade_count": 15,
+      "wins": 5,
+      "losses": 10,
+      "win_rate": 0.3333333333333333,
+      "gross_pnl_inr": 70.53,
+      "after_cost_pnl_inr": -886.4,
+      "avg_trade_inr": 4.7,
+      "max_dd_inr": -329.22
+    },
+    {
+      "mix_id": "MIX-ITM-LAB-VWAP-RSI-CROSS-CEFILT",
+      "params": {
+        "rsi_en": 65,
+        "rsi_ex": 60,
+        "sl": 0.1,
+        "tp": 0.2,
+        "family": "cross_cefilt"
+      },
+      "trade_count": 15,
+      "wins": 5,
+      "losses": 10,
+      "win_rate": 0.3333333333333333,
+      "gross_pnl_inr": 70.53,
+      "after_cost_pnl_inr": -886.4,
+      "avg_trade_inr": 4.7,
+      "max_dd_inr": -329.22
+    }
+  ],
+  "best_per_family": {
+    "bb": {
+      "mix_id": "MIX-ITM-LAB-BB-MEANREV",
+      "params": {
+        "length": 20,
+        "mult": 2.5,
+        "sl": null,
+        "tp": null,
+        "family": "bb"
+      },
+      "trade_count": 72,
+      "wins": 44,
+      "losses": 28,
+      "win_rate": 0.6111111111111112,
+      "gross_pnl_inr": 6831.5,
+      "after_cost_pnl_inr": 2053.93,
+      "avg_trade_inr": 94.88,
+      "max_dd_inr": -2944.5
+    },
+    "cross_cefilt": {
+      "mix_id": "MIX-ITM-LAB-VWAP-RSI-CROSS-CEFILT",
+      "params": {
+        "rsi_en": 60,
+        "rsi_ex": 55,
+        "sl": 0.2,
+        "tp": 0.4,
+        "family": "cross_cefilt"
+      },
+      "trade_count": 26,
+      "wins": 9,
+      "losses": 17,
+      "win_rate": 0.34615384615384615,
+      "gross_pnl_inr": 2691.0,
+      "after_cost_pnl_inr": 1135.22,
+      "avg_trade_inr": 103.5,
+      "max_dd_inr": -499.2
+    },
+    "cross": {
+      "mix_id": "MIX-ITM-LAB-VWAP-RSI-CROSS",
+      "params": {
+        "rsi_en": 60,
+        "rsi_ex": 55,
+        "sl": 0.2,
+        "tp": 0.4,
+        "family": "cross"
+      },
+      "trade_count": 27,
+      "wins": 10,
+      "losses": 17,
+      "win_rate": 0.37037037037037035,
+      "gross_pnl_inr": 2694.25,
+      "after_cost_pnl_inr": 1093.2,
+      "avg_trade_inr": 99.79,
+      "max_dd_inr": -499.2
+    },
+    "macd": {
+      "mix_id": "MIX-ITM-LAB-MACD-VWAP",
+      "params": {
+        "sl": null,
+        "tp": null,
+        "family": "macd"
+      },
+      "trade_count": 145,
+      "wins": 44,
+      "losses": 101,
+      "win_rate": 0.30344827586206896,
+      "gross_pnl_inr": 7858.5,
+      "after_cost_pnl_inr": -978.31,
+      "avg_trade_inr": 54.2,
+      "max_dd_inr": -2681.25
+    },
+    "vol": {
+      "mix_id": "MIX-ITM-LAB-VWAP-VOL",
+      "params": {
+        "vol_mult": 2.0,
+        "rsi_en": 55,
+        "sl": null,
+        "tp": null,
+        "family": "vol"
+      },
+      "trade_count": 83,
+      "wins": 28,
+      "losses": 55,
+      "win_rate": 0.3373493975903614,
+      "gross_pnl_inr": 341.25,
+      "after_cost_pnl_inr": -5199.38,
+      "avg_trade_inr": 4.11,
+      "max_dd_inr": -5047.25
+    },
+    "state": {
+      "mix_id": "MIX-ITM-LAB-VWAP-RSI-STATE",
+      "params": {
+        "rsi_en": 70,
+        "rsi_ex": 68,
+        "sl": 0.1,
+        "tp": 0.2,
+        "family": "state"
+      },
+      "trade_count": 90,
+      "wins": 29,
+      "losses": 61,
+      "win_rate": 0.32222222222222224,
+      "gross_pnl_inr": -814.45,
+      "after_cost_pnl_inr": -6745.94,
+      "avg_trade_inr": -9.05,
+      "max_dd_inr": -1822.92
+    },
+    "sr": {
+      "mix_id": "MIX-ITM-LAB-SR-VWAP",
+      "params": {
+        "rsi_en": 55,
+        "sl": 0.15,
+        "tp": 0.3,
+        "family": "sr"
+      },
+      "trade_count": 71,
+      "wins": 25,
+      "losses": 46,
+      "win_rate": 0.352112676056338,
+      "gross_pnl_inr": -612.14,
+      "after_cost_pnl_inr": -7275.28,
+      "avg_trade_inr": -8.62,
+      "max_dd_inr": -3659.5
+    },
+    "ema_stack": {
+      "mix_id": "MIX-ITM-LAB-EMA-STACK",
+      "params": {
+        "rsi_en": 60,
+        "rsi_ex": 55,
+        "sl": 0.15,
+        "tp": 0.3,
+        "family": "ema_stack"
+      },
+      "trade_count": 170,
+      "wins": 46,
+      "losses": 124,
+      "win_rate": 0.27058823529411763,
+      "gross_pnl_inr": -5043.02,
+      "after_cost_pnl_inr": -17058.67,
+      "avg_trade_inr": -29.66,
+      "max_dd_inr": -6935.5
+    }
+  },
+  "bottom_5": [
+    {
+      "mix_id": "MIX-ITM-LAB-EMA-STACK",
+      "params": {
+        "rsi_en": 60,
+        "rsi_ex": 55,
+        "sl": null,
+        "tp": null,
+        "family": "ema_stack"
+      },
+      "trade_count": 169,
+      "wins": 46,
+      "losses": 123,
+      "win_rate": 0.27218934911242604,
+      "gross_pnl_inr": -5330.0,
+      "after_cost_pnl_inr": -17286.49,
+      "avg_trade_inr": -31.54,
+      "max_dd_inr": -6935.5
+    },
+    {
+      "mix_id": "MIX-ITM-LAB-EMA-STACK",
+      "params": {
+        "rsi_en": 50,
+        "rsi_ex": 45,
+        "sl": null,
+        "tp": null,
+        "family": "ema_stack"
+      },
+      "trade_count": 213,
+      "wins": 60,
+      "losses": 153,
+      "win_rate": 0.28169014084507044,
+      "gross_pnl_inr": -3825.25,
+      "after_cost_pnl_inr": -19128.95,
+      "avg_trade_inr": -17.96,
+      "max_dd_inr": -7452.25
+    },
+    {
+      "mix_id": "MIX-ITM-LAB-EMA-STACK",
+      "params": {
+        "rsi_en": 55,
+        "rsi_ex": 50,
+        "sl": null,
+        "tp": null,
+        "family": "ema_stack"
+      },
+      "trade_count": 205,
+      "wins": 54,
+      "losses": 151,
+      "win_rate": 0.2634146341463415,
+      "gross_pnl_inr": -5544.5,
+      "after_cost_pnl_inr": -20378.67,
+      "avg_trade_inr": -27.05,
+      "max_dd_inr": -9454.25
+    },
+    {
+      "mix_id": "MIX-ITM-LAB-EMA-STACK",
+      "params": {
+        "rsi_en": 50,
+        "rsi_ex": 45,
+        "sl": 0.15,
+        "tp": 0.3,
+        "family": "ema_stack"
+      },
+      "trade_count": 214,
+      "wins": 60,
+      "losses": 154,
+      "win_rate": 0.2803738317757009,
+      "gross_pnl_inr": -5585.61,
+      "after_cost_pnl_inr": -21033.23,
+      "avg_trade_inr": -26.1,
+      "max_dd_inr": -8216.0
+    },
+    {
+      "mix_id": "MIX-ITM-LAB-EMA-STACK",
+      "params": {
+        "rsi_en": 55,
+        "rsi_ex": 50,
+        "sl": 0.15,
+        "tp": 0.3,
+        "family": "ema_stack"
+      },
+      "trade_count": 206,
+      "wins": 54,
+      "losses": 152,
+      "win_rate": 0.2621359223300971,
+      "gross_pnl_inr": -6868.39,
+      "after_cost_pnl_inr": -21729.55,
+      "avg_trade_inr": -33.34,
+      "max_dd_inr": -9454.25
+    }
+  ],
+  "honesty": [
+    "PAPER only. Not a customer promote. Not live Super Order automation.",
+    "Indicators computed from Dhan OHLC+volume; not chart panes.",
+    "After-cost uses HYPOTHESIS 1% RT slip; statutory UNKNOWN.",
+    "Aug\u2013Sep only = small sample; multiple-testing bias high across grid.",
+    "KEEP_ALL: lab MIX-* does not replace STRAT-001\u2013014."
+  ]
+}

@@ -1,5 +1,45 @@
 # Handoff log — Team 00 Orchestrator
 
+## As of now (2026-09-13) — Flawless Victory v1 grid winners on champion board
+
+```text
+From:     teams/00_orchestrator (boss desk)
+To:       06 / founder
+Date:     2026-09-13
+Status:   PAPER BOARD UPDATED / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: Add MIX-CHAMP-FV-V1-* (10m BB×1.5, 5m/10m BB×2.0, 1m RSI60 exit,
+  15m BB17) to Tuesday champion leaderboard. Prefer PE. Source: Flawless
+  Victory Pine port grid on ITM premiums.
+Rejected: Boarding Flawless v2/v3 Pine defaults (WR high, P/L negative).
+UNKNOWN: OOS stability of FV v1 wide-band cells vs EMA×ST.
+Doc:      teams/06_backtesting/docs/ITM_CHAMPION_PAPER_BOARD.md
+```
+
+## As of now (2026-09-13) — ITM champion paper board + VWAP assume
+
+```text
+From:     teams/00_orchestrator (boss desk)
+To:       04 / 06 / 05 / founder
+Date:     2026-09-13
+Status:   PAPER CODE READY / NO_PROMOTE / ORDERS REFUSED
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: Freeze remembered MIX-CHAMP-* catalog (EMA×ST, EMA×ST+VWAP,
+  SMA10×50, VWAP+RSI Pine, EMA+VWAP, BB challenger). IST session VWAP with
+  equal-weight assume for offline zero-volume bars. Champion leaderboard
+  on /desk (wins, streaks, success %, after-cost P/L). Re-ran champions
+  backtest so Tuesday PAPER watch has code + mock JSON ready.
+Rejected: Live Super Order auto-trade; promote to STRAT/customer default;
+  trusting Aug–Sep in-sample sweep as OOS edge.
+UNKNOWN: Whether live session VWAP gate beats lab EMA×ST alone on Tuesday;
+  exact brokerage/STT vs 1% RT hypothesis cost.
+Next:   (1) live PAPER board evidence (2) walk-forward other expiry
+        (3) freeze discussion — still NO_PROMOTE.
+Doc:    teams/06_backtesting/docs/ITM_CHAMPION_PAPER_BOARD.md
+```
+
 ## As of now (2026-09-11) — Token refreshed; tickers live; ITM tape unlocked
 
 ```text

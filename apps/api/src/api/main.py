@@ -131,6 +131,47 @@ def create_app() -> FastAPI:
             }
         return snap
 
+    @app.get("/paper/backtests/itm-scalp")
+    def paper_itm_scalp_backtest() -> dict[str, Any]:
+        """Last MIX-ITM-OPT-SCALP paper backtest JSON (recon). Not a promote."""
+        import json
+        from pathlib import Path
+
+        path = Path(__file__).resolve().parents[4] / "data" / "recon" / "itm_scalp_backtest.json"
+        if not path.is_file():
+            return {
+                "ok": False,
+                "reason": "DATA_INSUFFICIENT: run python -m backtest_engine --live itm-scalp",
+                "orders": "refused",
+                "promotion": "NO_PROMOTE",
+            }
+        return json.loads(path.read_text(encoding="utf-8"))
+
+    @app.get("/paper/backtests/itm-champions")
+    def paper_itm_champions_board() -> dict[str, Any]:
+        """PAPER champion leaderboard (wins / streaks / P/L). Not a promote. No orders."""
+        import json
+        from pathlib import Path
+
+        path = (
+            Path(__file__).resolve().parents[4]
+            / "data"
+            / "recon"
+            / "itm_champion_leaderboard.json"
+        )
+        if not path.is_file():
+            return {
+                "ok": False,
+                "reason": (
+                    "DATA_INSUFFICIENT: run "
+                    "python -m backtest_engine.run_itm_champions"
+                ),
+                "orders": "refused",
+                "promotion": "NO_PROMOTE",
+                "live_auto_trade": "REFUSED",
+            }
+        return json.loads(path.read_text(encoding="utf-8"))
+
     app.include_router(ws_router)
     return app
 

@@ -1,0 +1,3439 @@
+{
+  "title": "ITM champion paper leaderboard",
+  "mode": "PAPER",
+  "promotion": "NO_PROMOTE",
+  "orders": "refused",
+  "live_auto_trade": "REFUSED",
+  "lot": 65,
+  "vwap_mode": "IST session VWAP \u2014 use OPTIDX volume when >0; equal-weight assume on zero-volume bars (offline / sparse tape).",
+  "window": {
+    "from": "2026-08-01T09:15:00+05:30",
+    "to": "2026-09-12T15:30:00+05:30"
+  },
+  "spot": 23398.1,
+  "expiry": "2026-09-15",
+  "watch_contracts": [
+    {
+      "side": "PE",
+      "strike": 23400,
+      "security_id": "47294"
+    },
+    {
+      "side": "PE",
+      "strike": 23450,
+      "security_id": "47296"
+    },
+    {
+      "side": "PE",
+      "strike": 23500,
+      "security_id": "47298"
+    },
+    {
+      "side": "CE",
+      "strike": 23350,
+      "security_id": "47291"
+    },
+    {
+      "side": "CE",
+      "strike": 23300,
+      "security_id": "47289"
+    }
+  ],
+  "champions_catalog": [
+    {
+      "id": "MIX-CHAMP-EMA-ST-5M",
+      "name": "EMA\u00d7ST (lab winner)",
+      "family": "EMA_ST",
+      "tf_minutes": 5,
+      "plain_english": "5m: buy when EMA9 crosses above EMA21 and price > Supertrend(10,3); exit on EMA cross down or close below Supertrend.",
+      "why_remembered": "Best aggregate after-cost on 10 ITM PE+CE Aug\u2013Sep sweep (~41% WR).",
+      "sl": null,
+      "tp": null,
+      "prefer_side": "PE",
+      "promotion": "NO_PROMOTE",
+      "orders": "refused"
+    },
+    {
+      "id": "MIX-CHAMP-EMA-ST-VWAP-5M",
+      "name": "EMA\u00d7ST + VWAP filter",
+      "family": "EMA_ST_VWAP",
+      "tf_minutes": 5,
+      "plain_english": "Same as EMA\u00d7ST, but only enter when premium is above session VWAP (volume-weighted; equal-weight assume if vol=0).",
+      "why_remembered": "Tuesday-ready: live session VWAP should tighten entries vs lab.",
+      "sl": null,
+      "tp": null,
+      "prefer_side": "PE",
+      "promotion": "NO_PROMOTE",
+      "orders": "refused"
+    },
+    {
+      "id": "MIX-CHAMP-SMA-CROSS-5M",
+      "name": "SMA10\u00d750 + SL/TP",
+      "family": "SMA_CROSS",
+      "tf_minutes": 5,
+      "plain_english": "5m: SMA10 crosses above SMA50; exit on cross down or 15% SL / 30% TP.",
+      "why_remembered": "Runner-up on strike sweep; most contracts positive (12/20).",
+      "sl": 0.15,
+      "tp": 0.3,
+      "prefer_side": "BOTH",
+      "promotion": "NO_PROMOTE",
+      "orders": "refused"
+    },
+    {
+      "id": "MIX-CHAMP-VWAP-RSI-5M",
+      "name": "VWAP + RSI cross (Pine)",
+      "family": "VWAP_RSI",
+      "tf_minutes": 5,
+      "plain_english": "5m: price > session VWAP, RSI\u226560, above EMA21, EMA3\u00d7WMA21 cross up; exit cross down or RSI<55. SL20%/TP40%.",
+      "why_remembered": "Founder Pine path \u2014 needs live VWAP; assumed VWAP used in offline lab.",
+      "sl": 0.2,
+      "tp": 0.4,
+      "prefer_side": "BOTH",
+      "promotion": "NO_PROMOTE",
+      "orders": "refused"
+    },
+    {
+      "id": "MIX-CHAMP-EMA-VWAP-5M",
+      "name": "EMA9\u00d721 + VWAP",
+      "family": "EMA_VWAP",
+      "tf_minutes": 5,
+      "plain_english": "5m: EMA9\u00d721 cross with price above session VWAP; exit below VWAP or cross down.",
+      "why_remembered": "Simple VWAP-gated trend for live paper comparison.",
+      "sl": null,
+      "tp": null,
+      "prefer_side": "PE",
+      "promotion": "NO_PROMOTE",
+      "orders": "refused"
+    },
+    {
+      "id": "MIX-CHAMP-BB-5M",
+      "name": "BB mean-revert",
+      "family": "BB",
+      "tf_minutes": 5,
+      "plain_english": "5m: bounce off lower Bollinger(20,2.5); exit mid-band or RSI\u226555.",
+      "why_remembered": "High win-rate on single-strike lab; lost across strike sweep \u2014 challenger.",
+      "sl": null,
+      "tp": null,
+      "prefer_side": "BOTH",
+      "promotion": "NO_PROMOTE",
+      "orders": "refused"
+    },
+    {
+      "id": "MIX-CHAMP-FV-V1-10M-BB15",
+      "name": "Flawless v1 \u00b7 10m BB\u00d71.5",
+      "family": "FLAWLESS_V1",
+      "tf_minutes": 10,
+      "plain_english": "10m Flawless v1: buy close < BB lower(20,1.5) and RSI>42; sell close > BB upper and RSI>70. No SL/TP.",
+      "why_remembered": "Top Flawless grid cell on ITM premiums (~79% succ, PE-biased).",
+      "sl": null,
+      "tp": null,
+      "prefer_side": "PE",
+      "promotion": "NO_PROMOTE",
+      "orders": "refused"
+    },
+    {
+      "id": "MIX-CHAMP-FV-V1-5M-BB20",
+      "name": "Flawless v1 \u00b7 5m BB\u00d72.0",
+      "family": "FLAWLESS_V1",
+      "tf_minutes": 5,
+      "plain_english": "5m Flawless v1: BB(20,2.0) + RSI>42 entry; BB upper + RSI>70 exit. No SL/TP.",
+      "why_remembered": "Best 5m Flawless cell after costs on premium watch set.",
+      "sl": null,
+      "tp": null,
+      "prefer_side": "PE",
+      "promotion": "NO_PROMOTE",
+      "orders": "refused"
+    },
+    {
+      "id": "MIX-CHAMP-FV-V1-10M-BB20",
+      "name": "Flawless v1 \u00b7 10m BB\u00d72.0",
+      "family": "FLAWLESS_V1",
+      "tf_minutes": 10,
+      "plain_english": "10m Flawless v1: BB(20,2.0) + RSI>42 entry; BB upper + RSI>70 exit. No SL/TP.",
+      "why_remembered": "Wider-band 10m Flawless companion (high succ %, fewer trades).",
+      "sl": null,
+      "tp": null,
+      "prefer_side": "PE",
+      "promotion": "NO_PROMOTE",
+      "orders": "refused"
+    },
+    {
+      "id": "MIX-CHAMP-FV-V1-1M-RSI60",
+      "name": "Flawless v1 \u00b7 1m early RSI exit",
+      "family": "FLAWLESS_V1",
+      "tf_minutes": 1,
+      "plain_english": "1m Flawless v1: BB(20,1) + RSI>42 entry; exit BB upper + RSI>60 (earlier than Pine 70).",
+      "why_remembered": "Only 1m Flawless cell green after costs on watch set.",
+      "sl": null,
+      "tp": null,
+      "prefer_side": "PE",
+      "promotion": "NO_PROMOTE",
+      "orders": "refused"
+    },
+    {
+      "id": "MIX-CHAMP-FV-V1-15M-BB17",
+      "name": "Flawless v1 \u00b7 15m BB17",
+      "family": "FLAWLESS_V1",
+      "tf_minutes": 15,
+      "plain_english": "15m Flawless v1: BB(17,1) + RSI>42 entry; BB upper + RSI>70 exit. No SL/TP.",
+      "why_remembered": "Best 15m Flawless cell (modest +\u20b9); slow TF for paper watch.",
+      "sl": null,
+      "tp": null,
+      "prefer_side": "PE",
+      "promotion": "NO_PROMOTE",
+      "orders": "refused"
+    }
+  ],
+  "leaderboard": [
+    {
+      "champion_id": "MIX-CHAMP-FV-V1-10M-BB15",
+      "name": "Flawless v1 \u00b7 10m BB\u00d71.5",
+      "family": "FLAWLESS_V1",
+      "tf": "10m",
+      "contracts": 3,
+      "trade_count": 15,
+      "wins": 12,
+      "losses": 3,
+      "win_rate": 0.8,
+      "success_pct": 80.0,
+      "gross_pnl_inr": 34684.0,
+      "after_cost_pnl_inr": 33351.95,
+      "max_win_streak": 4,
+      "max_loss_streak": 1,
+      "current_streak": 3,
+      "current_streak_kind": "W",
+      "legs": [
+        {
+          "champion_id": "MIX-CHAMP-FV-V1-10M-BB15",
+          "name": "Flawless v1 \u00b7 10m BB\u00d71.5",
+          "family": "FLAWLESS_V1",
+          "tf": "10m",
+          "side": "PE",
+          "strike": 23400,
+          "security_id": "47294",
+          "lot": 65,
+          "trade_count": 5,
+          "wins": 4,
+          "losses": 1,
+          "win_rate": 0.8,
+          "success_pct": 80.0,
+          "gross_pnl_inr": 9493.25,
+          "after_cost_pnl_inr": 9127.2,
+          "current_streak": 3,
+          "current_streak_kind": "W",
+          "max_win_streak": 3,
+          "max_loss_streak": 1,
+          "recent_trades": [
+            {
+              "session": "2026-09-01",
+              "entry_px": 21.4,
+              "exit_px": 24.85,
+              "points": 3.45,
+              "pnl_inr_1lot": 224.25,
+              "reason": "exit_signal",
+              "win": true
+            },
+            {
+              "session": "2026-09-07",
+              "entry_px": 42.6,
+              "exit_px": 28.0,
+              "points": -14.6,
+              "pnl_inr_1lot": -949.0,
+              "reason": "exit_signal",
+              "win": false
+            },
+            {
+              "session": "2026-09-08",
+              "entry_px": 24.2,
+              "exit_px": 36.1,
+              "points": 11.9,
+              "pnl_inr_1lot": 773.5,
+              "reason": "exit_signal",
+              "win": true
+            },
+            {
+              "session": "2026-09-09",
+              "entry_px": 50.85,
+              "exit_px": 77.75,
+              "points": 26.9,
+              "pnl_inr_1lot": 1748.5,
+              "reason": "exit_signal",
+              "win": true
+            },
+            {
+              "session": "2026-09-11",
+              "entry_px": 69.5,
+              "exit_px": 187.9,
+              "points": 118.4,
+              "pnl_inr_1lot": 7696.0,
+              "reason": "exit_signal",
+              "win": true
+            }
+          ]
+        },
+        {
+          "champion_id": "MIX-CHAMP-FV-V1-10M-BB15",
+          "name": "Flawless v1 \u00b7 10m BB\u00d71.5",
+          "family": "FLAWLESS_V1",
+          "tf": "10m",
+          "side": "PE",
+          "strike": 23450,
+          "security_id": "47296",
+          "lot": 65,
+          "trade_count": 4,
+          "wins": 4,
+          "losses": 0,
+          "win_rate": 1.0,
+          "success_pct": 100.0,
+          "gross_pnl_inr": 12255.75,
+          "after_cost_pnl_inr": 11863.25,
+          "current_streak": 4,
+          "current_streak_kind": "W",
+          "max_win_streak": 4,
+          "max_loss_streak": 0,
+          "recent_trades": [
+            {
+              "session": "2026-09-07",
+              "entry_px": 27.45,
+              "exit_px": 30.3,
+              "points": 2.85,
+              "pnl_inr_1lot": 185.25,
+              "reason": "exit_signal",
+              "win": true
+            },
+            {
+              "session": "2026-09-08",
+              "entry_px": 29.5,
+              "exit_px": 44.9,
+              "points": 15.4,
+              "pnl_inr_1lot": 1001.0,
+              "reason": "exit_signal",
+              "win": true
+            },
+            {
+              "session": "2026-09-09",
+              "entry_px": 63.0,
+              "exit_px": 96.4,
+              "points": 33.4,
+              "pnl_inr_1lot": 2171.0,
+              "reason": "exit_signal",
+              "win": true
+            },
+            {
+              "session": "2026-09-11",
+              "entry_px": 87.7,
+              "exit_px": 224.6,
+              "points": 136.9,
+              "pnl_inr_1lot": 8898.5,
+              "reason": "exit_signal",
+              "win": true
+            }
+          ]
+        },
+        {
+          "champion_id": "MIX-CHAMP-FV-V1-10M-BB15",
+          "name": "Flawless v1 \u00b7 10m BB\u00d71.5",
+          "family": "FLAWLESS_V1",
+          "tf": "10m",
+          "side": "PE",
+          "strike": 23500,
+          "security_id": "47298",
+          "lot": 65,
+          "trade_count": 6,
+          "wins": 4,
+          "losses": 2,
+          "win_rate": 0.6666666666666666,
+          "success_pct": 66.7,
+          "gross_pnl_inr": 12935.0,
+          "after_cost_pnl_inr": 12361.5,
+          "current_streak": 3,
+          "current_streak_kind": "W",
+          "max_win_streak": 3,
+          "max_loss_streak": 1,
+          "recent_trades": [
+            {
+              "session": "2026-08-27",
+              "entry_px": 33.75,
+              "exit_px": 28.25,
+              "points": -5.5,
+              "pnl_inr_1lot": -357.5,
+              "reason": "exit_signal",
+              "win": false
+            },
+            {
+              "session": "2026-09-01",
+              "entry_px": 27.1,
+              "exit_px": 34.2,
+              "points": 7.1,
+              "pnl_inr_1lot": 461.5,
+              "reason": "exit_signal",
+              "win": true
+            },
+            {
+              "session": "2026-09-07",
+              "entry_px": 56.2,
+              "exit_px": 37.6,
+              "points": -18.6,
+              "pnl_inr_1lot": -1209.0,
+              "reason": "exit_signal",
+              "win": false
+            },
+            {
+              "session": "2026-09-08",
+              "entry_px": 36.35,
+              "exit_px": 55.55,
+              "points": 19.2,
+              "pnl_inr_1lot": 1248.0,
+              "reason": "exit_signal",
+              "win": true
+            },
+            {
+              "session": "2026-09-09",
+              "entry_px": 78.25,
+              "exit_px": 118.3,
+              "points": 40.05,
+              "pnl_inr_1lot": 2603.25,
+              "reason": "exit_signal",
+              "win": true
+            },
+            {
+              "session": "2026-09-11",
+              "entry_px": 110.0,
+              "exit_px": 266.75,
+              "points": 156.75,
+              "pnl_inr_1lot": 10188.75,
+              "reason": "exit_signal",
+              "win": true
+            }
+          ]
+        }
+      ],
+      "rank": 1
+    },
+    {
+      "champion_id": "MIX-CHAMP-FV-V1-10M-BB20",
+      "name": "Flawless v1 \u00b7 10m BB\u00d72.0",
+      "family": "FLAWLESS_V1",
+      "tf": "10m",
+      "contracts": 3,
+      "trade_count": 10,
+      "wins": 9,
+      "losses": 1,
+      "win_rate": 0.9,
+      "success_pct": 90.0,
+      "gross_pnl_inr": 28977.0,
+      "after_cost_pnl_inr": 28001.28,
+      "max_win_streak": 3,
+      "max_loss_streak": 1,
+      "current_streak": 3,
+      "current_streak_kind": "W",
+      "legs": [
+        {
+          "champion_id": "MIX-CHAMP-FV-V1-10M-BB20",
+          "name": "Flawless v1 \u00b7 10m BB\u00d72.0",
+          "family": "FLAWLESS_V1",
+          "tf": "10m",
+          "side": "PE",
+          "strike": 23400,
+          "security_id": "47294",
+          "lot": 65,
+          "trade_count": 3,
+          "wins": 3,
+          "losses": 0,
+          "win_rate": 1.0,
+          "success_pct": 100.0,
+          "gross_pnl_inr": 2626.0,
+          "after_cost_pnl_inr": 2471.95,
+          "current_streak": 3,
+          "current_streak_kind": "W",
+          "max_win_streak": 3,
+          "max_loss_streak": 0,
+          "recent_trades": [
+            {
+              "session": "2026-09-01",
+              "entry_px": 23.25,
+              "exit_px": 24.85,
+              "points": 1.6,
+              "pnl_inr_1lot": 104.0,
+              "reason": "exit_signal",
+              "win": true
+            },
+            {
+              "session": "2026-09-08",
+              "entry_px": 24.2,
+              "exit_px": 36.1,
+              "points": 11.9,
+              "pnl_inr_1lot": 773.5,
+              "reason": "exit_signal",
+              "win": true
+            },
+            {
+              "session": "2026-09-09",
+              "entry_px": 50.85,
+              "exit_px": 77.75,
+              "points": 26.9,
+              "pnl_inr_1lot": 1748.5,
+              "reason": "exit_signal",
+              "win": true
+            }
+          ]
+        },
+        {
+          "champion_id": "MIX-CHAMP-FV-V1-10M-BB20",
+          "name": "Flawless v1 \u00b7 10m BB\u00d72.0",
+          "family": "FLAWLESS_V1",
+          "tf": "10m",
+          "side": "PE",
+          "strike": 23450,
+          "security_id": "47296",
+          "lot": 65,
+          "trade_count": 3,
+          "wins": 3,
+          "losses": 0,
+          "win_rate": 1.0,
+          "success_pct": 100.0,
+          "gross_pnl_inr": 12311.0,
+          "after_cost_pnl_inr": 11958.44,
+          "current_streak": 3,
+          "current_streak_kind": "W",
+          "max_win_streak": 3,
+          "max_loss_streak": 0,
+          "recent_trades": [
+            {
+              "session": "2026-09-08",
+              "entry_px": 29.5,
+              "exit_px": 44.9,
+              "points": 15.4,
+              "pnl_inr_1lot": 1001.0,
+              "reason": "exit_signal",
+              "win": true
+            },
+            {
+              "session": "2026-09-09",
+              "entry_px": 63.0,
+              "exit_px": 96.4,
+              "points": 33.4,
+              "pnl_inr_1lot": 2171.0,
+              "reason": "exit_signal",
+              "win": true
+            },
+            {
+              "session": "2026-09-11",
+              "entry_px": 84.0,
+              "exit_px": 224.6,
+              "points": 140.6,
+              "pnl_inr_1lot": 9139.0,
+              "reason": "exit_signal",
+              "win": true
+            }
+          ]
+        },
+        {
+          "champion_id": "MIX-CHAMP-FV-V1-10M-BB20",
+          "name": "Flawless v1 \u00b7 10m BB\u00d72.0",
+          "family": "FLAWLESS_V1",
+          "tf": "10m",
+          "side": "PE",
+          "strike": 23500,
+          "security_id": "47298",
+          "lot": 65,
+          "trade_count": 4,
+          "wins": 3,
+          "losses": 1,
+          "win_rate": 0.75,
+          "success_pct": 75.0,
+          "gross_pnl_inr": 14040.0,
+          "after_cost_pnl_inr": 13570.89,
+          "current_streak": 3,
+          "current_streak_kind": "W",
+          "max_win_streak": 3,
+          "max_loss_streak": 1,
+          "recent_trades": [
+            {
+              "session": "2026-08-27",
+              "entry_px": 33.3,
+              "exit_px": 28.25,
+              "points": -5.05,
+              "pnl_inr_1lot": -328.25,
+              "reason": "exit_signal",
+              "win": false
+            },
+            {
+              "session": "2026-09-08",
+              "entry_px": 36.35,
+              "exit_px": 55.55,
+              "points": 19.2,
+              "pnl_inr_1lot": 1248.0,
+              "reason": "exit_signal",
+              "win": true
+            },
+            {
+              "session": "2026-09-09",
+              "entry_px": 78.25,
+              "exit_px": 118.3,
+              "points": 40.05,
+              "pnl_inr_1lot": 2603.25,
+              "reason": "exit_signal",
+              "win": true
+            },
+            {
+              "session": "2026-09-11",
+              "entry_px": 104.95,
+              "exit_px": 266.75,
+              "points": 161.8,
+              "pnl_inr_1lot": 10517.0,
+              "reason": "exit_signal",
+              "win": true
+            }
+          ]
+        }
+      ],
+      "rank": 2
+    },
+    {
+      "champion_id": "MIX-CHAMP-FV-V1-15M-BB17",
+      "name": "Flawless v1 \u00b7 15m BB17",
+      "family": "FLAWLESS_V1",
+      "tf": "15m",
+      "contracts": 3,
+      "trade_count": 15,
+      "wins": 9,
+      "losses": 6,
+      "win_rate": 0.6,
+      "success_pct": 60.0,
+      "gross_pnl_inr": 29428.75,
+      "after_cost_pnl_inr": 27732.49,
+      "max_win_streak": 3,
+      "max_loss_streak": 2,
+      "current_streak": 1,
+      "current_streak_kind": "L",
+      "legs": [
+        {
+          "champion_id": "MIX-CHAMP-FV-V1-15M-BB17",
+          "name": "Flawless v1 \u00b7 15m BB17",
+          "family": "FLAWLESS_V1",
+          "tf": "15m",
+          "side": "PE",
+          "strike": 23400,
+          "security_id": "47294",
+          "lot": 65,
+          "trade_count": 5,
+          "wins": 3,
+          "losses": 2,
+          "win_rate": 0.6,
+          "success_pct": 60.0,
+          "gross_pnl_inr": 8908.25,
+          "after_cost_pnl_inr": 8451.53,
+          "current_streak": 1,
+          "current_streak_kind": "L",
+          "max_win_streak": 2,
+          "max_loss_streak": 1,
+          "recent_trades": [
+            {
+              "session": "2026-09-01",
+              "entry_px": 25.75,
+              "exit_px": 31.7,
+              "points": 5.95,
+              "pnl_inr_1lot": 386.75,
+              "reason": "exit_signal",
+              "win": true
+            },
+            {
+              "session": "2026-09-08",
+              "entry_px": 39.95,
+              "exit_px": 36.1,
+              "points": -3.85,
+              "pnl_inr_1lot": -250.25,
+              "reason": "exit_signal",
+              "win": false
+            },
+            {
+              "session": "2026-09-09",
+              "entry_px": 50.0,
+              "exit_px": 94.25,
+              "points": 44.25,
+              "pnl_inr_1lot": 2876.25,
+              "reason": "exit_signal",
+              "win": true
+            },
+            {
+              "session": "2026-09-11",
+              "entry_px": 65.65,
+              "exit_px": 186.1,
+              "points": 120.45,
+              "pnl_inr_1lot": 7829.25,
+              "reason": "exit_signal",
+              "win": true
+            },
+            {
+              "session": "2026-09-11",
+              "entry_px": 101.45,
+              "exit_px": 71.7,
+              "points": -29.75,
+              "pnl_inr_1lot": -1933.75,
+              "reason": "series_end",
+              "win": false
+            }
+          ]
+        },
+        {
+          "champion_id": "MIX-CHAMP-FV-V1-15M-BB17",
+          "name": "Flawless v1 \u00b7 15m BB17",
+          "family": "FLAWLESS_V1",
+          "tf": "15m",
+          "side": "PE",
+          "strike": 23450,
+          "security_id": "47296",
+          "lot": 65,
+          "trade_count": 4,
+          "wins": 3,
+          "losses": 1,
+          "win_rate": 0.75,
+          "success_pct": 75.0,
+          "gross_pnl_inr": 10939.5,
+          "after_cost_pnl_inr": 10437.38,
+          "current_streak": 1,
+          "current_streak_kind": "L",
+          "max_win_streak": 3,
+          "max_loss_streak": 1,
+          "recent_trades": [
+            {
+              "session": "2026-09-08",
+              "entry_px": 29.0,
+              "exit_px": 44.9,
+              "points": 15.9,
+              "pnl_inr_1lot": 1033.5,
+              "reason": "exit_signal",
+              "win": true
+            },
+            {
+              "session": "2026-09-09",
+              "entry_px": 62.55,
+              "exit_px": 112.0,
+              "points": 49.45,
+              "pnl_inr_1lot": 3214.25,
+              "reason": "exit_signal",
+              "win": true
+            },
+            {
+              "session": "2026-09-11",
+              "entry_px": 83.1,
+              "exit_px": 223.45,
+              "points": 140.35,
+              "pnl_inr_1lot": 9122.75,
+              "reason": "exit_signal",
+              "win": true
+            },
+            {
+              "session": "2026-09-11",
+              "entry_px": 127.45,
+              "exit_px": 90.05,
+              "points": -37.4,
+              "pnl_inr_1lot": -2431.0,
+              "reason": "series_end",
+              "win": false
+            }
+          ]
+        },
+        {
+          "champion_id": "MIX-CHAMP-FV-V1-15M-BB17",
+          "name": "Flawless v1 \u00b7 15m BB17",
+          "family": "FLAWLESS_V1",
+          "tf": "15m",
+          "side": "PE",
+          "strike": 23500,
+          "security_id": "47298",
+          "lot": 65,
+          "trade_count": 6,
+          "wins": 3,
+          "losses": 3,
+          "win_rate": 0.5,
+          "success_pct": 50.0,
+          "gross_pnl_inr": 9581.0,
+          "after_cost_pnl_inr": 8843.58,
+          "current_streak": 1,
+          "current_streak_kind": "L",
+          "max_win_streak": 3,
+          "max_loss_streak": 2,
+          "recent_trades": [
+            {
+              "session": "2026-09-01",
+              "entry_px": 64.85,
+              "exit_px": 42.55,
+              "points": -22.3,
+              "pnl_inr_1lot": -1449.5,
+              "reason": "exit_signal",
+              "win": false
+            },
+            {
+              "session": "2026-09-07",
+              "entry_px": 53.75,
+              "exit_px": 41.85,
+              "points": -11.9,
+              "pnl_inr_1lot": -773.5,
+              "reason": "exit_signal",
+              "win": false
+            },
+            {
+              "session": "2026-09-08",
+              "entry_px": 35.6,
+              "exit_px": 55.55,
+              "points": 19.95,
+              "pnl_inr_1lot": 1296.75,
+              "reason": "exit_signal",
+              "win": true
+            },
+            {
+              "session": "2026-09-09",
+              "entry_px": 77.75,
+              "exit_px": 124.0,
+              "points": 46.25,
+              "pnl_inr_1lot": 3006.25,
+              "reason": "exit_signal",
+              "win": true
+            },
+            {
+              "session": "2026-09-11",
+              "entry_px": 104.15,
+              "exit_px": 264.1,
+              "points": 159.95,
+              "pnl_inr_1lot": 10396.75,
+              "reason": "exit_signal",
+              "win": true
+            },
+            {
+              "session": "2026-09-11",
+              "entry_px": 157.45,
+              "exit_px": 112.9,
+              "points": -44.55,
+              "pnl_inr_1lot": -2895.75,
+              "reason": "series_end",
+              "win": false
+            }
+          ]
+        }
+      ],
+      "rank": 3
+    },
+    {
+      "champion_id": "MIX-CHAMP-FV-V1-5M-BB20",
+      "name": "Flawless v1 \u00b7 5m BB\u00d72.0",
+      "family": "FLAWLESS_V1",
+      "tf": "5m",
+      "contracts": 3,
+      "trade_count": 8,
+      "wins": 4,
+      "losses": 4,
+      "win_rate": 0.5,
+      "success_pct": 50.0,
+      "gross_pnl_inr": 24267.75,
+      "after_cost_pnl_inr": 23442.55,
+      "max_win_streak": 2,
+      "max_loss_streak": 3,
+      "current_streak": 1,
+      "current_streak_kind": "W",
+      "legs": [
+        {
+          "champion_id": "MIX-CHAMP-FV-V1-5M-BB20",
+          "name": "Flawless v1 \u00b7 5m BB\u00d72.0",
+          "family": "FLAWLESS_V1",
+          "tf": "5m",
+          "side": "PE",
+          "strike": 23400,
+          "security_id": "47294",
+          "lot": 65,
+          "trade_count": 3,
+          "wins": 2,
+          "losses": 1,
+          "win_rate": 0.6666666666666666,
+          "success_pct": 66.7,
+          "gross_pnl_inr": 7387.25,
+          "after_cost_pnl_inr": 7156.08,
+          "current_streak": 2,
+          "current_streak_kind": "W",
+          "max_win_streak": 2,
+          "max_loss_streak": 1,
+          "recent_trades": [
+            {
+              "session": "2026-09-01",
+              "entry_px": 24.5,
+              "exit_px": 19.7,
+              "points": -4.8,
+              "pnl_inr_1lot": -312.0,
+              "reason": "exit_signal",
+              "win": false
+            },
+            {
+              "session": "2026-09-03",
+              "entry_px": 26.25,
+              "exit_px": 27.05,
+              "points": 0.8,
+              "pnl_inr_1lot": 52.0,
+              "reason": "exit_signal",
+              "win": true
+            },
+            {
+              "session": "2026-09-11",
+              "entry_px": 70.25,
+              "exit_px": 187.9,
+              "points": 117.65,
+              "pnl_inr_1lot": 7647.25,
+              "reason": "exit_signal",
+              "win": true
+            }
+          ]
+        },
+        {
+          "champion_id": "MIX-CHAMP-FV-V1-5M-BB20",
+          "name": "Flawless v1 \u00b7 5m BB\u00d72.0",
+          "family": "FLAWLESS_V1",
+          "tf": "5m",
+          "side": "PE",
+          "strike": 23450,
+          "security_id": "47296",
+          "lot": 65,
+          "trade_count": 1,
+          "wins": 1,
+          "losses": 0,
+          "win_rate": 1.0,
+          "success_pct": 100.0,
+          "gross_pnl_inr": 8827.0,
+          "after_cost_pnl_inr": 8623.29,
+          "current_streak": 1,
+          "current_streak_kind": "W",
+          "max_win_streak": 1,
+          "max_loss_streak": 0,
+          "recent_trades": [
+            {
+              "session": "2026-09-11",
+              "entry_px": 88.8,
+              "exit_px": 224.6,
+              "points": 135.8,
+              "pnl_inr_1lot": 8827.0,
+              "reason": "exit_signal",
+              "win": true
+            }
+          ]
+        },
+        {
+          "champion_id": "MIX-CHAMP-FV-V1-5M-BB20",
+          "name": "Flawless v1 \u00b7 5m BB\u00d72.0",
+          "family": "FLAWLESS_V1",
+          "tf": "5m",
+          "side": "PE",
+          "strike": 23500,
+          "security_id": "47298",
+          "lot": 65,
+          "trade_count": 4,
+          "wins": 1,
+          "losses": 3,
+          "win_rate": 0.25,
+          "success_pct": 25.0,
+          "gross_pnl_inr": 8053.5,
+          "after_cost_pnl_inr": 7663.18,
+          "current_streak": 1,
+          "current_streak_kind": "W",
+          "max_win_streak": 1,
+          "max_loss_streak": 3,
+          "recent_trades": [
+            {
+              "session": "2026-08-27",
+              "entry_px": 35.7,
+              "exit_px": 27.0,
+              "points": -8.7,
+              "pnl_inr_1lot": -565.5,
+              "reason": "exit_signal",
+              "win": false
+            },
+            {
+              "session": "2026-09-01",
+              "entry_px": 33.8,
+              "exit_px": 26.65,
+              "points": -7.15,
+              "pnl_inr_1lot": -464.75,
+              "reason": "exit_signal",
+              "win": false
+            },
+            {
+              "session": "2026-09-03",
+              "entry_px": 58.6,
+              "exit_px": 41.8,
+              "points": -16.8,
+              "pnl_inr_1lot": -1092.0,
+              "reason": "exit_signal",
+              "win": false
+            },
+            {
+              "session": "2026-09-11",
+              "entry_px": 110.2,
+              "exit_px": 266.75,
+              "points": 156.55,
+              "pnl_inr_1lot": 10175.75,
+              "reason": "exit_signal",
+              "win": true
+            }
+          ]
+        }
+      ],
+      "rank": 4
+    },
+    {
+      "champion_id": "MIX-CHAMP-FV-V1-1M-RSI60",
+      "name": "Flawless v1 \u00b7 1m early RSI exit",
+      "family": "FLAWLESS_V1",
+      "tf": "1m",
+      "contracts": 3,
+      "trade_count": 203,
+      "wins": 142,
+      "losses": 61,
+      "win_rate": 0.6995073891625616,
+      "success_pct": 70.0,
+      "gross_pnl_inr": 24488.75,
+      "after_cost_pnl_inr": 9639.86,
+      "max_win_streak": 9,
+      "max_loss_streak": 3,
+      "current_streak": 2,
+      "current_streak_kind": "L",
+      "legs": [
+        {
+          "champion_id": "MIX-CHAMP-FV-V1-1M-RSI60",
+          "name": "Flawless v1 \u00b7 1m early RSI exit",
+          "family": "FLAWLESS_V1",
+          "tf": "1m",
+          "side": "PE",
+          "strike": 23400,
+          "security_id": "47294",
+          "lot": 65,
+          "trade_count": 71,
+          "wins": 47,
+          "losses": 24,
+          "win_rate": 0.6619718309859155,
+          "success_pct": 66.2,
+          "gross_pnl_inr": 6194.5,
+          "after_cost_pnl_inr": 2139.87,
+          "current_streak": 1,
+          "current_streak_kind": "L",
+          "max_win_streak": 6,
+          "max_loss_streak": 3,
+          "recent_trades": [
+            {
+              "session": "2026-09-10",
+              "entry_px": 78.7,
+              "exit_px": 84.4,
+              "points": 5.7,
+              "pnl_inr_1lot": 370.5,
+              "reason": "exit_signal",
+              "win": true
+            },
+            {
+              "session": "2026-09-10",
+              "entry_px": 79.25,
+              "exit_px": 97.55,
+              "points": 18.3,
+              "pnl_inr_1lot": 1189.5,
+              "reason": "exit_signal",
+              "win": true
+            },
+            {
+              "session": "2026-09-11",
+              "entry_px": 85.75,
+              "exit_px": 194.0,
+              "points": 108.25,
+              "pnl_inr_1lot": 7036.25,
+              "reason": "exit_signal",
+              "win": true
+            },
+            {
+              "session": "2026-09-11",
+              "entry_px": 184.8,
+              "exit_px": 191.6,
+              "points": 6.8,
+              "pnl_inr_1lot": 442.0,
+              "reason": "exit_signal",
+              "win": true
+            },
+            {
+              "session": "2026-09-11",
+              "entry_px": 182.55,
+              "exit_px": 130.75,
+              "points": -51.8,
+              "pnl_inr_1lot": -3367.0,
+              "reason": "exit_signal",
+              "win": false
+            },
+            {
+              "session": "2026-09-11",
+              "entry_px": 125.15,
+              "exit_px": 132.9,
+              "points": 7.75,
+              "pnl_inr_1lot": 503.75,
+              "reason": "exit_signal",
+              "win": true
+            },
+            {
+              "session": "2026-09-11",
+              "entry_px": 130.1,
+              "exit_px": 137.4,
+              "points": 7.3,
+              "pnl_inr_1lot": 474.5,
+              "reason": "exit_signal",
+              "win": true
+            },
+            {
+              "session": "2026-09-11",
+              "entry_px": 122.55,
+              "exit_px": 91.15,
+              "points": -31.4,
+              "pnl_inr_1lot": -2041.0,
+              "reason": "exit_signal",
+              "win": false
+            }
+          ]
+        },
+        {
+          "champion_id": "MIX-CHAMP-FV-V1-1M-RSI60",
+          "name": "Flawless v1 \u00b7 1m early RSI exit",
+          "family": "FLAWLESS_V1",
+          "tf": "1m",
+          "side": "PE",
+          "strike": 23450,
+          "security_id": "47296",
+          "lot": 65,
+          "trade_count": 45,
+          "wins": 33,
+          "losses": 12,
+          "win_rate": 0.7333333333333333,
+          "success_pct": 73.3,
+          "gross_pnl_inr": 9077.25,
+          "after_cost_pnl_inr": 5054.17,
+          "current_streak": 1,
+          "current_streak_kind": "L",
+          "max_win_streak": 8,
+          "max_loss_streak": 3,
+          "recent_trades": [
+            {
+              "session": "2026-09-10",
+              "entry_px": 99.7,
+              "exit_px": 105.95,
+              "points": 6.25,
+              "pnl_inr_1lot": 406.25,
+              "reason": "exit_signal",
+              "win": true
+            },
+            {
+              "session": "2026-09-10",
+              "entry_px": 100.2,
+              "exit_px": 122.1,
+              "points": 21.9,
+              "pnl_inr_1lot": 1423.5,
+              "reason": "exit_signal",
+              "win": true
+            },
+            {
+              "session": "2026-09-11",
+              "entry_px": 108.95,
+              "exit_px": 231.8,
+              "points": 122.85,
+              "pnl_inr_1lot": 7985.25,
+              "reason": "exit_signal",
+              "win": true
+            },
+            {
+              "session": "2026-09-11",
+              "entry_px": 221.15,
+              "exit_px": 229.25,
+              "points": 8.1,
+              "pnl_inr_1lot": 526.5,
+              "reason": "exit_signal",
+              "win": true
+            },
+            {
+              "session": "2026-09-11",
+              "entry_px": 219.5,
+              "exit_px": 161.0,
+              "points": -58.5,
+              "pnl_inr_1lot": -3802.5,
+              "reason": "exit_signal",
+              "win": false
+            },
+            {
+              "session": "2026-09-11",
+              "entry_px": 154.85,
+              "exit_px": 164.6,
+              "points": 9.75,
+              "pnl_inr_1lot": 633.75,
+              "reason": "exit_signal",
+              "win": true
+            },
+            {
+              "session": "2026-09-11",
+              "entry_px": 160.5,
+              "exit_px": 170.05,
+              "points": 9.55,
+              "pnl_inr_1lot": 620.75,
+              "reason": "exit_signal",
+              "win": true
+            },
+            {
+              "session": "2026-09-11",
+              "entry_px": 152.15,
+              "exit_px": 113.4,
+              "points": -38.75,
+              "pnl_inr_1lot": -2518.75,
+              "reason": "exit_signal",
+              "win": false
+            }
+          ]
+        },
+        {
+          "champion_id": "MIX-CHAMP-FV-V1-1M-RSI60",
+          "name": "Flawless v1 \u00b7 1m early RSI exit",
+          "family": "FLAWLESS_V1",
+          "tf": "1m",
+          "side": "PE",
+          "strike": 23500,
+          "security_id": "47298",
+          "lot": 65,
+          "trade_count": 87,
+          "wins": 62,
+          "losses": 25,
+          "win_rate": 0.7126436781609196,
+          "success_pct": 71.3,
+          "gross_pnl_inr": 9217.0,
+          "after_cost_pnl_inr": 2445.82,
+          "current_streak": 2,
+          "current_streak_kind": "L",
+          "max_win_streak": 9,
+          "max_loss_streak": 3,
+          "recent_trades": [
+            {
+              "session": "2026-09-10",
+              "entry_px": 125.2,
+              "exit_px": 133.25,
+              "points": 8.05,
+              "pnl_inr_1lot": 523.25,
+              "reason": "exit_signal",
+              "win": true
+            },
+            {
+              "session": "2026-09-11",
+              "entry_px": 137.45,
+              "exit_px": 267.05,
+              "points": 129.6,
+              "pnl_inr_1lot": 8424.0,
+              "reason": "exit_signal",
+              "win": true
+            },
+            {
+              "session": "2026-09-11",
+              "entry_px": 260.1,
+              "exit_px": 269.95,
+              "points": 9.85,
+              "pnl_inr_1lot": 640.25,
+              "reason": "exit_signal",
+              "win": true
+            },
+            {
+              "session": "2026-09-11",
+              "entry_px": 259.8,
+              "exit_px": 194.55,
+              "points": -65.25,
+              "pnl_inr_1lot": -4241.25,
+              "reason": "exit_signal",
+              "win": false
+            },
+            {
+              "session": "2026-09-11",
+              "entry_px": 187.9,
+              "exit_px": 199.65,
+              "points": 11.75,
+              "pnl_inr_1lot": 763.75,
+              "reason": "exit_signal",
+              "win": true
+            },
+            {
+              "session": "2026-09-11",
+              "entry_px": 193.7,
+              "exit_px": 205.25,
+              "points": 11.55,
+              "pnl_inr_1lot": 750.75,
+              "reason": "exit_signal",
+              "win": true
+            },
+            {
+              "session": "2026-09-11",
+              "entry_px": 185.8,
+              "exit_px": 139.9,
+              "points": -45.9,
+              "pnl_inr_1lot": -2983.5,
+              "reason": "exit_signal",
+              "win": false
+            },
+            {
+              "session": "2026-09-11",
+              "entry_px": 126.65,
+              "exit_px": 112.9,
+              "points": -13.75,
+              "pnl_inr_1lot": -893.75,
+              "reason": "series_end",
+              "win": false
+            }
+          ]
+        }
+      ],
+      "rank": 5
+    },
+    {
+      "champion_id": "MIX-CHAMP-EMA-VWAP-5M",
+      "name": "EMA9\u00d721 + VWAP",
+      "family": "EMA_VWAP",
+      "tf": "5m",
+      "contracts": 3,
+      "trade_count": 45,
+      "wins": 17,
+      "losses": 28,
+      "win_rate": 0.37777777777777777,
+      "success_pct": 37.8,
+      "gross_pnl_inr": 981.5,
+      "after_cost_pnl_inr": -1001.46,
+      "max_win_streak": 4,
+      "max_loss_streak": 7,
+      "current_streak": 1,
+      "current_streak_kind": "L",
+      "legs": [
+        {
+          "champion_id": "MIX-CHAMP-EMA-VWAP-5M",
+          "name": "EMA9\u00d721 + VWAP",
+          "family": "EMA_VWAP",
+          "tf": "5m",
+          "side": "PE",
+          "strike": 23400,
+          "security_id": "47294",
+          "lot": 65,
+          "trade_count": 20,
+          "wins": 7,
+          "losses": 13,
+          "win_rate": 0.35,
+          "success_pct": 35.0,
+          "gross_pnl_inr": 507.0,
+          "after_cost_pnl_inr": -168.55,
+          "current_streak": 1,
+          "current_streak_kind": "L",
+          "max_win_streak": 3,
+          "max_loss_streak": 4,
+          "recent_trades": [
+            {
+              "session": "2026-09-01",
+              "entry_px": 22.3,
+              "exit_px": 21.3,
+              "points": -1.0,
+              "pnl_inr_1lot": -65.0,
+              "reason": "exit_signal",
+              "win": false
+            },
+            {
+              "session": "2026-09-02",
+              "entry_px": 18.7,
+              "exit_px": 48.3,
+              "points": 29.6,
+              "pnl_inr_1lot": 1924.0,
+              "reason": "exit_signal",
+              "win": true
+            },
+            {
+              "session": "2026-09-03",
+              "entry_px": 27.3,
+              "exit_px": 26.3,
+              "points": -1.0,
+              "pnl_inr_1lot": -65.0,
+              "reason": "exit_signal",
+              "win": false
+            },
+            {
+              "session": "2026-09-03",
+              "entry_px": 28.35,
+              "exit_px": 26.2,
+              "points": -2.15,
+              "pnl_inr_1lot": -139.75,
+              "reason": "exit_signal",
+              "win": false
+            },
+            {
+              "session": "2026-09-04",
+              "entry_px": 29.0,
+              "exit_px": 21.75,
+              "points": -7.25,
+              "pnl_inr_1lot": -471.25,
+              "reason": "exit_signal",
+              "win": false
+            },
+            {
+              "session": "2026-09-07",
+              "entry_px": 19.8,
+              "exit_px": 19.15,
+              "points": -0.65,
+              "pnl_inr_1lot": -42.25,
+              "reason": "exit_signal",
+              "win": false
+            },
+            {
+              "session": "2026-09-08",
+              "entry_px": 27.2,
+              "exit_px": 32.75,
+              "points": 5.55,
+              "pnl_inr_1lot": 360.75,
+              "reason": "exit_signal",
+              "win": true
+            },
+            {
+              "session": "2026-09-09",
+              "entry_px": 72.95,
+              "exit_px": 65.55,
+              "points": -7.4,
+              "pnl_inr_1lot": -481.0,
+              "reason": "exit_signal",
+              "win": false
+            }
+          ]
+        },
+        {
+          "champion_id": "MIX-CHAMP-EMA-VWAP-5M",
+          "name": "EMA9\u00d721 + VWAP",
+          "family": "EMA_VWAP",
+          "tf": "5m",
+          "side": "PE",
+          "strike": 23450,
+          "security_id": "47296",
+          "lot": 65,
+          "trade_count": 7,
+          "wins": 2,
+          "losses": 5,
+          "win_rate": 0.2857142857142857,
+          "success_pct": 28.6,
+          "gross_pnl_inr": -403.0,
+          "after_cost_pnl_inr": -787.93,
+          "current_streak": 1,
+          "current_streak_kind": "L",
+          "max_win_streak": 2,
+          "max_loss_streak": 4,
+          "recent_trades": [
+            {
+              "session": "2026-09-02",
+              "entry_px": 56.3,
+              "exit_px": 54.6,
+              "points": -1.7,
+              "pnl_inr_1lot": -110.5,
+              "reason": "exit_signal",
+              "win": false
+            },
+            {
+              "session": "2026-09-03",
+              "entry_px": 30.65,
+              "exit_px": 28.75,
+              "points": -1.9,
+              "pnl_inr_1lot": -123.5,
+              "reason": "exit_signal",
+              "win": false
+            },
+            {
+              "session": "2026-09-03",
+              "entry_px": 31.75,
+              "exit_px": 30.0,
+              "points": -1.75,
+              "pnl_inr_1lot": -113.75,
+              "reason": "exit_signal",
+              "win": false
+            },
+            {
+              "session": "2026-09-04",
+              "entry_px": 33.1,
+              "exit_px": 25.6,
+              "points": -7.5,
+              "pnl_inr_1lot": -487.5,
+              "reason": "exit_signal",
+              "win": false
+            },
+            {
+              "session": "2026-09-07",
+              "entry_px": 24.25,
+              "exit_px": 32.05,
+              "points": 7.8,
+              "pnl_inr_1lot": 507.0,
+              "reason": "exit_signal",
+              "win": true
+            },
+            {
+              "session": "2026-09-08",
+              "entry_px": 32.5,
+              "exit_px": 40.9,
+              "points": 8.4,
+              "pnl_inr_1lot": 546.0,
+              "reason": "exit_signal",
+              "win": true
+            },
+            {
+              "session": "2026-09-09",
+              "entry_px": 90.65,
+              "exit_px": 81.1,
+              "points": -9.55,
+              "pnl_inr_1lot": -620.75,
+              "reason": "exit_signal",
+              "win": false
+            }
+          ]
+        },
+        {
+          "champion_id": "MIX-CHAMP-EMA-VWAP-5M",
+          "name": "EMA9\u00d721 + VWAP",
+          "family": "EMA_VWAP",
+          "tf": "5m",
+          "side": "PE",
+          "strike": 23500,
+          "security_id": "47298",
+          "lot": 65,
+          "trade_count": 18,
+          "wins": 8,
+          "losses": 10,
+          "win_rate": 0.4444444444444444,
+          "success_pct": 44.4,
+          "gross_pnl_inr": 877.5,
+          "after_cost_pnl_inr": -44.98,
+          "current_streak": 1,
+          "current_streak_kind": "W",
+          "max_win_streak": 4,
+          "max_loss_streak": 7,
+          "recent_trades": [
+            {
+              "session": "2026-09-01",
+              "entry_px": 26.4,
+              "exit_px": 25.8,
+              "points": -0.6,
+              "pnl_inr_1lot": -39.0,
+              "reason": "exit_signal",
+              "win": false
+            },
+            {
+              "session": "2026-09-03",
+              "entry_px": 39.8,
+              "exit_px": 32.5,
+              "points": -7.3,
+              "pnl_inr_1lot": -474.5,
+              "reason": "exit_signal",
+              "win": false
+            },
+            {
+              "session": "2026-09-03",
+              "entry_px": 37.5,
+              "exit_px": 36.35,
+              "points": -1.15,
+              "pnl_inr_1lot": -74.75,
+              "reason": "exit_signal",
+              "win": false
+            },
+            {
+              "session": "2026-09-04",
+              "entry_px": 39.8,
+              "exit_px": 30.75,
+              "points": -9.05,
+              "pnl_inr_1lot": -588.25,
+              "reason": "exit_signal",
+              "win": false
+            },
+            {
+              "session": "2026-09-07",
+              "entry_px": 29.25,
+              "exit_px": 39.75,
+              "points": 10.5,
+              "pnl_inr_1lot": 682.5,
+              "reason": "exit_signal",
+              "win": true
+            },
+            {
+              "session": "2026-09-08",
+              "entry_px": 39.6,
+              "exit_px": 51.2,
+              "points": 11.6,
+              "pnl_inr_1lot": 754.0,
+              "reason": "exit_signal",
+              "win": true
+            },
+            {
+              "session": "2026-09-09",
+              "entry_px": 109.8,
+              "exit_px": 99.85,
+              "points": -9.95,
+              "pnl_inr_1lot": -646.75,
+              "reason": "exit_signal",
+              "win": false
+            },
+            {
+              "session": "2026-09-10",
+              "entry_px": 95.7,
+              "exit_px": 115.4,
+              "points": 19.7,
+              "pnl_inr_1lot": 1280.5,
+              "reason": "exit_signal",
+              "win": true
+            }
+          ]
+        }
+      ],
+      "rank": 6
+    },
+    {
+      "champion_id": "MIX-CHAMP-EMA-ST-5M",
+      "name": "EMA\u00d7ST (lab winner)",
+      "family": "EMA_ST",
+      "tf": "5m",
+      "contracts": 3,
+      "trade_count": 45,
+      "wins": 17,
+      "losses": 28,
+      "win_rate": 0.37777777777777777,
+      "success_pct": 37.8,
+      "gross_pnl_inr": 461.5,
+      "after_cost_pnl_inr": -1798.23,
+      "max_win_streak": 2,
+      "max_loss_streak": 5,
+      "current_streak": 1,
+      "current_streak_kind": "W",
+      "legs": [
+        {
+          "champion_id": "MIX-CHAMP-EMA-ST-5M",
+          "name": "EMA\u00d7ST (lab winner)",
+          "family": "EMA_ST",
+          "tf": "5m",
+          "side": "PE",
+          "strike": 23400,
+          "security_id": "47294",
+          "lot": 65,
+          "trade_count": 20,
+          "wins": 8,
+          "losses": 12,
+          "win_rate": 0.4,
+          "success_pct": 40.0,
+          "gross_pnl_inr": 464.75,
+          "after_cost_pnl_inr": -273.03,
+          "current_streak": 1,
+          "current_streak_kind": "W",
+          "max_win_streak": 2,
+          "max_loss_streak": 5,
+          "recent_trades": [
+            {
+              "session": "2026-09-02",
+              "entry_px": 18.7,
+              "exit_px": 44.1,
+              "points": 25.4,
+              "pnl_inr_1lot": 1651.0,
+              "reason": "exit_signal",
+              "win": true
+            },
+            {
+              "session": "2026-09-03",
+              "entry_px": 28.35,
+              "exit_px": 26.2,
+              "points": -2.15,
+              "pnl_inr_1lot": -139.75,
+              "reason": "exit_signal",
+              "win": false
+            },
+            {
+              "session": "2026-09-04",
+              "entry_px": 29.0,
+              "exit_px": 21.75,
+              "points": -7.25,
+              "pnl_inr_1lot": -471.25,
+              "reason": "exit_signal",
+              "win": false
+            },
+            {
+              "session": "2026-09-04",
+              "entry_px": 19.5,
+              "exit_px": 18.35,
+              "points": -1.15,
+              "pnl_inr_1lot": -74.75,
+              "reason": "exit_signal",
+              "win": false
+            },
+            {
+              "session": "2026-09-07",
+              "entry_px": 19.8,
+              "exit_px": 24.3,
+              "points": 4.5,
+              "pnl_inr_1lot": 292.5,
+              "reason": "exit_signal",
+              "win": true
+            },
+            {
+              "session": "2026-09-08",
+              "entry_px": 27.2,
+              "exit_px": 28.2,
+              "points": 1.0,
+              "pnl_inr_1lot": 65.0,
+              "reason": "exit_signal",
+              "win": true
+            },
+            {
+              "session": "2026-09-09",
+              "entry_px": 72.95,
+              "exit_px": 57.5,
+              "points": -15.45,
+              "pnl_inr_1lot": -1004.25,
+              "reason": "exit_signal",
+              "win": false
+            },
+            {
+              "session": "2026-09-10",
+              "entry_px": 61.75,
+              "exit_px": 73.0,
+              "points": 11.25,
+              "pnl_inr_1lot": 731.25,
+              "reason": "exit_signal",
+              "win": true
+            }
+          ]
+        },
+        {
+          "champion_id": "MIX-CHAMP-EMA-ST-5M",
+          "name": "EMA\u00d7ST (lab winner)",
+          "family": "EMA_ST",
+          "tf": "5m",
+          "side": "PE",
+          "strike": 23450,
+          "security_id": "47296",
+          "lot": 65,
+          "trade_count": 7,
+          "wins": 2,
+          "losses": 5,
+          "win_rate": 0.2857142857142857,
+          "success_pct": 28.6,
+          "gross_pnl_inr": -1020.5,
+          "after_cost_pnl_inr": -1446.32,
+          "current_streak": 1,
+          "current_streak_kind": "W",
+          "max_win_streak": 1,
+          "max_loss_streak": 4,
+          "recent_trades": [
+            {
+              "session": "2026-09-02",
+              "entry_px": 56.3,
+              "exit_px": 50.45,
+              "points": -5.85,
+              "pnl_inr_1lot": -380.25,
+              "reason": "exit_signal",
+              "win": false
+            },
+            {
+              "session": "2026-09-03",
+              "entry_px": 30.65,
+              "exit_px": 28.75,
+              "points": -1.9,
+              "pnl_inr_1lot": -123.5,
+              "reason": "exit_signal",
+              "win": false
+            },
+            {
+              "session": "2026-09-04",
+              "entry_px": 33.1,
+              "exit_px": 25.6,
+              "points": -7.5,
+              "pnl_inr_1lot": -487.5,
+              "reason": "exit_signal",
+              "win": false
+            },
+            {
+              "session": "2026-09-04",
+              "entry_px": 23.2,
+              "exit_px": 22.55,
+              "points": -0.65,
+              "pnl_inr_1lot": -42.25,
+              "reason": "exit_signal",
+              "win": false
+            },
+            {
+              "session": "2026-09-07",
+              "entry_px": 24.25,
+              "exit_px": 29.7,
+              "points": 5.45,
+              "pnl_inr_1lot": 354.25,
+              "reason": "exit_signal",
+              "win": true
+            },
+            {
+              "session": "2026-09-09",
+              "entry_px": 90.65,
+              "exit_px": 70.85,
+              "points": -19.8,
+              "pnl_inr_1lot": -1287.0,
+              "reason": "exit_signal",
+              "win": false
+            },
+            {
+              "session": "2026-09-10",
+              "entry_px": 77.25,
+              "exit_px": 91.8,
+              "points": 14.55,
+              "pnl_inr_1lot": 945.75,
+              "reason": "exit_signal",
+              "win": true
+            }
+          ]
+        },
+        {
+          "champion_id": "MIX-CHAMP-EMA-ST-5M",
+          "name": "EMA\u00d7ST (lab winner)",
+          "family": "EMA_ST",
+          "tf": "5m",
+          "side": "PE",
+          "strike": 23500,
+          "security_id": "47298",
+          "lot": 65,
+          "trade_count": 18,
+          "wins": 7,
+          "losses": 11,
+          "win_rate": 0.3888888888888889,
+          "success_pct": 38.9,
+          "gross_pnl_inr": 1017.25,
+          "after_cost_pnl_inr": -78.88,
+          "current_streak": 1,
+          "current_streak_kind": "L",
+          "max_win_streak": 2,
+          "max_loss_streak": 4,
+          "recent_trades": [
+            {
+              "session": "2026-09-03",
+              "entry_px": 39.8,
+              "exit_px": 32.5,
+              "points": -7.3,
+              "pnl_inr_1lot": -474.5,
+              "reason": "exit_signal",
+              "win": false
+            },
+            {
+              "session": "2026-09-03",
+              "entry_px": 37.5,
+              "exit_px": 36.35,
+              "points": -1.15,
+              "pnl_inr_1lot": -74.75,
+              "reason": "exit_signal",
+              "win": false
+            },
+            {
+              "session": "2026-09-04",
+              "entry_px": 39.8,
+              "exit_px": 30.75,
+              "points": -9.05,
+              "pnl_inr_1lot": -588.25,
+              "reason": "exit_signal",
+              "win": false
+            },
+            {
+              "session": "2026-09-04",
+              "entry_px": 27.95,
+              "exit_px": 25.9,
+              "points": -2.05,
+              "pnl_inr_1lot": -133.25,
+              "reason": "exit_signal",
+              "win": false
+            },
+            {
+              "session": "2026-09-07",
+              "entry_px": 29.25,
+              "exit_px": 39.75,
+              "points": 10.5,
+              "pnl_inr_1lot": 682.5,
+              "reason": "exit_signal",
+              "win": true
+            },
+            {
+              "session": "2026-09-09",
+              "entry_px": 109.8,
+              "exit_px": 87.55,
+              "points": -22.25,
+              "pnl_inr_1lot": -1446.25,
+              "reason": "exit_signal",
+              "win": false
+            },
+            {
+              "session": "2026-09-10",
+              "entry_px": 95.7,
+              "exit_px": 114.6,
+              "points": 18.9,
+              "pnl_inr_1lot": 1228.5,
+              "reason": "exit_signal",
+              "win": true
+            },
+            {
+              "session": "2026-09-10",
+              "entry_px": 123.3,
+              "exit_px": 118.3,
+              "points": -5.0,
+              "pnl_inr_1lot": -325.0,
+              "reason": "exit_signal",
+              "win": false
+            }
+          ]
+        }
+      ],
+      "rank": 7
+    },
+    {
+      "champion_id": "MIX-CHAMP-EMA-ST-VWAP-5M",
+      "name": "EMA\u00d7ST + VWAP filter",
+      "family": "EMA_ST_VWAP",
+      "tf": "5m",
+      "contracts": 3,
+      "trade_count": 33,
+      "wins": 13,
+      "losses": 20,
+      "win_rate": 0.3939393939393939,
+      "success_pct": 39.4,
+      "gross_pnl_inr": -708.5,
+      "after_cost_pnl_inr": -2267.98,
+      "max_win_streak": 3,
+      "max_loss_streak": 3,
+      "current_streak": 1,
+      "current_streak_kind": "L",
+      "legs": [
+        {
+          "champion_id": "MIX-CHAMP-EMA-ST-VWAP-5M",
+          "name": "EMA\u00d7ST + VWAP filter",
+          "family": "EMA_ST_VWAP",
+          "tf": "5m",
+          "side": "PE",
+          "strike": 23400,
+          "security_id": "47294",
+          "lot": 65,
+          "trade_count": 15,
+          "wins": 7,
+          "losses": 8,
+          "win_rate": 0.4666666666666667,
+          "success_pct": 46.7,
+          "gross_pnl_inr": 68.25,
+          "after_cost_pnl_inr": -460.23,
+          "current_streak": 1,
+          "current_streak_kind": "L",
+          "max_win_streak": 3,
+          "max_loss_streak": 3,
+          "recent_trades": [
+            {
+              "session": "2026-08-28",
+              "entry_px": 21.75,
+              "exit_px": 22.05,
+              "points": 0.3,
+              "pnl_inr_1lot": 19.5,
+              "reason": "exit_signal",
+              "win": true
+            },
+            {
+              "session": "2026-08-31",
+              "entry_px": 23.35,
+              "exit_px": 24.4,
+              "points": 1.05,
+              "pnl_inr_1lot": 68.25,
+              "reason": "exit_signal",
+              "win": true
+            },
+            {
+              "session": "2026-09-02",
+              "entry_px": 18.7,
+              "exit_px": 44.1,
+              "points": 25.4,
+              "pnl_inr_1lot": 1651.0,
+              "reason": "exit_signal",
+              "win": true
+            },
+            {
+              "session": "2026-09-03",
+              "entry_px": 28.35,
+              "exit_px": 26.2,
+              "points": -2.15,
+              "pnl_inr_1lot": -139.75,
+              "reason": "exit_signal",
+              "win": false
+            },
+            {
+              "session": "2026-09-04",
+              "entry_px": 29.0,
+              "exit_px": 21.75,
+              "points": -7.25,
+              "pnl_inr_1lot": -471.25,
+              "reason": "exit_signal",
+              "win": false
+            },
+            {
+              "session": "2026-09-07",
+              "entry_px": 19.8,
+              "exit_px": 24.3,
+              "points": 4.5,
+              "pnl_inr_1lot": 292.5,
+              "reason": "exit_signal",
+              "win": true
+            },
+            {
+              "session": "2026-09-08",
+              "entry_px": 27.2,
+              "exit_px": 28.2,
+              "points": 1.0,
+              "pnl_inr_1lot": 65.0,
+              "reason": "exit_signal",
+              "win": true
+            },
+            {
+              "session": "2026-09-09",
+              "entry_px": 72.95,
+              "exit_px": 57.5,
+              "points": -15.45,
+              "pnl_inr_1lot": -1004.25,
+              "reason": "exit_signal",
+              "win": false
+            }
+          ]
+        },
+        {
+          "champion_id": "MIX-CHAMP-EMA-ST-VWAP-5M",
+          "name": "EMA\u00d7ST + VWAP filter",
+          "family": "EMA_ST_VWAP",
+          "tf": "5m",
+          "side": "PE",
+          "strike": 23450,
+          "security_id": "47296",
+          "lot": 65,
+          "trade_count": 5,
+          "wins": 1,
+          "losses": 4,
+          "win_rate": 0.2,
+          "success_pct": 20.0,
+          "gross_pnl_inr": -1924.0,
+          "after_cost_pnl_inr": -2210.2,
+          "current_streak": 1,
+          "current_streak_kind": "L",
+          "max_win_streak": 1,
+          "max_loss_streak": 3,
+          "recent_trades": [
+            {
+              "session": "2026-09-02",
+              "entry_px": 56.3,
+              "exit_px": 50.45,
+              "points": -5.85,
+              "pnl_inr_1lot": -380.25,
+              "reason": "exit_signal",
+              "win": false
+            },
+            {
+              "session": "2026-09-03",
+              "entry_px": 30.65,
+              "exit_px": 28.75,
+              "points": -1.9,
+              "pnl_inr_1lot": -123.5,
+              "reason": "exit_signal",
+              "win": false
+            },
+            {
+              "session": "2026-09-04",
+              "entry_px": 33.1,
+              "exit_px": 25.6,
+              "points": -7.5,
+              "pnl_inr_1lot": -487.5,
+              "reason": "exit_signal",
+              "win": false
+            },
+            {
+              "session": "2026-09-07",
+              "entry_px": 24.25,
+              "exit_px": 29.7,
+              "points": 5.45,
+              "pnl_inr_1lot": 354.25,
+              "reason": "exit_signal",
+              "win": true
+            },
+            {
+              "session": "2026-09-09",
+              "entry_px": 90.65,
+              "exit_px": 70.85,
+              "points": -19.8,
+              "pnl_inr_1lot": -1287.0,
+              "reason": "exit_signal",
+              "win": false
+            }
+          ]
+        },
+        {
+          "champion_id": "MIX-CHAMP-EMA-ST-VWAP-5M",
+          "name": "EMA\u00d7ST + VWAP filter",
+          "family": "EMA_ST_VWAP",
+          "tf": "5m",
+          "side": "PE",
+          "strike": 23500,
+          "security_id": "47298",
+          "lot": 65,
+          "trade_count": 13,
+          "wins": 5,
+          "losses": 8,
+          "win_rate": 0.38461538461538464,
+          "success_pct": 38.5,
+          "gross_pnl_inr": 1147.25,
+          "after_cost_pnl_inr": 402.45,
+          "current_streak": 1,
+          "current_streak_kind": "W",
+          "max_win_streak": 1,
+          "max_loss_streak": 3,
+          "recent_trades": [
+            {
+              "session": "2026-08-31",
+              "entry_px": 33.95,
+              "exit_px": 32.2,
+              "points": -1.75,
+              "pnl_inr_1lot": -113.75,
+              "reason": "exit_signal",
+              "win": false
+            },
+            {
+              "session": "2026-09-02",
+              "entry_px": 26.4,
+              "exit_px": 58.65,
+              "points": 32.25,
+              "pnl_inr_1lot": 2096.25,
+              "reason": "exit_signal",
+              "win": true
+            },
+            {
+              "session": "2026-09-03",
+              "entry_px": 39.8,
+              "exit_px": 32.5,
+              "points": -7.3,
+              "pnl_inr_1lot": -474.5,
+              "reason": "exit_signal",
+              "win": false
+            },
+            {
+              "session": "2026-09-03",
+              "entry_px": 37.5,
+              "exit_px": 36.35,
+              "points": -1.15,
+              "pnl_inr_1lot": -74.75,
+              "reason": "exit_signal",
+              "win": false
+            },
+            {
+              "session": "2026-09-04",
+              "entry_px": 39.8,
+              "exit_px": 30.75,
+              "points": -9.05,
+              "pnl_inr_1lot": -588.25,
+              "reason": "exit_signal",
+              "win": false
+            },
+            {
+              "session": "2026-09-07",
+              "entry_px": 29.25,
+              "exit_px": 39.75,
+              "points": 10.5,
+              "pnl_inr_1lot": 682.5,
+              "reason": "exit_signal",
+              "win": true
+            },
+            {
+              "session": "2026-09-09",
+              "entry_px": 109.8,
+              "exit_px": 87.55,
+              "points": -22.25,
+              "pnl_inr_1lot": -1446.25,
+              "reason": "exit_signal",
+              "win": false
+            },
+            {
+              "session": "2026-09-10",
+              "entry_px": 95.7,
+              "exit_px": 114.6,
+              "points": 18.9,
+              "pnl_inr_1lot": 1228.5,
+              "reason": "exit_signal",
+              "win": true
+            }
+          ]
+        }
+      ],
+      "rank": 8
+    },
+    {
+      "champion_id": "MIX-CHAMP-VWAP-RSI-5M",
+      "name": "VWAP + RSI cross (Pine)",
+      "family": "VWAP_RSI",
+      "tf": "5m",
+      "contracts": 5,
+      "trade_count": 20,
+      "wins": 2,
+      "losses": 18,
+      "win_rate": 0.1,
+      "success_pct": 10.0,
+      "gross_pnl_inr": -2125.5,
+      "after_cost_pnl_inr": -5992.28,
+      "max_win_streak": 1,
+      "max_loss_streak": 6,
+      "current_streak": 3,
+      "current_streak_kind": "L",
+      "legs": [
+        {
+          "champion_id": "MIX-CHAMP-VWAP-RSI-5M",
+          "name": "VWAP + RSI cross (Pine)",
+          "family": "VWAP_RSI",
+          "tf": "5m",
+          "side": "PE",
+          "strike": 23400,
+          "security_id": "47294",
+          "lot": 65,
+          "trade_count": 8,
+          "wins": 1,
+          "losses": 7,
+          "win_rate": 0.125,
+          "success_pct": 12.5,
+          "gross_pnl_inr": -481.0,
+          "after_cost_pnl_inr": -755.82,
+          "current_streak": 3,
+          "current_streak_kind": "L",
+          "max_win_streak": 1,
+          "max_loss_streak": 4,
+          "recent_trades": [
+            {
+              "session": "2026-08-21",
+              "entry_px": 26.3,
+              "exit_px": 23.9,
+              "points": -2.4,
+              "pnl_inr_1lot": -156.0,
+              "reason": "exit_signal",
+              "win": false
+            },
+            {
+              "session": "2026-08-24",
+              "entry_px": 29.55,
+              "exit_px": 28.65,
+              "points": -0.9,
+              "pnl_inr_1lot": -58.5,
+              "reason": "exit_signal",
+              "win": false
+            },
+            {
+              "session": "2026-08-27",
+              "entry_px": 18.45,
+              "exit_px": 16.5,
+              "points": -1.95,
+              "pnl_inr_1lot": -126.75,
+              "reason": "exit_signal",
+              "win": false
+            },
+            {
+              "session": "2026-08-27",
+              "entry_px": 20.0,
+              "exit_px": 17.4,
+              "points": -2.6,
+              "pnl_inr_1lot": -169.0,
+              "reason": "exit_signal",
+              "win": false
+            },
+            {
+              "session": "2026-08-28",
+              "entry_px": 20.5,
+              "exit_px": 22.7,
+              "points": 2.2,
+              "pnl_inr_1lot": 143.0,
+              "reason": "exit_signal",
+              "win": true
+            },
+            {
+              "session": "2026-08-28",
+              "entry_px": 23.8,
+              "exit_px": 23.25,
+              "points": -0.55,
+              "pnl_inr_1lot": -35.75,
+              "reason": "exit_signal",
+              "win": false
+            },
+            {
+              "session": "2026-09-02",
+              "entry_px": 48.55,
+              "exit_px": 47.45,
+              "points": -1.1,
+              "pnl_inr_1lot": -71.5,
+              "reason": "exit_signal",
+              "win": false
+            },
+            {
+              "session": "2026-09-07",
+              "entry_px": 27.95,
+              "exit_px": 27.85,
+              "points": -0.1,
+              "pnl_inr_1lot": -6.5,
+              "reason": "exit_signal",
+              "win": false
+            }
+          ]
+        },
+        {
+          "champion_id": "MIX-CHAMP-VWAP-RSI-5M",
+          "name": "VWAP + RSI cross (Pine)",
+          "family": "VWAP_RSI",
+          "tf": "5m",
+          "side": "PE",
+          "strike": 23450,
+          "security_id": "47296",
+          "lot": 65,
+          "trade_count": 1,
+          "wins": 0,
+          "losses": 1,
+          "win_rate": 0.0,
+          "success_pct": 0.0,
+          "gross_pnl_inr": -48.75,
+          "after_cost_pnl_inr": -92.85,
+          "current_streak": 1,
+          "current_streak_kind": "L",
+          "max_win_streak": 0,
+          "max_loss_streak": 1,
+          "recent_trades": [
+            {
+              "session": "2026-09-07",
+              "entry_px": 34.3,
+              "exit_px": 33.55,
+              "points": -0.75,
+              "pnl_inr_1lot": -48.75,
+              "reason": "exit_signal",
+              "win": false
+            }
+          ]
+        },
+        {
+          "champion_id": "MIX-CHAMP-VWAP-RSI-5M",
+          "name": "VWAP + RSI cross (Pine)",
+          "family": "VWAP_RSI",
+          "tf": "5m",
+          "side": "PE",
+          "strike": 23500,
+          "security_id": "47298",
+          "lot": 65,
+          "trade_count": 6,
+          "wins": 0,
+          "losses": 6,
+          "win_rate": 0.0,
+          "success_pct": 0.0,
+          "gross_pnl_inr": -510.25,
+          "after_cost_pnl_inr": -873.37,
+          "current_streak": 6,
+          "current_streak_kind": "L",
+          "max_win_streak": 0,
+          "max_loss_streak": 6,
+          "recent_trades": [
+            {
+              "session": "2026-08-19",
+              "entry_px": 69.65,
+              "exit_px": 67.5,
+              "points": -2.15,
+              "pnl_inr_1lot": -139.75,
+              "reason": "exit_signal",
+              "win": false
+            },
+            {
+              "session": "2026-08-24",
+              "entry_px": 37.45,
+              "exit_px": 36.55,
+              "points": -0.9,
+              "pnl_inr_1lot": -58.5,
+              "reason": "exit_signal",
+              "win": false
+            },
+            {
+              "session": "2026-08-24",
+              "entry_px": 38.25,
+              "exit_px": 36.95,
+              "points": -1.3,
+              "pnl_inr_1lot": -84.5,
+              "reason": "exit_signal",
+              "win": false
+            },
+            {
+              "session": "2026-08-28",
+              "entry_px": 31.6,
+              "exit_px": 30.1,
+              "points": -1.5,
+              "pnl_inr_1lot": -97.5,
+              "reason": "exit_signal",
+              "win": false
+            },
+            {
+              "session": "2026-09-02",
+              "entry_px": 64.4,
+              "exit_px": 63.0,
+              "points": -1.4,
+              "pnl_inr_1lot": -91.0,
+              "reason": "exit_signal",
+              "win": false
+            },
+            {
+              "session": "2026-09-07",
+              "entry_px": 41.9,
+              "exit_px": 41.3,
+              "points": -0.6,
+              "pnl_inr_1lot": -39.0,
+              "reason": "exit_signal",
+              "win": false
+            }
+          ]
+        },
+        {
+          "champion_id": "MIX-CHAMP-VWAP-RSI-5M",
+          "name": "VWAP + RSI cross (Pine)",
+          "family": "VWAP_RSI",
+          "tf": "5m",
+          "side": "CE",
+          "strike": 23350,
+          "security_id": "47291",
+          "lot": 65,
+          "trade_count": 3,
+          "wins": 1,
+          "losses": 2,
+          "win_rate": 0.3333333333333333,
+          "success_pct": 33.3,
+          "gross_pnl_inr": 523.25,
+          "after_cost_pnl_inr": -1463.51,
+          "current_streak": 2,
+          "current_streak_kind": "L",
+          "max_win_streak": 1,
+          "max_loss_streak": 2,
+          "recent_trades": [
+            {
+              "session": "2026-09-04",
+              "entry_px": 670.35,
+              "exit_px": 690.75,
+              "points": 20.4,
+              "pnl_inr_1lot": 1326.0,
+              "reason": "exit_signal",
+              "win": true
+            },
+            {
+              "session": "2026-09-04",
+              "entry_px": 690.75,
+              "exit_px": 686.65,
+              "points": -4.1,
+              "pnl_inr_1lot": -266.5,
+              "reason": "exit_signal",
+              "win": false
+            },
+            {
+              "session": "2026-09-11",
+              "entry_px": 163.15,
+              "exit_px": 154.9,
+              "points": -8.25,
+              "pnl_inr_1lot": -536.25,
+              "reason": "exit_signal",
+              "win": false
+            }
+          ]
+        },
+        {
+          "champion_id": "MIX-CHAMP-VWAP-RSI-5M",
+          "name": "VWAP + RSI cross (Pine)",
+          "family": "VWAP_RSI",
+          "tf": "5m",
+          "side": "CE",
+          "strike": 23300,
+          "security_id": "47289",
+          "lot": 65,
+          "trade_count": 2,
+          "wins": 0,
+          "losses": 2,
+          "win_rate": 0.0,
+          "success_pct": 0.0,
+          "gross_pnl_inr": -1608.75,
+          "after_cost_pnl_inr": -2806.73,
+          "current_streak": 2,
+          "current_streak_kind": "L",
+          "max_win_streak": 0,
+          "max_loss_streak": 2,
+          "recent_trades": [
+            {
+              "session": "2026-09-04",
+              "entry_px": 733.75,
+              "exit_px": 719.0,
+              "points": -14.75,
+              "pnl_inr_1lot": -958.75,
+              "reason": "exit_signal",
+              "win": false
+            },
+            {
+              "session": "2026-09-11",
+              "entry_px": 200.15,
+              "exit_px": 190.15,
+              "points": -10.0,
+              "pnl_inr_1lot": -650.0,
+              "reason": "exit_signal",
+              "win": false
+            }
+          ]
+        }
+      ],
+      "rank": 9
+    },
+    {
+      "champion_id": "MIX-CHAMP-SMA-CROSS-5M",
+      "name": "SMA10\u00d750 + SL/TP",
+      "family": "SMA_CROSS",
+      "tf": "5m",
+      "contracts": 5,
+      "trade_count": 60,
+      "wins": 19,
+      "losses": 41,
+      "win_rate": 0.31666666666666665,
+      "success_pct": 31.7,
+      "gross_pnl_inr": -8385.64,
+      "after_cost_pnl_inr": -18495.68,
+      "max_win_streak": 2,
+      "max_loss_streak": 6,
+      "current_streak": 2,
+      "current_streak_kind": "W",
+      "legs": [
+        {
+          "champion_id": "MIX-CHAMP-SMA-CROSS-5M",
+          "name": "SMA10\u00d750 + SL/TP",
+          "family": "SMA_CROSS",
+          "tf": "5m",
+          "side": "PE",
+          "strike": 23400,
+          "security_id": "47294",
+          "lot": 65,
+          "trade_count": 19,
+          "wins": 6,
+          "losses": 13,
+          "win_rate": 0.3157894736842105,
+          "success_pct": 31.6,
+          "gross_pnl_inr": 1572.68,
+          "after_cost_pnl_inr": 775.32,
+          "current_streak": 2,
+          "current_streak_kind": "W",
+          "max_win_streak": 2,
+          "max_loss_streak": 6,
+          "recent_trades": [
+            {
+              "session": "2026-09-01",
+              "entry_px": 20.6,
+              "exit_px": 26.78,
+              "points": 6.18,
+              "pnl_inr_1lot": 401.7,
+              "reason": "target",
+              "win": true
+            },
+            {
+              "session": "2026-09-03",
+              "entry_px": 28.75,
+              "exit_px": 26.2,
+              "points": -2.55,
+              "pnl_inr_1lot": -165.75,
+              "reason": "exit_signal",
+              "win": false
+            },
+            {
+              "session": "2026-09-04",
+              "entry_px": 29.0,
+              "exit_px": 24.65,
+              "points": -4.35,
+              "pnl_inr_1lot": -282.75,
+              "reason": "stop_loss",
+              "win": false
+            },
+            {
+              "session": "2026-09-07",
+              "entry_px": 19.55,
+              "exit_px": 25.415000000000003,
+              "points": 5.865,
+              "pnl_inr_1lot": 381.23,
+              "reason": "target",
+              "win": true
+            },
+            {
+              "session": "2026-09-08",
+              "entry_px": 32.9,
+              "exit_px": 27.964999999999996,
+              "points": -4.935,
+              "pnl_inr_1lot": -320.78,
+              "reason": "stop_loss",
+              "win": false
+            },
+            {
+              "session": "2026-09-09",
+              "entry_px": 72.95,
+              "exit_px": 62.0075,
+              "points": -10.9425,
+              "pnl_inr_1lot": -711.26,
+              "reason": "stop_loss",
+              "win": false
+            },
+            {
+              "session": "2026-09-09",
+              "entry_px": 63.05,
+              "exit_px": 81.965,
+              "points": 18.915,
+              "pnl_inr_1lot": 1229.48,
+              "reason": "target",
+              "win": true
+            },
+            {
+              "session": "2026-09-11",
+              "entry_px": 81.8,
+              "exit_px": 106.34,
+              "points": 24.54,
+              "pnl_inr_1lot": 1595.1,
+              "reason": "target",
+              "win": true
+            }
+          ]
+        },
+        {
+          "champion_id": "MIX-CHAMP-SMA-CROSS-5M",
+          "name": "SMA10\u00d750 + SL/TP",
+          "family": "SMA_CROSS",
+          "tf": "5m",
+          "side": "PE",
+          "strike": 23450,
+          "security_id": "47296",
+          "lot": 65,
+          "trade_count": 7,
+          "wins": 3,
+          "losses": 4,
+          "win_rate": 0.42857142857142855,
+          "success_pct": 42.9,
+          "gross_pnl_inr": 2266.88,
+          "after_cost_pnl_inr": 1720.7,
+          "current_streak": 2,
+          "current_streak_kind": "W",
+          "max_win_streak": 2,
+          "max_loss_streak": 2,
+          "recent_trades": [
+            {
+              "session": "2026-09-03",
+              "entry_px": 33.5,
+              "exit_px": 30.65,
+              "points": -2.85,
+              "pnl_inr_1lot": -185.25,
+              "reason": "exit_signal",
+              "win": false
+            },
+            {
+              "session": "2026-09-04",
+              "entry_px": 30.85,
+              "exit_px": 26.2225,
+              "points": -4.6275,
+              "pnl_inr_1lot": -300.79,
+              "reason": "stop_loss",
+              "win": false
+            },
+            {
+              "session": "2026-09-07",
+              "entry_px": 24.2,
+              "exit_px": 31.46,
+              "points": 7.26,
+              "pnl_inr_1lot": 471.9,
+              "reason": "target",
+              "win": true
+            },
+            {
+              "session": "2026-09-08",
+              "entry_px": 40.8,
+              "exit_px": 34.68,
+              "points": -6.12,
+              "pnl_inr_1lot": -397.8,
+              "reason": "stop_loss",
+              "win": false
+            },
+            {
+              "session": "2026-09-09",
+              "entry_px": 90.65,
+              "exit_px": 77.05250000000001,
+              "points": -13.5975,
+              "pnl_inr_1lot": -883.84,
+              "reason": "stop_loss",
+              "win": false
+            },
+            {
+              "session": "2026-09-09",
+              "entry_px": 79.2,
+              "exit_px": 102.96000000000001,
+              "points": 23.76,
+              "pnl_inr_1lot": 1544.4,
+              "reason": "target",
+              "win": true
+            },
+            {
+              "session": "2026-09-11",
+              "entry_px": 103.5,
+              "exit_px": 134.55,
+              "points": 31.05,
+              "pnl_inr_1lot": 2018.25,
+              "reason": "target",
+              "win": true
+            }
+          ]
+        },
+        {
+          "champion_id": "MIX-CHAMP-SMA-CROSS-5M",
+          "name": "SMA10\u00d750 + SL/TP",
+          "family": "SMA_CROSS",
+          "tf": "5m",
+          "side": "PE",
+          "strike": 23500,
+          "security_id": "47298",
+          "lot": 65,
+          "trade_count": 21,
+          "wins": 8,
+          "losses": 13,
+          "win_rate": 0.38095238095238093,
+          "success_pct": 38.1,
+          "gross_pnl_inr": 3050.61,
+          "after_cost_pnl_inr": 1808.05,
+          "current_streak": 2,
+          "current_streak_kind": "W",
+          "max_win_streak": 2,
+          "max_loss_streak": 5,
+          "recent_trades": [
+            {
+              "session": "2026-09-01",
+              "entry_px": 28.7,
+              "exit_px": 37.31,
+              "points": 8.61,
+              "pnl_inr_1lot": 559.65,
+              "reason": "target",
+              "win": true
+            },
+            {
+              "session": "2026-09-03",
+              "entry_px": 40.0,
+              "exit_px": 36.5,
+              "points": -3.5,
+              "pnl_inr_1lot": -227.5,
+              "reason": "exit_signal",
+              "win": false
+            },
+            {
+              "session": "2026-09-04",
+              "entry_px": 38.8,
+              "exit_px": 32.98,
+              "points": -5.82,
+              "pnl_inr_1lot": -378.3,
+              "reason": "stop_loss",
+              "win": false
+            },
+            {
+              "session": "2026-09-07",
+              "entry_px": 32.1,
+              "exit_px": 41.730000000000004,
+              "points": 9.63,
+              "pnl_inr_1lot": 625.95,
+              "reason": "target",
+              "win": true
+            },
+            {
+              "session": "2026-09-08",
+              "entry_px": 49.45,
+              "exit_px": 54.8,
+              "points": 5.35,
+              "pnl_inr_1lot": 347.75,
+              "reason": "exit_signal",
+              "win": true
+            },
+            {
+              "session": "2026-09-09",
+              "entry_px": 109.8,
+              "exit_px": 93.33,
+              "points": -16.47,
+              "pnl_inr_1lot": -1070.55,
+              "reason": "stop_loss",
+              "win": false
+            },
+            {
+              "session": "2026-09-09",
+              "entry_px": 97.25,
+              "exit_px": 126.42500000000001,
+              "points": 29.175,
+              "pnl_inr_1lot": 1896.38,
+              "reason": "target",
+              "win": true
+            },
+            {
+              "session": "2026-09-11",
+              "entry_px": 120.5,
+              "exit_px": 156.65,
+              "points": 36.15,
+              "pnl_inr_1lot": 2349.75,
+              "reason": "target",
+              "win": true
+            }
+          ]
+        },
+        {
+          "champion_id": "MIX-CHAMP-SMA-CROSS-5M",
+          "name": "SMA10\u00d750 + SL/TP",
+          "family": "SMA_CROSS",
+          "tf": "5m",
+          "side": "CE",
+          "strike": 23350,
+          "security_id": "47291",
+          "lot": 65,
+          "trade_count": 6,
+          "wins": 0,
+          "losses": 6,
+          "win_rate": 0.0,
+          "success_pct": 0.0,
+          "gross_pnl_inr": -10895.14,
+          "after_cost_pnl_inr": -14075.25,
+          "current_streak": 6,
+          "current_streak_kind": "L",
+          "max_win_streak": 0,
+          "max_loss_streak": 6,
+          "recent_trades": [
+            {
+              "session": "2026-09-04",
+              "entry_px": 698.5,
+              "exit_px": 686.65,
+              "points": -11.85,
+              "pnl_inr_1lot": -770.25,
+              "reason": "exit_signal",
+              "win": false
+            },
+            {
+              "session": "2026-09-04",
+              "entry_px": 688.35,
+              "exit_px": 662.3,
+              "points": -26.05,
+              "pnl_inr_1lot": -1693.25,
+              "reason": "exit_signal",
+              "win": false
+            },
+            {
+              "session": "2026-09-07",
+              "entry_px": 536.0,
+              "exit_px": 480.0,
+              "points": -56.0,
+              "pnl_inr_1lot": -3640.0,
+              "reason": "exit_signal",
+              "win": false
+            },
+            {
+              "session": "2026-09-09",
+              "entry_px": 293.5,
+              "exit_px": 249.475,
+              "points": -44.025,
+              "pnl_inr_1lot": -2861.63,
+              "reason": "stop_loss",
+              "win": false
+            },
+            {
+              "session": "2026-09-10",
+              "entry_px": 198.75,
+              "exit_px": 186.3,
+              "points": -12.45,
+              "pnl_inr_1lot": -809.25,
+              "reason": "exit_signal",
+              "win": false
+            },
+            {
+              "session": "2026-09-11",
+              "entry_px": 114.95,
+              "exit_px": 97.7075,
+              "points": -17.2425,
+              "pnl_inr_1lot": -1120.76,
+              "reason": "stop_loss",
+              "win": false
+            }
+          ]
+        },
+        {
+          "champion_id": "MIX-CHAMP-SMA-CROSS-5M",
+          "name": "SMA10\u00d750 + SL/TP",
+          "family": "SMA_CROSS",
+          "tf": "5m",
+          "side": "CE",
+          "strike": 23300,
+          "security_id": "47289",
+          "lot": 65,
+          "trade_count": 7,
+          "wins": 2,
+          "losses": 5,
+          "win_rate": 0.2857142857142857,
+          "success_pct": 28.6,
+          "gross_pnl_inr": -4380.67,
+          "after_cost_pnl_inr": -8724.5,
+          "current_streak": 5,
+          "current_streak_kind": "L",
+          "max_win_streak": 2,
+          "max_loss_streak": 5,
+          "recent_trades": [
+            {
+              "session": "2026-09-03",
+              "entry_px": 650.9,
+              "exit_px": 691.0,
+              "points": 40.1,
+              "pnl_inr_1lot": 2606.5,
+              "reason": "exit_signal",
+              "win": true
+            },
+            {
+              "session": "2026-09-04",
+              "entry_px": 696.0,
+              "exit_px": 710.0,
+              "points": 14.0,
+              "pnl_inr_1lot": 910.0,
+              "reason": "exit_signal",
+              "win": true
+            },
+            {
+              "session": "2026-09-04",
+              "entry_px": 722.4,
+              "exit_px": 722.4,
+              "points": 0.0,
+              "pnl_inr_1lot": 0.0,
+              "reason": "exit_signal",
+              "win": false
+            },
+            {
+              "session": "2026-09-07",
+              "entry_px": 582.0,
+              "exit_px": 552.15,
+              "points": -29.85,
+              "pnl_inr_1lot": -1940.25,
+              "reason": "exit_signal",
+              "win": false
+            },
+            {
+              "session": "2026-09-09",
+              "entry_px": 335.5,
+              "exit_px": 285.175,
+              "points": -50.325,
+              "pnl_inr_1lot": -3271.12,
+              "reason": "stop_loss",
+              "win": false
+            },
+            {
+              "session": "2026-09-10",
+              "entry_px": 243.5,
+              "exit_px": 223.9,
+              "points": -19.6,
+              "pnl_inr_1lot": -1274.0,
+              "reason": "exit_signal",
+              "win": false
+            },
+            {
+              "session": "2026-09-11",
+              "entry_px": 144.8,
+              "exit_px": 123.08000000000001,
+              "points": -21.72,
+              "pnl_inr_1lot": -1411.8,
+              "reason": "stop_loss",
+              "win": false
+            }
+          ]
+        }
+      ],
+      "rank": 10
+    },
+    {
+      "champion_id": "MIX-CHAMP-BB-5M",
+      "name": "BB mean-revert",
+      "family": "BB",
+      "tf": "5m",
+      "contracts": 5,
+      "trade_count": 58,
+      "wins": 41,
+      "losses": 17,
+      "win_rate": 0.7068965517241379,
+      "success_pct": 70.7,
+      "gross_pnl_inr": -8671.0,
+      "after_cost_pnl_inr": -23532.53,
+      "max_win_streak": 7,
+      "max_loss_streak": 3,
+      "current_streak": 1,
+      "current_streak_kind": "L",
+      "legs": [
+        {
+          "champion_id": "MIX-CHAMP-BB-5M",
+          "name": "BB mean-revert",
+          "family": "BB",
+          "tf": "5m",
+          "side": "PE",
+          "strike": 23400,
+          "security_id": "47294",
+          "lot": 65,
+          "trade_count": 14,
+          "wins": 7,
+          "losses": 7,
+          "win_rate": 0.5,
+          "success_pct": 50.0,
+          "gross_pnl_inr": -910.0,
+          "after_cost_pnl_inr": -1612.39,
+          "current_streak": 1,
+          "current_streak_kind": "L",
+          "max_win_streak": 3,
+          "max_loss_streak": 3,
+          "recent_trades": [
+            {
+              "session": "2026-08-31",
+              "entry_px": 23.55,
+              "exit_px": 22.85,
+              "points": -0.7,
+              "pnl_inr_1lot": -45.5,
+              "reason": "exit_signal",
+              "win": false
+            },
+            {
+              "session": "2026-09-02",
+              "entry_px": 39.7,
+              "exit_px": 42.2,
+              "points": 2.5,
+              "pnl_inr_1lot": 162.5,
+              "reason": "exit_signal",
+              "win": true
+            },
+            {
+              "session": "2026-09-02",
+              "entry_px": 37.85,
+              "exit_px": 40.5,
+              "points": 2.65,
+              "pnl_inr_1lot": 172.25,
+              "reason": "exit_signal",
+              "win": true
+            },
+            {
+              "session": "2026-09-03",
+              "entry_px": 22.95,
+              "exit_px": 23.65,
+              "points": 0.7,
+              "pnl_inr_1lot": 45.5,
+              "reason": "exit_signal",
+              "win": true
+            },
+            {
+              "session": "2026-09-04",
+              "entry_px": 22.7,
+              "exit_px": 19.05,
+              "points": -3.65,
+              "pnl_inr_1lot": -237.25,
+              "reason": "exit_signal",
+              "win": false
+            },
+            {
+              "session": "2026-09-07",
+              "entry_px": 24.2,
+              "exit_px": 26.0,
+              "points": 1.8,
+              "pnl_inr_1lot": 117.0,
+              "reason": "exit_signal",
+              "win": true
+            },
+            {
+              "session": "2026-09-11",
+              "entry_px": 125.1,
+              "exit_px": 132.9,
+              "points": 7.8,
+              "pnl_inr_1lot": 507.0,
+              "reason": "exit_signal",
+              "win": true
+            },
+            {
+              "session": "2026-09-11",
+              "entry_px": 90.9,
+              "exit_px": 71.7,
+              "points": -19.2,
+              "pnl_inr_1lot": -1248.0,
+              "reason": "series_end",
+              "win": false
+            }
+          ]
+        },
+        {
+          "champion_id": "MIX-CHAMP-BB-5M",
+          "name": "BB mean-revert",
+          "family": "BB",
+          "tf": "5m",
+          "side": "PE",
+          "strike": 23450,
+          "security_id": "47296",
+          "lot": 65,
+          "trade_count": 5,
+          "wins": 4,
+          "losses": 1,
+          "win_rate": 0.8,
+          "success_pct": 80.0,
+          "gross_pnl_inr": -1114.75,
+          "after_cost_pnl_inr": -1582.13,
+          "current_streak": 1,
+          "current_streak_kind": "L",
+          "max_win_streak": 4,
+          "max_loss_streak": 1,
+          "recent_trades": [
+            {
+              "session": "2026-09-02",
+              "entry_px": 45.45,
+              "exit_px": 46.35,
+              "points": 0.9,
+              "pnl_inr_1lot": 58.5,
+              "reason": "exit_signal",
+              "win": true
+            },
+            {
+              "session": "2026-09-03",
+              "entry_px": 26.5,
+              "exit_px": 27.95,
+              "points": 1.45,
+              "pnl_inr_1lot": 94.25,
+              "reason": "exit_signal",
+              "win": true
+            },
+            {
+              "session": "2026-09-07",
+              "entry_px": 29.5,
+              "exit_px": 31.9,
+              "points": 2.4,
+              "pnl_inr_1lot": 156.0,
+              "reason": "exit_signal",
+              "win": true
+            },
+            {
+              "session": "2026-09-11",
+              "entry_px": 153.25,
+              "exit_px": 154.7,
+              "points": 1.45,
+              "pnl_inr_1lot": 94.25,
+              "reason": "exit_signal",
+              "win": true
+            },
+            {
+              "session": "2026-09-11",
+              "entry_px": 113.4,
+              "exit_px": 90.05,
+              "points": -23.35,
+              "pnl_inr_1lot": -1517.75,
+              "reason": "series_end",
+              "win": false
+            }
+          ]
+        },
+        {
+          "champion_id": "MIX-CHAMP-BB-5M",
+          "name": "BB mean-revert",
+          "family": "BB",
+          "tf": "5m",
+          "side": "PE",
+          "strike": 23500,
+          "security_id": "47298",
+          "lot": 65,
+          "trade_count": 14,
+          "wins": 11,
+          "losses": 3,
+          "win_rate": 0.7857142857142857,
+          "success_pct": 78.6,
+          "gross_pnl_inr": -247.0,
+          "after_cost_pnl_inr": -1177.93,
+          "current_streak": 1,
+          "current_streak_kind": "L",
+          "max_win_streak": 7,
+          "max_loss_streak": 1,
+          "recent_trades": [
+            {
+              "session": "2026-08-28",
+              "entry_px": 26.9,
+              "exit_px": 29.5,
+              "points": 2.6,
+              "pnl_inr_1lot": 169.0,
+              "reason": "exit_signal",
+              "win": true
+            },
+            {
+              "session": "2026-08-31",
+              "entry_px": 22.5,
+              "exit_px": 32.2,
+              "points": 9.7,
+              "pnl_inr_1lot": 630.5,
+              "reason": "exit_signal",
+              "win": true
+            },
+            {
+              "session": "2026-08-31",
+              "entry_px": 30.3,
+              "exit_px": 28.9,
+              "points": -1.4,
+              "pnl_inr_1lot": -91.0,
+              "reason": "exit_signal",
+              "win": false
+            },
+            {
+              "session": "2026-09-02",
+              "entry_px": 49.9,
+              "exit_px": 54.45,
+              "points": 4.55,
+              "pnl_inr_1lot": 295.75,
+              "reason": "exit_signal",
+              "win": true
+            },
+            {
+              "session": "2026-09-03",
+              "entry_px": 31.25,
+              "exit_px": 32.4,
+              "points": 1.15,
+              "pnl_inr_1lot": 74.75,
+              "reason": "exit_signal",
+              "win": true
+            },
+            {
+              "session": "2026-09-07",
+              "entry_px": 36.35,
+              "exit_px": 39.1,
+              "points": 2.75,
+              "pnl_inr_1lot": 178.75,
+              "reason": "exit_signal",
+              "win": true
+            },
+            {
+              "session": "2026-09-11",
+              "entry_px": 185.0,
+              "exit_px": 188.05,
+              "points": 3.05,
+              "pnl_inr_1lot": 198.25,
+              "reason": "exit_signal",
+              "win": true
+            },
+            {
+              "session": "2026-09-11",
+              "entry_px": 139.9,
+              "exit_px": 112.9,
+              "points": -27.0,
+              "pnl_inr_1lot": -1755.0,
+              "reason": "series_end",
+              "win": false
+            }
+          ]
+        },
+        {
+          "champion_id": "MIX-CHAMP-BB-5M",
+          "name": "BB mean-revert",
+          "family": "BB",
+          "tf": "5m",
+          "side": "CE",
+          "strike": 23350,
+          "security_id": "47291",
+          "lot": 65,
+          "trade_count": 13,
+          "wins": 10,
+          "losses": 3,
+          "win_rate": 0.7692307692307693,
+          "success_pct": 76.9,
+          "gross_pnl_inr": -6282.25,
+          "after_cost_pnl_inr": -12487.31,
+          "current_streak": 3,
+          "current_streak_kind": "W",
+          "max_win_streak": 4,
+          "max_loss_streak": 1,
+          "recent_trades": [
+            {
+              "session": "2026-09-08",
+              "entry_px": 387.8,
+              "exit_px": 400.05,
+              "points": 12.25,
+              "pnl_inr_1lot": 796.25,
+              "reason": "exit_signal",
+              "win": true
+            },
+            {
+              "session": "2026-09-08",
+              "entry_px": 373.1,
+              "exit_px": 384.9,
+              "points": 11.8,
+              "pnl_inr_1lot": 767.0,
+              "reason": "exit_signal",
+              "win": true
+            },
+            {
+              "session": "2026-09-09",
+              "entry_px": 266.8,
+              "exit_px": 275.0,
+              "points": 8.2,
+              "pnl_inr_1lot": 533.0,
+              "reason": "exit_signal",
+              "win": true
+            },
+            {
+              "session": "2026-09-09",
+              "entry_px": 240.85,
+              "exit_px": 290.75,
+              "points": 49.9,
+              "pnl_inr_1lot": 3243.5,
+              "reason": "exit_signal",
+              "win": true
+            },
+            {
+              "session": "2026-09-10",
+              "entry_px": 252.55,
+              "exit_px": 197.65,
+              "points": -54.9,
+              "pnl_inr_1lot": -3568.5,
+              "reason": "exit_signal",
+              "win": false
+            },
+            {
+              "session": "2026-09-10",
+              "entry_px": 149.75,
+              "exit_px": 167.1,
+              "points": 17.35,
+              "pnl_inr_1lot": 1127.75,
+              "reason": "exit_signal",
+              "win": true
+            },
+            {
+              "session": "2026-09-11",
+              "entry_px": 65.55,
+              "exit_px": 90.9,
+              "points": 25.35,
+              "pnl_inr_1lot": 1647.75,
+              "reason": "exit_signal",
+              "win": true
+            },
+            {
+              "session": "2026-09-11",
+              "entry_px": 98.25,
+              "exit_px": 108.25,
+              "points": 10.0,
+              "pnl_inr_1lot": 650.0,
+              "reason": "exit_signal",
+              "win": true
+            }
+          ]
+        },
+        {
+          "champion_id": "MIX-CHAMP-BB-5M",
+          "name": "BB mean-revert",
+          "family": "BB",
+          "tf": "5m",
+          "side": "CE",
+          "strike": 23300,
+          "security_id": "47289",
+          "lot": 65,
+          "trade_count": 12,
+          "wins": 9,
+          "losses": 3,
+          "win_rate": 0.75,
+          "success_pct": 75.0,
+          "gross_pnl_inr": -117.0,
+          "after_cost_pnl_inr": -6672.77,
+          "current_streak": 3,
+          "current_streak_kind": "W",
+          "max_win_streak": 3,
+          "max_loss_streak": 1,
+          "recent_trades": [
+            {
+              "session": "2026-09-07",
+              "entry_px": 548.15,
+              "exit_px": 560.4,
+              "points": 12.25,
+              "pnl_inr_1lot": 796.25,
+              "reason": "exit_signal",
+              "win": true
+            },
+            {
+              "session": "2026-09-08",
+              "entry_px": 540.9,
+              "exit_px": 442.35,
+              "points": -98.55,
+              "pnl_inr_1lot": -6405.75,
+              "reason": "exit_signal",
+              "win": false
+            },
+            {
+              "session": "2026-09-09",
+              "entry_px": 306.0,
+              "exit_px": 315.85,
+              "points": 9.85,
+              "pnl_inr_1lot": 640.25,
+              "reason": "exit_signal",
+              "win": true
+            },
+            {
+              "session": "2026-09-09",
+              "entry_px": 279.0,
+              "exit_px": 333.8,
+              "points": 54.8,
+              "pnl_inr_1lot": 3562.0,
+              "reason": "exit_signal",
+              "win": true
+            },
+            {
+              "session": "2026-09-10",
+              "entry_px": 291.95,
+              "exit_px": 233.9,
+              "points": -58.05,
+              "pnl_inr_1lot": -3773.25,
+              "reason": "exit_signal",
+              "win": false
+            },
+            {
+              "session": "2026-09-10",
+              "entry_px": 183.6,
+              "exit_px": 204.15,
+              "points": 20.55,
+              "pnl_inr_1lot": 1335.75,
+              "reason": "exit_signal",
+              "win": true
+            },
+            {
+              "session": "2026-09-11",
+              "entry_px": 86.2,
+              "exit_px": 116.3,
+              "points": 30.1,
+              "pnl_inr_1lot": 1956.5,
+              "reason": "exit_signal",
+              "win": true
+            },
+            {
+              "session": "2026-09-11",
+              "entry_px": 126.0,
+              "exit_px": 137.9,
+              "points": 11.9,
+              "pnl_inr_1lot": 773.5,
+              "reason": "exit_signal",
+              "win": true
+            }
+          ]
+        }
+      ],
+      "rank": 11
+    }
+  ],
+  "champion_of_board": {
+    "champion_id": "MIX-CHAMP-FV-V1-10M-BB15",
+    "name": "Flawless v1 \u00b7 10m BB\u00d71.5",
+    "success_pct": 80.0,
+    "after_cost_pnl_inr": 33351.95,
+    "current_streak": 3,
+    "current_streak_kind": "W"
+  },
+  "tuesday_runbook": {
+    "status": "CODE_READY",
+    "do": [
+      "Start market-hours PAPER watch only (no live Super Orders).",
+      "Prefer ITM PE near spot for MIX-CHAMP-EMA-ST-* first.",
+      "Compare VWAP-gated champions once live volume fills session VWAP.",
+      "Refresh this board from recon JSON / API \u2014 ranks by after-cost P/L."
+    ],
+    "do_not": [
+      "Do not auto-place Dhan orders.",
+      "Do not promote to STRAT/customer default.",
+      "Do not trust 1m cross families from strike sweep (bled after costs)."
+    ],
+    "cli": "PYTHONPATH=packages/backtest/src:packages/dhan-client/src python -m backtest_engine.run_itm_champions"
+  },
+  "next_action_items": [
+    "1) Freeze top Tuesday paper recipe after 1 live session of board evidence.",
+    "2) Walk-forward same champions on another expiry / OOS week.",
+    "3) Only then discuss longer paper book \u2014 still NO_PROMOTE / no live orders."
+  ],
+  "honesty": [
+    "This board is historical Aug\u2013Sep lab ranks until live paper ticks overwrite it.",
+    "Assumed VWAP \u2260 exchange-printed VWAP; live session volume improves the gate.",
+    "Multiple-testing bias: sweep already peeked at these families."
+  ],
+  "updated_at": "2026-09-13T16:12:16.138070+05:30"
+}

@@ -147,6 +147,40 @@ def main(argv: list[str] | None = None) -> int:
         choices=("NIFTY", "BANKNIFTY", "SENSEX"),
     )
     p_cf_sig.add_argument("--option-ltp", type=float, default=100.0)
+    p_itm = sub.add_parser(
+        "itm-scalp",
+        help="Founder ITM option scalp (MIX-ITM-OPT-SCALP) PE+CE 1m. PAPER. NO_PROMOTE.",
+    )
+    p_itm.add_argument("--from-date", default="2026-08-01")
+    p_itm.add_argument("--to-date", default="2026-09-12")
+    p_itm.add_argument("--lots", type=int, default=1)
+    p_itm.add_argument("--rsi-entry", type=float, default=70.0)
+    p_itm.add_argument("--rsi-exit", type=float, default=68.0)
+    p_itm.add_argument(
+        "--poc-mode",
+        default="session_vwap",
+        choices=("session_vwap", "session_vpoc"),
+    )
+    p_itm.add_argument(
+        "--ma-mode",
+        default="cross_event",
+        choices=("bullish_state", "cross_event"),
+    )
+    p_itm.add_argument(
+        "--fill-mode",
+        default="next_open",
+        choices=("signal_close", "signal_poc", "next_open"),
+    )
+    p_itm.add_argument(
+        "--exit-mode",
+        default="ma_or_rsi",
+        choices=("ma_or_rsi", "ma_only", "rsi_only"),
+    )
+    p_itm.add_argument("--max-entries-per-session", type=int, default=0,
+                       help="0=unlimited; 1≈one diamond/day")
+    p_itm.add_argument("--stop-loss-frac", type=float, default=0.15)
+    p_itm.add_argument("--target-frac", type=float, default=0.30)
+    p_itm.add_argument("--no-sltp-grid", action="store_true")
     args = parser.parse_args(argv)
     dry: bool | None
     if args.live:
@@ -162,6 +196,48 @@ def main(argv: list[str] | None = None) -> int:
             file=sys.stderr,
         )
         return 2
+    if cmd == "itm-scalp":
+        from backtest_engine.run_itm_scalp import run_itm_scalp
+
+        client = DhanClient(dry_run=dry)
+        report = run_itm_scalp(
+            client,
+            from_date=str(args.from_date),
+            to_date=str(args.to_date),
+            lots=int(args.lots),
+            rsi_entry=float(args.rsi_entry),
+            rsi_exit=float(args.rsi_exit),
+            poc_mode=str(args.poc_mode),
+            ma_mode=str(args.ma_mode),
+            fill_mode=str(args.fill_mode),
+            exit_mode=str(args.exit_mode),
+            max_entries_per_session=(
+                int(args.max_entries_per_session)
+                if int(args.max_entries_per_session) > 0
+                else None
+            ),
+            stop_loss_frac=float(args.stop_loss_frac) if args.stop_loss_frac else None,
+            target_frac=float(args.target_frac) if args.target_frac else None,
+            run_sltp_grid=not bool(args.no_sltp_grid),
+            write=True,
+        )
+        slim = {
+            k: v
+            for k, v in report.items()
+            if k not in ("legs",)
+        }
+        # Compact legs for stdout
+        legs = {}
+        for name, leg in (report.get("legs") or {}).items():
+            legs[name] = {
+                "ok": leg.get("ok"),
+                "summary": leg.get("summary"),
+                "sltp_best": leg.get("sltp_best"),
+                "trade_count": len(leg.get("trades") or []),
+            }
+        slim["legs"] = legs
+        print(json.dumps(slim, indent=2, default=str))
+        return 0 if report.get("ok") else 1
     if cmd == "cf-signal":
         from backtest_engine.cf_paper_registry import detect_cf_signal, registry_meta
         from backtest_engine.indicators import Bar

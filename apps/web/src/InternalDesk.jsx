@@ -11,6 +11,8 @@ import { SystemOutcome } from "./components/SystemOutcome.jsx";
 import { Disclaimer } from "./components/Disclaimer.jsx";
 import { StatusLights } from "./components/StatusLights.jsx";
 import { FactorChecklist } from "./components/FactorChecklist.jsx";
+import { ItmScalpBacktestPanel } from "./components/ItmScalpBacktestPanel.jsx";
+import { ItmChampionLeaderboard } from "./components/ItmChampionLeaderboard.jsx";
 
 const EMPTY_FILL = { lots: "", spot: "", pnl: "" };
 
@@ -124,6 +126,8 @@ export function InternalDesk() {
           <StatusLights lights={signal.staged?.lights} />
           <FactorChecklist factors={signal.staged?.factors} />
         </section>
+        <ItmChampionLeaderboard />
+        <ItmScalpBacktestPanel />
       </div>
     </div>
   );

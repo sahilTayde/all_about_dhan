@@ -1,0 +1,446 @@
+{
+  "mix_id": "MIX-ITM-OPT-SCALP",
+  "layer": "HYPOTHESIS",
+  "origin": "PROJECT-DERIVED",
+  "promotion": "NO_PROMOTE",
+  "orders": "refused",
+  "verdict": "UNVALIDATED",
+  "ok": true,
+  "params": {
+    "rsi_length": 14,
+    "rsi_entry_th": 70.0,
+    "rsi_exit_th": 68.0,
+    "ema_fast_len": 3,
+    "wma_slow_len": 21,
+    "ema_base_len": 21,
+    "poc_mode": "session_vwap",
+    "ma_mode": "cross_event",
+    "fill_mode": "next_open",
+    "exit_mode": "ma_or_rsi",
+    "max_entries_per_session": null,
+    "stop_loss_frac": 0.15,
+    "target_frac": 0.3,
+    "note": "Standard ITM Option Scalping (Pine): session VWAP(close), EMA3\u00d7WMA21 crossover entry, MA cross-down or RSI<exit, optional % SL/TP. Fill=next bar open (TV strategy default)."
+  },
+  "api_honesty": [
+    "Dhan MCP/API gives OPTIDX 1m OHLC (+OI) only \u2014 no chart pane export.",
+    "Indicators computed client-side to match this Pine: RSI14, EMA3, WMA21, EMA21, session VWAP(close).",
+    "Yellow/blue legs = same rules on PE 23500 and CE 23200."
+  ],
+  "fix_note": "Strategy source: Standard ITM Option Scalping Strategy Pine (session VWAP + crossover + 15/30 SL/TP).",
+  "summary": {
+    "headline": "MIX-ITM-OPT-SCALP \u00b7 Aug\u2192Sep \u00b7 yellow PE 23500 + blue CE 23200 \u00b7 1 lot",
+    "pe_gross_pnl_inr": -274.46,
+    "ce_gross_pnl_inr": 0,
+    "combined_gross_pnl_inr": -274.46,
+    "pe_after_cost_pnl_inr": -593.66,
+    "ce_after_cost_pnl_inr": -1115.4,
+    "combined_after_cost_pnl_inr": -1709.06,
+    "from": "2026-08-01T09:15:00+05:30",
+    "to": "2026-09-12T15:30:00+05:30"
+  },
+  "legs": {
+    "PE_yellow": {
+      "diamond": "yellow",
+      "contract": {
+        "underlying": "NIFTY",
+        "side": "PE",
+        "strike": 23500,
+        "expiry": "2026-09-15",
+        "security_id": "47298",
+        "exchange_segment": "NSE_FNO",
+        "instrument": "OPTIDX",
+        "interval_min": 1,
+        "display_name": "NIFTY 2026-09-15 23500 PE"
+      },
+      "window": {
+        "from": "2026-08-01T09:15:00+05:30",
+        "to": "2026-09-12T15:30:00+05:30",
+        "bar_count": 7185,
+        "fetch_error": null
+      },
+      "lot_size_source": "instrument_master_detailed",
+      "ok": true,
+      "reason": "ok",
+      "summary": {
+        "headline": "MIX-ITM-OPT-SCALP \u00b7 NIFTY 23500 PE \u00b7 1 lot \u00d7 65 \u00b7 1m",
+        "gross_pnl_inr": -274.46,
+        "after_cost_pnl_inr": -593.66,
+        "gross_points": -4.2225,
+        "after_cost_points": -9.1333,
+        "trade_count": 6,
+        "wins": 1,
+        "losses": 5,
+        "win_rate": 0.16666666666666666,
+        "lot_size": 65,
+        "lots": 1,
+        "quantity": 65
+      },
+      "cost_model": {
+        "name": "HYPOTHESIS_OPTION_RT_1PCT",
+        "layer": "HYPOTHESIS",
+        "slippage_frac_each_way": 0.01,
+        "statutory_frac_round_trip": 0.0,
+        "statutory_status": "UNKNOWN",
+        "note": "Round-trip haircut = slip_in + slip_out on premium. Not a Dhan REST field. Not an NSE circular. Cannot CANDIDATE."
+      },
+      "trades": [
+        {
+          "strategy_id": "MIX-ITM-OPT-SCALP",
+          "underlying": "NIFTY",
+          "side": "PE",
+          "entry_ts": 1787117880,
+          "exit_ts": 1787118360,
+          "entry_px": 66.0,
+          "exit_px": 66.0,
+          "points": 0.0,
+          "reason": "exit_signal",
+          "session": "2026-08-19",
+          "pnl_inr": 0.0,
+          "after_cost_points": -1.32,
+          "after_cost_pnl_inr": -85.8
+        },
+        {
+          "strategy_id": "MIX-ITM-OPT-SCALP",
+          "underlying": "NIFTY",
+          "side": "PE",
+          "entry_ts": 1787123160,
+          "exit_ts": 1787123220,
+          "entry_px": 66.65,
+          "exit_px": 66.1,
+          "points": -0.5500000000000114,
+          "reason": "exit_signal",
+          "session": "2026-08-19",
+          "pnl_inr": -35.75,
+          "after_cost_points": -1.8775,
+          "after_cost_pnl_inr": -122.04
+        },
+        {
+          "strategy_id": "MIX-ITM-OPT-SCALP",
+          "underlying": "NIFTY",
+          "side": "PE",
+          "entry_ts": 1787550840,
+          "exit_ts": 1787551680,
+          "entry_px": 32.05,
+          "exit_px": 34.5,
+          "points": 2.450000000000003,
+          "reason": "exit_signal",
+          "session": "2026-08-24",
+          "pnl_inr": 159.25,
+          "after_cost_points": 1.7845,
+          "after_cost_pnl_inr": 115.99
+        },
+        {
+          "strategy_id": "MIX-ITM-OPT-SCALP",
+          "underlying": "NIFTY",
+          "side": "PE",
+          "entry_ts": 1787559540,
+          "exit_ts": 1787559600,
+          "entry_px": 39.15,
+          "exit_px": 37.45,
+          "points": -1.6999999999999957,
+          "reason": "exit_signal",
+          "session": "2026-08-24",
+          "pnl_inr": -110.5,
+          "after_cost_points": -2.466,
+          "after_cost_pnl_inr": -160.29
+        },
+        {
+          "strategy_id": "MIX-ITM-OPT-SCALP",
+          "underlying": "NIFTY",
+          "side": "PE",
+          "entry_ts": 1787715900,
+          "exit_ts": 1787715900,
+          "entry_px": 22.15,
+          "exit_px": 18.827499999999997,
+          "points": -3.3225000000000016,
+          "reason": "stop_loss",
+          "session": "2026-08-26",
+          "pnl_inr": -215.96,
+          "after_cost_points": -3.7323,
+          "after_cost_pnl_inr": -242.6
+        },
+        {
+          "strategy_id": "MIX-ITM-OPT-SCALP",
+          "underlying": "NIFTY",
+          "side": "PE",
+          "entry_ts": 1787732940,
+          "exit_ts": 1787733120,
+          "entry_px": 21.65,
+          "exit_px": 20.55,
+          "points": -1.0999999999999979,
+          "reason": "exit_signal",
+          "session": "2026-08-26",
+          "pnl_inr": -71.5,
+          "after_cost_points": -1.522,
+          "after_cost_pnl_inr": -98.93
+        }
+      ],
+      "sltp_grid_top": [
+        {
+          "stop_loss_frac": 0.1,
+          "target_frac": null,
+          "trade_count": 6,
+          "wins": 1,
+          "losses": 5,
+          "win_rate": 0.16666666666666666,
+          "gross_pnl_inr": -202.48,
+          "after_cost_pnl_inr": -522.4
+        },
+        {
+          "stop_loss_frac": 0.1,
+          "target_frac": 0.2,
+          "trade_count": 6,
+          "wins": 1,
+          "losses": 5,
+          "win_rate": 0.16666666666666666,
+          "gross_pnl_inr": -202.48,
+          "after_cost_pnl_inr": -522.4
+        },
+        {
+          "stop_loss_frac": 0.1,
+          "target_frac": 0.3,
+          "trade_count": 6,
+          "wins": 1,
+          "losses": 5,
+          "win_rate": 0.16666666666666666,
+          "gross_pnl_inr": -202.48,
+          "after_cost_pnl_inr": -522.4
+        },
+        {
+          "stop_loss_frac": 0.1,
+          "target_frac": 0.4,
+          "trade_count": 6,
+          "wins": 1,
+          "losses": 5,
+          "win_rate": 0.16666666666666666,
+          "gross_pnl_inr": -202.48,
+          "after_cost_pnl_inr": -522.4
+        },
+        {
+          "stop_loss_frac": 0.1,
+          "target_frac": 0.5,
+          "trade_count": 6,
+          "wins": 1,
+          "losses": 5,
+          "win_rate": 0.16666666666666666,
+          "gross_pnl_inr": -202.48,
+          "after_cost_pnl_inr": -522.4
+        },
+        {
+          "stop_loss_frac": 0.15,
+          "target_frac": null,
+          "trade_count": 6,
+          "wins": 1,
+          "losses": 5,
+          "win_rate": 0.16666666666666666,
+          "gross_pnl_inr": -274.46,
+          "after_cost_pnl_inr": -593.66
+        },
+        {
+          "stop_loss_frac": 0.15,
+          "target_frac": 0.2,
+          "trade_count": 6,
+          "wins": 1,
+          "losses": 5,
+          "win_rate": 0.16666666666666666,
+          "gross_pnl_inr": -274.46,
+          "after_cost_pnl_inr": -593.66
+        },
+        {
+          "stop_loss_frac": 0.15,
+          "target_frac": 0.3,
+          "trade_count": 6,
+          "wins": 1,
+          "losses": 5,
+          "win_rate": 0.16666666666666666,
+          "gross_pnl_inr": -274.46,
+          "after_cost_pnl_inr": -593.66
+        }
+      ],
+      "sltp_best": {
+        "stop_loss_frac": 0.1,
+        "target_frac": null,
+        "trade_count": 6,
+        "wins": 1,
+        "losses": 5,
+        "win_rate": 0.16666666666666666,
+        "gross_pnl_inr": -202.48,
+        "after_cost_pnl_inr": -522.4
+      }
+    },
+    "CE_blue": {
+      "diamond": "blue",
+      "contract": {
+        "underlying": "NIFTY",
+        "side": "CE",
+        "strike": 23200,
+        "expiry": "2026-09-15",
+        "security_id": "47285",
+        "exchange_segment": "NSE_FNO",
+        "instrument": "OPTIDX",
+        "interval_min": 1,
+        "display_name": "NIFTY 2026-09-15 23200 CE"
+      },
+      "window": {
+        "from": "2026-08-01T09:15:00+05:30",
+        "to": "2026-09-12T15:30:00+05:30",
+        "bar_count": 2791,
+        "fetch_error": null
+      },
+      "lot_size_source": "instrument_master_detailed",
+      "ok": true,
+      "reason": "ok",
+      "summary": {
+        "headline": "MIX-ITM-OPT-SCALP \u00b7 NIFTY 23200 CE \u00b7 1 lot \u00d7 65 \u00b7 1m",
+        "gross_pnl_inr": 0.0,
+        "after_cost_pnl_inr": -1115.4,
+        "gross_points": 0.0,
+        "after_cost_points": -17.16,
+        "trade_count": 1,
+        "wins": 0,
+        "losses": 1,
+        "win_rate": 0.0,
+        "lot_size": 65,
+        "lots": 1,
+        "quantity": 65
+      },
+      "cost_model": {
+        "name": "HYPOTHESIS_OPTION_RT_1PCT",
+        "layer": "HYPOTHESIS",
+        "slippage_frac_each_way": 0.01,
+        "statutory_frac_round_trip": 0.0,
+        "statutory_status": "UNKNOWN",
+        "note": "Round-trip haircut = slip_in + slip_out on premium. Not a Dhan REST field. Not an NSE circular. Cannot CANDIDATE."
+      },
+      "trades": [
+        {
+          "strategy_id": "MIX-ITM-OPT-SCALP",
+          "underlying": "NIFTY",
+          "side": "CE",
+          "entry_ts": 1788502380,
+          "exit_ts": 1788503580,
+          "entry_px": 858.0,
+          "exit_px": 858.0,
+          "points": 0.0,
+          "reason": "exit_signal",
+          "session": "2026-09-04",
+          "pnl_inr": 0.0,
+          "after_cost_points": -17.16,
+          "after_cost_pnl_inr": -1115.4
+        }
+      ],
+      "sltp_grid_top": [
+        {
+          "stop_loss_frac": null,
+          "target_frac": null,
+          "trade_count": 1,
+          "wins": 0,
+          "losses": 1,
+          "win_rate": 0.0,
+          "gross_pnl_inr": 0.0,
+          "after_cost_pnl_inr": -1115.4
+        },
+        {
+          "stop_loss_frac": null,
+          "target_frac": 0.2,
+          "trade_count": 1,
+          "wins": 0,
+          "losses": 1,
+          "win_rate": 0.0,
+          "gross_pnl_inr": 0.0,
+          "after_cost_pnl_inr": -1115.4
+        },
+        {
+          "stop_loss_frac": null,
+          "target_frac": 0.3,
+          "trade_count": 1,
+          "wins": 0,
+          "losses": 1,
+          "win_rate": 0.0,
+          "gross_pnl_inr": 0.0,
+          "after_cost_pnl_inr": -1115.4
+        },
+        {
+          "stop_loss_frac": null,
+          "target_frac": 0.4,
+          "trade_count": 1,
+          "wins": 0,
+          "losses": 1,
+          "win_rate": 0.0,
+          "gross_pnl_inr": 0.0,
+          "after_cost_pnl_inr": -1115.4
+        },
+        {
+          "stop_loss_frac": null,
+          "target_frac": 0.5,
+          "trade_count": 1,
+          "wins": 0,
+          "losses": 1,
+          "win_rate": 0.0,
+          "gross_pnl_inr": 0.0,
+          "after_cost_pnl_inr": -1115.4
+        },
+        {
+          "stop_loss_frac": 0.1,
+          "target_frac": null,
+          "trade_count": 1,
+          "wins": 0,
+          "losses": 1,
+          "win_rate": 0.0,
+          "gross_pnl_inr": 0.0,
+          "after_cost_pnl_inr": -1115.4
+        },
+        {
+          "stop_loss_frac": 0.1,
+          "target_frac": 0.2,
+          "trade_count": 1,
+          "wins": 0,
+          "losses": 1,
+          "win_rate": 0.0,
+          "gross_pnl_inr": 0.0,
+          "after_cost_pnl_inr": -1115.4
+        },
+        {
+          "stop_loss_frac": 0.1,
+          "target_frac": 0.3,
+          "trade_count": 1,
+          "wins": 0,
+          "losses": 1,
+          "win_rate": 0.0,
+          "gross_pnl_inr": 0.0,
+          "after_cost_pnl_inr": -1115.4
+        }
+      ],
+      "sltp_best": {
+        "stop_loss_frac": null,
+        "target_frac": null,
+        "trade_count": 1,
+        "wins": 0,
+        "losses": 1,
+        "win_rate": 0.0,
+        "gross_pnl_inr": 0.0,
+        "after_cost_pnl_inr": -1115.4
+      }
+    }
+  },
+  "diamonds": {
+    "pe_sessions": [
+      "2026-08-19",
+      "2026-08-24",
+      "2026-08-26"
+    ],
+    "ce_sessions": [
+      "2026-09-04"
+    ],
+    "overlap_sessions": [],
+    "overlap_count": 0,
+    "note": "Inverse diamonds \u2248 PE long days vs CE long days should rarely overlap. Not a Dhan chart diamond API \u2014 reconstructed from our buy signals."
+  },
+  "honesty": [
+    "PAPER / research only \u2014 not a customer promote.",
+    "Statutory brokerage/STT UNKNOWN; after-cost uses HYPOTHESIS 1% RT slip.",
+    "KEEP_ALL: does not replace STRAT-001\u2013014.",
+    "No live orders."
+  ]
+}

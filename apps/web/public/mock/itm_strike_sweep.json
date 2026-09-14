@@ -1,0 +1,1063 @@
+{
+  "title": "ITM strike sweep \u2014 10 PE + 10 CE \u00d7 1m/5m multi-family",
+  "spot": 23398.1,
+  "expiry": "2026-09-15",
+  "lot": 65,
+  "window": {
+    "from": "2026-08-01T09:15:00+05:30",
+    "to": "2026-09-12T15:30:00+05:30"
+  },
+  "promotion": "NO_PROMOTE",
+  "orders": "refused",
+  "live_auto_trade": "REFUSED",
+  "universe": {
+    "spot": 23398.1,
+    "expiry": "2026-09-15",
+    "lot": 65,
+    "itm_ce": [
+      {
+        "strike": 23350,
+        "security_id": "47291"
+      },
+      {
+        "strike": 23300,
+        "security_id": "47289"
+      },
+      {
+        "strike": 23250,
+        "security_id": "47287"
+      },
+      {
+        "strike": 23200,
+        "security_id": "47285"
+      },
+      {
+        "strike": 23150,
+        "security_id": "47283"
+      },
+      {
+        "strike": 23100,
+        "security_id": "47281"
+      },
+      {
+        "strike": 23050,
+        "security_id": "47279"
+      },
+      {
+        "strike": 23000,
+        "security_id": "47277"
+      },
+      {
+        "strike": 22950,
+        "security_id": "47275"
+      },
+      {
+        "strike": 22900,
+        "security_id": "47273"
+      }
+    ],
+    "itm_pe": [
+      {
+        "strike": 23400,
+        "security_id": "47294"
+      },
+      {
+        "strike": 23450,
+        "security_id": "47296"
+      },
+      {
+        "strike": 23500,
+        "security_id": "47298"
+      },
+      {
+        "strike": 23550,
+        "security_id": "47300"
+      },
+      {
+        "strike": 23600,
+        "security_id": "47302"
+      },
+      {
+        "strike": 23650,
+        "security_id": "47304"
+      },
+      {
+        "strike": 23700,
+        "security_id": "47306"
+      },
+      {
+        "strike": 23750,
+        "security_id": "47308"
+      },
+      {
+        "strike": 23800,
+        "security_id": "47310"
+      },
+      {
+        "strike": 23850,
+        "security_id": "47312"
+      }
+    ]
+  },
+  "n_result_rows": 1160,
+  "n_aggregates": 58,
+  "families_tested": [
+    "EMA_ST",
+    "SMA_CROSS",
+    "EMA_CROSS",
+    "VWAP_RSI_CROSS",
+    "SUPERTREND",
+    "MACD",
+    "BB",
+    "TURTLE",
+    "HALFTREND"
+  ],
+  "best_by_family": {
+    "EMA_ST": {
+      "family": "EMA_ST",
+      "tf": "5m",
+      "params": {
+        "fast": 9,
+        "sl": null,
+        "slow": 21,
+        "st_mult": 3.0,
+        "st_period": 10,
+        "tp": null
+      },
+      "contracts_tested": 20,
+      "contracts_positive_after_cost": 9,
+      "trade_count": 204,
+      "wins": 84,
+      "win_rate": 0.4117647058823529,
+      "gross_pnl_inr_sum": 81779.75,
+      "after_cost_pnl_inr_sum": 32005.63,
+      "avg_after_cost_per_contract": 1600.28,
+      "avg_gross_per_contract": 4088.99
+    },
+    "SMA_CROSS": {
+      "family": "SMA_CROSS",
+      "tf": "5m",
+      "params": {
+        "fast": 10,
+        "sl": 0.15,
+        "slow": 50,
+        "tp": 0.3
+      },
+      "contracts_tested": 20,
+      "contracts_positive_after_cost": 12,
+      "trade_count": 178,
+      "wins": 70,
+      "win_rate": 0.39325842696629215,
+      "gross_pnl_inr_sum": 60177.19,
+      "after_cost_pnl_inr_sum": 18052.56,
+      "avg_after_cost_per_contract": 902.63,
+      "avg_gross_per_contract": 3008.86
+    },
+    "EMA_CROSS": {
+      "family": "EMA_CROSS",
+      "tf": "5m",
+      "params": {
+        "fast": 9,
+        "sl": null,
+        "slow": 21,
+        "tp": null
+      },
+      "contracts_tested": 20,
+      "contracts_positive_after_cost": 10,
+      "trade_count": 271,
+      "wins": 101,
+      "win_rate": 0.3726937269372694,
+      "gross_pnl_inr_sum": 68048.5,
+      "after_cost_pnl_inr_sum": 2653.68,
+      "avg_after_cost_per_contract": 132.68,
+      "avg_gross_per_contract": 3402.43
+    },
+    "VWAP_RSI_CROSS": {
+      "family": "VWAP_RSI_CROSS",
+      "tf": "5m",
+      "params": {
+        "rsi_en": 65,
+        "rsi_ex": 60,
+        "sl": 0.15,
+        "tp": 0.3
+      },
+      "contracts_tested": 20,
+      "contracts_positive_after_cost": 2,
+      "trade_count": 5,
+      "wins": 2,
+      "win_rate": 0.4,
+      "gross_pnl_inr_sum": -2166.45,
+      "after_cost_pnl_inr_sum": -5544.55,
+      "avg_after_cost_per_contract": -277.23,
+      "avg_gross_per_contract": -108.32
+    },
+    "SUPERTREND": {
+      "family": "SUPERTREND",
+      "tf": "5m",
+      "params": {
+        "mult": 3.0,
+        "period": 10,
+        "sl": null,
+        "tp": null
+      },
+      "contracts_tested": 20,
+      "contracts_positive_after_cost": 10,
+      "trade_count": 255,
+      "wins": 93,
+      "win_rate": 0.36470588235294116,
+      "gross_pnl_inr_sum": 61275.5,
+      "after_cost_pnl_inr_sum": -8801.98,
+      "avg_after_cost_per_contract": -440.1,
+      "avg_gross_per_contract": 3063.78
+    },
+    "MACD": {
+      "family": "MACD",
+      "tf": "5m",
+      "params": {
+        "sl": 0.15,
+        "tp": 0.3
+      },
+      "contracts_tested": 20,
+      "contracts_positive_after_cost": 5,
+      "trade_count": 195,
+      "wins": 68,
+      "win_rate": 0.3487179487179487,
+      "gross_pnl_inr_sum": 19889.34,
+      "after_cost_pnl_inr_sum": -32670.48,
+      "avg_after_cost_per_contract": -1633.52,
+      "avg_gross_per_contract": 994.47
+    },
+    "BB": {
+      "family": "BB",
+      "tf": "5m",
+      "params": {
+        "length": 20,
+        "mult": 2.5,
+        "sl": 0.15,
+        "tp": 0.3
+      },
+      "contracts_tested": 20,
+      "contracts_positive_after_cost": 4,
+      "trade_count": 202,
+      "wins": 137,
+      "win_rate": 0.6782178217821783,
+      "gross_pnl_inr_sum": 10843.14,
+      "after_cost_pnl_inr_sum": -62614.28,
+      "avg_after_cost_per_contract": -3130.71,
+      "avg_gross_per_contract": 542.16
+    },
+    "TURTLE": {
+      "family": "TURTLE",
+      "tf": "5m",
+      "params": {
+        "entry_len": 20,
+        "exit_len": 10,
+        "sl": null,
+        "tp": null
+      },
+      "contracts_tested": 20,
+      "contracts_positive_after_cost": 10,
+      "trade_count": 20,
+      "wins": 10,
+      "win_rate": 0.5,
+      "gross_pnl_inr_sum": -96460.0,
+      "after_cost_pnl_inr_sum": -104832.82,
+      "avg_after_cost_per_contract": -5241.64,
+      "avg_gross_per_contract": -4823.0
+    },
+    "HALFTREND": {
+      "family": "HALFTREND",
+      "tf": "5m",
+      "params": {
+        "amplitude": 3,
+        "sl": null,
+        "tp": null
+      },
+      "contracts_tested": 20,
+      "contracts_positive_after_cost": 0,
+      "trade_count": 776,
+      "wins": 250,
+      "win_rate": 0.32216494845360827,
+      "gross_pnl_inr_sum": -179253.75,
+      "after_cost_pnl_inr_sum": -389491.99,
+      "avg_after_cost_per_contract": -19474.6,
+      "avg_gross_per_contract": -8962.69
+    }
+  },
+  "top_aggregates": [
+    {
+      "family": "EMA_ST",
+      "tf": "5m",
+      "params": {
+        "fast": 9,
+        "sl": null,
+        "slow": 21,
+        "st_mult": 3.0,
+        "st_period": 10,
+        "tp": null
+      },
+      "contracts_tested": 20,
+      "contracts_positive_after_cost": 9,
+      "trade_count": 204,
+      "wins": 84,
+      "win_rate": 0.4117647058823529,
+      "gross_pnl_inr_sum": 81779.75,
+      "after_cost_pnl_inr_sum": 32005.63,
+      "avg_after_cost_per_contract": 1600.28,
+      "avg_gross_per_contract": 4088.99
+    },
+    {
+      "family": "SMA_CROSS",
+      "tf": "5m",
+      "params": {
+        "fast": 10,
+        "sl": 0.15,
+        "slow": 50,
+        "tp": 0.3
+      },
+      "contracts_tested": 20,
+      "contracts_positive_after_cost": 12,
+      "trade_count": 178,
+      "wins": 70,
+      "win_rate": 0.39325842696629215,
+      "gross_pnl_inr_sum": 60177.19,
+      "after_cost_pnl_inr_sum": 18052.56,
+      "avg_after_cost_per_contract": 902.63,
+      "avg_gross_per_contract": 3008.86
+    },
+    {
+      "family": "EMA_ST",
+      "tf": "5m",
+      "params": {
+        "fast": 5,
+        "sl": null,
+        "slow": 20,
+        "st_mult": 3.0,
+        "st_period": 7,
+        "tp": null
+      },
+      "contracts_tested": 20,
+      "contracts_positive_after_cost": 9,
+      "trade_count": 247,
+      "wins": 86,
+      "win_rate": 0.3481781376518219,
+      "gross_pnl_inr_sum": 70778.5,
+      "after_cost_pnl_inr_sum": 10392.07,
+      "avg_after_cost_per_contract": 519.6,
+      "avg_gross_per_contract": 3538.93
+    },
+    {
+      "family": "EMA_CROSS",
+      "tf": "5m",
+      "params": {
+        "fast": 9,
+        "sl": null,
+        "slow": 21,
+        "tp": null
+      },
+      "contracts_tested": 20,
+      "contracts_positive_after_cost": 10,
+      "trade_count": 271,
+      "wins": 101,
+      "win_rate": 0.3726937269372694,
+      "gross_pnl_inr_sum": 68048.5,
+      "after_cost_pnl_inr_sum": 2653.68,
+      "avg_after_cost_per_contract": 132.68,
+      "avg_gross_per_contract": 3402.43
+    },
+    {
+      "family": "VWAP_RSI_CROSS",
+      "tf": "5m",
+      "params": {
+        "rsi_en": 65,
+        "rsi_ex": 60,
+        "sl": 0.15,
+        "tp": 0.3
+      },
+      "contracts_tested": 20,
+      "contracts_positive_after_cost": 2,
+      "trade_count": 5,
+      "wins": 2,
+      "win_rate": 0.4,
+      "gross_pnl_inr_sum": -2166.45,
+      "after_cost_pnl_inr_sum": -5544.55,
+      "avg_after_cost_per_contract": -277.23,
+      "avg_gross_per_contract": -108.32
+    },
+    {
+      "family": "VWAP_RSI_CROSS",
+      "tf": "5m",
+      "params": {
+        "rsi_en": 70,
+        "rsi_ex": 68,
+        "sl": 0.15,
+        "tp": 0.3
+      },
+      "contracts_tested": 20,
+      "contracts_positive_after_cost": 0,
+      "trade_count": 2,
+      "wins": 0,
+      "win_rate": 0.0,
+      "gross_pnl_inr_sum": -4784.0,
+      "after_cost_pnl_inr_sum": -7135.83,
+      "avg_after_cost_per_contract": -356.79,
+      "avg_gross_per_contract": -239.2
+    },
+    {
+      "family": "SUPERTREND",
+      "tf": "5m",
+      "params": {
+        "mult": 3.0,
+        "period": 10,
+        "sl": null,
+        "tp": null
+      },
+      "contracts_tested": 20,
+      "contracts_positive_after_cost": 10,
+      "trade_count": 255,
+      "wins": 93,
+      "win_rate": 0.36470588235294116,
+      "gross_pnl_inr_sum": 61275.5,
+      "after_cost_pnl_inr_sum": -8801.98,
+      "avg_after_cost_per_contract": -440.1,
+      "avg_gross_per_contract": 3063.78
+    },
+    {
+      "family": "EMA_CROSS",
+      "tf": "5m",
+      "params": {
+        "fast": 12,
+        "sl": 0.15,
+        "slow": 26,
+        "tp": 0.3
+      },
+      "contracts_tested": 20,
+      "contracts_positive_after_cost": 11,
+      "trade_count": 216,
+      "wins": 83,
+      "win_rate": 0.38425925925925924,
+      "gross_pnl_inr_sum": 42859.38,
+      "after_cost_pnl_inr_sum": -10739.47,
+      "avg_after_cost_per_contract": -536.97,
+      "avg_gross_per_contract": 2142.97
+    },
+    {
+      "family": "EMA_ST",
+      "tf": "5m",
+      "params": {
+        "fast": 9,
+        "sl": 0.15,
+        "slow": 21,
+        "st_mult": 2.0,
+        "st_period": 10,
+        "tp": 0.3
+      },
+      "contracts_tested": 20,
+      "contracts_positive_after_cost": 10,
+      "trade_count": 228,
+      "wins": 92,
+      "win_rate": 0.40350877192982454,
+      "gross_pnl_inr_sum": 36400.48,
+      "after_cost_pnl_inr_sum": -18564.95,
+      "avg_after_cost_per_contract": -928.25,
+      "avg_gross_per_contract": 1820.02
+    },
+    {
+      "family": "EMA_CROSS",
+      "tf": "5m",
+      "params": {
+        "fast": 5,
+        "sl": null,
+        "slow": 20,
+        "tp": null
+      },
+      "contracts_tested": 20,
+      "contracts_positive_after_cost": 7,
+      "trade_count": 374,
+      "wins": 115,
+      "win_rate": 0.3074866310160428,
+      "gross_pnl_inr_sum": 67028.0,
+      "after_cost_pnl_inr_sum": -20188.37,
+      "avg_after_cost_per_contract": -1009.42,
+      "avg_gross_per_contract": 3351.4
+    },
+    {
+      "family": "SMA_CROSS",
+      "tf": "5m",
+      "params": {
+        "fast": 5,
+        "sl": null,
+        "slow": 20,
+        "tp": null
+      },
+      "contracts_tested": 20,
+      "contracts_positive_after_cost": 10,
+      "trade_count": 427,
+      "wins": 160,
+      "win_rate": 0.3747072599531616,
+      "gross_pnl_inr_sum": 94607.5,
+      "after_cost_pnl_inr_sum": -20521.63,
+      "avg_after_cost_per_contract": -1026.08,
+      "avg_gross_per_contract": 4730.38
+    },
+    {
+      "family": "EMA_CROSS",
+      "tf": "5m",
+      "params": {
+        "fast": 9,
+        "sl": 0.15,
+        "slow": 21,
+        "tp": 0.3
+      },
+      "contracts_tested": 20,
+      "contracts_positive_after_cost": 10,
+      "trade_count": 271,
+      "wins": 102,
+      "win_rate": 0.3763837638376384,
+      "gross_pnl_inr_sum": 39723.93,
+      "after_cost_pnl_inr_sum": -25387.62,
+      "avg_after_cost_per_contract": -1269.38,
+      "avg_gross_per_contract": 1986.2
+    },
+    {
+      "family": "MACD",
+      "tf": "5m",
+      "params": {
+        "sl": 0.15,
+        "tp": 0.3
+      },
+      "contracts_tested": 20,
+      "contracts_positive_after_cost": 5,
+      "trade_count": 195,
+      "wins": 68,
+      "win_rate": 0.3487179487179487,
+      "gross_pnl_inr_sum": 19889.34,
+      "after_cost_pnl_inr_sum": -32670.48,
+      "avg_after_cost_per_contract": -1633.52,
+      "avg_gross_per_contract": 994.47
+    },
+    {
+      "family": "VWAP_RSI_CROSS",
+      "tf": "1m",
+      "params": {
+        "rsi_en": 70,
+        "rsi_ex": 68,
+        "sl": 0.15,
+        "tp": 0.3
+      },
+      "contracts_tested": 20,
+      "contracts_positive_after_cost": 2,
+      "trade_count": 84,
+      "wins": 20,
+      "win_rate": 0.23809523809523808,
+      "gross_pnl_inr_sum": -7817.71,
+      "after_cost_pnl_inr_sum": -38517.82,
+      "avg_after_cost_per_contract": -1925.89,
+      "avg_gross_per_contract": -390.89
+    },
+    {
+      "family": "VWAP_RSI_CROSS",
+      "tf": "5m",
+      "params": {
+        "rsi_en": 60,
+        "rsi_ex": 55,
+        "sl": 0.2,
+        "tp": 0.4
+      },
+      "contracts_tested": 20,
+      "contracts_positive_after_cost": 1,
+      "trade_count": 64,
+      "wins": 6,
+      "win_rate": 0.09375,
+      "gross_pnl_inr_sum": -22967.1,
+      "after_cost_pnl_inr_sum": -38937.55,
+      "avg_after_cost_per_contract": -1946.88,
+      "avg_gross_per_contract": -1148.36
+    }
+  ],
+  "bottom_aggregates": [
+    {
+      "family": "EMA_CROSS",
+      "tf": "1m",
+      "params": {
+        "fast": 9,
+        "sl": null,
+        "slow": 21,
+        "tp": null
+      },
+      "contracts_tested": 20,
+      "contracts_positive_after_cost": 0,
+      "trade_count": 1543,
+      "wins": 380,
+      "win_rate": 0.24627349319507452,
+      "gross_pnl_inr_sum": -235365.0,
+      "after_cost_pnl_inr_sum": -613039.69,
+      "avg_after_cost_per_contract": -30651.98,
+      "avg_gross_per_contract": -11768.25
+    },
+    {
+      "family": "EMA_CROSS",
+      "tf": "1m",
+      "params": {
+        "fast": 5,
+        "sl": null,
+        "slow": 20,
+        "tp": null
+      },
+      "contracts_tested": 20,
+      "contracts_positive_after_cost": 0,
+      "trade_count": 2095,
+      "wins": 511,
+      "win_rate": 0.24391408114558472,
+      "gross_pnl_inr_sum": -166413.0,
+      "after_cost_pnl_inr_sum": -651341.32,
+      "avg_after_cost_per_contract": -32567.07,
+      "avg_gross_per_contract": -8320.65
+    },
+    {
+      "family": "SUPERTREND",
+      "tf": "1m",
+      "params": {
+        "mult": 2.0,
+        "period": 10,
+        "sl": null,
+        "tp": null
+      },
+      "contracts_tested": 20,
+      "contracts_positive_after_cost": 0,
+      "trade_count": 2415,
+      "wins": 800,
+      "win_rate": 0.33126293995859213,
+      "gross_pnl_inr_sum": -116207.0,
+      "after_cost_pnl_inr_sum": -667277.71,
+      "avg_after_cost_per_contract": -33363.89,
+      "avg_gross_per_contract": -5810.35
+    },
+    {
+      "family": "SMA_CROSS",
+      "tf": "1m",
+      "params": {
+        "fast": 10,
+        "sl": null,
+        "slow": 30,
+        "tp": null
+      },
+      "contracts_tested": 20,
+      "contracts_positive_after_cost": 0,
+      "trade_count": 1476,
+      "wins": 401,
+      "win_rate": 0.27168021680216803,
+      "gross_pnl_inr_sum": -334249.5,
+      "after_cost_pnl_inr_sum": -708271.46,
+      "avg_after_cost_per_contract": -35413.57,
+      "avg_gross_per_contract": -16712.47
+    },
+    {
+      "family": "HALFTREND",
+      "tf": "1m",
+      "params": {
+        "amplitude": 3,
+        "sl": null,
+        "tp": null
+      },
+      "contracts_tested": 20,
+      "contracts_positive_after_cost": 0,
+      "trade_count": 3652,
+      "wins": 1271,
+      "win_rate": 0.3480284775465498,
+      "gross_pnl_inr_sum": 99554.0,
+      "after_cost_pnl_inr_sum": -726409.76,
+      "avg_after_cost_per_contract": -36320.49,
+      "avg_gross_per_contract": 4977.7
+    },
+    {
+      "family": "SMA_CROSS",
+      "tf": "1m",
+      "params": {
+        "fast": 5,
+        "sl": null,
+        "slow": 20,
+        "tp": null
+      },
+      "contracts_tested": 20,
+      "contracts_positive_after_cost": 0,
+      "trade_count": 2307,
+      "wins": 700,
+      "win_rate": 0.3034243606415258,
+      "gross_pnl_inr_sum": -219937.25,
+      "after_cost_pnl_inr_sum": -770701.07,
+      "avg_after_cost_per_contract": -38535.05,
+      "avg_gross_per_contract": -10996.86
+    },
+    {
+      "family": "HALFTREND",
+      "tf": "1m",
+      "params": {
+        "amplitude": 2,
+        "sl": null,
+        "tp": null
+      },
+      "contracts_tested": 20,
+      "contracts_positive_after_cost": 0,
+      "trade_count": 4766,
+      "wins": 1616,
+      "win_rate": 0.3390684011749895,
+      "gross_pnl_inr_sum": -21307.0,
+      "after_cost_pnl_inr_sum": -1085281.58,
+      "avg_after_cost_per_contract": -54264.08,
+      "avg_gross_per_contract": -1065.35
+    },
+    {
+      "family": "HALFTREND",
+      "tf": "1m",
+      "params": {
+        "amplitude": 2,
+        "sl": 0.15,
+        "tp": 0.3
+      },
+      "contracts_tested": 20,
+      "contracts_positive_after_cost": 0,
+      "trade_count": 4766,
+      "wins": 1614,
+      "win_rate": 0.3386487620646244,
+      "gross_pnl_inr_sum": -41052.06,
+      "after_cost_pnl_inr_sum": -1104829.18,
+      "avg_after_cost_per_contract": -55241.46,
+      "avg_gross_per_contract": -2052.6
+    }
+  ],
+  "top_single_contracts": [
+    {
+      "family": "TURTLE",
+      "tf": "5m",
+      "side": "PE",
+      "strike": 23850,
+      "security_id": "47312",
+      "params": {
+        "entry_len": 20,
+        "exit_len": 10,
+        "sl": null,
+        "tp": null
+      },
+      "trade_count": 1,
+      "wins": 1,
+      "losses": 0,
+      "win_rate": 1.0,
+      "gross_pnl_inr": 20293.0,
+      "after_cost_pnl_inr": 19984.38
+    },
+    {
+      "family": "TURTLE",
+      "tf": "1m",
+      "side": "PE",
+      "strike": 23850,
+      "security_id": "47312",
+      "params": {
+        "entry_len": 20,
+        "exit_len": 10,
+        "sl": null,
+        "tp": null
+      },
+      "trade_count": 1,
+      "wins": 1,
+      "losses": 0,
+      "win_rate": 1.0,
+      "gross_pnl_inr": 19347.25,
+      "after_cost_pnl_inr": 19029.17
+    },
+    {
+      "family": "TURTLE",
+      "tf": "1m",
+      "side": "PE",
+      "strike": 23850,
+      "security_id": "47312",
+      "params": {
+        "entry_len": 10,
+        "exit_len": 5,
+        "sl": null,
+        "tp": null
+      },
+      "trade_count": 1,
+      "wins": 1,
+      "losses": 0,
+      "win_rate": 1.0,
+      "gross_pnl_inr": 19337.5,
+      "after_cost_pnl_inr": 19019.33
+    },
+    {
+      "family": "TURTLE",
+      "tf": "5m",
+      "side": "PE",
+      "strike": 23850,
+      "security_id": "47312",
+      "params": {
+        "entry_len": 10,
+        "exit_len": 5,
+        "sl": null,
+        "tp": null
+      },
+      "trade_count": 1,
+      "wins": 1,
+      "losses": 0,
+      "win_rate": 1.0,
+      "gross_pnl_inr": 19194.5,
+      "after_cost_pnl_inr": 18874.9
+    },
+    {
+      "family": "SUPERTREND",
+      "tf": "5m",
+      "side": "PE",
+      "strike": 23850,
+      "security_id": "47312",
+      "params": {
+        "period": 10,
+        "mult": 3.0,
+        "sl": null,
+        "tp": null
+      },
+      "trade_count": 9,
+      "wins": 4,
+      "losses": 5,
+      "win_rate": 0.4444444444444444,
+      "gross_pnl_inr": 20718.75,
+      "after_cost_pnl_inr": 18727.25
+    },
+    {
+      "family": "SMA_CROSS",
+      "tf": "5m",
+      "side": "PE",
+      "strike": 23800,
+      "security_id": "47310",
+      "params": {
+        "fast": 5,
+        "slow": 20,
+        "sl": null,
+        "tp": null
+      },
+      "trade_count": 38,
+      "wins": 16,
+      "losses": 22,
+      "win_rate": 0.42105263157894735,
+      "gross_pnl_inr": 23686.0,
+      "after_cost_pnl_inr": 17419.61
+    },
+    {
+      "family": "SMA_CROSS",
+      "tf": "5m",
+      "side": "PE",
+      "strike": 23850,
+      "security_id": "47312",
+      "params": {
+        "fast": 5,
+        "slow": 20,
+        "sl": null,
+        "tp": null
+      },
+      "trade_count": 21,
+      "wins": 10,
+      "losses": 11,
+      "win_rate": 0.47619047619047616,
+      "gross_pnl_inr": 21463.0,
+      "after_cost_pnl_inr": 16041.93
+    },
+    {
+      "family": "TURTLE",
+      "tf": "1m",
+      "side": "PE",
+      "strike": 23750,
+      "security_id": "47308",
+      "params": {
+        "entry_len": 10,
+        "exit_len": 5,
+        "sl": null,
+        "tp": null
+      },
+      "trade_count": 1,
+      "wins": 1,
+      "losses": 0,
+      "win_rate": 1.0,
+      "gross_pnl_inr": 16045.25,
+      "after_cost_pnl_inr": 15812.71
+    },
+    {
+      "family": "TURTLE",
+      "tf": "1m",
+      "side": "PE",
+      "strike": 23800,
+      "security_id": "47310",
+      "params": {
+        "entry_len": 10,
+        "exit_len": 5,
+        "sl": null,
+        "tp": null
+      },
+      "trade_count": 1,
+      "wins": 1,
+      "losses": 0,
+      "win_rate": 1.0,
+      "gross_pnl_inr": 16035.5,
+      "after_cost_pnl_inr": 15747.35
+    },
+    {
+      "family": "TURTLE",
+      "tf": "5m",
+      "side": "PE",
+      "strike": 23800,
+      "security_id": "47310",
+      "params": {
+        "entry_len": 10,
+        "exit_len": 5,
+        "sl": null,
+        "tp": null
+      },
+      "trade_count": 1,
+      "wins": 1,
+      "losses": 0,
+      "win_rate": 1.0,
+      "gross_pnl_inr": 15749.5,
+      "after_cost_pnl_inr": 15458.5
+    },
+    {
+      "family": "TURTLE",
+      "tf": "1m",
+      "side": "PE",
+      "strike": 23800,
+      "security_id": "47310",
+      "params": {
+        "entry_len": 20,
+        "exit_len": 10,
+        "sl": null,
+        "tp": null
+      },
+      "trade_count": 1,
+      "wins": 1,
+      "losses": 0,
+      "win_rate": 1.0,
+      "gross_pnl_inr": 15665.0,
+      "after_cost_pnl_inr": 15373.15
+    },
+    {
+      "family": "TURTLE",
+      "tf": "5m",
+      "side": "PE",
+      "strike": 23750,
+      "security_id": "47308",
+      "params": {
+        "entry_len": 20,
+        "exit_len": 10,
+        "sl": null,
+        "tp": null
+      },
+      "trade_count": 1,
+      "wins": 1,
+      "losses": 0,
+      "win_rate": 1.0,
+      "gross_pnl_inr": 15544.75,
+      "after_cost_pnl_inr": 15307.21
+    },
+    {
+      "family": "TURTLE",
+      "tf": "5m",
+      "side": "PE",
+      "strike": 23750,
+      "security_id": "47308",
+      "params": {
+        "entry_len": 10,
+        "exit_len": 5,
+        "sl": null,
+        "tp": null
+      },
+      "trade_count": 1,
+      "wins": 1,
+      "losses": 0,
+      "win_rate": 1.0,
+      "gross_pnl_inr": 15544.75,
+      "after_cost_pnl_inr": 15307.21
+    },
+    {
+      "family": "EMA_CROSS",
+      "tf": "5m",
+      "side": "PE",
+      "strike": 23850,
+      "security_id": "47312",
+      "params": {
+        "fast": 9,
+        "slow": 21,
+        "sl": null,
+        "tp": null
+      },
+      "trade_count": 15,
+      "wins": 6,
+      "losses": 9,
+      "win_rate": 0.4,
+      "gross_pnl_inr": 19324.5,
+      "after_cost_pnl_inr": 15293.2
+    },
+    {
+      "family": "TURTLE",
+      "tf": "1m",
+      "side": "PE",
+      "strike": 23750,
+      "security_id": "47308",
+      "params": {
+        "entry_len": 20,
+        "exit_len": 10,
+        "sl": null,
+        "tp": null
+      },
+      "trade_count": 1,
+      "wins": 1,
+      "losses": 0,
+      "win_rate": 1.0,
+      "gross_pnl_inr": 15414.75,
+      "after_cost_pnl_inr": 15175.91
+    }
+  ],
+  "paper_tuesday_hint": {
+    "note": "NOT a forecast. Historical Aug\u2013Sep lab only. Tuesday paper = watch signals, no live Super Orders.",
+    "recipe": {
+      "family": "EMA_ST",
+      "tf": "5m",
+      "params": {
+        "fast": 9,
+        "sl": null,
+        "slow": 21,
+        "st_mult": 3.0,
+        "st_period": 10,
+        "tp": null
+      },
+      "plain_english": "On 5-minute option premium: buy when EMA9 crosses above EMA21 and price is above Supertrend(10,3); exit on EMA cross down or price closes below Supertrend. No fixed % SL/TP in this winner."
+    },
+    "historical_win_rate": 0.4117647058823529,
+    "historical_avg_after_cost_inr_per_contract_full_window_1lot": 1600.28,
+    "rough_one_session_guess_inr_1lot": 53.34,
+    "contracts_positive_share": 0.45,
+    "pe_ce_split": {
+      "PE": {
+        "contracts": 10,
+        "trade_count": 151,
+        "win_rate": 0.4503311258278146,
+        "after_cost_pnl_inr_sum": 68665.21,
+        "avg_after_cost_per_contract": 6866.52,
+        "contracts_positive": 7
+      },
+      "CE": {
+        "contracts": 10,
+        "trade_count": 53,
+        "win_rate": 0.3018867924528302,
+        "after_cost_pnl_inr_sum": -36659.58,
+        "avg_after_cost_per_contract": -3665.96,
+        "contracts_positive": 2
+      }
+    },
+    "sessions_approx_in_window": 30
+  },
+  "honesty": [
+    "PAPER only \u2014 not live Super Order automation for Tuesday.",
+    "Aug\u2013Sep one expiry = tiny sample; grid search = multiple-testing bias.",
+    "HalfTrend is a simplified HYPOTHESIS port, not paid TV clone identity.",
+    "After-cost uses HYPOTHESIS 1% RT slip; brokerage/STT UNKNOWN.",
+    "Avg \u20b9/contract is historical lab average, NOT expected Tuesday P/L.",
+    "1m trend-cross families mostly bled after costs \u2014 prefer 5m if papering."
+  ]
+}
