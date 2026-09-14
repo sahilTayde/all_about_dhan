@@ -13,8 +13,12 @@ from backtest_engine.indicators import Bar
 from backtest_engine.tv_ep.grid import run_tv_ep_grid
 
 
-def synthetic_bars(n: int = 240, *, trend: bool = True) -> list[Bar]:
-    """IST-session-ish 1m bars. Fixture only — not Dhan tape."""
+def synthetic_bars(n: int = 1500, *, trend: bool = True) -> list[Bar]:
+    """Two-regime IST-session-ish 1m bars. Fixture only — not Dhan tape.
+
+    Long enough that 15m resample still has ≥60 bars. First half up, second half down
+    so public-rule adapters can emit both BUY_CE and BUY_PE.
+    """
     from datetime import datetime, timedelta, timezone
 
     ist = timezone(timedelta(hours=5, minutes=30))
@@ -23,15 +27,24 @@ def synthetic_bars(n: int = 240, *, trend: bool = True) -> list[Bar]:
     px = 24000.0
     for i in range(n):
         ts = int((start + timedelta(minutes=i)).timestamp())
-        drift = 3.0 if (trend and i < n // 2) else (-2.5 if trend and i >= n // 2 else 0.2)
-        osc = 12.0 if (i // 20) % 2 == 0 else -8.0
-        px = px + drift + (osc * 0.05)
+        if trend:
+            third = n // 3
+            if i < third:
+                drift = -4.5
+            elif i < 2 * third:
+                drift = 4.5
+            else:
+                drift = -4.5
+        else:
+            drift = 0.2
+        osc = 18.0 if (i // 15) % 2 == 0 else -14.0
+        px = px + drift + (osc * 0.08)
         out.append(
             Bar(
                 ts=ts,
                 open=px - 1.0,
-                high=px + 4.0,
-                low=px - 4.0,
+                high=px + 6.0,
+                low=px - 6.0,
                 close=px,
                 volume=100.0,
             )
@@ -40,7 +53,7 @@ def synthetic_bars(n: int = 240, *, trend: bool = True) -> list[Bar]:
 
 
 def fixture_bars() -> dict[tuple[str, str], list[Bar]]:
-    idx = synthetic_bars(280, trend=True)
+    idx = synthetic_bars(1500, trend=True)
     prem = [
         Bar(
             ts=b.ts,
@@ -57,6 +70,8 @@ def fixture_bars() -> dict[tuple[str, str], list[Bar]]:
         ("NIFTY", "PREMIUM"): prem,
         ("SENSEX", "INDEX"): idx,
         ("SENSEX", "PREMIUM"): prem,
+        ("BANKNIFTY", "INDEX"): idx,
+        ("BANKNIFTY", "PREMIUM"): prem,
     }
 
 

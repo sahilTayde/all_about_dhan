@@ -2,7 +2,7 @@
 
 **Retrieved:** `2026-09-14T11:10:00Z` (curl SSR). **Layer:** HYPOTHESIS. **Status:** UNVALIDATED. **Gate:** not `RESEARCH_READY_FOR_PROGRAMMING`.
 
-**KEEP_ALL.** Teacher `STRAT-001`–`014` unchanged. Listing IDs **`MIX-TV-EP-001`–`023`**. Factory calibrators **`024`–`025`** (not Editors’ Pick cards). Never `STRAT-015+`. Next listing drop = **`MIX-TV-EP-026`**. Origin: `WEB-DERIVED` / `TV-EDITOR-PICK`. Metrics **null**. No live orders. **Do not paste full Pine into git.**
+**KEEP_ALL.** Teacher `STRAT-001`–`014` unchanged. Listing IDs **`MIX-TV-EP-001`–`023`**. Factory calibrators **`024`–`025`** (not Editors’ Pick cards). Never `STRAT-015+`. Next listing drop = **`MIX-TV-EP-026`**. Origin: `WEB-DERIVED` / `TV-EDITOR-PICK`. Metrics **null**. No live orders. **Do not paste full Pine into git.** Rule cards: [`../../teams/01_research/docs/TV_EP_RULE_CARDS.md`](../../teams/01_research/docs/TV_EP_RULE_CARDS.md).
 
 Listing: [Editor Picks · Strategies](https://www.tradingview.com/scripts/editors-picks/?script_type=strategies). Pointer: [`../stratigies/editor_pick.txt`](../stratigies/editor_pick.txt). Playbook: [`../../teams/01_research/docs/TV_EDITOR_PICK_INGEST.md`](../../teams/01_research/docs/TV_EDITOR_PICK_INGEST.md). MIX pointer: [`../../teams/04_quant/docs/MIX_CATALOG.md`](../../teams/04_quant/docs/MIX_CATALOG.md) §22.
 

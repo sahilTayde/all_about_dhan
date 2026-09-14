@@ -1004,17 +1004,17 @@ NO_PROMOTE: true
 **Date:** 2026-09-14  
 **Inventory:** [`refernece_tradingview/editors_picks/INDEX.md`](../../../refernece_tradingview/editors_picks/INDEX.md) · [`catalog.json`](../../../refernece_tradingview/editors_picks/catalog.json)  
 **Ingest playbook:** [`TV_EDITOR_PICK_INGEST.md`](../../01_research/docs/TV_EDITOR_PICK_INGEST.md)  
-**06 harness (optional):** [`TV_EP_BACKTEST_FACTORY.md`](../../06_backtesting/docs/TV_EP_BACKTEST_FACTORY.md) — adapters `stub` until a public-rule port exists. **Do not** alias `MIX-TV-EP-001`/`002` to SMA/MACD; those IDs are listing-order EPs.  
+**06 harness (optional):** [`TV_EP_BACKTEST_FACTORY.md`](../../06_backtesting/docs/TV_EP_BACKTEST_FACTORY.md) — listing `MIX-TV-EP-001`–`023` have named Python adapters (many **partial**). **Do not** alias `MIX-TV-EP-001`/`002` to SMA/MACD; those IDs are listing-order EPs. Cards: [`TV_EP_RULE_CARDS.md`](../../01_research/docs/TV_EP_RULE_CARDS.md). Founder board: [`TV_EP_LEADERBOARD.md`](../../06_backtesting/docs/TV_EP_LEADERBOARD.md) — KEEP_ALL 23, TV long→BUY_CE / short→BUY_PE, **UNVALIDATED** / **NO_PROMOTE**.  
 **Listing:** https://www.tradingview.com/scripts/editors-picks/?script_type=strategies  
-**Policy:** KEEP_ALL test rows. **Not** teacher STRATs. **No** `STRAT-015+`. `customer_default: false`. `MIX-DEFAULT-BUY` **unchanged**. Metrics **null**. Pine **not** copied into git. Chart Strategy Tester reports = `DATA_INSUFFICIENT`.
+**Policy:** KEEP_ALL test rows. **Not** teacher STRATs. **No** `STRAT-015+`. `customer_default: false`. `MIX-DEFAULT-BUY` **unchanged**. Metrics **null**. Pine **not** copied into git. Chart Strategy Tester reports = `DATA_INSUFFICIENT`. Not a TV Strategy Tester clone.
 
-IDs **`MIX-TV-EP-001`–`MIX-TV-EP-023`** (snapshot: 23 **Strategy** badges of 760 Editors’ Picks scripts). Flags on every row: `INGESTED` + `RULES_EXTRACTED` + `PORT_PENDING` + `BACKTEST_QUEUED` + `NEVER_DISCARD`.
+IDs **`MIX-TV-EP-001`–`MIX-TV-EP-023`** (snapshot: 23 **Strategy** badges of 760 Editors’ Picks scripts). Flags: `INGESTED` + `RULES_EXTRACTED` + `PORTED_PARTIAL` + `BACKTEST_QUEUED` + `NEVER_DISCARD`.
 
 ```yaml
 mix_id: MIX-TV-EP-001   # through MIX-TV-EP-023; listing order; do not skip
 origin: WEB-DERIVED
 origin_tag: TV-EDITOR-PICK
-adapter: stub
+adapter: ag_sell        # named port; never STRAT-015+
 customer_default: false
 status: BACKTEST_QUEUED
 NO_PROMOTE: true

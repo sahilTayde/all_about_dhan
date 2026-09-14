@@ -191,6 +191,30 @@ def main(argv: list[str] | None = None) -> int:
         help="Use on-disk INDEX/OPTIDX cache instead of synthetic fixture.",
     )
     p_tv.add_argument("--write", action="store_true", help="Write data/recon/tv_ep_leaderboard.*")
+    p_tv.add_argument(
+        "--tf",
+        type=int,
+        nargs="+",
+        default=None,
+        help="Timeframes in minutes (default 1 3 5 15; founder 1m pass: --tf 1).",
+    )
+    p_tv.add_argument(
+        "--tv-years",
+        type=float,
+        default=0.12,
+        help="Trim cached INDEX 1m to this lookback from last bar (default 0.12y).",
+    )
+    p_tv.add_argument(
+        "--prefer-strike",
+        type=int,
+        default=None,
+        help="Prefer this OPTIDX strike only when universe cache exists. Never invent missing 23500 PE.",
+    )
+    p_tv.add_argument(
+        "--refresh-cache",
+        action="store_true",
+        help="Dhan history fetch INDEX 1m + preferred OPTIDX 1m only. Never place_order.",
+    )
     sub.add_parser(
         "tv-ep-counsel",
         help="ONE joint Gemini+OpenAI review of the TV-EP factory design (not each EP).",
@@ -209,12 +233,21 @@ def main(argv: list[str] | None = None) -> int:
         from backtest_engine.tv_ep.grid import run_tv_ep_grid
 
         if getattr(args, "cache", False):
+            tfs = tuple(getattr(args, "tf", None) or (1, 3, 5, 15))
+            live_client = None
+            fetch_live = False
+            if getattr(args, "refresh_cache", False):
+                live_client = DhanClient(dry_run=False)
+                fetch_live = True
             report = run_tv_ep_grid(
-                None,
+                live_client,
                 bars_by_key=None,
-                fetch_live=False,
+                fetch_live=fetch_live,
+                years=float(getattr(args, "tv_years", 0.12)),
                 write=bool(getattr(args, "write", False)),
                 use_009=True,
+                timeframes=tfs,
+                prefer_strike=getattr(args, "prefer_strike", None) or None,
             )
         else:
             report = run_tv(

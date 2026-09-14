@@ -29,7 +29,7 @@ Historical tests on realistic index-option contracts: costs, slippage, no look-a
 
 Engine **stub exists** at `packages/backtest` (`python -m backtest_engine --live`). **Not** OOS validated. Nothing promotes.
 
-**2026-09-14 TV-EP factory:** `python -m backtest_engine tv-ep-grid` (`MIX-TV-EP-*`). Spec [`docs/TV_EP_BACKTEST_FACTORY.md`](docs/TV_EP_BACKTEST_FACTORY.md). Paper board only. **NO_PROMOTE.**
+**2026-09-14 TV-EP factory:** `python -m backtest_engine tv-ep-grid` (`MIX-TV-EP-*`). Spec [`docs/TV_EP_BACKTEST_FACTORY.md`](docs/TV_EP_BACKTEST_FACTORY.md). **1m real cache (NIFTY 23500 PE):** [`docs/TV_EP_1M_NIFTY_PREMIUM.md`](docs/TV_EP_1M_NIFTY_PREMIUM.md). Paper board only. **NO_PROMOTE.**
 
 **2026-09-03 INDEX 5m** (`data/recon/BACKTEST_INDEX_5M_2026-09-03.json`): 425 bars each on NIFTY / BANKNIFTY / SENSEX. CE/PE/SKIP bar counts only. `win_rate` **null**, `option_pnl` **null**. FUTURES_PROXY on INDEX OHLC — not option fills. **Do not invent PF/DD.**
 

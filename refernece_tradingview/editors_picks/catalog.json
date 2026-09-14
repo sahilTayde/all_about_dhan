@@ -29,9 +29,9 @@
   "blockers": [
     "Cursor WebFetch of strategies filter URL returned HTTP 409; curl SSR HTML 200",
     "script_type=strategies pagination is JS; no page-2 link in SSR (single page of 23)",
-    "TV Strategy Tester report tables are per signed-in chart session — DATA_INSUFFICIENT",
+    "TV Strategy Tester report tables are per signed-in chart session \u2014 DATA_INSUFFICIENT",
     "Not a login wall for these 23: all open-source via pine-facade",
-    "NSE/OPTIDX/expiry/costs not in TV defaults — PORT_PENDING"
+    "NSE/OPTIDX/expiry/costs not in TV defaults \u2014 PORT_PENDING"
   ],
   "schema": {
     "schema_id": "tv-editor-pick-ingest-v1",
@@ -39,7 +39,7 @@
     "forbidden_ids": [
       "STRAT-015+"
     ],
-    "keep_all_teachers": "STRAT-001–014 unchanged",
+    "keep_all_teachers": "STRAT-001\u2013014 unchanged",
     "origin": [
       "WEB-DERIVED",
       "TV-EDITOR-PICK"
@@ -80,25 +80,25 @@
     {
       "ep_id": "EP-001",
       "mix_id": "MIX-TV-EP-001",
-      "adapter": "stub",
+      "adapter": "ag_sell",
       "title": "TASC 2026.08 An Ag Selling Model",
       "author": "PineCodersTASC",
       "tv_url": "https://www.tradingview.com/script/VFzCk3HX-TASC-2026-08-An-Ag-Selling-Model/",
       "origin": "WEB-DERIVED/TV-EDITOR-PICK",
-      "notes": "KEEP_ALL test row. Not STRAT-015+. Not customer default. NSE/OPTIDX port not done.",
+      "notes": "HYPOTHESIS public-rule port: MA+ATR sell band from named inputs. Harvest-month filter dropped on 1m NSE. Not Pine. NO_PROMOTE.",
       "visibility": "open-source",
       "license_visibility": "open-source; TV House Rules / author publication (not copied)",
       "long_short": "short",
       "asset_class_guess": "commodity_futures_guess",
       "default_tf": "1D",
-      "rule_summary": "overlay=false/unknown; uses strategy.entry; uses strategy.close. █ OVERVIEW This strategy implements the \"Ag Selling Model\" as presented by Perry J. Kaufman in the August 2026 edition of the TASC Traders' Tips \"Identifying The Best Price Levels For Selling Commodity Futures\". The article describes a long-hold selling strategy for agricultural",
-      "primary_status": "RULES_EXTRACTED",
+      "rule_summary": "overlay=false/unknown; uses strategy.entry; uses strategy.close. \u2588 OVERVIEW This strategy implements the \"Ag Selling Model\" as presented by Perry J. Kaufman in the August 2026 edition of the TASC Traders' Tips \"Identifying The Best Price Levels For Selling Commodity Futures\". The article describes a long-hold selling strategy for agricultural",
+      "primary_status": "BACKTEST_QUEUED",
       "status_flags": [
         "INGESTED",
         "NEVER_DISCARD",
         "RULES_EXTRACTED",
-        "PORT_PENDING",
-        "BACKTEST_QUEUED"
+        "BACKTEST_QUEUED",
+        "PORTED_PARTIAL"
       ],
       "inputs": [
         {
@@ -142,6 +142,7 @@
           "type": "int",
           "default": 40.0,
           "grid": [
+            30.0,
             40.0
           ]
         },
@@ -156,28 +157,8 @@
           "type": "float",
           "default": 2.5,
           "grid": [
+            2.0,
             2.5
-          ]
-        },
-        "Month_of_harvest": {
-          "type": "int",
-          "default": 11.0,
-          "grid": [
-            11.0
-          ]
-        },
-        "Delay_in_months_after_harvest": {
-          "type": "int",
-          "default": 2.0,
-          "grid": [
-            2.0
-          ]
-        },
-        "Days_between_trades": {
-          "type": "int",
-          "default": 30.0,
-          "grid": [
-            30.0
           ]
         }
       },
@@ -193,33 +174,50 @@
       },
       "pub_id": "PUB;270bed499bf1478bb90dfcc10de129d3",
       "slug": "VFzCk3HX-TASC-2026-08-An-Ag-Selling-Model",
-      "retrieved_at": "2026-09-14T11:10:00Z"
+      "retrieved_at": "2026-09-14T11:10:00Z",
+      "port_class": "OHLC_ANYWHERE",
+      "indian_optidx_fit": "HYPOTHESIS"
     },
     {
       "ep_id": "EP-002",
       "mix_id": "MIX-TV-EP-002",
-      "adapter": "stub",
+      "adapter": "one_pct_week",
       "title": "TASC 2026.03 One Percent A Week",
       "author": "PineCodersTASC",
       "tv_url": "https://www.tradingview.com/script/nVECqIQx-TASC-2026-03-One-Percent-A-Week/",
       "origin": "WEB-DERIVED/TV-EDITOR-PICK",
-      "notes": "KEEP_ALL test row. Not STRAT-015+. Not customer default. NSE/OPTIDX port not done.",
+      "notes": "KEEP_ALL. Adapter=one_pct_week. Class=US_EQUITY_ETF. TQQQ weekly 1% dip; NSE Mon-Fri exists but 1% index dip \u2260 option premium NSE session 09:15-15:30; no 24x7; theta on PREMIUM tape. Not STRAT-015+. Not customer default. NO_PROMOTE.",
       "visibility": "open-source",
       "license_visibility": "open-source; TV House Rules / author publication (not copied)",
       "long_short": "long",
       "asset_class_guess": "us_equity_or_index_guess",
       "default_tf": "15",
-      "rule_summary": "strategy() title=TASC 2026.03 One Percent A Week; overlay=true; uses strategy.entry; uses strategy.exit; uses strategy.close. █ OVERVIEW This script implements \"A High-Probability Weekly Trading Strategy For TQQQ\" as dictated in the March 2026 edition of the TASC Traders' Tips, \"Trading Snapbacks In A Leveraged ETF”. In this article the author creates a mean reversion strategy intended for systematic an",
-      "primary_status": "RULES_EXTRACTED",
+      "rule_summary": "strategy() title=TASC 2026.03 One Percent A Week; overlay=true; uses strategy.entry; uses strategy.exit; uses strategy.close. \u2588 OVERVIEW This script implements \"A High-Probability Weekly Trading Strategy For TQQQ\" as dictated in the March 2026 edition of the TASC Traders' Tips, \"Trading Snapbacks In A Leveraged ETF\u201d. In this article the author creates a mean reversion strategy intended for systematic an",
+      "primary_status": "PORTED_PARTIAL",
       "status_flags": [
         "INGESTED",
         "NEVER_DISCARD",
         "RULES_EXTRACTED",
-        "PORT_PENDING",
-        "BACKTEST_QUEUED"
+        "BACKTEST_QUEUED",
+        "PORTED_PARTIAL"
       ],
       "inputs": [],
-      "input_schema": {},
+      "input_schema": {
+        "dip_pct": {
+          "type": "float",
+          "default": 1.0,
+          "grid": [
+            1.0
+          ]
+        },
+        "target_pct": {
+          "type": "float",
+          "default": 1.0,
+          "grid": [
+            1.0
+          ]
+        }
+      },
       "chart_strategy_report": "DATA_INSUFFICIENT (TV Strategy Tester is per-chart session; listing page has no published report table)",
       "pine_copied": false,
       "customer_default": false,
@@ -232,30 +230,32 @@
       },
       "pub_id": "PUB;02044cbd22bc4b9389f4e2443a6e7674",
       "slug": "nVECqIQx-TASC-2026-03-One-Percent-A-Week",
-      "retrieved_at": "2026-09-14T11:10:00Z"
+      "retrieved_at": "2026-09-14T11:10:00Z",
+      "port_class": "US_EQUITY_ETF",
+      "indian_optidx_fit": "HYPOTHESIS"
     },
     {
       "ep_id": "EP-003",
       "mix_id": "MIX-TV-EP-003",
-      "adapter": "stub",
+      "adapter": "csv_replay",
       "title": "Trading Report Generator from CSV",
       "author": "adolgov",
       "tv_url": "https://www.tradingview.com/script/OTfw8b2a-Trading-Report-Generator-from-CSV/",
       "origin": "WEB-DERIVED/TV-EDITOR-PICK",
-      "notes": "KEEP_ALL test row. Not STRAT-015+. Not customer default. NSE/OPTIDX port not done.",
+      "notes": "KEEP_ALL. Adapter=csv_replay. Class=TV_VIZ_TEMPLATE. CSV replay \u2014 no OHLC signal; always HOLD unless csv_long test hook NSE session 09:15-15:30; no 24x7; theta on PREMIUM tape. Not STRAT-015+. Not customer default. NO_PROMOTE.",
       "visibility": "open-source",
       "license_visibility": "open-source; TV House Rules / author publication (not copied)",
       "long_short": "long+short",
       "asset_class_guess": "crypto_guess",
       "default_tf": "60",
       "rule_summary": "strategy() title=Trading Report Generator from CSV; overlay=true. Many people use the Trading Panel. Unfortunately, it doesn't have a Performance Report. However, TradingView has strategies, and they have a Performance Report :-D What if we combine the first and second? It's easy! This script is a special strategy that parses transactions in cs",
-      "primary_status": "RULES_EXTRACTED",
+      "primary_status": "PORTED_PARTIAL",
       "status_flags": [
         "INGESTED",
         "NEVER_DISCARD",
         "RULES_EXTRACTED",
-        "PORT_PENDING",
-        "BACKTEST_QUEUED"
+        "BACKTEST_QUEUED",
+        "PORTED_PARTIAL"
       ],
       "inputs": [
         {
@@ -264,7 +264,15 @@
           "default": "\"Symbol"
         }
       ],
-      "input_schema": {},
+      "input_schema": {
+        "csv_long": {
+          "type": "int",
+          "default": 0.0,
+          "grid": [
+            0.0
+          ]
+        }
+      },
       "chart_strategy_report": "DATA_INSUFFICIENT (TV Strategy Tester is per-chart session; listing page has no published report table)",
       "pine_copied": false,
       "customer_default": false,
@@ -277,30 +285,32 @@
       },
       "pub_id": "PUB;832f2f0f408d4b12a4e431123767e3ac",
       "slug": "OTfw8b2a-Trading-Report-Generator-from-CSV",
-      "retrieved_at": "2026-09-14T11:10:00Z"
+      "retrieved_at": "2026-09-14T11:10:00Z",
+      "port_class": "TV_VIZ_TEMPLATE",
+      "indian_optidx_fit": "HYPOTHESIS"
     },
     {
       "ep_id": "EP-004",
       "mix_id": "MIX-TV-EP-004",
-      "adapter": "stub",
+      "adapter": "trendmaster_ma",
       "title": "TrendMaster Pro 2.3 with Alerts",
       "author": "everget",
       "tv_url": "https://www.tradingview.com/script/mVkDf8qh-TrendMaster-Pro-2-3-with-Alerts/",
       "origin": "WEB-DERIVED/TV-EDITOR-PICK",
-      "notes": "KEEP_ALL test row. Not STRAT-015+. Not customer default. NSE/OPTIDX port not done.",
+      "notes": "HYPOTHESIS public-rule port: Short-Term MA vs Long-Term MA (SMA 9/21). Overlay soup not ported. NO_PROMOTE.",
       "visibility": "open-source",
       "license_visibility": "open-source; TV House Rules / author publication (not copied)",
       "long_short": "long+short",
       "asset_class_guess": "any_chart_guess (TV default; not NSE frozen)",
       "default_tf": "240",
       "rule_summary": "strategy() title=TrendMaster Pro 2.3 with Alerts; overlay=true; uses strategy.entry; uses strategy.exit; uses strategy.close.  Hello friends, A member of the community approached me and asked me how to write an indicator that would achieve a particular set of goals involving comprehensive trend analysis, risk management, and session-based trading controls. Here is one example method of how to create suc",
-      "primary_status": "RULES_EXTRACTED",
+      "primary_status": "BACKTEST_QUEUED",
       "status_flags": [
         "INGESTED",
         "NEVER_DISCARD",
         "RULES_EXTRACTED",
-        "PORT_PENDING",
-        "BACKTEST_QUEUED"
+        "BACKTEST_QUEUED",
+        "PORTED_PARTIAL"
       ],
       "inputs": [
         {
@@ -590,60 +600,21 @@
         }
       ],
       "input_schema": {
-        "Trend_MA_Length": {
-          "type": "int",
-          "default": 50.0,
-          "grid": [
-            50.0
-          ]
-        },
-        "Short_Term_MA_Length": {
+        "fast": {
           "type": "int",
           "default": 9.0,
           "grid": [
-            9.0
+            8.0,
+            9.0,
+            13.0
           ]
         },
-        "Long_Term_MA_Length": {
+        "slow": {
           "type": "int",
           "default": 21.0,
           "grid": [
-            21.0
-          ]
-        },
-        "Band_Length": {
-          "type": "int",
-          "default": 20.0,
-          "grid": [
-            20.0
-          ]
-        },
-        "Band_Type": {
-          "type": "int",
-          "default": 2.0,
-          "grid": [
-            2.0
-          ]
-        },
-        "Number_of_Historical_Levels": {
-          "type": "int",
-          "default": 1.0,
-          "grid": [
-            1.0
-          ]
-        },
-        "Line_Width": {
-          "type": "int",
-          "default": 1.0,
-          "grid": [
-            1.0
-          ]
-        },
-        "Asia_Max_Trades_Per_Session": {
-          "type": "int",
-          "default": 5.0,
-          "grid": [
-            5.0
+            21.0,
+            34.0
           ]
         }
       },
@@ -659,30 +630,32 @@
       },
       "pub_id": "PUB;c5150782cf534904996d58386f951456",
       "slug": "mVkDf8qh-TrendMaster-Pro-2-3-with-Alerts",
-      "retrieved_at": "2026-09-14T11:10:00Z"
+      "retrieved_at": "2026-09-14T11:10:00Z",
+      "port_class": "FX_SESSION",
+      "indian_optidx_fit": "HYPOTHESIS"
     },
     {
       "ep_id": "EP-005",
       "mix_id": "MIX-TV-EP-005",
-      "adapter": "stub",
+      "adapter": "double_tap",
       "title": "Bjorgum Double Tap",
       "author": "Bjorgum",
       "tv_url": "https://www.tradingview.com/script/rLkjr2sQ-Bjorgum-Double-Tap/",
       "origin": "WEB-DERIVED/TV-EDITOR-PICK",
-      "notes": "KEEP_ALL test row. Not STRAT-015+. Not customer default. NSE/OPTIDX port not done.",
+      "notes": "HYPOTHESIS public-rule port: second equal-ish swing high/low. Not full Fib/3Commas bot. NO_PROMOTE.",
       "visibility": "open-source",
       "license_visibility": "open-source; TV House Rules / author publication (not copied)",
       "long_short": "long+short",
       "asset_class_guess": "india_index_guess",
       "default_tf": "60",
-      "rule_summary": "overlay=true; uses strategy.entry; uses strategy.exit. █ OVERVIEW Double Tap is a pattern recognition script aimed at detecting Double Tops and Double Bottoms. Double Tap can be applied to the broker emulator to observe historical results, run as a trading bot for live trade alerts in real time with entry signals, take profit, and st",
-      "primary_status": "RULES_EXTRACTED",
+      "rule_summary": "overlay=true; uses strategy.entry; uses strategy.exit. \u2588 OVERVIEW Double Tap is a pattern recognition script aimed at detecting Double Tops and Double Bottoms. Double Tap can be applied to the broker emulator to observe historical results, run as a trading bot for live trade alerts in real time with entry signals, take profit, and st",
+      "primary_status": "BACKTEST_QUEUED",
       "status_flags": [
         "INGESTED",
         "NEVER_DISCARD",
         "RULES_EXTRACTED",
-        "PORT_PENDING",
-        "BACKTEST_QUEUED"
+        "BACKTEST_QUEUED",
+        "PORTED_PARTIAL"
       ],
       "inputs": [
         {
@@ -852,60 +825,19 @@
         }
       ],
       "input_schema": {
+        "Pivot_Length": {
+          "type": "int",
+          "default": 50.0,
+          "grid": [
+            20.0,
+            50.0
+          ]
+        },
         "Pivot_Tolerance": {
           "type": "int",
           "default": 15.0,
           "grid": [
             15.0
-          ]
-        },
-        "Pivot_Length": {
-          "type": "int",
-          "default": 50.0,
-          "grid": [
-            50.0
-          ]
-        },
-        "Target_Fib": {
-          "type": "int",
-          "default": 100.0,
-          "grid": [
-            100.0
-          ]
-        },
-        "Stop_Loss_Fib": {
-          "type": "int",
-          "default": 0.0,
-          "grid": [
-            0.0
-          ]
-        },
-        "Line_Offset": {
-          "type": "int",
-          "default": 30.0,
-          "grid": [
-            30.0
-          ]
-        },
-        "ATR_Length": {
-          "type": "int",
-          "default": 14.0,
-          "grid": [
-            14.0
-          ]
-        },
-        "ATR_Multiplier": {
-          "type": "int",
-          "default": 1.0,
-          "grid": [
-            1.0
-          ]
-        },
-        "Swing_Lookback": {
-          "type": "int",
-          "default": 5.0,
-          "grid": [
-            5.0
           ]
         }
       },
@@ -921,30 +853,32 @@
       },
       "pub_id": "PUB;fce136c6338844529776ec19bbe63074",
       "slug": "rLkjr2sQ-Bjorgum-Double-Tap",
-      "retrieved_at": "2026-09-14T11:10:00Z"
+      "retrieved_at": "2026-09-14T11:10:00Z",
+      "port_class": "OHLC_ANYWHERE",
+      "indian_optidx_fit": "HYPOTHESIS"
     },
     {
       "ep_id": "EP-006",
       "mix_id": "MIX-TV-EP-006",
-      "adapter": "stub",
+      "adapter": "ema_trail",
       "title": "Traling.SL.Target",
       "author": "Sharad_Gaikwad",
       "tv_url": "https://www.tradingview.com/script/4jxYYaGU-Traling-SL-Target/",
       "origin": "WEB-DERIVED/TV-EDITOR-PICK",
-      "notes": "KEEP_ALL test row. Not STRAT-015+. Not customer default. NSE/OPTIDX port not done.",
+      "notes": "HYPOTHESIS public-rule port: Fast/Slow len 20/50 from Trailing.SL.Target. Trailing % SL not in simulate_leans. NO_PROMOTE.",
       "visibility": "open-source",
       "license_visibility": "open-source; TV House Rules / author publication (not copied)",
       "long_short": "long+short",
       "asset_class_guess": "india_index_guess",
       "default_tf": "60",
       "rule_summary": "strategy() title=Traling.SL.Target; overlay=true; uses strategy.entry; uses strategy.close. Trailing SL and Target I have seen few requests in PineScripters telegram group asking questions about implementation of trailing stop-loss (SL) and targets. This script is one of the way to implement the same. This script is developed based on dark color theme and is best viewed",
-      "primary_status": "RULES_EXTRACTED",
+      "primary_status": "BACKTEST_QUEUED",
       "status_flags": [
         "INGESTED",
         "NEVER_DISCARD",
         "RULES_EXTRACTED",
-        "PORT_PENDING",
-        "BACKTEST_QUEUED"
+        "BACKTEST_QUEUED",
+        "PORTED_PARTIAL"
       ],
       "inputs": [
         {
@@ -1029,60 +963,20 @@
         }
       ],
       "input_schema": {
-        "Fast_len": {
+        "fast": {
           "type": "int",
           "default": 20.0,
           "grid": [
-            20.0
+            18.0,
+            20.0,
+            21.0
           ]
         },
-        "Slow_len": {
+        "slow": {
           "type": "int",
           "default": 50.0,
           "grid": [
             50.0
-          ]
-        },
-        "Inital_profit": {
-          "type": "int",
-          "default": 1.0,
-          "grid": [
-            1.0
-          ]
-        },
-        "Inital_SL": {
-          "type": "int",
-          "default": 1.0,
-          "grid": [
-            1.0
-          ]
-        },
-        "Initiate_trailing": {
-          "type": "float",
-          "default": 0.5,
-          "grid": [
-            0.5
-          ]
-        },
-        "Trail_profit_by": {
-          "type": "float",
-          "default": 0.3,
-          "grid": [
-            0.3
-          ]
-        },
-        "Trail_SL_by": {
-          "type": "float",
-          "default": 0.3,
-          "grid": [
-            0.3
-          ]
-        },
-        "Inital_profit_target_points": {
-          "type": "int",
-          "default": 100.0,
-          "grid": [
-            100.0
           ]
         }
       },
@@ -1098,30 +992,32 @@
       },
       "pub_id": "PUB;075e9e3932f14bfb84a6bac637195c07",
       "slug": "4jxYYaGU-Traling-SL-Target",
-      "retrieved_at": "2026-09-14T11:10:00Z"
+      "retrieved_at": "2026-09-14T11:10:00Z",
+      "port_class": "OHLC_ANYWHERE",
+      "indian_optidx_fit": "HYPOTHESIS"
     },
     {
       "ep_id": "EP-007",
       "mix_id": "MIX-TV-EP-007",
-      "adapter": "stub",
+      "adapter": "tts_ma_cross",
       "title": "Template Trailing Strategy (Backtester)",
       "author": "jason5480",
       "tv_url": "https://www.tradingview.com/script/n8bgynWl-Template-Trailing-Strategy-Backtester/",
       "origin": "WEB-DERIVED/TV-EDITOR-PICK",
-      "notes": "KEEP_ALL test row. Not STRAT-015+. Not customer default. NSE/OPTIDX port not done.",
+      "notes": "KEEP_ALL. Adapter=tts_ma_cross. Class=TV_VIZ_TEMPLATE. trailing template; internal SMA 21/49 only NSE session 09:15-15:30; no 24x7; theta on PREMIUM tape. Not STRAT-015+. Not customer default. NO_PROMOTE.",
       "visibility": "open-source",
       "license_visibility": "open-source; TV House Rules / author publication (not copied)",
       "long_short": "long+short",
       "asset_class_guess": "india_index_guess",
       "default_tf": "240",
-      "rule_summary": "overlay=true; uses strategy.entry; uses strategy.exit; uses strategy.close. 💭 Overview + Title: Template Trailing Strategy (Backtester) + Author: Iason Nikolas (jason5480) + License: CC BY-NC-SA 4.0 💢 What is the \"Template Trailing Strategy (Backtester)\"❓ The \"Template Trailing Strategy (Backtester)\" (TTS) is a back-tester orchestration framework. It sup",
-      "primary_status": "RULES_EXTRACTED",
+      "rule_summary": "overlay=true; uses strategy.entry; uses strategy.exit; uses strategy.close. \ud83d\udcad Overview + Title: Template Trailing Strategy (Backtester) + Author: Iason Nikolas (jason5480) + License: CC BY-NC-SA 4.0 \ud83d\udca2 What is the \"Template Trailing Strategy (Backtester)\"\u2753 The \"Template Trailing Strategy (Backtester)\" (TTS) is a back-tester orchestration framework. It sup",
+      "primary_status": "PORTED_PARTIAL",
       "status_flags": [
         "INGESTED",
         "NEVER_DISCARD",
         "RULES_EXTRACTED",
-        "PORT_PENDING",
-        "BACKTEST_QUEUED"
+        "BACKTEST_QUEUED",
+        "PORTED_PARTIAL"
       ],
       "inputs": [
         {
@@ -1200,87 +1096,87 @@
           "default": "false"
         },
         {
-          "name": "​​​",
+          "name": "\u200b\u200b\u200b",
           "kind": "session",
           "default": "'0000-2400'"
         },
         {
-          "name": "𝐃𝐞𝐚𝐥 𝐂𝐨𝐧𝐝𝐢𝐭𝐢𝐨𝐧𝐬 𝐌𝐨𝐝𝐞",
+          "name": "\ud835\udc03\ud835\udc1e\ud835\udc1a\ud835\udc25 \ud835\udc02\ud835\udc28\ud835\udc27\ud835\udc1d\ud835\udc22\ud835\udc2d\ud835\udc22\ud835\udc28\ud835\udc27\ud835\udc2c \ud835\udc0c\ud835\udc28\ud835\udc1d\ud835\udc1e",
           "kind": "enum",
           "default": "DealConditionsMode.internal"
         },
         {
-          "name": "🔌𝐒𝐢𝐠𝐧𝐚𝐥 🛈",
+          "name": "\ud83d\udd0c\ud835\udc12\ud835\udc22\ud835\udc20\ud835\udc27\ud835\udc1a\ud835\udc25 \ud83d\udec8",
           "kind": "source",
           "default": "close"
         },
         {
-          "name": "​​​​",
+          "name": "\u200b\u200b\u200b\u200b",
           "kind": "bool",
           "default": "true"
         },
         {
-          "name": "🎨️ Open Color 📈/📉",
+          "name": "\ud83c\udfa8\ufe0f Open Color \ud83d\udcc8/\ud83d\udcc9",
           "kind": "color",
           "default": "LONG_OPEN_COLOR"
         },
         {
-          "name": "​​​​​",
+          "name": "\u200b\u200b\u200b\u200b\u200b",
           "kind": "color",
           "default": "SHORT_OPEN_COLOR"
         },
         {
-          "name": "​​​​​​",
+          "name": "\u200b\u200b\u200b\u200b\u200b\u200b",
           "kind": "bool",
           "default": "true"
         },
         {
-          "name": "🎨️ Close Color 📈/📉",
+          "name": "\ud83c\udfa8\ufe0f Close Color \ud83d\udcc8/\ud83d\udcc9",
           "kind": "color",
           "default": "CLOSE_COLOR"
         },
         {
-          "name": "​​​​​​​",
+          "name": "\u200b\u200b\u200b\u200b\u200b\u200b\u200b",
           "kind": "color",
           "default": "CLOSE_COLOR"
         },
         {
-          "name": "​​​​​​​​",
+          "name": "\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b",
           "kind": "bool",
           "default": "true"
         },
         {
-          "name": "🎨️ Cancel Open Color 📈/📉",
+          "name": "\ud83c\udfa8\ufe0f Cancel Open Color \ud83d\udcc8/\ud83d\udcc9",
           "kind": "color",
           "default": "LONG_CANCEL_OPEN_COLOR"
         },
         {
-          "name": "​​​​​​​​​",
+          "name": "\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b",
           "kind": "color",
           "default": "SHORT_CANCEL_OPEN_COLOR"
         },
         {
-          "name": "​​​​​​​​​​",
+          "name": "\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b",
           "kind": "bool",
           "default": "true"
         },
         {
-          "name": "🎨️ Cancel Close Color 📈/📉",
+          "name": "\ud83c\udfa8\ufe0f Cancel Close Color \ud83d\udcc8/\ud83d\udcc9",
           "kind": "color",
           "default": "CANCEL_CLOSE_COLOR"
         },
         {
-          "name": "​​​​​​​​​​​",
+          "name": "\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b",
           "kind": "color",
           "default": "CANCEL_CLOSE_COLOR"
         },
         {
-          "name": "📋 Show Legend",
+          "name": "\ud83d\udccb Show Legend",
           "kind": "bool",
           "default": "true"
         },
         {
-          "name": "Commission % 🛈",
+          "name": "Commission % \ud83d\udec8",
           "kind": "float",
           "default": "0.1"
         },
@@ -1295,7 +1191,7 @@
           "default": "false"
         },
         {
-          "name": "​​​​​​​​​​​​",
+          "name": "\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b",
           "kind": "int",
           "default": "7"
         },
@@ -1305,7 +1201,7 @@
           "default": "col.SeriesType.sma"
         },
         {
-          "name": "​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​",
+          "name": "\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b",
           "kind": "int",
           "default": "21"
         },
@@ -1315,7 +1211,7 @@
           "default": "col.SeriesType.sma"
         },
         {
-          "name": "​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​",
+          "name": "\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b",
           "kind": "int",
           "default": "49"
         },
@@ -1355,12 +1251,12 @@
           "default": "''"
         },
         {
-          "name": "​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​",
+          "name": "\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b",
           "kind": "int",
           "default": "200"
         },
         {
-          "name": "​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​",
+          "name": "\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b",
           "kind": "source",
           "default": "close"
         },
@@ -1375,7 +1271,7 @@
           "default": "1.0"
         },
         {
-          "name": "​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​",
+          "name": "\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b",
           "kind": "int",
           "default": "5"
         },
@@ -1390,7 +1286,7 @@
           "default": "14"
         },
         {
-          "name": "​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​",
+          "name": "\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b",
           "kind": "int",
           "default": "14"
         },
@@ -1410,7 +1306,7 @@
           "default": "col.SeriesType.rma"
         },
         {
-          "name": "​​​​​​​​​​​​​",
+          "name": "\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b",
           "kind": "int",
           "default": "14"
         },
@@ -1430,22 +1326,22 @@
           "default": "close"
         },
         {
-          "name": "​​​​​​​​​​​​​​",
+          "name": "\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b",
           "kind": "int",
           "default": "20"
         },
         {
-          "name": "🎨️ Color 📈/📉",
+          "name": "\ud83c\udfa8\ufe0f Color \ud83d\udcc8/\ud83d\udcc9",
           "kind": "color",
           "default": "LONG_OPEN_COLOR"
         },
         {
-          "name": "​​​​​​​​​​​​​​​",
+          "name": "\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b",
           "kind": "color",
           "default": "SHORT_OPEN_COLOR"
         },
         {
-          "name": "𝐎𝐫𝐝𝐞𝐫 𝐓𝐲𝐩𝐞​",
+          "name": "\ud835\udc0e\ud835\udc2b\ud835\udc1d\ud835\udc1e\ud835\udc2b \ud835\udc13\ud835\udc32\ud835\udc29\ud835\udc1e\u200b",
           "kind": "enum",
           "default": "OrderType.market"
         },
@@ -1465,7 +1361,7 @@
           "default": "dr.DistMethod.atr"
         },
         {
-          "name": "Tgt Dist Mul|Len​",
+          "name": "Tgt Dist Mul|Len\u200b",
           "kind": "float",
           "default": "1.0"
         },
@@ -1475,27 +1371,27 @@
           "default": "col.SeriesType.lowest"
         },
         {
-          "name": "​​​​​​​​​​​​​​​​",
+          "name": "\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b",
           "kind": "source",
           "default": "low"
         },
         {
-          "name": "Higher Type/Src        ​",
+          "name": "Higher Type/Src\u2003\u2003\u2003\u2003\u2003\u2002\u2004\u200a\u200b",
           "kind": "enum",
           "default": "col.SeriesType.highest"
         },
         {
-          "name": "​​​​​​​​​​​​​​​​​",
+          "name": "\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b",
           "kind": "source",
           "default": "high"
         },
         {
-          "name": "Bias Dist Mtd        ​",
+          "name": "Bias Dist Mtd\u2003\u2003\u2003\u2003\u2003\u2003\u2007\u2004\u200b",
           "kind": "bool",
           "default": "false"
         },
         {
-          "name": "​​​​​​​​​​​​​​​​​​",
+          "name": "\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b",
           "kind": "enum",
           "default": "dr.DistMethod.ticks"
         },
@@ -1505,37 +1401,37 @@
           "default": "5.0"
         },
         {
-          "name": "​​​​​​​​​​​​​​​​​​​",
+          "name": "\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b",
           "kind": "bool",
           "default": "false"
         },
         {
-          "name": "​​​​​​​​​​​​​​​​​​​​",
+          "name": "\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b",
           "kind": "bool",
           "default": "false"
         },
         {
-          "name": "Min/Max Dist Mtd    ​",
+          "name": "Min/Max Dist Mtd\u2003\u2003\u2004\u200a\u200b",
           "kind": "enum",
           "default": "dr.DistMethod.perc"
         },
         {
-          "name": "Min Dist Mul      ​",
+          "name": "Min Dist Mul\u2003\u2003\u2003\u2003\u2003\u2009\u200b",
           "kind": "float",
           "default": "1.0"
         },
         {
-          "name": "Max Dist Mul     ​",
+          "name": "Max Dist Mul\u2003\u2003\u2003\u2003\u2003\u200b",
           "kind": "float",
           "default": "4.0"
         },
         {
-          "name": "Trail Mode​",
+          "name": "Trail Mode\u200b",
           "kind": "enum",
           "default": "TrailMode.fixed"
         },
         {
-          "name": "Barrier​​",
+          "name": "Barrier\u200b\u200b",
           "kind": "enum",
           "default": "TrailBarrier.front"
         },
@@ -1555,82 +1451,82 @@
           "default": "color.new(#00897B"
         },
         {
-          "name": "𝐓𝐚𝐤𝐞 𝐏𝐫𝐨𝐟𝐢𝐭 𝐓𝐚𝐫𝐠𝐞𝐭𝐬",
+          "name": "\ud835\udc13\ud835\udc1a\ud835\udc24\ud835\udc1e \ud835\udc0f\ud835\udc2b\ud835\udc28\ud835\udc1f\ud835\udc22\ud835\udc2d \ud835\udc13\ud835\udc1a\ud835\udc2b\ud835\udc20\ud835\udc1e\ud835\udc2d\ud835\udc2c",
           "kind": "int",
           "default": "1"
         },
         {
-          "name": "𝑻𝒈𝒕 𝑫𝒊𝒔𝒕 𝑴𝒕𝒅",
+          "name": "\ud835\udc7b\ud835\udc88\ud835\udc95 \ud835\udc6b\ud835\udc8a\ud835\udc94\ud835\udc95 \ud835\udc74\ud835\udc95\ud835\udc85",
           "kind": "enum",
           "default": "dr.DistMethod.atr"
         },
         {
-          "name": "Tgt Dist Mul|Len 📈/📉",
+          "name": "Tgt Dist Mul|Len \ud83d\udcc8/\ud83d\udcc9",
           "kind": "float",
           "default": "3.0"
         },
         {
-          "name": "Lower Type/Src         ​",
+          "name": "Lower Type/Src\u2003\u2003\u2003\u2003\u2003\u2002\u2004\u2009\u200a\u200b",
           "kind": "enum",
           "default": "col.SeriesType.lowest"
         },
         {
-          "name": "​​​​​​​​​​​​​​​​​​​​​",
+          "name": "\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b",
           "kind": "source",
           "default": "low"
         },
         {
-          "name": "Higher Type/Src        ​​​",
+          "name": "Higher Type/Src\u2003\u2003\u2003\u2003\u2003\u2002\u2004\u200a\u200b\u200b\u200b",
           "kind": "enum",
           "default": "col.SeriesType.highest"
         },
         {
-          "name": "​​​​​​​​​​​​​​​​​​​​​​",
+          "name": "\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b",
           "kind": "source",
           "default": "high"
         },
         {
-          "name": "Bias Dist Mtd        ​​",
+          "name": "Bias Dist Mtd\u2003\u2003\u2003\u2003\u2003\u2003\u2007\u2004\u200b\u200b",
           "kind": "bool",
           "default": "false"
         },
         {
-          "name": "​​​​​​​​​​​​​​​​​​​​​​​",
+          "name": "\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b",
           "kind": "enum",
           "default": "dr.DistMethod.atr"
         },
         {
-          "name": "Bias Dist Mul     ​",
+          "name": "Bias Dist Mul\u2003\u2003\u2003\u2003\u2003\u200b",
           "kind": "float",
           "default": "0.5"
         },
         {
-          "name": "​​​​​​​​​​​​​​​​​​​​​​​​",
+          "name": "\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b",
           "kind": "bool",
           "default": "false"
         },
         {
-          "name": "​​​​​​​​​​​​​​​​​​​​​​​​​",
+          "name": "\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b",
           "kind": "bool",
           "default": "false"
         },
         {
-          "name": "Min/Max Dist Mtd    ​​",
+          "name": "Min/Max Dist Mtd\u2003\u2003\u2004\u200a\u200b\u200b",
           "kind": "enum",
           "default": "dr.DistMethod.perc"
         },
         {
-          "name": "Min Dist Mul      ​​",
+          "name": "Min Dist Mul\u2003\u2003\u2003\u2003\u2003\u2009\u200b\u200b",
           "kind": "float",
           "default": "1.0"
         },
         {
-          "name": "Max Dist Mul     ​​",
+          "name": "Max Dist Mul\u2003\u2003\u2003\u2003\u2003\u200b\u200b",
           "kind": "float",
           "default": "10.0"
         },
         {
-          "name": "​​​​​​​​​​​​​​​​​​​​​​​​​​",
+          "name": "\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b",
           "kind": "float",
           "default": "3.0"
         },
@@ -1640,7 +1536,7 @@
           "default": "MoveActMode.off"
         },
         {
-          "name": "Act Take Profit #​",
+          "name": "Act Take Profit #\u200b",
           "kind": "int",
           "default": "1"
         },
@@ -1660,12 +1556,12 @@
           "default": "TrailActMode.off"
         },
         {
-          "name": "Act Take Profit #​​",
+          "name": "Act Take Profit #\u200b\u200b",
           "kind": "int",
           "default": "1"
         },
         {
-          "name": "Barrier​​​",
+          "name": "Barrier\u200b\u200b\u200b",
           "kind": "enum",
           "default": "TrailBarrier.rear"
         },
@@ -1675,17 +1571,17 @@
           "default": "false"
         },
         {
-          "name": "Step Dist Mul|Len 📈/📉",
+          "name": "Step Dist Mul|Len \ud83d\udcc8/\ud83d\udcc9",
           "kind": "float",
           "default": "2.0"
         },
         {
-          "name": "​​​​​​​​​​​​​​​​​​​​​​​​​​​",
+          "name": "\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b",
           "kind": "float",
           "default": "2.0"
         },
         {
-          "name": "Adjust on Gaps​",
+          "name": "Adjust on Gaps\u200b",
           "kind": "bool",
           "default": "false"
         },
@@ -1700,12 +1596,12 @@
           "default": "false"
         },
         {
-          "name": "​​​​​​​​​​​​​​​​​​​​​​​​​​​​",
+          "name": "\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b",
           "kind": "int",
           "default": "7"
         },
         {
-          "name": "Act Take Profit #​​​",
+          "name": "Act Take Profit #\u200b\u200b\u200b",
           "kind": "int",
           "default": "1"
         },
@@ -1720,97 +1616,97 @@
           "default": "CloseOpenProfit.any"
         },
         {
-          "name": "🎨️ Color 📈/📉        ​",
+          "name": "\ud83c\udfa8\ufe0f Color \ud83d\udcc8/\ud83d\udcc9\u2003\u2003\u2003\u2003\u2003\u2003\u2003\u2003\u200b",
           "kind": "color",
           "default": "CLOSE_COLOR"
         },
         {
-          "name": "​​​​​​​​​​​​​​​​​​​​​​​​​​​​​",
+          "name": "\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b",
           "kind": "color",
           "default": "CLOSE_COLOR"
         },
         {
-          "name": "𝐎𝐫𝐝𝐞𝐫 𝐓𝐲𝐩𝐞​​",
+          "name": "\ud835\udc0e\ud835\udc2b\ud835\udc1d\ud835\udc1e\ud835\udc2b \ud835\udc13\ud835\udc32\ud835\udc29\ud835\udc1e\u200b\u200b",
           "kind": "enum",
           "default": "OrderType.market"
         },
         {
-          "name": "Tgt Dist Mtd​",
+          "name": "Tgt Dist Mtd\u200b",
           "kind": "enum",
           "default": "dr.DistMethod.atr"
         },
         {
-          "name": "Tgt Dist Mul|Len​​",
+          "name": "Tgt Dist Mul|Len\u200b\u200b",
           "kind": "float",
           "default": "1.0"
         },
         {
-          "name": "Higher Type/Src        ​​​​",
+          "name": "Higher Type/Src\u2003\u2003\u2003\u2003\u2003\u2002\u2004\u200a\u200b\u200b\u200b\u200b",
           "kind": "enum",
           "default": "col.SeriesType.highest"
         },
         {
-          "name": "​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​",
+          "name": "\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b",
           "kind": "source",
           "default": "high"
         },
         {
-          "name": "Lower Type/Src         ​​​",
+          "name": "Lower Type/Src\u2003\u2003\u2003\u2003\u2003\u2002\u2004\u2009\u200a\u200b\u200b\u200b",
           "kind": "enum",
           "default": "col.SeriesType.lowest"
         },
         {
-          "name": "​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​",
+          "name": "\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b",
           "kind": "source",
           "default": "low"
         },
         {
-          "name": "Bias Dist Mtd        ​​​",
+          "name": "Bias Dist Mtd\u2003\u2003\u2003\u2003\u2003\u2003\u2007\u2004\u200b\u200b\u200b",
           "kind": "bool",
           "default": "false"
         },
         {
-          "name": "​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​",
+          "name": "\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b",
           "kind": "enum",
           "default": "dr.DistMethod.ticks"
         },
         {
-          "name": "Bias Dist Mul     ​​",
+          "name": "Bias Dist Mul\u2003\u2003\u2003\u2003\u2003\u200b\u200b",
           "kind": "float",
           "default": "5.0"
         },
         {
-          "name": "​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​",
+          "name": "\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b",
           "kind": "bool",
           "default": "false"
         },
         {
-          "name": "​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​",
+          "name": "\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b",
           "kind": "bool",
           "default": "false"
         },
         {
-          "name": "Min/Max Dist Mtd    ​​​",
+          "name": "Min/Max Dist Mtd\u2003\u2003\u2004\u200a\u200b\u200b\u200b",
           "kind": "enum",
           "default": "dr.DistMethod.perc"
         },
         {
-          "name": "Min Dist Mul      ​​​",
+          "name": "Min Dist Mul\u2003\u2003\u2003\u2003\u2003\u2009\u200b\u200b\u200b",
           "kind": "float",
           "default": "1.0"
         },
         {
-          "name": "Max Dist Mul     ​​​",
+          "name": "Max Dist Mul\u2003\u2003\u2003\u2003\u2003\u200b\u200b\u200b",
           "kind": "float",
           "default": "4.0"
         },
         {
-          "name": "Trail Mode​​",
+          "name": "Trail Mode\u200b\u200b",
           "kind": "enum",
           "default": "TrailMode.fixed"
         },
         {
-          "name": "Barrier​​​​",
+          "name": "Barrier\u200b\u200b\u200b\u200b",
           "kind": "enum",
           "default": "TrailBarrier.front"
         },
@@ -1820,7 +1716,7 @@
           "default": "false"
         },
         {
-          "name": "𝑬𝒏𝒕𝒓𝒚 𝑸𝒕𝒚 𝑴𝒕𝒅",
+          "name": "\ud835\udc6c\ud835\udc8f\ud835\udc95\ud835\udc93\ud835\udc9a \ud835\udc78\ud835\udc95\ud835\udc9a \ud835\udc74\ud835\udc95\ud835\udc85",
           "kind": "enum",
           "default": "EntryQuantityMethod.risk"
         },
@@ -1845,12 +1741,12 @@
           "default": "5.0"
         },
         {
-          "name": "Leverage 📈/📉 🛈",
+          "name": "Leverage \ud83d\udcc8/\ud83d\udcc9 \ud83d\udec8",
           "kind": "int",
           "default": "1"
         },
         {
-          "name": "​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​",
+          "name": "\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b",
           "kind": "int",
           "default": "1"
         },
@@ -1880,7 +1776,7 @@
           "default": "false"
         },
         {
-          "name": "​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​",
+          "name": "\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b",
           "kind": "float",
           "default": "25.0"
         },
@@ -1890,7 +1786,7 @@
           "default": "false"
         },
         {
-          "name": "​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​",
+          "name": "\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b",
           "kind": "float",
           "default": "5.0"
         },
@@ -1900,7 +1796,7 @@
           "default": "false"
         },
         {
-          "name": "​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​",
+          "name": "\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b",
           "kind": "int",
           "default": "25"
         },
@@ -1910,37 +1806,37 @@
           "default": "false"
         },
         {
-          "name": "​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​",
+          "name": "\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b",
           "kind": "int",
           "default": "5"
         },
         {
-          "name": "𝑰𝒏𝒊𝒕 𝑻𝒈𝒕 𝑫𝒊𝒔𝒕 𝑴𝒕𝒅",
+          "name": "\ud835\udc70\ud835\udc8f\ud835\udc8a\ud835\udc95 \ud835\udc7b\ud835\udc88\ud835\udc95 \ud835\udc6b\ud835\udc8a\ud835\udc94\ud835\udc95 \ud835\udc74\ud835\udc95\ud835\udc85",
           "kind": "enum",
           "default": "dr.DistMethod.atr"
         },
         {
-          "name": "Init Tgt Dist Mul|Len 📈/📉",
+          "name": "Init Tgt Dist Mul|Len \ud83d\udcc8/\ud83d\udcc9",
           "kind": "float",
           "default": "5.0"
         },
         {
-          "name": "Higher Type/Src        ​​",
+          "name": "Higher Type/Src\u2003\u2003\u2003\u2003\u2003\u2002\u2004\u200a\u200b\u200b",
           "kind": "enum",
           "default": "col.SeriesType.highest"
         },
         {
-          "name": "​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​",
+          "name": "\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b",
           "kind": "source",
           "default": "high"
         },
         {
-          "name": "Lower Type/Src         ​​",
+          "name": "Lower Type/Src\u2003\u2003\u2003\u2003\u2003\u2002\u2004\u2009\u200a\u200b\u200b",
           "kind": "enum",
           "default": "col.SeriesType.lowest"
         },
         {
-          "name": "​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​",
+          "name": "\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b",
           "kind": "source",
           "default": "low"
         },
@@ -1950,7 +1846,7 @@
           "default": "false"
         },
         {
-          "name": "​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​",
+          "name": "\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b",
           "kind": "enum",
           "default": "dr.DistMethod.ticks"
         },
@@ -1960,12 +1856,12 @@
           "default": "5.0"
         },
         {
-          "name": "​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​",
+          "name": "\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b",
           "kind": "bool",
           "default": "false"
         },
         {
-          "name": "​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​",
+          "name": "\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b",
           "kind": "bool",
           "default": "false"
         },
@@ -1975,17 +1871,17 @@
           "default": "dr.DistMethod.perc"
         },
         {
-          "name": "Init Min Dist Mul    ​​​​",
+          "name": "Init Min Dist Mul\u2003\u2003\u2003\u2004\u200b\u200b\u200b\u200b",
           "kind": "float",
           "default": "0.1"
         },
         {
-          "name": "Init Max Dist Mul    ​​​​",
+          "name": "Init Max Dist Mul\u2003\u2003\u2003\u2006\u200b\u200b\u200b\u200b",
           "kind": "float",
           "default": "10.0"
         },
         {
-          "name": "​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​",
+          "name": "\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b",
           "kind": "float",
           "default": "5.0"
         },
@@ -1995,7 +1891,7 @@
           "default": "dr.DistMethod.atr"
         },
         {
-          "name": "Step Tgt Dist Mul 📈/📉",
+          "name": "Step Tgt Dist Mul \ud83d\udcc8/\ud83d\udcc9",
           "kind": "float",
           "default": "1.0"
         },
@@ -2005,7 +1901,7 @@
           "default": "false"
         },
         {
-          "name": "​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​",
+          "name": "\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b",
           "kind": "enum",
           "default": "dr.DistMethod.ticks"
         },
@@ -2015,12 +1911,12 @@
           "default": "5.0"
         },
         {
-          "name": "​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​",
+          "name": "\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b",
           "kind": "bool",
           "default": "false"
         },
         {
-          "name": "​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​",
+          "name": "\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b",
           "kind": "bool",
           "default": "false"
         },
@@ -2030,22 +1926,22 @@
           "default": "dr.DistMethod.perc"
         },
         {
-          "name": "Step Min Dist Mul   ​​​​​",
+          "name": "Step Min Dist Mul\u2003\u2003\u2001\u200b\u200b\u200b\u200b\u200b",
           "kind": "float",
           "default": "0.1"
         },
         {
-          "name": "Step Max Dist Mul    ​​​​​",
+          "name": "Step Max Dist Mul\u2003\u2003\u2007\u2006\u200b\u200b\u200b\u200b\u200b",
           "kind": "float",
           "default": "5.0"
         },
         {
-          "name": "​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​",
+          "name": "\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b",
           "kind": "float",
           "default": "1.0"
         },
         {
-          "name": "Enable Trail⚠️💹",
+          "name": "Enable Trail\u26a0\ufe0f\ud83d\udcb9",
           "kind": "bool",
           "default": "false"
         },
@@ -2065,7 +1961,7 @@
           "default": "false"
         },
         {
-          "name": "Show Seasonal Table⚠️🐌",
+          "name": "Show Seasonal Table\u26a0\ufe0f\ud83d\udc0c",
           "kind": "bool",
           "default": "true"
         },
@@ -2085,37 +1981,37 @@
           "default": "5"
         },
         {
-          "name": "Show Trade Stats⚠️🐌",
+          "name": "Show Trade Stats\u26a0\ufe0f\ud83d\udc0c",
           "kind": "bool",
           "default": "false"
         },
         {
-          "name": "Show Stats Table⚠️🐌",
+          "name": "Show Stats Table\u26a0\ufe0f\ud83d\udc0c",
           "kind": "bool",
           "default": "false"
         },
         {
-          "name": "​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​",
+          "name": "\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b",
           "kind": "string",
           "default": "'TOP'"
         },
         {
-          "name": "​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​",
+          "name": "\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b",
           "kind": "string",
           "default": "'RIGHT'"
         },
         {
-          "name": "Show Metrics Table⚠️🐌",
+          "name": "Show Metrics Table\u26a0\ufe0f\ud83d\udc0c",
           "kind": "bool",
           "default": "false"
         },
         {
-          "name": "​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​",
+          "name": "\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b",
           "kind": "string",
           "default": "'BOTTOM'"
         },
         {
-          "name": "​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​",
+          "name": "\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b",
           "kind": "string",
           "default": "'RIGHT'"
         },
@@ -2125,7 +2021,7 @@
           "default": "''"
         },
         {
-          "name": "​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​",
+          "name": "\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b\u200b",
           "kind": "string",
           "default": "''"
         },
@@ -2140,7 +2036,7 @@
           "default": "5"
         },
         {
-          "name": "Enable Entry Alerts⚠️🐌",
+          "name": "Enable Entry Alerts\u26a0\ufe0f\ud83d\udc0c",
           "kind": "bool",
           "default": "false"
         },
@@ -2150,54 +2046,54 @@
           "default": "'Long Entry({{ticker}}"
         },
         {
-          "name": "Enable Close/Exit Alerts⚠️🐌",
+          "name": "Enable Close/Exit Alerts\u26a0\ufe0f\ud83d\udc0c",
           "kind": "bool",
           "default": "false"
         },
         {
-          "name": "Enable Take Profit Alerts⚠️🐌",
+          "name": "Enable Take Profit Alerts\u26a0\ufe0f\ud83d\udc0c",
           "kind": "bool",
           "default": "false"
         },
         {
-          "name": "Enable Stop Loss Alerts⚠️🐌",
+          "name": "Enable Stop Loss Alerts\u26a0\ufe0f\ud83d\udc0c",
           "kind": "bool",
           "default": "false"
         },
         {
-          "name": "Enable Tr Entry Change Alerts⚠️🐌",
+          "name": "Enable Tr Entry Change Alerts\u26a0\ufe0f\ud83d\udc0c",
           "kind": "bool",
           "default": "false"
         },
         {
-          "name": "Enable Tr Exit Change Alerts⚠️🐌",
+          "name": "Enable Tr Exit Change Alerts\u26a0\ufe0f\ud83d\udc0c",
           "kind": "bool",
           "default": "false"
         },
         {
-          "name": "Enable Stop Loss Change Alerts⚠️🐌",
+          "name": "Enable Stop Loss Change Alerts\u26a0\ufe0f\ud83d\udc0c",
           "kind": "bool",
           "default": "false"
         },
         {
-          "name": "Enable Limit Entry Cancel Alerts⚠️🐌",
+          "name": "Enable Limit Entry Cancel Alerts\u26a0\ufe0f\ud83d\udc0c",
           "kind": "bool",
           "default": "false"
         },
         {
-          "name": "Enable Limit Exit Cancel Alerts⚠️🐌",
+          "name": "Enable Limit Exit Cancel Alerts\u26a0\ufe0f\ud83d\udc0c",
           "kind": "bool",
           "default": "false"
         },
         {
-          "name": "Enable Risk Management Alerts⚠️🐌",
+          "name": "Enable Risk Management Alerts\u26a0\ufe0f\ud83d\udc0c",
           "kind": "bool",
           "default": "false"
         },
         {
           "name": "Risk Management",
           "kind": "text_area",
-          "default": "'Risk Management‌​​​​​‌⁠‌‌‌​‌​‌⁠‌‌‌​‌​​⁠‌‌​‌​​​⁠‌‌​‌‌‌‌⁠‌‌‌​"
+          "default": "'Risk Management\u200c\u200b\u200b\u200b\u200b\u200b\u200c\u2060\u200c\u200c\u200c\u200b\u200c\u200b\u200c\u2060\u200c\u200c\u200c\u200b\u200c\u200b\u200b\u2060\u200c\u200c\u200b\u200c\u200b\u200b\u200b\u2060\u200c\u200c\u200b\u200c\u200c\u200c\u200c\u2060\u200c\u200c\u200c\u200b"
         },
         {
           "name": "Show Alerts",
@@ -2212,22 +2108,22 @@
         {
           "name": "Feedback",
           "kind": "text_area",
-          "default": "'I encourage you to give constructive feedback 🔄 in the publ"
+          "default": "'I encourage you to give constructive feedback \ud83d\udd04 in the publ"
         },
         {
           "name": "Donate",
           "kind": "text_area",
-          "default": "'I tend to convert coffee ☕ to code 📰"
+          "default": "'I tend to convert coffee \u2615 to code \ud83d\udcf0"
         },
         {
           "name": "Sponsor",
           "kind": "text_area",
-          "default": "'Some of the features ✨ you are using now had been sponsored"
+          "default": "'Some of the features \u2728 you are using now had been sponsored"
         },
         {
           "name": "Hire",
           "kind": "text_area",
-          "default": "'If you have a trading idea 💡 that seeks a robust implementa"
+          "default": "'If you have a trading idea \ud83d\udca1 that seeks a robust implementa"
         },
         {
           "name": "Script Version",
@@ -2305,30 +2201,32 @@
       },
       "pub_id": "PUB;4eba554427d74fa9b2a6f1e1353a6230",
       "slug": "n8bgynWl-Template-Trailing-Strategy-Backtester",
-      "retrieved_at": "2026-09-14T11:10:00Z"
+      "retrieved_at": "2026-09-14T11:10:00Z",
+      "port_class": "TV_VIZ_TEMPLATE",
+      "indian_optidx_fit": "HYPOTHESIS"
     },
     {
       "ep_id": "EP-008",
       "mix_id": "MIX-TV-EP-008",
-      "adapter": "stub",
+      "adapter": "bot3c_ma",
       "title": "3Commas Bot",
       "author": "Bjorgum",
       "tv_url": "https://www.tradingview.com/script/MvlwAzSg-3Commas-Bot/",
       "origin": "WEB-DERIVED/TV-EDITOR-PICK",
-      "notes": "KEEP_ALL test row. Not STRAT-015+. Not customer default. NSE/OPTIDX port not done.",
+      "notes": "KEEP_ALL. Adapter=bot3c_ma. Class=OHLC_ANYWHERE. EMA 21/50; 3Commas webhook omitted NSE session 09:15-15:30; no 24x7; theta on PREMIUM tape. Not STRAT-015+. Not customer default. NO_PROMOTE.",
       "visibility": "open-source",
       "license_visibility": "open-source; TV House Rules / author publication (not copied)",
       "long_short": "long+short",
       "asset_class_guess": "any_chart_guess (TV default; not NSE frozen)",
       "default_tf": "60",
       "rule_summary": "strategy() title=3Commas Bot; overlay=false/unknown; uses strategy.entry; uses strategy.exit. Bjorgum 3Commas Bot A strategy in a box to get you started today With 3rd party API providers growing in popularity, many are turning to automating their strategies on their favorite assets. With so many options and layers of customization possible, TradingView offers a place no",
-      "primary_status": "RULES_EXTRACTED",
+      "primary_status": "PORTED_PARTIAL",
       "status_flags": [
         "INGESTED",
         "NEVER_DISCARD",
         "RULES_EXTRACTED",
-        "PORT_PENDING",
-        "BACKTEST_QUEUED"
+        "BACKTEST_QUEUED",
+        "PORTED_PARTIAL"
       ],
       "inputs": [
         {
@@ -2527,30 +2425,32 @@
       },
       "pub_id": "PUB;b3d1b9c1f597491390fb5eca58097871",
       "slug": "MvlwAzSg-3Commas-Bot",
-      "retrieved_at": "2026-09-14T11:10:00Z"
+      "retrieved_at": "2026-09-14T11:10:00Z",
+      "port_class": "OHLC_ANYWHERE",
+      "indian_optidx_fit": "HYPOTHESIS"
     },
     {
       "ep_id": "EP-009",
       "mix_id": "MIX-TV-EP-009",
-      "adapter": "stub",
+      "adapter": "pivot_rev",
       "title": "Monthly Returns in PineScript Strategies",
       "author": "QuantNomad",
       "tv_url": "https://www.tradingview.com/script/kzp8e4X3-Monthly-Returns-in-PineScript-Strategies/",
       "origin": "WEB-DERIVED/TV-EDITOR-PICK",
-      "notes": "KEEP_ALL test row. Not STRAT-015+. Not customer default. NSE/OPTIDX port not done.",
+      "notes": "KEEP_ALL. Adapter=pivot_rev. Class=TV_VIZ_TEMPLATE. pivot reversal demo + monthly table viz NSE session 09:15-15:30; no 24x7; theta on PREMIUM tape. Not STRAT-015+. Not customer default. NO_PROMOTE.",
       "visibility": "open-source",
       "license_visibility": "open-source; TV House Rules / author publication (not copied)",
       "long_short": "long+short",
       "asset_class_guess": "us_equity_or_index_guess",
       "default_tf": "240",
       "rule_summary": "strategy() title=Monthly Returns in PineScript Strategies; overlay=true; uses strategy.entry. I'm not 100% satisfied with the strategy performance output I receive from TradingView. Quite often I want to see something that is not available by default. I usually export raw trades/metrics from TradingView and then do additional analysis manually. But with tables, you can bu",
-      "primary_status": "RULES_EXTRACTED",
+      "primary_status": "PORTED_PARTIAL",
       "status_flags": [
         "INGESTED",
         "NEVER_DISCARD",
         "RULES_EXTRACTED",
-        "PORT_PENDING",
-        "BACKTEST_QUEUED"
+        "BACKTEST_QUEUED",
+        "PORTED_PARTIAL"
       ],
       "inputs": [
         {
@@ -2587,30 +2487,32 @@
       },
       "pub_id": "PUB;036a46e1f9784f74937e53d10f662bf4",
       "slug": "kzp8e4X3-Monthly-Returns-in-PineScript-Strategies",
-      "retrieved_at": "2026-09-14T11:10:00Z"
+      "retrieved_at": "2026-09-14T11:10:00Z",
+      "port_class": "TV_VIZ_TEMPLATE",
+      "indian_optidx_fit": "HYPOTHESIS"
     },
     {
       "ep_id": "EP-010",
       "mix_id": "MIX-TV-EP-010",
-      "adapter": "stub",
+      "adapter": "stoch_kd",
       "title": "How to use Leverage and Margin in PineScript",
       "author": "Peter_O",
       "tv_url": "https://www.tradingview.com/script/9Iwinz7I-How-to-use-Leverage-and-Margin-in-PineScript/",
       "origin": "WEB-DERIVED/TV-EDITOR-PICK",
-      "notes": "KEEP_ALL test row. Not STRAT-015+. Not customer default. NSE/OPTIDX port not done.",
+      "notes": "KEEP_ALL. Adapter=stoch_kd. Class=FX_FX. Stoch K/D; 30x margin / pyramiding=100 TV-only NSE session 09:15-15:30; no 24x7; theta on PREMIUM tape. Not STRAT-015+. Not customer default. NO_PROMOTE.",
       "visibility": "open-source",
       "license_visibility": "open-source; TV House Rules / author publication (not copied)",
       "long_short": "long+short",
       "asset_class_guess": "us_equity_or_index_guess",
       "default_tf": "60",
       "rule_summary": "overlay=false/unknown; uses strategy.entry; uses strategy.exit. En route to being absolutely the best and most complete trading platform out there, TradingView has just closed 2 gaps in their PineScript language. It is now possible to create and backtest a strategy for trading with leverage. Backtester now produces Margin Calls - so recognize",
-      "primary_status": "RULES_EXTRACTED",
+      "primary_status": "PORTED_PARTIAL",
       "status_flags": [
         "INGESTED",
         "NEVER_DISCARD",
         "RULES_EXTRACTED",
-        "PORT_PENDING",
-        "BACKTEST_QUEUED"
+        "BACKTEST_QUEUED",
+        "PORTED_PARTIAL"
       ],
       "inputs": [
         {
@@ -2671,30 +2573,32 @@
       },
       "pub_id": "PUB;47b27a98540744d582c6f11ea10d4fce",
       "slug": "9Iwinz7I-How-to-use-Leverage-and-Margin-in-PineScript",
-      "retrieved_at": "2026-09-14T11:10:00Z"
+      "retrieved_at": "2026-09-14T11:10:00Z",
+      "port_class": "FX_FX",
+      "indian_optidx_fit": "HYPOTHESIS"
     },
     {
       "ep_id": "EP-011",
       "mix_id": "MIX-TV-EP-011",
-      "adapter": "stub",
-      "title": "Сalculation a position size based on risk",
+      "adapter": "risk_size_demo",
+      "title": "\u0421alculation a position size based on risk",
       "author": "adolgov",
       "tv_url": "https://www.tradingview.com/script/hoCPm5UY-%D0%A1alculation-a-position-size-based-on-risk/",
       "origin": "WEB-DERIVED/TV-EDITOR-PICK",
-      "notes": "KEEP_ALL test row. Not STRAT-015+. Not customer default. NSE/OPTIDX port not done.",
+      "notes": "KEEP_ALL. Adapter=risk_size_demo. Class=TV_VIZ_TEMPLATE. bar_index cadence + risk qty; not alpha NSE session 09:15-15:30; no 24x7; theta on PREMIUM tape. Not STRAT-015+. Not customer default. NO_PROMOTE.",
       "visibility": "open-source",
       "license_visibility": "open-source; TV House Rules / author publication (not copied)",
       "long_short": "long+short",
       "asset_class_guess": "us_equity_or_index_guess",
       "default_tf": "1D",
-      "rule_summary": "strategy() title=Сalculation a position size based on risk; overlay=true; uses strategy.entry; uses strategy.exit. This is an example how to calculate position size based on risk and stop loss for educational purpose.",
-      "primary_status": "RULES_EXTRACTED",
+      "rule_summary": "strategy() title=\u0421alculation a position size based on risk; overlay=true; uses strategy.entry; uses strategy.exit. This is an example how to calculate position size based on risk and stop loss for educational purpose.",
+      "primary_status": "PORTED_PARTIAL",
       "status_flags": [
         "INGESTED",
         "NEVER_DISCARD",
         "RULES_EXTRACTED",
-        "PORT_PENDING",
-        "BACKTEST_QUEUED"
+        "BACKTEST_QUEUED",
+        "PORTED_PARTIAL"
       ],
       "inputs": [
         {
@@ -2722,6 +2626,20 @@
           "grid": [
             2.0
           ]
+        },
+        "long_every": {
+          "type": "int",
+          "default": 333.0,
+          "grid": [
+            50.0
+          ]
+        },
+        "short_every": {
+          "type": "int",
+          "default": 444.0,
+          "grid": [
+            70.0
+          ]
         }
       },
       "chart_strategy_report": "DATA_INSUFFICIENT (TV Strategy Tester is per-chart session; listing page has no published report table)",
@@ -2736,30 +2654,32 @@
       },
       "pub_id": "PUB;efEjn1YmejfPoak2mE1CDEA57Kp8BHlC",
       "slug": "hoCPm5UY-%D0%A1alculation-a-position-size-based-on-risk",
-      "retrieved_at": "2026-09-14T11:10:00Z"
+      "retrieved_at": "2026-09-14T11:10:00Z",
+      "port_class": "TV_VIZ_TEMPLATE",
+      "indian_optidx_fit": "HYPOTHESIS"
     },
     {
       "ep_id": "EP-012",
       "mix_id": "MIX-TV-EP-012",
-      "adapter": "stub",
+      "adapter": "osc_ma",
       "title": "Oscillator Evaluator (Analysis tool)",
       "author": "mks17",
       "tv_url": "https://www.tradingview.com/script/M9taaIkp-Oscillator-Evaluator-Analysis-tool/",
       "origin": "WEB-DERIVED/TV-EDITOR-PICK",
-      "notes": "KEEP_ALL test row. Not STRAT-015+. Not customer default. NSE/OPTIDX port not done.",
+      "notes": "KEEP_ALL. Adapter=osc_ma. Class=OHLC_ANYWHERE. default MA crossover; Laguerre\u2192EMA proxy NSE session 09:15-15:30; no 24x7; theta on PREMIUM tape. Not STRAT-015+. Not customer default. NO_PROMOTE.",
       "visibility": "open-source",
       "license_visibility": "open-source; TV House Rules / author publication (not copied)",
       "long_short": "long+short",
       "asset_class_guess": "india_index_guess",
       "default_tf": "120",
       "rule_summary": "overlay=false/unknown; uses strategy.entry; uses strategy.exit; uses strategy.close. Oscillator Evaluator (Analysis tool) The oscillator evaluator is a tool that will help you analyse and compare the oscillator of your choice to another 2 oscillators. By selecting the strategy with which you will analyze the oscillators, you will be able to see the behaviour of t",
-      "primary_status": "RULES_EXTRACTED",
+      "primary_status": "PORTED_PARTIAL",
       "status_flags": [
         "INGESTED",
         "NEVER_DISCARD",
         "RULES_EXTRACTED",
-        "PORT_PENDING",
-        "BACKTEST_QUEUED"
+        "BACKTEST_QUEUED",
+        "PORTED_PARTIAL"
       ],
       "inputs": [
         {
@@ -2983,30 +2903,32 @@
       },
       "pub_id": "PUB;MnbbtDqO3DiMEsjSxabUloohSMmGS9nj",
       "slug": "M9taaIkp-Oscillator-Evaluator-Analysis-tool",
-      "retrieved_at": "2026-09-14T11:10:00Z"
+      "retrieved_at": "2026-09-14T11:10:00Z",
+      "port_class": "OHLC_ANYWHERE",
+      "indian_optidx_fit": "HYPOTHESIS"
     },
     {
       "ep_id": "EP-013",
       "mix_id": "MIX-TV-EP-013",
-      "adapter": "stub",
+      "adapter": "keltner_stop",
       "title": "Built-in Kelly ratio for dynamic position sizing",
       "author": "CryptoRox",
       "tv_url": "https://www.tradingview.com/script/bFXf4IXh-Built-in-Kelly-ratio-for-dynamic-position-sizing/",
       "origin": "WEB-DERIVED/TV-EDITOR-PICK",
-      "notes": "KEEP_ALL test row. Not STRAT-015+. Not customer default. NSE/OPTIDX port not done.",
+      "notes": "KEEP_ALL. Adapter=keltner_stop. Class=OHLC_ANYWHERE. Keltner stop entries; Kelly size omitted NSE session 09:15-15:30; no 24x7; theta on PREMIUM tape. Not STRAT-015+. Not customer default. NO_PROMOTE.",
       "visibility": "open-source",
       "license_visibility": "open-source; TV House Rules / author publication (not copied)",
       "long_short": "long+short",
       "asset_class_guess": "us_equity_or_index_guess",
       "default_tf": "240",
       "rule_summary": "strategy() title=Built-in Kelly ratio for position sizing; overlay=true; uses strategy.entry; uses strategy.exit; uses strategy.close. This is the defaut keltners channel strategy with a few additions. The main purpose is to show how we include the Kelly ratio into our scripts for dynamic position sizing based on the performance of the strategy on a per trade basis. We've also included the usual take-profit and",
-      "primary_status": "RULES_EXTRACTED",
+      "primary_status": "PORTED_PARTIAL",
       "status_flags": [
         "INGESTED",
         "NEVER_DISCARD",
         "RULES_EXTRACTED",
-        "PORT_PENDING",
-        "BACKTEST_QUEUED"
+        "BACKTEST_QUEUED",
+        "PORTED_PARTIAL"
       ],
       "inputs": [
         {
@@ -3109,30 +3031,32 @@
       },
       "pub_id": "PUB;Ts33bDEy4CQIFQYKAJUYwwUlUXRlAG2Y",
       "slug": "bFXf4IXh-Built-in-Kelly-ratio-for-dynamic-position-sizing",
-      "retrieved_at": "2026-09-14T11:10:00Z"
+      "retrieved_at": "2026-09-14T11:10:00Z",
+      "port_class": "OHLC_ANYWHERE",
+      "indian_optidx_fit": "HYPOTHESIS"
     },
     {
       "ep_id": "EP-014",
       "mix_id": "MIX-TV-EP-014",
-      "adapter": "stub",
+      "adapter": "ext_signal_sma",
       "title": "Ultimate Strategy Template",
       "author": "Daveatt",
       "tv_url": "https://www.tradingview.com/script/2lGyzYkC-Ultimate-Strategy-Template/",
       "origin": "WEB-DERIVED/TV-EDITOR-PICK",
-      "notes": "KEEP_ALL test row. Not STRAT-015+. Not customer default. NSE/OPTIDX port not done.",
+      "notes": "KEEP_ALL. Adapter=ext_signal_sma. Class=TV_VIZ_TEMPLATE. external \u00b11 source missing; SMA 14/28 stand-in NSE session 09:15-15:30; no 24x7; theta on PREMIUM tape. Not STRAT-015+. Not customer default. NO_PROMOTE.",
       "visibility": "open-source",
       "license_visibility": "open-source; TV House Rules / author publication (not copied)",
       "long_short": "long+short",
       "asset_class_guess": "us_equity_or_index_guess",
       "default_tf": "60",
       "rule_summary": "overlay=true; uses strategy.entry; uses strategy.exit; uses strategy.close. Hello Traders As most of you know, I'm a member of the PineCoders community and I sometimes take freelance pine coding jobs for TradingView users. Off the top of my head, users often want to: - convert an indicator into a strategy, so as to get the backtesting statistics from Tra",
-      "primary_status": "RULES_EXTRACTED",
+      "primary_status": "PORTED_PARTIAL",
       "status_flags": [
         "INGESTED",
         "NEVER_DISCARD",
         "RULES_EXTRACTED",
-        "PORT_PENDING",
-        "BACKTEST_QUEUED"
+        "BACKTEST_QUEUED",
+        "PORTED_PARTIAL"
       ],
       "inputs": [
         {
@@ -3176,7 +3100,7 @@
           "default": "true"
         },
         {
-          "name": "═════════════ Date Range Filtering",
+          "name": "\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550 Date Range Filtering",
           "kind": "input",
           "default": "false"
         },
@@ -3191,7 +3115,7 @@
           "default": "timestamp(\"30 Dec 2021 23:30 +0000\""
         },
         {
-          "name": "═════════════ Set Max number of consecutive loss trades",
+          "name": "\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550 Set Max number of consecutive loss trades",
           "kind": "input",
           "default": "false"
         },
@@ -3201,7 +3125,7 @@
           "default": "15"
         },
         {
-          "name": "═════════════ Set Max number of consecutive won trades",
+          "name": "\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550 Set Max number of consecutive won trades",
           "kind": "input",
           "default": "false"
         },
@@ -3211,7 +3135,7 @@
           "default": "15"
         },
         {
-          "name": "═════════════ Set MAX consecutive days with a loss in a row",
+          "name": "\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550 Set MAX consecutive days with a loss in a row",
           "kind": "input",
           "default": "false"
         },
@@ -3221,17 +3145,17 @@
           "default": "3"
         },
         {
-          "name": "═════════════ Set Max Total DrawDown",
+          "name": "\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550 Set Max Total DrawDown",
           "kind": "input",
           "default": "false"
         },
         {
-          "name": "═════════════ Set Max Intraday Loss",
+          "name": "\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550 Set Max Intraday Loss",
           "kind": "input",
           "default": "false"
         },
         {
-          "name": "═════════════ Limit the number of trades per day",
+          "name": "\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550 Limit the number of trades per day",
           "kind": "input",
           "default": "false"
         },
@@ -3241,7 +3165,7 @@
           "default": "10"
         },
         {
-          "name": "═════════════ Limit the number of trades per week",
+          "name": "\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550 Limit the number of trades per week",
           "kind": "input",
           "default": "false"
         },
@@ -3251,12 +3175,12 @@
           "default": "50"
         },
         {
-          "name": "═════════════ Stop Type Selection",
+          "name": "\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550 Stop Type Selection",
           "kind": "input",
           "default": "\"None\""
         },
         {
-          "name": "═════════════ ATR Stop Length",
+          "name": "\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550 ATR Stop Length",
           "kind": "input",
           "default": "14"
         },
@@ -3266,12 +3190,12 @@
           "default": "1"
         },
         {
-          "name": "════ Take Profit Type Selection",
+          "name": "\u2550\u2550\u2550\u2550 Take Profit Type Selection",
           "kind": "input",
           "default": "\"None\""
         },
         {
-          "name": "══════ ATR Take Profit Length",
+          "name": "\u2550\u2550\u2550\u2550\u2550\u2550 ATR Take Profit Length",
           "kind": "input",
           "default": "14"
         },
@@ -3351,30 +3275,32 @@
       },
       "pub_id": "PUB;bx143aAD9qEmS3z6PLGc2eHjBQ00td37",
       "slug": "2lGyzYkC-Ultimate-Strategy-Template",
-      "retrieved_at": "2026-09-14T11:10:00Z"
+      "retrieved_at": "2026-09-14T11:10:00Z",
+      "port_class": "TV_VIZ_TEMPLATE",
+      "indian_optidx_fit": "HYPOTHESIS"
     },
     {
       "ep_id": "EP-015",
       "mix_id": "MIX-TV-EP-015",
-      "adapter": "stub",
+      "adapter": "sma_sltp_money",
       "title": "Stop loss and Take Profit in $$ example",
       "author": "adolgov",
       "tv_url": "https://www.tradingview.com/script/IHVPG6TS-Stop-loss-and-Take-Profit-in-example/",
       "origin": "WEB-DERIVED/TV-EDITOR-PICK",
-      "notes": "KEEP_ALL test row. Not STRAT-015+. Not customer default. NSE/OPTIDX port not done.",
+      "notes": "KEEP_ALL. Adapter=sma_sltp_money. Class=OHLC_ANYWHERE. SMA 14/28; $$ SL/TP needs mintick NSE session 09:15-15:30; no 24x7; theta on PREMIUM tape. Not STRAT-015+. Not customer default. NO_PROMOTE.",
       "visibility": "open-source",
       "license_visibility": "open-source; TV House Rules / author publication (not copied)",
       "long_short": "long+short",
       "asset_class_guess": "india_index_guess",
       "default_tf": "1",
       "rule_summary": "strategy() title=Stop loss and Take Profit in $$ example; overlay=true; uses strategy.entry; uses strategy.exit. This is a simple exit example in $$ (symbol's currency) for educational purpose.",
-      "primary_status": "RULES_EXTRACTED",
+      "primary_status": "PORTED_PARTIAL",
       "status_flags": [
         "INGESTED",
         "NEVER_DISCARD",
         "RULES_EXTRACTED",
-        "PORT_PENDING",
-        "BACKTEST_QUEUED"
+        "BACKTEST_QUEUED",
+        "PORTED_PARTIAL"
       ],
       "inputs": [
         {
@@ -3416,30 +3342,32 @@
       },
       "pub_id": "PUB;YlblCbts4xOLxi0aeKaZ2Bz5I6efpBMH",
       "slug": "IHVPG6TS-Stop-loss-and-Take-Profit-in-example",
-      "retrieved_at": "2026-09-14T11:10:00Z"
+      "retrieved_at": "2026-09-14T11:10:00Z",
+      "port_class": "OHLC_ANYWHERE",
+      "indian_optidx_fit": "HYPOTHESIS"
     },
     {
       "ep_id": "EP-016",
       "mix_id": "MIX-TV-EP-016",
-      "adapter": "stub",
+      "adapter": "sma_step_trail",
       "title": "Stepped trailing strategy example",
       "author": "adolgov",
       "tv_url": "https://www.tradingview.com/script/jjhUHcje-Stepped-trailing-strategy-example/",
       "origin": "WEB-DERIVED/TV-EDITOR-PICK",
-      "notes": "KEEP_ALL test row. Not STRAT-015+. Not customer default. NSE/OPTIDX port not done.",
+      "notes": "KEEP_ALL. Adapter=sma_step_trail. Class=OHLC_ANYWHERE. long-only SMA; stepped trail omitted NSE session 09:15-15:30; no 24x7; theta on PREMIUM tape. Not STRAT-015+. Not customer default. NO_PROMOTE.",
       "visibility": "open-source",
       "license_visibility": "open-source; TV House Rules / author publication (not copied)",
       "long_short": "long",
       "asset_class_guess": "india_index_guess",
       "default_tf": "1D",
       "rule_summary": "strategy() title=Stepped trailing strategy example; overlay=true; uses strategy.entry; uses strategy.exit. This is a stepped trailing exit example for educational purpose. Short brief. There are 1 stop loss and 3 profit levels. When first tp is reached we move stop loss to break-even. When second tp is reached we move stop loss to first tp. When third tp is reached we exit by profit.",
-      "primary_status": "RULES_EXTRACTED",
+      "primary_status": "PORTED_PARTIAL",
       "status_flags": [
         "INGESTED",
         "NEVER_DISCARD",
         "RULES_EXTRACTED",
-        "PORT_PENDING",
-        "BACKTEST_QUEUED"
+        "BACKTEST_QUEUED",
+        "PORTED_PARTIAL"
       ],
       "inputs": [
         {
@@ -3505,30 +3433,32 @@
       },
       "pub_id": "PUB;euT0woJ0jWenKyNnGZhnRjrQPf61bVmn",
       "slug": "jjhUHcje-Stepped-trailing-strategy-example",
-      "retrieved_at": "2026-09-14T11:10:00Z"
+      "retrieved_at": "2026-09-14T11:10:00Z",
+      "port_class": "OHLC_ANYWHERE",
+      "indian_optidx_fit": "HYPOTHESIS"
     },
     {
       "ep_id": "EP-017",
       "mix_id": "MIX-TV-EP-017",
-      "adapter": "stub",
+      "adapter": "pmax",
       "title": "PMax Explorer STRATEGY & SCREENER",
       "author": "KivancOzbilgic",
       "tv_url": "https://www.tradingview.com/script/nHGK4Qtp/",
       "origin": "WEB-DERIVED/TV-EDITOR-PICK",
-      "notes": "KEEP_ALL test row. Not STRAT-015+. Not customer default. NSE/OPTIDX port not done.",
+      "notes": "HYPOTHESIS public-rule port: PMax family as close-flip ATR stop (supertrend class). Screener tickers not ported. NO_PROMOTE.",
       "visibility": "open-source",
       "license_visibility": "open-source; TV House Rules / author publication (not copied)",
       "long_short": "long+short",
       "asset_class_guess": "india_index_guess",
       "default_tf": "1D",
       "rule_summary": "strategy() title=PMax Explorer; overlay=true; uses strategy.entry. Profit Maximizer - PMax Explorer STRATEGY & SCREENER screens the BUY and SELL signals (trend reversals) for 20 user defined different tickers in Tradingview charts. Simply input the name of the ticker in Tradingview that you want to screen. Terminology explanation: Confirmed Reve",
-      "primary_status": "RULES_EXTRACTED",
+      "primary_status": "BACKTEST_QUEUED",
       "status_flags": [
         "INGESTED",
         "NEVER_DISCARD",
         "RULES_EXTRACTED",
-        "PORT_PENDING",
-        "BACKTEST_QUEUED"
+        "BACKTEST_QUEUED",
+        "PORTED_PARTIAL"
       ],
       "inputs": [
         {
@@ -3642,56 +3572,16 @@
           "type": "int",
           "default": 10.0,
           "grid": [
-            10.0
+            10.0,
+            14.0
           ]
         },
         "ATR_Multiplier": {
           "type": "float",
           "default": 3.0,
           "grid": [
+            2.5,
             3.0
-          ]
-        },
-        "Moving_Average_Length": {
-          "type": "int",
-          "default": 10.0,
-          "grid": [
-            10.0
-          ]
-        },
-        "Pos_Label_x_axis": {
-          "type": "int",
-          "default": 20.0,
-          "grid": [
-            20.0
-          ]
-        },
-        "Pos_Size_Label_y_axis": {
-          "type": "int",
-          "default": 1.0,
-          "grid": [
-            1.0
-          ]
-        },
-        "From_Day": {
-          "type": "int",
-          "default": 1.0,
-          "grid": [
-            1.0
-          ]
-        },
-        "From_Month": {
-          "type": "int",
-          "default": 1.0,
-          "grid": [
-            1.0
-          ]
-        },
-        "From_Year": {
-          "type": "int",
-          "default": 2005.0,
-          "grid": [
-            2005.0
           ]
         }
       },
@@ -3707,30 +3597,32 @@
       },
       "pub_id": "PUB;jN9HBNhynFqGOf4KrVcu2d0TU9g0jvGR",
       "slug": "nHGK4Qtp",
-      "retrieved_at": "2026-09-14T11:10:00Z"
+      "retrieved_at": "2026-09-14T11:10:00Z",
+      "port_class": "OHLC_ANYWHERE",
+      "indian_optidx_fit": "HYPOTHESIS"
     },
     {
       "ep_id": "EP-018",
       "mix_id": "MIX-TV-EP-018",
-      "adapter": "stub",
+      "adapter": "grid_like",
       "title": "Grid Like Strategy",
       "author": "alexgrover",
       "tv_url": "https://www.tradingview.com/script/oxvR5vMy-Grid-Like-Strategy/",
       "origin": "WEB-DERIVED/TV-EDITOR-PICK",
-      "notes": "KEEP_ALL test row. Not STRAT-015+. Not customer default. NSE/OPTIDX port not done.",
+      "notes": "KEEP_ALL. Adapter=grid_like. Class=CRYPTO_MARTINGALE. grid \u00b1point; martingale qty ignored; author don't-trade NSE session 09:15-15:30; no 24x7; theta on PREMIUM tape. Not STRAT-015+. Not customer default. NO_PROMOTE.",
       "visibility": "open-source",
       "license_visibility": "open-source; TV House Rules / author publication (not copied)",
       "long_short": "long+short",
       "asset_class_guess": "india_index_guess",
       "default_tf": "15",
       "rule_summary": "strategy() title=Grid Like Strategy; overlay=true; uses strategy.entry; uses strategy.exit. It is possible to use progressive position sizing in order to recover from past losses, a well-known position sizing system being the \"martingale\", which consists of doubling your position size after a loss, this allows you to recover any previous losses in a losing streak + winn",
-      "primary_status": "RULES_EXTRACTED",
+      "primary_status": "PORTED_PARTIAL",
       "status_flags": [
         "INGESTED",
         "NEVER_DISCARD",
         "RULES_EXTRACTED",
-        "PORT_PENDING",
-        "BACKTEST_QUEUED"
+        "BACKTEST_QUEUED",
+        "PORTED_PARTIAL"
       ],
       "inputs": [
         {
@@ -3750,21 +3642,7 @@
         }
       ],
       "input_schema": {
-        "input_unnamed": {
-          "type": "float",
-          "default": 2.0,
-          "grid": [
-            2.0
-          ]
-        },
-        "Order_Size": {
-          "type": "int",
-          "default": 1.0,
-          "grid": [
-            1.0
-          ]
-        },
-        "Martingale_Multiplier": {
+        "point": {
           "type": "float",
           "default": 2.0,
           "grid": [
@@ -3784,30 +3662,32 @@
       },
       "pub_id": "PUB;AuVCpaVo2YGf4cxsVqp0LxAeJTWNB3yx",
       "slug": "oxvR5vMy-Grid-Like-Strategy",
-      "retrieved_at": "2026-09-14T11:10:00Z"
+      "retrieved_at": "2026-09-14T11:10:00Z",
+      "port_class": "CRYPTO_MARTINGALE",
+      "indian_optidx_fit": "HYPOTHESIS"
     },
     {
       "ep_id": "EP-019",
       "mix_id": "MIX-TV-EP-019",
-      "adapter": "stub",
+      "adapter": "gap_fill",
       "title": "Gap Filling Strategy",
       "author": "alexgrover",
       "tv_url": "https://www.tradingview.com/script/ghocsiv7-Gap-Filling-Strategy/",
       "origin": "WEB-DERIVED/TV-EDITOR-PICK",
-      "notes": "KEEP_ALL test row. Not STRAT-015+. Not customer default. NSE/OPTIDX port not done.",
+      "notes": "HYPOTHESIS public-rule port: fade IST session-open gap vs prior close. NO_PROMOTE.",
       "visibility": "open-source",
       "license_visibility": "open-source; TV House Rules / author publication (not copied)",
       "long_short": "long+short",
       "asset_class_guess": "india_index_guess",
       "default_tf": "15",
       "rule_summary": "strategy() title=Gap Filling Strategy; overlay=true; uses strategy.entry; uses strategy.exit; uses strategy.close. Gaps are market prices structures that appear frequently in the stock market, and can be detected when the opening price is different from the previous closing price, this is why gaps are also called \"opening price jumps\". While gaps can occur frequently, some of them are more si",
-      "primary_status": "RULES_EXTRACTED",
+      "primary_status": "BACKTEST_QUEUED",
       "status_flags": [
         "INGESTED",
         "NEVER_DISCARD",
         "RULES_EXTRACTED",
-        "PORT_PENDING",
-        "BACKTEST_QUEUED"
+        "BACKTEST_QUEUED",
+        "PORTED_PARTIAL"
       ],
       "inputs": [
         {
@@ -3816,7 +3696,17 @@
           "default": "\"Close When:\""
         }
       ],
-      "input_schema": {},
+      "input_schema": {
+        "min_gap_bps": {
+          "type": "float",
+          "default": 5.0,
+          "grid": [
+            3.0,
+            5.0,
+            10.0
+          ]
+        }
+      },
       "chart_strategy_report": "DATA_INSUFFICIENT (TV Strategy Tester is per-chart session; listing page has no published report table)",
       "pine_copied": false,
       "customer_default": false,
@@ -3829,30 +3719,32 @@
       },
       "pub_id": "PUB;u53wbRdbE1oWI0z2E7VA4s4p2ecu70zr",
       "slug": "ghocsiv7-Gap-Filling-Strategy",
-      "retrieved_at": "2026-09-14T11:10:00Z"
+      "retrieved_at": "2026-09-14T11:10:00Z",
+      "port_class": "OHLC_ANYWHERE",
+      "indian_optidx_fit": "HYPOTHESIS"
     },
     {
       "ep_id": "EP-020",
       "mix_id": "MIX-TV-EP-020",
-      "adapter": "stub",
+      "adapter": "macd_martingale",
       "title": "inwCoin Martingale Strategy ( for Bitcoin )",
       "author": "Real_inwCoin",
       "tv_url": "https://www.tradingview.com/script/8OS1nbr8-inwCoin-Martingale-Strategy-for-Bitcoin/",
       "origin": "WEB-DERIVED/TV-EDITOR-PICK",
-      "notes": "KEEP_ALL test row. Not STRAT-015+. Not customer default. NSE/OPTIDX port not done.",
+      "notes": "KEEP_ALL. Adapter=macd_martingale. Class=CRYPTO_MARTINGALE. MACD long + martingale pyramid; theta/premium death NSE session 09:15-15:30; no 24x7; theta on PREMIUM tape. Not STRAT-015+. Not customer default. NO_PROMOTE.",
       "visibility": "open-source",
       "license_visibility": "open-source; TV House Rules / author publication (not copied)",
       "long_short": "long",
       "asset_class_guess": "crypto_guess",
       "default_tf": "240",
       "rule_summary": "strategy() title=inwCoin Martingale Strategy ( for Bitcoin ); overlay=true; uses strategy.entry; uses strategy.close. ** Same as my previous martingale script but this version = opensource ** inwCoin Martingale Strategy is the proof of concept strategy that in the end, anyone who using martingale strategy will kaboom their portfolio. For those who don't know what is \"martingale\".. it's a simple",
-      "primary_status": "RULES_EXTRACTED",
+      "primary_status": "PORTED_PARTIAL",
       "status_flags": [
         "INGESTED",
         "NEVER_DISCARD",
         "RULES_EXTRACTED",
-        "PORT_PENDING",
-        "BACKTEST_QUEUED"
+        "BACKTEST_QUEUED",
+        "PORTED_PARTIAL"
       ],
       "inputs": [
         {
@@ -3981,30 +3873,32 @@
       },
       "pub_id": "PUB;HXAeFLJAJkZaIve7LdKgzLIQqEsAdL15",
       "slug": "8OS1nbr8-inwCoin-Martingale-Strategy-for-Bitcoin",
-      "retrieved_at": "2026-09-14T11:10:00Z"
+      "retrieved_at": "2026-09-14T11:10:00Z",
+      "port_class": "CRYPTO_MARTINGALE",
+      "indian_optidx_fit": "HYPOTHESIS"
     },
     {
       "ep_id": "EP-021",
       "mix_id": "MIX-TV-EP-021",
-      "adapter": "stub",
+      "adapter": "lube_friction",
       "title": "LUBE",
       "author": "Jomy",
       "tv_url": "https://www.tradingview.com/script/i9tJOtjl-LUBE/",
       "origin": "WEB-DERIVED/TV-EDITOR-PICK",
-      "notes": "KEEP_ALL test row. Not STRAT-015+. Not customer default. NSE/OPTIDX port not done.",
+      "notes": "KEEP_ALL. Adapter=lube_friction. Class=CRYPTO_MARTINGALE. BTC 30m friction; volume not required NSE session 09:15-15:30; no 24x7; theta on PREMIUM tape. Not STRAT-015+. Not customer default. NO_PROMOTE.",
       "visibility": "open-source",
       "license_visibility": "open-source; TV House Rules / author publication (not copied)",
       "long_short": "long+short",
       "asset_class_guess": "crypto_guess",
       "default_tf": "30",
       "rule_summary": "strategy() title=LUBE; overlay=false/unknown; uses strategy.entry; uses strategy.close. This is a chart meant for 30m BTCUSD but could be used for many other assets, and there are inputs to play with. I decided on the strange title \"LUBE\" because I was measuring how many of the previous 500 bars had the current price level already been in. I wanted to discover when",
-      "primary_status": "RULES_EXTRACTED",
+      "primary_status": "PORTED_PARTIAL",
       "status_flags": [
         "INGESTED",
         "NEVER_DISCARD",
         "RULES_EXTRACTED",
-        "PORT_PENDING",
-        "BACKTEST_QUEUED"
+        "BACKTEST_QUEUED",
+        "PORTED_PARTIAL"
       ],
       "inputs": [
         {
@@ -4078,6 +3972,34 @@
           "grid": [
             2.0
           ]
+        },
+        "bars_back": {
+          "type": "int",
+          "default": 500.0,
+          "grid": [
+            50.0
+          ]
+        },
+        "friction_stop": {
+          "type": "int",
+          "default": 50.0,
+          "grid": [
+            50.0
+          ]
+        },
+        "friction_start": {
+          "type": "int",
+          "default": -10.0,
+          "grid": [
+            -10.0
+          ]
+        },
+        "lowest_friction_bars": {
+          "type": "int",
+          "default": 100.0,
+          "grid": [
+            100.0
+          ]
         }
       },
       "chart_strategy_report": "DATA_INSUFFICIENT (TV Strategy Tester is per-chart session; listing page has no published report table)",
@@ -4092,30 +4014,32 @@
       },
       "pub_id": "PUB;LybzQX9gYF6O4lzbC4tIzLF1Omml8yGc",
       "slug": "i9tJOtjl-LUBE",
-      "retrieved_at": "2026-09-14T11:10:00Z"
+      "retrieved_at": "2026-09-14T11:10:00Z",
+      "port_class": "CRYPTO_MARTINGALE",
+      "indian_optidx_fit": "HYPOTHESIS"
     },
     {
       "ep_id": "EP-022",
       "mix_id": "MIX-TV-EP-022",
-      "adapter": "stub",
+      "adapter": "timed_sma",
       "title": "How To Set Backtest Time Ranges",
       "author": "allanster",
       "tv_url": "https://www.tradingview.com/script/xAEG4ZJG-How-To-Set-Backtest-Time-Ranges/",
       "origin": "WEB-DERIVED/TV-EDITOR-PICK",
-      "notes": "KEEP_ALL test row. Not STRAT-015+. Not customer default. NSE/OPTIDX port not done.",
+      "notes": "KEEP_ALL. Adapter=timed_sma. Class=OHLC_ANYWHERE. SMA 14/28 long-only; session default anytime NSE session 09:15-15:30; no 24x7; theta on PREMIUM tape. Not STRAT-015+. Not customer default. NO_PROMOTE.",
       "visibility": "open-source",
       "license_visibility": "open-source; TV House Rules / author publication (not copied)",
       "long_short": "long",
       "asset_class_guess": "india_index_guess",
       "default_tf": "30",
       "rule_summary": "overlay=true; uses strategy.entry; uses strategy.close.  Example how to set the time range window to be backtested for both entries and exits. Additional examples are also included showing how to set the date range and toggle plot visibility. By incorporating this code with your own strategy's logic, it will allow you to backtest vari",
-      "primary_status": "RULES_EXTRACTED",
+      "primary_status": "PORTED_PARTIAL",
       "status_flags": [
         "INGESTED",
         "NEVER_DISCARD",
         "RULES_EXTRACTED",
-        "PORT_PENDING",
-        "BACKTEST_QUEUED"
+        "BACKTEST_QUEUED",
+        "PORTED_PARTIAL"
       ],
       "inputs": [
         {
@@ -4254,38 +4178,48 @@
       },
       "pub_id": "PUB;27ZRICiAZXRHzvwxsU6rd7xFzHTyJJdy",
       "slug": "xAEG4ZJG-How-To-Set-Backtest-Time-Ranges",
-      "retrieved_at": "2026-09-14T11:10:00Z"
+      "retrieved_at": "2026-09-14T11:10:00Z",
+      "port_class": "OHLC_ANYWHERE",
+      "indian_optidx_fit": "HYPOTHESIS"
     },
     {
       "ep_id": "EP-023",
       "mix_id": "MIX-TV-EP-023",
-      "adapter": "stub",
+      "adapter": "grover_llorens",
       "title": "Grover Llorens Activator Strategy Analysis",
       "author": "alexgrover",
       "tv_url": "https://www.tradingview.com/script/VuYM89Tw-Grover-Llorens-Activator-Strategy-Analysis/",
       "origin": "WEB-DERIVED/TV-EDITOR-PICK",
-      "notes": "KEEP_ALL test row. Not STRAT-015+. Not customer default. NSE/OPTIDX port not done.",
+      "notes": "KEEP_ALL. Adapter=grover_llorens. Class=OHLC_ANYWHERE. SAR-like activator; length=480 slow on 1m NSE session 09:15-15:30; no 24x7; theta on PREMIUM tape. Not STRAT-015+. Not customer default. NO_PROMOTE.",
       "visibility": "open-source",
       "license_visibility": "open-source; TV House Rules / author publication (not copied)",
       "long_short": "long+short",
       "asset_class_guess": "us_equity_or_index_guess",
       "default_tf": "60",
       "rule_summary": "strategy() title=Grover Llorens Activator; overlay=false/unknown; uses strategy.entry. The Grover Llorens Activator is a trailing stop indicator deeply inspired by the parabolic SAR indicator, and aim to provide early exit points and reversal detection. The indicator was posted not so long ago, you can find it here : https://www.tradingview.com/script/UVzC9TOv-Grov",
-      "primary_status": "RULES_EXTRACTED",
+      "primary_status": "PORTED_PARTIAL",
       "status_flags": [
         "INGESTED",
         "NEVER_DISCARD",
         "RULES_EXTRACTED",
-        "PORT_PENDING",
-        "BACKTEST_QUEUED"
+        "BACKTEST_QUEUED",
+        "PORTED_PARTIAL"
       ],
       "inputs": [],
       "input_schema": {
-        "input_unnamed": {
+        "length": {
           "type": "int",
           "default": 480.0,
           "grid": [
+            20.0,
             480.0
+          ]
+        },
+        "mult": {
+          "type": "float",
+          "default": 14.0,
+          "grid": [
+            14.0
           ]
         }
       },
@@ -4301,23 +4235,25 @@
       },
       "pub_id": "PUB;yB853NRtwul7HDKUrPNaSa41C2CJKDa1",
       "slug": "VuYM89Tw-Grover-Llorens-Activator-Strategy-Analysis",
-      "retrieved_at": "2026-09-14T11:10:00Z"
+      "retrieved_at": "2026-09-14T11:10:00Z",
+      "port_class": "OHLC_ANYWHERE",
+      "indian_optidx_fit": "HYPOTHESIS"
     },
     {
       "ep_id": "EP-024",
       "mix_id": "MIX-TV-EP-024",
       "adapter": "sma_cross",
-      "title": "Factory calibrator — public SMA crossover (not an Editors’ Pick card)",
+      "title": "Factory calibrator \u2014 public SMA crossover (not an Editors\u2019 Pick card)",
       "author": "PROJECT",
       "tv_url": "",
       "origin": "TV-PUBLIC-RULE",
-      "notes": "06 harness seed. Not a TV listing row. Do not treat as Editors’ Pick.",
+      "notes": "06 harness seed. Not a TV listing row. Do not treat as Editors\u2019 Pick.",
       "visibility": "n/a",
       "license_visibility": "n/a",
       "long_short": "long+short",
       "asset_class_guess": "any_chart_guess",
       "default_tf": "chart_tf",
-      "rule_summary": "Textbook SMA fast×slow cross. Not copied from a TV EP pine.",
+      "rule_summary": "Textbook SMA fast\u00d7slow cross. Not copied from a TV EP pine.",
       "primary_status": "PORT_PENDING",
       "status_flags": [
         "INGESTED",
@@ -4370,11 +4306,11 @@
       "ep_id": "EP-025",
       "mix_id": "MIX-TV-EP-025",
       "adapter": "macd_hist",
-      "title": "Factory calibrator — public MACD histogram zero-cross (not an Editors’ Pick card)",
+      "title": "Factory calibrator \u2014 public MACD histogram zero-cross (not an Editors\u2019 Pick card)",
       "author": "PROJECT",
       "tv_url": "",
       "origin": "TV-PUBLIC-RULE",
-      "notes": "06 harness seed. Not a TV listing row. Do not treat as Editors’ Pick.",
+      "notes": "06 harness seed. Not a TV listing row. Do not treat as Editors\u2019 Pick.",
       "visibility": "n/a",
       "license_visibility": "n/a",
       "long_short": "long+short",

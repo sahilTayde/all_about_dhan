@@ -24,7 +24,17 @@ No invented win rates. No STRAT-015+.
 def factory_facts() -> dict[str, Any]:
     return {
         "namespace": "MIX-TV-EP-*",
-        "adapters": ["sma_cross", "macd_hist", "stub"],
+        "adapters": sorted(
+            a for a in [
+                "sma_cross", "macd_hist", "stub",
+                "ag_sell", "one_pct_week", "csv_replay", "trendmaster_ma",
+                "double_tap", "ema_trail", "tts_ma_cross", "bot3c_ma",
+                "pivot_rev", "stoch_kd", "risk_size_demo", "osc_ma",
+                "keltner_stop", "ext_signal_sma", "sma_sltp_money",
+                "sma_step_trail", "pmax", "grid_like", "gap_fill",
+                "macd_martingale", "lube_friction", "timed_sma", "grover_llorens",
+            ]
+        ),
         "grid": {
             "tf": ["1m", "3m", "5m", "15m"],
             "underlyings": ["NIFTY", "SENSEX", "BANKNIFTY_if_cache"],

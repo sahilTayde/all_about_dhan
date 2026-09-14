@@ -1,5 +1,36 @@
 # Handoff log — Team 01 Research
 
+## As of now (2026-09-14) — MIX-TV-EP-001..023 public-rule ports (01+04)
+
+```text
+From:     teams/01_research + 04 quant
+To:       00 / 06 / 09 / founder
+Date:     2026-09-14
+Status:   HYPOTHESIS ports coded / UNVALIDATED / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: pine-facade read for all 23 strategy EPs (inputs, entry/exit,
+  session, pyramiding, commission). Short rule cards. Named Python
+  adapters (not stub) on MIX-TV-EP-001..023. KEEP_ALL STRAT-001–014.
+Rejected: Full Pine in git; STRAT-015+; live orders; win-rate as truth;
+  inventing Dhan fields; promoting WATCH.
+UNKNOWN: Per-chart TV Strategy Tester P/L; OOS+NORMAL; which partials
+  survive OPTIDX theta.
+
+Ported (tradeable core in Python): 001–023 all have named adapters.
+Partial (why):
+  001 harvest calendar  002 TQQQ week  003 CSV viz  004 FX sessions
+  005 Fib/3C omitted  006 trail engine  007 222-input template
+  008 webhook  009 monthly table  010 30x margin  011 random bars
+  012 Laguerre proxy  013 Kelly qty  014 external ±1 → SMA stand-in
+  015 $$ mintick  016 stepped trail  017 screener MAs  018 martingale qty
+  019 core OK, NSE gaps differ  020 crypto pyramid  021 BTC 30m
+  022 date window  023 length=480
+Indian: 09:15–15:30 IST, no 24x7, PREMIUM theta, INDEX ≠ premium.
+```
+
+Cards: [`docs/TV_EP_RULE_CARDS.md`](docs/TV_EP_RULE_CARDS.md). Adapters: `packages/backtest/src/backtest_engine/tv_ep/ports.py`.
+
 ## As of now (2026-09-14) — TradingView Editors’ Picks strategies ingest
 
 ```text

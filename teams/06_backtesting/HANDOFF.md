@@ -1,5 +1,63 @@
 # Handoff log — Team 06 Backtesting
 
+## As of now (2026-09-14) — 1m real-cache TV-EP grid (NIFTY 23500 PE)
+
+```text
+From:     teams/06_backtesting + 03 tape
+To:       00 / 04 / 09 / founder
+Date:     2026-09-14
+Status:   VALIDATION cache run / UNVALIDATED / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: tv-ep-grid --cache --tf 1 on Dhan INDEX 1m (NIFTY 13 / SENSEX 51 /
+  BANKNIFTY 25, 11957 bars 2026-07-22→09-03) and NIFTY 23500 PE OPTIDX
+  47298 (7185 bars 2026-08-18→09-11). SENSEX/BN premium = 3-day ATM PE
+  tape. MIX-TV-EP-001..025 named ports. PREMIUM after-cost all FAIL where
+  n≥5. INDEX WATCH ≠ option P/L.
+Rejected: Synthetic-only as the founder answer; fake 23500 path; promote;
+  live orders.
+UNKNOWN: TV tester CSV; INDEX 1m after 09-03; next weekly PE after 09-15.
+```
+
+Spec: [`docs/TV_EP_1M_NIFTY_PREMIUM.md`](docs/TV_EP_1M_NIFTY_PREMIUM.md).
+
+## As of now (2026-09-14) — TV-EP listing adapters (not stub)
+
+```text
+From:     teams/06_backtesting (harness) + 01/04 ports
+To:       00 / 09
+Date:     2026-09-14
+Status:   HYPOTHESIS / 23 named adapters / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: MIX-TV-EP-001..023 call Python ports via tv_ep registry.
+  Stub remains only for unknown ids. Fixture tests long/short/flat.
+Rejected: STRAT-015+; promoting fixture WATCH; live Dhan.
+UNKNOWN: Real INDEX/OPTIDX cache on clone.
+```
+
+## As of now (2026-09-14) — TV-EP validate CE/PE × TF × market (NO_PROMOTE)
+
+```text
+From:     teams/06_backtesting
+To:       00 / 04 / 09
+Date:     2026-09-14
+Status:   HYPOTHESIS / fixture-validated mapping / UNVALIDATED / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: KEEP_ALL MIX-TV-EP-001–023 on the founder board even FAIL/PARK/DI/n=0.
+  TV long/buy → BUY_CE; TV short/sell → BUY_PE (options buy first). Long-only
+  sell/flat counted as EXIT, not discarded. Grid TFs 1m/3m/5m/15m; NIFTY/
+  SENSEX + BANKNIFTY when tape exists. Board:
+  data/recon/tv_ep_leaderboard.{json,md} + docs/TV_EP_LEADERBOARD.md.
+Rejected: STRAT-015+; equity short as customer default; inventing 23500 PE;
+  promoting WATCH; TV Strategy Tester clone claim; live orders.
+UNKNOWN: Real INDEX/OPTIDX cache on this clone; SCORE_SAMPLE (NEWS_CALENDAR
+  empty); OOS+NORMAL; which partial ports survive premium tape.
+```
+
+Spec: [`docs/TV_EP_BACKTEST_FACTORY.md`](docs/TV_EP_BACKTEST_FACTORY.md) · board [`docs/TV_EP_LEADERBOARD.md`](docs/TV_EP_LEADERBOARD.md).
+
 ## As of now (2026-09-14) — TV-EP factory (MIX-TV-EP-*) NO_PROMOTE
 
 ```text
