@@ -23,7 +23,8 @@ pip install -e packages/dhan-client
 - `OPENAI_API_KEY` + `OPENAI_MODEL` (e.g. `gpt-6-astra` or `gpt-5.4-nano`) in repo-root `.env` for LLM path. **gpt-5.4 / gpt-5.4-nano** must use `max_completion_tokens` (live 400 on `max_tokens`).
 - `DHAN_*` only needed for `--live-chain` / live charts; empty → fixtures.
 - **Orders always refused** (PAPER and LIVE mode).
-- If `data/recon/paper_ops_STOPPED.flag` exists, **do not** restart until founder asks. Last live session (2026-09-08) used `--mode PAPER --tick-seconds 90 --max-ticks 900 --use-llm --no-gather-news --live-chain` and was stopped 11:54 IST.
+- If `data/recon/paper_ops_STOPPED.flag` exists, **do not** restart the **old LLM `market-hours` / paper_ops** stack until founder asks. Last live session (2026-09-08) used `--mode PAPER --tick-seconds 90 --max-ticks 900 --use-llm --no-gather-news --live-chain` and was stopped 11:54 IST.
+- Founder 2026-09-14 asked to start **dual-tape** (no LLM): [`MARKET_HOURS_DUAL_TAPE.md`](MARKET_HOURS_DUAL_TAPE.md). Stop that loop with `data/recon/paper_dual_tape_STOPPED.flag`.
 
 ---
 
