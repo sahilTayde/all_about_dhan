@@ -207,8 +207,8 @@ def main(argv: list[str] | None = None) -> int:
     p_tv.add_argument(
         "--prefer-strike",
         type=int,
-        default=23500,
-        help="Prefer this NIFTY OPTIDX PE strike when universe cache exists.",
+        default=None,
+        help="Prefer this OPTIDX strike only when universe cache exists. Never invent missing 23500 PE.",
     )
     p_tv.add_argument(
         "--refresh-cache",
@@ -247,7 +247,7 @@ def main(argv: list[str] | None = None) -> int:
                 write=bool(getattr(args, "write", False)),
                 use_009=True,
                 timeframes=tfs,
-                prefer_strike=getattr(args, "prefer_strike", 23500),
+                prefer_strike=getattr(args, "prefer_strike", None) or None,
             )
         else:
             report = run_tv(

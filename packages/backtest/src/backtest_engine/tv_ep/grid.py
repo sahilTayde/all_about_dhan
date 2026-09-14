@@ -248,6 +248,82 @@ def _regime_split(
     return out
 
 
+def _mix_keep_all(catalog: list[CatalogEntry], rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """One row per MIX-TV-EP-* in the catalog. Never drop FAIL/PARK/DI/n=0."""
+    by: dict[str, list[dict[str, Any]]] = {}
+    for r in rows:
+        by.setdefault(str(r.get("mix_id")), []).append(r)
+    out: list[dict[str, Any]] = []
+    rank = {"TESTED_FAIL": 0, "PARK": 1, "WATCH": 2, "DATA_INSUFFICIENT": 3}
+    for e in catalog:
+        cells = by.get(e.mix_id, [])
+        sim = [c for c in cells if not c.get("gap")]
+        rolled = "DATA_INSUFFICIENT"
+        if sim:
+            rolled = min((str(c.get("status")) for c in sim), key=lambda s: rank.get(s, 9))
+        elif cells:
+            rolled = "DATA_INSUFFICIENT"
+        ce_cells = [
+            c
+            for c in cells
+            if int(c.get("buy_ce_trades") or 0) > 0 or int(c.get("buy_ce_signals") or 0) > 0
+        ]
+        pe_cells = [
+            c
+            for c in cells
+            if int(c.get("buy_pe_trades") or 0) > 0 or int(c.get("buy_pe_signals") or 0) > 0
+        ]
+        adapter = get_adapter(e.adapter)
+        sample = cells[0] if cells else {}
+        out.append(
+            {
+                "mix_id": e.mix_id,
+                "name": e.title,
+                "adapter": e.adapter,
+                "status": rolled,
+                "cells": len(cells),
+                "trades": sum(int(c.get("trade_count") or 0) for c in cells),
+                "buy_ce_cells": len(ce_cells),
+                "buy_pe_cells": len(pe_cells),
+                "side": side_label(buy_ce_n=len(ce_cells), buy_pe_n=len(pe_cells)),
+                "tune_hint": adapter.gap or tune_hint(sample, adapter_gap=adapter.gap),
+                "keep": True,
+                "promotion": "NO_PROMOTE",
+            }
+        )
+    return out
+
+
+def _ce_pe_matrix(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    keys: dict[tuple[str, str, str], dict[str, Any]] = {}
+    for r in rows:
+        if r.get("gap"):
+            continue
+        key = (str(r.get("tf")), str(r.get("underlying")), str(r.get("tape")))
+        slot = keys.setdefault(
+            key,
+            {
+                "tf": key[0],
+                "underlying": key[1],
+                "tape": key[2],
+                "buy_ce": False,
+                "buy_pe": False,
+                "mix_ce": [],
+                "mix_pe": [],
+            },
+        )
+        mix = str(r.get("mix_id"))
+        if int(r.get("buy_ce_trades") or 0) > 0 or int(r.get("buy_ce_signals") or 0) > 0:
+            slot["buy_ce"] = True
+            if mix not in slot["mix_ce"]:
+                slot["mix_ce"].append(mix)
+        if int(r.get("buy_pe_trades") or 0) > 0 or int(r.get("buy_pe_signals") or 0) > 0:
+            slot["buy_pe"] = True
+            if mix not in slot["mix_pe"]:
+                slot["mix_pe"].append(mix)
+    return [keys[k] for k in sorted(keys)]
+
+
 def cell_status(row: dict[str, Any]) -> str:
     if row.get("gap"):
         return "DATA_INSUFFICIENT"
@@ -347,16 +423,16 @@ def run_tv_ep_grid(
                 from_dt=start,
                 to_dt=end,
             )
-        # Founder 23500 PE (itm_strike_universe sid 47298) — history fetch only.
-        fetch_chunk(
-            client,
-            security_id="47298",
-            exchange_segment="NSE_FNO",
-            instrument="OPTIDX",
-            interval=1,
-            from_dt=start,
-            to_dt=end,
-        )
+        if prefer_strike:
+            fetch_chunk(
+                client,
+                security_id="47298",
+                exchange_segment="NSE_FNO",
+                instrument="OPTIDX",
+                interval=1,
+                from_dt=start,
+                to_dt=end,
+            )
     catalog = entries if entries is not None else load_catalog(base / "refernece_tradingview" / "editors_picks" / "catalog.json")
     event_dates, event_status = _event_dates(base)
     rows: list[dict[str, Any]] = []
@@ -480,12 +556,23 @@ def run_tv_ep_grid(
                         scored = _score_row(trades, event_dates, apply_costs=apply_costs)
                         buy_ce_tr = sum(1 for t in trades if t.side == "CE")
                         buy_pe_tr = sum(1 for t in trades if t.side == "PE")
-                        # INDEX: CE/PE trades are BUY_CE / BUY_PE proxy. PREMIUM: trades follow cached contract.
-                        if tape == "INDEX":
-                            ce_n, pe_n = buy_ce_tr, buy_pe_tr
-                        else:
-                            ce_n = side_counts["buy_ce_signals"]
-                            pe_n = side_counts["buy_pe_signals"]
+                        if tape == "PREMIUM":
+                            # Simulator CE = long the cached OPTIDX bar, not a second strike.
+                            nfill = len(trades)
+                            if (contract_side or "PE") == "CE":
+                                buy_ce_tr, buy_pe_tr = nfill, 0
+                            else:
+                                buy_ce_tr, buy_pe_tr = 0, nfill
+                        ce_n = (
+                            buy_ce_tr
+                            if tape == "INDEX"
+                            else side_counts["buy_ce_signals"]
+                        )
+                        pe_n = (
+                            buy_pe_tr
+                            if tape == "INDEX"
+                            else side_counts["buy_pe_signals"]
+                        )
                         row = {
                             "mix_id": entry.mix_id,
                             "ep_id": entry.ep_id,
@@ -504,12 +591,8 @@ def run_tv_ep_grid(
                             "buy_ce_signals": side_counts["buy_ce_signals"],
                             "buy_pe_signals": side_counts["buy_pe_signals"],
                             "exit_flat_signals": side_counts["exit_flat_signals"],
-                            "buy_ce_trades": buy_ce_tr if tape == "INDEX" else (
-                                buy_ce_tr if (contract_side or "PE") == "CE" else 0
-                            ),
-                            "buy_pe_trades": buy_pe_tr if tape == "INDEX" else (
-                                buy_ce_tr if (contract_side or "PE") == "PE" else buy_pe_tr
-                            ),
+                            "buy_ce_trades": buy_ce_tr,
+                            "buy_pe_trades": buy_pe_tr,
                             "params": params,
                             "gap": None,
                             "regime_split": _regime_split(
@@ -535,11 +618,13 @@ def run_tv_ep_grid(
         "id_namespace": "MIX-TV-EP-*",
         "keep_all_strat_001_014": True,
         "honesty": [
+            "UNVALIDATED. NO_PROMOTE. Not a TradingView Strategy Tester clone.",
             "Paper ranks only. Not customer /. Not a win-rate claim.",
-            "INDEX points ≠ option P/L. PREMIUM tape only when OPTIDX cache exists.",
+            "TV long/buy → BUY_CE; TV short/sell → BUY_PE (options buy first, not equity short).",
+            "INDEX points ≠ option P/L. PREMIUM tape only when OPTIDX cache exists — never invent 23500 PE.",
             "Option 1% haircut applies to PREMIUM tape only. INDEX is proxy points.",
             "NEWS_CALENDAR empty → SCORE_SAMPLE not a true NORMAL set.",
-            "WATCH ≠ promote. TESTED_FAIL / PARK / DATA_INSUFFICIENT stay on the board.",
+            "WATCH ≠ promote. TESTED_FAIL / PARK / DATA_INSUFFICIENT stay on the board. KEEP_ALL MIX-TV-EP-001–023.",
         ],
         "regime": regime_doc(),
         "event_calendar": event_status,
@@ -549,8 +634,11 @@ def run_tv_ep_grid(
         "prefer_strike": prefer_strike,
         "timeframes": [f"{t}m" for t in timeframes],
         "cells": rows,
+        "mix_keep_all": _mix_keep_all(catalog, rows),
+        "ce_pe_matrix": _ce_pe_matrix(rows),
         "counts": {
             "cells": len(rows),
+            "mix_kept": len(catalog),
             "WATCH": sum(1 for r in rows if r["status"] == "WATCH"),
             "TESTED_FAIL": sum(1 for r in rows if r["status"] == "TESTED_FAIL"),
             "PARK": sum(1 for r in rows if r["status"] == "PARK"),
