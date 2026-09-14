@@ -104,4 +104,5 @@ candidate_notes: [...]             # hints only, not new live params
 - Book: [`MASTER_STRATEGY_PLAN.md`](../../04_quant/docs/MASTER_STRATEGY_PLAN.md)  
 - Jobs: [`TASK_PRE_POST_MARKET_JOBS.md`](../../00_orchestrator/docs/TASK_PRE_POST_MARKET_JOBS.md)  
 - Event memory (SCORE_SAMPLE vs ANALOG_MEMORY): [`EVENT_MEMORY.md`](EVENT_MEMORY.md) — outliers out of ranking, stored for analog type-match; no invented metrics  
+- Self-review loop (nightly/paper → proposal only): [`QUANT_SELF_REVIEW_LOOP.md`](QUANT_SELF_REVIEW_LOOP.md)
 - Smoke: `packages/desk-intel/tests/test_retune_gate.py`

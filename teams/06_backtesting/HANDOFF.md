@@ -1,5 +1,25 @@
 # Handoff log — Team 06 Backtesting
 
+## As of now (2026-09-14) — QUANT_SELF_REVIEW_LOOP spec
+
+```text
+From:     teams/06_backtesting
+To:       00 / 02 / 04 / 09
+Date:     2026-09-14
+Status:   SPEC / HYPOTHESIS / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: Nightly/paper self-review of our own research emits
+  RETUNE_PROPOSAL BACKTEST_REQUIRED only. production_params_written
+  stays false. Live Super Order never requested from this loop.
+  Aligns RETUNE_GATE + 02 book_kb topics (fit vs retune, overfitting).
+Rejected: Auto-write MIX/workspace params; treating BACKTEST_REQUIRED
+  as a completed backtest; live Dhan orders.
+UNKNOWN: OOS+NORMAL beat of current spec (none).
+
+Artifact: teams/06_backtesting/docs/QUANT_SELF_REVIEW_LOOP.md
+```
+
 ## As of now (2026-09-14) — ML-001 fit is not a retune sample
 
 ```text
