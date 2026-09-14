@@ -1,5 +1,21 @@
 # Handoff log — Team 04 Quant
 
+## As of now (2026-09-14) — MIX-TV-EP factory harness (NO_PROMOTE)
+
+```text
+From:     teams/04_quant (id namespace) + 06 harness
+To:       00 / 01 / 06 / 09
+Date:     2026-09-14
+Status:   HYPOTHESIS / factory coded / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: Listing 001–023 stay stub. Factory calibrators MIX-TV-EP-024
+  sma_cross and MIX-TV-EP-025 macd_hist are PROJECT, not EP cards.
+  Customer default unchanged. Paper board only.
+Rejected: STRAT-015+; aliasing listing 001/002 to SMA/MACD; promoting WATCH.
+UNKNOWN: Which listing EPs are public-rule portable to OPTIDX.
+```
+
 ## As of now (2026-09-14) — MIX-TV-EP-001..023 Editors’ Picks catalog
 
 ```text

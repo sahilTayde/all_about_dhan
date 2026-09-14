@@ -181,6 +181,20 @@ def main(argv: list[str] | None = None) -> int:
     p_itm.add_argument("--stop-loss-frac", type=float, default=0.15)
     p_itm.add_argument("--target-frac", type=float, default=0.30)
     p_itm.add_argument("--no-sltp-grid", action="store_true")
+    p_tv = sub.add_parser(
+        "tv-ep-grid",
+        help="TV Editor Picks factory grid (MIX-TV-EP-*). Fixture by default. NO_PROMOTE.",
+    )
+    p_tv.add_argument(
+        "--cache",
+        action="store_true",
+        help="Use on-disk INDEX/OPTIDX cache instead of synthetic fixture.",
+    )
+    p_tv.add_argument("--write", action="store_true", help="Write data/recon/tv_ep_leaderboard.*")
+    sub.add_parser(
+        "tv-ep-counsel",
+        help="ONE joint Gemini+OpenAI review of the TV-EP factory design (not each EP).",
+    )
     args = parser.parse_args(argv)
     dry: bool | None
     if args.live:
@@ -190,6 +204,51 @@ def main(argv: list[str] | None = None) -> int:
     else:
         dry = None
     cmd = args.cmd or "books"
+    if cmd == "tv-ep-grid":
+        from backtest_engine.run_tv_ep_grid import run as run_tv
+        from backtest_engine.tv_ep.grid import run_tv_ep_grid
+
+        if getattr(args, "cache", False):
+            report = run_tv_ep_grid(
+                None,
+                bars_by_key=None,
+                fetch_live=False,
+                write=bool(getattr(args, "write", False)),
+                use_009=True,
+            )
+        else:
+            report = run_tv(
+                dry_run=True,
+                fetch_live=False,
+                write=bool(getattr(args, "write", False)),
+                fixture=True,
+            )
+        slim = {k: v for k, v in report.items() if k != "cells"}
+        slim["cells_head"] = [
+            {
+                "mix_id": r.get("mix_id"),
+                "tape": r.get("tape"),
+                "tf": r.get("tf"),
+                "underlying": r.get("underlying"),
+                "status": r.get("status"),
+                "trade_count": r.get("trade_count"),
+                "after_cost_points": r.get("after_cost_points"),
+                "gap": r.get("gap"),
+            }
+            for r in (report.get("cells") or [])[:16]
+        ]
+        print(json.dumps(slim, indent=2, default=str))
+        return 0
+    if cmd == "tv-ep-counsel":
+        from dhan_client.config import repo_root
+        from backtest_engine.tv_ep.counsel import counsel_factory_design, write_counsel
+
+        blob = counsel_factory_design()
+        path = write_counsel(blob, repo_root())
+        slim = {k: v for k, v in blob.items() if k != "prompt"}
+        slim["wrote"] = str(path)
+        print(json.dumps(slim, indent=2, default=str))
+        return 0
     if cmd in _CF_GONE:
         print(
             "removed: Chart Fanatics / Okala CLI (DhanHQ-only reset 2026-09-09)",
