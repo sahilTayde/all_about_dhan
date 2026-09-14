@@ -6,7 +6,7 @@
 **IDs:** `MIX-TV-EP-NNN` only. **KEEP_ALL** `STRAT-001`–`014`. Never `STRAT-015+`.  
 **Orders:** refused. `ExecutionClient` stays SafeMode. Do not start npm / paper market-hours.
 
-Catalog folder: [`refernece_tradingview/editors_picks/`](../../../refernece_tradingview/editors_picks/) — **2026-09-14 fill:** 23 listing-order EPs (`MIX-TV-EP-001`–`023`), `adapter: stub`, origin `WEB-DERIVED/TV-EDITOR-PICK`. SMA/MACD adapters stay in code for later ports; they **do not** own IDs 001/002.  
+Catalog folder: [`refernece_tradingview/editors_picks/`](../../../refernece_tradingview/editors_picks/) — **2026-09-14 fill:** 23 listing-order EPs (`MIX-TV-EP-001`–`023`, `adapter: stub`) plus factory calibrators `MIX-TV-EP-024` (`sma_cross`) / `025` (`macd_hist`). SMA/MACD **do not** own listing IDs 001/002.  
 Code: `packages/backtest/src/backtest_engine/tv_ep/`  
 CLI: `python -m backtest_engine tv-ep-grid` · counsel: `python -m backtest_engine tv-ep-counsel`
 
@@ -22,7 +22,7 @@ research_ready:       false
 win_rate:             lab/fixture only — not customer truth
 INDEX points:         ≠ option premium P/L
 PREMIUM tape:         only when OPTIDX cache / universe exists
-costs:                HYPOTHESIS_OPTION_RT_1PCT; statutory UNKNOWN
+costs:                PREMIUM = HYPOTHESIS_OPTION_RT_1PCT; INDEX = proxy points (no option haircut); statutory UNKNOWN
 SCORE_SAMPLE:         NEWS_CALENDAR days=[] → DATA_INSUFFICIENT
 ```
 
@@ -35,9 +35,10 @@ SCORE_SAMPLE:         NEWS_CALENDAR days=[] → DATA_INSUFFICIENT
 | Piece | Behavior |
 |-------|----------|
 | Registry | `sma_cross`, `macd_hist` (public textbook rules), `stub` (unported EP) |
-| Catalog JSON | `EP-NNN` → `MIX-TV-EP-NNN` + `input_schema.grid` |
+| Catalog JSON | `EP-NNN` → `MIX-TV-EP-NNN`. 2026-09-14 listing: EP-001–023 stub cards; EP-024/025 factory calibrators |
 | Grid | TF `1/3/5/15` as bars allow × `NIFTY`/`SENSEX` (+ `BANKNIFTY` if cache) × tape `INDEX`/`PREMIUM` × param combos |
 | Regime | `TREND` if `|SMA50(t)−SMA50(t−10)| / close ≥ 0.002` else `RANGE`; warmup `UNKNOWN` |
+| Costs | `HYPOTHESIS_OPTION_RT_1PCT` on **PREMIUM** only. INDEX = proxy points, no option haircut |
 | Board | `data/recon/tv_ep_leaderboard.{json,md}` (gitignored recon) |
 | Tests | `packages/backtest/tests/test_tv_ep_factory.py` — no live Dhan |
 
@@ -109,3 +110,17 @@ Retune: [`RETUNE_GATE.md`](RETUNE_GATE.md) — nightly `BACKTEST_REQUIRED`; even
 | Factory + stub rows so 1000 EPs can queue without STRAT-015+ | Promoting WATCH to `/`; copying Pine; live Dhan orders; auto-retune | Real INDEX/OPTIDX history on this clone; which named TV EPs are public-rule portable; OOS+NORMAL edge |
 
 Next: catalog fills `editors_picks/catalog.json`; 06 ports adapters one family at a time; paper-live attaches to the same board when founder starts PAPER (not this ticket).
+
+## First fixture MIX rows (synthetic bars — not customer truth)
+
+`python -m backtest_engine tv-ep-grid --write` on 2026-09-14 (fixture, no Dhan): **400** cells. `MIX-TV-EP-001`–`023` all `DATA_INSUFFICIENT` (stub). Calibrators actually simulated:
+
+| MIX | tape | tf | UL | status | note |
+|-----|------|----|----|--------|------|
+| MIX-TV-EP-025 | INDEX | 1m | NIFTY | WATCH | fixture proxy points; **not** a promote |
+| MIX-TV-EP-025 | INDEX | 1m | SENSEX | WATCH | same synthetic path as NIFTY fixture |
+| MIX-TV-EP-025 | PREMIUM | 1m | NIFTY | TESTED_FAIL | after-cost option haircut on synthetic premium |
+| MIX-TV-EP-025 | PREMIUM | 1m | SENSEX | TESTED_FAIL | same |
+| MIX-TV-EP-024 | mixed | 1m/3m | both | PARK | n&lt;5 trades on short fixture |
+
+CACHE `--cache` with empty OHLC = all `DATA_INSUFFICIENT`. Do not quote fixture WATCH as a win rate.
