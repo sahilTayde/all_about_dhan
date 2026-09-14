@@ -55,6 +55,8 @@ UNKNOWN / DATA_INSUFFICIENT:
 - Dan Passarelli — practical Greeks.
 - John Hull — derivatives foundation.
 - Marcos Lopez de Prado — purged CV, leakage, financial ML validation.
+- Exam notes (not PDFs): Tulchinsky *Finding Alphas*; Kakushadze *151* (inferred); Derman *Models.Behaving.Badly*; Gliner *Global Macro*; Derman/Miller *Volatility Smile*; Bouchaud *Trades, Quotes and Prices*; plus original CE/PE mechanics under `docs/book_kb/topics/`. See `docs/book_kb/INDEX.md`.
+- **Standing prompt (load every invent/validate ticket):** [`docs/PRO_QUANT_AGENT_PROMPT.md`](docs/PRO_QUANT_AGENT_PROMPT.md). Counsel: [`COUNSEL_QUANT_TRAINING.md`](../00_orchestrator/docs/COUNSEL_QUANT_TRAINING.md). FTS `phd_book_kb` — **no book PDFs.**
 
 Books are **VALIDATION** references, not proof of edge.
 

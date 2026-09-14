@@ -332,6 +332,28 @@ def ingest_paper_sessions(conn: sqlite3.Connection, root: Path) -> int:
     return n
 
 
+def ingest_phd_book_kb(conn: sqlite3.Connection, root: Path) -> int:
+    """Original 02 exam notes — never full copyrighted books."""
+    kb = root / "teams" / "02_phd_math" / "docs" / "book_kb"
+    if not kb.is_dir():
+        return 0
+    paths = list(kb.glob("*.md")) + list((kb / "topics").glob("*.md"))
+    n = 0
+    for path in sorted(paths, key=lambda p: str(p.relative_to(kb))):
+        rel = str(path.relative_to(root))
+        _upsert(
+            conn,
+            doc_id=f"phd_book_kb:{path.stem}",
+            kind="phd_book_kb",
+            title=path.stem,
+            source_path=rel,
+            body=read_text(path, limit=8000),
+            tags="PHD BOOK_KB VALIDATION NO_PDF FTS5",
+        )
+        n += 1
+    return n
+
+
 def ingest_backtest_md_snips(conn: sqlite3.Connection, root: Path) -> int:
     bt = root / "teams" / "06_backtesting" / "docs"
     if not bt.is_dir():
@@ -372,11 +394,12 @@ def rebuild(root: Path | None = None) -> dict[str, Any]:
             "adopt": ingest_adopt_notes(conn, root),
             "paper": ingest_paper_sessions(conn, root),
             "backtest_md": ingest_backtest_md_snips(conn, root),
+            "phd_book_kb": ingest_phd_book_kb(conn, root),
         }
         total = sum(counts.values())
         meta = {
             "schema_version": "1",
-            "purpose": "agent speed KB — MIX/STRAT/CF/ADOPT/paper; not transcripts.sqlite",
+            "purpose": "agent speed KB — MIX/STRAT/CF/ADOPT/paper/phd_book_kb; not transcripts.sqlite",
             "embeddings": "skipped (FTS5 only)",
             "built_at": utc_now(),
             "doc_count": str(total),
