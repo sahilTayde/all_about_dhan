@@ -1,5 +1,18 @@
 # Handoff log — Team 06 Backtesting
 
+## As of now (2026-09-14) — ML-001 fit is not a retune sample
+
+```text
+From:     teams/06_backtesting (gate)
+To:       04 / 00 / 09
+Date:     2026-09-14
+Status:   REVIEW / NO_PROMOTE / BACKTEST_REQUIRED
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: desk-ml holiday fit printed NIFTY cluster sizes only.
+Rejected: Treating cluster counts as OOS+NORMAL promote evidence.
+```
+
 ## As of now (2026-09-14) — TV-EP paper session tuner (NO_PROMOTE)
 
 ```text

@@ -1,5 +1,21 @@
 # Handoff log — Team 04 Quant
 
+## As of now (2026-09-14) — ML-001 KMeans+IsolationForest overlay (NO_PROMOTE)
+
+```text
+From:     teams/04_quant + packages/desk-ml
+To:       00 / 05 / 06 / 07 / 09 / founder
+Date:     2026-09-14
+Status:   HYPOTHESIS overlay coded / UNVALIDATED / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: KMeans k=4 + IsolationForest on 1m INDEX/CE/PE. Overlay HOLD /
+  DIVERGENCE after bar close. Holiday cache fit. KEEP_ALL STRAT-001–014.
+Rejected: Live orders; blocking LLM; auto-write MIX params; STRAT-015+.
+Artifacts: teams/04_quant/docs/ML_001_LOCAL_PATTERN.md ; packages/desk-ml/
+CLI: python -m desk_ml fit --underlying NIFTY
+```
+
 ## As of now (2026-09-14) — TV-EP CE/PE mapping KEEP_ALL board (NO_PROMOTE)
 
 ```text

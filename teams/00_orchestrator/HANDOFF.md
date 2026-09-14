@@ -1,5 +1,23 @@
 # Handoff log — Team 00 Orchestrator
 
+## As of now (2026-09-14) — ML-001 local pattern overlay (holiday cache fit)
+
+```text
+From:     teams/00_orchestrator (boss) + 04
+To:       founder / 05 / 06 / 07
+Date:     2026-09-14 (Ganesh Chaturthi — market closed)
+Status:   HYPOTHESIS / NO_PROMOTE / ORDERS REFUSED
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: Founder asked unsupervised ML for INDEX vs CE vs PE. Chose
+  KMeans+IsolationForest overlay (HOLD / DIVERGENCE / regime). Does not
+  replace dual-tape / 30s poll or the paper tuner. Score after 1m close.
+Rejected: Deep RL / transformers on tick path; blocking LLM; live orders;
+  promoting MIX from cluster sizes.
+Doc:      teams/04_quant/docs/ML_001_LOCAL_PATTERN.md
+CLI:      python -m desk_ml fit --underlying NIFTY
+```
+
 ## As of now (2026-09-14) — TV-EP paper tuner (bounded, NO_PROMOTE)
 
 ```text
