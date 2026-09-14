@@ -15,6 +15,7 @@ Accepted: PRO_QUANT_AGENT_PROMPT.md — FTS phd_book_kb, dual-tape,
 Rejected: Pirate book ingest; auto-apply nightly; LLM on 30s path.
 Artifact: teams/02_phd_math/docs/PRO_QUANT_AGENT_PROMPT.md
 Counsel:  teams/00_orchestrator/docs/COUNSEL_QUANT_TRAINING.md
+Sibling:  teams/06_backtesting/docs/QUANT_SELF_REVIEW_LOOP.md
 ```
 
 ## As of now (2026-09-14) — original option-mechanics topics in book_kb/topics
