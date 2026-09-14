@@ -25,6 +25,10 @@
 | `AUDIT_LATEST.md` | `teams/00_orchestrator/docs/` | Auditor writes this. Humans do not hand-author a second audit file. |
 | `NIGHTLY_YYYY-MM-DD.md` | `teams/02_phd_math/docs/handoffs/` | **`desk_intel nightly` only.** Agents do not hand-author extras. Keep the latest; do not stack unused days. |
 | `CONTINUE_NEXT_CHAT.md` | `teams/00_orchestrator/docs/` | **One** wake-up. Update in place. |
+| `COUNSEL_QUANT_TRAINING.md` | `teams/00_orchestrator/docs/` | Joint Gemini+OpenAI on 02/04 training (no PDF ingest). Edit in place. |
+| `PRO_QUANT_AGENT_PROMPT.md` | `teams/02_phd_math/docs/` | Standing prompt 02/04 must load. Edit in place. |
+| `book_kb/*.md` + `book_kb/topics/*.md` | `teams/02_phd_math/docs/book_kb/` | Original exam notes only (no PDFs). Edit/add topics in place. |
+| `QUANT_SELF_REVIEW_LOOP.md` | `teams/06_backtesting/docs/` | Nightly/paper self-review → `RETUNE_PROPOSAL` only. Edit in place. |
 | Cursor rule `*.mdc` | `.cursor/rules/` | New always-on routing. Keep short. |
 
 Teacher books, `config/workspace.yaml` `sources.books[]`, STRAT/MIX/CAS catalogs, and `docs/` product standards (`COMPLIANCE`, `SECURITY`, `SDLC`, `REVIEW`, `INDEX`, `COMPANY_DEPARTMENTS`, …) are **edit-in-place**.
