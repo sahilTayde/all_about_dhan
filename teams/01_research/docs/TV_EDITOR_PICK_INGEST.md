@@ -17,7 +17,7 @@ Inventory (this snapshot): [`refernece_tradingview/editors_picks/`](../../../ref
 3. Tag origin WEB-DERIVED + TV-EDITOR-PICK (or TV-COMMUNITY if not an Editors’ Pick).
 4. Store row: title, author, url, license/visibility, long/short, asset guess, default TF, inputs (name+default).
 5. Rule SUMMARY only. Do NOT commit Pine source.
-6. Status flags: INGESTED → RULES_EXTRACTED (if public source) → PORT_PENDING → BACKTEST_QUEUED.
+6. Status flags: INGESTED → RULES_EXTRACTED (if public source) → PORT_PENDING or PORTED_PARTIAL → BACKTEST_QUEUED.
    After a scored run: TESTED_FAIL or TESTED_PARK. ALWAYS keep NEVER_DISCARD.
 7. Append catalog.json + catalog.csv + one line on INDEX.md. Pointer in MIX_CATALOG. Stop.
 ```
@@ -33,7 +33,7 @@ Listing pagination: unfiltered `/scripts/editors-picks/page-N/` SSR works (~24 c
 | `mix_id` | `MIX-TV-EP-001` … increment. Gap-free. |
 | `ep_id` | `EP-NNN` same number (factory / 06 loader). |
 | Origin | `WEB-DERIVED` + `TV-EDITOR-PICK` — never `DHAN-DERIVED` |
-| Adapter | `stub` until a **public textbook** port exists. Do not paste Pine into Python. |
+| Adapter | Named Python id after a public-rule port (`stub` only for unassigned future slots). Do not paste Pine into git. |
 | Customer default | always `false`. `MIX-DEFAULT-BUY` unchanged. |
 
 ---

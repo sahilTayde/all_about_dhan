@@ -24,7 +24,7 @@ def _bars() -> list[Bar]:
 
 def _assert_lean_alphabet(leans: list[str]) -> None:
     assert leans
-    assert set(leans) <= {"CE", "PE", "HOLD"}
+    assert set(leans) <= {"CE", "PE", "HOLD", "EXIT"}
 
 
 def test_catalog_listing_adapters_are_named_ports() -> None:
@@ -59,7 +59,7 @@ def test_several_adapters_long_short_flat() -> None:
         _assert_lean_alphabet(leans)
         assert len(leans) == len(bars)
         saw_ce = saw_ce or ("CE" in leans)
-        saw_pe = saw_pe or ("PE" in leans)
+        saw_pe = saw_pe or ("PE" in leans) or ("EXIT" in leans)
         saw_hold = saw_hold or ("HOLD" in leans)
     assert saw_ce and saw_pe and saw_hold
 

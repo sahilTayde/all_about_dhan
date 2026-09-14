@@ -1,5 +1,21 @@
 # Handoff log — Team 04 Quant
 
+## As of now (2026-09-14) — MIX-TV-EP-001..023 named adapters (NO_PROMOTE)
+
+```text
+From:     teams/04_quant (with 01 research + 06 harness)
+To:       00 / 06 / 09 / founder
+Date:     2026-09-14
+Status:   HYPOTHESIS / adapters coded / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: Listing 001–023 adapter field = real names (ag_sell … grover_llorens).
+  024/025 stay sma_cross / macd_hist calibrators. TV inputs exposed as
+  ParamSpec grids. KEEP_ALL STRAT-001–014. No STRAT-015+.
+Rejected: Leaving 001–023 as stub; Pine dumps; live orders; customer /.
+UNKNOWN: Walk-forward OOS; which partials beat PREMIUM haircut.
+```
+
 ## As of now (2026-09-14) — MIX-TV-EP factory harness (NO_PROMOTE)
 
 ```text
