@@ -1,5 +1,30 @@
 # Handoff log — Team 00 Orchestrator
 
+## As of now (2026-09-14) — Dual tape + desk divergence (founder start paper)
+
+```text
+From:     teams/00_orchestrator (boss desk) + 03/05
+To:       founder / 05 / 06 / 07
+Date:     2026-09-14 (~17:30 IST, NSE likely CLOSED)
+Status:   PAPER DATA LOOP / NO_PROMOTE / ORDERS REFUSED
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: Founder asked to START paper. New dual-tape program (no LLM on
+  fast path): ~45s poll NIFTY+BANKNIFTY+SENSEX INDEX LTP/1m + ATM CE/PE
+  LTP + compact chain; persist paper_watch/DUAL-TAPE + sqlite
+  dual_tape_ticks; deterministic dealer INDEX Δ vs CE Δ vs PE Δ.
+  PREMIUM_DIVERGENCE → HOLD / no new paper CE/PE. Index up + CE follows
+  → BUY_CE_CONFIRM note only. Legacy paper_ops_STOPPED.flag documented
+  (old LLM paper_ops); dual-tape stop = paper_dual_tape_STOPPED.flag.
+  --simulate / stale LTP after hours; 09:15 IST is the real load.
+Rejected: Live Dhan orders; blocking LLM on this path; auto-retune /
+  production param writes; npm restart; changing MIX-DEFAULT-BUY;
+  inventing greeks; STRAT-015+; promote.
+UNKNOWN: Whether this session's DHAN_* still serve last LTP after close.
+Doc:      teams/00_orchestrator/docs/MARKET_HOURS_DUAL_TAPE.md
+CLI:      python -m trading_agents_india dual-tape
+```
+
 ## As of now (2026-09-13) — Flawless Victory v1 grid winners on champion board
 
 ```text

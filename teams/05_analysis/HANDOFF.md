@@ -1,5 +1,24 @@
 # Handoff log — Team 05 Analysis
 
+## As of now (2026-09-14) — Desk divergence on dual tape
+
+```text
+From:     teams/05_analysis
+To:       00 / 03 / 04 / founder
+Date:     2026-09-14
+Status:   PAPER NOTES / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: Deterministic dealer on each dual-tape tick (INDEX Δ vs ATM
+  CE Δ vs PE Δ). PREMIUM_DIVERGENCE → HOLD, no new paper CE/PE; human
+  reason codes IV/EVENT/STALE/WRONG_STRIKE. Notes on paper ledger +
+  DUAL-TAPE/*.notes.md. Zero LLM on this path.
+Rejected: Treating confirm notes as fills; customer MIX rewrite;
+  invented greeks.
+UNKNOWN: Live session behaviour vs after-hours stale LTP.
+Doc:      teams/00_orchestrator/docs/MARKET_HOURS_DUAL_TAPE.md
+```
+
 ## As of now (2026-09-10) — DESK_SIGNAL_JSON v1 from founder Gemini session
 
 ```text

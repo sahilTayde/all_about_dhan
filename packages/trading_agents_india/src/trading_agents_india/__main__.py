@@ -134,6 +134,51 @@ def cmd_market_hours(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_dual_tape(args: argparse.Namespace) -> int:
+    """INDEX + ATM CE/PE tape + deterministic desk divergence. No LLM. No orders."""
+    from trading_agents_india.config import load_settings
+    from trading_agents_india.dual_tape import run_dual_tape_loop
+    from trading_agents_india.session_clock import DEFAULT_TICK_SECONDS
+
+    settings = load_settings()
+    underlyings = None
+    if args.underlying:
+        underlyings = [u.strip().upper() for u in args.underlying.split(",") if u.strip()]
+    tick = int(args.tick_seconds) if args.tick_seconds else DEFAULT_TICK_SECONDS
+    result = run_dual_tape_loop(
+        underlyings=underlyings,
+        tick_seconds=tick,
+        max_ticks=int(args.max_ticks),
+        simulate=bool(args.simulate),
+        prefer_live_chain=bool(args.live_chain),
+        persist=not bool(args.no_persist),
+        stop_outside_shell=bool(args.stop_outside_shell),
+        settings=settings,
+        write_run_flag_on_start=not bool(args.no_run_flag),
+    )
+    print(json.dumps(result.to_dict(), indent=2, ensure_ascii=False))
+    return 0
+
+
+def cmd_paper_tune(args: argparse.Namespace) -> int:
+    """Delegate to 06 TV-EP paper tuner. Never place_order. Never auto-promote."""
+    from backtest_engine.tv_ep.paper_tune import main as tune_main
+
+    argv = [
+        "--underlying",
+        str(args.underlying),
+        "--max-ticks",
+        str(args.max_ticks),
+        "--max-tweaks",
+        str(args.max_tweaks),
+    ]
+    if args.mix:
+        argv = ["--mix", *args.mix, *argv]
+    if args.no_write:
+        argv.append("--no-write")
+    return int(tune_main(argv))
+
+
 def cmd_review_plan(args: argparse.Namespace) -> int:
     """Ask OpenAI to review the adoption design; write notes under teams/09_review/docs/."""
     from trading_agents_india.config import load_settings
@@ -263,6 +308,57 @@ def main(argv: list[str] | None = None) -> int:
     p_mh.add_argument("--no-paper-watch", action="store_true")
     _add_common_session_flags(p_mh)
     p_mh.set_defaults(func=cmd_market_hours)
+
+    p_dt = sub.add_parser(
+        "dual-tape",
+        help="INDEX + ATM CE/PE poll + desk PREMIUM_DIVERGENCE (no LLM, no orders)",
+    )
+    p_dt.add_argument(
+        "--tick-seconds",
+        type=int,
+        default=0,
+        help="Poll interval (default 45; clamp 30–300). Prefer 30–45s.",
+    )
+    p_dt.add_argument(
+        "--max-ticks",
+        type=int,
+        default=1,
+        help="Finite ticks; 0 = until founder stop flag",
+    )
+    p_dt.add_argument(
+        "--simulate",
+        action="store_true",
+        help="Cache/fixture only (closed market). Finite ticks skip sleep.",
+    )
+    p_dt.add_argument(
+        "--live-chain",
+        action="store_true",
+        help="Try Dhan INDEX 1m + rolling ATM + optionchain (stale LTP ok after hours)",
+    )
+    p_dt.add_argument("--underlying", default="", help="Comma list: NIFTY,BANKNIFTY,SENSEX")
+    p_dt.add_argument("--no-persist", action="store_true")
+    p_dt.add_argument(
+        "--stop-outside-shell",
+        action="store_true",
+        help="Exit when outside 09:00–15:30 IST (ignored with --simulate)",
+    )
+    p_dt.add_argument(
+        "--no-run-flag",
+        action="store_true",
+        help="Do not write paper_dual_tape_RUNNING.flag",
+    )
+    p_dt.set_defaults(func=cmd_dual_tape)
+
+    p_pt = sub.add_parser(
+        "paper-tune",
+        help="TV-EP PAPER session tuner (delegates to backtest_engine). NO_PROMOTE. No LLM.",
+    )
+    p_pt.add_argument("--mix", nargs="+", default=None)
+    p_pt.add_argument("--underlying", default="NIFTY")
+    p_pt.add_argument("--max-ticks", type=int, default=90)
+    p_pt.add_argument("--max-tweaks", type=int, default=3)
+    p_pt.add_argument("--no-write", action="store_true")
+    p_pt.set_defaults(func=cmd_paper_tune)
 
     p_rev = sub.add_parser("review-plan", help="Frontier review of adoption plan → 09 docs")
     p_rev.add_argument("--out", default="")

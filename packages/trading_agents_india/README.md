@@ -30,6 +30,8 @@ python -m trading_agents_india market-hours --simulate --max-ticks 2
 # Opt out: --no-llm --no-prefer-desk. Opt in mid-session news: --gather-news
 python -m trading_agents_india market-hours --tick-seconds 90 --max-ticks 4 --stop-outside-shell
 python -m trading_agents_india market-hours --live-chain --max-ticks 2   # data only; orders refuse
+python -m trading_agents_india dual-tape --simulate --max-ticks 2
+python -m trading_agents_india dual-tape --live-chain --tick-seconds 45 --max-ticks 0
 python -m trading_agents_india clock
 python -m trading_agents_india session --dry-run --use-llm      # session: LLM still opt-in
 python -m trading_agents_india personas

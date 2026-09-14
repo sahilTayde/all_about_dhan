@@ -50,7 +50,8 @@ Left off 2026-09-13: ITM champion PAPER board ready (MIX-CHAMP-* + desk leaderbo
 | Live Dhan orders | **refused** (always) |
 | Dashboard P/L | **MOCK** / paper labels |
 | npm / Vite | **stopped** — do **not** restart until founder asks |
-| Paper market-hours | **stopped** 11:54 IST — `data/recon/paper_ops_STOPPED.flag` — do **not** restart until asked |
+| Paper market-hours (old LLM loop) | **stopped** — `data/recon/paper_ops_STOPPED.flag` (2026-09-10). Do **not** restart that LLM stack unless asked. |
+| Dual-tape paper (2026-09-14 founder start) | `python -m trading_agents_india dual-tape` — no LLM, no orders. Stop: `paper_dual_tape_STOPPED.flag`. Doc: [`MARKET_HOURS_DUAL_TAPE.md`](MARKET_HOURS_DUAL_TAPE.md) |
 | `NEWS_VETO_ENABLED` | **false** unless founder asks |
 
 09 five-pass has **not** passed. Notes ≠ pass. Mandate ≠ “you are profitable.”
@@ -87,7 +88,7 @@ Left off 2026-09-13: ITM champion PAPER board ready (MIX-CHAMP-* + desk leaderbo
 | Cleanup canvas | [`/cleanup`](../../../apps/web/public/cleanup-canvas.html) — DhanHQ-only reset board |
 | Market-hours runbook | [`PAPER_MARKET_HOURS_RUNBOOK.md`](PAPER_MARKET_HOURS_RUNBOOK.md) |
 
-Do not start the paper loop unless founder asks. If they do: `--no-gather-news --live-chain`; respect `paper_ops_STOPPED.flag`.
+Old LLM `market-hours` / paper_ops: still respect `paper_ops_STOPPED.flag` unless founder asks. Dual-tape (founder asked 2026-09-14): `dual-tape --live-chain`; stop with `paper_dual_tape_STOPPED.flag`.
 
 ---
 
