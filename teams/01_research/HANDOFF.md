@@ -56,6 +56,29 @@ Artifacts: refernece_tradingview/editors_picks/{INDEX.md,catalog.json,catalog.cs
   04 MIX_CATALOG.md section 22
 ```
 
+## As of now (2026-09-14) — INDEX/CE/PE cache facts for 02 MIX-FORM EDA
+
+```text
+From:     teams/01_research
+To:       02_phd_math / 03 / 04 / 06
+Date:     2026-09-14
+Status:   SOURCE_FACT (cache inventory) / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+Layer:    SOURCE_FACT
+
+Claim: On-disk NIFTY INDEX 1m sid 13 ends 2026-09-03 14:19 IST.
+  OPTIDX 47298 (23500 PE) and 47294 (23400 PE) run through 2026-09-11.
+  47291 = 23350 CE (universe). 47297 inferred 23500 CE (sid adjacency).
+  premium_tape NIFTY ATM 1m is 2026-09-09..11 only.
+What it supports: Holiday EDA on overlap 2026-08-27→09-03 for 47297/47298.
+What it does not support: ATM-tape vs INDEX triples (zero overlap);
+  greeks/IV; live prints on 2026-09-14.
+UNKNOWN: Confirm 47297 strike with 03; next-expiry sids after 2026-09-15.
+Next team: 02 (formulas) / 06 (INDEX cache extend after holiday).
+```
+
+Doc: [`../02_phd_math/docs/INDEX_CE_PE_EDA.md`](../02_phd_math/docs/INDEX_CE_PE_EDA.md).
+
 ## As of now (2026-09-10) — Dhan algo marketplace (Stratzy) study
 
 ```text

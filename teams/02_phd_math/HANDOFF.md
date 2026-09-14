@@ -1,5 +1,28 @@
 # Handoff log — Team 02 PhD math
 
+## As of now (2026-09-14) — INDEX/CE/PE EDA + MIX-FORM-* (holiday cache)
+
+```text
+From:     teams/02_phd_math + 01_research
+To:       00 / 04 / 05 / 06 / 09 / ML-001
+Date:     2026-09-14
+Status:   VALIDATION + HYPOTHESIS formulas / UNVALIDATED / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: ML delayed (gate, no greeks, deterministic dealer) not banned.
+  Local overlay now. Cache EDA: PE corr(index,pe) −0.823 on 2173 1m bars
+  (23500 CE 47297 ∩ 23500 PE 47298 ∩ INDEX 13). Named MIX-FORM-BETA-RESID,
+  DIVERGE-Z, STRADDLE-RET, FOLLOW-GAP. desk-ml ML-001 not rewritten.
+Rejected: Win rates as promote; invented IV/delta; 23350 CE frozen print as
+  CE beta; live fetch on Ganesh Chaturthi; MIX-DUAL rewrite.
+UNKNOWN: INDEX after 2026-09-03 14:19; ATM-tape ∩ INDEX = 0; 47297 strike
+  confirm; OOS+NORMAL.
+
+Artifact: teams/02_phd_math/docs/INDEX_CE_PE_EDA.md
+Code: trading_agents_india/index_ce_pe_formulas.py
+CLI: python -m trading_agents_india index-ce-pe-eda
+```
+
 ## As of now (2026-09-10) — HQ fields vs computed TA
 
 ```text
