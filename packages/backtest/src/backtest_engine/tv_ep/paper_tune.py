@@ -1,7 +1,10 @@
 """Bounded PAPER session tuner for MIX-TV-EP / MIX-DEFAULT-BUY.
 
-Hyperparameter search on one session tape only. Never writes production
+Hyperparameter *search on one session tape* only. Never writes production
 params. Never places Dhan orders. Zero LLM. NO_PROMOTE.
+
+RETUNE_GATE: emit BACKTEST_REQUIRED proposals + local paper param files under
+data/recon/. Do not silently retune MIX-DEFAULT-BUY.
 """
 
 from __future__ import annotations
@@ -29,12 +32,13 @@ SHORTLIST = (
 )
 MAX_TWEAKS_PER_MIX_PER_DAY = 3
 MAX_TICKS_DEFAULT = 90
-RT_COST = 0.01
+RT_COST = 0.01  # HYPOTHESIS 1% round-trip on premium — not statutory
 FORBIDDEN_PRODUCTION = (
     "config/workspace.yaml",
     "teams/04_quant/docs/candidates/",
     "packages/indicators/",
 )
+
 DEFAULT_BUY_SCHEMA = {
     "lookback": ParamSpec("int", 1, (1, 2, 3)),
 }
@@ -69,6 +73,7 @@ def _bars_from_rows(rows: list[dict[str, Any]]) -> list[Bar]:
 
 
 def _load_premium_sides(underlying: str, root: Path) -> tuple[list[Bar], list[Bar], str, str]:
+    """Last ATM CE+PE day on disk. Empty ⇒ no tape."""
     folder = root / "data" / "recon" / "premium_tape"
     if not folder.is_dir():
         return [], [], "", ""
@@ -120,7 +125,11 @@ def premium_divergence(
     pe_prev: Optional[float] = None,
     pe_now: Optional[float] = None,
 ) -> tuple[bool, str]:
-    """Dual-use sibling desk_divergence.judge_tick when importable."""
+    """Dual-use sibling `desk_divergence.judge_tick` when importable.
+
+    PREMIUM_DIVERGENCE (or any allow_new_paper_ce_pe=False) → no new paper ticket.
+    MIX lean that disagrees with dual-tape confirm is also blocked.
+    """
     if intended not in ("CE", "PE", "BUY_CE", "BUY_PE"):
         return False, ""
     side = "CE" if intended in ("CE", "BUY_CE") else "PE"
@@ -153,6 +162,7 @@ def premium_divergence(
 
 
 def default_buy_leans(bars: list[Bar], params: dict[str, float]) -> list[str]:
+    """Paper-only MIX-DEFAULT-BUY proxy: lookback close momentum. Not production."""
     lookback = max(1, int(params.get("lookback", 1)))
     leans = ["HOLD"] * len(bars)
     for i in range(lookback, len(bars)):
@@ -228,6 +238,7 @@ def _align_triple(
     ce: list[Bar],
     pe: list[Bar],
 ) -> tuple[list[Bar], list[Bar], list[Bar], dict[str, Any]]:
+    """Prefer same-epoch intersection; else IST clock-of-day (honest mismatch)."""
     ce_ts = {b.ts: b for b in ce}
     pe_ts = {b.ts: b for b in pe}
     idx_ts = {b.ts: b for b in index}
@@ -272,6 +283,7 @@ def load_session_tapes(
 ) -> dict[str, Any]:
     idx, idx_gap = _load_index_bars(underlying, client=None, fetch_live=False, years=years)
     if not idx:
+        # Fall back to untrimmed cache if years trim emptied the last session.
         meta = INDEX_IDS.get(underlying)
         if meta:
             sid, seg, inst = meta
@@ -362,7 +374,9 @@ def replay_one(
             "mistake_notes": [],
             "gap": "no tape",
         }
-    slice_idx, slice_ce, slice_pe = index[:n], ce[:n], pe[:n]
+    slice_idx = index[:n]
+    slice_ce = ce[:n]
+    slice_pe = pe[:n]
     leans_raw = leans_fn(slice_idx, params) if leans_fn else ["HOLD"] * n
     if len(leans_raw) < n:
         leans_raw = list(leans_raw) + ["HOLD"] * (n - len(leans_raw))
@@ -370,10 +384,12 @@ def replay_one(
     mistakes: list[str] = []
     blocked = 0
     holds = 0
+    in_pos = False
     for i in range(n - 1):
         side = _lean_to_side(leans_raw[i])
-        if side == "HOLD":
-            holds += 1
+        if side == "HOLD" or in_pos:
+            if side == "HOLD":
+                holds += 1
             continue
         div, why = premium_divergence(
             intended=side,
@@ -402,9 +418,13 @@ def replay_one(
         nxt = prem[i + 1].close
         pnl = nxt - entry
         after = pnl - abs(entry) * RT_COST
+        win = pnl > 0
         note = ""
-        if pnl <= 0:
-            note = f"{mix_id} BUY_{side} at i={i} next-premium {pnl:.4f} ≤0 (params={params})"
+        if not win:
+            note = (
+                f"{mix_id} BUY_{side} at i={i} next-premium {pnl:.4f} ≤0 "
+                f"(params={params})"
+            )
             mistakes.append(note)
         tickets.append(
             {
@@ -418,8 +438,9 @@ def replay_one(
                 "mistake_note": note or None,
             }
         )
-    pnls = [float(t["pnl"]) for t in tickets if str(t.get("signal") or "").startswith("BUY_")]
-    afters = [float(t["pnl_after_cost"]) for t in tickets if str(t.get("signal") or "").startswith("BUY_")]
+        in_pos = False  # 1-bar next-premium score; flatten before next candidate
+    pnls = [float(t["pnl"]) for t in tickets if t.get("signal", "").startswith("BUY_")]
+    afters = [float(t["pnl_after_cost"]) for t in tickets if t.get("signal", "").startswith("BUY_")]
     wins = sum(1 for p in pnls if p > 0)
     return {
         "mix_id": mix_id,
@@ -502,6 +523,7 @@ def _write_recon(
 def append_paper_sessions(root: Path, sessions: list[dict[str, Any]]) -> str:
     path = root / "data" / "recon" / "tv_ep_leaderboard.json"
     path.parent.mkdir(parents=True, exist_ok=True)
+    blob: dict[str, Any]
     if path.is_file():
         try:
             blob = json.loads(path.read_text(encoding="utf-8"))
@@ -544,9 +566,12 @@ def run_paper_tune(
         ce_b = bars_override.get("ce") or []
         pe_b = bars_override.get("pe") or []
         if min(len(idx), len(ce_b), len(pe_b)) < 8:
-            tapes: dict[str, Any] = {
+            tapes = {
                 "ok": False,
                 "gap": "DATA_INSUFFICIENT: INDEX+CE+PE alignment < 8 bars — stop (no tape)",
+                "index": idx,
+                "ce": ce_b,
+                "pe": pe_b,
             }
         else:
             tapes = {
@@ -576,12 +601,13 @@ def run_paper_tune(
     index = list(tapes["index"])
     ce = list(tapes["ce"])
     pe = list(tapes["pe"])
-    day = str(tapes.get("premium_day") or (session_date_ist(index[-1].ts) if index else "unknown"))
+    day = str(tapes.get("premium_day") or session_date_ist(index[-1].ts) if index else "unknown")
     mix_rows: list[dict[str, Any]] = []
     proposal_paths: list[str] = []
     sessions: list[dict[str, Any]] = []
     any_improved = False
     for mix_id in ids:
+        # One MIX at a time (bounded).
         entry, adapter, leans_fn = _adapter_for(mix_id, catalog)
         if leans_fn is None:
             mix_rows.append(
@@ -609,10 +635,7 @@ def run_paper_tune(
             for params in grid
         ]
         baseline = runs[0]
-        best = max(
-            runs,
-            key=lambda r: (float(r.get("paper_pnl_after_cost") or 0), float(r.get("paper_pnl") or 0)),
-        )
+        best = max(runs, key=lambda r: (float(r.get("paper_pnl_after_cost") or 0), float(r.get("paper_pnl") or 0)))
         improved = float(best.get("paper_pnl_after_cost") or 0) > float(
             baseline.get("paper_pnl_after_cost") or 0
         )
@@ -708,7 +731,7 @@ def run_paper_tune(
             },
             "ist_0915": (
                 "Next live dry: 09:15 IST `python -m backtest_engine tv-ep-paper-tune` "
-                "(cache; dual-tape sibling if founder started it). Still NO_PROMOTE."
+                "(cache; --poll only if founder started paper hours). Still NO_PROMOTE."
             ),
         }
         summary_path = str(root / "data" / "recon" / f"tv_ep_paper_tune_{day}.json")
@@ -742,7 +765,12 @@ def main(argv: Optional[list[str]] = None) -> int:
     p = argparse.ArgumentParser(
         description="PAPER session tuner for MIX-TV-EP / DEFAULT-BUY. No orders. NO_PROMOTE."
     )
-    p.add_argument("--mix", nargs="+", default=list(SHORTLIST))
+    p.add_argument(
+        "--mix",
+        nargs="+",
+        default=list(SHORTLIST),
+        help="One MIX at a time internally; default shortlist 005 010 016 DEFAULT-BUY.",
+    )
     p.add_argument("--underlying", default="NIFTY", choices=("NIFTY", "BANKNIFTY", "SENSEX"))
     p.add_argument("--max-ticks", type=int, default=MAX_TICKS_DEFAULT)
     p.add_argument("--max-tweaks", type=int, default=MAX_TWEAKS_PER_MIX_PER_DAY)

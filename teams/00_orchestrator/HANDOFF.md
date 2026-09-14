@@ -2,6 +2,24 @@
 
 **Agents:** read **only the newest block**. Do not ingest this whole log. New files: [`docs/FILE_CREATION.md`](../../docs/FILE_CREATION.md). Append here — do not create `HANDOFF_TOMORROW.md` or extra `CONTINUE_*`.
 
+## As of now (2026-09-14) — ML-001 local pattern overlay (holiday cache fit)
+
+```text
+From:     teams/00_orchestrator (boss) + 04
+To:       founder / 05 / 06 / 07
+Date:     2026-09-14 (Ganesh Chaturthi — market closed)
+Status:   HYPOTHESIS / NO_PROMOTE / ORDERS REFUSED
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: Founder asked unsupervised ML for INDEX vs CE vs PE. Chose
+  KMeans+IsolationForest overlay (HOLD / DIVERGENCE / regime). Does not
+  replace dual-tape / 30s poll or the paper tuner. Score after 1m close.
+Rejected: Deep RL / transformers on tick path; blocking LLM; live orders;
+  promoting MIX from cluster sizes.
+Doc:      teams/04_quant/docs/ML_001_LOCAL_PATTERN.md
+CLI:      python -m desk_ml fit --underlying NIFTY
+```
+
 ## As of now (2026-09-14) — TV-EP paper tuner (bounded, NO_PROMOTE)
 
 ```text
@@ -12,10 +30,10 @@ Status:   PAPER CLI / UNVALIDATED / NO_PROMOTE
 Gate:     not RESEARCH_READY_FOR_PROGRAMMING
 
 Accepted: Route founder “live agent retune like ML search” to 06
-  tv-ep-paper-tune + sibling PREMIUM_DIVERGENCE. RETUNE_GATE: BACKTEST_REQUIRED
-  proposals + local data/recon paper params only; MIX-DEFAULT-BUY production
-  untouched. 09:15 IST = cache/poll replay. Zero LLM on this path. KEEP_ALL
-  MIX-TV-EP. No STRAT-015+.
+  tv-ep-paper-tune + sibling 05 dual-tape PREMIUM_DIVERGENCE. RETUNE_GATE:
+  BACKTEST_REQUIRED proposals + local data/recon paper params only;
+  MIX-DEFAULT-BUY production untouched. 09:15 IST = cache/poll replay.
+  Zero LLM on this path. KEEP_ALL MIX-TV-EP. No STRAT-015+.
 Rejected: Auto-promote; silent param write; infinite token/API loop;
   live Dhan orders; npm restart.
 UNKNOWN: Same-calendar INDEX+CE+PE 1m at next open.

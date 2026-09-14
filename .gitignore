@@ -19,6 +19,8 @@ data/desk_intel/**
 !data/desk_intel/.gitkeep
 data/recon/**
 !data/recon/.gitkeep
+!data/recon/ml/
+!data/recon/ml/.gitkeep
 
 # Python
 __pycache__/

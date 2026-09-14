@@ -223,10 +223,15 @@ def main(argv: list[str] | None = None) -> int:
         "tv-ep-paper-tune",
         help="PAPER session tuner (one MIX at a time, ≤3 tweaks, dual-tape gate). NO_PROMOTE.",
     )
-    p_tune.add_argument("--mix", nargs="+", default=None)
+    p_tune.add_argument(
+        "--mix",
+        nargs="+",
+        default=None,
+        help="Shortlist default: 005 010 016 MIX-DEFAULT-BUY. One MIX internally.",
+    )
     p_tune.add_argument("--underlying", default="NIFTY", choices=("NIFTY", "BANKNIFTY", "SENSEX"))
-    p_tune.add_argument("--max-ticks", type=int, default=90)
-    p_tune.add_argument("--max-tweaks", type=int, default=3)
+    p_tune.add_argument("--max-ticks", type=int, default=90, help="Cap paper ticks / replay bars.")
+    p_tune.add_argument("--max-tweaks", type=int, default=3, help="Param grid cap per MIX per day.")
     p_tune.add_argument("--no-write", action="store_true")
     args = parser.parse_args(argv)
     dry: bool | None
