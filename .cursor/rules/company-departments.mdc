@@ -19,4 +19,4 @@ SQLite + FTS5 now. No MySQL/embeddings as day-1. No auto-retune. No live orders.
 
 Each team `SKILL.md` is an operational playbook: duties, inputs, output template, quality bar, books/training, and must-not rules. Analysts must return root cause + next backtestable change, not only `FAIL`.
 
-After requirement/HANDOFF/PLAN/AGENT edits: `python -m docs_auditor`.
+After requirement/HANDOFF/PLAN/AGENT edits: `python -m docs_auditor`. New files: `docs/FILE_CREATION.md` (do not glob markdown).

@@ -239,21 +239,9 @@ def ingest_cf_binds(conn: sqlite3.Connection, root: Path) -> int:
 def ingest_adopt_notes(conn: sqlite3.Connection, root: Path) -> int:
     paths = [
         root / "teams" / "00_orchestrator" / "docs" / "ADOPT_TRADINGAGENTS.md",
-        root
-        / "teams"
-        / "00_orchestrator"
-        / "docs"
-        / "OPENAI_DESIGN_COUNCIL_2026-09-06.md",
-        root
-        / "teams"
-        / "09_review"
-        / "docs"
-        / "TRADINGAGENTS_ADOPTION_REVIEW_2026-09-06.md",
-        root
-        / "teams"
-        / "09_review"
-        / "docs"
-        / "TRADINGAGENTS_DEEPEN_NOTES_2026-09-06.md",
+        root / "teams" / "00_orchestrator" / "docs" / "COUNSEL_LLM.md",
+        root / "teams" / "09_review" / "docs" / "ENGINE_MIX_REVIEW.md",
+        root / "teams" / "09_review" / "docs" / "KEEP_ALL_REVIEW.md",
         root / "teams" / "06_backtesting" / "docs" / "EVENT_MEMORY.md",
         root / "teams" / "06_backtesting" / "docs" / "RETUNE_GATE.md",
     ]

@@ -16,7 +16,7 @@ The Docs Auditor **must run every time a requirement changes** and **again as pa
 
 ## When it runs
 
-1. **After any requirement change** — `docs/MASTER_REQUIREMENTS.md`, `AGENT.md`, team `HANDOFF.md`, `PLAN.md`, `config/workspace.yaml` poll/jobs, retune/CAS/staging specs. Cursor rule `.cursor/rules/docs-auditor.mdc` is `alwaysApply: true`. After-edit hook: `.cursor/hooks.json`.
+1. After any requirement change — `docs/MASTER_REQUIREMENTS.md`, `AGENT.md`, team `HANDOFF.md`, `PLAN.md`, `docs/FILE_CREATION.md`, `config/workspace.yaml` poll/jobs, retune/CAS/staging specs. Cursor rule `.cursor/rules/docs-auditor.mdc` is `alwaysApply: true`. After-edit hook: `.cursor/hooks.json`.
 2. **Daily / post-market** — end of `python -m desk_intel nightly` and `python -m jobs post-market`. yaml `jobs.docs_auditor.cadence: daily`.
 
 **Golden rule:** no requirement merge without a passing auditor (or an explicit FAIL report that names the drift).
@@ -25,6 +25,7 @@ The Docs Auditor **must run every time a requirement changes** and **again as pa
 
 | Source of truth (docs) | vs code/config |
 |------------------------|----------------|
+| [`docs/FILE_CREATION.md`](../../../docs/FILE_CREATION.md) | allowlist of names agents may create |
 | [`docs/MASTER_REQUIREMENTS.md`](../../../docs/MASTER_REQUIREMENTS.md) | files actually on disk; stub ≠ sheet |
 | [`AGENT.md`](../../../AGENT.md) | CAS, IN-PROGRESS, RETUNE, 3m chain, customer vs `/desk` |
 | Team `HANDOFF.md` (00–09) | file exists |

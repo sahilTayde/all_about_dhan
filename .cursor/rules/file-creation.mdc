@@ -1,0 +1,16 @@
+---
+description: Which docs to create and which to skip (token hygiene)
+alwaysApply: true
+---
+
+# File creation (short)
+
+Default **read:** `docs/MASTER_REQUIREMENTS.md` → `CONTINUE_NEXT_CHAT.md` → `AGENT.md` → `docs/FILE_CREATION.md`. Then one team `SKILL.md`. Do not glob markdown.
+
+**Create only** names in `docs/FILE_CREATION.md`: append existing `HANDOFF.md` / `SKILL.md`; `TASK_*` only under `teams/00_orchestrator/docs/` if no ticket exists; new clubs = `MIX-*` (never `STRAT-015+`); SOURCE_FACT = `teams/01_research/docs/handoffs/<videoId>.md`; one backtest file per topic.
+
+**Do not create:** extra `CONTINUE_*`, `HANDOFF_TOMORROW`, scratch `NOTES.md`, dated LLM council dumps, `teams/07_ui`, root gemini/learning `.txt`, markdown under `data/recon/`, duplicate MASTER/AGENT.
+
+**Do not read:** youtube `PLAN.md` unless collector work; old dated `BACKTEST_*` unless the score sheet cites it; recon dumps.
+
+KEEP_ALL STRAT-001–014. Teams 00–09 stay. After doc edits: `python -m docs_auditor`.

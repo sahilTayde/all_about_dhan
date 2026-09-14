@@ -1,5 +1,7 @@
 # Handoff log — Team 00 Orchestrator
 
+**Agents:** read **only the newest block**. Do not ingest this whole log. New files: [`docs/FILE_CREATION.md`](../../docs/FILE_CREATION.md). Append here — do not create `HANDOFF_TOMORROW.md` or extra `CONTINUE_*`.
+
 ## As of now (2026-09-13) — Flawless Victory v1 grid winners on champion board
 
 ```text
@@ -1494,7 +1496,7 @@ related 429s: 0. Parked 4 unchanged. No LLM translate. No strategies.
 
 Artifacts:
 - teams/00_orchestrator/docs/TASK_YOUTUBE_TRANSCRIPT_RETRY.md
-- teams/00_orchestrator/docs/HANDOFF_TOMORROW.md
+- teams/00_orchestrator/docs/CONTINUE_NEXT_CHAT.md
 - teams/00_orchestrator/docs/STATUS.md
 - teams/01_research/youtube/docs/RUN_REPORT.md
 
@@ -1528,7 +1530,7 @@ re-run. Parked stays parked. Do not invent transcripts if 429 returns.
 
 Artifacts:
 - teams/00_orchestrator/docs/TASK_YOUTUBE_TRANSCRIPT_RETRY.md
-- teams/00_orchestrator/docs/HANDOFF_TOMORROW.md
+- teams/00_orchestrator/docs/CONTINUE_NEXT_CHAT.md
 - teams/00_orchestrator/docs/STATUS.md
 
 What the next team must do:
@@ -1559,7 +1561,7 @@ Coalition finished a DRAFT research packet. 14 candidates. 429/English still blo
 the rest of the catalog. Do not implement strategies.
 
 Artifacts:
-- teams/00_orchestrator/docs/HANDOFF_TOMORROW.md
+- teams/00_orchestrator/docs/CONTINUE_NEXT_CHAT.md
 - teams/00_orchestrator/docs/STATUS.md
 - teams/04_quant/docs/MASTER_STRATEGY_PLAN.md
 

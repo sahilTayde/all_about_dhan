@@ -209,7 +209,7 @@ Nightly stub still emits `BACKTEST_REQUIRED` (does **not** auto-apply this run).
 | Backtest engine (Phase 3) | **PARTIAL** | 5y INDEX 1m + current FUTIDX **plus** 5y rollingoption OPTIDX. Hypothesis 1% RT overlay 2026-09-06. Statutory still UNKNOWN. All promote paths FAIL / DATA_INSUFFICIENT. Q8/Q12 not waived. |
 | Invented win rates / PF / DD | **forbidden** | Proxy rates in 06 markdown are **measured**, labeled FAIL/UNVALIDATED, not customer P/L. |
 
-Older [`NIGHTLY_2026-09-02.md`](../teams/02_phd_math/docs/handoffs/NIGHTLY_2026-09-02.md) **predates** the retune stub (format note in file). Re-run `python -m desk_intel nightly --offline` for current JSON keys. Do not treat that file’s zero P/L as a track record.
+Older dated `NIGHTLY_*.md` files were dropped (token hygiene). Re-run `python -m desk_intel nightly --offline` for current JSON keys. Do not treat a stub recon’s zero P/L as a track record. Latest packet: [`NIGHTLY_2026-09-10.md`](../teams/02_phd_math/docs/handoffs/NIGHTLY_2026-09-10.md).
 
 ---
 
@@ -343,7 +343,7 @@ python -m jobs post-market --offline
 
 ## 12. Company departments overlay — **PARTIAL** (docs; product not coded)
 
-Ticket: founder org 2026-09-09. Counsel: [`COUNSEL_ORG_2026-09-09.md`](../teams/00_orchestrator/docs/COUNSEL_ORG_2026-09-09.md) (Gemini + OpenAI **AGREE_WITH_CAVEATS**). Charter: [`COMPANY_DEPARTMENTS.md`](COMPANY_DEPARTMENTS.md).
+Ticket: founder org 2026-09-09. Counsel how-to: [`COUNSEL_LLM.md`](../teams/00_orchestrator/docs/COUNSEL_LLM.md) (Gemini + OpenAI **AGREE_WITH_CAVEATS** on org overlay). Charter: [`COMPANY_DEPARTMENTS.md`](COMPANY_DEPARTMENTS.md). File names: [`FILE_CREATION.md`](FILE_CREATION.md).
 
 | Piece | Status |
 |-------|--------|
@@ -387,7 +387,7 @@ Research → Independent validation → Strategy spec → Backtest → Review �
 2. [`CONTINUE_NEXT_CHAT.md`](../teams/00_orchestrator/docs/CONTINUE_NEXT_CHAT.md) — 2026-09-08 left-off (do not reload the bootstrap chat).  
 3. [`REVIEW_BRIEF_FOR_FRONTIER_MODEL.md`](../teams/00_orchestrator/docs/REVIEW_BRIEF_FOR_FRONTIER_MODEL.md) — what **not** to trust.  
 4. [`AGENT.md`](../AGENT.md) — roster + golden rules.  
-5. [`teams/00_orchestrator/docs/HANDOFF_TOMORROW.md`](../teams/00_orchestrator/docs/HANDOFF_TOMORROW.md) — 2026-09-01 history; wake-up is CONTINUE.  
+5. [`docs/FILE_CREATION.md`](FILE_CREATION.md) — what to create next; do not glob markdown.  
 6. Then jump via [`docs/INDEX.md`](INDEX.md). **Do not scan the whole tree.**  
 7. **Do not** `npm install` / `npm run dev` until the user asks.
 

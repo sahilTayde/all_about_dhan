@@ -2,7 +2,7 @@
 
 **Status:** PAPER only · **NO_PROMOTE** · not `RESEARCH_READY_FOR_PROGRAMMING`  
 **Package:** `packages/trading_agents_india`  
-**Review:** [`open_ai_astra_review.md`](open_ai_astra_review.md)
+**Review:** [`PAPER_MARKET_HOURS_RUNBOOK.md`](PAPER_MARKET_HOURS_RUNBOOK.md) (Astra session dump removed).
 
 Never print `.env` secrets. Do not restart npm for this path.
 

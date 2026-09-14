@@ -1102,7 +1102,7 @@ Artifacts:
 
 What the next team must do:
 - 06: engine with costs, no look-ahead, date-stamped lots — when scheduled.
-- 09: open issues only (see RESEARCH_REVIEW_NOTES). Do not pass.
+- 09: open issues only (KEEP_ALL_REVIEW / COALITION_REVIEW). Do not pass.
 
 What the next team must not do:
 - Implement in apps/ or packages/.

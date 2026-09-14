@@ -11,7 +11,7 @@ References reviewed:
 - Trend Finder — <https://www.trendfinder.reacoms.in/>
 - BreakingTrade / SarthoAI — <https://breakingtrade.com/ai-market-analysis>
 
-Dual-model review: [`COMPETITOR_VP_COUNCIL_2026-09-09.md`](../teams/00_orchestrator/docs/COMPETITOR_VP_COUNCIL_2026-09-09.md).
+Dual-model review: [`COUNSEL_LLM.md`](../teams/00_orchestrator/docs/COUNSEL_LLM.md) (session dumps deleted; rulings live in this file + [`COMPANY_DEPARTMENTS.md`](COMPANY_DEPARTMENTS.md)).
 
 ---
 

@@ -799,7 +799,7 @@ Artifacts:
 - teams/09_review/docs/RESEARCH_REVIEW_NOTES.md
 
 What the next team must do:
-- Orchestrator: point humans at HANDOFF_TOMORROW.md
+- Orchestrator: point humans at CONTINUE_NEXT_CHAT.md + FILE_CREATION.md
 
 What the next team must not do:
 - Treat notes as a review pass.

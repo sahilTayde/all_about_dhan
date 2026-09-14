@@ -813,7 +813,7 @@ def _write_ops_founder_digest(payload: dict) -> Path | None:
         f"- LLM: status={payload.get('llm_status')} err={payload.get('llm_last_error_class')}",
         f"- Top P0: {top_p0}",
         f"- Top veto (latest): {veto_flat or 'n/a'}",
-        "- Shipped: `data/recon/PROCESS_FIXES_SHIPPED_2026-09-07.md`",
+        "- Shipped: `teams/00_orchestrator/docs/CONTINUE_NEXT_CHAT.md`",
         f"- EOD: `python -m agent_rag eod-recon --day {day} --offline`",
         "",
     ]
@@ -1460,7 +1460,7 @@ export default function PaperOperationsMonitor() {{
         <Text>Digest: <Code>{_esc(digest_path)}</Code></Text>
         <Text>Attention queue: <Code>{_esc(att_path)}</Code></Text>
         <Text tone="secondary" size="small">
-          Analysis loop scans; it does not ship. See PROCESS_FIXES_SHIPPED_*.md for real ships.
+          Analysis loop scans; it does not ship. See CONTINUE_NEXT_CHAT / FILE_CREATION for real ships.
         </Text>
       </Stack>
 

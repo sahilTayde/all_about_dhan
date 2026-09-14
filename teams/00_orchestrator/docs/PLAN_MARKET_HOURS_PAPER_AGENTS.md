@@ -3,8 +3,8 @@
 **Date:** 2026-09-06  
 **Status:** `PAPER_LOOP_SHIPPED` / **UNVALIDATED** / paper only  
 **Gate:** **not** `RESEARCH_READY_FOR_PROGRAMMING`  
-**Council:** [`OPENAI_MARKET_HOURS_PAPER_COUNCIL_2026-09-06.md`](OPENAI_MARKET_HOURS_PAPER_COUNCIL_2026-09-06.md) — OpenAI `gpt-5.4` + 00 desk → **`APPROVE_WITH_GUARDRAILS`**  
-**Astra review (2026-09-06):** [`open_ai_astra_review.md`](open_ai_astra_review.md) · runbook [`PAPER_MARKET_HOURS_RUNBOOK.md`](PAPER_MARKET_HOURS_RUNBOOK.md)  
+**Council:** verdict `APPROVE_WITH_GUARDRAILS` (session dump deleted; see this plan + runbook).  
+**Paper path:** runbook [`PAPER_MARKET_HOURS_RUNBOOK.md`](PAPER_MARKET_HOURS_RUNBOOK.md)  
 **Adopt map:** [`ADOPT_TRADINGAGENTS.md`](ADOPT_TRADINGAGENTS.md)  
 **Package:** `packages/trading_agents_india` (+ `packages/agent_rag`, `packages/dhan-client`, `packages/desk-intel`)  
 **EXTERNAL:** [TauricResearch/TradingAgents](https://github.com/TauricResearch/TradingAgents) (Apache-2.0)

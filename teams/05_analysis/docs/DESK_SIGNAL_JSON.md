@@ -4,7 +4,7 @@
 **Gate:** PAPER only. `NO_PROMOTE`. Execution refused. Not `RESEARCH_READY_FOR_PROGRAMMING`.
 
 Origin: the founder's Gemini session format ([`gemini_signal/GEMINI_SIGNAL_LEARNING.md`](gemini_signal/GEMINI_SIGNAL_LEARNING.md))
-hardened by 4 counsel rounds ([`COUNSEL_SIGNAL_FORMAT_2026-09-10.md`](../../00_orchestrator/docs/COUNSEL_SIGNAL_FORMAT_2026-09-10.md)).
+hardened by dual-model counsel ([`COUNSEL_LLM.md`](../../00_orchestrator/docs/COUNSEL_LLM.md)).
 Code: `packages/trading_agents_india/src/trading_agents_india/signal_schema.py`.
 
 ## Contract in one look

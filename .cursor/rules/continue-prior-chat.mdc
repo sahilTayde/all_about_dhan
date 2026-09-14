@@ -12,5 +12,8 @@ On a **new** chat, read in order:
 1. `docs/MASTER_REQUIREMENTS.md`
 2. `teams/00_orchestrator/docs/CONTINUE_NEXT_CHAT.md`
 3. `AGENT.md`
+4. `docs/FILE_CREATION.md` (what to create / not create)
+
+Then one team `SKILL.md` for the ticket. Do **not** glob `**/*.md`. Do not create extra `CONTINUE_*`, `HANDOFF_TOMORROW`, scratch `NOTES.md`, `STRAT-015+`, or dated LLM dumps.
 
 Do not assume live trading, validated STRATs, or real dashboard P/L. Run `python -m docs_auditor` after requirement-doc edits.

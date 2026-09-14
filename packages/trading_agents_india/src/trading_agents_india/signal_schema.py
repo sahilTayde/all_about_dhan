@@ -1,7 +1,7 @@
 """DESK_SIGNAL_JSON v1 — strict paper-signal JSON for the web app.
 
 Modeled on the founder's GEMINI_SKILL.md §68 contract and hardened by a 4-round
-Gemini+OpenAI counsel loop (teams/00_orchestrator/docs/COUNSEL_SIGNAL_FORMAT_2026-09-10.md).
+Gemini+OpenAI counsel (teams/00_orchestrator/docs/COUNSEL_LLM.md).
 
 Hard rules enforced HERE, not left to producers:
 1. Veto / risk_veto        -> decision NO_TRADE, status VETOED (overrides everything).

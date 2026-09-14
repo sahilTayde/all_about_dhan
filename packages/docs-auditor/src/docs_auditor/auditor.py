@@ -35,6 +35,7 @@ REQUIRED_FILES = (
     "packages/dhan-client/src/dhan_client/execution.py",
     "packages/desk-intel/src/desk_intel/schema.py",
     "teams/00_orchestrator/docs/TASK_DOCS_AUDITOR.md",
+    "docs/FILE_CREATION.md",
     ".cursor/rules/docs-auditor.mdc",
     ".cursor/hooks.json",
 )
@@ -75,7 +76,8 @@ Do **not** treat this as DONE. The Docs Auditor **fails** until orchestrator wri
 See:
 
 - [`docs/HANDOFF.md`](HANDOFF.md)
-- [`teams/00_orchestrator/docs/HANDOFF_TOMORROW.md`](../teams/00_orchestrator/docs/HANDOFF_TOMORROW.md)
+- [`teams/00_orchestrator/docs/CONTINUE_NEXT_CHAT.md`](../teams/00_orchestrator/docs/CONTINUE_NEXT_CHAT.md)
+- [`docs/FILE_CREATION.md`](FILE_CREATION.md)
 - [`AGENT.md`](../AGENT.md)
 
 **Gate:** still not `RESEARCH_READY_FOR_PROGRAMMING`. No live orders. Education ≠ advice.

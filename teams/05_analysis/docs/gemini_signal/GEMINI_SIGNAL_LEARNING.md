@@ -7,8 +7,7 @@ Sources (tracked here):
 
 - [`GEMINI_SKILL.md`](GEMINI_SKILL.md) — the founder's OpenAI-written skill (v1.0) used as Gemini system prompt.
 - [`gemini_skill_config.json`](gemini_skill_config.json) — v1.1 production config (threshold 75, 1m–1h TFs).
-- [`transcript_2026-09-09_founder_session.txt`](transcript_2026-09-09_founder_session.txt) — full NIFTY 23600 PE session.
-- `today_gemini_reply_laerning.txt` at repo root was **empty (0 bytes)** when read — nothing to learn from it yet.
+- Founder session `.txt` dumps are **not** kept in git (token hygiene). This file is the distilled `VALIDATION`.
 
 ## 1. What Gemini actually did (SOURCE_FACT from transcript)
 
@@ -78,4 +77,4 @@ Then it emitted the same 3-part shape every time:
 What we do **not** adopt: treating the transcript's confidence numbers as probabilities, claiming
 order-flow reads we cannot source, or promoting anything without 06 OOS + 09 five-pass.
 
-Counsel review loops on this spec: [`COUNSEL_SIGNAL_FORMAT_2026-09-10.md`](../../../00_orchestrator/docs/COUNSEL_SIGNAL_FORMAT_2026-09-10.md).
+Counsel how-to: [`COUNSEL_LLM.md`](../../../00_orchestrator/docs/COUNSEL_LLM.md). Signal JSON: [`DESK_SIGNAL_JSON.md`](../DESK_SIGNAL_JSON.md).

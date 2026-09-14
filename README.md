@@ -8,10 +8,10 @@ Private workspace for a DhanHQ-only research and (later) paper-trading system on
 
 ## How to navigate
 
-1. Agents start at [`AGENT.md`](AGENT.md).
+1. Agents start at [`AGENT.md`](AGENT.md). New chat: [`CONTINUE_NEXT_CHAT.md`](teams/00_orchestrator/docs/CONTINUE_NEXT_CHAT.md) then [`docs/FILE_CREATION.md`](docs/FILE_CREATION.md).
 2. Task → path map: [`docs/INDEX.md`](docs/INDEX.md).
 3. Company board: [`PLAN.md`](PLAN.md).
-4. YouTube Stage 1 plan (Codex, long): [`teams/01_research/youtube/PLAN.md`](teams/01_research/youtube/PLAN.md).
+4. YouTube Stage 1 plan (Codex, long): [`teams/01_research/youtube/PLAN.md`](teams/01_research/youtube/PLAN.md) — **do not read unless collector work**.
 
 | Path | What it is |
 |------|------------|

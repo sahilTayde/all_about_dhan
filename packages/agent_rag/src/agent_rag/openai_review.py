@@ -139,13 +139,7 @@ def review_paper_backtest(
                 f"DATA_INSUFFICIENT: OpenAI call failed ({type(exc).__name__})"
             )
 
-    out_path = (
-        root
-        / "teams"
-        / "09_review"
-        / "docs"
-        / f"PAPER_AGENTS_BACKTEST_OPENAI_REVIEW_{day}.md"
-    )
+    out_path = root / "data" / "recon" / "PAPER_AGENTS_BACKTEST_OPENAI_REVIEW.md"
     _append_markdown(out_path, review, day=day)
     return {
         "path": str(out_path.relative_to(root)),

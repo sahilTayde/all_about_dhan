@@ -3,8 +3,7 @@
 **Date (UTC):** 2026-09-06  
 **Model:** `gpt-6-astra` (`OPENAI_MODEL`; key never logged)  
 **Verdict:** `APPROVE_WITH_GUARDRAILS`  
-**Raw JSON:** [`data/recon/ASTRA_DASHBOARD_UX_2026-09-06.json`](../../../data/recon/ASTRA_DASHBOARD_UX_2026-09-06.json)  
-**Pointer:** [`teams/07_ui/docs/ASTRA_DASHBOARD_REVIEW.md`](../../07_ui/docs/ASTRA_DASHBOARD_REVIEW.md)  
+**Raw JSON:** gitignored `data/recon/` (Astra UX dump not kept in git)  
 **Customer rules:** [`CUSTOMER_TALK.md`](../../05_analysis/docs/CUSTOMER_TALK.md) · [`CUSTOMER_TICKET.md`](../../05_analysis/docs/CUSTOMER_TICKET.md)  
 **Gate:** **not** `RESEARCH_READY_FOR_PROGRAMMING`. **No live orders.** Confidence ≠ win rate.
 

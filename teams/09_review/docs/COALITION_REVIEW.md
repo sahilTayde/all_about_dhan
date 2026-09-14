@@ -195,4 +195,4 @@ Verdict:    NOTES_ONLY
 
 ## Verdict
 
-**Notes only. Not a pass.** OPTIONS + TA + equity packets are honest enough to keep as `SOURCE_FACT`. 14 index STRATs stay `UNVALIDATED`. ENGINE_MIX is a named `HYPOTHESIS` club — **not** `RESEARCH_READY_FOR_PROGRAMMING` ([`ENGINE_MIX_REVIEW.md`](ENGINE_MIX_REVIEW.md)). Algo agents may study the **YAML schema** in `ALGO_HANDOFF.md`. They may not implement. Prior scratch list still stands: [`RESEARCH_REVIEW_NOTES.md`](RESEARCH_REVIEW_NOTES.md).
+**Notes only. Not a pass.** OPTIONS + TA + equity packets are honest enough to keep as `SOURCE_FACT`. 14 index STRATs stay `UNVALIDATED`. ENGINE_MIX is a named `HYPOTHESIS` club — **not** `RESEARCH_READY_FOR_PROGRAMMING` ([`ENGINE_MIX_REVIEW.md`](ENGINE_MIX_REVIEW.md)). Algo agents may study the **YAML schema** in `ALGO_HANDOFF.md`. They may not implement.

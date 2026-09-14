@@ -92,6 +92,7 @@ def make_tree(root: Path, *, chain: str = "3m", agent: str | None = None, master
     _write(root, "PLAN.md", plan if plan is not None else _good_plan())
     _write(root, "docs/MASTER_REQUIREMENTS.md", master if master is not None else _good_master())
     _write(root, "docs/HANDOFF.md", "# HANDOFF\n")
+    _write(root, "docs/FILE_CREATION.md", "# File creation\nAllowlist only.\n")
     _write(root, "config/workspace.yaml", _workspace_yaml(chain=chain))
     _write(
         root,

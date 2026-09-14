@@ -24,6 +24,6 @@ Exit **0** if pass, **1** if any `MISSING` / `STALE` / `CONTRADICTS`. Writes `te
 
 ## What it checks
 
-Required files, AGENT.md key phrases (CAS, IN-PROGRESS, RETUNE, 3m chain, customer vs `/desk`), manager sheet vs stub, `chain_interval: 3m`, `RETUNE_GATE.md`, `cas/RESEARCH.md`, signal states vs `schema.py`, `ExecutionClient` refuses orders, team HANDOFFs, company board drift vs the score sheet.
+Required files, `docs/FILE_CREATION.md`, AGENT.md key phrases (CAS, IN-PROGRESS, RETUNE, 3m chain, customer vs `/desk`), manager sheet vs stub, `chain_interval: 3m`, `RETUNE_GATE.md`, `cas/RESEARCH.md`, signal states vs `schema.py`, `ExecutionClient` refuses orders, team HANDOFFs, company board drift vs the score sheet.
 
 Does **not** claim the tree is already perfect. First runs often fail on purpose.

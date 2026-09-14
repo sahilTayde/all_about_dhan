@@ -36,8 +36,7 @@ python -m trading_agents_india personas
 python -m trading_agents_india review-plan
 ```
 
-Runbook: [`teams/00_orchestrator/docs/PAPER_MARKET_HOURS_RUNBOOK.md`](../../teams/00_orchestrator/docs/PAPER_MARKET_HOURS_RUNBOOK.md)  
-Astra review: [`teams/00_orchestrator/docs/open_ai_astra_review.md`](../../teams/00_orchestrator/docs/open_ai_astra_review.md)
+Runbook: [`teams/00_orchestrator/docs/PAPER_MARKET_HOURS_RUNBOOK.md`](../../teams/00_orchestrator/docs/PAPER_MARKET_HOURS_RUNBOOK.md)
 
 ## KB + ledger
 
@@ -67,5 +66,4 @@ Paper rollups stay **`NO_PROMOTE`**. Not `RESEARCH_READY_FOR_PROGRAMMING` until 
 
 ## Mapping
 
-See [`teams/00_orchestrator/docs/ADOPT_TRADINGAGENTS.md`](../../teams/00_orchestrator/docs/ADOPT_TRADINGAGENTS.md)  
-and [`OPENAI_DESIGN_COUNCIL_2026-09-06.md`](../../teams/00_orchestrator/docs/OPENAI_DESIGN_COUNCIL_2026-09-06.md).
+See [`teams/00_orchestrator/docs/ADOPT_TRADINGAGENTS.md`](../../teams/00_orchestrator/docs/ADOPT_TRADINGAGENTS.md).

@@ -47,7 +47,7 @@ Exit **0** if pass, **1** if stale. First runs may FAIL (e.g. `PLAN.md` vs score
 
 | Check | Pass when |
 |-------|-----------|
-| Required files | `AGENT.md`, manager sheet, `RETUNE_GATE.md`, `cas/RESEARCH.md`, team HANDOFFs, … |
+| Required files | `AGENT.md`, manager sheet, `FILE_CREATION.md`, `RETUNE_GATE.md`, `cas/RESEARCH.md`, team HANDOFFs, … |
 | AGENT.md phrases | CAS, IN-PROGRESS, RETUNE, 3m chain, customer vs `/desk`, Docs Auditor |
 | Manager sheet | Real scorecard — not the HANDOFF stub |
 | `chain_interval` | `3m` in `config/workspace.yaml` |

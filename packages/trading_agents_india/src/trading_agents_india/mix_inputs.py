@@ -26,7 +26,7 @@ PAPER_INPUT_MIXES = (
 _PHD_NOTE_RELS = (
     "teams/02_phd_math/docs/CF_USMAN_BRANDO_MATH_NOTES.md",
     "teams/03_phd_market/docs/CF_USMAN_BRANDO_MARKET_NOTES.md",
-    "teams/09_review/docs/TRADINGAGENTS_DEEPEN_NOTES_2026-09-06.md",
+    "teams/09_review/docs/ENGINE_MIX_REVIEW.md",
 )
 
 

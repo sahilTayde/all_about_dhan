@@ -16,6 +16,8 @@ Read in order:
 1. docs/MASTER_REQUIREMENTS.md
 2. teams/00_orchestrator/docs/CONTINUE_NEXT_CHAT.md
 3. AGENT.md
+4. docs/FILE_CREATION.md
+Do not glob markdown. Do not create extra CONTINUE/HANDOFF/NOTES dumps.
 
 Gate: NOT RESEARCH_READY_FOR_PROGRAMMING. PAPER only. NO_PROMOTE. STRATs UNVALIDATED. Dashboard P/L is MOCK. No live orders. Do not restart npm / Vite / paper ops until I ask. Never print secrets.
 
@@ -96,11 +98,9 @@ Do not start the paper loop unless founder asks. If they do: `--no-gather-news -
 | Slice | Pointer |
 |-------|---------|
 | Overnight archives (CF) | **Removed** 2026-09-09 DhanHQ-only reset. |
-| Process P0/P1 2026-09-07 | `data/recon/PROCESS_FIXES_SHIPPED_2026-09-07.md` |
-| Paper-agents rollup | [`BACKTEST_PAPER_AGENTS_2026-09-08.md`](../../06_backtesting/docs/BACKTEST_PAPER_AGENTS_2026-09-08.md) — **NO_PROMOTE** |
-| 00 HANDOFF log | [`HANDOFF.md`](../HANDOFF.md) (newest first) |
-
-CF ASR fail queue still exists (`RETRY_TOMORROW.md`). Not the next default ticket.
+| File names | [`docs/FILE_CREATION.md`](../../../docs/FILE_CREATION.md) — do not create extra CONTINUE/HANDOFF dumps |
+| Paper-agents rollup | [`BACKTEST_PAPER_AGENTS_2026-09-10.md`](../../06_backtesting/docs/BACKTEST_PAPER_AGENTS_2026-09-10.md) — **NO_PROMOTE** |
+| 00 HANDOFF log | [`HANDOFF.md`](../HANDOFF.md) (newest **block** only) |
 
 ---
 
@@ -115,6 +115,7 @@ CF ASR fail queue still exists (`RETRY_TOMORROW.md`). Not the next default ticke
 | Boss | `teams/00_orchestrator/docs/BOSS_AGENT.md` |
 | MIX catalog | `teams/04_quant/docs/MIX_CATALOG.md` |
 | Docs auditor | `python -m docs_auditor` |
+| File names | [`docs/FILE_CREATION.md`](../../../docs/FILE_CREATION.md) |
 
 **KEEP_ALL:** STRAT-001–014 stay `BACKTEST_BOOK` / `UNVALIDATED`. No STRAT-015+. Confidence ≠ win rate.  
 `MIX-CLUB-GR` after-cost NIFTY 44.4% — **FAIL promote**.

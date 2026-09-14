@@ -27,7 +27,7 @@ Five-pass review + red-team **before any coding of a strategy**. Issue `RESEARCH
 
 ## Current status
 
-Open issues only: [`docs/RESEARCH_REVIEW_NOTES.md`](docs/RESEARCH_REVIEW_NOTES.md). Missed-trade notes: [`docs/MISSED_TRADE_POSTMORTEM.md`](docs/MISSED_TRADE_POSTMORTEM.md). Standing Docs Auditor: [`docs/DOCS_AUDITOR.md`](docs/DOCS_AUDITOR.md) — `python -m docs_auditor` after requirement changes and nightly. **No pass.**
+Open issues: [`docs/KEEP_ALL_REVIEW.md`](docs/KEEP_ALL_REVIEW.md) · [`docs/COALITION_REVIEW.md`](docs/COALITION_REVIEW.md). Missed-trade notes: [`docs/MISSED_TRADE_POSTMORTEM.md`](docs/MISSED_TRADE_POSTMORTEM.md). Standing Docs Auditor: [`docs/DOCS_AUDITOR.md`](docs/DOCS_AUDITOR.md) — `python -m docs_auditor` after requirement changes and nightly. **No pass.** File names: [`docs/FILE_CREATION.md`](../../docs/FILE_CREATION.md).
 
 ## As of now (2026-09-01) / your prerequisite
 

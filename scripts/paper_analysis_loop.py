@@ -369,7 +369,7 @@ def _write_attention_queue(day: str, di: dict, level_bugs: list, items: list) ->
         "## Explicit no-ship",
         "",
         "This analysis loop does **not** open PRs, patch fixtures, or bind STRAT evaluators.",
-        "See `PROCESS_FIXES_SHIPPED_*.md` / CONTINUE_NEXT_CHAT for what actually shipped.",
+        "See `docs/FILE_CREATION.md` / CONTINUE_NEXT_CHAT for what actually shipped.",
         "",
     ]
     path.write_text("\n".join(lines), encoding="utf-8")
@@ -410,7 +410,7 @@ def _write_founder_digest(day: str, di: dict, level_bugs: list, bt: dict) -> Pat
         f"- Top P0: {top_p0}",
         f"- Level bugs this pass: {len(level_bugs)} (scan only — no auto-patch)",
         f"- paper-backtest ok: {bt.get('ok')} rc={bt.get('returncode')}",
-        "- Shipped: `data/recon/PROCESS_FIXES_SHIPPED_2026-09-07.md`",
+        "- Shipped: `teams/00_orchestrator/docs/CONTINUE_NEXT_CHAT.md`",
         f"- Snapshot: `{LATEST_SIGNALS.name}` · EOD: `python -m agent_rag eod-recon --day {day} --offline`",
         "",
     ]

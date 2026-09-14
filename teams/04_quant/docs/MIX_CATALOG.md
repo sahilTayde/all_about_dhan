@@ -789,7 +789,7 @@ Founder reset 2026-09-09: all `MIX-CF-*` (including Okala-IN) deleted from the w
 
 **Date:** 2026-09-06  
 **Origin:** [TauricResearch/TradingAgents](https://github.com/TauricResearch/TradingAgents) (Apache-2.0) adapted for NSE index options.  
-**Council:** [`OPENAI_DESIGN_COUNCIL_2026-09-06.md`](../../00_orchestrator/docs/OPENAI_DESIGN_COUNCIL_2026-09-06.md)  
+**Council:** [`ADOPT_TRADINGAGENTS.md`](../../00_orchestrator/docs/ADOPT_TRADINGAGENTS.md) (`APPROVE_WITH_GUARDRAILS`; session dump not kept)  
 **Adopt:** [`ADOPT_TRADINGAGENTS.md`](../../00_orchestrator/docs/ADOPT_TRADINGAGENTS.md)  
 **Package:** `packages/trading_agents_india`  
 **Policy:** KEEP_ALL. **Not** customer default. Paper-watch **alongside** `MIX-DEFAULT-BUY`. No STRAT-015+. Metrics **null**. Not a promote.
@@ -811,7 +811,7 @@ of_required: false
 not_merged_into: [MIX-DEFAULT-BUY, STRAT-001, STRAT-002, STRAT-003]
 docs:
   - teams/00_orchestrator/docs/ADOPT_TRADINGAGENTS.md
-  - teams/00_orchestrator/docs/OPENAI_DESIGN_COUNCIL_2026-09-06.md
+  - teams/00_orchestrator/docs/ADOPT_TRADINGAGENTS.md
 ```
 
 ```yaml
@@ -829,7 +829,7 @@ of_required: false
 not_merged_into: [MIX-DEFAULT-BUY, MIX-TA-FLOW-RISK]
 docs:
   - teams/06_backtesting/docs/EVENT_MEMORY.md
-  - teams/00_orchestrator/docs/OPENAI_DESIGN_COUNCIL_2026-09-06.md
+  - teams/00_orchestrator/docs/ADOPT_TRADINGAGENTS.md
 ```
 
 ```yaml

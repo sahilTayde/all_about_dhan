@@ -135,7 +135,7 @@ def cmd_market_hours(args: argparse.Namespace) -> int:
 
 
 def cmd_review_plan(args: argparse.Namespace) -> int:
-    """Ask OpenAI to review the adoption design; write notes under teams/09_review/docs/."""
+    """Ask OpenAI to review the adoption design; write gitignored `data/recon/` notes."""
     from trading_agents_india.config import load_settings
     from trading_agents_india.llm import LlmClient
     from trading_agents_india.review import build_review_markdown, run_frontier_review
@@ -146,7 +146,7 @@ def cmd_review_plan(args: argparse.Namespace) -> int:
         Path(args.out)
         if args.out
         else settings.repo_root
-        / "teams/09_review/docs/TRADINGAGENTS_ADOPTION_REVIEW_2026-09-06.md"
+        / "data/recon/TRADINGAGENTS_ADOPTION_REVIEW.md"
     )
     adopt_text = adopt_path.read_text(encoding="utf-8") if adopt_path.is_file() else ""
     llm = LlmClient(settings.openai_model, enabled=True)

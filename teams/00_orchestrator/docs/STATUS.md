@@ -34,7 +34,7 @@ No secrets recorded here.
 |--------|--------|-------|
 | Bootstrap (Phase 0 tree) | **Done** | teams 00–09, apps/, packages/, master docs. `.git` still absent. |
 | YouTube extractor | **Done (retry)** | Catalog 2034. 12 related transcripts + 44 `tlang=en`. Parked 4 stay parked. |
-| SOURCE_FACT (01) | **Partial DRAFT** | OPTIONS_INDEX English packet **done** 2026-09-03. EQUITY English **second pass** (scanners/BTST/swing). Catalog `STOCK_ONLY` **9** still no EN. See `HANDOFF_TOMORROW.md`. |
+| SOURCE_FACT (01) | **Partial DRAFT** | OPTIONS_INDEX English packet **done** 2026-09-03. EQUITY English **second pass** (scanners/BTST/swing). Catalog `STOCK_ONLY` **9** still no EN. See `CONTINUE_NEXT_CHAT.md`. |
 | VALIDATION (02/03) | **Partial DRAFT** | Math + India market + desk notes. Lots/session VERIFY. |
 | Quant specs (04) | **v0.1 DRAFT** | 14 candidates, UNVALIDATED. **No win rates.** Coalition banner + `ALGO_HANDOFF.md` (shape only). |
 | Transcript coalition | **IN_PROGRESS** | OPTIONS + TA + equity packets on disk (09 notes only). Equity/ETF separate book. Still not `RESEARCH_READY_FOR_PROGRAMMING`. |
@@ -86,7 +86,7 @@ No secrets recorded here.
 1. [`docs/MASTER_REQUIREMENTS.md`](../../../docs/MASTER_REQUIREMENTS.md)
 2. [`CONTINUE_NEXT_CHAT.md`](CONTINUE_NEXT_CHAT.md) — 2026-09-08 left-off
 3. [`REVIEW_BRIEF_FOR_FRONTIER_MODEL.md`](REVIEW_BRIEF_FOR_FRONTIER_MODEL.md)
-4. [`HANDOFF_TOMORROW.md`](HANDOFF_TOMORROW.md) — 2026-09-01 history
+4. [`docs/FILE_CREATION.md`](../../../docs/FILE_CREATION.md)
 5. [`docs/SDLC.md`](../../../docs/SDLC.md)
 6. [`AGENT.md`](../../../AGENT.md)
 

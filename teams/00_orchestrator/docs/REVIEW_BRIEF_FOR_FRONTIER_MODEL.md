@@ -28,7 +28,7 @@
 | **`STRAT-001`–`014`** | [`MASTER_STRATEGY_PLAN.md`](../../04_quant/docs/MASTER_STRATEGY_PLAN.md) v0.1 **DRAFT / UNVALIDATED**. No backtests. **No win rates.** Do not rank them. |
 | **Dashboard numbers** | [`apps/web`](../../../apps/web/README.md) book, sentiment, levels, P/L, mock tabs (NIFTY IN-PROGRESS / BANKNIFTY ACHIEVED / SENSEX INVALIDATED) are **MOCK**. |
 | **`CasPanel` bias** | Bound to mock `cas.byUnderlying`. Analyst JSON for 2026-09-01 is research-only SIDEWAYS, confidence 0.20, `realized_bias: null`. |
-| **Nightly recon P/L** | [`NIGHTLY_2026-09-02.md`](../../02_phd_math/docs/handoffs/NIGHTLY_2026-09-02.md) is a **stub run** (zeros / EXPIRED fixtures) and **predates** the retune-gate schema. Not a track record. |
+| **Nightly recon P/L** | Dated nightly markdown is a **stub run** (zeros / EXPIRED fixtures) unless the latest packet says otherwise. Not a track record. Re-run `python -m desk_intel nightly --offline`. Latest: [`NIGHTLY_2026-09-10.md`](../../02_phd_math/docs/handoffs/NIGHTLY_2026-09-10.md). |
 | **`RETUNE_PROPOSAL`** | Status `BACKTEST_REQUIRED` means **queue for 06**, not “params updated.” `backtest_results` must stay `null` until an engine exists. |
 | **Sentiment 10m/15m/30m/1h** | Schema slots. **Not** measured rolling windows. |
 | **GIFT Nifty / SGX / pre-open** | YAML VERIFY URLs + `--offline` fixtures. Not live quotes. |

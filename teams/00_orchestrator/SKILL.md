@@ -14,6 +14,7 @@ Core docs:
 - [`FOUNDER_PM.md`](docs/FOUNDER_PM.md)
 - [`BOSS_AGENT.md`](docs/BOSS_AGENT.md)
 - [`COMPANY_DEPARTMENTS.md`](../../docs/COMPANY_DEPARTMENTS.md)
+- [`FILE_CREATION.md`](../../docs/FILE_CREATION.md)
 
 ## PM Duties
 

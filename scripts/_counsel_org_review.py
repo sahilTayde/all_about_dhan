@@ -11,7 +11,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-OUT = ROOT / "teams/00_orchestrator/docs/COUNSEL_ORG_2026-09-09.md"
+OUT = ROOT / "data/recon/COUNSEL_ORG_REVIEW.md"
 _CTX = ssl.create_default_context()
 
 

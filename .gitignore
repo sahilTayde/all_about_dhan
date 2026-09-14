@@ -62,3 +62,10 @@ data/**/audio/*.m4a
 .cache/
 **/yt-dlp-cache/
 **/.huggingface/
+
+# Scratch / agent dumps — never commit
+today_gemini*
+yesterday_gemini*
+*_laerning.txt
+teams/07_ui/
+

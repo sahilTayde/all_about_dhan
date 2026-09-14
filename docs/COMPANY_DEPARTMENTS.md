@@ -2,7 +2,7 @@
 
 **Product class:** India index-options **signal company** (Stratzy / Algoji / GoCharting Quantman *class*). Working name still **all_about_dhan**. Broker **DhanHQ only**. First book: NIFTY / BANKNIFTY / SENSEX CE/PE **buy** tickets.
 
-**00 ruling after Gemini + OpenAI counsel** ([`COUNSEL_ORG_2026-09-09.md`](../teams/00_orchestrator/docs/COUNSEL_ORG_2026-09-09.md), [`COUNSEL_SCALE_2026-09-09.md`](../teams/00_orchestrator/docs/COUNSEL_SCALE_2026-09-09.md), [`COUNSEL_SKILLS_2026-09-09.md`](../teams/00_orchestrator/docs/COUNSEL_SKILLS_2026-09-09.md)): both said **AGREE_WITH_CAVEATS** / aligned. We **do not delete or renumber** teams `00`–`09`. We **overlay five departments**. Gate stays **not** `RESEARCH_READY_FOR_PROGRAMMING`. **No live orders.** Dashboard P/L stays **MOCK** until a real book exists. Counsel does **not** invent buy/sell.
+**00 ruling after Gemini + OpenAI counsel** ([`COUNSEL_LLM.md`](../teams/00_orchestrator/docs/COUNSEL_LLM.md)): both said **AGREE_WITH_CAVEATS** / aligned. We **do not delete or renumber** teams `00`–`09`. We **overlay five departments**. Gate stays **not** `RESEARCH_READY_FOR_PROGRAMMING`. **No live orders.** Dashboard P/L stays **MOCK** until a real book exists. Counsel does **not** invent buy/sell. New files: [`FILE_CREATION.md`](FILE_CREATION.md).
 
 **How to read this file:** founder + PM first. Team IDs stay the engineering backbone. Founder requirement trace: [`FOUNDER_REQUIREMENTS_TRACE.md`](FOUNDER_REQUIREMENTS_TRACE.md).
 
