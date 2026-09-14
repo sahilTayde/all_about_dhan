@@ -49,8 +49,7 @@
         "tv_url": { "type": "string" },
         "adapter": {
           "type": "string",
-          "enum": ["sma_cross", "macd_hist", "stub"],
-          "description": "Python adapter id. stub = DATA_INSUFFICIENT until ported."
+          "description": "Python adapter id. stub only for unassigned future slots."
         },
         "input_schema": {
           "type": "object",

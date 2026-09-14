@@ -76,6 +76,7 @@ def simulate_leans(
             pos = None
             continue
         if pos is not None:
+            # EXIT / opposite CE|PE flatten. HOLD also leaves the stack (reaffirm model).
             if lean != pos:
                 fill = _fill_open(bars, i)
                 if fill is None:
@@ -119,6 +120,7 @@ def simulate_leans(
         if allow_entry is not None and (i >= len(allow_entry) or not allow_entry[i]):
             continue
         if lean not in ("CE", "PE"):
+            # EXIT / HOLD / unknown: no new entry (long-only sell is flatten-only).
             continue
         fill = _fill_open(bars, i)
         if fill is None:

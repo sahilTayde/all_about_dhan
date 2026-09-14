@@ -13,7 +13,7 @@ from dhan_client.config import repo_root
 CATALOG_REL = Path("refernece_tradingview") / "editors_picks" / "catalog.json"
 MIX_RE = re.compile(r"^MIX-TV-EP-\d{3,}$")
 EP_RE = re.compile(r"^EP-\d{3,}$")
-ALLOWED_ADAPTERS = frozenset({"sma_cross", "macd_hist", "stub"})
+ADAPTER_ID_RE = re.compile(r"^[a-z][a-z0-9_]{0,40}$")
 
 
 @dataclass(frozen=True)
@@ -83,7 +83,7 @@ def _entry(raw: dict[str, Any]) -> CatalogEntry:
         raise ValueError(f"bad ep_id {ep_id}")
     if not mix_id_ok(mix_id):
         raise ValueError(f"bad mix_id {mix_id} — use MIX-TV-EP-NNN not STRAT-015+")
-    if adapter not in ALLOWED_ADAPTERS:
+    if not ADAPTER_ID_RE.match(adapter):
         adapter = "stub"
     schema_raw = raw.get("input_schema") or {}
     schema: dict[str, ParamSpec] = {}

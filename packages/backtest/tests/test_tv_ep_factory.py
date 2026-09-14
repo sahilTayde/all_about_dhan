@@ -16,9 +16,13 @@ def test_mix_ids_are_tv_ep_not_strat() -> None:
     assert entries
     assert all(e.mix_id.startswith("MIX-TV-EP-") for e in entries)
     assert all(e.adapter in ADAPTERS for e in entries)
-    assert any(e.adapter == "stub" for e in entries)
+    assert all(e.adapter != "stub" or int(e.ep_id.split("-")[1]) > 25 for e in entries)
     assert "sma_cross" in ADAPTERS
     assert any(e.adapter == "sma_cross" for e in entries)
+    assert any(e.adapter == "ag_sell" for e in entries)
+    for name in ("ag_sell", "trendmaster_ma", "double_tap", "pmax", "gap_fill"):
+        assert name in ADAPTERS
+        assert ADAPTERS[name].ported
 
 
 def test_registry_sma_and_stub() -> None:
@@ -62,9 +66,7 @@ def test_fixture_grid_emits_rows_without_dhan(tmp_path: Path) -> None:
     mix_ids = {c["mix_id"] for c in cells}
     assert any(i.startswith("MIX-TV-EP-") for i in mix_ids)
     stubs = [c for c in cells if c["adapter"] == "stub"]
-    assert stubs
-    assert all(c["status"] == "DATA_INSUFFICIENT" for c in stubs)
-    assert all(c["gap"] for c in stubs)
+    assert not stubs
     ported = [c for c in cells if c["adapter"] != "stub"]
     assert any(c["trade_count"] >= 0 for c in ported)
     assert any(c["status"] in ("WATCH", "TESTED_FAIL", "PARK", "DATA_INSUFFICIENT") for c in ported)
@@ -78,6 +80,22 @@ def test_fixture_grid_emits_rows_without_dhan(tmp_path: Path) -> None:
     md = tmp_path / "data" / "recon" / "tv_ep_leaderboard.md"
     assert board.is_file() and md.is_file()
     assert "NO_PROMOTE" in md.read_text(encoding="utf-8")
+
+
+def test_listing_adapters_fire_on_fixture() -> None:
+    bars = fixture_bars()[("NIFTY", "INDEX")]
+    from backtest_engine.tv_ep.ports import PORT_FNS
+
+    for name, params in (
+        ("ag_sell", {"MA_length": 40, "ATR_length": 20, "ATR_factor": 2.5}),
+        ("trendmaster_ma", {"Short_Term_MA_Length": 9, "Long_Term_MA_Length": 21}),
+        ("double_tap", {"Pivot_Length": 20, "Pivot_Tolerance": 15}),
+        ("pmax", {"ATR_Length": 10, "ATR_Multiplier": 3.0, "Moving_Average_Length": 10}),
+        ("gap_fill", {"invert": 0}),
+    ):
+        leans = PORT_FNS[name](bars, params)
+        assert len(leans) == len(bars)
+        assert set(leans) <= {"CE", "PE", "HOLD"}
 
 
 def test_cell_status_never_promote() -> None:
