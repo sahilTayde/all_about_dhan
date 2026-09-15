@@ -21,7 +21,7 @@ Do not glob markdown. Do not create extra CONTINUE/HANDOFF/NOTES dumps.
 
 Gate: NOT RESEARCH_READY_FOR_PROGRAMMING. PAPER only. NO_PROMOTE. STRATs UNVALIDATED. Dashboard P/L is MOCK. No live orders. Do not restart npm / Vite / paper ops until I ask. Never print secrets.
 
-Left off 2026-09-15 ~10:45 IST: cash OPEN. Dual-tape PID 74510 kept (--live-chain --tick-seconds 45 --max-ticks 0, llm false). Overlay waiter 72493 until 15:35 IST. Session overlay HOLD (NIFTY PREMIUM_DIVERGENCE HOLD; BN/SX WATCH_ONLY; ML-002 DI window 90). Paper fills 0. OKLA string UNKNOWN; Okala CLI removed 2026-09-09 (exit 2). Concurrent paper loops: desk_ml book-tune/fit/mrr/score, TV-EP paper-tune+grid, signal_lab, lean MIX/STRAT eval, backtest_engine books/project/scan — PIDs in data/recon/founder_live_loops.json. Stop dual-tape: touch data/recon/paper_dual_tape_STOPPED.flag. Stop extra loops: touch data/recon/founder_eval_STOPPED.flag. NO_PROMOTE. No Super Orders. Do not git-add sqlite. Watch: tail -f data/recon/dual_tape_session_2026-09-15.log
+Left off 2026-09-15 ~10:47 IST: cash OPEN. Dual-tape PID 74510 kept. Overlay waiter 72493. Eval loops respawned detached (subagent exit killed 82167–82172): monitor 82631, ML 82632, TV-EP 82633, Okala 82634, signal_lab 82635, STRAT 82636. Overlay HOLD. Paper fills 0. OKLA UNKNOWN; Okala CLI removed. origin/main 6cab1f6. Stop dual-tape: touch data/recon/paper_dual_tape_STOPPED.flag. Stop extra loops: touch data/recon/founder_eval_STOPPED.flag. NO_PROMOTE. Watch: tail -f data/recon/dual_tape_session_2026-09-15.log
 
 Left off 2026-09-15 (next chat): pre-market readiness. At 09:15 IST run paper dual-tape + desk_ml overlay. NO_PROMOTE. OpenAI ACCEPT_WITH_CAVEATS is paper only. No Super Orders. No live orders. Local sqlite — do not git-add.
 
@@ -38,11 +38,11 @@ Left off 2026-09-13: ITM champion PAPER board ready (MIX-CHAMP-* + desk leaderbo
 | Git | Fast-forward `main` ← `cursor/live-paper-ml-tape-3203` (`e8d99cc`). Premarket unique commits **not** merged (CONTINUE already superseded); `scripts/paper_ops_monitor.py` dual-tape snapshot taken from `cursor/premarket-paper-dual-tape-a7a0`. Local sqlite **not** pushed. |
 | Dual-tape | PID **74510** kept · `--live-chain --tick-seconds 45 --max-ticks 0` · **llm false** · orders refused |
 | Overlay waiter | PID **72493** · `desk_ml overlay --source dual-tape` every 90s until **15:35 IST** |
-| Canvas | PID **82167** · `scripts/paper_ops_monitor.py --interval 25` (restarted after dual-tape snapshot merge) |
+| Canvas | PID **82631** · `scripts/paper_ops_monitor.py --interval 25` (respawned detached after 82167 died) |
 | Overlay | Session **HOLD**. NIFTY ML-001 `PREMIUM_DIVERGENCE` HOLD. BANKNIFTY `REGIME_OK` WATCH_ONLY. SENSEX `REGIME_OK` WATCH_ONLY. ML-002 **DATA_INSUFFICIENT** (window 90). `production_params_written` false |
 | Paper fills | **0** |
 | OKLA | **UNKNOWN** as `OKLA`. **Okala** exists as removed CF CLI (`okala-in` / `okala-signal` → stderr + exit 2). Not a named MIX loop. |
-| Extra loops | ML **82168** · TV-EP **82169** · Okala idle **82170** · signal_lab **82171** · STRAT/MIX dry **82172**. JSON: `data/recon/founder_live_loops.json`. Stop: `touch data/recon/founder_eval_STOPPED.flag` |
+| Extra loops | ML **82632** · TV-EP **82633** · Okala idle **82634** · signal_lab **82635** · STRAT/MIX dry **82636**. JSON: `data/recon/founder_live_loops.json`. Stop: `touch data/recon/founder_eval_STOPPED.flag` |
 | Super Orders | **NO** |
 | Promote | **NO_PROMOTE** |
 
