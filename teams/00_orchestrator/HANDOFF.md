@@ -2,6 +2,26 @@
 
 **Agents:** read **only the newest block**. Do not ingest this whole log. New files: [`docs/FILE_CREATION.md`](../../docs/FILE_CREATION.md). Append here — do not create `HANDOFF_TOMORROW.md` or extra `CONTINUE_*`.
 
+## As of now (2026-09-15 ~10:45 IST) — push main + concurrent paper loops (NO_PROMOTE)
+
+```text
+From:     teams/00_orchestrator (founder desk)
+To:       founder / 04 / 06 / 05 / 09
+Date:     2026-09-15 ~10:45 IST
+Status:   PAPER / HYPOTHESIS / NO_PROMOTE / ORDERS REFUSED
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: Fast-forward main to live-paper e8d99cc; keep dual-tape 74510
+  (llm false); overlay waiter 72493; start concurrent paper eval loops
+  (desk_ml / TV-EP / signal_lab / lean+STRAT / books). KEEP_ALL 001–014.
+Rejected: Live Dhan orders / Super Orders; promote; auto-retune;
+  restarting npm / old LLM paper_ops; force-push; git-add sqlite.
+UNKNOWN: OKLA as a named MIX (search miss). Okala CLI removed 2026-09-09.
+  Premarket branch unique HANDOFF commits not merged (stale vs 09:40).
+Next backtestable: same as 09:40 — persist dual-tape 1m triples for
+  ML-002 window 90; walk-forward TV-EP 018/DEFAULT-BUY on OPTIDX OHLC.
+```
+
 ## As of now (2026-09-15 ~09:40 IST) — live paper test/tune (NO_PROMOTE)
 
 ```text

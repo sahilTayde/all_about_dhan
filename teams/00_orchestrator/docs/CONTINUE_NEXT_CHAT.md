@@ -21,7 +21,7 @@ Do not glob markdown. Do not create extra CONTINUE/HANDOFF/NOTES dumps.
 
 Gate: NOT RESEARCH_READY_FOR_PROGRAMMING. PAPER only. NO_PROMOTE. STRATs UNVALIDATED. Dashboard P/L is MOCK. No live orders. Do not restart npm / Vite / paper ops until I ask. Never print secrets.
 
-Left off 2026-09-15 ~09:40 IST: paper dual-tape PID 74510 live INDEX+ATM (tick ~25). Overlay session HOLD (BN PREMIUM_DIVERGENCE; NIFTY IF_OUTLIER WATCH_ONLY). 0 paper fills. Live confirm notes 34 / HOLD notes 38 on ticks ≥09:15 — NOT a win rate. ML-002 dual-tape DATA_INSUFFICIENT (need ≥90 aligned triples). TV-EP paper-tune on same-tick LTP clones: most MIX 0 trades; 018/010/009/DEFAULT-BUY opened MOCK tickets with 0 wins. NO_PROMOTE. No Super Orders. Local sqlite — do not git-add. Watch: tail -f data/recon/dual_tape_session_2026-09-15.log
+Left off 2026-09-15 ~10:45 IST: cash OPEN. Dual-tape PID 74510 kept (--live-chain --tick-seconds 45 --max-ticks 0, llm false). Overlay waiter 72493 until 15:35 IST. Session overlay HOLD (NIFTY PREMIUM_DIVERGENCE HOLD; BN/SX WATCH_ONLY; ML-002 DI window 90). Paper fills 0. OKLA string UNKNOWN; Okala CLI removed 2026-09-09 (exit 2). Concurrent paper loops: desk_ml book-tune/fit/mrr/score, TV-EP paper-tune+grid, signal_lab, lean MIX/STRAT eval, backtest_engine books/project/scan — PIDs in data/recon/founder_live_loops.json. Stop dual-tape: touch data/recon/paper_dual_tape_STOPPED.flag. Stop extra loops: touch data/recon/founder_eval_STOPPED.flag. NO_PROMOTE. No Super Orders. Do not git-add sqlite. Watch: tail -f data/recon/dual_tape_session_2026-09-15.log
 
 Left off 2026-09-15 (next chat): pre-market readiness. At 09:15 IST run paper dual-tape + desk_ml overlay. NO_PROMOTE. OpenAI ACCEPT_WITH_CAVEATS is paper only. No Super Orders. No live orders. Local sqlite — do not git-add.
 
@@ -29,6 +29,22 @@ Left off 2026-09-13: ITM champion PAPER board ready (MIX-CHAMP-* + desk leaderbo
 ```
 
 ---
+
+## Left-off 2026-09-15 ~10:45 IST — founder push main + concurrent paper loops (NO_PROMOTE)
+
+| Topic | State |
+|-------|--------|
+| IST | **Tue 2026-09-15 ~10:45** — cash **OPEN**; directional paper **09:30–15:00** |
+| Git | Fast-forward `main` ← `cursor/live-paper-ml-tape-3203` (`e8d99cc`). Premarket unique commits **not** merged (CONTINUE already superseded); `scripts/paper_ops_monitor.py` dual-tape snapshot taken from `cursor/premarket-paper-dual-tape-a7a0`. Local sqlite **not** pushed. |
+| Dual-tape | PID **74510** kept · `--live-chain --tick-seconds 45 --max-ticks 0` · **llm false** · orders refused |
+| Overlay waiter | PID **72493** · `desk_ml overlay --source dual-tape` every 90s until **15:35 IST** |
+| Canvas | `scripts/paper_ops_monitor.py --interval 25` — restart if needed after monitor.py merge |
+| Overlay | Session **HOLD**. NIFTY ML-001 `PREMIUM_DIVERGENCE` HOLD. BANKNIFTY `REGIME_OK` WATCH_ONLY. SENSEX `REGIME_OK` WATCH_ONLY. ML-002 **DATA_INSUFFICIENT** (window 90). `production_params_written` false |
+| Paper fills | **0** |
+| OKLA | **UNKNOWN** as `OKLA`. **Okala** exists as removed CF CLI (`okala-in` / `okala-signal` → stderr + exit 2). Not a named MIX loop. |
+| Extra loops | PIDs + stop: `data/recon/founder_live_loops.json` + `touch data/recon/founder_eval_STOPPED.flag` |
+| Super Orders | **NO** |
+| Promote | **NO_PROMOTE** |
 
 ## Left-off 2026-09-15 ~09:40 IST — live paper dual-tape + ML/TV paper tune (NO_PROMOTE)
 

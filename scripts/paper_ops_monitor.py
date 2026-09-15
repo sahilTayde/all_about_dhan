@@ -64,6 +64,95 @@ def _pid_alive(pid: int | None) -> bool:
         return False
 
 
+def _dual_tape_snapshot() -> dict:
+    """Founder dual-tape + desk_ml overlay (no LLM). Never invents fills."""
+    run_flag = RECON / "paper_dual_tape_RUNNING.flag"
+    stop_flag = RECON / "paper_dual_tape_STOPPED.flag"
+    latest_path = RECON / "paper_watch" / "DUAL-TAPE" / "latest.json"
+    overlay_path = RECON / "paper_watch" / "DUAL-TAPE" / "overlay_last.json"
+    notes_path = RECON / "paper_watch" / "DUAL-TAPE"
+    pid = None
+    tick_seconds = None
+    prefer_live = None
+    started = ""
+    if run_flag.exists():
+        try:
+            blob = json.loads(run_flag.read_text(encoding="utf-8"))
+            pid = blob.get("pid")
+            tick_seconds = blob.get("tick_seconds")
+            prefer_live = blob.get("prefer_live_chain")
+            started = str(blob.get("started_at_ist") or "")
+        except Exception:
+            pid = None
+    alive = _pid_alive(int(pid)) if pid else False
+    latest: dict = {}
+    if latest_path.exists():
+        try:
+            latest = json.loads(latest_path.read_text(encoding="utf-8"))
+        except Exception:
+            latest = {}
+    overlay: dict = {}
+    if overlay_path.exists():
+        try:
+            overlay = json.loads(overlay_path.read_text(encoding="utf-8"))
+        except Exception:
+            overlay = {}
+    desk = latest.get("desk") if isinstance(latest.get("desk"), list) else []
+    verdicts = []
+    for n in desk:
+        if isinstance(n, dict):
+            u = str(n.get("underlying") or "")
+            v = str(n.get("verdict") or n.get("reason_code") or "")
+            verdicts.append(f"{u}:{v}" if u else v)
+    unds = latest.get("underlyings") if isinstance(latest.get("underlyings"), list) else []
+    index_ltps = {}
+    stale_n = 0
+    for u in unds:
+        if not isinstance(u, dict):
+            continue
+        name = str(u.get("underlying") or "")
+        index_ltps[name] = u.get("index_ltp")
+        if u.get("stale"):
+            stale_n += 1
+    rows = overlay.get("rows") if isinstance(overlay.get("rows"), dict) else {}
+    overlay_bits = []
+    for name, row in rows.items():
+        if isinstance(row, dict):
+            overlay_bits.append(f"{name}:{row.get('session_action') or '?'}")
+    day_notes = ""
+    try:
+        from zoneinfo import ZoneInfo
+
+        day = datetime.now(ZoneInfo("Asia/Kolkata")).date().isoformat()
+        p = notes_path / f"{day}.notes.md"
+        if p.exists():
+            day_notes = str(p)
+    except Exception:
+        day_notes = ""
+    return {
+        "alive": alive,
+        "pid": pid,
+        "stop_flag": stop_flag.exists(),
+        "run_flag": run_flag.exists(),
+        "tick_seconds": tick_seconds,
+        "prefer_live_chain": prefer_live,
+        "started_at_ist": started,
+        "as_of_ist": latest.get("as_of_ist") or "",
+        "tick_index": latest.get("tick_index"),
+        "promote": latest.get("promote", False),
+        "orders": latest.get("orders") or "refused",
+        "llm": latest.get("llm", False),
+        "desk_verdicts": verdicts[:6],
+        "index_ltps": index_ltps,
+        "stale_underlyings": stale_n,
+        "overlay_session_action": overlay.get("session_action") or "",
+        "overlay_bits": overlay_bits,
+        "overlay_present": bool(overlay),
+        "notes_path": day_notes,
+        "gate": latest.get("gate") or "not RESEARCH_READY_FOR_PROGRAMMING",
+    }
+
+
 def _load_pids() -> dict:
     if not PID_FILE.exists():
         return {}
@@ -1106,8 +1195,8 @@ def _tuning_rows(
         rows.append(
             [
                 "Stop flag",
-                "Do not restart",
-                "paper_ops_STOPPED.flag present — wait for founder before npm/paper",
+                "Do not restart LLM paper_ops",
+                "paper_ops_STOPPED.flag present — dual-tape is a separate loop (paper_dual_tape_STOPPED.flag)",
             ]
         )
     elif not paper_alive:
@@ -1279,7 +1368,10 @@ def _render_canvas(payload: dict) -> str:
     attention = payload.get("attention") or {}
     day = overall.split(" ")[0] if overall else ""
 
-    paper_tone = "success" if paper_alive else "danger"
+    dual = payload.get("dual_tape") or {}
+    dual_alive = bool(dual.get("alive"))
+    paper_tone = "success" if (paper_alive or dual_alive) else "danger"
+    dual_tone = "success" if dual_alive else "warning"
     web_tone = "success" if website_up else "danger"
     api_tone = "success" if api_up else "danger"
     llm_status_l = str(llm_status).lower()
@@ -1335,8 +1427,8 @@ def _render_canvas(payload: dict) -> str:
     def tones_ts(tones: list[str]) -> str:
         return ", ".join(_js_str(t) for t in tones) if tones else ""
 
-    sealed = (not paper_alive) and (not clock.get("in_session_shell"))
-    status_pill = "FINAL / STOPPED" if sealed else ("RUNNING" if paper_alive else "STOPPED")
+    sealed = (not paper_alive) and (not dual_alive) and (not clock.get("in_session_shell"))
+    status_pill = "FINAL / STOPPED" if sealed else ("RUNNING" if (paper_alive or dual_alive) else "STOPPED")
 
     return f"""import {{
   Callout,
@@ -1400,7 +1492,7 @@ export default function PaperOperationsMonitor() {{
       </Stack>
 
       <Grid columns={{4}} gap={{12}}>
-        <Stat label="Paper loop" value={_js_str("RUNNING" if paper_alive else "STOPPED")} tone="{paper_tone}" />
+        <Stat label="Paper loop" value={_js_str("DUAL-TAPE" if dual_alive else ("LLM" if paper_alive else "STOPPED"))} tone="{paper_tone}" />
         <Stat label="Session" value={_js_str("OPEN" if clock.get("in_session_shell") else "CLOSED")} tone="{shell_tone}" />
         <Stat label="Signals / shadow" value={_js_str(str(ledger.get("signals", 0)) + " / " + str(ledger.get("shadow", 0)))} />
         <Stat label="promote" value="false" tone="danger" />
@@ -1435,7 +1527,20 @@ export default function PaperOperationsMonitor() {{
         PAPER only · NO_PROMOTE · orders REFUSED. Missing data = DATA_INSUFFICIENT or HOLD.
         Gate is not RESEARCH_READY_FOR_PROGRAMMING. Confidence is not a win rate.
         DI mass is collapsed below — unbound STRAT-001..014 stay KEEP_ALL.
+        Dual-tape has no LLM. desk_ml overlay HOLD = no new paper CE/PE.
       </Callout>
+
+      <H2>Dual-tape + desk_ml overlay</H2>
+      <Grid columns={{4}} gap={{12}}>
+        <Stat label="Dual-tape" value={_js_str("RUNNING" if dual_alive else "DOWN")} tone="{dual_tone}" />
+        <Stat label="PID / tick" value={_js_str(str(dual.get("pid") or "—") + " / " + str(dual.get("tick_seconds") or "—") + "s")} tone="{dual_tone}" />
+        <Stat label="Overlay action" value={_js_str(str(dual.get("overlay_session_action") or "pending"))} tone={_js_str("warning" if str(dual.get("overlay_session_action") or "") == "HOLD" else "info")} />
+        <Stat label="promote" value="NO_PROMOTE" tone="danger" />
+      </Grid>
+      <Grid columns={{2}} gap={{12}}>
+        <Stat label="Desk verdicts" value={_js_str("; ".join(dual.get("desk_verdicts") or [])[:80] or "none")} />
+        <Stat label="Last tick IST" value={_js_str(str(dual.get("as_of_ist") or "—")[:22])} />
+      </Grid>
 
       <H2>Top veto reasons (customer ticket) · {_esc(sections.get("leans") or overall)}</H2>
       <Text tone="secondary" size="small">
@@ -1720,18 +1825,39 @@ def collect(monitor_pid: int | None = None, allow_restart: bool = False) -> dict
             ["None parked", "—", "No fixture LEVELS / DI restates this pass"]
         ]
 
+    dual_tape = _dual_tape_snapshot()
+    if dual_tape.get("alive"):
+        tuning_rows.append(
+            [
+                "Dual-tape",
+                "Watch",
+                f"pid={dual_tape.get('pid')} tick={dual_tape.get('tick_seconds')}s overlay={dual_tape.get('overlay_session_action') or 'pending'} NO_PROMOTE",
+            ]
+        )
+    elif dual_tape.get("stop_flag"):
+        tuning_rows.append(
+            ["Dual-tape", "Stopped", "paper_dual_tape_STOPPED.flag present"]
+        )
+    else:
+        tuning_rows.append(
+            [
+                "Dual-tape",
+                "Start at 09:15 IST",
+                "python -m trading_agents_india dual-tape --live-chain --tick-seconds 45 --max-ticks 0",
+            ]
+        )
     data_mode = (
-        f"Production-like PAPER: LLM={'ON' if llm.get('llm_enabled') else 'OFF'}, "
-        f"status={llm_status}, live_chain={bool(llm.get('live_chain'))}, real IST clock, no --simulate. "
+        f"PAPER dual-tape: alive={dual_tape.get('alive')} overlay={dual_tape.get('overlay_session_action') or 'n/a'}. "
+        f"Legacy LLM paper_ops={'ON' if llm.get('llm_enabled') else 'OFF'} (STOPPED.flag respected). "
+        f"status={llm_status}, live_chain={bool(llm.get('live_chain'))}, real IST clock. "
         f"INDEX 1m bars={log.get('last_index_bars') or {}} src={log.get('last_index_bar_source') or {}}. "
-        "News API off (--no-gather-news). Orders always refused. "
-        "Rate-limit → temporary rule fallback then retry LLM. "
-        "Transient connection errors → in-call backoff retry."
+        "Orders always refused. NO_PROMOTE."
     )
     payload = {
         "updated_at": now,
         "section_ts": section_ts,
         "paper_alive": paper_alive,
+        "dual_tape": dual_tape,
         "website_up": website_up,
         "api_up": api_up,
         "api_pid": api_pid,
@@ -1826,6 +1952,7 @@ def write_status(payload: dict) -> None:
         "mode": "PAPER",
         "promote": "NO_PROMOTE",
         "orders": "REFUSED",
+        "dual_tape": payload.get("dual_tape") or {},
     }
     STATUS_FILE.write_text(json.dumps(slim, indent=2) + "\n")
 

@@ -1,5 +1,22 @@
 # Handoff log — Team 06 Backtesting
 
+## As of now (2026-09-15 ~10:45 IST) — TV-EP / STRAT / Okala paper loops (NO_PROMOTE)
+
+```text
+From:     teams/06_backtesting
+To:       00 / 04 / 09 / founder
+Date:     2026-09-15 ~10:45 IST
+Status:   PAPER / UNVALIDATED / NO_PROMOTE / BACKTEST_REQUIRED
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: Loop tv-ep-paper-tune KEEP_ALL MIX-TV-EP-001–025 + MIX-DEFAULT-BUY
+  vs dual-tape; tv-ep-grid --cache; signal_lab on premium_tape days;
+  backtest_engine books/project/scan as remaining STRAT/MIX paper eval.
+Rejected: Promote; writing production_params; treating Okala grid as live.
+UNKNOWN: okala-in CLI is _CF_GONE (DhanHQ-only reset). One-shot logs
+  the removed banner; no Okala grid this session.
+```
+
 ## As of now (2026-09-15 ~09:40 IST) — TV-EP + signal_lab paper (NO_PROMOTE)
 
 ```text

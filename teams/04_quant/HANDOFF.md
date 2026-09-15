@@ -1,5 +1,22 @@
 # Handoff log — Team 04 Quant
 
+## As of now (2026-09-15 ~10:45 IST) — HYPOTHESIS queued into paper loops (NO_PROMOTE)
+
+```text
+From:     teams/04_quant
+To:       00 / 06 / founder
+Date:     2026-09-15 ~10:45 IST
+Status:   HYPOTHESIS overlay / UNVALIDATED / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: Queue (1) persist dual-tape 1m triples for ML-002 window 90
+  into desk_ml fit/mrr-fit/score loop; (2) 5m ST/MACD/RSI confirm-or-kill
+  stays in lean MIX eval — not entry; (3) TV-EP paper-tune must not treat
+  LTP clones as OPTIDX OHLC OOS.
+Rejected: Promote; IF as BUY; STRAT-015+; Okala as customer default.
+UNKNOWN: Named MIX "OKLA" — not in catalog. Okala CF path removed.
+```
+
 ## As of now (2026-09-15 ~09:40 IST) — live paper ML + MIX scores (NO_PROMOTE)
 
 ```text
