@@ -32,6 +32,7 @@
 | `RESEARCH_BOSS_SKILL.md` | `teams/00_orchestrator/docs/` | Standing prompt 00 loads to invoke 01 Research Boss. Edit in place. |
 | `RESEARCH_BOSS_LOOP.md` | `teams/01_research/docs/` | After-hours rag → MIX → `RETUNE_PROPOSAL`. Edit in place. |
 | `QUANT_SELF_REVIEW_LOOP.md` | `teams/06_backtesting/docs/` | Nightly/paper self-review → `RETUNE_PROPOSAL` only. Edit in place. |
+| `BOOK_MODEL_TUNE.md` | `teams/06_backtesting/docs/` | Cache ML-001 + ML-002 book tune. **One** file; overwrite. Not a promote. |
 | Cursor rule `*.mdc` | `.cursor/rules/` | New always-on routing. Keep short. |
 
 Teacher books, `config/workspace.yaml` `sources.books[]`, STRAT/MIX/CAS catalogs, and `docs/` product standards (`COMPLIANCE`, `SECURITY`, `SDLC`, `REVIEW`, `INDEX`, `COMPANY_DEPARTMENTS`, …) are **edit-in-place**.
