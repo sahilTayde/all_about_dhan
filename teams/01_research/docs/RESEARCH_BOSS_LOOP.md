@@ -4,6 +4,8 @@
 **Status:** `HYPOTHESIS` / spec · **UNVALIDATED** · **not** `RESEARCH_READY_FOR_PROGRAMMING`  
 **Sibling law:** [`RETUNE_GATE.md`](../../06_backtesting/docs/RETUNE_GATE.md) · [`QUANT_SELF_REVIEW_LOOP.md`](../../06_backtesting/docs/QUANT_SELF_REVIEW_LOOP.md)  
 **Standing prompt:** [`RESEARCH_BOSS_SKILL.md`](../../00_orchestrator/docs/RESEARCH_BOSS_SKILL.md)  
+**00 transition (after this cycle):** [`RESEARCH_BOSS_LOOP.md`](../../00_orchestrator/docs/RESEARCH_BOSS_LOOP.md)  
+**Coverage:** [`TOPIC_COVERAGE.md`](TOPIC_COVERAGE.md)  
 **Club:** [`book_reads/CLUB_SEVEN_BOOKS.md`](book_reads/CLUB_SEVEN_BOOKS.md)
 
 Education ≠ advice. **No live orders.** This file is **not** a backtest and contains **no** P/L.
@@ -30,8 +32,9 @@ The founder asked for a loop that clubs seven book notes and “becomes research
 1. **RAG query** — `python -m agent_rag query "<topic>"` against `research_book_notes` and `phd_book_kb`. Open the cited `source_path`. If a `book_reads/` sibling file is missing, stamp `UNKNOWN` and use on-disk `book_kb` only. **Do not** open or paste PDFs.
 2. **Propose formula** — named `MIX-*` HYPOTHESIS (origin tag). 5m Supertrend/MACD/RSI = confirm-or-kill. Include HOLD veto (FOLLOW-GAP / NEWS_DAY / stale). Cite club + `doc_id`.
 3. **Paper / backtest request** — hand **06** a single OOS + `NORMAL` ask (window, costs, what would falsify). Optional paper watch is **not** a promote.
-4. **Emit** `RETUNE_PROPOSAL` with `status: BACKTEST_REQUIRED`, `keep_current_strategy: true`, `production_params_written: false`, `tuned: false`, `backtest_results: null`, `one_day_pnl_is_not_evidence: true`.
-5. **Stop the cycle.** Start another cycle only after 06 returns an engine result **or** `DATA_INSUFFICIENT`. Do not grind knobs overnight to green a ledger.
+4. **Draft gate fields** for 00 — `status: BACKTEST_REQUIRED`, `keep_current_strategy: true`, `production_params_written: false`. **01 does not write production params.** Official emit is **00** after coverage.
+5. **Hand 00 coverage** — research-analyst updates [`TOPIC_COVERAGE.md`](TOPIC_COVERAGE.md). 00 runs the **transition** (rag rebuild → read stamps → emit `RETUNE_PROPOSAL`).
+6. **Stop the invent cycle.** Start another only after 06 returns an engine result **or** `DATA_INSUFFICIENT`. Do not grind knobs overnight to green a ledger.
 
 ---
 
@@ -70,7 +73,7 @@ The founder asked for a loop that clubs seven book notes and “becomes research
 
 | Job | Command / artifact | Loop role |
 |-----|-------------------|-----------|
-| Rebuild notes | `python -m agent_rag rebuild` | After `book_reads/` or `book_kb` edits |
+| Rebuild notes | `python -m agent_rag rebuild` | **00** after 01 finishes (see 00 loop) |
 | Query | `python -m agent_rag query "…" --kind research_book_notes` | Step 1 |
 | Query 02 KB | `python -m agent_rag query "…" --kind phd_book_kb` | Step 1 |
 | Nightly | `python -m desk_intel nightly` | Packet + same gate fields |
@@ -85,10 +88,10 @@ The founder asked for a loop that clubs seven book notes and “becomes research
 ```text
 From:     01 RESEARCH_BOSS_LOOP
 To:       00 / 02 / 04 / 06 / 09
-Status:   RETUNE_PROPOSAL BACKTEST_REQUIRED
+Status:   draft BACKTEST_REQUIRED (00 emits after TOPIC_COVERAGE)
 production_params_written: false
 live_super_order: refused
-Accepted: <club cite + MIX-* proposed>
+Accepted: <club cite + MIX-* proposed + coverage stamp>
 Rejected: auto-perfect; production write; STRAT-015+; PDF paste; 30s LLM
-UNKNOWN: <missing book_reads notes / thin tape>
+UNKNOWN: <DI rows / missing book_reads notes / thin tape>
 ```

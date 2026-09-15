@@ -4,7 +4,7 @@
 **Gate:** not `RESEARCH_READY_FOR_PROGRAMMING`  
 **Copyright:** Do **not** paste PDF or chapter text here. Sibling agents drop **original notes** as `book_reads/*.md`. 02 already holds exam notes under [`book_kb/`](../../../02_phd_math/docs/book_kb/INDEX.md).  
 **RAG:** `python -m agent_rag rebuild` then query kind `research_book_notes` (this folder) and `phd_book_kb`.  
-**Loop:** [`../RESEARCH_BOSS_LOOP.md`](../RESEARCH_BOSS_LOOP.md)
+**Loop:** 01 [`../RESEARCH_BOSS_LOOP.md`](../RESEARCH_BOSS_LOOP.md) · 00 transition [`../../../00_orchestrator/docs/RESEARCH_BOSS_LOOP.md`](../../../00_orchestrator/docs/RESEARCH_BOSS_LOOP.md) · coverage [`../TOPIC_COVERAGE.md`](../TOPIC_COVERAGE.md)
 
 **On disk 2026-09-14:** seven sibling notes exist (Tulchinsky sampled images, Gliner 30-page extract, Derman Badly slides, smile Bookey dump, Bouchaud preview, AFML excerpt, 151 SSRN). Club uses those notes **plus** `book_kb`. Allowlist: `book_reads/NOTE_*.md` + this file. No PDF body in FTS.
 

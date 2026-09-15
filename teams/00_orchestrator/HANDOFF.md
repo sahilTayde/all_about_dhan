@@ -2,6 +2,29 @@
 
 **Agents:** read **only the newest block**. Do not ingest this whole log. New files: [`docs/FILE_CREATION.md`](../../docs/FILE_CREATION.md). Append here — do not create `HANDOFF_TOMORROW.md` or extra `CONTINUE_*`.
 
+## As of now (2026-09-14) — research-analyst coverage + 00 RESEARCH_BOSS transition
+
+```text
+From:     teams/00_orchestrator
+To:       01 / 02 / 04 / 06 / 09 / founder
+Date:     2026-09-14
+Status:   routing spec / UNVALIDATED / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: After 01 notes, 00 runs rag rebuild, reads TOPIC_COVERAGE
+  (KNOWN / PARTIAL / DI), emits RETUNE_PROPOSAL BACKTEST_REQUIRED.
+  production_params_written=false. Does not block 30s / dual-tape.
+  01 SKILL Hat C = research-analyst. KEEP_ALL. No STRAT-015+.
+Rejected: Production param write; invent on DI; live orders; 30s LLM;
+  second ticket boss.
+UNKNOWN: Wiley smile body; HQ IV/Δ; ML-002 coded OU; analog store.
+Artifacts:
+- teams/00_orchestrator/docs/RESEARCH_BOSS_LOOP.md
+- teams/00_orchestrator/docs/RESEARCH_BOSS_SKILL.md
+- teams/01_research/docs/TOPIC_COVERAGE.md
+- teams/01_research/SKILL.md
+```
+
 ## As of now (2026-09-14) — RESEARCH BOSS invoke pointer
 
 ```text
