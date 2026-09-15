@@ -1,5 +1,23 @@
 # Handoff log — Team 06 Backtesting
 
+## As of now (2026-09-15) — SESSION_PREP_ML dual-tape + desk_ml score
+
+```text
+From:     teams/06_backtesting (gate)
+To:       00 / 04 / 05 / 07 / founder
+Date:     2026-09-15
+Status:   PAPER PREP / UNVALIDATED / NO_PROMOTE / BACKTEST_REQUIRED
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: Warehouse+premium join; ML-001 embargo 5 (not CPCV);
+  score --source dual-tape; FOLLOW-GAP HOLD at 09:15 IST.
+  production_params_written false. ExecutionClient unused.
+Rejected: Live Super Order; promote; STRAT-015+.
+UNKNOWN: ATM depth at open; SENSEX OU mean-reversion.
+Artifact: teams/06_backtesting/docs/SESSION_PREP_ML.md
+CLI: python -m desk_ml score --underlying NIFTY --source dual-tape
+```
+
 ## As of now (2026-09-15) — BOOK_MODEL_TUNE cache fit (NO_PROMOTE)
 
 ```text

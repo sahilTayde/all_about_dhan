@@ -183,6 +183,7 @@ def inventory_recon(
     return {
         "ok": True,
         "live_dhan": False,
+        "warehouse_sqlite": (base / "data" / "knowledge" / "warehouse.sqlite").is_file(),
         "as_of_ist": now.isoformat(timespec="seconds"),
         "calendar_days": calendar_days,
         "window_start_ist": datetime.fromtimestamp(min_ts, tz=IST).isoformat(timespec="seconds"),

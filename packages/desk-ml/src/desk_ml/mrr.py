@@ -11,8 +11,8 @@ from typing import Any, Optional, Sequence
 
 from desk_ml.features import Triple, build_feature_rows
 from desk_ml.model import OVERLAY_HOLD, OVERLAY_NONE, premium_divergence_pattern
-from desk_ml.persist import ml_dir, repo_root, save_bundle
-from desk_ml.tape import load_premium_ohlcv, load_triples
+from desk_ml.persist import ml_dir, load_bundle, repo_root, save_bundle
+from desk_ml.tape import load_dual_tape_triples, load_premium_ohlcv, load_triples
 
 MRR_WINDOWS = (40, 60, 90)
 Z_HOLD = 2.0
@@ -288,3 +288,90 @@ def mrr_fit_underlying(
         save_bundle(path, bundle)
         bundle["path"] = str(path)
     return bundle
+
+
+def score_mrr_last(
+    underlying: str,
+    *,
+    root=None,
+    triples: Optional[Sequence[Triple]] = None,
+    source: str = "cache",
+) -> dict[str, Any]:
+    """Score last residual/FOLLOW-GAP overlay from a persisted ML-002 bundle. No orders."""
+    base = root or repo_root()
+    path = ml_dir(base) / f"ml002_mrr_ou_{underlying.upper()}.json"
+    if not path.is_file():
+        return {
+            "ok": False,
+            "status": "DATA_INSUFFICIENT",
+            "reason": f"no ML-002 bundle at {path} — run python -m desk_ml mrr-fit first",
+            "promote": False,
+            "production_params_written": False,
+        }
+    bundle = load_bundle(path)
+    src = (source or "cache").strip().lower()
+    if triples is not None:
+        used = list(triples)
+        tape_meta: dict[str, Any] = {"aligned_triples": len(used), "source": "caller"}
+    elif src in {"dual-tape", "dual_tape", "live-paper"}:
+        used, tape_meta = load_dual_tape_triples(underlying, root=base)
+    else:
+        used, tape_meta = load_triples(underlying, root=base)
+    rows = build_feature_rows(used)
+    if not rows:
+        return {
+            "ok": False,
+            "status": "DATA_INSUFFICIENT",
+            "reason": "no feature rows to score",
+            "tape": tape_meta,
+            "promote": False,
+            "production_params_written": False,
+            "session_action": "HOLD",
+        }
+    pref = bundle.get("preferred") or {}
+    window = pref.get("window") or (bundle.get("windows_tried") or [90])[-1]
+    k_ce = float(bundle["k_ce"])
+    k_pe = float(bundle["k_pe"])
+    pe_map = load_premium_ohlcv(underlying, "pe", root=base)
+    pe_closes: list[float] = []
+    pe_vols: list[float] = []
+    for row in rows:
+        pair = pe_map.get(int(row["ts"]))
+        pe_closes.append(float(row["pe_close"]))
+        pe_vols.append(0.0 if pair is None else float(pair[1]))
+    scored = score_window(rows, window=int(window), k_ce=k_ce, k_pe=k_pe, pe_closes=pe_closes, pe_vols=pe_vols)
+    last = scored.get("last") or {}
+    if not last:
+        return {
+            "ok": False,
+            "status": "DATA_INSUFFICIENT",
+            "reason": f"ML-002 window {window} needs more bars than dual-tape/cache last rows",
+            "window": int(window),
+            "n_feature_rows": len(rows),
+            "tape": tape_meta,
+            "promote": False,
+            "production_params_written": False,
+            "session_action": "HOLD",
+        }
+    overlay = last.get("overlay")
+    follow = bool(last.get("follow_gap"))
+    return {
+        "ok": True,
+        "status": "SCORE_OK",
+        "model_id": "ML-002",
+        "underlying": underlying.upper(),
+        "window": int(window),
+        "preferred_status": pref.get("status"),
+        "overlay": overlay,
+        "follow_gap": follow,
+        "session_action": "HOLD" if overlay == OVERLAY_HOLD or follow else "WATCH_ONLY",
+        "reason_code": last.get("reason_code"),
+        "residual_z": last.get("residual_z"),
+        "allow_new_paper_ce_pe": last.get("allow_new_paper_ce_pe"),
+        "tape": tape_meta,
+        "promote": False,
+        "production_params_written": False,
+        "execution": "refused",
+        "win_rate": None,
+        "gate": "BACKTEST_REQUIRED",
+    }

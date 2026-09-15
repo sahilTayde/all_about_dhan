@@ -1,5 +1,21 @@
 # Handoff log — Team 04 Quant
 
+## As of now (2026-09-15) — ML-001 dual-tape score + embargo (NO_PROMOTE)
+
+```text
+From:     teams/04_quant
+To:       00 / 06 / 07 / founder
+Date:     2026-09-15
+Status:   HYPOTHESIS overlay / UNVALIDATED / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: FOLLOW-GAP HOLD on dual-tape score. Embargo 5 = leakage
+  hygiene not OOS. Warehouse INDEX/ATM join. Seed 14. MRR 40/60/90 only.
+Rejected: DIVERGE as BUY; CPCV claim; live orders; STRAT-015+.
+CLI: python -m desk_ml score --underlying NIFTY --source dual-tape
+Doc: teams/06_backtesting/docs/SESSION_PREP_ML.md
+```
+
 ## As of now (2026-09-15) — ML-002 mrr-fit overlay (NO_PROMOTE)
 
 ```text

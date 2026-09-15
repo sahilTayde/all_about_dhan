@@ -1,6 +1,10 @@
 # Docs Auditor — latest
 
+<<<<<<< HEAD
 **Date (IST):** `2026-09-15T07:06:17+05:30`
+=======
+**Date (IST):** `2026-09-15T07:19:13+05:30`
+>>>>>>> 46e59fa (Prepare dual-tape desk_ml score for 09:15 IST paper.)
 **Result:** **PASS** (0 findings)
 **Cadence:** after any requirement change **and** post-market nightly (`jobs.docs_auditor: daily`)
 **CLI:** `python -m docs_auditor` · `python -m desk_intel audit-docs`

@@ -9,7 +9,11 @@ from pathlib import Path
 from desk_ml.book_tune import run_book_tune
 from desk_ml.features import Triple, build_feature_rows
 from desk_ml.inventory import inventory_recon
+<<<<<<< HEAD
 from desk_ml.mrr import mrr_fit_underlying, ou_ar1, pick_preferred, vwma
+=======
+from desk_ml.mrr import mrr_fit_underlying, ou_ar1, pick_preferred, rolling_z, score_mrr_last, vwma
+>>>>>>> 46e59fa (Prepare dual-tape desk_ml score for 09:15 IST paper.)
 from desk_ml.tape import load_triples
 
 IST = timezone(timedelta(hours=5, minutes=30))
@@ -164,3 +168,14 @@ def test_load_triples_window_filter(tmp_path: Path) -> None:
     assert len(all_t) == 5
     assert none == []
     assert "DATA_INSUFFICIENT" in meta["data_gaps"][0]
+
+
+
+def test_mrr_score_last_no_promote(tmp_path: Path) -> None:
+    report = mrr_fit_underlying("NIFTY", root=tmp_path, persist=True, triples=_triples())
+    assert report["production_params_written"] is False
+    scored = score_mrr_last("NIFTY", root=tmp_path, triples=_triples())
+    assert scored["ok"] is True
+    assert scored["promote"] is False
+    assert scored["production_params_written"] is False
+    assert scored["session_action"] in {"HOLD", "WATCH_ONLY"}

@@ -15,7 +15,7 @@ from desk_ml.persist import (
     save_bundle,
     unpack_estimators,
 )
-from desk_ml.tape import labels_from_paper_ledger, load_triples
+from desk_ml.tape import embargo_train_rows, labels_from_paper_ledger, load_dual_tape_triples, load_triples
 
 
 def fit_from_rows(rows: Sequence[dict], *, seed: int = 14, k: int = 4) -> dict[str, Any]:
@@ -51,24 +51,28 @@ def fit_underlying(
     triples: Optional[Sequence[Triple]] = None,
     min_ts: Optional[int] = None,
     max_ts: Optional[int] = None,
+    embargo_bars: int = 5,
 ) -> dict[str, Any]:
     if triples is None:
         triples, tape_meta = load_triples(underlying, root=root, min_ts=min_ts, max_ts=max_ts)
     else:
         tape_meta = {"aligned_triples": len(triples), "source": "caller"}
     rows = build_feature_rows(list(triples))
-    if len(rows) < 16:
+    train_rows, embargo = embargo_train_rows(rows, embargo_bars=embargo_bars)
+    if len(train_rows) < 16:
         return {
             "ok": False,
             "status": "DATA_INSUFFICIENT",
             "underlying": underlying.upper(),
             "n_feature_rows": len(rows),
+            "embargo": embargo,
             "tape": tape_meta,
-            "note": "Need ≥16 aligned 1m feature rows. Holiday: do not fetch live Dhan.",
+            "note": "Need ≥16 aligned 1m feature rows after embargo. Holiday: do not fetch live Dhan.",
             "promote": False,
             "execution": "refused",
+            "production_params_written": False,
         }
-    fitted = fit_from_rows(rows, seed=seed)
+    fitted = fit_from_rows(train_rows, seed=seed)
     supervised = labels_from_paper_ledger(root)
     bundle = {
         "underlying": underlying.upper(),
@@ -77,16 +81,18 @@ def fit_underlying(
         "k": 4,
         "seed": seed,
         "n_rows": fitted["n_rows"],
+        "n_feature_rows": len(rows),
         "cluster_sizes": fitted["cluster_sizes"],
         "centroids_orig": fitted["centroids_orig"],
-        "train_window": {"from_ts": rows[0]["ts"], "to_ts": rows[-1]["ts"]},
+        "train_window": {"from_ts": train_rows[0]["ts"], "to_ts": train_rows[-1]["ts"]},
+        "embargo": embargo,
         "tape": tape_meta,
         "supervised": supervised,
         "win_rate": None,
         "verdict": "NO_PROMOTE",
         "promote": False,
         "production_params_written": False,
-        "session_note": "cache-only fit; no live Dhan; no MIX param write",
+        "session_note": "cache-only fit; embargo is leakage hygiene not CPCV/OOS; no live Dhan; no MIX param write",
         **pack_estimators(
             scaler=fitted["scaler"],
             kmeans=fitted["kmeans"],
@@ -103,7 +109,14 @@ def fit_underlying(
     return bundle
 
 
-def score_last(underlying: str, *, root=None, model_path=None, triples: Optional[Sequence[Triple]] = None) -> dict[str, Any]:
+def score_last(
+    underlying: str,
+    *,
+    root=None,
+    model_path=None,
+    triples: Optional[Sequence[Triple]] = None,
+    source: str = "cache",
+) -> dict[str, Any]:
     path = model_path or default_model_path(underlying, root=root)
     if not path.is_file():
         return {
@@ -111,14 +124,19 @@ def score_last(underlying: str, *, root=None, model_path=None, triples: Optional
             "status": "DATA_INSUFFICIENT",
             "reason": f"no model at {path} — run python -m desk_ml fit first",
             "promote": False,
+            "production_params_written": False,
         }
     bundle = load_bundle(path)
     scaler, kmeans, labels, forest = unpack_estimators(bundle)
-    if triples is None:
-        triples, tape_meta = load_triples(underlying, root=root)
+    src = (source or "cache").strip().lower()
+    if triples is not None:
+        used = list(triples)
+        tape_meta: dict[str, Any] = {"aligned_triples": len(used), "source": "caller"}
+    elif src in {"dual-tape", "dual_tape", "live-paper"}:
+        used, tape_meta = load_dual_tape_triples(underlying, root=root)
     else:
-        tape_meta = {"aligned_triples": len(triples), "source": "caller"}
-    rows = build_feature_rows(list(triples))
+        used, tape_meta = load_triples(underlying, root=root)
+    rows = build_feature_rows(used)
     if not rows:
         return {
             "ok": False,
@@ -126,12 +144,14 @@ def score_last(underlying: str, *, root=None, model_path=None, triples: Optional
             "reason": "no feature rows to score after bar close",
             "tape": tape_meta,
             "promote": False,
+            "production_params_written": False,
         }
     last = rows[-1]
     names = ("idx_ret", "ce_ret", "pe_ret", "spread_chg", "abs_residual")
     x_orig = [last[name] for name in names]
     x_scaled = scaler.transform([x_orig])[0]
     scored = score_row(x_scaled=x_scaled, x_orig=x_orig, kmeans=kmeans, cluster_labels=labels, forest=forest)
+    follow_gap_hold = bool(scored.get("premium_divergence")) or scored.get("overlay") == "HOLD"
     scored.update(
         {
             "ok": True,
@@ -139,10 +159,15 @@ def score_last(underlying: str, *, root=None, model_path=None, triples: Optional
             "underlying": underlying.upper(),
             "ts": last["ts"],
             "model_version": bundle.get("model_version"),
+            "score_source": tape_meta.get("source"),
             "tape": tape_meta,
+            "follow_gap": follow_gap_hold,
+            "session_action": "HOLD" if follow_gap_hold else "WATCH_ONLY",
+            "production_params_written": False,
             "attach": (
-                "Call after 1m bar close. Overlay HOLD/DIVERGENCE may keep the dealer "
-                "from new paper CE/PE; never overrides deterministic hard stops; never orders."
+                "Call after 1m bar close (or dual-tape tick with two LTPs). "
+                "FOLLOW-GAP / overlay HOLD keeps the dealer from new paper CE/PE. "
+                "Never overrides deterministic hard stops. ExecutionClient not used."
             ),
         }
     )

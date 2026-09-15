@@ -9,7 +9,7 @@ from desk_ml.features import Triple, build_feature_rows
 from desk_ml.fit import fit_from_rows, fit_underlying, score_features_dict, score_last
 from desk_ml.model import IsolationForest, KMeans, StandardScaler, name_clusters, premium_divergence_pattern
 from desk_ml.persist import load_bundle, unpack_estimators
-from desk_ml.tape import labels_from_paper_ledger, load_triples
+from desk_ml.tape import embargo_train_rows, labels_from_paper_ledger, load_dual_tape_triples, load_triples
 
 IST = timezone(timedelta(hours=5, minutes=30))
 
@@ -154,3 +154,86 @@ def test_tape_join_from_files(tmp_path: Path) -> None:
     triples, meta = load_triples("NIFTY", root=tmp_path)
     assert meta["aligned_triples"] == 5
     assert triples[-1].ce_close == 104
+
+
+
+def test_embargo_drops_last_rows() -> None:
+    rows = [{"ts": i} for i in range(30)]
+    train, meta = embargo_train_rows(rows, embargo_bars=5)
+    assert meta["applied"] is True
+    assert meta["oos_claim"] is False
+    assert meta["cpcv"] is False
+    assert len(train) == 25
+
+
+def test_warehouse_bars_join_premium(tmp_path: Path) -> None:
+    import sqlite3
+
+    db = tmp_path / "data" / "knowledge" / "warehouse.sqlite"
+    db.parent.mkdir(parents=True)
+    conn = sqlite3.connect(str(db))
+    conn.execute(
+        "CREATE TABLE ohlc_bars (symbol TEXT, timeframe TEXT, ts TEXT, close REAL, source TEXT DEFAULT 'test', origin TEXT DEFAULT 'x')"
+    )
+    conn.execute("CREATE TABLE bars_1m (symbol TEXT, ts TEXT, close REAL, source TEXT DEFAULT 'test')")
+    ts = [_ts(i) for i in range(4)]
+    for i, tsv in enumerate(ts):
+        conn.execute(
+            "INSERT INTO ohlc_bars (symbol, timeframe, ts, close) VALUES (?,?,?,?)",
+            ("NIFTY", "1m", str(tsv), 25000.0 + i),
+        )
+        conn.execute(
+            "INSERT INTO bars_1m (symbol, ts, close) VALUES (?,?,?)",
+            ("NIFTY_ATM_CE", str(tsv), 100.0 + i),
+        )
+        conn.execute(
+            "INSERT INTO ohlc_bars (symbol, timeframe, ts, close) VALUES (?,?,?,?)",
+            ("NIFTY_ATM_PE", "1m", str(tsv), 90.0),
+        )
+    conn.commit()
+    conn.close()
+    triples, meta = load_triples("NIFTY", root=tmp_path)
+    assert meta["warehouse_sqlite"] is True
+    assert meta["aligned_triples"] == 4
+
+
+def test_dual_tape_score_follow_gap_hold(tmp_path: Path) -> None:
+    import json
+
+    folder = tmp_path / "data" / "recon" / "paper_watch" / "DUAL-TAPE"
+    folder.mkdir(parents=True)
+    t0 = _ts(0)
+    t1 = _ts(1)
+    rows = [
+        {
+            "as_of_ist": "2026-09-15T09:16:00+05:30",
+            "underlyings": [
+                {"underlying": "NIFTY", "index_ltp": 25000.0, "atm_ce_ltp": 120.0, "atm_pe_ltp": 110.0, "as_of_ist": t0}
+            ],
+        },
+        {
+            "as_of_ist": "2026-09-15T09:17:00+05:30",
+            "underlyings": [
+                {
+                    "underlying": "NIFTY",
+                    "index_ltp": 24950.0,
+                    "atm_ce_ltp": 118.0,
+                    "atm_pe_ltp": 109.0,
+                    "as_of_ist": t1,
+                }
+            ],
+        },
+    ]
+    (folder / "2026-09-15.jsonl").write_text("\n".join(json.dumps(r) for r in rows))
+    (folder / "latest.json").write_text(json.dumps(rows[-1]))
+    triples, meta = load_dual_tape_triples("NIFTY", root=tmp_path)
+    assert meta["aligned_triples"] == 2
+    fit = fit_underlying("NIFTY", root=tmp_path, persist=True, triples=_triples(), embargo_bars=5)
+    assert fit["embargo"]["applied"] is True
+    assert fit["production_params_written"] is False
+    scored = score_last("NIFTY", root=tmp_path, source="dual-tape")
+    assert scored["ok"] is True
+    assert scored["follow_gap"] is True
+    assert scored["session_action"] == "HOLD"
+    assert scored["allow_new_paper_ce_pe"] is False
+    assert scored["execution"] == "refused"
