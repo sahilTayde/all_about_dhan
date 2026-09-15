@@ -21,12 +21,29 @@ Do not glob markdown. Do not create extra CONTINUE/HANDOFF/NOTES dumps.
 
 Gate: NOT RESEARCH_READY_FOR_PROGRAMMING. PAPER only. NO_PROMOTE. STRATs UNVALIDATED. Dashboard P/L is MOCK. No live orders. Do not restart npm / Vite / paper ops until I ask. Never print secrets.
 
+Left off 2026-09-15 ~09:40 IST: paper dual-tape PID 74510 live INDEX+ATM (tick ~25). Overlay session HOLD (BN PREMIUM_DIVERGENCE; NIFTY IF_OUTLIER WATCH_ONLY). 0 paper fills. Live confirm notes 34 / HOLD notes 38 on ticks ≥09:15 — NOT a win rate. ML-002 dual-tape DATA_INSUFFICIENT (need ≥90 aligned triples). TV-EP paper-tune on same-tick LTP clones: most MIX 0 trades; 018/010/009/DEFAULT-BUY opened MOCK tickets with 0 wins. NO_PROMOTE. No Super Orders. Local sqlite — do not git-add. Watch: tail -f data/recon/dual_tape_session_2026-09-15.log
+
 Left off 2026-09-15 (next chat): pre-market readiness. At 09:15 IST run paper dual-tape + desk_ml overlay. NO_PROMOTE. OpenAI ACCEPT_WITH_CAVEATS is paper only. No Super Orders. No live orders. Local sqlite — do not git-add.
 
 Left off 2026-09-13: ITM champion PAPER board ready (MIX-CHAMP-* + desk leaderboard + assumed IST VWAP). Docs: teams/06_backtesting/docs/ITM_CHAMPION_PAPER_BOARD.md. CLI: python -m backtest_engine.run_itm_champions. Tuesday = PAPER watch only (prefer ITM PE near spot); live Super Orders refused. Next freeze only after live board evidence; then walk-forward OOS. KEEP_ALL. NO_PROMOTE. Local trading_agents_india.sqlite is working-tree only — do not git-add.
 ```
 
 ---
+
+## Left-off 2026-09-15 ~09:40 IST — live paper dual-tape + ML/TV paper tune (NO_PROMOTE)
+
+| Topic | State |
+|-------|--------|
+| IST | **Tue 2026-09-15 ~09:40** — cash **OPEN**; directional paper **09:30–15:00** |
+| Dual-tape | PID **74510** · `--live-chain --tick-seconds 45 --max-ticks 0` · started 09:15:46 IST · **llm false** · orders refused · tick ~25 |
+| Overlay waiter | PID **72493** · `desk_ml overlay --source dual-tape` every 90s · canvas monitor **72494** |
+| Overlay | Session **HOLD**. NIFTY ML-001 `IF_OUTLIER` / WATCH_ONLY. BANKNIFTY `PREMIUM_DIVERGENCE` HOLD. SENSEX `REGIME_OK` WATCH_ONLY. ML-002 dual-tape **DATA_INSUFFICIENT** (window 90). `production_params_written` false |
+| Paper fills | **0**. Ledger is `DESK_DIVERGENCE` notes only. Live ≥09:15: **34** BUY_*_CONFIRM notes + **38** HOLD notes (16 dead-band ticks + 9+ directional). Overnight stale ticks 692 HOLD. **Not a win rate.** |
+| ML paper tune | `desk_ml book-tune` + fit/mrr-fit 40/60/90 embargo 5. NIFTY ML-002 preferred window **90** in-sample CANDIDATE. BN/SX OU **NOT_MEAN_REVERTING**. IsolationForest = anomaly HOLD, not BUY |
+| TV-EP | Factory grid cache `--tf 1 3 5 15`: 912 cells WATCH 225 / TESTED_FAIL 412 / PARK 275. Paper-tune vs dual-tape LTP clones: KEEP_ALL 001–025 + DEFAULT-BUY. Most 0 trades (lookback / US-crypto / unported). Fired MOCK tickets (0 wins): 018, 010, 009, DEFAULT-BUY. INDEX JSON cache last **2026-09-03** ≠ today premium |
+| Stop | `touch data/recon/paper_dual_tape_STOPPED.flag` |
+| Super Orders | **NO** |
+| Promote | **NO_PROMOTE** |
 
 ## Left-off 2026-09-15 — next chat = pre-market + live paper (no Super Orders)
 

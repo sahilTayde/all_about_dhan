@@ -1,6 +1,7 @@
 # STATUS — work to date (audit)
 
 Date: 2026-09-01 (local, session end). Catalog `retrieved_at`: 2026-08-31T03:15:28Z (not re-fetched).  
+**Left-off 2026-09-15 ~09:40 IST:** paper dual-tape PID 74510 running; overlay HOLD; **0 paper fills**; confirm notes ≠ win rate; ML/TV paper-only; **NO_PROMOTE**. Wake-up: [`CONTINUE_NEXT_CHAT.md`](CONTINUE_NEXT_CHAT.md).  
 **Morning score:** [`docs/MASTER_REQUIREMENTS.md`](../../../docs/MASTER_REQUIREMENTS.md).  
 **Frontier brief:** [`REVIEW_BRIEF_FOR_FRONTIER_MODEL.md`](REVIEW_BRIEF_FOR_FRONTIER_MODEL.md).  
 **Do not restart npm** until asked. Do not call live Dhan. Do not invent win rates.

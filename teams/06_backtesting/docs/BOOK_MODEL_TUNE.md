@@ -16,7 +16,7 @@ JSON: `data/recon/BOOK_MODEL_TUNE_2026-09-15.json` (gitignored).
 |--------|-----------------|----------|
 | **INDEX 1m JSON** | NIFTY/SENSEX/BANKNIFTY files from 2021-09-06 → **2026-09-03** | 2026-08-25 → 2026-09-03 (~2930 bars each) |
 | **INDEX 1m + warehouse** | Join path also reads `warehouse.sqlite` | INDEX last print used in join: **2026-09-10** |
-| **premium_tape ATM 1m** | NIFTY / SENSEX / BANKNIFTY day files **2026-09-09, 09-10, 09-11** (1146 CE + 1146 PE each) | Same three days only |
+| **premium_tape ATM 1m** | NIFTY / SENSEX / BANKNIFTY day files **2026-09-09, 09-10, 09-11, 09-15** (today still thin mid-session) | Join used for book-tune still **09-09→09-10** (~599 triples). 09-15 dual-tape is live but not yet a full-day join |
 | **OPTIDX 1m** | 22 strike-sid files; all touch the window | First bars in-window from 2026-08-25…09-10; **last bar 2026-09-11** |
 
 **Aligned INDEX ∩ ATM CE ∩ ATM PE triples:** **599** for NIFTY and **599** for SENSEX, IST **2026-09-09 → 2026-09-10** only.

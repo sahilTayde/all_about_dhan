@@ -180,7 +180,7 @@ def cmd_paper_tune(args: argparse.Namespace) -> int:
         str(args.max_tweaks),
     ]
     if args.mix:
-        argv = ["--mix", *args.mix, *argv]
+        argv = [*argv, "--mix", *args.mix]
     if args.no_write:
         argv.append("--no-write")
     return int(tune_main(argv))

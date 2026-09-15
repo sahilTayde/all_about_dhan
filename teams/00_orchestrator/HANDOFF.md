@@ -2,6 +2,30 @@
 
 **Agents:** read **only the newest block**. Do not ingest this whole log. New files: [`docs/FILE_CREATION.md`](../../docs/FILE_CREATION.md). Append here — do not create `HANDOFF_TOMORROW.md` or extra `CONTINUE_*`.
 
+## As of now (2026-09-15 ~09:40 IST) — live paper test/tune (NO_PROMOTE)
+
+```text
+From:     teams/00_orchestrator (founder desk)
+To:       founder / 04 / 06 / 05 / 02
+Date:     2026-09-15 ~09:40 IST
+Status:   PAPER / HYPOTHESIS / NO_PROMOTE / ORDERS REFUSED
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: Kept dual-tape PID 74510 + overlay 72493 + canvas 72494.
+  Worked from main (branch cursor/live-paper-ml-tape-3203).
+  Paper-only desk_ml book-tune / fit / mrr-fit 40/60/90 / overlay.
+  TV-EP factory grid + paper-tune vs live dual-tape ticks.
+  Honest counts: 0 paper fills; confirm notes ≠ win rate.
+Rejected: Live Dhan orders / Super Orders; promote; auto-retune
+  customer defaults; converting BUY_*_CONFIRM notes to wr.
+UNKNOWN: Same-day INDEX 1m cache (JSON last 2026-09-03);
+  ATM Greeks/IV null; FUTIDX 3m; HQ Supertrend series.
+Next backtestable: persist today's dual-tape INDEX+ATM 1m into
+  recon join so ML-002 can score window 90 on live triples;
+  walk-forward 018/DEFAULT-BUY on full-session OPTIDX OHLC
+  (not LTP clones). KEEP_ALL STRAT-001–014.
+```
+
 ## As of now (2026-09-15) — RESEARCH_BOSS ML session prep (NO_PROMOTE)
 
 ```text

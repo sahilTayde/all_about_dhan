@@ -1,5 +1,31 @@
 # Handoff log — Team 04 Quant
 
+## As of now (2026-09-15 ~09:40 IST) — live paper ML + MIX scores (NO_PROMOTE)
+
+```text
+From:     teams/04_quant
+To:       00 / 06 / 02 / founder
+Date:     2026-09-15 ~09:40 IST
+Status:   HYPOTHESIS overlay / UNVALIDATED / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: IsolationForest = IF_OUTLIER / WATCH_ONLY — not BUY.
+  Embargo 5 hygiene (not CPCV / not OOS). Seed 14.
+  ML-002 windows 40/60/90: NIFTY preferred 90 in-sample CANDIDATE
+  (half-life description only). BN/SX NOT_MEAN_REVERTING.
+  Lean MIX on latest tick: SPOT-ATM EARLY BUY_CE (chain lean);
+  IMPULSE/003/006 DI (need ≥40 INDEX 1m lookback on ticket);
+  SELL-CREDIT PARKED; PCR overlay ALLOW (not entry).
+Rejected: DIVERGE/IF as entry; production_params_written;
+  STRAT-015+; treating paper_improved as promote.
+HYPOTHESIS (PhD queue): (1) persist dual-tape 1m triples so
+  ML-002 scores live window 90; (2) 5m ST/MACD/RSI stay
+  confirm-or-kill on any MIX that fires EARLY from chain;
+  (3) do not use LTP-clone CE/PE as OPTIDX OHLC for OOS.
+VALIDATION: no Supertrend/RSI/MACD series on Dhan charts REST;
+  annexure has no EMA_9. Conditional Trigger ≠ FNO series.
+```
+
 ## As of now (2026-09-15) — ML-001 dual-tape score + embargo (NO_PROMOTE)
 
 ```text

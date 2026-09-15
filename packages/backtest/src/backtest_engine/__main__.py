@@ -255,7 +255,8 @@ def main(argv: list[str] | None = None) -> int:
             str(args.max_tweaks),
         ]
         if mix:
-            argv_t = ["--mix", *mix, *argv_t]
+            # --mix is nargs=+; it must be last or it swallows --underlying.
+            argv_t = [*argv_t, "--mix", *mix]
         if getattr(args, "no_write", False):
             argv_t.append("--no-write")
         return tune_main(argv_t)

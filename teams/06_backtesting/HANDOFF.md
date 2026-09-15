@@ -1,5 +1,34 @@
 # Handoff log — Team 06 Backtesting
 
+## As of now (2026-09-15 ~09:40 IST) — TV-EP + signal_lab paper (NO_PROMOTE)
+
+```text
+From:     teams/06_backtesting
+To:       00 / 04 / 09 / founder
+Date:     2026-09-15 ~09:40 IST
+Status:   PAPER / UNVALIDATED / NO_PROMOTE / BACKTEST_REQUIRED
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: tv-ep-grid --cache --tf 1 3 5 15 --write → 912 cells
+  WATCH 225 / TESTED_FAIL 412 / PARK 275. KEEP_ALL MIX-TV-EP.
+  Paper-tune 001–025 + MIX-DEFAULT-BUY on dual-tape ticks
+  (LTP-clone CE/PE; NOT same as OPTIDX OHLC). Most 0 trades.
+  Fired MOCK tickets, 0 wins: 018, 010, 009, DEFAULT-BUY
+  (paper_improved = less-negative in-sample tweak only).
+  signal_lab 1/3/5/10m × gates × overlays on 2026-09-10/11
+  premium_tape only; today ATM tape <40 bars = DI.
+  ITM MIX-CHAMP-* leaderboard re-ran — lab cache WR, not
+  today's paper fills.
+Rejected: Promote TV Pine; treat ITM board % as live wr;
+  write workspace.yaml / MIX-DEFAULT-BUY production knobs.
+UNKNOWN: event_calendar empty; INDEX JSON last 2026-09-03
+  vs premium 2026-09-15 SESSION_CLOCK mismatch on cache tuner.
+Artifact: data/recon/tv_ep_paper_tune_dualtape_2026-09-15.json
+  data/recon/tv_ep_leaderboard.json (gitignored)
+Next: walk-forward 018/DEFAULT-BUY on a full same-day
+  INDEX+OPTIDX OHLC session after cache refresh.
+```
+
 ## As of now (2026-09-15) — paper overlay recode after OpenAI REJECT
 
 ```text
