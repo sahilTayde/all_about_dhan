@@ -1,5 +1,23 @@
 # Handoff log — Team 06 Backtesting
 
+## As of now (2026-09-15) — BOOK_MODEL_TUNE cache fit (NO_PROMOTE)
+
+```text
+From:     teams/06_backtesting (gate)
+To:       00 / 04 / 07 / 09 / founder
+Date:     2026-09-15
+Status:   CACHE TUNE / UNVALIDATED / NO_PROMOTE / BACKTEST_REQUIRED
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: desk_ml book-tune on recon cache. NIFTY/SENSEX 599 triples
+  2026-09-09..10. ML-001 seed 14 cluster counts. ML-002 MRR 40/60/90
+  + FOLLOW-GAP. production_params_written false.
+Rejected: Treating cluster/OU numbers as OOS+NORMAL promote; live Super Order.
+UNKNOWN: ATM 1m for 2026-09-11..15 (three tape days only, not 15–21).
+Artifact: teams/06_backtesting/docs/BOOK_MODEL_TUNE.md
+CLI: python -m desk_ml book-tune --calendar-days 21
+```
+
 ## As of now (2026-09-14) — QUANT_SELF_REVIEW_LOOP spec
 
 ```text

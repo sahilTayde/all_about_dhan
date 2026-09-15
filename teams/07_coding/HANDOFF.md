@@ -1,5 +1,19 @@
 # Handoff log — Team 07 Coding
 
+## As of now (2026-09-15) — desk_ml book-tune / mrr-fit (no Dhan)
+
+```text
+From:     teams/07_coding
+To:       00 / 04 / 06 / 08
+Date:     2026-09-15
+Status:   CLI shipped / UNVALIDATED / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: inventory, mrr-fit, book-tune CLIs. Cache JSON + warehouse only.
+Rejected: Super Order; production MIX writes; live history refresh in this job.
+CLI: python -m desk_ml book-tune --calendar-days 21
+```
+
 ## As of now (2026-09-14) — packages/desk-ml ML-001 (no Dhan loop)
 
 ```text

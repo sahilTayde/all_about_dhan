@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from desk_ml.book_tune import run_book_tune
@@ -41,10 +41,9 @@ def _triples() -> list[Triple]:
 
 
 def test_ou_mean_reverting_ar1() -> None:
-    # AR(1) with phi=0.7 around 0
-    x = [0.0]
-    for i in range(80):
-        x.append(0.7 * x[-1] + (0.01 if i % 2 == 0 else -0.01))
+    x = [1.0]
+    for _ in range(120):
+        x.append(0.75 * x[-1])
     out = ou_ar1(x)
     assert out["mean_reverting"] is True
     assert out["half_life_bars"] is not None

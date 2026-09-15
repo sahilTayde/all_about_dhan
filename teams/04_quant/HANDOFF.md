@@ -1,5 +1,21 @@
 # Handoff log — Team 04 Quant
 
+## As of now (2026-09-15) — ML-002 mrr-fit overlay (NO_PROMOTE)
+
+```text
+From:     teams/04_quant + packages/desk-ml
+To:       00 / 06 / 07 / 09 / founder
+Date:     2026-09-15
+Status:   HYPOTHESIS overlay / UNVALIDATED / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: ML-002 = OU on MIX-FORM residual + VWMA windows 40/60/90.
+  FOLLOW-GAP HOLD. Seed 14 for ML-001 unchanged. Max 3 tweaks.
+Rejected: Promote from half-life; live orders; STRAT-015+.
+CLI: python -m desk_ml mrr-fit --underlying NIFTY
+Doc: teams/06_backtesting/docs/BOOK_MODEL_TUNE.md
+```
+
 ## As of now (2026-09-14) — ML-001 KMeans+IsolationForest overlay (NO_PROMOTE)
 
 ```text
