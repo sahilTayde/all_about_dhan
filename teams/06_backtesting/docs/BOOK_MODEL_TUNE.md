@@ -67,11 +67,14 @@ In-sample **preferred window 90** (lowest mean \|z\| among mean-reverting OU). *
 ```bash
 pip install -e packages/desk-ml
 python -m desk_ml inventory --calendar-days 21
-python -m desk_ml fit --underlying NIFTY --seed 14
-python -m desk_ml score --underlying NIFTY
+python -m desk_ml fit --underlying NIFTY --seed 14 --embargo-bars 5
+python -m desk_ml score --underlying NIFTY --source cache
+python -m desk_ml score --underlying NIFTY --source dual-tape
 python -m desk_ml mrr-fit --underlying NIFTY
 python -m desk_ml book-tune --calendar-days 21
 ```
+
+09:15 IST paper start (dual-tape + score, no ExecutionClient): [`SESSION_PREP_ML.md`](SESSION_PREP_ML.md).
 
 Pytest: `python -m pytest packages/desk-ml/tests -q`
 

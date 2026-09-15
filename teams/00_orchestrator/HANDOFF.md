@@ -2,6 +2,24 @@
 
 **Agents:** read **only the newest block**. Do not ingest this whole log. New files: [`docs/FILE_CREATION.md`](../../docs/FILE_CREATION.md). Append here — do not create `HANDOFF_TOMORROW.md` or extra `CONTINUE_*`.
 
+## As of now (2026-09-15) — RESEARCH_BOSS ML session prep (NO_PROMOTE)
+
+```text
+From:     teams/00_orchestrator (research boss route)
+To:       founder / 04 / 06 / 07
+Date:     2026-09-15
+Status:   HYPOTHESIS / NO_PROMOTE / ORDERS REFUSED / BACKTEST_REQUIRED
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: SSRN 151 catalog stay; AFML excerpt → embargo analog not CPCV;
+  Orrell/DISCARDED image books not ingested. desk_ml score dual-tape
+  at 09:15 IST. FOLLOW-GAP HOLD. production_params_written false.
+Rejected: ExecutionClient / Super Order; promote; treating embargo as OOS.
+Doc:      teams/06_backtesting/docs/SESSION_PREP_ML.md
+CLI:      python -m trading_agents_india dual-tape --live-chain
+          python -m desk_ml score --underlying NIFTY --source dual-tape
+```
+
 ## As of now (2026-09-15) — founder POST_MARKET nightly + EOD
 
 ```text

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 from trading_agents_india.config import Settings
@@ -41,6 +42,12 @@ def test_simulate_two_ticks_writes_ledger(tmp_path: Path) -> None:
     assert latest.is_file()
     notes = list((tmp_path / "data" / "recon" / "paper_watch" / "DUAL-TAPE").glob("*.notes.md"))
     assert notes
+    overlay = tmp_path / "data" / "recon" / "paper_watch" / "DUAL-TAPE" / "overlay_last.json"
+    assert overlay.is_file()
+    blob = json.loads(overlay.read_text(encoding="utf-8"))
+    assert blob["production_params_written"] is False
+    assert blob["promote"] is False
+    assert blob["session_action"] == "HOLD"
     text = notes[0].read_text(encoding="utf-8")
     assert "NIFTY" in text
     assert settings.kb_path.is_file()

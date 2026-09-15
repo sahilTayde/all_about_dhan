@@ -35,6 +35,8 @@
 | `TOPIC_COVERAGE.md` | `teams/01_research/docs/` | Topic × book × KNOWN/PARTIAL/DI × desk hook. Edit in place. |
 | `QUANT_SELF_REVIEW_LOOP.md` | `teams/06_backtesting/docs/` | Nightly/paper self-review → `RETUNE_PROPOSAL` only. Edit in place. |
 | `BOOK_MODEL_TUNE.md` | `teams/06_backtesting/docs/` | Cache ML-001 + ML-002 book tune. **One** file; overwrite. Not a promote. |
+| `SESSION_PREP_ML.md` | `teams/06_backtesting/docs/` | How to start paper dual-tape + `desk_ml score` at 09:15 IST. FOLLOW-GAP HOLD. Not a promote. |
+| `OPENAI_OVERLAY_REVIEW.md` | `teams/06_backtesting/docs/` | Paper overlay counsel: reject reasons, recode, new verdict. Not a five-pass. |
 | Cursor rule `*.mdc` | `.cursor/rules/` | New always-on routing. Keep short. |
 
 Teacher books, `config/workspace.yaml` `sources.books[]`, STRAT/MIX/CAS catalogs, and `docs/` product standards (`COMPLIANCE`, `SECURITY`, `SDLC`, `REVIEW`, `INDEX`, `COMPANY_DEPARTMENTS`, …) are **edit-in-place**.

@@ -1,5 +1,39 @@
 # Handoff log — Team 06 Backtesting
 
+## As of now (2026-09-15) — paper overlay recode after OpenAI REJECT
+
+```text
+From:     teams/06_backtesting
+To:       00 / 07 / 09 / founder
+Date:     2026-09-15
+Status:   PAPER OVERLAY / NO_PROMOTE / BACKTEST_REQUIRED
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: Causal z; thin-tick HOLD; overlay CLI NIFTY/BANKNIFTY/SENSEX;
+  dual-tape overlay_last.json; production_params_written false.
+Rejected: Five-pass / RESEARCH_READY; live Super Order; promote.
+UNKNOWN: Five-pass still unset. Paper overlay counsel ALIGNED ACCEPT_WITH_CAVEATS (gpt-4.1).
+Artifact: teams/06_backtesting/docs/OPENAI_OVERLAY_REVIEW.md
+```
+
+## As of now (2026-09-15) — SESSION_PREP_ML dual-tape + desk_ml score
+
+```text
+From:     teams/06_backtesting (gate)
+To:       00 / 04 / 05 / 07 / founder
+Date:     2026-09-15
+Status:   PAPER PREP / UNVALIDATED / NO_PROMOTE / BACKTEST_REQUIRED
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: Warehouse+premium join; ML-001 embargo 5 (not CPCV);
+  score --source dual-tape; FOLLOW-GAP HOLD at 09:15 IST.
+  production_params_written false. ExecutionClient unused.
+Rejected: Live Super Order; promote; STRAT-015+.
+UNKNOWN: ATM depth at open; SENSEX OU mean-reversion.
+Artifact: teams/06_backtesting/docs/SESSION_PREP_ML.md
+CLI: python -m desk_ml score --underlying NIFTY --source dual-tape
+```
+
 ## As of now (2026-09-15) — BOOK_MODEL_TUNE cache fit (NO_PROMOTE)
 
 ```text

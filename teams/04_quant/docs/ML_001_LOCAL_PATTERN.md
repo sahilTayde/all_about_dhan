@@ -19,12 +19,12 @@ Rejected on the 30s path: deep RL, transformers, blocking LLM, sklearn as a hard
 
 Features (`ml001-v1`): `idx_ret`, `ce_ret`, `pe_ret`, `spread_chg`, `abs_residual` from aligned 1m INDEX + ATM CE + ATM PE (`data/recon/ohlc` + `premium_tape`). No invented greeks.
 
-**Attach tomorrow:** after 1m bar close, `python -m desk_ml score` or `score_features_dict`. `overlay=HOLD` (PREMIUM_DIVERGENCE / DIVERGE) → dealer may HOLD new paper CE/PE. Regime labels are not BUY_CE/PE. Staging still [`SIGNAL_STAGING.md`](SIGNAL_STAGING.md). No LLM on this path.
+**Attach tomorrow:** after 1m bar close **or** two dual-tape ticks, `python -m desk_ml score --underlying NIFTY --source dual-tape`. `overlay=HOLD` / FOLLOW-GAP → dealer HOLDs new paper CE/PE. Fit embargo last 5 bars (AFML analog, not CPCV). Warehouse `ohlc_bars` + `bars_1m` join INDEX; `{UND}_ATM_CE/PE` if present. Regime labels are not BUY_CE/PE. No LLM. ExecutionClient unused.
 
 ```bash
 pip install -e packages/desk-ml
-python -m desk_ml fit --underlying NIFTY
-python -m desk_ml score --underlying NIFTY
+python -m desk_ml fit --underlying NIFTY --seed 14 --embargo-bars 5
+python -m desk_ml score --underlying NIFTY --source dual-tape
 ```
 
 Holiday cache fit (NIFTY join of INDEX 1m + ATM tape 2026-09-09..11): **599** triples → **598** rows. Counts: RANGE 304, TREND_DN 241, TREND_UP 26, DIVERGE 27. `win_rate` null. `NO_PROMOTE`.

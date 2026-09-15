@@ -1,5 +1,20 @@
 # Handoff log — Team 07 Coding
 
+## As of now (2026-09-15) — desk_ml warehouse join + dual-tape score
+
+```text
+From:     teams/07_coding
+To:       00 / 04 / 06 / 08
+Date:     2026-09-15
+Status:   CLI shipped / UNVALIDATED / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: bars_1m + ohlc_bars + ATM warehouse symbols; score --source
+  dual-tape; ML-002 score_mrr_last; embargo-bars on fit.
+Rejected: Super Order; ExecutionClient; production MIX writes.
+CLI: python -m desk_ml score --underlying NIFTY --source dual-tape
+```
+
 ## As of now (2026-09-15) — desk_ml book-tune / mrr-fit (no Dhan)
 
 ```text

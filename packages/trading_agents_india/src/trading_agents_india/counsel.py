@@ -35,6 +35,7 @@ def counsel_settings() -> dict[str, Any]:
         "provider": (os.getenv("COUNSEL_PROVIDER") or "both").strip().lower(),
         "gemini_model": (os.getenv("GEMINI_MODEL") or "gemini-3.5-flash-lite").strip(),
         "openai_model": (os.getenv("OPENAI_MODEL") or "gpt-5.4-nano").strip(),
+        "openai_max_tokens": int(os.getenv("OPENAI_MAX_TOKENS") or "400"),
         "gemini_key_present": len(_gemini_key()) > 8,
         "openai_key_present": len(_openai_key()) > 8,
     }
@@ -68,29 +69,47 @@ def _complete_gemini(prompt: str, model: str) -> dict[str, Any]:
     return {"ok": True, "text": str(text).strip(), "provider": "gemini", "model": model}
 
 
-def _complete_openai(prompt: str, model: str) -> dict[str, Any]:
+def _openai_payload(model: str, prompt: str, max_out: int) -> dict[str, Any]:
+    body: dict[str, Any] = {
+        "model": model,
+        "messages": [{"role": "user", "content": prompt}],
+    }
+    if model.startswith("gpt-5") or "nano" in model:
+        body["max_completion_tokens"] = max_out
+    else:
+        body["max_tokens"] = max_out
+    return body
+
+
+def _complete_openai(prompt: str, model: str, *, max_out: int = 400) -> dict[str, Any]:
     key = _openai_key()
     if len(key) <= 8:
         return {"ok": False, "gap": "DATA_INSUFFICIENT: OPENAI_API_KEY missing"}
-    payload = json.dumps(
-        {
-            "model": model,
-            "messages": [{"role": "user", "content": prompt}],
-            "max_completion_tokens": 400,
-        }
-    ).encode()
+    payload = json.dumps(_openai_payload(model, prompt, max_out)).encode()
     code, raw = _http(
         "POST",
         "https://api.openai.com/v1/chat/completions",
         headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
         body=payload,
     )
+    if code == 400 and "max_tokens" in raw and "max_completion_tokens" not in _openai_payload(model, prompt, max_out):
+        alt = _openai_payload(model, prompt, max_out)
+        alt.pop("max_tokens", None)
+        alt["max_completion_tokens"] = max_out
+        code, raw = _http(
+            "POST",
+            "https://api.openai.com/v1/chat/completions",
+            headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
+            body=json.dumps(alt).encode(),
+        )
     if code != 200:
         return {"ok": False, "gap": f"DATA_INSUFFICIENT: openai HTTP {code}"}
     try:
         blob = json.loads(raw)
         text = blob["choices"][0]["message"]["content"]
     except (KeyError, IndexError, TypeError, json.JSONDecodeError):
+        return {"ok": False, "gap": "DATA_INSUFFICIENT: openai empty/unparsed"}
+    if text is None:
         return {"ok": False, "gap": "DATA_INSUFFICIENT: openai empty/unparsed"}
     return {"ok": True, "text": str(text).strip(), "provider": "openai", "model": model}
 
@@ -108,7 +127,16 @@ def _full_prompt(prompt: str, role: str, facts: str) -> str:
 
 def _verdict_token(text: str) -> str:
     head = (text or "").strip().split("\n", 1)[0].upper()
-    for token in ("AGREE_WITH_CAVEATS", "DISAGREE", "AGREE", "HOLD", "DATA_INSUFFICIENT"):
+    for token in (
+        "ACCEPT_WITH_CAVEATS",
+        "AGREE_WITH_CAVEATS",
+        "DATA_INSUFFICIENT",
+        "REJECT",
+        "ACCEPT",
+        "DISAGREE",
+        "AGREE",
+        "HOLD",
+    ):
         if token in head:
             return token
     return "OTHER"
@@ -143,7 +171,7 @@ def complete_panel(
         "model": cfg["gemini_model"],
         "provider": "gemini",
     }
-    o = _complete_openai(full, cfg["openai_model"]) if cfg["openai_key_present"] else {
+    o = _complete_openai(full, cfg["openai_model"], max_out=int(cfg.get("openai_max_tokens") or 400)) if cfg["openai_key_present"] else {
         "ok": False,
         "gap": "OPENAI_API_KEY missing",
         "text": "",
@@ -205,7 +233,7 @@ def complete(
         hit = (
             _complete_gemini(full, cfg["gemini_model"])
             if who == "gemini"
-            else _complete_openai(full, cfg["openai_model"])
+            else _complete_openai(full, cfg["openai_model"], max_out=int(cfg.get("openai_max_tokens") or 400))
         )
         if hit.get("ok"):
             return {
