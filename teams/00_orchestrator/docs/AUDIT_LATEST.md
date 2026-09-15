@@ -1,10 +1,6 @@
 # Docs Auditor — latest
 
-<<<<<<< HEAD
-**Date (IST):** `2026-09-15T06:57:00+05:30`
-=======
-**Date (IST):** `2026-09-15T06:57:37+05:30`
->>>>>>> cursor/book-reads-text-layer-f4ff
+**Date (IST):** `2026-09-15T07:06:17+05:30`
 **Result:** **PASS** (0 findings)
 **Cadence:** after any requirement change **and** post-market nightly (`jobs.docs_auditor: daily`)
 **CLI:** `python -m docs_auditor` · `python -m desk_intel audit-docs`

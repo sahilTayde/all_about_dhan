@@ -1,5 +1,24 @@
 # Handoff log — Team 01 Research
 
+## As of now (2026-09-15) — founder DISCARDED unreadable titles
+
+```text
+From:     teams/01_research
+To:       00 / 02 / 04 / 06 / 09 / founder
+Date:     2026-09-15
+Status:   SOURCE_FACT stamp / UNVALIDATED / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: KEEP readable notes — 151, AFML excerpt (+ GIL2476), Gliner
+  extract, Derman slides, 101, Orrell. Club + TOPIC_COVERAGE stamped.
+Rejected / DISCARDED: Wiley smile image (123456); Finding Alphas image;
+  missing TQP; full Badly monograph; full Gliner. No PDF git-add.
+UNKNOWN: HQ IV; CPCV not coded.
+Artifacts:
+  docs/TOPIC_COVERAGE.md
+  docs/book_reads/CLUB_SEVEN_BOOKS.md
+```
+
 ## As of now (2026-09-14) — book re-inventory + NOTE_* rewrite (text layer)
 
 ```text

@@ -8,25 +8,29 @@
 
 **On disk 2026-09-14 (re-inventory):** pypdf on every PDF under `teams/01_research/` (`pdftotext` not installed). Allowlist: `book_reads/NOTE_*.md` + this file. No PDF body in FTS. **NO_PROMOTE.**
 
+**2026-09-15 founder:** unreadable titles are **`DISCARDED`** (Wiley smile image, Finding Alphas image, missing TQP, full Badly monograph, full Gliner). **Keep** readable notes: **151**, **AFML excerpt** (+ GIL2476), **Gliner extract**, **Derman slides**, **101**, **Orrell**.
+
 ---
 
 ## Inventory (seven titles + companions)
 
 Readable = selectable text (pypdf `extractable_chars` ≫ 0). Image = empty/sparse text layer.
 
-| # | Cite | Sibling note | On-disk file(s) | Pages | Chars | Readable vs image |
-|---|------|--------------|-----------------|------:|------:|-------------------|
-| 1 | Tulchinsky — *Finding Alphas* | [`NOTE_finding_alphas.md`](NOTE_finding_alphas.md) | `Finding Alphas_ Quantitative Trading Strategies.pdf` | 321 | 61 | **Still image** (Chrome string p.1) |
-| 1b | Kakushadze — *101 Formulaic Alphas* | same NOTE | `ssrn-2701346.pdf` | 22 | 48 676 | **TEXT** (companion, not the Wiley book) |
-| 2 | Kakushadze/Serur — *151 Trading Strategies* | [`NOTE_ssrn_3247865.md`](NOTE_ssrn_3247865.md) | `ssrn-3247865.pdf` + `(1).pdf` (identical) | 361 | 833 381 | **TEXT** (full SSRN) |
-| 3 | Derman — *Models.Behaving.Badly* | [`NOTE_oneil_derman.md`](NOTE_oneil_derman.md) | `oneil-derman.pdf` | 19 | 11 883 | **TEXT** — **slides only**, not the monograph |
-| 4 | Gliner — *Global Macro Trading* | [`NOTE_L0002559656.md`](NOTE_L0002559656.md) | `L-0002559656-pdf.pdf` | 30 | 33 094 | **TEXT** — **30-page extract**, not full book |
-| 5 | Derman/Miller — *The Volatility Smile* | [`NOTE_volatility_smile.md`](NOTE_volatility_smile.md) | `123456.pdf` | 303 | 0 | **Still image** (Bookey dump) |
-| 5b | Orrell/Richards — *Keep on smiling* | same NOTE | `ssrn-4205729.pdf` | 19 | 31 541 | **TEXT** (SPX/VIX paper, not Wiley) |
-| 5c | Orrell — *Quantum walk options* | same NOTE | `ssrn-3512481.pdf` | 21 | 39 521 | **TEXT** (adjacent; not a ticket) |
-| 6 | Bouchaud et al. — *Trades, Quotes and Prices* | [`NOTE_preview_1108639064.md`](NOTE_preview_1108639064.md) | *(missing)* | — | — | **Still absent** — not full TQP |
-| 7 | López de Prado — *AFML* | [`NOTE_ssrn_3104847.md`](NOTE_ssrn_3104847.md) | `ssrn-3104847.pdf` | 61 | 118 580 | **TEXT** — **excerpt**, not full Wiley |
-| 7b | AFML bonus figures | same NOTE | `GIL2476_AdvancesFinancial_BonusPDF.pdf` | 218 | 159 026 | **TEXT** — tables/eqs/snippets, **not** full book |
+| # | Cite | Sibling note | On-disk file(s) | Pages | Chars | Readable vs image | Club stamp |
+|---|------|--------------|-----------------|------:|------:|-------------------|------------|
+| 1 | Tulchinsky — *Finding Alphas* | [`NOTE_finding_alphas.md`](NOTE_finding_alphas.md) | `Finding Alphas_ Quantitative Trading Strategies.pdf` | 321 | 61 | **Still image** (Chrome string p.1) | **`DISCARDED`** (image) |
+| 1b | Kakushadze — *101 Formulaic Alphas* | same NOTE | `ssrn-2701346.pdf` | 22 | 48 676 | **TEXT** (companion, not the Wiley book) | **KEEP** |
+| 2 | Kakushadze/Serur — *151 Trading Strategies* | [`NOTE_ssrn_3247865.md`](NOTE_ssrn_3247865.md) | `ssrn-3247865.pdf` + `(1).pdf` (identical) | 361 | 833 381 | **TEXT** (full SSRN) | **KEEP** |
+| 3 | Derman — *Models.Behaving.Badly* slides | [`NOTE_oneil_derman.md`](NOTE_oneil_derman.md) | `oneil-derman.pdf` | 19 | 11 883 | **TEXT** — **slides only** | **KEEP** slides |
+| 3b | Full Badly monograph | — | *(not on disk)* | — | — | — | **`DISCARDED`** |
+| 4 | Gliner — *Global Macro Trading* extract | [`NOTE_L0002559656.md`](NOTE_L0002559656.md) | `L-0002559656-pdf.pdf` | 30 | 33 094 | **TEXT** — **30-page extract** | **KEEP** extract |
+| 4b | Full Gliner | — | *(not on disk)* | — | — | — | **`DISCARDED`** |
+| 5 | Derman/Miller — *The Volatility Smile* | [`NOTE_volatility_smile.md`](NOTE_volatility_smile.md) | `123456.pdf` | 303 | 0 | **Still image** (Bookey dump) | **`DISCARDED`** (image) |
+| 5b | Orrell/Richards — *Keep on smiling* | same NOTE | `ssrn-4205729.pdf` | 19 | 31 541 | **TEXT** (SPX/VIX paper, not Wiley) | **KEEP** |
+| 5c | Orrell — *Quantum walk options* | same NOTE | `ssrn-3512481.pdf` | 21 | 39 521 | **TEXT** (adjacent; not a ticket) | **KEEP** |
+| 6 | Bouchaud et al. — *Trades, Quotes and Prices* | [`NOTE_preview_1108639064.md`](NOTE_preview_1108639064.md) | *(missing)* | — | — | **Still absent** — not full TQP | **`DISCARDED`** (missing TQP) |
+| 7 | López de Prado — *AFML* excerpt | [`NOTE_ssrn_3104847.md`](NOTE_ssrn_3104847.md) | `ssrn-3104847.pdf` | 61 | 118 580 | **TEXT** — **excerpt**, not full Wiley | **KEEP** excerpt |
+| 7b | AFML bonus figures | same NOTE | `GIL2476_AdvancesFinancial_BonusPDF.pdf` | 218 | 159 026 | **TEXT** — tables/eqs/snippets, **not** full book | **KEEP** excerpt companion |
 
 Crosswalk: [`00_CROSSWALK.md`](../../../02_phd_math/docs/book_kb/00_CROSSWALK.md). Playbook: [`08_EXAM_DESK_PLAYBOOK.md`](../../../02_phd_math/docs/book_kb/08_EXAM_DESK_PLAYBOOK.md).
 
@@ -116,15 +120,17 @@ When a sibling drops a note, append a dated row under **Sibling arrivals** and r
 | 2026-09-14 | `NOTE_preview_1108639064.md` | SOURCE_FACT + DI | Prior preview; file missing now |
 | 2026-09-14 | `NOTE_oneil_derman.md` | SOURCE_FACT + map | Derman Badly **slides** |
 | 2026-09-14 | `NOTE_volatility_smile.md` | SOURCE_FACT + DI | Bookey still image; Orrell smile paper |
+| 2026-09-15 | founder DISCARDED | SOURCE_FACT stamp | Image Wiley smile + Finding Alphas, missing TQP, full Badly, full Gliner **DISCARDED**. KEEP 151 / AFML excerpt / Gliner extract / slides / 101 / Orrell. |
 
 ```text
 HANDOFF
 From:     01 RESEARCH_BOSS club
 To:       00 / 02 / 04 / 06 / 09
 Accepted: Re-inventory; topic-depth notes; KEEP_ALL; MIX-* only;
-  RETUNE_GATE; no PDF ingest; NO_PROMOTE.
-Rejected: Auto-perfect; STRAT-015+; quoting PDFs; promoting from notes;
-  claiming full Wiley/Gliner/TQP/AFML/Badly from files we have.
-UNKNOWN: Unread Tulchinsky chapters; Gliner Ch.3–12; smile Wiley body;
-  TQP file; IV series; retraction claim; CPCV not coded.
+  RETUNE_GATE; no PDF ingest; NO_PROMOTE. KEEP readable 151, AFML
+  excerpt, Gliner extract, Derman slides, 101, Orrell.
+Rejected / DISCARDED: Wiley smile image; Finding Alphas image; missing
+  TQP; full Badly monograph; full Gliner. Auto-perfect; STRAT-015+;
+  quoting PDFs; promoting from notes.
+UNKNOWN: HQ IV series; retraction claim; CPCV not coded.
 ```
