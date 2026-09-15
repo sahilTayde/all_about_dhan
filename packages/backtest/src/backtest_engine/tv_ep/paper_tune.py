@@ -32,7 +32,10 @@ SHORTLIST = (
 )
 MAX_TWEAKS_PER_MIX_PER_DAY = 3
 MAX_TICKS_DEFAULT = 90
-RT_COST = 0.01  # HYPOTHESIS 1% round-trip on premium — not statutory
+RT_COST = 0.01  # HYPOTHESIS 1% each way on premium — matches costs.DEFAULT_COST
+Z_HOLD = 2.0
+Z_WINDOW = 30
+MIN_BETA_BARS = 8
 FORBIDDEN_PRODUCTION = (
     "config/workspace.yaml",
     "teams/04_quant/docs/candidates/",
@@ -158,6 +161,68 @@ def premium_divergence(
         return True, "PREMIUM_DIVERGENCE: dual-tape confirms PE; MIX wanted BUY_CE"
     if side == "PE" and note.verdict == "BUY_CE_CONFIRM":
         return True, "PREMIUM_DIVERGENCE: dual-tape confirms CE; MIX wanted BUY_PE"
+    return False, ""
+
+
+def _return_triples(
+    index: list[Bar], ce: list[Bar], pe: list[Bar], end_i: int
+) -> list[tuple[float, float, float]]:
+    """Simple returns on bars[1..end_i] inclusive. Causal: no bar after end_i."""
+    from trading_agents_india.index_ce_pe_formulas import simple_return
+
+    out: list[tuple[float, float, float]] = []
+    for j in range(1, end_i + 1):
+        ir = simple_return(index[j - 1].close, index[j].close)
+        cr = simple_return(ce[j - 1].close, ce[j].close)
+        pr = simple_return(pe[j - 1].close, pe[j].close)
+        if ir is None or cr is None or pr is None:
+            continue
+        out.append((ir, cr, pr))
+    return out
+
+
+def causal_overlay_block(
+    index: list[Bar],
+    ce: list[Bar],
+    pe: list[Bar],
+    i: int,
+    *,
+    z_hold: float = Z_HOLD,
+    z_window: int = Z_WINDOW,
+) -> tuple[bool, str]:
+    """HOLD new paper CE/PE on FOLLOW-GAP or ML-002 |z| (expanding k, causal z).
+
+    Beta uses returns strictly before the decision bar. Residual z uses history
+    only (02 / AFML). Does not write MIX params. Not a promote.
+    """
+    from trading_agents_india.index_ce_pe_formulas import (
+        mix_form_diverge_z,
+        mix_form_follow_gap,
+        ols_beta,
+    )
+
+    if i < 1 or i >= min(len(index), len(ce), len(pe)):
+        return True, "DATA_INSUFFICIENT: no prior bar for FOLLOW-GAP / residual z"
+    rets = _return_triples(index, ce, pe, i)
+    if not rets:
+        return True, "DATA_INSUFFICIENT: no aligned returns — no new paper ticket"
+    ir, cr, pr = rets[-1]
+    gap = mix_form_follow_gap(index_ret=ir, ce_ret=cr, pe_ret=pr)
+    if gap.get("any_divergence"):
+        return True, "FOLLOW-GAP: index lean not confirmed by ATM premium"
+    prior = rets[:-1]
+    if len(prior) < MIN_BETA_BARS:
+        return False, ""
+    idx = [r[0] for r in prior]
+    k_ce = ols_beta(idx, [r[1] for r in prior])
+    k_pe = ols_beta(idx, [r[2] for r in prior])
+    if k_ce is None or k_pe is None:
+        return False, ""
+    hist = [0.5 * ((r[1] - k_ce * r[0]) + (r[2] - k_pe * r[0])) for r in prior]
+    cur = 0.5 * ((cr - k_ce * ir) + (pr - k_pe * ir))
+    z = mix_form_diverge_z(cur, hist, window=z_window)
+    if z is not None and abs(z) >= z_hold:
+        return True, f"ML-002 RESIDUAL_Z |z|={abs(z):.2f} ≥ {z_hold}"
     return False, ""
 
 
@@ -366,6 +431,7 @@ def replay_one(
             "ticks": n,
             "tickets": [],
             "blocked_divergence": 0,
+            "blocked_overlay": 0,
             "paper_pnl": 0.0,
             "paper_pnl_after_cost": 0.0,
             "wins": 0,
@@ -400,7 +466,8 @@ def replay_one(
             pe_prev=slice_pe[i - 1].close if i else None,
             pe_now=slice_pe[i].close,
         )
-        if div:
+        overlay, overlay_why = causal_overlay_block(slice_idx, slice_ce, slice_pe, i)
+        if div or overlay:
             blocked += 1
             tickets.append(
                 {
@@ -408,21 +475,22 @@ def replay_one(
                     "ts": slice_idx[i].ts,
                     "signal": "HOLD",
                     "wanted": f"BUY_{side}",
-                    "blocked": why,
+                    "blocked": why or overlay_why,
                     "pnl": 0.0,
                 }
             )
             continue
         prem = slice_ce if side == "CE" else slice_pe
-        entry = prem[i].close
-        nxt = prem[i + 1].close
+        fill = prem[i + 1]
+        entry = fill.open
+        nxt = fill.close
         pnl = nxt - entry
-        after = pnl - abs(entry) * RT_COST
+        after = pnl - RT_COST * (abs(entry) + abs(nxt))
         win = pnl > 0
         note = ""
         if not win:
             note = (
-                f"{mix_id} BUY_{side} at i={i} next-premium {pnl:.4f} ≤0 "
+                f"{mix_id} BUY_{side} at i={i} next-bar-open fill {pnl:.4f} ≤0 "
                 f"(params={params})"
             )
             mistakes.append(note)
@@ -433,6 +501,7 @@ def replay_one(
                 "signal": f"BUY_{side}",
                 "entry_premium": entry,
                 "next_premium": nxt,
+                "fill_ts": fill.ts,
                 "pnl": round(pnl, 6),
                 "pnl_after_cost": round(after, 6),
                 "mistake_note": note or None,
@@ -456,7 +525,7 @@ def replay_one(
         "trades": len(pnls),
         "mistake_notes": mistakes[:40],
         "cost_model": "HYPOTHESIS_OPTION_RT_1PCT",
-        "fill": "signal_close → next_bar_close premium (1m)",
+        "fill": "signal_close → next_bar_open premium (1m); mark next_bar_close",
         "promotion": "NO_PROMOTE",
     }
 

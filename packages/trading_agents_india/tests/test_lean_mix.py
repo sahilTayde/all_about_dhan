@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from trading_agents_india.lean_mix import (
+    _call_side_follow_gap,
     pick_customer_lean,
     score_dual_index_master,
     score_impulse_1m,
@@ -172,6 +173,22 @@ def test_dual_index_master_sensex_waits_for_premium_ohlc() -> None:
     )
     assert result.final_lean == "HOLD"
     assert result.provenance_extra.get("mix_stage") == "WATCH"
+
+
+def test_dual_follow_gap_holds_call_when_index_down() -> None:
+    bars = _bars(n=4, start=74000.0, step=-20.0)
+    prem = _bars(n=4, start=100.0, step=1.0)
+    hold, why = _call_side_follow_gap(bars, prem)
+    assert hold is True
+    assert "down" in why.lower() or "FOLLOW-GAP" in why
+
+
+def test_dual_follow_gap_holds_when_call_does_not_follow_up() -> None:
+    bars = _bars(n=4, start=74000.0, step=20.0)
+    prem = _bars(n=4, start=100.0, step=-2.0)
+    hold, why = _call_side_follow_gap(bars, prem)
+    assert hold is True
+    assert "CALL" in why
 
 
 def test_dual_index_master_nifty_failed_arm_parked() -> None:

@@ -85,12 +85,16 @@ def vwma(closes: Sequence[float], volumes: Sequence[float], length: int) -> list
 
 
 def rolling_z(values: Sequence[float], length: int) -> list[Optional[float]]:
+    """Causal z: mean/std on the prior `length` points, score the current point.
+
+    Same-window inclusion of values[i] leaks the decision residual (AFML).
+    """
     out: list[Optional[float]] = []
     for i in range(len(values)):
-        if i + 1 < length:
+        if i < length:
             out.append(None)
             continue
-        chunk = values[i + 1 - length : i + 1]
+        chunk = values[i - length : i]
         m = sum(chunk) / length
         var = sum((v - m) ** 2 for v in chunk) / (length - 1)
         if var < EPS:

@@ -27,6 +27,7 @@
 | `CONTINUE_NEXT_CHAT.md` | `teams/00_orchestrator/docs/` | **One** wake-up. Update in place. |
 | `COUNSEL_QUANT_TRAINING.md` | `teams/00_orchestrator/docs/` | Joint Gemini+OpenAI on 02/04 training (no PDF ingest). Edit in place. |
 | `PRO_QUANT_AGENT_PROMPT.md` | `teams/02_phd_math/docs/` | Standing prompt 02/04 must load. Edit in place. |
+| `PINE_TV_EP_PHD_REVIEW.md` | `teams/02_phd_math/docs/` | 02 VALIDATION of TV-EP adapters vs Pine MRR vs MIX-DUAL. Edit in place. |
 | `book_kb/*.md` + `book_kb/topics/*.md` | `teams/02_phd_math/docs/book_kb/` | Original exam notes only (no PDFs). Edit/add topics in place. |
 | `book_reads/NOTE_*.md` + `CLUB_SEVEN_BOOKS.md` | `teams/01_research/docs/book_reads/` | Sibling notes + Research Boss club. Original notes only. **No PDF / chapter text.** |
 | `RESEARCH_BOSS_SKILL.md` | `teams/00_orchestrator/docs/` | Standing prompt 00 loads to invoke 01 Research Boss + 00 transition. Edit in place. |
