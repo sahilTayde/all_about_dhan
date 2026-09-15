@@ -1,5 +1,29 @@
 # Handoff log — Team 01 Research
 
+## As of now (2026-09-14) — book_reads NOTE_volatility_smile + NOTE_oneil_derman
+
+```text
+From:     teams/01_research
+To:       00 / 02 / 03 / 04 / 06 / 09 / founder
+Date:     2026-09-14
+Status:   SOURCE_FACT packets / UNVALIDATED / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+Layer:    SOURCE_FACT (file identity) + original mapping
+
+Accepted: 123456.pdf = Bookey image dump of Derman/Miller/Park
+  *The Volatility Smile* (Wiley cover + metadata); no selectable text.
+  oneil-derman.pdf = Derman 2013 Columbia slides *Models Behaving Badly*.
+  Original notes only in docs/book_reads/NOTE_*.md.
+Rejected: Chapter dumps; git-add of extracted book txt or the PDFs;
+  invented HQ IV; live orders; STRAT-015+; O'Neil claims from that filename.
+UNKNOWN: Wiley body maths (not in 123456.pdf); why file is named oneil-derman.
+DATA_INSUFFICIENT: HQ IV series; O'Neil text.
+
+Next team: 02 (do not upgrade Bookey dump to Wiley VALIDATION) / 06 tape features only.
+```
+
+Notes: [`docs/book_reads/NOTE_volatility_smile.md`](docs/book_reads/NOTE_volatility_smile.md), [`docs/book_reads/NOTE_oneil_derman.md`](docs/book_reads/NOTE_oneil_derman.md).
+
 ## As of now (2026-09-14) — RESEARCH BOSS (club seven books, not auto-perfect)
 
 ```text

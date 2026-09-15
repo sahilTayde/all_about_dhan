@@ -27,8 +27,8 @@ We **buy** premium. We do **not** run a market-maker delta book. Classroom repli
 - **Relative value vs absolute value.** We already rank with tape (INDEX vs ATM CE vs ATM PE). We do **not** invent a 1-D “cheap IV” score.
 - **Static vs dynamic replication, put-call parity.** Useful as a **consistency check** on expiry payoffs; not a reason to short the other wing. Buy-first desk does **not** synthesize a forward by selling CE+PE.
 - **Variance-swap / 1/K² strip.** Classroom vol-of-vol hedge. We have **no** listed var-swap and **no** trusted chain IV → **cannot** implement.
-- **Discrete hedge + costs.** Even the summary stresses that continuous Δ-hedge P/L is a fantasy. Our paper path: **next-bar / stale LTP / lot**, not BS P/L.
-- **Smile stylized facts (summary only):** ATM often cheaper in IV-space than wings; equity index usually **skew** (OTM PE richer) not a symmetric smile. Visualize vs **delta** in the book; we **do not have HQ delta**.
+- **Discrete hedge + costs.** Continuous Δ-hedge P/L is a fantasy. Our paper path: **next-bar / stale LTP / lot**, not BS P/L.
+- **Smile stylized facts (summary only):** ATM often cheaper in IV-space than wings; equity index usually **skew** (OTM PE richer) not a symmetric smile. Book visualizes vs **delta**; we **do not have HQ delta**.
 - **Sticky strike / sticky delta / local vol.** Rules of thumb for how the *surface* moves when spot moves. Without a surface, they are slogans.
 - **Local vol vs stoch vol vs jumps.** Competing *metaphors* for the same quotes. Jump/Poisson pages in this dump are **not** implementable on 1m LTP.
 
@@ -44,11 +44,11 @@ Keep these as named MIX / overlays. **Not** `STRAT-015+`. **Not** customer defau
 | Follow vs gap | `MIX-FORM-FOLLOW-GAP` / dual-tape `PREMIUM_DIVERGENCE` → **HOLD** new CE/PE |
 | Discrete hedge error | Paper: next-bar fill, IST session, weekly 15:15 flatten — measure **haircut**, do not invent vega |
 
-02 already filed a short exam note: [`teams/02_phd_math/docs/book_kb/05_volatility_smile.md`](../../../02_phd_math/docs/book_kb/05_volatility_smile.md). This file is the **01 packet** for the on-disk PDF.
+02 exam note (not this PDF): [`teams/02_phd_math/docs/book_kb/05_volatility_smile.md`](../../../02_phd_math/docs/book_kb/05_volatility_smile.md).
 
 ## What we cannot (no HQ IV)
 
-- Implied-vol surface, Dupire local vol, Heston/SV calibration, jump-diffusion fit, Breeden-Litzenberger density from a chain of *quoted* IVs.
+- Implied-vol surface, Dupire local vol, Heston/SV calibration, jump-diffusion fit, Breeden-Litzenberger density from quoted IVs.
 - Invented Δ, vega, or “C-ratio of ATM vol vs spot.”
 - Variance-swap fair strike from a 1/K² strip.
 - Treating dual-tape **LTP** as a smile.
@@ -57,36 +57,23 @@ If rollingoption later exposes a validated IV field: store it, **do not** silent
 
 ## Backtest pitfalls
 
-- Fitting any smile model on **one weekly sid** (e.g. 47298) then claiming a surface.
-- Using holiday / non-overlap INDEX∩ATM tape (already 0 bars on 2026-09-09..11) as proof.
+- Fitting any smile model on **one weekly sid** then claiming a surface.
+- Using holiday or non-overlap INDEX and ATM tape as proof.
 - Marking long premium with **BS hedge P/L** we never trade.
 - Expiry Tuesday / 15:15 flatten treated as a continuous European book.
 - SENSEX vs NIFTY mixed without a named MIX row.
 
 ## Overfitting
 
-A 303-page **summary app** plus a handful of 1m residuals is enough to **story-fit** sticky-delta vs sticky-strike. That is idolatry, not a gate. Walk-forward + `NORMAL` + `RETUNE_PROPOSAL` only. Cluster counts and \(k\) on one window are **not** a smile.
+A 303-page **summary app** plus a handful of 1m residuals is enough to **story-fit** sticky-delta vs sticky-strike. Walk-forward + `NORMAL` + `RETUNE_PROPOSAL` only. Cluster counts and \(k\) on one window are **not** a smile.
 
 ## Desk mapping
 
 | Desk object | Use from this PDF | Must not |
 |-------------|-------------------|----------|
-| **Dual-tape** | When spot and premium disagree, the *metaphor* (BSM one-σ) already failed → HOLD | Treat LTP pair as IV smile |
+| **Dual-tape** | When spot and premium disagree, the BSM one-σ metaphor already failed → HOLD | Treat LTP pair as IV smile |
 | **MIX-FORM-*** | Residuals / straddle-ret / follow-gap as **observable** stand-ins | Promote to `/` or live |
 | **ML-001** | IsolationForest / `DIVERGE` = “surface moved, we have no surface” | Train on invented IV |
 | **ML-002** | OU on **residual**, not on implied vol | Call half-life a vega trade |
 
-**NO_PROMOTE.** KEEP_ALL STRAT-001–014. Next team: 02 (do not upgrade this dump to Wiley VALIDATION) / 06 (OOS only on tape features).
-
-```text
-From:     teams/01_research
-To:       02 / 03 / 04 / 06 / 09
-Date:     2026-09-14
-Status:   SOURCE_FACT packet / UNVALIDATED / NO_PROMOTE
-Accepted: Cover+metadata identify Derman/Miller/Park *Volatility Smile*;
-  Bookey image-PDF; original mapping only.
-Rejected: Chapter dump; git-add of extracted book text; invented IV;
-  live orders; STRAT-015+.
-UNKNOWN: Wiley body page-accurate maths (not in this file).
-DATA_INSUFFICIENT: selectable text; HQ IV series.
-```
+**NO_PROMOTE.** KEEP_ALL STRAT-001–014. Next: 02 (do not upgrade this dump to Wiley VALIDATION) / 06 (OOS only on tape features).
