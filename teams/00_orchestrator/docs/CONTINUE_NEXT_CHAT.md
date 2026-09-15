@@ -21,8 +21,24 @@ Do not glob markdown. Do not create extra CONTINUE/HANDOFF/NOTES dumps.
 
 Gate: NOT RESEARCH_READY_FOR_PROGRAMMING. PAPER only. NO_PROMOTE. STRATs UNVALIDATED. Dashboard P/L is MOCK. No live orders. Do not restart npm / Vite / paper ops until I ask. Never print secrets.
 
+Left off 2026-09-15 (next chat): pre-market readiness. At 09:15 IST run paper dual-tape + desk_ml overlay. NO_PROMOTE. OpenAI ACCEPT_WITH_CAVEATS is paper only. No Super Orders. No live orders. Local sqlite — do not git-add.
+
 Left off 2026-09-13: ITM champion PAPER board ready (MIX-CHAMP-* + desk leaderboard + assumed IST VWAP). Docs: teams/06_backtesting/docs/ITM_CHAMPION_PAPER_BOARD.md. CLI: python -m backtest_engine.run_itm_champions. Tuesday = PAPER watch only (prefer ITM PE near spot); live Super Orders refused. Next freeze only after live board evidence; then walk-forward OOS. KEEP_ALL. NO_PROMOTE. Local trading_agents_india.sqlite is working-tree only — do not git-add.
 ```
+
+---
+
+## Left-off 2026-09-15 — next chat = pre-market + live paper (no Super Orders)
+
+| Topic | State |
+|-------|--------|
+| Next chat | **Pre-market readiness**, then paper at **09:15 IST** |
+| Dual-tape | `python -m trading_agents_india dual-tape --live-chain` — no LLM, no orders |
+| Overlay | `python -m desk_ml score --underlying NIFTY --source dual-tape` — FOLLOW-GAP HOLD |
+| OpenAI overlay | `ACCEPT_WITH_CAVEATS` **paper only** — [`OPENAI_OVERLAY_REVIEW.md`](../../06_backtesting/docs/OPENAI_OVERLAY_REVIEW.md) |
+| Session prep | [`SESSION_PREP_ML.md`](../../06_backtesting/docs/SESSION_PREP_ML.md) |
+| Super Orders | **NO** |
+| Promote | **NO_PROMOTE** |
 
 ---
 
