@@ -237,3 +237,38 @@ def test_dual_tape_score_follow_gap_hold(tmp_path: Path) -> None:
     assert scored["session_action"] == "HOLD"
     assert scored["allow_new_paper_ce_pe"] is False
     assert scored["execution"] == "refused"
+    assert scored.get("oos_claim") is False
+
+
+def test_thin_dual_tape_holds(tmp_path: Path) -> None:
+    import json
+
+    folder = tmp_path / "data" / "recon" / "paper_watch" / "DUAL-TAPE"
+    folder.mkdir(parents=True)
+    t0 = _ts(0)
+    row = {
+        "as_of_ist": "2026-09-15T09:16:00+05:30",
+        "underlyings": [
+            {"underlying": "NIFTY", "index_ltp": 25000.0, "atm_ce_ltp": 120.0, "atm_pe_ltp": 110.0, "as_of_ist": t0}
+        ],
+    }
+    (folder / "latest.json").write_text(json.dumps(row))
+    fit_underlying("NIFTY", root=tmp_path, persist=True, triples=_triples(), embargo_bars=5)
+    scored = score_last("NIFTY", root=tmp_path, source="dual-tape")
+    assert scored["session_action"] == "HOLD"
+    assert scored["allow_new_paper_ce_pe"] is False
+    assert scored["status"] == "DATA_INSUFFICIENT"
+    assert scored["production_params_written"] is False
+
+
+def test_overlay_session_three_names_thin(tmp_path: Path) -> None:
+    from desk_ml.overlay import score_session
+
+    report = score_session(root=tmp_path, source="dual-tape")
+    assert set(report["rows"]) == {"NIFTY", "BANKNIFTY", "SENSEX"}
+    assert report["session_action"] == "HOLD"
+    assert report["production_params_written"] is False
+    assert report["oos_claim"] is False
+    assert report["research_ready_for_programming"] is False
+    assert report["promote"] is False
+

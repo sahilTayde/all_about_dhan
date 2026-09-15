@@ -9,11 +9,7 @@ from pathlib import Path
 from desk_ml.book_tune import run_book_tune
 from desk_ml.features import Triple, build_feature_rows
 from desk_ml.inventory import inventory_recon
-<<<<<<< HEAD
-from desk_ml.mrr import mrr_fit_underlying, ou_ar1, pick_preferred, vwma
-=======
 from desk_ml.mrr import mrr_fit_underlying, ou_ar1, pick_preferred, rolling_z, score_mrr_last, vwma
->>>>>>> 46e59fa (Prepare dual-tape desk_ml score for 09:15 IST paper.)
 from desk_ml.tape import load_triples
 
 IST = timezone(timedelta(hours=5, minutes=30))
@@ -179,3 +175,15 @@ def test_mrr_score_last_no_promote(tmp_path: Path) -> None:
     assert scored["promote"] is False
     assert scored["production_params_written"] is False
     assert scored["session_action"] in {"HOLD", "WATCH_ONLY"}
+    assert scored.get("oos_claim") is not True
+
+
+def test_causal_z_excludes_current_bar() -> None:
+    values = [0.0, 1.0, 0.0, 1.0, 10.0]
+    z = rolling_z(values, 4, causal=True)
+    assert z[-1] is not None
+    # Past window is 0,1,0,1; current 10 is not in the mean.
+    assert abs(float(z[-1])) > 1.0
+    leaky = rolling_z(values, 4, causal=False)
+    assert leaky[-1] is not None
+    assert abs(float(z[-1])) > abs(float(leaky[-1]))

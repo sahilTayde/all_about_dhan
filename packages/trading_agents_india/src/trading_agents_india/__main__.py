@@ -23,8 +23,15 @@ def _resolve_flag_triple(
 
 
 def cmd_counsel_job(args: argparse.Namespace) -> int:
+    import os
+
     from trading_agents_india.counsel_jobs import route_job, run_job
     from trading_agents_india.counsel_templates import list_jobs
+
+    if str(getattr(args, "openai_model", "") or "").strip():
+        os.environ["OPENAI_MODEL"] = str(args.openai_model).strip()
+    if int(getattr(args, "max_tokens", 0) or 0) > 0:
+        os.environ["OPENAI_MAX_TOKENS"] = str(int(args.max_tokens))
 
     if args.list:
         print(json.dumps(list_jobs(), indent=2, ensure_ascii=False))
@@ -392,6 +399,8 @@ def main(argv: list[str] | None = None) -> int:
     p_cj.add_argument("--job", default="", help="Job id e.g. SIGNAL_REVIEW")
     p_cj.add_argument("--slot", action="append", default=[], help="key=value (repeat)")
     p_cj.add_argument("--dry", action="store_true", help="Pack facts; do not call APIs")
+    p_cj.add_argument("--openai-model", default="", help="Override OPENAI_MODEL (e.g. gpt-4.1, not nano)")
+    p_cj.add_argument("--max-tokens", type=int, default=0, help="OpenAI max output tokens")
     p_cj.set_defaults(func=cmd_counsel_job)
 
     args = parser.parse_args(argv)

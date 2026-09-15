@@ -1,5 +1,21 @@
 # Handoff log — Team 06 Backtesting
 
+## As of now (2026-09-15) — paper overlay recode after OpenAI REJECT
+
+```text
+From:     teams/06_backtesting
+To:       00 / 07 / 09 / founder
+Date:     2026-09-15
+Status:   PAPER OVERLAY / NO_PROMOTE / BACKTEST_REQUIRED
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: Causal z; thin-tick HOLD; overlay CLI NIFTY/BANKNIFTY/SENSEX;
+  dual-tape overlay_last.json; production_params_written false.
+Rejected: Five-pass / RESEARCH_READY; live Super Order; promote.
+UNKNOWN: Five-pass still unset. Paper overlay counsel ALIGNED ACCEPT_WITH_CAVEATS (gpt-4.1).
+Artifact: teams/06_backtesting/docs/OPENAI_OVERLAY_REVIEW.md
+```
+
 ## As of now (2026-09-15) — SESSION_PREP_ML dual-tape + desk_ml score
 
 ```text

@@ -223,6 +223,26 @@ def load_triples(
     return triples, meta
 
 
+def thin_hold(*, underlying: str, reason: str, tape: Optional[dict[str, Any]] = None) -> dict[str, Any]:
+    """Fewer than two INDEX+CE+PE prints: HOLD new paper CE/PE. Not a promote."""
+    return {
+        "ok": True,
+        "status": "DATA_INSUFFICIENT",
+        "underlying": underlying.upper(),
+        "reason": reason,
+        "follow_gap": False,
+        "session_action": "HOLD",
+        "allow_new_paper_ce_pe": False,
+        "promote": False,
+        "production_params_written": False,
+        "execution": "refused",
+        "oos_claim": False,
+        "win_rate": None,
+        "tape": tape or {},
+        "gate": "not RESEARCH_READY_FOR_PROGRAMMING",
+    }
+
+
 def dual_tape_dir(root: Optional[Path] = None) -> Path:
     return (root or repo_root()) / "data" / "recon" / "paper_watch" / "DUAL-TAPE"
 

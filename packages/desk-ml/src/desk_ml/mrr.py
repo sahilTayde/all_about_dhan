@@ -12,7 +12,7 @@ from typing import Any, Optional, Sequence
 from desk_ml.features import Triple, build_feature_rows
 from desk_ml.model import OVERLAY_HOLD, OVERLAY_NONE, premium_divergence_pattern
 from desk_ml.persist import ml_dir, load_bundle, repo_root, save_bundle
-from desk_ml.tape import load_dual_tape_triples, load_premium_ohlcv, load_triples
+from desk_ml.tape import load_dual_tape_triples, load_premium_ohlcv, load_triples, thin_hold
 
 MRR_WINDOWS = (40, 60, 90)
 Z_HOLD = 2.0
@@ -84,15 +84,23 @@ def vwma(closes: Sequence[float], volumes: Sequence[float], length: int) -> list
     return out
 
 
-def rolling_z(values: Sequence[float], length: int) -> list[Optional[float]]:
+def rolling_z(values: Sequence[float], length: int, *, causal: bool = True) -> list[Optional[float]]:
+    """z of bar i vs past window. causal=True excludes bar i from mean/std (no look-ahead)."""
     out: list[Optional[float]] = []
+    n = max(2, int(length))
     for i in range(len(values)):
-        if i + 1 < length:
-            out.append(None)
-            continue
-        chunk = values[i + 1 - length : i + 1]
-        m = sum(chunk) / length
-        var = sum((v - m) ** 2 for v in chunk) / (length - 1)
+        if causal:
+            if i < n:
+                out.append(None)
+                continue
+            chunk = list(values[i - n : i])
+        else:
+            if i + 1 < n:
+                out.append(None)
+                continue
+            chunk = list(values[i + 1 - n : i + 1])
+        m = sum(chunk) / n
+        var = sum((v - m) ** 2 for v in chunk) / (n - 1)
         if var < EPS:
             out.append(None)
             continue
@@ -162,9 +170,8 @@ def score_window(
         "mean_abs_z": None if mean_abs_z is None else round(mean_abs_z, 6),
         "ou": ou,
         "last": last,
-        "promote": False,
-        "win_rate": None,
-        "production_params_written": False,
+        "causal_z": True,
+        "oos_claim": False,
     }
 
 
@@ -274,6 +281,7 @@ def mrr_fit_underlying(
         "verdict": "NO_PROMOTE",
         "promote": False,
         "production_params_written": False,
+        "oos_claim": False,
         "gate": "BACKTEST_REQUIRED",
         "execution": "refused",
         "llm": False,
@@ -301,13 +309,10 @@ def score_mrr_last(
     base = root or repo_root()
     path = ml_dir(base) / f"ml002_mrr_ou_{underlying.upper()}.json"
     if not path.is_file():
-        return {
-            "ok": False,
-            "status": "DATA_INSUFFICIENT",
-            "reason": f"no ML-002 bundle at {path} — run python -m desk_ml mrr-fit first",
-            "promote": False,
-            "production_params_written": False,
-        }
+        return thin_hold(
+            underlying=underlying,
+            reason=f"no ML-002 bundle at {path} — run python -m desk_ml mrr-fit first",
+        )
     bundle = load_bundle(path)
     src = (source or "cache").strip().lower()
     if triples is not None:
@@ -315,19 +320,21 @@ def score_mrr_last(
         tape_meta: dict[str, Any] = {"aligned_triples": len(used), "source": "caller"}
     elif src in {"dual-tape", "dual_tape", "live-paper"}:
         used, tape_meta = load_dual_tape_triples(underlying, root=base)
+        if len(used) < 2:
+            return thin_hold(
+                underlying=underlying,
+                reason="DATA_INSUFFICIENT: need ≥2 dual-tape ticks with INDEX+ATM CE+PE LTP",
+                tape=tape_meta,
+            )
     else:
         used, tape_meta = load_triples(underlying, root=base)
     rows = build_feature_rows(used)
     if not rows:
-        return {
-            "ok": False,
-            "status": "DATA_INSUFFICIENT",
-            "reason": "no feature rows to score",
-            "tape": tape_meta,
-            "promote": False,
-            "production_params_written": False,
-            "session_action": "HOLD",
-        }
+        return thin_hold(
+            underlying=underlying,
+            reason="no feature rows to score",
+            tape=tape_meta,
+        )
     pref = bundle.get("preferred") or {}
     window = pref.get("window") or (bundle.get("windows_tried") or [90])[-1]
     k_ce = float(bundle["k_ce"])
@@ -342,17 +349,14 @@ def score_mrr_last(
     scored = score_window(rows, window=int(window), k_ce=k_ce, k_pe=k_pe, pe_closes=pe_closes, pe_vols=pe_vols)
     last = scored.get("last") or {}
     if not last:
-        return {
-            "ok": False,
-            "status": "DATA_INSUFFICIENT",
-            "reason": f"ML-002 window {window} needs more bars than dual-tape/cache last rows",
-            "window": int(window),
-            "n_feature_rows": len(rows),
-            "tape": tape_meta,
-            "promote": False,
-            "production_params_written": False,
-            "session_action": "HOLD",
-        }
+        hold = thin_hold(
+            underlying=underlying,
+            reason=f"ML-002 window {window} needs more bars than dual-tape/cache last rows",
+            tape=tape_meta,
+        )
+        hold["window"] = int(window)
+        hold["n_feature_rows"] = len(rows)
+        return hold
     overlay = last.get("overlay")
     follow = bool(last.get("follow_gap"))
     return {
@@ -371,6 +375,7 @@ def score_mrr_last(
         "tape": tape_meta,
         "promote": False,
         "production_params_written": False,
+        "oos_claim": False,
         "execution": "refused",
         "win_rate": None,
         "gate": "BACKTEST_REQUIRED",

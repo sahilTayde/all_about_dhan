@@ -320,6 +320,16 @@ def persist_tick(
     latest = mix_dir / "latest.json"
     latest.write_text(json.dumps(row, indent=2, default=str, ensure_ascii=False) + "\n", encoding="utf-8")
 
+    overlay_path = ""
+    try:
+        from desk_ml.overlay import attach_after_tick
+
+        written = attach_after_tick(repo_root, mix_dir)
+        if written is not None:
+            overlay_path = str(written)
+    except Exception:  # noqa: BLE001 — overlay is fail-soft; dual-tape must still persist
+        overlay_path = ""
+
     notes_path = mix_dir / f"{day}.notes.md"
     block = [
         f"## Tick {tick_index} — {row['as_of_ist']}",
@@ -354,6 +364,7 @@ def persist_tick(
         "latest": str(latest),
         "notes": str(notes_path),
         "sqlite": str(kb_path),
+        "overlay": overlay_path,
     }
 
 

@@ -12,6 +12,7 @@ from desk_ml.book_tune import run_book_tune
 from desk_ml.fit import fit_underlying, score_last
 from desk_ml.inventory import inventory_recon
 from desk_ml.mrr import MRR_WINDOWS, mrr_fit_underlying, score_mrr_last
+from desk_ml.overlay import score_session
 from desk_ml.persist import default_model_path, repo_root
 
 
@@ -37,6 +38,9 @@ def build_parser() -> argparse.ArgumentParser:
     m.add_argument("--no-persist", action="store_true")
     inv = sub.add_parser("inventory", help="INDEX 1m / premium_tape / OPTIDX last ~21d")
     inv.add_argument("--calendar-days", type=int, default=21)
+    ov = sub.add_parser("overlay", help="Score NIFTY/BANKNIFTY/SENSEX paper overlay (dual-tape)")
+    ov.add_argument("--source", default="dual-tape")
+    ov.add_argument("--underlyings", default="NIFTY,BANKNIFTY,SENSEX")
     bt = sub.add_parser("book-tune", help="Inventory + ML-001 + ML-002 (max 3 MRR tweaks)")
     bt.add_argument("--calendar-days", type=int, default=21)
     bt.add_argument("--seed", type=int, default=14)
@@ -87,6 +91,11 @@ def main(argv: Optional[list[str]] = None) -> int:
         return 0 if report.get("ok") else 2
     if args.cmd == "inventory":
         _print(inventory_recon(root=root, calendar_days=args.calendar_days))
+        return 0
+    if args.cmd == "overlay":
+        names = tuple(u.strip().upper() for u in str(args.underlyings).split(",") if u.strip())
+        report = score_session(root=root, underlyings=names or ("NIFTY",), source=str(args.source))
+        _print(report)
         return 0
     if args.cmd == "book-tune":
         report = run_book_tune(

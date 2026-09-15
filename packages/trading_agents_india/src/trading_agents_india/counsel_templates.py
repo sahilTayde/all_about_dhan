@@ -98,9 +98,20 @@ _add(
         when="A change or HANDOFF needs a second opinion.",
         need=("what_changed", "keep_all_ok (yes/no)", "promote_claimed (yes/no)"),
         how_to_get="git diff summary + HANDOFF block. Notes ≠ RESEARCH_READY.",
-        output="ACCEPT / REJECT / UNKNOWN. One paragraph. No promote.",
+        output=(
+            "First line: ACCEPT | ACCEPT_WITH_CAVEATS | REJECT | UNKNOWN. "
+            "Then one paragraph. ACCEPT_WITH_CAVEATS is allowed for a *paper overlay* "
+            "when tests exist, FOLLOW-GAP HOLD works, and production_params_written is false. "
+            "That is not RESEARCH_READY_FOR_PROGRAMMING and not a five-pass."
+        ),
         keywords=("review", "handoff", "five-pass", "09", "notes"),
-        system="09 review counsel. Notes only. Gate stays unset unless founder+five-pass.",
+        system=(
+            "09 review counsel. Notes only. Gate stays unset unless founder+five-pass. "
+            "Do not refuse a paper overlay solely because it is not a five-pass. "
+            "Refuse (REJECT) if tests/wiring are missing, look-ahead is present, "
+            "or anyone claims RESEARCH_READY / live orders / a promote. "
+            "ACCEPT_WITH_CAVEATS = paper overlay ok to run; still NO_PROMOTE."
+        ),
     )
 )
 _add(

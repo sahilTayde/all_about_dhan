@@ -52,11 +52,12 @@ After **two** ticks with `index_ltp` + `atm_ce_ltp` + `atm_pe_ltp` on NIFTY (and
 python -m desk_ml score --underlying NIFTY --source dual-tape
 python -m desk_ml score --underlying SENSEX --source dual-tape
 python -m desk_ml score --underlying NIFTY --source dual-tape --model-id both
+python -m desk_ml overlay --source dual-tape
 ```
 
 `session_action=HOLD` or `follow_gap=true` → **no new paper CE/PE**. `WATCH_ONLY` is still not a fill and not a MIX write.
 
-**ML-002** on dual-tape needs enough bars for the preferred window (40/60/90). At the open that is often `DATA_INSUFFICIENT` → treat as **HOLD**. Use cache score only as a research note, not a ticket.
+Dual-tape persist also writes `paper_watch/DUAL-TAPE/overlay_last.json` (fail-soft). Thin ticks (<2 INDEX+CE+PE) → **HOLD**. Residual z is **causal** (past window only). `oos_claim: false`.
 
 **Stop dual-tape:** `touch data/recon/paper_dual_tape_STOPPED.flag`
 

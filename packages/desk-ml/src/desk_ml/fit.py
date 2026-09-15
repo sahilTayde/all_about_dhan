@@ -15,7 +15,7 @@ from desk_ml.persist import (
     save_bundle,
     unpack_estimators,
 )
-from desk_ml.tape import embargo_train_rows, labels_from_paper_ledger, load_dual_tape_triples, load_triples
+from desk_ml.tape import embargo_train_rows, labels_from_paper_ledger, load_dual_tape_triples, load_triples, thin_hold
 
 
 def fit_from_rows(rows: Sequence[dict], *, seed: int = 14, k: int = 4) -> dict[str, Any]:
@@ -119,13 +119,10 @@ def score_last(
 ) -> dict[str, Any]:
     path = model_path or default_model_path(underlying, root=root)
     if not path.is_file():
-        return {
-            "ok": False,
-            "status": "DATA_INSUFFICIENT",
-            "reason": f"no model at {path} — run python -m desk_ml fit first",
-            "promote": False,
-            "production_params_written": False,
-        }
+        return thin_hold(
+            underlying=underlying,
+            reason=f"no model at {path} — run python -m desk_ml fit first",
+        )
     bundle = load_bundle(path)
     scaler, kmeans, labels, forest = unpack_estimators(bundle)
     src = (source or "cache").strip().lower()
@@ -134,18 +131,21 @@ def score_last(
         tape_meta: dict[str, Any] = {"aligned_triples": len(used), "source": "caller"}
     elif src in {"dual-tape", "dual_tape", "live-paper"}:
         used, tape_meta = load_dual_tape_triples(underlying, root=root)
+        if len(used) < 2:
+            return thin_hold(
+                underlying=underlying,
+                reason="DATA_INSUFFICIENT: need ≥2 dual-tape ticks with INDEX+ATM CE+PE LTP",
+                tape=tape_meta,
+            )
     else:
         used, tape_meta = load_triples(underlying, root=root)
     rows = build_feature_rows(used)
     if not rows:
-        return {
-            "ok": False,
-            "status": "DATA_INSUFFICIENT",
-            "reason": "no feature rows to score after bar close",
-            "tape": tape_meta,
-            "promote": False,
-            "production_params_written": False,
-        }
+        return thin_hold(
+            underlying=underlying,
+            reason="no feature rows to score after bar close",
+            tape=tape_meta,
+        )
     last = rows[-1]
     names = ("idx_ret", "ce_ret", "pe_ret", "spread_chg", "abs_residual")
     x_orig = [last[name] for name in names]
@@ -164,6 +164,7 @@ def score_last(
             "follow_gap": follow_gap_hold,
             "session_action": "HOLD" if follow_gap_hold else "WATCH_ONLY",
             "production_params_written": False,
+            "oos_claim": False,
             "attach": (
                 "Call after 1m bar close (or dual-tape tick with two LTPs). "
                 "FOLLOW-GAP / overlay HOLD keeps the dealer from new paper CE/PE. "
