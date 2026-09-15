@@ -29,9 +29,9 @@ For a **long** weekly CE or PE:
 - The ticket is a **rupee premium**, not a theory of NIFTY.
 - “Index down ⇒ buy PE” is a model. Dual-tape exists to catch when the metaphor fails (spot down, PE not up).
 - Big Data / correlation slides: patterns are not causes. ML-001 clusters are **counts**, not a law of 23500 PE.
-- Valuation models **map an intuition (vol, yield, ₹/sqft) into a price** and **interpolate illiquid from liquid**. We interpolate nothing without quotes. We **pay** theta; we do not mark a replicating book.
+- Valuation models **map an intuition (vol, yield) into a price** and interpolate illiquid from liquid. We interpolate nothing without quotes. We **pay** theta; we do not mark a replicating book.
 
-One slide law (paraphrase, not a quote dump): value a security from the **most similar** traded one; the rest is modeling. On this desk the “similar” print is **same-expiry ATM (or chosen K) CE/PE LTP beside INDEX** — not a fitted smile.
+Slide law (paraphrase): value a security from the **most similar** traded one; the rest is modeling. On this desk the “similar” print is **same-expiry ATM (or chosen K) CE/PE LTP beside INDEX** — not a fitted smile.
 
 ## Maths we may implement (`HYPOTHESIS`)
 
@@ -40,9 +40,9 @@ These slides are **philosophy + hygiene**, not a pricing engine.
 | Slide idea | What 04/06 may code |
 |------------|---------------------|
 | Make the dirt explicit | Log `DATA_INSUFFICIENT`, null greeks, stale LTP, holiday = no `SCORE_SAMPLE` |
-| Shallow finance > deep axiom | Keep MIX-FORM OLS residual; do not drop a utility/equilibrium stack on 30s |
+| Shallow finance > deep axiom | Keep MIX-FORM OLS residual; do not drop a utility stack on 30s |
 | Gedanken experiment | Named MIX row, `customer_default: false`, paper only |
-| Similar payoff ⇒ similar price | Dual-tape **follow** vs **gap**; HOLD on gap — not a arb bot |
+| Similar payoff ⇒ similar price | Dual-tape **follow** vs **gap**; HOLD on gap — not an arb bot |
 
 No new STRAT. No live Super Order.
 
@@ -55,13 +55,13 @@ No new STRAT. No live Super Order.
 
 ## Backtest pitfalls
 
-- Reporting a model win rate on **index** bars and calling it option P/L (slide point: semantics of finance ≠ physics).
+- Reporting a model win rate on **index** bars and calling it option P/L (finance semantics ≠ physics).
 - Using Big Data language (KMeans clean on a holiday join) as causation.
 - Dynamic-replication P/L in a backtest we never hedge.
 
 ## Overfitting
 
-“A little hubris is good; idolatry is the failure mode” (slide conclusion, compressed). Fitting ML-001 / ML-002 / MIX-FORM \(k\) on one cache window and promoting is **idolatry**. `RETUNE_GATE`: proposal only.
+Slide conclusion, compressed: a little hubris is useful; **idolatry** is the failure mode. Fitting ML-001 / ML-002 / MIX-FORM \(k\) on one cache window and promoting is idolatry. `RETUNE_GATE`: proposal only.
 
 ## Desk mapping
 
@@ -72,17 +72,4 @@ No new STRAT. No live Super Order.
 | **ML-001** | Statistics mode of knowing: useful overlay, **not** a replacement for the dealer story. `DIVERGE` ≠ BUY. |
 | **ML-002** | OU on residual is a **metaphor** for snap-back. Overlay HOLD if \(\|z\|\) large; not a theory of vol. |
 
-**NO_PROMOTE.** KEEP_ALL. Next team: 02/04 (humility language already in PRO_QUANT prompt) / 09 (notes ≠ five-pass).
-
-```text
-From:     teams/01_research
-To:       02 / 04 / 06 / 09
-Date:     2026-09-14
-Status:   SOURCE_FACT packet / UNVALIDATED / NO_PROMOTE
-Accepted: Derman 2013 Columbia slides *Models Behaving Badly*;
-  original mapping to dual-tape / MIX-FORM / ML-001/002.
-Rejected: O’Neil content (not in file); chapter dump of the book;
-  live orders; treating BS as a theory.
-UNKNOWN: Why the file was named oneil-derman.
-DATA_INSUFFICIENT: O’Neil; HQ IV.
-```
+**NO_PROMOTE.** KEEP_ALL. Next: 02/04 (humility language) / 09 (notes ≠ five-pass).
