@@ -103,11 +103,55 @@ def load_premium_side(underlying: str, side: str, *, root: Optional[Path] = None
     return merged
 
 
-def load_triples(underlying: str, *, root: Optional[Path] = None) -> tuple[list[Triple], dict[str, Any]]:
+def load_premium_ohlcv(underlying: str, side: str, *, root: Optional[Path] = None) -> dict[int, tuple[float, float]]:
+    """ts -> (close, volume). Volume 0 is allowed (VWMA falls back to SMA)."""
+    folder = (root or repo_root()) / "data" / "recon" / "premium_tape"
+    merged: dict[int, tuple[float, float]] = {}
+    if not folder.is_dir():
+        return merged
+    for path in sorted(folder.glob(f"{underlying.upper()}_ATM_1m_*.json")):
+        try:
+            blob = json.loads(path.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            continue
+        for row in blob.get(side) or []:
+            try:
+                ts = _minute_key(int(row["ts"]))
+                close = float(row["close"])
+            except (KeyError, TypeError, ValueError):
+                continue
+            try:
+                vol = float(row.get("volume") or 0.0)
+            except (TypeError, ValueError):
+                vol = 0.0
+            merged[ts] = (close, vol)
+    return merged
+
+
+def filter_ts_map(series: dict[int, Any], *, min_ts: Optional[int] = None, max_ts: Optional[int] = None) -> dict[int, Any]:
+    if min_ts is None and max_ts is None:
+        return series
+    out: dict[int, Any] = {}
+    for ts, val in series.items():
+        if min_ts is not None and ts < min_ts:
+            continue
+        if max_ts is not None and ts > max_ts:
+            continue
+        out[ts] = val
+    return out
+
+
+def load_triples(
+    underlying: str,
+    *,
+    root: Optional[Path] = None,
+    min_ts: Optional[int] = None,
+    max_ts: Optional[int] = None,
+) -> tuple[list[Triple], dict[str, Any]]:
     base = root or repo_root()
-    idx = load_index_closes(underlying, root=base)
-    ce = load_premium_side(underlying, "ce", root=base)
-    pe = load_premium_side(underlying, "pe", root=base)
+    idx = filter_ts_map(load_index_closes(underlying, root=base), min_ts=min_ts, max_ts=max_ts)
+    ce = filter_ts_map(load_premium_side(underlying, "ce", root=base), min_ts=min_ts, max_ts=max_ts)
+    pe = filter_ts_map(load_premium_side(underlying, "pe", root=base), min_ts=min_ts, max_ts=max_ts)
     keys = sorted(set(idx) & set(ce) & set(pe))
     triples = [Triple(ts=k, idx_close=idx[k], ce_close=ce[k], pe_close=pe[k]) for k in keys]
     meta = {
@@ -118,7 +162,12 @@ def load_triples(underlying: str, *, root: Optional[Path] = None) -> tuple[list[
         "aligned_triples": len(triples),
         "source": "recon_ohlc+premium_tape(+warehouse if present)",
         "live_dhan": False,
+        "min_ts": min_ts,
+        "max_ts": max_ts,
     }
+    if triples:
+        meta["first_ts"] = triples[0].ts
+        meta["last_ts"] = triples[-1].ts
     if not triples:
         meta["data_gaps"] = ["DATA_INSUFFICIENT: no aligned 1m INDEX+CE+PE triples in recon cache"]
     return triples, meta

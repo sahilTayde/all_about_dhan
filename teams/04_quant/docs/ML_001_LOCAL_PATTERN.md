@@ -29,6 +29,8 @@ python -m desk_ml score --underlying NIFTY
 
 Holiday cache fit (NIFTY join of INDEX 1m + ATM tape 2026-09-09..11): **599** triples → **598** rows. Counts: RANGE 304, TREND_DN 241, TREND_UP 26, DIVERGE 27. `win_rate` null. `NO_PROMOTE`.
 
+Book-learning retune of the same overlay (seed **14** fixed) plus ML-002: [`BOOK_MODEL_TUNE.md`](../../06_backtesting/docs/BOOK_MODEL_TUNE.md). `python -m desk_ml book-tune`.
+
 KEEP_ALL STRAT-001–014. MIX-DEFAULT-BUY unchanged.
 
 ## HANDOFF

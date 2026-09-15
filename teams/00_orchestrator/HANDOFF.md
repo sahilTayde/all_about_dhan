@@ -2,6 +2,24 @@
 
 **Agents:** read **only the newest block**. Do not ingest this whole log. New files: [`docs/FILE_CREATION.md`](../../docs/FILE_CREATION.md). Append here — do not create `HANDOFF_TOMORROW.md` or extra `CONTINUE_*`.
 
+## As of now (2026-09-15) — book-model CREATE/TUNE (paper, cache)
+
+```text
+From:     teams/00_orchestrator (boss)
+To:       founder / 04 / 06 / 07
+Date:     2026-09-15
+Status:   HYPOTHESIS / NO_PROMOTE / ORDERS REFUSED / BACKTEST_REQUIRED
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: Founder book-learning CREATE/TUNE on old cache + last 1–3 weeks.
+  Routed to desk_ml inventory/fit/mrr-fit/book-tune. Max 3 MRR windows.
+  FOLLOW-GAP overlay. production_params_written false.
+Rejected: Live Dhan Super Order; promote from cluster/OU; treating 3 ATM
+  days as a full 15–21 day option tape.
+Doc:      teams/06_backtesting/docs/BOOK_MODEL_TUNE.md
+CLI:      python -m desk_ml book-tune --calendar-days 21
+```
+
 ## As of now (2026-09-14) — research-analyst coverage + 00 RESEARCH_BOSS transition
 
 ```text

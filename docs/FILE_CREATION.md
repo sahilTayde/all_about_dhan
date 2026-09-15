@@ -33,6 +33,7 @@
 | `RESEARCH_BOSS_LOOP.md` | `teams/01_research/docs/` **and** `teams/00_orchestrator/docs/` | 01 = invent cycle. 00 = after 01: rag rebuild → `TOPIC_COVERAGE` → `RETUNE_PROPOSAL`. Edit in place. Do not add a third loop file. |
 | `TOPIC_COVERAGE.md` | `teams/01_research/docs/` | Topic × book × KNOWN/PARTIAL/DI × desk hook. Edit in place. |
 | `QUANT_SELF_REVIEW_LOOP.md` | `teams/06_backtesting/docs/` | Nightly/paper self-review → `RETUNE_PROPOSAL` only. Edit in place. |
+| `BOOK_MODEL_TUNE.md` | `teams/06_backtesting/docs/` | Cache ML-001 + ML-002 book tune. **One** file; overwrite. Not a promote. |
 | Cursor rule `*.mdc` | `.cursor/rules/` | New always-on routing. Keep short. |
 
 Teacher books, `config/workspace.yaml` `sources.books[]`, STRAT/MIX/CAS catalogs, and `docs/` product standards (`COMPLIANCE`, `SECURITY`, `SDLC`, `REVIEW`, `INDEX`, `COMPANY_DEPARTMENTS`, …) are **edit-in-place**.

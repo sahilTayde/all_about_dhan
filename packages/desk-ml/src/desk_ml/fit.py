@@ -49,9 +49,11 @@ def fit_underlying(
     seed: int = 14,
     persist: bool = True,
     triples: Optional[Sequence[Triple]] = None,
+    min_ts: Optional[int] = None,
+    max_ts: Optional[int] = None,
 ) -> dict[str, Any]:
     if triples is None:
-        triples, tape_meta = load_triples(underlying, root=root)
+        triples, tape_meta = load_triples(underlying, root=root, min_ts=min_ts, max_ts=max_ts)
     else:
         tape_meta = {"aligned_triples": len(triples), "source": "caller"}
     rows = build_feature_rows(list(triples))
@@ -84,7 +86,7 @@ def fit_underlying(
         "verdict": "NO_PROMOTE",
         "promote": False,
         "production_params_written": False,
-        "session_note": "2026-09-14 Ganesh Chaturthi — NSE closed; fit historical recon cache only",
+        "session_note": "cache-only fit; no live Dhan; no MIX param write",
         **pack_estimators(
             scaler=fitted["scaler"],
             kmeans=fitted["kmeans"],
