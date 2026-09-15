@@ -29,6 +29,8 @@ Historical tests on realistic index-option contracts: costs, slippage, no look-a
 
 Engine **stub exists** at `packages/backtest` (`python -m backtest_engine --live`). **Not** OOS validated. Nothing promotes.
 
+**Self-review loop:** [`docs/QUANT_SELF_REVIEW_LOOP.md`](docs/QUANT_SELF_REVIEW_LOOP.md) — nightly/paper reread of our research → `RETUNE_PROPOSAL` `BACKTEST_REQUIRED` only. Never `production_params_written`. Never live Super Order.
+
 **2026-09-14 TV-EP paper tuner:** `python -m backtest_engine tv-ep-paper-tune` ([`docs/TV_EP_PAPER_TUNE.md`](docs/TV_EP_PAPER_TUNE.md)). Dual-tape gate. **NO_PROMOTE.** Local `data/recon/` proposals only.
 
 **2026-09-14 TV-EP factory:** `python -m backtest_engine tv-ep-grid` (`MIX-TV-EP-*`). Spec [`docs/TV_EP_BACKTEST_FACTORY.md`](docs/TV_EP_BACKTEST_FACTORY.md). **1m real cache (NIFTY 23500 PE):** [`docs/TV_EP_1M_NIFTY_PREMIUM.md`](docs/TV_EP_1M_NIFTY_PREMIUM.md). Paper board only. **NO_PROMOTE.**
