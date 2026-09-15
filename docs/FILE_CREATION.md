@@ -29,8 +29,9 @@
 | `PRO_QUANT_AGENT_PROMPT.md` | `teams/02_phd_math/docs/` | Standing prompt 02/04 must load. Edit in place. |
 | `book_kb/*.md` + `book_kb/topics/*.md` | `teams/02_phd_math/docs/book_kb/` | Original exam notes only (no PDFs). Edit/add topics in place. |
 | `book_reads/NOTE_*.md` + `CLUB_SEVEN_BOOKS.md` | `teams/01_research/docs/book_reads/` | Sibling notes + Research Boss club. Original notes only. **No PDF / chapter text.** |
-| `RESEARCH_BOSS_SKILL.md` | `teams/00_orchestrator/docs/` | Standing prompt 00 loads to invoke 01 Research Boss. Edit in place. |
-| `RESEARCH_BOSS_LOOP.md` | `teams/01_research/docs/` | After-hours rag → MIX → `RETUNE_PROPOSAL`. Edit in place. |
+| `RESEARCH_BOSS_SKILL.md` | `teams/00_orchestrator/docs/` | Standing prompt 00 loads to invoke 01 Research Boss + 00 transition. Edit in place. |
+| `RESEARCH_BOSS_LOOP.md` | `teams/01_research/docs/` **and** `teams/00_orchestrator/docs/` | 01 = invent cycle. 00 = after 01: rag rebuild → `TOPIC_COVERAGE` → `RETUNE_PROPOSAL`. Edit in place. Do not add a third loop file. |
+| `TOPIC_COVERAGE.md` | `teams/01_research/docs/` | Topic × book × KNOWN/PARTIAL/DI × desk hook. Edit in place. |
 | `QUANT_SELF_REVIEW_LOOP.md` | `teams/06_backtesting/docs/` | Nightly/paper self-review → `RETUNE_PROPOSAL` only. Edit in place. |
 | Cursor rule `*.mdc` | `.cursor/rules/` | New always-on routing. Keep short. |
 

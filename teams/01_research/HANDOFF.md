@@ -1,5 +1,29 @@
 # Handoff log — Team 01 Research
 
+## As of now (2026-09-14) — research-analyst TOPIC_COVERAGE + 00 transition
+
+```text
+From:     teams/01_research
+To:       00 / 02 / 04 / 06 / 09 / founder
+Date:     2026-09-14
+Status:   coverage matrix / UNVALIDATED / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+Layer:    stamps on SOURCE_FACT + book_kb (not a promote)
+
+Accepted: SKILL Hat C research-analyst. TOPIC_COVERAGE topic×book×
+  KNOWN/PARTIAL/DI × MIX-FORM / dual-tape / ML-001 / ML-002.
+  YouTube librarian (Hat A) kept. After 01 finishes, 00 rag rebuild
+  + RETUNE_PROPOSAL BACKTEST_REQUIRED. No production params.
+Rejected: STRAT-015+; live orders; 30s LLM; Wiley dump as VALIDATION;
+  ML-002 as coded edge.
+UNKNOWN / DI: unread Tulchinsky/Gliner chapters; HQ IV/Δ; CPCV;
+  analog store; fills; ML-002 implementation.
+Artifacts:
+- teams/01_research/SKILL.md
+- teams/01_research/docs/TOPIC_COVERAGE.md
+- teams/00_orchestrator/docs/RESEARCH_BOSS_LOOP.md
+```
+
 ## As of now (2026-09-14) — book_reads NOTE_volatility_smile + NOTE_oneil_derman
 
 ```text
