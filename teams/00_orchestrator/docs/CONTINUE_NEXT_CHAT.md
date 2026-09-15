@@ -126,13 +126,14 @@ Old LLM `market-hours` / paper_ops: still respect `paper_ops_STOPPED.flag` unles
 
 ### Agent RAG / EOD recon
 
-**Last EOD stub:** 2026-09-10 (`python -m agent_rag eod-recon`)
+**Last EOD stub:** 2026-09-15 (`python -m agent_rag eod-recon`)
 - session_kind: `NORMAL` (score_track=`SCORE_SAMPLE`)
-- RETUNE_PROPOSAL: **`BACKTEST_REQUIRED`** / tune_status=`RAN_NO_TUNE` (no auto-retune; `keep_current_strategy: true`; `production_params_written: false`)
-- recon: `data/recon/EOD_RECON_2026-09-10.json`
-- retune artifact: `data/recon/RETUNE_PROPOSAL_2026-09-10.json`
+- RETUNE_PROPOSAL: **`BACKTEST_REQUIRED`** / tune_status=`RAN_EMPTY_LEDGER` (no auto-retune; `keep_current_strategy: true`; `production_params_written: false`)
+- recon: `data/recon/EOD_RECON_2026-09-15.json`
+- retune artifact: `data/recon/RETUNE_PROPOSAL_2026-09-15.json`
 - KB: `data/knowledge/agent_rag.sqlite` ([`AGENT_RAG.md`](../../01_research/docs/AGENT_RAG.md)) — does **not** touch `transcripts.sqlite`
-- Paper agents backtest rollup: [`BACKTEST_PAPER_AGENTS_2026-09-10.md`](../../06_backtesting/docs/BACKTEST_PAPER_AGENTS_2026-09-10.md) — **NO_PROMOTE**
+- Paper agents backtest rollup: [`BACKTEST_PAPER_AGENTS_2026-09-10.md`](../../06_backtesting/docs/BACKTEST_PAPER_AGENTS_2026-09-10.md) — **NO_PROMOTE** (eod-recon 2026-09-15 did not write a new dated rollup)
+
 ## Do not
 
 - Invent win rates or code live strategies

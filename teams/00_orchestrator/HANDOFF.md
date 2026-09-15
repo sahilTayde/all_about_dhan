@@ -2,6 +2,31 @@
 
 **Agents:** read **only the newest block**. Do not ingest this whole log. New files: [`docs/FILE_CREATION.md`](../../docs/FILE_CREATION.md). Append here — do not create `HANDOFF_TOMORROW.md` or extra `CONTINUE_*`.
 
+## As of now (2026-09-15) — founder POST_MARKET nightly + EOD
+
+```text
+From:     teams/00_orchestrator
+To:       founder / 02 / 06 / 09
+Date:     2026-09-15
+Status:   HYPOTHESIS / NO_PROMOTE / ORDERS REFUSED / BACKTEST_REQUIRED
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: Ran python -m desk_intel nightly (no --offline; no MARKET_SIGNAL
+  files → schema-only). python -m agent_rag rebuild + eod-recon.
+  RETUNE_PROPOSAL BACKTEST_REQUIRED; keep_current_strategy true;
+  production_params_written false. Dual-tape left running (no LLM).
+  paper_ops_STOPPED.flag respected. No npm. No Dhan orders.
+Rejected: Auto-retune; live Super Orders; restart old LLM market-hours.
+UNKNOWN: Session close clock still UNKNOWN. Dual-tape jsonl is
+  DESK_DIVERGENCE only (signal_count=0 → RAN_EMPTY_LEDGER).
+Artifacts:
+- teams/02_phd_math/docs/handoffs/NIGHTLY_2026-09-15.md
+- data/recon/2026-09-15.json (gitignored)
+- data/recon/EOD_RECON_2026-09-15.json (gitignored)
+- data/recon/RETUNE_PROPOSAL_2026-09-15.json (gitignored)
+- data/knowledge/AGENT_RAG_BUILD.json
+```
+
 ## As of now (2026-09-15) — book-model CREATE/TUNE (paper, cache)
 
 ```text

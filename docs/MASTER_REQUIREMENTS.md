@@ -209,7 +209,7 @@ Nightly stub still emits `BACKTEST_REQUIRED` (does **not** auto-apply this run).
 | Backtest engine (Phase 3) | **PARTIAL** | 5y INDEX 1m + current FUTIDX **plus** 5y rollingoption OPTIDX. Hypothesis 1% RT overlay 2026-09-06. Statutory still UNKNOWN. All promote paths FAIL / DATA_INSUFFICIENT. Q8/Q12 not waived. |
 | Invented win rates / PF / DD | **forbidden** | Proxy rates in 06 markdown are **measured**, labeled FAIL/UNVALIDATED, not customer P/L. |
 
-Older dated `NIGHTLY_*.md` files were dropped (token hygiene). Re-run `python -m desk_intel nightly --offline` for current JSON keys. Do not treat a stub recon’s zero P/L as a track record. Latest packet: [`NIGHTLY_2026-09-10.md`](../teams/02_phd_math/docs/handoffs/NIGHTLY_2026-09-10.md).
+Older dated `NIGHTLY_*.md` files were dropped (token hygiene). Re-run `python -m desk_intel nightly --offline` for current JSON keys. Do not treat a stub recon’s zero P/L as a track record. Latest packet: [`NIGHTLY_2026-09-15.md`](../teams/02_phd_math/docs/handoffs/NIGHTLY_2026-09-15.md).
 
 ---
 
