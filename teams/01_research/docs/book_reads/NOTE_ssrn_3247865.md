@@ -1,59 +1,80 @@
-# NOTE — SSRN 3247865
+# NOTE — SSRN 3247865 (151 taxonomy, full text layer)
 
 ```text
 Source:   teams/01_research/docs/ssrn-3247865.pdf
+          teams/01_research/docs/ssrn-3247865 (1).pdf  (byte-identical duplicate)
           https://ssrn.com/abstract=3247865
 Title:    151 Trading Strategies
 Authors:  Zura Kakushadze and Juan Andrés Serur
-Date on PDF: 17 August 2018
-SSRN id:  3247865
-This file: full SSRN PDF (~361 pages) on disk; this NOTE is original
-Layer:    SOURCE_FACT (identity + structure) / desk map HYPOTHESIS
-Date:     2026-09-14
+Date:     17 August 2018
+This file: full SSRN PDF, 361 pages, selectable text
+Layer:    SOURCE_FACT (identity + taxonomy) / desk map HYPOTHESIS
+Date:     2026-09-14 (re-inventory)
 Status:   UNVALIDATED / NO_PROMOTE
 Gate:     not RESEARCH_READY_FOR_PROGRAMMING
 ```
 
-## Identity — this **is** the “151 / Kakushadze” item
+## Inventory (pypdf)
 
-Abstract (paraphrase): pedagogical catalog of **150+** strategy *types* across options, stocks, ETFs, fixed income, futures, FX, vol, crypto, macro, etc.; **550+** formulas; bibliography and glossary; **R appendix** to *illustrate* out-of-sample backtesting. Authors state the body is **descriptive** and (intentionally) **does not** contain numeric simulations / empirical P/L tables.
+| File | Pages | Chars | Layer |
+|------|------:|------:|-------|
+| `ssrn-3247865.pdf` | 361 | 833 381 | **TEXT** |
+| `ssrn-3247865 (1).pdf` | 361 | 833 381 | **TEXT** (same) |
 
-02’s exam note called 151 “inferred.” **This SSRN id confirms the title.** Retraction rumor stays **VERIFY**, not SOURCE_FACT. Springer hardcover exists; this file is the authors’ SSRN PDF.
+Abstract (paraphrase): pedagogical catalog of **150+** *types* across options, stocks, ETFs, FI, futures, FX, vol-as-asset, crypto, macro, …; **550+** formulas; bibliography/glossary; **R appendix** to *illustrate* OOS. Authors: body is **descriptive** and **does not** contain empirical P/L tables.
 
-## What the catalog actually is
+02 exam note called 151 “inferred.” **This SSRN id confirms the title.** Retraction rumor stays **VERIFY**. Springer hardcover exists; this file is the authors’ SSRN PDF.
 
-Ch.2 opens with **option generalities**: call/put claims at expiry, premium paid up front, many structures (covered, protective, verticals, calendars, butterflies, condors, straddles, synthetics, seagulls). Textbook payoffs in §2.1 are written **assuming no transaction costs**.
+Do not paste chapter formulas.
 
-Ch.3 stocks: momentum/value/low-vol, pairs, cluster MR, 1/2/3 MAs, S/R, channel, KNN, stat-arb, **market-making**, alpha combos. §3.21 (paraphrase): single-name MA / S/R / channel / single-stock KNN are widely called **unscientific**; any edge is more plausible in a **cross-section** (correlated names), not one chart’s crossover.
+---
 
-Intro (paraphrase): markets are **man-made and ephemeral**; strategies die when microstructure changes (e.g. specialist → electronic). Purpose is **information**, not “how to make money.” Disclaimer: not investment advice.
+## 151 taxonomy — what the catalog actually is
 
-## What it does **not** support
+**Ch.2 Options (TOC, paraphrase).** A **structure museum**: covered/protective, verticals, calendars/diagonals, synthetics/combos, ladders, long/short straddles-strangles-guts, synthetic straddles, straps/strips, ratio and backspreads, butterflies/condors/irons, box, collar, seagulls. Textbook payoffs in §2.1 assume **no transaction costs**.
 
-- Coding **151** (or 57 option recipes) into Dhan Super Order or `/`.
-- Treating the R appendix as our OOS+NORMAL gate.
-- Short premium / covered-call / iron condor as customer default (**CE/PE buy first**).
-- Win rates, lots, or fills for NIFTY/BANKNIFTY/SENSEX weeklies.
-- Deleting STRAT-001–014 or MIX-TV-EP rows because a catalog cousin failed (`KEEP_ALL`).
+**Ch.3–22 (TOC only for desk).** Stocks (momentum/value/low-vol, pairs, cluster MR, MAs, S/R, channel, KNN, stat-arb, **market-making**, alpha combos). ETFs, FI butterflies, **index** cash-and-carry / dispersion / ETF arb / vol targeting, **vol** (VIX basis, ETN carry, vol-risk-premium, **long risk-reversal**, variance swaps), FX carry, commodities, futures hedge/calendar/CTA, convertibles, distressed, RE, crypto, **global macro**, infrastructure, ML (ANN/Bayes/KNN), cash. §3.21 (paraphrase): single-name MA / S/R / channel / single-stock KNN are widely called **unscientific**; any edge is more plausible in a **cross-section**.
+
+Intro (paraphrase): markets are **man-made and ephemeral**; strategies die when microstructure changes. Purpose is **information**, not “how to make money.”
+
+---
+
+## Apply to NIFTY / SENSEX CE/PE (buy first)
+
+| Taxonomy bucket | Customer default? | Why |
+|-----------------|-------------------|-----|
+| Long call / long put / protective (long option) | **Maybe as named MIX**, never 57 at once | Matches **CE/PE buy first**. Still theta + 1% RT. FOLLOW-GAP HOLD if the option last does not confirm. |
+| Long straddle / strangle / guts | Research overlay only | Pays two thetas. SPX ATM-straddle studies (see smile NOTE) warn **negative average** long ATM straddles. Not `/`. |
+| Covered call/put, short straddle/strangle, short guts, short iron, short condor, ratio **short** more than long | **No** | Short premium / undefined risk. Off desk. |
+| Vertical debit (bull call / bear put) | Named MIX only | Defined risk but two legs, two haircuts, weekly pin. |
+| Vertical **credit** (bull put / bear call) | **No** | Short premium. |
+| Calendar / diagonal | Unlikely | Two expiries; we flatten weeklies; **DATA_INSUFFICIENT** on Dhan multi-expiry fills. |
+| Synthetics / box / combo | **No** | Arb / short-leg. Not buy-first. |
+| Collar / seagull | **No** as default | Mixed short. |
+| Ch.6 index cash-and-carry / dispersion | **No** | Needs basket + futures cash; FUTIDX continuous still thin. |
+| Ch.7 VIX ETN / var-swap / vol-risk-premium **short** | **No** | Different product. India has no VIX futures book here. |
+| Ch.7 “vol skew — long risk reversal” | **No** as default | Typically long OTM call / short OTM put (or reverse) — **one short wing**. Skew **observation** belongs in smile NOTE (CE vs PE returns), not a Super Order. |
+| Ch.3 MAs / S/R / channel on **one** chart | Confirm-or-kill only | Matches §3.21 + our 5m rule. |
+| Ch.19+ ML catalog rows | Overlay | ML-001 only. No STRAT-015+. |
+| Ch.21 global macro types | HOLD overlay | See Gliner NOTE. Not 1m entry. |
 
 ## Microstructure / fills / leakage / model selection
 
 | Topic | From this SSRN | Desk |
 |-------|----------------|------|
-| Fills | Payoffs ignore costs; market-making row exists as a **type**, not a Dhan L2 model | **Next-bar open** + no mid fantasy. INDEX ≠ premium. |
-| Costs | Authors say faint signals only matter **after** costs and HFT slippage | **`HYPOTHESIS_OPTION_RT_1PCT`**: 1% premium each way. Statutory **UNKNOWN**. Most listed option *structures* would fail that haircut even before theta. |
-| Leakage | Body has **no** strategy P/L. Appendix A is a **generic** OOS illustration (quantities used on day *t* must be computed from data **strictly before** *t*) | Do not “backtest” 151 names on one holiday week. No look-ahead on signal close. |
-| Model selection | KNN / ANN appear as **catalog entries**, not a tournament winner | One customer ticket. ML-001 overlay only. No STRAT-015+. New ideas = named **MIX-*** with origin tag. |
-| FOLLOW-GAP | Not in the book. Directional option recipes assume the option **moves with** the story | If index↓ and PE last does not rise (`MIX-FORM-FOLLOW-GAP`), **HOLD**. Do not execute “buy put because index fell” from Ch.2 directional group. |
+| Fills | Payoffs ignore costs; MM is a **type** | **Next-bar open**. INDEX ≠ premium. No mid fantasy. |
+| Costs | Faint signals only matter **after** costs / HFT slippage | `HYPOTHESIS_OPTION_RT_1PCT`. Statutory stack **UNKNOWN**. Most **structures** fail that haircut before theta. |
+| Leakage | Body has **no** strategy P/L. Appendix A: quantities on day *t* from data **strictly before** *t* | Do not “backtest” 151 names on one holiday week. |
+| Model selection | KNN / ANN are **entries**, not winners | One customer ticket. |
 
 ## KEEP_ALL vs 151 live books
 
-Same spirit as Editors’ Picks: a **taxonomy / graveyard** is useful. A live tournament of 151 books is not. Status = PARK / FAIL / WATCH. Customer still sees **one** MIX. `keep_current_strategy: true` until 06 OOS+**NORMAL**.
+A **taxonomy / graveyard** is useful. A live tournament of 151 books is not. Status = PARK / FAIL / WATCH. `keep_current_strategy: true` until 06 OOS+**NORMAL**.
 
 ## Next team
 
-02 (already has exam stub; this NOTE is the SOURCE_FACT id) · 04 (do not port Ch.2 shorts) · 06 (factory stays next-bar + 1% RT) · 09.
+02 (exam stub already; this NOTE is SOURCE_FACT id + buy-first filter) · 04 (do not port Ch.2 shorts) · 06 (next-bar + 1% RT) · 09.
 
 ## UNKNOWN / DATA_INSUFFICIENT
 
-Which hardcover rows differ from this SSRN PDF. Whether any title was withdrawn. OPTIDX pin/theta vs European stock-option examples. **NO_PROMOTE.**
+Hardcover vs SSRN row diffs. Withdrawal rumor. OPTIDX pin/theta vs European stock-option examples. **NO_PROMOTE.**

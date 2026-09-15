@@ -1,79 +1,93 @@
-# NOTE — 123456.pdf (founder: Volatility Smile)
+# NOTE — Volatility smile / skew (123456.pdf + Orrell companions)
 
 **Team:** 01 research librarian  
-**Layer:** `SOURCE_FACT` (file identity) + original desk mapping (`HYPOTHESIS` only where labelled)  
+**Layer:** `SOURCE_FACT` (file identity + readable papers) + desk map `HYPOTHESIS`  
 **Status:** `UNVALIDATED` / **NO_PROMOTE**  
 **Gate:** not `RESEARCH_READY_FOR_PROGRAMMING`  
-**Orders:** none. Education ≠ edge.
+**Inventory (pypdf; `pdftotext` not installed):** re-read 2026-09-14.
 
-## Identified title / authors
+| File | Pages | Extractable chars | Layer |
+|------|------:|------------------:|-------|
+| `docs/123456.pdf` | 303 | 0 | **IMAGE** — still Bookey dump |
+| `docs/ssrn-4205729.pdf` | 19 | 31 541 | **TEXT** — Orrell & Richards, *Keep on smiling* |
+| `docs/ssrn-3512481.pdf` | 21 | 39 521 | **TEXT** — Orrell, *A quantum walk model of financial options* |
 
-| Field | From this PDF |
-|-------|----------------|
-| Path | `teams/01_research/docs/123456.pdf` (~125 MB, **303** pages) |
-| PDF metadata `/Title` | *The Volatility Smile: Option Pricing & Volatility Models* |
-| Cover (page image) | Wiley Finance; **Emanuel Derman**, **Michael B. Miller**, contribution **David Park** |
-| What the file *is* | **Bookey** commercial summary/Q&A dump (ads, “install app” pages). **Not** the Wiley typeset body. |
-| Extractability | `pypdf` / selectable text = **empty on all 303 pages**. Notes below from **page images** + TOC list only. |
+**Copyright:** original notes only. Do not FTS-ingest PDFs. Do not paste chapter/paper body.
 
-**DATA_INSUFFICIENT** for any formula, table, or Dupire/local-vol calibration that lives only in the published book. Do not treat this PDF as the smile textbook.
+---
 
-## Topics that matter for NIFTY / SENSEX CE/PE (buy first)
+## What is still missing (Wiley *The Volatility Smile*)
 
-We **buy** premium. We do **not** run a market-maker delta book. Classroom replication is a **warning**, not a ticket.
+`123456.pdf` `/Title` is still *The Volatility Smile: Option Pricing & Volatility Models* (Wiley cover / Derman, Miller, Park). Selectable text remains **empty on all 303 pages**. Treat as a commercial summary dump, **not** the typeset Wiley book.
 
-- **One vol number is a lie.** BSM constant-σ vs strike/expiry-shaped insurance. Index weekly CE and PE at the same K are **not** the same product as “the index.”
-- **1987 / crisis story:** smile as *model failed, market did not*. Maps to dealer HOLD, not to “fit a smile and buy.”
-- **Relative value vs absolute value.** We already rank with tape (INDEX vs ATM CE vs ATM PE). We do **not** invent a 1-D “cheap IV” score.
-- **Static vs dynamic replication, put-call parity.** Useful as a **consistency check** on expiry payoffs; not a reason to short the other wing. Buy-first desk does **not** synthesize a forward by selling CE+PE.
-- **Variance-swap / 1/K² strip.** Classroom vol-of-vol hedge. We have **no** listed var-swap and **no** trusted chain IV → **cannot** implement.
-- **Discrete hedge + costs.** Continuous Δ-hedge P/L is a fantasy. Our paper path: **next-bar / stale LTP / lot**, not BS P/L.
-- **Smile stylized facts (summary only):** ATM often cheaper in IV-space than wings; equity index usually **skew** (OTM PE richer) not a symmetric smile. Book visualizes vs **delta**; we **do not have HQ delta**.
-- **Sticky strike / sticky delta / local vol.** Rules of thumb for how the *surface* moves when spot moves. Without a surface, they are slogans.
-- **Local vol vs stoch vol vs jumps.** Competing *metaphors* for the same quotes. Jump/Poisson pages in this dump are **not** implementable on 1m LTP.
+**DATA_INSUFFICIENT** for Dupire / local-vol / Heston / jump calibration that lives only in the published monograph. Do not upgrade this file to 02 VALIDATION of Wiley formulas.
+
+02 exam stub (not these PDFs): [`book_kb/05_volatility_smile.md`](../../../02_phd_math/docs/book_kb/05_volatility_smile.md).
+
+---
+
+## Smile / skew — topic depth for NIFTY / SENSEX CE/PE (buy first)
+
+We **buy** weekly premium. We do **not** run a dealer Δ book. One vol number is a **metaphor**.
+
+**SOURCE_FACT (Orrell/Richards, full text).** Constant-σ BSM inverted on a strike grid produces a **smile** (OTM richer in IV-space than ATM) usually mixed with **skew**. Shape depends on tenor and typically **sharpens** as expiry shortens. Competing stories: crash-insurance demand, loss-aversion “anomaly,” or a **real** link between **imbalance**, **price change**, and **volatility**. Their working claim: buying a strike away from discounted spot is assuming imbalance; imbalance moves both the expected path and vol. They write a smile-shaped σ(K) from a quantum-oscillator / impact model and compare it to the empirical “square-root-of-time” surface rule (Daglish–Hull–Suo on SPX). They argue classical BSM **flattens** quoted IV vs a “true” smile.
+
+**Equity-index skew (their SPX/DJIA tape, not NSE).** Equity indices show a **growth / put-wing** tilt that FX pairs often lack. They interpret a large IV skew partly as a **correction** for using a T-bill “risk-free” drift while equities grow faster — straddles look **shifted** vs realized payout if you force r = T-bill.
+
+**Straddle / ATM haircut (their SPX experiment, 2004–mid-2017).** 1-month SPX straddles, many strikes in a log-moneyness band, VIX as **flat** σ into Black: ATM **pay-in > payout**. They report the flat-VIX Black cost near ATM overstates payout by a factor **near √2**, and log-returns of those ATM straddles are **negative on average**. They treat “vol risk premium” language as partly **model error** (constant-σ overprices ATM). Wings with large **intrinsic** are less about σ.
+
+**Desk map (HYPOTHESIS).** Transferable **warnings**, not a ticket:
+
+| Classroom / paper | NIFTY / SENSEX weekly CE/PE |
+|-------------------|------------------------------|
+| Smile = strike-local insurance | Same-K CE and PE are **not** “the index.” Dual-tape already treats them as two products. |
+| Equity **skew** (OTM PE richer) | Do **not** invent HQ IV. Proxy only: same-session **CE vs PE returns** / residual (`INDEX_CE_PE_EDA`, `MIX-FORM-*`). |
+| ATM straddle overpriced vs payout (SPX + VIX) | Long ATM CE+PE **pays theta**. `MIX-FORM-STRADDLE-RET` := r_CE + r_PE is a **crude** vol-of-day proxy, **not** IV and **not** a reason to buy both wings. Their “short ATM straddle because √2” is **short premium** → **off** customer default. |
+| Tenor-sharper smile | Weekly 15:15 flatten + Tuesday expiry is **not** their 1m/3m/12m SPX grid. Do not copy coefficients. |
+| Impact ↔ vol | FOLLOW-GAP / `PREMIUM_DIVERGENCE` HOLD when spot moved and the option last did not. Not Kyle λ (we do not have it). |
+
+**Quantum walk paper (3512481).** Same author family; interference / non-classical walk as a **pricing metaphor**. **DATA_INSUFFICIENT** for Dhan fields. Do not code a quantum pricer on 1m LTP.
 
 ## Maths we may implement (`HYPOTHESIS`)
 
-Keep these as named MIX / overlays. **Not** `STRAT-015+`. **Not** customer default.
+Keep named MIX / overlays. **Not** `STRAT-015+`. **Not** `/`.
 
-| Idea (classroom) | Desk-shaped stand-in |
-|------------------|----------------------|
-| Smile / risk-reversal | ATM (or same-K) **CE vs PE returns** already in `INDEX_CE_PE_EDA` — proxy, not IV |
-| “Daily vol” of the underlier | `MIX-FORM-STRADDLE-RET` := \(r^{\mathrm{CE}}+r^{\mathrm{PE}}\) — crude, expiry-contaminated |
-| Local Δ vs index | `MIX-FORM-BETA` / residual \(\varepsilon = r^{\mathrm{opt}} - k\, r^{\mathrm{idx}}\) — **OLS \(k\)**, not HQ Δ |
-| Follow vs gap | `MIX-FORM-FOLLOW-GAP` / dual-tape `PREMIUM_DIVERGENCE` → **HOLD** new CE/PE |
-| Discrete hedge error | Paper: next-bar fill, IST session, weekly 15:15 flatten — measure **haircut**, do not invent vega |
-
-02 exam note (not this PDF): [`teams/02_phd_math/docs/book_kb/05_volatility_smile.md`](../../../02_phd_math/docs/book_kb/05_volatility_smile.md).
+| Idea | Desk stand-in |
+|------|----------------|
+| Smile / risk-reversal | ATM or same-K **CE vs PE** returns — proxy, not IV |
+| “Daily vol” of underlier | `MIX-FORM-STRADDLE-RET` — expiry-contaminated |
+| Local Δ vs index | `MIX-FORM-BETA` residual ε = r_opt − k r_idx — **OLS k**, not HQ Δ |
+| Follow vs gap | `MIX-FORM-FOLLOW-GAP` → **HOLD** new CE/PE |
+| Discrete hedge + costs | Next-bar fill, IST session, weekly flatten — measure haircut |
 
 ## What we cannot (no HQ IV)
 
-- Implied-vol surface, Dupire local vol, Heston/SV calibration, jump-diffusion fit, Breeden-Litzenberger density from quoted IVs.
+- Implied-vol surface, Dupire, Heston, jump-diffusion, Breeden-Litzenberger from quoted IVs.
+- Orrell Eq. (1) / β≈0.9 / α≈0.1 **coefficients** on NIFTY/SENSEX (their fit is DJIA/SPX/VIX).
 - Invented Δ, vega, or “C-ratio of ATM vol vs spot.”
-- Variance-swap fair strike from a 1/K² strip.
+- Variance-swap 1/K² strip; listed var-swap.
 - Treating dual-tape **LTP** as a smile.
+- Promoting short-straddle / short-put from SPX ATM negative-return studies.
 
-If rollingoption later exposes a validated IV field: store it, **do not** silently fill null with BS invert. Until then: **DATA_INSUFFICIENT**.
+If rollingoption later exposes a validated IV field: store it; **do not** fill null with BS invert.
 
-## Backtest pitfalls
+## Backtest pitfalls / overfitting
 
-- Fitting any smile model on **one weekly sid** then claiming a surface.
-- Using holiday or non-overlap INDEX and ATM tape as proof.
+- One weekly sid as a “surface.”
+- Holiday / non-overlap INDEX vs ATM tape as proof.
 - Marking long premium with **BS hedge P/L** we never trade.
-- Expiry Tuesday / 15:15 flatten treated as a continuous European book.
-- SENSEX vs NIFTY mixed without a named MIX row.
+- Mixing SENSEX and NIFTY without a named MIX.
+- Story-fitting sticky-delta vs sticky-strike on a Bookey dump plus one Orrell β.
 
-## Overfitting
-
-A 303-page **summary app** plus a handful of 1m residuals is enough to **story-fit** sticky-delta vs sticky-strike. Walk-forward + `NORMAL` + `RETUNE_PROPOSAL` only. Cluster counts and \(k\) on one window are **not** a smile.
+Walk-forward + `NORMAL` + `RETUNE_PROPOSAL` only.
 
 ## Desk mapping
 
-| Desk object | Use from this PDF | Must not |
-|-------------|-------------------|----------|
-| **Dual-tape** | When spot and premium disagree, the BSM one-σ metaphor already failed → HOLD | Treat LTP pair as IV smile |
-| **MIX-FORM-*** | Residuals / straddle-ret / follow-gap as **observable** stand-ins | Promote to `/` or live |
-| **ML-001** | IsolationForest / `DIVERGE` = “surface moved, we have no surface” | Train on invented IV |
-| **ML-002** | OU on **residual**, not on implied vol | Call half-life a vega trade |
+| Desk object | Use | Must not |
+|-------------|-----|----------|
+| Dual-tape | When spot and premium disagree, the one-σ metaphor failed → HOLD | Treat LTP pair as IV smile |
+| MIX-FORM-* | Residuals / straddle-ret / follow-gap as **observables** | Promote to `/` or live |
+| ML-001 | `DIVERGE` = “surface moved, we have no surface” | Train on invented IV |
+| ML-002 | OU on **residual**, not implied vol | Call half-life a vega trade |
 
-**NO_PROMOTE.** KEEP_ALL STRAT-001–014. Next: 02 (do not upgrade this dump to Wiley VALIDATION) / 06 (OOS only on tape features).
+**NO_PROMOTE.** KEEP_ALL STRAT-001–014. Next: 02 (Wiley still DI; Orrell is a paper, not our OOS) / 06 (tape features only).
