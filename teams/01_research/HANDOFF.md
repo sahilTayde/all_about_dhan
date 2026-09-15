@@ -1,5 +1,33 @@
 # Handoff log — Team 01 Research
 
+## As of now (2026-09-14) — book_reads: Bouchaud preview + AFML + 151
+
+```text
+From:     teams/01_research
+To:       00 / 02 / 03 / 04 / 06 / 09 / Research Boss
+Date:     2026-09-14
+Status:   SOURCE_FACT notes / UNVALIDATED desk map / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+Layer:    SOURCE_FACT (PDF identity + structure); map = HYPOTHESIS
+
+Accepted: Original notes only (no PDF body in FTS).
+  preview-9781108639064_A34411323 = Bouchaud et al. Trades, Quotes and Prices
+    (Cambridge 47-page preview).
+  SSRN 3104847 = López de Prado Advances in Financial Machine Learning
+    (Wiley excerpt).
+  SSRN 3247865 = Kakushadze & Serur 151 Trading Strategies (confirms 151).
+  Desk map: next-bar fill, HYPOTHESIS_OPTION_RT_1PCT, FOLLOW-GAP HOLD.
+Rejected: Promoting MIX; mid fills; coding 151 Super Orders; win rates;
+  ingesting PDFs into RAG; STRAT-015+.
+UNKNOWN: Full Bouchaud/AFML beyond these extracts; 151 retraction rumor;
+  statutory costs; NSE L2 impact.
+
+Artifacts:
+  docs/book_reads/NOTE_preview_1108639064.md
+  docs/book_reads/NOTE_ssrn_3104847.md
+  docs/book_reads/NOTE_ssrn_3247865.md
+```
+
 ## As of now (2026-09-14) — MIX-TV-EP-001..023 public-rule ports (01+04)
 
 ```text

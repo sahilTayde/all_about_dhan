@@ -16,6 +16,7 @@ Day-to-day extraction: [`youtube/ANALYSIS.md`](youtube/ANALYSIS.md). Topic clust
 - Catalog / playlist dumps → `data/youtube/` (gitignored payloads)
 - Transcripts → `data/transcripts/` (gitignored payloads)
 - Extraction notes → `teams/01_research/docs/`
+- Book PDF notes (original only) → [`docs/book_reads/`](docs/book_reads/)
 - Handoff to 02_phd_math and 03_phd_market with `SOURCE_FACT` only
 
 ## Owned paths
