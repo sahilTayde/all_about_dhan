@@ -2,6 +2,21 @@
 
 **Agents:** read **only the newest block**. Do not ingest this whole log. New files: [`docs/FILE_CREATION.md`](../../docs/FILE_CREATION.md). Append here — do not create `HANDOFF_TOMORROW.md` or extra `CONTINUE_*`.
 
+## As of now (2026-09-15 09:18 IST) — dual-tape live INDEX LTP (still NO_PROMOTE)
+
+```text
+From:     teams/00_orchestrator
+To:       founder / 05 / 06 / 07
+Date:     2026-09-15T09:18+05:30
+Status:   PAPER RUNNING / NO_PROMOTE / ORDERS REFUSED
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: 09:15 restart PID 74510. Real INDEX 1m + ATM CE/PE prints.
+  Dealer notes only. Overlay session HOLD. MIX-DEFAULT-BUY unchanged.
+Rejected: Treating BUY_CE_CONFIRM note as a fill or customer default.
+UNKNOWN: Whether optionchain expirylist 401 will repeat on next poll-chain.
+```
+
 ## As of now (2026-09-15) — founder pre-market + paper dual-tape session (NO_PROMOTE)
 
 ```text

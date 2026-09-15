@@ -21,12 +21,23 @@ Do not glob markdown. Do not create extra CONTINUE/HANDOFF/NOTES dumps.
 
 Gate: NOT RESEARCH_READY_FOR_PROGRAMMING. PAPER only. NO_PROMOTE. STRATs UNVALIDATED. Dashboard P/L is MOCK. No live orders. Do not restart npm / Vite / paper ops until I ask. Never print secrets.
 
-Left off 2026-09-15 (this session ran): pre-market dry-run PASS; live Dhan chain 401 so fixtures. Dual-tape restart armed for 09:15 IST + desk_ml overlay. NO_PROMOTE. No Super Orders. No live orders. Local sqlite — do not git-add. Token refresh still needed for INDEX LTP.
+Left off 2026-09-15 09:18 IST: paper dual-tape PID 74510 live INDEX+ATM. Overlay HOLD. NO_PROMOTE. No Super Orders. No live orders. Local sqlite — do not git-add. Watch: tail -f data/recon/dual_tape_session_2026-09-15.log
 
 Left off 2026-09-13: ITM champion PAPER board ready (MIX-CHAMP-* + desk leaderboard + assumed IST VWAP). Docs: teams/06_backtesting/docs/ITM_CHAMPION_PAPER_BOARD.md. CLI: python -m backtest_engine.run_itm_champions. Tuesday = PAPER watch only (prefer ITM PE near spot); live Super Orders refused. Next freeze only after live board evidence; then walk-forward OOS. KEEP_ALL. NO_PROMOTE. Local trading_agents_india.sqlite is working-tree only — do not git-add.
 ```
 
 ---
+
+## Left-off 2026-09-15 — paper dual-tape IS running (NO_PROMOTE)
+
+| Topic | State |
+|-------|--------|
+| IST | **2026-09-15 ~09:18** — cash session **OPEN** |
+| Dual-tape | PID **74510** · `--live-chain --tick-seconds 45 --max-ticks 0` · started 09:15:46 IST · **NO_PROMOTE** · llm false · orders refused |
+| Live quotes | INDEX LTP **present** (`dhan_intraday_1m`) — NIFTY ~23521, BANKNIFTY ~56730, SENSEX ~75203 (tick 2). Pre-market expirylist was **401**; open tape is a different path. |
+| Paper notes (not fills) | Tick 0 DI. Tick 1 NIFTY **BUY_CE_CONFIRM** note (CE followed). Tick 2 all three **HOLD / PREMIUM_DIVERGENCE**. Overlay session **HOLD** → no new paper CE/PE. |
+| Logs | `data/recon/dual_tape_session_2026-09-15.log` · overlay `data/recon/desk_ml_overlay_session.log` · notes `data/recon/paper_watch/DUAL-TAPE/2026-09-15.notes.md` |
+| Stop | `touch data/recon/paper_dual_tape_STOPPED.flag` |
 
 ## Left-off 2026-09-15 — pre-market ran; paper dual-tape armed 09:15 IST
 
