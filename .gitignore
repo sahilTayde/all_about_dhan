@@ -65,6 +65,9 @@ data/**/audio/*.m4a
 **/yt-dlp-cache/
 **/.huggingface/
 
+# Purchased / founder book PDFs — notes only in git (copyright)
+teams/01_research/**/*.pdf
+
 # Scratch / agent dumps — never commit
 today_gemini*
 yesterday_gemini*

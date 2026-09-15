@@ -1,5 +1,34 @@
 # Handoff log — Team 01 Research
 
+## As of now (2026-09-14) — book re-inventory + NOTE_* rewrite (text layer)
+
+```text
+From:     teams/01_research
+To:       00 / 02 / 03 / 04 / 06 / 09 / founder
+Date:     2026-09-14
+Status:   SOURCE_FACT notes / UNVALIDATED / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+Layer:    SOURCE_FACT (pypdf inventory) + original mapping
+
+Accepted: Inventory of ALL PDFs under teams/01_research (pypdf;
+  pdftotext not installed). Topic-depth NOTE_* rewrite where text
+  exists: smile/skew (Orrell 4205729), alpha factory (101 + 151),
+  macro regime (Gliner extract), microstructure fills (TQP still
+  prior preview), AFML CV (excerpt + GIL2476), 151 taxonomy
+  (buy-first filter). Club table: readable vs still image.
+Rejected: Chapter dumps; git-add of PDFs; STRAT-015+; live orders;
+  claiming full Wiley smile / full Gliner / full TQP / full AFML /
+  full Badly from files on disk; promoting MIX from notes.
+UNKNOWN: Finding Alphas + 123456 still IMAGE; TQP file ABSENT;
+  Gliner Ch.3–12; HQ IV; CPCV not coded.
+
+Artifacts:
+  docs/book_reads/NOTE_*.md
+  docs/book_reads/CLUB_SEVEN_BOOKS.md
+Next team: 02 (do not upgrade image/excerpt to full-book VALIDATION)
+  / 06 (tape features + purge/embargo story only) / 09.
+```
+
 ## As of now (2026-09-14) — research-analyst TOPIC_COVERAGE + 00 transition
 
 ```text
