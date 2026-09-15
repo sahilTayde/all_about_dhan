@@ -1,5 +1,59 @@
 # Handoff log — Team 01 Research
 
+## As of now (2026-09-14) — RESEARCH BOSS (club seven books, not auto-perfect)
+
+```text
+From:     teams/01_research
+To:       00 / 02 / 04 / 06 / 09 / founder
+Date:     2026-09-14
+Status:   HYPOTHESIS playbook / UNVALIDATED / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: Research Boss hat on 01 SKILL (YouTube librarian kept).
+  Standing prompt 00 loads RESEARCH_BOSS_SKILL.md. Loop:
+  rag (book_reads + phd_book_kb) → MIX-* HYPOTHESIS → 06 OOS request →
+  RETUNE_PROPOSAL BACKTEST_REQUIRED. Club uses all seven NOTE_* + book_kb.
+  agent_rag kind research_book_notes. 00 still default ticket. KEEP_ALL.
+Rejected: Auto-perfect / until P/L pretty; production_params_written;
+  STRAT-015+; live orders; blocking LLM on 30s path; PDF paste;
+  deleting teacher STRATs; ingesting PDFs into FTS.
+UNKNOWN: Unread Finding Alphas chapters; Gliner Ch.3–12; smile Wiley
+  body; IV series; 06+09 pass.
+
+Artifacts:
+- teams/01_research/SKILL.md
+- teams/00_orchestrator/docs/RESEARCH_BOSS_SKILL.md
+- teams/01_research/docs/RESEARCH_BOSS_LOOP.md
+- teams/01_research/docs/book_reads/CLUB_SEVEN_BOOKS.md
+Invoke (00): after hours load RESEARCH_BOSS_SKILL.md; query
+  python -m agent_rag query "…" --kind research_book_notes
+  and --kind phd_book_kb. Do not swap MIX-DEFAULT-BUY from this chair.
+```
+
+## As of now (2026-09-14) — book_reads: Finding Alphas + L-0002559656
+
+```text
+From:     teams/01_research
+To:       00 / 02 / 03 / 04 / 06 / 09 / Research Boss
+Date:     2026-09-14
+Status:   SOURCE_FACT notes / UNVALIDATED desk map / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+Layer:    SOURCE_FACT (identity + sampled pages); map = HYPOTHESIS
+
+Accepted: Original notes only (no PDF body in FTS).
+  Finding Alphas_ Quantitative Trading Strategies.pdf = Tulchinsky et al.
+    Wiley 2nd ed. factory book. Text layer DATA_INSUFFICIENT; sampled images.
+  L-0002559656-pdf.pdf = Gliner Global Macro Trading (2014) 30-page extract.
+Rejected: Chapter dumps; live tournament; STRAT-015+; promoting MIX;
+  treating excerpt HF Sharpe as our OOS; ingesting PDFs into RAG.
+UNKNOWN: Unread Finding Alphas chapters; Gliner Ch.3–12; India OPTIDX
+  numbers from either file.
+
+Artifacts:
+  docs/book_reads/NOTE_finding_alphas.md
+  docs/book_reads/NOTE_L0002559656.md
+```
+
 ## As of now (2026-09-14) — book_reads: Bouchaud preview + AFML + 151
 
 ```text

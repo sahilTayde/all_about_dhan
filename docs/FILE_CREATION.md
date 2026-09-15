@@ -28,6 +28,9 @@
 | `COUNSEL_QUANT_TRAINING.md` | `teams/00_orchestrator/docs/` | Joint Gemini+OpenAI on 02/04 training (no PDF ingest). Edit in place. |
 | `PRO_QUANT_AGENT_PROMPT.md` | `teams/02_phd_math/docs/` | Standing prompt 02/04 must load. Edit in place. |
 | `book_kb/*.md` + `book_kb/topics/*.md` | `teams/02_phd_math/docs/book_kb/` | Original exam notes only (no PDFs). Edit/add topics in place. |
+| `book_reads/NOTE_*.md` + `CLUB_SEVEN_BOOKS.md` | `teams/01_research/docs/book_reads/` | Sibling notes + Research Boss club. Original notes only. **No PDF / chapter text.** |
+| `RESEARCH_BOSS_SKILL.md` | `teams/00_orchestrator/docs/` | Standing prompt 00 loads to invoke 01 Research Boss. Edit in place. |
+| `RESEARCH_BOSS_LOOP.md` | `teams/01_research/docs/` | After-hours rag → MIX → `RETUNE_PROPOSAL`. Edit in place. |
 | `QUANT_SELF_REVIEW_LOOP.md` | `teams/06_backtesting/docs/` | Nightly/paper self-review → `RETUNE_PROPOSAL` only. Edit in place. |
 | Cursor rule `*.mdc` | `.cursor/rules/` | New always-on routing. Keep short. |
 
