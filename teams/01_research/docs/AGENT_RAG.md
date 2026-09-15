@@ -29,6 +29,8 @@ Layer: retrieval aid only. Contents stay tagged `SOURCE_FACT` / `VALIDATION` / `
 | `adopt_note` | ADOPT / design council / 09 TradingAgents notes + EVENT_MEMORY / RETUNE_GATE |
 | `paper_session` / `paper_note` | `data/knowledge/trading_agents_india.sqlite` (read-only) |
 | `backtest_snip` | `teams/06_backtesting/docs/BACKTEST_*2026-09-06.md` headers |
+| `phd_book_kb` | `teams/02_phd_math/docs/book_kb/*.md` + `topics/*.md` (exam notes, **no PDFs**) |
+| `research_book_notes` | `teams/01_research/docs/book_reads/*.md` (sibling notes + club; **no PDFs**) |
 
 Rebuild report: `data/knowledge/AGENT_RAG_BUILD.json`.
 
@@ -43,6 +45,8 @@ python -m agent_rag rebuild
 python -m agent_rag status
 python -m agent_rag query "fake breakout"
 python -m agent_rag query "MIX-DEFAULT-BUY" --kind mix_snippet
+python -m agent_rag query "seven books" --kind research_book_notes
+python -m agent_rag query "purged cv" --kind phd_book_kb
 python -m agent_rag paper-backtest --day 2026-09-06
 python -m agent_rag eod-recon --day 2026-09-06 --offline
 ```

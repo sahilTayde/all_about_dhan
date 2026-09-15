@@ -32,6 +32,9 @@ def test_rebuild_and_query_fake_breakout() -> None:
     assert any(h.kind == "phd_book_kb" for h in theta_hits)
     assert any(h.kind == "phd_book_kb" for h in intrinsic_hits)
     assert any("topics/" in h.source_path for h in theta_hits + intrinsic_hits)
+    assert report["counts"].get("research_book_notes", 0) >= 1
+    club_hits = query("seven books KEEP_ALL", limit=8, root=root)
+    assert any(h.kind == "research_book_notes" for h in club_hits)
 
 
 def test_eod_recon_retune_required(tmp_path: Path | None = None) -> None:

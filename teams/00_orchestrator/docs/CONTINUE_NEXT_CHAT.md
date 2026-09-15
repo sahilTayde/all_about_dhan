@@ -114,6 +114,7 @@ Old LLM `market-hours` / paper_ops: still respect `paper_ops_STOPPED.flag` unles
 | Agents | `AGENT.md` |
 | Review brief | `teams/00_orchestrator/docs/REVIEW_BRIEF_FOR_FRONTIER_MODEL.md` |
 | Boss | `teams/00_orchestrator/docs/BOSS_AGENT.md` |
+| Research Boss (01, after hours) | [`RESEARCH_BOSS_SKILL.md`](RESEARCH_BOSS_SKILL.md) — 00 still default ticket; loop ≠ auto-perfect |
 | MIX catalog | `teams/04_quant/docs/MIX_CATALOG.md` |
 | Docs auditor | `python -m docs_auditor` |
 | File names | [`docs/FILE_CREATION.md`](../../../docs/FILE_CREATION.md) |

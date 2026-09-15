@@ -2,6 +2,25 @@
 
 **Agents:** read **only the newest block**. Do not ingest this whole log. New files: [`docs/FILE_CREATION.md`](../../docs/FILE_CREATION.md). Append here — do not create `HANDOFF_TOMORROW.md` or extra `CONTINUE_*`.
 
+## As of now (2026-09-14) — RESEARCH BOSS invoke pointer
+
+```text
+From:     teams/00_orchestrator
+To:       01 / 02 / 04 / 06 / 09 / founder
+Date:     2026-09-14
+Status:   routing spec / UNVALIDATED / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: 00 routes after-hours RESEARCH_BOSS tickets by loading
+  RESEARCH_BOSS_SKILL.md. 00 remains default customer ticket
+  (MIX-DEFAULT-BUY). 01 clubs notes + proposes MIX-*. Loop stops on
+  06+09 gate, not pretty P/L. RETUNE_GATE BACKTEST_REQUIRED.
+Rejected: Second ticket boss; auto-perfect; live orders; 30s LLM;
+  STRAT-015+; PDF ingest.
+UNKNOWN: Excerpt depth (Finding Alphas unread ch.; Gliner 3–12; smile Wiley).
+Artifact: teams/00_orchestrator/docs/RESEARCH_BOSS_SKILL.md
+```
+
 ## As of now (2026-09-14) — counsel: train 02/04 without pirate books
 
 ```text

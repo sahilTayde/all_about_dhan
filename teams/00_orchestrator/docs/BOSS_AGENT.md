@@ -37,7 +37,7 @@ Education ≠ advice. Empty `DHAN_*` does not block **spec**. Live orders stay r
 
 | ID | Speaks | Boss uses them for |
 |----|--------|-------------------|
-| 01 | Transcripts / bind / CAS-from-Dhan | What was **spoken**. English wins. |
+| 01 | Transcripts / bind / CAS-from-Dhan; **Research Boss** | What was **spoken**. English wins. After-hours club of `book_reads/` + `phd_book_kb` → `MIX-*` HYPOTHESIS. Invoke [`RESEARCH_BOSS_SKILL.md`](RESEARCH_BOSS_SKILL.md). **00 still takes the customer ticket.** |
 | 02 | Math VALIDATION | What is **computable** on HQ vs chart. Grids, not silent corrections. |
 | 03 | Market + **CAS-*** | Clocks, chain fields, Closing Auction Session. |
 | 04 | STRAT + **MIX-*** catalog | Testable books. KEEP_ALL. |
@@ -100,6 +100,7 @@ The boss **must not**:
 | [`CUSTOMER_TALK.md`](../../05_analysis/docs/CUSTOMER_TALK.md) | Speak to `/` |
 | [`KEEP_ALL_REVIEW.md`](../../09_review/docs/KEEP_ALL_REVIEW.md) | 09 ACCEPT keep-all, REJECT fake profit |
 | [`EXPERT_COALITION.md`](EXPERT_COALITION.md) | Board |
+| [`RESEARCH_BOSS_SKILL.md`](RESEARCH_BOSS_SKILL.md) | After-hours 01 club / MIX invent. Not a second ticket boss. |
 
 ```text
 HANDOFF
