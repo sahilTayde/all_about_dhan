@@ -529,6 +529,39 @@ def score_sell_credit_park(_ticket: Any, *, bars: Optional[list[Any]] = None) ->
     )
 
 
+def _call_side_follow_gap(
+    bars: Optional[list[Any]],
+    premium_bars: Optional[list[Any]],
+) -> tuple[bool, str]:
+    """HOLD CALL if last-bar index lean is not confirmed by CALL premium.
+
+    This MIX has no PE tape. Index-down while buying CALL is HOLD.
+    Missing bars → HOLD (do not fire BUY_CE without confirm). NO_PROMOTE.
+    """
+    from trading_agents_india.index_ce_pe_formulas import (
+        INDEX_RET_EPS,
+        mix_form_follow_gap,
+        simple_return,
+    )
+
+    if not bars or not premium_bars or len(bars) < 2 or len(premium_bars) < 2:
+        return True, "FOLLOW-GAP DATA_INSUFFICIENT: need 2 index + 2 CALL bars"
+    i0, i1 = _close(bars[-2]), _close(bars[-1])
+    p0, p1 = _close(premium_bars[-2]), _close(premium_bars[-1])
+    if None in (i0, i1, p0, p1):
+        return True, "FOLLOW-GAP DATA_INSUFFICIENT: missing last closes"
+    ir = simple_return(i0, i1)
+    cr = simple_return(p0, p1)
+    if ir is None or cr is None:
+        return True, "FOLLOW-GAP DATA_INSUFFICIENT: return undefined"
+    if ir < -INDEX_RET_EPS:
+        return True, "FOLLOW-GAP: index last-bar down — HOLD CALL"
+    gap = mix_form_follow_gap(index_ret=ir, ce_ret=cr, pe_ret=0.0)
+    if gap.get("ce_divergence"):
+        return True, "FOLLOW-GAP: index up but CALL premium did not follow"
+    return False, ""
+
+
 def score_dual_index_master(
     ticket: Any,
     *,
@@ -622,6 +655,7 @@ def score_dual_index_master(
 
     gate: dict[str, Any] = {"evaluated": False, "reason": "no premium tape passed"}
     lean: str = "HOLD"
+    gap_hold = True
     reasons: list[str]
     if premium_bars:
         from trading_agents_india.premium_tape import dual_master_gate
@@ -629,12 +663,19 @@ def score_dual_index_master(
         gate = dual_master_gate(list(premium_bars))
     if gate.get("evaluated"):
         premium_pass = bool(gate.get("all_pass"))
-        if premium_pass and spot_bullish:
+        gap_hold, gap_why = _call_side_follow_gap(bars, premium_bars)
+        if premium_pass and spot_bullish and not gap_hold:
             lean = "BUY_CE"
             outcome = "WATCH"
             reasons = [
-                "MIX-DUAL-INDEX-MASTER SENSEX: premium gate + spot gate all pass",
+                "MIX-DUAL-INDEX-MASTER SENSEX: premium gate + spot gate + FOLLOW-GAP all pass",
                 "Paper-watch observation only — 5m confirm-or-kill not applied; NO_PROMOTE",
+            ]
+        elif premium_pass and spot_bullish and gap_hold:
+            outcome = "WATCH"
+            reasons = [
+                "MIX-DUAL-INDEX-MASTER SENSEX: premium+spot pass but dual-gate HOLD",
+                gap_why,
             ]
         else:
             failed = [k for k, v in (gate.get("conditions") or {}).items() if not v]
@@ -676,6 +717,7 @@ def score_dual_index_master(
             "premium_source": premium_source,
             "option_ltp_present": option_ltp not in (None, ""),
             "premium_gate": gate,
+            "follow_gap_hold": gap_hold if gate.get("evaluated") else None,
             "latest_shadow_report": "teams/06_backtesting/docs/MRR_BACKTEST_2026-09-10.md",
             "latest_shadow_oos_win_rate": 0.3711,
             "latest_shadow_oos_expectancy": 4.8399,

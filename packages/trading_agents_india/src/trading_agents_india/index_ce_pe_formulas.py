@@ -111,9 +111,13 @@ def mix_form_diverge_z(
     *,
     window: int = DEFAULT_Z_WINDOW,
 ) -> Optional[float]:
-    """MIX-FORM-DIVERGE-Z: (resid − mean) / std over trailing window including residual."""
-    series = list(history) + [residual] if history else [residual]
-    m, s = rolling_mean_std(series, end=len(series) - 1, window=window)
+    """MIX-FORM-DIVERGE-Z: (resid − mean) / std on trailing history only.
+
+    Current residual is the *score*, not a member of the window (AFML: no same-bar leak).
+    """
+    if len(history) < 3:
+        return None
+    m, s = rolling_mean_std(history, end=len(history) - 1, window=window)
     if m is None or s is None:
         return None
     return (residual - m) / s
@@ -233,7 +237,7 @@ def apply_named_formulas(
     *,
     z_window: int = DEFAULT_Z_WINDOW,
 ) -> list[dict[str, Any]]:
-    """Attach k (full-sample OLS on PE and CE), residuals, z, straddle, follow-gap."""
+    """Attach k (full-sample OLS — EDA only; paper overlay uses expanding k), residuals, causal z, straddle, follow-gap."""
     if len(rows) < 3:
         return []
     idx = [float(r["index_ret"]) for r in rows]

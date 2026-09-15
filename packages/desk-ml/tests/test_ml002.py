@@ -9,7 +9,7 @@ from pathlib import Path
 from desk_ml.book_tune import run_book_tune
 from desk_ml.features import Triple, build_feature_rows
 from desk_ml.inventory import inventory_recon
-from desk_ml.mrr import mrr_fit_underlying, ou_ar1, pick_preferred, vwma
+from desk_ml.mrr import mrr_fit_underlying, ou_ar1, pick_preferred, rolling_z, vwma
 from desk_ml.tape import load_triples
 
 IST = timezone(timedelta(hours=5, minutes=30))
@@ -60,6 +60,15 @@ def test_mrr_fit_three_windows_no_promote() -> None:
     assert report["windows_tried"] == [40, 60, 90]
     assert len(report["tweaks"]) == 3
     assert set(t["window"] for t in report["tweaks"]) == {40, 60, 90}
+
+
+def test_rolling_z_excludes_current() -> None:
+    vals = [0.0, 1.0, -1.0, 0.5, 8.0]
+    zs = rolling_z(vals, 4)
+    assert zs[0] is None
+    assert zs[3] is None
+    assert zs[4] is not None
+    assert zs[4] > 2.0
 
 
 def test_vwma_equal_weight_when_vol_zero() -> None:

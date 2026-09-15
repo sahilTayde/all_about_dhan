@@ -1,5 +1,28 @@
 # Handoff log — Team 02 PhD math
 
+## As of now (2026-09-14) — TV-EP / Pine MRR / MIX-DUAL review (NO_PROMOTE)
+
+```text
+From:     teams/02_phd_math
+To:       00 / 04 / 06 / 09 / founder
+Date:     2026-09-14
+Status:   VALIDATION + cheap paper overlays / UNVALIDATED / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: PINE_TV_EP_PHD_REVIEW.md. KEEP TV-EP drawer; KEEP MRR as
+  filter; KEEP dual-gate idea. HOLD FOLLOW-GAP + ML-002 |z|≥2 on
+  paper tuner. Causal z (no same-bar leak). Next-bar-open fill +
+  1% RT both sides. MIX-DUAL CALL HOLD on last-bar FOLLOW-GAP.
+  KEEP_ALL STRAT-001–014. Do not promote MIX-DUAL.
+Rejected: Pine as Super Order; INDEX proxy as option P/L; OU as vega;
+  151 live tournament; customer default rewrite.
+UNKNOWN: statutory costs; ATM∩INDEX depth; OOS OU.
+
+Artifact: teams/02_phd_math/docs/PINE_TV_EP_PHD_REVIEW.md
+Code: paper_tune.causal_overlay_block; mrr.rolling_z; mix_form_diverge_z;
+  lean_mix._call_side_follow_gap
+```
+
 ## As of now (2026-09-14) — standing pro-quant prompt (no PDFs)
 
 ```text

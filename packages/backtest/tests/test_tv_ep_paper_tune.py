@@ -8,8 +8,10 @@ from backtest_engine.tv_ep.catalog import CatalogEntry, ParamSpec
 from backtest_engine.tv_ep.paper_tune import (
     MAX_TWEAKS_PER_MIX_PER_DAY,
     bounded_param_grid,
+    causal_overlay_block,
     default_buy_leans,
     premium_divergence,
+    replay_one,
     run_paper_tune,
 )
 
@@ -109,6 +111,56 @@ def test_paper_tune_writes_proposal_not_production(tmp_path: Path) -> None:
     params = list((tmp_path / "data" / "recon").glob("tv_ep_paper_params_*.json"))
     assert params
     assert "mix_default_buy_untouched" in params[0].read_text(encoding="utf-8")
+
+
+def test_follow_gap_blocks_overlay() -> None:
+    t = _triple(20, ce_follows=False)
+    blocked, why = causal_overlay_block(t["index"], t["ce"], t["pe"], 10)
+    assert blocked is True
+    assert "FOLLOW-GAP" in why
+
+
+def test_causal_z_hold_when_residual_spikes() -> None:
+    n = 40
+    idx = synthetic_bars(n, trend=True)
+    ce: list[Bar] = []
+    pe: list[Bar] = []
+    ce_px = 80.0
+    pe_px = 80.0
+    for i, b in enumerate(idx):
+        prev = idx[i - 1].close if i else b.close
+        up = b.close > prev
+        if i == n - 1:
+            ce_px += 40.0
+            pe_px += 40.0
+        else:
+            ce_px += 0.8 if up else -0.8
+            pe_px += -0.8 if up else 0.8
+        ce.append(Bar(ts=b.ts, open=ce_px, high=ce_px + 1, low=ce_px - 1, close=ce_px, volume=1))
+        pe.append(Bar(ts=b.ts, open=pe_px, high=pe_px + 1, low=pe_px - 1, close=pe_px, volume=1))
+    blocked, why = causal_overlay_block(idx, ce, pe, n - 1)
+    assert blocked is True
+    assert "RESIDUAL_Z" in why
+
+
+def test_replay_uses_next_bar_open() -> None:
+    t = _triple(16, ce_follows=True)
+    out = replay_one(
+        mix_id="MIX-DEFAULT-BUY",
+        params={"lookback": 1},
+        index=t["index"],
+        ce=t["ce"],
+        pe=t["pe"],
+        leans_fn=default_buy_leans,
+        max_ticks=16,
+    )
+    buys = [x for x in out["tickets"] if str(x.get("signal", "")).startswith("BUY_")]
+    assert out["fill"].startswith("signal_close → next_bar_open")
+    if buys:
+        i = int(buys[0]["i"])
+        side = "CE" if buys[0]["signal"] == "BUY_CE" else "PE"
+        prem = t["ce"] if side == "CE" else t["pe"]
+        assert abs(float(buys[0]["entry_premium"]) - prem[i + 1].open) < 1e-9
 
 
 def test_no_tape_stops() -> None:
