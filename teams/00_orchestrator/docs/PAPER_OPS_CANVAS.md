@@ -1,7 +1,12 @@
 # Paper ops canvas — layout + unplug policy
 
-**Surface:** Cursor canvas `paper-operations-monitor.canvas.tsx` under the workspace canvases dir (`~/.cursor/projects/.../canvases/`)  
-**Generator:** `scripts/paper_ops_monitor.py` (rewrites the canvas while ops monitor runs)  
+**Open on this machine (repo, not `~/.cursor/projects`):**
+
+- Browser: [`../canvases/paper_ops_board.html`](../canvases/paper_ops_board.html) or `data/recon/paper_ops_board.html`
+- Cursor copy: [`../canvases/paper-operations-monitor.canvas.tsx`](../canvases/paper-operations-monitor.canvas.tsx)
+- How-to: [`../canvases/README.md`](../canvases/README.md)
+
+**Generator:** `scripts/paper_ops_monitor.py` (rewrites those files + the Cursor-home copy if that folder exists).  
 **Gate:** PAPER only · NO_PROMOTE · orders REFUSED · not `RESEARCH_READY_FOR_PROGRAMMING`  
 **Decision log:** [`data/recon/CANVAS_UNPLUG_2026-09-07.md`](../../../data/recon/CANVAS_UNPLUG_2026-09-07.md)
 

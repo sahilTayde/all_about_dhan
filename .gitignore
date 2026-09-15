@@ -22,6 +22,10 @@ data/recon/**
 !data/recon/ml/
 !data/recon/ml/.gitkeep
 
+# Live-rewritten founder board (open in Cursor / browser; do not commit ticks)
+teams/00_orchestrator/canvases/*
+!teams/00_orchestrator/canvases/README.md
+
 # Python
 __pycache__/
 *.py[cod]

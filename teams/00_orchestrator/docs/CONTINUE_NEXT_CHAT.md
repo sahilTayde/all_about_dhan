@@ -21,7 +21,7 @@ Do not glob markdown. Do not create extra CONTINUE/HANDOFF/NOTES dumps.
 
 Gate: NOT RESEARCH_READY_FOR_PROGRAMMING. PAPER only. NO_PROMOTE. STRATs UNVALIDATED. Dashboard P/L is MOCK. No live orders. Do not restart npm / Vite / paper ops until I ask. Never print secrets.
 
-Left off 2026-09-15 ~10:47 IST: cash OPEN. Dual-tape PID 74510 kept. Overlay waiter 72493. Eval loops respawned detached (subagent exit killed 82167–82172): monitor 82631, ML 82632, TV-EP 82633, Okala 82634, signal_lab 82635, STRAT 82636. Overlay HOLD. Paper fills 0. OKLA UNKNOWN; Okala CLI removed. origin/main 6cab1f6. Stop dual-tape: touch data/recon/paper_dual_tape_STOPPED.flag. Stop extra loops: touch data/recon/founder_eval_STOPPED.flag. NO_PROMOTE. Watch: tail -f data/recon/dual_tape_session_2026-09-15.log
+Left off 2026-09-15 ~14:45 IST: founder STOPPED all paper loops (dual-tape, overlay waiter, eval, canvas monitor). paper_dual_tape_STOPPED.flag + founder_eval_STOPPED.flag. Ran python -m jobs post-market then python -m agent_rag eod-recon --day 2026-09-15. RETUNE_PROPOSAL BACKTEST_REQUIRED; keep_current_strategy true; 0 paper fills; user_taken 0; 3 EXPIRED skipped. NO_PROMOTE. No Super Orders. Do not restart npm. Local sqlite — do not git-add. Next: do not start dual-tape until founder asks.
 
 Left off 2026-09-15 (next chat): pre-market readiness. At 09:15 IST run paper dual-tape + desk_ml overlay. NO_PROMOTE. OpenAI ACCEPT_WITH_CAVEATS is paper only. No Super Orders. No live orders. Local sqlite — do not git-add.
 
@@ -29,6 +29,20 @@ Left off 2026-09-13: ITM champion PAPER board ready (MIX-CHAMP-* + desk leaderbo
 ```
 
 ---
+
+## Left-off 2026-09-15 ~14:45 IST — STOP all loops + POST_MARKET nightly (NO_PROMOTE)
+
+| Topic | State |
+|-------|--------|
+| IST | **Tue 2026-09-15 ~14:45** — founder **stopped** live paper before close |
+| Dual-tape / overlay / eval / canvas | **STOPPED**. Flags: `paper_dual_tape_STOPPED.flag`, `founder_eval_STOPPED.flag`. Old LLM `paper_ops` still STOPPED |
+| Nightly | `python -m jobs post-market` **ok**. `session_kind=NORMAL`. `RETUNE_PROPOSAL` **BACKTEST_REQUIRED**. `keep_current_strategy` true. `production_params_written` false |
+| EOD | `python -m agent_rag eod-recon --day 2026-09-15` · `tune_status=RAN_EMPTY_LEDGER` · `tuned=false` |
+| Paper fills | **0**. User taken **0**. User skipped **3** (EXPIRED). Win rate **none** |
+| PhD handoff | `teams/02_phd_math/docs/handoffs/NIGHTLY_2026-09-15.md` |
+| Board | `teams/00_orchestrator/canvases/paper_ops_board.html` (frozen at stop) |
+| Super Orders | **NO** |
+| Promote | **NO_PROMOTE** |
 
 ## Left-off 2026-09-15 ~10:45 IST — founder push main + concurrent paper loops (NO_PROMOTE)
 
@@ -181,7 +195,7 @@ Old LLM `market-hours` / paper_ops: still respect `paper_ops_STOPPED.flag` unles
 - recon: `data/recon/EOD_RECON_2026-09-15.json`
 - retune artifact: `data/recon/RETUNE_PROPOSAL_2026-09-15.json`
 - KB: `data/knowledge/agent_rag.sqlite` ([`AGENT_RAG.md`](../../01_research/docs/AGENT_RAG.md)) — does **not** touch `transcripts.sqlite`
-- Paper agents backtest rollup: [`BACKTEST_PAPER_AGENTS_2026-09-10.md`](../../06_backtesting/docs/BACKTEST_PAPER_AGENTS_2026-09-10.md) — **NO_PROMOTE** (eod-recon 2026-09-15 did not write a new dated rollup)
+- Paper agents backtest rollup: [`BACKTEST_PAPER_AGENTS_2026-09-15.md`](../../06_backtesting/docs/BACKTEST_PAPER_AGENTS_2026-09-15.md) — **NO_PROMOTE**
 
 ## Do not
 

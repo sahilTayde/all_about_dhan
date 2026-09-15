@@ -7,8 +7,10 @@ Rewrites canvas every ~20–30s. Never prints secrets. NO_PROMOTE.
 from __future__ import annotations
 
 import argparse
+import html
 import json
 import os
+import re
 import socket
 import sqlite3
 import subprocess
@@ -29,6 +31,12 @@ CANVAS = Path(
     "Users-sahiltayde-Documents-all-about-dhan/canvases/"
     "paper-operations-monitor.canvas.tsx"
 )
+# Workspace copies — founder can open these without ~/.cursor/projects
+CANVAS_WORKSPACE = (
+    ROOT / "teams" / "00_orchestrator" / "canvases" / "paper-operations-monitor.canvas.tsx"
+)
+HTML_WORKSPACE = ROOT / "teams" / "00_orchestrator" / "canvases" / "paper_ops_board.html"
+HTML_RECON = RECON / "paper_ops_board.html"
 LOG_CANDIDATES = [
     RECON / "paper_market_hours_ops.log",
     RECON / "paper_market_hours_current.log",
@@ -120,6 +128,7 @@ def _dual_tape_snapshot() -> dict:
         if isinstance(row, dict):
             overlay_bits.append(f"{name}:{row.get('session_action') or '?'}")
     day_notes = ""
+    note_stats: dict = {}
     try:
         from zoneinfo import ZoneInfo
 
@@ -127,8 +136,10 @@ def _dual_tape_snapshot() -> dict:
         p = notes_path / f"{day}.notes.md"
         if p.exists():
             day_notes = str(p)
+            note_stats = _count_live_dealer_notes(p)
     except Exception:
         day_notes = ""
+        note_stats = {}
     return {
         "alive": alive,
         "pid": pid,
@@ -149,7 +160,54 @@ def _dual_tape_snapshot() -> dict:
         "overlay_bits": overlay_bits,
         "overlay_present": bool(overlay),
         "notes_path": day_notes,
+        "note_stats": note_stats,
+        "paper_fills": 0,
+        "win_rate": overlay.get("win_rate"),
         "gate": latest.get("gate") or "not RESEARCH_READY_FOR_PROGRAMMING",
+    }
+
+
+def _count_live_dealer_notes(path: Path) -> dict:
+    """Count dealer notes from 09:15 IST. Notes are not fills and not a win rate."""
+    confirm = hold = di = ticks = 0
+    live = False
+    try:
+        text = path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return {}
+    for line in text.splitlines():
+        if line.startswith("## Tick ") and "T" in line:
+            try:
+                ts = line.split("T", 1)[1][:8]
+                hh, mm, _ss = (int(x) for x in ts.split(":"))
+                live = (hh * 60 + mm) >= (9 * 60 + 15)
+            except (ValueError, IndexError):
+                live = False
+            if live:
+                ticks += 1
+            continue
+        if not live or not line.startswith("- **"):
+            continue
+        m = re.search(r"`([^`]+)`", line)
+        if not m:
+            continue
+        v = m.group(1)
+        if v in ("BUY_CE_CONFIRM", "BUY_PE_CONFIRM"):
+            confirm += 1
+        elif v == "HOLD":
+            hold += 1
+        elif v == "DATA_INSUFFICIENT":
+            di += 1
+    notes = confirm + hold + di
+    return {
+        "live_ticks": ticks,
+        "notes": notes,
+        "confirm": confirm,
+        "hold": hold,
+        "di": di,
+        "paper_fills": 0,
+        "win_rate": None,
+        "note": "CONFIRM notes are not closed trades. HOLD/DI are vetoes, not P/L losses.",
     }
 
 
@@ -1957,10 +2015,125 @@ def write_status(payload: dict) -> None:
     STATUS_FILE.write_text(json.dumps(slim, indent=2) + "\n")
 
 
+def _render_html_board(payload: dict) -> str:
+    """Self-contained HTML the founder can open from the repo (no ~/.cursor path)."""
+    dt = payload.get("dual_tape") or {}
+    ns = dt.get("note_stats") or {}
+    e = html.escape
+    updated = e(str(payload.get("updated_at") or _ist_now()))
+    pid = e(str(dt.get("pid") or "n/a"))
+    tick = e(str(dt.get("tick_index") if dt.get("tick_index") is not None else "n/a"))
+    as_of = e(str(dt.get("as_of_ist") or ""))
+    overlay = e(str(dt.get("overlay_session_action") or "n/a"))
+    verdicts = e("; ".join(str(x) for x in (dt.get("desk_verdicts") or [])[:6]) or "n/a")
+    ltps = dt.get("index_ltps") or {}
+    ltp_s = e(
+        " · ".join(f"{k} {v}" for k, v in ltps.items()) or "n/a"
+    )
+    fills = int(ns.get("paper_fills") or 0)
+    confirm = int(ns.get("confirm") or 0)
+    hold = int(ns.get("hold") or 0)
+    di = int(ns.get("di") or 0)
+    notes = int(ns.get("notes") or 0)
+    ticks = int(ns.get("live_ticks") or 0)
+    wr = dt.get("win_rate")
+    wr_s = e("null — not a validated win rate" if wr is None else str(wr))
+    alive = "RUNNING" if dt.get("alive") else "DOWN"
+    return f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta http-equiv="refresh" content="30"/>
+  <title>Paper ops board · NO_PROMOTE</title>
+  <style>
+    body {{ font-family: ui-sans-serif, system-ui, sans-serif; max-width: 920px;
+           margin: 24px auto; padding: 0 16px; color: #111; }}
+    .pills span {{ display: inline-block; margin: 0 8px 8px 0; padding: 4px 10px;
+                   border-radius: 999px; background: #eee; font-size: 13px; }}
+    .grid {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; }}
+    .stat {{ border: 1px solid #ddd; border-radius: 10px; padding: 12px; }}
+    .stat b {{ display: block; font-size: 22px; }}
+    .warn {{ background: #fff7e6; }}
+    .ok {{ background: #eefaf0; }}
+    table {{ width: 100%; border-collapse: collapse; margin: 12px 0 24px; }}
+    th, td {{ text-align: left; padding: 8px; border-bottom: 1px solid #eee; vertical-align: top; }}
+    code {{ font-size: 12px; }}
+  </style>
+</head>
+<body>
+  <h1>Paper operations board</h1>
+  <p>{updated} · supervised PAPER only · orders REFUSED · auto-refresh 30s</p>
+  <p class="pills">
+    <span>{e(alive)}</span>
+    <span>promote=false</span>
+    <span>NO_PROMOTE</span>
+    <span>fills={fills}</span>
+  </p>
+  <div class="grid">
+    <div class="stat ok"><small>Dual-tape PID</small><b>{pid}</b></div>
+    <div class="stat"><small>Tick</small><b>{tick}</b></div>
+    <div class="stat warn"><small>Overlay</small><b>{overlay}</b></div>
+    <div class="stat"><small>Paper fills</small><b>{fills}</b></div>
+  </div>
+  <p>Last tape {as_of}<br/>Index: {ltp_s}<br/>Desk: {verdicts}</p>
+
+  <h2>Trades taken vs failed</h2>
+  <p><strong>Taken (fills): {fills}.</strong> Execution is refused. Confirm notes are not tickets.</p>
+  <table>
+    <tr><th>What</th><th>Count</th><th>How to read</th></tr>
+    <tr><td>Paper fills / closed P/L</td><td>{fills}</td><td>No booked trades today</td></tr>
+    <tr><td>Live ticks since 09:15 IST</td><td>{ticks}</td><td>45s dual-tape samples</td></tr>
+    <tr><td>BUY_CE/PE_CONFIRM notes</td><td>{confirm}</td><td>Dealer lean — not a fill, not a win</td></tr>
+    <tr><td>HOLD notes</td><td>{hold}</td><td>Veto (often PREMIUM_DIVERGENCE) — not a P/L loss</td></tr>
+    <tr><td>DATA_INSUFFICIENT notes</td><td>{di}</td><td>Missing print — not a failed trade</td></tr>
+    <tr><td>Live notes total</td><td>{notes}</td><td>3 names × ticks</td></tr>
+    <tr><td>Win rate</td><td>{wr_s}</td><td>No closed book → no wr</td></tr>
+  </table>
+
+  <h2>What we tuned after those vetoes (paper only)</h2>
+  <ul>
+    <li>Did <strong>not</strong> write production MIX-DEFAULT-BUY knobs. <code>production_params_written=false</code>.</li>
+    <li>ML-001: IsolationForest stays <strong>anomaly WATCH</strong>, not BUY.</li>
+    <li>ML-002: wait for ≥90 same-session INDEX+ATM triples, then score window 90 (today that flipped DATA_INSUFFICIENT → SCORE_OK).</li>
+    <li>TV-EP / MIX-DEFAULT-BUY: LTP-clone paper-tune only; MIX-DEFAULT-BUY mock path was less negative in-sample — <strong>not a promote</strong>.</li>
+    <li>5m Supertrend/MACD/RSI stay confirm-or-kill, not entry.</li>
+  </ul>
+
+  <h2>Next parameter tweaks (backtestable, still NO_PROMOTE)</h2>
+  <ol>
+    <li>Join today’s dual-tape INDEX+ATM 1m so ML-002 window 90 is the same tape, then walk-forward MIX-TV-EP-018 and MIX-DEFAULT-BUY on OPTIDX OHLC (not LTP clones).</li>
+    <li>Treat PREMIUM_DIVERGENCE as a HOLD feature (combined ATM CE+PE vs spot) — extra FOLLOW-GAP input, not a new STRAT-015.</li>
+    <li>3m/5m confirm-or-kill vs 1m spray before any paper CE/PE is allowed.</li>
+    <li>Do not auto-retune customer defaults from this board.</li>
+  </ol>
+  <p>Notes: <code>{e(str(dt.get("notes_path") or "data/recon/paper_watch/DUAL-TAPE/YYYY-MM-DD.notes.md"))}</code></p>
+</body>
+</html>
+"""
+
+
+def _write_canvas_copies(tsx: str, board_html: str) -> None:
+    for path in (
+        CANVAS,
+        CANVAS_WORKSPACE,
+        RECON / "paper-operations-monitor.canvas.tsx",
+    ):
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(tsx, encoding="utf-8")
+        except OSError:
+            continue
+    for path in (HTML_RECON, HTML_WORKSPACE):
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(board_html, encoding="utf-8")
+        except OSError:
+            continue
+
+
 def rewrite_once(monitor_pid: int | None = None, allow_restart: bool = False) -> dict:
     payload = collect(monitor_pid=monitor_pid, allow_restart=allow_restart)
-    CANVAS.parent.mkdir(parents=True, exist_ok=True)
-    CANVAS.write_text(_render_canvas(payload))
+    _write_canvas_copies(_render_canvas(payload), _render_html_board(payload))
     # P1-2: founder digest at stop / ≥15:35 IST (does not rewrite canvas content).
     digest = _write_ops_founder_digest(payload)
     if digest:

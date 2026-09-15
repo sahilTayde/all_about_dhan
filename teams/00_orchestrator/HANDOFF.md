@@ -2,6 +2,31 @@
 
 **Agents:** read **only the newest block**. Do not ingest this whole log. New files: [`docs/FILE_CREATION.md`](../../docs/FILE_CREATION.md). Append here — do not create `HANDOFF_TOMORROW.md` or extra `CONTINUE_*`.
 
+## As of now (2026-09-15 ~14:45 IST) — STOP loops + POST_MARKET nightly
+
+```text
+From:     teams/00_orchestrator (founder desk)
+To:       founder / 02 / 06 / 09
+Date:     2026-09-15 ~14:45 IST
+Status:   HYPOTHESIS / NO_PROMOTE / ORDERS REFUSED / BACKTEST_REQUIRED
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: Stopped dual-tape, overlay waiter, founder eval loops, canvas
+  monitor. paper_dual_tape_STOPPED + founder_eval_STOPPED. Ran
+  python -m jobs post-market then agent_rag eod-recon --day 2026-09-15.
+  RETUNE_PROPOSAL BACKTEST_REQUIRED; keep_current_strategy true;
+  production_params_written false. 0 paper fills. docs_auditor PASS.
+Rejected: Auto-retune; live Super Orders; restart npm / old LLM paper_ops;
+  git-add sqlite.
+UNKNOWN: Session close clock still UNKNOWN. Dual-tape ledger is
+  DESK_DIVERGENCE notes (eod RAN_EMPTY_LEDGER).
+Artifacts:
+- teams/02_phd_math/docs/handoffs/NIGHTLY_2026-09-15.md
+- data/recon/2026-09-15.json (gitignored)
+- data/recon/EOD_RECON_2026-09-15.json (gitignored)
+- teams/00_orchestrator/canvases/README.md + paper_ops_board.html (generated)
+```
+
 ## As of now (2026-09-15 ~10:45 IST) — push main + concurrent paper loops (NO_PROMOTE)
 
 ```text
