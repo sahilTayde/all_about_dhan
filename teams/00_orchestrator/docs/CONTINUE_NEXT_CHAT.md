@@ -38,11 +38,11 @@ Left off 2026-09-13: ITM champion PAPER board ready (MIX-CHAMP-* + desk leaderbo
 | Git | Fast-forward `main` ← `cursor/live-paper-ml-tape-3203` (`e8d99cc`). Premarket unique commits **not** merged (CONTINUE already superseded); `scripts/paper_ops_monitor.py` dual-tape snapshot taken from `cursor/premarket-paper-dual-tape-a7a0`. Local sqlite **not** pushed. |
 | Dual-tape | PID **74510** kept · `--live-chain --tick-seconds 45 --max-ticks 0` · **llm false** · orders refused |
 | Overlay waiter | PID **72493** · `desk_ml overlay --source dual-tape` every 90s until **15:35 IST** |
-| Canvas | `scripts/paper_ops_monitor.py --interval 25` — restart if needed after monitor.py merge |
+| Canvas | PID **82167** · `scripts/paper_ops_monitor.py --interval 25` (restarted after dual-tape snapshot merge) |
 | Overlay | Session **HOLD**. NIFTY ML-001 `PREMIUM_DIVERGENCE` HOLD. BANKNIFTY `REGIME_OK` WATCH_ONLY. SENSEX `REGIME_OK` WATCH_ONLY. ML-002 **DATA_INSUFFICIENT** (window 90). `production_params_written` false |
 | Paper fills | **0** |
 | OKLA | **UNKNOWN** as `OKLA`. **Okala** exists as removed CF CLI (`okala-in` / `okala-signal` → stderr + exit 2). Not a named MIX loop. |
-| Extra loops | PIDs + stop: `data/recon/founder_live_loops.json` + `touch data/recon/founder_eval_STOPPED.flag` |
+| Extra loops | ML **82168** · TV-EP **82169** · Okala idle **82170** · signal_lab **82171** · STRAT/MIX dry **82172**. JSON: `data/recon/founder_live_loops.json`. Stop: `touch data/recon/founder_eval_STOPPED.flag` |
 | Super Orders | **NO** |
 | Promote | **NO_PROMOTE** |
 
