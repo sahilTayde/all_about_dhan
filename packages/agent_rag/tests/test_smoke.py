@@ -24,6 +24,14 @@ def test_rebuild_and_query_fake_breakout() -> None:
     hits = query("fake breakout", limit=5, root=root)
     # May be empty if phrase absent — still must not crash
     assert isinstance(hits, list)
+    book_hits = query("purged cv premium", limit=8, root=root)
+    assert any(h.kind == "phd_book_kb" for h in book_hits)
+    assert report["counts"].get("phd_book_kb", 0) >= 20
+    theta_hits = query("theta decay", limit=8, root=root)
+    intrinsic_hits = query("intrinsic", limit=8, root=root)
+    assert any(h.kind == "phd_book_kb" for h in theta_hits)
+    assert any(h.kind == "phd_book_kb" for h in intrinsic_hits)
+    assert any("topics/" in h.source_path for h in theta_hits + intrinsic_hits)
 
 
 def test_eod_recon_retune_required(tmp_path: Path | None = None) -> None:

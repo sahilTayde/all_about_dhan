@@ -2,6 +2,27 @@
 
 **Agents:** read **only the newest block**. Do not ingest this whole log. New files: [`docs/FILE_CREATION.md`](../../docs/FILE_CREATION.md). Append here — do not create `HANDOFF_TOMORROW.md` or extra `CONTINUE_*`.
 
+## As of now (2026-09-14) — counsel: train 02/04 without pirate books
+
+```text
+From:     teams/00_orchestrator
+To:       02 / 04 / 06 / 09 / founder
+Date:     2026-09-14
+Status:   REVIEW counsel + standing prompt / UNVALIDATED / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: One joint Gemini+OpenAI counsel (keys present, together=ALIGNED
+  ACCEPT_WITH_CAVEATS). Train on FTS phd_book_kb + dual-tape + MIX-FORM +
+  ML-001. No PDF ingest. Nightly REVIEW + RETUNE_GATE BACKTEST_REQUIRED.
+  Standing prompt for 02/04.
+Rejected: Pirate books; blocking LLM on 30s path; auto-retune; live
+  orders; win rates; STRAT-015+.
+UNKNOWN: OpenAI B/C truncated at nano cap.
+Artifacts:
+- teams/00_orchestrator/docs/COUNSEL_QUANT_TRAINING.md
+- teams/02_phd_math/docs/PRO_QUANT_AGENT_PROMPT.md
+```
+
 ## As of now (2026-09-14) — ML-001 local pattern overlay (holiday cache fit)
 
 ```text

@@ -1,5 +1,68 @@
 # Handoff log — Team 02 PhD math
 
+## As of now (2026-09-14) — standing pro-quant prompt (no PDFs)
+
+```text
+From:     teams/02_phd_math
+To:       00 / 04 / agents
+Date:     2026-09-14
+Status:   standing prompt / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: PRO_QUANT_AGENT_PROMPT.md — FTS phd_book_kb, dual-tape,
+  MIX-FORM, ML-001, CE/PE buy first, HOLD FOLLOW-GAP, formulas as
+  HYPOTHESIS + BACKTEST_REQUIRED. SKILL.md pointer.
+Rejected: Pirate book ingest; auto-apply nightly; LLM on 30s path.
+Artifact: teams/02_phd_math/docs/PRO_QUANT_AGENT_PROMPT.md
+Counsel:  teams/00_orchestrator/docs/COUNSEL_QUANT_TRAINING.md
+Sibling:  teams/06_backtesting/docs/QUANT_SELF_REVIEW_LOOP.md
+```
+
+## As of now (2026-09-14) — original option-mechanics topics in book_kb/topics
+
+```text
+From:     teams/02_phd_math
+To:       00 / 04 / 06 / 07 agent_rag / 09
+Date:     2026-09-14
+Status:   VALIDATION exam notes / UNVALIDATED / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: Original (not book text) FTS notes under docs/book_kb/topics:
+  theta decay, gamma, delta, vega/IV vs RV, intrinsic vs time value,
+  pricing vs HQ null greeks, POC/VP as HYPOTHESIS, smart money = OI/chain
+  snapshot (no conspiracy), levels, MIX-FORM residual (INDEX_CE_PE_EDA),
+  overfitting, model selection (KMeans/IF vs logistic; no RL on tick),
+  parameter fit vs RETUNE_GATE. ingest_phd_book_kb also globs topics/*.md.
+Rejected: Downloading/storing copyrighted books; inventing IV/greeks;
+  treating notes as edge; live Super Order.
+UNKNOWN / DATA_INSUFFICIENT: continuous IV series; ATM-tape ∩ INDEX;
+  vendor IV vs rollingoption iv[].
+
+Artifact: teams/02_phd_math/docs/book_kb/INDEX.md
+Sibling:  teams/06_backtesting/docs/QUANT_SELF_REVIEW_LOOP.md
+```
+
+## As of now (2026-09-14) — founder book list → original FTS KB (no PDFs)
+
+```text
+From:     teams/02_phd_math
+To:       00 / 04 / 07 agent_rag
+Date:     2026-09-14
+Status:   VALIDATION exam notes / UNVALIDATED / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: Seven-title exam KB under docs/book_kb (Tulchinsky, Kakushadze-151
+  inferred, Derman Badly, Gliner, Wiley smile, Bouchaud TQP, AFML). Crosswalk
+  + desk playbook. FTS kind phd_book_kb via python -m agent_rag rebuild.
+  workspace.yaml book rows (publisher URLs). Copyright: no downloaded books.
+Rejected: Pirate/web PDF ingest; embeddings day-1; treating notes as edge;
+  inventing IV; 151 live tournament.
+UNKNOWN: Founder “retracted 151” claim; Cambridge URL may move; smile without
+  HQ IV series.
+
+Artifact: teams/02_phd_math/docs/book_kb/INDEX.md
+```
+
 ## As of now (2026-09-14) — INDEX/CE/PE EDA + MIX-FORM-* (holiday cache)
 
 ```text
