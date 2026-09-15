@@ -16,7 +16,7 @@ This is how to start **paper gather + overlay score** at the cash open. It is **
 
 | Piece | State |
 |-------|--------|
-| Dual-tape | `python -m trading_agents_india dual-tape` — INDEX LTP/1m + ATM CE/PE. No LLM. No orders. |
+| Dual-tape | `python -m trading_agents_india dual-tape` — INDEX LTP/1m + ATM CE/PE. No LLM. No orders. 2026-09-15: live Dhan **401** until token refresh; dry dual-tape HOLD/STALE. |
 | ML-001 | KMeans k=4 + IsolationForest. Fit on warehouse `ohlc_bars`/`bars_1m` ∪ `premium_tape`. Seed **14**. Embargo last **5** 1m rows from fit (AFML analog, **not** CPCV / **not** OOS). |
 | ML-002 | OU on residual + VWMA windows **40 / 60 / 90** only (max 3 tweaks). FOLLOW-GAP HOLD. SENSEX OU may be `DATA_INSUFFICIENT` / not mean-reverting on the thin ATM book. |
 | Score CLI | `python -m desk_ml score --underlying NIFTY --source dual-tape` after two ticks with all three LTPs. |

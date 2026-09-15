@@ -1,5 +1,7 @@
 # STATUS — work to date (audit)
 
+**Session 2026-09-15 IST:** Pre-market dry-run **PASS**; live Dhan chain **401**. Dual-tape paper **NO_PROMOTE** armed 09:15. desk_ml overlay **HOLD**. Gate still **not** `RESEARCH_READY_FOR_PROGRAMMING`. Canvas: `paper-operations-monitor.canvas.tsx`. Do not git-add sqlite.
+
 Date: 2026-09-01 (local, session end). Catalog `retrieved_at`: 2026-08-31T03:15:28Z (not re-fetched).  
 **Morning score:** [`docs/MASTER_REQUIREMENTS.md`](../../../docs/MASTER_REQUIREMENTS.md).  
 **Frontier brief:** [`REVIEW_BRIEF_FOR_FRONTIER_MODEL.md`](REVIEW_BRIEF_FOR_FRONTIER_MODEL.md).  

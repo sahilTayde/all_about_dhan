@@ -21,22 +21,22 @@ Do not glob markdown. Do not create extra CONTINUE/HANDOFF/NOTES dumps.
 
 Gate: NOT RESEARCH_READY_FOR_PROGRAMMING. PAPER only. NO_PROMOTE. STRATs UNVALIDATED. Dashboard P/L is MOCK. No live orders. Do not restart npm / Vite / paper ops until I ask. Never print secrets.
 
-Left off 2026-09-15 (next chat): pre-market readiness. At 09:15 IST run paper dual-tape + desk_ml overlay. NO_PROMOTE. OpenAI ACCEPT_WITH_CAVEATS is paper only. No Super Orders. No live orders. Local sqlite — do not git-add.
+Left off 2026-09-15 (this session ran): pre-market dry-run PASS; live Dhan chain 401 so fixtures. Dual-tape restart armed for 09:15 IST + desk_ml overlay. NO_PROMOTE. No Super Orders. No live orders. Local sqlite — do not git-add. Token refresh still needed for INDEX LTP.
 
 Left off 2026-09-13: ITM champion PAPER board ready (MIX-CHAMP-* + desk leaderboard + assumed IST VWAP). Docs: teams/06_backtesting/docs/ITM_CHAMPION_PAPER_BOARD.md. CLI: python -m backtest_engine.run_itm_champions. Tuesday = PAPER watch only (prefer ITM PE near spot); live Super Orders refused. Next freeze only after live board evidence; then walk-forward OOS. KEEP_ALL. NO_PROMOTE. Local trading_agents_india.sqlite is working-tree only — do not git-add.
 ```
 
 ---
 
-## Left-off 2026-09-15 — next chat = pre-market + live paper (no Super Orders)
+## Left-off 2026-09-15 — pre-market ran; paper dual-tape armed 09:15 IST
 
 | Topic | State |
 |-------|--------|
-| Next chat | **Pre-market readiness**, then paper at **09:15 IST** |
-| Dual-tape | `python -m trading_agents_india dual-tape --live-chain` — no LLM, no orders |
-| Overlay | `python -m desk_ml score --underlying NIFTY --source dual-tape` — FOLLOW-GAP HOLD |
-| OpenAI overlay | `ACCEPT_WITH_CAVEATS` **paper only** — [`OPENAI_OVERLAY_REVIEW.md`](../../06_backtesting/docs/OPENAI_OVERLAY_REVIEW.md) |
-| Session prep | [`SESSION_PREP_ML.md`](../../06_backtesting/docs/SESSION_PREP_ML.md) |
+| IST this pass | **Tue 2026-09-15 ~08:45 IST** (pre-open). NSE cash **09:15–15:30**. |
+| Pre-market | Live Dhan `POST /optionchain/expirylist` **401** (token set, auth failed). Re-ran `python -m desk_intel pre-market --dry-run` **exit 0**. News RSS **10** events (`news_offline=false`). Paper tickets **WATCH / NEUTRAL** + crude RISK_OFF veto (HYPOTHESIS). GIFT/SGX/pre-open **VERIFY / DATA_INSUFFICIENT**. |
+| Dual-tape overnight | PID **26768** still polling (stale/fixture, INDEX LTP null). **09:15 IST waiter** stops it and starts venv `--live-chain --tick-seconds 45 --max-ticks 0`. Stop: `touch data/recon/paper_dual_tape_STOPPED.flag`. |
+| Overlay | Cache score NIFTY **HOLD / FOLLOW-GAP / PREMIUM_DIVERGENCE**. Dual-tape triples **0** (no INDEX LTP) → overlay **HOLD**. `desk_ml overlay --source dual-tape` every 90s after 09:15. |
+| Canvas | Cursor `paper-operations-monitor.canvas.tsx` now shows dual-tape + overlay. Monitor loop (no `--allow-restart`). Cleanup JSON: `apps/web/public/cleanup-status.json`. |
 | Super Orders | **NO** |
 | Promote | **NO_PROMOTE** |
 

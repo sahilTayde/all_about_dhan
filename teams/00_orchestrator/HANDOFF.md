@@ -2,6 +2,31 @@
 
 **Agents:** read **only the newest block**. Do not ingest this whole log. New files: [`docs/FILE_CREATION.md`](../../docs/FILE_CREATION.md). Append here — do not create `HANDOFF_TOMORROW.md` or extra `CONTINUE_*`.
 
+## As of now (2026-09-15) — founder pre-market + paper dual-tape session (NO_PROMOTE)
+
+```text
+From:     teams/00_orchestrator (boss)
+To:       founder / 04 / 05 / 06 / 07 / 09
+Date:     2026-09-15
+Status:   PAPER / HYPOTHESIS / NO_PROMOTE / ORDERS REFUSED / BACKTEST_REQUIRED
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: Pre-market RSS + dry-run chain. Dual-tape paper (no LLM).
+  desk_ml fit NIFTY/BANKNIFTY/SENSEX seed 14 embargo 5. MRR windows 40/60/90.
+  FOLLOW-GAP HOLD. Canvas dual-tape card. Signal-lab 1/3/5/10m cache grid.
+  ITM champion board re-run on cache only. production_params_written false.
+Rejected: Live Super Orders; /alerts/orders; npm restart; auto-retune;
+  promote MIX/STRAT; treat 401 token as live quotes; invent fills;
+  treat embargo as CPCV/OOS; claim lab success% as live P/L.
+UNKNOWN: Whether founder token will authenticate after 09:15.
+  GIFT/SGX/NSE pre-open quotes. Session close clock. SENSEX/BANKNIFTY OU
+  not mean-reverting on 3-day ATM book.
+CLI:      python -m desk_intel pre-market --dry-run
+          python -m trading_agents_india dual-tape --live-chain --tick-seconds 45 --max-ticks 0
+          python -m desk_ml overlay --source dual-tape
+Stop:     touch data/recon/paper_dual_tape_STOPPED.flag
+```
+
 ## As of now (2026-09-15) — RESEARCH_BOSS ML session prep (NO_PROMOTE)
 
 ```text

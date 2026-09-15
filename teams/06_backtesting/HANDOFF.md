@@ -1,5 +1,24 @@
 # Handoff log — Team 06 Backtesting
 
+## As of now (2026-09-15) — paper session param/timeframe sweep (NO_PROMOTE)
+
+```text
+From:     teams/06_backtesting
+To:       00 / 04 / founder
+Date:     2026-09-15
+Status:   PAPER / UNVALIDATED / NO_PROMOTE / BACKTEST_REQUIRED
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: Re-fit ML-001/002; signal_lab days 09-09/10/11; ITM champion
+  cache board rewrite. Dual-tape tick stays 45s (30–45 allowed). MRR
+  windows still 40/60/90 only. No production MIX write.
+Rejected: Promote from in-sample shell% or champion board success%.
+UNKNOWN: Same-session ATM depth after a 200 Dhan open.
+Artifact: data/recon/signal_lab/signal_lab_2026-09-15_0844.json
+          data/recon/itm_champion_leaderboard.json
+CLI: python -m desk_ml score --underlying NIFTY --source dual-tape
+```
+
 ## As of now (2026-09-15) — paper overlay recode after OpenAI REJECT
 
 ```text

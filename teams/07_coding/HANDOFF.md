@@ -1,5 +1,22 @@
 # Handoff log — Team 07 Coding
 
+## As of now (2026-09-15) — paper ops canvas dual-tape card
+
+```text
+From:     teams/07_coding
+To:       00 / founder
+Date:     2026-09-15
+Status:   canvas monitor / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: paper_ops_monitor reads dual-tape RUNNING flag + latest.json +
+  overlay_last.json. Status pill RUNNING when dual-tape alive even if
+  LLM paper_ops is STOPPED. No --allow-restart (legacy LLM stays off).
+Rejected: npm/Vite restart; ExecutionClient.
+CLI: .venv/bin/python scripts/paper_ops_monitor.py --interval 25
+Canvas: ~/.cursor/projects/.../canvases/paper-operations-monitor.canvas.tsx
+```
+
 ## As of now (2026-09-15) — desk_ml warehouse join + dual-tape score
 
 ```text

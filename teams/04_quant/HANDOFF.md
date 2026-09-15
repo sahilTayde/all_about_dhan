@@ -1,5 +1,32 @@
 # Handoff log — Team 04 Quant
 
+## As of now (2026-09-15) — ML PhD observations queued (paper/shadow)
+
+```text
+From:     teams/04_quant (algo) + 00 boss
+To:       06 / 07 / founder
+Date:     2026-09-15
+Layer:    keep SOURCE_FACT / VALIDATION / HYPOTHESIS separate
+Status:   HYPOTHESIS queued / UNVALIDATED / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+SOURCE_FACT: Live Dhan optionchain expirylist returned HTTP 401 this morning.
+  Dual-tape JSONL has ATM CE/PE cache numbers but INDEX LTP null (stale).
+VALIDATION: ML-001 fit 593 rows / 5-bar embargo on 599 triples (NIFTY/BN/SX).
+  ML-002 NIFTY preferred window 90 (in-sample OU). SENSEX+BANKNIFTY OU
+  NOT_MEAN_REVERTING on {40,60,90}. Cache score FOLLOW-GAP HOLD.
+  Signal-lab 1/3/5/10m × gates × overlays on 2026-09-09..11 — research only.
+HYPOTHESIS (queue to test, not promote):
+  H1 Combined ATM CE+PE vs spot (straddle) as extra FOLLOW-GAP feature
+     (public practice: combined premium charts). Paper only.
+  H2 Prefer 3m dual_novol / 5m confirm-or-kill (ST/MACD not entry) vs 1m spray.
+  H3 Combined-premium spike with flat INDEX → HOLD (event/IV), not BUY.
+  H4 IsolationForest stays anomaly overlay; do not map DIVERGE → BUY_CE/PE.
+  H5 5-bar embargo ≠ CPCV; next test is walk-forward OOS on a live paper day
+     with real INDEX+ATM LTPs (blocked until Dhan 200).
+Rejected: STRAT-015+; auto-retune; live orders.
+```
+
 ## As of now (2026-09-15) — ML-001 dual-tape score + embargo (NO_PROMOTE)
 
 ```text

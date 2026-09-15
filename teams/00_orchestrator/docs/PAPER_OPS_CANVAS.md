@@ -18,6 +18,7 @@ Operator-internal day board for paper market-hours. Not the customer `/` desk. F
 | Block | Why |
 |-------|-----|
 | FINAL / STOPPED · promote=false · orders REFUSED pills | Day / gate state |
+| **Dual-tape + desk_ml overlay** | PID, tick, overlay HOLD/WATCH, desk verdicts (2026-09-15) |
 | Signals / shadow · HOLD/CE/PE · fills · non-HOLD | Paper outcome |
 | LLM status / openai_used / last error · API/Vite | Rate-limit + desk health |
 | **Top veto reasons** table | Explains zero CE/PE without DI flood |
