@@ -21,7 +21,7 @@ Education ≠ advice. **No live orders.** Cluster sizes are counts, not edge. No
 
 Rejected on the 30s path: deep RL, transformers, blocking LLM, sklearn as a hard dep. Supervised logistic skipped unless later labels are thick (`DATA_INSUFFICIENT` / `SKIPPED_THIS_TICKET`). **No MIX param writes** ([`RETUNE_GATE.md`](../../06_backtesting/docs/RETUNE_GATE.md)).
 
-Features (`ml001-v1`): `idx_ret`, `ce_ret`, `pe_ret`, `spread_chg`, `abs_residual` from aligned 1m INDEX + ATM CE + ATM PE (`data/recon/ohlc` + `premium_tape`). No invented greeks.
+Features (`ml001-v1`): `idx_ret`, `ce_ret`, `pe_ret`, `spread_chg`, `abs_residual` from aligned 1m INDEX + ATM CE + ATM PE (`data/recon/ohlc` + `premium_tape`). No invented greeks. Live Dhan greeks belong in **`MIX-ML-GREEKS`** (`ml-greeks-v1`), not this vector.
 
 **Attach tomorrow:** after 1m bar close **or** two dual-tape ticks, `python -m desk_ml score --underlying NIFTY --source dual-tape`. `overlay=HOLD` / FOLLOW-GAP → dealer HOLDs new paper CE/PE. Fit embargo last 5 bars (AFML analog, not CPCV). Warehouse `ohlc_bars` + `bars_1m` join INDEX; `{UND}_ATM_CE/PE` if present. Regime labels are not BUY_CE/PE. No LLM. ExecutionClient unused.
 

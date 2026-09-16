@@ -26,6 +26,7 @@ from desk_ml.paper_lots import (
     resolve_lot_size,
     size_lots,
 )
+from desk_ml.greeks_ml import score_greeks_ticket, session_iv_median, wing_ivs
 from desk_ml.tape import ist_calendar_date, load_dual_tape_triples, load_index_closes, load_triples
 
 try:
@@ -40,6 +41,10 @@ except ImportError:  # pragma: no cover
 
 IST = timezone(timedelta(hours=5, minutes=30))
 FLATTEN_MINUTES_IST = 15 * 60  # 15:00 IST
+NO_NEW_MINUTES_IST = 14 * 60 + 45  # do not arm a new limit into flatten
+FILL_AWAY_FRAC = 0.03  # unfilled buy: LTP ran this far above limit
+UNFILLED_BARS = 2
+UNFILLED_SECONDS = 120
 SCALP_HOLD_BARS = 8  # 1m tape ≈ 8 minutes
 RANGE_LOOKBACK = 20
 STOP_FRAC = 0.40
@@ -57,6 +62,7 @@ LIVE_BOOKS = (
     "MIX-ML-LOGIT",
     "MIX-ML-LOGIT-XR",
     "MIX-TV-EP-024",
+    "MIX-ML-GREEKS",
 )
 
 TV_EP_KEEP_ALL = tuple(f"MIX-TV-EP-{i:03d}" for i in range(1, 26))
@@ -312,6 +318,8 @@ class OpenPaper:
     notional_inr: Optional[float] = None
     capital_inr: float = STARTING_CAPITAL_INR
     lot_status: str = "DATA_INSUFFICIENT"
+    filled: bool = False
+    idx_at_open: Optional[float] = None
     delta: Optional[float] = None
     gamma: Optional[float] = None
     theta: Optional[float] = None
@@ -585,6 +593,46 @@ def ml1_meta_label(closed: Sequence[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
+def _unfilled_reason(
+    pos: OpenPaper,
+    ltp: float,
+    ts: int,
+    bar_i: int,
+    *,
+    dealer_verdict: Optional[str] = None,
+    live_delta: Optional[float] = None,
+    index_ltp: Optional[float] = None,
+) -> Optional[str]:
+    """Working buy limit. Do not assume a fill. Cancel if the candle walked away."""
+    px = float(ltp)
+    limit = float(pos.limit_price or pos.entry)
+    if px <= limit + 1e-9:
+        return "FILL"
+    if px >= limit * (1.0 + FILL_AWAY_FRAC):
+        return "CANCEL_UNFILLED_AWAY"
+    if int(ts) - int(pos.opened_ts) >= UNFILLED_SECONDS:
+        return "CANCEL_UNFILLED_TIMEOUT"
+    if bar_i - pos.opened_bar >= UNFILLED_BARS:
+        return "CANCEL_UNFILLED_TIMEOUT"
+    verdict = str(dealer_verdict or "")
+    if pos.side == "CE" and verdict == "BUY_PE_CONFIRM":
+        return "CANCEL_UNFILLED_THESIS"
+    if pos.side == "PE" and verdict == "BUY_CE_CONFIRM":
+        return "CANCEL_UNFILLED_THESIS"
+    if live_delta is not None and abs(float(live_delta)) < DELTA_SKIP_BELOW:
+        return "CANCEL_UNFILLED_DELTA"
+    if pos.idx_at_open is not None and index_ltp is not None:
+        step = STRIKE_STEP.get(pos.underlying.upper(), 50.0)
+        moved = float(index_ltp) - float(pos.idx_at_open)
+        if pos.side == "CE" and moved <= -0.5 * step:
+            return "CANCEL_UNFILLED_INDEX"
+        if pos.side == "PE" and moved >= 0.5 * step:
+            return "CANCEL_UNFILLED_INDEX"
+    if minutes_ist(ts) >= FLATTEN_MINUTES_IST:
+        return "CANCEL_UNFILLED_FLAT"
+    return None
+
+
 def _exit_reason(
     pos: OpenPaper,
     ltp: float,
@@ -632,9 +680,18 @@ def _exit_reason(
 
 
 def _close(engine: BookEngine, pos: OpenPaper, *, ltp: float, ts: int, reason: str, root: Optional[Path] = None) -> None:
-    points = float(ltp) - float(pos.entry)
-    inr = pnl_inr(points=points, lot_size=pos.lot_size, lots=pos.lots)
-    sl_hit = reason in {"STOP", "CANCEL_ADVERSE"}
+    unfilled = (not pos.filled) or str(reason).startswith("CANCEL_UNFILLED")
+    if unfilled:
+        points = 0.0
+        inr = 0.0
+        result = "CANCELLED"
+        won = False
+    else:
+        points = float(ltp) - float(pos.entry)
+        inr = pnl_inr(points=points, lot_size=pos.lot_size, lots=pos.lots)
+        won = points > 0
+        result = "SUCCESS" if won else "LOSS"
+    sl_hit = (not unfilled) and reason in {"STOP", "CANCEL_ADVERSE"}
     sl_loss_inr = inr if sl_hit and inr is not None and inr < 0 else (0.0 if sl_hit and inr is None else None)
     if sl_hit and inr is None:
         sl_loss_inr = round(points, 4)
@@ -677,8 +734,9 @@ def _close(engine: BookEngine, pos: OpenPaper, *, ltp: float, ts: int, reason: s
             "shadow": True,
             "execution": "refused",
             "promote": False,
-            "won": points > 0,
-            "result": "SUCCESS" if points > 0 else "LOSS",
+            "won": won,
+            "result": result,
+            "filled": (not unfilled),
         }
     )
     if inr is not None:
@@ -719,6 +777,9 @@ def _try_open(
     strike: Optional[float] = None,
     strike_source: str = "ROUND_INDEX_HYPOTHESIS",
 ) -> None:
+    if minutes_ist(tick.ts) >= NO_NEW_MINUTES_IST:
+        engine.mark_skip(book_id, underlying, "NO_NEW_AFTER_1445", ts=tick.ts)
+        return
     if engine.has_open(book_id, underlying):
         return
     if skip_reason:
@@ -792,6 +853,8 @@ def _try_open(
         notional_inr=sized.get("notional_inr"),
         capital_inr=engine.starting_capital,
         lot_status=str(sized.get("lot_status") or lot_src),
+        filled=False,
+        idx_at_open=float(tick.idx_close),
         delta=greeks.get("delta"),
         gamma=greeks.get("gamma"),
         theta=greeks.get("theta"),
@@ -841,9 +904,37 @@ def mark_to_market(
         if ltp is None:
             ltp, side_low, _src = quote_for_side(tick, pos.side)
         if ltp is None:
+            if minutes_ist(tick.ts) >= FLATTEN_MINUTES_IST:
+                _close(
+                    engine,
+                    pos,
+                    ltp=float(pos.entry),
+                    ts=tick.ts,
+                    reason="CANCEL_UNFILLED_FLAT" if not pos.filled else "FLATTEN_1500",
+                    root=engine.root,
+                )
             continue
         if side_low is None:
             side_low = ltp
+        if not pos.filled:
+            live = leg_greeks(tick, pos.side, float(pos.atm_strike or 0))
+            u_reason = _unfilled_reason(
+                pos,
+                float(ltp),
+                tick.ts,
+                bar_i,
+                dealer_verdict=dealer_verdict,
+                live_delta=live.get("delta"),
+                index_ltp=tick.idx_close,
+            )
+            if u_reason == "FILL":
+                pos.filled = True
+                pos.entry = min(float(ltp), float(pos.limit_price or pos.entry))
+            elif u_reason:
+                _close(engine, pos, ltp=float(ltp), ts=tick.ts, reason=u_reason, root=engine.root)
+                continue
+            else:
+                continue
         booked_px, _, _ = quote_for_side(tick, pos.side, strike=pos.atm_strike)
         if booked_px is not None:
             roll_ref = pos.atm_strike
@@ -984,6 +1075,39 @@ def step_underlying(
 
     tv = tv_side if tv_side in {"CE", "PE"} else (None if deny else fallback)
     _open("MIX-TV-EP-024", tv, None if tv in {"CE", "PE"} else "TV-EP-024 SMA20 flat or warmup")
+
+    greeks_side = dealer_proposal or fallback
+    greeks_skip = None
+    if greeks_side not in {"CE", "PE"}:
+        greeks_skip = "NO_SIDE"
+    else:
+        want = pick_paper_strike(tick, greeks_side, float(strike or round_atm_strike(und, tick.idx_close)), und)
+        greeks = leg_greeks(tick, greeks_side, want)
+        px, _, _src = quote_for_side(tick, greeks_side, strike=want)
+        entry = float(px) if px is not None else (tick.ce_close if greeks_side == "CE" else tick.pe_close)
+        hist = getattr(engine, "_greeks_iv_hist", None)
+        if not isinstance(hist, dict):
+            hist = {}
+            engine._greeks_iv_hist = hist  # type: ignore[attr-defined]
+        prior = list(hist.get(und) or [])
+        atm_iv = greeks.get("iv")
+        scored = score_greeks_ticket(
+            side=greeks_side,
+            entry=entry,
+            delta=greeks.get("delta"),
+            gamma=greeks.get("gamma"),
+            theta=greeks.get("theta"),
+            iv=atm_iv,
+            session_iv=session_iv_median(prior),
+            minutes_ist=minutes_ist(tick.ts),
+            wing_iv_list=wing_ivs(tick.wing_quotes),
+        )
+        if atm_iv is not None:
+            hist.setdefault(und, []).append(float(atm_iv))
+        if not scored.get("take"):
+            greeks_skip = str(scored.get("reason") or "GREEKS_HOLD")
+    _open("MIX-ML-GREEKS", greeks_side, greeks_skip)
+
     engine.last_step = {
         "underlying": und,
         "ts": tick.ts,
@@ -995,6 +1119,7 @@ def step_underlying(
         "logit_xr": logit_xr,
         "ml1": ml1,
         "tv_ep_024": tv_side,
+        "mix_ml_greeks_skip": greeks_skip,
         "independent": True,
         "note": "HOLD on one book does not veto another",
     }
@@ -1096,6 +1221,9 @@ def mistakes_from_closed(closed: Sequence[dict[str, Any]]) -> list[dict[str, Any
         elif reason in {"CANCEL_ADVERSE", "CANCEL_THESIS", "CANCEL_STRIKE_ROLL"}:
             lesson = f"{reason}: ticket was dead; cancel instead of sitting to TIME"
             tweak = "give-up / thesis-flip / strike-roll cancel is the paper rule"
+        elif reason.startswith("CANCEL_UNFILLED"):
+            lesson = f"{reason}: limit never filled — candle walked away or thesis/greeks died"
+            tweak = "do not assume fill at signal print; cancel unfilled limits"
         elif reason == "FLATTEN_1500":
             lesson = "FLATTEN_LOSS: still open into 15:00 IST"
             tweak = "do not open after 14:40 IST"
@@ -1290,17 +1418,18 @@ def replay_paper_scalp(
                 break
         if max_closes > 0 and len(engine.closed) >= max_closes:
             break
-        # Cache replay flattens leftovers. Live session keeps OPEN on the board.
-        if not live_session:
+        # Live session keeps WORKING/OPEN only before 15:00 IST. After flatten, leftovers close.
+        last = triples[-1]
+        past_flat = minutes_ist(last.ts) >= FLATTEN_MINUTES_IST
+        if (not live_session) or past_flat:
             last = triples[-1]
             for book_id in LIVE_BOOKS:
                 pos = engine.opens.get((book_id, u))
                 if pos is None:
                     continue
                 ltp = last.ce_close if pos.side == "CE" else last.pe_close
-                _close(engine, pos, ltp=float(ltp), ts=last.ts, reason="REPLAY_END", root=base)
-                if max_closes > 0 and len(engine.closed) >= max_closes:
-                    break
+                reason = "CANCEL_UNFILLED_FLAT" if not pos.filled else ("FLATTEN_1500" if past_flat else "REPLAY_END")
+                _close(engine, pos, ltp=float(ltp), ts=last.ts, reason=reason, root=base)
         steps[u] = {
             "status": "REPLAY_OK",
             "n_triples": len(triples),
@@ -1351,12 +1480,15 @@ def _book_what(book_id: str) -> str:
         "MIX-ML-LOGIT": "INDEX 3m walk-forward logit (ml_leans.py). Scan book. Not customer default.",
         "MIX-ML-LOGIT-XR": "Logit AND range-expansion. Scan book. Not customer default.",
         "MIX-TV-EP-024": "Factory SMA20 INDEX calibrator → ATM CE/PE. KEEP_ALL lab. Not a promote.",
+        "MIX-ML-GREEKS": "TOKEN_ML ML-2 paper: Dhan delta/IV/theta/gamma. HOLD rich vol / late theta / missing greeks. Not customer default.",
     }.get(book_id, book_id)
 
 
 def leaderboard_closed(closed: Sequence[dict[str, Any]]) -> list[dict[str, Any]]:
     buckets: dict[tuple[str, str], list[dict[str, Any]]] = {}
     for row in closed:
+        if str(row.get("result")) == "CANCELLED":
+            continue
         key = (str(row["book_id"]), str(row["underlying"]))
         buckets.setdefault(key, []).append(row)
     out = []
@@ -1395,7 +1527,8 @@ def _append_mistakes(root: Path, mistakes: Sequence[dict[str, Any]]) -> None:
 
 def _open_ticket_row(pos: OpenPaper) -> dict[str, Any]:
     row = asdict(pos)
-    row["status"] = "OPEN_PAPER"
+    row["status"] = "OPEN_PAPER" if pos.filled else "WORKING_LIMIT"
+    row["filled"] = bool(pos.filled)
     row["result"] = None
     row["sl_hit"] = False
     row["sl_loss_inr"] = None
@@ -1442,9 +1575,10 @@ def build_dashboard(
     models = []
     for book_id in LIVE_BOOKS:
         closed_b = [c for c in engine.closed if c["book_id"] == book_id]
+        scored_b = [c for c in closed_b if c.get("result") in {"SUCCESS", "LOSS"}]
+        pnls = [float(c["realized_pnl"]) for c in scored_b]
+        inrs = [float(c["realized_pnl_inr"]) for c in scored_b if c.get("realized_pnl_inr") is not None]
         open_b = [_open_ticket_row(p) for (b, _u), p in engine.opens.items() if b == book_id]
-        pnls = [float(c["realized_pnl"]) for c in closed_b]
-        inrs = [float(c["realized_pnl_inr"]) for c in closed_b if c.get("realized_pnl_inr") is not None]
         models.append(
             {
                 "model_id": book_id,
@@ -1466,7 +1600,8 @@ def build_dashboard(
             }
         )
     open_rows = [_open_ticket_row(p) for p in engine.opens.values()]
-    all_pnls = [float(c["realized_pnl"]) for c in engine.closed]
+    scored_all = [c for c in engine.closed if c.get("result") in {"SUCCESS", "LOSS"}]
+    all_pnls = [float(c["realized_pnl"]) for c in scored_all]
     inrs_all = [float(c["realized_pnl_inr"]) for c in engine.closed if c.get("realized_pnl_inr") is not None]
     overall_pnl_inr = round(sum(inrs_all), 2) if inrs_all else 0.0
     money_lost_inr = round(sum(x for x in inrs_all if x < 0), 2)
@@ -1563,8 +1698,11 @@ def build_dashboard(
             "INDEX 1m is warehouse∪JSON. ATM days without INDEX 1m stay DATA_INSUFFICIENT — never filled bars.",
             "Paper entries prefer ~100pt ITM (STRAT-006 wing) when chain LTP exists. ATM is fallback only.",
             "Dhan POST /optionchain documents IV + greeks.delta/theta/gamma/vega. Paper uses them when parsed; never invents.",
+            "MIX-ML-GREEKS is the ML-2 paper book: skip missing greeks, rich IV, late-session theta bleed. ml001-v1 unchanged.",
             "live_session=true walks TODAY IST dual-tape only. Cache-wide jsonl replay is not today's P/L.",
-            "Cancel dead tickets: minute low, 12% give-up, ATM strike roll, opposite BUY_*_CONFIRM. Do not sit to TIME.",
+            "Cancel dead tickets: unfilled limit walk-away, minute low, 12% give-up, strike roll, thesis flip. Do not sit to TIME.",
+            "A signal is WORKING_LIMIT until LTP<=limit. If the candle runs away, cancel with ₹0 — never assume a fill.",
+            "No new paper after 14:45 IST. 15:00 flattens leftover OPEN. live_session does not keep dead tickets overnight.",
             "paper_params nudge is session-only overfit. production_params_written stays false.",
         ],
     }

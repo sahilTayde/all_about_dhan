@@ -7,7 +7,7 @@
 **Default customer ticket (engine):** [`ENGINE_MIX.md`](ENGINE_MIX.md)  
 **Equity slots:** [`candidates/EQUITY_ETF_BACKLOG.md`](candidates/EQUITY_ETF_BACKLOG.md)  
 **CAS IDs:** [`CAS_STRATEGIES.md`](../../03_phd_market/cas/CAS_STRATEGIES.md) — `CAS-001`–`005` **PARKED** (founder 2026-09-16). Not in the working book. Exchange clocks stay in `cas/RESEARCH.md`.  
-**TV Editors’ Picks:** §22 `MIX-TV-EP-001`–`025`. **ML overlays:** §25 `ML-001` / `ML-002`. **ITM paper champs:** §23. **CE/PE formulas:** §24.
+**TV Editors’ Picks:** §22 `MIX-TV-EP-001`–`025`. **ML overlays:** §25 `ML-001` / `ML-002` / `MIX-ML-GREEKS`. **ITM paper champs:** §23. **CE/PE formulas:** §24.
 
 ---
 
@@ -664,6 +664,15 @@ customer_default: false
 ```
 
 ```yaml
+mix_id: MIX-ML-GREEKS
+origin: PROJECT_MIX
+origin_note: "TOKEN_ML ML-2 paper stand-in. Dhan delta/IV/theta/gamma HOLD overlay. Side from tape. Not DHAN-DERIVED recipe. Not STRAT-015+."
+styles: [OPTION_BUYER, SCALPER]
+scan: greeks_ml_v1_hold
+customer_default: false
+```
+
+```yaml
 mix_id: MIX-CLUB-EG
 origin: PROJECT_MIX
 origin_note: "ENGULF ∧ GAP after clock scan. Founder club of WEAK books. Not a promote."
@@ -1105,6 +1114,7 @@ NO_PROMOTE: true
 | **ML-001** | KMeans k=4 + IsolationForest on 1m INDEX+ATM triples. Labels HOLD/WATCH. Seed 14. | **Keep.** Anomaly ≠ BUY. |
 | **ML-002** | OU on MIX-FORM residual + VWMA windows 40/60/90. FOLLOW-GAP HOLD. | **Keep.** Window 90 often `DATA_INSUFFICIENT`. |
 | **MIX-ML-LOGIT** / **MIX-ML-LOGIT-XR** | §8 scan queue (logistic later). Metrics null. | **Keep as scan.** Not ML-001. |
+| **MIX-ML-GREEKS** | TOKEN_ML ML-2 paper: Dhan greeks/IV HOLD. Spec [`candidates/MIX-ML-GREEKS.md`](candidates/MIX-ML-GREEKS.md). | **Keep as paper book.** Not customer default. |
 
 `production_params_written: false`. **NO_PROMOTE.** Do not delete because a session is empty.
 

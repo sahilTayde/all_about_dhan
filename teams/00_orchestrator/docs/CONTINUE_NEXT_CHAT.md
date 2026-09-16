@@ -36,6 +36,12 @@ Left off 2026-09-13: ITM champion PAPER board ready (MIX-CHAMP-* + desk leaderbo
 
 ---
 
+## Left-off 2026-09-16 EOD — MIX-ML-GREEKS for 09:15 IST tomorrow (NO_PROMOTE)
+
+**Now:** New paper book `MIX-ML-GREEKS` (`ml-greeks-v1`) on dual-tape `--paper-scalp`. 04: greeks in ML-2 HOLD, not KMeans. Today replay 28 closes vs dealer 250. **NO_PROMOTE.** No live orders. Do not restart npm. Do not git-add sqlite.
+
+**Next:** 09:15 IST start dual-tape `--live-chain --paper-train --paper-scalp`. Watch MIX-ML-GREEKS vs MIX-DEFAULT-BUY closed ₹ only.
+
 ## Left-off 2026-09-16 — Dhan IV/greeks on paper overlay (NO_PROMOTE)
 
 **Now:** POST `/optionchain` documents `implied_volatility` + `greeks.delta/theta/gamma/vega`. Rollingoption = IV history, not live greeks. WS = no greeks. Paper overlay uses them when parsed: delta strike band, IV stop, theta target, gamma path. Tickets stamp greeks. **NO_PROMOTE.** No live orders. Do not restart npm. Do not git-add sqlite.

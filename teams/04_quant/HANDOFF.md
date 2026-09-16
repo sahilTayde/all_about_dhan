@@ -1,5 +1,21 @@
 # Handoff log — Team 04 Quant
 
+## As of now (2026-09-16) — MIX-ML-GREEKS paper book (NO_PROMOTE)
+
+```text
+MIX / STRAT: MIX-ML-GREEKS
+Origin tags: PROJECT-DERIVED. Dhan greeks SOURCE_FACT. Not STRAT-015+.
+Entry hypothesis: none. Side from dealer/index. Greeks HOLD only.
+Confirm-or-kill: GREEKS_MISSING / DELTA_OTM / IV_RICH / IV_FLAT / THETA_LATE.
+Hold / veto rules: this book only. ml001-v1 unchanged.
+Feasibility rules: existing paper stop/target + dealer kill of fantasy SL.
+Parameters to grid: IV_RICH_ABS {18,20,22}; THETA_BLEED {0.04,0.06,0.08}.
+Backtest request: done 2026-09-16 tape — 28 closes vs dealer 250. wr not better.
+Customer copy allowed: none.
+Internal-only: ml-greeks-v1. Bind LIVE_BOOKS for 09:15 IST tomorrow.
+UNKNOWN / DATA_INSUFFICIENT: most session ticks had LTP wings without greeks.
+```
+
 ## As of now (2026-09-16) — paper greeks/IV from Dhan chain (NO_PROMOTE)
 
 ```text

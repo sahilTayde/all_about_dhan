@@ -2,6 +2,38 @@
 
 **Agents:** read **only the newest block**. Do not ingest this whole log. New files: [`docs/FILE_CREATION.md`](../../docs/FILE_CREATION.md). Append here — do not create `HANDOFF_TOMORROW.md` or extra `CONTINUE_*`.
 
+## As of now (2026-09-16 EOD) — cancel unfilled limits; no overnight OPEN (NO_PROMOTE)
+
+```text
+From:     teams/00_orchestrator
+To:       founder / 04 / 06 / 07
+Date:     2026-09-16
+Status:   PAPER WORKING LIMIT / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: Production must not sit on dead OPEN_PAPER. Working limit
+  + walk-away cancel + 14:45 no-new + 15:00 flatten. Greeks delta
+  on unfilled. Dashboard Open 0 after session replay.
+Rejected: Assume fill at signal LTP. Super Orders.
+UNKNOWN: Live chase vs fill mix tomorrow.
+```
+
+## As of now (2026-09-16 EOD) — MIX-ML-GREEKS bound for tomorrow paper (NO_PROMOTE)
+
+```text
+From:     teams/00_orchestrator
+To:       founder / 04 / 06 / 07
+Date:     2026-09-16
+Status:   PAPER MIX / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: 04 slot for greeks in ML = MIX-ML-GREEKS (ML-2 stand-in),
+  not KMeans. LIVE_BOOKS + catalog. Replay today: 28 vs 250 dealer
+  closes; wr not a promote. Dual-tape tomorrow picks the book up.
+Rejected: STRAT-015+. LightGBM this night. MIX-DEFAULT-BUY write.
+UNKNOWN: Tomorrow live fill of greeks from 09:15.
+```
+
 ## As of now (2026-09-16) — paper overlay uses Dhan IV/greeks (NO_PROMOTE)
 
 ```text

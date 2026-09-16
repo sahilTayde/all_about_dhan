@@ -133,7 +133,20 @@ def test_scalp_time_exit_closes_premium_pnl() -> None:
     closed_tv = [c for c in engine.closed if c["book_id"] == "MIX-TV-EP-024"]
     assert closed_tv
     reasons = {c["exit_reason"] for c in closed_tv}
-    assert reasons & {"TIME", "STOP", "TARGET", "FLATTEN_1500", "CANCEL_STRIKE_ROLL", "CANCEL_ADVERSE", "CANCEL_THESIS"}
+    assert reasons & {
+        "TIME",
+        "STOP",
+        "TARGET",
+        "FLATTEN_1500",
+        "CANCEL_STRIKE_ROLL",
+        "CANCEL_ADVERSE",
+        "CANCEL_THESIS",
+        "CANCEL_UNFILLED_AWAY",
+        "CANCEL_UNFILLED_TIMEOUT",
+        "CANCEL_UNFILLED_INDEX",
+        "CANCEL_UNFILLED_THESIS",
+        "CANCEL_UNFILLED_FLAT",
+    }
     assert all(c["realized_pnl"] is not None for c in closed_tv)
     assert all("won" in c for c in closed_tv)
     assert all(c.get("atm_strike") is not None for c in closed_tv)
@@ -232,11 +245,11 @@ def test_live_session_filters_other_ist_days_and_keeps_open() -> None:
     steps = board["steps"]["NIFTY"]
     assert steps["n_triples"] == n_today
     if board["n_open"]:
-        assert all(t.get("status") == "OPEN_PAPER" for t in board["open_trades"])
+        assert all(t.get("status") in {"OPEN_PAPER", "WORKING_LIMIT"} for t in board["open_trades"])
         assert all(t.get("side") in {"CE", "PE"} for t in board["open_trades"])
         assert all(t.get("atm_strike") is not None for t in board["open_trades"])
     for t in board["closed_trades"]:
-        assert t.get("result") in {"SUCCESS", "LOSS"}
+        assert t.get("result") in {"SUCCESS", "LOSS", "CANCELLED"}
         assert t.get("status") == "CLOSED_PAPER"
     if board["n_losses"]:
         assert board["mistakes"]
@@ -362,9 +375,52 @@ def test_open_uses_itm_quote_not_atm() -> None:
     assert pos.strike_source == "ITM_100"
     assert pos.entry == 450.0
     assert pos.limit_price == 450.0
+    assert pos.filled is False
 
 
-def test_greeks_skip_low_delta_and_widen_iv_stop() -> None:
+def test_unfilled_limit_cancels_when_premium_runs_away() -> None:
+    from desk_ml.paper_scalp import OpenPaper, _unfilled_reason
+
+    pos = OpenPaper(
+        book_id="MIX-DEFAULT-BUY",
+        underlying="NIFTY",
+        side="CE",
+        trade_id="wait-limit",
+        entry=100.0,
+        stop=80.0,
+        target=130.0,
+        atm_strike=23200.0,
+        opened_ts=_ts(0),
+        opened_bar=1,
+        strike_source="TEST",
+        limit_price=100.0,
+        filled=False,
+        idx_at_open=23200.0,
+    )
+    assert _unfilled_reason(pos, 100.0, _ts(1), 2) == "FILL"
+    assert _unfilled_reason(pos, 104.0, _ts(1), 2) == "CANCEL_UNFILLED_AWAY"
+    assert _unfilled_reason(pos, 101.0, _ts(1), 2, live_delta=0.25) == "CANCEL_UNFILLED_DELTA"
+
+
+def test_no_new_paper_after_1445_ist() -> None:
+    from desk_ml.paper_scalp import BookEngine, _try_open
+
+    late = int(datetime(2026, 9, 10, 14, 50, tzinfo=IST).timestamp())
+    tick = Triple(ts=late, idx_close=23200.0, ce_close=80.0, pe_close=70.0)
+    engine = BookEngine()
+    _try_open(
+        engine,
+        book_id="MIX-DEFAULT-BUY",
+        underlying="NIFTY",
+        side="CE",
+        tick=tick,
+        ce_path=[80.0],
+        pe_path=[70.0],
+        bar_i=10,
+        strike=23200.0,
+    )
+    assert engine.has_open("MIX-DEFAULT-BUY", "NIFTY") is False
+    assert any(s.get("reason") == "NO_NEW_AFTER_1445" for s in engine.skips)
     from desk_ml.paper_scalp import greeks_paper_adjust
 
     skip = greeks_paper_adjust(entry=100.0, stop_frac=0.40, target_frac=0.55, delta=0.25)

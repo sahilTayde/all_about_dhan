@@ -1,5 +1,40 @@
 # Handoff log — Team 06 Backtesting
 
+## As of now (2026-09-16 EOD) — no dead OPEN_PAPER / working limits (NO_PROMOTE)
+
+```text
+From:     teams/06_backtesting + desk_ml
+To:       00 / 04 / founder
+Date:     2026-09-16
+Status:   PAPER EXIT FIX / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: Founder: dashboard held 21 OPEN after 15:50. Root: assumed
+  fill at signal + live_session kept leftover + re-open after 15:00.
+  Now: WORKING_LIMIT until LTP<=limit; cancel if premium runs 3% away,
+  2 bars, thesis flip, |delta|<0.40, index walks 0.5 step. No new
+  after 14:45. 15:00 flattens. Unfilled = ₹0 CANCELLED, not a loss fill.
+  Replay: Open 0 on today's tape.
+Rejected: Live Super Order. Fantasy fill at the signal print.
+UNKNOWN: Tomorrow 09:15 fill-rate vs chase-cancel mix.
+```
+
+## As of now (2026-09-16) — MIX-ML-GREEKS session replay (NO_PROMOTE)
+
+```text
+From:     teams/06_backtesting
+To:       00 / 04 / founder
+Date:     2026-09-16
+Status:   BACKTEST_REQUIRED / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: paper-scalp dual-tape live_session today. MIX-ML-GREEKS
+  28 closed / wr 28.57% / ₹−1575 vs dealer 250 / 31.6% / ₹−7933.
+  Artifact BACKTEST_ML_GREEKS.md. Not a promote.
+Rejected: Live orders. Claiming improvement from one session.
+UNKNOWN: Full-session greeks (parser late); SENSEX theta scale.
+```
+
 ## As of now (2026-09-16) — paper greeks/IV on tickets (NO_PROMOTE)
 
 ```text
