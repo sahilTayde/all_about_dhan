@@ -23,6 +23,77 @@ _SCRIP_HINTS = {
     "BANKNIFTY": (25, "IDX_I"),
     "SENSEX": (51, "IDX_I"),
 }
+_STRIKE_STEP = {"NIFTY": 50.0, "BANKNIFTY": 100.0, "SENSEX": 100.0}
+_ITM_POINTS = {"NIFTY": 100.0, "BANKNIFTY": 100.0, "SENSEX": 100.0}
+
+
+def itm_wing_strikes(underlying: str, atm: float) -> dict[str, float]:
+    """~100 pts ITM (STRAT-006 paper wing). CE below ATM, PE above. Not a promote."""
+    und = underlying.upper()
+    step = _STRIKE_STEP.get(und, 50.0)
+    points = _ITM_POINTS.get(und, 100.0)
+    n = max(1, int(round(float(points) / step)))
+    atm_f = float(atm)
+    return {"CE": atm_f - n * step, "PE": atm_f + n * step}
+
+
+def _pack_leg(row: Any) -> dict[str, Any]:
+    return {
+        "ce": getattr(row, "ce_ltp", None),
+        "pe": getattr(row, "pe_ltp", None),
+        "ce_delta": getattr(row, "ce_delta", None),
+        "pe_delta": getattr(row, "pe_delta", None),
+        "ce_gamma": getattr(row, "ce_gamma", None),
+        "pe_gamma": getattr(row, "pe_gamma", None),
+        "ce_theta": getattr(row, "ce_theta", None),
+        "pe_theta": getattr(row, "pe_theta", None),
+        "ce_iv": getattr(row, "ce_iv", None),
+        "pe_iv": getattr(row, "pe_iv", None),
+    }
+
+
+def _attach_itm_quotes(rows: list[Any], underlying: str, meta: dict[str, Any]) -> None:
+    atm = meta.get("atm_strike")
+    if atm is None:
+        return
+    by = {float(r.strike): r for r in rows}
+    wings = itm_wing_strikes(underlying, float(atm))
+    meta["itm_ce_strike"] = wings["CE"]
+    meta["itm_pe_strike"] = wings["PE"]
+    ce_row = by.get(float(wings["CE"]))
+    pe_row = by.get(float(wings["PE"]))
+    atm_row = by.get(float(atm))
+    if ce_row is not None:
+        meta["itm_ce_ltp"] = ce_row.ce_ltp
+        meta["itm_ce_delta"] = ce_row.ce_delta
+        meta["itm_ce_gamma"] = ce_row.ce_gamma
+        meta["itm_ce_theta"] = ce_row.ce_theta
+        meta["itm_ce_iv"] = ce_row.ce_iv
+    if pe_row is not None:
+        meta["itm_pe_ltp"] = pe_row.pe_ltp
+        meta["itm_pe_delta"] = pe_row.pe_delta
+        meta["itm_pe_gamma"] = pe_row.pe_gamma
+        meta["itm_pe_theta"] = pe_row.pe_theta
+        meta["itm_pe_iv"] = pe_row.pe_iv
+    if atm_row is not None:
+        meta["atm_ce_delta"] = atm_row.ce_delta
+        meta["atm_pe_delta"] = atm_row.pe_delta
+        meta["atm_ce_gamma"] = atm_row.ce_gamma
+        meta["atm_pe_gamma"] = atm_row.pe_gamma
+        meta["atm_ce_theta"] = atm_row.ce_theta
+        meta["atm_pe_theta"] = atm_row.pe_theta
+        meta["atm_ce_iv"] = atm_row.ce_iv
+        meta["atm_pe_iv"] = atm_row.pe_iv
+    step = _STRIKE_STEP.get(underlying.upper(), 50.0)
+    quotes: dict[str, Any] = {}
+    for k in range(-6, 7):
+        strike = float(atm) + k * step
+        row = by.get(strike)
+        if row is None:
+            continue
+        key = str(int(strike)) if strike == int(strike) else str(strike)
+        quotes[key] = _pack_leg(row)
+    meta["wing_quotes"] = quotes
 
 
 @dataclass
@@ -42,6 +113,27 @@ class ChainWatchResult:
     pcr_oi: Optional[float] = None
     atm_ce_ltp: Optional[float] = None
     atm_pe_ltp: Optional[float] = None
+    itm_ce_strike: Optional[float] = None
+    itm_pe_strike: Optional[float] = None
+    itm_ce_ltp: Optional[float] = None
+    itm_pe_ltp: Optional[float] = None
+    atm_ce_iv: Optional[float] = None
+    atm_pe_iv: Optional[float] = None
+    atm_ce_delta: Optional[float] = None
+    atm_pe_delta: Optional[float] = None
+    atm_ce_gamma: Optional[float] = None
+    atm_pe_gamma: Optional[float] = None
+    atm_ce_theta: Optional[float] = None
+    atm_pe_theta: Optional[float] = None
+    itm_ce_iv: Optional[float] = None
+    itm_pe_iv: Optional[float] = None
+    itm_ce_delta: Optional[float] = None
+    itm_pe_delta: Optional[float] = None
+    itm_ce_gamma: Optional[float] = None
+    itm_pe_gamma: Optional[float] = None
+    itm_ce_theta: Optional[float] = None
+    itm_pe_theta: Optional[float] = None
+    wing_quotes: dict[str, Any] = field(default_factory=dict)
     expiry: Optional[str] = None
 
     def to_dict(self) -> dict[str, Any]:
@@ -95,6 +187,11 @@ def _metrics_from_dhan_payload(
         "pcr_oi": None,
         "atm_ce_ltp": None,
         "atm_pe_ltp": None,
+        "itm_ce_strike": None,
+        "itm_pe_strike": None,
+        "itm_ce_ltp": None,
+        "itm_pe_ltp": None,
+        "wing_quotes": {},
         "expiry": expiry,
     }
     try:
@@ -136,6 +233,7 @@ def _metrics_from_dhan_payload(
         meta["atm_strike"] = float(atm.strike)
         meta["atm_ce_ltp"] = atm.ce_ltp
         meta["atm_pe_ltp"] = atm.pe_ltp
+        _attach_itm_quotes(rows, underlying, meta)
 
     snap = ChainSnapshot(
         underlying=underlying,
@@ -158,6 +256,8 @@ def _metrics_from_dhan_payload(
         lean = "NEUTRAL"
     meta["pcr_oi"] = bias.pcr_oi
     meta["atm_strike"] = bias.atm_strike if bias.atm_strike is not None else meta["atm_strike"]
+    if meta.get("atm_strike") is not None:
+        _attach_itm_quotes(rows, underlying, meta)
     gaps: list[str] = []
     if lean == "NEUTRAL":
         gaps.append(
@@ -270,6 +370,27 @@ def try_fetch_dhan_chain(underlying: str) -> Optional[ChainWatchResult]:
             pcr_oi=meta.get("pcr_oi"),
             atm_ce_ltp=meta.get("atm_ce_ltp"),
             atm_pe_ltp=meta.get("atm_pe_ltp"),
+            itm_ce_strike=meta.get("itm_ce_strike"),
+            itm_pe_strike=meta.get("itm_pe_strike"),
+            itm_ce_ltp=meta.get("itm_ce_ltp"),
+            itm_pe_ltp=meta.get("itm_pe_ltp"),
+            atm_ce_iv=meta.get("atm_ce_iv"),
+            atm_pe_iv=meta.get("atm_pe_iv"),
+            atm_ce_delta=meta.get("atm_ce_delta"),
+            atm_pe_delta=meta.get("atm_pe_delta"),
+            atm_ce_gamma=meta.get("atm_ce_gamma"),
+            atm_pe_gamma=meta.get("atm_pe_gamma"),
+            atm_ce_theta=meta.get("atm_ce_theta"),
+            atm_pe_theta=meta.get("atm_pe_theta"),
+            itm_ce_iv=meta.get("itm_ce_iv"),
+            itm_pe_iv=meta.get("itm_pe_iv"),
+            itm_ce_delta=meta.get("itm_ce_delta"),
+            itm_pe_delta=meta.get("itm_pe_delta"),
+            itm_ce_gamma=meta.get("itm_ce_gamma"),
+            itm_pe_gamma=meta.get("itm_pe_gamma"),
+            itm_ce_theta=meta.get("itm_ce_theta"),
+            itm_pe_theta=meta.get("itm_pe_theta"),
+            wing_quotes=meta.get("wing_quotes") or {},
             expiry=expiry,
         )
     except Exception as exc:  # noqa: BLE001

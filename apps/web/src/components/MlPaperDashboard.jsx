@@ -17,15 +17,23 @@ export function MlPaperDashboard({ compact = false }) {
 
   useEffect(() => {
     let cancelled = false;
-    fetchMlPaperBoard()
-      .then((j) => {
-        if (!cancelled) setData(j);
-      })
-      .catch((e) => {
-        if (!cancelled) setError(e.message || String(e));
-      });
+    const load = () => {
+      fetchMlPaperBoard()
+        .then((j) => {
+          if (!cancelled) {
+            setData(j);
+            setError(null);
+          }
+        })
+        .catch((e) => {
+          if (!cancelled) setError(e.message || String(e));
+        });
+    };
+    load();
+    const id = setInterval(load, 20000);
     return () => {
       cancelled = true;
+      clearInterval(id);
     };
   }, []);
 
@@ -57,13 +65,15 @@ export function MlPaperDashboard({ compact = false }) {
 
   return (
     <section className="panel" aria-labelledby="ml-paper-title">
-      <h2 id="ml-paper-title">ML / paper scalper board</h2>
+      <h2 id="ml-paper-title">{data.title || "ML / paper scalper board"}</h2>
       <p className="muted">
         Gate {data.gate || "not RESEARCH_READY_FOR_PROGRAMMING"}. Promote=
-        {String(data.promote)}. paper win_rate={data.win_rate_pct ?? "—"}% (
-        {data.n_wins ?? "—"} win / {data.n_losses ?? "—"} loss / {data.n_closed ?? "—"}{" "}
-        closed). ₹{data.starting_capital_inr_per_book ?? 10000} / book. Independent
-        books. Updated {data.as_of_ist || "—"}.
+        {String(data.promote)}. Session {data.session_ist_date || "—"}. paper win_rate=
+        {data.win_rate_pct ?? "—"}% ({data.n_wins ?? "—"} win / {data.n_losses ?? "—"} loss /{" "}
+        {data.n_closed ?? "—"} closed). Overall P/L ₹{data.overall_pnl_inr ?? "—"} (won ₹
+        {data.money_won_inr ?? "—"} / lost ₹{data.money_lost_inr ?? "—"}). ₹
+        {data.starting_capital_inr_per_book ?? 10000} / book. Open {open.length}. Updated{" "}
+        {data.as_of_ist || "—"}.
       </p>
       <h3>Models</h3>
       <div className="cleanup-grid">
@@ -99,7 +109,20 @@ export function MlPaperDashboard({ compact = false }) {
             Open {open.length} · Closed {closed.length}. Exits: stop / target /{" "}
             {data.scalper_exits?.time || "8m"} / 15:00 IST flatten.
           </p>
-          <h3>Tickets (strike / limit / target / SL)</h3>
+          <h3>Open tickets (strike / limit / SL / CE|PE / status)</h3>
+          {open.length === 0 ? (
+            <p className="muted">No OPEN paper rows this session.</p>
+          ) : (
+            <ul className="cleanup-keep">
+              {open.map((t) => (
+                <li key={t.trade_id}>
+                  {t.book_id} {t.underlying} {t.side} strike={t.atm_strike} limit=
+                  {t.limit_price} tgt={t.target} sl={t.stop} status={t.status || "OPEN_PAPER"}
+                </li>
+              ))}
+            </ul>
+          )}
+          <h3>Tickets (strike / limit / target / SL / WIN|LOSS)</h3>
           {closed.length === 0 ? (
             <p className="muted">No closed tickets yet.</p>
           ) : (
@@ -107,8 +130,27 @@ export function MlPaperDashboard({ compact = false }) {
               {(data.closed_trades_sample || closed).slice(-20).map((t) => (
                 <li key={t.trade_id}>
                   {t.book_id} {t.underlying} {t.side} strike={t.atm_strike} limit=
-                  {t.limit_price} tgt={t.target} sl={t.stop} sl_hit={String(t.sl_hit)} sl_loss=
-                  {t.sl_loss_inr ?? "—"} pnl₹={t.realized_pnl_inr ?? "—"} {t.result}
+                  {t.limit_price} tgt={t.target} sl={t.stop} status={t.status} sl_hit=
+                  {String(t.sl_hit)} lost₹={t.sl_loss_inr ?? (t.result === "LOSS" ? t.realized_pnl_inr : "—")}{" "}
+                  pnl₹={t.realized_pnl_inr ?? "—"} {t.result}
+                </li>
+              ))}
+            </ul>
+          )}
+          <h3>Mistakes (paper params only)</h3>
+          {(data.paper_param_notes || []).map((n) => (
+            <p key={n} className="muted">
+              {n}
+            </p>
+          ))}
+          {(data.mistakes || []).length === 0 ? (
+            <p className="muted">No LOSS rows this snapshot.</p>
+          ) : (
+            <ul className="cleanup-keep">
+              {(data.mistakes || []).slice(-12).map((t) => (
+                <li key={t.trade_id}>
+                  {t.book_id} {t.underlying} {t.side} strike={t.atm_strike} lost₹=
+                  {t.money_lost_inr} {t.lesson}
                 </li>
               ))}
             </ul>

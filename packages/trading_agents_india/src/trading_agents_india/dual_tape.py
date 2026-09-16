@@ -137,6 +137,11 @@ class UnderlyingSnap:
     atm_ce_ltp: Optional[float] = None
     atm_pe_ltp: Optional[float] = None
     atm_strike: Optional[float] = None
+    itm_ce_strike: Optional[float] = None
+    itm_pe_strike: Optional[float] = None
+    itm_ce_ltp: Optional[float] = None
+    itm_pe_ltp: Optional[float] = None
+    wing_quotes: dict[str, Any] = field(default_factory=dict)
     expiry: Optional[str] = None
     premium_source: str = "unavailable"
     chain_source: str = "unavailable"
@@ -151,6 +156,16 @@ class UnderlyingSnap:
     atm_pe_delta: Optional[float] = None
     atm_ce_gamma: Optional[float] = None
     atm_pe_gamma: Optional[float] = None
+    atm_ce_theta: Optional[float] = None
+    atm_pe_theta: Optional[float] = None
+    itm_ce_iv: Optional[float] = None
+    itm_pe_iv: Optional[float] = None
+    itm_ce_delta: Optional[float] = None
+    itm_pe_delta: Optional[float] = None
+    itm_ce_gamma: Optional[float] = None
+    itm_pe_gamma: Optional[float] = None
+    itm_ce_theta: Optional[float] = None
+    itm_pe_theta: Optional[float] = None
     index_delta: Optional[float] = None
     ce_delta: Optional[float] = None
     pe_delta: Optional[float] = None
@@ -265,6 +280,11 @@ def gather_underlying(
         atm_ce_ltp=ce_ltp,
         atm_pe_ltp=pe_ltp,
         atm_strike=chain.atm_strike,
+        itm_ce_strike=chain.itm_ce_strike,
+        itm_pe_strike=chain.itm_pe_strike,
+        itm_ce_ltp=chain.itm_ce_ltp,
+        itm_pe_ltp=chain.itm_pe_ltp,
+        wing_quotes=dict(chain.wing_quotes or {}),
         expiry=chain.expiry,
         premium_source=tape.source,
         chain_source=chain.source,
@@ -272,12 +292,22 @@ def gather_underlying(
         pcr_oi=chain.pcr_oi,
         strike_count=int(chain.strike_count or 0),
         chain_lean=chain.chain_lean,
-        atm_ce_iv=None,
-        atm_pe_iv=None,
-        atm_ce_delta=None,
-        atm_pe_delta=None,
-        atm_ce_gamma=None,
-        atm_pe_gamma=None,
+        atm_ce_iv=chain.atm_ce_iv,
+        atm_pe_iv=chain.atm_pe_iv,
+        atm_ce_delta=chain.atm_ce_delta,
+        atm_pe_delta=chain.atm_pe_delta,
+        atm_ce_gamma=chain.atm_ce_gamma,
+        atm_pe_gamma=chain.atm_pe_gamma,
+        atm_ce_theta=chain.atm_ce_theta,
+        atm_pe_theta=chain.atm_pe_theta,
+        itm_ce_iv=chain.itm_ce_iv,
+        itm_pe_iv=chain.itm_pe_iv,
+        itm_ce_delta=chain.itm_ce_delta,
+        itm_pe_delta=chain.itm_pe_delta,
+        itm_ce_gamma=chain.itm_ce_gamma,
+        itm_pe_gamma=chain.itm_pe_gamma,
+        itm_ce_theta=chain.itm_ce_theta,
+        itm_pe_theta=chain.itm_pe_theta,
         index_delta=_d(index_ltp, "index_ltp"),
         ce_delta=_d(ce_ltp, "atm_ce_ltp"),
         pe_delta=_d(pe_ltp, "atm_pe_ltp"),
@@ -570,12 +600,20 @@ def run_dual_tape_loop(
                             root=settings.repo_root,
                             source="dual-tape",
                             write=True,
+                            live_session=True,
                         )
                         last_paths["ml_paper_dashboard"] = str(
                             settings.repo_root / "data" / "recon" / "ml_paper_dashboard.json"
                         )
                         heartbeat_board = {
                             "n_closed": len(board.get("closed_trades") or []),
+                            "n_open": len(board.get("open_trades") or []),
+                            "n_wins": board.get("n_wins"),
+                            "n_losses": board.get("n_losses"),
+                            "overall_pnl_inr": board.get("overall_pnl_inr"),
+                            "money_lost_inr": board.get("money_lost_inr"),
+                            "session_ist_date": board.get("session_ist_date"),
+                            "live_session": True,
                             "leaderboard_n": len(board.get("leaderboard") or []),
                         }
                     except Exception:  # noqa: BLE001 — scalper fail-soft
@@ -593,6 +631,13 @@ def run_dual_tape_loop(
                 "index_ltp": {s.underlying: s.index_ltp for s in snaps},
                 "atm_ce_ltp": {s.underlying: s.atm_ce_ltp for s in snaps},
                 "atm_pe_ltp": {s.underlying: s.atm_pe_ltp for s in snaps},
+                "itm_ce_strike": {s.underlying: s.itm_ce_strike for s in snaps},
+                "itm_ce_ltp": {s.underlying: s.itm_ce_ltp for s in snaps},
+                "itm_pe_strike": {s.underlying: s.itm_pe_strike for s in snaps},
+                "itm_pe_ltp": {s.underlying: s.itm_pe_ltp for s in snaps},
+                "itm_ce_delta": {s.underlying: s.itm_ce_delta for s in snaps},
+                "itm_ce_theta": {s.underlying: s.itm_ce_theta for s in snaps},
+                "itm_ce_iv": {s.underlying: s.itm_ce_iv for s in snaps},
                 "execution": "refused",
                 "llm": False,
                 "promote": "NO_PROMOTE",

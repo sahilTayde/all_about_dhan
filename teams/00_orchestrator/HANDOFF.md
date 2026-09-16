@@ -2,6 +2,40 @@
 
 **Agents:** read **only the newest block**. Do not ingest this whole log. New files: [`docs/FILE_CREATION.md`](../../docs/FILE_CREATION.md). Append here — do not create `HANDOFF_TOMORROW.md` or extra `CONTINUE_*`.
 
+## As of now (2026-09-16) — paper overlay uses Dhan IV/greeks (NO_PROMOTE)
+
+```text
+From:     teams/00_orchestrator
+To:       founder / 03 / 04 / 06
+Date:     2026-09-16
+Status:   PAPER GREEKS / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: 03 SOURCE_FACT: optionchain has IV + greeks. Paper
+  strike/stop/target overlay (delta band, IV wider stop, theta
+  closer target, gamma path stop). ml001-v1 vectors unchanged.
+Rejected: Invented greeks. Promote from paper wr. STRAT-015+.
+  Live Super Orders. npm restart.
+UNKNOWN: none on payload fill (15:20 IST live greeks+IV present).
+  Expectancy of overlay still BACKTEST_REQUIRED.
+```
+
+## As of now (2026-09-16) — founder live paper desk ₹10k/book
+
+```text
+From:     teams/00_orchestrator
+To:       founder / 04 / 05 / 06 / 07
+Date:     2026-09-16
+Status:   PAPER LIVE SESSION / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: Kill inflated full-jsonl paper_scalp_board (~1900 closes).
+  Restart dual-tape --paper-scalp live_session=today IST. Dashboard
+  overall P/L + OPEN + mistakes. No npm restart. No live orders.
+Rejected: Promote. Super Order. Claiming session wr.
+UNKNOWN: Tick count remaining until 15:30 IST.
+```
+
 ## As of now (2026-09-16) — parallel ML paper scalpers + board
 
 ```text

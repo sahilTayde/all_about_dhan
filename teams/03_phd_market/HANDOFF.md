@@ -1,5 +1,25 @@
 # Handoff log — Team 03 PhD market
 
+## As of now (2026-09-16) — Dhan chain IV/greeks are official fields
+
+```text
+From:     teams/03_phd_market
+To:       00 / 04 / 06 / founder
+Date:     2026-09-16
+Status:   SOURCE_FACT
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: POST /optionchain per CE/PE documents last_price,
+  implied_volatility, greeks.delta/theta/gamma/vega
+  (DHAN_API_END_TO_END). Rollingoption has iv[] not live greeks.
+  WS feed does not carry greeks/IV. parse_oc keeps signed theta
+  + IV; snapshot reload no longer drops them. Missing greeks stay
+  null — never 0.
+Rejected: Invent greeks. Treat IV as P(win). WS-as-chain.
+UNKNOWN: none on fill — 2026-09-16T15:20 IST dhan_live NIFTY ITM CE
+  delta 0.675 / theta -14.8 / IV ~12. Missing still stays null.
+```
+
 ## As of now (2026-09-10) — WS-first gather (skill pack re-read)
 
 ```text

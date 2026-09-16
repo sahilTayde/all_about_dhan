@@ -3,8 +3,8 @@
 This is the `chain_iv_stats` gather ticket from the algos.dhan.co study
 (teams/01_research/docs/DHAN_ALGO_MARKETPLACE_STRATZY.md §4). Dhan's
 documented POST /optionchain returns implied_volatility per strike on both
-sides; desk_intel.parse_oc drops it, so this module parses IV straight from
-the raw ``data.oc`` payload. Per snapshot we persist three surface-shape
+sides. parse_oc now keeps IV/theta/vega on StrikeRow; this module still
+parses the raw ``data.oc`` payload for the full IV surface. Per snapshot we persist three surface-shape
 statistics for MIX-ALGO-SKEW-BUY / MIX-ALGO-IV-REGIME-HOLD research:
 
 - skew_tilt   = mean(OTM PE IV) - mean(OTM CE IV) over ATM±k wings.

@@ -1,4 +1,7 @@
-"""Compact 1m INDEX+CE+PE features. No greeks. No invented prints."""
+"""Compact 1m INDEX+CE+PE features. ml001-v1 vectors stay returns-only.
+
+Greeks/IV live on Triple.wing_quotes for the paper overlay (strike/stop/target).
+Never invent prints or greeks."""
 
 from __future__ import annotations
 
@@ -23,6 +26,16 @@ class Triple:
     idx_close: float
     ce_close: float
     pe_close: float
+    atm_strike: Optional[float] = None
+    ce_low: Optional[float] = None
+    pe_low: Optional[float] = None
+    itm_ce_close: Optional[float] = None
+    itm_pe_close: Optional[float] = None
+    itm_ce_strike: Optional[float] = None
+    itm_pe_strike: Optional[float] = None
+    itm_ce_low: Optional[float] = None
+    itm_pe_low: Optional[float] = None
+    wing_quotes: Optional[dict] = None
 
 
 def _ret(prev: float, cur: float) -> Optional[float]:

@@ -12,31 +12,31 @@
 
 | MIX | name | side | cells | trades | buy_ce cells | buy_pe cells | status | tune hint |
 |-----|------|------|-------|--------|--------------|--------------|--------|-----------|
-| `MIX-TV-EP-001` | TASC 2026.08 An Ag Selling Model | PE | 96 | 3800 | 0 | 96 | TESTED_FAIL | commodity harvest calendar; pyramiding=3 cash commissi… |
+| `MIX-TV-EP-001` | TASC 2026.08 An Ag Selling Model | PE | 96 | 3802 | 0 | 96 | TESTED_FAIL | commodity harvest calendar; pyramiding=3 cash commissi… |
 | `MIX-TV-EP-002` | TASC 2026.03 One Percent A Week | BOTH | 24 | 158 | 16 | 16 | TESTED_FAIL | TQQQ weekly session; 0.5% BE exit not in lean simulator |
 | `MIX-TV-EP-003` | Trading Report Generator from CSV | NONE | 24 | 0 | 0 | 0 | PARK | needs Transactions CSV; no OHLC alpha |
-| `MIX-TV-EP-004` | TrendMaster Pro 2.3 with Alerts | BOTH | 144 | 19137 | 144 | 144 | TESTED_FAIL | FX Asia/London/NY session boxes + S/R/RSI/MACD soup no… |
-| `MIX-TV-EP-005` | Bjorgum Double Tap | BOTH | 48 | 11170 | 46 | 47 | TESTED_FAIL | Fib target/stop + 3Commas alerts omitted |
-| `MIX-TV-EP-006` | Traling.SL.Target | BOTH | 24 | 1332 | 23 | 23 | TESTED_FAIL | percent trailing SL/target is TV close engine |
-| `MIX-TV-EP-007` | Template Trailing Strategy (Backtester) | BOTH | 24 | 1621 | 24 | 24 | TESTED_FAIL | 222-input trailing template; internal SMA 21/49 only; … |
-| `MIX-TV-EP-008` | 3Commas Bot | BOTH | 24 | 1296 | 23 | 23 | TESTED_FAIL | 3Commas webhook/JSON; 0.05% commission; ATR trail omit… |
-| `MIX-TV-EP-009` | Monthly Returns in PineScript Strategies | BOTH | 24 | 19210 | 24 | 24 | TESTED_FAIL | monthly returns table is viz; 0.1% commission |
-| `MIX-TV-EP-010` | How to use Leverage and Margin in PineScript | BOTH | 24 | 11822 | 24 | 24 | TESTED_FAIL | pyramiding=100 / 30x margin TV-only |
+| `MIX-TV-EP-004` | TrendMaster Pro 2.3 with Alerts | BOTH | 144 | 19167 | 144 | 144 | TESTED_FAIL | FX Asia/London/NY session boxes + S/R/RSI/MACD soup no… |
+| `MIX-TV-EP-005` | Bjorgum Double Tap | BOTH | 48 | 11176 | 46 | 47 | TESTED_FAIL | Fib target/stop + 3Commas alerts omitted |
+| `MIX-TV-EP-006` | Traling.SL.Target | BOTH | 24 | 1333 | 23 | 24 | TESTED_FAIL | percent trailing SL/target is TV close engine |
+| `MIX-TV-EP-007` | Template Trailing Strategy (Backtester) | BOTH | 24 | 1623 | 24 | 24 | TESTED_FAIL | 222-input trailing template; internal SMA 21/49 only; … |
+| `MIX-TV-EP-008` | 3Commas Bot | BOTH | 24 | 1297 | 23 | 23 | TESTED_FAIL | 3Commas webhook/JSON; 0.05% commission; ATR trail omit… |
+| `MIX-TV-EP-009` | Monthly Returns in PineScript Strategies | BOTH | 24 | 19226 | 24 | 24 | TESTED_FAIL | monthly returns table is viz; 0.1% commission |
+| `MIX-TV-EP-010` | How to use Leverage and Margin in PineScript | BOTH | 24 | 11833 | 24 | 24 | TESTED_FAIL | pyramiding=100 / 30x margin TV-only |
 | `MIX-TV-EP-011` | Сalculation a position size based on risk | BOTH | 24 | 2108 | 24 | 24 | TESTED_FAIL | random bar_index demo; risk qty not a lean |
-| `MIX-TV-EP-012` | Oscillator Evaluator (Analysis tool) | BOTH | 24 | 7511 | 24 | 24 | TESTED_FAIL | oscillator compare / Laguerre MA → EMA proxy |
-| `MIX-TV-EP-013` | Built-in Kelly ratio for dynamic position sizing | BOTH | 24 | 6327 | 24 | 24 | TESTED_FAIL | Kelly fraction omitted; 0.1% commission |
-| `MIX-TV-EP-014` | Ultimate Strategy Template | BOTH | 24 | 2786 | 24 | 24 | TESTED_FAIL | template needs external ±1 source |
-| `MIX-TV-EP-015` | Stop loss and Take Profit in $$ example | BOTH | 24 | 2786 | 24 | 24 | TESTED_FAIL | $$ SL/TP needs mintick/pointvalue |
-| `MIX-TV-EP-016` | Stepped trailing strategy example | BOTH | 24 | 1460 | 24 | 11 | TESTED_FAIL | long-only; stepped trail stages omitted |
+| `MIX-TV-EP-012` | Oscillator Evaluator (Analysis tool) | BOTH | 24 | 7523 | 24 | 24 | TESTED_FAIL | oscillator compare / Laguerre MA → EMA proxy |
+| `MIX-TV-EP-013` | Built-in Kelly ratio for dynamic position sizing | BOTH | 24 | 6330 | 24 | 24 | TESTED_FAIL | Kelly fraction omitted; 0.1% commission |
+| `MIX-TV-EP-014` | Ultimate Strategy Template | BOTH | 24 | 2790 | 24 | 24 | TESTED_FAIL | template needs external ±1 source |
+| `MIX-TV-EP-015` | Stop loss and Take Profit in $$ example | BOTH | 24 | 2790 | 24 | 24 | TESTED_FAIL | $$ SL/TP needs mintick/pointvalue |
+| `MIX-TV-EP-016` | Stepped trailing strategy example | BOTH | 24 | 1462 | 24 | 11 | TESTED_FAIL | long-only; stepped trail stages omitted |
 | `MIX-TV-EP-017` | PMax Explorer STRATEGY & SCREENER | BOTH | 96 | 2 | 2 | 2 | PARK | 20-ticker screener + VAR/ZLEMA MA types omitted |
-| `MIX-TV-EP-018` | Grid Like Strategy | BOTH | 24 | 20502 | 24 | 24 | TESTED_FAIL | martingale qty ignored; author says don't trade |
+| `MIX-TV-EP-018` | Grid Like Strategy | BOTH | 24 | 20520 | 24 | 24 | TESTED_FAIL | martingale qty ignored; author says don't trade |
 | `MIX-TV-EP-019` | Gap Filling Strategy | BOTH | 24 | 3 | 23 | 22 | PARK | n<5 trades; longer tape or faster public params |
-| `MIX-TV-EP-020` | inwCoin Martingale Strategy ( for Bitcoin ) | BOTH | 24 | 136 | 24 | 12 | TESTED_FAIL | crypto martingale pyramid; long-only; 0% TV commission |
+| `MIX-TV-EP-020` | inwCoin Martingale Strategy ( for Bitcoin ) | BOTH | 24 | 138 | 24 | 12 | TESTED_FAIL | crypto martingale pyramid; long-only; 0% TV commission |
 | `MIX-TV-EP-021` | LUBE | NONE | 24 | 0 | 0 | 0 | PARK | BTC 30m origin; leverage input ignored |
-| `MIX-TV-EP-022` | How To Set Backtest Time Ranges | BOTH | 24 | 1460 | 24 | 11 | TESTED_FAIL | session 0000-0000 = always; long-only; 0.27% commission |
-| `MIX-TV-EP-023` | Grover Llorens Activator Strategy Analysis | BOTH | 48 | 3101 | 43 | 43 | TESTED_FAIL | length=480 needs long tape |
-| `MIX-TV-EP-024` | Factory calibrator — public SMA crossover (not… | BOTH | 24 | 1920 | 23 | 24 | TESTED_FAIL | lab only; OOS+NORMAL still required; NO_PROMOTE |
-| `MIX-TV-EP-025` | Factory calibrator — public MACD histogram zer… | BOTH | 24 | 5041 | 24 | 24 | TESTED_FAIL | after-cost/gross ≤0; KEEP; do not promote |
+| `MIX-TV-EP-022` | How To Set Backtest Time Ranges | BOTH | 24 | 1462 | 24 | 11 | TESTED_FAIL | session 0000-0000 = always; long-only; 0.27% commission |
+| `MIX-TV-EP-023` | Grover Llorens Activator Strategy Analysis | BOTH | 48 | 3103 | 43 | 43 | TESTED_FAIL | length=480 needs long tape |
+| `MIX-TV-EP-024` | Factory calibrator — public SMA crossover (not… | BOTH | 24 | 1921 | 23 | 24 | TESTED_FAIL | lab only; OOS+NORMAL still required; NO_PROMOTE |
+| `MIX-TV-EP-025` | Factory calibrator — public MACD histogram zer… | BOTH | 24 | 5047 | 24 | 24 | TESTED_FAIL | after-cost/gross ≤0; KEEP; do not promote |
 
 ## TF × market cells that actually produced BUY_CE and BUY_PE
 
@@ -45,7 +45,7 @@ Fixture or cache simulation only. Empty matrix ⇒ no ported adapter fired both 
 | tf | underlying | tape | BUY_CE | BUY_PE | MIX with CE | MIX with PE |
 |----|------------|------|--------|--------|-------------|-------------|
 | 15m | BANKNIFTY | INDEX | yes | yes | MIX-TV-EP-002,MIX-TV-EP-004,MIX-TV-EP-005,MIX-TV-EP-006,MI… | MIX-TV-EP-001,MIX-TV-EP-002,MIX-TV-EP-004,MIX-TV-EP-005,MI… |
-| 15m | BANKNIFTY | PREMIUM | yes | yes | MIX-TV-EP-004,MIX-TV-EP-005,MIX-TV-EP-007,MIX-TV-EP-009,MI… | MIX-TV-EP-001,MIX-TV-EP-004,MIX-TV-EP-005,MIX-TV-EP-007,MI… |
+| 15m | BANKNIFTY | PREMIUM | yes | yes | MIX-TV-EP-004,MIX-TV-EP-005,MIX-TV-EP-007,MIX-TV-EP-009,MI… | MIX-TV-EP-001,MIX-TV-EP-004,MIX-TV-EP-005,MIX-TV-EP-006,MI… |
 | 15m | NIFTY | INDEX | yes | yes | MIX-TV-EP-002,MIX-TV-EP-004,MIX-TV-EP-005,MIX-TV-EP-006,MI… | MIX-TV-EP-001,MIX-TV-EP-002,MIX-TV-EP-004,MIX-TV-EP-005,MI… |
 | 15m | NIFTY | PREMIUM | yes | yes | MIX-TV-EP-002,MIX-TV-EP-004,MIX-TV-EP-005,MIX-TV-EP-006,MI… | MIX-TV-EP-001,MIX-TV-EP-002,MIX-TV-EP-004,MIX-TV-EP-005,MI… |
 | 15m | SENSEX | INDEX | yes | yes | MIX-TV-EP-002,MIX-TV-EP-004,MIX-TV-EP-005,MIX-TV-EP-006,MI… | MIX-TV-EP-001,MIX-TV-EP-002,MIX-TV-EP-004,MIX-TV-EP-005,MI… |
@@ -85,9 +85,9 @@ Fixture or cache simulation only. Empty matrix ⇒ no ported adapter fired both 
 | `MIX-TV-EP-001` | TASC 2026.08 An Ag Selling Model | 1m | BANKNIFTY | INDEX | PE | 135 | INDEX proxy gross 245.8000 (≠ option P… | WATCH | commodity harvest calendar; pyramiding=3 cash … |
 | `MIX-TV-EP-001` | TASC 2026.08 An Ag Selling Model | 1m | BANKNIFTY | INDEX | PE | 170 | INDEX proxy gross 208.4000 (≠ option P… | WATCH | commodity harvest calendar; pyramiding=3 cash … |
 | `MIX-TV-EP-001` | TASC 2026.08 An Ag Selling Model | 1m | BANKNIFTY | INDEX | PE | 139 | INDEX proxy gross 349.7000 (≠ option P… | WATCH | commodity harvest calendar; pyramiding=3 cash … |
-| `MIX-TV-EP-001` | TASC 2026.08 An Ag Selling Model | 1m | BANKNIFTY | PREMIUM | PE | 18 | PREMIUM after-cost -267.0455 (1% RT HY… | TESTED_FAIL | commodity harvest calendar; pyramiding=3 cash … |
+| `MIX-TV-EP-001` | TASC 2026.08 An Ag Selling Model | 1m | BANKNIFTY | PREMIUM | PE | 19 | PREMIUM after-cost -282.2865 (1% RT HY… | TESTED_FAIL | commodity harvest calendar; pyramiding=3 cash … |
 | `MIX-TV-EP-001` | TASC 2026.08 An Ag Selling Model | 1m | BANKNIFTY | PREMIUM | PE | 11 | PREMIUM after-cost -113.1765 (1% RT HY… | TESTED_FAIL | commodity harvest calendar; pyramiding=3 cash … |
-| `MIX-TV-EP-001` | TASC 2026.08 An Ag Selling Model | 1m | BANKNIFTY | PREMIUM | PE | 18 | PREMIUM after-cost -147.0995 (1% RT HY… | TESTED_FAIL | commodity harvest calendar; pyramiding=3 cash … |
+| `MIX-TV-EP-001` | TASC 2026.08 An Ag Selling Model | 1m | BANKNIFTY | PREMIUM | PE | 19 | PREMIUM after-cost -162.3405 (1% RT HY… | TESTED_FAIL | commodity harvest calendar; pyramiding=3 cash … |
 | `MIX-TV-EP-001` | TASC 2026.08 An Ag Selling Model | 1m | BANKNIFTY | PREMIUM | PE | 11 | PREMIUM after-cost -155.0860 (1% RT HY… | TESTED_FAIL | commodity harvest calendar; pyramiding=3 cash … |
 | `MIX-TV-EP-001` | TASC 2026.08 An Ag Selling Model | 3m | BANKNIFTY | INDEX | PE | 53 | INDEX proxy gross 252.3000 (≠ option P… | WATCH | commodity harvest calendar; pyramiding=3 cash … |
 | `MIX-TV-EP-001` | TASC 2026.08 An Ag Selling Model | 3m | BANKNIFTY | INDEX | PE | 44 | INDEX proxy gross 161.8500 (≠ option P… | WATCH | commodity harvest calendar; pyramiding=3 cash … |
@@ -235,24 +235,24 @@ Fixture or cache simulation only. Empty matrix ⇒ no ported adapter fired both 
 | `MIX-TV-EP-004` | TrendMaster Pro 2.3 with Alerts | 1m | BANKNIFTY | INDEX | BOTH | 405 | INDEX proxy gross -290.7000 (≠ option … | TESTED_FAIL | FX Asia/London/NY session boxes + S/R/RSI/MACD… |
 | `MIX-TV-EP-004` | TrendMaster Pro 2.3 with Alerts | 1m | BANKNIFTY | INDEX | BOTH | 595 | INDEX proxy gross 624.8500 (≠ option P… | WATCH | FX Asia/London/NY session boxes + S/R/RSI/MACD… |
 | `MIX-TV-EP-004` | TrendMaster Pro 2.3 with Alerts | 1m | BANKNIFTY | INDEX | BOTH | 379 | INDEX proxy gross -803.9500 (≠ option … | TESTED_FAIL | FX Asia/London/NY session boxes + S/R/RSI/MACD… |
-| `MIX-TV-EP-004` | TrendMaster Pro 2.3 with Alerts | 1m | BANKNIFTY | PREMIUM | BOTH | 136 | PREMIUM after-cost -1212.5735 (1% RT H… | TESTED_FAIL | FX Asia/London/NY session boxes + S/R/RSI/MACD… |
+| `MIX-TV-EP-004` | TrendMaster Pro 2.3 with Alerts | 1m | BANKNIFTY | PREMIUM | BOTH | 138 | PREMIUM after-cost -1188.3575 (1% RT H… | TESTED_FAIL | FX Asia/London/NY session boxes + S/R/RSI/MACD… |
 | `MIX-TV-EP-004` | TrendMaster Pro 2.3 with Alerts | 1m | BANKNIFTY | PREMIUM | BOTH | 121 | PREMIUM after-cost -1126.1750 (1% RT H… | TESTED_FAIL | FX Asia/London/NY session boxes + S/R/RSI/MACD… |
-| `MIX-TV-EP-004` | TrendMaster Pro 2.3 with Alerts | 1m | BANKNIFTY | PREMIUM | BOTH | 139 | PREMIUM after-cost -1285.0270 (1% RT H… | TESTED_FAIL | FX Asia/London/NY session boxes + S/R/RSI/MACD… |
+| `MIX-TV-EP-004` | TrendMaster Pro 2.3 with Alerts | 1m | BANKNIFTY | PREMIUM | BOTH | 140 | PREMIUM after-cost -1309.8480 (1% RT H… | TESTED_FAIL | FX Asia/London/NY session boxes + S/R/RSI/MACD… |
 | `MIX-TV-EP-004` | TrendMaster Pro 2.3 with Alerts | 1m | BANKNIFTY | PREMIUM | BOTH | 112 | PREMIUM after-cost -846.0675 (1% RT HY… | TESTED_FAIL | FX Asia/London/NY session boxes + S/R/RSI/MACD… |
-| `MIX-TV-EP-004` | TrendMaster Pro 2.3 with Alerts | 1m | BANKNIFTY | PREMIUM | BOTH | 133 | PREMIUM after-cost -1382.8830 (1% RT H… | TESTED_FAIL | FX Asia/London/NY session boxes + S/R/RSI/MACD… |
-| `MIX-TV-EP-004` | TrendMaster Pro 2.3 with Alerts | 1m | BANKNIFTY | PREMIUM | BOTH | 94 | PREMIUM after-cost -559.9180 (1% RT HY… | TESTED_FAIL | FX Asia/London/NY session boxes + S/R/RSI/MACD… |
+| `MIX-TV-EP-004` | TrendMaster Pro 2.3 with Alerts | 1m | BANKNIFTY | PREMIUM | BOTH | 134 | PREMIUM after-cost -1394.5145 (1% RT H… | TESTED_FAIL | FX Asia/London/NY session boxes + S/R/RSI/MACD… |
+| `MIX-TV-EP-004` | TrendMaster Pro 2.3 with Alerts | 1m | BANKNIFTY | PREMIUM | BOTH | 94 | PREMIUM after-cost -560.8270 (1% RT HY… | TESTED_FAIL | FX Asia/London/NY session boxes + S/R/RSI/MACD… |
 | `MIX-TV-EP-004` | TrendMaster Pro 2.3 with Alerts | 3m | BANKNIFTY | INDEX | BOTH | 213 | INDEX proxy gross -562.8500 (≠ option … | TESTED_FAIL | FX Asia/London/NY session boxes + S/R/RSI/MACD… |
 | `MIX-TV-EP-004` | TrendMaster Pro 2.3 with Alerts | 3m | BANKNIFTY | INDEX | BOTH | 149 | INDEX proxy gross -178.8000 (≠ option … | TESTED_FAIL | FX Asia/London/NY session boxes + S/R/RSI/MACD… |
 | `MIX-TV-EP-004` | TrendMaster Pro 2.3 with Alerts | 3m | BANKNIFTY | INDEX | BOTH | 219 | INDEX proxy gross -816.8000 (≠ option … | TESTED_FAIL | FX Asia/London/NY session boxes + S/R/RSI/MACD… |
 | `MIX-TV-EP-004` | TrendMaster Pro 2.3 with Alerts | 3m | BANKNIFTY | INDEX | BOTH | 141 | INDEX proxy gross -203.5000 (≠ option … | TESTED_FAIL | FX Asia/London/NY session boxes + S/R/RSI/MACD… |
 | `MIX-TV-EP-004` | TrendMaster Pro 2.3 with Alerts | 3m | BANKNIFTY | INDEX | BOTH | 216 | INDEX proxy gross 501.7000 (≠ option P… | WATCH | FX Asia/London/NY session boxes + S/R/RSI/MACD… |
 | `MIX-TV-EP-004` | TrendMaster Pro 2.3 with Alerts | 3m | BANKNIFTY | INDEX | BOTH | 131 | INDEX proxy gross 60.4500 (≠ option P/L) | WATCH | FX Asia/London/NY session boxes + S/R/RSI/MACD… |
-| `MIX-TV-EP-004` | TrendMaster Pro 2.3 with Alerts | 3m | BANKNIFTY | PREMIUM | BOTH | 42 | PREMIUM after-cost -437.1755 (1% RT HY… | TESTED_FAIL | FX Asia/London/NY session boxes + S/R/RSI/MACD… |
+| `MIX-TV-EP-004` | TrendMaster Pro 2.3 with Alerts | 3m | BANKNIFTY | PREMIUM | BOTH | 44 | PREMIUM after-cost -400.4825 (1% RT HY… | TESTED_FAIL | FX Asia/London/NY session boxes + S/R/RSI/MACD… |
 | `MIX-TV-EP-004` | TrendMaster Pro 2.3 with Alerts | 3m | BANKNIFTY | PREMIUM | BOTH | 29 | PREMIUM after-cost -342.4180 (1% RT HY… | TESTED_FAIL | FX Asia/London/NY session boxes + S/R/RSI/MACD… |
-| `MIX-TV-EP-004` | TrendMaster Pro 2.3 with Alerts | 3m | BANKNIFTY | PREMIUM | BOTH | 42 | PREMIUM after-cost -401.7180 (1% RT HY… | TESTED_FAIL | FX Asia/London/NY session boxes + S/R/RSI/MACD… |
-| `MIX-TV-EP-004` | TrendMaster Pro 2.3 with Alerts | 3m | BANKNIFTY | PREMIUM | BOTH | 25 | PREMIUM after-cost -79.3730 (1% RT HYP… | TESTED_FAIL | FX Asia/London/NY session boxes + S/R/RSI/MACD… |
-| `MIX-TV-EP-004` | TrendMaster Pro 2.3 with Alerts | 3m | BANKNIFTY | PREMIUM | BOTH | 49 | PREMIUM after-cost -412.6865 (1% RT HY… | TESTED_FAIL | FX Asia/London/NY session boxes + S/R/RSI/MACD… |
-| `MIX-TV-EP-004` | TrendMaster Pro 2.3 with Alerts | 3m | BANKNIFTY | PREMIUM | BOTH | 21 | PREMIUM after-cost -244.9030 (1% RT HY… | TESTED_FAIL | FX Asia/London/NY session boxes + S/R/RSI/MACD… |
+| `MIX-TV-EP-004` | TrendMaster Pro 2.3 with Alerts | 3m | BANKNIFTY | PREMIUM | BOTH | 43 | PREMIUM after-cost -439.1520 (1% RT HY… | TESTED_FAIL | FX Asia/London/NY session boxes + S/R/RSI/MACD… |
+| `MIX-TV-EP-004` | TrendMaster Pro 2.3 with Alerts | 3m | BANKNIFTY | PREMIUM | BOTH | 25 | PREMIUM after-cost -73.8180 (1% RT HYP… | TESTED_FAIL | FX Asia/London/NY session boxes + S/R/RSI/MACD… |
+| `MIX-TV-EP-004` | TrendMaster Pro 2.3 with Alerts | 3m | BANKNIFTY | PREMIUM | BOTH | 50 | PREMIUM after-cost -431.3880 (1% RT HY… | TESTED_FAIL | FX Asia/London/NY session boxes + S/R/RSI/MACD… |
+| `MIX-TV-EP-004` | TrendMaster Pro 2.3 with Alerts | 3m | BANKNIFTY | PREMIUM | BOTH | 23 | PREMIUM after-cost -263.3285 (1% RT HY… | TESTED_FAIL | FX Asia/London/NY session boxes + S/R/RSI/MACD… |
 | `MIX-TV-EP-004` | TrendMaster Pro 2.3 with Alerts | 5m | BANKNIFTY | INDEX | BOTH | 126 | INDEX proxy gross -144.9000 (≠ option … | TESTED_FAIL | FX Asia/London/NY session boxes + S/R/RSI/MACD… |
 | `MIX-TV-EP-004` | TrendMaster Pro 2.3 with Alerts | 5m | BANKNIFTY | INDEX | BOTH | 76 | INDEX proxy gross -722.3500 (≠ option … | TESTED_FAIL | FX Asia/London/NY session boxes + S/R/RSI/MACD… |
 | `MIX-TV-EP-004` | TrendMaster Pro 2.3 with Alerts | 5m | BANKNIFTY | INDEX | BOTH | 123 | INDEX proxy gross -12.6500 (≠ option P… | TESTED_FAIL | FX Asia/London/NY session boxes + S/R/RSI/MACD… |
@@ -260,11 +260,11 @@ Fixture or cache simulation only. Empty matrix ⇒ no ported adapter fired both 
 | `MIX-TV-EP-004` | TrendMaster Pro 2.3 with Alerts | 5m | BANKNIFTY | INDEX | BOTH | 130 | INDEX proxy gross -34.3500 (≠ option P… | TESTED_FAIL | FX Asia/London/NY session boxes + S/R/RSI/MACD… |
 | `MIX-TV-EP-004` | TrendMaster Pro 2.3 with Alerts | 5m | BANKNIFTY | INDEX | BOTH | 65 | INDEX proxy gross 56.6000 (≠ option P/L) | WATCH | FX Asia/London/NY session boxes + S/R/RSI/MACD… |
 | `MIX-TV-EP-004` | TrendMaster Pro 2.3 with Alerts | 5m | BANKNIFTY | PREMIUM | BOTH | 23 | PREMIUM after-cost -333.5305 (1% RT HY… | TESTED_FAIL | FX Asia/London/NY session boxes + S/R/RSI/MACD… |
-| `MIX-TV-EP-004` | TrendMaster Pro 2.3 with Alerts | 5m | BANKNIFTY | PREMIUM | BOTH | 12 | PREMIUM after-cost -58.2220 (1% RT HYP… | TESTED_FAIL | FX Asia/London/NY session boxes + S/R/RSI/MACD… |
+| `MIX-TV-EP-004` | TrendMaster Pro 2.3 with Alerts | 5m | BANKNIFTY | PREMIUM | BOTH | 13 | PREMIUM after-cost -42.3630 (1% RT HYP… | TESTED_FAIL | FX Asia/London/NY session boxes + S/R/RSI/MACD… |
 | `MIX-TV-EP-004` | TrendMaster Pro 2.3 with Alerts | 5m | BANKNIFTY | PREMIUM | BOTH | 22 | PREMIUM after-cost -244.9185 (1% RT HY… | TESTED_FAIL | FX Asia/London/NY session boxes + S/R/RSI/MACD… |
-| `MIX-TV-EP-004` | TrendMaster Pro 2.3 with Alerts | 5m | BANKNIFTY | PREMIUM | BOTH | 10 | PREMIUM after-cost -31.1705 (1% RT HYP… | TESTED_FAIL | FX Asia/London/NY session boxes + S/R/RSI/MACD… |
+| `MIX-TV-EP-004` | TrendMaster Pro 2.3 with Alerts | 5m | BANKNIFTY | PREMIUM | BOTH | 11 | PREMIUM after-cost -15.3115 (1% RT HYP… | TESTED_FAIL | FX Asia/London/NY session boxes + S/R/RSI/MACD… |
 | `MIX-TV-EP-004` | TrendMaster Pro 2.3 with Alerts | 5m | BANKNIFTY | PREMIUM | BOTH | 18 | PREMIUM after-cost -63.4655 (1% RT HYP… | TESTED_FAIL | FX Asia/London/NY session boxes + S/R/RSI/MACD… |
-| `MIX-TV-EP-004` | TrendMaster Pro 2.3 with Alerts | 5m | BANKNIFTY | PREMIUM | BOTH | 10 | PREMIUM after-cost -139.0040 (1% RT HY… | TESTED_FAIL | FX Asia/London/NY session boxes + S/R/RSI/MACD… |
+| `MIX-TV-EP-004` | TrendMaster Pro 2.3 with Alerts | 5m | BANKNIFTY | PREMIUM | BOTH | 11 | PREMIUM after-cost -146.6390 (1% RT HY… | TESTED_FAIL | FX Asia/London/NY session boxes + S/R/RSI/MACD… |
 | `MIX-TV-EP-004` | TrendMaster Pro 2.3 with Alerts | 15m | NIFTY | INDEX | BOTH | 29 | INDEX proxy gross 106.6000 (≠ option P… | WATCH | FX Asia/London/NY session boxes + S/R/RSI/MACD… |
 | `MIX-TV-EP-004` | TrendMaster Pro 2.3 with Alerts | 15m | NIFTY | INDEX | BOTH | 20 | INDEX proxy gross 53.8000 (≠ option P/L) | WATCH | FX Asia/London/NY session boxes + S/R/RSI/MACD… |
 | `MIX-TV-EP-004` | TrendMaster Pro 2.3 with Alerts | 15m | NIFTY | INDEX | BOTH | 28 | INDEX proxy gross -209.3000 (≠ option … | TESTED_FAIL | FX Asia/London/NY session boxes + S/R/RSI/MACD… |
@@ -331,12 +331,12 @@ Fixture or cache simulation only. Empty matrix ⇒ no ported adapter fired both 
 | `MIX-TV-EP-004` | TrendMaster Pro 2.3 with Alerts | 1m | SENSEX | INDEX | BOTH | 416 | INDEX proxy gross -232.1500 (≠ option … | TESTED_FAIL | FX Asia/London/NY session boxes + S/R/RSI/MACD… |
 | `MIX-TV-EP-004` | TrendMaster Pro 2.3 with Alerts | 1m | SENSEX | INDEX | BOTH | 603 | INDEX proxy gross 385.2700 (≠ option P… | WATCH | FX Asia/London/NY session boxes + S/R/RSI/MACD… |
 | `MIX-TV-EP-004` | TrendMaster Pro 2.3 with Alerts | 1m | SENSEX | INDEX | BOTH | 376 | INDEX proxy gross -452.1800 (≠ option … | TESTED_FAIL | FX Asia/London/NY session boxes + S/R/RSI/MACD… |
-| `MIX-TV-EP-004` | TrendMaster Pro 2.3 with Alerts | 1m | SENSEX | PREMIUM | BOTH | 138 | PREMIUM after-cost -698.1005 (1% RT HY… | TESTED_FAIL | FX Asia/London/NY session boxes + S/R/RSI/MACD… |
-| `MIX-TV-EP-004` | TrendMaster Pro 2.3 with Alerts | 1m | SENSEX | PREMIUM | BOTH | 110 | PREMIUM after-cost -544.0325 (1% RT HY… | TESTED_FAIL | FX Asia/London/NY session boxes + S/R/RSI/MACD… |
-| `MIX-TV-EP-004` | TrendMaster Pro 2.3 with Alerts | 1m | SENSEX | PREMIUM | BOTH | 135 | PREMIUM after-cost -649.3600 (1% RT HY… | TESTED_FAIL | FX Asia/London/NY session boxes + S/R/RSI/MACD… |
-| `MIX-TV-EP-004` | TrendMaster Pro 2.3 with Alerts | 1m | SENSEX | PREMIUM | BOTH | 105 | PREMIUM after-cost -591.3060 (1% RT HY… | TESTED_FAIL | FX Asia/London/NY session boxes + S/R/RSI/MACD… |
-| `MIX-TV-EP-004` | TrendMaster Pro 2.3 with Alerts | 1m | SENSEX | PREMIUM | BOTH | 142 | PREMIUM after-cost -1068.5000 (1% RT H… | TESTED_FAIL | FX Asia/London/NY session boxes + S/R/RSI/MACD… |
-| `MIX-TV-EP-004` | TrendMaster Pro 2.3 with Alerts | 1m | SENSEX | PREMIUM | BOTH | 93 | PREMIUM after-cost -658.6850 (1% RT HY… | TESTED_FAIL | FX Asia/London/NY session boxes + S/R/RSI/MACD… |
+| `MIX-TV-EP-004` | TrendMaster Pro 2.3 with Alerts | 1m | SENSEX | PREMIUM | BOTH | 140 | PREMIUM after-cost -700.6265 (1% RT HY… | TESTED_FAIL | FX Asia/London/NY session boxes + S/R/RSI/MACD… |
+| `MIX-TV-EP-004` | TrendMaster Pro 2.3 with Alerts | 1m | SENSEX | PREMIUM | BOTH | 113 | PREMIUM after-cost -543.9515 (1% RT HY… | TESTED_FAIL | FX Asia/London/NY session boxes + S/R/RSI/MACD… |
+| `MIX-TV-EP-004` | TrendMaster Pro 2.3 with Alerts | 1m | SENSEX | PREMIUM | BOTH | 136 | PREMIUM after-cost -673.0470 (1% RT HY… | TESTED_FAIL | FX Asia/London/NY session boxes + S/R/RSI/MACD… |
+| `MIX-TV-EP-004` | TrendMaster Pro 2.3 with Alerts | 1m | SENSEX | PREMIUM | BOTH | 106 | PREMIUM after-cost -585.2855 (1% RT HY… | TESTED_FAIL | FX Asia/London/NY session boxes + S/R/RSI/MACD… |
+| `MIX-TV-EP-004` | TrendMaster Pro 2.3 with Alerts | 1m | SENSEX | PREMIUM | BOTH | 144 | PREMIUM after-cost -1039.2360 (1% RT H… | TESTED_FAIL | FX Asia/London/NY session boxes + S/R/RSI/MACD… |
+| `MIX-TV-EP-004` | TrendMaster Pro 2.3 with Alerts | 1m | SENSEX | PREMIUM | BOTH | 95 | PREMIUM after-cost -675.1180 (1% RT HY… | TESTED_FAIL | FX Asia/London/NY session boxes + S/R/RSI/MACD… |
 | `MIX-TV-EP-004` | TrendMaster Pro 2.3 with Alerts | 3m | SENSEX | INDEX | BOTH | 210 | INDEX proxy gross -262.1100 (≠ option … | TESTED_FAIL | FX Asia/London/NY session boxes + S/R/RSI/MACD… |
 | `MIX-TV-EP-004` | TrendMaster Pro 2.3 with Alerts | 3m | SENSEX | INDEX | BOTH | 138 | INDEX proxy gross -514.5400 (≠ option … | TESTED_FAIL | FX Asia/London/NY session boxes + S/R/RSI/MACD… |
 | `MIX-TV-EP-004` | TrendMaster Pro 2.3 with Alerts | 3m | SENSEX | INDEX | BOTH | 205 | INDEX proxy gross 275.3300 (≠ option P… | WATCH | FX Asia/London/NY session boxes + S/R/RSI/MACD… |
@@ -344,11 +344,11 @@ Fixture or cache simulation only. Empty matrix ⇒ no ported adapter fired both 
 | `MIX-TV-EP-004` | TrendMaster Pro 2.3 with Alerts | 3m | SENSEX | INDEX | BOTH | 200 | INDEX proxy gross 158.0300 (≠ option P… | WATCH | FX Asia/London/NY session boxes + S/R/RSI/MACD… |
 | `MIX-TV-EP-004` | TrendMaster Pro 2.3 with Alerts | 3m | SENSEX | INDEX | BOTH | 126 | INDEX proxy gross -71.6100 (≠ option P… | TESTED_FAIL | FX Asia/London/NY session boxes + S/R/RSI/MACD… |
 | `MIX-TV-EP-004` | TrendMaster Pro 2.3 with Alerts | 3m | SENSEX | PREMIUM | BOTH | 40 | PREMIUM after-cost -192.3780 (1% RT HY… | TESTED_FAIL | FX Asia/London/NY session boxes + S/R/RSI/MACD… |
-| `MIX-TV-EP-004` | TrendMaster Pro 2.3 with Alerts | 3m | SENSEX | PREMIUM | BOTH | 29 | PREMIUM after-cost -130.5435 (1% RT HY… | TESTED_FAIL | FX Asia/London/NY session boxes + S/R/RSI/MACD… |
+| `MIX-TV-EP-004` | TrendMaster Pro 2.3 with Alerts | 3m | SENSEX | PREMIUM | BOTH | 31 | PREMIUM after-cost -118.7600 (1% RT HY… | TESTED_FAIL | FX Asia/London/NY session boxes + S/R/RSI/MACD… |
 | `MIX-TV-EP-004` | TrendMaster Pro 2.3 with Alerts | 3m | SENSEX | PREMIUM | BOTH | 36 | PREMIUM after-cost -55.7080 (1% RT HYP… | TESTED_FAIL | FX Asia/London/NY session boxes + S/R/RSI/MACD… |
-| `MIX-TV-EP-004` | TrendMaster Pro 2.3 with Alerts | 3m | SENSEX | PREMIUM | BOTH | 26 | PREMIUM after-cost -192.8335 (1% RT HY… | TESTED_FAIL | FX Asia/London/NY session boxes + S/R/RSI/MACD… |
+| `MIX-TV-EP-004` | TrendMaster Pro 2.3 with Alerts | 3m | SENSEX | PREMIUM | BOTH | 27 | PREMIUM after-cost -221.6685 (1% RT HY… | TESTED_FAIL | FX Asia/London/NY session boxes + S/R/RSI/MACD… |
 | `MIX-TV-EP-004` | TrendMaster Pro 2.3 with Alerts | 3m | SENSEX | PREMIUM | BOTH | 50 | PREMIUM after-cost -142.2660 (1% RT HY… | TESTED_FAIL | FX Asia/London/NY session boxes + S/R/RSI/MACD… |
-| `MIX-TV-EP-004` | TrendMaster Pro 2.3 with Alerts | 3m | SENSEX | PREMIUM | BOTH | 26 | PREMIUM after-cost -351.9605 (1% RT HY… | TESTED_FAIL | FX Asia/London/NY session boxes + S/R/RSI/MACD… |
+| `MIX-TV-EP-004` | TrendMaster Pro 2.3 with Alerts | 3m | SENSEX | PREMIUM | BOTH | 27 | PREMIUM after-cost -349.8335 (1% RT HY… | TESTED_FAIL | FX Asia/London/NY session boxes + S/R/RSI/MACD… |
 | `MIX-TV-EP-004` | TrendMaster Pro 2.3 with Alerts | 5m | SENSEX | INDEX | BOTH | 124 | INDEX proxy gross -11.6600 (≠ option P… | TESTED_FAIL | FX Asia/London/NY session boxes + S/R/RSI/MACD… |
 | `MIX-TV-EP-004` | TrendMaster Pro 2.3 with Alerts | 5m | SENSEX | INDEX | BOTH | 74 | INDEX proxy gross 150.1000 (≠ option P… | WATCH | FX Asia/London/NY session boxes + S/R/RSI/MACD… |
 | `MIX-TV-EP-004` | TrendMaster Pro 2.3 with Alerts | 5m | SENSEX | INDEX | BOTH | 122 | INDEX proxy gross -470.2800 (≠ option … | TESTED_FAIL | FX Asia/London/NY session boxes + S/R/RSI/MACD… |
@@ -356,22 +356,22 @@ Fixture or cache simulation only. Empty matrix ⇒ no ported adapter fired both 
 | `MIX-TV-EP-004` | TrendMaster Pro 2.3 with Alerts | 5m | SENSEX | INDEX | BOTH | 123 | INDEX proxy gross 83.2800 (≠ option P/L) | WATCH | FX Asia/London/NY session boxes + S/R/RSI/MACD… |
 | `MIX-TV-EP-004` | TrendMaster Pro 2.3 with Alerts | 5m | SENSEX | INDEX | BOTH | 69 | INDEX proxy gross 55.6200 (≠ option P/L) | WATCH | FX Asia/London/NY session boxes + S/R/RSI/MACD… |
 | `MIX-TV-EP-004` | TrendMaster Pro 2.3 with Alerts | 5m | SENSEX | PREMIUM | BOTH | 24 | PREMIUM after-cost -108.2570 (1% RT HY… | TESTED_FAIL | FX Asia/London/NY session boxes + S/R/RSI/MACD… |
-| `MIX-TV-EP-004` | TrendMaster Pro 2.3 with Alerts | 5m | SENSEX | PREMIUM | BOTH | 24 | PREMIUM after-cost -149.9420 (1% RT HY… | TESTED_FAIL | FX Asia/London/NY session boxes + S/R/RSI/MACD… |
+| `MIX-TV-EP-004` | TrendMaster Pro 2.3 with Alerts | 5m | SENSEX | PREMIUM | BOTH | 25 | PREMIUM after-cost -189.3205 (1% RT HY… | TESTED_FAIL | FX Asia/London/NY session boxes + S/R/RSI/MACD… |
 | `MIX-TV-EP-004` | TrendMaster Pro 2.3 with Alerts | 5m | SENSEX | PREMIUM | BOTH | 27 | PREMIUM after-cost -410.0735 (1% RT HY… | TESTED_FAIL | FX Asia/London/NY session boxes + S/R/RSI/MACD… |
-| `MIX-TV-EP-004` | TrendMaster Pro 2.3 with Alerts | 5m | SENSEX | PREMIUM | BOTH | 24 | PREMIUM after-cost -102.2610 (1% RT HY… | TESTED_FAIL | FX Asia/London/NY session boxes + S/R/RSI/MACD… |
+| `MIX-TV-EP-004` | TrendMaster Pro 2.3 with Alerts | 5m | SENSEX | PREMIUM | BOTH | 24 | PREMIUM after-cost -67.4665 (1% RT HYP… | TESTED_FAIL | FX Asia/London/NY session boxes + S/R/RSI/MACD… |
 | `MIX-TV-EP-004` | TrendMaster Pro 2.3 with Alerts | 5m | SENSEX | PREMIUM | BOTH | 29 | PREMIUM after-cost -112.5585 (1% RT HY… | TESTED_FAIL | FX Asia/London/NY session boxes + S/R/RSI/MACD… |
-| `MIX-TV-EP-004` | TrendMaster Pro 2.3 with Alerts | 5m | SENSEX | PREMIUM | BOTH | 20 | PREMIUM after-cost 153.8925 (1% RT HYP… | WATCH | FX Asia/London/NY session boxes + S/R/RSI/MACD… |
+| `MIX-TV-EP-004` | TrendMaster Pro 2.3 with Alerts | 5m | SENSEX | PREMIUM | BOTH | 21 | PREMIUM after-cost 114.5140 (1% RT HYP… | WATCH | FX Asia/London/NY session boxes + S/R/RSI/MACD… |
 | `MIX-TV-EP-005` | Bjorgum Double Tap | 15m | BANKNIFTY | INDEX | BOTH | 63 | INDEX proxy gross 1143.7000 (≠ option … | WATCH | Fib target/stop + 3Commas alerts omitted |
 | `MIX-TV-EP-005` | Bjorgum Double Tap | 15m | BANKNIFTY | INDEX | BOTH | 30 | INDEX proxy gross 395.7500 (≠ option P… | WATCH | Fib target/stop + 3Commas alerts omitted |
 | `MIX-TV-EP-005` | Bjorgum Double Tap | 15m | BANKNIFTY | PREMIUM | BOTH | 4 | PREMIUM after-cost -31.1295 (1% RT HYP… | PARK | Fib target/stop + 3Commas alerts omitted |
 | `MIX-TV-EP-005` | Bjorgum Double Tap | 15m | BANKNIFTY | PREMIUM | PE | 2 | PREMIUM after-cost 119.5905 (1% RT HYP… | PARK | Fib target/stop + 3Commas alerts omitted |
 | `MIX-TV-EP-005` | Bjorgum Double Tap | 1m | BANKNIFTY | INDEX | BOTH | 1192 | INDEX proxy gross 982.2500 (≠ option P… | WATCH | Fib target/stop + 3Commas alerts omitted |
 | `MIX-TV-EP-005` | Bjorgum Double Tap | 1m | BANKNIFTY | INDEX | BOTH | 642 | INDEX proxy gross 417.8500 (≠ option P… | WATCH | Fib target/stop + 3Commas alerts omitted |
-| `MIX-TV-EP-005` | Bjorgum Double Tap | 1m | BANKNIFTY | PREMIUM | BOTH | 127 | PREMIUM after-cost -1573.1900 (1% RT H… | TESTED_FAIL | Fib target/stop + 3Commas alerts omitted |
-| `MIX-TV-EP-005` | Bjorgum Double Tap | 1m | BANKNIFTY | PREMIUM | BOTH | 59 | PREMIUM after-cost -872.7830 (1% RT HY… | TESTED_FAIL | Fib target/stop + 3Commas alerts omitted |
+| `MIX-TV-EP-005` | Bjorgum Double Tap | 1m | BANKNIFTY | PREMIUM | BOTH | 130 | PREMIUM after-cost -1630.4445 (1% RT H… | TESTED_FAIL | Fib target/stop + 3Commas alerts omitted |
+| `MIX-TV-EP-005` | Bjorgum Double Tap | 1m | BANKNIFTY | PREMIUM | BOTH | 60 | PREMIUM after-cost -888.0240 (1% RT HY… | TESTED_FAIL | Fib target/stop + 3Commas alerts omitted |
 | `MIX-TV-EP-005` | Bjorgum Double Tap | 3m | BANKNIFTY | INDEX | BOTH | 389 | INDEX proxy gross 1445.9500 (≠ option … | WATCH | Fib target/stop + 3Commas alerts omitted |
 | `MIX-TV-EP-005` | Bjorgum Double Tap | 3m | BANKNIFTY | INDEX | BOTH | 194 | INDEX proxy gross 864.0500 (≠ option P… | WATCH | Fib target/stop + 3Commas alerts omitted |
-| `MIX-TV-EP-005` | Bjorgum Double Tap | 3m | BANKNIFTY | PREMIUM | BOTH | 46 | PREMIUM after-cost -382.1015 (1% RT HY… | TESTED_FAIL | Fib target/stop + 3Commas alerts omitted |
+| `MIX-TV-EP-005` | Bjorgum Double Tap | 3m | BANKNIFTY | PREMIUM | BOTH | 47 | PREMIUM after-cost -433.5270 (1% RT HY… | TESTED_FAIL | Fib target/stop + 3Commas alerts omitted |
 | `MIX-TV-EP-005` | Bjorgum Double Tap | 3m | BANKNIFTY | PREMIUM | BOTH | 18 | PREMIUM after-cost -135.3540 (1% RT HY… | TESTED_FAIL | Fib target/stop + 3Commas alerts omitted |
 | `MIX-TV-EP-005` | Bjorgum Double Tap | 5m | BANKNIFTY | INDEX | BOTH | 215 | INDEX proxy gross -72.5500 (≠ option P… | TESTED_FAIL | Fib target/stop + 3Commas alerts omitted |
 | `MIX-TV-EP-005` | Bjorgum Double Tap | 5m | BANKNIFTY | INDEX | BOTH | 104 | INDEX proxy gross -192.8500 (≠ option … | TESTED_FAIL | Fib target/stop + 3Commas alerts omitted |
@@ -399,7 +399,7 @@ Fixture or cache simulation only. Empty matrix ⇒ no ported adapter fired both 
 | `MIX-TV-EP-005` | Bjorgum Double Tap | 15m | SENSEX | PREMIUM | NONE | 0 | PREMIUM after-cost 0.0000 (1% RT HYPOT… | PARK | Fib target/stop + 3Commas alerts omitted |
 | `MIX-TV-EP-005` | Bjorgum Double Tap | 1m | SENSEX | INDEX | BOTH | 1230 | INDEX proxy gross 1416.1100 (≠ option … | WATCH | Fib target/stop + 3Commas alerts omitted |
 | `MIX-TV-EP-005` | Bjorgum Double Tap | 1m | SENSEX | INDEX | BOTH | 732 | INDEX proxy gross 941.1400 (≠ option P… | WATCH | Fib target/stop + 3Commas alerts omitted |
-| `MIX-TV-EP-005` | Bjorgum Double Tap | 1m | SENSEX | PREMIUM | BOTH | 131 | PREMIUM after-cost -872.4305 (1% RT HY… | TESTED_FAIL | Fib target/stop + 3Commas alerts omitted |
+| `MIX-TV-EP-005` | Bjorgum Double Tap | 1m | SENSEX | PREMIUM | BOTH | 132 | PREMIUM after-cost -880.9065 (1% RT HY… | TESTED_FAIL | Fib target/stop + 3Commas alerts omitted |
 | `MIX-TV-EP-005` | Bjorgum Double Tap | 1m | SENSEX | PREMIUM | BOTH | 66 | PREMIUM after-cost -485.4975 (1% RT HY… | TESTED_FAIL | Fib target/stop + 3Commas alerts omitted |
 | `MIX-TV-EP-005` | Bjorgum Double Tap | 3m | SENSEX | INDEX | BOTH | 432 | INDEX proxy gross 1236.7900 (≠ option … | WATCH | Fib target/stop + 3Commas alerts omitted |
 | `MIX-TV-EP-005` | Bjorgum Double Tap | 3m | SENSEX | INDEX | BOTH | 236 | INDEX proxy gross 442.4100 (≠ option P… | WATCH | Fib target/stop + 3Commas alerts omitted |
@@ -410,7 +410,7 @@ Fixture or cache simulation only. Empty matrix ⇒ no ported adapter fired both 
 | `MIX-TV-EP-005` | Bjorgum Double Tap | 5m | SENSEX | PREMIUM | BOTH | 34 | PREMIUM after-cost -138.6370 (1% RT HY… | TESTED_FAIL | Fib target/stop + 3Commas alerts omitted |
 | `MIX-TV-EP-005` | Bjorgum Double Tap | 5m | SENSEX | PREMIUM | BOTH | 13 | PREMIUM after-cost 219.8210 (1% RT HYP… | WATCH | Fib target/stop + 3Commas alerts omitted |
 | `MIX-TV-EP-006` | Traling.SL.Target | 15m | BANKNIFTY | INDEX | BOTH | 22 | INDEX proxy gross -157.3500 (≠ option … | TESTED_FAIL | percent trailing SL/target is TV close engine |
-| `MIX-TV-EP-006` | Traling.SL.Target | 15m | BANKNIFTY | PREMIUM | NONE | 0 | PREMIUM after-cost 0.0000 (1% RT HYPOT… | PARK | percent trailing SL/target is TV close engine |
+| `MIX-TV-EP-006` | Traling.SL.Target | 15m | BANKNIFTY | PREMIUM | PE | 0 | PREMIUM after-cost 0.0000 (1% RT HYPOT… | PARK | percent trailing SL/target is TV close engine |
 | `MIX-TV-EP-006` | Traling.SL.Target | 1m | BANKNIFTY | INDEX | BOTH | 231 | INDEX proxy gross 182.2500 (≠ option P… | WATCH | percent trailing SL/target is TV close engine |
 | `MIX-TV-EP-006` | Traling.SL.Target | 1m | BANKNIFTY | PREMIUM | BOTH | 75 | PREMIUM after-cost -501.6590 (1% RT HY… | TESTED_FAIL | percent trailing SL/target is TV close engine |
 | `MIX-TV-EP-006` | Traling.SL.Target | 3m | BANKNIFTY | INDEX | BOTH | 64 | INDEX proxy gross 83.9000 (≠ option P/L) | WATCH | percent trailing SL/target is TV close engine |
@@ -428,7 +428,7 @@ Fixture or cache simulation only. Empty matrix ⇒ no ported adapter fired both 
 | `MIX-TV-EP-006` | Traling.SL.Target | 15m | SENSEX | INDEX | BOTH | 12 | INDEX proxy gross 308.2900 (≠ option P… | WATCH | percent trailing SL/target is TV close engine |
 | `MIX-TV-EP-006` | Traling.SL.Target | 15m | SENSEX | PREMIUM | BOTH | 2 | PREMIUM after-cost -54.8175 (1% RT HYP… | PARK | percent trailing SL/target is TV close engine |
 | `MIX-TV-EP-006` | Traling.SL.Target | 1m | SENSEX | INDEX | BOTH | 220 | INDEX proxy gross 519.3600 (≠ option P… | WATCH | percent trailing SL/target is TV close engine |
-| `MIX-TV-EP-006` | Traling.SL.Target | 1m | SENSEX | PREMIUM | BOTH | 71 | PREMIUM after-cost 32.9220 (1% RT HYPO… | WATCH | percent trailing SL/target is TV close engine |
+| `MIX-TV-EP-006` | Traling.SL.Target | 1m | SENSEX | PREMIUM | BOTH | 72 | PREMIUM after-cost 13.7940 (1% RT HYPO… | WATCH | percent trailing SL/target is TV close engine |
 | `MIX-TV-EP-006` | Traling.SL.Target | 3m | SENSEX | INDEX | BOTH | 59 | INDEX proxy gross 180.3500 (≠ option P… | WATCH | percent trailing SL/target is TV close engine |
 | `MIX-TV-EP-006` | Traling.SL.Target | 3m | SENSEX | PREMIUM | BOTH | 11 | PREMIUM after-cost -3.9200 (1% RT HYPO… | TESTED_FAIL | percent trailing SL/target is TV close engine |
 | `MIX-TV-EP-006` | Traling.SL.Target | 5m | SENSEX | INDEX | BOTH | 25 | INDEX proxy gross 82.3900 (≠ option P/L) | WATCH | percent trailing SL/target is TV close engine |
@@ -436,7 +436,7 @@ Fixture or cache simulation only. Empty matrix ⇒ no ported adapter fired both 
 | `MIX-TV-EP-007` | Template Trailing Strategy (Backtester) | 15m | BANKNIFTY | INDEX | BOTH | 17 | INDEX proxy gross -297.0500 (≠ option … | TESTED_FAIL | 222-input trailing template; internal SMA 21/4… |
 | `MIX-TV-EP-007` | Template Trailing Strategy (Backtester) | 15m | BANKNIFTY | PREMIUM | BOTH | 1 | PREMIUM after-cost -28.7800 (1% RT HYP… | PARK | 222-input trailing template; internal SMA 21/4… |
 | `MIX-TV-EP-007` | Template Trailing Strategy (Backtester) | 1m | BANKNIFTY | INDEX | BOTH | 267 | INDEX proxy gross 81.6500 (≠ option P/L) | WATCH | 222-input trailing template; internal SMA 21/4… |
-| `MIX-TV-EP-007` | Template Trailing Strategy (Backtester) | 1m | BANKNIFTY | PREMIUM | BOTH | 60 | PREMIUM after-cost -622.5705 (1% RT HY… | TESTED_FAIL | 222-input trailing template; internal SMA 21/4… |
+| `MIX-TV-EP-007` | Template Trailing Strategy (Backtester) | 1m | BANKNIFTY | PREMIUM | BOTH | 62 | PREMIUM after-cost -596.7630 (1% RT HY… | TESTED_FAIL | 222-input trailing template; internal SMA 21/4… |
 | `MIX-TV-EP-007` | Template Trailing Strategy (Backtester) | 3m | BANKNIFTY | INDEX | BOTH | 75 | INDEX proxy gross -182.3000 (≠ option … | TESTED_FAIL | 222-input trailing template; internal SMA 21/4… |
 | `MIX-TV-EP-007` | Template Trailing Strategy (Backtester) | 3m | BANKNIFTY | PREMIUM | BOTH | 10 | PREMIUM after-cost -217.6810 (1% RT HY… | TESTED_FAIL | 222-input trailing template; internal SMA 21/4… |
 | `MIX-TV-EP-007` | Template Trailing Strategy (Backtester) | 5m | BANKNIFTY | INDEX | BOTH | 47 | INDEX proxy gross -51.6500 (≠ option P… | TESTED_FAIL | 222-input trailing template; internal SMA 21/4… |
@@ -476,19 +476,19 @@ Fixture or cache simulation only. Empty matrix ⇒ no ported adapter fired both 
 | `MIX-TV-EP-008` | 3Commas Bot | 15m | SENSEX | INDEX | BOTH | 12 | INDEX proxy gross 183.9100 (≠ option P… | WATCH | 3Commas webhook/JSON; 0.05% commission; ATR tr… |
 | `MIX-TV-EP-008` | 3Commas Bot | 15m | SENSEX | PREMIUM | BOTH | 2 | PREMIUM after-cost -16.3750 (1% RT HYP… | PARK | 3Commas webhook/JSON; 0.05% commission; ATR tr… |
 | `MIX-TV-EP-008` | 3Commas Bot | 1m | SENSEX | INDEX | BOTH | 220 | INDEX proxy gross 109.1400 (≠ option P… | WATCH | 3Commas webhook/JSON; 0.05% commission; ATR tr… |
-| `MIX-TV-EP-008` | 3Commas Bot | 1m | SENSEX | PREMIUM | BOTH | 67 | PREMIUM after-cost -30.2170 (1% RT HYP… | TESTED_FAIL | 3Commas webhook/JSON; 0.05% commission; ATR tr… |
+| `MIX-TV-EP-008` | 3Commas Bot | 1m | SENSEX | PREMIUM | BOTH | 68 | PREMIUM after-cost -49.3450 (1% RT HYP… | TESTED_FAIL | 3Commas webhook/JSON; 0.05% commission; ATR tr… |
 | `MIX-TV-EP-008` | 3Commas Bot | 3m | SENSEX | INDEX | BOTH | 56 | INDEX proxy gross -21.1800 (≠ option P… | TESTED_FAIL | 3Commas webhook/JSON; 0.05% commission; ATR tr… |
 | `MIX-TV-EP-008` | 3Commas Bot | 3m | SENSEX | PREMIUM | BOTH | 11 | PREMIUM after-cost -57.9585 (1% RT HYP… | TESTED_FAIL | 3Commas webhook/JSON; 0.05% commission; ATR tr… |
 | `MIX-TV-EP-008` | 3Commas Bot | 5m | SENSEX | INDEX | BOTH | 26 | INDEX proxy gross 147.7700 (≠ option P… | WATCH | 3Commas webhook/JSON; 0.05% commission; ATR tr… |
 | `MIX-TV-EP-008` | 3Commas Bot | 5m | SENSEX | PREMIUM | BOTH | 3 | PREMIUM after-cost 41.8910 (1% RT HYPO… | PARK | 3Commas webhook/JSON; 0.05% commission; ATR tr… |
 | `MIX-TV-EP-009` | Monthly Returns in PineScript Strategies | 15m | BANKNIFTY | INDEX | BOTH | 209 | INDEX proxy gross 476.7500 (≠ option P… | WATCH | monthly returns table is viz; 0.1% commission |
-| `MIX-TV-EP-009` | Monthly Returns in PineScript Strategies | 15m | BANKNIFTY | PREMIUM | BOTH | 29 | PREMIUM after-cost -315.3145 (1% RT HY… | TESTED_FAIL | monthly returns table is viz; 0.1% commission |
+| `MIX-TV-EP-009` | Monthly Returns in PineScript Strategies | 15m | BANKNIFTY | PREMIUM | BOTH | 29 | PREMIUM after-cost -320.1120 (1% RT HY… | TESTED_FAIL | monthly returns table is viz; 0.1% commission |
 | `MIX-TV-EP-009` | Monthly Returns in PineScript Strategies | 1m | BANKNIFTY | INDEX | BOTH | 3151 | INDEX proxy gross -2908.0000 (≠ option… | TESTED_FAIL | monthly returns table is viz; 0.1% commission |
-| `MIX-TV-EP-009` | Monthly Returns in PineScript Strategies | 1m | BANKNIFTY | PREMIUM | BOTH | 451 | PREMIUM after-cost -4684.5340 (1% RT H… | TESTED_FAIL | monthly returns table is viz; 0.1% commission |
+| `MIX-TV-EP-009` | Monthly Returns in PineScript Strategies | 1m | BANKNIFTY | PREMIUM | BOTH | 456 | PREMIUM after-cost -4785.9890 (1% RT H… | TESTED_FAIL | monthly returns table is viz; 0.1% commission |
 | `MIX-TV-EP-009` | Monthly Returns in PineScript Strategies | 3m | BANKNIFTY | INDEX | BOTH | 1105 | INDEX proxy gross -2046.9500 (≠ option… | TESTED_FAIL | monthly returns table is viz; 0.1% commission |
-| `MIX-TV-EP-009` | Monthly Returns in PineScript Strategies | 3m | BANKNIFTY | PREMIUM | BOTH | 161 | PREMIUM after-cost -1618.2760 (1% RT H… | TESTED_FAIL | monthly returns table is viz; 0.1% commission |
+| `MIX-TV-EP-009` | Monthly Returns in PineScript Strategies | 3m | BANKNIFTY | PREMIUM | BOTH | 163 | PREMIUM after-cost -1674.4115 (1% RT H… | TESTED_FAIL | monthly returns table is viz; 0.1% commission |
 | `MIX-TV-EP-009` | Monthly Returns in PineScript Strategies | 5m | BANKNIFTY | INDEX | BOTH | 638 | INDEX proxy gross 467.7000 (≠ option P… | WATCH | monthly returns table is viz; 0.1% commission |
-| `MIX-TV-EP-009` | Monthly Returns in PineScript Strategies | 5m | BANKNIFTY | PREMIUM | BOTH | 94 | PREMIUM after-cost -803.1955 (1% RT HY… | TESTED_FAIL | monthly returns table is viz; 0.1% commission |
+| `MIX-TV-EP-009` | Monthly Returns in PineScript Strategies | 5m | BANKNIFTY | PREMIUM | BOTH | 95 | PREMIUM after-cost -787.3365 (1% RT HY… | TESTED_FAIL | monthly returns table is viz; 0.1% commission |
 | `MIX-TV-EP-009` | Monthly Returns in PineScript Strategies | 15m | NIFTY | INDEX | BOTH | 207 | INDEX proxy gross 284.6000 (≠ option P… | WATCH | monthly returns table is viz; 0.1% commission |
 | `MIX-TV-EP-009` | Monthly Returns in PineScript Strategies | 15m | NIFTY | PREMIUM | BOTH | 114 | PREMIUM after-cost -52.0270 (1% RT HYP… | TESTED_FAIL | monthly returns table is viz; 0.1% commission |
 | `MIX-TV-EP-009` | Monthly Returns in PineScript Strategies | 1m | NIFTY | INDEX | BOTH | 3137 | INDEX proxy gross -1002.2000 (≠ option… | TESTED_FAIL | monthly returns table is viz; 0.1% commission |
@@ -500,17 +500,17 @@ Fixture or cache simulation only. Empty matrix ⇒ no ported adapter fired both 
 | `MIX-TV-EP-009` | Monthly Returns in PineScript Strategies | 15m | SENSEX | INDEX | BOTH | 211 | INDEX proxy gross -363.6600 (≠ option … | TESTED_FAIL | monthly returns table is viz; 0.1% commission |
 | `MIX-TV-EP-009` | Monthly Returns in PineScript Strategies | 15m | SENSEX | PREMIUM | BOTH | 30 | PREMIUM after-cost -270.6695 (1% RT HY… | TESTED_FAIL | monthly returns table is viz; 0.1% commission |
 | `MIX-TV-EP-009` | Monthly Returns in PineScript Strategies | 1m | SENSEX | INDEX | BOTH | 3145 | INDEX proxy gross -1573.9600 (≠ option… | TESTED_FAIL | monthly returns table is viz; 0.1% commission |
-| `MIX-TV-EP-009` | Monthly Returns in PineScript Strategies | 1m | SENSEX | PREMIUM | BOTH | 475 | PREMIUM after-cost -2226.9645 (1% RT H… | TESTED_FAIL | monthly returns table is viz; 0.1% commission |
+| `MIX-TV-EP-009` | Monthly Returns in PineScript Strategies | 1m | SENSEX | PREMIUM | BOTH | 481 | PREMIUM after-cost -2251.4995 (1% RT H… | TESTED_FAIL | monthly returns table is viz; 0.1% commission |
 | `MIX-TV-EP-009` | Monthly Returns in PineScript Strategies | 3m | SENSEX | INDEX | BOTH | 1076 | INDEX proxy gross -933.6700 (≠ option … | TESTED_FAIL | monthly returns table is viz; 0.1% commission |
-| `MIX-TV-EP-009` | Monthly Returns in PineScript Strategies | 3m | SENSEX | PREMIUM | BOTH | 147 | PREMIUM after-cost -964.4355 (1% RT HY… | TESTED_FAIL | monthly returns table is viz; 0.1% commission |
+| `MIX-TV-EP-009` | Monthly Returns in PineScript Strategies | 3m | SENSEX | PREMIUM | BOTH | 148 | PREMIUM after-cost -987.4790 (1% RT HY… | TESTED_FAIL | monthly returns table is viz; 0.1% commission |
 | `MIX-TV-EP-009` | Monthly Returns in PineScript Strategies | 5m | SENSEX | INDEX | BOTH | 623 | INDEX proxy gross 473.0800 (≠ option P… | WATCH | monthly returns table is viz; 0.1% commission |
-| `MIX-TV-EP-009` | Monthly Returns in PineScript Strategies | 5m | SENSEX | PREMIUM | BOTH | 99 | PREMIUM after-cost -28.1715 (1% RT HYP… | TESTED_FAIL | monthly returns table is viz; 0.1% commission |
+| `MIX-TV-EP-009` | Monthly Returns in PineScript Strategies | 5m | SENSEX | PREMIUM | BOTH | 100 | PREMIUM after-cost -20.6360 (1% RT HYP… | TESTED_FAIL | monthly returns table is viz; 0.1% commission |
 | `MIX-TV-EP-010` | How to use Leverage and Margin in PineSc… | 15m | BANKNIFTY | INDEX | BOTH | 120 | INDEX proxy gross -225.7500 (≠ option … | TESTED_FAIL | pyramiding=100 / 30x margin TV-only |
 | `MIX-TV-EP-010` | How to use Leverage and Margin in PineSc… | 15m | BANKNIFTY | PREMIUM | BOTH | 17 | PREMIUM after-cost -308.2725 (1% RT HY… | TESTED_FAIL | pyramiding=100 / 30x margin TV-only |
 | `MIX-TV-EP-010` | How to use Leverage and Margin in PineSc… | 1m | BANKNIFTY | INDEX | BOTH | 1920 | INDEX proxy gross 1824.8000 (≠ option … | WATCH | pyramiding=100 / 30x margin TV-only |
-| `MIX-TV-EP-010` | How to use Leverage and Margin in PineSc… | 1m | BANKNIFTY | PREMIUM | BOTH | 334 | PREMIUM after-cost -3211.1305 (1% RT H… | TESTED_FAIL | pyramiding=100 / 30x margin TV-only |
+| `MIX-TV-EP-010` | How to use Leverage and Margin in PineSc… | 1m | BANKNIFTY | PREMIUM | BOTH | 337 | PREMIUM after-cost -3285.3565 (1% RT H… | TESTED_FAIL | pyramiding=100 / 30x margin TV-only |
 | `MIX-TV-EP-010` | How to use Leverage and Margin in PineSc… | 3m | BANKNIFTY | INDEX | BOTH | 631 | INDEX proxy gross -737.6500 (≠ option … | TESTED_FAIL | pyramiding=100 / 30x margin TV-only |
-| `MIX-TV-EP-010` | How to use Leverage and Margin in PineSc… | 3m | BANKNIFTY | PREMIUM | BOTH | 122 | PREMIUM after-cost -802.4190 (1% RT HY… | TESTED_FAIL | pyramiding=100 / 30x margin TV-only |
+| `MIX-TV-EP-010` | How to use Leverage and Margin in PineSc… | 3m | BANKNIFTY | PREMIUM | BOTH | 124 | PREMIUM after-cost -755.5785 (1% RT HY… | TESTED_FAIL | pyramiding=100 / 30x margin TV-only |
 | `MIX-TV-EP-010` | How to use Leverage and Margin in PineSc… | 5m | BANKNIFTY | INDEX | BOTH | 359 | INDEX proxy gross 1126.2000 (≠ option … | WATCH | pyramiding=100 / 30x margin TV-only |
 | `MIX-TV-EP-010` | How to use Leverage and Margin in PineSc… | 5m | BANKNIFTY | PREMIUM | BOTH | 78 | PREMIUM after-cost -404.1855 (1% RT HY… | TESTED_FAIL | pyramiding=100 / 30x margin TV-only |
 | `MIX-TV-EP-010` | How to use Leverage and Margin in PineSc… | 15m | NIFTY | INDEX | BOTH | 123 | INDEX proxy gross -556.5000 (≠ option … | TESTED_FAIL | pyramiding=100 / 30x margin TV-only |
@@ -524,11 +524,11 @@ Fixture or cache simulation only. Empty matrix ⇒ no ported adapter fired both 
 | `MIX-TV-EP-010` | How to use Leverage and Margin in PineSc… | 15m | SENSEX | INDEX | BOTH | 128 | INDEX proxy gross -1084.5900 (≠ option… | TESTED_FAIL | pyramiding=100 / 30x margin TV-only |
 | `MIX-TV-EP-010` | How to use Leverage and Margin in PineSc… | 15m | SENSEX | PREMIUM | BOTH | 18 | PREMIUM after-cost -122.3170 (1% RT HY… | TESTED_FAIL | pyramiding=100 / 30x margin TV-only |
 | `MIX-TV-EP-010` | How to use Leverage and Margin in PineSc… | 1m | SENSEX | INDEX | BOTH | 1929 | INDEX proxy gross -2115.7100 (≠ option… | TESTED_FAIL | pyramiding=100 / 30x margin TV-only |
-| `MIX-TV-EP-010` | How to use Leverage and Margin in PineSc… | 1m | SENSEX | PREMIUM | BOTH | 335 | PREMIUM after-cost -2462.2910 (1% RT H… | TESTED_FAIL | pyramiding=100 / 30x margin TV-only |
+| `MIX-TV-EP-010` | How to use Leverage and Margin in PineSc… | 1m | SENSEX | PREMIUM | BOTH | 339 | PREMIUM after-cost -2488.7215 (1% RT H… | TESTED_FAIL | pyramiding=100 / 30x margin TV-only |
 | `MIX-TV-EP-010` | How to use Leverage and Margin in PineSc… | 3m | SENSEX | INDEX | BOTH | 642 | INDEX proxy gross -814.6600 (≠ option … | TESTED_FAIL | pyramiding=100 / 30x margin TV-only |
-| `MIX-TV-EP-010` | How to use Leverage and Margin in PineSc… | 3m | SENSEX | PREMIUM | BOTH | 132 | PREMIUM after-cost -722.6925 (1% RT HY… | TESTED_FAIL | pyramiding=100 / 30x margin TV-only |
+| `MIX-TV-EP-010` | How to use Leverage and Margin in PineSc… | 3m | SENSEX | PREMIUM | BOTH | 133 | PREMIUM after-cost -713.0360 (1% RT HY… | TESTED_FAIL | pyramiding=100 / 30x margin TV-only |
 | `MIX-TV-EP-010` | How to use Leverage and Margin in PineSc… | 5m | SENSEX | INDEX | BOTH | 376 | INDEX proxy gross 57.7600 (≠ option P/L) | WATCH | pyramiding=100 / 30x margin TV-only |
-| `MIX-TV-EP-010` | How to use Leverage and Margin in PineSc… | 5m | SENSEX | PREMIUM | BOTH | 72 | PREMIUM after-cost -323.4395 (1% RT HY… | TESTED_FAIL | pyramiding=100 / 30x margin TV-only |
+| `MIX-TV-EP-010` | How to use Leverage and Margin in PineSc… | 5m | SENSEX | PREMIUM | BOTH | 73 | PREMIUM after-cost -290.8610 (1% RT HY… | TESTED_FAIL | pyramiding=100 / 30x margin TV-only |
 | `MIX-TV-EP-011` | Сalculation a position size based on risk | 15m | BANKNIFTY | INDEX | BOTH | 20 | INDEX proxy gross -187.6500 (≠ option … | TESTED_FAIL | random bar_index demo; risk qty not a lean |
 | `MIX-TV-EP-011` | Сalculation a position size based on risk | 15m | BANKNIFTY | PREMIUM | BOTH | 3 | PREMIUM after-cost -65.7100 (1% RT HYP… | PARK | random bar_index demo; risk qty not a lean |
 | `MIX-TV-EP-011` | Сalculation a position size based on risk | 1m | BANKNIFTY | INDEX | BOTH | 346 | INDEX proxy gross 1140.5000 (≠ option … | WATCH | random bar_index demo; risk qty not a lean |
@@ -554,11 +554,11 @@ Fixture or cache simulation only. Empty matrix ⇒ no ported adapter fired both 
 | `MIX-TV-EP-011` | Сalculation a position size based on risk | 5m | SENSEX | INDEX | BOTH | 69 | INDEX proxy gross -441.7100 (≠ option … | TESTED_FAIL | random bar_index demo; risk qty not a lean |
 | `MIX-TV-EP-011` | Сalculation a position size based on risk | 5m | SENSEX | PREMIUM | BOTH | 10 | PREMIUM after-cost -51.5545 (1% RT HYP… | TESTED_FAIL | random bar_index demo; risk qty not a lean |
 | `MIX-TV-EP-012` | Oscillator Evaluator (Analysis tool) | 15m | BANKNIFTY | INDEX | BOTH | 75 | INDEX proxy gross -221.2000 (≠ option … | TESTED_FAIL | oscillator compare / Laguerre MA → EMA proxy |
-| `MIX-TV-EP-012` | Oscillator Evaluator (Analysis tool) | 15m | BANKNIFTY | PREMIUM | BOTH | 19 | PREMIUM after-cost 88.3765 (1% RT HYPO… | WATCH | oscillator compare / Laguerre MA → EMA proxy |
+| `MIX-TV-EP-012` | Oscillator Evaluator (Analysis tool) | 15m | BANKNIFTY | PREMIUM | BOTH | 20 | PREMIUM after-cost 96.2565 (1% RT HYPO… | WATCH | oscillator compare / Laguerre MA → EMA proxy |
 | `MIX-TV-EP-012` | Oscillator Evaluator (Analysis tool) | 1m | BANKNIFTY | INDEX | BOTH | 1171 | INDEX proxy gross 219.8500 (≠ option P… | WATCH | oscillator compare / Laguerre MA → EMA proxy |
-| `MIX-TV-EP-012` | Oscillator Evaluator (Analysis tool) | 1m | BANKNIFTY | PREMIUM | BOTH | 287 | PREMIUM after-cost -2573.5970 (1% RT H… | TESTED_FAIL | oscillator compare / Laguerre MA → EMA proxy |
+| `MIX-TV-EP-012` | Oscillator Evaluator (Analysis tool) | 1m | BANKNIFTY | PREMIUM | BOTH | 292 | PREMIUM after-cost -2569.3095 (1% RT H… | TESTED_FAIL | oscillator compare / Laguerre MA → EMA proxy |
 | `MIX-TV-EP-012` | Oscillator Evaluator (Analysis tool) | 3m | BANKNIFTY | INDEX | BOTH | 410 | INDEX proxy gross 0.9000 (≠ option P/L) | WATCH | oscillator compare / Laguerre MA → EMA proxy |
-| `MIX-TV-EP-012` | Oscillator Evaluator (Analysis tool) | 3m | BANKNIFTY | PREMIUM | BOTH | 114 | PREMIUM after-cost -658.0100 (1% RT HY… | TESTED_FAIL | oscillator compare / Laguerre MA → EMA proxy |
+| `MIX-TV-EP-012` | Oscillator Evaluator (Analysis tool) | 3m | BANKNIFTY | PREMIUM | BOTH | 116 | PREMIUM after-cost -643.2455 (1% RT HY… | TESTED_FAIL | oscillator compare / Laguerre MA → EMA proxy |
 | `MIX-TV-EP-012` | Oscillator Evaluator (Analysis tool) | 5m | BANKNIFTY | INDEX | BOTH | 242 | INDEX proxy gross -513.5500 (≠ option … | TESTED_FAIL | oscillator compare / Laguerre MA → EMA proxy |
 | `MIX-TV-EP-012` | Oscillator Evaluator (Analysis tool) | 5m | BANKNIFTY | PREMIUM | BOTH | 72 | PREMIUM after-cost -222.5725 (1% RT HY… | TESTED_FAIL | oscillator compare / Laguerre MA → EMA proxy |
 | `MIX-TV-EP-012` | Oscillator Evaluator (Analysis tool) | 15m | NIFTY | INDEX | BOTH | 68 | INDEX proxy gross -184.2500 (≠ option … | TESTED_FAIL | oscillator compare / Laguerre MA → EMA proxy |
@@ -572,15 +572,15 @@ Fixture or cache simulation only. Empty matrix ⇒ no ported adapter fired both 
 | `MIX-TV-EP-012` | Oscillator Evaluator (Analysis tool) | 15m | SENSEX | INDEX | BOTH | 63 | INDEX proxy gross 39.4000 (≠ option P/L) | WATCH | oscillator compare / Laguerre MA → EMA proxy |
 | `MIX-TV-EP-012` | Oscillator Evaluator (Analysis tool) | 15m | SENSEX | PREMIUM | BOTH | 15 | PREMIUM after-cost -24.7180 (1% RT HYP… | TESTED_FAIL | oscillator compare / Laguerre MA → EMA proxy |
 | `MIX-TV-EP-012` | Oscillator Evaluator (Analysis tool) | 1m | SENSEX | INDEX | BOTH | 1194 | INDEX proxy gross -663.5700 (≠ option … | TESTED_FAIL | oscillator compare / Laguerre MA → EMA proxy |
-| `MIX-TV-EP-012` | Oscillator Evaluator (Analysis tool) | 1m | SENSEX | PREMIUM | BOTH | 280 | PREMIUM after-cost -1148.9105 (1% RT H… | TESTED_FAIL | oscillator compare / Laguerre MA → EMA proxy |
+| `MIX-TV-EP-012` | Oscillator Evaluator (Analysis tool) | 1m | SENSEX | PREMIUM | BOTH | 282 | PREMIUM after-cost -1143.0735 (1% RT H… | TESTED_FAIL | oscillator compare / Laguerre MA → EMA proxy |
 | `MIX-TV-EP-012` | Oscillator Evaluator (Analysis tool) | 3m | SENSEX | INDEX | BOTH | 397 | INDEX proxy gross -375.5300 (≠ option … | TESTED_FAIL | oscillator compare / Laguerre MA → EMA proxy |
-| `MIX-TV-EP-012` | Oscillator Evaluator (Analysis tool) | 3m | SENSEX | PREMIUM | BOTH | 111 | PREMIUM after-cost -464.2185 (1% RT HY… | TESTED_FAIL | oscillator compare / Laguerre MA → EMA proxy |
+| `MIX-TV-EP-012` | Oscillator Evaluator (Analysis tool) | 3m | SENSEX | PREMIUM | BOTH | 112 | PREMIUM after-cost -453.1985 (1% RT HY… | TESTED_FAIL | oscillator compare / Laguerre MA → EMA proxy |
 | `MIX-TV-EP-012` | Oscillator Evaluator (Analysis tool) | 5m | SENSEX | INDEX | BOTH | 248 | INDEX proxy gross -1042.0700 (≠ option… | TESTED_FAIL | oscillator compare / Laguerre MA → EMA proxy |
-| `MIX-TV-EP-012` | Oscillator Evaluator (Analysis tool) | 5m | SENSEX | PREMIUM | BOTH | 64 | PREMIUM after-cost -251.9575 (1% RT HY… | TESTED_FAIL | oscillator compare / Laguerre MA → EMA proxy |
+| `MIX-TV-EP-012` | Oscillator Evaluator (Analysis tool) | 5m | SENSEX | PREMIUM | BOTH | 65 | PREMIUM after-cost -254.1735 (1% RT HY… | TESTED_FAIL | oscillator compare / Laguerre MA → EMA proxy |
 | `MIX-TV-EP-013` | Built-in Kelly ratio for dynamic positio… | 15m | BANKNIFTY | INDEX | BOTH | 61 | INDEX proxy gross 1362.7000 (≠ option … | WATCH | Kelly fraction omitted; 0.1% commission |
 | `MIX-TV-EP-013` | Built-in Kelly ratio for dynamic positio… | 15m | BANKNIFTY | PREMIUM | CE | 1 | PREMIUM after-cost -33.9740 (1% RT HYP… | PARK | Kelly fraction omitted; 0.1% commission |
 | `MIX-TV-EP-013` | Built-in Kelly ratio for dynamic positio… | 1m | BANKNIFTY | INDEX | BOTH | 1037 | INDEX proxy gross 19.5500 (≠ option P/L) | WATCH | Kelly fraction omitted; 0.1% commission |
-| `MIX-TV-EP-013` | Built-in Kelly ratio for dynamic positio… | 1m | BANKNIFTY | PREMIUM | BOTH | 178 | PREMIUM after-cost -1402.3615 (1% RT H… | TESTED_FAIL | Kelly fraction omitted; 0.1% commission |
+| `MIX-TV-EP-013` | Built-in Kelly ratio for dynamic positio… | 1m | BANKNIFTY | PREMIUM | BOTH | 181 | PREMIUM after-cost -1432.2225 (1% RT H… | TESTED_FAIL | Kelly fraction omitted; 0.1% commission |
 | `MIX-TV-EP-013` | Built-in Kelly ratio for dynamic positio… | 3m | BANKNIFTY | INDEX | BOTH | 328 | INDEX proxy gross -505.0500 (≠ option … | TESTED_FAIL | Kelly fraction omitted; 0.1% commission |
 | `MIX-TV-EP-013` | Built-in Kelly ratio for dynamic positio… | 3m | BANKNIFTY | PREMIUM | BOTH | 17 | PREMIUM after-cost -194.6655 (1% RT HY… | TESTED_FAIL | Kelly fraction omitted; 0.1% commission |
 | `MIX-TV-EP-013` | Built-in Kelly ratio for dynamic positio… | 5m | BANKNIFTY | INDEX | BOTH | 185 | INDEX proxy gross -709.3000 (≠ option … | TESTED_FAIL | Kelly fraction omitted; 0.1% commission |
@@ -604,11 +604,11 @@ Fixture or cache simulation only. Empty matrix ⇒ no ported adapter fired both 
 | `MIX-TV-EP-014` | Ultimate Strategy Template | 15m | BANKNIFTY | INDEX | BOTH | 22 | INDEX proxy gross 57.4500 (≠ option P/L) | WATCH | template needs external ±1 source |
 | `MIX-TV-EP-014` | Ultimate Strategy Template | 15m | BANKNIFTY | PREMIUM | BOTH | 7 | PREMIUM after-cost -229.3335 (1% RT HY… | TESTED_FAIL | template needs external ±1 source |
 | `MIX-TV-EP-014` | Ultimate Strategy Template | 1m | BANKNIFTY | INDEX | BOTH | 436 | INDEX proxy gross -192.7500 (≠ option … | TESTED_FAIL | template needs external ±1 source |
-| `MIX-TV-EP-014` | Ultimate Strategy Template | 1m | BANKNIFTY | PREMIUM | BOTH | 103 | PREMIUM after-cost -1127.0325 (1% RT H… | TESTED_FAIL | template needs external ±1 source |
+| `MIX-TV-EP-014` | Ultimate Strategy Template | 1m | BANKNIFTY | PREMIUM | BOTH | 104 | PREMIUM after-cost -1131.1955 (1% RT H… | TESTED_FAIL | template needs external ±1 source |
 | `MIX-TV-EP-014` | Ultimate Strategy Template | 3m | BANKNIFTY | INDEX | BOTH | 161 | INDEX proxy gross 279.2000 (≠ option P… | WATCH | template needs external ±1 source |
 | `MIX-TV-EP-014` | Ultimate Strategy Template | 3m | BANKNIFTY | PREMIUM | BOTH | 27 | PREMIUM after-cost -272.7205 (1% RT HY… | TESTED_FAIL | template needs external ±1 source |
 | `MIX-TV-EP-014` | Ultimate Strategy Template | 5m | BANKNIFTY | INDEX | BOTH | 76 | INDEX proxy gross 287.7000 (≠ option P… | WATCH | template needs external ±1 source |
-| `MIX-TV-EP-014` | Ultimate Strategy Template | 5m | BANKNIFTY | PREMIUM | BOTH | 16 | PREMIUM after-cost -226.3505 (1% RT HY… | TESTED_FAIL | template needs external ±1 source |
+| `MIX-TV-EP-014` | Ultimate Strategy Template | 5m | BANKNIFTY | PREMIUM | BOTH | 16 | PREMIUM after-cost -234.2790 (1% RT HY… | TESTED_FAIL | template needs external ±1 source |
 | `MIX-TV-EP-014` | Ultimate Strategy Template | 15m | NIFTY | INDEX | BOTH | 21 | INDEX proxy gross 135.3500 (≠ option P… | WATCH | template needs external ±1 source |
 | `MIX-TV-EP-014` | Ultimate Strategy Template | 15m | NIFTY | PREMIUM | BOTH | 12 | PREMIUM after-cost -30.2685 (1% RT HYP… | TESTED_FAIL | template needs external ±1 source |
 | `MIX-TV-EP-014` | Ultimate Strategy Template | 1m | NIFTY | INDEX | BOTH | 445 | INDEX proxy gross 202.3500 (≠ option P… | WATCH | template needs external ±1 source |
@@ -620,19 +620,19 @@ Fixture or cache simulation only. Empty matrix ⇒ no ported adapter fired both 
 | `MIX-TV-EP-014` | Ultimate Strategy Template | 15m | SENSEX | INDEX | BOTH | 21 | INDEX proxy gross 157.1700 (≠ option P… | WATCH | template needs external ±1 source |
 | `MIX-TV-EP-014` | Ultimate Strategy Template | 15m | SENSEX | PREMIUM | BOTH | 0 | PREMIUM after-cost 0.0000 (1% RT HYPOT… | PARK | template needs external ±1 source |
 | `MIX-TV-EP-014` | Ultimate Strategy Template | 1m | SENSEX | INDEX | BOTH | 443 | INDEX proxy gross -258.2100 (≠ option … | TESTED_FAIL | template needs external ±1 source |
-| `MIX-TV-EP-014` | Ultimate Strategy Template | 1m | SENSEX | PREMIUM | BOTH | 94 | PREMIUM after-cost -527.6290 (1% RT HY… | TESTED_FAIL | template needs external ±1 source |
+| `MIX-TV-EP-014` | Ultimate Strategy Template | 1m | SENSEX | PREMIUM | BOTH | 96 | PREMIUM after-cost -508.8945 (1% RT HY… | TESTED_FAIL | template needs external ±1 source |
 | `MIX-TV-EP-014` | Ultimate Strategy Template | 3m | SENSEX | INDEX | BOTH | 153 | INDEX proxy gross -154.9800 (≠ option … | TESTED_FAIL | template needs external ±1 source |
-| `MIX-TV-EP-014` | Ultimate Strategy Template | 3m | SENSEX | PREMIUM | BOTH | 29 | PREMIUM after-cost -260.9555 (1% RT HY… | TESTED_FAIL | template needs external ±1 source |
+| `MIX-TV-EP-014` | Ultimate Strategy Template | 3m | SENSEX | PREMIUM | BOTH | 30 | PREMIUM after-cost -284.2515 (1% RT HY… | TESTED_FAIL | template needs external ±1 source |
 | `MIX-TV-EP-014` | Ultimate Strategy Template | 5m | SENSEX | INDEX | BOTH | 84 | INDEX proxy gross 68.7000 (≠ option P/L) | WATCH | template needs external ±1 source |
 | `MIX-TV-EP-014` | Ultimate Strategy Template | 5m | SENSEX | PREMIUM | BOTH | 24 | PREMIUM after-cost 144.2430 (1% RT HYP… | WATCH | template needs external ±1 source |
 | `MIX-TV-EP-015` | Stop loss and Take Profit in $$ example | 15m | BANKNIFTY | INDEX | BOTH | 22 | INDEX proxy gross 57.4500 (≠ option P/L) | WATCH | $$ SL/TP needs mintick/pointvalue |
 | `MIX-TV-EP-015` | Stop loss and Take Profit in $$ example | 15m | BANKNIFTY | PREMIUM | BOTH | 7 | PREMIUM after-cost -229.3335 (1% RT HY… | TESTED_FAIL | $$ SL/TP needs mintick/pointvalue |
 | `MIX-TV-EP-015` | Stop loss and Take Profit in $$ example | 1m | BANKNIFTY | INDEX | BOTH | 436 | INDEX proxy gross -192.7500 (≠ option … | TESTED_FAIL | $$ SL/TP needs mintick/pointvalue |
-| `MIX-TV-EP-015` | Stop loss and Take Profit in $$ example | 1m | BANKNIFTY | PREMIUM | BOTH | 103 | PREMIUM after-cost -1127.0325 (1% RT H… | TESTED_FAIL | $$ SL/TP needs mintick/pointvalue |
+| `MIX-TV-EP-015` | Stop loss and Take Profit in $$ example | 1m | BANKNIFTY | PREMIUM | BOTH | 104 | PREMIUM after-cost -1131.1955 (1% RT H… | TESTED_FAIL | $$ SL/TP needs mintick/pointvalue |
 | `MIX-TV-EP-015` | Stop loss and Take Profit in $$ example | 3m | BANKNIFTY | INDEX | BOTH | 161 | INDEX proxy gross 279.2000 (≠ option P… | WATCH | $$ SL/TP needs mintick/pointvalue |
 | `MIX-TV-EP-015` | Stop loss and Take Profit in $$ example | 3m | BANKNIFTY | PREMIUM | BOTH | 27 | PREMIUM after-cost -272.7205 (1% RT HY… | TESTED_FAIL | $$ SL/TP needs mintick/pointvalue |
 | `MIX-TV-EP-015` | Stop loss and Take Profit in $$ example | 5m | BANKNIFTY | INDEX | BOTH | 76 | INDEX proxy gross 287.7000 (≠ option P… | WATCH | $$ SL/TP needs mintick/pointvalue |
-| `MIX-TV-EP-015` | Stop loss and Take Profit in $$ example | 5m | BANKNIFTY | PREMIUM | BOTH | 16 | PREMIUM after-cost -226.3505 (1% RT HY… | TESTED_FAIL | $$ SL/TP needs mintick/pointvalue |
+| `MIX-TV-EP-015` | Stop loss and Take Profit in $$ example | 5m | BANKNIFTY | PREMIUM | BOTH | 16 | PREMIUM after-cost -234.2790 (1% RT HY… | TESTED_FAIL | $$ SL/TP needs mintick/pointvalue |
 | `MIX-TV-EP-015` | Stop loss and Take Profit in $$ example | 15m | NIFTY | INDEX | BOTH | 21 | INDEX proxy gross 135.3500 (≠ option P… | WATCH | $$ SL/TP needs mintick/pointvalue |
 | `MIX-TV-EP-015` | Stop loss and Take Profit in $$ example | 15m | NIFTY | PREMIUM | BOTH | 12 | PREMIUM after-cost -30.2685 (1% RT HYP… | TESTED_FAIL | $$ SL/TP needs mintick/pointvalue |
 | `MIX-TV-EP-015` | Stop loss and Take Profit in $$ example | 1m | NIFTY | INDEX | BOTH | 445 | INDEX proxy gross 202.3500 (≠ option P… | WATCH | $$ SL/TP needs mintick/pointvalue |
@@ -644,19 +644,19 @@ Fixture or cache simulation only. Empty matrix ⇒ no ported adapter fired both 
 | `MIX-TV-EP-015` | Stop loss and Take Profit in $$ example | 15m | SENSEX | INDEX | BOTH | 21 | INDEX proxy gross 157.1700 (≠ option P… | WATCH | $$ SL/TP needs mintick/pointvalue |
 | `MIX-TV-EP-015` | Stop loss and Take Profit in $$ example | 15m | SENSEX | PREMIUM | BOTH | 0 | PREMIUM after-cost 0.0000 (1% RT HYPOT… | PARK | $$ SL/TP needs mintick/pointvalue |
 | `MIX-TV-EP-015` | Stop loss and Take Profit in $$ example | 1m | SENSEX | INDEX | BOTH | 443 | INDEX proxy gross -258.2100 (≠ option … | TESTED_FAIL | $$ SL/TP needs mintick/pointvalue |
-| `MIX-TV-EP-015` | Stop loss and Take Profit in $$ example | 1m | SENSEX | PREMIUM | BOTH | 94 | PREMIUM after-cost -527.6290 (1% RT HY… | TESTED_FAIL | $$ SL/TP needs mintick/pointvalue |
+| `MIX-TV-EP-015` | Stop loss and Take Profit in $$ example | 1m | SENSEX | PREMIUM | BOTH | 96 | PREMIUM after-cost -508.8945 (1% RT HY… | TESTED_FAIL | $$ SL/TP needs mintick/pointvalue |
 | `MIX-TV-EP-015` | Stop loss and Take Profit in $$ example | 3m | SENSEX | INDEX | BOTH | 153 | INDEX proxy gross -154.9800 (≠ option … | TESTED_FAIL | $$ SL/TP needs mintick/pointvalue |
-| `MIX-TV-EP-015` | Stop loss and Take Profit in $$ example | 3m | SENSEX | PREMIUM | BOTH | 29 | PREMIUM after-cost -260.9555 (1% RT HY… | TESTED_FAIL | $$ SL/TP needs mintick/pointvalue |
+| `MIX-TV-EP-015` | Stop loss and Take Profit in $$ example | 3m | SENSEX | PREMIUM | BOTH | 30 | PREMIUM after-cost -284.2515 (1% RT HY… | TESTED_FAIL | $$ SL/TP needs mintick/pointvalue |
 | `MIX-TV-EP-015` | Stop loss and Take Profit in $$ example | 5m | SENSEX | INDEX | BOTH | 84 | INDEX proxy gross 68.7000 (≠ option P/L) | WATCH | $$ SL/TP needs mintick/pointvalue |
 | `MIX-TV-EP-015` | Stop loss and Take Profit in $$ example | 5m | SENSEX | PREMIUM | BOTH | 24 | PREMIUM after-cost 144.2430 (1% RT HYP… | WATCH | $$ SL/TP needs mintick/pointvalue |
 | `MIX-TV-EP-016` | Stepped trailing strategy example | 15m | BANKNIFTY | INDEX | CE | 12 | INDEX proxy gross 162.1500 (≠ option P… | WATCH | long-only; stepped trail stages omitted |
 | `MIX-TV-EP-016` | Stepped trailing strategy example | 15m | BANKNIFTY | PREMIUM | CE | 4 | PREMIUM after-cost -148.8050 (1% RT HY… | PARK | long-only; stepped trail stages omitted |
 | `MIX-TV-EP-016` | Stepped trailing strategy example | 1m | BANKNIFTY | INDEX | CE | 222 | INDEX proxy gross -286.2000 (≠ option … | TESTED_FAIL | long-only; stepped trail stages omitted |
-| `MIX-TV-EP-016` | Stepped trailing strategy example | 1m | BANKNIFTY | PREMIUM | CE | 58 | PREMIUM after-cost -611.8815 (1% RT HY… | TESTED_FAIL | long-only; stepped trail stages omitted |
+| `MIX-TV-EP-016` | Stepped trailing strategy example | 1m | BANKNIFTY | PREMIUM | CE | 59 | PREMIUM after-cost -616.0445 (1% RT HY… | TESTED_FAIL | long-only; stepped trail stages omitted |
 | `MIX-TV-EP-016` | Stepped trailing strategy example | 3m | BANKNIFTY | INDEX | CE | 85 | INDEX proxy gross -75.3000 (≠ option P… | TESTED_FAIL | long-only; stepped trail stages omitted |
 | `MIX-TV-EP-016` | Stepped trailing strategy example | 3m | BANKNIFTY | PREMIUM | CE | 18 | PREMIUM after-cost -128.2260 (1% RT HY… | TESTED_FAIL | long-only; stepped trail stages omitted |
 | `MIX-TV-EP-016` | Stepped trailing strategy example | 5m | BANKNIFTY | INDEX | CE | 43 | INDEX proxy gross 530.3500 (≠ option P… | WATCH | long-only; stepped trail stages omitted |
-| `MIX-TV-EP-016` | Stepped trailing strategy example | 5m | BANKNIFTY | PREMIUM | CE | 10 | PREMIUM after-cost -90.6865 (1% RT HYP… | TESTED_FAIL | long-only; stepped trail stages omitted |
+| `MIX-TV-EP-016` | Stepped trailing strategy example | 5m | BANKNIFTY | PREMIUM | CE | 10 | PREMIUM after-cost -98.6150 (1% RT HYP… | TESTED_FAIL | long-only; stepped trail stages omitted |
 | `MIX-TV-EP-016` | Stepped trailing strategy example | 15m | NIFTY | INDEX | CE | 11 | INDEX proxy gross 105.7500 (≠ option P… | WATCH | long-only; stepped trail stages omitted |
 | `MIX-TV-EP-016` | Stepped trailing strategy example | 15m | NIFTY | PREMIUM | CE | 5 | PREMIUM after-cost -7.7630 (1% RT HYPO… | TESTED_FAIL | long-only; stepped trail stages omitted |
 | `MIX-TV-EP-016` | Stepped trailing strategy example | 1m | NIFTY | INDEX | CE | 232 | INDEX proxy gross 231.2000 (≠ option P… | WATCH | long-only; stepped trail stages omitted |
@@ -668,7 +668,7 @@ Fixture or cache simulation only. Empty matrix ⇒ no ported adapter fired both 
 | `MIX-TV-EP-016` | Stepped trailing strategy example | 15m | SENSEX | INDEX | CE | 11 | INDEX proxy gross 436.9800 (≠ option P… | WATCH | long-only; stepped trail stages omitted |
 | `MIX-TV-EP-016` | Stepped trailing strategy example | 15m | SENSEX | PREMIUM | CE | 0 | PREMIUM after-cost 0.0000 (1% RT HYPOT… | PARK | long-only; stepped trail stages omitted |
 | `MIX-TV-EP-016` | Stepped trailing strategy example | 1m | SENSEX | INDEX | CE | 229 | INDEX proxy gross -211.8000 (≠ option … | TESTED_FAIL | long-only; stepped trail stages omitted |
-| `MIX-TV-EP-016` | Stepped trailing strategy example | 1m | SENSEX | PREMIUM | CE | 51 | PREMIUM after-cost -147.3475 (1% RT HY… | TESTED_FAIL | long-only; stepped trail stages omitted |
+| `MIX-TV-EP-016` | Stepped trailing strategy example | 1m | SENSEX | PREMIUM | CE | 52 | PREMIUM after-cost -120.7785 (1% RT HY… | TESTED_FAIL | long-only; stepped trail stages omitted |
 | `MIX-TV-EP-016` | Stepped trailing strategy example | 3m | SENSEX | INDEX | CE | 78 | INDEX proxy gross -162.6000 (≠ option … | TESTED_FAIL | long-only; stepped trail stages omitted |
 | `MIX-TV-EP-016` | Stepped trailing strategy example | 3m | SENSEX | PREMIUM | CE | 17 | PREMIUM after-cost -130.9920 (1% RT HY… | TESTED_FAIL | long-only; stepped trail stages omitted |
 | `MIX-TV-EP-016` | Stepped trailing strategy example | 5m | SENSEX | INDEX | CE | 44 | INDEX proxy gross -240.1000 (≠ option … | TESTED_FAIL | long-only; stepped trail stages omitted |
@@ -770,13 +770,13 @@ Fixture or cache simulation only. Empty matrix ⇒ no ported adapter fired both 
 | `MIX-TV-EP-017` | PMax Explorer STRATEGY & SCREENER | 5m | SENSEX | PREMIUM | NONE | 0 | PREMIUM after-cost 0.0000 (1% RT HYPOT… | PARK | 20-ticker screener + VAR/ZLEMA MA types omitted |
 | `MIX-TV-EP-017` | PMax Explorer STRATEGY & SCREENER | 5m | SENSEX | PREMIUM | NONE | 0 | PREMIUM after-cost 0.0000 (1% RT HYPOT… | PARK | 20-ticker screener + VAR/ZLEMA MA types omitted |
 | `MIX-TV-EP-018` | Grid Like Strategy | 15m | BANKNIFTY | INDEX | BOTH | 268 | INDEX proxy gross 160.3000 (≠ option P… | WATCH | martingale qty ignored; author says don't trade |
-| `MIX-TV-EP-018` | Grid Like Strategy | 15m | BANKNIFTY | PREMIUM | BOTH | 45 | PREMIUM after-cost -258.4940 (1% RT HY… | TESTED_FAIL | martingale qty ignored; author says don't trade |
+| `MIX-TV-EP-018` | Grid Like Strategy | 15m | BANKNIFTY | PREMIUM | BOTH | 46 | PREMIUM after-cost -250.6140 (1% RT HY… | TESTED_FAIL | martingale qty ignored; author says don't trade |
 | `MIX-TV-EP-018` | Grid Like Strategy | 1m | BANKNIFTY | INDEX | BOTH | 3677 | INDEX proxy gross 1868.0000 (≠ option … | WATCH | martingale qty ignored; author says don't trade |
-| `MIX-TV-EP-018` | Grid Like Strategy | 1m | BANKNIFTY | PREMIUM | BOTH | 567 | PREMIUM after-cost -5130.3090 (1% RT H… | TESTED_FAIL | martingale qty ignored; author says don't trade |
+| `MIX-TV-EP-018` | Grid Like Strategy | 1m | BANKNIFTY | PREMIUM | BOTH | 572 | PREMIUM after-cost -5150.4430 (1% RT H… | TESTED_FAIL | martingale qty ignored; author says don't trade |
 | `MIX-TV-EP-018` | Grid Like Strategy | 3m | BANKNIFTY | INDEX | BOTH | 1271 | INDEX proxy gross -1307.9000 (≠ option… | TESTED_FAIL | martingale qty ignored; author says don't trade |
-| `MIX-TV-EP-018` | Grid Like Strategy | 3m | BANKNIFTY | PREMIUM | BOTH | 202 | PREMIUM after-cost -1352.8335 (1% RT H… | TESTED_FAIL | martingale qty ignored; author says don't trade |
+| `MIX-TV-EP-018` | Grid Like Strategy | 3m | BANKNIFTY | PREMIUM | BOTH | 204 | PREMIUM after-cost -1300.4380 (1% RT H… | TESTED_FAIL | martingale qty ignored; author says don't trade |
 | `MIX-TV-EP-018` | Grid Like Strategy | 5m | BANKNIFTY | INDEX | BOTH | 799 | INDEX proxy gross -1141.7000 (≠ option… | TESTED_FAIL | martingale qty ignored; author says don't trade |
-| `MIX-TV-EP-018` | Grid Like Strategy | 5m | BANKNIFTY | PREMIUM | BOTH | 124 | PREMIUM after-cost -861.2100 (1% RT HY… | TESTED_FAIL | martingale qty ignored; author says don't trade |
+| `MIX-TV-EP-018` | Grid Like Strategy | 5m | BANKNIFTY | PREMIUM | BOTH | 125 | PREMIUM after-cost -905.8795 (1% RT HY… | TESTED_FAIL | martingale qty ignored; author says don't trade |
 | `MIX-TV-EP-018` | Grid Like Strategy | 15m | NIFTY | INDEX | BOTH | 267 | INDEX proxy gross 46.6500 (≠ option P/L) | WATCH | martingale qty ignored; author says don't trade |
 | `MIX-TV-EP-018` | Grid Like Strategy | 15m | NIFTY | PREMIUM | BOTH | 98 | PREMIUM after-cost -71.2765 (1% RT HYP… | TESTED_FAIL | martingale qty ignored; author says don't trade |
 | `MIX-TV-EP-018` | Grid Like Strategy | 1m | NIFTY | INDEX | BOTH | 3398 | INDEX proxy gross 1027.6000 (≠ option … | WATCH | martingale qty ignored; author says don't trade |
@@ -786,13 +786,13 @@ Fixture or cache simulation only. Empty matrix ⇒ no ported adapter fired both 
 | `MIX-TV-EP-018` | Grid Like Strategy | 5m | NIFTY | INDEX | BOTH | 790 | INDEX proxy gross -646.2000 (≠ option … | TESTED_FAIL | martingale qty ignored; author says don't trade |
 | `MIX-TV-EP-018` | Grid Like Strategy | 5m | NIFTY | PREMIUM | BOTH | 178 | PREMIUM after-cost -254.2375 (1% RT HY… | TESTED_FAIL | martingale qty ignored; author says don't trade |
 | `MIX-TV-EP-018` | Grid Like Strategy | 15m | SENSEX | INDEX | BOTH | 269 | INDEX proxy gross 212.6400 (≠ option P… | WATCH | martingale qty ignored; author says don't trade |
-| `MIX-TV-EP-018` | Grid Like Strategy | 15m | SENSEX | PREMIUM | BOTH | 42 | PREMIUM after-cost 260.0610 (1% RT HYP… | WATCH | martingale qty ignored; author says don't trade |
+| `MIX-TV-EP-018` | Grid Like Strategy | 15m | SENSEX | PREMIUM | BOTH | 42 | PREMIUM after-cost 261.6770 (1% RT HYP… | WATCH | martingale qty ignored; author says don't trade |
 | `MIX-TV-EP-018` | Grid Like Strategy | 1m | SENSEX | INDEX | BOTH | 3718 | INDEX proxy gross -1532.9500 (≠ option… | TESTED_FAIL | martingale qty ignored; author says don't trade |
-| `MIX-TV-EP-018` | Grid Like Strategy | 1m | SENSEX | PREMIUM | BOTH | 557 | PREMIUM after-cost -3480.0470 (1% RT H… | TESTED_FAIL | martingale qty ignored; author says don't trade |
+| `MIX-TV-EP-018` | Grid Like Strategy | 1m | SENSEX | PREMIUM | BOTH | 563 | PREMIUM after-cost -3502.8920 (1% RT H… | TESTED_FAIL | martingale qty ignored; author says don't trade |
 | `MIX-TV-EP-018` | Grid Like Strategy | 3m | SENSEX | INDEX | BOTH | 1283 | INDEX proxy gross -3357.4600 (≠ option… | TESTED_FAIL | martingale qty ignored; author says don't trade |
-| `MIX-TV-EP-018` | Grid Like Strategy | 3m | SENSEX | PREMIUM | BOTH | 199 | PREMIUM after-cost -466.6040 (1% RT HY… | TESTED_FAIL | martingale qty ignored; author says don't trade |
+| `MIX-TV-EP-018` | Grid Like Strategy | 3m | SENSEX | PREMIUM | BOTH | 201 | PREMIUM after-cost -458.3835 (1% RT HY… | TESTED_FAIL | martingale qty ignored; author says don't trade |
 | `MIX-TV-EP-018` | Grid Like Strategy | 5m | SENSEX | INDEX | BOTH | 772 | INDEX proxy gross -1606.7100 (≠ option… | TESTED_FAIL | martingale qty ignored; author says don't trade |
-| `MIX-TV-EP-018` | Grid Like Strategy | 5m | SENSEX | PREMIUM | BOTH | 128 | PREMIUM after-cost -107.5190 (1% RT HY… | TESTED_FAIL | martingale qty ignored; author says don't trade |
+| `MIX-TV-EP-018` | Grid Like Strategy | 5m | SENSEX | PREMIUM | BOTH | 129 | PREMIUM after-cost -108.1190 (1% RT HY… | TESTED_FAIL | martingale qty ignored; author says don't trade |
 | `MIX-TV-EP-019` | Gap Filling Strategy | 15m | BANKNIFTY | INDEX | NONE | 0 | INDEX proxy gross 0.0000 (≠ option P/L) | PARK | n<5 trades; longer tape or faster public params |
 | `MIX-TV-EP-019` | Gap Filling Strategy | 15m | BANKNIFTY | PREMIUM | CE | 0 | PREMIUM after-cost 0.0000 (1% RT HYPOT… | PARK | n<5 trades; longer tape or faster public params |
 | `MIX-TV-EP-019` | Gap Filling Strategy | 1m | BANKNIFTY | INDEX | NONE | 0 | INDEX proxy gross 0.0000 (≠ option P/L) | PARK | n<5 trades; longer tape or faster public params |
@@ -822,9 +822,9 @@ Fixture or cache simulation only. Empty matrix ⇒ no ported adapter fired both 
 | `MIX-TV-EP-020` | inwCoin Martingale Strategy ( for Bitcoi… | 1m | BANKNIFTY | INDEX | NONE | 0 | INDEX proxy gross 0.0000 (≠ option P/L) | PARK | crypto martingale pyramid; long-only; 0% TV co… |
 | `MIX-TV-EP-020` | inwCoin Martingale Strategy ( for Bitcoi… | 1m | BANKNIFTY | PREMIUM | BOTH | 5 | PREMIUM after-cost -38.7810 (1% RT HYP… | TESTED_FAIL | crypto martingale pyramid; long-only; 0% TV co… |
 | `MIX-TV-EP-020` | inwCoin Martingale Strategy ( for Bitcoi… | 3m | BANKNIFTY | INDEX | CE | 1 | INDEX proxy gross 56.3500 (≠ option P/L) | PARK | crypto martingale pyramid; long-only; 0% TV co… |
-| `MIX-TV-EP-020` | inwCoin Martingale Strategy ( for Bitcoi… | 3m | BANKNIFTY | PREMIUM | BOTH | 6 | PREMIUM after-cost -75.4250 (1% RT HYP… | TESTED_FAIL | crypto martingale pyramid; long-only; 0% TV co… |
+| `MIX-TV-EP-020` | inwCoin Martingale Strategy ( for Bitcoi… | 3m | BANKNIFTY | PREMIUM | BOTH | 7 | PREMIUM after-cost -126.8505 (1% RT HY… | TESTED_FAIL | crypto martingale pyramid; long-only; 0% TV co… |
 | `MIX-TV-EP-020` | inwCoin Martingale Strategy ( for Bitcoi… | 5m | BANKNIFTY | INDEX | CE | 1 | INDEX proxy gross -12.1000 (≠ option P… | PARK | crypto martingale pyramid; long-only; 0% TV co… |
-| `MIX-TV-EP-020` | inwCoin Martingale Strategy ( for Bitcoi… | 5m | BANKNIFTY | PREMIUM | BOTH | 8 | PREMIUM after-cost -101.5180 (1% RT HY… | TESTED_FAIL | crypto martingale pyramid; long-only; 0% TV co… |
+| `MIX-TV-EP-020` | inwCoin Martingale Strategy ( for Bitcoi… | 5m | BANKNIFTY | PREMIUM | BOTH | 9 | PREMIUM after-cost -109.1530 (1% RT HY… | TESTED_FAIL | crypto martingale pyramid; long-only; 0% TV co… |
 | `MIX-TV-EP-020` | inwCoin Martingale Strategy ( for Bitcoi… | 15m | NIFTY | INDEX | NONE | 0 | INDEX proxy gross 0.0000 (≠ option P/L) | PARK | crypto martingale pyramid; long-only; 0% TV co… |
 | `MIX-TV-EP-020` | inwCoin Martingale Strategy ( for Bitcoi… | 15m | NIFTY | PREMIUM | BOTH | 19 | PREMIUM after-cost -26.7330 (1% RT HYP… | TESTED_FAIL | crypto martingale pyramid; long-only; 0% TV co… |
 | `MIX-TV-EP-020` | inwCoin Martingale Strategy ( for Bitcoi… | 1m | NIFTY | INDEX | NONE | 0 | INDEX proxy gross 0.0000 (≠ option P/L) | PARK | crypto martingale pyramid; long-only; 0% TV co… |
@@ -868,11 +868,11 @@ Fixture or cache simulation only. Empty matrix ⇒ no ported adapter fired both 
 | `MIX-TV-EP-022` | How To Set Backtest Time Ranges | 15m | BANKNIFTY | INDEX | CE | 12 | INDEX proxy gross 162.1500 (≠ option P… | WATCH | session 0000-0000 = always; long-only; 0.27% c… |
 | `MIX-TV-EP-022` | How To Set Backtest Time Ranges | 15m | BANKNIFTY | PREMIUM | CE | 4 | PREMIUM after-cost -148.8050 (1% RT HY… | PARK | session 0000-0000 = always; long-only; 0.27% c… |
 | `MIX-TV-EP-022` | How To Set Backtest Time Ranges | 1m | BANKNIFTY | INDEX | CE | 222 | INDEX proxy gross -286.2000 (≠ option … | TESTED_FAIL | session 0000-0000 = always; long-only; 0.27% c… |
-| `MIX-TV-EP-022` | How To Set Backtest Time Ranges | 1m | BANKNIFTY | PREMIUM | CE | 58 | PREMIUM after-cost -611.8815 (1% RT HY… | TESTED_FAIL | session 0000-0000 = always; long-only; 0.27% c… |
+| `MIX-TV-EP-022` | How To Set Backtest Time Ranges | 1m | BANKNIFTY | PREMIUM | CE | 59 | PREMIUM after-cost -616.0445 (1% RT HY… | TESTED_FAIL | session 0000-0000 = always; long-only; 0.27% c… |
 | `MIX-TV-EP-022` | How To Set Backtest Time Ranges | 3m | BANKNIFTY | INDEX | CE | 85 | INDEX proxy gross -75.3000 (≠ option P… | TESTED_FAIL | session 0000-0000 = always; long-only; 0.27% c… |
 | `MIX-TV-EP-022` | How To Set Backtest Time Ranges | 3m | BANKNIFTY | PREMIUM | CE | 18 | PREMIUM after-cost -128.2260 (1% RT HY… | TESTED_FAIL | session 0000-0000 = always; long-only; 0.27% c… |
 | `MIX-TV-EP-022` | How To Set Backtest Time Ranges | 5m | BANKNIFTY | INDEX | CE | 43 | INDEX proxy gross 530.3500 (≠ option P… | WATCH | session 0000-0000 = always; long-only; 0.27% c… |
-| `MIX-TV-EP-022` | How To Set Backtest Time Ranges | 5m | BANKNIFTY | PREMIUM | CE | 10 | PREMIUM after-cost -90.6865 (1% RT HYP… | TESTED_FAIL | session 0000-0000 = always; long-only; 0.27% c… |
+| `MIX-TV-EP-022` | How To Set Backtest Time Ranges | 5m | BANKNIFTY | PREMIUM | CE | 10 | PREMIUM after-cost -98.6150 (1% RT HYP… | TESTED_FAIL | session 0000-0000 = always; long-only; 0.27% c… |
 | `MIX-TV-EP-022` | How To Set Backtest Time Ranges | 15m | NIFTY | INDEX | CE | 11 | INDEX proxy gross 105.7500 (≠ option P… | WATCH | session 0000-0000 = always; long-only; 0.27% c… |
 | `MIX-TV-EP-022` | How To Set Backtest Time Ranges | 15m | NIFTY | PREMIUM | CE | 5 | PREMIUM after-cost -7.7630 (1% RT HYPO… | TESTED_FAIL | session 0000-0000 = always; long-only; 0.27% c… |
 | `MIX-TV-EP-022` | How To Set Backtest Time Ranges | 1m | NIFTY | INDEX | CE | 232 | INDEX proxy gross 231.2000 (≠ option P… | WATCH | session 0000-0000 = always; long-only; 0.27% c… |
@@ -884,7 +884,7 @@ Fixture or cache simulation only. Empty matrix ⇒ no ported adapter fired both 
 | `MIX-TV-EP-022` | How To Set Backtest Time Ranges | 15m | SENSEX | INDEX | CE | 11 | INDEX proxy gross 436.9800 (≠ option P… | WATCH | session 0000-0000 = always; long-only; 0.27% c… |
 | `MIX-TV-EP-022` | How To Set Backtest Time Ranges | 15m | SENSEX | PREMIUM | CE | 0 | PREMIUM after-cost 0.0000 (1% RT HYPOT… | PARK | session 0000-0000 = always; long-only; 0.27% c… |
 | `MIX-TV-EP-022` | How To Set Backtest Time Ranges | 1m | SENSEX | INDEX | CE | 229 | INDEX proxy gross -211.8000 (≠ option … | TESTED_FAIL | session 0000-0000 = always; long-only; 0.27% c… |
-| `MIX-TV-EP-022` | How To Set Backtest Time Ranges | 1m | SENSEX | PREMIUM | CE | 51 | PREMIUM after-cost -147.3475 (1% RT HY… | TESTED_FAIL | session 0000-0000 = always; long-only; 0.27% c… |
+| `MIX-TV-EP-022` | How To Set Backtest Time Ranges | 1m | SENSEX | PREMIUM | CE | 52 | PREMIUM after-cost -120.7785 (1% RT HY… | TESTED_FAIL | session 0000-0000 = always; long-only; 0.27% c… |
 | `MIX-TV-EP-022` | How To Set Backtest Time Ranges | 3m | SENSEX | INDEX | CE | 78 | INDEX proxy gross -162.6000 (≠ option … | TESTED_FAIL | session 0000-0000 = always; long-only; 0.27% c… |
 | `MIX-TV-EP-022` | How To Set Backtest Time Ranges | 3m | SENSEX | PREMIUM | CE | 17 | PREMIUM after-cost -130.9920 (1% RT HY… | TESTED_FAIL | session 0000-0000 = always; long-only; 0.27% c… |
 | `MIX-TV-EP-022` | How To Set Backtest Time Ranges | 5m | SENSEX | INDEX | CE | 44 | INDEX proxy gross -240.1000 (≠ option … | TESTED_FAIL | session 0000-0000 = always; long-only; 0.27% c… |
@@ -927,8 +927,8 @@ Fixture or cache simulation only. Empty matrix ⇒ no ported adapter fired both 
 | `MIX-TV-EP-023` | Grover Llorens Activator Strategy Analysis | 15m | SENSEX | PREMIUM | NONE | 0 | PREMIUM after-cost 0.0000 (1% RT HYPOT… | PARK | length=480 needs long tape |
 | `MIX-TV-EP-023` | Grover Llorens Activator Strategy Analysis | 1m | SENSEX | INDEX | BOTH | 430 | INDEX proxy gross -86.6100 (≠ option P… | TESTED_FAIL | length=480 needs long tape |
 | `MIX-TV-EP-023` | Grover Llorens Activator Strategy Analysis | 1m | SENSEX | INDEX | BOTH | 81 | INDEX proxy gross 499.5400 (≠ option P… | WATCH | length=480 needs long tape |
-| `MIX-TV-EP-023` | Grover Llorens Activator Strategy Analysis | 1m | SENSEX | PREMIUM | BOTH | 60 | PREMIUM after-cost -224.2780 (1% RT HY… | TESTED_FAIL | length=480 needs long tape |
-| `MIX-TV-EP-023` | Grover Llorens Activator Strategy Analysis | 1m | SENSEX | PREMIUM | BOTH | 9 | PREMIUM after-cost -152.6375 (1% RT HY… | TESTED_FAIL | length=480 needs long tape |
+| `MIX-TV-EP-023` | Grover Llorens Activator Strategy Analysis | 1m | SENSEX | PREMIUM | BOTH | 61 | PREMIUM after-cost -213.9650 (1% RT HY… | TESTED_FAIL | length=480 needs long tape |
+| `MIX-TV-EP-023` | Grover Llorens Activator Strategy Analysis | 1m | SENSEX | PREMIUM | BOTH | 10 | PREMIUM after-cost -154.8665 (1% RT HY… | TESTED_FAIL | length=480 needs long tape |
 | `MIX-TV-EP-023` | Grover Llorens Activator Strategy Analysis | 3m | SENSEX | INDEX | BOTH | 140 | INDEX proxy gross 100.5900 (≠ option P… | WATCH | length=480 needs long tape |
 | `MIX-TV-EP-023` | Grover Llorens Activator Strategy Analysis | 3m | SENSEX | INDEX | BOTH | 27 | INDEX proxy gross -32.1500 (≠ option P… | TESTED_FAIL | length=480 needs long tape |
 | `MIX-TV-EP-023` | Grover Llorens Activator Strategy Analysis | 3m | SENSEX | PREMIUM | BOTH | 22 | PREMIUM after-cost -317.9485 (1% RT HY… | TESTED_FAIL | length=480 needs long tape |
@@ -942,7 +942,7 @@ Fixture or cache simulation only. Empty matrix ⇒ no ported adapter fired both 
 | `MIX-TV-EP-024` | Factory calibrator — public SMA crossove… | 1m | BANKNIFTY | INDEX | BOTH | 325 | INDEX proxy gross -595.8500 (≠ option … | TESTED_FAIL | after-cost/gross ≤0; KEEP; do not promote |
 | `MIX-TV-EP-024` | Factory calibrator — public SMA crossove… | 1m | BANKNIFTY | PREMIUM | BOTH | 95 | PREMIUM after-cost -565.2860 (1% RT HY… | TESTED_FAIL | after-cost/gross ≤0; KEEP; do not promote |
 | `MIX-TV-EP-024` | Factory calibrator — public SMA crossove… | 3m | BANKNIFTY | INDEX | BOTH | 100 | INDEX proxy gross 238.3500 (≠ option P… | WATCH | lab only; OOS+NORMAL still required; NO_PROMOTE |
-| `MIX-TV-EP-024` | Factory calibrator — public SMA crossove… | 3m | BANKNIFTY | PREMIUM | BOTH | 17 | PREMIUM after-cost -30.1660 (1% RT HYP… | TESTED_FAIL | after-cost/gross ≤0; KEEP; do not promote |
+| `MIX-TV-EP-024` | Factory calibrator — public SMA crossove… | 3m | BANKNIFTY | PREMIUM | BOTH | 18 | PREMIUM after-cost -55.0100 (1% RT HYP… | TESTED_FAIL | after-cost/gross ≤0; KEEP; do not promote |
 | `MIX-TV-EP-024` | Factory calibrator — public SMA crossove… | 5m | BANKNIFTY | INDEX | BOTH | 43 | INDEX proxy gross -39.6500 (≠ option P… | TESTED_FAIL | after-cost/gross ≤0; KEEP; do not promote |
 | `MIX-TV-EP-024` | Factory calibrator — public SMA crossove… | 5m | BANKNIFTY | PREMIUM | BOTH | 10 | PREMIUM after-cost -7.4125 (1% RT HYPO… | TESTED_FAIL | after-cost/gross ≤0; KEEP; do not promote |
 | `MIX-TV-EP-024` | Factory calibrator — public SMA crossove… | 15m | NIFTY | INDEX | BOTH | 18 | INDEX proxy gross 112.7500 (≠ option P… | WATCH | lab only; OOS+NORMAL still required; NO_PROMOTE |
@@ -958,15 +958,15 @@ Fixture or cache simulation only. Empty matrix ⇒ no ported adapter fired both 
 | `MIX-TV-EP-024` | Factory calibrator — public SMA crossove… | 1m | SENSEX | INDEX | BOTH | 312 | INDEX proxy gross 274.6300 (≠ option P… | WATCH | lab only; OOS+NORMAL still required; NO_PROMOTE |
 | `MIX-TV-EP-024` | Factory calibrator — public SMA crossove… | 1m | SENSEX | PREMIUM | BOTH | 80 | PREMIUM after-cost -456.2715 (1% RT HY… | TESTED_FAIL | after-cost/gross ≤0; KEEP; do not promote |
 | `MIX-TV-EP-024` | Factory calibrator — public SMA crossove… | 3m | SENSEX | INDEX | BOTH | 87 | INDEX proxy gross 470.0300 (≠ option P… | WATCH | lab only; OOS+NORMAL still required; NO_PROMOTE |
-| `MIX-TV-EP-024` | Factory calibrator — public SMA crossove… | 3m | SENSEX | PREMIUM | BOTH | 23 | PREMIUM after-cost -270.0950 (1% RT HY… | TESTED_FAIL | after-cost/gross ≤0; KEEP; do not promote |
+| `MIX-TV-EP-024` | Factory calibrator — public SMA crossove… | 3m | SENSEX | PREMIUM | BOTH | 23 | PREMIUM after-cost -268.7315 (1% RT HY… | TESTED_FAIL | after-cost/gross ≤0; KEEP; do not promote |
 | `MIX-TV-EP-024` | Factory calibrator — public SMA crossove… | 5m | SENSEX | INDEX | BOTH | 49 | INDEX proxy gross -150.2400 (≠ option … | TESTED_FAIL | after-cost/gross ≤0; KEEP; do not promote |
 | `MIX-TV-EP-024` | Factory calibrator — public SMA crossove… | 5m | SENSEX | PREMIUM | BOTH | 12 | PREMIUM after-cost -156.7415 (1% RT HY… | TESTED_FAIL | after-cost/gross ≤0; KEEP; do not promote |
 | `MIX-TV-EP-025` | Factory calibrator — public MACD histogr… | 15m | BANKNIFTY | INDEX | BOTH | 45 | INDEX proxy gross 929.5000 (≠ option P… | WATCH | lab only; OOS+NORMAL still required; NO_PROMOTE |
 | `MIX-TV-EP-025` | Factory calibrator — public MACD histogr… | 15m | BANKNIFTY | PREMIUM | BOTH | 12 | PREMIUM after-cost 15.3100 (1% RT HYPO… | WATCH | lab only; OOS+NORMAL still required; NO_PROMOTE |
 | `MIX-TV-EP-025` | Factory calibrator — public MACD histogr… | 1m | BANKNIFTY | INDEX | BOTH | 810 | INDEX proxy gross 326.7500 (≠ option P… | WATCH | lab only; OOS+NORMAL still required; NO_PROMOTE |
-| `MIX-TV-EP-025` | Factory calibrator — public MACD histogr… | 1m | BANKNIFTY | PREMIUM | BOTH | 212 | PREMIUM after-cost -1819.5965 (1% RT H… | TESTED_FAIL | after-cost/gross ≤0; KEEP; do not promote |
+| `MIX-TV-EP-025` | Factory calibrator — public MACD histogr… | 1m | BANKNIFTY | PREMIUM | BOTH | 215 | PREMIUM after-cost -1824.4420 (1% RT H… | TESTED_FAIL | after-cost/gross ≤0; KEEP; do not promote |
 | `MIX-TV-EP-025` | Factory calibrator — public MACD histogr… | 3m | BANKNIFTY | INDEX | BOTH | 254 | INDEX proxy gross -78.1000 (≠ option P… | TESTED_FAIL | after-cost/gross ≤0; KEEP; do not promote |
-| `MIX-TV-EP-025` | Factory calibrator — public MACD histogr… | 3m | BANKNIFTY | PREMIUM | BOTH | 73 | PREMIUM after-cost -210.4255 (1% RT HY… | TESTED_FAIL | after-cost/gross ≤0; KEEP; do not promote |
+| `MIX-TV-EP-025` | Factory calibrator — public MACD histogr… | 3m | BANKNIFTY | PREMIUM | BOTH | 74 | PREMIUM after-cost -193.8595 (1% RT HY… | TESTED_FAIL | after-cost/gross ≤0; KEEP; do not promote |
 | `MIX-TV-EP-025` | Factory calibrator — public MACD histogr… | 5m | BANKNIFTY | INDEX | BOTH | 154 | INDEX proxy gross -615.2000 (≠ option … | TESTED_FAIL | after-cost/gross ≤0; KEEP; do not promote |
 | `MIX-TV-EP-025` | Factory calibrator — public MACD histogr… | 5m | BANKNIFTY | PREMIUM | BOTH | 32 | PREMIUM after-cost 36.1805 (1% RT HYPO… | WATCH | lab only; OOS+NORMAL still required; NO_PROMOTE |
 | `MIX-TV-EP-025` | Factory calibrator — public MACD histogr… | 15m | NIFTY | INDEX | BOTH | 41 | INDEX proxy gross 75.3000 (≠ option P/L) | WATCH | lab only; OOS+NORMAL still required; NO_PROMOTE |
@@ -980,9 +980,9 @@ Fixture or cache simulation only. Empty matrix ⇒ no ported adapter fired both 
 | `MIX-TV-EP-025` | Factory calibrator — public MACD histogr… | 15m | SENSEX | INDEX | BOTH | 44 | INDEX proxy gross 156.8700 (≠ option P… | WATCH | lab only; OOS+NORMAL still required; NO_PROMOTE |
 | `MIX-TV-EP-025` | Factory calibrator — public MACD histogr… | 15m | SENSEX | PREMIUM | BOTH | 8 | PREMIUM after-cost 38.4780 (1% RT HYPO… | WATCH | lab only; OOS+NORMAL still required; NO_PROMOTE |
 | `MIX-TV-EP-025` | Factory calibrator — public MACD histogr… | 1m | SENSEX | INDEX | BOTH | 809 | INDEX proxy gross -924.1500 (≠ option … | TESTED_FAIL | after-cost/gross ≤0; KEEP; do not promote |
-| `MIX-TV-EP-025` | Factory calibrator — public MACD histogr… | 1m | SENSEX | PREMIUM | BOTH | 198 | PREMIUM after-cost -760.0465 (1% RT HY… | TESTED_FAIL | after-cost/gross ≤0; KEEP; do not promote |
+| `MIX-TV-EP-025` | Factory calibrator — public MACD histogr… | 1m | SENSEX | PREMIUM | BOTH | 199 | PREMIUM after-cost -765.8340 (1% RT HY… | TESTED_FAIL | after-cost/gross ≤0; KEEP; do not promote |
 | `MIX-TV-EP-025` | Factory calibrator — public MACD histogr… | 3m | SENSEX | INDEX | BOTH | 256 | INDEX proxy gross 567.1500 (≠ option P… | WATCH | lab only; OOS+NORMAL still required; NO_PROMOTE |
-| `MIX-TV-EP-025` | Factory calibrator — public MACD histogr… | 3m | SENSEX | PREMIUM | BOTH | 70 | PREMIUM after-cost -240.1995 (1% RT HY… | TESTED_FAIL | after-cost/gross ≤0; KEEP; do not promote |
+| `MIX-TV-EP-025` | Factory calibrator — public MACD histogr… | 3m | SENSEX | PREMIUM | BOTH | 71 | PREMIUM after-cost -229.1795 (1% RT HY… | TESTED_FAIL | after-cost/gross ≤0; KEEP; do not promote |
 | `MIX-TV-EP-025` | Factory calibrator — public MACD histogr… | 5m | SENSEX | INDEX | BOTH | 134 | INDEX proxy gross 482.6800 (≠ option P… | WATCH | lab only; OOS+NORMAL still required; NO_PROMOTE |
 | `MIX-TV-EP-025` | Factory calibrator — public MACD histogr… | 5m | SENSEX | PREMIUM | BOTH | 31 | PREMIUM after-cost 95.7480 (1% RT HYPO… | WATCH | lab only; OOS+NORMAL still required; NO_PROMOTE |
 

@@ -133,7 +133,7 @@ def test_scalp_time_exit_closes_premium_pnl() -> None:
     closed_tv = [c for c in engine.closed if c["book_id"] == "MIX-TV-EP-024"]
     assert closed_tv
     reasons = {c["exit_reason"] for c in closed_tv}
-    assert reasons & {"TIME", "STOP", "TARGET", "FLATTEN_1500"}
+    assert reasons & {"TIME", "STOP", "TARGET", "FLATTEN_1500", "CANCEL_STRIKE_ROLL", "CANCEL_ADVERSE", "CANCEL_THESIS"}
     assert all(c["realized_pnl"] is not None for c in closed_tv)
     assert all("won" in c for c in closed_tv)
     assert all(c.get("atm_strike") is not None for c in closed_tv)
@@ -202,3 +202,196 @@ def test_books_do_not_share_veto_on_banknifty() -> None:
     assert engine.has_open("MIX-ML-LOGIT", "BANKNIFTY") is True
     assert engine.has_open("ML-001", "NIFTY") is False
     assert engine.has_open("ML-002", "BANKNIFTY") is False
+
+
+def test_live_session_filters_other_ist_days_and_keeps_open() -> None:
+    today = _triples(n=40)
+    yesterday = [
+        Triple(
+            ts=int(datetime(2026, 9, 15, 10, 0, tzinfo=IST).timestamp()) + i * 60,
+            idx_close=24000 + i,
+            ce_close=90 + i * 0.2,
+            pe_close=80,
+        )
+        for i in range(40)
+    ]
+    board = replay_paper_scalp(
+        underlyings=("NIFTY",),
+        triples_by_und={"NIFTY": yesterday + today},
+        write=False,
+        live_session=True,
+        session_ist_date="2026-09-10",
+        deny_model_signals=False,
+    )
+    assert board["live_session"] is True
+    assert board["session_ist_date"] == "2026-09-10"
+    assert board["overall_pnl_inr"] is not None
+    n_today = 40
+    # Yesterday bars must not inflate closed count the way full jsonl did.
+    assert board["n_closed"] < 400
+    steps = board["steps"]["NIFTY"]
+    assert steps["n_triples"] == n_today
+    if board["n_open"]:
+        assert all(t.get("status") == "OPEN_PAPER" for t in board["open_trades"])
+        assert all(t.get("side") in {"CE", "PE"} for t in board["open_trades"])
+        assert all(t.get("atm_strike") is not None for t in board["open_trades"])
+    for t in board["closed_trades"]:
+        assert t.get("result") in {"SUCCESS", "LOSS"}
+        assert t.get("status") == "CLOSED_PAPER"
+    if board["n_losses"]:
+        assert board["mistakes"]
+        assert board["money_lost_inr"] <= 0
+
+
+def test_nudge_waits_for_eight_closes() -> None:
+    from desk_ml.paper_scalp import DEFAULT_PAPER_PARAMS, nudge_paper_params
+
+    params, notes = nudge_paper_params([], DEFAULT_PAPER_PARAMS)
+    assert params["stop_frac"] == DEFAULT_PAPER_PARAMS["stop_frac"]
+    assert any("≥8" in n or ">=" in n or "8" in n for n in notes)
+
+
+def test_cancel_when_sensex_ce_dumps_under_entry() -> None:
+    from desk_ml.paper_scalp import OpenPaper, _exit_reason
+
+    pos = OpenPaper(
+        book_id="MIX-ML-LOGIT",
+        underlying="SENSEX",
+        side="CE",
+        trade_id="paper-sensex-ce",
+        entry=297.45,
+        stop=240.0,
+        target=325.0,
+        atm_strike=74300.0,
+        opened_ts=_ts(0),
+        opened_bar=1,
+        strike_source="TEST",
+        limit_price=297.45,
+    )
+    # Last ATM print recovered; 74300 CE already printed 258 in the minute.
+    reason = _exit_reason(
+        pos, 300.0, _ts(2), 3, side_low=258.0, atm_strike=74300.0
+    )
+    assert reason == "CANCEL_ADVERSE"
+
+
+def test_cancel_thesis_when_dealer_flips_confirm() -> None:
+    from desk_ml.paper_scalp import OpenPaper, _exit_reason
+
+    pos = OpenPaper(
+        book_id="MIX-ML-LOGIT",
+        underlying="SENSEX",
+        side="CE",
+        trade_id="paper-sensex-ce-thesis",
+        entry=297.45,
+        stop=280.5,
+        target=325.0,
+        atm_strike=74300.0,
+        opened_ts=_ts(0),
+        opened_bar=1,
+        strike_source="TEST",
+        limit_price=297.45,
+    )
+    reason = _exit_reason(
+        pos, 290.0, _ts(2), 3, atm_strike=74300.0, dealer_verdict="BUY_PE_CONFIRM"
+    )
+    assert reason == "CANCEL_THESIS"
+
+
+def test_cancel_when_atm_strike_rolls() -> None:
+    from desk_ml.paper_scalp import OpenPaper, _exit_reason
+
+    pos = OpenPaper(
+        book_id="MIX-DEFAULT-BUY",
+        underlying="SENSEX",
+        side="CE",
+        trade_id="paper-sensex-roll",
+        entry=297.45,
+        stop=280.5,
+        target=325.0,
+        atm_strike=74300.0,
+        opened_ts=_ts(0),
+        opened_bar=1,
+        strike_source="TEST",
+        limit_price=297.45,
+    )
+    reason = _exit_reason(pos, 280.0, _ts(2), 3, atm_strike=74400.0)
+    assert reason == "CANCEL_STRIKE_ROLL"
+
+
+def test_itm_wing_is_100pts_not_atm() -> None:
+    from desk_ml.paper_scalp import itm_wing_strikes
+
+    assert itm_wing_strikes("SENSEX", 74300.0) == {"CE": 74200.0, "PE": 74400.0}
+    assert itm_wing_strikes("NIFTY", 23250.0) == {"CE": 23150.0, "PE": 23350.0}
+
+
+def test_open_uses_itm_quote_not_atm() -> None:
+    from desk_ml.paper_scalp import BookEngine, _try_open
+
+    tick = Triple(
+        ts=_ts(10),
+        idx_close=74300.0,
+        ce_close=300.0,
+        pe_close=305.0,
+        atm_strike=74300.0,
+        itm_ce_close=450.0,
+        itm_pe_close=440.0,
+        itm_ce_strike=74200.0,
+        itm_pe_strike=74400.0,
+        wing_quotes={
+            "74200": {"ce": 450.0, "pe": 90.0},
+            "74300": {"ce": 300.0, "pe": 305.0},
+            "74400": {"ce": 90.0, "pe": 440.0},
+        },
+    )
+    engine = BookEngine()
+    _try_open(
+        engine,
+        book_id="MIX-DEFAULT-BUY",
+        underlying="SENSEX",
+        side="CE",
+        tick=tick,
+        ce_path=[450.0, 448.0, 452.0],
+        pe_path=[440.0, 442.0],
+        bar_i=10,
+        strike=74300.0,
+    )
+    pos = engine.opens[("MIX-DEFAULT-BUY", "SENSEX")]
+    assert pos.atm_strike == 74200.0
+    assert pos.strike_source == "ITM_100"
+    assert pos.entry == 450.0
+    assert pos.limit_price == 450.0
+
+
+def test_greeks_skip_low_delta_and_widen_iv_stop() -> None:
+    from desk_ml.paper_scalp import greeks_paper_adjust
+
+    skip = greeks_paper_adjust(entry=100.0, stop_frac=0.40, target_frac=0.55, delta=0.25)
+    assert skip["skip"] is True
+    assert skip["reason"] == "DELTA_TOO_LOW"
+    keep = greeks_paper_adjust(entry=100.0, stop_frac=0.40, target_frac=0.55, iv=30.0, theta=-8.0, gamma=0.02)
+    assert keep["skip"] is False
+    assert keep["stop_frac"] > 0.40
+    assert keep["target_frac"] < 0.55
+
+
+def test_pick_paper_strike_prefers_delta_band() -> None:
+    from desk_ml.paper_scalp import pick_paper_strike
+
+    tick = Triple(
+        ts=_ts(10),
+        idx_close=23250.0,
+        ce_close=80.0,
+        pe_close=70.0,
+        atm_strike=23250.0,
+        wing_quotes={
+            "23150": {"ce": 140.0, "ce_delta": 0.62, "ce_theta": -7.0, "ce_iv": 16.0, "ce_gamma": 0.002},
+            "23200": {"ce": 110.0, "ce_delta": 0.56, "ce_theta": -8.0, "ce_iv": 16.5, "ce_gamma": 0.003},
+            "23250": {"ce": 80.0, "ce_delta": 0.50, "ce_theta": -9.0, "ce_iv": 17.0, "ce_gamma": 0.004},
+            "23300": {"ce": 55.0, "ce_delta": 0.38, "ce_theta": -10.0, "ce_iv": 18.0, "ce_gamma": 0.004},
+        },
+    )
+    assert pick_paper_strike(tick, "CE", 23250.0, "NIFTY") == 23200.0
+
+

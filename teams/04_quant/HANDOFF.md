@@ -1,5 +1,55 @@
 # Handoff log — Team 04 Quant
 
+## As of now (2026-09-16) — paper greeks/IV from Dhan chain (NO_PROMOTE)
+
+```text
+From:     teams/04_quant + 03
+To:       00 / 06 / founder
+Date:     2026-09-16
+Status:   PAPER GREEKS OVERLAY / HYPOTHESIS / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: Official chain fields exist: implied_volatility +
+  greeks.delta/theta/gamma/vega (DHAN_API_END_TO_END). parse_oc now
+  keeps IV/theta/vega (was dropping IV; chain_iv.py had to reparse).
+  Paper: |delta|<0.40 skip (HAUS ~40d). IV≥25 wider stop. High
+  |theta|/entry closer target. Delta band 0.45–0.70 pick vs ITM_100.
+  STRAT-006 0.55–0.60 stays WEAK — not frozen.
+Rejected: Invented greeks. Promote from wr. Live orders. STRAT-015+.
+UNKNOWN: Whether live Dhan payload fills greeks today (null until tick).
+```
+
+## As of now (2026-09-16) — paper ITM_100 not ATM (NO_PROMOTE)
+
+```text
+From:     teams/04_quant
+To:       00 / 06 / founder
+Date:     2026-09-16
+Status:   PAPER STRIKE WING / KEEP_ALL / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: Paper scalp books use STRAT-006 ITM_100_to_200 wing (~100 pts).
+  CE ITM below ATM, PE ITM above. MTM that strike from chain wing quotes.
+Rejected: STRAT-015+. ATM-only tickets as the paper default. Live orders.
+UNKNOWN: 0.55–0.60 delta still WEAK — not frozen.
+```
+
+## As of now (2026-09-16) — session paper params from mistakes (NO_PROMOTE)
+
+```text
+From:     teams/04_quant
+To:       00 / 06 / founder
+Date:     2026-09-16
+Status:   PAPER TUNE FILE / KEEP_ALL / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: SL-hit / TIME-loss lessons write data/recon/ml_paper_session_params.json
+  (stop_frac / target_frac / hold bars). Nudge every +8 session closes.
+  Overlay books still independent of dealer.
+Rejected: Writing MIX-DEFAULT-BUY. Auto-retune production. STRAT-015+.
+UNKNOWN: Whether session overfit beats default 0.40/0.55/8 on next day OOS.
+```
+
 ## As of now (2026-09-16) — parallel paper scalpers (HOLD does not veto dealer)
 
 ```text

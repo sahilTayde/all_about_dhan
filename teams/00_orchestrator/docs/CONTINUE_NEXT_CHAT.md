@@ -36,6 +36,20 @@ Left off 2026-09-13: ITM champion PAPER board ready (MIX-CHAMP-* + desk leaderbo
 
 ---
 
+## Left-off 2026-09-16 — Dhan IV/greeks on paper overlay (NO_PROMOTE)
+
+**Now:** POST `/optionchain` documents `implied_volatility` + `greeks.delta/theta/gamma/vega`. Rollingoption = IV history, not live greeks. WS = no greeks. Paper overlay uses them when parsed: delta strike band, IV stop, theta target, gamma path. Tickets stamp greeks. **NO_PROMOTE.** No live orders. Do not restart npm. Do not git-add sqlite.
+
+**Next:** Confirm live heartbeat `itm_ce_delta` / `itm_ce_theta` / `itm_ce_iv` non-null if Dhan fills them. Do not claim wr/PnL lift.
+
+## Left-off 2026-09-16 ~live cash — IST session paper desk (founder: start now ₹10k)
+
+**Now:** Dual-tape `--paper-scalp` walks **today IST only**. Each book ₹10k. Board shows strike / limit / SL / CE|PE / OPEN|CLOSED / WIN|LOSS / money lost / **overall P/L**. Mistakes nudge `data/recon/ml_paper_session_params.json` only. **NO_PROMOTE.** No live orders. Do not restart npm. Do not git-add sqlite.
+
+**Stop:** `touch data/recon/paper_dual_tape_STOPPED.flag` and `ml_paper_scalp_STOPPED.flag`.
+
+**Next:** Watch `/pm` `/desk` `GET /paper/ml-books` until 15:30 IST flatten.
+
 ## Left-off 2026-09-16 — parallel ML paper scalpers (founder asked; NO_PROMOTE)
 
 **Now:** Independent PAPER books with entry + stop/target / 8m time-exit / 15:00 IST flatten. Monitoring dashboard is the product for this ticket. CLI `python -m desk_ml paper-scalp --replay`. Opt-in `--loop` writes `data/recon/ml_paper_dashboard.json` heartbeat. Surfaces: `/pm`, `/desk`, `GET /paper/ml-books`. Did **not** restart npm or old LLM `paper_ops`. Gate **not** `RESEARCH_READY_FOR_PROGRAMMING`.

@@ -136,6 +136,12 @@ def fixture_strikes(spot: float = 25000.0, step: float = 50.0) -> list[StrikeRow
                 pe_gamma=0.0011,
                 ce_delta=0.5 - offset * 0.08,
                 pe_delta=-0.5 + offset * 0.08,
+                ce_theta=-6.5 - abs(offset) * 0.4,
+                pe_theta=-6.2 - abs(offset) * 0.4,
+                ce_vega=8.0,
+                pe_vega=8.0,
+                ce_iv=16.0 + abs(offset) * 0.8,
+                pe_iv=16.5 + abs(offset) * 0.8,
             )
         )
     return rows

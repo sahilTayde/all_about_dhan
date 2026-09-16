@@ -138,6 +138,12 @@ def snapshot_from_dict(raw: dict[str, Any]) -> ChainSnapshot:
                 pe_gamma=row.get("pe_gamma"),
                 ce_delta=row.get("ce_delta"),
                 pe_delta=row.get("pe_delta"),
+                ce_theta=row.get("ce_theta"),
+                pe_theta=row.get("pe_theta"),
+                ce_vega=row.get("ce_vega"),
+                pe_vega=row.get("pe_vega"),
+                ce_iv=row.get("ce_iv"),
+                pe_iv=row.get("pe_iv"),
             )
         )
     return ChainSnapshot(

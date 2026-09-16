@@ -112,6 +112,12 @@ class StrikeRow:
     pe_gamma: Optional[float] = None
     ce_delta: Optional[float] = None
     pe_delta: Optional[float] = None
+    ce_theta: Optional[float] = None
+    pe_theta: Optional[float] = None
+    ce_vega: Optional[float] = None
+    pe_vega: Optional[float] = None
+    ce_iv: Optional[float] = None
+    pe_iv: Optional[float] = None
 
     @property
     def ce_oi_change(self) -> int:

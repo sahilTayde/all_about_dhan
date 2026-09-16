@@ -56,6 +56,14 @@ def _opt_float(value: Any) -> Optional[float]:
         return None
 
 
+def _opt_greek(value: Any) -> Optional[float]:
+    """Dhan sometimes sends 0.0 on unquoted wings. Missing ≠ 0 (03)."""
+    num = _opt_float(value)
+    if num is None or num == 0.0:
+        return None
+    return num
+
+
 def unwrap_chain_payload(payload: Any) -> Optional[dict[str, Any]]:
     if not isinstance(payload, dict):
         return None
@@ -118,10 +126,16 @@ def parse_oc(oc: Any) -> list[StrikeRow]:
                 pe_ltp=_opt_float(pe.get("last_price")),
                 ce_security_id=_int(ce.get("security_id")) or None,
                 pe_security_id=_int(pe.get("security_id")) or None,
-                ce_gamma=_opt_float(g_ce.get("gamma")),
-                pe_gamma=_opt_float(g_pe.get("gamma")),
-                ce_delta=_opt_float(g_ce.get("delta")),
-                pe_delta=_opt_float(g_pe.get("delta")),
+                ce_gamma=_opt_greek(g_ce.get("gamma")),
+                pe_gamma=_opt_greek(g_pe.get("gamma")),
+                ce_delta=_opt_greek(g_ce.get("delta")),
+                pe_delta=_opt_greek(g_pe.get("delta")),
+                ce_theta=_opt_greek(g_ce.get("theta")),
+                pe_theta=_opt_greek(g_pe.get("theta")),
+                ce_vega=_opt_greek(g_ce.get("vega")),
+                pe_vega=_opt_greek(g_pe.get("vega")),
+                ce_iv=_opt_greek(ce.get("implied_volatility")),
+                pe_iv=_opt_greek(pe.get("implied_volatility")),
             )
         )
     rows.sort(key=lambda r: r.strike)
@@ -544,6 +558,12 @@ def fetch_strike_buildup_1m(
                 pe_gamma=row.pe_gamma,
                 ce_delta=row.ce_delta,
                 pe_delta=row.pe_delta,
+                ce_theta=row.ce_theta,
+                pe_theta=row.pe_theta,
+                ce_vega=row.ce_vega,
+                pe_vega=row.pe_vega,
+                ce_iv=row.ce_iv,
+                pe_iv=row.pe_iv,
             )
         )
     note = (

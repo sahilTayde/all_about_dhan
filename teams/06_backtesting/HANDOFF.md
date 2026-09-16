@@ -1,5 +1,71 @@
 # Handoff log — Team 06 Backtesting
 
+## As of now (2026-09-16) — paper greeks/IV on tickets (NO_PROMOTE)
+
+```text
+From:     teams/06_backtesting + 04
+To:       00 / founder
+Date:     2026-09-16
+Status:   PAPER OVERLAY / HYPOTHESIS / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: Open/closed paper tickets stamp Dhan delta/gamma/theta/IV
+  when parsed. Strike pick prefers |delta| 0.45–0.70 ITM-side else
+  ITM_100. BACKTEST_REQUIRED vs ATM-only. Not a promote.
+Rejected: Live orders. Claiming wr/PnL lift from greeks.
+UNKNOWN: Session expectancy with greeks overlay.
+```
+
+## As of now (2026-09-16) — paper ITM_100 wing (NO_PROMOTE)
+
+```text
+From:     teams/06_backtesting + 04
+To:       00 / founder
+Date:     2026-09-16
+Status:   PAPER ITM ENTRY / HYPOTHESIS / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: Founder: stop getting stuck on ATM. Paper books now prefer
+  ~100pt ITM (CE ATM-100 / PE ATM+100) using chain LTP, not invented
+  prints. Dealer side still from INDEX vs ATM deltas. ATM fallback
+  if ITM LTP missing. STRAT-006 wing, not a new STRAT.
+Rejected: Live Super Order. MIX-DEFAULT-BUY production. Deep ITM.
+UNKNOWN: ITM vs ATM expectancy this session (BACKTEST_REQUIRED).
+```
+
+## As of now (2026-09-16) — cancel stuck paper tickets (NO_PROMOTE)
+
+```text
+From:     teams/06_backtesting + desk_ml
+To:       00 / 04 / founder
+Date:     2026-09-16
+Status:   PAPER EXIT FIX / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: Founder: SENSEX 74300 CE under 258 still OPEN. Root: 1m last
+  print + sit-until-TIME. Now cancel: minute low, 12% give-up,
+  ATM strike roll, opposite BUY_*_CONFIRM, wall-clock TIME.
+Rejected: Live Super Order. MIX-DEFAULT-BUY write.
+UNKNOWN: Chain ATM LTP vs Dhan 74300 CE quote mismatch (~300 vs ~258).
+```
+
+## As of now (2026-09-16) — live IST session paper desk (NO_PROMOTE)
+
+```text
+From:     teams/06_backtesting + desk_ml
+To:       00 / 04 / 07 / founder
+Date:     2026-09-16
+Status:   PAPER LIVE SESSION / UNVALIDATED / NO_PROMOTE / BACKTEST_REQUIRED
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: dual-tape --paper-scalp now walks TODAY IST ticks only
+  (not full jsonl). ₹10k/book. OPEN kept (no REPLAY_END flatten).
+  Dashboard: strike/limit/SL/CE|PE/status/WIN|LOSS/money lost/overall P/L.
+  Mistakes → session paper_params only. MIX-DEFAULT-BUY not written.
+Rejected: Live Super Orders. Promote from session wr. git-add sqlite.
+UNKNOWN: How many aligned 1m triples exist for 2026-09-16 until close.
+```
+
 ## As of now (2026-09-16) — paper-scalp closed premium board (NO_PROMOTE)
 
 ```text

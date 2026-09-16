@@ -71,6 +71,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="Restore overlay SKIP (HOLD / meta-label). Default: do not deny paper CE/PE.",
     )
     ps.add_argument("--no-write", action="store_true")
+    ps.add_argument(
+        "--live-session",
+        action="store_true",
+        help="Walk TODAY IST ticks only; keep OPEN rows; session P/L (default for dual-tape loop).",
+    )
     return p
 
 
@@ -152,12 +157,14 @@ def main(argv: Optional[list[str]] = None) -> int:
                 tick_seconds=int(args.tick_seconds),
                 max_ticks=int(args.max_ticks),
                 source=str(args.source),
+                live_session=True,
             )
             public = {k: report[k] for k in report if k not in {"closed_trades"}}
             public["n_closed"] = len(report.get("closed_trades") or [])
             public["leaderboard"] = report.get("leaderboard")
             _print(public)
             return 0
+        live = bool(args.live_session) or str(args.source).strip().lower() in {"dual-tape", "dual_tape"}
         report = replay_paper_scalp(
             root=root,
             underlyings=names or ("NIFTY",),
@@ -165,6 +172,7 @@ def main(argv: Optional[list[str]] = None) -> int:
             write=not bool(args.no_write),
             max_closes=int(args.max_closes or 0),
             deny_model_signals=bool(args.deny_signals),
+            live_session=live,
         )
         public = {
             k: report.get(k)
@@ -192,6 +200,10 @@ def main(argv: Optional[list[str]] = None) -> int:
         }
         public["n_closed"] = len(report.get("closed_trades") or [])
         public["n_open"] = len(report.get("open_trades") or [])
+        public["overall_pnl_inr"] = report.get("overall_pnl_inr")
+        public["money_lost_inr"] = report.get("money_lost_inr")
+        public["live_session"] = report.get("live_session")
+        public["session_ist_date"] = report.get("session_ist_date")
         public["data_gaps"] = (report.get("inventory") or {}).get("data_gaps")
         public["steps_status"] = {
             u: (s or {}).get("status") for u, s in (report.get("steps") or {}).items()

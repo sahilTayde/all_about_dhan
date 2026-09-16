@@ -40,6 +40,10 @@ def _minute_key(ts: int) -> int:
     return int(ts) - (int(ts) % 60)
 
 
+def ist_calendar_date(ts: int) -> str:
+    return datetime.fromtimestamp(int(ts), tz=IST).date().isoformat()
+
+
 def parse_ts(raw: Any) -> Optional[int]:
     if raw is None:
         return None
@@ -257,16 +261,47 @@ def _snap_ltps(snap: dict[str, Any]) -> Optional[tuple[float, float, float]]:
     return idx, ce, pe
 
 
+def _opt_float(raw: Any) -> Optional[float]:
+    if raw is None:
+        return None
+    try:
+        return float(raw)
+    except (TypeError, ValueError):
+        return None
+
+
+def _snap_row(snap: dict[str, Any], as_of: Optional[int]) -> Optional[dict[str, Any]]:
+    ltps = _snap_ltps(snap)
+    if ltps is None:
+        return None
+    ts = parse_ts(snap.get("as_of_ist")) or as_of
+    if ts is None:
+        return None
+    return {
+        "ts": _minute_key(ts),
+        "idx": ltps[0],
+        "ce": ltps[1],
+        "pe": ltps[2],
+        "atm_strike": _opt_float(snap.get("atm_strike")),
+        "itm_ce": _opt_float(snap.get("itm_ce_ltp")),
+        "itm_pe": _opt_float(snap.get("itm_pe_ltp")),
+        "itm_ce_strike": _opt_float(snap.get("itm_ce_strike")),
+        "itm_pe_strike": _opt_float(snap.get("itm_pe_strike")),
+        "wing_quotes": snap.get("wing_quotes") if isinstance(snap.get("wing_quotes"), dict) else {},
+    }
+
+
 def load_dual_tape_triples(
     underlying: str,
     *,
     root: Optional[Path] = None,
+    session_ist_date: Optional[str] = None,
 ) -> tuple[list[Triple], dict[str, Any]]:
     """Consecutive dual-tape ticks with INDEX + ATM CE + ATM PE LTP. Paper gather only."""
     base = root or repo_root()
     folder = dual_tape_dir(base)
     und = underlying.upper()
-    ticks: list[tuple[int, float, float, float]] = []
+    ticks: list[dict[str, Any]] = []
     files: list[Path] = []
     if folder.is_dir():
         files = sorted(folder.glob("*.jsonl"))
@@ -304,26 +339,81 @@ def load_dual_tape_triples(
                     continue
                 if str(snap.get("underlying") or "").upper() != und:
                     continue
-                ltps = _snap_ltps(snap)
-                if ltps is None:
+                row = _snap_row(snap, as_of)
+                if row is None:
                     continue
-                ts = parse_ts(snap.get("as_of_ist")) or as_of
-                if ts is None:
-                    continue
-                key = (_minute_key(ts),) + ltps
+                key = (row["ts"], row["idx"], row["ce"], row["pe"])
                 if key in seen:
                     continue
                 seen.add(key)
-                ticks.append((_minute_key(ts), ltps[0], ltps[1], ltps[2]))
-    by_min: dict[int, tuple[int, float, float, float]] = {}
+                ticks.append(row)
+    by_min: dict[int, dict[str, Any]] = {}
     for row in ticks:
-        by_min[row[0]] = row
+        ts = int(row["ts"])
+        prev = by_min.get(ts)
+        if prev is None:
+            by_min[ts] = {
+                **row,
+                "ce_low": row["ce"],
+                "pe_low": row["pe"],
+                "itm_ce_low": row.get("itm_ce"),
+                "itm_pe_low": row.get("itm_pe"),
+            }
+            continue
+        prev["idx"] = row["idx"]
+        prev["ce"] = row["ce"]
+        prev["pe"] = row["pe"]
+        prev["ce_low"] = min(float(prev["ce_low"]), float(row["ce"]))
+        prev["pe_low"] = min(float(prev["pe_low"]), float(row["pe"]))
+        if row.get("atm_strike") is not None:
+            prev["atm_strike"] = row["atm_strike"]
+        if row.get("itm_ce") is not None:
+            prev["itm_ce"] = row["itm_ce"]
+            prev["itm_ce_low"] = (
+                min(float(prev["itm_ce_low"]), float(row["itm_ce"]))
+                if prev.get("itm_ce_low") is not None
+                else row["itm_ce"]
+            )
+        if row.get("itm_pe") is not None:
+            prev["itm_pe"] = row["itm_pe"]
+            prev["itm_pe_low"] = (
+                min(float(prev["itm_pe_low"]), float(row["itm_pe"]))
+                if prev.get("itm_pe_low") is not None
+                else row["itm_pe"]
+            )
+        if row.get("itm_ce_strike") is not None:
+            prev["itm_ce_strike"] = row["itm_ce_strike"]
+        if row.get("itm_pe_strike") is not None:
+            prev["itm_pe_strike"] = row["itm_pe_strike"]
+        if row.get("wing_quotes"):
+            prev["wing_quotes"] = row["wing_quotes"]
     ordered = [by_min[k] for k in sorted(by_min)]
-    triples = [Triple(ts=t, idx_close=i, ce_close=c, pe_close=p) for t, i, c, p in ordered]
+    triples = [
+        Triple(
+            ts=int(row["ts"]),
+            idx_close=float(row["idx"]),
+            ce_close=float(row["ce"]),
+            pe_close=float(row["pe"]),
+            atm_strike=row.get("atm_strike"),
+            ce_low=float(row["ce_low"]),
+            pe_low=float(row["pe_low"]),
+            itm_ce_close=row.get("itm_ce"),
+            itm_pe_close=row.get("itm_pe"),
+            itm_ce_strike=row.get("itm_ce_strike"),
+            itm_pe_strike=row.get("itm_pe_strike"),
+            itm_ce_low=row.get("itm_ce_low"),
+            itm_pe_low=row.get("itm_pe_low"),
+            wing_quotes=row.get("wing_quotes") or None,
+        )
+        for row in ordered
+    ]
+    if session_ist_date:
+        triples = [t for t in triples if ist_calendar_date(int(t.ts)) == session_ist_date]
     meta: dict[str, Any] = {
         "underlying": und,
         "source": "dual_tape_jsonl",
         "aligned_triples": len(triples),
+        "session_ist_date": session_ist_date,
         "live_dhan": False,
         "execution": "refused",
     }
