@@ -21,6 +21,8 @@ Do not glob markdown. Do not create extra CONTINUE/HANDOFF/NOTES dumps.
 
 Gate: NOT RESEARCH_READY_FOR_PROGRAMMING. PAPER only. NO_PROMOTE. STRATs UNVALIDATED. Dashboard P/L is MOCK. No live orders. Do not restart npm / Vite / paper ops until I ask. Never print secrets.
 
+Left off 2026-09-16 ~11:20 IST: founder OPERATING PLAN frozen (three clocks). Product during cash hours = parallel PAPER books with round-trip P/L, not dealer OPEN_PAPER spray. Dual-tape stays the one live feed. NO_PROMOTE. Local sqlite — do not git-add.
+
 Left off 2026-09-16 ~10:38 IST: deleted run_news_analyst / run_sentiment_analyst. Dual-tape is the paper bot. NO_PROMOTE. Local sqlite — do not git-add.
 
 Left off 2026-09-15 (next chat): pre-market readiness. At 09:15 IST run paper dual-tape + desk_ml overlay. NO_PROMOTE. OpenAI ACCEPT_WITH_CAVEATS is paper only. No Super Orders. No live orders. Local sqlite — do not git-add.
@@ -29,6 +31,73 @@ Left off 2026-09-13: ITM champion PAPER board ready (MIX-CHAMP-* + desk leaderbo
 ```
 
 ---
+
+## Left-off 2026-09-16 ~11:20 IST — founder operating plan (PAPER books = product)
+
+**Now:** Dual-tape can book `OPEN_PAPER` with live INDEX+ATM (`--paper-train`) but **`realized_pnl` is always null** — no stop/target/time-exit on that path. Concurrent ML / TV-EP / signal_lab / STRAT PIDs **were started** (see `data/recon/founder_live_loops.json` 06:56 IST). They **score or retune-propose**; they are **not** four round-trip paper books on the same tape. Old LLM `paper_ops` stays STOPPED. Gate **not** `RESEARCH_READY_FOR_PROGRAMMING`. **NO_PROMOTE.**
+
+**Why the founder is right:** cash hours were spent on dealer dual-tape *opens* and HOLD notes. A strategy is not the product until it can **enter and exit** on live quotes so a **closed-premium P/L** exists. Win-rate claims stay forbidden.
+
+**Next (only if founder says go):** first implementation slice = **exits on dual-tape** (stop/target or 15:00 IST time-exit; one open paper position per underlying; persist ATM strike on the ledger) **then** score **bound** MIX/STRAT on that same tape. Do not code until asked.
+
+### Three clocks (IST)
+
+| Clock | When | Founder does | Machine does | Must not |
+|-------|------|--------------|--------------|----------|
+| **PRE** | before 09:15 | Confirm token + overnight files exist | Load overnight **paper** params (`data/recon/tv_ep_paper_params_*.json`, desk_ml cache). `python -m desk_intel pre-market` (live data ok). Arm dual-tape waiter for 09:15 `--live-chain --tick-seconds 45 --paper-train` + overlay 90s. Canvas monitor ok. | Write `MIX-DEFAULT-BUY` production. Restart old LLM `paper_ops`. Start npm unless asked. Super Orders. |
+| **OPEN** | 09:15–15:30 cash; **directional paper 09:30–15:00** | Watch one board. Ignore open spray. | **One** live dual-tape. **Parallel paper books** (same quotes): dealer, ML overlay, TV-EP shortlist, **bound** STRAT/MIX only. Each book: ENTRY + STOP/TARGET **or** time-exit so P/L can exist. Leaderboard = **CLOSED** paper premium P/L only. Zero blocking LLM on 45s path. | Live fills. 14 unbound STRATs as live books. Rank by open tickets or confirm-note count. Invent Dhan quotes. |
+| **POST** | after 15:30 (yaml nightly ~15:40) | Read recon + mistakes | Flatten remaining paper at close if still OPEN. `python -m jobs post-market` / `desk_intel nightly`. `agent_rag eod-recon`. Emit `RETUNE_PROPOSAL` **BACKTEST_REQUIRED**. Overnight tune writes **paper files only**. Next day PRE loads those files. | Auto-retune production. `production_params_written=true`. git-add sqlite. Treat one session as a promote. |
+
+Stop flags: `paper_dual_tape_STOPPED.flag` · `founder_eval_STOPPED.flag`. Old: `paper_ops_STOPPED.flag` (leave it).
+
+### Honest inventory (runs vs dry vs missing)
+
+| Lane | What actually runs today | Bound vs dry | Missing for a fair session |
+|------|--------------------------|--------------|----------------------------|
+| **Feed** | Dual-tape `--live-chain` 45s, `llm: false`, orders refused. Ticks → JSONL + sqlite `dual_tape_ticks`. | Live Dhan INDEX+ATM when token alive. | Not a second feed. |
+| **Dealer book** | `--paper-train` appends `PAPER_TRADE` `OPEN_PAPER` on CE/PE when `allow_new_paper_ce_pe`. | Spray opens; dealer HOLD still notes. | **Exits.** One-position-per-name. Strike on ledger. `realized_pnl`. |
+| **ML overlay** | `desk_ml overlay` after tick + founder `loop_ml` (book-tune / fit / mrr-fit / score). | Labels HOLD/WATCH. IsolationForest = anomaly HOLD not BUY. ML-002 window 90 often `DATA_INSUFFICIENT`. | Own closed paper book (entry/exit vs ATM LTP). |
+| **TV-EP** | `loop_tv`: `tv-ep-paper-tune` NIFTY + factory grid. Catalog MIX-TV-EP-001–025 KEEP_ALL. | Historical/cache grid ≠ today premium. Session tune **does not** write MIX-DEFAULT-BUY production. Shortlist that has fired mock tickets before: **018, 010, 009, DEFAULT-BUY** (0 wins claimed). Most others 0 trades (lookback / US-crypto / unported). | Closed **premium** P/L on **today’s** dual-tape, not INDEX-proxy WATCH cells. |
+| **signal_lab** | Replays fixed days `2026-09-10/11/15`. | Historical lab, **not** live session book. | Park during OPEN or retarget to today tape. |
+| **STRAT/MIX loop** | `loop_strat`: print `EVALUATOR_BINDS` + `backtest_engine --dry-run` project/scan/option/books. | **Dry.** Not a live book. | Bind only available evaluators to dual-tape (below). |
+| **Old LLM B** | `paper_ops_STOPPED.flag`. News/sentiment agents **deleted**. | Stopped. | Do **not** restart this week. |
+
+**Paper binders that may score (available=True)** — still HYPOTHESIS / NO_PROMOTE, **not** all 14 STRATs:
+
+- MIX: `MIX-DEFAULT-BUY`, `MIX-TA-FLOW-RISK`, `MIX-TA-EVENT-HOLD`, `MIX-TA-EXEC-SANITY`, `MIX-TA-MARKET-HOURS`, `MIX-LEAN-SPOT-ATM`, `MIX-IMPULSE-1M`, `MIX-003-INDEX-PROXY`, `MIX-006-INDEX-PROXY`, `MIX-PCR-EXTREME-HOLD`, `MIX-SELL-CREDIT-PARK`, `MIX-DUAL-INDEX-MASTER`
+- STRAT **bound:** `003` (inherits default mix lean — proxy, not a separate bar pass), `007`/`008`/`009` (**filters** from ticket text, not standalone buy books), `013`/`014` (**seller park** — never a buy entry)
+- STRAT **unbound (KEEP_ALL, one aggregate DI — do not fire as live books):** `001`, `002`, `004`, `005`, `006`, `010`, `011`, `012`
+
+Working-path catalog (04): bound scoring path ≈ `MIX-DEFAULT-BUY` + STRAT-003/007/008/009 + `MIX-TA-*` + `MIX-LEAN-*`. `MIX-CLUB-GR` PARKED off confidence (not killed). No STRAT-015+.
+
+### Parallel vs park (OPEN)
+
+**Run in parallel (one tape):** dual-tape feed · dealer paper book (once exits exist) · ML score/overlay (labels until it has a book) · TV-EP **shortlist only** (018/010/009 + DEFAULT-BUY; KEEP_ALL catalog stays on disk) · bound MIX-LEAN / MIX-003-INDEX-PROXY if they emit CE/PE with an exit rule.
+
+**Park this week:** unbound STRAT-001/002/004/005/006/010/011/012 as live books · STRAT-013/014 buy · Okala/CF · full 912-cell TV-EP grid during cash hours (POST/overnight only) · signal_lab historic days during OPEN · LLM market-hours · live Super Orders · npm unless founder asks.
+
+### Leaderboard (definition)
+
+| Rule | Detail |
+|------|--------|
+| **Metric** | Sum of **closed** paper **option-premium** P/L (exit − entry on ATM CE or PE LTP from the live tape), 1 lot shadow, costs tagged HYPOTHESIS until 06 says otherwise. |
+| **Unit** | One row per **book** (dealer / ML / TV-EP-id / bound MIX-id), per underlying, per IST session. |
+| **When it updates** | On **CLOSE** (stop, target, or 15:00 time-exit). Open `OPEN_PAPER` rows **do not** rank. |
+| **Not the score** | Confirm-note count, win %, IsolationForest HOLD, INDEX-proxy grid WATCH, dry `--dry-run` books, ITM champion **historical** `/desk` board. |
+| **Honesty** | `win_rate=null` on catalog. Rank ≠ promote. Same quotes for every book. Missing strike / invented fill ⇒ row is invalid, not a win. |
+
+Existing `TV_EP_LEADERBOARD.md` / factory grid is **cache/fixture**, INDEX proxy ≠ option P/L. Session board must be a **new** closed-premium table (recon JSON), not that markdown as proof.
+
+### First slice if founder says go
+
+1. Dual-tape: mark-to-market OPEN rows; stop/target **or** 15:00 flatten; one open per underlying; write `atm_strike` + `exit` + `realized_pnl`.
+2. Attach bound MIX/STRAT-003 lean as **separate book ids** on the **same** tick — still paper, still NO_PROMOTE.
+3. Session leaderboard JSON from closed rows only.
+4. POST: nightly + `RETUNE_PROPOSAL BACKTEST_REQUIRED`; overnight params stay under `data/recon/`.
+
+### Will NOT do this week
+
+Live Super Orders / `ExecutionClient` · promote / `RESEARCH_READY_FOR_PROGRAMMING` · 14 unbound STRATs as live books · LLM market-hours restart · auto-retune MIX-DEFAULT-BUY · git-add `trading_agents_india.sqlite` · invent fills/quotes/win rates · blocking LLM on 45s path.
 
 ## Left-off 2026-09-16 ~10:25 IST — feed monitor on existing loop (NO_PROMOTE)
 

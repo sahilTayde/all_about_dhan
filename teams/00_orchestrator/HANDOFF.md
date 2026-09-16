@@ -2,6 +2,39 @@
 
 **Agents:** read **only the newest block**. Do not ingest this whole log. New files: [`docs/FILE_CREATION.md`](../../docs/FILE_CREATION.md). Append here — do not create `HANDOFF_TOMORROW.md` or extra `CONTINUE_*`.
 
+## As of now (2026-09-16 ~11:20 IST) — founder operating plan (three clocks)
+
+```text
+From:     teams/00_orchestrator (founder desk)
+To:       founder / 04 / 06 / 05 / 07 / 09
+Date:     2026-09-16 ~11:20 IST
+Status:   PAPER / HYPOTHESIS / NO_PROMOTE / ORDERS REFUSED / BACKTEST_REQUIRED
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: Operating plan frozen in CONTINUE_NEXT_CHAT (left-off 11:20 IST).
+  Product in cash hours = parallel PAPER books with ENTRY+exit so closed
+  premium P/L exists. ONE live dual-tape. PRE load overnight paper params
+  only (no MIX-DEFAULT-BUY write). OPEN 09:30–15:00 directional. POST
+  nightly RETUNE_PROPOSAL BACKTEST_REQUIRED; no auto-retune.
+  Bound only: MIX-DEFAULT-BUY + MIX-TA-* + MIX-LEAN-* / 003-proxy / 006-proxy
+  / PCR-HOLD / SELL-CREDIT-PARK / DUAL-INDEX-MASTER; STRAT-003 lean inherit;
+  007/008/009 filters; 013/014 seller park. Unbound 001/002/004/005/006/
+  010/011/012 stay KEEP_ALL as one aggregate DI — not live books.
+  First slice IF founder says go: dual-tape exits + one-position-per-name
+  + strike on ledger + score bound books on same tape + closed-P/L board.
+Rejected: Code this turn (plan freeze only). Live Super Orders /
+  ExecutionClient. 14 unbound STRATs as session books. LLM paper_ops
+  restart. Win-rate claims. Ranking OPEN_PAPER spray. git-add sqlite.
+  Treating TV-EP factory INDEX-proxy WATCH as today's option P/L.
+UNKNOWN: Session close clock still VERIFY (15:30 vs 15:40). Token
+  expiry without refresh CLI. Whether ML-002 window 90 fills on a full
+  dual-tape day.
+Honest now: dual-tape OPEN_PAPER realized_pnl=null (no sell/stop/target).
+  ML/TV/slab/strat PIDs were started (founder_live_loops.json) — ML/TV
+  score-tune; slab historic; strat dry-run. Fair leaderboard MISSING.
+Doc:      teams/00_orchestrator/docs/CONTINUE_NEXT_CHAT.md
+```
+
 ## As of now (2026-09-16 ~10:38 IST) — delete unused B news/sentiment functions
 
 ```text
