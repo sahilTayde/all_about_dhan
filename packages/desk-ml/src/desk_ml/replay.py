@@ -109,6 +109,8 @@ def replay_hold(
     ml001_flags: list[bool] = []
     ml002_flags: list[bool] = []
     union_flags: list[bool] = []
+    diverge_flags: list[bool] = []
+    union_no_gap_flags: list[bool] = []
     straddles: list[Optional[float]] = []
     n = len(rows)
     for i, row in enumerate(rows):
@@ -122,6 +124,7 @@ def replay_hold(
         scored = score_features_dict(feat, bundle)
         gap = premium_divergence_pattern(row["idx_ret"], row["ce_ret"], row["pe_ret"])
         ml001 = scored.get("overlay") == OVERLAY_HOLD
+        diverge_only = scored.get("regime") == "DIVERGE"
         z_hold = False
         pref_w = int(list(windows)[:3][-1]) if windows else 90
         zs = zs_by_window.get(pref_w) or []
@@ -131,6 +134,8 @@ def replay_hold(
         ml001_flags.append(ml001)
         ml002_flags.append(z_hold)
         union_flags.append(gap or ml001 or z_hold)
+        diverge_flags.append(diverge_only)
+        union_no_gap_flags.append(diverge_only or z_hold)
         straddles.append(straddle)
 
     rules = [
@@ -138,6 +143,8 @@ def replay_hold(
         _bucket("ML-001_HOLD", ml001_flags, straddles),
         _bucket("ML-002_Z>=2", ml002_flags, straddles),
         _bucket("UNION_HOLD", union_flags, straddles),
+        _bucket("DIVERGE_ONLY", diverge_flags, straddles),
+        _bucket("UNION_NO_FOLLOW_GAP", union_no_gap_flags, straddles),
     ]
     return {
         "ok": True,

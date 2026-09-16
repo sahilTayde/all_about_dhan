@@ -79,6 +79,27 @@ python -m desk_ml replay-hold --underlying NIFTY --horizon-bars 15
 
 **replay-hold (2026-09-16, NIFTY cache 599 triples):** 15m ATM straddle fwd. FOLLOW_GAP / ML-001 HOLD n=133: mean **+0.29%** when HOLD vs **−0.18%** when not. ML-002 |z|≥2 n=30: **+0.26%** vs **−0.09%**. UNION n=140 similar. On **this** join, HOLD fired on bars that then recovered and **did not** fire on bars that then bled. Diagnostic only. `win_rate=null`. **NO_PROMOTE.**
 
+## replay-hold ablation 2026-09-16 (second pass, same 599 triples)
+
+Same join: INDEX ∩ ATM CE ∩ ATM PE IST **2026-09-09 → 2026-09-10** only (`n_scored=583`, horizon 15m). ATM day files exist for **09-11 / 09-15 / 09-16** but **do not join** because INDEX 1m JSON last bar is **2026-09-03** and warehouse INDEX 1m last bar is **2026-09-10T07:28Z**. File needed: `ohlc_bars` 1m INDEX (or `INDEX_IDX_I_{13,25,51}_1_*.json`) covering 2026-09-11…16. `win_rate=null`. **NO_PROMOTE.**
+
+| Underlying | Rule | n_hold | mean straddle fwd HOLD | mean NOT HOLD |
+|------------|------|-------:|-----------------------:|--------------:|
+| NIFTY | FOLLOW_GAP / ML-001_HOLD | 133 | +0.293% | −0.182% |
+| NIFTY | ML-002 \|z\|≥2 | 30 | +0.264% | −0.092% |
+| NIFTY | DIVERGE_ONLY | 27 | +0.733% | −0.113% |
+| NIFTY | UNION_NO_FOLLOW_GAP | 52 | +0.485% | −0.129% |
+| BANKNIFTY | FOLLOW_GAP / ML-001_HOLD | 178 | −0.076% | −0.055% |
+| BANKNIFTY | ML-002 \|z\|≥2 | 25 | +0.181% | −0.072% |
+| BANKNIFTY | DIVERGE_ONLY | 47 | +0.112% | −0.076% |
+| SENSEX | FOLLOW_GAP / ML-001_HOLD | 191 | −0.359% | −0.848% |
+| SENSEX | ML-002 \|z\|≥2 | 33 | −0.337% | −0.708% |
+| SENSEX | DIVERGE_ONLY | 38 | +0.036% | −0.738% |
+
+HOLD is “useful” only if HOLD mean is **more negative** (bleed avoided). NIFTY is inverted. BANKNIFTY FOLLOW_GAP is only a hair more negative. SENSEX HOLD bars bled **less** than trade-through bars. Ablation `DIVERGE_ONLY` / `UNION_NO_FOLLOW_GAP` did **not** flip NIFTY. Keep all rules; do not delete ML-002 (BN/SX OU still `NOT_MEAN_REVERTING` / preferred window `DATA_INSUFFICIENT`).
+
+BANKNIFTY `mrr-fit` this pass: φ=−0.179, preferred window **DATA_INSUFFICIENT**. Row stays.
+
 Pytest: `python -m pytest packages/desk-ml/tests -q`
 
 KEEP_ALL STRAT-001–014. MIX-DEFAULT-BUY unchanged.

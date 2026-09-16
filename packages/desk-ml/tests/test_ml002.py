@@ -59,7 +59,14 @@ def test_replay_hold_no_win_rate() -> None:
     assert report["promote"] is False
     assert report["production_params_written"] is False
     names = {r["rule"] for r in report["rules"]}
-    assert names == {"FOLLOW_GAP", "ML-001_HOLD", "ML-002_Z>=2", "UNION_HOLD"}
+    assert names == {
+        "FOLLOW_GAP",
+        "ML-001_HOLD",
+        "ML-002_Z>=2",
+        "UNION_HOLD",
+        "DIVERGE_ONLY",
+        "UNION_NO_FOLLOW_GAP",
+    }
     assert report["n_scored"] > 0
 
 
