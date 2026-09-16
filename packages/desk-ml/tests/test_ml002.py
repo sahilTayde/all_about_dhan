@@ -50,6 +50,19 @@ def test_ou_mean_reverting_ar1() -> None:
     assert out["half_life_bars"] > 0
 
 
+def test_replay_hold_no_win_rate() -> None:
+    from desk_ml.replay import replay_hold
+
+    report = replay_hold("NIFTY", triples=_triples())
+    assert report["ok"] is True
+    assert report["win_rate"] is None
+    assert report["promote"] is False
+    assert report["production_params_written"] is False
+    names = {r["rule"] for r in report["rules"]}
+    assert names == {"FOLLOW_GAP", "ML-001_HOLD", "ML-002_Z>=2", "UNION_HOLD"}
+    assert report["n_scored"] > 0
+
+
 def test_mrr_fit_three_windows_no_promote() -> None:
     report = mrr_fit_underlying("NIFTY", persist=False, triples=_triples())
     assert report["ok"] is True

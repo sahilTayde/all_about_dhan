@@ -1,5 +1,21 @@
 # Handoff log — Team 06 Backtesting
 
+## As of now (2026-09-16) — ML replay-hold diagnostic (NO_PROMOTE)
+
+```text
+From:     teams/06_backtesting + desk_ml
+To:       00 / 04 / founder
+Date:     2026-09-16
+Status:   HYPOTHESIS / CACHE REPLAY / NO_PROMOTE / BACKTEST_REQUIRED
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: replay-hold on NIFTY recon join (599 triples). HOLD vs 15m
+  ATM straddle. Result inverted on this tape (HOLD then recovered).
+  Tests 28 passed. MIX-DEFAULT-BUY not written.
+Rejected: Promote. Win rate. Live orders.
+UNKNOWN: BANKNIFTY/SENSEX replay; second session; flag PAPER_TRAIN_NO_DENY off.
+```
+
 ## As of now (2026-09-15 ~10:45 IST) — TV-EP / STRAT / Okala paper loops (NO_PROMOTE)
 
 ```text

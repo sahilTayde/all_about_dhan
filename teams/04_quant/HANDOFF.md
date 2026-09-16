@@ -1,5 +1,26 @@
 # Handoff log — Team 04 Quant
 
+## As of now (2026-09-16) — ML bucket first (HOLD overlay, not buy)
+
+```text
+MIX / STRAT: ML-001, ML-002, MIX-FORM-*, MIX-ML-LOGIT* (scan not coded)
+Origin tags: PROJECT-DERIVED overlays. Not DHAN-DERIVED. Not STRAT-015+.
+Entry hypothesis: none. Overlays do not enter.
+Confirm-or-kill: FOLLOW-GAP / DIVERGE / residual IF / |z|≥2 → HOLD new paper CE/PE.
+Hold / veto rules: session_action=HOLD. PAPER_TRAIN_NO_DENY bypasses this (do not use when tuning).
+Feasibility rules: need ≥2 INDEX+ATM CE+PE ticks; empty window → HOLD DATA_INSUFFICIENT.
+Parameters to grid: ML-002 window {40,60,90} only; z=2; seed 14. Next ablation: UNION vs |z|-only vs DIVERGE-only (drop FOLLOW-GAP if replay stays inverted).
+Backtest request: desk_ml replay-hold on NIFTY (done, this cache) then BANKNIFTY/SENSEX + a second session tape.
+Customer copy allowed: "machine can HOLD if premium does not follow the index." No win %.
+Internal-only: cluster names, z, IsolationForest.
+UNKNOWN / DATA_INSUFFICIENT: closed paper labels; NORMAL-day split; MIX-ML-LOGIT not implemented.
+
+Accepted: Started ML bucket, not STRAT-003. replay-hold CLI. NIFTY 583 bars:
+  FOLLOW_GAP/ML-001 HOLD n=133 mean straddle +0.29% vs not-hold −0.18%
+  (inverted vs "avoid bleed"). win_rate=null. NO_PROMOTE.
+Rejected: Treating ML FAIL as STRAT FAIL. Auto-retune MIX-DEFAULT-BUY. Live orders.
+```
+
 ## As of now (2026-09-16) — CAS-* PARKED off MIX working book
 
 ```text

@@ -12,7 +12,9 @@ python -m desk_ml inventory --calendar-days 21
 python -m desk_ml fit --underlying NIFTY --seed 14 --embargo-bars 5
 python -m desk_ml score --underlying NIFTY --source dual-tape
 python -m desk_ml mrr-fit --underlying NIFTY
+```bash
 python -m desk_ml book-tune --calendar-days 21
+python -m desk_ml replay-hold --underlying NIFTY --horizon-bars 15
 ```
 
 Empty / non-overlapping cache → `DATA_INSUFFICIENT`. Models land in `data/recon/ml/` (gitignored). `production_params_written: false`. **NO_PROMOTE**. Cluster/MRR numbers are counts, not a win rate.

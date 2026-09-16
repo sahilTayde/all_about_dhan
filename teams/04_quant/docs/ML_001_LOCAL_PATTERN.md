@@ -41,6 +41,24 @@ OU on `MIX-FORM` residual + VWMA windows **40 / 60 / 90** only. FOLLOW-GAP HOLD.
 
 KEEP_ALL STRAT-001–014. MIX-DEFAULT-BUY unchanged. Catalog §25.
 
+---
+
+## How we use the ML bucket (not a buy engine)
+
+| Piece | What it does on the desk | What it does **not** do |
+|-------|--------------------------|-------------------------|
+| **FOLLOW-GAP** | Index moved; ATM CE/PE did not confirm → **HOLD** new paper | Does not pick CE vs PE |
+| **ML-001** | KMeans 4 regimes + IsolationForest. HOLD on PREMIUM_DIVERGENCE / DIVERGE / residual+IF | `TREND_UP` is **not** BUY_CE |
+| **ML-002** | Residual z ≥ 2 or FOLLOW-GAP → HOLD. Windows 40/60/90 only | Empty window 90 ≠ delete |
+| **MIX-FORM-*** | Features (beta residual, diverge-z, straddle, follow-gap) | Not tickets |
+| **MIX-ML-LOGIT*** | Catalog **scan** only | **Not coded.** Metrics null. Next after overlays have labels |
+
+**Attach:** dual-tape tick → `desk_ml overlay`. **Bypass:** `PAPER_TRAIN_NO_DENY=1` books CE/PE **anyway** — that is why paper 16 Sep has no ML “save.” Turn the flag **off** when testing HOLD.
+
+**Tune (allowed):** seed **14** fixed; embargo 5; ML-002 windows {40,60,90}; z=2. **Not allowed:** write `MIX-DEFAULT-BUY` params; claim win rate; LLM on the 45s path.
+
+**Check:** `python -m desk_ml replay-hold --underlying NIFTY` — 15m straddle bleed **if HOLD vs if not**. HOLD is useful only if mean_when_hold is **worse** (more bleed avoided). NIFTY cache replay 2026-09-16: HOLD was **the other way around** on that two-day join. Next ablation: do not HOLD on FOLLOW-GAP recovery bars; test HOLD only on DIVERGE + |z| (pass to 06 after a second tape). Details: [`BOOK_MODEL_TUNE.md`](../../06_backtesting/docs/BOOK_MODEL_TUNE.md).
+
 ## HANDOFF
 
 ```text

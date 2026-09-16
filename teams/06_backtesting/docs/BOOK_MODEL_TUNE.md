@@ -72,9 +72,12 @@ python -m desk_ml score --underlying NIFTY --source cache
 python -m desk_ml score --underlying NIFTY --source dual-tape
 python -m desk_ml mrr-fit --underlying NIFTY
 python -m desk_ml book-tune --calendar-days 21
+python -m desk_ml replay-hold --underlying NIFTY --horizon-bars 15
 ```
 
 09:15 IST paper start (dual-tape + score, no ExecutionClient): [`SESSION_PREP_ML.md`](SESSION_PREP_ML.md).
+
+**replay-hold (2026-09-16, NIFTY cache 599 triples):** 15m ATM straddle fwd. FOLLOW_GAP / ML-001 HOLD n=133: mean **+0.29%** when HOLD vs **−0.18%** when not. ML-002 |z|≥2 n=30: **+0.26%** vs **−0.09%**. UNION n=140 similar. On **this** join, HOLD fired on bars that then recovered and **did not** fire on bars that then bled. Diagnostic only. `win_rate=null`. **NO_PROMOTE.**
 
 Pytest: `python -m pytest packages/desk-ml/tests -q`
 

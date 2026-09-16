@@ -1,4 +1,4 @@
-"""CLI: python -m desk_ml fit|score|mrr-fit|inventory|book-tune. Cache only. No live Dhan. No orders."""
+"""CLI: python -m desk_ml fit|score|mrr-fit|inventory|book-tune|replay-hold. Cache only. No live Dhan. No orders."""
 
 from __future__ import annotations
 
@@ -14,12 +14,13 @@ from desk_ml.inventory import inventory_recon
 from desk_ml.mrr import MRR_WINDOWS, mrr_fit_underlying, score_mrr_last
 from desk_ml.overlay import score_session
 from desk_ml.persist import default_model_path, repo_root
+from desk_ml.replay import replay_hold
 
 
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         prog="desk_ml",
-        description="ML-001 KMeans+IF and ML-002 MRR/OU overlay. NO_PROMOTE. No live orders.",
+        description="ML-001 KMeans+IF and ML-002 MRR/OU overlay. replay-hold diagnostic. NO_PROMOTE. No live orders.",
     )
     sub = p.add_subparsers(dest="cmd", required=True)
     f = sub.add_parser("fit", help="Fit ML-001 on recon 1m INDEX+CE+PE cache")
@@ -45,6 +46,13 @@ def build_parser() -> argparse.ArgumentParser:
     bt.add_argument("--calendar-days", type=int, default=21)
     bt.add_argument("--seed", type=int, default=14)
     bt.add_argument("--no-persist", action="store_true")
+    rp = sub.add_parser(
+        "replay-hold",
+        help="Replay HOLD vs 15m ATM straddle bleed (diagnostic). Not a win rate.",
+    )
+    rp.add_argument("--underlying", default="NIFTY")
+    rp.add_argument("--horizon-bars", type=int, default=15)
+    rp.add_argument("--seed", type=int, default=14)
     return p
 
 
@@ -108,6 +116,15 @@ def main(argv: Optional[list[str]] = None) -> int:
         public["inventory_gaps"] = (report.get("inventory") or {}).get("data_gaps")
         public["inventory_joins"] = (report.get("inventory") or {}).get("joins")
         _print(public)
+        return 0 if report.get("ok") else 2
+    if args.cmd == "replay-hold":
+        report = replay_hold(
+            args.underlying,
+            root=root,
+            horizon_bars=int(args.horizon_bars),
+            seed=int(args.seed),
+        )
+        _print(report)
         return 0 if report.get("ok") else 2
     path = default_model_path(args.underlying, root=root)
     if str(args.model or "").strip():
