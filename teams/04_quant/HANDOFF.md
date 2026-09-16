@@ -1,5 +1,23 @@
 # Handoff log — Team 04 Quant
 
+## As of now (2026-09-16) — INDEX 1m SIDEWAYS HOLD (NO_PROMOTE)
+
+```text
+MIX / STRAT: none new. Overlay on LIVE_BOOKS opens. KEEP_ALL 001–014.
+Origin tags: PROJECT-DERIVED HYPOTHESIS. Not SOURCE_FACT. Not XR.
+Entry hypothesis: none. Side still dealer/logit/TV. Regime is skip only.
+Confirm-or-kill: SIDEWAYS_HOLD on NEW opens. 5m ST/MACD/RSI still not entry.
+Hold / veto rules: flatten/cancel of working tickets still allowed.
+Feasibility rules: existing paper stop/target / working-limit.
+Parameters to grid: regime_er_max {0.28,0.30,0.35}; flip_min {0.35,0.38};
+  lookback {12,20}. Session file only. production_params_written false.
+Backtest request: done 2026-09-16 tape — see BACKTEST_SIDEWAYS_REGIME.md.
+Customer copy allowed: none.
+Internal-only: skip_sideways paper param. XR cloned dealer because
+  deny_model_signals=false fallback, not because XR detects 1m chop.
+UNKNOWN / DATA_INSUFFICIENT: OOS next session; option L2 not used.
+```
+
 ## As of now (2026-09-16) — MIX-ML-GREEKS paper book (NO_PROMOTE)
 
 ```text

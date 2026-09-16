@@ -1,5 +1,21 @@
 # Handoff log — Team 02 PhD math
 
+## As of now (2026-09-16 EOD) — INDEX 1m ER chop is not VALIDATION (NO_PROMOTE)
+
+```text
+From:     teams/02_phd_math
+To:       00 / 04 / 06 / founder
+Date:     2026-09-16
+Status:   HYPOTHESIS (not VALIDATION) / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: Kaufman |net|/path on INDEX 1m closes is computable. Close-to-close
+  mean abs change is a range proxy when high/low series is absent.
+Rejected: Calling this overlay VALIDATION or SOURCE_FACT. Using option L2.
+  Treating one-session net flip as a CANDIDATE.
+UNKNOWN: True ATR(high/low) vs close-to-close; OOS stability of er_max=0.30.
+```
+
 ## As of now (2026-09-16 EOD) — Groww/STT paper overlay stays VERIFY (NO_PROMOTE)
 
 ```text

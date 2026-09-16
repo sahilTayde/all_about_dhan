@@ -2,6 +2,28 @@
 
 **Agents:** read **only the newest block**. Do not ingest this whole log. New files: [`docs/FILE_CREATION.md`](../../docs/FILE_CREATION.md). Append here — do not create `HANDOFF_TOMORROW.md` or extra `CONTINUE_*`.
 
+## As of now (2026-09-16 EOD) — SIDEWAYS paper HOLD (NO_PROMOTE)
+
+```text
+From:     teams/00_orchestrator
+To:       founder / 04 / 06 / 02
+Date:     2026-09-16
+Status:   PAPER REGIME OVERLAY / HYPOTHESIS / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: Named INDEX 1m regime TREND|SIDEWAYS|UNKNOWN. Skip NEW
+  paper opens (dealer + logit + TV-EP + clones) when SIDEWAYS so
+  stops are not hit in a chopping tape. Stamp regime on tickets +
+  /pm /desk board. Session paper_params only.
+Rejected: MIX-DEFAULT-BUY production rewrite. STRAT-015+. Live Super
+  Orders. Treating founder ~57% cash-hours wr as a promote. Treating
+  EOD ~25% Groww+STT wr as the same number.
+UNKNOWN: Whether 266 sideways bars on 2026-09-16 generalize tomorrow.
+  Prior exact SL-hit count DATA_INSUFFICIENT (old board unpublished).
+Replay: filled 659→276; all-books net −7132.9→+5037.92; unique net
+  4584.78→4899.76; n_skip_sideways=1987; n_sl_hit=150. wr 25.49%→25.36%.
+```
+
 ## As of now (2026-09-16 EOD) — today net P/L + Groww/STT on ML board (NO_PROMOTE)
 
 ```text

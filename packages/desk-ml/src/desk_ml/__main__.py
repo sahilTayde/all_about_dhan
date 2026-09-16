@@ -76,6 +76,11 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Walk TODAY IST ticks only; keep OPEN rows; session P/L (default for dual-tape loop).",
     )
+    ps.add_argument(
+        "--session-date",
+        default="",
+        help="IST YYYY-MM-DD for --live-session (default: today IST). Replay 2026-09-16 tape without fabricating.",
+    )
     return p
 
 
@@ -173,6 +178,7 @@ def main(argv: Optional[list[str]] = None) -> int:
             max_closes=int(args.max_closes or 0),
             deny_model_signals=bool(args.deny_signals),
             live_session=live,
+            session_ist_date=(str(args.session_date).strip() or None),
         )
         public = {
             k: report.get(k)
@@ -209,6 +215,10 @@ def main(argv: Optional[list[str]] = None) -> int:
         public["money_lost_inr"] = report.get("money_lost_inr")
         public["live_session"] = report.get("live_session")
         public["session_ist_date"] = report.get("session_ist_date")
+        public["n_skip_sideways"] = report.get("n_skip_sideways")
+        public["n_sideways_bars"] = report.get("n_sideways_bars")
+        public["n_sl_hit"] = report.get("n_sl_hit")
+        public["last_index_regime"] = report.get("last_index_regime")
         public["data_gaps"] = (report.get("inventory") or {}).get("data_gaps")
         public["steps_status"] = {
             u: (s or {}).get("status") for u, s in (report.get("steps") or {}).items()

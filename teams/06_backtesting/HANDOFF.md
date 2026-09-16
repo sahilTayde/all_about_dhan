@@ -1,5 +1,25 @@
 # Handoff log — Team 06 Backtesting
 
+## As of now (2026-09-16 EOD) — SIDEWAYS skip replay vs prior board (NO_PROMOTE)
+
+```text
+From:     teams/06_backtesting + desk_ml
+To:       00 / 04 / founder
+Date:     2026-09-16
+Status:   BACKTEST_REQUIRED / HYPOTHESIS / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: Replay dual-tape --live-session 2026-09-16 after SIDEWAYS HOLD.
+  n_filled 276 (was 659). n_skip_sideways 1987 / n_sideways_bars 266.
+  n_sl_hit 150 this run; prior SL count unpublished.
+  Gross ₹23069 vs ₹35290. Groww+STT net ₹+5037.92 vs ₹−7132.9 (8 books).
+  Unique net ₹4899.76 vs ₹4584.78. Paper wr 25.36% vs 25.49% — not 57%.
+  Artifact BACKTEST_SIDEWAYS_REGIME.md. Rank ≠ promote.
+Rejected: Live orders. MIX-DEFAULT-BUY write. Claiming unique NIFTY
+  still green (now −4720 after skip).
+UNKNOWN: Tomorrow 09:15 chop vs trend mix; founder live-hours wr path.
+```
+
 ## As of now (2026-09-16 EOD) — Groww+STT net rank on ML_PAPER_DASHBOARD (NO_PROMOTE)
 
 ```text

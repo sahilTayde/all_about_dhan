@@ -21,7 +21,7 @@ Do not glob markdown. Do not create extra CONTINUE/HANDOFF/NOTES dumps.
 
 Gate: NOT RESEARCH_READY_FOR_PROGRAMMING. PAPER only. NO_PROMOTE. STRATs UNVALIDATED. Dashboard P/L is MOCK. No live orders. Do not restart npm / Vite / paper ops until I ask. Never print secrets.
 
-Left off 2026-09-16: parallel ML paper scalpers coded (`desk_ml paper-scalp --replay`). Dashboard `/pm` `/desk` `/paper/ml-books`. Do not restart npm / paper_ops unless asked. NO_PROMOTE. Local sqlite — do not git-add.
+Left off 2026-09-16 EOD: INDEX 1m SIDEWAYS_HOLD skips NEW paper opens (HYPOTHESIS). Replay vs prior Groww+STT board: filled 659→276, all-books net −7132.9→+5037.92, unique net 4584→4900, wr still ~25% (not founder 57% live-hours). NO_PROMOTE. Do not restart npm / paper_ops. Local sqlite — do not git-add.
 
 Left off 2026-09-16 ~11:40 IST: ALL paper loops STOPPED for team restructure. Dual-tape / overlay waiters / paper_ops_monitor / founder ML / TV-EP / signal_lab / STRAT eval halted. Legacy LLM paper_ops stays STOPPED. Do not restart npm / Vite / paper ops until founder asks. NO_PROMOTE. Local sqlite — do not git-add.
 
@@ -38,11 +38,11 @@ Left off 2026-09-13: ITM champion PAPER board ready (MIX-CHAMP-* + desk leaderbo
 
 ---
 
-## Left-off 2026-09-16 EOD — today net P/L after Groww+STT (NO_PROMOTE)
+## Left-off 2026-09-16 EOD — SIDEWAYS paper HOLD for tomorrow open (NO_PROMOTE)
 
-**Now:** Paper dashboard ranks filled tickets by **net ₹** (Groww ₹20/order × 2 + GST 18% on brokerage + STT 0.15% sell premium VERIFY). Unfilled = ₹0. Same `/pm` `/desk` `GET /paper/ml-books`. **NO_PROMOTE.** No live orders. Do not restart npm. Do not git-add sqlite.
+**Now:** Dual-tape `--paper-scalp` skips **new** opens when INDEX 1m path is `SIDEWAYS` (low ER / flips / tight band). TREND still books. Flatten/cancel still run. Tickets stamp `index_regime`. Session param `skip_sideways` in `ml_paper_session_params.json` only — **not** a MIX-DEFAULT-BUY write. Replay 2026-09-16: n_filled 276 (was 659), n_skip_sideways 1987, n_sl_hit 150, all-books **net ₹+5037.92** vs prior **₹−7132.9** after Groww+STT; unique net ₹4899 vs ₹4585. Paper wr **25.36%** vs prior **25.49%**. Founder ~57% wr was a live-hours PAPER observation, not this EOD filled rate. MIX-ML-GREEKS still 0 fills. **NO_PROMOTE.** No live orders. Do not restart npm. Do not git-add sqlite.
 
-**Next:** 09:15 IST dual-tape `--live-chain --paper-train --paper-scalp`. Watch MIX-ML-GREEKS vs MIX-ML-LOGIT vs dealer **net** ₹. SENSEX paper-param only if still red.
+**Next:** 09:15 IST dual-tape `--live-chain --paper-train --paper-scalp`. Watch SIDEWAYS skips vs TREND fills on the board. Unique NIFTY is red on this replay — do not retune production.
 
 ## Left-off 2026-09-16 EOD — MIX-ML-GREEKS for 09:15 IST tomorrow (NO_PROMOTE)
 
