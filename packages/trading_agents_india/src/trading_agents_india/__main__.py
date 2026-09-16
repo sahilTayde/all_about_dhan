@@ -162,6 +162,7 @@ def cmd_dual_tape(args: argparse.Namespace) -> int:
         stop_outside_shell=bool(args.stop_outside_shell),
         settings=settings,
         write_run_flag_on_start=not bool(args.no_run_flag),
+        paper_train=True if bool(getattr(args, "paper_train", False)) else None,
     )
     print(json.dumps(result.to_dict(), indent=2, ensure_ascii=False))
     return 0
@@ -363,6 +364,11 @@ def main(argv: list[str] | None = None) -> int:
         "--no-run-flag",
         action="store_true",
         help="Do not write paper_dual_tape_RUNNING.flag",
+    )
+    p_dt.add_argument(
+        "--paper-train",
+        action="store_true",
+        help="Book PAPER_TRADE even when dealer/overlay would HOLD (still no live orders)",
     )
     p_dt.set_defaults(func=cmd_dual_tape)
 

@@ -14,6 +14,12 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Optional
 
+try:
+    from trading_agents_india.paper_train import paper_train_no_deny
+except ImportError:  # pragma: no cover
+    def paper_train_no_deny(explicit=None):  # type: ignore[misc]
+        return False
+
 from backtest_engine.clocks import session_date_ist
 from backtest_engine.fetch import load_cached_series
 from backtest_engine.indicators import Bar
@@ -132,7 +138,10 @@ def premium_divergence(
 
     PREMIUM_DIVERGENCE (or any allow_new_paper_ce_pe=False) → no new paper ticket.
     MIX lean that disagrees with dual-tape confirm is also blocked.
+    PAPER_TRAIN_NO_DENY records the ticket anyway (labels the would-block).
     """
+    if paper_train_no_deny():
+        return False, ""
     if intended not in ("CE", "PE", "BUY_CE", "BUY_PE"):
         return False, ""
     side = "CE" if intended in ("CE", "BUY_CE") else "PE"
@@ -195,6 +204,8 @@ def causal_overlay_block(
     Beta uses returns strictly before the decision bar. Residual z uses history
     only (02 / AFML). Does not write MIX params. Not a promote.
     """
+    if paper_train_no_deny():
+        return False, ""
     from trading_agents_india.index_ce_pe_formulas import (
         mix_form_diverge_z,
         mix_form_follow_gap,

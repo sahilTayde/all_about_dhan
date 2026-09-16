@@ -21,7 +21,7 @@ Do not glob markdown. Do not create extra CONTINUE/HANDOFF/NOTES dumps.
 
 Gate: NOT RESEARCH_READY_FOR_PROGRAMMING. PAPER only. NO_PROMOTE. STRATs UNVALIDATED. Dashboard P/L is MOCK. No live orders. Do not restart npm / Vite / paper ops until I ask. Never print secrets.
 
-Left off 2026-09-15 ~14:45 IST: founder STOPPED all paper loops (dual-tape, overlay waiter, eval, canvas monitor). paper_dual_tape_STOPPED.flag + founder_eval_STOPPED.flag. Ran python -m jobs post-market then python -m agent_rag eod-recon --day 2026-09-15. RETUNE_PROPOSAL BACKTEST_REQUIRED; keep_current_strategy true; 0 paper fills; user_taken 0; 3 EXPIRED skipped. NO_PROMOTE. No Super Orders. Do not restart npm. Local sqlite — do not git-add. Next: do not start dual-tape until founder asks.
+Left off 2026-09-16 ~10:38 IST: deleted run_news_analyst / run_sentiment_analyst. Dual-tape is the paper bot. NO_PROMOTE. Local sqlite — do not git-add.
 
 Left off 2026-09-15 (next chat): pre-market readiness. At 09:15 IST run paper dual-tape + desk_ml overlay. NO_PROMOTE. OpenAI ACCEPT_WITH_CAVEATS is paper only. No Super Orders. No live orders. Local sqlite — do not git-add.
 
@@ -29,6 +29,32 @@ Left off 2026-09-13: ITM champion PAPER board ready (MIX-CHAMP-* + desk leaderbo
 ```
 
 ---
+
+## Left-off 2026-09-16 ~10:25 IST — feed monitor on existing loop (NO_PROMOTE)
+
+| Topic | State |
+|-------|--------|
+| IST | **Wed 2026-09-16 ~10:25** — cash OPEN |
+| Monitor | Same `scripts/paper_ops_monitor.py` · **Dhan feed class** on Attention · `data/recon/FEED_HEALTH.json` · `ATTENTION_QUEUE_2026-09-16.md` |
+| Tape | Dual-tape **RUNNING** `--paper-train --live-chain` after token refresh · live INDEX+ATM · not fixture |
+| Read | Desk DI/STALE after API death = **missing print**. HOLD after live LTP = dealer label. **Not** “all denied”. |
+| Book | `teams/00_orchestrator/canvases/paper_ops_board.html` |
+| Super Orders | **NO** |
+| Promote | **NO_PROMOTE** |
+
+## Left-off 2026-09-16 ~06:55 IST — pre-market + paper bots + tune loops (NO_PROMOTE)
+
+| Topic | State |
+|-------|--------|
+| IST | **Wed 2026-09-16 ~06:55** — pre-open. Dual-tape **arms 09:15 IST** |
+| Nightly 15-Sep | **Already ran** (`0d87239`). Fills **0**. Taken **0**. Skipped **3** EXPIRED. Shadow/user P/L **0**. `RETUNE_PROPOSAL` **BACKTEST_REQUIRED**. `tune_status=RAN_EMPTY_LEDGER`. Not a win rate. |
+| Pre-market | `python -m desk_intel pre-market` **live rc=0**. Dhan chain **200**. News **12**. GIFT/SGX/NSE pre-open **DATA_INSUFFICIENT**. Regime **RISK_OFF** (keyword HYPOTHESIS). Paper tickets **NEUTRAL / VETOED** ×3 |
+| Bots | Waiter **95455** → dual-tape `--live-chain` at 09:15 + overlay 90s. Monitor **95466**. **Not** old LLM `paper_ops` |
+| Tune / STRAT | ML **95470** · TV-EP **95469** · signal_lab **95468** · STRAT/MIX dry **95467**. Paper files only. KEEP_ALL 001–014. `production_params_written` false |
+| Book | `teams/00_orchestrator/canvases/paper_ops_board.html` |
+| Stop | `touch data/recon/paper_dual_tape_STOPPED.flag` · `touch data/recon/founder_eval_STOPPED.flag` |
+| Super Orders | **NO** |
+| Promote | **NO_PROMOTE** |
 
 ## Left-off 2026-09-15 ~14:45 IST — STOP all loops + POST_MARKET nightly (NO_PROMOTE)
 

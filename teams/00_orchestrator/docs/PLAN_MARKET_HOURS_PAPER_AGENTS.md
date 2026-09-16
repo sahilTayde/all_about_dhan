@@ -87,15 +87,16 @@ Map OpenAI council names → runtime roles → coalition teams.
 | ChainWatch | chain_watcher | 05 | Chain / OI / PCR / fake-breakout flags | option_chain | bias, guards, DI |
 | PriceAction | bull/bear debate | 04 | Trap / retest read | premium + index | zones, invalidation |
 | RiskMarshal | risk_committee | 06 | Size/veto/cooldown | ledger, leans | HOLD / size cap |
-| NewsHold | news_analyst | 05 | Event hold only | RSS / calendar | hold windows |
+| NewsHold | *unplugged from B* | 05 | RSS not mid-session | desk_intel pre-market only | dual-tape ignores |
 | ExecutionScribe | trader | 07 / 08 | **Only** paper fill decision + log | brief | `paper_ledger` |
 | ResearchJudge | EOD / backtest | 06 / 09 | Recon + gates | ledger, history | recon, NO_PROMOTE |
 
 Graph (sequential, TradingAgents-shaped):
 
 ```text
-news → sentiment(DI) → technical/premium → chain_watcher
+technical/premium → chain_watcher
   → bull ↔ bear → boss → trader(paper) → risk → ledger
+  (news + sentiment unplugged from B, 2026-09-16)
 ```
 
 PhD math (02) and PhD market (03) are **validators** on packets and clocks — they do not place fills.

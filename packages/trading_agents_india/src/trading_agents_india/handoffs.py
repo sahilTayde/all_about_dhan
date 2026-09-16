@@ -69,9 +69,11 @@ def validate_handoff_chain(handoffs: list[AgentHandoff]) -> list[str]:
 
 
 # Canonical sequential graph (India paper desk).
+# News + sentiment unplugged from B (2026-09-16): dual-tape is the live paper
+# path; RSS/social DI was not training the dealer. desk_intel pre-market still
+# owns headlines. KEEP_ALL / CUSTOMER_TALK news-hold stays a product rule, not
+# this graph.
 HANDOFF_GRAPH: tuple[tuple[str, str], ...] = (
-    ("news_analyst", "sentiment_analyst"),
-    ("sentiment_analyst", "technical_analyst"),
     ("technical_analyst", "chain_watcher"),
     ("chain_watcher", "bull_researcher"),
     ("bull_researcher", "bear_researcher"),

@@ -21,6 +21,7 @@ from trading_agents_india.hooks.chain import watch_chain
 from trading_agents_india.hooks.index_bars import fetch_index_bars
 from trading_agents_india.ledger import append_jsonl, paper_watch_root
 from trading_agents_india.paper_ledger import PaperLedger
+from trading_agents_india.paper_train import paper_train_no_deny
 from trading_agents_india.premium_tape import gather_premium_tape, load_tape_bars
 from trading_agents_india.session_clock import (
     DEFAULT_TICK_SECONDS,
@@ -226,11 +227,11 @@ def gather_underlying(
     if chain.spot is not None and index_ltp is None:
         index_ltp = float(chain.spot)
 
-    stale = (not clock_in_shell) or (
-        live and bars.source == "unavailable" and tape.source != "dhan_rollingoption_1m"
-    )
+    stale = not clock_in_shell
     if simulate and not clock_in_shell:
         stale = True
+    if live and not stale and index_ltp is None:
+        gaps.append("DATA_INSUFFICIENT: INDEX 1m/spot missing — cannot lean without inventing")
 
     prev = prev or {}
     prev_strike = prev.get("atm_strike")
@@ -297,6 +298,7 @@ def persist_tick(
     notes: list[DivergenceNote],
     simulated: bool,
     kb_path: Path,
+    paper_train: bool = False,
 ) -> dict[str, str]:
     day = now_ist().date().isoformat()
     root = paper_watch_root(repo_root)
@@ -313,6 +315,7 @@ def persist_tick(
         "orders": "refused",
         "llm": False,
         "promote": False,
+        "paper_train": bool(paper_train),
         "gate": "not RESEARCH_READY_FOR_PROGRAMMING",
         "customer_mix": "MIX-DEFAULT-BUY unchanged",
     }
@@ -358,6 +361,39 @@ def persist_tick(
                 "underlying": n.underlying,
             },
         )
+        side = (n.extra or {}).get("train_side")
+        if n.allow_new_paper_ce_pe and side in {"CE", "PE"}:
+            snap = next((s for s in snaps if s.underlying == n.underlying), None)
+            entry = None
+            if snap is not None:
+                entry = snap.atm_ce_ltp if side == "CE" else snap.atm_pe_ltp
+            ledger.append(
+                "PAPER_TRADE",
+                {
+                    "trade_id": f"paper-{n.underlying}-{tick_index}-{side}",
+                    "underlying": n.underlying,
+                    "side": side,
+                    "status": "OPEN_PAPER",
+                    "verdict": n.verdict,
+                    "case": n.case,
+                    "entry": entry,
+                    "shadow": True,
+                    "as_of_ist": row["as_of_ist"],
+                    "execution": "paper_only",
+                    "promote": False,
+                    "paper_train": True,
+                    "dealer_would_deny": bool((n.extra or {}).get("dealer_would_deny")),
+                    "quantity_lots": 1,
+                    "realized_pnl": None,
+                },
+                {
+                    "tick_index": tick_index,
+                    "as_of_ist": row["as_of_ist"],
+                    "underlying": n.underlying,
+                    "side": side,
+                    "event": "PAPER_TRADE",
+                },
+            )
 
     return {
         "jsonl": str(jsonl),
@@ -424,6 +460,7 @@ class DualTapeResult:
             "execution": "refused",
             "llm": False,
             "promote": "NO_PROMOTE",
+            "paper_train": paper_train_no_deny(None),
             "gate": "not RESEARCH_READY_FOR_PROGRAMMING",
             "customer_mix": "MIX-DEFAULT-BUY unchanged",
         }
@@ -441,8 +478,10 @@ def run_dual_tape_loop(
     sleep_fn: Callable[[float], None] = time.sleep,
     settings: Optional[Settings] = None,
     write_run_flag_on_start: bool = True,
+    paper_train: Optional[bool] = None,
 ) -> DualTapeResult:
     settings = settings or load_settings()
+    train = paper_train_no_deny(paper_train)
     tick_seconds = clamp_tick_seconds(tick_seconds)
     names = tuple(u.strip().upper() for u in (underlyings or UNDERLYINGS) if u.strip())
     if not names:
@@ -463,6 +502,7 @@ def run_dual_tape_loop(
                 "simulate": simulate,
                 "prefer_live_chain": prefer_live_chain,
                 "max_ticks": max_ticks,
+                "paper_train": train,
             },
         )
 
@@ -495,6 +535,7 @@ def run_dual_tape_loop(
                     stale=snap.stale,
                     wrong_strike=snap.wrong_strike,
                     data_gaps=snap.data_gaps,
+                    paper_train=train,
                 )
                 snaps.append(snap)
                 notes.append(note)
@@ -509,6 +550,7 @@ def run_dual_tape_loop(
                     notes=notes,
                     simulated=simulate,
                     kb_path=settings.kb_path,
+                    paper_train=train,
                 )
 
             heartbeat = {
@@ -524,6 +566,7 @@ def run_dual_tape_loop(
                 "execution": "refused",
                 "llm": False,
                 "promote": "NO_PROMOTE",
+                "paper_train": train,
             }
             print(json.dumps(heartbeat, ensure_ascii=False), flush=True)
             ticks.append(heartbeat)

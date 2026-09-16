@@ -25,20 +25,6 @@ class Persona:
 # Canonical registry (SOURCE_FACT of mapping intent; runtime still HYPOTHESIS).
 PERSONAS: tuple[Persona, ...] = (
     Persona(
-        trading_agents_name="News Analyst",
-        pipeline_role="news_analyst",
-        india_role="India Event / News Filter",
-        our_team="05",
-        notes="Hold overlay via desk_intel Moneycontrol RSS; Dhan news DI if no API",
-    ),
-    Persona(
-        trading_agents_name="Sentiment Analyst",
-        pipeline_role="sentiment_analyst",
-        india_role="India Sentiment (DI until wired)",
-        our_team="05",
-        notes="No StockTwits/Reddit as SOURCE_FACT",
-    ),
-    Persona(
         trading_agents_name="Market Analyst",
         pipeline_role="technical_analyst",
         india_role="Index Regime / Chain Lean Analyst",

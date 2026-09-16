@@ -1,5 +1,29 @@
 # Handoff log — Team 04 Quant
 
+## As of now (2026-09-16 ~09:45 IST) — PAPER_TRAIN_NO_DENY (boss 00↔04)
+
+```text
+From:     teams/04_quant (research) reviewed by 00 boss
+To:       00 / 06 / founder
+Date:     2026-09-16 ~09:45 IST
+Status:   HYPOTHESIS / PAPER TRAIN / NO_PROMOTE / no live orders
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: Founder asked to stop explicit paper DENY so ML + TV-EP +
+  STRAT can train on live dual-tape. Dealer still LABELS HOLD /
+  PREMIUM_DIVERGENCE / FOLLOW-GAP. Paper path books CE/PE on index
+  lean anyway (PAPER_TRADE OPEN_PAPER). STALE / WRONG_STRIKE / DI
+  still cannot invent a fill. IsolationForest remains anomaly label,
+  not a live BUY. TV-EP causal overlay / premium_divergence do not
+  drop tickets when PAPER_TRAIN_NO_DENY=1. Production live deny
+  stays the default when the flag is off.
+Rejected: Dhan Super Orders; auto-promote; STRAT-015+; treating
+  paper fills as expectancy/PF/DD.
+UNKNOWN: Whether LTP-clone TV tickets match OPTIDX OHLC OOS.
+Next backtestable: score today's PAPER_TRADE jsonl vs HOLD labels
+  after close; walk-forward MIX-TV-EP-018 / MIX-DEFAULT-BUY on OHLC.
+```
+
 ## As of now (2026-09-15 ~10:45 IST) — HYPOTHESIS queued into paper loops (NO_PROMOTE)
 
 ```text

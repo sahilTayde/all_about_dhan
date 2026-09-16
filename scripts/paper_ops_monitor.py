@@ -167,6 +167,134 @@ def _dual_tape_snapshot() -> dict:
     }
 
 
+_AUTH_MARKERS = ("DH-901", "Invalid_Authentication", "invalid_authentication")
+_API_MARKERS = (
+    "DhanApiError",
+    "dhan chain error",
+    "INDEX 1m DhanApiError",
+    "premium tape DhanApiError",
+)
+
+
+def classify_feed_health(
+    *,
+    latest: dict,
+    in_session: bool,
+    desk_dhan_api_error: int = 0,
+) -> dict:
+    """Classify dual-tape Dhan health. DI/HOLD here is feed or dealer — not 'all denied'."""
+    unds = latest.get("underlyings") if isinstance(latest.get("underlyings"), list) else []
+    desk = latest.get("desk") if isinstance(latest.get("desk"), list) else []
+    gaps: list[str] = []
+    index_ltps: list[object] = []
+    deltas: list[object] = []
+    sources: list[str] = []
+    for u in unds:
+        if not isinstance(u, dict):
+            continue
+        index_ltps.append(u.get("index_ltp"))
+        deltas.append(u.get("index_delta"))
+        sources.append(str(u.get("index_source") or ""))
+        sources.append(str(u.get("chain_source") or ""))
+        sources.append(str(u.get("premium_source") or ""))
+        for g in u.get("data_gaps") or []:
+            gaps.append(str(g))
+    verdicts = [
+        str(n.get("verdict") or "")
+        for n in desk
+        if isinstance(n, dict)
+    ]
+    gap_blob = " ".join(gaps)
+    src_blob = " ".join(sources).lower()
+    all_index_null = bool(index_ltps) and all(v is None for v in index_ltps)
+    live_src = any(
+        s in src_blob
+        for s in ("dhan_intraday", "dhan_live", "dhan_rolling")
+    )
+    fixture_src = any(
+        s in src_blob for s in ("fixture", "simulate", "cache")
+    ) or "using premium tape day" in gap_blob.lower()
+    auth = any(m.lower() in gap_blob.lower() for m in _AUTH_MARKERS)
+    api_err = any(m.lower() in gap_blob.lower() for m in _API_MARKERS)
+    all_di = bool(verdicts) and all(v == "DATA_INSUFFICIENT" for v in verdicts)
+    all_hold = bool(verdicts) and all(v == "HOLD" for v in verdicts)
+    deltas_missing = bool(deltas) and all(d is None for d in deltas)
+    ltps_present = bool(index_ltps) and all(v is not None for v in index_ltps)
+
+    feed_class = "UNKNOWN"
+    action = "Observe"
+    why = "No dual-tape latest.json yet"
+    if auth:
+        feed_class = "DEAD_AUTH"
+        action = "Refresh DHAN_ACCESS_TOKEN"
+        why = (
+            "Dhan auth dead (DH-901 / Invalid_Authentication). "
+            "DATA_INSUFFICIENT is missing print — not a dealer deny day."
+        )
+    elif in_session and (api_err or all_index_null or (fixture_src and not live_src)):
+        feed_class = "DEAD_API"
+        action = "Fix Dhan INDEX/chain pull"
+        why = (
+            "Dhan INDEX/chain not live this tick (DhanApiError / null LTP / fixture cache). "
+            "Desk DI/STALE is feed death, not 'all denied'."
+        )
+    elif live_src and ltps_present and deltas_missing and all_di:
+        feed_class = "FIRST_TICK"
+        action = "Wait one tick"
+        why = (
+            "Live LTPs present; no prior INDEX delta yet. "
+            "First-tick DI is expected — not a deny."
+        )
+    elif live_src and ltps_present and all_di:
+        feed_class = "ALL_DI_FEED"
+        action = "Inspect last tick gaps"
+        why = (
+            "Live sources but desk is all DATA_INSUFFICIENT. "
+            "Missing print on this tick — not a strategy deny."
+        )
+    elif live_src and ltps_present and all_hold:
+        feed_class = "DEALER_HOLD"
+        action = "Observe"
+        why = (
+            "Feed live. HOLD/PREMIUM_DIVERGENCE is a dealer label "
+            "(paper-train may still book). Not 'all denied'."
+        )
+    elif live_src and ltps_present:
+        feed_class = "LIVE"
+        action = "Observe"
+        why = "Dhan INDEX+ATM live. Verdicts are dealer/train labels, not API death."
+    elif in_session and desk_dhan_api_error > 0:
+        feed_class = "DEAD_API"
+        action = "Fix Dhan INDEX/chain pull"
+        why = (
+            f"Ledger has {desk_dhan_api_error} DESK rows with DhanApiError. "
+            "That is feed death, not deny."
+        )
+    elif not in_session:
+        feed_class = "OUTSIDE"
+        action = "Expect HOLD"
+        why = "Outside session shell — not a deny score."
+
+    tone = "danger" if feed_class.startswith("DEAD") else (
+        "warning" if feed_class in {"ALL_DI_FEED", "FIRST_TICK"} else "success"
+        if feed_class in {"LIVE", "DEALER_HOLD"} else "info"
+    )
+    return {
+        "class": feed_class,
+        "action": action,
+        "why": why,
+        "tone": tone,
+        "in_session": in_session,
+        "all_index_null": all_index_null,
+        "all_di": all_di,
+        "live_src": live_src,
+        "auth_fail": auth,
+        "api_error": api_err,
+        "verdicts": verdicts,
+        "not_all_denied": feed_class != "LIVE" or True,
+    }
+
+
 def _count_live_dealer_notes(path: Path) -> dict:
     """Count dealer notes from 09:15 IST. Notes are not fills and not a win rate."""
     confirm = hold = di = ticks = 0
@@ -176,9 +304,11 @@ def _count_live_dealer_notes(path: Path) -> dict:
     except OSError:
         return {}
     for line in text.splitlines():
-        if line.startswith("## Tick ") and "T" in line:
+        if line.startswith("## Tick "):
             try:
-                ts = line.split("T", 1)[1][:8]
+                # "## Tick 0 — 2026-09-16T09:15:08+05:30" — do not split on T in "Tick"
+                iso = line.split("—", 1)[-1].strip()
+                ts = iso.split("T", 1)[1][:8]
                 hh, mm, _ss = (int(x) for x in ts.split(":"))
                 live = (hh * 60 + mm) >= (9 * 60 + 15)
             except (ValueError, IndexError):
@@ -324,6 +454,10 @@ def _count_ledger(path: Path) -> dict:
         "shadow_open": 0,
         "shadow_skipped": 0,
         "paper_trade": 0,
+        "desk_divergence": 0,
+        "desk_di": 0,
+        "desk_stale": 0,
+        "desk_dhan_api_error": 0,
         "non_hold_signals": 0,
         "candidates": 0,
         "di_count": 0,
@@ -394,6 +528,21 @@ def _count_ledger(path: Path) -> dict:
                     out["shadow_skipped"] += 1
             elif et == "PAPER_TRADE":
                 out["paper_trade"] += 1
+            elif et == "DESK_DIVERGENCE":
+                out["desk_divergence"] += 1
+                v = str(obj.get("verdict") or "")
+                case = str(obj.get("case") or obj.get("reason_code") or "")
+                if v == "DATA_INSUFFICIENT" or case == "DATA_INSUFFICIENT":
+                    out["desk_di"] += 1
+                if case == "STALE":
+                    out["desk_stale"] += 1
+                extra = obj.get("extra") if isinstance(obj.get("extra"), dict) else {}
+                gap_bits = list(obj.get("data_gaps") or []) + list(
+                    extra.get("data_gaps") or []
+                )
+                gap_txt = " ".join(str(g) for g in gap_bits)
+                if any(m.lower() in gap_txt.lower() for m in _API_MARKERS + _AUTH_MARKERS):
+                    out["desk_dhan_api_error"] += 1
             elif et == "CANDIDATE_OBSERVATION":
                 out["candidates"] += 1
                 oc = str(obj.get("outcome") or "?")
@@ -1313,11 +1462,27 @@ def _tuning_rows(
     _ = ledger
     if not rows:
         rows.append(["None urgent", "Observe", "Signals appending; keep PAPER / NO_PROMOTE / orders refused"])
-    return rows[:12]
+    return rows[:14]
 
 
 def _is_parked_attention_why(why: str) -> bool:
     w = (why or "").lower()
+    # Feed death is founder-actionable — never park as "DI noise".
+    if any(
+        m in w
+        for m in (
+            "dh-901",
+            "dhanapi",
+            "dhan api",
+            "invalid_authentication",
+            "feed death",
+            "dead_auth",
+            "dead_api",
+            "null ltp",
+            "index/chain",
+        )
+    ):
+        return False
     return (
         "levels_non_numeric" in w
         or "di ratio" in w
@@ -1428,6 +1593,9 @@ def _render_canvas(payload: dict) -> str:
 
     dual = payload.get("dual_tape") or {}
     dual_alive = bool(dual.get("alive"))
+    feed = payload.get("feed_health") or {}
+    feed_cls = str(feed.get("class") or "UNKNOWN")
+    feed_tone = str(feed.get("tone") or "info")
     paper_tone = "success" if (paper_alive or dual_alive) else "danger"
     dual_tone = "success" if dual_alive else "warning"
     web_tone = "success" if website_up else "danger"
@@ -1599,6 +1767,14 @@ export default function PaperOperationsMonitor() {{
         <Stat label="Desk verdicts" value={_js_str("; ".join(dual.get("desk_verdicts") or [])[:80] or "none")} />
         <Stat label="Last tick IST" value={_js_str(str(dual.get("as_of_ist") or "—")[:22])} />
       </Grid>
+      <Grid columns={{2}} gap={{12}}>
+        <Stat label="Dhan feed" value={_js_str(feed_cls)} tone="{feed_tone}" />
+        <Stat label="Desk DI / PAPER_TRADE" value={_js_str(str(ledger.get("desk_di") or 0) + " / " + str(ledger.get("paper_trade") or 0))} tone={_js_str("warning" if int(ledger.get("desk_di") or 0) else "info")} />
+      </Grid>
+      <Callout tone="{feed_tone if feed_cls.startswith("DEAD") else "info"}" title="Feed vs deny">
+        {_esc(feed.get("why") or "Monitor classifies Dhan death separately from dealer HOLD.")}
+        Desk DATA_INSUFFICIENT is a missing print, not 'all denied'.
+      </Callout>
 
       <H2>Top veto reasons (customer ticket) · {_esc(sections.get("leans") or overall)}</H2>
       <Text tone="secondary" size="small">
@@ -1884,6 +2060,32 @@ def collect(monitor_pid: int | None = None, allow_restart: bool = False) -> dict
         ]
 
     dual_tape = _dual_tape_snapshot()
+    latest_path = RECON / "paper_watch" / "DUAL-TAPE" / "latest.json"
+    latest_blob: dict = {}
+    if latest_path.exists():
+        try:
+            latest_blob = json.loads(latest_path.read_text(encoding="utf-8"))
+        except Exception:
+            latest_blob = {}
+    feed_health = classify_feed_health(
+        latest=latest_blob,
+        in_session=bool(clock.get("in_session_shell")),
+        desk_dhan_api_error=int(ledger.get("desk_dhan_api_error") or 0),
+    )
+    if feed_health.get("class") in {
+        "DEAD_AUTH",
+        "DEAD_API",
+        "ALL_DI_FEED",
+        "FIRST_TICK",
+    }:
+        tuning_rows.insert(
+            0,
+            [
+                f"Dhan feed · {feed_health.get('class')}",
+                str(feed_health.get("action") or "Inspect"),
+                str(feed_health.get("why") or "")[:200],
+            ],
+        )
     if dual_tape.get("alive"):
         tuning_rows.append(
             [
@@ -1960,6 +2162,7 @@ def collect(monitor_pid: int | None = None, allow_restart: bool = False) -> dict
         ),
         "tuning_rows": tuning_rows,
         "parked_tuning_rows": parked_tuning_rows,
+        "feed_health": feed_health,
     }
     return payload
 
@@ -2011,8 +2214,31 @@ def write_status(payload: dict) -> None:
         "promote": "NO_PROMOTE",
         "orders": "REFUSED",
         "dual_tape": payload.get("dual_tape") or {},
+        "feed_health": payload.get("feed_health") or {},
+        "desk_divergence": payload["ledger"].get("desk_divergence"),
+        "desk_di": payload["ledger"].get("desk_di"),
+        "desk_stale": payload["ledger"].get("desk_stale"),
+        "desk_dhan_api_error": payload["ledger"].get("desk_dhan_api_error"),
     }
     STATUS_FILE.write_text(json.dumps(slim, indent=2) + "\n")
+    (RECON / "FEED_HEALTH.json").write_text(
+        json.dumps(
+            {
+                "updated_at": payload["updated_at"],
+                **(payload.get("feed_health") or {}),
+                "desk_dhan_api_error": payload["ledger"].get("desk_dhan_api_error"),
+                "desk_di": payload["ledger"].get("desk_di"),
+                "paper_trade": payload["ledger"].get("paper_trade"),
+                "note": (
+                    "DESK DATA_INSUFFICIENT / STALE after Dhan death is missing print, "
+                    "not 'all denied'."
+                ),
+            },
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
 
 
 def _render_html_board(payload: dict) -> str:
@@ -2039,6 +2265,12 @@ def _render_html_board(payload: dict) -> str:
     wr = dt.get("win_rate")
     wr_s = e("null — not a validated win rate" if wr is None else str(wr))
     alive = "RUNNING" if dt.get("alive") else "DOWN"
+    feed = payload.get("feed_health") or {}
+    feed_cls = html.escape(str(feed.get("class") or "UNKNOWN"))
+    feed_why = html.escape(str(feed.get("why") or ""))
+    desk_di = int((payload.get("ledger") or {}).get("desk_di") or 0)
+    paper_n = int((payload.get("ledger") or {}).get("paper_trade") or 0)
+    feed_box = "warn" if str(feed.get("class") or "").startswith("DEAD") or feed.get("class") == "ALL_DI_FEED" else "ok"
     return f"""<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -2074,7 +2306,10 @@ def _render_html_board(payload: dict) -> str:
     <div class="stat"><small>Tick</small><b>{tick}</b></div>
     <div class="stat warn"><small>Overlay</small><b>{overlay}</b></div>
     <div class="stat"><small>Paper fills</small><b>{fills}</b></div>
+    <div class="stat {feed_box}"><small>Dhan feed</small><b>{feed_cls}</b></div>
+    <div class="stat"><small>Desk DI / PAPER_TRADE</small><b>{desk_di} / {paper_n}</b></div>
   </div>
+  <p><strong>Feed vs deny:</strong> {feed_why or "classified each monitor pass"}</p>
   <p>Last tape {as_of}<br/>Index: {ltp_s}<br/>Desk: {verdicts}</p>
 
   <h2>Trades taken vs failed</h2>
@@ -2131,6 +2366,33 @@ def _write_canvas_copies(tsx: str, board_html: str) -> None:
             continue
 
 
+def _write_feed_attention_queue(payload: dict) -> None:
+    """Keep ATTENTION_QUEUE current while the existing monitor loop runs."""
+    fh = payload.get("feed_health") or {}
+    cls = str(fh.get("class") or "")
+    try:
+        from zoneinfo import ZoneInfo
+
+        day = datetime.now(ZoneInfo("Asia/Kolkata")).strftime("%Y-%m-%d")
+    except Exception:
+        day = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    path = RECON / f"ATTENTION_QUEUE_{day}.md"
+    ledger = payload.get("ledger") or {}
+    lines = [
+        f"# Attention queue — {day}",
+        "",
+        f"- Updated: {payload.get('updated_at') or _ist_now()} · source=ops_monitor feed_health",
+        f"- Dhan feed: **{cls or 'UNKNOWN'}** · {fh.get('action') or '—'}",
+        f"- Why: {fh.get('why') or '—'}",
+        f"- Desk DI rows: {ledger.get('desk_di', 0)} · DhanApiError desk rows: "
+        f"{ledger.get('desk_dhan_api_error', 0)} · PAPER_TRADE: {ledger.get('paper_trade', 0)}",
+        "- Rule: feed DI/STALE ≠ dealer deny. HOLD after live LTP is a label.",
+        "- PAPER · NO_PROMOTE · orders REFUSED",
+        "",
+    ]
+    path.write_text("\n".join(lines), encoding="utf-8")
+
+
 def rewrite_once(monitor_pid: int | None = None, allow_restart: bool = False) -> dict:
     payload = collect(monitor_pid=monitor_pid, allow_restart=allow_restart)
     _write_canvas_copies(_render_canvas(payload), _render_html_board(payload))
@@ -2138,6 +2400,7 @@ def rewrite_once(monitor_pid: int | None = None, allow_restart: bool = False) ->
     digest = _write_ops_founder_digest(payload)
     if digest:
         payload["founder_digest"] = str(digest)
+    _write_feed_attention_queue(payload)
     write_status(payload)
     return payload
 
@@ -2170,7 +2433,11 @@ def main() -> int:
                 f"di={payload['ledger'].get('di_count')} "
                 f"log_bytes={payload['log'].get('bytes')} "
                 f"age={payload['log'].get('age_seconds')} "
-                f"restart={payload.get('restart')}\n"
+                f"restart={payload.get('restart')} "
+                f"feed={(payload.get('feed_health') or {}).get('class')} "
+                f"desk_di={payload['ledger'].get('desk_di')} "
+                f"desk_dhan_err={payload['ledger'].get('desk_dhan_api_error')} "
+                f"paper_trade={payload['ledger'].get('paper_trade')}\n"
             )
             with MONITOR_LOG.open("a") as fh:
                 fh.write(msg)

@@ -26,7 +26,8 @@ Operator-internal day board for paper market-hours. Not the customer `/` desk. F
 | Signals / shadow · HOLD/CE/PE · fills · non-HOLD | Paper outcome |
 | LLM status / openai_used / last error · API/Vite | Rate-limit + desk health |
 | **Top veto reasons** table | Explains zero CE/PE without DI flood |
-| Attention table (actionable only) | Restart / LLM fail / Vite / shell |
+| **Dhan feed class** (`LIVE` / `DEAD_AUTH` / `DEAD_API` / `FIRST_TICK` / `DEALER_HOLD`) | Same monitor loop — not a second agent. DI after API death ≠ deny |
+| Attention table (actionable only) | Restart / LLM fail / **Dhan token/API death** / Vite / shell |
 | Digest + attention queue paths | `FOUNDER_DIGEST_*` · `ATTENTION_QUEUE_*` |
 
 ---
@@ -46,8 +47,9 @@ Operator-internal day board for paper market-hours. Not the customer `/` desk. F
 
 ## Why DI looked huge (2026-09-07)
 
+- Dual-tape desk `DATA_INSUFFICIENT` after `DhanApiError` / `DH-901` is **feed death**. The 25s monitor must put that on Attention + `data/recon/FEED_HEALTH.json` — do not park it with unbound-STRAT DI.
 - **11502 / 12141** candidates → `DATA_INSUFFICIENT`
-- Almost all DI = **unbound STRAT-001–014** (`candidate_evaluator_available=false`)
+- Almost all catalog DI = **unbound STRAT-001–014** (`candidate_evaluator_available=false`)
 - Only bound PAPER evaluator (typically `MIX-DEFAULT-BUY`) → **VETOED**, not DI
 - KEEP_ALL: DI is honesty, **not** a catalog delete
 - Binding / summarize-per-tick = workstream C (P1-3), not canvas

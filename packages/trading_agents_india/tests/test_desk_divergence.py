@@ -11,6 +11,7 @@ def test_index_down_pe_not_up_is_hold() -> None:
         index_delta=-8.0,
         ce_delta=-1.5,
         pe_delta=-0.4,
+        paper_train=False,
     )
     assert note.case == "PREMIUM_DIVERGENCE"
     assert note.verdict == "HOLD"
@@ -25,6 +26,7 @@ def test_index_down_ce_not_down_is_hold() -> None:
         index_delta=-12.0,
         ce_delta=1.0,
         pe_delta=2.0,
+        paper_train=False,
     )
     assert note.case == "PREMIUM_DIVERGENCE"
     assert note.allow_new_paper_ce_pe is False
@@ -75,7 +77,32 @@ def test_stale_and_wrong_strike_hold() -> None:
     assert wrong.reason_code == "WRONG_STRIKE"
 
 
-def test_missing_prints_are_di() -> None:
+def test_paper_train_opens_index_down_hold_as_pe() -> None:
+    note = judge_tick(
+        underlying="NIFTY",
+        index_delta=-8.0,
+        ce_delta=-1.5,
+        pe_delta=-0.4,
+        paper_train=True,
+    )
+    assert note.verdict == "HOLD"
+    assert note.case == "PREMIUM_DIVERGENCE"
+    assert note.allow_new_paper_ce_pe is True
+    assert note.extra.get("train_side") == "PE"
+    assert note.extra.get("dealer_would_deny") is True
+
+
+def test_paper_train_still_skips_stale() -> None:
+    note = judge_tick(
+        underlying="NIFTY",
+        index_delta=5.0,
+        ce_delta=1.0,
+        pe_delta=-1.0,
+        stale=True,
+        paper_train=True,
+    )
+    assert note.allow_new_paper_ce_pe is False
+    assert note.extra.get("train_skip") == "STALE"
     note = judge_tick(
         underlying="NIFTY",
         index_delta=None,

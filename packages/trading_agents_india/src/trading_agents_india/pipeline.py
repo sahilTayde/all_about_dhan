@@ -12,9 +12,7 @@ from trading_agents_india.agents import (
     run_boss,
     run_bull,
     run_chain_watcher,
-    run_news_analyst,
     run_risk,
-    run_sentiment_analyst,
     run_technical_analyst,
     run_trader,
 )
@@ -31,7 +29,6 @@ from trading_agents_india.hooks.event_memory import (
 )
 from trading_agents_india.hooks.index_bars import fetch_index_bars
 from trading_agents_india.premium_tape import gather_premium_tape, load_tape_bars
-from trading_agents_india.hooks.news import gather_news
 from trading_agents_india.hooks.premium import resolve_premium_lean
 from trading_agents_india.lean_mix import pick_customer_lean
 from trading_agents_india.hooks.rag import fetch_rag_context
@@ -148,28 +145,13 @@ def _resolve_context(
         gaps.extend(desk_gaps)
         if desk_ctx is not None:
             ctx = desk_ctx
+    # B market-hours: do not attach RSS/headlines. News is not on the dual-tape
+    # dealer. Pre-market `desk_intel` still gathers news outside this loop.
     if gather_india_news:
-        bundle = gather_news(prefer_live_rss=False)
-        gaps.extend(bundle.data_gaps)
-        if bundle.items:
-            ctx = MarketContext(
-                underlying=ctx.underlying,
-                chain_lean=ctx.chain_lean,
-                trend_plain=ctx.trend_plain,
-                news=list(bundle.items),
-                session_kind_hint=ctx.session_kind_hint,
-                sentiment_label=ctx.sentiment_label,
-                technical_note=ctx.technical_note,
-                data_gaps=list(ctx.data_gaps) + list(bundle.data_gaps),
-                chain_watch=dict(ctx.chain_watch),
-                premium_lean=dict(ctx.premium_lean),
-                mix_inputs=dict(ctx.mix_inputs),
-                rag_context=list(ctx.rag_context),
-                index_bars=list(ctx.index_bars),
-                index_bar_meta=dict(ctx.index_bar_meta),
-                premium_bars=list(ctx.premium_bars),
-                premium_tape_meta=dict(ctx.premium_tape_meta),
-            )
+        gaps.append(
+            "VALIDATION: B skips mid-session news/sentiment gather "
+            "(--gather-news ignored; dual-tape path has no news agent)"
+        )
     ctx = _enrich_context(ctx, prefer_live_chain=prefer_live_chain, mix_inputs=mix_inputs)
     gaps.extend(ctx.data_gaps)
     return ctx, list(dict.fromkeys(gaps))
@@ -219,14 +201,11 @@ def run_underlying_session(
     if llm is not None:
         # Fresh per-underlying budget so NIFTY TickBudget does not starve BN/SENSEX.
         llm.call_count = 0  # type: ignore[attr-defined]
-    # Founder: no news API mid-session — keep news/sentiment on rules only.
-    news_llm = active_llm if gather_india_news else None
+    _ = gather_india_news  # CLI flag ignored; news/sentiment not in B graph
 
-    news = run_news_analyst(ctx, news_llm)
-    sentiment = run_sentiment_analyst(ctx, news_llm)
     technical = run_technical_analyst(ctx, active_llm)
     chain = run_chain_watcher(ctx, active_llm)
-    reports.extend([news, sentiment, technical, chain])
+    reports.extend([technical, chain])
 
     bull = run_bull(ctx, reports, active_llm)
     bear = run_bear(ctx, reports, active_llm)
@@ -422,8 +401,13 @@ def run_underlying_session(
         data_gaps=uniq_gaps[:16],
         bull_summary=bull.summary,
         bear_summary=bear.summary,
-        news_summary=news.summary,
-        sentiment_summary=sentiment.summary,
+        news_summary=(
+            "PARKED on B: news analyst unplugged. Headlines stay on desk_intel pre-market, "
+            "not this loop."
+        ),
+        sentiment_summary=(
+            "PARKED on B: no India social feed; sentiment agent unplugged (was DATA_INSUFFICIENT)."
+        ),
         technical_summary=technical.summary,
         chain_watcher_summary=chain.summary,
         risk_summary=risk.summary,

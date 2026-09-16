@@ -122,7 +122,8 @@ def test_personas_registry_has_trading_agents_names() -> None:
     from trading_agents_india.personas import registry_payload
 
     names = {p["trading_agents_name"] for p in registry_payload()}
-    assert "News Analyst" in names
+    assert "News Analyst" not in names
+    assert "Sentiment Analyst" not in names
     assert "Bull Researcher" in names
     assert "Trader" in names
     assert "Option Chain Watcher" in names
@@ -132,7 +133,10 @@ def test_handoff_graph_includes_chain_and_trader() -> None:
     roles = {a for a, _ in HANDOFF_GRAPH} | {b for _, b in HANDOFF_GRAPH}
     assert "chain_watcher" in roles
     assert "trader" in roles
+    assert "news_analyst" not in roles
+    assert "sentiment_analyst" not in roles
     assert ("trader", "risk_committee") in HANDOFF_GRAPH
+    assert HANDOFF_GRAPH[0] == ("technical_analyst", "chain_watcher")
 
 
 def test_dry_market_hours_simulation(tmp_path: Path) -> None:

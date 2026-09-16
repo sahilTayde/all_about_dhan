@@ -62,8 +62,7 @@ Registry: `packages/trading_agents_india/personas.py` — TradingAgents name →
 
 | TradingAgents | Pipeline role | India role | Team |
 |---------------|---------------|------------|------|
-| News Analyst | `news_analyst` | India Event / News Filter | 05 |
-| Sentiment Analyst | `sentiment_analyst` | India Sentiment (DI) | 05 |
+| News / Sentiment Analyst | *removed from B runtime* | desk_intel pre-market RSS only | 05 |
 | Market Analyst | `technical_analyst` | Index Regime / Chain Lean | 04 |
 | Option Chain Watcher | `chain_watcher` | 3m Chain / Wall Hypothesis | 05/04 |
 | Fundamentals Analyst | skipped | Macro/CAS note only | 03 |

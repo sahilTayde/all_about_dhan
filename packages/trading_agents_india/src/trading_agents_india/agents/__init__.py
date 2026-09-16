@@ -8,10 +8,8 @@ from typing import Optional
 from trading_agents_india.fixtures import MarketContext
 from trading_agents_india.hooks.event_memory import (
     analog_memory_note,
-    classify_session_kind,
     news_hold_reasons,
     news_veto_enabled,
-    score_premarket_sentiment,
 )
 from trading_agents_india.llm import LlmClient
 from trading_agents_india.personas import resolve_by_pipeline_role
@@ -27,9 +25,8 @@ _CONF_LABELS = {
     "very high": 0.9,
 }
 
-# Default LLM budget: boss + risk + news only (cut ~25 calls/tick fan-out).
-# Others stay rules-only unless Settings/env expands the set.
-LLM_LEAN_ROLES = frozenset({"news_analyst", "boss_research_manager", "risk_committee"})
+# Default LLM budget: boss + risk only. News/sentiment unplugged from B.
+LLM_LEAN_ROLES = frozenset({"boss_research_manager", "risk_committee"})
 
 
 def _parse_confidence(raw: object, default: float) -> float:
@@ -96,86 +93,6 @@ def _llm_report(
             data_gaps=list(parsed.get("data_gaps") or []) + gaps,
             used_llm=True,
         )
-    )
-
-
-def run_news_analyst(ctx: MarketContext, llm: Optional[LlmClient] = None) -> AgentReport:
-    session_kind = classify_session_kind(ctx.news, ctx.session_kind_hint)
-    hold = news_hold_reasons(ctx, session_kind)
-    sentiment = score_premarket_sentiment(ctx.news)
-    headlines = "; ".join(n.headline for n in ctx.news) or "no headlines"
-    if session_kind == "NEWS_DAY" and news_veto_enabled():
-        hold_line = "Ticket HOLD — BIG_NEWS (NEWS_VETO_ENABLED)."
-    elif session_kind == "NEWS_DAY":
-        hold_line = (
-            "NEWS_DAY noted but NEWS_VETO_ENABLED=false — does not HOLD paper ticket."
-        )
-    else:
-        hold_line = (
-            f"No mid-session news veto; premarket_sentiment={sentiment.get('label')} "
-            "(soft context)."
-        )
-    fallback = AgentReport(
-        role="news_analyst",
-        summary=(
-            f"News pass for {ctx.underlying}: {headlines}. "
-            f"session_kind={session_kind}. {hold_line} "
-            "News is notes/analog — not alpha. KEEP_ALL."
-        ),
-        lean_hint="HOLD",
-        confidence=0.35,
-        citations=[n.source_url for n in ctx.news],
-        data_gaps=list(ctx.data_gaps),
-    )
-    if session_kind == "NEWS_DAY" and news_veto_enabled():
-        fallback.lean_hint = "HOLD"
-        fallback.citations = fallback.citations + hold[:2]
-    return _llm_report(
-        llm,
-        role="news_analyst",
-        system=(
-            "You are the India desk news analyst for NIFTY/BANKNIFTY/SENSEX index options. "
-            "Hold the customer ticket ONLY when NEWS_VETO_ENABLED and BIG_NEWS. "
-            "When NEWS_VETO_ENABLED=false, note headlines but do not force HOLD. "
-            "Routine/fixture MACRO noise is pre-market sentiment context — not a mid-session veto. "
-            "Never fake alpha, never delete strategies. "
-            "Return JSON: summary, lean_hint (BUY_CE|BUY_PE|HOLD), confidence 0-1, citations[], data_gaps[]."
-        ),
-        user=json.dumps(
-            {
-                **ctx.to_prompt_blob(),
-                "premarket_sentiment": sentiment,
-                "news_veto_enabled": news_veto_enabled(),
-            }
-        ),
-        fallback=fallback,
-    )
-
-
-def run_sentiment_analyst(ctx: MarketContext, llm: Optional[LlmClient] = None) -> AgentReport:
-    fallback = AgentReport(
-        role="sentiment_analyst",
-        summary=(
-            f"Sentiment for {ctx.underlying}: {ctx.sentiment_label}. "
-            "India index social/news sentiment feed not validated — no StockTwits import."
-        ),
-        lean_hint="HOLD",
-        confidence=0.1,
-        data_gaps=[
-            "DATA_INSUFFICIENT: India social sentiment feed not wired",
-            "REJECT: StockTwits/Reddit as SOURCE_FACT for NSE index options",
-        ],
-    )
-    return _llm_report(
-        llm,
-        role="sentiment_analyst",
-        system=(
-            "You are sentiment analyst for Indian index options. If data is insufficient, say so. "
-            "Do not invent Reddit/StockTwits reads. "
-            "JSON: summary, lean_hint (BUY_CE|BUY_PE|HOLD), confidence (number 0-1 only), citations[], data_gaps[]."
-        ),
-        user=json.dumps(ctx.to_prompt_blob()),
-        fallback=fallback,
     )
 
 

@@ -2,6 +2,92 @@
 
 **Agents:** read **only the newest block**. Do not ingest this whole log. New files: [`docs/FILE_CREATION.md`](../../docs/FILE_CREATION.md). Append here — do not create `HANDOFF_TOMORROW.md` or extra `CONTINUE_*`.
 
+## As of now (2026-09-16 ~10:38 IST) — delete unused B news/sentiment functions
+
+```text
+From:     teams/00_orchestrator (boss)
+To:       founder / 05
+Date:     2026-09-16 ~10:38 IST
+Status:   PAPER / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: Deleted run_news_analyst / run_sentiment_analyst and their
+  persona rows. desk_intel pre-market RSS kept. Dual-tape unchanged.
+Rejected: Live orders; restarting B.
+UNKNOWN: none for this cut.
+```
+
+## As of now (2026-09-16 ~10:35 IST) — B unplug news/sentiment
+
+```text
+From:     teams/00_orchestrator (boss)
+To:       founder / 05
+Date:     2026-09-16 ~10:35 IST
+Status:   PAPER / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: Unplug news_analyst + sentiment_analyst from B market-hours
+  graph. --gather-news ignored. Dual-tape unchanged (never had news).
+  desk_intel pre-market still owns RSS. Personas stay in registry (PARKED).
+Rejected: Deleting desk-intel news; live orders; restarting B.
+UNKNOWN: Whether founder wants B deleted entirely later.
+```
+
+## As of now (2026-09-16 ~10:25 IST) — monitor feed health (not post-hoc deny)
+
+```text
+From:     teams/00_orchestrator (boss)
+To:       founder / 05 / 09
+Date:     2026-09-16 ~10:25 IST
+Status:   PAPER / NO_PROMOTE / existing paper_ops_monitor loop
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: Same 25s monitor now classifies Dhan feed (DEAD_AUTH / DEAD_API /
+  FIRST_TICK / LIVE / DEALER_HOLD). Writes FEED_HEALTH.json + ATTENTION_QUEUE.
+  Desk DI after token death is missing print, not "all denied". Notes parser
+  no longer splits on T in "Tick". Token refresh already live; tape tick≥1
+  has INDEX+ATM + PAPER_TRADE.
+Rejected: A second monitoring agent; treating HOLD/DI as day-deny; live orders.
+UNKNOWN: Token expiry time (no refresh CLI).
+```
+
+## As of now (2026-09-16 ~09:45 IST) — live ticker + paper-train (no deny)
+
+```text
+From:     teams/00_orchestrator (boss) with 04 research
+To:       founder / 04 / 06
+Date:     2026-09-16 ~09:45 IST
+Status:   PAPER_TRAIN_NO_DENY / NO_PROMOTE / no Super Orders
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: Restart dual-tape --paper-train. Book PAPER_TRADE on
+  index-direction even when dealer HOLD. Overlay scores stay labels.
+  TV-EP / ML / STRAT loops keep running. 04 HANDOFF agrees IF≠BUY.
+Rejected: Live Dhan orders; production param writes; npm / old LLM
+  paper_ops.
+UNKNOWN: Session close clock.
+```
+
+## As of now (2026-09-16 ~06:55 IST) — pre-market + paper bots + tune
+
+```text
+From:     teams/00_orchestrator (founder desk)
+To:       founder / 04 / 06 / 05 / 02
+Date:     2026-09-16 ~06:55 IST
+Status:   PAPER / HYPOTHESIS / NO_PROMOTE / ORDERS REFUSED / BACKTEST_REQUIRED
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: Nightly 2026-09-15 already on origin/main (0 fills, 3 EXPIRED,
+  RETUNE BACKTEST_REQUIRED). Live pre-market (Dhan 200). Armed dual-tape
+  waiter 09:15. Started paper ML/TV/signal_lab/STRAT tune loops + canvas.
+  desk_ml book-tune pre-pass (cache triples, not promote).
+Rejected: Old LLM paper_ops restart; npm; Super Orders; auto-retune;
+  git-add sqlite.
+UNKNOWN: GIFT/SGX/NSE pre-open quotes. Session close clock.
+Next: live dual-tape at 09:15; KEEP_ALL; walk-forward still owed on
+  OPTIDX OHLC after a full session.
+```
+
 ## As of now (2026-09-15 ~14:45 IST) — STOP loops + POST_MARKET nightly
 
 ```text

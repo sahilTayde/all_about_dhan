@@ -11,6 +11,12 @@ from desk_ml.mrr import score_mrr_last
 from desk_ml.persist import repo_root
 from desk_ml.tape import load_dual_tape_triples, thin_hold
 
+try:
+    from trading_agents_india.paper_train import paper_train_no_deny
+except ImportError:  # pragma: no cover
+    def paper_train_no_deny(explicit=None):  # type: ignore[misc]
+        return False
+
 SESSION_UNDERLYINGS = ("NIFTY", "BANKNIFTY", "SENSEX")
 
 
@@ -74,7 +80,9 @@ def score_one(
         },
         "follow_gap": follow,
         "session_action": session,
-        "allow_new_paper_ce_pe": session != "HOLD",
+        "allow_new_paper_ce_pe": True if paper_train_no_deny() else session != "HOLD",
+        "training_gate_disabled": paper_train_no_deny(),
+        "dealer_session_action": session,
         "promote": False,
         "production_params_written": False,
         "execution": "refused",
@@ -100,6 +108,8 @@ def score_session(
         "source": source,
         "rows": rows,
         "session_action": "HOLD" if any_hold else "WATCH_ONLY",
+        "allow_new_paper_ce_pe": True if paper_train_no_deny() else (not any_hold),
+        "training_gate_disabled": paper_train_no_deny(),
         "promote": False,
         "production_params_written": False,
         "execution": "refused",
@@ -108,7 +118,10 @@ def score_session(
         "win_rate": None,
         "gate": "not RESEARCH_READY_FOR_PROGRAMMING",
         "research_ready_for_programming": False,
-        "note": "Paper overlay only. HOLD on FOLLOW-GAP or thin ticks. Not a five-pass.",
+        "note": (
+            "Paper overlay labels FOLLOW-GAP / HOLD. "
+            "PAPER_TRAIN_NO_DENY books tickets anyway. Not a five-pass."
+        ),
     }
     return report
 

@@ -6,8 +6,10 @@ PREMIUM_DIVERGENCE → HOLD / no new paper CE/PE.
 
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, replace
 from typing import Any, Optional
+
+from trading_agents_india.paper_train import paper_train_no_deny
 
 # Index points: ignore microstructure noise on NIFTY/BN/SENSEX.
 INDEX_EPS = 1.0
@@ -54,13 +56,16 @@ def judge_tick(
     event_hold: bool = False,
     iv_shock_hint: bool = False,
     data_gaps: Optional[list[str]] = None,
+    paper_train: Optional[bool] = None,
 ) -> DivergenceNote:
     """Compare last-tick deltas. Missing numbers → DATA_INSUFFICIENT, not invented greeks."""
     gaps = list(data_gaps or [])
     extra = {"data_gaps": gaps}
+    train_on = paper_train_no_deny(paper_train)
+    note: Optional[DivergenceNote] = None
 
     if wrong_strike:
-        return DivergenceNote(
+        note = DivergenceNote(
             underlying=underlying,
             verdict="HOLD",
             case="WRONG_STRIKE",
@@ -75,8 +80,8 @@ def judge_tick(
             pe_delta=pe_delta,
             extra=extra,
         )
-    if stale:
-        return DivergenceNote(
+    elif stale:
+        note = DivergenceNote(
             underlying=underlying,
             verdict="HOLD",
             case="STALE",
@@ -91,8 +96,8 @@ def judge_tick(
             pe_delta=pe_delta,
             extra=extra,
         )
-    if event_hold:
-        return DivergenceNote(
+    elif event_hold:
+        note = DivergenceNote(
             underlying=underlying,
             verdict="HOLD",
             case="EVENT_HOLD",
@@ -107,56 +112,19 @@ def judge_tick(
             pe_delta=pe_delta,
             extra=extra,
         )
-
-    i = _sign(index_delta, INDEX_EPS)
-    c = _sign(ce_delta, PREMIUM_EPS)
-    p = _sign(pe_delta, PREMIUM_EPS)
-    if i is None or c is None or p is None:
-        return DivergenceNote(
-            underlying=underlying,
-            verdict="DATA_INSUFFICIENT",
-            case="DATA_INSUFFICIENT",
-            reason_code="DATA_INSUFFICIENT",
-            dealer_note=(
-                f"{underlying}: missing INDEX or ATM CE/PE print — cannot judge "
-                "premium vs spot. No new paper CE/PE."
-            ),
-            allow_new_paper_ce_pe=False,
-            index_delta=index_delta,
-            ce_delta=ce_delta,
-            pe_delta=pe_delta,
-            extra=extra,
-        )
-
-    if i == 0 and c == 0 and p == 0:
-        return DivergenceNote(
-            underlying=underlying,
-            verdict="HOLD",
-            case="FLAT",
-            reason_code="FLAT",
-            dealer_note=f"{underlying}: index and ATM premiums flat vs last tick — no lean.",
-            allow_new_paper_ce_pe=False,
-            index_delta=index_delta,
-            ce_delta=ce_delta,
-            pe_delta=pe_delta,
-            extra=extra,
-        )
-
-    # Index down: PE should rise, CE should fall. Either side failing = divergence.
-    if i < 0:
-        pe_ok = p > 0
-        ce_ok = c < 0
-        if not pe_ok or not ce_ok:
-            iv_bit = " IV may be crushing the PE bid," if iv_shock_hint or (not pe_ok) else ""
-            return DivergenceNote(
+    else:
+        i = _sign(index_delta, INDEX_EPS)
+        c = _sign(ce_delta, PREMIUM_EPS)
+        p = _sign(pe_delta, PREMIUM_EPS)
+        if i is None or c is None or p is None:
+            note = DivergenceNote(
                 underlying=underlying,
-                verdict="HOLD",
-                case="PREMIUM_DIVERGENCE",
-                reason_code="IV" if (iv_shock_hint or not pe_ok) else "PREMIUM_DIVERGENCE",
+                verdict="DATA_INSUFFICIENT",
+                case="DATA_INSUFFICIENT",
+                reason_code="DATA_INSUFFICIENT",
                 dealer_note=(
-                    f"{underlying}: index down ({index_delta:+.2f}) but "
-                    f"PE Δ={pe_delta} (want up) / CE Δ={ce_delta} (want down)."
-                    f"{iv_bit} Dealer HOLD — no new paper CE/PE."
+                    f"{underlying}: missing INDEX or ATM CE/PE print — cannot judge "
+                    "premium vs spot. No new paper CE/PE."
                 ),
                 allow_new_paper_ce_pe=False,
                 index_delta=index_delta,
@@ -164,70 +132,137 @@ def judge_tick(
                 pe_delta=pe_delta,
                 extra=extra,
             )
-        return DivergenceNote(
-            underlying=underlying,
-            verdict="BUY_PE_CONFIRM",
-            case="PE_FOLLOWS",
-            reason_code="PE_FOLLOWS",
-            dealer_note=(
-                f"{underlying}: index down and PE up / CE down — lean BUY_PE confirm "
-                "(paper note only; MIX-DEFAULT-BUY unchanged)."
-            ),
-            allow_new_paper_ce_pe=True,
-            index_delta=index_delta,
-            ce_delta=ce_delta,
-            pe_delta=pe_delta,
-            extra=extra,
-        )
-
-    # Index up: CE should follow up.
-    if i > 0:
-        if c > 0:
-            return DivergenceNote(
+        elif i == 0 and c == 0 and p == 0:
+            note = DivergenceNote(
                 underlying=underlying,
-                verdict="BUY_CE_CONFIRM",
-                case="CE_FOLLOWS",
-                reason_code="CE_FOLLOWS",
-                dealer_note=(
-                    f"{underlying}: index up ({index_delta:+.2f}) and ATM CE followed "
-                    f"({ce_delta:+.2f}) — lean BUY_CE confirm (paper note only)."
-                ),
-                allow_new_paper_ce_pe=True,
+                verdict="HOLD",
+                case="FLAT",
+                reason_code="FLAT",
+                dealer_note=f"{underlying}: index and ATM premiums flat vs last tick — no lean.",
+                allow_new_paper_ce_pe=False,
                 index_delta=index_delta,
                 ce_delta=ce_delta,
                 pe_delta=pe_delta,
                 extra=extra,
             )
-        return DivergenceNote(
-            underlying=underlying,
-            verdict="HOLD",
-            case="PREMIUM_DIVERGENCE",
-            reason_code="IV" if iv_shock_hint else "PREMIUM_DIVERGENCE",
-            dealer_note=(
-                f"{underlying}: index up but ATM CE did not follow "
-                f"(CE Δ={ce_delta}). Possible IV crush / wrong strike / stale quote. "
-                "HOLD — no new paper CE."
-            ),
-            allow_new_paper_ce_pe=False,
-            index_delta=index_delta,
-            ce_delta=ce_delta,
-            pe_delta=pe_delta,
-            extra=extra,
-        )
+        elif i < 0:
+            pe_ok = p > 0
+            ce_ok = c < 0
+            if not pe_ok or not ce_ok:
+                iv_bit = " IV may be crushing the PE bid," if iv_shock_hint or (not pe_ok) else ""
+                note = DivergenceNote(
+                    underlying=underlying,
+                    verdict="HOLD",
+                    case="PREMIUM_DIVERGENCE",
+                    reason_code="IV" if (iv_shock_hint or not pe_ok) else "PREMIUM_DIVERGENCE",
+                    dealer_note=(
+                        f"{underlying}: index down ({index_delta:+.2f}) but "
+                        f"PE Δ={pe_delta} (want up) / CE Δ={ce_delta} (want down)."
+                        f"{iv_bit} Dealer HOLD — no new paper CE/PE."
+                    ),
+                    allow_new_paper_ce_pe=False,
+                    index_delta=index_delta,
+                    ce_delta=ce_delta,
+                    pe_delta=pe_delta,
+                    extra=extra,
+                )
+            else:
+                note = DivergenceNote(
+                    underlying=underlying,
+                    verdict="BUY_PE_CONFIRM",
+                    case="PE_FOLLOWS",
+                    reason_code="PE_FOLLOWS",
+                    dealer_note=(
+                        f"{underlying}: index down and PE up / CE down — lean BUY_PE confirm "
+                        "(paper note only; MIX-DEFAULT-BUY unchanged)."
+                    ),
+                    allow_new_paper_ce_pe=True,
+                    index_delta=index_delta,
+                    ce_delta=ce_delta,
+                    pe_delta=pe_delta,
+                    extra=extra,
+                )
+        elif i > 0:
+            if c > 0:
+                note = DivergenceNote(
+                    underlying=underlying,
+                    verdict="BUY_CE_CONFIRM",
+                    case="CE_FOLLOWS",
+                    reason_code="CE_FOLLOWS",
+                    dealer_note=(
+                        f"{underlying}: index up ({index_delta:+.2f}) and ATM CE followed "
+                        f"({ce_delta:+.2f}) — lean BUY_CE confirm (paper note only)."
+                    ),
+                    allow_new_paper_ce_pe=True,
+                    index_delta=index_delta,
+                    ce_delta=ce_delta,
+                    pe_delta=pe_delta,
+                    extra=extra,
+                )
+            else:
+                note = DivergenceNote(
+                    underlying=underlying,
+                    verdict="HOLD",
+                    case="PREMIUM_DIVERGENCE",
+                    reason_code="IV" if iv_shock_hint else "PREMIUM_DIVERGENCE",
+                    dealer_note=(
+                        f"{underlying}: index up but ATM CE did not follow "
+                        f"(CE Δ={ce_delta}). Possible IV crush / wrong strike / stale quote. "
+                        "HOLD — no new paper CE."
+                    ),
+                    allow_new_paper_ce_pe=False,
+                    index_delta=index_delta,
+                    ce_delta=ce_delta,
+                    pe_delta=pe_delta,
+                    extra=extra,
+                )
+        else:
+            note = DivergenceNote(
+                underlying=underlying,
+                verdict="HOLD",
+                case="PREMIUM_DIVERGENCE",
+                reason_code="PREMIUM_DIVERGENCE",
+                dealer_note=(
+                    f"{underlying}: index flat but premiums moved (CE {ce_delta}, PE {pe_delta}) "
+                    "— treat as IV/event, not a new paper ticket."
+                ),
+                allow_new_paper_ce_pe=False,
+                index_delta=index_delta,
+                ce_delta=ce_delta,
+                pe_delta=pe_delta,
+                extra=extra,
+            )
+    assert note is not None
+    return apply_paper_train(note, enabled=train_on)
 
-    # Index flat, premiums moving — do not chase.
-    return DivergenceNote(
-        underlying=underlying,
-        verdict="HOLD",
-        case="PREMIUM_DIVERGENCE",
-        reason_code="PREMIUM_DIVERGENCE",
-        dealer_note=(
-            f"{underlying}: index flat but premiums moved (CE {ce_delta}, PE {pe_delta}) "
-            "— treat as IV/event, not a new paper ticket."
-        ),
-        allow_new_paper_ce_pe=False,
-        index_delta=index_delta,
-        ce_delta=ce_delta,
-        pe_delta=pe_delta,
-        extra=extra,
-    )
+
+def apply_paper_train(note: DivergenceNote, *, enabled: bool) -> DivergenceNote:
+    """Open paper CE/PE for ML even if the dealer would HOLD. Never live orders.
+
+    Still skip STALE / WRONG_STRIKE / DATA_INSUFFICIENT — no print to train on.
+    Index-up HOLD → train CE; index-down HOLD → train PE. Flat stays no-ticket.
+    """
+    extra = dict(note.extra)
+    if not enabled:
+        return note
+    extra["paper_train"] = True
+    extra["dealer_would_deny"] = not note.allow_new_paper_ce_pe
+    if note.verdict == "DATA_INSUFFICIENT" or note.case in {"STALE", "WRONG_STRIKE"}:
+        extra["train_skip"] = note.case or note.verdict
+        return replace(note, extra=extra)
+    side: Optional[str] = None
+    if note.verdict == "BUY_CE_CONFIRM":
+        side = "CE"
+    elif note.verdict == "BUY_PE_CONFIRM":
+        side = "PE"
+    else:
+        i = _sign(note.index_delta, INDEX_EPS)
+        if i is not None and i < 0:
+            side = "PE"
+        elif i is not None and i > 0:
+            side = "CE"
+    extra["train_side"] = side
+    if side is None:
+        extra["train_skip"] = "FLAT_OR_NO_LEAN"
+        return replace(note, extra=extra)
+    return replace(note, allow_new_paper_ce_pe=True, extra=extra)
