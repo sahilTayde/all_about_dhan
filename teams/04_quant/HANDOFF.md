@@ -1,5 +1,20 @@
 # Handoff log — Team 04 Quant
 
+## As of now (2026-09-16) — parallel paper scalpers (HOLD does not veto dealer)
+
+```text
+From:     teams/04_quant
+To:       00 / 06 / 07 / founder
+Date:     2026-09-16
+Status:   PAPER BOOKS / KEEP_ALL / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: ML-001/002 SKIP their own book on HOLD; MIX-DEFAULT-BUY still
+  independent. MIX-ML-LOGIT remains coded scan in ml_leans.py, not default.
+Rejected: STRAT-015+. Deleting inverted NIFTY HOLD overlay. Live orders.
+UNKNOWN: ML-1 labels until ≥30 closed rows persist across sessions.
+```
+
 ## As of now (2026-09-16) — ML bucket first (HOLD overlay, not buy)
 
 ```text

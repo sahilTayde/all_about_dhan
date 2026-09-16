@@ -14,6 +14,8 @@ _RECON = _REPO_ROOT / "data" / "recon"
 _STATUS = _RECON / "paper_ops_monitor_status.json"
 _PIDS = _RECON / "paper_ops_pids.json"
 _STOP = _RECON / "paper_ops_STOPPED.flag"
+_ML_DASH = _RECON / "ml_paper_dashboard.json"
+_ML_MOCK = _REPO_ROOT / "apps" / "web" / "public" / "mock" / "ml_paper_dashboard.json"
 
 _SECRET_KEYS = frozenset(
     {
@@ -96,6 +98,7 @@ def _tone(*, up: bool, wanted: bool, stopped: bool = False) -> str:
 
 
 def build_founder_status() -> dict[str, Any]:
+    ml = _scrub(_load_json(_ML_DASH)) or _scrub(_load_json(_ML_MOCK))
     status = _scrub(_load_json(_STATUS))
     pids = _scrub(_load_json(_PIDS))
     stopped = _STOP.is_file()
@@ -202,6 +205,17 @@ def build_founder_status() -> dict[str, Any]:
         "agents": agents,
         "services": services,
         "leans": status.get("leans") or {},
+        "ml_paper": {
+            "as_of_ist": ml.get("as_of_ist"),
+            "models": ml.get("models") or [],
+            "leaderboard": ml.get("leaderboard") or [],
+            "data_gaps": (ml.get("inventory") or {}).get("data_gaps") or ml.get("data_gaps") or [],
+            "n_closed": len(ml.get("closed_trades") or []),
+            "n_open": len(ml.get("open_trades") or []),
+            "win_rate": None,
+            "cli": "python -m desk_ml paper-scalp --replay",
+            "note": "Closed premium P/L only. Independent books. NO_PROMOTE.",
+        },
         "chain_metrics": status.get("chain_metrics") or {},
         "index_bar_source": status.get("index_bar_source") or {},
         "signals": status.get("signals"),

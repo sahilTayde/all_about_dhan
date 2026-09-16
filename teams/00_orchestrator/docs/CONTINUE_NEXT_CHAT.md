@@ -21,6 +21,8 @@ Do not glob markdown. Do not create extra CONTINUE/HANDOFF/NOTES dumps.
 
 Gate: NOT RESEARCH_READY_FOR_PROGRAMMING. PAPER only. NO_PROMOTE. STRATs UNVALIDATED. Dashboard P/L is MOCK. No live orders. Do not restart npm / Vite / paper ops until I ask. Never print secrets.
 
+Left off 2026-09-16: parallel ML paper scalpers coded (`desk_ml paper-scalp --replay`). Dashboard `/pm` `/desk` `/paper/ml-books`. Do not restart npm / paper_ops unless asked. NO_PROMOTE. Local sqlite — do not git-add.
+
 Left off 2026-09-16 ~11:40 IST: ALL paper loops STOPPED for team restructure. Dual-tape / overlay waiters / paper_ops_monitor / founder ML / TV-EP / signal_lab / STRAT eval halted. Legacy LLM paper_ops stays STOPPED. Do not restart npm / Vite / paper ops until founder asks. NO_PROMOTE. Local sqlite — do not git-add.
 
 Left off 2026-09-16 ~11:20 IST: founder OPERATING PLAN frozen (three clocks). Product during cash hours = parallel PAPER books with round-trip P/L, not dealer OPEN_PAPER spray. Dual-tape stays the one live feed. NO_PROMOTE. Local sqlite — do not git-add.
@@ -31,6 +33,18 @@ Left off 2026-09-15 (next chat): pre-market readiness. At 09:15 IST run paper du
 
 Left off 2026-09-13: ITM champion PAPER board ready (MIX-CHAMP-* + desk leaderboard + assumed IST VWAP). Docs: teams/06_backtesting/docs/ITM_CHAMPION_PAPER_BOARD.md. CLI: python -m backtest_engine.run_itm_champions. Tuesday = PAPER watch only (prefer ITM PE near spot); live Super Orders refused. Next freeze only after live board evidence; then walk-forward OOS. KEEP_ALL. NO_PROMOTE. Local trading_agents_india.sqlite is working-tree only — do not git-add.
 ```
+
+---
+
+## Left-off 2026-09-16 — parallel ML paper scalpers (founder asked; NO_PROMOTE)
+
+**Now:** Independent PAPER books with entry + stop/target / 8m time-exit / 15:00 IST flatten. Monitoring dashboard is the product for this ticket. CLI `python -m desk_ml paper-scalp --replay`. Opt-in `--loop` writes `data/recon/ml_paper_dashboard.json` heartbeat. Surfaces: `/pm`, `/desk`, `GET /paper/ml-books`. Did **not** restart npm or old LLM `paper_ops`. Gate **not** `RESEARCH_READY_FOR_PROGRAMMING`.
+
+**Books (parallel, no cross-veto):** `MIX-DEFAULT-BUY` · `ML-001` · `ML-002` · `ML-1` · `MIX-ML-LOGIT` · `MIX-ML-LOGIT-XR` · `MIX-TV-EP-024`. TV-EP-001–025 KEEP_ALL inventory; only 024 bound as a scalp book. One OPEN per (`book_id` × underlying).
+
+**Honest:** Cache replay on INDEX∩ATM ~2026-09-09..10. INDEX 1m **2026-09-11..16** is `DATA_INSUFFICIENT` (not fabricated). MIX-ML-LOGIT 0 trades (coded scan; <200 3m train). NIFTY HOLD overlay still inverted — SKIP that book, still run it. `win_rate=null`. Do not git-add sqlite.
+
+**Next:** Watch the board. Live tape only via documented `python -m trading_agents_india dual-tape --paper-scalp` (opt-in). Stop loop: `touch data/recon/ml_paper_scalp_STOPPED.flag`.
 
 ---
 

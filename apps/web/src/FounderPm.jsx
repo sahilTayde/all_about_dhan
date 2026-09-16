@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Header } from "./components/Header.jsx";
+import { MlPaperDashboard } from "./components/MlPaperDashboard.jsx";
 
 function fetchFounderStatus() {
   const base = (import.meta.env.VITE_API_URL || "").replace(/\/$/, "");
@@ -125,6 +126,8 @@ export function FounderPm() {
             Signals {data.signals ?? "—"} · shadow {data.shadow ?? "—"} · LLM {data.llm_status || "—"}
             {data.started_at_ist ? ` · started ${data.started_at_ist}` : ""}
           </p>
+          <h2 className="cleanup-h">ML paper scalpers</h2>
+          <MlPaperDashboard compact />
           <p className="desk-sub">{(data.honesty || []).join(" ")}</p>
         </>
       )}

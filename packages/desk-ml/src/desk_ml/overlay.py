@@ -110,6 +110,7 @@ def score_session(
         "session_action": "HOLD" if any_hold else "WATCH_ONLY",
         "allow_new_paper_ce_pe": True if paper_train_no_deny() else (not any_hold),
         "training_gate_disabled": paper_train_no_deny(),
+        "independent_books": True,
         "promote": False,
         "production_params_written": False,
         "execution": "refused",
@@ -119,7 +120,8 @@ def score_session(
         "gate": "not RESEARCH_READY_FOR_PROGRAMMING",
         "research_ready_for_programming": False,
         "note": (
-            "Paper overlay labels FOLLOW-GAP / HOLD. "
+            "Paper overlay labels FOLLOW-GAP / HOLD per model. "
+            "Do not use session_action to veto other paper books. "
             "PAPER_TRAIN_NO_DENY books tickets anyway. Not a five-pass."
         ),
     }

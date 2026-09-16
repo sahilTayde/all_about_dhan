@@ -299,6 +299,7 @@ def persist_tick(
     simulated: bool,
     kb_path: Path,
     paper_train: bool = False,
+    skip_spray_trades: bool = False,
 ) -> dict[str, str]:
     day = now_ist().date().isoformat()
     root = paper_watch_root(repo_root)
@@ -316,6 +317,7 @@ def persist_tick(
         "llm": False,
         "promote": False,
         "paper_train": bool(paper_train),
+        "paper_scalp": bool(skip_spray_trades),
         "gate": "not RESEARCH_READY_FOR_PROGRAMMING",
         "customer_mix": "MIX-DEFAULT-BUY unchanged",
     }
@@ -362,7 +364,11 @@ def persist_tick(
             },
         )
         side = (n.extra or {}).get("train_side")
-        if n.allow_new_paper_ce_pe and side in {"CE", "PE"}:
+        if (
+            (not skip_spray_trades)
+            and n.allow_new_paper_ce_pe
+            and side in {"CE", "PE"}
+        ):
             snap = next((s for s in snaps if s.underlying == n.underlying), None)
             entry = None
             if snap is not None:
@@ -479,6 +485,7 @@ def run_dual_tape_loop(
     settings: Optional[Settings] = None,
     write_run_flag_on_start: bool = True,
     paper_train: Optional[bool] = None,
+    paper_scalp: bool = False,
 ) -> DualTapeResult:
     settings = settings or load_settings()
     train = paper_train_no_deny(paper_train)
@@ -492,6 +499,7 @@ def run_dual_tape_loop(
     latest_path = paper_watch_root(settings.repo_root) / MIX_ID / "latest.json"
     prev_map = _prev_latest(latest_path)
     last_paths: dict[str, str] = {}
+    heartbeat_board: dict[str, Any] = {}
 
     if write_run_flag_on_start:
         write_run_flag(
@@ -503,6 +511,7 @@ def run_dual_tape_loop(
                 "prefer_live_chain": prefer_live_chain,
                 "max_ticks": max_ticks,
                 "paper_train": train,
+                "paper_scalp": bool(paper_scalp),
             },
         )
 
@@ -551,7 +560,28 @@ def run_dual_tape_loop(
                     simulated=simulate,
                     kb_path=settings.kb_path,
                     paper_train=train,
+                    skip_spray_trades=bool(paper_scalp),
                 )
+                if paper_scalp:
+                    try:
+                        from desk_ml.paper_scalp import replay_paper_scalp
+
+                        board = replay_paper_scalp(
+                            root=settings.repo_root,
+                            source="dual-tape",
+                            write=True,
+                        )
+                        last_paths["ml_paper_dashboard"] = str(
+                            settings.repo_root / "data" / "recon" / "ml_paper_dashboard.json"
+                        )
+                        heartbeat_board = {
+                            "n_closed": len(board.get("closed_trades") or []),
+                            "leaderboard_n": len(board.get("leaderboard") or []),
+                        }
+                    except Exception:  # noqa: BLE001 — scalper fail-soft
+                        heartbeat_board = {"error": "paper_scalp_failed"}
+                else:
+                    heartbeat_board = {}
 
             heartbeat = {
                 "event": "dual_tape_tick",
@@ -567,6 +597,8 @@ def run_dual_tape_loop(
                 "llm": False,
                 "promote": "NO_PROMOTE",
                 "paper_train": train,
+                "paper_scalp": bool(paper_scalp),
+                "paper_scalp_board": heartbeat_board,
             }
             print(json.dumps(heartbeat, ensure_ascii=False), flush=True)
             ticks.append(heartbeat)

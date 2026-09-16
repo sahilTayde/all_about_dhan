@@ -13,6 +13,7 @@ import { StatusLights } from "./components/StatusLights.jsx";
 import { FactorChecklist } from "./components/FactorChecklist.jsx";
 import { ItmScalpBacktestPanel } from "./components/ItmScalpBacktestPanel.jsx";
 import { ItmChampionLeaderboard } from "./components/ItmChampionLeaderboard.jsx";
+import { MlPaperDashboard } from "./components/MlPaperDashboard.jsx";
 
 const EMPTY_FILL = { lots: "", spot: "", pnl: "" };
 
@@ -128,6 +129,7 @@ export function InternalDesk() {
         </section>
         <ItmChampionLeaderboard />
         <ItmScalpBacktestPanel />
+        <MlPaperDashboard />
       </div>
     </div>
   );

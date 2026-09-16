@@ -163,6 +163,7 @@ def cmd_dual_tape(args: argparse.Namespace) -> int:
         settings=settings,
         write_run_flag_on_start=not bool(args.no_run_flag),
         paper_train=True if bool(getattr(args, "paper_train", False)) else None,
+        paper_scalp=bool(getattr(args, "paper_scalp", False)),
     )
     print(json.dumps(result.to_dict(), indent=2, ensure_ascii=False))
     return 0
@@ -369,6 +370,11 @@ def main(argv: list[str] | None = None) -> int:
         "--paper-train",
         action="store_true",
         help="Book PAPER_TRADE even when dealer/overlay would HOLD (still no live orders)",
+    )
+    p_dt.add_argument(
+        "--paper-scalp",
+        action="store_true",
+        help="Opt-in: parallel ML/dealer scalper books + dashboard (skips spray OPEN_PAPER). No LLM. No orders.",
     )
     p_dt.set_defaults(func=cmd_dual_tape)
 

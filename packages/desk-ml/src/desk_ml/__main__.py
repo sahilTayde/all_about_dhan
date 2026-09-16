@@ -13,6 +13,7 @@ from desk_ml.fit import fit_underlying, score_last
 from desk_ml.inventory import inventory_recon
 from desk_ml.mrr import MRR_WINDOWS, mrr_fit_underlying, score_mrr_last
 from desk_ml.overlay import score_session
+from desk_ml.paper_scalp import replay_paper_scalp, run_loop
 from desk_ml.persist import default_model_path, repo_root
 from desk_ml.replay import replay_hold
 
@@ -20,7 +21,7 @@ from desk_ml.replay import replay_hold
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         prog="desk_ml",
-        description="ML-001 KMeans+IF and ML-002 MRR/OU overlay. replay-hold diagnostic. NO_PROMOTE. No live orders.",
+        description="ML-001/002 overlay + parallel paper scalpers. replay-hold diagnostic. NO_PROMOTE. No live orders.",
     )
     sub = p.add_subparsers(dest="cmd", required=True)
     f = sub.add_parser("fit", help="Fit ML-001 on recon 1m INDEX+CE+PE cache")
@@ -53,6 +54,17 @@ def build_parser() -> argparse.ArgumentParser:
     rp.add_argument("--underlying", default="NIFTY")
     rp.add_argument("--horizon-bars", type=int, default=15)
     rp.add_argument("--seed", type=int, default=14)
+    ps = sub.add_parser(
+        "paper-scalp",
+        help="Parallel PAPER scalper books + monitoring JSON. Opt-in loop. No paper_ops. No live orders.",
+    )
+    ps.add_argument("--replay", action="store_true", help="Walk cache or dual-tape JSONL (default action)")
+    ps.add_argument("--loop", action="store_true", help="Opt-in heartbeat loop; writes dashboard JSON")
+    ps.add_argument("--source", default="cache", help="cache | dual-tape")
+    ps.add_argument("--underlyings", default="NIFTY,BANKNIFTY,SENSEX")
+    ps.add_argument("--tick-seconds", type=int, default=45)
+    ps.add_argument("--max-ticks", type=int, default=0, help="Loop only; 0 = until STOP flag")
+    ps.add_argument("--no-write", action="store_true")
     return p
 
 
@@ -125,6 +137,54 @@ def main(argv: Optional[list[str]] = None) -> int:
             seed=int(args.seed),
         )
         _print(report)
+        return 0 if report.get("ok") else 2
+    if args.cmd == "paper-scalp":
+        names = tuple(u.strip().upper() for u in str(args.underlyings).split(",") if u.strip())
+        if args.loop:
+            report = run_loop(
+                root=root,
+                tick_seconds=int(args.tick_seconds),
+                max_ticks=int(args.max_ticks),
+                source=str(args.source),
+            )
+            public = {k: report[k] for k in report if k not in {"closed_trades"}}
+            public["n_closed"] = len(report.get("closed_trades") or [])
+            public["leaderboard"] = report.get("leaderboard")
+            _print(public)
+            return 0
+        report = replay_paper_scalp(
+            root=root,
+            underlyings=names or ("NIFTY",),
+            source=str(args.source),
+            write=not bool(args.no_write),
+        )
+        public = {
+            k: report.get(k)
+            for k in (
+                "ok",
+                "job",
+                "as_of_ist",
+                "gate",
+                "promote",
+                "win_rate",
+                "source",
+                "independent_books",
+                "models",
+                "leaderboard",
+                "inventory",
+                "heartbeat",
+                "honesty",
+                "scalper_exits",
+                "execution",
+            )
+        }
+        public["n_closed"] = len(report.get("closed_trades") or [])
+        public["n_open"] = len(report.get("open_trades") or [])
+        public["data_gaps"] = (report.get("inventory") or {}).get("data_gaps")
+        public["steps_status"] = {
+            u: (s or {}).get("status") for u, s in (report.get("steps") or {}).items()
+        }
+        _print(public)
         return 0 if report.get("ok") else 2
     path = default_model_path(args.underlying, root=root)
     if str(args.model or "").strip():

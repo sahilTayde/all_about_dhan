@@ -51,9 +51,9 @@ KEEP_ALL STRAT-001–014. MIX-DEFAULT-BUY unchanged. Catalog §25.
 | **ML-001** | KMeans 4 regimes + IsolationForest. HOLD on PREMIUM_DIVERGENCE / DIVERGE / residual+IF | `TREND_UP` is **not** BUY_CE |
 | **ML-002** | Residual z ≥ 2 or FOLLOW-GAP → HOLD. Windows 40/60/90 only | Empty window 90 ≠ delete |
 | **MIX-FORM-*** | Features (beta residual, diverge-z, straddle, follow-gap) | Not tickets |
-| **MIX-ML-LOGIT*** | Catalog **scan** only | **Not coded.** Metrics null. Next after overlays have labels |
+| **MIX-ML-LOGIT*** | INDEX 3m walk-forward logit in `ml_leans.py` | **Not** customer default. Scan book. Thin 3m train → `DATA_INSUFFICIENT` |
 
-**Attach:** dual-tape tick → `desk_ml overlay`. **Bypass:** `PAPER_TRAIN_NO_DENY=1` books CE/PE **anyway** — that is why paper 16 Sep has no ML “save.” Turn the flag **off** when testing HOLD.
+**Attach:** dual-tape tick → `desk_ml overlay` labels HOLD/WATCH. Parallel PAPER scalpers: `python -m desk_ml paper-scalp --replay`. ML-001 HOLD **skips the ML-001 book only** — it does not veto MIX-DEFAULT-BUY. **Bypass:** `PAPER_TRAIN_NO_DENY=1` books CE/PE **anyway**. Turn the flag **off** when testing HOLD.
 
 **Tune (allowed):** seed **14** fixed; embargo 5; ML-002 windows {40,60,90}; z=2. **Not allowed:** write `MIX-DEFAULT-BUY` params; claim win rate; LLM on the 45s path.
 

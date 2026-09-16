@@ -16,3 +16,4 @@ def test_build_founder_status_has_no_secret_strings() -> None:
     assert blob["promote"] is False
     assert "agents" in blob
     assert "services" in blob
+    assert blob.get("ml_paper", {}).get("win_rate") is None

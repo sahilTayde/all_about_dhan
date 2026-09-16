@@ -131,6 +131,32 @@ def create_app() -> FastAPI:
             }
         return snap
 
+    @app.get("/paper/ml-books")
+    def paper_ml_books() -> dict[str, Any]:
+        """Parallel ML/dealer PAPER scalper board. Closed premium P/L only. NO_PROMOTE."""
+        import json
+        from pathlib import Path
+
+        root = Path(__file__).resolve().parents[4]
+        recon = root / "data" / "recon" / "ml_paper_dashboard.json"
+        mock = root / "apps" / "web" / "public" / "mock" / "ml_paper_dashboard.json"
+        path = recon if recon.is_file() else mock
+        if not path.is_file():
+            return {
+                "ok": False,
+                "reason": "DATA_INSUFFICIENT: run python -m desk_ml paper-scalp --replay",
+                "orders": "REFUSED",
+                "promote": False,
+                "win_rate": None,
+                "gate": "not RESEARCH_READY_FOR_PROGRAMMING",
+            }
+        blob = json.loads(path.read_text(encoding="utf-8"))
+        if isinstance(blob, dict):
+            blob.setdefault("orders", "REFUSED")
+            blob.setdefault("promote", False)
+            blob.setdefault("win_rate", None)
+        return blob
+
     @app.get("/paper/backtests/itm-scalp")
     def paper_itm_scalp_backtest() -> dict[str, Any]:
         """Last MIX-ITM-OPT-SCALP paper backtest JSON (recon). Not a promote."""

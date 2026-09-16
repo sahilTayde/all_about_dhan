@@ -2,6 +2,25 @@
 
 **Agents:** read **only the newest block**. Do not ingest this whole log. New files: [`docs/FILE_CREATION.md`](../../docs/FILE_CREATION.md). Append here — do not create `HANDOFF_TOMORROW.md` or extra `CONTINUE_*`.
 
+## As of now (2026-09-16) — parallel ML paper scalpers + board
+
+```text
+From:     teams/00_orchestrator + 06/07
+To:       founder / 04 / 05 / 07 / 09
+Date:     2026-09-16
+Status:   PAPER SCALP BOOKS / DASHBOARD / HYPOTHESIS / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: Independent paper books MIX-DEFAULT-BUY, ML-001, ML-002, ML-1,
+  MIX-ML-LOGIT, MIX-ML-LOGIT-XR, MIX-TV-EP-024. One OPEN per book×underlying.
+  Scalp stop/target/8m/15:00 + feasibility kill of 150/96/250. Dashboard
+  GET /paper/ml-books + /pm + /desk. CLI desk_ml paper-scalp --replay.
+  Opt-in --loop only. Did not restart npm or paper_ops LLM.
+Rejected: Live Dhan / Super Order. Promote. Win rates. Fabricating INDEX
+  1m 2026-09-11..16. Cross-book HOLD veto. git-add sqlite.
+UNKNOWN: Live 45s dual-tape session P/L (this board is cache replay).
+```
+
 ## As of now (2026-09-16) — CAS strategies PARKED
 
 ```text
