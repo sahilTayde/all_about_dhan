@@ -2,6 +2,48 @@
 
 **Agents:** read **only the newest block**. Do not ingest this whole log. New files: [`docs/FILE_CREATION.md`](../../docs/FILE_CREATION.md). Append here — do not create `HANDOFF_TOMORROW.md` or extra `CONTINUE_*`.
 
+## As of now (2026-09-16) — markdown KEEP_ALL (Dhan / TV / ML)
+
+```text
+From:     teams/00_orchestrator
+To:       founder / 04 / 09
+Date:     2026-09-16
+Status:   DOCS / KEEP_ALL / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: Did not mass-delete strategy docs. Held book is MIX_CATALOG
+  + STRAT-001–014 files + TV INDEX + ML-001/002. Added catalog §23–25
+  and family files MIX-CHAMP / MIX-FORM / MIX-ALGO. Dropped gitignored
+  Okala recon markdown only (CF already removed).
+Rejected: Deleting STRAT/TV/ML/CHAMP. Rebuilding MIX-CF. STRAT-015+.
+UNKNOWN: Closed premium P/L still missing on dual-tape.
+```
+
+## As of now (2026-09-16 ~11:40 IST) — STOP ALL paper loops (team restructure)
+
+```text
+From:     teams/00_orchestrator (founder desk)
+To:       founder / 04 / 05 / 06 / 07 / 09
+Date:     2026-09-16 ~11:40 IST
+Status:   PAPER / ALL LOOPS STOPPED / HYPOTHESIS / NO_PROMOTE / ORDERS REFUSED
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: Founder STOP ALL PIDs for team restructure. PAPER only. No live Dhan.
+  Touched paper_dual_tape_STOPPED.flag + founder_eval_STOPPED.flag.
+  Left paper_ops_STOPPED.flag in place. Did not restart npm/Vite/paper_ops.
+  Killed remaining dual-tape 5524 (+zsh 5506) and paper_ops_monitor 95466
+  (+zsh 95431). Unlinked paper_dual_tape_RUNNING.flag + stale
+  paper_ops_monitor.pid.
+Rejected: Live Dhan. Restarting dual-tape / overlay / ML / TV-EP / signal_lab /
+  STRAT eval / LLM paper_ops. npm/Vite restart. git-add sqlite. Commit/push.
+UNKNOWN: When founder will re-arm loops after restructure.
+Honest:   Eval waiters 95429/95455/95432/95470/95433/95469/95435/95468/95436/95467
+  exited after STOPPED flags (were alive at inspect, dead before SIGTERM).
+  Legacy paper_ops PIDs 37253/6500/37255/37256 already dead. Monitor pid file
+  82167 already dead. npm left alone.
+Doc:      teams/00_orchestrator/docs/CONTINUE_NEXT_CHAT.md
+```
+
 ## As of now (2026-09-16 ~11:20 IST) — founder operating plan (three clocks)
 
 ```text

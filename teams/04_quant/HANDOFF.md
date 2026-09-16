@@ -1,5 +1,24 @@
 # Handoff log — Team 04 Quant
 
+## As of now (2026-09-16) — KEEP_ALL inventory (Dhan / TV / ML)
+
+```text
+From:     teams/04_quant
+To:       00 / 01 / 06 / 09 / founder
+Date:     2026-09-16
+Status:   HYPOTHESIS / KEEP_ALL / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: Catalog now names the held book in one place:
+  Dhan STRAT-001–014 + MIX clubs + MIX-ALGO-*;
+  TV MIX-TV-EP-001–025; MIX-CHAMP-* family file;
+  MIX-FORM-* family file; ML-001 + ML-002 overlays.
+  Family files: candidates/MIX-CHAMP.md, MIX-FORM.md, MIX-ALGO.md.
+Rejected: Deleting any of those IDs. STRAT-015+. Rebuilding MIX-CF/Okala.
+  Treating lab WR or IsolationForest as a buy.
+UNKNOWN: Closed option-premium P/L on today's dual-tape (exits still missing).
+```
+
 ## As of now (2026-09-16 ~09:45 IST) — PAPER_TRAIN_NO_DENY (boss 00↔04)
 
 ```text

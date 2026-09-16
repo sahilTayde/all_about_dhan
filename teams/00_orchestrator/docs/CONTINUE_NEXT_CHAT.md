@@ -21,6 +21,8 @@ Do not glob markdown. Do not create extra CONTINUE/HANDOFF/NOTES dumps.
 
 Gate: NOT RESEARCH_READY_FOR_PROGRAMMING. PAPER only. NO_PROMOTE. STRATs UNVALIDATED. Dashboard P/L is MOCK. No live orders. Do not restart npm / Vite / paper ops until I ask. Never print secrets.
 
+Left off 2026-09-16 ~11:40 IST: ALL paper loops STOPPED for team restructure. Dual-tape / overlay waiters / paper_ops_monitor / founder ML / TV-EP / signal_lab / STRAT eval halted. Legacy LLM paper_ops stays STOPPED. Do not restart npm / Vite / paper ops until founder asks. NO_PROMOTE. Local sqlite — do not git-add.
+
 Left off 2026-09-16 ~11:20 IST: founder OPERATING PLAN frozen (three clocks). Product during cash hours = parallel PAPER books with round-trip P/L, not dealer OPEN_PAPER spray. Dual-tape stays the one live feed. NO_PROMOTE. Local sqlite — do not git-add.
 
 Left off 2026-09-16 ~10:38 IST: deleted run_news_analyst / run_sentiment_analyst. Dual-tape is the paper bot. NO_PROMOTE. Local sqlite — do not git-add.
@@ -29,6 +31,14 @@ Left off 2026-09-15 (next chat): pre-market readiness. At 09:15 IST run paper du
 
 Left off 2026-09-13: ITM champion PAPER board ready (MIX-CHAMP-* + desk leaderboard + assumed IST VWAP). Docs: teams/06_backtesting/docs/ITM_CHAMPION_PAPER_BOARD.md. CLI: python -m backtest_engine.run_itm_champions. Tuesday = PAPER watch only (prefer ITM PE near spot); live Super Orders refused. Next freeze only after live board evidence; then walk-forward OOS. KEEP_ALL. NO_PROMOTE. Local trading_agents_india.sqlite is working-tree only — do not git-add.
 ```
+
+---
+
+## Left-off 2026-09-16 ~11:40 IST — all paper loops STOPPED (team restructure)
+
+**Now:** Dual-tape, overlay waiters, `paper_ops_monitor`, founder ML / TV-EP / signal_lab / STRAT eval loops are **STOPPED**. Flags: `paper_dual_tape_STOPPED.flag`, `founder_eval_STOPPED.flag`, `paper_ops_STOPPED.flag` (legacy LLM B left in place). `paper_dual_tape_RUNNING.flag` unlinked. Gate **not** `RESEARCH_READY_FOR_PROGRAMMING`. **NO_PROMOTE.** PAPER only. No live Dhan. Do **not** restart npm / Vite / paper_ops / dual-tape until founder asks.
+
+**Next:** team restructure. Do not re-arm loops from this chat.
 
 ---
 
