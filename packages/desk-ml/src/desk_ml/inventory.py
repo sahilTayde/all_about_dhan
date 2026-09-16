@@ -65,12 +65,17 @@ def inventory_index(root: Path, *, min_ts: int, max_ts: int) -> dict[str, Any]:
                 recent = [t for t in file_ts if _in_window(t, min_ts, max_ts)]
                 recent_ts.extend(recent)
                 files.append({"path": path.name, **_span(file_ts), "n_in_window": len(recent)})
+        merged = load_index_closes(und, root=root)
+        merged_ts = list(merged)
+        merged_recent = [t for t in merged_ts if _in_window(t, min_ts, max_ts)]
         out[und] = {
             "security_id": sid,
             "files": len(files),
-            "all": _span(all_ts),
-            "last_21d": _span(recent_ts),
-            "window_missing": len(recent_ts) == 0,
+            "json_files_only": _span(all_ts),
+            "all": _span(merged_ts),
+            "last_21d": _span(merged_recent),
+            "window_missing": len(merged_recent) == 0,
+            "warehouse_merged": True,
         }
         # keep file list compact: only those that touch the window or the newest file
         touching = [f for f in files if f["n_in_window"] > 0]
@@ -178,6 +183,19 @@ def inventory_recon(
             gaps.append(f"DATA_INSUFFICIENT: {und} last-{calendar_days}d INDEX+ATM tape join empty")
         if row["old_cache_triples"].get("aligned_triples", 0) == 0:
             gaps.append(f"DATA_INSUFFICIENT: {und} no aligned triples on old cache either")
+        prem_days = set((premium.get(und) or {}).get("atm_day_files") or [])
+        idx_span = row.get("index_all") or {}
+        idx_first = idx_span.get("first_ist")
+        idx_last = idx_span.get("last_ist")
+        if not prem_days:
+            continue
+        idx_days = {ts_to_ist_date(t) for t in load_index_closes(und, root=base)}
+        missing_days = [day for day in sorted(prem_days) if day not in idx_days]
+        if missing_days:
+            gaps.append(
+                f"DATA_INSUFFICIENT: {und} ATM days {missing_days} have no INDEX 1m "
+                f"(merged INDEX span {idx_first}→{idx_last})"
+            )
     if optidx["window_missing"]:
         gaps.append(f"DATA_INSUFFICIENT: no OPTIDX 1m bars in last {calendar_days} calendar days")
     return {

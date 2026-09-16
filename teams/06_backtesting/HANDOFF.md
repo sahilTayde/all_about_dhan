@@ -9,12 +9,13 @@ Date:     2026-09-16
 Status:   PAPER CACHE REPLAY / UNVALIDATED / NO_PROMOTE / BACKTEST_REQUIRED
 Gate:     not RESEARCH_READY_FOR_PROGRAMMING
 
-Accepted: paper-scalp replay on NIFTY/BN/SX aligned triples. Closed premium
-  P/L leaderboard (win_rate=null). MIX-ML-LOGIT 0 trades (3m train <200).
-  INDEX 1m 2026-09-11..16 DATA_INSUFFICIENT (not fabricated).
-  TV-EP-024 SMA cache sum is not a promote.
-Rejected: MIX-DEFAULT-BUY production write. Live orders. Win-rate claims.
-UNKNOWN: Same-calendar INDEX 1m for 11–16 Sep so ATM day files can join.
+Accepted: paper-scalp replay INDEX∩ATM 1643 triples IST 2026-09-09..16
+  after warehouse 1m pull (no fabricated bars). paper win_rate =
+  closed pnl>0 / n_closed (overall 0.437 on 5076 closes). MIX-ML-LOGIT
+  trains on 5y INDEX 3m before session (NIFTY wr 0.5141 still NO_PROMOTE).
+  Inventory data_gaps empty on this pass. TV-EP-024 SMA cache ≠ fills.
+Rejected: MIX-DEFAULT-BUY production write. Live orders. Promote from hit rate.
+UNKNOWN: HQ IV; closed live-session dual-tape P/L vs this cache replay.
 ```
 
 ## As of now (2026-09-16) — ML replay-hold diagnostic (NO_PROMOTE)

@@ -60,8 +60,9 @@ export function MlPaperDashboard({ compact = false }) {
       <h2 id="ml-paper-title">ML / paper scalper board</h2>
       <p className="muted">
         Gate {data.gate || "not RESEARCH_READY_FOR_PROGRAMMING"}. Promote=
-        {String(data.promote)}. win_rate=null. Independent books. Closed premium
-        P/L only. Updated {data.as_of_ist || "—"}.
+        {String(data.promote)}. paper win_rate={data.win_rate ?? "—"} (
+        {data.n_wins ?? "—"}/{data.n_closed ?? "—"} closed, pnl&gt;0). Independent
+        books. Closed premium P/L only. Updated {data.as_of_ist || "—"}.
       </p>
       <h3>Models</h3>
       <div className="cleanup-grid">
@@ -69,7 +70,7 @@ export function MlPaperDashboard({ compact = false }) {
           <article key={m.model_id} className="cleanup-card">
             <div className="cleanup-status">{m.model_id}</div>
             <strong>
-              closed {m.n_closed} · open {m.n_open}
+              closed {m.n_closed} · open {m.n_open} · wr {m.win_rate ?? "—"}
             </strong>
             <p>{m.what}</p>
             <p className="desk-sub">last {m.last_run_ist || "—"}</p>
@@ -84,7 +85,7 @@ export function MlPaperDashboard({ compact = false }) {
           {board.map((r) => (
             <li key={`${r.book_id}-${r.underlying}`}>
               {r.book_id} {r.underlying}: n={r.n_closed} sum={r.sum_premium_pnl}{" "}
-              (win_rate null)
+              wr={r.win_rate ?? "—"}
             </li>
           ))}
         </ul>

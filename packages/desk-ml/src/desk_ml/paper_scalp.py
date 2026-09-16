@@ -19,7 +19,7 @@ from desk_ml.inventory import inventory_recon
 from desk_ml.model import OVERLAY_HOLD, premium_divergence_pattern
 from desk_ml.mrr import Z_HOLD, ols_beta, rolling_z
 from desk_ml.persist import pack_estimators, repo_root
-from desk_ml.tape import load_dual_tape_triples, load_triples
+from desk_ml.tape import load_dual_tape_triples, load_index_closes, load_triples
 
 try:
     from warehouse.feasibility import evaluate_long_premium
@@ -208,77 +208,148 @@ def tv_ep_024_side(idx_closes: Sequence[float]) -> Optional[str]:
     return None
 
 
-def resample_index_3m(triples: Sequence[Triple]) -> list[Any]:
-    """3m INDEX bars from 1m triples. Does not fabricate missing days."""
+def paper_hit_rate(pnls: Sequence[float]) -> Optional[float]:
+    """Closed-paper hit rate: share of realized_pnl > 0. Not a live claim. NO_PROMOTE."""
+    if not pnls:
+        return None
+    wins = sum(1 for p in pnls if float(p) > 0)
+    return round(wins / len(pnls), 4)
+
+
+def resample_closes_3m(closes: dict[int, float]) -> list[Any]:
+    """3m INDEX bars from 1m closes. Does not fabricate missing days."""
     try:
         from backtest_engine.indicators import Bar
     except ImportError:
         return []
-    buckets: dict[int, list[Triple]] = {}
-    for t in triples:
-        key = int(t.ts) - (int(t.ts) % 180)
-        buckets.setdefault(key, []).append(t)
+    buckets: dict[int, list[tuple[int, float]]] = {}
+    for ts, close in sorted(closes.items()):
+        key = int(ts) - (int(ts) % 180)
+        buckets.setdefault(key, []).append((int(ts), float(close)))
     bars = []
     for key in sorted(buckets):
         grp = buckets[key]
-        closes = [g.idx_close for g in grp]
+        cs = [c for _, c in grp]
         bars.append(
             Bar(
-                ts=grp[-1].ts,
-                open=float(closes[0]),
-                high=float(max(closes)),
-                low=float(min(closes)),
-                close=float(closes[-1]),
+                ts=grp[-1][0],
+                open=float(cs[0]),
+                high=float(max(cs)),
+                low=float(min(cs)),
+                close=float(cs[-1]),
                 volume=0.0,
             )
         )
     return bars
 
 
-def logit_last_side(triples: Sequence[Triple], *, xr: bool = False) -> dict[str, Any]:
-    bars = resample_index_3m(triples)
+def resample_index_3m(triples: Sequence[Triple]) -> list[Any]:
+    """3m INDEX bars from 1m triples. Does not fabricate missing days."""
+    return resample_closes_3m({int(t.ts): float(t.idx_close) for t in triples})
+
+
+def logit_side_series(
+    triples: Sequence[Triple],
+    *,
+    index_closes: Optional[dict[int, float]] = None,
+    xr: bool = False,
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    """Walk-forward INDEX 3m logit. Train on INDEX history *before* the ATM session."""
+    thin = {
+        "side": None,
+        "status": "DATA_INSUFFICIENT",
+        "reason": "INDEX 3m train < 200 labeled rows before session (no fabricate)",
+        "n_3m": 0,
+    }
+    if not triples:
+        return [], {"n_3m": 0, "n_index_1m": 0}
+    closes = dict(index_closes or {})
+    for t in triples:
+        closes.setdefault(int(t.ts), float(t.idx_close))
+    bars = resample_closes_3m(closes)
+    meta: dict[str, Any] = {"n_3m": len(bars), "n_index_1m": len(closes)}
     if len(bars) < 40:
-        return {
-            "side": None,
-            "status": "DATA_INSUFFICIENT",
-            "reason": "INDEX 3m resample < 40 bars — MIX-ML-LOGIT not scored",
-            "n_3m": len(bars),
-        }
+        meta["status"] = "DATA_INSUFFICIENT"
+        return [{**thin, "n_3m": len(bars)} for _ in triples], meta
     try:
         from backtest_engine.ml_leans import lean_ml_logit
         from backtest_engine.patterns import lean_range_exp
     except ImportError:
-        return {
-            "side": None,
-            "status": "DATA_INSUFFICIENT",
-            "reason": "backtest_engine.ml_leans not importable",
-            "n_3m": len(bars),
-        }
-    train_end = bars[int(len(bars) * 0.7)].ts
+        meta["status"] = "DATA_INSUFFICIENT"
+        reason = "backtest_engine.ml_leans not importable"
+        return [{**thin, "reason": reason, "n_3m": len(bars)} for _ in triples], meta
+    train_end = int(triples[0].ts)
+    meta["train_end_ts"] = train_end
     leans = lean_ml_logit(bars, train_end_ts=train_end)
-    last = leans[-1] if leans else "SKIP"
-    if xr:
-        xr_leans = lean_range_exp(bars)
-        xr_last = xr_leans[-1] if xr_leans else "SKIP"
-        if last in {"CE", "PE"} and last == xr_last:
-            return {"side": last, "status": "OK", "n_3m": len(bars), "train_end_ts": train_end}
-        return {
-            "side": None,
-            "status": "SKIP",
-            "reason": f"XR filter logit={last} range={xr_last}",
-            "n_3m": len(bars),
-        }
-    if last in {"CE", "PE"}:
-        return {"side": last, "status": "OK", "n_3m": len(bars), "train_end_ts": train_end}
+    xr_leans = lean_range_exp(bars) if xr else None
+    labeled_before = sum(1 for bar in bars if bar.ts < train_end)
+    meta["n_train_3m_bars_before_session"] = labeled_before
+    out: list[dict[str, Any]] = []
+    last_logit = "SKIP"
+    last_xr = "SKIP"
+    bi = 0
+    for t in triples:
+        while bi < len(bars) and bars[bi].ts <= int(t.ts):
+            last_logit = leans[bi]
+            if xr_leans is not None:
+                last_xr = xr_leans[bi]
+            bi += 1
+        if xr:
+            if last_logit in {"CE", "PE"} and last_logit == last_xr:
+                out.append(
+                    {
+                        "side": last_logit,
+                        "status": "OK",
+                        "n_3m": len(bars),
+                        "train_end_ts": train_end,
+                    }
+                )
+            else:
+                out.append(
+                    {
+                        "side": None,
+                        "status": "SKIP",
+                        "reason": f"XR filter logit={last_logit} range={last_xr}",
+                        "n_3m": len(bars),
+                        "train_end_ts": train_end,
+                    }
+                )
+            continue
+        if last_logit in {"CE", "PE"}:
+            out.append(
+                {
+                    "side": last_logit,
+                    "status": "OK",
+                    "n_3m": len(bars),
+                    "train_end_ts": train_end,
+                }
+            )
+        else:
+            out.append(
+                {
+                    "side": None,
+                    "status": "DATA_INSUFFICIENT" if last_logit == "SKIP" else "SKIP",
+                    "reason": (
+                        "lean_ml_logit SKIP (needs ≥200 labeled 3m train rows before cutoff; "
+                        "label is next INDEX close, not premium)"
+                    ),
+                    "n_3m": len(bars),
+                    "train_end_ts": train_end,
+                }
+            )
+    meta["status"] = "OK" if any(r.get("side") in {"CE", "PE"} for r in out) else "DATA_INSUFFICIENT"
+    return out, meta
+
+
+def logit_last_side(triples: Sequence[Triple], *, xr: bool = False) -> dict[str, Any]:
+    series, meta = logit_side_series(triples, xr=xr)
+    if series:
+        return {**series[-1], **{k: v for k, v in meta.items() if k not in series[-1]}}
     return {
         "side": None,
-        "status": "DATA_INSUFFICIENT" if last == "SKIP" else "SKIP",
-        "reason": (
-            "lean_ml_logit SKIP (needs ≥200 labeled 3m train rows before cutoff; "
-            "label is next INDEX close, not premium)"
-        ),
-        "n_3m": len(bars),
-        "train_end_ts": train_end,
+        "status": "DATA_INSUFFICIENT",
+        "reason": "no triples",
+        "n_3m": meta.get("n_3m", 0),
     }
 
 
@@ -291,10 +362,17 @@ def ml1_meta_label(closed: Sequence[dict[str, Any]]) -> dict[str, Any]:
             "status": "DATA_INSUFFICIENT",
             "reason": f"ML-1 meta-label needs ≥30 closed paper rows; have {len(labeled)}",
         }
-    wins = sum(1 for c in labeled if float(c["realized_pnl"]) > 0)
-    # Shadow bucket only — never a win rate on the board.
-    take = wins >= (len(labeled) / 2)
-    return {"take": take, "status": "OK", "n_labels": len(labeled), "win_rate": None}
+    pnls = [float(c["realized_pnl"]) for c in labeled]
+    rate = paper_hit_rate(pnls)
+    take = rate is not None and rate >= 0.5
+    return {
+        "take": take,
+        "status": "OK",
+        "n_labels": len(labeled),
+        "win_rate": rate,
+        "win_rate_kind": "paper_closed_premium_gt_0",
+        "promote": False,
+    }
 
 
 def _exit_reason(pos: OpenPaper, ltp: float, ts: int, bar_i: int) -> Optional[str]:
@@ -333,7 +411,7 @@ def _close(engine: BookEngine, pos: OpenPaper, *, ltp: float, ts: int, reason: s
             "shadow": True,
             "execution": "refused",
             "promote": False,
-            "win_rate": None,
+            "won": pnl > 0,
         }
     )
     engine.opens.pop((pos.book_id, pos.underlying), None)
@@ -633,9 +711,16 @@ def replay_paper_scalp(
             }
             continue
         ml001, ml002, gap, hold_meta = _hold_series(triples)
-        logit = logit_last_side(triples, xr=False)
-        logit_xr = logit_last_side(triples, xr=True)
-        ml1 = ml1_meta_label(engine.closed)
+        idx_closes = load_index_closes(u, root=base)
+        if triples_by_und is not None:
+            idx_closes = {int(t.ts): float(t.idx_close) for t in triples}
+        logit_series, logit_meta = logit_side_series(triples, index_closes=idx_closes, xr=False)
+        logit_xr_series, logit_xr_meta = logit_side_series(triples, index_closes=idx_closes, xr=True)
+        thin_logit = {
+            "side": None,
+            "status": "DATA_INSUFFICIENT",
+            "reason": "no logit series",
+        }
         idx_path: list[float] = []
         for i, tick in enumerate(triples):
             idx_path.append(tick.idx_close)
@@ -643,6 +728,8 @@ def replay_paper_scalp(
             h2 = ml002[i] if i < len(ml002) else False
             g = gap[i] if i < len(gap) else False
             tv = tv_ep_024_side(idx_path)
+            logit = logit_series[i] if i < len(logit_series) else thin_logit
+            logit_xr = logit_xr_series[i] if i < len(logit_xr_series) else thin_logit
             # Recompute ML-1 as closes accumulate (still DI until 30).
             ml1 = ml1_meta_label(engine.closed)
             step_underlying(
@@ -670,8 +757,8 @@ def replay_paper_scalp(
             "status": "REPLAY_OK",
             "n_triples": len(triples),
             "hold_meta": hold_meta,
-            "logit": logit,
-            "logit_xr": logit_xr,
+            "logit": logit_meta,
+            "logit_xr": logit_xr_meta,
             "ml1": ml1,
             "tape": tape,
             "span_ist": {
@@ -718,7 +805,9 @@ def leaderboard_closed(closed: Sequence[dict[str, Any]]) -> list[dict[str, Any]]
                 "underlying": und,
                 "n_closed": len(pnls),
                 "sum_premium_pnl": round(sum(pnls), 4),
-                "win_rate": None,
+                "n_wins": sum(1 for p in pnls if p > 0),
+                "win_rate": paper_hit_rate(pnls),
+                "win_rate_kind": "paper_closed_premium_gt_0",
                 "rank_metric": "closed_premium_pnl_only",
             }
         )
@@ -736,14 +825,7 @@ def build_dashboard(
     root: Path,
 ) -> dict[str, Any]:
     inv = inventory_recon(root=root, calendar_days=21, underlyings=("NIFTY", "BANKNIFTY", "SENSEX"))
-    index_gap = []
-    for und, row in (inv.get("index_1m") or {}).items():
-        span = (row.get("all") or {})
-        last = span.get("last_ist")
-        if not last or str(last) < "2026-09-11":
-            index_gap.append(
-                f"DATA_INSUFFICIENT: {und} INDEX 1m cache last_ist={last} — no fabricate for 2026-09-11..16"
-            )
+    index_gap = list(inv.get("data_gaps") or [])
     tv_inventory = []
     for mix in TV_EP_KEEP_ALL:
         bound = mix == "MIX-TV-EP-024"
@@ -768,6 +850,7 @@ def build_dashboard(
     for book_id in LIVE_BOOKS:
         closed_b = [c for c in engine.closed if c["book_id"] == book_id]
         open_b = [asdict(p) for (b, _u), p in engine.opens.items() if b == book_id]
+        pnls = [float(c["realized_pnl"]) for c in closed_b]
         models.append(
             {
                 "model_id": book_id,
@@ -776,11 +859,14 @@ def build_dashboard(
                 "open": open_b,
                 "n_closed": len(closed_b),
                 "n_open": len(open_b),
-                "sum_closed_premium_pnl": round(sum(float(c["realized_pnl"]) for c in closed_b), 4),
-                "win_rate": None,
+                "n_wins": sum(1 for p in pnls if p > 0),
+                "sum_closed_premium_pnl": round(sum(pnls), 4) if pnls else 0.0,
+                "win_rate": paper_hit_rate(pnls),
+                "win_rate_kind": "paper_closed_premium_gt_0",
             }
         )
     open_rows = [asdict(p) for p in engine.opens.values()]
+    all_pnls = [float(c["realized_pnl"]) for c in engine.closed]
     return {
         "ok": True,
         "job": "ML_PAPER_SCALP",
@@ -792,7 +878,10 @@ def build_dashboard(
         "execution": "refused",
         "orders": "REFUSED",
         "llm": False,
-        "win_rate": None,
+        "win_rate": paper_hit_rate(all_pnls),
+        "win_rate_kind": "paper_closed_premium_gt_0",
+        "n_closed": len(all_pnls),
+        "n_wins": sum(1 for p in all_pnls if p > 0),
         "source": source,
         "customer_mix": "MIX-DEFAULT-BUY unchanged (dealer book is PAPER parallel, not a live rewrite)",
         "independent_books": True,
@@ -812,7 +901,7 @@ def build_dashboard(
             "index_1m": inv.get("index_1m"),
             "premium_tape": inv.get("premium_tape"),
             "joins": inv.get("joins"),
-            "data_gaps": list(inv.get("data_gaps") or []) + index_gap,
+            "data_gaps": index_gap,
         },
         "open_trades": open_rows,
         "closed_trades": engine.closed,
@@ -826,8 +915,8 @@ def build_dashboard(
         },
         "honesty": [
             "Closed option-premium P/L only ranks. Open rows do not.",
-            "win_rate is always null. NO_PROMOTE. No Super Order. No live Dhan.",
-            "INDEX 1m missing 2026-09-11..16 is DATA_INSUFFICIENT, not filled bars.",
+            "win_rate is paper closed-trade hit rate (pnl>0 / n_closed), not a live claim. NO_PROMOTE.",
+            "INDEX 1m is warehouse∪JSON. ATM days without INDEX 1m stay DATA_INSUFFICIENT — never filled bars.",
             "ML-001 inverted HOLD on NIFTY stays a SKIP overlay, still run in parallel.",
         ],
     }
@@ -854,6 +943,9 @@ def write_dashboard(board: dict[str, Any], *, root: Optional[Path] = None) -> di
             "gate",
             "promote",
             "win_rate",
+            "win_rate_kind",
+            "n_closed",
+            "n_wins",
             "source",
             "independent_books",
             "scalper_exits",
@@ -885,7 +977,8 @@ def render_markdown(board: dict[str, Any]) -> str:
         "# ML / paper scalper monitoring board",
         "",
         f"**As of (IST):** `{board.get('as_of_ist')}`  ",
-        "**Gate:** not `RESEARCH_READY_FOR_PROGRAMMING`. **NO_PROMOTE.** Orders refused. `win_rate=null`.",
+        f"**Gate:** not `RESEARCH_READY_FOR_PROGRAMMING`. **NO_PROMOTE.** Orders refused. "
+        f"paper `win_rate`={board.get('win_rate')} ({board.get('n_wins')}/{board.get('n_closed')} closed, pnl>0).",
         "",
         "Parallel independent books: one OPEN per (`book_id` × underlying). A HOLD on ML-001 does **not** block MIX-DEFAULT-BUY.",
         "",
@@ -896,25 +989,26 @@ def render_markdown(board: dict[str, Any]) -> str:
     ]
     for row in board.get("leaderboard") or []:
         lines.append(
-            f"| `{row['book_id']}` | {row['underlying']} | {row['n_closed']} | {row['sum_premium_pnl']} | null |"
+            f"| `{row['book_id']}` | {row['underlying']} | {row['n_closed']} | {row['sum_premium_pnl']} | {row.get('win_rate')} |"
         )
     if not board.get("leaderboard"):
-        lines.append("| — | — | 0 | — | null |")
+        lines.append("| — | — | 0 | — | — |")
     lines += [
         "",
         "PAPER cache replay only (aligned INDEX∩ATM 1m on disk, typically 2026-09-09..10). "
-        "Not fills. Rank ≠ promote. `MIX-ML-LOGIT*` 0 rows when 3m train < 200. "
+        "Not fills. Rank ≠ promote. `MIX-ML-LOGIT*` trains on INDEX 3m before the ATM session. "
+        "`win_rate` = paper closed hit rate (pnl>0), not a promote. "
         "`MIX-TV-EP-024` SMA lab is KEEP_ALL, not customer default.",
         "",
         "",
         "## Models / steps",
         "",
-        "| id | what | closed | open | last run |",
-        "|----|------|--------|------|----------|",
+        "| id | what | closed | wr | last run |",
+        "|----|------|--------|----|----------|",
     ]
     for m in board.get("models") or []:
         lines.append(
-            f"| `{m['model_id']}` | {m['what']} | {m['n_closed']} | {m['n_open']} | `{m['last_run_ist']}` |"
+            f"| `{m['model_id']}` | {m['what']} | {m['n_closed']} | {m.get('win_rate')} | `{m['last_run_ist']}` |"
         )
     lines += ["", "## DATA_INSUFFICIENT", ""]
     gaps = (board.get("inventory") or {}).get("data_gaps") or []

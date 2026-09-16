@@ -1,4 +1,4 @@
-"""Parallel paper scalpers: independent books, feasible scalp exits, no win rates."""
+"""Parallel paper scalpers: independent books, feasible scalp exits, paper hit rate."""
 
 from __future__ import annotations
 
@@ -9,6 +9,7 @@ from desk_ml.paper_scalp import (
     BookEngine,
     LIVE_BOOKS,
     feasibility_long,
+    paper_hit_rate,
     propose_levels,
     replay_paper_scalp,
     step_underlying,
@@ -31,6 +32,12 @@ def _triples(*, n: int = 80, trend: float = 8.0) -> list[Triple]:
         pe = max(8.0, pe - trend * 0.12)
         out.append(Triple(ts=_ts(i), idx_close=idx, ce_close=ce, pe_close=pe))
     return out
+
+
+def test_paper_hit_rate_from_closed_pnl() -> None:
+    assert paper_hit_rate([]) is None
+    assert paper_hit_rate([1.0, -2.0, 3.0, 0.0]) == 0.5
+    assert paper_hit_rate([-1.0, -1.0]) == 0.0
 
 
 def test_fantasy_150_96_250_killed() -> None:
@@ -127,7 +134,7 @@ def test_scalp_time_exit_closes_premium_pnl() -> None:
     reasons = {c["exit_reason"] for c in closed_tv}
     assert reasons & {"TIME", "STOP", "TARGET", "FLATTEN_1500"}
     assert all(c["realized_pnl"] is not None for c in closed_tv)
-    assert all(c.get("win_rate") is None for c in closed_tv)
+    assert all("won" in c for c in closed_tv)
     assert all(c.get("atm_strike") is not None for c in closed_tv)
     assert all("stop" in c and "target" in c for c in closed_tv)
 
@@ -142,18 +149,19 @@ def test_replay_parallel_books_no_promote(tmp_path) -> None:
     )
     assert board["ok"] is True
     assert board["promote"] is False
-    assert board["win_rate"] is None
     assert board["independent_books"] is True
     ids = {m["model_id"] for m in board["models"]}
     assert ids == set(LIVE_BOOKS)
     assert board["research_ready_for_programming"] is False
     assert board["execution"] == "refused"
-    # ML-1 has no labels on a first pass.
+    assert board["win_rate_kind"] == "paper_closed_premium_gt_0"
+    if board["n_closed"]:
+        assert board["win_rate"] is not None
+        assert 0.0 <= float(board["win_rate"]) <= 1.0
     ml1 = next(m for m in board["models"] if m["model_id"] == "ML-1")
-    assert ml1["win_rate"] is None
     lb = board["leaderboard"]
     if lb:
-        assert all(row["win_rate"] is None for row in lb)
+        assert all(row.get("win_rate") is None or 0.0 <= float(row["win_rate"]) <= 1.0 for row in lb)
 
 
 def test_books_do_not_share_veto_on_banknifty() -> None:
