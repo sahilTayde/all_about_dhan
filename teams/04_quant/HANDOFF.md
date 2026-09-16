@@ -3,22 +3,24 @@
 ## As of now (2026-09-16) — ML bucket first (HOLD overlay, not buy)
 
 ```text
-MIX / STRAT: ML-001, ML-002, MIX-FORM-*, MIX-ML-LOGIT* (scan not coded)
+MIX / STRAT: ML-001, ML-002, MIX-FORM-*, MIX-ML-LOGIT* (scan coded in ml_leans.py; KEEP, not default)
 Origin tags: PROJECT-DERIVED overlays. Not DHAN-DERIVED. Not STRAT-015+.
-Entry hypothesis: none. Overlays do not enter.
+Entry hypothesis: none. Overlays do not enter. Logit labels INDEX 3m next-close, not premium.
 Confirm-or-kill: FOLLOW-GAP / DIVERGE / residual IF / |z|≥2 → HOLD new paper CE/PE.
 Hold / veto rules: session_action=HOLD. PAPER_TRAIN_NO_DENY bypasses this (do not use when tuning).
 Feasibility rules: need ≥2 INDEX+ATM CE+PE ticks; empty window → HOLD DATA_INSUFFICIENT.
-Parameters to grid: ML-002 window {40,60,90} only; z=2; seed 14. Next ablation: UNION vs |z|-only vs DIVERGE-only (drop FOLLOW-GAP if replay stays inverted).
-Backtest request: desk_ml replay-hold on NIFTY (done, this cache) then BANKNIFTY/SENSEX + a second session tape.
+Parameters to grid: ML-002 window {40,60,90} only; z=2; seed 14. Ablation DIVERGE_ONLY / UNION_NO_FOLLOW_GAP did not flip NIFTY — keep FOLLOW-GAP, do not delete.
+Backtest request: second INDEX∩ATM session once INDEX 1m exists for 2026-09-11…16 (ATM day files already on disk).
 Customer copy allowed: "machine can HOLD if premium does not follow the index." No win %.
 Internal-only: cluster names, z, IsolationForest.
-UNKNOWN / DATA_INSUFFICIENT: closed paper labels; NORMAL-day split; MIX-ML-LOGIT not implemented.
+UNKNOWN / DATA_INSUFFICIENT: closed paper labels; NORMAL-day split; INDEX 1m join after 2026-09-10T07:28Z.
 
-Accepted: Started ML bucket, not STRAT-003. replay-hold CLI. NIFTY 583 bars:
-  FOLLOW_GAP/ML-001 HOLD n=133 mean straddle +0.29% vs not-hold −0.18%
-  (inverted vs "avoid bleed"). win_rate=null. NO_PROMOTE.
-Rejected: Treating ML FAIL as STRAT FAIL. Auto-retune MIX-DEFAULT-BUY. Live orders.
+Accepted: ML bucket first, not STRAT-003. replay-hold n_scored=583 (2026-09-09…10 only):
+  NIFTY FOLLOW_GAP n=133 HOLD +0.293% vs not −0.182% (inverted). DIVERGE_ONLY still inverted.
+  BANKNIFTY FOLLOW_GAP n=178 −0.076% vs −0.055%. SENSEX FOLLOW_GAP n=191 −0.359% vs −0.848%.
+  MIX-ML-LOGIT already scored 2026-09-03: NIFTY 2y wr 55.7% exp −0.77 FAIL; XR WEAK. Keep IDs.
+  win_rate=null on overlay. NO_PROMOTE.
+Rejected: Treating ML FAIL as STRAT FAIL. Auto-retune MIX-DEFAULT-BUY. Live orders. Discarding ML-002.
 ```
 
 ## As of now (2026-09-16) — CAS-* PARKED off MIX working book

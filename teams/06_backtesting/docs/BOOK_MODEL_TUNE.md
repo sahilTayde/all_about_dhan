@@ -109,12 +109,13 @@ KEEP_ALL STRAT-001–014. MIX-DEFAULT-BUY unchanged.
 ```text
 From:     teams/06_backtesting + packages/desk-ml
 To:       00 / 04 / 07 / 09 / founder
-Date:     2026-09-15
+Date:     2026-09-16
 Status:   CACHE TUNE / UNVALIDATED / NO_PROMOTE / BACKTEST_REQUIRED
 Gate:     not RESEARCH_READY_FOR_PROGRAMMING
 
 Accepted: Inventory + ML-001 seed 14 + ML-002 MRR 40/60/90 + FOLLOW-GAP.
-  Fit on 599 NIFTY/SENSEX triples 2026-09-09..10. production_params_written false.
-Rejected: Live Dhan / Super Order; promote from cluster or half-life; STRAT-015+.
-UNKNOWN: Same-calendar INDEX+ATM for 2026-09-11..15; OOS+NORMAL.
+  Fit on 599 triples 2026-09-09..10 for NIFTY/BANKNIFTY/SENSEX. Ablation CLI kept.
+  production_params_written false. MIX-ML-LOGIT stays KEEP (scan coded; FAIL/WEAK book).
+Rejected: Live Dhan / Super Order; promote from cluster or half-life; STRAT-015+; deleting ML-002.
+UNKNOWN: INDEX 1m for 2026-09-11..16 so existing ATM day files can join; OOS+NORMAL.
 ```
