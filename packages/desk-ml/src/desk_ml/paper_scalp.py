@@ -49,6 +49,13 @@ UNFILLED_BARS = 2
 UNFILLED_SECONDS = 120
 SCALP_HOLD_BARS = 8  # 1m tape ≈ 8 minutes
 RANGE_LOOKBACK = 20
+# INDEX 1m regime (HYPOTHESIS paper overlay). Not option L2. Not a MIX rewrite.
+REGIME_LOOKBACK = 20
+REGIME_MIN_BARS = 12
+REGIME_ER_MAX = 0.30  # Kaufman efficiency |net|/path; at or below → chop
+REGIME_FLIP_MIN = 0.38
+REGIME_RANGE_ATR_MAX = 4.0  # window high-low / mean |1m close change|
+SIDEWAYS_HOLD = "SIDEWAYS_HOLD"
 STOP_FRAC = 0.40
 TARGET_FRAC = 0.55
 STRIKE_STEP = {"NIFTY": 50.0, "BANKNIFTY": 100.0, "SENSEX": 100.0}
@@ -97,6 +104,11 @@ DEFAULT_PAPER_PARAMS = {
     "target_frac": TARGET_FRAC,
     "scalp_hold_bars": SCALP_HOLD_BARS,
     "give_up_frac": GIVE_UP_FRAC,
+    "skip_sideways": True,
+    "regime_lookback": REGIME_LOOKBACK,
+    "regime_er_max": REGIME_ER_MAX,
+    "regime_flip_min": REGIME_FLIP_MIN,
+    "regime_range_atr_max": REGIME_RANGE_ATR_MAX,
     "production_params_written": False,
     "note": "PAPER session only. Never writes MIX-DEFAULT-BUY.",
 }
@@ -109,6 +121,69 @@ def _ist_dt(ts: int) -> datetime:
 def minutes_ist(ts: int) -> int:
     dt = _ist_dt(ts)
     return dt.hour * 60 + dt.minute
+
+
+def classify_index_regime(
+    closes: Sequence[float],
+    *,
+    lookback: int = REGIME_LOOKBACK,
+    er_max: float = REGIME_ER_MAX,
+    flip_min: float = REGIME_FLIP_MIN,
+    range_atr_max: float = REGIME_RANGE_ATR_MAX,
+) -> dict[str, Any]:
+    """TREND | SIDEWAYS | UNKNOWN from INDEX 1m closes only. HYPOTHESIS. No option L2."""
+    vals = [float(x) for x in closes if x is not None]
+    n = len(vals)
+    base = {
+        "regime": "UNKNOWN",
+        "layer": "HYPOTHESIS",
+        "n": n,
+        "lookback": int(lookback),
+        "er": None,
+        "flip_frac": None,
+        "range_over_atr": None,
+        "reason": "short_index_path",
+    }
+    if n < REGIME_MIN_BARS:
+        return base
+    window = vals[-max(REGIME_MIN_BARS, int(lookback)) :]
+    diffs = [window[i] - window[i - 1] for i in range(1, len(window))]
+    path = sum(abs(d) for d in diffs)
+    net = abs(window[-1] - window[0])
+    er = (net / path) if path > 1e-9 else 0.0
+    atr = (path / len(diffs)) if diffs else 0.0
+    rng = max(window) - min(window)
+    range_over_atr = (rng / atr) if atr > 1e-9 else 0.0
+    signs = [1 if d > 0 else (-1 if d < 0 else 0) for d in diffs]
+    nz = [s for s in signs if s != 0]
+    flips = sum(1 for i in range(1, len(nz)) if nz[i] != nz[i - 1])
+    flip_frac = (flips / (len(nz) - 1)) if len(nz) > 1 else 0.0
+    mean = sum(window) / len(window)
+    mid_dev_atr = (abs(window[-1] - mean) / atr) if atr > 1e-9 else 999.0
+    chop = er <= float(er_max) and (
+        flip_frac >= float(flip_min) or range_over_atr <= float(range_atr_max)
+    )
+    tight_mr = er <= float(er_max) and mid_dev_atr < 1.25 and range_over_atr <= float(range_atr_max)
+    if chop or tight_mr:
+        regime = "SIDEWAYS"
+        reason = "low_er_flips_or_tight_band"
+    elif er >= 0.45 or (er >= 0.35 and range_over_atr >= 5.0):
+        regime = "TREND"
+        reason = "directional_index_path"
+    else:
+        regime = "UNKNOWN"
+        reason = "mixed_index_path"
+    return {
+        "regime": regime,
+        "layer": "HYPOTHESIS",
+        "n": n,
+        "lookback": len(window),
+        "er": round(er, 4),
+        "flip_frac": round(flip_frac, 4),
+        "range_over_atr": round(range_over_atr, 4),
+        "mid_dev_atr": round(float(mid_dev_atr), 4) if mid_dev_atr < 900 else None,
+        "reason": reason,
+    }
 
 
 def round_atm_strike(underlying: str, index_ltp: float) -> float:
@@ -342,6 +417,10 @@ class OpenPaper:
     theta: Optional[float] = None
     iv: Optional[float] = None
     greeks_notes: list[str] = field(default_factory=list)
+    index_regime: str = "UNKNOWN"
+    regime_er: Optional[float] = None
+    regime_flip_frac: Optional[float] = None
+    regime_reason: Optional[str] = None
 
 
 @dataclass
@@ -359,6 +438,12 @@ class BookEngine:
     paper_target_frac: float = TARGET_FRAC
     paper_hold_bars: int = SCALP_HOLD_BARS
     paper_give_up_frac: float = GIVE_UP_FRAC
+    skip_new_when_sideways: bool = True
+    regime_lookback: int = REGIME_LOOKBACK
+    regime_er_max: float = REGIME_ER_MAX
+    regime_flip_min: float = REGIME_FLIP_MIN
+    regime_range_atr_max: float = REGIME_RANGE_ATR_MAX
+    last_regime: dict[str, dict[str, Any]] = field(default_factory=dict)
 
     def book_equity(self, book_id: str) -> float:
         return float(self.equity.setdefault(book_id, self.starting_capital))
@@ -762,6 +847,10 @@ def _close(engine: BookEngine, pos: OpenPaper, *, ltp: float, ts: int, reason: s
             "theta": pos.theta,
             "iv": pos.iv,
             "greeks_notes": pos.greeks_notes,
+            "index_regime": pos.index_regime,
+            "regime_er": pos.regime_er,
+            "regime_flip_frac": pos.regime_flip_frac,
+            "regime_reason": pos.regime_reason,
             "opened_ts": pos.opened_ts,
             "closed_ts": ts,
             "opened_ist": _ist_dt(pos.opened_ts).isoformat(timespec="seconds"),
@@ -818,6 +907,31 @@ def _try_open(
         engine.mark_skip(book_id, underlying, "NO_NEW_AFTER_1445", ts=tick.ts)
         return
     if engine.has_open(book_id, underlying):
+        return
+    classified = engine.last_regime.get(underlying.upper()) or {}
+    regime = str(classified.get("regime") or "UNKNOWN")
+    if engine.skip_new_when_sideways and regime == "SIDEWAYS":
+        engine.mark_skip(
+            book_id,
+            underlying,
+            SIDEWAYS_HOLD,
+            ts=tick.ts,
+            index_regime=regime,
+            regime_er=classified.get("er"),
+            regime_flip_frac=classified.get("flip_frac"),
+            regime_reason=classified.get("reason"),
+        )
+        if engine.root is not None:
+            append_model_log(
+                engine.root,
+                {
+                    "event": "SKIP",
+                    "model": book_id,
+                    "underlying": underlying,
+                    "reason": SIDEWAYS_HOLD,
+                    "index_regime": regime,
+                },
+            )
         return
     if skip_reason:
         engine.mark_skip(book_id, underlying, skip_reason, ts=tick.ts)
@@ -897,6 +1011,10 @@ def _try_open(
         theta=greeks.get("theta"),
         iv=greeks.get("iv"),
         greeks_notes=list(adj.get("notes") or []),
+        index_regime=regime,
+        regime_er=classified.get("er"),
+        regime_flip_frac=classified.get("flip_frac"),
+        regime_reason=classified.get("reason"),
     )
     engine.opens[(book_id, underlying)] = pos
     if engine.root is not None:
@@ -920,6 +1038,7 @@ def _try_open(
                 "theta": pos.theta,
                 "iv": pos.iv,
                 "greeks_notes": pos.greeks_notes,
+                "index_regime": pos.index_regime,
             },
         )
 
@@ -1020,6 +1139,14 @@ def step_underlying(
     tick = triples[i]
     prev = triples[i - 1]
     idx_d = tick.idx_close - prev.idx_close
+    classified = classify_index_regime(
+        [float(t.idx_close) for t in triples[: i + 1]],
+        lookback=engine.regime_lookback,
+        er_max=engine.regime_er_max,
+        flip_min=engine.regime_flip_min,
+        range_atr_max=engine.regime_range_atr_max,
+    )
+    engine.last_regime[und] = classified
     ce_d = tick.ce_close - prev.ce_close
     pe_d = tick.pe_close - prev.pe_close
     dealer = dealer_side(idx_d, ce_d, pe_d, underlying=und)
@@ -1157,8 +1284,9 @@ def step_underlying(
         "ml1": ml1,
         "tv_ep_024": tv_side,
         "mix_ml_greeks_skip": greeks_skip,
+        "index_regime": classified,
         "independent": True,
-        "note": "HOLD on one book does not veto another",
+        "note": "HOLD on one book does not veto another. SIDEWAYS skips NEW opens only.",
     }
 
 
@@ -1224,7 +1352,18 @@ def load_paper_params(root: Path) -> dict[str, Any]:
         return out
     if not isinstance(blob, dict):
         return out
-    for key in ("stop_frac", "target_frac", "scalp_hold_bars", "give_up_frac", "nudge_n_closed"):
+    for key in (
+        "stop_frac",
+        "target_frac",
+        "scalp_hold_bars",
+        "give_up_frac",
+        "nudge_n_closed",
+        "skip_sideways",
+        "regime_lookback",
+        "regime_er_max",
+        "regime_flip_min",
+        "regime_range_atr_max",
+    ):
         if key in blob and blob[key] is not None:
             out[key] = blob[key]
     out["production_params_written"] = False
@@ -1335,6 +1474,11 @@ def nudge_paper_params(closed: Sequence[dict[str, Any]], current: dict[str, Any]
     if sl_rate >= 0.45:
         stop_frac = min(0.55, round(stop_frac + 0.02, 4))
         notes.append(f"high SL-hit {sl_rate:.0%} → paper stop_frac={stop_frac}")
+        er_max = float(params.get("regime_er_max") or REGIME_ER_MAX)
+        params["regime_er_max"] = min(0.40, round(er_max + 0.02, 4))
+        notes.append(
+            f"high SL-hit → paper regime_er_max={params['regime_er_max']} (more SIDEWAYS HOLD, session only)"
+        )
     elif wr >= 0.55 and sl_rate <= 0.25:
         stop_frac = max(0.28, round(stop_frac - 0.02, 4))
         notes.append(f"few SL hits + wr {wr:.0%} → tighter paper stop_frac={stop_frac}")
@@ -1382,6 +1526,11 @@ def replay_paper_scalp(
         paper_target_frac=float(params.get("target_frac") or TARGET_FRAC),
         paper_hold_bars=int(params.get("scalp_hold_bars") or SCALP_HOLD_BARS),
         paper_give_up_frac=float(params.get("give_up_frac") or GIVE_UP_FRAC),
+        skip_new_when_sideways=bool(params.get("skip_sideways", True)),
+        regime_lookback=int(params.get("regime_lookback") or REGIME_LOOKBACK),
+        regime_er_max=float(params.get("regime_er_max") or REGIME_ER_MAX),
+        regime_flip_min=float(params.get("regime_flip_min") or REGIME_FLIP_MIN),
+        regime_range_atr_max=float(params.get("regime_range_atr_max") or REGIME_RANGE_ATR_MAX),
     )
     for book_id in LIVE_BOOKS:
         engine.equity[book_id] = starting_capital
@@ -1475,6 +1624,7 @@ def replay_paper_scalp(
             "logit_xr": logit_xr_meta,
             "ml1": ml1,
             "tape": tape,
+            "index_regime": engine.last_regime.get(u),
             "span_ist": {
                 "first": _ist_dt(triples[0].ts).isoformat(timespec="seconds"),
                 "last": _ist_dt(triples[-1].ts).isoformat(timespec="seconds"),
@@ -1634,6 +1784,11 @@ def today_picture(closed: Sequence[dict[str, Any]], book_rank: Sequence[dict[str
             continue
         u = str(r.get("underlying") or "?")
         unique_by_und[u] = round(unique_by_und.get(u, 0.0) + _net_or_points(r), 2)
+    n_sl_hit = sum(1 for r in filled if r.get("sl_hit"))
+    regime_counts: dict[str, int] = {}
+    for r in filled:
+        key = str(r.get("index_regime") or "UNKNOWN")
+        regime_counts[key] = regime_counts.get(key, 0) + 1
     return {
         "n_tickets": len(closed),
         "n_filled": len(filled),
@@ -1655,6 +1810,8 @@ def today_picture(closed: Sequence[dict[str, Any]], book_rank: Sequence[dict[str
         "unique_books": list(UNIQUE_PNL_BOOKS),
         "unique_net_pnl_inr": unique_net,
         "unique_net_by_index": unique_by_und,
+        "n_sl_hit": n_sl_hit,
+        "filled_by_index_regime": regime_counts,
         "cost_model": groww_cost_meta(),
     }
 
@@ -1680,7 +1837,9 @@ def index_adjustment_notes(
     if len(clones) >= 4 and len(set(round(x, 2) for x in clones)) == 1:
         notes.append(
             "ML-001 / ML-002 / ML-1 / MIX-ML-LOGIT-XR matched MIX-DEFAULT-BUY net ₹ "
-            "(deny_model_signals=false — overlay did not change CE/PE). Do not retune KMeans from this day."
+            "(deny_model_signals=false — overlay did not change CE/PE). XR cloned dealer "
+            "because the 3m range-expansion filter skipped and the book fell back to dealer, "
+            "not because XR equals a 1m SIDEWAYS detector. Do not retune KMeans from this day."
         )
     logit = next((r for r in book_rank if r["book_id"] == "MIX-ML-LOGIT"), None)
     dealer = next((r for r in book_rank if r["book_id"] == "MIX-DEFAULT-BUY"), None)
@@ -1718,7 +1877,7 @@ def index_adjustment_notes(
             )
     notes.append(
         "Rank is after Groww ₹20/order × 2 + GST 18% on brokerage + STT 0.15% sell premium (VERIFY). "
-        "Cannot CANDIDATE. NO_PROMOTE."
+        "Cannot CANDIDATE. NO_PROMOTE. INDEX 1m SIDEWAYS_HOLD is HYPOTHESIS paper skip of NEW opens only."
     )
     return notes
 
@@ -1823,6 +1982,11 @@ def build_dashboard(
     board_leaderboard = leaderboard_closed(engine.closed)
     board_book_rank = rank_books_net(engine.closed)
     picture = today_picture(engine.closed, board_book_rank)
+    side_skips = [s for s in engine.skips if str(s.get("reason")) == SIDEWAYS_HOLD]
+    side_bars = {(s.get("ts"), s.get("underlying")) for s in side_skips}
+    picture["n_skip_sideways"] = len(side_skips)
+    picture["n_sideways_bars"] = len(side_bars)
+    picture["last_index_regime"] = dict(engine.last_regime)
     adj_notes = index_adjustment_notes(
         engine.closed,
         board_book_rank,
@@ -1860,6 +2024,10 @@ def build_dashboard(
         "money_lost_inr": money_lost_inr,
         "equity_sum_inr": round(sum(engine.book_equity(b) for b in LIVE_BOOKS), 2),
         "today": picture,
+        "n_skip_sideways": picture.get("n_skip_sideways") or 0,
+        "n_sideways_bars": picture.get("n_sideways_bars") or 0,
+        "n_sl_hit": picture.get("n_sl_hit") or 0,
+        "last_index_regime": picture.get("last_index_regime") or {},
         "book_rank": board_book_rank,
         "index_notes": adj_notes,
         "cost_model": groww_cost_meta(),
@@ -1883,6 +2051,7 @@ def build_dashboard(
             "charges_inr",
             "realized_pnl_inr",
             "result",
+            "index_regime",
         ],
         "source": source,
         "customer_mix": "MIX-DEFAULT-BUY unchanged (dealer book is PAPER parallel, not a live rewrite)",
@@ -1934,6 +2103,8 @@ def build_dashboard(
             "A signal is WORKING_LIMIT until LTP<=limit. If the candle runs away, cancel with ₹0 — never assume a fill.",
             "No new paper after 14:45 IST. 15:00 flattens leftover OPEN. live_session does not keep dead tickets overnight.",
             "paper_params nudge is session-only overfit. production_params_written stays false.",
+            "INDEX 1m regime TREND|SIDEWAYS|UNKNOWN is HYPOTHESIS. SIDEWAYS skips NEW paper opens; flatten/cancel still run.",
+            "Founder ~57% wr during cash hours is an in-session PAPER observation, not this EOD Groww+STT filled hit rate. Not a promote.",
         ],
     }
 
@@ -1975,6 +2146,10 @@ def write_dashboard(board: dict[str, Any], *, root: Optional[Path] = None) -> di
             "session_ist_date",
             "title",
             "n_open",
+            "n_skip_sideways",
+            "n_sideways_bars",
+            "n_sl_hit",
+            "last_index_regime",
             "paper_params",
             "paper_param_notes",
             "ticket_columns",
@@ -1996,7 +2171,7 @@ def write_dashboard(board: dict[str, Any], *, root: Optional[Path] = None) -> di
     }
     compact["inventory"] = {"data_gaps": (board.get("inventory") or {}).get("data_gaps")}
     compact["steps"] = {
-        u: {kk: vv for kk, vv in (s or {}).items() if kk in {"status", "n_triples", "span_ist", "logit", "ml1"}}
+        u: {kk: vv for kk, vv in (s or {}).items() if kk in {"status", "n_triples", "span_ist", "logit", "ml1", "index_regime"}}
         for u, s in (board.get("steps") or {}).items()
     }
     compact["n_closed"] = len(board.get("closed_trades") or [])
@@ -2042,6 +2217,11 @@ def render_markdown(board: dict[str, Any]) -> str:
         f"brokerage ₹{pic.get('brokerage_inr')} − GST ₹{pic.get('gst_inr')} − STT ₹{pic.get('stt_inr')} "
         f"= **net ₹{pic.get('net_pnl_inr', board.get('overall_pnl_inr'))}**."
     )
+    lines.append(
+        f"SIDEWAYS skip (NEW opens only, HYPOTHESIS): n_skip_sideways={board.get('n_skip_sideways', pic.get('n_skip_sideways'))} "
+        f"· n_sideways_bars={board.get('n_sideways_bars', pic.get('n_sideways_bars'))} "
+        f"· filled SL-hits={board.get('n_sl_hit', pic.get('n_sl_hit'))}."
+    )
     by_idx = pic.get("net_by_index") or {}
     if by_idx:
         parts = [f"{k} ₹{v}" for k, v in by_idx.items()]
@@ -2078,17 +2258,17 @@ def render_markdown(board: dict[str, Any]) -> str:
         "",
         "## Open tickets (strike / limit / SL / CE|PE / status)",
         "",
-        "| model | und | CE/PE | strike | limit | target | stop | status |",
-        "|-------|-----|-------|--------|-------|--------|------|--------|",
+        "| model | und | CE/PE | strike | limit | target | stop | status | regime |",
+        "|-------|-----|-------|--------|-------|--------|------|--------|--------|",
     ]
     for row in board.get("open_trades") or []:
         lines.append(
             f"| `{row.get('book_id')}` | {row.get('underlying')} | {row.get('side')} | "
             f"{row.get('atm_strike')} | {row.get('limit_price')} | {row.get('target')} | {row.get('stop')} | "
-            f"{row.get('status') or 'OPEN_PAPER'} |"
+            f"{row.get('status') or 'OPEN_PAPER'} | {row.get('index_regime') or '—'} |"
         )
     if not board.get("open_trades"):
-        lines.append("| — | — | — | — | — | — | — | none |")
+        lines.append("| — | — | — | — | — | — | — | none | — |")
     lines += [
         "",
         "## Leaderboard (book × index, ranked by net ₹)",
@@ -2139,8 +2319,8 @@ def render_markdown(board: dict[str, Any]) -> str:
         "",
         "## Closed tickets (strike / limit / target / SL / WIN|LOSS / money)",
         "",
-        "| model | und | side | strike | limit | target | stop | status | sl_hit | money lost ₹ | pnl ₹ | WIN/LOSS |",
-        "|-------|-----|------|--------|-------|--------|------|--------|--------|--------------|-------|----------|",
+        "| model | und | side | strike | limit | target | stop | status | sl_hit | money lost ₹ | pnl ₹ | WIN/LOSS | regime |",
+        "|-------|-----|------|--------|-------|--------|------|--------|--------|--------------|-------|----------|--------|",
     ]
     for row in (board.get("closed_trades") or [])[-20:]:
         lost = row.get("sl_loss_inr")
@@ -2149,10 +2329,11 @@ def render_markdown(board: dict[str, Any]) -> str:
         lines.append(
             f"| `{row.get('book_id')}` | {row.get('underlying')} | {row.get('side')} | "
             f"{row.get('atm_strike')} | {row.get('limit_price')} | {row.get('target')} | {row.get('stop')} | "
-            f"{row.get('status')} | {row.get('sl_hit')} | {lost} | {row.get('realized_pnl_inr')} | {row.get('result')} |"
+            f"{row.get('status')} | {row.get('sl_hit')} | {lost} | {row.get('realized_pnl_inr')} | {row.get('result')} | "
+            f"{row.get('index_regime') or '—'} |"
         )
     if not board.get("closed_trades"):
-        lines.append("| — | — | — | — | — | — | — | — | — | — | — | — |")
+        lines.append("| — | — | — | — | — | — | — | — | — | — | — | — | — |")
     lines += [
         "",
         "## Mistakes (paper-param nudge only; no MIX write)",
@@ -2162,7 +2343,8 @@ def render_markdown(board: dict[str, Any]) -> str:
     params = board.get("paper_params") or {}
     lines.append(
         f"Paper params: stop_frac={params.get('stop_frac')} target_frac={params.get('target_frac')} "
-        f"hold_bars={params.get('scalp_hold_bars')}. production_params_written=false."
+        f"hold_bars={params.get('scalp_hold_bars')} skip_sideways={params.get('skip_sideways')} "
+        f"regime_er_max={params.get('regime_er_max')}. production_params_written=false."
     )
     for n in notes:
         lines.append(f"- {n}")

@@ -8,6 +8,8 @@ from desk_ml.features import Triple
 from desk_ml.paper_scalp import (
     BookEngine,
     LIVE_BOOKS,
+    SIDEWAYS_HOLD,
+    classify_index_regime,
     feasibility_long,
     paper_hit_rate,
     propose_levels,
@@ -32,6 +34,81 @@ def _triples(*, n: int = 80, trend: float = 8.0) -> list[Triple]:
         pe = max(8.0, pe - trend * 0.12)
         out.append(Triple(ts=_ts(i), idx_close=idx, ce_close=ce, pe_close=pe))
     return out
+
+
+def _chop_triples(*, n: int = 80) -> list[Triple]:
+    out: list[Triple] = []
+    idx, ce, pe = 25000.0, 120.0, 110.0
+    for i in range(n):
+        idx += 4.0 if i % 2 == 0 else -4.0
+        ce = max(8.0, 120.0 + (2.0 if i % 2 == 0 else -2.0))
+        pe = max(8.0, 110.0 + (-2.0 if i % 2 == 0 else 2.0))
+        out.append(Triple(ts=_ts(i), idx_close=idx, ce_close=ce, pe_close=pe))
+    return out
+
+
+def test_classify_index_regime_trend_vs_sideways() -> None:
+    trend = [25000.0 + i * 8.0 for i in range(40)]
+    chop = [25000.0 + (4.0 if i % 2 == 0 else -4.0) for i in range(40)]
+    t = classify_index_regime(trend)
+    s = classify_index_regime(chop)
+    assert t["regime"] == "TREND"
+    assert s["regime"] == "SIDEWAYS"
+    short = classify_index_regime([25000.0, 25001.0])
+    assert short["regime"] == "UNKNOWN"
+
+
+def test_sideways_skips_new_opens_not_dealer_yaml() -> None:
+    triples = _chop_triples()
+    engine = BookEngine()
+    step_underlying(
+        engine,
+        underlying="NIFTY",
+        triples=triples,
+        i=40,
+        ml001_hold=False,
+        ml002_hold=False,
+        follow_gap=False,
+        logit={"side": "CE", "status": "OK"},
+        logit_xr={"side": "CE", "status": "OK"},
+        ml1={"status": "OK", "take": True},
+        tv_side="CE",
+        deny_model_signals=False,
+    )
+    assert engine.last_regime["NIFTY"]["regime"] == "SIDEWAYS"
+    for book in ("MIX-DEFAULT-BUY", "MIX-ML-LOGIT", "MIX-TV-EP-024"):
+        assert engine.has_open(book, "NIFTY") is False
+    assert any(s.get("reason") == SIDEWAYS_HOLD and s.get("book_id") == "MIX-DEFAULT-BUY" for s in engine.skips)
+
+
+def test_sideways_still_flattens_open_ticket() -> None:
+    from desk_ml.paper_scalp import OpenPaper, mark_to_market
+
+    triples = _chop_triples()
+    engine = BookEngine()
+    pos = OpenPaper(
+        book_id="MIX-DEFAULT-BUY",
+        underlying="NIFTY",
+        side="CE",
+        trade_id="already-open",
+        entry=120.0,
+        stop=80.0,
+        target=160.0,
+        atm_strike=25000.0,
+        opened_ts=int(__import__("datetime").datetime(2026, 9, 10, 15, 0, tzinfo=IST).timestamp()) - 60,
+        opened_bar=49,
+        strike_source="TEST",
+        limit_price=120.0,
+        filled=True,
+        index_regime="TREND",
+    )
+    engine.opens[("MIX-DEFAULT-BUY", "NIFTY")] = pos
+    engine.equity["MIX-DEFAULT-BUY"] = 10000.0
+    late = int(__import__("datetime").datetime(2026, 9, 10, 15, 1, tzinfo=IST).timestamp())
+    tick = Triple(ts=late, idx_close=25000.0, ce_close=118.0, pe_close=110.0)
+    mark_to_market(engine, tick, "NIFTY", 50)
+    assert engine.has_open("MIX-DEFAULT-BUY", "NIFTY") is False
+    assert engine.closed and engine.closed[0]["exit_reason"] == "FLATTEN_1500"
 
 
 def test_paper_hit_rate_from_closed_pnl() -> None:

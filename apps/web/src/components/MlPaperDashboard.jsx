@@ -98,6 +98,7 @@ export function MlPaperDashboard({ compact = false }) {
         {bestMl.book_id
           ? ` Best ML: ${bestMl.book_id} rank ${bestMl.rank} net ₹${bestMl.sum_pnl_inr}.`
           : ""}
+        {` SIDEWAYS HOLD skips ${data.n_skip_sideways ?? today.n_skip_sideways ?? 0} new opens (${data.n_sideways_bars ?? today.n_sideways_bars ?? 0} bars). SL-hits ${data.n_sl_hit ?? today.n_sl_hit ?? "—"}.`}
       </p>
       <h3>Ranked by net P/L</h3>
       {ranks.length === 0 ? (
@@ -167,7 +168,8 @@ export function MlPaperDashboard({ compact = false }) {
               {open.map((t) => (
                 <li key={t.trade_id}>
                   {t.book_id} {t.underlying} {t.side} strike={t.atm_strike} limit=
-                  {t.limit_price} tgt={t.target} sl={t.stop} status={t.status || "OPEN_PAPER"}
+                  {t.limit_price} tgt={t.target} sl={t.stop} status={t.status || "OPEN_PAPER"}{" "}
+                  regime={t.index_regime || "—"}
                 </li>
               ))}
             </ul>
@@ -182,7 +184,7 @@ export function MlPaperDashboard({ compact = false }) {
                   {t.book_id} {t.underlying} {t.side} strike={t.atm_strike} limit=
                   {t.limit_price} tgt={t.target} sl={t.stop} status={t.status} sl_hit=
                   {String(t.sl_hit)} lost₹={t.sl_loss_inr ?? (t.result === "LOSS" ? t.realized_pnl_inr : "—")}{" "}
-                  pnl₹={t.realized_pnl_inr ?? "—"} {t.result}
+                  pnl₹={t.realized_pnl_inr ?? "—"} {t.result} regime={t.index_regime || "—"}
                 </li>
               ))}
             </ul>

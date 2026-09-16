@@ -72,6 +72,7 @@ Dual-tape persist also writes `paper_watch/DUAL-TAPE/overlay_last.json` (fail-so
 | Dual-tape missing ATM / stale / wrong strike | HOLD |
 | ML-001 overlay HOLD / PREMIUM_DIVERGENCE | HOLD new paper CE/PE |
 | ML-002 residual \|z\|≥2 or FOLLOW-GAP | HOLD |
+| INDEX 1m `SIDEWAYS` (low ER / flips / tight band) | HOLD **new** paper CE/PE. Flatten/cancel still run. HYPOTHESIS. |
 | Score CLI `DATA_INSUFFICIENT` | HOLD |
 
 Do not treat `TREND_UP` / cluster id as BUY_CE.

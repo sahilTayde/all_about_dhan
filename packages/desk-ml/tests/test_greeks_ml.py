@@ -31,9 +31,11 @@ def test_mix_ml_greeks_skips_without_chain() -> None:
 
     IST = timezone(timedelta(hours=5, minutes=30))
     ts = int(datetime(2026, 9, 10, 10, 30, tzinfo=IST).timestamp())
-    tick = Triple(ts=ts, idx_close=23200.0, ce_close=80.0, pe_close=70.0)
     engine = BookEngine()
-    triples = [tick] * 30
+    triples = [
+        Triple(ts=ts + i * 60, idx_close=23200.0 + i * 8.0, ce_close=80.0, pe_close=70.0)
+        for i in range(30)
+    ]
     step_underlying(
         engine,
         underlying="NIFTY",
@@ -58,21 +60,24 @@ def test_mix_ml_greeks_opens_when_delta_ok() -> None:
 
     IST = timezone(timedelta(hours=5, minutes=30))
     ts = int(datetime(2026, 9, 10, 10, 30, tzinfo=IST).timestamp())
-    tick = Triple(
-        ts=ts,
-        idx_close=23250.0,
-        ce_close=80.0,
-        pe_close=70.0,
-        atm_strike=23250.0,
-        itm_ce_close=140.0,
-        itm_ce_strike=23150.0,
-        wing_quotes={
-            "23150": {"ce": 140.0, "ce_delta": 0.62, "ce_theta": -7.0, "ce_iv": 12.0, "ce_gamma": 0.002},
-            "23250": {"ce": 80.0, "ce_delta": 0.50, "ce_theta": -9.0, "ce_iv": 12.5, "ce_gamma": 0.003},
-        },
-    )
+    wings = {
+        "23150": {"ce": 140.0, "ce_delta": 0.62, "ce_theta": -7.0, "ce_iv": 12.0, "ce_gamma": 0.002},
+        "23250": {"ce": 80.0, "ce_delta": 0.50, "ce_theta": -9.0, "ce_iv": 12.5, "ce_gamma": 0.003},
+    }
     engine = BookEngine()
-    triples = [tick] * 30
+    triples = [
+        Triple(
+            ts=ts + i * 60,
+            idx_close=23250.0 + i * 8.0,
+            ce_close=80.0,
+            pe_close=70.0,
+            atm_strike=23250.0,
+            itm_ce_close=140.0,
+            itm_ce_strike=23150.0,
+            wing_quotes=wings,
+        )
+        for i in range(30)
+    ]
     step_underlying(
         engine,
         underlying="NIFTY",
