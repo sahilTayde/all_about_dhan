@@ -36,6 +36,14 @@ Left off 2026-09-13: ITM champion PAPER board ready (MIX-CHAMP-* + desk leaderbo
 
 ---
 
+---
+
+## Left-off 2026-09-16 EOD — today net P/L after Groww+STT (NO_PROMOTE)
+
+**Now:** Paper dashboard ranks filled tickets by **net ₹** (Groww ₹20/order × 2 + GST 18% on brokerage + STT 0.15% sell premium VERIFY). Unfilled = ₹0. Same `/pm` `/desk` `GET /paper/ml-books`. **NO_PROMOTE.** No live orders. Do not restart npm. Do not git-add sqlite.
+
+**Next:** 09:15 IST dual-tape `--live-chain --paper-train --paper-scalp`. Watch MIX-ML-GREEKS vs MIX-ML-LOGIT vs dealer **net** ₹. SENSEX paper-param only if still red.
+
 ## Left-off 2026-09-16 EOD — MIX-ML-GREEKS for 09:15 IST tomorrow (NO_PROMOTE)
 
 **Now:** New paper book `MIX-ML-GREEKS` (`ml-greeks-v1`) on dual-tape `--paper-scalp`. 04: greeks in ML-2 HOLD, not KMeans. Today replay 28 closes vs dealer 250. **NO_PROMOTE.** No live orders. Do not restart npm. Do not git-add sqlite.

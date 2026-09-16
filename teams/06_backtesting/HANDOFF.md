@@ -1,5 +1,21 @@
 # Handoff log — Team 06 Backtesting
 
+## As of now (2026-09-16 EOD) — Groww+STT net rank on ML_PAPER_DASHBOARD (NO_PROMOTE)
+
+```text
+From:     teams/06_backtesting + desk_ml
+To:       00 / 02 / founder
+Date:     2026-09-16
+Status:   PAPER COST OVERLAY / HYPOTHESIS VERIFY / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: realized_pnl_inr = gross lots P/L − Groww brokerage − GST
+  − option STT. Rank books and book×index by net ₹. Today glance on
+  ML_PAPER_DASHBOARD.md. Cannot CANDIDATE from this overlay.
+Rejected: Statutory as SOURCE_FACT. Promote from one session.
+UNKNOWN: Exchange txn + stamp; STT 0.15% VERIFY vs older 0.10/0.05.
+```
+
 ## As of now (2026-09-16 EOD) — no dead OPEN_PAPER / working limits (NO_PROMOTE)
 
 ```text

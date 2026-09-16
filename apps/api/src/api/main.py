@@ -133,7 +133,7 @@ def create_app() -> FastAPI:
 
     @app.get("/paper/ml-books")
     def paper_ml_books() -> dict[str, Any]:
-        """Parallel ML/dealer PAPER scalper board. Closed premium P/L only. NO_PROMOTE."""
+        """Parallel ML/dealer PAPER scalper board. Net ₹ after Groww+STT. NO_PROMOTE."""
         import json
         from pathlib import Path
 

@@ -168,7 +168,10 @@ def test_replay_parallel_books_no_promote(tmp_path) -> None:
     assert ids == set(LIVE_BOOKS)
     assert board["research_ready_for_programming"] is False
     assert board["execution"] == "refused"
-    assert board["win_rate_kind"] == "paper_closed_premium_gt_0"
+    assert board["win_rate_kind"] == "paper_closed_net_inr_gt_0_after_groww_stt"
+    assert "book_rank" in board
+    assert "today" in board
+    assert board["cost_model"]["name"] == "GROWW_FO_20_PLUS_STT_015"
     if board["n_closed"]:
         assert board["win_rate"] is not None
         assert 0.0 <= float(board["win_rate"]) <= 1.0
@@ -449,5 +452,69 @@ def test_pick_paper_strike_prefers_delta_band() -> None:
         },
     )
     assert pick_paper_strike(tick, "CE", 23250.0, "NIFTY") == 23200.0
+
+
+def test_filled_close_applies_groww_and_stt() -> None:
+    from desk_ml.groww_costs import groww_round_trip_charges, net_pnl_inr
+    from desk_ml.paper_scalp import BookEngine, OpenPaper, _close
+
+    engine = BookEngine()
+    engine.equity["MIX-DEFAULT-BUY"] = 10000.0
+    pos = OpenPaper(
+        book_id="MIX-DEFAULT-BUY",
+        underlying="NIFTY",
+        side="CE",
+        trade_id="fill-cost",
+        entry=100.0,
+        stop=80.0,
+        target=130.0,
+        atm_strike=23200.0,
+        opened_ts=_ts(0),
+        opened_bar=1,
+        strike_source="TEST",
+        limit_price=100.0,
+        lot_size=65,
+        lots=1,
+        qty=65,
+        filled=True,
+    )
+    _close(engine, pos, ltp=110.0, ts=_ts(5), reason="TARGET")
+    row = engine.closed[0]
+    expect = groww_round_trip_charges(exit_premium=110.0, qty=65, filled=True)
+    assert row["gross_pnl_inr"] == 650.0
+    assert row["brokerage_inr"] == 40.0
+    assert row["charges_inr"] == expect["charges_inr"]
+    assert row["realized_pnl_inr"] == net_pnl_inr(gross_inr=650.0, charges_inr=expect["charges_inr"])
+    assert row["result"] == "SUCCESS"
+
+
+def test_unfilled_close_has_zero_charges() -> None:
+    from desk_ml.paper_scalp import BookEngine, OpenPaper, _close
+
+    engine = BookEngine()
+    engine.equity["MIX-DEFAULT-BUY"] = 10000.0
+    pos = OpenPaper(
+        book_id="MIX-DEFAULT-BUY",
+        underlying="NIFTY",
+        side="CE",
+        trade_id="unfill-cost",
+        entry=100.0,
+        stop=80.0,
+        target=130.0,
+        atm_strike=23200.0,
+        opened_ts=_ts(0),
+        opened_bar=1,
+        strike_source="TEST",
+        limit_price=100.0,
+        lot_size=65,
+        lots=1,
+        qty=65,
+        filled=False,
+    )
+    _close(engine, pos, ltp=110.0, ts=_ts(5), reason="CANCEL_UNFILLED_AWAY")
+    row = engine.closed[0]
+    assert row["result"] == "CANCELLED"
+    assert row["charges_inr"] == 0.0
+    assert row["realized_pnl_inr"] == 0.0
 
 

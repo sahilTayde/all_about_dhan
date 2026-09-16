@@ -2,6 +2,22 @@
 
 **Agents:** read **only the newest block**. Do not ingest this whole log. New files: [`docs/FILE_CREATION.md`](../../docs/FILE_CREATION.md). Append here — do not create `HANDOFF_TOMORROW.md` or extra `CONTINUE_*`.
 
+## As of now (2026-09-16 EOD) — today net P/L + Groww/STT on ML board (NO_PROMOTE)
+
+```text
+From:     teams/00_orchestrator
+To:       founder / 02 / 06 / 07
+Date:     2026-09-16
+Status:   PAPER PNL / HYPOTHESIS VERIFY / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: Same ML paper dashboard ranks filled tickets by net ₹ after
+  Groww F&O ₹20/order × 2 + GST 18% on brokerage + STT 0.15% sell
+  premium (VERIFY). Unfilled CANCELLED = ₹0. Book rank + index notes.
+Rejected: Invent STT then CANDIDATE. Live Super Orders. npm restart.
+UNKNOWN: Exchange/SEBI/stamp; older STT slabs vs Budget 2026 0.15%.
+```
+
 ## As of now (2026-09-16 EOD) — cancel unfilled limits; no overnight OPEN (NO_PROMOTE)
 
 ```text

@@ -26,6 +26,8 @@ from desk_ml.paper_lots import (
     resolve_lot_size,
     size_lots,
 )
+from desk_ml.groww_costs import as_dict as groww_cost_meta
+from desk_ml.groww_costs import groww_round_trip_charges, net_pnl_inr
 from desk_ml.greeks_ml import score_greeks_ticket, session_iv_median, wing_ivs
 from desk_ml.tape import ist_calendar_date, load_dual_tape_triples, load_index_closes, load_triples
 
@@ -61,6 +63,21 @@ LIVE_BOOKS = (
     "ML-1",
     "MIX-ML-LOGIT",
     "MIX-ML-LOGIT-XR",
+    "MIX-TV-EP-024",
+    "MIX-ML-GREEKS",
+)
+ML_BOOK_IDS = (
+    "ML-001",
+    "ML-002",
+    "ML-1",
+    "MIX-ML-LOGIT",
+    "MIX-ML-LOGIT-XR",
+    "MIX-ML-GREEKS",
+)
+# Overlay clones of dealer when deny_model_signals=false. Desk "earned" uses unique books.
+UNIQUE_PNL_BOOKS = (
+    "MIX-DEFAULT-BUY",
+    "MIX-ML-LOGIT",
     "MIX-TV-EP-024",
     "MIX-ML-GREEKS",
 )
@@ -681,15 +698,28 @@ def _exit_reason(
 
 def _close(engine: BookEngine, pos: OpenPaper, *, ltp: float, ts: int, reason: str, root: Optional[Path] = None) -> None:
     unfilled = (not pos.filled) or str(reason).startswith("CANCEL_UNFILLED")
+    qty = pos.qty
+    if qty is None and pos.lot_size is not None and int(pos.lot_size) > 0:
+        qty = int(pos.lot_size) * int(pos.lots)
+    charges = groww_round_trip_charges(
+        exit_premium=float(ltp),
+        qty=qty,
+        filled=not unfilled,
+    )
     if unfilled:
         points = 0.0
+        gross = 0.0
         inr = 0.0
         result = "CANCELLED"
         won = False
     else:
         points = float(ltp) - float(pos.entry)
-        inr = pnl_inr(points=points, lot_size=pos.lot_size, lots=pos.lots)
-        won = points > 0
+        gross = pnl_inr(points=points, lot_size=pos.lot_size, lots=pos.lots)
+        inr = net_pnl_inr(gross_inr=gross, charges_inr=float(charges["charges_inr"]))
+        if inr is None:
+            won = points > 0
+        else:
+            won = inr > 0
         result = "SUCCESS" if won else "LOSS"
     sl_hit = (not unfilled) and reason in {"STOP", "CANCEL_ADVERSE"}
     sl_loss_inr = inr if sl_hit and inr is not None and inr < 0 else (0.0 if sl_hit and inr is None else None)
@@ -715,10 +745,15 @@ def _close(engine: BookEngine, pos: OpenPaper, *, ltp: float, ts: int, reason: s
             "sl_hit": sl_hit,
             "sl_loss_inr": sl_loss_inr if sl_hit else None,
             "realized_pnl": round(points, 4),
+            "gross_pnl_inr": gross,
+            "brokerage_inr": charges["brokerage_inr"],
+            "gst_inr": charges["gst_inr"],
+            "stt_inr": charges["stt_inr"],
+            "charges_inr": charges["charges_inr"],
             "realized_pnl_inr": inr,
             "lot_size": pos.lot_size,
             "lots": pos.lots,
-            "qty": pos.qty,
+            "qty": qty,
             "notional_inr": pos.notional_inr,
             "capital_inr": pos.capital_inr,
             "lot_status": pos.lot_status,
@@ -757,6 +792,8 @@ def _close(engine: BookEngine, pos: OpenPaper, *, ltp: float, ts: int, reason: s
                 "exit_reason": reason,
                 "sl_hit": sl_hit,
                 "pnl_points": round(points, 4),
+                "gross_pnl_inr": gross,
+                "charges_inr": charges["charges_inr"],
                 "pnl_inr": inr,
                 "equity_inr": engine.book_equity(pos.book_id),
             },
@@ -1484,6 +1521,19 @@ def _book_what(book_id: str) -> str:
     }.get(book_id, book_id)
 
 
+def _net_or_points(row: dict[str, Any]) -> float:
+    if row.get("realized_pnl_inr") is not None:
+        return float(row["realized_pnl_inr"])
+    return float(row.get("realized_pnl") or 0.0)
+
+
+def _sum_opt(vals: Sequence[Optional[float]]) -> Optional[float]:
+    nums = [float(v) for v in vals if v is not None]
+    if not nums:
+        return None
+    return round(sum(nums), 2)
+
+
 def leaderboard_closed(closed: Sequence[dict[str, Any]]) -> list[dict[str, Any]]:
     buckets: dict[tuple[str, str], list[dict[str, Any]]] = {}
     for row in closed:
@@ -1493,25 +1543,184 @@ def leaderboard_closed(closed: Sequence[dict[str, Any]]) -> list[dict[str, Any]]
         buckets.setdefault(key, []).append(row)
     out = []
     for (book, und), rows in sorted(buckets.items()):
-        pnls = [float(r["realized_pnl"]) for r in rows]
-        inrs = [float(r["realized_pnl_inr"]) for r in rows if r.get("realized_pnl_inr") is not None]
+        nets = [_net_or_points(r) for r in rows]
+        pts = [float(r["realized_pnl"]) for r in rows]
+        gross = [r.get("gross_pnl_inr") for r in rows]
+        chg = [r.get("charges_inr") for r in rows]
         out.append(
             {
                 "book_id": book,
                 "underlying": und,
-                "n_closed": len(pnls),
-                "n_wins": sum(1 for p in pnls if p > 0),
-                "n_losses": sum(1 for p in pnls if p <= 0),
-                "sum_premium_pnl": round(sum(pnls), 4),
-                "sum_pnl_inr": round(sum(inrs), 2) if inrs else None,
-                "win_rate": paper_hit_rate(pnls),
-                "win_rate_pct": paper_hit_rate_pct(pnls),
-                "win_rate_kind": "paper_closed_premium_gt_0",
-                "rank_metric": "closed_premium_pnl_only",
+                "n_closed": len(nets),
+                "n_wins": sum(1 for p in nets if p > 0),
+                "n_losses": sum(1 for p in nets if p <= 0),
+                "sum_premium_pnl": round(sum(pts), 4),
+                "sum_gross_pnl_inr": _sum_opt(gross),
+                "sum_charges_inr": _sum_opt(chg),
+                "sum_pnl_inr": round(sum(nets), 2),
+                "win_rate": paper_hit_rate(nets),
+                "win_rate_pct": paper_hit_rate_pct(nets),
+                "win_rate_kind": "paper_closed_net_inr_gt_0_after_groww_stt",
+                "rank_metric": "closed_net_pnl_inr_after_groww_stt",
             }
         )
-    out.sort(key=lambda r: (r["sum_pnl_inr"] is not None, r["sum_pnl_inr"] or r["sum_premium_pnl"]), reverse=True)
+    out.sort(key=lambda r: r["sum_pnl_inr"], reverse=True)
+    for i, row in enumerate(out, start=1):
+        row["rank"] = i
     return out
+
+
+def rank_books_net(closed: Sequence[dict[str, Any]]) -> list[dict[str, Any]]:
+    buckets: dict[str, list[dict[str, Any]]] = {}
+    cancelled: dict[str, int] = {}
+    for row in closed:
+        book = str(row["book_id"])
+        if str(row.get("result")) == "CANCELLED":
+            cancelled[book] = cancelled.get(book, 0) + 1
+            continue
+        buckets.setdefault(book, []).append(row)
+    out = []
+    for book in LIVE_BOOKS:
+        rows = buckets.get(book, [])
+        nets = [_net_or_points(r) for r in rows]
+        out.append(
+            {
+                "rank": 0,
+                "book_id": book,
+                "kind": "ML" if book in ML_BOOK_IDS else ("DEALER" if book == "MIX-DEFAULT-BUY" else "LAB"),
+                "n_filled": len(rows),
+                "n_cancelled": cancelled.get(book, 0),
+                "n_wins": sum(1 for p in nets if p > 0),
+                "n_losses": sum(1 for p in nets if p <= 0),
+                "sum_gross_pnl_inr": _sum_opt([r.get("gross_pnl_inr") for r in rows]),
+                "sum_charges_inr": _sum_opt([r.get("charges_inr") for r in rows]),
+                "sum_pnl_inr": round(sum(nets), 2) if nets else 0.0,
+                "win_rate_pct": paper_hit_rate_pct(nets),
+            }
+        )
+    out.sort(key=lambda r: (int(r["n_filled"]) > 0, r["sum_pnl_inr"]), reverse=True)
+    for i, row in enumerate(out, start=1):
+        row["rank"] = i
+    return out
+
+
+def today_picture(closed: Sequence[dict[str, Any]], book_rank: Sequence[dict[str, Any]]) -> dict[str, Any]:
+    filled = [r for r in closed if str(r.get("result")) in {"SUCCESS", "LOSS"}]
+    cancelled = [r for r in closed if str(r.get("result")) == "CANCELLED"]
+    nets = [_net_or_points(r) for r in filled]
+    gross = _sum_opt([r.get("gross_pnl_inr") for r in filled]) or 0.0
+    charges = _sum_opt([r.get("charges_inr") for r in filled]) or 0.0
+    brokerage = _sum_opt([r.get("brokerage_inr") for r in filled]) or 0.0
+    gst = _sum_opt([r.get("gst_inr") for r in filled]) or 0.0
+    stt = _sum_opt([r.get("stt_inr") for r in filled]) or 0.0
+    net = round(sum(nets), 2) if nets else 0.0
+    by_und: dict[str, float] = {}
+    for r in filled:
+        u = str(r.get("underlying") or "?")
+        by_und[u] = round(by_und.get(u, 0.0) + _net_or_points(r), 2)
+    best_und = max(by_und, key=by_und.get) if by_und else None
+    worst_und = min(by_und, key=by_und.get) if by_und else None
+    best_book = book_rank[0] if book_rank else None
+    worst_book = book_rank[-1] if book_rank else None
+    ml_rows = [r for r in book_rank if r.get("kind") == "ML" and int(r.get("n_filled") or 0) > 0]
+    if not ml_rows:
+        ml_rows = [r for r in book_rank if r.get("kind") == "ML"]
+    best_ml = ml_rows[0] if ml_rows else None
+    unique_rows = [r for r in book_rank if r["book_id"] in UNIQUE_PNL_BOOKS]
+    unique_net = round(sum(float(r.get("sum_pnl_inr") or 0) for r in unique_rows), 2)
+    unique_by_und: dict[str, float] = {}
+    for r in filled:
+        if str(r.get("book_id")) not in UNIQUE_PNL_BOOKS:
+            continue
+        u = str(r.get("underlying") or "?")
+        unique_by_und[u] = round(unique_by_und.get(u, 0.0) + _net_or_points(r), 2)
+    return {
+        "n_tickets": len(closed),
+        "n_filled": len(filled),
+        "n_cancelled": len(cancelled),
+        "n_wins": sum(1 for p in nets if p > 0),
+        "n_losses": sum(1 for p in nets if p <= 0),
+        "gross_pnl_inr": round(gross, 2),
+        "brokerage_inr": round(brokerage, 2),
+        "gst_inr": round(gst, 2),
+        "stt_inr": round(stt, 2),
+        "charges_inr": round(charges, 2),
+        "net_pnl_inr": net,
+        "net_by_index": by_und,
+        "best_index": best_und,
+        "worst_index": worst_und,
+        "best_book": None if best_book is None else dict(best_book),
+        "worst_book": None if worst_book is None else dict(worst_book),
+        "best_ml_book": None if best_ml is None else dict(best_ml),
+        "unique_books": list(UNIQUE_PNL_BOOKS),
+        "unique_net_pnl_inr": unique_net,
+        "unique_net_by_index": unique_by_und,
+        "cost_model": groww_cost_meta(),
+    }
+
+
+def index_adjustment_notes(
+    closed: Sequence[dict[str, Any]],
+    book_rank: Sequence[dict[str, Any]],
+    leaderboard: Sequence[dict[str, Any]],
+    net_by_index: Optional[dict[str, float]] = None,
+) -> list[str]:
+    notes: list[str] = []
+    greeks = next((r for r in book_rank if r["book_id"] == "MIX-ML-GREEKS"), None)
+    if greeks is not None and int(greeks.get("n_filled") or 0) == 0:
+        notes.append(
+            "MIX-ML-GREEKS: 0 filled tickets — Dhan greeks/IV missing most of the session. "
+            "Adjustment: keep the book; require live chain from 09:15 IST. Do not retune ml001-v1."
+        )
+    clones = [
+        r["sum_pnl_inr"]
+        for r in book_rank
+        if r["book_id"] in {"MIX-DEFAULT-BUY", "ML-001", "ML-002", "ML-1", "MIX-ML-LOGIT-XR"}
+    ]
+    if len(clones) >= 4 and len(set(round(x, 2) for x in clones)) == 1:
+        notes.append(
+            "ML-001 / ML-002 / ML-1 / MIX-ML-LOGIT-XR matched MIX-DEFAULT-BUY net ₹ "
+            "(deny_model_signals=false — overlay did not change CE/PE). Do not retune KMeans from this day."
+        )
+    logit = next((r for r in book_rank if r["book_id"] == "MIX-ML-LOGIT"), None)
+    dealer = next((r for r in book_rank if r["book_id"] == "MIX-DEFAULT-BUY"), None)
+    if logit and dealer and logit["sum_pnl_inr"] != dealer["sum_pnl_inr"]:
+        delta = round(float(logit["sum_pnl_inr"]) - float(dealer["sum_pnl_inr"]), 2)
+        notes.append(
+            f"MIX-ML-LOGIT vs dealer: {delta:+.2f} ₹ net. This is the ML book that actually scanned a different side. "
+            "PAPER only — not a promote."
+        )
+    for und in ("NIFTY", "BANKNIFTY", "SENSEX"):
+        rows = [r for r in leaderboard if r.get("underlying") == und]
+        if not rows:
+            notes.append(f"{und}: no filled paper tickets today.")
+            continue
+        best = rows[0]
+        worst = rows[-1]
+        notes.append(
+            f"{und}: best `{best['book_id']}` ₹{best.get('sum_pnl_inr')} · "
+            f"worst `{worst['book_id']}` ₹{worst.get('sum_pnl_inr')} "
+            f"(n={best.get('n_closed')} vs {worst.get('n_closed')} filled)."
+        )
+        net_und = float((net_by_index or {}).get(und, 0.0))
+        if und == "SENSEX" and net_und < 0:
+            notes.append(
+                "SENSEX paper: net negative after Groww+STT. HYPOTHESIS tweak only — "
+                "no new SENSEX after 14:00 IST; keep |delta|≥0.40 unfilled cancel. Not a MIX write."
+            )
+        if und == "NIFTY" and net_und > 0:
+            notes.append(
+                "NIFTY paper: net green after costs on this tape. Keep ITM_100 + working-limit. Not a promote."
+            )
+        if und == "BANKNIFTY" and net_und > 0:
+            notes.append(
+                "BANKNIFTY paper: net green after costs on this tape. Keep as the liquidity book. Not a promote."
+            )
+    notes.append(
+        "Rank is after Groww ₹20/order × 2 + GST 18% on brokerage + STT 0.15% sell premium (VERIFY). "
+        "Cannot CANDIDATE. NO_PROMOTE."
+    )
+    return notes
 
 
 def _append_mistakes(root: Path, mistakes: Sequence[dict[str, Any]]) -> None:
@@ -1576,7 +1785,7 @@ def build_dashboard(
     for book_id in LIVE_BOOKS:
         closed_b = [c for c in engine.closed if c["book_id"] == book_id]
         scored_b = [c for c in closed_b if c.get("result") in {"SUCCESS", "LOSS"}]
-        pnls = [float(c["realized_pnl"]) for c in scored_b]
+        nets = [_net_or_points(c) for c in scored_b]
         inrs = [float(c["realized_pnl_inr"]) for c in scored_b if c.get("realized_pnl_inr") is not None]
         open_b = [_open_ticket_row(p) for (b, _u), p in engine.opens.items() if b == book_id]
         models.append(
@@ -1587,21 +1796,23 @@ def build_dashboard(
                 "open": open_b,
                 "n_closed": len(closed_b),
                 "n_open": len(open_b),
-                "n_wins": sum(1 for p in pnls if p > 0),
-                "n_losses": sum(1 for p in pnls if p <= 0),
-                "sum_closed_premium_pnl": round(sum(pnls), 4) if pnls else 0.0,
+                "n_wins": sum(1 for p in nets if p > 0),
+                "n_losses": sum(1 for p in nets if p <= 0),
+                "sum_closed_premium_pnl": round(sum(float(c["realized_pnl"]) for c in scored_b), 4) if scored_b else 0.0,
+                "sum_gross_pnl_inr": _sum_opt([c.get("gross_pnl_inr") for c in scored_b]),
+                "sum_charges_inr": _sum_opt([c.get("charges_inr") for c in scored_b]),
                 "sum_pnl_inr": round(sum(inrs), 2) if inrs else None,
                 "starting_capital_inr": STARTING_CAPITAL_INR,
                 "equity_inr": engine.book_equity(book_id),
-                "win_rate": paper_hit_rate(pnls),
-                "win_rate_pct": paper_hit_rate_pct(pnls),
-                "win_rate_kind": "paper_closed_premium_gt_0",
+                "win_rate": paper_hit_rate(nets),
+                "win_rate_pct": paper_hit_rate_pct(nets),
+                "win_rate_kind": "paper_closed_net_inr_gt_0_after_groww_stt",
                 "lot_by_und": {k: v[0] for k, v in engine.lot_by_und.items()},
             }
         )
     open_rows = [_open_ticket_row(p) for p in engine.opens.values()]
     scored_all = [c for c in engine.closed if c.get("result") in {"SUCCESS", "LOSS"}]
-    all_pnls = [float(c["realized_pnl"]) for c in scored_all]
+    all_nets = [_net_or_points(c) for c in scored_all]
     inrs_all = [float(c["realized_pnl_inr"]) for c in engine.closed if c.get("realized_pnl_inr") is not None]
     overall_pnl_inr = round(sum(inrs_all), 2) if inrs_all else 0.0
     money_lost_inr = round(sum(x for x in inrs_all if x < 0), 2)
@@ -1609,6 +1820,15 @@ def build_dashboard(
     params = dict(paper_params or DEFAULT_PAPER_PARAMS)
     mistakes = mistakes_from_closed(engine.closed)
     successes = successes_from_closed(engine.closed)
+    board_leaderboard = leaderboard_closed(engine.closed)
+    board_book_rank = rank_books_net(engine.closed)
+    picture = today_picture(engine.closed, board_book_rank)
+    adj_notes = index_adjustment_notes(
+        engine.closed,
+        board_book_rank,
+        board_leaderboard,
+        net_by_index=picture.get("unique_net_by_index") or picture.get("net_by_index"),
+    )
     return {
         "ok": True,
         "job": "ML_PAPER_SCALP",
@@ -1623,20 +1843,26 @@ def build_dashboard(
         "execution": "refused",
         "orders": "REFUSED",
         "llm": False,
-        "win_rate": paper_hit_rate(all_pnls),
-        "win_rate_pct": paper_hit_rate_pct(all_pnls),
-        "win_rate_kind": "paper_closed_premium_gt_0",
-        "n_closed": len(all_pnls),
+        "win_rate": paper_hit_rate(all_nets),
+        "win_rate_pct": paper_hit_rate_pct(all_nets),
+        "win_rate_kind": "paper_closed_net_inr_gt_0_after_groww_stt",
+        "n_closed": len(all_nets),
         "n_open": len(open_rows),
-        "n_wins": sum(1 for p in all_pnls if p > 0),
-        "n_losses": sum(1 for p in all_pnls if p <= 0),
+        "n_wins": sum(1 for p in all_nets if p > 0),
+        "n_losses": sum(1 for p in all_nets if p <= 0),
         "starting_capital_inr_per_book": STARTING_CAPITAL_INR,
         "n_books": len(LIVE_BOOKS),
         "starting_desk_inr": STARTING_CAPITAL_INR * len(LIVE_BOOKS),
         "overall_pnl_inr": overall_pnl_inr,
+        "overall_gross_pnl_inr": picture["gross_pnl_inr"],
+        "overall_charges_inr": picture["charges_inr"],
         "money_won_inr": money_won_inr,
         "money_lost_inr": money_lost_inr,
         "equity_sum_inr": round(sum(engine.book_equity(b) for b in LIVE_BOOKS), 2),
+        "today": picture,
+        "book_rank": board_book_rank,
+        "index_notes": adj_notes,
+        "cost_model": groww_cost_meta(),
         "paper_params": params,
         "paper_param_notes": list(paper_param_notes or []),
         "mistakes": mistakes[-40:],
@@ -1653,6 +1879,8 @@ def build_dashboard(
             "sl_hit",
             "sl_loss_inr",
             "realized_pnl",
+            "gross_pnl_inr",
+            "charges_inr",
             "realized_pnl_inr",
             "result",
         ],
@@ -1682,7 +1910,7 @@ def build_dashboard(
         },
         "open_trades": open_rows,
         "closed_trades": engine.closed,
-        "leaderboard": leaderboard_closed(engine.closed),
+        "leaderboard": board_leaderboard,
         "tv_ep_inventory": tv_inventory,
         "heartbeat": {
             "cli": "python -m desk_ml paper-scalp --replay",
@@ -1691,8 +1919,10 @@ def build_dashboard(
             "does_not_start": ["paper_ops", "npm", "legacy LLM waiters"],
         },
         "honesty": [
-            "Closed option-premium P/L only ranks. Open rows do not.",
-            "win_rate_pct is paper closed hit rate (pnl>0 / n_closed) × 100. NO_PROMOTE. Not a live claim.",
+            "Closed net ₹ after Groww brokerage + GST + option STT ranks. Open rows do not.",
+            "win_rate_pct is paper filled hit rate (net ₹>0 / n_filled) × 100. NO_PROMOTE. Not a live claim.",
+            "Groww F&O ₹20/executed order × 2 legs; GST 18% on that brokerage; STT 0.15% of sell premium (VERIFY, Budget 2026).",
+            "Unfilled CANCELLED = ₹0 P/L and ₹0 charges. Exchange/SEBI/stamp omitted (UNKNOWN).",
             "Each book starts at ₹10,000. INR P/L uses OPTIDX lot from instrument master when present.",
             "Paper does not deny model CE/PE signals (deny_model_signals default false).",
             "INDEX 1m is warehouse∪JSON. ATM days without INDEX 1m stay DATA_INSUFFICIENT — never filled bars.",
@@ -1736,6 +1966,8 @@ def write_dashboard(board: dict[str, Any], *, root: Optional[Path] = None) -> di
             "n_losses",
             "starting_capital_inr_per_book",
             "overall_pnl_inr",
+            "overall_gross_pnl_inr",
+            "overall_charges_inr",
             "money_lost_inr",
             "money_won_inr",
             "equity_sum_inr",
@@ -1751,6 +1983,10 @@ def write_dashboard(board: dict[str, Any], *, root: Optional[Path] = None) -> di
             "scalper_exits",
             "models",
             "leaderboard",
+            "book_rank",
+            "today",
+            "index_notes",
+            "cost_model",
             "heartbeat",
             "honesty",
             "execution",
@@ -1784,13 +2020,61 @@ def render_markdown(board: dict[str, Any]) -> str:
         f"**Session (IST date):** `{session}` · live_session={board.get('live_session')}  ",
         f"**Gate:** not `RESEARCH_READY_FOR_PROGRAMMING`. **NO_PROMOTE.** Orders refused. "
         f"paper win_rate={board.get('win_rate_pct')}% "
-        f"({board.get('n_wins')}/{board.get('n_closed')} closed). "
+        f"({board.get('n_wins')}/{board.get('n_closed')} filled). "
         f"₹{board.get('starting_capital_inr_per_book')} / book × {board.get('n_books') or 7}.  ",
-        f"**Overall P/L:** ₹{board.get('overall_pnl_inr')} · won ₹{board.get('money_won_inr')} · "
+        f"**Gross P/L:** ₹{board.get('overall_gross_pnl_inr')} · **charges:** ₹{board.get('overall_charges_inr')} "
+        f"(Groww+GST+STT VERIFY) · **Net P/L:** ₹{board.get('overall_pnl_inr')} · won ₹{board.get('money_won_inr')} · "
         f"lost ₹{board.get('money_lost_inr')} · desk equity ₹{board.get('equity_sum_inr')}  "
         f"(start ₹{board.get('starting_desk_inr')}). Open {board.get('n_open')}.",
         "",
         "Parallel independent books: one OPEN per (`book_id` × underlying). A HOLD on ML-001 does **not** block MIX-DEFAULT-BUY.",
+        "",
+        "## Today at a glance (net after Groww + STT)",
+        "",
+    ]
+    pic = board.get("today") or {}
+    lines.append(
+        f"Filled {pic.get('n_filled', board.get('n_closed'))} · cancelled {pic.get('n_cancelled', 0)} · "
+        f"W {pic.get('n_wins', board.get('n_wins'))} / L {pic.get('n_losses', board.get('n_losses'))}."
+    )
+    lines.append(
+        f"Gross ₹{pic.get('gross_pnl_inr', board.get('overall_gross_pnl_inr'))} − "
+        f"brokerage ₹{pic.get('brokerage_inr')} − GST ₹{pic.get('gst_inr')} − STT ₹{pic.get('stt_inr')} "
+        f"= **net ₹{pic.get('net_pnl_inr', board.get('overall_pnl_inr'))}**."
+    )
+    by_idx = pic.get("net_by_index") or {}
+    if by_idx:
+        parts = [f"{k} ₹{v}" for k, v in by_idx.items()]
+        lines.append("Index net (8 parallel books): " + " · ".join(parts) + ".")
+    uniq = pic.get("unique_net_by_index") or {}
+    if uniq:
+        parts = [f"{k} ₹{v}" for k, v in uniq.items()]
+        lines.append(
+            f"Unique books only (`{'` `'.join(pic.get('unique_books') or UNIQUE_PNL_BOOKS)}`): "
+            f"net ₹{pic.get('unique_net_pnl_inr')} · " + " · ".join(parts) + "."
+        )
+    best_ml = pic.get("best_ml_book") or {}
+    if best_ml:
+        lines.append(
+            f"Best ML book: `{best_ml.get('book_id')}` rank {best_ml.get('rank')} net ₹{best_ml.get('sum_pnl_inr')} "
+            f"(filled {best_ml.get('n_filled')})."
+        )
+    lines += [
+        "",
+        "## Ranked books (net ₹, all indices)",
+        "",
+        "| rank | book | kind | filled | cancel | W | L | wr% | gross ₹ | charges ₹ | **net ₹** |",
+        "|------|------|------|--------|--------|---|---|-----|---------|-----------|-----------|",
+    ]
+    for row in board.get("book_rank") or []:
+        lines.append(
+            f"| {row.get('rank')} | `{row['book_id']}` | {row.get('kind')} | {row.get('n_filled')} | "
+            f"{row.get('n_cancelled')} | {row.get('n_wins')} | {row.get('n_losses')} | {row.get('win_rate_pct')} | "
+            f"{row.get('sum_gross_pnl_inr')} | {row.get('sum_charges_inr')} | {row.get('sum_pnl_inr')} |"
+        )
+    if not board.get("book_rank"):
+        lines.append("| — | — | — | 0 | 0 | 0 | 0 | — | — | — | — |")
+    lines += [
         "",
         "## Open tickets (strike / limit / SL / CE|PE / status)",
         "",
@@ -1807,19 +2091,20 @@ def render_markdown(board: dict[str, Any]) -> str:
         lines.append("| — | — | — | — | — | — | — | none |")
     lines += [
         "",
-        "## Leaderboard (CLOSED premium P/L only)",
+        "## Leaderboard (book × index, ranked by net ₹)",
         "",
-        "| book | underlying | n | wins | losses | wr% | sum pts | sum ₹ |",
-        "|------|------------|---|------|--------|-----|---------|-------|",
+        "| rank | book | underlying | n | wins | losses | wr% | pts | gross ₹ | charges ₹ | **net ₹** |",
+        "|------|------|------------|---|------|--------|-----|-----|---------|-----------|-----------|",
     ]
     for row in board.get("leaderboard") or []:
         lines.append(
-            f"| `{row['book_id']}` | {row['underlying']} | {row['n_closed']} | "
+            f"| {row.get('rank')} | `{row['book_id']}` | {row['underlying']} | {row['n_closed']} | "
             f"{row.get('n_wins')} | {row.get('n_losses')} | {row.get('win_rate_pct')} | "
-            f"{row['sum_premium_pnl']} | {row.get('sum_pnl_inr')} |"
+            f"{row['sum_premium_pnl']} | {row.get('sum_gross_pnl_inr')} | {row.get('sum_charges_inr')} | "
+            f"{row.get('sum_pnl_inr')} |"
         )
     if not board.get("leaderboard"):
-        lines.append("| — | — | 0 | 0 | 0 | — | — | — |")
+        lines.append("| — | — | — | 0 | 0 | 0 | — | — | — | — | — |")
     tape_note = (
         "LIVE SESSION: dual-tape ticks for this IST date only. Not fills. Rank ≠ promote."
         if board.get("live_session")
@@ -1828,9 +2113,17 @@ def render_markdown(board: dict[str, Any]) -> str:
     lines += [
         "",
         tape_note + " `MIX-ML-LOGIT*` trains on INDEX 3m before the ATM session. "
-        "`win_rate` = paper closed hit rate (pnl>0), not a promote. "
+        "`win_rate` = paper filled hit rate (net ₹>0 after Groww+STT), not a promote. "
         "`MIX-TV-EP-024` SMA lab is KEEP_ALL, not customer default.",
         "",
+        "## Index / ML notes (HYPOTHESIS paper only)",
+        "",
+    ]
+    for note in board.get("index_notes") or []:
+        lines.append(f"- {note}")
+    if not board.get("index_notes"):
+        lines.append("- (replay to fill)")
+    lines += [
         "",
         "## Models / steps",
         "",

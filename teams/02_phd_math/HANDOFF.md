@@ -1,5 +1,23 @@
 # Handoff log — Team 02 PhD math
 
+## As of now (2026-09-16 EOD) — Groww/STT paper overlay stays VERIFY (NO_PROMOTE)
+
+```text
+From:     teams/02_phd_math
+To:       00 / 06 / 09 / founder
+Date:     2026-09-16
+Status:   VALIDATION / HYPOTHESIS VERIFY / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: Named Groww F&O ₹20/executed order + GST 18% on that
+  brokerage + option STT 0.15% sell premium from 1 Apr 2026 as a
+  paper-board haircut. Layer HYPOTHESIS, statutory_status VERIFY.
+  Unfilled tickets ₹0. Does not rank a MIX as CANDIDATE.
+Rejected: Invent STT then CANDIDATE. Treat Groww help page as NSE
+  circular. Retune MIX-DEFAULT-BUY from after-cost paper rank.
+UNKNOWN: Exchange + SEBI + stamp; conflicting third-party STT tables.
+```
+
 ## As of now (2026-09-14) — TV-EP / Pine MRR / MIX-DUAL review (NO_PROMOTE)
 
 ```text
