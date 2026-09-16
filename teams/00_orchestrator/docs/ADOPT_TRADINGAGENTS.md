@@ -5,7 +5,7 @@
 **Gate:** **not** `RESEARCH_READY_FOR_PROGRAMMING`  
 **Status:** `ADOPTED_SKELETON` / **DEEPENED_PAPER** / **MARKET_HOURS_LOOP** / **UNVALIDATED** — paper signals only  
 **EXTERNAL:** [TauricResearch/TradingAgents](https://github.com/TauricResearch/TradingAgents) (Apache-2.0)  
-**Local clone:** `research/TradingAgents/` (shallow; **do not** treat as our product; gitignored nested tree)  
+**Local clone:** optional `research/TradingAgents/` (gitignored; not required on disk). Re-clone steps: [`research/TRADINGAGENTS_EXTERNAL.md`](../../../research/TRADINGAGENTS_EXTERNAL.md). Product runtime is `packages/trading_agents_india`.  
 **Design / market-hours council (2026-09-06):** `APPROVE_WITH_GUARDRAILS` (PAPER build-first; LIVE refuse). Session dumps deleted; rulings live in this file.  
 **Market-hours plan:** [`PLAN_MARKET_HOURS_PAPER_AGENTS.md`](PLAN_MARKET_HOURS_PAPER_AGENTS.md)  
 **MIX paper-watch:** `MIX-TA-FLOW-RISK`, `MIX-TA-EVENT-HOLD`, `MIX-TA-EXEC-SANITY`, `MIX-TA-MARKET-HOURS` ([`MIX_CATALOG.md`](../../04_quant/docs/MIX_CATALOG.md) §18) — not default, not promote
@@ -22,7 +22,7 @@ Education ≠ advice. No live Dhan orders. No `/alerts/orders`. No win rates. KE
 |-------|-------|
 | Upstream | https://github.com/TauricResearch/TradingAgents |
 | Paper | https://arxiv.org/abs/2412.20138 |
-| License | **Apache License 2.0** (`research/TradingAgents/LICENSE`) |
+| License | **Apache License 2.0** (upstream repo; local clone is optional) |
 | Our use | Study + **adapt** role graph into `packages/trading_agents_india` |
 | Not claimed | Their US-equity performance, ratings, or data vendors as our edge |
 

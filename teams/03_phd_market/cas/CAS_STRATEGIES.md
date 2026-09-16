@@ -1,8 +1,12 @@
-# CAS-* strategies — Closing Auction Session (not STRAT-015+)
+# CAS-* strategies — PARKED off the working book (2026-09-16)
+
+**Founder:** remove CAS strategies **for now**. `CAS-001`–`005` are **not** in the held Dhan / TV / ML book. Do not score them. Do not show them as customer tickets. Do not rebuild them until the founder unparks.
+
+**Still on disk (not deleted):** this file + [`RESEARCH.md`](RESEARCH.md) (exchange clocks). **STRAT-009** (Gokul flatten before 15:15) stays — that is a Dhan teacher clock, not a CAS-* ID.
 
 **Team:** 03_phd_market (CAS home)  
-**Date:** 2026-09-03  
-**Layer:** `HYPOTHESIS` / `UNVALIDATED`  
+**Date:** 2026-09-16 (park) · defined 2026-09-03  
+**Layer:** `HYPOTHESIS` / `PARKED` / `UNVALIDATED`  
 **Gate:** **not** `RESEARCH_READY_FOR_PROGRAMMING`. No coded engine. No live Dhan. No win rates. No invented lots, quotes, or fills.
 
 **Namespace:** `CAS-001` … `CAS-005` only. **Not** `STRAT-015+`. Phase-1 index STRATs stay `STRAT-001`–`014`.

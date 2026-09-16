@@ -1,5 +1,19 @@
 # Handoff log — Team 04 Quant
 
+## As of now (2026-09-16) — CAS-* PARKED off MIX working book
+
+```text
+From:     teams/04_quant
+To:       00 / 03 / founder
+Date:     2026-09-16
+Status:   PARKED / KEEP_ALL (Dhan TV ML only) / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: MIX-CAS pointer PARKED. Do not attach CAS-* to
+  MIX-DEFAULT-BUY. STRAT-009 stays.
+Rejected: Scoring CAS-001–005. STRAT-015+.
+```
+
 ## As of now (2026-09-16) — KEEP_ALL inventory (Dhan / TV / ML)
 
 ```text

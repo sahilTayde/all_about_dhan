@@ -17,7 +17,8 @@
 | `TASK_<TOPIC>.md` | `teams/00_orchestrator/docs/` | New standing ticket with no existing `TASK_*`. Prefer updating an open ticket. |
 | `STRAT-001`–`014` | `teams/04_quant/docs/candidates/` | **Already exist.** Never `STRAT-015+`. |
 | `MIX-*` | `teams/04_quant/docs/candidates/` + row in `MIX_CATALOG.md` | New club only. Origin tag required. |
-| `CAS-*` | `teams/03_phd_market/cas/` | CAS book only. |
+| `MIX-CHAMP.md` / `MIX-FORM.md` / `MIX-ALGO.md` | `teams/04_quant/docs/candidates/` | **Family** files (many IDs). Edit in place. Do not split into 11 CHAMP files. |
+| `CAS-*` | `teams/03_phd_market/cas/` | **PARKED** (founder 2026-09-16). Do not add new `CAS-*` until unparked. Edit `CAS_STRATEGIES.md` in place. |
 | `EQ-*` / `SO-*` | `teams/04_quant/docs/candidates/` | Equity/stock-options backlog — not the index default. |
 | SOURCE_FACT packet | `teams/01_research/docs/handoffs/<videoId>.md` | New verified transcript extract. Packets (`OPTIONS_INDEX_PACKET.md` etc.) stay the rollups. |
 | Backtest evidence | `teams/06_backtesting/docs/BACKTEST_<TOPIC>.md` | After a real run. **One** file per topic; overwrite/append. Do not stack `BACKTEST_*_YYYY-MM-DD.md` copies. |

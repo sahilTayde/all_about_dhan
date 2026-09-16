@@ -1,12 +1,13 @@
 # MIX_CATALOG.md — KEEP_ALL books (STRAT + MIX + EQ + CAS pointer)
 
 **Team:** 04_quant  
-**Date:** 2026-09-03  
+**Date:** 2026-09-16 (KEEP inventory: Dhan + TV + ML + CHAMP + FORM)  
 **Policy:** `KEEP_ALL`  
 **Bind:** [`TRANSCRIPT_STRATEGY_BIND.md`](../../01_research/docs/handoffs/TRANSCRIPT_STRATEGY_BIND.md)  
 **Default customer ticket (engine):** [`ENGINE_MIX.md`](ENGINE_MIX.md)  
 **Equity slots:** [`candidates/EQUITY_ETF_BACKLOG.md`](candidates/EQUITY_ETF_BACKLOG.md)  
-**CAS IDs:** [`CAS_STRATEGIES.md`](../../03_phd_market/cas/CAS_STRATEGIES.md) — CAS-001–005. This file **pointers only**.
+**CAS IDs:** [`CAS_STRATEGIES.md`](../../03_phd_market/cas/CAS_STRATEGIES.md) — `CAS-001`–`005` **PARKED** (founder 2026-09-16). Not in the working book. Exchange clocks stay in `cas/RESEARCH.md`.  
+**TV Editors’ Picks:** §22 `MIX-TV-EP-001`–`025`. **ML overlays:** §25 `ML-001` / `ML-002`. **ITM paper champs:** §23. **CE/PE formulas:** §24.
 
 ---
 
@@ -19,7 +20,7 @@ research_ready_for_programming: false
 gate:                   09 five-pass has NOT passed. Notes ≠ pass.
 metrics:                win_rate=null  expectancy=null  profit_factor=null  max_drawdown=null
 profitability:          NOT CLAIMED
-live code:              forbidden (no apps/, no packages/ strategies)
+live orders:            forbidden (paper packages exist; UNVALIDATED; NO_PROMOTE)
 fills / lots / dhan quotes: NOT INVENTED
 empty DHAN_*:           does not block this spec
 ```
@@ -368,14 +369,17 @@ not: STRAT-015+
 do_not: copy_eq_yaml_into_index_book
 ```
 
-### MIX-CAS (pointer only)
+### MIX-CAS (pointer only) — PARKED
 
 ```yaml
 mix_id: MIX-CAS
 origin: pointer
 owner: 03_phd_market
-ids: CAS-*                         # 03 writes; 04 does not invent
-note: Closing Auction Session ≠ F&O 15:40. Daily BOUNCE|SIDEWAYS|FALL is UNVALIDATED.
+ids: CAS-001..005
+status: PARKED                     # founder 2026-09-16 — off working book
+customer_default: false
+NO_PROMOTE: true
+note: Closing Auction Session ≠ F&O 15:40. Do not score. Do not attach to MIX-DEFAULT-BUY.
 ```
 
 ### MIX-GOKUL-CLASS (optional same-video full stack)
@@ -1054,12 +1058,64 @@ Next new **listing** pine = `MIX-TV-EP-026`.
 
 ---
 
+## 23. ITM paper champions (`MIX-CHAMP-*`) — PROJECT / PAPER board
+
+**Family file:** [`candidates/MIX-CHAMP.md`](candidates/MIX-CHAMP.md)  
+**Board:** [`ITM_CHAMPION_PAPER_BOARD.md`](../../06_backtesting/docs/ITM_CHAMPION_PAPER_BOARD.md)  
+**Code:** `packages/backtest/src/backtest_engine/itm_champions.py`
+
+KEEP_ALL. **Not** teacher STRATs. **No** `STRAT-015+`. `customer_default: false`. Lab WR is **not** a promote. IDs:
+
+`MIX-CHAMP-EMA-ST-5M` · `MIX-CHAMP-EMA-ST-VWAP-5M` · `MIX-CHAMP-SMA-CROSS-5M` · `MIX-CHAMP-VWAP-RSI-5M` · `MIX-CHAMP-EMA-VWAP-5M` · `MIX-CHAMP-BB-5M` · `MIX-CHAMP-FV-V1-10M-BB15` · `MIX-CHAMP-FV-V1-5M-BB20` · `MIX-CHAMP-FV-V1-10M-BB20` · `MIX-CHAMP-FV-V1-1M-RSI60` · `MIX-CHAMP-FV-V1-15M-BB17`
+
+```yaml
+mix_id: MIX-CHAMP-*
+origin: PROJECT-DERIVED
+customer_default: false
+status: PAPER_WATCH / UNVALIDATED
+NO_PROMOTE: true
+```
+
+---
+
+## 24. INDEX vs CE vs PE formulas (`MIX-FORM-*`) — PROJECT / ML features
+
+**Family file:** [`candidates/MIX-FORM.md`](candidates/MIX-FORM.md)  
+**VALIDATION note:** [`INDEX_CE_PE_EDA.md`](../../02_phd_math/docs/INDEX_CE_PE_EDA.md)
+
+KEEP_ALL feature IDs (not customer tickets): `MIX-FORM-BETA-RESID` · `MIX-FORM-DIVERGE-Z` · `MIX-FORM-STRADDLE-RET` · `MIX-FORM-FOLLOW-GAP`. Feed ML-001/ML-002. **No** `STRAT-015+`.
+
+```yaml
+mix_id: MIX-FORM-*
+origin: PROJECT-DERIVED
+role: feature / overlay
+customer_default: false
+NO_PROMOTE: true
+```
+
+---
+
+## 25. Local ML overlays (`ML-001` / `ML-002`) — not MIX tickets
+
+**Specs:** [`ML_001_LOCAL_PATTERN.md`](ML_001_LOCAL_PATTERN.md) · [`BOOK_MODEL_TUNE.md`](../../06_backtesting/docs/BOOK_MODEL_TUNE.md)  
+**Code:** `packages/desk-ml`
+
+| ID | What | KEEP |
+|----|------|------|
+| **ML-001** | KMeans k=4 + IsolationForest on 1m INDEX+ATM triples. Labels HOLD/WATCH. Seed 14. | **Keep.** Anomaly ≠ BUY. |
+| **ML-002** | OU on MIX-FORM residual + VWMA windows 40/60/90. FOLLOW-GAP HOLD. | **Keep.** Window 90 often `DATA_INSUFFICIENT`. |
+| **MIX-ML-LOGIT** / **MIX-ML-LOGIT-XR** | §8 scan queue (logistic later). Metrics null. | **Keep as scan.** Not ML-001. |
+
+`production_params_written: false`. **NO_PROMOTE.** Do not delete because a session is empty.
+
+---
+
 ## HANDOFF
 
-**Accepted:** KEEP_ALL. STRAT-001–014 all `BACKTEST_BOOK`. MIX-* namespace. **§22 `MIX-TV-EP-*` factory slots** (`customer_default: false` NO_PROMOTE; stub rows required). 013/014 seller tags, IDs unchanged. 010 parked-not-dropped. **2026-09-08 working-path:** 001/002/006 WAITING proxies (INDEX 1m ≠ HAUS MTF / Mukul 2m); unbound STRATs collapse to `KEEP_ALL-UNBOUND-DI`; `MIX-CLUB-GR` PARKED off confidence (SCORE_SAMPLE empty → not kill). MIX-CONFLICT-STRIKE labeled CONFLICT. §8 scan IDs (`WEB-DERIVED` / `PROJECT_MIX`) named including MIX-CLOCK-CAS overlay and MIX-ML-LOGIT / MIX-ML-LOGIT-XR; metrics null; `customer_default: false`. `MIX-DEFAULT-BUY` unchanged. **§9 SL/TP MIX rows** including own `MIX-DESK-IQ-ATR-RR2` (`PROJECT_MIX`). **§10 `MIX-CF-FABIO-TREND-NY` + `MIX-CF-FABIO-MR-RANGE`** (`EXTERNAL_RESEARCH`, PARKED OF, proxy BACKTEST_BOOK). **§11 `MIX-CF-MARCO-LIQ-TRAP` + `MIX-CF-MARCO-INT-EXT` + `MIX-CF-MAYNE-ICT-HTF` + `MIX-CF-MAYNE-BREAKER`** (`EXTERNAL_RESEARCH`, ASR caveat, separate from Fabio). **§12 `MIX-CF-MARCI-RIZZY` + `MIX-CF-MARCI-BB-REALITY` + `MIX-CF-TORI-TL-BOUNCE` + `MIX-CF-TORI-TL-BREAK`** (`EXTERNAL_RESEARCH`, ASR caveat, separate from Fabio/Marco/Mayne). **§13 `MIX-CF-TG-TRIDENT` + `MIX-CF-TG-EMA-WAVE` + `MIX-CF-KANE-EQ50` + `MIX-CF-KANE-PO3-SMT`** (`EXTERNAL_RESEARCH`, ASR caveat, separate from prior CF guests; title 90% not product metric). **§14 `MIX-CF-UMAR-MORNING-TOP` + `MIX-CF-UMAR-OPENING-DRIVE` + `MIX-CF-FOREST-VPE-EDGE` + `MIX-CF-FOREST-POC-RETEST`** (`EXTERNAL_RESEARCH`, ASR caveat; opening drive DI; separate from prior CF guests). **§15 `MIX-CF-CARMINE-ABSORB` + `MIX-CF-CARMINE-FAIL-BREAK` + `MIX-CF-CARMINE-OPEN-HOLD` + `MIX-CF-JADECAP-SWING-FAIL` + `MIX-CF-JADECAP-SESSION-LIQ` + `MIX-CF-JADECAP-FVG-DRAW`** (`EXTERNAL_RESEARCH`, ASR caveat; Carmine absorb OF PARKED/DI; Jade session-liq DI; separate from prior CF guests). **§16 `MIX-CF-USMAN-*` + `MIX-CF-BRANDO-*`** (`EXTERNAL_RESEARCH`, ASR caveat; Usman mostly DI options literacy; Brando HTF proxies BACKTEST_BOOK; size-zero vs price-stop KEEP_ALL; separate from prior CF guests). **§17 `MIX-CF-ANDREA-*` + `MIX-CF-OMOR-*`** (`EXTERNAL_RESEARCH`, ASR caveat; Andrea ≠ Fabio; OF absorb PARKED; Omor KZ/ADR DI; structure proxies BACKTEST_BOOK; separate from prior CF guests). **§18 `MIX-CF-OKALA-*`** (`EXTERNAL_RESEARCH`, ASR; catalog only / not CF×8; magnets observable|searchable; portability observation-gated; miss/recovery + BT grid in BIND; OpenAI suggest HYPOTHESIS only; win_rate=null; NO_PROMOTE). **§18b `MIX-CF-OKALA-IN-*`** FOUNDER_PAPER_ACCEPT PAPER only. **§18c overnight OpenAI+India IN rollup** (ok=17/fail=0; Tori SKIP). **§18d `MIX-CF-YUSH-*`**. **§18e `MIX-CF-MARCO-DAV-*`** (separate from §11 Marco). **§19 `MIX-TA-FLOW-RISK` + `MIX-TA-EVENT-HOLD` + `MIX-TA-EXEC-SANITY`** (`EXTERNAL_RESEARCH` / TradingAgents Apache-2.0; PAPER_WATCH / WAITING; not promote). **§20 `MIX-LEAN-*` / INDEX-PROXY / PCR-HOLD / SELL-CREDIT-PARK** WAITING UNVALIDATED `customer_default: false` NO_PROMOTE; DEFAULT-BUY not rewritten. **`MIX-DUAL-INDEX-MASTER`** PROJECT-DERIVED SENSEX CALL premium candidate `BACKTEST_REQUIRED` paper-watch audit only; NIFTY/BANKNIFTY excluded; NO_PROMOTE. **§21 `MIX-ALGO-SKEW-BUY` + `MIX-ALGO-IV-REGIME-HOLD` + `MIX-ALGO-RR-SHELL` + `MIX-ALGO-CREDIT-PARK`** (`WEB-DERIVED` concepts from the algos.dhan.co Stratzy study, PROJECT construction; marketplace returns marketing-only; dead-band mandatory on threshold alphas; skew-buy/IV-hold blocked on `chain_iv_stats` gather ticket; all `customer_default: false` NO_PROMOTE). **§22 `MIX-TV-EP-001`–`023`** (`WEB-DERIVED` / `TV-EDITOR-PICK`; 23 current Editors’ Picks **strategy** badges; Pine not in git; PORT_PENDING NSE/OPTIDX; tester reports DI; KEEP_ALL; `customer_default: false` NO_PROMOTE).
+**Accepted:** KEEP_ALL on the **held book** (2026-09-16): `STRAT-001`–`014` all `BACKTEST_BOOK`; Dhan clubs + `MIX-DEFAULT-BUY`; §8 scans; §9 SL/TP; §19 `MIX-TA-*`; §20 lean/proxy; §21 `MIX-ALGO-*` (Dhan marketplace concepts); §22 `MIX-TV-EP-001`–`025`; §23 `MIX-CHAMP-*`; §24 `MIX-FORM-*`; §25 `ML-001`/`ML-002`. 013/014 seller tags stay. 010 parked-not-dropped. `MIX-CLUB-GR` PARKED off confidence (not killed). **`CAS-001`–`005` / `MIX-CAS` PARKED off the working book** (founder). Metrics null. `customer_default` still only `MIX-DEFAULT-BUY`. **NO_PROMOTE.**
 
-**Rejected:** Deleting teacher recipes. Silent 002-on-003. Invented fills/lots/win rates. STRAT-015+. Discarding a TV EP pine without a MIX test row. Pasting full Pine into the catalog. Promoting `MIX-TV-EP-*` onto `/`. Relabeling Editors’ Picks as `DHAN-DERIVED`. Relabeling ORB 09:15–09:30 or CPR as `DHAN-DERIVED`. Promoting a scan onto the customer ticket. Claiming US GEX = NIFTY edge. Silent hardcoded `STOP_PTS` as named strategy. Clubbing Fabio/Marco/Mayne/Marci/Tori/TG/Kane/Umar/Forest/Carmine/Jadecap/Usman/Brando/Andrea/Omor/Okala/Yush/Marco-DAV into DEFAULT-BUY / IQCapital / each other. Inventing Carmine DOM fields, Jade Asia/London NSE boxes, Usman OI/greeks, Brando India headlines, Andrea ES footprint fields, Omor IST killzones, or Okala NIFTY digit clocks without magnet-observation adaptation MIX. Merging Andrea into `MIX-CF-FABIO-*` or Marco-DAV into `MIX-CF-MARCO-LIQ-TRAP`. Promoting title $6k→$10M / 30M funding rhetoric / Okala 65% / Yush 74% title WR. Promoting `MIX-TA-*` or treating TradingAgents US equity stack as India SOURCE_FACT. Claiming OpenAI fixes Okala/CF backtest WR. Live agent orders. Re-enabling soft news veto overnight.
+**Rejected:** Deleting teacher recipes or TV EP / ML / CHAMP / FORM IDs. Silent 002-on-003. Invented fills/lots/win rates. `STRAT-015+`. Discarding a TV EP pine without a MIX row. Pasting full Pine. Promoting any MIX onto `/`. Relabeling TV or web scans as `DHAN-DERIVED`. Treating IsolationForest as BUY. **Rebuilding Chart Fanatics / `MIX-CF-*` / Okala as the working book** (founder DhanHQ-only reset 2026-09-09 — those IDs stay **removed**, not KEEP_ALL). **Scoring `CAS-*` while PARKED.** Live agent orders. Auto-retune `MIX-DEFAULT-BUY`.
 
-**UNKNOWN / DATA_INSUFFICIENT:** 004 EMA lengths. 010 HQ OF history. 003 “103.” 006 delta. Live IEP feed (CAS). Analog memory empty. Scan params (BB k, Keltner, SAR AF, ADX period, body/range windows). No HQ ORB/CPR/ADX series. **NIFTY GEX / naive GEX construction. OF footprint history. Fabio NQ OF → NSE map; Marco/Mayne NY/Asia/London/crypto clocks → IST; Marci NY-open avoid / Tori 4H week → NSE; TG London KZ NY → IST; Kane EST 9:15–11 / SMT NQ–ES → single NIFTY; Umar ET open/cut + OF tape; Forest overnight H/L + true VAP → NSE; Carmine DOM/heatmap/delta + ET open-hold → NSE; Jadecap Asia/London/midnight open → NSE; Usman OPTIDX OI/greeks + US Fri 0DTE → NIFTY weekly; Brando Fed/tariff news join + size-zero premium ledger; Andrea ES footprint/VP/Deep Charts + NY OR → NSE; Omor London/NY/Asia KZ + ADR + FX SMT → NSE. ASR noun errors (Buma Ashraf; Osman Astra; brand-a-k-a-leaf; Andrea Chimney; Omore/MBB; boat≈close; PLC≈POC; Car mine; rate≈raid; Markime Commodule≈MMM). TG EMA 13 vs 15.** DhanHQ news API surface absent in client; Moneycontrol RSS VERIFY IF STABLE; India social sentiment unwired; LIVE founder+gate flags default refuse. **TV EP:** historical Editors’ Picks dropped from the live list; JS-only extra strategy pages (SSR has no page-2); per-chart Strategy Tester tables; OPTIDX/cost/expiry port of any `MIX-TV-EP-*`.
+**UNKNOWN / DATA_INSUFFICIENT:** 004 EMA lengths. 010 HQ OF history. 003 “103.” 006 delta. Live IEP feed (CAS). Analog memory empty. Scan params. No HQ ORB/CPR/ADX series. NIFTY GEX. HQ OF history. DhanHQ news API surface. Moneycontrol RSS VERIFY IF STABLE. **TV EP:** historical listing drops; Strategy Tester tables; OPTIDX/cost/expiry port. **ML-002** window 90 often empty. Closed option-premium P/L on dual-tape exits.
 
-Next: 06 may **schedule** books; it may not claim an edge. 03 owns `CAS-*`. Scan queue is **not** a promote. SL/TP overlays score on fixtures before any promote. CF remaining **fail=32** need ASR/caption later — do not deep-analyze the fail queue. `MIX-TA-*` stay paper-watch only.
+Next: 06 may **schedule** held books; it may not claim an edge. 03 owns `CAS-*`. Scan queue is **not** a promote. `MIX-TA-*` stay paper-watch only. Do **not** rebuild `MIX-CF-*`.

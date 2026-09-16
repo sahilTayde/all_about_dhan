@@ -1,6 +1,6 @@
 # EXTERNAL reference — TradingAgents
 
-Shallow clone target: `research/TradingAgents/` (gitignored).
+Shallow clone target: `research/TradingAgents/` (gitignored, **optional**). Not required to run our paper desk. Re-clone only if you need to read upstream.
 
 ```bash
 git clone --depth 1 https://github.com/TauricResearch/TradingAgents.git research/TradingAgents

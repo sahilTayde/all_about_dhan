@@ -2,6 +2,20 @@
 
 **Agents:** read **only the newest block**. Do not ingest this whole log. New files: [`docs/FILE_CREATION.md`](../../docs/FILE_CREATION.md). Append here — do not create `HANDOFF_TOMORROW.md` or extra `CONTINUE_*`.
 
+## As of now (2026-09-16) — CAS strategies PARKED
+
+```text
+From:     teams/00_orchestrator
+To:       founder / 03 / 04 / 09
+Date:     2026-09-16
+Status:   PARKED / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: Founder removed CAS-001–005 from the working book. Files
+  stay on disk as PARKED. Exchange clocks stay. STRAT-009 stays.
+Rejected: Scoring CAS. Deleting cas/RESEARCH.md. STRAT-015+.
+```
+
 ## As of now (2026-09-16) — markdown KEEP_ALL (Dhan / TV / ML)
 
 ```text

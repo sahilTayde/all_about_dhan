@@ -20,6 +20,7 @@ SDLC: [`docs/SDLC.md`](SDLC.md). Orchestrator snapshot: [`teams/00_orchestrator/
 | **PARTIAL** | Real artifacts exist, but they are mock, stub, dry-run, incomplete extraction, or `UNVALIDATED`. |
 | **TODO** | Required; not started, or a checkbox left empty on purpose. |
 | **BLOCKED** | Cannot proceed without a user action (token, circular PDF, live tape). |
+| **PARKED** | Artifacts may exist; founder took it off the working book. Do not score. |
 
 **Honesty rules for this sheet**
 
@@ -42,7 +43,7 @@ SDLC: [`docs/SDLC.md`](SDLC.md). Orchestrator snapshot: [`teams/00_orchestrator/
 | 5 | Recon + **backtest-before-retune** (no blind news-day retune) | **PARTIAL** | Honest leftover 2026-09-06: hypothesis costs + expiry strip. CLUB-GR after-cost **FAIL**. SCORE_SAMPLE empty. Nothing promotes. Statutory UNKNOWN. |
 | 6 | Staged signals WATCH→EARLY→CONFIRMED→IN-PROGRESS→outcomes; customer vs engine; no indicator soup on client UI | **PARTIAL** | Paper `/ws/signals` from Dhan feed (BUY CALL/PUT/HOLD). Mock UI still default without API. **UNVALIDATED**. 09 `NOTES_ONLY`. Multi-agent paper: `packages/trading_agents_india` — dry CE/PE/HOLD + risk veto + **market-hours poll** (`market-hours --simulate`) + chain watcher; ledger `paper_watch/` + sqlite; not a promote. **2026-09-09:** Chart Fanatics / `MIX-CF-*` / Okala paper path **removed** (founder DhanHQ-only reset). **2026-09-08:** `MIX-LEAN-SPOT-ATM` / `MIX-IMPULSE-1M` WAITING gather WATCH/EARLY from INDEX 1m + ATM/PCR (`lean_mix.py`); `MIX-DEFAULT-BUY` still UNVALIDATED customer default; no CONFIRMED from 5m ST/MACD.
 | 7 | Dashboard: ticket SL/target, (i) legend, book, sentiment windows, `/desk` internal | **PARTIAL** | Customer `/` MOCK: suggested ticket + index chart + honesty labels + confidence (i) + paper book ([`ASTRA_DASHBOARD_REVIEW.md`](../teams/07_coding/docs/ASTRA_DASHBOARD_REVIEW.md)). Sentiment/CAS below ticket. Not live fills. Confidence ≠ win rate. |
-| 8 | CAS analyst (NIFTY / BANKNIFTY / SENSEX) | **PARTIAL** | Folder + research + `cas_calls[]` + CasPanel **exist**. **CAS-001–005** defined (`CAS_STRATEGIES.md`) `UNVALIDATED`. No Dhan-video CAS recipe (`DATA_INSUFFICIENT`). No win rates. |
+| 8 | CAS analyst (NIFTY / BANKNIFTY / SENSEX) | **PARKED** | Founder 2026-09-16: **CAS strategies off the working book.** `cas/RESEARCH.md` clocks stay. `CAS-001`–`005` not scored. CasPanel mock may still exist — not a ticket. |
 | 9 | Paper/shadow vs user lots; 30% capital quality bar | **PARTIAL** | Spec + ledger stubs. No real P/L. Quality bar is a **product penalty**, not a measured metric. |
 | 10 | Token for live Dhan validation | **PARTIAL** | Data plan **Active** (profile 2026-09-10; validity field on file, not in chat). Live GET `/profile` + LTP + 3 chains + 5m INDEX **200**. **Orders still refused.** Do not paste tokens. Paper loop **not** started. |
 | 11 | Standing **Docs Auditor** (after requirement change + nightly) | **DONE** (checker) | `python -m docs_auditor`. Real fail paths (stub sheet, `1m` chain, missing nightly hook). Latest: [`AUDIT_LATEST.md`](../teams/00_orchestrator/docs/AUDIT_LATEST.md). |
@@ -262,9 +263,9 @@ Mock tabs (do not treat as production marks): NIFTY **IN-PROGRESS**; BANKNIFTY *
 
 ---
 
-## 8. CAS analyst (NIFTY / BANKNIFTY / SENSEX) — **PARTIAL**
+## 8. CAS analyst (NIFTY / BANKNIFTY / SENSEX) — **PARKED**
 
-**Just finished this session (research + skeleton).** Ticket [`TASK_CAS_ANALYST.md`](../teams/00_orchestrator/docs/TASK_CAS_ANALYST.md) **`IN_PROGRESS`**. Files **exist** — this row is **not** TODO.
+**Founder 2026-09-16:** `CAS-001`–`005` are **off the working book**. Do not score. Do not attach to `MIX-DEFAULT-BUY`. Exchange clocks stay in [`cas/RESEARCH.md`](../teams/03_phd_market/cas/RESEARCH.md). Ticket [`TASK_CAS_ANALYST.md`](../teams/00_orchestrator/docs/TASK_CAS_ANALYST.md) stays on disk as history.
 
 Home: [`teams/03_phd_market/cas/`](../teams/03_phd_market/cas/).
 
@@ -279,7 +280,7 @@ Home: [`teams/03_phd_market/cas/`](../teams/03_phd_market/cas/).
 | Win rates | **none** — do not invent |
 | Live indicative-index / IEP / imbalance feed | **TODO** / **BLOCKED** — no Dhan/NSE live CAS book in this workspace |
 | Coded CAS strategy | **TODO** — not this ticket; still not `RESEARCH_READY_FOR_PROGRAMMING` |
-| CAS-* hypotheses (close-bias / F&O tail / no-new-opt / expiry mark / pre-open) | **PARTIAL** — [`CAS_STRATEGIES.md`](../teams/03_phd_market/cas/CAS_STRATEGIES.md) CAS-001–005 `UNVALIDATED`. Dhan EN tape: **no** spoken Closing Auction Session ([`CAS_FROM_DHAN_VIDEOS.md`](../teams/01_research/docs/handoffs/CAS_FROM_DHAN_VIDEOS.md)). |
+| CAS-* hypotheses (close-bias / F&O tail / no-new-opt / expiry mark / pre-open) | **PARKED** — [`CAS_STRATEGIES.md`](../teams/03_phd_market/cas/CAS_STRATEGIES.md) CAS-001–005 off working book. Dhan EN tape: **no** spoken Closing Auction Session ([`CAS_FROM_DHAN_VIDEOS.md`](../teams/01_research/docs/handoffs/CAS_FROM_DHAN_VIDEOS.md)). |
 
 yaml URLs: `sources.cas[]` (NSE CAS product page, PCA, market timings, BSE notice 20260610-41).
 

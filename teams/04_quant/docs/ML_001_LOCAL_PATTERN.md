@@ -1,4 +1,8 @@
-# ML-001 — local unsupervised pattern overlay (INDEX vs CE vs PE)
+# ML-001 + ML-002 — local overlays (INDEX vs CE vs PE)
+
+**KEEP_ALL.** Do not drop these IDs because a session window is empty. They are **overlays** (HOLD/WATCH), not customer BUY tickets. **NO_PROMOTE.**
+
+## ML-001 — unsupervised pattern overlay
 
 **Team:** 04_quant (spec) · 07 code in `packages/desk-ml` · 06 does **not** promote from this fit  
 **Date:** 2026-09-14 (Ganesh Chaturthi — **NSE closed**; fit cache only)  
@@ -31,7 +35,11 @@ Holiday cache fit (NIFTY join of INDEX 1m + ATM tape 2026-09-09..11): **599** tr
 
 Book-learning retune of the same overlay (seed **14** fixed) plus ML-002: [`BOOK_MODEL_TUNE.md`](../../06_backtesting/docs/BOOK_MODEL_TUNE.md). `python -m desk_ml book-tune`.
 
-KEEP_ALL STRAT-001–014. MIX-DEFAULT-BUY unchanged.
+## ML-002 — mean-reversion overlay (KEEP)
+
+OU on `MIX-FORM` residual + VWMA windows **40 / 60 / 90** only. FOLLOW-GAP HOLD. Spec + tune: [`BOOK_MODEL_TUNE.md`](../../06_backtesting/docs/BOOK_MODEL_TUNE.md). Window 90 often `DATA_INSUFFICIENT` — **row stays**. IsolationForest (ML-001) remains an anomaly HOLD, not a BUY.
+
+KEEP_ALL STRAT-001–014. MIX-DEFAULT-BUY unchanged. Catalog §25.
 
 ## HANDOFF
 

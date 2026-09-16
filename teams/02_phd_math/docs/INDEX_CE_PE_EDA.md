@@ -8,7 +8,7 @@
 **Origin:** `PROJECT-DERIVED` — not DHAN-DERIVED, not a neural net  
 **Sibling:** ML-001 KMeans/IsolationForest in `packages/desk-ml` — **not rewritten here**
 
-Canonical path: this file under `teams/02_phd_math/docs/`. Founder alias: [`teams/02_math/docs/INDEX_CE_PE_EDA.md`](../../02_math/docs/INDEX_CE_PE_EDA.md).
+Canonical path: this file under `teams/02_phd_math/docs/` only. Do not use a `teams/02_math` alias.
 
 Token policy: [`docs/TOKEN_ML_STRATEGY.md`](../../../docs/TOKEN_ML_STRATEGY.md) — local ML overlay is allowed; no LLM on the blocking fast path; no “AI win rate.” MIX-DUAL remains the 1m confluence **filter** ([`MIX-DUAL-INDEX-MASTER.md`](../../04_quant/docs/candidates/MIX-DUAL-INDEX-MASTER.md)), not these formulas.
 

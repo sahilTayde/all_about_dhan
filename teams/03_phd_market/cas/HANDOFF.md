@@ -1,5 +1,21 @@
 # Handoff log — CAS analyst (03)
 
+## As of now (2026-09-16) — founder PARK CAS strategies
+
+```text
+From:     teams/03_phd_market/cas
+To:       00 / 04 / 05 / 07 / 09 / founder
+Date:     2026-09-16
+Status:   PARKED / UNVALIDATED / NO_PROMOTE
+Gate:     NOT RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: CAS-001–005 and MIX-CAS off the working book. RESEARCH.md
+  clocks stay. STRAT-009 (Gokul 15:15 flatten) stays DHAN-DERIVED.
+Rejected: Scoring CAS-* ; CONFIRMED from CAS; STRAT-015+; deleting
+  exchange CAS research.
+UNKNOWN: When founder unparks.
+```
+
 ## As of now (2026-09-08) — CAS-* off PAPER candidate scoring
 
 ```text
