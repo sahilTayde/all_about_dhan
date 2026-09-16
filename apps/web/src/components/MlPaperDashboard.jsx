@@ -60,9 +60,10 @@ export function MlPaperDashboard({ compact = false }) {
       <h2 id="ml-paper-title">ML / paper scalper board</h2>
       <p className="muted">
         Gate {data.gate || "not RESEARCH_READY_FOR_PROGRAMMING"}. Promote=
-        {String(data.promote)}. paper win_rate={data.win_rate ?? "—"} (
-        {data.n_wins ?? "—"}/{data.n_closed ?? "—"} closed, pnl&gt;0). Independent
-        books. Closed premium P/L only. Updated {data.as_of_ist || "—"}.
+        {String(data.promote)}. paper win_rate={data.win_rate_pct ?? "—"}% (
+        {data.n_wins ?? "—"} win / {data.n_losses ?? "—"} loss / {data.n_closed ?? "—"}{" "}
+        closed). ₹{data.starting_capital_inr_per_book ?? 10000} / book. Independent
+        books. Updated {data.as_of_ist || "—"}.
       </p>
       <h3>Models</h3>
       <div className="cleanup-grid">
@@ -70,7 +71,8 @@ export function MlPaperDashboard({ compact = false }) {
           <article key={m.model_id} className="cleanup-card">
             <div className="cleanup-status">{m.model_id}</div>
             <strong>
-              closed {m.n_closed} · open {m.n_open} · wr {m.win_rate ?? "—"}
+              {m.n_wins ?? 0}W / {m.n_losses ?? 0}L · wr {m.win_rate_pct ?? "—"}% · ₹
+              {m.equity_inr ?? "—"}
             </strong>
             <p>{m.what}</p>
             <p className="desk-sub">last {m.last_run_ist || "—"}</p>
@@ -84,8 +86,8 @@ export function MlPaperDashboard({ compact = false }) {
         <ul className="cleanup-keep">
           {board.map((r) => (
             <li key={`${r.book_id}-${r.underlying}`}>
-              {r.book_id} {r.underlying}: n={r.n_closed} sum={r.sum_premium_pnl}{" "}
-              wr={r.win_rate ?? "—"}
+              {r.book_id} {r.underlying}: {r.n_wins}W/{r.n_losses}L n={r.n_closed} wr=
+              {r.win_rate_pct ?? "—"}% pts={r.sum_premium_pnl} ₹={r.sum_pnl_inr ?? "—"}
             </li>
           ))}
         </ul>
@@ -97,6 +99,20 @@ export function MlPaperDashboard({ compact = false }) {
             Open {open.length} · Closed {closed.length}. Exits: stop / target /{" "}
             {data.scalper_exits?.time || "8m"} / 15:00 IST flatten.
           </p>
+          <h3>Tickets (strike / limit / target / SL)</h3>
+          {closed.length === 0 ? (
+            <p className="muted">No closed tickets yet.</p>
+          ) : (
+            <ul className="cleanup-keep">
+              {(data.closed_trades_sample || closed).slice(-20).map((t) => (
+                <li key={t.trade_id}>
+                  {t.book_id} {t.underlying} {t.side} strike={t.atm_strike} limit=
+                  {t.limit_price} tgt={t.target} sl={t.stop} sl_hit={String(t.sl_hit)} sl_loss=
+                  {t.sl_loss_inr ?? "—"} pnl₹={t.realized_pnl_inr ?? "—"} {t.result}
+                </li>
+              ))}
+            </ul>
+          )}
           <h3>DATA_INSUFFICIENT</h3>
           {gaps.length === 0 ? (
             <p className="muted">None on this snapshot.</p>

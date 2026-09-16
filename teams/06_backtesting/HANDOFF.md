@@ -9,13 +9,12 @@ Date:     2026-09-16
 Status:   PAPER CACHE REPLAY / UNVALIDATED / NO_PROMOTE / BACKTEST_REQUIRED
 Gate:     not RESEARCH_READY_FOR_PROGRAMMING
 
-Accepted: paper-scalp replay INDEX∩ATM 1643 triples IST 2026-09-09..16
-  after warehouse 1m pull (no fabricated bars). paper win_rate =
-  closed pnl>0 / n_closed (overall 0.437 on 5076 closes). MIX-ML-LOGIT
-  trains on 5y INDEX 3m before session (NIFTY wr 0.5141 still NO_PROMOTE).
-  Inventory data_gaps empty on this pass. TV-EP-024 SMA cache ≠ fills.
-Rejected: MIX-DEFAULT-BUY production write. Live orders. Promote from hit rate.
-UNKNOWN: HQ IV; closed live-session dual-tape P/L vs this cache replay.
+Accepted: 10-trade paper smoke: OPTIDX lots from instrument master
+  (NIFTY 65 / BN 30 / SX 20). ₹10k/book. win_rate_pct. Tickets:
+  strike/limit/target/stop/sl_hit/pnl_inr. deny_model_signals=false.
+  Live dual-tape --paper-scalp --paper-train started (no Super Order).
+Rejected: Live orders. MIX-DEFAULT-BUY production write. Promote from 10 trades.
+UNKNOWN: Live dual-tape INDEX null if Dhan errors.
 ```
 
 ## As of now (2026-09-16) — ML replay-hold diagnostic (NO_PROMOTE)

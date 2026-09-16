@@ -64,6 +64,12 @@ def build_parser() -> argparse.ArgumentParser:
     ps.add_argument("--underlyings", default="NIFTY,BANKNIFTY,SENSEX")
     ps.add_argument("--tick-seconds", type=int, default=45)
     ps.add_argument("--max-ticks", type=int, default=0, help="Loop only; 0 = until STOP flag")
+    ps.add_argument("--max-closes", type=int, default=0, help="Stop replay after N closed paper trades (0 = all)")
+    ps.add_argument(
+        "--deny-signals",
+        action="store_true",
+        help="Restore overlay SKIP (HOLD / meta-label). Default: do not deny paper CE/PE.",
+    )
     ps.add_argument("--no-write", action="store_true")
     return p
 
@@ -157,6 +163,8 @@ def main(argv: Optional[list[str]] = None) -> int:
             underlyings=names or ("NIFTY",),
             source=str(args.source),
             write=not bool(args.no_write),
+            max_closes=int(args.max_closes or 0),
+            deny_model_signals=bool(args.deny_signals),
         )
         public = {
             k: report.get(k)

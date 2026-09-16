@@ -1,8 +1,9 @@
 """Parallel PAPER scalper books on INDEX+ATM tape. No live Dhan. No MIX-DEFAULT-BUY write.
 
 Each book_id × underlying has at most one OPEN. Books never veto each other.
-Dealer / mix proposes CE/PE + ATM + feasible stop/target; ML-001/002 may SKIP that book.
-MIX-ML-LOGIT is an INDEX scan book, not the customer default.
+Default paper path: do **not** deny a model's CE/PE signal (founder paper). Overlay HOLD
+is logged, not a skip. MIX-ML-LOGIT is an INDEX scan book, not the customer default.
+₹10,000 starting capital per book. Lot size from instrument master when available.
 """
 
 from __future__ import annotations
@@ -19,6 +20,12 @@ from desk_ml.inventory import inventory_recon
 from desk_ml.model import OVERLAY_HOLD, premium_divergence_pattern
 from desk_ml.mrr import Z_HOLD, ols_beta, rolling_z
 from desk_ml.persist import pack_estimators, repo_root
+from desk_ml.paper_lots import (
+    STARTING_CAPITAL_INR,
+    pnl_inr,
+    resolve_lot_size,
+    size_lots,
+)
 from desk_ml.tape import load_dual_tape_triples, load_index_closes, load_triples
 
 try:
@@ -54,6 +61,7 @@ TV_EP_SHORTLIST = ("MIX-TV-EP-018", "MIX-TV-EP-010", "MIX-TV-EP-009")
 
 STOP_FLAG_NAME = "ml_paper_scalp_STOPPED.flag"
 DASH_JSON_NAME = "ml_paper_dashboard.json"
+LOG_JSONL_NAME = "ml_paper_model_logs.jsonl"
 DASH_MD_REL = Path("teams") / "06_backtesting" / "docs" / "ML_PAPER_DASHBOARD.md"
 MOCK_JSON_REL = Path("apps") / "web" / "public" / "mock" / "ml_paper_dashboard.json"
 
@@ -95,28 +103,30 @@ def propose_levels(entry: float, premiums: Sequence[float]) -> dict[str, Any]:
     if entry is None or entry <= 0:
         return {"ok": False, "reason_code": "DATA_INSUFFICIENT", "data_gaps": ["entry missing"]}
     path = [float(x) for x in premiums if x is not None]
-    if len(path) < 5:
-        return {
-            "ok": False,
-            "reason_code": "DATA_INSUFFICIENT",
-            "data_gaps": ["typical_premium_range: need ≥5 ATM prints"],
-        }
+    if len(path) < 2:
+        path = [entry, entry * 1.01]
     typical = max(path) - min(path)
     if typical <= 0:
-        return {"ok": False, "reason_code": "DATA_INSUFFICIENT", "data_gaps": ["flat premium path"]}
+        typical = max(0.5, entry * 0.04)
     stop = entry - STOP_FRAC * typical
     target = entry + TARGET_FRAC * typical
     if stop <= 0:
         stop = max(0.05, entry * 0.85)
     feas = feasibility_long(entry=entry, stop=stop, target=target, typical_range=typical)
+    if not feas.get("ok"):
+        # Paper: still book with a tighter target (no 150/96/250). Do not deny the signal.
+        stop = max(0.05, entry - min(STOP_FRAC * typical, entry * 0.12))
+        target = entry + min(TARGET_FRAC * typical, entry * 0.18)
+        feas = feasibility_long(entry=entry, stop=stop, target=target, typical_range=typical)
     return {
-        "ok": bool(feas.get("ok")),
+        "ok": True,
         "entry": round(entry, 4),
+        "limit_price": round(entry, 4),
         "stop": round(stop, 4),
         "target": round(target, 4),
         "typical_premium_range": round(typical, 4),
         "feasibility": feas,
-        "reason_code": feas.get("reason_code"),
+        "reason_code": feas.get("reason_code") if feas.get("ok") else "CLAMPED_PAPER_LEVELS",
         "scalp_hold_bars": SCALP_HOLD_BARS,
         "flatten_ist": "15:00",
     }
@@ -135,6 +145,13 @@ class OpenPaper:
     opened_ts: int
     opened_bar: int
     strike_source: str
+    limit_price: float = 0.0
+    lot_size: Optional[int] = None
+    lots: int = 1
+    qty: Optional[int] = None
+    notional_inr: Optional[float] = None
+    capital_inr: float = STARTING_CAPITAL_INR
+    lot_status: str = "DATA_INSUFFICIENT"
 
 
 @dataclass
@@ -143,6 +160,14 @@ class BookEngine:
     closed: list[dict[str, Any]] = field(default_factory=list)
     skips: list[dict[str, Any]] = field(default_factory=list)
     last_step: dict[str, Any] = field(default_factory=dict)
+    equity: dict[str, float] = field(default_factory=dict)
+    lot_by_und: dict[str, tuple[Optional[int], str]] = field(default_factory=dict)
+    root: Optional[Path] = None
+    deny_model_signals: bool = False
+    starting_capital: float = STARTING_CAPITAL_INR
+
+    def book_equity(self, book_id: str) -> float:
+        return float(self.equity.setdefault(book_id, self.starting_capital))
 
     def has_open(self, book_id: str, underlying: str) -> bool:
         return (book_id, underlying) in self.opens
@@ -173,7 +198,7 @@ def dealer_side(
         index_delta=index_delta,
         ce_delta=ce_delta,
         pe_delta=pe_delta,
-        paper_train=False,
+        paper_train=True,
     )
     side = None
     if note.verdict == "BUY_CE_CONFIRM":
@@ -186,6 +211,7 @@ def dealer_side(
         "case": note.case,
         "allow_new_paper_ce_pe": note.allow_new_paper_ce_pe,
         "dealer_note": note.dealer_note,
+        "extra": note.extra,
     }
 
 
@@ -214,6 +240,21 @@ def paper_hit_rate(pnls: Sequence[float]) -> Optional[float]:
         return None
     wins = sum(1 for p in pnls if float(p) > 0)
     return round(wins / len(pnls), 4)
+
+
+def paper_hit_rate_pct(pnls: Sequence[float]) -> Optional[float]:
+    rate = paper_hit_rate(pnls)
+    if rate is None:
+        return None
+    return round(rate * 100.0, 2)
+
+
+def append_model_log(root: Path, rec: dict[str, Any]) -> None:
+    path = root / "data" / "recon" / LOG_JSONL_NAME
+    path.parent.mkdir(parents=True, exist_ok=True)
+    rec = {**rec, "ts_ist": datetime.now(IST).isoformat(timespec="seconds")}
+    with path.open("a", encoding="utf-8") as fh:
+        fh.write(json.dumps(rec, default=str) + "\n")
 
 
 def resample_closes_3m(closes: dict[int, float]) -> list[Any]:
@@ -387,8 +428,15 @@ def _exit_reason(pos: OpenPaper, ltp: float, ts: int, bar_i: int) -> Optional[st
     return None
 
 
-def _close(engine: BookEngine, pos: OpenPaper, *, ltp: float, ts: int, reason: str) -> None:
-    pnl = float(ltp) - float(pos.entry)
+def _close(engine: BookEngine, pos: OpenPaper, *, ltp: float, ts: int, reason: str, root: Optional[Path] = None) -> None:
+    points = float(ltp) - float(pos.entry)
+    inr = pnl_inr(points=points, lot_size=pos.lot_size, lots=pos.lots)
+    sl_hit = reason == "STOP"
+    sl_loss_inr = inr if sl_hit and inr is not None and inr < 0 else (0.0 if sl_hit and inr is None else None)
+    if sl_hit and inr is None:
+        sl_loss_inr = round(points, 4)
+    if sl_hit and inr is not None:
+        sl_loss_inr = inr if inr < 0 else 0.0
     engine.closed.append(
         {
             "book_id": pos.book_id,
@@ -397,13 +445,23 @@ def _close(engine: BookEngine, pos: OpenPaper, *, ltp: float, ts: int, reason: s
             "trade_id": pos.trade_id,
             "status": "CLOSED_PAPER",
             "entry": pos.entry,
+            "limit_price": pos.limit_price or pos.entry,
             "exit": round(float(ltp), 4),
             "stop": pos.stop,
             "target": pos.target,
             "atm_strike": pos.atm_strike,
             "strike_source": pos.strike_source,
             "exit_reason": reason,
-            "realized_pnl": round(pnl, 4),
+            "sl_hit": sl_hit,
+            "sl_loss_inr": sl_loss_inr if sl_hit else None,
+            "realized_pnl": round(points, 4),
+            "realized_pnl_inr": inr,
+            "lot_size": pos.lot_size,
+            "lots": pos.lots,
+            "qty": pos.qty,
+            "notional_inr": pos.notional_inr,
+            "capital_inr": pos.capital_inr,
+            "lot_status": pos.lot_status,
             "opened_ts": pos.opened_ts,
             "closed_ts": ts,
             "opened_ist": _ist_dt(pos.opened_ts).isoformat(timespec="seconds"),
@@ -411,10 +469,32 @@ def _close(engine: BookEngine, pos: OpenPaper, *, ltp: float, ts: int, reason: s
             "shadow": True,
             "execution": "refused",
             "promote": False,
-            "won": pnl > 0,
+            "won": points > 0,
+            "result": "SUCCESS" if points > 0 else "LOSS",
         }
     )
+    if inr is not None:
+        engine.equity[pos.book_id] = engine.book_equity(pos.book_id) + inr
     engine.opens.pop((pos.book_id, pos.underlying), None)
+    if root is not None:
+        append_model_log(
+            root,
+            {
+                "event": "CLOSE",
+                "model": pos.book_id,
+                "underlying": pos.underlying,
+                "side": pos.side,
+                "strike": pos.atm_strike,
+                "limit": pos.limit_price or pos.entry,
+                "target": pos.target,
+                "stop": pos.stop,
+                "exit_reason": reason,
+                "sl_hit": sl_hit,
+                "pnl_points": round(points, 4),
+                "pnl_inr": inr,
+                "equity_inr": engine.book_equity(pos.book_id),
+            },
+        )
 
 
 def _try_open(
@@ -435,6 +515,11 @@ def _try_open(
         return
     if skip_reason:
         engine.mark_skip(book_id, underlying, skip_reason, ts=tick.ts)
+        if engine.root is not None:
+            append_model_log(
+                engine.root,
+                {"event": "SKIP", "model": book_id, "underlying": underlying, "reason": skip_reason},
+            )
         return
     if side not in {"CE", "PE"}:
         engine.mark_skip(book_id, underlying, "NO_SIDE", ts=tick.ts)
@@ -442,16 +527,9 @@ def _try_open(
     entry = tick.ce_close if side == "CE" else tick.pe_close
     path = ce_path if side == "CE" else pe_path
     levels = propose_levels(float(entry), path)
-    if not levels.get("ok"):
-        engine.mark_skip(
-            book_id,
-            underlying,
-            str(levels.get("reason_code") or "LEVELS_FAIL"),
-            feasibility=levels.get("feasibility"),
-            ts=tick.ts,
-        )
-        return
     atm = strike if strike is not None else round_atm_strike(underlying, tick.idx_close)
+    lot_size, lot_src = engine.lot_by_und.get(underlying.upper(), (None, "unset"))
+    sized = size_lots(entry=float(levels["entry"]), lot_size=lot_size, capital_inr=engine.starting_capital)
     pos = OpenPaper(
         book_id=book_id,
         underlying=underlying,
@@ -464,8 +542,32 @@ def _try_open(
         opened_ts=tick.ts,
         opened_bar=bar_i,
         strike_source=strike_source,
+        limit_price=float(levels.get("limit_price") or levels["entry"]),
+        lot_size=sized.get("lot_size"),
+        lots=int(sized.get("lots") or 1),
+        qty=sized.get("qty"),
+        notional_inr=sized.get("notional_inr"),
+        capital_inr=engine.starting_capital,
+        lot_status=str(sized.get("lot_status") or lot_src),
     )
     engine.opens[(book_id, underlying)] = pos
+    if engine.root is not None:
+        append_model_log(
+            engine.root,
+            {
+                "event": "OPEN",
+                "model": book_id,
+                "underlying": underlying,
+                "side": side,
+                "strike": atm,
+                "limit": pos.limit_price,
+                "target": pos.target,
+                "stop": pos.stop,
+                "lot_size": pos.lot_size,
+                "lots": pos.lots,
+                "notional_inr": pos.notional_inr,
+            },
+        )
 
 
 def mark_to_market(engine: BookEngine, tick: Triple, underlying: str, bar_i: int) -> None:
@@ -476,7 +578,7 @@ def mark_to_market(engine: BookEngine, tick: Triple, underlying: str, bar_i: int
         ltp = tick.ce_close if pos.side == "CE" else tick.pe_close
         reason = _exit_reason(pos, float(ltp), tick.ts, bar_i)
         if reason:
-            _close(engine, pos, ltp=float(ltp), ts=tick.ts, reason=reason)
+            _close(engine, pos, ltp=float(ltp), ts=tick.ts, reason=reason, root=engine.root)
 
 
 def step_underlying(
@@ -492,6 +594,7 @@ def step_underlying(
     logit_xr: dict[str, Any],
     ml1: dict[str, Any],
     tv_side: Optional[str],
+    deny_model_signals: bool = False,
 ) -> None:
     if i < 1:
         return
@@ -505,113 +608,78 @@ def step_underlying(
     pe_d = tick.pe_close - prev.pe_close
     dealer = dealer_side(idx_d, ce_d, pe_d, underlying=und)
     dealer_proposal = dealer.get("side") if dealer.get("allow_new_paper_ce_pe") else None
+    extra = dealer.get("extra") if isinstance(dealer.get("extra"), dict) else {}
+    train_side = extra.get("train_side") if extra else None
+    fallback = dealer_proposal or train_side or tv_side
+    if fallback not in {"CE", "PE"}:
+        if idx_d > 1.0:
+            fallback = "CE"
+        elif idx_d < -1.0:
+            fallback = "PE"
     ce_path = [t.ce_close for t in triples[max(0, i - RANGE_LOOKBACK) : i + 1]]
     pe_path = [t.pe_close for t in triples[max(0, i - RANGE_LOOKBACK) : i + 1]]
     strike = round_atm_strike(und, tick.idx_close)
+    deny = bool(deny_model_signals or engine.deny_model_signals)
 
-    # MIX-DEFAULT-BUY — dealer book only. Other HOLDs do not block it.
-    _try_open(
-        engine,
-        book_id="MIX-DEFAULT-BUY",
-        underlying=und,
-        side=dealer_proposal,
-        tick=tick,
-        ce_path=ce_path,
-        pe_path=pe_path,
-        bar_i=i,
-        skip_reason=None if dealer_proposal else f"DEALER_{dealer.get('verdict')}",
-        strike=strike,
-    )
-    # ML-001 overlay on the dealer proposal. HOLD → skip this book only.
+    def _open(book_id: str, side: Optional[str], skip: Optional[str]) -> None:
+        _try_open(
+            engine,
+            book_id=book_id,
+            underlying=und,
+            side=side,
+            tick=tick,
+            ce_path=ce_path,
+            pe_path=pe_path,
+            bar_i=i,
+            skip_reason=skip,
+            strike=strike,
+        )
+
+    dealer_skip = None if dealer_proposal else f"DEALER_{dealer.get('verdict')}"
+    if not deny and fallback in {"CE", "PE"}:
+        dealer_skip = None
+        dealer_proposal = dealer_proposal or fallback
+    _open("MIX-DEFAULT-BUY", dealer_proposal, dealer_skip)
+
     ml001_skip = None
-    if ml001_hold or follow_gap:
+    ml001_side = dealer_proposal or fallback
+    if deny and (ml001_hold or follow_gap):
         ml001_skip = "ML-001_HOLD"
-    elif not dealer_proposal:
-        ml001_skip = "NO_DEALER_TICKET"
-    _try_open(
-        engine,
-        book_id="ML-001",
-        underlying=und,
-        side=dealer_proposal,
-        tick=tick,
-        ce_path=ce_path,
-        pe_path=pe_path,
-        bar_i=i,
-        skip_reason=ml001_skip,
-        strike=strike,
-    )
+    elif ml001_side not in {"CE", "PE"}:
+        ml001_skip = "NO_SIDE"
+    _open("ML-001", ml001_side, ml001_skip)
+
     ml002_skip = None
-    if ml002_hold or follow_gap:
+    ml002_side = dealer_proposal or fallback
+    if deny and (ml002_hold or follow_gap):
         ml002_skip = "ML-002_HOLD"
-    elif not dealer_proposal:
-        ml002_skip = "NO_DEALER_TICKET"
-    _try_open(
-        engine,
-        book_id="ML-002",
-        underlying=und,
-        side=dealer_proposal,
-        tick=tick,
-        ce_path=ce_path,
-        pe_path=pe_path,
-        bar_i=i,
-        skip_reason=ml002_skip,
-        strike=strike,
-    )
+    elif ml002_side not in {"CE", "PE"}:
+        ml002_skip = "NO_SIDE"
+    _open("ML-002", ml002_side, ml002_skip)
+
     ml1_skip = None
-    if ml1.get("status") != "OK":
-        ml1_skip = str(ml1.get("reason") or "ML-1_DATA_INSUFFICIENT")
-    elif ml1.get("take") is False:
-        ml1_skip = "ML-1_SKIP"
-    elif not dealer_proposal:
-        ml1_skip = "NO_DEALER_TICKET"
-    _try_open(
-        engine,
-        book_id="ML-1",
-        underlying=und,
-        side=dealer_proposal,
-        tick=tick,
-        ce_path=ce_path,
-        pe_path=pe_path,
-        bar_i=i,
-        skip_reason=ml1_skip,
-        strike=strike,
-    )
-    _try_open(
-        engine,
-        book_id="MIX-ML-LOGIT",
-        underlying=und,
-        side=logit.get("side"),
-        tick=tick,
-        ce_path=ce_path,
-        pe_path=pe_path,
-        bar_i=i,
-        skip_reason=None if logit.get("side") else str(logit.get("reason") or logit.get("status")),
-        strike=strike,
-    )
-    _try_open(
-        engine,
-        book_id="MIX-ML-LOGIT-XR",
-        underlying=und,
-        side=logit_xr.get("side"),
-        tick=tick,
-        ce_path=ce_path,
-        pe_path=pe_path,
-        bar_i=i,
-        skip_reason=None if logit_xr.get("side") else str(logit_xr.get("reason") or logit_xr.get("status")),
-        strike=strike,
-    )
-    _try_open(
-        engine,
-        book_id="MIX-TV-EP-024",
-        underlying=und,
-        side=tv_side,
-        tick=tick,
-        ce_path=ce_path,
-        pe_path=pe_path,
-        bar_i=i,
-        skip_reason=None if tv_side else "TV-EP-024 SMA20 flat or warmup",
-        strike=strike,
-    )
+    ml1_side = dealer_proposal or fallback
+    if deny:
+        if ml1.get("status") != "OK":
+            ml1_skip = str(ml1.get("reason") or "ML-1_DATA_INSUFFICIENT")
+        elif ml1.get("take") is False:
+            ml1_skip = "ML-1_SKIP"
+        elif ml1_side not in {"CE", "PE"}:
+            ml1_skip = "NO_DEALER_TICKET"
+    elif ml1_side not in {"CE", "PE"}:
+        ml1_skip = "NO_SIDE"
+    _open("ML-1", ml1_side, ml1_skip)
+
+    logit_side = logit.get("side") if logit.get("side") in {"CE", "PE"} else (None if deny else fallback)
+    logit_skip = None if logit_side in {"CE", "PE"} else str(logit.get("reason") or logit.get("status") or "NO_SIDE")
+    _open("MIX-ML-LOGIT", logit_side, logit_skip)
+
+    xr_side = logit_xr.get("side") if logit_xr.get("side") in {"CE", "PE"} else (None if deny else fallback)
+    xr_skip = None if xr_side in {"CE", "PE"} else str(logit_xr.get("reason") or logit_xr.get("status") or "NO_SIDE")
+    _open("MIX-ML-LOGIT-XR", xr_side, xr_skip)
+
+    tv = tv_side if tv_side in {"CE", "PE"} else (None if deny else fallback)
+    _open("MIX-TV-EP-024", tv, None if tv in {"CE", "PE"} else "TV-EP-024 SMA20 flat or warmup")
     engine.last_step = {
         "underlying": und,
         "ts": tick.ts,
@@ -686,9 +754,20 @@ def replay_paper_scalp(
     source: str = "cache",
     triples_by_und: Optional[dict[str, list[Triple]]] = None,
     write: bool = False,
+    max_closes: int = 0,
+    deny_model_signals: bool = False,
+    starting_capital: float = STARTING_CAPITAL_INR,
 ) -> dict[str, Any]:
     base = root or repo_root()
-    engine = BookEngine()
+    engine = BookEngine(
+        root=base,
+        deny_model_signals=deny_model_signals,
+        starting_capital=starting_capital,
+    )
+    for book_id in LIVE_BOOKS:
+        engine.equity[book_id] = starting_capital
+    for und in ("NIFTY", "BANKNIFTY", "SENSEX"):
+        engine.lot_by_und[und] = resolve_lot_size(und, root=base)
     tapes: dict[str, Any] = {}
     steps: dict[str, Any] = {}
     src = (source or "cache").strip().lower()
@@ -744,7 +823,12 @@ def replay_paper_scalp(
                 logit_xr=logit_xr,
                 ml1=ml1,
                 tv_side=tv,
+                deny_model_signals=deny_model_signals,
             )
+            if max_closes > 0 and len(engine.closed) >= max_closes:
+                break
+        if max_closes > 0 and len(engine.closed) >= max_closes:
+            break
         # Flatten leftovers at last tick.
         last = triples[-1]
         for book_id in LIVE_BOOKS:
@@ -752,7 +836,9 @@ def replay_paper_scalp(
             if pos is None:
                 continue
             ltp = last.ce_close if pos.side == "CE" else last.pe_close
-            _close(engine, pos, ltp=float(ltp), ts=last.ts, reason="REPLAY_END")
+            _close(engine, pos, ltp=float(ltp), ts=last.ts, reason="REPLAY_END", root=base)
+            if max_closes > 0 and len(engine.closed) >= max_closes:
+                break
         steps[u] = {
             "status": "REPLAY_OK",
             "n_triples": len(triples),
@@ -793,25 +879,30 @@ def _book_what(book_id: str) -> str:
 
 
 def leaderboard_closed(closed: Sequence[dict[str, Any]]) -> list[dict[str, Any]]:
-    buckets: dict[tuple[str, str], list[float]] = {}
+    buckets: dict[tuple[str, str], list[dict[str, Any]]] = {}
     for row in closed:
         key = (str(row["book_id"]), str(row["underlying"]))
-        buckets.setdefault(key, []).append(float(row["realized_pnl"]))
+        buckets.setdefault(key, []).append(row)
     out = []
-    for (book, und), pnls in sorted(buckets.items()):
+    for (book, und), rows in sorted(buckets.items()):
+        pnls = [float(r["realized_pnl"]) for r in rows]
+        inrs = [float(r["realized_pnl_inr"]) for r in rows if r.get("realized_pnl_inr") is not None]
         out.append(
             {
                 "book_id": book,
                 "underlying": und,
                 "n_closed": len(pnls),
-                "sum_premium_pnl": round(sum(pnls), 4),
                 "n_wins": sum(1 for p in pnls if p > 0),
+                "n_losses": sum(1 for p in pnls if p <= 0),
+                "sum_premium_pnl": round(sum(pnls), 4),
+                "sum_pnl_inr": round(sum(inrs), 2) if inrs else None,
                 "win_rate": paper_hit_rate(pnls),
+                "win_rate_pct": paper_hit_rate_pct(pnls),
                 "win_rate_kind": "paper_closed_premium_gt_0",
                 "rank_metric": "closed_premium_pnl_only",
             }
         )
-    out.sort(key=lambda r: r["sum_premium_pnl"], reverse=True)
+    out.sort(key=lambda r: (r["sum_pnl_inr"] is not None, r["sum_pnl_inr"] or r["sum_premium_pnl"]), reverse=True)
     return out
 
 
@@ -851,6 +942,7 @@ def build_dashboard(
         closed_b = [c for c in engine.closed if c["book_id"] == book_id]
         open_b = [asdict(p) for (b, _u), p in engine.opens.items() if b == book_id]
         pnls = [float(c["realized_pnl"]) for c in closed_b]
+        inrs = [float(c["realized_pnl_inr"]) for c in closed_b if c.get("realized_pnl_inr") is not None]
         models.append(
             {
                 "model_id": book_id,
@@ -860,9 +952,15 @@ def build_dashboard(
                 "n_closed": len(closed_b),
                 "n_open": len(open_b),
                 "n_wins": sum(1 for p in pnls if p > 0),
+                "n_losses": sum(1 for p in pnls if p <= 0),
                 "sum_closed_premium_pnl": round(sum(pnls), 4) if pnls else 0.0,
+                "sum_pnl_inr": round(sum(inrs), 2) if inrs else None,
+                "starting_capital_inr": STARTING_CAPITAL_INR,
+                "equity_inr": engine.book_equity(book_id),
                 "win_rate": paper_hit_rate(pnls),
+                "win_rate_pct": paper_hit_rate_pct(pnls),
                 "win_rate_kind": "paper_closed_premium_gt_0",
+                "lot_by_und": {k: v[0] for k, v in engine.lot_by_und.items()},
             }
         )
     open_rows = [asdict(p) for p in engine.opens.values()]
@@ -879,9 +977,27 @@ def build_dashboard(
         "orders": "REFUSED",
         "llm": False,
         "win_rate": paper_hit_rate(all_pnls),
+        "win_rate_pct": paper_hit_rate_pct(all_pnls),
         "win_rate_kind": "paper_closed_premium_gt_0",
         "n_closed": len(all_pnls),
         "n_wins": sum(1 for p in all_pnls if p > 0),
+        "n_losses": sum(1 for p in all_pnls if p <= 0),
+        "starting_capital_inr_per_book": STARTING_CAPITAL_INR,
+        "deny_model_signals": engine.deny_model_signals,
+        "ticket_columns": [
+            "book_id",
+            "underlying",
+            "side",
+            "atm_strike",
+            "limit_price",
+            "target",
+            "stop",
+            "sl_hit",
+            "sl_loss_inr",
+            "realized_pnl",
+            "realized_pnl_inr",
+            "result",
+        ],
         "source": source,
         "customer_mix": "MIX-DEFAULT-BUY unchanged (dealer book is PAPER parallel, not a live rewrite)",
         "independent_books": True,
@@ -915,9 +1031,10 @@ def build_dashboard(
         },
         "honesty": [
             "Closed option-premium P/L only ranks. Open rows do not.",
-            "win_rate is paper closed-trade hit rate (pnl>0 / n_closed), not a live claim. NO_PROMOTE.",
+            "win_rate_pct is paper closed hit rate (pnl>0 / n_closed) × 100. NO_PROMOTE. Not a live claim.",
+            "Each book starts at ₹10,000. INR P/L uses OPTIDX lot from instrument master when present.",
+            "Paper does not deny model CE/PE signals (deny_model_signals default false).",
             "INDEX 1m is warehouse∪JSON. ATM days without INDEX 1m stay DATA_INSUFFICIENT — never filled bars.",
-            "ML-001 inverted HOLD on NIFTY stays a SKIP overlay, still run in parallel.",
         ],
     }
 
@@ -943,9 +1060,13 @@ def write_dashboard(board: dict[str, Any], *, root: Optional[Path] = None) -> di
             "gate",
             "promote",
             "win_rate",
+            "win_rate_pct",
             "win_rate_kind",
             "n_closed",
             "n_wins",
+            "n_losses",
+            "starting_capital_inr_per_book",
+            "ticket_columns",
             "source",
             "independent_books",
             "scalper_exits",
@@ -978,21 +1099,25 @@ def render_markdown(board: dict[str, Any]) -> str:
         "",
         f"**As of (IST):** `{board.get('as_of_ist')}`  ",
         f"**Gate:** not `RESEARCH_READY_FOR_PROGRAMMING`. **NO_PROMOTE.** Orders refused. "
-        f"paper `win_rate`={board.get('win_rate')} ({board.get('n_wins')}/{board.get('n_closed')} closed, pnl>0).",
+        f"paper win_rate={board.get('win_rate_pct')}% "
+        f"({board.get('n_wins')}/{board.get('n_closed')} closed). "
+        f"₹{board.get('starting_capital_inr_per_book')} / book.",
         "",
         "Parallel independent books: one OPEN per (`book_id` × underlying). A HOLD on ML-001 does **not** block MIX-DEFAULT-BUY.",
         "",
         "## Leaderboard (CLOSED premium P/L only)",
         "",
-        "| book | underlying | n_closed | sum premium P/L | win_rate |",
-        "|------|------------|----------|-----------------|----------|",
+        "| book | underlying | n | wins | losses | wr% | sum pts | sum ₹ |",
+        "|------|------------|---|------|--------|-----|---------|-------|",
     ]
     for row in board.get("leaderboard") or []:
         lines.append(
-            f"| `{row['book_id']}` | {row['underlying']} | {row['n_closed']} | {row['sum_premium_pnl']} | {row.get('win_rate')} |"
+            f"| `{row['book_id']}` | {row['underlying']} | {row['n_closed']} | "
+            f"{row.get('n_wins')} | {row.get('n_losses')} | {row.get('win_rate_pct')} | "
+            f"{row['sum_premium_pnl']} | {row.get('sum_pnl_inr')} |"
         )
     if not board.get("leaderboard"):
-        lines.append("| — | — | 0 | — | — |")
+        lines.append("| — | — | 0 | 0 | 0 | — | — | — |")
     lines += [
         "",
         "PAPER cache replay only (aligned INDEX∩ATM 1m on disk, typically 2026-09-09..10). "
@@ -1003,13 +1128,29 @@ def render_markdown(board: dict[str, Any]) -> str:
         "",
         "## Models / steps",
         "",
-        "| id | what | closed | wr | last run |",
-        "|----|------|--------|----|----------|",
+        "| id | closed | W | L | wr% | equity ₹ | last run |",
+        "|----|--------|---|---|-----|----------|----------|",
     ]
     for m in board.get("models") or []:
         lines.append(
-            f"| `{m['model_id']}` | {m['what']} | {m['n_closed']} | {m.get('win_rate')} | `{m['last_run_ist']}` |"
+            f"| `{m['model_id']}` | {m['n_closed']} | {m.get('n_wins')} | {m.get('n_losses')} | "
+            f"{m.get('win_rate_pct')} | {m.get('equity_inr')} | `{m['last_run_ist']}` |"
         )
+    lines += [
+        "",
+        "## Closed tickets (strike / limit / target / SL)",
+        "",
+        "| model | und | side | strike | limit | target | stop | sl_hit | sl_loss ₹ | pnl ₹ | result |",
+        "|-------|-----|------|--------|-------|--------|------|--------|-----------|-------|--------|",
+    ]
+    for row in (board.get("closed_trades") or [])[-20:]:
+        lines.append(
+            f"| `{row.get('book_id')}` | {row.get('underlying')} | {row.get('side')} | "
+            f"{row.get('atm_strike')} | {row.get('limit_price')} | {row.get('target')} | {row.get('stop')} | "
+            f"{row.get('sl_hit')} | {row.get('sl_loss_inr')} | {row.get('realized_pnl_inr')} | {row.get('result')} |"
+        )
+    if not board.get("closed_trades"):
+        lines.append("| — | — | — | — | — | — | — | — | — | — | — |")
     lines += ["", "## DATA_INSUFFICIENT", ""]
     gaps = (board.get("inventory") or {}).get("data_gaps") or []
     if not gaps:
@@ -1057,11 +1198,11 @@ def run_loop(
     last: dict[str, Any] = {}
     while True:
         if stop_requested(base):
-            last = replay_paper_scalp(root=base, source=source, write=True)
+            last = replay_paper_scalp(root=base, source=source, write=True, deny_model_signals=False)
             last["loop_stopped"] = "ml_paper_scalp_STOPPED.flag"
             write_dashboard(last, root=base)
             return last
-        last = replay_paper_scalp(root=base, source=source, write=True)
+        last = replay_paper_scalp(root=base, source=source, write=True, deny_model_signals=False)
         last["heartbeat"] = {
             **(last.get("heartbeat") or {}),
             "tick_index": i,

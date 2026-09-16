@@ -80,6 +80,7 @@ def test_ml001_hold_does_not_block_dealer() -> None:
         logit_xr={"side": None, "status": "SKIP", "reason": "thin"},
         ml1={"status": "DATA_INSUFFICIENT", "reason": "no labels"},
         tv_side="CE",
+        deny_model_signals=True,
     )
     dealer_open = engine.has_open("MIX-DEFAULT-BUY", "NIFTY")
     ml001_open = engine.has_open("ML-001", "NIFTY")
@@ -180,6 +181,7 @@ def test_books_do_not_share_veto_on_banknifty() -> None:
         logit_xr={"side": None, "status": "SKIP"},
         ml1={"status": "DATA_INSUFFICIENT", "reason": "no labels"},
         tv_side=None,
+        deny_model_signals=True,
     )
     step_underlying(
         engine,
@@ -193,6 +195,7 @@ def test_books_do_not_share_veto_on_banknifty() -> None:
         logit_xr={"side": None, "status": "SKIP"},
         ml1={"status": "DATA_INSUFFICIENT", "reason": "no labels"},
         tv_side="PE",
+        deny_model_signals=True,
     )
     # Opposite underlyings stay independent even if one overlay HOLDs.
     assert engine.has_open("MIX-ML-LOGIT", "NIFTY") is True
