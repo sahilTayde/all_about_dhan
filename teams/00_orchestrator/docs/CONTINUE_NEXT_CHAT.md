@@ -40,6 +40,14 @@ Left off 2026-09-13: ITM champion PAPER board ready (MIX-CHAMP-* + desk leaderbo
 
 ---
 
+## Left-off 2026-09-17 11:18 IST — last-30 WR counsel (NO_PROMOTE)
+
+**Now:** Snapshot (no wipe) of ML paper board 11:18 IST. Last-30 filled **overall** wr **gross 43.33% / net 20%** — clones inflate. **MIX-ML-LOGIT** filled **n=16** wr **43.75% gross=net**, not founder ~83%. Dealer CONFIRM-not-fill + 001 HOLD-skip = HYPOTHESIS. Dual-tape stays. `production_params_written=false`. Gate **not** `RESEARCH_READY_FOR_PROGRAMMING`. **NO_PROMOTE.**
+
+**Next:** Code sibling may implement dealer CONFIRM + clone HOLD-skip + regime×book memory JSON. Do not restart npm. Do not wipe dashboard. Local sqlite — do not git-add.
+
+---
+
 ## Left-off 2026-09-17 — live-mock dress rehearsal (NO_PROMOTE)
 
 **Now:** First NEW paper ticket **09:50 IST** (cash open 09:15 + 35m). Flatten/cancel still run. Dual-tape **10s REST**; dashboard 5s rewrite. WS not enabled (feed parse has no IV/greeks — MIX-ML-GREEKS stays on POST /optionchain). Fantasy 615 clipped / `TARGET_FEASIBILITY_FAIL`. Session params only. wr **gross and net**. Gate **not** `RESEARCH_READY_FOR_PROGRAMMING`. **NO_PROMOTE.**

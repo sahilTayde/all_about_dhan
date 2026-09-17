@@ -2,6 +2,43 @@
 
 **Agents:** read **only the newest block**. Do not ingest this whole log. New files: [`docs/FILE_CREATION.md`](../../docs/FILE_CREATION.md). Append here — do not create `HANDOFF_TOMORROW.md` or extra `CONTINUE_*`.
 
+## As of now (2026-09-17 11:18 IST) — last-30 filled WR + logit vs dealer counsel (NO_PROMOTE)
+
+```text
+From:     teams/00_orchestrator
+To:       founder / 04 / 06
+Date:     2026-09-17
+Status:   PAPER COUNSEL / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: Snapshot first (no wipe): ML_PAPER_DASHBOARD.md +
+  data/recon/ml_paper_dashboard.json as_of 2026-09-17T11:18:37+05:30.
+  Last-30 WR is filled-only; CANCELLED ₹0 out of wr. Founder ~83%
+  MIX-ML-LOGIT last-30 is NOT this tape. Logit filled n=16 only
+  (cannot make last-30). wr_gross=wr_net 43.75% (7/16) net ₹+1404.78.
+  Last 30 filled OVERALL (clones in): wr_gross 43.33% (13/30)
+  wr_net 20.00% (6/30) — 16/30 are ML-001/002/ML-1/XR clones.
+  Unique-book last-30: wr_gross 40% wr_net 30%. Deduped slot last-30:
+  wr_gross 33.33% wr_net 26.67%. Session filled 167: wr_g 40.12
+  wr_n 32.34. Dual-tape left running. paper_scalp.py not edited.
+Rejected: Promote. Treating 83% as a gate. Treating clone last-30 as
+  independent trades. STRAT-015+. MIX-DEFAULT-BUY production write.
+  Killing dual-tape. Wiping the dashboard.
+UNKNOWN: Whether founder 83% was a live-hours unique-slot glance or
+  SENSEX-only 5/7=71.4% misremembered.
+
+LLM (offline counsel, compact counts, no keys printed):
+  together=SPLIT. Gemini REJECT_WITH_CAVEATS (schema slip; body is
+  confirm-not-fill). OpenAI ACCEPT_WITH_CAVEATS (truncated) then
+  shorter-facts REJECT/DI. Local analysis stands if LLM splits.
+
+Tune (HYPOTHESIS, session only, production_params_written=false):
+  - logit: FILL CE/PE it owns; keep 09:50 + SIDEWAYS skip NEW.
+  - dealer: CONFIRM/KILL the logit ticket — do not second-fill.
+  - ML-001/002/ML-1/XR: HOLD-skip when they clone dealer
+    (deny_model_signals or unique-book desk). Charges multiply clones.
+```
+
 ## As of now (2026-09-17) — 17 Sep IST live-mock dress rehearsal (NO_PROMOTE)
 
 ```text

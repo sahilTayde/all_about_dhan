@@ -1,5 +1,53 @@
 # Handoff log — Team 04 Quant
 
+## As of now (2026-09-17 11:18 IST) — dealer CONFIRM not fill; regime×book memory (NO_PROMOTE)
+
+```text
+MIX / STRAT: none new. KEEP_ALL 001–014. No STRAT-015+.
+Origin tags: PROJECT-DERIVED paper overlay. HYPOTHESIS.
+Entry hypothesis: MIX-ML-LOGIT owns CE/PE (INDEX 3m scan). Dealer
+  MIX-DEFAULT-BUY is CONFIRM-or-KILL, not a second fill. Same-slot
+  2026-09-17: agree 8 / disagree 1 (NIFTY dealer PE SUCCESS +429 vs
+  logit CE LOSS -196) / no_peer 7. Sharp TARGET helps: BN PE +1560
+  net, SENSEX PE +1506 net — n=2, not 83% wr.
+Confirm-or-kill: 09:50 gate KEEP. SIDEWAYS skip NEW KEEP (filled
+  SIDEWAYS n=0, n_skip_sideways=270). Booked-strike MTM KEEP.
+  TREND: logit FILL if it has a side; dealer confirm/kill only.
+  SIDEWAYS: both HOLD new opens.
+  UNKNOWN: logit may FILL; dealer still confirm-only until n grows.
+Hold / veto rules: ML-001 HOLD-skip when clone of dealer
+  (deny_model_signals=false today duplicates 4× charges).
+Feasibility rules: existing stop/target / booked-strike. No MIX write.
+Parameters to grid: none production. Session notes only.
+Backtest request: last-30 unique-slot vs clone-inflated overall.
+Customer copy allowed: none.
+Internal-only: regime×book memory JSON (code sibling; not a STRAT):
+  {
+    "as_of_ist": "...",
+    "session_ist_date": "YYYY-MM-DD",
+    "production_params_written": false,
+    "layer": "HYPOTHESIS",
+    "promote": false,
+    "books": ["MIX-ML-LOGIT","MIX-DEFAULT-BUY","MIX-TV-EP-024","MIX-ML-GREEKS"],
+    "regimes": ["TREND","SIDEWAYS","UNKNOWN"],
+    "cells": [{
+      "book_id": "MIX-ML-LOGIT",
+      "regime": "TREND",
+      "n_filled": 0,
+      "n_cancel_unfilled": 0,
+      "n_sl": 0, "n_time": 0, "n_target": 0,
+      "wr_gross": null, "wr_net": null,
+      "net_pnl_inr": 0.0,
+      "role": "FILL|CONFIRM|HOLD_SKIP"
+    }],
+    "min_n_for_role": 30,
+    "clone_books": ["ML-001","ML-002","ML-1","MIX-ML-LOGIT-XR"]
+  }
+UNKNOWN / DATA_INSUFFICIENT: logit n_filled=16 < min_n_for_role.
+  Founder 83% not on this snapshot. INDEX 1m today DI in warehouse
+  merge (board still stamps TREND|UNKNOWN from live path).
+```
+
 ## As of now (2026-09-17) — path-feasible target; IV widens stop only (NO_PROMOTE)
 
 ```text

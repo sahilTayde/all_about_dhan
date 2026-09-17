@@ -1,5 +1,44 @@
 # Handoff log — Team 06 Backtesting
 
+## As of now (2026-09-17 11:18 IST) — honest last-30 filled WR (NO_PROMOTE)
+
+```text
+From:     teams/06_backtesting
+To:       00 / 04 / founder
+Date:     2026-09-17
+Status:   BACKTEST_REQUIRED / HYPOTHESIS / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: Snapshot before analysis (no wipe). Filled=filled True.
+  Unfilled CANCELLED ₹0 excluded. Groww+GST+STT VERIFY on net.
+  Snapshot as_of 2026-09-17T11:18:37+05:30 live_session=true.
+  Dual-tape not killed. paper_scalp.py not edited.
+
+Last-30 table (this snapshot):
+  | slice | n | wr_gross | wr_net | net ₹ | note |
+  | last-30 filled ALL books | 30 | 43.33% (13/30) | 20.00% (6/30) | -9752 | 16/30 clones |
+  | last-30 unique books | 30 | 40.00% (12/30) | 30.00% (9/30) | -1897 | TV-EP 11 of 30 |
+  | last-30 deduped slot | 30 | 33.33% (10/30) | 26.67% (8/30) | -2437 | prefer unique |
+  | last-30 MIX-ML-LOGIT | 16 | 43.75% (7/16) | 43.75% (7/16) | +1405 | n<30 |
+  | dealer MIX-DEFAULT-BUY | 22 | 40.91% (9/22) | 31.82% (7/22) | -1633 | n<30 |
+  | session filled | 167 | 40.12% | 32.34% | -10534 | clones inflate n |
+
+Mistakes cluster (session filled 167 / unfilled 288):
+  STOP/sl_hit 44 · TIME 14 · TARGET 9 · CANCEL_STRIKE_ROLL 63
+  CANCEL_THESIS 20 · CANCEL_GREEKS_IV_RICH_ABS 17
+  CANCEL_UNFILLED_AWAY 173 · TIMEOUT 84 · THESIS 31
+  morning: 0 fills before 09:50; first open 10:16 IST (gate held)
+  SIDEWAYS filled 0 (skip NEW worked) · TREND filled 65 wr_net 20%
+  UNKNOWN filled 102 wr_net 40.2%
+  NIFTY 46 wr_net 15.2 · BANKNIFTY 30 wr_net 26.7 · SENSEX 91 wr_net 42.9
+Keep: 09:50 gate, SIDEWAYS skip NEW, booked-strike MTM.
+
+Rejected: 83% promote. Clone last-30 as skill. Production param write.
+UNKNOWN: Live 10s OC rate-limit. Founder 83% source window.
+LLM: SPLIT (see 00 HANDOFF). Local: logit FILL, dealer CONFIRM,
+  001 HOLD-skip clones. Rank ≠ promote.
+```
+
 ## As of now (2026-09-17) — 10s tape + 09:50 gate + 615 clip (NO_PROMOTE)
 
 ```text
