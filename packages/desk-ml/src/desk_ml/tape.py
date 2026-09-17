@@ -82,6 +82,49 @@ def index_1m_close_vol_from_ticks(
     return [buckets[k][0] for k in order], [buckets[k][1] for k in order]
 
 
+def index_1m_ohlcv_from_ticks(
+    ts_close_vol: Sequence[tuple[int, float, Optional[float]]],
+) -> tuple[list[dict[str, Any]], list[Optional[float]]]:
+    """1m INDEX OHLC from 10s LTPs. High/low = prints in the minute, not order-book POC."""
+    buckets: dict[int, dict[str, Any]] = {}
+    order: list[int] = []
+    for row in ts_close_vol:
+        if len(row) < 2 or row[1] is None:
+            continue
+        ts, close = int(row[0]), float(row[1])
+        vol = row[2] if len(row) > 2 else None
+        k = minute_key(ts)
+        if k not in buckets:
+            order.append(k)
+            stamped: Optional[float]
+            try:
+                fv = float(vol) if vol is not None else None
+            except (TypeError, ValueError):
+                fv = None
+            buckets[k] = {
+                "ts": k,
+                "open": close,
+                "high": close,
+                "low": close,
+                "close": close,
+                "volume": fv if fv is not None and fv > 0 else None,
+            }
+            continue
+        bar = buckets[k]
+        bar["high"] = max(float(bar["high"]), close)
+        bar["low"] = min(float(bar["low"]), close)
+        bar["close"] = close
+        if vol is not None:
+            try:
+                fv = float(vol)
+            except (TypeError, ValueError):
+                fv = None
+            if fv is not None and fv > 0:
+                bar["volume"] = fv
+    bars = [buckets[k] for k in order]
+    return bars, [b.get("volume") for b in bars]
+
+
 def ist_calendar_date(ts: int) -> str:
     return datetime.fromtimestamp(int(ts), tz=IST).date().isoformat()
 

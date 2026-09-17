@@ -75,3 +75,18 @@ Gemini gist: trail/BE lock/target shift with 68 tests; HARD exits; not five-pass
 OpenAI gist: paper overlay acceptable to run; KEEP_ALL; production params not written; further gate blocked until five-pass.
 
 **Caveat we already accept:** notes ≠ five-pass; trail is HYPOTHESIS to cut churn, not a wr claim.
+
+---
+
+## Round 4 — path SL / ITM OI covering / T1-T2 (2026-09-17 night)
+
+**Job:** `REVIEW_NOTES` · `--openai-model gpt-4.1` · `--max-tokens 1200`  
+**What changed:** Keep original path SL until T1 (60s still at/above target) then lock+T2. Floor stop ≥₹8 or 6% entry. Skip CE vs PE ITM-bin. OI on selected ITM: SHORT_COVER vs LONG_UNWIND. Book `COVER_LONG_UNWIND` after T1/BE. pytest paper_scalp 72. Dual-tape replay 2026-09-17 `write=false`: live STOP 153/175 vs overlay STOP 25/83 (unique STOP 77→13). KEEP_ALL. `production_params_written` false.
+
+**together:** `ALIGNED` on `ACCEPT_WITH_CAVEATS` (Gemini `gemini-3.5-flash-lite` + OpenAI `gpt-4.1`).
+
+Gemini gist: risk-management refinements + replay tests; FOLLOW-GAP HOLD; gate unset; NO_PROMOTE.
+
+OpenAI gist: paper overlay acceptable; tests exist; not RESEARCH_READY; not a five-pass; not live.
+
+**Caveat we already accept:** overlay wr 74.7% / COVER 54 is one-day learning, not a promote. Next grid: COVER only after T1 or SIDEWAYS+BE.

@@ -70,6 +70,12 @@ PAPER_ADD_LOT = False
 TARGET_STEP_MAX = 2
 TRAIL_BAND_MIN = 4.0  # premium ₹ after fill; founder ±5–10, scaled by vol
 TRAIL_BAND_MAX = 12.0
+MIN_STOP_PREMIUM = 8.0  # do not sit SL inside 10s chop
+MIN_STOP_FRAC_ENTRY = 0.06
+T1_CONFIRM_SECONDS = 60  # 1m candle confirm before lock/T2
+BIN_SIDE_MISMATCH = "BIN_SIDE_MISMATCH"
+BIN_LONG_UNWIND = "BIN_LONG_UNWIND"
+COVER_LONG_UNWIND = "COVER_LONG_UNWIND"
 FILL_AWAY_FRAC = 0.03  # unfilled buy: LTP ran this far above limit
 UNFILLED_BARS = 2  # 1m buckets; do not count 10s bar_i
 UNFILLED_SECONDS = UNFILLED_BARS * 60
@@ -98,7 +104,14 @@ SOFT_CANCEL_REASONS = {
     "CANCEL_STRIKE_ROLL",
     "CANCEL_SIDEWAYS",
 }
-HARD_EXIT_REASONS = {"STOP", "TIME", "FLATTEN_1500", "FLATTEN_1515", "CANCEL_ADVERSE"}
+HARD_EXIT_REASONS = {
+    "STOP",
+    "TIME",
+    "FLATTEN_1500",
+    "FLATTEN_1515",
+    "CANCEL_ADVERSE",
+    COVER_LONG_UNWIND,
+}
 BIN_VOL_EXPAND = 1.15
 BIN_MIN_VOTES = 2  # two ITM-leg confirms — do not wait three INDEX 1m bars
 BIN_KEEP_TICKS = 36
@@ -180,6 +193,8 @@ DEFAULT_PAPER_PARAMS = {
     "trail_band_min": TRAIL_BAND_MIN,
     "trail_band_max": TRAIL_BAND_MAX,
     "target_step_max": TARGET_STEP_MAX,
+    "min_stop_premium": MIN_STOP_PREMIUM,
+    "t1_confirm_seconds": T1_CONFIRM_SECONDS,
     "note": "PAPER session only. Never writes MIX-DEFAULT-BUY.",
 }
 
@@ -1060,13 +1075,25 @@ def score_itm_bin(prev: dict[str, Any], curr: dict[str, Any]) -> dict[str, Any]:
         ce_votes.append("CE_OI_UP_WITH_PREMIUM")
     if ce_d_chg is not None and ce_d_chg > 0:
         ce_votes.append("CE_DELTA_MORE_ITM")
+    if pe_oi_chg is not None and pe_px_chg is not None:
+        if pe_oi_chg < 0 and pe_px_chg > 0:
+            pe_votes.append("PE_SHORT_COVER")
+        if pe_oi_chg < 0 and pe_px_chg < 0:
+            pe_votes.append("PE_LONG_UNWIND")
+    if ce_oi_chg is not None and ce_px_chg is not None:
+        if ce_oi_chg < 0 and ce_px_chg > 0:
+            ce_votes.append("CE_SHORT_COVER")
+        if ce_oi_chg < 0 and ce_px_chg < 0:
+            ce_votes.append("CE_LONG_UNWIND")
     flow = {
         "PE_VOL_EXPAND",
         "PE_OI_UP_WITH_PREMIUM",
+        "PE_SHORT_COVER",
         "CE_SELL_VOLUME",
         "PE_DELTA_MORE_ITM",
         "CE_VOL_EXPAND",
         "CE_OI_UP_WITH_PREMIUM",
+        "CE_SHORT_COVER",
         "CE_DELTA_MORE_ITM",
     }
 
@@ -1096,7 +1123,8 @@ def score_itm_bin(prev: dict[str, Any], curr: dict[str, Any]) -> dict[str, Any]:
         "wait_3_index_bars": False,
         "note": (
             "ITM CE chart vs ITM PE chart vs INDEX. Two votes is enough — do not wait three INDEX 1m bars. "
-            "OI up + premium up is new PE/CE longs (buyer or short-cover); missing OI is DATA_INSUFFICIENT not invent. "
+            "OI up + premium up = new longs (or cover). OI down + premium up = short covering. "
+            "OI down + premium down = long unwind. Missing OI is DATA_INSUFFICIENT not invent. "
             "NO_PROMOTE."
         ),
     }
@@ -1185,6 +1213,44 @@ def paper_impulse_fill(classified: dict[str, Any]) -> bool:
     return reason.startswith("itm_bin_") and reason.endswith("_confirm")
 
 
+def covering_label(classified: Optional[dict[str, Any]], side: str) -> Optional[str]:
+    """ITM-strike OI vs premium. Missing votes → None, never invent covering."""
+    rec = (classified or {}).get("itm_bin") or {}
+    votes = list(rec.get("pe_votes" if side == "PE" else "ce_votes") or [])
+    tag = f"{side}_SHORT_COVER"
+    unwind = f"{side}_LONG_UNWIND"
+    if tag in votes:
+        return "SHORT_COVER"
+    if unwind in votes:
+        return "LONG_UNWIND"
+    return None
+
+
+def bin_side_allows(classified: dict[str, Any], side: str) -> bool:
+    """Do not buy CE against a PE ITM-bin (and reverse) unless last-3 impulse owns the side."""
+    if side not in {"CE", "PE"}:
+        return False
+    impulse = classified.get("last3_impulse")
+    if impulse == "UP" and side == "CE":
+        return True
+    if impulse == "DOWN" and side == "PE":
+        return True
+    bin_side = (classified.get("itm_bin") or {}).get("side")
+    if bin_side in {"CE", "PE"} and side != bin_side:
+        return False
+    return True
+
+
+def floor_path_stop(*, entry: float, stop: float) -> float:
+    """Path SL must clear 10s premium noise. PAPER HYPOTHESIS — not a MIX write."""
+    e = float(entry)
+    s = float(stop)
+    need = max(MIN_STOP_PREMIUM, e * MIN_STOP_FRAC_ENTRY)
+    if e - s + 1e-9 < need:
+        s = e - need
+    return round(max(0.05, s), 4)
+
+
 def cancel_if_bin_rolled(pos: OpenPaper, tick: Triple) -> Optional[str]:
     """Booked ITM_100 strike is no longer buy-side ITM vs Dhan ATM and INDEX."""
     if not str(pos.strike_source or "").startswith("ITM"):
@@ -1213,6 +1279,7 @@ def trail_premium_band(
     *,
     idx_volume: Optional[float] = None,
     prev_idx_volume: Optional[float] = None,
+    side: Optional[str] = None,
 ) -> float:
     """Chop band in premium ₹. Founder ±5–10; widen on spike/vol, clamp 4–12."""
     band = 6.0
@@ -1231,6 +1298,12 @@ def trail_premium_band(
             band += 3.0
         elif ratio <= 0.7:
             band -= 1.5
+    if side in {"CE", "PE"}:
+        cover = covering_label(cl, side)
+        if cover == "SHORT_COVER":
+            band += 2.0
+        elif cover == "LONG_UNWIND":
+            band -= 2.0
     return float(min(TRAIL_BAND_MAX, max(TRAIL_BAND_MIN, band)))
 
 
@@ -1245,17 +1318,26 @@ def apply_filled_trail(
     idx_volume: Optional[float] = None,
     prev_idx_volume: Optional[float] = None,
 ) -> bool:
-    """Keep a filled ticket; ratchet stop under LTP by the vol band. PAPER HYPOTHESIS."""
+    """Keep a filled ticket. Before T1 keep the path SL — do not BE-lock into 10s chop."""
     if not pos.filled:
         return False
     px = float(ltp)
+    path = float(pos.path_stop) if pos.path_stop is not None else float(pos.stop)
+    if int(pos.target_step) < 1:
+        if px <= path + 1e-9:
+            return False
+        pos.stop = path
+        return True
     if px <= float(pos.stop) + 1e-9:
         return False
-    band = trail_premium_band(classified, idx_volume=idx_volume, prev_idx_volume=prev_idx_volume)
+    band = trail_premium_band(
+        classified,
+        idx_volume=idx_volume,
+        prev_idx_volume=prev_idx_volume,
+        side=pos.side,
+    )
     be = breakeven_premium(entry=float(pos.entry), qty=pos.qty)
-    new_stop = max(float(pos.stop), px - band)
-    if px >= be + TRAIL_BAND_MIN:
-        new_stop = max(new_stop, be)
+    new_stop = max(float(pos.stop), px - band, be)
     if new_stop >= px - 0.25:
         return False
     new_stop = round(new_stop, 4)
@@ -1296,7 +1378,7 @@ def apply_target_lock_shift(
     idx_volume: Optional[float] = None,
     prev_idx_volume: Optional[float] = None,
 ) -> bool:
-    """First TARGET touch: lock SL to BE or old target, shift target, stay in. PAPER."""
+    """T1 only after ~1m still at/above target; then lock SL and set T2. PAPER."""
     if not pos.filled:
         return False
     if int(pos.target_step) >= TARGET_STEP_MAX:
@@ -1304,21 +1386,33 @@ def apply_target_lock_shift(
     px = float(ltp)
     old_target = float(pos.target)
     if px + 1e-9 < old_target:
+        pos.target_touch_ts = None
         return False
-    band = trail_premium_band(classified, idx_volume=idx_volume, prev_idx_volume=prev_idx_volume)
+    if pos.target_touch_ts is None:
+        pos.target_touch_ts = int(ts)
+        return True
+    if int(ts) - int(pos.target_touch_ts) < int(T1_CONFIRM_SECONDS):
+        return True
+    band = trail_premium_band(
+        classified,
+        idx_volume=idx_volume,
+        prev_idx_volume=prev_idx_volume,
+        side=pos.side,
+    )
     be = breakeven_premium(entry=float(pos.entry), qty=pos.qty)
-    orig_stop = float(pos.stop)
-    overshoot = px - old_target
-    if overshoot >= max(TRAIL_BAND_MIN, 0.75 * band):
-        lock = max(orig_stop, be, old_target)
-    else:
-        lock = max(orig_stop, be, old_target - band)
+    orig_stop = float(pos.path_stop) if pos.path_stop is not None else float(pos.stop)
+    lock = max(float(pos.stop), be, old_target - band)
+    cover = covering_label(classified, pos.side)
+    if cover == "SHORT_COVER":
+        lock = max(lock, be)
     if lock >= px - 0.25:
-        lock = max(orig_stop, min(be, px - band))
+        lock = max(float(pos.stop), min(be, px - band))
     if lock >= px - 0.25:
         return False
     reward = max(old_target - float(pos.entry), band)
     nxt = old_target + max(band, 0.5 * reward)
+    if cover == "SHORT_COVER":
+        nxt = old_target + max(band * 1.5, reward)
     risk_open = max(float(pos.entry) - orig_stop, band)
     cap = float(pos.entry) + risk_open * float(engine.max_target_r)
     nxt = min(nxt, max(cap, old_target + band))
@@ -1465,13 +1559,16 @@ def propose_levels(
     raw_target = entry + float(target_frac) * typical
     if stop <= 0:
         stop = max(0.05, entry * 0.85)
+    stop = floor_path_stop(entry=entry, stop=stop)
     risk = max(1e-9, entry - stop)
     max_reward = min(typical, risk * float(max_target_r), entry * 0.22)
     target = entry + min(max(0.05, raw_target - entry), max_reward)
     feas = feasibility_long(entry=entry, stop=stop, target=target, typical_range=typical)
     clipped = False
     if not feas.get("ok"):
-        stop = max(0.05, entry - min(float(stop_frac) * typical, entry * 0.12))
+        stop = floor_path_stop(
+            entry=entry, stop=max(0.05, entry - min(float(stop_frac) * typical, entry * 0.12))
+        )
         risk = max(1e-9, entry - stop)
         target = entry + min(typical, risk * float(max_target_r), entry * 0.18)
         feas = feasibility_long(entry=entry, stop=stop, target=target, typical_range=typical)
@@ -1544,6 +1641,8 @@ class OpenPaper:
     cancel_eligible: bool = False
     idx_volume: Optional[float] = None
     last_updated_ts: Optional[int] = None
+    path_stop: Optional[float] = None
+    target_touch_ts: Optional[int] = None
 
 
 @dataclass
@@ -1973,23 +2072,30 @@ def _exit_reason(
     px = float(ltp)
     low = float(side_low) if side_low is not None else px
     seen = float(pos.seen_low) if pos.seen_low is not None else px
-    stop_px = min(px, low, seen)
-    step = STRIKE_STEP.get(pos.underlying.upper(), 50.0)
-    if stop_px <= pos.stop:
-        return "STOP"
+    path = float(pos.path_stop) if pos.path_stop is not None else float(pos.stop)
+    dump_px = min(px, low, seen)
+    if int(pos.target_step) < 1:
+        if px <= path:
+            return "STOP"
+        stop_px = px
+    else:
+        stop_px = dump_px
+        if stop_px <= pos.stop:
+            return "STOP"
     if px >= pos.target:
         return "TARGET"
+    step = STRIKE_STEP.get(pos.underlying.upper(), 50.0)
     if (
         pos.atm_strike is not None
         and atm_strike is not None
         and abs(float(atm_strike) - float(pos.atm_strike)) >= step - 1e-9
-        and min(px, float(side_low) if side_low is not None else px) < float(pos.entry)
+        and dump_px < float(pos.entry)
     ):
         return "CANCEL_STRIKE_ROLL"
     give_up = float(pos.entry) * (1.0 - float(give_up_frac))
-    if stop_px <= give_up:
+    if dump_px <= give_up:
         return "CANCEL_ADVERSE"
-    underwater = stop_px < float(pos.entry)
+    underwater = dump_px < float(pos.entry)
     verdict = str(dealer_verdict or "")
     if underwater and pos.side == "CE" and verdict == "BUY_PE_CONFIRM":
         return "CANCEL_THESIS"
@@ -2249,6 +2355,28 @@ def _try_open(
     if side not in {"CE", "PE"}:
         engine.mark_skip(book_id, underlying, "NO_SIDE", ts=tick.ts, seen_side=side)
         return
+    if not bin_side_allows(classified, side):
+        engine.mark_skip(
+            book_id,
+            underlying,
+            BIN_SIDE_MISMATCH,
+            ts=tick.ts,
+            index_regime=regime,
+            seen_side=side,
+            bin_side=(classified.get("itm_bin") or {}).get("side"),
+        )
+        return
+    if covering_label(classified, side) == "LONG_UNWIND":
+        engine.mark_skip(
+            book_id,
+            underlying,
+            BIN_LONG_UNWIND,
+            ts=tick.ts,
+            index_regime=regime,
+            seen_side=side,
+            covering="LONG_UNWIND",
+        )
+        return
     if engine.skip_trend_against and regime == "TREND":
         direction = str(classified.get("direction") or "UNKNOWN")
         if direction == "UP" and side == "PE":
@@ -2384,6 +2512,8 @@ def _try_open(
         agent_status="IN_TRADE" if impulse_fill else "WORKING_LIMIT",
         idx_volume=getattr(tick, "idx_volume", None),
         last_updated_ts=int(tick.ts),
+        path_stop=float(levels["stop"]),
+        target_touch_ts=None,
     )
     engine.opens[(book_id, underlying)] = pos
     engine.bump_regime_book(book_id, regime, f"OPEN_{side}")
@@ -2490,38 +2620,23 @@ def paper_watch_ticket(
                         "note": "PAPER only +1 lot; default flag is false",
                     },
                 )
+    cl = engine.last_regime.get(underlying.upper()) or {}
+    cover = covering_label(cl, pos.side)
     if (
         pos.filled
         and not pos.cancel_eligible
         and pos.last_ltp is not None
-        and risk > 0
+        and cover == "SHORT_COVER"
+        and int(pos.target_step) >= 1
     ):
-        mid = float(pos.entry) + 0.5 * reward
-        px = float(pos.last_ltp)
-        if px >= mid:
-            be = breakeven_premium(entry=float(pos.entry), qty=pos.qty)
-            lock = max(float(pos.stop), be)
-            if lock < px - 0.25 and lock > float(pos.stop) + 1e-9:
-                pos.stop = round(lock, 4)
-                pos.trail_step += 1
-                pos.agent_status = "TRAIL_STOP"
-                if engine.root is not None:
-                    append_model_log(
-                        engine.root,
-                        {
-                            "event": "TRAIL_STOP",
-                            "book_id": pos.book_id,
-                            "trade_id": pos.trade_id,
-                            "status": "TRAIL_STOP",
-                            "reason": "MID_PATH_BE",
-                            "trail_step": pos.trail_step,
-                            "stop": pos.stop,
-                            "breakeven": be,
-                            "ltp": px,
-                            "hypothesis": "mid_path_lock_be_keep_target",
-                            "note": "PAPER: halfway to target locks BE incl charges; target extends only on TARGET touch",
-                        },
-                    )
+        band = trail_premium_band(cl, side=pos.side)
+        nxt = float(pos.target) + band
+        if nxt > float(pos.target) + 1e-6:
+            pos.target = round(nxt, 4)
+    if pos.filled and cover == "LONG_UNWIND" and pos.last_ltp is not None:
+        be = breakeven_premium(entry=float(pos.entry), qty=pos.qty)
+        if int(pos.target_step) >= 1 or float(pos.last_ltp) + 1e-9 >= be:
+            return COVER_LONG_UNWIND
     pos.agent_status = agent_ticket_status(pos)
     return None
 
@@ -3553,6 +3668,9 @@ SKIP_WHY = {
     CANCEL_BIN_ROLL: "Booked ITM strike is now ATM/OTM — change the CE/PE bin.",
     "ITM_ONLY_NO_QUOTE": "ITM-only ticket: Dhan did not quote that wing — DATA_INSUFFICIENT, not ATM fallback.",
     "ITM_ONLY_NOT_ITM": "Chosen strike is ATM/OTM — paper waits for a fresh ITM bin.",
+    BIN_SIDE_MISMATCH: "ITM CE/PE bin is the other side — do not buy CE into a PE bin (unless last-3 impulse).",
+    BIN_LONG_UNWIND: "ITM strike OI down with premium down — long unwind, skip new buy on that wing.",
+    COVER_LONG_UNWIND: "After T1 or BE, same-wing OI unwind — book the move, do not sit the trail.",
     "GREEKS_NO_CLONE": "MIX-ML-GREEKS does not clone the same CE/PE fill as MIX-ML-LOGIT.",
 }
 

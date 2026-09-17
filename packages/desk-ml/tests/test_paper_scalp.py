@@ -1694,9 +1694,8 @@ def test_cancel_bin_roll_when_itm_becomes_atm() -> None:
     mark_to_market(engine, now_atm, "NIFTY", 2, atm_strike=25100.0)
     assert engine.has_open("MIX-ML-LOGIT", "NIFTY") is True
     kept = engine.opens[("MIX-ML-LOGIT", "NIFTY")]
-    assert kept.stop > 140.0
-    assert kept.stop < 155.0
-    assert kept.agent_status in {"TRAIL_STOP", "IN_TRADE"}
+    assert kept.stop == 140.0
+    assert kept.path_stop in {None, 140.0}
 
 
 def test_filled_soft_cancel_trails_stop_not_flatten() -> None:
@@ -1721,6 +1720,7 @@ def test_filled_soft_cancel_trails_stop_not_flatten() -> None:
         qty=20,
         filled=True,
         last_ltp=290.0,
+        path_stop=280.5,
     )
     engine = BookEngine()
     engine.opens[("MIX-DEFAULT-BUY", "SENSEX")] = pos
@@ -1728,8 +1728,7 @@ def test_filled_soft_cancel_trails_stop_not_flatten() -> None:
     mark_to_market(engine, tick, "SENSEX", 2, atm_strike=74300.0, dealer_verdict="BUY_PE_CONFIRM")
     assert engine.has_open("MIX-DEFAULT-BUY", "SENSEX") is True
     kept = engine.opens[("MIX-DEFAULT-BUY", "SENSEX")]
-    assert kept.stop >= 280.5
-    assert kept.stop < 290.0
+    assert kept.stop == 280.5
 
 
 def test_target_first_touch_locks_be_and_shifts() -> None:
@@ -1751,12 +1750,16 @@ def test_target_first_touch_locks_be_and_shifts() -> None:
         qty=65,
         filled=True,
         last_ltp=121.0,
+        path_stop=80.0,
     )
     engine = BookEngine()
     engine.opens[("MIX-DEFAULT-BUY", "NIFTY")] = pos
     tick = Triple(ts=_ts(2), idx_close=23250.0, ce_close=121.0, pe_close=80.0, atm_strike=23200.0)
     mark_to_market(engine, tick, "NIFTY", 2, atm_strike=23200.0)
     assert engine.has_open("MIX-DEFAULT-BUY", "NIFTY") is True
+    assert engine.opens[("MIX-DEFAULT-BUY", "NIFTY")].target_step == 0
+    later = Triple(ts=_ts(4), idx_close=23250.0, ce_close=122.0, pe_close=80.0, atm_strike=23200.0)
+    mark_to_market(engine, later, "NIFTY", 4, atm_strike=23200.0)
     kept = engine.opens[("MIX-DEFAULT-BUY", "NIFTY")]
     from desk_ml.groww_costs import breakeven_premium
 
@@ -1783,6 +1786,7 @@ def test_hard_stop_still_flattens() -> None:
         limit_price=160.0,
         filled=True,
         last_ltp=139.0,
+        path_stop=140.0,
     )
     engine = BookEngine()
     engine.opens[("MIX-ML-LOGIT", "NIFTY")] = pos
@@ -1818,6 +1822,80 @@ def test_unfilled_still_cancels_zero_rupee() -> None:
     assert str(row["exit_reason"]).startswith("CANCEL_UNFILLED")
     assert row["status"] == "CANCELLED_UNFILLED"
     assert row["charges_inr"] == 0.0
+
+
+def test_floor_path_stop_clears_chop() -> None:
+    from desk_ml.paper_scalp import floor_path_stop, propose_levels
+
+    assert floor_path_stop(entry=100.0, stop=97.0) <= 92.0
+    levels = propose_levels(100.0, [98.0, 99.0, 100.0, 101.0, 102.0])
+    assert levels["entry"] - levels["stop"] >= 8.0 - 1e-9
+
+
+def test_bin_side_mismatch_and_short_cover_votes() -> None:
+    from desk_ml.paper_scalp import bin_side_allows, score_itm_bin
+
+    classified = {"itm_bin": {"side": "PE"}, "last3_impulse": None}
+    assert bin_side_allows(classified, "PE") is True
+    assert bin_side_allows(classified, "CE") is False
+    classified["last3_impulse"] = "UP"
+    assert bin_side_allows(classified, "CE") is True
+    prev = {
+        "pe": {"px": 100.0, "oi": 2000.0, "volume": 10.0, "delta": -0.4},
+        "ce": {"px": 110.0, "oi": 2000.0, "volume": 10.0, "delta": 0.4},
+    }
+    curr = {
+        "pe": {"px": 108.0, "oi": 1800.0, "volume": 12.0, "delta": -0.45},
+        "ce": {"px": 104.0, "oi": 2100.0, "volume": 11.0, "delta": 0.38},
+    }
+    scored = score_itm_bin(prev, curr)
+    assert "PE_SHORT_COVER" in scored["pe_votes"]
+    unwind_curr = {
+        "pe": {"px": 92.0, "oi": 1700.0, "volume": 12.0, "delta": -0.35},
+        "ce": {"px": 118.0, "oi": 1700.0, "volume": 11.0, "delta": 0.42},
+    }
+    unwound = score_itm_bin(prev, unwind_curr)
+    assert "PE_LONG_UNWIND" in unwound["pe_votes"]
+    from desk_ml.paper_scalp import covering_label
+
+    assert covering_label({"itm_bin": unwound}, "PE") == "LONG_UNWIND"
+
+
+def test_cover_long_unwind_books_after_t1() -> None:
+    from desk_ml.paper_scalp import COVER_LONG_UNWIND
+
+    pos = OpenPaper(
+        book_id="MIX-DEFAULT-BUY",
+        underlying="NIFTY",
+        side="PE",
+        trade_id="cover-unwind",
+        entry=100.0,
+        stop=92.0,
+        target=140.0,
+        atm_strike=23350.0,
+        opened_ts=_ts(0),
+        opened_bar=1,
+        strike_source="ITM_100",
+        limit_price=100.0,
+        lot_size=65,
+        lots=1,
+        qty=65,
+        filled=True,
+        last_ltp=112.0,
+        path_stop=92.0,
+        target_step=1,
+        agent_status="TARGET_STEP_1",
+    )
+    engine = BookEngine()
+    engine.opens[("MIX-DEFAULT-BUY", "NIFTY")] = pos
+    engine.last_regime["NIFTY"] = {
+        "itm_bin": {"side": "PE", "pe_votes": ["PE_LONG_UNWIND"], "ce_votes": []}
+    }
+    tick = Triple(ts=_ts(2), idx_close=23250.0, ce_close=80.0, pe_close=112.0, atm_strike=23300.0)
+    mark_to_market(engine, tick, "NIFTY", 2, atm_strike=23300.0)
+    assert engine.has_open("MIX-DEFAULT-BUY", "NIFTY") is False
+    assert engine.closed[-1]["exit_reason"] == COVER_LONG_UNWIND
+
 
 
 

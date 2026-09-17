@@ -1,6 +1,6 @@
 # LIVE SESSION
 
-**As of (IST):** `2026-09-17T15:35:29+05:30`  
+**As of (IST):** `2026-09-17T16:17:39+05:30`  
 **Session (IST date):** `2026-09-17` · live_session=True  
 **Gate:** not `RESEARCH_READY_FOR_PROGRAMMING`. **NO_PROMOTE.** Orders refused. paper wr net=14.86% gross=20.57% (26/175 filled net). desk ₹70000.0 split across 4 tradable fill books (typical ₹17500.0/tradable; observe books ₹0).  
 **Gross P/L:** ₹-81512.0 · **charges:** ₹12232.97 (Groww+GST+STT VERIFY) · **Net P/L:** ₹-93744.97 · won ₹17025.98 · lost ₹-110770.95 · desk equity ₹-23744.97  (start ₹70000.0). Open 0.
@@ -66,9 +66,9 @@ Best ML book: `MIX-ML-LOGIT` rank 2 net ₹-47496.26 (filled 88).
 
 Saw a CE/PE but did not OPEN, or OPENED then CANCELLED. Not live orders. Last-3 PUT/CE impulse can TREND; 15m chop skip stays when last-3 is also chop.
 
-- BANKNIFTY: 15m TREND (itm_bin_pe_confirm, ER=1.0). Last-3 1m closes [56055.75, 56055.75, 56055.75] net=0.0 impulse=none. Dealer HOLD; logit side=CE. ITM bin CE 56000.0 votes=['CE_PREMIUM_UP'] vs PE 56200.0 votes=['PE_PREMIUM_UP', 'PE_DELTA_MORE_ITM'] reason=itm_bin_pe_confirm. Two ITM-leg votes can TREND without three INDEX 1m bars.
-- NIFTY: 15m TREND (er_vwap_ema_vol_rsi, ER=1.0). Last-3 1m closes [23270.6, 23270.6, 23270.6] net=0.0 impulse=none. Dealer HOLD; logit side=PE. ITM bin CE 23150.0 votes=['CE_PREMIUM_UP', 'PE_PREMIUM_DOWN'] vs PE 23350.0 votes=['PE_DELTA_MORE_ITM'] reason=itm_bin_wait. Two ITM-leg votes can TREND without three INDEX 1m bars.
-- SENSEX: 15m TREND (er_vwap_ema_vol_rsi, ER=1.0). Last-3 1m closes [74314.59, 74314.59, 74314.59] net=0.0 impulse=none. Dealer HOLD; logit side=SKIP. ITM bin CE 74200.0 votes=[] vs PE 74400.0 votes=['PE_PREMIUM_UP'] reason=itm_bin_wait. Two ITM-leg votes can TREND without three INDEX 1m bars.
+- BANKNIFTY: 15m SIDEWAYS (low_er_rsi_mid_or_vwap_band, ER=0.0). Last-3 1m closes [56055.75, 56055.75, 56055.75] net=0.0 impulse=none. Last-3 was not an efficient impulse — 15m chop skip is required, not over-coded. Dealer HOLD; logit side=CE. ITM bin CE 56000.0 votes=[] vs PE 56200.0 votes=[] reason=itm_bin_wait. Two ITM-leg votes can TREND without three INDEX 1m bars.
+- NIFTY: 15m SIDEWAYS (low_er_rsi_mid_or_vwap_band, ER=0.0). Last-3 1m closes [23270.6, 23270.6, 23270.6] net=0.0 impulse=none. Last-3 was not an efficient impulse — 15m chop skip is required, not over-coded. Dealer HOLD; logit side=PE. ITM bin CE 23150.0 votes=[] vs PE 23350.0 votes=[] reason=itm_bin_wait. Two ITM-leg votes can TREND without three INDEX 1m bars.
+- SENSEX: 15m SIDEWAYS (low_er_rsi_mid_or_vwap_band, ER=0.0). Last-3 1m closes [74314.59, 74314.59, 74314.59] net=0.0 impulse=none. Last-3 was not an efficient impulse — 15m chop skip is required, not over-coded. Dealer HOLD; logit side=PE. ITM bin CE 74200.0 votes=[] vs PE 74400.0 votes=[] reason=itm_bin_wait. Two ITM-leg votes can TREND without three INDEX 1m bars.
 
 | kind | model | und | seen CE/PE | reason | why | regime | last-3 impulse | updated |
 |------|-------|-----|------------|--------|-----|--------|----------------|---------|
@@ -78,30 +78,30 @@ Saw a CE/PE but did not OPEN, or OPENED then CANCELLED. Not live orders. Last-3 
 | CANCEL | `MIX-ML-LOGIT` | NIFTY | PE | `CANCEL_STRIKE_ROLL` | Ticket cancelled: CANCEL_STRIKE_ROLL. | TREND | — | 2026-09-17T14:22:16+05:30 |
 | CANCEL | `MIX-DEFAULT-BUY` | NIFTY | CE | `CANCEL_STRIKE_ROLL` | Ticket cancelled: CANCEL_STRIKE_ROLL. | TREND | — | 2026-09-17T14:11:08+05:30 |
 | CANCEL | `MIX-ML-LOGIT` | NIFTY | CE | `CANCEL_STRIKE_ROLL` | Ticket cancelled: CANCEL_STRIKE_ROLL. | TREND | — | 2026-09-17T14:11:08+05:30 |
-| SKIP | `MIX-DEFAULT-BUY` | SENSEX | — | `NO_NEW_AFTER_1515` | No NEW paper after 15:15 IST. Flatten leftover OPEN. CAS is expiry-only, not this clock. | TREND | — | — |
-| SKIP | `MIX-ML-GREEKS` | SENSEX | — | `NO_NEW_AFTER_1515` | No NEW paper after 15:15 IST. Flatten leftover OPEN. CAS is expiry-only, not this clock. | TREND | — | — |
-| SKIP | `MIX-ML-LOGIT` | SENSEX | — | `NO_NEW_AFTER_1515` | No NEW paper after 15:15 IST. Flatten leftover OPEN. CAS is expiry-only, not this clock. | TREND | — | — |
-| SKIP | `MIX-ML-LOGIT-XR` | SENSEX | — | `NO_NEW_AFTER_1515` | No NEW paper after 15:15 IST. Flatten leftover OPEN. CAS is expiry-only, not this clock. | TREND | — | — |
-| SKIP | `MIX-TV-EP-024` | SENSEX | — | `NO_NEW_AFTER_1515` | No NEW paper after 15:15 IST. Flatten leftover OPEN. CAS is expiry-only, not this clock. | TREND | — | — |
-| SKIP | `ML-001` | SENSEX | — | `NO_NEW_AFTER_1515` | No NEW paper after 15:15 IST. Flatten leftover OPEN. CAS is expiry-only, not this clock. | TREND | — | — |
-| SKIP | `ML-002` | SENSEX | — | `NO_NEW_AFTER_1515` | No NEW paper after 15:15 IST. Flatten leftover OPEN. CAS is expiry-only, not this clock. | TREND | — | — |
-| SKIP | `ML-1` | SENSEX | — | `NO_NEW_AFTER_1515` | No NEW paper after 15:15 IST. Flatten leftover OPEN. CAS is expiry-only, not this clock. | TREND | — | — |
-| SKIP | `MIX-DEFAULT-BUY` | BANKNIFTY | PE | `NO_NEW_AFTER_1515` | No NEW paper after 15:15 IST. Flatten leftover OPEN. CAS is expiry-only, not this clock. | TREND | — | — |
-| SKIP | `MIX-ML-GREEKS` | BANKNIFTY | CE | `NO_NEW_AFTER_1515` | No NEW paper after 15:15 IST. Flatten leftover OPEN. CAS is expiry-only, not this clock. | TREND | — | — |
-| SKIP | `MIX-ML-LOGIT` | BANKNIFTY | PE | `NO_NEW_AFTER_1515` | No NEW paper after 15:15 IST. Flatten leftover OPEN. CAS is expiry-only, not this clock. | TREND | — | — |
-| SKIP | `MIX-ML-LOGIT-XR` | BANKNIFTY | CE | `NO_NEW_AFTER_1515` | No NEW paper after 15:15 IST. Flatten leftover OPEN. CAS is expiry-only, not this clock. | TREND | — | — |
-| SKIP | `MIX-TV-EP-024` | BANKNIFTY | CE | `NO_NEW_AFTER_1515` | No NEW paper after 15:15 IST. Flatten leftover OPEN. CAS is expiry-only, not this clock. | TREND | — | — |
-| SKIP | `ML-001` | BANKNIFTY | CE | `NO_NEW_AFTER_1515` | No NEW paper after 15:15 IST. Flatten leftover OPEN. CAS is expiry-only, not this clock. | TREND | — | — |
-| SKIP | `ML-002` | BANKNIFTY | CE | `NO_NEW_AFTER_1515` | No NEW paper after 15:15 IST. Flatten leftover OPEN. CAS is expiry-only, not this clock. | TREND | — | — |
-| SKIP | `ML-1` | BANKNIFTY | CE | `NO_NEW_AFTER_1515` | No NEW paper after 15:15 IST. Flatten leftover OPEN. CAS is expiry-only, not this clock. | TREND | — | — |
-| SKIP | `MIX-DEFAULT-BUY` | NIFTY | PE | `NO_NEW_AFTER_1515` | No NEW paper after 15:15 IST. Flatten leftover OPEN. CAS is expiry-only, not this clock. | TREND | — | — |
-| SKIP | `MIX-ML-GREEKS` | NIFTY | PE | `NO_NEW_AFTER_1515` | No NEW paper after 15:15 IST. Flatten leftover OPEN. CAS is expiry-only, not this clock. | TREND | — | — |
-| SKIP | `MIX-ML-LOGIT` | NIFTY | PE | `NO_NEW_AFTER_1515` | No NEW paper after 15:15 IST. Flatten leftover OPEN. CAS is expiry-only, not this clock. | TREND | — | — |
-| SKIP | `MIX-ML-LOGIT-XR` | NIFTY | PE | `NO_NEW_AFTER_1515` | No NEW paper after 15:15 IST. Flatten leftover OPEN. CAS is expiry-only, not this clock. | TREND | — | — |
-| SKIP | `MIX-TV-EP-024` | NIFTY | PE | `NO_NEW_AFTER_1515` | No NEW paper after 15:15 IST. Flatten leftover OPEN. CAS is expiry-only, not this clock. | TREND | — | — |
-| SKIP | `ML-001` | NIFTY | PE | `NO_NEW_AFTER_1515` | No NEW paper after 15:15 IST. Flatten leftover OPEN. CAS is expiry-only, not this clock. | TREND | — | — |
-| SKIP | `ML-002` | NIFTY | PE | `NO_NEW_AFTER_1515` | No NEW paper after 15:15 IST. Flatten leftover OPEN. CAS is expiry-only, not this clock. | TREND | — | — |
-| SKIP | `ML-1` | NIFTY | PE | `NO_NEW_AFTER_1515` | No NEW paper after 15:15 IST. Flatten leftover OPEN. CAS is expiry-only, not this clock. | TREND | — | — |
+| SKIP | `MIX-DEFAULT-BUY` | SENSEX | PE | `NO_NEW_AFTER_1515` | No NEW paper after 15:15 IST. Flatten leftover OPEN. CAS is expiry-only, not this clock. | SIDEWAYS | — | — |
+| SKIP | `MIX-ML-GREEKS` | SENSEX | PE | `NO_NEW_AFTER_1515` | No NEW paper after 15:15 IST. Flatten leftover OPEN. CAS is expiry-only, not this clock. | SIDEWAYS | — | — |
+| SKIP | `MIX-ML-LOGIT` | SENSEX | PE | `NO_NEW_AFTER_1515` | No NEW paper after 15:15 IST. Flatten leftover OPEN. CAS is expiry-only, not this clock. | SIDEWAYS | — | — |
+| SKIP | `MIX-ML-LOGIT-XR` | SENSEX | PE | `NO_NEW_AFTER_1515` | No NEW paper after 15:15 IST. Flatten leftover OPEN. CAS is expiry-only, not this clock. | SIDEWAYS | — | — |
+| SKIP | `MIX-TV-EP-024` | SENSEX | PE | `NO_NEW_AFTER_1515` | No NEW paper after 15:15 IST. Flatten leftover OPEN. CAS is expiry-only, not this clock. | SIDEWAYS | — | — |
+| SKIP | `ML-001` | SENSEX | PE | `NO_NEW_AFTER_1515` | No NEW paper after 15:15 IST. Flatten leftover OPEN. CAS is expiry-only, not this clock. | SIDEWAYS | — | — |
+| SKIP | `ML-002` | SENSEX | PE | `NO_NEW_AFTER_1515` | No NEW paper after 15:15 IST. Flatten leftover OPEN. CAS is expiry-only, not this clock. | SIDEWAYS | — | — |
+| SKIP | `ML-1` | SENSEX | PE | `NO_NEW_AFTER_1515` | No NEW paper after 15:15 IST. Flatten leftover OPEN. CAS is expiry-only, not this clock. | SIDEWAYS | — | — |
+| SKIP | `MIX-DEFAULT-BUY` | BANKNIFTY | CE | `NO_NEW_AFTER_1515` | No NEW paper after 15:15 IST. Flatten leftover OPEN. CAS is expiry-only, not this clock. | SIDEWAYS | — | — |
+| SKIP | `MIX-ML-GREEKS` | BANKNIFTY | CE | `NO_NEW_AFTER_1515` | No NEW paper after 15:15 IST. Flatten leftover OPEN. CAS is expiry-only, not this clock. | SIDEWAYS | — | — |
+| SKIP | `MIX-ML-LOGIT` | BANKNIFTY | CE | `NO_NEW_AFTER_1515` | No NEW paper after 15:15 IST. Flatten leftover OPEN. CAS is expiry-only, not this clock. | SIDEWAYS | — | — |
+| SKIP | `MIX-ML-LOGIT-XR` | BANKNIFTY | CE | `NO_NEW_AFTER_1515` | No NEW paper after 15:15 IST. Flatten leftover OPEN. CAS is expiry-only, not this clock. | SIDEWAYS | — | — |
+| SKIP | `MIX-TV-EP-024` | BANKNIFTY | CE | `NO_NEW_AFTER_1515` | No NEW paper after 15:15 IST. Flatten leftover OPEN. CAS is expiry-only, not this clock. | SIDEWAYS | — | — |
+| SKIP | `ML-001` | BANKNIFTY | CE | `NO_NEW_AFTER_1515` | No NEW paper after 15:15 IST. Flatten leftover OPEN. CAS is expiry-only, not this clock. | SIDEWAYS | — | — |
+| SKIP | `ML-002` | BANKNIFTY | CE | `NO_NEW_AFTER_1515` | No NEW paper after 15:15 IST. Flatten leftover OPEN. CAS is expiry-only, not this clock. | SIDEWAYS | — | — |
+| SKIP | `ML-1` | BANKNIFTY | CE | `NO_NEW_AFTER_1515` | No NEW paper after 15:15 IST. Flatten leftover OPEN. CAS is expiry-only, not this clock. | SIDEWAYS | — | — |
+| SKIP | `MIX-DEFAULT-BUY` | NIFTY | PE | `NO_NEW_AFTER_1515` | No NEW paper after 15:15 IST. Flatten leftover OPEN. CAS is expiry-only, not this clock. | SIDEWAYS | — | — |
+| SKIP | `MIX-ML-GREEKS` | NIFTY | PE | `NO_NEW_AFTER_1515` | No NEW paper after 15:15 IST. Flatten leftover OPEN. CAS is expiry-only, not this clock. | SIDEWAYS | — | — |
+| SKIP | `MIX-ML-LOGIT` | NIFTY | PE | `NO_NEW_AFTER_1515` | No NEW paper after 15:15 IST. Flatten leftover OPEN. CAS is expiry-only, not this clock. | SIDEWAYS | — | — |
+| SKIP | `MIX-ML-LOGIT-XR` | NIFTY | PE | `NO_NEW_AFTER_1515` | No NEW paper after 15:15 IST. Flatten leftover OPEN. CAS is expiry-only, not this clock. | SIDEWAYS | — | — |
+| SKIP | `MIX-TV-EP-024` | NIFTY | PE | `NO_NEW_AFTER_1515` | No NEW paper after 15:15 IST. Flatten leftover OPEN. CAS is expiry-only, not this clock. | SIDEWAYS | — | — |
+| SKIP | `ML-001` | NIFTY | PE | `NO_NEW_AFTER_1515` | No NEW paper after 15:15 IST. Flatten leftover OPEN. CAS is expiry-only, not this clock. | SIDEWAYS | — | — |
+| SKIP | `ML-002` | NIFTY | PE | `NO_NEW_AFTER_1515` | No NEW paper after 15:15 IST. Flatten leftover OPEN. CAS is expiry-only, not this clock. | SIDEWAYS | — | — |
+| SKIP | `ML-1` | NIFTY | PE | `NO_NEW_AFTER_1515` | No NEW paper after 15:15 IST. Flatten leftover OPEN. CAS is expiry-only, not this clock. | SIDEWAYS | — | — |
 
 ## ITM CE / PE bin (three charts)
 
@@ -109,19 +109,19 @@ Three charts: INDEX + ITM CE + ITM PE. Keep this bin during paper trades. ITM PE
 
 | und | index | CE strike | CE $ | CE vol | CE OI | PE strike | PE $ | PE vol | PE OI | PE votes | CE votes | side | reason | missing |
 |-----|-------|-----------|------|--------|-------|-----------|------|--------|-------|----------|----------|------|--------|---------|
-| NIFTY | 23270.6 | 23150.0 | 220.0 | 21987550.0 | 552695.0 | 23350.0 | 132.95 | 66646905.0 | 1561690.0 | PE_DELTA_MORE_ITM | CE_PREMIUM_UP,PE_PREMIUM_DOWN | — | `itm_bin_wait` | — |
-| BANKNIFTY | 56055.75 | 56000.0 | 710.45 | 2146620.0 | 466380.0 | 56200.0 | 506.85 | 2421720.0 | 174930.0 | PE_PREMIUM_UP,PE_DELTA_MORE_ITM | CE_PREMIUM_UP | PE | `itm_bin_pe_confirm` | — |
-| SENSEX | 74314.59 | 74200.0 | 114.35 | 74992000.0 | 508080.0 | 74400.0 | 85.25 | 323649840.0 | 3199080.0 | PE_PREMIUM_UP | — | — | `itm_bin_wait` | ce_delta |
+| NIFTY | 23270.6 | 23150.0 | 228.9 | 22134190.0 | 509405.0 | 23350.0 | 124.25 | 67289820.0 | 1594125.0 | — | — | — | `itm_bin_wait` | — |
+| BANKNIFTY | 56055.75 | 56000.0 | 719.0 | 2172240.0 | 468990.0 | 56200.0 | 492.0 | 2437980.0 | 169860.0 | — | — | — | `itm_bin_wait` | — |
+| SENSEX | 74314.59 | 74200.0 | 114.3 | 75164580.0 | 459980.0 | 74400.0 | 85.3 | 324362060.0 | 3064500.0 | — | — | — | `itm_bin_wait` | ce_delta |
 
 Comments (HYPOTHESIS, not a promote):
-- `MIX-DEFAULT-BUY` SENSEX: SENSEX: 15m TREND (er_vwap_ema_vol_rsi, ER=1.0). Last-3 1m closes [74314.59, 74314.59, 74314.59] net=0.0 impulse=none. Dealer HOLD; logit side=SKIP. ITM bin CE 74200.0 votes=[] vs PE 74400.0 votes=['PE_PREMIUM_UP'] reason=itm_bin_wait. Two ITM-leg votes can TREND without three INDEX 1m bars.
-- `MIX-ML-GREEKS` SENSEX: SENSEX: 15m TREND (er_vwap_ema_vol_rsi, ER=1.0). Last-3 1m closes [74314.59, 74314.59, 74314.59] net=0.0 impulse=none. Dealer HOLD; logit side=SKIP. ITM bin CE 74200.0 votes=[] vs PE 74400.0 votes=['PE_PREMIUM_UP'] reason=itm_bin_wait. Two ITM-leg votes can TREND without three INDEX 1m bars.
-- `MIX-ML-LOGIT` SENSEX: SENSEX: 15m TREND (er_vwap_ema_vol_rsi, ER=1.0). Last-3 1m closes [74314.59, 74314.59, 74314.59] net=0.0 impulse=none. Dealer HOLD; logit side=SKIP. ITM bin CE 74200.0 votes=[] vs PE 74400.0 votes=['PE_PREMIUM_UP'] reason=itm_bin_wait. Two ITM-leg votes can TREND without three INDEX 1m bars.
-- `MIX-ML-LOGIT-XR` SENSEX: SENSEX: 15m TREND (er_vwap_ema_vol_rsi, ER=1.0). Last-3 1m closes [74314.59, 74314.59, 74314.59] net=0.0 impulse=none. Dealer HOLD; logit side=SKIP. ITM bin CE 74200.0 votes=[] vs PE 74400.0 votes=['PE_PREMIUM_UP'] reason=itm_bin_wait. Two ITM-leg votes can TREND without three INDEX 1m bars.
-- `MIX-TV-EP-024` SENSEX: SENSEX: 15m TREND (er_vwap_ema_vol_rsi, ER=1.0). Last-3 1m closes [74314.59, 74314.59, 74314.59] net=0.0 impulse=none. Dealer HOLD; logit side=SKIP. ITM bin CE 74200.0 votes=[] vs PE 74400.0 votes=['PE_PREMIUM_UP'] reason=itm_bin_wait. Two ITM-leg votes can TREND without three INDEX 1m bars.
-- `ML-001` SENSEX: SENSEX: 15m TREND (er_vwap_ema_vol_rsi, ER=1.0). Last-3 1m closes [74314.59, 74314.59, 74314.59] net=0.0 impulse=none. Dealer HOLD; logit side=SKIP. ITM bin CE 74200.0 votes=[] vs PE 74400.0 votes=['PE_PREMIUM_UP'] reason=itm_bin_wait. Two ITM-leg votes can TREND without three INDEX 1m bars.
-- `ML-002` SENSEX: SENSEX: 15m TREND (er_vwap_ema_vol_rsi, ER=1.0). Last-3 1m closes [74314.59, 74314.59, 74314.59] net=0.0 impulse=none. Dealer HOLD; logit side=SKIP. ITM bin CE 74200.0 votes=[] vs PE 74400.0 votes=['PE_PREMIUM_UP'] reason=itm_bin_wait. Two ITM-leg votes can TREND without three INDEX 1m bars.
-- `ML-1` SENSEX: SENSEX: 15m TREND (er_vwap_ema_vol_rsi, ER=1.0). Last-3 1m closes [74314.59, 74314.59, 74314.59] net=0.0 impulse=none. Dealer HOLD; logit side=SKIP. ITM bin CE 74200.0 votes=[] vs PE 74400.0 votes=['PE_PREMIUM_UP'] reason=itm_bin_wait. Two ITM-leg votes can TREND without three INDEX 1m bars.
+- `MIX-DEFAULT-BUY` SENSEX: SENSEX: 15m SIDEWAYS (low_er_rsi_mid_or_vwap_band, ER=0.0). Last-3 1m closes [74314.59, 74314.59, 74314.59] net=0.0 impulse=none. Last-3 was not an efficient impulse — 15m chop skip is required, not over-coded. Dealer HOLD; logit side=PE. ITM bin CE 74200.0 votes=[] vs PE 74400.0 votes=[] reason=itm_bin_wait. Two ITM-leg votes can TREND without three INDEX 1m bars.
+- `MIX-ML-GREEKS` SENSEX: SENSEX: 15m SIDEWAYS (low_er_rsi_mid_or_vwap_band, ER=0.0). Last-3 1m closes [74314.59, 74314.59, 74314.59] net=0.0 impulse=none. Last-3 was not an efficient impulse — 15m chop skip is required, not over-coded. Dealer HOLD; logit side=PE. ITM bin CE 74200.0 votes=[] vs PE 74400.0 votes=[] reason=itm_bin_wait. Two ITM-leg votes can TREND without three INDEX 1m bars.
+- `MIX-ML-LOGIT` SENSEX: SENSEX: 15m SIDEWAYS (low_er_rsi_mid_or_vwap_band, ER=0.0). Last-3 1m closes [74314.59, 74314.59, 74314.59] net=0.0 impulse=none. Last-3 was not an efficient impulse — 15m chop skip is required, not over-coded. Dealer HOLD; logit side=PE. ITM bin CE 74200.0 votes=[] vs PE 74400.0 votes=[] reason=itm_bin_wait. Two ITM-leg votes can TREND without three INDEX 1m bars.
+- `MIX-ML-LOGIT-XR` SENSEX: SENSEX: 15m SIDEWAYS (low_er_rsi_mid_or_vwap_band, ER=0.0). Last-3 1m closes [74314.59, 74314.59, 74314.59] net=0.0 impulse=none. Last-3 was not an efficient impulse — 15m chop skip is required, not over-coded. Dealer HOLD; logit side=PE. ITM bin CE 74200.0 votes=[] vs PE 74400.0 votes=[] reason=itm_bin_wait. Two ITM-leg votes can TREND without three INDEX 1m bars.
+- `MIX-TV-EP-024` SENSEX: SENSEX: 15m SIDEWAYS (low_er_rsi_mid_or_vwap_band, ER=0.0). Last-3 1m closes [74314.59, 74314.59, 74314.59] net=0.0 impulse=none. Last-3 was not an efficient impulse — 15m chop skip is required, not over-coded. Dealer HOLD; logit side=PE. ITM bin CE 74200.0 votes=[] vs PE 74400.0 votes=[] reason=itm_bin_wait. Two ITM-leg votes can TREND without three INDEX 1m bars.
+- `ML-001` SENSEX: SENSEX: 15m SIDEWAYS (low_er_rsi_mid_or_vwap_band, ER=0.0). Last-3 1m closes [74314.59, 74314.59, 74314.59] net=0.0 impulse=none. Last-3 was not an efficient impulse — 15m chop skip is required, not over-coded. Dealer HOLD; logit side=PE. ITM bin CE 74200.0 votes=[] vs PE 74400.0 votes=[] reason=itm_bin_wait. Two ITM-leg votes can TREND without three INDEX 1m bars.
+- `ML-002` SENSEX: SENSEX: 15m SIDEWAYS (low_er_rsi_mid_or_vwap_band, ER=0.0). Last-3 1m closes [74314.59, 74314.59, 74314.59] net=0.0 impulse=none. Last-3 was not an efficient impulse — 15m chop skip is required, not over-coded. Dealer HOLD; logit side=PE. ITM bin CE 74200.0 votes=[] vs PE 74400.0 votes=[] reason=itm_bin_wait. Two ITM-leg votes can TREND without three INDEX 1m bars.
+- `ML-1` SENSEX: SENSEX: 15m SIDEWAYS (low_er_rsi_mid_or_vwap_band, ER=0.0). Last-3 1m closes [74314.59, 74314.59, 74314.59] net=0.0 impulse=none. Last-3 was not an efficient impulse — 15m chop skip is required, not over-coded. Dealer HOLD; logit side=PE. ITM bin CE 74200.0 votes=[] vs PE 74400.0 votes=[] reason=itm_bin_wait. Two ITM-leg votes can TREND without three INDEX 1m bars.
 
 ## Leaderboard (book × index, ranked by net ₹)
 
@@ -150,14 +150,14 @@ LIVE SESSION: dual-tape ticks for this IST date only. Not fills. Rank ≠ promot
 
 | id | closed | W | L | wr% net | wr% gross | equity ₹ | capital ₹ | last run |
 |----|--------|---|---|--------|----------|----------|-----------|----------|
-| `MIX-DEFAULT-BUY` | 87 | 13 | 74 | 14.94 | 20.69 | -28748.710000000003 | 17500.0 | `2026-09-17T15:34:46+05:30` |
-| `ML-001` | 0 | 0 | 0 | None | None | 0.0 | 0.0 | `2026-09-17T15:34:46+05:30` |
-| `ML-002` | 0 | 0 | 0 | None | None | 0.0 | 0.0 | `2026-09-17T15:34:46+05:30` |
-| `ML-1` | 0 | 0 | 0 | None | None | 0.0 | 0.0 | `2026-09-17T15:34:46+05:30` |
-| `MIX-ML-LOGIT` | 88 | 13 | 75 | 14.77 | 20.45 | -29996.260000000002 | 17500.0 | `2026-09-17T15:34:46+05:30` |
-| `MIX-ML-LOGIT-XR` | 0 | 0 | 0 | None | None | 17500.0 | 17500.0 | `2026-09-17T15:34:46+05:30` |
-| `MIX-TV-EP-024` | 0 | 0 | 0 | None | None | 0.0 | 0.0 | `2026-09-17T15:34:46+05:30` |
-| `MIX-ML-GREEKS` | 0 | 0 | 0 | None | None | 17500.0 | 17500.0 | `2026-09-17T15:34:46+05:30` |
+| `MIX-DEFAULT-BUY` | 87 | 13 | 74 | 14.94 | 20.69 | -28748.710000000003 | 17500.0 | `2026-09-17T16:17:39+05:30` |
+| `ML-001` | 0 | 0 | 0 | None | None | 0.0 | 0.0 | `2026-09-17T16:17:39+05:30` |
+| `ML-002` | 0 | 0 | 0 | None | None | 0.0 | 0.0 | `2026-09-17T16:17:39+05:30` |
+| `ML-1` | 0 | 0 | 0 | None | None | 0.0 | 0.0 | `2026-09-17T16:17:39+05:30` |
+| `MIX-ML-LOGIT` | 88 | 13 | 75 | 14.77 | 20.45 | -29996.260000000002 | 17500.0 | `2026-09-17T16:17:39+05:30` |
+| `MIX-ML-LOGIT-XR` | 0 | 0 | 0 | None | None | 17500.0 | 17500.0 | `2026-09-17T16:17:39+05:30` |
+| `MIX-TV-EP-024` | 0 | 0 | 0 | None | None | 0.0 | 0.0 | `2026-09-17T16:17:39+05:30` |
+| `MIX-ML-GREEKS` | 0 | 0 | 0 | None | None | 17500.0 | 17500.0 | `2026-09-17T16:17:39+05:30` |
 
 ## Mistakes (paper-param nudge only; no MIX write)
 

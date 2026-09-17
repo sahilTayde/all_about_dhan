@@ -101,3 +101,25 @@ UNKNOWN: <DATA_INSUFFICIENT>
 **SL vs target:** Board is an SL factory, not a target book. Target almost never prints because (1) 9-bar TIME wins first on the few that go green, (2) trailed/BE stop is inside 1m premium chop so STOP fires before TARGET, (3) CE fills against a PE ITM-bin.
 
 **One backtestable change (do not write production params):** Hold the **original** path stop until premium is ≥ BE + trail band; do not ratchet SL to a 3–5₹ pocket. Score **unique** tickets only. Ablate: NEW only on last-3 impulse **or** ITM-bin side match (no CE when bin is PE). Optional: skip BANKNIFTY NEW unless last-3 impulse. OOS+`NORMAL` required. KEEP_ALL STRAT-001–014.
+
+---
+
+## Paper overlay replay 2026-09-17 (write=false) — RETUNE_PROPOSAL
+
+**Kind:** `RETUNE_PROPOSAL` · **status:** `BACKTEST_REQUIRED` · `keep_current_strategy: true` · `production_params_written: false` · `one_day_pnl_is_not_evidence: true` · **NO_PROMOTE**. Dual-tape JSONL replay only — **did not rewrite** live `ML_PAPER_DASHBOARD.md`.
+
+| | Live board (15:51 IST) | Overlay replay |
+|--|--|--|
+| Filled | 175 (~88 unique) | 83 (43 unique-ish) |
+| STOP | 153 (unique 77) | 25 (unique 13) |
+| TARGET | 2 | 0 (T1 confirm; 6 tickets `target_step=1`) |
+| TIME | 14 | 4 |
+| Other | STRIKE_ROLL 6 | COVER_LONG_UNWIND 54 (unique 28) |
+| wr net | 14.86% | 74.7% (not a claim) |
+| Net ₹ | −93745 | −15018 |
+| STOP P/L | ~−105k | −44069 |
+| COVER P/L | — | +27447 (54/54 net-green) |
+
+**SL saved (this tape, not OOS):** raw STOP **128** fewer (153−25); unique STOP **64** fewer (77−13). Many former chop SLs became COVER_LONG_UNWIND scratches/small wins. Fat leftover STOPs (SENSEX) still dominate.
+
+**Loop next (do not write params):** COVER only if `target_step≥1` **or** SIDEWAYS+BE (not every 10s OI dip at BE). Optional BANKNIFTY impulse-only. OOS+`NORMAL`. KEEP_ALL.

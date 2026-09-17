@@ -1,7 +1,7 @@
 {
   "ok": true,
   "job": "ML_PAPER_SCALP",
-  "as_of_ist": "2026-09-17T15:35:29+05:30",
+  "as_of_ist": "2026-09-17T16:17:39+05:30",
   "gate": "not RESEARCH_READY_FOR_PROGRAMMING",
   "promote": false,
   "win_rate": 0.1486,
@@ -71,29 +71,29 @@
   "n_sl_hit": 153,
   "last_index_regime": {
     "NIFTY": {
-      "regime": "TREND",
-      "direction": "DOWN",
+      "regime": "SIDEWAYS",
+      "direction": "FLAT",
       "layer": "HYPOTHESIS",
-      "n": 160,
+      "n": 203,
       "lookback": 15,
-      "er": 1.0,
+      "er": 0.0,
       "flip_frac": 0.0,
-      "range_over_atr": 14.0,
-      "mid_dev_atr": 7.4667,
-      "net_signed": -23.75,
-      "vwap": 23271.174,
-      "vwap_src": "OK",
-      "ema": 23281.6919,
+      "range_over_atr": 0.0,
+      "mid_dev_atr": null,
+      "net_signed": 0.0,
+      "vwap": 23270.6,
+      "vwap_src": "EQUAL_WEIGHT_PROJECT",
+      "ema": 23270.7841,
       "ema_len": 21,
       "rsi": 23.72,
       "vol_expand": null,
       "vol_status": "DATA_INSUFFICIENT",
       "vol_last3_sum": null,
-      "realized_vol": 0.000272,
-      "iv": 10.851306607052319,
-      "votes_up": 1,
-      "votes_down": 4,
-      "reason": "er_vwap_ema_vol_rsi",
+      "realized_vol": 0.0,
+      "iv": 11.647458384753227,
+      "votes_up": 2,
+      "votes_down": 2,
+      "reason": "low_er_rsi_mid_or_vwap_band",
       "last3_closes": [
         23270.6,
         23270.6,
@@ -106,27 +106,22 @@
       "itm_bin": {
         "side": null,
         "reason": "itm_bin_wait",
-        "pe_votes": [
-          "PE_DELTA_MORE_ITM"
-        ],
-        "ce_votes": [
-          "CE_PREMIUM_UP",
-          "PE_PREMIUM_DOWN"
-        ],
-        "n_pe_votes": 1,
-        "n_ce_votes": 2,
+        "pe_votes": [],
+        "ce_votes": [],
+        "n_pe_votes": 0,
+        "n_ce_votes": 0,
         "missing": [],
         "ce": {
           "side": "CE",
           "strike": 23150.0,
           "atm": 23250.0,
           "moneyness": "ITM",
-          "px": 220.0,
-          "low": 220.0,
+          "px": 228.9,
+          "low": 228.9,
           "quote_src": "STRIKE_23150",
-          "volume": 21987550.0,
-          "oi": 552695.0,
-          "delta": 0.68556,
+          "volume": 22134190.0,
+          "oi": 509405.0,
+          "delta": 0.67356,
           "layer": "HYPOTHESIS"
         },
         "pe": {
@@ -134,12 +129,12 @@
           "strike": 23350.0,
           "atm": 23250.0,
           "moneyness": "ITM",
-          "px": 132.95,
-          "low": 132.95,
+          "px": 124.25,
+          "low": 124.25,
           "quote_src": "STRIKE_23350",
-          "volume": 66646905.0,
-          "oi": 1561690.0,
-          "delta": -0.56483,
+          "volume": 67289820.0,
+          "oi": 1594125.0,
+          "delta": -0.57096,
           "layer": "HYPOTHESIS"
         },
         "index": 23270.6,
@@ -147,29 +142,29 @@
       }
     },
     "BANKNIFTY": {
-      "regime": "TREND",
-      "direction": "DOWN",
+      "regime": "SIDEWAYS",
+      "direction": "FLAT",
       "layer": "HYPOTHESIS",
-      "n": 161,
+      "n": 204,
       "lookback": 15,
-      "er": 1.0,
+      "er": 0.0,
       "flip_frac": 0.0,
-      "range_over_atr": 14.0,
-      "mid_dev_atr": 7.4667,
-      "net_signed": -81.7,
-      "vwap": 56068.5657,
-      "vwap_src": "OK",
-      "ema": 56094.0791,
+      "range_over_atr": 0.0,
+      "mid_dev_atr": null,
+      "net_signed": 0.0,
+      "vwap": 56055.75,
+      "vwap_src": "EQUAL_WEIGHT_PROJECT",
+      "ema": 56056.3863,
       "ema_len": 21,
       "rsi": 22.53,
       "vol_expand": null,
       "vol_status": "DATA_INSUFFICIENT",
       "vol_last3_sum": null,
-      "realized_vol": 0.000389,
-      "iv": 14.039438835154419,
+      "realized_vol": 0.0,
+      "iv": 14.420858027533454,
       "votes_up": 1,
-      "votes_down": 4,
-      "reason": "itm_bin_pe_confirm",
+      "votes_down": 2,
+      "reason": "low_er_rsi_mid_or_vwap_band",
       "last3_closes": [
         56055.75,
         56055.75,
@@ -180,29 +175,24 @@
       "last3_impulse": null,
       "last3_reason": "last3_not_efficient",
       "itm_bin": {
-        "side": "PE",
-        "reason": "itm_bin_pe_confirm",
-        "pe_votes": [
-          "PE_PREMIUM_UP",
-          "PE_DELTA_MORE_ITM"
-        ],
-        "ce_votes": [
-          "CE_PREMIUM_UP"
-        ],
-        "n_pe_votes": 2,
-        "n_ce_votes": 1,
+        "side": null,
+        "reason": "itm_bin_wait",
+        "pe_votes": [],
+        "ce_votes": [],
+        "n_pe_votes": 0,
+        "n_ce_votes": 0,
         "missing": [],
         "ce": {
           "side": "CE",
           "strike": 56000.0,
           "atm": 56100.0,
           "moneyness": "ITM",
-          "px": 710.45,
-          "low": 710.45,
+          "px": 719.0,
+          "low": 719.0,
           "quote_src": "STRIKE_56000",
-          "volume": 2146620.0,
-          "oi": 466380.0,
-          "delta": 0.57142,
+          "volume": 2172240.0,
+          "oi": 468990.0,
+          "delta": 0.57052,
           "layer": "HYPOTHESIS"
         },
         "pe": {
@@ -210,12 +200,12 @@
           "strike": 56200.0,
           "atm": 56100.0,
           "moneyness": "ITM",
-          "px": 506.85,
-          "low": 506.85,
+          "px": 492.0,
+          "low": 492.0,
           "quote_src": "STRIKE_56200",
-          "volume": 2421720.0,
-          "oi": 174930.0,
-          "delta": -0.4821,
+          "volume": 2437980.0,
+          "oi": 169860.0,
+          "delta": -0.48187,
           "layer": "HYPOTHESIS"
         },
         "index": 56055.75,
@@ -223,29 +213,29 @@
       }
     },
     "SENSEX": {
-      "regime": "TREND",
-      "direction": "DOWN",
+      "regime": "SIDEWAYS",
+      "direction": "FLAT",
       "layer": "HYPOTHESIS",
-      "n": 160,
+      "n": 203,
       "lookback": 15,
-      "er": 1.0,
+      "er": 0.0,
       "flip_frac": 0.0,
-      "range_over_atr": 14.0,
-      "mid_dev_atr": 8.4,
-      "net_signed": -99.64,
-      "vwap": 74314.643,
-      "vwap_src": "OK",
-      "ema": 74368.9773,
+      "range_over_atr": 0.0,
+      "mid_dev_atr": null,
+      "net_signed": 0.0,
+      "vwap": 74314.59,
+      "vwap_src": "EQUAL_WEIGHT_PROJECT",
+      "ema": 74315.4928,
       "ema_len": 21,
       "rsi": 19.79,
       "vol_expand": null,
       "vol_status": "DATA_INSUFFICIENT",
       "vol_last3_sum": null,
-      "realized_vol": 0.000358,
-      "iv": 0.47825792407871337,
-      "votes_up": 0,
-      "votes_down": 4,
-      "reason": "er_vwap_ema_vol_rsi",
+      "realized_vol": 0.0,
+      "iv": 0.48045681203311014,
+      "votes_up": 1,
+      "votes_down": 2,
+      "reason": "low_er_rsi_mid_or_vwap_band",
       "last3_closes": [
         74314.59,
         74314.59,
@@ -258,11 +248,9 @@
       "itm_bin": {
         "side": null,
         "reason": "itm_bin_wait",
-        "pe_votes": [
-          "PE_PREMIUM_UP"
-        ],
+        "pe_votes": [],
         "ce_votes": [],
-        "n_pe_votes": 1,
+        "n_pe_votes": 0,
         "n_ce_votes": 0,
         "missing": [
           "ce_delta"
@@ -272,11 +260,11 @@
           "strike": 74200.0,
           "atm": 74300.0,
           "moneyness": "ITM",
-          "px": 114.35,
-          "low": 114.35,
+          "px": 114.3,
+          "low": 114.3,
           "quote_src": "STRIKE_74200",
-          "volume": 74992000.0,
-          "oi": 508080.0,
+          "volume": 75164580.0,
+          "oi": 459980.0,
           "delta": null,
           "layer": "HYPOTHESIS"
         },
@@ -285,12 +273,12 @@
           "strike": 74400.0,
           "atm": 74300.0,
           "moneyness": "ITM",
-          "px": 85.25,
-          "low": 85.25,
+          "px": 85.3,
+          "low": 85.3,
           "quote_src": "STRIKE_74400",
-          "volume": 323649840.0,
-          "oi": 3199080.0,
-          "delta": -0.87113,
+          "volume": 324362060.0,
+          "oi": 3064500.0,
+          "delta": -0.87159,
           "layer": "HYPOTHESIS"
         },
         "index": 74314.59,
@@ -302,20 +290,20 @@
     "layer": "HYPOTHESIS",
     "note": "Saw a CE/PE but did not OPEN, or OPENED then CANCELLED. Not live orders. Last-3 PUT/CE impulse can TREND; 15m chop skip stays when last-3 is also chop.",
     "observations": [
-      "BANKNIFTY: 15m TREND (itm_bin_pe_confirm, ER=1.0). Last-3 1m closes [56055.75, 56055.75, 56055.75] net=0.0 impulse=none. Dealer HOLD; logit side=CE. ITM bin CE 56000.0 votes=['CE_PREMIUM_UP'] vs PE 56200.0 votes=['PE_PREMIUM_UP', 'PE_DELTA_MORE_ITM'] reason=itm_bin_pe_confirm. Two ITM-leg votes can TREND without three INDEX 1m bars.",
-      "NIFTY: 15m TREND (er_vwap_ema_vol_rsi, ER=1.0). Last-3 1m closes [23270.6, 23270.6, 23270.6] net=0.0 impulse=none. Dealer HOLD; logit side=PE. ITM bin CE 23150.0 votes=['CE_PREMIUM_UP', 'PE_PREMIUM_DOWN'] vs PE 23350.0 votes=['PE_DELTA_MORE_ITM'] reason=itm_bin_wait. Two ITM-leg votes can TREND without three INDEX 1m bars.",
-      "SENSEX: 15m TREND (er_vwap_ema_vol_rsi, ER=1.0). Last-3 1m closes [74314.59, 74314.59, 74314.59] net=0.0 impulse=none. Dealer HOLD; logit side=SKIP. ITM bin CE 74200.0 votes=[] vs PE 74400.0 votes=['PE_PREMIUM_UP'] reason=itm_bin_wait. Two ITM-leg votes can TREND without three INDEX 1m bars."
+      "BANKNIFTY: 15m SIDEWAYS (low_er_rsi_mid_or_vwap_band, ER=0.0). Last-3 1m closes [56055.75, 56055.75, 56055.75] net=0.0 impulse=none. Last-3 was not an efficient impulse \u2014 15m chop skip is required, not over-coded. Dealer HOLD; logit side=CE. ITM bin CE 56000.0 votes=[] vs PE 56200.0 votes=[] reason=itm_bin_wait. Two ITM-leg votes can TREND without three INDEX 1m bars.",
+      "NIFTY: 15m SIDEWAYS (low_er_rsi_mid_or_vwap_band, ER=0.0). Last-3 1m closes [23270.6, 23270.6, 23270.6] net=0.0 impulse=none. Last-3 was not an efficient impulse \u2014 15m chop skip is required, not over-coded. Dealer HOLD; logit side=PE. ITM bin CE 23150.0 votes=[] vs PE 23350.0 votes=[] reason=itm_bin_wait. Two ITM-leg votes can TREND without three INDEX 1m bars.",
+      "SENSEX: 15m SIDEWAYS (low_er_rsi_mid_or_vwap_band, ER=0.0). Last-3 1m closes [74314.59, 74314.59, 74314.59] net=0.0 impulse=none. Last-3 was not an efficient impulse \u2014 15m chop skip is required, not over-coded. Dealer HOLD; logit side=PE. ITM bin CE 74200.0 votes=[] vs PE 74400.0 votes=[] reason=itm_bin_wait. Two ITM-leg votes can TREND without three INDEX 1m bars."
     ],
     "skipped_latest": [
       {
         "book_id": "MIX-DEFAULT-BUY",
         "underlying": "SENSEX",
-        "seen_side": null,
+        "seen_side": "PE",
         "action": "SKIP",
         "reason": "NO_NEW_AFTER_1515",
         "why": "No NEW paper after 15:15 IST. Flatten leftover OPEN. CAS is expiry-only, not this clock.",
-        "index_regime": "TREND",
-        "regime_reason": "er_vwap_ema_vol_rsi",
+        "index_regime": "SIDEWAYS",
+        "regime_reason": "low_er_rsi_mid_or_vwap_band",
         "last3_closes": [
           74314.59,
           74314.59,
@@ -325,19 +313,19 @@
         "last3_er": 0.0,
         "last3_impulse": null,
         "dealer_verdict": "HOLD",
-        "logit_side": null,
-        "observation": "SENSEX: 15m TREND (er_vwap_ema_vol_rsi, ER=1.0). Last-3 1m closes [74314.59, 74314.59, 74314.59] net=0.0 impulse=none. Dealer HOLD; logit side=SKIP. ITM bin CE 74200.0 votes=[] vs PE 74400.0 votes=['PE_PREMIUM_UP'] reason=itm_bin_wait. Two ITM-leg votes can TREND without three INDEX 1m bars.",
-        "last_updated_ts": 1789639480
+        "logit_side": "PE",
+        "observation": "SENSEX: 15m SIDEWAYS (low_er_rsi_mid_or_vwap_band, ER=0.0). Last-3 1m closes [74314.59, 74314.59, 74314.59] net=0.0 impulse=none. Last-3 was not an efficient impulse \u2014 15m chop skip is required, not over-coded. Dealer HOLD; logit side=PE. ITM bin CE 74200.0 votes=[] vs PE 74400.0 votes=[] reason=itm_bin_wait. Two ITM-leg votes can TREND without three INDEX 1m bars.",
+        "last_updated_ts": 1789642053
       },
       {
         "book_id": "MIX-ML-GREEKS",
         "underlying": "SENSEX",
-        "seen_side": null,
+        "seen_side": "PE",
         "action": "SKIP",
         "reason": "NO_NEW_AFTER_1515",
         "why": "No NEW paper after 15:15 IST. Flatten leftover OPEN. CAS is expiry-only, not this clock.",
-        "index_regime": "TREND",
-        "regime_reason": "er_vwap_ema_vol_rsi",
+        "index_regime": "SIDEWAYS",
+        "regime_reason": "low_er_rsi_mid_or_vwap_band",
         "last3_closes": [
           74314.59,
           74314.59,
@@ -347,19 +335,19 @@
         "last3_er": 0.0,
         "last3_impulse": null,
         "dealer_verdict": "HOLD",
-        "logit_side": null,
-        "observation": "SENSEX: 15m TREND (er_vwap_ema_vol_rsi, ER=1.0). Last-3 1m closes [74314.59, 74314.59, 74314.59] net=0.0 impulse=none. Dealer HOLD; logit side=SKIP. ITM bin CE 74200.0 votes=[] vs PE 74400.0 votes=['PE_PREMIUM_UP'] reason=itm_bin_wait. Two ITM-leg votes can TREND without three INDEX 1m bars.",
-        "last_updated_ts": 1789639480
+        "logit_side": "PE",
+        "observation": "SENSEX: 15m SIDEWAYS (low_er_rsi_mid_or_vwap_band, ER=0.0). Last-3 1m closes [74314.59, 74314.59, 74314.59] net=0.0 impulse=none. Last-3 was not an efficient impulse \u2014 15m chop skip is required, not over-coded. Dealer HOLD; logit side=PE. ITM bin CE 74200.0 votes=[] vs PE 74400.0 votes=[] reason=itm_bin_wait. Two ITM-leg votes can TREND without three INDEX 1m bars.",
+        "last_updated_ts": 1789642053
       },
       {
         "book_id": "MIX-ML-LOGIT",
         "underlying": "SENSEX",
-        "seen_side": null,
+        "seen_side": "PE",
         "action": "SKIP",
         "reason": "NO_NEW_AFTER_1515",
         "why": "No NEW paper after 15:15 IST. Flatten leftover OPEN. CAS is expiry-only, not this clock.",
-        "index_regime": "TREND",
-        "regime_reason": "er_vwap_ema_vol_rsi",
+        "index_regime": "SIDEWAYS",
+        "regime_reason": "low_er_rsi_mid_or_vwap_band",
         "last3_closes": [
           74314.59,
           74314.59,
@@ -369,19 +357,19 @@
         "last3_er": 0.0,
         "last3_impulse": null,
         "dealer_verdict": "HOLD",
-        "logit_side": null,
-        "observation": "SENSEX: 15m TREND (er_vwap_ema_vol_rsi, ER=1.0). Last-3 1m closes [74314.59, 74314.59, 74314.59] net=0.0 impulse=none. Dealer HOLD; logit side=SKIP. ITM bin CE 74200.0 votes=[] vs PE 74400.0 votes=['PE_PREMIUM_UP'] reason=itm_bin_wait. Two ITM-leg votes can TREND without three INDEX 1m bars.",
-        "last_updated_ts": 1789639480
+        "logit_side": "PE",
+        "observation": "SENSEX: 15m SIDEWAYS (low_er_rsi_mid_or_vwap_band, ER=0.0). Last-3 1m closes [74314.59, 74314.59, 74314.59] net=0.0 impulse=none. Last-3 was not an efficient impulse \u2014 15m chop skip is required, not over-coded. Dealer HOLD; logit side=PE. ITM bin CE 74200.0 votes=[] vs PE 74400.0 votes=[] reason=itm_bin_wait. Two ITM-leg votes can TREND without three INDEX 1m bars.",
+        "last_updated_ts": 1789642053
       },
       {
         "book_id": "MIX-ML-LOGIT-XR",
         "underlying": "SENSEX",
-        "seen_side": null,
+        "seen_side": "PE",
         "action": "SKIP",
         "reason": "NO_NEW_AFTER_1515",
         "why": "No NEW paper after 15:15 IST. Flatten leftover OPEN. CAS is expiry-only, not this clock.",
-        "index_regime": "TREND",
-        "regime_reason": "er_vwap_ema_vol_rsi",
+        "index_regime": "SIDEWAYS",
+        "regime_reason": "low_er_rsi_mid_or_vwap_band",
         "last3_closes": [
           74314.59,
           74314.59,
@@ -391,19 +379,19 @@
         "last3_er": 0.0,
         "last3_impulse": null,
         "dealer_verdict": "HOLD",
-        "logit_side": null,
-        "observation": "SENSEX: 15m TREND (er_vwap_ema_vol_rsi, ER=1.0). Last-3 1m closes [74314.59, 74314.59, 74314.59] net=0.0 impulse=none. Dealer HOLD; logit side=SKIP. ITM bin CE 74200.0 votes=[] vs PE 74400.0 votes=['PE_PREMIUM_UP'] reason=itm_bin_wait. Two ITM-leg votes can TREND without three INDEX 1m bars.",
-        "last_updated_ts": 1789639480
+        "logit_side": "PE",
+        "observation": "SENSEX: 15m SIDEWAYS (low_er_rsi_mid_or_vwap_band, ER=0.0). Last-3 1m closes [74314.59, 74314.59, 74314.59] net=0.0 impulse=none. Last-3 was not an efficient impulse \u2014 15m chop skip is required, not over-coded. Dealer HOLD; logit side=PE. ITM bin CE 74200.0 votes=[] vs PE 74400.0 votes=[] reason=itm_bin_wait. Two ITM-leg votes can TREND without three INDEX 1m bars.",
+        "last_updated_ts": 1789642053
       },
       {
         "book_id": "MIX-TV-EP-024",
         "underlying": "SENSEX",
-        "seen_side": null,
+        "seen_side": "PE",
         "action": "SKIP",
         "reason": "NO_NEW_AFTER_1515",
         "why": "No NEW paper after 15:15 IST. Flatten leftover OPEN. CAS is expiry-only, not this clock.",
-        "index_regime": "TREND",
-        "regime_reason": "er_vwap_ema_vol_rsi",
+        "index_regime": "SIDEWAYS",
+        "regime_reason": "low_er_rsi_mid_or_vwap_band",
         "last3_closes": [
           74314.59,
           74314.59,
@@ -413,19 +401,19 @@
         "last3_er": 0.0,
         "last3_impulse": null,
         "dealer_verdict": "HOLD",
-        "logit_side": null,
-        "observation": "SENSEX: 15m TREND (er_vwap_ema_vol_rsi, ER=1.0). Last-3 1m closes [74314.59, 74314.59, 74314.59] net=0.0 impulse=none. Dealer HOLD; logit side=SKIP. ITM bin CE 74200.0 votes=[] vs PE 74400.0 votes=['PE_PREMIUM_UP'] reason=itm_bin_wait. Two ITM-leg votes can TREND without three INDEX 1m bars.",
-        "last_updated_ts": 1789639480
+        "logit_side": "PE",
+        "observation": "SENSEX: 15m SIDEWAYS (low_er_rsi_mid_or_vwap_band, ER=0.0). Last-3 1m closes [74314.59, 74314.59, 74314.59] net=0.0 impulse=none. Last-3 was not an efficient impulse \u2014 15m chop skip is required, not over-coded. Dealer HOLD; logit side=PE. ITM bin CE 74200.0 votes=[] vs PE 74400.0 votes=[] reason=itm_bin_wait. Two ITM-leg votes can TREND without three INDEX 1m bars.",
+        "last_updated_ts": 1789642053
       },
       {
         "book_id": "ML-001",
         "underlying": "SENSEX",
-        "seen_side": null,
+        "seen_side": "PE",
         "action": "SKIP",
         "reason": "NO_NEW_AFTER_1515",
         "why": "No NEW paper after 15:15 IST. Flatten leftover OPEN. CAS is expiry-only, not this clock.",
-        "index_regime": "TREND",
-        "regime_reason": "er_vwap_ema_vol_rsi",
+        "index_regime": "SIDEWAYS",
+        "regime_reason": "low_er_rsi_mid_or_vwap_band",
         "last3_closes": [
           74314.59,
           74314.59,
@@ -435,19 +423,19 @@
         "last3_er": 0.0,
         "last3_impulse": null,
         "dealer_verdict": "HOLD",
-        "logit_side": null,
-        "observation": "SENSEX: 15m TREND (er_vwap_ema_vol_rsi, ER=1.0). Last-3 1m closes [74314.59, 74314.59, 74314.59] net=0.0 impulse=none. Dealer HOLD; logit side=SKIP. ITM bin CE 74200.0 votes=[] vs PE 74400.0 votes=['PE_PREMIUM_UP'] reason=itm_bin_wait. Two ITM-leg votes can TREND without three INDEX 1m bars.",
-        "last_updated_ts": 1789639480
+        "logit_side": "PE",
+        "observation": "SENSEX: 15m SIDEWAYS (low_er_rsi_mid_or_vwap_band, ER=0.0). Last-3 1m closes [74314.59, 74314.59, 74314.59] net=0.0 impulse=none. Last-3 was not an efficient impulse \u2014 15m chop skip is required, not over-coded. Dealer HOLD; logit side=PE. ITM bin CE 74200.0 votes=[] vs PE 74400.0 votes=[] reason=itm_bin_wait. Two ITM-leg votes can TREND without three INDEX 1m bars.",
+        "last_updated_ts": 1789642053
       },
       {
         "book_id": "ML-002",
         "underlying": "SENSEX",
-        "seen_side": null,
+        "seen_side": "PE",
         "action": "SKIP",
         "reason": "NO_NEW_AFTER_1515",
         "why": "No NEW paper after 15:15 IST. Flatten leftover OPEN. CAS is expiry-only, not this clock.",
-        "index_regime": "TREND",
-        "regime_reason": "er_vwap_ema_vol_rsi",
+        "index_regime": "SIDEWAYS",
+        "regime_reason": "low_er_rsi_mid_or_vwap_band",
         "last3_closes": [
           74314.59,
           74314.59,
@@ -457,19 +445,19 @@
         "last3_er": 0.0,
         "last3_impulse": null,
         "dealer_verdict": "HOLD",
-        "logit_side": null,
-        "observation": "SENSEX: 15m TREND (er_vwap_ema_vol_rsi, ER=1.0). Last-3 1m closes [74314.59, 74314.59, 74314.59] net=0.0 impulse=none. Dealer HOLD; logit side=SKIP. ITM bin CE 74200.0 votes=[] vs PE 74400.0 votes=['PE_PREMIUM_UP'] reason=itm_bin_wait. Two ITM-leg votes can TREND without three INDEX 1m bars.",
-        "last_updated_ts": 1789639480
+        "logit_side": "PE",
+        "observation": "SENSEX: 15m SIDEWAYS (low_er_rsi_mid_or_vwap_band, ER=0.0). Last-3 1m closes [74314.59, 74314.59, 74314.59] net=0.0 impulse=none. Last-3 was not an efficient impulse \u2014 15m chop skip is required, not over-coded. Dealer HOLD; logit side=PE. ITM bin CE 74200.0 votes=[] vs PE 74400.0 votes=[] reason=itm_bin_wait. Two ITM-leg votes can TREND without three INDEX 1m bars.",
+        "last_updated_ts": 1789642053
       },
       {
         "book_id": "ML-1",
         "underlying": "SENSEX",
-        "seen_side": null,
+        "seen_side": "PE",
         "action": "SKIP",
         "reason": "NO_NEW_AFTER_1515",
         "why": "No NEW paper after 15:15 IST. Flatten leftover OPEN. CAS is expiry-only, not this clock.",
-        "index_regime": "TREND",
-        "regime_reason": "er_vwap_ema_vol_rsi",
+        "index_regime": "SIDEWAYS",
+        "regime_reason": "low_er_rsi_mid_or_vwap_band",
         "last3_closes": [
           74314.59,
           74314.59,
@@ -479,19 +467,19 @@
         "last3_er": 0.0,
         "last3_impulse": null,
         "dealer_verdict": "HOLD",
-        "logit_side": null,
-        "observation": "SENSEX: 15m TREND (er_vwap_ema_vol_rsi, ER=1.0). Last-3 1m closes [74314.59, 74314.59, 74314.59] net=0.0 impulse=none. Dealer HOLD; logit side=SKIP. ITM bin CE 74200.0 votes=[] vs PE 74400.0 votes=['PE_PREMIUM_UP'] reason=itm_bin_wait. Two ITM-leg votes can TREND without three INDEX 1m bars.",
-        "last_updated_ts": 1789639480
+        "logit_side": "PE",
+        "observation": "SENSEX: 15m SIDEWAYS (low_er_rsi_mid_or_vwap_band, ER=0.0). Last-3 1m closes [74314.59, 74314.59, 74314.59] net=0.0 impulse=none. Last-3 was not an efficient impulse \u2014 15m chop skip is required, not over-coded. Dealer HOLD; logit side=PE. ITM bin CE 74200.0 votes=[] vs PE 74400.0 votes=[] reason=itm_bin_wait. Two ITM-leg votes can TREND without three INDEX 1m bars.",
+        "last_updated_ts": 1789642053
       },
       {
         "book_id": "MIX-DEFAULT-BUY",
         "underlying": "BANKNIFTY",
-        "seen_side": "PE",
+        "seen_side": "CE",
         "action": "SKIP",
         "reason": "NO_NEW_AFTER_1515",
         "why": "No NEW paper after 15:15 IST. Flatten leftover OPEN. CAS is expiry-only, not this clock.",
-        "index_regime": "TREND",
-        "regime_reason": "itm_bin_pe_confirm",
+        "index_regime": "SIDEWAYS",
+        "regime_reason": "low_er_rsi_mid_or_vwap_band",
         "last3_closes": [
           56055.75,
           56055.75,
@@ -502,8 +490,8 @@
         "last3_impulse": null,
         "dealer_verdict": "HOLD",
         "logit_side": "CE",
-        "observation": "BANKNIFTY: 15m TREND (itm_bin_pe_confirm, ER=1.0). Last-3 1m closes [56055.75, 56055.75, 56055.75] net=0.0 impulse=none. Dealer HOLD; logit side=CE. ITM bin CE 56000.0 votes=['CE_PREMIUM_UP'] vs PE 56200.0 votes=['PE_PREMIUM_UP', 'PE_DELTA_MORE_ITM'] reason=itm_bin_pe_confirm. Two ITM-leg votes can TREND without three INDEX 1m bars.",
-        "last_updated_ts": 1789639476
+        "observation": "BANKNIFTY: 15m SIDEWAYS (low_er_rsi_mid_or_vwap_band, ER=0.0). Last-3 1m closes [56055.75, 56055.75, 56055.75] net=0.0 impulse=none. Last-3 was not an efficient impulse \u2014 15m chop skip is required, not over-coded. Dealer HOLD; logit side=CE. ITM bin CE 56000.0 votes=[] vs PE 56200.0 votes=[] reason=itm_bin_wait. Two ITM-leg votes can TREND without three INDEX 1m bars.",
+        "last_updated_ts": 1789642048
       },
       {
         "book_id": "MIX-ML-GREEKS",
@@ -512,8 +500,8 @@
         "action": "SKIP",
         "reason": "NO_NEW_AFTER_1515",
         "why": "No NEW paper after 15:15 IST. Flatten leftover OPEN. CAS is expiry-only, not this clock.",
-        "index_regime": "TREND",
-        "regime_reason": "itm_bin_pe_confirm",
+        "index_regime": "SIDEWAYS",
+        "regime_reason": "low_er_rsi_mid_or_vwap_band",
         "last3_closes": [
           56055.75,
           56055.75,
@@ -524,18 +512,18 @@
         "last3_impulse": null,
         "dealer_verdict": "HOLD",
         "logit_side": "CE",
-        "observation": "BANKNIFTY: 15m TREND (itm_bin_pe_confirm, ER=1.0). Last-3 1m closes [56055.75, 56055.75, 56055.75] net=0.0 impulse=none. Dealer HOLD; logit side=CE. ITM bin CE 56000.0 votes=['CE_PREMIUM_UP'] vs PE 56200.0 votes=['PE_PREMIUM_UP', 'PE_DELTA_MORE_ITM'] reason=itm_bin_pe_confirm. Two ITM-leg votes can TREND without three INDEX 1m bars.",
-        "last_updated_ts": 1789639476
+        "observation": "BANKNIFTY: 15m SIDEWAYS (low_er_rsi_mid_or_vwap_band, ER=0.0). Last-3 1m closes [56055.75, 56055.75, 56055.75] net=0.0 impulse=none. Last-3 was not an efficient impulse \u2014 15m chop skip is required, not over-coded. Dealer HOLD; logit side=CE. ITM bin CE 56000.0 votes=[] vs PE 56200.0 votes=[] reason=itm_bin_wait. Two ITM-leg votes can TREND without three INDEX 1m bars.",
+        "last_updated_ts": 1789642048
       },
       {
         "book_id": "MIX-ML-LOGIT",
         "underlying": "BANKNIFTY",
-        "seen_side": "PE",
+        "seen_side": "CE",
         "action": "SKIP",
         "reason": "NO_NEW_AFTER_1515",
         "why": "No NEW paper after 15:15 IST. Flatten leftover OPEN. CAS is expiry-only, not this clock.",
-        "index_regime": "TREND",
-        "regime_reason": "itm_bin_pe_confirm",
+        "index_regime": "SIDEWAYS",
+        "regime_reason": "low_er_rsi_mid_or_vwap_band",
         "last3_closes": [
           56055.75,
           56055.75,
@@ -546,8 +534,8 @@
         "last3_impulse": null,
         "dealer_verdict": "HOLD",
         "logit_side": "CE",
-        "observation": "BANKNIFTY: 15m TREND (itm_bin_pe_confirm, ER=1.0). Last-3 1m closes [56055.75, 56055.75, 56055.75] net=0.0 impulse=none. Dealer HOLD; logit side=CE. ITM bin CE 56000.0 votes=['CE_PREMIUM_UP'] vs PE 56200.0 votes=['PE_PREMIUM_UP', 'PE_DELTA_MORE_ITM'] reason=itm_bin_pe_confirm. Two ITM-leg votes can TREND without three INDEX 1m bars.",
-        "last_updated_ts": 1789639476
+        "observation": "BANKNIFTY: 15m SIDEWAYS (low_er_rsi_mid_or_vwap_band, ER=0.0). Last-3 1m closes [56055.75, 56055.75, 56055.75] net=0.0 impulse=none. Last-3 was not an efficient impulse \u2014 15m chop skip is required, not over-coded. Dealer HOLD; logit side=CE. ITM bin CE 56000.0 votes=[] vs PE 56200.0 votes=[] reason=itm_bin_wait. Two ITM-leg votes can TREND without three INDEX 1m bars.",
+        "last_updated_ts": 1789642048
       },
       {
         "book_id": "MIX-ML-LOGIT-XR",
@@ -556,8 +544,8 @@
         "action": "SKIP",
         "reason": "NO_NEW_AFTER_1515",
         "why": "No NEW paper after 15:15 IST. Flatten leftover OPEN. CAS is expiry-only, not this clock.",
-        "index_regime": "TREND",
-        "regime_reason": "itm_bin_pe_confirm",
+        "index_regime": "SIDEWAYS",
+        "regime_reason": "low_er_rsi_mid_or_vwap_band",
         "last3_closes": [
           56055.75,
           56055.75,
@@ -568,8 +556,8 @@
         "last3_impulse": null,
         "dealer_verdict": "HOLD",
         "logit_side": "CE",
-        "observation": "BANKNIFTY: 15m TREND (itm_bin_pe_confirm, ER=1.0). Last-3 1m closes [56055.75, 56055.75, 56055.75] net=0.0 impulse=none. Dealer HOLD; logit side=CE. ITM bin CE 56000.0 votes=['CE_PREMIUM_UP'] vs PE 56200.0 votes=['PE_PREMIUM_UP', 'PE_DELTA_MORE_ITM'] reason=itm_bin_pe_confirm. Two ITM-leg votes can TREND without three INDEX 1m bars.",
-        "last_updated_ts": 1789639476
+        "observation": "BANKNIFTY: 15m SIDEWAYS (low_er_rsi_mid_or_vwap_band, ER=0.0). Last-3 1m closes [56055.75, 56055.75, 56055.75] net=0.0 impulse=none. Last-3 was not an efficient impulse \u2014 15m chop skip is required, not over-coded. Dealer HOLD; logit side=CE. ITM bin CE 56000.0 votes=[] vs PE 56200.0 votes=[] reason=itm_bin_wait. Two ITM-leg votes can TREND without three INDEX 1m bars.",
+        "last_updated_ts": 1789642048
       },
       {
         "book_id": "MIX-TV-EP-024",
@@ -578,8 +566,8 @@
         "action": "SKIP",
         "reason": "NO_NEW_AFTER_1515",
         "why": "No NEW paper after 15:15 IST. Flatten leftover OPEN. CAS is expiry-only, not this clock.",
-        "index_regime": "TREND",
-        "regime_reason": "itm_bin_pe_confirm",
+        "index_regime": "SIDEWAYS",
+        "regime_reason": "low_er_rsi_mid_or_vwap_band",
         "last3_closes": [
           56055.75,
           56055.75,
@@ -590,8 +578,8 @@
         "last3_impulse": null,
         "dealer_verdict": "HOLD",
         "logit_side": "CE",
-        "observation": "BANKNIFTY: 15m TREND (itm_bin_pe_confirm, ER=1.0). Last-3 1m closes [56055.75, 56055.75, 56055.75] net=0.0 impulse=none. Dealer HOLD; logit side=CE. ITM bin CE 56000.0 votes=['CE_PREMIUM_UP'] vs PE 56200.0 votes=['PE_PREMIUM_UP', 'PE_DELTA_MORE_ITM'] reason=itm_bin_pe_confirm. Two ITM-leg votes can TREND without three INDEX 1m bars.",
-        "last_updated_ts": 1789639476
+        "observation": "BANKNIFTY: 15m SIDEWAYS (low_er_rsi_mid_or_vwap_band, ER=0.0). Last-3 1m closes [56055.75, 56055.75, 56055.75] net=0.0 impulse=none. Last-3 was not an efficient impulse \u2014 15m chop skip is required, not over-coded. Dealer HOLD; logit side=CE. ITM bin CE 56000.0 votes=[] vs PE 56200.0 votes=[] reason=itm_bin_wait. Two ITM-leg votes can TREND without three INDEX 1m bars.",
+        "last_updated_ts": 1789642048
       },
       {
         "book_id": "ML-001",
@@ -600,8 +588,8 @@
         "action": "SKIP",
         "reason": "NO_NEW_AFTER_1515",
         "why": "No NEW paper after 15:15 IST. Flatten leftover OPEN. CAS is expiry-only, not this clock.",
-        "index_regime": "TREND",
-        "regime_reason": "itm_bin_pe_confirm",
+        "index_regime": "SIDEWAYS",
+        "regime_reason": "low_er_rsi_mid_or_vwap_band",
         "last3_closes": [
           56055.75,
           56055.75,
@@ -612,8 +600,8 @@
         "last3_impulse": null,
         "dealer_verdict": "HOLD",
         "logit_side": "CE",
-        "observation": "BANKNIFTY: 15m TREND (itm_bin_pe_confirm, ER=1.0). Last-3 1m closes [56055.75, 56055.75, 56055.75] net=0.0 impulse=none. Dealer HOLD; logit side=CE. ITM bin CE 56000.0 votes=['CE_PREMIUM_UP'] vs PE 56200.0 votes=['PE_PREMIUM_UP', 'PE_DELTA_MORE_ITM'] reason=itm_bin_pe_confirm. Two ITM-leg votes can TREND without three INDEX 1m bars.",
-        "last_updated_ts": 1789639476
+        "observation": "BANKNIFTY: 15m SIDEWAYS (low_er_rsi_mid_or_vwap_band, ER=0.0). Last-3 1m closes [56055.75, 56055.75, 56055.75] net=0.0 impulse=none. Last-3 was not an efficient impulse \u2014 15m chop skip is required, not over-coded. Dealer HOLD; logit side=CE. ITM bin CE 56000.0 votes=[] vs PE 56200.0 votes=[] reason=itm_bin_wait. Two ITM-leg votes can TREND without three INDEX 1m bars.",
+        "last_updated_ts": 1789642048
       },
       {
         "book_id": "ML-002",
@@ -622,8 +610,8 @@
         "action": "SKIP",
         "reason": "NO_NEW_AFTER_1515",
         "why": "No NEW paper after 15:15 IST. Flatten leftover OPEN. CAS is expiry-only, not this clock.",
-        "index_regime": "TREND",
-        "regime_reason": "itm_bin_pe_confirm",
+        "index_regime": "SIDEWAYS",
+        "regime_reason": "low_er_rsi_mid_or_vwap_band",
         "last3_closes": [
           56055.75,
           56055.75,
@@ -634,8 +622,8 @@
         "last3_impulse": null,
         "dealer_verdict": "HOLD",
         "logit_side": "CE",
-        "observation": "BANKNIFTY: 15m TREND (itm_bin_pe_confirm, ER=1.0). Last-3 1m closes [56055.75, 56055.75, 56055.75] net=0.0 impulse=none. Dealer HOLD; logit side=CE. ITM bin CE 56000.0 votes=['CE_PREMIUM_UP'] vs PE 56200.0 votes=['PE_PREMIUM_UP', 'PE_DELTA_MORE_ITM'] reason=itm_bin_pe_confirm. Two ITM-leg votes can TREND without three INDEX 1m bars.",
-        "last_updated_ts": 1789639476
+        "observation": "BANKNIFTY: 15m SIDEWAYS (low_er_rsi_mid_or_vwap_band, ER=0.0). Last-3 1m closes [56055.75, 56055.75, 56055.75] net=0.0 impulse=none. Last-3 was not an efficient impulse \u2014 15m chop skip is required, not over-coded. Dealer HOLD; logit side=CE. ITM bin CE 56000.0 votes=[] vs PE 56200.0 votes=[] reason=itm_bin_wait. Two ITM-leg votes can TREND without three INDEX 1m bars.",
+        "last_updated_ts": 1789642048
       },
       {
         "book_id": "ML-1",
@@ -644,8 +632,8 @@
         "action": "SKIP",
         "reason": "NO_NEW_AFTER_1515",
         "why": "No NEW paper after 15:15 IST. Flatten leftover OPEN. CAS is expiry-only, not this clock.",
-        "index_regime": "TREND",
-        "regime_reason": "itm_bin_pe_confirm",
+        "index_regime": "SIDEWAYS",
+        "regime_reason": "low_er_rsi_mid_or_vwap_band",
         "last3_closes": [
           56055.75,
           56055.75,
@@ -656,8 +644,8 @@
         "last3_impulse": null,
         "dealer_verdict": "HOLD",
         "logit_side": "CE",
-        "observation": "BANKNIFTY: 15m TREND (itm_bin_pe_confirm, ER=1.0). Last-3 1m closes [56055.75, 56055.75, 56055.75] net=0.0 impulse=none. Dealer HOLD; logit side=CE. ITM bin CE 56000.0 votes=['CE_PREMIUM_UP'] vs PE 56200.0 votes=['PE_PREMIUM_UP', 'PE_DELTA_MORE_ITM'] reason=itm_bin_pe_confirm. Two ITM-leg votes can TREND without three INDEX 1m bars.",
-        "last_updated_ts": 1789639476
+        "observation": "BANKNIFTY: 15m SIDEWAYS (low_er_rsi_mid_or_vwap_band, ER=0.0). Last-3 1m closes [56055.75, 56055.75, 56055.75] net=0.0 impulse=none. Last-3 was not an efficient impulse \u2014 15m chop skip is required, not over-coded. Dealer HOLD; logit side=CE. ITM bin CE 56000.0 votes=[] vs PE 56200.0 votes=[] reason=itm_bin_wait. Two ITM-leg votes can TREND without three INDEX 1m bars.",
+        "last_updated_ts": 1789642048
       },
       {
         "book_id": "MIX-DEFAULT-BUY",
@@ -666,8 +654,8 @@
         "action": "SKIP",
         "reason": "NO_NEW_AFTER_1515",
         "why": "No NEW paper after 15:15 IST. Flatten leftover OPEN. CAS is expiry-only, not this clock.",
-        "index_regime": "TREND",
-        "regime_reason": "er_vwap_ema_vol_rsi",
+        "index_regime": "SIDEWAYS",
+        "regime_reason": "low_er_rsi_mid_or_vwap_band",
         "last3_closes": [
           23270.6,
           23270.6,
@@ -678,8 +666,8 @@
         "last3_impulse": null,
         "dealer_verdict": "HOLD",
         "logit_side": "PE",
-        "observation": "NIFTY: 15m TREND (er_vwap_ema_vol_rsi, ER=1.0). Last-3 1m closes [23270.6, 23270.6, 23270.6] net=0.0 impulse=none. Dealer HOLD; logit side=PE. ITM bin CE 23150.0 votes=['CE_PREMIUM_UP', 'PE_PREMIUM_DOWN'] vs PE 23350.0 votes=['PE_DELTA_MORE_ITM'] reason=itm_bin_wait. Two ITM-leg votes can TREND without three INDEX 1m bars.",
-        "last_updated_ts": 1789639471
+        "observation": "NIFTY: 15m SIDEWAYS (low_er_rsi_mid_or_vwap_band, ER=0.0). Last-3 1m closes [23270.6, 23270.6, 23270.6] net=0.0 impulse=none. Last-3 was not an efficient impulse \u2014 15m chop skip is required, not over-coded. Dealer HOLD; logit side=PE. ITM bin CE 23150.0 votes=[] vs PE 23350.0 votes=[] reason=itm_bin_wait. Two ITM-leg votes can TREND without three INDEX 1m bars.",
+        "last_updated_ts": 1789642043
       },
       {
         "book_id": "MIX-ML-GREEKS",
@@ -688,8 +676,8 @@
         "action": "SKIP",
         "reason": "NO_NEW_AFTER_1515",
         "why": "No NEW paper after 15:15 IST. Flatten leftover OPEN. CAS is expiry-only, not this clock.",
-        "index_regime": "TREND",
-        "regime_reason": "er_vwap_ema_vol_rsi",
+        "index_regime": "SIDEWAYS",
+        "regime_reason": "low_er_rsi_mid_or_vwap_band",
         "last3_closes": [
           23270.6,
           23270.6,
@@ -700,8 +688,8 @@
         "last3_impulse": null,
         "dealer_verdict": "HOLD",
         "logit_side": "PE",
-        "observation": "NIFTY: 15m TREND (er_vwap_ema_vol_rsi, ER=1.0). Last-3 1m closes [23270.6, 23270.6, 23270.6] net=0.0 impulse=none. Dealer HOLD; logit side=PE. ITM bin CE 23150.0 votes=['CE_PREMIUM_UP', 'PE_PREMIUM_DOWN'] vs PE 23350.0 votes=['PE_DELTA_MORE_ITM'] reason=itm_bin_wait. Two ITM-leg votes can TREND without three INDEX 1m bars.",
-        "last_updated_ts": 1789639471
+        "observation": "NIFTY: 15m SIDEWAYS (low_er_rsi_mid_or_vwap_band, ER=0.0). Last-3 1m closes [23270.6, 23270.6, 23270.6] net=0.0 impulse=none. Last-3 was not an efficient impulse \u2014 15m chop skip is required, not over-coded. Dealer HOLD; logit side=PE. ITM bin CE 23150.0 votes=[] vs PE 23350.0 votes=[] reason=itm_bin_wait. Two ITM-leg votes can TREND without three INDEX 1m bars.",
+        "last_updated_ts": 1789642043
       },
       {
         "book_id": "MIX-ML-LOGIT",
@@ -710,8 +698,8 @@
         "action": "SKIP",
         "reason": "NO_NEW_AFTER_1515",
         "why": "No NEW paper after 15:15 IST. Flatten leftover OPEN. CAS is expiry-only, not this clock.",
-        "index_regime": "TREND",
-        "regime_reason": "er_vwap_ema_vol_rsi",
+        "index_regime": "SIDEWAYS",
+        "regime_reason": "low_er_rsi_mid_or_vwap_band",
         "last3_closes": [
           23270.6,
           23270.6,
@@ -722,8 +710,8 @@
         "last3_impulse": null,
         "dealer_verdict": "HOLD",
         "logit_side": "PE",
-        "observation": "NIFTY: 15m TREND (er_vwap_ema_vol_rsi, ER=1.0). Last-3 1m closes [23270.6, 23270.6, 23270.6] net=0.0 impulse=none. Dealer HOLD; logit side=PE. ITM bin CE 23150.0 votes=['CE_PREMIUM_UP', 'PE_PREMIUM_DOWN'] vs PE 23350.0 votes=['PE_DELTA_MORE_ITM'] reason=itm_bin_wait. Two ITM-leg votes can TREND without three INDEX 1m bars.",
-        "last_updated_ts": 1789639471
+        "observation": "NIFTY: 15m SIDEWAYS (low_er_rsi_mid_or_vwap_band, ER=0.0). Last-3 1m closes [23270.6, 23270.6, 23270.6] net=0.0 impulse=none. Last-3 was not an efficient impulse \u2014 15m chop skip is required, not over-coded. Dealer HOLD; logit side=PE. ITM bin CE 23150.0 votes=[] vs PE 23350.0 votes=[] reason=itm_bin_wait. Two ITM-leg votes can TREND without three INDEX 1m bars.",
+        "last_updated_ts": 1789642043
       },
       {
         "book_id": "MIX-ML-LOGIT-XR",
@@ -732,8 +720,8 @@
         "action": "SKIP",
         "reason": "NO_NEW_AFTER_1515",
         "why": "No NEW paper after 15:15 IST. Flatten leftover OPEN. CAS is expiry-only, not this clock.",
-        "index_regime": "TREND",
-        "regime_reason": "er_vwap_ema_vol_rsi",
+        "index_regime": "SIDEWAYS",
+        "regime_reason": "low_er_rsi_mid_or_vwap_band",
         "last3_closes": [
           23270.6,
           23270.6,
@@ -744,8 +732,8 @@
         "last3_impulse": null,
         "dealer_verdict": "HOLD",
         "logit_side": "PE",
-        "observation": "NIFTY: 15m TREND (er_vwap_ema_vol_rsi, ER=1.0). Last-3 1m closes [23270.6, 23270.6, 23270.6] net=0.0 impulse=none. Dealer HOLD; logit side=PE. ITM bin CE 23150.0 votes=['CE_PREMIUM_UP', 'PE_PREMIUM_DOWN'] vs PE 23350.0 votes=['PE_DELTA_MORE_ITM'] reason=itm_bin_wait. Two ITM-leg votes can TREND without three INDEX 1m bars.",
-        "last_updated_ts": 1789639471
+        "observation": "NIFTY: 15m SIDEWAYS (low_er_rsi_mid_or_vwap_band, ER=0.0). Last-3 1m closes [23270.6, 23270.6, 23270.6] net=0.0 impulse=none. Last-3 was not an efficient impulse \u2014 15m chop skip is required, not over-coded. Dealer HOLD; logit side=PE. ITM bin CE 23150.0 votes=[] vs PE 23350.0 votes=[] reason=itm_bin_wait. Two ITM-leg votes can TREND without three INDEX 1m bars.",
+        "last_updated_ts": 1789642043
       },
       {
         "book_id": "MIX-TV-EP-024",
@@ -754,8 +742,8 @@
         "action": "SKIP",
         "reason": "NO_NEW_AFTER_1515",
         "why": "No NEW paper after 15:15 IST. Flatten leftover OPEN. CAS is expiry-only, not this clock.",
-        "index_regime": "TREND",
-        "regime_reason": "er_vwap_ema_vol_rsi",
+        "index_regime": "SIDEWAYS",
+        "regime_reason": "low_er_rsi_mid_or_vwap_band",
         "last3_closes": [
           23270.6,
           23270.6,
@@ -766,8 +754,8 @@
         "last3_impulse": null,
         "dealer_verdict": "HOLD",
         "logit_side": "PE",
-        "observation": "NIFTY: 15m TREND (er_vwap_ema_vol_rsi, ER=1.0). Last-3 1m closes [23270.6, 23270.6, 23270.6] net=0.0 impulse=none. Dealer HOLD; logit side=PE. ITM bin CE 23150.0 votes=['CE_PREMIUM_UP', 'PE_PREMIUM_DOWN'] vs PE 23350.0 votes=['PE_DELTA_MORE_ITM'] reason=itm_bin_wait. Two ITM-leg votes can TREND without three INDEX 1m bars.",
-        "last_updated_ts": 1789639471
+        "observation": "NIFTY: 15m SIDEWAYS (low_er_rsi_mid_or_vwap_band, ER=0.0). Last-3 1m closes [23270.6, 23270.6, 23270.6] net=0.0 impulse=none. Last-3 was not an efficient impulse \u2014 15m chop skip is required, not over-coded. Dealer HOLD; logit side=PE. ITM bin CE 23150.0 votes=[] vs PE 23350.0 votes=[] reason=itm_bin_wait. Two ITM-leg votes can TREND without three INDEX 1m bars.",
+        "last_updated_ts": 1789642043
       },
       {
         "book_id": "ML-001",
@@ -776,8 +764,8 @@
         "action": "SKIP",
         "reason": "NO_NEW_AFTER_1515",
         "why": "No NEW paper after 15:15 IST. Flatten leftover OPEN. CAS is expiry-only, not this clock.",
-        "index_regime": "TREND",
-        "regime_reason": "er_vwap_ema_vol_rsi",
+        "index_regime": "SIDEWAYS",
+        "regime_reason": "low_er_rsi_mid_or_vwap_band",
         "last3_closes": [
           23270.6,
           23270.6,
@@ -788,8 +776,8 @@
         "last3_impulse": null,
         "dealer_verdict": "HOLD",
         "logit_side": "PE",
-        "observation": "NIFTY: 15m TREND (er_vwap_ema_vol_rsi, ER=1.0). Last-3 1m closes [23270.6, 23270.6, 23270.6] net=0.0 impulse=none. Dealer HOLD; logit side=PE. ITM bin CE 23150.0 votes=['CE_PREMIUM_UP', 'PE_PREMIUM_DOWN'] vs PE 23350.0 votes=['PE_DELTA_MORE_ITM'] reason=itm_bin_wait. Two ITM-leg votes can TREND without three INDEX 1m bars.",
-        "last_updated_ts": 1789639471
+        "observation": "NIFTY: 15m SIDEWAYS (low_er_rsi_mid_or_vwap_band, ER=0.0). Last-3 1m closes [23270.6, 23270.6, 23270.6] net=0.0 impulse=none. Last-3 was not an efficient impulse \u2014 15m chop skip is required, not over-coded. Dealer HOLD; logit side=PE. ITM bin CE 23150.0 votes=[] vs PE 23350.0 votes=[] reason=itm_bin_wait. Two ITM-leg votes can TREND without three INDEX 1m bars.",
+        "last_updated_ts": 1789642043
       },
       {
         "book_id": "ML-002",
@@ -798,8 +786,8 @@
         "action": "SKIP",
         "reason": "NO_NEW_AFTER_1515",
         "why": "No NEW paper after 15:15 IST. Flatten leftover OPEN. CAS is expiry-only, not this clock.",
-        "index_regime": "TREND",
-        "regime_reason": "er_vwap_ema_vol_rsi",
+        "index_regime": "SIDEWAYS",
+        "regime_reason": "low_er_rsi_mid_or_vwap_band",
         "last3_closes": [
           23270.6,
           23270.6,
@@ -810,8 +798,8 @@
         "last3_impulse": null,
         "dealer_verdict": "HOLD",
         "logit_side": "PE",
-        "observation": "NIFTY: 15m TREND (er_vwap_ema_vol_rsi, ER=1.0). Last-3 1m closes [23270.6, 23270.6, 23270.6] net=0.0 impulse=none. Dealer HOLD; logit side=PE. ITM bin CE 23150.0 votes=['CE_PREMIUM_UP', 'PE_PREMIUM_DOWN'] vs PE 23350.0 votes=['PE_DELTA_MORE_ITM'] reason=itm_bin_wait. Two ITM-leg votes can TREND without three INDEX 1m bars.",
-        "last_updated_ts": 1789639471
+        "observation": "NIFTY: 15m SIDEWAYS (low_er_rsi_mid_or_vwap_band, ER=0.0). Last-3 1m closes [23270.6, 23270.6, 23270.6] net=0.0 impulse=none. Last-3 was not an efficient impulse \u2014 15m chop skip is required, not over-coded. Dealer HOLD; logit side=PE. ITM bin CE 23150.0 votes=[] vs PE 23350.0 votes=[] reason=itm_bin_wait. Two ITM-leg votes can TREND without three INDEX 1m bars.",
+        "last_updated_ts": 1789642043
       },
       {
         "book_id": "ML-1",
@@ -820,8 +808,8 @@
         "action": "SKIP",
         "reason": "NO_NEW_AFTER_1515",
         "why": "No NEW paper after 15:15 IST. Flatten leftover OPEN. CAS is expiry-only, not this clock.",
-        "index_regime": "TREND",
-        "regime_reason": "er_vwap_ema_vol_rsi",
+        "index_regime": "SIDEWAYS",
+        "regime_reason": "low_er_rsi_mid_or_vwap_band",
         "last3_closes": [
           23270.6,
           23270.6,
@@ -832,8 +820,8 @@
         "last3_impulse": null,
         "dealer_verdict": "HOLD",
         "logit_side": "PE",
-        "observation": "NIFTY: 15m TREND (er_vwap_ema_vol_rsi, ER=1.0). Last-3 1m closes [23270.6, 23270.6, 23270.6] net=0.0 impulse=none. Dealer HOLD; logit side=PE. ITM bin CE 23150.0 votes=['CE_PREMIUM_UP', 'PE_PREMIUM_DOWN'] vs PE 23350.0 votes=['PE_DELTA_MORE_ITM'] reason=itm_bin_wait. Two ITM-leg votes can TREND without three INDEX 1m bars.",
-        "last_updated_ts": 1789639471
+        "observation": "NIFTY: 15m SIDEWAYS (low_er_rsi_mid_or_vwap_band, ER=0.0). Last-3 1m closes [23270.6, 23270.6, 23270.6] net=0.0 impulse=none. Last-3 was not an efficient impulse \u2014 15m chop skip is required, not over-coded. Dealer HOLD; logit side=PE. ITM bin CE 23150.0 votes=[] vs PE 23350.0 votes=[] reason=itm_bin_wait. Two ITM-leg votes can TREND without three INDEX 1m bars.",
+        "last_updated_ts": 1789642043
       }
     ],
     "cancelled": [
@@ -934,7 +922,7 @@
         "observation": "NIFTY CE CANCEL_STRIKE_ROLL: saw a trade, then cancelled \u2014 not a silent miss."
       }
     ],
-    "n_skip_events": 2815,
+    "n_skip_events": 3895,
     "n_cancelled": 6
   },
   "itm_bins": {
@@ -944,100 +932,88 @@
       {
         "underlying": "NIFTY",
         "index": 23270.6,
-        "ts": 1789639471,
+        "ts": 1789642043,
         "side": null,
         "reason": "itm_bin_wait",
         "wait_3_index_bars": false,
         "ce": {
           "strike": 23150.0,
           "moneyness": "ITM",
-          "px": 220.0,
-          "volume": 21987550.0,
-          "oi": 552695.0,
-          "delta": 0.68556
+          "px": 228.9,
+          "volume": 22134190.0,
+          "oi": 509405.0,
+          "delta": 0.67356
         },
         "pe": {
           "strike": 23350.0,
           "moneyness": "ITM",
-          "px": 132.95,
-          "volume": 66646905.0,
-          "oi": 1561690.0,
-          "delta": -0.56483
+          "px": 124.25,
+          "volume": 67289820.0,
+          "oi": 1594125.0,
+          "delta": -0.57096
         },
-        "ce_votes": [
-          "CE_PREMIUM_UP",
-          "PE_PREMIUM_DOWN"
-        ],
-        "pe_votes": [
-          "PE_DELTA_MORE_ITM"
-        ],
-        "n_ce_votes": 2,
-        "n_pe_votes": 1,
+        "ce_votes": [],
+        "pe_votes": [],
+        "n_ce_votes": 0,
+        "n_pe_votes": 0,
         "missing": []
       },
       {
         "underlying": "BANKNIFTY",
         "index": 56055.75,
-        "ts": 1789639476,
-        "side": "PE",
-        "reason": "itm_bin_pe_confirm",
+        "ts": 1789642048,
+        "side": null,
+        "reason": "itm_bin_wait",
         "wait_3_index_bars": false,
         "ce": {
           "strike": 56000.0,
           "moneyness": "ITM",
-          "px": 710.45,
-          "volume": 2146620.0,
-          "oi": 466380.0,
-          "delta": 0.57142
+          "px": 719.0,
+          "volume": 2172240.0,
+          "oi": 468990.0,
+          "delta": 0.57052
         },
         "pe": {
           "strike": 56200.0,
           "moneyness": "ITM",
-          "px": 506.85,
-          "volume": 2421720.0,
-          "oi": 174930.0,
-          "delta": -0.4821
+          "px": 492.0,
+          "volume": 2437980.0,
+          "oi": 169860.0,
+          "delta": -0.48187
         },
-        "ce_votes": [
-          "CE_PREMIUM_UP"
-        ],
-        "pe_votes": [
-          "PE_PREMIUM_UP",
-          "PE_DELTA_MORE_ITM"
-        ],
-        "n_ce_votes": 1,
-        "n_pe_votes": 2,
+        "ce_votes": [],
+        "pe_votes": [],
+        "n_ce_votes": 0,
+        "n_pe_votes": 0,
         "missing": []
       },
       {
         "underlying": "SENSEX",
         "index": 74314.59,
-        "ts": 1789639480,
+        "ts": 1789642053,
         "side": null,
         "reason": "itm_bin_wait",
         "wait_3_index_bars": false,
         "ce": {
           "strike": 74200.0,
           "moneyness": "ITM",
-          "px": 114.35,
-          "volume": 74992000.0,
-          "oi": 508080.0,
+          "px": 114.3,
+          "volume": 75164580.0,
+          "oi": 459980.0,
           "delta": null
         },
         "pe": {
           "strike": 74400.0,
           "moneyness": "ITM",
-          "px": 85.25,
-          "volume": 323649840.0,
-          "oi": 3199080.0,
-          "delta": -0.87113
+          "px": 85.3,
+          "volume": 324362060.0,
+          "oi": 3064500.0,
+          "delta": -0.87159
         },
         "ce_votes": [],
-        "pe_votes": [
-          "PE_PREMIUM_UP"
-        ],
+        "pe_votes": [],
         "n_ce_votes": 0,
-        "n_pe_votes": 1,
+        "n_pe_votes": 0,
         "missing": [
           "ce_delta"
         ]
@@ -1109,7 +1085,7 @@
     {
       "model_id": "MIX-DEFAULT-BUY",
       "what": "Dealer CE/PE from INDEX vs ATM CE/PE deltas. Customer default ID; PAPER only.",
-      "last_run_ist": "2026-09-17T15:34:46+05:30",
+      "last_run_ist": "2026-09-17T16:17:39+05:30",
       "open": [],
       "n_closed": 87,
       "n_open": 0,
@@ -1136,7 +1112,7 @@
     {
       "model_id": "ML-001",
       "what": "KMeans+IsolationForest overlay. SKIP if HOLD/FOLLOW-GAP. Does not invent CE/PE.",
-      "last_run_ist": "2026-09-17T15:34:46+05:30",
+      "last_run_ist": "2026-09-17T16:17:39+05:30",
       "open": [],
       "n_closed": 0,
       "n_open": 0,
@@ -1163,7 +1139,7 @@
     {
       "model_id": "ML-002",
       "what": "OU residual |z|\u22652 or FOLLOW-GAP SKIP. Windows 40/60/90. Does not invent CE/PE.",
-      "last_run_ist": "2026-09-17T15:34:46+05:30",
+      "last_run_ist": "2026-09-17T16:17:39+05:30",
       "open": [],
       "n_closed": 0,
       "n_open": 0,
@@ -1190,7 +1166,7 @@
     {
       "model_id": "ML-1",
       "what": "Meta-label take/skip on closed paper labels. Else DATA_INSUFFICIENT.",
-      "last_run_ist": "2026-09-17T15:34:46+05:30",
+      "last_run_ist": "2026-09-17T16:17:39+05:30",
       "open": [],
       "n_closed": 0,
       "n_open": 0,
@@ -1217,7 +1193,7 @@
     {
       "model_id": "MIX-ML-LOGIT",
       "what": "INDEX 3m walk-forward logit (ml_leans.py). Scan book. Not customer default.",
-      "last_run_ist": "2026-09-17T15:34:46+05:30",
+      "last_run_ist": "2026-09-17T16:17:39+05:30",
       "open": [],
       "n_closed": 88,
       "n_open": 0,
@@ -1244,7 +1220,7 @@
     {
       "model_id": "MIX-ML-LOGIT-XR",
       "what": "Logit AND range-expansion. Scan book. Not customer default.",
-      "last_run_ist": "2026-09-17T15:34:46+05:30",
+      "last_run_ist": "2026-09-17T16:17:39+05:30",
       "open": [],
       "n_closed": 0,
       "n_open": 0,
@@ -1271,7 +1247,7 @@
     {
       "model_id": "MIX-TV-EP-024",
       "what": "Factory SMA20 INDEX calibrator \u2192 ATM CE/PE. KEEP_ALL lab. Not a promote.",
-      "last_run_ist": "2026-09-17T15:34:46+05:30",
+      "last_run_ist": "2026-09-17T16:17:39+05:30",
       "open": [],
       "n_closed": 0,
       "n_open": 0,
@@ -1298,7 +1274,7 @@
     {
       "model_id": "MIX-ML-GREEKS",
       "what": "TOKEN_ML ML-2 paper: Dhan delta/IV/theta/gamma. HOLD rich vol / late theta / missing greeks. Not customer default.",
-      "last_run_ist": "2026-09-17T15:34:46+05:30",
+      "last_run_ist": "2026-09-17T16:17:39+05:30",
       "open": [],
       "n_closed": 0,
       "n_open": 0,
@@ -1721,29 +1697,29 @@
     "n_sideways_bars": 6,
     "last_index_regime": {
       "NIFTY": {
-        "regime": "TREND",
-        "direction": "DOWN",
+        "regime": "SIDEWAYS",
+        "direction": "FLAT",
         "layer": "HYPOTHESIS",
-        "n": 160,
+        "n": 203,
         "lookback": 15,
-        "er": 1.0,
+        "er": 0.0,
         "flip_frac": 0.0,
-        "range_over_atr": 14.0,
-        "mid_dev_atr": 7.4667,
-        "net_signed": -23.75,
-        "vwap": 23271.174,
-        "vwap_src": "OK",
-        "ema": 23281.6919,
+        "range_over_atr": 0.0,
+        "mid_dev_atr": null,
+        "net_signed": 0.0,
+        "vwap": 23270.6,
+        "vwap_src": "EQUAL_WEIGHT_PROJECT",
+        "ema": 23270.7841,
         "ema_len": 21,
         "rsi": 23.72,
         "vol_expand": null,
         "vol_status": "DATA_INSUFFICIENT",
         "vol_last3_sum": null,
-        "realized_vol": 0.000272,
-        "iv": 10.851306607052319,
-        "votes_up": 1,
-        "votes_down": 4,
-        "reason": "er_vwap_ema_vol_rsi",
+        "realized_vol": 0.0,
+        "iv": 11.647458384753227,
+        "votes_up": 2,
+        "votes_down": 2,
+        "reason": "low_er_rsi_mid_or_vwap_band",
         "last3_closes": [
           23270.6,
           23270.6,
@@ -1756,27 +1732,22 @@
         "itm_bin": {
           "side": null,
           "reason": "itm_bin_wait",
-          "pe_votes": [
-            "PE_DELTA_MORE_ITM"
-          ],
-          "ce_votes": [
-            "CE_PREMIUM_UP",
-            "PE_PREMIUM_DOWN"
-          ],
-          "n_pe_votes": 1,
-          "n_ce_votes": 2,
+          "pe_votes": [],
+          "ce_votes": [],
+          "n_pe_votes": 0,
+          "n_ce_votes": 0,
           "missing": [],
           "ce": {
             "side": "CE",
             "strike": 23150.0,
             "atm": 23250.0,
             "moneyness": "ITM",
-            "px": 220.0,
-            "low": 220.0,
+            "px": 228.9,
+            "low": 228.9,
             "quote_src": "STRIKE_23150",
-            "volume": 21987550.0,
-            "oi": 552695.0,
-            "delta": 0.68556,
+            "volume": 22134190.0,
+            "oi": 509405.0,
+            "delta": 0.67356,
             "layer": "HYPOTHESIS"
           },
           "pe": {
@@ -1784,12 +1755,12 @@
             "strike": 23350.0,
             "atm": 23250.0,
             "moneyness": "ITM",
-            "px": 132.95,
-            "low": 132.95,
+            "px": 124.25,
+            "low": 124.25,
             "quote_src": "STRIKE_23350",
-            "volume": 66646905.0,
-            "oi": 1561690.0,
-            "delta": -0.56483,
+            "volume": 67289820.0,
+            "oi": 1594125.0,
+            "delta": -0.57096,
             "layer": "HYPOTHESIS"
           },
           "index": 23270.6,
@@ -1797,29 +1768,29 @@
         }
       },
       "BANKNIFTY": {
-        "regime": "TREND",
-        "direction": "DOWN",
+        "regime": "SIDEWAYS",
+        "direction": "FLAT",
         "layer": "HYPOTHESIS",
-        "n": 161,
+        "n": 204,
         "lookback": 15,
-        "er": 1.0,
+        "er": 0.0,
         "flip_frac": 0.0,
-        "range_over_atr": 14.0,
-        "mid_dev_atr": 7.4667,
-        "net_signed": -81.7,
-        "vwap": 56068.5657,
-        "vwap_src": "OK",
-        "ema": 56094.0791,
+        "range_over_atr": 0.0,
+        "mid_dev_atr": null,
+        "net_signed": 0.0,
+        "vwap": 56055.75,
+        "vwap_src": "EQUAL_WEIGHT_PROJECT",
+        "ema": 56056.3863,
         "ema_len": 21,
         "rsi": 22.53,
         "vol_expand": null,
         "vol_status": "DATA_INSUFFICIENT",
         "vol_last3_sum": null,
-        "realized_vol": 0.000389,
-        "iv": 14.039438835154419,
+        "realized_vol": 0.0,
+        "iv": 14.420858027533454,
         "votes_up": 1,
-        "votes_down": 4,
-        "reason": "itm_bin_pe_confirm",
+        "votes_down": 2,
+        "reason": "low_er_rsi_mid_or_vwap_band",
         "last3_closes": [
           56055.75,
           56055.75,
@@ -1830,29 +1801,24 @@
         "last3_impulse": null,
         "last3_reason": "last3_not_efficient",
         "itm_bin": {
-          "side": "PE",
-          "reason": "itm_bin_pe_confirm",
-          "pe_votes": [
-            "PE_PREMIUM_UP",
-            "PE_DELTA_MORE_ITM"
-          ],
-          "ce_votes": [
-            "CE_PREMIUM_UP"
-          ],
-          "n_pe_votes": 2,
-          "n_ce_votes": 1,
+          "side": null,
+          "reason": "itm_bin_wait",
+          "pe_votes": [],
+          "ce_votes": [],
+          "n_pe_votes": 0,
+          "n_ce_votes": 0,
           "missing": [],
           "ce": {
             "side": "CE",
             "strike": 56000.0,
             "atm": 56100.0,
             "moneyness": "ITM",
-            "px": 710.45,
-            "low": 710.45,
+            "px": 719.0,
+            "low": 719.0,
             "quote_src": "STRIKE_56000",
-            "volume": 2146620.0,
-            "oi": 466380.0,
-            "delta": 0.57142,
+            "volume": 2172240.0,
+            "oi": 468990.0,
+            "delta": 0.57052,
             "layer": "HYPOTHESIS"
           },
           "pe": {
@@ -1860,12 +1826,12 @@
             "strike": 56200.0,
             "atm": 56100.0,
             "moneyness": "ITM",
-            "px": 506.85,
-            "low": 506.85,
+            "px": 492.0,
+            "low": 492.0,
             "quote_src": "STRIKE_56200",
-            "volume": 2421720.0,
-            "oi": 174930.0,
-            "delta": -0.4821,
+            "volume": 2437980.0,
+            "oi": 169860.0,
+            "delta": -0.48187,
             "layer": "HYPOTHESIS"
           },
           "index": 56055.75,
@@ -1873,29 +1839,29 @@
         }
       },
       "SENSEX": {
-        "regime": "TREND",
-        "direction": "DOWN",
+        "regime": "SIDEWAYS",
+        "direction": "FLAT",
         "layer": "HYPOTHESIS",
-        "n": 160,
+        "n": 203,
         "lookback": 15,
-        "er": 1.0,
+        "er": 0.0,
         "flip_frac": 0.0,
-        "range_over_atr": 14.0,
-        "mid_dev_atr": 8.4,
-        "net_signed": -99.64,
-        "vwap": 74314.643,
-        "vwap_src": "OK",
-        "ema": 74368.9773,
+        "range_over_atr": 0.0,
+        "mid_dev_atr": null,
+        "net_signed": 0.0,
+        "vwap": 74314.59,
+        "vwap_src": "EQUAL_WEIGHT_PROJECT",
+        "ema": 74315.4928,
         "ema_len": 21,
         "rsi": 19.79,
         "vol_expand": null,
         "vol_status": "DATA_INSUFFICIENT",
         "vol_last3_sum": null,
-        "realized_vol": 0.000358,
-        "iv": 0.47825792407871337,
-        "votes_up": 0,
-        "votes_down": 4,
-        "reason": "er_vwap_ema_vol_rsi",
+        "realized_vol": 0.0,
+        "iv": 0.48045681203311014,
+        "votes_up": 1,
+        "votes_down": 2,
+        "reason": "low_er_rsi_mid_or_vwap_band",
         "last3_closes": [
           74314.59,
           74314.59,
@@ -1908,11 +1874,9 @@
         "itm_bin": {
           "side": null,
           "reason": "itm_bin_wait",
-          "pe_votes": [
-            "PE_PREMIUM_UP"
-          ],
+          "pe_votes": [],
           "ce_votes": [],
-          "n_pe_votes": 1,
+          "n_pe_votes": 0,
           "n_ce_votes": 0,
           "missing": [
             "ce_delta"
@@ -1922,11 +1886,11 @@
             "strike": 74200.0,
             "atm": 74300.0,
             "moneyness": "ITM",
-            "px": 114.35,
-            "low": 114.35,
+            "px": 114.3,
+            "low": 114.3,
             "quote_src": "STRIKE_74200",
-            "volume": 74992000.0,
-            "oi": 508080.0,
+            "volume": 75164580.0,
+            "oi": 459980.0,
             "delta": null,
             "layer": "HYPOTHESIS"
           },
@@ -1935,12 +1899,12 @@
             "strike": 74400.0,
             "atm": 74300.0,
             "moneyness": "ITM",
-            "px": 85.25,
-            "low": 85.25,
+            "px": 85.3,
+            "low": 85.3,
             "quote_src": "STRIKE_74400",
-            "volume": 323649840.0,
-            "oi": 3199080.0,
-            "delta": -0.87113,
+            "volume": 324362060.0,
+            "oi": 3064500.0,
+            "delta": -0.87159,
             "layer": "HYPOTHESIS"
           },
           "index": 74314.59,
@@ -1952,20 +1916,20 @@
       "layer": "HYPOTHESIS",
       "note": "Saw a CE/PE but did not OPEN, or OPENED then CANCELLED. Not live orders. Last-3 PUT/CE impulse can TREND; 15m chop skip stays when last-3 is also chop.",
       "observations": [
-        "BANKNIFTY: 15m TREND (itm_bin_pe_confirm, ER=1.0). Last-3 1m closes [56055.75, 56055.75, 56055.75] net=0.0 impulse=none. Dealer HOLD; logit side=CE. ITM bin CE 56000.0 votes=['CE_PREMIUM_UP'] vs PE 56200.0 votes=['PE_PREMIUM_UP', 'PE_DELTA_MORE_ITM'] reason=itm_bin_pe_confirm. Two ITM-leg votes can TREND without three INDEX 1m bars.",
-        "NIFTY: 15m TREND (er_vwap_ema_vol_rsi, ER=1.0). Last-3 1m closes [23270.6, 23270.6, 23270.6] net=0.0 impulse=none. Dealer HOLD; logit side=PE. ITM bin CE 23150.0 votes=['CE_PREMIUM_UP', 'PE_PREMIUM_DOWN'] vs PE 23350.0 votes=['PE_DELTA_MORE_ITM'] reason=itm_bin_wait. Two ITM-leg votes can TREND without three INDEX 1m bars.",
-        "SENSEX: 15m TREND (er_vwap_ema_vol_rsi, ER=1.0). Last-3 1m closes [74314.59, 74314.59, 74314.59] net=0.0 impulse=none. Dealer HOLD; logit side=SKIP. ITM bin CE 74200.0 votes=[] vs PE 74400.0 votes=['PE_PREMIUM_UP'] reason=itm_bin_wait. Two ITM-leg votes can TREND without three INDEX 1m bars."
+        "BANKNIFTY: 15m SIDEWAYS (low_er_rsi_mid_or_vwap_band, ER=0.0). Last-3 1m closes [56055.75, 56055.75, 56055.75] net=0.0 impulse=none. Last-3 was not an efficient impulse \u2014 15m chop skip is required, not over-coded. Dealer HOLD; logit side=CE. ITM bin CE 56000.0 votes=[] vs PE 56200.0 votes=[] reason=itm_bin_wait. Two ITM-leg votes can TREND without three INDEX 1m bars.",
+        "NIFTY: 15m SIDEWAYS (low_er_rsi_mid_or_vwap_band, ER=0.0). Last-3 1m closes [23270.6, 23270.6, 23270.6] net=0.0 impulse=none. Last-3 was not an efficient impulse \u2014 15m chop skip is required, not over-coded. Dealer HOLD; logit side=PE. ITM bin CE 23150.0 votes=[] vs PE 23350.0 votes=[] reason=itm_bin_wait. Two ITM-leg votes can TREND without three INDEX 1m bars.",
+        "SENSEX: 15m SIDEWAYS (low_er_rsi_mid_or_vwap_band, ER=0.0). Last-3 1m closes [74314.59, 74314.59, 74314.59] net=0.0 impulse=none. Last-3 was not an efficient impulse \u2014 15m chop skip is required, not over-coded. Dealer HOLD; logit side=PE. ITM bin CE 74200.0 votes=[] vs PE 74400.0 votes=[] reason=itm_bin_wait. Two ITM-leg votes can TREND without three INDEX 1m bars."
       ],
       "skipped_latest": [
         {
           "book_id": "MIX-DEFAULT-BUY",
           "underlying": "SENSEX",
-          "seen_side": null,
+          "seen_side": "PE",
           "action": "SKIP",
           "reason": "NO_NEW_AFTER_1515",
           "why": "No NEW paper after 15:15 IST. Flatten leftover OPEN. CAS is expiry-only, not this clock.",
-          "index_regime": "TREND",
-          "regime_reason": "er_vwap_ema_vol_rsi",
+          "index_regime": "SIDEWAYS",
+          "regime_reason": "low_er_rsi_mid_or_vwap_band",
           "last3_closes": [
             74314.59,
             74314.59,
@@ -1975,19 +1939,19 @@
           "last3_er": 0.0,
           "last3_impulse": null,
           "dealer_verdict": "HOLD",
-          "logit_side": null,
-          "observation": "SENSEX: 15m TREND (er_vwap_ema_vol_rsi, ER=1.0). Last-3 1m closes [74314.59, 74314.59, 74314.59] net=0.0 impulse=none. Dealer HOLD; logit side=SKIP. ITM bin CE 74200.0 votes=[] vs PE 74400.0 votes=['PE_PREMIUM_UP'] reason=itm_bin_wait. Two ITM-leg votes can TREND without three INDEX 1m bars.",
-          "last_updated_ts": 1789639480
+          "logit_side": "PE",
+          "observation": "SENSEX: 15m SIDEWAYS (low_er_rsi_mid_or_vwap_band, ER=0.0). Last-3 1m closes [74314.59, 74314.59, 74314.59] net=0.0 impulse=none. Last-3 was not an efficient impulse \u2014 15m chop skip is required, not over-coded. Dealer HOLD; logit side=PE. ITM bin CE 74200.0 votes=[] vs PE 74400.0 votes=[] reason=itm_bin_wait. Two ITM-leg votes can TREND without three INDEX 1m bars.",
+          "last_updated_ts": 1789642053
         },
         {
           "book_id": "MIX-ML-GREEKS",
           "underlying": "SENSEX",
-          "seen_side": null,
+          "seen_side": "PE",
           "action": "SKIP",
           "reason": "NO_NEW_AFTER_1515",
           "why": "No NEW paper after 15:15 IST. Flatten leftover OPEN. CAS is expiry-only, not this clock.",
-          "index_regime": "TREND",
-          "regime_reason": "er_vwap_ema_vol_rsi",
+          "index_regime": "SIDEWAYS",
+          "regime_reason": "low_er_rsi_mid_or_vwap_band",
           "last3_closes": [
             74314.59,
             74314.59,
@@ -1997,19 +1961,19 @@
           "last3_er": 0.0,
           "last3_impulse": null,
           "dealer_verdict": "HOLD",
-          "logit_side": null,
-          "observation": "SENSEX: 15m TREND (er_vwap_ema_vol_rsi, ER=1.0). Last-3 1m closes [74314.59, 74314.59, 74314.59] net=0.0 impulse=none. Dealer HOLD; logit side=SKIP. ITM bin CE 74200.0 votes=[] vs PE 74400.0 votes=['PE_PREMIUM_UP'] reason=itm_bin_wait. Two ITM-leg votes can TREND without three INDEX 1m bars.",
-          "last_updated_ts": 1789639480
+          "logit_side": "PE",
+          "observation": "SENSEX: 15m SIDEWAYS (low_er_rsi_mid_or_vwap_band, ER=0.0). Last-3 1m closes [74314.59, 74314.59, 74314.59] net=0.0 impulse=none. Last-3 was not an efficient impulse \u2014 15m chop skip is required, not over-coded. Dealer HOLD; logit side=PE. ITM bin CE 74200.0 votes=[] vs PE 74400.0 votes=[] reason=itm_bin_wait. Two ITM-leg votes can TREND without three INDEX 1m bars.",
+          "last_updated_ts": 1789642053
         },
         {
           "book_id": "MIX-ML-LOGIT",
           "underlying": "SENSEX",
-          "seen_side": null,
+          "seen_side": "PE",
           "action": "SKIP",
           "reason": "NO_NEW_AFTER_1515",
           "why": "No NEW paper after 15:15 IST. Flatten leftover OPEN. CAS is expiry-only, not this clock.",
-          "index_regime": "TREND",
-          "regime_reason": "er_vwap_ema_vol_rsi",
+          "index_regime": "SIDEWAYS",
+          "regime_reason": "low_er_rsi_mid_or_vwap_band",
           "last3_closes": [
             74314.59,
             74314.59,
@@ -2019,19 +1983,19 @@
           "last3_er": 0.0,
           "last3_impulse": null,
           "dealer_verdict": "HOLD",
-          "logit_side": null,
-          "observation": "SENSEX: 15m TREND (er_vwap_ema_vol_rsi, ER=1.0). Last-3 1m closes [74314.59, 74314.59, 74314.59] net=0.0 impulse=none. Dealer HOLD; logit side=SKIP. ITM bin CE 74200.0 votes=[] vs PE 74400.0 votes=['PE_PREMIUM_UP'] reason=itm_bin_wait. Two ITM-leg votes can TREND without three INDEX 1m bars.",
-          "last_updated_ts": 1789639480
+          "logit_side": "PE",
+          "observation": "SENSEX: 15m SIDEWAYS (low_er_rsi_mid_or_vwap_band, ER=0.0). Last-3 1m closes [74314.59, 74314.59, 74314.59] net=0.0 impulse=none. Last-3 was not an efficient impulse \u2014 15m chop skip is required, not over-coded. Dealer HOLD; logit side=PE. ITM bin CE 74200.0 votes=[] vs PE 74400.0 votes=[] reason=itm_bin_wait. Two ITM-leg votes can TREND without three INDEX 1m bars.",
+          "last_updated_ts": 1789642053
         },
         {
           "book_id": "MIX-ML-LOGIT-XR",
           "underlying": "SENSEX",
-          "seen_side": null,
+          "seen_side": "PE",
           "action": "SKIP",
           "reason": "NO_NEW_AFTER_1515",
           "why": "No NEW paper after 15:15 IST. Flatten leftover OPEN. CAS is expiry-only, not this clock.",
-          "index_regime": "TREND",
-          "regime_reason": "er_vwap_ema_vol_rsi",
+          "index_regime": "SIDEWAYS",
+          "regime_reason": "low_er_rsi_mid_or_vwap_band",
           "last3_closes": [
             74314.59,
             74314.59,
@@ -2041,19 +2005,19 @@
           "last3_er": 0.0,
           "last3_impulse": null,
           "dealer_verdict": "HOLD",
-          "logit_side": null,
-          "observation": "SENSEX: 15m TREND (er_vwap_ema_vol_rsi, ER=1.0). Last-3 1m closes [74314.59, 74314.59, 74314.59] net=0.0 impulse=none. Dealer HOLD; logit side=SKIP. ITM bin CE 74200.0 votes=[] vs PE 74400.0 votes=['PE_PREMIUM_UP'] reason=itm_bin_wait. Two ITM-leg votes can TREND without three INDEX 1m bars.",
-          "last_updated_ts": 1789639480
+          "logit_side": "PE",
+          "observation": "SENSEX: 15m SIDEWAYS (low_er_rsi_mid_or_vwap_band, ER=0.0). Last-3 1m closes [74314.59, 74314.59, 74314.59] net=0.0 impulse=none. Last-3 was not an efficient impulse \u2014 15m chop skip is required, not over-coded. Dealer HOLD; logit side=PE. ITM bin CE 74200.0 votes=[] vs PE 74400.0 votes=[] reason=itm_bin_wait. Two ITM-leg votes can TREND without three INDEX 1m bars.",
+          "last_updated_ts": 1789642053
         },
         {
           "book_id": "MIX-TV-EP-024",
           "underlying": "SENSEX",
-          "seen_side": null,
+          "seen_side": "PE",
           "action": "SKIP",
           "reason": "NO_NEW_AFTER_1515",
           "why": "No NEW paper after 15:15 IST. Flatten leftover OPEN. CAS is expiry-only, not this clock.",
-          "index_regime": "TREND",
-          "regime_reason": "er_vwap_ema_vol_rsi",
+          "index_regime": "SIDEWAYS",
+          "regime_reason": "low_er_rsi_mid_or_vwap_band",
           "last3_closes": [
             74314.59,
             74314.59,
@@ -2063,19 +2027,19 @@
           "last3_er": 0.0,
           "last3_impulse": null,
           "dealer_verdict": "HOLD",
-          "logit_side": null,
-          "observation": "SENSEX: 15m TREND (er_vwap_ema_vol_rsi, ER=1.0). Last-3 1m closes [74314.59, 74314.59, 74314.59] net=0.0 impulse=none. Dealer HOLD; logit side=SKIP. ITM bin CE 74200.0 votes=[] vs PE 74400.0 votes=['PE_PREMIUM_UP'] reason=itm_bin_wait. Two ITM-leg votes can TREND without three INDEX 1m bars.",
-          "last_updated_ts": 1789639480
+          "logit_side": "PE",
+          "observation": "SENSEX: 15m SIDEWAYS (low_er_rsi_mid_or_vwap_band, ER=0.0). Last-3 1m closes [74314.59, 74314.59, 74314.59] net=0.0 impulse=none. Last-3 was not an efficient impulse \u2014 15m chop skip is required, not over-coded. Dealer HOLD; logit side=PE. ITM bin CE 74200.0 votes=[] vs PE 74400.0 votes=[] reason=itm_bin_wait. Two ITM-leg votes can TREND without three INDEX 1m bars.",
+          "last_updated_ts": 1789642053
         },
         {
           "book_id": "ML-001",
           "underlying": "SENSEX",
-          "seen_side": null,
+          "seen_side": "PE",
           "action": "SKIP",
           "reason": "NO_NEW_AFTER_1515",
           "why": "No NEW paper after 15:15 IST. Flatten leftover OPEN. CAS is expiry-only, not this clock.",
-          "index_regime": "TREND",
-          "regime_reason": "er_vwap_ema_vol_rsi",
+          "index_regime": "SIDEWAYS",
+          "regime_reason": "low_er_rsi_mid_or_vwap_band",
           "last3_closes": [
             74314.59,
             74314.59,
@@ -2085,19 +2049,19 @@
           "last3_er": 0.0,
           "last3_impulse": null,
           "dealer_verdict": "HOLD",
-          "logit_side": null,
-          "observation": "SENSEX: 15m TREND (er_vwap_ema_vol_rsi, ER=1.0). Last-3 1m closes [74314.59, 74314.59, 74314.59] net=0.0 impulse=none. Dealer HOLD; logit side=SKIP. ITM bin CE 74200.0 votes=[] vs PE 74400.0 votes=['PE_PREMIUM_UP'] reason=itm_bin_wait. Two ITM-leg votes can TREND without three INDEX 1m bars.",
-          "last_updated_ts": 1789639480
+          "logit_side": "PE",
+          "observation": "SENSEX: 15m SIDEWAYS (low_er_rsi_mid_or_vwap_band, ER=0.0). Last-3 1m closes [74314.59, 74314.59, 74314.59] net=0.0 impulse=none. Last-3 was not an efficient impulse \u2014 15m chop skip is required, not over-coded. Dealer HOLD; logit side=PE. ITM bin CE 74200.0 votes=[] vs PE 74400.0 votes=[] reason=itm_bin_wait. Two ITM-leg votes can TREND without three INDEX 1m bars.",
+          "last_updated_ts": 1789642053
         },
         {
           "book_id": "ML-002",
           "underlying": "SENSEX",
-          "seen_side": null,
+          "seen_side": "PE",
           "action": "SKIP",
           "reason": "NO_NEW_AFTER_1515",
           "why": "No NEW paper after 15:15 IST. Flatten leftover OPEN. CAS is expiry-only, not this clock.",
-          "index_regime": "TREND",
-          "regime_reason": "er_vwap_ema_vol_rsi",
+          "index_regime": "SIDEWAYS",
+          "regime_reason": "low_er_rsi_mid_or_vwap_band",
           "last3_closes": [
             74314.59,
             74314.59,
@@ -2107,19 +2071,19 @@
           "last3_er": 0.0,
           "last3_impulse": null,
           "dealer_verdict": "HOLD",
-          "logit_side": null,
-          "observation": "SENSEX: 15m TREND (er_vwap_ema_vol_rsi, ER=1.0). Last-3 1m closes [74314.59, 74314.59, 74314.59] net=0.0 impulse=none. Dealer HOLD; logit side=SKIP. ITM bin CE 74200.0 votes=[] vs PE 74400.0 votes=['PE_PREMIUM_UP'] reason=itm_bin_wait. Two ITM-leg votes can TREND without three INDEX 1m bars.",
-          "last_updated_ts": 1789639480
+          "logit_side": "PE",
+          "observation": "SENSEX: 15m SIDEWAYS (low_er_rsi_mid_or_vwap_band, ER=0.0). Last-3 1m closes [74314.59, 74314.59, 74314.59] net=0.0 impulse=none. Last-3 was not an efficient impulse \u2014 15m chop skip is required, not over-coded. Dealer HOLD; logit side=PE. ITM bin CE 74200.0 votes=[] vs PE 74400.0 votes=[] reason=itm_bin_wait. Two ITM-leg votes can TREND without three INDEX 1m bars.",
+          "last_updated_ts": 1789642053
         },
         {
           "book_id": "ML-1",
           "underlying": "SENSEX",
-          "seen_side": null,
+          "seen_side": "PE",
           "action": "SKIP",
           "reason": "NO_NEW_AFTER_1515",
           "why": "No NEW paper after 15:15 IST. Flatten leftover OPEN. CAS is expiry-only, not this clock.",
-          "index_regime": "TREND",
-          "regime_reason": "er_vwap_ema_vol_rsi",
+          "index_regime": "SIDEWAYS",
+          "regime_reason": "low_er_rsi_mid_or_vwap_band",
           "last3_closes": [
             74314.59,
             74314.59,
@@ -2129,19 +2093,19 @@
           "last3_er": 0.0,
           "last3_impulse": null,
           "dealer_verdict": "HOLD",
-          "logit_side": null,
-          "observation": "SENSEX: 15m TREND (er_vwap_ema_vol_rsi, ER=1.0). Last-3 1m closes [74314.59, 74314.59, 74314.59] net=0.0 impulse=none. Dealer HOLD; logit side=SKIP. ITM bin CE 74200.0 votes=[] vs PE 74400.0 votes=['PE_PREMIUM_UP'] reason=itm_bin_wait. Two ITM-leg votes can TREND without three INDEX 1m bars.",
-          "last_updated_ts": 1789639480
+          "logit_side": "PE",
+          "observation": "SENSEX: 15m SIDEWAYS (low_er_rsi_mid_or_vwap_band, ER=0.0). Last-3 1m closes [74314.59, 74314.59, 74314.59] net=0.0 impulse=none. Last-3 was not an efficient impulse \u2014 15m chop skip is required, not over-coded. Dealer HOLD; logit side=PE. ITM bin CE 74200.0 votes=[] vs PE 74400.0 votes=[] reason=itm_bin_wait. Two ITM-leg votes can TREND without three INDEX 1m bars.",
+          "last_updated_ts": 1789642053
         },
         {
           "book_id": "MIX-DEFAULT-BUY",
           "underlying": "BANKNIFTY",
-          "seen_side": "PE",
+          "seen_side": "CE",
           "action": "SKIP",
           "reason": "NO_NEW_AFTER_1515",
           "why": "No NEW paper after 15:15 IST. Flatten leftover OPEN. CAS is expiry-only, not this clock.",
-          "index_regime": "TREND",
-          "regime_reason": "itm_bin_pe_confirm",
+          "index_regime": "SIDEWAYS",
+          "regime_reason": "low_er_rsi_mid_or_vwap_band",
           "last3_closes": [
             56055.75,
             56055.75,
@@ -2152,8 +2116,8 @@
           "last3_impulse": null,
           "dealer_verdict": "HOLD",
           "logit_side": "CE",
-          "observation": "BANKNIFTY: 15m TREND (itm_bin_pe_confirm, ER=1.0). Last-3 1m closes [56055.75, 56055.75, 56055.75] net=0.0 impulse=none. Dealer HOLD; logit side=CE. ITM bin CE 56000.0 votes=['CE_PREMIUM_UP'] vs PE 56200.0 votes=['PE_PREMIUM_UP', 'PE_DELTA_MORE_ITM'] reason=itm_bin_pe_confirm. Two ITM-leg votes can TREND without three INDEX 1m bars.",
-          "last_updated_ts": 1789639476
+          "observation": "BANKNIFTY: 15m SIDEWAYS (low_er_rsi_mid_or_vwap_band, ER=0.0). Last-3 1m closes [56055.75, 56055.75, 56055.75] net=0.0 impulse=none. Last-3 was not an efficient impulse \u2014 15m chop skip is required, not over-coded. Dealer HOLD; logit side=CE. ITM bin CE 56000.0 votes=[] vs PE 56200.0 votes=[] reason=itm_bin_wait. Two ITM-leg votes can TREND without three INDEX 1m bars.",
+          "last_updated_ts": 1789642048
         },
         {
           "book_id": "MIX-ML-GREEKS",
@@ -2162,8 +2126,8 @@
           "action": "SKIP",
           "reason": "NO_NEW_AFTER_1515",
           "why": "No NEW paper after 15:15 IST. Flatten leftover OPEN. CAS is expiry-only, not this clock.",
-          "index_regime": "TREND",
-          "regime_reason": "itm_bin_pe_confirm",
+          "index_regime": "SIDEWAYS",
+          "regime_reason": "low_er_rsi_mid_or_vwap_band",
           "last3_closes": [
             56055.75,
             56055.75,
@@ -2174,18 +2138,18 @@
           "last3_impulse": null,
           "dealer_verdict": "HOLD",
           "logit_side": "CE",
-          "observation": "BANKNIFTY: 15m TREND (itm_bin_pe_confirm, ER=1.0). Last-3 1m closes [56055.75, 56055.75, 56055.75] net=0.0 impulse=none. Dealer HOLD; logit side=CE. ITM bin CE 56000.0 votes=['CE_PREMIUM_UP'] vs PE 56200.0 votes=['PE_PREMIUM_UP', 'PE_DELTA_MORE_ITM'] reason=itm_bin_pe_confirm. Two ITM-leg votes can TREND without three INDEX 1m bars.",
-          "last_updated_ts": 1789639476
+          "observation": "BANKNIFTY: 15m SIDEWAYS (low_er_rsi_mid_or_vwap_band, ER=0.0). Last-3 1m closes [56055.75, 56055.75, 56055.75] net=0.0 impulse=none. Last-3 was not an efficient impulse \u2014 15m chop skip is required, not over-coded. Dealer HOLD; logit side=CE. ITM bin CE 56000.0 votes=[] vs PE 56200.0 votes=[] reason=itm_bin_wait. Two ITM-leg votes can TREND without three INDEX 1m bars.",
+          "last_updated_ts": 1789642048
         },
         {
           "book_id": "MIX-ML-LOGIT",
           "underlying": "BANKNIFTY",
-          "seen_side": "PE",
+          "seen_side": "CE",
           "action": "SKIP",
           "reason": "NO_NEW_AFTER_1515",
           "why": "No NEW paper after 15:15 IST. Flatten leftover OPEN. CAS is expiry-only, not this clock.",
-          "index_regime": "TREND",
-          "regime_reason": "itm_bin_pe_confirm",
+          "index_regime": "SIDEWAYS",
+          "regime_reason": "low_er_rsi_mid_or_vwap_band",
           "last3_closes": [
             56055.75,
             56055.75,
@@ -2196,8 +2160,8 @@
           "last3_impulse": null,
           "dealer_verdict": "HOLD",
           "logit_side": "CE",
-          "observation": "BANKNIFTY: 15m TREND (itm_bin_pe_confirm, ER=1.0). Last-3 1m closes [56055.75, 56055.75, 56055.75] net=0.0 impulse=none. Dealer HOLD; logit side=CE. ITM bin CE 56000.0 votes=['CE_PREMIUM_UP'] vs PE 56200.0 votes=['PE_PREMIUM_UP', 'PE_DELTA_MORE_ITM'] reason=itm_bin_pe_confirm. Two ITM-leg votes can TREND without three INDEX 1m bars.",
-          "last_updated_ts": 1789639476
+          "observation": "BANKNIFTY: 15m SIDEWAYS (low_er_rsi_mid_or_vwap_band, ER=0.0). Last-3 1m closes [56055.75, 56055.75, 56055.75] net=0.0 impulse=none. Last-3 was not an efficient impulse \u2014 15m chop skip is required, not over-coded. Dealer HOLD; logit side=CE. ITM bin CE 56000.0 votes=[] vs PE 56200.0 votes=[] reason=itm_bin_wait. Two ITM-leg votes can TREND without three INDEX 1m bars.",
+          "last_updated_ts": 1789642048
         },
         {
           "book_id": "MIX-ML-LOGIT-XR",
@@ -2206,8 +2170,8 @@
           "action": "SKIP",
           "reason": "NO_NEW_AFTER_1515",
           "why": "No NEW paper after 15:15 IST. Flatten leftover OPEN. CAS is expiry-only, not this clock.",
-          "index_regime": "TREND",
-          "regime_reason": "itm_bin_pe_confirm",
+          "index_regime": "SIDEWAYS",
+          "regime_reason": "low_er_rsi_mid_or_vwap_band",
           "last3_closes": [
             56055.75,
             56055.75,
@@ -2218,8 +2182,8 @@
           "last3_impulse": null,
           "dealer_verdict": "HOLD",
           "logit_side": "CE",
-          "observation": "BANKNIFTY: 15m TREND (itm_bin_pe_confirm, ER=1.0). Last-3 1m closes [56055.75, 56055.75, 56055.75] net=0.0 impulse=none. Dealer HOLD; logit side=CE. ITM bin CE 56000.0 votes=['CE_PREMIUM_UP'] vs PE 56200.0 votes=['PE_PREMIUM_UP', 'PE_DELTA_MORE_ITM'] reason=itm_bin_pe_confirm. Two ITM-leg votes can TREND without three INDEX 1m bars.",
-          "last_updated_ts": 1789639476
+          "observation": "BANKNIFTY: 15m SIDEWAYS (low_er_rsi_mid_or_vwap_band, ER=0.0). Last-3 1m closes [56055.75, 56055.75, 56055.75] net=0.0 impulse=none. Last-3 was not an efficient impulse \u2014 15m chop skip is required, not over-coded. Dealer HOLD; logit side=CE. ITM bin CE 56000.0 votes=[] vs PE 56200.0 votes=[] reason=itm_bin_wait. Two ITM-leg votes can TREND without three INDEX 1m bars.",
+          "last_updated_ts": 1789642048
         },
         {
           "book_id": "MIX-TV-EP-024",
@@ -2228,8 +2192,8 @@
           "action": "SKIP",
           "reason": "NO_NEW_AFTER_1515",
           "why": "No NEW paper after 15:15 IST. Flatten leftover OPEN. CAS is expiry-only, not this clock.",
-          "index_regime": "TREND",
-          "regime_reason": "itm_bin_pe_confirm",
+          "index_regime": "SIDEWAYS",
+          "regime_reason": "low_er_rsi_mid_or_vwap_band",
           "last3_closes": [
             56055.75,
             56055.75,
@@ -2240,8 +2204,8 @@
           "last3_impulse": null,
           "dealer_verdict": "HOLD",
           "logit_side": "CE",
-          "observation": "BANKNIFTY: 15m TREND (itm_bin_pe_confirm, ER=1.0). Last-3 1m closes [56055.75, 56055.75, 56055.75] net=0.0 impulse=none. Dealer HOLD; logit side=CE. ITM bin CE 56000.0 votes=['CE_PREMIUM_UP'] vs PE 56200.0 votes=['PE_PREMIUM_UP', 'PE_DELTA_MORE_ITM'] reason=itm_bin_pe_confirm. Two ITM-leg votes can TREND without three INDEX 1m bars.",
-          "last_updated_ts": 1789639476
+          "observation": "BANKNIFTY: 15m SIDEWAYS (low_er_rsi_mid_or_vwap_band, ER=0.0). Last-3 1m closes [56055.75, 56055.75, 56055.75] net=0.0 impulse=none. Last-3 was not an efficient impulse \u2014 15m chop skip is required, not over-coded. Dealer HOLD; logit side=CE. ITM bin CE 56000.0 votes=[] vs PE 56200.0 votes=[] reason=itm_bin_wait. Two ITM-leg votes can TREND without three INDEX 1m bars.",
+          "last_updated_ts": 1789642048
         },
         {
           "book_id": "ML-001",
@@ -2250,8 +2214,8 @@
           "action": "SKIP",
           "reason": "NO_NEW_AFTER_1515",
           "why": "No NEW paper after 15:15 IST. Flatten leftover OPEN. CAS is expiry-only, not this clock.",
-          "index_regime": "TREND",
-          "regime_reason": "itm_bin_pe_confirm",
+          "index_regime": "SIDEWAYS",
+          "regime_reason": "low_er_rsi_mid_or_vwap_band",
           "last3_closes": [
             56055.75,
             56055.75,
@@ -2262,8 +2226,8 @@
           "last3_impulse": null,
           "dealer_verdict": "HOLD",
           "logit_side": "CE",
-          "observation": "BANKNIFTY: 15m TREND (itm_bin_pe_confirm, ER=1.0). Last-3 1m closes [56055.75, 56055.75, 56055.75] net=0.0 impulse=none. Dealer HOLD; logit side=CE. ITM bin CE 56000.0 votes=['CE_PREMIUM_UP'] vs PE 56200.0 votes=['PE_PREMIUM_UP', 'PE_DELTA_MORE_ITM'] reason=itm_bin_pe_confirm. Two ITM-leg votes can TREND without three INDEX 1m bars.",
-          "last_updated_ts": 1789639476
+          "observation": "BANKNIFTY: 15m SIDEWAYS (low_er_rsi_mid_or_vwap_band, ER=0.0). Last-3 1m closes [56055.75, 56055.75, 56055.75] net=0.0 impulse=none. Last-3 was not an efficient impulse \u2014 15m chop skip is required, not over-coded. Dealer HOLD; logit side=CE. ITM bin CE 56000.0 votes=[] vs PE 56200.0 votes=[] reason=itm_bin_wait. Two ITM-leg votes can TREND without three INDEX 1m bars.",
+          "last_updated_ts": 1789642048
         },
         {
           "book_id": "ML-002",
@@ -2272,8 +2236,8 @@
           "action": "SKIP",
           "reason": "NO_NEW_AFTER_1515",
           "why": "No NEW paper after 15:15 IST. Flatten leftover OPEN. CAS is expiry-only, not this clock.",
-          "index_regime": "TREND",
-          "regime_reason": "itm_bin_pe_confirm",
+          "index_regime": "SIDEWAYS",
+          "regime_reason": "low_er_rsi_mid_or_vwap_band",
           "last3_closes": [
             56055.75,
             56055.75,
@@ -2284,8 +2248,8 @@
           "last3_impulse": null,
           "dealer_verdict": "HOLD",
           "logit_side": "CE",
-          "observation": "BANKNIFTY: 15m TREND (itm_bin_pe_confirm, ER=1.0). Last-3 1m closes [56055.75, 56055.75, 56055.75] net=0.0 impulse=none. Dealer HOLD; logit side=CE. ITM bin CE 56000.0 votes=['CE_PREMIUM_UP'] vs PE 56200.0 votes=['PE_PREMIUM_UP', 'PE_DELTA_MORE_ITM'] reason=itm_bin_pe_confirm. Two ITM-leg votes can TREND without three INDEX 1m bars.",
-          "last_updated_ts": 1789639476
+          "observation": "BANKNIFTY: 15m SIDEWAYS (low_er_rsi_mid_or_vwap_band, ER=0.0). Last-3 1m closes [56055.75, 56055.75, 56055.75] net=0.0 impulse=none. Last-3 was not an efficient impulse \u2014 15m chop skip is required, not over-coded. Dealer HOLD; logit side=CE. ITM bin CE 56000.0 votes=[] vs PE 56200.0 votes=[] reason=itm_bin_wait. Two ITM-leg votes can TREND without three INDEX 1m bars.",
+          "last_updated_ts": 1789642048
         },
         {
           "book_id": "ML-1",
@@ -2294,8 +2258,8 @@
           "action": "SKIP",
           "reason": "NO_NEW_AFTER_1515",
           "why": "No NEW paper after 15:15 IST. Flatten leftover OPEN. CAS is expiry-only, not this clock.",
-          "index_regime": "TREND",
-          "regime_reason": "itm_bin_pe_confirm",
+          "index_regime": "SIDEWAYS",
+          "regime_reason": "low_er_rsi_mid_or_vwap_band",
           "last3_closes": [
             56055.75,
             56055.75,
@@ -2306,8 +2270,8 @@
           "last3_impulse": null,
           "dealer_verdict": "HOLD",
           "logit_side": "CE",
-          "observation": "BANKNIFTY: 15m TREND (itm_bin_pe_confirm, ER=1.0). Last-3 1m closes [56055.75, 56055.75, 56055.75] net=0.0 impulse=none. Dealer HOLD; logit side=CE. ITM bin CE 56000.0 votes=['CE_PREMIUM_UP'] vs PE 56200.0 votes=['PE_PREMIUM_UP', 'PE_DELTA_MORE_ITM'] reason=itm_bin_pe_confirm. Two ITM-leg votes can TREND without three INDEX 1m bars.",
-          "last_updated_ts": 1789639476
+          "observation": "BANKNIFTY: 15m SIDEWAYS (low_er_rsi_mid_or_vwap_band, ER=0.0). Last-3 1m closes [56055.75, 56055.75, 56055.75] net=0.0 impulse=none. Last-3 was not an efficient impulse \u2014 15m chop skip is required, not over-coded. Dealer HOLD; logit side=CE. ITM bin CE 56000.0 votes=[] vs PE 56200.0 votes=[] reason=itm_bin_wait. Two ITM-leg votes can TREND without three INDEX 1m bars.",
+          "last_updated_ts": 1789642048
         },
         {
           "book_id": "MIX-DEFAULT-BUY",
@@ -2316,8 +2280,8 @@
           "action": "SKIP",
           "reason": "NO_NEW_AFTER_1515",
           "why": "No NEW paper after 15:15 IST. Flatten leftover OPEN. CAS is expiry-only, not this clock.",
-          "index_regime": "TREND",
-          "regime_reason": "er_vwap_ema_vol_rsi",
+          "index_regime": "SIDEWAYS",
+          "regime_reason": "low_er_rsi_mid_or_vwap_band",
           "last3_closes": [
             23270.6,
             23270.6,
@@ -2328,8 +2292,8 @@
           "last3_impulse": null,
           "dealer_verdict": "HOLD",
           "logit_side": "PE",
-          "observation": "NIFTY: 15m TREND (er_vwap_ema_vol_rsi, ER=1.0). Last-3 1m closes [23270.6, 23270.6, 23270.6] net=0.0 impulse=none. Dealer HOLD; logit side=PE. ITM bin CE 23150.0 votes=['CE_PREMIUM_UP', 'PE_PREMIUM_DOWN'] vs PE 23350.0 votes=['PE_DELTA_MORE_ITM'] reason=itm_bin_wait. Two ITM-leg votes can TREND without three INDEX 1m bars.",
-          "last_updated_ts": 1789639471
+          "observation": "NIFTY: 15m SIDEWAYS (low_er_rsi_mid_or_vwap_band, ER=0.0). Last-3 1m closes [23270.6, 23270.6, 23270.6] net=0.0 impulse=none. Last-3 was not an efficient impulse \u2014 15m chop skip is required, not over-coded. Dealer HOLD; logit side=PE. ITM bin CE 23150.0 votes=[] vs PE 23350.0 votes=[] reason=itm_bin_wait. Two ITM-leg votes can TREND without three INDEX 1m bars.",
+          "last_updated_ts": 1789642043
         },
         {
           "book_id": "MIX-ML-GREEKS",
@@ -2338,8 +2302,8 @@
           "action": "SKIP",
           "reason": "NO_NEW_AFTER_1515",
           "why": "No NEW paper after 15:15 IST. Flatten leftover OPEN. CAS is expiry-only, not this clock.",
-          "index_regime": "TREND",
-          "regime_reason": "er_vwap_ema_vol_rsi",
+          "index_regime": "SIDEWAYS",
+          "regime_reason": "low_er_rsi_mid_or_vwap_band",
           "last3_closes": [
             23270.6,
             23270.6,
@@ -2350,8 +2314,8 @@
           "last3_impulse": null,
           "dealer_verdict": "HOLD",
           "logit_side": "PE",
-          "observation": "NIFTY: 15m TREND (er_vwap_ema_vol_rsi, ER=1.0). Last-3 1m closes [23270.6, 23270.6, 23270.6] net=0.0 impulse=none. Dealer HOLD; logit side=PE. ITM bin CE 23150.0 votes=['CE_PREMIUM_UP', 'PE_PREMIUM_DOWN'] vs PE 23350.0 votes=['PE_DELTA_MORE_ITM'] reason=itm_bin_wait. Two ITM-leg votes can TREND without three INDEX 1m bars.",
-          "last_updated_ts": 1789639471
+          "observation": "NIFTY: 15m SIDEWAYS (low_er_rsi_mid_or_vwap_band, ER=0.0). Last-3 1m closes [23270.6, 23270.6, 23270.6] net=0.0 impulse=none. Last-3 was not an efficient impulse \u2014 15m chop skip is required, not over-coded. Dealer HOLD; logit side=PE. ITM bin CE 23150.0 votes=[] vs PE 23350.0 votes=[] reason=itm_bin_wait. Two ITM-leg votes can TREND without three INDEX 1m bars.",
+          "last_updated_ts": 1789642043
         },
         {
           "book_id": "MIX-ML-LOGIT",
@@ -2360,8 +2324,8 @@
           "action": "SKIP",
           "reason": "NO_NEW_AFTER_1515",
           "why": "No NEW paper after 15:15 IST. Flatten leftover OPEN. CAS is expiry-only, not this clock.",
-          "index_regime": "TREND",
-          "regime_reason": "er_vwap_ema_vol_rsi",
+          "index_regime": "SIDEWAYS",
+          "regime_reason": "low_er_rsi_mid_or_vwap_band",
           "last3_closes": [
             23270.6,
             23270.6,
@@ -2372,8 +2336,8 @@
           "last3_impulse": null,
           "dealer_verdict": "HOLD",
           "logit_side": "PE",
-          "observation": "NIFTY: 15m TREND (er_vwap_ema_vol_rsi, ER=1.0). Last-3 1m closes [23270.6, 23270.6, 23270.6] net=0.0 impulse=none. Dealer HOLD; logit side=PE. ITM bin CE 23150.0 votes=['CE_PREMIUM_UP', 'PE_PREMIUM_DOWN'] vs PE 23350.0 votes=['PE_DELTA_MORE_ITM'] reason=itm_bin_wait. Two ITM-leg votes can TREND without three INDEX 1m bars.",
-          "last_updated_ts": 1789639471
+          "observation": "NIFTY: 15m SIDEWAYS (low_er_rsi_mid_or_vwap_band, ER=0.0). Last-3 1m closes [23270.6, 23270.6, 23270.6] net=0.0 impulse=none. Last-3 was not an efficient impulse \u2014 15m chop skip is required, not over-coded. Dealer HOLD; logit side=PE. ITM bin CE 23150.0 votes=[] vs PE 23350.0 votes=[] reason=itm_bin_wait. Two ITM-leg votes can TREND without three INDEX 1m bars.",
+          "last_updated_ts": 1789642043
         },
         {
           "book_id": "MIX-ML-LOGIT-XR",
@@ -2382,8 +2346,8 @@
           "action": "SKIP",
           "reason": "NO_NEW_AFTER_1515",
           "why": "No NEW paper after 15:15 IST. Flatten leftover OPEN. CAS is expiry-only, not this clock.",
-          "index_regime": "TREND",
-          "regime_reason": "er_vwap_ema_vol_rsi",
+          "index_regime": "SIDEWAYS",
+          "regime_reason": "low_er_rsi_mid_or_vwap_band",
           "last3_closes": [
             23270.6,
             23270.6,
@@ -2394,8 +2358,8 @@
           "last3_impulse": null,
           "dealer_verdict": "HOLD",
           "logit_side": "PE",
-          "observation": "NIFTY: 15m TREND (er_vwap_ema_vol_rsi, ER=1.0). Last-3 1m closes [23270.6, 23270.6, 23270.6] net=0.0 impulse=none. Dealer HOLD; logit side=PE. ITM bin CE 23150.0 votes=['CE_PREMIUM_UP', 'PE_PREMIUM_DOWN'] vs PE 23350.0 votes=['PE_DELTA_MORE_ITM'] reason=itm_bin_wait. Two ITM-leg votes can TREND without three INDEX 1m bars.",
-          "last_updated_ts": 1789639471
+          "observation": "NIFTY: 15m SIDEWAYS (low_er_rsi_mid_or_vwap_band, ER=0.0). Last-3 1m closes [23270.6, 23270.6, 23270.6] net=0.0 impulse=none. Last-3 was not an efficient impulse \u2014 15m chop skip is required, not over-coded. Dealer HOLD; logit side=PE. ITM bin CE 23150.0 votes=[] vs PE 23350.0 votes=[] reason=itm_bin_wait. Two ITM-leg votes can TREND without three INDEX 1m bars.",
+          "last_updated_ts": 1789642043
         },
         {
           "book_id": "MIX-TV-EP-024",
@@ -2404,8 +2368,8 @@
           "action": "SKIP",
           "reason": "NO_NEW_AFTER_1515",
           "why": "No NEW paper after 15:15 IST. Flatten leftover OPEN. CAS is expiry-only, not this clock.",
-          "index_regime": "TREND",
-          "regime_reason": "er_vwap_ema_vol_rsi",
+          "index_regime": "SIDEWAYS",
+          "regime_reason": "low_er_rsi_mid_or_vwap_band",
           "last3_closes": [
             23270.6,
             23270.6,
@@ -2416,8 +2380,8 @@
           "last3_impulse": null,
           "dealer_verdict": "HOLD",
           "logit_side": "PE",
-          "observation": "NIFTY: 15m TREND (er_vwap_ema_vol_rsi, ER=1.0). Last-3 1m closes [23270.6, 23270.6, 23270.6] net=0.0 impulse=none. Dealer HOLD; logit side=PE. ITM bin CE 23150.0 votes=['CE_PREMIUM_UP', 'PE_PREMIUM_DOWN'] vs PE 23350.0 votes=['PE_DELTA_MORE_ITM'] reason=itm_bin_wait. Two ITM-leg votes can TREND without three INDEX 1m bars.",
-          "last_updated_ts": 1789639471
+          "observation": "NIFTY: 15m SIDEWAYS (low_er_rsi_mid_or_vwap_band, ER=0.0). Last-3 1m closes [23270.6, 23270.6, 23270.6] net=0.0 impulse=none. Last-3 was not an efficient impulse \u2014 15m chop skip is required, not over-coded. Dealer HOLD; logit side=PE. ITM bin CE 23150.0 votes=[] vs PE 23350.0 votes=[] reason=itm_bin_wait. Two ITM-leg votes can TREND without three INDEX 1m bars.",
+          "last_updated_ts": 1789642043
         },
         {
           "book_id": "ML-001",
@@ -2426,8 +2390,8 @@
           "action": "SKIP",
           "reason": "NO_NEW_AFTER_1515",
           "why": "No NEW paper after 15:15 IST. Flatten leftover OPEN. CAS is expiry-only, not this clock.",
-          "index_regime": "TREND",
-          "regime_reason": "er_vwap_ema_vol_rsi",
+          "index_regime": "SIDEWAYS",
+          "regime_reason": "low_er_rsi_mid_or_vwap_band",
           "last3_closes": [
             23270.6,
             23270.6,
@@ -2438,8 +2402,8 @@
           "last3_impulse": null,
           "dealer_verdict": "HOLD",
           "logit_side": "PE",
-          "observation": "NIFTY: 15m TREND (er_vwap_ema_vol_rsi, ER=1.0). Last-3 1m closes [23270.6, 23270.6, 23270.6] net=0.0 impulse=none. Dealer HOLD; logit side=PE. ITM bin CE 23150.0 votes=['CE_PREMIUM_UP', 'PE_PREMIUM_DOWN'] vs PE 23350.0 votes=['PE_DELTA_MORE_ITM'] reason=itm_bin_wait. Two ITM-leg votes can TREND without three INDEX 1m bars.",
-          "last_updated_ts": 1789639471
+          "observation": "NIFTY: 15m SIDEWAYS (low_er_rsi_mid_or_vwap_band, ER=0.0). Last-3 1m closes [23270.6, 23270.6, 23270.6] net=0.0 impulse=none. Last-3 was not an efficient impulse \u2014 15m chop skip is required, not over-coded. Dealer HOLD; logit side=PE. ITM bin CE 23150.0 votes=[] vs PE 23350.0 votes=[] reason=itm_bin_wait. Two ITM-leg votes can TREND without three INDEX 1m bars.",
+          "last_updated_ts": 1789642043
         },
         {
           "book_id": "ML-002",
@@ -2448,8 +2412,8 @@
           "action": "SKIP",
           "reason": "NO_NEW_AFTER_1515",
           "why": "No NEW paper after 15:15 IST. Flatten leftover OPEN. CAS is expiry-only, not this clock.",
-          "index_regime": "TREND",
-          "regime_reason": "er_vwap_ema_vol_rsi",
+          "index_regime": "SIDEWAYS",
+          "regime_reason": "low_er_rsi_mid_or_vwap_band",
           "last3_closes": [
             23270.6,
             23270.6,
@@ -2460,8 +2424,8 @@
           "last3_impulse": null,
           "dealer_verdict": "HOLD",
           "logit_side": "PE",
-          "observation": "NIFTY: 15m TREND (er_vwap_ema_vol_rsi, ER=1.0). Last-3 1m closes [23270.6, 23270.6, 23270.6] net=0.0 impulse=none. Dealer HOLD; logit side=PE. ITM bin CE 23150.0 votes=['CE_PREMIUM_UP', 'PE_PREMIUM_DOWN'] vs PE 23350.0 votes=['PE_DELTA_MORE_ITM'] reason=itm_bin_wait. Two ITM-leg votes can TREND without three INDEX 1m bars.",
-          "last_updated_ts": 1789639471
+          "observation": "NIFTY: 15m SIDEWAYS (low_er_rsi_mid_or_vwap_band, ER=0.0). Last-3 1m closes [23270.6, 23270.6, 23270.6] net=0.0 impulse=none. Last-3 was not an efficient impulse \u2014 15m chop skip is required, not over-coded. Dealer HOLD; logit side=PE. ITM bin CE 23150.0 votes=[] vs PE 23350.0 votes=[] reason=itm_bin_wait. Two ITM-leg votes can TREND without three INDEX 1m bars.",
+          "last_updated_ts": 1789642043
         },
         {
           "book_id": "ML-1",
@@ -2470,8 +2434,8 @@
           "action": "SKIP",
           "reason": "NO_NEW_AFTER_1515",
           "why": "No NEW paper after 15:15 IST. Flatten leftover OPEN. CAS is expiry-only, not this clock.",
-          "index_regime": "TREND",
-          "regime_reason": "er_vwap_ema_vol_rsi",
+          "index_regime": "SIDEWAYS",
+          "regime_reason": "low_er_rsi_mid_or_vwap_band",
           "last3_closes": [
             23270.6,
             23270.6,
@@ -2482,8 +2446,8 @@
           "last3_impulse": null,
           "dealer_verdict": "HOLD",
           "logit_side": "PE",
-          "observation": "NIFTY: 15m TREND (er_vwap_ema_vol_rsi, ER=1.0). Last-3 1m closes [23270.6, 23270.6, 23270.6] net=0.0 impulse=none. Dealer HOLD; logit side=PE. ITM bin CE 23150.0 votes=['CE_PREMIUM_UP', 'PE_PREMIUM_DOWN'] vs PE 23350.0 votes=['PE_DELTA_MORE_ITM'] reason=itm_bin_wait. Two ITM-leg votes can TREND without three INDEX 1m bars.",
-          "last_updated_ts": 1789639471
+          "observation": "NIFTY: 15m SIDEWAYS (low_er_rsi_mid_or_vwap_band, ER=0.0). Last-3 1m closes [23270.6, 23270.6, 23270.6] net=0.0 impulse=none. Last-3 was not an efficient impulse \u2014 15m chop skip is required, not over-coded. Dealer HOLD; logit side=PE. ITM bin CE 23150.0 votes=[] vs PE 23350.0 votes=[] reason=itm_bin_wait. Two ITM-leg votes can TREND without three INDEX 1m bars.",
+          "last_updated_ts": 1789642043
         }
       ],
       "cancelled": [
@@ -2584,7 +2548,7 @@
           "observation": "NIFTY CE CANCEL_STRIKE_ROLL: saw a trade, then cancelled \u2014 not a silent miss."
         }
       ],
-      "n_skip_events": 2815,
+      "n_skip_events": 3895,
       "n_cancelled": 6
     },
     "itm_bins": {
@@ -2594,100 +2558,88 @@
         {
           "underlying": "NIFTY",
           "index": 23270.6,
-          "ts": 1789639471,
+          "ts": 1789642043,
           "side": null,
           "reason": "itm_bin_wait",
           "wait_3_index_bars": false,
           "ce": {
             "strike": 23150.0,
             "moneyness": "ITM",
-            "px": 220.0,
-            "volume": 21987550.0,
-            "oi": 552695.0,
-            "delta": 0.68556
+            "px": 228.9,
+            "volume": 22134190.0,
+            "oi": 509405.0,
+            "delta": 0.67356
           },
           "pe": {
             "strike": 23350.0,
             "moneyness": "ITM",
-            "px": 132.95,
-            "volume": 66646905.0,
-            "oi": 1561690.0,
-            "delta": -0.56483
+            "px": 124.25,
+            "volume": 67289820.0,
+            "oi": 1594125.0,
+            "delta": -0.57096
           },
-          "ce_votes": [
-            "CE_PREMIUM_UP",
-            "PE_PREMIUM_DOWN"
-          ],
-          "pe_votes": [
-            "PE_DELTA_MORE_ITM"
-          ],
-          "n_ce_votes": 2,
-          "n_pe_votes": 1,
+          "ce_votes": [],
+          "pe_votes": [],
+          "n_ce_votes": 0,
+          "n_pe_votes": 0,
           "missing": []
         },
         {
           "underlying": "BANKNIFTY",
           "index": 56055.75,
-          "ts": 1789639476,
-          "side": "PE",
-          "reason": "itm_bin_pe_confirm",
+          "ts": 1789642048,
+          "side": null,
+          "reason": "itm_bin_wait",
           "wait_3_index_bars": false,
           "ce": {
             "strike": 56000.0,
             "moneyness": "ITM",
-            "px": 710.45,
-            "volume": 2146620.0,
-            "oi": 466380.0,
-            "delta": 0.57142
+            "px": 719.0,
+            "volume": 2172240.0,
+            "oi": 468990.0,
+            "delta": 0.57052
           },
           "pe": {
             "strike": 56200.0,
             "moneyness": "ITM",
-            "px": 506.85,
-            "volume": 2421720.0,
-            "oi": 174930.0,
-            "delta": -0.4821
+            "px": 492.0,
+            "volume": 2437980.0,
+            "oi": 169860.0,
+            "delta": -0.48187
           },
-          "ce_votes": [
-            "CE_PREMIUM_UP"
-          ],
-          "pe_votes": [
-            "PE_PREMIUM_UP",
-            "PE_DELTA_MORE_ITM"
-          ],
-          "n_ce_votes": 1,
-          "n_pe_votes": 2,
+          "ce_votes": [],
+          "pe_votes": [],
+          "n_ce_votes": 0,
+          "n_pe_votes": 0,
           "missing": []
         },
         {
           "underlying": "SENSEX",
           "index": 74314.59,
-          "ts": 1789639480,
+          "ts": 1789642053,
           "side": null,
           "reason": "itm_bin_wait",
           "wait_3_index_bars": false,
           "ce": {
             "strike": 74200.0,
             "moneyness": "ITM",
-            "px": 114.35,
-            "volume": 74992000.0,
-            "oi": 508080.0,
+            "px": 114.3,
+            "volume": 75164580.0,
+            "oi": 459980.0,
             "delta": null
           },
           "pe": {
             "strike": 74400.0,
             "moneyness": "ITM",
-            "px": 85.25,
-            "volume": 323649840.0,
-            "oi": 3199080.0,
-            "delta": -0.87113
+            "px": 85.3,
+            "volume": 324362060.0,
+            "oi": 3064500.0,
+            "delta": -0.87159
           },
           "ce_votes": [],
-          "pe_votes": [
-            "PE_PREMIUM_UP"
-          ],
+          "pe_votes": [],
           "n_ce_votes": 0,
-          "n_pe_votes": 1,
+          "n_pe_votes": 0,
           "missing": [
             "ce_delta"
           ]
@@ -2736,10 +2688,7 @@
       "paper_ops",
       "npm",
       "legacy LLM waiters"
-    ],
-    "as_of_ist": "2026-09-17T15:35:29+05:30",
-    "alive": true,
-    "tick_seconds": 10
+    ]
   },
   "honesty": [
     "Closed net \u20b9 after Groww brokerage + GST + option STT ranks. Open rows do not.",
@@ -2779,10 +2728,10 @@
   "steps": {
     "NIFTY": {
       "status": "REPLAY_OK",
-      "n_triples": 173,
+      "n_triples": 218,
       "logit": {
-        "n_3m": 176124,
-        "n_index_1m": 526867,
+        "n_3m": 176138,
+        "n_index_1m": 526912,
         "train_end_ts": 1789627413,
         "n_train_3m_bars_before_session": 176065,
         "status": "OK"
@@ -2796,29 +2745,29 @@
         "promote": false
       },
       "index_regime": {
-        "regime": "TREND",
-        "direction": "DOWN",
+        "regime": "SIDEWAYS",
+        "direction": "FLAT",
         "layer": "HYPOTHESIS",
-        "n": 160,
+        "n": 203,
         "lookback": 15,
-        "er": 1.0,
+        "er": 0.0,
         "flip_frac": 0.0,
-        "range_over_atr": 14.0,
-        "mid_dev_atr": 7.4667,
-        "net_signed": -23.75,
-        "vwap": 23271.174,
-        "vwap_src": "OK",
-        "ema": 23281.6919,
+        "range_over_atr": 0.0,
+        "mid_dev_atr": null,
+        "net_signed": 0.0,
+        "vwap": 23270.6,
+        "vwap_src": "EQUAL_WEIGHT_PROJECT",
+        "ema": 23270.7841,
         "ema_len": 21,
         "rsi": 23.72,
         "vol_expand": null,
         "vol_status": "DATA_INSUFFICIENT",
         "vol_last3_sum": null,
-        "realized_vol": 0.000272,
-        "iv": 10.851306607052319,
-        "votes_up": 1,
-        "votes_down": 4,
-        "reason": "er_vwap_ema_vol_rsi",
+        "realized_vol": 0.0,
+        "iv": 11.647458384753227,
+        "votes_up": 2,
+        "votes_down": 2,
+        "reason": "low_er_rsi_mid_or_vwap_band",
         "last3_closes": [
           23270.6,
           23270.6,
@@ -2831,27 +2780,22 @@
         "itm_bin": {
           "side": null,
           "reason": "itm_bin_wait",
-          "pe_votes": [
-            "PE_DELTA_MORE_ITM"
-          ],
-          "ce_votes": [
-            "CE_PREMIUM_UP",
-            "PE_PREMIUM_DOWN"
-          ],
-          "n_pe_votes": 1,
-          "n_ce_votes": 2,
+          "pe_votes": [],
+          "ce_votes": [],
+          "n_pe_votes": 0,
+          "n_ce_votes": 0,
           "missing": [],
           "ce": {
             "side": "CE",
             "strike": 23150.0,
             "atm": 23250.0,
             "moneyness": "ITM",
-            "px": 220.0,
-            "low": 220.0,
+            "px": 228.9,
+            "low": 228.9,
             "quote_src": "STRIKE_23150",
-            "volume": 21987550.0,
-            "oi": 552695.0,
-            "delta": 0.68556,
+            "volume": 22134190.0,
+            "oi": 509405.0,
+            "delta": 0.67356,
             "layer": "HYPOTHESIS"
           },
           "pe": {
@@ -2859,12 +2803,12 @@
             "strike": 23350.0,
             "atm": 23250.0,
             "moneyness": "ITM",
-            "px": 132.95,
-            "low": 132.95,
+            "px": 124.25,
+            "low": 124.25,
             "quote_src": "STRIKE_23350",
-            "volume": 66646905.0,
-            "oi": 1561690.0,
-            "delta": -0.56483,
+            "volume": 67289820.0,
+            "oi": 1594125.0,
+            "delta": -0.57096,
             "layer": "HYPOTHESIS"
           },
           "index": 23270.6,
@@ -2873,15 +2817,15 @@
       },
       "span_ist": {
         "first": "2026-09-17T12:13:33+05:30",
-        "last": "2026-09-17T15:34:31+05:30"
+        "last": "2026-09-17T16:17:23+05:30"
       }
     },
     "BANKNIFTY": {
       "status": "REPLAY_OK",
-      "n_triples": 173,
+      "n_triples": 218,
       "logit": {
-        "n_3m": 176021,
-        "n_index_1m": 526019,
+        "n_3m": 176035,
+        "n_index_1m": 526064,
         "train_end_ts": 1789627417,
         "n_train_3m_bars_before_session": 175963,
         "status": "OK"
@@ -2895,29 +2839,29 @@
         "promote": false
       },
       "index_regime": {
-        "regime": "TREND",
-        "direction": "DOWN",
+        "regime": "SIDEWAYS",
+        "direction": "FLAT",
         "layer": "HYPOTHESIS",
-        "n": 161,
+        "n": 204,
         "lookback": 15,
-        "er": 1.0,
+        "er": 0.0,
         "flip_frac": 0.0,
-        "range_over_atr": 14.0,
-        "mid_dev_atr": 7.4667,
-        "net_signed": -81.7,
-        "vwap": 56068.5657,
-        "vwap_src": "OK",
-        "ema": 56094.0791,
+        "range_over_atr": 0.0,
+        "mid_dev_atr": null,
+        "net_signed": 0.0,
+        "vwap": 56055.75,
+        "vwap_src": "EQUAL_WEIGHT_PROJECT",
+        "ema": 56056.3863,
         "ema_len": 21,
         "rsi": 22.53,
         "vol_expand": null,
         "vol_status": "DATA_INSUFFICIENT",
         "vol_last3_sum": null,
-        "realized_vol": 0.000389,
-        "iv": 14.039438835154419,
+        "realized_vol": 0.0,
+        "iv": 14.420858027533454,
         "votes_up": 1,
-        "votes_down": 4,
-        "reason": "itm_bin_pe_confirm",
+        "votes_down": 2,
+        "reason": "low_er_rsi_mid_or_vwap_band",
         "last3_closes": [
           56055.75,
           56055.75,
@@ -2928,29 +2872,24 @@
         "last3_impulse": null,
         "last3_reason": "last3_not_efficient",
         "itm_bin": {
-          "side": "PE",
-          "reason": "itm_bin_pe_confirm",
-          "pe_votes": [
-            "PE_PREMIUM_UP",
-            "PE_DELTA_MORE_ITM"
-          ],
-          "ce_votes": [
-            "CE_PREMIUM_UP"
-          ],
-          "n_pe_votes": 2,
-          "n_ce_votes": 1,
+          "side": null,
+          "reason": "itm_bin_wait",
+          "pe_votes": [],
+          "ce_votes": [],
+          "n_pe_votes": 0,
+          "n_ce_votes": 0,
           "missing": [],
           "ce": {
             "side": "CE",
             "strike": 56000.0,
             "atm": 56100.0,
             "moneyness": "ITM",
-            "px": 710.45,
-            "low": 710.45,
+            "px": 719.0,
+            "low": 719.0,
             "quote_src": "STRIKE_56000",
-            "volume": 2146620.0,
-            "oi": 466380.0,
-            "delta": 0.57142,
+            "volume": 2172240.0,
+            "oi": 468990.0,
+            "delta": 0.57052,
             "layer": "HYPOTHESIS"
           },
           "pe": {
@@ -2958,12 +2897,12 @@
             "strike": 56200.0,
             "atm": 56100.0,
             "moneyness": "ITM",
-            "px": 506.85,
-            "low": 506.85,
+            "px": 492.0,
+            "low": 492.0,
             "quote_src": "STRIKE_56200",
-            "volume": 2421720.0,
-            "oi": 174930.0,
-            "delta": -0.4821,
+            "volume": 2437980.0,
+            "oi": 169860.0,
+            "delta": -0.48187,
             "layer": "HYPOTHESIS"
           },
           "index": 56055.75,
@@ -2972,15 +2911,15 @@
       },
       "span_ist": {
         "first": "2026-09-17T12:13:37+05:30",
-        "last": "2026-09-17T15:34:36+05:30"
+        "last": "2026-09-17T16:17:28+05:30"
       }
     },
     "SENSEX": {
       "status": "REPLAY_OK",
-      "n_triples": 173,
+      "n_triples": 218,
       "logit": {
-        "n_3m": 169432,
-        "n_index_1m": 506786,
+        "n_3m": 169446,
+        "n_index_1m": 506831,
         "train_end_ts": 1789627421,
         "n_train_3m_bars_before_session": 169374,
         "status": "OK"
@@ -2994,29 +2933,29 @@
         "promote": false
       },
       "index_regime": {
-        "regime": "TREND",
-        "direction": "DOWN",
+        "regime": "SIDEWAYS",
+        "direction": "FLAT",
         "layer": "HYPOTHESIS",
-        "n": 160,
+        "n": 203,
         "lookback": 15,
-        "er": 1.0,
+        "er": 0.0,
         "flip_frac": 0.0,
-        "range_over_atr": 14.0,
-        "mid_dev_atr": 8.4,
-        "net_signed": -99.64,
-        "vwap": 74314.643,
-        "vwap_src": "OK",
-        "ema": 74368.9773,
+        "range_over_atr": 0.0,
+        "mid_dev_atr": null,
+        "net_signed": 0.0,
+        "vwap": 74314.59,
+        "vwap_src": "EQUAL_WEIGHT_PROJECT",
+        "ema": 74315.4928,
         "ema_len": 21,
         "rsi": 19.79,
         "vol_expand": null,
         "vol_status": "DATA_INSUFFICIENT",
         "vol_last3_sum": null,
-        "realized_vol": 0.000358,
-        "iv": 0.47825792407871337,
-        "votes_up": 0,
-        "votes_down": 4,
-        "reason": "er_vwap_ema_vol_rsi",
+        "realized_vol": 0.0,
+        "iv": 0.48045681203311014,
+        "votes_up": 1,
+        "votes_down": 2,
+        "reason": "low_er_rsi_mid_or_vwap_band",
         "last3_closes": [
           74314.59,
           74314.59,
@@ -3029,11 +2968,9 @@
         "itm_bin": {
           "side": null,
           "reason": "itm_bin_wait",
-          "pe_votes": [
-            "PE_PREMIUM_UP"
-          ],
+          "pe_votes": [],
           "ce_votes": [],
-          "n_pe_votes": 1,
+          "n_pe_votes": 0,
           "n_ce_votes": 0,
           "missing": [
             "ce_delta"
@@ -3043,11 +2980,11 @@
             "strike": 74200.0,
             "atm": 74300.0,
             "moneyness": "ITM",
-            "px": 114.35,
-            "low": 114.35,
+            "px": 114.3,
+            "low": 114.3,
             "quote_src": "STRIKE_74200",
-            "volume": 74992000.0,
-            "oi": 508080.0,
+            "volume": 75164580.0,
+            "oi": 459980.0,
             "delta": null,
             "layer": "HYPOTHESIS"
           },
@@ -3056,12 +2993,12 @@
             "strike": 74400.0,
             "atm": 74300.0,
             "moneyness": "ITM",
-            "px": 85.25,
-            "low": 85.25,
+            "px": 85.3,
+            "low": 85.3,
             "quote_src": "STRIKE_74400",
-            "volume": 323649840.0,
-            "oi": 3199080.0,
-            "delta": -0.87113,
+            "volume": 324362060.0,
+            "oi": 3064500.0,
+            "delta": -0.87159,
             "layer": "HYPOTHESIS"
           },
           "index": 74314.59,
@@ -3070,7 +3007,7 @@
       },
       "span_ist": {
         "first": "2026-09-17T12:13:41+05:30",
-        "last": "2026-09-17T15:34:40+05:30"
+        "last": "2026-09-17T16:17:33+05:30"
       }
     }
   },

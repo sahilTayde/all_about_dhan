@@ -1,5 +1,24 @@
 # Handoff log — Team 06 Backtesting
 
+## As of now (2026-09-17 night) — replay 17 Sep overlay vs live SL factory (NO_PROMOTE)
+
+```text
+From:     teams/06_backtesting + desk_ml
+To:       00 / 02 / 04
+Date:     2026-09-17 night
+Status:   RETUNE_PROPOSAL BACKTEST_REQUIRED / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: write=false dual-tape replay 2026-09-17. Live board:
+  filled 175 STOP 153 TARGET 2 TIME 14. Overlay: filled 83
+  STOP 25 COVER_LONG_UNWIND 54 TIME 4 TARGET 0. Unique STOP
+  77→13. COVER P/L +27447; STOP −44069; TIME +1604; net −15018.
+  pytest paper_scalp 72. Live MD not overwritten.
+Rejected: production_params_written. Claim wr 74.7% as skill.
+UNKNOWN: COVER at BE on 10s OI may convert STOPs into small
+  wins without capturing T2. One-day tape.
+```
+
 ## As of now (2026-09-17 EOD) — ML_PAPER_DASHBOARD SL vs TARGET (NO_PROMOTE)
 
 ```text

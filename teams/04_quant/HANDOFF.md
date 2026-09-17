@@ -1,5 +1,27 @@
 # Handoff log — Team 04 Quant
 
+## As of now (2026-09-17 night) — ITM OI covering + path SL / T1-T2 (NO_PROMOTE)
+
+```text
+MIX / STRAT: none new. KEEP_ALL 001–014. No STRAT-015+.
+Origin tags: PROJECT-DERIVED paper overlay. HYPOTHESIS.
+Entry hypothesis: buy ITM ~100pt only. Watch both ITM CE and PE
+  premiums. Skip NEW if ITM-bin is the other wing, or same-wing
+  OI down + premium down (LONG_UNWIND). SHORT_COVER is a large-move
+  vote, not a MIX rewrite.
+Confirm-or-kill: 5m ST/MACD still not entry. INDEX ATR/ER/vol +
+  greeks still widen/skip via existing paper adjust.
+Hold / veto: path SL until T1 (~1m still at/above target); then
+  lock SL and T2 (SHORT_COVER extends). After T1 or BE, LONG_UNWIND
+  books COVER_LONG_UNWIND. Soft CANCEL still trails after T1.
+Feasibility: floor path stop ≥₹8 or 6% entry. TARGET_STEP_MAX=2.
+Parameters to grid: COVER at BE vs T1-only; BIN_LONG_UNWIND on/off.
+Backtest request: done as dual-tape replay 2026-09-17 write=false
+  (not OOS, not NORMAL-tagged). Next: OOS+NORMAL.
+Customer copy allowed: none.
+UNKNOWN / DATA_INSUFFICIENT: Dhan wing OI 10s vs chain snapshot.
+```
+
 ## As of now (2026-09-17) — trail stop on soft cancel; lock-shift target (NO_PROMOTE)
 
 ```text

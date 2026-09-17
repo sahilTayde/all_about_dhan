@@ -42,6 +42,14 @@ Left off 2026-09-13: ITM champion PAPER board ready (MIX-CHAMP-* + desk leaderbo
 
 ---
 
+## Left-off 2026-09-17 night — path SL / OI covering / 17 Sep replay (NO_PROMOTE)
+
+**Now:** Paper acts like a buy-first ITM scalper: keep **path SL** until T1 (~60s still at/above target), then lock+T2; floor stop ≥₹8 or 6% entry; skip CE vs PE-bin; OI on the **selected ITM** strike: SHORT_COVER extends T2, LONG_UNWIND skips NEW and books after T1/BE (`COVER_LONG_UNWIND`). Dual-tape **replay write=false** 2026-09-17 vs live board: live STOP **153**/175 filled, overlay STOP **25**/83 (unique STOP **77→13**). COVER_LONG_UNWIND 54 all net-green; TIME 4. Net ₹−15018 vs live −93745. wr net 74.7% is **not** a promote (STOP still −₹44k; one-day). Counsel Gemini+OpenAI `ALIGNED` `ACCEPT_WITH_CAVEATS`. Gate **not** `RESEARCH_READY_FOR_PROGRAMMING`. **NO_PROMOTE.**
+
+**Next:** Dual-tape restart to load overlay. Do not git-add sqlite. Do not restart npm. Next ablation: COVER only after T1 or SIDEWAYS+BE (not every 10s OI dip at BE).
+
+---
+
 ---
 
 ## Left-off 2026-09-17 EOD — paper SL-heavy; nightly + RETUNE_PROPOSAL (NO_PROMOTE)

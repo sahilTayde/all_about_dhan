@@ -2,6 +2,27 @@
 
 **Agents:** read **only the newest block**. Do not ingest this whole log. New files: [`docs/FILE_CREATION.md`](../../docs/FILE_CREATION.md). Append here — do not create `HANDOFF_TOMORROW.md` or extra `CONTINUE_*`.
 
+## As of now (2026-09-17 night) — path SL + ITM OI covering vs 17 Sep live (NO_PROMOTE)
+
+```text
+From:     teams/00_orchestrator
+To:       founder / 04 / 06 / 02
+Date:     2026-09-17 night
+Status:   RETUNE_PROPOSAL BACKTEST_REQUIRED / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+production_params_written: false
+
+Accepted: Pro overlay (HYPOTHESIS paper): path SL until T1 60s then
+  T2; floor stop; BIN_SIDE_MISMATCH; SHORT_COVER / LONG_UNWIND on
+  selected ITM OI; COVER_LONG_UNWIND books after T1/BE. pytest 72.
+  Replay dual-tape 2026-09-17 write=false: SL-hits 153→25 raw
+  (unique STOP 77→13). Filled 175→83. Net −93745→−15018.
+  Counsel ALIGNED ACCEPT_WITH_CAVEATS.
+Rejected: Promote. wr 74.7% as evidence. Nightly param write.
+  Treating COVER_LONG_UNWIND as TARGET skill.
+UNKNOWN: 10s OI noise vs real covering. Thursday expiry tag.
+```
+
 ## As of now (2026-09-17 EOD) — paper board: SL factory not target book (NO_PROMOTE)
 
 ```text
