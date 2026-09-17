@@ -36,6 +36,7 @@ class Triple:
     itm_ce_low: Optional[float] = None
     itm_pe_low: Optional[float] = None
     wing_quotes: Optional[dict] = None
+    idx_volume: Optional[float] = None
 
 
 def _ret(prev: float, cur: float) -> Optional[float]:

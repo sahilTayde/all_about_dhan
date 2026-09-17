@@ -1,5 +1,23 @@
 # Handoff log — Team 03 PhD market
 
+## As of now (2026-09-17) — 10s REST; WS has no greeks (NO_PROMOTE)
+
+```text
+Market question: 10s live-mock vs WebSocket for ML books?
+Rule / clock / source: Cash/F&O open 09:15 IST. NEW paper 09:50
+  (OPEN_SETTLE_35M). POST /optionchain: LTP + IV + greeks + OI +
+  volume. Live Market Feed decode: ticker LTP, quote volume/OI/ATP,
+  full placeholder LTP. No implied_volatility / delta / theta /
+  gamma / vega fields on WS packets.
+Impact: Keep 10s REST optionchain for MIX-ML-GREEKS. Do not enable
+  WS as the chain. Sequential NIFTY/BANKNIFTY/SENSEX OC still one
+  tick; jsonl flushed each tick. India VIX DATA_INSUFFICIENT here.
+Chain interpretation: WS ≠ greeks. OC poll remains SOURCE_FACT.
+Customer action: PAPER only. NO_PROMOTE.
+Backtest tag for 06: none.
+UNKNOWN / DATA_INSUFFICIENT: 10s vs Dhan 1 unique / 3s OC budget.
+```
+
 ## As of now (2026-09-17 ~09:12 IST) — ML field audit vs live DUAL-TAPE
 
 ```text

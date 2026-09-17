@@ -9,6 +9,7 @@ Desk capital ₹70,000 split across LIVE_BOOKS (not 10k×8). Lot size from instr
 from __future__ import annotations
 
 import json
+import os
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -30,8 +31,9 @@ from desk_ml.paper_lots import (
 DESK_CAPITAL_INR = 70000.0
 DASHBOARD_HEARTBEAT_SECONDS = 5
 TICK_NE_DASHBOARD_REASON = (
-    "Dhan POST /optionchain rate-limit: dual-tape poll stays ~45s (clamp ≥30). "
-    "Dashboard JSON/MD rewrite every 5s from the last tick — not a new Dhan poll."
+    "Live mock: dual-tape REST poll default 10s (clamp ≥10). "
+    "Dashboard JSON/MD rewrite every 5s from the last tick — not a new Dhan poll. "
+    "WS feed parse has LTP/volume/OI, not IV/greeks — MIX-ML-GREEKS stays on POST /optionchain."
 )
 LIMIT_DISCOUNT_FRAC = 0.012  # working buy limit below signal LTP; fill is not assumed at signal
 from desk_ml.groww_costs import as_dict as groww_cost_meta
@@ -52,6 +54,14 @@ except ImportError:  # pragma: no cover
 IST = timezone(timedelta(hours=5, minutes=30))
 FLATTEN_MINUTES_IST = 15 * 60  # 15:00 IST
 NO_NEW_MINUTES_IST = 14 * 60 + 45  # do not arm a new limit into flatten
+NO_NEW_BEFORE_MINUTES_IST = 9 * 60 + 50  # 09:50 IST = cash open 09:15 + 35m
+OPEN_SETTLE_GATE = "NO_NEW_BEFORE_0950"
+OPEN_SETTLE_35M = "OPEN_SETTLE_35M"
+MAX_TARGET_R = 2.0
+MAX_TYPICAL_VS_ENTRY = 0.28
+INDEX_LIKE_PREMIUM = 5000.0
+PAPER_ADD_LOT = False
+TARGET_STEP_MAX = 2
 FILL_AWAY_FRAC = 0.03  # unfilled buy: LTP ran this far above limit
 UNFILLED_BARS = 2
 UNFILLED_SECONDS = 120
@@ -121,6 +131,9 @@ DEFAULT_PAPER_PARAMS = {
     "regime_er_max": REGIME_ER_MAX,
     "regime_flip_min": REGIME_FLIP_MIN,
     "regime_range_atr_max": REGIME_RANGE_ATR_MAX,
+    "paper_add_lot": PAPER_ADD_LOT,
+    "max_target_r": MAX_TARGET_R,
+    "open_settle_gate": OPEN_SETTLE_GATE,
     "production_params_written": False,
     "note": "PAPER session only. Never writes MIX-DEFAULT-BUY.",
 }
@@ -133,6 +146,26 @@ def _ist_dt(ts: int) -> datetime:
 def minutes_ist(ts: int) -> int:
     dt = _ist_dt(ts)
     return dt.hour * 60 + dt.minute
+
+
+def new_paper_blocked(ts: int) -> Optional[str]:
+    """09:50 IST gate. Flatten/cancel callers must not use this."""
+    mins = minutes_ist(ts)
+    if mins < NO_NEW_BEFORE_MINUTES_IST:
+        return OPEN_SETTLE_35M if mins >= (9 * 60 + 15) else OPEN_SETTLE_GATE
+    if mins >= NO_NEW_MINUTES_IST:
+        return "NO_NEW_AFTER_1445"
+    return None
+
+
+def agent_ticket_status(pos: "OpenPaper") -> str:
+    if pos.cancel_eligible:
+        return "CANCEL_ELIGIBLE"
+    if not pos.filled:
+        return "WORKING_LIMIT"
+    if pos.target_step >= 1:
+        return f"TARGET_STEP_{min(int(pos.target_step), 3)}"
+    return "IN_TRADE"
 
 
 def classify_index_regime(
@@ -467,9 +500,10 @@ def greeks_paper_adjust(
     tf = float(target_frac)
     if iv is not None and float(iv) >= 25.0:
         sf = min(0.55, sf * 1.15)
-        notes.append(f"IV={iv}: wider paper stop (event/rich vol)")
+        notes.append(f"IV={iv}: wider paper STOP only — must not widen target")
+    # IV never multiplies target_frac. Theta may tighten target; never 3–4× it.
     if theta is not None and entry > 0 and abs(float(theta)) / float(entry) >= 0.05:
-        tf = max(0.28, tf * 0.85)
+        tf = max(0.28, min(tf, tf * 0.85))
         notes.append("theta/entry high: closer target (Natenberg long premium pays theta)")
     if gamma is not None and float(gamma) >= 0.01 and entry > 0:
         sf = min(0.55, sf * 1.08)
@@ -495,6 +529,42 @@ def feasibility_long(*, entry: float, stop: float, target: float, typical_range:
     return dec.to_dict()
 
 
+def same_contract_premium_path(entry: float, premiums: Sequence[float]) -> list[float]:
+    """Drop index-sized leaks and other-strike premiums so typical ≠ 74300 path."""
+    out: list[float] = []
+    try:
+        e = float(entry)
+    except (TypeError, ValueError):
+        return []
+    if e <= 0:
+        return []
+    lo, hi = e * 0.35, e * 2.2
+    for raw in premiums:
+        if raw is None:
+            continue
+        try:
+            v = float(raw)
+        except (TypeError, ValueError):
+            continue
+        if v <= 0 or v >= INDEX_LIKE_PREMIUM:
+            continue
+        if v < lo or v > hi:
+            continue
+        out.append(v)
+    if len(out) < 2:
+        return [e, e * 1.01]
+    return out
+
+
+def path_typical_range(entry: float, premiums: Sequence[float]) -> float:
+    path = same_contract_premium_path(entry, premiums)
+    typical = max(path) - min(path)
+    if typical <= 0:
+        typical = max(0.5, float(entry) * 0.04)
+    cap = max(0.5, float(entry) * MAX_TYPICAL_VS_ENTRY)
+    return min(typical, cap)
+
+
 def propose_levels(
     entry: float,
     premiums: Sequence[float],
@@ -502,29 +572,33 @@ def propose_levels(
     stop_frac: float = STOP_FRAC,
     target_frac: float = TARGET_FRAC,
     limit_discount_frac: float = LIMIT_DISCOUNT_FRAC,
+    max_target_r: float = MAX_TARGET_R,
 ) -> dict[str, Any]:
-    """Scalp stop/target from same-side premium path. Kills fantasy 150/96/250.
+    """Scalp stop/target from same-contract premium path. Kills 150/96/250 and 266/219/615.
 
     Working limit sits below signal LTP so a fill is a cheaper buy — never assumed at signal.
+    IV is not an input here; greeks_paper_adjust may widen stop_frac only.
     """
     if entry is None or entry <= 0:
         return {"ok": False, "reason_code": "DATA_INSUFFICIENT", "data_gaps": ["entry missing"]}
-    path = [float(x) for x in premiums if x is not None]
-    if len(path) < 2:
-        path = [entry, entry * 1.01]
-    typical = max(path) - min(path)
-    if typical <= 0:
-        typical = max(0.5, entry * 0.04)
+    typical = path_typical_range(float(entry), premiums)
     stop = entry - float(stop_frac) * typical
-    target = entry + float(target_frac) * typical
+    raw_target = entry + float(target_frac) * typical
     if stop <= 0:
         stop = max(0.05, entry * 0.85)
+    risk = max(1e-9, entry - stop)
+    max_reward = min(typical, risk * float(max_target_r), entry * 0.22)
+    target = entry + min(max(0.05, raw_target - entry), max_reward)
     feas = feasibility_long(entry=entry, stop=stop, target=target, typical_range=typical)
+    clipped = False
     if not feas.get("ok"):
-        # Paper: still book with a tighter target (no 150/96/250). Do not deny the signal.
         stop = max(0.05, entry - min(float(stop_frac) * typical, entry * 0.12))
-        target = entry + min(float(target_frac) * typical, entry * 0.18)
+        risk = max(1e-9, entry - stop)
+        target = entry + min(typical, risk * float(max_target_r), entry * 0.18)
         feas = feasibility_long(entry=entry, stop=stop, target=target, typical_range=typical)
+        clipped = True
+    if abs(target - raw_target) > 1e-6:
+        clipped = True
     disc = max(0.0, min(0.08, float(limit_discount_frac)))
     limit_px = round(float(entry) * (1.0 - disc), 4)
     if limit_px <= 0:
@@ -538,7 +612,13 @@ def propose_levels(
         "target": round(target, 4),
         "typical_premium_range": round(typical, 4),
         "feasibility": feas,
-        "reason_code": feas.get("reason_code") if feas.get("ok") else "CLAMPED_PAPER_LEVELS",
+        "clipped_target": clipped,
+        "raw_target": round(raw_target, 4),
+        "reason_code": (
+            feas.get("reason_code")
+            if feas.get("ok") and not clipped
+            else ("CLAMPED_PAPER_LEVELS" if feas.get("ok") else feas.get("reason_code") or "TARGET_FEASIBILITY_FAIL")
+        ),
         "scalp_hold_bars": SCALP_HOLD_BARS,
         "flatten_ist": "15:00",
     }
@@ -579,6 +659,10 @@ class OpenPaper:
     regime_er: Optional[float] = None
     regime_flip_frac: Optional[float] = None
     regime_reason: Optional[str] = None
+    target_step: int = 0
+    agent_status: str = "WORKING_LIMIT"
+    cancel_eligible: bool = False
+    idx_volume: Optional[float] = None
 
 
 @dataclass
@@ -597,6 +681,8 @@ class BookEngine:
     paper_hold_bars: int = SCALP_HOLD_BARS
     paper_give_up_frac: float = GIVE_UP_FRAC
     skip_new_when_sideways: bool = True
+    paper_add_lot: bool = PAPER_ADD_LOT
+    max_target_r: float = MAX_TARGET_R
     skip_trend_against: bool = True
     limit_discount_frac: float = LIMIT_DISCOUNT_FRAC
     capital_by_book: dict[str, float] = field(default_factory=dict)
@@ -699,8 +785,18 @@ def append_model_log(root: Path, rec: dict[str, Any]) -> None:
     path = root / "data" / "recon" / LOG_JSONL_NAME
     path.parent.mkdir(parents=True, exist_ok=True)
     rec = {**rec, "ts_ist": datetime.now(IST).isoformat(timespec="seconds")}
+    rec.setdefault("trade_id", rec.get("trade_id"))
+    rec.setdefault("book_id", rec.get("model") or rec.get("book_id"))
+    rec.setdefault("status", rec.get("status"))
+    rec.setdefault("target_step", rec.get("target_step"))
+    rec.setdefault("filled", rec.get("filled"))
     with path.open("a", encoding="utf-8") as fh:
         fh.write(json.dumps(rec, default=str) + "\n")
+        fh.flush()
+        try:
+            os.fsync(fh.fileno())
+        except OSError:
+            pass
 
 
 def resample_closes_3m(closes: dict[int, float]) -> list[Any]:
@@ -1053,7 +1149,8 @@ def _close(engine: BookEngine, pos: OpenPaper, *, ltp: float, ts: int, reason: s
             "underlying": pos.underlying,
             "side": pos.side,
             "trade_id": pos.trade_id,
-            "status": "CLOSED_PAPER",
+            "status": "CANCELLED" if unfilled or str(reason).startswith("CANCEL") else "CLOSED_PAPER",
+            "target_step": pos.target_step,
             "entry": pos.entry,
             "limit_price": pos.limit_price or pos.entry,
             "exit": round(float(ltp), 4),
@@ -1107,6 +1204,11 @@ def _close(engine: BookEngine, pos: OpenPaper, *, ltp: float, ts: int, reason: s
             {
                 "event": "CLOSE",
                 "model": pos.book_id,
+                "book_id": pos.book_id,
+                "trade_id": pos.trade_id,
+                "status": "CANCELLED" if unfilled or str(reason).startswith("CANCEL") else "CLOSED_PAPER",
+                "target_step": pos.target_step,
+                "filled": not unfilled,
                 "underlying": pos.underlying,
                 "side": pos.side,
                 "strike": pos.atm_strike,
@@ -1138,8 +1240,23 @@ def _try_open(
     strike: Optional[float] = None,
     strike_source: str = "ROUND_INDEX_HYPOTHESIS",
 ) -> None:
-    if minutes_ist(tick.ts) >= NO_NEW_MINUTES_IST:
-        engine.mark_skip(book_id, underlying, "NO_NEW_AFTER_1445", ts=tick.ts)
+    gate = new_paper_blocked(tick.ts)
+    if gate:
+        engine.mark_skip(book_id, underlying, gate, ts=tick.ts)
+        if engine.root is not None:
+            append_model_log(
+                engine.root,
+                {
+                    "event": "HOLD",
+                    "model": book_id,
+                    "book_id": book_id,
+                    "underlying": underlying,
+                    "status": "HOLD",
+                    "reason": gate,
+                    "filled": False,
+                    "target_step": 0,
+                },
+            )
         return
     if engine.has_open(book_id, underlying):
         return
@@ -1284,6 +1401,9 @@ def _try_open(
         regime_er=classified.get("er"),
         regime_flip_frac=classified.get("flip_frac"),
         regime_reason=classified.get("reason"),
+        target_step=0,
+        agent_status="WORKING_LIMIT",
+        idx_volume=getattr(tick, "idx_volume", None),
     )
     engine.opens[(book_id, underlying)] = pos
     if engine.root is not None:
@@ -1292,6 +1412,11 @@ def _try_open(
             {
                 "event": "OPEN",
                 "model": book_id,
+                "book_id": book_id,
+                "trade_id": pos.trade_id,
+                "status": "WORKING_LIMIT",
+                "target_step": 0,
+                "filled": False,
                 "underlying": underlying,
                 "side": side,
                 "strike": pos.atm_strike,
@@ -1310,6 +1435,118 @@ def _try_open(
                 "index_regime": pos.index_regime,
             },
         )
+
+
+def paper_watch_ticket(
+    engine: BookEngine,
+    pos: OpenPaper,
+    tick: Triple,
+    underlying: str,
+) -> Optional[str]:
+    """PAPER overlay watch. No live add-on orders. Default no size-up."""
+    pos.agent_status = agent_ticket_status(pos)
+    risk = float(pos.entry) - float(pos.stop)
+    reward = float(pos.target) - float(pos.entry)
+    if risk > 0 and reward / risk > float(engine.max_target_r) + 1e-9:
+        pos.cancel_eligible = True
+        pos.agent_status = "CANCEL_ELIGIBLE"
+        if engine.root is not None:
+            append_model_log(
+                engine.root,
+                {
+                    "event": "CANCEL_ELIGIBLE",
+                    "book_id": pos.book_id,
+                    "trade_id": pos.trade_id,
+                    "status": "CANCEL_ELIGIBLE",
+                    "target_step": pos.target_step,
+                    "filled": pos.filled,
+                    "target": pos.target,
+                    "note": "R>max_target_r — prefer cancel vs sitting on fantasy; do not silent-clip mid-flight",
+                },
+            )
+    vol = getattr(tick, "idx_volume", None)
+    hist = getattr(engine, "_prev_idx_vol", None)
+    if not isinstance(hist, dict):
+        hist = {}
+        engine._prev_idx_vol = hist  # type: ignore[attr-defined]
+    prev_vol = hist.get(underlying.upper())
+    shock = (
+        vol is not None
+        and prev_vol is not None
+        and float(prev_vol) > 0
+        and float(vol) >= 1.5 * float(prev_vol)
+    )
+    if (
+        engine.paper_add_lot
+        and not pos.cancel_eligible
+        and pos.filled
+        and int(pos.lots) == 1
+        and pos.index_regime == "TREND"
+        and shock
+    ):
+        feas = feasibility_long(
+            entry=float(pos.entry),
+            stop=float(pos.stop),
+            target=float(pos.target),
+            typical_range=max(reward, 0.5),
+        )
+        if feas.get("ok"):
+            pos.lots = 2
+            if pos.lot_size:
+                pos.qty = int(pos.lot_size) * 2
+            if engine.root is not None:
+                append_model_log(
+                    engine.root,
+                    {
+                        "event": "PAPER_ADD_LOT",
+                        "book_id": pos.book_id,
+                        "trade_id": pos.trade_id,
+                        "status": pos.agent_status,
+                        "target_step": pos.target_step,
+                        "filled": True,
+                        "lots": pos.lots,
+                        "hypothesis": "paper_add_lot",
+                        "note": "PAPER only +1 lot; default flag is false",
+                    },
+                )
+    if (
+        pos.filled
+        and not pos.cancel_eligible
+        and pos.target_step < TARGET_STEP_MAX
+        and pos.last_ltp is not None
+    ):
+        mid = float(pos.entry) + 0.5 * reward
+        if float(pos.last_ltp) >= mid and risk > 0:
+            nxt = min(
+                float(pos.target) + min(reward * 0.5, risk),
+                float(pos.entry) + risk * float(engine.max_target_r),
+            )
+            feas = feasibility_long(
+                entry=float(pos.entry),
+                stop=float(pos.stop),
+                target=float(nxt),
+                typical_range=max(reward, 0.5),
+            )
+            if feas.get("ok") and nxt > float(pos.target) + 1e-6:
+                pos.target = round(float(nxt), 4)
+                pos.target_step += 1
+                pos.agent_status = f"TARGET_STEP_{pos.target_step}"
+                if engine.root is not None:
+                    append_model_log(
+                        engine.root,
+                        {
+                            "event": "TARGET_STEP",
+                            "book_id": pos.book_id,
+                            "trade_id": pos.trade_id,
+                            "status": pos.agent_status,
+                            "target_step": pos.target_step,
+                            "filled": True,
+                            "target": pos.target,
+                        },
+                    )
+            # else prefer leave target; do not fantasy-step
+    pos.agent_status = agent_ticket_status(pos)
+    return None
 
 
 def mark_to_market(
@@ -1367,6 +1604,7 @@ def mark_to_market(
             )
             if u_reason == "FILL":
                 pos.filled = True
+                pos.agent_status = "IN_TRADE"
                 limit = float(pos.limit_price or pos.entry)
                 if float(ltp) <= limit + 1e-9:
                     pos.entry = min(float(ltp), limit)
@@ -1377,6 +1615,10 @@ def mark_to_market(
                 continue
             else:
                 continue
+        watch_kill = paper_watch_ticket(engine, pos, tick, underlying)
+        if watch_kill:
+            _close(engine, pos, ltp=float(ltp), ts=tick.ts, reason=watch_kill, root=engine.root)
+            continue
         live_atm = atm_strike if atm_strike is not None else tick.atm_strike
         reason = _exit_reason(
             pos,
@@ -1444,6 +1686,13 @@ def step_underlying(
         dealer_verdict=str(dealer.get("verdict") or ""),
         atm_strike=strike,
     )
+    vol_hist = getattr(engine, "_prev_idx_vol", None)
+    if not isinstance(vol_hist, dict):
+        vol_hist = {}
+        engine._prev_idx_vol = vol_hist  # type: ignore[attr-defined]
+    ivol = getattr(tick, "idx_volume", None)
+    if ivol is not None:
+        vol_hist[und] = float(ivol)
 
     dealer_proposal = dealer.get("side") if dealer.get("allow_new_paper_ce_pe") else None
     extra = dealer.get("extra") if isinstance(dealer.get("extra"), dict) else {}
@@ -1650,6 +1899,9 @@ def load_paper_params(root: Path) -> dict[str, Any]:
         "regime_er_max",
         "regime_flip_min",
         "regime_range_atr_max",
+        "paper_add_lot",
+        "max_target_r",
+        "open_settle_gate",
     ):
         if key in blob and blob[key] is not None:
             out[key] = blob[key]
@@ -1777,10 +2029,31 @@ def nudge_paper_params(closed: Sequence[dict[str, Any]], current: dict[str, Any]
         notes.append(f"time exits working → scalp_hold_bars={hold}")
     tgt_hits = sum(1 for c in closed if c.get("exit_reason") == "TARGET" and c.get("result") == "SUCCESS")
     if n and tgt_hits / n >= 0.40:
-        target_frac = min(0.70, round(target_frac + 0.02, 4))
-        notes.append(f"many TARGET wins → paper target_frac={target_frac}")
+        notes.append("many TARGET wins — do not raise target_frac (fantasy 1:4 / 615 lesson). keep path cap.")
+    sl_morning = sum(
+        1
+        for c in closed
+        if c.get("sl_hit")
+        and str(c.get("opened_ist") or "").find("T09:") >= 0
+    )
+    if sl_morning >= max(3, n // 5):
+        params["skip_sideways"] = True
+        notes.append("morning SL cluster → keep skip_sideways (chop). session only.")
+    fantasy = sum(
+        1
+        for c in closed
+        if c.get("entry")
+        and c.get("stop")
+        and c.get("target")
+        and (float(c["target"]) - float(c["entry"])) / max(1e-9, float(c["entry"]) - float(c["stop"])) > 2.0
+    )
+    if fantasy:
+        target_frac = min(target_frac, TARGET_FRAC)
+        notes.append(f"{fantasy} tickets had R>2 — clip target_frac={target_frac}, no MIX write")
     params["stop_frac"] = stop_frac
     params["target_frac"] = target_frac
+    params["paper_add_lot"] = False
+    params["max_target_r"] = MAX_TARGET_R
     params["scalp_hold_bars"] = hold
     params["nudge_n_closed"] = n
     if not notes:
@@ -1858,6 +2131,8 @@ def replay_paper_scalp(
         regime_er_max=float(params.get("regime_er_max") or REGIME_ER_MAX),
         regime_flip_min=float(params.get("regime_flip_min") or REGIME_FLIP_MIN),
         regime_range_atr_max=float(params.get("regime_range_atr_max") or REGIME_RANGE_ATR_MAX),
+        paper_add_lot=bool(params.get("paper_add_lot", False)),
+        max_target_r=float(params.get("max_target_r") or MAX_TARGET_R),
     )
     for book_id in LIVE_BOOKS:
         engine.equity[book_id] = float(plan["per_book"].get(book_id) or 0.0)
@@ -2229,8 +2504,12 @@ def _append_mistakes(root: Path, mistakes: Sequence[dict[str, Any]]) -> None:
 
 def _open_ticket_row(pos: OpenPaper) -> dict[str, Any]:
     row = asdict(pos)
-    row["status"] = "OPEN_PAPER" if pos.filled else "WORKING_LIMIT"
+    row["status"] = agent_ticket_status(pos) if pos.filled or pos.cancel_eligible else "WORKING_LIMIT"
+    if pos.filled and pos.target_step == 0 and not pos.cancel_eligible:
+        row["status"] = "OPEN_PAPER"
+        row["phase"] = "IN_TRADE"
     row["filled"] = bool(pos.filled)
+    row["target_step"] = int(pos.target_step)
     row["result"] = None
     row["sl_hit"] = False
     row["sl_loss_inr"] = None
@@ -2436,16 +2715,16 @@ def build_dashboard(
             "data_gaps": index_gap,
         },
         "open_trades": open_rows,
-        "closed_trades": engine.closed,
+        "closed_trades": recent_closed_first(engine.closed),
         "leaderboard": board_leaderboard,
         "tv_ep_inventory": tv_inventory,
         "heartbeat": {
             "cli": "python -m desk_ml paper-scalp --replay",
             "loop": "python -m desk_ml paper-scalp --loop  (opt-in; writes this JSON)",
-            "dual_tape": "python -m trading_agents_india dual-tape --live-chain --paper-train --paper-scalp --tick-seconds 45 --max-ticks 0",
+            "dual_tape": "python -m trading_agents_india dual-tape --live-chain --paper-train --paper-scalp --tick-seconds 10 --max-ticks 0",
             "stop": f"touch data/recon/{STOP_FLAG_NAME}",
             "dashboard_write_seconds": DASHBOARD_HEARTBEAT_SECONDS,
-            "tick_seconds_default": 45,
+            "tick_seconds_default": 10,
             "tick_ne_dashboard_reason": TICK_NE_DASHBOARD_REASON,
             "does_not_start": ["paper_ops", "npm", "legacy LLM waiters"],
         },
@@ -2467,12 +2746,76 @@ def build_dashboard(
             "OPEN_PAPER MTM uses the booked strike LTP (wing cell), not the rolled ATM pack. ATM LTP through the stop does not close a different strike.",
             "Once filled, STOP/CANCEL_ADVERSE/greeks-dead must close. A wick through limit then stop is CLOSED LOSS — it must not sit OPEN.",
             "Open rows stamp last_ltp / seen_low / quote_src so a 74300 CE is not confused with a later ATM 74400/74500 print.",
+            "No NEW paper before 09:50 IST (OPEN_SETTLE_35M / cash open 09:15 + 35m). Flatten/cancel still run. No new after 14:45. 15:00 flattens leftover OPEN.",
             "No new paper after 14:45 IST. 15:00 flattens leftover OPEN. live_session does not keep dead tickets overnight.",
             "paper_params nudge is session-only overfit. production_params_written stays false.",
             "INDEX 1m regime TREND|SIDEWAYS|UNKNOWN is HYPOTHESIS. SIDEWAYS skips NEW paper opens; flatten/cancel still run. Feed stays live.",
             "TREND + direction UP kills new PE (confirm/kill overlay, not a STRAT). DOWN kills new CE. Not MIX-DEFAULT-BUY production.",
             "Founder ~57% wr during cash hours is an in-session PAPER observation, not this EOD Groww+STT filled hit rate. Not a promote.",
         ],
+    }
+
+
+def recent_closed_first(closed: Sequence[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Newest closed first so the board does not bury them."""
+    return sorted(
+        list(closed),
+        key=lambda r: int(r.get("closed_ts") or 0),
+        reverse=True,
+    )
+
+
+def wipe_today_paper_book(*, root: Optional[Path] = None, ist_date: Optional[str] = None) -> dict[str, Any]:
+    """Empty today's paper board. Archives dual-tape jsonl. Does not delete warehouse/sqlite."""
+    base = root or repo_root()
+    day = ist_date or datetime.now(IST).date().isoformat()
+    recon = base / "data" / "recon"
+    recon.mkdir(parents=True, exist_ok=True)
+    archive = recon / "archive"
+    archive.mkdir(parents=True, exist_ok=True)
+    moved: list[str] = []
+    for src in (
+        recon / "paper_watch" / "DUAL-TAPE" / f"{day}.jsonl",
+        recon / "paper_ledger" / f"{day}.jsonl",
+        recon / LOG_JSONL_NAME,
+    ):
+        if src.is_file():
+            dest = archive / f"{src.name}.{day}.pre_slate"
+            dest.write_bytes(src.read_bytes())
+            src.unlink()
+            moved.append(str(src))
+    latest = recon / "paper_watch" / "DUAL-TAPE" / "latest.json"
+    if latest.is_file():
+        latest.unlink()
+        moved.append(str(latest))
+    empty = build_dashboard(
+        BookEngine(),
+        tapes={},
+        steps={},
+        as_of_ist=datetime.now(IST).isoformat(timespec="seconds"),
+        source="dual-tape",
+        root=base,
+        live_session=True,
+        session_ist_date=day,
+        paper_params=load_paper_params(base),
+        paper_param_notes=["CLEAN SLATE: today's paper book wiped. Warehouse/sqlite kept. NO_PROMOTE."],
+    )
+    empty["n_closed"] = 0
+    empty["closed_trades"] = []
+    empty["open_trades"] = []
+    empty["clean_slate"] = True
+    empty["promote"] = False
+    empty["production_params_written"] = False
+    paths = write_dashboard(empty, root=base)
+    return {
+        "ok": True,
+        "session_ist_date": day,
+        "archived": moved,
+        "paths": paths,
+        "warehouse_deleted": False,
+        "sqlite_deleted": False,
+        "production_params_written": False,
+        "promote": False,
     }
 
 
@@ -2549,7 +2892,7 @@ def write_dashboard(board: dict[str, Any], *, root: Optional[Path] = None) -> di
     }
     compact["n_closed"] = len(board.get("closed_trades") or [])
     compact["n_open"] = len(board.get("open_trades") or [])
-    compact["closed_trades_sample"] = (board.get("closed_trades") or [])[-20:]
+    compact["closed_trades_sample"] = (board.get("closed_trades") or [])[:20]
     compact["open_trades"] = board.get("open_trades") or []
     compact["mistakes"] = (board.get("mistakes") or [])[-20:]
     compact["successes"] = (board.get("successes") or [])[-12:]
@@ -2646,6 +2989,25 @@ def render_markdown(board: dict[str, Any]) -> str:
         lines.append("| — | — | — | 0 | 0 | 0 | 0 | — | — | — | — | — | — |")
     lines += [
         "",
+        "## Closed tickets (newest first — strike / limit / target / SL / WIN|LOSS / money)",
+        "",
+        "| model | und | side | strike | limit | target | stop | status | sl_hit | money lost ₹ | pnl ₹ | WIN/LOSS | regime |",
+        "|-------|-----|------|--------|-------|--------|------|--------|--------|--------------|-------|----------|--------|",
+    ]
+    for row in (board.get("closed_trades") or [])[:20]:
+        lost = row.get("sl_loss_inr")
+        if lost is None and row.get("result") == "LOSS":
+            lost = row.get("realized_pnl_inr")
+        lines.append(
+            f"| `{row.get('book_id')}` | {row.get('underlying')} | {row.get('side')} | "
+            f"{row.get('atm_strike')} | {row.get('limit_price')} | {row.get('target')} | {row.get('stop')} | "
+            f"{row.get('status')} | {row.get('sl_hit')} | {lost} | {row.get('realized_pnl_inr')} | {row.get('result')} | "
+            f"{row.get('index_regime') or '—'} |"
+        )
+    if not board.get("closed_trades"):
+        lines.append("| — | — | — | — | — | — | — | — | — | — | — | — | — |")
+    lines += [
+        "",
         "## Open tickets (strike / limit / SL / CE|PE / status)",
         "",
         "| model | und | CE/PE | strike | limit | stop | last_ltp | filled | status | regime |",
@@ -2710,25 +3072,6 @@ def render_markdown(board: dict[str, Any]) -> str:
         )
     lines += [
         "",
-        "## Closed tickets (strike / limit / target / SL / WIN|LOSS / money)",
-        "",
-        "| model | und | side | strike | limit | target | stop | status | sl_hit | money lost ₹ | pnl ₹ | WIN/LOSS | regime |",
-        "|-------|-----|------|--------|-------|--------|------|--------|--------|--------------|-------|----------|--------|",
-    ]
-    for row in (board.get("closed_trades") or [])[-20:]:
-        lost = row.get("sl_loss_inr")
-        if lost is None and row.get("result") == "LOSS":
-            lost = row.get("realized_pnl_inr")
-        lines.append(
-            f"| `{row.get('book_id')}` | {row.get('underlying')} | {row.get('side')} | "
-            f"{row.get('atm_strike')} | {row.get('limit_price')} | {row.get('target')} | {row.get('stop')} | "
-            f"{row.get('status')} | {row.get('sl_hit')} | {lost} | {row.get('realized_pnl_inr')} | {row.get('result')} | "
-            f"{row.get('index_regime') or '—'} |"
-        )
-    if not board.get("closed_trades"):
-        lines.append("| — | — | — | — | — | — | — | — | — | — | — | — | — |")
-    lines += [
-        "",
         "## Mistakes (paper-param nudge only; no MIX write)",
         "",
     ]
@@ -2760,7 +3103,7 @@ def render_markdown(board: dict[str, Any]) -> str:
         "",
         "```bash",
         "python -m desk_ml paper-scalp --replay --source dual-tape --live-session",
-        "python -m trading_agents_india dual-tape --live-chain --paper-train --paper-scalp --tick-seconds 45 --max-ticks 0",
+        "python -m trading_agents_india dual-tape --live-chain --paper-train --paper-scalp --tick-seconds 10 --max-ticks 0",
         "touch data/recon/ml_paper_scalp_STOPPED.flag",
         "```",
         "",
@@ -2783,7 +3126,7 @@ def stop_requested(root: Path) -> bool:
 def run_loop(
     *,
     root: Optional[Path] = None,
-    tick_seconds: int = 45,
+    tick_seconds: int = 10,
     max_ticks: int = 0,
     sleep_fn: Optional[Callable[[float], None]] = None,
     source: str = "dual-tape",

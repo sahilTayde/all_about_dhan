@@ -63,6 +63,63 @@ def test_classify_index_regime_trend_vs_sideways() -> None:
     assert short["regime"] == "UNKNOWN"
 
 
+def test_open_settle_skips_new_opens_flatten_still_ok() -> None:
+    from desk_ml.paper_scalp import OpenPaper, mark_to_market
+
+    morning = []
+    idx, ce, pe = 25000.0, 120.0, 110.0
+    base = datetime(2026, 9, 17, 9, 0, tzinfo=IST)
+    for i in range(40):
+        idx += 8.0
+        ce += 1.2
+        morning.append(
+            Triple(
+                ts=int(base.timestamp()) + i * 60,
+                idx_close=idx,
+                ce_close=ce,
+                pe_close=pe,
+            )
+        )
+    engine = BookEngine()
+    step_underlying(
+        engine,
+        underlying="NIFTY",
+        triples=morning,
+        i=20,
+        ml001_hold=False,
+        ml002_hold=False,
+        follow_gap=False,
+        logit={"side": "CE", "status": "OK"},
+        logit_xr={"side": "CE", "status": "OK"},
+        ml1={"status": "OK", "take": True},
+        tv_side="CE",
+        deny_model_signals=False,
+    )
+    assert engine.has_open("MIX-DEFAULT-BUY", "NIFTY") is False
+    assert any(s.get("reason") in {"OPEN_SETTLE_35M", "NO_NEW_BEFORE_0950"} for s in engine.skips)
+    pos = OpenPaper(
+        book_id="MIX-DEFAULT-BUY",
+        underlying="NIFTY",
+        side="CE",
+        trade_id="already-open-settle",
+        entry=120.0,
+        stop=80.0,
+        target=140.0,
+        atm_strike=25000.0,
+        opened_ts=int(datetime(2026, 9, 17, 9, 10, tzinfo=IST).timestamp()),
+        opened_bar=10,
+        strike_source="TEST",
+        limit_price=120.0,
+        filled=True,
+        index_regime="TREND",
+    )
+    engine.opens[("MIX-DEFAULT-BUY", "NIFTY")] = pos
+    engine.equity["MIX-DEFAULT-BUY"] = 10000.0
+    tick = Triple(ts=int(datetime(2026, 9, 17, 9, 21, tzinfo=IST).timestamp()), idx_close=25000.0, ce_close=70.0, pe_close=110.0)
+    mark_to_market(engine, tick, "NIFTY", 31)
+    assert engine.has_open("MIX-DEFAULT-BUY", "NIFTY") is False
+
+
 def test_sideways_skips_new_opens_not_dealer_yaml() -> None:
     triples = _chop_triples()
     engine = BookEngine()
@@ -134,6 +191,55 @@ def test_fantasy_150_96_250_killed() -> None:
     wrapped = feasibility_long(entry=150.0, stop=96.0, target=250.0, typical_range=20.0)
     assert wrapped["ok"] is False
     assert wrapped["reason_code"] == "TARGET_FEASIBILITY_FAIL"
+
+
+def test_open_settle_blocks_new_before_0950() -> None:
+    from desk_ml.paper_scalp import new_paper_blocked
+
+    early = int(datetime(2026, 9, 17, 9, 15, tzinfo=IST).timestamp())
+    almost = int(datetime(2026, 9, 17, 9, 49, tzinfo=IST).timestamp())
+    open_ok = int(datetime(2026, 9, 17, 9, 50, tzinfo=IST).timestamp())
+    assert new_paper_blocked(early) in {"OPEN_SETTLE_35M", "NO_NEW_BEFORE_0950"}
+    assert new_paper_blocked(almost) == "OPEN_SETTLE_35M"
+    assert new_paper_blocked(open_ok) is None
+
+
+def test_fantasy_266_219_615_clipped_or_fail() -> None:
+    dec = evaluate_long_premium(
+        entry=266.0,
+        stop=219.0,
+        target=615.0,
+        typical_premium_range=634.0,
+    )
+    assert dec.ok is False
+    assert dec.reason_code == "TARGET_FEASIBILITY_FAIL"
+    contaminated = [50.0, 80.0, 266.0, 684.0, 74300.0]
+    levels = propose_levels(266.0, contaminated)
+    assert levels["target"] < 400.0
+    assert levels["target"] < 615.0
+    # unsanitized 0.55*(684-50)+266 ≈ 615; sanitizer or R-cap must prevent that print
+    rr = (levels["target"] - levels["entry"]) / max(1e-9, levels["entry"] - levels["stop"])
+    assert rr <= 2.0 + 1e-6
+
+
+def test_iv_widens_stop_not_target() -> None:
+    from desk_ml.paper_scalp import greeks_paper_adjust
+
+    base = greeks_paper_adjust(entry=266.0, stop_frac=0.40, target_frac=0.55)
+    iv = greeks_paper_adjust(entry=266.0, stop_frac=0.40, target_frac=0.55, iv=30.0)
+    assert iv["target_frac"] <= base["target_frac"]
+    assert iv["stop_frac"] >= base["stop_frac"]
+
+
+def test_recent_closed_newest_first() -> None:
+    from desk_ml.paper_scalp import recent_closed_first
+
+    rows = [
+        {"trade_id": "old", "closed_ts": 100},
+        {"trade_id": "new", "closed_ts": 200},
+    ]
+    out = recent_closed_first(rows)
+    assert out[0]["trade_id"] == "new"
 
 
 def test_propose_levels_uses_path_not_hero_target() -> None:
@@ -419,7 +525,7 @@ def test_live_session_filters_other_ist_days_and_keeps_open() -> None:
         assert all(t.get("atm_strike") is not None for t in board["open_trades"])
     for t in board["closed_trades"]:
         assert t.get("result") in {"SUCCESS", "LOSS", "CANCELLED"}
-        assert t.get("status") == "CLOSED_PAPER"
+        assert t.get("status") in {"CLOSED_PAPER", "CANCELLED"}
     if board["n_losses"]:
         assert board["mistakes"]
         assert board["money_lost_inr"] <= 0

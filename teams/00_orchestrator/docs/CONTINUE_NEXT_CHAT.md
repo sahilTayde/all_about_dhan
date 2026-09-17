@@ -21,7 +21,7 @@ Do not glob markdown. Do not create extra CONTINUE/HANDOFF/NOTES dumps.
 
 Gate: NOT RESEARCH_READY_FOR_PROGRAMMING. PAPER only. NO_PROMOTE. STRATs UNVALIDATED. Dashboard P/L is MOCK. No live orders. Do not restart npm / Vite / paper ops until I ask. Never print secrets.
 
-Left off 2026-09-17 PRE (~08:52 IST): 17 Sep INDEX 1m **DATA_INSUFFICIENT** — do not claim UP-TREND. Dhan POST /optionchain **live** (NIFTY spot 23217.6, 236 strikes, greeks keys present; volume 0 pre-open). Desk **₹70,000** (MIX-ML-GREEKS ₹0 until ticks carry greeks; other LIVE_BOOKS ₹10k). Dual wr gross vs net on ML board. Dashboard write **5s** from last tick; Dhan poll **45s**. Arm `dual-tape --live-chain --paper-train --paper-scalp`. PAPER only. NO_PROMOTE. No Super Orders. Do not restart npm / paper_ops. Local sqlite — do not git-add.
+Left off 2026-09-17 dress rehearsal: NEW paper only **09:50 IST** (`OPEN_SETTLE_35M`). Dual-tape REST **`--tick-seconds 10`** (WS off — no greeks). 266/219/615 path-feasibility clip. CLEAN SLATE today's paper book. wr **gross and net**. `production_params_written=false`. PAPER only. **NO_PROMOTE**. No Super Orders. Do not restart npm. Local sqlite — do not git-add.
 
 Left off 2026-09-16 EOD: INDEX 1m SIDEWAYS_HOLD skips NEW paper opens (HYPOTHESIS). Replay vs prior Groww+STT board: filled 659→276, all-books net −7132.9→+5037.92, unique net 4584→4900, wr still ~25% (not founder 57% live-hours). NO_PROMOTE. Do not restart npm / paper_ops. Local sqlite — do not git-add.
 
@@ -40,11 +40,11 @@ Left off 2026-09-13: ITM champion PAPER board ready (MIX-CHAMP-* + desk leaderbo
 
 ---
 
-## Left-off 2026-09-17 PRE — 70k desk armed for 09:15 (NO_PROMOTE)
+## Left-off 2026-09-17 — live-mock dress rehearsal (NO_PROMOTE)
 
-**Now:** Today (17 Sep IST) INDEX 1m is **DATA_INSUFFICIENT** — not an UP-TREND proof. Dhan optionchain is live (spot + OC + greeks keys). Paper desk capital **₹70,000** split; MIX-ML-GREEKS sits at ₹0 until ticks carry greeks. Board shows wr **gross** and **net**. Dual-tape poll 45s; dashboard rewrite 5s from last tick. `production_params_written=false`. **NO_PROMOTE.**
+**Now:** First NEW paper ticket **09:50 IST** (cash open 09:15 + 35m). Flatten/cancel still run. Dual-tape **10s REST**; dashboard 5s rewrite. WS not enabled (feed parse has no IV/greeks — MIX-ML-GREEKS stays on POST /optionchain). Fantasy 615 clipped / `TARGET_FEASIBILITY_FAIL`. Session params only. wr **gross and net**. Gate **not** `RESEARCH_READY_FOR_PROGRAMMING`. **NO_PROMOTE.**
 
-**Next:** 09:15 IST one loop: `python -m trading_agents_india dual-tape --live-chain --paper-train --paper-scalp --tick-seconds 45 --max-ticks 0`. Watch `/pm` `/desk` `GET /paper/ml-books`. Stop: `touch data/recon/paper_dual_tape_STOPPED.flag`.
+**Next:** After CLEAN SLATE: `python -m trading_agents_india dual-tape --live-chain --paper-train --paper-scalp --tick-seconds 10 --max-ticks 0`. Watch `/pm` `/desk` `GET /paper/ml-books`. Stop: `touch data/recon/paper_dual_tape_STOPPED.flag`.
 
 ---
 

@@ -28,8 +28,9 @@ REASON_CODES = (
     "CHAIN_DATA_INSUFFICIENT",
 )
 
-# Founder lesson: 150 / 96 / 250 is a fantasy R vs same-session premium path.
-DEFAULT_MAX_R = 3.0
+# Founder lesson: 150/96/250 and 266/219/615 (~1:4+) are fantasy vs path.
+# IV may widen the stop slightly; it must not 3–4× the target.
+DEFAULT_MAX_R = 2.0
 
 
 @dataclass
@@ -137,6 +138,14 @@ def evaluate_long_premium(
             new_state="FEASIBILITY_REJECTED",
         )
     r_mult = reward / risk
+    if r_mult > DEFAULT_MAX_R:
+        return FeasibilityDecision(
+            ok=False,
+            action="KILL",
+            reason_code="TARGET_FEASIBILITY_FAIL",
+            new_state="FEASIBILITY_REJECTED",
+            note=f"R={r_mult:.2f} > {DEFAULT_MAX_R} — path-feasible premium, not a 1:3–1:4 hero target",
+        )
     if typical_premium_range is None or typical_premium_range <= 0:
         return FeasibilityDecision(
             ok=False,

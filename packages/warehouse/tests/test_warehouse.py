@@ -89,6 +89,17 @@ def test_founder_fantasy_target_holds_without_range() -> None:
     assert d.reason_code == "DATA_INSUFFICIENT"
 
 
+def test_sensex_74300_ce_615_target_fails_r() -> None:
+    d = evaluate_long_premium(
+        entry=266.0,
+        stop=219.0,
+        target=615.0,
+        typical_premium_range=634.0,
+    )
+    assert d.ok is False
+    assert d.reason_code == "TARGET_FEASIBILITY_FAIL"
+
+
 def test_founder_fantasy_target_kills_with_range() -> None:
     d = evaluate_long_premium(
         entry=150,

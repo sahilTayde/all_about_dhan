@@ -1,6 +1,6 @@
 """Dual tape: INDEX 1m + ATM CE/PE LTP + compact chain, then desk divergence.
 
-One program. Default poll 45s (clamp 30–60). Zero LLM on this path.
+One program. Default poll 10s REST (clamp ≥10). Zero LLM on this path.
 ExecutionClient stays SafeMode. RETUNE_GATE: no production param writes.
 """
 
@@ -706,8 +706,8 @@ def run_dual_tape_loop(
                             "dashboard_write_seconds": 5,
                             "tick_seconds": tick_seconds,
                             "tick_ne_dashboard_reason": (
-                                "Dhan POST /optionchain rate-limit: dual-tape poll stays ~45s. "
-                                "Dashboard JSON/MD rewrite every 5s from last tick."
+                                "Live mock REST poll default 10s. Dashboard JSON/MD rewrite every 5s "
+                                "from last tick. WS not enabled (no greeks on feed parse)."
                             ),
                         }
                     except Exception as exc:  # noqa: BLE001 — scalper fail-soft

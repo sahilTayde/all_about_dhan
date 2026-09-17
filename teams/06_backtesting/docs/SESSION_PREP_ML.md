@@ -1,4 +1,4 @@
-# SESSION_PREP_ML — paper start 09:15 IST
+# SESSION_PREP_ML — paper start 09:50 IST (cash open 09:15 + 35m)
 
 **Team:** 06_backtesting (runbook) · 07 `packages/desk-ml` · 05 dual-tape  
 **Date:** 2026-09-15 (IST)  
@@ -8,7 +8,7 @@
 
 Education ≠ advice. Cluster / OU numbers are cache counts, not a win rate.
 
-This is how to start **paper gather + overlay score** at the cash open. It is **not** a promote. Customer default stays `MIX-DEFAULT-BUY`. KEEP_ALL STRAT-001–014.
+This is how to start **paper gather + overlay score**. Dual-tape may poll from the shell; **NEW paper tickets arm only at 09:50 IST**. It is **not** a promote. Customer default stays `MIX-DEFAULT-BUY`. KEEP_ALL STRAT-001–014.
 
 ---
 
@@ -26,7 +26,7 @@ This is how to start **paper gather + overlay score** at the cash open. It is **
 
 ---
 
-## 09:15 IST start (laptop)
+## 09:15 poll / 09:50 first NEW ticket (laptop)
 
 Do **not** restart npm / Vite. Do **not** start the old LLM `market-hours` loop (`paper_ops_STOPPED.flag` stays). Dual-tape only honours `paper_dual_tape_STOPPED.flag`.
 
@@ -43,7 +43,7 @@ python -m desk_ml mrr-fit --underlying NIFTY
 python -m desk_ml mrr-fit --underlying SENSEX
 
 # Paper dual-tape at the open (live chain; 0 = until stop flag)
-python -m trading_agents_india dual-tape --live-chain --tick-seconds 45 --max-ticks 0
+python -m trading_agents_india dual-tape --live-chain --paper-train --paper-scalp --tick-seconds 10 --max-ticks 0
 ```
 
 After **two** ticks with `index_ltp` + `atm_ce_ltp` + `atm_pe_ltp` on NIFTY (and SENSEX):

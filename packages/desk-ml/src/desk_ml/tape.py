@@ -318,6 +318,7 @@ def _snap_row(snap: dict[str, Any], as_of: Optional[int]) -> Optional[dict[str, 
         "itm_ce_strike": _opt_float(snap.get("itm_ce_strike")),
         "itm_pe_strike": _opt_float(snap.get("itm_pe_strike")),
         "wing_quotes": snap.get("wing_quotes") if isinstance(snap.get("wing_quotes"), dict) else {},
+        "idx_volume": _opt_float(snap.get("index_volume")),
     }
 
 
@@ -416,6 +417,8 @@ def load_dual_tape_triples(
             prev["itm_ce_strike"] = row["itm_ce_strike"]
         if row.get("itm_pe_strike") is not None:
             prev["itm_pe_strike"] = row["itm_pe_strike"]
+        if row.get("idx_volume") is not None:
+            prev["idx_volume"] = row["idx_volume"]
         prev["wing_quotes"] = merge_wing_quotes(prev.get("wing_quotes"), row.get("wing_quotes"))
     ordered = [by_min[k] for k in sorted(by_min)]
     triples = [
@@ -434,6 +437,7 @@ def load_dual_tape_triples(
             itm_ce_low=row.get("itm_ce_low"),
             itm_pe_low=row.get("itm_pe_low"),
             wing_quotes=row.get("wing_quotes") or None,
+            idx_volume=row.get("idx_volume"),
         )
         for row in ordered
     ]

@@ -158,8 +158,23 @@ export function MlPaperDashboard({ compact = false }) {
           <h3>Open vs closed</h3>
           <p className="muted">
             Open {open.length} · Closed {closed.length}. Exits: stop / target /{" "}
-            {data.scalper_exits?.time || "8m"} / 15:00 IST flatten.
+            {data.scalper_exits?.time || "8m"} / 15:00 IST flatten. Closed newest first.
           </p>
+          <h3>Closed tickets (newest first)</h3>
+          {closed.length === 0 ? (
+            <p className="muted">No closed tickets yet.</p>
+          ) : (
+            <ul className="cleanup-keep">
+              {(data.closed_trades_sample || closed).slice(0, 20).map((t) => (
+                <li key={t.trade_id}>
+                  {t.book_id} {t.underlying} {t.side} strike={t.atm_strike} limit=
+                  {t.limit_price} tgt={t.target} sl={t.stop} status={t.status} sl_hit=
+                  {String(t.sl_hit)} lost₹={t.sl_loss_inr ?? (t.result === "LOSS" ? t.realized_pnl_inr : "—")}{" "}
+                  pnl₹={t.realized_pnl_inr ?? "—"} {t.result} regime={t.index_regime || "—"}
+                </li>
+              ))}
+            </ul>
+          )}
           <h3>Open tickets (strike / limit / SL / CE|PE / status)</h3>
           {open.length === 0 ? (
             <p className="muted">No OPEN paper rows this session.</p>
@@ -170,21 +185,6 @@ export function MlPaperDashboard({ compact = false }) {
                   {t.book_id} {t.underlying} {t.side} strike={t.atm_strike} limit=
                   {t.limit_price} tgt={t.target} sl={t.stop} status={t.status || "OPEN_PAPER"}{" "}
                   regime={t.index_regime || "—"}
-                </li>
-              ))}
-            </ul>
-          )}
-          <h3>Tickets (strike / limit / target / SL / WIN|LOSS)</h3>
-          {closed.length === 0 ? (
-            <p className="muted">No closed tickets yet.</p>
-          ) : (
-            <ul className="cleanup-keep">
-              {(data.closed_trades_sample || closed).slice(-20).map((t) => (
-                <li key={t.trade_id}>
-                  {t.book_id} {t.underlying} {t.side} strike={t.atm_strike} limit=
-                  {t.limit_price} tgt={t.target} sl={t.stop} status={t.status} sl_hit=
-                  {String(t.sl_hit)} lost₹={t.sl_loss_inr ?? (t.result === "LOSS" ? t.realized_pnl_inr : "—")}{" "}
-                  pnl₹={t.realized_pnl_inr ?? "—"} {t.result} regime={t.index_regime || "—"}
                 </li>
               ))}
             </ul>

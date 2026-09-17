@@ -232,6 +232,14 @@ def test_clock_dead_band_and_active() -> None:
     morning = snapshot(datetime(2026, 9, 4, 9, 15, tzinfo=IST))
     assert morning.in_dead_band is True
     assert morning.allow_directional_paper is False
+    assert morning.allow_flatten_cancel is True
+    assert morning.allow_new_paper_ticket is False
+    assert morning.open_settle_gate in {"OPEN_SETTLE_35M", "NO_NEW_BEFORE_0950"}
+    settle = snapshot(datetime(2026, 9, 4, 9, 49, tzinfo=IST))
+    assert settle.allow_new_paper_ticket is False
+    first = snapshot(datetime(2026, 9, 4, 9, 50, tzinfo=IST))
+    assert first.allow_new_paper_ticket is True
+    assert first.allow_directional_paper is True
     afternoon = snapshot(datetime(2026, 9, 4, 15, 10, tzinfo=IST))
     assert afternoon.in_dead_band is True
 

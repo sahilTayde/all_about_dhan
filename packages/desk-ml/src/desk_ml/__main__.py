@@ -62,7 +62,12 @@ def build_parser() -> argparse.ArgumentParser:
     ps.add_argument("--loop", action="store_true", help="Opt-in heartbeat loop; writes dashboard JSON")
     ps.add_argument("--source", default="cache", help="cache | dual-tape")
     ps.add_argument("--underlyings", default="NIFTY,BANKNIFTY,SENSEX")
-    ps.add_argument("--tick-seconds", type=int, default=45)
+    ps.add_argument("--tick-seconds", type=int, default=10)
+    ps.add_argument(
+        "--wipe-today",
+        action="store_true",
+        help="Archive today's paper jsonl + empty board. Does not delete warehouse/sqlite.",
+    )
     ps.add_argument("--max-ticks", type=int, default=0, help="Loop only; 0 = until STOP flag")
     ps.add_argument("--max-closes", type=int, default=0, help="Stop replay after N closed paper trades (0 = all)")
     ps.add_argument(
@@ -156,6 +161,11 @@ def main(argv: Optional[list[str]] = None) -> int:
         return 0 if report.get("ok") else 2
     if args.cmd == "paper-scalp":
         names = tuple(u.strip().upper() for u in str(args.underlyings).split(",") if u.strip())
+        if getattr(args, "wipe_today", False):
+            from desk_ml.paper_scalp import wipe_today_paper_book
+
+            _print(wipe_today_paper_book(root=root, ist_date=(str(args.session_date).strip() or None)))
+            return 0
         if args.loop:
             report = run_loop(
                 root=root,

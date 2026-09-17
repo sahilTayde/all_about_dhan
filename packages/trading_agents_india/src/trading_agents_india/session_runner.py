@@ -1,6 +1,6 @@
 """Market-hours poll loop: re-run agent graph; append paper ledger.
 
-Default tick 45s (30–60s band). Faster ticks documented, not default.
+Default tick 10s REST live-mock. Faster WS not default (no greeks on feed).
 Dead-band / outside shell → HOLD-only paper emission.
 """
 
@@ -71,9 +71,8 @@ class RunnerResult:
             "execution": "refused",
             "gate": "not RESEARCH_READY_FOR_PROGRAMMING",
             "path_toward_faster": (
-                f"Default {DEFAULT_TICK_SECONDS}s (band 30–60). "
-                f"Documented future floor {DOCUMENTED_FASTER_TICK_SECONDS}s once "
-                "option-chain 1/3s budget + graph cost allow; not enabled by default."
+                f"Default {DEFAULT_TICK_SECONDS}s REST live-mock (clamp ≥{DEFAULT_TICK_SECONDS}). "
+                "WS feed parse has LTP/volume/OI, not IV/greeks — keep POST /optionchain for MIX-ML-GREEKS."
             ),
         }
 

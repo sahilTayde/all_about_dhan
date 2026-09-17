@@ -1,5 +1,28 @@
 # Handoff log — Team 06 Backtesting
 
+## As of now (2026-09-17) — 10s tape + 09:50 gate + 615 clip (NO_PROMOTE)
+
+```text
+From:     teams/06_backtesting + desk_ml
+To:       00 / 04 / founder
+Date:     2026-09-17
+Status:   BACKTEST_REQUIRED / HYPOTHESIS / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: Root of 615: typical = max-min of mixed ATM/ITM/index-like
+  path so target = entry + 0.55×huge range (~684−50) ≈ 615 AND
+  feasibility used the same inflated typical so R=7.4 passed the
+  old range check (no independent R cap). IV did not set 615 —
+  greeks_paper_adjust never multiplies target_frac. Fix: same-
+  contract path + typical cap vs entry + MAX_R=2 + clip.
+  Tests: test_fantasy_266_219_615_clipped_or_fail,
+  test_sensex_74300_ce_615_target_fails_r, test_iv_widens_stop_not_target.
+  Session nudge does not raise target_frac. wr gross+net stay.
+  book-tune / session params only. production_params_written=false.
+Rejected: MIX-DEFAULT-BUY write. Promote after morning green.
+UNKNOWN: Live 10s OC rate-limit.
+```
+
 ## As of now (2026-09-17 live) — SENSEX 74300 CE fill-then-SL not left OPEN (NO_PROMOTE)
 
 ```text

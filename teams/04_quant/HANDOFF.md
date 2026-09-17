@@ -1,5 +1,27 @@
 # Handoff log — Team 04 Quant
 
+## As of now (2026-09-17) — path-feasible target; IV widens stop only (NO_PROMOTE)
+
+```text
+MIX / STRAT: none new. KEEP_ALL 001–014. No STRAT-015+.
+Origin tags: PROJECT-DERIVED paper overlay.
+Entry hypothesis: none. Side still dealer/logit/TV.
+Confirm-or-kill: OPEN_SETTLE_35M blocks NEW before 09:50.
+  Fantasy 266/219/615 = TARGET_FEASIBILITY_FAIL or clipped.
+Hold / veto rules: SIDEWAYS + TREND-against still skip NEW.
+Feasibility rules: MAX_R=2.0 independent of inflated typical.
+  same_contract_premium_path drops index-like / other-strike.
+  greeks_paper_adjust: Dhan IV ≥25 widens STOP only — proven in
+  code; IV is not an input to propose_levels. Did not 3–4× target.
+Parameters to grid: session paper_add_lot default false;
+  max_target_r=2. production_params_written false.
+Backtest request: smoke 266/219/615 + 09:50 gate.
+Customer copy allowed: none.
+Internal-only: TARGET_STEP_1/2 within cap; prefer cancel.
+UNKNOWN / DATA_INSUFFICIENT: India VIX (not on Dhan/warehouse
+  path used here). Max pain only if already computed.
+```
+
 ## As of now (2026-09-17) — ML books get Dhan greeks pack; ml001-v1 still returns-only
 
 ```text

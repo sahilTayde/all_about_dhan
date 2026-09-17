@@ -2,6 +2,26 @@
 
 **Agents:** read **only the newest block**. Do not ingest this whole log. New files: [`docs/FILE_CREATION.md`](../../docs/FILE_CREATION.md). Append here — do not create `HANDOFF_TOMORROW.md` or extra `CONTINUE_*`.
 
+## As of now (2026-09-17) — 17 Sep IST live-mock dress rehearsal (NO_PROMOTE)
+
+```text
+From:     teams/00_orchestrator
+To:       founder / 03 / 04 / 06 / 07
+Date:     2026-09-17
+Status:   PAPER LIVE-MOCK / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: Stop dual-tape 76281 first. NEW paper only after 09:50 IST
+  (OPEN_SETTLE_35M / NO_NEW_BEFORE_0950). Flatten/cancel still allowed.
+  REST tick 10s + jsonl flush. WS off (no greeks on feed parse).
+  266/219/615 fails R>2 / path clip. Session params only;
+  production_params_written=false. wr gross AND net stay. CLEAN SLATE
+  today's paper book (archive jsonl; warehouse/sqlite kept).
+Rejected: MIX-DEFAULT-BUY production write. Super Orders. Promote.
+  Claiming 17 Sep morning wr as a live edge. STRAT-015+.
+UNKNOWN: Whether 10s REST will hit OC rate-limit mid-session.
+```
+
 ## As of now (2026-09-17 live) — SENSEX 74300 CE OPEN after limit+SL (NO_PROMOTE)
 
 ```text

@@ -222,8 +222,13 @@ def build_founder_status() -> dict[str, Any]:
             "n_closed": len(ml.get("closed_trades") or []),
             "n_open": len(ml.get("open_trades") or []),
             "win_rate": None,
+            "closed_trades": (ml.get("closed_trades") or [])[:12],
+            "open_settle_gate": "NO_NEW_BEFORE_0950",
+            "tick_seconds": (ml.get("heartbeat") or {}).get("tick_seconds")
+            or (ml.get("heartbeat") or {}).get("tick_seconds_default")
+            or 10,
             "cli": "python -m desk_ml paper-scalp --replay",
-            "note": "Net ₹ after Groww+STT ranks. Independent books. NO_PROMOTE.",
+            "note": "Net ₹ after Groww+STT ranks. Independent books. Closed newest first. NO_PROMOTE.",
         },
         "chain_metrics": status.get("chain_metrics") or {},
         "index_bar_source": status.get("index_bar_source") or {},
