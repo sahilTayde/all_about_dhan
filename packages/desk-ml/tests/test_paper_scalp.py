@@ -9,9 +9,11 @@ from desk_ml.paper_scalp import (
     BookEngine,
     LIVE_BOOKS,
     OpenPaper,
+    REGIME_UNKNOWN_WAIT,
     SIDEWAYS_HOLD,
     classify_index_regime,
     feasibility_long,
+    logit_side_series,
     mark_to_market,
     paper_hit_rate,
     propose_levels,
@@ -718,6 +720,7 @@ def test_open_uses_itm_quote_not_atm() -> None:
         },
     )
     engine = BookEngine()
+    engine.last_regime["SENSEX"] = {"regime": "TREND", "direction": "UP"}
     _try_open(
         engine,
         book_id="MIX-DEFAULT-BUY",
@@ -1098,5 +1101,182 @@ def test_sideways_does_not_skip_stop_on_open_ticket() -> None:
     )
     mark_to_market(engine, dump, "SENSEX", 6, dealer_verdict="HOLD", atm_strike=74300.0)
     assert engine.closed[-1]["exit_reason"] == "STOP"
+
+
+def _ten_sec_trend(*, n: int, trend: float = 8.0) -> list[Triple]:
+    out: list[Triple] = []
+    idx, ce, pe = 25000.0, 120.0, 110.0
+    base = int(datetime(2026, 9, 10, 10, 0, tzinfo=IST).timestamp())
+    for i in range(n):
+        idx += trend
+        ce = max(8.0, ce + trend * 0.15)
+        pe = max(8.0, pe - trend * 0.12)
+        out.append(Triple(ts=base + i * 10, idx_close=idx, ce_close=ce, pe_close=pe))
+    return out
+
+
+def test_skip_new_open_when_1m_regime_unknown_on_10s_ticks() -> None:
+    triples = _ten_sec_trend(n=12)
+    engine = BookEngine()
+    step_underlying(
+        engine,
+        underlying="NIFTY",
+        triples=triples,
+        i=11,
+        ml001_hold=False,
+        ml002_hold=False,
+        follow_gap=False,
+        logit={"side": "CE", "status": "OK"},
+        logit_xr={"side": "CE", "status": "OK"},
+        ml1={"status": "OK", "take": True},
+        tv_side="CE",
+        deny_model_signals=False,
+    )
+    assert engine.last_regime["NIFTY"]["n"] < 12
+    assert engine.last_regime["NIFTY"]["regime"] == "UNKNOWN"
+    assert engine.has_open("MIX-DEFAULT-BUY", "NIFTY") is False
+    assert engine.has_open("MIX-ML-LOGIT", "NIFTY") is False
+    assert any(
+        s.get("reason") == REGIME_UNKNOWN_WAIT and s.get("book_id") == "MIX-DEFAULT-BUY"
+        for s in engine.skips
+    )
+
+
+def test_allow_new_open_after_12_1m_trend_bars() -> None:
+    triples = _triples(n=20, trend=8.0)
+    engine = BookEngine()
+    step_underlying(
+        engine,
+        underlying="NIFTY",
+        triples=triples,
+        i=12,
+        ml001_hold=False,
+        ml002_hold=False,
+        follow_gap=False,
+        logit={"side": "CE", "status": "OK"},
+        logit_xr={"side": "CE", "status": "OK"},
+        ml1={"status": "OK", "take": True},
+        tv_side="CE",
+        deny_model_signals=False,
+    )
+    assert engine.last_regime["NIFTY"]["n"] >= 12
+    assert engine.last_regime["NIFTY"]["regime"] == "TREND"
+    assert engine.has_open("MIX-DEFAULT-BUY", "NIFTY") is True or engine.has_open(
+        "MIX-ML-LOGIT", "NIFTY"
+    )
+
+
+def test_unknown_1m_still_marks_open_ticket_every_10s() -> None:
+    triples = _ten_sec_trend(n=8)
+    engine = BookEngine()
+    pos = OpenPaper(
+        book_id="MIX-DEFAULT-BUY",
+        underlying="NIFTY",
+        side="CE",
+        trade_id="already-open-unknown",
+        entry=120.0,
+        stop=80.0,
+        target=140.0,
+        atm_strike=25000.0,
+        opened_ts=triples[0].ts,
+        opened_bar=0,
+        strike_source="TEST",
+        limit_price=120.0,
+        filled=True,
+        index_regime="TREND",
+    )
+    engine.opens[("MIX-DEFAULT-BUY", "NIFTY")] = pos
+    engine.equity["MIX-DEFAULT-BUY"] = 10000.0
+    dump = Triple(
+        ts=triples[-1].ts,
+        idx_close=triples[-1].idx_close,
+        ce_close=70.0,
+        pe_close=110.0,
+    )
+    mark_to_market(engine, dump, "NIFTY", 7)
+    assert engine.has_open("MIX-DEFAULT-BUY", "NIFTY") is False
+    assert engine.closed[-1]["exit_reason"] == "STOP"
+
+
+def test_unfilled_timeout_is_120s_not_two_10s_bars() -> None:
+    from desk_ml.paper_scalp import OpenPaper, _unfilled_reason
+
+    opened = int(datetime(2026, 9, 10, 10, 0, tzinfo=IST).timestamp())
+    pos = OpenPaper(
+        book_id="MIX-DEFAULT-BUY",
+        underlying="NIFTY",
+        side="CE",
+        trade_id="wait-10s",
+        entry=100.0,
+        stop=80.0,
+        target=130.0,
+        atm_strike=23200.0,
+        opened_ts=opened,
+        opened_bar=0,
+        strike_source="TEST",
+        limit_price=100.0,
+        filled=False,
+    )
+    assert _unfilled_reason(pos, 101.0, opened + 20, 2) is None
+    assert _unfilled_reason(pos, 101.0, opened + 119, 20) is None
+    assert _unfilled_reason(pos, 101.0, opened + 120, 20) == "CANCEL_UNFILLED_TIMEOUT"
+
+
+def test_time_exit_is_wall_clock_not_10s_bar_i() -> None:
+    from desk_ml.paper_scalp import OpenPaper, _exit_reason
+
+    opened = int(datetime(2026, 9, 10, 10, 0, tzinfo=IST).timestamp())
+    pos = OpenPaper(
+        book_id="MIX-DEFAULT-BUY",
+        underlying="NIFTY",
+        side="CE",
+        trade_id="hold-10s",
+        entry=100.0,
+        stop=80.0,
+        target=130.0,
+        atm_strike=23200.0,
+        opened_ts=opened,
+        opened_bar=0,
+        strike_source="TEST",
+        limit_price=100.0,
+        filled=True,
+    )
+    assert _exit_reason(pos, 101.0, opened + 20, 8, hold_bars=8) is None
+    assert _exit_reason(pos, 101.0, opened + 8 * 60, 3, hold_bars=8) == "TIME"
+
+
+def test_logit_does_not_emit_ce_pe_on_first_session_3m_after_gap() -> None:
+    from backtest_engine.ml_leans import lean_ml_logit
+    from desk_ml.paper_scalp import resample_closes_3m
+
+    closes: dict[int, float] = {}
+    px = 22000.0
+    for day in (15, 16):
+        start = int(datetime(2026, 9, day, 9, 15, tzinfo=IST).timestamp())
+        for i in range(125):
+            px += 1.4
+            closes[start + i * 180] = px
+    today_open = int(datetime(2026, 9, 17, 9, 15, tzinfo=IST).timestamp())
+    for i in range(8):
+        px += 1.4
+        closes[today_open + i * 180] = px
+    bars = resample_closes_3m(closes)
+    first_today = next(i for i, b in enumerate(bars) if b.ts >= today_open)
+    leans = lean_ml_logit(bars, train_end_ts=today_open)
+    assert leans[first_today] == "SKIP"
+    later = leans[first_today + 1 : first_today + 6]
+    assert any(s in {"CE", "PE", "SKIP"} for s in later)
+
+    today_ticks = _ten_sec_trend(n=12)
+    # Rebase 10s ticks onto 17 Sep 09:15 so they sit after the overnight gap.
+    shift = today_open - today_ticks[0].ts
+    today_ticks = [
+        Triple(ts=t.ts + shift, idx_close=t.idx_close, ce_close=t.ce_close, pe_close=t.pe_close)
+        for t in today_ticks
+    ]
+    series, _meta = logit_side_series(today_ticks, index_closes=closes, xr=False)
+    assert series
+    assert series[0].get("side") not in {"CE", "PE"}
+
 
 

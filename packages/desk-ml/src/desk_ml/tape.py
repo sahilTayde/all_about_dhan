@@ -6,7 +6,7 @@ import json
 import sqlite3
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Optional, Sequence
 
 from desk_ml.features import Triple
 from desk_ml.persist import repo_root
@@ -36,8 +36,27 @@ def _chart_closes(payload: dict[str, Any]) -> list[tuple[int, float]]:
     return out
 
 
-def _minute_key(ts: int) -> int:
+def minute_key(ts: int) -> int:
+    """Floor unix ts to the containing UTC minute. 10s prints share a 1m bucket."""
     return int(ts) - (int(ts) % 60)
+
+
+def _minute_key(ts: int) -> int:
+    return minute_key(ts)
+
+
+def index_1m_closes_from_ticks(ts_close: Sequence[tuple[int, float]]) -> list[float]:
+    """Last INDEX close per minute bucket. Not a 10s bar. Does not fabricate minutes."""
+    buckets: dict[int, float] = {}
+    order: list[int] = []
+    for ts, close in ts_close:
+        if close is None:
+            continue
+        k = minute_key(int(ts))
+        if k not in buckets:
+            order.append(k)
+        buckets[k] = float(close)
+    return [buckets[k] for k in order]
 
 
 def ist_calendar_date(ts: int) -> str:
@@ -308,7 +327,9 @@ def _snap_row(snap: dict[str, Any], as_of: Optional[int]) -> Optional[dict[str, 
     if ts is None:
         return None
     return {
-        "ts": _minute_key(ts),
+        # Live dual-tape is a 10s REST print, not a warehouse 1m bar. Flooring
+        # to the minute collapsed ~6 ticks into one triple and blocked paper.
+        "ts": int(ts),
         "idx": ltps[0],
         "ce": ltps[1],
         "pe": ltps[2],
@@ -378,12 +399,12 @@ def load_dual_tape_triples(
                     continue
                 seen.add(key)
                 ticks.append(row)
-    by_min: dict[int, dict[str, Any]] = {}
+    by_ts: dict[int, dict[str, Any]] = {}
     for row in ticks:
         ts = int(row["ts"])
-        prev = by_min.get(ts)
+        prev = by_ts.get(ts)
         if prev is None:
-            by_min[ts] = {
+            by_ts[ts] = {
                 **row,
                 "ce_low": row["ce"],
                 "pe_low": row["pe"],
@@ -420,7 +441,7 @@ def load_dual_tape_triples(
         if row.get("idx_volume") is not None:
             prev["idx_volume"] = row["idx_volume"]
         prev["wing_quotes"] = merge_wing_quotes(prev.get("wing_quotes"), row.get("wing_quotes"))
-    ordered = [by_min[k] for k in sorted(by_min)]
+    ordered = [by_ts[k] for k in sorted(by_ts)]
     triples = [
         Triple(
             ts=int(row["ts"]),
@@ -446,6 +467,7 @@ def load_dual_tape_triples(
     meta: dict[str, Any] = {
         "underlying": und,
         "source": "dual_tape_jsonl",
+        "bar_kind": "dual_tape_tick",
         "aligned_triples": len(triples),
         "session_ist_date": session_ist_date,
         "live_dhan": False,

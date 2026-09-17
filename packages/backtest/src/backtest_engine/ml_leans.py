@@ -85,6 +85,8 @@ def lean_ml_logit(bars: list[Bar], *, train_end_ts: int) -> list[str]:
     for i in range(n - 1):
         if bars[i].ts >= train_end_ts:
             break
+        if i > 0 and session_date_ist(bars[i].ts) != session_date_ist(bars[i - 1].ts):
+            continue
         if session_date_ist(bars[i].ts) != session_date_ist(bars[i + 1].ts):
             continue
         feat = _feat(bars, i, sma20)
@@ -103,6 +105,8 @@ def lean_ml_logit(bars: list[Bar], *, train_end_ts: int) -> list[str]:
     w, b = _fit(xs_s, ys)
     for i in range(n):
         if bars[i].ts < train_end_ts:
+            continue
+        if i > 0 and session_date_ist(bars[i].ts) != session_date_ist(bars[i - 1].ts):
             continue
         feat = _feat(bars, i, sma20)
         if feat is None:

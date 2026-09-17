@@ -1,5 +1,49 @@
 # Handoff log — Team 06 Backtesting
 
+## As of now (2026-09-17) — paper-scalp 1m clock vs 10s LTP (NO_PROMOTE)
+
+```text
+From:     teams/06_backtesting + desk_ml + backtest_engine
+To:       00 / founder
+Date:     2026-09-17
+Status:   PAPER / HYPOTHESIS / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: Dual-tape 10s REST prints stay LTP (fill/MTM/cancel).
+  NEW opens: classify_index_regime on minute-bucketed INDEX closes
+    (tape.index_1m_closes_from_ticks). UNKNOWN → REGIME_UNKNOWN_WAIT.
+    SIDEWAYS → SIDEWAYS_HOLD. TREND → skip_trend_against (TREND_UP_KILL_PE /
+    TREND_DOWN_KILL_CE). Flatten still every 10s tick.
+  lean_ml_logit: skip score when current 3m bar is first of a new IST
+    session vs previous 3m calendar day. logit_side_series resets sticky
+    last_logit on session_date change; does not apply yesterday’s 3m lean
+    to today’s ticks. Warehouse INDEX 1m not fabricated.
+  Unfilled: UNFILLED_SECONDS=120 wall-clock (not UNFILLED_BARS on 10s
+    bar_i). TIME exit: hold_bars * 60s wall-clock. stop_frac/target_frac
+    still premium. Dealer CONFIRM vs logit path unchanged.
+Rejected: Treating each 10s tick as a 1m bar for regime/logit/hold.
+  Super Orders. Promote. sqlite git-add. STRAT-015. GREEKS clone split
+  (founder skipped).
+UNKNOWN: Live 10s session 1m path until 12 distinct minutes exist.
+  Paper wr is not a promote.
+```
+
+## As of now (2026-09-17) — dual-tape 10s prints count as paper bars (NO_PROMOTE)
+
+```text
+From:     teams/06_backtesting + desk_ml
+To:       00 / founder
+Date:     2026-09-17
+Status:   PAPER / HYPOTHESIS / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: load_dual_tape_triples keeps REST tick timestamps (not 1m floor).
+  Replay gate still ≥8 aligned INDEX+ATM prints; 10s live ticks count.
+  Clean-slate empty minute buckets had blocked n_open=0 while dual-tape ran.
+Rejected: Fabricated 1m bars. Super Orders. Promote. sqlite git-add.
+UNKNOWN: SIDEWAYS_HOLD / dealer CONFIRM vs logit after 8 prints.
+```
+
 ## As of now (2026-09-17) — own-side FILL + deny default (NO_PROMOTE)
 
 ```text

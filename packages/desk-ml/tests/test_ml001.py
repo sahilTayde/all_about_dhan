@@ -271,6 +271,45 @@ def test_dual_tape_score_follow_gap_hold(tmp_path: Path) -> None:
     assert scored.get("oos_claim") is False
 
 
+def test_dual_tape_keeps_10s_ticks_same_minute(tmp_path: Path) -> None:
+    import json
+
+    folder = tmp_path / "data" / "recon" / "paper_watch" / "DUAL-TAPE"
+    folder.mkdir(parents=True)
+    t0 = _ts(0)
+    rows = [
+        {
+            "as_of_ist": "2026-09-15T09:16:00+05:30",
+            "underlyings": [
+                {
+                    "underlying": "NIFTY",
+                    "index_ltp": 25000.0,
+                    "atm_ce_ltp": 120.0,
+                    "atm_pe_ltp": 110.0,
+                    "as_of_ist": t0,
+                }
+            ],
+        },
+        {
+            "as_of_ist": "2026-09-15T09:16:10+05:30",
+            "underlyings": [
+                {
+                    "underlying": "NIFTY",
+                    "index_ltp": 25002.0,
+                    "atm_ce_ltp": 121.0,
+                    "atm_pe_ltp": 109.5,
+                    "as_of_ist": t0 + 10,
+                }
+            ],
+        },
+    ]
+    (folder / "2026-09-15.jsonl").write_text("\n".join(json.dumps(r) for r in rows))
+    triples, meta = load_dual_tape_triples("NIFTY", root=tmp_path)
+    assert meta["aligned_triples"] == 2
+    assert meta.get("bar_kind") == "dual_tape_tick"
+    assert triples[1].ts - triples[0].ts == 10
+
+
 def test_thin_dual_tape_holds(tmp_path: Path) -> None:
     import json
 

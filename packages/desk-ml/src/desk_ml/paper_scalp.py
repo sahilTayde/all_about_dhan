@@ -39,7 +39,13 @@ LIMIT_DISCOUNT_FRAC = 0.012  # working buy limit below signal LTP; fill is not a
 from desk_ml.groww_costs import as_dict as groww_cost_meta
 from desk_ml.groww_costs import groww_round_trip_charges, net_pnl_inr
 from desk_ml.greeks_ml import score_greeks_ticket, session_iv_median, wing_ivs
-from desk_ml.tape import ist_calendar_date, load_dual_tape_triples, load_index_closes, load_triples
+from desk_ml.tape import (
+    index_1m_closes_from_ticks,
+    ist_calendar_date,
+    load_dual_tape_triples,
+    load_index_closes,
+    load_triples,
+)
 
 try:
     from warehouse.feasibility import evaluate_long_premium
@@ -63,9 +69,9 @@ INDEX_LIKE_PREMIUM = 5000.0
 PAPER_ADD_LOT = False
 TARGET_STEP_MAX = 2
 FILL_AWAY_FRAC = 0.03  # unfilled buy: LTP ran this far above limit
-UNFILLED_BARS = 2
-UNFILLED_SECONDS = 120
-SCALP_HOLD_BARS = 8  # 1m tape ≈ 8 minutes
+UNFILLED_BARS = 2  # 1m buckets; do not count 10s bar_i
+UNFILLED_SECONDS = UNFILLED_BARS * 60
+SCALP_HOLD_BARS = 8  # time-exit = hold_bars * 60s wall clock, not 10s ticks
 RANGE_LOOKBACK = 20
 # INDEX 1m regime (HYPOTHESIS paper overlay). Not option L2. Not a MIX rewrite.
 REGIME_LOOKBACK = 20
@@ -74,6 +80,7 @@ REGIME_ER_MAX = 0.30  # Kaufman efficiency |net|/path; at or below → chop
 REGIME_FLIP_MIN = 0.38
 REGIME_RANGE_ATR_MAX = 4.0  # window high-low / mean |1m close change|
 SIDEWAYS_HOLD = "SIDEWAYS_HOLD"
+REGIME_UNKNOWN_WAIT = "REGIME_UNKNOWN_WAIT"
 STOP_FRAC = 0.40
 TARGET_FRAC = 0.55
 STRIKE_STEP = {"NIFTY": 50.0, "BANKNIFTY": 100.0, "SENSEX": 100.0}
@@ -973,12 +980,19 @@ def logit_side_series(
     out: list[dict[str, Any]] = []
     last_logit = "SKIP"
     last_xr = "SKIP"
+    last_sess: Optional[str] = None
     bi = 0
     for t in triples:
+        sess = ist_calendar_date(int(t.ts))
+        if last_sess is not None and sess != last_sess:
+            last_logit = "SKIP"
+            last_xr = "SKIP"
+        last_sess = sess
         while bi < len(bars) and bars[bi].ts <= int(t.ts):
-            last_logit = leans[bi]
-            if xr_leans is not None:
-                last_xr = xr_leans[bi]
+            if ist_calendar_date(int(bars[bi].ts)) == sess:
+                last_logit = leans[bi]
+                if xr_leans is not None:
+                    last_xr = xr_leans[bi]
             bi += 1
         if xr:
             if last_logit in {"CE", "PE"} and last_logit == last_xr:
@@ -1122,8 +1136,6 @@ def _unfilled_reason(
         return "CANCEL_UNFILLED_AWAY"
     if int(ts) - int(pos.opened_ts) >= UNFILLED_SECONDS:
         return "CANCEL_UNFILLED_TIMEOUT"
-    if bar_i - pos.opened_bar >= UNFILLED_BARS:
-        return "CANCEL_UNFILLED_TIMEOUT"
     verdict = str(dealer_verdict or "")
     if pos.side == "CE" and verdict == "BUY_PE_CONFIRM":
         return "CANCEL_UNFILLED_THESIS"
@@ -1207,8 +1219,6 @@ def _exit_reason(
     if g_dead:
         return g_dead
     if int(ts) - int(pos.opened_ts) >= int(hold_bars) * 60:
-        return "TIME"
-    if bar_i - pos.opened_bar >= int(hold_bars):
         return "TIME"
     if minutes_ist(ts) >= FLATTEN_MINUTES_IST:
         return "FLATTEN_1500"
@@ -1382,6 +1392,29 @@ def _try_open(
             ts=tick.ts,
             index_regime=regime,
         )
+        return
+    if regime == "UNKNOWN":
+        engine.mark_skip(
+            book_id,
+            underlying,
+            REGIME_UNKNOWN_WAIT,
+            ts=tick.ts,
+            index_regime=regime,
+            regime_er=classified.get("er"),
+            regime_flip_frac=classified.get("flip_frac"),
+            regime_reason=classified.get("reason") or "short_or_mixed_1m_path",
+        )
+        if engine.root is not None:
+            append_model_log(
+                engine.root,
+                {
+                    "event": "SKIP",
+                    "model": book_id,
+                    "underlying": underlying,
+                    "reason": REGIME_UNKNOWN_WAIT,
+                    "index_regime": regime,
+                },
+            )
         return
     if engine.skip_new_when_sideways and regime == "SIDEWAYS":
         engine.mark_skip(
@@ -1770,7 +1803,9 @@ def step_underlying(
     prev = triples[i - 1]
     idx_d = tick.idx_close - prev.idx_close
     classified = classify_index_regime(
-        [float(t.idx_close) for t in triples[: i + 1]],
+        index_1m_closes_from_ticks(
+            [(int(t.ts), float(t.idx_close)) for t in triples[: i + 1]]
+        ),
         lookback=engine.regime_lookback,
         er_max=engine.regime_er_max,
         flip_min=engine.regime_flip_min,
@@ -2219,7 +2254,7 @@ def replay_paper_scalp(
         if len(triples) < 8:
             steps[u] = {
                 "status": "DATA_INSUFFICIENT",
-                "reason": "need ≥8 aligned INDEX+ATM 1m triples; do not fabricate bars",
+                "reason": "need ≥8 aligned INDEX+ATM dual-tape prints (10s ticks count; do not fabricate bars)",
                 "tape": tape,
             }
             continue
@@ -2679,8 +2714,10 @@ def build_dashboard(
         row["starting_capital_inr"] = engine.book_capital(str(row["book_id"]))
     picture = today_picture(engine.closed, board_book_rank)
     side_skips = [s for s in engine.skips if str(s.get("reason")) == SIDEWAYS_HOLD]
+    unk_skips = [s for s in engine.skips if str(s.get("reason")) == REGIME_UNKNOWN_WAIT]
     side_bars = {(s.get("ts"), s.get("underlying")) for s in side_skips}
     picture["n_skip_sideways"] = len(side_skips)
+    picture["n_skip_regime_unknown"] = len(unk_skips)
     picture["n_sideways_bars"] = len(side_bars)
     picture["last_index_regime"] = dict(engine.last_regime)
     adj_notes = index_adjustment_notes(
@@ -2733,6 +2770,7 @@ def build_dashboard(
         "equity_sum_inr": round(sum(engine.book_equity(b) for b in LIVE_BOOKS), 2),
         "today": picture,
         "n_skip_sideways": picture.get("n_skip_sideways") or 0,
+        "n_skip_regime_unknown": picture.get("n_skip_regime_unknown") or 0,
         "n_sideways_bars": picture.get("n_sideways_bars") or 0,
         "n_sl_hit": picture.get("n_sl_hit") or 0,
         "last_index_regime": picture.get("last_index_regime") or {},
@@ -2773,7 +2811,10 @@ def build_dashboard(
         "scalper_exits": {
             "stop": f"long premium LTP <= entry - {engine.paper_stop_frac}×same-side path range",
             "target": f"LTP >= entry + {engine.paper_target_frac}×path range",
-            "time": f"{engine.paper_hold_bars} 1m bars or wall-clock",
+            "time": (
+                f"{int(engine.paper_hold_bars) * 60}s wall-clock "
+                f"(scalp_hold_bars={engine.paper_hold_bars} × 1m); not 10s bar_i"
+            ),
             "cancel_adverse": f"same-side low <= entry×(1-{engine.paper_give_up_frac})",
             "cancel_thesis": "opposite BUY_*_CONFIRM only if already underwater vs entry",
             "cancel_greeks": "|delta| too low / IV rich / theta late on live chain — cancel WORKING or OPEN",
@@ -2949,6 +2990,7 @@ def write_dashboard(board: dict[str, Any], *, root: Optional[Path] = None) -> di
             "title",
             "n_open",
             "n_skip_sideways",
+            "n_skip_regime_unknown",
             "n_sideways_bars",
             "n_sl_hit",
             "last_index_regime",
@@ -3036,6 +3078,7 @@ def render_markdown(board: dict[str, Any]) -> str:
     )
     lines.append(
         f"SIDEWAYS skip (NEW opens only, HYPOTHESIS): n_skip_sideways={board.get('n_skip_sideways', pic.get('n_skip_sideways'))} "
+        f"· REGIME_UNKNOWN_WAIT={board.get('n_skip_regime_unknown', pic.get('n_skip_regime_unknown'))} "
         f"· n_sideways_bars={board.get('n_sideways_bars', pic.get('n_sideways_bars'))} "
         f"· filled SL-hits={board.get('n_sl_hit', pic.get('n_sl_hit'))}."
     )

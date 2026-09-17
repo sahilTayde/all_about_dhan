@@ -21,6 +21,8 @@ Do not glob markdown. Do not create extra CONTINUE/HANDOFF/NOTES dumps.
 
 Gate: NOT RESEARCH_READY_FOR_PROGRAMMING. PAPER only. NO_PROMOTE. STRATs UNVALIDATED. Dashboard P/L is MOCK. No live orders. Do not restart npm / Vite / paper ops until I ask. Never print secrets.
 
+Left off 2026-09-17 paper-scalp 1m clock: dual-tape 10s REST stays LTP. NEW opens need INDEX **1m** TREND/SIDEWAYS (`REGIME_UNKNOWN_WAIT` if UNKNOWN). 3m logit skips first session bar after overnight gap; no sticky yesterday lean. Unfilled = 120s wall-clock; hold = hold_bars×60s. Flatten/MTM still every 10s. PAPER. **NO_PROMOTE**. No Super Orders. Local sqlite — do not git-add.
+
 Left off 2026-09-17 own-side FILL: `deny_model_signals=True` default. FILL logit / XR-own / dealer CONFIRM vs logit / greeks confirm-kill. ML-001/002/ML-1/TV observe. ₹70k on fill books not 8 clones. Unfilled ₹0 charges. CLEAN SLATE then dual-tape `--paper-scalp` deny-on. PAPER. **NO_PROMOTE**. No Super Orders. Local sqlite — do not git-add.
 
 Left off 2026-09-17 dress rehearsal: NEW paper only **09:50 IST** (`OPEN_SETTLE_35M`). Dual-tape REST **`--tick-seconds 10`** (WS off — no greeks). 266/219/615 path-feasibility clip. CLEAN SLATE today's paper book. wr **gross and net**. `production_params_written=false`. PAPER only. **NO_PROMOTE**. No Super Orders. Do not restart npm. Local sqlite — do not git-add.
@@ -41,6 +43,16 @@ Left off 2026-09-13: ITM champion PAPER board ready (MIX-CHAMP-* + desk leaderbo
 ---
 
 ---
+
+## Left-off 2026-09-17 — paper-scalp 1m clock (NO_PROMOTE)
+
+**Now:** Dual-tape **10s REST** stays LTP detail. NEW paper opens classify INDEX regime on **minute-bucketed** closes (`REGIME_MIN_BARS=12`). UNKNOWN → `REGIME_UNKNOWN_WAIT`. SIDEWAYS → `SIDEWAYS_HOLD`. TREND still kills PE on UP / CE on DOWN. Flatten/cancel/MTM still every 10s LTP. 3m `lean_ml_logit` skips the first IST session bar after a calendar-day gap; `logit_side_series` does not stick yesterday’s last 3m lean onto today’s 10s ticks. Unfilled cancel = `UNFILLED_SECONDS` (120s), not 2×10s `bar_i`. Time-exit = `hold_bars * 60` wall-clock. stop_frac/target_frac still on premium. Warehouse INDEX 1m not fabricated. Gate **not** `RESEARCH_READY_FOR_PROGRAMMING`. **NO_PROMOTE.** Paper wr is not a promote.
+
+**Next:** Watch `/pm` `/desk` `GET /paper/ml-books`. Stop: `touch data/recon/paper_dual_tape_STOPPED.flag`. Do not git-add sqlite. Do not restart npm.
+
+## Left-off 2026-09-17 — dual-tape 10s prints as paper bars (NO_PROMOTE)
+
+**Now:** Dual-tape `--paper-scalp` is the paper loop (deny clones). Replay needs ≥8 INDEX+ATM **prints**; live 10s REST ticks count (not warehouse 1m floor). FILL: MIX-ML-LOGIT / XR-own / dealer CONFIRM vs logit / GREEKS confirm-kill. Observe clones. ₹70k on fill books. Unfilled ₹0 charges. Gate **not** `RESEARCH_READY_FOR_PROGRAMMING`. **NO_PROMOTE.**
 
 ## Left-off 2026-09-17 — own-side FILL + deny default (NO_PROMOTE)
 

@@ -88,3 +88,27 @@ def test_ml_skips_before_train_end():
     cut = bars[40].ts
     leans = lean_ml_logit(bars, train_end_ts=cut)
     assert all(s == "SKIP" for s in leans[:40])
+
+
+def test_ml_logit_skips_first_3m_bar_after_session_gap():
+    bars = []
+    px = 22000.0
+    for day in (1, 2, 3):
+        t0 = int(datetime(2026, 9, day, 9, 15, tzinfo=IST).timestamp())
+        n = 125 if day < 3 else 8
+        for i in range(n):
+            px += 1.3
+            bars.append(
+                Bar(
+                    ts=t0 + i * 180,
+                    open=px - 0.4,
+                    high=px + 0.6,
+                    low=px - 0.7,
+                    close=px,
+                    volume=1,
+                )
+            )
+    day3 = int(datetime(2026, 9, 3, 9, 15, tzinfo=IST).timestamp())
+    first_day3 = next(i for i, b in enumerate(bars) if b.ts >= day3)
+    leans = lean_ml_logit(bars, train_end_ts=day3)
+    assert leans[first_day3] == "SKIP"
