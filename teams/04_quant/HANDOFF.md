@@ -1,5 +1,22 @@
 # Handoff log — Team 04 Quant
 
+## As of now (2026-09-17) — ML books get Dhan greeks pack; ml001-v1 still returns-only
+
+```text
+MIX / STRAT: MIX-ML-GREEKS (ml-greeks-v1). ML-001/002 stay ml001-v1.
+Origin tags: PROJECT-DERIVED overlay. Dhan fields SOURCE_FACT.
+Entry hypothesis: none. Greeks HOLD/skip only. Side still dealer/index.
+Confirm-or-kill: GREEKS_MISSING if delta+IV+theta all null. Vega not a skip.
+Hold / veto rules: this book only. Do not dump greeks into KMeans.
+Feasibility rules: existing paper stop/target. Dealer kills fantasy SL.
+Parameters to grid: none this tick. Pack-only.
+Backtest request: none. Live DUAL-TAPE 2026-09-17 tick 12 already has
+  NIFTY ITM CE delta 0.656 / theta -17.06 / IV 13.61 / gamma 0.00095.
+Customer copy allowed: none.
+Internal-only: wing pack now includes vega + oi. Heartbeat adds gamma/vega.
+UNKNOWN / DATA_INSUFFICIENT: option volume 0 pre 09:15; ML-1 still <30 labels.
+```
+
 ## As of now (2026-09-17 PRE) — TREND-UP confirm/kill overlay (NO_PROMOTE)
 
 ```text

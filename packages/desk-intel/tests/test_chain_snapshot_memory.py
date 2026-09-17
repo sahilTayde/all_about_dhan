@@ -109,6 +109,7 @@ def test_parse_oc_keeps_signed_theta_and_iv() -> None:
     assert rows[0].ce_delta == 0.51
     assert rows[0].ce_theta == -9.2
     assert rows[0].ce_gamma == 0.002
+    assert rows[0].ce_vega == 4.1
     assert rows[0].pe_iv == 19.1
     zeros = parse_oc(
         {
@@ -125,6 +126,7 @@ def test_parse_oc_keeps_signed_theta_and_iv() -> None:
     assert zeros[0].ce_delta is None
     assert zeros[0].ce_theta is None
     assert zeros[0].ce_iv is None
+    assert zeros[0].ce_vega is None
 
 
 def test_no_prior_snapshot_notes_day_oi() -> None:

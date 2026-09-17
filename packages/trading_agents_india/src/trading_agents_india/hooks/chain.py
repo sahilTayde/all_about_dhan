@@ -47,10 +47,14 @@ def _pack_leg(row: Any) -> dict[str, Any]:
         "pe_gamma": getattr(row, "pe_gamma", None),
         "ce_theta": getattr(row, "ce_theta", None),
         "pe_theta": getattr(row, "pe_theta", None),
+        "ce_vega": getattr(row, "ce_vega", None),
+        "pe_vega": getattr(row, "pe_vega", None),
         "ce_iv": getattr(row, "ce_iv", None),
         "pe_iv": getattr(row, "pe_iv", None),
         "ce_volume": getattr(row, "ce_volume", None),
         "pe_volume": getattr(row, "pe_volume", None),
+        "ce_oi": getattr(row, "ce_oi", None),
+        "pe_oi": getattr(row, "pe_oi", None),
     }
 
 
@@ -70,12 +74,14 @@ def _attach_itm_quotes(rows: list[Any], underlying: str, meta: dict[str, Any]) -
         meta["itm_ce_delta"] = ce_row.ce_delta
         meta["itm_ce_gamma"] = ce_row.ce_gamma
         meta["itm_ce_theta"] = ce_row.ce_theta
+        meta["itm_ce_vega"] = ce_row.ce_vega
         meta["itm_ce_iv"] = ce_row.ce_iv
     if pe_row is not None:
         meta["itm_pe_ltp"] = pe_row.pe_ltp
         meta["itm_pe_delta"] = pe_row.pe_delta
         meta["itm_pe_gamma"] = pe_row.pe_gamma
         meta["itm_pe_theta"] = pe_row.pe_theta
+        meta["itm_pe_vega"] = pe_row.pe_vega
         meta["itm_pe_iv"] = pe_row.pe_iv
     if atm_row is not None:
         meta["atm_ce_delta"] = atm_row.ce_delta
@@ -84,6 +90,8 @@ def _attach_itm_quotes(rows: list[Any], underlying: str, meta: dict[str, Any]) -
         meta["atm_pe_gamma"] = atm_row.pe_gamma
         meta["atm_ce_theta"] = atm_row.ce_theta
         meta["atm_pe_theta"] = atm_row.pe_theta
+        meta["atm_ce_vega"] = atm_row.ce_vega
+        meta["atm_pe_vega"] = atm_row.pe_vega
         meta["atm_ce_iv"] = atm_row.ce_iv
         meta["atm_pe_iv"] = atm_row.pe_iv
     step = _STRIKE_STEP.get(underlying.upper(), 50.0)
@@ -135,6 +143,10 @@ class ChainWatchResult:
     itm_pe_gamma: Optional[float] = None
     itm_ce_theta: Optional[float] = None
     itm_pe_theta: Optional[float] = None
+    atm_ce_vega: Optional[float] = None
+    atm_pe_vega: Optional[float] = None
+    itm_ce_vega: Optional[float] = None
+    itm_pe_vega: Optional[float] = None
     atm_ce_volume: Optional[float] = None
     atm_pe_volume: Optional[float] = None
     pcr_volume: Optional[float] = None
@@ -401,6 +413,10 @@ def try_fetch_dhan_chain(underlying: str) -> Optional[ChainWatchResult]:
             itm_pe_gamma=meta.get("itm_pe_gamma"),
             itm_ce_theta=meta.get("itm_ce_theta"),
             itm_pe_theta=meta.get("itm_pe_theta"),
+            atm_ce_vega=meta.get("atm_ce_vega"),
+            atm_pe_vega=meta.get("atm_pe_vega"),
+            itm_ce_vega=meta.get("itm_ce_vega"),
+            itm_pe_vega=meta.get("itm_pe_vega"),
             atm_ce_volume=meta.get("atm_ce_volume"),
             atm_pe_volume=meta.get("atm_pe_volume"),
             pcr_volume=meta.get("pcr_volume"),

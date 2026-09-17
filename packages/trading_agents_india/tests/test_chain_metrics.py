@@ -64,6 +64,13 @@ def test_metrics_parse_ce_buildup() -> None:
     assert meta["itm_ce_delta"] == 0.62
     assert meta["atm_ce_iv"] == 18.0
     assert meta["atm_ce_theta"] == -8.0
+    assert meta["atm_ce_vega"] == 4.0
+    assert meta["itm_ce_vega"] == 4.0
+    assert meta["itm_ce_gamma"] == 0.002
+    packed = (meta.get("wing_quotes") or {}).get("24900") or {}
+    assert packed["ce_vega"] == 4.0
+    assert packed["ce_delta"] == 0.62
+    assert packed["ce_oi"] == 400
     assert meta["pcr_oi"] is not None
     assert not any("lacks parseable lean" in g for g in gaps)
 

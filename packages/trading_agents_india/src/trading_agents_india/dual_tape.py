@@ -166,6 +166,10 @@ class UnderlyingSnap:
     itm_pe_gamma: Optional[float] = None
     itm_ce_theta: Optional[float] = None
     itm_pe_theta: Optional[float] = None
+    atm_ce_vega: Optional[float] = None
+    atm_pe_vega: Optional[float] = None
+    itm_ce_vega: Optional[float] = None
+    itm_pe_vega: Optional[float] = None
     atm_ce_volume: Optional[float] = None
     atm_pe_volume: Optional[float] = None
     pcr_volume: Optional[float] = None
@@ -378,6 +382,10 @@ def gather_underlying(
         itm_pe_gamma=chain.itm_pe_gamma,
         itm_ce_theta=chain.itm_ce_theta,
         itm_pe_theta=chain.itm_pe_theta,
+        atm_ce_vega=chain.atm_ce_vega,
+        atm_pe_vega=chain.atm_pe_vega,
+        itm_ce_vega=chain.itm_ce_vega,
+        itm_pe_vega=chain.itm_pe_vega,
         atm_ce_volume=ce_vol,
         atm_pe_volume=pe_vol,
         index_volume=idx_vol,
@@ -722,7 +730,9 @@ def run_dual_tape_loop(
                 "itm_pe_strike": {s.underlying: s.itm_pe_strike for s in snaps},
                 "itm_pe_ltp": {s.underlying: s.itm_pe_ltp for s in snaps},
                 "itm_ce_delta": {s.underlying: s.itm_ce_delta for s in snaps},
+                "itm_ce_gamma": {s.underlying: s.itm_ce_gamma for s in snaps},
                 "itm_ce_theta": {s.underlying: s.itm_ce_theta for s in snaps},
+                "itm_ce_vega": {s.underlying: s.itm_ce_vega for s in snaps},
                 "itm_ce_iv": {s.underlying: s.itm_ce_iv for s in snaps},
                 "vol_watch": {s.underlying: s.vol_watch for s in snaps},
                 "index_volume": {s.underlying: s.index_volume for s in snaps},

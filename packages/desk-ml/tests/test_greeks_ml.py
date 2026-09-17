@@ -61,8 +61,8 @@ def test_mix_ml_greeks_opens_when_delta_ok() -> None:
     IST = timezone(timedelta(hours=5, minutes=30))
     ts = int(datetime(2026, 9, 10, 10, 30, tzinfo=IST).timestamp())
     wings = {
-        "23150": {"ce": 140.0, "ce_delta": 0.62, "ce_theta": -7.0, "ce_iv": 12.0, "ce_gamma": 0.002},
-        "23250": {"ce": 80.0, "ce_delta": 0.50, "ce_theta": -9.0, "ce_iv": 12.5, "ce_gamma": 0.003},
+        "23150": {"ce": 140.0, "ce_delta": 0.62, "ce_theta": -7.0, "ce_iv": 12.0, "ce_gamma": 0.002, "ce_vega": 4.1},
+            "23250": {"ce": 80.0, "ce_delta": 0.50, "ce_theta": -9.0, "ce_iv": 12.5, "ce_gamma": 0.003, "ce_vega": 3.8},
     }
     engine = BookEngine()
     triples = [
@@ -96,3 +96,5 @@ def test_mix_ml_greeks_opens_when_delta_ok() -> None:
     pos = engine.opens[("MIX-ML-GREEKS", "NIFTY")]
     assert pos.delta is not None
     assert abs(float(pos.delta)) >= 0.45
+    assert pos.vega is not None
+    assert pos.gamma is not None

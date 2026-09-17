@@ -257,6 +257,8 @@ def tape_has_dhan_greeks(triples: Sequence[Triple]) -> bool:
                 "pe_theta",
                 "ce_gamma",
                 "pe_gamma",
+                "ce_vega",
+                "pe_vega",
                 "ce_iv",
                 "pe_iv",
             ):
@@ -380,6 +382,7 @@ def leg_greeks(tick: Triple, side: str, strike: float) -> dict[str, Optional[flo
         "delta": _num(cell.get(f"{prefix}_delta")),
         "gamma": _num(cell.get(f"{prefix}_gamma")),
         "theta": _num(cell.get(f"{prefix}_theta")),
+        "vega": _num(cell.get(f"{prefix}_vega")),
         "iv": _num(cell.get(f"{prefix}_iv")),
     }
 
@@ -540,6 +543,7 @@ class OpenPaper:
     gamma: Optional[float] = None
     theta: Optional[float] = None
     iv: Optional[float] = None
+    vega: Optional[float] = None
     greeks_notes: list[str] = field(default_factory=list)
     index_regime: str = "UNKNOWN"
     regime_er: Optional[float] = None
@@ -1236,6 +1240,7 @@ def _try_open(
         gamma=greeks.get("gamma"),
         theta=greeks.get("theta"),
         iv=greeks.get("iv"),
+        vega=greeks.get("vega"),
         greeks_notes=list(adj.get("notes") or []),
         index_regime=regime,
         regime_er=classified.get("er"),

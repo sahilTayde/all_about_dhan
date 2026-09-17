@@ -1,5 +1,23 @@
 # Handoff log — Team 03 PhD market
 
+## As of now (2026-09-17 ~09:12 IST) — ML field audit vs live DUAL-TAPE
+
+```text
+Market question: Do LIVE_BOOKS ML models receive documented Dhan OC/INDEX fields?
+Rule / clock / source: POST /optionchain last_price + implied_volatility +
+  greeks.delta/theta/gamma/vega + volume/oi; INDEX 1m charts volume/OHLC.
+  Cash/F&O open 09:15 IST. Tick 12 at 09:12:22 IST still pre 09:15.
+Impact: NIFTY/BANKNIFTY/SENSEX dhan_live chain_source. INDEX LTP OK.
+Chain interpretation: ITM/ATM delta, IV, theta, gamma non-null on packed wings.
+  Vega was parsed on StrikeRow then dropped in _pack_leg — now packed.
+  Option volume 0 (Dhan 0, not parser null). PCR(volume) None while CE vol=0.
+Customer action: HOLD (MIX-CLOCK-CAS dead-band 09:00–09:30). Not a MIX-DEFAULT ticket.
+Backtest tag for 06: no promote. Parser/pack only.
+UNKNOWN / DATA_INSUFFICIENT: bid/ask/average_price not on ML vectors (not used).
+  Vega on live jsonl ticks written by pid 67691 still missing until process
+  reload — do not kill dual-tape for this additive pack.
+```
+
 ## As of now (2026-09-16) — Dhan chain IV/greeks are official fields
 
 ```text

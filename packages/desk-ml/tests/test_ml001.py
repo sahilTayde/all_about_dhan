@@ -44,6 +44,37 @@ def test_feature_builder_drops_first_bar() -> None:
     assert len(rows) == len(_triples()) - 1
 
 
+def test_ml001_vectors_stay_returns_only_when_wings_have_greeks() -> None:
+    from desk_ml.features import FEATURE_NAMES, vectors_from_rows
+
+    wings = {
+        "24900": {
+            "ce": 140.0,
+            "ce_delta": 0.62,
+            "ce_theta": -8.0,
+            "ce_gamma": 0.002,
+            "ce_vega": 4.1,
+            "ce_iv": 13.2,
+        }
+    }
+    triples = [
+        Triple(
+            ts=_ts(i),
+            idx_close=25000.0 + i,
+            ce_close=120.0 + i * 0.1,
+            pe_close=110.0,
+            wing_quotes=wings,
+        )
+        for i in range(4)
+    ]
+    rows = build_feature_rows(triples)
+    assert FEATURE_NAMES == ("idx_ret", "ce_ret", "pe_ret", "spread_chg", "abs_residual")
+    vecs = vectors_from_rows(rows)
+    assert all(len(v) == 5 for v in vecs)
+    assert "delta" not in rows[0]
+    assert "iv" not in rows[0]
+
+
 def test_kmeans_names_four_regimes() -> None:
     fitted = fit_from_rows(build_feature_rows(_triples()), seed=14)
     assert set(fitted["cluster_sizes"]) == {"TREND_UP", "TREND_DN", "RANGE", "DIVERGE"}
