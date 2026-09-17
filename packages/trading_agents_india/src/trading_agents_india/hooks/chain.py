@@ -49,6 +49,8 @@ def _pack_leg(row: Any) -> dict[str, Any]:
         "pe_theta": getattr(row, "pe_theta", None),
         "ce_iv": getattr(row, "ce_iv", None),
         "pe_iv": getattr(row, "pe_iv", None),
+        "ce_volume": getattr(row, "ce_volume", None),
+        "pe_volume": getattr(row, "pe_volume", None),
     }
 
 
@@ -133,6 +135,9 @@ class ChainWatchResult:
     itm_pe_gamma: Optional[float] = None
     itm_ce_theta: Optional[float] = None
     itm_pe_theta: Optional[float] = None
+    atm_ce_volume: Optional[float] = None
+    atm_pe_volume: Optional[float] = None
+    pcr_volume: Optional[float] = None
     wing_quotes: dict[str, Any] = field(default_factory=dict)
     expiry: Optional[str] = None
 
@@ -191,6 +196,9 @@ def _metrics_from_dhan_payload(
         "itm_pe_strike": None,
         "itm_ce_ltp": None,
         "itm_pe_ltp": None,
+        "atm_ce_volume": None,
+        "atm_pe_volume": None,
+        "pcr_volume": None,
         "wing_quotes": {},
         "expiry": expiry,
     }
@@ -233,6 +241,8 @@ def _metrics_from_dhan_payload(
         meta["atm_strike"] = float(atm.strike)
         meta["atm_ce_ltp"] = atm.ce_ltp
         meta["atm_pe_ltp"] = atm.pe_ltp
+        meta["atm_ce_volume"] = atm.ce_volume
+        meta["atm_pe_volume"] = atm.pe_volume
         _attach_itm_quotes(rows, underlying, meta)
 
     snap = ChainSnapshot(
@@ -255,6 +265,7 @@ def _metrics_from_dhan_payload(
     if lean not in ("CE", "PE", "NEUTRAL", "NO_TRADE"):
         lean = "NEUTRAL"
     meta["pcr_oi"] = bias.pcr_oi
+    meta["pcr_volume"] = getattr(bias, "pcr_volume", None)
     meta["atm_strike"] = bias.atm_strike if bias.atm_strike is not None else meta["atm_strike"]
     if meta.get("atm_strike") is not None:
         _attach_itm_quotes(rows, underlying, meta)
@@ -390,6 +401,9 @@ def try_fetch_dhan_chain(underlying: str) -> Optional[ChainWatchResult]:
             itm_pe_gamma=meta.get("itm_pe_gamma"),
             itm_ce_theta=meta.get("itm_ce_theta"),
             itm_pe_theta=meta.get("itm_pe_theta"),
+            atm_ce_volume=meta.get("atm_ce_volume"),
+            atm_pe_volume=meta.get("atm_pe_volume"),
+            pcr_volume=meta.get("pcr_volume"),
             wing_quotes=meta.get("wing_quotes") or {},
             expiry=expiry,
         )

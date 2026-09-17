@@ -1,5 +1,24 @@
 # Handoff log — Team 04 Quant
 
+## As of now (2026-09-17 PRE) — TREND-UP confirm/kill overlay (NO_PROMOTE)
+
+```text
+MIX / STRAT: none new. Overlay on LIVE_BOOKS. KEEP_ALL 001–014.
+Origin tags: PROJECT-DERIVED HYPOTHESIS. Not SOURCE_FACT.
+Entry hypothesis: none. Side still dealer/logit/TV.
+Confirm-or-kill: TREND+UP kills new PE; TREND+DOWN kills new CE.
+  SIDEWAYS_HOLD still skips NEW opens. 5m ST/MACD/RSI still not entry.
+Hold / veto rules: flatten/cancel + greeks-dead cancel still run.
+Feasibility rules: working limit = signal × (1-limit_discount_frac).
+Parameters to grid: limit_discount_frac {0.008,0.012,0.02};
+  skip_trend_against {true,false}. Session file only.
+  production_params_written false.
+Backtest request: smoke 17 Sep DI; 16 Sep max-5 not today.
+Customer copy allowed: none.
+Internal-only: skip_trend_against paper param.
+UNKNOWN / DATA_INSUFFICIENT: 17 Sep INDEX 1m path empty before 09:15.
+```
+
 ## As of now (2026-09-16) — INDEX 1m SIDEWAYS HOLD (NO_PROMOTE)
 
 ```text

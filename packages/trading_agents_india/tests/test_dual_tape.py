@@ -37,6 +37,7 @@ def test_simulate_two_ticks_writes_ledger(tmp_path: Path) -> None:
     assert result.simulated is True
     assert result.tick_seconds == 30
     assert len(result.ticks) == 2
+    assert "vol_watch" in result.ticks[0]
     assert result.stopped_reason == "completed_max_ticks"
     latest = tmp_path / "data" / "recon" / "paper_watch" / "DUAL-TAPE" / "latest.json"
     assert latest.is_file()

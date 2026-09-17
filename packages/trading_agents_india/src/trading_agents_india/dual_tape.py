@@ -166,6 +166,11 @@ class UnderlyingSnap:
     itm_pe_gamma: Optional[float] = None
     itm_ce_theta: Optional[float] = None
     itm_pe_theta: Optional[float] = None
+    atm_ce_volume: Optional[float] = None
+    atm_pe_volume: Optional[float] = None
+    pcr_volume: Optional[float] = None
+    index_volume: Optional[float] = None
+    vol_watch: dict[str, Any] = field(default_factory=dict)
     index_delta: Optional[float] = None
     ce_delta: Optional[float] = None
     pe_delta: Optional[float] = None
@@ -189,6 +194,56 @@ def _prev_latest(path: Path) -> dict[str, dict[str, Any]]:
     if not isinstance(rows, list):
         return {}
     return {str(r.get("underlying")): r for r in rows if isinstance(r, dict)}
+
+
+def _opt_vol(raw: Any) -> Optional[float]:
+    if raw is None:
+        return None
+    try:
+        return float(raw)
+    except (TypeError, ValueError):
+        return None
+
+
+def stamp_vol_watch(
+    *,
+    index_volume: Optional[float],
+    atm_ce_volume: Optional[float],
+    atm_pe_volume: Optional[float],
+    ce_delta: Optional[float],
+    pe_delta: Optional[float],
+    prev: Optional[dict[str, Any]] = None,
+) -> dict[str, Any]:
+    """Stamp Dhan/bar volume if present. Never invent. SIDEWAYS still keeps the feed."""
+    prev = prev or {}
+    prev_idx = _opt_vol((prev.get("vol_watch") or {}).get("index_volume") if isinstance(prev.get("vol_watch"), dict) else prev.get("index_volume"))
+    expanded: Optional[bool] = None
+    if index_volume is not None and prev_idx is not None and prev_idx > 0:
+        expanded = float(index_volume) >= float(prev_idx) * 1.25
+    premium_up = False
+    if ce_delta is not None and float(ce_delta) > 0:
+        premium_up = True
+    if pe_delta is not None and float(pe_delta) > 0:
+        premium_up = True
+    volume_status = "OK" if any(v is not None for v in (index_volume, atm_ce_volume, atm_pe_volume)) else "DATA_INSUFFICIENT"
+    may_lift: Optional[bool] = None
+    if premium_up and expanded is True:
+        may_lift = True
+    elif premium_up and volume_status == "DATA_INSUFFICIENT":
+        may_lift = None
+    elif premium_up and expanded is False:
+        may_lift = False
+    return {
+        "index_volume": index_volume,
+        "atm_ce_volume": atm_ce_volume,
+        "atm_pe_volume": atm_pe_volume,
+        "index_volume_expanded": expanded,
+        "premium_up_vs_prev_tick": premium_up if (ce_delta is not None or pe_delta is not None) else None,
+        "option_premium_may_lift": may_lift,
+        "volume_status": volume_status,
+        "layer": "SOURCE_FACT" if volume_status == "OK" else "DATA_INSUFFICIENT",
+        "note": "Volume only if Dhan/INDEX bar field exists. Do not invent. Feed stays live in SIDEWAYS.",
+    }
 
 
 def gather_underlying(
@@ -271,11 +326,25 @@ def gather_underlying(
         except (TypeError, ValueError):
             return None
 
+    ce_d = _d(ce_ltp, "atm_ce_ltp")
+    pe_d = _d(pe_ltp, "atm_pe_ltp")
+    bar_d = _bar_dict(last_bar)
+    idx_vol = _opt_vol((bar_d or {}).get("volume"))
+    ce_vol = _opt_vol(getattr(chain, "atm_ce_volume", None))
+    pe_vol = _opt_vol(getattr(chain, "atm_pe_volume", None))
+    vol_watch = stamp_vol_watch(
+        index_volume=idx_vol,
+        atm_ce_volume=ce_vol,
+        atm_pe_volume=pe_vol,
+        ce_delta=ce_d,
+        pe_delta=pe_d,
+        prev=prev,
+    )
     snap = UnderlyingSnap(
         underlying=und,
         as_of_ist=as_of,
         index_ltp=index_ltp,
-        index_1m=_bar_dict(last_bar),
+        index_1m=bar_d,
         index_source=bars.source,
         atm_ce_ltp=ce_ltp,
         atm_pe_ltp=pe_ltp,
@@ -290,6 +359,7 @@ def gather_underlying(
         chain_source=chain.source,
         chain_spot=chain.spot,
         pcr_oi=chain.pcr_oi,
+        pcr_volume=_opt_vol(getattr(chain, "pcr_volume", None)),
         strike_count=int(chain.strike_count or 0),
         chain_lean=chain.chain_lean,
         atm_ce_iv=chain.atm_ce_iv,
@@ -308,9 +378,13 @@ def gather_underlying(
         itm_pe_gamma=chain.itm_pe_gamma,
         itm_ce_theta=chain.itm_ce_theta,
         itm_pe_theta=chain.itm_pe_theta,
+        atm_ce_volume=ce_vol,
+        atm_pe_volume=pe_vol,
+        index_volume=idx_vol,
+        vol_watch=vol_watch,
         index_delta=_d(index_ltp, "index_ltp"),
-        ce_delta=_d(ce_ltp, "atm_ce_ltp"),
-        pe_delta=_d(pe_ltp, "atm_pe_ltp"),
+        ce_delta=ce_d,
+        pe_delta=pe_d,
         stale=stale,
         wrong_strike=wrong,
         data_gaps=list(dict.fromkeys(gaps)),
@@ -530,6 +604,7 @@ def run_dual_tape_loop(
     prev_map = _prev_latest(latest_path)
     last_paths: dict[str, str] = {}
     heartbeat_board: dict[str, Any] = {}
+    last_full_board: dict[str, Any] = {}
 
     if write_run_flag_on_start:
         write_run_flag(
@@ -602,6 +677,7 @@ def run_dual_tape_loop(
                             write=True,
                             live_session=True,
                         )
+                        last_full_board = board
                         last_paths["ml_paper_dashboard"] = str(
                             settings.repo_root / "data" / "recon" / "ml_paper_dashboard.json"
                         )
@@ -610,11 +686,21 @@ def run_dual_tape_loop(
                             "n_open": len(board.get("open_trades") or []),
                             "n_wins": board.get("n_wins"),
                             "n_losses": board.get("n_losses"),
+                            "win_rate_net_pct": board.get("win_rate_net_pct", board.get("win_rate_pct")),
+                            "win_rate_gross_pct": board.get("win_rate_gross_pct"),
                             "overall_pnl_inr": board.get("overall_pnl_inr"),
+                            "overall_gross_pnl_inr": board.get("overall_gross_pnl_inr"),
                             "money_lost_inr": board.get("money_lost_inr"),
                             "session_ist_date": board.get("session_ist_date"),
                             "live_session": True,
+                            "capital_plan": board.get("capital_plan"),
                             "leaderboard_n": len(board.get("leaderboard") or []),
+                            "dashboard_write_seconds": 5,
+                            "tick_seconds": tick_seconds,
+                            "tick_ne_dashboard_reason": (
+                                "Dhan POST /optionchain rate-limit: dual-tape poll stays ~45s. "
+                                "Dashboard JSON/MD rewrite every 5s from last tick."
+                            ),
                         }
                     except Exception:  # noqa: BLE001 — scalper fail-soft
                         heartbeat_board = {"error": "paper_scalp_failed"}
@@ -638,6 +724,8 @@ def run_dual_tape_loop(
                 "itm_ce_delta": {s.underlying: s.itm_ce_delta for s in snaps},
                 "itm_ce_theta": {s.underlying: s.itm_ce_theta for s in snaps},
                 "itm_ce_iv": {s.underlying: s.itm_ce_iv for s in snaps},
+                "vol_watch": {s.underlying: s.vol_watch for s in snaps},
+                "index_volume": {s.underlying: s.index_volume for s in snaps},
                 "execution": "refused",
                 "llm": False,
                 "promote": "NO_PROMOTE",
@@ -653,7 +741,32 @@ def run_dual_tape_loop(
                 stopped = "completed_max_ticks"
                 break
             if not (simulate and max_ticks > 0):
-                sleep_fn(float(tick_seconds))
+                def _dash_beat(_remaining: float, board: dict[str, Any] = last_full_board) -> None:
+                    if not paper_scalp or not board:
+                        return
+                    try:
+                        from desk_ml.paper_scalp import refresh_dashboard_clock, write_dashboard
+
+                        refresh_dashboard_clock(board, tick_seconds=int(tick_seconds))
+                        write_dashboard(board, root=settings.repo_root)
+                    except Exception:  # noqa: BLE001
+                        return
+
+                try:
+                    from desk_ml.paper_scalp import sleep_with_beats
+
+                    slept = sleep_with_beats(
+                        float(tick_seconds),
+                        beat_seconds=5.0,
+                        sleep_fn=sleep_fn,
+                        on_beat=_dash_beat if paper_scalp else None,
+                        stop_fn=lambda: founder_stop_requested(settings.repo_root),
+                    )
+                    if slept == "stopped":
+                        stopped = "founder_stop_flag"
+                        break
+                except Exception:  # noqa: BLE001
+                    sleep_fn(float(tick_seconds))
     finally:
         if write_run_flag_on_start:
             clear_run_flag(settings.repo_root)

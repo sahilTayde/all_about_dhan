@@ -3,7 +3,7 @@
 Each book_id × underlying has at most one OPEN. Books never veto each other.
 Default paper path: do **not** deny a model's CE/PE signal (founder paper). Overlay HOLD
 is logged, not a skip. MIX-ML-LOGIT is an INDEX scan book, not the customer default.
-₹10,000 starting capital per book. Lot size from instrument master when available.
+Desk capital ₹70,000 split across LIVE_BOOKS (not 10k×8). Lot size from instrument master when available.
 """
 
 from __future__ import annotations
@@ -26,6 +26,14 @@ from desk_ml.paper_lots import (
     resolve_lot_size,
     size_lots,
 )
+
+DESK_CAPITAL_INR = 70000.0
+DASHBOARD_HEARTBEAT_SECONDS = 5
+TICK_NE_DASHBOARD_REASON = (
+    "Dhan POST /optionchain rate-limit: dual-tape poll stays ~45s (clamp ≥30). "
+    "Dashboard JSON/MD rewrite every 5s from the last tick — not a new Dhan poll."
+)
+LIMIT_DISCOUNT_FRAC = 0.012  # working buy limit below signal LTP; fill is not assumed at signal
 from desk_ml.groww_costs import as_dict as groww_cost_meta
 from desk_ml.groww_costs import groww_round_trip_charges, net_pnl_inr
 from desk_ml.greeks_ml import score_greeks_ticket, session_iv_median, wing_ivs
@@ -105,6 +113,10 @@ DEFAULT_PAPER_PARAMS = {
     "scalp_hold_bars": SCALP_HOLD_BARS,
     "give_up_frac": GIVE_UP_FRAC,
     "skip_sideways": True,
+    "skip_trend_against": True,
+    "limit_discount_frac": LIMIT_DISCOUNT_FRAC,
+    "desk_capital_inr": DESK_CAPITAL_INR,
+    "dashboard_heartbeat_seconds": DASHBOARD_HEARTBEAT_SECONDS,
     "regime_lookback": REGIME_LOOKBACK,
     "regime_er_max": REGIME_ER_MAX,
     "regime_flip_min": REGIME_FLIP_MIN,
@@ -136,12 +148,14 @@ def classify_index_regime(
     n = len(vals)
     base = {
         "regime": "UNKNOWN",
+        "direction": "UNKNOWN",
         "layer": "HYPOTHESIS",
         "n": n,
         "lookback": int(lookback),
         "er": None,
         "flip_frac": None,
         "range_over_atr": None,
+        "net_signed": None,
         "reason": "short_index_path",
     }
     if n < REGIME_MIN_BARS:
@@ -173,8 +187,16 @@ def classify_index_regime(
     else:
         regime = "UNKNOWN"
         reason = "mixed_index_path"
+    net_signed = window[-1] - window[0]
+    if net_signed > 0:
+        direction = "UP"
+    elif net_signed < 0:
+        direction = "DOWN"
+    else:
+        direction = "FLAT"
     return {
         "regime": regime,
+        "direction": direction,
         "layer": "HYPOTHESIS",
         "n": n,
         "lookback": len(window),
@@ -182,8 +204,101 @@ def classify_index_regime(
         "flip_frac": round(flip_frac, 4),
         "range_over_atr": round(range_over_atr, 4),
         "mid_dev_atr": round(float(mid_dev_atr), 4) if mid_dev_atr < 900 else None,
+        "net_signed": round(float(net_signed), 4),
         "reason": reason,
     }
+
+
+def allocate_desk_capital(
+    *,
+    total: float = DESK_CAPITAL_INR,
+    books: Sequence[str] = LIVE_BOOKS,
+    tradable: Optional[Sequence[str]] = None,
+) -> dict[str, Any]:
+    """Equal ₹ split of desk capital. SKIP/DATA_INSUFFICIENT books get ₹0; remainder to traders."""
+    book_list = list(books)
+    want = set(tradable) if tradable is not None else set(book_list)
+    active = [b for b in book_list if b in want]
+    skipped = [b for b in book_list if b not in want]
+    per_book = {b: 0.0 for b in book_list}
+    unallocated = round(float(total), 2)
+    if active:
+        n = len(active)
+        paisa = int(round(float(total) * 100))
+        base_paisa, rem_paisa = divmod(paisa, n)
+        for i, book in enumerate(active):
+            extra = rem_paisa if i == 0 else 0
+            per_book[book] = (base_paisa + extra) / 100.0
+        unallocated = 0.0
+    return {
+        "desk_capital_inr": round(float(total), 2),
+        "n_books": len(book_list),
+        "n_tradable": len(active),
+        "tradable": active,
+        "skipped": skipped,
+        "per_book": per_book,
+        "unallocated_inr": unallocated,
+        "note": "Equal split of ₹70,000. SKIP/DI books do not keep a 10k seat. Not 10k×8.",
+        "production_params_written": False,
+    }
+
+
+def tape_has_dhan_greeks(triples: Sequence[Triple]) -> bool:
+    """True only if a parsed greeks/IV field is present. Never invent."""
+    for tick in triples:
+        wings = tick.wing_quotes if isinstance(tick.wing_quotes, dict) else {}
+        for cell in wings.values():
+            if not isinstance(cell, dict):
+                continue
+            for key in (
+                "ce_delta",
+                "pe_delta",
+                "ce_theta",
+                "pe_theta",
+                "ce_gamma",
+                "pe_gamma",
+                "ce_iv",
+                "pe_iv",
+            ):
+                if cell.get(key) is not None:
+                    return True
+    return False
+
+
+def sleep_with_beats(
+    total_seconds: float,
+    *,
+    beat_seconds: float = DASHBOARD_HEARTBEAT_SECONDS,
+    sleep_fn: Callable[[float], None],
+    on_beat: Optional[Callable[[float], None]] = None,
+    stop_fn: Optional[Callable[[], bool]] = None,
+) -> str:
+    """Sleep `total_seconds`, calling on_beat about every `beat_seconds`. No Dhan poll."""
+    remaining = max(0.0, float(total_seconds))
+    beat = max(0.05, float(beat_seconds))
+    while remaining > 1e-9:
+        if stop_fn is not None and stop_fn():
+            return "stopped"
+        chunk = min(beat, remaining)
+        sleep_fn(chunk)
+        remaining = round(remaining - chunk, 6)
+        if on_beat is not None:
+            on_beat(remaining)
+    return "slept"
+
+
+def refresh_dashboard_clock(board: dict[str, Any], *, tick_seconds: int) -> dict[str, Any]:
+    """Rewrite as_of from last tick. Does not re-walk the tape or call Dhan."""
+    stamp = datetime.now(IST).isoformat(timespec="seconds")
+    board["as_of_ist"] = stamp
+    heart = dict(board.get("heartbeat") or {})
+    heart["as_of_ist"] = stamp
+    heart["alive"] = True
+    heart["dashboard_write_seconds"] = DASHBOARD_HEARTBEAT_SECONDS
+    heart["tick_seconds"] = int(tick_seconds)
+    heart["tick_ne_dashboard_reason"] = TICK_NE_DASHBOARD_REASON
+    board["heartbeat"] = heart
+    return board
 
 
 def round_atm_strike(underlying: str, index_ltp: float) -> float:
@@ -356,8 +471,12 @@ def propose_levels(
     *,
     stop_frac: float = STOP_FRAC,
     target_frac: float = TARGET_FRAC,
+    limit_discount_frac: float = LIMIT_DISCOUNT_FRAC,
 ) -> dict[str, Any]:
-    """Scalp stop/target from same-side premium path. Kills fantasy 150/96/250."""
+    """Scalp stop/target from same-side premium path. Kills fantasy 150/96/250.
+
+    Working limit sits below signal LTP so a fill is a cheaper buy — never assumed at signal.
+    """
     if entry is None or entry <= 0:
         return {"ok": False, "reason_code": "DATA_INSUFFICIENT", "data_gaps": ["entry missing"]}
     path = [float(x) for x in premiums if x is not None]
@@ -376,10 +495,15 @@ def propose_levels(
         stop = max(0.05, entry - min(float(stop_frac) * typical, entry * 0.12))
         target = entry + min(float(target_frac) * typical, entry * 0.18)
         feas = feasibility_long(entry=entry, stop=stop, target=target, typical_range=typical)
+    disc = max(0.0, min(0.08, float(limit_discount_frac)))
+    limit_px = round(float(entry) * (1.0 - disc), 4)
+    if limit_px <= 0:
+        limit_px = round(entry, 4)
     return {
         "ok": True,
         "entry": round(entry, 4),
-        "limit_price": round(entry, 4),
+        "signal_ltp": round(entry, 4),
+        "limit_price": limit_px,
         "stop": round(stop, 4),
         "target": round(target, 4),
         "typical_premium_range": round(typical, 4),
@@ -439,14 +563,23 @@ class BookEngine:
     paper_hold_bars: int = SCALP_HOLD_BARS
     paper_give_up_frac: float = GIVE_UP_FRAC
     skip_new_when_sideways: bool = True
+    skip_trend_against: bool = True
+    limit_discount_frac: float = LIMIT_DISCOUNT_FRAC
+    capital_by_book: dict[str, float] = field(default_factory=dict)
+    capital_plan: dict[str, Any] = field(default_factory=dict)
     regime_lookback: int = REGIME_LOOKBACK
     regime_er_max: float = REGIME_ER_MAX
     regime_flip_min: float = REGIME_FLIP_MIN
     regime_range_atr_max: float = REGIME_RANGE_ATR_MAX
     last_regime: dict[str, dict[str, Any]] = field(default_factory=dict)
 
+    def book_capital(self, book_id: str) -> float:
+        if book_id in self.capital_by_book:
+            return float(self.capital_by_book[book_id])
+        return float(self.starting_capital)
+
     def book_equity(self, book_id: str) -> float:
-        return float(self.equity.setdefault(book_id, self.starting_capital))
+        return float(self.equity.setdefault(book_id, self.book_capital(book_id)))
 
     def has_open(self, book_id: str, underlying: str) -> bool:
         return (book_id, underlying) in self.opens
@@ -695,6 +828,39 @@ def ml1_meta_label(closed: Sequence[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
+def _greeks_cancel_reason(
+    *,
+    side: str,
+    entry: float,
+    live: dict[str, Optional[float]],
+    minutes: int,
+    session_iv: Optional[float],
+    wing_iv_list: Optional[Sequence[float]] = None,
+    filled: bool,
+) -> Optional[str]:
+    """Cancel if Dhan greeks say the long-premium thesis died. Missing greeks → no invent."""
+    if live.get("delta") is None and live.get("iv") is None and live.get("theta") is None:
+        return None
+    scored = score_greeks_ticket(
+        side=side,
+        entry=entry,
+        delta=live.get("delta"),
+        gamma=live.get("gamma"),
+        theta=live.get("theta"),
+        iv=live.get("iv"),
+        session_iv=session_iv,
+        minutes_ist=minutes,
+        wing_iv_list=wing_iv_list,
+    )
+    if scored.get("take"):
+        return None
+    reason = str(scored.get("reason") or "")
+    if reason in {"DELTA_TOO_LOW", "DELTA_OTM_BAND", "IV_RICH_ABS", "IV_RICH_VS_SESSION", "THETA_LATE_BLEED"}:
+        prefix = "CANCEL_GREEKS" if filled else "CANCEL_UNFILLED_GREEKS"
+        return f"{prefix}_{reason}"
+    return None
+
+
 def _unfilled_reason(
     pos: OpenPaper,
     ltp: float,
@@ -703,7 +869,10 @@ def _unfilled_reason(
     *,
     dealer_verdict: Optional[str] = None,
     live_delta: Optional[float] = None,
+    live_greeks: Optional[dict[str, Optional[float]]] = None,
     index_ltp: Optional[float] = None,
+    session_iv: Optional[float] = None,
+    wing_iv_list: Optional[Sequence[float]] = None,
 ) -> Optional[str]:
     """Working buy limit. Do not assume a fill. Cancel if the candle walked away."""
     px = float(ltp)
@@ -723,6 +892,17 @@ def _unfilled_reason(
         return "CANCEL_UNFILLED_THESIS"
     if live_delta is not None and abs(float(live_delta)) < DELTA_SKIP_BELOW:
         return "CANCEL_UNFILLED_DELTA"
+    g_dead = _greeks_cancel_reason(
+        side=pos.side,
+        entry=float(pos.limit_price or pos.entry),
+        live=live_greeks or {"delta": live_delta},
+        minutes=minutes_ist(ts),
+        session_iv=session_iv,
+        wing_iv_list=wing_iv_list,
+        filled=False,
+    )
+    if g_dead:
+        return g_dead
     if pos.idx_at_open is not None and index_ltp is not None:
         step = STRIKE_STEP.get(pos.underlying.upper(), 50.0)
         moved = float(index_ltp) - float(pos.idx_at_open)
@@ -746,6 +926,9 @@ def _exit_reason(
     side_low: Optional[float] = None,
     atm_strike: Optional[float] = None,
     dealer_verdict: Optional[str] = None,
+    live_greeks: Optional[dict[str, Optional[float]]] = None,
+    session_iv: Optional[float] = None,
+    wing_iv_list: Optional[Sequence[float]] = None,
 ) -> Optional[str]:
     """Exit a stuck long premium. Minute low counts. Do not wait out a dead contract."""
     px = float(ltp)
@@ -772,6 +955,17 @@ def _exit_reason(
         return "CANCEL_THESIS"
     if underwater and pos.side == "PE" and verdict == "BUY_CE_CONFIRM":
         return "CANCEL_THESIS"
+    g_dead = _greeks_cancel_reason(
+        side=pos.side,
+        entry=float(pos.entry),
+        live=live_greeks or {},
+        minutes=minutes_ist(ts),
+        session_iv=session_iv,
+        wing_iv_list=wing_iv_list,
+        filled=True,
+    )
+    if g_dead:
+        return g_dead
     if int(ts) - int(pos.opened_ts) >= int(hold_bars) * 60:
         return "TIME"
     if bar_i - pos.opened_bar >= int(hold_bars):
@@ -908,6 +1102,15 @@ def _try_open(
         return
     if engine.has_open(book_id, underlying):
         return
+    capital = engine.book_capital(book_id)
+    if capital <= 0:
+        engine.mark_skip(
+            book_id,
+            underlying,
+            "CAPITAL_SKIP_DATA_INSUFFICIENT",
+            ts=tick.ts,
+        )
+        return
     classified = engine.last_regime.get(underlying.upper()) or {}
     regime = str(classified.get("regime") or "UNKNOWN")
     if engine.skip_new_when_sideways and regime == "SIDEWAYS":
@@ -944,6 +1147,28 @@ def _try_open(
     if side not in {"CE", "PE"}:
         engine.mark_skip(book_id, underlying, "NO_SIDE", ts=tick.ts)
         return
+    if engine.skip_trend_against and regime == "TREND":
+        direction = str(classified.get("direction") or "UNKNOWN")
+        if direction == "UP" and side == "PE":
+            engine.mark_skip(
+                book_id,
+                underlying,
+                "TREND_UP_KILL_PE",
+                ts=tick.ts,
+                index_regime=regime,
+                regime_direction=direction,
+            )
+            return
+        if direction == "DOWN" and side == "CE":
+            engine.mark_skip(
+                book_id,
+                underlying,
+                "TREND_DOWN_KILL_CE",
+                ts=tick.ts,
+                index_regime=regime,
+                regime_direction=direction,
+            )
+            return
     atm = strike if strike is not None else round_atm_strike(underlying, tick.idx_close)
     want = pick_paper_strike(tick, side, atm, underlying)
     greeks = leg_greeks(tick, side, want)
@@ -982,9 +1207,10 @@ def _try_open(
         path,
         stop_frac=float(adj["stop_frac"]),
         target_frac=float(adj["target_frac"]),
+        limit_discount_frac=float(engine.limit_discount_frac),
     )
     lot_size, lot_src = engine.lot_by_und.get(underlying.upper(), (None, "unset"))
-    sized = size_lots(entry=float(levels["entry"]), lot_size=lot_size, capital_inr=engine.starting_capital)
+    sized = size_lots(entry=float(levels["limit_price"] or levels["entry"]), lot_size=lot_size, capital_inr=capital)
     pos = OpenPaper(
         book_id=book_id,
         underlying=underlying,
@@ -1002,7 +1228,7 @@ def _try_open(
         lots=int(sized.get("lots") or 1),
         qty=sized.get("qty"),
         notional_inr=sized.get("notional_inr"),
-        capital_inr=engine.starting_capital,
+        capital_inr=capital,
         lot_status=str(sized.get("lot_status") or lot_src),
         filled=False,
         idx_at_open=float(tick.idx_close),
@@ -1074,6 +1300,8 @@ def mark_to_market(
             side_low = ltp
         if not pos.filled:
             live = leg_greeks(tick, pos.side, float(pos.atm_strike or 0))
+            hist = getattr(engine, "_greeks_iv_hist", None)
+            prior = list((hist or {}).get(underlying.upper()) or [])
             u_reason = _unfilled_reason(
                 pos,
                 float(ltp),
@@ -1081,7 +1309,10 @@ def mark_to_market(
                 bar_i,
                 dealer_verdict=dealer_verdict,
                 live_delta=live.get("delta"),
+                live_greeks=live,
                 index_ltp=tick.idx_close,
+                session_iv=session_iv_median(prior),
+                wing_iv_list=wing_ivs(tick.wing_quotes),
             )
             if u_reason == "FILL":
                 pos.filled = True
@@ -1110,6 +1341,11 @@ def mark_to_market(
             side_low=float(side_low) if side_low is not None else None,
             atm_strike=float(roll_ref) if roll_ref is not None else None,
             dealer_verdict=dealer_verdict,
+            live_greeks=leg_greeks(tick, pos.side, float(pos.atm_strike or 0)),
+            session_iv=session_iv_median(
+                list((getattr(engine, "_greeks_iv_hist", None) or {}).get(underlying.upper()) or [])
+            ),
+            wing_iv_list=wing_ivs(tick.wing_quotes),
         )
         if reason:
             exit_px = float(ltp)
@@ -1286,7 +1522,7 @@ def step_underlying(
         "mix_ml_greeks_skip": greeks_skip,
         "index_regime": classified,
         "independent": True,
-        "note": "HOLD on one book does not veto another. SIDEWAYS skips NEW opens only.",
+        "note": "HOLD on one book does not veto another. SIDEWAYS skips NEW opens only. TREND direction confirm/kill PE vs CE. Feed stays live.",
     }
 
 
@@ -1359,6 +1595,10 @@ def load_paper_params(root: Path) -> dict[str, Any]:
         "give_up_frac",
         "nudge_n_closed",
         "skip_sideways",
+        "skip_trend_against",
+        "limit_discount_frac",
+        "desk_capital_inr",
+        "dashboard_heartbeat_seconds",
         "regime_lookback",
         "regime_er_max",
         "regime_flip_min",
@@ -1510,35 +1750,24 @@ def replay_paper_scalp(
     write: bool = False,
     max_closes: int = 0,
     deny_model_signals: bool = False,
-    starting_capital: float = STARTING_CAPITAL_INR,
+    starting_capital: Optional[float] = None,
     live_session: bool = False,
     session_ist_date: Optional[str] = None,
+    desk_capital: Optional[float] = None,
 ) -> dict[str, Any]:
     base = root or repo_root()
     now = datetime.now(IST)
     session_day = session_ist_date or (now.date().isoformat() if live_session else None)
     params = load_paper_params(base) if live_session else dict(DEFAULT_PAPER_PARAMS)
-    engine = BookEngine(
-        root=base,
-        deny_model_signals=deny_model_signals,
-        starting_capital=starting_capital,
-        paper_stop_frac=float(params.get("stop_frac") or STOP_FRAC),
-        paper_target_frac=float(params.get("target_frac") or TARGET_FRAC),
-        paper_hold_bars=int(params.get("scalp_hold_bars") or SCALP_HOLD_BARS),
-        paper_give_up_frac=float(params.get("give_up_frac") or GIVE_UP_FRAC),
-        skip_new_when_sideways=bool(params.get("skip_sideways", True)),
-        regime_lookback=int(params.get("regime_lookback") or REGIME_LOOKBACK),
-        regime_er_max=float(params.get("regime_er_max") or REGIME_ER_MAX),
-        regime_flip_min=float(params.get("regime_flip_min") or REGIME_FLIP_MIN),
-        regime_range_atr_max=float(params.get("regime_range_atr_max") or REGIME_RANGE_ATR_MAX),
+    desk_total = float(
+        desk_capital
+        if desk_capital is not None
+        else (params.get("desk_capital_inr") or DESK_CAPITAL_INR)
     )
-    for book_id in LIVE_BOOKS:
-        engine.equity[book_id] = starting_capital
-    for und in ("NIFTY", "BANKNIFTY", "SENSEX"):
-        engine.lot_by_und[und] = resolve_lot_size(und, root=base)
+    src = (source or "cache").strip().lower()
     tapes: dict[str, Any] = {}
     steps: dict[str, Any] = {}
-    src = (source or "cache").strip().lower()
+    loaded: dict[str, list[Triple]] = {}
 
     for und in underlyings:
         u = und.upper()
@@ -1557,6 +1786,41 @@ def replay_paper_scalp(
                 triples = [t for t in triples if ist_calendar_date(int(t.ts)) == session_day]
                 tape = {**tape, "session_ist_date": session_day, "aligned_triples": len(triples)}
         tapes[u] = tape
+        loaded[u] = triples
+
+    tradable = list(LIVE_BOOKS)
+    has_greeks = any(tape_has_dhan_greeks(loaded[u]) for u in loaded)
+    if not has_greeks:
+        tradable = [b for b in LIVE_BOOKS if b != "MIX-ML-GREEKS"]
+    plan = allocate_desk_capital(total=desk_total, tradable=tradable)
+
+    engine = BookEngine(
+        root=base,
+        deny_model_signals=deny_model_signals,
+        starting_capital=STARTING_CAPITAL_INR,
+        paper_stop_frac=float(params.get("stop_frac") or STOP_FRAC),
+        paper_target_frac=float(params.get("target_frac") or TARGET_FRAC),
+        paper_hold_bars=int(params.get("scalp_hold_bars") or SCALP_HOLD_BARS),
+        paper_give_up_frac=float(params.get("give_up_frac") or GIVE_UP_FRAC),
+        skip_new_when_sideways=bool(params.get("skip_sideways", True)),
+        skip_trend_against=bool(params.get("skip_trend_against", True)),
+        limit_discount_frac=float(params.get("limit_discount_frac") or LIMIT_DISCOUNT_FRAC),
+        capital_by_book=dict(plan["per_book"]),
+        capital_plan=plan,
+        regime_lookback=int(params.get("regime_lookback") or REGIME_LOOKBACK),
+        regime_er_max=float(params.get("regime_er_max") or REGIME_ER_MAX),
+        regime_flip_min=float(params.get("regime_flip_min") or REGIME_FLIP_MIN),
+        regime_range_atr_max=float(params.get("regime_range_atr_max") or REGIME_RANGE_ATR_MAX),
+    )
+    for book_id in LIVE_BOOKS:
+        engine.equity[book_id] = float(plan["per_book"].get(book_id) or 0.0)
+    for und in ("NIFTY", "BANKNIFTY", "SENSEX"):
+        engine.lot_by_und[und] = resolve_lot_size(und, root=base)
+
+    for und in underlyings:
+        u = und.upper()
+        triples = loaded.get(u, [])
+        tape = tapes.get(u) or {}
         if len(triples) < 8:
             steps[u] = {
                 "status": "DATA_INSUFFICIENT",
@@ -1695,7 +1959,9 @@ def leaderboard_closed(closed: Sequence[dict[str, Any]]) -> list[dict[str, Any]]
     for (book, und), rows in sorted(buckets.items()):
         nets = [_net_or_points(r) for r in rows]
         pts = [float(r["realized_pnl"]) for r in rows]
-        gross = [r.get("gross_pnl_inr") for r in rows]
+        gross_vals = [float(r["gross_pnl_inr"]) for r in rows if r.get("gross_pnl_inr") is not None]
+        if not gross_vals:
+            gross_vals = pts
         chg = [r.get("charges_inr") for r in rows]
         out.append(
             {
@@ -1704,13 +1970,19 @@ def leaderboard_closed(closed: Sequence[dict[str, Any]]) -> list[dict[str, Any]]
                 "n_closed": len(nets),
                 "n_wins": sum(1 for p in nets if p > 0),
                 "n_losses": sum(1 for p in nets if p <= 0),
+                "n_wins_gross": sum(1 for p in gross_vals if p > 0),
+                "n_losses_gross": sum(1 for p in gross_vals if p <= 0),
                 "sum_premium_pnl": round(sum(pts), 4),
-                "sum_gross_pnl_inr": _sum_opt(gross),
+                "sum_gross_pnl_inr": _sum_opt([r.get("gross_pnl_inr") for r in rows]),
                 "sum_charges_inr": _sum_opt(chg),
                 "sum_pnl_inr": round(sum(nets), 2),
                 "win_rate": paper_hit_rate(nets),
                 "win_rate_pct": paper_hit_rate_pct(nets),
+                "win_rate_net_pct": paper_hit_rate_pct(nets),
+                "win_rate_gross": paper_hit_rate(gross_vals),
+                "win_rate_gross_pct": paper_hit_rate_pct(gross_vals),
                 "win_rate_kind": "paper_closed_net_inr_gt_0_after_groww_stt",
+                "win_rate_gross_kind": "paper_closed_gross_inr_gt_0_before_groww_stt",
                 "rank_metric": "closed_net_pnl_inr_after_groww_stt",
             }
         )
@@ -1733,6 +2005,7 @@ def rank_books_net(closed: Sequence[dict[str, Any]]) -> list[dict[str, Any]]:
     for book in LIVE_BOOKS:
         rows = buckets.get(book, [])
         nets = [_net_or_points(r) for r in rows]
+        gross_vals = [float(r["gross_pnl_inr"]) for r in rows if r.get("gross_pnl_inr") is not None]
         out.append(
             {
                 "rank": 0,
@@ -1742,10 +2015,15 @@ def rank_books_net(closed: Sequence[dict[str, Any]]) -> list[dict[str, Any]]:
                 "n_cancelled": cancelled.get(book, 0),
                 "n_wins": sum(1 for p in nets if p > 0),
                 "n_losses": sum(1 for p in nets if p <= 0),
+                "n_wins_gross": sum(1 for p in gross_vals if p > 0),
+                "n_losses_gross": sum(1 for p in gross_vals if p <= 0),
                 "sum_gross_pnl_inr": _sum_opt([r.get("gross_pnl_inr") for r in rows]),
                 "sum_charges_inr": _sum_opt([r.get("charges_inr") for r in rows]),
                 "sum_pnl_inr": round(sum(nets), 2) if nets else 0.0,
                 "win_rate_pct": paper_hit_rate_pct(nets),
+                "win_rate_net_pct": paper_hit_rate_pct(nets),
+                "win_rate_gross_pct": paper_hit_rate_pct(gross_vals),
+                "starting_capital_inr": None,
             }
         )
     out.sort(key=lambda r: (int(r["n_filled"]) > 0, r["sum_pnl_inr"]), reverse=True)
@@ -1758,6 +2036,7 @@ def today_picture(closed: Sequence[dict[str, Any]], book_rank: Sequence[dict[str
     filled = [r for r in closed if str(r.get("result")) in {"SUCCESS", "LOSS"}]
     cancelled = [r for r in closed if str(r.get("result")) == "CANCELLED"]
     nets = [_net_or_points(r) for r in filled]
+    gross_vals = [float(r["gross_pnl_inr"]) for r in filled if r.get("gross_pnl_inr") is not None]
     gross = _sum_opt([r.get("gross_pnl_inr") for r in filled]) or 0.0
     charges = _sum_opt([r.get("charges_inr") for r in filled]) or 0.0
     brokerage = _sum_opt([r.get("brokerage_inr") for r in filled]) or 0.0
@@ -1795,6 +2074,10 @@ def today_picture(closed: Sequence[dict[str, Any]], book_rank: Sequence[dict[str
         "n_cancelled": len(cancelled),
         "n_wins": sum(1 for p in nets if p > 0),
         "n_losses": sum(1 for p in nets if p <= 0),
+        "n_wins_gross": sum(1 for p in gross_vals if p > 0),
+        "n_losses_gross": sum(1 for p in gross_vals if p <= 0),
+        "win_rate_net_pct": paper_hit_rate_pct(nets),
+        "win_rate_gross_pct": paper_hit_rate_pct(gross_vals),
         "gross_pnl_inr": round(gross, 2),
         "brokerage_inr": round(brokerage, 2),
         "gst_inr": round(gst, 2),
@@ -1830,11 +2113,15 @@ def index_adjustment_notes(
             "Adjustment: keep the book; require live chain from 09:15 IST. Do not retune ml001-v1."
         )
     clones = [
-        r["sum_pnl_inr"]
+        r
         for r in book_rank
         if r["book_id"] in {"MIX-DEFAULT-BUY", "ML-001", "ML-002", "ML-1", "MIX-ML-LOGIT-XR"}
     ]
-    if len(clones) >= 4 and len(set(round(x, 2) for x in clones)) == 1:
+    if (
+        len(clones) >= 4
+        and all(int(r.get("n_filled") or 0) > 0 for r in clones)
+        and len(set(round(float(r["sum_pnl_inr"]), 2) for r in clones)) == 1
+    ):
         notes.append(
             "ML-001 / ML-002 / ML-1 / MIX-ML-LOGIT-XR matched MIX-DEFAULT-BUY net ₹ "
             "(deny_model_signals=false — overlay did not change CE/PE). XR cloned dealer "
@@ -1961,10 +2248,17 @@ def build_dashboard(
                 "sum_gross_pnl_inr": _sum_opt([c.get("gross_pnl_inr") for c in scored_b]),
                 "sum_charges_inr": _sum_opt([c.get("charges_inr") for c in scored_b]),
                 "sum_pnl_inr": round(sum(inrs), 2) if inrs else None,
-                "starting_capital_inr": STARTING_CAPITAL_INR,
+                "starting_capital_inr": engine.book_capital(book_id),
                 "equity_inr": engine.book_equity(book_id),
                 "win_rate": paper_hit_rate(nets),
                 "win_rate_pct": paper_hit_rate_pct(nets),
+                "win_rate_net_pct": paper_hit_rate_pct(nets),
+                "win_rate_gross": paper_hit_rate(
+                    [float(c["gross_pnl_inr"]) for c in scored_b if c.get("gross_pnl_inr") is not None]
+                ),
+                "win_rate_gross_pct": paper_hit_rate_pct(
+                    [float(c["gross_pnl_inr"]) for c in scored_b if c.get("gross_pnl_inr") is not None]
+                ),
                 "win_rate_kind": "paper_closed_net_inr_gt_0_after_groww_stt",
                 "lot_by_und": {k: v[0] for k, v in engine.lot_by_und.items()},
             }
@@ -1972,6 +2266,7 @@ def build_dashboard(
     open_rows = [_open_ticket_row(p) for p in engine.opens.values()]
     scored_all = [c for c in engine.closed if c.get("result") in {"SUCCESS", "LOSS"}]
     all_nets = [_net_or_points(c) for c in scored_all]
+    all_gross = [float(c["gross_pnl_inr"]) for c in scored_all if c.get("gross_pnl_inr") is not None]
     inrs_all = [float(c["realized_pnl_inr"]) for c in engine.closed if c.get("realized_pnl_inr") is not None]
     overall_pnl_inr = round(sum(inrs_all), 2) if inrs_all else 0.0
     money_lost_inr = round(sum(x for x in inrs_all if x < 0), 2)
@@ -1981,6 +2276,8 @@ def build_dashboard(
     successes = successes_from_closed(engine.closed)
     board_leaderboard = leaderboard_closed(engine.closed)
     board_book_rank = rank_books_net(engine.closed)
+    for row in board_book_rank:
+        row["starting_capital_inr"] = engine.book_capital(str(row["book_id"]))
     picture = today_picture(engine.closed, board_book_rank)
     side_skips = [s for s in engine.skips if str(s.get("reason")) == SIDEWAYS_HOLD]
     side_bars = {(s.get("ts"), s.get("underlying")) for s in side_skips}
@@ -2009,14 +2306,26 @@ def build_dashboard(
         "llm": False,
         "win_rate": paper_hit_rate(all_nets),
         "win_rate_pct": paper_hit_rate_pct(all_nets),
+        "win_rate_net_pct": paper_hit_rate_pct(all_nets),
+        "win_rate_gross": paper_hit_rate(all_gross),
+        "win_rate_gross_pct": paper_hit_rate_pct(all_gross),
         "win_rate_kind": "paper_closed_net_inr_gt_0_after_groww_stt",
+        "win_rate_gross_kind": "paper_closed_gross_inr_gt_0_before_groww_stt",
         "n_closed": len(all_nets),
         "n_open": len(open_rows),
         "n_wins": sum(1 for p in all_nets if p > 0),
         "n_losses": sum(1 for p in all_nets if p <= 0),
-        "starting_capital_inr_per_book": STARTING_CAPITAL_INR,
+        "n_wins_gross": sum(1 for p in all_gross if p > 0),
+        "n_losses_gross": sum(1 for p in all_gross if p <= 0),
+        "capital_per_book": dict(engine.capital_by_book)
+        or {b: engine.book_capital(b) for b in LIVE_BOOKS},
+        "starting_capital_inr_per_book": next(
+            (v for v in (engine.capital_by_book or {}).values() if float(v) > 0),
+            0.0,
+        ),
         "n_books": len(LIVE_BOOKS),
-        "starting_desk_inr": STARTING_CAPITAL_INR * len(LIVE_BOOKS),
+        "starting_desk_inr": float((engine.capital_plan or {}).get("desk_capital_inr") or DESK_CAPITAL_INR),
+        "capital_plan": engine.capital_plan or allocate_desk_capital(tradable=list(LIVE_BOOKS)),
         "overall_pnl_inr": overall_pnl_inr,
         "overall_gross_pnl_inr": picture["gross_pnl_inr"],
         "overall_charges_inr": picture["charges_inr"],
@@ -2063,6 +2372,8 @@ def build_dashboard(
             "time": f"{engine.paper_hold_bars} 1m bars or wall-clock",
             "cancel_adverse": f"same-side low <= entry×(1-{engine.paper_give_up_frac})",
             "cancel_thesis": "opposite BUY_*_CONFIRM only if already underwater vs entry",
+            "cancel_greeks": "|delta| too low / IV rich / theta late on live chain — cancel WORKING or OPEN",
+            "limit_below_signal": f"working buy limit = signal × (1-{engine.limit_discount_frac})",
             "cancel_strike_roll": "ATM strike moved off the ticket and premium is below entry",
             "flatten_ist": "15:00",
             "feasibility": "warehouse.feasibility.evaluate_long_premium",
@@ -2084,26 +2395,32 @@ def build_dashboard(
         "heartbeat": {
             "cli": "python -m desk_ml paper-scalp --replay",
             "loop": "python -m desk_ml paper-scalp --loop  (opt-in; writes this JSON)",
+            "dual_tape": "python -m trading_agents_india dual-tape --live-chain --paper-train --paper-scalp --tick-seconds 45 --max-ticks 0",
             "stop": f"touch data/recon/{STOP_FLAG_NAME}",
+            "dashboard_write_seconds": DASHBOARD_HEARTBEAT_SECONDS,
+            "tick_seconds_default": 45,
+            "tick_ne_dashboard_reason": TICK_NE_DASHBOARD_REASON,
             "does_not_start": ["paper_ops", "npm", "legacy LLM waiters"],
         },
         "honesty": [
             "Closed net ₹ after Groww brokerage + GST + option STT ranks. Open rows do not.",
-            "win_rate_pct is paper filled hit rate (net ₹>0 / n_filled) × 100. NO_PROMOTE. Not a live claim.",
+            "win_rate_pct is paper filled hit rate (net ₹>0 / n_filled) × 100. win_rate_gross_pct is the same before Groww+STT. NO_PROMOTE.",
             "Groww F&O ₹20/executed order × 2 legs; GST 18% on that brokerage; STT 0.15% of sell premium (VERIFY, Budget 2026).",
             "Unfilled CANCELLED = ₹0 P/L and ₹0 charges. Exchange/SEBI/stamp omitted (UNKNOWN).",
-            "Each book starts at ₹10,000. INR P/L uses OPTIDX lot from instrument master when present.",
+            "Desk starts at ₹70,000 split equally across tradable LIVE_BOOKS. SKIP/DI books get ₹0 and the rest is redistributed. Not 10k×8=80k.",
             "Paper does not deny model CE/PE signals (deny_model_signals default false).",
             "INDEX 1m is warehouse∪JSON. ATM days without INDEX 1m stay DATA_INSUFFICIENT — never filled bars.",
             "Paper entries prefer ~100pt ITM (STRAT-006 wing) when chain LTP exists. ATM is fallback only.",
+            "Working buy limit sits below signal LTP (session limit_discount_frac). Fill is not assumed at signal.",
             "Dhan POST /optionchain documents IV + greeks.delta/theta/gamma/vega. Paper uses them when parsed; never invents.",
             "MIX-ML-GREEKS is the ML-2 paper book: skip missing greeks, rich IV, late-session theta bleed. ml001-v1 unchanged.",
-            "live_session=true walks TODAY IST dual-tape only. Cache-wide jsonl replay is not today's P/L.",
-            "Cancel dead tickets: unfilled limit walk-away, minute low, 12% give-up, strike roll, thesis flip. Do not sit to TIME.",
+            "live_session=true walks TODAY IST dual-tape only. Cache-wide jsonl replay is not today's P/L. 16 Sep is not 17 Sep.",
+            "Cancel dead tickets: unfilled limit walk-away, minute low, 12% give-up, strike roll, thesis flip, dead greeks. Do not sit to TIME.",
             "A signal is WORKING_LIMIT until LTP<=limit. If the candle runs away, cancel with ₹0 — never assume a fill.",
             "No new paper after 14:45 IST. 15:00 flattens leftover OPEN. live_session does not keep dead tickets overnight.",
             "paper_params nudge is session-only overfit. production_params_written stays false.",
-            "INDEX 1m regime TREND|SIDEWAYS|UNKNOWN is HYPOTHESIS. SIDEWAYS skips NEW paper opens; flatten/cancel still run.",
+            "INDEX 1m regime TREND|SIDEWAYS|UNKNOWN is HYPOTHESIS. SIDEWAYS skips NEW paper opens; flatten/cancel still run. Feed stays live.",
+            "TREND + direction UP kills new PE (confirm/kill overlay, not a STRAT). DOWN kills new CE. Not MIX-DEFAULT-BUY production.",
             "Founder ~57% wr during cash hours is an in-session PAPER observation, not this EOD Groww+STT filled hit rate. Not a promote.",
         ],
     }
@@ -2131,11 +2448,17 @@ def write_dashboard(board: dict[str, Any], *, root: Optional[Path] = None) -> di
             "promote",
             "win_rate",
             "win_rate_pct",
+            "win_rate_net_pct",
+            "win_rate_gross",
+            "win_rate_gross_pct",
             "win_rate_kind",
             "n_closed",
             "n_wins",
             "n_losses",
             "starting_capital_inr_per_book",
+            "capital_per_book",
+            "capital_plan",
+            "starting_desk_inr",
             "overall_pnl_inr",
             "overall_gross_pnl_inr",
             "overall_charges_inr",
@@ -2194,9 +2517,11 @@ def render_markdown(board: dict[str, Any]) -> str:
         f"**As of (IST):** `{board.get('as_of_ist')}`  ",
         f"**Session (IST date):** `{session}` · live_session={board.get('live_session')}  ",
         f"**Gate:** not `RESEARCH_READY_FOR_PROGRAMMING`. **NO_PROMOTE.** Orders refused. "
-        f"paper win_rate={board.get('win_rate_pct')}% "
-        f"({board.get('n_wins')}/{board.get('n_closed')} filled). "
-        f"₹{board.get('starting_capital_inr_per_book')} / book × {board.get('n_books') or 7}.  ",
+        f"paper wr net={board.get('win_rate_net_pct', board.get('win_rate_pct'))}% "
+        f"gross={board.get('win_rate_gross_pct')}% "
+        f"({board.get('n_wins')}/{board.get('n_closed')} filled net). "
+        f"desk ₹{board.get('starting_desk_inr')} split across {board.get('n_books')} books "
+        f"(typical ₹{board.get('starting_capital_inr_per_book')}/tradable).  ",
         f"**Gross P/L:** ₹{board.get('overall_gross_pnl_inr')} · **charges:** ₹{board.get('overall_charges_inr')} "
         f"(Groww+GST+STT VERIFY) · **Net P/L:** ₹{board.get('overall_pnl_inr')} · won ₹{board.get('money_won_inr')} · "
         f"lost ₹{board.get('money_lost_inr')} · desk equity ₹{board.get('equity_sum_inr')}  "
@@ -2204,14 +2529,27 @@ def render_markdown(board: dict[str, Any]) -> str:
         "",
         "Parallel independent books: one OPEN per (`book_id` × underlying). A HOLD on ML-001 does **not** block MIX-DEFAULT-BUY.",
         "",
-        "## Today at a glance (net after Groww + STT)",
+        "## Today at a glance (gross vs net after Groww + STT)",
         "",
     ]
     pic = board.get("today") or {}
+    plan = board.get("capital_plan") or {}
     lines.append(
         f"Filled {pic.get('n_filled', board.get('n_closed'))} · cancelled {pic.get('n_cancelled', 0)} · "
-        f"W {pic.get('n_wins', board.get('n_wins'))} / L {pic.get('n_losses', board.get('n_losses'))}."
+        f"W net {pic.get('n_wins', board.get('n_wins'))} / L {pic.get('n_losses', board.get('n_losses'))} · "
+        f"W gross {pic.get('n_wins_gross', board.get('n_wins_gross'))} / L gross {pic.get('n_losses_gross')}."
     )
+    lines.append(
+        f"wr **gross** {pic.get('win_rate_gross_pct', board.get('win_rate_gross_pct'))}% · "
+        f"wr **net** {pic.get('win_rate_net_pct', board.get('win_rate_net_pct', board.get('win_rate_pct')))}% "
+        f"(Groww+GST+STT VERIFY)."
+    )
+    alloc = plan.get("per_book") or board.get("capital_per_book") or {}
+    if alloc:
+        parts = [f"`{k}` ₹{v}" for k, v in alloc.items()]
+        lines.append(
+            "Capital split (₹70k desk, SKIP/DI = ₹0 redistributed): " + " · ".join(parts) + "."
+        )
     lines.append(
         f"Gross ₹{pic.get('gross_pnl_inr', board.get('overall_gross_pnl_inr'))} − "
         f"brokerage ₹{pic.get('brokerage_inr')} − GST ₹{pic.get('gst_inr')} − STT ₹{pic.get('stt_inr')} "
@@ -2243,17 +2581,19 @@ def render_markdown(board: dict[str, Any]) -> str:
         "",
         "## Ranked books (net ₹, all indices)",
         "",
-        "| rank | book | kind | filled | cancel | W | L | wr% | gross ₹ | charges ₹ | **net ₹** |",
-        "|------|------|------|--------|--------|---|---|-----|---------|-----------|-----------|",
+        "| rank | book | kind | filled | cancel | W | L | wr% net | wr% gross | gross ₹ | charges ₹ | **net ₹** | capital ₹ |",
+        "|------|------|------|--------|--------|---|---|--------|----------|---------|-----------|-----------|-----------|",
     ]
     for row in board.get("book_rank") or []:
         lines.append(
             f"| {row.get('rank')} | `{row['book_id']}` | {row.get('kind')} | {row.get('n_filled')} | "
-            f"{row.get('n_cancelled')} | {row.get('n_wins')} | {row.get('n_losses')} | {row.get('win_rate_pct')} | "
-            f"{row.get('sum_gross_pnl_inr')} | {row.get('sum_charges_inr')} | {row.get('sum_pnl_inr')} |"
+            f"{row.get('n_cancelled')} | {row.get('n_wins')} | {row.get('n_losses')} | "
+            f"{row.get('win_rate_net_pct', row.get('win_rate_pct'))} | {row.get('win_rate_gross_pct')} | "
+            f"{row.get('sum_gross_pnl_inr')} | {row.get('sum_charges_inr')} | {row.get('sum_pnl_inr')} | "
+            f"{row.get('starting_capital_inr')} |"
         )
     if not board.get("book_rank"):
-        lines.append("| — | — | — | 0 | 0 | 0 | 0 | — | — | — | — |")
+        lines.append("| — | — | — | 0 | 0 | 0 | 0 | — | — | — | — | — | — |")
     lines += [
         "",
         "## Open tickets (strike / limit / SL / CE|PE / status)",
@@ -2273,18 +2613,19 @@ def render_markdown(board: dict[str, Any]) -> str:
         "",
         "## Leaderboard (book × index, ranked by net ₹)",
         "",
-        "| rank | book | underlying | n | wins | losses | wr% | pts | gross ₹ | charges ₹ | **net ₹** |",
-        "|------|------|------------|---|------|--------|-----|-----|---------|-----------|-----------|",
+        "| rank | book | underlying | n | wins | losses | wr% net | wr% gross | pts | gross ₹ | charges ₹ | **net ₹** |",
+        "|------|------|------------|---|------|--------|--------|----------|-----|---------|-----------|-----------|",
     ]
     for row in board.get("leaderboard") or []:
         lines.append(
             f"| {row.get('rank')} | `{row['book_id']}` | {row['underlying']} | {row['n_closed']} | "
-            f"{row.get('n_wins')} | {row.get('n_losses')} | {row.get('win_rate_pct')} | "
+            f"{row.get('n_wins')} | {row.get('n_losses')} | {row.get('win_rate_net_pct', row.get('win_rate_pct'))} | "
+            f"{row.get('win_rate_gross_pct')} | "
             f"{row['sum_premium_pnl']} | {row.get('sum_gross_pnl_inr')} | {row.get('sum_charges_inr')} | "
             f"{row.get('sum_pnl_inr')} |"
         )
     if not board.get("leaderboard"):
-        lines.append("| — | — | — | 0 | 0 | 0 | — | — | — | — | — |")
+        lines.append("| — | — | — | 0 | 0 | 0 | — | — | — | — | — | — |")
     tape_note = (
         "LIVE SESSION: dual-tape ticks for this IST date only. Not fills. Rank ≠ promote."
         if board.get("live_session")
@@ -2293,7 +2634,7 @@ def render_markdown(board: dict[str, Any]) -> str:
     lines += [
         "",
         tape_note + " `MIX-ML-LOGIT*` trains on INDEX 3m before the ATM session. "
-        "`win_rate` = paper filled hit rate (net ₹>0 after Groww+STT), not a promote. "
+        "`win_rate` net = filled hit rate after Groww+STT; `win_rate_gross` is before charges. Not a promote. "
         "`MIX-TV-EP-024` SMA lab is KEEP_ALL, not customer default.",
         "",
         "## Index / ML notes (HYPOTHESIS paper only)",
@@ -2307,13 +2648,14 @@ def render_markdown(board: dict[str, Any]) -> str:
         "",
         "## Models / steps",
         "",
-        "| id | closed | W | L | wr% | equity ₹ | last run |",
-        "|----|--------|---|---|-----|----------|----------|",
+        "| id | closed | W | L | wr% net | wr% gross | equity ₹ | capital ₹ | last run |",
+        "|----|--------|---|---|--------|----------|----------|-----------|----------|",
     ]
     for m in board.get("models") or []:
         lines.append(
             f"| `{m['model_id']}` | {m['n_closed']} | {m.get('n_wins')} | {m.get('n_losses')} | "
-            f"{m.get('win_rate_pct')} | {m.get('equity_inr')} | `{m['last_run_ist']}` |"
+            f"{m.get('win_rate_net_pct', m.get('win_rate_pct'))} | {m.get('win_rate_gross_pct')} | "
+            f"{m.get('equity_inr')} | {m.get('starting_capital_inr')} | `{m['last_run_ist']}` |"
         )
     lines += [
         "",
@@ -2371,6 +2713,9 @@ def render_markdown(board: dict[str, Any]) -> str:
         "touch data/recon/ml_paper_scalp_STOPPED.flag",
         "```",
         "",
+        "Dashboard JSON/MD rewrite **every 5s** from the last tick. Dual-tape Dhan poll stays **45s** "
+        "(optionchain rate-limit). Tick ≠ 5s on purpose.",
+        "",
         "JSON: `data/recon/ml_paper_dashboard.json` (gitignored) · mock: `apps/web/public/mock/ml_paper_dashboard.json`  ",
         "UI: `/pm` and `/desk` (existing Vite; do not restart npm). API: `GET /paper/ml-books`.",
         "",
@@ -2424,10 +2769,28 @@ def run_loop(
             "tick_index": i,
             "as_of_ist": datetime.now(IST).isoformat(timespec="seconds"),
             "alive": True,
+            "dashboard_write_seconds": DASHBOARD_HEARTBEAT_SECONDS,
+            "tick_seconds": int(tick_seconds),
+            "tick_ne_dashboard_reason": TICK_NE_DASHBOARD_REASON,
         }
         write_dashboard(last, root=base)
         i += 1
         if max_ticks > 0 and i >= max_ticks:
             last["loop_stopped"] = "completed_max_ticks"
             return last
-        sleep(float(tick_seconds))
+
+        def _beat(_remaining: float) -> None:
+            refresh_dashboard_clock(last, tick_seconds=int(tick_seconds))
+            write_dashboard(last, root=base)
+
+        slept = sleep_with_beats(
+            float(tick_seconds),
+            beat_seconds=DASHBOARD_HEARTBEAT_SECONDS,
+            sleep_fn=sleep,
+            on_beat=_beat,
+            stop_fn=lambda: stop_requested(base),
+        )
+        if slept == "stopped":
+            last["loop_stopped"] = "ml_paper_scalp_STOPPED.flag"
+            write_dashboard(last, root=base)
+            return last

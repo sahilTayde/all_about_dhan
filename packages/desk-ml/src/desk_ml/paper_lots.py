@@ -1,4 +1,4 @@
-"""Paper lot size + 10k capital. Lot from Dhan instrument master when available. No live orders."""
+"""Paper lot size + desk capital. Lot from Dhan instrument master when available. No live orders."""
 
 from __future__ import annotations
 
@@ -151,7 +151,7 @@ def size_lots(*, entry: float, lot_size: Optional[int], capital_inr: float) -> d
             "qty": int(lot_size),
             "notional_inr": round(notional, 2),
             "capital_inr": capital_inr,
-            "lot_status": "ONE_LOT_EXCEEDS_10K_PAPER_STILL",
+            "lot_status": "ONE_LOT_EXCEEDS_PAPER_CAPITAL_STILL",
         }
     lots = max(1, int(capital_inr // notional))
     qty = lots * int(lot_size)

@@ -53,6 +53,7 @@ def test_classify_index_regime_trend_vs_sideways() -> None:
     t = classify_index_regime(trend)
     s = classify_index_regime(chop)
     assert t["regime"] == "TREND"
+    assert t["direction"] == "UP"
     assert s["regime"] == "SIDEWAYS"
     short = classify_index_regime([25000.0, 25001.0])
     assert short["regime"] == "UNKNOWN"
@@ -139,6 +140,87 @@ def test_propose_levels_uses_path_not_hero_target() -> None:
     assert levels["stop"] < levels["entry"] < levels["target"]
     span = levels["target"] - levels["entry"]
     assert span <= 3.0 * levels["typical_premium_range"] + 1e-9
+    assert levels["limit_price"] < levels["entry"]
+
+
+def test_allocate_desk_capital_skips_greeks_book() -> None:
+    from desk_ml.paper_scalp import allocate_desk_capital, LIVE_BOOKS
+
+    plan = allocate_desk_capital(tradable=[b for b in LIVE_BOOKS if b != "MIX-ML-GREEKS"])
+    assert plan["desk_capital_inr"] == 70000.0
+    assert plan["per_book"]["MIX-ML-GREEKS"] == 0.0
+    active = [b for b in LIVE_BOOKS if b != "MIX-ML-GREEKS"]
+    assert sum(plan["per_book"][b] for b in active) == 70000.0
+    assert plan["per_book"][active[0]] == 10000.0
+
+
+def test_trend_up_kills_new_pe_not_a_strat() -> None:
+    triples = _triples(n=50, trend=8.0)
+    engine = BookEngine()
+    step_underlying(
+        engine,
+        underlying="NIFTY",
+        triples=triples,
+        i=40,
+        ml001_hold=False,
+        ml002_hold=False,
+        follow_gap=False,
+        logit={"side": "PE", "status": "OK"},
+        logit_xr={"side": "PE", "status": "OK"},
+        ml1={"status": "OK", "take": True},
+        tv_side="PE",
+        deny_model_signals=True,
+    )
+    assert engine.last_regime["NIFTY"]["regime"] == "TREND"
+    assert engine.last_regime["NIFTY"]["direction"] == "UP"
+    assert engine.has_open("MIX-ML-LOGIT", "NIFTY") is False
+    assert any(s.get("reason") == "TREND_UP_KILL_PE" for s in engine.skips)
+
+
+def test_sleep_with_beats_rewrites_without_dhan_poll() -> None:
+    from desk_ml.paper_scalp import sleep_with_beats
+
+    slept: list[float] = []
+    beats: list[float] = []
+
+    def _sleep(sec: float) -> None:
+        slept.append(sec)
+
+    def _beat(remaining: float) -> None:
+        beats.append(remaining)
+
+    out = sleep_with_beats(12.0, beat_seconds=5.0, sleep_fn=_sleep, on_beat=_beat)
+    assert out == "slept"
+    assert slept == [5.0, 5.0, 2.0]
+    assert len(beats) == 3
+
+
+def test_greeks_cancel_filled_when_delta_dies() -> None:
+    from desk_ml.paper_scalp import OpenPaper, _exit_reason
+
+    pos = OpenPaper(
+        book_id="MIX-DEFAULT-BUY",
+        underlying="NIFTY",
+        side="CE",
+        trade_id="greeks-die",
+        entry=100.0,
+        stop=80.0,
+        target=130.0,
+        atm_strike=23200.0,
+        opened_ts=_ts(0),
+        opened_bar=1,
+        strike_source="TEST",
+        limit_price=98.8,
+        filled=True,
+    )
+    reason = _exit_reason(
+        pos,
+        101.0,
+        _ts(1),
+        2,
+        live_greeks={"delta": 0.22, "iv": 16.0, "theta": -2.0, "gamma": 0.002},
+    )
+    assert reason == "CANCEL_GREEKS_DELTA_TOO_LOW"
 
 
 def test_ml001_hold_does_not_block_dealer() -> None:
@@ -245,7 +327,10 @@ def test_replay_parallel_books_no_promote(tmp_path) -> None:
     assert ids == set(LIVE_BOOKS)
     assert board["research_ready_for_programming"] is False
     assert board["execution"] == "refused"
+    assert board["starting_desk_inr"] == 70000.0
+    assert board["capital_plan"]["skipped"] == ["MIX-ML-GREEKS"]
     assert board["win_rate_kind"] == "paper_closed_net_inr_gt_0_after_groww_stt"
+    assert "win_rate_gross_pct" in board
     assert "book_rank" in board
     assert "today" in board
     assert board["cost_model"]["name"] == "GROWW_FO_20_PLUS_STT_015"
@@ -454,7 +539,8 @@ def test_open_uses_itm_quote_not_atm() -> None:
     assert pos.atm_strike == 74200.0
     assert pos.strike_source == "ITM_100"
     assert pos.entry == 450.0
-    assert pos.limit_price == 450.0
+    assert pos.limit_price == 444.6
+    assert pos.limit_price < pos.entry
     assert pos.filled is False
 
 

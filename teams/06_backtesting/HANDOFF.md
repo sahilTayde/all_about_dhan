@@ -1,5 +1,22 @@
 # Handoff log — Team 06 Backtesting
 
+## As of now (2026-09-17 PRE) — 70k desk + dual wr smoke (NO_PROMOTE)
+
+```text
+From:     teams/06_backtesting + desk_ml
+To:       00 / 04 / founder
+Date:     2026-09-17
+Status:   BACKTEST_REQUIRED / HYPOTHESIS / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: allocate_desk_capital ₹70k. 17 Sep replay: 7 tradable ×
+  ₹10k, MIX-ML-GREEKS ₹0 (empty tape / no greeks on ticks). Dual
+  wr columns on board. Artifact BACKTEST_DESK_CAPITAL.md.
+  16 Sep max-5: ₹8750×8 because jsonl had greeks — not today’s P/L.
+Rejected: 10k×8=80k. Promote. Treating 16 Sep as 17 Sep trend.
+UNKNOWN: Live 09:15 fill path; pre-open OC volume=0.
+```
+
 ## As of now (2026-09-16 EOD) — SIDEWAYS skip replay vs prior board (NO_PROMOTE)
 
 ```text

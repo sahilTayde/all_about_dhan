@@ -2,6 +2,30 @@
 
 **Agents:** read **only the newest block**. Do not ingest this whole log. New files: [`docs/FILE_CREATION.md`](../../docs/FILE_CREATION.md). Append here — do not create `HANDOFF_TOMORROW.md` or extra `CONTINUE_*`.
 
+## As of now (2026-09-17 PRE) — 70k desk + dual wr + 5s board (NO_PROMOTE)
+
+```text
+From:     teams/00_orchestrator
+To:       founder / 04 / 06 / 07
+Date:     2026-09-17
+Status:   PAPER DESK ARM / HYPOTHESIS / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: ₹70,000 desk split across LIVE_BOOKS (SKIP/DI get ₹0, rest
+  redistributed). Dual wr gross vs Groww+STT net on ML board +
+  GET /paper/ml-books. Dashboard JSON/MD rewrite every 5s from last
+  tick; dual-tape Dhan poll stays 45s (rate-limit). TREND-UP is
+  confirm/kill (kill new PE), not a STRAT. Working limit below
+  signal. Greeks cancel if thesis dies. Volume stamp only if Dhan
+  fields exist. SIDEWAYS still skips NEW opens; feed stays live.
+Rejected: MIX-DEFAULT-BUY production. STRAT-015+. Super Orders.
+  Claiming 17 Sep UP-TREND (INDEX 1m today DATA_INSUFFICIENT).
+  Inventing greeks/volume/fills. 10k×8=80k desk. npm / paper_ops.
+UNKNOWN: Whether 09:15 INDEX 1m will be TREND-UP. Pre-open chain
+  volume=0. Greeks parsed on live OC (96/236 delta) but MIX-ML-GREEKS
+  has ₹0 until ticks carry greeks.
+```
+
 ## As of now (2026-09-16 EOD) — SIDEWAYS paper HOLD (NO_PROMOTE)
 
 ```text
