@@ -1,5 +1,62 @@
 # Handoff log — Team 06 Backtesting
 
+## As of now (2026-09-17) — own-side FILL + deny default (NO_PROMOTE)
+
+```text
+From:     teams/06_backtesting + desk_ml
+To:       00 / 04 / founder
+Date:     2026-09-17
+Status:   PAPER / HYPOTHESIS / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: deny_model_signals=True default (CLI --deny-signals stays force).
+  FILL only books that own a side:
+    MIX-ML-LOGIT = own logit CE/PE
+    MIX-ML-LOGIT-XR = own XR CE/PE only (no dealer fallback)
+    MIX-DEFAULT-BUY = CONFIRM if logit DI or logit agrees BUY_*_CONFIRM;
+      skip if logit CE and dealer HOLD/opposite
+    MIX-ML-GREEKS = confirm/kill logit side (dealer confirm side if logit DI)
+      and scored take
+    ML-001/002/ML-1/TV-EP = observe/skip (KMeans is not CE/PE; no STRAT-015)
+  ₹70k split across tradable fill books (logit + XR + dealer-confirm +
+  greeks if tape). Dashboard still lists skipped books n_open 0.
+  CANCELLED/unfilled = ₹0 brokerage/GST/STT/slippage. Filled RT Groww+STT VERIFY.
+  Tests: HOLD skip 001, logit fill, dealer not clone observe books, unfilled 0.
+Rejected: Eight clone fills. Super Orders. sqlite git-add. Promote. STRAT-015.
+UNKNOWN: Live 10s OC after CLEAN SLATE.
+```
+
+## As of now (2026-09-17) — Mistakes snapshot before CLEAN SLATE (NO_PROMOTE)
+
+```text
+From:     teams/06_backtesting + desk_ml
+To:       00 / founder / sibling ML_PAPER_DASHBOARD reader
+Date:     2026-09-17
+Status:   PAPER / HYPOTHESIS / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: Copied ## Mistakes from ML_PAPER_DASHBOARD.md before session wipe.
+  Paper params: stop_frac=0.38 target_frac=0.55 hold_bars=9 skip_sideways=True
+  regime_er_max=0.3. production_params_written=false.
+  - hold paper params until +8 closes (have 461, last nudge at 457)
+  - MIX-ML-GREEKS SENSEX CE 74400 lost ₹-591.99 (STOP): STOP_HIT
+  - MIX-TV-EP-024 SENSEX PE 74300 lost ₹-284.21 (STOP): STOP_HIT
+  - MIX-DEFAULT-BUY SENSEX PE 74300 lost ₹-868.1 (STOP): STOP_HIT
+  - ML-001 SENSEX PE 74300 lost ₹-868.1 (STOP): STOP_HIT
+  - ML-002 SENSEX PE 74300 lost ₹-868.1 (STOP): STOP_HIT
+  - ML-1 SENSEX PE 74300 lost ₹-868.1 (STOP): STOP_HIT
+  - MIX-ML-LOGIT SENSEX PE 74300 lost ₹-868.1 (STOP): STOP_HIT
+  - MIX-ML-LOGIT-XR SENSEX PE 74300 lost ₹-868.1 (STOP): STOP_HIT
+  - MIX-TV-EP-024 SENSEX PE 74300 lost ₹-546.1 (CANCEL_THESIS)
+  - MIX-ML-GREEKS SENSEX PE 74300 lost ₹-868.1 (STOP): STOP_HIT
+  - MIX-ML-LOGIT SENSEX PE 74400 lost ₹-192.8 (CANCEL_STRIKE_ROLL)
+  - MIX-TV-EP-024 SENSEX PE 74400 lost ₹-192.8 (CANCEL_STRIKE_ROLL)
+  Clone pattern: dealer + 001/002/ML-1/XR same SENSEX PE STOP. KMeans is not
+  a CE/PE model. Next: deny_model_signals=True; FILL only own-side books.
+Rejected: MIX write from mistakes. STRAT-015. Super Orders. Promote.
+UNKNOWN: Live 10s OC after wipe.
+```
+
 ## As of now (2026-09-17 11:18 IST) — honest last-30 filled WR (NO_PROMOTE)
 
 ```text

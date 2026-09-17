@@ -6,6 +6,10 @@ from desk_ml.groww_costs import groww_round_trip_charges, net_pnl_inr
 def test_unfilled_zero_charges() -> None:
     row = groww_round_trip_charges(exit_premium=200.0, qty=65, filled=False)
     assert row["charges_inr"] == 0.0
+    assert row["brokerage_inr"] == 0.0
+    assert row["gst_inr"] == 0.0
+    assert row["stt_inr"] == 0.0
+    assert row["slippage_inr"] == 0.0
     assert row["n_executed_orders"] == 0
     assert net_pnl_inr(gross_inr=0.0, charges_inr=row["charges_inr"]) == 0.0
 

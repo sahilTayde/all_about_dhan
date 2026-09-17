@@ -99,11 +99,24 @@ ML_BOOK_IDS = (
     "MIX-ML-LOGIT-XR",
     "MIX-ML-GREEKS",
 )
-# Overlay clones of dealer when deny_model_signals=false. Desk "earned" uses unique books.
+# Books that may FILL. Observe-only books stay on the board with n_open 0.
+FILL_ELIGIBLE_BOOKS = (
+    "MIX-DEFAULT-BUY",
+    "MIX-ML-LOGIT",
+    "MIX-ML-LOGIT-XR",
+    "MIX-ML-GREEKS",
+)
+OBSERVE_ONLY_BOOKS = (
+    "ML-001",
+    "ML-002",
+    "ML-1",
+    "MIX-TV-EP-024",
+)
+# Desk "earned" uses unique fill books (not KMeans/TV clones).
 UNIQUE_PNL_BOOKS = (
     "MIX-DEFAULT-BUY",
     "MIX-ML-LOGIT",
-    "MIX-TV-EP-024",
+    "MIX-ML-LOGIT-XR",
     "MIX-ML-GREEKS",
 )
 
@@ -271,8 +284,89 @@ def allocate_desk_capital(
         "skipped": skipped,
         "per_book": per_book,
         "unallocated_inr": unallocated,
-        "note": "Equal split of ₹70,000. SKIP/DI books do not keep a 10k seat. Not 10k×8.",
+        "note": "Equal split of ₹70,000 across tradable fill books (logit + dealer-confirm + XR-own-side + greeks if tape). Observe clones get ₹0. Not 10k×8.",
         "production_params_written": False,
+    }
+
+
+def tradable_fill_books(*, has_greeks: bool) -> list[str]:
+    """Capital seats: own-side fill books only. KMeans/TV-EP observe. Greeks only if tape has greeks."""
+    out: list[str] = []
+    for book in LIVE_BOOKS:
+        if book in OBSERVE_ONLY_BOOKS:
+            continue
+        if book == "MIX-ML-GREEKS" and not has_greeks:
+            continue
+        if book in FILL_ELIGIBLE_BOOKS:
+            out.append(book)
+    return out
+
+
+def resolve_fill_intents(
+    *,
+    dealer_confirm: Optional[str],
+    dealer_verdict: str,
+    logit: dict[str, Any],
+    logit_xr: dict[str, Any],
+    ml001_hold: bool,
+    follow_gap: bool,
+    ml002_hold: bool,
+    ml1: dict[str, Any],
+) -> dict[str, tuple[Optional[str], Optional[str]]]:
+    """Per-book (side, skip_reason). FILL only when the book owns CE/PE. KMeans is not a side model."""
+    logit_own = logit.get("side") if logit.get("side") in {"CE", "PE"} else None
+    xr_own = logit_xr.get("side") if logit_xr.get("side") in {"CE", "PE"} else None
+    dealer_own = dealer_confirm if dealer_confirm in {"CE", "PE"} else None
+    verdict = str(dealer_verdict or "HOLD")
+
+    if logit_own:
+        if dealer_own == logit_own:
+            dealer_fill, dealer_skip = dealer_own, None
+        else:
+            dealer_fill, dealer_skip = None, f"DEALER_{verdict}_VS_LOGIT_{logit_own}"
+    elif dealer_own:
+        dealer_fill, dealer_skip = dealer_own, None
+    else:
+        dealer_fill, dealer_skip = None, f"DEALER_{verdict}"
+
+    if ml001_hold or follow_gap:
+        ml001 = (None, "ML-001_HOLD")
+    else:
+        ml001 = (None, "OBSERVE_NO_OWN_SIDE")
+    if ml002_hold or follow_gap:
+        ml002 = (None, "ML-002_HOLD")
+    else:
+        ml002 = (None, "OBSERVE_NO_OWN_SIDE")
+
+    if ml1.get("status") != "OK":
+        ml1_skip = str(ml1.get("reason") or "ML-1_DATA_INSUFFICIENT")
+    elif ml1.get("take") is False:
+        ml1_skip = "ML-1_SKIP"
+    else:
+        ml1_skip = "OBSERVE_NO_OWN_SIDE"
+
+    logit_skip = None if logit_own else str(logit.get("reason") or logit.get("status") or "NO_SIDE")
+    xr_skip = None if xr_own else str(logit_xr.get("reason") or logit_xr.get("status") or "XR_NO_OWN_SIDE")
+
+    greeks_side: Optional[str]
+    greeks_skip: Optional[str] = None
+    if logit_own:
+        greeks_side = logit_own
+    elif dealer_own:
+        greeks_side = dealer_own
+    else:
+        greeks_side = None
+        greeks_skip = "NO_SIDE"
+
+    return {
+        "MIX-DEFAULT-BUY": (dealer_fill, dealer_skip),
+        "ML-001": ml001,
+        "ML-002": ml002,
+        "ML-1": (None, ml1_skip),
+        "MIX-ML-LOGIT": (logit_own, logit_skip),
+        "MIX-ML-LOGIT-XR": (xr_own, xr_skip),
+        "MIX-TV-EP-024": (None, "OBSERVE_NO_OWN_FILL"),
+        "MIX-ML-GREEKS": (greeks_side, greeks_skip),
     }
 
 
@@ -674,7 +768,7 @@ class BookEngine:
     equity: dict[str, float] = field(default_factory=dict)
     lot_by_und: dict[str, tuple[Optional[int], str]] = field(default_factory=dict)
     root: Optional[Path] = None
-    deny_model_signals: bool = False
+    deny_model_signals: bool = True
     starting_capital: float = STARTING_CAPITAL_INR
     paper_stop_frac: float = STOP_FRAC
     paper_target_frac: float = TARGET_FRAC
@@ -692,6 +786,7 @@ class BookEngine:
     regime_flip_min: float = REGIME_FLIP_MIN
     regime_range_atr_max: float = REGIME_RANGE_ATR_MAX
     last_regime: dict[str, dict[str, Any]] = field(default_factory=dict)
+    regime_book_counts: dict[str, int] = field(default_factory=dict)
 
     def book_capital(self, book_id: str) -> float:
         if book_id in self.capital_by_book:
@@ -704,7 +799,15 @@ class BookEngine:
     def has_open(self, book_id: str, underlying: str) -> bool:
         return (book_id, underlying) in self.opens
 
+    def bump_regime_book(self, book_id: str, regime: str, action: str) -> None:
+        """HYPOTHESIS recon counter. KMeans is not a CE/PE model — still counted as SKIP."""
+        key = f"{regime}|{book_id}|{action}"
+        self.regime_book_counts[key] = int(self.regime_book_counts.get(key) or 0) + 1
+
     def mark_skip(self, book_id: str, underlying: str, reason: str, **extra: Any) -> None:
+        classified = self.last_regime.get(str(underlying).upper()) or {}
+        regime = str(extra.get("index_regime") or classified.get("regime") or "UNKNOWN")
+        self.bump_regime_book(book_id, regime, f"SKIP:{reason}")
         self.skips.append(
             {
                 "book_id": book_id,
@@ -1260,6 +1363,16 @@ def _try_open(
         return
     if engine.has_open(book_id, underlying):
         return
+    classified = engine.last_regime.get(underlying.upper()) or {}
+    regime = str(classified.get("regime") or "UNKNOWN")
+    if skip_reason:
+        engine.mark_skip(book_id, underlying, skip_reason, ts=tick.ts, index_regime=regime)
+        if engine.root is not None:
+            append_model_log(
+                engine.root,
+                {"event": "SKIP", "model": book_id, "underlying": underlying, "reason": skip_reason},
+            )
+        return
     capital = engine.book_capital(book_id)
     if capital <= 0:
         engine.mark_skip(
@@ -1267,10 +1380,9 @@ def _try_open(
             underlying,
             "CAPITAL_SKIP_DATA_INSUFFICIENT",
             ts=tick.ts,
+            index_regime=regime,
         )
         return
-    classified = engine.last_regime.get(underlying.upper()) or {}
-    regime = str(classified.get("regime") or "UNKNOWN")
     if engine.skip_new_when_sideways and regime == "SIDEWAYS":
         engine.mark_skip(
             book_id,
@@ -1292,14 +1404,6 @@ def _try_open(
                     "reason": SIDEWAYS_HOLD,
                     "index_regime": regime,
                 },
-            )
-        return
-    if skip_reason:
-        engine.mark_skip(book_id, underlying, skip_reason, ts=tick.ts)
-        if engine.root is not None:
-            append_model_log(
-                engine.root,
-                {"event": "SKIP", "model": book_id, "underlying": underlying, "reason": skip_reason},
             )
         return
     if side not in {"CE", "PE"}:
@@ -1406,6 +1510,7 @@ def _try_open(
         idx_volume=getattr(tick, "idx_volume", None),
     )
     engine.opens[(book_id, underlying)] = pos
+    engine.bump_regime_book(book_id, regime, f"OPEN_{side}")
     if engine.root is not None:
         append_model_log(
             engine.root,
@@ -1656,7 +1761,7 @@ def step_underlying(
     logit_xr: dict[str, Any],
     ml1: dict[str, Any],
     tv_side: Optional[str],
-    deny_model_signals: bool = False,
+    deny_model_signals: bool = True,
 ) -> None:
     if i < 1:
         return
@@ -1694,15 +1799,7 @@ def step_underlying(
     if ivol is not None:
         vol_hist[und] = float(ivol)
 
-    dealer_proposal = dealer.get("side") if dealer.get("allow_new_paper_ce_pe") else None
-    extra = dealer.get("extra") if isinstance(dealer.get("extra"), dict) else {}
-    train_side = extra.get("train_side") if extra else None
-    fallback = dealer_proposal or train_side or tv_side
-    if fallback not in {"CE", "PE"}:
-        if idx_d > 1.0:
-            fallback = "CE"
-        elif idx_d < -1.0:
-            fallback = "PE"
+    dealer_confirm = dealer.get("side") if dealer.get("side") in {"CE", "PE"} else None
     window = triples[max(0, i - RANGE_LOOKBACK) : i + 1]
     ce_path = [
         float(t.itm_ce_close if t.itm_ce_close is not None else t.ce_close) for t in window
@@ -1710,7 +1807,7 @@ def step_underlying(
     pe_path = [
         float(t.itm_pe_close if t.itm_pe_close is not None else t.pe_close) for t in window
     ]
-    deny = bool(deny_model_signals or engine.deny_model_signals)
+    deny = bool(deny_model_signals)
 
     def _open(book_id: str, side: Optional[str], skip: Optional[str]) -> None:
         _try_open(
@@ -1726,83 +1823,57 @@ def step_underlying(
             strike=strike,
         )
 
-    dealer_skip = None if dealer_proposal else f"DEALER_{dealer.get('verdict')}"
-    if not deny and fallback in {"CE", "PE"}:
-        dealer_skip = None
-        dealer_proposal = dealer_proposal or fallback
-    _open("MIX-DEFAULT-BUY", dealer_proposal, dealer_skip)
-
-    ml001_skip = None
-    ml001_side = dealer_proposal or fallback
-    if deny and (ml001_hold or follow_gap):
-        ml001_skip = "ML-001_HOLD"
-    elif ml001_side not in {"CE", "PE"}:
-        ml001_skip = "NO_SIDE"
-    _open("ML-001", ml001_side, ml001_skip)
-
-    ml002_skip = None
-    ml002_side = dealer_proposal or fallback
-    if deny and (ml002_hold or follow_gap):
-        ml002_skip = "ML-002_HOLD"
-    elif ml002_side not in {"CE", "PE"}:
-        ml002_skip = "NO_SIDE"
-    _open("ML-002", ml002_side, ml002_skip)
-
-    ml1_skip = None
-    ml1_side = dealer_proposal or fallback
-    if deny:
-        if ml1.get("status") != "OK":
-            ml1_skip = str(ml1.get("reason") or "ML-1_DATA_INSUFFICIENT")
-        elif ml1.get("take") is False:
-            ml1_skip = "ML-1_SKIP"
-        elif ml1_side not in {"CE", "PE"}:
-            ml1_skip = "NO_DEALER_TICKET"
-    elif ml1_side not in {"CE", "PE"}:
-        ml1_skip = "NO_SIDE"
-    _open("ML-1", ml1_side, ml1_skip)
-
-    logit_side = logit.get("side") if logit.get("side") in {"CE", "PE"} else (None if deny else fallback)
-    logit_skip = None if logit_side in {"CE", "PE"} else str(logit.get("reason") or logit.get("status") or "NO_SIDE")
-    _open("MIX-ML-LOGIT", logit_side, logit_skip)
-
-    xr_side = logit_xr.get("side") if logit_xr.get("side") in {"CE", "PE"} else (None if deny else fallback)
-    xr_skip = None if xr_side in {"CE", "PE"} else str(logit_xr.get("reason") or logit_xr.get("status") or "NO_SIDE")
-    _open("MIX-ML-LOGIT-XR", xr_side, xr_skip)
-
-    tv = tv_side if tv_side in {"CE", "PE"} else (None if deny else fallback)
-    _open("MIX-TV-EP-024", tv, None if tv in {"CE", "PE"} else "TV-EP-024 SMA20 flat or warmup")
-
-    greeks_side = dealer_proposal or fallback
-    greeks_skip = None
-    if greeks_side not in {"CE", "PE"}:
-        greeks_skip = "NO_SIDE"
-    else:
-        want = pick_paper_strike(tick, greeks_side, float(strike or round_atm_strike(und, tick.idx_close)), und)
-        greeks = leg_greeks(tick, greeks_side, want)
-        px, _, _src = quote_for_side(tick, greeks_side, strike=want)
-        entry = float(px) if px is not None else (tick.ce_close if greeks_side == "CE" else tick.pe_close)
-        hist = getattr(engine, "_greeks_iv_hist", None)
-        if not isinstance(hist, dict):
-            hist = {}
-            engine._greeks_iv_hist = hist  # type: ignore[attr-defined]
-        prior = list(hist.get(und) or [])
-        atm_iv = greeks.get("iv")
-        scored = score_greeks_ticket(
-            side=greeks_side,
-            entry=entry,
-            delta=greeks.get("delta"),
-            gamma=greeks.get("gamma"),
-            theta=greeks.get("theta"),
-            iv=atm_iv,
-            session_iv=session_iv_median(prior),
-            minutes_ist=minutes_ist(tick.ts),
-            wing_iv_list=wing_ivs(tick.wing_quotes),
-        )
-        if atm_iv is not None:
-            hist.setdefault(und, []).append(float(atm_iv))
-        if not scored.get("take"):
-            greeks_skip = str(scored.get("reason") or "GREEKS_HOLD")
-    _open("MIX-ML-GREEKS", greeks_side, greeks_skip)
+    intents = resolve_fill_intents(
+        dealer_confirm=dealer_confirm,
+        dealer_verdict=str(dealer.get("verdict") or "HOLD"),
+        logit=logit,
+        logit_xr=logit_xr,
+        ml001_hold=ml001_hold,
+        follow_gap=follow_gap,
+        ml002_hold=ml002_hold,
+        ml1=ml1,
+    )
+    greeks_skip_final = intents["MIX-ML-GREEKS"][1]
+    for book_id in LIVE_BOOKS:
+        side, skip = intents[book_id]
+        if book_id == "MIX-ML-GREEKS":
+            greeks_side = side
+            greeks_skip = skip
+            if greeks_side in {"CE", "PE"} and greeks_skip is None:
+                want = pick_paper_strike(
+                    tick, greeks_side, float(strike or round_atm_strike(und, tick.idx_close)), und
+                )
+                greeks = leg_greeks(tick, greeks_side, want)
+                px, _, _src = quote_for_side(tick, greeks_side, strike=want)
+                entry = float(px) if px is not None else (
+                    tick.ce_close if greeks_side == "CE" else tick.pe_close
+                )
+                hist = getattr(engine, "_greeks_iv_hist", None)
+                if not isinstance(hist, dict):
+                    hist = {}
+                    engine._greeks_iv_hist = hist  # type: ignore[attr-defined]
+                prior = list(hist.get(und) or [])
+                atm_iv = greeks.get("iv")
+                scored = score_greeks_ticket(
+                    side=greeks_side,
+                    entry=entry,
+                    delta=greeks.get("delta"),
+                    gamma=greeks.get("gamma"),
+                    theta=greeks.get("theta"),
+                    iv=atm_iv,
+                    session_iv=session_iv_median(prior),
+                    minutes_ist=minutes_ist(tick.ts),
+                    wing_iv_list=wing_ivs(tick.wing_quotes),
+                )
+                if atm_iv is not None:
+                    hist.setdefault(und, []).append(float(atm_iv))
+                if not scored.get("take"):
+                    greeks_skip = str(scored.get("reason") or "GREEKS_HOLD")
+                    greeks_side = None
+            greeks_skip_final = greeks_skip
+            _open("MIX-ML-GREEKS", greeks_side, greeks_skip)
+            continue
+        _open(book_id, side, skip)
 
     engine.last_step = {
         "underlying": und,
@@ -1815,10 +1886,14 @@ def step_underlying(
         "logit_xr": logit_xr,
         "ml1": ml1,
         "tv_ep_024": tv_side,
-        "mix_ml_greeks_skip": greeks_skip,
+        "mix_ml_greeks_skip": greeks_skip_final,
         "index_regime": classified,
+        "deny_model_signals": deny,
         "independent": True,
-        "note": "HOLD on one book does not veto another. SIDEWAYS skips NEW opens only. TREND direction confirm/kill PE vs CE. Feed stays live.",
+        "note": (
+            "FILL only own-side books (logit / XR-own / dealer CONFIRM vs logit / greeks confirm-kill). "
+            "KMeans ML-001 is not CE/PE. SIDEWAYS skips NEW opens only. TREND confirm/kill. Feed stays live."
+        ),
     }
 
 
@@ -2069,7 +2144,7 @@ def replay_paper_scalp(
     triples_by_und: Optional[dict[str, list[Triple]]] = None,
     write: bool = False,
     max_closes: int = 0,
-    deny_model_signals: bool = False,
+    deny_model_signals: bool = True,
     starting_capital: Optional[float] = None,
     live_session: bool = False,
     session_ist_date: Optional[str] = None,
@@ -2108,10 +2183,8 @@ def replay_paper_scalp(
         tapes[u] = tape
         loaded[u] = triples
 
-    tradable = list(LIVE_BOOKS)
     has_greeks = any(tape_has_dhan_greeks(loaded[u]) for u in loaded)
-    if not has_greeks:
-        tradable = [b for b in LIVE_BOOKS if b != "MIX-ML-GREEKS"]
+    tradable = tradable_fill_books(has_greeks=has_greeks)
     plan = allocate_desk_capital(total=desk_total, tradable=tradable)
 
     engine = BookEngine(
@@ -2651,7 +2724,7 @@ def build_dashboard(
         ),
         "n_books": len(LIVE_BOOKS),
         "starting_desk_inr": float((engine.capital_plan or {}).get("desk_capital_inr") or DESK_CAPITAL_INR),
-        "capital_plan": engine.capital_plan or allocate_desk_capital(tradable=list(LIVE_BOOKS)),
+        "capital_plan": engine.capital_plan or allocate_desk_capital(tradable=tradable_fill_books(has_greeks=False)),
         "overall_pnl_inr": overall_pnl_inr,
         "overall_gross_pnl_inr": picture["gross_pnl_inr"],
         "overall_charges_inr": picture["charges_inr"],
@@ -2671,6 +2744,11 @@ def build_dashboard(
         "mistakes": mistakes[-40:],
         "successes": successes[-20:],
         "deny_model_signals": engine.deny_model_signals,
+        "regime_book_counts": {
+            "layer": "HYPOTHESIS",
+            "note": "INDEX 1m regime × book OPEN/SKIP counts. KMeans is not a CE/PE model.",
+            "counts": dict(engine.regime_book_counts),
+        },
         "ticket_columns": [
             "book_id",
             "underlying",
@@ -2733,8 +2811,8 @@ def build_dashboard(
             "win_rate_pct is paper filled hit rate (net ₹>0 / n_filled) × 100. win_rate_gross_pct is the same before Groww+STT. NO_PROMOTE.",
             "Groww F&O ₹20/executed order × 2 legs; GST 18% on that brokerage; STT 0.15% of sell premium (VERIFY, Budget 2026).",
             "Unfilled CANCELLED = ₹0 P/L and ₹0 charges. Exchange/SEBI/stamp omitted (UNKNOWN).",
-            "Desk starts at ₹70,000 split equally across tradable LIVE_BOOKS. SKIP/DI books get ₹0 and the rest is redistributed. Not 10k×8=80k.",
-            "Paper does not deny model CE/PE signals (deny_model_signals default false).",
+            "Desk starts at ₹70,000 split equally across tradable fill books (logit + dealer-confirm + XR-own-side + greeks if tape). Observe clones (ML-001/002/ML-1/TV-EP) get ₹0. Not 10k×8=80k.",
+            "deny_model_signals default true. FILL only books that own CE/PE. Dealer CONFIRM vs logit; do not clone HOLD overlays. KMeans is not a CE/PE model. No STRAT-015.",
             "INDEX 1m is warehouse∪JSON. ATM days without INDEX 1m stay DATA_INSUFFICIENT — never filled bars.",
             "Paper entries prefer ~100pt ITM (STRAT-006 wing) when chain LTP exists. ATM is fallback only.",
             "Working buy limit sits below signal LTP (session limit_discount_frac). Fill is not assumed at signal.",
@@ -2788,8 +2866,16 @@ def wipe_today_paper_book(*, root: Optional[Path] = None, ist_date: Optional[str
     if latest.is_file():
         latest.unlink()
         moved.append(str(latest))
+    plan = allocate_desk_capital(tradable=tradable_fill_books(has_greeks=False))
+    engine = BookEngine(
+        deny_model_signals=True,
+        capital_by_book=dict(plan["per_book"]),
+        capital_plan=plan,
+    )
+    for book_id in LIVE_BOOKS:
+        engine.equity[book_id] = float(plan["per_book"].get(book_id) or 0.0)
     empty = build_dashboard(
-        BookEngine(),
+        engine,
         tapes={},
         steps={},
         as_of_ist=datetime.now(IST).isoformat(timespec="seconds"),
@@ -2913,8 +2999,8 @@ def render_markdown(board: dict[str, Any]) -> str:
         f"paper wr net={board.get('win_rate_net_pct', board.get('win_rate_pct'))}% "
         f"gross={board.get('win_rate_gross_pct')}% "
         f"({board.get('n_wins')}/{board.get('n_closed')} filled net). "
-        f"desk ₹{board.get('starting_desk_inr')} split across {board.get('n_books')} books "
-        f"(typical ₹{board.get('starting_capital_inr_per_book')}/tradable).  ",
+        f"desk ₹{board.get('starting_desk_inr')} split across {(board.get('capital_plan') or {}).get('n_tradable', board.get('n_books'))} tradable fill books "
+        f"(typical ₹{board.get('starting_capital_inr_per_book')}/tradable; observe books ₹0).  ",
         f"**Gross P/L:** ₹{board.get('overall_gross_pnl_inr')} · **charges:** ₹{board.get('overall_charges_inr')} "
         f"(Groww+GST+STT VERIFY) · **Net P/L:** ₹{board.get('overall_pnl_inr')} · won ₹{board.get('money_won_inr')} · "
         f"lost ₹{board.get('money_lost_inr')} · desk equity ₹{board.get('equity_sum_inr')}  "
@@ -3145,7 +3231,7 @@ def run_loop(
                 root=base,
                 source=source,
                 write=True,
-                deny_model_signals=False,
+                deny_model_signals=True,
                 live_session=live_session,
             )
             last["loop_stopped"] = "ml_paper_scalp_STOPPED.flag"
@@ -3155,7 +3241,7 @@ def run_loop(
             root=base,
             source=source,
             write=True,
-            deny_model_signals=False,
+            deny_model_signals=True,
             live_session=live_session,
         )
         last["heartbeat"] = {

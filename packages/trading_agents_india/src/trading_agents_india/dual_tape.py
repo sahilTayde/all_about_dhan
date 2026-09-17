@@ -684,6 +684,7 @@ def run_dual_tape_loop(
                             source="dual-tape",
                             write=True,
                             live_session=True,
+                            deny_model_signals=True,
                         )
                         last_full_board = board
                         last_paths["ml_paper_dashboard"] = str(

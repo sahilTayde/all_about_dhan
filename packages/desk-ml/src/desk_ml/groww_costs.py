@@ -58,6 +58,7 @@ def groww_round_trip_charges(
             "gst_inr": 0.0,
             "stt_inr": 0.0,
             "charges_inr": 0.0,
+            "slippage_inr": 0.0,
             "n_executed_orders": 0,
             "stt_status": "N/A_UNFILLED",
         }

@@ -21,6 +21,8 @@ Do not glob markdown. Do not create extra CONTINUE/HANDOFF/NOTES dumps.
 
 Gate: NOT RESEARCH_READY_FOR_PROGRAMMING. PAPER only. NO_PROMOTE. STRATs UNVALIDATED. Dashboard P/L is MOCK. No live orders. Do not restart npm / Vite / paper ops until I ask. Never print secrets.
 
+Left off 2026-09-17 own-side FILL: `deny_model_signals=True` default. FILL logit / XR-own / dealer CONFIRM vs logit / greeks confirm-kill. ML-001/002/ML-1/TV observe. ₹70k on fill books not 8 clones. Unfilled ₹0 charges. CLEAN SLATE then dual-tape `--paper-scalp` deny-on. PAPER. **NO_PROMOTE**. No Super Orders. Local sqlite — do not git-add.
+
 Left off 2026-09-17 dress rehearsal: NEW paper only **09:50 IST** (`OPEN_SETTLE_35M`). Dual-tape REST **`--tick-seconds 10`** (WS off — no greeks). 266/219/615 path-feasibility clip. CLEAN SLATE today's paper book. wr **gross and net**. `production_params_written=false`. PAPER only. **NO_PROMOTE**. No Super Orders. Do not restart npm. Local sqlite — do not git-add.
 
 Left off 2026-09-16 EOD: INDEX 1m SIDEWAYS_HOLD skips NEW paper opens (HYPOTHESIS). Replay vs prior Groww+STT board: filled 659→276, all-books net −7132.9→+5037.92, unique net 4584→4900, wr still ~25% (not founder 57% live-hours). NO_PROMOTE. Do not restart npm / paper_ops. Local sqlite — do not git-add.
@@ -39,6 +41,12 @@ Left off 2026-09-13: ITM champion PAPER board ready (MIX-CHAMP-* + desk leaderbo
 ---
 
 ---
+
+## Left-off 2026-09-17 — own-side FILL + deny default (NO_PROMOTE)
+
+**Now:** Dual-tape `--paper-scalp` denies clones by default. FILL: MIX-ML-LOGIT, MIX-ML-LOGIT-XR (own side only), MIX-DEFAULT-BUY CONFIRM vs logit, MIX-ML-GREEKS confirm/kill logit (dealer confirm if logit DI). Observe: ML-001/002/ML-1/TV-EP. ₹70k split on fill books. Unfilled CANCELLED ₹0 charges. Mistakes copied into 06 HANDOFF before CLEAN SLATE. Gate **not** `RESEARCH_READY_FOR_PROGRAMMING`. **NO_PROMOTE.**
+
+**Next:** Watch `/pm` `/desk` `GET /paper/ml-books`. Stop: `touch data/recon/paper_dual_tape_STOPPED.flag`. Do not git-add sqlite.
 
 ## Left-off 2026-09-17 11:18 IST — last-30 WR counsel (NO_PROMOTE)
 

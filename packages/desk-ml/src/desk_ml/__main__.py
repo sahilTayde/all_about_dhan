@@ -73,7 +73,7 @@ def build_parser() -> argparse.ArgumentParser:
     ps.add_argument(
         "--deny-signals",
         action="store_true",
-        help="Restore overlay SKIP (HOLD / meta-label). Default: do not deny paper CE/PE.",
+        help="Force overlay SKIP (HOLD / meta-label). Default paper-scalp already denies clones.",
     )
     ps.add_argument("--no-write", action="store_true")
     ps.add_argument(
@@ -186,7 +186,7 @@ def main(argv: Optional[list[str]] = None) -> int:
             source=str(args.source),
             write=not bool(args.no_write),
             max_closes=int(args.max_closes or 0),
-            deny_model_signals=bool(args.deny_signals),
+            deny_model_signals=True,
             live_session=live,
             session_ist_date=(str(args.session_date).strip() or None),
         )

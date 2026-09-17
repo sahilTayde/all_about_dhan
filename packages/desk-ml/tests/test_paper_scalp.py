@@ -264,6 +264,56 @@ def test_allocate_desk_capital_skips_greeks_book() -> None:
     assert plan["per_book"][active[0]] == 10000.0
 
 
+def test_allocate_fill_books_not_eight_clones() -> None:
+    from desk_ml.paper_scalp import allocate_desk_capital, tradable_fill_books
+
+    plan = allocate_desk_capital(tradable=tradable_fill_books(has_greeks=False))
+    assert plan["skipped"] == ["ML-001", "ML-002", "ML-1", "MIX-TV-EP-024", "MIX-ML-GREEKS"]
+    assert plan["tradable"] == ["MIX-DEFAULT-BUY", "MIX-ML-LOGIT", "MIX-ML-LOGIT-XR"]
+    assert plan["n_tradable"] == 3
+    assert plan["per_book"]["ML-001"] == 0.0
+    assert sum(plan["per_book"][b] for b in plan["tradable"]) == 70000.0
+
+
+def test_resolve_fill_intents_hold_skip_logit_fill_dealer_not_against() -> None:
+    from desk_ml.paper_scalp import resolve_fill_intents
+
+    out = resolve_fill_intents(
+        dealer_confirm=None,
+        dealer_verdict="HOLD",
+        logit={"side": "CE", "status": "OK"},
+        logit_xr={"side": None, "status": "SKIP", "reason": "no xr"},
+        ml001_hold=True,
+        follow_gap=True,
+        ml002_hold=False,
+        ml1={"status": "OK", "take": True},
+    )
+    assert out["ML-001"] == (None, "ML-001_HOLD")
+    assert out["MIX-ML-LOGIT"] == ("CE", None)
+    assert out["MIX-DEFAULT-BUY"][0] is None
+    assert "VS_LOGIT_CE" in str(out["MIX-DEFAULT-BUY"][1])
+    assert out["MIX-TV-EP-024"] == (None, "OBSERVE_NO_OWN_FILL")
+    assert out["MIX-ML-LOGIT-XR"][0] is None
+    assert out["MIX-ML-GREEKS"][0] == "CE"
+
+
+def test_resolve_fill_dealer_confirms_matching_logit() -> None:
+    from desk_ml.paper_scalp import resolve_fill_intents
+
+    out = resolve_fill_intents(
+        dealer_confirm="CE",
+        dealer_verdict="BUY_CE_CONFIRM",
+        logit={"side": "CE", "status": "OK"},
+        logit_xr={"side": "CE", "status": "OK"},
+        ml001_hold=False,
+        follow_gap=False,
+        ml002_hold=False,
+        ml1={"status": "OK", "take": True},
+    )
+    assert out["MIX-DEFAULT-BUY"] == ("CE", None)
+    assert out["MIX-ML-LOGIT-XR"] == ("CE", None)
+
+
 def test_trend_up_kills_new_pe_not_a_strat() -> None:
     triples = _triples(n=50, trend=8.0)
     engine = BookEngine()
@@ -351,14 +401,46 @@ def test_ml001_hold_does_not_block_dealer() -> None:
         tv_side="CE",
         deny_model_signals=True,
     )
-    dealer_open = engine.has_open("MIX-DEFAULT-BUY", "NIFTY")
     ml001_open = engine.has_open("ML-001", "NIFTY")
     tv_open = engine.has_open("MIX-TV-EP-024", "NIFTY")
-    assert dealer_open is True
     assert ml001_open is False
-    assert tv_open is True
+    assert tv_open is False
+    assert any(s.get("book_id") == "ML-001" and s.get("reason") == "ML-001_HOLD" for s in engine.skips)
     skip_books = {s["book_id"] for s in engine.skips if s["book_id"] in {"ML-001", "ML-002"}}
     assert "ML-001" in skip_books
+
+
+def test_logit_fills_dealer_does_not_clone_observe_books() -> None:
+    triples = _triples()
+    engine = BookEngine()
+    step_underlying(
+        engine,
+        underlying="NIFTY",
+        triples=triples,
+        i=40,
+        ml001_hold=True,
+        ml002_hold=True,
+        follow_gap=True,
+        logit={"side": "CE", "status": "OK"},
+        logit_xr={"side": None, "status": "SKIP"},
+        ml1={"status": "DATA_INSUFFICIENT", "reason": "no labels"},
+        tv_side="CE",
+        deny_model_signals=True,
+    )
+    assert engine.has_open("MIX-ML-LOGIT", "NIFTY") is True
+    assert engine.opens[("MIX-ML-LOGIT", "NIFTY")].side == "CE"
+    assert engine.has_open("ML-001", "NIFTY") is False
+    assert engine.has_open("ML-002", "NIFTY") is False
+    assert engine.has_open("ML-1", "NIFTY") is False
+    assert engine.has_open("MIX-TV-EP-024", "NIFTY") is False
+    dealer = engine.has_open("MIX-DEFAULT-BUY", "NIFTY")
+    if dealer:
+        assert engine.opens[("MIX-DEFAULT-BUY", "NIFTY")].side == "CE"
+    else:
+        assert any(
+            s.get("book_id") == "MIX-DEFAULT-BUY" and "VS_LOGIT_CE" in str(s.get("reason") or "")
+            for s in engine.skips
+        )
 
 
 def test_one_open_per_book_underlying() -> None:
@@ -373,13 +455,14 @@ def test_one_open_per_book_underlying() -> None:
             ml001_hold=False,
             ml002_hold=False,
             follow_gap=False,
-            logit={"side": None, "status": "SKIP"},
+            logit={"side": "CE", "status": "OK"},
             logit_xr={"side": None, "status": "SKIP"},
             ml1={"status": "DATA_INSUFFICIENT", "reason": "no labels"},
             tv_side="CE",
         )
-    assert sum(1 for (b, u) in engine.opens if b == "MIX-DEFAULT-BUY" and u == "NIFTY") <= 1
-    assert sum(1 for (b, u) in engine.opens if b == "MIX-TV-EP-024" and u == "NIFTY") <= 1
+    assert sum(1 for (b, u) in engine.opens if b == "MIX-ML-LOGIT" and u == "NIFTY") <= 1
+    assert engine.has_open("MIX-TV-EP-024", "NIFTY") is False
+    assert engine.has_open("ML-001", "NIFTY") is False
 
 
 def test_scalp_time_exit_closes_premium_pnl() -> None:
@@ -394,14 +477,14 @@ def test_scalp_time_exit_closes_premium_pnl() -> None:
             ml001_hold=True,
             ml002_hold=True,
             follow_gap=True,
-            logit={"side": None, "status": "SKIP"},
+            logit={"side": "CE", "status": "OK"},
             logit_xr={"side": None, "status": "SKIP"},
             ml1={"status": "DATA_INSUFFICIENT", "reason": "no labels"},
             tv_side="CE",
         )
-    closed_tv = [c for c in engine.closed if c["book_id"] == "MIX-TV-EP-024"]
-    assert closed_tv
-    reasons = {c["exit_reason"] for c in closed_tv}
+    closed_logit = [c for c in engine.closed if c["book_id"] == "MIX-ML-LOGIT"]
+    assert closed_logit
+    reasons = {c["exit_reason"] for c in closed_logit}
     assert reasons & {
         "TIME",
         "STOP",
@@ -416,10 +499,10 @@ def test_scalp_time_exit_closes_premium_pnl() -> None:
         "CANCEL_UNFILLED_THESIS",
         "CANCEL_UNFILLED_FLAT",
     }
-    assert all(c["realized_pnl"] is not None for c in closed_tv)
-    assert all("won" in c for c in closed_tv)
-    assert all(c.get("atm_strike") is not None for c in closed_tv)
-    assert all("stop" in c and "target" in c for c in closed_tv)
+    assert all(c["realized_pnl"] is not None for c in closed_logit)
+    assert all("won" in c for c in closed_logit)
+    assert all(c.get("atm_strike") is not None for c in closed_logit)
+    assert all("stop" in c and "target" in c for c in closed_logit)
 
 
 def test_replay_parallel_books_no_promote(tmp_path) -> None:
@@ -438,7 +521,8 @@ def test_replay_parallel_books_no_promote(tmp_path) -> None:
     assert board["research_ready_for_programming"] is False
     assert board["execution"] == "refused"
     assert board["starting_desk_inr"] == 70000.0
-    assert board["capital_plan"]["skipped"] == ["MIX-ML-GREEKS"]
+    assert board["capital_plan"]["skipped"] == ["ML-001", "ML-002", "ML-1", "MIX-TV-EP-024", "MIX-ML-GREEKS"]
+    assert board["deny_model_signals"] is True
     assert board["win_rate_kind"] == "paper_closed_net_inr_gt_0_after_groww_stt"
     assert "win_rate_gross_pct" in board
     assert "book_rank" in board
@@ -788,7 +872,11 @@ def test_unfilled_close_has_zero_charges() -> None:
     row = engine.closed[0]
     assert row["result"] == "CANCELLED"
     assert row["charges_inr"] == 0.0
+    assert row["brokerage_inr"] == 0.0
+    assert row["gst_inr"] == 0.0
+    assert row["stt_inr"] == 0.0
     assert row["realized_pnl_inr"] == 0.0
+    assert row["gross_pnl_inr"] == 0.0
 
 
 def _sensex_tick(*, i: int, idx: float, atm: float, wings: dict, ce: float, pe: float) -> Triple:
