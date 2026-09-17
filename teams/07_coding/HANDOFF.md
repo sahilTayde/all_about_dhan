@@ -1,5 +1,47 @@
 # Handoff log — Team 07 Coding
 
+## As of now (2026-09-17) — closed board: SL money vs filled-cancel pnl (NO_PROMOTE)
+
+```text
+From:     teams/07_coding
+To:       00 / 06
+Date:     2026-09-17
+Status:   PAPER UI / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: lost₹ uses sl_loss_inr only. Do not copy every LOSS
+  into money-lost. Compact /pm too.
+Rejected: npm restart required. Super Orders. Promote.
+```
+
+## As of now (2026-09-17) — ITM CE/PE bin on ML paper dashboard (NO_PROMOTE)
+
+```text
+From:     teams/07_coding
+To:       00 / 06
+Date:     2026-09-17
+Status:   PAPER UI / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: MlPaperDashboard section ITM CE / PE bin (three charts)
+  with strike/moneyness/px/vol/OI/delta and PE vs CE votes. Compact /pm too.
+Rejected: npm restart required. Super Orders. Promote.
+```
+
+## As of now (2026-09-17) — seen-not-taken dashboard section (NO_PROMOTE)
+
+```text
+From:     teams/07_coding
+To:       00 / 06
+Date:     2026-09-17
+Status:   PAPER UI / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: MlPaperDashboard section Seen but not taken / cancelled
+  with skip+cancel reasons and last-3 observations. Compact /pm too.
+Rejected: npm restart required. Super Orders. Promote.
+```
+
 ## As of now (2026-09-17) — ticket sort OPEN first CLOSED last (NO_PROMOTE)
 
 ```text

@@ -1,5 +1,135 @@
 # Handoff log — Team 06 Backtesting
 
+## As of now (2026-09-17 EOD) — ML_PAPER_DASHBOARD SL vs TARGET (NO_PROMOTE)
+
+```text
+From:     teams/06_backtesting
+To:       00 / 02 / 04
+Date:     2026-09-17
+Status:   RETUNE_PROPOSAL BACKTEST_REQUIRED / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: Packet in QUANT_SELF_REVIEW_LOOP.md Paper EOD 2026-09-17.
+  STOP 153 / TARGET 2 / TIME 14. Unique STOP 77 TARGET 1.
+Rejected: production_params_written. Auto-retune from this day.
+UNKNOWN: Session kind NORMAL vs EXPIRY (SENSEX Thursday).
+```
+
+## As of now (2026-09-17) — paper flatten 15:15 IST (NO_PROMOTE)
+
+```text
+From:     teams/06_backtesting + desk_ml
+To:       00 / founder
+Date:     2026-09-17
+Status:   PAPER / HYPOTHESIS / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: NO_NEW / flatten moved 14:45+15:00 → 15:15. CAS afternoon
+  HOLD only if expiry_day=True. Paper session is not a CAS kill.
+Rejected: Promote. sqlite git-add.
+UNKNOWN: Whether 15:15–15:30 leftover poll is useful after flatten.
+```
+
+## As of now (2026-09-17) — filled trail vs flatten (NO_PROMOTE)
+
+```text
+From:     teams/06_backtesting + desk_ml
+To:       00 / founder
+Date:     2026-09-17
+Status:   PAPER / HYPOTHESIS / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: pytest desk-ml paper_scalp+groww 68. Soft cancel after
+  fill keeps the ticket and ratchets stop. TARGET lock-shift.
+  STOP still stops. Unfilled CANCELLED_UNFILLED ₹0.
+Rejected: Promote. production_params_written. sqlite git-add.
+UNKNOWN: Live board churn from CANCEL_STRIKE_ROLL should drop
+  after dual-tape restart; not a claimed wr lift.
+```
+
+## As of now (2026-09-17) — filled cancel books Groww+STT P/L (NO_PROMOTE)
+
+```text
+From:     teams/06_backtesting + desk_ml
+To:       00 / founder
+Date:     2026-09-17
+Status:   PAPER / HYPOTHESIS / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: Unfilled CANCELLED_UNFILLED = ₹0. Filled CLOSED_CANCEL
+  is SUCCESS/LOSS after Groww+STT. money-lost column = SL only.
+Rejected: Promote. sqlite git-add. Zero P/L on filled give-up.
+UNKNOWN: Old JSON rows still say CANCELLED until new closes.
+```
+
+## As of now (2026-09-17) — ATM CE 74300 was a false ITM book (NO_PROMOTE)
+
+```text
+From:     teams/06_backtesting + desk_ml
+To:       00 / founder
+Date:     2026-09-17
+Status:   PAPER / HYPOTHESIS / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: Any STRIKE_* quote was labeled ITM_100; ATM fallback on
+  last-3/logit TREND booked SENSEX CE 74300. Now skip unless
+  is_buy_itm vs Dhan ATM + INDEX. GREEKS_NO_CLONE vs logit.
+Rejected: Promote. sqlite git-add. Super Orders. npm restart.
+UNKNOWN: Live 74200 CE quote may be DATA_INSUFFICIENT some ticks.
+```
+
+## As of now (2026-09-17) — ITM CE/PE bin three charts (NO_PROMOTE)
+
+```text
+From:     teams/06_backtesting + desk_ml
+To:       00 / founder
+Date:     2026-09-17
+Status:   PAPER / HYPOTHESIS / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: ITM CE vs ITM PE bin on 10s wing quotes. Two votes TREND
+  without three INDEX 1m bars. CE selling + PE vol/OI/delta confirm
+  PUT. ITM-only fill on bin confirm. CANCEL_BIN_ROLL when ITM→ATM/OTM.
+  Last-3 impulse KEEP. Chop SIDEWAYS KEEP. Dashboard itm_bins.
+Rejected: Promote. sqlite git-add. Super Orders. npm restart.
+UNKNOWN: Missing Dhan OI/vol is DATA_INSUFFICIENT not invent.
+```
+
+## As of now (2026-09-17) — SENSEX 100pt last-3: vol spike skip was over-coded (NO_PROMOTE)
+
+```text
+From:     teams/06_backtesting + desk_ml
+To:       00 / founder
+Date:     2026-09-17
+Status:   PAPER / HYPOTHESIS / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: Last-3 price impulse TREND even when vol_expand=false
+  (SENSEX 502k then 10k was a false SIDEWAYS). Last-3 net = three
+  candle bodies. Impulse owns FILL side vs 10s logit bounce.
+  Impulse paper fill at signal LTP so CANCEL_UNFILLED_AWAY does
+  not wipe the dump ticket. Chop SIDEWAYS KEEP.
+Rejected: Promote. sqlite git-add. Super Orders. npm restart.
+UNKNOWN: Paper fill at signal on impulse is not a live fill.
+```
+
+## As of now (2026-09-17) — last-3 impulse TREND + seen-not-taken (NO_PROMOTE)
+
+```text
+From:     teams/06_backtesting + desk_ml
+To:       00 / founder
+Date:     2026-09-17
+Status:   PAPER / HYPOTHESIS / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: 15m chop SIDEWAYS KEEP when last-3 is also chop. Last-3
+  efficient PUT/CE impulse → TREND (was over-coded: 15m ER blocked
+  NIFTY/SENSEX PUT last-3). Dashboard section seen_not_taken:
+  skip+cancel rows + observation comments. Lookback cap 15.
+Rejected: Promote. sqlite git-add. Super Orders. npm restart.
+UNKNOWN: Live wr after impulse TREND is a new paper book.
+```
+
 ## As of now (2026-09-17) — wipe board keep JSONL + epoch (NO_PROMOTE)
 
 ```text

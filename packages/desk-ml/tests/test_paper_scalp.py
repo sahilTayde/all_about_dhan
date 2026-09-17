@@ -8,18 +8,26 @@ from datetime import datetime, timedelta, timezone
 from desk_ml.features import Triple
 from desk_ml.paper_scalp import (
     BookEngine,
+    CANCEL_BIN_ROLL,
     LIVE_BOOKS,
     OpenPaper,
     REGIME_UNKNOWN_WAIT,
     SIDEWAYS_HOLD,
+    TRAIL_BAND_MAX,
+    TRAIL_BAND_MIN,
+    cancel_if_bin_rolled,
     classify_index_regime,
     feasibility_long,
+    itm_bins_picture,
     logit_side_series,
     mark_to_market,
     paper_hit_rate,
     propose_levels,
     quote_for_side,
+    render_markdown,
     replay_paper_scalp,
+    score_itm_bin,
+    seen_not_taken_picture,
     step_underlying,
 )
 from desk_ml.tape import merge_wing_quotes
@@ -39,7 +47,26 @@ def _triples(*, n: int = 80, trend: float = 8.0) -> list[Triple]:
         idx += trend
         ce = max(8.0, ce + trend * 0.15)
         pe = max(8.0, pe - trend * 0.12)
-        out.append(Triple(ts=_ts(i), idx_close=idx, ce_close=ce, pe_close=pe))
+        atm = round(idx / 50.0) * 50.0
+        ce_itm, pe_itm = atm - 100.0, atm + 100.0
+        out.append(
+            Triple(
+                ts=_ts(i),
+                idx_close=idx,
+                ce_close=ce,
+                pe_close=pe,
+                atm_strike=atm,
+                itm_ce_close=ce + 40.0,
+                itm_pe_close=pe + 40.0,
+                itm_ce_strike=ce_itm,
+                itm_pe_strike=pe_itm,
+                wing_quotes={
+                    str(int(ce_itm)): {"ce": ce + 40.0, "pe": 20.0},
+                    str(int(atm)): {"ce": ce, "pe": pe},
+                    str(int(pe_itm)): {"ce": 20.0, "pe": pe + 40.0},
+                },
+            )
+        )
     return out
 
 
@@ -50,7 +77,24 @@ def _chop_triples(*, n: int = 80) -> list[Triple]:
         idx += 4.0 if i % 2 == 0 else -4.0
         ce = max(8.0, 120.0 + (2.0 if i % 2 == 0 else -2.0))
         pe = max(8.0, 110.0 + (-2.0 if i % 2 == 0 else 2.0))
-        out.append(Triple(ts=_ts(i), idx_close=idx, ce_close=ce, pe_close=pe))
+        out.append(
+            Triple(
+                ts=_ts(i),
+                idx_close=idx,
+                ce_close=ce,
+                pe_close=pe,
+                atm_strike=25000.0,
+                itm_ce_close=ce + 40.0,
+                itm_pe_close=pe + 40.0,
+                itm_ce_strike=24900.0,
+                itm_pe_strike=25100.0,
+                wing_quotes={
+                    "24900": {"ce": ce + 40.0, "pe": 20.0},
+                    "25000": {"ce": ce, "pe": pe},
+                    "25100": {"ce": 20.0, "pe": pe + 40.0},
+                },
+            )
+        )
     return out
 
 
@@ -160,7 +204,7 @@ def test_sideways_still_flattens_open_ticket() -> None:
         stop=80.0,
         target=160.0,
         atm_strike=25000.0,
-        opened_ts=int(__import__("datetime").datetime(2026, 9, 10, 15, 0, tzinfo=IST).timestamp()) - 60,
+        opened_ts=int(__import__("datetime").datetime(2026, 9, 10, 15, 14, tzinfo=IST).timestamp()),
         opened_bar=49,
         strike_source="TEST",
         limit_price=120.0,
@@ -169,11 +213,11 @@ def test_sideways_still_flattens_open_ticket() -> None:
     )
     engine.opens[("MIX-DEFAULT-BUY", "NIFTY")] = pos
     engine.equity["MIX-DEFAULT-BUY"] = 10000.0
-    late = int(__import__("datetime").datetime(2026, 9, 10, 15, 1, tzinfo=IST).timestamp())
+    late = int(__import__("datetime").datetime(2026, 9, 10, 15, 16, tzinfo=IST).timestamp())
     tick = Triple(ts=late, idx_close=25000.0, ce_close=118.0, pe_close=110.0)
     mark_to_market(engine, tick, "NIFTY", 50)
     assert engine.has_open("MIX-DEFAULT-BUY", "NIFTY") is False
-    assert engine.closed and engine.closed[0]["exit_reason"] == "FLATTEN_1500"
+    assert engine.closed and engine.closed[0]["exit_reason"] == "FLATTEN_1515"
 
 
 def test_paper_hit_rate_from_closed_pnl() -> None:
@@ -314,7 +358,7 @@ def test_resolve_fill_intents_hold_skip_logit_fill_dealer_not_against() -> None:
     assert "VS_LOGIT_CE" in str(out["MIX-DEFAULT-BUY"][1])
     assert out["MIX-TV-EP-024"] == (None, "OBSERVE_NO_OWN_FILL")
     assert out["MIX-ML-LOGIT-XR"][0] is None
-    assert out["MIX-ML-GREEKS"][0] == "CE"
+    assert out["MIX-ML-GREEKS"] == (None, "GREEKS_NO_CLONE")
 
 
 def test_resolve_fill_dealer_confirms_matching_logit() -> None:
@@ -353,8 +397,10 @@ def test_trend_up_kills_new_pe_not_a_strat() -> None:
     )
     assert engine.last_regime["NIFTY"]["regime"] == "TREND"
     assert engine.last_regime["NIFTY"]["direction"] == "UP"
-    assert engine.has_open("MIX-ML-LOGIT", "NIFTY") is False
-    assert any(s.get("reason") == "TREND_UP_KILL_PE" for s in engine.skips)
+    pos = engine.opens.get(("MIX-ML-LOGIT", "NIFTY"))
+    assert pos is not None
+    assert pos.side == "CE"
+    assert pos.filled is True
 
 
 def test_sleep_with_beats_rewrites_without_dhan_poll() -> None:
@@ -486,9 +532,9 @@ def test_one_open_per_book_underlying() -> None:
 
 
 def test_scalp_time_exit_closes_premium_pnl() -> None:
-    triples = _triples(n=50)
+    triples = _triples(n=80)
     engine = BookEngine()
-    for i in range(20, 40):
+    for i in range(20, 70):
         step_underlying(
             engine,
             underlying="NIFTY",
@@ -509,6 +555,7 @@ def test_scalp_time_exit_closes_premium_pnl() -> None:
         "TIME",
         "STOP",
         "TARGET",
+        "FLATTEN_1515",
         "FLATTEN_1500",
         "CANCEL_STRIKE_ROLL",
         "CANCEL_ADVERSE",
@@ -518,6 +565,9 @@ def test_scalp_time_exit_closes_premium_pnl() -> None:
         "CANCEL_UNFILLED_INDEX",
         "CANCEL_UNFILLED_THESIS",
         "CANCEL_UNFILLED_FLAT",
+        CANCEL_BIN_ROLL,
+        "ITM_ONLY_NO_QUOTE",
+        "ITM_ONLY_NOT_ITM",
     }
     assert all(c["realized_pnl"] is not None for c in closed_logit)
     assert all("won" in c for c in closed_logit)
@@ -629,7 +679,7 @@ def test_live_session_filters_other_ist_days_and_keeps_open() -> None:
         assert all(t.get("atm_strike") is not None for t in board["open_trades"])
     for t in board["closed_trades"]:
         assert t.get("result") in {"SUCCESS", "LOSS", "CANCELLED"}
-        assert t.get("status") in {"CLOSED_PAPER", "CANCELLED"}
+        assert t.get("status") in {"CLOSED_PAPER", "CLOSED_CANCEL", "CANCELLED", "CANCELLED_UNFILLED"}
     if board["n_losses"]:
         assert board["mistakes"]
         assert board["money_lost_inr"] <= 0
@@ -716,6 +766,18 @@ def test_itm_wing_is_100pts_not_atm() -> None:
 
     assert itm_wing_strikes("SENSEX", 74300.0) == {"CE": 74200.0, "PE": 74400.0}
     assert itm_wing_strikes("NIFTY", 23250.0) == {"CE": 23150.0, "PE": 23350.0}
+    from desk_ml.paper_scalp import is_buy_itm, paper_itm_strike
+
+    tick = Triple(
+        ts=_ts(0),
+        idx_close=74374.0,
+        ce_close=180.0,
+        pe_close=190.0,
+        atm_strike=74300.0,
+    )
+    assert paper_itm_strike(tick, "CE", "SENSEX") == 74200.0
+    assert is_buy_itm("CE", 74300.0, tick, "SENSEX") is False
+    assert is_buy_itm("CE", 74200.0, tick, "SENSEX") is True
 
 
 def test_open_uses_itm_quote_not_atm() -> None:
@@ -783,10 +845,12 @@ def test_unfilled_limit_cancels_when_premium_runs_away() -> None:
     assert _unfilled_reason(pos, 101.0, _ts(1), 2, live_delta=0.25) == "CANCEL_UNFILLED_DELTA"
 
 
-def test_no_new_paper_after_1445_ist() -> None:
-    from desk_ml.paper_scalp import BookEngine, _try_open
+def test_no_new_paper_after_1515_ist() -> None:
+    from desk_ml.paper_scalp import BookEngine, _try_open, new_paper_blocked
 
-    late = int(datetime(2026, 9, 10, 14, 50, tzinfo=IST).timestamp())
+    still_ok = int(datetime(2026, 9, 10, 14, 50, tzinfo=IST).timestamp())
+    assert new_paper_blocked(still_ok) is None
+    late = int(datetime(2026, 9, 10, 15, 16, tzinfo=IST).timestamp())
     tick = Triple(ts=late, idx_close=23200.0, ce_close=80.0, pe_close=70.0)
     engine = BookEngine()
     _try_open(
@@ -801,7 +865,10 @@ def test_no_new_paper_after_1445_ist() -> None:
         strike=23200.0,
     )
     assert engine.has_open("MIX-DEFAULT-BUY", "NIFTY") is False
-    assert any(s.get("reason") == "NO_NEW_AFTER_1445" for s in engine.skips)
+    assert any(s.get("reason") == "NO_NEW_AFTER_1515" for s in engine.skips)
+
+
+def test_greeks_adjust_delta_skip_and_iv_widens_stop() -> None:
     from desk_ml.paper_scalp import greeks_paper_adjust
 
     skip = greeks_paper_adjust(entry=100.0, stop_frac=0.40, target_frac=0.55, delta=0.25)
@@ -892,12 +959,54 @@ def test_unfilled_close_has_zero_charges() -> None:
     _close(engine, pos, ltp=110.0, ts=_ts(5), reason="CANCEL_UNFILLED_AWAY")
     row = engine.closed[0]
     assert row["result"] == "CANCELLED"
+    assert row["status"] == "CANCELLED_UNFILLED"
     assert row["charges_inr"] == 0.0
     assert row["brokerage_inr"] == 0.0
     assert row["gst_inr"] == 0.0
     assert row["stt_inr"] == 0.0
     assert row["realized_pnl_inr"] == 0.0
     assert row["gross_pnl_inr"] == 0.0
+
+
+def test_filled_cancel_still_books_round_trip_pnl() -> None:
+    """CANCEL_BIN_ROLL after a fill is a paper round-trip, not ₹0. Status CLOSED_CANCEL."""
+    from desk_ml.groww_costs import groww_round_trip_charges, net_pnl_inr
+    from desk_ml.paper_scalp import BookEngine, OpenPaper, _close
+
+    engine = BookEngine()
+    engine.equity["MIX-DEFAULT-BUY"] = 10000.0
+    pos = OpenPaper(
+        book_id="MIX-DEFAULT-BUY",
+        underlying="NIFTY",
+        side="CE",
+        trade_id="filled-cancel",
+        entry=142.1,
+        stop=130.0,
+        target=157.8,
+        atm_strike=23200.0,
+        opened_ts=_ts(0),
+        opened_bar=1,
+        strike_source="ITM_100",
+        limit_price=142.1,
+        lot_size=65,
+        lots=1,
+        qty=65,
+        filled=True,
+    )
+    _close(engine, pos, ltp=140.2, ts=_ts(5), reason="CANCEL_BIN_ROLL")
+    row = engine.closed[0]
+    assert row["status"] == "CLOSED_CANCEL"
+    assert row["filled"] is True
+    assert row["result"] == "LOSS"
+    assert row["sl_hit"] is False
+    assert row["sl_loss_inr"] is None
+    expect = groww_round_trip_charges(exit_premium=140.2, qty=65, filled=True)
+    assert row["charges_inr"] == expect["charges_inr"]
+    assert row["realized_pnl_inr"] == net_pnl_inr(
+        gross_inr=row["gross_pnl_inr"], charges_inr=expect["charges_inr"]
+    )
+    assert row["realized_pnl_inr"] < 0
+
 
 
 def _sensex_tick(*, i: int, idx: float, atm: float, wings: dict, ce: float, pe: float) -> Triple:
@@ -970,12 +1079,13 @@ def test_sensex_74300_ce_fill_then_sl_closes_loss() -> None:
         entry=234.8,
         stop=199.58,
         target=630.0,
-        atm_strike=74300.0,
+        atm_strike=74200.0,
         opened_ts=_ts(0),
         opened_bar=1,
         strike_source="ITM_100",
         limit_price=231.9824,
-        filled=False,
+        filled=True,
+        last_ltp=276.4,
         lot_size=20,
         lots=1,
         qty=20,
@@ -991,7 +1101,6 @@ def test_sensex_74300_ce_fill_then_sl_closes_loss() -> None:
     )
     mark_to_market(engine, fill, "SENSEX", 2, atm_strike=74300.0)
     assert engine.opens[("MIX-DEFAULT-BUY", "SENSEX")].filled is True
-    assert engine.opens[("MIX-DEFAULT-BUY", "SENSEX")].entry == 217.35
     dump = _sensex_tick(
         i=2,
         idx=74402.0,
@@ -1001,7 +1110,7 @@ def test_sensex_74300_ce_fill_then_sl_closes_loss() -> None:
         wings={
             "74300": {"ce": 180.0, "pe": 176.2, "ce_low": 180.0},
             "74400": {"ce": 191.0, "pe": 160.0},
-            "74200": {"ce": 243.7, "pe": 140.0},
+            "74200": {"ce": 190.0, "pe": 140.0, "ce_low": 190.0},
         },
     )
     mark_to_market(engine, dump, "SENSEX", 3, atm_strike=74400.0)
@@ -1023,7 +1132,7 @@ def test_sensex_74300_ce_same_tick_limit_and_stop_closes() -> None:
         entry=234.8,
         stop=199.58,
         target=630.0,
-        atm_strike=74300.0,
+        atm_strike=74200.0,
         opened_ts=_ts(0),
         opened_bar=1,
         strike_source="ITM_100",
@@ -1040,7 +1149,7 @@ def test_sensex_74300_ce_same_tick_limit_and_stop_closes() -> None:
         atm=74300.0,
         ce=180.0,
         pe=210.0,
-        wings={"74300": {"ce": 180.0, "pe": 210.0, "ce_low": 175.0}},
+        wings={"74300": {"ce": 180.0, "pe": 210.0, "ce_low": 175.0}, "74200": {"ce": 180.0, "pe": 150.0, "ce_low": 175.0}},
     )
     mark_to_market(engine, gap, "SENSEX", 2, atm_strike=74300.0)
     assert ("MIX-ML-LOGIT", "SENSEX") not in engine.opens
@@ -1100,7 +1209,7 @@ def test_sideways_does_not_skip_stop_on_open_ticket() -> None:
         entry=217.35,
         stop=199.58,
         target=630.0,
-        atm_strike=74300.0,
+        atm_strike=74200.0,
         opened_ts=_ts(0),
         opened_bar=1,
         strike_source="ITM_100",
@@ -1115,7 +1224,7 @@ def test_sideways_does_not_skip_stop_on_open_ticket() -> None:
         atm=74300.0,
         ce=180.0,
         pe=200.0,
-        wings={"74300": {"ce": 180.0, "pe": 200.0}},
+        wings={"74300": {"ce": 180.0, "pe": 200.0}, "74200": {"ce": 180.0, "pe": 150.0, "ce_low": 180.0}},
     )
     mark_to_market(engine, dump, "SENSEX", 6, dealer_verdict="HOLD", atm_strike=74300.0)
     assert engine.closed[-1]["exit_reason"] == "STOP"
@@ -1309,7 +1418,8 @@ def test_classify_needs_vwap_ema_and_blocks_shrinking_volume() -> None:
     shrink = [1000.0] * 34 + [900.0, 800.0, 700.0, 600.0, 500.0, 400.0]
     blocked = classify_index_regime(trend, volumes=shrink)
     assert blocked["vol_expand"] is False
-    assert blocked["regime"] != "TREND"
+    assert blocked["regime"] == "TREND"
+    assert blocked["last3_impulse"] == "UP"
 
 
 def test_unfilled_cancels_when_index_turns_sideways() -> None:
@@ -1384,6 +1494,330 @@ def test_paper_book_epoch_does_not_replay_old_opens(tmp_path) -> None:
     for row in list(board.get("closed_trades") or []) + list(board.get("open_trades") or []):
         opened = int(row.get("opened_ts") or 0)
         assert opened >= epoch
+
+
+def test_last3_put_impulse_beats_15m_chop() -> None:
+    chop = [25000.0 + (4.0 if i % 2 == 0 else -4.0) for i in range(37)]
+    dump = chop + [24990.0, 24970.0, 24940.0]
+    t = classify_index_regime(dump)
+    assert t["regime"] == "TREND"
+    assert t["direction"] == "DOWN"
+    assert t["last3_impulse"] == "DOWN"
+    still_chop = chop + [25004.0, 24996.0, 25004.0]
+    s = classify_index_regime(still_chop)
+    assert s["regime"] == "SIDEWAYS"
+    assert s["last3_impulse"] is None
+    shrink = [1000.0] * 34 + [900.0, 800.0, 700.0, 600.0, 500.0, 400.0]
+    blocked = classify_index_regime(dump, volumes=shrink)
+    assert blocked["last3_impulse"] == "DOWN"
+    assert blocked["regime"] == "TREND"
+    sensex = [74650.0 + (3.0 if i % 2 == 0 else -3.0) for i in range(20)]
+    sensex += [74519.0, 74416.0, 74352.0]
+    sx = classify_index_regime(sensex, volumes=shrink)
+    assert sx["last3_net"] is not None and abs(float(sx["last3_net"])) >= 90
+    assert sx["regime"] == "TREND"
+    assert sx["direction"] == "DOWN"
+
+
+def test_last3_impulse_owns_fill_side_not_10s_logit_bounce() -> None:
+    from desk_ml.paper_scalp import resolve_fill_intents
+
+    out = resolve_fill_intents(
+        dealer_confirm=None,
+        dealer_verdict="HOLD",
+        logit={"side": "CE", "status": "OK"},
+        logit_xr={"side": None, "status": "SKIP", "reason": "no xr"},
+        ml001_hold=True,
+        follow_gap=False,
+        ml002_hold=True,
+        ml1={"status": "DATA_INSUFFICIENT"},
+        impulse_side="PE",
+    )
+    assert out["MIX-ML-LOGIT"] == ("PE", None)
+    assert out["MIX-ML-GREEKS"] == (None, "GREEKS_NO_CLONE")
+    assert out["MIX-DEFAULT-BUY"] == ("PE", None)
+
+
+def test_seen_not_taken_section_explains_skip() -> None:
+    triples = _chop_triples()
+    engine = BookEngine()
+    step_underlying(
+        engine,
+        underlying="NIFTY",
+        triples=triples,
+        i=40,
+        ml001_hold=False,
+        ml002_hold=False,
+        follow_gap=False,
+        logit={"side": "PE", "status": "OK"},
+        logit_xr={"side": "PE", "status": "OK"},
+        ml1={"status": "OK", "take": True},
+        tv_side="PE",
+        deny_model_signals=True,
+    )
+    seen = seen_not_taken_picture(engine)
+    assert seen["observations"]
+    assert any("NIFTY" in n for n in seen["observations"])
+    assert seen["skipped_latest"]
+    md = render_markdown(
+        {
+            "title": "LIVE SESSION",
+            "today": {},
+            "seen_not_taken": seen,
+            "closed_trades": [],
+            "open_trades": [],
+        }
+    )
+    assert "## Seen but not taken / cancelled (why)" in md
+    assert "SKIP" in md or "SIDEWAYS" in md
+
+
+def _nifty_itm_wings(*, pe_px: float, ce_px: float, pe_vol: float, ce_vol: float, pe_oi: float | None, ce_oi: float | None, pe_delta: float = -0.55, ce_delta: float = 0.55) -> dict:
+    cell_ce: dict = {"ce": ce_px, "ce_volume": ce_vol, "ce_delta": ce_delta}
+    cell_pe: dict = {"pe": pe_px, "pe_volume": pe_vol, "pe_delta": pe_delta}
+    if pe_oi is not None:
+        cell_pe["pe_oi"] = pe_oi
+    if ce_oi is not None:
+        cell_ce["ce_oi"] = ce_oi
+    return {
+        "24900": cell_ce,
+        "25000": {"ce": 120.0, "pe": 110.0},
+        "25100": cell_pe,
+    }
+
+
+def test_itm_bin_two_votes_trend_without_three_index_bars() -> None:
+    prev = {
+        "ce": {"px": 140.0, "volume": 10000.0, "oi": 80000.0, "delta": 0.55},
+        "pe": {"px": 150.0, "volume": 10000.0, "oi": 80000.0, "delta": -0.50},
+    }
+    curr = {
+        "ce": {"px": 128.0, "volume": 13000.0, "oi": 79000.0, "delta": 0.50},
+        "pe": {"px": 168.0, "volume": 16000.0, "oi": 86000.0, "delta": -0.58},
+    }
+    scored = score_itm_bin(prev, curr)
+    assert scored["side"] == "PE"
+    assert scored["wait_3_index_bars"] is False
+    assert scored["n_pe_votes"] >= 2
+    assert "PE_VOL_EXPAND" in scored["pe_votes"]
+    assert "CE_PREMIUM_DOWN" in scored["pe_votes"]
+    thin = score_itm_bin(
+        {"ce": {"px": 140.0}, "pe": {"px": 150.0}},
+        {"ce": {"px": 141.0}, "pe": {"px": 151.0}},
+    )
+    assert thin["side"] is None
+    assert "ce_volume" in thin["missing"] or "pe_volume" in thin["missing"]
+    prem_only = score_itm_bin(
+        {"ce": {"px": 140.0, "volume": 10000.0}, "pe": {"px": 150.0, "volume": 10000.0}},
+        {"ce": {"px": 148.0, "volume": 10010.0}, "pe": {"px": 142.0, "volume": 10010.0}},
+    )
+    assert prem_only["side"] is None
+    assert "CE_PREMIUM_UP" in prem_only["ce_votes"]
+
+
+def test_itm_bin_opens_pe_on_chop_index_without_last3() -> None:
+    triples = _chop_triples(n=42)
+    def _with_wings(t: Triple, pe_px: float, ce_px: float, pe_vol: float, ce_vol: float, pe_oi: float, ce_oi: float) -> Triple:
+        atm = 25000.0
+        return Triple(
+            ts=t.ts,
+            idx_close=t.idx_close,
+            ce_close=ce_px,
+            pe_close=pe_px,
+            atm_strike=atm,
+            itm_ce_close=ce_px,
+            itm_pe_close=pe_px,
+            itm_ce_strike=24900.0,
+            itm_pe_strike=25100.0,
+            wing_quotes=_nifty_itm_wings(
+                pe_px=pe_px, ce_px=ce_px, pe_vol=pe_vol, ce_vol=ce_vol, pe_oi=pe_oi, ce_oi=ce_oi
+            ),
+        )
+
+    triples[40] = _with_wings(triples[40], 150.0, 140.0, 10000.0, 10000.0, 80000.0, 80000.0)
+    triples[41] = _with_wings(triples[41], 168.0, 128.0, 16000.0, 13000.0, 86000.0, 79000.0)
+    engine = BookEngine()
+    kwargs = dict(
+        underlying="NIFTY",
+        triples=triples,
+        ml001_hold=True,
+        ml002_hold=True,
+        follow_gap=True,
+        logit={"side": "CE", "status": "OK"},
+        logit_xr={"side": None, "status": "SKIP"},
+        ml1={"status": "DATA_INSUFFICIENT"},
+        tv_side="CE",
+        deny_model_signals=True,
+    )
+    step_underlying(engine, i=40, **kwargs)
+    step_underlying(engine, i=41, **kwargs)
+    classified = engine.last_regime["NIFTY"]
+    assert classified["regime"] == "TREND"
+    assert classified["direction"] == "DOWN"
+    assert classified["reason"] == "itm_bin_pe_confirm"
+    assert classified["last3_impulse"] is None
+    pos = engine.opens.get(("MIX-ML-LOGIT", "NIFTY"))
+    assert pos is not None
+    assert pos.side == "PE"
+    assert pos.atm_strike == 25100.0
+    assert pos.strike_source == "ITM_100"
+    assert pos.filled is True
+    pic = itm_bins_picture(engine)
+    assert pic["bins"][0]["side"] == "PE"
+    md = render_markdown({"title": "LIVE SESSION", "today": {}, "itm_bins": pic, "seen_not_taken": {}, "closed_trades": [], "open_trades": []})
+    assert "## ITM CE / PE bin (three charts)" in md
+
+
+def test_cancel_bin_roll_when_itm_becomes_atm() -> None:
+    pos = OpenPaper(
+        book_id="MIX-ML-LOGIT",
+        underlying="NIFTY",
+        side="PE",
+        trade_id="bin-roll",
+        entry=160.0,
+        stop=140.0,
+        target=200.0,
+        atm_strike=25100.0,
+        opened_ts=_ts(0),
+        opened_bar=1,
+        strike_source="ITM_100",
+        limit_price=160.0,
+        filled=True,
+        idx_at_open=25000.0,
+    )
+    still_itm = Triple(ts=_ts(1), idx_close=24980.0, ce_close=100.0, pe_close=170.0, atm_strike=25000.0)
+    assert cancel_if_bin_rolled(pos, still_itm) is None
+    now_atm = Triple(ts=_ts(2), idx_close=25100.0, ce_close=130.0, pe_close=155.0, atm_strike=25100.0)
+    assert cancel_if_bin_rolled(pos, now_atm) == CANCEL_BIN_ROLL
+    engine = BookEngine()
+    engine.opens[("MIX-ML-LOGIT", "NIFTY")] = pos
+    mark_to_market(engine, now_atm, "NIFTY", 2, atm_strike=25100.0)
+    assert engine.has_open("MIX-ML-LOGIT", "NIFTY") is True
+    kept = engine.opens[("MIX-ML-LOGIT", "NIFTY")]
+    assert kept.stop > 140.0
+    assert kept.stop < 155.0
+    assert kept.agent_status in {"TRAIL_STOP", "IN_TRADE"}
+
+
+def test_filled_soft_cancel_trails_stop_not_flatten() -> None:
+    from desk_ml.paper_scalp import trail_premium_band
+
+    assert TRAIL_BAND_MIN <= trail_premium_band() <= TRAIL_BAND_MAX
+    pos = OpenPaper(
+        book_id="MIX-DEFAULT-BUY",
+        underlying="SENSEX",
+        side="CE",
+        trade_id="thesis-trail",
+        entry=297.45,
+        stop=280.5,
+        target=325.0,
+        atm_strike=74300.0,
+        opened_ts=_ts(0),
+        opened_bar=1,
+        strike_source="TEST",
+        limit_price=297.45,
+        lot_size=20,
+        lots=1,
+        qty=20,
+        filled=True,
+        last_ltp=290.0,
+    )
+    engine = BookEngine()
+    engine.opens[("MIX-DEFAULT-BUY", "SENSEX")] = pos
+    tick = Triple(ts=_ts(2), idx_close=74350.0, ce_close=290.0, pe_close=180.0, atm_strike=74300.0)
+    mark_to_market(engine, tick, "SENSEX", 2, atm_strike=74300.0, dealer_verdict="BUY_PE_CONFIRM")
+    assert engine.has_open("MIX-DEFAULT-BUY", "SENSEX") is True
+    kept = engine.opens[("MIX-DEFAULT-BUY", "SENSEX")]
+    assert kept.stop >= 280.5
+    assert kept.stop < 290.0
+
+
+def test_target_first_touch_locks_be_and_shifts() -> None:
+    pos = OpenPaper(
+        book_id="MIX-DEFAULT-BUY",
+        underlying="NIFTY",
+        side="CE",
+        trade_id="target-lock",
+        entry=100.0,
+        stop=80.0,
+        target=120.0,
+        atm_strike=23200.0,
+        opened_ts=_ts(0),
+        opened_bar=1,
+        strike_source="TEST",
+        limit_price=100.0,
+        lot_size=65,
+        lots=1,
+        qty=65,
+        filled=True,
+        last_ltp=121.0,
+    )
+    engine = BookEngine()
+    engine.opens[("MIX-DEFAULT-BUY", "NIFTY")] = pos
+    tick = Triple(ts=_ts(2), idx_close=23250.0, ce_close=121.0, pe_close=80.0, atm_strike=23200.0)
+    mark_to_market(engine, tick, "NIFTY", 2, atm_strike=23200.0)
+    assert engine.has_open("MIX-DEFAULT-BUY", "NIFTY") is True
+    kept = engine.opens[("MIX-DEFAULT-BUY", "NIFTY")]
+    from desk_ml.groww_costs import breakeven_premium
+
+    be = breakeven_premium(entry=100.0, qty=65)
+    assert kept.stop >= be
+    assert kept.target > 120.0
+    assert kept.target_step == 1
+    assert kept.agent_status.startswith("TARGET_STEP")
+
+
+def test_hard_stop_still_flattens() -> None:
+    pos = OpenPaper(
+        book_id="MIX-ML-LOGIT",
+        underlying="NIFTY",
+        side="PE",
+        trade_id="hard-stop",
+        entry=160.0,
+        stop=140.0,
+        target=200.0,
+        atm_strike=25100.0,
+        opened_ts=_ts(0),
+        opened_bar=1,
+        strike_source="ITM_100",
+        limit_price=160.0,
+        filled=True,
+        last_ltp=139.0,
+    )
+    engine = BookEngine()
+    engine.opens[("MIX-ML-LOGIT", "NIFTY")] = pos
+    tick = Triple(ts=_ts(2), idx_close=25100.0, ce_close=130.0, pe_close=139.0, pe_low=139.0, atm_strike=25100.0)
+    mark_to_market(engine, tick, "NIFTY", 2, atm_strike=25100.0)
+    assert engine.has_open("MIX-ML-LOGIT", "NIFTY") is False
+    assert engine.closed[-1]["exit_reason"] == "STOP"
+
+
+def test_unfilled_still_cancels_zero_rupee() -> None:
+    pos = OpenPaper(
+        book_id="MIX-DEFAULT-BUY",
+        underlying="NIFTY",
+        side="CE",
+        trade_id="unfilled-away",
+        entry=100.0,
+        stop=80.0,
+        target=130.0,
+        atm_strike=23200.0,
+        opened_ts=_ts(0),
+        opened_bar=1,
+        strike_source="TEST",
+        limit_price=98.8,
+        filled=False,
+        last_ltp=100.0,
+    )
+    engine = BookEngine()
+    engine.opens[("MIX-DEFAULT-BUY", "NIFTY")] = pos
+    tick = Triple(ts=_ts(3), idx_close=23250.0, ce_close=110.0, pe_close=80.0, atm_strike=23200.0)
+    mark_to_market(engine, tick, "NIFTY", 3, atm_strike=23200.0)
+    assert engine.has_open("MIX-DEFAULT-BUY", "NIFTY") is False
+    row = engine.closed[-1]
+    assert str(row["exit_reason"]).startswith("CANCEL_UNFILLED")
+    assert row["status"] == "CANCELLED_UNFILLED"
+    assert row["charges_inr"] == 0.0
 
 
 

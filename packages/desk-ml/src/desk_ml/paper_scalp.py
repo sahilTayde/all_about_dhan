@@ -37,7 +37,7 @@ TICK_NE_DASHBOARD_REASON = (
 )
 LIMIT_DISCOUNT_FRAC = 0.012  # working buy limit below signal LTP; fill is not assumed at signal
 from desk_ml.groww_costs import as_dict as groww_cost_meta
-from desk_ml.groww_costs import groww_round_trip_charges, net_pnl_inr
+from desk_ml.groww_costs import breakeven_premium, groww_round_trip_charges, net_pnl_inr
 from desk_ml.greeks_ml import score_greeks_ticket, session_iv_median, wing_ivs
 from desk_ml.tape import (
     index_1m_close_vol_from_ticks,
@@ -58,8 +58,8 @@ except ImportError:  # pragma: no cover
     judge_tick = None  # type: ignore[assignment]
 
 IST = timezone(timedelta(hours=5, minutes=30))
-FLATTEN_MINUTES_IST = 15 * 60  # 15:00 IST
-NO_NEW_MINUTES_IST = 14 * 60 + 45  # do not arm a new limit into flatten
+FLATTEN_MINUTES_IST = 15 * 60 + 15  # 15:15 IST — paper books until then, then flatten
+NO_NEW_MINUTES_IST = 15 * 60 + 15  # NEW paper through 15:15; CAS expiry overlay is separate
 NO_NEW_BEFORE_MINUTES_IST = 9 * 60 + 50  # 09:50 IST = cash open 09:15 + 35m
 OPEN_SETTLE_GATE = "NO_NEW_BEFORE_0950"
 OPEN_SETTLE_35M = "OPEN_SETTLE_35M"
@@ -68,6 +68,8 @@ MAX_TYPICAL_VS_ENTRY = 0.28
 INDEX_LIKE_PREMIUM = 5000.0
 PAPER_ADD_LOT = False
 TARGET_STEP_MAX = 2
+TRAIL_BAND_MIN = 4.0  # premium ₹ after fill; founder ±5–10, scaled by vol
+TRAIL_BAND_MAX = 12.0
 FILL_AWAY_FRAC = 0.03  # unfilled buy: LTP ran this far above limit
 UNFILLED_BARS = 2  # 1m buckets; do not count 10s bar_i
 UNFILLED_SECONDS = UNFILLED_BARS * 60
@@ -83,9 +85,23 @@ REGIME_RANGE_ATR_MAX = 4.0  # window high-low / mean |1m close change|
 REGIME_RSI_MID_LO = 45.0
 REGIME_RSI_MID_HI = 55.0
 REGIME_RV_WIDEN = 0.0006  # 1m return stdev → wider paper stop, cap target
+# Last-3 1m impulse can TREND even when the 15m ER is lunch-chop. HYPOTHESIS.
+LAST3_IMPULSE_ER = 0.55
+LAST3_IMPULSE_FRAC = 0.00025  # ~6 NIFTY pts at 24k; scales for BN/SENSEX
 SIDEWAYS_HOLD = "SIDEWAYS_HOLD"
 REGIME_UNKNOWN_WAIT = "REGIME_UNKNOWN_WAIT"
 VOL_NOT_EXPANDING = "VOL_NOT_EXPANDING"
+CANCEL_BIN_ROLL = "CANCEL_BIN_ROLL"
+SOFT_CANCEL_REASONS = {
+    CANCEL_BIN_ROLL,
+    "CANCEL_THESIS",
+    "CANCEL_STRIKE_ROLL",
+    "CANCEL_SIDEWAYS",
+}
+HARD_EXIT_REASONS = {"STOP", "TIME", "FLATTEN_1500", "FLATTEN_1515", "CANCEL_ADVERSE"}
+BIN_VOL_EXPAND = 1.15
+BIN_MIN_VOTES = 2  # two ITM-leg confirms — do not wait three INDEX 1m bars
+BIN_KEEP_TICKS = 36
 STOP_FRAC = 0.40
 TARGET_FRAC = 0.55
 STRIKE_STEP = {"NIFTY": 50.0, "BANKNIFTY": 100.0, "SENSEX": 100.0}
@@ -161,6 +177,9 @@ DEFAULT_PAPER_PARAMS = {
     "open_settle_gate": OPEN_SETTLE_GATE,
     "paper_book_epoch_ts": None,
     "production_params_written": False,
+    "trail_band_min": TRAIL_BAND_MIN,
+    "trail_band_max": TRAIL_BAND_MAX,
+    "target_step_max": TARGET_STEP_MAX,
     "note": "PAPER session only. Never writes MIX-DEFAULT-BUY.",
 }
 
@@ -180,7 +199,7 @@ def new_paper_blocked(ts: int) -> Optional[str]:
     if mins < NO_NEW_BEFORE_MINUTES_IST:
         return OPEN_SETTLE_35M if mins >= (9 * 60 + 15) else OPEN_SETTLE_GATE
     if mins >= NO_NEW_MINUTES_IST:
-        return "NO_NEW_AFTER_1445"
+        return "NO_NEW_AFTER_1515"
     return None
 
 
@@ -191,6 +210,8 @@ def agent_ticket_status(pos: "OpenPaper") -> str:
         return "WORKING_LIMIT"
     if pos.target_step >= 1:
         return f"TARGET_STEP_{min(int(pos.target_step), 3)}"
+    if pos.trail_step >= 1:
+        return "TRAIL_STOP"
     return "IN_TRADE"
 
 
@@ -291,6 +312,49 @@ def _vol_last3(volumes: Optional[Sequence[Optional[float]]]) -> dict[str, Any]:
         out["expand"] = last_sum >= prev_sum * 1.05 if prev_sum > 0 else None
         return out
     out["status"] = "PARTIAL"
+    return out
+
+
+def _last3_impulse(window: Sequence[float]) -> dict[str, Any]:
+    """PUT/CE strength on the last three 1m candles (close now vs close 3m ago).
+
+    Uses four closes when present so three candle *bodies* count (a ~100pt SENSEX
+    dump is three 1m bars, not the last two diffs). Volume is not used here.
+    """
+    out: dict[str, Any] = {
+        "last3_closes": None,
+        "last3_er": None,
+        "last3_net": None,
+        "last3_impulse": None,
+        "last3_reason": "short_last3",
+    }
+    if len(window) < 3:
+        return out
+    last3 = [float(x) for x in window[-3:]]
+    out["last3_closes"] = [round(x, 4) for x in last3]
+    path_closes = [float(x) for x in window[-4:]] if len(window) >= 4 else last3
+    diffs = [path_closes[i] - path_closes[i - 1] for i in range(1, len(path_closes))]
+    path = sum(abs(d) for d in diffs)
+    net = path_closes[-1] - path_closes[0]
+    er = (abs(net) / path) if path > 1e-9 else 0.0
+    out["last3_er"] = round(er, 4)
+    out["last3_net"] = round(net, 4)
+    last = path_closes[-1]
+    if last <= 1e-9:
+        out["last3_reason"] = "bad_last_close"
+        return out
+    if er < float(LAST3_IMPULSE_ER):
+        out["last3_reason"] = "last3_not_efficient"
+        return out
+    if abs(net) < abs(last) * float(LAST3_IMPULSE_FRAC):
+        out["last3_reason"] = "last3_move_too_small"
+        return out
+    if net < 0:
+        out["last3_impulse"] = "DOWN"
+        out["last3_reason"] = "last3_impulse_put"
+    else:
+        out["last3_impulse"] = "UP"
+        out["last3_reason"] = "last3_impulse_call"
     return out
 
 
@@ -439,7 +503,18 @@ def classify_index_regime(
         aligned = ok_v and ok_e and (vwap is not None or ema is not None)
     er_trend = er >= 0.45 or (er >= 0.35 and range_over_atr >= 5.0)
     vol_expand = vol_pack.get("expand")
-    if chop or tight_mr or rsi_mid or iv_chop or (near_vwap and er <= float(er_max)):
+    impulse = _last3_impulse(window)
+    impulse_dir = impulse.get("last3_impulse")
+    # Last-3 PUT/CE *price* impulse is TREND. Dhan INDEX volume spikes (SENSEX 500k
+    # then 10k) must not SIDEWAYS-hold a 100pt three-candle dump. Volume stays R:R.
+    if impulse_dir in {"UP", "DOWN"}:
+        regime = "TREND"
+        direction = str(impulse_dir)
+        reason = str(impulse.get("last3_reason") or "last3_impulse")
+        aligned = True
+        if vol_expand is False:
+            reason = f"{reason}_vol_soft"
+    elif chop or tight_mr or rsi_mid or iv_chop or (near_vwap and er <= float(er_max)):
         regime = "SIDEWAYS"
         reason = "low_er_rsi_mid_or_vwap_band"
         if iv_chop:
@@ -480,6 +555,11 @@ def classify_index_regime(
         "votes_up": votes_up,
         "votes_down": votes_down,
         "reason": reason,
+        "last3_closes": impulse.get("last3_closes"),
+        "last3_er": impulse.get("last3_er"),
+        "last3_net": impulse.get("last3_net"),
+        "last3_impulse": impulse.get("last3_impulse"),
+        "last3_reason": impulse.get("last3_reason"),
     }
 
 
@@ -574,16 +654,25 @@ def resolve_fill_intents(
     follow_gap: bool,
     ml002_hold: bool,
     ml1: dict[str, Any],
+    impulse_side: Optional[str] = None,
 ) -> dict[str, tuple[Optional[str], Optional[str]]]:
     """Per-book (side, skip_reason). FILL only when the book owns CE/PE. KMeans is not a side model."""
     logit_own = logit.get("side") if logit.get("side") in {"CE", "PE"} else None
     xr_own = logit_xr.get("side") if logit_xr.get("side") in {"CE", "PE"} else None
     dealer_own = dealer_confirm if dealer_confirm in {"CE", "PE"} else None
     verdict = str(dealer_verdict or "HOLD")
+    impulse_own = impulse_side if impulse_side in {"CE", "PE"} else None
+    # Last-3 1m path owns FILL side. 10s logit/dealer bounce after a 100pt dump is not the ticket.
+    if impulse_own:
+        logit_own = impulse_own
+        if xr_own is not None:
+            xr_own = impulse_own
 
     if logit_own:
         if dealer_own == logit_own:
             dealer_fill, dealer_skip = dealer_own, None
+        elif impulse_own and dealer_own is None:
+            dealer_fill, dealer_skip = impulse_own, None
         else:
             dealer_fill, dealer_skip = None, f"DEALER_{verdict}_VS_LOGIT_{logit_own}"
     elif dealer_own:
@@ -613,7 +702,8 @@ def resolve_fill_intents(
     greeks_side: Optional[str]
     greeks_skip: Optional[str] = None
     if logit_own:
-        greeks_side = logit_own
+        greeks_side = None
+        greeks_skip = "GREEKS_NO_CLONE"
     elif dealer_own:
         greeks_side = dealer_own
     else:
@@ -705,6 +795,39 @@ def itm_wing_strikes(underlying: str, atm: float) -> dict[str, float]:
     n = max(1, int(round(float(points) / step)))
     atm_f = float(atm)
     return {"CE": atm_f - n * step, "PE": atm_f + n * step}
+
+
+def chain_atm(tick: Triple, underlying: str) -> float:
+    """Dhan ATM if present, else round INDEX. Never invent a strike."""
+    if tick.atm_strike is not None:
+        return float(tick.atm_strike)
+    return round_atm_strike(underlying, tick.idx_close)
+
+
+def paper_itm_strike(tick: Triple, side: str, underlying: str) -> float:
+    """~100pt ITM vs the tighter of Dhan ATM and rounded INDEX.
+
+    If Dhan ATM is 74300 and INDEX rounds to 74400, CE ITM is 74200 not 74300
+    (74300 is the ATM the trader sees).
+    """
+    und = underlying.upper()
+    dhan = chain_atm(tick, und)
+    idx_atm = round_atm_strike(und, tick.idx_close)
+    if side == "CE":
+        return itm_wing_strikes(und, min(dhan, idx_atm))["CE"]
+    return itm_wing_strikes(und, max(dhan, idx_atm))["PE"]
+
+
+def is_buy_itm(side: str, strike: float, tick: Triple, underlying: str) -> bool:
+    """True only if the strike is ITM vs Dhan ATM *and* vs INDEX LTP. ATM/OTM = false."""
+    atm = chain_atm(tick, underlying)
+    idx = float(tick.idx_close)
+    k = float(strike)
+    if abs(k - float(atm)) < 1e-6:
+        return False
+    if side == "CE":
+        return k < float(atm) - 1e-6 and k < idx - 1e-6
+    return k > float(atm) + 1e-6 and k > idx + 1e-6
 
 
 def _opt_px(raw: Any) -> Optional[float]:
@@ -804,8 +927,10 @@ def leg_greeks(tick: Triple, side: str, strike: float) -> dict[str, Optional[flo
 
 
 def pick_paper_strike(tick: Triple, side: str, atm: float, underlying: str) -> float:
-    """ITM_100 default; if Dhan delta exists, prefer |delta| in 0.45–0.70 (not OTM)."""
-    default = itm_wing_strikes(underlying, atm)[side]
+    """ITM_100 default. Delta may pick another ITM cell in 0.45–0.70. Never ATM/OTM."""
+    default = paper_itm_strike(tick, side, underlying)
+    if not is_buy_itm(side, default, tick, underlying):
+        default = itm_wing_strikes(underlying, float(atm))[side]
     wings = tick.wing_quotes if isinstance(tick.wing_quotes, dict) else {}
     best: Optional[float] = None
     best_dist = 9.0
@@ -818,18 +943,413 @@ def pick_paper_strike(tick: Triple, side: str, atm: float, underlying: str) -> f
             delta = float(cell[f"{prefix}_delta"])
         except (TypeError, ValueError, KeyError):
             continue
+        if not is_buy_itm(side, strike, tick, underlying):
+            continue
         ad = abs(delta)
         if ad < DELTA_BAND[0] or ad > DELTA_BAND[1]:
-            continue
-        if side == "CE" and strike > float(atm) + 1e-6:
-            continue
-        if side == "PE" and strike < float(atm) - 1e-6:
             continue
         dist = abs(ad - DELTA_PREF)
         if dist < best_dist:
             best_dist = dist
             best = strike
     return float(best) if best is not None else default
+
+
+def _bin_num(raw: Any) -> Optional[float]:
+    if raw is None:
+        return None
+    try:
+        return float(raw)
+    except (TypeError, ValueError):
+        return None
+
+
+def moneyness_of_strike(side: str, strike: float, atm: float, index_ltp: Optional[float] = None) -> str:
+    """ITM / ATM / OTM vs chain ATM. INDEX LTP can still mark a 'ITM vs ATM' cell ATM/OTM vs spot."""
+    step = 1e-6
+    if abs(float(strike) - float(atm)) < step:
+        return "ATM"
+    if side == "CE":
+        vs_atm = "ITM" if float(strike) < float(atm) else "OTM"
+    else:
+        vs_atm = "ITM" if float(strike) > float(atm) else "OTM"
+    if index_ltp is None or vs_atm != "ITM":
+        return vs_atm
+    if side == "CE" and float(strike) >= float(index_ltp) - step:
+        return "OTM" if float(strike) > float(index_ltp) + step else "ATM"
+    if side == "PE" and float(strike) <= float(index_ltp) + step:
+        return "OTM" if float(strike) < float(index_ltp) - step else "ATM"
+    return vs_atm
+
+
+def itm_leg_pack(tick: Triple, underlying: str, side: str) -> dict[str, Any]:
+    """One ITM CE or PE cell from the chain. Missing volume/OI/delta = DATA_INSUFFICIENT, not invent."""
+    und = underlying.upper()
+    atm = chain_atm(tick, und)
+    strike = paper_itm_strike(tick, side, und)
+    cell = _wing_cell(tick, strike)
+    prefix = "ce" if side == "CE" else "pe"
+    px, low, src = quote_for_side(tick, side, strike=strike)
+    return {
+        "side": side,
+        "strike": strike,
+        "atm": atm,
+        "moneyness": moneyness_of_strike(side, strike, atm, index_ltp=tick.idx_close),
+        "px": px,
+        "low": low,
+        "quote_src": src,
+        "volume": _bin_num(cell.get(f"{prefix}_volume")),
+        "oi": _bin_num(cell.get(f"{prefix}_oi")),
+        "delta": _bin_num(cell.get(f"{prefix}_delta")),
+        "layer": "HYPOTHESIS",
+    }
+
+
+def score_itm_bin(prev: dict[str, Any], curr: dict[str, Any]) -> dict[str, Any]:
+    """ITM CE chart vs ITM PE chart. CE selling + PE volume/OI/delta confirms PUT. Never invents."""
+    missing: list[str] = []
+    pe_votes: list[str] = []
+    ce_votes: list[str] = []
+
+    def _chg(leg: str, field: str) -> Optional[float]:
+        a = (prev.get(leg) or {}).get(field)
+        b = (curr.get(leg) or {}).get(field)
+        if a is None or b is None:
+            missing.append(f"{leg}_{field}")
+            return None
+        try:
+            return float(b) - float(a)
+        except (TypeError, ValueError):
+            missing.append(f"{leg}_{field}")
+            return None
+
+    pe_vol_chg = _chg("pe", "volume")
+    pe_px_chg = _chg("pe", "px")
+    ce_px_chg = _chg("ce", "px")
+    pe_oi_chg = _chg("pe", "oi")
+    ce_oi_chg = _chg("ce", "oi")
+    ce_vol_chg = _chg("ce", "volume")
+    pe_d_chg = _chg("pe", "delta")
+    ce_d_chg = _chg("ce", "delta")
+    prev_pe_vol = (prev.get("pe") or {}).get("volume")
+    if pe_vol_chg is not None and prev_pe_vol is not None and float(prev_pe_vol) > 0:
+        if (curr.get("pe") or {}).get("volume") is not None and float(
+            (curr["pe"] or {}).get("volume") or 0
+        ) >= float(prev_pe_vol) * float(BIN_VOL_EXPAND):
+            pe_votes.append("PE_VOL_EXPAND")
+    if pe_px_chg is not None and pe_px_chg > 0:
+        pe_votes.append("PE_PREMIUM_UP")
+    if ce_px_chg is not None and ce_px_chg < 0:
+        pe_votes.append("CE_PREMIUM_DOWN")
+    if pe_oi_chg is not None and pe_oi_chg > 0 and pe_px_chg is not None and pe_px_chg > 0:
+        pe_votes.append("PE_OI_UP_WITH_PREMIUM")
+    if ce_vol_chg is not None and ce_vol_chg > 0 and ce_px_chg is not None and ce_px_chg < 0:
+        pe_votes.append("CE_SELL_VOLUME")
+    if pe_d_chg is not None and pe_d_chg < 0:
+        pe_votes.append("PE_DELTA_MORE_ITM")
+    if ce_px_chg is not None and ce_px_chg > 0:
+        ce_votes.append("CE_PREMIUM_UP")
+    if pe_px_chg is not None and pe_px_chg < 0:
+        ce_votes.append("PE_PREMIUM_DOWN")
+    if ce_vol_chg is not None and prev.get("ce") and (prev["ce"] or {}).get("volume"):
+        prev_ce_vol = float((prev["ce"] or {}).get("volume") or 0)
+        if prev_ce_vol > 0 and (curr.get("ce") or {}).get("volume") is not None:
+            if float((curr["ce"] or {}).get("volume") or 0) >= prev_ce_vol * float(BIN_VOL_EXPAND):
+                ce_votes.append("CE_VOL_EXPAND")
+    if ce_oi_chg is not None and ce_oi_chg > 0 and ce_px_chg is not None and ce_px_chg > 0:
+        ce_votes.append("CE_OI_UP_WITH_PREMIUM")
+    if ce_d_chg is not None and ce_d_chg > 0:
+        ce_votes.append("CE_DELTA_MORE_ITM")
+    flow = {
+        "PE_VOL_EXPAND",
+        "PE_OI_UP_WITH_PREMIUM",
+        "CE_SELL_VOLUME",
+        "PE_DELTA_MORE_ITM",
+        "CE_VOL_EXPAND",
+        "CE_OI_UP_WITH_PREMIUM",
+        "CE_DELTA_MORE_ITM",
+    }
+
+    def _enough(votes: list[str]) -> bool:
+        if len(votes) < int(BIN_MIN_VOTES):
+            return False
+        return any(v in flow for v in votes)
+
+    side = None
+    reason = "itm_bin_wait"
+    if _enough(pe_votes) and len(pe_votes) >= len(ce_votes):
+        side = "PE"
+        reason = "itm_bin_pe_confirm"
+    elif _enough(ce_votes) and len(ce_votes) > len(pe_votes):
+        side = "CE"
+        reason = "itm_bin_ce_confirm"
+    return {
+        "layer": "HYPOTHESIS",
+        "side": side,
+        "direction": "DOWN" if side == "PE" else ("UP" if side == "CE" else None),
+        "reason": reason,
+        "pe_votes": pe_votes,
+        "ce_votes": ce_votes,
+        "n_pe_votes": len(pe_votes),
+        "n_ce_votes": len(ce_votes),
+        "missing": missing,
+        "wait_3_index_bars": False,
+        "note": (
+            "ITM CE chart vs ITM PE chart vs INDEX. Two votes is enough — do not wait three INDEX 1m bars. "
+            "OI up + premium up is new PE/CE longs (buyer or short-cover); missing OI is DATA_INSUFFICIENT not invent. "
+            "NO_PROMOTE."
+        ),
+    }
+
+
+def update_itm_bin(engine: BookEngine, underlying: str, tick: Triple) -> dict[str, Any]:
+    """Keep the ITM CE/PE bin (trader's three charts). Roll strikes each tick to ~100pt ITM."""
+    und = underlying.upper()
+    pack = {
+        "ts": int(tick.ts),
+        "index": float(tick.idx_close),
+        "ce": itm_leg_pack(tick, und, "CE"),
+        "pe": itm_leg_pack(tick, und, "PE"),
+    }
+    hist = engine.itm_bins.setdefault(und, {"ticks": [], "last": None})
+    ticks = list(hist.get("ticks") or [])
+    prev = ticks[-1] if ticks else None
+    scored = (
+        score_itm_bin(prev, pack)
+        if prev is not None
+        else {
+            "layer": "HYPOTHESIS",
+            "side": None,
+            "direction": None,
+            "reason": "itm_bin_need_prior_tick",
+            "pe_votes": [],
+            "ce_votes": [],
+            "n_pe_votes": 0,
+            "n_ce_votes": 0,
+            "missing": [],
+            "wait_3_index_bars": False,
+            "note": "Need one prior ITM print. Not three INDEX 1m bars.",
+        }
+    )
+    rec = {**pack, **scored}
+    ticks.append(rec)
+    hist["ticks"] = ticks[-int(BIN_KEEP_TICKS) :]
+    hist["last"] = rec
+    engine.itm_bins[und] = hist
+    return rec
+
+
+def apply_itm_bin_to_regime(classified: dict[str, Any], bin_rec: dict[str, Any]) -> dict[str, Any]:
+    """ITM bin can TREND without three INDEX 1m candles. Last-3 impulse still wins if present."""
+    out = dict(classified)
+    out["itm_bin"] = {
+        "side": bin_rec.get("side"),
+        "reason": bin_rec.get("reason"),
+        "pe_votes": list(bin_rec.get("pe_votes") or []),
+        "ce_votes": list(bin_rec.get("ce_votes") or []),
+        "n_pe_votes": bin_rec.get("n_pe_votes"),
+        "n_ce_votes": bin_rec.get("n_ce_votes"),
+        "missing": list(bin_rec.get("missing") or []),
+        "ce": bin_rec.get("ce"),
+        "pe": bin_rec.get("pe"),
+        "index": bin_rec.get("index"),
+        "wait_3_index_bars": False,
+    }
+    if out.get("last3_impulse") in {"UP", "DOWN"}:
+        return out
+    side = bin_rec.get("side")
+    if side not in {"CE", "PE"}:
+        return out
+    out["regime"] = "TREND"
+    out["direction"] = "DOWN" if side == "PE" else "UP"
+    out["reason"] = str(bin_rec.get("reason") or "itm_bin")
+    return out
+
+
+def paper_impulse_side(classified: dict[str, Any]) -> Optional[str]:
+    """Last-3 INDEX impulse wins; else ITM CE/PE bin. Do not wait three INDEX 1m bars."""
+    if classified.get("last3_impulse") == "DOWN":
+        return "PE"
+    if classified.get("last3_impulse") == "UP":
+        return "CE"
+    bin_side = (classified.get("itm_bin") or {}).get("side")
+    if bin_side in {"CE", "PE"}:
+        return bin_side
+    return None
+
+
+def paper_impulse_fill(classified: dict[str, Any]) -> bool:
+    if str(classified.get("last3_impulse") or "") in {"UP", "DOWN"}:
+        return True
+    reason = str(classified.get("reason") or "")
+    return reason.startswith("itm_bin_") and reason.endswith("_confirm")
+
+
+def cancel_if_bin_rolled(pos: OpenPaper, tick: Triple) -> Optional[str]:
+    """Booked ITM_100 strike is no longer buy-side ITM vs Dhan ATM and INDEX."""
+    if not str(pos.strike_source or "").startswith("ITM"):
+        return None
+    if pos.atm_strike is None:
+        return None
+    if is_buy_itm(pos.side, float(pos.atm_strike), tick, pos.underlying):
+        return None
+    return CANCEL_BIN_ROLL
+
+
+def is_soft_cancel_reason(reason: Optional[str]) -> bool:
+    """Filled-ticket cancel that should trail SL, not flatten. Unfilled stays hard."""
+    if not reason:
+        return False
+    r = str(reason)
+    if r in HARD_EXIT_REASONS or r.startswith("CANCEL_UNFILLED"):
+        return False
+    if r in SOFT_CANCEL_REASONS:
+        return True
+    return r.startswith("CANCEL_GREEKS")
+
+
+def trail_premium_band(
+    classified: Optional[dict[str, Any]] = None,
+    *,
+    idx_volume: Optional[float] = None,
+    prev_idx_volume: Optional[float] = None,
+) -> float:
+    """Chop band in premium ₹. Founder ±5–10; widen on spike/vol, clamp 4–12."""
+    band = 6.0
+    cl = classified or {}
+    rv = cl.get("realized_vol")
+    er = cl.get("er")
+    if rv is not None and float(rv) >= REGIME_RV_WIDEN:
+        band += 2.0
+    if er is not None and float(er) >= REGIME_FLIP_MIN:
+        band += 1.5
+    if cl.get("last3_impulse") in {"UP", "DOWN"}:
+        band += 1.5
+    if idx_volume is not None and prev_idx_volume is not None and float(prev_idx_volume) > 0:
+        ratio = float(idx_volume) / float(prev_idx_volume)
+        if ratio >= 1.5:
+            band += 3.0
+        elif ratio <= 0.7:
+            band -= 1.5
+    return float(min(TRAIL_BAND_MAX, max(TRAIL_BAND_MIN, band)))
+
+
+def apply_filled_trail(
+    engine: "BookEngine",
+    pos: OpenPaper,
+    *,
+    ltp: float,
+    ts: int,
+    reason: str,
+    classified: Optional[dict[str, Any]] = None,
+    idx_volume: Optional[float] = None,
+    prev_idx_volume: Optional[float] = None,
+) -> bool:
+    """Keep a filled ticket; ratchet stop under LTP by the vol band. PAPER HYPOTHESIS."""
+    if not pos.filled:
+        return False
+    px = float(ltp)
+    if px <= float(pos.stop) + 1e-9:
+        return False
+    band = trail_premium_band(classified, idx_volume=idx_volume, prev_idx_volume=prev_idx_volume)
+    be = breakeven_premium(entry=float(pos.entry), qty=pos.qty)
+    new_stop = max(float(pos.stop), px - band)
+    if px >= be + TRAIL_BAND_MIN:
+        new_stop = max(new_stop, be)
+    if new_stop >= px - 0.25:
+        return False
+    new_stop = round(new_stop, 4)
+    moved = new_stop > float(pos.stop) + 1e-9
+    pos.stop = new_stop
+    pos.agent_status = "TRAIL_STOP"
+    if moved:
+        pos.trail_step += 1
+        if engine.root is not None:
+            append_model_log(
+                engine.root,
+                {
+                    "event": "TRAIL_STOP",
+                    "book_id": pos.book_id,
+                    "trade_id": pos.trade_id,
+                    "status": "TRAIL_STOP",
+                    "reason": reason,
+                    "trail_step": pos.trail_step,
+                    "stop": pos.stop,
+                    "band": band,
+                    "breakeven": be,
+                    "ltp": px,
+                    "ts": int(ts),
+                    "hypothesis": "filled_soft_cancel_trails_sl",
+                    "note": "PAPER: soft CANCEL trails stop; STOP/TIME/FLATTEN/ADVERSE still flatten",
+                },
+            )
+    return True
+
+
+def apply_target_lock_shift(
+    engine: "BookEngine",
+    pos: OpenPaper,
+    *,
+    ltp: float,
+    ts: int,
+    classified: Optional[dict[str, Any]] = None,
+    idx_volume: Optional[float] = None,
+    prev_idx_volume: Optional[float] = None,
+) -> bool:
+    """First TARGET touch: lock SL to BE or old target, shift target, stay in. PAPER."""
+    if not pos.filled:
+        return False
+    if int(pos.target_step) >= TARGET_STEP_MAX:
+        return False
+    px = float(ltp)
+    old_target = float(pos.target)
+    if px + 1e-9 < old_target:
+        return False
+    band = trail_premium_band(classified, idx_volume=idx_volume, prev_idx_volume=prev_idx_volume)
+    be = breakeven_premium(entry=float(pos.entry), qty=pos.qty)
+    orig_stop = float(pos.stop)
+    overshoot = px - old_target
+    if overshoot >= max(TRAIL_BAND_MIN, 0.75 * band):
+        lock = max(orig_stop, be, old_target)
+    else:
+        lock = max(orig_stop, be, old_target - band)
+    if lock >= px - 0.25:
+        lock = max(orig_stop, min(be, px - band))
+    if lock >= px - 0.25:
+        return False
+    reward = max(old_target - float(pos.entry), band)
+    nxt = old_target + max(band, 0.5 * reward)
+    risk_open = max(float(pos.entry) - orig_stop, band)
+    cap = float(pos.entry) + risk_open * float(engine.max_target_r)
+    nxt = min(nxt, max(cap, old_target + band))
+    if nxt <= old_target + 1e-9:
+        nxt = old_target + band
+    pos.stop = round(lock, 4)
+    pos.target = round(float(nxt), 4)
+    pos.target_step += 1
+    pos.trail_step += 1
+    pos.agent_status = f"TARGET_STEP_{pos.target_step}"
+    if engine.root is not None:
+        append_model_log(
+            engine.root,
+            {
+                "event": "TARGET_LOCK_SHIFT",
+                "book_id": pos.book_id,
+                "trade_id": pos.trade_id,
+                "status": pos.agent_status,
+                "target_step": pos.target_step,
+                "stop": pos.stop,
+                "target": pos.target,
+                "old_target": old_target,
+                "breakeven": be,
+                "band": band,
+                "ltp": px,
+                "ts": int(ts),
+                "hypothesis": "target_hit_lock_be_shift",
+                "note": "PAPER: do not flatten on first target; lock SL (BE/charges or old target) and extend",
+            },
+        )
+    return True
 
 
 def greeks_paper_adjust(
@@ -979,7 +1499,7 @@ def propose_levels(
             else ("CLAMPED_PAPER_LEVELS" if feas.get("ok") else feas.get("reason_code") or "TARGET_FEASIBILITY_FAIL")
         ),
         "scalp_hold_bars": SCALP_HOLD_BARS,
-        "flatten_ist": "15:00",
+        "flatten_ist": "15:15",
     }
 
 
@@ -1019,6 +1539,7 @@ class OpenPaper:
     regime_flip_frac: Optional[float] = None
     regime_reason: Optional[str] = None
     target_step: int = 0
+    trail_step: int = 0
     agent_status: str = "WORKING_LIMIT"
     cancel_eligible: bool = False
     idx_volume: Optional[float] = None
@@ -1052,7 +1573,9 @@ class BookEngine:
     regime_flip_min: float = REGIME_FLIP_MIN
     regime_range_atr_max: float = REGIME_RANGE_ATR_MAX
     last_regime: dict[str, dict[str, Any]] = field(default_factory=dict)
+    last_step_by_und: dict[str, dict[str, Any]] = field(default_factory=dict)
     regime_book_counts: dict[str, int] = field(default_factory=dict)
+    itm_bins: dict[str, dict[str, Any]] = field(default_factory=dict)
 
     def book_capital(self, book_id: str) -> float:
         if book_id in self.capital_by_book:
@@ -1488,8 +2011,17 @@ def _exit_reason(
     if int(ts) - int(pos.opened_ts) >= int(hold_bars) * 60:
         return "TIME"
     if minutes_ist(ts) >= FLATTEN_MINUTES_IST:
-        return "FLATTEN_1500"
+        return "FLATTEN_1515"
     return None
+
+
+def _close_status(*, unfilled: bool, reason: str) -> str:
+    """Unfilled working limit ≠ filled ticket we pulled. Both are paper, not live."""
+    if unfilled:
+        return "CANCELLED_UNFILLED"
+    if str(reason).startswith("CANCEL"):
+        return "CLOSED_CANCEL"
+    return "CLOSED_PAPER"
 
 
 def _close(engine: BookEngine, pos: OpenPaper, *, ltp: float, ts: int, reason: str, root: Optional[Path] = None) -> None:
@@ -1523,13 +2055,14 @@ def _close(engine: BookEngine, pos: OpenPaper, *, ltp: float, ts: int, reason: s
         sl_loss_inr = round(points, 4)
     if sl_hit and inr is not None:
         sl_loss_inr = inr if inr < 0 else 0.0
+    status = _close_status(unfilled=unfilled, reason=reason)
     engine.closed.append(
         {
             "book_id": pos.book_id,
             "underlying": pos.underlying,
             "side": pos.side,
             "trade_id": pos.trade_id,
-            "status": "CANCELLED" if unfilled or str(reason).startswith("CANCEL") else "CLOSED_PAPER",
+            "status": status,
             "target_step": pos.target_step,
             "entry": pos.entry,
             "limit_price": pos.limit_price or pos.entry,
@@ -1588,7 +2121,7 @@ def _close(engine: BookEngine, pos: OpenPaper, *, ltp: float, ts: int, reason: s
                 "model": pos.book_id,
                 "book_id": pos.book_id,
                 "trade_id": pos.trade_id,
-                "status": "CANCELLED" if unfilled or str(reason).startswith("CANCEL") else "CLOSED_PAPER",
+                "status": status,
                 "target_step": pos.target_step,
                 "filled": not unfilled,
                 "underlying": pos.underlying,
@@ -1624,7 +2157,7 @@ def _try_open(
 ) -> None:
     gate = new_paper_blocked(tick.ts)
     if gate:
-        engine.mark_skip(book_id, underlying, gate, ts=tick.ts)
+        engine.mark_skip(book_id, underlying, gate, ts=tick.ts, seen_side=side)
         if engine.root is not None:
             append_model_log(
                 engine.root,
@@ -1645,7 +2178,9 @@ def _try_open(
     classified = engine.last_regime.get(underlying.upper()) or {}
     regime = str(classified.get("regime") or "UNKNOWN")
     if skip_reason:
-        engine.mark_skip(book_id, underlying, skip_reason, ts=tick.ts, index_regime=regime)
+        engine.mark_skip(
+            book_id, underlying, skip_reason, ts=tick.ts, index_regime=regime, seen_side=side
+        )
         if engine.root is not None:
             append_model_log(
                 engine.root,
@@ -1660,6 +2195,7 @@ def _try_open(
             "CAPITAL_SKIP_DATA_INSUFFICIENT",
             ts=tick.ts,
             index_regime=regime,
+            seen_side=side,
         )
         return
     if regime == "UNKNOWN":
@@ -1672,6 +2208,7 @@ def _try_open(
             regime_er=classified.get("er"),
             regime_flip_frac=classified.get("flip_frac"),
             regime_reason=classified.get("reason") or "short_or_mixed_1m_path",
+            seen_side=side,
         )
         if engine.root is not None:
             append_model_log(
@@ -1695,6 +2232,7 @@ def _try_open(
             regime_er=classified.get("er"),
             regime_flip_frac=classified.get("flip_frac"),
             regime_reason=classified.get("reason"),
+            seen_side=side,
         )
         if engine.root is not None:
             append_model_log(
@@ -1709,7 +2247,7 @@ def _try_open(
             )
         return
     if side not in {"CE", "PE"}:
-        engine.mark_skip(book_id, underlying, "NO_SIDE", ts=tick.ts)
+        engine.mark_skip(book_id, underlying, "NO_SIDE", ts=tick.ts, seen_side=side)
         return
     if engine.skip_trend_against and regime == "TREND":
         direction = str(classified.get("direction") or "UNKNOWN")
@@ -1721,6 +2259,7 @@ def _try_open(
                 ts=tick.ts,
                 index_regime=regime,
                 regime_direction=direction,
+                seen_side=side,
             )
             return
         if direction == "DOWN" and side == "CE":
@@ -1731,9 +2270,15 @@ def _try_open(
                 ts=tick.ts,
                 index_regime=regime,
                 regime_direction=direction,
+                seen_side=side,
             )
             return
-    if regime == "TREND" and classified.get("vol_expand") is False:
+    if (
+        regime == "TREND"
+        and classified.get("vol_expand") is False
+        and not classified.get("last3_impulse")
+        and not paper_impulse_fill(classified)
+    ):
         engine.mark_skip(
             book_id,
             underlying,
@@ -1742,30 +2287,43 @@ def _try_open(
             index_regime=regime,
             vol_status=classified.get("vol_status"),
             vol_last3_sum=classified.get("vol_last3_sum"),
+            seen_side=side,
         )
         return
-    atm = strike if strike is not None else round_atm_strike(underlying, tick.idx_close)
+    atm = strike if strike is not None else chain_atm(tick, underlying)
     want = pick_paper_strike(tick, side, atm, underlying)
     greeks = leg_greeks(tick, side, want)
     itm_px, _itm_low, itm_src = quote_for_side(tick, side, strike=want)
     booked_src = str(itm_src or "")
-    if itm_px is not None and (booked_src.startswith("ITM") or booked_src.startswith("STRIKE_")):
-        entry = float(itm_px)
-        booked = want
-        source = "ITM_100"
-        path = []
-        for t in (ce_path if side == "CE" else pe_path):
-            try:
-                path.append(float(t))
-            except (TypeError, ValueError):
-                continue
-        if not path:
-            path = [entry]
-    else:
-        entry = tick.ce_close if side == "CE" else tick.pe_close
-        booked = atm
-        source = "ATM"
-        path = list(ce_path if side == "CE" else pe_path)
+    booked_ok = (
+        itm_px is not None
+        and booked_src != "ATM"
+        and not booked_src.startswith("MISSING")
+        and is_buy_itm(side, float(want), tick, underlying)
+    )
+    if not booked_ok:
+        engine.mark_skip(
+            book_id,
+            underlying,
+            "ITM_ONLY_NO_QUOTE" if itm_px is None or booked_src == "ATM" else "ITM_ONLY_NOT_ITM",
+            ts=tick.ts,
+            index_regime=regime,
+            seen_side=side,
+            strike=want,
+            quote_src=booked_src,
+        )
+        return
+    entry = float(itm_px)
+    booked = want
+    source = "ITM_100"
+    path = []
+    for t in (ce_path if side == "CE" else pe_path):
+        try:
+            path.append(float(t))
+        except (TypeError, ValueError):
+            continue
+    if not path:
+        path = [entry]
     adj = greeks_paper_adjust(
         entry=float(entry),
         stop_frac=engine.paper_stop_frac,
@@ -1779,12 +2337,14 @@ def _try_open(
     if adj.get("skip"):
         engine.mark_skip(book_id, underlying, str(adj.get("reason") or "GREEKS_SKIP"), ts=tick.ts, **{k: greeks.get(k) for k in ("delta", "theta", "iv")})
         return
+    impulse_fill = paper_impulse_fill(classified)
+    discount = 0.0 if impulse_fill else float(engine.limit_discount_frac)
     levels = propose_levels(
         float(entry),
         path,
         stop_frac=float(adj["stop_frac"]),
         target_frac=float(adj["target_frac"]),
-        limit_discount_frac=float(engine.limit_discount_frac),
+        limit_discount_frac=discount,
     )
     lot_size, lot_src = engine.lot_by_und.get(underlying.upper(), (None, "unset"))
     sized = size_lots(entry=float(levels["limit_price"] or levels["entry"]), lot_size=lot_size, capital_inr=capital)
@@ -1807,7 +2367,8 @@ def _try_open(
         notional_inr=sized.get("notional_inr"),
         capital_inr=capital,
         lot_status=str(sized.get("lot_status") or lot_src),
-        filled=False,
+        filled=impulse_fill,
+        last_ltp=float(levels["entry"]),
         idx_at_open=float(tick.idx_close),
         delta=greeks.get("delta"),
         gamma=greeks.get("gamma"),
@@ -1820,7 +2381,7 @@ def _try_open(
         regime_flip_frac=classified.get("flip_frac"),
         regime_reason=classified.get("reason"),
         target_step=0,
-        agent_status="WORKING_LIMIT",
+        agent_status="IN_TRADE" if impulse_fill else "WORKING_LIMIT",
         idx_volume=getattr(tick, "idx_volume", None),
         last_updated_ts=int(tick.ts),
     )
@@ -1834,9 +2395,9 @@ def _try_open(
                 "model": book_id,
                 "book_id": book_id,
                 "trade_id": pos.trade_id,
-                "status": "WORKING_LIMIT",
+                "status": "IN_TRADE" if impulse_fill else "WORKING_LIMIT",
                 "target_step": 0,
-                "filled": False,
+                "filled": impulse_fill,
                 "underlying": underlying,
                 "side": side,
                 "strike": pos.atm_strike,
@@ -1932,39 +2493,35 @@ def paper_watch_ticket(
     if (
         pos.filled
         and not pos.cancel_eligible
-        and pos.target_step < TARGET_STEP_MAX
         and pos.last_ltp is not None
+        and risk > 0
     ):
         mid = float(pos.entry) + 0.5 * reward
-        if float(pos.last_ltp) >= mid and risk > 0:
-            nxt = min(
-                float(pos.target) + min(reward * 0.5, risk),
-                float(pos.entry) + risk * float(engine.max_target_r),
-            )
-            feas = feasibility_long(
-                entry=float(pos.entry),
-                stop=float(pos.stop),
-                target=float(nxt),
-                typical_range=max(reward, 0.5),
-            )
-            if feas.get("ok") and nxt > float(pos.target) + 1e-6:
-                pos.target = round(float(nxt), 4)
-                pos.target_step += 1
-                pos.agent_status = f"TARGET_STEP_{pos.target_step}"
+        px = float(pos.last_ltp)
+        if px >= mid:
+            be = breakeven_premium(entry=float(pos.entry), qty=pos.qty)
+            lock = max(float(pos.stop), be)
+            if lock < px - 0.25 and lock > float(pos.stop) + 1e-9:
+                pos.stop = round(lock, 4)
+                pos.trail_step += 1
+                pos.agent_status = "TRAIL_STOP"
                 if engine.root is not None:
                     append_model_log(
                         engine.root,
                         {
-                            "event": "TARGET_STEP",
+                            "event": "TRAIL_STOP",
                             "book_id": pos.book_id,
                             "trade_id": pos.trade_id,
-                            "status": pos.agent_status,
-                            "target_step": pos.target_step,
-                            "filled": True,
-                            "target": pos.target,
+                            "status": "TRAIL_STOP",
+                            "reason": "MID_PATH_BE",
+                            "trail_step": pos.trail_step,
+                            "stop": pos.stop,
+                            "breakeven": be,
+                            "ltp": px,
+                            "hypothesis": "mid_path_lock_be_keep_target",
+                            "note": "PAPER: halfway to target locks BE incl charges; target extends only on TARGET touch",
                         },
                     )
-            # else prefer leave target; do not fantasy-step
     pos.agent_status = agent_ticket_status(pos)
     return None
 
@@ -1994,6 +2551,10 @@ def mark_to_market(
             ltp = float(pos.last_ltp)
             side_low = pos.seen_low if pos.seen_low is not None else ltp
             src = "LAST_PRINT"
+        if ltp is None and pos.entry is not None:
+            ltp = float(pos.entry)
+            side_low = pos.seen_low if pos.seen_low is not None else ltp
+            src = "ENTRY_PRINT"
         if ltp is None:
             if minutes_ist(tick.ts) >= FLATTEN_MINUTES_IST:
                 _close(
@@ -2001,7 +2562,7 @@ def mark_to_market(
                     pos,
                     ltp=float(pos.entry),
                     ts=tick.ts,
-                    reason="CANCEL_UNFILLED_FLAT" if not pos.filled else "FLATTEN_1500",
+                    reason="CANCEL_UNFILLED_FLAT" if not pos.filled else "FLATTEN_1515",
                     root=engine.root,
                 )
             continue
@@ -2065,11 +2626,29 @@ def mark_to_market(
             wing_iv_list=wing_ivs(tick.wing_quotes),
             index_regime=regime,
         )
-        if reason:
+        roll = cancel_if_bin_rolled(pos, tick) if pos.filled else None
+        classified = engine.last_regime.get(underlying.upper()) or {}
+        hist_vol = getattr(engine, "_prev_idx_vol", None)
+        prev_vol = hist_vol.get(underlying.upper()) if isinstance(hist_vol, dict) else None
+        idx_vol = getattr(tick, "idx_volume", None)
+        trail_kw = dict(
+            classified=classified if isinstance(classified, dict) else None,
+            idx_volume=float(idx_vol) if idx_vol is not None else None,
+            prev_idx_volume=float(prev_vol) if prev_vol is not None else None,
+        )
+        if reason == "TARGET":
+            if apply_target_lock_shift(engine, pos, ltp=float(ltp), ts=tick.ts, **trail_kw):
+                continue
+        soft = reason if is_soft_cancel_reason(reason) else (roll if pos.filled else None)
+        if soft and pos.filled:
+            if apply_filled_trail(engine, pos, ltp=float(ltp), ts=tick.ts, reason=str(soft), **trail_kw):
+                continue
+        if reason or roll:
+            exit_reason = reason or roll
             exit_px = float(ltp)
-            if reason in {"STOP", "CANCEL_ADVERSE"}:
+            if exit_reason in {"STOP", "CANCEL_ADVERSE"}:
                 exit_px = min(exit_px, low_v, float(pos.seen_low or exit_px))
-            _close(engine, pos, ltp=exit_px, ts=tick.ts, reason=reason, root=engine.root)
+            _close(engine, pos, ltp=exit_px, ts=tick.ts, reason=str(exit_reason), root=engine.root)
 
 
 def step_underlying(
@@ -2115,6 +2694,8 @@ def step_underlying(
             "pe_delta": pe_g.get("delta"),
         },
     )
+    bin_rec = update_itm_bin(engine, und, tick)
+    classified = apply_itm_bin_to_regime(classified, bin_rec)
     engine.last_regime[und] = classified
     ce_d = tick.ce_close - prev.ce_close
     pe_d = tick.pe_close - prev.pe_close
@@ -2171,6 +2752,9 @@ def step_underlying(
         follow_gap=follow_gap,
         ml002_hold=ml002_hold,
         ml1=ml1,
+        impulse_side=(
+            paper_impulse_side(classified) if classified.get("regime") == "TREND" else None
+        ),
     )
     greeks_skip_final = intents["MIX-ML-GREEKS"][1]
     for book_id in LIVE_BOOKS:
@@ -2227,6 +2811,7 @@ def step_underlying(
         "tv_ep_024": tv_side,
         "mix_ml_greeks_skip": greeks_skip_final,
         "index_regime": classified,
+        "itm_bin": classified.get("itm_bin"),
         "deny_model_signals": deny,
         "independent": True,
         "note": (
@@ -2234,6 +2819,7 @@ def step_underlying(
             "KMeans ML-001 is not CE/PE. SIDEWAYS skips NEW opens only. TREND confirm/kill. Feed stays live."
         ),
     }
+    engine.last_step_by_und[und] = dict(engine.last_step)
 
 
 def _hold_series(triples: Sequence[Triple], *, seed: int = 14) -> tuple[list[bool], list[bool], list[bool], dict[str, Any]]:
@@ -2321,6 +2907,11 @@ def load_paper_params(root: Path) -> dict[str, Any]:
     ):
         if key in blob and blob[key] is not None:
             out[key] = blob[key]
+    try:
+        lookback = int(out.get("regime_lookback") or REGIME_LOOKBACK)
+    except (TypeError, ValueError):
+        lookback = REGIME_LOOKBACK
+    out["regime_lookback"] = min(max(lookback, REGIME_MIN_BARS), REGIME_LOOKBACK)
     out["production_params_written"] = False
     return out
 
@@ -2349,14 +2940,14 @@ def mistakes_from_closed(closed: Sequence[dict[str, Any]]) -> list[dict[str, Any
         elif reason == "TIME":
             lesson = "TIME_EXIT_LOSS: premium faded before target; hold bars too long"
             tweak = "cut scalp_hold_bars"
-        elif reason in {"CANCEL_ADVERSE", "CANCEL_THESIS", "CANCEL_STRIKE_ROLL", "CANCEL_SIDEWAYS"}:
+        elif reason in {"CANCEL_ADVERSE", "CANCEL_THESIS", "CANCEL_STRIKE_ROLL", "CANCEL_SIDEWAYS", CANCEL_BIN_ROLL}:
             lesson = f"{reason}: ticket was dead; cancel instead of sitting to TIME"
             tweak = "give-up / thesis-flip / strike-roll cancel is the paper rule"
         elif reason.startswith("CANCEL_UNFILLED"):
             lesson = f"{reason}: limit never filled — candle walked away or thesis/greeks died"
             tweak = "do not assume fill at signal print; cancel unfilled limits"
-        elif reason == "FLATTEN_1500":
-            lesson = "FLATTEN_LOSS: still open into 15:00 IST"
+        elif reason in {"FLATTEN_1500", "FLATTEN_1515"}:
+            lesson = "FLATTEN_LOSS: still open into 15:15 IST"
             tweak = "do not open after 14:40 IST"
         else:
             lesson = f"LOSS via {reason or 'unknown'}"
@@ -2575,6 +3166,7 @@ def replay_paper_scalp(
             "status": "DATA_INSUFFICIENT",
             "reason": "no logit series",
         }
+        ml1 = ml1_meta_label([])
         idx_path: list[float] = []
         epoch_ts = None
         raw_epoch = params.get("paper_book_epoch_ts")
@@ -2613,7 +3205,7 @@ def replay_paper_scalp(
                 break
         if max_closes > 0 and len(engine.closed) >= max_closes:
             break
-        # Live session keeps WORKING/OPEN only before 15:00 IST. After flatten, leftovers close.
+        # Live session keeps WORKING/OPEN only before 15:15 IST. After flatten, leftovers close.
         last = triples[-1]
         past_flat = minutes_ist(last.ts) >= FLATTEN_MINUTES_IST
         if (not live_session) or past_flat:
@@ -2623,7 +3215,7 @@ def replay_paper_scalp(
                 if pos is None:
                     continue
                 ltp = last.ce_close if pos.side == "CE" else last.pe_close
-                reason = "CANCEL_UNFILLED_FLAT" if not pos.filled else ("FLATTEN_1500" if past_flat else "REPLAY_END")
+                reason = "CANCEL_UNFILLED_FLAT" if not pos.filled else ("FLATTEN_1515" if past_flat else "REPLAY_END")
                 _close(engine, pos, ltp=float(ltp), ts=last.ts, reason=reason, root=base)
         steps[u] = {
             "status": "REPLAY_OK",
@@ -2944,6 +3536,222 @@ def _open_ticket_row(pos: OpenPaper) -> dict[str, Any]:
     return row
 
 
+SKIP_WHY = {
+    SIDEWAYS_HOLD: "15m INDEX path was chop — NEW paper held. Last-3 impulse can TREND; true last-3 chop still holds.",
+    REGIME_UNKNOWN_WAIT: "1m path mixed / Kaufman ER not a TREND — wait, do not guess CE/PE.",
+    VOL_NOT_EXPANDING: "Last-3 1m volume shrank vs prior-3 — skip only when there is no last-3 price impulse.",
+    "TREND_UP_KILL_PE": "INDEX 1m TREND UP — PE confirm/kill, not a fill.",
+    "TREND_DOWN_KILL_CE": "INDEX 1m TREND DOWN — CE confirm/kill, not a fill.",
+    "NO_SIDE": "Book had no CE/PE of its own this tick.",
+    "DEALER_HOLD": "Dealer HOLD (premium vs spot) — MIX-DEFAULT-BUY does not open.",
+    "OPEN_SETTLE_35M": "No NEW paper before 09:50 IST.",
+    "NO_NEW_BEFORE_0950": "No NEW paper before 09:50 IST.",
+    "NO_NEW_AFTER_1515": "No NEW paper after 15:15 IST. Flatten leftover OPEN. CAS is expiry-only, not this clock.",
+    "OBSERVE_NO_OWN_SIDE": "Observe clone — ₹0 capital, no own CE/PE fill.",
+    "OBSERVE_NO_OWN_FILL": "Observe lab book — no fill.",
+    "CAPITAL_SKIP_DATA_INSUFFICIENT": "Book capital ₹0 this session.",
+    CANCEL_BIN_ROLL: "Booked ITM strike is now ATM/OTM — change the CE/PE bin.",
+    "ITM_ONLY_NO_QUOTE": "ITM-only ticket: Dhan did not quote that wing — DATA_INSUFFICIENT, not ATM fallback.",
+    "ITM_ONLY_NOT_ITM": "Chosen strike is ATM/OTM — paper waits for a fresh ITM bin.",
+    "GREEKS_NO_CLONE": "MIX-ML-GREEKS does not clone the same CE/PE fill as MIX-ML-LOGIT.",
+}
+
+
+def _skip_why(reason: str) -> str:
+    text = str(reason or "")
+    if text in SKIP_WHY:
+        return SKIP_WHY[text]
+    if "DEALER_BUY_CE_CONFIRM_VS_LOGIT_PE" in text:
+        return "Dealer saw CE; logit PE — dealer CONFIRM vs logit, no clone fill."
+    if "DEALER_BUY_PE_CONFIRM_VS_LOGIT_CE" in text:
+        return "Dealer saw PE; logit CE — dealer CONFIRM vs logit, no clone fill."
+    if "DEALER_HOLD_VS_LOGIT" in text:
+        return "Dealer HOLD vs logit side — dealer book does not fill."
+    if text.startswith("XR filter"):
+        return "MIX-ML-LOGIT-XR range-expansion filter skipped this side."
+    if "lean_ml_logit SKIP" in text:
+        return "Logit needs enough labeled 3m train rows — DATA_INSUFFICIENT, not a silent CE/PE."
+    if "meta-label" in text:
+        return "ML-1 meta-label needs ≥30 closed paper rows."
+    return text or "skip"
+
+
+def _index_observation(und: str, classified: dict[str, Any], step: Optional[dict[str, Any]]) -> str:
+    dealer = (step or {}).get("dealer") or {}
+    logit = (step or {}).get("logit") or {}
+    impulse = classified.get("last3_impulse")
+    last3 = classified.get("last3_closes")
+    net = classified.get("last3_net")
+    er15 = classified.get("er")
+    regime = classified.get("regime")
+    reason = classified.get("reason")
+    verdict = dealer.get("verdict")
+    logit_side = logit.get("side")
+    bits = [f"{und}: 15m {regime} ({reason}, ER={er15})."]
+    if last3 is not None:
+        bits.append(f"Last-3 1m closes {last3} net={net} impulse={impulse or 'none'}.")
+    if impulse == "DOWN":
+        bits.append("PUT-side last-3 is real; paper PE is allowed only on TREND DOWN plus a fill book that owns PE.")
+    elif impulse == "UP":
+        bits.append("CALL-side last-3 is real; paper CE is allowed only on TREND UP plus a fill book that owns CE.")
+    elif regime in {"SIDEWAYS", "UNKNOWN"}:
+        bits.append("Last-3 was not an efficient impulse — 15m chop skip is required, not over-coded.")
+    if verdict:
+        bits.append(f"Dealer {verdict}; logit side={logit_side or 'SKIP'}.")
+    itm_bin = classified.get("itm_bin") or {}
+    if itm_bin:
+        bits.append(
+            f"ITM bin CE {itm_bin.get('ce', {}).get('strike') if isinstance(itm_bin.get('ce'), dict) else '—'} "
+            f"votes={itm_bin.get('ce_votes') or []} vs PE {itm_bin.get('pe', {}).get('strike') if isinstance(itm_bin.get('pe'), dict) else '—'} "
+            f"votes={itm_bin.get('pe_votes') or []} reason={itm_bin.get('reason') or '—'}. "
+            "Two ITM-leg votes can TREND without three INDEX 1m bars."
+        )
+    return " ".join(bits)
+
+
+def itm_bins_picture(engine: BookEngine) -> dict[str, Any]:
+    """Trader three charts: INDEX + ITM CE + ITM PE. Watch this bin during paper trades."""
+    rows: list[dict[str, Any]] = []
+    for und in ("NIFTY", "BANKNIFTY", "SENSEX"):
+        hist = engine.itm_bins.get(und) or {}
+        last = hist.get("last") or {}
+        ce = last.get("ce") if isinstance(last.get("ce"), dict) else {}
+        pe = last.get("pe") if isinstance(last.get("pe"), dict) else {}
+        rows.append(
+            {
+                "underlying": und,
+                "index": last.get("index"),
+                "ts": last.get("ts"),
+                "side": last.get("side"),
+                "reason": last.get("reason"),
+                "wait_3_index_bars": False,
+                "ce": {
+                    "strike": ce.get("strike"),
+                    "moneyness": ce.get("moneyness"),
+                    "px": ce.get("px"),
+                    "volume": ce.get("volume"),
+                    "oi": ce.get("oi"),
+                    "delta": ce.get("delta"),
+                },
+                "pe": {
+                    "strike": pe.get("strike"),
+                    "moneyness": pe.get("moneyness"),
+                    "px": pe.get("px"),
+                    "volume": pe.get("volume"),
+                    "oi": pe.get("oi"),
+                    "delta": pe.get("delta"),
+                },
+                "ce_votes": list(last.get("ce_votes") or []),
+                "pe_votes": list(last.get("pe_votes") or []),
+                "n_ce_votes": last.get("n_ce_votes") or 0,
+                "n_pe_votes": last.get("n_pe_votes") or 0,
+                "missing": list(last.get("missing") or []),
+            }
+        )
+    return {
+        "layer": "HYPOTHESIS",
+        "note": (
+            "Three charts: INDEX + ITM CE + ITM PE. Keep this bin during paper trades. "
+            "ITM PE volume/delta/OI-up-with-premium + CE selling/premium down can TREND without three INDEX 1m bars. "
+            "Missing OI/vol/delta is DATA_INSUFFICIENT, never invented. Roll the bin when booked ITM becomes ATM/OTM. "
+            "NO_PROMOTE."
+        ),
+        "bins": rows,
+    }
+
+
+def seen_not_taken_picture(engine: BookEngine) -> dict[str, Any]:
+    """Latest skip per book×index + cancelled tickets. Observation comments are HYPOTHESIS."""
+    latest: dict[tuple[str, str], dict[str, Any]] = {}
+    for skip in engine.skips:
+        key = (str(skip.get("book_id") or ""), str(skip.get("underlying") or "").upper())
+        if not key[0] or not key[1]:
+            continue
+        latest[key] = skip
+    skipped_rows: list[dict[str, Any]] = []
+    for (book, und), skip in sorted(
+        latest.items(),
+        key=lambda kv: (-int(kv[1].get("ts") or 0), kv[0][0], kv[0][1]),
+    ):
+        classified = engine.last_regime.get(und) or {}
+        step = engine.last_step_by_und.get(und) or {}
+        dealer = step.get("dealer") or {}
+        logit = step.get("logit") or {}
+        seen_side = skip.get("seen_side") or dealer.get("side") or logit.get("side")
+        skipped_rows.append(
+            {
+                "book_id": book,
+                "underlying": und,
+                "seen_side": seen_side,
+                "action": "SKIP",
+                "reason": skip.get("reason"),
+                "why": _skip_why(str(skip.get("reason") or "")),
+                "index_regime": skip.get("index_regime") or classified.get("regime"),
+                "regime_reason": classified.get("reason"),
+                "last3_closes": classified.get("last3_closes"),
+                "last3_net": classified.get("last3_net"),
+                "last3_er": classified.get("last3_er"),
+                "last3_impulse": classified.get("last3_impulse"),
+                "dealer_verdict": dealer.get("verdict"),
+                "logit_side": logit.get("side"),
+                "observation": _index_observation(und, classified, step),
+                "last_updated_ts": skip.get("ts"),
+            }
+        )
+    cancelled_rows: list[dict[str, Any]] = []
+    for row in engine.closed:
+        reason = str(row.get("exit_reason") or "")
+        result = str(row.get("result") or "")
+        if result != "CANCELLED" and not reason.startswith("CANCEL"):
+            continue
+        cancelled_rows.append(
+            {
+                "book_id": row.get("book_id"),
+                "underlying": row.get("underlying"),
+                "seen_side": row.get("side"),
+                "action": "CANCEL",
+                "reason": reason,
+                "why": (
+                    _skip_why(reason)
+                    if reason in SKIP_WHY
+                    else (
+                        "Unfilled working limit never booked."
+                        if reason.startswith("CANCEL_UNFILLED")
+                        else f"Ticket cancelled: {reason}."
+                    )
+                ),
+                "status": row.get("status") or result,
+                "result": result,
+                "index_regime": row.get("index_regime"),
+                "limit_price": row.get("limit_price"),
+                "atm_strike": row.get("atm_strike"),
+                "last_updated_ist": row.get("last_updated_ist") or row.get("closed_ist"),
+                "last_updated_ts": row.get("last_updated_ts") or row.get("closed_ts"),
+                "observation": (
+                    f"{row.get('underlying')} {row.get('side')} {reason}: "
+                    "saw a trade, then cancelled — not a silent miss."
+                ),
+            }
+        )
+    cancelled_rows = order_tickets_last_updated(cancelled_rows)[:24]
+    observations = [
+        _index_observation(und, classified, engine.last_step_by_und.get(und))
+        for und, classified in sorted((engine.last_regime or {}).items())
+    ]
+    return {
+        "layer": "HYPOTHESIS",
+        "note": (
+            "Saw a CE/PE but did not OPEN, or OPENED then CANCELLED. "
+            "Not live orders. Last-3 PUT/CE impulse can TREND; 15m chop skip stays when last-3 is also chop."
+        ),
+        "observations": observations,
+        "skipped_latest": skipped_rows[:48],
+        "cancelled": cancelled_rows,
+        "n_skip_events": len(engine.skips),
+        "n_cancelled": len(cancelled_rows),
+    }
+
+
 def build_dashboard(
     engine: BookEngine,
     *,
@@ -3041,6 +3849,10 @@ def build_dashboard(
     picture["n_skip_regime_unknown"] = len(unk_skips)
     picture["n_sideways_bars"] = len(side_bars)
     picture["last_index_regime"] = dict(engine.last_regime)
+    seen_not_taken = seen_not_taken_picture(engine)
+    picture["seen_not_taken"] = seen_not_taken
+    itm_bins = itm_bins_picture(engine)
+    picture["itm_bins"] = itm_bins
     adj_notes = index_adjustment_notes(
         engine.closed,
         board_book_rank,
@@ -3095,6 +3907,8 @@ def build_dashboard(
         "n_sideways_bars": picture.get("n_sideways_bars") or 0,
         "n_sl_hit": picture.get("n_sl_hit") or 0,
         "last_index_regime": picture.get("last_index_regime") or {},
+        "seen_not_taken": seen_not_taken,
+        "itm_bins": itm_bins,
         "book_rank": board_book_rank,
         "index_notes": adj_notes,
         "cost_model": groww_cost_meta(),
@@ -3141,7 +3955,7 @@ def build_dashboard(
             "cancel_greeks": "|delta| too low / IV rich / theta late on live chain — cancel WORKING or OPEN",
             "limit_below_signal": f"working buy limit = signal × (1-{engine.limit_discount_frac})",
             "cancel_strike_roll": "ATM strike moved off the ticket and premium is below entry",
-            "flatten_ist": "15:00",
+            "flatten_ist": "15:15",
             "feasibility": "warehouse.feasibility.evaluate_long_premium",
             "fantasy_lesson": "150/96/250 TARGET_FEASIBILITY_FAIL",
         },
@@ -3187,11 +4001,11 @@ def build_dashboard(
             "OPEN_PAPER MTM uses the booked strike LTP (wing cell), not the rolled ATM pack. ATM LTP through the stop does not close a different strike.",
             "Once filled, STOP/CANCEL_ADVERSE/greeks-dead must close. A wick through limit then stop is CLOSED LOSS — it must not sit OPEN.",
             "Open rows stamp last_ltp / seen_low / quote_src so a 74300 CE is not confused with a later ATM 74400/74500 print.",
-            "No NEW paper before 09:50 IST (OPEN_SETTLE_35M / cash open 09:15 + 35m). Flatten/cancel still run. No new after 14:45. 15:00 flattens leftover OPEN.",
-            "No new paper after 14:45 IST. 15:00 flattens leftover OPEN. live_session does not keep dead tickets overnight.",
+            "No NEW paper before 09:50 IST (OPEN_SETTLE_35M / cash open 09:15 + 35m). Flatten/cancel still run. NEW paper through 15:15 IST. Then flatten leftover OPEN. CAS afternoon dead-band is expiry-only, not this paper stop.",
+            "No new paper after 15:15 IST. Flatten leftover OPEN. live_session does not keep dead tickets overnight. CAS overlay stays expiry-day only (PARKED).",
             "paper_params nudge is session-only overfit. production_params_written stays false.",
-            "INDEX 1m regime TREND|SIDEWAYS|UNKNOWN is HYPOTHESIS. TREND needs Kaufman ER plus last-15m VWAP, EMA 15/21, RSI, and last-3 1m volume (greeks/IV vote when present). SIDEWAYS skips NEW and cancels unfilled; underwater filled may CANCEL_SIDEWAYS. Feed stays live.",
-            "TREND + direction UP kills new PE (confirm/kill overlay, not a STRAT). DOWN kills new CE. Shrinking last-3 volume blocks TREND. Dual-tape JSONL is kept on slate (not trimmed). Paper book epoch skips replaying old ticks as new trades. Not MIX-DEFAULT-BUY production.",
+            "INDEX 1m regime TREND|SIDEWAYS|UNKNOWN is HYPOTHESIS. TREND = Kaufman 15m ER *or* last-3 1m impulse (PUT/CE) with volume not shrinking, plus VWAP/EMA/RSI when using the 15m path. SIDEWAYS skips NEW when last-3 is also chop; last-3 dump/rally is not held as lunch SIDEWAYS. Unfilled cancels; underwater filled may CANCEL_SIDEWAYS. Feed stays live.",
+            "TREND + direction UP kills new PE (confirm/kill overlay, not a STRAT). DOWN kills new CE. Last-3 price impulse is TREND even if INDEX volume shrinks (Dhan SENSEX vol spikes are not a skip). Dual-tape JSONL is kept on slate (not trimmed). Paper book epoch skips replaying old ticks as new trades. Not MIX-DEFAULT-BUY production.",
             "Founder ~57% wr during cash hours is an in-session PAPER observation, not this EOD Groww+STT filled hit rate. Not a promote.",
         ],
     }
@@ -3348,6 +4162,8 @@ def write_dashboard(board: dict[str, Any], *, root: Optional[Path] = None) -> di
             "n_sideways_bars",
             "n_sl_hit",
             "last_index_regime",
+            "seen_not_taken",
+            "itm_bins",
             "paper_params",
             "paper_param_notes",
             "ticket_columns",
@@ -3369,7 +4185,7 @@ def write_dashboard(board: dict[str, Any], *, root: Optional[Path] = None) -> di
     }
     compact["inventory"] = {"data_gaps": (board.get("inventory") or {}).get("data_gaps")}
     compact["steps"] = {
-        u: {kk: vv for kk, vv in (s or {}).items() if kk in {"status", "n_triples", "span_ist", "logit", "ml1", "index_regime"}}
+            u: {kk: vv for kk, vv in (s or {}).items() if kk in {"status", "n_triples", "span_ist", "logit", "ml1", "index_regime", "itm_bin"}}
         for u, s in (board.get("steps") or {}).items()
     }
     compact["n_closed"] = len(board.get("closed_trades") or [])
@@ -3497,8 +4313,6 @@ def render_markdown(board: dict[str, Any]) -> str:
     ]
     for row in (board.get("closed_trades") or [])[:20]:
         lost = row.get("sl_loss_inr")
-        if lost is None and row.get("result") == "LOSS":
-            lost = row.get("realized_pnl_inr")
         lines.append(
             f"| `{row.get('book_id')}` | {row.get('underlying')} | {row.get('side')} | "
             f"{row.get('atm_strike')} | {row.get('limit_price')} | {row.get('target')} | {row.get('stop')} | "
@@ -3507,6 +4321,64 @@ def render_markdown(board: dict[str, Any]) -> str:
         )
     if not board.get("closed_trades"):
         lines.append("| — | — | — | — | — | — | — | — | — | — | — | — | — | — |")
+    seen = board.get("seen_not_taken") or (pic.get("seen_not_taken") if pic else {}) or {}
+    lines += [
+        "",
+        "## Seen but not taken / cancelled (why)",
+        "",
+        str(seen.get("note") or "Saw a CE/PE but did not OPEN, or OPENED then CANCELLED."),
+        "",
+    ]
+    for obs in seen.get("observations") or []:
+        lines.append(f"- {obs}")
+    if not seen.get("observations"):
+        lines.append("- (no 1m regime observation yet)")
+    lines += [
+        "",
+        "| kind | model | und | seen CE/PE | reason | why | regime | last-3 impulse | updated |",
+        "|------|-------|-----|------------|--------|-----|--------|----------------|---------|",
+    ]
+    mixed = list(seen.get("cancelled") or []) + list(seen.get("skipped_latest") or [])
+    for row in mixed[:40]:
+        lines.append(
+            f"| {row.get('action')} | `{row.get('book_id')}` | {row.get('underlying')} | "
+            f"{row.get('seen_side') or '—'} | `{row.get('reason')}` | {row.get('why')} | "
+            f"{row.get('index_regime') or '—'} | {row.get('last3_impulse') or '—'} | "
+            f"{row.get('last_updated_ist') or '—'} |"
+        )
+    if not mixed:
+        lines.append("| — | — | — | — | none | — | — | — | — |")
+    bins = board.get("itm_bins") or (pic.get("itm_bins") if pic else {}) or {}
+    lines += [
+        "",
+        "## ITM CE / PE bin (three charts)",
+        "",
+        str(
+            bins.get("note")
+            or "INDEX + ITM CE + ITM PE. Two votes TREND without three INDEX 1m bars. Roll when ITM→ATM/OTM."
+        ),
+        "",
+        "| und | index | CE strike | CE $ | CE vol | CE OI | PE strike | PE $ | PE vol | PE OI | PE votes | CE votes | side | reason | missing |",
+        "|-----|-------|-----------|------|--------|-------|-----------|------|--------|-------|----------|----------|------|--------|---------|",
+    ]
+    for row in bins.get("bins") or []:
+        ce = row.get("ce") or {}
+        pe = row.get("pe") or {}
+        lines.append(
+            f"| {row.get('underlying')} | {row.get('index')} | {ce.get('strike')} | {ce.get('px')} | "
+            f"{ce.get('volume')} | {ce.get('oi')} | {pe.get('strike')} | {pe.get('px')} | "
+            f"{pe.get('volume')} | {pe.get('oi')} | {','.join(row.get('pe_votes') or []) or '—'} | "
+            f"{','.join(row.get('ce_votes') or []) or '—'} | {row.get('side') or '—'} | "
+            f"`{row.get('reason') or '—'}` | {','.join(row.get('missing') or []) or '—'} |"
+        )
+    if not bins.get("bins"):
+        lines.append("| — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |")
+    if seen.get("observations"):
+        lines.append("")
+        lines.append("Comments (HYPOTHESIS, not a promote):")
+        for row in (seen.get("skipped_latest") or [])[:8]:
+            if row.get("observation"):
+                lines.append(f"- `{row.get('book_id')}` {row.get('underlying')}: {row.get('observation')}")
     lines += [
         "",
         "## Leaderboard (book × index, ranked by net ₹)",

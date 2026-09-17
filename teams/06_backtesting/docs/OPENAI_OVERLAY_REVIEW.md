@@ -60,3 +60,18 @@ Gemini (`gemini-3.5-flash-lite`), first line + gist: **ACCEPT_WITH_CAVEATS**. Pa
 OpenAI (`gpt-4.1`), first line + gist: **ACCEPT_WITH_CAVEATS**. Notes-only, not a five-pass; pytest 28/28; wiring named; causal z / thin dual-tape HOLD remain as caveats; no Dhan production push.
 
 Honest: this is **not** a five-pass pass. OpenAI no longer REJECTS the *paper overlay*. A REJECT on five-pass / RESEARCH_READY would still be correct if anyone asked for that gate.
+
+---
+
+## Round 3 — trail SL / target lock-shift (2026-09-17)
+
+**Job:** `REVIEW_NOTES` · `--openai-model gpt-4.1` · `--max-tokens 1200`  
+**What changed:** After fill, soft `CANCEL_*` (bin-roll, thesis, strike-roll, sideways, greeks) trails stop 4–12 premium ₹ (spike/vol) and may lock BE including Groww+STT. First TARGET touch locks SL and shifts target (`TARGET_STEP_MAX=2`). Hard STOP/TIME/FLATTEN/CANCEL_ADVERSE. Unfilled ₹0. Tests: trail-not-flatten, target lock, STOP, unfilled. KEEP_ALL. `production_params_written` false.
+
+**together:** `ALIGNED` on `ACCEPT_WITH_CAVEATS` (Gemini `gemini-3.5-flash-lite` + OpenAI `gpt-4.1`).
+
+Gemini gist: trail/BE lock/target shift with 68 tests; HARD exits; not five-pass; not RESEARCH_READY.
+
+OpenAI gist: paper overlay acceptable to run; KEEP_ALL; production params not written; further gate blocked until five-pass.
+
+**Caveat we already accept:** notes ≠ five-pass; trail is HYPOTHESIS to cut churn, not a wr claim.
