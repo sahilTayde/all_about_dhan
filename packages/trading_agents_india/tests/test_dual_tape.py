@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from datetime import datetime
 from pathlib import Path
 
 from trading_agents_india.config import Settings
@@ -60,6 +61,26 @@ def test_simulate_two_ticks_writes_ledger(tmp_path: Path) -> None:
     text = notes[0].read_text(encoding="utf-8")
     assert "NIFTY" in text
     assert settings.kb_path.is_file()
+
+
+def test_jsonl_keeps_last_15_minutes(tmp_path: Path) -> None:
+    from trading_agents_india.ledger import keep_jsonl_last_seconds
+    from trading_agents_india.session_clock import IST, now_ist
+
+    path = tmp_path / "tape.jsonl"
+    now = int(now_ist().timestamp())
+    rows = []
+    for i in range(20):
+        ts = now - (25 - i) * 60
+        dt = datetime.fromtimestamp(ts, tz=IST)
+        rows.append({"as_of_ist": dt.isoformat(timespec="seconds"), "i": i})
+    path.write_text("\n".join(json.dumps(r) for r in rows) + "\n", encoding="utf-8")
+    out = keep_jsonl_last_seconds(path, seconds=15 * 60, now_ts=now)
+    assert out["ok"] is True
+    kept = [json.loads(ln) for ln in path.read_text(encoding="utf-8").splitlines() if ln.strip()]
+    assert out["kept"] == len(kept)
+    assert out["dropped"] >= 1
+    assert all(now - 15 * 60 <= int(datetime.fromisoformat(r["as_of_ist"]).timestamp()) for r in kept)
 
 
 def test_stop_flag_halts_before_tick(tmp_path: Path) -> None:

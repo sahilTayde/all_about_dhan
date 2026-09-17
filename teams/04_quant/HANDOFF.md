@@ -1,5 +1,28 @@
 # Handoff log — Team 04 Quant
 
+## As of now (2026-09-17) — 15m VWAP/EMA/vol/RSI/greeks regime (NO_PROMOTE)
+
+```text
+MIX / STRAT: none new. KEEP_ALL 001–014. No STRAT-015+.
+Origin tags: PROJECT-DERIVED paper overlay. HYPOTHESIS.
+Entry hypothesis: none. Side still dealer/logit. Regime is skip + R:R.
+Confirm-or-kill: TREND only if Kaufman ER + last-15m VWAP + EMA 15/21
+  align, RSI not 45–55, last-3 1m volume not shrinking. Greeks/IV vote
+  when Dhan stamped; missing = DATA_INSUFFICIENT vote, not invent.
+Hold / veto rules: SIDEWAYS skips NEW + cancels unfilled; underwater
+  filled may CANCEL_SIDEWAYS. Flatten/cancel still run.
+Feasibility rules: regime_rr_adjust — expand last-3 vol may nudge
+  target; high 1m realized vol / IV≥22 widens stop, caps target.
+  max_target_r still 2. IV still does not 3–4× target.
+Parameters to grid: rsi mid {45/55}, vol expand 1.05, ema 15 vs 21.
+  Session file only. production_params_written false.
+Backtest request: live 15m JSONL window vs prior full-day jsonl.
+Customer copy allowed: none.
+Internal-only: dual-tape JSONL keep 15m on persist + CLEAN SLATE.
+UNKNOWN / DATA_INSUFFICIENT: volume/greeks absent; equal-weight VWAP
+  is PROJECT assume. India VIX still DI.
+```
+
 ## As of now (2026-09-17 11:18 IST) — dealer CONFIRM not fill; regime×book memory (NO_PROMOTE)
 
 ```text

@@ -63,8 +63,13 @@ export function MlPaperDashboard({ compact = false }) {
   const today = data.today || {};
   const indexNotes = data.index_notes || [];
   const gaps = (data.inventory && data.inventory.data_gaps) || data.data_gaps || [];
-  const closed = data.closed_trades || [];
-  const open = data.open_trades || [];
+  const byUpdated = (a, b) => {
+    const ta = Number(a?.last_updated_ts || a?.closed_ts || a?.opened_ts || 0);
+    const tb = Number(b?.last_updated_ts || b?.closed_ts || b?.opened_ts || 0);
+    return tb - ta;
+  };
+  const closed = [...(data.closed_trades || [])].sort(byUpdated);
+  const open = [...(data.open_trades || [])].sort(byUpdated);
   const netByIndex = today.net_by_index || {};
   const bestMl = today.best_ml_book || {};
 
@@ -158,33 +163,36 @@ export function MlPaperDashboard({ compact = false }) {
           <h3>Open vs closed</h3>
           <p className="muted">
             Open {open.length} · Closed {closed.length}. Exits: stop / target /{" "}
-            {data.scalper_exits?.time || "8m"} / 15:00 IST flatten. Closed newest first.
+            {data.scalper_exits?.time || "8m"} / 15:00 IST flatten. Open first, closed last.
+            Each list is last_updated descending.
           </p>
-          <h3>Closed tickets (newest first)</h3>
-          {closed.length === 0 ? (
-            <p className="muted">No closed tickets yet.</p>
-          ) : (
-            <ul className="cleanup-keep">
-              {(data.closed_trades_sample || closed).slice(0, 20).map((t) => (
-                <li key={t.trade_id}>
-                  {t.book_id} {t.underlying} {t.side} strike={t.atm_strike} limit=
-                  {t.limit_price} tgt={t.target} sl={t.stop} status={t.status} sl_hit=
-                  {String(t.sl_hit)} lost₹={t.sl_loss_inr ?? (t.result === "LOSS" ? t.realized_pnl_inr : "—")}{" "}
-                  pnl₹={t.realized_pnl_inr ?? "—"} {t.result} regime={t.index_regime || "—"}
-                </li>
-              ))}
-            </ul>
-          )}
-          <h3>Open tickets (strike / limit / SL / CE|PE / status)</h3>
+          <h3>Open tickets (last updated desc)</h3>
           {open.length === 0 ? (
             <p className="muted">No OPEN paper rows this session.</p>
           ) : (
             <ul className="cleanup-keep">
               {open.map((t) => (
                 <li key={t.trade_id}>
-                  {t.book_id} {t.underlying} {t.side} strike={t.atm_strike} limit=
+                  {t.last_updated_ist || t.opened_ist || ""} {t.book_id} {t.underlying} {t.side}{" "}
+                  strike={t.atm_strike} limit=
                   {t.limit_price} tgt={t.target} sl={t.stop} status={t.status || "OPEN_PAPER"}{" "}
                   regime={t.index_regime || "—"}
+                </li>
+              ))}
+            </ul>
+          )}
+          <h3>Closed tickets (last — last updated desc)</h3>
+          {closed.length === 0 ? (
+            <p className="muted">No closed tickets yet.</p>
+          ) : (
+            <ul className="cleanup-keep">
+              {(data.closed_trades_sample || closed).slice(0, 20).map((t) => (
+                <li key={t.trade_id}>
+                  {t.last_updated_ist || t.closed_ist || ""} {t.book_id} {t.underlying} {t.side}{" "}
+                  strike={t.atm_strike} limit=
+                  {t.limit_price} tgt={t.target} sl={t.stop} status={t.status} sl_hit=
+                  {String(t.sl_hit)} lost₹={t.sl_loss_inr ?? (t.result === "LOSS" ? t.realized_pnl_inr : "—")}{" "}
+                  pnl₹={t.realized_pnl_inr ?? "—"} {t.result} regime={t.index_regime || "—"}
                 </li>
               ))}
             </ul>

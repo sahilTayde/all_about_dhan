@@ -1,5 +1,18 @@
 # Handoff log — Team 07 Coding
 
+## As of now (2026-09-17) — ticket sort OPEN first CLOSED last (NO_PROMOTE)
+
+```text
+From:     teams/07_coding
+To:       00 / 06
+Date:     2026-09-17
+Status:   PAPER UI / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: MlPaperDashboard open then closed; last_updated desc.
+Rejected: npm restart required. Super Orders. Promote.
+```
+
 ## As of now (2026-09-15) — desk_ml warehouse join + dual-tape score
 
 ```text

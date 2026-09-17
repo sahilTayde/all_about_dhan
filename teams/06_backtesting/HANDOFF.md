@@ -1,5 +1,43 @@
 # Handoff log — Team 06 Backtesting
 
+## As of now (2026-09-17) — wipe board keep JSONL + epoch (NO_PROMOTE)
+
+```text
+From:     teams/06_backtesting + desk_ml
+To:       00 / founder
+Date:     2026-09-17
+Status:   PAPER / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: wipe_today keep_jsonl=true. paper_book_epoch_ts skips
+  pre-slate ticks on replay so JSONL tape remains without cloning
+  old paper P/L. Tickets last_updated desc; closed last.
+Rejected: Promote. sqlite git-add. Super Orders.
+UNKNOWN: Live wr after restart is a new book.
+```
+
+## As of now (2026-09-17) — 15m JSONL + VWAP/EMA/vol/RSI regime (NO_PROMOTE)
+
+```text
+From:     teams/06_backtesting + desk_ml + trading_agents_india
+To:       00 / founder
+Date:     2026-09-17
+Status:   PAPER / HYPOTHESIS / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: Dual-tape JSONL rolling keep = last 15 minutes (persist +
+  CLEAN SLATE restore). Paper book still wiped. Warehouse/sqlite kept.
+  classify_index_regime: Kaufman ER plus VWAP, EMA 15/21, Wilder RSI14,
+  last-3 vs prior-3 1m volume, optional Dhan IV/delta votes.
+  SIDEWAYS: skip NEW, cancel unfilled, CANCEL_SIDEWAYS if filled and
+  underwater. TREND R:R from realized 1m vol + vol expand. 10s LTP
+  flatten/MTM unchanged.
+Rejected: Session VWAP from trimmed JSONL alone (equal-weight fallback
+  is PROJECT). Promote. sqlite git-add. STRAT-015. Super Orders.
+UNKNOWN: Live wr after slate is not comparable to the prior board.
+  Paper wr is not a promote.
+```
+
 ## As of now (2026-09-17) — paper-scalp 1m clock vs 10s LTP (NO_PROMOTE)
 
 ```text

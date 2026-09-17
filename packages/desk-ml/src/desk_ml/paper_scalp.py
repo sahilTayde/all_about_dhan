@@ -40,7 +40,7 @@ from desk_ml.groww_costs import as_dict as groww_cost_meta
 from desk_ml.groww_costs import groww_round_trip_charges, net_pnl_inr
 from desk_ml.greeks_ml import score_greeks_ticket, session_iv_median, wing_ivs
 from desk_ml.tape import (
-    index_1m_closes_from_ticks,
+    index_1m_close_vol_from_ticks,
     ist_calendar_date,
     load_dual_tape_triples,
     load_index_closes,
@@ -74,13 +74,18 @@ UNFILLED_SECONDS = UNFILLED_BARS * 60
 SCALP_HOLD_BARS = 8  # time-exit = hold_bars * 60s wall clock, not 10s ticks
 RANGE_LOOKBACK = 20
 # INDEX 1m regime (HYPOTHESIS paper overlay). Not option L2. Not a MIX rewrite.
-REGIME_LOOKBACK = 20
+# Window = last 15 1m bars (matches JSONL keep). EMA 21 if n>=21 else EMA 15.
+REGIME_LOOKBACK = 15
 REGIME_MIN_BARS = 12
 REGIME_ER_MAX = 0.30  # Kaufman efficiency |net|/path; at or below → chop
 REGIME_FLIP_MIN = 0.38
 REGIME_RANGE_ATR_MAX = 4.0  # window high-low / mean |1m close change|
+REGIME_RSI_MID_LO = 45.0
+REGIME_RSI_MID_HI = 55.0
+REGIME_RV_WIDEN = 0.0006  # 1m return stdev → wider paper stop, cap target
 SIDEWAYS_HOLD = "SIDEWAYS_HOLD"
 REGIME_UNKNOWN_WAIT = "REGIME_UNKNOWN_WAIT"
+VOL_NOT_EXPANDING = "VOL_NOT_EXPANDING"
 STOP_FRAC = 0.40
 TARGET_FRAC = 0.55
 STRIKE_STEP = {"NIFTY": 50.0, "BANKNIFTY": 100.0, "SENSEX": 100.0}
@@ -154,6 +159,7 @@ DEFAULT_PAPER_PARAMS = {
     "paper_add_lot": PAPER_ADD_LOT,
     "max_target_r": MAX_TARGET_R,
     "open_settle_gate": OPEN_SETTLE_GATE,
+    "paper_book_epoch_ts": None,
     "production_params_written": False,
     "note": "PAPER session only. Never writes MIX-DEFAULT-BUY.",
 }
@@ -188,15 +194,136 @@ def agent_ticket_status(pos: "OpenPaper") -> str:
     return "IN_TRADE"
 
 
+def _ema_last(values: Sequence[float], length: int) -> Optional[float]:
+    vals = [float(x) for x in values]
+    if length <= 0 or len(vals) < length:
+        return None
+    k = 2.0 / (length + 1)
+    prev = sum(vals[:length]) / length
+    for v in vals[length:]:
+        prev = v * k + prev * (1.0 - k)
+    return float(prev)
+
+
+def _rsi_last(closes: Sequence[float], period: int = 14) -> Optional[float]:
+    vals = [float(x) for x in closes]
+    n = len(vals)
+    if n < period + 1:
+        return None
+    gains = 0.0
+    losses = 0.0
+    for i in range(1, period + 1):
+        d = vals[i] - vals[i - 1]
+        if d >= 0:
+            gains += d
+        else:
+            losses -= d
+    avg_g = gains / period
+    avg_l = losses / period
+    for i in range(period + 1, n):
+        d = vals[i] - vals[i - 1]
+        g = d if d > 0 else 0.0
+        l = -d if d < 0 else 0.0
+        avg_g = (avg_g * (period - 1) + g) / period
+        avg_l = (avg_l * (period - 1) + l) / period
+    if avg_l == 0:
+        return 100.0
+    return 100.0 - 100.0 / (1.0 + avg_g / avg_l)
+
+
+def _vwap_window(
+    closes: Sequence[float], volumes: Optional[Sequence[Optional[float]]]
+) -> tuple[Optional[float], str]:
+    vals = [float(x) for x in closes]
+    vols = list(volumes) if volumes is not None else [None] * len(vals)
+    if len(vols) < len(vals):
+        vols = vols + [None] * (len(vals) - len(vols))
+    num = 0.0
+    den = 0.0
+    used_vol = False
+    for c, v in zip(vals, vols):
+        w = 1.0
+        if v is not None:
+            try:
+                fv = float(v)
+            except (TypeError, ValueError):
+                fv = 0.0
+            if fv > 0:
+                w = fv
+                used_vol = True
+        num += c * w
+        den += w
+    if den <= 0:
+        return None, "DATA_INSUFFICIENT"
+    return num / den, ("OK" if used_vol else "EQUAL_WEIGHT_PROJECT")
+
+
+def _vol_last3(volumes: Optional[Sequence[Optional[float]]]) -> dict[str, Any]:
+    out: dict[str, Any] = {
+        "status": "DATA_INSUFFICIENT",
+        "expand": None,
+        "last3_sum": None,
+        "prev3_sum": None,
+    }
+    if not volumes:
+        return out
+
+    def _pos(raw: Optional[float]) -> Optional[float]:
+        if raw is None:
+            return None
+        try:
+            v = float(raw)
+        except (TypeError, ValueError):
+            return None
+        return v if v > 0 else None
+
+    last3 = [_pos(v) for v in list(volumes)[-3:]]
+    if len(last3) < 3 or any(v is None for v in last3):
+        return out
+    last_sum = float(sum(float(v) for v in last3 if v is not None))
+    out["last3_sum"] = round(last_sum, 4)
+    prev_raw = list(volumes)[-6:-3] if len(list(volumes)) >= 6 else []
+    prev3 = [_pos(v) for v in prev_raw]
+    if len(prev3) == 3 and all(v is not None for v in prev3):
+        prev_sum = float(sum(float(v) for v in prev3 if v is not None))
+        out["prev3_sum"] = round(prev_sum, 4)
+        out["status"] = "OK"
+        out["expand"] = last_sum >= prev_sum * 1.05 if prev_sum > 0 else None
+        return out
+    out["status"] = "PARTIAL"
+    return out
+
+
+def _realized_vol(closes: Sequence[float]) -> Optional[float]:
+    vals = [float(x) for x in closes]
+    if len(vals) < 4:
+        return None
+    rets: list[float] = []
+    for i in range(1, len(vals)):
+        if abs(vals[i - 1]) < 1e-9:
+            continue
+        rets.append((vals[i] - vals[i - 1]) / abs(vals[i - 1]))
+    if len(rets) < 3:
+        return None
+    mean = sum(rets) / len(rets)
+    var = sum((r - mean) ** 2 for r in rets) / (len(rets) - 1)
+    return var ** 0.5
+
+
 def classify_index_regime(
     closes: Sequence[float],
     *,
+    volumes: Optional[Sequence[Optional[float]]] = None,
     lookback: int = REGIME_LOOKBACK,
     er_max: float = REGIME_ER_MAX,
     flip_min: float = REGIME_FLIP_MIN,
     range_atr_max: float = REGIME_RANGE_ATR_MAX,
+    greeks: Optional[dict[str, Any]] = None,
 ) -> dict[str, Any]:
-    """TREND | SIDEWAYS | UNKNOWN from INDEX 1m closes only. HYPOTHESIS. No option L2."""
+    """TREND | SIDEWAYS | UNKNOWN. Kaufman ER + VWAP + EMA 15/21 + last-3 vol + RSI + greeks.
+
+    HYPOTHESIS overlay. Missing volume/greeks → DATA_INSUFFICIENT votes, never invented.
+    """
     vals = [float(x) for x in closes if x is not None]
     n = len(vals)
     base = {
@@ -209,11 +336,22 @@ def classify_index_regime(
         "flip_frac": None,
         "range_over_atr": None,
         "net_signed": None,
+        "vwap": None,
+        "ema": None,
+        "ema_len": None,
+        "rsi": None,
+        "vol_expand": None,
+        "realized_vol": None,
         "reason": "short_index_path",
     }
     if n < REGIME_MIN_BARS:
         return base
-    window = vals[-max(REGIME_MIN_BARS, int(lookback)) :]
+    win_n = max(REGIME_MIN_BARS, int(lookback))
+    window = vals[-win_n:]
+    vol_all = list(volumes) if volumes is not None else [None] * n
+    if len(vol_all) < n:
+        vol_all = vol_all + [None] * (n - len(vol_all))
+    vol_win = vol_all[-len(window) :]
     diffs = [window[i] - window[i - 1] for i in range(1, len(window))]
     path = sum(abs(d) for d in diffs)
     net = abs(window[-1] - window[0])
@@ -227,26 +365,97 @@ def classify_index_regime(
     flip_frac = (flips / (len(nz) - 1)) if len(nz) > 1 else 0.0
     mean = sum(window) / len(window)
     mid_dev_atr = (abs(window[-1] - mean) / atr) if atr > 1e-9 else 999.0
+    vwap, vwap_src = _vwap_window(window, vol_win)
+    ema_len = 21 if len(vals) >= 21 else 15
+    ema = _ema_last(vals, ema_len)
+    rsi = _rsi_last(vals, 14)
+    vol_pack = _vol_last3(vol_win)
+    rv = _realized_vol(window)
+    last = window[-1]
+    net_signed = window[-1] - window[0]
+    votes_up = 0
+    votes_down = 0
+    if net_signed > 0:
+        votes_up += 1
+    elif net_signed < 0:
+        votes_down += 1
+    if vwap is not None:
+        if last > vwap:
+            votes_up += 1
+        elif last < vwap:
+            votes_down += 1
+    if ema is not None:
+        if last > ema:
+            votes_up += 1
+        elif last < ema:
+            votes_down += 1
+    if rsi is not None:
+        if rsi >= float(REGIME_RSI_MID_HI):
+            votes_up += 1
+        elif rsi <= float(REGIME_RSI_MID_LO):
+            votes_down += 1
+    greeks = greeks or {}
+    iv = greeks.get("iv")
+    ce_d = greeks.get("ce_delta")
+    pe_d = greeks.get("pe_delta")
+    try:
+        if ce_d is not None and pe_d is not None:
+            if abs(float(ce_d)) > abs(float(pe_d)) + 0.05:
+                votes_up += 1
+            elif abs(float(pe_d)) > abs(float(ce_d)) + 0.05:
+                votes_down += 1
+    except (TypeError, ValueError):
+        pass
+    if votes_up >= 3 and votes_up > votes_down:
+        direction = "UP"
+    elif votes_down >= 3 and votes_down > votes_up:
+        direction = "DOWN"
+    elif net_signed > 0 and votes_up > votes_down:
+        direction = "UP"
+    elif net_signed < 0 and votes_down > votes_up:
+        direction = "DOWN"
+    else:
+        direction = "FLAT"
     chop = er <= float(er_max) and (
         flip_frac >= float(flip_min) or range_over_atr <= float(range_atr_max)
     )
     tight_mr = er <= float(er_max) and mid_dev_atr < 1.25 and range_over_atr <= float(range_atr_max)
-    if chop or tight_mr:
+    rsi_mid = rsi is not None and float(REGIME_RSI_MID_LO) < float(rsi) < float(REGIME_RSI_MID_HI)
+    near_vwap = vwap is not None and atr > 1e-9 and abs(last - vwap) / atr < 0.75
+    iv_chop = False
+    try:
+        if iv is not None and float(iv) >= 25.0 and er <= float(er_max):
+            iv_chop = True
+    except (TypeError, ValueError):
+        iv_chop = False
+    aligned = False
+    if direction == "UP":
+        ok_v = vwap is None or last > vwap
+        ok_e = ema is None or last > ema
+        aligned = ok_v and ok_e and (vwap is not None or ema is not None)
+    elif direction == "DOWN":
+        ok_v = vwap is None or last < vwap
+        ok_e = ema is None or last < ema
+        aligned = ok_v and ok_e and (vwap is not None or ema is not None)
+    er_trend = er >= 0.45 or (er >= 0.35 and range_over_atr >= 5.0)
+    vol_expand = vol_pack.get("expand")
+    if chop or tight_mr or rsi_mid or iv_chop or (near_vwap and er <= float(er_max)):
         regime = "SIDEWAYS"
-        reason = "low_er_flips_or_tight_band"
-    elif er >= 0.45 or (er >= 0.35 and range_over_atr >= 5.0):
+        reason = "low_er_rsi_mid_or_vwap_band"
+        if iv_chop:
+            reason = "iv_rich_chop"
+        elif rsi_mid:
+            reason = "rsi_mid_sideways"
+    elif er_trend and aligned and direction in {"UP", "DOWN"} and vol_expand is not False:
         regime = "TREND"
-        reason = "directional_index_path"
+        reason = "er_vwap_ema_vol_rsi"
+    elif er_trend and not aligned:
+        regime = "UNKNOWN"
+        reason = "er_vs_vwap_ema_disagree"
+        direction = "FLAT"
     else:
         regime = "UNKNOWN"
         reason = "mixed_index_path"
-    net_signed = window[-1] - window[0]
-    if net_signed > 0:
-        direction = "UP"
-    elif net_signed < 0:
-        direction = "DOWN"
-    else:
-        direction = "FLAT"
     return {
         "regime": regime,
         "direction": direction,
@@ -258,8 +467,54 @@ def classify_index_regime(
         "range_over_atr": round(range_over_atr, 4),
         "mid_dev_atr": round(float(mid_dev_atr), 4) if mid_dev_atr < 900 else None,
         "net_signed": round(float(net_signed), 4),
+        "vwap": round(float(vwap), 4) if vwap is not None else None,
+        "vwap_src": vwap_src,
+        "ema": round(float(ema), 4) if ema is not None else None,
+        "ema_len": ema_len,
+        "rsi": round(float(rsi), 2) if rsi is not None else None,
+        "vol_expand": vol_expand,
+        "vol_status": vol_pack.get("status"),
+        "vol_last3_sum": vol_pack.get("last3_sum"),
+        "realized_vol": round(float(rv), 6) if rv is not None else None,
+        "iv": iv,
+        "votes_up": votes_up,
+        "votes_down": votes_down,
         "reason": reason,
     }
+
+
+def regime_rr_adjust(
+    classified: Optional[dict[str, Any]],
+    *,
+    stop_frac: float,
+    target_frac: float,
+) -> dict[str, Any]:
+    """Paper R:R from 1m realized vol + last-3 volume. Never invents greeks. NO_PROMOTE."""
+    sf = float(stop_frac)
+    tf = float(target_frac)
+    notes: list[str] = []
+    pack = classified or {}
+    if str(pack.get("regime") or "") != "TREND":
+        return {"stop_frac": sf, "target_frac": tf, "notes": notes}
+    if pack.get("vol_expand") is True:
+        tf = min(0.70, tf * 1.06)
+        notes.append("last-3 1m volume expanding vs prior-3: slightly better paper target")
+    rv = pack.get("realized_vol")
+    try:
+        if rv is not None and float(rv) >= REGIME_RV_WIDEN:
+            sf = min(0.55, sf * 1.10)
+            tf = min(tf, float(TARGET_FRAC))
+            notes.append("high 1m realized vol: wider stop, cap target (do not 3–4× R)")
+    except (TypeError, ValueError):
+        pass
+    iv = pack.get("iv")
+    try:
+        if iv is not None and float(iv) >= 22.0:
+            sf = min(0.55, sf * 1.08)
+            notes.append("chain IV elevated: wider stop only")
+    except (TypeError, ValueError):
+        pass
+    return {"stop_frac": sf, "target_frac": tf, "notes": notes}
 
 
 def allocate_desk_capital(
@@ -586,6 +841,7 @@ def greeks_paper_adjust(
     gamma: Optional[float] = None,
     theta: Optional[float] = None,
     iv: Optional[float] = None,
+    classified: Optional[dict[str, Any]] = None,
 ) -> dict[str, Any]:
     """Paper-only overlay from QUANT books. Missing greeks → no skip, no invent."""
     notes: list[str] = []
@@ -597,8 +853,10 @@ def greeks_paper_adjust(
             "target_frac": target_frac,
             "notes": [f"|delta|={delta} < {DELTA_SKIP_BELOW} (HAUS ~40d adverse)"],
         }
-    sf = float(stop_frac)
-    tf = float(target_frac)
+    rr = regime_rr_adjust(classified, stop_frac=stop_frac, target_frac=target_frac)
+    sf = float(rr["stop_frac"])
+    tf = float(rr["target_frac"])
+    notes.extend(list(rr.get("notes") or []))
     if iv is not None and float(iv) >= 25.0:
         sf = min(0.55, sf * 1.15)
         notes.append(f"IV={iv}: wider paper STOP only — must not widen target")
@@ -764,6 +1022,7 @@ class OpenPaper:
     agent_status: str = "WORKING_LIMIT"
     cancel_eligible: bool = False
     idx_volume: Optional[float] = None
+    last_updated_ts: Optional[int] = None
 
 
 @dataclass
@@ -1121,6 +1380,7 @@ def _unfilled_reason(
     index_ltp: Optional[float] = None,
     session_iv: Optional[float] = None,
     wing_iv_list: Optional[Sequence[float]] = None,
+    index_regime: Optional[str] = None,
 ) -> Optional[str]:
     """Working buy limit. Do not assume a fill. Cancel if the candle walked away."""
     px = float(ltp)
@@ -1143,6 +1403,10 @@ def _unfilled_reason(
         return "CANCEL_UNFILLED_THESIS"
     if live_delta is not None and abs(float(live_delta)) < DELTA_SKIP_BELOW:
         return "CANCEL_UNFILLED_DELTA"
+    if str(index_regime or "") == "SIDEWAYS":
+        return "CANCEL_UNFILLED_SIDEWAYS"
+    if str(index_regime or "") == "UNKNOWN":
+        return "CANCEL_UNFILLED_REGIME_WAIT"
     g_dead = _greeks_cancel_reason(
         side=pos.side,
         entry=float(pos.limit_price or pos.entry),
@@ -1180,6 +1444,7 @@ def _exit_reason(
     live_greeks: Optional[dict[str, Optional[float]]] = None,
     session_iv: Optional[float] = None,
     wing_iv_list: Optional[Sequence[float]] = None,
+    index_regime: Optional[str] = None,
 ) -> Optional[str]:
     """Exit a stuck long premium. Minute low counts. Do not wait out a dead contract."""
     px = float(ltp)
@@ -1207,6 +1472,8 @@ def _exit_reason(
         return "CANCEL_THESIS"
     if underwater and pos.side == "PE" and verdict == "BUY_CE_CONFIRM":
         return "CANCEL_THESIS"
+    if underwater and str(index_regime or "") == "SIDEWAYS":
+        return "CANCEL_SIDEWAYS"
     g_dead = _greeks_cancel_reason(
         side=pos.side,
         entry=float(pos.entry),
@@ -1298,8 +1565,10 @@ def _close(engine: BookEngine, pos: OpenPaper, *, ltp: float, ts: int, reason: s
             "regime_reason": pos.regime_reason,
             "opened_ts": pos.opened_ts,
             "closed_ts": ts,
+            "last_updated_ts": int(ts),
             "opened_ist": _ist_dt(pos.opened_ts).isoformat(timespec="seconds"),
             "closed_ist": _ist_dt(ts).isoformat(timespec="seconds"),
+            "last_updated_ist": _ist_dt(ts).isoformat(timespec="seconds"),
             "shadow": True,
             "execution": "refused",
             "promote": False,
@@ -1464,6 +1733,17 @@ def _try_open(
                 regime_direction=direction,
             )
             return
+    if regime == "TREND" and classified.get("vol_expand") is False:
+        engine.mark_skip(
+            book_id,
+            underlying,
+            VOL_NOT_EXPANDING,
+            ts=tick.ts,
+            index_regime=regime,
+            vol_status=classified.get("vol_status"),
+            vol_last3_sum=classified.get("vol_last3_sum"),
+        )
+        return
     atm = strike if strike is not None else round_atm_strike(underlying, tick.idx_close)
     want = pick_paper_strike(tick, side, atm, underlying)
     greeks = leg_greeks(tick, side, want)
@@ -1494,6 +1774,7 @@ def _try_open(
         gamma=greeks.get("gamma"),
         theta=greeks.get("theta"),
         iv=greeks.get("iv"),
+        classified=classified,
     )
     if adj.get("skip"):
         engine.mark_skip(book_id, underlying, str(adj.get("reason") or "GREEKS_SKIP"), ts=tick.ts, **{k: greeks.get(k) for k in ("delta", "theta", "iv")})
@@ -1541,6 +1822,7 @@ def _try_open(
         target_step=0,
         agent_status="WORKING_LIMIT",
         idx_volume=getattr(tick, "idx_volume", None),
+        last_updated_ts=int(tick.ts),
     )
     engine.opens[(book_id, underlying)] = pos
     engine.bump_regime_book(book_id, regime, f"OPEN_{side}")
@@ -1695,8 +1977,14 @@ def mark_to_market(
     *,
     dealer_verdict: Optional[str] = None,
     atm_strike: Optional[float] = None,
+    index_regime: Optional[str] = None,
 ) -> None:
     """Flatten/cancel OPEN tickets every bar. SIDEWAYS must not freeze an already-open book."""
+    regime = str(
+        index_regime
+        or (engine.last_regime.get(underlying.upper()) or {}).get("regime")
+        or ""
+    )
     for book_id in list(LIVE_BOOKS):
         pos = engine.opens.get((book_id, underlying))
         if pos is None:
@@ -1721,6 +2009,7 @@ def mark_to_market(
             side_low = ltp
         pos.last_ltp = float(ltp)
         pos.quote_src = src
+        pos.last_updated_ts = int(tick.ts)
         low_v = float(side_low)
         pos.seen_low = min(pos.seen_low if pos.seen_low is not None else low_v, low_v, float(ltp))
         if not pos.filled:
@@ -1739,6 +2028,7 @@ def mark_to_market(
                 index_ltp=tick.idx_close,
                 session_iv=session_iv_median(prior),
                 wing_iv_list=wing_ivs(tick.wing_quotes),
+                index_regime=regime,
             )
             if u_reason == "FILL":
                 pos.filled = True
@@ -1773,6 +2063,7 @@ def mark_to_market(
                 list((getattr(engine, "_greeks_iv_hist", None) or {}).get(underlying.upper()) or [])
             ),
             wing_iv_list=wing_ivs(tick.wing_quotes),
+            index_regime=regime,
         )
         if reason:
             exit_px = float(ltp)
@@ -1802,14 +2093,27 @@ def step_underlying(
     tick = triples[i]
     prev = triples[i - 1]
     idx_d = tick.idx_close - prev.idx_close
+    closes, vols = index_1m_close_vol_from_ticks(
+        [
+            (int(t.ts), float(t.idx_close), getattr(t, "idx_volume", None))
+            for t in triples[: i + 1]
+        ]
+    )
+    strike_hint = tick.atm_strike if tick.atm_strike is not None else round_atm_strike(und, tick.idx_close)
+    ce_g = leg_greeks(tick, "CE", float(strike_hint or 0))
+    pe_g = leg_greeks(tick, "PE", float(strike_hint or 0))
     classified = classify_index_regime(
-        index_1m_closes_from_ticks(
-            [(int(t.ts), float(t.idx_close)) for t in triples[: i + 1]]
-        ),
+        closes,
+        volumes=vols,
         lookback=engine.regime_lookback,
         er_max=engine.regime_er_max,
         flip_min=engine.regime_flip_min,
         range_atr_max=engine.regime_range_atr_max,
+        greeks={
+            "iv": (ce_g.get("iv") if ce_g.get("iv") is not None else pe_g.get("iv")),
+            "ce_delta": ce_g.get("delta"),
+            "pe_delta": pe_g.get("delta"),
+        },
     )
     engine.last_regime[und] = classified
     ce_d = tick.ce_close - prev.ce_close
@@ -2012,6 +2316,8 @@ def load_paper_params(root: Path) -> dict[str, Any]:
         "paper_add_lot",
         "max_target_r",
         "open_settle_gate",
+        "paper_book_epoch_ts",
+        "paper_book_epoch_ist",
     ):
         if key in blob and blob[key] is not None:
             out[key] = blob[key]
@@ -2043,7 +2349,7 @@ def mistakes_from_closed(closed: Sequence[dict[str, Any]]) -> list[dict[str, Any
         elif reason == "TIME":
             lesson = "TIME_EXIT_LOSS: premium faded before target; hold bars too long"
             tweak = "cut scalp_hold_bars"
-        elif reason in {"CANCEL_ADVERSE", "CANCEL_THESIS", "CANCEL_STRIKE_ROLL"}:
+        elif reason in {"CANCEL_ADVERSE", "CANCEL_THESIS", "CANCEL_STRIKE_ROLL", "CANCEL_SIDEWAYS"}:
             lesson = f"{reason}: ticket was dead; cancel instead of sitting to TIME"
             tweak = "give-up / thesis-flip / strike-roll cancel is the paper rule"
         elif reason.startswith("CANCEL_UNFILLED"):
@@ -2270,8 +2576,17 @@ def replay_paper_scalp(
             "reason": "no logit series",
         }
         idx_path: list[float] = []
+        epoch_ts = None
+        raw_epoch = params.get("paper_book_epoch_ts")
+        if raw_epoch is not None:
+            try:
+                epoch_ts = int(raw_epoch)
+            except (TypeError, ValueError):
+                epoch_ts = None
         for i, tick in enumerate(triples):
             idx_path.append(tick.idx_close)
+            if epoch_ts is not None and int(tick.ts) < epoch_ts:
+                continue
             h1 = ml001[i] if i < len(ml001) else False
             h2 = ml002[i] if i < len(ml002) else False
             g = gap[i] if i < len(gap) else False
@@ -2623,6 +2938,9 @@ def _open_ticket_row(pos: OpenPaper) -> dict[str, Any]:
     row["sl_loss_inr"] = None
     row["realized_pnl_inr"] = None
     row["opened_ist"] = _ist_dt(pos.opened_ts).isoformat(timespec="seconds")
+    updated = int(pos.last_updated_ts or pos.opened_ts)
+    row["last_updated_ts"] = updated
+    row["last_updated_ist"] = _ist_dt(updated).isoformat(timespec="seconds")
     return row
 
 
@@ -2697,7 +3015,10 @@ def build_dashboard(
                 "lot_by_und": {k: v[0] for k, v in engine.lot_by_und.items()},
             }
         )
-    open_rows = [_open_ticket_row(p) for p in engine.opens.values()]
+    open_rows = order_tickets_last_updated(
+        [_open_ticket_row(p) for p in engine.opens.values()]
+    )
+    closed_rows = order_tickets_last_updated(engine.closed)
     scored_all = [c for c in engine.closed if c.get("result") in {"SUCCESS", "LOSS"}]
     all_nets = [_net_or_points(c) for c in scored_all]
     all_gross = [float(c["gross_pnl_inr"]) for c in scored_all if c.get("gross_pnl_inr") is not None]
@@ -2834,7 +3155,8 @@ def build_dashboard(
             "data_gaps": index_gap,
         },
         "open_trades": open_rows,
-        "closed_trades": recent_closed_first(engine.closed),
+        "closed_trades": closed_rows,
+        "tickets": list(open_rows) + list(closed_rows),
         "leaderboard": board_leaderboard,
         "tv_ep_inventory": tv_inventory,
         "heartbeat": {
@@ -2868,24 +3190,37 @@ def build_dashboard(
             "No NEW paper before 09:50 IST (OPEN_SETTLE_35M / cash open 09:15 + 35m). Flatten/cancel still run. No new after 14:45. 15:00 flattens leftover OPEN.",
             "No new paper after 14:45 IST. 15:00 flattens leftover OPEN. live_session does not keep dead tickets overnight.",
             "paper_params nudge is session-only overfit. production_params_written stays false.",
-            "INDEX 1m regime TREND|SIDEWAYS|UNKNOWN is HYPOTHESIS. SIDEWAYS skips NEW paper opens; flatten/cancel still run. Feed stays live.",
-            "TREND + direction UP kills new PE (confirm/kill overlay, not a STRAT). DOWN kills new CE. Not MIX-DEFAULT-BUY production.",
+            "INDEX 1m regime TREND|SIDEWAYS|UNKNOWN is HYPOTHESIS. TREND needs Kaufman ER plus last-15m VWAP, EMA 15/21, RSI, and last-3 1m volume (greeks/IV vote when present). SIDEWAYS skips NEW and cancels unfilled; underwater filled may CANCEL_SIDEWAYS. Feed stays live.",
+            "TREND + direction UP kills new PE (confirm/kill overlay, not a STRAT). DOWN kills new CE. Shrinking last-3 volume blocks TREND. Dual-tape JSONL is kept on slate (not trimmed). Paper book epoch skips replaying old ticks as new trades. Not MIX-DEFAULT-BUY production.",
             "Founder ~57% wr during cash hours is an in-session PAPER observation, not this EOD Groww+STT filled hit rate. Not a promote.",
         ],
     }
 
 
+def ticket_last_updated_ts(row: dict[str, Any]) -> int:
+    try:
+        return int(row.get("last_updated_ts") or row.get("closed_ts") or row.get("opened_ts") or 0)
+    except (TypeError, ValueError):
+        return 0
+
+
+def order_tickets_last_updated(rows: Sequence[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Newest last_updated first. Closed rows stay a separate list (rendered last)."""
+    return sorted(list(rows), key=ticket_last_updated_ts, reverse=True)
+
+
 def recent_closed_first(closed: Sequence[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Newest closed first so the board does not bury them."""
-    return sorted(
-        list(closed),
-        key=lambda r: int(r.get("closed_ts") or 0),
-        reverse=True,
-    )
+    """Newest last_updated/closed first so the board does not bury them."""
+    return order_tickets_last_updated(closed)
 
 
-def wipe_today_paper_book(*, root: Optional[Path] = None, ist_date: Optional[str] = None) -> dict[str, Any]:
-    """Empty today's paper board. Archives dual-tape jsonl. Does not delete warehouse/sqlite."""
+def wipe_today_paper_book(
+    *,
+    root: Optional[Path] = None,
+    ist_date: Optional[str] = None,
+    keep_jsonl: bool = True,
+) -> dict[str, Any]:
+    """Empty today's paper board. Dual-tape JSONL left in place when keep_jsonl. Not warehouse/sqlite."""
     base = root or repo_root()
     day = ist_date or datetime.now(IST).date().isoformat()
     recon = base / "data" / "recon"
@@ -2893,20 +3228,33 @@ def wipe_today_paper_book(*, root: Optional[Path] = None, ist_date: Optional[str
     archive = recon / "archive"
     archive.mkdir(parents=True, exist_ok=True)
     moved: list[str] = []
-    for src in (
-        recon / "paper_watch" / "DUAL-TAPE" / f"{day}.jsonl",
-        recon / "paper_ledger" / f"{day}.jsonl",
-        recon / LOG_JSONL_NAME,
-    ):
+    tape_jsonl = recon / "paper_watch" / "DUAL-TAPE" / f"{day}.jsonl"
+    jsonl_keep: dict[str, Any] = {"ok": True, "kept": "untouched" if keep_jsonl else 0, "path": str(tape_jsonl)}
+    sources = [recon / "paper_ledger" / f"{day}.jsonl", recon / LOG_JSONL_NAME]
+    if not keep_jsonl:
+        sources = [tape_jsonl, *sources]
+    for src in sources:
         if src.is_file():
             dest = archive / f"{src.name}.{day}.pre_slate"
             dest.write_bytes(src.read_bytes())
             src.unlink()
             moved.append(str(src))
-    latest = recon / "paper_watch" / "DUAL-TAPE" / "latest.json"
-    if latest.is_file():
-        latest.unlink()
-        moved.append(str(latest))
+    if not keep_jsonl:
+        latest = recon / "paper_watch" / "DUAL-TAPE" / "latest.json"
+        if latest.is_file():
+            latest.unlink()
+            moved.append(str(latest))
+    now = datetime.now(IST)
+    epoch_ts = int(now.timestamp())
+    cur = load_paper_params(base)
+    save_paper_params(
+        base,
+        {
+            **cur,
+            "paper_book_epoch_ts": epoch_ts,
+            "paper_book_epoch_ist": now.isoformat(timespec="seconds"),
+        },
+    )
     plan = allocate_desk_capital(tradable=tradable_fill_books(has_greeks=False))
     engine = BookEngine(
         deny_model_signals=True,
@@ -2919,17 +3267,20 @@ def wipe_today_paper_book(*, root: Optional[Path] = None, ist_date: Optional[str
         engine,
         tapes={},
         steps={},
-        as_of_ist=datetime.now(IST).isoformat(timespec="seconds"),
+        as_of_ist=now.isoformat(timespec="seconds"),
         source="dual-tape",
         root=base,
         live_session=True,
         session_ist_date=day,
         paper_params=load_paper_params(base),
-        paper_param_notes=["CLEAN SLATE: today's paper book wiped. Warehouse/sqlite kept. NO_PROMOTE."],
+        paper_param_notes=[
+            "CLEAN SLATE: paper dashboard wiped. Dual-tape JSONL kept as-is. New paper book after epoch. Warehouse/sqlite kept. NO_PROMOTE."
+        ],
     )
     empty["n_closed"] = 0
     empty["closed_trades"] = []
     empty["open_trades"] = []
+    empty["tickets"] = []
     empty["clean_slate"] = True
     empty["promote"] = False
     empty["production_params_written"] = False
@@ -2939,6 +3290,9 @@ def wipe_today_paper_book(*, root: Optional[Path] = None, ist_date: Optional[str
         "session_ist_date": day,
         "archived": moved,
         "paths": paths,
+        "jsonl_keep_seconds": None,
+        "jsonl_keep": jsonl_keep,
+        "paper_book_epoch_ts": epoch_ts,
         "warehouse_deleted": False,
         "sqlite_deleted": False,
         "production_params_written": False,
@@ -3022,6 +3376,7 @@ def write_dashboard(board: dict[str, Any], *, root: Optional[Path] = None) -> di
     compact["n_open"] = len(board.get("open_trades") or [])
     compact["closed_trades_sample"] = (board.get("closed_trades") or [])[:20]
     compact["open_trades"] = board.get("open_trades") or []
+    compact["tickets"] = (board.get("open_trades") or []) + (board.get("closed_trades") or [])[:20]
     compact["mistakes"] = (board.get("mistakes") or [])[-20:]
     compact["successes"] = (board.get("successes") or [])[-12:]
     compact["note"] = "Compact mock. Full closed tape is data/recon/ml_paper_dashboard.json (gitignored)."
@@ -3118,10 +3473,27 @@ def render_markdown(board: dict[str, Any]) -> str:
         lines.append("| — | — | — | 0 | 0 | 0 | 0 | — | — | — | — | — | — |")
     lines += [
         "",
-        "## Closed tickets (newest first — strike / limit / target / SL / WIN|LOSS / money)",
+        "## Open tickets (last updated desc — strike / limit / SL / CE|PE / status)",
         "",
-        "| model | und | side | strike | limit | target | stop | status | sl_hit | money lost ₹ | pnl ₹ | WIN/LOSS | regime |",
-        "|-------|-----|------|--------|-------|--------|------|--------|--------|--------------|-------|----------|--------|",
+        "| model | und | CE/PE | strike | limit | stop | last_ltp | filled | status | regime | updated |",
+        "|-------|-----|-------|--------|-------|------|----------|--------|--------|--------|---------|",
+    ]
+    for row in board.get("open_trades") or []:
+        lines.append(
+            f"| `{row.get('book_id')}` | {row.get('underlying')} | {row.get('side')} | "
+            f"{row.get('atm_strike')} | {row.get('limit_price')} | {row.get('stop')} | "
+            f"{row.get('last_ltp')} | {row.get('filled')} | "
+            f"{row.get('status') or 'OPEN_PAPER'} | {row.get('index_regime') or '—'} | "
+            f"{row.get('last_updated_ist') or row.get('opened_ist') or '—'} |"
+        )
+    if not board.get("open_trades"):
+        lines.append("| — | — | — | — | — | — | — | — | none | — | — |")
+    lines += [
+        "",
+        "## Closed tickets (last — last updated desc — strike / limit / target / SL / WIN|LOSS / money)",
+        "",
+        "| model | und | side | strike | limit | target | stop | status | sl_hit | money lost ₹ | pnl ₹ | WIN/LOSS | regime | updated |",
+        "|-------|-----|------|--------|-------|--------|------|--------|--------|--------------|-------|----------|--------|---------|",
     ]
     for row in (board.get("closed_trades") or [])[:20]:
         lost = row.get("sl_loss_inr")
@@ -3131,26 +3503,10 @@ def render_markdown(board: dict[str, Any]) -> str:
             f"| `{row.get('book_id')}` | {row.get('underlying')} | {row.get('side')} | "
             f"{row.get('atm_strike')} | {row.get('limit_price')} | {row.get('target')} | {row.get('stop')} | "
             f"{row.get('status')} | {row.get('sl_hit')} | {lost} | {row.get('realized_pnl_inr')} | {row.get('result')} | "
-            f"{row.get('index_regime') or '—'} |"
+            f"{row.get('index_regime') or '—'} | {row.get('last_updated_ist') or row.get('closed_ist') or '—'} |"
         )
     if not board.get("closed_trades"):
-        lines.append("| — | — | — | — | — | — | — | — | — | — | — | — | — |")
-    lines += [
-        "",
-        "## Open tickets (strike / limit / SL / CE|PE / status)",
-        "",
-        "| model | und | CE/PE | strike | limit | stop | last_ltp | filled | status | regime |",
-        "|-------|-----|-------|--------|-------|------|----------|--------|--------|--------|",
-    ]
-    for row in board.get("open_trades") or []:
-        lines.append(
-            f"| `{row.get('book_id')}` | {row.get('underlying')} | {row.get('side')} | "
-            f"{row.get('atm_strike')} | {row.get('limit_price')} | {row.get('stop')} | "
-            f"{row.get('last_ltp')} | {row.get('filled')} | "
-            f"{row.get('status') or 'OPEN_PAPER'} | {row.get('index_regime') or '—'} |"
-        )
-    if not board.get("open_trades"):
-        lines.append("| — | — | — | — | — | — | — | — | none | — |")
+        lines.append("| — | — | — | — | — | — | — | — | — | — | — | — | — | — |")
     lines += [
         "",
         "## Leaderboard (book × index, ranked by net ₹)",

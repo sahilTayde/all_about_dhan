@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from datetime import datetime, timedelta, timezone
 
 from desk_ml.features import Triple
@@ -242,6 +243,23 @@ def test_recent_closed_newest_first() -> None:
     ]
     out = recent_closed_first(rows)
     assert out[0]["trade_id"] == "new"
+
+
+def test_order_tickets_open_then_closed_last_updated() -> None:
+    from desk_ml.paper_scalp import order_tickets_last_updated
+
+    closed = [
+        {"trade_id": "c-old", "closed_ts": 100, "last_updated_ts": 100},
+        {"trade_id": "c-new", "closed_ts": 300, "last_updated_ts": 300},
+    ]
+    open_rows = [
+        {"trade_id": "o-old", "opened_ts": 50, "last_updated_ts": 150},
+        {"trade_id": "o-new", "opened_ts": 80, "last_updated_ts": 400},
+    ]
+    o = order_tickets_last_updated(open_rows)
+    c = order_tickets_last_updated(closed)
+    tickets = o + c
+    assert [t["trade_id"] for t in tickets] == ["o-new", "o-old", "c-new", "c-old"]
 
 
 def test_propose_levels_uses_path_not_hero_target() -> None:
@@ -1277,6 +1295,95 @@ def test_logit_does_not_emit_ce_pe_on_first_session_3m_after_gap() -> None:
     series, _meta = logit_side_series(today_ticks, index_closes=closes, xr=False)
     assert series
     assert series[0].get("side") not in {"CE", "PE"}
+
+
+def test_classify_needs_vwap_ema_and_blocks_shrinking_volume() -> None:
+    trend = [25000.0 + i * 8.0 for i in range(40)]
+    t = classify_index_regime(trend)
+    assert t["regime"] == "TREND"
+    assert t["direction"] == "UP"
+    assert t["vwap"] is not None
+    assert t["ema"] is not None
+    assert t["ema_len"] in {15, 21}
+    assert t["rsi"] is not None and t["rsi"] >= 55
+    shrink = [1000.0] * 34 + [900.0, 800.0, 700.0, 600.0, 500.0, 400.0]
+    blocked = classify_index_regime(trend, volumes=shrink)
+    assert blocked["vol_expand"] is False
+    assert blocked["regime"] != "TREND"
+
+
+def test_unfilled_cancels_when_index_turns_sideways() -> None:
+    engine = BookEngine()
+    pos = OpenPaper(
+        book_id="MIX-DEFAULT-BUY",
+        underlying="NIFTY",
+        side="CE",
+        trade_id="working-sideways",
+        entry=120.0,
+        stop=80.0,
+        target=140.0,
+        atm_strike=25000.0,
+        opened_ts=_ts(12) - 30,
+        opened_bar=12,
+        strike_source="TEST",
+        limit_price=117.0,
+        filled=False,
+        index_regime="TREND",
+    )
+    engine.opens[("MIX-DEFAULT-BUY", "NIFTY")] = pos
+    engine.last_regime["NIFTY"] = {"regime": "SIDEWAYS", "direction": "FLAT"}
+    tick = Triple(ts=_ts(12), idx_close=25000.0, ce_close=118.0, pe_close=110.0)
+    mark_to_market(engine, tick, "NIFTY", 12, index_regime="SIDEWAYS")
+    assert engine.has_open("MIX-DEFAULT-BUY", "NIFTY") is False
+    assert engine.closed and engine.closed[0]["exit_reason"] == "CANCEL_UNFILLED_SIDEWAYS"
+
+
+def test_wipe_leaves_dual_tape_jsonl(tmp_path) -> None:
+    from desk_ml.paper_scalp import wipe_today_paper_book
+    from trading_agents_india.session_clock import IST as IST_TZ
+
+    day = "2026-09-17"
+    folder = tmp_path / "data" / "recon" / "paper_watch" / "DUAL-TAPE"
+    folder.mkdir(parents=True)
+    path = folder / f"{day}.jsonl"
+    now = datetime(2026, 9, 17, 12, 0, tzinfo=IST_TZ)
+    lines = []
+    for i in range(40):
+        ts = now.timestamp() - (40 - i) * 60
+        dt = datetime.fromtimestamp(ts, tz=IST_TZ)
+        lines.append(json.dumps({"as_of_ist": dt.isoformat(timespec="seconds"), "tick_index": i}))
+    body = "\n".join(lines) + "\n"
+    path.write_text(body, encoding="utf-8")
+    (tmp_path / "data" / "recon" / "paper_ledger").mkdir(parents=True)
+    out = wipe_today_paper_book(root=tmp_path, ist_date=day)
+    assert out["ok"] is True
+    assert path.read_text(encoding="utf-8") == body
+    assert out["jsonl_keep"]["kept"] == "untouched"
+    assert out.get("paper_book_epoch_ts")
+
+
+def test_paper_book_epoch_does_not_replay_old_opens(tmp_path) -> None:
+    from desk_ml.paper_scalp import DEFAULT_PAPER_PARAMS, replay_paper_scalp
+
+    triples = _triples(n=40, trend=8.0)
+    epoch = int(triples[25].ts)
+    recon = tmp_path / "data" / "recon"
+    recon.mkdir(parents=True)
+    (recon / "ml_paper_session_params.json").write_text(
+        json.dumps({**DEFAULT_PAPER_PARAMS, "paper_book_epoch_ts": epoch}),
+        encoding="utf-8",
+    )
+    board = replay_paper_scalp(
+        root=tmp_path,
+        underlyings=("NIFTY",),
+        triples_by_und={"NIFTY": triples},
+        write=False,
+        live_session=True,
+        deny_model_signals=False,
+    )
+    for row in list(board.get("closed_trades") or []) + list(board.get("open_trades") or []):
+        opened = int(row.get("opened_ts") or 0)
+        assert opened >= epoch
 
 
 

@@ -47,16 +47,39 @@ def _minute_key(ts: int) -> int:
 
 def index_1m_closes_from_ticks(ts_close: Sequence[tuple[int, float]]) -> list[float]:
     """Last INDEX close per minute bucket. Not a 10s bar. Does not fabricate minutes."""
-    buckets: dict[int, float] = {}
+    closes, _vols = index_1m_close_vol_from_ticks(
+        [(int(ts), float(close), None) for ts, close in ts_close if close is not None]
+    )
+    return closes
+
+
+def index_1m_close_vol_from_ticks(
+    ts_close_vol: Sequence[tuple[int, float, Optional[float]]],
+) -> tuple[list[float], list[Optional[float]]]:
+    """Last INDEX close + volume per minute bucket. Volume None if Dhan never stamped it."""
+    buckets: dict[int, tuple[float, Optional[float]]] = {}
     order: list[int] = []
-    for ts, close in ts_close:
-        if close is None:
+    for row in ts_close_vol:
+        if len(row) < 2 or row[1] is None:
             continue
-        k = minute_key(int(ts))
+        ts, close = int(row[0]), float(row[1])
+        vol = row[2] if len(row) > 2 else None
+        k = minute_key(ts)
         if k not in buckets:
             order.append(k)
-        buckets[k] = float(close)
-    return [buckets[k] for k in order]
+        prev_vol = buckets[k][1] if k in buckets else None
+        stamped: Optional[float]
+        if vol is None:
+            stamped = prev_vol
+        else:
+            try:
+                fv = float(vol)
+            except (TypeError, ValueError):
+                stamped = prev_vol
+            else:
+                stamped = fv if fv > 0 else prev_vol
+        buckets[k] = (close, stamped)
+    return [buckets[k][0] for k in order], [buckets[k][1] for k in order]
 
 
 def ist_calendar_date(ts: int) -> str:

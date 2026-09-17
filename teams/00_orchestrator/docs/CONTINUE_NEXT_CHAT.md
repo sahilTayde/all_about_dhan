@@ -44,6 +44,18 @@ Left off 2026-09-13: ITM champion PAPER board ready (MIX-CHAMP-* + desk leaderbo
 
 ---
 
+## Left-off 2026-09-17 — wipe board keep JSONL, ticket sort, restart paper (NO_PROMOTE)
+
+**Now:** Paper dashboard wiped. Dual-tape JSONL **untouched**. `paper_book_epoch_ts` skips replaying old ticks as trades. Tickets: OPEN first, CLOSED last; each list last_updated desc. Dual-tape `--paper-scalp` 10s restarted. Gate **not** `RESEARCH_READY_FOR_PROGRAMMING`. **NO_PROMOTE.**
+
+**Next:** Watch `/pm` `/desk` `GET /paper/ml-books`. Stop: `touch data/recon/paper_dual_tape_STOPPED.flag`. Do not git-add sqlite.
+
+## Left-off 2026-09-17 — 15m JSONL + VWAP/EMA/vol/RSI/greeks regime (NO_PROMOTE)
+
+**Now:** CLEAN SLATE wipes the paper book and **keeps last 15 minutes** of dual-tape JSONL (rolling trim on each persist). NEW opens: TREND needs Kaufman ER **and** last-15m VWAP + EMA 15 (or 21 if enough bars) + RSI off mid-band; last-3 1m volume must not shrink; Dhan greeks/IV vote when present (never invented). SIDEWAYS skips NEW and cancels unfilled; underwater filled may `CANCEL_SIDEWAYS`. Paper R:R: expanding volume can nudge target; high 1m realized vol / rich IV widens stop and caps target. Dual-tape **10s REST** stays LTP. Gate **not** `RESEARCH_READY_FOR_PROGRAMMING`. **NO_PROMOTE.** Paper wr is not a promote.
+
+**Next:** Watch `/pm` `/desk` `GET /paper/ml-books`. Stop: `touch data/recon/paper_dual_tape_STOPPED.flag`. Do not git-add sqlite. Do not restart npm.
+
 ## Left-off 2026-09-17 — paper-scalp 1m clock (NO_PROMOTE)
 
 **Now:** Dual-tape **10s REST** stays LTP detail. NEW paper opens classify INDEX regime on **minute-bucketed** closes (`REGIME_MIN_BARS=12`). UNKNOWN → `REGIME_UNKNOWN_WAIT`. SIDEWAYS → `SIDEWAYS_HOLD`. TREND still kills PE on UP / CE on DOWN. Flatten/cancel/MTM still every 10s LTP. 3m `lean_ml_logit` skips the first IST session bar after a calendar-day gap; `logit_side_series` does not stick yesterday’s last 3m lean onto today’s 10s ticks. Unfilled cancel = `UNFILLED_SECONDS` (120s), not 2×10s `bar_i`. Time-exit = `hold_bars * 60` wall-clock. stop_frac/target_frac still on premium. Warehouse INDEX 1m not fabricated. Gate **not** `RESEARCH_READY_FOR_PROGRAMMING`. **NO_PROMOTE.** Paper wr is not a promote.

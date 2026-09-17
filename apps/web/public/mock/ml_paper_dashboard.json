@@ -1,7 +1,7 @@
 {
   "ok": true,
   "job": "ML_PAPER_SCALP",
-  "as_of_ist": "2026-09-17T11:26:54+05:30",
+  "as_of_ist": "2026-09-17T12:38:09+05:30",
   "gate": "not RESEARCH_READY_FOR_PROGRAMMING",
   "promote": false,
   "win_rate": null,
@@ -13,42 +13,42 @@
   "n_closed": 0,
   "n_wins": 0,
   "n_losses": 0,
-  "starting_capital_inr_per_book": 23333.34,
+  "starting_capital_inr_per_book": 17500.0,
   "capital_per_book": {
-    "MIX-DEFAULT-BUY": 23333.34,
+    "MIX-DEFAULT-BUY": 17500.0,
     "ML-001": 0.0,
     "ML-002": 0.0,
     "ML-1": 0.0,
-    "MIX-ML-LOGIT": 23333.33,
-    "MIX-ML-LOGIT-XR": 23333.33,
+    "MIX-ML-LOGIT": 17500.0,
+    "MIX-ML-LOGIT-XR": 17500.0,
     "MIX-TV-EP-024": 0.0,
-    "MIX-ML-GREEKS": 0.0
+    "MIX-ML-GREEKS": 17500.0
   },
   "capital_plan": {
     "desk_capital_inr": 70000.0,
     "n_books": 8,
-    "n_tradable": 3,
+    "n_tradable": 4,
     "tradable": [
       "MIX-DEFAULT-BUY",
       "MIX-ML-LOGIT",
-      "MIX-ML-LOGIT-XR"
+      "MIX-ML-LOGIT-XR",
+      "MIX-ML-GREEKS"
     ],
     "skipped": [
       "ML-001",
       "ML-002",
       "ML-1",
-      "MIX-TV-EP-024",
-      "MIX-ML-GREEKS"
+      "MIX-TV-EP-024"
     ],
     "per_book": {
-      "MIX-DEFAULT-BUY": 23333.34,
+      "MIX-DEFAULT-BUY": 17500.0,
       "ML-001": 0.0,
       "ML-002": 0.0,
       "ML-1": 0.0,
-      "MIX-ML-LOGIT": 23333.33,
-      "MIX-ML-LOGIT-XR": 23333.33,
+      "MIX-ML-LOGIT": 17500.0,
+      "MIX-ML-LOGIT-XR": 17500.0,
       "MIX-TV-EP-024": 0.0,
-      "MIX-ML-GREEKS": 0.0
+      "MIX-ML-GREEKS": 17500.0
     },
     "unallocated_inr": 0.0,
     "note": "Equal split of \u20b970,000 across tradable fill books (logit + dealer-confirm + XR-own-side + greeks if tape). Observe clones get \u20b90. Not 10k\u00d78.",
@@ -65,10 +65,87 @@
   "session_ist_date": "2026-09-17",
   "title": "LIVE SESSION",
   "n_open": 0,
-  "n_skip_sideways": 0,
-  "n_sideways_bars": 0,
+  "n_skip_sideways": 8,
+  "n_skip_regime_unknown": 4,
+  "n_sideways_bars": 4,
   "n_sl_hit": 0,
-  "last_index_regime": {},
+  "last_index_regime": {
+    "NIFTY": {
+      "regime": "UNKNOWN",
+      "direction": "UP",
+      "layer": "HYPOTHESIS",
+      "n": 25,
+      "lookback": 20,
+      "er": 0.124,
+      "flip_frac": 0.2778,
+      "range_over_atr": 6.0595,
+      "mid_dev_atr": 2.1952,
+      "net_signed": 7.6,
+      "vwap": 23347.592,
+      "vwap_src": "OK",
+      "ema": 23347.3154,
+      "ema_len": 21,
+      "rsi": 65.1,
+      "vol_expand": false,
+      "vol_status": "OK",
+      "vol_last3_sum": 298212.0,
+      "realized_vol": 0.000181,
+      "iv": 10.455667300227834,
+      "votes_up": 5,
+      "votes_down": 0,
+      "reason": "mixed_index_path"
+    },
+    "BANKNIFTY": {
+      "regime": "SIDEWAYS",
+      "direction": "UP",
+      "layer": "HYPOTHESIS",
+      "n": 25,
+      "lookback": 20,
+      "er": 0.1126,
+      "flip_frac": 0.3889,
+      "range_over_atr": 8.3638,
+      "mid_dev_atr": 1.2796,
+      "net_signed": -22.4,
+      "vwap": 56350.9661,
+      "vwap_src": "OK",
+      "ema": 56351.7989,
+      "ema_len": 21,
+      "rsi": 57.34,
+      "vol_expand": false,
+      "vol_status": "OK",
+      "vol_last3_sum": 195483.0,
+      "realized_vol": 0.000245,
+      "iv": 13.861697979758183,
+      "votes_up": 4,
+      "votes_down": 1,
+      "reason": "low_er_rsi_mid_or_vwap_band"
+    },
+    "SENSEX": {
+      "regime": "SIDEWAYS",
+      "direction": "UP",
+      "layer": "HYPOTHESIS",
+      "n": 25,
+      "lookback": 20,
+      "er": 0.0969,
+      "flip_frac": 0.4444,
+      "range_over_atr": 7.0092,
+      "mid_dev_atr": 1.6813,
+      "net_signed": 18.24,
+      "vwap": 74626.4448,
+      "vwap_src": "OK",
+      "ema": 74622.709,
+      "ema_len": 21,
+      "rsi": 63.92,
+      "vol_expand": true,
+      "vol_status": "OK",
+      "vol_last3_sum": 39440.0,
+      "realized_vol": 0.000166,
+      "iv": 17.78556004944852,
+      "votes_up": 5,
+      "votes_down": 0,
+      "reason": "low_er_rsi_mid_or_vwap_band"
+    }
+  },
   "paper_params": {
     "stop_frac": 0.38,
     "target_frac": 0.55,
@@ -86,12 +163,14 @@
     "paper_add_lot": false,
     "max_target_r": 2.0,
     "open_settle_gate": "NO_NEW_BEFORE_0950",
+    "paper_book_epoch_ts": 1789628765,
     "production_params_written": false,
     "note": "PAPER session only. Never writes MIX-DEFAULT-BUY.",
-    "nudge_n_closed": 494
+    "nudge_n_closed": 494,
+    "paper_book_epoch_ist": "2026-09-17T12:36:05+05:30"
   },
   "paper_param_notes": [
-    "CLEAN SLATE: today's paper book wiped. Warehouse/sqlite kept. NO_PROMOTE."
+    "need \u22658 session closes before paper-param nudge"
   ],
   "ticket_columns": [
     "book_id",
@@ -113,9 +192,9 @@
   "source": "dual-tape",
   "independent_books": true,
   "scalper_exits": {
-    "stop": "long premium LTP <= entry - 0.4\u00d7same-side path range",
+    "stop": "long premium LTP <= entry - 0.38\u00d7same-side path range",
     "target": "LTP >= entry + 0.55\u00d7path range",
-    "time": "8 1m bars or wall-clock",
+    "time": "540s wall-clock (scalp_hold_bars=9 \u00d7 1m); not 10s bar_i",
     "cancel_adverse": "same-side low <= entry\u00d7(1-0.12)",
     "cancel_thesis": "opposite BUY_*_CONFIRM only if already underwater vs entry",
     "cancel_greeks": "|delta| too low / IV rich / theta late on live chain \u2014 cancel WORKING or OPEN",
@@ -129,7 +208,7 @@
     {
       "model_id": "MIX-DEFAULT-BUY",
       "what": "Dealer CE/PE from INDEX vs ATM CE/PE deltas. Customer default ID; PAPER only.",
-      "last_run_ist": "2026-09-17T11:26:54+05:30",
+      "last_run_ist": "2026-09-17T12:37:28+05:30",
       "open": [],
       "n_closed": 0,
       "n_open": 0,
@@ -139,20 +218,24 @@
       "sum_gross_pnl_inr": null,
       "sum_charges_inr": null,
       "sum_pnl_inr": null,
-      "starting_capital_inr": 23333.34,
-      "equity_inr": 23333.34,
+      "starting_capital_inr": 17500.0,
+      "equity_inr": 17500.0,
       "win_rate": null,
       "win_rate_pct": null,
       "win_rate_net_pct": null,
       "win_rate_gross": null,
       "win_rate_gross_pct": null,
       "win_rate_kind": "paper_closed_net_inr_gt_0_after_groww_stt",
-      "lot_by_und": {}
+      "lot_by_und": {
+        "NIFTY": 65,
+        "BANKNIFTY": 30,
+        "SENSEX": 20
+      }
     },
     {
       "model_id": "ML-001",
       "what": "KMeans+IsolationForest overlay. SKIP if HOLD/FOLLOW-GAP. Does not invent CE/PE.",
-      "last_run_ist": "2026-09-17T11:26:54+05:30",
+      "last_run_ist": "2026-09-17T12:37:28+05:30",
       "open": [],
       "n_closed": 0,
       "n_open": 0,
@@ -170,12 +253,16 @@
       "win_rate_gross": null,
       "win_rate_gross_pct": null,
       "win_rate_kind": "paper_closed_net_inr_gt_0_after_groww_stt",
-      "lot_by_und": {}
+      "lot_by_und": {
+        "NIFTY": 65,
+        "BANKNIFTY": 30,
+        "SENSEX": 20
+      }
     },
     {
       "model_id": "ML-002",
       "what": "OU residual |z|\u22652 or FOLLOW-GAP SKIP. Windows 40/60/90. Does not invent CE/PE.",
-      "last_run_ist": "2026-09-17T11:26:54+05:30",
+      "last_run_ist": "2026-09-17T12:37:28+05:30",
       "open": [],
       "n_closed": 0,
       "n_open": 0,
@@ -193,12 +280,16 @@
       "win_rate_gross": null,
       "win_rate_gross_pct": null,
       "win_rate_kind": "paper_closed_net_inr_gt_0_after_groww_stt",
-      "lot_by_und": {}
+      "lot_by_und": {
+        "NIFTY": 65,
+        "BANKNIFTY": 30,
+        "SENSEX": 20
+      }
     },
     {
       "model_id": "ML-1",
       "what": "Meta-label take/skip on closed paper labels. Else DATA_INSUFFICIENT.",
-      "last_run_ist": "2026-09-17T11:26:54+05:30",
+      "last_run_ist": "2026-09-17T12:37:28+05:30",
       "open": [],
       "n_closed": 0,
       "n_open": 0,
@@ -216,12 +307,16 @@
       "win_rate_gross": null,
       "win_rate_gross_pct": null,
       "win_rate_kind": "paper_closed_net_inr_gt_0_after_groww_stt",
-      "lot_by_und": {}
+      "lot_by_und": {
+        "NIFTY": 65,
+        "BANKNIFTY": 30,
+        "SENSEX": 20
+      }
     },
     {
       "model_id": "MIX-ML-LOGIT",
       "what": "INDEX 3m walk-forward logit (ml_leans.py). Scan book. Not customer default.",
-      "last_run_ist": "2026-09-17T11:26:54+05:30",
+      "last_run_ist": "2026-09-17T12:37:28+05:30",
       "open": [],
       "n_closed": 0,
       "n_open": 0,
@@ -231,20 +326,24 @@
       "sum_gross_pnl_inr": null,
       "sum_charges_inr": null,
       "sum_pnl_inr": null,
-      "starting_capital_inr": 23333.33,
-      "equity_inr": 23333.33,
+      "starting_capital_inr": 17500.0,
+      "equity_inr": 17500.0,
       "win_rate": null,
       "win_rate_pct": null,
       "win_rate_net_pct": null,
       "win_rate_gross": null,
       "win_rate_gross_pct": null,
       "win_rate_kind": "paper_closed_net_inr_gt_0_after_groww_stt",
-      "lot_by_und": {}
+      "lot_by_und": {
+        "NIFTY": 65,
+        "BANKNIFTY": 30,
+        "SENSEX": 20
+      }
     },
     {
       "model_id": "MIX-ML-LOGIT-XR",
       "what": "Logit AND range-expansion. Scan book. Not customer default.",
-      "last_run_ist": "2026-09-17T11:26:54+05:30",
+      "last_run_ist": "2026-09-17T12:37:28+05:30",
       "open": [],
       "n_closed": 0,
       "n_open": 0,
@@ -254,20 +353,24 @@
       "sum_gross_pnl_inr": null,
       "sum_charges_inr": null,
       "sum_pnl_inr": null,
-      "starting_capital_inr": 23333.33,
-      "equity_inr": 23333.33,
+      "starting_capital_inr": 17500.0,
+      "equity_inr": 17500.0,
       "win_rate": null,
       "win_rate_pct": null,
       "win_rate_net_pct": null,
       "win_rate_gross": null,
       "win_rate_gross_pct": null,
       "win_rate_kind": "paper_closed_net_inr_gt_0_after_groww_stt",
-      "lot_by_und": {}
+      "lot_by_und": {
+        "NIFTY": 65,
+        "BANKNIFTY": 30,
+        "SENSEX": 20
+      }
     },
     {
       "model_id": "MIX-TV-EP-024",
       "what": "Factory SMA20 INDEX calibrator \u2192 ATM CE/PE. KEEP_ALL lab. Not a promote.",
-      "last_run_ist": "2026-09-17T11:26:54+05:30",
+      "last_run_ist": "2026-09-17T12:37:28+05:30",
       "open": [],
       "n_closed": 0,
       "n_open": 0,
@@ -285,12 +388,16 @@
       "win_rate_gross": null,
       "win_rate_gross_pct": null,
       "win_rate_kind": "paper_closed_net_inr_gt_0_after_groww_stt",
-      "lot_by_und": {}
+      "lot_by_und": {
+        "NIFTY": 65,
+        "BANKNIFTY": 30,
+        "SENSEX": 20
+      }
     },
     {
       "model_id": "MIX-ML-GREEKS",
       "what": "TOKEN_ML ML-2 paper: Dhan delta/IV/theta/gamma. HOLD rich vol / late theta / missing greeks. Not customer default.",
-      "last_run_ist": "2026-09-17T11:26:54+05:30",
+      "last_run_ist": "2026-09-17T12:37:28+05:30",
       "open": [],
       "n_closed": 0,
       "n_open": 0,
@@ -300,15 +407,19 @@
       "sum_gross_pnl_inr": null,
       "sum_charges_inr": null,
       "sum_pnl_inr": null,
-      "starting_capital_inr": 0.0,
-      "equity_inr": 0.0,
+      "starting_capital_inr": 17500.0,
+      "equity_inr": 17500.0,
       "win_rate": null,
       "win_rate_pct": null,
       "win_rate_net_pct": null,
       "win_rate_gross": null,
       "win_rate_gross_pct": null,
       "win_rate_kind": "paper_closed_net_inr_gt_0_after_groww_stt",
-      "lot_by_und": {}
+      "lot_by_und": {
+        "NIFTY": 65,
+        "BANKNIFTY": 30,
+        "SENSEX": 20
+      }
     }
   ],
   "leaderboard": [],
@@ -329,7 +440,7 @@
       "win_rate_pct": null,
       "win_rate_net_pct": null,
       "win_rate_gross_pct": null,
-      "starting_capital_inr": 23333.34
+      "starting_capital_inr": 17500.0
     },
     {
       "rank": 2,
@@ -401,7 +512,7 @@
       "win_rate_pct": null,
       "win_rate_net_pct": null,
       "win_rate_gross_pct": null,
-      "starting_capital_inr": 23333.33
+      "starting_capital_inr": 17500.0
     },
     {
       "rank": 6,
@@ -419,7 +530,7 @@
       "win_rate_pct": null,
       "win_rate_net_pct": null,
       "win_rate_gross_pct": null,
-      "starting_capital_inr": 23333.33
+      "starting_capital_inr": 17500.0
     },
     {
       "rank": 7,
@@ -455,7 +566,7 @@
       "win_rate_pct": null,
       "win_rate_net_pct": null,
       "win_rate_gross_pct": null,
-      "starting_capital_inr": 0.0
+      "starting_capital_inr": 17500.0
     }
   ],
   "today": {
@@ -493,7 +604,7 @@
       "win_rate_pct": null,
       "win_rate_net_pct": null,
       "win_rate_gross_pct": null,
-      "starting_capital_inr": 23333.34
+      "starting_capital_inr": 17500.0
     },
     "worst_book": {
       "rank": 8,
@@ -511,7 +622,7 @@
       "win_rate_pct": null,
       "win_rate_net_pct": null,
       "win_rate_gross_pct": null,
-      "starting_capital_inr": 0.0
+      "starting_capital_inr": 17500.0
     },
     "best_ml_book": {
       "rank": 2,
@@ -561,9 +672,86 @@
       ],
       "note": "Filled buy+sell = 2 Groww orders. STT on exit premium \u00d7 qty. CANCELLED unfilled = \u20b90 charges. Cannot CANDIDATE from this board."
     },
-    "n_skip_sideways": 0,
-    "n_sideways_bars": 0,
-    "last_index_regime": {}
+    "n_skip_sideways": 8,
+    "n_skip_regime_unknown": 4,
+    "n_sideways_bars": 4,
+    "last_index_regime": {
+      "NIFTY": {
+        "regime": "UNKNOWN",
+        "direction": "UP",
+        "layer": "HYPOTHESIS",
+        "n": 25,
+        "lookback": 20,
+        "er": 0.124,
+        "flip_frac": 0.2778,
+        "range_over_atr": 6.0595,
+        "mid_dev_atr": 2.1952,
+        "net_signed": 7.6,
+        "vwap": 23347.592,
+        "vwap_src": "OK",
+        "ema": 23347.3154,
+        "ema_len": 21,
+        "rsi": 65.1,
+        "vol_expand": false,
+        "vol_status": "OK",
+        "vol_last3_sum": 298212.0,
+        "realized_vol": 0.000181,
+        "iv": 10.455667300227834,
+        "votes_up": 5,
+        "votes_down": 0,
+        "reason": "mixed_index_path"
+      },
+      "BANKNIFTY": {
+        "regime": "SIDEWAYS",
+        "direction": "UP",
+        "layer": "HYPOTHESIS",
+        "n": 25,
+        "lookback": 20,
+        "er": 0.1126,
+        "flip_frac": 0.3889,
+        "range_over_atr": 8.3638,
+        "mid_dev_atr": 1.2796,
+        "net_signed": -22.4,
+        "vwap": 56350.9661,
+        "vwap_src": "OK",
+        "ema": 56351.7989,
+        "ema_len": 21,
+        "rsi": 57.34,
+        "vol_expand": false,
+        "vol_status": "OK",
+        "vol_last3_sum": 195483.0,
+        "realized_vol": 0.000245,
+        "iv": 13.861697979758183,
+        "votes_up": 4,
+        "votes_down": 1,
+        "reason": "low_er_rsi_mid_or_vwap_band"
+      },
+      "SENSEX": {
+        "regime": "SIDEWAYS",
+        "direction": "UP",
+        "layer": "HYPOTHESIS",
+        "n": 25,
+        "lookback": 20,
+        "er": 0.0969,
+        "flip_frac": 0.4444,
+        "range_over_atr": 7.0092,
+        "mid_dev_atr": 1.6813,
+        "net_signed": 18.24,
+        "vwap": 74626.4448,
+        "vwap_src": "OK",
+        "ema": 74622.709,
+        "ema_len": 21,
+        "rsi": 63.92,
+        "vol_expand": true,
+        "vol_status": "OK",
+        "vol_last3_sum": 39440.0,
+        "realized_vol": 0.000166,
+        "iv": 17.78556004944852,
+        "votes_up": 5,
+        "votes_down": 0,
+        "reason": "low_er_rsi_mid_or_vwap_band"
+      }
+    }
   },
   "index_notes": [
     "MIX-ML-GREEKS: 0 filled tickets \u2014 Dhan greeks/IV missing most of the session. Adjustment: keep the book; require live chain from 09:15 IST. Do not retune ml001-v1.",
@@ -604,7 +792,10 @@
       "paper_ops",
       "npm",
       "legacy LLM waiters"
-    ]
+    ],
+    "as_of_ist": "2026-09-17T12:38:09+05:30",
+    "alive": true,
+    "tick_seconds": 10
   },
   "honesty": [
     "Closed net \u20b9 after Groww brokerage + GST + option STT ranks. Open rows do not.",
@@ -627,8 +818,8 @@
     "No NEW paper before 09:50 IST (OPEN_SETTLE_35M / cash open 09:15 + 35m). Flatten/cancel still run. No new after 14:45. 15:00 flattens leftover OPEN.",
     "No new paper after 14:45 IST. 15:00 flattens leftover OPEN. live_session does not keep dead tickets overnight.",
     "paper_params nudge is session-only overfit. production_params_written stays false.",
-    "INDEX 1m regime TREND|SIDEWAYS|UNKNOWN is HYPOTHESIS. SIDEWAYS skips NEW paper opens; flatten/cancel still run. Feed stays live.",
-    "TREND + direction UP kills new PE (confirm/kill overlay, not a STRAT). DOWN kills new CE. Not MIX-DEFAULT-BUY production.",
+    "INDEX 1m regime TREND|SIDEWAYS|UNKNOWN is HYPOTHESIS. TREND needs Kaufman ER plus last-15m VWAP, EMA 15/21, RSI, and last-3 1m volume (greeks/IV vote when present). SIDEWAYS skips NEW and cancels unfilled; underwater filled may CANCEL_SIDEWAYS. Feed stays live.",
+    "TREND + direction UP kills new PE (confirm/kill overlay, not a STRAT). DOWN kills new CE. Shrinking last-3 volume blocks TREND. Dual-tape JSONL is kept on slate (not trimmed). Paper book epoch skips replaying old ticks as new trades. Not MIX-DEFAULT-BUY production.",
     "Founder ~57% wr during cash hours is an in-session PAPER observation, not this EOD Groww+STT filled hit rate. Not a promote."
   ],
   "execution": "refused",
@@ -641,9 +832,146 @@
       "DATA_INSUFFICIENT: SENSEX ATM days ['2026-09-17'] have no INDEX 1m (merged INDEX span 2021-09-06\u21922026-09-16)"
     ]
   },
-  "steps": {},
+  "steps": {
+    "NIFTY": {
+      "status": "REPLAY_OK",
+      "n_triples": 27,
+      "logit": {
+        "n_3m": 176074,
+        "n_index_1m": 526721,
+        "train_end_ts": 1789627413,
+        "n_train_3m_bars_before_session": 176065,
+        "status": "OK"
+      },
+      "ml1": {
+        "take": null,
+        "status": "DATA_INSUFFICIENT",
+        "reason": "ML-1 meta-label needs \u226530 closed paper rows; have 0"
+      },
+      "index_regime": {
+        "regime": "UNKNOWN",
+        "direction": "UP",
+        "layer": "HYPOTHESIS",
+        "n": 25,
+        "lookback": 20,
+        "er": 0.124,
+        "flip_frac": 0.2778,
+        "range_over_atr": 6.0595,
+        "mid_dev_atr": 2.1952,
+        "net_signed": 7.6,
+        "vwap": 23347.592,
+        "vwap_src": "OK",
+        "ema": 23347.3154,
+        "ema_len": 21,
+        "rsi": 65.1,
+        "vol_expand": false,
+        "vol_status": "OK",
+        "vol_last3_sum": 298212.0,
+        "realized_vol": 0.000181,
+        "iv": 10.455667300227834,
+        "votes_up": 5,
+        "votes_down": 0,
+        "reason": "mixed_index_path"
+      },
+      "span_ist": {
+        "first": "2026-09-17T12:13:33+05:30",
+        "last": "2026-09-17T12:37:14+05:30"
+      }
+    },
+    "BANKNIFTY": {
+      "status": "REPLAY_OK",
+      "n_triples": 27,
+      "logit": {
+        "n_3m": 175972,
+        "n_index_1m": 525873,
+        "train_end_ts": 1789627417,
+        "n_train_3m_bars_before_session": 175963,
+        "status": "OK"
+      },
+      "ml1": {
+        "take": null,
+        "status": "DATA_INSUFFICIENT",
+        "reason": "ML-1 meta-label needs \u226530 closed paper rows; have 0"
+      },
+      "index_regime": {
+        "regime": "SIDEWAYS",
+        "direction": "UP",
+        "layer": "HYPOTHESIS",
+        "n": 25,
+        "lookback": 20,
+        "er": 0.1126,
+        "flip_frac": 0.3889,
+        "range_over_atr": 8.3638,
+        "mid_dev_atr": 1.2796,
+        "net_signed": -22.4,
+        "vwap": 56350.9661,
+        "vwap_src": "OK",
+        "ema": 56351.7989,
+        "ema_len": 21,
+        "rsi": 57.34,
+        "vol_expand": false,
+        "vol_status": "OK",
+        "vol_last3_sum": 195483.0,
+        "realized_vol": 0.000245,
+        "iv": 13.861697979758183,
+        "votes_up": 4,
+        "votes_down": 1,
+        "reason": "low_er_rsi_mid_or_vwap_band"
+      },
+      "span_ist": {
+        "first": "2026-09-17T12:13:37+05:30",
+        "last": "2026-09-17T12:37:19+05:30"
+      }
+    },
+    "SENSEX": {
+      "status": "REPLAY_OK",
+      "n_triples": 27,
+      "logit": {
+        "n_3m": 169383,
+        "n_index_1m": 506640,
+        "train_end_ts": 1789627421,
+        "n_train_3m_bars_before_session": 169374,
+        "status": "OK"
+      },
+      "ml1": {
+        "take": null,
+        "status": "DATA_INSUFFICIENT",
+        "reason": "ML-1 meta-label needs \u226530 closed paper rows; have 0"
+      },
+      "index_regime": {
+        "regime": "SIDEWAYS",
+        "direction": "UP",
+        "layer": "HYPOTHESIS",
+        "n": 25,
+        "lookback": 20,
+        "er": 0.0969,
+        "flip_frac": 0.4444,
+        "range_over_atr": 7.0092,
+        "mid_dev_atr": 1.6813,
+        "net_signed": 18.24,
+        "vwap": 74626.4448,
+        "vwap_src": "OK",
+        "ema": 74622.709,
+        "ema_len": 21,
+        "rsi": 63.92,
+        "vol_expand": true,
+        "vol_status": "OK",
+        "vol_last3_sum": 39440.0,
+        "realized_vol": 0.000166,
+        "iv": 17.78556004944852,
+        "votes_up": 5,
+        "votes_down": 0,
+        "reason": "low_er_rsi_mid_or_vwap_band"
+      },
+      "span_ist": {
+        "first": "2026-09-17T12:13:41+05:30",
+        "last": "2026-09-17T12:37:23+05:30"
+      }
+    }
+  },
   "closed_trades_sample": [],
   "open_trades": [],
+  "tickets": [],
   "mistakes": [],
   "successes": [],
   "note": "Compact mock. Full closed tape is data/recon/ml_paper_dashboard.json (gitignored)."

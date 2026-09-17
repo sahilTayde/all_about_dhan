@@ -2,6 +2,39 @@
 
 **Agents:** read **only the newest block**. Do not ingest this whole log. New files: [`docs/FILE_CREATION.md`](../../docs/FILE_CREATION.md). Append here — do not create `HANDOFF_TOMORROW.md` or extra `CONTINUE_*`.
 
+## As of now (2026-09-17) — wipe ML paper board, keep JSONL, restart (NO_PROMOTE)
+
+```text
+From:     teams/00_orchestrator
+To:       founder / 06 / 07
+Date:     2026-09-17
+Status:   PAPER / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: Wipe dashboard + paper ledger/logs. Dual-tape JSONL kept.
+  paper_book_epoch_ts so replay does not resurrect old tickets.
+  OPEN tickets first, CLOSED last; last_updated desc.
+Rejected: Promote. sqlite git-add. STRAT-015. Super Orders.
+UNKNOWN: New wr after restart is a new paper book.
+```
+
+## As of now (2026-09-17) — 15m JSONL slate + VWAP/EMA/vol/RSI regime (NO_PROMOTE)
+
+```text
+From:     teams/00_orchestrator
+To:       founder / 04 / 06 / 07
+Date:     2026-09-17
+Status:   PAPER / HYPOTHESIS / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: CLEAN SLATE keeps last 15m dual-tape JSONL. TREND overlay
+  uses VWAP then EMA 15/21, last-3 1m volume, RSI, greeks when present.
+  Dealer/ML take/skip/cancel + paper R:R from realized vol. 10s LTP
+  flatten stays. KEEP_ALL. No live orders.
+Rejected: Promote. sqlite git-add. npm restart. STRAT-015. Super Orders.
+UNKNOWN: Next session wr vs prior board is not comparable after slate.
+```
+
 ## As of now (2026-09-17 11:18 IST) — last-30 filled WR + logit vs dealer counsel (NO_PROMOTE)
 
 ```text
