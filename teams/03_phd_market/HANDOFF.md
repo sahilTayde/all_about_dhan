@@ -1,5 +1,16 @@
 # Handoff log — Team 03 PhD market
 
+## As of now (2026-09-17) — paper stop 15:15; CAS expiry-only (NO_PROMOTE)
+
+```text
+Market question: how late may paper CE/PE book?
+Rule / clock / source: Cash/F&O open 09:15. NEW paper 09:50.
+  Paper NEW + flatten 15:15 IST (CAS window start on cash names).
+  MIX-CLOCK-CAS afternoon HOLD is expiry-day only. CAS PARKED —
+  no new CAS-* . F&O 15:40 close VERIFY. Paper poll shell 15:30.
+UNKNOWN: NSE circular exact CAS 15:15–15:35 vs F&O 15:40.
+```
+
 ## As of now (2026-09-17) — 10s REST; WS has no greeks (NO_PROMOTE)
 
 ```text

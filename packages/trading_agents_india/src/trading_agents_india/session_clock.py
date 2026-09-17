@@ -1,8 +1,8 @@
 """IST market-hours + founder dead-band clock (MIX-CLOCK-CAS overlay).
 
-Active paper leans: 09:30–15:00 IST.
-Session shell: 09:00–15:30 IST (poll may run; dead-band forces HOLD).
-Path toward faster ticks: see PLAN_MARKET_HOURS_PAPER_AGENTS.md.
+Active paper leans: 09:50–15:15 IST. Flatten after 15:15.
+CAS afternoon dead-band (15:00–15:30) applies on **expiry days only** (PARKED CAS).
+Session shell: 09:00–15:30 IST (poll may run).
 """
 
 from __future__ import annotations
@@ -18,9 +18,10 @@ IST = ZoneInfo("Asia/Kolkata")
 SESSION_OPEN = time(9, 0)
 SESSION_CLOSE = time(15, 30)
 
-# Founder dead-bands from MIX-CLOCK-CAS: pre-open + CAS window.
+# Founder dead-bands from MIX-CLOCK-CAS: pre-open. Afternoon CAS = expiry only.
 DEAD_BAND_MORNING_END = time(9, 30)
 DEAD_BAND_AFTERNOON_START = time(15, 0)
+PAPER_STOP = time(15, 15)  # NEW paper through 15:15; then flatten
 
 # Cash F&O open 09:15 IST. First NEW paper ticket only after +35m.
 CASH_OPEN = time(9, 15)
@@ -29,9 +30,9 @@ NEW_PAPER_START = time(9, 50)  # 09:15 + 35m
 NO_NEW_BEFORE_0950 = "NO_NEW_BEFORE_0950"
 OPEN_SETTLE_35M = "OPEN_SETTLE_35M"
 
-# Paper CE/PE emission window (after open-settle; before afternoon dead-band).
+# Paper CE/PE emission window (after open-settle; stop 15:15).
 ACTIVE_PAPER_START = NEW_PAPER_START
-ACTIVE_PAPER_END = DEAD_BAND_AFTERNOON_START
+ACTIVE_PAPER_END = PAPER_STOP
 
 # Live mock: 10s REST dual-tape. WS stays off (no greeks on feed parse).
 DEFAULT_TICK_SECONDS = 10
@@ -60,8 +61,8 @@ class ClockSnapshot:
             "allow_new_paper_ticket": self.allow_new_paper_ticket,
             "open_settle_gate": self.open_settle_gate,
             "reason": self.reason,
-            "overlay": "MIX-CLOCK-CAS + OPEN_SETTLE_35M",
-            "active_paper_window_ist": "09:50–15:00",
+            "overlay": "OPEN_SETTLE_35M + paper 15:15; MIX-CLOCK-CAS afternoon expiry-only",
+            "active_paper_window_ist": "09:50–15:15",
             "session_shell_ist": "09:00–15:30",
             "cash_open_ist": "09:15",
             "no_new_before_ist": "09:50",
@@ -80,7 +81,7 @@ def _t(dt: datetime) -> time:
     return dt.time()
 
 
-def snapshot(now: Optional[datetime] = None) -> ClockSnapshot:
+def snapshot(now: Optional[datetime] = None, *, expiry_day: bool = False) -> ClockSnapshot:
     dt = now_ist(now)
     # Weekday check — Sat/Sun outside session shell
     if dt.weekday() >= 5:
@@ -103,9 +104,8 @@ def snapshot(now: Optional[datetime] = None) -> ClockSnapshot:
             allow_new_paper_ticket=False,
             reason="outside session shell 09:00–15:30 IST",
         )
-    cas_dead = t < DEAD_BAND_MORNING_END or t >= DEAD_BAND_AFTERNOON_START
     settle_hold = t < NEW_PAPER_START
-    allow_new = (not settle_hold) and t < DEAD_BAND_AFTERNOON_START
+    cas_afternoon = bool(expiry_day) and t >= DEAD_BAND_AFTERNOON_START
     if settle_hold:
         gate = OPEN_SETTLE_35M if t >= CASH_OPEN else NO_NEW_BEFORE_0950
         return ClockSnapshot(
@@ -121,7 +121,7 @@ def snapshot(now: Optional[datetime] = None) -> ClockSnapshot:
                 "Flatten/cancel of already-open still allowed."
             ),
         )
-    if cas_dead:
+    if cas_afternoon:
         return ClockSnapshot(
             as_of_ist=dt,
             in_session_shell=True,
@@ -129,7 +129,17 @@ def snapshot(now: Optional[datetime] = None) -> ClockSnapshot:
             allow_directional_paper=False,
             allow_flatten_cancel=True,
             allow_new_paper_ticket=False,
-            reason="MIX-CLOCK-CAS dead-band (15:00–15:30) → HOLD new; flatten/cancel still allowed",
+            reason="MIX-CLOCK-CAS dead-band (expiry day 15:00–15:30) → HOLD new; flatten/cancel still allowed",
+        )
+    if t >= PAPER_STOP:
+        return ClockSnapshot(
+            as_of_ist=dt,
+            in_session_shell=True,
+            in_dead_band=False,
+            allow_directional_paper=False,
+            allow_flatten_cancel=True,
+            allow_new_paper_ticket=False,
+            reason="NO_NEW_AFTER_1515: paper books until 15:15 IST then flatten. CAS is expiry-only.",
         )
     return ClockSnapshot(
         as_of_ist=dt,
@@ -138,7 +148,7 @@ def snapshot(now: Optional[datetime] = None) -> ClockSnapshot:
         allow_directional_paper=True,
         allow_flatten_cancel=True,
         allow_new_paper_ticket=True,
-        reason="active paper window 09:50–15:00 IST",
+        reason="active paper window 09:50–15:15 IST",
     )
 
 

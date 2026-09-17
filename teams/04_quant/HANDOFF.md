@@ -1,5 +1,100 @@
 # Handoff log — Team 04 Quant
 
+## As of now (2026-09-17) — trail stop on soft cancel; lock-shift target (NO_PROMOTE)
+
+```text
+MIX / STRAT: none new. KEEP_ALL 001–014. No STRAT-015+.
+Origin tags: PROJECT-DERIVED paper overlay. HYPOTHESIS.
+Entry hypothesis: unchanged (ITM buy-first).
+Confirm-or-kill: 5m ST/MACD still not entry.
+Hold / veto: after FILL, CANCEL_BIN_ROLL / THESIS / STRIKE_ROLL /
+  SIDEWAYS / CANCEL_GREEKS trail SL by vol band instead of flatten.
+  TARGET hit: lock SL to max(BE incl charges, old target − band or
+  old target if overshoot ≥ ~4–10₹), shift target, stay in.
+  STOP / TIME / FLATTEN_1500 / CANCEL_ADVERSE still kill.
+Feasibility: dealer fantasy SL/target still refused; trail is paper
+  ratchet only. Mid-path only locks BE, does not fantasy-extend.
+UNKNOWN: band 4–12 is founder chop; not an OOS grid.
+```
+
+## As of now (2026-09-17) — ITM strike vs Dhan ATM not INDEX-round ATM (NO_PROMOTE)
+
+```text
+MIX / STRAT: none new. KEEP_ALL 001–014. No STRAT-015+.
+Origin tags: PROJECT-DERIVED paper overlay. HYPOTHESIS.
+Entry hypothesis: buy-side ITM only. CE strike < Dhan ATM and < INDEX
+  LTP; PE the inverse. ~100pt wing uses min(Dhan, idx-round) for CE
+  so SENSEX 74300 ATM does not book 74300 CE (that is ATM/OTM to the
+  trader). Delta picker cannot select ATM. MIX-ML-GREEKS no clone.
+Confirm-or-kill: missing ITM quote → ITM_ONLY_NO_QUOTE, not ATM.
+Hold / veto: CANCEL_BIN_ROLL when booked ITM_100 is no longer ITM.
+Feasibility: ITM premium for R:R. Not a MIX write.
+UNKNOWN: Dhan ATM vs INDEX round mismatch is SOURCE_FACT.
+```
+
+## As of now (2026-09-17) — ITM CE/PE bin vs three INDEX 1m wait (NO_PROMOTE)
+
+```text
+MIX / STRAT: none new. KEEP_ALL 001–014. No STRAT-015+.
+Origin tags: PROJECT-DERIVED paper overlay. HYPOTHESIS.
+Entry hypothesis: trader three charts = INDEX + ~100pt ITM CE +
+  ITM PE. Two 10s votes TREND without three INDEX 1m bars:
+  PE_VOL_EXPAND, PE_PREMIUM_UP, CE_PREMIUM_DOWN, PE_OI_UP_WITH_PREMIUM
+  (buyer or short-cover), CE_SELL_VOLUME, PE_DELTA_MORE_ITM.
+  Symmetric CE votes. Last-3 INDEX impulse still owns if present.
+Confirm-or-kill: missing OI/vol/delta skip that vote. ITM quote
+  only on bin confirm (no ATM fallback). TREND UP/DOWN still kill
+  opposite premium. True last-3 chop SIDEWAYS KEEP.
+Hold / veto rules: CANCEL_BIN_ROLL when booked ITM → ATM/OTM.
+Feasibility rules: impulse/bin fill at signal LTP; stop/target same.
+Parameters to grid: BIN_MIN_VOTES=2, BIN_VOL_EXPAND=1.15, BIN_KEEP_TICKS=36.
+Backtest request: ITM-bin PE vs last-3 wait skip count on SENSEX dumps.
+Customer copy allowed: none.
+UNKNOWN / DATA_INSUFFICIENT: Dhan wing volume/OI/delta SOURCE_FACT.
+```
+
+## As of now (2026-09-17) — SENSEX last-3 ~100pt dump: volume skip was over-coded (NO_PROMOTE)
+
+```text
+MIX / STRAT: none new. KEEP_ALL 001–014. No STRAT-015+.
+Origin tags: PROJECT-DERIVED paper overlay. HYPOTHESIS.
+Entry hypothesis: last-3 1m *price* (close now vs close 3m ago) owns
+  TREND + FILL side. ~100pt SENSEX dump is three candle bodies.
+  Dhan INDEX vol spike then shrink does not SIDEWAYS-hold.
+  10s logit CE bounce / dealer HOLD does not veto last-3 PUT.
+  Impulse TREND paper-fills at signal LTP (no 1.2% limit chase-cancel).
+Confirm-or-kill: true last-3 chop still SIDEWAYS. TREND UP/DOWN still
+  kill opposite premium. XR still needs own filter.
+Hold / veto rules: skip_sideways on chop only. Not a MIX write.
+Feasibility rules: impulse fill at signal; stop/target unchanged.
+Parameters to grid: last3 4-close net; vol expand = R:R only.
+Backtest request: live SENSEX last-3 range vs CANCEL_UNFILLED_AWAY count.
+Customer copy allowed: none.
+UNKNOWN / DATA_INSUFFICIENT: SENSEX INDEX volume is noisy SOURCE_FACT.
+```
+
+## As of now (2026-09-17) — last-3 PUT impulse vs 15m chop; seen-not-taken board (NO_PROMOTE)
+
+```text
+MIX / STRAT: none new. KEEP_ALL 001–014. No STRAT-015+.
+Origin tags: PROJECT-DERIVED paper overlay. HYPOTHESIS.
+Entry hypothesis: last-3 1m INDEX impulse (ER≥0.55, move≥0.025%) is
+  TREND even if 15m Kaufman ER is lunch chop. PUT last-3 → DOWN;
+  CALL last-3 → UP. Fill books still own CE/PE.
+Confirm-or-kill: 15m SIDEWAYS KEEP when last-3 is also chop.
+  Shrinking last-3 volume still blocks TREND. TREND UP kills PE /
+  DOWN kills CE. Dealer CONFIRM vs logit KEEP.
+Hold / veto rules: skip_sideways still on true chop. Not a MIX write.
+Feasibility rules: unchanged stop/target / booked-strike.
+Parameters to grid: LAST3_IMPULSE_ER 0.55, LAST3_IMPULSE_FRAC 0.00025.
+  Session lookback capped at 15 (stale 20 was over-smoothing).
+Backtest request: live last-3 PUT vs prior SIDEWAYS_HOLD skip count.
+Customer copy allowed: none.
+Internal-only: dashboard "Seen but not taken / cancelled" + comments.
+UNKNOWN / DATA_INSUFFICIENT: last-3 from dual-tape 1m buckets; warehouse
+  INDEX 1m still ends 2026-09-16.
+```
+
 ## As of now (2026-09-17) — 15m VWAP/EMA/vol/RSI/greeks regime (NO_PROMOTE)
 
 ```text

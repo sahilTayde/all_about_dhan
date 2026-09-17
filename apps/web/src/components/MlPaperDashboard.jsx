@@ -72,6 +72,12 @@ export function MlPaperDashboard({ compact = false }) {
   const open = [...(data.open_trades || [])].sort(byUpdated);
   const netByIndex = today.net_by_index || {};
   const bestMl = today.best_ml_book || {};
+  const seen = data.seen_not_taken || today.seen_not_taken || {};
+  const skippedSeen = seen.skipped_latest || [];
+  const cancelledSeen = seen.cancelled || [];
+  const seenObs = seen.observations || [];
+  const bins = data.itm_bins || today.itm_bins || {};
+  const binRows = bins.bins || [];
 
   return (
     <section className="panel" aria-labelledby="ml-paper-title">
@@ -105,6 +111,57 @@ export function MlPaperDashboard({ compact = false }) {
           : ""}
         {` SIDEWAYS HOLD skips ${data.n_skip_sideways ?? today.n_skip_sideways ?? 0} new opens (${data.n_sideways_bars ?? today.n_sideways_bars ?? 0} bars). SL-hits ${data.n_sl_hit ?? today.n_sl_hit ?? "—"}.`}
       </p>
+      <h3>ITM CE / PE bin (three charts)</h3>
+      <p className="muted">
+        {bins.note ||
+          "INDEX + ITM CE + ITM PE. Two votes can TREND without waiting three INDEX 1m bars. Roll when ITM becomes ATM/OTM."}
+      </p>
+      {binRows.length === 0 ? (
+        <p className="muted">No ITM bin yet this snapshot.</p>
+      ) : (
+        <ul className="cleanup-keep">
+          {binRows.map((b) => (
+            <li key={b.underlying}>
+              {b.underlying} index={b.index ?? "—"} CE {b.ce?.strike ?? "—"} {b.ce?.moneyness || ""} ₹
+              {b.ce?.px ?? "—"} vol={b.ce?.volume ?? "—"} OI={b.ce?.oi ?? "—"} Δ={b.ce?.delta ?? "—"} · PE{" "}
+              {b.pe?.strike ?? "—"} {b.pe?.moneyness || ""} ₹{b.pe?.px ?? "—"} vol={b.pe?.volume ?? "—"} OI=
+              {b.pe?.oi ?? "—"} Δ={b.pe?.delta ?? "—"} · pe_votes=
+              {(b.pe_votes || []).join(",") || "—"} ce_votes={(b.ce_votes || []).join(",") || "—"} side=
+              {b.side || "wait"} {b.reason || ""}
+              {b.missing && b.missing.length ? ` missing=${b.missing.join(",")}` : ""}
+            </li>
+          ))}
+        </ul>
+      )}
+      <h3>Seen but not taken / cancelled</h3>
+      <p className="muted">{seen.note || "Trades the desk saw but skipped or cancelled, with why."}</p>
+      {seenObs.length > 0 ? (
+        <ul className="cleanup-keep">
+          {seenObs.map((n) => (
+            <li key={n}>{n}</li>
+          ))}
+        </ul>
+      ) : (
+        <p className="muted">No last-3 / regime observation yet.</p>
+      )}
+      {cancelledSeen.length === 0 && skippedSeen.length === 0 ? (
+        <p className="muted">No skip/cancel rows this snapshot.</p>
+      ) : (
+        <ul className="cleanup-keep">
+          {cancelledSeen.slice(0, 12).map((t, i) => (
+            <li key={`c-${t.book_id}-${t.underlying}-${t.reason}-${i}`}>
+              CANCEL {t.book_id} {t.underlying} {t.seen_side || "—"} reason={t.reason} — {t.why}{" "}
+              {t.observation ? `(${t.observation})` : ""}
+            </li>
+          ))}
+          {skippedSeen.slice(0, 16).map((t, i) => (
+            <li key={`s-${t.book_id}-${t.underlying}-${t.reason}-${i}`}>
+              SKIP {t.book_id} {t.underlying} seen={t.seen_side || "—"} reason={t.reason} — {t.why}{" "}
+              regime={t.index_regime || "—"} last3={t.last3_impulse || "—"}
+            </li>
+          ))}
+        </ul>
+      )}
       <h3>Ranked by net P/L</h3>
       {ranks.length === 0 ? (
         <p className="muted">No ranked books yet.</p>
@@ -191,7 +248,7 @@ export function MlPaperDashboard({ compact = false }) {
                   {t.last_updated_ist || t.closed_ist || ""} {t.book_id} {t.underlying} {t.side}{" "}
                   strike={t.atm_strike} limit=
                   {t.limit_price} tgt={t.target} sl={t.stop} status={t.status} sl_hit=
-                  {String(t.sl_hit)} lost₹={t.sl_loss_inr ?? (t.result === "LOSS" ? t.realized_pnl_inr : "—")}{" "}
+                  {String(t.sl_hit)} lost₹={t.sl_loss_inr ?? "—"}{" "}
                   pnl₹={t.realized_pnl_inr ?? "—"} {t.result} regime={t.index_regime || "—"}
                 </li>
               ))}

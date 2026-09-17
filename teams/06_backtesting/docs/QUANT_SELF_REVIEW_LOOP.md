@@ -81,3 +81,23 @@ Accepted: <what the packet actually showed>
 Rejected: production write; live Super Order; invented IV/greeks
 UNKNOWN: <DATA_INSUFFICIENT>
 ```
+
+---
+
+## Paper EOD 2026-09-17 (LIVE SESSION board) — RETUNE_PROPOSAL
+
+**Kind:** `RETUNE_PROPOSAL` · **status:** `BACKTEST_REQUIRED` · `keep_current_strategy: true` · `production_params_written: false` · `tuned: false` · `one_day_pnl_is_not_evidence: true` · **NO_PROMOTE**. Not a five-pass. Thursday may be SENSEX weekly — treat as **not NORMAL** until 05 tags session.
+
+**Board (as_of 15:33 IST):** filled 175 · unique-ish ~88 (dealer ≈ logit clone) · W net 26 / L 149 · wr net 14.86% / gross 20.57% · net ₹−93745 · **SL-hits 153 / 175**. Open 0.
+
+**Exit mix (raw closed):** `STOP` 153 · `TIME` 14 · `CANCEL_STRIKE_ROLL` 6 · `TARGET` 2. Unique: STOP 77 · TIME 7 · STRIKE_ROLL 3 · TARGET **1**.
+
+**P/L by exit (raw, Groww+STT):** STOP −105582 · TIME +4776 · STRIKE_ROLL −1650 · TARGET +8712 (one SENSEX PE 235→309, cloned on two books).
+
+**What passed:** PE unique wr ~22% vs CE ~5%. TIME exits were the working hold (12/14 TIME rows SUCCESS on the clone board). One TARGET runner proved the lock-shift idea. NIFTY unique wr ~29% less ugly than BN/SENSEX. SIDEWAYS skip 6 (NEW only).
+
+**What failed:** Almost every fill died on **STOP**. Median risk ~₹4.75 vs median target ~₹25 — R:R on paper is fantasy vs 10s MTM. 51/77 unique STOPs had risk under ₹8; 34 had under ₹4. 60 raw tickets had stop ≥ entry (BE trail then noise). BANKNIFTY wr ~3.6% (1/28 per book). SENSEX worst ₹. Logit cloned dealer (Δ only −1248). GREEKS/XR/TV/ML-001 **0 fills**. After 15:30 last-3 prints frozen ER=1.0 fake TREND.
+
+**SL vs target:** Board is an SL factory, not a target book. Target almost never prints because (1) 9-bar TIME wins first on the few that go green, (2) trailed/BE stop is inside 1m premium chop so STOP fires before TARGET, (3) CE fills against a PE ITM-bin.
+
+**One backtestable change (do not write production params):** Hold the **original** path stop until premium is ≥ BE + trail band; do not ratchet SL to a 3–5₹ pocket. Score **unique** tickets only. Ablate: NEW only on last-3 impulse **or** ITM-bin side match (no CE when bin is PE). Optional: skip BANKNIFTY NEW unless last-3 impulse. OOS+`NORMAL` required. KEEP_ALL STRAT-001–014.

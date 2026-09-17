@@ -86,3 +86,12 @@ def net_pnl_inr(*, gross_inr: Optional[float], charges_inr: float) -> Optional[f
     if gross_inr is None:
         return None
     return round(float(gross_inr) - float(charges_inr), 2)
+
+
+def breakeven_premium(*, entry: float, qty: Optional[int]) -> float:
+    """Exit premium that covers Groww+GST+STT on a filled long. PAPER HYPOTHESIS."""
+    ch = groww_round_trip_charges(exit_premium=float(entry), qty=qty, filled=True)
+    units = int(qty) if qty is not None and int(qty) > 0 else 0
+    if units <= 0:
+        return float(entry)
+    return round(float(entry) + float(ch["charges_inr"]) / units, 4)

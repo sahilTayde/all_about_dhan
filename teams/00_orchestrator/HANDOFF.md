@@ -2,6 +2,146 @@
 
 **Agents:** read **only the newest block**. Do not ingest this whole log. New files: [`docs/FILE_CREATION.md`](../../docs/FILE_CREATION.md). Append here — do not create `HANDOFF_TOMORROW.md` or extra `CONTINUE_*`.
 
+## As of now (2026-09-17 EOD) — paper board: SL factory not target book (NO_PROMOTE)
+
+```text
+From:     teams/00_orchestrator
+To:       founder / 04 / 06 / 02
+Date:     2026-09-17 EOD
+Status:   RETUNE_PROPOSAL BACKTEST_REQUIRED / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+production_params_written: false
+
+Accepted: 17 Sep paper: 175 filled (≈88 unique; logit≈dealer).
+  STOP 153 vs TARGET 2. wr net 14.9% gross 20.6%. PE held; CE and
+  BANKNIFTY did not. TIME + one TARGET runner were the wins.
+  Next test: do not trail SL into 1m noise until BE+band.
+Rejected: Promote. Nightly param write. Treat 175 as independent.
+UNKNOWN: Thursday expiry tag. One-day P/L is not evidence.
+```
+
+## As of now (2026-09-17) — paper books until 15:15 IST (NO_PROMOTE)
+
+```text
+From:     teams/00_orchestrator
+To:       founder / 03 / 06
+Date:     2026-09-17
+Status:   PAPER / HYPOTHESIS / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: NEW paper through 15:15 IST; flatten leftover after 15:15
+  (`NO_NEW_AFTER_1515` / `FLATTEN_1515`). Session shell still 15:30.
+  MIX-CLOCK-CAS afternoon dead-band is expiry-day only (PARKED CAS,
+  no new CAS-* file). KEEP_ALL. Paper only.
+Rejected: Promote. Super Orders. sqlite git-add. 14:45/15:00 paper kill.
+UNKNOWN: Exact NSE close 15:30 vs 15:40 VERIFY.
+```
+
+## As of now (2026-09-17) — trail SL + target lock-shift after fill (NO_PROMOTE)
+
+```text
+From:     teams/00_orchestrator
+To:       founder / 04 / 06 / 07
+Date:     2026-09-17
+Status:   PAPER / HYPOTHESIS / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: Founder watch: filled CANCEL_STRIKE_ROLL / GREEKS was
+  flattening winners and small losers. After fill, soft CANCEL
+  trails stop (4–12 premium ₹ by spike/vol) and may lock BE
+  including Groww+STT. TARGET first-touch locks SL to BE or old
+  target, shifts target (max 2), stays in. HARD STOP/TIME/FLATTEN/
+  CANCEL_ADVERSE. Unfilled still ₹0. KEEP_ALL. No STRAT-015.
+Rejected: Promote. Live Super Orders. Flatten filled on every
+  cancel signal. sqlite git-add.
+UNKNOWN: Whether trail reduces churn vs gives back open profit on
+  this IST session — watch /pm. Not a win-rate claim.
+```
+
+## As of now (2026-09-17) — CANCELLED LOSS ₹ is filled give-up (NO_PROMOTE)
+
+```text
+From:     teams/00_orchestrator
+To:       founder / 06 / 07
+Date:     2026-09-17
+Status:   PAPER / HYPOTHESIS / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: −₹122.71 on CANCELLED LOSS is round-trip P/L after a
+  fill then CANCEL_BIN_ROLL / thesis / greeks. Unfilled stays ₹0.
+  Status split CLOSED_CANCEL vs CANCELLED_UNFILLED. KEEP_ALL.
+Rejected: Promote. sqlite git-add. Treat filled cancel as ₹0.
+UNKNOWN: Glance n_cancelled=0 was unfilled-only; filled cancels
+  scored as LOSS. Honest after status split.
+```
+
+## As of now (2026-09-17) — no ATM/OTM paper fills (NO_PROMOTE)
+
+```text
+From:     teams/00_orchestrator
+To:       founder / 04 / 06
+Date:     2026-09-17
+Status:   PAPER / HYPOTHESIS / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: SENSEX CE 74300 was ATM vs Dhan chain, not ITM. NEW paper
+  books ~100pt ITM vs min(Dhan ATM, rounded INDEX) for CE. Skip if
+  that wing is missing. GREEKS does not clone logit fill. KEEP_ALL.
+Rejected: Promote. sqlite git-add. STRAT-015. Super Orders. ATM fallback.
+UNKNOWN: Dhan ATM vs INDEX round can disagree by one strike.
+```
+
+## As of now (2026-09-17) — ITM CE/PE three-chart bin (NO_PROMOTE)
+
+```text
+From:     teams/00_orchestrator
+To:       founder / 04 / 06 / 07
+Date:     2026-09-17
+Status:   PAPER / HYPOTHESIS / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: Do not always wait three INDEX 1m candles. Watch ITM CE
+  and ITM PE bins (volume, cumulative premium, delta, OI-up with
+  premium = new longs / short-cover). CE selling confirms PUT.
+  ITM only for R:R. Roll the bin when booked ITM becomes ATM/OTM.
+  Last-3 impulse KEEP. True chop SIDEWAYS KEEP. KEEP_ALL.
+Rejected: Promote. sqlite git-add. STRAT-015. Super Orders. Invent OI.
+UNKNOWN: Live Dhan wing volume/OI/delta may be missing on a tick.
+```
+
+## As of now (2026-09-17) — SENSEX last-3 100pt dump: take PUT paper (NO_PROMOTE)
+
+```text
+From:     teams/00_orchestrator
+To:       founder / 04 / 06
+Date:     2026-09-17
+Status:   PAPER / HYPOTHESIS / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: Volume-shrink SIDEWAYS was over-coded on SENSEX last-3
+  PUT. Last-3 price owns TREND + FILL. Impulse fill at signal LTP.
+  True last-3 chop skip KEEP. KEEP_ALL. No live orders.
+Rejected: Promote. sqlite git-add. STRAT-015. Super Orders.
+UNKNOWN: Next ticks after restart are a new paper clip.
+```
+
+## As of now (2026-09-17) — last-3 impulse vs 15m chop; seen-not-taken UI (NO_PROMOTE)
+
+```text
+From:     teams/00_orchestrator
+To:       founder / 04 / 06 / 07
+Date:     2026-09-17
+Status:   PAPER / HYPOTHESIS / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: Keep SIDEWAYS skip for true last-3 chop. Last-3 PUT/CE
+  impulse is TREND (15m ER was over-filtering lunch). Dashboard
+  shows seen-but-skipped / cancelled + comments. KEEP_ALL. No live
+  orders.
+Rejected: Promote. sqlite git-add. STRAT-015. Super Orders.
+UNKNOWN: Next tick wr after impulse TREND is not a promote.
+```
+
 ## As of now (2026-09-17) — wipe ML paper board, keep JSONL, restart (NO_PROMOTE)
 
 ```text

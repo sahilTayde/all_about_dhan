@@ -44,6 +44,54 @@ Left off 2026-09-13: ITM champion PAPER board ready (MIX-CHAMP-* + desk leaderbo
 
 ---
 
+## Left-off 2026-09-17 EOD — paper SL-heavy; nightly + RETUNE_PROPOSAL (NO_PROMOTE)
+
+**Now:** 17 Sep board: filled 175 (≈88 unique). **STOP 153**, TIME 14, STRIKE_ROLL 6, **TARGET 2**. wr net 14.9%. Next test: keep original path SL until BE+band; unique tickets; CE vs PE-bin. `QUANT_SELF_REVIEW_LOOP.md` packet. Gate **not** `RESEARCH_READY_FOR_PROGRAMMING`. **NO_PROMOTE.**
+
+**Next:** Nightly/post-market. Do not git-add sqlite. Do not restart npm.
+
+## Left-off 2026-09-17 — paper NEW until 15:15 IST (NO_PROMOTE)
+
+**Now:** Book paper CE/PE through **15:15 IST**. Then no new + flatten leftover (`NO_NEW_AFTER_1515` / `FLATTEN_1515`). Session shell 15:30. MIX-CLOCK-CAS afternoon 15:00 dead-band is **expiry-day only** (CAS PARKED; no new `CAS-*`). Gate **not** `RESEARCH_READY_FOR_PROGRAMMING`. **NO_PROMOTE.**
+
+**Next:** Watch `/pm` `/desk` until 15:15. Dual-tape restart to load clock. Do not git-add sqlite. Do not restart npm.
+
+## Left-off 2026-09-17 — trail SL on filled soft-cancel; lock-shift on TARGET (NO_PROMOTE)
+
+**Now:** After fill, `CANCEL_BIN_ROLL` / thesis / strike-roll / sideways / `CANCEL_GREEKS_*` **trail** the stop by a 4–12 premium-₹ vol band (lock BE incl Groww+STT when LTP is far enough). First TARGET touch locks SL to BE or old target (chop room) and **shifts** target (`TARGET_STEP_MAX=2`) instead of flattening. Hard `STOP` / `TIME` / `FLATTEN_1500` / `CANCEL_ADVERSE` still flatten. Unfilled still ₹0 cancel. Halfway-to-target only locks BE, does not extend target. Gate **not** `RESEARCH_READY_FOR_PROGRAMMING`. **NO_PROMOTE.**
+
+**Next:** Watch `/pm` `/desk` `TRAIL_STOP` / `TARGET_STEP_*`. Restart dual-tape `--paper-scalp` to load trail. Do not git-add sqlite. Do not restart npm.
+
+## Left-off 2026-09-17 — filled CANCEL still has ₹ P/L (NO_PROMOTE)
+
+**Now:** Board status CANCELLED + WIN/LOSS LOSS + money −₹122 was a **filled** ticket later pulled (bin-roll / thesis / greeks), not an unfilled limit. Unfilled = ₹0. Filled cancel = round-trip after Groww+STT. New statuses: `CANCELLED_UNFILLED` vs `CLOSED_CANCEL`. `money lost ₹` is SL only. Gate **not** `RESEARCH_READY_FOR_PROGRAMMING`. **NO_PROMOTE.**
+
+**Next:** Watch `/pm` `/desk`. Restart paper loop after this overlay. Do not git-add sqlite. Do not restart npm.
+
+## Left-off 2026-09-17 — never book ATM/OTM CE/PE (NO_PROMOTE)
+
+**Now:** SENSEX CE **74300** was Dhan ATM (INDEX ~74370), not ~100pt ITM. Paper was labeling any `STRIKE_*` quote as ITM_100 and falling back to ATM. NEW opens must be buy-side ITM vs **both** Dhan ATM and INDEX LTP (~100pt wing; CE 74200 when ATM is 74300). Missing ITM quote = skip, not ATM. MIX-ML-GREEKS does not clone the same fill as MIX-ML-LOGIT. `CANCEL_BIN_ROLL` if an ITM_100 ticket is no longer ITM. Gate **not** `RESEARCH_READY_FOR_PROGRAMMING`. **NO_PROMOTE.**
+
+**Next:** Watch `/pm` `/desk` strikes. Restart paper loop after this overlay. Do not git-add sqlite. Do not restart npm.
+
+## Left-off 2026-09-17 — ITM CE/PE bin (three charts, no 3-bar wait) (NO_PROMOTE)
+
+**Now:** Paper keeps an ITM CE + ITM PE **bin** (~100pt STRAT-006 wing) vs INDEX. Two 10s votes (PE vol/premium/OI+premium/delta + CE selling) can TREND without three INDEX 1m bars. Last-3 impulse still wins if present. ITM-bin fills at signal LTP on the **ITM** quote only (no ATM fallback). `CANCEL_BIN_ROLL` when a booked ITM ticket goes ATM/OTM so the bin can change. Missing OI/vol/delta is DATA_INSUFFICIENT, never invented. Dashboard: ITM CE/PE bin section. Gate **not** `RESEARCH_READY_FOR_PROGRAMMING`. **NO_PROMOTE.**
+
+**Next:** Watch `/pm` `/desk` three-chart bin. Restart paper loop after this overlay. Do not git-add sqlite. Do not restart npm.
+
+## Left-off 2026-09-17 — SENSEX last-3 100pt: volume skip over-coded (NO_PROMOTE)
+
+**Now:** Last-3 1m *price* (three candle bodies) owns TREND + FILL side. Dhan INDEX volume spike/shrink does **not** SIDEWAYS-hold a dump. Impulse paper-fills at signal LTP (no CANCEL_UNFILLED_AWAY on the chase). True last-3 chop still skips. Gate **not** `RESEARCH_READY_FOR_PROGRAMMING`. **NO_PROMOTE.**
+
+**Next:** Watch `/pm` `/desk`. Restart paper loop after this overlay. Do not git-add sqlite. Do not restart npm.
+
+## Left-off 2026-09-17 — last-3 impulse TREND + seen-not-taken board (NO_PROMOTE)
+
+**Now:** 15m SIDEWAYS skip **stays** when last-3 1m is also chop. Last-3 efficient PUT/CE impulse is **TREND** (15m Kaufman ER was over-filtering NIFTY/SENSEX PUT last-3). Dashboard: seen-but-skipped / cancelled + comments. Dual-tape 10s REST stays LTP. Gate **not** `RESEARCH_READY_FOR_PROGRAMMING`. **NO_PROMOTE.**
+
+**Next:** Watch `/pm` `/desk` `GET /paper/ml-books`. Stop: `touch data/recon/paper_dual_tape_STOPPED.flag`. Restart paper loop to load last-3 TREND. Do not git-add sqlite. Do not restart npm.
+
 ## Left-off 2026-09-17 — wipe board keep JSONL, ticket sort, restart paper (NO_PROMOTE)
 
 **Now:** Paper dashboard wiped. Dual-tape JSONL **untouched**. `paper_book_epoch_ts` skips replaying old ticks as trades. Tickets: OPEN first, CLOSED last; each list last_updated desc. Dual-tape `--paper-scalp` 10s restarted. Gate **not** `RESEARCH_READY_FOR_PROGRAMMING`. **NO_PROMOTE.**

@@ -30,3 +30,13 @@ def test_small_gross_can_flip_to_net_loss() -> None:
     net = net_pnl_inr(gross_inr=40.0, charges_inr=row["charges_inr"])
     assert net is not None
     assert net < 0
+
+
+def test_breakeven_premium_covers_charges() -> None:
+    from desk_ml.groww_costs import breakeven_premium, groww_round_trip_charges
+
+    be = breakeven_premium(entry=100.0, qty=65)
+    ch = groww_round_trip_charges(exit_premium=100.0, qty=65, filled=True)
+    assert be == round(100.0 + ch["charges_inr"] / 65, 4)
+    assert be > 100.0
+    assert breakeven_premium(entry=100.0, qty=None) == 100.0

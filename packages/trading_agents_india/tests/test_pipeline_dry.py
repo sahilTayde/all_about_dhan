@@ -241,7 +241,14 @@ def test_clock_dead_band_and_active() -> None:
     assert first.allow_new_paper_ticket is True
     assert first.allow_directional_paper is True
     afternoon = snapshot(datetime(2026, 9, 4, 15, 10, tzinfo=IST))
-    assert afternoon.in_dead_band is True
+    assert afternoon.in_dead_band is False
+    assert afternoon.allow_new_paper_ticket is True
+    after_paper = snapshot(datetime(2026, 9, 4, 15, 16, tzinfo=IST))
+    assert after_paper.allow_new_paper_ticket is False
+    assert after_paper.allow_flatten_cancel is True
+    cas_expiry = snapshot(datetime(2026, 9, 4, 15, 10, tzinfo=IST), expiry_day=True)
+    assert cas_expiry.in_dead_band is True
+    assert cas_expiry.allow_new_paper_ticket is False
 
 
 def test_clock_shell_open_at_0900_and_weekend() -> None:
