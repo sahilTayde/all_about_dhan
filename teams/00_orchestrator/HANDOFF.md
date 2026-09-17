@@ -2,6 +2,22 @@
 
 **Agents:** read **only the newest block**. Do not ingest this whole log. New files: [`docs/FILE_CREATION.md`](../../docs/FILE_CREATION.md). Append here — do not create `HANDOFF_TOMORROW.md` or extra `CONTINUE_*`.
 
+## As of now (2026-09-17 live) — SENSEX 74300 CE OPEN after limit+SL (NO_PROMOTE)
+
+```text
+From:     teams/00_orchestrator
+To:       founder / 06 / 04
+Date:     2026-09-17
+Status:   PAPER EXIT FIX / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: Booked-strike MTM. FILL on LTP or minute-low <=limit then
+  STOP when booked LTP/low <=stop same bar or later. Never MTM a
+  rolled ATM pack as if it were 74300 CE. Open board stamps last_ltp.
+Rejected: Closing 74300 CE at ATM 74500 LTP. Super Orders. Promote.
+UNKNOWN: Whether founder Groww 74300 print matches Dhan wing 74300.
+```
+
 ## As of now (2026-09-17 PRE) — 70k desk + dual wr + 5s board (NO_PROMOTE)
 
 ```text

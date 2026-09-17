@@ -8,14 +8,18 @@ from desk_ml.features import Triple
 from desk_ml.paper_scalp import (
     BookEngine,
     LIVE_BOOKS,
+    OpenPaper,
     SIDEWAYS_HOLD,
     classify_index_regime,
     feasibility_long,
+    mark_to_market,
     paper_hit_rate,
     propose_levels,
+    quote_for_side,
     replay_paper_scalp,
     step_underlying,
 )
+from desk_ml.tape import merge_wing_quotes
 from warehouse.feasibility import evaluate_long_premium
 
 IST = timezone(timedelta(hours=5, minutes=30))
@@ -493,7 +497,7 @@ def test_cancel_when_atm_strike_rolls() -> None:
         strike_source="TEST",
         limit_price=297.45,
     )
-    reason = _exit_reason(pos, 280.0, _ts(2), 3, atm_strike=74400.0)
+    reason = _exit_reason(pos, 290.0, _ts(2), 3, atm_strike=74400.0)
     assert reason == "CANCEL_STRIKE_ROLL"
 
 
@@ -679,5 +683,226 @@ def test_unfilled_close_has_zero_charges() -> None:
     assert row["result"] == "CANCELLED"
     assert row["charges_inr"] == 0.0
     assert row["realized_pnl_inr"] == 0.0
+
+
+def _sensex_tick(*, i: int, idx: float, atm: float, wings: dict, ce: float, pe: float) -> Triple:
+    itm_ce = atm - 100.0
+    cell_itm = wings.get(str(int(itm_ce))) or {}
+    cell_atm = wings.get(str(int(atm))) or {}
+    return Triple(
+        ts=_ts(i),
+        idx_close=idx,
+        ce_close=float(cell_atm.get("ce") or ce),
+        pe_close=pe,
+        atm_strike=atm,
+        ce_low=float(cell_atm.get("ce_low") or cell_atm.get("ce") or ce),
+        itm_ce_close=cell_itm.get("ce"),
+        itm_ce_strike=itm_ce,
+        itm_ce_low=cell_itm.get("ce_low") or cell_itm.get("ce"),
+        wing_quotes=wings,
+    )
+
+
+def test_quote_for_side_does_not_use_rolled_atm_for_74300() -> None:
+    tick = _sensex_tick(
+        i=10,
+        idx=74457.0,
+        atm=74500.0,
+        ce=165.0,
+        pe=170.0,
+        wings={
+            "74300": {"ce": 269.05, "pe": 120.0, "ce_low": 217.35},
+            "74400": {"ce": 209.7, "pe": 140.0},
+            "74500": {"ce": 165.0, "pe": 170.0},
+        },
+    )
+    ltp, low, src = quote_for_side(tick, "CE", strike=74300.0)
+    assert ltp == 269.05
+    assert low == 217.35
+    assert src.startswith("STRIKE_74300")
+    missing = Triple(
+        ts=_ts(11),
+        idx_close=74457.0,
+        ce_close=165.0,
+        pe_close=170.0,
+        atm_strike=74500.0,
+        itm_ce_close=209.7,
+        itm_ce_strike=74400.0,
+        wing_quotes={"74500": {"ce": 165.0, "pe": 170.0}},
+    )
+    ltp2, _, src2 = quote_for_side(missing, "CE", strike=74300.0)
+    assert ltp2 is None
+    assert src2 == "MISSING_STRIKE"
+
+
+def test_merge_wing_quotes_keeps_strike_low() -> None:
+    merged = merge_wing_quotes(
+        {"74300": {"ce": 217.35, "pe": 193.0}},
+        {"74300": {"ce": 243.7, "pe": 176.0}, "74500": {"ce": 191.0, "pe": 160.0}},
+    )
+    assert merged["74300"]["ce"] == 243.7
+    assert merged["74300"]["ce_low"] == 217.35
+    assert merged["74500"]["ce"] == 191.0
+
+
+def test_sensex_74300_ce_fill_then_sl_closes_loss() -> None:
+    engine = BookEngine()
+    pos = OpenPaper(
+        book_id="MIX-DEFAULT-BUY",
+        underlying="SENSEX",
+        side="CE",
+        trade_id="paper-sensex-74300-sl",
+        entry=234.8,
+        stop=199.58,
+        target=630.0,
+        atm_strike=74300.0,
+        opened_ts=_ts(0),
+        opened_bar=1,
+        strike_source="ITM_100",
+        limit_price=231.9824,
+        filled=False,
+        lot_size=20,
+        lots=1,
+        qty=20,
+    )
+    engine.opens[("MIX-DEFAULT-BUY", "SENSEX")] = pos
+    fill = _sensex_tick(
+        i=1,
+        idx=74352.0,
+        atm=74300.0,
+        ce=217.35,
+        pe=193.65,
+        wings={"74300": {"ce": 217.35, "pe": 193.65}, "74200": {"ce": 276.4, "pe": 150.0}},
+    )
+    mark_to_market(engine, fill, "SENSEX", 2, atm_strike=74300.0)
+    assert engine.opens[("MIX-DEFAULT-BUY", "SENSEX")].filled is True
+    assert engine.opens[("MIX-DEFAULT-BUY", "SENSEX")].entry == 217.35
+    dump = _sensex_tick(
+        i=2,
+        idx=74402.0,
+        atm=74400.0,
+        ce=191.0,
+        pe=176.0,
+        wings={
+            "74300": {"ce": 180.0, "pe": 176.2, "ce_low": 180.0},
+            "74400": {"ce": 191.0, "pe": 160.0},
+            "74200": {"ce": 243.7, "pe": 140.0},
+        },
+    )
+    mark_to_market(engine, dump, "SENSEX", 3, atm_strike=74400.0)
+    assert ("MIX-DEFAULT-BUY", "SENSEX") not in engine.opens
+    row = engine.closed[-1]
+    assert row["exit_reason"] == "STOP"
+    assert row["result"] == "LOSS"
+    assert row["filled"] is True
+    assert row["sl_hit"] is True
+
+
+def test_sensex_74300_ce_same_tick_limit_and_stop_closes() -> None:
+    engine = BookEngine()
+    pos = OpenPaper(
+        book_id="MIX-ML-LOGIT",
+        underlying="SENSEX",
+        side="CE",
+        trade_id="paper-sensex-74300-gap",
+        entry=234.8,
+        stop=199.58,
+        target=630.0,
+        atm_strike=74300.0,
+        opened_ts=_ts(0),
+        opened_bar=1,
+        strike_source="ITM_100",
+        limit_price=231.9824,
+        filled=False,
+        lot_size=20,
+        lots=1,
+        qty=20,
+    )
+    engine.opens[("MIX-ML-LOGIT", "SENSEX")] = pos
+    gap = _sensex_tick(
+        i=1,
+        idx=74320.0,
+        atm=74300.0,
+        ce=180.0,
+        pe=210.0,
+        wings={"74300": {"ce": 180.0, "pe": 210.0, "ce_low": 175.0}},
+    )
+    mark_to_market(engine, gap, "SENSEX", 2, atm_strike=74300.0)
+    assert ("MIX-ML-LOGIT", "SENSEX") not in engine.opens
+    row = engine.closed[-1]
+    assert row["exit_reason"] == "STOP"
+    assert row["result"] == "LOSS"
+    assert row["filled"] is True
+
+
+def test_sensex_74300_stays_open_when_only_rolled_atm_dumps() -> None:
+    engine = BookEngine()
+    pos = OpenPaper(
+        book_id="MIX-DEFAULT-BUY",
+        underlying="SENSEX",
+        side="CE",
+        trade_id="paper-sensex-74300-itm",
+        entry=217.35,
+        stop=199.58,
+        target=630.0,
+        atm_strike=74300.0,
+        opened_ts=_ts(0),
+        opened_bar=1,
+        strike_source="ITM_100",
+        limit_price=231.9824,
+        filled=True,
+        lot_size=20,
+        lots=1,
+        qty=20,
+    )
+    engine.opens[("MIX-DEFAULT-BUY", "SENSEX")] = pos
+    rolled = _sensex_tick(
+        i=3,
+        idx=74457.0,
+        atm=74500.0,
+        ce=165.0,
+        pe=170.0,
+        wings={
+            "74300": {"ce": 269.05, "pe": 120.0},
+            "74400": {"ce": 209.7, "pe": 140.0},
+            "74500": {"ce": 165.0, "pe": 170.0},
+        },
+    )
+    mark_to_market(engine, rolled, "SENSEX", 4, atm_strike=74500.0)
+    still = engine.opens[("MIX-DEFAULT-BUY", "SENSEX")]
+    assert still.filled is True
+    assert still.last_ltp == 269.05
+    assert not engine.closed
+
+
+def test_sideways_does_not_skip_stop_on_open_ticket() -> None:
+    engine = BookEngine(skip_new_when_sideways=True)
+    pos = OpenPaper(
+        book_id="MIX-DEFAULT-BUY",
+        underlying="SENSEX",
+        side="CE",
+        trade_id="paper-sensex-sideways-sl",
+        entry=217.35,
+        stop=199.58,
+        target=630.0,
+        atm_strike=74300.0,
+        opened_ts=_ts(0),
+        opened_bar=1,
+        strike_source="ITM_100",
+        limit_price=231.9824,
+        filled=True,
+        index_regime="SIDEWAYS",
+    )
+    engine.opens[("MIX-DEFAULT-BUY", "SENSEX")] = pos
+    dump = _sensex_tick(
+        i=5,
+        idx=74300.0,
+        atm=74300.0,
+        ce=180.0,
+        pe=200.0,
+        wings={"74300": {"ce": 180.0, "pe": 200.0}},
+    )
+    mark_to_market(engine, dump, "SENSEX", 6, dealer_verdict="HOLD", atm_strike=74300.0)
+    assert engine.closed[-1]["exit_reason"] == "STOP"
 
 

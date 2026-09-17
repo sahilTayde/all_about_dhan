@@ -1,5 +1,28 @@
 # Handoff log — Team 06 Backtesting
 
+## As of now (2026-09-17 live) — SENSEX 74300 CE fill-then-SL not left OPEN (NO_PROMOTE)
+
+```text
+From:     teams/06_backtesting + desk_ml
+To:       00 / founder
+Date:     2026-09-17
+Status:   PAPER EXIT FIX / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: Root: after fill, quote_for_side could fall back to a
+  different ATM/ITM print; CANCEL_STRIKE_ROLL used booked strike as
+  live ATM so roll never fired; wing lows were overwritten so a
+  wick through limit+stop never STOP'd. Fix: booked-strike quote
+  only; keep ce_low per strike; STOP before roll; last_print if
+  wing missing. Tests: test_sensex_74300_ce_fill_then_sl_closes_loss,
+  test_sensex_74300_ce_same_tick_limit_and_stop_closes,
+  test_sensex_74300_stays_open_when_only_rolled_atm_dumps.
+  Live 17 Sep 09:34: Dhan 74300 CE 269 vs stop 199 — not through SL;
+  ATM 74500 165 is another contract.
+Rejected: Fantasy fill. Live orders. STRAT-015+.
+UNKNOWN: Intra-45s 74300 OHLC (Dhan last_price only).
+```
+
 ## As of now (2026-09-17 PRE) — 70k desk + dual wr smoke (NO_PROMOTE)
 
 ```text

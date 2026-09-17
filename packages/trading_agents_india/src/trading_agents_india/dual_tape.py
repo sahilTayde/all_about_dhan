@@ -710,8 +710,11 @@ def run_dual_tape_loop(
                                 "Dashboard JSON/MD rewrite every 5s from last tick."
                             ),
                         }
-                    except Exception:  # noqa: BLE001 — scalper fail-soft
-                        heartbeat_board = {"error": "paper_scalp_failed"}
+                    except Exception as exc:  # noqa: BLE001 — scalper fail-soft
+                        heartbeat_board = {
+                            "error": "paper_scalp_failed",
+                            "detail": str(exc)[:240],
+                        }
                 else:
                     heartbeat_board = {}
 

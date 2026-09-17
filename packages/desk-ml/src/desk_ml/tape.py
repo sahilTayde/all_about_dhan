@@ -270,6 +270,36 @@ def _opt_float(raw: Any) -> Optional[float]:
         return None
 
 
+def merge_wing_quotes(prev: Any, new: Any) -> dict[str, Any]:
+    """Keep last LTP per strike and the running minute low. Never drop a booked strike's low."""
+    out: dict[str, Any] = {}
+    if isinstance(prev, dict):
+        for key, cell in prev.items():
+            if isinstance(cell, dict):
+                out[str(key)] = dict(cell)
+    if not isinstance(new, dict):
+        return out
+    for key, cell in new.items():
+        if not isinstance(cell, dict):
+            continue
+        sk = str(key)
+        old = out.get(sk) if isinstance(out.get(sk), dict) else {}
+        merged = dict(cell)
+        for side in ("ce", "pe"):
+            ltp = _opt_float(cell.get(side))
+            if ltp is None:
+                ltp = _opt_float(old.get(side))
+            prev_low = _opt_float(old.get(f"{side}_low")) or _opt_float(old.get(side))
+            cell_low = _opt_float(cell.get(f"{side}_low")) or _opt_float(cell.get(side))
+            lows = [x for x in (prev_low, cell_low, ltp) if x is not None]
+            if ltp is not None:
+                merged[side] = ltp
+            if lows:
+                merged[f"{side}_low"] = min(lows)
+        out[sk] = merged
+    return out
+
+
 def _snap_row(snap: dict[str, Any], as_of: Optional[int]) -> Optional[dict[str, Any]]:
     ltps = _snap_ltps(snap)
     if ltps is None:
@@ -358,6 +388,7 @@ def load_dual_tape_triples(
                 "pe_low": row["pe"],
                 "itm_ce_low": row.get("itm_ce"),
                 "itm_pe_low": row.get("itm_pe"),
+                "wing_quotes": merge_wing_quotes({}, row.get("wing_quotes")),
             }
             continue
         prev["idx"] = row["idx"]
@@ -385,8 +416,7 @@ def load_dual_tape_triples(
             prev["itm_ce_strike"] = row["itm_ce_strike"]
         if row.get("itm_pe_strike") is not None:
             prev["itm_pe_strike"] = row["itm_pe_strike"]
-        if row.get("wing_quotes"):
-            prev["wing_quotes"] = row["wing_quotes"]
+        prev["wing_quotes"] = merge_wing_quotes(prev.get("wing_quotes"), row.get("wing_quotes"))
     ordered = [by_min[k] for k in sorted(by_min)]
     triples = [
         Triple(

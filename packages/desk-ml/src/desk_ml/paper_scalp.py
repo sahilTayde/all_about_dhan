@@ -329,28 +329,55 @@ def _opt_px(raw: Any) -> Optional[float]:
 
 
 def quote_for_side(tick: Triple, side: str, *, strike: Optional[float] = None) -> tuple[Optional[float], Optional[float], str]:
-    """Return (ltp, low, source). Prefer ITM wing LTP. Never invent a print."""
+    """Return (ltp, low, source). Booked strike never silently uses a rolled ATM/ITM print."""
     want = float(strike) if strike is not None else None
     wings = tick.wing_quotes if isinstance(tick.wing_quotes, dict) else {}
-    if want is not None and wings:
+
+    def _from_cell(cell: Any, src: str) -> Optional[tuple[float, float, str]]:
+        if not isinstance(cell, dict):
+            return None
+        key = "ce" if side == "CE" else "pe"
+        ltp = _opt_px(cell.get(key))
+        if ltp is None:
+            return None
+        low = _opt_px(cell.get(f"{key}_low")) or ltp
+        return ltp, low, src
+
+    if want is not None:
         cell = wings.get(str(int(want))) or wings.get(str(want)) or wings.get(f"{want:.1f}")
-        if isinstance(cell, dict):
-            key = "ce" if side == "CE" else "pe"
-            ltp = _opt_px(cell.get(key))
-            low = _opt_px(cell.get(f"{key}_low")) or ltp
-            if ltp is not None:
-                return ltp, low, "ITM_100"
+        hit = _from_cell(cell, f"STRIKE_{int(want)}")
+        if hit is not None:
+            return hit
+        if side == "CE" and tick.itm_ce_strike is not None and abs(float(tick.itm_ce_strike) - want) < 1e-6:
+            itm = _opt_px(tick.itm_ce_close)
+            if itm is not None:
+                return itm, _opt_px(tick.itm_ce_low) or itm, "ITM_100"
+        if side == "PE" and tick.itm_pe_strike is not None and abs(float(tick.itm_pe_strike) - want) < 1e-6:
+            itm = _opt_px(tick.itm_pe_close)
+            if itm is not None:
+                return itm, _opt_px(tick.itm_pe_low) or itm, "ITM_100"
+        if tick.atm_strike is not None and abs(float(tick.atm_strike) - want) < 1e-6:
+            if side == "CE":
+                atm = _opt_px(tick.ce_close)
+                return atm, (_opt_px(tick.ce_low) or atm) if atm is not None else None, "ATM"
+            atm = _opt_px(tick.pe_close)
+            return atm, (_opt_px(tick.pe_low) or atm) if atm is not None else None, "ATM"
+        if not wings and tick.atm_strike is None:
+            if side == "CE":
+                atm = _opt_px(tick.ce_close)
+                return atm, _opt_px(tick.ce_low) or atm, "ATM"
+            atm = _opt_px(tick.pe_close)
+            return atm, _opt_px(tick.pe_low) or atm, "ATM"
+        return None, None, "MISSING_STRIKE"
     if side == "CE":
         itm = _opt_px(tick.itm_ce_close)
-        if itm is not None and (want is None or tick.itm_ce_strike is None or abs(float(tick.itm_ce_strike) - want) < 1e-6):
-            low = _opt_px(tick.itm_ce_low) or itm
-            return itm, low, "ITM_100"
+        if itm is not None:
+            return itm, _opt_px(tick.itm_ce_low) or itm, "ITM_100"
         atm = _opt_px(tick.ce_close)
         return atm, _opt_px(tick.ce_low) or atm, "ATM"
     itm = _opt_px(tick.itm_pe_close)
-    if itm is not None and (want is None or tick.itm_pe_strike is None or abs(float(tick.itm_pe_strike) - want) < 1e-6):
-        low = _opt_px(tick.itm_pe_low) or itm
-        return itm, low, "ITM_100"
+    if itm is not None:
+        return itm, _opt_px(tick.itm_pe_low) or itm, "ITM_100"
     atm = _opt_px(tick.pe_close)
     return atm, _opt_px(tick.pe_low) or atm, "ATM"
 
@@ -538,6 +565,9 @@ class OpenPaper:
     capital_inr: float = STARTING_CAPITAL_INR
     lot_status: str = "DATA_INSUFFICIENT"
     filled: bool = False
+    last_ltp: Optional[float] = None
+    seen_low: Optional[float] = None
+    quote_src: str = ""
     idx_at_open: Optional[float] = None
     delta: Optional[float] = None
     gamma: Optional[float] = None
@@ -871,6 +901,7 @@ def _unfilled_reason(
     ts: int,
     bar_i: int,
     *,
+    side_low: Optional[float] = None,
     dealer_verdict: Optional[str] = None,
     live_delta: Optional[float] = None,
     live_greeks: Optional[dict[str, Optional[float]]] = None,
@@ -880,8 +911,13 @@ def _unfilled_reason(
 ) -> Optional[str]:
     """Working buy limit. Do not assume a fill. Cancel if the candle walked away."""
     px = float(ltp)
+    low = float(side_low) if side_low is not None else px
+    if pos.seen_low is not None:
+        touch = min(px, low, float(pos.seen_low))
+    else:
+        touch = min(px, low)
     limit = float(pos.limit_price or pos.entry)
-    if px <= limit + 1e-9:
+    if touch <= limit + 1e-9:
         return "FILL"
     if px >= limit * (1.0 + FILL_AWAY_FRAC):
         return "CANCEL_UNFILLED_AWAY"
@@ -937,8 +973,13 @@ def _exit_reason(
     """Exit a stuck long premium. Minute low counts. Do not wait out a dead contract."""
     px = float(ltp)
     low = float(side_low) if side_low is not None else px
-    stop_px = min(px, low)
+    seen = float(pos.seen_low) if pos.seen_low is not None else px
+    stop_px = min(px, low, seen)
     step = STRIKE_STEP.get(pos.underlying.upper(), 50.0)
+    if stop_px <= pos.stop:
+        return "STOP"
+    if px >= pos.target:
+        return "TARGET"
     if (
         pos.atm_strike is not None
         and atm_strike is not None
@@ -946,10 +987,6 @@ def _exit_reason(
         and min(px, float(side_low) if side_low is not None else px) < float(pos.entry)
     ):
         return "CANCEL_STRIKE_ROLL"
-    if stop_px <= pos.stop:
-        return "STOP"
-    if px >= pos.target:
-        return "TARGET"
     give_up = float(pos.entry) * (1.0 - float(give_up_frac))
     if stop_px <= give_up:
         return "CANCEL_ADVERSE"
@@ -1177,7 +1214,8 @@ def _try_open(
     want = pick_paper_strike(tick, side, atm, underlying)
     greeks = leg_greeks(tick, side, want)
     itm_px, _itm_low, itm_src = quote_for_side(tick, side, strike=want)
-    if itm_px is not None and itm_src.startswith("ITM"):
+    booked_src = str(itm_src or "")
+    if itm_px is not None and (booked_src.startswith("ITM") or booked_src.startswith("STRIKE_")):
         entry = float(itm_px)
         booked = want
         source = "ITM_100"
@@ -1283,13 +1321,16 @@ def mark_to_market(
     dealer_verdict: Optional[str] = None,
     atm_strike: Optional[float] = None,
 ) -> None:
+    """Flatten/cancel OPEN tickets every bar. SIDEWAYS must not freeze an already-open book."""
     for book_id in list(LIVE_BOOKS):
         pos = engine.opens.get((book_id, underlying))
         if pos is None:
             continue
-        ltp, side_low, _src = quote_for_side(tick, pos.side, strike=pos.atm_strike)
-        if ltp is None:
-            ltp, side_low, _src = quote_for_side(tick, pos.side)
+        ltp, side_low, src = quote_for_side(tick, pos.side, strike=pos.atm_strike)
+        if ltp is None and pos.last_ltp is not None:
+            ltp = float(pos.last_ltp)
+            side_low = pos.seen_low if pos.seen_low is not None else ltp
+            src = "LAST_PRINT"
         if ltp is None:
             if minutes_ist(tick.ts) >= FLATTEN_MINUTES_IST:
                 _close(
@@ -1303,6 +1344,10 @@ def mark_to_market(
             continue
         if side_low is None:
             side_low = ltp
+        pos.last_ltp = float(ltp)
+        pos.quote_src = src
+        low_v = float(side_low)
+        pos.seen_low = min(pos.seen_low if pos.seen_low is not None else low_v, low_v, float(ltp))
         if not pos.filled:
             live = leg_greeks(tick, pos.side, float(pos.atm_strike or 0))
             hist = getattr(engine, "_greeks_iv_hist", None)
@@ -1312,6 +1357,7 @@ def mark_to_market(
                 float(ltp),
                 tick.ts,
                 bar_i,
+                side_low=low_v,
                 dealer_verdict=dealer_verdict,
                 live_delta=live.get("delta"),
                 live_greeks=live,
@@ -1321,21 +1367,17 @@ def mark_to_market(
             )
             if u_reason == "FILL":
                 pos.filled = True
-                pos.entry = min(float(ltp), float(pos.limit_price or pos.entry))
+                limit = float(pos.limit_price or pos.entry)
+                if float(ltp) <= limit + 1e-9:
+                    pos.entry = min(float(ltp), limit)
+                else:
+                    pos.entry = limit
             elif u_reason:
                 _close(engine, pos, ltp=float(ltp), ts=tick.ts, reason=u_reason, root=engine.root)
                 continue
             else:
                 continue
-        booked_px, _, _ = quote_for_side(tick, pos.side, strike=pos.atm_strike)
-        if booked_px is not None:
-            roll_ref = pos.atm_strike
-        else:
-            roll_ref = (
-                tick.itm_ce_strike
-                if pos.side == "CE"
-                else tick.itm_pe_strike
-            ) or atm_strike or tick.atm_strike
+        live_atm = atm_strike if atm_strike is not None else tick.atm_strike
         reason = _exit_reason(
             pos,
             float(ltp),
@@ -1343,8 +1385,8 @@ def mark_to_market(
             bar_i,
             hold_bars=engine.paper_hold_bars,
             give_up_frac=engine.paper_give_up_frac,
-            side_low=float(side_low) if side_low is not None else None,
-            atm_strike=float(roll_ref) if roll_ref is not None else None,
+            side_low=low_v,
+            atm_strike=float(live_atm) if live_atm is not None else None,
             dealer_verdict=dealer_verdict,
             live_greeks=leg_greeks(tick, pos.side, float(pos.atm_strike or 0)),
             session_iv=session_iv_median(
@@ -1354,8 +1396,8 @@ def mark_to_market(
         )
         if reason:
             exit_px = float(ltp)
-            if reason in {"STOP", "CANCEL_ADVERSE"} and side_low is not None:
-                exit_px = min(exit_px, float(side_low))
+            if reason in {"STOP", "CANCEL_ADVERSE"}:
+                exit_px = min(exit_px, low_v, float(pos.seen_low or exit_px))
             _close(engine, pos, ltp=exit_px, ts=tick.ts, reason=reason, root=engine.root)
 
 
@@ -2421,7 +2463,10 @@ def build_dashboard(
             "MIX-ML-GREEKS is the ML-2 paper book: skip missing greeks, rich IV, late-session theta bleed. ml001-v1 unchanged.",
             "live_session=true walks TODAY IST dual-tape only. Cache-wide jsonl replay is not today's P/L. 16 Sep is not 17 Sep.",
             "Cancel dead tickets: unfilled limit walk-away, minute low, 12% give-up, strike roll, thesis flip, dead greeks. Do not sit to TIME.",
-            "A signal is WORKING_LIMIT until LTP<=limit. If the candle runs away, cancel with ₹0 — never assume a fill.",
+            "A signal is WORKING_LIMIT until booked-strike LTP or minute low <=limit. If the candle runs away, cancel with ₹0 — never assume a fill.",
+            "OPEN_PAPER MTM uses the booked strike LTP (wing cell), not the rolled ATM pack. ATM LTP through the stop does not close a different strike.",
+            "Once filled, STOP/CANCEL_ADVERSE/greeks-dead must close. A wick through limit then stop is CLOSED LOSS — it must not sit OPEN.",
+            "Open rows stamp last_ltp / seen_low / quote_src so a 74300 CE is not confused with a later ATM 74400/74500 print.",
             "No new paper after 14:45 IST. 15:00 flattens leftover OPEN. live_session does not keep dead tickets overnight.",
             "paper_params nudge is session-only overfit. production_params_written stays false.",
             "INDEX 1m regime TREND|SIDEWAYS|UNKNOWN is HYPOTHESIS. SIDEWAYS skips NEW paper opens; flatten/cancel still run. Feed stays live.",
@@ -2603,17 +2648,18 @@ def render_markdown(board: dict[str, Any]) -> str:
         "",
         "## Open tickets (strike / limit / SL / CE|PE / status)",
         "",
-        "| model | und | CE/PE | strike | limit | target | stop | status | regime |",
-        "|-------|-----|-------|--------|-------|--------|------|--------|--------|",
+        "| model | und | CE/PE | strike | limit | stop | last_ltp | filled | status | regime |",
+        "|-------|-----|-------|--------|-------|------|----------|--------|--------|--------|",
     ]
     for row in board.get("open_trades") or []:
         lines.append(
             f"| `{row.get('book_id')}` | {row.get('underlying')} | {row.get('side')} | "
-            f"{row.get('atm_strike')} | {row.get('limit_price')} | {row.get('target')} | {row.get('stop')} | "
+            f"{row.get('atm_strike')} | {row.get('limit_price')} | {row.get('stop')} | "
+            f"{row.get('last_ltp')} | {row.get('filled')} | "
             f"{row.get('status') or 'OPEN_PAPER'} | {row.get('index_regime') or '—'} |"
         )
     if not board.get("open_trades"):
-        lines.append("| — | — | — | — | — | — | — | none | — |")
+        lines.append("| — | — | — | — | — | — | — | — | none | — |")
     lines += [
         "",
         "## Leaderboard (book × index, ranked by net ₹)",
