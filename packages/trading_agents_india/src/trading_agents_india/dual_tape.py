@@ -27,6 +27,7 @@ from trading_agents_india.session_clock import (
     DEFAULT_TICK_SECONDS,
     IST,
     clamp_tick_seconds,
+    dual_tape_live_gate,
     now_ist,
     snapshot,
 )
@@ -250,6 +251,88 @@ def stamp_vol_watch(
     }
 
 
+def _carry_index_ltp(prev: Optional[dict[str, Any]]) -> Optional[float]:
+    """Last printed INDEX LTP. Carry is not an invented quote."""
+    raw = (prev or {}).get("index_ltp")
+    if raw is None:
+        return None
+    try:
+        px = float(raw)
+    except (TypeError, ValueError):
+        return None
+    return px if px > 0 else None
+
+
+def _unix_ist(as_of: str) -> int:
+    try:
+        return int(datetime.fromisoformat(str(as_of)).timestamp())
+    except (TypeError, ValueError):
+        return int(now_ist().timestamp())
+
+
+def _ema_series(values: Sequence[float], length: int) -> Optional[list[float]]:
+    vals = [float(x) for x in values]
+    if length <= 0 or len(vals) < length:
+        return None
+    k = 2.0 / (length + 1)
+    out: list[float] = []
+    prev = sum(vals[:length]) / length
+    out.append(prev)
+    for v in vals[length:]:
+        prev = v * k + prev * (1.0 - k)
+        out.append(prev)
+    return out
+
+
+def _rsi14(closes: Sequence[float]) -> Optional[float]:
+    vals = [float(x) for x in closes]
+    period = 14
+    if len(vals) < period + 1:
+        return None
+    gains = 0.0
+    losses = 0.0
+    for i in range(1, period + 1):
+        d = vals[i] - vals[i - 1]
+        if d >= 0:
+            gains += d
+        else:
+            losses -= d
+    avg_g = gains / period
+    avg_l = losses / period
+    for i in range(period + 1, len(vals)):
+        d = vals[i] - vals[i - 1]
+        g = d if d > 0 else 0.0
+        lss = -d if d < 0 else 0.0
+        avg_g = (avg_g * (period - 1) + g) / period
+        avg_l = (avg_l * (period - 1) + lss) / period
+    if avg_l == 0:
+        return 100.0
+    rs = avg_g / avg_l
+    return 100.0 - (100.0 / (1.0 + rs))
+
+
+def _macd_last(closes: Sequence[float]) -> tuple[Optional[float], Optional[float], Optional[float]]:
+    vals = [float(x) for x in closes]
+    if len(vals) < 35:
+        return None, None, None
+    ema12 = _ema_series(vals, 12)
+    ema26 = _ema_series(vals, 26)
+    if not ema12 or not ema26:
+        return None, None, None
+    # align: ema12 starts at bar 12, ema26 at bar 26
+    macd_line = []
+    offset = 26 - 12
+    for i, slow in enumerate(ema26):
+        fast = ema12[i + offset]
+        macd_line.append(fast - slow)
+    sig = _ema_series(macd_line, 9)
+    if not sig:
+        return round(macd_line[-1], 6), None, None
+    macd = macd_line[-1]
+    signal = sig[-1]
+    return round(macd, 6), round(signal, 6), round(macd - signal, 6)
+
+
 def gather_underlying(
     underlying: str,
     *,
@@ -304,10 +387,16 @@ def gather_underlying(
     stale = not clock_in_shell
     if simulate and not clock_in_shell:
         stale = True
+    prev = prev or {}
+    bars_source_carry = False
+    if index_ltp is None:
+        carried = _carry_index_ltp(prev)
+        if carried is not None:
+            index_ltp = carried
+            gaps.append("INDEX_CARRY_PREV: last good LTP (Dhan 1m miss; not invented)")
+            bars_source_carry = True
     if live and not stale and index_ltp is None:
         gaps.append("DATA_INSUFFICIENT: INDEX 1m/spot missing — cannot lean without inventing")
-
-    prev = prev or {}
     prev_strike = prev.get("atm_strike")
     wrong = False
     if chain.atm_strike is None and ce_ltp is None and pe_ltp is None:
@@ -349,7 +438,7 @@ def gather_underlying(
         as_of_ist=as_of,
         index_ltp=index_ltp,
         index_1m=bar_d,
-        index_source=bars.source,
+        index_source=("carry_prev" if bars_source_carry else bars.source),
         atm_ce_ltp=ce_ltp,
         atm_pe_ltp=pe_ltp,
         atm_strike=chain.atm_strike,
@@ -523,14 +612,9 @@ def persist_tick(
 
 
 class DualTapeStore:
-    """Compact ticks in trading_agents_india.sqlite — never writes production params."""
+    """Compact queryable ticks in trading_agents_india.sqlite — never writes production params."""
 
-    def __init__(self, path: Path) -> None:
-        self.path = path
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        with self._connect() as conn:
-            conn.executescript(
-                """
+    DDL = """
                 CREATE TABLE IF NOT EXISTS dual_tape_ticks (
                   id INTEGER PRIMARY KEY AUTOINCREMENT,
                   as_of_ist TEXT NOT NULL,
@@ -538,24 +622,237 @@ class DualTapeStore:
                   payload_json TEXT NOT NULL,
                   created_at TEXT NOT NULL
                 );
+                CREATE TABLE IF NOT EXISTS replay_index (
+                  und TEXT NOT NULL,
+                  ts INTEGER NOT NULL,
+                  as_of_ist TEXT NOT NULL,
+                  ltp REAL,
+                  o REAL, h REAL, l REAL, c REAL,
+                  volume REAL,
+                  oi REAL,
+                  src TEXT,
+                  PRIMARY KEY (und, ts)
+                );
+                CREATE TABLE IF NOT EXISTS replay_premium (
+                  und TEXT NOT NULL,
+                  ts INTEGER NOT NULL,
+                  atm REAL,
+                  itm_ce_strike REAL,
+                  itm_pe_strike REAL,
+                  atm_ce REAL,
+                  atm_pe REAL,
+                  itm_ce REAL,
+                  itm_pe REAL,
+                  ce_vol REAL,
+                  pe_vol REAL,
+                  ce_delta REAL,
+                  pe_delta REAL,
+                  ce_iv REAL,
+                  pe_iv REAL,
+                  ce_gamma REAL,
+                  pe_gamma REAL,
+                  ce_theta REAL,
+                  pe_theta REAL,
+                  ce_vega REAL,
+                  pe_vega REAL,
+                  pcr_oi REAL,
+                  PRIMARY KEY (und, ts)
+                );
+                CREATE TABLE IF NOT EXISTS replay_strike (
+                  und TEXT NOT NULL,
+                  ts INTEGER NOT NULL,
+                  strike REAL NOT NULL,
+                  ce_ltp REAL,
+                  pe_ltp REAL,
+                  ce_oi REAL,
+                  pe_oi REAL,
+                  ce_delta REAL,
+                  pe_delta REAL,
+                  PRIMARY KEY (und, ts, strike)
+                );
+                CREATE TABLE IF NOT EXISTS replay_features (
+                  und TEXT NOT NULL,
+                  ts INTEGER NOT NULL,
+                  rsi14 REAL,
+                  macd REAL,
+                  macd_signal REAL,
+                  macd_hist REAL,
+                  PRIMARY KEY (und, ts)
+                );
+                CREATE TABLE IF NOT EXISTS replay_decision (
+                  id INTEGER PRIMARY KEY AUTOINCREMENT,
+                  und TEXT NOT NULL,
+                  ts INTEGER NOT NULL,
+                  as_of_ist TEXT NOT NULL,
+                  book_id TEXT,
+                  side TEXT,
+                  action TEXT NOT NULL,
+                  reason TEXT,
+                  justification TEXT
+                );
+                CREATE INDEX IF NOT EXISTS idx_replay_index_und_ts ON replay_index (und, ts);
+                CREATE INDEX IF NOT EXISTS idx_replay_prem_und_ts ON replay_premium (und, ts);
+                CREATE INDEX IF NOT EXISTS idx_replay_dec_und_ts ON replay_decision (und, ts);
                 """
-            )
+
+    def __init__(self, path: Path) -> None:
+        self.path = path
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        with self._connect() as conn:
+            conn.executescript(self.DDL)
 
     def _connect(self) -> sqlite3.Connection:
         return sqlite3.connect(str(self.path))
 
     def append(self, row: dict[str, Any]) -> None:
         created = datetime.now(IST).isoformat(timespec="seconds")
+        as_of = str(row.get("as_of_ist") or created)
+        ts = _unix_ist(as_of)
+        payload = json.dumps(row, default=str, ensure_ascii=False)
         with self._connect() as conn:
             conn.execute(
                 """INSERT INTO dual_tape_ticks (as_of_ist, tick_index, payload_json, created_at)
                    VALUES (?, ?, ?, ?)""",
                 (
-                    str(row.get("as_of_ist") or ""),
+                    as_of,
                     int(row.get("tick_index") or 0),
-                    json.dumps(row, default=str, ensure_ascii=False),
+                    payload,
                     created,
                 ),
+            )
+            for snap in row.get("underlyings") or []:
+                if not isinstance(snap, dict):
+                    continue
+                und = str(snap.get("underlying") or "").upper()
+                if not und:
+                    continue
+                bar = snap.get("index_1m") if isinstance(snap.get("index_1m"), dict) else {}
+                conn.execute(
+                    """INSERT OR REPLACE INTO replay_index
+                       (und, ts, as_of_ist, ltp, o, h, l, c, volume, oi, src)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    (
+                        und,
+                        ts,
+                        as_of,
+                        snap.get("index_ltp"),
+                        bar.get("open"),
+                        bar.get("high"),
+                        bar.get("low"),
+                        bar.get("close") if bar.get("close") is not None else snap.get("index_ltp"),
+                        snap.get("index_volume"),
+                        bar.get("oi"),
+                        snap.get("index_source"),
+                    ),
+                )
+                conn.execute(
+                    """INSERT OR REPLACE INTO replay_premium
+                       (und, ts, atm, itm_ce_strike, itm_pe_strike, atm_ce, atm_pe, itm_ce, itm_pe,
+                        ce_vol, pe_vol, ce_delta, pe_delta, ce_iv, pe_iv, ce_gamma, pe_gamma,
+                        ce_theta, pe_theta, ce_vega, pe_vega, pcr_oi)
+                       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                    (
+                        und,
+                        ts,
+                        snap.get("atm_strike"),
+                        snap.get("itm_ce_strike"),
+                        snap.get("itm_pe_strike"),
+                        snap.get("atm_ce_ltp"),
+                        snap.get("atm_pe_ltp"),
+                        snap.get("itm_ce_ltp"),
+                        snap.get("itm_pe_ltp"),
+                        snap.get("atm_ce_volume"),
+                        snap.get("atm_pe_volume"),
+                        snap.get("itm_ce_delta") if snap.get("itm_ce_delta") is not None else snap.get("atm_ce_delta"),
+                        snap.get("itm_pe_delta") if snap.get("itm_pe_delta") is not None else snap.get("atm_pe_delta"),
+                        snap.get("itm_ce_iv") if snap.get("itm_ce_iv") is not None else snap.get("atm_ce_iv"),
+                        snap.get("itm_pe_iv") if snap.get("itm_pe_iv") is not None else snap.get("atm_pe_iv"),
+                        snap.get("itm_ce_gamma") if snap.get("itm_ce_gamma") is not None else snap.get("atm_ce_gamma"),
+                        snap.get("itm_pe_gamma") if snap.get("itm_pe_gamma") is not None else snap.get("atm_pe_gamma"),
+                        snap.get("itm_ce_theta") if snap.get("itm_ce_theta") is not None else snap.get("atm_ce_theta"),
+                        snap.get("itm_pe_theta") if snap.get("itm_pe_theta") is not None else snap.get("atm_pe_theta"),
+                        snap.get("itm_ce_vega") if snap.get("itm_ce_vega") is not None else snap.get("atm_ce_vega"),
+                        snap.get("itm_pe_vega") if snap.get("itm_pe_vega") is not None else snap.get("atm_pe_vega"),
+                        snap.get("pcr_oi"),
+                    ),
+                )
+                wings = snap.get("wing_quotes") or {}
+                if isinstance(wings, dict):
+                    for strike_s, packed in wings.items():
+                        try:
+                            strike = float(strike_s)
+                        except (TypeError, ValueError):
+                            continue
+                        if not isinstance(packed, dict):
+                            continue
+                        conn.execute(
+                            """INSERT OR REPLACE INTO replay_strike
+                               (und, ts, strike, ce_ltp, pe_ltp, ce_oi, pe_oi, ce_delta, pe_delta)
+                               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                            (
+                                und,
+                                ts,
+                                strike,
+                                packed.get("ce"),
+                                packed.get("pe"),
+                                packed.get("ce_oi") or packed.get("oi_ce"),
+                                packed.get("pe_oi") or packed.get("oi_pe"),
+                                packed.get("ce_delta"),
+                                packed.get("pe_delta"),
+                            ),
+                        )
+                closes = [
+                    float(r[0])
+                    for r in conn.execute(
+                        "SELECT c FROM replay_index WHERE und=? AND c IS NOT NULL ORDER BY ts",
+                        (und,),
+                    ).fetchall()
+                    if r[0] is not None
+                ][-80:]
+                rsi = _rsi14(closes)
+                macd, sig, hist = _macd_last(closes)
+                conn.execute(
+                    """INSERT OR REPLACE INTO replay_features (und, ts, rsi14, macd, macd_signal, macd_hist)
+                       VALUES (?, ?, ?, ?, ?, ?)""",
+                    (und, ts, rsi, macd, sig, hist),
+                )
+            for note in row.get("desk") or []:
+                if not isinstance(note, dict):
+                    continue
+                conn.execute(
+                    """INSERT INTO replay_decision
+                       (und, ts, as_of_ist, book_id, side, action, reason, justification)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+                    (
+                        str(note.get("underlying") or ""),
+                        ts,
+                        as_of,
+                        "DESK_DIVERGENCE",
+                        (note.get("extra") or {}).get("train_side") if isinstance(note.get("extra"), dict) else None,
+                        str(note.get("verdict") or "HOLD"),
+                        str(note.get("reason_code") or note.get("case") or ""),
+                        str(note.get("dealer_note") or ""),
+                    ),
+                )
+
+    def record_decision(
+        self,
+        *,
+        und: str,
+        ts: int,
+        as_of_ist: str,
+        book_id: str,
+        side: str,
+        action: str,
+        reason: str,
+        justification: str,
+    ) -> None:
+        with self._connect() as conn:
+            conn.execute(
+                """INSERT INTO replay_decision
+                   (und, ts, as_of_ist, book_id, side, action, reason, justification)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+                (und, int(ts), as_of_ist, book_id, side, action, reason, justification),
             )
 
 
@@ -614,6 +911,22 @@ def run_dual_tape_loop(
     heartbeat_board: dict[str, Any] = {}
     last_full_board: dict[str, Any] = {}
 
+    if not simulate:
+        ok, why = dual_tape_live_gate()
+        if not ok:
+            return DualTapeResult(
+                ticks=[],
+                tick_seconds=tick_seconds,
+                simulated=False,
+                stopped_reason=why,
+                paths={
+                    "note": (
+                        "FOUNDER LOCK: dual-tape live Mon–Fri 09:30–15:29 IST only. "
+                        "No Sat/Sun. No NEW after 15:16. No exception."
+                    )
+                },
+            )
+
     if write_run_flag_on_start:
         write_run_flag(
             settings.repo_root,
@@ -635,8 +948,13 @@ def run_dual_tape_loop(
                 stopped = "founder_stop_flag"
                 break
             clock = snapshot()
-            if stop_outside_shell and not clock.in_session_shell and not simulate:
-                stopped = "outside_session_shell"
+            if not simulate:
+                ok, why = dual_tape_live_gate()
+                if not ok:
+                    stopped = why
+                    break
+            if (stop_outside_shell or not simulate) and not clock.allow_tick_capture and not simulate:
+                stopped = clock.open_settle_gate or clock.reason or "outside_session_shell"
                 break
 
             snaps: list[UnderlyingSnap] = []

@@ -1,8 +1,10 @@
-"""IST market-hours + founder dead-band clock (MIX-CLOCK-CAS overlay).
+"""IST cash-hours clock. Founder lock — no exception until founder says.
 
-Active paper leans: 09:50–15:15 IST. Flatten after 15:15.
-CAS afternoon dead-band (15:00–15:30) applies on **expiry days only** (PARKED CAS).
-Session shell: 09:00–15:30 IST (poll may run).
+India has **no** Sat/Sun cash/F&O session. Dual-tape must not run on weekends.
+Mon–Fri only:
+  - Work / NEW paper: 09:30 IST inclusive until 15:16 IST exclusive
+  - Flatten every OPEN book at 15:16:00 IST
+  - Capture ticks (no NEW, no open books) until 15:29:00 IST exclusive
 """
 
 from __future__ import annotations
@@ -14,27 +16,30 @@ from zoneinfo import ZoneInfo
 
 IST = ZoneInfo("Asia/Kolkata")
 
-# NSE cash/F&O shell (VERIFY circular for exact close 15:30 vs 15:40).
-SESSION_OPEN = time(9, 0)
-SESSION_CLOSE = time(15, 30)
-
-# Founder dead-bands from MIX-CLOCK-CAS: pre-open. Afternoon CAS = expiry only.
-DEAD_BAND_MORNING_END = time(9, 30)
-DEAD_BAND_AFTERNOON_START = time(15, 0)
-PAPER_STOP = time(15, 15)  # NEW paper through 15:15; then flatten
-
-# Cash F&O open 09:15 IST. First NEW paper ticket only after +35m.
+# Founder lock 2026-09-19. Do not widen without founder ask.
+PAPER_WORK_START = time(9, 30)
+PAPER_FLAT = time(15, 16)
+TICK_CAPTURE_END = time(15, 29)
 CASH_OPEN = time(9, 15)
-OPEN_SETTLE_MINUTES = 35
-NEW_PAPER_START = time(9, 50)  # 09:15 + 35m
-NO_NEW_BEFORE_0950 = "NO_NEW_BEFORE_0950"
-OPEN_SETTLE_35M = "OPEN_SETTLE_35M"
 
-# Paper CE/PE emission window (after open-settle; stop 15:15).
-ACTIVE_PAPER_START = NEW_PAPER_START
-ACTIVE_PAPER_END = PAPER_STOP
+# Compat names (old 09:50 / 15:15 clock retired).
+SESSION_OPEN = PAPER_WORK_START
+SESSION_CLOSE = TICK_CAPTURE_END
+DEAD_BAND_MORNING_END = PAPER_WORK_START
+DEAD_BAND_AFTERNOON_START = PAPER_FLAT
+PAPER_STOP = PAPER_FLAT
+NEW_PAPER_START = PAPER_WORK_START
+OPEN_SETTLE_MINUTES = 15  # 09:15 cash open → 09:30 first NEW
+NO_NEW_BEFORE_0930 = "NO_NEW_BEFORE_0930"
+NO_NEW_BEFORE_0950 = NO_NEW_BEFORE_0930  # alias
+OPEN_SETTLE_35M = NO_NEW_BEFORE_0930  # alias — 35m settle retired
+WEEKEND_NO_MARKET = "WEEKEND_NO_MARKET"
+NO_NEW_AFTER_1516 = "NO_NEW_AFTER_1516"
+NO_NEW_AFTER_1515 = NO_NEW_AFTER_1516  # alias
+FLATTEN_1516 = "FLATTEN_1516"
+BEFORE_WORK_START = "BEFORE_0930_IST"
+PAST_TICK_CAPTURE = "PAST_1529_IST"
 
-# Live mock: 10s REST dual-tape. WS stays off (no greeks on feed parse).
 DEFAULT_TICK_SECONDS = 10
 MIN_TICK_SECONDS = 10
 DOCUMENTED_FASTER_TICK_SECONDS = 10
@@ -49,6 +54,7 @@ class ClockSnapshot:
     reason: str
     allow_flatten_cancel: bool = False
     allow_new_paper_ticket: bool = False
+    allow_tick_capture: bool = False
     open_settle_gate: Optional[str] = None
 
     def to_dict(self) -> dict:
@@ -59,13 +65,17 @@ class ClockSnapshot:
             "allow_directional_paper": self.allow_directional_paper,
             "allow_flatten_cancel": self.allow_flatten_cancel,
             "allow_new_paper_ticket": self.allow_new_paper_ticket,
+            "allow_tick_capture": self.allow_tick_capture,
             "open_settle_gate": self.open_settle_gate,
             "reason": self.reason,
-            "overlay": "OPEN_SETTLE_35M + paper 15:15; MIX-CLOCK-CAS afternoon expiry-only",
-            "active_paper_window_ist": "09:50–15:15",
-            "session_shell_ist": "09:00–15:30",
+            "overlay": "FOUNDER_LOCK Mon–Fri 09:30–15:16 NEW; flatten 15:16; ticks to 15:29; no Sat/Sun",
+            "active_paper_window_ist": "09:30–15:16",
+            "tick_capture_ist": "09:30–15:29",
+            "flatten_ist": "15:16",
+            "session_shell_ist": "09:30–15:29 Mon–Fri",
             "cash_open_ist": "09:15",
-            "no_new_before_ist": "09:50",
+            "no_new_before_ist": "09:30",
+            "weekday_only": True,
         }
 
 
@@ -78,89 +88,116 @@ def now_ist(override: Optional[datetime] = None) -> datetime:
 
 
 def _t(dt: datetime) -> time:
-    return dt.time()
+    return now_ist(dt).time()
+
+
+def is_nse_weekday(now: Optional[datetime] = None) -> bool:
+    """Mon–Fri IST. Sat/Sun are not Indian cash/F&O days."""
+    return now_ist(now).weekday() < 5
+
+
+def allow_tick_capture(now: Optional[datetime] = None) -> bool:
+    dt = now_ist(now)
+    if dt.weekday() >= 5:
+        return False
+    t = _t(dt)
+    return PAPER_WORK_START <= t < TICK_CAPTURE_END
+
+
+def allow_new_paper(now: Optional[datetime] = None) -> bool:
+    dt = now_ist(now)
+    if dt.weekday() >= 5:
+        return False
+    t = _t(dt)
+    return PAPER_WORK_START <= t < PAPER_FLAT
+
+
+def must_flatten_books(now: Optional[datetime] = None) -> bool:
+    """True at/after 15:16 IST on a weekday, or any time on Sat/Sun leftovers."""
+    dt = now_ist(now)
+    if dt.weekday() >= 5:
+        return True
+    return _t(dt) >= PAPER_FLAT
+
+
+def dual_tape_live_gate(now: Optional[datetime] = None) -> tuple[bool, str]:
+    """Live dual-tape may run only Mon–Fri 09:30 ≤ t < 15:29 IST. No weekend. No exception."""
+    dt = now_ist(now)
+    if dt.weekday() >= 5:
+        return False, WEEKEND_NO_MARKET
+    t = _t(dt)
+    if t < PAPER_WORK_START:
+        return False, BEFORE_WORK_START
+    if t >= TICK_CAPTURE_END:
+        return False, PAST_TICK_CAPTURE
+    return True, "OK"
 
 
 def snapshot(now: Optional[datetime] = None, *, expiry_day: bool = False) -> ClockSnapshot:
+    del expiry_day  # founder lock: CAS does not override Mon–Fri 09:30–15:16
     dt = now_ist(now)
-    # Weekday check — Sat/Sun outside session shell
     if dt.weekday() >= 5:
         return ClockSnapshot(
             as_of_ist=dt,
             in_session_shell=False,
             in_dead_band=False,
             allow_directional_paper=False,
-            reason="weekend: outside NSE session shell",
+            allow_flatten_cancel=True,
+            allow_new_paper_ticket=False,
+            allow_tick_capture=False,
+            open_settle_gate=WEEKEND_NO_MARKET,
+            reason="WEEKEND_NO_MARKET: no Sat/Sun India cash/F&O. Dual-tape must not run.",
         )
     t = _t(dt)
-    in_shell = SESSION_OPEN <= t < SESSION_CLOSE
-    if not in_shell:
+    if t < PAPER_WORK_START:
+        return ClockSnapshot(
+            as_of_ist=dt,
+            in_session_shell=False,
+            in_dead_band=True,
+            allow_directional_paper=False,
+            allow_flatten_cancel=True,
+            allow_new_paper_ticket=False,
+            allow_tick_capture=False,
+            open_settle_gate=NO_NEW_BEFORE_0930,
+            reason="NO_NEW_BEFORE_0930: work starts 09:30 IST Mon–Fri only. Flatten leftover still allowed.",
+        )
+    if t >= TICK_CAPTURE_END:
         return ClockSnapshot(
             as_of_ist=dt,
             in_session_shell=False,
             in_dead_band=False,
             allow_directional_paper=False,
-            allow_flatten_cancel=False,
-            allow_new_paper_ticket=False,
-            reason="outside session shell 09:00–15:30 IST",
-        )
-    settle_hold = t < NEW_PAPER_START
-    cas_afternoon = bool(expiry_day) and t >= DEAD_BAND_AFTERNOON_START
-    if settle_hold:
-        gate = OPEN_SETTLE_35M if t >= CASH_OPEN else NO_NEW_BEFORE_0950
-        return ClockSnapshot(
-            as_of_ist=dt,
-            in_session_shell=True,
-            in_dead_band=True,
-            allow_directional_paper=False,
             allow_flatten_cancel=True,
             allow_new_paper_ticket=False,
-            open_settle_gate=gate,
-            reason=(
-                f"{gate}: cash open 09:15 + {OPEN_SETTLE_MINUTES}m → first NEW paper at 09:50 IST. "
-                "Flatten/cancel of already-open still allowed."
-            ),
+            allow_tick_capture=False,
+            reason="PAST_1529_IST: tick capture ends 15:29 IST. Books already flattened at 15:16.",
         )
-    if cas_afternoon:
-        return ClockSnapshot(
-            as_of_ist=dt,
-            in_session_shell=True,
-            in_dead_band=True,
-            allow_directional_paper=False,
-            allow_flatten_cancel=True,
-            allow_new_paper_ticket=False,
-            reason="MIX-CLOCK-CAS dead-band (expiry day 15:00–15:30) → HOLD new; flatten/cancel still allowed",
-        )
-    if t >= PAPER_STOP:
-        return ClockSnapshot(
-            as_of_ist=dt,
-            in_session_shell=True,
-            in_dead_band=False,
-            allow_directional_paper=False,
-            allow_flatten_cancel=True,
-            allow_new_paper_ticket=False,
-            reason="NO_NEW_AFTER_1515: paper books until 15:15 IST then flatten. CAS is expiry-only.",
-        )
+    capture_only = t >= PAPER_FLAT
     return ClockSnapshot(
         as_of_ist=dt,
         in_session_shell=True,
-        in_dead_band=False,
-        allow_directional_paper=True,
+        in_dead_band=capture_only,
+        allow_directional_paper=not capture_only,
         allow_flatten_cancel=True,
-        allow_new_paper_ticket=True,
-        reason="active paper window 09:50–15:15 IST",
+        allow_new_paper_ticket=not capture_only,
+        allow_tick_capture=True,
+        open_settle_gate=NO_NEW_AFTER_1516 if capture_only else None,
+        reason=(
+            "NO_NEW_AFTER_1516: flatten all books at 15:16 IST; ticks only until 15:29."
+            if capture_only
+            else "active paper window 09:30–15:16 IST Mon–Fri"
+        ),
     )
 
 
 def new_paper_gate(now: Optional[datetime] = None) -> dict:
-    """Named 09:50 IST gate for NEW paper tickets. Flatten is separate."""
     snap = snapshot(now)
     return {
         "allow": bool(snap.allow_new_paper_ticket),
         "gate": snap.open_settle_gate or ("OK" if snap.allow_new_paper_ticket else snap.reason),
         "flatten_ok": bool(snap.allow_flatten_cancel),
         "reason": snap.reason,
-        "named": NO_NEW_BEFORE_0950 if not snap.allow_new_paper_ticket and snap.in_session_shell else None,
+        "named": snap.open_settle_gate if not snap.allow_new_paper_ticket else None,
     }
 
 
@@ -181,6 +218,5 @@ def next_tick_deadline(tick_seconds: int, now: Optional[datetime] = None) -> dat
     return dt + timedelta(seconds=clamp_tick_seconds(tick_seconds))
 
 
-# UTC fallback helper for environments without zoneinfo data (rare).
 def utc_offset_ist() -> timezone:
     return timezone(timedelta(hours=5, minutes=30))

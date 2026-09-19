@@ -90,3 +90,68 @@ Gemini gist: risk-management refinements + replay tests; FOLLOW-GAP HOLD; gate u
 OpenAI gist: paper overlay acceptable; tests exist; not RESEARCH_READY; not a five-pass; not live.
 
 **Caveat we already accept:** overlay wr 74.7% / COVER 54 is one-day learning, not a promote. Next grid: COVER only after T1 or SIDEWAYS+BE.
+
+---
+
+## Round 5 — impulse pause-continue / 3-vs-5 (2026-09-17 night)
+
+**Job:** `REVIEW_NOTES` · `--openai-model gpt-4.1` · `--max-tokens 1200`  
+**What changed:** Do not pick 3 vs 5 candles. First impulse never overrides the ITM bin. Pause then volume continuation may. COVER after T1 or SIDEWAYS+BE. BANKNIFTY+SENSEX wait continuation. pytest paper_scalp. KEEP_ALL. `production_params_written` false.
+
+**together:** `ALIGNED` on `ACCEPT_WITH_CAVEATS` (Gemini `gemini-3.5-flash-lite` + OpenAI `gpt-4.1`).
+
+Gemini gist: rule refinements stay paper-only; 17 Sep still net negative; NO_PROMOTE.
+
+OpenAI gist: notes-only paper overlay; not five-pass; not RESEARCH_READY.
+
+**Replay (write=false, not a promote):** live 17 Sep −93745. Pause+wide −18104 wr 28.6%. Confirm-only −49888 wr 31.8%. NIFTY-only ablation −9738 wr 40%. 14 Sep DI; 15 Sep no ITM wings.
+
+---
+
+## Round 6 — strict TARGET, no lock-shift (2026-09-17 night)
+
+Founder: do not chase T2. First TARGET flattens. Trail SL stays. `apply_target_shift` default false. pytest 72. 17 Sep write=false table in `QUANT_SELF_REVIEW_LOOP.md`. KEEP_ALL. `production_params_written` false. **NO_PROMOTE.**
+
+---
+
+## Round 7 — NIFTY vs SENSEX point R:R (2026-09-17 night)
+
+**Job:** `REVIEW_NOTES` · gpt-4.1 + gemini-3.5-flash-lite · **together:** `ALIGNED` `ACCEPT_WITH_CAVEATS`.
+
+**What changed:** Drop BANKNIFTY NEW. Separate NIFTY/SENSEX premium-point ATR+fib stops and dynamic R:R. pytest 74. 17 Sep NS write=false unique net +2696 one-day. Not RESEARCH_READY. **NO_PROMOTE.**
+
+---
+
+## Round 8 — NIFTY-only PE overlay (2026-09-17 night)
+
+**Job:** `REVIEW_NOTES` · `--openai-model gpt-4.1` · `--max-tokens 1200`  
+**together:** `ONE_ONLY` (Gemini `HTTP 0` / DATA_INSUFFICIENT). OpenAI `ACCEPT_WITH_CAVEATS`.
+
+**What changed:** Founder does not trade NIFTY+SENSEX same time. Permutations on 17 Sep **full tape**. Ship PE + strength + max 4 fills/book. Skip SENSEX NEW. No T2. pytest 80. Live dashboard not overwritten.
+
+OpenAI extras beyond desk list: (a) first-hour/session lean instead of hard PE — **coded, 17 Sep −1185** (CE still printed); (b) VWAP banding — not wired (DATA_INSUFFICIENT vs 10s LTP); (c) do not rebuy CE after CE STOP — **coded** `nifty_skip_ce_after_stop`; (d) two-STOP session halt — **coded**, both-wings still red vs PE+max4.
+
+**Caveat:** PE-only is 17 Sep directional. max4 matches 13:30 on this tape; we ship the cap, not the clock. Not RESEARCH_READY. **NO_PROMOTE.**
+
+---
+
+## Round 9 — CANCEL_STALL vs constant TIME (2026-09-18)
+
+**Job:** `REVIEW_NOTES` · `--openai-model gpt-4.1` · `--max-tokens 1200`  
+**together:** `ALIGNED` `ACCEPT_WITH_CAVEATS` (Gemini `gemini-3.5-flash-lite` + OpenAI `gpt-4.1`).
+
+**What changed:** Hard `CANCEL_STALL` when age≥20m, premium Kaufman ER≤0.18, not true TREND (index ER≥0.35 / last-3 with the wing / ≥55% to target), and either LTP tags the ticket high (failed-break fade) or the high is ≥8m stale with LTP≥entry. Soft greeks/strike trail cannot skip STALL. 9m TIME only if stall state missing; else 45m hard TIME. pytest paper_scalp 86. write=false: 18 Sep unique −6952; 17 Sep TARGET PE 153→182 kept. KEEP_ALL. `production_params_written` false.
+
+**Caveat:** notes ≠ five-pass. 45m TIME still not the founder 159-book on a ticket already dead. One-day nets are not a promote. **NO_PROMOTE.**
+
+---
+
+## Round 10 — FIX-FIRST chop profit book (2026-09-18)
+
+**Job:** `REVIEW_NOTES` · gpt-4.1 + gemini-3.5-flash-lite · **together:** `ALIGNED` `ACCEPT_WITH_CAVEATS`.
+
+**Measured (not assumed):** NIFTY 1m dual-tape. 16 Sep incomplete. 17 Sep jsonl from ~12h (`DATA_INSUFFICIENT` morning); 13h range 78 max_1m 17; 15h max_1m 23.75. 18 12h ER 0.043 max_1m 10.45; 13h ER 0.019 max_1m 11.1; 14h ER 0.492. write=false after recode MIX-DEFAULT-BUY: 17 TARGET CE + STALL; 18 three STALL greens + one chop UNWIND. Board wr on 18 is one incomplete day — not 70% proof.
+
+**What changed:** Chop = INDEX ER < 0.35 even if itm_bin TREND. Stall 8m / stale 3m; ≥40% of target then fade books. Chop target cap +10 premium (149.7→159.7). CANCEL_AGAINST needs last3_raw against AND ≥3pt underwater or ER≥0.35 opposite. LONG_UNWIND only T1 or chop+3pt underwater. Dual-tape **not** restarted (live to close). pytest 89. Lots unchanged. KEEP_ALL. `production_params_written` false.
+
+**Caveat:** 17 PE 153→182 still not recovered on this jsonl slice. 70% wr / 30–40 lots not coded. ML tune parked. **NO_PROMOTE.**

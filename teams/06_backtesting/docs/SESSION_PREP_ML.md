@@ -1,4 +1,4 @@
-# SESSION_PREP_ML — paper start 09:50 IST (cash open 09:15 + 35m)
+# SESSION_PREP_ML — paper start 09:30 IST Mon–Fri (flatten 15:16, ticks to 15:29)
 
 **Team:** 06_backtesting (runbook) · 07 `packages/desk-ml` · 05 dual-tape  
 **Date:** 2026-09-15 (IST)  
@@ -8,7 +8,7 @@
 
 Education ≠ advice. Cluster / OU numbers are cache counts, not a win rate.
 
-This is how to start **paper gather + overlay score**. Dual-tape may poll from the shell; **NEW paper tickets arm only at 09:50 IST**. It is **not** a promote. Customer default stays `MIX-DEFAULT-BUY`. KEEP_ALL STRAT-001–014.
+This is how to start **paper gather + overlay score**. **FOUNDER LOCK:** dual-tape live **Mon–Fri 09:30–15:29 IST only**. No Sat/Sun. NEW paper **09:30–15:16**; flatten all books **15:16**; ticks (no trade) until **15:29**. It is **not** a promote. Customer default stays `MIX-DEFAULT-BUY`. KEEP_ALL STRAT-001–014.
 
 ---
 
@@ -26,7 +26,7 @@ This is how to start **paper gather + overlay score**. Dual-tape may poll from t
 
 ---
 
-## 09:15 poll / 09:50 first NEW ticket (laptop)
+## 09:30 first NEW / 15:16 flatten / 15:29 last tick (laptop, Mon–Fri only)
 
 Do **not** restart npm / Vite. Do **not** start the old LLM `market-hours` loop (`paper_ops_STOPPED.flag` stays). Dual-tape only honours `paper_dual_tape_STOPPED.flag`.
 
@@ -77,6 +77,21 @@ Dual-tape persist also writes `paper_watch/DUAL-TAPE/overlay_last.json` (fail-so
 
 Do not treat `TREND_UP` / cluster id as BUY_CE.
 
+**INDEX S/R (pre-market / first dual-tape walk):** `build_sr_levels` on INDEX 1m closes — previous IST day high/low/close (PDH/PDL/PDC), then today session high/low as prints arrive, plus swing proxies on 15m / 30m / 60m / 1d / 1w. A last-3 1m dump/rally does **not** override the ITM CE/PE bin until volume + candle + option premiums confirm, and not as a false break at those levels. Proxy POC is typical (H+L+C)/3, not order flow. **NO_PROMOTE.**
+
+**Replay tape (18 Sep):** dual-tape persist writes `replay_index` / `replay_premium` / `replay_strike` / `replay_features` / `replay_decision` into local sqlite. INDEX 1m REST miss **carries** last LTP. Paper OPEN **and CLOSE** rows include `justification` (SUCCESS/LOSS/CANCEL). Ship overlay: NIFTY **CE or PE** + strength + max4, skip BN+SENSEX, no T2. See `BACKTEST_REPLAY_TAPE.md`.
+
+**Two work types (do not mix):**
+
+| Desk | Job | Tune when |
+|------|-----|-----------|
+| Signal | Dealer / logit / XR / greeks say CE or PE (strike/limit). ML-001/002 observe (no own side). | Later: inspect *what* they fired and *why*. |
+| Booking | After fill: path SL, trail, STALL only in INDEX ER<0.35 chop; TREND ER≥0.35 same-wing is retracement hold. AGAINST / bin / unwind / IV. | Every session. Do not recode without founder confirm. |
+
+Same ticket, different skill. Switching bins / watching the other wing is **booking**, not a new MIX. `python -m desk_ml fix-first` scores booking. ML retune is parked.
+
+**FIX-FIRST drill (pre-open and post-market, every session):** write=false from **2026-09-17**. Labels each IST **hour** TRENDING / SIDEWAYS / CHOPPY / VOLATILE from INDEX 1m ER/flips/range (**not** itm_bin TREND; lunch ER ~0.05 is chop). Fill `market_kind` = open ER (missing → UNKNOWN); close kind stamped at exit. Hour kind scores **booking**. Same job also writes `signal_desk` (dealer vs logit vs XR vs observe) — **do not mix** with STALL/TARGET recodes. Overlay exits unchanged until founder confirms. `data/recon/fix_first_progress.json`. CLI: `python -m desk_ml fix-first` / `python -m jobs pre-market` / `python -m jobs post-market`.
+
 ---
 
 ## Must not
@@ -96,7 +111,8 @@ Status:   PAPER PREP / NO_PROMOTE / BACKTEST_REQUIRED
 Gate:     not RESEARCH_READY_FOR_PROGRAMMING
 
 Accepted: Dual-tape + desk_ml score at 09:15 IST. FOLLOW-GAP HOLD.
-  production_params_written false. ExecutionClient unused.
+  FIX-FIRST pre-open + post-market drill from 17 Sep write=false. production_params_written false.
+  ExecutionClient unused.
 Rejected: Live Super Order; treat embargo as OOS; STRAT-015+.
 UNKNOWN: Same-session ATM depth after open; SENSEX OU mean-reversion.
 ```

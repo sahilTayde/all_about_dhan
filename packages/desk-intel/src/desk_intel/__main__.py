@@ -143,6 +143,22 @@ def cmd_status(args: argparse.Namespace) -> int:
     return 0
 
 
+def _attach_fix_first(payload: dict, *, persist: bool = True) -> None:
+    """Pre/post-market write=false booking drill. Fail-soft so news/recon still run."""
+    try:
+        from desk_ml.paper_scalp import run_fix_first_drill
+
+        payload["fix_first"] = run_fix_first_drill(persist=persist)
+    except Exception as exc:
+        payload["fix_first"] = {
+            "ok": False,
+            "job": "FIX_FIRST_DRILL",
+            "error": type(exc).__name__,
+            "promote": False,
+            "note": "FIX-FIRST drill failed; parent job still ran. PAPER.",
+        }
+
+
 def _run_cycle(
     *,
     mode: PollMode,
@@ -181,6 +197,8 @@ def _run_cycle(
         payload["premarket"] = brief.to_dict()
         payload["regime_note"] = brief.regime_note
         payload["tape_missing"] = brief.missing
+    if mode in ("morning", "pre_market"):
+        _attach_fix_first(payload, persist=persist)
     return payload
 
 
@@ -262,6 +280,7 @@ def cmd_nightly(args: argparse.Namespace) -> int:
         session_expired=True,
         events=events,
     )
+    _attach_fix_first(payload, persist=not args.no_save)
     # Standing Docs Auditor — every nightly / post-market (cadence: daily).
     audit = attach_docs_audit(cfg.repo_root, write=True)
     payload["docs_audit"] = {

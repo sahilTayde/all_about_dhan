@@ -437,8 +437,10 @@ jobs:
     note: >
       Before cash/F&O open. News + govt-calendar keywords, US close / Asia,
       GIFT Nifty / SGX if a public source exists, Dhan chain snapshot if token,
-      regime note. CLI: python -m desk_intel morning | pre-market
+      regime note.       CLI: python -m desk_intel morning | pre-market
       or python -m jobs pre-market.
+      Also runs FIX-FIRST paper drill (write=false replay from 17 Sep jsonl;
+      skill track TARGET/STALL/against). python -m desk_ml fix-first.
   post_market:
     enabled: true
     after_ist: "15:40"
@@ -450,6 +452,9 @@ jobs:
     note: >
       Nightly recon + PhD handoff (shadow paper P/L vs user P/L).
       Also copies cas_calls[] from teams/03_phd_market/cas/calls/ if present.
+      Runs FIX-FIRST paper drill (write=false replay from 17 Sep jsonl;
+      hour-kind booking score, open+close market_kind; overlay unchanged
+      until more sessions agree). python -m desk_ml fix-first.
       Ends with Docs Auditor (09) — python -m docs_auditor.
       CLI: python -m desk_intel nightly | post-market or python -m jobs post-market.
   docs_auditor:

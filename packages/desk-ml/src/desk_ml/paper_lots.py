@@ -133,27 +133,36 @@ def resolve_lot_size(underlying: str, *, root: Optional[Path] = None) -> tuple[O
     return _LOT_MEM[u]
 
 
-def size_lots(*, entry: float, lot_size: Optional[int], capital_inr: float) -> dict[str, Any]:
+def size_lots(
+    *,
+    entry: float,
+    lot_size: Optional[int],
+    capital_inr: float,
+    min_lots: int = 1,
+) -> dict[str, Any]:
+    want = max(1, int(min_lots or 1))
     if lot_size is None or lot_size <= 0 or entry <= 0:
         return {
-            "lots": 1,
+            "lots": want,
             "lot_size": lot_size,
             "qty": None,
             "notional_inr": None,
             "capital_inr": capital_inr,
             "lot_status": "DATA_INSUFFICIENT",
         }
-    notional = float(entry) * int(lot_size)
-    if notional > capital_inr:
+    one = float(entry) * int(lot_size)
+    if one > float(capital_inr):
         return {
             "lots": 1,
             "lot_size": int(lot_size),
             "qty": int(lot_size),
-            "notional_inr": round(notional, 2),
+            "notional_inr": round(one, 2),
             "capital_inr": capital_inr,
             "lot_status": "ONE_LOT_EXCEEDS_PAPER_CAPITAL_STILL",
         }
-    lots = max(1, int(capital_inr // notional))
+    afford = max(1, int(float(capital_inr) // one))
+    lots = min(want, afford)
+    status = "OK" if lots >= want else "CLIPPED_TO_CAPITAL"
     qty = lots * int(lot_size)
     return {
         "lots": lots,
@@ -161,7 +170,7 @@ def size_lots(*, entry: float, lot_size: Optional[int], capital_inr: float) -> d
         "qty": qty,
         "notional_inr": round(float(entry) * qty, 2),
         "capital_inr": capital_inr,
-        "lot_status": "OK",
+        "lot_status": status,
     }
 
 

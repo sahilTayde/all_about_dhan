@@ -42,6 +42,144 @@ Left off 2026-09-13: ITM champion PAPER board ready (MIX-CHAMP-* + desk leaderbo
 
 ---
 
+## Left-off 2026-09-20 IST — NSE hours lock (NO_PROMOTE)
+
+**Now:** Founder lock in `session_clock.py` + paper-scalp + dual-tape. **No Sat/Sun** dual-tape. Mon–Fri **09:30–15:16** NEW; flatten all books **15:16**; capture ticks **to 15:29** no trade. No exception until founder says. PAPER. **NO_PROMOTE.**
+
+**Next:** Start dual-tape only Mon–Fri ≥09:30 IST. Do not git-add sqlite. Do not restart npm.
+
+## Left-off 2026-09-19 IST — signal desk: dealer + ML (NO_PROMOTE)
+
+**Now:** Founder: work dealer and ML improvements. Booking overlay **unchanged**. Daily drill adds `signal_desk` (dealer vs logit clone vs XR vs observe). Recode a model only after more sessions. PAPER. **NO_PROMOTE.**
+
+**Next:** Score 17/18 signal cards. Improve dealer CE/PE or logit independence — not hold logic. Do not git-add sqlite. Do not restart npm.
+
+## Left-off 2026-09-18 IST — daily pre/post hour-kind drill (NO_PROMOTE)
+
+**Now:** Founder: check market type then trade. FIX-FIRST is pre-market **and** post-market (`python -m jobs pre-market` / `post-market`). Replay jsonl, score hour-kind (not day majority). itm_bin TREND ignored. Fill `market_kind` = open ER (missing → UNKNOWN); close kind stamped at exit. Overlay hold **unchanged**. 18 Sep TRENDING-at-open STALL is a watch ticket — more days before hold recode. PAPER. **NO_PROMOTE.**
+
+**Next:** Run the drill every pre/post. Recode only if more sessions agree. Do not git-add sqlite. Do not restart npm.
+
+## Left-off 2026-09-18 IST — tape kinds then discuss (NO_PROMOTE)
+
+**Now:** Founder: 203/250 was a thinking aid. Job = replay tape, label TRENDING / SIDEWAYS / CHOPPY / VOLATILE from INDEX 1m (ER/flips/range), score exits vs kind, then discuss. Overlay exits **unchanged**. PAPER. **NO_PROMOTE.**
+
+**Next:** Read fix-first `tape_kinds` + `exits_by_kind`. Suggest only after that. Do not git-add sqlite. Do not restart npm.
+
+## Left-off 2026-09-18 IST — ask before overlay recode (NO_PROMOTE)
+
+**Now:** Founder: do not assume-and-code. Sideways STALL vs TREND retracement already in overlay (INDEX ER<0.35 vs ER≥0.35 same-wing). Reverted the unasked vol_expand/STALL tweak. PAPER. **NO_PROMOTE.**
+
+**Next:** Confirm with founder before any booking overlay edit. Do not git-add sqlite. Do not restart npm.
+
+## Left-off 2026-09-18 IST — two desks: signal vs booking (NO_PROMOTE)
+
+**Now:** ML/logit keep generating CE/PE. Booking is a different skill. Chop STALL vs TREND same-wing hold is already coded (ER split). Do not recode that without a founder confirm. WAIT_STRENGTH dealer-only. PAPER. **NO_PROMOTE.**
+
+**Next:** Dual-tape through flatten. Score booking on fix-first, not ML retune. Do not git-add sqlite. Do not restart npm.
+
+## Left-off 2026-09-18 IST — signal vs booking layers (NO_PROMOTE)
+
+**Now:** Founder: FIX-FIRST is after fill. ML BUY/SELL generators were not recoded today. ML-001/002/ML-1/TV still observe (KMeans has no CE/PE, 17 Sep). MIX-ML-LOGIT still owns CE/PE. WAIT_STRENGTH / impulse-align are **dealer entry only**. Same STALL/AGAINST/TARGET after any fill. PAPER. **NO_PROMOTE.**
+
+**Next:** Dual-tape through 15:15. Do not git-add sqlite. Do not restart npm.
+
+## Left-off 2026-09-18 IST — FIX-FIRST pre-open drill (NO_PROMOTE)
+
+**Now:** FIX-FIRST is a standing pre-market job (`python -m desk_ml fix-first` / `python -m jobs pre-market`). Candle replay write=false from **17 Sep**. Live n_open=0 was **NIFTY_MAX_FILLED (4/book after 14:20 recast)** + pause-wait strength — **not** a new ML-001 deny (observe since 17 Sep). itm_bin confirm now counts as NIFTY strength. Epoch-restart so NEW can fill on remaining session. PAPER. **NO_PROMOTE.**
+
+**Next:** Track `data/recon/fix_first_progress.json` every pre-open. After 15:30 full 18 write=false. Do not git-add sqlite. Do not restart npm.
+
+## Left-off 2026-09-18 IST — FIX-FIRST profit book (NO_PROMOTE)
+
+**Now:** Founder bar 70%/worst 60% after Groww is the **goal**, not today’s coded wr. FIX-FIRST only: chop vs trend booking. Measured 1m: 18 lunch max ~10pts ER 0.04; 17 15h max_1m 23.75. OpenAI+Gemini ALIGNED AWC. Overlay: INDEX ER<0.35 stall 8m/3m + 40% path + target cap +10; against ≥3pt dead or ER≥0.35 opposite; unwind T1 or chop+3pt. pytest 89. Dual-tape **left running** to cash close (not restarted). Lots/ML parked. PAPER. **NO_PROMOTE.**
+
+**Next:** After 15:30 restart dual-tape on this overlay + full 18 write=false. Do not git-add sqlite. Do not restart npm.
+
+## Left-off 2026-09-18 IST — PE held through CALL rally (NO_PROMOTE)
+
+**Now:** Founder catch: NIFTY PE 23400 13:37 stayed OPEN while CE volume, INDEX, 8×1m greens, PE dump, OI flipped. Overlay miss: pause-wait nulled last-3; 10s PE bin overwrote INDEX UP; ER≥0.35 protected the PUT; CANCEL_THESIS was a pre-T1 soft trail (LTP 116 vs SL 110); LONG_UNWIND waited T1. Ship: hard `CANCEL_AGAINST` on last3_raw / pre-bin INDEX / opposite flow; bin cannot overwrite strong INDEX TREND; same-wing continuation only; thesis hard; unwind flatten. pytest 88. Dual-tape reload for live OPEN. PAPER. **NO_PROMOTE.**
+
+**Next:** Confirm live PE books `CANCEL_AGAINST` / unwind / thesis. After 15:30 write=false 18 Sep. Do not git-add sqlite. Do not restart npm.
+
+## Left-off 2026-09-18 IST — Groww statutory + 10 lots + ₹5L (NO_PROMOTE)
+
+**Now:** Paper costs = Groww ₹20×2 + STT 0.15% sell + NSE-style options txn 0.03503% both legs + SEBI 0.0001% + stamp 0.003% buy + GST 18% on brk+exch+SEBI. Desk **₹5.7L** (₹70k+₹5L). New NIFTY fills **10 lots** when notional fits. pytest 92. Dual-tape restart needed for live book. PAPER. **NO_PROMOTE.**
+
+**Next:** Reload dual-tape. After 15:30 full 18 Sep write=false. Do not git-add sqlite. Do not restart npm.
+
+## Left-off 2026-09-18 IST — stall vs constant TIME (NO_PROMOTE)
+
+**Now:** 18 Sep NIFTY is lunch chop (12h ER 0.043, 13h 0.055, range 18–28 pts). Live CE 23250 12:13 entry 149.7 tgt 169 max **157.7**. `itm_bin` TREND at ER~0.05 + soft greeks trail kept it open. Overlay `CANCEL_STALL` (stale-high fade / scratch ≥entry; veto ER≥0.35 / last-3 / 55% to target). 9m TIME not the default when stall state exists; 45m hard TIME. pytest 86. write=false 17 Sep TARGET PE 153→182 still prints. Counsel ALIGNED AWC. PAPER. **NO_PROMOTE.**
+
+**Next:** Restart dual-tape on `.venv` so live OPEN can STALL/TIME. After 15:30 full 18 Sep write=false. Do not git-add sqlite. Do not restart npm.
+
+## Left-off 2026-09-18 IST — /pm /desk unique paper UX (NO_PROMOTE)
+
+**Now:** /pm and /desk rebuilt around unique net, TARGET vs TIME vs STOP, open path to target/SL, clone fills collapsed. Lab/agent walls folded. Vite HMR — npm not restarted. PAPER. **NO_PROMOTE.**
+
+**Next:** Founder click through Now / Closed / Books. Reload dual-tape only if asked. Do not git-add sqlite.
+
+## Left-off 2026-09-18 IST — PE SUCCESS was TIME not 148 TARGET (NO_PROMOTE)
+
+**Now:** Founder check on ML dashboard PE SUCCESS. Unique NIFTY PE 23400: entry 131.9, TIME exit 139.65, target 148.80 never printed while open (tape max 141.65). 148 prints were earlier, not this ticket. SUCCESS now = TARGET only; TIME green is `TIME`. Money wr unchanged. PAPER. **NO_PROMOTE.**
+
+**Next:** Reload dual-tape to stamp new labels on live writes. After 15:30 replay 18 Sep write=false. Do not git-add sqlite. Do not restart npm.
+
+## Left-off 2026-09-18 IST — NIFTY CE+PE same strength overlay (NO_PROMOTE)
+
+**Now:** Founder: do **not** lock PE all session. Same overlay on **both** wings: `nifty_need_strength` (last-3 / pause-continue / SHORT_COVER), max 4 fills/book, skip BN+SENSEX, no T2, `nifty_align_impulse` (no PE into last-3 UP / no CE into last-3 DOWN). Dual-tape restarted. Gate **not** RESEARCH_READY. **NO_PROMOTE.**
+
+**Next:** After 15:30 replay 18 Sep write=false. Do not git-add sqlite.
+
+## Left-off 2026-09-18 IST — clean slate on PE+strength+max4 + dashboard why (NO_PROMOTE)
+
+**Now:** Today’s paper book is **improvements only** (not the 17 Sep live board). Ship: NIFTY PE + `nifty_need_strength` + max 4 fills/book, skip BN+SENSEX, no T2. Open **and** close/cancel/SUCCESS/LOSS write `justification` on `/paper/ml-books` + MD. Dual-tape JSONL kept. Gate **not** RESEARCH_READY. **NO_PROMOTE.**
+
+**Next:** After 15:30 replay 18 Sep write=false. Do not git-add sqlite.
+
+## Left-off 2026-09-18 IST — replay tape + PE+max4 live (NO_PROMOTE)
+
+**Now:** Overlay PE+strength+max4 still the 18 Sep paper ship. 17 Sep full-tape unique **+3299** wr 75% n=8 PE. 18 Sep write=false so far **0 fills** (INDEX 1m REST gaps). Dual-tape now carries last INDEX LTP and writes `replay_index` / `replay_premium` / `replay_strike` / `replay_features` / `replay_decision` in local sqlite. Each OPEN has `justification`. Spec: `teams/06_backtesting/docs/BACKTEST_REPLAY_TAPE.md`. Gate **not** RESEARCH_READY. **NO_PROMOTE.**
+
+**Next:** After 15:30 replay 18 Sep. Do not git-add sqlite. Do not restart npm.
+
+## Left-off 2026-09-18 IST — NIFTY PE+strength+max4 ON for live paper (NO_PROMOTE)
+
+**Now:** Best 17 Sep NIFTY overlay applied to **18 Sep paper**: skip BN+SENSEX, PE only, `nifty_need_strength`, max 4 fills/book, skip CE after CE STOP, no T2. Dual-tape `--paper-scalp --tick-seconds 10` restarted ~11:08 IST after stopping the 17 Sep process. Clean slate epoch 11:07 IST; dual-tape JSONL kept for after-hours full-tape replay. Gate **not** `RESEARCH_READY_FOR_PROGRAMMING`. **NO_PROMOTE.**
+
+**Next:** After 15:30 IST replay 18 Sep write=false vs this overlay. Do not git-add sqlite. Do not restart npm.
+
+## Left-off 2026-09-17 night — NIFTY-only PE+strength+max4 for tomorrow paper (NO_PROMOTE)
+
+**Now:** Founder will not trade NIFTY and SENSEX the same session. Combined +2696 was SENSEX +7368 hiding NIFTY −4671. Full-tape 17 Sep NIFTY unique: CE+PE **−10172**; PE spray **−7497**; PE+strength **−3395** (keep); PE+strength+max 4 fills/book **+3299** wr 75% n=8 (TIME4 TARGET2 STOP2). Same print as 13:30 cutoff — cap is the keep, not a lunch clock. OpenAI extra: session lean after 10:30 still let CE through (**−1185**); two-stop halt without PE filter still red. Gemini HTTP 0 this round. Ship DEFAULT: skip BN+SENSEX, NIFTY PE, `nifty_need_strength`, `nifty_max_filled_per_book=4`, `nifty_skip_ce_after_stop`, no T2. pytest 80. Live MD not overwritten. Dual-tape **not** restarted. Gate **not** `RESEARCH_READY_FOR_PROGRAMMING`. **NO_PROMOTE.**
+
+**Next:** When founder asks, restart dual-tape to load overlay for 18 Sep paper. Do not git-add sqlite. Do not restart npm.
+
+## Left-off 2026-09-17 night — NIFTY vs SENSEX point R:R (NO_PROMOTE)
+
+**Now:** BANKNIFTY NEW skipped. NIFTY and SENSEX are separate: premium-point ATR+fib stops (NIFTY 6–18, SENSEX 18–42), dynamic R:R, strict TARGET. NIFTY still waits pause-continue; SENSEX last-3/short-cover. 17 Sep write=false unique net **+2696** wr 50% (one day, not a promote). Gate **not** `RESEARCH_READY_FOR_PROGRAMMING`. **NO_PROMOTE.**
+
+**Next:** Dual-tape restart to load overlay. Do not git-add sqlite. Do not restart npm.
+
+## Left-off 2026-09-17 night — strict TARGET + trail SL; 17 Sep overlays (NO_PROMOTE)
+
+**Now:** `apply_target_shift=false`. First TARGET books. Trail SL stays. Pause-continue + BN/SENSEX wait still default. 17 Sep write=false ship unique net −13037 vs live −93745. Gate **not** `RESEARCH_READY_FOR_PROGRAMMING`. **NO_PROMOTE.**
+
+**Next:** Dual-tape restart to load overlay. Do not git-add sqlite. Do not restart npm.
+
+## Left-off 2026-09-17 night — impulse pause-continue; skip 74% vs 52% wr (NO_PROMOTE)
+
+**Now:** First 1m spike does **not** override the ITM bin. Wait a pause, then volume continuation (`pause_continue`). COVER only after T1 or SIDEWAYS+BE. BANKNIFTY **and** SENSEX wait that continuation; NIFTY may still trade the bin. wr 74% vs 52% is not the pick (both still net red). 17 Sep write=false ship overlay unique net −18104 vs live −93745. Gate **not** `RESEARCH_READY_FOR_PROGRAMMING`. **NO_PROMOTE.**
+
+**Next:** Dual-tape restart to load overlay. Do not git-add sqlite. Do not restart npm.
+
+## Left-off 2026-09-17 night — confirm last-3 before overriding the ITM bin (NO_PROMOTE)
+
+**Now:** Last-3 1m dump/rally does **not** buy CE into a PE bin (or reverse) until volume, candle (no shooting star / hammer / injection), proxy POC (H+L+C)/3, option premiums, and nearby PDH/PDL / session H/L / 15m–1w swings confirm. Unconfirmed spike → ITM bin chooses the side. Premarket `build_sr_levels` from INDEX closes. Gate **not** `RESEARCH_READY_FOR_PROGRAMMING`. **NO_PROMOTE.**
+
+**Next:** Dual-tape restart to load confirm. Do not git-add sqlite. Do not restart npm.
+
 ## Left-off 2026-09-17 night — path SL / OI covering / 17 Sep replay (NO_PROMOTE)
 
 **Now:** Paper acts like a buy-first ITM scalper: keep **path SL** until T1 (~60s still at/above target), then lock+T2; floor stop ≥₹8 or 6% entry; skip CE vs PE-bin; OI on the **selected ITM** strike: SHORT_COVER extends T2, LONG_UNWIND skips NEW and books after T1/BE (`COVER_LONG_UNWIND`). Dual-tape **replay write=false** 2026-09-17 vs live board: live STOP **153**/175 filled, overlay STOP **25**/83 (unique STOP **77→13**). COVER_LONG_UNWIND 54 all net-green; TIME 4. Net ₹−15018 vs live −93745. wr net 74.7% is **not** a promote (STOP still −₹44k; one-day). Counsel Gemini+OpenAI `ALIGNED` `ACCEPT_WITH_CAVEATS`. Gate **not** `RESEARCH_READY_FOR_PROGRAMMING`. **NO_PROMOTE.**

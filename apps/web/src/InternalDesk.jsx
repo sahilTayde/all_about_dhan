@@ -57,9 +57,9 @@ export function InternalDesk() {
     return (
       <div className="shell">
         <Header
-          title="Internal desk"
-          kicker="engineering"
-          sub="Research view — not the customer desk"
+          title="Research desk"
+          kicker="D1 · /desk"
+          sub="Live paper first — lab tools below"
           sourceLabel="ERROR"
         />
         <p className="error-banner">{error}</p>
@@ -71,12 +71,12 @@ export function InternalDesk() {
     return (
       <div className="shell">
         <Header
-          title="Internal desk"
-          kicker="engineering"
-          sub="Research view — not the customer desk"
+          title="Research desk"
+          kicker="D1 · /desk"
+          sub="Live paper first — lab tools below"
           sourceLabel={sourceLabel}
         />
-        <p className="muted">Loading internal desk…</p>
+        <p className="muted">Loading desk…</p>
       </div>
     );
   }
@@ -84,53 +84,62 @@ export function InternalDesk() {
   return (
     <div className="shell shell--internal">
       <p className="internal-banner" role="status">
-        Internal research view. Indicator lights stay off the customer desk.{" "}
-        <a href="/">Back to customer desk</a>
+        Research desk. Paper P/L is not a live fill.{" "}
+        <a href="/pm">Founder /pm</a>
+        {" · "}
+        <a href="/">Customer /</a>
       </p>
       <Header
-        title="Internal desk"
-        kicker="engineering"
-        sub="Staged honesty, factor checklist, indicator lights"
+        title="Research desk"
+        kicker="live paper · NIFTY first"
+        sub="Open path, unique fills, TARGET vs TIME vs STOP. Indicator soup stays folded."
         sourceLabel={sourceLabel}
       />
 
-      <div className="desk-grid">
-        <UnderlyingPicker
-          underlyings={desk.underlyings}
-          value={underlying}
-          onChange={handleUnderlying}
-        />
-        <SignalBadge side={signal.side} />
-        <StagedSignal staged={signal.staged} lifecycle={signal.lifecycle} />
-        <TradeFields
-          values={fields}
-          onChange={(key, value) =>
-            setFields((prev) => ({ ...prev, [key]: value }))
-          }
-        />
-        <TookTrade
-          value={tookTrade}
-          onChange={setTookTrade}
-          fill={userFill}
-          onFillChange={(key, value) =>
-            setUserFill((prev) => ({ ...prev, [key]: value }))
-          }
-        />
-        <SystemOutcome
-          tookTrade={tookTrade}
-          outcome={signal.systemOutcome}
-          lifecycle={signal.lifecycle}
-          userFill={userFill}
-        />
-        <section className="panel" aria-labelledby="internal-lights">
-          <h2 id="internal-lights">Engine lights</h2>
-          <StatusLights lights={signal.staged?.lights} />
-          <FactorChecklist factors={signal.staged?.factors} />
-        </section>
-        <ItmChampionLeaderboard />
-        <ItmScalpBacktestPanel />
-        <MlPaperDashboard />
-      </div>
+      <MlPaperDashboard />
+
+      <details className="desk-context lab-fold">
+        <summary>Staged signal / engine lights (not the paper book)</summary>
+        <div className="desk-grid">
+          <UnderlyingPicker
+            underlyings={desk.underlyings}
+            value={underlying}
+            onChange={handleUnderlying}
+          />
+          <SignalBadge side={signal.side} />
+          <StagedSignal staged={signal.staged} lifecycle={signal.lifecycle} />
+          <TradeFields
+            values={fields}
+            onChange={(key, value) => setFields((prev) => ({ ...prev, [key]: value }))}
+          />
+          <TookTrade
+            value={tookTrade}
+            onChange={setTookTrade}
+            fill={userFill}
+            onFillChange={(key, value) => setUserFill((prev) => ({ ...prev, [key]: value }))}
+          />
+          <SystemOutcome
+            tookTrade={tookTrade}
+            outcome={signal.systemOutcome}
+            lifecycle={signal.lifecycle}
+            userFill={userFill}
+          />
+          <section className="panel" aria-labelledby="internal-lights">
+            <h2 id="internal-lights">Engine lights</h2>
+            <StatusLights lights={signal.staged?.lights} />
+            <FactorChecklist factors={signal.staged?.factors} />
+          </section>
+        </div>
+      </details>
+
+      <details className="desk-context lab-fold">
+        <summary>KEEP_ALL lab boards (ITM champions / scalp backtest)</summary>
+        <div className="desk-grid">
+          <ItmChampionLeaderboard />
+          <ItmScalpBacktestPanel />
+        </div>
+      </details>
+      <Disclaimer />
     </div>
   );
 }

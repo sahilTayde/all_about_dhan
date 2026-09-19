@@ -31,6 +31,13 @@ def test_clamp_allows_10s_live_mock() -> None:
     assert clamp_tick_seconds(45) == 45
 
 
+def test_carry_index_ltp() -> None:
+    from trading_agents_india.dual_tape import _carry_index_ltp
+
+    assert _carry_index_ltp({"index_ltp": 24850.5}) == 24850.5
+    assert _carry_index_ltp({}) is None
+
+
 def test_simulate_two_ticks_writes_ledger(tmp_path: Path) -> None:
     settings = _settings(tmp_path)
     result = run_dual_tape_loop(
@@ -61,6 +68,12 @@ def test_simulate_two_ticks_writes_ledger(tmp_path: Path) -> None:
     text = notes[0].read_text(encoding="utf-8")
     assert "NIFTY" in text
     assert settings.kb_path.is_file()
+    import sqlite3
+
+    conn = sqlite3.connect(str(settings.kb_path))
+    n = conn.execute("SELECT COUNT(*) FROM replay_index").fetchone()[0]
+    assert n >= 1
+    conn.close()
 
 
 def test_jsonl_keeps_last_15_minutes(tmp_path: Path) -> None:
@@ -98,4 +111,32 @@ def test_stop_flag_halts_before_tick(tmp_path: Path) -> None:
         write_run_flag_on_start=False,
     )
     assert result.stopped_reason == "founder_stop_flag"
+    assert result.ticks == []
+
+
+def test_live_dual_tape_refuses_weekend(tmp_path: Path, monkeypatch) -> None:
+    from datetime import datetime
+
+    from trading_agents_india.session_clock import IST, WEEKEND_NO_MARKET
+
+    settings = _settings(tmp_path)
+    monkeypatch.setattr(
+        "trading_agents_india.dual_tape.now_ist",
+        lambda override=None: datetime(2026, 9, 19, 12, 0, tzinfo=IST),
+    )
+    monkeypatch.setattr(
+        "trading_agents_india.session_clock.now_ist",
+        lambda override=None: override
+        if override is not None
+        else datetime(2026, 9, 19, 12, 0, tzinfo=IST),
+    )
+    result = run_dual_tape_loop(
+        underlyings=["NIFTY"],
+        max_ticks=3,
+        simulate=False,
+        persist=False,
+        settings=settings,
+        write_run_flag_on_start=False,
+    )
+    assert result.stopped_reason == WEEKEND_NO_MARKET
     assert result.ticks == []

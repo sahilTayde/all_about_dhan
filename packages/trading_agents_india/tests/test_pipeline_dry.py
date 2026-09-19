@@ -234,10 +234,10 @@ def test_clock_dead_band_and_active() -> None:
     assert morning.allow_directional_paper is False
     assert morning.allow_flatten_cancel is True
     assert morning.allow_new_paper_ticket is False
-    assert morning.open_settle_gate in {"OPEN_SETTLE_35M", "NO_NEW_BEFORE_0950"}
-    settle = snapshot(datetime(2026, 9, 4, 9, 49, tzinfo=IST))
+    assert morning.open_settle_gate == "NO_NEW_BEFORE_0930"
+    settle = snapshot(datetime(2026, 9, 4, 9, 29, tzinfo=IST))
     assert settle.allow_new_paper_ticket is False
-    first = snapshot(datetime(2026, 9, 4, 9, 50, tzinfo=IST))
+    first = snapshot(datetime(2026, 9, 4, 9, 30, tzinfo=IST))
     assert first.allow_new_paper_ticket is True
     assert first.allow_directional_paper is True
     afternoon = snapshot(datetime(2026, 9, 4, 15, 10, tzinfo=IST))
@@ -245,21 +245,25 @@ def test_clock_dead_band_and_active() -> None:
     assert afternoon.allow_new_paper_ticket is True
     after_paper = snapshot(datetime(2026, 9, 4, 15, 16, tzinfo=IST))
     assert after_paper.allow_new_paper_ticket is False
+    assert after_paper.allow_tick_capture is True
     assert after_paper.allow_flatten_cancel is True
+    ticks_end = snapshot(datetime(2026, 9, 4, 15, 29, tzinfo=IST))
+    assert ticks_end.allow_tick_capture is False
     cas_expiry = snapshot(datetime(2026, 9, 4, 15, 10, tzinfo=IST), expiry_day=True)
-    assert cas_expiry.in_dead_band is True
-    assert cas_expiry.allow_new_paper_ticket is False
+    assert cas_expiry.allow_new_paper_ticket is True
 
 
 def test_clock_shell_open_at_0900_and_weekend() -> None:
     open_shell = snapshot(datetime(2026, 9, 4, 9, 0, tzinfo=IST))
-    assert open_shell.in_session_shell is True
-    assert open_shell.in_dead_band is True
+    assert open_shell.in_session_shell is False
+    assert open_shell.allow_tick_capture is False
     assert open_shell.allow_directional_paper is False
-    # 2026-09-06 is Sunday — outside shell
     sunday = snapshot(datetime(2026, 9, 6, 11, 0, tzinfo=IST))
     assert sunday.in_session_shell is False
     assert sunday.allow_directional_paper is False
+    assert sunday.allow_tick_capture is False
+    saturday = snapshot(datetime(2026, 9, 5, 12, 0, tzinfo=IST))
+    assert saturday.open_settle_gate == "WEEKEND_NO_MARKET"
 
 
 def test_rag_hook_fail_soft() -> None:

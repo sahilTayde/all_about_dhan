@@ -159,13 +159,15 @@ def cmd_dual_tape(args: argparse.Namespace) -> int:
         simulate=bool(args.simulate),
         prefer_live_chain=bool(args.live_chain),
         persist=not bool(args.no_persist),
-        stop_outside_shell=bool(args.stop_outside_shell),
+        stop_outside_shell=True if not bool(args.simulate) else bool(args.stop_outside_shell),
         settings=settings,
         write_run_flag_on_start=not bool(args.no_run_flag),
         paper_train=True if bool(getattr(args, "paper_train", False)) else None,
         paper_scalp=bool(getattr(args, "paper_scalp", False)),
     )
     print(json.dumps(result.to_dict(), indent=2, ensure_ascii=False))
+    if result.stopped_reason in {"WEEKEND_NO_MARKET", "BEFORE_0930_IST", "PAST_1529_IST"}:
+        return 2
     return 0
 
 

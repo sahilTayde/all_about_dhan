@@ -2,6 +2,432 @@
 
 **Agents:** read **only the newest block**. Do not ingest this whole log. New files: [`docs/FILE_CREATION.md`](../../docs/FILE_CREATION.md). Append here — do not create `HANDOFF_TOMORROW.md` or extra `CONTINUE_*`.
 
+## As of now (2026-09-20 IST) — NSE hours lock Mon–Fri (NO_PROMOTE)
+
+```text
+From:     teams/00_orchestrator
+To:       founder / 05 / 07
+Date:     2026-09-20
+Status:   PAPER / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: No Sat/Sun dual-tape. NEW 09:30–15:16 IST.
+  Flatten 15:16. Ticks only 15:16–15:29. Coded in
+  session_clock + dual_tape + paper_scalp. No exception.
+Rejected: Weekend poll. NEW after 15:16. Open books past 15:16.
+UNKNOWN: none on this clock until founder changes it.
+```
+
+## As of now (2026-09-19 IST) — signal desk dealer + ML (NO_PROMOTE)
+
+```text
+From:     teams/00_orchestrator
+To:       founder / 04 / 06
+Date:     2026-09-19
+Status:   PAPER / HYPOTHESIS / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: Next workstream = dealer + ML own-side (signal
+  desk). Booking STALL/hold stays frozen. Daily drill
+  scores signal_desk separately.
+Rejected: Mix booking recode into ML retune. Promote.
+UNKNOWN: Whether XR 18 Sep green repeats.
+```
+
+## As of now (2026-09-18 IST) — daily pre/post hour-kind (NO_PROMOTE)
+
+```text
+From:     teams/00_orchestrator
+To:       founder / 04 / 06
+Date:     2026-09-18
+Status:   PAPER / HYPOTHESIS / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: Hour kind drives booking, not day majority.
+  itm_bin TREND is not tape trend. Fill kind = open ER
+  (missing → UNKNOWN); close kind stamped. Pre + post
+  market FIX-FIRST drill; recode only after more days.
+  18 Sep TRENDING-at-open STALL = watch, not hold recode.
+Rejected: Whole-day overlay. Recode hold this chat. Promote.
+UNKNOWN: VOLATILE-specific exits — more sessions.
+```
+
+## As of now (2026-09-18 IST) — categorize tape then discuss (NO_PROMOTE)
+
+```text
+From:     teams/00_orchestrator
+To:       founder / 04 / 06
+Date:     2026-09-18
+Status:   PAPER / HYPOTHESIS / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: Examples are thinking aids. Requirement = replay
+  jsonl, tag hours TRENDING/SIDEWAYS/CHOPPY/VOLATILE from
+  INDEX ER (not itm_bin TREND), score booking vs kind,
+  then suggest. No overlay recode in this step.
+Rejected: Hardcode 203/180/250. Assume-and-patch STALL.
+UNKNOWN: Whether 4 labels beat the 2-way ER 0.35 split —
+  tape first.
+```
+
+## As of now (2026-09-18 IST) — ask before overlay recode (NO_PROMOTE)
+
+```text
+From:     teams/00_orchestrator
+To:       founder / 04 / 06
+Date:     2026-09-18
+Status:   PAPER / HYPOTHESIS / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: Founder process: discuss scenario first; do not
+  assume-and-patch booking overlay. Reverted unasked
+  vol_expand/STALL change. TREND retracement hold stays
+  ER≥0.35 same-wing (prior-day). Chop STALL stays ER<0.35.
+Rejected: Wipe prior-day hold with a mid-chat recode. Promote.
+UNKNOWN: How founder wants 203→245→220 treated when INDEX
+  ER is mixed / itm_bin says TREND — ASK, do not code.
+```
+
+## As of now (2026-09-18 IST) — two desks (NO_PROMOTE)
+
+```text
+From:     teams/00_orchestrator
+To:       founder / 04 / 06
+Date:     2026-09-18
+Status:   PAPER / HYPOTHESIS / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: Signal desk ≠ booking desk. ML fires; we inspect
+  later. Booking overlay already has chop STALL vs TREND
+  same-wing hold. Other wing / IV feed booking, not a new MIX.
+Rejected: Sit to hard SL in sideways as the only exit.
+  Retune ML while booking is the leak. Promote. Unasked
+  overlay recode.
+UNKNOWN: 17 morning jsonl.
+```
+
+## As of now (2026-09-18 IST) — signal layer vs booking layer (NO_PROMOTE)
+
+```text
+From:     teams/00_orchestrator
+To:       founder / 04 / 06
+Date:     2026-09-18
+Status:   PAPER / HYPOTHESIS / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: Two layers. Signal = dealer / logit / XR / greeks.
+  Booking = STALL / AGAINST / TARGET / SL after fill.
+  WAIT_STRENGTH + impulse-align = dealer entry only.
+  ML-001 still observe — no own CE/PE (17 Sep), not today's
+  FIX-FIRST. Logit still fills.
+Rejected: Treat FIX-FIRST as an ML BUY/SELL kill. Promote.
+UNKNOWN: Whether logit vs dealer disagreement stays a skip
+  on the dealer book only (already true).
+```
+
+## As of now (2026-09-18 IST) — FIX-FIRST pre-open drill (NO_PROMOTE)
+
+```text
+From:     teams/00_orchestrator
+To:       founder / 04 / 06 / 05
+Date:     2026-09-18
+Status:   PAPER / HYPOTHESIS / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: FIX-FIRST daily pre-market drill from 17 Sep
+  write=false. Progress JSON (gitignored). itm_bin confirm
+  is NIFTY strength so pause-wait at session high does not
+  lock dealer. n_open=0 = max 4 fills after recast, not a
+  new ML-001/dealer kill. Epoch-restart remaining session.
+Rejected: Treat observe ML-001 as a new block. 70% wr claim.
+  sqlite git-add. npm restart. Live orders.
+UNKNOWN: Whether remaining 18 Sep afternoon prints TARGET
+  after epoch. 17 morning jsonl still thin.
+```
+
+## As of now (2026-09-18 IST) — FIX-FIRST profit book (NO_PROMOTE)
+
+```text
+From:     teams/00_orchestrator
+To:       founder / 04 / 06
+Date:     2026-09-18
+Status:   PAPER / HYPOTHESIS / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: FIX-FIRST only. Measure 16–18 1m then OpenAI ALIGNED
+  AWC then code. Chop=INDEX ER<0.35: stall 8m/3m, book ≥40%
+  path, target cap +10pt (159 vs 169). Against only if ≥3pt
+  underwater or ER≥0.35 opposite. Unwind T1 or chop+3pt.
+  Dual-tape kept live (not restarted). pytest 89.
+Rejected: ML retune. Lots 30–40. 70% wr coded. T2. Promote.
+  Restart live mid-session (would recast the book).
+UNKNOWN: 17 morning jsonl missing. 17 PE 153→182 on full tape.
+```
+
+## As of now (2026-09-18 IST) — PE sat a CALL rally (NO_PROMOTE)
+
+```text
+From:     teams/00_orchestrator
+To:       founder / 04 / 06
+Date:     2026-09-18
+Status:   PAPER / HYPOTHESIS / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: Founder: 23400 PE 13:37 stayed OPEN through CE volume,
+  INDEX up, ~8×1m green CE, PE dump, OI flip. Miss was code:
+  (1) pause-wait / false-break / opt_pe_absorbing nulled
+  last3_impulse so TREND_UP_KILL_PE never ran on the fill;
+  (2) 10s itm_bin PE overwrote 15m INDEX UP (RSI 74, votes 5-0);
+  (3) ER≥0.35 vetoed STALL against the ticket; (4) CANCEL_THESIS
+  was SOFT — before T1 trail kept path SL 110 while LTP 116;
+  (5) LONG_UNWIND waited T1. CANCEL_AGAINST is HARD on
+  last3_impulse_raw / pre-bin INDEX dir / opposite flow.
+  Thesis flip hard. Unwind flatten now. pytest 88.
+Rejected: Promote. Live orders. Sitting PE for pause-continue.
+UNKNOWN: 18 Sep EOD write=false vs this overlay.
+```
+
+## As of now (2026-09-18 IST) — Groww statutory + 10 lots + ₹5L (NO_PROMOTE)
+
+```text
+From:     teams/00_orchestrator
+To:       founder / 06 / 07
+Date:     2026-09-18
+Status:   PAPER / HYPOTHESIS / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: Groww paper costs were incomplete (only ₹20×2 + GST on
+  brokerage + STT). Added exchange 0.03503% both legs, SEBI
+  0.0001%, stamp 0.003% buy, GST 18% on brk+exch+SEBI.
+  Desk ₹70k + ₹5L = ₹5.7L. New fills target 10 lots when
+  notional fits (~₹1.425L/tradable book).
+Rejected: Promote. Live orders. IPF/clearing as invented.
+UNKNOWN: Exact NSE vs BSE circular this week; IPF omitted.
+```
+
+## As of now (2026-09-18 IST) — stall book vs constant TIME (NO_PROMOTE)
+
+```text
+From:     teams/00_orchestrator
+To:       founder / 04 / 06
+Date:     2026-09-18
+Status:   PAPER / HYPOTHESIS / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: Founder read of 18 Sep chop is right. NIFTY 23250 CE
+  12:13 entry 149.7 tgt 169 never printed (tape max 157.7).
+  Index ER 12h=0.043 13h=0.055, range 18–28 pts, OI −473k.
+  itm_bin labeled TREND at ER~0.05 so SIDEWAYS/TIME never
+  booked. Soft greeks/strike trail sat above path SL.
+  CANCEL_STALL = stale-high fade / scratch ≥entry, vetoed by
+  ER≥0.35 or last-3 with the wing or ≥55% to target.
+  17 Sep 13h TARGET PE 153→182 still printed. Counsel ALIGNED
+  ACCEPT_WITH_CAVEATS (gpt-4.1 + gemini-3.5-flash-lite).
+Rejected: Constant 9m TIME as the only clock. Promote.
+  Booking underwater STALL (delayed STOP).
+UNKNOWN: Live 12:13 CE 159-book is gone (now ~144). 45m TIME
+  still dumps some PE winners that 9m TIME greened today.
+```
+
+## As of now (2026-09-18 IST) — /pm /desk unique paper UX (NO_PROMOTE)
+
+```text
+From:     teams/00_orchestrator
+To:       founder / 07
+Date:     2026-09-18
+Status:   PAPER / HYPOTHESIS / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: Founder asked for usable /pm and /desk. Unique net,
+  TARGET vs TIME vs STOP, open-ticket path, collapsed clones.
+Rejected: Promote. Indicator soup as the first screen.
+UNKNOWN: Dual-tape process still old SUCCESS labels in JSON.
+```
+
+## As of now (2026-09-18 IST) — validate PE SUCCESS vs 148 (NO_PROMOTE)
+
+```text
+From:     teams/00_orchestrator
+To:       founder / 06
+Date:     2026-09-18
+Status:   PAPER / HYPOTHESIS / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: Founder was right. Dashboard SUCCESS ≠ target hit.
+  Unique PE 23400 closed TIME at 139.65, target 148.80 never
+  printed in-trade. Relabel SUCCESS=TARGET only. UI shows exit.
+Rejected: Promote. Those PE rows as TARGET wins.
+UNKNOWN: Need dual-tape process reload to stamp new labels live.
+```
+
+## As of now (2026-09-18 IST) — CE+PE strength overlay (NO_PROMOTE)
+
+```text
+From:     teams/00_orchestrator
+To:       founder / 04 / 06
+Date:     2026-09-18
+Status:   PAPER / HYPOTHESIS / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: Same strength overlay on CE and PE. Do not sit PE-only
+  all day. Last-3 / pause-continue / SHORT_COVER still required.
+  Align impulse: no PE into UP, no CE into DOWN. Max 4. Skip BN+SENSEX.
+Rejected: Promote. PE-lock for the rest of 18 Sep.
+UNKNOWN: 18 Sep EOD write=false.
+```
+
+## As of now (2026-09-18 IST) — clean slate PE overlay + dashboard why (NO_PROMOTE)
+
+```text
+From:     teams/00_orchestrator
+To:       founder / 04 / 06
+Date:     2026-09-18
+Status:   PAPER / HYPOTHESIS / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: Wipe 18 Sep paper book. Keep JSONL. Ship yesterday keep:
+  NIFTY PE + strength + max4, skip BN+SENSEX, no T2. Justification
+  on OPEN and CLOSE/CANCEL/SUCCESS/LOSS on UI + MD. Dual-tape restart.
+Rejected: 17 Sep live setup as today's book. Promote. sqlite git-add.
+UNKNOWN: 18 Sep EOD write=false still required.
+```
+
+## As of now (2026-09-18 IST) — replay SQLite + justifications (NO_PROMOTE)
+
+```text
+From:     teams/00_orchestrator
+To:       founder / 04 / 06
+Date:     2026-09-18
+Status:   PAPER / HYPOTHESIS / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: Keep PE+strength+max4. Documented 17 vs 18 in
+  BACKTEST_REPLAY_TAPE.md. Carry last INDEX LTP. Queryable
+  replay_* tables. OPEN justification. 17 Sep replay +3299.
+  18 Sep so far 0 fills (INDEX DI until carry).
+Rejected: Promote. Invented VIX. sqlite git-add.
+UNKNOWN: 18 Sep EOD still required.
+```
+
+## As of now (2026-09-18 IST) — NIFTY PE+strength+max4 live paper (NO_PROMOTE)
+
+```text
+From:     teams/00_orchestrator
+To:       founder / 04 / 06
+Date:     2026-09-18 ~11:08 IST
+Status:   PAPER / HYPOTHESIS / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: Best 17 Sep NIFTY pick applied today: PE + strength +
+  max4/book. Skip BN and SENSEX NEW. Dual-tape paper-scalp
+  restarted. JSONL kept for EOD replay. pytest 80 earlier.
+Rejected: Promote. 13:30 clock. Session-lean default. npm restart.
+UNKNOWN: 18 Sep tape still filling. One-day 17 Sep is not OOS.
+```
+
+## As of now (2026-09-17 night) — NIFTY-only overlay for tomorrow paper (NO_PROMOTE)
+
+```text
+From:     teams/00_orchestrator
+To:       founder / 04 / 06
+Date:     2026-09-17 night
+Status:   PAPER / HYPOTHESIS / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: Do not score NIFTY+SENSEX together. NIFTY 17 Sep CE
+  tickets were the bleed. Full-tape unique: PE+strength −3395
+  vs CE+PE −10172. PE+strength+max4 +3299 (one day). DEFAULT
+  ship: skip BN and SENSEX, NIFTY PE only, need_strength, max
+  4 filled/book, skip_ce_after_stop, T2 still parked. pytest 80.
+  OpenAI AWC; Gemini down. Dual-tape not restarted.
+Rejected: Promote. 13:30 clock as the story. Hard skip-all-sides
+  after first STOP (kills TARGET). Session-lean instead of PE
+  on this tape (still −1185). Live MD overwrite. sqlite git-add.
+UNKNOWN: Tomorrow may be a CE day — PE-only is 17 Sep directional.
+```
+
+## As of now (2026-09-17 night) — NIFTY vs SENSEX point R:R (NO_PROMOTE)
+
+```text
+From:     teams/00_orchestrator
+To:       founder / 04 / 06
+Date:     2026-09-17 night
+Status:   PAPER / HYPOTHESIS / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: BANKNIFTY NEW skipped (FOCUS_NIFTY_SENSEX). Independent
+  books. Internally premium POINTS; dashboard still ₹. NIFTY ATR
+  stop 6–18 trail 4–10, pause-continue before last-3 override.
+  SENSEX ATR stop 18–42 trail 12–28, no extra pause wait, NEW only
+  on last-3/short-cover. Dynamic R:R ~1.2–2.5 from ER/vol/SR/IV
+  + fib 0.382/0.618. Strict TARGET. Counsel ALIGNED AWC.
+  17 Sep write=false NIFTY+SENSEX: 24 fills wr 50% unique net
+  +2696 (STOP 10 TARGET 10). One day ≠ promote.
+Rejected: Shared ₹8 floor. Constant 1:2. Live orders. BN as same
+  as NIFTY. Treating +2696 as skill.
+UNKNOWN: LTP ATR ≠ exchange TR. OOS+NORMAL missing.
+```
+
+## As of now (2026-09-17 night) — strict TARGET; trail SL; 17 Sep overlays (NO_PROMOTE)
+
+```text
+From:     teams/00_orchestrator
+To:       founder / 04 / 06
+Date:     2026-09-17 night
+Status:   PAPER / HYPOTHESIS / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: apply_target_shift=false. First TARGET books. Trail SL
+  stays. Lock-shift parked until founder unparks. 17 Sep write=false
+  all target_step=0. Live −93745. Ship pause+wide+strictT: 12 fills
+  wr 33.3% −13037 (STOP 4 TARGET 2 TIME 2 FLATTEN 4). Confirm+wide
+  −9972 wr 41.7% (more TARGET). Confirm-all-names −31371. NIFTY-only
+  −4671 wr 50%. pytest 72.
+Rejected: Promote. Nightly param write. Target chase.
+UNKNOWN: One-day tape. OOS+NORMAL missing.
+```
+
+## As of now (2026-09-17 night) — impulse pause-continue vs 74% / 52% (NO_PROMOTE)
+
+```text
+From:     teams/00_orchestrator
+To:       founder / 04 / 06
+Date:     2026-09-17 night
+Status:   PAPER / HYPOTHESIS / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: Do not pick 3 vs 5 candles. First spike never overrides
+  the ITM bin. Pause (doji/SIDEWAYS/wick) then volume continuation
+  may. COVER only T1 or SIDEWAYS+BE. BANKNIFTY+SENSEX wait that
+  continuation; NIFTY may still trade the bin. Counsel ALIGNED
+  ACCEPT_WITH_CAVEATS (Gemini lite + OpenAI gpt-4.1). Web: PDH/PDL
+  acceptance vs sweep (TradeVerse, Sahi, Errante, kzatakia).
+  17 Sep write=false: live net −93745; overlay A −15018 wr 74.7%;
+  confirm-only ~−50k wr ~32%; pause+wide −18104 wr 28.6%;
+  NIFTY-only −9738 wr 40%. Ship pause+wide (not NIFTY-only delete).
+Rejected: Promote. Treating wr 74% as better than 52%. 14 Sep
+  triples DATA_INSUFFICIENT (jsonl timestamps). 15 Sep 0 ITM wings.
+UNKNOWN: True order-flow; 16 Sep tape cut when loops STOPPED.
+```
+
+## As of now (2026-09-17 night) — last-3 impulse must confirm (NO_PROMOTE)
+
+```text
+From:     teams/00_orchestrator
+To:       founder / 04 / 06
+Date:     2026-09-17 night
+Status:   PAPER / HYPOTHESIS / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: Confirmed last-3 may override ITM bin. Trap filter:
+  real 1m volume, no shooting-star/hammer/injection, close vs
+  typical (H+L+C)/3, CE/PE premium not absorbing, greeks not
+  against, no false break at PDH/PDL/session/HTF. Premarket S/R
+  from INDEX closes. KEEP_ALL. pytest paper_scalp 69.
+Rejected: Promote. Invent order-flow POC. Blind 1m spike override.
+UNKNOWN: True high/low if tape is LTP-only; 10s wick vs exchange 1m.
+```
+
 ## As of now (2026-09-17 night) — path SL + ITM OI covering vs 17 Sep live (NO_PROMOTE)
 
 ```text

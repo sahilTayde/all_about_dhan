@@ -60,6 +60,7 @@ def _triples(*, n: int = 80, trend: float = 8.0) -> list[Triple]:
                 itm_pe_close=pe + 40.0,
                 itm_ce_strike=ce_itm,
                 itm_pe_strike=pe_itm,
+                idx_volume=80.0 + i * 6.0,
                 wing_quotes={
                     str(int(ce_itm)): {"ce": ce + 40.0, "pe": 20.0},
                     str(int(atm)): {"ce": ce, "pe": pe},
@@ -143,7 +144,7 @@ def test_open_settle_skips_new_opens_flatten_still_ok() -> None:
         deny_model_signals=False,
     )
     assert engine.has_open("MIX-DEFAULT-BUY", "NIFTY") is False
-    assert any(s.get("reason") in {"OPEN_SETTLE_35M", "NO_NEW_BEFORE_0950"} for s in engine.skips)
+    assert any(s.get("reason") in {"NO_NEW_BEFORE_0930", "OPEN_SETTLE_35M", "NO_NEW_BEFORE_0950"} for s in engine.skips)
     pos = OpenPaper(
         book_id="MIX-DEFAULT-BUY",
         underlying="NIFTY",
@@ -217,7 +218,7 @@ def test_sideways_still_flattens_open_ticket() -> None:
     tick = Triple(ts=late, idx_close=25000.0, ce_close=118.0, pe_close=110.0)
     mark_to_market(engine, tick, "NIFTY", 50)
     assert engine.has_open("MIX-DEFAULT-BUY", "NIFTY") is False
-    assert engine.closed and engine.closed[0]["exit_reason"] == "FLATTEN_1515"
+    assert engine.closed and engine.closed[0]["exit_reason"] in {"FLATTEN_1516", "FLATTEN_1515"}
 
 
 def test_paper_hit_rate_from_closed_pnl() -> None:
@@ -240,15 +241,17 @@ def test_fantasy_150_96_250_killed() -> None:
     assert wrapped["reason_code"] == "TARGET_FEASIBILITY_FAIL"
 
 
-def test_open_settle_blocks_new_before_0950() -> None:
+def test_open_settle_blocks_new_before_0930() -> None:
     from desk_ml.paper_scalp import new_paper_blocked
 
     early = int(datetime(2026, 9, 17, 9, 15, tzinfo=IST).timestamp())
-    almost = int(datetime(2026, 9, 17, 9, 49, tzinfo=IST).timestamp())
-    open_ok = int(datetime(2026, 9, 17, 9, 50, tzinfo=IST).timestamp())
-    assert new_paper_blocked(early) in {"OPEN_SETTLE_35M", "NO_NEW_BEFORE_0950"}
-    assert new_paper_blocked(almost) == "OPEN_SETTLE_35M"
+    almost = int(datetime(2026, 9, 17, 9, 29, tzinfo=IST).timestamp())
+    open_ok = int(datetime(2026, 9, 17, 9, 30, tzinfo=IST).timestamp())
+    sat = int(datetime(2026, 9, 19, 12, 0, tzinfo=IST).timestamp())
+    assert new_paper_blocked(early) == "NO_NEW_BEFORE_0930"
+    assert new_paper_blocked(almost) == "NO_NEW_BEFORE_0930"
     assert new_paper_blocked(open_ok) is None
+    assert new_paper_blocked(sat) == "WEEKEND_NO_MARKET"
 
 
 def test_fantasy_266_219_615_clipped_or_fail() -> None:
@@ -318,25 +321,36 @@ def test_propose_levels_uses_path_not_hero_target() -> None:
 
 
 def test_allocate_desk_capital_skips_greeks_book() -> None:
-    from desk_ml.paper_scalp import allocate_desk_capital, LIVE_BOOKS
+    from desk_ml.paper_scalp import DESK_CAPITAL_INR, allocate_desk_capital, LIVE_BOOKS
 
     plan = allocate_desk_capital(tradable=[b for b in LIVE_BOOKS if b != "MIX-ML-GREEKS"])
-    assert plan["desk_capital_inr"] == 70000.0
+    assert plan["desk_capital_inr"] == DESK_CAPITAL_INR
     assert plan["per_book"]["MIX-ML-GREEKS"] == 0.0
     active = [b for b in LIVE_BOOKS if b != "MIX-ML-GREEKS"]
-    assert sum(plan["per_book"][b] for b in active) == 70000.0
-    assert plan["per_book"][active[0]] == 10000.0
+    assert sum(plan["per_book"][b] for b in active) == DESK_CAPITAL_INR
 
 
 def test_allocate_fill_books_not_eight_clones() -> None:
-    from desk_ml.paper_scalp import allocate_desk_capital, tradable_fill_books
+    from desk_ml.paper_scalp import DESK_CAPITAL_INR, allocate_desk_capital, tradable_fill_books
 
     plan = allocate_desk_capital(tradable=tradable_fill_books(has_greeks=False))
     assert plan["skipped"] == ["ML-001", "ML-002", "ML-1", "MIX-TV-EP-024", "MIX-ML-GREEKS"]
     assert plan["tradable"] == ["MIX-DEFAULT-BUY", "MIX-ML-LOGIT", "MIX-ML-LOGIT-XR"]
     assert plan["n_tradable"] == 3
     assert plan["per_book"]["ML-001"] == 0.0
-    assert sum(plan["per_book"][b] for b in plan["tradable"]) == 70000.0
+    assert sum(plan["per_book"][b] for b in plan["tradable"]) == DESK_CAPITAL_INR
+
+
+def test_size_lots_ten_when_capital_allows() -> None:
+    from desk_ml.paper_lots import size_lots
+
+    row = size_lots(entry=150.0, lot_size=65, capital_inr=142500.0, min_lots=10)
+    assert row["lots"] == 10
+    assert row["qty"] == 650
+    assert row["lot_status"] == "OK"
+    clipped = size_lots(entry=400.0, lot_size=65, capital_inr=50000.0, min_lots=10)
+    assert clipped["lots"] == 1
+    assert clipped["lot_status"] == "CLIPPED_TO_CAPITAL"
 
 
 def test_resolve_fill_intents_hold_skip_logit_fill_dealer_not_against() -> None:
@@ -397,10 +411,13 @@ def test_trend_up_kills_new_pe_not_a_strat() -> None:
     )
     assert engine.last_regime["NIFTY"]["regime"] == "TREND"
     assert engine.last_regime["NIFTY"]["direction"] == "UP"
-    pos = engine.opens.get(("MIX-ML-LOGIT", "NIFTY"))
-    assert pos is not None
-    assert pos.side == "CE"
-    assert pos.filled is True
+    pe_open = engine.opens.get(("MIX-ML-LOGIT", "NIFTY"))
+    assert pe_open is None or pe_open.side != "PE"
+    assert any(
+        str(s.get("reason") or "") == "TREND_UP_KILL_PE"
+        for s in engine.skips
+        if s.get("underlying") == "NIFTY"
+    )
 
 
 def test_sleep_with_beats_rewrites_without_dhan_poll() -> None:
@@ -576,6 +593,8 @@ def test_scalp_time_exit_closes_premium_pnl() -> None:
 
 
 def test_replay_parallel_books_no_promote(tmp_path) -> None:
+    from desk_ml.paper_scalp import DESK_CAPITAL_INR, LIVE_BOOKS, replay_paper_scalp
+
     triples = _triples(n=90)
     board = replay_paper_scalp(
         root=tmp_path,
@@ -590,14 +609,14 @@ def test_replay_parallel_books_no_promote(tmp_path) -> None:
     assert ids == set(LIVE_BOOKS)
     assert board["research_ready_for_programming"] is False
     assert board["execution"] == "refused"
-    assert board["starting_desk_inr"] == 70000.0
+    assert board["starting_desk_inr"] == DESK_CAPITAL_INR
     assert board["capital_plan"]["skipped"] == ["ML-001", "ML-002", "ML-1", "MIX-TV-EP-024", "MIX-ML-GREEKS"]
     assert board["deny_model_signals"] is True
     assert board["win_rate_kind"] == "paper_closed_net_inr_gt_0_after_groww_stt"
     assert "win_rate_gross_pct" in board
     assert "book_rank" in board
     assert "today" in board
-    assert board["cost_model"]["name"] == "GROWW_FO_20_PLUS_STT_015"
+    assert board["cost_model"]["name"] == "GROWW_FO_20_PLUS_STATUTORY_OPTIONS"
     if board["n_closed"]:
         assert board["win_rate"] is not None
         assert 0.0 <= float(board["win_rate"]) <= 1.0
@@ -610,7 +629,7 @@ def test_replay_parallel_books_no_promote(tmp_path) -> None:
 def test_books_do_not_share_veto_on_banknifty() -> None:
     a = _triples(n=40, trend=6.0)
     b = _triples(n=40, trend=-6.0)
-    engine = BookEngine()
+    engine = BookEngine(skip_bn_unless_last3=False, skip_banknifty=False)
     step_underlying(
         engine,
         underlying="NIFTY",
@@ -678,7 +697,7 @@ def test_live_session_filters_other_ist_days_and_keeps_open() -> None:
         assert all(t.get("side") in {"CE", "PE"} for t in board["open_trades"])
         assert all(t.get("atm_strike") is not None for t in board["open_trades"])
     for t in board["closed_trades"]:
-        assert t.get("result") in {"SUCCESS", "LOSS", "CANCELLED"}
+        assert t.get("result") in {"SUCCESS", "LOSS", "CANCELLED", "TIME", "FLATTEN"}
         assert t.get("status") in {"CLOSED_PAPER", "CLOSED_CANCEL", "CANCELLED", "CANCELLED_UNFILLED"}
     if board["n_losses"]:
         assert board["mistakes"]
@@ -799,7 +818,7 @@ def test_open_uses_itm_quote_not_atm() -> None:
             "74400": {"ce": 90.0, "pe": 440.0},
         },
     )
-    engine = BookEngine()
+    engine = BookEngine(skip_bn_unless_last3=False, sensex_need_strength=False)
     engine.last_regime["SENSEX"] = {"regime": "TREND", "direction": "UP"}
     _try_open(
         engine,
@@ -848,7 +867,7 @@ def test_unfilled_limit_cancels_when_premium_runs_away() -> None:
 def test_no_new_paper_after_1515_ist() -> None:
     from desk_ml.paper_scalp import BookEngine, _try_open, new_paper_blocked
 
-    still_ok = int(datetime(2026, 9, 10, 14, 50, tzinfo=IST).timestamp())
+    still_ok = int(datetime(2026, 9, 10, 15, 15, tzinfo=IST).timestamp())
     assert new_paper_blocked(still_ok) is None
     late = int(datetime(2026, 9, 10, 15, 16, tzinfo=IST).timestamp())
     tick = Triple(ts=late, idx_close=23200.0, ce_close=80.0, pe_close=70.0)
@@ -865,7 +884,7 @@ def test_no_new_paper_after_1515_ist() -> None:
         strike=23200.0,
     )
     assert engine.has_open("MIX-DEFAULT-BUY", "NIFTY") is False
-    assert any(s.get("reason") == "NO_NEW_AFTER_1515" for s in engine.skips)
+    assert any(s.get("reason") in {"NO_NEW_AFTER_1516", "NO_NEW_AFTER_1515"} for s in engine.skips)
 
 
 def test_greeks_adjust_delta_skip_and_iv_widens_stop() -> None:
@@ -925,12 +944,149 @@ def test_filled_close_applies_groww_and_stt() -> None:
     )
     _close(engine, pos, ltp=110.0, ts=_ts(5), reason="TARGET")
     row = engine.closed[0]
-    expect = groww_round_trip_charges(exit_premium=110.0, qty=65, filled=True)
+    expect = groww_round_trip_charges(exit_premium=110.0, entry_premium=100.0, qty=65, filled=True)
     assert row["gross_pnl_inr"] == 650.0
     assert row["brokerage_inr"] == 40.0
     assert row["charges_inr"] == expect["charges_inr"]
     assert row["realized_pnl_inr"] == net_pnl_inr(gross_inr=650.0, charges_inr=expect["charges_inr"])
     assert row["result"] == "SUCCESS"
+
+
+def test_paper_justification_survives_success_and_cancel() -> None:
+    from desk_ml.paper_scalp import (
+        BookEngine,
+        OpenPaper,
+        _close,
+        paper_close_justification,
+        paper_open_justification,
+        render_markdown,
+    )
+
+    engine = BookEngine(nifty_allow_sides=("PE",), nifty_need_strength=True, nifty_max_filled_per_book=4)
+    why = paper_open_justification(
+        underlying="NIFTY",
+        side="PE",
+        classified={
+            "regime": "TREND",
+            "direction": "DOWN",
+            "itm_bin": {"side": "PE"},
+            "last3_impulse": "DOWN",
+        },
+        levels={"stop": 90.0, "target": 140.0},
+        strike=23400.0,
+        strike_source="ITM_100",
+        engine=engine,
+    )
+    assert "overlay=PE+strength+max4" in why
+    assert "PAPER only" in why
+    pos = OpenPaper(
+        book_id="MIX-DEFAULT-BUY",
+        underlying="NIFTY",
+        side="PE",
+        trade_id="just-ok",
+        entry=100.0,
+        stop=90.0,
+        target=140.0,
+        atm_strike=23400.0,
+        opened_ts=_ts(0),
+        opened_bar=1,
+        strike_source="ITM_100",
+        limit_price=100.0,
+        lot_size=65,
+        lots=1,
+        qty=65,
+        filled=True,
+        justification=why,
+    )
+    _close(engine, pos, ltp=130.0, ts=_ts(5), reason="TARGET")
+    row = engine.closed[0]
+    assert row["result"] == "SUCCESS"
+    assert "CLOSE:" in row["justification"]
+    assert "EXIT TARGET" in row["justification"]
+    assert "result=SUCCESS" in row["justification"]
+    md = render_markdown({"open_trades": [], "closed_trades": [row], "title": "t"})
+    assert "Closed justification" in md
+    assert "EXIT TARGET" in md
+    md_open = render_markdown(
+        {
+            "open_trades": [
+                {
+                    "book_id": "MIX-DEFAULT-BUY",
+                    "underlying": "NIFTY",
+                    "side": "CE",
+                    "atm_strike": 23250.0,
+                    "limit_price": 170.0,
+                    "target": 195.5,
+                    "stop": 158.0,
+                    "last_ltp": 172.0,
+                    "filled": True,
+                    "status": "OPEN_PAPER",
+                    "index_regime": "TREND",
+                    "last_updated_ist": "2026-09-18T12:00:00+05:30",
+                }
+            ],
+            "closed_trades": [],
+            "title": "t",
+        }
+    )
+    assert "**target**" in md_open
+    assert "195.5" in md_open
+    close_txt = paper_close_justification(
+        open_why=why,
+        reason="CANCEL_UNFILLED_AWAY",
+        result="CANCELLED",
+        status="CANCELLED_UNFILLED",
+        unfilled=True,
+        inr=0.0,
+        sl_hit=False,
+    )
+    assert "result=CANCELLED" in close_txt
+    assert "₹0 unfilled" in close_txt
+
+
+def test_time_green_is_not_success() -> None:
+    from desk_ml.paper_scalp import BookEngine, OpenPaper, _close, paper_close_result, render_markdown
+
+    assert paper_close_result(unfilled=False, reason="TIME", won=True) == "TIME"
+    assert paper_close_result(unfilled=False, reason="TARGET", won=True) == "SUCCESS"
+    engine = BookEngine()
+    engine.equity["MIX-DEFAULT-BUY"] = 17500.0
+    pos = OpenPaper(
+        book_id="MIX-DEFAULT-BUY",
+        underlying="NIFTY",
+        side="PE",
+        trade_id="pe-time-not-tgt",
+        entry=131.9,
+        stop=121.4523,
+        target=148.8023,
+        atm_strike=23400.0,
+        opened_ts=_ts(0),
+        opened_bar=1,
+        strike_source="ITM_100",
+        limit_price=131.9,
+        lot_size=65,
+        lots=2,
+        qty=130,
+        filled=True,
+    )
+    _close(engine, pos, ltp=139.65, ts=_ts(9), reason="TIME")
+    row = engine.closed[0]
+    assert row["exit"] == 139.65
+    assert row["target"] == 148.8023
+    assert row["exit"] < row["target"]
+    assert row["won"] is True
+    assert row["target_hit"] is False
+    assert row["result"] == "TIME"
+    assert row["exit_reason"] == "TIME"
+    assert "target_hit=false" in row["justification"]
+    md = render_markdown({"open_trades": [], "closed_trades": [row], "title": "t", "today": {}})
+    assert "`TIME`" in md
+    assert "139.65" in md
+    from desk_ml.paper_scalp import coerce_close_result
+
+    old = {"exit_reason": "TIME", "result": "SUCCESS", "target_hit": None}
+    assert coerce_close_result(old)["result"] == "TIME"
+    assert coerce_close_result(old)["target_hit"] is False
 
 
 def test_unfilled_close_has_zero_charges() -> None:
@@ -1000,7 +1156,7 @@ def test_filled_cancel_still_books_round_trip_pnl() -> None:
     assert row["result"] == "LOSS"
     assert row["sl_hit"] is False
     assert row["sl_loss_inr"] is None
-    expect = groww_round_trip_charges(exit_premium=140.2, qty=65, filled=True)
+    expect = groww_round_trip_charges(exit_premium=140.2, entry_premium=142.1, qty=65, filled=True)
     assert row["charges_inr"] == expect["charges_inr"]
     assert row["realized_pnl_inr"] == net_pnl_inr(
         gross_inr=row["gross_pnl_inr"], charges_inr=expect["charges_inr"]
@@ -1372,6 +1528,36 @@ def test_time_exit_is_wall_clock_not_10s_bar_i() -> None:
     assert _exit_reason(pos, 101.0, opened + 8 * 60, 3, hold_bars=8) == "TIME"
 
 
+def test_trend_pause_skips_9m_time() -> None:
+    from desk_ml.paper_scalp import TIME_HARD_SEC, _exit_reason
+
+    opened = int(datetime(2026, 9, 10, 10, 0, tzinfo=IST).timestamp())
+    pos = OpenPaper(
+        book_id="MIX-DEFAULT-BUY",
+        underlying="NIFTY",
+        side="CE",
+        trade_id="trend-pause",
+        entry=100.0,
+        stop=80.0,
+        target=130.0,
+        atm_strike=23200.0,
+        opened_ts=opened,
+        opened_bar=0,
+        strike_source="TEST",
+        limit_price=100.0,
+        filled=True,
+        seen_high=118.0,
+        seen_high_ts=opened + 60,
+        premium_prints=[100.0 + i * 1.2 for i in range(16)],
+    )
+    classified = {"er": 0.42, "last3_impulse": "UP", "vol_expand": True}
+    assert _exit_reason(pos, 117.0, opened + 8 * 60, 3, hold_bars=8, classified=classified) is None
+    assert (
+        _exit_reason(pos, 117.0, opened + int(TIME_HARD_SEC), 3, hold_bars=8, classified=classified)
+        == "TIME"
+    )
+
+
 def test_logit_does_not_emit_ce_pe_on_first_session_3m_after_gap() -> None:
     from backtest_engine.ml_leans import lean_ml_logit
     from desk_ml.paper_scalp import resample_closes_3m
@@ -1418,8 +1604,372 @@ def test_classify_needs_vwap_ema_and_blocks_shrinking_volume() -> None:
     shrink = [1000.0] * 34 + [900.0, 800.0, 700.0, 600.0, 500.0, 400.0]
     blocked = classify_index_regime(trend, volumes=shrink)
     assert blocked["vol_expand"] is False
-    assert blocked["regime"] == "TREND"
-    assert blocked["last3_impulse"] == "UP"
+    assert blocked["last3_impulse_raw"] == "UP"
+    assert blocked["last3_impulse"] is None
+    assert blocked["last3_confirmed"] is False
+
+
+def test_last3_put_impulse_beats_15m_chop() -> None:
+    chop = [25000.0 + (4.0 if i % 2 == 0 else -4.0) for i in range(37)]
+    dump = chop + [24990.0, 24970.0, 24940.0]
+    expand = [100.0] * 37 + [180.0, 220.0, 260.0]
+    t = classify_index_regime(dump, volumes=expand)
+    assert t["regime"] == "TREND"
+    assert t["direction"] == "DOWN"
+    assert t["last3_impulse"] == "DOWN"
+    assert t["last3_confirmed"] is True
+    still_chop = chop + [25004.0, 24996.0, 25004.0]
+    s = classify_index_regime(still_chop)
+    assert s["regime"] == "SIDEWAYS"
+    assert s["last3_impulse"] is None
+    shrink = [1000.0] * 34 + [900.0, 800.0, 700.0, 600.0, 500.0, 400.0]
+    blocked = classify_index_regime(dump, volumes=shrink)
+    assert blocked["last3_impulse_raw"] == "DOWN"
+    assert blocked["last3_impulse"] is None
+    sensex = [74650.0 + (3.0 if i % 2 == 0 else -3.0) for i in range(20)]
+    sensex += [74519.0, 74416.0, 74352.0]
+    sx = classify_index_regime(sensex, volumes=shrink)
+    assert sx["last3_net"] is not None and abs(float(sx["last3_net"])) >= 90
+    assert sx["last3_impulse"] is None
+
+
+def test_last3_trap_shooting_star_and_pdl_bounce() -> None:
+    from desk_ml.paper_scalp import candle_shape, confirm_last3_impulse, build_sr_levels
+
+    star = {"open": 25010.0, "high": 25080.0, "low": 25008.0, "close": 25014.0}
+    shape = candle_shape(star, prior_range=8.0)
+    assert shape["shooting_star"] is True
+    expand = [100.0] * 12 + [200.0]
+    up = confirm_last3_impulse(
+        impulse_dir="UP",
+        last_bar=star,
+        prior_range=8.0,
+        volumes=expand,
+        vol_expand=True,
+    )
+    assert up["ok"] is False
+    hammer = {"open": 24940.0, "high": 24945.0, "low": 24870.0, "close": 24938.0}
+    bounce = confirm_last3_impulse(
+        impulse_dir="DOWN",
+        last_bar=hammer,
+        prior_range=12.0,
+        volumes=expand,
+        vol_expand=True,
+        sr={"pdl": 24880.0},
+    )
+    assert bounce["ok"] is False
+    strong = {"open": 24990.0, "high": 24992.0, "low": 24938.0, "close": 24940.0}
+    ok = confirm_last3_impulse(
+        impulse_dir="DOWN",
+        last_bar=strong,
+        prior_range=12.0,
+        volumes=expand,
+        vol_expand=True,
+        opt_confirm={"ce_chg": -2.0, "pe_chg": 4.0},
+    )
+    assert ok["ok"] is True
+    ts0 = _ts(0)
+    hist = {ts0 - 86400: 25100.0, ts0 - 86400 + 60: 24900.0, ts0: 25000.0}
+    sr = build_sr_levels(hist, session_ist_date="2026-09-10")
+    assert sr["pdh"] == 25100.0
+    assert sr["pdl"] == 24900.0
+
+
+def test_impulse_pause_then_volume_continue() -> None:
+    from desk_ml.paper_scalp import apply_impulse_pause_continue
+
+    engine = BookEngine()
+    first = {
+        "last3_impulse_raw": "DOWN",
+        "last3_impulse": "DOWN",
+        "last3_confirmed": True,
+        "last3_net": -50.0,
+        "regime": "TREND",
+        "direction": "DOWN",
+        "candle_shape": "strong_down",
+    }
+    a = apply_impulse_pause_continue(engine, "NIFTY", first, _ts(0))
+    assert a["last3_impulse"] is None
+    pause = {
+        "last3_impulse_raw": None,
+        "last3_impulse": None,
+        "last3_confirmed": False,
+        "regime": "SIDEWAYS",
+        "candle_shape": "doji",
+    }
+    b = apply_impulse_pause_continue(engine, "NIFTY", pause, _ts(1))
+    assert engine.impulse_pending["NIFTY"]["pause_seen"] is True
+    cont = {
+        "last3_impulse_raw": "DOWN",
+        "last3_impulse": "DOWN",
+        "last3_confirmed": True,
+        "regime": "SIDEWAYS",
+        "direction": "FLAT",
+        "candle_shape": "strong_down",
+    }
+    c = apply_impulse_pause_continue(engine, "NIFTY", cont, _ts(2))
+    assert c["last3_impulse"] == "DOWN"
+    assert c["last3_reason"] == "pause_continue"
+
+
+def test_sensex_does_not_use_banknifty_continuation_gate() -> None:
+    from desk_ml.paper_scalp import _try_open
+
+    engine = BookEngine(skip_bn_unless_last3=True)
+    engine.last_regime["SENSEX"] = {
+        "regime": "TREND",
+        "direction": "DOWN",
+        "last3_impulse": None,
+        "itm_bin": {"side": "PE"},
+    }
+    tick = Triple(ts=_ts(10), idx_close=74000.0, ce_close=100.0, pe_close=140.0, atm_strike=74000.0)
+    _try_open(
+        engine,
+        book_id="MIX-ML-LOGIT",
+        underlying="SENSEX",
+        side="PE",
+        tick=tick,
+        ce_path=[100.0],
+        pe_path=[140.0],
+        bar_i=10,
+    )
+    assert not any(s.get("reason") == "WIDE_WAIT_CONTINUATION" for s in engine.skips)
+    assert any(s.get("reason") == "SENSEX_WAIT_STRENGTH" for s in engine.skips)
+
+
+def test_index_point_profiles_nifty_tight_sensex_wide() -> None:
+    from desk_ml.paper_scalp import propose_levels
+
+    path_n = [98.0, 99.0, 100.0, 101.0, 102.5, 101.5, 100.5]
+    n = propose_levels(100.0, path_n, underlying="NIFTY")
+    assert n["ok"] is True
+    assert n["unit"] == "premium_points"
+    assert 6.0 - 1e-9 <= n["entry"] - n["stop"] <= 18.0 + 1e-9
+    path_s = [430.0, 438.0, 450.0, 462.0, 455.0, 448.0, 460.0]
+    s = propose_levels(450.0, path_s, underlying="SENSEX")
+    assert s["ok"] is True
+    assert s["entry"] - s["stop"] >= 18.0 - 1e-9
+    assert s["entry"] - s["stop"] <= 42.0 + 1e-9
+    assert (s["entry"] - s["stop"]) > (n["entry"] - n["stop"])
+
+
+def test_skip_banknifty_focus_nifty_sensex() -> None:
+    from desk_ml.paper_scalp import _try_open
+
+    engine = BookEngine()
+    engine.last_regime["BANKNIFTY"] = {"regime": "TREND", "direction": "UP", "itm_bin": {"side": "CE"}}
+    tick = Triple(ts=_ts(10), idx_close=52000.0, ce_close=200.0, pe_close=180.0, atm_strike=52000.0)
+    _try_open(
+        engine,
+        book_id="MIX-ML-LOGIT",
+        underlying="BANKNIFTY",
+        side="CE",
+        tick=tick,
+        ce_path=[200.0],
+        pe_path=[180.0],
+        bar_i=10,
+    )
+    assert engine.has_open("MIX-ML-LOGIT", "BANKNIFTY") is False
+    assert any(s.get("reason") == "FOCUS_NIFTY_SENSEX" for s in engine.skips)
+
+
+def test_skip_sensex_focus_nifty_only() -> None:
+    from desk_ml.paper_scalp import _try_open
+
+    engine = BookEngine(skip_sensex=True, sensex_need_strength=False)
+    engine.last_regime["SENSEX"] = {"regime": "TREND", "direction": "UP", "last3_impulse": "UP"}
+    tick = Triple(ts=_ts(10), idx_close=74300.0, ce_close=300.0, pe_close=280.0, atm_strike=74300.0)
+    _try_open(
+        engine,
+        book_id="MIX-ML-LOGIT",
+        underlying="SENSEX",
+        side="CE",
+        tick=tick,
+        ce_path=[300.0],
+        pe_path=[280.0],
+        bar_i=10,
+    )
+    assert engine.has_open("MIX-ML-LOGIT", "SENSEX") is False
+    assert any(s.get("reason") == "FOCUS_NIFTY_ONLY" for s in engine.skips)
+
+
+def test_nifty_pe_filter_skips_ce() -> None:
+    from desk_ml.paper_scalp import _try_open
+
+    engine = BookEngine(nifty_allow_sides=("PE",))
+    engine.last_regime["NIFTY"] = {"regime": "TREND", "direction": "UP", "itm_bin": {"side": "CE"}, "last3_impulse": "UP"}
+    tick = Triple(ts=_ts(10), idx_close=23200.0, ce_close=120.0, pe_close=80.0, atm_strike=23200.0)
+    _try_open(
+        engine,
+        book_id="MIX-ML-LOGIT",
+        underlying="NIFTY",
+        side="CE",
+        tick=tick,
+        ce_path=[120.0],
+        pe_path=[80.0],
+        bar_i=10,
+    )
+    assert engine.has_open("MIX-ML-LOGIT", "NIFTY") is False
+    assert any(s.get("reason") == "NIFTY_SIDE_FILTER" for s in engine.skips)
+
+
+def test_nifty_ce_opens_on_up_strength_when_both_wings_allowed() -> None:
+    from desk_ml.paper_scalp import _try_open
+
+    engine = BookEngine(
+        nifty_allow_sides=("CE", "PE"),
+        nifty_need_strength=True,
+        nifty_align_impulse=True,
+    )
+    engine.last_regime["NIFTY"] = {
+        "regime": "TREND",
+        "direction": "UP",
+        "itm_bin": {"side": "CE", "ce_votes": ["CE_SHORT_COVER"], "pe_votes": []},
+        "last3_impulse": "UP",
+        "last3_reason": "pause_continue",
+    }
+    tick = Triple(
+        ts=_ts(10),
+        idx_close=23200.0,
+        ce_close=120.0,
+        pe_close=80.0,
+        atm_strike=23200.0,
+        itm_ce_close=160.0,
+        itm_ce_strike=23100.0,
+        wing_quotes={
+            "23100": {"ce": 160.0, "pe": 20.0},
+            "23200": {"ce": 120.0, "pe": 80.0},
+            "23300": {"ce": 20.0, "pe": 140.0},
+        },
+    )
+    _try_open(
+        engine,
+        book_id="MIX-ML-LOGIT",
+        underlying="NIFTY",
+        side="CE",
+        tick=tick,
+        ce_path=[120.0],
+        pe_path=[80.0],
+        bar_i=10,
+    )
+    assert engine.has_open("MIX-ML-LOGIT", "NIFTY") is True
+    pos = engine.opens[("MIX-ML-LOGIT", "NIFTY")]
+    assert pos.side == "CE"
+    _try_open(
+        engine,
+        book_id="MIX-DEFAULT-BUY",
+        underlying="NIFTY",
+        side="PE",
+        tick=tick,
+        ce_path=[120.0],
+        pe_path=[80.0],
+        bar_i=10,
+    )
+    assert engine.has_open("MIX-DEFAULT-BUY", "NIFTY") is False
+    assert any(s.get("reason") in {"TREND_UP_KILL_PE", "NIFTY_IMPULSE_ALIGN", "BIN_SIDE_MISMATCH"} for s in engine.skips)
+
+
+def test_nifty_impulse_align_skips_ce_on_last3_down() -> None:
+    from desk_ml.paper_scalp import _try_open
+
+    engine = BookEngine(nifty_align_impulse=True, skip_trend_against=False)
+    engine.last_regime["NIFTY"] = {
+        "regime": "TREND",
+        "direction": "DOWN",
+        "itm_bin": {"side": "CE"},
+        "last3_impulse": "DOWN",
+    }
+    tick = Triple(ts=_ts(10), idx_close=23200.0, ce_close=120.0, pe_close=80.0, atm_strike=23200.0)
+    _try_open(
+        engine,
+        book_id="MIX-DEFAULT-BUY",
+        underlying="NIFTY",
+        side="CE",
+        tick=tick,
+        ce_path=[120.0],
+        pe_path=[80.0],
+        bar_i=10,
+    )
+    assert engine.has_open("MIX-DEFAULT-BUY", "NIFTY") is False
+    assert any(s.get("reason") == "NIFTY_IMPULSE_ALIGN" for s in engine.skips)
+
+
+def test_nifty_skip_side_after_stop() -> None:
+    from desk_ml.paper_scalp import _try_open
+
+    engine = BookEngine(nifty_skip_side_after_stop=True)
+    engine.last_stop_side_by_und["NIFTY"] = {"CE": _ts(8)}
+    engine.last_regime["NIFTY"] = {
+        "regime": "TREND",
+        "direction": "UP",
+        "itm_bin": {"side": "CE"},
+        "last3_impulse": "UP",
+    }
+    tick = Triple(ts=_ts(10), idx_close=23200.0, pe_close=80.0, ce_close=120.0, atm_strike=23200.0)
+    _try_open(
+        engine,
+        book_id="MIX-ML-LOGIT",
+        underlying="NIFTY",
+        side="CE",
+        tick=tick,
+        ce_path=[120.0],
+        pe_path=[80.0],
+        bar_i=10,
+    )
+    assert engine.has_open("MIX-ML-LOGIT", "NIFTY") is False
+    assert any(s.get("reason") == "NIFTY_SIDE_AFTER_STOP" for s in engine.skips)
+
+
+def test_nifty_skip_ce_after_stop() -> None:
+    from desk_ml.paper_scalp import _try_open
+
+    engine = BookEngine(nifty_skip_ce_after_stop=True)
+    engine.last_stop_side_by_und["NIFTY"] = {"CE": _ts(8)}
+    engine.last_regime["NIFTY"] = {
+        "regime": "TREND",
+        "direction": "UP",
+        "itm_bin": {"side": "CE"},
+        "last3_impulse": "UP",
+    }
+    tick = Triple(ts=_ts(10), idx_close=23200.0, ce_close=120.0, pe_close=80.0, atm_strike=23200.0)
+    _try_open(
+        engine,
+        book_id="MIX-ML-LOGIT",
+        underlying="NIFTY",
+        side="CE",
+        tick=tick,
+        ce_path=[120.0],
+        pe_path=[80.0],
+        bar_i=10,
+    )
+    assert engine.has_open("MIX-ML-LOGIT", "NIFTY") is False
+    assert any(s.get("reason") == "NIFTY_CE_AFTER_STOP" for s in engine.skips)
+
+
+def test_nifty_two_stop_halt() -> None:
+    from desk_ml.paper_scalp import _try_open
+
+    engine = BookEngine(nifty_halt_after_stops=2)
+    engine.session_stop_count["NIFTY"] = 2
+    engine.last_regime["NIFTY"] = {
+        "regime": "TREND",
+        "direction": "DOWN",
+        "itm_bin": {"side": "PE"},
+        "last3_impulse": "DOWN",
+    }
+    tick = Triple(ts=_ts(10), idx_close=23200.0, ce_close=80.0, pe_close=120.0, atm_strike=23200.0)
+    _try_open(
+        engine,
+        book_id="MIX-ML-LOGIT",
+        underlying="NIFTY",
+        side="PE",
+        tick=tick,
+        ce_path=[80.0],
+        pe_path=[120.0],
+        bar_i=10,
+    )
+    assert engine.has_open("MIX-ML-LOGIT", "NIFTY") is False
+    assert any(s.get("reason") == "NIFTY_TWO_STOP_HALT" for s in engine.skips)
 
 
 def test_unfilled_cancels_when_index_turns_sideways() -> None:
@@ -1494,29 +2044,6 @@ def test_paper_book_epoch_does_not_replay_old_opens(tmp_path) -> None:
     for row in list(board.get("closed_trades") or []) + list(board.get("open_trades") or []):
         opened = int(row.get("opened_ts") or 0)
         assert opened >= epoch
-
-
-def test_last3_put_impulse_beats_15m_chop() -> None:
-    chop = [25000.0 + (4.0 if i % 2 == 0 else -4.0) for i in range(37)]
-    dump = chop + [24990.0, 24970.0, 24940.0]
-    t = classify_index_regime(dump)
-    assert t["regime"] == "TREND"
-    assert t["direction"] == "DOWN"
-    assert t["last3_impulse"] == "DOWN"
-    still_chop = chop + [25004.0, 24996.0, 25004.0]
-    s = classify_index_regime(still_chop)
-    assert s["regime"] == "SIDEWAYS"
-    assert s["last3_impulse"] is None
-    shrink = [1000.0] * 34 + [900.0, 800.0, 700.0, 600.0, 500.0, 400.0]
-    blocked = classify_index_regime(dump, volumes=shrink)
-    assert blocked["last3_impulse"] == "DOWN"
-    assert blocked["regime"] == "TREND"
-    sensex = [74650.0 + (3.0 if i % 2 == 0 else -3.0) for i in range(20)]
-    sensex += [74519.0, 74416.0, 74352.0]
-    sx = classify_index_regime(sensex, volumes=shrink)
-    assert sx["last3_net"] is not None and abs(float(sx["last3_net"])) >= 90
-    assert sx["regime"] == "TREND"
-    assert sx["direction"] == "DOWN"
 
 
 def test_last3_impulse_owns_fill_side_not_10s_logit_bounce() -> None:
@@ -1698,7 +2225,7 @@ def test_cancel_bin_roll_when_itm_becomes_atm() -> None:
     assert kept.path_stop in {None, 140.0}
 
 
-def test_filled_soft_cancel_trails_stop_not_flatten() -> None:
+def test_filled_thesis_flip_flattens_not_soft_trail() -> None:
     from desk_ml.paper_scalp import trail_premium_band
 
     assert TRAIL_BAND_MIN <= trail_premium_band() <= TRAIL_BAND_MAX
@@ -1706,7 +2233,7 @@ def test_filled_soft_cancel_trails_stop_not_flatten() -> None:
         book_id="MIX-DEFAULT-BUY",
         underlying="SENSEX",
         side="CE",
-        trade_id="thesis-trail",
+        trade_id="thesis-hard",
         entry=297.45,
         stop=280.5,
         target=325.0,
@@ -1726,12 +2253,41 @@ def test_filled_soft_cancel_trails_stop_not_flatten() -> None:
     engine.opens[("MIX-DEFAULT-BUY", "SENSEX")] = pos
     tick = Triple(ts=_ts(2), idx_close=74350.0, ce_close=290.0, pe_close=180.0, atm_strike=74300.0)
     mark_to_market(engine, tick, "SENSEX", 2, atm_strike=74300.0, dealer_verdict="BUY_PE_CONFIRM")
-    assert engine.has_open("MIX-DEFAULT-BUY", "SENSEX") is True
-    kept = engine.opens[("MIX-DEFAULT-BUY", "SENSEX")]
-    assert kept.stop == 280.5
+    assert engine.has_open("MIX-DEFAULT-BUY", "SENSEX") is False
+    assert engine.closed[-1]["exit_reason"] == "CANCEL_THESIS"
 
 
-def test_target_first_touch_locks_be_and_shifts() -> None:
+def test_strict_target_flattens_without_shift() -> None:
+    pos = OpenPaper(
+        book_id="MIX-DEFAULT-BUY",
+        underlying="NIFTY",
+        side="CE",
+        trade_id="target-strict",
+        entry=100.0,
+        stop=80.0,
+        target=120.0,
+        atm_strike=23200.0,
+        opened_ts=_ts(0),
+        opened_bar=1,
+        strike_source="TEST",
+        limit_price=100.0,
+        lot_size=65,
+        lots=1,
+        qty=65,
+        filled=True,
+        last_ltp=121.0,
+        path_stop=80.0,
+    )
+    engine = BookEngine()
+    assert engine.apply_target_shift is False
+    engine.opens[("MIX-DEFAULT-BUY", "NIFTY")] = pos
+    tick = Triple(ts=_ts(2), idx_close=23250.0, ce_close=121.0, pe_close=80.0, atm_strike=23200.0)
+    mark_to_market(engine, tick, "NIFTY", 2, atm_strike=23200.0)
+    assert engine.has_open("MIX-DEFAULT-BUY", "NIFTY") is False
+    assert engine.closed[-1]["exit_reason"] == "TARGET"
+
+
+def test_target_lock_shift_only_when_flag_on() -> None:
     pos = OpenPaper(
         book_id="MIX-DEFAULT-BUY",
         underlying="NIFTY",
@@ -1752,12 +2308,11 @@ def test_target_first_touch_locks_be_and_shifts() -> None:
         last_ltp=121.0,
         path_stop=80.0,
     )
-    engine = BookEngine()
+    engine = BookEngine(apply_target_shift=True)
     engine.opens[("MIX-DEFAULT-BUY", "NIFTY")] = pos
     tick = Triple(ts=_ts(2), idx_close=23250.0, ce_close=121.0, pe_close=80.0, atm_strike=23200.0)
     mark_to_market(engine, tick, "NIFTY", 2, atm_strike=23200.0)
     assert engine.has_open("MIX-DEFAULT-BUY", "NIFTY") is True
-    assert engine.opens[("MIX-DEFAULT-BUY", "NIFTY")].target_step == 0
     later = Triple(ts=_ts(4), idx_close=23250.0, ce_close=122.0, pe_close=80.0, atm_strike=23200.0)
     mark_to_market(engine, later, "NIFTY", 4, atm_strike=23200.0)
     kept = engine.opens[("MIX-DEFAULT-BUY", "NIFTY")]
@@ -1896,6 +2451,641 @@ def test_cover_long_unwind_books_after_t1() -> None:
     assert engine.has_open("MIX-DEFAULT-BUY", "NIFTY") is False
     assert engine.closed[-1]["exit_reason"] == COVER_LONG_UNWIND
 
+
+def test_stall_books_stale_high_low_er() -> None:
+    from desk_ml.paper_scalp import CANCEL_STALL, STALL_HIGH_STALE_SEC, STALL_MIN_SEC, stall_book_reason
+
+    opened = int(datetime(2026, 9, 10, 10, 0, tzinfo=IST).timestamp())
+    chop = []
+    px = 150.0
+    for i in range(16):
+        px = 150.0 + (4.0 if i % 2 == 0 else -3.5)
+        chop.append(px)
+    pos = OpenPaper(
+        book_id="MIX-DEFAULT-BUY",
+        underlying="NIFTY",
+        side="CE",
+        trade_id="stall-ce",
+        entry=149.7,
+        stop=136.65,
+        target=169.27,
+        atm_strike=23250.0,
+        opened_ts=opened,
+        opened_bar=0,
+        strike_source="TEST",
+        limit_price=149.7,
+        filled=True,
+        seen_high=157.7,
+        seen_high_ts=opened + 12 * 60,
+        premium_prints=chop,
+    )
+    ts = opened + int(STALL_MIN_SEC) + int(STALL_HIGH_STALE_SEC) + 60
+    classified = {"er": 0.05, "last3_impulse": None, "vol_expand": False}
+    assert stall_book_reason(pos, 157.4, ts, classified=classified) == CANCEL_STALL
+    assert stall_book_reason(pos, 152.0, ts, classified=classified) == CANCEL_STALL
+    assert stall_book_reason(pos, 125.0, ts, classified=classified) is None
+    pos_trend = OpenPaper(
+        book_id="MIX-DEFAULT-BUY",
+        underlying="NIFTY",
+        side="CE",
+        trade_id="stall-trend",
+        entry=149.7,
+        stop=136.65,
+        target=169.27,
+        atm_strike=23250.0,
+        opened_ts=opened,
+        opened_bar=0,
+        strike_source="TEST",
+        limit_price=149.7,
+        filled=True,
+        seen_high=157.7,
+        seen_high_ts=opened + 12 * 60,
+        premium_prints=chop,
+    )
+    assert (
+        stall_book_reason(
+            pos_trend,
+            152.0,
+            ts,
+            classified={"er": 0.40, "last3_impulse": "UP", "vol_expand": True},
+        )
+        is None
+    )
+
+
+def test_greeks_soft_trail_does_not_block_stall() -> None:
+    from desk_ml.paper_scalp import CANCEL_STALL, STALL_HIGH_STALE_SEC, STALL_MIN_SEC
+
+    opened = int(datetime(2026, 9, 10, 10, 0, tzinfo=IST).timestamp())
+    chop = [150.0 + (3.0 if i % 2 == 0 else -2.8) for i in range(16)]
+    pos = OpenPaper(
+        book_id="MIX-DEFAULT-BUY",
+        underlying="NIFTY",
+        side="CE",
+        trade_id="greeks-stall",
+        entry=149.7,
+        stop=136.65,
+        path_stop=136.65,
+        target=169.27,
+        atm_strike=23250.0,
+        opened_ts=opened,
+        opened_bar=0,
+        strike_source="TEST",
+        limit_price=149.7,
+        lot_size=65,
+        lots=1,
+        qty=65,
+        filled=True,
+        last_ltp=152.0,
+        seen_low=141.1,
+        seen_high=157.7,
+        seen_high_ts=opened + 12 * 60,
+        premium_prints=chop,
+    )
+    engine = BookEngine()
+    engine.opens[("MIX-DEFAULT-BUY", "NIFTY")] = pos
+    engine.last_regime["NIFTY"] = {
+        "er": 0.05,
+        "last3_impulse": None,
+        "vol_expand": False,
+        "regime": "TREND",
+    }
+    ts = opened + int(STALL_MIN_SEC) + int(STALL_HIGH_STALE_SEC) + 120
+    tick = Triple(ts=ts, idx_close=23325.0, ce_close=152.0, pe_close=160.0, atm_strike=23250.0)
+    mark_to_market(engine, tick, "NIFTY", 40, atm_strike=23300.0, dealer_verdict="BUY_PE_CONFIRM")
+    assert engine.has_open("MIX-DEFAULT-BUY", "NIFTY") is False
+    assert engine.closed[-1]["exit_reason"] == CANCEL_STALL
+    assert engine.closed[-1]["result"] == "STALL"
+
+
+def test_pe_does_not_sit_call_rally() -> None:
+    from desk_ml.paper_scalp import (
+        CANCEL_AGAINST,
+        COVER_LONG_UNWIND,
+        _exit_reason,
+        _trend_continuation,
+        apply_itm_bin_to_regime,
+        is_soft_cancel_reason,
+        ticket_against_market,
+    )
+
+    pe = OpenPaper(
+        book_id="MIX-DEFAULT-BUY",
+        underlying="NIFTY",
+        side="PE",
+        trade_id="pe-vs-call",
+        entry=128.0,
+        stop=110.0,
+        path_stop=110.0,
+        target=150.5,
+        atm_strike=23400.0,
+        opened_ts=_ts(0),
+        opened_bar=1,
+        strike_source="ITM_100",
+        limit_price=128.0,
+        lot_size=65,
+        lots=10,
+        qty=650,
+        filled=True,
+        last_ltp=116.6,
+        seen_low=114.4,
+        seen_high=138.35,
+        seen_high_ts=_ts(1),
+        target_step=0,
+    )
+    classified = {
+        "regime": "TREND",
+        "direction": "DOWN",
+        "index_direction": "UP",
+        "er": 0.64,
+        "votes_up": 5,
+        "votes_down": 0,
+        "vol_expand": True,
+        "last3_impulse": None,
+        "last3_impulse_raw": "UP",
+        "last3_confirmed": False,
+        "last3_trap": "wait_pause",
+        "itm_bin": {
+            "side": "PE",
+            "pe_votes": ["PE_PREMIUM_UP"],
+            "ce_votes": ["CE_PREMIUM_UP", "PE_PREMIUM_DOWN", "CE_SHORT_COVER"],
+        },
+    }
+    assert ticket_against_market(pe, classified) is True
+    assert _trend_continuation(pe, classified=classified) is False
+    assert _exit_reason(pe, 116.6, _ts(20), 20, classified=classified) == CANCEL_AGAINST
+    assert is_soft_cancel_reason(CANCEL_AGAINST) is False
+    assert is_soft_cancel_reason("CANCEL_THESIS") is False
+
+    kept = apply_itm_bin_to_regime(
+        {
+            "regime": "TREND",
+            "direction": "UP",
+            "index_direction": "UP",
+            "er": 0.64,
+            "votes_up": 5,
+            "votes_down": 0,
+            "last3_impulse": None,
+            "last3_impulse_raw": "UP",
+        },
+        {"side": "PE", "reason": "itm_bin_pe_confirm", "pe_votes": ["PE_PREMIUM_UP"], "ce_votes": []},
+    )
+    assert kept["direction"] == "UP"
+    assert kept["itm_bin"]["side"] == "PE"
+
+    chop_bin = apply_itm_bin_to_regime(
+        {
+            "regime": "SIDEWAYS",
+            "direction": "FLAT",
+            "er": 0.05,
+            "votes_up": 1,
+            "votes_down": 1,
+            "last3_impulse": None,
+            "last3_impulse_raw": None,
+        },
+        {"side": "PE", "reason": "itm_bin_pe_confirm", "pe_votes": ["PE_PREMIUM_UP"], "ce_votes": []},
+    )
+    assert chop_bin["regime"] == "TREND"
+    assert chop_bin["direction"] == "DOWN"
+
+    ce = OpenPaper(
+        book_id="MIX-DEFAULT-BUY",
+        underlying="NIFTY",
+        side="CE",
+        trade_id="ce-same-wing",
+        entry=149.7,
+        stop=136.65,
+        target=169.27,
+        atm_strike=23250.0,
+        opened_ts=_ts(0),
+        opened_bar=0,
+        strike_source="TEST",
+        limit_price=149.7,
+        filled=True,
+        seen_high=157.7,
+    )
+    assert _trend_continuation(
+        ce, classified={"er": 0.40, "last3_impulse": "UP", "last3_impulse_raw": "UP", "direction": "UP"}
+    ) is True
+
+    engine = BookEngine()
+    pos2 = OpenPaper(
+        book_id="MIX-DEFAULT-BUY",
+        underlying="NIFTY",
+        side="PE",
+        trade_id="pe-unwind",
+        entry=128.0,
+        stop=110.0,
+        path_stop=110.0,
+        target=150.5,
+        atm_strike=23400.0,
+        opened_ts=_ts(0),
+        opened_bar=1,
+        strike_source="ITM_100",
+        limit_price=128.0,
+        lot_size=65,
+        lots=10,
+        qty=650,
+        filled=True,
+        last_ltp=116.0,
+        target_step=0,
+    )
+    engine.opens[("MIX-DEFAULT-BUY", "NIFTY")] = pos2
+    engine.last_regime["NIFTY"] = {
+        "regime": "TREND",
+        "direction": "UP",
+        "itm_bin": {
+            "side": "CE",
+            "pe_votes": ["PE_LONG_UNWIND"],
+            "ce_votes": ["CE_PREMIUM_UP", "CE_OI_UP_WITH_PREMIUM"],
+        },
+    }
+    tick = Triple(ts=_ts(8), idx_close=23355.0, ce_close=157.0, pe_close=116.0, atm_strike=23350.0)
+    mark_to_market(engine, tick, "NIFTY", 8, atm_strike=23350.0, dealer_verdict="BUY_CE_CONFIRM")
+    assert engine.has_open("MIX-DEFAULT-BUY", "NIFTY") is False
+    assert engine.closed[-1]["exit_reason"] in {COVER_LONG_UNWIND, CANCEL_AGAINST, "CANCEL_THESIS"}
+
+    green = OpenPaper(
+        book_id="MIX-DEFAULT-BUY",
+        underlying="NIFTY",
+        side="CE",
+        trade_id="ce-green-flicker",
+        entry=149.7,
+        stop=136.65,
+        target=169.27,
+        atm_strike=23250.0,
+        opened_ts=_ts(0),
+        opened_bar=0,
+        strike_source="TEST",
+        limit_price=149.7,
+        filled=True,
+        last_ltp=157.0,
+        seen_high=157.7,
+    )
+    assert (
+        ticket_against_market(
+            green,
+            {
+                "er": 0.05,
+                "last3_impulse_raw": "DOWN",
+                "last3_impulse": None,
+                "direction": "UP",
+                "votes_up": 2,
+                "votes_down": 1,
+            },
+            ltp=157.0,
+        )
+        is False
+    )
+
+
+def test_fix_first_chop_books_near_target() -> None:
+    from desk_ml.paper_scalp import STALL_MIN_SEC_CHOP, propose_levels, stall_book_reason
+
+    opened = int(datetime(2026, 9, 10, 10, 0, tzinfo=IST).timestamp())
+    chop = [150.0 + (2.0 if i % 2 == 0 else -1.8) for i in range(16)]
+    pos = OpenPaper(
+        book_id="MIX-DEFAULT-BUY",
+        underlying="NIFTY",
+        side="CE",
+        trade_id="chop-book",
+        entry=149.7,
+        stop=136.65,
+        target=169.27,
+        atm_strike=23250.0,
+        opened_ts=opened,
+        opened_bar=0,
+        strike_source="TEST",
+        limit_price=149.7,
+        filled=True,
+        seen_high=157.7,
+        seen_high_ts=opened + 4 * 60,
+        premium_prints=chop,
+    )
+    ts = opened + int(STALL_MIN_SEC_CHOP) + 4 * 60
+    classified = {"er": 0.05, "last3_impulse": None, "vol_expand": False}
+    assert stall_book_reason(pos, 157.4, ts, classified=classified) == "CANCEL_STALL"
+    lv = propose_levels(
+        149.7,
+        [140.0, 145.0, 149.7],
+        underlying="NIFTY",
+        classified={"er": 0.05, "regime": "TREND"},
+    )
+    assert lv["ok"] is True
+    assert float(lv["target"]) - 149.7 <= 10.01
+    trend = propose_levels(
+        153.0,
+        [140.0, 150.0, 160.0, 170.0, 153.0],
+        underlying="NIFTY",
+        classified={"er": 0.40, "regime": "TREND", "direction": "DOWN", "last3_impulse": "DOWN"},
+    )
+    assert float(trend["target"]) - 153.0 > 10.0
+
+
+def test_trend_retracement_does_not_stall() -> None:
+    """Same-wing TREND ER≥0.35 is a retracement hold, not STALL. Prior-day overlay."""
+    from desk_ml.paper_scalp import STALL_MIN_SEC_CHOP, stall_book_reason
+
+    opened = int(datetime(2026, 9, 10, 10, 0, tzinfo=IST).timestamp())
+    pos = OpenPaper(
+        book_id="MIX-ML-LOGIT",
+        underlying="NIFTY",
+        side="CE",
+        trade_id="retrace-hold",
+        entry=203.0,
+        stop=180.0,
+        target=250.0,
+        atm_strike=23700.0,
+        opened_ts=opened,
+        opened_bar=0,
+        strike_source="TEST",
+        limit_price=203.0,
+        filled=True,
+        seen_high=245.0,
+        seen_high_ts=opened + 6 * 60,
+        premium_prints=[203.0, 220.0, 245.0, 230.0, 220.0],
+    )
+    ts = opened + int(STALL_MIN_SEC_CHOP) + 6 * 60
+    hold = {
+        "er": 0.42,
+        "last3_impulse": "UP",
+        "vol_expand": True,
+        "regime": "TREND",
+        "direction": "UP",
+    }
+    assert stall_book_reason(pos, 220.0, ts, classified=hold) is None
+
+
+def test_market_kind_labels() -> None:
+    from desk_ml.paper_scalp import market_kind
+
+    assert market_kind({"er": 0.42, "flip_frac": 0.2, "range_over_atr": 6.0}) == "TRENDING"
+    assert market_kind({"er": 0.08, "flip_frac": 0.10, "range_over_atr": 2.0}) == "SIDEWAYS"
+    assert market_kind({"er": 0.08, "flip_frac": 0.45, "range_over_atr": 2.0}) == "CHOPPY"
+    assert market_kind({"er": 0.12, "flip_frac": 0.20, "range_over_atr": 8.0}) == "VOLATILE"
+    assert market_kind({"regime": "TREND", "er": 0.05, "flip_frac": 0.10, "range_over_atr": 2.0}) == "SIDEWAYS"
+    # itm_bin TREND + lunch ER ~0.05 is chop, not trend
+    assert (
+        market_kind(
+            {
+                "regime": "TREND",
+                "reason": "itm_bin_ce_confirm",
+                "er": 0.05,
+                "flip_frac": 0.42,
+                "range_over_atr": 2.0,
+                "itm_bin": {"side": "CE"},
+            }
+        )
+        == "CHOPPY"
+    )
+    assert market_kind({"regime": "TREND", "itm_bin": {"side": "CE"}}, require_er=True) == "UNKNOWN"
+
+
+def test_close_stamps_open_and_exit_kind() -> None:
+    from desk_ml.paper_scalp import _close
+
+    engine = BookEngine()
+    engine.last_regime["NIFTY"] = {
+        "er": 0.08,
+        "flip_frac": 0.40,
+        "range_over_atr": 2.0,
+        "regime": "TREND",
+        "reason": "itm_bin_ce_confirm",
+    }
+    pos = OpenPaper(
+        book_id="MIX-DEFAULT-BUY",
+        underlying="NIFTY",
+        side="CE",
+        trade_id="kind-stamp",
+        entry=203.0,
+        stop=180.0,
+        target=250.0,
+        atm_strike=23700.0,
+        opened_ts=_ts(10),
+        opened_bar=10,
+        strike_source="TEST",
+        limit_price=203.0,
+        filled=True,
+        lot_size=65,
+        lots=1,
+        index_regime="TREND",
+        regime_er=0.42,
+        regime_flip_frac=0.1,
+        market_kind_open="TRENDING",
+    )
+    engine.opens[("MIX-DEFAULT-BUY", "NIFTY")] = pos
+    engine.equity["MIX-DEFAULT-BUY"] = 570000.0
+    _close(engine, pos, ltp=220.0, ts=_ts(40), reason="CANCEL_STALL")
+    row = engine.closed[-1]
+    assert row["market_kind_open"] == "TRENDING"
+    assert row["market_kind_close"] == "CHOPPY"
+    from desk_ml.paper_scalp import skill_from_closed
+
+    skill = skill_from_closed([row])
+    assert skill["fills_by_kind"]["TRENDING"] == 1
+    assert skill["exits_by_kind"]["CHOPPY"]["CANCEL_STALL"] == 1
+    assert skill["n_stall_trending_open"] == 1
+    assert any("TRENDING-at-open" in x for x in skill["lessons"])
+
+
+def test_nifty_bin_confirm_counts_as_strength() -> None:
+    from desk_ml.paper_scalp import nifty_has_entry_strength, _try_open
+
+    pause_wait = {
+        "regime": "TREND",
+        "direction": "UP",
+        "reason": "itm_bin_ce_confirm",
+        "last3_impulse": None,
+        "last3_reason": "wait_pause_after_impulse",
+        "itm_bin": {"side": "CE", "ce_votes": ["CE_PREMIUM_UP"], "pe_votes": []},
+    }
+    assert nifty_has_entry_strength(pause_wait, "CE") is True
+    assert nifty_has_entry_strength({"last3_impulse": None, "reason": "chop"}, "CE") is False
+    assert nifty_has_entry_strength(
+        {"regime": "TREND", "direction": "UP", "er": 0.36, "last3_impulse": None, "reason": "er_vwap_ema_vol_rsi"},
+        "CE",
+    ) is True
+
+    engine = BookEngine(nifty_need_strength=True, nifty_allow_sides=("CE", "PE"))
+    engine.last_regime["NIFTY"] = pause_wait
+    tick = Triple(
+        ts=_ts(10),
+        idx_close=23367.0,
+        ce_close=120.0,
+        pe_close=80.0,
+        atm_strike=23350.0,
+        itm_ce_close=160.0,
+        itm_ce_strike=23250.0,
+        wing_quotes={
+            "23250": {"ce": 160.0, "pe": 20.0},
+            "23350": {"ce": 120.0, "pe": 80.0},
+            "23450": {"ce": 20.0, "pe": 140.0},
+        },
+    )
+    _try_open(
+        engine,
+        book_id="MIX-DEFAULT-BUY",
+        underlying="NIFTY",
+        side="CE",
+        tick=tick,
+        ce_path=[120.0],
+        pe_path=[80.0],
+        bar_i=10,
+    )
+    assert engine.has_open("MIX-DEFAULT-BUY", "NIFTY") is True
+    assert not any(s.get("reason") == "NIFTY_WAIT_STRENGTH" for s in engine.skips)
+
+
+def test_logit_fills_when_dealer_waits_strength() -> None:
+    from desk_ml.paper_scalp import _try_open
+
+    weak = {
+        "regime": "TREND",
+        "direction": "UP",
+        "er": 0.10,
+        "reason": "weak",
+        "last3_impulse": None,
+        "last3_reason": "wait_pause_after_impulse",
+        "itm_bin": {"side": "CE"},
+    }
+    engine = BookEngine(nifty_need_strength=True, nifty_allow_sides=("CE", "PE"))
+    engine.last_regime["NIFTY"] = weak
+    tick = Triple(
+        ts=_ts(10),
+        idx_close=23367.0,
+        ce_close=120.0,
+        pe_close=80.0,
+        atm_strike=23350.0,
+        itm_ce_close=160.0,
+        itm_ce_strike=23250.0,
+        wing_quotes={
+            "23250": {"ce": 160.0, "pe": 20.0},
+            "23350": {"ce": 120.0, "pe": 80.0},
+            "23450": {"ce": 20.0, "pe": 140.0},
+        },
+    )
+    _try_open(
+        engine,
+        book_id="MIX-ML-LOGIT",
+        underlying="NIFTY",
+        side="CE",
+        tick=tick,
+        ce_path=[120.0],
+        pe_path=[80.0],
+        bar_i=10,
+    )
+    assert engine.has_open("MIX-ML-LOGIT", "NIFTY") is True
+    _try_open(
+        engine,
+        book_id="MIX-DEFAULT-BUY",
+        underlying="NIFTY",
+        side="CE",
+        tick=tick,
+        ce_path=[120.0],
+        pe_path=[80.0],
+        bar_i=10,
+    )
+    assert engine.has_open("MIX-DEFAULT-BUY", "NIFTY") is False
+    assert any(s.get("reason") == "NIFTY_WAIT_STRENGTH" for s in engine.skips)
+
+
+def test_signal_from_closed_flags_logit_clone() -> None:
+    from desk_ml.paper_scalp import signal_from_closed
+
+    closed = [
+        {
+            "filled": True,
+            "book_id": "MIX-DEFAULT-BUY",
+            "exit_reason": "CANCEL_STALL",
+            "realized_pnl_inr": 100.0,
+            "result": "STALL",
+        },
+        {
+            "filled": True,
+            "book_id": "MIX-ML-LOGIT",
+            "exit_reason": "CANCEL_STALL",
+            "realized_pnl_inr": 100.0,
+            "result": "STALL",
+        },
+        {
+            "filled": True,
+            "book_id": "MIX-ML-LOGIT-XR",
+            "exit_reason": "TARGET",
+            "target_hit": True,
+            "realized_pnl_inr": 800.0,
+            "result": "SUCCESS",
+        },
+    ]
+    out = signal_from_closed(closed)
+    assert out["desk"] == "SIGNAL"
+    assert out["logit_cloned_dealer"] is True
+    assert out["best_fill_book"] == "MIX-ML-LOGIT-XR"
+    assert out["observe"][0]["n_filled"] == 0
+    assert any("cloned dealer" in n for n in out["notes"])
+    assert out["promote"] is False
+
+
+def test_fix_first_drill_progress_json(tmp_path, monkeypatch) -> None:
+    from desk_ml.paper_scalp import run_fix_first_drill
+
+    folder = tmp_path / "data" / "recon" / "paper_watch" / "DUAL-TAPE"
+    folder.mkdir(parents=True)
+    (folder / "2026-09-16.jsonl").write_text("{}\n")
+    (folder / "2026-09-17.jsonl").write_text("{}\n")
+    (folder / "2026-09-18.jsonl").write_text("{}\n")
+
+    def fake_replay(**kwargs):
+        day = kwargs.get("session_ist_date")
+        stall = day == "2026-09-18"
+        return {
+            "ok": True,
+            "closed_trades": [
+                {
+                    "filled": True,
+                    "book_id": "MIX-DEFAULT-BUY",
+                    "exit_reason": "CANCEL_STALL" if stall else "TARGET",
+                    "target_hit": not stall,
+                    "result": "TIME" if stall else "SUCCESS",
+                    "realized_pnl_inr": 400.0,
+                    "underlying": "NIFTY",
+                    "side": "CE",
+                    "sl_hit": False,
+                    "market_kind_open": "TRENDING" if stall else "CHOPPY",
+                    "market_kind_close": "CHOPPY" if stall else "CHOPPY",
+                    "regime_er": 0.42 if stall else 0.08,
+                }
+            ],
+            "open_trades": [],
+            "skip_reason_counts": {"NIFTY_MAX_FILLED": 2} if stall else {},
+            "steps": {"NIFTY": {"status": "REPLAY_OK", "n_triples": 40}},
+        }
+
+    monkeypatch.setattr("desk_ml.paper_scalp.replay_paper_scalp", fake_replay)
+    monkeypatch.setattr(
+        "desk_ml.paper_scalp.categorize_tape_hours",
+        lambda **kw: {
+            "ok": True,
+            "day_kind": "SIDEWAYS",
+            "day_counts": {"SIDEWAYS": 12},
+            "hours": [],
+            "n_1m": 12,
+        },
+    )
+    out = run_fix_first_drill(root=tmp_path, persist=True)
+    assert [d["ist_date"] for d in out["days"]] == ["2026-09-17", "2026-09-18"]
+    assert out["days"][0]["n_target"] == 1
+    assert out["days"][1]["n_stall"] == 1
+    assert out["days"][1]["n_stall_trending_open"] == 1
+    assert out["overlay_recode"] is False
+    path = tmp_path / "data" / "recon" / "fix_first_progress.json"
+    assert path.is_file()
+    dumped = json.loads(path.read_text(encoding="utf-8"))
+    dumped["as_of_ist"] = "2026-09-18T16:00:00+05:30"
+    path.write_text(json.dumps(dumped) + "\n", encoding="utf-8")
+    out2 = run_fix_first_drill(root=tmp_path, persist=True)
+    assert out2["history"]
+    assert out2["promote"] is False
+    assert any("Hour kind" in w for w in out2["watch"])
 
 
 

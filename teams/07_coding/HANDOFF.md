@@ -1,5 +1,21 @@
 # Handoff log — Team 07 Coding
 
+## As of now (2026-09-18 IST) — /pm and /desk live paper UX (NO_PROMOTE)
+
+```text
+From:     teams/07_coding
+To:       00 / founder
+Date:     2026-09-18
+Status:   PAPER UI / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: Founder /pm and research /desk now lead with unique
+  net, TARGET vs TIME vs STOP, open path to target/SL, collapsed
+  clone fills, grouped skips. Lab toys folded on /desk.
+Rejected: npm restart. Super Orders. Promote.
+UNKNOWN: Dual-tape still stamps old SUCCESS until reload.
+```
+
 ## As of now (2026-09-17) — closed board: SL money vs filled-cancel pnl (NO_PROMOTE)
 
 ```text

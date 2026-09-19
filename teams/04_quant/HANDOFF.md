@@ -1,5 +1,298 @@
 # Handoff log — Team 04 Quant
 
+## As of now (2026-09-20 IST) — hours lock (NO_PROMOTE)
+
+```text
+MIX / STRAT: none new. KEEP_ALL 001–014.
+Entry hypothesis: NEW only Mon–Fri 09:30–15:16 IST.
+Confirm-or-kill: flatten 15:16; no weekend.
+Hold / veto: ticks 15:16–15:29 no trade.
+Customer copy allowed: none.
+UNKNOWN: none.
+```
+
+## As of now (2026-09-19 IST) — dealer + ML signal desk (NO_PROMOTE)
+
+```text
+MIX / STRAT: none new. KEEP_ALL 001–014. No STRAT-015+.
+Origin tags: PROJECT-DERIVED. HYPOTHESIS.
+Entry hypothesis: dealer CONFIRM vs logit; XR own-side;
+  ML-001/002/ML-1/TV observe. Do not clone HOLD.
+Confirm-or-kill: same booking after fill (unchanged).
+Hold / veto: booking frozen. Signal work = side quality.
+Feasibility: 17/18 logit cloned dealer; XR least-red/green.
+Parameters to grid: none until more signal_desk days.
+Backtest request: standing fix-first signal_desk cards.
+Customer copy allowed: none.
+UNKNOWN: XR repeat. Greeks tape.
+```
+
+## As of now (2026-09-18 IST) — hour-kind booking drill (NO_PROMOTE)
+
+```text
+MIX / STRAT: none new. KEEP_ALL 001–014. No STRAT-015+.
+Origin tags: PROJECT-DERIVED. HYPOTHESIS.
+Entry hypothesis: unchanged CE+PE + strength + max4.
+Confirm-or-kill: same STALL/AGAINST/TARGET. Fill kind =
+  open ER. Close kind diagnostic only.
+Hold / veto: unchanged ER split. TRENDING-at-open STALL
+  watch — do not recode retracement hold this chat.
+Feasibility: pre/post FIX-FIRST. itm_bin TREND ignored.
+Parameters to grid: none until more days.
+Backtest request: standing fix-first hour cards.
+Customer copy allowed: none.
+UNKNOWN: VOLATILE exits.
+```
+
+## As of now (2026-09-18 IST) — signal vs booking (NO_PROMOTE)
+
+```text
+MIX / STRAT: none new. KEEP_ALL 001–014. No STRAT-015+.
+Origin tags: PROJECT-DERIVED. HYPOTHESIS.
+Entry hypothesis: logit/XR/greeks keep their CE/PE.
+  WAIT_STRENGTH is dealer-only.
+Confirm-or-kill: after fill, same STALL/AGAINST/TARGET.
+Hold / veto: unchanged chop booking.
+Feasibility: ML-001 observe = no own side, not FIX-FIRST.
+Parameters to grid: none new.
+Backtest request: standing fix-first.
+Customer copy allowed: none.
+UNKNOWN: none.
+```
+
+## As of now (2026-09-18 IST) — FIX-FIRST skill drill (NO_PROMOTE)
+
+```text
+MIX / STRAT: none new. KEEP_ALL 001–014. No STRAT-015+.
+Origin tags: PROJECT-DERIVED paper overlay. HYPOTHESIS.
+Entry hypothesis: CE+PE + strength (last-3 / pause /
+  SHORT_COVER / itm_bin confirm) + max4.
+Confirm-or-kill: path SL then first TARGET. Pre-open
+  drill scores booking skill day-over-day from 17 Sep.
+Hold / veto: unchanged chop STALL / against ≥3pt dead.
+Feasibility: live n_open=0 was cap+pause, not ML deny.
+Parameters to grid: chop_target_cap, 3pt against buffer.
+Backtest request: standing fix-first + EOD 18 write=false.
+Customer copy allowed: none.
+UNKNOWN: 17 morning tape.
+```
+
+## As of now (2026-09-18 IST) — FIX-FIRST chop profit book (NO_PROMOTE)
+
+```text
+MIX / STRAT: none new. KEEP_ALL 001–014. No STRAT-015+.
+Origin tags: PROJECT-DERIVED paper overlay. HYPOTHESIS.
+Entry hypothesis: unchanged CE+PE strength+max4.
+Confirm-or-kill: path SL then first TARGET. Chop books
+  near-target; trend same-wing holds TARGET.
+Hold / veto: INDEX ER<0.35 stall 8m/3m / 40% path.
+  chop_target_cap +10 NIFTY. CANCEL_AGAINST ≥3pt dead
+  or ER≥0.35 opposite. Unwind T1 or chop+3pt.
+Feasibility: 18 12h max_1m ~10 vs 17 15h max_1m 23.75.
+Parameters to grid: chop_target_cap, 3pt against buffer.
+Backtest request: EOD 18 Sep write=false vs 17 full tape.
+Customer copy allowed: none.
+UNKNOWN: 17 morning tape.
+```
+
+## As of now (2026-09-18 IST) — CANCEL_AGAINST PE vs CALL (NO_PROMOTE)
+
+```text
+MIX / STRAT: none new. KEEP_ALL 001–014. No STRAT-015+.
+Origin tags: PROJECT-DERIVED paper overlay. HYPOTHESIS.
+Entry hypothesis: unchanged CE+PE strength+max4.
+Confirm-or-kill: path SL then first TARGET. Against-wing
+  flatten is a hold overlay, not an entry.
+Hold / veto: CANCEL_AGAINST HARD if filled PE and
+  last3_impulse_raw UP or 15m INDEX UP (ER≥0.35, votes)
+  or CE-bin flow (premium/OI/cover). Same for CE vs PUT.
+  itm_bin 10s tick cannot overwrite INDEX TREND / last-3 raw.
+  ER≥0.35 continues only the same wing. CANCEL_THESIS hard.
+  PE_LONG_UNWIND flattens without T1.
+Feasibility: live PE 23400 entry 128 path 110 LTP ~116.
+Parameters to grid: none (bugfix).
+Backtest request: 18 Sep EOD write=false.
+Customer copy allowed: none.
+UNKNOWN: one 10s last3_raw UP flicker vs 8 green 1m bars.
+```
+
+## As of now (2026-09-18 IST) — CANCEL_STALL stale-high (NO_PROMOTE)
+
+```text
+MIX / STRAT: none new. KEEP_ALL 001–014. No STRAT-015+.
+Origin tags: PROJECT-DERIVED paper overlay. HYPOTHESIS.
+Entry hypothesis: unchanged CE+PE strength+max4.
+Confirm-or-kill: path SL then first TARGET. STALL is a hold
+  overlay, not an entry.
+Hold / veto: CANCEL_STALL if age≥20m, premium ER≤0.18, not
+  true TREND (index ER≥0.35 / last-3 with wing / ≥55% to
+  target), AND (LTP tags seen_high within 0.6 after 25m OR
+  high stale ≥8m and LTP≥entry). 9m TIME only if no stall
+  state; else 45m hard TIME. Soft greeks cannot skip STALL.
+Feasibility: 18 Sep CE 23250 max 157.7 vs tgt 169.
+Parameters to grid: STALL_HIGH_STALE_SEC, STALL_ER_MAX,
+  TIME_HARD_SEC vs hold_bars.
+Backtest request: 18 Sep EOD write=false vs 17 Sep 13h.
+Customer copy allowed: none.
+UNKNOWN: 45m TIME vs 9m TIME on PE 12:01 tape.
+```
+
+## As of now (2026-09-18 IST) — CE+PE same strength (NO_PROMOTE)
+
+```text
+MIX / STRAT: none new. KEEP_ALL 001–014. No STRAT-015+.
+Origin tags: PROJECT-DERIVED paper overlay. HYPOTHESIS.
+Entry hypothesis: NIFTY ITM CE or PE when last-3 / pause-continue /
+  SHORT_COVER prints on that wing. Not PE-locked.
+Confirm-or-kill: path SL then first TARGET. TIME green ≠ SUCCESS.
+Hold / veto: FOCUS_NIFTY_ONLY. TREND_UP_KILL_PE / TREND_DOWN_KILL_CE.
+Feasibility: NIFTY ATR 6–18pt. PE 23400 18 Sep TIME 139.65 vs tgt 148.80.
+Parameters to grid: allow CE+PE; nifty_need_strength; max 4.
+Backtest request: 18 Sep after 15:30 write=false.
+Customer copy allowed: none.
+UNKNOWN: Friday squeeze vs Thursday dump overlay.
+```
+
+## As of now (2026-09-18 IST) — clean slate on PE+strength+max4 (NO_PROMOTE)
+
+```text
+MIX / STRAT: none new. KEEP_ALL 001–014. No STRAT-015+.
+Origin tags: PROJECT-DERIVED paper overlay. HYPOTHESIS.
+Entry hypothesis: NIFTY ITM PE; last-3/pause-continue/SHORT_COVER;
+  max 4 fills/book. CE blocked. SENSEX/BN NEW skipped.
+Confirm-or-kill: path SL then first TARGET. No T2.
+Hold / veto: FOCUS_NIFTY_ONLY. Dashboard why on every ticket.
+Feasibility: NIFTY ATR 6–18pt.
+Parameters to grid: frozen for 18 Sep paper; EOD replay.
+Backtest request: 18 Sep after 15:30 write=false.
+Customer copy allowed: none.
+UNKNOWN: Friday vs Thursday PE day.
+```
+
+## As of now (2026-09-18 IST) — justification on NIFTY PE overlay (NO_PROMOTE)
+
+```text
+MIX / STRAT: none new. KEEP_ALL 001–014. No STRAT-015+.
+Origin tags: PROJECT-DERIVED paper overlay. HYPOTHESIS.
+Entry hypothesis: NIFTY ITM PE; strength; max 4 fills/book.
+  OPEN must write justification (bin, regime, last3, SL/target).
+Confirm-or-kill: strict TARGET. No T2.
+Hold / veto: FOCUS_NIFTY_ONLY. INDEX carry if 1m miss.
+Feasibility: NIFTY ATR 6–18pt.
+Parameters to grid: frozen for 18 Sep; EOD replay.
+Backtest request: 18 Sep after 15:30 write=false.
+Customer copy allowed: none.
+UNKNOWN: Friday rally vs Thursday PE day.
+```
+
+## As of now (2026-09-18 IST) — NIFTY PE+strength+max4 on live paper (NO_PROMOTE)
+
+```text
+MIX / STRAT: none new. KEEP_ALL 001–014. No STRAT-015+.
+Origin tags: PROJECT-DERIVED paper overlay. HYPOTHESIS.
+Entry hypothesis: NIFTY ITM PE; strength; cap 4 fills/book.
+Confirm-or-kill: strict TARGET. No T2.
+Hold / veto: FOCUS_NIFTY_ONLY + FOCUS_NIFTY_SENSEX.
+Feasibility: NIFTY ATR 6–18pt.
+Parameters to grid: frozen for 18 Sep live paper; EOD replay.
+Backtest request: after 15:30 IST write=false on 18 Sep JSONL.
+Customer copy allowed: none.
+UNKNOWN: Friday may not match Thursday PE day.
+```
+
+## As of now (2026-09-17 night) — NIFTY PE+strength+max4 (NO_PROMOTE)
+
+```text
+MIX / STRAT: none new. KEEP_ALL 001–014. No STRAT-015+.
+Origin tags: PROJECT-DERIVED paper overlay. HYPOTHESIS.
+Entry hypothesis: NIFTY ITM PE only; wait strength (last-3 /
+  pause_continue / short-cover); cap 4 filled tickets per book.
+  CE after a CE STOP stays blocked if CE is ever re-enabled.
+Confirm-or-kill: 5m ST/MACD not entry. Strict first TARGET. No T2.
+Hold / veto: FOCUS_NIFTY_ONLY (SENSEX skipped). FOCUS_NIFTY_SENSEX
+  (BN skipped). NIFTY_WAIT_STRENGTH. NIFTY_MAX_FILLED. NIFTY_SIDE_FILTER.
+Feasibility: same NIFTY ATR 6–18pt book.
+Parameters to grid: nifty_allow_sides PE; nifty_need_strength;
+  nifty_max_filled_per_book=4. Session lean / two-stop halt coded
+  but not default (17 Sep lean still −1185).
+Backtest request: tomorrow 18 Sep dual-tape when founder restarts.
+Customer copy allowed: none.
+UNKNOWN: PE-only dies on a NIFTY rally day.
+```
+
+## As of now (2026-09-17 night) — split NIFTY / SENSEX point engine (NO_PROMOTE)
+
+```text
+MIX / STRAT: none new. KEEP_ALL 001–014. No STRAT-015+.
+Origin tags: PROJECT-DERIVED paper overlay. HYPOTHESIS.
+Entry hypothesis: NIFTY bin + pause then continuation override.
+  SENSEX own bin; last-3/short-cover only (wider premium ATR).
+  BANKNIFTY parked.
+Confirm-or-kill: 5m ST/MACD not entry. Strict first TARGET.
+Hold / veto: SENSEX_WAIT_STRENGTH; FOCUS_NIFTY_SENSEX.
+Feasibility: stop/target in premium points via ATR+fib; ₹ via lot.
+Parameters to grid: NIFTY max_stop 18; SENSEX min_stop 18.
+Backtest request: 17 Sep NS write=false +2696 one-day.
+Customer copy allowed: none.
+UNKNOWN: no order-flow delta.
+```
+
+## As of now (2026-09-17 night) — strict first TARGET (NO_PROMOTE)
+
+```text
+MIX / STRAT: none new. KEEP_ALL 001–014. No STRAT-015+.
+Origin tags: PROJECT-DERIVED paper overlay. HYPOTHESIS.
+Entry hypothesis: unchanged (ITM bin; pause-continue override).
+Confirm-or-kill: first premium TARGET flattens. Soft CANCEL still
+  trails stop. No T2 / TARGET_STEP until founder unparks.
+Hold / veto: BN/SENSEX wait continuation.
+Feasibility: path SL until hard STOP or trail. TARGET is original.
+Parameters to grid: apply_target_shift on later.
+Backtest request: 17 Sep write=false done (strict T).
+Customer copy allowed: none.
+UNKNOWN / DATA_INSUFFICIENT: same LTP wick proxy.
+```
+
+## As of now (2026-09-17 night) — impulse → pause → continuation (NO_PROMOTE)
+
+```text
+MIX / STRAT: none new. KEEP_ALL 001–014. No STRAT-015+.
+Origin tags: PROJECT-DERIVED paper overlay. HYPOTHESIS.
+Entry hypothesis: ITM bin default. First 3–4 1m impulse is often
+  a sweep. Wait pause (vol contract / doji) then 1.5x-style volume
+  continuation before overriding the other wing.
+Confirm-or-kill: 5m ST/MACD still not entry. COVER_LONG_UNWIND only
+  after T1 or SIDEWAYS+BE (shorts covering / longs cutting is a
+  continuation pause, not an exit).
+Hold / veto: BANKNIFTY and SENSEX NEW skipped until pause_continue
+  last3. NIFTY may open on bin without that wait.
+Feasibility: path SL until T1; floor stop. One-day 17 Sep NIFTY-only
+  net −9738 still red; pause+wide −18104 vs live −93745.
+Parameters to grid: IMPULSE_PAUSE_MAX_BARS; skip_wide on/off.
+Backtest request: OOS+NORMAL. 14/15 tapes DI or no ITM wings.
+Customer copy allowed: none.
+UNKNOWN / DATA_INSUFFICIENT: no bid/ask delta; LTP wick proxy.
+```
+
+## As of now (2026-09-17 night) — confirm last-3 vs false break (NO_PROMOTE)
+
+```text
+MIX / STRAT: none new. KEEP_ALL 001–014. No STRAT-015+.
+Origin tags: PROJECT-DERIVED paper overlay. HYPOTHESIS.
+Entry hypothesis: ITM bin is default side. Last-3 1m UP/DOWN
+  overrides the other wing only if strength confirms.
+Confirm-or-kill: volume expand or last bar vs median; candle not
+  shooting star / hammer / injection; close vs proxy POC; option
+  CE/PE not absorbing; delta not against; reject false break at
+  PDH/PDL, today H/L, 15m/30m/60m/1d/1w swings.
+Hold / veto: unconfirmed last-3 → wait, bin chooses.
+Feasibility: PDH/PDL from 1m closes (true OHLC DATA_INSUFFICIENT).
+Parameters to grid: SR_NEAR_FRAC, CANDLE_WICK_REJECT, vol median.
+Backtest request: trap vs confirmed last-3 skip count on 17 Sep.
+Customer copy allowed: none.
+UNKNOWN / DATA_INSUFFICIENT: no order-flow POC; LTP wick proxy.
+```
+
 ## As of now (2026-09-17 night) — ITM OI covering + path SL / T1-T2 (NO_PROMOTE)
 
 ```text

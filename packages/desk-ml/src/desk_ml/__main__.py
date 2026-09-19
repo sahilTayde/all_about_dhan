@@ -13,7 +13,7 @@ from desk_ml.fit import fit_underlying, score_last
 from desk_ml.inventory import inventory_recon
 from desk_ml.mrr import MRR_WINDOWS, mrr_fit_underlying, score_mrr_last
 from desk_ml.overlay import score_session
-from desk_ml.paper_scalp import replay_paper_scalp, run_loop
+from desk_ml.paper_scalp import replay_paper_scalp, run_fix_first_drill, run_loop
 from desk_ml.persist import default_model_path, repo_root
 from desk_ml.replay import replay_hold
 
@@ -86,6 +86,12 @@ def build_parser() -> argparse.ArgumentParser:
         default="",
         help="IST YYYY-MM-DD for --live-session (default: today IST). Replay 2026-09-16 tape without fabricating.",
     )
+    ff = sub.add_parser(
+        "fix-first",
+        help="Pre-open FIX-FIRST drill: write=false candle replay from 17 Sep. Skill track, not a wr.",
+    )
+    ff.add_argument("--since", default="2026-09-17", help="IST YYYY-MM-DD inclusive")
+    ff.add_argument("--no-persist", action="store_true")
     return p
 
 
@@ -237,6 +243,39 @@ def main(argv: Optional[list[str]] = None) -> int:
         public["steps_status"] = {
             u: (s or {}).get("status") for u, s in (report.get("steps") or {}).items()
         }
+        _print(public)
+        return 0 if report.get("ok") else 2
+    if args.cmd == "fix-first":
+        report = run_fix_first_drill(
+            root=root,
+            since=str(args.since).strip() or "2026-09-17",
+            persist=not bool(args.no_persist),
+        )
+        public = {k: report.get(k) for k in report if k != "days"}
+        public["n_days"] = len(report.get("days") or [])
+        public["days"] = [
+            {
+                "ist_date": d.get("ist_date"),
+                "n_filled_dealer": d.get("n_filled_dealer"),
+                "n_target": d.get("n_target"),
+                "n_stall": d.get("n_stall"),
+                "n_against": d.get("n_against"),
+                "n_unwind": d.get("n_unwind"),
+                "win_rate_net_pct": d.get("win_rate_net_pct"),
+                "net_pnl_inr": d.get("net_pnl_inr"),
+                "lessons": d.get("lessons"),
+                "fills_by_kind": d.get("fills_by_kind"),
+                "exits_by_kind": d.get("exits_by_kind"),
+                "exits_by_open_kind": d.get("exits_by_open_kind"),
+                "n_stall_trending_open": d.get("n_stall_trending_open"),
+                "tape_kinds": d.get("tape_kinds"),
+                "signal_desk": d.get("signal_desk"),
+            }
+            for d in (report.get("days") or [])
+        ]
+        public["day_over_day"] = report.get("day_over_day")
+        public["watch"] = report.get("watch")
+        public["improve_next"] = report.get("improve_next")
         _print(public)
         return 0 if report.get("ok") else 2
     path = default_model_path(args.underlying, root=root)

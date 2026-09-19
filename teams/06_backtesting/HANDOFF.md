@@ -1,5 +1,305 @@
 # Handoff log — Team 06 Backtesting
 
+## As of now (2026-09-20 IST) — NSE hours lock (NO_PROMOTE)
+
+```text
+From:     teams/06_backtesting
+To:       00 / founder
+Date:     2026-09-20
+Status:   PAPER / NO_PROMOTE
+Accepted: Replay/live flatten 15:16; no NEW Sat/Sun or
+  before 09:30 / after 15:16. Tick capture to 15:29.
+Rejected: Weekend dual-tape. sqlite git-add.
+UNKNOWN: none.
+```
+
+## As of now (2026-09-19 IST) — signal_desk on FIX-FIRST (NO_PROMOTE)
+
+```text
+From:     teams/06_backtesting + desk_ml
+To:       00 / 04 / founder
+Date:     2026-09-19
+Status:   RETUNE_PROPOSAL BACKTEST_REQUIRED / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: signal_from_closed on daily drill. Dealer vs
+  logit clone vs XR vs observe. write=false. Booking
+  overlay recode false.
+Rejected: Promote XR from 18 Sep n=4. sqlite git-add.
+UNKNOWN: more sessions for a model recode.
+```
+
+## As of now (2026-09-18 IST) — daily pre/post FIX-FIRST (NO_PROMOTE)
+
+```text
+From:     teams/06_backtesting + desk_ml
+To:       00 / 04 / founder
+Date:     2026-09-18
+Status:   RETUNE_PROPOSAL BACKTEST_REQUIRED / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: FIX-FIRST on pre-market AND post-market before
+  auditor. Hour kind, open+close market_kind, progress
+  history. Overlay recode false. write=false.
+Rejected: Day-majority overlay. Hold recode from 1 STALL
+  on TRENDING-at-open. Promote. sqlite git-add.
+UNKNOWN: more sessions for VOLATILE + retracement ticket.
+```
+
+## As of now (2026-09-18 IST) — FIX-FIRST pre-open drill (NO_PROMOTE)
+
+```text
+From:     teams/06_backtesting + desk_ml
+To:       00 / 04 / founder
+Date:     2026-09-18
+Status:   RETUNE_PROPOSAL BACKTEST_REQUIRED / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: python -m desk_ml fix-first + jobs pre-market hook.
+  SESSION_PREP_ML + QUANT_SELF_REVIEW_LOOP. Skill cards
+  TARGET/STALL/against/unwind. write=false.
+Rejected: 70% wr coded. Promote. sqlite git-add.
+UNKNOWN: 17 morning jsonl. OOS+NORMAL.
+```
+
+## As of now (2026-09-18 IST) — FIX-FIRST write=false (NO_PROMOTE)
+
+```text
+From:     teams/06_backtesting + desk_ml
+To:       00 / 04 / founder
+Date:     2026-09-18
+Status:   RETUNE_PROPOSAL BACKTEST_REQUIRED / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: Counsel ALIGNED AWC. pytest 89. write=false
+  MIX-DEFAULT-BUY: 17 TARGET+STALL; 18 3 STALL + 1 UNWIND.
+  Dual-tape not restarted.
+Rejected: 70% wr claim. Lots 30–40. sqlite git-add.
+UNKNOWN: 17 morning jsonl. OOS+NORMAL.
+```
+
+## As of now (2026-09-18 IST) — CANCEL_AGAINST (NO_PROMOTE)
+
+```text
+From:     teams/06_backtesting + desk_ml
+To:       00 / 04 / founder
+Date:     2026-09-18
+Status:   HYPOTHESIS overlay bugfix / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: 18 Sep NIFTY PE 23400 13:37 held through CALL
+  rally because last3 was paused, bin 10s PE, ER veto,
+  thesis/unwind soft-or-gated. pytest paper_scalp 88.
+Rejected: sqlite git-add. Promote.
+UNKNOWN: EOD write=false P/L vs live book after restart.
+```
+
+## As of now (2026-09-18 IST) — Groww statutory + 10 lots (NO_PROMOTE)
+
+```text
+From:     teams/06_backtesting + desk_ml
+To:       00 / founder
+Date:     2026-09-18
+Status:   HYPOTHESIS/VERIFY costs / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: Founder: missing Groww pass-throughs. Paper now books
+  brokerage + STT + exchange + SEBI + stamp + GST on the first
+  three. Desk ₹570000. paper_min_lots=10. pytest groww+scalp 92.
+Rejected: production_params_written. sqlite git-add.
+UNKNOWN: IPF / clearing / BSE vs NSE split.
+```
+
+## As of now (2026-09-18 IST) — stall overlay write=false (NO_PROMOTE)
+
+```text
+From:     teams/06_backtesting + desk_ml
+To:       00 / 04 / founder
+Date:     2026-09-18
+Status:   RETUNE_PROPOSAL BACKTEST_REQUIRED / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: Live 23250 CE 12:13–13:37: ER 0.0395, max 157.7,
+  never 169. 17 Sep 13h INDEX ER 0.346 TARGET kept.
+  pytest paper_scalp 86. write=false unique: 18 Sep −6952
+  (STALL +231 PE scratch 136.85→141.35); 17 Sep −2519 with
+  TARGET +1823. Counsel ALIGNED ACCEPT_WITH_CAVEATS.
+Rejected: production_params_written. sqlite git-add.
+  Underwater STALL as a delayed STOP.
+UNKNOWN: Full-tape replay ≠ live epoch 11:47 book.
+```
+
+## As of now (2026-09-18 IST) — PE SUCCESS was TIME not TARGET 148 (NO_PROMOTE)
+
+```text
+From:     teams/06_backtesting + desk_ml
+To:       00 / founder
+Date:     2026-09-18
+Status:   DATA_INSUFFICIENT for TARGET-hit wr / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: Founder check. NIFTY PE 23400 SUCCESS rows were one
+  unique fill cloned across 3 books. Entry 131.9 TIME-exit 139.65
+  at 12:10 IST. Booked target 148.8023 never printed while open
+  (replay_strike max 141.65). PE 23400 did print ≥148 earlier
+  (before 11:49 IST) — not during this ticket. SUCCESS now means
+  first TARGET only. TIME green stays money wr, labeled TIME.
+Rejected: Calling TIME green a TARGET SUCCESS. Promote.
+UNKNOWN: Dual-tape must reload paper_scalp for live writes.
+```
+
+## As of now (2026-09-18 IST) — CE+PE strength live paper (NO_PROMOTE)
+
+```text
+From:     teams/06_backtesting + desk_ml
+To:       00 / 04
+Date:     2026-09-18
+Status:   RETUNE_PROPOSAL BACKTEST_REQUIRED / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: Unpark CE on the same strength/max4 overlay. PE-only
+  was a 17 Sep dump fit, not a all-day lock.
+Rejected: production_params_written. sqlite git-add.
+UNKNOWN: 18 Sep EOD both-wing tape.
+```
+
+## As of now (2026-09-18 IST) — clean slate + close justification (NO_PROMOTE)
+
+```text
+From:     teams/06_backtesting + desk_ml
+To:       00 / 04
+Date:     2026-09-18
+Status:   RETUNE_PROPOSAL BACKTEST_REQUIRED / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: Wipe keep JSONL. PE+strength+max4 live. OPEN+CLOSE why
+  on dashboard. 17 Sep keep was unique +3299 wr 75% n=8 PE.
+Rejected: production_params_written. sqlite git-add.
+UNKNOWN: 18 Sep EOD.
+```
+
+## As of now (2026-09-18 IST) — replay tape schema + 17 vs 18 (NO_PROMOTE)
+
+```text
+From:     teams/06_backtesting + desk_ml
+To:       00 / 04
+Date:     2026-09-18
+Status:   RETUNE_PROPOSAL BACKTEST_REQUIRED / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: BACKTEST_REPLAY_TAPE.md. PE+strength+max4 kept.
+  17 Sep write=false +3299. 18 Sep 0 fills so far.
+  Carry INDEX LTP. justification on OPEN. pytest 85.
+Rejected: production_params_written. sqlite git-add. invented VIX.
+UNKNOWN: 18 Sep EOD.
+```
+
+## As of now (2026-09-18 IST) — overlay locked for 18 Sep paper + EOD replay (NO_PROMOTE)
+
+```text
+From:     teams/06_backtesting + desk_ml
+To:       00 / 04
+Date:     2026-09-18 ~11:08 IST
+Status:   RETUNE_PROPOSAL BACKTEST_REQUIRED / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: Ship PE+strength+max4 on live dual-tape. JSONL kept.
+  After-hours: replay write=false 2026-09-18 vs this overlay.
+Rejected: production_params_written. Promote. Dual-tape left on
+  the 17 Sep Python 3.9 process (killed).
+UNKNOWN: Live 18 Sep fills TBD.
+```
+
+## As of now (2026-09-17 night) — NIFTY permutation vs 17 Sep full tape (NO_PROMOTE)
+
+```text
+From:     teams/06_backtesting + desk_ml
+To:       00 / 04
+Date:     2026-09-17 night
+Status:   RETUNE_PROPOSAL BACKTEST_REQUIRED / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: write=false full tape (epoch stripped). NIFTY unique:
+  CE+PE −10172. PE spray −7497. PE+strength −3395 (keep).
+  PE+strength+max4 +3299 n=8 wr 75%. 13:30 cutoff same +3299
+  (park as clock). OpenAI lean −1185. pytest 80. Live MD kept.
+Rejected: production_params_written. Promote. Dual-tape restart.
+UNKNOWN: One day. OOS+NORMAL missing.
+```
+
+## As of now (2026-09-17 night) — NIFTY/SENSEX point overlay replay (NO_PROMOTE)
+
+```text
+From:     teams/06_backtesting + desk_ml
+To:       00 / 04
+Date:     2026-09-17 night
+Status:   RETUNE_PROPOSAL BACKTEST_REQUIRED / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: write=false 17 Sep NIFTY+SENSEX only. Shared ₹ SL
+  failed: spraying SENSEX −56792; NIFTY-only path was healthier.
+  Split ATR/fib + SENSEX strength gate: 24 fills wr 50% unique
+  net +2696 STOP10 TARGET10. NIFTY 8 (STOP2 TARGET2 TIME2
+  FLATTEN2) med stop 16.5pt. SENSEX 16 (STOP8 TARGET8) med
+  stop 25pt. pytest 74. Live MD not overwritten.
+Rejected: production_params_written. Promote on one green day.
+UNKNOWN: OOS+NORMAL. 14/15 tapes DI/no ITM.
+```
+
+## As of now (2026-09-17 night) — 17 Sep overlays, strict TARGET (NO_PROMOTE)
+
+```text
+From:     teams/06_backtesting + desk_ml
+To:       00 / 04
+Date:     2026-09-17 night
+Status:   RETUNE_PROPOSAL BACKTEST_REQUIRED / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: write=false 2026-09-17 apply_target_shift=false.
+  Pause+wide (ship): 12 −13037 wr 33.3% STOP4 TARGET2.
+  Confirm+wide: 24 −9972 wr 41.7% TARGET8.
+  Pause/confirm all names: 44 −31371 wr 31.8% TARGET12.
+  NIFTY-only: 8 −4671 wr 50%. target_step all 0. pytest 72.
+Rejected: production_params_written. sqlite git-add.
+UNKNOWN: Live MD not overwritten. One day.
+```
+
+## As of now (2026-09-17 night) — 14–17 Sep overlay loop (NO_PROMOTE)
+
+```text
+From:     teams/06_backtesting + desk_ml
+To:       00 / 04
+Date:     2026-09-17 night
+Status:   RETUNE_PROPOSAL BACKTEST_REQUIRED / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: write=false dual-tape. 14 Sep DI. 15 Sep 337 ticks 0 ITM
+  wings → 0 fills (ITM-only). 16 Sep 1 STOP −1116 (loops STOPPED).
+  17 Sep live −93745 wr 14.9%. Pause+BN+SX wait: filled 14 wr 28.6%
+  unique net −18104. Confirm-only 44 fills −49888. NIFTY-only −9738
+  wr 40% (ablation, not a name delete). pytest paper_scalp.
+  write=false does not nudge session params.
+Rejected: production_params_written. sqlite git-add. wr 74% pick.
+UNKNOWN: Overlay A −15018 used last3-blind + COVER-every-BE; not
+  restored (founder trap). OOS+NORMAL still missing.
+```
+
+## As of now (2026-09-17 night) — last-3 confirm tests (NO_PROMOTE)
+
+```text
+From:     teams/06_backtesting + desk_ml
+To:       00 / 04
+Date:     2026-09-17 night
+Status:   PAPER / HYPOTHESIS / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: pytest paper_scalp 69. Shrinking volume / shooting star /
+  PDL hammer do not set last3_impulse. Expanding volume dump still
+  TREND DOWN. build_sr_levels PDH/PDL from prior IST day closes.
+Rejected: production_params_written. sqlite git-add.
+UNKNOWN: Dual-tape 10s high/low vs NSE 1m candle.
+```
+
 ## As of now (2026-09-17 night) — replay 17 Sep overlay vs live SL factory (NO_PROMOTE)
 
 ```text
