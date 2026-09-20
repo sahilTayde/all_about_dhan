@@ -1,5 +1,25 @@
 # Handoff log — Team 07 Coding
 
+## As of now (2026-09-20 IST) — simple founder / desk / customer dashboards (NO_PROMOTE)
+
+```text
+From:     teams/07_coding
+To:       00 / founder
+Date:     2026-09-20
+Status:   PAPER UI / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: One site, three views. Founder /pm = trades, win %,
+  balance, daily profit/loss, model win % today, charges +
+  clone-drag. Desk /desk = current signal life (ACTIVE /
+  PROGRESS / STALE / DEAD / DONE), path + trail SL, path
+  score (not win rate), history outcomes (TARGET HIT /
+  TARGET 2 / STOP / TRAIL / CANCELLED), why, auto-refresh,
+  discarded-by-boss/dealer last. Customer / stays one ticket.
+Rejected: npm restart. Super Orders. Promote. Fake live fills.
+UNKNOWN: live /paper/ml-books vs mock until dual-tape write.
+```
+
 ## As of now (2026-09-20 IST) — ML paper board SOD copy + analyst tab (NO_PROMOTE)
 
 ```text

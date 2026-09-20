@@ -1,6 +1,13 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { AppNav } from "./components/AppNav.jsx";
 import { Header } from "./components/Header.jsx";
-import { MlPaperDashboard } from "./components/MlPaperDashboard.jsx";
+import {
+  derivePaperBoard,
+  fetchMlPaperBoard,
+  inr,
+  moneyClass,
+  pct,
+} from "./lib/paperBoard.js";
 
 function fetchFounderStatus() {
   const base = (import.meta.env.VITE_API_URL || "").replace(/\/$/, "");
@@ -11,125 +18,231 @@ function fetchFounderStatus() {
   });
 }
 
-function leanPlain(k, v) {
-  const s = String(v || "HOLD");
-  if (s.includes("BUY_CE") || s === "CE") return `${k} leaning CALL`;
-  if (s.includes("BUY_PE") || s === "PE") return `${k} leaning PUT`;
-  return `${k} HOLD`;
+function Stat({ label, value, hint, tone }) {
+  return (
+    <div className={`fx-stat ${tone ? `fx-stat--${tone}` : ""}`}>
+      <span className="fx-stat__label">{label}</span>
+      <strong className={`fx-stat__value ${tone === "up" ? "is-up" : ""} ${tone === "down" ? "is-down" : ""}`}>
+        {value}
+      </strong>
+      {hint ? <span className="fx-stat__hint">{hint}</span> : null}
+    </div>
+  );
 }
 
 export function FounderPm() {
-  const [data, setData] = useState(null);
+  const [status, setStatus] = useState(null);
+  const [board, setBoard] = useState(null);
   const [error, setError] = useState(null);
+  const [asOf, setAsOf] = useState(null);
 
   useEffect(() => {
     let cancelled = false;
     async function pull() {
-      try {
-        const json = await fetchFounderStatus();
-        if (!cancelled) {
-          setData(json);
-          setError(null);
-        }
-      } catch (err) {
-        if (!cancelled) setError(err.message || String(err));
-      }
+      const results = await Promise.allSettled([fetchFounderStatus(), fetchMlPaperBoard()]);
+      if (cancelled) return;
+      const nextErr = [];
+      if (results[0].status === "fulfilled") setStatus(results[0].value);
+      else nextErr.push(`health ${results[0].reason?.message || results[0].reason}`);
+      if (results[1].status === "fulfilled") {
+        setBoard(results[1].value);
+        setAsOf(results[1].value.as_of_ist || null);
+      } else nextErr.push(`book ${results[1].reason?.message || results[1].reason}`);
+      setError(nextErr.length ? nextErr.join(" · ") : null);
     }
     pull();
-    const id = setInterval(pull, 8000);
+    const id = setInterval(pull, 10000);
     return () => {
       cancelled = true;
       clearInterval(id);
     };
   }, []);
 
-  const issues = data?.issues || [];
-  const agents = data?.agents || [];
-  const paper = agents.find((a) => a.id === "paper-loop");
-  const api = (data?.services || []).find((s) => s.id === "api");
-  const vite = (data?.services || []).find((s) => s.id === "vite");
+  const d = useMemo(() => derivePaperBoard(board), [board]);
+  const paper = (status?.agents || []).find((a) => a.id === "paper-loop");
+  const day = d?.todayDay;
 
   return (
-    <div className="desk cleanup-desk">
+    <div className="shell shell--founder">
+      <AppNav current="/pm" />
       <Header
-        title="Founder desk"
-        kicker="D4 · /pm"
-        sub="Unique paper P/L · TARGET vs TIME vs STOP · no live orders"
-        sourceLabel={data?.mode || "PAPER"}
+        title="Founder"
+        kicker="Paper money · one desk"
+        sub="What happened today, what it cost, which model paid. PAPER — not a live book."
+        sourceLabel={board?.live_session ? "PAPER" : "MOCK"}
       />
       <p className="desk-sub">
-        <a href="/">Customer /</a>
-        {" · "}
-        <a href="/desk">Research /desk</a>
-        {data?.as_of ? ` · ${data.as_of}` : " · Loading…"}
+        Updated {asOf ? asOf.replace("T", " ").slice(0, 16) : "…"} IST · refreshes every 10s · orders refused ·
+        NO_PROMOTE
       </p>
 
-      {error && (
-        <p className="desk-error">
-          Cannot reach founder status ({error}). Start API on :8000. Tokens are never shown.
-        </p>
-      )}
+      {error ? <p className="desk-error">{error}. Numbers below may be mock if the API is down.</p> : null}
 
-      {data && (
+      <div className="fx-health" aria-label="Desk health">
+        <span className={`cleanup-pill ${paper?.alive ? "done" : "pending"}`}>
+          paper {paper?.alive ? "ON" : "OFF / mock"}
+        </span>
+        <span className="cleanup-pill pending">NO_PROMOTE</span>
+        <span className="cleanup-pill pending">orders refused</span>
+      </div>
+
+      {!d ? (
+        <p className="muted">Loading founder book…</p>
+      ) : (
         <>
-          <div className="fx-health" aria-label="Process health">
-            <span className={`cleanup-pill ${paper?.alive ? "done" : "pending"}`}>
-              paper {paper?.alive ? "ON" : "OFF"}
-            </span>
-            <span className={`cleanup-pill ${api?.tone === "green" ? "done" : "pending"}`}>API</span>
-            <span className={`cleanup-pill ${vite?.tone === "green" ? "done" : "pending"}`}>site</span>
-            <span className="cleanup-pill pending">NO_PROMOTE</span>
-            <span className="cleanup-pill pending">orders refused</span>
+          <div className="fx-stats founder-kpis">
+            <Stat label="Total trades" value={String(d.uniqueClosed.length)} hint="Unique fills (clones collapsed)" />
+            <Stat
+              label="Win rate"
+              value={pct(d.uniqueWr ?? d.moneyWr)}
+              hint="Net ₹ > 0 after charges. Not a promote."
+            />
+            <Stat
+              label="Account balance"
+              value={inr(d.equity, { signed: false })}
+              hint={`Start ${inr(d.startCap, { signed: false })}`}
+              tone={Number(d.equity) >= Number(d.startCap) ? "up" : "down"}
+            />
+            <Stat
+              label="Profit today"
+              value={inr(day?.profit)}
+              hint={day?.day || "—"}
+              tone={Number(day?.profit) > 0 ? "up" : ""}
+            />
+            <Stat
+              label="Loss today"
+              value={inr(day?.loss)}
+              hint={`${day?.n || 0} unique fills`}
+              tone={Number(day?.loss) < 0 ? "down" : ""}
+            />
+            <Stat
+              label="Net today"
+              value={inr(day?.net ?? d.uniqueNet)}
+              hint="Unique desk P/L"
+              tone={Number(day?.net ?? d.uniqueNet) >= 0 ? "up" : "down"}
+            />
           </div>
 
-          {issues.length > 0 ? (
-            <article className="cleanup-card founder-red">
-              <div className="cleanup-status">Fix first</div>
-              <strong>{data.next_action}</strong>
-              <ul className="cleanup-keep">
-                {issues.map((x) => (
-                  <li key={x}>{x}</li>
-                ))}
-              </ul>
-            </article>
-          ) : (
-            <article className="cleanup-card founder-green">
-              <div className="cleanup-status">Watch</div>
-              <strong>Paper loop is the product today. Do not promote. Do not send Super Orders.</strong>
-              <p>Read unique net and TARGET hits below — clone wr is not founder skill.</p>
-            </article>
-          )}
+          <section className="panel">
+            <div className="panel__head">
+              <div>
+                <h2>P/L with charges</h2>
+                <p className="fx-kicker">Groww-style brokerage + GST + STT (VERIFY). Paper only.</p>
+              </div>
+            </div>
+            <div className="founder-pl">
+              <div>
+                <span>Gross</span>
+                <strong className={moneyClass(d.today.gross_pnl_inr ?? d.uniqueGross)}>
+                  {inr(d.today.gross_pnl_inr ?? d.uniqueGross)}
+                </strong>
+              </div>
+              <div>
+                <span>Charges</span>
+                <strong>{inr(d.charges, { signed: false })}</strong>
+              </div>
+              <div>
+                <span>Net</span>
+                <strong className={moneyClass(d.today.net_pnl_inr ?? d.uniqueNet)}>
+                  {inr(d.today.net_pnl_inr ?? d.uniqueNet)}
+                </strong>
+              </div>
+              <div>
+                <span>Charge drag</span>
+                <strong>
+                  {d.today.gross_pnl_inr
+                    ? pct(
+                        (Math.abs(Number(d.charges) || 0) /
+                          Math.max(1, Math.abs(Number(d.today.gross_pnl_inr)))) *
+                          100
+                      )
+                    : "—"}
+                </strong>
+              </div>
+            </div>
+            <p className="muted">
+              Improvement to watch: unique net {inr(d.uniqueNet)} vs all-book headline {inr(d.headlineNet)}.
+              Clone drag {inr(d.cloneDrag)} is copies of the same fill — do not manage to it. Target hits{" "}
+              {d.nTarget} / {d.uniqueClosed.length} ({pct(d.targetWr)}) vs money win rate {pct(d.moneyWr)}.
+            </p>
+          </section>
 
-          <h2 className="cleanup-h">Session money</h2>
-          <MlPaperDashboard compact />
+          <section className="panel">
+            <h2>Models / strategies — win rate today</h2>
+            <p className="muted">Day % is unique-fill win rate for this session. Observe books stay ₹0.</p>
+            <div className="book-table-wrap">
+              <table className="book-table">
+                <thead>
+                  <tr>
+                    <th>Model</th>
+                    <th>Kind</th>
+                    <th>Fills</th>
+                    <th>Win % today</th>
+                    <th>Win % book</th>
+                    <th>Charges</th>
+                    <th>Net ₹</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {d.books.map((r) => (
+                    <tr key={r.book_id}>
+                      <td>{r.book_id}</td>
+                      <td>{r.kind || "—"}</td>
+                      <td className="num">{r.day_n ?? r.n_filled ?? 0}</td>
+                      <td className="num">{r.day_wr == null ? "—" : pct(r.day_wr)}</td>
+                      <td className="num">{r.win_rate_net_pct == null ? "—" : pct(r.win_rate_net_pct)}</td>
+                      <td className="num">{inr(r.sum_charges_inr, { signed: false })}</td>
+                      <td className={`num ${moneyClass(r.sum_pnl_inr)}`}>{inr(r.sum_pnl_inr)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
 
-          <h2 className="cleanup-h">Index lean (not a fill)</h2>
-          <div className="cleanup-grid">
-            {Object.entries(data.leans || {}).map(([k, v]) => {
-              const chain = (data.chain_metrics || {})[k] || {};
-              return (
-                <article key={k} className="cleanup-card">
-                  <div className="cleanup-status">{leanPlain(k, v)}</div>
-                  <strong>{k}</strong>
-                  <p>
-                    spot {chain.spot ?? "—"} · PCR {chain.pcr_oi ?? "—"}
-                  </p>
-                </article>
-              );
-            })}
-          </div>
+          <section className="panel">
+            <h2>Each day</h2>
+            <div className="book-table-wrap">
+              <table className="book-table">
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>Trades</th>
+                    <th>Win %</th>
+                    <th>Profit</th>
+                    <th>Loss</th>
+                    <th>Charges</th>
+                    <th>Net</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {d.days.map((row) => (
+                    <tr key={row.day}>
+                      <td>{row.day}</td>
+                      <td className="num">{row.n}</td>
+                      <td className="num">{pct(row.wr)}</td>
+                      <td className={`num ${moneyClass(row.profit)}`}>{inr(row.profit)}</td>
+                      <td className={`num ${moneyClass(row.loss)}`}>{inr(row.loss)}</td>
+                      <td className="num">{inr(row.charges, { signed: false })}</td>
+                      <td className={`num ${moneyClass(row.net)}`}>{inr(row.net)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
 
           <details className="desk-context">
-            <summary>Agents and services</summary>
+            <summary>Ops health (API, paper loop, site)</summary>
             <div className="cleanup-grid">
-              {agents.map((a) => (
+              {(status?.agents || []).map((a) => (
                 <article key={a.id} className={`cleanup-card founder-${a.tone || "grey"}`}>
                   <div className="cleanup-status">{a.alive ? "RUNNING" : "DOWN"}</div>
                   <strong>{a.name}</strong>
                   <p>{a.detail}</p>
                 </article>
               ))}
-              {(data.services || []).map((s) => (
+              {(status?.services || []).map((s) => (
                 <article key={s.id} className={`cleanup-card founder-${s.tone || "grey"}`}>
                   <div className="cleanup-status">{s.tone}</div>
                   <strong>{s.name}</strong>
@@ -138,7 +251,25 @@ export function FounderPm() {
               ))}
             </div>
           </details>
-          <p className="desk-sub">{(data.honesty || []).join(" ")}</p>
+
+          <section className="panel">
+            <h2>What else matters</h2>
+            <ul className="founder-watch">
+              <li>
+                Best index {d.today.best_index || "—"} · worst {d.today.worst_index || "—"} · NIFTY{" "}
+                {inr(d.today.net_by_index?.NIFTY)} · BANKNIFTY {inr(d.today.net_by_index?.BANKNIFTY)} · SENSEX{" "}
+                {inr(d.today.net_by_index?.SENSEX)}
+              </li>
+              <li>
+                Open now {d.uniqueOpen.length} · STOP hits {d.nStop} · TARGET hits {d.nTarget} · discarded signals{" "}
+                {d.skipGroups.length}
+              </li>
+              <li>
+                Gate: {board.gate || "not RESEARCH_READY_FOR_PROGRAMMING"}. Confidence and path scores are not win
+                rates.
+              </li>
+            </ul>
+          </section>
         </>
       )}
     </div>

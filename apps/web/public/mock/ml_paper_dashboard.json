@@ -64,7 +64,7 @@
   "live_session": true,
   "session_ist_date": "2026-09-17",
   "title": "LIVE SESSION",
-  "n_open": 0,
+  "n_open": 1,
   "n_skip_sideways": 6,
   "n_skip_regime_unknown": 1,
   "n_sideways_bars": 6,
@@ -4083,7 +4083,40 @@
       "filled": true
     }
   ],
-  "open_trades": [],
+  "open_trades": [
+    {
+      "book_id": "MIX-DEFAULT-BUY",
+      "underlying": "NIFTY",
+      "side": "CE",
+      "trade_id": "paper-MIX-DEFAULT-BUY-NIFTY-open-demo",
+      "status": "OPEN",
+      "target_step": 1,
+      "entry": 148.40,
+      "limit_price": 148.40,
+      "last_ltp": 152.10,
+      "exit": null,
+      "stop": 144.80,
+      "trail_stop": 146.90,
+      "target": 158.20,
+      "target2": 164.00,
+      "atm_strike": 23250.0,
+      "strike_source": "ITM_100",
+      "justification": "why_now=picker CE + observer ITM 1m PASS; last-3 impulse CALL | desk MIX-DEFAULT-BUY",
+      "index_regime": "TREND",
+      "regime_reason": "last3_impulse_call",
+      "realized_pnl_inr": null,
+      "lot_size": 65,
+      "lots": 1,
+      "opened_ist": "2026-09-17T14:42:00+05:30",
+      "last_updated_ist": "2026-09-17T14:51:20+05:30",
+      "last_updated_ts": 1789638080,
+      "opened_ts": 1789637520,
+      "shadow": true,
+      "execution": "refused",
+      "promote": false,
+      "filled": true
+    }
+  ],
   "tickets": [
     {
       "book_id": "MIX-DEFAULT-BUY",
@@ -5646,9 +5679,50 @@
     "layer": "HYPOTHESIS",
     "promote": false,
     "note": "Analyst room vs picker. MATCH/DISSENT/SPOKEN_PICKER_HOLD/SILENT even when HOLD/VETO. Not extra capital. NO_PROMOTE.",
-    "n": 0,
-    "counts": [],
-    "latest": [],
+    "n": 3,
+    "counts": [
+      { "source": "follows", "vs_picker": "MATCH", "n": 1 },
+      { "source": "logit", "vs_picker": "DISSENT", "n": 1 },
+      { "source": "greeks", "vs_picker": "SPOKEN_PICKER_HOLD", "n": 1 }
+    ],
+    "latest": [
+      {
+        "source": "follows",
+        "side": "CE",
+        "vs_picker": "MATCH",
+        "picker_action": "FILL",
+        "picker_side": "CE",
+        "observer_action": "PASS",
+        "ignored_by_boss": false,
+        "underlying": "NIFTY",
+        "detail": "MIX-FORM-FOLLOWS spoke CE with picker"
+      },
+      {
+        "source": "logit",
+        "side": "PE",
+        "vs_picker": "DISSENT",
+        "picker_action": "FILL",
+        "picker_side": "CE",
+        "observer_action": "PASS",
+        "ignored_by_boss": true,
+        "underlying": "NIFTY",
+        "reason": "BOSS_IGNORED_DISSENT",
+        "why": "Logit wanted PE; boss kept picker CE. Not extra capital."
+      },
+      {
+        "source": "greeks",
+        "side": "HOLD",
+        "vs_picker": "SPOKEN_PICKER_HOLD",
+        "picker_action": "FILL",
+        "picker_side": "CE",
+        "observer_action": "PASS",
+        "ignored_by_boss": true,
+        "underlying": "NIFTY",
+        "dealer_verdict": "HOLD",
+        "reason": "GREEKS_HOLD",
+        "why": "Greeks analyst HOLD — discarded by boss for this ticket."
+      }
+    ],
     "recent": []
   }
 }

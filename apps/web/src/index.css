@@ -1965,8 +1965,228 @@ a {
   padding: 0.22rem 0.55rem;
 }
 
-.shell--internal {
+.shell--internal,
+.shell--founder {
   max-width: 1180px;
+}
+
+.app-nav {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.45rem;
+}
+
+.app-nav__link {
+  display: grid;
+  gap: 0.08rem;
+  text-decoration: none;
+  color: var(--ink);
+  padding: 0.55rem 0.7rem;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+}
+
+.app-nav__link span {
+  color: var(--ink-soft);
+  font-size: 0.75rem;
+}
+
+.app-nav__link.is-active {
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 1px rgba(201, 162, 39, 0.35);
+}
+
+.app-nav__link:hover,
+.app-nav__link:focus-visible {
+  border-color: var(--inprogress);
+  outline: none;
+}
+
+.founder-kpis {
+  margin-top: 0.2rem;
+}
+
+.founder-pl {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.65rem;
+  margin: 0.4rem 0 0.75rem;
+}
+
+.founder-pl div {
+  padding: 0.65rem 0.7rem;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--bg-2);
+  display: grid;
+  gap: 0.2rem;
+}
+
+.founder-pl span {
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+
+.founder-watch {
+  margin: 0.35rem 0 0;
+  padding-left: 1.1rem;
+}
+
+.founder-watch li {
+  margin: 0.3rem 0;
+}
+
+.desk-refresh {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.refresh-btn {
+  border: 1px solid var(--line-strong);
+  background: var(--surface-2);
+  border-radius: 999px;
+  padding: 0.35rem 0.75rem;
+  cursor: pointer;
+}
+
+.refresh-btn:hover:not(:disabled),
+.refresh-btn:focus-visible {
+  border-color: var(--inprogress);
+  outline: none;
+}
+
+.refresh-btn:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+.current-signal__hero {
+  display: grid;
+  gap: 0.7rem;
+}
+
+.current-signal__name {
+  margin: 0.25rem 0 0;
+  font-size: 1.35rem;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--ink);
+}
+
+.path-confidence {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.55rem;
+  margin-top: 0.7rem;
+}
+
+.path-confidence div {
+  padding: 0.55rem 0.65rem;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--bg-2);
+}
+
+.path-confidence span,
+.path-confidence p {
+  color: var(--ink-soft);
+  font-size: 0.8rem;
+}
+
+.path-confidence p {
+  grid-column: 1 / -1;
+  margin: 0;
+}
+
+.logic-list,
+.discard-list {
+  list-style: none;
+  margin: 0.35rem 0 0;
+  padding: 0;
+  display: grid;
+  gap: 0.45rem;
+}
+
+.logic-list li,
+.discard-list li {
+  padding: 0.55rem 0.65rem;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--bg-2);
+}
+
+.discard-list p {
+  margin: 0.3rem 0 0;
+}
+
+.discard-who {
+  margin-left: 0.5rem;
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.life-pill,
+.out-pill {
+  display: inline-block;
+  font-size: 0.68rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  border-radius: 999px;
+  padding: 0.22rem 0.5rem;
+  border: 1px solid var(--line);
+}
+
+.life-pill--active,
+.life-pill--progress {
+  color: var(--inprogress);
+  border-color: var(--inprogress);
+}
+
+.life-pill--stale {
+  color: var(--warn);
+  border-color: var(--warn);
+}
+
+.life-pill--dead {
+  color: var(--expired);
+}
+
+.life-pill--done {
+  color: var(--achieved);
+  border-color: var(--achieved);
+}
+
+.out-pill--target,
+.out-pill--target2,
+.out-pill--done {
+  color: var(--achieved);
+  border-color: var(--achieved);
+}
+
+.out-pill--stop,
+.out-pill--trail {
+  color: var(--pe);
+  border-color: var(--pe);
+}
+
+.out-pill--cancel {
+  color: var(--expired);
+}
+
+.out-pill--time {
+  color: var(--warn);
+  border-color: var(--warn);
+}
+
+.desk-history {
+  min-width: 980px;
 }
 
 .desk.cleanup-desk {
@@ -1982,7 +2202,9 @@ a {
 @media (max-width: 900px) {
   .fx-stats,
   .fx-bin__grid,
-  .fx-rank li {
+  .fx-rank li,
+  .founder-pl,
+  .path-confidence {
     grid-template-columns: 1fr 1fr;
   }
 }
@@ -1991,8 +2213,16 @@ a {
   .fx-stats,
   .fx-bin__grid,
   .fx-rank li,
-  .fx-ticket__levels {
+  .fx-ticket__levels,
+  .founder-pl,
+  .path-confidence,
+  .app-nav,
+  .desk-refresh {
     grid-template-columns: 1fr;
+  }
+
+  .desk-refresh {
+    display: grid;
   }
 }
 

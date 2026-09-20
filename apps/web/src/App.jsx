@@ -3,6 +3,7 @@ import { apiMode, fetchPaperDesk } from "./lib/signalApi.js";
 import { subscribePaperSignals } from "./lib/liveSignals.js";
 import { customerStatus, isWaitingStatus } from "./lib/status.js";
 import { Header } from "./components/Header.jsx";
+import { AppNav } from "./components/AppNav.jsx";
 import { UnderlyingPicker } from "./components/UnderlyingPicker.jsx";
 import { MarketSentiment } from "./components/MarketSentiment.jsx";
 import { CasPanel } from "./components/CasPanel.jsx";
@@ -129,6 +130,7 @@ export default function App() {
   if (error) {
     return (
       <div className="shell">
+        <AppNav current="/" />
         <Header sourceLabel="ERROR" />
         <p className="error-banner">{error}</p>
         <Disclaimer />
@@ -139,6 +141,7 @@ export default function App() {
   if (!desk || !signal) {
     return (
       <div className="shell">
+        <AppNav current="/" />
         <Header sourceLabel={sourceLabel} />
         <p className="muted">Loading desk…</p>
       </div>
@@ -150,10 +153,11 @@ export default function App() {
 
   return (
     <div className="shell shell--customer">
+      <AppNav current="/" />
       <Header
         sourceLabel={sourceLabel}
         onInfo={() => setLegendOpen(true)}
-        title="Paper desk"
+        title="Customer"
         sub="One suggested ticket · MOCK / PAPER · not advice · orders refused"
       />
 

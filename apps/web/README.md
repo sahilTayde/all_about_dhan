@@ -1,8 +1,14 @@
 # apps/web — customer paper desk
 
-Thin **Vite + React** UI for all_about_dhan. The default route is a **customer trading desk**: one live ticket, issued levels, take/skip, shadow paper, session book, and tape sentiment. **Not investment advice.** Owned by team 07_coding.
+Thin **Vite + React** UI for all_about_dhan. One site, three dashboards:
 
-Engineers can open [`/desk`](http://localhost:5173/desk) for the research view (honesty stages, indicator lights, factor checklist). That route is **not** the customer product. Founder `/pm` is specified but **not built** yet.
+| Route | Who | Job |
+|-------|-----|-----|
+| [`/`](http://localhost:5173/) | Customer | One suggested ticket. No indicator soup. |
+| [`/desk`](http://localhost:5173/desk) | Desk | Live signal, path to SL/target, history, discarded-by-boss list. |
+| [`/pm`](http://localhost:5173/pm) | Founder | Trades, win rate, balance, daily P/L, model win %, charges. |
+
+**Not investment advice.** PAPER / MOCK. Orders refused. Owned by team 07_coding.
 
 Stack: Vite + React (JavaScript). No server render. No Dhan in the browser.
 
@@ -24,7 +30,7 @@ npm install
 npm run dev
 ```
 
-Open [http://localhost:5173](http://localhost:5173) (customer desk) or [http://localhost:5173/desk](http://localhost:5173/desk) (internal).
+Open [http://localhost:5173](http://localhost:5173) (customer), [http://localhost:5173/desk](http://localhost:5173/desk) (desk), or [http://localhost:5173/pm](http://localhost:5173/pm) (founder).
 
 | Command | What it does |
 |---------|----------------|
@@ -101,8 +107,10 @@ Later: set `VITE_API_URL` (for example `http://127.0.0.1:8000`). The loader will
 
 | Path | Role |
 |------|------|
-| `src/App.jsx` | Customer desk |
-| `src/InternalDesk.jsx` | `/desk` research view |
+| `src/App.jsx` | Customer `/` |
+| `src/InternalDesk.jsx` | Desk `/desk` live book |
+| `src/FounderPm.jsx` | Founder `/pm` money board |
+| `src/components/AppNav.jsx` | Customer / Desk / Founder switch |
 | `src/lib/signalApi.js` | Mock vs `VITE_API_URL` loader |
 | `src/lib/status.js` | Customer status + legend copy |
 | `src/components/SignalCard.jsx` | One primary ticket (side + levels + status) |
