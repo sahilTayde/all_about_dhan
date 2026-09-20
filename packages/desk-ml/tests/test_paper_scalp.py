@@ -156,17 +156,25 @@ def test_open_settle_skips_new_opens_flatten_still_ok() -> None:
         entry=120.0,
         stop=80.0,
         target=140.0,
-        atm_strike=25000.0,
+        atm_strike=24800.0,
         opened_ts=int(datetime(2026, 9, 17, 9, 10, tzinfo=IST).timestamp()),
         opened_bar=10,
-        strike_source="TEST",
+        strike_source="ITM_100",
         limit_price=120.0,
         filled=True,
         index_regime="TREND",
     )
     engine.opens[("MIX-DEFAULT-BUY", "NIFTY")] = pos
     engine.equity["MIX-DEFAULT-BUY"] = 10000.0
-    tick = Triple(ts=int(datetime(2026, 9, 17, 9, 21, tzinfo=IST).timestamp()), idx_close=25000.0, ce_close=70.0, pe_close=110.0)
+    tick = Triple(
+        ts=int(datetime(2026, 9, 17, 9, 21, tzinfo=IST).timestamp()),
+        idx_close=25000.0,
+        ce_close=70.0,
+        pe_close=110.0,
+        atm_strike=25000.0,
+        itm_ce_close=70.0,
+        itm_ce_strike=24800.0,
+    )
     mark_to_market(engine, tick, "NIFTY", 31)
     assert engine.has_open("MIX-DEFAULT-BUY", "NIFTY") is False
 
@@ -1481,10 +1489,10 @@ def test_unknown_1m_still_marks_open_ticket_every_10s() -> None:
         entry=120.0,
         stop=80.0,
         target=140.0,
-        atm_strike=25000.0,
+        atm_strike=24800.0,
         opened_ts=triples[0].ts,
         opened_bar=0,
-        strike_source="TEST",
+        strike_source="ITM_100",
         limit_price=120.0,
         filled=True,
         index_regime="TREND",
@@ -1496,6 +1504,9 @@ def test_unknown_1m_still_marks_open_ticket_every_10s() -> None:
         idx_close=triples[-1].idx_close,
         ce_close=70.0,
         pe_close=110.0,
+        atm_strike=25000.0,
+        itm_ce_close=70.0,
+        itm_ce_strike=24800.0,
     )
     mark_to_market(engine, dump, "NIFTY", 7)
     assert engine.has_open("MIX-DEFAULT-BUY", "NIFTY") is False
