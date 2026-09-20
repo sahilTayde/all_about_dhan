@@ -1,5 +1,23 @@
 # Handoff log — Team 04 Quant
 
+## As of now (2026-09-20 IST) — analyst room packets, SOD fill not router (NO_PROMOTE)
+
+```text
+MIX / STRAT: none new. KEEP_ALL 001–014 as votes. No STRAT-015+.
+Origin: PROJECT-DERIVED. HYPOTHESIS.
+Entry hypothesis: each analyst packet {source, side, silent,
+  reason, detail}. Desk fill stays MIX-DEFAULT-BUY.
+Confirm-or-kill: observer FOLLOW_GAP_ITM_1M on picker wing.
+Hold / veto: spoken votes still logged MATCH/DISSENT/
+  SPOKEN_PICKER_HOLD even if ignored.
+Feasibility: greeks_vote_intent without fill intents. Lab
+  never OPEN on SOD.
+Backtest request: none new.
+Customer copy allowed: none.
+UNKNOWN: greeks still skip clone when logit speaks; no
+  invented Dhan greeks.
+```
+
 ## As of now (2026-09-20 IST) — logit/XR/greeks analyst tape + ALLOW counsel (NO_PROMOTE)
 
 ```text

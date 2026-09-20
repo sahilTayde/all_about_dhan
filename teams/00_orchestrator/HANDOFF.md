@@ -2,6 +2,25 @@
 
 **Agents:** read **only the newest block**. Do not ingest this whole log. New files: [`docs/FILE_CREATION.md`](../../docs/FILE_CREATION.md). Append here — do not create `HANDOFF_TOMORROW.md` or extra `CONTINUE_*`.
 
+## As of now (2026-09-20 IST) — SOD analyst room, one desk fill (NO_PROMOTE)
+
+```text
+From:     teams/00_orchestrator
+To:       founder / 04 / 06 / 07
+Date:     2026-09-20
+Status:   PAPER / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: Keep ALL models/STRAT. Analysts have their own room
+  (independent packets). SOD path skips resolve_fill_intents;
+  only MIX-DEFAULT-BUY may OPEN. Board logs spoken votes even
+  when picker HOLD / observer VETO / desk ignores.
+Rejected: Extra Monday capital. Deleting analyst functions.
+  STRAT-015+. Gate / promote. Recode STALL/booking.
+UNKNOWN: unbound STRAT still DI; greeks still do not invent
+  CE/PE from missing Dhan prints.
+```
+
 ## As of now (2026-09-20 IST) — LLM on ALLOW + analyst signal tape (NO_PROMOTE)
 
 ```text

@@ -1,5 +1,19 @@
 # Handoff log — Team 06 Backtesting
 
+## As of now (2026-09-20 IST) — ignored analyst votes on ML_PAPER_DASHBOARD (NO_PROMOTE)
+
+```text
+From:     teams/06_backtesting
+To:       00 / 04 / founder
+Date:     2026-09-20
+Status:   PAPER / NO_PROMOTE / BACKTEST_REQUIRED
+Accepted: model_signals includes STRAT spoken + TV + follows/
+  logit/xr/greeks. SOD-on independent_books=false. Lab never
+  OPEN. Shadow tape for later tune, not extra fills.
+Rejected: Parallel Monday capital. Promote. Gate set.
+UNKNOWN: first live dual-tape row counts vs cache.
+```
+
 ## As of now (2026-09-20 IST) — model_signals on ML_PAPER_DASHBOARD (NO_PROMOTE)
 
 ```text

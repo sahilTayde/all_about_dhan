@@ -627,7 +627,8 @@ def test_replay_parallel_books_no_promote(tmp_path) -> None:
     )
     assert board["ok"] is True
     assert board["promote"] is False
-    assert board["independent_books"] is True
+    assert board["independent_books"] is False
+    assert board["sod_one_ticket"] is True
     ids = {m["model_id"] for m in board["models"]}
     assert ids == set(LIVE_BOOKS)
     assert board["research_ready_for_programming"] is False

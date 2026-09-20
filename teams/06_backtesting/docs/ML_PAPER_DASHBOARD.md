@@ -5,7 +5,7 @@
 **Gate:** not `RESEARCH_READY_FOR_PROGRAMMING`. **NO_PROMOTE.** Orders refused. paper wr net=14.86% gross=20.57% (26/175 filled net). desk ₹70000.0 split across 4 tradable fill books (typical ₹17500.0/tradable; observe books ₹0).  
 **Gross P/L:** ₹-81512.0 · **charges:** ₹12232.97 (Groww+GST+STT VERIFY) · **Net P/L:** ₹-93744.97 · won ₹17025.98 · lost ₹-110770.95 · desk equity ₹-23744.97  (start ₹70000.0). Open 0.
 
-Parallel independent books: one OPEN per (`book_id` × underlying). A HOLD on ML-001 does **not** block MIX-DEFAULT-BUY.
+SOD-on: one desk ticket (`MIX-DEFAULT-BUY`) + analyst room observe. Lab books never OPEN. Analyst CE/PE is logged MATCH/DISSENT/SPOKEN_PICKER_HOLD even when picker HOLD / observer VETO / desk ignores. A HOLD on ML-001 does **not** invent a wing.
 
 ## Today at a glance (gross vs net after Groww + STT)
 

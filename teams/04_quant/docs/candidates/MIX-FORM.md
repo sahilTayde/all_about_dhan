@@ -22,14 +22,14 @@ Rooms stay. Plugin later **in the named hook only**.
 
 **FAST** (zero blocking LLM; ALLOW may fire async `allow-review`):
 
-1. Analysts vote: **MIX-FORM-FOLLOWS**, logit, XR, greeks, STRAT-001–014 KEEP_ALL (silent DI does not vote), ML-001/002 silent HOLD.
-2. Boss **`picker_majority`** only (8-7 / soup / INDEX 1m against = HOLD).
-3. Observer **`FOLLOW_GAP_ITM_1M`** only — ALLOW / VETO / PASS on closed 1m INDEX vs same-strike **ITM**.
-4. Desk **`MIX-DEFAULT-BUY`** — one working ticket, **ITM LTP** fill + overlay SL/T1. Missing ITM → `DATA_INSUFFICIENT` / skip NEW. Do not fill ATM as if ITM.
+1. **Analyst room** (independent packets, not capital): MIX-FORM-FOLLOWS (`follows`), MIX-ML-LOGIT, MIX-ML-LOGIT-XR, MIX-ML-GREEKS, ML-001/002/ML-1 silent unless they already have a side (no KMeans CE/PE), MIX-TV-EP-024 lab, STRAT-001–014 KEEP_ALL (silent DI does not vote).
+2. Boss **`picker_majority`** only (8-7 / soup / INDEX 1m against = HOLD). Not a fill.
+3. Observer **`FOLLOW_GAP_ITM_1M`** only — ALLOW / VETO / PASS on the **picker wing**.
+4. Desk **`MIX-DEFAULT-BUY`** — one working ticket, **ITM LTP** fill + overlay SL/T1. Lab never OPEN. `resolve_fill_intents` is `--sod-off` only.
 
 **REVIEW:** desk `overlay_to_boss`; optional ML overlay / async LLM (`allow-review` / `exit-review` / `risk-review` / `partial-book-review`); boss wait/trail/cut. LLM does not invent CE/PE and does not wait the open.
 
-LAB books (`MIX-ML-LOGIT` / XR / greeks) **vote as analysts**. SOD capital is one MIX-DEFAULT-BUY fill. Their CE/PE is logged MATCH/DISSENT vs picker even when picker HOLD or observer VETO (`model_signals` on `ML_PAPER_DASHBOARD`). `--sod-off` is pytest A/B of the old parallel FILL engine only — not the Monday path.
+LAB books **vote as analysts**. SOD capital is one MIX-DEFAULT-BUY fill. Spoken CE/PE is logged MATCH / DISSENT / SPOKEN_PICKER_HOLD / SILENT even when picker HOLD, observer VETO, or desk ignores (`model_signals` on `ML_PAPER_DASHBOARD`). `--sod-off` is pytest A/B of `resolve_fill_intents` only — not the Monday path.
 
 `last_step` trace: `follows` → `picker` → `observer` → `desk`.
 
@@ -42,6 +42,6 @@ LAB books (`MIX-ML-LOGIT` / XR / greeks) **vote as analysts**. SOD capital is on
 | Confirm / kill premium | Observer `FOLLOW_GAP_ITM_1M` only |
 | Fill price / SL / T1 / stall | Desk booking overlay only |
 | After-fill / ALLOW advice | `overlay_to_boss` / `llm_review` (`allow-review` async, not a block) |
-| Track logit/XR/greeks vs picker | `picker.track_model_signals` → dashboard `model_signals`. Still one desk fill. |
+| Track analysts vs picker | `picker.track_model_signals` (incl. STRAT spoken) → dashboard `model_signals`. Still one desk fill. |
 
 **NO_PROMOTE.** Gate **not** `RESEARCH_READY_FOR_PROGRAMMING`.

@@ -46,6 +46,9 @@ SOD_PRODUCT_BOOK = "MIX-DEFAULT-BUY"
 SOD_LAB_OBSERVE = "SOD_LAB_OBSERVE"
 SOD_ONE_OPEN = "SOD_ONE_OPEN"
 SIGNAL_TRACK_SOURCES = ("follows", "logit", "xr", "greeks")
+SIGNAL_ALWAYS_TRACK = frozenset(
+    (*SIGNAL_TRACK_SOURCES, "ML-1", "MIX-TV-EP-024", "STRAT-003")
+)
 SIGNAL_LOG_MAX = 2000
 
 
@@ -59,6 +62,17 @@ class Vote:
 
     def spoken(self) -> bool:
         return (not self.silent) and self.side in {"CE", "PE"}
+
+    def packet(self) -> dict[str, Any]:
+        """Stable analyst-room packet for independent tune. Not a fill."""
+        return {
+            "source": self.source,
+            "side": self.side,
+            "silent": self.silent,
+            "reason": self.reason_class,
+            "detail": self.detail,
+            "reason_class": self.reason_class,
+        }
 
 
 def _silent(source: str, detail: str, reason_class: str = "SILENT") -> Vote:
@@ -104,6 +118,30 @@ def strat_votes(
     return out
 
 
+def greeks_vote_intent(
+    *,
+    dealer_confirm: Optional[str] = None,
+    logit: Optional[dict[str, Any]] = None,
+    impulse_side: Optional[str] = None,
+) -> tuple[Optional[str], Optional[str]]:
+    """MIX-ML-GREEKS vote-only. No fill. Does not invent Dhan greeks.
+
+    Same rule as the old fill-intent helper: do not clone logit; else lean with
+    FOLLOWS/dealer confirm. SOD uses this instead of resolve_fill_intents.
+    """
+    lg = logit or {}
+    logit_own = lg.get("side") if lg.get("side") in {"CE", "PE"} else None
+    dealer_own = dealer_confirm if dealer_confirm in {"CE", "PE"} else None
+    impulse_own = impulse_side if impulse_side in {"CE", "PE"} else None
+    if impulse_own:
+        logit_own = impulse_own
+    if logit_own:
+        return None, "GREEKS_NO_CLONE"
+    if dealer_own:
+        return dealer_own, None
+    return None, "NO_SIDE"
+
+
 def collect_analyst_votes(
     *,
     follows: Optional[dict[str, Any]] = None,
@@ -114,6 +152,8 @@ def collect_analyst_votes(
     greeks_skip: Optional[str] = None,
     ml001_hold: bool = False,
     ml002_hold: bool = False,
+    ml1: Optional[dict[str, Any]] = None,
+    tv_side: Optional[str] = None,
     classified: Optional[dict[str, Any]] = None,
     extra: Optional[Sequence[Vote]] = None,
 ) -> list[Vote]:
@@ -121,6 +161,7 @@ def collect_analyst_votes(
 
     `dealer=` is a legacy alias for the MIX-FORM-FOLLOWS packet. Vote source is
     `follows`. New STRAT/analyst votes go in `extra` (KEEP_ALL, no STRAT-015+).
+    Does not need fill intents. Greeks side comes from greeks_vote_intent.
     """
     votes: list[Vote] = []
     d = follows or dealer or {}
@@ -146,11 +187,26 @@ def collect_analyst_votes(
     else:
         votes.append(_silent("greeks", str(greeks_skip or "DATA_INSUFFICIENT")))
 
-    # ML-001/002: HOLD overlay is not a wing vote.
+    # ML-001/002: HOLD overlay is not a wing vote. Do not invent CE/PE from KMeans.
     votes.append(_silent("ML-001", "HOLD" if ml001_hold else "OBSERVE_NO_OWN_SIDE"))
     votes.append(_silent("ML-002", "HOLD" if ml002_hold else "OBSERVE_NO_OWN_SIDE"))
 
     extra_non_strat = [v for v in (extra or []) if not str(v.source).startswith("STRAT-")]
+    extra_src = {v.source for v in extra_non_strat}
+
+    if "ML-1" not in extra_src:
+        m = ml1 or {}
+        if m.get("side") in {"CE", "PE"}:
+            votes.append(_vote("ML-1", str(m["side"]), REASON_CONFIRM, str(m.get("status") or "")))
+        else:
+            votes.append(_silent("ML-1", str(m.get("reason") or m.get("status") or "OBSERVE_NO_OWN_SIDE")))
+
+    if "MIX-TV-EP-024" not in extra_src:
+        if tv_side in {"CE", "PE"}:
+            votes.append(_vote("MIX-TV-EP-024", tv_side, REASON_CONFIRM, "tv_ep_lab"))
+        else:
+            votes.append(_silent("MIX-TV-EP-024", "OBSERVE_NO_OWN_SIDE"))
+
     votes.extend(extra_non_strat)
     votes.extend(strat_votes(classified=classified, extra=extra))
     return votes
@@ -276,39 +332,52 @@ def track_model_signals(
     *,
     underlying: str = "",
     ts: Optional[int] = None,
+    desk_opened: bool = False,
+    desk_side: Optional[str] = None,
 ) -> list[dict[str, Any]]:
-    """Spoken logit/XR/greeks/FOLLOWS vs picker. KEEP even when boss HOLD/VETO.
+    """Every spoken analyst vs picker. KEEP even when HOLD / VETO / desk ignore.
 
-    Not a fill. Not wr. For ML_PAPER_DASHBOARD tune later. NO_PROMOTE.
+    Not a fill. Not wr. Shadow tape for later tune. NO_PROMOTE.
     """
     picker_side = picker.get("side") if picker.get("action") == "TICKET" else None
     picker_action = str(picker.get("action") or "HOLD")
     obs_action = (observer or {}).get("action")
-    by_src = {v.source: v for v in votes if isinstance(v, Vote)}
-    rows: list[dict[str, Any]] = []
-    for src in SIGNAL_TRACK_SOURCES:
-        v = by_src.get(src)
-        if v is None:
+    by_src: dict[str, Vote] = {}
+    ordered: list[Vote] = []
+    for v in votes:
+        if not isinstance(v, Vote):
             continue
+        if v.source in by_src:
+            continue
+        if v.source in SIGNAL_ALWAYS_TRACK or v.spoken():
+            by_src[v.source] = v
+            ordered.append(v)
+    rows: list[dict[str, Any]] = []
+    for v in ordered:
         spoken_side = v.side if v.spoken() else None
         if spoken_side is None:
             vs_picker = "SILENT"
+            ignored = False
         elif picker_side is None:
             vs_picker = "SPOKEN_PICKER_HOLD"
+            ignored = True
         elif spoken_side == picker_side:
             vs_picker = "MATCH"
+            ignored = bool(obs_action == "VETO" or not desk_opened)
         else:
             vs_picker = "DISSENT"
+            ignored = True
+        pkt = v.packet()
         rows.append(
             {
-                "source": src,
-                "side": spoken_side,
-                "silent": v.silent,
-                "detail": v.detail,
+                **pkt,
                 "picker_action": picker_action,
                 "picker_side": picker_side,
                 "observer_action": obs_action,
                 "vs_picker": vs_picker,
+                "desk_opened": bool(desk_opened),
+                "desk_side": desk_side if desk_side in {"CE", "PE"} else None,
+                "ignored_by_boss": ignored,
                 "underlying": underlying,
                 "ts": ts,
                 "promote": False,

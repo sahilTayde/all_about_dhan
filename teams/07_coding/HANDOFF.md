@@ -1,5 +1,22 @@
 # Handoff log — Team 07 Coding
 
+## As of now (2026-09-20 IST) — ML paper board SOD copy + analyst tab (NO_PROMOTE)
+
+```text
+From:     teams/07_coding
+To:       00 / 06 / founder
+Date:     2026-09-20
+Status:   PAPER UI / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: SOD-on copy: one MIX-DEFAULT-BUY ticket + analyst
+  room. independent_books false. Analysts tab shows MATCH/
+  DISSENT/SPOKEN_PICKER_HOLD even when ignored. Mock patched.
+Rejected: npm restart. Super Orders. Promote. Parallel fills
+  claimed while SOD on.
+UNKNOWN: live /paper/ml-books vs mock until dual-tape write.
+```
+
 ## As of now (2026-09-18 IST) — /pm and /desk live paper UX (NO_PROMOTE)
 
 ```text

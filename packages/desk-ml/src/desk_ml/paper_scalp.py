@@ -29,6 +29,7 @@ from desk_ml.picker import (
     SOD_PRODUCT_BOOK,
     apply_picker_to_intents,
     collect_analyst_votes,
+    greeks_vote_intent,
     picker_majority,
     track_model_signals,
 )
@@ -1339,7 +1340,11 @@ def resolve_fill_intents(
     ml1: dict[str, Any],
     impulse_side: Optional[str] = None,
 ) -> dict[str, tuple[Optional[str], Optional[str]]]:
-    """Per-book (side, skip_reason). FILL only when the book owns CE/PE. KMeans is not a side model."""
+    """--sod-off / pytest A/B only. Not the SOD fill router.
+
+    SOD path: votes → picker → observer → _try_open(MIX-DEFAULT-BUY).
+    Analyst logic stays here so old parallel-book tests still work.
+    """
     logit_own = logit.get("side") if logit.get("side") in {"CE", "PE"} else None
     xr_own = logit_xr.get("side") if logit_xr.get("side") in {"CE", "PE"} else None
     dealer_own = dealer_confirm if dealer_confirm in {"CE", "PE"} else None
@@ -1382,16 +1387,11 @@ def resolve_fill_intents(
     logit_skip = None if logit_own else str(logit.get("reason") or logit.get("status") or "NO_SIDE")
     xr_skip = None if xr_own else str(logit_xr.get("reason") or logit_xr.get("status") or "XR_NO_OWN_SIDE")
 
-    greeks_side: Optional[str]
-    greeks_skip: Optional[str] = None
-    if logit_own:
-        greeks_side = None
-        greeks_skip = "GREEKS_NO_CLONE"
-    elif dealer_own:
-        greeks_side = dealer_own
-    else:
-        greeks_side = None
-        greeks_skip = "NO_SIDE"
+    greeks_side, greeks_skip = greeks_vote_intent(
+        dealer_confirm=dealer_confirm,
+        logit=logit,
+        impulse_side=impulse_side,
+    )
 
     return {
         "MIX-DEFAULT-BUY": (dealer_fill, dealer_skip),
@@ -4586,18 +4586,11 @@ def step_underlying(
             strike=strike,
         )
 
-    intents = resolve_fill_intents(
+    impulse_side = paper_impulse_side(classified) if classified.get("regime") == "TREND" else None
+    greeks_intent_side, greeks_intent_skip = greeks_vote_intent(
         dealer_confirm=dealer_confirm,
-        dealer_verdict=str(dealer.get("verdict") or "HOLD"),
         logit=logit,
-        logit_xr=logit_xr,
-        ml001_hold=ml001_hold,
-        follow_gap=follow_gap,
-        ml002_hold=ml002_hold,
-        ml1=ml1,
-        impulse_side=(
-            paper_impulse_side(classified) if classified.get("regime") == "TREND" else None
-        ),
+        impulse_side=impulse_side,
     )
     rolled_1m = int(tick.ts) // 60 != int(prev.ts) // 60
     if rolled_1m:
@@ -4605,7 +4598,6 @@ def step_underlying(
         engine.last_1m_close[und] = prev
     older = engine.prev_1m_close.get(und)
     closed_1m = engine.last_1m_close.get(und)
-    greeks_intent_side, greeks_intent_skip = intents.get("MIX-ML-GREEKS", (None, None))
     extra_votes = getattr(engine, "_sod_extra_votes", None)
     votes = collect_analyst_votes(
         follows=dealer,
@@ -4615,20 +4607,17 @@ def step_underlying(
         greeks_skip=greeks_intent_skip,
         ml001_hold=ml001_hold,
         ml002_hold=ml002_hold,
+        ml1=ml1,
+        tv_side=tv_side,
         classified=classified,
         extra=list(extra_votes) if extra_votes else None,
     )
     picker = picker_majority(votes, prev=older, closed=closed_1m, classified=classified)
     sod = bool(getattr(engine, "sod_one_ticket", False))
     use_picker = sod or bool(getattr(engine, "picker_majority", False))
-    if use_picker:
-        intents = apply_picker_to_intents(
-            intents,
-            picker,
-            fill_books=FILL_ELIGIBLE_BOOKS,
-            observe_books=OBSERVE_ONLY_BOOKS,
-            sod_one_ticket=sod,
-        )
+    fill_router = "sod_desk" if sod else "resolve_fill_intents"
+    greeks_skip_final = greeks_intent_skip
+    n_open_before = sum(1 for (_b, u) in engine.opens if u == und)
     if sod:
         proposed = picker.get("side") if picker.get("action") == "TICKET" else None
         review = review_picker_ticket(
@@ -4641,16 +4630,39 @@ def step_underlying(
             bar_closed_1m=older is not None and closed_1m is not None,
         )
         by_book = {SOD_PRODUCT_BOOK: review}
+        engine.observer_review[und] = review
+        engine.observer_by_book[und] = by_book
+        desk_side = proposed if proposed in {"CE", "PE"} else None
+        desk_skip: Optional[str] = None
         if review.get("action") == "VETO" and getattr(engine, "observer_veto_fills", True):
-            reason = str(review.get("reason") or "FOLLOW_GAP")
-            intents[SOD_PRODUCT_BOOK] = (None, reason)
-            for book in OBSERVE_ONLY_BOOKS:
-                intents[book] = (None, reason)
-        elif proposed in {"CE", "PE"}:
-            side0, skip0 = intents.get(SOD_PRODUCT_BOOK, (None, None))
-            if skip0 is None:
-                intents[SOD_PRODUCT_BOOK] = (proposed, None)
+            desk_skip = str(review.get("reason") or "FOLLOW_GAP")
+        elif desk_side is None:
+            desk_skip = str(picker.get("skip") or "HOLD_MAJORITY")
+        if engine.has_working_underlying(und) and desk_skip is None:
+            desk_skip = SOD_ONE_OPEN
+        # Lab books never OPEN on SOD. Do not call _try_open for them.
+        if desk_side is not None or desk_skip is not None:
+            _open(SOD_PRODUCT_BOOK, desk_side, desk_skip)
     else:
+        intents = resolve_fill_intents(
+            dealer_confirm=dealer_confirm,
+            dealer_verdict=str(dealer.get("verdict") or "HOLD"),
+            logit=logit,
+            logit_xr=logit_xr,
+            ml001_hold=ml001_hold,
+            follow_gap=follow_gap,
+            ml002_hold=ml002_hold,
+            ml1=ml1,
+            impulse_side=impulse_side,
+        )
+        if use_picker:
+            intents = apply_picker_to_intents(
+                intents,
+                picker,
+                fill_books=FILL_ELIGIBLE_BOOKS,
+                observe_books=OBSERVE_ONLY_BOOKS,
+                sod_one_ticket=False,
+            )
         intents, review, by_book = review_fill_intents(
             intents,
             prev=older,
@@ -4663,63 +4675,68 @@ def step_underlying(
             apply_veto=bool(getattr(engine, "observer_veto_fills", True)),
             bar_closed_1m=older is not None and closed_1m is not None,
         )
-    engine.observer_review[und] = review
-    engine.observer_by_book[und] = by_book
-    if sod and engine.has_working_underlying(und):
-        for book in LIVE_BOOKS:
-            side0, skip0 = intents.get(book, (None, None))
-            if skip0 is None and side0 in {"CE", "PE"}:
-                intents[book] = (side0, SOD_ONE_OPEN)
-    greeks_skip_final = intents["MIX-ML-GREEKS"][1]
-    n_open_before = sum(1 for (_b, u) in engine.opens if u == und)
-    for book_id in LIVE_BOOKS:
-        side, skip = intents[book_id]
-        if book_id == "MIX-ML-GREEKS":
-            greeks_side = side
-            greeks_skip = skip
-            if greeks_side in {"CE", "PE"} and greeks_skip is None:
-                want = pick_paper_strike(
-                    tick, greeks_side, float(strike or round_atm_strike(und, tick.idx_close)), und
-                )
-                greeks = leg_greeks(tick, greeks_side, want)
-                px, _, _src = quote_for_side(tick, greeks_side, strike=want)
-                entry = float(px) if px is not None else (
-                    tick.ce_close if greeks_side == "CE" else tick.pe_close
-                )
-                hist = getattr(engine, "_greeks_iv_hist", None)
-                if not isinstance(hist, dict):
-                    hist = {}
-                    engine._greeks_iv_hist = hist  # type: ignore[attr-defined]
-                prior = list(hist.get(und) or [])
-                atm_iv = greeks.get("iv")
-                scored = score_greeks_ticket(
-                    side=greeks_side,
-                    entry=entry,
-                    delta=greeks.get("delta"),
-                    gamma=greeks.get("gamma"),
-                    theta=greeks.get("theta"),
-                    iv=atm_iv,
-                    session_iv=session_iv_median(prior),
-                    minutes_ist=minutes_ist(tick.ts),
-                    wing_iv_list=wing_ivs(tick.wing_quotes),
-                )
-                if atm_iv is not None:
-                    hist.setdefault(und, []).append(float(atm_iv))
-                if not scored.get("take"):
-                    greeks_skip = str(scored.get("reason") or "GREEKS_HOLD")
-                    greeks_side = None
-            greeks_skip_final = greeks_skip
-            _open("MIX-ML-GREEKS", greeks_side, greeks_skip)
-            continue
-        _open(book_id, side, skip)
+        engine.observer_review[und] = review
+        engine.observer_by_book[und] = by_book
+        greeks_skip_final = intents["MIX-ML-GREEKS"][1]
+        for book_id in LIVE_BOOKS:
+            side, skip = intents[book_id]
+            if book_id == "MIX-ML-GREEKS":
+                greeks_side = side
+                greeks_skip = skip
+                if greeks_side in {"CE", "PE"} and greeks_skip is None:
+                    want = pick_paper_strike(
+                        tick, greeks_side, float(strike or round_atm_strike(und, tick.idx_close)), und
+                    )
+                    greeks = leg_greeks(tick, greeks_side, want)
+                    px, _, _src = quote_for_side(tick, greeks_side, strike=want)
+                    entry = float(px) if px is not None else (
+                        tick.ce_close if greeks_side == "CE" else tick.pe_close
+                    )
+                    hist = getattr(engine, "_greeks_iv_hist", None)
+                    if not isinstance(hist, dict):
+                        hist = {}
+                        engine._greeks_iv_hist = hist  # type: ignore[attr-defined]
+                    prior = list(hist.get(und) or [])
+                    atm_iv = greeks.get("iv")
+                    scored = score_greeks_ticket(
+                        side=greeks_side,
+                        entry=entry,
+                        delta=greeks.get("delta"),
+                        gamma=greeks.get("gamma"),
+                        theta=greeks.get("theta"),
+                        iv=atm_iv,
+                        session_iv=session_iv_median(prior),
+                        minutes_ist=minutes_ist(tick.ts),
+                        wing_iv_list=wing_ivs(tick.wing_quotes),
+                    )
+                    if atm_iv is not None:
+                        hist.setdefault(und, []).append(float(atm_iv))
+                    if not scored.get("take"):
+                        greeks_skip = str(scored.get("reason") or "GREEKS_HOLD")
+                        greeks_side = None
+                greeks_skip_final = greeks_skip
+                _open("MIX-ML-GREEKS", greeks_side, greeks_skip)
+                continue
+            _open(book_id, side, skip)
 
     opened_this_tick = sum(1 for (_b, u) in engine.opens if u == und) > n_open_before
-    pos = next((p for (b, u), p in engine.opens.items() if u == und), None)
-    obs_action = str(review.get("action") or "") if isinstance(review, dict) else ""
-    model_signals = track_model_signals(
-        votes, picker, review if isinstance(review, dict) else None, underlying=und, ts=int(tick.ts)
+    pos = engine.opens.get((SOD_PRODUCT_BOOK, und)) if sod else next(
+        (p for (b, u), p in engine.opens.items() if u == und), None
     )
-    if rolled_1m or obs_action in {"ALLOW", "VETO"}:
+    obs_action = str(review.get("action") or "") if isinstance(review, dict) else ""
+    desk_fill_side = pos.side if pos is not None and pos.side in {"CE", "PE"} else None
+    model_signals = track_model_signals(
+        votes,
+        picker,
+        review if isinstance(review, dict) else None,
+        underlying=und,
+        ts=int(tick.ts),
+        desk_opened=opened_this_tick,
+        desk_side=desk_fill_side,
+    )
+    if rolled_1m or obs_action in {"ALLOW", "VETO"} or any(
+        r.get("vs_picker") in {"SPOKEN_PICKER_HOLD", "DISSENT"} for r in model_signals
+    ):
         engine.signal_log.extend(model_signals)
         if len(engine.signal_log) > SIGNAL_LOG_MAX:
             engine.signal_log = engine.signal_log[-SIGNAL_LOG_MAX:]
@@ -4772,7 +4789,10 @@ def step_underlying(
         "itm_bin": classified.get("itm_bin"),
         "bin_both_wings": bin_both_wings_packet(bin_rec),
         "deny_model_signals": deny,
-        "analyst_votes": [asdict(v) if hasattr(v, "source") else v for v in votes],
+        "analyst_votes": [
+            v.packet() if hasattr(v, "packet") else (asdict(v) if hasattr(v, "source") else v)
+            for v in votes
+        ],
         "model_signals": model_signals,
         "picker": picker,
         "observer": review,
@@ -4784,18 +4804,22 @@ def step_underlying(
             "opened_this_tick": opened_this_tick,
             "working": engine.has_working_underlying(und),
             "fill_quote": "ITM",
+            "fill_router": fill_router,
         },
         "overlay_to_boss": overlay_pkt,
         "llm_review": llm_review,
         "follow_gap": bool(review.get("follow_gap") if isinstance(review, dict) else False),
         "follow_gap_rule": "FOLLOW_GAP_ITM_1M",
-        "independent": True,
+        "independent": False if sod else True,
+        "fill_router": fill_router,
         "trace": ["follows", "picker", "observer", "desk"],
         "note": (
-            "Locked SOD: FOLLOWS + logit + XR + greeks vote → picker_majority → observer "
-            "FOLLOW_GAP_ITM_1M → desk MIX-DEFAULT-BUY ITM fill. LAB observe-or-skip. "
-            "LLM allow-review is async/fail-soft, does not block NEW. Track MATCH/DISSENT "
-            "even when picker HOLD / observer VETO. KMeans is not CE/PE. KEEP_ALL. NO_PROMOTE."
+            "Locked SOD: analyst room (FOLLOWS + logit + XR + greeks + STRAT KEEP_ALL + "
+            "TV lab) → picker_majority → observer FOLLOW_GAP_ITM_1M → desk MIX-DEFAULT-BUY "
+            "ITM fill only. Lab never OPEN. resolve_fill_intents is --sod-off only. "
+            "LLM allow-review is async/fail-soft. Track MATCH/DISSENT/SPOKEN_PICKER_HOLD "
+            "even when picker HOLD / observer VETO / desk ignores. KMeans is not CE/PE. "
+            "KEEP_ALL. NO_PROMOTE."
         ),
     }
     engine.last_step_by_und[und] = dict(engine.last_step)
@@ -6473,7 +6497,7 @@ def seen_not_taken_picture(engine: BookEngine) -> dict[str, Any]:
 
 
 def model_signals_picture(engine: BookEngine) -> dict[str, Any]:
-    """Logit / XR / greeks / FOLLOWS vs picker. Kept when HOLD or VETO. Not fills."""
+    """Analyst room vs picker. Kept when HOLD / VETO / desk ignore. Not fills."""
     log = list(getattr(engine, "signal_log", None) or [])
     counts = Counter((str(r.get("source") or ""), str(r.get("vs_picker") or "")) for r in log)
     latest: dict[str, dict[str, Any]] = {}
@@ -6481,20 +6505,24 @@ def model_signals_picture(engine: BookEngine) -> dict[str, Any]:
         src = str(row.get("source") or "")
         if src:
             latest[src] = row
+    prefer = ("follows", "logit", "xr", "greeks", "STRAT-003", "MIX-TV-EP-024", "ML-1")
+    latest_rows = [latest[k] for k in prefer if k in latest]
+    extra_latest = [latest[k] for k in latest if k not in prefer]
     return {
         "layer": "HYPOTHESIS",
         "promote": False,
         "note": (
-            "Analysts logit / XR / greeks / FOLLOWS keep generating CE/PE. "
-            "SOD fills MIX-DEFAULT-BUY only. MATCH/DISSENT vs picker is scored even when "
-            "the boss HOLDs or observer VETOes — tune later, not extra capital. NO_PROMOTE."
+            "Analyst room: FOLLOWS / logit / XR / greeks / STRAT (spoken) / TV lab. "
+            "SOD fills MIX-DEFAULT-BUY only. MATCH / DISSENT / SPOKEN_PICKER_HOLD / SILENT "
+            "even when picker HOLD, observer VETO, or desk ignores — shadow tape for later "
+            "tune, not extra Monday capital. NO_PROMOTE."
         ),
         "n": len(log),
         "counts": [
             {"source": src, "vs_picker": vs, "n": n}
             for (src, vs), n in sorted(counts.items())
         ],
-        "latest": [latest[k] for k in ("follows", "logit", "xr", "greeks") if k in latest],
+        "latest": latest_rows + extra_latest,
         "recent": log[-24:],
     }
 
@@ -6707,9 +6735,14 @@ def build_dashboard(
             "justification",
         ],
         "source": source,
-        "customer_mix": "MIX-DEFAULT-BUY unchanged (dealer book is PAPER parallel, not a live rewrite)",
-        "independent_books": True,
-        "one_open_per": "book_id × underlying",
+        "customer_mix": "MIX-DEFAULT-BUY is the only SOD fill. Analysts vote in their own room.",
+        "sod_one_ticket": bool(getattr(engine, "sod_one_ticket", True)),
+        "independent_books": not bool(getattr(engine, "sod_one_ticket", True)),
+        "one_open_per": (
+            "MIX-DEFAULT-BUY × underlying (SOD one ticket; analyst room observe)"
+            if bool(getattr(engine, "sod_one_ticket", True))
+            else "book_id × underlying (--sod-off A/B)"
+        ),
         "scalper_exits": {
             "stop": f"long premium LTP <= entry - {engine.paper_stop_frac}×same-side path range",
             "target": f"LTP >= entry + {engine.paper_target_frac}×path range",
@@ -6761,9 +6794,9 @@ def build_dashboard(
             "win_rate_pct is paper filled hit rate (net ₹>0 / n_filled) × 100. win_rate_gross_pct is the same before Groww+STT. NO_PROMOTE.",
             "Groww F&O ₹20/executed order × 2 legs; GST 18% on that brokerage; STT 0.15% of sell premium (VERIFY, Budget 2026).",
             "Unfilled CANCELLED = ₹0 P/L and ₹0 charges. Exchange/SEBI/stamp omitted (UNKNOWN).",
-            "Desk starts at ₹570,000 (₹70k + ₹5L) split equally across tradable fill books (logit + dealer-confirm + XR-own-side + greeks if tape). Observe clones (ML-001/002/ML-1/TV-EP) get ₹0. New fills target 10 NIFTY lots when premium notional fits. Not 10k×8=80k.",
-            "deny_model_signals default true. FILL only books that own CE/PE. Dealer CONFIRM vs logit; do not clone HOLD overlays. KMeans is not a CE/PE model. No STRAT-015.",
-            "SOD: logit / XR / greeks vote as analysts and are logged MATCH/DISSENT vs picker even on HOLD/VETO. They do not take extra Monday capital. LLM allow-review is async, not a block.",
+            "SOD-on: desk capital sits on MIX-DEFAULT-BUY only. Analyst room (logit / XR / greeks / STRAT / TV) votes and is logged; lab books never OPEN. --sod-off tests may still split capital. Observe clones get ₹0. New fills target 10 NIFTY lots when notional fits.",
+            "deny_model_signals default true. KMeans is not a CE/PE model. No STRAT-015. resolve_fill_intents is not the SOD fill router.",
+            "SOD: one ticket + analyst room observe. MATCH/DISSENT/SPOKEN_PICKER_HOLD/SILENT even when picker HOLD / observer VETO / desk ignores. Not extra Monday capital. LLM allow-review is async, not a block.",
             "Two layers: (1) signal = dealer / logit / XR / greeks CE/PE. (2) after fill = STALL / AGAINST / TARGET / SL. WAIT_STRENGTH is dealer entry only — FIX-FIRST did not turn off ML BUY/SELL.",
             "FIX-FIRST drill (pre-market): write=false replay from 2026-09-17 jsonl. Session cap 4 filled/book + WAIT_STRENGTH can leave n_open=0 even when dealer CONFIRM. itm_bin confirm counts as NIFTY strength.",
             "INDEX 1m is warehouse∪JSON. ATM days without INDEX 1m stay DATA_INSUFFICIENT — never filled bars.",
@@ -6985,6 +7018,7 @@ def write_dashboard(board: dict[str, Any], *, root: Optional[Path] = None) -> di
             "ticket_columns",
             "source",
             "independent_books",
+            "sod_one_ticket",
             "scalper_exits",
             "models",
             "leaderboard",
@@ -7037,7 +7071,14 @@ def render_markdown(board: dict[str, Any]) -> str:
         f"lost ₹{board.get('money_lost_inr')} · desk equity ₹{board.get('equity_sum_inr')}  "
         f"(start ₹{board.get('starting_desk_inr')}). Open {board.get('n_open')}.",
         "",
-        "Parallel independent books: one OPEN per (`book_id` × underlying). A HOLD on ML-001 does **not** block MIX-DEFAULT-BUY.",
+        (
+            "SOD-on: one desk ticket (`MIX-DEFAULT-BUY`) + analyst room observe. "
+            "Lab books never OPEN. Analyst CE/PE is logged MATCH/DISSENT/SPOKEN_PICKER_HOLD "
+            "even when picker HOLD / observer VETO / desk ignores. A HOLD on ML-001 does "
+            "**not** invent a wing."
+            if board.get("sod_one_ticket", True) or not board.get("independent_books")
+            else "A/B --sod-off: one OPEN per (`book_id` × underlying). Not the Monday path."
+        ),
         "",
         "## Today at a glance (gross vs net after Groww + statutory)",
         "",
@@ -7257,7 +7298,7 @@ def render_markdown(board: dict[str, Any]) -> str:
     sig = board.get("model_signals") or {}
     lines += [
         "",
-        "## Analyst model signals (logit / XR / greeks vs picker)",
+        "## Analyst model signals (room vs picker — ignored votes still logged)",
         "",
         str(sig.get("note") or "Analyst votes stay even when the boss HOLDs. Not extra fills."),
         f"Logged rows: {sig.get('n', 0)}.",
@@ -7271,18 +7312,19 @@ def render_markdown(board: dict[str, Any]) -> str:
         lines.append("| — | — | 0 |")
     lines += [
         "",
-        "Latest spoken (still analysts when observer VETO):",
+        "Latest spoken (still analysts when observer VETO / picker HOLD):",
         "",
-        "| source | side | vs picker | picker | observer |",
-        "|--------|------|-----------|--------|----------|",
+        "| source | side | vs picker | picker | observer | ignored |",
+        "|--------|------|-----------|--------|----------|---------|",
     ]
     for row in sig.get("latest") or []:
         lines.append(
             f"| `{row.get('source')}` | {row.get('side') or 'SILENT'} | {row.get('vs_picker')} | "
-            f"{row.get('picker_action')}/{row.get('picker_side') or '—'} | {row.get('observer_action') or '—'} |"
+            f"{row.get('picker_action')}/{row.get('picker_side') or '—'} | {row.get('observer_action') or '—'} | "
+            f"{row.get('ignored_by_boss')} |"
         )
     if not sig.get("latest"):
-        lines.append("| — | — | — | — | — |")
+        lines.append("| — | — | — | — | — | — |")
     lines += [
         "",
         "## Models / steps",

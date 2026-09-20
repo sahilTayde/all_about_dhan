@@ -1067,7 +1067,7 @@
     "index_regime"
   ],
   "source": "dual-tape",
-  "independent_books": true,
+  "independent_books": false,
   "scalper_exits": {
     "stop": "long premium LTP <= entry - 0.38\u00d7same-side path range",
     "target": "LTP >= entry + 0.55\u00d7path range",
@@ -2695,8 +2695,8 @@
     "win_rate_pct is paper filled hit rate (net \u20b9>0 / n_filled) \u00d7 100. win_rate_gross_pct is the same before Groww+STT. NO_PROMOTE.",
     "Groww F&O \u20b920/executed order \u00d7 2 legs; GST 18% on that brokerage; STT 0.15% of sell premium (VERIFY, Budget 2026).",
     "Unfilled CANCELLED = \u20b90 P/L and \u20b90 charges. Exchange/SEBI/stamp omitted (UNKNOWN).",
-    "Desk starts at \u20b970,000 split equally across tradable fill books (logit + dealer-confirm + XR-own-side + greeks if tape). Observe clones (ML-001/002/ML-1/TV-EP) get \u20b90. Not 10k\u00d78=80k.",
-    "deny_model_signals default true. FILL only books that own CE/PE. Dealer CONFIRM vs logit; do not clone HOLD overlays. KMeans is not a CE/PE model. No STRAT-015.",
+    "SOD-on: desk capital on MIX-DEFAULT-BUY only. Analyst room votes; lab books never OPEN. Not extra Monday capital.",
+    "deny_model_signals default true. KMeans is not a CE/PE model. No STRAT-015. resolve_fill_intents is not the SOD fill router.",
     "INDEX 1m is warehouse\u222aJSON. ATM days without INDEX 1m stay DATA_INSUFFICIENT \u2014 never filled bars.",
     "Paper entries prefer ~100pt ITM (STRAT-006 wing) when chain LTP exists. ATM is fallback only.",
     "Working buy limit sits below signal LTP (session limit_discount_frac). Fill is not assumed at signal.",
@@ -2717,7 +2717,7 @@
   ],
   "execution": "refused",
   "orders": "REFUSED",
-  "customer_mix": "MIX-DEFAULT-BUY unchanged (dealer book is PAPER parallel, not a live rewrite)",
+  "customer_mix": "MIX-DEFAULT-BUY is the only SOD fill. Analysts vote in their own room.",
   "inventory": {
     "data_gaps": [
       "DATA_INSUFFICIENT: NIFTY ATM days ['2026-09-17'] have no INDEX 1m (merged INDEX span 2021-09-06\u21922026-09-16)",
@@ -5640,5 +5640,15 @@
       "lesson": "KEEP: same-side path reached target or time-exit still green"
     }
   ],
-  "note": "Compact mock. Full closed tape is data/recon/ml_paper_dashboard.json (gitignored)."
+  "note": "Compact mock. Full closed tape is data/recon/ml_paper_dashboard.json (gitignored).",
+  "sod_one_ticket": true,
+  "model_signals": {
+    "layer": "HYPOTHESIS",
+    "promote": false,
+    "note": "Analyst room vs picker. MATCH/DISSENT/SPOKEN_PICKER_HOLD/SILENT even when HOLD/VETO. Not extra capital. NO_PROMOTE.",
+    "n": 0,
+    "counts": [],
+    "latest": [],
+    "recent": []
+  }
 }

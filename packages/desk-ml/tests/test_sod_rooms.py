@@ -314,3 +314,87 @@ def test_thin_tape_hold_majority() -> None:
     out = picker_majority(votes)
     assert out["action"] == "HOLD"
     assert out["n_spoken"] == 0
+
+
+def test_greeks_vote_without_fill_intents() -> None:
+    from desk_ml.picker import greeks_vote_intent
+
+    side, skip = greeks_vote_intent(dealer_confirm="CE", logit={"side": "CE", "status": "OK"})
+    assert side is None
+    assert skip == "GREEKS_NO_CLONE"
+    side, skip = greeks_vote_intent(dealer_confirm="PE", logit={"side": None})
+    assert side == "PE"
+    assert skip is None
+    votes = collect_analyst_votes(
+        follows={"side": "PE", "verdict": "BUY_PE_CONFIRM"},
+        logit={"side": None, "status": "DATA_INSUFFICIENT"},
+        logit_xr={"side": None, "status": "DATA_INSUFFICIENT"},
+        greeks_side=side,
+        greeks_skip=skip,
+        tv_side="CE",
+        classified={"regime": "TREND", "direction": "UP"},
+    )
+    by = {v.source: v for v in votes}
+    assert by["greeks"].spoken() and by["greeks"].side == "PE"
+    assert by["MIX-TV-EP-024"].spoken() and by["MIX-TV-EP-024"].side == "CE"
+    assert by["STRAT-003"].spoken() and by["STRAT-003"].side == "CE"
+    assert by["greeks"].packet()["reason"] == "GREEKS"
+
+
+def test_sod_skips_fill_router_and_lab_opens() -> None:
+    bars = []
+    idx, ce, pe = 25000.0, 120.0, 180.0
+    for i in range(16):
+        idx += 8.0
+        ce += 2.2
+        pe -= 1.1
+        bars.append(_bar(i=i, idx=idx, ce=ce, pe=pe, vol=2000 + i * 50))
+    engine = _engine(sod_one_ticket=True, picker_majority=True)
+    for i in range(1, 15):
+        _step(engine, bars, i)
+    step = engine.last_step
+    assert step["fill_router"] == "sod_desk"
+    assert step["independent"] is False
+    assert step["desk"]["fill_router"] == "sod_desk"
+    assert engine.has_open("MIX-ML-LOGIT", "NIFTY") is False
+    assert engine.has_open("MIX-ML-LOGIT-XR", "NIFTY") is False
+    assert engine.has_open("MIX-ML-GREEKS", "NIFTY") is False
+    assert engine.has_open("MIX-TV-EP-024", "NIFTY") is False
+    sources = {v["source"] for v in step["analyst_votes"]}
+    assert "follows" in sources and "logit" in sources and "greeks" in sources
+    assert "STRAT-003" in sources and "MIX-TV-EP-024" in sources
+    assert any(r.get("reason") for r in step["analyst_votes"])
+    sig_src = {r["source"] for r in step["model_signals"]}
+    assert "logit" in sig_src
+    assert "MIX-TV-EP-024" in sig_src
+
+
+def test_spoken_votes_logged_when_picker_hold_and_observer_veto() -> None:
+    votes = collect_analyst_votes(
+        follows={"side": "CE", "verdict": "BUY_CE_CONFIRM"},
+        logit={"side": "PE", "status": "OK"},
+        logit_xr={"side": "PE", "status": "OK"},
+        greeks_side="CE",
+        tv_side="PE",
+        classified={"regime": "TREND", "direction": "DOWN"},
+    )
+    picker = picker_majority(votes, classified={"direction": "UP", "index_direction": "UP"})
+    assert picker["action"] == "HOLD"
+    rows = track_model_signals(
+        votes, picker, {"action": ACTION_VETO}, desk_opened=False, desk_side=None
+    )
+    by_src = {r["source"]: r for r in rows}
+    assert by_src["logit"]["vs_picker"] == "SPOKEN_PICKER_HOLD"
+    assert by_src["xr"]["ignored_by_boss"] is True
+    assert by_src["MIX-TV-EP-024"]["side"] == "PE"
+    assert "STRAT-003" in by_src
+    assert by_src["STRAT-003"]["vs_picker"] in {"SPOKEN_PICKER_HOLD", "SILENT", "DISSENT", "MATCH"}
+
+
+def test_sod_off_still_uses_resolve_fill_intents() -> None:
+    bars = [_bar(i=i, idx=25000 + i * 8, ce=120 + i, pe=180 - i, vol=2000) for i in range(8)]
+    engine = _engine(sod_one_ticket=False, picker_majority=False)
+    _step(engine, bars, 4)
+    step = engine.last_step
+    assert step["fill_router"] == "resolve_fill_intents"
+    assert step["independent"] is True

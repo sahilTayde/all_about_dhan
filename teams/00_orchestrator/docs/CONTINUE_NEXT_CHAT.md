@@ -21,10 +21,16 @@ Do not glob markdown. Do not create extra CONTINUE/HANDOFF/NOTES dumps.
 
 Gate: NOT RESEARCH_READY_FOR_PROGRAMMING. PAPER only. NO_PROMOTE. STRATs UNVALIDATED. Dashboard P/L is MOCK. No live orders. Do not restart npm / Vite / paper ops until I ask. Never print secrets.
 
-Left off 2026-09-20 SOD locked default ON (promote refused): FAST FOLLOWS+logit+XR+greeks+STRAT votes → picker_majority → observer FOLLOW_GAP_ITM_1M → desk MIX-DEFAULT-BUY ITM fill. Async allow-review on ALLOW (does not block). Track MATCH/DISSENT on ML_PAPER_DASHBOARD even when picker HOLD / observer VETO. Rooms locked unless founder asks. --sod-off tests only. KEEP_ALL. No Super Orders. Local sqlite — do not git-add.
+Left off 2026-09-20 SOD analyst room (promote refused): FAST analyst room (FOLLOWS+logit+XR+greeks+STRAT KEEP_ALL+TV lab; ML-001/002/ML-1 silent unless own side) → picker_majority → observer FOLLOW_GAP_ITM_1M → desk MIX-DEFAULT-BUY ITM fill only. resolve_fill_intents is NOT the SOD fill router (--sod-off tests only). Board captures MATCH/DISSENT/SPOKEN_PICKER_HOLD even when picker HOLD / observer VETO / desk ignores. One desk fill. KEEP_ALL. No Super Orders. Local sqlite — do not git-add.
 ```
 
 ---
+
+## Left-off 2026-09-20 IST — SOD analyst room (NO_PROMOTE)
+
+**Now:** Analyst room kept (models/STRAT/TV still speak CE/PE independently). SOD is the only production-feel path: votes → picker → observer → one MIX-DEFAULT-BUY fill. `resolve_fill_intents` is not the SOD fill router (`--sod-off` tests only). Board `model_signals` captures MATCH / DISSENT / SPOKEN_PICKER_HOLD / SILENT even when picker HOLD / observer VETO / desk ignores. Lab never OPEN; no extra Monday capital. Async `allow-review` on ALLOW (`blocked_open=false`). Gate **not** `RESEARCH_READY_FOR_PROGRAMMING`. PAPER. **NO_PROMOTE.**
+
+**Next:** Live dual-tape when founder asks. Do not git-add sqlite. Do not restart npm.
 
 ## Left-off 2026-09-20 IST — LLM on ALLOW + model signal tape (NO_PROMOTE)
 

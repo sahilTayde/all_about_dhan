@@ -234,10 +234,13 @@ export function MlPaperDashboard({ compact = false }) {
       (today.unique_books || UNIQUE_BOOKS).includes(r.book_id)
     );
     const seen = data.seen_not_taken || today.seen_not_taken || {};
+    const modelSignals = data.model_signals || today.model_signals || {};
     const skipGroups = groupSkips([...(seen.skipped_latest || []), ...(seen.cancelled || [])]);
     const insights = [];
     insights.push(
-      `One-fill money (clones collapsed) is ${inr(uniqueFillNet)}. Book-unique ${inr(bookUniqueNet)} still adds dealer+logit+XR copies. Headline ${inr(cloneNet)} is worse.`
+      data.sod_one_ticket !== false
+        ? `SOD one desk ticket. One-fill net ${inr(uniqueFillNet)}. Analyst CE/PE stays on the board even when picker HOLD / observer VETO / desk ignores.`
+        : `One-fill money (clones collapsed) is ${inr(uniqueFillNet)}. Book-unique ${inr(bookUniqueNet)} still adds dealer+logit+XR copies. Headline ${inr(cloneNet)} is worse.`
     );
     if (nTarget === 0 && nTime > 0) {
       insights.push(
@@ -290,6 +293,7 @@ export function MlPaperDashboard({ compact = false }) {
       moneyWr,
       targetWr,
       seen,
+      modelSignals,
     };
   }, [data]);
 
@@ -330,6 +334,7 @@ export function MlPaperDashboard({ compact = false }) {
     targetWr,
     seen,
     open,
+    modelSignals,
   } = derived;
 
   const ranks = uniqueRank.length ? uniqueRank : data.book_rank || [];
@@ -341,8 +346,11 @@ export function MlPaperDashboard({ compact = false }) {
         <div>
           <h2 id="ml-paper-title">Live paper book</h2>
           <p className="fx-kicker">
-            {data.session_ist_date || "—"} · updated {clock(data.as_of_ist)} IST · PAPER · NO_PROMOTE · orders
-            refused
+            {data.session_ist_date || "—"} · updated {clock(data.as_of_ist)} IST · PAPER · NO_PROMOTE ·
+            {data.sod_one_ticket !== false
+              ? " SOD one MIX-DEFAULT-BUY ticket · analyst room observe"
+              : " A/B parallel books (--sod-off)"}{" "}
+            · orders refused
           </p>
         </div>
         <span className="source-pill">unique P/L</span>
@@ -355,7 +363,11 @@ export function MlPaperDashboard({ compact = false }) {
           hint="Each NIFTY fill counted once"
           tone={Number(uniqueNet) > 0 ? "up" : Number(uniqueNet) < 0 ? "down" : ""}
         />
-        <Stat label="Book copies" value={inr(bookUniqueNet)} hint="Dealer+logit+XR still copy" />
+        <Stat
+          label="Book copies"
+          value={inr(bookUniqueNet)}
+          hint={data.sod_one_ticket !== false ? "Lab votes, no extra capital" : "Dealer+logit+XR still copy"}
+        />
         <Stat label="All-books headline" value={inr(cloneNet)} hint="Do not manage to this" />
         <Stat label="TARGET hits" value={String(nTarget)} hint="Only this is SUCCESS" tone={nTarget ? "up" : ""} />
         <Stat label="TIME green" value={String(nTime)} hint="Hold clock, not target" />
@@ -398,6 +410,7 @@ export function MlPaperDashboard({ compact = false }) {
           ["closed", "Closed"],
           ["money", "Books"],
           ["tape", "Tape"],
+          ["signals", "Analysts"],
           ["skips", "Skipped"],
         ].map(([id, label]) => (
           <button
@@ -615,6 +628,56 @@ export function MlPaperDashboard({ compact = false }) {
               </table>
             </div>
           )}
+        </div>
+      )}
+
+      {tab === "signals" && (
+        <div className="fx-section">
+          <h3>Analyst room vs picker</h3>
+          <p className="muted">
+            {modelSignals.note ||
+              "Spoken CE/PE stays MATCH / DISSENT / SPOKEN_PICKER_HOLD / SILENT even when the boss HOLDs or observer VETOes. Not extra capital."}
+          </p>
+          {(modelSignals.latest || []).length === 0 ? (
+            <p className="muted">No analyst tape on this snapshot yet.</p>
+          ) : (
+            <div className="book-table-wrap">
+              <table className="book-table">
+                <thead>
+                  <tr>
+                    <th>Source</th>
+                    <th>Side</th>
+                    <th>vs picker</th>
+                    <th>Picker</th>
+                    <th>Observer</th>
+                    <th>Ignored</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(modelSignals.latest || []).map((r) => (
+                    <tr key={`${r.source}-${r.ts || r.detail || ""}`}>
+                      <td>{r.source}</td>
+                      <td>{r.side || "SILENT"}</td>
+                      <td>{r.vs_picker || "—"}</td>
+                      <td>
+                        {r.picker_action}/{r.picker_side || "—"}
+                      </td>
+                      <td>{r.observer_action || "—"}</td>
+                      <td>{r.ignored_by_boss ? "yes" : "no"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+          {(modelSignals.counts || []).length ? (
+            <p className="muted">
+              {(modelSignals.counts || [])
+                .slice(0, 12)
+                .map((c) => `${c.source} ${c.vs_picker}×${c.n}`)
+                .join(" · ")}
+            </p>
+          ) : null}
         </div>
       )}
 
