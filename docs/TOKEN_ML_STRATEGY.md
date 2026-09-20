@@ -58,6 +58,7 @@ Allowed output:
 - `RISK_REVIEW`
 - `PARTIAL_BOOK_REVIEW`
 - `EXIT_REVIEW`
+- `ALLOW_REVIEW` (observer ALLOW; async, does not block NEW, does not invent CE/PE)
 - `HOLD`
 - `DATA_INSUFFICIENT`
 

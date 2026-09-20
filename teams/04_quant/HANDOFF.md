@@ -1,5 +1,22 @@
 # Handoff log — Team 04 Quant
 
+## As of now (2026-09-20 IST) — logit/XR/greeks analyst tape + ALLOW counsel (NO_PROMOTE)
+
+```text
+MIX / STRAT: none new. KEEP_ALL 001–014 as votes. No STRAT-015+.
+Origin: PROJECT-DERIVED. HYPOTHESIS.
+Entry hypothesis: FOLLOWS + logit + XR + greeks vote. Desk
+  fill stays MIX-DEFAULT-BUY ITM only.
+Confirm-or-kill: observer FOLLOW_GAP_ITM_1M. ALLOW may fire
+  async allow-review (not a block, not a CE/PE invent).
+Hold / veto: VETO not sent to desk. Model signals still logged
+  MATCH/DISSENT vs picker for later tune (ML_PAPER_DASHBOARD).
+Feasibility: SOD_LAB_OBSERVE is skip-fill, not skip-vote.
+Backtest request: none new.
+Customer copy allowed: none.
+UNKNOWN: live LLM keys empty → mock.
+```
+
 ## As of now (2026-09-20 IST) — MIX-FORM-FOLLOWS analyst + locked SOD (NO_PROMOTE)
 
 ```text

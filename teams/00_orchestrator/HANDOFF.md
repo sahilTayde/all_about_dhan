@@ -2,6 +2,24 @@
 
 **Agents:** read **only the newest block**. Do not ingest this whole log. New files: [`docs/FILE_CREATION.md`](../../docs/FILE_CREATION.md). Append here — do not create `HANDOFF_TOMORROW.md` or extra `CONTINUE_*`.
 
+## As of now (2026-09-20 IST) — LLM on ALLOW + analyst signal tape (NO_PROMOTE)
+
+```text
+From:     teams/00_orchestrator
+To:       founder / 04 / 06
+Date:     2026-09-20
+Status:   PAPER / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: Founder: ALLOW is architecture — async allow-review
+  (mock/fail-soft, does not block NEW). Logit/XR/greeks stay
+  analysts; MATCH/DISSENT vs picker logged even on HOLD/VETO
+  onto ML_PAPER_DASHBOARD. Still one MIX-DEFAULT-BUY ITM fill.
+Rejected: Extra Monday capital fills for logit/XR/greeks.
+  Blocking LLM on the open. STRAT-015+. Gate / promote.
+UNKNOWN: live keys vs mock; OI/delta DI; unbound STRAT votes.
+```
+
 ## As of now (2026-09-20 IST) — SOD locked default ON (NO_PROMOTE)
 
 ```text

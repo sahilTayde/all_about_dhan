@@ -8,6 +8,7 @@ from unittest.mock import patch
 from desk_ml.features import Triple
 from desk_ml.llm_review import (
     INSTR_WAIT,
+    JOB_ALLOW,
     compact_counsel,
     maybe_llm_review,
     mock_counsel,
@@ -28,6 +29,7 @@ from desk_ml.picker import (
     collect_analyst_votes,
     picker_majority,
     strat_votes,
+    track_model_signals,
 )
 
 IST = timezone(timedelta(hours=5, minutes=30))
@@ -152,7 +154,12 @@ def test_observer_after_picker_veto_not_fill() -> None:
     assert [v["source"] for v in step["analyst_votes"] if str(v["source"]).startswith("STRAT-")]
     assert step["picker"]["action"] in {"HOLD", "TICKET"}
     assert step["observer"]["action"] in {ACTION_VETO, ACTION_PASS, ACTION_ALLOW, "PASS", "VETO", "ALLOW"}
-    assert step["llm_review"] is None
+    assert any(r["source"] == "logit" for r in step["model_signals"])
+    if step["observer"]["action"] == ACTION_ALLOW:
+        assert step["llm_review"] and step["llm_review"]["job"] == JOB_ALLOW
+        assert step["llm_review"]["blocked_open"] is False
+    else:
+        assert step["llm_review"] is None
     if step["picker"]["action"] == "TICKET":
         assert step["observer"]["action"] == ACTION_VETO
         assert step["observer"]["reason"] == REASON_FOLLOW_GAP
@@ -174,8 +181,12 @@ def test_one_open_blocks_second_fill() -> None:
     assert n_lab == 0
     assert n_prod <= 1
     assert any(s.get("reason") == SOD_ONE_OPEN for s in engine.skips) or n_prod == 1
-    assert engine.last_step["llm_review"] is None
-    assert engine.last_step["desk"]["sod_one_ticket"] is True
+    step = engine.last_step
+    if step["observer"]["action"] == ACTION_ALLOW:
+        assert step["llm_review"]["job"] == JOB_ALLOW
+        assert step["llm_review"]["blocked_open"] is False
+    assert step["desk"]["sod_one_ticket"] is True
+    assert engine.signal_log
 
 
 def test_bin_both_wings_oi_data_insufficient() -> None:
@@ -195,12 +206,16 @@ def test_bin_both_wings_oi_data_insufficient() -> None:
     assert pkt["pe"]["trend_votes"]
 
 
-def test_llm_not_on_allow_and_fail_soft() -> None:
+def test_llm_on_allow_nonblocking_and_fail_soft() -> None:
     mock = mock_counsel("risk-review", {"side": "CE"})
     assert mock["mock"] is True
     assert mock["blocked_open"] is False
     assert mock["instruction"] == INSTR_WAIT
-    assert maybe_llm_review(trigger="ALLOW", compact={"side": "CE"}, observer_action="ALLOW") is None
+    allow = maybe_llm_review(trigger="ALLOW", compact={"side": "CE"}, observer_action="ALLOW")
+    assert allow is not None
+    assert allow["job"] == JOB_ALLOW
+    assert allow["blocked_open"] is False
+    assert allow["instruction"] == INSTR_WAIT
     assert maybe_llm_review(trigger="STOP", compact={"side": "CE"}, opened_this_tick=True) is None
     called = {"n": 0}
 
@@ -229,7 +244,11 @@ def test_trace_rooms_on_step() -> None:
         assert key in step
     assert step["trace"] == ["follows", "picker", "observer", "desk"]
     assert step["desk"]["kind"] == "DESK"
-    assert step["llm_review"] is None
+    assert "model_signals" in step
+    if step["observer"]["action"] == ACTION_ALLOW:
+        assert step["llm_review"]["job"] == JOB_ALLOW
+    else:
+        assert step["llm_review"] is None
     assert step["desk"]["sod_one_ticket"] is True
     assert engine.has_open(SOD_PRODUCT_BOOK, "NIFTY") is False
 
@@ -263,6 +282,25 @@ def test_sod_defaults_on() -> None:
     assert DEFAULT_PAPER_PARAMS["picker_majority"] is True
     assert BookEngine().sod_one_ticket is True
     assert BookEngine().picker_majority is True
+
+
+def test_track_model_signals_dissent_when_picker_hold() -> None:
+    votes = collect_analyst_votes(
+        follows={"side": "CE", "verdict": "BUY_CE_CONFIRM"},
+        logit={"side": "PE", "status": "OK"},
+        logit_xr={"side": "PE", "status": "OK"},
+        greeks_side="CE",
+    )
+    picker = picker_majority(votes)
+    rows = track_model_signals(votes, picker, {"action": ACTION_VETO})
+    by_src = {r["source"]: r for r in rows}
+    assert by_src["logit"]["side"] == "PE"
+    assert by_src["xr"]["side"] == "PE"
+    assert by_src["greeks"]["side"] == "CE"
+    if picker["action"] == "HOLD":
+        assert by_src["logit"]["vs_picker"] == "SPOKEN_PICKER_HOLD"
+        assert by_src["xr"]["vs_picker"] == "SPOKEN_PICKER_HOLD"
+    assert by_src["logit"]["observer_action"] == ACTION_VETO
 
 
 def test_thin_tape_hold_majority() -> None:

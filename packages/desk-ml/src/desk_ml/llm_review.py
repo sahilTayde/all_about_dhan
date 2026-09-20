@@ -1,8 +1,8 @@
-"""Async compact LLM counsel for the review path only.
+"""Async compact LLM counsel. Fail-soft; never blocks NEW open.
 
-Never called on the market-hours fast path (ALLOW / NEW open). Empty GEMINI/OPENAI
-→ deterministic mock fixture. Fail-soft: timeout/error returns wait, does not block
-the open. Never prints secrets. NO_PROMOTE.
+ALLOW is in the architecture: observer ALLOW may fire allow-review, but the
+desk fill does not wait on HTTP. Empty GEMINI/OPENAI → mock. Never prints
+secrets. Does not invent CE/PE. NO_PROMOTE.
 """
 
 from __future__ import annotations
@@ -13,7 +13,8 @@ from typing import Any, Callable, Optional
 JOB_EXIT = "exit-review"
 JOB_RISK = "risk-review"
 JOB_PARTIAL = "partial-book-review"
-JOBS = (JOB_EXIT, JOB_RISK, JOB_PARTIAL)
+JOB_ALLOW = "allow-review"
+JOBS = (JOB_EXIT, JOB_RISK, JOB_PARTIAL, JOB_ALLOW)
 
 INSTR_WAIT = "wait"
 INSTR_TRAIL = "trail after T1"
@@ -24,6 +25,7 @@ MOCK_BY_JOB = {
     JOB_EXIT: INSTR_WAIT,
     JOB_RISK: INSTR_WAIT,
     JOB_PARTIAL: INSTR_TRAIL,
+    JOB_ALLOW: INSTR_WAIT,
 }
 
 
@@ -109,7 +111,7 @@ def compact_counsel(
     force_mock: bool = False,
     complete_fn: Optional[Callable[..., dict[str, Any]]] = None,
 ) -> dict[str, Any]:
-    """Review-path counsel. Never used to pick ALLOW. Fail-soft on missing keys/HTTP."""
+    """Counsel on review jobs and ALLOW. Does not pick CE/PE. Fail-soft on missing keys/HTTP."""
     present = keys_present()
     if force_mock or not (present["gemini"] or present["openai"]):
         return mock_counsel(job, compact)
@@ -166,10 +168,12 @@ def maybe_llm_review(
     opened_this_tick: bool = False,
     force_mock: bool = True,
 ) -> Optional[dict[str, Any]]:
-    """None on ALLOW / NEW open. Review jobs only after stall/T1/against/SL/1m."""
+    """ALLOW fires allow-review (non-blocking). Other jobs skip the NEW open tick."""
+    if observer_action == "ALLOW" or trigger in {"ALLOW", JOB_ALLOW}:
+        out = compact_counsel(JOB_ALLOW, compact, force_mock=force_mock)
+        out["blocked_open"] = False
+        return out
     if opened_this_tick:
-        return None
-    if observer_action == "ALLOW":
         return None
     if trigger not in {
         "STOP",

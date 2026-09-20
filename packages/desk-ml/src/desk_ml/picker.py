@@ -4,6 +4,8 @@ Analysts (STRAT-001–014 KEEP_ALL, MIX-FORM-FOLLOWS, logit, XR, greeks,
 ML-001/002 silent) vote or stay silent. Silent / DATA_INSUFFICIENT does not
 vote. 8-7 or soup = HOLD. INDEX 1m against the winning wing = HOLD.
 FOLLOWS is an analyst — not desk, not observer. Does not invent CE/PE.
+Logit / XR / greeks stay analysts even when picker HOLD or observer VETO —
+track MATCH/DISSENT for later ML tune. They do not get extra SOD capital.
 NO_PROMOTE.
 """
 
@@ -43,6 +45,8 @@ DETAIL_OK = "PICKER_MAJORITY"
 SOD_PRODUCT_BOOK = "MIX-DEFAULT-BUY"
 SOD_LAB_OBSERVE = "SOD_LAB_OBSERVE"
 SOD_ONE_OPEN = "SOD_ONE_OPEN"
+SIGNAL_TRACK_SOURCES = ("follows", "logit", "xr", "greeks")
+SIGNAL_LOG_MAX = 2000
 
 
 @dataclass(frozen=True)
@@ -263,6 +267,54 @@ def picker_majority(
         "detail": DETAIL_OK,
         "reason_class": win_class,
     }
+
+
+def track_model_signals(
+    votes: Sequence[Vote],
+    picker: dict[str, Any],
+    observer: Optional[dict[str, Any]] = None,
+    *,
+    underlying: str = "",
+    ts: Optional[int] = None,
+) -> list[dict[str, Any]]:
+    """Spoken logit/XR/greeks/FOLLOWS vs picker. KEEP even when boss HOLD/VETO.
+
+    Not a fill. Not wr. For ML_PAPER_DASHBOARD tune later. NO_PROMOTE.
+    """
+    picker_side = picker.get("side") if picker.get("action") == "TICKET" else None
+    picker_action = str(picker.get("action") or "HOLD")
+    obs_action = (observer or {}).get("action")
+    by_src = {v.source: v for v in votes if isinstance(v, Vote)}
+    rows: list[dict[str, Any]] = []
+    for src in SIGNAL_TRACK_SOURCES:
+        v = by_src.get(src)
+        if v is None:
+            continue
+        spoken_side = v.side if v.spoken() else None
+        if spoken_side is None:
+            vs_picker = "SILENT"
+        elif picker_side is None:
+            vs_picker = "SPOKEN_PICKER_HOLD"
+        elif spoken_side == picker_side:
+            vs_picker = "MATCH"
+        else:
+            vs_picker = "DISSENT"
+        rows.append(
+            {
+                "source": src,
+                "side": spoken_side,
+                "silent": v.silent,
+                "detail": v.detail,
+                "picker_action": picker_action,
+                "picker_side": picker_side,
+                "observer_action": obs_action,
+                "vs_picker": vs_picker,
+                "underlying": underlying,
+                "ts": ts,
+                "promote": False,
+            }
+        )
+    return rows
 
 
 def apply_picker_to_intents(

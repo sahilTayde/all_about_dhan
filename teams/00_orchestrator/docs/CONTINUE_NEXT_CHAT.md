@@ -21,14 +21,20 @@ Do not glob markdown. Do not create extra CONTINUE/HANDOFF/NOTES dumps.
 
 Gate: NOT RESEARCH_READY_FOR_PROGRAMMING. PAPER only. NO_PROMOTE. STRATs UNVALIDATED. Dashboard P/L is MOCK. No live orders. Do not restart npm / Vite / paper ops until I ask. Never print secrets.
 
-Left off 2026-09-20 SOD locked default ON (promote refused): FAST FOLLOWS+logit+XR+greeks+STRAT votes → picker_majority → observer FOLLOW_GAP_ITM_1M → desk MIX-DEFAULT-BUY ITM fill. Rooms locked unless founder asks. --sod-off tests only. KEEP_ALL. No Super Orders. Local sqlite — do not git-add.
+Left off 2026-09-20 SOD locked default ON (promote refused): FAST FOLLOWS+logit+XR+greeks+STRAT votes → picker_majority → observer FOLLOW_GAP_ITM_1M → desk MIX-DEFAULT-BUY ITM fill. Async allow-review on ALLOW (does not block). Track MATCH/DISSENT on ML_PAPER_DASHBOARD even when picker HOLD / observer VETO. Rooms locked unless founder asks. --sod-off tests only. KEEP_ALL. No Super Orders. Local sqlite — do not git-add.
 ```
 
 ---
 
+## Left-off 2026-09-20 IST — LLM on ALLOW + model signal tape (NO_PROMOTE)
+
+**Now:** Founder: ALLOW is in the architecture — async `allow-review` (mock/fail-soft, `blocked_open=false`). Logit / XR / greeks stay **analysts**; SOD still one MIX-DEFAULT-BUY ITM fill. Their votes are logged MATCH/DISSENT vs picker even when the boss HOLDs or observer VETOes — `model_signals` on `ML_PAPER_DASHBOARD`. `--sod-off` remains pytest A/B only (not extra Monday capital). Gate **not** `RESEARCH_READY_FOR_PROGRAMMING`. PAPER. **NO_PROMOTE.**
+
+**Next:** Live dual-tape when founder asks. Do not git-add sqlite. Do not restart npm.
+
 ## Left-off 2026-09-20 IST — SOD locked default ON (NO_PROMOTE)
 
-**Now:** SOD is the architecture. `sod_one_ticket` / `picker_majority` default **True**. Product: MIX-FORM-FOLLOWS analyst (`follows`) → picker → observer 1m ITM → desk MIX-DEFAULT-BUY **ITM** fill + overlay. Vote is not `dealer`. ATM-only tape does not open. LLM never on ALLOW. Rooms locked unless founder asks. Plugin map in `MIX-FORM.md`. `--sod-off` = pytest A/B only. Dual-tape paper-scalp inherits SOD on. Gate **not** `RESEARCH_READY_FOR_PROGRAMMING`. PAPER. **NO_PROMOTE.**
+**Now:** SOD is the architecture. `sod_one_ticket` / `picker_majority` default **True**. Product: MIX-FORM-FOLLOWS analyst (`follows`) → picker → observer 1m ITM → desk MIX-DEFAULT-BUY **ITM** fill + overlay. Vote is not `dealer`. ATM-only tape does not open. **Superseded 2026-09-20:** LLM `allow-review` is now on ALLOW (async). Rooms locked unless founder asks. Plugin map in `MIX-FORM.md`. `--sod-off` = pytest A/B only. Dual-tape paper-scalp inherits SOD on. Gate **not** `RESEARCH_READY_FOR_PROGRAMMING`. PAPER. **NO_PROMOTE.**
 
 **Next:** Live dual-tape when founder asks. Do not git-add sqlite. Do not restart npm. Do not move rooms.
 

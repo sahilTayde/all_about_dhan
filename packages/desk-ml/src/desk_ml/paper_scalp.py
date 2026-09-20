@@ -20,15 +20,17 @@ from desk_ml.features import Triple, build_feature_rows
 from desk_ml.fit import fit_from_rows, score_features_dict
 from desk_ml.inventory import inventory_recon
 from desk_ml.model import OVERLAY_HOLD, premium_divergence_pattern
-from desk_ml.llm_review import overlay_to_boss
+from desk_ml.llm_review import maybe_llm_review, overlay_to_boss
 from desk_ml.observer import follow_gap_series_itm_1m, review_fill_intents, review_picker_ticket
 from desk_ml.picker import (
+    SIGNAL_LOG_MAX,
     SOD_LAB_OBSERVE,
     SOD_ONE_OPEN,
     SOD_PRODUCT_BOOK,
     apply_picker_to_intents,
     collect_analyst_votes,
     picker_majority,
+    track_model_signals,
 )
 from desk_ml.mrr import Z_HOLD, ols_beta, rolling_z
 from desk_ml.persist import pack_estimators, repo_root
@@ -2769,6 +2771,7 @@ class BookEngine:
     observer_veto_fills: bool = True  # fill-path family; ATM/DI = PASS
     sod_one_ticket: bool = True  # locked product: votes → picker → observer → one desk ticket
     picker_majority: bool = True  # RULES majority; implied by sod_one_ticket
+    signal_log: list[dict[str, Any]] = field(default_factory=list)  # logit/XR/greeks vs picker even on VETO
 
     def book_capital(self, book_id: str) -> float:
         if book_id in self.capital_by_book:
@@ -4712,6 +4715,25 @@ def step_underlying(
 
     opened_this_tick = sum(1 for (_b, u) in engine.opens if u == und) > n_open_before
     pos = next((p for (b, u), p in engine.opens.items() if u == und), None)
+    obs_action = str(review.get("action") or "") if isinstance(review, dict) else ""
+    model_signals = track_model_signals(
+        votes, picker, review if isinstance(review, dict) else None, underlying=und, ts=int(tick.ts)
+    )
+    if rolled_1m or obs_action in {"ALLOW", "VETO"}:
+        engine.signal_log.extend(model_signals)
+        if len(engine.signal_log) > SIGNAL_LOG_MAX:
+            engine.signal_log = engine.signal_log[-SIGNAL_LOG_MAX:]
+    llm_trigger = "ALLOW" if obs_action == "ALLOW" else None
+    llm_side = picker.get("side") if picker.get("side") in {"CE", "PE"} else None
+    if llm_side is None and pos is not None:
+        llm_side = pos.side if pos.side in {"CE", "PE"} else None
+    llm_review = maybe_llm_review(
+        trigger=llm_trigger,
+        compact={"side": llm_side, "underlying": und, "opened": opened_this_tick},
+        observer_action=obs_action or None,
+        opened_this_tick=opened_this_tick,
+        force_mock=True,
+    )
     overlay_pkt = None
     if pos is not None:
         overlay_pkt = overlay_to_boss(
@@ -4730,7 +4752,7 @@ def step_underlying(
             classified=classified,
             trigger="1M_CLOSE" if rolled_1m else None,
         )
-        overlay_pkt["llm_review"] = None
+        overlay_pkt["llm_review"] = llm_review
         overlay_pkt["opened_this_tick"] = opened_this_tick
 
     engine.last_step = {
@@ -4751,6 +4773,7 @@ def step_underlying(
         "bin_both_wings": bin_both_wings_packet(bin_rec),
         "deny_model_signals": deny,
         "analyst_votes": [asdict(v) if hasattr(v, "source") else v for v in votes],
+        "model_signals": model_signals,
         "picker": picker,
         "observer": review,
         "observer_by_book": {k: {"action": v.get("action"), "reason": v.get("reason"), "side": v.get("side")} for k, v in (by_book or {}).items()},
@@ -4763,15 +4786,16 @@ def step_underlying(
             "fill_quote": "ITM",
         },
         "overlay_to_boss": overlay_pkt,
-        "llm_review": None,
+        "llm_review": llm_review,
         "follow_gap": bool(review.get("follow_gap") if isinstance(review, dict) else False),
         "follow_gap_rule": "FOLLOW_GAP_ITM_1M",
         "independent": True,
         "trace": ["follows", "picker", "observer", "desk"],
         "note": (
-            "Locked SOD: FOLLOWS analyst vote → picker_majority → observer FOLLOW_GAP_ITM_1M "
-            "→ desk MIX-DEFAULT-BUY ITM fill. LAB observe-or-skip. LLM is not on ALLOW/open. "
-            "KMeans is not CE/PE. KEEP_ALL STRAT-001–014 as votes. NO_PROMOTE."
+            "Locked SOD: FOLLOWS + logit + XR + greeks vote → picker_majority → observer "
+            "FOLLOW_GAP_ITM_1M → desk MIX-DEFAULT-BUY ITM fill. LAB observe-or-skip. "
+            "LLM allow-review is async/fail-soft, does not block NEW. Track MATCH/DISSENT "
+            "even when picker HOLD / observer VETO. KMeans is not CE/PE. KEEP_ALL. NO_PROMOTE."
         ),
     }
     engine.last_step_by_und[und] = dict(engine.last_step)
@@ -6448,6 +6472,33 @@ def seen_not_taken_picture(engine: BookEngine) -> dict[str, Any]:
     }
 
 
+def model_signals_picture(engine: BookEngine) -> dict[str, Any]:
+    """Logit / XR / greeks / FOLLOWS vs picker. Kept when HOLD or VETO. Not fills."""
+    log = list(getattr(engine, "signal_log", None) or [])
+    counts = Counter((str(r.get("source") or ""), str(r.get("vs_picker") or "")) for r in log)
+    latest: dict[str, dict[str, Any]] = {}
+    for row in log:
+        src = str(row.get("source") or "")
+        if src:
+            latest[src] = row
+    return {
+        "layer": "HYPOTHESIS",
+        "promote": False,
+        "note": (
+            "Analysts logit / XR / greeks / FOLLOWS keep generating CE/PE. "
+            "SOD fills MIX-DEFAULT-BUY only. MATCH/DISSENT vs picker is scored even when "
+            "the boss HOLDs or observer VETOes — tune later, not extra capital. NO_PROMOTE."
+        ),
+        "n": len(log),
+        "counts": [
+            {"source": src, "vs_picker": vs, "n": n}
+            for (src, vs), n in sorted(counts.items())
+        ],
+        "latest": [latest[k] for k in ("follows", "logit", "xr", "greeks") if k in latest],
+        "recent": log[-24:],
+    }
+
+
 def build_dashboard(
     engine: BookEngine,
     *,
@@ -6547,6 +6598,8 @@ def build_dashboard(
     picture["last_index_regime"] = dict(engine.last_regime)
     seen_not_taken = seen_not_taken_picture(engine)
     picture["seen_not_taken"] = seen_not_taken
+    model_signals = model_signals_picture(engine)
+    picture["model_signals"] = model_signals
     itm_bins = itm_bins_picture(engine)
     picture["itm_bins"] = itm_bins
     adj_notes = index_adjustment_notes(
@@ -6608,6 +6661,7 @@ def build_dashboard(
         "n_time_exit": picture.get("n_time_exit") or 0,
         "last_index_regime": picture.get("last_index_regime") or {},
         "seen_not_taken": seen_not_taken,
+        "model_signals": model_signals,
         "itm_bins": itm_bins,
         "book_rank": board_book_rank,
         "index_notes": adj_notes,
@@ -6709,6 +6763,7 @@ def build_dashboard(
             "Unfilled CANCELLED = ₹0 P/L and ₹0 charges. Exchange/SEBI/stamp omitted (UNKNOWN).",
             "Desk starts at ₹570,000 (₹70k + ₹5L) split equally across tradable fill books (logit + dealer-confirm + XR-own-side + greeks if tape). Observe clones (ML-001/002/ML-1/TV-EP) get ₹0. New fills target 10 NIFTY lots when premium notional fits. Not 10k×8=80k.",
             "deny_model_signals default true. FILL only books that own CE/PE. Dealer CONFIRM vs logit; do not clone HOLD overlays. KMeans is not a CE/PE model. No STRAT-015.",
+            "SOD: logit / XR / greeks vote as analysts and are logged MATCH/DISSENT vs picker even on HOLD/VETO. They do not take extra Monday capital. LLM allow-review is async, not a block.",
             "Two layers: (1) signal = dealer / logit / XR / greeks CE/PE. (2) after fill = STALL / AGAINST / TARGET / SL. WAIT_STRENGTH is dealer entry only — FIX-FIRST did not turn off ML BUY/SELL.",
             "FIX-FIRST drill (pre-market): write=false replay from 2026-09-17 jsonl. Session cap 4 filled/book + WAIT_STRENGTH can leave n_open=0 even when dealer CONFIRM. itm_bin confirm counts as NIFTY strength.",
             "INDEX 1m is warehouse∪JSON. ATM days without INDEX 1m stay DATA_INSUFFICIENT — never filled bars.",
@@ -6923,6 +6978,7 @@ def write_dashboard(board: dict[str, Any], *, root: Optional[Path] = None) -> di
             "n_sl_hit",
             "last_index_regime",
             "seen_not_taken",
+            "model_signals",
             "itm_bins",
             "paper_params",
             "paper_param_notes",
@@ -7198,6 +7254,35 @@ def render_markdown(board: dict[str, Any]) -> str:
         lines.append(f"- {note}")
     if not board.get("index_notes"):
         lines.append("- (replay to fill)")
+    sig = board.get("model_signals") or {}
+    lines += [
+        "",
+        "## Analyst model signals (logit / XR / greeks vs picker)",
+        "",
+        str(sig.get("note") or "Analyst votes stay even when the boss HOLDs. Not extra fills."),
+        f"Logged rows: {sig.get('n', 0)}.",
+        "",
+        "| source | vs picker | n |",
+        "|--------|-----------|---|",
+    ]
+    for row in sig.get("counts") or []:
+        lines.append(f"| `{row.get('source')}` | {row.get('vs_picker')} | {row.get('n')} |")
+    if not sig.get("counts"):
+        lines.append("| — | — | 0 |")
+    lines += [
+        "",
+        "Latest spoken (still analysts when observer VETO):",
+        "",
+        "| source | side | vs picker | picker | observer |",
+        "|--------|------|-----------|--------|----------|",
+    ]
+    for row in sig.get("latest") or []:
+        lines.append(
+            f"| `{row.get('source')}` | {row.get('side') or 'SILENT'} | {row.get('vs_picker')} | "
+            f"{row.get('picker_action')}/{row.get('picker_side') or '—'} | {row.get('observer_action') or '—'} |"
+        )
+    if not sig.get("latest"):
+        lines.append("| — | — | — | — | — |")
     lines += [
         "",
         "## Models / steps",

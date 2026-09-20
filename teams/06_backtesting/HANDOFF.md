@@ -1,5 +1,19 @@
 # Handoff log — Team 06 Backtesting
 
+## As of now (2026-09-20 IST) — model_signals on ML_PAPER_DASHBOARD (NO_PROMOTE)
+
+```text
+From:     teams/06_backtesting
+To:       00 / 04 / founder
+Date:     2026-09-20
+Status:   PAPER / NO_PROMOTE / BACKTEST_REQUIRED
+Accepted: Board section Analyst model signals. Counts MATCH /
+  DISSENT / SPOKEN_PICKER_HOLD / SILENT for follows, logit,
+  xr, greeks even when observer VETO. Not extra fills. Not wr.
+Rejected: Parallel Monday capital. Promote. Gate set.
+UNKNOWN: first live dual-tape row counts vs 16/17/18 cache.
+```
+
 ## As of now (2026-09-20 IST) — SOD default ON; OLD tests-only (NO_PROMOTE)
 
 ```text
