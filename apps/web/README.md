@@ -6,7 +6,7 @@ Thin **Vite + React** UI for all_about_dhan. One site, three dashboards:
 |-------|-----|-----|
 | [`/`](http://localhost:5173/) | Customer | One suggested ticket. No indicator soup. |
 | [`/desk`](http://localhost:5173/desk) | Desk | Live signal, path to SL/target, history, discarded-by-boss list. |
-| [`/pm`](http://localhost:5173/pm) | Founder | Trades, win rate, balance, daily P/L, model win %, charges. |
+| [`/pm`](http://localhost:5173/pm) | Founder | Money, train metrics, SOD fill graph, all models/STRAT/indicators. |
 
 **Not investment advice.** PAPER / MOCK. Orders refused. Owned by team 07_coding.
 

@@ -1,18 +1,22 @@
 import { useEffect, useMemo, useState } from "react";
 import { AppNav } from "./components/AppNav.jsx";
+import { FounderRoster } from "./components/FounderRoster.jsx";
 import { Header } from "./components/Header.jsx";
+import { SodFillGraph, WatcherStrip } from "./components/SodFillGraph.jsx";
+import { TradeHistory } from "./components/TradeHistory.jsx";
 import {
   derivePaperBoard,
+  fetchFounderLab,
   fetchMlPaperBoard,
   inr,
   moneyClass,
   pct,
 } from "./lib/paperBoard.js";
 
-function fetchFounderStatus() {
+function fetchFounderStatus(signal) {
   const base = (import.meta.env.VITE_API_URL || "").replace(/\/$/, "");
   const url = base ? `${base}/founder/status` : "/founder/status";
-  return fetch(`${url}?t=${Date.now()}`).then((res) => {
+  return fetch(`${url}?t=${Date.now()}`, { signal }).then((res) => {
     if (!res.ok) throw new Error(`status ${res.status}`);
     return res.json();
   });
@@ -33,52 +37,58 @@ function Stat({ label, value, hint, tone }) {
 export function FounderPm() {
   const [status, setStatus] = useState(null);
   const [board, setBoard] = useState(null);
+  const [lab, setLab] = useState(null);
   const [error, setError] = useState(null);
-  const [asOf, setAsOf] = useState(null);
+  const [roomId, setRoomId] = useState(null);
 
   useEffect(() => {
     let cancelled = false;
-    async function pull() {
-      const results = await Promise.allSettled([fetchFounderStatus(), fetchMlPaperBoard()]);
+    const ac = new AbortController();
+    async function pull(force) {
+      const results = await Promise.allSettled([
+        fetchFounderStatus(ac.signal),
+        fetchMlPaperBoard({ force, signal: ac.signal }),
+        fetchFounderLab({ signal: ac.signal }),
+      ]);
       if (cancelled) return;
       const nextErr = [];
       if (results[0].status === "fulfilled") setStatus(results[0].value);
-      else nextErr.push(`health ${results[0].reason?.message || results[0].reason}`);
-      if (results[1].status === "fulfilled") {
-        setBoard(results[1].value);
-        setAsOf(results[1].value.as_of_ist || null);
-      } else nextErr.push(`book ${results[1].reason?.message || results[1].reason}`);
+      else nextErr.push("ops health offline");
+      if (results[1].status === "fulfilled") setBoard(results[1].value);
+      else nextErr.push("paper book missing");
+      if (results[2].status === "fulfilled") setLab(results[2].value);
       setError(nextErr.length ? nextErr.join(" · ") : null);
     }
-    pull();
-    const id = setInterval(pull, 10000);
+    pull(true);
+    const id = setInterval(() => pull(false), 15000);
     return () => {
       cancelled = true;
+      ac.abort();
       clearInterval(id);
     };
   }, []);
 
-  const d = useMemo(() => derivePaperBoard(board), [board]);
+  const d = useMemo(() => derivePaperBoard(board, lab), [board, lab]);
   const paper = (status?.agents || []).find((a) => a.id === "paper-loop");
   const day = d?.todayDay;
+  const room = roomId && d?.fillRooms?.[roomId] ? d.fillRooms[roomId] : d?.currentRoom;
 
   return (
     <div className="shell shell--founder">
       <AppNav current="/pm" />
       <Header
         title="Founder"
-        kicker="Paper money · one desk"
-        sub="What happened today, what it cost, which model paid. PAPER — not a live book."
+        kicker="Train · compare · do not promote"
+        sub="Money, rooms, and how a paper fill was built. Click a node. PAPER only."
         sourceLabel={board?.live_session ? "PAPER" : "MOCK"}
       />
       <p className="desk-sub">
-        Updated {asOf ? asOf.replace("T", " ").slice(0, 16) : "…"} IST · refreshes every 10s · orders refused ·
-        NO_PROMOTE
+        {board?.as_of_ist ? board.as_of_ist.replace("T", " ").slice(0, 16) : "…"} IST · light refresh 15s · orders
+        refused · NO_PROMOTE
       </p>
+      {error ? <p className="desk-error">{error}. Mock book still loads.</p> : null}
 
-      {error ? <p className="desk-error">{error}. Numbers below may be mock if the API is down.</p> : null}
-
-      <div className="fx-health" aria-label="Desk health">
+      <div className="fx-health">
         <span className={`cleanup-pill ${paper?.alive ? "done" : "pending"}`}>
           paper {paper?.alive ? "ON" : "OFF / mock"}
         </span>
@@ -91,85 +101,90 @@ export function FounderPm() {
       ) : (
         <>
           <div className="fx-stats founder-kpis">
-            <Stat label="Total trades" value={String(d.uniqueClosed.length)} hint="Unique fills (clones collapsed)" />
+            <Stat label="Total trades" value={String(d.uniqueClosed.length)} hint="Unique + lab trainer fills" />
+            <Stat label="Win rate" value={pct(d.uniqueWr ?? d.moneyWr)} hint="Net ₹ > 0 after charges" />
             <Stat
-              label="Win rate"
-              value={pct(d.uniqueWr ?? d.moneyWr)}
-              hint="Net ₹ > 0 after charges. Not a promote."
-            />
-            <Stat
-              label="Account balance"
+              label="Account"
               value={inr(d.equity, { signed: false })}
               hint={`Start ${inr(d.startCap, { signed: false })}`}
               tone={Number(d.equity) >= Number(d.startCap) ? "up" : "down"}
             />
-            <Stat
-              label="Profit today"
-              value={inr(day?.profit)}
-              hint={day?.day || "—"}
-              tone={Number(day?.profit) > 0 ? "up" : ""}
-            />
-            <Stat
-              label="Loss today"
-              value={inr(day?.loss)}
-              hint={`${day?.n || 0} unique fills`}
-              tone={Number(day?.loss) < 0 ? "down" : ""}
-            />
+            <Stat label="Profit today" value={inr(day?.profit)} hint={day?.day} tone="up" />
+            <Stat label="Loss today" value={inr(day?.loss)} hint={`${day?.n || 0} fills`} tone="down" />
             <Stat
               label="Net today"
               value={inr(day?.net ?? d.uniqueNet)}
-              hint="Unique desk P/L"
               tone={Number(day?.net ?? d.uniqueNet) >= 0 ? "up" : "down"}
             />
           </div>
 
           <section className="panel">
-            <div className="panel__head">
-              <div>
-                <h2>P/L with charges</h2>
-                <p className="fx-kicker">Groww-style brokerage + GST + STT (VERIFY). Paper only.</p>
-              </div>
-            </div>
+            <h2>Train the models</h2>
+            <p className="muted">
+              {d.training?.label_note || "Label analysts from MATCH / DISSENT vs TARGET. Not a customer win rate."}
+            </p>
             <div className="founder-pl">
               <div>
-                <span>Gross</span>
-                <strong className={moneyClass(d.today.gross_pnl_inr ?? d.uniqueGross)}>
-                  {inr(d.today.gross_pnl_inr ?? d.uniqueGross)}
-                </strong>
+                <span>Target wr</span>
+                <strong>{pct(d.targetWr)}</strong>
+              </div>
+              <div>
+                <span>Money wr</span>
+                <strong>{pct(d.moneyWr)}</strong>
+              </div>
+              <div>
+                <span>MATCH</span>
+                <strong>{d.nMatch}</strong>
+              </div>
+              <div>
+                <span>DISSENT</span>
+                <strong>{d.nDissent}</strong>
               </div>
               <div>
                 <span>Charges</span>
                 <strong>{inr(d.charges, { signed: false })}</strong>
               </div>
               <div>
-                <span>Net</span>
-                <strong className={moneyClass(d.today.net_pnl_inr ?? d.uniqueNet)}>
-                  {inr(d.today.net_pnl_inr ?? d.uniqueNet)}
-                </strong>
-              </div>
-              <div>
-                <span>Charge drag</span>
-                <strong>
-                  {d.today.gross_pnl_inr
-                    ? pct(
-                        (Math.abs(Number(d.charges) || 0) /
-                          Math.max(1, Math.abs(Number(d.today.gross_pnl_inr)))) *
-                          100
-                      )
-                    : "—"}
-                </strong>
+                <span>Clone drag</span>
+                <strong>{inr(d.cloneDrag)}</strong>
               </div>
             </div>
-            <p className="muted">
-              Improvement to watch: unique net {inr(d.uniqueNet)} vs all-book headline {inr(d.headlineNet)}.
-              Clone drag {inr(d.cloneDrag)} is copies of the same fill — do not manage to it. Target hits{" "}
-              {d.nTarget} / {d.uniqueClosed.length} ({pct(d.targetWr)}) vs money win rate {pct(d.moneyWr)}.
-            </p>
+            <div className="mini-split">
+              <ul className="founder-watch">
+                {(d.byIndex || []).map((g) => (
+                  <li key={g.key}>
+                    {g.key} · {g.n} · {pct(g.wr)} · <span className={moneyClass(g.net)}>{inr(g.net)}</span>
+                  </li>
+                ))}
+              </ul>
+              <ul className="founder-watch">
+                {(d.byRegime || []).map((g) => (
+                  <li key={g.key}>
+                    {g.key} · {g.n} · {pct(g.wr)} · <span className={moneyClass(g.net)}>{inr(g.net)}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
           </section>
 
           <section className="panel">
-            <h2>Models / strategies — win rate today</h2>
-            <p className="muted">Day % is unique-fill win rate for this session. Observe books stay ₹0.</p>
+            <h2>How this paper fill was placed</h2>
+            <p className="muted">Click a node. Watchers and signal types sit under the graph.</p>
+            <SodFillGraph room={room} />
+            <WatcherStrip watchers={room?.watchers} />
+            {room?.steps?.length ? (
+              <ol className="step-list">
+                {room.steps.map((s) => (
+                  <li key={s}>{s}</li>
+                ))}
+              </ol>
+            ) : null}
+          </section>
+
+          <FounderRoster catalog={d.catalog} confirmKill={d.confirmKill} />
+
+          <section className="panel">
+            <h2>Models — win % today</h2>
             <div className="book-table-wrap">
               <table className="book-table">
                 <thead>
@@ -232,8 +247,19 @@ export function FounderPm() {
             </div>
           </section>
 
+          <section className="panel">
+            <h2>Compare fills</h2>
+            <p className="muted">Filter, then click a highlighted row that has a fill room.</p>
+            <TradeHistory
+              rows={d.uniqueClosed}
+              regimes={d.regimes}
+              fillRooms={d.fillRooms}
+              onOpen={(t) => setRoomId(t.trade_id)}
+            />
+          </section>
+
           <details className="desk-context">
-            <summary>Ops health (API, paper loop, site)</summary>
+            <summary>Ops health</summary>
             <div className="cleanup-grid">
               {(status?.agents || []).map((a) => (
                 <article key={a.id} className={`cleanup-card founder-${a.tone || "grey"}`}>
@@ -251,25 +277,6 @@ export function FounderPm() {
               ))}
             </div>
           </details>
-
-          <section className="panel">
-            <h2>What else matters</h2>
-            <ul className="founder-watch">
-              <li>
-                Best index {d.today.best_index || "—"} · worst {d.today.worst_index || "—"} · NIFTY{" "}
-                {inr(d.today.net_by_index?.NIFTY)} · BANKNIFTY {inr(d.today.net_by_index?.BANKNIFTY)} · SENSEX{" "}
-                {inr(d.today.net_by_index?.SENSEX)}
-              </li>
-              <li>
-                Open now {d.uniqueOpen.length} · STOP hits {d.nStop} · TARGET hits {d.nTarget} · discarded signals{" "}
-                {d.skipGroups.length}
-              </li>
-              <li>
-                Gate: {board.gate || "not RESEARCH_READY_FOR_PROGRAMMING"}. Confidence and path scores are not win
-                rates.
-              </li>
-            </ul>
-          </section>
         </>
       )}
     </div>

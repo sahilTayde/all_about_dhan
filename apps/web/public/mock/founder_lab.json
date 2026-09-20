@@ -1,0 +1,393 @@
+{
+  "ok": true,
+  "layer": "HYPOTHESIS",
+  "promote": false,
+  "orders": "REFUSED",
+  "note": "Compact trainer overlay. PAPER / MOCK. Not a live book. Not a promote.",
+  "day_series": [
+    {
+      "day": "2026-09-15",
+      "n": 41,
+      "wr": 19.5,
+      "profit": 18420,
+      "loss": -41210,
+      "charges": 2860,
+      "net": -25650
+    },
+    {
+      "day": "2026-09-16",
+      "n": 36,
+      "wr": 22.2,
+      "profit": 21110,
+      "loss": -33840,
+      "charges": 2510,
+      "net": -15240
+    },
+    {
+      "day": "2026-09-18",
+      "n": 28,
+      "wr": 25.0,
+      "profit": 16280,
+      "loss": -19840,
+      "charges": 1980,
+      "net": -5540
+    }
+  ],
+  "training": {
+    "label_note": "Use MATCH/DISSENT + outcome to label analysts. Do not treat wr as a customer claim.",
+    "features": [
+      "picker_side",
+      "analyst_side",
+      "vs_picker",
+      "observer_action",
+      "index_regime",
+      "last3_impulse",
+      "itm_bin_side",
+      "er",
+      "pcr_oi",
+      "confirm_kill_5m",
+      "exit_reason"
+    ]
+  },
+  "catalog": {
+    "rooms": [
+      { "id": "analyst", "name": "Analyst room", "role": "Independent CE/PE votes. No capital." },
+      { "id": "picker_majority", "name": "Boss picker", "role": "Majority / soup / INDEX against = HOLD." },
+      { "id": "FOLLOW_GAP_ITM_1M", "name": "Observer", "role": "ALLOW / VETO / PASS on picker wing. ITM 1m." },
+      { "id": "MIX-DEFAULT-BUY", "name": "Desk fill", "role": "One ITM paper ticket + overlay." }
+    ],
+    "models": [
+      { "id": "MIX-DEFAULT-BUY", "kind": "DEALER", "room": "desk", "capital": true, "what": "Customer-default ITM buy + overlay" },
+      { "id": "MIX-ML-LOGIT", "kind": "ML", "room": "analyst", "capital": false, "what": "Logit CE/PE vote" },
+      { "id": "MIX-ML-LOGIT-XR", "kind": "ML", "room": "analyst", "capital": false, "what": "XR filter on logit side" },
+      { "id": "MIX-ML-GREEKS", "kind": "ML", "room": "analyst", "capital": false, "what": "Greeks / theta vote" },
+      { "id": "ML-001", "kind": "ML", "room": "analyst", "capital": false, "what": "KMeans overlay — silent unless own side" },
+      { "id": "ML-002", "kind": "ML", "room": "analyst", "capital": false, "what": "IsolationForest overlay — silent unless own side" },
+      { "id": "ML-1", "kind": "ML", "room": "analyst", "capital": false, "what": "Observe book. ₹0." },
+      { "id": "MIX-TV-EP-024", "kind": "LAB", "room": "analyst", "capital": false, "what": "TV-EP lab vote. Never OPEN on SOD." },
+      { "id": "MIX-FORM-FOLLOWS", "kind": "FORM", "room": "analyst", "capital": false, "what": "Last-tick INDEX vs CE/PE FOLLOWS" },
+      { "id": "MIX-FORM-FOLLOW-GAP", "kind": "FORM", "room": "observer", "capital": false, "what": "Observer family. Confirm/kill ITM premium." }
+    ],
+    "strategies": [
+      { "id": "STRAT-001", "name": "Dual-TF MACD + MA stack", "vote": "CE" },
+      { "id": "STRAT-002", "name": "Slightly OTM 20–30% premium", "vote": "SILENT" },
+      { "id": "STRAT-003", "name": "VWAP + VWMA + Supertrend", "vote": "CE" },
+      { "id": "STRAT-004", "name": "Premium Fast/Slow EMA", "vote": "HOLD" },
+      { "id": "STRAT-005", "name": "High-delta ITM / ATM buy", "vote": "CE" },
+      { "id": "STRAT-006", "name": "2-min EMA 10/20 ITM scalp", "vote": "CE" },
+      { "id": "STRAT-007", "name": "Clock filter", "vote": "SILENT" },
+      { "id": "STRAT-008", "name": "Mixed-index avoid", "vote": "HOLD" },
+      { "id": "STRAT-009", "name": "Open skip + 15:15 flatten", "vote": "SILENT" },
+      { "id": "STRAT-010", "name": "Order-flow delta / POC", "vote": "SILENT" },
+      { "id": "STRAT-011", "name": "RSI + Supertrend child", "vote": "HOLD" },
+      { "id": "STRAT-012", "name": "Candlestick + S/R", "vote": "CE" },
+      { "id": "STRAT-013", "name": "Bull put credit spread", "vote": "SILENT" },
+      { "id": "STRAT-014", "name": "Hedged 1-3-2 call ratio", "vote": "SILENT" }
+    ],
+    "indicators": [
+      { "id": "ST_5M", "name": "5m Supertrend", "use": "confirm / kill — not entry" },
+      { "id": "MACD_5M", "name": "5m MACD", "use": "confirm / kill — not entry" },
+      { "id": "RSI_5M", "name": "5m RSI", "use": "confirm / kill — not entry" },
+      { "id": "EMA_SET", "name": "Dhan EMA 5/10/20/50/100/200", "use": "official HQ annexure" },
+      { "id": "VWAP", "name": "Day VWAP", "use": "quote average_price" },
+      { "id": "PCR_OI", "name": "PCR (OI)", "use": "hold ticket if extreme — not alpha" },
+      { "id": "ITM_BIN", "name": "ITM CE vs PE bin", "use": "wing lean" },
+      { "id": "LAST3", "name": "Last-3 1m impulse", "use": "dealer strength" },
+      { "id": "ER", "name": "Efficiency ratio", "use": "chop vs trend overlay" }
+    ]
+  },
+  "confirm_kill": {
+    "ST_5M": "CONFIRM",
+    "MACD_5M": "CONFIRM",
+    "RSI_5M": "KILL",
+    "note": "5m lights never open a ticket. KILL holds. PAPER."
+  },
+  "extra_open": [],
+  "extra_closed": [
+    {
+      "book_id": "MIX-DEFAULT-BUY",
+      "underlying": "NIFTY",
+      "side": "PE",
+      "trade_id": "lab-target-nifty-pe",
+      "status": "CLOSED_PAPER",
+      "target_step": 1,
+      "target_hit": true,
+      "exit_reason": "TARGET",
+      "entry": 131.9,
+      "limit_price": 131.9,
+      "exit": 148.8,
+      "stop": 124.4,
+      "target": 148.8,
+      "atm_strike": 23400.0,
+      "spot_at_entry": 23288.0,
+      "realized_pnl_inr": 1098.5,
+      "charges_inr": 62.1,
+      "gross_pnl_inr": 1160.6,
+      "opened_ist": "2026-09-16T10:12:00+05:30",
+      "closed_ist": "2026-09-16T10:28:00+05:30",
+      "last_updated_ist": "2026-09-16T10:28:00+05:30",
+      "last_updated_ts": 1789541880,
+      "justification": "why_now=picker PE + observer PASS; last-3 PUT",
+      "index_regime": "TREND",
+      "result": "SUCCESS",
+      "won": true,
+      "filled": true
+    },
+    {
+      "book_id": "MIX-DEFAULT-BUY",
+      "underlying": "NIFTY",
+      "side": "CE",
+      "trade_id": "lab-t2-nifty-ce",
+      "status": "CLOSED_PAPER",
+      "target_step": 2,
+      "target_hit": true,
+      "exit_reason": "TARGET2",
+      "entry": 142.0,
+      "exit": 164.0,
+      "stop": 136.5,
+      "trail_stop": 152.0,
+      "target": 155.0,
+      "target2": 164.0,
+      "atm_strike": 23250.0,
+      "spot_at_entry": 23240.0,
+      "realized_pnl_inr": 1430.0,
+      "charges_inr": 71.0,
+      "gross_pnl_inr": 1501.0,
+      "opened_ist": "2026-09-18T11:05:00+05:30",
+      "closed_ist": "2026-09-18T11:41:00+05:30",
+      "last_updated_ist": "2026-09-18T11:41:00+05:30",
+      "last_updated_ts": 1789721460,
+      "justification": "why_now=T1 hit then trail; T2 printed",
+      "index_regime": "TREND",
+      "result": "SUCCESS",
+      "won": true,
+      "filled": true
+    },
+    {
+      "book_id": "MIX-DEFAULT-BUY",
+      "underlying": "BANKNIFTY",
+      "side": "PE",
+      "trade_id": "lab-trail-bn-pe",
+      "status": "CLOSED_PAPER",
+      "exit_reason": "TRAIL",
+      "trail_hit": true,
+      "entry": 412.0,
+      "exit": 401.2,
+      "stop": 398.0,
+      "trail_stop": 404.0,
+      "target": 448.0,
+      "atm_strike": 56200.0,
+      "spot_at_entry": 56110.0,
+      "realized_pnl_inr": -380.4,
+      "charges_inr": 88.0,
+      "gross_pnl_inr": -292.4,
+      "opened_ist": "2026-09-15T13:02:00+05:30",
+      "closed_ist": "2026-09-15T13:18:00+05:30",
+      "last_updated_ist": "2026-09-15T13:18:00+05:30",
+      "last_updated_ts": 1789462080,
+      "justification": "why_now=trail after stall; target never printed",
+      "index_regime": "SIDEWAYS",
+      "result": "LOSS",
+      "won": false,
+      "filled": true
+    },
+    {
+      "book_id": "MIX-DEFAULT-BUY",
+      "underlying": "SENSEX",
+      "side": "CE",
+      "trade_id": "lab-cancel-sx-ce",
+      "status": "CANCELLED",
+      "exit_reason": "CANCEL_AGAINST",
+      "entry": 219.4,
+      "exit": 216.1,
+      "stop": 206.4,
+      "target": 247.8,
+      "atm_strike": 74300.0,
+      "spot_at_entry": 74320.0,
+      "realized_pnl_inr": -214.5,
+      "charges_inr": 61.0,
+      "gross_pnl_inr": -153.5,
+      "opened_ist": "2026-09-18T12:10:00+05:30",
+      "closed_ist": "2026-09-18T12:16:00+05:30",
+      "last_updated_ist": "2026-09-18T12:16:00+05:30",
+      "last_updated_ts": 1789723560,
+      "justification": "why_now=INDEX flipped against CE; dealer CANCEL_AGAINST",
+      "index_regime": "VOLATILE",
+      "result": "LOSS",
+      "won": false,
+      "filled": true
+    },
+    {
+      "book_id": "MIX-DEFAULT-BUY",
+      "underlying": "NIFTY",
+      "side": "CE",
+      "trade_id": "lab-time-nifty-ce",
+      "status": "CLOSED_PAPER",
+      "exit_reason": "TIME",
+      "entry": 149.7,
+      "exit": 153.2,
+      "stop": 146.2,
+      "target": 169.0,
+      "atm_strike": 23250.0,
+      "spot_at_entry": 23255.0,
+      "realized_pnl_inr": 227.5,
+      "charges_inr": 58.0,
+      "gross_pnl_inr": 285.5,
+      "opened_ist": "2026-09-18T12:13:00+05:30",
+      "closed_ist": "2026-09-18T13:02:00+05:30",
+      "last_updated_ist": "2026-09-18T13:02:00+05:30",
+      "last_updated_ts": 1789726320,
+      "justification": "why_now=TIME clock; target 169 never printed (max 157.7)",
+      "index_regime": "SIDEWAYS",
+      "result": "TIME",
+      "won": true,
+      "filled": true
+    }
+  ],
+  "fill_rooms": {
+    "paper-MIX-DEFAULT-BUY-NIFTY-open-demo": {
+      "trade_id": "paper-MIX-DEFAULT-BUY-NIFTY-open-demo",
+      "placed": {
+        "kind": "PAPER_FILL",
+        "not_a_broker_order": true,
+        "when": "2026-09-17T14:42:00+05:30",
+        "index": "NIFTY",
+        "side": "CE",
+        "strike": 23250,
+        "spot": 23270.6,
+        "premium": 148.4,
+        "lots": 1,
+        "qty": 65,
+        "book": "MIX-DEFAULT-BUY"
+      },
+      "watchers": [
+        { "who": "follows", "watching": "INDEX vs CE/PE last tick", "signal": "CE", "type": "MATCH" },
+        { "who": "logit", "watching": "own CE/PE", "signal": "PE", "type": "DISSENT" },
+        { "who": "xr", "watching": "XR filter", "signal": "HOLD", "type": "SPOKEN_PICKER_HOLD" },
+        { "who": "greeks", "watching": "theta / delta", "signal": "HOLD", "type": "SPOKEN_PICKER_HOLD" },
+        { "who": "STRAT-001", "watching": "MACD + MA", "signal": "CE", "type": "MATCH" },
+        { "who": "STRAT-003", "watching": "VWAP / ST", "signal": "CE", "type": "MATCH" },
+        { "who": "STRAT-005", "watching": "delta 0.60–0.75", "signal": "CE", "type": "MATCH" },
+        { "who": "ML-001", "watching": "KMeans regime", "signal": "SILENT", "type": "SILENT" },
+        { "who": "picker_majority", "watching": "vote soup", "signal": "CE", "type": "FILL" },
+        { "who": "FOLLOW_GAP_ITM_1M", "watching": "ITM 1m premium", "signal": "PASS", "type": "ALLOW" },
+        { "who": "dealer", "watching": "feasibility + overlay", "signal": "OPEN", "type": "FILL" }
+      ],
+      "nodes": [
+        {
+          "id": "follows",
+          "col": "analyst",
+          "label": "FOLLOWS",
+          "side": "CE",
+          "vs": "MATCH",
+          "detail": "INDEX last tick followed CE. Analyst vote only."
+        },
+        {
+          "id": "logit",
+          "col": "analyst",
+          "label": "logit",
+          "side": "PE",
+          "vs": "DISSENT",
+          "detail": "Logit wanted PE. Boss ignored. Not extra capital."
+        },
+        {
+          "id": "xr",
+          "col": "analyst",
+          "label": "XR",
+          "side": "HOLD",
+          "vs": "SPOKEN_PICKER_HOLD",
+          "detail": "XR would not confirm CE."
+        },
+        {
+          "id": "greeks",
+          "col": "analyst",
+          "label": "greeks",
+          "side": "HOLD",
+          "vs": "SPOKEN_PICKER_HOLD",
+          "detail": "Theta vs entry high — HOLD."
+        },
+        {
+          "id": "strat-001",
+          "col": "analyst",
+          "label": "STRAT-001",
+          "side": "CE",
+          "vs": "MATCH",
+          "detail": "Dual-TF MACD stack leaned CALL. KEEP_ALL. UNVALIDATED."
+        },
+        {
+          "id": "tv",
+          "col": "analyst",
+          "label": "TV-024",
+          "side": "CE",
+          "vs": "MATCH",
+          "detail": "Lab vote. Never OPEN on SOD."
+        },
+        {
+          "id": "picker",
+          "col": "picker",
+          "label": "picker",
+          "side": "CE",
+          "vs": "FILL",
+          "detail": "Majority CE. Soup did not HOLD. Not a fill yet."
+        },
+        {
+          "id": "observer",
+          "col": "observer",
+          "label": "observer",
+          "side": "PASS",
+          "vs": "ALLOW",
+          "detail": "ITM 1m premium confirmed picker CE. FOLLOW_GAP_ITM_1M."
+        },
+        {
+          "id": "desk",
+          "col": "desk",
+          "label": "desk fill",
+          "side": "CE",
+          "vs": "OPEN",
+          "detail": "PAPER fill MIX-DEFAULT-BUY 23250 CE @ 148.40. Orders refused at broker."
+        }
+      ],
+      "steps": [
+        "14:42 follows spoke CE",
+        "picker_majority CE FILL",
+        "observer PASS on ITM 1m",
+        "desk paper-filled 148.40 · SL 144.80 · trail 146.90 · T1 158.20",
+        "Still OPEN — path score is distance, not a win rate"
+      ]
+    },
+    "lab-target-nifty-pe": {
+      "trade_id": "lab-target-nifty-pe",
+      "placed": {
+        "kind": "PAPER_FILL",
+        "not_a_broker_order": true,
+        "when": "2026-09-16T10:12:00+05:30",
+        "index": "NIFTY",
+        "side": "PE",
+        "strike": 23400,
+        "spot": 23288,
+        "premium": 131.9,
+        "lots": 1,
+        "book": "MIX-DEFAULT-BUY"
+      },
+      "watchers": [
+        { "who": "follows", "watching": "INDEX vs PE", "signal": "PE", "type": "MATCH" },
+        { "who": "logit", "watching": "own side", "signal": "PE", "type": "MATCH" },
+        { "who": "picker_majority", "watching": "votes", "signal": "PE", "type": "FILL" },
+        { "who": "FOLLOW_GAP_ITM_1M", "watching": "ITM 1m", "signal": "PASS", "type": "ALLOW" },
+        { "who": "dealer", "watching": "overlay", "signal": "TARGET", "type": "DONE" }
+      ],
+      "nodes": [
+        { "id": "follows", "col": "analyst", "label": "FOLLOWS", "side": "PE", "vs": "MATCH", "detail": "INDEX followed PUT." },
+        { "id": "logit", "col": "analyst", "label": "logit", "side": "PE", "vs": "MATCH", "detail": "Logit agreed PE." },
+        { "id": "picker", "col": "picker", "label": "picker", "side": "PE", "vs": "FILL", "detail": "Majority PE." },
+        { "id": "observer", "col": "observer", "label": "observer", "side": "PASS", "vs": "ALLOW", "detail": "ITM PE printed with INDEX." },
+        { "id": "desk", "col": "desk", "label": "TARGET", "side": "PE", "vs": "DONE", "detail": "148.80 printed. Only this is TARGET HIT." }
+      ],
+      "steps": [
+        "10:12 picker PE + observer PASS",
+        "paper fill 131.90",
+        "10:28 target 148.80 hit"
+      ]
+    }
+  }
+}

@@ -2189,6 +2189,212 @@ a {
   min-width: 980px;
 }
 
+.filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  margin: 0.35rem 0 0.55rem;
+}
+
+tr.is-click {
+  cursor: pointer;
+}
+
+tr.is-click:hover {
+  background: rgba(91, 156, 255, 0.06);
+}
+
+.sod-wrap {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(12rem, 0.8fr);
+  gap: 0.75rem;
+  align-items: start;
+}
+
+.sod-svg {
+  width: 100%;
+  height: auto;
+  max-height: 240px;
+  contain: layout paint;
+}
+
+.sod-edge {
+  stroke: var(--line-strong);
+  stroke-width: 2;
+}
+
+.sod-col {
+  fill: var(--ink-soft);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.sod-node {
+  cursor: pointer;
+}
+
+.sod-node circle {
+  fill: var(--surface-2);
+  stroke: var(--line-strong);
+  stroke-width: 1.5;
+}
+
+.sod-node text {
+  fill: var(--ink);
+  font-size: 9px;
+  pointer-events: none;
+}
+
+.sod-node .sod-lab {
+  fill: var(--ink-soft);
+  font-size: 8px;
+}
+
+.sod-node--ok circle {
+  stroke: var(--ce);
+}
+
+.sod-node--bad circle {
+  stroke: var(--pe);
+}
+
+.sod-node--warn circle {
+  stroke: var(--warn);
+}
+
+.sod-node--mute circle {
+  stroke: var(--expired);
+}
+
+.sod-node.is-on circle,
+.sod-node:focus circle {
+  fill: #1e2a38;
+  stroke-width: 2.4;
+}
+
+.sod-detail {
+  padding: 0.7rem 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--bg-2);
+  min-height: 8rem;
+}
+
+.sod-detail p {
+  margin: 0.35rem 0 0;
+}
+
+.watch-strip {
+  list-style: none;
+  margin: 0.65rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.watch-chip {
+  display: grid;
+  gap: 0.05rem;
+  padding: 0.35rem 0.5rem;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  font-size: 0.72rem;
+}
+
+.watch-chip em {
+  color: var(--ink-soft);
+  font-style: normal;
+}
+
+.watch-chip--ok {
+  border-color: var(--ce);
+}
+
+.watch-chip--bad {
+  border-color: var(--pe);
+}
+
+.watch-chip--warn {
+  border-color: var(--warn);
+}
+
+.step-list {
+  margin: 0.55rem 0 0;
+  padding-left: 1.15rem;
+}
+
+.roster-rooms,
+.roster-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 0.45rem;
+  margin: 0.45rem 0 0.75rem;
+}
+
+.roster-rooms article,
+.roster-grid article {
+  padding: 0.55rem 0.6rem;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--bg-2);
+}
+
+.roster-grid article.is-fill {
+  border-color: var(--accent);
+}
+
+.roster-grid span,
+.roster-rooms p,
+.roster-grid p {
+  margin: 0.2rem 0 0;
+  color: var(--ink-soft);
+  font-size: 0.78rem;
+}
+
+.ind-list {
+  list-style: none;
+  margin: 0.4rem 0 0;
+  padding: 0;
+  display: grid;
+  gap: 0.35rem;
+}
+
+.ind-list li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  padding: 0.4rem 0.5rem;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.ind-list em {
+  margin-left: auto;
+  color: var(--accent);
+}
+
+.mini-split {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+}
+
+@media (max-width: 720px) {
+  .sod-wrap,
+  .mini-split {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sod-node circle {
+    transition: none;
+  }
+}
+
 .desk.cleanup-desk {
   max-width: 1180px;
   margin: 0 auto;

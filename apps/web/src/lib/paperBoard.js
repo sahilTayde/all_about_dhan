@@ -2,11 +2,32 @@ const API_URL = import.meta.env.VITE_API_URL;
 export const UNIQUE_BOOKS = ["MIX-DEFAULT-BUY", "MIX-ML-LOGIT", "MIX-ML-LOGIT-XR", "MIX-ML-GREEKS"];
 const STALE_MS = 90_000;
 
-export async function fetchMlPaperBoard() {
-  const url = API_URL ? `${API_URL}/paper/ml-books` : "/mock/ml_paper_dashboard.json";
-  const res = await fetch(`${url}${url.includes("?") ? "&" : "?"}t=${Date.now()}`);
-  if (!res.ok) throw new Error(`paper board HTTP ${res.status}`);
+const _cache = { board: null, boardAt: 0, lab: null };
+
+async function getJson(url, signal) {
+  const res = await fetch(url, { signal, cache: "no-store" });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return res.json();
+}
+
+export async function fetchMlPaperBoard({ force = false, signal } = {}) {
+  const now = Date.now();
+  if (!force && _cache.board && now - _cache.boardAt < 5000) return _cache.board;
+  const url = API_URL ? `${API_URL}/paper/ml-books` : "/mock/ml_paper_dashboard.json";
+  const json = await getJson(`${url}${url.includes("?") ? "&" : "?"}t=${now}`, signal);
+  _cache.board = json;
+  _cache.boardAt = now;
+  return json;
+}
+
+export async function fetchFounderLab({ signal } = {}) {
+  if (_cache.lab) return _cache.lab;
+  try {
+    _cache.lab = await getJson(`/mock/founder_lab.json`, signal);
+  } catch {
+    _cache.lab = { ok: false, catalog: { models: [], strategies: [], indicators: [], rooms: [] }, fill_rooms: {}, extra_closed: [], day_series: [] };
+  }
+  return _cache.lab;
 }
 
 export function inr(n, { signed = true, digits = 0 } = {}) {
@@ -254,7 +275,7 @@ function dailyBuckets(rows) {
     .sort((a, b) => String(b.day).localeCompare(String(a.day)));
 }
 
-export function derivePaperBoard(data) {
+export function derivePaperBoard(data, lab = null) {
   if (!data) return null;
   const today = data.today || {};
   const byUpdated = (a, b) => {
@@ -262,8 +283,8 @@ export function derivePaperBoard(data) {
     const tb = Number(b?.last_updated_ts || b?.closed_ts || b?.opened_ts || 0);
     return tb - ta;
   };
-  const closed = [...(data.closed_trades || [])].sort(byUpdated);
-  const open = [...(data.open_trades || [])].sort(byUpdated);
+  const closed = [...(data.closed_trades || []), ...((lab && lab.extra_closed) || [])].sort(byUpdated);
+  const open = [...(data.open_trades || []), ...((lab && lab.extra_open) || [])].sort(byUpdated);
   const uniqueClosed = uniqueFills(closed);
   const uniqueOpen = uniqueFills(open);
   const uniqueNet = uniqueClosed.reduce((s, t) => s + (Number(t.realized_pnl_inr) || 0), 0);
@@ -285,7 +306,7 @@ export function derivePaperBoard(data) {
     ...(seen.cancelled || []),
     ...(modelSignals.latest || []).filter((r) => r.ignored_by_boss || r.observer_action === "VETO" || r.vs_picker === "DISSENT"),
   ];
-  const days = dailyBuckets(uniqueClosed);
+  const days = mergeDaySeries(dailyBuckets(uniqueClosed), lab?.day_series);
   const bookDays = dailyBuckets(closed);
   const todayBookDay = bookDays[0];
   const todayDay = days[0] || {
@@ -310,6 +331,11 @@ export function derivePaperBoard(data) {
     };
   });
   const regimes = data.last_index_regime || {};
+  const signals = modelSignals.latest || [];
+  const nMatch = signals.filter((r) => r.vs_picker === "MATCH").length;
+  const nDissent = signals.filter((r) => r.vs_picker === "DISSENT").length;
+  const fillRooms = lab?.fill_rooms || {};
+  const currentId = uniqueOpen[0]?.trade_id;
   return {
     today,
     closed,
@@ -338,5 +364,44 @@ export function derivePaperBoard(data) {
     moneyWr: data.win_rate_net_pct ?? today.win_rate_net_pct,
     targetWr: uniqueClosed.length ? Math.round((nTarget / uniqueClosed.length) * 1000) / 10 : null,
     current: uniqueOpen[0] || null,
+    catalog: lab?.catalog || { models: [], strategies: [], indicators: [], rooms: [] },
+    confirmKill: lab?.confirm_kill || {},
+    fillRooms,
+    currentRoom: (currentId && fillRooms[currentId]) || fillRooms[Object.keys(fillRooms)[0]] || null,
+    training: lab?.training || null,
+    nMatch,
+    nDissent,
+    nSilent: signals.filter((r) => r.vs_picker === "SILENT" || r.side === "SILENT").length,
+    byRegime: groupNet(uniqueClosed, "index_regime"),
+    byIndex: groupNet(uniqueClosed, "underlying"),
   };
+}
+
+function mergeDaySeries(computed, extra) {
+  const map = new Map();
+  for (const row of extra || []) {
+    map.set(row.day, { ...row, books: row.books || [] });
+  }
+  for (const d of computed) {
+    const prev = map.get(d.day);
+    if (!prev || (d.n || 0) >= (prev.n || 0)) map.set(d.day, d);
+  }
+  return [...map.values()].sort((a, b) => String(b.day).localeCompare(String(a.day)));
+}
+
+function groupNet(rows, key) {
+  const map = new Map();
+  for (const t of rows || []) {
+    const k = t[key] || "UNKNOWN";
+    if (!map.has(k)) map.set(k, { key: k, n: 0, wins: 0, net: 0 });
+    const g = map.get(k);
+    const pnl = Number(t.realized_pnl_inr) || 0;
+    g.n += 1;
+    g.net += pnl;
+    if (pnl > 0) g.wins += 1;
+  }
+  return [...map.values()].map((g) => ({
+    ...g,
+    wr: g.n ? Math.round((g.wins / g.n) * 1000) / 10 : null,
+  }));
 }

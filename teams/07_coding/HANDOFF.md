@@ -1,5 +1,24 @@
 # Handoff log — Team 07 Coding
 
+## As of now (2026-09-20 IST) — founder train graph + tester book (NO_PROMOTE)
+
+```text
+From:     teams/07_coding
+To:       00 / founder
+Date:     2026-09-20
+Status:   PAPER UI / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: Compact founder_lab overlay (not a second 5k dump).
+  Clickable SOD graph + watchers. STRAT-001–014 + models +
+  5m confirm/kill indicators on /pm. Desk/founder share
+  filterable history (TARGET/T2/STOP/TRAIL/CANCEL/TIME).
+  5s fetch cache, AbortController, 12–15s poll. Extra
+  trainer days + lab fills for revalidate. Orders refused.
+Rejected: Live Super Orders. Promote. Heavy chart libs.
+UNKNOWN: live /paper/ml-books vs mock until dual-tape write.
+```
+
 ## As of now (2026-09-20 IST) — simple founder / desk / customer dashboards (NO_PROMOTE)
 
 ```text
