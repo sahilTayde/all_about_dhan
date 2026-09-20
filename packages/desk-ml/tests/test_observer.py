@@ -253,7 +253,12 @@ def test_step_vetoes_logit_ce_when_itm_dead() -> None:
         ce -= 1.5
         pe += 0.4
         bars.append(_bar(i=i, idx=idx, ce=ce, pe=pe, kind="ITM"))
-    engine = BookEngine(skip_new_when_sideways=False, nifty_need_strength=False)
+    engine = BookEngine(
+        skip_new_when_sideways=False,
+        nifty_need_strength=False,
+        sod_one_ticket=False,
+        picker_majority=False,
+    )
     engine.capital_by_book = {b: 150000.0 for b in FILL_ELIGIBLE_BOOKS}
     for i in range(1, 11):
         step_underlying(
@@ -310,3 +315,4 @@ def test_step_atm_tape_does_not_observer_veto() -> None:
     assert review.get("action") == ACTION_PASS
     assert review.get("reason") == REASON_ATM
     assert not any(str(s.get("reason") or "").startswith("OBSERVER_VETO") for s in engine.skips)
+    assert engine.has_open("MIX-DEFAULT-BUY", "NIFTY") is False

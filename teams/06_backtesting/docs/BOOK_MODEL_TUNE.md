@@ -111,7 +111,7 @@ One family, not a second buyer. SOD product path: picker one wing, then observer
 
 write=false NIFTY. Unique net = `UNIQUE_PNL_BOOKS` as coded. Skip counts are per 10s tick × book — not per 1m decision. Session cap `nifty_max_filled_per_book=4` still binds NEW (4 dealer fills on 17/18). One-open skip printed **0** on these days because tickets closed before the next picker ticket; cap, not overlap, cut the book. `win_rate` is paper hit rate net, **not** founder wr. **NO_PROMOTE.** Gate **not** `RESEARCH_READY_FOR_PROGRAMMING`.
 
-OLD = parallel fills, `observer_veto_fills=off`, `sod_one_ticket=off`. NEW = `sod_one_ticket` + majority + observer. Double-run MATCH.
+OLD (pytest `--sod-off` only) = parallel fills. NEW / **default** = `sod_one_ticket` + majority + observer. Double-run MATCH. Do not document OLD as the Monday path.
 
 | Day | Tape | OLD n_filled unique | OLD unique net | OLD dealer | OLD logit | OLD paper hit net | NEW n_filled unique | NEW unique net | NEW dealer | NEW logit | NEW paper hit net | NEW skips (tick×book) | What moved |
 |-----|------|--------------------:|---------------:|-----------:|----------:|------------------:|--------------------:|---------------:|-----------:|----------:|------------------:|------------------------|------------|
@@ -120,7 +120,7 @@ OLD = parallel fills, `observer_veto_fills=off`, `sod_one_ticket=off`. NEW = `so
 | 18 | ITM 694 / ATM 4 | 8 | **+1776.64** | +888.32 n=4 | +888.32 n=4 | 25% | 4 | **−594.45** | −594.45 n=4 | 0 | 25% | FOLLOW_GAP 73 · HOLD_MAJORITY 558 · SOD_ONE_OPEN 0 · cap 49 · LAB_OBSERVE 619 | Hurt. Picker/observer changed the 4 dealer tickets; clones no longer double the green. |
 | 16+17+18 | native | 18 | **−14733.00** | — | — | — | 11 | **+375.41** | — | — | — | — | Net unique better; **18 hurt**. Not a promote. |
 
-Monday: keep SOD flag off for live until founder asks; A/B stays. `production_params_written=false`.
+Monday: SOD default **on** for live dual-tape. `--sod-off` tests only. `production_params_written=false`.
 
 ## HANDOFF
 

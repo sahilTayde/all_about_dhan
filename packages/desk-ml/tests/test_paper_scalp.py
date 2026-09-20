@@ -48,7 +48,8 @@ def _triples(*, n: int = 80, trend: float = 8.0) -> list[Triple]:
         ce = max(8.0, ce + trend * 0.15)
         pe = max(8.0, pe - trend * 0.12)
         atm = round(idx / 50.0) * 50.0
-        ce_itm, pe_itm = atm - 100.0, atm + 100.0
+        ce_itm, pe_itm = atm - 200.0, atm + 200.0
+        ce_bn, pe_bn = atm - 300.0, atm + 300.0
         out.append(
             Triple(
                 ts=_ts(i),
@@ -62,9 +63,11 @@ def _triples(*, n: int = 80, trend: float = 8.0) -> list[Triple]:
                 itm_pe_strike=pe_itm,
                 idx_volume=80.0 + i * 6.0,
                 wing_quotes={
+                    str(int(ce_bn)): {"ce": ce + 55.0, "pe": 15.0},
                     str(int(ce_itm)): {"ce": ce + 40.0, "pe": 20.0},
                     str(int(atm)): {"ce": ce, "pe": pe},
                     str(int(pe_itm)): {"ce": 20.0, "pe": pe + 40.0},
+                    str(int(pe_bn)): {"ce": 15.0, "pe": pe + 55.0},
                 },
             )
         )
@@ -87,12 +90,12 @@ def _chop_triples(*, n: int = 80) -> list[Triple]:
                 atm_strike=25000.0,
                 itm_ce_close=ce + 40.0,
                 itm_pe_close=pe + 40.0,
-                itm_ce_strike=24900.0,
-                itm_pe_strike=25100.0,
+                itm_ce_strike=24800.0,
+                itm_pe_strike=25200.0,
                 wing_quotes={
-                    "24900": {"ce": ce + 40.0, "pe": 20.0},
+                    "24800": {"ce": ce + 40.0, "pe": 20.0},
                     "25000": {"ce": ce, "pe": pe},
-                    "25100": {"ce": 20.0, "pe": pe + 40.0},
+                    "25200": {"ce": 20.0, "pe": pe + 40.0},
                 },
             )
         )
@@ -334,6 +337,18 @@ def test_allocate_fill_books_not_eight_clones() -> None:
     from desk_ml.paper_scalp import DESK_CAPITAL_INR, allocate_desk_capital, tradable_fill_books
 
     plan = allocate_desk_capital(tradable=tradable_fill_books(has_greeks=False))
+    assert plan["tradable"] == ["MIX-DEFAULT-BUY"]
+    assert plan["n_tradable"] == 1
+    assert plan["per_book"]["MIX-DEFAULT-BUY"] == DESK_CAPITAL_INR
+    assert plan["per_book"]["ML-001"] == 0.0
+    assert plan["per_book"]["MIX-ML-LOGIT"] == 0.0
+    assert sum(plan["per_book"][b] for b in plan["tradable"]) == DESK_CAPITAL_INR
+
+
+def test_allocate_old_engine_splits_lab_when_sod_off() -> None:
+    from desk_ml.paper_scalp import DESK_CAPITAL_INR, allocate_desk_capital, tradable_fill_books
+
+    plan = allocate_desk_capital(tradable=tradable_fill_books(has_greeks=False, sod_one_ticket=False))
     assert plan["skipped"] == ["ML-001", "ML-002", "ML-1", "MIX-TV-EP-024", "MIX-ML-GREEKS"]
     assert plan["tradable"] == ["MIX-DEFAULT-BUY", "MIX-ML-LOGIT", "MIX-ML-LOGIT-XR"]
     assert plan["n_tradable"] == 3
@@ -394,7 +409,7 @@ def test_resolve_fill_dealer_confirms_matching_logit() -> None:
 
 def test_trend_up_kills_new_pe_not_a_strat() -> None:
     triples = _triples(n=50, trend=8.0)
-    engine = BookEngine()
+    engine = BookEngine(sod_one_ticket=False, picker_majority=False)
     step_underlying(
         engine,
         underlying="NIFTY",
@@ -468,7 +483,7 @@ def test_greeks_cancel_filled_when_delta_dies() -> None:
 
 def test_ml001_hold_does_not_block_dealer() -> None:
     triples = _triples()
-    engine = BookEngine()
+    engine = BookEngine(sod_one_ticket=False, picker_majority=False)
     i = 40
     step_underlying(
         engine,
@@ -495,7 +510,7 @@ def test_ml001_hold_does_not_block_dealer() -> None:
 
 def test_logit_fills_dealer_does_not_clone_observe_books() -> None:
     triples = _triples()
-    engine = BookEngine()
+    engine = BookEngine(sod_one_ticket=False, picker_majority=False)
     step_underlying(
         engine,
         underlying="NIFTY",
@@ -528,7 +543,7 @@ def test_logit_fills_dealer_does_not_clone_observe_books() -> None:
 
 def test_one_open_per_book_underlying() -> None:
     triples = _triples()
-    engine = BookEngine()
+    engine = BookEngine(sod_one_ticket=False, picker_majority=False)
     for i in (30, 31, 32):
         step_underlying(
             engine,
@@ -550,7 +565,7 @@ def test_one_open_per_book_underlying() -> None:
 
 def test_scalp_time_exit_closes_premium_pnl() -> None:
     triples = _triples(n=80)
-    engine = BookEngine()
+    engine = BookEngine(sod_one_ticket=False, picker_majority=False)
     for i in range(20, 70):
         step_underlying(
             engine,
@@ -610,7 +625,8 @@ def test_replay_parallel_books_no_promote(tmp_path) -> None:
     assert board["research_ready_for_programming"] is False
     assert board["execution"] == "refused"
     assert board["starting_desk_inr"] == DESK_CAPITAL_INR
-    assert board["capital_plan"]["skipped"] == ["ML-001", "ML-002", "ML-1", "MIX-TV-EP-024", "MIX-ML-GREEKS"]
+    assert board["capital_plan"]["tradable"] == ["MIX-DEFAULT-BUY"]
+    assert "MIX-ML-LOGIT" in board["capital_plan"]["skipped"]
     assert board["deny_model_signals"] is True
     assert board["win_rate_kind"] == "paper_closed_net_inr_gt_0_after_groww_stt"
     assert "win_rate_gross_pct" in board
@@ -629,7 +645,7 @@ def test_replay_parallel_books_no_promote(tmp_path) -> None:
 def test_books_do_not_share_veto_on_banknifty() -> None:
     a = _triples(n=40, trend=6.0)
     b = _triples(n=40, trend=-6.0)
-    engine = BookEngine(skip_bn_unless_last3=False, skip_banknifty=False)
+    engine = BookEngine(skip_bn_unless_last3=False, skip_banknifty=False, sod_one_ticket=False, picker_majority=False)
     step_underlying(
         engine,
         underlying="NIFTY",
@@ -783,9 +799,10 @@ def test_cancel_when_atm_strike_rolls() -> None:
 def test_itm_wing_is_100pts_not_atm() -> None:
     from desk_ml.paper_scalp import itm_wing_strikes
 
-    assert itm_wing_strikes("SENSEX", 74300.0) == {"CE": 74200.0, "PE": 74400.0}
-    assert itm_wing_strikes("NIFTY", 23250.0) == {"CE": 23150.0, "PE": 23350.0}
-    from desk_ml.paper_scalp import is_buy_itm, paper_itm_strike
+    assert itm_wing_strikes("NIFTY", 23500.0) == {"CE": 23300.0, "PE": 23700.0}
+    assert itm_wing_strikes("SENSEX", 74300.0) == {"CE": 74000.0, "PE": 74600.0}
+    assert itm_wing_strikes("NIFTY", 23250.0) == {"CE": 23050.0, "PE": 23450.0}
+    from desk_ml.paper_scalp import is_buy_itm, is_deep_itm, paper_itm_strike
 
     tick = Triple(
         ts=_ts(0),
@@ -794,9 +811,11 @@ def test_itm_wing_is_100pts_not_atm() -> None:
         pe_close=190.0,
         atm_strike=74300.0,
     )
-    assert paper_itm_strike(tick, "CE", "SENSEX") == 74200.0
+    assert paper_itm_strike(tick, "CE", "SENSEX") == 74000.0
     assert is_buy_itm("CE", 74300.0, tick, "SENSEX") is False
     assert is_buy_itm("CE", 74200.0, tick, "SENSEX") is True
+    assert is_deep_itm("CE", 74200.0, tick, "SENSEX") is False
+    assert is_deep_itm("CE", 74000.0, tick, "SENSEX") is True
 
 
 def test_open_uses_itm_quote_not_atm() -> None:
@@ -810,12 +829,12 @@ def test_open_uses_itm_quote_not_atm() -> None:
         atm_strike=74300.0,
         itm_ce_close=450.0,
         itm_pe_close=440.0,
-        itm_ce_strike=74200.0,
-        itm_pe_strike=74400.0,
+        itm_ce_strike=74000.0,
+        itm_pe_strike=74600.0,
         wing_quotes={
-            "74200": {"ce": 450.0, "pe": 90.0},
+            "74000": {"ce": 450.0, "pe": 90.0},
             "74300": {"ce": 300.0, "pe": 305.0},
-            "74400": {"ce": 90.0, "pe": 440.0},
+            "74600": {"ce": 90.0, "pe": 440.0},
         },
     )
     engine = BookEngine(skip_bn_unless_last3=False, sensex_need_strength=False)
@@ -832,7 +851,7 @@ def test_open_uses_itm_quote_not_atm() -> None:
         strike=74300.0,
     )
     pos = engine.opens[("MIX-DEFAULT-BUY", "SENSEX")]
-    assert pos.atm_strike == 74200.0
+    assert pos.atm_strike == 74000.0
     assert pos.strike_source == "ITM_100"
     assert pos.entry == 450.0
     assert pos.limit_price == 444.6
@@ -909,13 +928,15 @@ def test_pick_paper_strike_prefers_delta_band() -> None:
         pe_close=70.0,
         atm_strike=23250.0,
         wing_quotes={
+            "23000": {"ce": 190.0, "ce_delta": 0.56, "ce_theta": -6.0, "ce_iv": 15.5, "ce_gamma": 0.001},
+            "23050": {"ce": 170.0, "ce_delta": 0.70, "ce_theta": -6.5, "ce_iv": 15.8, "ce_gamma": 0.001},
             "23150": {"ce": 140.0, "ce_delta": 0.62, "ce_theta": -7.0, "ce_iv": 16.0, "ce_gamma": 0.002},
             "23200": {"ce": 110.0, "ce_delta": 0.56, "ce_theta": -8.0, "ce_iv": 16.5, "ce_gamma": 0.003},
             "23250": {"ce": 80.0, "ce_delta": 0.50, "ce_theta": -9.0, "ce_iv": 17.0, "ce_gamma": 0.004},
             "23300": {"ce": 55.0, "ce_delta": 0.38, "ce_theta": -10.0, "ce_iv": 18.0, "ce_gamma": 0.004},
         },
     )
-    assert pick_paper_strike(tick, "CE", 23250.0, "NIFTY") == 23200.0
+    assert pick_paper_strike(tick, "CE", 23250.0, "NIFTY") == 23000.0
 
 
 def test_filled_close_applies_groww_and_stt() -> None:
@@ -1835,11 +1856,11 @@ def test_nifty_ce_opens_on_up_strength_when_both_wings_allowed() -> None:
         pe_close=80.0,
         atm_strike=23200.0,
         itm_ce_close=160.0,
-        itm_ce_strike=23100.0,
+        itm_ce_strike=23000.0,
         wing_quotes={
-            "23100": {"ce": 160.0, "pe": 20.0},
+            "23000": {"ce": 160.0, "pe": 20.0},
             "23200": {"ce": 120.0, "pe": 80.0},
-            "23300": {"ce": 20.0, "pe": 140.0},
+            "23400": {"ce": 20.0, "pe": 140.0},
         },
     )
     _try_open(
@@ -2107,9 +2128,9 @@ def _nifty_itm_wings(*, pe_px: float, ce_px: float, pe_vol: float, ce_vol: float
     if ce_oi is not None:
         cell_ce["ce_oi"] = ce_oi
     return {
-        "24900": cell_ce,
+        "24800": cell_ce,
         "25000": {"ce": 120.0, "pe": 110.0},
-        "25100": cell_pe,
+        "25200": cell_pe,
     }
 
 
@@ -2154,8 +2175,8 @@ def test_itm_bin_opens_pe_on_chop_index_without_last3() -> None:
             atm_strike=atm,
             itm_ce_close=ce_px,
             itm_pe_close=pe_px,
-            itm_ce_strike=24900.0,
-            itm_pe_strike=25100.0,
+            itm_ce_strike=24800.0,
+            itm_pe_strike=25200.0,
             wing_quotes=_nifty_itm_wings(
                 pe_px=pe_px, ce_px=ce_px, pe_vol=pe_vol, ce_vol=ce_vol, pe_oi=pe_oi, ce_oi=ce_oi
             ),
@@ -2163,7 +2184,7 @@ def test_itm_bin_opens_pe_on_chop_index_without_last3() -> None:
 
     triples[40] = _with_wings(triples[40], 150.0, 140.0, 10000.0, 10000.0, 80000.0, 80000.0)
     triples[41] = _with_wings(triples[41], 168.0, 128.0, 16000.0, 13000.0, 86000.0, 79000.0)
-    engine = BookEngine()
+    engine = BookEngine(sod_one_ticket=False, picker_majority=False)
     kwargs = dict(
         underlying="NIFTY",
         triples=triples,
@@ -2186,7 +2207,7 @@ def test_itm_bin_opens_pe_on_chop_index_without_last3() -> None:
     pos = engine.opens.get(("MIX-ML-LOGIT", "NIFTY"))
     assert pos is not None
     assert pos.side == "PE"
-    assert pos.atm_strike == 25100.0
+    assert pos.atm_strike == 25200.0
     assert pos.strike_source == "ITM_100"
     assert pos.filled is True
     pic = itm_bins_picture(engine)
@@ -2915,11 +2936,11 @@ def test_nifty_bin_confirm_counts_as_strength() -> None:
         pe_close=80.0,
         atm_strike=23350.0,
         itm_ce_close=160.0,
-        itm_ce_strike=23250.0,
+        itm_ce_strike=23150.0,
         wing_quotes={
-            "23250": {"ce": 160.0, "pe": 20.0},
+            "23150": {"ce": 160.0, "pe": 20.0},
             "23350": {"ce": 120.0, "pe": 80.0},
-            "23450": {"ce": 20.0, "pe": 140.0},
+            "23550": {"ce": 20.0, "pe": 140.0},
         },
     )
     _try_open(
@@ -2957,11 +2978,11 @@ def test_logit_fills_when_dealer_waits_strength() -> None:
         pe_close=80.0,
         atm_strike=23350.0,
         itm_ce_close=160.0,
-        itm_ce_strike=23250.0,
+        itm_ce_strike=23150.0,
         wing_quotes={
-            "23250": {"ce": 160.0, "pe": 20.0},
+            "23150": {"ce": 160.0, "pe": 20.0},
             "23350": {"ce": 120.0, "pe": 80.0},
-            "23450": {"ce": 20.0, "pe": 140.0},
+            "23550": {"ce": 20.0, "pe": 140.0},
         },
     )
     _try_open(

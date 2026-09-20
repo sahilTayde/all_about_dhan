@@ -85,7 +85,7 @@ def _step(engine: BookEngine, bars: list[Triple], i: int, **kw: object) -> None:
 
 def test_picker_majority_same_class() -> None:
     votes = [
-        Vote("dealer", "CE", "CONFIRM", False),
+        Vote("follows", "CE", "CONFIRM", False),
         Vote("logit", "CE", "CONFIRM", False),
         Vote("xr", "CE", "CONFIRM", False),
     ]
@@ -106,13 +106,15 @@ def test_picker_hold_8_7() -> None:
 
 def test_picker_soup_and_silent_does_not_vote() -> None:
     votes = collect_analyst_votes(
-        dealer={"side": "CE", "verdict": "BUY_CE_CONFIRM"},
+        follows={"side": "CE", "verdict": "BUY_CE_CONFIRM"},
         logit={"side": "PE", "status": "OK"},
         logit_xr={"side": None, "status": "DATA_INSUFFICIENT"},
         greeks_skip="DATA_INSUFFICIENT",
         classified={"regime": "SIDEWAYS"},
     )
     spoken = [v for v in votes if v.spoken()]
+    assert all(v.source != "dealer" for v in votes)
+    assert any(v.source == "follows" and v.side == "CE" for v in spoken)
     assert all(v.source != "ML-001" or v.silent for v in votes)
     assert any(v.source.startswith("STRAT-") and v.silent for v in votes)
     out = picker_majority(votes)
@@ -121,7 +123,7 @@ def test_picker_soup_and_silent_does_not_vote() -> None:
 
 
 def test_picker_index_against_hold() -> None:
-    votes = [Vote("dealer", "PE", "CONFIRM", False), Vote("logit", "PE", "CONFIRM", False)]
+    votes = [Vote("follows", "PE", "CONFIRM", False), Vote("logit", "PE", "CONFIRM", False)]
     out = picker_majority(votes, classified={"direction": "UP", "index_direction": "UP"})
     assert out["action"] == "HOLD"
     assert out["detail"] == "HOLD_INDEX_AGAINST"
@@ -223,15 +225,49 @@ def test_trace_rooms_on_step() -> None:
     engine = _engine(sod_one_ticket=True, picker_majority=True)
     _step(engine, bars, 2)
     step = engine.last_step
-    for key in ("analyst_votes", "picker", "observer", "desk", "overlay_to_boss", "bin_both_wings"):
+    for key in ("follows", "analyst_votes", "picker", "observer", "desk", "overlay_to_boss", "bin_both_wings"):
         assert key in step
+    assert step["trace"] == ["follows", "picker", "observer", "desk"]
+    assert step["desk"]["kind"] == "DESK"
     assert step["llm_review"] is None
     assert step["desk"]["sod_one_ticket"] is True
+    assert engine.has_open(SOD_PRODUCT_BOOK, "NIFTY") is False
+
+
+def test_sod_itm_tape_can_open_after_allow() -> None:
+    bars = []
+    idx, ce, pe = 25000.0, 120.0, 180.0
+    for i in range(16):
+        idx += 8.0
+        ce += 2.2
+        pe -= 1.1
+        bars.append(_bar(i=i, idx=idx, ce=ce, pe=pe, vol=2000 + i * 50))
+    engine = _engine()
+    for i in range(1, 15):
+        _step(engine, bars, i)
+    step = engine.last_step
+    assert "follows" in step
+    if engine.has_open(SOD_PRODUCT_BOOK, "NIFTY"):
+        pos = engine.opens[(SOD_PRODUCT_BOOK, "NIFTY")]
+        assert pos.quote_src != "ATM"
+        assert step["observer"]["action"] == ACTION_ALLOW
+    else:
+        assert step["picker"]["action"] in {"HOLD", "TICKET"}
+        assert step["observer"]["action"] in {ACTION_VETO, ACTION_PASS, ACTION_ALLOW}
+
+
+def test_sod_defaults_on() -> None:
+    from desk_ml.paper_scalp import DEFAULT_PAPER_PARAMS, BookEngine
+
+    assert DEFAULT_PAPER_PARAMS["sod_one_ticket"] is True
+    assert DEFAULT_PAPER_PARAMS["picker_majority"] is True
+    assert BookEngine().sod_one_ticket is True
+    assert BookEngine().picker_majority is True
 
 
 def test_thin_tape_hold_majority() -> None:
     votes = collect_analyst_votes(
-        dealer={"side": None, "verdict": "DATA_INSUFFICIENT"},
+        follows={"side": None, "verdict": "DATA_INSUFFICIENT"},
         logit={"side": None, "status": "DATA_INSUFFICIENT"},
         logit_xr={"side": None, "status": "DATA_INSUFFICIENT"},
         greeks_skip="DATA_INSUFFICIENT",

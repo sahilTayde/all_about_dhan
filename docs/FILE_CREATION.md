@@ -42,6 +42,8 @@
 
 Teacher books, `config/workspace.yaml` `sources.books[]`, STRAT/MIX/CAS catalogs, and `docs/` product standards (`COMPLIANCE`, `SECURITY`, `SDLC`, `REVIEW`, `INDEX`, `COMPANY_DEPARTMENTS`, …) are **edit-in-place**.
 
+**Locked SOD rooms** (do not move unless founder asks): FAST analysts → `picker_majority` → observer `FOLLOW_GAP_ITM_1M` → desk `MIX-DEFAULT-BUY` ITM fill. Plugin map: [`teams/04_quant/docs/candidates/MIX-FORM.md`](../teams/04_quant/docs/candidates/MIX-FORM.md).
+
 ---
 
 ## Do not create

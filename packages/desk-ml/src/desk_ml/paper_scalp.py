@@ -23,6 +23,7 @@ from desk_ml.model import OVERLAY_HOLD, premium_divergence_pattern
 from desk_ml.llm_review import overlay_to_boss
 from desk_ml.observer import follow_gap_series_itm_1m, review_fill_intents, review_picker_ticket
 from desk_ml.picker import (
+    SOD_LAB_OBSERVE,
     SOD_ONE_OPEN,
     SOD_PRODUCT_BOOK,
     apply_picker_to_intents,
@@ -277,8 +278,8 @@ DEFAULT_PAPER_PARAMS = {
     "nifty_max_filled_per_book": 4,
     "apply_target_shift": False,
     "observer_veto_fills": True,
-    "sod_one_ticket": False,
-    "picker_majority": False,
+    "sod_one_ticket": True,
+    "picker_majority": True,
 }
 
 
@@ -1304,13 +1305,15 @@ def allocate_desk_capital(
         "skipped": skipped,
         "per_book": per_book,
         "unallocated_inr": unallocated,
-        "note": "Equal split of desk capital across tradable fill books (logit + dealer-confirm + XR-own-side + greeks if tape). Observe clones get ₹0. Target 10 lots/fill when notional fits. Not 10k×8.",
+        "note": "SOD default: desk capital on MIX-DEFAULT-BUY only. LAB books observe-or-skip. --sod-off (tests) splits logit + FOLLOWS + XR + greeks. Observe clones get ₹0.",
         "production_params_written": False,
     }
 
 
-def tradable_fill_books(*, has_greeks: bool) -> list[str]:
-    """Capital seats: own-side fill books only. KMeans/TV-EP observe. Greeks only if tape has greeks."""
+def tradable_fill_books(*, has_greeks: bool, sod_one_ticket: bool = True) -> list[str]:
+    """Capital seats. SOD product = MIX-DEFAULT-BUY only. LAB observe-or-skip."""
+    if sod_one_ticket:
+        return [SOD_PRODUCT_BOOK]
     out: list[str] = []
     for book in LIVE_BOOKS:
         if book in OBSERVE_ONLY_BOOKS:
@@ -1536,8 +1539,18 @@ def _opt_px(raw: Any) -> Optional[float]:
     return val if val > 0 else None
 
 
-def quote_for_side(tick: Triple, side: str, *, strike: Optional[float] = None) -> tuple[Optional[float], Optional[float], str]:
-    """Return (ltp, low, source). Booked strike never silently uses a rolled ATM/ITM print."""
+def quote_for_side(
+    tick: Triple,
+    side: str,
+    *,
+    strike: Optional[float] = None,
+    itm_only: bool = False,
+) -> tuple[Optional[float], Optional[float], str]:
+    """Return (ltp, low, source). Booked strike never silently uses a rolled ATM/ITM print.
+
+    SOD product OPEN/CLOSE/MTM: `itm_only=True` — missing ITM is DATA_INSUFFICIENT,
+    never ATM LTP as if it were ITM. FOLLOWS may still read ATM last-tick for its vote.
+    """
     want = float(strike) if strike is not None else None
     wings = tick.wing_quotes if isinstance(tick.wing_quotes, dict) else {}
 
@@ -1565,12 +1578,16 @@ def quote_for_side(tick: Triple, side: str, *, strike: Optional[float] = None) -
             if itm is not None:
                 return itm, _opt_px(tick.itm_pe_low) or itm, "ITM_100"
         if tick.atm_strike is not None and abs(float(tick.atm_strike) - want) < 1e-6:
+            if itm_only:
+                return None, None, "MISSING_ITM"
             if side == "CE":
                 atm = _opt_px(tick.ce_close)
                 return atm, (_opt_px(tick.ce_low) or atm) if atm is not None else None, "ATM"
             atm = _opt_px(tick.pe_close)
             return atm, (_opt_px(tick.pe_low) or atm) if atm is not None else None, "ATM"
         if not wings and tick.atm_strike is None:
+            if itm_only:
+                return None, None, "MISSING_ITM"
             if side == "CE":
                 atm = _opt_px(tick.ce_close)
                 return atm, _opt_px(tick.ce_low) or atm, "ATM"
@@ -1581,11 +1598,15 @@ def quote_for_side(tick: Triple, side: str, *, strike: Optional[float] = None) -
         itm = _opt_px(tick.itm_ce_close)
         if itm is not None:
             return itm, _opt_px(tick.itm_ce_low) or itm, "ITM_100"
+        if itm_only:
+            return None, None, "MISSING_ITM"
         atm = _opt_px(tick.ce_close)
         return atm, _opt_px(tick.ce_low) or atm, "ATM"
     itm = _opt_px(tick.itm_pe_close)
     if itm is not None:
         return itm, _opt_px(tick.itm_pe_low) or itm, "ITM_100"
+    if itm_only:
+        return None, None, "MISSING_ITM"
     atm = _opt_px(tick.pe_close)
     return atm, _opt_px(tick.pe_low) or atm, "ATM"
 
@@ -2746,8 +2767,8 @@ class BookEngine:
     observer_review: dict[str, dict[str, Any]] = field(default_factory=dict)
     observer_by_book: dict[str, dict[str, dict[str, Any]]] = field(default_factory=dict)
     observer_veto_fills: bool = True  # fill-path family; ATM/DI = PASS
-    sod_one_ticket: bool = False  # product path: one ticket after picker+observer
-    picker_majority: bool = False  # RULES majority; implied by sod_one_ticket
+    sod_one_ticket: bool = True  # locked product: votes → picker → observer → one desk ticket
+    picker_majority: bool = True  # RULES majority; implied by sod_one_ticket
 
     def book_capital(self, book_id: str) -> float:
         if book_id in self.capital_by_book:
@@ -2791,8 +2812,9 @@ def dealer_side(
     *,
     underlying: str = "NIFTY",
 ) -> dict[str, Any]:
+    """FOLLOWS analyst (MIX-FORM-FOLLOWS / judge_tick). Vote only — not desk fill."""
     if judge_tick is None:
-        return {"side": None, "verdict": "DATA_INSUFFICIENT", "case": "NO_DEALER"}
+        return {"side": None, "verdict": "DATA_INSUFFICIENT", "case": "NO_FOLLOWS"}
     note = judge_tick(
         underlying=underlying,
         index_delta=index_delta,
@@ -4013,12 +4035,23 @@ def _try_open(
         )
         return
     atm = strike if strike is not None else chain_atm(tick, underlying)
+    sod_product = bool(getattr(engine, "sod_one_ticket", True)) and book_id == SOD_PRODUCT_BOOK
     tape_kind = str(getattr(tick, "premium_kind", None) or "").upper()
-    want = float(atm) if tape_kind == "ATM" else pick_paper_strike(tick, side, atm, underlying)
+    if sod_product:
+        want = pick_paper_strike(tick, side, atm, underlying)
+    else:
+        want = float(atm) if tape_kind == "ATM" else pick_paper_strike(tick, side, atm, underlying)
     greeks = leg_greeks(tick, side, want)
-    itm_px, _itm_low, itm_src = quote_for_side(tick, side, strike=want)
+    itm_px, _itm_low, itm_src = quote_for_side(tick, side, strike=want, itm_only=sod_product)
     booked_src = str(itm_src or "")
-    if tape_kind == "ATM":
+    if sod_product:
+        booked_ok = (
+            itm_px is not None
+            and booked_src not in {"ATM", "MISSING_ITM"}
+            and not booked_src.startswith("MISSING")
+            and is_buy_itm(side, float(want), tick, underlying)
+        )
+    elif tape_kind == "ATM":
         booked_ok = itm_px is not None and not booked_src.startswith("MISSING")
     else:
         booked_ok = (
@@ -4031,7 +4064,7 @@ def _try_open(
         engine.mark_skip(
             book_id,
             underlying,
-            "ITM_ONLY_NO_QUOTE" if itm_px is None or booked_src == "ATM" else "ITM_ONLY_NOT_ITM",
+            "ITM_ONLY_NO_QUOTE" if itm_px is None or booked_src in {"ATM", "MISSING_ITM"} else "ITM_ONLY_NOT_ITM",
             ts=tick.ts,
             index_regime=regime,
             seen_side=side,
@@ -4303,7 +4336,8 @@ def mark_to_market(
         pos = engine.opens.get((book_id, underlying))
         if pos is None:
             continue
-        ltp, side_low, src = quote_for_side(tick, pos.side, strike=pos.atm_strike)
+        sod_mtm = bool(getattr(engine, "sod_one_ticket", True)) and book_id == SOD_PRODUCT_BOOK
+        ltp, side_low, src = quote_for_side(tick, pos.side, strike=pos.atm_strike, itm_only=sod_mtm)
         if ltp is None and pos.last_ltp is not None:
             ltp = float(pos.last_ltp)
             side_low = pos.seen_low if pos.seen_low is not None else ltp
@@ -4571,7 +4605,7 @@ def step_underlying(
     greeks_intent_side, greeks_intent_skip = intents.get("MIX-ML-GREEKS", (None, None))
     extra_votes = getattr(engine, "_sod_extra_votes", None)
     votes = collect_analyst_votes(
-        dealer=dealer,
+        follows=dealer,
         logit=logit,
         logit_xr=logit_xr,
         greeks_side=greeks_intent_side,
@@ -4702,6 +4736,7 @@ def step_underlying(
     engine.last_step = {
         "underlying": und,
         "ts": tick.ts,
+        "follows": dealer,
         "dealer": dealer,
         "ml001_hold": ml001_hold,
         "ml002_hold": ml002_hold,
@@ -4722,17 +4757,20 @@ def step_underlying(
         "desk": {
             "sod_one_ticket": sod,
             "product_book": SOD_PRODUCT_BOOK if sod else None,
+            "kind": "DESK",
             "opened_this_tick": opened_this_tick,
             "working": engine.has_working_underlying(und),
+            "fill_quote": "ITM",
         },
         "overlay_to_boss": overlay_pkt,
         "llm_review": None,
         "follow_gap": bool(review.get("follow_gap") if isinstance(review, dict) else False),
         "follow_gap_rule": "FOLLOW_GAP_ITM_1M",
         "independent": True,
+        "trace": ["follows", "picker", "observer", "desk"],
         "note": (
-            "SOD rooms: analyst votes → boss/picker → observer → desk. "
-            "LAB parallel fills when sod_one_ticket is off. LLM is not on ALLOW/open. "
+            "Locked SOD: FOLLOWS analyst vote → picker_majority → observer FOLLOW_GAP_ITM_1M "
+            "→ desk MIX-DEFAULT-BUY ITM fill. LAB observe-or-skip. LLM is not on ALLOW/open. "
             "KMeans is not CE/PE. KEEP_ALL STRAT-001–014 as votes. NO_PROMOTE."
         ),
     }
@@ -5111,8 +5149,12 @@ def replay_paper_scalp(
         tapes[u] = tape
         loaded[u] = triples
 
+    sod_on = True if sod_one_ticket is None else bool(sod_one_ticket)
+    picker_on = True if picker_majority is None else bool(picker_majority)
+    if sod_on:
+        picker_on = True
     has_greeks = any(tape_has_dhan_greeks(loaded[u]) for u in loaded)
-    tradable = tradable_fill_books(has_greeks=has_greeks)
+    tradable = tradable_fill_books(has_greeks=has_greeks, sod_one_ticket=sod_on)
     plan = allocate_desk_capital(total=desk_total, tradable=tradable)
 
     engine = BookEngine(
@@ -5247,16 +5289,8 @@ def replay_paper_scalp(
             if observer_veto_fills is not None
             else bool(params.get("observer_veto_fills", True))
         ),
-        sod_one_ticket=(
-            bool(sod_one_ticket)
-            if sod_one_ticket is not None
-            else bool(params.get("sod_one_ticket", False))
-        ),
-        picker_majority=(
-            bool(picker_majority)
-            if picker_majority is not None
-            else bool(params.get("picker_majority", False) or params.get("sod_one_ticket", False))
-        ),
+        sod_one_ticket=sod_on,
+        picker_majority=picker_on,
     )
     for book_id in LIVE_BOOKS:
         engine.equity[book_id] = float(plan["per_book"].get(book_id) or 0.0)
@@ -5924,7 +5958,7 @@ def rank_books_net(closed: Sequence[dict[str, Any]]) -> list[dict[str, Any]]:
             {
                 "rank": 0,
                 "book_id": book,
-                "kind": "ML" if book in ML_BOOK_IDS else ("DEALER" if book == "MIX-DEFAULT-BUY" else "LAB"),
+                "kind": "ML" if book in ML_BOOK_IDS else ("DESK" if book == "MIX-DEFAULT-BUY" else "LAB"),
                 "n_filled": len(rows),
                 "n_cancelled": cancelled.get(book, 0),
                 "n_wins": sum(1 for p in nets if p > 0),
@@ -6166,7 +6200,10 @@ SKIP_WHY = {
     "TREND_UP_KILL_PE": "INDEX 1m TREND UP — PE confirm/kill, not a fill.",
     "TREND_DOWN_KILL_CE": "INDEX 1m TREND DOWN — CE confirm/kill, not a fill.",
     "NO_SIDE": "Book had no CE/PE of its own this tick.",
-    "DEALER_HOLD": "Dealer HOLD (premium vs spot) — MIX-DEFAULT-BUY does not open.",
+    "DEALER_HOLD": "FOLLOWS analyst HOLD (ATM last-tick vs INDEX) — not a fill price; MIX-DEFAULT-BUY does not open from this vote.",
+    SOD_LAB_OBSERVE: "SOD product books MIX-DEFAULT-BUY only. LAB fill books observe-or-skip.",
+    SOD_ONE_OPEN: "SOD one working ticket already open on this underlying.",
+    "HOLD_MAJORITY": "Picker majority HOLD — no desk ticket.",
     "OPEN_SETTLE_35M": "No NEW paper before 09:30 IST Mon–Fri.",
     "NO_NEW_BEFORE_0950": "No NEW paper before 09:30 IST Mon–Fri.",
     "NO_NEW_BEFORE_0930": "No NEW paper before 09:30 IST Mon–Fri.",
@@ -6195,12 +6232,12 @@ SKIP_WHY = {
     BIN_LONG_UNWIND: "ITM strike OI down with premium down — long unwind, skip new buy on that wing.",
     COVER_LONG_UNWIND: "Same-wing OI down + premium down — long unwind; flatten. Do not wait T1.",
     CANCEL_STALL: "Premium high went stale in low-ER chop without last-3 continuation — book; do not sit a 9m clock.",
-    CANCEL_AGAINST: "Filled wing is against INDEX last-3 raw / 15m TREND / opposite ITM flow — flatten; do not wait pause or dealer CONFIRM.",
+    CANCEL_AGAINST: "Filled wing is against INDEX last-3 raw / 15m TREND / opposite ITM flow — flatten; do not wait pause or FOLLOWS CONFIRM.",
     "FOCUS_NIFTY_SENSEX": "Paper focus is NIFTY and SENSEX. BANKNIFTY NEW skipped (separate later).",
     "FOCUS_NIFTY_ONLY": "This ship books NIFTY only. SENSEX NEW skipped so unique P/L is not mixed.",
     "SENSEX_WAIT_STRENGTH": "SENSEX uses a wider ATR stop; NEW only on pause-continue, last-3, or short-cover — not every ITM-bin tick.",
-    "NIFTY_WAIT_STRENGTH": "Dealer NEW only on last-3 / pause-continue / short-cover / itm_bin confirm / TREND ER≥0.35 same wing. Logit/greeks still fill their own side; booking overlay runs after fill.",
-    "NIFTY_IMPULSE_ALIGN": "Dealer skips CE on last-3 DOWN / PE on last-3 UP. ML fill books keep their signal.",
+    "NIFTY_WAIT_STRENGTH": "Desk NEW only on last-3 / pause-continue / short-cover / itm_bin confirm / TREND ER≥0.35 same wing. FOLLOWS is the analyst vote, not this gate.",
+    "NIFTY_IMPULSE_ALIGN": "Desk skips CE on last-3 DOWN / PE on last-3 UP.",
     "NIFTY_SIDE_FILTER": "NIFTY side filter (paper permutation, not a MIX).",
     "NIFTY_DELTA_BAND": "NIFTY |delta| below paper band (OpenAI counsel).",
     "NO_NEW_AFTER_CUTOFF": "No NEW after session cutoff minutes IST.",
@@ -6216,11 +6253,11 @@ def _skip_why(reason: str) -> str:
     if text in SKIP_WHY:
         return SKIP_WHY[text]
     if "DEALER_BUY_CE_CONFIRM_VS_LOGIT_PE" in text:
-        return "Dealer saw CE; logit PE — dealer CONFIRM vs logit, no clone fill."
+        return "FOLLOWS saw CE; logit PE — analyst vs logit, no clone fill."
     if "DEALER_BUY_PE_CONFIRM_VS_LOGIT_CE" in text:
-        return "Dealer saw PE; logit CE — dealer CONFIRM vs logit, no clone fill."
+        return "FOLLOWS saw PE; logit CE — analyst vs logit, no clone fill."
     if "DEALER_HOLD_VS_LOGIT" in text:
-        return "Dealer HOLD vs logit side — dealer book does not fill."
+        return "FOLLOWS HOLD vs logit side — product book does not fill from that vote."
     if text.startswith("XR filter"):
         return "MIX-ML-LOGIT-XR range-expansion filter skipped this side."
     if "lean_ml_logit SKIP" in text:

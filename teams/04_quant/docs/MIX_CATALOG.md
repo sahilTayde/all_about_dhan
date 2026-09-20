@@ -1092,7 +1092,9 @@ NO_PROMOTE: true
 **Family file:** [`candidates/MIX-FORM.md`](candidates/MIX-FORM.md)  
 **VALIDATION note:** [`INDEX_CE_PE_EDA.md`](../../02_phd_math/docs/INDEX_CE_PE_EDA.md)
 
-KEEP_ALL feature IDs (not customer tickets): `MIX-FORM-BETA-RESID` · `MIX-FORM-DIVERGE-Z` · `MIX-FORM-STRADDLE-RET` · `MIX-FORM-FOLLOW-GAP`. Feed ML-001/ML-002. **No** `STRAT-015+`.
+KEEP_ALL feature IDs (not customer tickets): `MIX-FORM-BETA-RESID` · `MIX-FORM-DIVERGE-Z` · `MIX-FORM-STRADDLE-RET` · `MIX-FORM-FOLLOW-GAP` · **`MIX-FORM-FOLLOWS`** (analyst vote `follows`; ATM last-tick INDEX vs CE/PE; not desk / not observer / not fill LTP). Feed ML-001/ML-002. **No** `STRAT-015+`.
+
+**Locked SOD (founder):** FAST analysts → `picker_majority` → observer `FOLLOW_GAP_ITM_1M` → desk `MIX-DEFAULT-BUY` ITM fill. Do not move rooms unless founder asks. Plugin map lives in [`candidates/MIX-FORM.md`](candidates/MIX-FORM.md). `--sod-off` is tests-only. **NO_PROMOTE.**
 
 ```yaml
 mix_id: MIX-FORM-*

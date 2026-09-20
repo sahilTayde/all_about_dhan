@@ -1,5 +1,21 @@
 # Handoff log — Team 06 Backtesting
 
+## As of now (2026-09-20 IST) — SOD default ON; OLD tests-only (NO_PROMOTE)
+
+```text
+From:     teams/06_backtesting
+To:       00 / 04 / founder
+Date:     2026-09-20
+Status:   PAPER / NO_PROMOTE / BACKTEST_REQUIRED
+Accepted: Product path SOD on (dual-tape paper-scalp inherits).
+  Desk OPEN/CLOSE/MTM uses ITM LTP. ATM-only tape does not
+  open MIX-DEFAULT-BUY. --sod-off remains for pytest A/B.
+Rejected: Documenting OLD as the Monday path. ATM-as-ITM fill.
+  Promote. Gate set. Founder wr.
+UNKNOWN: more NORMAL sessions vs HOLD_MAJORITY; OI DI unless
+  Dhan printed.
+```
+
 ## As of now (2026-09-20 IST) — SOD 16/17/18 OLD vs NEW (NO_PROMOTE)
 
 ```text

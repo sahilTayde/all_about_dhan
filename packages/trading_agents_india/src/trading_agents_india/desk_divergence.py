@@ -1,5 +1,7 @@
-"""Deterministic dealer: INDEX Δ vs ATM CE Δ vs ATM PE Δ.
+"""MIX-FORM-FOLLOWS analyst: last-tick INDEX Δ vs ATM CE Δ vs ATM PE Δ.
 
+Vote only. Not desk, not observer, not the fill price. PROJECT-DERIVED.
+`judge_tick` stays; callers treat the note as a FOLLOWS vote (`source=follows`).
 No LLM. No orders. Does not rewrite MIX-DEFAULT-BUY or production params.
 PREMIUM_DIVERGENCE → HOLD / no new paper CE/PE.
 """
@@ -23,7 +25,7 @@ class DivergenceNote:
     verdict: str  # HOLD | BUY_CE_CONFIRM | BUY_PE_CONFIRM | DATA_INSUFFICIENT
     case: str  # PREMIUM_DIVERGENCE | CE_FOLLOWS | PE_FOLLOWS | FLAT | STALE | ...
     reason_code: str
-    dealer_note: str
+    dealer_note: str  # FOLLOWS analyst copy; field name kept (judge_tick API)
     allow_new_paper_ce_pe: bool
     index_delta: Optional[float]
     ce_delta: Optional[float]
@@ -58,9 +60,9 @@ def judge_tick(
     data_gaps: Optional[list[str]] = None,
     paper_train: Optional[bool] = None,
 ) -> DivergenceNote:
-    """Compare last-tick deltas. Missing numbers → DATA_INSUFFICIENT, not invented greeks."""
+    """FOLLOWS analyst: last-tick ATM INDEX vs CE/PE. Vote only — not fill LTP."""
     gaps = list(data_gaps or [])
-    extra = {"data_gaps": gaps}
+    extra = {"data_gaps": gaps, "mix_id": "MIX-FORM-FOLLOWS", "vote_source": "follows"}
     train_on = paper_train_no_deny(paper_train)
     note: Optional[DivergenceNote] = None
 

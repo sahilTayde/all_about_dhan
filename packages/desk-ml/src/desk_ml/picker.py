@@ -1,8 +1,10 @@
 """Boss/picker: RULES majority on spoken CE vs PE. Not LLM. Not paper wr.
 
-Analysts (STRAT-001–014 KEEP_ALL, dealer, logit, XR, greeks, ML-001/002) vote
-or stay silent. Silent / DATA_INSUFFICIENT does not vote. 8-7 or soup = HOLD.
-INDEX 1m against the winning wing = HOLD. Does not invent CE/PE. NO_PROMOTE.
+Analysts (STRAT-001–014 KEEP_ALL, MIX-FORM-FOLLOWS, logit, XR, greeks,
+ML-001/002 silent) vote or stay silent. Silent / DATA_INSUFFICIENT does not
+vote. 8-7 or soup = HOLD. INDEX 1m against the winning wing = HOLD.
+FOLLOWS is an analyst — not desk, not observer. Does not invent CE/PE.
+NO_PROMOTE.
 """
 
 from __future__ import annotations
@@ -100,6 +102,7 @@ def strat_votes(
 
 def collect_analyst_votes(
     *,
+    follows: Optional[dict[str, Any]] = None,
     dealer: Optional[dict[str, Any]] = None,
     logit: Optional[dict[str, Any]] = None,
     logit_xr: Optional[dict[str, Any]] = None,
@@ -110,13 +113,17 @@ def collect_analyst_votes(
     classified: Optional[dict[str, Any]] = None,
     extra: Optional[Sequence[Vote]] = None,
 ) -> list[Vote]:
-    """Spoken CE/PE only. KMeans HOLD is silent — never BUY_CE from ML-001."""
+    """Spoken CE/PE only. KMeans HOLD is silent — never BUY_CE from ML-001.
+
+    `dealer=` is a legacy alias for the MIX-FORM-FOLLOWS packet. Vote source is
+    `follows`. New STRAT/analyst votes go in `extra` (KEEP_ALL, no STRAT-015+).
+    """
     votes: list[Vote] = []
-    d = dealer or {}
+    d = follows or dealer or {}
     if d.get("side") in {"CE", "PE"}:
-        votes.append(_vote("dealer", str(d["side"]), REASON_CONFIRM, str(d.get("verdict") or "")))
+        votes.append(_vote("follows", str(d["side"]), REASON_CONFIRM, str(d.get("verdict") or "")))
     else:
-        votes.append(_silent("dealer", str(d.get("verdict") or "DATA_INSUFFICIENT")))
+        votes.append(_silent("follows", str(d.get("verdict") or "DATA_INSUFFICIENT")))
 
     lg = logit or {}
     if lg.get("side") in {"CE", "PE"}:

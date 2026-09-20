@@ -1,7 +1,8 @@
 """Fill-path observer family: ALLOW / VETO / PASS. No own CE/PE.
 
-SOD: picker proposes one wing, then one observer review, then desk. Not owned
-by dealer. Not ML-001 family. STRAT-001–014 vote earlier; they do not fill here.
+SOD: picker proposes one wing, then one observer review, then desk.
+FOLLOWS is an analyst vote earlier — not this room. Not ML-001 family.
+STRAT-001–014 vote earlier; they do not fill here.
 ATM / missing ITM → PASS. VETO = do not send to desk. NO_PROMOTE.
 """
 
@@ -60,11 +61,11 @@ def signal_expected_dir(
     idx_dir = cl.get("index_direction") or cl.get("direction")
     want = "UP" if side == "CE" else "DOWN" if side == "PE" else None
     seen = impulse or idx_dir
-    dealer_side = (dealer or {}).get("side")
+    follows_side = (dealer or {}).get("side")  # FOLLOWS analyst packet (judge_tick)
     logit_side = (logit or {}).get("side")
     sources = []
-    if dealer_side == side:
-        sources.append("dealer")
+    if follows_side == side:
+        sources.append("follows")
     if logit_side == side:
         sources.append("logit")
     if impulse in {"UP", "DOWN"}:
@@ -76,7 +77,8 @@ def signal_expected_dir(
         "seen_index": seen if seen in {"UP", "DOWN"} else None,
         "sources": sources,
         "self_contradict": self_contradict,
-        "dealer_verdict": (dealer or {}).get("verdict"),
+        "follows_verdict": (dealer or {}).get("verdict"),
+        "dealer_verdict": (dealer or {}).get("verdict"),  # alias; FOLLOWS is the analyst
         "logit_status": (logit or {}).get("status") or (logit or {}).get("reason"),
     }
 
@@ -290,8 +292,8 @@ def review_fill_intents(
 ) -> tuple[dict[str, tuple[Optional[str], Optional[str]]], dict[str, Any], dict[str, dict[str, Any]]]:
     """Fill-path SOD: each fill book is reviewed on its own proposed side.
 
-    Caller is the paper engine, not dealer and not ML-001. A later STRAT in
-    fill_books gets the same 1m family check. Does not invent CE/PE.
+    Caller is the paper engine, not the FOLLOWS analyst and not ML-001. A later
+    STRAT in fill_books gets the same 1m family check. Does not invent CE/PE.
     """
     out = dict(intents)
     by_book: dict[str, dict[str, Any]] = {}

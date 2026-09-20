@@ -1,5 +1,20 @@
 # Handoff log — Team 04 Quant
 
+## As of now (2026-09-20 IST) — MIX-FORM-FOLLOWS analyst + locked SOD (NO_PROMOTE)
+
+```text
+MIX / STRAT: MIX-FORM-FOLLOWS (same MIX-FORM family). KEEP_ALL
+  001–014 as VOTES. No STRAT-015+. Origin: PROJECT-DERIVED.
+Entry hypothesis: FOLLOWS last-tick ATM INDEX vs CE/PE is an
+  analyst vote (source follows). Not desk. Not observer.
+Confirm-or-kill: observer FOLLOW_GAP_ITM_1M only.
+Hold / veto: VETO not sent to desk. Missing ITM = skip NEW.
+Feasibility: SOD default on. Desk ITM LTP only.
+Backtest request: none new; --sod-off tests-only.
+Customer copy allowed: none.
+UNKNOWN: unbound STRAT votes stay DI. ATM vote ≠ fill price.
+```
+
 ## As of now (2026-09-20 IST) — SOD picker then observer (NO_PROMOTE)
 
 ```text

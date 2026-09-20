@@ -2,6 +2,26 @@
 
 **Agents:** read **only the newest block**. Do not ingest this whole log. New files: [`docs/FILE_CREATION.md`](../../docs/FILE_CREATION.md). Append here — do not create `HANDOFF_TOMORROW.md` or extra `CONTINUE_*`.
 
+## As of now (2026-09-20 IST) — SOD locked default ON (NO_PROMOTE)
+
+```text
+From:     teams/00_orchestrator
+To:       founder / 04 / 05 / 06
+Date:     2026-09-20
+Status:   PAPER / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: SOD is THE architecture. Defaults sod_one_ticket +
+  picker_majority True. Product: FOLLOWS analyst → picker →
+  observer ITM 1m → desk MIX-DEFAULT-BUY ITM fill. Rooms locked
+  unless founder asks. Plugin map in MIX-FORM.md.
+Rejected: OLD parallel dealer+logit+XR+greeks fills as Monday
+  path. Vote source dealer. ATM-as-ITM fill. STRAT-015+.
+  Moving rooms. Gate / promote.
+UNKNOWN: OI/delta when Dhan does not print; unbound STRAT votes
+  stay DI; FOLLOWS ATM vote vs ITM fill on thin tape.
+```
+
 ## As of now (2026-09-20 IST) — SOD rooms paper-ready (NO_PROMOTE)
 
 ```text

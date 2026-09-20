@@ -89,13 +89,19 @@ def build_parser() -> argparse.ArgumentParser:
     ps.add_argument(
         "--sod-one-ticket",
         action="store_true",
-        help="Product SOD: picker majority + one observer + one working ticket. LAB observe-or-skip.",
+        default=True,
+        help="SOD product path (default on). No-op true; rooms are locked.",
+    )
+    ps.add_argument(
+        "--sod-off",
+        action="store_true",
+        help="pytest A/B only: old parallel FILL_ELIGIBLE engine. Not the live path.",
     )
     ps.add_argument(
         "--observer-veto-fills",
         default=None,
         choices=["on", "off"],
-        help="OLD A/B: off = parallel fills without observer veto. Default on.",
+        help="Observer veto on fills. Default on. --sod-off is the only old-engine switch.",
     )
     ff = sub.add_parser(
         "fix-first",
@@ -198,6 +204,7 @@ def main(argv: Optional[list[str]] = None) -> int:
             return 0
         live = bool(args.live_session) or str(args.source).strip().lower() in {"dual-tape", "dual_tape"}
         veto = getattr(args, "observer_veto_fills", None)
+        sod_off = bool(getattr(args, "sod_off", False))
         report = replay_paper_scalp(
             root=root,
             underlyings=names or ("NIFTY",),
@@ -207,8 +214,8 @@ def main(argv: Optional[list[str]] = None) -> int:
             deny_model_signals=True,
             live_session=live,
             session_ist_date=(str(args.session_date).strip() or None),
-            sod_one_ticket=bool(getattr(args, "sod_one_ticket", False)),
-            picker_majority=bool(getattr(args, "sod_one_ticket", False)),
+            sod_one_ticket=False if sod_off else True,
+            picker_majority=False if sod_off else True,
             observer_veto_fills=(None if veto is None else veto == "on"),
         )
         public = {

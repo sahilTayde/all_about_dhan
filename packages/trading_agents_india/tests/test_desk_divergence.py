@@ -42,7 +42,8 @@ def test_index_up_ce_follows_confirms_buy_ce() -> None:
     assert note.verdict == "BUY_CE_CONFIRM"
     assert note.case == "CE_FOLLOWS"
     assert note.allow_new_paper_ce_pe is True
-    assert note.promote is False
+    assert note.extra.get("mix_id") == "MIX-FORM-FOLLOWS"
+    assert note.extra.get("vote_source") == "follows"
 
 
 def test_index_down_premiums_follow_confirms_buy_pe() -> None:

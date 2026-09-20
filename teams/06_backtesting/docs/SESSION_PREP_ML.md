@@ -22,7 +22,7 @@ This is how to start **paper gather + overlay score**. **FOUNDER LOCK:** dual-ta
 | Score CLI | `python -m desk_ml score --underlying NIFTY --source dual-tape` after two ticks with all three LTPs. |
 | Live Super Order | **off** |
 
-**Observer (ITM 1m) after picker:** SOD product path (`--sod-one-ticket`) is votes → majority HOLD-or-one-wing → one observer review → one working ticket. VETO kills NEW. ATM / missing ITM / strike roll / flat index → **PASS**. LAB books (`MIX-ML-LOGIT` / XR / greeks) observe-or-skip when SOD is on. OLD A/B: omit `--sod-one-ticket` and `--observer-veto-fills off`. Booking overlay unchanged. LLM exit/risk/partial-book is mock/fail-soft and **not** on ALLOW. **NO_PROMOTE.**
+**Observer (ITM 1m) after picker:** SOD is **on by default**. Product path: FOLLOWS analyst → majority HOLD-or-one-wing → one observer review → one working ticket (`MIX-DEFAULT-BUY` ITM LTP). VETO kills NEW. ATM / missing ITM / strike roll / flat index → **PASS** (and desk does not fill ATM as ITM). LAB books observe-or-skip. `--sod-off` is pytest A/B of the old parallel FILL engine only — not the Monday path. Booking overlay unchanged. LLM exit/risk/partial-book is mock/fail-soft and **not** on ALLOW. **NO_PROMOTE.**
 
 ---
 
@@ -45,8 +45,8 @@ python -m desk_ml mrr-fit --underlying SENSEX
 # Paper dual-tape at the open (live chain; 0 = until stop flag)
 python -m trading_agents_india dual-tape --live-chain --paper-train --paper-scalp --tick-seconds 10 --max-ticks 0
 # A/B write=false (does not write MIX params):
-# python -m desk_ml paper-scalp --replay --source dual-tape --underlyings NIFTY --session-date 2026-09-17 --no-write --observer-veto-fills off
-# python -m desk_ml paper-scalp --replay --source dual-tape --underlyings NIFTY --session-date 2026-09-17 --no-write --sod-one-ticket
+# python -m desk_ml paper-scalp --replay --source dual-tape --underlyings NIFTY --session-date 2026-09-17 --no-write
+# python -m desk_ml paper-scalp --replay --source dual-tape --underlyings NIFTY --session-date 2026-09-17 --no-write --sod-off
 ```
 
 After **two** ticks with `index_ltp` + `atm_ce_ltp` + `atm_pe_ltp` on NIFTY (and SENSEX):
