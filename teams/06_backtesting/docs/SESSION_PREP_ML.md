@@ -1,4 +1,4 @@
-# SESSION_PREP_ML — paper start 09:30 IST Mon–Fri (flatten 15:16, ticks to 15:29)
+# SESSION_PREP_ML — data 09:00 IST; first NEW 09:30; flatten 15:16; ticks to 15:30
 
 **Team:** 06_backtesting (runbook) · 07 `packages/desk-ml` · 05 dual-tape  
 **Date:** 2026-09-15 (IST)  
@@ -8,7 +8,7 @@
 
 Education ≠ advice. Cluster / OU numbers are cache counts, not a win rate.
 
-This is how to start **paper gather + overlay score**. **FOUNDER LOCK:** dual-tape live **Mon–Fri 09:30–15:29 IST only**. No Sat/Sun. NEW paper **09:30–15:16**; flatten all books **15:16**; ticks (no trade) until **15:29**. It is **not** a promote. Customer default stays `MIX-DEFAULT-BUY`. KEEP_ALL STRAT-001–014.
+This is how to start **paper gather + overlay score**. **FOUNDER LOCK:** dual-tape **data** **Mon–Fri 09:00–15:30 IST**. No Sat/Sun. Persist **INDEX + ITM option premium only** (never ATM/OTM). NIFTY example: spot 23500 → **23300 CE / 23700 PE**. NEW paper **09:30–15:16**; flatten all books **15:16**; ticks (no trade) **15:16–15:30**. It is **not** a promote. Customer default stays `MIX-DEFAULT-BUY`. KEEP_ALL STRAT-001–014.
 
 ---
 
@@ -16,17 +16,17 @@ This is how to start **paper gather + overlay score**. **FOUNDER LOCK:** dual-ta
 
 | Piece | State |
 |-------|--------|
-| Dual-tape | `python -m trading_agents_india dual-tape` — INDEX LTP/1m + ATM CE/PE. No LLM. No orders. |
+| Dual-tape | `python -m trading_agents_india dual-tape` — INDEX 1m + **ITM** option 1m chart (NIFTY ATM-4/ATM+4) + ITM chain LTP. No ATM option candles. No LLM. No orders. |
 | ML-001 | KMeans k=4 + IsolationForest. Fit on warehouse `ohlc_bars`/`bars_1m` ∪ `premium_tape`. Seed **14**. Embargo last **5** 1m rows from fit (AFML analog, **not** CPCV / **not** OOS). |
 | ML-002 | OU on residual + VWMA windows **40 / 60 / 90** only (max 3 tweaks). FOLLOW-GAP HOLD. SENSEX OU may be `DATA_INSUFFICIENT` / not mean-reverting on the thin ATM book. |
 | Score CLI | `python -m desk_ml score --underlying NIFTY --source dual-tape` after two ticks with all three LTPs. |
 | Live Super Order | **off** |
 
-**FOLLOW-GAP:** index moved and ATM CE/PE did **not** confirm → overlay **HOLD**. Do not open a new paper CE/PE. Dealer note stays deterministic (`desk_divergence`). ML overlay may not override a hard stop.
+**Observer (ITM 1m) after picker:** SOD product path (`--sod-one-ticket`) is votes → majority HOLD-or-one-wing → one observer review → one working ticket. VETO kills NEW. ATM / missing ITM / strike roll / flat index → **PASS**. LAB books (`MIX-ML-LOGIT` / XR / greeks) observe-or-skip when SOD is on. OLD A/B: omit `--sod-one-ticket` and `--observer-veto-fills off`. Booking overlay unchanged. LLM exit/risk/partial-book is mock/fail-soft and **not** on ALLOW. **NO_PROMOTE.**
 
 ---
 
-## 09:30 first NEW / 15:16 flatten / 15:29 last tick (laptop, Mon–Fri only)
+## 09:00 data / 09:30 first NEW / 15:16 flatten / 15:30 last tick (laptop, Mon–Fri only)
 
 Do **not** restart npm / Vite. Do **not** start the old LLM `market-hours` loop (`paper_ops_STOPPED.flag` stays). Dual-tape only honours `paper_dual_tape_STOPPED.flag`.
 
@@ -44,6 +44,9 @@ python -m desk_ml mrr-fit --underlying SENSEX
 
 # Paper dual-tape at the open (live chain; 0 = until stop flag)
 python -m trading_agents_india dual-tape --live-chain --paper-train --paper-scalp --tick-seconds 10 --max-ticks 0
+# A/B write=false (does not write MIX params):
+# python -m desk_ml paper-scalp --replay --source dual-tape --underlyings NIFTY --session-date 2026-09-17 --no-write --observer-veto-fills off
+# python -m desk_ml paper-scalp --replay --source dual-tape --underlyings NIFTY --session-date 2026-09-17 --no-write --sod-one-ticket
 ```
 
 After **two** ticks with `index_ltp` + `atm_ce_ltp` + `atm_pe_ltp` on NIFTY (and SENSEX):
@@ -63,13 +66,13 @@ Dual-tape persist also writes `paper_watch/DUAL-TAPE/overlay_last.json` (fail-so
 
 ---
 
-## HOLD rules (FOLLOW-GAP)
+## HOLD rules (FOLLOW-GAP = closed 1m INDEX vs ITM wing)
 
 | Case | Action |
 |------|--------|
-| Index down, PE not up and/or CE not down | HOLD |
-| Index up, CE not up | HOLD |
-| Dual-tape missing ATM / stale / wrong strike | HOLD |
+| Closed 1m INDEX down, same-strike ITM PE not up | VETO PE (`FOLLOW_GAP`) |
+| Closed 1m INDEX up, same-strike ITM CE not up | VETO CE (`FOLLOW_GAP`) |
+| ATM day / missing ITM / strike roll / no 1m / index flat | PASS (do not assume) |
 | ML-001 overlay HOLD / PREMIUM_DIVERGENCE | HOLD new paper CE/PE |
 | ML-002 residual \|z\|≥2 or FOLLOW-GAP | HOLD |
 | INDEX 1m `SIDEWAYS` (low ER / flips / tight band) | HOLD **new** paper CE/PE. Flatten/cancel still run. HYPOTHESIS. |

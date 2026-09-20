@@ -1,14 +1,132 @@
 # Handoff log — Team 04 Quant
 
-## As of now (2026-09-20 IST) — hours lock (NO_PROMOTE)
+## As of now (2026-09-20 IST) — SOD picker then observer (NO_PROMOTE)
+
+```text
+MIX / STRAT: none new. KEEP_ALL 001–014 as VOTES not fills.
+  No STRAT-015+. Origin tags: PROJECT-DERIVED. HYPOTHESIS.
+Entry hypothesis: picker_majority on spoken CE vs PE +
+  same reason class. 8-7 / soup / index-against = HOLD.
+Confirm-or-kill: one observer review after picker.
+Hold / veto: VETO not sent to desk. PASS ATM/DI.
+Feasibility: sod_one_ticket books MIX-DEFAULT-BUY only.
+Backtest request: 16–18 OLD vs NEW write=false (06 table).
+Customer copy allowed: none.
+UNKNOWN: unbound STRAT-001/002/004–006/010–012 stay DI.
+```
+
+## As of now (2026-09-20 IST) — observer SOD fill path (NO_PROMOTE)
+
+```text
+MIX / STRAT: none new. KEEP_ALL 001–014. No STRAT-015+.
+Origin tags: PROJECT-DERIVED. HYPOTHESIS.
+Entry hypothesis: pickers own CE/PE (dealer, logit,
+  later STRAT when FILL).
+Confirm-or-kill: paper engine calls observer per
+  fill book. Not ML-001. Not dealer-owned.
+Hold / veto: VETO that book only. PASS ATM/DI.
+Feasibility: add book id to FILL_ELIGIBLE + intents.
+Backtest request: Monday A/B observer_veto_fills.
+Customer copy allowed: none.
+UNKNOWN: first STRAT on fill path.
+```
+
+## As of now (2026-09-20 IST) — observer family one verdict (NO_PROMOTE)
+
+```text
+MIX / STRAT: none new. KEEP_ALL 001–014. No STRAT-015+.
+Origin tags: PROJECT-DERIVED. HYPOTHESIS.
+Entry hypothesis: dealer/logit still own CE/PE.
+Confirm-or-kill: one family on that ticket — 1m
+  FOLLOW-GAP + index-against. last-3 log only.
+Hold / veto: VETO that wing only. PASS ATM/DI.
+  ML-001/002 not in the vote.
+Feasibility: do not invent prints or a new MIX.
+Backtest request: Monday hour-kind vs VETO.
+Customer copy allowed: none.
+UNKNOWN: 18-style TRENDING may still hurt.
+```
+
+## As of now (2026-09-20 IST) — FOLLOW-GAP family KEEP; 1m ITM strengthens (NO_PROMOTE)
+
+```text
+MIX / STRAT: none new. KEEP_ALL 001–014. No STRAT-015+.
+Origin tags: PROJECT-DERIVED. HYPOTHESIS.
+Entry hypothesis: dealer/logit/XR still own CE/PE.
+Confirm-or-kill: FOLLOW-GAP family = old MIX-FORM-
+  FOLLOW-GAP + observer ALLOW/VETO/PASS. Closed 1m
+  INDEX vs same-strike ITM is the stronger check.
+Hold / veto: VETO FOLLOW_GAP kills NEW on that wing.
+  PASS if ATM / no ITM / strike roll / no 1m / flat.
+Feasibility: do not invent prints or a new MIX.
+Parameters to grid: none until ITM session tape.
+Backtest request: ITM days only (later). Not 16–18.
+Customer copy allowed: none.
+UNKNOWN: Monday Dhan ITM 1m echo.
+```
+
+## As of now (2026-09-20 IST) — FOLLOW-GAP is FOLLOW_GAP_ITM_1M (NO_PROMOTE)
+
+```text
+MIX / STRAT: none new. KEEP_ALL 001–014. No STRAT-015+.
+Origin tags: PROJECT-DERIVED. HYPOTHESIS.
+Entry hypothesis: dealer/logit/XR still own CE/PE.
+Confirm-or-kill: FOLLOW-GAP on two closed 1m bars —
+  INDEX vs same-strike ITM CE/PE LTP. Proposed wing
+  only. ATM 10s gap is not this rule.
+Hold / veto: VETO FOLLOW_GAP kills NEW on that wing.
+  PASS if ATM / no ITM / strike roll / no 1m / flat.
+  Booking STALL/TARGET unchanged.
+Feasibility: do not invent prints or CE/PE.
+Parameters to grid: none until ITM session tape.
+Backtest request: replay-hold FOLLOW_GAP vs fills on
+  ITM days only (later). Do not score 16–18 as ITM.
+Customer copy allowed: none.
+UNKNOWN: Monday Dhan ITM 1m echo.
+```
+
+## As of now (2026-09-20 IST) — observer reviews the signal then ALLOW/VETO (NO_PROMOTE)
+
+```text
+MIX / STRAT: none new. KEEP_ALL 001–014. No STRAT-015+.
+Origin tags: PROJECT-DERIVED. HYPOTHESIS.
+Entry hypothesis: dealer/logit/XR still own CE/PE.
+Confirm-or-kill: observer reads why that side was
+  proposed, then INDEX 1m vs that ITM wing.
+Hold / veto: VETO kills NEW on fill books.
+  PASS if ATM day, no ITM, strike roll, no 1m, flat.
+  Booking STALL/TARGET unchanged.
+Feasibility: do not invent prints or CE/PE.
+Parameters to grid: none until ITM session tape.
+Backtest request: replay-hold + fill vs observer VETO
+  on ITM days only (later).
+Customer copy allowed: none.
+UNKNOWN: Monday Dhan ITM 1m echo.
+```
+
+## As of now (2026-09-20 IST) — ITM 1m chart = model input (NO_PROMOTE)
 
 ```text
 MIX / STRAT: none new. KEEP_ALL 001–014.
 Entry hypothesis: NEW only Mon–Fri 09:30–15:16 IST.
-Confirm-or-kill: flatten 15:16; no weekend.
-Hold / veto: ticks 15:16–15:29 no trade.
+Confirm-or-kill: option 1m OHLC is ITM rollingoption
+  (ATM-4 CE / ATM+4 PE on NIFTY). Do not fit ATM bars
+  to ITM LTP.
+Hold / veto: flatten 15:16; data 09:00–15:30.
 Customer copy allowed: none.
-UNKNOWN: none.
+UNKNOWN: Dhan ATM-4 live echo Monday.
+```
+
+## As of now (2026-09-20 IST) — ITM-only premium tape (NO_PROMOTE)
+
+```text
+MIX / STRAT: none new. KEEP_ALL 001–014.
+Entry hypothesis: NEW only Mon–Fri 09:30–15:16 IST.
+Confirm-or-kill: missing ITM quote → DI, not ATM.
+  Wing NIFTY 200pt / BN+SX 300pt. Delta among deep ITM.
+Hold / veto: flatten 15:16; data ticks 09:00–15:30.
+Customer copy allowed: none.
+UNKNOWN: exact wing missing on live chain.
 ```
 
 ## As of now (2026-09-19 IST) — dealer + ML signal desk (NO_PROMOTE)

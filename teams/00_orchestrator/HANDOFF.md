@@ -2,6 +2,181 @@
 
 **Agents:** read **only the newest block**. Do not ingest this whole log. New files: [`docs/FILE_CREATION.md`](../../docs/FILE_CREATION.md). Append here — do not create `HANDOFF_TOMORROW.md` or extra `CONTINUE_*`.
 
+## As of now (2026-09-20 IST) — SOD rooms paper-ready (NO_PROMOTE)
+
+```text
+From:     teams/00_orchestrator
+To:       founder / 04 / 05 / 06
+Date:     2026-09-20
+Status:   PAPER / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: Fast path votes → picker majority → one observer
+  → one working ticket. LAB observe when sod_one_ticket.
+  LLM mock/fail-soft not on ALLOW. 16–18 A/B table in
+  BOOK_MODEL_TUNE. Architecture paper-ready.
+Rejected: research_ready_for_programming. Production MIX
+  params. Founder 70% wr as coded. STRAT-015+. Overlay recode.
+UNKNOWN: Monday live hour-kind vs HOLD_MAJORITY; OI when Dhan
+  does not print; unbound STRAT votes stay DI.
+```
+
+## As of now (2026-09-20 IST) — observer SOD is fill path (NO_PROMOTE)
+
+```text
+From:     teams/00_orchestrator
+To:       founder / 04 / 05 / 06
+Date:     2026-09-20
+Status:   PAPER / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: Observer called by paper fill engine.
+  Serves dealer + ML fill books + later STRAT-001–014
+  on FILL_ELIGIBLE. Per-book 1m review.
+Rejected: Parking observer inside dealer. Parking
+  it inside ML-001 family. STRAT-015+.
+UNKNOWN: when a STRAT is allowed to FILL.
+```
+
+## As of now (2026-09-20 IST) — observer family one verdict; no second buy (NO_PROMOTE)
+
+```text
+From:     teams/00_orchestrator
+To:       founder / 04 / 06
+Date:     2026-09-20
+Status:   PAPER / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: Club FOLLOW-GAP + veto into one family
+  verdict on dealer/logit side. 1m ITM check.
+  last-3 not a veto. Other wing not killed.
+  17 helped unique; 18 hurt vs off. Cap 4.
+Rejected: Observer-originated CE/PE. KMeans in the
+  vote. Treating 16 ATM-as-ITM quotes as skill.
+  STRAT-015+.
+UNKNOWN: Monday hour-kind vs VETO rate.
+```
+
+## As of now (2026-09-20 IST) — FOLLOW-GAP family; 1m ITM strengthens (NO_PROMOTE)
+
+```text
+From:     teams/00_orchestrator
+To:       founder / 04 / 06
+Date:     2026-09-20
+Status:   PAPER / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: Old FOLLOW-GAP + new veto = one observer
+  family (KEEP). 1m ITM FOLLOW-GAP strengthens it.
+  ATM / missing ITM = PASS. No new MIX.
+Rejected: Deleting MIX-FORM-FOLLOW-GAP. Treating
+  veto as a rival product. STRAT-015+.
+UNKNOWN: first ITM dual-tape Monday for replay.
+```
+
+## As of now (2026-09-20 IST) — FOLLOW-GAP runs on closed 1m ITM (NO_PROMOTE)
+
+```text
+From:     teams/00_orchestrator
+To:       founder / 04 / 06
+Date:     2026-09-20
+Status:   PAPER / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: FOLLOW-GAP = FOLLOW_GAP_ITM_1M. Closed 1m
+  INDEX vs same-strike ITM wing. That is the veto.
+  ATM / missing ITM / strike roll = PASS.
+Rejected: Treating FOLLOW-GAP as leftover log only.
+  Scoring 16–18 ATM as ITM skill.
+UNKNOWN: first ITM dual-tape Monday for replay.
+```
+
+## As of now (2026-09-20 IST) — observers veto the signal on ITM 1m (NO_PROMOTE)
+
+```text
+From:     teams/00_orchestrator
+To:       founder / 04 / 06
+Date:     2026-09-20
+Status:   PAPER / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: Observers do not pick CE/PE. They read why
+  dealer/logit proposed a wing, check closed 1m INDEX
+  vs that ITM premium, then ALLOW or VETO NEW.
+  ATM / missing ITM / strike roll = PASS (no assume).
+Rejected: Global FOLLOW-GAP HOLD on ATM 10s. Observer fills.
+  Booking overlay recode. STRAT-015+.
+UNKNOWN: first ITM dual-tape Monday for replay/backtest.
+```
+
+## As of now (2026-09-20 IST) — replay sees ATM vs ITM day (NO_PROMOTE)
+
+```text
+From:     teams/00_orchestrator
+To:       founder / 06
+Date:     2026-09-20
+Status:   PAPER / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: Backtest/replay classifies each IST day from
+  the filename (ATM vs ITM). Does not confuse models
+  by mixing the two on one day.
+Rejected: Forcing ITM rules onto old ATM jsonl/files.
+UNKNOWN: snaps with no kind and no ITM strike → ATM.
+```
+
+## As of now (2026-09-20 IST) — ITM option 1m chart not ATM (NO_PROMOTE)
+
+```text
+From:     teams/00_orchestrator
+To:       founder / 06
+Date:     2026-09-20
+Status:   PAPER / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: rollingoption 1m is ITM wings only. NIFTY CALL
+  ATM-4 / PUT ATM+4. Same strike as chain LTP. ATM
+  option candles not loaded into dual-tape.
+Rejected: ATM rollingoption as model input. Sending
+  "ITM" as a Dhan strike label (silent ATM fallback).
+UNKNOWN: ATM-4 echo if Dhan returns same strike as PUT.
+```
+
+## As of now (2026-09-20 IST) — index tape fields for later calc (NO_PROMOTE)
+
+```text
+From:     teams/00_orchestrator
+To:       founder / 06
+Date:     2026-09-20
+Status:   PAPER / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: Persist INDEX LTP, 1m OHLC, volume, proxy POC
+  (H+L+C)/3, 1m range, compact chain (PCR/lean/ITM
+  wings), ITM IV/greeks if Dhan sent them.
+Rejected: Invented India VIX. Order-flow POC. ATM/OTM
+  premium ticks.
+UNKNOWN: Dhan 1m volume/OI miss → those cells stay null.
+```
+
+## As of now (2026-09-20 IST) — data 09:00–15:30 + ITM-only (NO_PROMOTE)
+
+```text
+From:     teams/00_orchestrator
+To:       founder / 05 / 06 / 07
+Date:     2026-09-20
+Status:   PAPER / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: Dual-tape data Mon–Fri 09:00–15:30 IST for
+  backtest generation. NEW still 09:30–15:16; flatten
+  15:16. Persist INDEX + ITM CE/PE only. NIFTY 23500 →
+  23300 CE / 23700 PE. Never ATM/OTM option ticks.
+Rejected: Weekend poll. ATM/OTM premium tape. NEW after
+  15:16. Open books past 15:16.
+UNKNOWN: live chain may miss the exact ITM wing → DI.
+```
+
 ## As of now (2026-09-20 IST) — NSE hours lock Mon–Fri (NO_PROMOTE)
 
 ```text

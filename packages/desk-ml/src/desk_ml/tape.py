@@ -217,25 +217,40 @@ def load_index_closes(underlying: str, *, root: Optional[Path] = None) -> dict[i
     return merged
 
 
+def _day_kinds_and_closes(
+    folder: Path, underlying: str, side: str
+) -> tuple[dict[int, float], dict[str, str]]:
+    from trading_agents_india.premium_tape import resolve_day_tape_paths
+
+    merged: dict[int, float] = {}
+    day_kinds: dict[str, str] = {}
+    for day, kind, path in resolve_day_tape_paths(folder, underlying):
+        day_kinds[day] = kind
+        try:
+            blob = json.loads(path.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            continue
+        for row in blob.get(side) or []:
+            try:
+                ts = _minute_key(int(row["ts"]))
+                close = float(row["close"])
+            except (KeyError, TypeError, ValueError):
+                continue
+            merged[ts] = close
+    return merged, day_kinds
+
+
 def load_premium_side(underlying: str, side: str, *, root: Optional[Path] = None) -> dict[int, float]:
     base = root or repo_root()
     folder = base / "data" / "recon" / "premium_tape"
-    merged: dict[int, float] = {}
-    if folder.is_dir():
-        for path in sorted(folder.glob(f"{underlying.upper()}_ATM_1m_*.json")):
-            try:
-                blob = json.loads(path.read_text(encoding="utf-8"))
-            except (json.JSONDecodeError, OSError):
-                continue
-            for row in blob.get(side) or []:
-                try:
-                    ts = _minute_key(int(row["ts"]))
-                    close = float(row["close"])
-                except (KeyError, TypeError, ValueError):
-                    continue
-                merged[ts] = close
+    merged, day_kinds = _day_kinds_and_closes(folder, underlying.upper(), side) if folder.is_dir() else ({}, {})
     symbol = WAREHOUSE_ATM[side.lower()].format(und=underlying.upper())
-    merged.update(_warehouse_closes(warehouse_path(base), symbol=symbol, use_ohlc_tf=True))
+    from trading_agents_india.premium_tape import _day_of
+
+    for ts, close in _warehouse_closes(warehouse_path(base), symbol=symbol, use_ohlc_tf=True).items():
+        if day_kinds.get(_day_of(int(ts))) == "ITM":
+            continue
+        merged.setdefault(int(ts), close)
     return merged
 
 
@@ -245,7 +260,9 @@ def load_premium_ohlcv(underlying: str, side: str, *, root: Optional[Path] = Non
     folder = base / "data" / "recon" / "premium_tape"
     merged: dict[int, tuple[float, float]] = {}
     if folder.is_dir():
-        for path in sorted(folder.glob(f"{underlying.upper()}_ATM_1m_*.json")):
+        from trading_agents_india.premium_tape import resolve_day_tape_paths
+
+        for _day, _kind, path in resolve_day_tape_paths(folder, underlying.upper()):
             try:
                 blob = json.loads(path.read_text(encoding="utf-8"))
             except (json.JSONDecodeError, OSError):
@@ -291,14 +308,28 @@ def load_triples(
     ce = filter_ts_map(load_premium_side(underlying, "ce", root=base), min_ts=min_ts, max_ts=max_ts)
     pe = filter_ts_map(load_premium_side(underlying, "pe", root=base), min_ts=min_ts, max_ts=max_ts)
     keys = sorted(set(idx) & set(ce) & set(pe))
-    triples = [Triple(ts=k, idx_close=idx[k], ce_close=ce[k], pe_close=pe[k]) for k in keys]
+    from trading_agents_india.premium_tape import resolve_day_tape_paths, tape_kind_for_ts
+
+    folder = base / "data" / "recon" / "premium_tape"
+    day_kinds = {day: kind for day, kind, _path in resolve_day_tape_paths(folder, underlying.upper())}
+    triples = [
+        Triple(
+            ts=k,
+            idx_close=idx[k],
+            ce_close=ce[k],
+            pe_close=pe[k],
+            premium_kind=tape_kind_for_ts(k, day_kinds),
+        )
+        for k in keys
+    ]
     meta: dict[str, Any] = {
         "underlying": underlying.upper(),
         "index_bars": len(idx),
         "ce_bars": len(ce),
         "pe_bars": len(pe),
         "aligned_triples": len(triples),
-        "source": "recon_ohlc+premium_tape+warehouse(ohlc_bars|bars_1m)+warehouse_ATM_if_present",
+        "premium_days": day_kinds,
+        "source": "recon_ohlc+premium_tape(ITM-or-legacy-ATM-per-day)+warehouse_ATM_if_gap",
         "warehouse_sqlite": warehouse_path(base).is_file(),
         "live_dhan": False,
         "min_ts": min_ts,
@@ -339,6 +370,18 @@ def dual_tape_dir(root: Optional[Path] = None) -> Path:
 def _snap_ltps(snap: dict[str, Any]) -> Optional[tuple[float, float, float]]:
     try:
         idx = float(snap["index_ltp"])
+    except (KeyError, TypeError, ValueError):
+        return None
+    from trading_agents_india.premium_tape import classify_snap_premium_kind
+
+    kind = classify_snap_premium_kind(snap)
+    if kind == "ITM":
+        itm_ce = _opt_float(snap.get("itm_ce_ltp"))
+        itm_pe = _opt_float(snap.get("itm_pe_ltp"))
+        if itm_ce is not None and itm_pe is not None:
+            return idx, itm_ce, itm_pe
+        return None
+    try:
         ce = float(snap["atm_ce_ltp"])
         pe = float(snap["atm_pe_ltp"])
     except (KeyError, TypeError, ValueError):
@@ -386,6 +429,8 @@ def merge_wing_quotes(prev: Any, new: Any) -> dict[str, Any]:
 
 
 def _snap_row(snap: dict[str, Any], as_of: Optional[int]) -> Optional[dict[str, Any]]:
+    from trading_agents_india.premium_tape import classify_snap_premium_kind
+
     ltps = _snap_ltps(snap)
     if ltps is None:
         return None
@@ -406,6 +451,7 @@ def _snap_row(snap: dict[str, Any], as_of: Optional[int]) -> Optional[dict[str, 
         "itm_pe_strike": _opt_float(snap.get("itm_pe_strike")),
         "wing_quotes": snap.get("wing_quotes") if isinstance(snap.get("wing_quotes"), dict) else {},
         "idx_volume": _opt_float(snap.get("index_volume")),
+        "premium_kind": classify_snap_premium_kind(snap),
     }
 
 
@@ -415,7 +461,7 @@ def load_dual_tape_triples(
     root: Optional[Path] = None,
     session_ist_date: Optional[str] = None,
 ) -> tuple[list[Triple], dict[str, Any]]:
-    """Consecutive dual-tape ticks with INDEX + ATM CE + ATM PE LTP. Paper gather only."""
+    """Consecutive dual-tape ticks: INDEX + ITM CE/PE LTP (legacy ATM if ITM missing)."""
     base = root or repo_root()
     folder = dual_tape_dir(base)
     und = underlying.upper()
@@ -506,6 +552,8 @@ def load_dual_tape_triples(
             prev["itm_pe_strike"] = row["itm_pe_strike"]
         if row.get("idx_volume") is not None:
             prev["idx_volume"] = row["idx_volume"]
+        if row.get("premium_kind") is not None:
+            prev["premium_kind"] = row["premium_kind"]
         prev["wing_quotes"] = merge_wing_quotes(prev.get("wing_quotes"), row.get("wing_quotes"))
     ordered = [by_ts[k] for k in sorted(by_ts)]
     triples = [
@@ -525,6 +573,7 @@ def load_dual_tape_triples(
             itm_pe_low=row.get("itm_pe_low"),
             wing_quotes=row.get("wing_quotes") or None,
             idx_volume=row.get("idx_volume"),
+            premium_kind=row.get("premium_kind"),
         )
         for row in ordered
     ]
@@ -533,6 +582,7 @@ def load_dual_tape_triples(
     meta: dict[str, Any] = {
         "underlying": und,
         "source": "dual_tape_jsonl",
+        "premium_kind_note": "ITM days use ITM LTP; ATM days replay ATM only — not mixed",
         "bar_kind": "dual_tape_tick",
         "aligned_triples": len(triples),
         "session_ist_date": session_ist_date,

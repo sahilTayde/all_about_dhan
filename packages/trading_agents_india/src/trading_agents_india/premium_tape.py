@@ -13,6 +13,7 @@ the shadow backtest can never disagree on semantics.
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -103,13 +104,108 @@ def _day_of(ts: int) -> str:
     return datetime.fromtimestamp(ts, tz=IST).date().isoformat()
 
 
-# Verified live 2026-09-11 (with requiredData "strike" cross-check): the
-# documented labels ATM / ATM+N / ATM-N work in BOTH directions (ATM-1 CALL
-# returned the strike below spot with a richer ITM premium). The undocumented
-# "ITMn"/"OTMn" aliases both map n steps ABOVE spot only, and any unknown
-# label silently falls back to ATM — so only documented labels are allowed
-# here, and a typo can never masquerade as ATM data.
-ALLOWED_STRIKE_LABELS = ("ATM", "ATM+1", "ATM-1", "ATM+2", "ATM-2")
+# Verified live 2026-09-11: ATM / ATM±N work both ways. Unknown labels
+# silently become ATM — never send "ITM" to Dhan. Composite "ITM" is local:
+# CALL ATM-N + PUT ATM+N (founder depth). Echoed strike must not match
+# across CE/PE (that means Dhan fell back to one ATM contract).
+_STRIKE_STEP = {"NIFTY": 50.0, "BANKNIFTY": 100.0, "SENSEX": 100.0}
+_ITM_POINTS = {"NIFTY": 200.0, "BANKNIFTY": 300.0, "SENSEX": 300.0}
+_ITM_STEPS_MIN = 3
+ALLOWED_STRIKE_LABELS = (
+    "ITM",
+    "ATM",
+    "ATM+1",
+    "ATM-1",
+    "ATM+2",
+    "ATM-2",
+    "ATM+3",
+    "ATM-3",
+    "ATM+4",
+    "ATM-4",
+)
+
+
+def itm_rolling_steps(underlying: str) -> int:
+    und = underlying.upper()
+    step = _STRIKE_STEP.get(und, 50.0)
+    points = _ITM_POINTS.get(und, 200.0)
+    return max(_ITM_STEPS_MIN, int(round(float(points) / step)))
+
+
+def itm_rolling_labels(underlying: str) -> dict[str, str]:
+    """NIFTY 23500 → CALL ATM-4 (23300) / PUT ATM+4 (23700). Never ATM."""
+    n = itm_rolling_steps(underlying)
+    return {"CE": f"ATM-{n}", "PE": f"ATM+{n}"}
+
+
+# Exact day files only: NIFTY_ITM_1m_2026-09-22.json or NIFTY_ATM_1m_2026-09-11.json
+# Not ATM+1 / ATM-2 wing files.
+_DAY_TAPE_NAME = re.compile(
+    r"^([A-Z0-9]+)_((?:ITM)|(?:ATM))_1m_(\d{4}-\d{2}-\d{2})\.json$",
+    re.IGNORECASE,
+)
+
+
+def parse_day_tape_name(path: Path) -> Optional[tuple[str, str, str]]:
+    """Return (underlying, ITM|ATM, YYYY-MM-DD) or None."""
+    m = _DAY_TAPE_NAME.match(path.name)
+    if not m:
+        return None
+    return m.group(1).upper(), m.group(2).upper(), m.group(3)
+
+
+def classify_snap_premium_kind(snap: dict[str, Any]) -> str:
+    """Replay must honor the day's tape. Do not treat ATM jsonl as ITM."""
+    raw = snap.get("premium_kind") or snap.get("premium_tape")
+    token = str(raw or "").upper()
+    if token in {"ITM", "ITM_ONLY"}:
+        return "ITM"
+    if token in {"ATM", "LEGACY_ATM", "ATM_ONLY"}:
+        return "ATM"
+    atm = snap.get("atm_strike")
+    ice = snap.get("itm_ce_strike")
+    ipe = snap.get("itm_pe_strike")
+    if (
+        snap.get("itm_ce_ltp") is not None
+        and snap.get("itm_pe_ltp") is not None
+        and atm is not None
+        and ice is not None
+        and abs(float(ice) - float(atm)) > 1e-6
+    ):
+        return "ITM"
+    if ipe is not None and atm is not None and abs(float(ipe) - float(atm)) > 1e-6:
+        if snap.get("itm_pe_ltp") is not None:
+            return "ITM"
+    return "ATM"
+
+
+def resolve_day_tape_paths(folder: Path, underlying: str) -> list[tuple[str, str, Path]]:
+    """One file per IST day. If both ATM and ITM exist, keep ITM and skip ATM."""
+    und = underlying.upper()
+    if not folder.is_dir():
+        return []
+    by_day: dict[str, dict[str, Path]] = {}
+    for path in folder.glob(f"{und}_*_1m_*.json"):
+        parsed = parse_day_tape_name(path)
+        if parsed is None:
+            continue
+        name_und, kind, day = parsed
+        if name_und != und:
+            continue
+        by_day.setdefault(day, {})[kind] = path
+    out: list[tuple[str, str, Path]] = []
+    for day in sorted(by_day):
+        kinds = by_day[day]
+        if "ITM" in kinds:
+            out.append((day, "ITM", kinds["ITM"]))
+        elif "ATM" in kinds:
+            out.append((day, "ATM", kinds["ATM"]))
+    return out
+
+
+def tape_kind_for_ts(ts: int, day_kinds: dict[str, str]) -> str:
+    day = _day_of(int(ts))
+    return day_kinds.get(day, "UNKNOWN")
 
 
 def _file_label(strike_label: str) -> str:
@@ -127,6 +223,8 @@ def persist_tape(
     pe: list[TapeBar],
     source: str,
     strike_label: str = "ATM",
+    ce_label: Optional[str] = None,
+    pe_label: Optional[str] = None,
 ) -> list[str]:
     """Upsert bars into per-day JSON files (merge by ts). Returns written days."""
     by_day: dict[str, dict[str, dict[int, TapeBar]]] = {}
@@ -155,13 +253,15 @@ def persist_tape(
                 "day": day,
                 "interval": "1m",
                 "strike": strike_label.upper(),
+                "ce_label": (ce_label or strike_label).upper(),
+                "pe_label": (pe_label or strike_label).upper(),
                 "source": source,
                 "updated_at_ist": now_ist().isoformat(timespec="seconds"),
                 "layer": "SOURCE_FACT",
                 "note": (
-                    "Rolling series — strike follows spot; not one fixed contract. "
-                    "ATM+N = N steps above spot (OTM for CE / ITM for PE); "
-                    "ATM-N = N steps below spot (ITM for CE / OTM for PE)."
+                    "Rolling 1m option chart. ITM composite = CALL ATM-N + PUT ATM+N "
+                    "(NIFTY N=4 / 200pt; BN+SX N=3 / 300pt). Not ATM candles. "
+                    "Not one fixed contract — label follows spot."
                 ),
             },
             "ce": [asdict(existing["ce"][k]) for k in sorted(existing["ce"])],
@@ -194,13 +294,38 @@ def load_tape_bars(
         return []
 
 
+def _echo_last_strike(payload: dict[str, Any]) -> Optional[float]:
+    data = payload.get("data") if isinstance(payload.get("data"), dict) else payload
+    if not isinstance(data, dict):
+        return None
+    blocks: list[Any] = [data]
+    for key in ("ce", "pe"):
+        if isinstance(data.get(key), dict):
+            blocks.append(data[key])
+    for block in blocks:
+        raw = block.get("strike") if isinstance(block, dict) else None
+        if raw is None and isinstance(block, dict):
+            raw = block.get("Strike")
+        if isinstance(raw, list) and raw:
+            try:
+                return float(raw[-1])
+            except (TypeError, ValueError):
+                continue
+        if raw is not None and not isinstance(raw, list):
+            try:
+                return float(raw)
+            except (TypeError, ValueError):
+                continue
+    return None
+
+
 def gather_premium_tape(
     underlying: str,
     *,
     prefer_live: bool = False,
-    strike_label: str = "ATM",
+    strike_label: str = "ITM",
 ) -> PremiumTapeResult:
-    """Fetch today's rolling 1m ce+pe bars for one strike label and persist."""
+    """Fetch today's rolling 1m ITM CE+PE bars (ATM-N / ATM+N) and persist."""
     und = underlying.upper()
     label = strike_label.upper()
     today = now_ist().date().isoformat()
@@ -256,10 +381,16 @@ def gather_premium_tape(
             )
         end = now_ist()
         start = end - timedelta(days=1)
+        wings = itm_rolling_labels(und) if label == "ITM" else {"CE": label, "PE": label}
+        ce_lbl, pe_lbl = wings["CE"], wings["PE"]
         ce: list[TapeBar] = []
         pe: list[TapeBar] = []
-        # One call per side — the API only fills the block matching drvOptionType.
-        for option_type in ("CALL", "PUT"):
+        echoed: dict[str, Optional[float]] = {"CE": None, "PE": None}
+        # One call per side — never send the word ITM to Dhan.
+        for option_type, dhan_label, side_key in (
+            ("CALL", ce_lbl, "CE"),
+            ("PUT", pe_lbl, "PE"),
+        ):
             body = {
                 "exchangeSegment": seg,
                 "interval": "1",
@@ -267,31 +398,54 @@ def gather_premium_tape(
                 "instrument": "OPTIDX",
                 "expiryFlag": "WEEK",
                 "expiryCode": 1,
-                "strike": label,
+                "strike": dhan_label,
                 "drvOptionType": option_type,
-                "requiredData": ["open", "high", "low", "close", "volume"],
+                "requiredData": ["open", "high", "low", "close", "volume", "strike"],
                 "fromDate": start.strftime("%Y-%m-%d"),
                 "toDate": end.strftime("%Y-%m-%d"),
             }
             raw = client.historical.rolling_option(body)
             payload = raw if isinstance(raw, dict) else {}
+            echoed[side_key] = _echo_last_strike(payload)
             if option_type == "CALL":
                 ce = _bars_from_side(payload, "ce") or _bars_from_side(payload, "pe")
             else:
                 pe = _bars_from_side(payload, "pe") or _bars_from_side(payload, "ce")
         client.close()
+        if (
+            label == "ITM"
+            and echoed["CE"] is not None
+            and echoed["PE"] is not None
+            and abs(float(echoed["CE"]) - float(echoed["PE"])) < 1e-6
+        ):
+            return PremiumTapeResult(
+                underlying=und,
+                source="unavailable",
+                data_gaps=[
+                    "DATA_INSUFFICIENT: rollingoption CE/PE echoed the same strike — "
+                    "ATM fallback refused, not an ITM chart"
+                ],
+            )
         if not ce and not pe:
             return PremiumTapeResult(
                 underlying=und,
                 source="unavailable",
                 data_gaps=["DATA_INSUFFICIENT: rollingoption returned no ce/pe bars"],
             )
-        persist_tape(und, ce=ce, pe=pe, source="dhan_rollingoption_1m", strike_label=label)
+        persist_tape(
+            und,
+            ce=ce,
+            pe=pe,
+            source="dhan_rollingoption_1m_itm" if label == "ITM" else "dhan_rollingoption_1m",
+            strike_label=label,
+            ce_label=ce_lbl,
+            pe_label=pe_lbl,
+        )
         today_ce = [b for b in ce if _day_of(b.ts) == today]
         today_pe = [b for b in pe if _day_of(b.ts) == today]
         return PremiumTapeResult(
             underlying=und,
-            source="dhan_rollingoption_1m",
+            source="dhan_rollingoption_1m_itm" if label == "ITM" else "dhan_rollingoption_1m",
             day=today,
             ce_count=len(today_ce),
             pe_count=len(today_pe),

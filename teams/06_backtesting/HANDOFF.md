@@ -1,16 +1,126 @@
 # Handoff log — Team 06 Backtesting
 
-## As of now (2026-09-20 IST) — NSE hours lock (NO_PROMOTE)
+## As of now (2026-09-20 IST) — SOD 16/17/18 OLD vs NEW (NO_PROMOTE)
+
+```text
+From:     teams/06_backtesting
+To:       00 / 04 / founder
+Date:     2026-09-20
+Status:   PAPER / NO_PROMOTE / BACKTEST_REQUIRED
+Accepted: write=false NIFTY native tape. Double-run MATCH.
+  16 unique +8172.10 → +9774.76 (n 2→3).
+  17 unique −24681.74 → −8804.90 (n 8→4; logit clone off).
+  18 unique +1776.64 → −594.45 (n 8→4; hurt).
+  Sum unique −14733.00 → +375.41. Cap 4 still on 17/18 NEW.
+  Skip HOLD_MAJORITY / FOLLOW_GAP / LAB_OBSERVE are tick×book.
+Rejected: ATM-as-ITM quote mock. Promote. Founder wr. Gate set.
+UNKNOWN: SOD_ONE_OPEN=0 on these days (closed before next
+  ticket). OI DI unless Dhan printed. More NORMAL sessions.
+```
+
+## As of now (2026-09-20 IST) — observer family mock 16/17/18 (NO_PROMOTE)
+
+```text
+From:     teams/06_backtesting
+To:       00 / 04 / founder
+Date:     2026-09-20
+Status:   PAPER / NO_PROMOTE / BACKTEST_REQUIRED
+Accepted: write=false NIFTY. Family on vs off.
+  16 same +8172. 17 unique -8911 vs off -24682.
+  18 unique -2476 vs off +1777. n_filled=4 both.
+  17+18 unique -11387 vs off -22905. Not a promote.
+Rejected: ATM-as-ITM quote mock as P/L. Claiming
+  wr. Observer as a buy engine.
+UNKNOWN: Monday TRENDING vs VOLATILE split.
+```
+
+## As of now (2026-09-20 IST) — FOLLOW_GAP_ITM_1M is the fill veto (NO_PROMOTE)
+
+```text
+From:     teams/06_backtesting
+To:       00 / 04 / founder
+Date:     2026-09-20
+Status:   PAPER / NO_PROMOTE / BACKTEST_REQUIRED
+Accepted: follow_gap_itm_1m on closed 1m INDEX + ITM
+  LTP (same strike). VETO FOLLOW_GAP on that wing.
+  replay-hold FOLLOW_GAP bucket uses the same series.
+  ATM days n_hold stays 0.
+Rejected: Mixing ATM 16–18 into ITM FOLLOW-GAP score.
+UNKNOWN: first ITM session for replay-hold vs NEW.
+```
+
+## As of now (2026-09-20 IST) — observer ITM veto coded; ATM replay later (NO_PROMOTE)
+
+```text
+From:     teams/06_backtesting
+To:       00 / 04 / founder
+Date:     2026-09-20
+Status:   PAPER / NO_PROMOTE / BACKTEST_REQUIRED
+Accepted: observer_review_ticket ALLOW/VETO/PASS.
+  ATM days PASS. ITM 1m wing-dead / index-against /
+  self-contradict VETO fill books. pytest observer.
+Rejected: Mixing ATM 16–18 into ITM veto score.
+  Overlay STALL recode. sqlite git-add.
+UNKNOWN: first ITM session for replay-hold vs NEW.
+```
+
+## As of now (2026-09-20 IST) — replay ATM vs ITM by day (NO_PROMOTE)
 
 ```text
 From:     teams/06_backtesting
 To:       00 / founder
 Date:     2026-09-20
 Status:   PAPER / NO_PROMOTE
-Accepted: Replay/live flatten 15:16; no NEW Sat/Sun or
-  before 09:30 / after 15:16. Tick capture to 15:29.
-Rejected: Weekend dual-tape. sqlite git-add.
-UNKNOWN: none.
+Accepted: resolve_day_tape_paths: one kind per IST day.
+  Earlier *_ATM_1m_* days replay as ATM. New *_ITM_1m_*
+  days replay as ITM. Same day both files → ITM only.
+Rejected: Mixing ATM candles with ITM LTP in one join.
+  sqlite git-add.
+UNKNOWN: warehouse ATM minutes on a day that has no file.
+```
+
+## As of now (2026-09-20 IST) — ITM rollingoption 1m (NO_PROMOTE)
+
+```text
+From:     teams/06_backtesting
+To:       00 / founder
+Date:     2026-09-20
+Status:   PAPER / NO_PROMOTE
+Accepted: premium_tape files NIFTY_ITM_1m_*.json from
+  ATM-4 CE / ATM+4 PE charts. Models must not join
+  ATM 1m option bars to ITM chain LTP.
+Rejected: ATM chart as the live tape. sqlite git-add.
+UNKNOWN: Dhan ATM-4/ATM+4 live echo this Monday.
+```
+
+## As of now (2026-09-20 IST) — index OHLCV + proxy POC on tape (NO_PROMOTE)
+
+```text
+From:     teams/06_backtesting
+To:       00 / founder
+Date:     2026-09-20
+Status:   PAPER / NO_PROMOTE
+Accepted: replay_index stores LTP, OHLCV, proxy POC,
+  1m range. replay_premium/strike = ITM chain cells +
+  IV if present. For later INDEX kind calc.
+Rejected: Fake VIX. Volume-profile POC.
+UNKNOWN: live 1m volume field may be 0/missing.
+```
+
+## As of now (2026-09-20 IST) — 09:00 data + ITM-only tape (NO_PROMOTE)
+
+```text
+From:     teams/06_backtesting
+To:       00 / founder
+Date:     2026-09-20
+Status:   PAPER / NO_PROMOTE
+Accepted: Dual-tape may run 09:00–15:30 Mon–Fri for
+  INDEX + ITM premium generation. Replay flatten 15:16;
+  no NEW Sat/Sun or before 09:30 / after 15:16.
+  Founder ITM: NIFTY 23500→23300 CE / 23700 PE.
+Rejected: ATM/OTM option ticks. Weekend dual-tape.
+  sqlite git-add.
+UNKNOWN: live miss on the 200/300pt wing → DI.
 ```
 
 ## As of now (2026-09-19 IST) — signal_desk on FIX-FIRST (NO_PROMOTE)

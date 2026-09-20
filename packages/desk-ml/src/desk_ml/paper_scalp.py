@@ -20,6 +20,15 @@ from desk_ml.features import Triple, build_feature_rows
 from desk_ml.fit import fit_from_rows, score_features_dict
 from desk_ml.inventory import inventory_recon
 from desk_ml.model import OVERLAY_HOLD, premium_divergence_pattern
+from desk_ml.llm_review import overlay_to_boss
+from desk_ml.observer import follow_gap_series_itm_1m, review_fill_intents, review_picker_ticket
+from desk_ml.picker import (
+    SOD_ONE_OPEN,
+    SOD_PRODUCT_BOOK,
+    apply_picker_to_intents,
+    collect_analyst_votes,
+    picker_majority,
+)
 from desk_ml.mrr import Z_HOLD, ols_beta, rolling_z
 from desk_ml.persist import pack_estimators, repo_root
 from desk_ml.paper_lots import (
@@ -62,7 +71,7 @@ except ImportError:  # pragma: no cover
     judge_tick = None  # type: ignore[assignment]
 
 IST = timezone(timedelta(hours=5, minutes=30))
-# Founder lock: Mon–Fri 09:30 NEW, flatten 15:16, ticks to 15:29. No Sat/Sun.
+# Founder lock: data 09:00–15:30; NEW 09:30–15:16; flatten 15:16; ITM premium only. No Sat/Sun.
 FLATTEN_MINUTES_IST = 15 * 60 + 16
 NO_NEW_MINUTES_IST = 15 * 60 + 16
 NO_NEW_BEFORE_MINUTES_IST = 9 * 60 + 30
@@ -175,8 +184,9 @@ BIN_KEEP_TICKS = 36
 STOP_FRAC = 0.40
 TARGET_FRAC = 0.55
 STRIKE_STEP = {"NIFTY": 50.0, "BANKNIFTY": 100.0, "SENSEX": 100.0}
-# STRAT-006 paper wing: ~100 pts ITM, not ATM, not deep ITM. Not a promote.
-ITM_POINTS = {"NIFTY": 100.0, "BANKNIFTY": 100.0, "SENSEX": 100.0}
+# Founder: ITM only. NIFTY 23500 → 23300 CE / 23700 PE (200pt). BN/SX 3×100.
+ITM_POINTS = {"NIFTY": 200.0, "BANKNIFTY": 300.0, "SENSEX": 300.0}
+ITM_STEPS_MIN = 3
 GIVE_UP_FRAC = 0.12  # cancel if same-side premium dumps this far below entry
 
 LIVE_BOOKS = (
@@ -266,6 +276,9 @@ DEFAULT_PAPER_PARAMS = {
     "nifty_skip_side_after_stop": False,
     "nifty_max_filled_per_book": 4,
     "apply_target_shift": False,
+    "observer_veto_fills": True,
+    "sod_one_ticket": False,
+    "picker_majority": False,
 }
 
 
@@ -1452,14 +1465,20 @@ def round_atm_strike(underlying: str, index_ltp: float) -> float:
     return round(float(index_ltp) / step) * step
 
 
-def itm_wing_strikes(underlying: str, atm: float) -> dict[str, float]:
-    """Buy-side ITM: CE below ATM, PE above ATM. ~100 index points."""
+def itm_depth_points(underlying: str) -> float:
     und = underlying.upper()
     step = STRIKE_STEP.get(und, 50.0)
-    points = ITM_POINTS.get(und, 100.0)
-    n = max(1, int(round(float(points) / step)))
+    points = ITM_POINTS.get(und, 200.0)
+    n = max(ITM_STEPS_MIN, int(round(float(points) / step)))
+    return n * step
+
+
+def itm_wing_strikes(underlying: str, atm: float) -> dict[str, float]:
+    """Buy-side ITM: CE below ATM, PE above ATM. Never ATM/OTM."""
+    und = underlying.upper()
+    depth = itm_depth_points(und)
     atm_f = float(atm)
-    return {"CE": atm_f - n * step, "PE": atm_f + n * step}
+    return {"CE": atm_f - depth, "PE": atm_f + depth}
 
 
 def chain_atm(tick: Triple, underlying: str) -> float:
@@ -1470,7 +1489,7 @@ def chain_atm(tick: Triple, underlying: str) -> float:
 
 
 def paper_itm_strike(tick: Triple, side: str, underlying: str) -> float:
-    """~100pt ITM vs the tighter of Dhan ATM and rounded INDEX.
+    """Founder-depth ITM vs the tighter of Dhan ATM and rounded INDEX.
 
     If Dhan ATM is 74300 and INDEX rounds to 74400, CE ITM is 74200 not 74300
     (74300 is the ATM the trader sees).
@@ -1493,6 +1512,18 @@ def is_buy_itm(side: str, strike: float, tick: Triple, underlying: str) -> bool:
     if side == "CE":
         return k < float(atm) - 1e-6 and k < idx - 1e-6
     return k > float(atm) + 1e-6 and k > idx + 1e-6
+
+
+def is_deep_itm(side: str, strike: float, tick: Triple, underlying: str) -> bool:
+    """ITM and at least founder depth (NIFTY 200pt / BN+SX 300pt). Shallow 1-step ticks refused."""
+    if not is_buy_itm(side, strike, tick, underlying):
+        return False
+    atm = chain_atm(tick, underlying)
+    need = itm_depth_points(underlying)
+    k = float(strike)
+    if side == "CE":
+        return float(atm) - k >= need - 1e-6
+    return k - float(atm) >= need - 1e-6
 
 
 def _opt_px(raw: Any) -> Optional[float]:
@@ -1594,7 +1625,7 @@ def leg_greeks(tick: Triple, side: str, strike: float) -> dict[str, Optional[flo
 def pick_paper_strike(tick: Triple, side: str, atm: float, underlying: str) -> float:
     """ITM_100 default. Delta may pick another ITM cell in 0.45–0.70. Never ATM/OTM."""
     default = paper_itm_strike(tick, side, underlying)
-    if not is_buy_itm(side, default, tick, underlying):
+    if not is_deep_itm(side, default, tick, underlying):
         default = itm_wing_strikes(underlying, float(atm))[side]
     wings = tick.wing_quotes if isinstance(tick.wing_quotes, dict) else {}
     best: Optional[float] = None
@@ -1608,7 +1639,7 @@ def pick_paper_strike(tick: Triple, side: str, atm: float, underlying: str) -> f
             delta = float(cell[f"{prefix}_delta"])
         except (TypeError, ValueError, KeyError):
             continue
-        if not is_buy_itm(side, strike, tick, underlying):
+        if not is_deep_itm(side, strike, tick, underlying):
             continue
         ad = abs(delta)
         if ad < DELTA_BAND[0] or ad > DELTA_BAND[1]:
@@ -1667,6 +1698,39 @@ def itm_leg_pack(tick: Triple, underlying: str, side: str) -> dict[str, Any]:
         "oi": _bin_num(cell.get(f"{prefix}_oi")),
         "delta": _bin_num(cell.get(f"{prefix}_delta")),
         "layer": "HYPOTHESIS",
+    }
+
+
+def bin_both_wings_packet(bin_rec: Optional[dict[str, Any]]) -> dict[str, Any]:
+    """Desk always looks at both ITM CE and PE. OI only if Dhan printed it."""
+    rec = bin_rec or {}
+    ce = dict(rec.get("ce") or {})
+    pe = dict(rec.get("pe") or {})
+
+    def _oi(leg: dict[str, Any]) -> Any:
+        if leg.get("oi") is None:
+            return "DATA_INSUFFICIENT"
+        return leg.get("oi")
+
+    return {
+        "ce": {
+            "strike": ce.get("strike"),
+            "px": ce.get("px"),
+            "volume": ce.get("volume"),
+            "oi": _oi(ce),
+            "trend_votes": list(rec.get("ce_votes") or []),
+        },
+        "pe": {
+            "strike": pe.get("strike"),
+            "px": pe.get("px"),
+            "volume": pe.get("volume"),
+            "oi": _oi(pe),
+            "trend_votes": list(rec.get("pe_votes") or []),
+        },
+        "side": rec.get("side"),
+        "reason": rec.get("reason"),
+        "missing": list(rec.get("missing") or []),
+        "note": "Both wings. OI never invented.",
     }
 
 
@@ -2677,6 +2741,13 @@ class BookEngine:
     session_open_idx: dict[str, float] = field(default_factory=dict)
     nifty_session_lean: bool = False  # after 10:30, PE if idx < open else CE
     point_profile_overrides: dict[str, dict[str, float]] = field(default_factory=dict)
+    last_1m_close: dict[str, Triple] = field(default_factory=dict)
+    prev_1m_close: dict[str, Triple] = field(default_factory=dict)
+    observer_review: dict[str, dict[str, Any]] = field(default_factory=dict)
+    observer_by_book: dict[str, dict[str, dict[str, Any]]] = field(default_factory=dict)
+    observer_veto_fills: bool = True  # fill-path family; ATM/DI = PASS
+    sod_one_ticket: bool = False  # product path: one ticket after picker+observer
+    picker_majority: bool = False  # RULES majority; implied by sod_one_ticket
 
     def book_capital(self, book_id: str) -> float:
         if book_id in self.capital_by_book:
@@ -2688,6 +2759,10 @@ class BookEngine:
 
     def has_open(self, book_id: str, underlying: str) -> bool:
         return (book_id, underlying) in self.opens
+
+    def has_working_underlying(self, underlying: str) -> bool:
+        und = str(underlying).upper()
+        return any(u == und for (_book, u) in self.opens.keys())
 
     def bump_regime_book(self, book_id: str, regime: str, action: str) -> None:
         """HYPOTHESIS recon counter. KMeans is not a CE/PE model — still counted as SKIP."""
@@ -3593,6 +3668,8 @@ def _try_open(
             )
         return
     if engine.has_open(book_id, underlying):
+        if bool(getattr(engine, "sod_one_ticket", False)):
+            engine.mark_skip(book_id, underlying, SOD_ONE_OPEN, ts=tick.ts, seen_side=side)
         return
     if getattr(engine, "skip_banknifty", True) and str(underlying).upper() == "BANKNIFTY":
         engine.mark_skip(
@@ -3936,16 +4013,20 @@ def _try_open(
         )
         return
     atm = strike if strike is not None else chain_atm(tick, underlying)
-    want = pick_paper_strike(tick, side, atm, underlying)
+    tape_kind = str(getattr(tick, "premium_kind", None) or "").upper()
+    want = float(atm) if tape_kind == "ATM" else pick_paper_strike(tick, side, atm, underlying)
     greeks = leg_greeks(tick, side, want)
     itm_px, _itm_low, itm_src = quote_for_side(tick, side, strike=want)
     booked_src = str(itm_src or "")
-    booked_ok = (
-        itm_px is not None
-        and booked_src != "ATM"
-        and not booked_src.startswith("MISSING")
-        and is_buy_itm(side, float(want), tick, underlying)
-    )
+    if tape_kind == "ATM":
+        booked_ok = itm_px is not None and not booked_src.startswith("MISSING")
+    else:
+        booked_ok = (
+            itm_px is not None
+            and booked_src != "ATM"
+            and not booked_src.startswith("MISSING")
+            and is_buy_itm(side, float(want), tick, underlying)
+        )
     if not booked_ok:
         engine.mark_skip(
             book_id,
@@ -4481,7 +4562,79 @@ def step_underlying(
             paper_impulse_side(classified) if classified.get("regime") == "TREND" else None
         ),
     )
+    rolled_1m = int(tick.ts) // 60 != int(prev.ts) // 60
+    if rolled_1m:
+        engine.prev_1m_close[und] = engine.last_1m_close.get(und)
+        engine.last_1m_close[und] = prev
+    older = engine.prev_1m_close.get(und)
+    closed_1m = engine.last_1m_close.get(und)
+    greeks_intent_side, greeks_intent_skip = intents.get("MIX-ML-GREEKS", (None, None))
+    extra_votes = getattr(engine, "_sod_extra_votes", None)
+    votes = collect_analyst_votes(
+        dealer=dealer,
+        logit=logit,
+        logit_xr=logit_xr,
+        greeks_side=greeks_intent_side,
+        greeks_skip=greeks_intent_skip,
+        ml001_hold=ml001_hold,
+        ml002_hold=ml002_hold,
+        classified=classified,
+        extra=list(extra_votes) if extra_votes else None,
+    )
+    picker = picker_majority(votes, prev=older, closed=closed_1m, classified=classified)
+    sod = bool(getattr(engine, "sod_one_ticket", False))
+    use_picker = sod or bool(getattr(engine, "picker_majority", False))
+    if use_picker:
+        intents = apply_picker_to_intents(
+            intents,
+            picker,
+            fill_books=FILL_ELIGIBLE_BOOKS,
+            observe_books=OBSERVE_ONLY_BOOKS,
+            sod_one_ticket=sod,
+        )
+    if sod:
+        proposed = picker.get("side") if picker.get("action") == "TICKET" else None
+        review = review_picker_ticket(
+            side=proposed if isinstance(proposed, str) else None,
+            prev=older,
+            closed=closed_1m,
+            classified=classified,
+            dealer=dealer,
+            logit=logit,
+            bar_closed_1m=older is not None and closed_1m is not None,
+        )
+        by_book = {SOD_PRODUCT_BOOK: review}
+        if review.get("action") == "VETO" and getattr(engine, "observer_veto_fills", True):
+            reason = str(review.get("reason") or "FOLLOW_GAP")
+            intents[SOD_PRODUCT_BOOK] = (None, reason)
+            for book in OBSERVE_ONLY_BOOKS:
+                intents[book] = (None, reason)
+        elif proposed in {"CE", "PE"}:
+            side0, skip0 = intents.get(SOD_PRODUCT_BOOK, (None, None))
+            if skip0 is None:
+                intents[SOD_PRODUCT_BOOK] = (proposed, None)
+    else:
+        intents, review, by_book = review_fill_intents(
+            intents,
+            prev=older,
+            closed=closed_1m,
+            classified=classified,
+            dealer=dealer,
+            logit=logit,
+            fill_books=FILL_ELIGIBLE_BOOKS,
+            observe_books=OBSERVE_ONLY_BOOKS,
+            apply_veto=bool(getattr(engine, "observer_veto_fills", True)),
+            bar_closed_1m=older is not None and closed_1m is not None,
+        )
+    engine.observer_review[und] = review
+    engine.observer_by_book[und] = by_book
+    if sod and engine.has_working_underlying(und):
+        for book in LIVE_BOOKS:
+            side0, skip0 = intents.get(book, (None, None))
+            if skip0 is None and side0 in {"CE", "PE"}:
+                intents[book] = (side0, SOD_ONE_OPEN)
     greeks_skip_final = intents["MIX-ML-GREEKS"][1]
+    n_open_before = sum(1 for (_b, u) in engine.opens if u == und)
     for book_id in LIVE_BOOKS:
         side, skip = intents[book_id]
         if book_id == "MIX-ML-GREEKS":
@@ -4523,13 +4676,36 @@ def step_underlying(
             continue
         _open(book_id, side, skip)
 
+    opened_this_tick = sum(1 for (_b, u) in engine.opens if u == und) > n_open_before
+    pos = next((p for (b, u), p in engine.opens.items() if u == und), None)
+    overlay_pkt = None
+    if pos is not None:
+        overlay_pkt = overlay_to_boss(
+            open_pos={
+                "book_id": pos.book_id,
+                "underlying": pos.underlying,
+                "side": pos.side,
+                "filled": pos.filled,
+                "entry": pos.entry,
+                "stop": pos.stop,
+                "target": pos.target,
+                "agent_status": pos.agent_status,
+            },
+            itm_bin=bin_both_wings_packet(bin_rec),
+            ml_overlay={"hold": bool(ml001_hold or ml002_hold), "regime": classified.get("regime")},
+            classified=classified,
+            trigger="1M_CLOSE" if rolled_1m else None,
+        )
+        overlay_pkt["llm_review"] = None
+        overlay_pkt["opened_this_tick"] = opened_this_tick
+
     engine.last_step = {
         "underlying": und,
         "ts": tick.ts,
         "dealer": dealer,
         "ml001_hold": ml001_hold,
         "ml002_hold": ml002_hold,
-        "follow_gap": follow_gap,
+        "overlay_follow_gap": follow_gap,
         "logit": logit,
         "logit_xr": logit_xr,
         "ml1": ml1,
@@ -4537,11 +4713,27 @@ def step_underlying(
         "mix_ml_greeks_skip": greeks_skip_final,
         "index_regime": classified,
         "itm_bin": classified.get("itm_bin"),
+        "bin_both_wings": bin_both_wings_packet(bin_rec),
         "deny_model_signals": deny,
+        "analyst_votes": [asdict(v) if hasattr(v, "source") else v for v in votes],
+        "picker": picker,
+        "observer": review,
+        "observer_by_book": {k: {"action": v.get("action"), "reason": v.get("reason"), "side": v.get("side")} for k, v in (by_book or {}).items()},
+        "desk": {
+            "sod_one_ticket": sod,
+            "product_book": SOD_PRODUCT_BOOK if sod else None,
+            "opened_this_tick": opened_this_tick,
+            "working": engine.has_working_underlying(und),
+        },
+        "overlay_to_boss": overlay_pkt,
+        "llm_review": None,
+        "follow_gap": bool(review.get("follow_gap") if isinstance(review, dict) else False),
+        "follow_gap_rule": "FOLLOW_GAP_ITM_1M",
         "independent": True,
         "note": (
-            "FILL only own-side books (logit / XR-own / dealer CONFIRM vs logit / greeks confirm-kill). "
-            "KMeans ML-001 is not CE/PE. SIDEWAYS skips NEW opens only. TREND confirm/kill. Feed stays live."
+            "SOD rooms: analyst votes → boss/picker → observer → desk. "
+            "LAB parallel fills when sod_one_ticket is off. LLM is not on ALLOW/open. "
+            "KMeans is not CE/PE. KEEP_ALL STRAT-001–014 as votes. NO_PROMOTE."
         ),
     }
     engine.last_step_by_und[und] = dict(engine.last_step)
@@ -4575,26 +4767,26 @@ def _hold_series(triples: Sequence[Triple], *, seed: int = 14) -> tuple[list[boo
     by_ts = {int(r["ts"]): r for r in rows}
     ml001: list[bool] = []
     ml002: list[bool] = []
-    gap: list[bool] = []
     row_i = -1
     for t in triples:
         feat_row = by_ts.get(int(t.ts))
         if feat_row is None:
             ml001.append(False)
             ml002.append(False)
-            gap.append(False)
             continue
         row_i += 1
         feat = {name: float(feat_row[name]) for name in names}
         scored = score_features_dict(feat, bundle)
-        g = premium_divergence_pattern(feat_row["idx_ret"], feat_row["ce_ret"], feat_row["pe_ret"])
         z_hold = False
         if row_i < len(zs) and zs[row_i] is not None:
             z_hold = abs(float(zs[row_i])) >= Z_HOLD
         ml001.append(scored.get("overlay") == OVERLAY_HOLD)
         ml002.append(z_hold)
-        gap.append(g)
+    gap = follow_gap_series_itm_1m(list(triples))
+    if len(gap) != len(triples):
+        gap = [False] * len(triples)
     meta["status"] = "OK"
+    meta["follow_gap_rule"] = "FOLLOW_GAP_ITM_1M"
     return ml001, ml002, gap, meta
 
 
@@ -4879,6 +5071,9 @@ def replay_paper_scalp(
     nifty_session_lean: Optional[bool] = None,
     point_profile_overrides: Optional[dict[str, dict[str, float]]] = None,
     paper_hold_bars: Optional[int] = None,
+    observer_veto_fills: Optional[bool] = None,
+    sod_one_ticket: Optional[bool] = None,
+    picker_majority: Optional[bool] = None,
 ) -> dict[str, Any]:
     base = root or repo_root()
     now = datetime.now(IST)
@@ -5047,6 +5242,21 @@ def replay_paper_scalp(
             else bool(params.get("nifty_session_lean", False))
         ),
         point_profile_overrides=dict(point_profile_overrides or params.get("point_profile_overrides") or {}),
+        observer_veto_fills=(
+            bool(observer_veto_fills)
+            if observer_veto_fills is not None
+            else bool(params.get("observer_veto_fills", True))
+        ),
+        sod_one_ticket=(
+            bool(sod_one_ticket)
+            if sod_one_ticket is not None
+            else bool(params.get("sod_one_ticket", False))
+        ),
+        picker_majority=(
+            bool(picker_majority)
+            if picker_majority is not None
+            else bool(params.get("picker_majority", False) or params.get("sod_one_ticket", False))
+        ),
     )
     for book_id in LIVE_BOOKS:
         engine.equity[book_id] = float(plan["per_book"].get(book_id) or 0.0)
@@ -5813,6 +6023,41 @@ def today_picture(closed: Sequence[dict[str, Any]], book_rank: Sequence[dict[str
     }
 
 
+def sod_ab_row(board: dict[str, Any]) -> dict[str, Any]:
+    """OLD vs NEW replay card. Unique net = UNIQUE_PNL_BOOKS. Not founder wr."""
+    closed = board.get("closed_trades") or []
+    skips = board.get("skip_reason_counts") or {}
+    filled = [r for r in closed if r.get("filled")]
+    unique_filled = [r for r in filled if str(r.get("book_id") or "") in UNIQUE_PNL_BOOKS]
+    unique_net = round(sum(_net_or_points(r) for r in unique_filled), 2)
+
+    def _book(bid: str) -> tuple[float, int]:
+        rows = [r for r in filled if str(r.get("book_id")) == bid]
+        return round(sum(_net_or_points(r) for r in rows), 2), len(rows)
+
+    dealer_net, dealer_n = _book("MIX-DEFAULT-BUY")
+    logit_net, logit_n = _book("MIX-ML-LOGIT")
+    nets = [_net_or_points(r) for r in unique_filled]
+    return {
+        "n_filled_all_books": len(filled),
+        "n_filled": len(unique_filled),
+        "unique_net_pnl_inr": unique_net,
+        "dealer_net_pnl_inr": dealer_net,
+        "dealer_n": dealer_n,
+        "logit_net_pnl_inr": logit_net,
+        "logit_n": logit_n,
+        "paper_hit_rate_net_pct": paper_hit_rate_pct(nets),
+        "n_skip_follow_gap": int(skips.get("FOLLOW_GAP") or 0),
+        "n_skip_hold_majority": int(skips.get("HOLD_MAJORITY") or 0),
+        "n_skip_one_open": int(skips.get("SOD_ONE_OPEN") or 0),
+        "n_skip_lab_observe": int(skips.get("SOD_LAB_OBSERVE") or 0),
+        "n_skip_max_filled": int(skips.get("NIFTY_MAX_FILLED") or 0),
+        "promote": False,
+        "research_ready_for_programming": False,
+        "unique_books": list(UNIQUE_PNL_BOOKS),
+    }
+
+
 def index_adjustment_notes(
     closed: Sequence[dict[str, Any]],
     book_rank: Sequence[dict[str, Any]],
@@ -5926,10 +6171,21 @@ SKIP_WHY = {
     "NO_NEW_BEFORE_0950": "No NEW paper before 09:30 IST Mon–Fri.",
     "NO_NEW_BEFORE_0930": "No NEW paper before 09:30 IST Mon–Fri.",
     "WEEKEND_NO_MARKET": "No Sat/Sun India cash/F&O. Dual-tape and NEW paper are off.",
-    "NO_NEW_AFTER_1516": "No NEW after 15:16 IST. Flatten leftover OPEN. Ticks only until 15:29.",
-    "NO_NEW_AFTER_1515": "No NEW after 15:16 IST. Flatten leftover OPEN. Ticks only until 15:29.",
+    "NO_NEW_AFTER_1516": "No NEW after 15:16 IST. Flatten leftover OPEN. Data ticks until 15:30.",
+    "NO_NEW_AFTER_1515": "No NEW after 15:16 IST. Flatten leftover OPEN. Data ticks until 15:30.",
     "OBSERVE_NO_OWN_SIDE": "Observe clone — ₹0 capital, no own CE/PE fill.",
     "OBSERVE_NO_OWN_FILL": "Observe lab book — no fill.",
+    "OBSERVER_PASS_NO_SIDE": "No fill-book CE/PE this bar — observer has nothing to review.",
+    "OBSERVER_PASS_ATM_DAY": "ATM-era tape — observer does not assume ITM confirmation.",
+    "OBSERVER_PASS_NO_ITM": "ITM LTP or kind missing — PASS, do not invent a veto.",
+    "OBSERVER_PASS_STRIKE_ROLL": "ITM strike changed on this 1m — skip return, do not treat as dead wing.",
+    "OBSERVER_PASS_WAIT_1M": "Need a closed 1m bar pair before observer ALLOW/VETO.",
+    "OBSERVER_PASS_INDEX_FLAT": "Index 1m flat — no confirmation fact; do not guess.",
+    "OBSERVER_ALLOW_ITM_CONFIRMS": "ITM wing moved with the signal's claimed index direction.",
+    "FOLLOW_GAP": "Closed 1m INDEX moved; that ITM wing did not confirm. Veto the proposed CE/PE. ATM/missing ITM does not fire.",
+    "OBSERVER_VETO_WING_DEAD": "Closed 1m INDEX moved; that ITM wing did not confirm (FOLLOW-GAP).",
+    "OBSERVER_VETO_INDEX_AGAINST": "Signal CE while index 1m fell, or PE while index 1m rose.",
+    "OBSERVER_VETO_SIGNAL_SELF_CONTRADICT": "Fill book side disagrees with its own last-3 / index direction.",
     "CAPITAL_SKIP_DATA_INSUFFICIENT": "Book capital ₹0 this session.",
     CANCEL_BIN_ROLL: "Booked ITM strike is now ATM/OTM — change the CE/PE bin.",
     "ITM_ONLY_NO_QUOTE": "ITM-only ticket: Dhan did not quote that wing — DATA_INSUFFICIENT, not ATM fallback.",
@@ -6429,8 +6685,8 @@ def build_dashboard(
             "OPEN_PAPER MTM uses the booked strike LTP (wing cell), not the rolled ATM pack. ATM LTP through the stop does not close a different strike.",
             "Once filled, STOP/CANCEL_ADVERSE/greeks-dead must close. A wick through limit then stop is CLOSED LOSS — it must not sit OPEN.",
             "Open rows stamp last_ltp / seen_low / quote_src so a 74300 CE is not confused with a later ATM 74400/74500 print.",
-            "FOUNDER LOCK: Mon–Fri only. NEW paper 09:30–15:16 IST. Flatten all books at 15:16. Capture ticks (no trade) until 15:29. No Sat/Sun dual-tape. No exception until founder says.",
-            "No NEW after 15:16 IST. Flatten leftover OPEN. Ticks may persist until 15:29. live_session does not keep dead tickets overnight.",
+            "FOUNDER LOCK: Mon–Fri only. Data 09:00–15:30 IST. NEW paper 09:30–15:16. Flatten all books at 15:16. ITM option premium only (never ATM/OTM). No Sat/Sun dual-tape.",
+            "No NEW after 15:16 IST. Flatten leftover OPEN. Data ticks may persist until 15:30. live_session does not keep dead tickets overnight.",
             "paper_params nudge is session-only overfit. production_params_written stays false.",
             "INDEX 1m regime TREND|SIDEWAYS|UNKNOWN is HYPOTHESIS. TREND = Kaufman 15m ER *or* last-3 1m impulse (PUT/CE) with volume not shrinking, plus VWAP/EMA/RSI when using the 15m path. itm_bin can label TREND at ER~0.05 — that is not a 9m hold. Filled stall: stale premium high + ER≤0.18 books CANCEL_STALL; ER≥0.35 / last-3 with the wing holds. SIDEWAYS skips NEW when last-3 is also chop. Feed stays live.",
             "Filled PE does not sit a CALL rally. CANCEL_AGAINST uses last3_impulse_raw and pre-bin INDEX direction — pause-wait / false-break / 10s PE bin must not keep the PUT. TREND ER≥0.35 continues only the same wing. A 10s itm_bin tick cannot overwrite INDEX TREND UP.",

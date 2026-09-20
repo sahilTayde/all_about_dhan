@@ -23,7 +23,7 @@ Rejected on the 30s path: deep RL, transformers, blocking LLM, sklearn as a hard
 
 Features (`ml001-v1`): `idx_ret`, `ce_ret`, `pe_ret`, `spread_chg`, `abs_residual` from aligned 1m INDEX + ATM CE + ATM PE (`data/recon/ohlc` + `premium_tape`). No invented greeks. Live Dhan greeks belong in **`MIX-ML-GREEKS`** (`ml-greeks-v1`), not this vector.
 
-**Attach tomorrow:** after 1m bar close **or** two dual-tape ticks, `python -m desk_ml score --underlying NIFTY --source dual-tape`. `overlay=HOLD` / FOLLOW-GAP → dealer HOLDs new paper CE/PE. Fit embargo last 5 bars (AFML analog, not CPCV). Warehouse `ohlc_bars` + `bars_1m` join INDEX; `{UND}_ATM_CE/PE` if present. Regime labels are not BUY_CE/PE. No LLM. ExecutionClient unused.
+**Attach tomorrow:** after **1m bar close**, SOD: picker one wing, then observers **review that one CE/PE** against INDEX 1m + **ITM** wing 1m (`review_picker_ticket`). `ALLOW` / `VETO` / `PASS`. ATM day or missing ITM → **PASS** (do not assume). VETO blocks the desk ticket. KMeans still does not pick CE/PE. Fit embargo last 5 bars (AFML analog, not CPCV). No LLM on the open path. ExecutionClient unused.
 
 ```bash
 pip install -e packages/desk-ml
@@ -47,13 +47,15 @@ KEEP_ALL STRAT-001–014. MIX-DEFAULT-BUY unchanged. Catalog §25.
 
 | Piece | What it does on the desk | What it does **not** do |
 |-------|--------------------------|-------------------------|
-| **FOLLOW-GAP** | Index moved; ATM CE/PE did not confirm → **HOLD** new paper | Does not pick CE vs PE |
-| **ML-001** | KMeans 4 regimes + IsolationForest. HOLD on PREMIUM_DIVERGENCE / DIVERGE / residual+IF | `TREND_UP` is **not** BUY_CE |
-| **ML-002** | Residual z ≥ 2 or FOLLOW-GAP → HOLD. Windows 40/60/90 only | Empty window 90 ≠ delete |
+| **FOLLOW-GAP family** | After boss/picker. One review on the proposed wing. | Not dealer. Not ML-001. Does not pick CE/PE. ATM / missing ITM → **PASS**. |
+| **Observer review** | ALLOW / VETO / PASS on the picker ticket. | Does not invent CE/PE. |
+| **Picker majority** | Spoken CE vs PE + same reason class. 8-7 / soup / index-against = HOLD. | Not paper wr. Not LLM. |
+| **ML-001** | KMeans 4 regimes + IsolationForest (observe log) | `TREND_UP` is **not** BUY_CE |
+| **ML-002** | Residual z observe log. Windows 40/60/90 | Empty window 90 ≠ delete |
 | **MIX-FORM-*** | Features (beta residual, diverge-z, straddle, follow-gap) | Not tickets |
 | **MIX-ML-LOGIT*** | INDEX 3m walk-forward logit in `ml_leans.py` | **Not** customer default. Scan book. Thin 3m train → `DATA_INSUFFICIENT` |
 
-**Attach:** dual-tape tick → `desk_ml overlay` labels HOLD/WATCH. Parallel PAPER scalpers: `python -m desk_ml paper-scalp --replay`. ML-001 HOLD **skips the ML-001 book only** — it does not veto MIX-DEFAULT-BUY. **Bypass:** `PAPER_TRAIN_NO_DENY=1` books CE/PE **anyway**. Turn the flag **off** when testing HOLD.
+**Attach:** dual-tape → after **1m close**, FOLLOW-GAP on ITM CE/PE vs INDEX. That veto skips NEW on fill books. **PASS** on ATM/`DATA_INSUFFICIENT`. `python -m desk_ml replay-hold` scores FOLLOW_GAP on ITM 1m (ATM days n_hold=0).
 
 **Tune (allowed):** seed **14** fixed; embargo 5; ML-002 windows {40,60,90}; z=2. **Not allowed:** write `MIX-DEFAULT-BUY` params; claim win rate; LLM on the 45s path.
 

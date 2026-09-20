@@ -37,6 +37,7 @@ class Triple:
     itm_pe_low: Optional[float] = None
     wing_quotes: Optional[dict] = None
     idx_volume: Optional[float] = None
+    premium_kind: Optional[str] = None  # ITM | ATM | UNKNOWN — replay must not mix days
 
 
 def _ret(prev: float, cur: float) -> Optional[float]:

@@ -105,6 +105,23 @@ Pytest: `python -m pytest packages/desk-ml/tests -q`
 
 KEEP_ALL STRAT-001–014. MIX-DEFAULT-BUY unchanged.
 
+## Observer review (2026-09-20, HYPOTHESIS)
+
+One family, not a second buyer. SOD product path: picker one wing, then observer ALLOW / VETO / PASS on closed **1m INDEX vs same-strike ITM**. last-3 mismatch is logged, not a veto. ML-001/002 stay silent (not BUY_CE). ATM / no ITM → PASS. Native tape: 16 mixed ATM+ITM (141 ATM / 39 ITM ticks); 17/18 almost all ITM. Do not mock ATM LTP as ITM quotes.
+
+write=false NIFTY. Unique net = `UNIQUE_PNL_BOOKS` as coded. Skip counts are per 10s tick × book — not per 1m decision. Session cap `nifty_max_filled_per_book=4` still binds NEW (4 dealer fills on 17/18). One-open skip printed **0** on these days because tickets closed before the next picker ticket; cap, not overlap, cut the book. `win_rate` is paper hit rate net, **not** founder wr. **NO_PROMOTE.** Gate **not** `RESEARCH_READY_FOR_PROGRAMMING`.
+
+OLD = parallel fills, `observer_veto_fills=off`, `sod_one_ticket=off`. NEW = `sod_one_ticket` + majority + observer. Double-run MATCH.
+
+| Day | Tape | OLD n_filled unique | OLD unique net | OLD dealer | OLD logit | OLD paper hit net | NEW n_filled unique | NEW unique net | NEW dealer | NEW logit | NEW paper hit net | NEW skips (tick×book) | What moved |
+|-----|------|--------------------:|---------------:|-----------:|----------:|------------------:|--------------------:|---------------:|-----------:|----------:|------------------:|------------------------|------------|
+| 16 | ATM 141 / ITM 39 | 2 | **+8172.10** | +8172.10 n=2 | 0 | 50% | 3 | **+9774.76** | +9774.76 n=3 | 0 | 66.67% | FOLLOW_GAP 0 · HOLD_MAJORITY 423 · SOD_ONE_OPEN 0 · cap 0 · LAB_OBSERVE 441 | Helped. Extra dealer fill; ATM PASS. |
+| 17 | ITM 656 / ATM 1 | 8 | **−24681.74** | −12340.87 n=4 | −12340.87 n=4 | 0% | 4 | **−8804.90** | −8804.90 n=4 | 0 | 0% | FOLLOW_GAP 55 · HOLD_MAJORITY 505 · SOD_ONE_OPEN 0 · cap 35 · LAB_OBSERVE 425 | Helped unique by dropping logit clone + different 4 dealer tickets. Cap 4 still. |
+| 18 | ITM 694 / ATM 4 | 8 | **+1776.64** | +888.32 n=4 | +888.32 n=4 | 25% | 4 | **−594.45** | −594.45 n=4 | 0 | 25% | FOLLOW_GAP 73 · HOLD_MAJORITY 558 · SOD_ONE_OPEN 0 · cap 49 · LAB_OBSERVE 619 | Hurt. Picker/observer changed the 4 dealer tickets; clones no longer double the green. |
+| 16+17+18 | native | 18 | **−14733.00** | — | — | — | 11 | **+375.41** | — | — | — | — | Net unique better; **18 hurt**. Not a promote. |
+
+Monday: keep SOD flag off for live until founder asks; A/B stays. `production_params_written=false`.
+
 ## HANDOFF
 
 ```text

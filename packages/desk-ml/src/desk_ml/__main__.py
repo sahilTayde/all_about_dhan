@@ -86,6 +86,17 @@ def build_parser() -> argparse.ArgumentParser:
         default="",
         help="IST YYYY-MM-DD for --live-session (default: today IST). Replay 2026-09-16 tape without fabricating.",
     )
+    ps.add_argument(
+        "--sod-one-ticket",
+        action="store_true",
+        help="Product SOD: picker majority + one observer + one working ticket. LAB observe-or-skip.",
+    )
+    ps.add_argument(
+        "--observer-veto-fills",
+        default=None,
+        choices=["on", "off"],
+        help="OLD A/B: off = parallel fills without observer veto. Default on.",
+    )
     ff = sub.add_parser(
         "fix-first",
         help="Pre-open FIX-FIRST drill: write=false candle replay from 17 Sep. Skill track, not a wr.",
@@ -186,6 +197,7 @@ def main(argv: Optional[list[str]] = None) -> int:
             _print(public)
             return 0
         live = bool(args.live_session) or str(args.source).strip().lower() in {"dual-tape", "dual_tape"}
+        veto = getattr(args, "observer_veto_fills", None)
         report = replay_paper_scalp(
             root=root,
             underlyings=names or ("NIFTY",),
@@ -195,6 +207,9 @@ def main(argv: Optional[list[str]] = None) -> int:
             deny_model_signals=True,
             live_session=live,
             session_ist_date=(str(args.session_date).strip() or None),
+            sod_one_ticket=bool(getattr(args, "sod_one_ticket", False)),
+            picker_majority=bool(getattr(args, "sod_one_ticket", False)),
+            observer_veto_fills=(None if veto is None else veto == "on"),
         )
         public = {
             k: report.get(k)

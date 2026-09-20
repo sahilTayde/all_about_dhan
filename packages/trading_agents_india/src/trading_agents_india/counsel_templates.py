@@ -202,10 +202,60 @@ _add(
         system="00 orchestrator counsel. Customer profitability over SDLC theater.",
     )
 )
+_add(
+    CounselJob(
+        job_id="EXIT_REVIEW",
+        role="review",
+        title="Exit-review on an open paper book",
+        when="1m close / stall / T1 / against / SL. Review path only. Never blocks NEW.",
+        need=(
+            "underlying",
+            "open_side (CE|PE already booked)",
+            "entry_stop_target",
+            "trigger (CANCEL_STALL|TARGET|CANCEL_AGAINST|STOP|1M_CLOSE)",
+        ),
+        how_to_get="Desk overlay_to_boss compact packet. Mock if GEMINI/OPENAI empty.",
+        output="wait | trail after T1 | shift T1 | cut. Do not invent a new CE/PE. No wr.",
+        keywords=("exit-review", "exit review", "flatten", "cut"),
+        system=(
+            "Review-path counsel on an already open paper ticket. "
+            "Do NOT pick BUY_CE / BUY_PE. Fail-soft wait if tape is thin. No live orders."
+        ),
+    )
+)
+_add(
+    CounselJob(
+        job_id="RISK_REVIEW",
+        role="review",
+        title="Risk-review on an open paper book",
+        when="Against-wing / SL / risk change after fill. Not on ALLOW/open.",
+        need=("underlying", "open_side", "cited_tape", "trigger"),
+        how_to_get="overlay_to_boss. Empty keys → mock wait.",
+        output="wait | trail after T1 | shift T1 | cut. No replacement signal.",
+        keywords=("risk-review", "risk review", "against"),
+        system="Advisory only. Fast path already ran. Do not invent CE/PE. NO_PROMOTE.",
+    )
+)
+_add(
+    CounselJob(
+        job_id="PARTIAL_BOOK_REVIEW",
+        role="review",
+        title="Partial-book review after T1",
+        when="First target printed or path to T1. Does not recode STALL/TARGET overlay.",
+        need=("underlying", "open_side", "entry_stop_target", "t1_printed (yes|no)"),
+        how_to_get="overlay_to_boss compact. Mock if keys empty.",
+        output="wait | trail after T1 | shift T1 | cut. No Super Order.",
+        keywords=("partial-book-review", "partial book", "t1", "trail"),
+        system="Partial-book advice on our ticket. Do not pick a new wing. Booking overlay stays.",
+    )
+)
 
 
 _ALIASES = {
     "SIGNAL_BUY_SELL": "SIGNAL_REVIEW",  # old id — review only, never generate
+    "EXIT-REVIEW": "EXIT_REVIEW",
+    "RISK-REVIEW": "RISK_REVIEW",
+    "PARTIAL-BOOK-REVIEW": "PARTIAL_BOOK_REVIEW",
 }
 
 

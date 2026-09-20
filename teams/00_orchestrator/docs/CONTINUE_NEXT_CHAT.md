@@ -21,32 +21,28 @@ Do not glob markdown. Do not create extra CONTINUE/HANDOFF/NOTES dumps.
 
 Gate: NOT RESEARCH_READY_FOR_PROGRAMMING. PAPER only. NO_PROMOTE. STRATs UNVALIDATED. Dashboard P/L is MOCK. No live orders. Do not restart npm / Vite / paper ops until I ask. Never print secrets.
 
-Left off 2026-09-17 paper-scalp 1m clock: dual-tape 10s REST stays LTP. NEW opens need INDEX **1m** TREND/SIDEWAYS (`REGIME_UNKNOWN_WAIT` if UNKNOWN). 3m logit skips first session bar after overnight gap; no sticky yesterday lean. Unfilled = 120s wall-clock; hold = hold_bars×60s. Flatten/MTM still every 10s. PAPER. **NO_PROMOTE**. No Super Orders. Local sqlite — do not git-add.
-
-Left off 2026-09-17 own-side FILL: `deny_model_signals=True` default. FILL logit / XR-own / dealer CONFIRM vs logit / greeks confirm-kill. ML-001/002/ML-1/TV observe. ₹70k on fill books not 8 clones. Unfilled ₹0 charges. CLEAN SLATE then dual-tape `--paper-scalp` deny-on. PAPER. **NO_PROMOTE**. No Super Orders. Local sqlite — do not git-add.
-
-Left off 2026-09-17 dress rehearsal: NEW paper only **09:50 IST** (`OPEN_SETTLE_35M`). Dual-tape REST **`--tick-seconds 10`** (WS off — no greeks). 266/219/615 path-feasibility clip. CLEAN SLATE today's paper book. wr **gross and net**. `production_params_written=false`. PAPER only. **NO_PROMOTE**. No Super Orders. Do not restart npm. Local sqlite — do not git-add.
-
-Left off 2026-09-16 EOD: INDEX 1m SIDEWAYS_HOLD skips NEW paper opens (HYPOTHESIS). Replay vs prior Groww+STT board: filled 659→276, all-books net −7132.9→+5037.92, unique net 4584→4900, wr still ~25% (not founder 57% live-hours). NO_PROMOTE. Do not restart npm / paper_ops. Local sqlite — do not git-add.
-
-Left off 2026-09-16 ~11:40 IST: ALL paper loops STOPPED for team restructure. Dual-tape / overlay waiters / paper_ops_monitor / founder ML / TV-EP / signal_lab / STRAT eval halted. Legacy LLM paper_ops stays STOPPED. Do not restart npm / Vite / paper ops until founder asks. NO_PROMOTE. Local sqlite — do not git-add.
-
-Left off 2026-09-16 ~11:20 IST: founder OPERATING PLAN frozen (three clocks). Product during cash hours = parallel PAPER books with round-trip P/L, not dealer OPEN_PAPER spray. Dual-tape stays the one live feed. NO_PROMOTE. Local sqlite — do not git-add.
-
-Left off 2026-09-16 ~10:38 IST: deleted run_news_analyst / run_sentiment_analyst. Dual-tape is the paper bot. NO_PROMOTE. Local sqlite — do not git-add.
-
-Left off 2026-09-15 (next chat): pre-market readiness. At 09:15 IST run paper dual-tape + desk_ml overlay. NO_PROMOTE. OpenAI ACCEPT_WITH_CAVEATS is paper only. No Super Orders. No live orders. Local sqlite — do not git-add.
-
-Left off 2026-09-13: ITM champion PAPER board ready (MIX-CHAMP-* + desk leaderboard + assumed IST VWAP). Docs: teams/06_backtesting/docs/ITM_CHAMPION_PAPER_BOARD.md. CLI: python -m backtest_engine.run_itm_champions. Tuesday = PAPER watch only (prefer ITM PE near spot); live Super Orders refused. Next freeze only after live board evidence; then walk-forward OOS. KEEP_ALL. NO_PROMOTE. Local trading_agents_india.sqlite is working-tree only — do not git-add.
+Left off 2026-09-20 SOD rooms (paper-ready, promote refused): FAST PATH votes → picker majority → one observer → one working ticket (`sod_one_ticket`). LAB parallel is A/B. LLM mock/fail-soft not on ALLOW. 16/17/18 write=false OLD vs NEW unique net 16 +8172→+9775; 17 −24682→−8805; 18 +1777→−594. Cap 4 vs one-open. Native ATM/ITM tape. KEEP_ALL. No Super Orders. Local sqlite — do not git-add.
 ```
 
 ---
 
-## Left-off 2026-09-20 IST — NSE hours lock (NO_PROMOTE)
+## Left-off 2026-09-20 IST — SOD architecture paper-ready (NO_PROMOTE)
 
-**Now:** Founder lock in `session_clock.py` + paper-scalp + dual-tape. **No Sat/Sun** dual-tape. Mon–Fri **09:30–15:16** NEW; flatten all books **15:16**; capture ticks **to 15:29** no trade. No exception until founder says. PAPER. **NO_PROMOTE.**
+**Now:** Rooms coded: analysts vote (STRAT-001–014 KEEP_ALL, silent DI does not vote) → boss `picker_majority` → observer one wing → desk one ticket (`MIX-DEFAULT-BUY`) while SOD on. Flags `sod_one_ticket` / `picker_majority`. OLD parallel FILL_ELIGIBLE stays for A/B. LLM `exit-review` / `risk-review` / `partial-book-review` mock if keys empty; `last_step.llm_review` is None on open. Booking overlay not recoded. 16/17/18 write=false double-run MATCH. Gate **not** `RESEARCH_READY_FOR_PROGRAMMING`. PAPER. **NO_PROMOTE.**
 
-**Next:** Start dual-tape only Mon–Fri ≥09:30 IST. Do not git-add sqlite. Do not restart npm.
+**Next:** Founder A/B live dual-tape only if asked (`--sod-one-ticket`). Do not git-add sqlite. Do not restart npm.
+
+## Left-off 2026-09-20 IST — observer SOD = fill path (NO_PROMOTE)
+
+**Now:** Observer sits on the **fill path**. Paper engine calls it. Not dealer-owned, not ML-001 family. One 1m verdict **per fill book**. STRAT-001–014 get the same gate when they join FILL_ELIGIBLE. PAPER. **NO_PROMOTE.**
+
+**Next:** Monday dual-tape with family on. Do not git-add sqlite. Do not restart npm.
+
+## Left-off 2026-09-20 IST — data 09:00–15:30 + ITM-only premium (NO_PROMOTE)
+
+**Now:** Dual-tape **data** Mon–Fri **09:00–15:30 IST**. INDEX 1m + **ITM option 1m chart** (NIFTY ATM-4/ATM+4). Replay/backtest **reads the day’s kind**: `NIFTY_ATM_1m_YYYY-MM-DD` = legacy ATM; `NIFTY_ITM_1m_*` = ITM. Same calendar day: ITM wins, ATM file ignored. Do not join ATM bars to ITM LTP. PAPER. **NO_PROMOTE.**
+
+**Next:** Start dual-tape Mon–Fri from 09:00 IST for backtest tape. Do not git-add sqlite. Do not restart npm.
 
 ## Left-off 2026-09-19 IST — signal desk: dealer + ML (NO_PROMOTE)
 
