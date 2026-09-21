@@ -2156,6 +2156,7 @@ a {
   justify-content: space-between;
   align-items: center;
   gap: 0.75rem;
+  flex-wrap: wrap;
 }
 
 .refresh-btn {
@@ -2564,10 +2565,6 @@ tr.is-click:hover {
 .ist-clock__date {
   font-size: 0.72rem;
   color: var(--ink-soft);
-}
-
-.desk-refresh {
-  flex-wrap: wrap;
 }
 
 .sod-wrap {
