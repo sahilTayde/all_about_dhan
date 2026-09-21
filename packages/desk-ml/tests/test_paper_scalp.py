@@ -26,6 +26,7 @@ from desk_ml.paper_scalp import (
     quote_for_side,
     render_markdown,
     replay_paper_scalp,
+    save_human_override,
     score_itm_bin,
     seen_not_taken_picture,
     step_underlying,
@@ -3126,6 +3127,107 @@ def test_fix_first_drill_progress_json(tmp_path, monkeypatch) -> None:
     assert out2["history"]
     assert out2["promote"] is False
     assert any("Hour kind" in w for w in out2["watch"])
+
+
+def test_human_set_levels_does_not_flatten(tmp_path) -> None:
+    engine = BookEngine(root=tmp_path)
+    engine.equity["MIX-DEFAULT-BUY"] = 10000.0
+    pos = OpenPaper(
+        book_id="MIX-DEFAULT-BUY",
+        underlying="NIFTY",
+        side="CE",
+        trade_id="human-levels",
+        entry=230.5,
+        stop=215.0,
+        target=254.0,
+        atm_strike=23200.0,
+        opened_ts=_ts(0),
+        opened_bar=0,
+        strike_source="ITM_100",
+        limit_price=230.5,
+        filled=True,
+        last_ltp=234.5,
+        index_regime="TREND",
+    )
+    engine.opens[("MIX-DEFAULT-BUY", "NIFTY")] = pos
+    save_human_override(
+        {
+            "action": "SET_LEVELS",
+            "trade_id": "human-levels",
+            "underlying": "NIFTY",
+            "side": "CE",
+            "target": 270.0,
+            "stop": 220.0,
+        },
+        root=tmp_path,
+    )
+    tick = Triple(
+        ts=_ts(5),
+        idx_close=23450.0,
+        ce_close=234.5,
+        pe_close=80.0,
+        atm_strike=23400.0,
+        itm_ce_close=234.5,
+        itm_ce_strike=23200.0,
+        wing_quotes={"23200": {"ce": 234.5, "pe": 40.0}},
+    )
+    mark_to_market(engine, tick, "NIFTY", 5)
+    assert engine.has_open("MIX-DEFAULT-BUY", "NIFTY") is True
+    kept = engine.opens[("MIX-DEFAULT-BUY", "NIFTY")]
+    assert kept.target == 270.0
+    assert kept.stop == 220.0
+
+
+def test_human_naked_exit_does_not_flatten(tmp_path) -> None:
+    engine = BookEngine(root=tmp_path)
+    engine.equity["MIX-DEFAULT-BUY"] = 10000.0
+    pos = OpenPaper(
+        book_id="MIX-DEFAULT-BUY",
+        underlying="NIFTY",
+        side="CE",
+        trade_id="human-exit",
+        entry=230.5,
+        stop=215.0,
+        target=254.0,
+        atm_strike=23200.0,
+        opened_ts=_ts(0),
+        opened_bar=0,
+        strike_source="ITM_100",
+        limit_price=230.5,
+        filled=True,
+        last_ltp=234.5,
+        index_regime="TREND",
+    )
+    engine.opens[("MIX-DEFAULT-BUY", "NIFTY")] = pos
+    path = tmp_path / "data" / "recon" / "human_trade_override.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps(
+            {
+                "ok": True,
+                "active": True,
+                "action": "EXIT",
+                "trade_id": "human-exit",
+                "underlying": "NIFTY",
+                "side": "CE",
+                "orders": "REFUSED",
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    tick = Triple(
+        ts=_ts(5),
+        idx_close=23450.0,
+        ce_close=234.5,
+        pe_close=80.0,
+        atm_strike=23400.0,
+        itm_ce_close=234.5,
+        itm_ce_strike=23200.0,
+        wing_quotes={"23200": {"ce": 234.5, "pe": 40.0}},
+    )
+    mark_to_market(engine, tick, "NIFTY", 5)
+    assert engine.has_open("MIX-DEFAULT-BUY", "NIFTY") is True
 
 
 

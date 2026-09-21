@@ -2928,22 +2928,104 @@ def load_human_override(root: Optional[Path] = None) -> dict[str, Any]:
     return blob
 
 
+def _human_px(raw: Any) -> Optional[float]:
+    if raw is None or raw == "":
+        return None
+    try:
+        v = float(raw)
+    except (TypeError, ValueError):
+        return None
+    if not (v > 0) or v != v:
+        return None
+    return round(v, 4)
+
+
 def save_human_override(body: dict[str, Any], *, root: Optional[Path] = None) -> dict[str, Any]:
-    action = str((body or {}).get("action") or "EXIT").upper()
-    if action not in {"EXIT", "CANCEL", "CLEAR"}:
-        action = "EXIT"
+    """Paper-only human instruction. Naked EXIT on an open fill is refused.
+
+    Filled tickets: SET_LEVELS / MANAGE with required target + stop.
+    Unfilled working limits: CANCEL. CLEAR drops the instruction.
+    Live broker orders stay REFUSED.
+    """
+    body = body if isinstance(body, dict) else {}
+    action = str(body.get("action") or "").upper().replace("-", "_").replace(" ", "_")
+    if action in {"SET_TARGET_STOP", "MANAGE", "MANAGE_TRADE", "SET_LEVELS", "OVERRIDE"}:
+        action = "SET_LEVELS"
+    target = _human_px(body.get("target"))
+    stop = _human_px(body.get("stop"))
+    if action == "EXIT" and target is not None and stop is not None:
+        action = "SET_LEVELS"
+    allowed = {"SET_LEVELS", "CANCEL", "CLEAR"}
+    if action not in allowed:
+        return {
+            "ok": False,
+            "active": False,
+            "action": action or "EXIT",
+            "error": "HUMAN_LEVELS_REQUIRED",
+            "trade_id": body.get("trade_id"),
+            "underlying": str(body.get("underlying") or "").upper() or None,
+            "side": str(body.get("side") or "").upper() or None,
+            "reason": "HUMAN_PRIORITY",
+            "as_of_ist": datetime.now(IST).isoformat(timespec="seconds"),
+            "orders": "REFUSED",
+            "promote": False,
+            "note": (
+                "Naked EXIT refused. Ask the human for TARGET and STOP, confirm, "
+                "then apply paper SET_LEVELS. No live broker order."
+            ),
+        }
+    if action == "SET_LEVELS":
+        if target is None or stop is None:
+            return {
+                "ok": False,
+                "active": False,
+                "action": "SET_LEVELS",
+                "error": "HUMAN_LEVELS_REQUIRED",
+                "trade_id": body.get("trade_id"),
+                "underlying": str(body.get("underlying") or "").upper() or None,
+                "side": str(body.get("side") or "").upper() or None,
+                "reason": "HUMAN_PRIORITY",
+                "as_of_ist": datetime.now(IST).isoformat(timespec="seconds"),
+                "orders": "REFUSED",
+                "promote": False,
+                "note": "Target and stop are required. Immediate flatten is refused.",
+            }
+        if not (target > stop):
+            return {
+                "ok": False,
+                "active": False,
+                "action": "SET_LEVELS",
+                "error": "LEVELS_ORDER",
+                "target": target,
+                "stop": stop,
+                "trade_id": body.get("trade_id"),
+                "underlying": str(body.get("underlying") or "").upper() or None,
+                "side": str(body.get("side") or "").upper() or None,
+                "reason": "HUMAN_PRIORITY",
+                "as_of_ist": datetime.now(IST).isoformat(timespec="seconds"),
+                "orders": "REFUSED",
+                "promote": False,
+                "note": "Long premium: target must be above stop.",
+            }
     payload = {
         "ok": True,
         "active": action != "CLEAR",
         "action": action,
-        "trade_id": (body or {}).get("trade_id"),
-        "underlying": str((body or {}).get("underlying") or "").upper() or None,
-        "side": str((body or {}).get("side") or "").upper() or None,
+        "trade_id": body.get("trade_id"),
+        "underlying": str(body.get("underlying") or "").upper() or None,
+        "side": str(body.get("side") or "").upper() or None,
+        "target": target,
+        "stop": stop,
         "reason": "HUMAN_PRIORITY",
         "as_of_ist": datetime.now(IST).isoformat(timespec="seconds"),
         "orders": "REFUSED",
         "promote": False,
-        "note": "Human-in-loop paper override. Highest priority over boss/desk for open paper tickets.",
+        "note": (
+            "Human paper SET_LEVELS (target+stop). Highest priority over boss/desk. "
+            "No live broker order."
+            if action == "SET_LEVELS"
+            else "Human-in-loop paper override. Highest priority over boss/desk for open paper tickets."
+        ),
     }
     path = human_override_path(root)
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -4450,27 +4532,103 @@ def mark_to_market(
             wants_und = not override.get("underlying") or override.get("underlying") == underlying.upper()
             wants_side = not override.get("side") or override.get("side") == pos.side
             if wants_trade and wants_und and wants_side:
-                action = str(override.get("action") or "EXIT").upper()
-                human_reason = CANCEL_HUMAN if action == "CANCEL" or not pos.filled else HUMAN_EXIT
-                exit_px = float(ltp if ltp is not None else pos.last_ltp or pos.entry)
-                _close(engine, pos, ltp=exit_px, ts=tick.ts, reason=human_reason, root=engine.root)
-                if engine.root is not None:
-                    append_model_log(
-                        engine.root,
-                        {
-                            "event": "HUMAN_OVERRIDE",
-                            "model": book_id,
-                            "book_id": book_id,
-                            "trade_id": pos.trade_id,
-                            "underlying": underlying,
-                            "side": pos.side,
-                            "reason": human_reason,
-                            "status": "CLOSED_BY_HUMAN",
-                            "filled": bool(pos.filled),
-                            "priority": "HUMAN_SUPERIOR",
-                        },
+                action = str(override.get("action") or "").upper()
+                if action == "CANCEL" or (action == "EXIT" and not pos.filled):
+                    human_reason = CANCEL_HUMAN
+                    exit_px = float(ltp if ltp is not None else pos.last_ltp or pos.entry)
+                    _close(engine, pos, ltp=exit_px, ts=tick.ts, reason=human_reason, root=engine.root)
+                    if engine.root is not None:
+                        append_model_log(
+                            engine.root,
+                            {
+                                "event": "HUMAN_OVERRIDE",
+                                "model": book_id,
+                                "book_id": book_id,
+                                "trade_id": pos.trade_id,
+                                "underlying": underlying,
+                                "side": pos.side,
+                                "reason": human_reason,
+                                "status": "CLOSED_BY_HUMAN",
+                                "filled": bool(pos.filled),
+                                "priority": "HUMAN_SUPERIOR",
+                            },
+                        )
+                    if engine.root is not None:
+                        save_human_override({"action": "CLEAR"}, root=engine.root)
+                    continue
+                if action in {"SET_LEVELS", "MANAGE", "MANAGE_TRADE", "SET_TARGET_STOP"}:
+                    new_tgt = _human_px(override.get("target"))
+                    new_stop = _human_px(override.get("stop"))
+                    entry = float(pos.entry) if pos.entry is not None else None
+                    levels_ok = (
+                        new_tgt is not None
+                        and new_stop is not None
+                        and new_tgt > new_stop
+                        and (entry is None or (new_tgt > entry > new_stop))
                     )
-                continue
+                    if levels_ok:
+                        pos.stop = float(new_stop)
+                        pos.path_stop = float(new_stop)
+                        pos.target = float(new_tgt)
+                        pos.justification = (
+                            f"{pos.justification} | HUMAN_SET_LEVELS stop={new_stop} target={new_tgt}"
+                        ).strip(" |")
+                        if engine.root is not None:
+                            append_model_log(
+                                engine.root,
+                                {
+                                    "event": "HUMAN_SET_LEVELS",
+                                    "model": book_id,
+                                    "book_id": book_id,
+                                    "trade_id": pos.trade_id,
+                                    "underlying": underlying,
+                                    "side": pos.side,
+                                    "stop": new_stop,
+                                    "target": new_tgt,
+                                    "status": "OPEN_PAPER",
+                                    "filled": bool(pos.filled),
+                                    "priority": "HUMAN_SUPERIOR",
+                                    "orders": "REFUSED",
+                                },
+                            )
+                        if engine.root is not None:
+                            save_human_override({"action": "CLEAR"}, root=engine.root)
+                    else:
+                        if engine.root is not None:
+                            append_model_log(
+                                engine.root,
+                                {
+                                    "event": "HUMAN_LEVELS_REJECTED",
+                                    "model": book_id,
+                                    "book_id": book_id,
+                                    "trade_id": pos.trade_id,
+                                    "reason": "LEVELS_ORDER",
+                                    "status": "OPEN_PAPER",
+                                    "orders": "REFUSED",
+                                },
+                            )
+                            save_human_override({"action": "CLEAR"}, root=engine.root)
+                    # Do not flatten. Fall through to normal MTM with new levels.
+                else:
+                    # Naked EXIT on a fill is suicide — ignore flatten, keep the ticket.
+                    if engine.root is not None:
+                        append_model_log(
+                            engine.root,
+                            {
+                                "event": "HUMAN_EXIT_REFUSED",
+                                "model": book_id,
+                                "book_id": book_id,
+                                "trade_id": pos.trade_id,
+                                "underlying": underlying,
+                                "side": pos.side,
+                                "reason": "HUMAN_LEVELS_REQUIRED",
+                                "status": "OPEN_PAPER",
+                                "filled": bool(pos.filled),
+                                "priority": "HUMAN_SUPERIOR",
+                                "orders": "REFUSED",
+                            },
+                        )
+                        save_human_override({"action": "CLEAR"}, root=engine.root)
         if ltp is None:
             if minutes_ist(tick.ts) >= FLATTEN_MINUTES_IST:
                 _close(
@@ -6612,6 +6770,7 @@ def seen_not_taken_picture(engine: BookEngine) -> dict[str, Any]:
                 "book_id": book,
                 "underlying": und,
                 "seen_side": seen_side,
+                "side": seen_side,
                 "action": "SKIP",
                 "reason": skip.get("reason"),
                 "why": _skip_why(str(skip.get("reason") or "")),
@@ -6622,9 +6781,19 @@ def seen_not_taken_picture(engine: BookEngine) -> dict[str, Any]:
                 "last3_er": classified.get("last3_er"),
                 "last3_impulse": classified.get("last3_impulse"),
                 "dealer_verdict": dealer.get("verdict"),
+                "observer_action": skip.get("observer_action") or (step.get("observer") or {}).get("action"),
                 "logit_side": logit.get("side"),
                 "observation": _index_observation(und, classified, step),
                 "last_updated_ts": skip.get("ts"),
+                "trade_id": skip.get("trade_id"),
+                "atm_strike": skip.get("atm_strike") or skip.get("strike"),
+                "expiry": skip.get("expiry") or skip.get("expiry_ist"),
+                "lots": skip.get("lots"),
+                "qty": skip.get("qty"),
+                "lot_size": skip.get("lot_size"),
+                "filled": False,
+                "outcome": "NO_FILL",
+                "status": "SKIPPED",
             }
         )
     cancelled_rows: list[dict[str, Any]] = []
@@ -6633,11 +6802,13 @@ def seen_not_taken_picture(engine: BookEngine) -> dict[str, Any]:
         result = str(row.get("result") or "")
         if result != "CANCELLED" and not reason.startswith("CANCEL"):
             continue
+        filled = bool(row.get("filled"))
         cancelled_rows.append(
             {
                 "book_id": row.get("book_id"),
                 "underlying": row.get("underlying"),
                 "seen_side": row.get("side"),
+                "side": row.get("side"),
                 "action": "CANCEL",
                 "reason": reason,
                 "why": (
@@ -6654,6 +6825,13 @@ def seen_not_taken_picture(engine: BookEngine) -> dict[str, Any]:
                 "index_regime": row.get("index_regime"),
                 "limit_price": row.get("limit_price"),
                 "atm_strike": row.get("atm_strike"),
+                "expiry": row.get("expiry") or row.get("expiry_ist"),
+                "trade_id": row.get("trade_id"),
+                "lots": row.get("lots"),
+                "qty": row.get("qty"),
+                "lot_size": row.get("lot_size"),
+                "filled": filled,
+                "outcome": "FILL_THEN_CANCEL" if filled else "NO_FILL_CANCEL",
                 "last_updated_ist": row.get("last_updated_ist") or row.get("closed_ist"),
                 "last_updated_ts": row.get("last_updated_ts") or row.get("closed_ts"),
                 "observation": (

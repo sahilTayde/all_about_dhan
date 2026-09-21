@@ -157,11 +157,14 @@ export function pathInfo(t) {
   const toTarget = Number.isFinite(last) && Number.isFinite(target) ? target - last : null;
   const slRoom = Number.isFinite(last) && Number.isFinite(stop) ? last - stop : null;
   const vsEntry = Number.isFinite(last) && Number.isFinite(entry) ? last - entry : null;
-  const distTgt = Number.isFinite(toTarget) ? Math.abs(toTarget) : null;
-  const distSl = Number.isFinite(slRoom) ? Math.abs(slRoom) : null;
-  const pathSum = distTgt != null && distSl != null ? distTgt + distSl : null;
-  const hitTargetPct = pathSum && pathSum > 0 ? Math.round((distSl / pathSum) * 100) : null;
-  const hitStopPct = hitTargetPct == null ? null : 100 - hitTargetPct;
+  const remainingToTarget = Number.isFinite(toTarget) ? Math.abs(toTarget) : null;
+  const riskToStop = Number.isFinite(slRoom) ? Math.abs(slRoom) : null;
+  const range = Number.isFinite(span) ? Math.abs(span) : null;
+  const remainingPctOfRange =
+    range && range > 0 && remainingToTarget != null ? remainingToTarget / range : null;
+  const riskPctOfRange = range && range > 0 && riskToStop != null ? riskToStop / range : null;
+  const entryPct =
+    Number.isFinite(span) && span !== 0 && Number.isFinite(entry) ? (entry - stop) / span : null;
   return {
     last,
     stop,
@@ -172,8 +175,11 @@ export function pathInfo(t) {
     toTarget,
     slRoom,
     vsEntry,
-    hitTargetPct,
-    hitStopPct,
+    remainingToTarget,
+    riskToStop,
+    remainingPctOfRange,
+    riskPctOfRange,
+    entryPct,
     trailing: t.trail_stop != null && Number(t.trail_stop) !== Number(t.stop),
   };
 }
@@ -247,14 +253,62 @@ export function discardedWho(row) {
   const dealer = String(row.dealer_verdict || "").toUpperCase();
   const ignored = row.ignored_by_boss === true;
   const observer = String(row.observer_action || "").toUpperCase();
+  const source = String(row.source || "");
   if (ignored || observer === "VETO") return "Boss / observer";
   if (dealer === "HOLD" || dealer === "KILL" || dealer === "VETO") return "Dealer";
   if (reason.startsWith("CANCEL") || row.action === "CANCEL") return "Dealer";
+  if (reason.includes("DEALER")) return "Dealer";
+  if (source && !String(row.book_id || "").includes("DEFAULT")) return "Boss / model";
   if (String(row.book_id || "").includes("DEFAULT")) return "Dealer";
   return "Boss / model";
 }
 
-const FOUNDER_OFF_BOOK = new Set(["FOCUS_NIFTY_ONLY", "FOCUS_NIFTY_SENSEX", "FOUNDER_BOOK_OFF"]);
+export function discardOutcome(row) {
+  if (row.outcome) return String(row.outcome).replaceAll("_", " ");
+  const action = String(row.action || "").toUpperCase();
+  const reason = String(row.reason || row.exit_reason || "").toUpperCase();
+  const filled = row.filled === true;
+  const vs = String(row.vs_picker || "").toUpperCase();
+  if (action === "SKIP" || reason.includes("SKIP")) return filled ? "Fill then discarded" : "No fill · discarded";
+  if (action === "CANCEL" || reason.startsWith("CANCEL")) return filled ? "Fill then cancelled" : "No fill · cancelled";
+  if (reason.includes("VETO") || String(row.observer_action || "").toUpperCase() === "VETO") {
+    return "No fill · observer veto";
+  }
+  if (vs === "DISSENT") return "No fill · dissent vs picker";
+  if (vs === "SPOKEN_PICKER_HOLD") return "No fill · picker HOLD";
+  if (reason.includes("EXIT") || reason.includes("FLATTEN")) return filled ? "Fill then exit" : "Exit · no fill";
+  if (row.result === "SUCCESS") return "Success";
+  if (row.result === "LOSS") return "Fail · loss";
+  if (row.result === "CANCELLED") return "Cancelled";
+  return action || reason || "Discarded";
+}
+
+export function discardTradeLabel(row) {
+  const und = row.underlying || "?";
+  const side = row.seen_side || row.side || row.desk_side || "";
+  const strike = row.atm_strike ?? row.strike ?? "";
+  const expiry = row.expiry || row.expiry_ist || "";
+  const parts = [und, side, strike !== "" && strike != null ? String(strike) : "", expiry].filter(Boolean);
+  return parts.join(" ") || "Unknown ticket";
+}
+
+export function actorCounts(rows) {
+  const map = new Map();
+  for (const t of rows || []) {
+    const who = discardedWho(t);
+    map.set(who, (map.get(who) || 0) + 1);
+  }
+  return [...map.entries()]
+    .map(([who, n]) => ({ who, n }))
+    .sort((a, b) => b.n - a.n);
+}
+
+const FOUNDER_OFF_BOOK = new Set([
+  "FOCUS_NIFTY_ONLY",
+  "FOCUS_NIFTY_SENSEX",
+  "FOUNDER_BOOK_OFF",
+  "FOUNDER_STOP_TRADING_ON_INDEX",
+]);
 
 export function groupSkips(rows) {
   const map = new Map();
@@ -350,7 +404,7 @@ export function derivePaperBoard(data, lab = null) {
     ...(seen.skipped_latest || []),
     ...(seen.cancelled || []),
     ...(modelSignals.latest || []).filter((r) => r.ignored_by_boss || r.observer_action === "VETO" || r.vs_picker === "DISSENT"),
-  ];
+  ].filter((t) => !FOUNDER_OFF_BOOK.has(String(t.reason || "")));
   const days = liveMoney ? dailyBuckets(uniqueClosed) : mergeDaySeries(dailyBuckets(uniqueClosed), lab?.day_series);
   const bookDays = dailyBuckets(closed);
   const sessionDay = data.session_ist_date || sessionDate(data.as_of_ist);
@@ -403,6 +457,7 @@ export function derivePaperBoard(data, lab = null) {
     modelSignals,
     discardedRows,
     skipGroups: groupSkips(discardedRows),
+    actorCounts: actorCounts(discardedRows),
     days,
     todayDay,
     books,
