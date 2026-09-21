@@ -4,15 +4,28 @@ from desk_ml.founder_session import (
     load_founder_book,
     new_fill_decision,
     save_founder_book,
+    set_index_trade,
 )
 from desk_ml.paper_scalp import load_human_override, save_human_override
 
 
-def test_default_book_is_nifty_only() -> None:
+def test_default_book_starts_all_indices() -> None:
     book = load_founder_book(root=None)
     assert "NIFTY" in book["trade_underlyings"]
+    assert book["default_action"] == "START"
     assert book["tape_records_all"] is True
     assert book["apply_new_fills_only"] is True
+
+
+def test_start_stop_one_index(tmp_path) -> None:
+    save_founder_book(["NIFTY", "BANKNIFTY", "SENSEX"], root=tmp_path)
+    stopped = set_index_trade("BANKNIFTY", "STOP TRADE", root=tmp_path)
+    assert stopped["last_action"] == "STOP"
+    assert "BANKNIFTY" not in stopped["trade_underlyings"]
+    assert stopped["index_status"]["BANKNIFTY"] == "STOP"
+    started = set_index_trade("BANKNIFTY", "START", root=tmp_path)
+    assert started["last_action"] == "START"
+    assert "BANKNIFTY" in started["trade_underlyings"]
 
 
 def test_save_and_allow(tmp_path) -> None:

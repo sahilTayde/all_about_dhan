@@ -68,9 +68,16 @@ def create_app() -> FastAPI:
 
     @app.post("/paper/founder-book")
     def paper_founder_book_save(body: dict[str, Any]) -> dict[str, Any]:
-        from desk_ml.founder_session import save_founder_book
+        from desk_ml.founder_session import save_founder_book, set_index_trade
 
-        names = body.get("trade_underlyings") if isinstance(body, dict) else None
+        payload = body if isinstance(body, dict) else {}
+        action = payload.get("action")
+        underlying = payload.get("underlying")
+        if action and underlying:
+            return set_index_trade(underlying, action)
+        names = payload.get("trade_underlyings")
+        if names is None:
+            names = list(payload.get("known_underlyings") or [])
         return save_founder_book(names or [])
 
     @app.get("/paper/human-override")

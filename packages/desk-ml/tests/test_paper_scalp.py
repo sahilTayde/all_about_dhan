@@ -1789,10 +1789,12 @@ def test_index_point_profiles_nifty_tight_sensex_wide() -> None:
     assert (s["entry"] - s["stop"]) > (n["entry"] - n["stop"])
 
 
-def test_skip_banknifty_focus_nifty_sensex() -> None:
+def test_skip_banknifty_focus_nifty_sensex(tmp_path) -> None:
+    from desk_ml.founder_session import save_founder_book
     from desk_ml.paper_scalp import _try_open
 
-    engine = BookEngine()
+    save_founder_book(["NIFTY", "BANKNIFTY", "SENSEX"], root=tmp_path)
+    engine = BookEngine(skip_banknifty=True, root=tmp_path)
     engine.last_regime["BANKNIFTY"] = {"regime": "TREND", "direction": "UP", "itm_bin": {"side": "CE"}}
     tick = Triple(ts=_ts(10), idx_close=52000.0, ce_close=200.0, pe_close=180.0, atm_strike=52000.0)
     _try_open(
@@ -1809,10 +1811,12 @@ def test_skip_banknifty_focus_nifty_sensex() -> None:
     assert any(s.get("reason") == "FOCUS_NIFTY_SENSEX" for s in engine.skips)
 
 
-def test_skip_sensex_focus_nifty_only() -> None:
+def test_skip_sensex_focus_nifty_only(tmp_path) -> None:
+    from desk_ml.founder_session import save_founder_book
     from desk_ml.paper_scalp import _try_open
 
-    engine = BookEngine(skip_sensex=True, sensex_need_strength=False)
+    save_founder_book(["NIFTY", "BANKNIFTY", "SENSEX"], root=tmp_path)
+    engine = BookEngine(skip_sensex=True, sensex_need_strength=False, root=tmp_path)
     engine.last_regime["SENSEX"] = {"regime": "TREND", "direction": "UP", "last3_impulse": "UP"}
     tick = Triple(ts=_ts(10), idx_close=74300.0, ce_close=300.0, pe_close=280.0, atm_strike=74300.0)
     _try_open(

@@ -282,14 +282,14 @@ DEFAULT_PAPER_PARAMS = {
     "min_stop_premium": MIN_STOP_PREMIUM,
     "t1_confirm_seconds": T1_CONFIRM_SECONDS,
     "note": "PAPER session only. Never writes MIX-DEFAULT-BUY.",
-    "skip_banknifty": True,
-    "skip_sensex": True,
+    "skip_banknifty": False,
+    "skip_sensex": False,
     "nifty_need_strength": True,
     "nifty_allow_sides": ["CE", "PE"],
     "nifty_align_impulse": True,
     "nifty_skip_ce_after_stop": True,
     "nifty_skip_side_after_stop": False,
-    "nifty_max_filled_per_book": 4,
+    "nifty_max_filled_per_book": None,
     "apply_target_shift": False,
     "observer_veto_fills": True,
     "sod_one_ticket": True,
@@ -299,14 +299,14 @@ DEFAULT_PAPER_PARAMS = {
 
 # Same strength overlay on both wings. Founder: do not lock PE all session.
 OVERLAY_SHIP = {
-    "skip_banknifty": True,
-    "skip_sensex": True,
+    "skip_banknifty": False,
+    "skip_sensex": False,
     "nifty_need_strength": True,
     "nifty_allow_sides": ["CE", "PE"],
     "nifty_align_impulse": True,
     "nifty_skip_ce_after_stop": True,
     "nifty_skip_side_after_stop": False,
-    "nifty_max_filled_per_book": 4,
+    "nifty_max_filled_per_book": None,
     "apply_target_shift": False,
 }
 
@@ -362,9 +362,9 @@ def paper_open_justification(
     if und == "NIFTY":
         allow = list(getattr(engine, "nifty_allow_sides", None) or [])
         if allow == ["PE"]:
-            bits.append("overlay=PE+strength+max4")
+            bits.append("overlay=PE+strength")
         elif set(allow) >= {"CE", "PE"} or not allow:
-            bits.append("overlay=CE+PE+strength+max4")
+            bits.append("overlay=CE+PE+strength")
         else:
             bits.append("overlay=NIFTY-gates")
         if getattr(engine, "nifty_need_strength", False):
@@ -378,7 +378,7 @@ def paper_open_justification(
             bits.append("why_now=PE: dump / PE bin / PE short-cover (CE still allowed when CE strength prints)")
         elif side == "CE":
             bits.append("why_now=CE: rally / CE bin / CE short-cover (not PE-locked)")
-    if und == "SENSEX":
+    if und == "SENSEX" and getattr(engine, "skip_sensex", False):
         bits.append("SENSEX NEW skipped on this ship (FOCUS_NIFTY_ONLY)")
     if regime == "SIDEWAYS":
         bits.append("SIDEWAYS: new opens should have been skipped — if open, it is a hold/flatten path")
@@ -2756,7 +2756,7 @@ class BookEngine:
     skip_bn_unless_last3: bool = True
     apply_impulse_pause: bool = True
     apply_target_shift: bool = False  # founder: strict first target; trail SL only until then
-    skip_banknifty: bool = True  # founder: NIFTY + SENSEX only for now
+    skip_banknifty: bool = False  # founder desk START/STOP is the index gate
     skip_sensex: bool = False  # NIFTY-only paper via params; do not mix unique P/L with SENSEX
     sensex_need_strength: bool = True  # SENSEX: continuation or short-cover, not every bin tick
     sensex_no_pause_wait: bool = True  # SENSEX last-3 confirm without extra pause (NIFTY still waits)
@@ -3773,6 +3773,24 @@ def _try_open(
     except Exception:
         if str(underlying).upper() not in {"NIFTY"}:
             return
+    if getattr(engine, "skip_banknifty", False) and str(underlying).upper() == "BANKNIFTY":
+        engine.mark_skip(
+            book_id,
+            underlying,
+            "FOCUS_NIFTY_SENSEX",
+            ts=tick.ts,
+            seen_side=side,
+        )
+        return
+    if getattr(engine, "skip_sensex", False) and str(underlying).upper() == "SENSEX":
+        engine.mark_skip(
+            book_id,
+            underlying,
+            "FOCUS_NIFTY_ONLY",
+            ts=tick.ts,
+            seen_side=side,
+        )
+        return
     classified = engine.last_regime.get(underlying.upper()) or {}
     regime = str(classified.get("regime") or "UNKNOWN")
     if skip_reason:
@@ -5072,7 +5090,7 @@ def load_paper_params(root: Path) -> dict[str, Any]:
         "nifty_session_lean",
         "apply_target_shift",
     ):
-        if key in blob and blob[key] is not None:
+        if key in blob:
             out[key] = blob[key]
     try:
         lookback = int(out.get("regime_lookback") or REGIME_LOOKBACK)
@@ -5326,6 +5344,11 @@ def replay_paper_scalp(
     session_day = session_ist_date or (now.date().isoformat() if live_session else None)
     params = load_paper_params(base) if live_session else dict(DEFAULT_PAPER_PARAMS)
     params = dict(params)
+    if live_session:
+        # Founder /pm START/STOP is the only NEW-fill halt. Do not auto-stop after 4 fills.
+        params["nifty_max_filled_per_book"] = None
+        params["skip_banknifty"] = False
+        params["skip_sensex"] = False
     if session_ist_date and ((not write) or session_ist_date != now.date().isoformat()):
         params.pop("paper_book_epoch_ts", None)
     desk_total = float(
@@ -5407,10 +5430,10 @@ def replay_paper_scalp(
         skip_banknifty=(
             bool(skip_banknifty)
             if skip_banknifty is not None
-            else bool(params.get("skip_banknifty", True))
+            else bool(params.get("skip_banknifty", False))
         ),
         skip_sensex=(
-            bool(skip_sensex) if skip_sensex is not None else bool(params.get("skip_sensex", True))
+            bool(skip_sensex) if skip_sensex is not None else bool(params.get("skip_sensex", False))
         ),
         sensex_need_strength=(
             bool(sensex_need_strength)
@@ -7078,13 +7101,13 @@ def wipe_today_paper_book(
         deny_model_signals=True,
         capital_by_book=dict(plan["per_book"]),
         capital_plan=plan,
-        skip_banknifty=True,
-        skip_sensex=True,
+        skip_banknifty=False,
+        skip_sensex=False,
         nifty_need_strength=True,
         nifty_allow_sides=("CE", "PE"),
         nifty_align_impulse=True,
         nifty_skip_ce_after_stop=True,
-        nifty_max_filled_per_book=4,
+        nifty_max_filled_per_book=None,
         apply_target_shift=False,
     )
     for book_id in LIVE_BOOKS:
@@ -7100,7 +7123,7 @@ def wipe_today_paper_book(
         session_ist_date=day,
         paper_params=load_paper_params(base),
         paper_param_notes=[
-            "CLEAN SLATE: paper dashboard wiped. Dual-tape JSONL kept. Ship=NIFTY CE+PE+strength+max4, skip BN+SENSEX, no T2. New paper book after epoch. Warehouse/sqlite kept. NO_PROMOTE."
+            "CLEAN SLATE: paper dashboard wiped. Dual-tape JSONL kept. Ship=NIFTY CE+PE+strength, no fill-count cap; founder START/STOP is the index gate. New paper book after epoch. Warehouse/sqlite kept. NO_PROMOTE."
         ],
     )
     empty["n_closed"] = 0

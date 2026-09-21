@@ -8,35 +8,62 @@ function sessionUrl() {
 }
 
 export function FounderBookPicker() {
-  const [picked, setPicked] = useState(["NIFTY"]);
+  const [picked, setPicked] = useState([...KNOWN]);
+  const [status, setStatus] = useState({
+    NIFTY: "START",
+    BANKNIFTY: "START",
+    SENSEX: "START",
+  });
   const [chosen, setChosen] = useState("NIFTY");
   const [msg, setMsg] = useState("");
   const [busy, setBusy] = useState(false);
+
+  function applyBook(j) {
+    const names = Array.isArray(j?.trade_underlyings) ? j.trade_underlyings : [...KNOWN];
+    setPicked(names);
+    if (j?.index_status && typeof j.index_status === "object") {
+      setStatus({
+        NIFTY: j.index_status.NIFTY || (names.includes("NIFTY") ? "START" : "STOP"),
+        BANKNIFTY: j.index_status.BANKNIFTY || (names.includes("BANKNIFTY") ? "START" : "STOP"),
+        SENSEX: j.index_status.SENSEX || (names.includes("SENSEX") ? "START" : "STOP"),
+      });
+    } else {
+      setStatus({
+        NIFTY: names.includes("NIFTY") ? "START" : "STOP",
+        BANKNIFTY: names.includes("BANKNIFTY") ? "START" : "STOP",
+        SENSEX: names.includes("SENSEX") ? "START" : "STOP",
+      });
+    }
+  }
 
   useEffect(() => {
     const ac = new AbortController();
     fetch(`${sessionUrl()}?t=${Date.now()}`, { signal: ac.signal })
       .then((r) => (r.ok ? r.json() : null))
       .then((j) => {
-        if (j?.trade_underlyings?.length) setPicked(j.trade_underlyings);
+        if (j) applyBook(j);
       })
       .catch(() => {});
     return () => ac.abort();
   }, []);
 
-  async function save(nextPicked, actionText = "Saved") {
+  async function postAction(action) {
     setBusy(true);
     setMsg("");
     try {
       const res = await fetch(sessionUrl(), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ trade_underlyings: nextPicked }),
+        body: JSON.stringify({ underlying: chosen, action }),
       });
       const j = await res.json();
-      if (!res.ok) throw new Error(j.detail || "save failed");
-      setPicked(j.trade_underlyings || []);
-      setMsg(`${actionText}. NEW fills obey this immediately after restart/next tick. Tape still records all three.`);
+      if (!res.ok) throw new Error(j.detail || j.error || "save failed");
+      applyBook(j);
+      setMsg(
+        action === "START"
+          ? `START TRADE on ${chosen}. NEW paper fills allowed. Tape still records all three.`
+          : `STOP TRADE on ${chosen}. NEW paper fills denied until you hit START TRADE. Open tickets stay.`,
+      );
     } catch (err) {
       setMsg(err.message || String(err));
     } finally {
@@ -44,43 +71,67 @@ export function FounderBookPicker() {
     }
   }
 
-  function stopChosen() {
-    const next = picked.filter((x) => x !== chosen);
-    save(next, `FOUNDER STOP TRADING ON ${chosen}`);
-  }
-
-  function restartChosen() {
-    const next = picked.includes(chosen) ? picked : [...picked, chosen];
-    save(next, `Restarted NEW fills on ${chosen}`);
-  }
+  const chosenOn = (status[chosen] || "START") === "START" || picked.includes(chosen);
 
   return (
-    <section className="panel">
-      <h2>Founder book today</h2>
+    <section className="panel founder-desk">
+      <h2>Founder trade desk</h2>
       <p className="muted">
-        Dual-tape keeps recording NIFTY + BANKNIFTY + SENSEX. This control only tells the boss
-        which index may get NEW paper fills. Stopped index denials show as FOUNDER STOP TRADING ON INDEX.
+        Dual-tape keeps recording NIFTY + BANKNIFTY + SENSEX. You pick the index, then START TRADE or
+        STOP TRADE. Default is START TRADE. There is no fill-count auto-stop — only this desk stops NEW fills.
       </p>
+
+      <div className="founder-desk__grid">
+        <div className="founder-desk__section">
+          <h3>1. Which index</h3>
+          <label className="filter-field">
+            <span>Index</span>
+            <select value={chosen} onChange={(e) => setChosen(e.target.value)}>
+              {KNOWN.map((name) => (
+                <option key={name} value={name}>{name}</option>
+              ))}
+            </select>
+          </label>
+          <p className="founder-desk__state">
+            {chosen}:{" "}
+            <strong className={chosenOn ? "is-up" : "is-down"}>
+              {chosenOn ? "START TRADE" : "STOP TRADE"}
+            </strong>
+          </p>
+        </div>
+
+        <div className="founder-desk__section">
+          <h3>2. Control</h3>
+          <div className="founder-desk__btns">
+            <button
+              type="button"
+              className={`founder-desk__btn founder-desk__btn--start${chosenOn ? " is-active" : ""}`}
+              onClick={() => postAction("START")}
+              disabled={busy}
+            >
+              {busy ? "Saving…" : "START TRADE"}
+            </button>
+            <button
+              type="button"
+              className={`founder-desk__btn founder-desk__btn--stop${!chosenOn ? " is-active" : ""}`}
+              onClick={() => postAction("STOP")}
+              disabled={busy}
+            >
+              {busy ? "Saving…" : "STOP TRADE"}
+            </button>
+          </div>
+        </div>
+      </div>
+
       <div className="founder-book">
-        <label className="filter-field">
-          <span>Index</span>
-          <select value={chosen} onChange={(e) => setChosen(e.target.value)}>
-            {KNOWN.map((name) => (
-              <option key={name} value={name}>{name}</option>
-            ))}
-          </select>
-        </label>
-        <button type="button" className="refresh-btn" onClick={stopChosen} disabled={busy || !picked.includes(chosen)}>
-          {busy ? "Saving…" : `Stop ${chosen}`}
-        </button>
-        <button type="button" className="refresh-btn" onClick={restartChosen} disabled={busy || picked.includes(chosen)}>
-          {busy ? "Saving…" : `Restart ${chosen}`}
-        </button>
-        {KNOWN.map((name) => (
-          <span key={name} className="founder-book__opt">
-            {name}: {picked.includes(name) ? "NEW fills ON" : "FOUNDER STOP TRADING"}
-          </span>
-        ))}
+        {KNOWN.map((name) => {
+          const on = (status[name] || "START") === "START" || picked.includes(name);
+          return (
+            <span key={name} className="founder-book__opt">
+              {name}: {on ? "START TRADE" : "STOP TRADE"}
+            </span>
+          );
+        })}
       </div>
       {msg ? <p className="muted">{msg}</p> : null}
     </section>

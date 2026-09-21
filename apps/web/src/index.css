@@ -2234,6 +2234,65 @@ a {
   padding: 0.4rem 0.55rem;
 }
 
+.founder-desk__grid {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) minmax(220px, 1fr);
+  gap: 1rem;
+  margin: 0.9rem 0 1rem;
+}
+
+@media (max-width: 720px) {
+  .founder-desk__grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.founder-desk__section {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface-2);
+  padding: 0.85rem 1rem;
+}
+
+.founder-desk__section h3 {
+  margin: 0 0 0.65rem;
+  font-size: 0.95rem;
+}
+
+.founder-desk__state {
+  margin: 0.7rem 0 0;
+}
+
+.founder-desk__btns {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+}
+
+.founder-desk__btn {
+  min-width: 9.5rem;
+  padding: 0.55rem 0.85rem;
+  border-radius: 8px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.founder-desk__btn--start {
+  background: rgba(61, 204, 140, 0.16);
+  border: 1px solid var(--yes);
+  color: var(--ink);
+}
+
+.founder-desk__btn--stop {
+  background: rgba(224, 107, 116, 0.16);
+  border: 1px solid var(--pe);
+  color: var(--ink);
+}
+
+.founder-desk__btn.is-active {
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.35);
+}
+
 .founder-book {
   display: flex;
   flex-wrap: wrap;

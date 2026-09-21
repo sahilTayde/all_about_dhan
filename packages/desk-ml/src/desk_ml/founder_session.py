@@ -15,9 +15,12 @@ from zoneinfo import ZoneInfo
 from desk_ml.persist import repo_root
 
 KNOWN = ("NIFTY", "BANKNIFTY", "SENSEX")
-DEFAULT = ("NIFTY",)
+# Default START TRADE on every index. Founder desk STOP is the only session halt.
+DEFAULT = KNOWN
 FILE_NAME = "founder_trade_underlyings.json"
 STOP_REASON = "FOUNDER_STOP_TRADING_ON_INDEX"
+START_ACTION = "START"
+STOP_ACTION = "STOP"
 IST = ZoneInfo("Asia/Kolkata")
 
 
@@ -37,70 +40,95 @@ def _clean(names: Iterable[Any]) -> list[str]:
 def load_founder_book(root: Optional[Path] = None) -> dict[str, Any]:
     path = session_path(root)
     if not path.is_file():
-        stopped = [n for n in KNOWN if n not in DEFAULT]
-        return {
-            "ok": True,
-            "trade_underlyings": list(DEFAULT),
-            "stopped_underlyings": stopped,
-            "known_underlyings": list(KNOWN),
-            "apply_new_fills_only": True,
-            "tape_records_all": True,
-            "source": "default",
-            "orders": "REFUSED",
-            "promote": False,
-        }
+        return _payload(list(DEFAULT), source="default")
     try:
         blob = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
-        stopped = [n for n in KNOWN if n not in DEFAULT]
-        return {
-            "ok": False,
-            "trade_underlyings": list(DEFAULT),
-            "stopped_underlyings": stopped,
-            "known_underlyings": list(KNOWN),
-            "apply_new_fills_only": True,
-            "tape_records_all": True,
-            "source": "unreadable",
-            "orders": "REFUSED",
-            "promote": False,
-        }
+        return _payload(list(DEFAULT), source="unreadable", ok=False)
     names = _clean(blob.get("trade_underlyings") if "trade_underlyings" in blob else DEFAULT)
-    stopped = [n for n in KNOWN if n not in names]
+    return _payload(
+        names,
+        source="file",
+        as_of_ist=blob.get("as_of_ist"),
+        note=blob.get("note"),
+    )
+
+
+def _index_status(names: list[str]) -> dict[str, str]:
+    started = set(names)
+    return {n: (START_ACTION if n in started else STOP_ACTION) for n in KNOWN}
+
+
+def _payload(
+    names: list[str],
+    *,
+    source: str,
+    ok: bool = True,
+    as_of_ist: Any = None,
+    note: Any = None,
+) -> dict[str, Any]:
     return {
-        "ok": True,
+        "ok": ok,
         "trade_underlyings": names,
-        "stopped_underlyings": stopped,
+        "stopped_underlyings": [n for n in KNOWN if n not in names],
         "known_underlyings": list(KNOWN),
+        "index_status": _index_status(names),
         "apply_new_fills_only": True,
         "tape_records_all": True,
-        "as_of_ist": blob.get("as_of_ist"),
-        "source": "file",
+        "default_action": START_ACTION,
+        "as_of_ist": as_of_ist,
+        "source": source,
         "orders": "REFUSED",
         "promote": False,
-        "note": blob.get("note")
-        or "Founder book for NEW paper fills. Dual-tape still captures all indices.",
+        "note": note
+        or "Founder START/STOP per index. Default START TRADE. Dual-tape still records all.",
     }
 
 
 def save_founder_book(names: Iterable[Any], *, root: Optional[Path] = None) -> dict[str, Any]:
-    cleaned = _clean(names)
-    payload = {
-        "ok": True,
-        "trade_underlyings": cleaned,
-        "stopped_underlyings": [n for n in KNOWN if n not in cleaned],
-        "known_underlyings": list(KNOWN),
-        "apply_new_fills_only": True,
-        "tape_records_all": True,
-        "as_of_ist": datetime.now(IST).isoformat(timespec="seconds"),
-        "source": "file",
-        "orders": "REFUSED",
-        "promote": False,
-        "note": "Founder book for NEW paper fills only. Open tickets stay. Dual-tape records all.",
-    }
+    payload = _payload(
+        _clean(names),
+        source="file",
+        as_of_ist=datetime.now(IST).isoformat(timespec="seconds"),
+        note="Founder START/STOP for NEW paper fills only. Open tickets stay. Dual-tape records all.",
+    )
     path = session_path(root)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
     return payload
+
+
+def set_index_trade(underlying: Any, action: Any, *, root: Optional[Path] = None) -> dict[str, Any]:
+    """START or STOP NEW fills on one index. Other indices keep their state."""
+    u = str(underlying or "").strip().upper().replace(" ", "")
+    act = str(action or "").strip().upper()
+    if act in {"START TRADE", "START_TRADE", "RESTART"}:
+        act = START_ACTION
+    if act in {"STOP TRADE", "STOP_TRADE"}:
+        act = STOP_ACTION
+    if u not in KNOWN:
+        book = load_founder_book(root)
+        book["ok"] = False
+        book["error"] = "UNKNOWN_UNDERLYING"
+        return book
+    if act not in {START_ACTION, STOP_ACTION}:
+        book = load_founder_book(root)
+        book["ok"] = False
+        book["error"] = "UNKNOWN_ACTION"
+        return book
+    loaded = load_founder_book(root)
+    names = list(loaded.get("trade_underlyings") or [])
+    if loaded.get("source") != "file":
+        names = list(DEFAULT)
+    if act == START_ACTION:
+        if u not in names:
+            names.append(u)
+    else:
+        names = [n for n in names if n != u]
+    saved = save_founder_book(names, root=root)
+    saved["last_underlying"] = u
+    saved["last_action"] = act
+    return saved
 
 
 def allows_new_fill(underlying: str, *, root: Optional[Path] = None) -> bool:
