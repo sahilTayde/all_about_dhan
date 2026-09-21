@@ -82,7 +82,7 @@ def create_app() -> FastAPI:
 
     @app.get("/paper/human-override")
     def paper_human_override() -> dict[str, Any]:
-        """Human-in-loop paper exit/cancel instruction. Still refuses live orders."""
+        """Human-in-loop paper SET_LEVELS / CANCEL. Naked EXIT refused. Live orders refused."""
         from desk_ml.paper_scalp import load_human_override
 
         return load_human_override()

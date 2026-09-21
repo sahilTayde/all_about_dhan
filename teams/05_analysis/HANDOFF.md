@@ -1,5 +1,23 @@
 # Handoff log — Team 05 Analysis
 
+## As of now (2026-09-21 IST) — discarded tickets named on Desk (NO_PROMOTE)
+
+```text
+From:     teams/05_analysis
+To:       00 / 07 / founder
+Date:     2026-09-21
+Status:   PAPER UI / NO_PROMOTE
+Accepted: Desk discarded list names the trade (index, CE/PE,
+  strike, lots/qty, ticket id), fill vs no-fill, and who acted
+  (Dealer ×N, Boss / observer ×N). Cancelled tickets keep
+  FILL_THEN_CANCEL vs NO_FILL_CANCEL. Founder START/STOP index
+  skips stay off this list.
+Rejected: Vague "discarded" one-liner. Treating founder index
+  STOP as a dealer kill.
+UNKNOWN: option expiry on skip rows when the skip dict has no
+  expiry field.
+```
+
 ## As of now (2026-09-14) — Desk divergence on dual tape
 
 ```text

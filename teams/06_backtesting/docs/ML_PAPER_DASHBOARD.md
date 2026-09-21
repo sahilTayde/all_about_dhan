@@ -1,28 +1,28 @@
 # LIVE SESSION
 
-**As of (IST):** `2026-09-21T12:52:17+05:30`  
+**As of (IST):** `2026-09-21T14:22:17+05:30`  
 **Session (IST date):** `2026-09-21` · live_session=True  
-**Gate:** not `RESEARCH_READY_FOR_PROGRAMMING`. **NO_PROMOTE.** Orders refused. paper wr net=100.0% gross=100.0% (5/5 filled net). desk ₹570000.0 split across 1 tradable fill books (typical ₹570000.0/tradable; observe books ₹0).  
-**Gross P/L:** ₹35100.0 · **charges:** ₹4362.67 (Groww+statutory VERIFY) · **Net P/L:** ₹30737.33 · won ₹30737.33 · lost ₹0 · desk equity ₹600737.33  (start ₹570000.0). Open 1.
+**Gate:** not `RESEARCH_READY_FOR_PROGRAMMING`. **NO_PROMOTE.** Orders refused. paper wr net=58.82% gross=58.82% (10/17 filled net). desk ₹570000.0 split across 1 tradable fill books (typical ₹570000.0/tradable; observe books ₹0).  
+**Gross P/L:** ₹56712.5 · **charges:** ₹14783.57 (Groww+statutory VERIFY) · **Net P/L:** ₹41928.93 · won ₹108236.61 · lost ₹-66307.68 · desk equity ₹611928.93  (start ₹570000.0). Open 1.
 
 SOD-on: one desk ticket (`MIX-DEFAULT-BUY`) + analyst room observe. Lab books never OPEN. Analyst CE/PE is logged MATCH/DISSENT/SPOKEN_PICKER_HOLD even when picker HOLD / observer VETO / desk ignores. A HOLD on ML-001 does **not** invent a wing.
 
 ## Today at a glance (gross vs net after Groww + statutory)
 
-Filled 5 · cancelled 2 · W net 5 / L 0 · W gross 5 / L gross 0. TARGET hits 1 · TIME exits 0 (SUCCESS = TARGET only; TIME green is not SUCCESS).
-wr **gross** 100.0% · wr **net** 100.0% (Groww+statutory VERIFY).
+Filled 17 · cancelled 2 · W net 10 / L 7 · W gross 10 / L gross 7. TARGET hits 4 · TIME exits 0 (SUCCESS = TARGET only; TIME green is not SUCCESS).
+wr **gross** 58.82% · wr **net** 58.82% (Groww+statutory VERIFY).
 Capital split (₹570000.0 desk, SKIP/DI = ₹0 redistributed, min 20 lots/fill): `MIX-DEFAULT-BUY` ₹570000.0 · `ML-001` ₹0.0 · `ML-002` ₹0.0 · `ML-1` ₹0.0 · `MIX-ML-LOGIT` ₹0.0 · `MIX-ML-LOGIT-XR` ₹0.0 · `MIX-TV-EP-024` ₹0.0 · `MIX-ML-GREEKS` ₹0.0.
-Gross ₹35100.0 − brokerage ₹200.0 − GST ₹255.84 − STT ₹2633.84 − exch ₹1217.89 − SEBI ₹3.48 − stamp ₹51.62 = **net ₹30737.33**.
-SIDEWAYS skip (NEW opens only, HYPOTHESIS): n_skip_sideways=1 · REGIME_UNKNOWN_WAIT=4 · n_sideways_bars=1 · filled SL-hits=0.
-Index net (8 parallel books): NIFTY ₹30737.33.
-Unique books only (`MIX-DEFAULT-BUY` `MIX-ML-LOGIT` `MIX-ML-LOGIT-XR` `MIX-ML-GREEKS`): net ₹30737.33 · NIFTY ₹30737.33.
+Gross ₹56712.5 − brokerage ₹680.0 − GST ₹869.67 − STT ₹8905.9 − exch ₹4139.77 − SEBI ₹11.81 − stamp ₹176.42 = **net ₹41928.93**.
+SIDEWAYS skip (NEW opens only, HYPOTHESIS): n_skip_sideways=1 · REGIME_UNKNOWN_WAIT=7 · n_sideways_bars=1 · filled SL-hits=0.
+Index net (8 parallel books): NIFTY ₹41928.93.
+Unique books only (`MIX-DEFAULT-BUY` `MIX-ML-LOGIT` `MIX-ML-LOGIT-XR` `MIX-ML-GREEKS`): net ₹41928.93 · NIFTY ₹41928.93.
 Best ML book: `ML-001` rank 2 net ₹0.0 (filled 0).
 
 ## Ranked books (net ₹, all indices)
 
 | rank | book | kind | filled | cancel | W | L | wr% net | wr% gross | gross ₹ | charges ₹ | **net ₹** | capital ₹ |
 |------|------|------|--------|--------|---|---|--------|----------|---------|-----------|-----------|-----------|
-| 1 | `MIX-DEFAULT-BUY` | DESK | 5 | 2 | 5 | 0 | 100.0 | 100.0 | 35100.0 | 4362.67 | 30737.33 | 570000.0 |
+| 1 | `MIX-DEFAULT-BUY` | DESK | 17 | 2 | 10 | 7 | 58.82 | 58.82 | 56712.5 | 14783.57 | 41928.93 | 570000.0 |
 | 2 | `ML-001` | ML | 0 | 0 | 0 | 0 | None | None | None | None | 0.0 | 0.0 |
 | 3 | `ML-002` | ML | 0 | 0 | 0 | 0 | None | None | None | None | 0.0 | 0.0 |
 | 4 | `ML-1` | ML | 0 | 0 | 0 | 0 | None | None | None | None | 0.0 | 0.0 |
@@ -35,16 +35,28 @@ Best ML book: `ML-001` rank 2 net ₹0.0 (filled 0).
 
 | model | und | CE/PE | strike | limit | **target** | stop | last_ltp | filled | status | regime | updated |
 |-------|-----|-------|--------|-------|-----------|------|----------|--------|--------|--------|---------|
-| `MIX-DEFAULT-BUY` | NIFTY | PE | 23600.0 | 198.55 | 213.4413 | 186.637 | 203.35 | True | OPEN_PAPER | TREND | 2026-09-21T12:51:10+05:30 |
+| `MIX-DEFAULT-BUY` | NIFTY | CE | 23250.0 | 218.7 | 228.7 | 205.578 | 220.35 | True | OPEN_PAPER | TREND | 2026-09-21T14:21:10+05:30 |
 
 ### Open justification
 
-- `MIX-DEFAULT-BUY` NIFTY PE: NIFTY buy PE ITM strike 23600.0 (ITM_100); bin=PE regime=TREND/DOWN last3=none; impulse_note=pause_wait_continuation; path stop 186.637 → target 213.4413 (premium points; strict first TARGET; T2 parked); overlay=CE+PE+strength; need_strength: last-3 / pause_continue / SHORT_COVER / itm_bin confirm / TREND ER≥0.35 same wing; why_now=PE: dump / PE bin / PE short-cover (CE still allowed when CE strength prints); PAPER only. NO_PROMOTE. Groww+STT on fill.
+- `MIX-DEFAULT-BUY` NIFTY CE: NIFTY buy CE ITM strike 23250.0 (ITM_100); bin=CE regime=TREND/UP last3=none; impulse_note=wait_pause_after_impulse; path stop 205.578 → target 228.7 (premium points; strict first TARGET; T2 parked); overlay=CE+PE+strength; need_strength: last-3 / pause_continue / SHORT_COVER / itm_bin confirm / TREND ER≥0.35 same wing; why_now=CE: rally / CE bin / CE short-cover (not PE-locked); PAPER only. NO_PROMOTE. Groww+STT on fill.
 
 ## Closed tickets (last — last updated desc — strike / entry / **exit** / target / SL / reason)
 
 | model | und | side | strike | entry | **exit** | target | stop | reason | target_hit | pnl ₹ | result | regime | updated |
 |-------|-----|------|--------|-------|----------|--------|------|--------|------------|-------|--------|--------|---------|
+| `MIX-DEFAULT-BUY` | NIFTY | PE | 23650.0 | 210.1 | 204.5 | 220.1 | 197.494 | `CANCEL_AGAINST` | False | -9935.19 | LOSS | TREND | 2026-09-21T14:18:52+05:30 |
+| `MIX-DEFAULT-BUY` | NIFTY | CE | 23250.0 | 218.4 | 213.15 | 228.4 | 205.296 | `COVER_LONG_UNWIND` | False | -9399.34 | LOSS | TREND | 2026-09-21T14:15:22+05:30 |
+| `MIX-DEFAULT-BUY` | NIFTY | PE | 23650.0 | 209.75 | 204.95 | 226.5596 | 197.165 | `CANCEL_AGAINST` | False | -8636.34 | LOSS | TREND | 2026-09-21T14:13:06+05:30 |
+| `MIX-DEFAULT-BUY` | NIFTY | CE | 23250.0 | 219.25 | 213.05 | 238.8097 | 206.095 | `CANCEL_AGAINST` | False | -10943.4 | LOSS | TREND | 2026-09-21T14:09:43+05:30 |
+| `MIX-DEFAULT-BUY` | NIFTY | CE | 23250.0 | 225.4 | 220.55 | 245.6395 | 211.876 | `CANCEL_AGAINST` | False | -8777.42 | LOSS | TREND | 2026-09-21T14:00:38+05:30 |
+| `MIX-DEFAULT-BUY` | NIFTY | CE | 23250.0 | 202.3 | 225.4 | 217.4725 | 190.162 | `TARGET` | True | 36642.92 | SUCCESS | TREND | 2026-09-21T13:59:31+05:30 |
+| `MIX-DEFAULT-BUY` | NIFTY | CE | 23250.0 | 190.7 | 202.3 | 200.7 | 179.258 | `TARGET` | True | 18035.66 | SUCCESS | TREND | 2026-09-21T13:57:16+05:30 |
+| `MIX-DEFAULT-BUY` | NIFTY | CE | 23200.0 | 230.5 | 234.6 | 254.0767 | 215.9267 | `CANCEL_STALL` | False | 5718.92 | STALL | TREND | 2026-09-21T13:47:06+05:30 |
+| `MIX-DEFAULT-BUY` | NIFTY | CE | 23200.0 | 223.45 | 234.15 | 233.45 | 210.043 | `TARGET` | True | 16450.43 | SUCCESS | TREND | 2026-09-21T13:22:22+05:30 |
+| `MIX-DEFAULT-BUY` | NIFTY | PE | 23600.0 | 206.95 | 200.25 | 216.95 | 194.533 | `CANCEL_AGAINST` | False | -11707.19 | LOSS | TREND | 2026-09-21T13:15:43+05:30 |
+| `MIX-DEFAULT-BUY` | NIFTY | CE | 23200.0 | 224.5 | 220.8 | 234.5 | 211.03 | `CANCEL_AGAINST` | False | -6908.8 | LOSS | TREND | 2026-09-21T13:03:23+05:30 |
+| `MIX-DEFAULT-BUY` | NIFTY | PE | 23600.0 | 198.55 | 199.45 | 213.4413 | 186.637 | `HUMAN_EXIT` | False | 651.35 | TIME | TREND | 2026-09-21T12:34:25+05:30 |
 | `MIX-DEFAULT-BUY` | NIFTY | PE | 23600.0 | 198.0 | 196.4 | 212.85 | 186.12 | `CANCEL_UNFILLED_THESIS` | False | 0.0 | CANCELLED | TREND | 2026-09-21T12:29:58+05:30 |
 | `MIX-DEFAULT-BUY` | NIFTY | PE | 23600.0 | 198.2 | 198.0 | 213.065 | 186.308 | `CANCEL_UNFILLED_THESIS` | False | 0.0 | CANCELLED | TREND | 2026-09-21T12:28:50+05:30 |
 | `MIX-DEFAULT-BUY` | NIFTY | CE | 23200.0 | 228.8 | 230.05 | 245.96 | 215.072 | `CANCEL_STALL` | False | 1103.06 | STALL | TREND | 2026-09-21T12:19:34+05:30 |
@@ -55,6 +67,18 @@ Best ML book: `ML-001` rank 2 net ₹0.0 (filled 0).
 
 ### Closed justification (SUCCESS=TARGET / TIME / LOSS / CANCEL)
 
+- `MIX-DEFAULT-BUY` NIFTY PE LOSS `CANCEL_AGAINST`: NIFTY buy PE ITM strike 23650.0 (ITM_100); bin=PE regime=TREND/DOWN last3=none; impulse_note=pause_wait_continuation; path stop 197.494 → target 220.1 (premium points; strict first TARGET; T2 parked); overlay=CE+PE+strength; need_strength: last-3 / pause_continue / SHORT_COVER / itm_bin confirm / TREND ER≥0.35 same wing; why_now=PE: dump / PE bin / PE short-cover (CE still allowed when CE strength prints); PAPER only. NO_PROMOTE. Groww+STT on fill. | CLOSE: EXIT CANCEL_AGAINST; result=LOSS; status=CLOSED_CANCEL; P/L net ₹-9935.19; filled cancel still books round-trip Groww+STT; target_hit=false
+- `MIX-DEFAULT-BUY` NIFTY CE LOSS `COVER_LONG_UNWIND`: NIFTY buy CE ITM strike 23250.0 (ITM_100); bin=CE regime=TREND/UP last3=none; impulse_note=pause_wait_continuation; path stop 205.296 → target 228.4 (premium points; strict first TARGET; T2 parked); overlay=CE+PE+strength; need_strength: last-3 / pause_continue / SHORT_COVER / itm_bin confirm / TREND ER≥0.35 same wing; why_now=CE: rally / CE bin / CE short-cover (not PE-locked); PAPER only. NO_PROMOTE. Groww+STT on fill. | CLOSE: EXIT COVER_LONG_UNWIND; result=LOSS; status=CLOSED_PAPER; P/L net ₹-9399.34; target_hit=false
+- `MIX-DEFAULT-BUY` NIFTY PE LOSS `CANCEL_AGAINST`: NIFTY buy PE ITM strike 23650.0 (ITM_100); bin=PE regime=TREND/DOWN last3=none; impulse_note=no_raw_impulse; path stop 197.165 → target 226.5596 (premium points; strict first TARGET; T2 parked); overlay=CE+PE+strength; need_strength: last-3 / pause_continue / SHORT_COVER / itm_bin confirm / TREND ER≥0.35 same wing; why_now=PE: dump / PE bin / PE short-cover (CE still allowed when CE strength prints); PAPER only. NO_PROMOTE. Groww+STT on fill. | CLOSE: EXIT CANCEL_AGAINST; result=LOSS; status=CLOSED_CANCEL; P/L net ₹-8636.34; filled cancel still books round-trip Groww+STT; target_hit=false
+- `MIX-DEFAULT-BUY` NIFTY CE LOSS `CANCEL_AGAINST`: NIFTY buy CE ITM strike 23250.0 (ITM_100); bin=CE regime=TREND/UP last3=none; impulse_note=no_raw_impulse; path stop 206.095 → target 238.8097 (premium points; strict first TARGET; T2 parked); overlay=CE+PE+strength; need_strength: last-3 / pause_continue / SHORT_COVER / itm_bin confirm / TREND ER≥0.35 same wing; why_now=CE: rally / CE bin / CE short-cover (not PE-locked); PAPER only. NO_PROMOTE. Groww+STT on fill. | CLOSE: EXIT CANCEL_AGAINST; result=LOSS; status=CLOSED_CANCEL; P/L net ₹-10943.4; filled cancel still books round-trip Groww+STT; target_hit=false
+- `MIX-DEFAULT-BUY` NIFTY CE LOSS `CANCEL_AGAINST`: NIFTY buy CE ITM strike 23250.0 (ITM_100); bin=CE regime=TREND/UP last3=none; impulse_note=wait_pause_after_impulse; path stop 211.876 → target 245.6395 (premium points; strict first TARGET; T2 parked); overlay=CE+PE+strength; need_strength: last-3 / pause_continue / SHORT_COVER / itm_bin confirm / TREND ER≥0.35 same wing; why_now=CE: rally / CE bin / CE short-cover (not PE-locked); PAPER only. NO_PROMOTE. Groww+STT on fill. | CLOSE: EXIT CANCEL_AGAINST; result=LOSS; status=CLOSED_CANCEL; P/L net ₹-8777.42; filled cancel still books round-trip Groww+STT; target_hit=false
+- `MIX-DEFAULT-BUY` NIFTY CE SUCCESS `TARGET`: NIFTY buy CE ITM strike 23250.0 (ITM_100); bin=CE regime=TREND/UP last3=none; impulse_note=wait_pause_after_impulse; path stop 190.162 → target 217.4725 (premium points; strict first TARGET; T2 parked); overlay=CE+PE+strength; need_strength: last-3 / pause_continue / SHORT_COVER / itm_bin confirm / TREND ER≥0.35 same wing; why_now=CE: rally / CE bin / CE short-cover (not PE-locked); PAPER only. NO_PROMOTE. Groww+STT on fill. | CLOSE: EXIT TARGET; result=SUCCESS; status=CLOSED_PAPER; P/L net ₹36642.92; strict first TARGET booked; T2 parked; target_hit=true
+- `MIX-DEFAULT-BUY` NIFTY CE SUCCESS `TARGET`: NIFTY buy CE ITM strike 23250.0 (ITM_100); bin=CE regime=TREND/UP last3=none; impulse_note=pause_wait_continuation; path stop 179.258 → target 200.7 (premium points; strict first TARGET; T2 parked); overlay=CE+PE+strength; need_strength: last-3 / pause_continue / SHORT_COVER / itm_bin confirm / TREND ER≥0.35 same wing; why_now=CE: rally / CE bin / CE short-cover (not PE-locked); PAPER only. NO_PROMOTE. Groww+STT on fill. | CLOSE: EXIT TARGET; result=SUCCESS; status=CLOSED_PAPER; P/L net ₹18035.66; strict first TARGET booked; T2 parked; target_hit=true
+- `MIX-DEFAULT-BUY` NIFTY CE STALL `CANCEL_STALL`: NIFTY buy CE ITM strike 23200.0 (ITM_100); bin=CE regime=TREND/UP last3=none; impulse_note=no_raw_impulse; path stop 215.9267 → target 254.0767 (premium points; strict first TARGET; T2 parked); overlay=CE+PE+strength; need_strength: last-3 / pause_continue / SHORT_COVER / itm_bin confirm / TREND ER≥0.35 same wing; why_now=CE: rally / CE bin / CE short-cover (not PE-locked); PAPER only. NO_PROMOTE. Groww+STT on fill. | CLOSE: EXIT CANCEL_STALL; result=STALL; status=CLOSED_CANCEL; P/L net ₹5718.92; filled cancel still books round-trip Groww+STT; target_hit=false
+- `MIX-DEFAULT-BUY` NIFTY CE SUCCESS `TARGET`: NIFTY buy CE ITM strike 23200.0 (ITM_100); bin=CE regime=TREND/UP last3=UP; impulse_note=pause_continue; path stop 210.043 → target 233.45 (premium points; strict first TARGET; T2 parked); overlay=CE+PE+strength; need_strength: last-3 / pause_continue / SHORT_COVER / itm_bin confirm / TREND ER≥0.35 same wing; why_now=CE: rally / CE bin / CE short-cover (not PE-locked); PAPER only. NO_PROMOTE. Groww+STT on fill. | CLOSE: EXIT TARGET; result=SUCCESS; status=CLOSED_PAPER; P/L net ₹16450.43; strict first TARGET booked; T2 parked; target_hit=true
+- `MIX-DEFAULT-BUY` NIFTY PE LOSS `CANCEL_AGAINST`: NIFTY buy PE ITM strike 23600.0 (ITM_100); bin=PE regime=TREND/DOWN last3=none; impulse_note=no_raw_impulse; path stop 194.533 → target 216.95 (premium points; strict first TARGET; T2 parked); overlay=CE+PE+strength; need_strength: last-3 / pause_continue / SHORT_COVER / itm_bin confirm / TREND ER≥0.35 same wing; why_now=PE: dump / PE bin / PE short-cover (CE still allowed when CE strength prints); PAPER only. NO_PROMOTE. Groww+STT on fill. | CLOSE: EXIT CANCEL_AGAINST; result=LOSS; status=CLOSED_CANCEL; P/L net ₹-11707.19; filled cancel still books round-trip Groww+STT; target_hit=false
+- `MIX-DEFAULT-BUY` NIFTY CE LOSS `CANCEL_AGAINST`: NIFTY buy CE ITM strike 23200.0 (ITM_100); bin=CE regime=TREND/UP last3=none; impulse_note=no_raw_impulse; path stop 211.03 → target 234.5 (premium points; strict first TARGET; T2 parked); overlay=CE+PE+strength; need_strength: last-3 / pause_continue / SHORT_COVER / itm_bin confirm / TREND ER≥0.35 same wing; why_now=CE: rally / CE bin / CE short-cover (not PE-locked); PAPER only. NO_PROMOTE. Groww+STT on fill. | CLOSE: EXIT CANCEL_AGAINST; result=LOSS; status=CLOSED_CANCEL; P/L net ₹-6908.8; filled cancel still books round-trip Groww+STT; target_hit=false
+- `MIX-DEFAULT-BUY` NIFTY PE TIME `HUMAN_EXIT`: NIFTY buy PE ITM strike 23600.0 (ITM_100); bin=PE regime=TREND/DOWN last3=none; impulse_note=pause_wait_continuation; path stop 186.637 → target 213.4413 (premium points; strict first TARGET; T2 parked); overlay=CE+PE+strength; need_strength: last-3 / pause_continue / SHORT_COVER / itm_bin confirm / TREND ER≥0.35 same wing; why_now=PE: dump / PE bin / PE short-cover (CE still allowed when CE strength prints); PAPER only. NO_PROMOTE. Groww+STT on fill. | CLOSE: EXIT HUMAN_EXIT; result=TIME; status=CLOSED_PAPER; P/L net ₹651.35; target_hit=false
 - `MIX-DEFAULT-BUY` NIFTY PE CANCELLED `CANCEL_UNFILLED_THESIS`: NIFTY buy PE ITM strike 23600.0 (ITM_100); bin=n/a regime=TREND/DOWN last3=none; impulse_note=wait_pause_after_impulse; path stop 186.12 → target 212.85 (premium points; strict first TARGET; T2 parked); overlay=CE+PE+strength; need_strength: last-3 / pause_continue / SHORT_COVER / itm_bin confirm / TREND ER≥0.35 same wing; why_now=PE: dump / PE bin / PE short-cover (CE still allowed when CE strength prints); PAPER only. NO_PROMOTE. Groww+STT on fill. | CLOSE: EXIT CANCEL_UNFILLED_THESIS; result=CANCELLED; status=CANCELLED_UNFILLED; P/L ₹0 unfilled — no Groww+STT; working limit never filled
 - `MIX-DEFAULT-BUY` NIFTY PE CANCELLED `CANCEL_UNFILLED_THESIS`: NIFTY buy PE ITM strike 23600.0 (ITM_100); bin=n/a regime=TREND/DOWN last3=none; impulse_note=wait_pause_after_impulse; path stop 186.308 → target 213.065 (premium points; strict first TARGET; T2 parked); overlay=CE+PE+strength; need_strength: last-3 / pause_continue / SHORT_COVER / itm_bin confirm / TREND ER≥0.35 same wing; why_now=PE: dump / PE bin / PE short-cover (CE still allowed when CE strength prints); PAPER only. NO_PROMOTE. Groww+STT on fill. | CLOSE: EXIT CANCEL_UNFILLED_THESIS; result=CANCELLED; status=CANCELLED_UNFILLED; P/L ₹0 unfilled — no Groww+STT; working limit never filled
 - `MIX-DEFAULT-BUY` NIFTY CE STALL `CANCEL_STALL`: NIFTY buy CE ITM strike 23200.0 (ITM_100); bin=CE regime=TREND/UP last3=none; impulse_note=wait_pause_after_impulse; path stop 215.072 → target 245.96 (premium points; strict first TARGET; T2 parked); overlay=CE+PE+strength; need_strength: last-3 / pause_continue / SHORT_COVER / itm_bin confirm / TREND ER≥0.35 same wing; why_now=CE: rally / CE bin / CE short-cover (not PE-locked); PAPER only. NO_PROMOTE. Groww+STT on fill. | CLOSE: EXIT CANCEL_STALL; result=STALL; status=CLOSED_CANCEL; P/L net ₹1103.06; filled cancel still books round-trip Groww+STT; target_hit=false
@@ -67,12 +91,19 @@ Best ML book: `ML-001` rank 2 net ₹0.0 (filled 0).
 
 Saw a CE/PE but did not OPEN, or OPENED then CANCELLED. Not live orders. Last-3 PUT/CE impulse can TREND; 15m chop skip stays when last-3 is also chop.
 
-- BANKNIFTY: 15m TREND (itm_bin_ce_confirm, ER=0.4353). Last-3 1m closes [56460.15, 56461.15, 56448.4] net=-11.35 impulse=none. Dealer HOLD; logit side=SKIP. ITM bin CE 56100.0 votes=['CE_PREMIUM_UP', 'PE_PREMIUM_DOWN', 'CE_DELTA_MORE_ITM', 'CE_SHORT_COVER'] vs PE 56700.0 votes=['PE_VOL_EXPAND'] reason=itm_bin_ce_confirm. Two ITM-leg votes can TREND without three INDEX 1m bars.
-- NIFTY: 15m TREND (itm_bin_pe_confirm, ER=0.1203). Last-3 1m closes [23412.45, 23412.0, 23412.6] net=-0.5 impulse=none. Dealer HOLD; logit side=PE. ITM bin CE 23200.0 votes=['CE_DELTA_MORE_ITM', 'CE_LONG_UNWIND'] vs PE 23600.0 votes=['PE_PREMIUM_UP', 'CE_PREMIUM_DOWN', 'CE_SELL_VOLUME', 'PE_DELTA_MORE_ITM', 'PE_SHORT_COVER'] reason=itm_bin_pe_confirm. Two ITM-leg votes can TREND without three INDEX 1m bars.
-- SENSEX: 15m TREND (itm_bin_pe_confirm, ER=0.0866). Last-3 1m closes [74821.78, 74825.0, 74812.32] net=-7.56 impulse=none. Dealer HOLD; logit side=PE. ITM bin CE 74500.0 votes=['CE_PREMIUM_UP'] vs PE 75100.0 votes=['PE_PREMIUM_UP', 'PE_DELTA_MORE_ITM'] reason=itm_bin_pe_confirm. Two ITM-leg votes can TREND without three INDEX 1m bars.
+- BANKNIFTY: 15m TREND (itm_bin_pe_confirm, ER=0.0214). Last-3 1m closes [56629.05, 56633.65, 56628.7] net=12.2 impulse=none. Dealer BUY_PE_CONFIRM; logit side=PE. ITM bin CE 56300.0 votes=['CE_LONG_UNWIND'] vs PE 56900.0 votes=['PE_PREMIUM_UP', 'CE_PREMIUM_DOWN', 'CE_SELL_VOLUME', 'PE_DELTA_MORE_ITM', 'PE_SHORT_COVER'] reason=itm_bin_pe_confirm. Two ITM-leg votes can TREND without three INDEX 1m bars.
+- NIFTY: 15m TREND (last3_raw_holds_bin, ER=0.0894). Last-3 1m closes [23459.9, 23459.7, 23461.45] net=7.2 impulse=none. Last-3 raw UP unconfirmed trap=vol_shrinking candle=flat — ITM bin chooses the side, not the 1m spike. Dealer HOLD; logit side=SKIP. ITM bin CE 23250.0 votes=['CE_DELTA_MORE_ITM'] vs PE 23650.0 votes=['PE_PREMIUM_UP', 'CE_PREMIUM_DOWN', 'CE_SELL_VOLUME', 'PE_SHORT_COVER'] reason=itm_bin_pe_confirm. Two ITM-leg votes can TREND without three INDEX 1m bars.
+- SENSEX: 15m TREND (last3_raw_holds_bin, ER=0.0767). Last-3 1m closes [74967.93, 74966.89, 74974.66] net=18.96 impulse=none. Last-3 raw UP unconfirmed trap=opt_pe_absorbing candle=flat — ITM bin chooses the side, not the 1m spike. Dealer HOLD; logit side=PE. ITM bin CE 74700.0 votes=['CE_DELTA_MORE_ITM'] vs PE 75300.0 votes=['PE_PREMIUM_UP', 'CE_PREMIUM_DOWN', 'PE_OI_UP_WITH_PREMIUM', 'CE_SELL_VOLUME'] reason=itm_bin_pe_confirm. Two ITM-leg votes can TREND without three INDEX 1m bars.
 
 | kind | model | und | seen CE/PE | reason | why | regime | last-3 impulse | updated |
 |------|-------|-----|------------|--------|-----|--------|----------------|---------|
+| CANCEL | `MIX-DEFAULT-BUY` | NIFTY | PE | `CANCEL_AGAINST` | Filled wing is against INDEX last-3 raw / 15m TREND / opposite ITM flow — flatten; do not wait pause or FOLLOWS CONFIRM. | TREND | — | 2026-09-21T14:18:52+05:30 |
+| CANCEL | `MIX-DEFAULT-BUY` | NIFTY | PE | `CANCEL_AGAINST` | Filled wing is against INDEX last-3 raw / 15m TREND / opposite ITM flow — flatten; do not wait pause or FOLLOWS CONFIRM. | TREND | — | 2026-09-21T14:13:06+05:30 |
+| CANCEL | `MIX-DEFAULT-BUY` | NIFTY | CE | `CANCEL_AGAINST` | Filled wing is against INDEX last-3 raw / 15m TREND / opposite ITM flow — flatten; do not wait pause or FOLLOWS CONFIRM. | TREND | — | 2026-09-21T14:09:43+05:30 |
+| CANCEL | `MIX-DEFAULT-BUY` | NIFTY | CE | `CANCEL_AGAINST` | Filled wing is against INDEX last-3 raw / 15m TREND / opposite ITM flow — flatten; do not wait pause or FOLLOWS CONFIRM. | TREND | — | 2026-09-21T14:00:38+05:30 |
+| CANCEL | `MIX-DEFAULT-BUY` | NIFTY | CE | `CANCEL_STALL` | Premium high went stale in low-ER chop without last-3 continuation — book; do not sit a 9m clock. | TREND | — | 2026-09-21T13:47:06+05:30 |
+| CANCEL | `MIX-DEFAULT-BUY` | NIFTY | PE | `CANCEL_AGAINST` | Filled wing is against INDEX last-3 raw / 15m TREND / opposite ITM flow — flatten; do not wait pause or FOLLOWS CONFIRM. | TREND | — | 2026-09-21T13:15:43+05:30 |
+| CANCEL | `MIX-DEFAULT-BUY` | NIFTY | CE | `CANCEL_AGAINST` | Filled wing is against INDEX last-3 raw / 15m TREND / opposite ITM flow — flatten; do not wait pause or FOLLOWS CONFIRM. | TREND | — | 2026-09-21T13:03:23+05:30 |
 | CANCEL | `MIX-DEFAULT-BUY` | NIFTY | PE | `CANCEL_UNFILLED_THESIS` | Unfilled working limit never booked. | TREND | — | 2026-09-21T12:29:58+05:30 |
 | CANCEL | `MIX-DEFAULT-BUY` | NIFTY | PE | `CANCEL_UNFILLED_THESIS` | Unfilled working limit never booked. | TREND | — | 2026-09-21T12:28:50+05:30 |
 | CANCEL | `MIX-DEFAULT-BUY` | NIFTY | CE | `CANCEL_STALL` | Premium high went stale in low-ER chop without last-3 continuation — book; do not sit a 9m clock. | TREND | — | 2026-09-21T12:19:34+05:30 |
@@ -80,8 +111,8 @@ Saw a CE/PE but did not OPEN, or OPENED then CANCELLED. Not live orders. Last-3 
 | CANCEL | `MIX-DEFAULT-BUY` | NIFTY | CE | `CANCEL_STALL` | Premium high went stale in low-ER chop without last-3 continuation — book; do not sit a 9m clock. | TREND | — | 2026-09-21T11:25:42+05:30 |
 | CANCEL | `MIX-DEFAULT-BUY` | NIFTY | CE | `CANCEL_STALL` | Premium high went stale in low-ER chop without last-3 continuation — book; do not sit a 9m clock. | TREND | — | 2026-09-21T10:56:30+05:30 |
 | SKIP | `MIX-DEFAULT-BUY` | SENSEX | PE | `FOUNDER_STOP_TRADING_ON_INDEX` | FOUNDER_STOP_TRADING_ON_INDEX | TREND | — | — |
-| SKIP | `MIX-DEFAULT-BUY` | BANKNIFTY | CE | `FOUNDER_STOP_TRADING_ON_INDEX` | FOUNDER_STOP_TRADING_ON_INDEX | TREND | — | — |
-| SKIP | `MIX-DEFAULT-BUY` | NIFTY | PE | `SOD_ONE_OPEN` | SOD one working ticket already open on this underlying. | TREND | — | — |
+| SKIP | `MIX-DEFAULT-BUY` | BANKNIFTY | PE | `FOUNDER_STOP_TRADING_ON_INDEX` | FOUNDER_STOP_TRADING_ON_INDEX | TREND | — | — |
+| SKIP | `MIX-DEFAULT-BUY` | NIFTY | CE | `SOD_ONE_OPEN` | SOD one working ticket already open on this underlying. | TREND | — | — |
 
 ## ITM CE / PE bin (three charts)
 
@@ -89,28 +120,28 @@ Three charts: INDEX + ITM CE + ITM PE. Keep this bin during paper trades. ITM PE
 
 | und | index | CE strike | CE $ | CE vol | CE OI | PE strike | PE $ | PE vol | PE OI | PE votes | CE votes | side | reason | missing |
 |-----|-------|-----------|------|--------|-------|-----------|------|--------|-------|----------|----------|------|--------|---------|
-| NIFTY | 23412.6 | 23200.0 | 220.85 | 29176290.0 | 2868385.0 | 23600.0 | 203.35 | 11804455.0 | 1703975.0 | PE_PREMIUM_UP,CE_PREMIUM_DOWN,CE_SELL_VOLUME,PE_DELTA_MORE_ITM,PE_SHORT_COVER | CE_DELTA_MORE_ITM,CE_LONG_UNWIND | PE | `itm_bin_pe_confirm` | — |
-| BANKNIFTY | 56448.4 | 56100.0 | 707.65 | 139110.0 | 86130.0 | 56700.0 | 483.45 | 601920.0 | 122580.0 | PE_VOL_EXPAND | CE_PREMIUM_UP,PE_PREMIUM_DOWN,CE_DELTA_MORE_ITM,CE_SHORT_COVER | CE | `itm_bin_ce_confirm` | — |
-| SENSEX | 74812.32 | 74500.0 | 529.1 | 6145040.0 | 817380.0 | 75100.0 | 512.8 | 574400.0 | 103820.0 | PE_PREMIUM_UP,PE_DELTA_MORE_ITM | CE_PREMIUM_UP | PE | `itm_bin_pe_confirm` | — |
+| NIFTY | 23461.45 | 23250.0 | 220.35 | 44151900.0 | 1562600.0 | 23650.0 | 203.2 | 3790930.0 | 547235.0 | PE_PREMIUM_UP,CE_PREMIUM_DOWN,CE_SELL_VOLUME,PE_SHORT_COVER | CE_DELTA_MORE_ITM | PE | `itm_bin_pe_confirm` | — |
+| BANKNIFTY | 56628.7 | 56300.0 | 678.4 | 1355670.0 | 193950.0 | 56900.0 | 488.9 | 247320.0 | 109800.0 | PE_PREMIUM_UP,CE_PREMIUM_DOWN,CE_SELL_VOLUME,PE_DELTA_MORE_ITM,PE_SHORT_COVER | CE_LONG_UNWIND | PE | `itm_bin_pe_confirm` | — |
+| SENSEX | 74974.66 | 74700.0 | 474.05 | 14141160.0 | 622780.0 | 75300.0 | 560.1 | 339100.0 | 62960.0 | PE_PREMIUM_UP,CE_PREMIUM_DOWN,PE_OI_UP_WITH_PREMIUM,CE_SELL_VOLUME | CE_DELTA_MORE_ITM | PE | `itm_bin_pe_confirm` | — |
 
 Comments (HYPOTHESIS, not a promote):
-- `MIX-DEFAULT-BUY` SENSEX: SENSEX: 15m TREND (itm_bin_pe_confirm, ER=0.0866). Last-3 1m closes [74821.78, 74825.0, 74812.32] net=-7.56 impulse=none. Dealer HOLD; logit side=PE. ITM bin CE 74500.0 votes=['CE_PREMIUM_UP'] vs PE 75100.0 votes=['PE_PREMIUM_UP', 'PE_DELTA_MORE_ITM'] reason=itm_bin_pe_confirm. Two ITM-leg votes can TREND without three INDEX 1m bars.
-- `MIX-DEFAULT-BUY` BANKNIFTY: BANKNIFTY: 15m TREND (itm_bin_ce_confirm, ER=0.4353). Last-3 1m closes [56460.15, 56461.15, 56448.4] net=-11.35 impulse=none. Dealer HOLD; logit side=SKIP. ITM bin CE 56100.0 votes=['CE_PREMIUM_UP', 'PE_PREMIUM_DOWN', 'CE_DELTA_MORE_ITM', 'CE_SHORT_COVER'] vs PE 56700.0 votes=['PE_VOL_EXPAND'] reason=itm_bin_ce_confirm. Two ITM-leg votes can TREND without three INDEX 1m bars.
-- `MIX-DEFAULT-BUY` NIFTY: NIFTY: 15m TREND (itm_bin_pe_confirm, ER=0.1203). Last-3 1m closes [23412.45, 23412.0, 23412.6] net=-0.5 impulse=none. Dealer HOLD; logit side=PE. ITM bin CE 23200.0 votes=['CE_DELTA_MORE_ITM', 'CE_LONG_UNWIND'] vs PE 23600.0 votes=['PE_PREMIUM_UP', 'CE_PREMIUM_DOWN', 'CE_SELL_VOLUME', 'PE_DELTA_MORE_ITM', 'PE_SHORT_COVER'] reason=itm_bin_pe_confirm. Two ITM-leg votes can TREND without three INDEX 1m bars.
+- `MIX-DEFAULT-BUY` SENSEX: SENSEX: 15m TREND (last3_raw_holds_bin, ER=0.0767). Last-3 1m closes [74967.93, 74966.89, 74974.66] net=18.96 impulse=none. Last-3 raw UP unconfirmed trap=opt_pe_absorbing candle=flat — ITM bin chooses the side, not the 1m spike. Dealer HOLD; logit side=PE. ITM bin CE 74700.0 votes=['CE_DELTA_MORE_ITM'] vs PE 75300.0 votes=['PE_PREMIUM_UP', 'CE_PREMIUM_DOWN', 'PE_OI_UP_WITH_PREMIUM', 'CE_SELL_VOLUME'] reason=itm_bin_pe_confirm. Two ITM-leg votes can TREND without three INDEX 1m bars.
+- `MIX-DEFAULT-BUY` BANKNIFTY: BANKNIFTY: 15m TREND (itm_bin_pe_confirm, ER=0.0214). Last-3 1m closes [56629.05, 56633.65, 56628.7] net=12.2 impulse=none. Dealer BUY_PE_CONFIRM; logit side=PE. ITM bin CE 56300.0 votes=['CE_LONG_UNWIND'] vs PE 56900.0 votes=['PE_PREMIUM_UP', 'CE_PREMIUM_DOWN', 'CE_SELL_VOLUME', 'PE_DELTA_MORE_ITM', 'PE_SHORT_COVER'] reason=itm_bin_pe_confirm. Two ITM-leg votes can TREND without three INDEX 1m bars.
+- `MIX-DEFAULT-BUY` NIFTY: NIFTY: 15m TREND (last3_raw_holds_bin, ER=0.0894). Last-3 1m closes [23459.9, 23459.7, 23461.45] net=7.2 impulse=none. Last-3 raw UP unconfirmed trap=vol_shrinking candle=flat — ITM bin chooses the side, not the 1m spike. Dealer HOLD; logit side=SKIP. ITM bin CE 23250.0 votes=['CE_DELTA_MORE_ITM'] vs PE 23650.0 votes=['PE_PREMIUM_UP', 'CE_PREMIUM_DOWN', 'CE_SELL_VOLUME', 'PE_SHORT_COVER'] reason=itm_bin_pe_confirm. Two ITM-leg votes can TREND without three INDEX 1m bars.
 
 ## Leaderboard (book × index, ranked by net ₹)
 
 | rank | book | underlying | n | wins | losses | wr% net | wr% gross | pts | gross ₹ | charges ₹ | **net ₹** |
 |------|------|------------|---|------|--------|--------|----------|-----|---------|-----------|-----------|
-| 1 | `MIX-DEFAULT-BUY` | NIFTY | 5 | 5 | 0 | 100.0 | 100.0 | 21.6 | 35100.0 | 4362.67 | 30737.33 |
+| 1 | `MIX-DEFAULT-BUY` | NIFTY | 17 | 10 | 7 | 58.82 | 58.82 | 34.9 | 56712.5 | 14783.57 | 41928.93 |
 
 LIVE SESSION: dual-tape ticks for this IST date only. Not fills. Rank ≠ promote. `MIX-ML-LOGIT*` trains on INDEX 3m before the ATM session. `win_rate` net = filled hit rate after Groww+STT; `win_rate_gross` is before charges. Not a promote. `MIX-TV-EP-024` SMA lab is KEEP_ALL, not customer default.
 
 ## Index / ML notes (HYPOTHESIS paper only)
 
 - MIX-ML-GREEKS: 0 filled tickets — Dhan greeks/IV missing most of the session. Adjustment: keep the book; require live chain from 09:15 IST. Do not retune ml001-v1.
-- MIX-ML-LOGIT vs dealer: -30737.33 ₹ net. This is the ML book that actually scanned a different side. PAPER only — not a promote.
-- NIFTY: best `MIX-DEFAULT-BUY` ₹30737.33 · worst `MIX-DEFAULT-BUY` ₹30737.33 (n=5 vs 5 filled).
+- MIX-ML-LOGIT vs dealer: -41928.93 ₹ net. This is the ML book that actually scanned a different side. PAPER only — not a promote.
+- NIFTY: best `MIX-DEFAULT-BUY` ₹41928.93 · worst `MIX-DEFAULT-BUY` ₹41928.93 (n=17 vs 17 filled).
 - NIFTY paper: net green after costs on this tape. Keep ITM_100 + working-limit. Not a promote.
 - BANKNIFTY: no filled paper tickets today.
 - SENSEX: no filled paper tickets today.
@@ -123,25 +154,25 @@ Logged rows: 2000.
 
 | source | vs picker | n |
 |--------|-----------|---|
-| `MIX-TV-EP-024` | DISSENT | 2 |
-| `MIX-TV-EP-024` | MATCH | 71 |
-| `MIX-TV-EP-024` | SILENT | 36 |
-| `MIX-TV-EP-024` | SPOKEN_PICKER_HOLD | 177 |
+| `MIX-TV-EP-024` | DISSENT | 1 |
+| `MIX-TV-EP-024` | MATCH | 63 |
+| `MIX-TV-EP-024` | SILENT | 18 |
+| `MIX-TV-EP-024` | SPOKEN_PICKER_HOLD | 204 |
 | `ML-1` | SILENT | 286 |
-| `STRAT-003` | DISSENT | 3 |
-| `STRAT-003` | MATCH | 69 |
-| `STRAT-003` | SILENT | 64 |
-| `STRAT-003` | SPOKEN_PICKER_HOLD | 150 |
-| `follows` | DISSENT | 4 |
-| `follows` | MATCH | 48 |
-| `follows` | SILENT | 168 |
-| `follows` | SPOKEN_PICKER_HOLD | 65 |
-| `greeks` | MATCH | 3 |
-| `greeks` | SILENT | 283 |
-| `logit` | DISSENT | 23 |
-| `logit` | MATCH | 35 |
-| `logit` | SILENT | 43 |
-| `logit` | SPOKEN_PICKER_HOLD | 184 |
+| `STRAT-003` | DISSENT | 2 |
+| `STRAT-003` | MATCH | 62 |
+| `STRAT-003` | SILENT | 45 |
+| `STRAT-003` | SPOKEN_PICKER_HOLD | 177 |
+| `follows` | DISSENT | 1 |
+| `follows` | MATCH | 57 |
+| `follows` | SILENT | 129 |
+| `follows` | SPOKEN_PICKER_HOLD | 98 |
+| `greeks` | MATCH | 2 |
+| `greeks` | SILENT | 284 |
+| `logit` | DISSENT | 44 |
+| `logit` | MATCH | 13 |
+| `logit` | SILENT | 37 |
+| `logit` | SPOKEN_PICKER_HOLD | 191 |
 | `xr` | SILENT | 286 |
 
 Latest spoken (still analysts when observer VETO / picker HOLD):
@@ -152,27 +183,34 @@ Latest spoken (still analysts when observer VETO / picker HOLD):
 | `logit` | PE | SPOKEN_PICKER_HOLD | HOLD/— | PASS | True |
 | `xr` | SILENT | SILENT | HOLD/— | PASS | False |
 | `greeks` | SILENT | SILENT | HOLD/— | PASS | False |
-| `STRAT-003` | PE | SPOKEN_PICKER_HOLD | HOLD/— | PASS | True |
-| `MIX-TV-EP-024` | PE | SPOKEN_PICKER_HOLD | HOLD/— | PASS | True |
+| `STRAT-003` | CE | SPOKEN_PICKER_HOLD | HOLD/— | PASS | True |
+| `MIX-TV-EP-024` | CE | SPOKEN_PICKER_HOLD | HOLD/— | PASS | True |
 | `ML-1` | SILENT | SILENT | HOLD/— | PASS | False |
 
 ## Models / steps
 
 | id | closed | W | L | wr% net | wr% gross | equity ₹ | capital ₹ | last run |
 |----|--------|---|---|--------|----------|----------|-----------|----------|
-| `MIX-DEFAULT-BUY` | 7 | 5 | 0 | 100.0 | 100.0 | 600737.3300000001 | 570000.0 | `2026-09-21T12:51:27+05:30` |
-| `ML-001` | 0 | 0 | 0 | None | None | 0.0 | 0.0 | `2026-09-21T12:51:27+05:30` |
-| `ML-002` | 0 | 0 | 0 | None | None | 0.0 | 0.0 | `2026-09-21T12:51:27+05:30` |
-| `ML-1` | 0 | 0 | 0 | None | None | 0.0 | 0.0 | `2026-09-21T12:51:27+05:30` |
-| `MIX-ML-LOGIT` | 0 | 0 | 0 | None | None | 0.0 | 0.0 | `2026-09-21T12:51:27+05:30` |
-| `MIX-ML-LOGIT-XR` | 0 | 0 | 0 | None | None | 0.0 | 0.0 | `2026-09-21T12:51:27+05:30` |
-| `MIX-TV-EP-024` | 0 | 0 | 0 | None | None | 0.0 | 0.0 | `2026-09-21T12:51:27+05:30` |
-| `MIX-ML-GREEKS` | 0 | 0 | 0 | None | None | 0.0 | 0.0 | `2026-09-21T12:51:27+05:30` |
+| `MIX-DEFAULT-BUY` | 19 | 10 | 7 | 58.82 | 58.82 | 611928.9300000003 | 570000.0 | `2026-09-21T14:21:28+05:30` |
+| `ML-001` | 0 | 0 | 0 | None | None | 0.0 | 0.0 | `2026-09-21T14:21:28+05:30` |
+| `ML-002` | 0 | 0 | 0 | None | None | 0.0 | 0.0 | `2026-09-21T14:21:28+05:30` |
+| `ML-1` | 0 | 0 | 0 | None | None | 0.0 | 0.0 | `2026-09-21T14:21:28+05:30` |
+| `MIX-ML-LOGIT` | 0 | 0 | 0 | None | None | 0.0 | 0.0 | `2026-09-21T14:21:28+05:30` |
+| `MIX-ML-LOGIT-XR` | 0 | 0 | 0 | None | None | 0.0 | 0.0 | `2026-09-21T14:21:28+05:30` |
+| `MIX-TV-EP-024` | 0 | 0 | 0 | None | None | 0.0 | 0.0 | `2026-09-21T14:21:28+05:30` |
+| `MIX-ML-GREEKS` | 0 | 0 | 0 | None | None | 0.0 | 0.0 | `2026-09-21T14:21:28+05:30` |
 
 ## Mistakes (paper-param nudge only; no MIX write)
 
 Paper params: stop_frac=0.38 target_frac=0.55 hold_bars=9 skip_sideways=True regime_er_max=0.3. production_params_written=false.
-- need ≥8 session closes before paper-param nudge
+- hold paper params until +8 closes (have 19, last nudge at 494)
+- `MIX-DEFAULT-BUY` NIFTY CE strike=23200.0 lost ₹-6908.8 (CANCEL_AGAINST): CANCEL_AGAINST: ticket was dead; cancel instead of sitting to TIME
+- `MIX-DEFAULT-BUY` NIFTY PE strike=23600.0 lost ₹-11707.19 (CANCEL_AGAINST): CANCEL_AGAINST: ticket was dead; cancel instead of sitting to TIME
+- `MIX-DEFAULT-BUY` NIFTY CE strike=23250.0 lost ₹-8777.42 (CANCEL_AGAINST): CANCEL_AGAINST: ticket was dead; cancel instead of sitting to TIME
+- `MIX-DEFAULT-BUY` NIFTY CE strike=23250.0 lost ₹-10943.4 (CANCEL_AGAINST): CANCEL_AGAINST: ticket was dead; cancel instead of sitting to TIME
+- `MIX-DEFAULT-BUY` NIFTY PE strike=23650.0 lost ₹-8636.34 (CANCEL_AGAINST): CANCEL_AGAINST: ticket was dead; cancel instead of sitting to TIME
+- `MIX-DEFAULT-BUY` NIFTY CE strike=23250.0 lost ₹-9399.34 (COVER_LONG_UNWIND): LOSS via COVER_LONG_UNWIND
+- `MIX-DEFAULT-BUY` NIFTY PE strike=23650.0 lost ₹-9935.19 (CANCEL_AGAINST): CANCEL_AGAINST: ticket was dead; cancel instead of sitting to TIME
 
 ## DATA_INSUFFICIENT
 

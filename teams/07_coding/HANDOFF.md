@@ -1,5 +1,75 @@
 # Handoff log — Team 07 Coding
 
+## As of now (2026-09-21 IST) — Desk tables stay in the viewport (NO_PROMOTE)
+
+```text
+From:     teams/07_coding
+To:       00 / founder / 05
+Date:     2026-09-21
+Status:   PAPER UI / NO_PROMOTE
+Accepted: Page width is clipped at 100%. Trade history and discarded
+  tables scroll inside their section. Why / Models / Notes / Details
+  wrap (smaller type). Path meters have a 14rem cap so the fill cannot
+  leave the panel.
+Rejected: Ellipsis on Why. Widening the whole site for extra columns.
+UNKNOWN: very long JSON in Details still wraps; row height grows.
+```
+
+---
+
+## As of now (2026-09-21 IST) — Discarded list: Time first, newest first (NO_PROMOTE)
+
+```text
+From:     teams/07_coding
+To:       00 / founder / 05
+Date:     2026-09-21
+Status:   PAPER UI / NO_PROMOTE
+Accepted: Discarded by boss or dealer is a table. Column 1 is IST
+  time. Rows sorted last_updated_ts / closed_ts / ts descending.
+Rejected: Grouping that hides which ticket happened when.
+UNKNOWN: skip rows without a ts still sort last with "—".
+```
+
+---
+
+## As of now (2026-09-21 IST) — Desk founder UX: manage levels, path, clock, discarded, history (NO_PROMOTE)
+
+```text
+From:     teams/07_coding
+To:       00 / founder / 05 / 06
+Date:     2026-09-21
+Status:   PAPER UI / NO_PROMOTE
+Accepted: Human override on an OPEN paper fill asks for required
+  TARGET + STOP, confirm, then SET_LEVELS. Naked EXIT refused.
+  Unfilled working limit can still CANCEL. Path uses stop→entry→
+  target marker plus remaining-to-target (green pts) vs risk-to-
+  stop (red pts). IST digital clock + 5-min bar countdown on /desk.
+  Discarded list shows instrument/side/strike/ticket/outcome and
+  Dealer ×N / Boss ×N. Trade history is overflow-x table with
+  grid lines, long columns last, column hide in localStorage.
+Rejected: Immediate flatten as human priority. Two unexplained
+  percentages that look like they sum to 100%. Widening the Desk
+  page for history. Live broker order.
+UNKNOWN: expiry on skip rows until engine stamps it; 5-min clock
+  uses system time in Asia/Kolkata, not the dual-tape last bar.
+```
+
+## As of now (2026-09-21 IST) — founder desk (i) + selected-index control (NO_PROMOTE)
+
+```text
+From:     teams/07_coding
+To:       00 / founder / 06
+Date:     2026-09-21
+Status:   PAPER UI / NO_PROMOTE
+Accepted: Dual-tape help lives on the (i) button. Control
+  shows START/STOP by color; the current action is disabled.
+  No per-index status boxes. Code default STOP TRADE until
+  founder START on the chosen index. Tape still records all.
+Rejected: Always-on help paragraph. NIFTY: START TRADE text.
+  One box per index (does not scale). Default START all.
+UNKNOWN: live /paper/founder-book vs mock until API is up.
+```
+
 ## As of now (2026-09-21 IST) — customer `/` parked (NO_PROMOTE)
 
 ```text

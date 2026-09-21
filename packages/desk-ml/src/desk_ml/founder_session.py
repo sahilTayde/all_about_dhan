@@ -2,6 +2,9 @@
 
 Dual-tape still records every index for replay. Boss / dealer / analysts
 do not choose the book. An already-OPEN ticket is never flattened here.
+
+Human manage of an OPEN paper fill (required TARGET + STOP, SET_LEVELS) lives
+in desk_ml.paper_scalp.save_human_override — not a naked EXIT.
 """
 
 from __future__ import annotations
@@ -15,8 +18,8 @@ from zoneinfo import ZoneInfo
 from desk_ml.persist import repo_root
 
 KNOWN = ("NIFTY", "BANKNIFTY", "SENSEX")
-# Default START TRADE on every index. Founder desk STOP is the only session halt.
-DEFAULT = KNOWN
+# Default STOP TRADE on every index. Founder START is the only way NEW fills begin.
+DEFAULT: tuple[str, ...] = ()
 FILE_NAME = "founder_trade_underlyings.json"
 STOP_REASON = "FOUNDER_STOP_TRADING_ON_INDEX"
 START_ACTION = "START"
@@ -75,13 +78,13 @@ def _payload(
         "index_status": _index_status(names),
         "apply_new_fills_only": True,
         "tape_records_all": True,
-        "default_action": START_ACTION,
+        "default_action": STOP_ACTION,
         "as_of_ist": as_of_ist,
         "source": source,
         "orders": "REFUSED",
         "promote": False,
         "note": note
-        or "Founder START/STOP per index. Default START TRADE. Dual-tape still records all.",
+        or "Founder START/STOP per index. Default STOP TRADE. Dual-tape still records all.",
     }
 
 

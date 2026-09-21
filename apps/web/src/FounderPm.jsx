@@ -184,7 +184,7 @@ export function FounderPm() {
               </p>
             ) : null}
             {(exam?.days || []).some((d) => (d.spills || []).length) ? (
-              <div className="book-table-wrap">
+              <div className="table-scroll">
                 <table className="book-table">
                   <thead>
                     <tr>
@@ -285,7 +285,7 @@ export function FounderPm() {
 
           <section className="panel">
             <h2>Models — win % today</h2>
-            <div className="book-table-wrap">
+            <div className="table-scroll">
               <table className="book-table">
                 <thead>
                   <tr>
@@ -317,7 +317,7 @@ export function FounderPm() {
 
           <section className="panel">
             <h2>Each day</h2>
-            <div className="book-table-wrap">
+            <div className="table-scroll">
               <table className="book-table">
                 <thead>
                   <tr>

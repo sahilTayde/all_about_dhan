@@ -1,39 +1,49 @@
 import { useEffect, useState } from "react";
 
 const KNOWN = ["NIFTY", "BANKNIFTY", "SENSEX"];
+const HELP =
+  "Dual-tape keeps recording NIFTY + BANKNIFTY + SENSEX. You pick the index, then START TRADE or STOP TRADE. Default is STOP TRADE. There is no fill-count auto-stop — only this desk stops NEW fills.";
 
 function sessionUrl() {
   const base = (import.meta.env.VITE_API_URL || "").replace(/\/$/, "");
   return base ? `${base}/paper/founder-book` : "/paper/founder-book";
 }
 
+function isStarted(status, picked, name) {
+  if (status[name] === "START") return true;
+  if (status[name] === "STOP") return false;
+  return Array.isArray(picked) && picked.includes(name);
+}
+
 export function FounderBookPicker() {
-  const [picked, setPicked] = useState([...KNOWN]);
+  const [indexes, setIndexes] = useState([...KNOWN]);
+  const [picked, setPicked] = useState([]);
   const [status, setStatus] = useState({
-    NIFTY: "START",
-    BANKNIFTY: "START",
-    SENSEX: "START",
+    NIFTY: "STOP",
+    BANKNIFTY: "STOP",
+    SENSEX: "STOP",
   });
   const [chosen, setChosen] = useState("NIFTY");
   const [msg, setMsg] = useState("");
   const [busy, setBusy] = useState(false);
+  const [infoOpen, setInfoOpen] = useState(false);
 
   function applyBook(j) {
-    const names = Array.isArray(j?.trade_underlyings) ? j.trade_underlyings : [...KNOWN];
+    const known =
+      Array.isArray(j?.known_underlyings) && j.known_underlyings.length
+        ? j.known_underlyings.map((n) => String(n).toUpperCase())
+        : [...KNOWN];
+    setIndexes(known);
+    const names = Array.isArray(j?.trade_underlyings) ? j.trade_underlyings : [];
     setPicked(names);
-    if (j?.index_status && typeof j.index_status === "object") {
-      setStatus({
-        NIFTY: j.index_status.NIFTY || (names.includes("NIFTY") ? "START" : "STOP"),
-        BANKNIFTY: j.index_status.BANKNIFTY || (names.includes("BANKNIFTY") ? "START" : "STOP"),
-        SENSEX: j.index_status.SENSEX || (names.includes("SENSEX") ? "START" : "STOP"),
-      });
-    } else {
-      setStatus({
-        NIFTY: names.includes("NIFTY") ? "START" : "STOP",
-        BANKNIFTY: names.includes("BANKNIFTY") ? "START" : "STOP",
-        SENSEX: names.includes("SENSEX") ? "START" : "STOP",
-      });
+    const next = {};
+    for (const name of known) {
+      const raw = j?.index_status?.[name];
+      if (raw === "START" || raw === "STOP") next[name] = raw;
+      else next[name] = names.includes(name) ? "START" : "STOP";
     }
+    setStatus(next);
+    setChosen((cur) => (known.includes(cur) ? cur : known[0] || "NIFTY"));
   }
 
   useEffect(() => {
@@ -61,7 +71,7 @@ export function FounderBookPicker() {
       applyBook(j);
       setMsg(
         action === "START"
-          ? `START TRADE on ${chosen}. NEW paper fills allowed. Tape still records all three.`
+          ? `START TRADE on ${chosen}. NEW paper fills allowed. Tape still records all indexes.`
           : `STOP TRADE on ${chosen}. NEW paper fills denied until you hit START TRADE. Open tickets stay.`,
       );
     } catch (err) {
@@ -71,15 +81,27 @@ export function FounderBookPicker() {
     }
   }
 
-  const chosenOn = (status[chosen] || "START") === "START" || picked.includes(chosen);
+  const chosenOn = isStarted(status, picked, chosen);
 
   return (
     <section className="panel founder-desk">
-      <h2>Founder trade desk</h2>
-      <p className="muted">
-        Dual-tape keeps recording NIFTY + BANKNIFTY + SENSEX. You pick the index, then START TRADE or
-        STOP TRADE. Default is START TRADE. There is no fill-count auto-stop — only this desk stops NEW fills.
-      </p>
+      <div className="founder-desk__head">
+        <h2>Founder trade desk</h2>
+        <button
+          type="button"
+          className="info-btn"
+          aria-label="Founder trade desk extra information"
+          aria-expanded={infoOpen}
+          onClick={() => setInfoOpen((v) => !v)}
+        >
+          i
+        </button>
+      </div>
+      {infoOpen ? (
+        <div className="confidence-detail" role="region" aria-label="Founder trade desk extra information">
+          <p>{HELP}</p>
+        </div>
+      ) : null}
 
       <div className="founder-desk__grid">
         <div className="founder-desk__section">
@@ -87,17 +109,11 @@ export function FounderBookPicker() {
           <label className="filter-field">
             <span>Index</span>
             <select value={chosen} onChange={(e) => setChosen(e.target.value)}>
-              {KNOWN.map((name) => (
+              {indexes.map((name) => (
                 <option key={name} value={name}>{name}</option>
               ))}
             </select>
           </label>
-          <p className="founder-desk__state">
-            {chosen}:{" "}
-            <strong className={chosenOn ? "is-up" : "is-down"}>
-              {chosenOn ? "START TRADE" : "STOP TRADE"}
-            </strong>
-          </p>
         </div>
 
         <div className="founder-desk__section">
@@ -107,7 +123,8 @@ export function FounderBookPicker() {
               type="button"
               className={`founder-desk__btn founder-desk__btn--start${chosenOn ? " is-active" : ""}`}
               onClick={() => postAction("START")}
-              disabled={busy}
+              disabled={busy || chosenOn}
+              aria-pressed={chosenOn}
             >
               {busy ? "Saving…" : "START TRADE"}
             </button>
@@ -115,7 +132,8 @@ export function FounderBookPicker() {
               type="button"
               className={`founder-desk__btn founder-desk__btn--stop${!chosenOn ? " is-active" : ""}`}
               onClick={() => postAction("STOP")}
-              disabled={busy}
+              disabled={busy || !chosenOn}
+              aria-pressed={!chosenOn}
             >
               {busy ? "Saving…" : "STOP TRADE"}
             </button>
@@ -123,16 +141,6 @@ export function FounderBookPicker() {
         </div>
       </div>
 
-      <div className="founder-book">
-        {KNOWN.map((name) => {
-          const on = (status[name] || "START") === "START" || picked.includes(name);
-          return (
-            <span key={name} className="founder-book__opt">
-              {name}: {on ? "START TRADE" : "STOP TRADE"}
-            </span>
-          );
-        })}
-      </div>
       {msg ? <p className="muted">{msg}</p> : null}
     </section>
   );

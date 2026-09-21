@@ -9,12 +9,24 @@ from desk_ml.founder_session import (
 from desk_ml.paper_scalp import load_human_override, save_human_override
 
 
-def test_default_book_starts_all_indices() -> None:
-    book = load_founder_book(root=None)
-    assert "NIFTY" in book["trade_underlyings"]
-    assert book["default_action"] == "START"
+def test_default_book_stops_all_indices(tmp_path) -> None:
+    book = load_founder_book(root=tmp_path)
+    assert book["trade_underlyings"] == []
+    assert book["default_action"] == "STOP"
     assert book["tape_records_all"] is True
     assert book["apply_new_fills_only"] is True
+    assert not allows_new_fill("NIFTY", root=tmp_path)
+    assert not allows_new_fill("BANKNIFTY", root=tmp_path)
+    assert not allows_new_fill("SENSEX", root=tmp_path)
+
+
+def test_start_from_empty_default(tmp_path) -> None:
+    started = set_index_trade("NIFTY", "START TRADE", root=tmp_path)
+    assert started["last_action"] == "START"
+    assert started["trade_underlyings"] == ["NIFTY"]
+    assert started["index_status"]["BANKNIFTY"] == "STOP"
+    assert allows_new_fill("NIFTY", root=tmp_path)
+    assert not allows_new_fill("SENSEX", root=tmp_path)
 
 
 def test_start_stop_one_index(tmp_path) -> None:
@@ -48,15 +60,35 @@ def test_explicit_empty_book_stops_all_new_fills(tmp_path) -> None:
     assert decision["reason"] == STOP_REASON
 
 
-def test_human_override_persists_priority_exit(tmp_path) -> None:
+def test_human_override_refuses_naked_exit(tmp_path) -> None:
     saved = save_human_override(
         {"action": "EXIT", "trade_id": "t1", "underlying": "NIFTY", "side": "CE"},
         root=tmp_path,
     )
+    assert saved["ok"] is False
+    assert saved["error"] == "HUMAN_LEVELS_REQUIRED"
+    assert saved["active"] is False
+    assert saved["orders"] == "REFUSED"
+    loaded = load_human_override(root=tmp_path)
+    assert loaded.get("active") is False or loaded.get("action") != "EXIT"
+
+
+def test_human_override_persists_set_levels(tmp_path) -> None:
+    saved = save_human_override(
+        {
+            "action": "SET_LEVELS",
+            "trade_id": "t1",
+            "underlying": "NIFTY",
+            "side": "CE",
+            "target": 260.0,
+            "stop": 210.0,
+        },
+        root=tmp_path,
+    )
     assert saved["active"] is True
     loaded = load_human_override(root=tmp_path)
-    assert loaded["action"] == "EXIT"
+    assert loaded["action"] == "SET_LEVELS"
     assert loaded["trade_id"] == "t1"
-    assert loaded["underlying"] == "NIFTY"
-    assert loaded["side"] == "CE"
+    assert loaded["target"] == 260.0
+    assert loaded["stop"] == 210.0
     assert loaded["orders"] == "REFUSED"
