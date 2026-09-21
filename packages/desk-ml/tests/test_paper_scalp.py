@@ -2127,6 +2127,9 @@ def test_seen_not_taken_section_explains_skip() -> None:
     assert seen["observations"]
     assert any("NIFTY" in n for n in seen["observations"])
     assert seen["skipped_latest"]
+    latest = seen["skipped_latest"][0]
+    assert latest.get("last_updated_ts")
+    assert latest.get("last_updated_ist")
     md = render_markdown(
         {
             "title": "LIVE SESSION",

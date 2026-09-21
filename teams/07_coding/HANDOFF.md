@@ -1,5 +1,37 @@
 # Handoff log — Team 07 Coding
 
+## As of now (2026-09-21 IST) — Desk tables stay in the viewport (NO_PROMOTE)
+
+```text
+From:     teams/07_coding
+To:       00 / founder / 05
+Date:     2026-09-21
+Status:   PAPER UI / NO_PROMOTE
+Accepted: Page width is clipped at 100%. Trade history and discarded
+  tables scroll inside their section. Why / Models / Notes / Details
+  wrap (smaller type). Path meters have a 14rem cap so the fill cannot
+  leave the panel.
+Rejected: Ellipsis on Why. Widening the whole site for extra columns.
+UNKNOWN: very long JSON in Details still wraps; row height grows.
+```
+
+---
+
+## As of now (2026-09-21 IST) — Discarded list: Time first, newest first (NO_PROMOTE)
+
+```text
+From:     teams/07_coding
+To:       00 / founder / 05
+Date:     2026-09-21
+Status:   PAPER UI / NO_PROMOTE
+Accepted: Discarded by boss or dealer is a table. Column 1 is IST
+  time. Rows sorted last_updated_ts / closed_ts / ts descending.
+Rejected: Grouping that hides which ticket happened when.
+UNKNOWN: skip rows without a ts still sort last with "—".
+```
+
+---
+
 ## As of now (2026-09-21 IST) — Desk founder UX: manage levels, path, clock, discarded, history (NO_PROMOTE)
 
 ```text

@@ -205,15 +205,14 @@ export function TradeHistory({ rows, regimes, fillRooms, onOpen, pageSize = 12 }
         </div>
       ) : null}
       <p className="muted">
-        {filtered.length} trades in this filter · {shown.length} shown · table scrolls sideways; page still scrolls
-        vertically
+        {filtered.length} trades in this filter · {shown.length} shown · this table scrolls inside the section
       </p>
-      <div className="book-table-wrap book-table-wrap--desk">
+      <div className="table-scroll table-scroll--history">
         <table className="book-table desk-history">
           <thead>
             <tr>
               {visible.map((c) => (
-                <th key={c.id} className={c.long ? "is-long" : ""}>
+                <th key={c.id} className={c.long ? "cell-wrap" : ""}>
                   {c.label}
                 </th>
               ))}
@@ -229,7 +228,10 @@ export function TradeHistory({ rows, regimes, fillRooms, onOpen, pageSize = 12 }
                   onClick={() => hasRoom && onOpen && onOpen(t)}
                 >
                   {visible.map((c) => (
-                    <td key={c.id} className={`${c.long ? "is-long" : ""} ${["strike", "spot", "lotSize", "lots", "investment", "entry", "exitPx", "points", "sl", "target", "pnl"].includes(c.id) ? "num" : ""}`}>
+                    <td
+                      key={c.id}
+                      className={`${c.long ? "cell-wrap" : ""} ${["strike", "spot", "lotSize", "lots", "investment", "entry", "exitPx", "points", "sl", "target", "pnl"].includes(c.id) ? "num" : ""}`}
+                    >
                       {cell(t, c.id)}
                     </td>
                   ))}

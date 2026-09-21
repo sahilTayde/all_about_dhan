@@ -90,6 +90,37 @@ export function clock(ist) {
   return m ? m[1] : String(ist);
 }
 
+export function discardEventTs(row) {
+  const raw = Number(row?.last_updated_ts ?? row?.closed_ts ?? row?.opened_ts ?? row?.ts ?? 0);
+  if (Number.isFinite(raw) && raw > 0) return raw < 1e12 ? raw * 1000 : raw;
+  for (const k of ["last_updated_ist", "closed_ist", "opened_ist"]) {
+    if (row?.[k]) {
+      const d = Date.parse(row[k]);
+      if (Number.isFinite(d)) return d;
+    }
+  }
+  return 0;
+}
+
+export function discardClock(row) {
+  const iso = row?.last_updated_ist || row?.closed_ist || row?.opened_ist;
+  if (iso) return String(iso).replace("T", " ").slice(0, 19);
+  const ms = discardEventTs(row);
+  if (!ms) return "—";
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Asia/Kolkata",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  }).formatToParts(new Date(ms));
+  const get = (t) => parts.find((p) => p.type === t)?.value || "";
+  return `${get("year")}-${get("month")}-${get("day")} ${get("hour")}:${get("minute")}:${get("second")}`;
+}
+
 export function sessionDate(ist) {
   if (!ist) return "—";
   const m = String(ist).match(/^(\d{4}-\d{2}-\d{2})/);
@@ -404,7 +435,9 @@ export function derivePaperBoard(data, lab = null) {
     ...(seen.skipped_latest || []),
     ...(seen.cancelled || []),
     ...(modelSignals.latest || []).filter((r) => r.ignored_by_boss || r.observer_action === "VETO" || r.vs_picker === "DISSENT"),
-  ].filter((t) => !FOUNDER_OFF_BOOK.has(String(t.reason || "")));
+  ]
+    .filter((t) => !FOUNDER_OFF_BOOK.has(String(t.reason || "")))
+    .sort((a, b) => discardEventTs(b) - discardEventTs(a));
   const days = liveMoney ? dailyBuckets(uniqueClosed) : mergeDaySeries(dailyBuckets(uniqueClosed), lab?.day_series);
   const bookDays = dailyBuckets(closed);
   const sessionDay = data.session_ist_date || sessionDate(data.as_of_ist);

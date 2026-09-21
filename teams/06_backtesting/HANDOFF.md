@@ -1,5 +1,19 @@
 # Handoff log — Team 06 Backtesting
 
+## As of now (2026-09-21 IST) — founder book default STOP (NO_PROMOTE)
+
+```text
+From:     teams/06_backtesting
+To:       00 / founder / 07
+Date:     2026-09-21
+Status:   PAPER / NO_PROMOTE
+Accepted: No founder_trade_underlyings.json → STOP TRADE on
+  every index. NEW MIX-DEFAULT-BUY fills denied until founder
+  START on that index. Dual-tape still records all.
+Rejected: Default START all indexes. Fill-count auto-stop.
+UNKNOWN: existing recon file still has founder START NIFTY.
+```
+
 ## As of now (2026-09-21 IST) — founder book NEW fills (NO_PROMOTE)
 
 ```text

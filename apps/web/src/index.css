@@ -48,6 +48,8 @@ body,
 #root {
   margin: 0;
   min-height: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
 }
 
 body {
@@ -110,11 +112,14 @@ a {
 }
 
 .shell {
+  width: 100%;
   max-width: 1040px;
+  min-width: 0;
   margin: 0 auto;
   padding: 1.5rem 1.15rem 3rem;
   display: grid;
   gap: 0.85rem;
+  overflow-x: hidden;
 }
 
 .desk-header {
@@ -201,9 +206,10 @@ a {
 
 .signal-layout {
   display: grid;
-  grid-template-columns: minmax(0, 1.45fr) minmax(220px, 0.85fr);
+  grid-template-columns: minmax(0, 1.45fr) minmax(0, 0.85fr);
   gap: 0.85rem;
   align-items: start;
+  min-width: 0;
 }
 
 .confidence-box {
@@ -296,6 +302,9 @@ a {
   border-radius: var(--radius);
   box-shadow: var(--shadow);
   padding: 0.9rem 1rem 1rem;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
 }
 
 .panel__head {
@@ -611,12 +620,13 @@ a {
 
 .level-strip {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(5.5rem, 1fr));
   gap: 0.65rem;
   margin: 0 0 0.9rem;
   padding: 0.75rem 0.15rem;
   border-top: 1px solid var(--line);
   border-bottom: 1px solid var(--line);
+  min-width: 0;
 }
 
 .level-strip dd {
@@ -873,7 +883,7 @@ a {
 }
 
 .shell--customer {
-  max-width: 1120px;
+  max-width: min(1120px, 100%);
 }
 
 /* Sentiment */
@@ -1001,15 +1011,28 @@ a {
 
 .book-table-wrap {
   overflow-x: auto;
+  overflow-y: hidden;
   max-width: 100%;
+  min-width: 0;
+  -webkit-overflow-scrolling: touch;
 }
 
-.book-table-wrap--desk {
-  overflow-x: auto;
-  overflow-y: visible;
+.table-scroll {
+  min-width: 0;
   max-width: 100%;
+  overflow: auto;
+  overscroll-behavior: contain;
   border: 1px solid var(--line);
   border-radius: 8px;
+  -webkit-overflow-scrolling: touch;
+}
+
+.table-scroll--history {
+  max-height: min(42vh, 28rem);
+}
+
+.table-scroll--discard {
+  max-height: min(36vh, 22rem);
 }
 
 .book-table {
@@ -1054,15 +1077,28 @@ a {
   background: var(--surface-2);
   position: sticky;
   top: 0;
+  z-index: 1;
 }
 
-.book-table.desk-history td.is-long,
-.book-table.desk-history th.is-long {
-  white-space: nowrap;
+.book-table.desk-history td.cell-wrap,
+.book-table.desk-history th.cell-wrap {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  font-size: 0.7rem;
+  line-height: 1.35;
+  max-width: 16rem;
+  min-width: 10rem;
+  overflow: visible;
+  text-overflow: unset;
+  vertical-align: top;
+}
+
+.discard-table td.cell-wrap,
+.discard-table th.cell-wrap {
   max-width: 22rem;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-size: 0.78rem;
+  min-width: 12rem;
+  font-size: 0.68rem;
 }
 
 .col-picker {
@@ -1604,6 +1640,8 @@ a {
 .itm-scalp-pnl--loss { color: var(--pe); }
 .itm-scalp-table-wrap {
   overflow-x: auto;
+  max-width: 100%;
+  min-width: 0;
   margin-bottom: 10px;
 }
 .itm-scalp-table {
@@ -1710,8 +1748,11 @@ a {
   margin: 0;
   font-size: 0.9rem;
 }
-.champ-table-wrap {
+.champ-table-wrap,
+.itm-scalp-table-wrap {
   overflow-x: auto;
+  max-width: 100%;
+  min-width: 0;
 }
 .champ-table {
   width: 100%;
@@ -1787,9 +1828,10 @@ a {
 
 .fx-stats {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(8.5rem, 1fr));
   gap: 0.55rem;
   margin: 0.85rem 0 0.75rem;
+  min-width: 0;
 }
 
 .fx-stat {
@@ -1916,6 +1958,8 @@ a {
 
 .fx-path__bar {
   height: 0.45rem;
+  max-width: 14rem;
+  width: 100%;
   background: #2a1c22;
   border-radius: 999px;
   overflow: hidden;
@@ -1939,7 +1983,8 @@ a {
   border-radius: 999px;
   background: linear-gradient(90deg, var(--pe) 0%, #2a1c22 48%, var(--ce) 100%);
   border: 1px solid var(--line);
-  margin: 0.2rem 0 0.15rem;
+  margin: 0.35rem 0 0.2rem;
+  max-width: 100%;
 }
 
 .fx-range__fill {
@@ -1972,7 +2017,9 @@ a {
 
 .fx-path__ticks {
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
+  gap: 0.2rem 0.75rem;
   margin-top: 0.25rem;
   font-size: 0.72rem;
   color: var(--ink-soft);
@@ -2064,7 +2111,7 @@ a {
 
 .shell--internal,
 .shell--founder {
-  max-width: 1180px;
+  max-width: min(1180px, 100%);
 }
 
 .app-nav {
@@ -2106,9 +2153,10 @@ a {
 
 .founder-pl {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr));
   gap: 0.65rem;
   margin: 0.4rem 0 0.75rem;
+  min-width: 0;
 }
 
 .founder-pl div {
@@ -2181,6 +2229,14 @@ a {
 .current-signal__hero {
   display: grid;
   gap: 0.7rem;
+  min-width: 0;
+}
+
+.fx-path {
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  padding: 0.45rem 0.7rem 0.1rem;
 }
 
 .current-signal__name {
@@ -2194,9 +2250,10 @@ a {
 .path-confidence,
 .path-meters {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 0.55rem;
   margin-top: 0.7rem;
+  min-width: 0;
 }
 
 .path-confidence div,
@@ -2210,6 +2267,8 @@ a {
 .path-meter {
   display: grid;
   gap: 0.25rem;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .path-meter span,
@@ -2226,9 +2285,12 @@ a {
 
 .path-meter strong {
   font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
 }
 
 .path-meter__bar {
+  width: 100%;
+  max-width: 14rem;
   height: 0.42rem;
   border-radius: 999px;
   background: var(--surface);
@@ -2279,6 +2341,18 @@ a {
 
 .discard-list p {
   margin: 0.3rem 0 0;
+}
+
+.discard-table th:first-child,
+.discard-table td.discard-time {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.78rem;
+}
+
+.discard-table .discard-who {
+  margin-left: 0;
 }
 
 .discard-who {
@@ -2358,7 +2432,7 @@ a {
 }
 
 .desk-history {
-  min-width: 1480px;
+  min-width: max(100%, 72rem);
 }
 
 .filter-row {
@@ -2404,7 +2478,7 @@ a {
 
 .founder-desk__grid {
   display: grid;
-  grid-template-columns: minmax(220px, 1fr) minmax(220px, 1fr);
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 1rem;
   margin: 0.9rem 0 1rem;
 }
@@ -2569,9 +2643,11 @@ tr.is-click:hover {
 
 .sod-wrap {
   display: grid;
-  grid-template-columns: minmax(0, 1.4fr) minmax(12rem, 0.8fr);
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 0.8fr);
   gap: 0.75rem;
   align-items: start;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .sod-svg {

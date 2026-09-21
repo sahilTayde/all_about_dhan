@@ -6765,6 +6765,7 @@ def seen_not_taken_picture(engine: BookEngine) -> dict[str, Any]:
         dealer = step.get("dealer") or {}
         logit = step.get("logit") or {}
         seen_side = skip.get("seen_side") or dealer.get("side") or logit.get("side")
+        skip_ts = int(skip.get("ts") or 0)
         skipped_rows.append(
             {
                 "book_id": book,
@@ -6784,7 +6785,8 @@ def seen_not_taken_picture(engine: BookEngine) -> dict[str, Any]:
                 "observer_action": skip.get("observer_action") or (step.get("observer") or {}).get("action"),
                 "logit_side": logit.get("side"),
                 "observation": _index_observation(und, classified, step),
-                "last_updated_ts": skip.get("ts"),
+                "last_updated_ts": skip_ts or skip.get("ts"),
+                "last_updated_ist": _ist_dt(skip_ts).isoformat(timespec="seconds") if skip_ts else None,
                 "trade_id": skip.get("trade_id"),
                 "atm_strike": skip.get("atm_strike") or skip.get("strike"),
                 "expiry": skip.get("expiry") or skip.get("expiry_ist"),

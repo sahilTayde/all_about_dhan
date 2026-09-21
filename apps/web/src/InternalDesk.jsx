@@ -8,6 +8,7 @@ import { TradeHistory } from "./components/TradeHistory.jsx";
 import {
   derivePaperBoard,
   deskLifeStatus,
+  discardClock,
   discardOutcome,
   discardTradeLabel,
   discardedWho,
@@ -387,27 +388,49 @@ export function InternalDesk() {
             {d.discardedRows.length === 0 ? (
               <p className="muted">Nothing discarded on this snapshot.</p>
             ) : (
-              <ul className="discard-list">
-                {d.discardedRows.slice(0, 24).map((g, i) => (
-                  <li key={g.trade_id || `${g.reason}-${g.underlying}-${g.side || g.seen_side}-${g.ts || i}`}>
-                    <div>
-                      <strong>{discardTradeLabel(g)}</strong>
-                      <span className="discard-who">{discardedWho(g)}</span>
-                      <span className="fx-skips__n">{discardOutcome(g)}</span>
-                    </div>
-                    <p>
-                      {g.book_id || g.source || "—"} · fill {g.filled === true ? "yes" : "no"} · lots {g.lots ?? "—"} ·
-                      qty {g.qty ?? "—"} · ticket {g.trade_id || "none (no fill)"}
-                    </p>
-                    <p>
-                      {skipPlain(g.reason || g.vs_picker)}
-                      {g.why || g.detail || g.observation
-                        ? ` — ${String(g.why || g.detail || g.observation).slice(0, 180)}`
-                        : ""}
-                    </p>
-                  </li>
-                ))}
-              </ul>
+              <div className="table-scroll table-scroll--discard">
+                <table className="book-table desk-history discard-table">
+                  <thead>
+                    <tr>
+                      <th>Time (IST)</th>
+                      <th>Trade</th>
+                      <th>Who</th>
+                      <th>Outcome</th>
+                      <th>Fill</th>
+                      <th>Lots</th>
+                      <th>Qty</th>
+                      <th>Ticket</th>
+                      <th>Book</th>
+                      <th className="cell-wrap">Why</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {d.discardedRows.slice(0, 24).map((g, i) => (
+                      <tr key={g.trade_id || `${g.reason}-${g.underlying}-${g.side || g.seen_side}-${discardClock(g)}-${i}`}>
+                        <td className="discard-time">{discardClock(g)}</td>
+                        <td>
+                          <strong>{discardTradeLabel(g)}</strong>
+                        </td>
+                        <td>
+                          <span className="discard-who">{discardedWho(g)}</span>
+                        </td>
+                        <td>{discardOutcome(g)}</td>
+                        <td>{g.filled === true ? "yes" : "no"}</td>
+                        <td className="num">{g.lots ?? "—"}</td>
+                        <td className="num">{g.qty ?? "—"}</td>
+                        <td>{g.trade_id || "none (no fill)"}</td>
+                        <td>{g.book_id || g.source || "—"}</td>
+                        <td className="cell-wrap">
+                          {skipPlain(g.reason || g.vs_picker)}
+                          {g.why || g.detail || g.observation
+                            ? ` — ${String(g.why || g.detail || g.observation)}`
+                            : ""}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             )}
           </section>
         </>
