@@ -1,6 +1,5 @@
 import { useMemo, useState } from "react";
 import {
-  clock,
   inr,
   moneyClass,
   outcomeLabel,
@@ -10,6 +9,19 @@ import {
 
 function OutcomePill({ label }) {
   return <span className={`out-pill out-pill--${outcomeSlug(label)}`}>{label}</span>;
+}
+
+function fullClock(ist) {
+  if (!ist) return "—";
+  return String(ist).replace("T", " ").slice(0, 19);
+}
+
+function modelsFor(t) {
+  const names = [...(t.model_names || [])];
+  if (!names.length) {
+    for (const b of t.books || []) if (b && b !== "MIX-DEFAULT-BUY") names.push(b);
+  }
+  return names.length ? names.join(", ") : t.book_id || "—";
 }
 
 function Field({ label, value, onChange, options }) {
@@ -71,12 +83,18 @@ export function TradeHistory({ rows, regimes, fillRooms, onOpen, pageSize = 12 }
         <table className="book-table desk-history">
           <thead>
             <tr>
-              <th>Time</th>
+              <th>Start</th>
+              <th>End</th>
               <th>Index</th>
               <th>CE/PE</th>
               <th>Strike</th>
               <th>Spot</th>
+              <th>Lot size</th>
+              <th>Lots</th>
+              <th>Investment</th>
               <th>Entry</th>
+              <th>Exit / cancel premium</th>
+              <th>Points</th>
               <th>SL</th>
               <th>Target</th>
               <th>P/L</th>
@@ -89,27 +107,34 @@ export function TradeHistory({ rows, regimes, fillRooms, onOpen, pageSize = 12 }
               const label = outcomeLabel(t);
               const spotPx = t.spot_at_entry ?? regimes?.[t.underlying]?.itm_bin?.index;
               const hasRoom = fillRooms?.[t.trade_id];
+              const points = t.realized_pnl ?? (t.exit != null && t.entry != null ? Number(t.exit) - Number(t.entry) : null);
               return (
                 <tr
                   key={t.trade_id}
                   className={hasRoom ? "is-click" : ""}
                   onClick={() => hasRoom && onOpen && onOpen(t)}
                 >
-                  <td>{clock(t.last_updated_ist || t.closed_ist)}</td>
+                  <td>{fullClock(t.opened_ist)}</td>
+                  <td>{fullClock(t.closed_ist || t.last_updated_ist)}</td>
                   <td>{t.underlying}</td>
                   <td>
                     <span className={`side-mini side-mini--${String(t.side).toLowerCase()}`}>{t.side}</span>
                   </td>
                   <td className="num">{t.atm_strike}</td>
                   <td className="num">{px(spotPx)}</td>
+                  <td className="num">{t.lot_size ?? "—"}</td>
+                  <td className="num">{t.lots ?? "—"}</td>
+                  <td className="num">{inr(t.notional_inr, { signed: false })}</td>
                   <td className="num">{px(t.entry ?? t.limit_price)}</td>
+                  <td className="num">{px(t.exit)}</td>
+                  <td className={`num ${moneyClass(points)}`}>{points == null ? "—" : Number(points).toFixed(2)}</td>
                   <td className="num">{px(t.stop)}</td>
                   <td className="num">{px(t.target)}</td>
                   <td className={`num ${moneyClass(t.realized_pnl_inr)}`}>{inr(t.realized_pnl_inr)}</td>
                   <td>
                     <OutcomePill label={label} />
                   </td>
-                  <td>{(t.books || [t.book_id]).join(", ")}</td>
+                  <td>{modelsFor(t)}</td>
                 </tr>
               );
             })}

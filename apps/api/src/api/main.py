@@ -73,6 +73,19 @@ def create_app() -> FastAPI:
         names = body.get("trade_underlyings") if isinstance(body, dict) else None
         return save_founder_book(names or [])
 
+    @app.get("/paper/human-override")
+    def paper_human_override() -> dict[str, Any]:
+        """Human-in-loop paper exit/cancel instruction. Still refuses live orders."""
+        from desk_ml.paper_scalp import load_human_override
+
+        return load_human_override()
+
+    @app.post("/paper/human-override")
+    def paper_human_override_save(body: dict[str, Any]) -> dict[str, Any]:
+        from desk_ml.paper_scalp import save_human_override
+
+        return save_human_override(body if isinstance(body, dict) else {})
+
     def _desk(*, bind_premium: bool = True) -> dict[str, Any]:
         store: SignalStore = app.state.store
         live = getattr(app.state, "live_paper", None)

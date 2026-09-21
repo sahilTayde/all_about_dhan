@@ -2201,7 +2201,7 @@ a {
 }
 
 .desk-history {
-  min-width: 980px;
+  min-width: 1480px;
 }
 
 .filter-row {
@@ -2257,6 +2257,23 @@ tr.is-click {
 
 tr.is-click:hover {
   background: rgba(91, 156, 255, 0.06);
+}
+
+.human-control {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+  margin-top: 0.9rem;
+  padding: 0.75rem;
+  border: 1px solid rgba(255, 196, 87, 0.35);
+  border-radius: 12px;
+  background: rgba(255, 196, 87, 0.07);
+}
+
+.human-control span {
+  color: var(--ink-soft);
+  font-size: 0.9rem;
 }
 
 .sod-wrap {

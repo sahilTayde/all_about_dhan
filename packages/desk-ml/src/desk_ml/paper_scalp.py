@@ -50,7 +50,7 @@ PAPER_TARGET_LOTS = 25
 PAPER_MAX_LOTS = 30
 DASHBOARD_HEARTBEAT_SECONDS = 5
 TICK_NE_DASHBOARD_REASON = (
-    "Live mock: dual-tape REST poll default 10s (clamp ≥10). "
+    "Live mock: dual-tape REST poll default 5s (clamp ≥5). "
     "Dashboard JSON/MD rewrite every 5s from the last tick — not a new Dhan poll. "
     "WS feed parse has LTP/volume/OI, not IV/greeks — MIX-ML-GREEKS stays on POST /optionchain."
 )
@@ -158,6 +158,9 @@ VOL_NOT_EXPANDING = "VOL_NOT_EXPANDING"
 CANCEL_BIN_ROLL = "CANCEL_BIN_ROLL"
 CANCEL_STALL = "CANCEL_STALL"
 CANCEL_AGAINST = "CANCEL_AGAINST"
+HUMAN_EXIT = "HUMAN_EXIT"
+CANCEL_HUMAN = "CANCEL_HUMAN"
+HUMAN_OVERRIDE_NAME = "human_trade_override.json"
 SOFT_CANCEL_REASONS = {
     CANCEL_BIN_ROLL,
     "CANCEL_STRIKE_ROLL",
@@ -173,6 +176,8 @@ HARD_EXIT_REASONS = {
     COVER_LONG_UNWIND,
     CANCEL_STALL,
     CANCEL_AGAINST,
+    HUMAN_EXIT,
+    CANCEL_HUMAN,
 }
 # Stale-high stall (HYPOTHESIS): not a constant 9m TIME clock.
 STALL_MIN_SEC = 20 * 60
@@ -2710,6 +2715,7 @@ class OpenPaper:
     path_stop: Optional[float] = None
     target_touch_ts: Optional[int] = None
     justification: str = ""
+    model_names: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -2899,6 +2905,50 @@ def append_model_log(root: Path, rec: dict[str, Any]) -> None:
             os.fsync(fh.fileno())
         except OSError:
             pass
+
+
+def human_override_path(root: Optional[Path] = None) -> Path:
+    return (root or repo_root()) / "data" / "recon" / HUMAN_OVERRIDE_NAME
+
+
+def load_human_override(root: Optional[Path] = None) -> dict[str, Any]:
+    path = human_override_path(root)
+    if not path.is_file():
+        return {"ok": True, "active": False, "orders": "REFUSED", "promote": False}
+    try:
+        blob = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {"ok": False, "active": False, "orders": "REFUSED", "promote": False}
+    if not isinstance(blob, dict):
+        return {"ok": False, "active": False, "orders": "REFUSED", "promote": False}
+    blob.setdefault("ok", True)
+    blob.setdefault("orders", "REFUSED")
+    blob.setdefault("promote", False)
+    blob["active"] = bool(blob.get("active", True))
+    return blob
+
+
+def save_human_override(body: dict[str, Any], *, root: Optional[Path] = None) -> dict[str, Any]:
+    action = str((body or {}).get("action") or "EXIT").upper()
+    if action not in {"EXIT", "CANCEL", "CLEAR"}:
+        action = "EXIT"
+    payload = {
+        "ok": True,
+        "active": action != "CLEAR",
+        "action": action,
+        "trade_id": (body or {}).get("trade_id"),
+        "underlying": str((body or {}).get("underlying") or "").upper() or None,
+        "side": str((body or {}).get("side") or "").upper() or None,
+        "reason": "HUMAN_PRIORITY",
+        "as_of_ist": datetime.now(IST).isoformat(timespec="seconds"),
+        "orders": "REFUSED",
+        "promote": False,
+        "note": "Human-in-loop paper override. Highest priority over boss/desk for open paper tickets.",
+    }
+    path = human_override_path(root)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+    return payload
 
 
 def resample_closes_3m(closes: dict[int, float]) -> list[Any]:
@@ -3557,6 +3607,7 @@ def _close(engine: BookEngine, pos: OpenPaper, *, ltp: float, ts: int, reason: s
     engine.closed.append(
         {
             "book_id": pos.book_id,
+            "model_names": list(getattr(pos, "model_names", None) or [pos.book_id]),
             "underlying": pos.underlying,
             "side": pos.side,
             "trade_id": pos.trade_id,
@@ -3706,9 +3757,18 @@ def _try_open(
             engine.mark_skip(book_id, underlying, SOD_ONE_OPEN, ts=tick.ts, seen_side=side)
         return
     try:
-        from desk_ml.founder_session import allows_new_fill
+        from desk_ml.founder_session import new_fill_decision
 
-        if not allows_new_fill(underlying, root=getattr(engine, "root", None)):
+        decision = new_fill_decision(underlying, root=getattr(engine, "root", None))
+        if not decision.get("allow"):
+            engine.mark_skip(
+                book_id,
+                underlying,
+                str(decision.get("reason") or "FOUNDER_STOP_TRADING_ON_INDEX"),
+                ts=tick.ts,
+                seen_side=side,
+                detail=decision.get("note"),
+            )
             return
     except Exception:
         if str(underlying).upper() not in {"NIFTY"}:
@@ -4202,6 +4262,7 @@ def _try_open(
             strike_source=source,
             engine=engine,
         ),
+        model_names=list(getattr(engine, "_current_model_names", None) or [book_id]),
     )
     engine.opens[(book_id, underlying)] = pos
     engine.bump_regime_book(book_id, regime, f"OPEN_{side}")
@@ -4365,6 +4426,33 @@ def mark_to_market(
             ltp = float(pos.entry)
             side_low = pos.seen_low if pos.seen_low is not None else ltp
             src = "ENTRY_PRINT"
+        override = load_human_override(engine.root)
+        if override.get("active"):
+            wants_trade = not override.get("trade_id") or override.get("trade_id") == pos.trade_id
+            wants_und = not override.get("underlying") or override.get("underlying") == underlying.upper()
+            wants_side = not override.get("side") or override.get("side") == pos.side
+            if wants_trade and wants_und and wants_side:
+                action = str(override.get("action") or "EXIT").upper()
+                human_reason = CANCEL_HUMAN if action == "CANCEL" or not pos.filled else HUMAN_EXIT
+                exit_px = float(ltp if ltp is not None else pos.last_ltp or pos.entry)
+                _close(engine, pos, ltp=exit_px, ts=tick.ts, reason=human_reason, root=engine.root)
+                if engine.root is not None:
+                    append_model_log(
+                        engine.root,
+                        {
+                            "event": "HUMAN_OVERRIDE",
+                            "model": book_id,
+                            "book_id": book_id,
+                            "trade_id": pos.trade_id,
+                            "underlying": underlying,
+                            "side": pos.side,
+                            "reason": human_reason,
+                            "status": "CLOSED_BY_HUMAN",
+                            "filled": bool(pos.filled),
+                            "priority": "HUMAN_SUPERIOR",
+                        },
+                    )
+                continue
         if ltp is None:
             if minutes_ist(tick.ts) >= FLATTEN_MINUTES_IST:
                 _close(
@@ -4628,6 +4716,18 @@ def step_underlying(
         classified=classified,
         extra=list(extra_votes) if extra_votes else None,
     )
+    model_name_map = {
+        "follows": "MIX-FORM-FOLLOWS",
+        "logit": "MIX-ML-LOGIT",
+        "xr": "MIX-ML-LOGIT-XR",
+        "greeks": "MIX-ML-GREEKS",
+    }
+    spoken_model_names = [
+        model_name_map.get(str(v.source), str(v.source))
+        for v in votes
+        if hasattr(v, "spoken") and v.spoken()
+    ]
+    engine._current_model_names = spoken_model_names  # type: ignore[attr-defined]
     picker = picker_majority(votes, prev=older, closed=closed_1m, classified=classified)
     sod = bool(getattr(engine, "sod_one_ticket", False))
     use_picker = sod or bool(getattr(engine, "picker_majority", False))
@@ -6846,10 +6946,10 @@ def build_dashboard(
         "heartbeat": {
             "cli": "python -m desk_ml paper-scalp --replay",
             "loop": "python -m desk_ml paper-scalp --loop  (opt-in; writes this JSON)",
-            "dual_tape": "python -m trading_agents_india dual-tape --live-chain --paper-train --paper-scalp --tick-seconds 10 --max-ticks 0",
+            "dual_tape": "python -m trading_agents_india dual-tape --live-chain --paper-train --paper-scalp --tick-seconds 5 --max-ticks 0",
             "stop": f"touch data/recon/{STOP_FLAG_NAME}",
             "dashboard_write_seconds": DASHBOARD_HEARTBEAT_SECONDS,
-            "tick_seconds_default": 10,
+            "tick_seconds_default": 5,
             "tick_ne_dashboard_reason": TICK_NE_DASHBOARD_REASON,
             "does_not_start": ["paper_ops", "npm", "legacy LLM waiters"],
         },
@@ -7435,7 +7535,7 @@ def render_markdown(board: dict[str, Any]) -> str:
         "",
         "```bash",
         "python -m desk_ml paper-scalp --replay --source dual-tape --live-session",
-        "python -m trading_agents_india dual-tape --live-chain --paper-train --paper-scalp --tick-seconds 10 --max-ticks 0",
+        "python -m trading_agents_india dual-tape --live-chain --paper-train --paper-scalp --tick-seconds 5 --max-ticks 0",
         "touch data/recon/ml_paper_scalp_STOPPED.flag",
         "```",
         "",
@@ -7458,7 +7558,7 @@ def stop_requested(root: Path) -> bool:
 def run_loop(
     *,
     root: Optional[Path] = None,
-    tick_seconds: int = 10,
+    tick_seconds: int = 5,
     max_ticks: int = 0,
     sleep_fn: Optional[Callable[[float], None]] = None,
     source: str = "dual-tape",

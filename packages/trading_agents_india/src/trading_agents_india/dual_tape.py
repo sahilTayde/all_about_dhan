@@ -1,6 +1,6 @@
 """Dual tape: INDEX 1m + ATM CE/PE LTP + compact chain, then desk divergence.
 
-One program. Default poll 10s REST (clamp ≥10). Zero LLM on this path.
+One program. Default poll 5s REST (clamp ≥5). Zero LLM on this path.
 ExecutionClient stays SafeMode. RETUNE_GATE: no production param writes.
 """
 
@@ -1025,7 +1025,7 @@ def run_dual_tape_loop(
                             "dashboard_write_seconds": 5,
                             "tick_seconds": tick_seconds,
                             "tick_ne_dashboard_reason": (
-                                "Live mock REST poll default 10s. Dashboard JSON/MD rewrite every 5s "
+                                "Live mock REST poll default 5s. Dashboard JSON/MD rewrite every 5s "
                                 "from last tick. WS not enabled (no greeks on feed parse)."
                             ),
                         }

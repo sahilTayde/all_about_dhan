@@ -11,6 +11,7 @@ import {
   fetchMlPaperBoard,
   moneyClass,
   pathInfo,
+  postHumanOverride,
   pct,
   px,
   shortWhy,
@@ -47,6 +48,7 @@ export function InternalDesk() {
   const [tick, setTick] = useState(0);
   const [busy, setBusy] = useState(false);
   const [roomId, setRoomId] = useState(null);
+  const [humanMsg, setHumanMsg] = useState("");
 
   async function load(force = true, signal) {
     setBusy(true);
@@ -87,6 +89,27 @@ export function InternalDesk() {
         d.regimes[current.underlying].vwap
       : null;
   const room = roomId && d?.fillRooms?.[roomId] ? d.fillRooms[roomId] : d?.currentRoom;
+
+  async function humanExitCurrent() {
+    if (!current) return;
+    setHumanMsg("");
+    setBusy(true);
+    try {
+      const action = current.filled === false ? "CANCEL" : "EXIT";
+      await postHumanOverride({
+        action,
+        trade_id: current.trade_id,
+        underlying: current.underlying,
+        side: current.side,
+      });
+      setHumanMsg(`Human ${action.toLowerCase()} sent. This has priority over boss and desk on the next paper tick.`);
+      await load(true);
+    } catch (err) {
+      setHumanMsg(err.message || String(err));
+    } finally {
+      setBusy(false);
+    }
+  }
 
   return (
     <div className="shell shell--internal">
@@ -162,6 +185,13 @@ export function InternalDesk() {
                   </dl>
                 </div>
                 <TicketPath t={current} />
+                <div className="human-control">
+                  <button type="button" className="refresh-btn" onClick={humanExitCurrent} disabled={busy}>
+                    Human priority: {current.filled === false ? "Cancel working ticket" : "Exit open trade"}
+                  </button>
+                  <span>Overrides boss / desk for this paper ticket. No live broker order.</span>
+                </div>
+                {humanMsg ? <p className="muted">{humanMsg}</p> : null}
                 <div className="path-confidence">
                   <div>
                     <span>Path to target</span>

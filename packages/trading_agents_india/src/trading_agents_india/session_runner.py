@@ -1,6 +1,6 @@
 """Market-hours poll loop: re-run agent graph; append paper ledger.
 
-Default tick 10s REST live-mock. Faster WS not default (no greeks on feed).
+Default tick 5s REST live-mock. Faster WS not default (no greeks on feed).
 Dead-band / outside shell → HOLD-only paper emission.
 """
 

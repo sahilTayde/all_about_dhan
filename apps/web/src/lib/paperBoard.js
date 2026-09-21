@@ -53,6 +53,19 @@ export async function fetchFounderLab({ signal } = {}) {
   return _cache.lab;
 }
 
+export async function postHumanOverride(body, { signal } = {}) {
+  const base = (API_URL || "").replace(/\/$/, "");
+  const url = base ? `${base}/paper/human-override` : "/paper/human-override";
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body || {}),
+    signal,
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
+}
+
 export function inr(n, { signed = true, digits = 0 } = {}) {
   if (n == null || n === "" || Number.isNaN(Number(n))) return "—";
   const v = Number(n);
@@ -120,10 +133,13 @@ export function uniqueFills(rows) {
   for (const t of rows || []) {
     const k = fillKey(t);
     if (!map.has(k)) {
-      map.set(k, { ...t, books: [t.book_id].filter(Boolean) });
+      map.set(k, { ...t, books: [t.book_id].filter(Boolean), model_names: [...(t.model_names || [])] });
     } else {
       const row = map.get(k);
       if (t.book_id && !row.books.includes(t.book_id)) row.books.push(t.book_id);
+      for (const name of t.model_names || []) {
+        if (name && !row.model_names.includes(name)) row.model_names.push(name);
+      }
     }
   }
   return [...map.values()];
@@ -192,6 +208,7 @@ export function outcomeLabel(t) {
   if (reason.includes("TRAIL") || (reason === "STOP" && t?.trail_hit)) return "STOP LOSS TRAIL HIT";
   if (reason === "STOP" || t?.sl_hit) return "STOP LOSS HIT";
   if (reason.startsWith("CANCEL") || String(t?.status || "").includes("CANCEL")) return "CANCELLED";
+  if (reason === "HUMAN_EXIT") return "HUMAN EXIT";
   if (reason === "TIME" || reason.startsWith("FLATTEN")) return reason === "TIME" ? "TIME" : "FLATTEN";
   if (t?.result === "SUCCESS") return "ACHIEVED";
   if (t?.result === "LOSS") return "STOP LOSS HIT";

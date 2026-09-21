@@ -338,7 +338,7 @@ def main(argv: list[str] | None = None) -> int:
         "--tick-seconds",
         type=int,
         default=0,
-        help="Poll interval (default 45; clamp 30–300). Prefer 30–45s.",
+        help="Poll interval (default 5; clamp 5–300). Founder can run 5s dual-tape.",
     )
     p_dt.add_argument(
         "--max-ticks",
