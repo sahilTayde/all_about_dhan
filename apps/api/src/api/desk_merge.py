@@ -10,6 +10,168 @@ from typing import Any, Optional
 _REPO_ROOT = Path(__file__).resolve().parents[4]
 _LATEST_SIGNALS = _REPO_ROOT / "data" / "recon" / "paper_latest_signals.json"
 _MONITOR_STATUS = _REPO_ROOT / "data" / "recon" / "paper_ops_monitor_status.json"
+_ML_BOARD = _REPO_ROOT / "data" / "recon" / "ml_paper_dashboard.json"
+_SOD_BOOK = "MIX-DEFAULT-BUY"
+
+
+def _premium_ok(value: Any) -> bool:
+    if value in (None, ""):
+        return False
+    text = str(value).strip().upper()
+    if text in {"DATA_INSUFFICIENT", "DI", "UNKNOWN"}:
+        return False
+    try:
+        return abs(float(value)) >= 0
+    except (TypeError, ValueError):
+        return False
+
+
+def _hold_customer_row(name: str, base: dict[str, Any], reason: str) -> dict[str, Any]:
+    """Blank the hero. Never keep fixture 24850 PE as a live suggested ticket."""
+    row = dict(base)
+    row["underlying"] = name
+    row["side"] = "HOLD"
+    row["strike"] = ""
+    row["entry"] = ""
+    row["stop"] = ""
+    row["target"] = ""
+    row["staged"] = {
+        **(row.get("staged") or {}),
+        "state": "HOLD",
+        "waiting": True,
+        "lean": "HOLD",
+        "headline": "Waiting for next signal",
+        "note": reason,
+    }
+    row["customer"] = {
+        "headline": "Waiting for next signal",
+        "note": reason,
+    }
+    row["ticket"] = {
+        "unit": "OPTION_PREMIUM",
+        "levels_ready": False,
+        "levels_note": reason,
+        "lots": None,
+    }
+    life = dict(row.get("lifecycle") or {})
+    life["outcome"] = None
+    row["lifecycle"] = life
+    return row
+
+
+def _load_ml_board() -> dict[str, Any]:
+    if not _ML_BOARD.is_file():
+        return {}
+    try:
+        blob = json.loads(_ML_BOARD.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    return blob if isinstance(blob, dict) else {}
+
+
+def overlay_customer_sod_ticket(
+    desk: dict[str, Any],
+    board: Optional[dict[str, Any]] = None,
+) -> dict[str, Any]:
+    """Customer `/` = one MIX-DEFAULT-BUY paper ticket, or WAITING. No mock 24850 PE."""
+    out = deepcopy(desk)
+    if board is None:
+        board = _load_ml_board()
+    signals = dict(out.get("signals") or {})
+    meta = dict(out.get("meta") or {})
+    reason_wait = (
+        "No MIX-DEFAULT-BUY paper ticket with bound option premium. "
+        "Fixture BUY PE 24850 is not a live lean."
+    )
+    opens = [
+        t
+        for t in (board.get("open_trades") or [])
+        if isinstance(t, dict) and str(t.get("book_id") or "") == _SOD_BOOK
+    ]
+    fill = None
+    for t in opens:
+        if _premium_ok(t.get("entry")) and _premium_ok(t.get("stop")) and t.get("atm_strike") not in (None, ""):
+            fill = t
+            if str(t.get("underlying") or "").upper() == "NIFTY":
+                break
+    if fill is None:
+        for name, row in list(signals.items()):
+            if not isinstance(row, dict):
+                row = {"id": f"paper-{str(name).lower()}", "underlying": name}
+            signals[name] = _hold_customer_row(name, row, reason_wait)
+        meta["customer_ticket"] = "WAITING"
+        meta["placeholder"] = False
+        meta["source"] = "paper_sod_waiting" if board.get("live_session") else "mock_hidden"
+        meta["label"] = "PAPER" if board.get("live_session") else "WAITING"
+        meta["note"] = reason_wait
+        out["signals"] = signals
+        out["meta"] = meta
+        _apply_meta_veto_banner(out)
+        return out
+
+    und = str(fill.get("underlying") or "NIFTY").upper()
+    wing = str(fill.get("side") or "").upper()
+    buy = f"BUY_{wing}" if wing in {"CE", "PE"} else "HOLD"
+    lots = fill.get("lots")
+    for name, row in list(signals.items()):
+        if not isinstance(row, dict):
+            row = {"id": f"paper-{name.lower()}", "underlying": name}
+        if name != und:
+            signals[name] = _hold_customer_row(
+                name,
+                row,
+                f"Customer default is one {und} MIX-DEFAULT-BUY ticket. This index is not on the hero.",
+            )
+            continue
+        signals[name] = {
+            **row,
+            "id": fill.get("trade_id") or row.get("id") or f"paper-{name.lower()}",
+            "underlying": name,
+            "side": buy,
+            "strike": fill.get("atm_strike"),
+            "entry": fill.get("entry"),
+            "stop": fill.get("stop"),
+            "target": fill.get("target"),
+            "underlying_spot": fill.get("idx_at_open") or fill.get("spot_at_entry"),
+            "spot": fill.get("idx_at_open") or fill.get("spot_at_entry"),
+            "lots": lots,
+            "staged": {
+                **(row.get("staged") or {}),
+                "state": "IN-PROGRESS",
+                "waiting": False,
+                "lean": buy,
+                "headline": f"Paper {wing} path open",
+                "note": "MIX-DEFAULT-BUY ITM paper. You decide. Orders refused.",
+            },
+            "customer": {
+                "headline": f"{name} {wing} paper ticket — you decide",
+                "note": "Entry / stop / target are option premium on the filled strike. Not advice.",
+            },
+            "ticket": {
+                "unit": "OPTION_PREMIUM",
+                "levels_ready": True,
+                "levels_note": "LIVE PAPER MIX-DEFAULT-BUY. Option premium. Not a broker order.",
+                "lots": lots,
+                "underlying_spot": fill.get("idx_at_open") or fill.get("spot_at_entry"),
+            },
+            "lifecycle": {**(row.get("lifecycle") or {}), "outcome": None},
+        }
+
+    meta["source"] = "paper_sod"
+    meta["placeholder"] = False
+    meta["paper_live"] = True
+    meta["label"] = "LIVE PAPER"
+    meta["customer_ticket"] = fill.get("trade_id")
+    meta["session_ist_date"] = board.get("session_ist_date")
+    meta["asOf"] = board.get("as_of_ist") or meta.get("asOf")
+    meta["note"] = (
+        "Customer hero is the MIX-DEFAULT-BUY paper ticket only. "
+        "Fixture 24850 PE is not shown. Orders refused. Not advice."
+    )
+    out["signals"] = signals
+    out["meta"] = meta
+    _apply_meta_veto_banner(out)
+    return out
 
 
 def _di_or_num(value: Any) -> Any:

@@ -123,10 +123,21 @@ export function fieldsFromSignal(signal) {
   };
 }
 
+export function isPremiumNumber(value) {
+  if (value === "" || value == null) return false;
+  const upper = String(value).trim().toUpperCase();
+  if (upper === "DATA_INSUFFICIENT" || upper === "DI" || upper === "UNKNOWN") return false;
+  const n = Number(value);
+  return Number.isFinite(n);
+}
+
 export function hasLevels(signal) {
   if (!signal) return false;
-  return [signal.strike, signal.entry, signal.stop, signal.target].every(
-    (value) => value !== "" && value != null
+  if (signal.strike === "" || signal.strike == null) return false;
+  return (
+    isPremiumNumber(signal.entry) &&
+    isPremiumNumber(signal.stop) &&
+    isPremiumNumber(signal.target)
   );
 }
 
@@ -159,8 +170,10 @@ export function customerStatus(signal) {
   if (staged === "VETOED") return "DO NOT ENTER";
   if (staged === "EARLY" || signal?.staged?.waiting) return "DO NOT ENTER";
   if (staged === "WATCH") return "NEW SIGNAL";
-  if (staged === "CONFIRMED") return "NEW ENTRY";
-  if (staged === "IN-PROGRESS" || hasLevels(signal)) return "IN-PROGRESS";
+  if (staged === "CONFIRMED") return hasLevels(signal) ? "NEW ENTRY" : "WAITING FOR NEXT SIGNAL";
+  if (staged === "IN-PROGRESS" || hasLevels(signal)) {
+    return hasLevels(signal) ? "IN-PROGRESS" : "WAITING FOR NEXT SIGNAL";
+  }
 
   return "WAITING FOR NEXT SIGNAL";
 }

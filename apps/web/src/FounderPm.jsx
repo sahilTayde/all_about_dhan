@@ -3,6 +3,7 @@ import { AppNav } from "./components/AppNav.jsx";
 import { FounderRoster } from "./components/FounderRoster.jsx";
 import { Header } from "./components/Header.jsx";
 import { SodFillGraph, WatcherStrip } from "./components/SodFillGraph.jsx";
+import { FounderBookPicker } from "./components/FounderBookPicker.jsx";
 import { TradeHistory } from "./components/TradeHistory.jsx";
 import {
   derivePaperBoard,
@@ -136,6 +137,8 @@ export function FounderPm() {
               tone={Number(day?.net) >= 0 ? "up" : "down"}
             />
           </div>
+
+          <FounderBookPicker />
 
           <section className="panel exam-panel">
             <h2>Honesty exam (06)</h2>

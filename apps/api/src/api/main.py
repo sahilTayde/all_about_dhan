@@ -8,7 +8,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
 from api.config import load_api_settings
-from api.desk_merge import merge_live_paper_into_desk
+from api.desk_merge import merge_live_paper_into_desk, overlay_customer_sod_ticket
 from api.founder_status import build_founder_status
 from api.models import TookTradeBody, TookTradeRecord
 from api.premium_bind import bind_premiums_onto_desk
@@ -59,10 +59,24 @@ def create_app() -> FastAPI:
         """D4 /pm board. Disk + ports only. Never returns tokens."""
         return build_founder_status()
 
+    @app.get("/paper/founder-book")
+    def paper_founder_book() -> dict[str, Any]:
+        """Founder-picked indices for NEW paper fills. Tape still records all."""
+        from desk_ml.founder_session import load_founder_book
+
+        return load_founder_book()
+
+    @app.post("/paper/founder-book")
+    def paper_founder_book_save(body: dict[str, Any]) -> dict[str, Any]:
+        from desk_ml.founder_session import save_founder_book
+
+        names = body.get("trade_underlyings") if isinstance(body, dict) else None
+        return save_founder_book(names or [])
+
     def _desk(*, bind_premium: bool = True) -> dict[str, Any]:
         store: SignalStore = app.state.store
         live = getattr(app.state, "live_paper", None)
-        merged = merge_live_paper_into_desk(store.paper_desk(), live)
+        merged = overlay_customer_sod_ticket(merge_live_paper_into_desk(store.paper_desk(), live))
         # When live WS already bound premiums, skip duplicate chain calls.
         live_has_premium = False
         if live and isinstance(live, dict):

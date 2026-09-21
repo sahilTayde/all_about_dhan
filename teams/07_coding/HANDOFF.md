@@ -1,5 +1,49 @@
 # Handoff log — Team 07 Coding
 
+## As of now (2026-09-21 IST) — customer `/` parked (NO_PROMOTE)
+
+```text
+From:     teams/07_coding
+To:       00 / founder
+Date:     2026-09-21
+Status:   PAPER UI / NO_PROMOTE
+Accepted: Customer portal parked during paper. `/` → `/desk`.
+  Nav is Desk + Founder only. Customer App (live WS) not mounted.
+Rejected: Customer signal feed during this paper session.
+UNKNOWN: when founder wants `/` back.
+```
+
+## As of now (2026-09-21 IST) — founder index book + history dropdowns (NO_PROMOTE)
+
+```text
+From:     teams/07_coding
+To:       00 / founder / 06
+Date:     2026-09-21
+Status:   PAPER UI / NO_PROMOTE
+Accepted: /pm Founder book today (checkboxes). NEW fills only.
+  Dual-tape still records all indices. Discarded list hides
+  FOCUS_NIFTY_* (not a boss/dealer kill). Trade history
+  filters are three dropdowns from the actual rows.
+Rejected: Boss/dealer/analyst choose the index book. Flatten
+  the open NIFTY CE. 30 index chip buttons.
+UNKNOWN: engine silent-skip until dual-tape restarts after
+  this open ticket closes.
+```
+
+## As of now (2026-09-21 IST) — customer `/` no fixture PE (NO_PROMOTE)
+
+```text
+From:     teams/07_coding
+To:       00 / founder / 05
+Date:     2026-09-21
+Status:   PAPER UI / NO_PROMOTE
+Accepted: Customer hero uses MIX-DEFAULT-BUY paper ticket
+  (premium + lots) or WAITING. Fixture BUY PE 24850 +
+  DATA_INSUFFICIENT no longer paints as IN-PROGRESS.
+Rejected: Invent premium from index 24850. Live orders.
+UNKNOWN: /paper/signal until this API process is restarted.
+```
+
 ## As of now (2026-09-21 IST) — live money slate (NO_PROMOTE)
 
 ```text

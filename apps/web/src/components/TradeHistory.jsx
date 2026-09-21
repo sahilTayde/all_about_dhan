@@ -12,11 +12,39 @@ function OutcomePill({ label }) {
   return <span className={`out-pill out-pill--${outcomeSlug(label)}`}>{label}</span>;
 }
 
+function Field({ label, value, onChange, options }) {
+  return (
+    <label className="filter-field">
+      <span>{label}</span>
+      <select value={value} onChange={(e) => onChange(e.target.value)}>
+        {options.map((opt) => (
+          <option key={opt} value={opt}>
+            {opt === "ALL" ? `All ${label.toLowerCase()}` : opt}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
 export function TradeHistory({ rows, regimes, fillRooms, onOpen, pageSize = 12 }) {
   const [index, setIndex] = useState("ALL");
   const [side, setSide] = useState("ALL");
   const [out, setOut] = useState("ALL");
   const [more, setMore] = useState(false);
+
+  const indexOpts = useMemo(() => {
+    const seen = [...new Set((rows || []).map((t) => t.underlying).filter(Boolean))].sort();
+    return ["ALL", ...seen];
+  }, [rows]);
+  const sideOpts = useMemo(() => {
+    const seen = [...new Set((rows || []).map((t) => t.side).filter(Boolean))].sort();
+    return ["ALL", ...seen];
+  }, [rows]);
+  const outOpts = useMemo(() => {
+    const seen = [...new Set((rows || []).map((t) => outcomeLabel(t)).filter(Boolean))].sort();
+    return ["ALL", ...seen];
+  }, [rows]);
 
   const filtered = useMemo(() => {
     return (rows || []).filter((t) => {
@@ -32,21 +60,9 @@ export function TradeHistory({ rows, regimes, fillRooms, onOpen, pageSize = 12 }
   return (
     <div>
       <div className="filter-row" role="group" aria-label="Filter book">
-        {["ALL", "NIFTY", "BANKNIFTY", "SENSEX"].map((v) => (
-          <button key={v} type="button" className={`chip ${index === v ? "chip--active" : ""}`} onClick={() => setIndex(v)}>
-            {v}
-          </button>
-        ))}
-        {["ALL", "CE", "PE"].map((v) => (
-          <button key={v} type="button" className={`chip ${side === v ? "chip--active" : ""}`} onClick={() => setSide(v)}>
-            {v}
-          </button>
-        ))}
-        {["ALL", "TARGET HIT", "TARGET 2 HIT", "STOP LOSS HIT", "STOP LOSS TRAIL HIT", "CANCELLED", "TIME"].map((v) => (
-          <button key={v} type="button" className={`chip ${out === v ? "chip--active" : ""}`} onClick={() => setOut(v)}>
-            {v === "ALL" ? "ALL exits" : v}
-          </button>
-        ))}
+        <Field label="Index" value={index} onChange={setIndex} options={indexOpts} />
+        <Field label="Side" value={side} onChange={setSide} options={sideOpts} />
+        <Field label="Exit" value={out} onChange={setOut} options={outOpts} />
       </div>
       <p className="muted">
         {filtered.length} trades in this filter · {shown.length} shown

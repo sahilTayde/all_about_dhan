@@ -3705,24 +3705,14 @@ def _try_open(
         if bool(getattr(engine, "sod_one_ticket", False)):
             engine.mark_skip(book_id, underlying, SOD_ONE_OPEN, ts=tick.ts, seen_side=side)
         return
-    if getattr(engine, "skip_banknifty", True) and str(underlying).upper() == "BANKNIFTY":
-        engine.mark_skip(
-            book_id,
-            underlying,
-            "FOCUS_NIFTY_SENSEX",
-            ts=tick.ts,
-            seen_side=side,
-        )
-        return
-    if getattr(engine, "skip_sensex", False) and str(underlying).upper() == "SENSEX":
-        engine.mark_skip(
-            book_id,
-            underlying,
-            "FOCUS_NIFTY_ONLY",
-            ts=tick.ts,
-            seen_side=side,
-        )
-        return
+    try:
+        from desk_ml.founder_session import allows_new_fill
+
+        if not allows_new_fill(underlying, root=getattr(engine, "root", None)):
+            return
+    except Exception:
+        if str(underlying).upper() not in {"NIFTY"}:
+            return
     classified = engine.last_regime.get(underlying.upper()) or {}
     regime = str(classified.get("regime") or "UNKNOWN")
     if skip_reason:

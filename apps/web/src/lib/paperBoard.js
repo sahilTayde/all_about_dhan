@@ -237,13 +237,17 @@ export function discardedWho(row) {
   return "Boss / model";
 }
 
+const FOUNDER_OFF_BOOK = new Set(["FOCUS_NIFTY_ONLY", "FOCUS_NIFTY_SENSEX", "FOUNDER_BOOK_OFF"]);
+
 export function groupSkips(rows) {
   const map = new Map();
   for (const t of rows || []) {
-    const k = `${t.reason || t.vs_picker || "SKIP"}|${t.underlying || "?"}|${t.seen_side || t.side || "—"}`;
+    const reason = String(t.reason || t.vs_picker || "SKIP");
+    if (FOUNDER_OFF_BOOK.has(reason)) continue;
+    const k = `${reason}|${t.underlying || "?"}|${t.seen_side || t.side || "—"}`;
     if (!map.has(k)) {
       map.set(k, {
-        reason: t.reason || t.vs_picker,
+        reason,
         underlying: t.underlying,
         side: t.seen_side || t.side,
         why: t.why || t.detail || t.observation,

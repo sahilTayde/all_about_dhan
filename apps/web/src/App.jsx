@@ -59,18 +59,26 @@ export default function App() {
 
   const mockSignal = desk?.signals?.[underlying];
   const live = livePaper?.underlyings?.[underlying];
-  // LIVE PAPER levels win when present. Index proxy never fills premium slots.
-  const signal = live && mockSignal
+  const livePremiumOk =
+    live &&
+    live.strike != null &&
+    live.strike !== "" &&
+    Number.isFinite(Number(live.entry)) &&
+    Number.isFinite(Number(live.stop)) &&
+    !["DATA_INSUFFICIENT", "DI", "UNKNOWN", ""].includes(String(live.entry).toUpperCase());
+  // Desk SOD ticket wins. WS lean without premium must not revive mock 24850 PE.
+  const signal = livePremiumOk && mockSignal
     ? {
         ...mockSignal,
         side: live.side,
-        strike: live.strike != null && live.strike !== "" ? live.strike : "",
-        entry: live.entry != null && live.entry !== "" ? live.entry : "",
-        stop: live.stop != null && live.stop !== "" ? live.stop : "",
-        target: live.target != null && live.target !== "" ? live.target : "",
+        strike: live.strike,
+        entry: live.entry,
+        stop: live.stop,
+        target: live.target,
         underlying_spot:
           live.underlying_spot ?? live.spot ?? live.ticket?.underlying_spot ?? "",
         spot: live.underlying_spot ?? live.spot ?? live.ticket?.underlying_spot ?? "",
+        lots: live.lots ?? live.ticket?.lots ?? mockSignal.lots,
         staged: {
           state: live.state,
           headline: live.headline,
@@ -78,12 +86,7 @@ export default function App() {
         },
         customer: { headline: live.headline, note: live.note },
         lifecycle: mockSignal.lifecycle || {},
-        ticket: live.ticket || {
-          unit: "OPTION_PREMIUM",
-          levels_ready: false,
-          levels_note:
-            "LIVE PAPER lean without bound option premium — DATA_INSUFFICIENT. Refusing index-as-premium.",
-        },
+        ticket: live.ticket || mockSignal.ticket,
         confidence: live.confidence,
         chart: mockSignal.chart,
         confidenceDetail: mockSignal.confidenceDetail,
@@ -193,7 +196,10 @@ export default function App() {
         </div>
       )}
 
-      <TodaysBook book={desk.todaysBook} fixtureBook={desk.fixtureBook} />
+      <TodaysBook
+        book={desk.todaysBook}
+        fixtureBook={desk.meta?.paper_live || desk.meta?.customer_ticket ? null : desk.fixtureBook}
+      />
 
       <details className="desk-context">
         <summary>Desk context (sentiment · close auction) — not the ticket</summary>

@@ -145,7 +145,9 @@ export function SignalCard({ signal, fields, confidence, ticket, deskMeta }) {
             </dl>
 
             {unitNote && <p className="signal-card__unit muted">{unitNote}</p>}
-            <p className="signal-card__lot muted">Size · 1 lot PAPER</p>
+            <p className="signal-card__lot muted">
+              Size · {ticket?.lots || signal?.lots || "—"} lots PAPER
+            </p>
 
             <p className="signal-card__headline">{headline}</p>
             {note && <p className="signal-card__note">{note}</p>}

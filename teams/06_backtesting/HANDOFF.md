@@ -1,5 +1,19 @@
 # Handoff log — Team 06 Backtesting
 
+## As of now (2026-09-21 IST) — founder book NEW fills (NO_PROMOTE)
+
+```text
+From:     teams/06_backtesting
+To:       00 / founder / 07
+Date:     2026-09-21
+Status:   PAPER / NO_PROMOTE
+Accepted: founder_trade_underlyings.json gates NEW MIX-DEFAULT-BUY
+  opens. No mark_skip as boss/dealer for off-book indices.
+  Tape still writes NIFTY/BN/SENSEX. Open ticket untouched.
+Rejected: Dealer/boss/analyst fire the index universe. Live orders.
+UNKNOWN: running dual-tape still old until restart after this CE closes.
+```
+
 ## As of now (2026-09-21 IST) — paper 20–30 lots (NO_PROMOTE)
 
 ```text

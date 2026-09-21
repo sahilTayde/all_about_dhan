@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
-import App from "./App.jsx";
 import { CleanupCanvas } from "./CleanupCanvas.jsx";
 import { FounderPm } from "./FounderPm.jsx";
 import { InternalDesk } from "./InternalDesk.jsx";
@@ -21,13 +20,16 @@ function Root() {
   if (path === "/pm" || path.startsWith("/pm/")) {
     return <FounderPm />;
   }
-  if (path === "/desk" || path.startsWith("/desk/")) {
-    return <InternalDesk />;
-  }
   if (path === "/cleanup" || path.startsWith("/cleanup/")) {
     return <CleanupCanvas />;
   }
-  return <App />;
+  if (path === "/" || path === "") {
+    if (typeof window !== "undefined" && window.location.pathname === "/") {
+      window.history.replaceState({}, "", "/desk");
+    }
+    return <InternalDesk />;
+  }
+  return <InternalDesk />;
 }
 
 createRoot(document.getElementById("root")).render(

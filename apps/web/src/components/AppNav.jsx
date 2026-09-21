@@ -1,5 +1,4 @@
 const LINKS = [
-  { href: "/", label: "Customer", hint: "One ticket" },
   { href: "/desk", label: "Desk", hint: "Signals & book" },
   { href: "/pm", label: "Founder", hint: "Money & models" },
 ];
@@ -9,7 +8,7 @@ export function AppNav({ current }) {
   return (
     <nav className="app-nav" aria-label="Dashboards">
       {LINKS.map((l) => {
-        const active = l.href === "/" ? path === "/" : path === l.href || path.startsWith(`${l.href}/`);
+        const active = path === l.href || path.startsWith(`${l.href}/`);
         return (
           <a key={l.href} href={l.href} className={active ? "app-nav__link is-active" : "app-nav__link"}>
             <strong>{l.label}</strong>

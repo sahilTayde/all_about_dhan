@@ -200,6 +200,9 @@ export function InternalDesk() {
 
           <section className="panel">
             <h2>Discarded by boss or dealer</h2>
+            <p className="muted">
+              Index book is the founder pick on /pm. BANKNIFTY / SENSEX off that book are not discards.
+            </p>
             {d.skipGroups.length === 0 ? (
               <p className="muted">Nothing discarded on this snapshot.</p>
             ) : (
