@@ -14,6 +14,7 @@ from desk_ml.inventory import inventory_recon
 from desk_ml.mrr import MRR_WINDOWS, mrr_fit_underlying, score_mrr_last
 from desk_ml.overlay import score_session
 from desk_ml.paper_scalp import replay_paper_scalp, run_fix_first_drill, run_loop
+from desk_ml.sod_exam import EXAM_DAYS_DEFAULT, run_sod_exam
 from desk_ml.persist import default_model_path, repo_root
 from desk_ml.replay import replay_hold
 
@@ -109,6 +110,14 @@ def build_parser() -> argparse.ArgumentParser:
     )
     ff.add_argument("--since", default="2026-09-17", help="IST YYYY-MM-DD inclusive")
     ff.add_argument("--no-persist", action="store_true")
+    ex = sub.add_parser(
+        "sod-exam",
+        help="06 honesty exam: lookahead slice + fill contract + why-spill. write=false. NO_PROMOTE.",
+    )
+    ex.add_argument("--days", default=",".join(EXAM_DAYS_DEFAULT), help="IST YYYY-MM-DD comma list")
+    ex.add_argument("--underlyings", default="NIFTY")
+    ex.add_argument("--source", default="dual-tape")
+    ex.add_argument("--no-persist", action="store_true", help="Do not write recon/mock JSON")
     return p
 
 
@@ -298,6 +307,57 @@ def main(argv: Optional[list[str]] = None) -> int:
         public["day_over_day"] = report.get("day_over_day")
         public["watch"] = report.get("watch")
         public["improve_next"] = report.get("improve_next")
+        _print(public)
+        return 0 if report.get("ok") else 2
+    if args.cmd == "sod-exam":
+        days = [d.strip() for d in str(args.days).split(",") if d.strip()]
+        names = tuple(u.strip().upper() for u in str(args.underlyings).split(",") if u.strip())
+        report = run_sod_exam(
+            days=days or list(EXAM_DAYS_DEFAULT),
+            root=root,
+            underlyings=names or ("NIFTY",),
+            source=str(args.source),
+            persist=not bool(args.no_persist),
+        )
+        public = {
+            k: report.get(k)
+            for k in (
+                "ok",
+                "job",
+                "as_of_ist",
+                "gate",
+                "promote",
+                "orders",
+                "win_rate",
+                "overall_honesty",
+                "headline",
+                "stories",
+                "watch_next",
+                "contract",
+                "how_to_read",
+                "path",
+                "mock_path",
+                "cli",
+                "note",
+                "one_day_is_not_retune",
+            )
+            if k in report
+        }
+        public["days"] = [
+            {
+                "day": d.get("day"),
+                "honesty": d.get("honesty"),
+                "session_kind": d.get("session_kind"),
+                "n_triples": d.get("n_triples"),
+                "n_sod_closed": d.get("n_sod_closed"),
+                "n_peeked_slices": d.get("n_peeked_slices"),
+                "n_fill_contract_fail": d.get("n_fill_contract_fail"),
+                "story": d.get("story"),
+                "improve": d.get("improve"),
+                "tape_note": d.get("tape_note"),
+            }
+            for d in (report.get("days") or [])
+        ]
         _print(public)
         return 0 if report.get("ok") else 2
     path = default_model_path(args.underlying, root=root)

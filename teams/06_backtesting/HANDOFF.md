@@ -1,5 +1,33 @@
 # Handoff log — Team 06 Backtesting
 
+## As of now (2026-09-21 IST) — paper 20–30 lots (NO_PROMOTE)
+
+```text
+From:     teams/06_backtesting
+To:       00 / founder / 07
+Date:     2026-09-21
+Status:   PAPER / NO_PROMOTE / BACKTEST_REQUIRED
+Accepted: Desk ₹5.7L. New MIX-DEFAULT-BUY fills target 25 lots
+  (floor 20, cap 30). Skip if capital cannot buy 20 lots.
+  Never 1-lot paper. Lot size from instrument master.
+Rejected: Open 1 lot when clipped. Promote. Live orders.
+UNKNOWN: already-open 10-lot CE from 10:45 IST keeps old size
+  until that ticket closes.
+```
+
+## As of now (2026-09-20 IST) — SOD honesty exam on /pm (NO_PROMOTE)
+
+```text
+From:     teams/06_backtesting
+To:       00 / founder / 07
+Date:     2026-09-20
+Status:   PAPER / NO_PROMOTE / BACKTEST_REQUIRED
+Accepted: sod-exam write=false; fill contract graded; /pm Honesty
+  exam; last_step.exam + exam_events. One day ≠ retune.
+Rejected: Overlay recode. Promote. Live orders. Hyperopt.
+UNKNOWN: 16/17/18 are ATM tape — ITM fills may be zero (honest skip).
+```
+
 ## As of now (2026-09-20 IST) — ignored analyst votes on ML_PAPER_DASHBOARD (NO_PROMOTE)
 
 ```text

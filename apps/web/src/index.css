@@ -2039,6 +2039,21 @@ a {
   margin: 0.3rem 0;
 }
 
+.exam-headline {
+  margin: 0.65rem 0 0.35rem;
+  font-size: 0.98rem;
+  line-height: 1.45;
+}
+
+.exam-day-story {
+  display: block;
+  font-style: normal;
+  font-size: 0.78rem;
+  color: var(--ink-soft);
+  font-weight: 400;
+  margin-top: 0.35rem;
+}
+
 .desk-refresh {
   display: flex;
   justify-content: space-between;

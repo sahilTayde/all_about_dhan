@@ -131,6 +131,37 @@ def create_app() -> FastAPI:
             }
         return snap
 
+    @app.get("/paper/sod-exam")
+    def paper_sod_exam() -> dict[str, Any]:
+        """06 honesty exam JSON (recon or mock). Not a promote. No orders."""
+        import json
+        from pathlib import Path
+
+        root = Path(__file__).resolve().parents[4]
+        recon = root / "data" / "recon" / "sod_exam_report.json"
+        mock = root / "apps" / "web" / "public" / "mock" / "sod_exam_report.json"
+        path = recon if recon.is_file() else mock
+        if not path.is_file():
+            return {
+                "ok": False,
+                "reason": "DATA_INSUFFICIENT: run python -m desk_ml sod-exam",
+                "orders": "REFUSED",
+                "promote": False,
+                "win_rate": None,
+                "gate": "not RESEARCH_READY_FOR_PROGRAMMING",
+                "how_to_read": {
+                    "where": "Founder /pm → Honesty exam",
+                    "when": "After close: python -m desk_ml sod-exam",
+                },
+            }
+        blob = json.loads(path.read_text(encoding="utf-8"))
+        if isinstance(blob, dict):
+            blob.setdefault("orders", "REFUSED")
+            blob.setdefault("promote", False)
+            blob.setdefault("win_rate", None)
+            blob["source_path"] = str(path.name)
+        return blob
+
     @app.get("/paper/ml-books")
     def paper_ml_books() -> dict[str, Any]:
         """Parallel ML/dealer PAPER scalper board. Net ₹ after Groww+STT. NO_PROMOTE."""

@@ -364,16 +364,19 @@ def test_allocate_old_engine_splits_lab_when_sod_off() -> None:
     assert sum(plan["per_book"][b] for b in plan["tradable"]) == DESK_CAPITAL_INR
 
 
-def test_size_lots_ten_when_capital_allows() -> None:
+def test_size_lots_twenty_five_on_desk_capital() -> None:
     from desk_ml.paper_lots import size_lots
+    from desk_ml.paper_scalp import DESK_CAPITAL_INR
 
-    row = size_lots(entry=150.0, lot_size=65, capital_inr=142500.0, min_lots=10)
-    assert row["lots"] == 10
-    assert row["qty"] == 650
+    row = size_lots(entry=150.0, lot_size=65, capital_inr=DESK_CAPITAL_INR)
+    assert row["lots"] == 25
+    assert row["qty"] == 1625
     assert row["lot_status"] == "OK"
-    clipped = size_lots(entry=400.0, lot_size=65, capital_inr=50000.0, min_lots=10)
-    assert clipped["lots"] == 1
-    assert clipped["lot_status"] == "CLIPPED_TO_CAPITAL"
+    cheap = size_lots(entry=80.0, lot_size=65, capital_inr=DESK_CAPITAL_INR)
+    assert cheap["lots"] == 25
+    skip = size_lots(entry=400.0, lot_size=65, capital_inr=50000.0)
+    assert skip["lots"] == 0
+    assert skip["lot_status"] == "SKIP_BELOW_MIN_LOTS"
 
 
 def test_resolve_fill_intents_hold_skip_logit_fill_dealer_not_against() -> None:

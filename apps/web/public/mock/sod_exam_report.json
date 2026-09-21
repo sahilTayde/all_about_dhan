@@ -1,0 +1,407 @@
+{
+  "ok": true,
+  "job": "sod-exam",
+  "as_of_ist": "2026-09-21T00:25:43+05:30",
+  "gate": "not RESEARCH_READY_FOR_PROGRAMMING",
+  "promote": false,
+  "orders": "REFUSED",
+  "win_rate": null,
+  "one_day_is_not_retune": true,
+  "contract": {
+    "id": "SOD_FILL_CONTRACT_V1",
+    "signal_clock": "CLOSED_1M",
+    "plain": "Decide only after a 1-minute bar is finished. Paper fill uses the next minute's ITM price, or we skip. Never book ATM and call it ITM. FOLLOWS may use the last tick for its vote only \u2014 that is not the fill."
+  },
+  "how_to_read": {
+    "where": "Founder /pm \u2192 Honesty exam. Also GET /paper/sod-exam.",
+    "when": "After close or when you run: python -m desk_ml sod-exam",
+    "boxes": [
+      "Honesty: CLEAN / PEEKED / NOT_ENOUGH_DATA",
+      "Fill contract: did we book ATM as ITM or fill on a forming bar?",
+      "Analyst next-ITM: who was useful (not customer wr)",
+      "Spill story: which room leaked \u2014 do not retune from one day"
+    ]
+  },
+  "overall_honesty": "CLEAN",
+  "headline": "Exam is a grade, not a promote. Bad days happen. Use the room name to know what to watch next \u2014 not to rewrite tonight.",
+  "days": [
+    {
+      "ok": true,
+      "day": "2026-09-16",
+      "honesty": "CLEAN",
+      "session_kind": "NORMAL",
+      "n_triples": 180,
+      "n_exam_events": 80,
+      "n_sod_closed": 1,
+      "n_slice": 1,
+      "n_peeked_slices": 0,
+      "n_fill_contract_fail": 0,
+      "fill_contract": "SOD_FILL_CONTRACT_V1",
+      "tape_note": "ITM kind present on at least one tape row.",
+      "tapes": {
+        "NIFTY": {
+          "aligned_triples": 180,
+          "source": "dual_tape_jsonl"
+        }
+      },
+      "slices": [
+        {
+          "underlying": "NIFTY",
+          "cut_ts": 1789550832,
+          "status": "CLEAN",
+          "full": [
+            "TICKET",
+            "CE",
+            "PASS",
+            "OBSERVER_PASS_STRIKE_ROLL",
+            true
+          ],
+          "sliced": [
+            "TICKET",
+            "CE",
+            "PASS",
+            "OBSERVER_PASS_STRIKE_ROLL",
+            true
+          ],
+          "plain": "Same picker/observer/desk when later candles are hidden."
+        }
+      ],
+      "analyst_next_itm": [
+        {
+          "source": "MIX-TV-EP-024",
+          "spoken": 80,
+          "next_itm_ok": 9,
+          "next_itm_miss": 29,
+          "hit_pct": 23.7,
+          "note": "Not a customer win rate. Next finished ITM print only. UNKNOWN if ATM tape."
+        },
+        {
+          "source": "STRAT-003",
+          "spoken": 20,
+          "next_itm_ok": 2,
+          "next_itm_miss": 16,
+          "hit_pct": 11.1,
+          "note": "Not a customer win rate. Next finished ITM print only. UNKNOWN if ATM tape."
+        },
+        {
+          "source": "follows",
+          "spoken": 33,
+          "next_itm_ok": 2,
+          "next_itm_miss": 7,
+          "hit_pct": 22.2,
+          "note": "Not a customer win rate. Next finished ITM print only. UNKNOWN if ATM tape."
+        },
+        {
+          "source": "greeks",
+          "spoken": 33,
+          "next_itm_ok": 2,
+          "next_itm_miss": 7,
+          "hit_pct": 22.2,
+          "note": "Not a customer win rate. Next finished ITM print only. UNKNOWN if ATM tape."
+        }
+      ],
+      "spills": [
+        {
+          "day": "2026-09-16",
+          "underlying": "NIFTY",
+          "side": "CE",
+          "pnl_inr": null,
+          "exit": "STOP",
+          "next_itm_helped": false,
+          "room": "overlay",
+          "code": "STOP_OR_STALL",
+          "plain": "We lost after the fill (stop / stall / against). Entry may have been wrong or booking cut it. Need more NORMAL days before touching overlay."
+        }
+      ],
+      "room_counts": {
+        "overlay": 1
+      },
+      "story": "2026-09-16: honest exam, losses after fill (stop/stall/cancel). One day is not enough to recode overlay.",
+      "improve": "overlay \u2014 only if more NORMAL days agree (founder confirm)",
+      "one_day_is_not_retune": true,
+      "promote": false,
+      "orders": "REFUSED",
+      "pnl_note": "Use board net \u20b9 only if honesty=CLEAN and fill contract ok.",
+      "win_rate": null
+    },
+    {
+      "ok": true,
+      "day": "2026-09-17",
+      "honesty": "CLEAN",
+      "session_kind": "NORMAL",
+      "n_triples": 657,
+      "n_exam_events": 80,
+      "n_sod_closed": 4,
+      "n_slice": 2,
+      "n_peeked_slices": 0,
+      "n_fill_contract_fail": 0,
+      "fill_contract": "SOD_FILL_CONTRACT_V1",
+      "tape_note": "ITM kind present on at least one tape row.",
+      "tapes": {
+        "NIFTY": {
+          "aligned_triples": 657,
+          "source": "dual_tape_jsonl"
+        }
+      },
+      "slices": [
+        {
+          "underlying": "NIFTY",
+          "cut_ts": 1789664605,
+          "status": "CLEAN",
+          "full": [
+            "TICKET",
+            "CE",
+            "PASS",
+            "OBSERVER_PASS_INDEX_FLAT",
+            false
+          ],
+          "sliced": [
+            "TICKET",
+            "CE",
+            "PASS",
+            "OBSERVER_PASS_INDEX_FLAT",
+            false
+          ],
+          "plain": "Same picker/observer/desk when later candles are hidden."
+        },
+        {
+          "underlying": "NIFTY",
+          "cut_ts": 1789669770,
+          "status": "CLEAN",
+          "full": [
+            "TICKET",
+            "CE",
+            "PASS",
+            "OBSERVER_PASS_INDEX_FLAT",
+            false
+          ],
+          "sliced": [
+            "TICKET",
+            "CE",
+            "PASS",
+            "OBSERVER_PASS_INDEX_FLAT",
+            false
+          ],
+          "plain": "Same picker/observer/desk when later candles are hidden."
+        }
+      ],
+      "analyst_next_itm": [
+        {
+          "source": "MIX-TV-EP-024",
+          "spoken": 80,
+          "next_itm_ok": 0,
+          "next_itm_miss": 79,
+          "hit_pct": 0.0,
+          "note": "Not a customer win rate. Next finished ITM print only. UNKNOWN if ATM tape."
+        }
+      ],
+      "spills": [
+        {
+          "day": "2026-09-17",
+          "underlying": "NIFTY",
+          "side": "CE",
+          "pnl_inr": null,
+          "exit": "CANCEL_AGAINST",
+          "next_itm_helped": false,
+          "room": "overlay",
+          "code": "CANCEL_AGAINST",
+          "plain": "Overlay cancelled after the thesis broke. That can save worse days \u2014 do not flip from one loss."
+        },
+        {
+          "day": "2026-09-17",
+          "underlying": "NIFTY",
+          "side": "CE",
+          "pnl_inr": null,
+          "exit": "COVER_LONG_UNWIND",
+          "next_itm_helped": false,
+          "room": "desk",
+          "code": "LOST_OTHER",
+          "plain": "Lost on exit COVER_LONG_UNWIND. Grade the room, do not promote."
+        },
+        {
+          "day": "2026-09-17",
+          "underlying": "NIFTY",
+          "side": "CE",
+          "pnl_inr": null,
+          "exit": "CANCEL_AGAINST",
+          "next_itm_helped": false,
+          "room": "overlay",
+          "code": "CANCEL_AGAINST",
+          "plain": "Overlay cancelled after the thesis broke. That can save worse days \u2014 do not flip from one loss."
+        },
+        {
+          "day": "2026-09-17",
+          "underlying": "NIFTY",
+          "side": "PE",
+          "pnl_inr": null,
+          "exit": "CANCEL_AGAINST",
+          "next_itm_helped": false,
+          "room": "overlay",
+          "code": "CANCEL_AGAINST",
+          "plain": "Overlay cancelled after the thesis broke. That can save worse days \u2014 do not flip from one loss."
+        }
+      ],
+      "room_counts": {
+        "overlay": 3,
+        "desk": 1
+      },
+      "story": "2026-09-17: honest exam, losses after fill (stop/stall/cancel). One day is not enough to recode overlay.",
+      "improve": "overlay \u2014 only if more NORMAL days agree (founder confirm)",
+      "one_day_is_not_retune": true,
+      "promote": false,
+      "orders": "REFUSED",
+      "pnl_note": "Use board net \u20b9 only if honesty=CLEAN and fill contract ok.",
+      "win_rate": null
+    },
+    {
+      "ok": true,
+      "day": "2026-09-18",
+      "honesty": "CLEAN",
+      "session_kind": "UNKNOWN",
+      "n_triples": 698,
+      "n_exam_events": 80,
+      "n_sod_closed": 5,
+      "n_slice": 2,
+      "n_peeked_slices": 0,
+      "n_fill_contract_fail": 0,
+      "fill_contract": "SOD_FILL_CONTRACT_V1",
+      "tape_note": "ITM kind present on at least one tape row.",
+      "tapes": {
+        "NIFTY": {
+          "aligned_triples": 698,
+          "source": "dual_tape_jsonl"
+        }
+      },
+      "slices": [
+        {
+          "underlying": "NIFTY",
+          "cut_ts": 1789745309,
+          "status": "CLEAN",
+          "full": [
+            "TICKET",
+            "PE",
+            "PASS",
+            "OBSERVER_PASS_INDEX_FLAT",
+            false
+          ],
+          "sliced": [
+            "TICKET",
+            "PE",
+            "PASS",
+            "OBSERVER_PASS_INDEX_FLAT",
+            false
+          ],
+          "plain": "Same picker/observer/desk when later candles are hidden."
+        },
+        {
+          "underlying": "NIFTY",
+          "cut_ts": 1789751884,
+          "status": "CLEAN",
+          "full": [
+            "TICKET",
+            "PE",
+            "PASS",
+            "OBSERVER_PASS_INDEX_FLAT",
+            false
+          ],
+          "sliced": [
+            "TICKET",
+            "PE",
+            "PASS",
+            "OBSERVER_PASS_INDEX_FLAT",
+            false
+          ],
+          "plain": "Same picker/observer/desk when later candles are hidden."
+        }
+      ],
+      "analyst_next_itm": [
+        {
+          "source": "MIX-TV-EP-024",
+          "spoken": 80,
+          "next_itm_ok": 0,
+          "next_itm_miss": 78,
+          "hit_pct": 0.0,
+          "note": "Not a customer win rate. Next finished ITM print only. UNKNOWN if ATM tape."
+        }
+      ],
+      "spills": [
+        {
+          "day": "2026-09-18",
+          "underlying": "NIFTY",
+          "side": "PE",
+          "pnl_inr": null,
+          "exit": "COVER_LONG_UNWIND",
+          "next_itm_helped": true,
+          "room": "desk",
+          "code": "LOST_OTHER",
+          "plain": "Lost on exit COVER_LONG_UNWIND. Grade the room, do not promote."
+        },
+        {
+          "day": "2026-09-18",
+          "underlying": "NIFTY",
+          "side": "CE",
+          "pnl_inr": null,
+          "exit": "CANCEL_AGAINST",
+          "next_itm_helped": false,
+          "room": "overlay",
+          "code": "CANCEL_AGAINST",
+          "plain": "Overlay cancelled after the thesis broke. That can save worse days \u2014 do not flip from one loss."
+        },
+        {
+          "day": "2026-09-18",
+          "underlying": "NIFTY",
+          "side": "CE",
+          "pnl_inr": null,
+          "exit": "CANCEL_STALL",
+          "next_itm_helped": true,
+          "room": "none",
+          "code": "WIN_OR_FLAT",
+          "plain": "This ticket did not lose rupees. Exam does not retune from it."
+        },
+        {
+          "day": "2026-09-18",
+          "underlying": "NIFTY",
+          "side": "CE",
+          "pnl_inr": null,
+          "exit": "CANCEL_AGAINST",
+          "next_itm_helped": false,
+          "room": "overlay",
+          "code": "CANCEL_AGAINST",
+          "plain": "Overlay cancelled after the thesis broke. That can save worse days \u2014 do not flip from one loss."
+        },
+        {
+          "day": "2026-09-18",
+          "underlying": "NIFTY",
+          "side": "CE",
+          "pnl_inr": null,
+          "exit": "CANCEL_UNFILLED_AWAY",
+          "next_itm_helped": true,
+          "room": "none",
+          "code": "WIN_OR_FLAT",
+          "plain": "This ticket did not lose rupees. Exam does not retune from it."
+        }
+      ],
+      "room_counts": {
+        "desk": 1,
+        "overlay": 2
+      },
+      "story": "2026-09-18: honest exam, losses after fill (stop/stall/cancel). One day is not enough to recode overlay.",
+      "improve": "overlay \u2014 only if more NORMAL days agree (founder confirm)",
+      "one_day_is_not_retune": true,
+      "promote": false,
+      "orders": "REFUSED",
+      "pnl_note": "Use board net \u20b9 only if honesty=CLEAN and fill contract ok.",
+      "win_rate": null
+    }
+  ],
+  "stories": [
+    "2026-09-16: honest exam, losses after fill (stop/stall/cancel). One day is not enough to recode overlay.",
+    "2026-09-17: honest exam, losses after fill (stop/stall/cancel). One day is not enough to recode overlay.",
+    "2026-09-18: honest exam, losses after fill (stop/stall/cancel). One day is not enough to recode overlay."
+  ],
+  "watch_next": [
+    "overlay \u2014 only if more NORMAL days agree (founder confirm)"
+  ],
+  "cli": "python -m desk_ml sod-exam --days 2026-09-16,2026-09-17,2026-09-18 --no-write-board",
+  "note": "write=false replay. Overlay unchanged. NO_PROMOTE."
+}

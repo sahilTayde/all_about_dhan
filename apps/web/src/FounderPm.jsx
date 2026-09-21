@@ -8,6 +8,7 @@ import {
   derivePaperBoard,
   fetchFounderLab,
   fetchMlPaperBoard,
+  fetchSodExam,
   inr,
   moneyClass,
   pct,
@@ -38,6 +39,7 @@ export function FounderPm() {
   const [status, setStatus] = useState(null);
   const [board, setBoard] = useState(null);
   const [lab, setLab] = useState(null);
+  const [exam, setExam] = useState(null);
   const [error, setError] = useState(null);
   const [roomId, setRoomId] = useState(null);
 
@@ -49,6 +51,7 @@ export function FounderPm() {
         fetchFounderStatus(ac.signal),
         fetchMlPaperBoard({ force, signal: ac.signal }),
         fetchFounderLab({ signal: ac.signal }),
+        fetchSodExam({ signal: ac.signal }),
       ]);
       if (cancelled) return;
       const nextErr = [];
@@ -57,6 +60,7 @@ export function FounderPm() {
       if (results[1].status === "fulfilled") setBoard(results[1].value);
       else nextErr.push("paper book missing");
       if (results[2].status === "fulfilled") setLab(results[2].value);
+      if (results[3].status === "fulfilled") setExam(results[3].value);
       setError(nextErr.length ? nextErr.join(" · ") : null);
     }
     pull(true);
@@ -101,22 +105,115 @@ export function FounderPm() {
       ) : (
         <>
           <div className="fx-stats founder-kpis">
-            <Stat label="Total trades" value={String(d.uniqueClosed.length)} hint="Unique + lab trainer fills" />
-            <Stat label="Win rate" value={pct(d.uniqueWr ?? d.moneyWr)} hint="Net ₹ > 0 after charges" />
+            <Stat
+              label="Total trades"
+              value={String(d.uniqueClosed.length)}
+              hint={d.liveMoney ? "Live closed only" : "Paper book (no lab trainer)"}
+            />
+            <Stat label="Win rate" value={pct(d.uniqueWr ?? d.moneyWr)} hint="Net ₹ > 0 after charges · live book" />
             <Stat
               label="Account"
               value={inr(d.equity, { signed: false })}
               hint={`Start ${inr(d.startCap, { signed: false })}`}
               tone={Number(d.equity) >= Number(d.startCap) ? "up" : "down"}
             />
-            <Stat label="Profit today" value={inr(day?.profit)} hint={day?.day} tone="up" />
-            <Stat label="Loss today" value={inr(day?.loss)} hint={`${day?.n || 0} fills`} tone="down" />
+            <Stat
+              label="Profit today"
+              value={inr(day?.profit)}
+              hint={day?.n ? `${day.day} · ${day.n} live` : `${day?.day || "—"} · no live fills`}
+              tone="up"
+            />
+            <Stat
+              label="Loss today"
+              value={inr(day?.loss)}
+              hint={day?.n ? `${day.n} live fills` : "no live fills"}
+              tone="down"
+            />
             <Stat
               label="Net today"
-              value={inr(day?.net ?? d.uniqueNet)}
-              tone={Number(day?.net ?? d.uniqueNet) >= 0 ? "up" : "down"}
+              value={inr(day?.net)}
+              hint={d.liveMoney ? "This IST session only" : day?.day}
+              tone={Number(day?.net) >= 0 ? "up" : "down"}
             />
           </div>
+
+          <section className="panel exam-panel">
+            <h2>Honesty exam (06)</h2>
+            <p className="muted">
+              After-hours grade. Does not change overlay. One bad day is not a retune.{" "}
+              <code>python -m desk_ml sod-exam</code>
+            </p>
+            <div className="fx-health">
+              <span
+                className={`cleanup-pill ${
+                  exam?.overall_honesty === "CLEAN"
+                    ? "done"
+                    : exam?.overall_honesty === "PEEKED"
+                      ? "pending"
+                      : "in_progress"
+                }`}
+              >
+                {exam?.overall_honesty || "no file yet"}
+              </span>
+              <span className="cleanup-pill pending">NO_PROMOTE</span>
+            </div>
+            <p className="exam-headline">{exam?.headline || exam?.reason || "Run the exam to fill this box."}</p>
+            <p className="muted">{exam?.contract?.plain}</p>
+            <div className="founder-pl">
+              {(exam?.days || []).map((row) => (
+                <div key={row.day}>
+                  <span>{row.day}</span>
+                  <strong>{row.honesty || "—"}</strong>
+                  <em className="exam-day-story">{row.story}</em>
+                </div>
+              ))}
+            </div>
+            {(exam?.stories || []).length ? (
+              <ul className="founder-watch">
+                {(exam.stories || []).map((s, i) => (
+                  <li key={`${i}-${String(s).slice(0, 24)}`}>{s}</li>
+                ))}
+              </ul>
+            ) : null}
+            {(exam?.watch_next || []).length ? (
+              <p className="muted">
+                Watch next (not tonight&apos;s rewrite): {(exam.watch_next || []).join(" · ")}
+              </p>
+            ) : null}
+            {(exam?.days || []).some((d) => (d.spills || []).length) ? (
+              <div className="book-table-wrap">
+                <table className="book-table">
+                  <thead>
+                    <tr>
+                      <th>Day</th>
+                      <th>Room</th>
+                      <th>Why it spilled</th>
+                      <th>How to think about it</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(exam.days || []).flatMap((d) =>
+                      (d.spills || []).slice(0, 8).map((sp, i) => (
+                        <tr key={`${d.day}-${i}`}>
+                          <td>
+                            {d.day} {sp.underlying} {sp.side}
+                          </td>
+                          <td>{sp.room}</td>
+                          <td>{sp.code}</td>
+                          <td>{sp.plain}</td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <p className="muted">
+                Spill rows appear after a real exam run. ATM-only 16/17/18 tape may have no ITM fills —
+                that is a data story, not a hidden win.
+              </p>
+            )}
+          </section>
 
           <section className="panel">
             <h2>Train the models</h2>

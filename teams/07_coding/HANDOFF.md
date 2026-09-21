@@ -1,5 +1,32 @@
 # Handoff log — Team 07 Coding
 
+## As of now (2026-09-21 IST) — live money slate (NO_PROMOTE)
+
+```text
+From:     teams/07_coding
+To:       00 / founder / 06
+Date:     2026-09-21
+Status:   PAPER UI / NO_PROMOTE
+Accepted: /pm money tiles use live board only. Lab extra_closed
+  + day_series emptied. "Today" = session_ist_date, not newest
+  trainer day. Graph catalog stays. No live orders.
+Rejected: Paint 18 Sep lab P/L as Monday. Promote.
+UNKNOWN: one 10-lot NIFTY CE already OPEN from before lot recode.
+```
+
+## As of now (2026-09-20 IST) — /pm Honesty exam panel (NO_PROMOTE)
+
+```text
+From:     teams/07_coding
+To:       00 / founder / 06
+Date:     2026-09-20
+Status:   PAPER UI / NO_PROMOTE
+Accepted: Founder /pm section Honesty exam (06). GET /paper/sod-exam
+  + mock fallback. No overlay recode. No promote.
+Rejected: Customer `/` exam dump. Live orders.
+UNKNOWN: live :8000 until that API process is restarted to pick up the route.
+```
+
 ## As of now (2026-09-20 IST) — founder train graph + tester book (NO_PROMOTE)
 
 ```text

@@ -20,6 +20,29 @@ export async function fetchMlPaperBoard({ force = false, signal } = {}) {
   return json;
 }
 
+export async function fetchSodExam({ signal } = {}) {
+  const now = Date.now();
+  const url = API_URL ? `${API_URL}/paper/sod-exam` : "/paper/sod-exam";
+  try {
+    return await getJson(`${url}${url.includes("?") ? "&" : "?"}t=${now}`, signal);
+  } catch {
+    try {
+      return await getJson(`/mock/sod_exam_report.json?t=${now}`, signal);
+    } catch {
+      return {
+        ok: false,
+        overall_honesty: "NOT_ENOUGH_DATA",
+        headline: "Exam file missing. Run python -m desk_ml sod-exam after close.",
+        days: [],
+        stories: [],
+        watch_next: [],
+        promote: false,
+        orders: "REFUSED",
+      };
+    }
+  }
+}
+
 export async function fetchFounderLab({ signal } = {}) {
   if (_cache.lab) return _cache.lab;
   try {
@@ -283,8 +306,9 @@ export function derivePaperBoard(data, lab = null) {
     const tb = Number(b?.last_updated_ts || b?.closed_ts || b?.opened_ts || 0);
     return tb - ta;
   };
-  const closed = [...(data.closed_trades || []), ...((lab && lab.extra_closed) || [])].sort(byUpdated);
-  const open = [...(data.open_trades || []), ...((lab && lab.extra_open) || [])].sort(byUpdated);
+  const liveMoney = Boolean(data.live_session) || Boolean(data.session_ist_date);
+  const closed = [...(data.closed_trades || [])].sort(byUpdated);
+  const open = [...(data.open_trades || [])].sort(byUpdated);
   const uniqueClosed = uniqueFills(closed);
   const uniqueOpen = uniqueFills(open);
   const uniqueNet = uniqueClosed.reduce((s, t) => s + (Number(t.realized_pnl_inr) || 0), 0);
@@ -306,17 +330,18 @@ export function derivePaperBoard(data, lab = null) {
     ...(seen.cancelled || []),
     ...(modelSignals.latest || []).filter((r) => r.ignored_by_boss || r.observer_action === "VETO" || r.vs_picker === "DISSENT"),
   ];
-  const days = mergeDaySeries(dailyBuckets(uniqueClosed), lab?.day_series);
+  const days = liveMoney ? dailyBuckets(uniqueClosed) : mergeDaySeries(dailyBuckets(uniqueClosed), lab?.day_series);
   const bookDays = dailyBuckets(closed);
-  const todayBookDay = bookDays[0];
-  const todayDay = days[0] || {
-    day: data.session_ist_date || "—",
-    n: uniqueClosed.length,
-    wr: uniqueWr,
-    profit: uniqueClosed.filter((t) => Number(t.realized_pnl_inr) > 0).reduce((s, t) => s + Number(t.realized_pnl_inr), 0),
-    loss: uniqueClosed.filter((t) => Number(t.realized_pnl_inr) < 0).reduce((s, t) => s + Number(t.realized_pnl_inr), 0),
-    net: uniqueNet,
-    charges: uniqueCharges,
+  const sessionDay = data.session_ist_date || sessionDate(data.as_of_ist);
+  const todayBookDay = bookDays.find((d) => d.day === sessionDay) || (liveMoney ? null : bookDays[0]);
+  const todayDay = days.find((d) => d.day === sessionDay) || {
+    day: sessionDay || "—",
+    n: 0,
+    wr: null,
+    profit: 0,
+    loss: 0,
+    net: 0,
+    charges: 0,
     books: [],
   };
   const uniqueRank = (data.book_rank || []).filter((r) =>
@@ -367,7 +392,8 @@ export function derivePaperBoard(data, lab = null) {
     catalog: lab?.catalog || { models: [], strategies: [], indicators: [], rooms: [] },
     confirmKill: lab?.confirm_kill || {},
     fillRooms,
-    currentRoom: (currentId && fillRooms[currentId]) || fillRooms[Object.keys(fillRooms)[0]] || null,
+    currentRoom: (currentId && fillRooms[currentId]) || null,
+    liveMoney,
     training: lab?.training || null,
     nMatch,
     nDissent,

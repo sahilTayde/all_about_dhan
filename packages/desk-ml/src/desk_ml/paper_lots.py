@@ -138,38 +138,47 @@ def size_lots(
     entry: float,
     lot_size: Optional[int],
     capital_inr: float,
-    min_lots: int = 1,
+    min_lots: int = 20,
+    target_lots: Optional[int] = 25,
+    max_lots: int = 30,
 ) -> dict[str, Any]:
-    want = max(1, int(min_lots or 1))
+    """Size a paper fill. Founder: 20–30 lots on the ₹5.7L desk. Never open 1 lot."""
+    floor = max(1, int(min_lots or 1))
+    ceiling = max(floor, int(max_lots or floor))
+    want = int(target_lots) if target_lots is not None else floor
+    want = min(max(want, floor), ceiling)
+    empty = {
+        "lots": 0,
+        "lot_size": lot_size,
+        "qty": None,
+        "notional_inr": None,
+        "capital_inr": capital_inr,
+        "afford_lots": 0,
+    }
     if lot_size is None or lot_size <= 0 or entry <= 0:
-        return {
-            "lots": want,
-            "lot_size": lot_size,
-            "qty": None,
-            "notional_inr": None,
-            "capital_inr": capital_inr,
-            "lot_status": "DATA_INSUFFICIENT",
-        }
+        return {**empty, "lot_status": "DATA_INSUFFICIENT"}
     one = float(entry) * int(lot_size)
-    if one > float(capital_inr):
+    if one <= 0:
+        return {**empty, "lot_size": int(lot_size), "lot_status": "DATA_INSUFFICIENT"}
+    afford = int(float(capital_inr) // one) if one <= float(capital_inr) else 0
+    empty["lot_size"] = int(lot_size)
+    empty["afford_lots"] = afford
+    if afford < floor:
         return {
-            "lots": 1,
-            "lot_size": int(lot_size),
-            "qty": int(lot_size),
-            "notional_inr": round(one, 2),
-            "capital_inr": capital_inr,
-            "lot_status": "ONE_LOT_EXCEEDS_PAPER_CAPITAL_STILL",
+            **empty,
+            "lot_status": "SKIP_BELOW_MIN_LOTS",
+            "notional_inr": round(one, 2) if afford == 0 else round(one * afford, 2),
         }
-    afford = max(1, int(float(capital_inr) // one))
-    lots = min(want, afford)
-    status = "OK" if lots >= want else "CLIPPED_TO_CAPITAL"
+    lots = min(want, afford, ceiling)
     qty = lots * int(lot_size)
+    status = "OK" if lots >= want else "CLIPPED_TO_CAPITAL"
     return {
         "lots": lots,
         "lot_size": int(lot_size),
         "qty": qty,
         "notional_inr": round(float(entry) * qty, 2),
         "capital_inr": capital_inr,
+        "afford_lots": afford,
         "lot_status": status,
     }
 

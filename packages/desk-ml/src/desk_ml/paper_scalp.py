@@ -3,7 +3,7 @@
 Each book_id × underlying has at most one OPEN. Books never veto each other.
 Default paper path: do **not** deny a model's CE/PE signal (founder paper). Overlay HOLD
 is logged, not a skip. MIX-ML-LOGIT is an INDEX scan book, not the customer default.
-Desk capital ₹5.7L split across LIVE_BOOKS (not 10k×8). New fills target 10 lots when capital allows. Lot size from instrument master when available.
+Desk capital ₹5.7L on MIX-DEFAULT-BUY (SOD). New fills 20–30 lots (target 25). Skip if capital cannot buy the min. Lot size from instrument master when available. Never 1-lot paper.
 """
 
 from __future__ import annotations
@@ -17,6 +17,8 @@ from pathlib import Path
 from typing import Any, Callable, Optional, Sequence
 
 from desk_ml.features import Triple, build_feature_rows
+from desk_ml.fill_contract import FOLLOWS_CLOCK, OBSERVER_CLOCK, grade_fill
+from desk_ml.sod_exam import compact_exam_event
 from desk_ml.fit import fit_from_rows, score_features_dict
 from desk_ml.inventory import inventory_recon
 from desk_ml.model import OVERLAY_HOLD, premium_divergence_pattern
@@ -43,7 +45,9 @@ from desk_ml.paper_lots import (
 )
 
 DESK_CAPITAL_INR = 570000.0  # prior ₹70k + founder +₹5L (2026-09-18). PAPER.
-PAPER_MIN_LOTS = 10
+PAPER_MIN_LOTS = 20
+PAPER_TARGET_LOTS = 25
+PAPER_MAX_LOTS = 30
 DASHBOARD_HEARTBEAT_SECONDS = 5
 TICK_NE_DASHBOARD_REASON = (
     "Live mock: dual-tape REST poll default 10s (clamp ≥10). "
@@ -255,6 +259,8 @@ DEFAULT_PAPER_PARAMS = {
     "limit_discount_frac": LIMIT_DISCOUNT_FRAC,
     "desk_capital_inr": DESK_CAPITAL_INR,
     "paper_min_lots": PAPER_MIN_LOTS,
+    "paper_target_lots": PAPER_TARGET_LOTS,
+    "paper_max_lots": PAPER_MAX_LOTS,
     "dashboard_heartbeat_seconds": DASHBOARD_HEARTBEAT_SECONDS,
     "regime_lookback": REGIME_LOOKBACK,
     "regime_er_max": REGIME_ER_MAX,
@@ -2724,6 +2730,8 @@ class BookEngine:
     skip_new_when_sideways: bool = True
     paper_add_lot: bool = PAPER_ADD_LOT
     paper_min_lots: int = PAPER_MIN_LOTS
+    paper_target_lots: int = PAPER_TARGET_LOTS
+    paper_max_lots: int = PAPER_MAX_LOTS
     max_target_r: float = MAX_TARGET_R
     skip_trend_against: bool = True
     limit_discount_frac: float = LIMIT_DISCOUNT_FRAC
@@ -2772,6 +2780,7 @@ class BookEngine:
     sod_one_ticket: bool = True  # locked product: votes → picker → observer → one desk ticket
     picker_majority: bool = True  # RULES majority; implied by sod_one_ticket
     signal_log: list[dict[str, Any]] = field(default_factory=list)  # logit/XR/greeks vs picker even on VETO
+    exam_events: list[dict[str, Any]] = field(default_factory=list)  # 06 honesty exam; not a fill
 
     def book_capital(self, book_id: str) -> float:
         if book_id in self.capital_by_book:
@@ -4135,7 +4144,24 @@ def _try_open(
         lot_size=lot_size,
         capital_inr=capital,
         min_lots=int(getattr(engine, "paper_min_lots", PAPER_MIN_LOTS) or PAPER_MIN_LOTS),
+        target_lots=int(getattr(engine, "paper_target_lots", PAPER_TARGET_LOTS) or PAPER_TARGET_LOTS),
+        max_lots=int(getattr(engine, "paper_max_lots", PAPER_MAX_LOTS) or PAPER_MAX_LOTS),
     )
+    n_lots = int(sized.get("lots") or 0)
+    min_need = int(getattr(engine, "paper_min_lots", PAPER_MIN_LOTS) or PAPER_MIN_LOTS)
+    if n_lots < min_need:
+        engine.mark_skip(
+            book_id,
+            underlying,
+            str(sized.get("lot_status") or "SKIP_BELOW_MIN_LOTS"),
+            ts=tick.ts,
+            seen_side=side,
+            lots=n_lots,
+            afford_lots=sized.get("afford_lots"),
+            capital_inr=capital,
+            min_lots=min_need,
+        )
+        return
     pos = OpenPaper(
         book_id=book_id,
         underlying=underlying,
@@ -4150,7 +4176,7 @@ def _try_open(
         strike_source=source,
         limit_price=float(levels.get("limit_price") or levels["entry"]),
         lot_size=sized.get("lot_size"),
-        lots=int(sized.get("lots") or 1),
+        lots=n_lots,
         qty=sized.get("qty"),
         notional_inr=sized.get("notional_inr"),
         capital_inr=capital,
@@ -4805,6 +4831,18 @@ def step_underlying(
             "working": engine.has_working_underlying(und),
             "fill_quote": "ITM",
             "fill_router": fill_router,
+            "quote_src": (
+                next(
+                    (
+                        getattr(p, "quote_src", None)
+                        for (b, u), p in engine.opens.items()
+                        if u == und and b == SOD_PRODUCT_BOOK
+                    ),
+                    None,
+                )
+                if opened_this_tick
+                else None
+            ),
         },
         "overlay_to_boss": overlay_pkt,
         "llm_review": llm_review,
@@ -4822,7 +4860,24 @@ def step_underlying(
             "KEEP_ALL. NO_PROMOTE."
         ),
     }
+    quote_src = (engine.last_step.get("desk") or {}).get("quote_src")
+    bar_closed = older is not None and closed_1m is not None
+    exam = grade_fill(
+        bar_closed_1m=bar_closed,
+        opened=bool(opened_this_tick and sod),
+        quote_src=str(quote_src) if quote_src else None,
+        tape_kind=str(getattr(tick, "premium_kind", None) or ""),
+        rolled_1m=rolled_1m,
+    )
+    exam["follows_clock"] = FOLLOWS_CLOCK
+    exam["observer_clock"] = OBSERVER_CLOCK
+    engine.last_step["exam"] = exam
     engine.last_step_by_und[und] = dict(engine.last_step)
+    engine.exam_events.append(
+        compact_exam_event(engine.last_step, opened=bool(opened_this_tick and sod), quote_src=quote_src)
+    )
+    if len(engine.exam_events) > 800:
+        engine.exam_events = engine.exam_events[-800:]
 
 
 def _hold_series(triples: Sequence[Triple], *, seed: int = 14) -> tuple[list[bool], list[bool], list[bool], dict[str, Any]]:
@@ -4898,6 +4953,8 @@ def load_paper_params(root: Path) -> dict[str, Any]:
         "limit_discount_frac",
         "desk_capital_inr",
         "paper_min_lots",
+        "paper_target_lots",
+        "paper_max_lots",
         "dashboard_heartbeat_seconds",
         "regime_lookback",
         "regime_er_max",
@@ -4943,6 +5000,19 @@ def load_paper_params(root: Path) -> dict[str, Any]:
     except (TypeError, ValueError):
         min_lots = 0
     out["paper_min_lots"] = max(min_lots, int(PAPER_MIN_LOTS))
+    try:
+        target_lots = int(out.get("paper_target_lots") or 0)
+    except (TypeError, ValueError):
+        target_lots = 0
+    out["paper_target_lots"] = min(
+        max(target_lots, int(PAPER_TARGET_LOTS), int(out["paper_min_lots"])),
+        int(PAPER_MAX_LOTS),
+    )
+    try:
+        max_lots = int(out.get("paper_max_lots") or 0)
+    except (TypeError, ValueError):
+        max_lots = 0
+    out["paper_max_lots"] = max(max_lots, int(PAPER_MAX_LOTS), int(out["paper_target_lots"]))
     out["production_params_written"] = False
     return out
 
@@ -5226,6 +5296,8 @@ def replay_paper_scalp(
         regime_range_atr_max=float(params.get("regime_range_atr_max") or REGIME_RANGE_ATR_MAX),
         paper_add_lot=bool(params.get("paper_add_lot", False)),
         paper_min_lots=int(params.get("paper_min_lots") or PAPER_MIN_LOTS),
+        paper_target_lots=int(params.get("paper_target_lots") or PAPER_TARGET_LOTS),
+        paper_max_lots=int(params.get("paper_max_lots") or PAPER_MAX_LOTS),
         max_target_r=float(params.get("max_target_r") or MAX_TARGET_R),
         skip_bn_unless_last3=(
             bool(skip_bn_unless_last3)
@@ -6691,6 +6763,8 @@ def build_dashboard(
         "seen_not_taken": seen_not_taken,
         "model_signals": model_signals,
         "itm_bins": itm_bins,
+        "exam_events": list(engine.exam_events[-80:]),
+        "fill_contract": (engine.last_step or {}).get("exam"),
         "book_rank": board_book_rank,
         "index_notes": adj_notes,
         "cost_model": groww_cost_meta(),
@@ -6794,7 +6868,7 @@ def build_dashboard(
             "win_rate_pct is paper filled hit rate (net ₹>0 / n_filled) × 100. win_rate_gross_pct is the same before Groww+STT. NO_PROMOTE.",
             "Groww F&O ₹20/executed order × 2 legs; GST 18% on that brokerage; STT 0.15% of sell premium (VERIFY, Budget 2026).",
             "Unfilled CANCELLED = ₹0 P/L and ₹0 charges. Exchange/SEBI/stamp omitted (UNKNOWN).",
-            "SOD-on: desk capital sits on MIX-DEFAULT-BUY only. Analyst room (logit / XR / greeks / STRAT / TV) votes and is logged; lab books never OPEN. --sod-off tests may still split capital. Observe clones get ₹0. New fills target 10 NIFTY lots when notional fits.",
+            "SOD-on: desk capital sits on MIX-DEFAULT-BUY only. Analyst room (logit / XR / greeks / STRAT / TV) votes and is logged; lab books never OPEN. --sod-off tests may still split capital. Observe clones get ₹0. New fills target 25 lots (floor 20, cap 30). Skip if capital cannot buy 20 lots — never 1-lot paper.",
             "deny_model_signals default true. KMeans is not a CE/PE model. No STRAT-015. resolve_fill_intents is not the SOD fill router.",
             "SOD: one ticket + analyst room observe. MATCH/DISSENT/SPOKEN_PICKER_HOLD/SILENT even when picker HOLD / observer VETO / desk ignores. Not extra Monday capital. LLM allow-review is async, not a block.",
             "Two layers: (1) signal = dealer / logit / XR / greeks CE/PE. (2) after fill = STALL / AGAINST / TARGET / SL. WAIT_STRENGTH is dealer entry only — FIX-FIRST did not turn off ML BUY/SELL.",
