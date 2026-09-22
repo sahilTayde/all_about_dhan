@@ -1,5 +1,21 @@
 # Handoff log — Team 07 Coding
 
+## As of now (2026-09-22 IST) — /pm Now open (missed CE) (NO_PROMOTE)
+
+```text
+From:     teams/07_coding
+To:       founder / 00 / 06
+Date:     2026-09-22
+Status:   PAPER UI / NO_PROMOTE
+Accepted: Last NIFTY CE 10:59–11:00 IST COVER_LONG_UNWIND −₹10,270
+  lived ~68s. /pm had no open-ticket strip — only closed Compare
+  fills. Added Now open + open rows in history. Overlay unchanged.
+Rejected: Recode COVER_LONG_UNWIND / stop / fill path.
+UNKNOWN: whether founder was on /desk (has current) or /pm (did not).
+```
+
+---
+
 ## As of now (2026-09-22 IST) — honesty exam newest-first + contract grid (NO_PROMOTE)
 
 ```text

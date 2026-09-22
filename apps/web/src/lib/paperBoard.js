@@ -244,9 +244,11 @@ export function outcomeLabel(t) {
   if (targetHit || reason === "TARGET") return "TARGET HIT";
   if (reason.includes("TRAIL") || (reason === "STOP" && t?.trail_hit)) return "STOP LOSS TRAIL HIT";
   if (reason === "STOP" || t?.sl_hit) return "STOP LOSS HIT";
+  if (reason === "COVER_LONG_UNWIND") return "LONG UNWIND";
   if (reason.startsWith("CANCEL") || String(t?.status || "").includes("CANCEL")) return "CANCELLED";
   if (reason === "HUMAN_EXIT") return "HUMAN EXIT";
   if (reason === "TIME" || reason.startsWith("FLATTEN")) return reason === "TIME" ? "TIME" : "FLATTEN";
+  if (String(t?.status || "").includes("OPEN")) return "OPEN";
   if (t?.result === "SUCCESS") return "ACHIEVED";
   if (t?.result === "LOSS") return "STOP LOSS HIT";
   return reason || t?.status || "—";

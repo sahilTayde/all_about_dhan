@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { AppNav } from "./components/AppNav.jsx";
 import { FounderHonestyExam } from "./components/FounderHonestyExam.jsx";
+import { FounderOpenNow } from "./components/FounderOpenNow.jsx";
 import { FounderRoster } from "./components/FounderRoster.jsx";
 import { Header } from "./components/Header.jsx";
 import { SodFillGraph, WatcherStrip } from "./components/SodFillGraph.jsx";
@@ -66,7 +67,7 @@ export function FounderPm() {
       setError(nextErr.length ? nextErr.join(" · ") : null);
     }
     pull(true);
-    const id = setInterval(() => pull(false), 15000);
+    const id = setInterval(() => pull(false), 5000);
     return () => {
       cancelled = true;
       ac.abort();
@@ -89,7 +90,7 @@ export function FounderPm() {
         sourceLabel={board?.live_session ? "PAPER" : "MOCK"}
       />
       <p className="desk-sub">
-        {board?.as_of_ist ? board.as_of_ist.replace("T", " ").slice(0, 16) : "…"} IST · light refresh 15s · orders
+        {board?.as_of_ist ? board.as_of_ist.replace("T", " ").slice(0, 16) : "…"} IST · light refresh 5s · orders
         refused · NO_PROMOTE
       </p>
       {error ? <p className="desk-error">{error}. Mock book still loads.</p> : null}
@@ -140,6 +141,7 @@ export function FounderPm() {
           </div>
 
           <FounderBookPicker />
+          <FounderOpenNow opens={d.uniqueOpen} />
 
           <section className="panel">
             <h2>Train the models</h2>
@@ -272,9 +274,9 @@ export function FounderPm() {
 
           <section className="panel">
             <h2>Compare fills</h2>
-            <p className="muted">Filter, then click a highlighted row that has a fill room.</p>
+            <p className="muted">Open tickets sit on top. Filter, then click a highlighted row that has a fill room.</p>
             <TradeHistory
-              rows={d.uniqueClosed}
+              rows={[...(d.uniqueOpen || []), ...d.uniqueClosed]}
               regimes={d.regimes}
               fillRooms={d.fillRooms}
               onOpen={(t) => setRoomId(t.trade_id)}

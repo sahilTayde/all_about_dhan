@@ -155,3 +155,53 @@ OpenAI extras beyond desk list: (a) first-hour/session lean instead of hard PE �
 **What changed:** Chop = INDEX ER < 0.35 even if itm_bin TREND. Stall 8m / stale 3m; ≥40% of target then fade books. Chop target cap +10 premium (149.7→159.7). CANCEL_AGAINST needs last3_raw against AND ≥3pt underwater or ER≥0.35 opposite. LONG_UNWIND only T1 or chop+3pt underwater. Dual-tape **not** restarted (live to close). pytest 89. Lots unchanged. KEEP_ALL. `production_params_written` false.
 
 **Caveat:** 17 PE 153→182 still not recovered on this jsonl slice. 70% wr / 30–40 lots not coded. ML tune parked. **NO_PROMOTE.**
+
+---
+
+## Weekend queue — COVER_LONG_UNWIND (2026-09-22) · **not recoded**
+
+**Room:** desk booking overlay on `MIX-DEFAULT-BUY` only. Same gate for **CE and PE** (`CE_LONG_UNWIND` / `PE_LONG_UNWIND`). Not analyst, not picker, not observer.  
+**Status:** `HYPOTHESIS` / `BACKTEST_REQUIRED` / **NO_PROMOTE**. Live overlay **unchanged** until weekend replay + founder confirm.  
+**Counsel:** not run this round. Notes only.
+
+### Why this is on the list
+
+22 Sep NIFTY **CE 23200** `paper-MIX-DEFAULT-BUY-NIFTY-1790054974-CE`: open 10:59:34 → close 11:00:42 IST (~68s). `COVER_LONG_UNWIND`, `target_step=0`, `target_hit=false`, sl_hit=false. Entry 191.7 → exit 185.85 (−5.85 pts). Net **−₹10,270** (25×65, charges ₹764). Stop was 175.85, T1 201.7.
+
+Ticket **word** was `index_regime=TREND` (`itm_bin_ce_confirm`). Path was **not** ER-trend: `market_kind` VOLATILE, ER open **0.0988** / close **0.0026**, flip ~0.54–0.62, `last3=none`. Flatten used ER&lt;0.35 + &gt;₹3 underwater. Same-day PE also printed `COVER_LONG_UNWIND` (e.g. 23600 ~11:10). One day is not a retune.
+
+### Current live rule (do not change until replay)
+
+1. After T1: `LONG_UNWIND` → flatten. **Keep this** unless replay proves it cuts winners.  
+2. Before T1: flatten only if LTP+3 &lt; entry **and** INDEX ER &lt; 0.35.  
+3. Twin **entry** skip: `BIN_LONG_UNWIND` (do not open that wing).
+
+### Proposed A/B (weekend `write=false` only)
+
+| # | Change | Why | Keep / kill after replay |
+|---|--------|-----|--------------------------|
+| W1 | No unwind flatten in the **first two finished 1m bars** after fill (`target_step=0`) | 68s is one noisy OI+px print | Kill if sitting to stop is worse on ≥2 NORMAL days |
+| W2 | Founder-facing label: show `market_kind` + ER, not itm_bin **TREND**, on unwind tickets | TREND word made this look like a trend cut | Display only; not a P/L change |
+| W3 | Before T1, require chop **and** last-3 against the wing (or two bars of OI+px down). **VOLATILE ≠ CHOPPY** | Wide/flip tape can still print T1 | Kill if CE/PE then bleed to stop |
+| W4 | After T1, keep flatten on `LONG_UNWIND` | Do not give T1 back | Default keep |
+
+**Bounds on the 22 Sep 23200 CE only** (qty 1625; path after 11:00:42 is `UNKNOWN`):
+
+| Sit until | Premium | Rough book |
+|-----------|---------|------------|
+| What we did | 191.7 → 185.85 | **−₹10,270** known |
+| Paper stop | 191.7 → 175.85 (~−15.85 pts) | worse, ~−₹26k gross |
+| Paper T1 | 191.7 → 201.7 (+10 pts) | win, ~+₹16k gross |
+
+Replay must say which of stop / T1 / other exit the **same tape** would have printed with W1/W3 off.
+
+### Weekend replay recipe
+
+```text
+python -m desk_ml paper-scalp --replay --source dual-tape --underlyings NIFTY \
+  --session-date 2026-09-22 --no-write
+```
+
+Also run **17 / 18 / 21** Sep (already in FIX-FIRST) plus 22 Sep. Score only `NORMAL`. Compare unique MIX-DEFAULT-BUY: n `COVER_LONG_UNWIND`, net ₹, n STOP, n TARGET, time-to-exit. Flag `--no-write` always. Do not write MIX params. Do not restart npm / paper.
+
+**Verdict after weekend:** `KEEP` / `KILL` / `DATA_INSUFFICIENT` per W1–W4. Still **NO_PROMOTE.**

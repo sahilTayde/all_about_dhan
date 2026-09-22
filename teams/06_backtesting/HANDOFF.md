@@ -1,5 +1,22 @@
 # Handoff log — Team 06 Backtesting
 
+## As of now (2026-09-22 IST) — weekend COVER_LONG_UNWIND queue (NO_PROMOTE)
+
+```text
+From:     teams/06_backtesting
+To:       founder / 00 / 07
+Date:     2026-09-22
+Status:   BACKTEST_REQUIRED / NO_PROMOTE
+Accepted: Weekend queue in OPENAI_OVERLAY_REVIEW.md Round weekend
+  COVER_LONG_UNWIND. W1 first-2-bars hold, W2 TREND vs ER label,
+  W3 VOLATILE≠CHOPPY + last-3, W4 keep post-T1 flatten. Same CE/PE.
+  Replay write=false 17/18/21/22 Sep. Live overlay unchanged.
+Rejected: Recode now. Promote. One 68s CE as proof.
+UNKNOWN: path after 11:00:42 on 23200 CE (stop vs T1).
+```
+
+---
+
 ## As of now (2026-09-22 IST) — TRENDING-open STALL hold A/B write=false (NO_PROMOTE)
 
 ```text
