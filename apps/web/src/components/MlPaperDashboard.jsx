@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { BOARD_POLL_MS } from "../lib/paperBoard.js";
 
 const API_URL = import.meta.env.VITE_API_URL;
 const UNIQUE_BOOKS = ["MIX-DEFAULT-BUY", "MIX-ML-LOGIT", "MIX-ML-LOGIT-XR", "MIX-ML-GREEKS"];
@@ -201,7 +202,7 @@ export function MlPaperDashboard({ compact = false }) {
         });
     };
     load();
-    const id = setInterval(load, 10000);
+    const id = setInterval(load, BOARD_POLL_MS);
     return () => {
       cancelled = true;
       clearInterval(id);

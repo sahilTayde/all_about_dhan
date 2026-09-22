@@ -2,6 +2,26 @@
 
 **Agents:** read **only the newest block**. Do not ingest this whole log. New files: [`docs/FILE_CREATION.md`](../../docs/FILE_CREATION.md). Append here — do not create `HANDOFF_TOMORROW.md` or extra `CONTINUE_*`.
 
+## As of now (2026-09-22 IST) — sleep close; website ON (NO_PROMOTE)
+
+```text
+From:     teams/00_orchestrator
+To:       founder / 02 / 06 / 09
+Date:     2026-09-22
+Status:   PAPER / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: watch-close at 15:40 IST. Dual-tape STOPPED. API:8000
+  + Vite:5173 left ON for morning review. Nightly EXPIRY
+  (taken 0 / skipped 3 EXPIRED; P/L 0; BACKTEST_REQUIRED;
+  production_params_written false). Honesty CLEAN (22 Sep
+  33 SOD closed; 0 peek; 0 fill-contract fail). Auditor PASS.
+Rejected: Promote. Auto-retune. Recode booking from EXPIRY.
+  git-add sqlite. Stop the website.
+UNKNOWN: EXPIRY is not a retune sample. Paper wr is not a
+  customer win rate.
+```
+
 ## As of now (2026-09-20 IST) — SOD analyst room, one desk fill (NO_PROMOTE)
 
 ```text

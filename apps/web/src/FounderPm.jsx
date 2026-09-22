@@ -13,6 +13,7 @@ import {
   fetchFounderLab,
   fetchMlPaperBoard,
   fetchSodExam,
+  BOARD_POLL_MS,
   inr,
   moneyClass,
   pct,
@@ -68,7 +69,7 @@ export function FounderPm() {
       setError(nextErr.length ? nextErr.join(" · ") : null);
     }
     pull(true);
-    const id = setInterval(() => pull(false), 2000);
+    const id = setInterval(() => pull(false), BOARD_POLL_MS);
     return () => {
       cancelled = true;
       ac.abort();

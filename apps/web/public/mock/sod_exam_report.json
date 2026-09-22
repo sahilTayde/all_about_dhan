@@ -1,7 +1,7 @@
 {
   "ok": true,
   "job": "sod-exam",
-  "as_of_ist": "2026-09-21T15:43:51+05:30",
+  "as_of_ist": "2026-09-22T15:45:47+05:30",
   "gate": "not RESEARCH_READY_FOR_PROGRAMMING",
   "promote": false,
   "orders": "REFUSED",
@@ -25,111 +25,6 @@
   "overall_honesty": "CLEAN",
   "headline": "Exam is a grade, not a promote. Bad days happen. Use the room name to know what to watch next \u2014 not to rewrite tonight.",
   "days": [
-    {
-      "ok": true,
-      "day": "2026-09-15",
-      "honesty": "CLEAN",
-      "session_kind": "NORMAL",
-      "n_triples": 337,
-      "n_exam_events": 80,
-      "n_sod_closed": 0,
-      "n_slice": 2,
-      "n_peeked_slices": 0,
-      "n_fill_contract_fail": 0,
-      "fill_contract": "SOD_FILL_CONTRACT_V1",
-      "tape_note": "ITM kind present on at least one tape row.",
-      "tapes": {
-        "NIFTY": {
-          "aligned_triples": 337,
-          "source": "dual_tape_jsonl"
-        }
-      },
-      "slices": [
-        {
-          "underlying": "NIFTY",
-          "cut_ts": 1789459126,
-          "status": "CLEAN",
-          "full": [
-            "TICKET",
-            "PE",
-            "PASS",
-            "OBSERVER_PASS_ATM_DAY",
-            false
-          ],
-          "sliced": [
-            "TICKET",
-            "PE",
-            "PASS",
-            "OBSERVER_PASS_ATM_DAY",
-            false
-          ],
-          "plain": "Same picker/observer/desk when later candles are hidden."
-        },
-        {
-          "underlying": "NIFTY",
-          "cut_ts": 1789463651,
-          "status": "CLEAN",
-          "full": [
-            "TICKET",
-            "CE",
-            "PASS",
-            "OBSERVER_PASS_ATM_DAY",
-            false
-          ],
-          "sliced": [
-            "TICKET",
-            "CE",
-            "PASS",
-            "OBSERVER_PASS_ATM_DAY",
-            false
-          ],
-          "plain": "Same picker/observer/desk when later candles are hidden."
-        }
-      ],
-      "analyst_next_itm": [
-        {
-          "source": "MIX-TV-EP-024",
-          "spoken": 80,
-          "next_itm_ok": 0,
-          "next_itm_miss": 0,
-          "hit_pct": null,
-          "note": "Not a customer win rate. Next finished ITM print only. UNKNOWN if ATM tape."
-        },
-        {
-          "source": "STRAT-003",
-          "spoken": 22,
-          "next_itm_ok": 0,
-          "next_itm_miss": 0,
-          "hit_pct": null,
-          "note": "Not a customer win rate. Next finished ITM print only. UNKNOWN if ATM tape."
-        },
-        {
-          "source": "follows",
-          "spoken": 48,
-          "next_itm_ok": 0,
-          "next_itm_miss": 0,
-          "hit_pct": null,
-          "note": "Not a customer win rate. Next finished ITM print only. UNKNOWN if ATM tape."
-        },
-        {
-          "source": "greeks",
-          "spoken": 48,
-          "next_itm_ok": 0,
-          "next_itm_miss": 0,
-          "hit_pct": null,
-          "note": "Not a customer win rate. Next finished ITM print only. UNKNOWN if ATM tape."
-        }
-      ],
-      "spills": [],
-      "room_counts": {},
-      "story": "2026-09-15: no SOD MIX-DEFAULT-BUY closes. ITM kind present on at least one tape row. Observer/ITM skip can leave n_open=0. That is a data story, not a silent win.",
-      "improve": "need ITM tape or accept ATM days as DATA_INSUFFICIENT for ITM fills",
-      "one_day_is_not_retune": true,
-      "promote": false,
-      "orders": "REFUSED",
-      "pnl_note": "Use board net \u20b9 only if honesty=CLEAN and fill contract ok.",
-      "win_rate": null
-    },
     {
       "ok": true,
       "day": "2026-09-16",
@@ -210,19 +105,19 @@
           "day": "2026-09-16",
           "underlying": "NIFTY",
           "side": "CE",
-          "pnl_inr": null,
           "exit": "STOP",
           "next_itm_helped": false,
-          "room": "overlay",
+          "room": "booking",
           "code": "STOP_OR_STALL",
-          "plain": "We lost after the fill (stop / stall / against). Entry may have been wrong or booking cut it. Need more NORMAL days before touching overlay."
+          "plain": "Lost after the fill on stop/stall. Entry or booking may be wrong. Need more NORMAL days before a write=false replay recode.",
+          "pnl_inr": -22797.91
         }
       ],
       "room_counts": {
-        "overlay": 1
+        "booking": 1
       },
-      "story": "2026-09-16: honest exam, losses after fill (stop/stall/cancel). One day is not enough to recode overlay.",
-      "improve": "overlay \u2014 only if more NORMAL days agree (founder confirm)",
+      "story": "2026-09-16: honest exam, losses after fill (booking: stall/against/unwind). One day is not enough to recode booking or overlay.",
+      "improve": "booking \u2014 write=false replay on more NORMAL days (founder confirm)",
       "one_day_is_not_retune": true,
       "promote": false,
       "orders": "REFUSED",
@@ -305,262 +200,261 @@
           "day": "2026-09-17",
           "underlying": "NIFTY",
           "side": "CE",
-          "pnl_inr": null,
           "exit": "CANCEL_AGAINST",
           "next_itm_helped": false,
-          "room": "overlay",
+          "room": "booking",
           "code": "CANCEL_AGAINST",
-          "plain": "Overlay cancelled after the thesis broke. That can save worse days \u2014 do not flip from one loss."
+          "plain": "Booking cancelled after the thesis broke. That can save worse days \u2014 do not flip from one loss.",
+          "pnl_inr": -3867.07
         },
         {
           "day": "2026-09-17",
           "underlying": "NIFTY",
           "side": "PE",
-          "pnl_inr": null,
           "exit": "CANCEL_AGAINST",
           "next_itm_helped": false,
-          "room": "overlay",
+          "room": "booking",
           "code": "CANCEL_AGAINST",
-          "plain": "Overlay cancelled after the thesis broke. That can save worse days \u2014 do not flip from one loss."
+          "plain": "Booking cancelled after the thesis broke. That can save worse days \u2014 do not flip from one loss.",
+          "pnl_inr": -8998.84
         },
         {
           "day": "2026-09-17",
           "underlying": "NIFTY",
           "side": "PE",
-          "pnl_inr": null,
           "exit": "CANCEL_AGAINST",
           "next_itm_helped": false,
-          "room": "overlay",
+          "room": "booking",
           "code": "CANCEL_AGAINST",
-          "plain": "Overlay cancelled after the thesis broke. That can save worse days \u2014 do not flip from one loss."
+          "plain": "Booking cancelled after the thesis broke. That can save worse days \u2014 do not flip from one loss.",
+          "pnl_inr": -13955.58
         },
         {
           "day": "2026-09-17",
           "underlying": "NIFTY",
           "side": "PE",
-          "pnl_inr": null,
           "exit": "COVER_LONG_UNWIND",
           "next_itm_helped": false,
-          "room": "desk",
-          "code": "LOST_OTHER",
-          "plain": "Lost on exit COVER_LONG_UNWIND. Grade the room, do not promote."
+          "room": "booking",
+          "code": "UNWIND",
+          "plain": "Dying wing flattened. Booking, not an overlay rewrite.",
+          "pnl_inr": -13152.68
         },
         {
           "day": "2026-09-17",
           "underlying": "NIFTY",
           "side": "CE",
-          "pnl_inr": null,
           "exit": "COVER_LONG_UNWIND",
           "next_itm_helped": false,
-          "room": "desk",
-          "code": "LOST_OTHER",
-          "plain": "Lost on exit COVER_LONG_UNWIND. Grade the room, do not promote."
+          "room": "booking",
+          "code": "UNWIND",
+          "plain": "Dying wing flattened. Booking, not an overlay rewrite.",
+          "pnl_inr": -11718.66
         },
         {
           "day": "2026-09-17",
           "underlying": "NIFTY",
           "side": "CE",
-          "pnl_inr": null,
           "exit": "CANCEL_AGAINST",
           "next_itm_helped": false,
-          "room": "overlay",
+          "room": "booking",
           "code": "CANCEL_AGAINST",
-          "plain": "Overlay cancelled after the thesis broke. That can save worse days \u2014 do not flip from one loss."
+          "plain": "Booking cancelled after the thesis broke. That can save worse days \u2014 do not flip from one loss.",
+          "pnl_inr": -10373.8
         },
         {
           "day": "2026-09-17",
           "underlying": "NIFTY",
           "side": "CE",
-          "pnl_inr": null,
           "exit": "TARGET",
           "next_itm_helped": true,
           "room": "none",
           "code": "WIN_OR_FLAT",
-          "plain": "This ticket did not lose rupees. Exam does not retune from it."
+          "plain": "This ticket did not lose rupees. Exam does not retune from it.",
+          "pnl_inr": 20167.74
         },
         {
           "day": "2026-09-17",
           "underlying": "NIFTY",
           "side": "PE",
-          "pnl_inr": null,
           "exit": "COVER_LONG_UNWIND",
           "next_itm_helped": false,
-          "room": "desk",
-          "code": "LOST_OTHER",
-          "plain": "Lost on exit COVER_LONG_UNWIND. Grade the room, do not promote."
+          "room": "booking",
+          "code": "UNWIND",
+          "plain": "Dying wing flattened. Booking, not an overlay rewrite.",
+          "pnl_inr": -15695.16
         },
         {
           "day": "2026-09-17",
           "underlying": "NIFTY",
           "side": "PE",
-          "pnl_inr": null,
           "exit": "CANCEL_AGAINST",
           "next_itm_helped": false,
-          "room": "overlay",
+          "room": "booking",
           "code": "CANCEL_AGAINST",
-          "plain": "Overlay cancelled after the thesis broke. That can save worse days \u2014 do not flip from one loss."
+          "plain": "Booking cancelled after the thesis broke. That can save worse days \u2014 do not flip from one loss.",
+          "pnl_inr": -9364.05
         },
         {
           "day": "2026-09-17",
           "underlying": "NIFTY",
           "side": "PE",
-          "pnl_inr": null,
           "exit": "CANCEL_AGAINST",
           "next_itm_helped": false,
-          "room": "overlay",
+          "room": "booking",
           "code": "CANCEL_AGAINST",
-          "plain": "Overlay cancelled after the thesis broke. That can save worse days \u2014 do not flip from one loss."
+          "plain": "Booking cancelled after the thesis broke. That can save worse days \u2014 do not flip from one loss.",
+          "pnl_inr": -14295.11
         },
         {
           "day": "2026-09-17",
           "underlying": "NIFTY",
           "side": "CE",
-          "pnl_inr": null,
           "exit": "CANCEL_AGAINST",
           "next_itm_helped": false,
-          "room": "overlay",
+          "room": "booking",
           "code": "CANCEL_AGAINST",
-          "plain": "Overlay cancelled after the thesis broke. That can save worse days \u2014 do not flip from one loss."
+          "plain": "Booking cancelled after the thesis broke. That can save worse days \u2014 do not flip from one loss.",
+          "pnl_inr": -7441.73
         },
         {
           "day": "2026-09-17",
           "underlying": "NIFTY",
           "side": "CE",
-          "pnl_inr": null,
           "exit": "CANCEL_AGAINST",
           "next_itm_helped": false,
-          "room": "overlay",
+          "room": "booking",
           "code": "CANCEL_AGAINST",
-          "plain": "Overlay cancelled after the thesis broke. That can save worse days \u2014 do not flip from one loss."
+          "plain": "Booking cancelled after the thesis broke. That can save worse days \u2014 do not flip from one loss.",
+          "pnl_inr": -10048.25
         },
         {
           "day": "2026-09-17",
           "underlying": "NIFTY",
           "side": "CE",
-          "pnl_inr": null,
           "exit": "COVER_LONG_UNWIND",
           "next_itm_helped": true,
-          "room": "desk",
-          "code": "LOST_OTHER",
-          "plain": "Lost on exit COVER_LONG_UNWIND. Grade the room, do not promote."
+          "room": "booking",
+          "code": "UNWIND",
+          "plain": "Dying wing flattened. Booking, not an overlay rewrite.",
+          "pnl_inr": -7268.43
         },
         {
           "day": "2026-09-17",
           "underlying": "NIFTY",
           "side": "PE",
-          "pnl_inr": null,
           "exit": "CANCEL_AGAINST",
           "next_itm_helped": false,
-          "room": "overlay",
+          "room": "booking",
           "code": "CANCEL_AGAINST",
-          "plain": "Overlay cancelled after the thesis broke. That can save worse days \u2014 do not flip from one loss."
+          "plain": "Booking cancelled after the thesis broke. That can save worse days \u2014 do not flip from one loss.",
+          "pnl_inr": -13442.55
         },
         {
           "day": "2026-09-17",
           "underlying": "NIFTY",
           "side": "PE",
-          "pnl_inr": null,
           "exit": "TARGET",
           "next_itm_helped": true,
           "room": "none",
           "code": "WIN_OR_FLAT",
-          "plain": "This ticket did not lose rupees. Exam does not retune from it."
+          "plain": "This ticket did not lose rupees. Exam does not retune from it.",
+          "pnl_inr": 60059.69
         },
         {
           "day": "2026-09-17",
           "underlying": "NIFTY",
           "side": "PE",
-          "pnl_inr": null,
           "exit": "TARGET",
           "next_itm_helped": true,
           "room": "none",
           "code": "WIN_OR_FLAT",
-          "plain": "This ticket did not lose rupees. Exam does not retune from it."
+          "plain": "This ticket did not lose rupees. Exam does not retune from it.",
+          "pnl_inr": 20373.63
         },
         {
           "day": "2026-09-17",
           "underlying": "NIFTY",
           "side": "PE",
-          "pnl_inr": null,
           "exit": "TARGET",
           "next_itm_helped": null,
           "room": "none",
           "code": "WIN_OR_FLAT",
-          "plain": "This ticket did not lose rupees. Exam does not retune from it."
+          "plain": "This ticket did not lose rupees. Exam does not retune from it.",
+          "pnl_inr": 34505.53
         },
         {
           "day": "2026-09-17",
           "underlying": "NIFTY",
           "side": "CE",
-          "pnl_inr": null,
           "exit": "COVER_LONG_UNWIND",
           "next_itm_helped": true,
-          "room": "desk",
-          "code": "LOST_OTHER",
-          "plain": "Lost on exit COVER_LONG_UNWIND. Grade the room, do not promote."
+          "room": "booking",
+          "code": "UNWIND",
+          "plain": "Dying wing flattened. Booking, not an overlay rewrite.",
+          "pnl_inr": -7247.52
         },
         {
           "day": "2026-09-17",
           "underlying": "NIFTY",
           "side": "PE",
-          "pnl_inr": null,
           "exit": "COVER_LONG_UNWIND",
           "next_itm_helped": false,
-          "room": "desk",
-          "code": "LOST_OTHER",
-          "plain": "Lost on exit COVER_LONG_UNWIND. Grade the room, do not promote."
+          "room": "booking",
+          "code": "UNWIND",
+          "plain": "Dying wing flattened. Booking, not an overlay rewrite.",
+          "pnl_inr": -8242.35
         },
         {
           "day": "2026-09-17",
           "underlying": "NIFTY",
           "side": "CE",
-          "pnl_inr": null,
           "exit": "CANCEL_AGAINST",
           "next_itm_helped": false,
-          "room": "overlay",
+          "room": "booking",
           "code": "CANCEL_AGAINST",
-          "plain": "Overlay cancelled after the thesis broke. That can save worse days \u2014 do not flip from one loss."
+          "plain": "Booking cancelled after the thesis broke. That can save worse days \u2014 do not flip from one loss.",
+          "pnl_inr": -6032.46
         },
         {
           "day": "2026-09-17",
           "underlying": "NIFTY",
           "side": "CE",
-          "pnl_inr": null,
           "exit": "COVER_LONG_UNWIND",
           "next_itm_helped": false,
-          "room": "desk",
-          "code": "LOST_OTHER",
-          "plain": "Lost on exit COVER_LONG_UNWIND. Grade the room, do not promote."
+          "room": "booking",
+          "code": "UNWIND",
+          "plain": "Dying wing flattened. Booking, not an overlay rewrite.",
+          "pnl_inr": -9144.52
         },
         {
           "day": "2026-09-17",
           "underlying": "NIFTY",
           "side": "CE",
-          "pnl_inr": null,
           "exit": "CANCEL_AGAINST",
           "next_itm_helped": false,
-          "room": "overlay",
+          "room": "booking",
           "code": "CANCEL_AGAINST",
-          "plain": "Overlay cancelled after the thesis broke. That can save worse days \u2014 do not flip from one loss."
+          "plain": "Booking cancelled after the thesis broke. That can save worse days \u2014 do not flip from one loss.",
+          "pnl_inr": -6356.64
         },
         {
           "day": "2026-09-17",
           "underlying": "NIFTY",
           "side": "PE",
-          "pnl_inr": null,
           "exit": "CANCEL_AGAINST",
           "next_itm_helped": false,
-          "room": "overlay",
+          "room": "booking",
           "code": "CANCEL_AGAINST",
-          "plain": "Overlay cancelled after the thesis broke. That can save worse days \u2014 do not flip from one loss."
+          "plain": "Booking cancelled after the thesis broke. That can save worse days \u2014 do not flip from one loss.",
+          "pnl_inr": -5976.5
         }
       ],
       "room_counts": {
-        "overlay": 12,
-        "desk": 7
+        "booking": 19
       },
-      "story": "2026-09-17: honest exam, losses after fill (stop/stall/cancel). One day is not enough to recode overlay.",
-      "improve": "overlay \u2014 only if more NORMAL days agree (founder confirm)",
+      "story": "2026-09-17: honest exam, losses after fill (booking: stall/against/unwind). One day is not enough to recode booking or overlay.",
+      "improve": "booking \u2014 write=false replay on more NORMAL days (founder confirm)",
       "one_day_is_not_retune": true,
       "promote": false,
       "orders": "REFUSED",
@@ -643,240 +537,239 @@
           "day": "2026-09-18",
           "underlying": "NIFTY",
           "side": "PE",
-          "pnl_inr": null,
           "exit": "CANCEL_AGAINST",
           "next_itm_helped": true,
-          "room": "overlay",
+          "room": "booking",
           "code": "CANCEL_AGAINST",
-          "plain": "Overlay cancelled after the thesis broke. That can save worse days \u2014 do not flip from one loss."
+          "plain": "Booking cancelled after the thesis broke. That can save worse days \u2014 do not flip from one loss.",
+          "pnl_inr": -6373.94
         },
         {
           "day": "2026-09-18",
           "underlying": "NIFTY",
           "side": "CE",
-          "pnl_inr": null,
           "exit": "COVER_LONG_UNWIND",
           "next_itm_helped": false,
-          "room": "desk",
-          "code": "LOST_OTHER",
-          "plain": "Lost on exit COVER_LONG_UNWIND. Grade the room, do not promote."
+          "room": "booking",
+          "code": "UNWIND",
+          "plain": "Dying wing flattened. Booking, not an overlay rewrite.",
+          "pnl_inr": -11992.85
         },
         {
           "day": "2026-09-18",
           "underlying": "NIFTY",
           "side": "CE",
-          "pnl_inr": null,
           "exit": "TARGET",
           "next_itm_helped": true,
           "room": "none",
           "code": "WIN_OR_FLAT",
-          "plain": "This ticket did not lose rupees. Exam does not retune from it."
+          "plain": "This ticket did not lose rupees. Exam does not retune from it.",
+          "pnl_inr": 17093.43
         },
         {
           "day": "2026-09-18",
           "underlying": "NIFTY",
           "side": "PE",
-          "pnl_inr": null,
           "exit": "COVER_LONG_UNWIND",
           "next_itm_helped": true,
-          "room": "desk",
-          "code": "LOST_OTHER",
-          "plain": "Lost on exit COVER_LONG_UNWIND. Grade the room, do not promote."
+          "room": "booking",
+          "code": "UNWIND",
+          "plain": "Dying wing flattened. Booking, not an overlay rewrite.",
+          "pnl_inr": -8898.02
         },
         {
           "day": "2026-09-18",
           "underlying": "NIFTY",
           "side": "CE",
-          "pnl_inr": null,
           "exit": "CANCEL_AGAINST",
           "next_itm_helped": false,
-          "room": "overlay",
+          "room": "booking",
           "code": "CANCEL_AGAINST",
-          "plain": "Overlay cancelled after the thesis broke. That can save worse days \u2014 do not flip from one loss."
+          "plain": "Booking cancelled after the thesis broke. That can save worse days \u2014 do not flip from one loss.",
+          "pnl_inr": -6217.09
         },
         {
           "day": "2026-09-18",
           "underlying": "NIFTY",
           "side": "CE",
-          "pnl_inr": null,
           "exit": "TARGET",
           "next_itm_helped": true,
           "room": "none",
           "code": "WIN_OR_FLAT",
-          "plain": "This ticket did not lose rupees. Exam does not retune from it."
+          "plain": "This ticket did not lose rupees. Exam does not retune from it.",
+          "pnl_inr": 16368.2
         },
         {
           "day": "2026-09-18",
           "underlying": "NIFTY",
           "side": "CE",
-          "pnl_inr": null,
           "exit": "TARGET",
           "next_itm_helped": true,
           "room": "none",
           "code": "WIN_OR_FLAT",
-          "plain": "This ticket did not lose rupees. Exam does not retune from it."
+          "plain": "This ticket did not lose rupees. Exam does not retune from it.",
+          "pnl_inr": 39250.61
         },
         {
           "day": "2026-09-18",
           "underlying": "NIFTY",
           "side": "PE",
-          "pnl_inr": null,
           "exit": "CANCEL_AGAINST",
           "next_itm_helped": true,
-          "room": "overlay",
+          "room": "booking",
           "code": "CANCEL_AGAINST",
-          "plain": "Overlay cancelled after the thesis broke. That can save worse days \u2014 do not flip from one loss."
+          "plain": "Booking cancelled after the thesis broke. That can save worse days \u2014 do not flip from one loss.",
+          "pnl_inr": -8679.1
         },
         {
           "day": "2026-09-18",
           "underlying": "NIFTY",
           "side": "CE",
-          "pnl_inr": null,
           "exit": "COVER_LONG_UNWIND",
           "next_itm_helped": true,
-          "room": "desk",
-          "code": "LOST_OTHER",
-          "plain": "Lost on exit COVER_LONG_UNWIND. Grade the room, do not promote."
+          "room": "booking",
+          "code": "UNWIND",
+          "plain": "Dying wing flattened. Booking, not an overlay rewrite.",
+          "pnl_inr": -8835.92
         },
         {
           "day": "2026-09-18",
           "underlying": "NIFTY",
           "side": "CE",
-          "pnl_inr": null,
           "exit": "CANCEL_AGAINST",
           "next_itm_helped": false,
-          "room": "overlay",
+          "room": "booking",
           "code": "CANCEL_AGAINST",
-          "plain": "Overlay cancelled after the thesis broke. That can save worse days \u2014 do not flip from one loss."
+          "plain": "Booking cancelled after the thesis broke. That can save worse days \u2014 do not flip from one loss.",
+          "pnl_inr": -15181.79
         },
         {
           "day": "2026-09-18",
           "underlying": "NIFTY",
           "side": "PE",
-          "pnl_inr": null,
           "exit": "COVER_LONG_UNWIND",
           "next_itm_helped": true,
-          "room": "desk",
-          "code": "LOST_OTHER",
-          "plain": "Lost on exit COVER_LONG_UNWIND. Grade the room, do not promote."
+          "room": "booking",
+          "code": "UNWIND",
+          "plain": "Dying wing flattened. Booking, not an overlay rewrite.",
+          "pnl_inr": -10611.57
         },
         {
           "day": "2026-09-18",
           "underlying": "NIFTY",
           "side": "PE",
-          "pnl_inr": null,
           "exit": "CANCEL_STALL",
           "next_itm_helped": false,
           "room": "none",
           "code": "WIN_OR_FLAT",
-          "plain": "This ticket did not lose rupees. Exam does not retune from it."
+          "plain": "This ticket did not lose rupees. Exam does not retune from it.",
+          "pnl_inr": 9288.6
         },
         {
           "day": "2026-09-18",
           "underlying": "NIFTY",
           "side": "CE",
-          "pnl_inr": null,
           "exit": "CANCEL_STALL",
           "next_itm_helped": true,
           "room": "none",
           "code": "WIN_OR_FLAT",
-          "plain": "This ticket did not lose rupees. Exam does not retune from it."
+          "plain": "This ticket did not lose rupees. Exam does not retune from it.",
+          "pnl_inr": 793.25
         },
         {
           "day": "2026-09-18",
           "underlying": "NIFTY",
           "side": "CE",
-          "pnl_inr": null,
           "exit": "COVER_LONG_UNWIND",
           "next_itm_helped": true,
-          "room": "desk",
-          "code": "LOST_OTHER",
-          "plain": "Lost on exit COVER_LONG_UNWIND. Grade the room, do not promote."
+          "room": "booking",
+          "code": "UNWIND",
+          "plain": "Dying wing flattened. Booking, not an overlay rewrite.",
+          "pnl_inr": -7567.92
         },
         {
           "day": "2026-09-18",
           "underlying": "NIFTY",
           "side": "CE",
-          "pnl_inr": null,
           "exit": "CANCEL_AGAINST",
           "next_itm_helped": false,
-          "room": "overlay",
+          "room": "booking",
           "code": "CANCEL_AGAINST",
-          "plain": "Overlay cancelled after the thesis broke. That can save worse days \u2014 do not flip from one loss."
+          "plain": "Booking cancelled after the thesis broke. That can save worse days \u2014 do not flip from one loss.",
+          "pnl_inr": -6936.42
         },
         {
           "day": "2026-09-18",
           "underlying": "NIFTY",
           "side": "CE",
-          "pnl_inr": null,
           "exit": "TARGET",
           "next_itm_helped": true,
           "room": "none",
           "code": "WIN_OR_FLAT",
-          "plain": "This ticket did not lose rupees. Exam does not retune from it."
+          "plain": "This ticket did not lose rupees. Exam does not retune from it.",
+          "pnl_inr": 16625.48
         },
         {
           "day": "2026-09-18",
           "underlying": "NIFTY",
           "side": "PE",
-          "pnl_inr": null,
           "exit": "COVER_LONG_UNWIND",
           "next_itm_helped": true,
-          "room": "desk",
-          "code": "LOST_OTHER",
-          "plain": "Lost on exit COVER_LONG_UNWIND. Grade the room, do not promote."
+          "room": "booking",
+          "code": "UNWIND",
+          "plain": "Dying wing flattened. Booking, not an overlay rewrite.",
+          "pnl_inr": -8709.59
         },
         {
           "day": "2026-09-18",
           "underlying": "NIFTY",
           "side": "CE",
-          "pnl_inr": null,
           "exit": "CANCEL_AGAINST",
           "next_itm_helped": false,
-          "room": "overlay",
+          "room": "booking",
           "code": "CANCEL_AGAINST",
-          "plain": "Overlay cancelled after the thesis broke. That can save worse days \u2014 do not flip from one loss."
+          "plain": "Booking cancelled after the thesis broke. That can save worse days \u2014 do not flip from one loss.",
+          "pnl_inr": -9167.54
         },
         {
           "day": "2026-09-18",
           "underlying": "NIFTY",
           "side": "CE",
-          "pnl_inr": null,
           "exit": "CANCEL_STALL",
           "next_itm_helped": true,
           "room": "none",
           "code": "WIN_OR_FLAT",
-          "plain": "This ticket did not lose rupees. Exam does not retune from it."
+          "plain": "This ticket did not lose rupees. Exam does not retune from it.",
+          "pnl_inr": 24816.01
         },
         {
           "day": "2026-09-18",
           "underlying": "NIFTY",
           "side": "CE",
-          "pnl_inr": null,
           "exit": "CANCEL_AGAINST",
           "next_itm_helped": false,
-          "room": "overlay",
+          "room": "booking",
           "code": "CANCEL_AGAINST",
-          "plain": "Overlay cancelled after the thesis broke. That can save worse days \u2014 do not flip from one loss."
+          "plain": "Booking cancelled after the thesis broke. That can save worse days \u2014 do not flip from one loss.",
+          "pnl_inr": -13150.76
         },
         {
           "day": "2026-09-18",
           "underlying": "NIFTY",
           "side": "CE",
-          "pnl_inr": null,
           "exit": "CANCEL_UNFILLED_AWAY",
           "next_itm_helped": true,
           "room": "none",
           "code": "WIN_OR_FLAT",
-          "plain": "This ticket did not lose rupees. Exam does not retune from it."
+          "plain": "This ticket did not lose rupees. Exam does not retune from it.",
+          "pnl_inr": 0.0
         }
       ],
       "room_counts": {
-        "overlay": 7,
-        "desk": 6
+        "booking": 13
       },
-      "story": "2026-09-18: honest exam, losses after fill (stop/stall/cancel). One day is not enough to recode overlay.",
-      "improve": "overlay \u2014 only if more NORMAL days agree (founder confirm)",
+      "story": "2026-09-18: honest exam, losses after fill (booking: stall/against/unwind). One day is not enough to recode booking or overlay.",
+      "improve": "booking \u2014 write=false replay on more NORMAL days (founder confirm)",
       "one_day_is_not_retune": true,
       "promote": false,
       "orders": "REFUSED",
@@ -887,7 +780,7 @@
       "ok": true,
       "day": "2026-09-21",
       "honesty": "CLEAN",
-      "session_kind": "UNKNOWN",
+      "session_kind": "NORMAL",
       "n_triples": 255,
       "n_exam_events": 80,
       "n_sod_closed": 23,
@@ -983,262 +876,733 @@
           "day": "2026-09-21",
           "underlying": "NIFTY",
           "side": "PE",
-          "pnl_inr": null,
           "exit": "FLATTEN_1516",
           "next_itm_helped": true,
-          "room": "desk",
+          "room": "desk-clock",
           "code": "FLATTEN_CUT",
-          "plain": "Session flatten closed a loser. Clock rule, not a one-day strategy change."
+          "plain": "Session flatten closed a loser. Clock rule, not a one-day strategy change.",
+          "pnl_inr": -186882.5
         },
         {
           "day": "2026-09-21",
           "underlying": "NIFTY",
           "side": "PE",
-          "pnl_inr": null,
           "exit": "COVER_LONG_UNWIND",
           "next_itm_helped": false,
-          "room": "desk",
-          "code": "LOST_OTHER",
-          "plain": "Lost on exit COVER_LONG_UNWIND. Grade the room, do not promote."
+          "room": "booking",
+          "code": "UNWIND",
+          "plain": "Dying wing flattened. Booking, not an overlay rewrite.",
+          "pnl_inr": -6048.03
         },
         {
           "day": "2026-09-21",
           "underlying": "NIFTY",
           "side": "PE",
-          "pnl_inr": null,
           "exit": "CANCEL_AGAINST",
           "next_itm_helped": false,
-          "room": "overlay",
+          "room": "booking",
           "code": "CANCEL_AGAINST",
-          "plain": "Overlay cancelled after the thesis broke. That can save worse days \u2014 do not flip from one loss."
+          "plain": "Booking cancelled after the thesis broke. That can save worse days \u2014 do not flip from one loss.",
+          "pnl_inr": -6055.51
         },
         {
           "day": "2026-09-21",
           "underlying": "NIFTY",
           "side": "CE",
-          "pnl_inr": null,
           "exit": "COVER_LONG_UNWIND",
           "next_itm_helped": false,
-          "room": "desk",
-          "code": "LOST_OTHER",
-          "plain": "Lost on exit COVER_LONG_UNWIND. Grade the room, do not promote."
+          "room": "booking",
+          "code": "UNWIND",
+          "plain": "Dying wing flattened. Booking, not an overlay rewrite.",
+          "pnl_inr": -11998.59
         },
         {
           "day": "2026-09-21",
           "underlying": "NIFTY",
           "side": "PE",
-          "pnl_inr": null,
           "exit": "CANCEL_AGAINST",
           "next_itm_helped": false,
-          "room": "overlay",
+          "room": "booking",
           "code": "CANCEL_AGAINST",
-          "plain": "Overlay cancelled after the thesis broke. That can save worse days \u2014 do not flip from one loss."
+          "plain": "Booking cancelled after the thesis broke. That can save worse days \u2014 do not flip from one loss.",
+          "pnl_inr": -6358.99
         },
         {
           "day": "2026-09-21",
           "underlying": "NIFTY",
           "side": "CE",
-          "pnl_inr": null,
           "exit": "COVER_LONG_UNWIND",
           "next_itm_helped": true,
-          "room": "desk",
-          "code": "LOST_OTHER",
-          "plain": "Lost on exit COVER_LONG_UNWIND. Grade the room, do not promote."
+          "room": "booking",
+          "code": "UNWIND",
+          "plain": "Dying wing flattened. Booking, not an overlay rewrite.",
+          "pnl_inr": -5832.35
         },
         {
           "day": "2026-09-21",
           "underlying": "NIFTY",
           "side": "PE",
-          "pnl_inr": null,
           "exit": "CANCEL_AGAINST",
           "next_itm_helped": false,
-          "room": "overlay",
+          "room": "booking",
           "code": "CANCEL_AGAINST",
-          "plain": "Overlay cancelled after the thesis broke. That can save worse days \u2014 do not flip from one loss."
+          "plain": "Booking cancelled after the thesis broke. That can save worse days \u2014 do not flip from one loss.",
+          "pnl_inr": -9935.19
         },
         {
           "day": "2026-09-21",
           "underlying": "NIFTY",
           "side": "CE",
-          "pnl_inr": null,
           "exit": "COVER_LONG_UNWIND",
           "next_itm_helped": false,
-          "room": "desk",
-          "code": "LOST_OTHER",
-          "plain": "Lost on exit COVER_LONG_UNWIND. Grade the room, do not promote."
+          "room": "booking",
+          "code": "UNWIND",
+          "plain": "Dying wing flattened. Booking, not an overlay rewrite.",
+          "pnl_inr": -9399.34
         },
         {
           "day": "2026-09-21",
           "underlying": "NIFTY",
           "side": "PE",
-          "pnl_inr": null,
           "exit": "COVER_LONG_UNWIND",
           "next_itm_helped": false,
-          "room": "desk",
-          "code": "LOST_OTHER",
-          "plain": "Lost on exit COVER_LONG_UNWIND. Grade the room, do not promote."
+          "room": "booking",
+          "code": "UNWIND",
+          "plain": "Dying wing flattened. Booking, not an overlay rewrite.",
+          "pnl_inr": -6861.27
         },
         {
           "day": "2026-09-21",
           "underlying": "NIFTY",
           "side": "CE",
-          "pnl_inr": null,
           "exit": "CANCEL_AGAINST",
           "next_itm_helped": false,
-          "room": "overlay",
+          "room": "booking",
           "code": "CANCEL_AGAINST",
-          "plain": "Overlay cancelled after the thesis broke. That can save worse days \u2014 do not flip from one loss."
+          "plain": "Booking cancelled after the thesis broke. That can save worse days \u2014 do not flip from one loss.",
+          "pnl_inr": -10943.4
         },
         {
           "day": "2026-09-21",
           "underlying": "NIFTY",
           "side": "CE",
-          "pnl_inr": null,
           "exit": "CANCEL_AGAINST",
           "next_itm_helped": false,
-          "room": "overlay",
+          "room": "booking",
           "code": "CANCEL_AGAINST",
-          "plain": "Overlay cancelled after the thesis broke. That can save worse days \u2014 do not flip from one loss."
+          "plain": "Booking cancelled after the thesis broke. That can save worse days \u2014 do not flip from one loss.",
+          "pnl_inr": -8777.42
         },
         {
           "day": "2026-09-21",
           "underlying": "NIFTY",
           "side": "CE",
-          "pnl_inr": null,
           "exit": "TARGET",
           "next_itm_helped": true,
           "room": "none",
           "code": "WIN_OR_FLAT",
-          "plain": "This ticket did not lose rupees. Exam does not retune from it."
+          "plain": "This ticket did not lose rupees. Exam does not retune from it.",
+          "pnl_inr": 36642.92
         },
         {
           "day": "2026-09-21",
           "underlying": "NIFTY",
           "side": "CE",
-          "pnl_inr": null,
           "exit": "TARGET",
           "next_itm_helped": false,
           "room": "none",
           "code": "WIN_OR_FLAT",
-          "plain": "This ticket did not lose rupees. Exam does not retune from it."
+          "plain": "This ticket did not lose rupees. Exam does not retune from it.",
+          "pnl_inr": 18035.66
         },
         {
           "day": "2026-09-21",
           "underlying": "NIFTY",
           "side": "CE",
-          "pnl_inr": null,
           "exit": "CANCEL_STALL",
           "next_itm_helped": false,
           "room": "none",
           "code": "WIN_OR_FLAT",
-          "plain": "This ticket did not lose rupees. Exam does not retune from it."
+          "plain": "This ticket did not lose rupees. Exam does not retune from it.",
+          "pnl_inr": 5718.92
         },
         {
           "day": "2026-09-21",
           "underlying": "NIFTY",
           "side": "CE",
-          "pnl_inr": null,
           "exit": "TARGET",
           "next_itm_helped": true,
           "room": "none",
           "code": "WIN_OR_FLAT",
-          "plain": "This ticket did not lose rupees. Exam does not retune from it."
+          "plain": "This ticket did not lose rupees. Exam does not retune from it.",
+          "pnl_inr": 16450.43
         },
         {
           "day": "2026-09-21",
           "underlying": "NIFTY",
           "side": "PE",
-          "pnl_inr": null,
           "exit": "CANCEL_STALL",
           "next_itm_helped": false,
           "room": "none",
           "code": "WIN_OR_FLAT",
-          "plain": "This ticket did not lose rupees. Exam does not retune from it."
+          "plain": "This ticket did not lose rupees. Exam does not retune from it.",
+          "pnl_inr": 6797.67
         },
         {
           "day": "2026-09-21",
           "underlying": "NIFTY",
           "side": "PE",
-          "pnl_inr": null,
           "exit": "CANCEL_STALL",
           "next_itm_helped": true,
           "room": "none",
           "code": "WIN_OR_FLAT",
-          "plain": "This ticket did not lose rupees. Exam does not retune from it."
+          "plain": "This ticket did not lose rupees. Exam does not retune from it.",
+          "pnl_inr": 1624.49
         },
         {
           "day": "2026-09-21",
           "underlying": "NIFTY",
           "side": "PE",
-          "pnl_inr": null,
           "exit": "CANCEL_UNFILLED_THESIS",
           "next_itm_helped": false,
           "room": "none",
           "code": "WIN_OR_FLAT",
-          "plain": "This ticket did not lose rupees. Exam does not retune from it."
+          "plain": "This ticket did not lose rupees. Exam does not retune from it.",
+          "pnl_inr": 0.0
         },
         {
           "day": "2026-09-21",
           "underlying": "NIFTY",
           "side": "CE",
-          "pnl_inr": null,
           "exit": "CANCEL_STALL",
           "next_itm_helped": true,
           "room": "none",
           "code": "WIN_OR_FLAT",
-          "plain": "This ticket did not lose rupees. Exam does not retune from it."
+          "plain": "This ticket did not lose rupees. Exam does not retune from it.",
+          "pnl_inr": 1103.06
         },
         {
           "day": "2026-09-21",
           "underlying": "NIFTY",
           "side": "CE",
-          "pnl_inr": null,
           "exit": "TARGET",
           "next_itm_helped": true,
           "room": "none",
           "code": "WIN_OR_FLAT",
-          "plain": "This ticket did not lose rupees. Exam does not retune from it."
+          "plain": "This ticket did not lose rupees. Exam does not retune from it.",
+          "pnl_inr": 16145.78
         },
         {
           "day": "2026-09-21",
           "underlying": "NIFTY",
           "side": "CE",
-          "pnl_inr": null,
           "exit": "CANCEL_STALL",
           "next_itm_helped": true,
           "room": "none",
           "code": "WIN_OR_FLAT",
-          "plain": "This ticket did not lose rupees. Exam does not retune from it."
+          "plain": "This ticket did not lose rupees. Exam does not retune from it.",
+          "pnl_inr": 1411.51
         },
         {
           "day": "2026-09-21",
           "underlying": "NIFTY",
           "side": "CE",
-          "pnl_inr": null,
           "exit": "CANCEL_STALL",
           "next_itm_helped": true,
           "room": "none",
           "code": "WIN_OR_FLAT",
-          "plain": "This ticket did not lose rupees. Exam does not retune from it."
+          "plain": "This ticket did not lose rupees. Exam does not retune from it.",
+          "pnl_inr": 5739.23
         },
         {
           "day": "2026-09-21",
           "underlying": "NIFTY",
           "side": "CE",
-          "pnl_inr": null,
           "exit": "CANCEL_STALL",
           "next_itm_helped": true,
           "room": "none",
           "code": "WIN_OR_FLAT",
-          "plain": "This ticket did not lose rupees. Exam does not retune from it."
+          "plain": "This ticket did not lose rupees. Exam does not retune from it.",
+          "pnl_inr": 6337.75
         }
       ],
       "room_counts": {
-        "desk": 6,
-        "overlay": 5
+        "desk-clock": 1,
+        "booking": 10
       },
-      "story": "2026-09-21: honest exam, losses after fill (stop/stall/cancel). One day is not enough to recode overlay.",
-      "improve": "overlay \u2014 only if more NORMAL days agree (founder confirm)",
+      "story": "2026-09-21: honest exam, losses after fill (booking: stall/against/unwind). One day is not enough to recode booking or overlay.",
+      "improve": "booking \u2014 write=false replay on more NORMAL days (founder confirm)",
+      "one_day_is_not_retune": true,
+      "promote": false,
+      "orders": "REFUSED",
+      "pnl_note": "Use board net \u20b9 only if honesty=CLEAN and fill contract ok.",
+      "win_rate": null
+    },
+    {
+      "ok": true,
+      "day": "2026-09-22",
+      "honesty": "CLEAN",
+      "session_kind": "EXPIRY",
+      "n_triples": 292,
+      "n_exam_events": 80,
+      "n_sod_closed": 33,
+      "n_slice": 2,
+      "n_peeked_slices": 0,
+      "n_fill_contract_fail": 0,
+      "fill_contract": "SOD_FILL_CONTRACT_V1",
+      "tape_note": "ITM kind present on at least one tape row.",
+      "tapes": {
+        "NIFTY": {
+          "aligned_triples": 292,
+          "source": "dual_tape_jsonl"
+        }
+      },
+      "slices": [
+        {
+          "underlying": "NIFTY",
+          "cut_ts": 1790064939,
+          "status": "CLEAN",
+          "full": [
+            "TICKET",
+            "PE",
+            "ALLOW",
+            "OBSERVER_ALLOW_ITM_CONFIRMS",
+            true
+          ],
+          "sliced": [
+            "TICKET",
+            "PE",
+            "ALLOW",
+            "OBSERVER_ALLOW_ITM_CONFIRMS",
+            true
+          ],
+          "plain": "Same picker/observer/desk when later candles are hidden."
+        },
+        {
+          "underlying": "NIFTY",
+          "cut_ts": 1790069876,
+          "status": "CLEAN",
+          "full": [
+            "TICKET",
+            "PE",
+            "ALLOW",
+            "OBSERVER_ALLOW_ITM_CONFIRMS",
+            true
+          ],
+          "sliced": [
+            "TICKET",
+            "PE",
+            "ALLOW",
+            "OBSERVER_ALLOW_ITM_CONFIRMS",
+            true
+          ],
+          "plain": "Same picker/observer/desk when later candles are hidden."
+        }
+      ],
+      "analyst_next_itm": [
+        {
+          "source": "MIX-TV-EP-024",
+          "spoken": 80,
+          "next_itm_ok": 39,
+          "next_itm_miss": 40,
+          "hit_pct": 49.4,
+          "note": "Not a customer win rate. Next finished ITM print only. UNKNOWN if ATM tape."
+        },
+        {
+          "source": "STRAT-003",
+          "spoken": 75,
+          "next_itm_ok": 33,
+          "next_itm_miss": 41,
+          "hit_pct": 44.6,
+          "note": "Not a customer win rate. Next finished ITM print only. UNKNOWN if ATM tape."
+        },
+        {
+          "source": "follows",
+          "spoken": 33,
+          "next_itm_ok": 14,
+          "next_itm_miss": 18,
+          "hit_pct": 43.8,
+          "note": "Not a customer win rate. Next finished ITM print only. UNKNOWN if ATM tape."
+        },
+        {
+          "source": "greeks",
+          "spoken": 2,
+          "next_itm_ok": 1,
+          "next_itm_miss": 1,
+          "hit_pct": 50.0,
+          "note": "Not a customer win rate. Next finished ITM print only. UNKNOWN if ATM tape."
+        }
+      ],
+      "spills": [
+        {
+          "day": "2026-09-22",
+          "underlying": "NIFTY",
+          "side": "PE",
+          "exit": "COVER_LONG_UNWIND",
+          "next_itm_helped": false,
+          "room": "booking",
+          "code": "UNWIND",
+          "plain": "Dying wing flattened. Booking, not an overlay rewrite.",
+          "pnl_inr": -18243.64
+        },
+        {
+          "day": "2026-09-22",
+          "underlying": "NIFTY",
+          "side": "PE",
+          "exit": "COVER_LONG_UNWIND",
+          "next_itm_helped": true,
+          "room": "booking",
+          "code": "UNWIND",
+          "plain": "Dying wing flattened. Booking, not an overlay rewrite.",
+          "pnl_inr": -10525.87
+        },
+        {
+          "day": "2026-09-22",
+          "underlying": "NIFTY",
+          "side": "PE",
+          "exit": "TARGET",
+          "next_itm_helped": false,
+          "room": "none",
+          "code": "WIN_OR_FLAT",
+          "plain": "This ticket did not lose rupees. Exam does not retune from it.",
+          "pnl_inr": 30390.82
+        },
+        {
+          "day": "2026-09-22",
+          "underlying": "NIFTY",
+          "side": "PE",
+          "exit": "TARGET",
+          "next_itm_helped": false,
+          "room": "none",
+          "code": "WIN_OR_FLAT",
+          "plain": "This ticket did not lose rupees. Exam does not retune from it.",
+          "pnl_inr": 16848.03
+        },
+        {
+          "day": "2026-09-22",
+          "underlying": "NIFTY",
+          "side": "CE",
+          "exit": "CANCEL_AGAINST",
+          "next_itm_helped": true,
+          "room": "booking",
+          "code": "CANCEL_AGAINST",
+          "plain": "Booking cancelled after the thesis broke. That can save worse days \u2014 do not flip from one loss.",
+          "pnl_inr": -11022.4
+        },
+        {
+          "day": "2026-09-22",
+          "underlying": "NIFTY",
+          "side": "CE",
+          "exit": "TARGET",
+          "next_itm_helped": false,
+          "room": "none",
+          "code": "WIN_OR_FLAT",
+          "plain": "This ticket did not lose rupees. Exam does not retune from it.",
+          "pnl_inr": 80892.11
+        },
+        {
+          "day": "2026-09-22",
+          "underlying": "NIFTY",
+          "side": "PE",
+          "exit": "COVER_LONG_UNWIND",
+          "next_itm_helped": true,
+          "room": "booking",
+          "code": "UNWIND",
+          "plain": "Dying wing flattened. Booking, not an overlay rewrite.",
+          "pnl_inr": -16963.57
+        },
+        {
+          "day": "2026-09-22",
+          "underlying": "NIFTY",
+          "side": "PE",
+          "exit": "TARGET",
+          "next_itm_helped": true,
+          "room": "none",
+          "code": "WIN_OR_FLAT",
+          "plain": "This ticket did not lose rupees. Exam does not retune from it.",
+          "pnl_inr": 17009.64
+        },
+        {
+          "day": "2026-09-22",
+          "underlying": "NIFTY",
+          "side": "CE",
+          "exit": "COVER_LONG_UNWIND",
+          "next_itm_helped": true,
+          "room": "booking",
+          "code": "UNWIND",
+          "plain": "Dying wing flattened. Booking, not an overlay rewrite.",
+          "pnl_inr": -11625.35
+        },
+        {
+          "day": "2026-09-22",
+          "underlying": "NIFTY",
+          "side": "PE",
+          "exit": "COVER_LONG_UNWIND",
+          "next_itm_helped": false,
+          "room": "booking",
+          "code": "UNWIND",
+          "plain": "Dying wing flattened. Booking, not an overlay rewrite.",
+          "pnl_inr": -7078.47
+        },
+        {
+          "day": "2026-09-22",
+          "underlying": "NIFTY",
+          "side": "PE",
+          "exit": "CANCEL_AGAINST",
+          "next_itm_helped": false,
+          "room": "booking",
+          "code": "CANCEL_AGAINST",
+          "plain": "Booking cancelled after the thesis broke. That can save worse days \u2014 do not flip from one loss.",
+          "pnl_inr": -11618.41
+        },
+        {
+          "day": "2026-09-22",
+          "underlying": "NIFTY",
+          "side": "PE",
+          "exit": "CANCEL_AGAINST",
+          "next_itm_helped": true,
+          "room": "booking",
+          "code": "CANCEL_AGAINST",
+          "plain": "Booking cancelled after the thesis broke. That can save worse days \u2014 do not flip from one loss.",
+          "pnl_inr": -14295.11
+        },
+        {
+          "day": "2026-09-22",
+          "underlying": "NIFTY",
+          "side": "PE",
+          "exit": "TARGET",
+          "next_itm_helped": true,
+          "room": "none",
+          "code": "WIN_OR_FLAT",
+          "plain": "This ticket did not lose rupees. Exam does not retune from it.",
+          "pnl_inr": 20407.74
+        },
+        {
+          "day": "2026-09-22",
+          "underlying": "NIFTY",
+          "side": "CE",
+          "exit": "COVER_LONG_UNWIND",
+          "next_itm_helped": false,
+          "room": "booking",
+          "code": "UNWIND",
+          "plain": "Dying wing flattened. Booking, not an overlay rewrite.",
+          "pnl_inr": -7672.22
+        },
+        {
+          "day": "2026-09-22",
+          "underlying": "NIFTY",
+          "side": "CE",
+          "exit": "CANCEL_STALL",
+          "next_itm_helped": true,
+          "room": "none",
+          "code": "WIN_OR_FLAT",
+          "plain": "This ticket did not lose rupees. Exam does not retune from it.",
+          "pnl_inr": 197.2
+        },
+        {
+          "day": "2026-09-22",
+          "underlying": "NIFTY",
+          "side": "PE",
+          "exit": "COVER_LONG_UNWIND",
+          "next_itm_helped": false,
+          "room": "booking",
+          "code": "UNWIND",
+          "plain": "Dying wing flattened. Booking, not an overlay rewrite.",
+          "pnl_inr": -8860.64
+        },
+        {
+          "day": "2026-09-22",
+          "underlying": "NIFTY",
+          "side": "CE",
+          "exit": "COVER_LONG_UNWIND",
+          "next_itm_helped": false,
+          "room": "booking",
+          "code": "UNWIND",
+          "plain": "Dying wing flattened. Booking, not an overlay rewrite.",
+          "pnl_inr": -8251.76
+        },
+        {
+          "day": "2026-09-22",
+          "underlying": "NIFTY",
+          "side": "CE",
+          "exit": "COVER_LONG_UNWIND",
+          "next_itm_helped": false,
+          "room": "booking",
+          "code": "UNWIND",
+          "plain": "Dying wing flattened. Booking, not an overlay rewrite.",
+          "pnl_inr": -5801.3
+        },
+        {
+          "day": "2026-09-22",
+          "underlying": "NIFTY",
+          "side": "PE",
+          "exit": "COVER_LONG_UNWIND",
+          "next_itm_helped": true,
+          "room": "booking",
+          "code": "UNWIND",
+          "plain": "Dying wing flattened. Booking, not an overlay rewrite.",
+          "pnl_inr": -7075.23
+        },
+        {
+          "day": "2026-09-22",
+          "underlying": "NIFTY",
+          "side": "PE",
+          "exit": "TARGET",
+          "next_itm_helped": false,
+          "room": "none",
+          "code": "WIN_OR_FLAT",
+          "plain": "This ticket did not lose rupees. Exam does not retune from it.",
+          "pnl_inr": 37187.59
+        },
+        {
+          "day": "2026-09-22",
+          "underlying": "NIFTY",
+          "side": "PE",
+          "exit": "TARGET",
+          "next_itm_helped": true,
+          "room": "none",
+          "code": "WIN_OR_FLAT",
+          "plain": "This ticket did not lose rupees. Exam does not retune from it.",
+          "pnl_inr": 19055.6
+        },
+        {
+          "day": "2026-09-22",
+          "underlying": "NIFTY",
+          "side": "CE",
+          "exit": "COVER_LONG_UNWIND",
+          "next_itm_helped": false,
+          "room": "booking",
+          "code": "UNWIND",
+          "plain": "Dying wing flattened. Booking, not an overlay rewrite.",
+          "pnl_inr": -18571.66
+        },
+        {
+          "day": "2026-09-22",
+          "underlying": "NIFTY",
+          "side": "CE",
+          "exit": "TARGET",
+          "next_itm_helped": false,
+          "room": "none",
+          "code": "WIN_OR_FLAT",
+          "plain": "This ticket did not lose rupees. Exam does not retune from it.",
+          "pnl_inr": 18044.29
+        },
+        {
+          "day": "2026-09-22",
+          "underlying": "NIFTY",
+          "side": "PE",
+          "exit": "COVER_LONG_UNWIND",
+          "next_itm_helped": false,
+          "room": "booking",
+          "code": "UNWIND",
+          "plain": "Dying wing flattened. Booking, not an overlay rewrite.",
+          "pnl_inr": -11870.13
+        },
+        {
+          "day": "2026-09-22",
+          "underlying": "NIFTY",
+          "side": "CE",
+          "exit": "COVER_LONG_UNWIND",
+          "next_itm_helped": false,
+          "room": "booking",
+          "code": "UNWIND",
+          "plain": "Dying wing flattened. Booking, not an overlay rewrite.",
+          "pnl_inr": -10270.14
+        },
+        {
+          "day": "2026-09-22",
+          "underlying": "NIFTY",
+          "side": "PE",
+          "exit": "TARGET",
+          "next_itm_helped": true,
+          "room": "none",
+          "code": "WIN_OR_FLAT",
+          "plain": "This ticket did not lose rupees. Exam does not retune from it.",
+          "pnl_inr": 27595.83
+        },
+        {
+          "day": "2026-09-22",
+          "underlying": "NIFTY",
+          "side": "PE",
+          "exit": "TARGET",
+          "next_itm_helped": true,
+          "room": "none",
+          "code": "WIN_OR_FLAT",
+          "plain": "This ticket did not lose rupees. Exam does not retune from it.",
+          "pnl_inr": 74083.84
+        },
+        {
+          "day": "2026-09-22",
+          "underlying": "NIFTY",
+          "side": "PE",
+          "exit": "TARGET",
+          "next_itm_helped": true,
+          "room": "none",
+          "code": "WIN_OR_FLAT",
+          "plain": "This ticket did not lose rupees. Exam does not retune from it.",
+          "pnl_inr": 30057.97
+        },
+        {
+          "day": "2026-09-22",
+          "underlying": "NIFTY",
+          "side": "CE",
+          "exit": "COVER_LONG_UNWIND",
+          "next_itm_helped": true,
+          "room": "booking",
+          "code": "UNWIND",
+          "plain": "Dying wing flattened. Booking, not an overlay rewrite.",
+          "pnl_inr": -6375.85
+        },
+        {
+          "day": "2026-09-22",
+          "underlying": "NIFTY",
+          "side": "CE",
+          "exit": "COVER_LONG_UNWIND",
+          "next_itm_helped": true,
+          "room": "booking",
+          "code": "UNWIND",
+          "plain": "Dying wing flattened. Booking, not an overlay rewrite.",
+          "pnl_inr": -7918.57
+        },
+        {
+          "day": "2026-09-22",
+          "underlying": "NIFTY",
+          "side": "CE",
+          "exit": "CANCEL_AGAINST",
+          "next_itm_helped": true,
+          "room": "booking",
+          "code": "CANCEL_AGAINST",
+          "plain": "Booking cancelled after the thesis broke. That can save worse days \u2014 do not flip from one loss.",
+          "pnl_inr": -9449.98
+        },
+        {
+          "day": "2026-09-22",
+          "underlying": "NIFTY",
+          "side": "CE",
+          "exit": "CANCEL_AGAINST",
+          "next_itm_helped": true,
+          "room": "booking",
+          "code": "CANCEL_AGAINST",
+          "plain": "Booking cancelled after the thesis broke. That can save worse days \u2014 do not flip from one loss.",
+          "pnl_inr": -9540.26
+        },
+        {
+          "day": "2026-09-22",
+          "underlying": "NIFTY",
+          "side": "CE",
+          "exit": "TARGET",
+          "next_itm_helped": true,
+          "room": "none",
+          "code": "WIN_OR_FLAT",
+          "plain": "This ticket did not lose rupees. Exam does not retune from it.",
+          "pnl_inr": 25485.62
+        }
+      ],
+      "room_counts": {
+        "booking": 20
+      },
+      "story": "2026-09-22: honest exam, losses after fill (booking: stall/against/unwind). One day is not enough to recode booking or overlay.",
+      "improve": "booking \u2014 write=false replay on more NORMAL days (founder confirm)",
       "one_day_is_not_retune": true,
       "promote": false,
       "orders": "REFUSED",
@@ -1247,15 +1611,14 @@
     }
   ],
   "stories": [
-    "2026-09-15: no SOD MIX-DEFAULT-BUY closes. ITM kind present on at least one tape row. Observer/ITM skip can leave n_open=0. That is a data story, not a silent win.",
-    "2026-09-16: honest exam, losses after fill (stop/stall/cancel). One day is not enough to recode overlay.",
-    "2026-09-17: honest exam, losses after fill (stop/stall/cancel). One day is not enough to recode overlay.",
-    "2026-09-18: honest exam, losses after fill (stop/stall/cancel). One day is not enough to recode overlay.",
-    "2026-09-21: honest exam, losses after fill (stop/stall/cancel). One day is not enough to recode overlay."
+    "2026-09-16: honest exam, losses after fill (booking: stall/against/unwind). One day is not enough to recode booking or overlay.",
+    "2026-09-17: honest exam, losses after fill (booking: stall/against/unwind). One day is not enough to recode booking or overlay.",
+    "2026-09-18: honest exam, losses after fill (booking: stall/against/unwind). One day is not enough to recode booking or overlay.",
+    "2026-09-21: honest exam, losses after fill (booking: stall/against/unwind). One day is not enough to recode booking or overlay.",
+    "2026-09-22: honest exam, losses after fill (booking: stall/against/unwind). One day is not enough to recode booking or overlay."
   ],
   "watch_next": [
-    "need ITM tape or accept ATM days as DATA_INSUFFICIENT for ITM fills",
-    "overlay \u2014 only if more NORMAL days agree (founder confirm)"
+    "booking \u2014 write=false replay on more NORMAL days (founder confirm)"
   ],
   "cli": "python -m desk_ml sod-exam --days 2026-09-16,2026-09-17,2026-09-18 --no-write-board",
   "note": "write=false replay. Overlay unchanged. NO_PROMOTE."

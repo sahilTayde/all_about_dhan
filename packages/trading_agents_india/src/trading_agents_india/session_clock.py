@@ -40,6 +40,7 @@ FLATTEN_1516 = "FLATTEN_1516"
 BEFORE_WORK_START = "BEFORE_0930_IST"
 PAST_TICK_CAPTURE = "PAST_1529_IST"
 
+# FOUNDER LOCK: Dhan dual-tape + board write default. Do not raise until founder names another interval.
 DEFAULT_TICK_SECONDS = 2
 MIN_TICK_SECONDS = 2
 DOCUMENTED_FASTER_TICK_SECONDS = 2

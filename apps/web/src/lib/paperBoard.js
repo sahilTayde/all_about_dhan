@@ -1,5 +1,7 @@
 const API_URL = import.meta.env.VITE_API_URL;
 export const UNIQUE_BOOKS = ["MIX-DEFAULT-BUY", "MIX-ML-LOGIT", "MIX-ML-LOGIT-XR", "MIX-ML-GREEKS"];
+/** FOUNDER LOCK: /paper/ml-books poll. Do not raise until founder names another interval. */
+export const BOARD_POLL_MS = 2000;
 const STALE_MS = 90_000;
 
 const _cache = { board: null, boardAt: 0, lab: null };
@@ -12,7 +14,7 @@ async function getJson(url, signal) {
 
 export async function fetchMlPaperBoard({ force = false, signal } = {}) {
   const now = Date.now();
-  if (!force && _cache.board && now - _cache.boardAt < 2000) return _cache.board;
+  if (!force && _cache.board && now - _cache.boardAt < BOARD_POLL_MS) return _cache.board;
   const url = API_URL ? `${API_URL}/paper/ml-books` : "/mock/ml_paper_dashboard.json";
   const json = await getJson(`${url}${url.includes("?") ? "&" : "?"}t=${now}`, signal);
   _cache.board = json;

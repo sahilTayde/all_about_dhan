@@ -226,7 +226,7 @@ def build_founder_status() -> dict[str, Any]:
             "open_settle_gate": "NO_NEW_BEFORE_0950",
             "tick_seconds": (ml.get("heartbeat") or {}).get("tick_seconds")
             or (ml.get("heartbeat") or {}).get("tick_seconds_default")
-            or 10,
+            or 2,
             "cli": "python -m desk_ml paper-scalp --replay",
             "note": "Net ₹ after Groww+STT ranks. Independent books. Closed newest first. NO_PROMOTE.",
         },

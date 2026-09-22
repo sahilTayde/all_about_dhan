@@ -21,16 +21,16 @@ Do not glob markdown. Do not create extra CONTINUE/HANDOFF/NOTES dumps.
 
 Gate: NOT RESEARCH_READY_FOR_PROGRAMMING. PAPER only. NO_PROMOTE. STRATs UNVALIDATED. Dashboard P/L is MOCK. No live orders. Do not restart npm / Vite / paper ops until I ask. Never print secrets.
 
-Left off 2026-09-21: founder slept through close. One command is ./scripts/desk.sh morning | close | status. Honesty on /pm. Nightly NIGHTLY_YYYY-MM-DD.md. Do not git-add sqlite.
+Left off 2026-09-22: session closed after 15:40 IST. Website left ON for morning review. One command is ./scripts/desk.sh morning | close | status. Honesty on /pm. Nightly NIGHTLY_YYYY-MM-DD.md. Do not git-add sqlite.
 ```
 
 ---
 
-## Left-off 2026-09-21 IST — sleep close + one-command desk (NO_PROMOTE)
+## Left-off 2026-09-22 IST — sleep close done; website ON (NO_PROMOTE)
 
-**Now:** Paper dual-tape + website were left running through the 21 Sep session. After 15:40 IST `./scripts/desk.sh close` stops capture, keeps http://127.0.0.1:5173 , runs honesty exam + `python -m jobs post-market`. Morning: **only** `./scripts/desk.sh morning`, then START TRADE on `/pm`. Honesty: `/pm` Honesty exam, `data/recon/sod_exam_report.json`. Nightly: `data/recon/2026-09-21.json` + `teams/02_phd_math/docs/handoffs/NIGHTLY_2026-09-21.md`. Runbook: `teams/06_backtesting/docs/SESSION_PREP_ML.md`. Gate **not** `RESEARCH_READY_FOR_PROGRAMMING`. PAPER. **NO_PROMOTE.**
+**Now:** 22 Sep paper dual-tape ran through cash close. `./scripts/desk.sh watch-close` at 15:40 IST stopped capture, **kept** http://127.0.0.1:5173 (`/desk` + `/pm` HTTP 200). Nightly: `session_kind=EXPIRY`, user taken 0 / skipped 3 EXPIRED, shadow+user P/L 0, `RETUNE_PROPOSAL` **BACKTEST_REQUIRED**, `production_params_written=false`. Honesty exam: `overall_honesty=CLEAN`, 0 peek / 0 fill-contract fail; 22 Sep n_sod_closed=33 (EXPIRY — not a retune sample). Docs auditor **PASS**. Receipt: `data/recon/close_status.txt`. Nightly JSON `data/recon/2026-09-22.json`. PhD `teams/02_phd_math/docs/handoffs/NIGHTLY_2026-09-22.md`. Exam `data/recon/sod_exam_report.json`. Gate **not** `RESEARCH_READY_FOR_PROGRAMMING`. PAPER. **NO_PROMOTE.**
 
-**Next:** Read close receipt `data/recon/close_status.txt`. Do not git-add sqlite.
+**Next:** Morning review on `/pm` (Honesty exam) + `/desk`. Then **only** `./scripts/desk.sh morning` and START TRADE. Do not git-add sqlite.
 
 ## Left-off 2026-09-20 IST — SOD analyst room (NO_PROMOTE)
 
