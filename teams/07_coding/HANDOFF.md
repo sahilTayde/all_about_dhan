@@ -1,5 +1,34 @@
 # Handoff log — Team 07 Coding
 
+## As of now (2026-09-21 IST) — Close order: nightly then exam (NO_PROMOTE)
+
+```text
+From:     teams/07_coding
+To:       founder / 06
+Date:     2026-09-21
+Status:   PAPER OPS / NO_PROMOTE
+Accepted: desk.sh close runs jobs post-market first, then sod-exam.
+Rejected: Overlay recode. Killing Vite at close.
+UNKNOWN: none
+```
+
+---
+
+## As of now (2026-09-21 IST) — Keep website, stop capture after close (NO_PROMOTE)
+
+```text
+From:     teams/07_coding
+To:       founder / 00 / 06
+Date:     2026-09-21
+Status:   PAPER OPS / NO_PROMOTE
+Accepted: scripts/desk.sh is the one founder command. morning starts
+  API+Vite+dual-tape. close keeps :5173/:8000 and stops dual-tape.
+Rejected: Killing the website at close. Live orders.
+UNKNOWN: founder laptop sleep vs screen sessions staying up.
+```
+
+---
+
 ## As of now (2026-09-21 IST) — Desk tables stay in the viewport (NO_PROMOTE)
 
 ```text

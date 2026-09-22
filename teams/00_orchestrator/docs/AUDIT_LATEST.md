@@ -1,6 +1,6 @@
 # Docs Auditor — latest
 
-**Date (IST):** `2026-09-21T14:17:48+05:30`
+**Date (IST):** `2026-09-22T09:33:06+05:30`
 **Result:** **PASS** (0 findings)
 **Cadence:** after any requirement change **and** post-market nightly (`jobs.docs_auditor: daily`)
 **CLI:** `python -m docs_auditor` · `python -m desk_intel audit-docs`

@@ -355,6 +355,7 @@ def main(argv: Optional[list[str]] = None) -> int:
                 "story": d.get("story"),
                 "improve": d.get("improve"),
                 "tape_note": d.get("tape_note"),
+                "room_counts": d.get("room_counts"),
             }
             for d in (report.get("days") or [])
         ]

@@ -1,5 +1,31 @@
 # SESSION_PREP_ML — data 09:00 IST; first NEW 09:30; flatten 15:16; ticks to 15:30
 
+## Founder — one command (do this, nothing else)
+
+From the repo root. PAPER. No live orders.
+
+| When | Command | What it does |
+|------|---------|----------------|
+| **Morning** (before / at 09:00 IST) | `./scripts/desk.sh morning` | Pre-market drill + API `:8000` + website `:5173` + dual-tape capture. Then open `/pm`, pick index, **START TRADE**. |
+| **During session** | `./scripts/desk.sh status` | Pids and URLs. Do not restart unless something is DOWN. |
+| **After close** (15:40 IST) | `./scripts/desk.sh close` | Stops data capture. **Keeps the website on.** Runs honesty exam + nightly recon + docs auditor. |
+| Website only (review, no tape) | `./scripts/desk.sh website` | API + Vite. Capture off. |
+
+**Morning review URLs**
+
+- Desk: http://127.0.0.1:5173/desk
+- Founder + honesty exam: http://127.0.0.1:5173/pm → section **Honesty exam (06)**
+- Honesty JSON: `data/recon/sod_exam_report.json` (also `GET http://127.0.0.1:8000/paper/sod-exam`)
+- Nightly JSON: `data/recon/YYYY-MM-DD.json` (IST date)
+- Nightly PhD note: `teams/02_phd_math/docs/handoffs/NIGHTLY_YYYY-MM-DD.md`
+- Auditor: `teams/00_orchestrator/docs/AUDIT_LATEST.md`
+- Close receipt: `data/recon/close_status.txt`
+
+Do **not** mix extra `npm run dev` / `uvicorn` / `dual-tape` lines on a normal day. One command.
+
+---
+
+
 **Team:** 06_backtesting (runbook) · 07 `packages/desk-ml` · 05 dual-tape  
 **Date:** 2026-09-15 (IST)  
 **Status:** `HYPOTHESIS` / **NO_PROMOTE** / `production_params_written: false`  

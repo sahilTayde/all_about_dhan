@@ -66,6 +66,43 @@ def cas_calls_path(root: Path, cas_dir: str, day: str) -> Path:
     return root / cas_dir / f"{day}.json"
 
 
+def load_paper_sod_book(root: Path, day: str) -> Optional[dict[str, Any]]:
+    """FIX-FIRST write=false day card. Not MARKET_SIGNAL. Not a promote."""
+    path = root / "data" / "recon" / "fix_first_progress.json"
+    if not path.is_file():
+        return None
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    for row in raw.get("days") or []:
+        if not isinstance(row, dict):
+            continue
+        if str(row.get("ist_date") or "") != day:
+            continue
+        return {
+            "source": "fix_first_progress.json",
+            "write": False,
+            "promote": False,
+            "ist_date": day,
+            "n_filled_dealer": row.get("n_filled_dealer") or row.get("n_filled_unique"),
+            "n_wins": row.get("n_wins"),
+            "n_losses": row.get("n_losses"),
+            "win_rate_net_pct": row.get("win_rate_net_pct"),
+            "net_pnl_inr": row.get("net_pnl_inr"),
+            "n_target": row.get("n_target"),
+            "n_stall": row.get("n_stall"),
+            "n_against": row.get("n_against"),
+            "n_unwind": row.get("n_unwind"),
+            "n_stall_trending_open": row.get("n_stall_trending_open"),
+            "n_green_not_target": row.get("n_green_not_target"),
+            "exit_reasons": row.get("exit_reasons") or {},
+            "lessons": row.get("lessons") or [],
+            "note": "Paper SOD book from FIX-FIRST. Nightly MARKET_SIGNAL counts may still be empty.",
+        }
+    return None
+
+
 def load_cas_calls(root: Path, cas_dir: str, day: str) -> list[dict[str, Any]]:
     """Load 03 CAS analyst calls. Missing file → []. Never retunes params."""
     path = cas_calls_path(root, cas_dir or DEFAULT_CAS_CALLS_DIR, day)
@@ -110,6 +147,7 @@ def render_phd_markdown(
     session_flags: Optional[list[str]] = None,
     retune_proposal: Optional[dict[str, Any]] = None,
     cas_calls: Optional[list[dict[str, Any]]] = None,
+    paper_sod_book: Optional[dict[str, Any]] = None,
 ) -> str:
     flags = session_flags or [session_kind]
     proposal = retune_proposal or {}
@@ -161,6 +199,19 @@ def render_phd_markdown(
     ]
     if not records:
         lines.append("_No MARKET_SIGNAL files for this day — DATA_INSUFFICIENT. Ran schema-only recon._")
+        lines.append("")
+    if paper_sod_book:
+        lines += [
+            "## Paper SOD book (FIX-FIRST, write=false)",
+            "",
+            f"- fills: **{paper_sod_book.get('n_filled_dealer')}** wins={paper_sod_book.get('n_wins')} losses={paper_sod_book.get('n_losses')}",
+            f"- net ₹: **{paper_sod_book.get('net_pnl_inr')}** (after Groww+STT on the drill card; not a promote)",
+            f"- TARGET={paper_sod_book.get('n_target')} STALL={paper_sod_book.get('n_stall')} AGAINST={paper_sod_book.get('n_against')} UNWIND={paper_sod_book.get('n_unwind')}",
+            f"- STALL on TRENDING-at-open: **{paper_sod_book.get('n_stall_trending_open')}** · green-not-target: **{paper_sod_book.get('n_green_not_target')}**",
+            "",
+        ]
+        for lesson in paper_sod_book.get("lessons") or []:
+            lines.append(f"- {lesson}")
         lines.append("")
     for rec in records:
         user = "TOOK" if rec.user.took_trade else "SKIPPED"
@@ -267,6 +318,7 @@ def run_nightly(
     job = cfg.jobs.post_market
     cas_dir = getattr(settings, "cas_calls_dir", None) or DEFAULT_CAS_CALLS_DIR
     cas_calls = load_cas_calls(root, cas_dir, day)
+    paper_sod_book = load_paper_sod_book(root, day)
 
     payload = {
         "schema_version": RECON_SCHEMA_VERSION,
@@ -287,6 +339,7 @@ def run_nightly(
         "retune_proposal": proposal_payload,
         "production_params_written": False,
         "cas_calls": cas_calls,
+        "paper_sod_book": paper_sod_book,
         "outcome_help": OUTCOME_HELP,
         "compliance": COMPLIANCE_NOTE,
         "execution": "refused",
@@ -310,6 +363,7 @@ def run_nightly(
             session_flags=list(session.flags),
             retune_proposal=proposal_payload,
             cas_calls=cas_calls,
+            paper_sod_book=paper_sod_book,
         )
         md_path = phd_handoff_path(root, settings.phd_handoff_dir, day)
         md_path.parent.mkdir(parents=True, exist_ok=True)

@@ -109,59 +109,86 @@ def _next_itm_ok(side: str, fill_ts: int, triples: Sequence[Any]) -> Optional[bo
         return None
 
 
+def _spill_money(row: dict[str, Any]) -> Optional[float]:
+    for key in ("realized_pnl_inr", "pnl_inr", "pnl"):
+        raw = row.get(key)
+        if raw is None:
+            continue
+        try:
+            return float(raw)
+        except (TypeError, ValueError):
+            continue
+    return None
+
+
 def classify_spill(row: dict[str, Any], *, next_itm_helped: Optional[bool]) -> dict[str, Any]:
+    """Name the *management* room. Does not change fills. Not a promote."""
     reason = str(row.get("exit_reason") or row.get("reason") or row.get("close_reason") or "")
     sl = bool(row.get("sl_hit") or row.get("stop_hit"))
-    pnl = row.get("realized_pnl_inr")
-    if pnl is None:
-        pnl = row.get("pnl_inr")
-    if pnl is None:
-        pnl = row.get("pnl")
-    try:
-        money = float(pnl) if pnl is not None else None
-    except (TypeError, ValueError):
-        money = None
+    money = _spill_money(row)
     lost = money is not None and money < 0
+    extra = {"pnl_inr": money}
     if not lost:
         return {
             "room": "none",
             "code": "WIN_OR_FLAT",
             "plain": "This ticket did not lose rupees. Exam does not retune from it.",
+            **extra,
         }
-    if sl or "STOP" in reason.upper() or "SL" in reason.upper():
-        if next_itm_helped is True:
-            return {
-                "room": "overlay",
-                "code": "ENTRY_OK_OVERLAY_STOP",
-                "plain": (
-                    "The next ITM minute went our way, then the booking stop/stall took the loss. "
-                    "Do not retune from one day — watch overlay only if many NORMAL days agree."
-                ),
-            }
+    u = reason.upper()
+    if "FLATTEN" in u or "1516" in reason:
         return {
-            "room": "overlay",
-            "code": "STOP_OR_STALL",
-            "plain": (
-                "We lost after the fill (stop / stall / against). Entry may have been wrong or booking cut it. "
-                "Need more NORMAL days before touching overlay."
-            ),
-        }
-    if "FLATTEN" in reason.upper() or "1516" in reason:
-        return {
-            "room": "desk",
+            "room": "desk-clock",
             "code": "FLATTEN_CUT",
             "plain": "Session flatten closed a loser. Clock rule, not a one-day strategy change.",
+            **extra,
         }
-    if "CANCEL" in reason.upper() or "AGAINST" in reason.upper():
+    if any(tok in u for tok in ("FOLLOW_GAP", "OVERLAY", "DIVERGENCE", "ML-001", "ML-002")):
         return {
             "room": "overlay",
+            "code": "OVERLAY_HOLD_OR_CUT",
+            "plain": "ML/overlay HOLD or cut. Watch only if many NORMAL days agree. Do not recode tonight.",
+            **extra,
+        }
+    if "AGAINST" in u:
+        return {
+            "room": "booking",
             "code": "CANCEL_AGAINST",
-            "plain": "Overlay cancelled after the thesis broke. That can save worse days — do not flip from one loss.",
+            "plain": "Booking cancelled after the thesis broke. That can save worse days — do not flip from one loss.",
+            **extra,
+        }
+    if sl or any(tok in u for tok in ("STOP", "STALL", "SL")):
+        if next_itm_helped is True:
+            return {
+                "room": "booking",
+                "code": "ENTRY_OK_BOOKING_STOP",
+                "plain": (
+                    "The next ITM minute went our way, then booking stop/stall took the loss. "
+                    "Path-review the ticket. Do not recode overlay from one day."
+                ),
+                **extra,
+            }
+        return {
+            "room": "booking",
+            "code": "STOP_OR_STALL",
+            "plain": (
+                "Lost after the fill on stop/stall. Entry or booking may be wrong. "
+                "Need more NORMAL days before a write=false replay recode."
+            ),
+            **extra,
+        }
+    if "UNWIND" in u or "COVER" in u:
+        return {
+            "room": "booking",
+            "code": "UNWIND",
+            "plain": "Dying wing flattened. Booking, not an overlay rewrite.",
+            **extra,
         }
     return {
         "room": "desk",
         "code": "LOST_OTHER",
         "plain": f"Lost on exit {reason or 'unknown'}. Grade the room, do not promote.",
+        **extra,
     }
 
 
@@ -366,7 +393,6 @@ def run_day_exam(
                 "day": day,
                 "underlying": und,
                 "side": side,
-                "pnl_inr": row.get("pnl_inr", row.get("pnl")),
                 "exit": row.get("exit_reason") or row.get("reason"),
                 "next_itm_helped": helped,
                 **spill,
@@ -386,13 +412,19 @@ def run_day_exam(
             f"({bad_fills[0].get('verdict')}). Money on the board may be a fill story."
         )
         improve = "desk fill rule"
+    elif room_counts.get("booking"):
+        headline = (
+            f"{day}: honest exam, losses after fill (booking: stall/against/unwind). "
+            "One day is not enough to recode booking or overlay."
+        )
+        improve = "booking — write=false replay on more NORMAL days (founder confirm)"
     elif room_counts.get("overlay"):
         headline = (
-            f"{day}: honest exam, losses after fill (stop/stall/cancel). "
+            f"{day}: honest exam, overlay HOLD/cut after fill. "
             "One day is not enough to recode overlay."
         )
         improve = "overlay — only if more NORMAL days agree (founder confirm)"
-    elif room_counts.get("desk"):
+    elif room_counts.get("desk-clock") or room_counts.get("desk"):
         headline = f"{day}: losses on flatten or other desk clock. Not a promote."
         improve = "desk clock / flatten — watch, do not retune tonight"
     elif not closed:

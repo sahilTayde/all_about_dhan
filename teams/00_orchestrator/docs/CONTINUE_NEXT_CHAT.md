@@ -21,10 +21,16 @@ Do not glob markdown. Do not create extra CONTINUE/HANDOFF/NOTES dumps.
 
 Gate: NOT RESEARCH_READY_FOR_PROGRAMMING. PAPER only. NO_PROMOTE. STRATs UNVALIDATED. Dashboard P/L is MOCK. No live orders. Do not restart npm / Vite / paper ops until I ask. Never print secrets.
 
-Left off 2026-09-20 SOD analyst room (promote refused): FAST analyst room (FOLLOWS+logit+XR+greeks+STRAT KEEP_ALL+TV lab; ML-001/002/ML-1 silent unless own side) → picker_majority → observer FOLLOW_GAP_ITM_1M → desk MIX-DEFAULT-BUY ITM fill only. resolve_fill_intents is NOT the SOD fill router (--sod-off tests only). Board captures MATCH/DISSENT/SPOKEN_PICKER_HOLD even when picker HOLD / observer VETO / desk ignores. One desk fill. KEEP_ALL. No Super Orders. Local sqlite — do not git-add.
+Left off 2026-09-21: founder slept through close. One command is ./scripts/desk.sh morning | close | status. Honesty on /pm. Nightly NIGHTLY_YYYY-MM-DD.md. Do not git-add sqlite.
 ```
 
 ---
+
+## Left-off 2026-09-21 IST — sleep close + one-command desk (NO_PROMOTE)
+
+**Now:** Paper dual-tape + website were left running through the 21 Sep session. After 15:40 IST `./scripts/desk.sh close` stops capture, keeps http://127.0.0.1:5173 , runs honesty exam + `python -m jobs post-market`. Morning: **only** `./scripts/desk.sh morning`, then START TRADE on `/pm`. Honesty: `/pm` Honesty exam, `data/recon/sod_exam_report.json`. Nightly: `data/recon/2026-09-21.json` + `teams/02_phd_math/docs/handoffs/NIGHTLY_2026-09-21.md`. Runbook: `teams/06_backtesting/docs/SESSION_PREP_ML.md`. Gate **not** `RESEARCH_READY_FOR_PROGRAMMING`. PAPER. **NO_PROMOTE.**
+
+**Next:** Read close receipt `data/recon/close_status.txt`. Do not git-add sqlite.
 
 ## Left-off 2026-09-20 IST — SOD analyst room (NO_PROMOTE)
 

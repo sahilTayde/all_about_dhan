@@ -1,5 +1,42 @@
 # Handoff log — Team 06 Backtesting
 
+## As of now (2026-09-21 IST) — Honesty rooms + nightly paper card; no overlay recode (NO_PROMOTE)
+
+```text
+From:     teams/06_backtesting
+To:       founder / 00 / 07
+Date:     2026-09-21
+Status:   PAPER REPORT / NO_PROMOTE
+Accepted: Exam spill rooms split booking vs overlay vs desk-clock.
+  Spill carries realized ₹. Close runs nightly then sod-exam so
+  session_kind can stamp. Nightly JSON may attach paper_sod_book
+  from FIX-FIRST (write=false). Overlay / STALL / TARGET rules
+  unchanged — need write=false replay on more NORMAL days.
+Rejected: Recode overlay or TRENDING-open STALL from 21 Sep alone.
+UNKNOWN: MARKET_SIGNAL dir still empty; paper card is FIX-FIRST.
+```
+
+---
+
+## As of now (2026-09-21 IST) — Founder one-command close + honesty paths (NO_PROMOTE)
+
+```text
+From:     teams/06_backtesting
+To:       founder / 00 / 07
+Date:     2026-09-21
+Status:   PAPER RUNBOOK / NO_PROMOTE
+Accepted: ./scripts/desk.sh morning | close | status is the founder
+  path. close = stop dual-tape, keep Vite, sod-exam + jobs post-market.
+  Honesty: /pm Honesty exam, GET /paper/sod-exam,
+  data/recon/sod_exam_report.json, BACKTEST_SOD_EXAM.md.
+  Nightly: data/recon/YYYY-MM-DD.json +
+  teams/02_phd_math/docs/handoffs/NIGHTLY_YYYY-MM-DD.md.
+Rejected: Extra npm/uvicorn/dual-tape lines on a normal day.
+UNKNOWN: 15:30 vs 15:40 F&O clock still VERIFY in yaml.
+```
+
+---
+
 ## As of now (2026-09-21 IST) — founder book default STOP (NO_PROMOTE)
 
 ```text

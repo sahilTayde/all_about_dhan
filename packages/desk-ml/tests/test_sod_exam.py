@@ -28,12 +28,27 @@ def test_atm_tape_skip_is_honest() -> None:
     assert g["verdict"] == "ATM_TAPE_NO_ITM_SKIP"
 
 
-def test_spill_stop_after_good_next_bar_names_overlay() -> None:
+def test_spill_stop_after_good_next_bar_names_booking() -> None:
     row = {"realized_pnl_inr": -400.0, "sl_hit": True, "exit_reason": "STOP"}
     spill = classify_spill(row, next_itm_helped=True)
-    assert spill["room"] == "overlay"
-    assert spill["code"] == "ENTRY_OK_OVERLAY_STOP"
-    assert "one day" in spill["plain"].lower() or "NORMAL" in spill["plain"]
+    assert spill["room"] == "booking"
+    assert spill["code"] == "ENTRY_OK_BOOKING_STOP"
+    assert spill["pnl_inr"] == -400.0
+    assert "overlay" in spill["plain"].lower() or "path-review" in spill["plain"].lower()
+
+
+def test_spill_against_is_booking_not_overlay() -> None:
+    row = {"realized_pnl_inr": -120.0, "exit_reason": "CANCEL_AGAINST"}
+    spill = classify_spill(row, next_itm_helped=False)
+    assert spill["room"] == "booking"
+    assert spill["code"] == "CANCEL_AGAINST"
+
+
+def test_spill_flatten_is_desk_clock() -> None:
+    row = {"realized_pnl_inr": -50.0, "exit_reason": "FLATTEN_1516"}
+    spill = classify_spill(row, next_itm_helped=False)
+    assert spill["room"] == "desk-clock"
+    assert spill["code"] == "FLATTEN_CUT"
 
 
 def test_compact_event_keeps_rooms() -> None:
