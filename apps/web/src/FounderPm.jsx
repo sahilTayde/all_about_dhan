@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { AppNav } from "./components/AppNav.jsx";
+import { DiscardedBook } from "./components/DiscardedBook.jsx";
 import { FounderHonestyExam } from "./components/FounderHonestyExam.jsx";
 import { FounderOpenNow } from "./components/FounderOpenNow.jsx";
 import { FounderRoster } from "./components/FounderRoster.jsx";
@@ -67,7 +68,7 @@ export function FounderPm() {
       setError(nextErr.length ? nextErr.join(" · ") : null);
     }
     pull(true);
-    const id = setInterval(() => pull(false), 5000);
+    const id = setInterval(() => pull(false), 2000);
     return () => {
       cancelled = true;
       ac.abort();
@@ -90,7 +91,7 @@ export function FounderPm() {
         sourceLabel={board?.live_session ? "PAPER" : "MOCK"}
       />
       <p className="desk-sub">
-        {board?.as_of_ist ? board.as_of_ist.replace("T", " ").slice(0, 16) : "…"} IST · light refresh 5s · orders
+        {board?.as_of_ist ? board.as_of_ist.replace("T", " ").slice(0, 16) : "…"} IST · light refresh 2s · orders
         refused · NO_PROMOTE
       </p>
       {error ? <p className="desk-error">{error}. Mock book still loads.</p> : null}
@@ -304,6 +305,7 @@ export function FounderPm() {
           </details>
 
           <FounderHonestyExam exam={exam} />
+          <DiscardedBook rows={d.discardedRows} actorCounts={d.actorCounts} />
         </>
       )}
     </div>

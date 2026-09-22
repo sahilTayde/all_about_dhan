@@ -4,22 +4,19 @@ import { Disclaimer } from "./components/Disclaimer.jsx";
 import { Header } from "./components/Header.jsx";
 import { IstMarketClock } from "./components/IstMarketClock.jsx";
 import { SodFillGraph, WatcherStrip } from "./components/SodFillGraph.jsx";
+import { SpillLedger } from "./components/SpillLedger.jsx";
 import { TradeHistory } from "./components/TradeHistory.jsx";
 import {
   derivePaperBoard,
   deskLifeStatus,
-  discardClock,
-  discardOutcome,
-  discardTradeLabel,
-  discardedWho,
   fetchFounderLab,
   fetchMlPaperBoard,
+  fetchSodExam,
   moneyClass,
   pathInfo,
   postHumanOverride,
   px,
   shortWhy,
-  skipPlain,
 } from "./lib/paperBoard.js";
 
 function StatusPill({ status }) {
@@ -164,6 +161,7 @@ function HumanManage({ current, busy, onCancel, onSetLevels }) {
 export function InternalDesk() {
   const [board, setBoard] = useState(null);
   const [lab, setLab] = useState(null);
+  const [exam, setExam] = useState(null);
   const [error, setError] = useState(null);
   const [tick, setTick] = useState(0);
   const [busy, setBusy] = useState(false);
@@ -173,12 +171,14 @@ export function InternalDesk() {
   async function load(force = true, signal) {
     setBusy(true);
     try {
-      const [json, overlay] = await Promise.all([
+      const [json, overlay, examJson] = await Promise.all([
         fetchMlPaperBoard({ force, signal }),
         fetchFounderLab({ signal }),
+        fetchSodExam({ signal }),
       ]);
       setBoard(json);
       setLab(overlay);
+      setExam(examJson);
       setError(null);
       setTick((n) => n + 1);
     } catch (err) {
@@ -369,70 +369,7 @@ export function InternalDesk() {
             />
           </section>
 
-          <section className="panel">
-            <h2>Discarded by boss or dealer</h2>
-            <p className="muted">
-              Index START/STOP is the founder desk on /pm. Tape still records all three. Each row is one ticket or
-              spoken signal — not a grouped slogan.
-            </p>
-            {d.actorCounts?.length ? (
-              <p className="discard-actors">
-                Who acted:{" "}
-                {d.actorCounts.map((a) => (
-                  <span key={a.who} className="discard-who">
-                    {a.who} ×{a.n}
-                  </span>
-                ))}
-              </p>
-            ) : null}
-            {d.discardedRows.length === 0 ? (
-              <p className="muted">Nothing discarded on this snapshot.</p>
-            ) : (
-              <div className="table-scroll table-scroll--discard">
-                <table className="book-table desk-history discard-table">
-                  <thead>
-                    <tr>
-                      <th>Time (IST)</th>
-                      <th>Trade</th>
-                      <th>Who</th>
-                      <th>Outcome</th>
-                      <th>Fill</th>
-                      <th>Lots</th>
-                      <th>Qty</th>
-                      <th>Ticket</th>
-                      <th>Book</th>
-                      <th className="cell-wrap">Why</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {d.discardedRows.slice(0, 24).map((g, i) => (
-                      <tr key={g.trade_id || `${g.reason}-${g.underlying}-${g.side || g.seen_side}-${discardClock(g)}-${i}`}>
-                        <td className="discard-time">{discardClock(g)}</td>
-                        <td>
-                          <strong>{discardTradeLabel(g)}</strong>
-                        </td>
-                        <td>
-                          <span className="discard-who">{discardedWho(g)}</span>
-                        </td>
-                        <td>{discardOutcome(g)}</td>
-                        <td>{g.filled === true ? "yes" : "no"}</td>
-                        <td className="num">{g.lots ?? "—"}</td>
-                        <td className="num">{g.qty ?? "—"}</td>
-                        <td>{g.trade_id || "none (no fill)"}</td>
-                        <td>{g.book_id || g.source || "—"}</td>
-                        <td className="cell-wrap">
-                          {skipPlain(g.reason || g.vs_picker)}
-                          {g.why || g.detail || g.observation
-                            ? ` — ${String(g.why || g.detail || g.observation)}`
-                            : ""}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </section>
+          <SpillLedger exam={exam} />
         </>
       )}
       <Disclaimer />

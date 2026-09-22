@@ -1032,7 +1032,117 @@ a {
 }
 
 .table-scroll--discard {
-  max-height: min(36vh, 22rem);
+  max-height: min(42vh, 26rem);
+}
+
+.table-scroll--spill {
+  max-height: min(48vh, 26rem);
+  margin-top: 0.35rem;
+  overflow: auto;
+}
+
+.spill-table {
+  table-layout: fixed;
+  width: max-content;
+  min-width: 100%;
+}
+
+.spill-table th,
+.spill-table td {
+  background: var(--bg-2);
+}
+
+.spill-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 6;
+  background: var(--surface-2);
+}
+
+.spill-table th:nth-child(1),
+.spill-table td:nth-child(1) {
+  position: sticky;
+  left: 0;
+  z-index: 3;
+  width: 8.5rem;
+  min-width: 8.5rem;
+  max-width: 8.5rem;
+}
+
+.spill-table th:nth-child(2),
+.spill-table td:nth-child(2) {
+  position: sticky;
+  left: 8.5rem;
+  z-index: 3;
+  width: 6.5rem;
+  min-width: 6.5rem;
+  max-width: 6.5rem;
+}
+
+.spill-table th:nth-child(3),
+.spill-table td:nth-child(3) {
+  position: sticky;
+  left: 15rem;
+  z-index: 3;
+  width: 11rem;
+  min-width: 11rem;
+  max-width: 11rem;
+}
+
+.spill-table thead th:nth-child(1),
+.spill-table thead th:nth-child(2),
+.spill-table thead th:nth-child(3) {
+  z-index: 7;
+}
+
+.spill-table th:nth-child(4),
+.spill-table td:nth-child(4) {
+  width: 22rem;
+  min-width: 16rem;
+}
+
+.book-table.desk-grid {
+  width: max-content;
+  min-width: 100%;
+  table-layout: auto;
+  border-collapse: collapse;
+}
+
+.book-table.desk-grid th,
+.book-table.desk-grid td {
+  border: 1px solid var(--line);
+  padding: 0.4rem 0.55rem;
+  background: var(--bg-2);
+  vertical-align: top;
+}
+
+.book-table.desk-grid th {
+  background: var(--surface-2);
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.book-table.desk-grid .col-fit {
+  width: 1%;
+  white-space: nowrap;
+}
+
+.book-table.desk-grid td.col-fit small {
+  display: block;
+  font-size: 0.68rem;
+  color: var(--ink-soft);
+}
+
+.book-table.desk-grid td.cell-wrap,
+.book-table.desk-grid th.cell-wrap {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  font-size: 0.74rem;
+  line-height: 1.35;
+  max-width: 28rem;
+  min-width: 12rem;
 }
 
 .book-table {

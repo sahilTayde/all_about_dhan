@@ -1,5 +1,39 @@
 # Handoff log — Team 07 Coding
 
+## As of now (2026-09-22 IST) — freeze spill cols + 2s tick (NO_PROMOTE)
+
+```text
+From:     teams/07_coding
+To:       founder / 00 / 06
+Date:     2026-09-22
+Status:   PAPER UI + dual-tape / NO_PROMOTE
+Accepted: Why days spilled Day/Room/Why columns sticky +
+  frozen widths. Founder poll / board cache / dual-tape
+  default 2s (clamp ≥2). NIFTY stays START. No live orders.
+Rejected: Invent an OPEN fill (board had open_n=0).
+UNKNOWN: next SOD fill after 2s ticker refresh.
+```
+
+---
+
+## As of now (2026-09-22 IST) — spill on /desk, discarded last on /pm (NO_PROMOTE)
+
+```text
+From:     teams/07_coding
+To:       founder / 00 / 05
+Date:     2026-09-22
+Status:   PAPER UI / NO_PROMOTE
+Accepted: Why days spilled on Desk with Day/Room/Why/Index
+  filters + lined grid, columns hug data. Discarded last on
+  Founder with Datetime/Who/Outcome/Index filters, IST
+  date+time newest first, lined grid. Train / open fills
+  / START TRADE untouched.
+Rejected: trade_id join to history. Recode overlay.
+UNKNOWN: live /paper/sod-exam vs mock until API is up.
+```
+
+---
+
 ## As of now (2026-09-22 IST) — /pm Now open (missed CE) (NO_PROMOTE)
 
 ```text

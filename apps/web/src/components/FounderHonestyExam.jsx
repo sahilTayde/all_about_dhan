@@ -33,22 +33,15 @@ export function FounderHonestyExam({ exam }) {
     ? days.map((d) => d.story).filter(Boolean)
     : [...(exam?.stories || [])].sort((a, b) => byDayDesc(storyDay(a), storyDay(b))));
   const watch = exam?.watch_next || [];
-  const spills = days
-    .flatMap((d) =>
-      (d.spills || []).slice(0, 8).map((sp, i) => ({
-        key: `${d.day}-${i}`,
-        day: d.day,
-        ...sp,
-      }))
-    )
-    .sort((a, b) => byDayDesc(a.day, b.day));
 
   return (
     <section className="panel exam-panel">
       <div className="exam-head">
         <div>
           <h2>Honesty exam (06)</h2>
-          <p className="muted exam-lead">After-hours grade. Last on this page so it never sits on the live book.</p>
+          <p className="muted exam-lead">
+            After-hours grade. Spill rows live on Desk. Discarded tickets sit last on this page.
+          </p>
         </div>
         <div className="exam-head__pills">
           <span className={`cleanup-pill ${examTone(exam?.overall_honesty)}`}>
@@ -164,36 +157,6 @@ export function FounderHonestyExam({ exam }) {
         </div>
       </details>
 
-      {spills.length ? (
-        <div className="table-scroll table-scroll--exam">
-          <table className="book-table">
-            <thead>
-              <tr>
-                <th>Day</th>
-                <th>Room</th>
-                <th>Why it spilled</th>
-                <th>How to think about it</th>
-              </tr>
-            </thead>
-            <tbody>
-              {spills.map((sp) => (
-                <tr key={sp.key}>
-                  <td>
-                    {sp.day} {sp.underlying} {sp.side}
-                  </td>
-                  <td>{sp.room}</td>
-                  <td>{sp.code}</td>
-                  <td>{sp.plain}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      ) : (
-        <p className="muted">
-          Spill rows appear after a real exam run. ATM-only tape with no ITM fills is a data story, not a hidden win.
-        </p>
-      )}
     </section>
   );
 }

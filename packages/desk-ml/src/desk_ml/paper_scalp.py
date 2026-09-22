@@ -48,10 +48,10 @@ DESK_CAPITAL_INR = 570000.0  # prior ₹70k + founder +₹5L (2026-09-18). PAPER
 PAPER_MIN_LOTS = 20
 PAPER_TARGET_LOTS = 25
 PAPER_MAX_LOTS = 30
-DASHBOARD_HEARTBEAT_SECONDS = 5
+DASHBOARD_HEARTBEAT_SECONDS = 2
 TICK_NE_DASHBOARD_REASON = (
-    "Live mock: dual-tape REST poll default 5s (clamp ≥5). "
-    "Dashboard JSON/MD rewrite every 5s from the last tick — not a new Dhan poll. "
+    "Live mock: dual-tape REST poll default 2s (clamp ≥2). "
+    "Dashboard JSON/MD rewrite every 2s from the last tick — not a new Dhan poll. "
     "WS feed parse has LTP/volume/OI, not IV/greeks — MIX-ML-GREEKS stays on POST /optionchain."
 )
 LIMIT_DISCOUNT_FRAC = 0.012  # working buy limit below signal LTP; fill is not assumed at signal
@@ -7164,10 +7164,10 @@ def build_dashboard(
         "heartbeat": {
             "cli": "python -m desk_ml paper-scalp --replay",
             "loop": "python -m desk_ml paper-scalp --loop  (opt-in; writes this JSON)",
-            "dual_tape": "python -m trading_agents_india dual-tape --live-chain --paper-train --paper-scalp --tick-seconds 5 --max-ticks 0",
+            "dual_tape": "python -m trading_agents_india dual-tape --live-chain --paper-train --paper-scalp --tick-seconds 2 --max-ticks 0",
             "stop": f"touch data/recon/{STOP_FLAG_NAME}",
             "dashboard_write_seconds": DASHBOARD_HEARTBEAT_SECONDS,
-            "tick_seconds_default": 5,
+            "tick_seconds_default": 2,
             "tick_ne_dashboard_reason": TICK_NE_DASHBOARD_REASON,
             "does_not_start": ["paper_ops", "npm", "legacy LLM waiters"],
         },
@@ -7753,12 +7753,12 @@ def render_markdown(board: dict[str, Any]) -> str:
         "",
         "```bash",
         "python -m desk_ml paper-scalp --replay --source dual-tape --live-session",
-        "python -m trading_agents_india dual-tape --live-chain --paper-train --paper-scalp --tick-seconds 5 --max-ticks 0",
+        "python -m trading_agents_india dual-tape --live-chain --paper-train --paper-scalp --tick-seconds 2 --max-ticks 0",
         "touch data/recon/ml_paper_scalp_STOPPED.flag",
         "```",
         "",
-        "Dashboard JSON/MD rewrite **every 5s** from the last tick. Dual-tape Dhan poll stays **45s** "
-        "(optionchain rate-limit). Tick ≠ 5s on purpose.",
+        "Dashboard JSON/MD rewrite **every 2s** from the last tick. Dual-tape Dhan poll stays **45s** "
+        "(optionchain rate-limit). Tick ≠ 2s on purpose.",
         "",
         "JSON: `data/recon/ml_paper_dashboard.json` (gitignored) · mock: `apps/web/public/mock/ml_paper_dashboard.json`  ",
         "UI: `/pm` and `/desk` (existing Vite; do not restart npm). API: `GET /paper/ml-books`.",
@@ -7776,7 +7776,7 @@ def stop_requested(root: Path) -> bool:
 def run_loop(
     *,
     root: Optional[Path] = None,
-    tick_seconds: int = 5,
+    tick_seconds: int = 2,
     max_ticks: int = 0,
     sleep_fn: Optional[Callable[[float], None]] = None,
     source: str = "dual-tape",

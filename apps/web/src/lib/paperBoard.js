@@ -12,7 +12,7 @@ async function getJson(url, signal) {
 
 export async function fetchMlPaperBoard({ force = false, signal } = {}) {
   const now = Date.now();
-  if (!force && _cache.board && now - _cache.boardAt < 5000) return _cache.board;
+  if (!force && _cache.board && now - _cache.boardAt < 2000) return _cache.board;
   const url = API_URL ? `${API_URL}/paper/ml-books` : "/mock/ml_paper_dashboard.json";
   const json = await getJson(`${url}${url.includes("?") ? "&" : "?"}t=${now}`, signal);
   _cache.board = json;

@@ -39,6 +39,7 @@ stop_dual_tape() {
   done
   pkill -f 'trading_agents_india dual-tape' 2>/dev/null || true
   screen -S dual-tape-live-5s -X quit 2>/dev/null || true
+  screen -S dual-tape-live-2s -X quit 2>/dev/null || true
   rm -f "$RECON/paper_dual_tape_RUNNING.flag"
 }
 
@@ -69,7 +70,7 @@ write_status() {
   "as_of_ist_note": "scripts/desk.sh ${CMD}${extra}",
   "api": {"host": "127.0.0.1", "port": 8000, "pid": ${API_PID:-null}, "health": "http://127.0.0.1:8000/health"},
   "web": {"host": "127.0.0.1", "port": 5173, "pid": ${WEB_PID:-null}, "url": "http://127.0.0.1:5173/desk", "founder": "http://127.0.0.1:5173/pm"},
-  "dual_tape": {"pid": ${DT_PID:-null}, "tick_seconds": 5, "stop": "touch data/recon/paper_dual_tape_STOPPED.flag"},
+  "dual_tape": {"pid": ${DT_PID:-null}, "tick_seconds": 2, "stop": "touch data/recon/paper_dual_tape_STOPPED.flag"},
   "honesty_exam": {
     "ui": "http://127.0.0.1:5173/pm  →  Honesty exam (06)",
     "api": "http://127.0.0.1:8000/paper/sod-exam",
@@ -111,6 +112,7 @@ case "$CMD" in
     screen -S api-server -X quit 2>/dev/null || true
     screen -S web-dev -X quit 2>/dev/null || true
     screen -S dual-tape-live-5s -X quit 2>/dev/null || true
+    screen -S dual-tape-live-2s -X quit 2>/dev/null || true
     screen -wipe >/dev/null 2>&1 || true
     rm -f "$RECON/paper_dual_tape_STOPPED.flag"
     PYTHONPATH="$ROOT/packages/desk-intel/src${PYTHONPATH:+:$PYTHONPATH}" \
@@ -118,7 +120,7 @@ case "$CMD" in
     "$PY" -m desk_ml fix-first >> "$RECON/fix_first.log" 2>&1 || true
     screen -dmS api-server zsh -lc "cd '$ROOT' && PYTHONPATH=apps/api/src '$PY' -m uvicorn api.main:app --app-dir apps/api/src --host 127.0.0.1 --port 8000 >> '$RECON/api-server.log' 2>&1"
     screen -dmS web-dev zsh -lc "cd '$ROOT/apps/web' && '$VITE' --host 127.0.0.1 --port 5173 >> '$RECON/web-dev.log' 2>&1"
-    screen -dmS dual-tape-live-5s zsh -lc "cd '$ROOT' && '$PY' -u -m trading_agents_india dual-tape --live-chain --paper-train --paper-scalp --tick-seconds 5 --max-ticks 0 >> '$RECON/dual_tape_live_5s.log' 2>&1"
+    screen -dmS dual-tape-live-2s zsh -lc "cd '$ROOT' && '$PY' -u -m trading_agents_india dual-tape --live-chain --paper-train --paper-scalp --tick-seconds 2 --max-ticks 0 >> '$RECON/dual_tape_live_2s.log' 2>&1"
     sleep 6
     write_status
     echo "MORNING UP. Desk http://127.0.0.1:5173/desk  Founder http://127.0.0.1:5173/pm"

@@ -26,7 +26,8 @@ def _settings(tmp_path: Path) -> Settings:
 def test_clamp_allows_10s_live_mock() -> None:
     from trading_agents_india.session_clock import clamp_tick_seconds
 
-    assert clamp_tick_seconds(3) == 5
+    assert clamp_tick_seconds(1) == 2
+    assert clamp_tick_seconds(2) == 2
     assert clamp_tick_seconds(5) == 5
     assert clamp_tick_seconds(10) == 10
     assert clamp_tick_seconds(45) == 45
