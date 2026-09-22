@@ -104,6 +104,11 @@ def build_parser() -> argparse.ArgumentParser:
         choices=["on", "off"],
         help="Observer veto on fills. Default on. --sod-off is the only old-engine switch.",
     )
+    ps.add_argument(
+        "--hold-trending-open-stall",
+        action="store_true",
+        help="write=false A/B: skip CANCEL_STALL when market_kind_open==TRENDING. Requires --no-write. Default off. NO_PROMOTE.",
+    )
     ff = sub.add_parser(
         "fix-first",
         help="Pre-open FIX-FIRST drill: write=false candle replay from 17 Sep. Skill track, not a wr.",
@@ -214,6 +219,16 @@ def main(argv: Optional[list[str]] = None) -> int:
         live = bool(args.live_session) or str(args.source).strip().lower() in {"dual-tape", "dual_tape"}
         veto = getattr(args, "observer_veto_fills", None)
         sod_off = bool(getattr(args, "sod_off", False))
+        hold_trend_stall = bool(getattr(args, "hold_trending_open_stall", False))
+        if hold_trend_stall and not bool(args.no_write):
+            _print(
+                {
+                    "ok": False,
+                    "promote": False,
+                    "error": "hold_trending_open_stall requires --no-write. A/B only. NO_PROMOTE.",
+                }
+            )
+            return 2
         report = replay_paper_scalp(
             root=root,
             underlyings=names or ("NIFTY",),
@@ -226,6 +241,7 @@ def main(argv: Optional[list[str]] = None) -> int:
             sod_one_ticket=False if sod_off else True,
             picker_majority=False if sod_off else True,
             observer_veto_fills=(None if veto is None else veto == "on"),
+            hold_trending_open_stall=hold_trend_stall,
         )
         public = {
             k: report.get(k)
@@ -255,6 +271,7 @@ def main(argv: Optional[list[str]] = None) -> int:
                 "execution",
             )
         }
+        public["hold_trending_open_stall"] = report.get("hold_trending_open_stall")
         public["n_closed"] = len(report.get("closed_trades") or [])
         public["n_open"] = len(report.get("open_trades") or [])
         public["overall_pnl_inr"] = report.get("overall_pnl_inr")

@@ -2557,6 +2557,50 @@ def test_stall_books_stale_high_low_er() -> None:
     )
 
 
+def test_hold_trending_open_stall_ab_only() -> None:
+    """write=false A/B: STALL off when ticket opened TRENDING. Default still books. NO_PROMOTE."""
+    from desk_ml.paper_scalp import CANCEL_STALL, STALL_HIGH_STALE_SEC, STALL_MIN_SEC, stall_book_reason
+
+    opened = int(datetime(2026, 9, 10, 10, 0, tzinfo=IST).timestamp())
+    chop = [150.0 + (4.0 if i % 2 == 0 else -3.5) for i in range(16)]
+    pos = OpenPaper(
+        book_id="MIX-DEFAULT-BUY",
+        underlying="NIFTY",
+        side="CE",
+        trade_id="ab-trend-stall",
+        entry=149.7,
+        stop=136.65,
+        target=169.27,
+        atm_strike=23250.0,
+        opened_ts=opened,
+        opened_bar=0,
+        strike_source="TEST",
+        limit_price=149.7,
+        filled=True,
+        seen_high=157.7,
+        seen_high_ts=opened + 12 * 60,
+        premium_prints=chop,
+        market_kind_open="TRENDING",
+    )
+    ts = opened + int(STALL_MIN_SEC) + int(STALL_HIGH_STALE_SEC) + 60
+    classified = {"er": 0.05, "last3_impulse": None, "vol_expand": False}
+    assert stall_book_reason(pos, 152.0, ts, classified=classified) == CANCEL_STALL
+    assert (
+        stall_book_reason(pos, 152.0, ts, classified=classified, hold_trending_open_stall=True)
+        is None
+    )
+    pos.market_kind_open = "CHOPPY"
+    assert (
+        stall_book_reason(pos, 152.0, ts, classified=classified, hold_trending_open_stall=True)
+        == CANCEL_STALL
+    )
+    try:
+        replay_paper_scalp(write=True, hold_trending_open_stall=True)
+        raise AssertionError("write=true A/B must refuse")
+    except ValueError as exc:
+        assert "write=false" in str(exc)
+
+
 def test_greeks_soft_trail_does_not_block_stall() -> None:
     from desk_ml.paper_scalp import CANCEL_STALL, STALL_HIGH_STALE_SEC, STALL_MIN_SEC
 

@@ -2787,6 +2787,7 @@ class BookEngine:
     picker_majority: bool = True  # RULES majority; implied by sod_one_ticket
     signal_log: list[dict[str, Any]] = field(default_factory=list)  # logit/XR/greeks vs picker even on VETO
     exam_events: list[dict[str, Any]] = field(default_factory=list)  # 06 honesty exam; not a fill
+    hold_trending_open_stall: bool = False  # write=false A/B only. Default off. NO_PROMOTE.
 
     def book_capital(self, book_id: str) -> float:
         if book_id in self.capital_by_book:
@@ -3456,16 +3457,21 @@ def stall_book_reason(
     classified: Optional[dict[str, Any]] = None,
     idx_volume: Optional[float] = None,
     prev_idx_volume: Optional[float] = None,
+    hold_trending_open_stall: bool = False,
 ) -> Optional[str]:
     """Book a dead long-premium when the high is stale and the path is inefficient.
 
     HYPOTHESIS overlay. Not a 9-minute clock. Chop (INDEX ER < 0.35) books
     earlier: 8m age, 3m stale high, or ≥40% of target then fade. True TREND
     continuation (same-wing ER ≥ 0.35) still vetoes.
+    write=false A/B: hold_trending_open_stall skips STALL when the ticket
+    opened in TRENDING. Default off. NO_PROMOTE — not the live book.
     """
     if not pos.filled:
         return None
     if int(getattr(pos, "target_step", 0) or 0) >= 1:
+        return None
+    if hold_trending_open_stall and str(getattr(pos, "market_kind_open", "") or "").upper() == "TRENDING":
         return None
     cl = classified or {}
     chop = _index_is_chop(cl)
@@ -3542,6 +3548,7 @@ def _exit_reason(
     classified: Optional[dict[str, Any]] = None,
     idx_volume: Optional[float] = None,
     prev_idx_volume: Optional[float] = None,
+    hold_trending_open_stall: bool = False,
 ) -> Optional[str]:
     """Exit a stuck long premium. Minute low counts. Do not wait out a dead contract.
 
@@ -3575,6 +3582,7 @@ def _exit_reason(
         classified=classified,
         idx_volume=idx_volume,
         prev_idx_volume=prev_idx_volume,
+        hold_trending_open_stall=hold_trending_open_stall,
     )
     if stall:
         return stall
@@ -4720,6 +4728,7 @@ def mark_to_market(
             classified=classified if isinstance(classified, dict) else None,
             idx_volume=float(idx_vol) if idx_vol is not None else None,
             prev_idx_volume=float(prev_vol) if prev_vol is not None else None,
+            hold_trending_open_stall=bool(getattr(engine, "hold_trending_open_stall", False)),
         )
         roll = cancel_if_bin_rolled(pos, tick) if pos.filled else None
         if reason == "TARGET":
@@ -5496,7 +5505,10 @@ def replay_paper_scalp(
     observer_veto_fills: Optional[bool] = None,
     sod_one_ticket: Optional[bool] = None,
     picker_majority: Optional[bool] = None,
+    hold_trending_open_stall: bool = False,
 ) -> dict[str, Any]:
+    if hold_trending_open_stall and write:
+        raise ValueError("hold_trending_open_stall is write=false A/B only. NO_PROMOTE.")
     base = root or repo_root()
     now = datetime.now(IST)
     session_day = session_ist_date or (now.date().isoformat() if live_session else None)
@@ -5682,6 +5694,7 @@ def replay_paper_scalp(
         ),
         sod_one_ticket=sod_on,
         picker_majority=picker_on,
+        hold_trending_open_stall=bool(hold_trending_open_stall),
     )
     for book_id in LIVE_BOOKS:
         engine.equity[book_id] = float(plan["per_book"].get(book_id) or 0.0)
@@ -7104,6 +7117,8 @@ def build_dashboard(
         "source": source,
         "customer_mix": "MIX-DEFAULT-BUY is the only SOD fill. Analysts vote in their own room.",
         "sod_one_ticket": bool(getattr(engine, "sod_one_ticket", True)),
+        "hold_trending_open_stall": bool(getattr(engine, "hold_trending_open_stall", False)),
+        "promote": False,
         "independent_books": not bool(getattr(engine, "sod_one_ticket", True)),
         "one_open_per": (
             "MIX-DEFAULT-BUY × underlying (SOD one ticket; analyst room observe)"

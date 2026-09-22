@@ -1,5 +1,27 @@
 # Handoff log — Team 06 Backtesting
 
+## As of now (2026-09-22 IST) — TRENDING-open STALL hold A/B write=false (NO_PROMOTE)
+
+```text
+From:     teams/06_backtesting
+To:       founder / 00 / 07
+Date:     2026-09-22
+Status:   PAPER A/B / NO_PROMOTE / BACKTEST_REQUIRED
+Accepted: write=false flag hold_trending_open_stall (default off).
+  CLI --hold-trending-open-stall requires --no-write. write=true
+  raises. Live STALL unchanged. NIFTY dual-tape A/B:
+  17 Sep identical (0 STALL). 18 Sep hold +₹7.7k vs current +₹3.8k
+  because occupancy skipped two later losers; the TRENDING-open
+  CE itself gave back (STALL +₹24.8k → TIME +₹18.6k). 21 Sep hold
+  worse −₹13.6k vs current −₹1.8k: three TRENDING-open STALs were
+  green scratches that sat into AGAINST / blocked later TARGET.
+Rejected: Promote the hold. Change live booking. Recode overlay.
+UNKNOWN: more NORMAL days; CHOPPY/VOLATILE stalls still the leak
+  room on 18/21.
+```
+
+---
+
 ## As of now (2026-09-21 IST) — Honesty rooms + nightly paper card; no overlay recode (NO_PROMOTE)
 
 ```text

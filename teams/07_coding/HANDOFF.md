@@ -1,5 +1,21 @@
 # Handoff log — Team 07 Coding
 
+## As of now (2026-09-22 IST) — hold_trending_open_stall write=false only (NO_PROMOTE)
+
+```text
+From:     teams/07_coding
+To:       founder / 06
+Date:     2026-09-22
+Status:   PAPER A/B TOOL / NO_PROMOTE
+Accepted: stall_book_reason / replay / CLI flag default False.
+  ValueError if write=true with flag. pytest
+  test_hold_trending_open_stall_ab_only.
+Rejected: Live default on. Dashboard write from A/B.
+UNKNOWN: none
+```
+
+---
+
 ## As of now (2026-09-21 IST) — Close order: nightly then exam (NO_PROMOTE)
 
 ```text
