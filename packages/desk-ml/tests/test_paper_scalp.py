@@ -26,6 +26,7 @@ from desk_ml.paper_scalp import (
     quote_for_side,
     render_markdown,
     replay_paper_scalp,
+    load_human_override,
     save_human_override,
     score_itm_bin,
     seen_not_taken_picture,
@@ -39,6 +40,10 @@ IST = timezone(timedelta(hours=5, minutes=30))
 
 def _ts(i: int) -> int:
     return int(datetime(2026, 9, 10, 10, 0, tzinfo=IST).timestamp()) + i * 60
+
+
+def _ist(i: int = 0) -> str:
+    return datetime.fromtimestamp(_ts(i), tz=IST).isoformat(timespec="seconds")
 
 
 def _triples(*, n: int = 80, trend: float = 8.0) -> list[Triple]:
@@ -3205,6 +3210,7 @@ def test_human_set_levels_does_not_flatten(tmp_path) -> None:
             "side": "CE",
             "target": 270.0,
             "stop": 220.0,
+            "as_of_ist": _ist(0),
         },
         root=tmp_path,
     )
@@ -3223,6 +3229,150 @@ def test_human_set_levels_does_not_flatten(tmp_path) -> None:
     kept = engine.opens[("MIX-DEFAULT-BUY", "NIFTY")]
     assert kept.target == 270.0
     assert kept.stop == 220.0
+    assert kept.human_managed is True
+    locked = load_human_override(root=tmp_path)
+    assert locked.get("active") is True
+    assert locked.get("target") == 270.0
+
+
+def test_human_levels_below_entry_lock_and_block_unwind(tmp_path) -> None:
+    from desk_ml.paper_scalp import COVER_LONG_UNWIND, load_human_override
+
+    engine = BookEngine(root=tmp_path)
+    engine.equity["MIX-DEFAULT-BUY"] = 10000.0
+    pos = OpenPaper(
+        book_id="MIX-DEFAULT-BUY",
+        underlying="NIFTY",
+        side="PE",
+        trade_id="nifty-pe-human",
+        entry=204.45,
+        stop=189.13,
+        target=229.23,
+        atm_strike=23550.0,
+        opened_ts=_ts(0),
+        opened_bar=0,
+        strike_source="ITM_100",
+        limit_price=204.45,
+        filled=True,
+        last_ltp=207.65,
+        index_regime="TREND",
+    )
+    engine.opens[("MIX-DEFAULT-BUY", "NIFTY")] = pos
+    engine.last_regime["NIFTY"] = {
+        "regime": "SIDEWAYS",
+        "itm_bin": {"side": "PE", "pe_votes": ["PE_LONG_UNWIND"], "ce_votes": []},
+    }
+    save_human_override(
+        {
+            "action": "SET_LEVELS",
+            "trade_id": "nifty-pe-human",
+            "underlying": "NIFTY",
+            "side": "PE",
+            "target": 202.30,
+            "stop": 184.13,
+            "as_of_ist": _ist(0),
+        },
+        root=tmp_path,
+    )
+    tick = Triple(
+        ts=_ts(5),
+        idx_close=23580.0,
+        ce_close=80.0,
+        pe_close=207.65,
+        atm_strike=23600.0,
+        itm_pe_close=207.65,
+        itm_pe_strike=23550.0,
+        wing_quotes={"23550": {"ce": 40.0, "pe": 207.65}},
+    )
+    mark_to_market(engine, tick, "NIFTY", 5)
+    assert engine.has_open("MIX-DEFAULT-BUY", "NIFTY") is False
+    closed = engine.closed[-1]
+    assert closed["exit_reason"] == "TARGET"
+    assert closed["target"] == 202.3
+    assert closed["stop"] == 184.13
+    assert closed["human_managed"] is True
+    assert closed["exit_reason"] != COVER_LONG_UNWIND
+    assert load_human_override(root=tmp_path).get("active") is False
+
+
+def test_human_lock_survives_replay_and_ignores_unwind(tmp_path) -> None:
+    engine = BookEngine(root=tmp_path)
+    engine.equity["MIX-DEFAULT-BUY"] = 10000.0
+    pos = OpenPaper(
+        book_id="MIX-DEFAULT-BUY",
+        underlying="NIFTY",
+        side="PE",
+        trade_id="keep-lock",
+        entry=204.45,
+        stop=189.13,
+        target=229.23,
+        atm_strike=23550.0,
+        opened_ts=_ts(0),
+        opened_bar=0,
+        strike_source="ITM_100",
+        limit_price=204.45,
+        filled=True,
+        last_ltp=200.60,
+        index_regime="TREND",
+    )
+    engine.opens[("MIX-DEFAULT-BUY", "NIFTY")] = pos
+    engine.last_regime["NIFTY"] = {
+        "regime": "SIDEWAYS",
+        "itm_bin": {"side": "PE", "pe_votes": ["PE_LONG_UNWIND"], "ce_votes": []},
+    }
+    save_human_override(
+        {
+            "action": "SET_LEVELS",
+            "trade_id": "keep-lock",
+            "underlying": "NIFTY",
+            "side": "PE",
+            "target": 220.0,
+            "stop": 184.13,
+            "as_of_ist": _ist(0),
+        },
+        root=tmp_path,
+    )
+    tick = Triple(
+        ts=_ts(5),
+        idx_close=23520.0,
+        ce_close=90.0,
+        pe_close=200.60,
+        atm_strike=23550.0,
+        itm_pe_close=200.60,
+        itm_pe_strike=23550.0,
+        wing_quotes={"23550": {"ce": 40.0, "pe": 200.60}},
+    )
+    mark_to_market(engine, tick, "NIFTY", 5)
+    assert engine.has_open("MIX-DEFAULT-BUY", "NIFTY") is True
+    kept = engine.opens[("MIX-DEFAULT-BUY", "NIFTY")]
+    assert kept.target == 220.0
+    assert kept.stop == 184.13
+    replay = BookEngine(root=tmp_path)
+    replay.equity["MIX-DEFAULT-BUY"] = 10000.0
+    replay.opens[("MIX-DEFAULT-BUY", "NIFTY")] = OpenPaper(
+        book_id="MIX-DEFAULT-BUY",
+        underlying="NIFTY",
+        side="PE",
+        trade_id="keep-lock",
+        entry=204.45,
+        stop=189.13,
+        target=229.23,
+        atm_strike=23550.0,
+        opened_ts=_ts(0),
+        opened_bar=0,
+        strike_source="ITM_100",
+        limit_price=204.45,
+        filled=True,
+        last_ltp=200.60,
+        index_regime="TREND",
+    )
+    replay.last_regime["NIFTY"] = engine.last_regime["NIFTY"]
+    mark_to_market(replay, tick, "NIFTY", 5)
+    assert replay.has_open("MIX-DEFAULT-BUY", "NIFTY") is True
+    locked = replay.opens[("MIX-DEFAULT-BUY", "NIFTY")]
+    assert locked.human_managed is True
+    assert locked.target == 220.0
+    assert locked.stop == 184.13
 
 
 def test_human_naked_exit_does_not_flatten(tmp_path) -> None:

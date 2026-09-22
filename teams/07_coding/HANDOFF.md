@@ -1,5 +1,39 @@
 # Handoff log — Team 07 Coding
 
+## As of now (2026-09-22 IST) — human lock target/stop (NO_PROMOTE)
+
+```text
+From:     teams/07_coding
+To:       founder / 00 / 06
+Date:     2026-09-22
+Status:   PAPER UI + dual-tape / NO_PROMOTE
+Accepted: Human SET_LEVELS stays on disk until the ticket
+  closes. Replay re-applies. Target > stop only (may sit
+  below entry). After lock, only STOP / TARGET / 15:16.
+  LONG UNWIND / stall / thesis cannot flatten. Desk
+  Current trade signal squeezed.
+Rejected: Naked EXIT. Live broker order. Promote.
+UNKNOWN: next live fill after stack restart.
+```
+
+---
+
+## As of now (2026-09-22 IST) — 2s API/tape lock (NO_PROMOTE)
+
+```text
+From:     teams/07_coding
+To:       founder / 00 / 06
+Date:     2026-09-22
+Status:   PAPER UI + dual-tape / NO_PROMOTE
+Accepted: 2s is the default until founder names another
+  interval. Desk /pm / board cache / dual-tape clamp ≥2.
+  Open fill untouched. No npm / full stack restart.
+Rejected: Restart all services to apply 2s.
+UNKNOWN: optionchain still rate-limited (~45s) inside a tick.
+```
+
+---
+
 ## As of now (2026-09-22 IST) — freeze spill cols + 2s tick (NO_PROMOTE)
 
 ```text

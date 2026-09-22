@@ -2716,6 +2716,7 @@ class OpenPaper:
     target_touch_ts: Optional[int] = None
     justification: str = ""
     model_names: list[str] = field(default_factory=list)
+    human_managed: bool = False
 
 
 @dataclass
@@ -2941,6 +2942,63 @@ def _human_px(raw: Any) -> Optional[float]:
     return round(v, 4)
 
 
+def _override_epoch(override: dict[str, Any]) -> Optional[int]:
+    raw = override.get("as_of_ist")
+    if not raw:
+        return None
+    try:
+        dt = datetime.fromisoformat(str(raw).replace("Z", "+00:00"))
+    except (TypeError, ValueError):
+        return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=IST)
+    return int(dt.timestamp())
+
+
+def _override_matches(override: dict[str, Any], pos: "OpenPaper", underlying: str) -> bool:
+    if not override.get("active"):
+        return False
+    if override.get("trade_id") and override.get("trade_id") != pos.trade_id:
+        return False
+    if override.get("underlying") and str(override.get("underlying")).upper() != underlying.upper():
+        return False
+    if override.get("side") and str(override.get("side")).upper() != pos.side:
+        return False
+    return True
+
+
+def apply_human_levels(pos: "OpenPaper", override: dict[str, Any], *, tick_ts: int) -> bool:
+    """Lock human target/stop on the open paper ticket. Must survive full-day replay."""
+    action = str(override.get("action") or "").upper()
+    if action not in {"SET_LEVELS", "MANAGE", "MANAGE_TRADE", "SET_TARGET_STOP"}:
+        return False
+    since = _override_epoch(override)
+    if since is not None and int(tick_ts) + 90 < int(since):
+        return False
+    new_tgt = _human_px(override.get("target"))
+    new_stop = _human_px(override.get("stop"))
+    if new_tgt is None or new_stop is None or not (new_tgt > new_stop):
+        return False
+    pos.stop = float(new_stop)
+    pos.path_stop = float(new_stop)
+    pos.target = float(new_tgt)
+    pos.human_managed = True
+    tag = f"HUMAN_SET_LEVELS stop={new_stop} target={new_tgt}"
+    why = str(pos.justification or "")
+    if tag not in why:
+        pos.justification = f"{why} | {tag}".strip(" |")
+    return True
+
+
+def clear_human_override_for(pos: "OpenPaper", *, root: Optional[Path]) -> None:
+    if root is None:
+        return
+    ov = load_human_override(root)
+    if not _override_matches(ov, pos, pos.underlying):
+        return
+    save_human_override({"action": "CLEAR"}, root=root)
+
+
 def save_human_override(body: dict[str, Any], *, root: Optional[Path] = None) -> dict[str, Any]:
     """Paper-only human instruction. Naked EXIT on an open fill is refused.
 
@@ -3018,12 +3076,12 @@ def save_human_override(body: dict[str, Any], *, root: Optional[Path] = None) ->
         "target": target,
         "stop": stop,
         "reason": "HUMAN_PRIORITY",
-        "as_of_ist": datetime.now(IST).isoformat(timespec="seconds"),
+        "as_of_ist": str(body.get("as_of_ist") or datetime.now(IST).isoformat(timespec="seconds")),
         "orders": "REFUSED",
         "promote": False,
         "note": (
-            "Human paper SET_LEVELS (target+stop). Highest priority over boss/desk. "
-            "No live broker order."
+            "Human paper SET_LEVELS (target+stop). These replace system target/stop "
+            "until this ticket closes. No LONG UNWIND / stall flatten. No live broker order."
             if action == "SET_LEVELS"
             else "Human-in-loop paper override. Highest priority over boss/desk for open paper tickets."
         ),
@@ -3553,13 +3611,21 @@ def _exit_reason(
     """Exit a stuck long premium. Minute low counts. Do not wait out a dead contract.
 
     Hard path: STOP / TARGET / ADVERSE / STALL / TIME. Soft thesis/greeks trail
-    must not skip STALL or TIME.
+    must not skip STALL or TIME. Human lock uses only STOP / TARGET / 15:16 flatten.
     """
     px = float(ltp)
     low = float(side_low) if side_low is not None else px
     seen = float(pos.seen_low) if pos.seen_low is not None else px
     path = float(pos.path_stop) if pos.path_stop is not None else float(pos.stop)
     dump_px = min(px, low, seen)
+    if bool(getattr(pos, "human_managed", False)):
+        if px <= path or dump_px <= float(pos.stop):
+            return "STOP"
+        if px >= float(pos.target):
+            return "TARGET"
+        if minutes_ist(ts) >= FLATTEN_MINUTES_IST:
+            return "FLATTEN_1516"
+        return None
     if int(pos.target_step) < 1:
         if px <= path:
             return "STOP"
@@ -3762,8 +3828,10 @@ def _close(engine: BookEngine, pos: OpenPaper, *, ltp: float, ts: int, reason: s
             "result": result,
             "target_hit": target_hit,
             "filled": (not unfilled),
+            "human_managed": bool(getattr(pos, "human_managed", False)),
         }
     )
+    clear_human_override_for(pos, root=root)
     if inr is not None:
         engine.equity[pos.book_id] = engine.book_equity(pos.book_id) + inr
     engine.opens.pop((pos.book_id, pos.underlying), None)
@@ -4414,6 +4482,8 @@ def paper_watch_ticket(
 ) -> Optional[str]:
     """PAPER overlay watch. No live add-on orders. Default no size-up."""
     pos.agent_status = agent_ticket_status(pos)
+    if bool(getattr(pos, "human_managed", False)):
+        return None
     risk = float(pos.entry) - float(pos.stop)
     reward = float(pos.target) - float(pos.entry)
     if risk > 0 and reward / risk > float(engine.max_target_r) + 1e-9:
@@ -4535,53 +4605,44 @@ def mark_to_market(
             side_low = pos.seen_low if pos.seen_low is not None else ltp
             src = "ENTRY_PRINT"
         override = load_human_override(engine.root)
-        if override.get("active"):
-            wants_trade = not override.get("trade_id") or override.get("trade_id") == pos.trade_id
-            wants_und = not override.get("underlying") or override.get("underlying") == underlying.upper()
-            wants_side = not override.get("side") or override.get("side") == pos.side
-            if wants_trade and wants_und and wants_side:
-                action = str(override.get("action") or "").upper()
-                if action == "CANCEL" or (action == "EXIT" and not pos.filled):
-                    human_reason = CANCEL_HUMAN
-                    exit_px = float(ltp if ltp is not None else pos.last_ltp or pos.entry)
-                    _close(engine, pos, ltp=exit_px, ts=tick.ts, reason=human_reason, root=engine.root)
-                    if engine.root is not None:
-                        append_model_log(
-                            engine.root,
-                            {
-                                "event": "HUMAN_OVERRIDE",
-                                "model": book_id,
-                                "book_id": book_id,
-                                "trade_id": pos.trade_id,
-                                "underlying": underlying,
-                                "side": pos.side,
-                                "reason": human_reason,
-                                "status": "CLOSED_BY_HUMAN",
-                                "filled": bool(pos.filled),
-                                "priority": "HUMAN_SUPERIOR",
-                            },
-                        )
-                    if engine.root is not None:
-                        save_human_override({"action": "CLEAR"}, root=engine.root)
-                    continue
-                if action in {"SET_LEVELS", "MANAGE", "MANAGE_TRADE", "SET_TARGET_STOP"}:
-                    new_tgt = _human_px(override.get("target"))
-                    new_stop = _human_px(override.get("stop"))
-                    entry = float(pos.entry) if pos.entry is not None else None
-                    levels_ok = (
-                        new_tgt is not None
-                        and new_stop is not None
-                        and new_tgt > new_stop
-                        and (entry is None or (new_tgt > entry > new_stop))
+        if _override_matches(override, pos, underlying):
+            action = str(override.get("action") or "").upper()
+            if action == "CANCEL" or (action == "EXIT" and not pos.filled):
+                human_reason = CANCEL_HUMAN
+                exit_px = float(ltp if ltp is not None else pos.last_ltp or pos.entry)
+                _close(engine, pos, ltp=exit_px, ts=tick.ts, reason=human_reason, root=engine.root)
+                if engine.root is not None:
+                    append_model_log(
+                        engine.root,
+                        {
+                            "event": "HUMAN_OVERRIDE",
+                            "model": book_id,
+                            "book_id": book_id,
+                            "trade_id": pos.trade_id,
+                            "underlying": underlying,
+                            "side": pos.side,
+                            "reason": human_reason,
+                            "status": "CLOSED_BY_HUMAN",
+                            "filled": bool(pos.filled),
+                            "priority": "HUMAN_SUPERIOR",
+                        },
                     )
-                    if levels_ok:
-                        pos.stop = float(new_stop)
-                        pos.path_stop = float(new_stop)
-                        pos.target = float(new_tgt)
-                        pos.justification = (
-                            f"{pos.justification} | HUMAN_SET_LEVELS stop={new_stop} target={new_tgt}"
-                        ).strip(" |")
-                        if engine.root is not None:
+                continue
+            if action in {"SET_LEVELS", "MANAGE", "MANAGE_TRADE", "SET_TARGET_STOP"}:
+                since = _override_epoch(override)
+                too_early = since is not None and int(tick.ts) + 90 < int(since)
+                if not too_early:
+                    was_managed = bool(getattr(pos, "human_managed", False))
+                    prev_tgt = float(pos.target) if pos.target is not None else None
+                    prev_stop = float(pos.stop) if pos.stop is not None else None
+                    applied = apply_human_levels(pos, override, tick_ts=int(tick.ts))
+                    if applied:
+                        changed = (
+                            not was_managed
+                            or prev_tgt != float(pos.target)
+                            or prev_stop != float(pos.stop)
+                        )
+                        if changed and engine.root is not None:
                             append_model_log(
                                 engine.root,
                                 {
@@ -4591,52 +4652,46 @@ def mark_to_market(
                                     "trade_id": pos.trade_id,
                                     "underlying": underlying,
                                     "side": pos.side,
-                                    "stop": new_stop,
-                                    "target": new_tgt,
+                                    "stop": pos.stop,
+                                    "target": pos.target,
                                     "status": "OPEN_PAPER",
                                     "filled": bool(pos.filled),
                                     "priority": "HUMAN_SUPERIOR",
                                     "orders": "REFUSED",
                                 },
                             )
-                        if engine.root is not None:
-                            save_human_override({"action": "CLEAR"}, root=engine.root)
-                    else:
-                        if engine.root is not None:
-                            append_model_log(
-                                engine.root,
-                                {
-                                    "event": "HUMAN_LEVELS_REJECTED",
-                                    "model": book_id,
-                                    "book_id": book_id,
-                                    "trade_id": pos.trade_id,
-                                    "reason": "LEVELS_ORDER",
-                                    "status": "OPEN_PAPER",
-                                    "orders": "REFUSED",
-                                },
-                            )
-                            save_human_override({"action": "CLEAR"}, root=engine.root)
-                    # Do not flatten. Fall through to normal MTM with new levels.
-                else:
-                    # Naked EXIT on a fill is suicide — ignore flatten, keep the ticket.
-                    if engine.root is not None:
+                    elif engine.root is not None:
                         append_model_log(
                             engine.root,
                             {
-                                "event": "HUMAN_EXIT_REFUSED",
+                                "event": "HUMAN_LEVELS_REJECTED",
                                 "model": book_id,
                                 "book_id": book_id,
                                 "trade_id": pos.trade_id,
-                                "underlying": underlying,
-                                "side": pos.side,
-                                "reason": "HUMAN_LEVELS_REQUIRED",
+                                "reason": "LEVELS_ORDER",
                                 "status": "OPEN_PAPER",
-                                "filled": bool(pos.filled),
-                                "priority": "HUMAN_SUPERIOR",
                                 "orders": "REFUSED",
                             },
                         )
-                        save_human_override({"action": "CLEAR"}, root=engine.root)
+                # Keep the lock file. Replay must re-apply every tick.
+            else:
+                if engine.root is not None:
+                    append_model_log(
+                        engine.root,
+                        {
+                            "event": "HUMAN_EXIT_REFUSED",
+                            "model": book_id,
+                            "book_id": book_id,
+                            "trade_id": pos.trade_id,
+                            "underlying": underlying,
+                            "side": pos.side,
+                            "reason": "HUMAN_LEVELS_REQUIRED",
+                            "status": "OPEN_PAPER",
+                            "filled": bool(pos.filled),
+                            "priority": "HUMAN_SUPERIOR",
+                            "orders": "REFUSED",
+                        },
+                    )
         if ltp is None:
             if minutes_ist(tick.ts) >= FLATTEN_MINUTES_IST:
                 _close(
@@ -4730,12 +4785,17 @@ def mark_to_market(
             prev_idx_volume=float(prev_vol) if prev_vol is not None else None,
             hold_trending_open_stall=bool(getattr(engine, "hold_trending_open_stall", False)),
         )
-        roll = cancel_if_bin_rolled(pos, tick) if pos.filled else None
+        roll = (
+            None
+            if bool(getattr(pos, "human_managed", False))
+            else (cancel_if_bin_rolled(pos, tick) if pos.filled else None)
+        )
         if reason == "TARGET":
-            if apply_target_lock_shift(engine, pos, ltp=float(ltp), ts=tick.ts, **trail_kw):
-                continue
+            if not bool(getattr(pos, "human_managed", False)):
+                if apply_target_lock_shift(engine, pos, ltp=float(ltp), ts=tick.ts, **trail_kw):
+                    continue
         soft = reason if is_soft_cancel_reason(reason) else (roll if pos.filled else None)
-        if soft and pos.filled:
+        if soft and pos.filled and not bool(getattr(pos, "human_managed", False)):
             if apply_filled_trail(engine, pos, ltp=float(ltp), ts=tick.ts, reason=str(soft), **trail_kw):
                 continue
         if reason or roll:

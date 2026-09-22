@@ -12,6 +12,7 @@ import {
   fetchFounderLab,
   fetchMlPaperBoard,
   fetchSodExam,
+  BOARD_POLL_MS,
   moneyClass,
   pathInfo,
   postHumanOverride,
@@ -35,41 +36,26 @@ function TicketPath({ t }) {
   const remainW = clamp01(p.remainingPctOfRange) * 100;
   const riskW = clamp01(p.riskPctOfRange) * 100;
   return (
-    <div className="fx-path">
-      <p className="fx-path__legend">
-        Position on the paper range: stop → entry → target. Marker is last premium. Not a win rate.
-      </p>
+    <div className="fx-path fx-path--compact">
       <div className="fx-range" aria-hidden="true">
         <i className="fx-range__fill" />
         <b className="fx-range__entry" style={{ left: `${entryPct}%` }} title="Entry" />
         <em className="fx-range__now" style={{ left: `${nowPct}%` }} title="Now" />
       </div>
-      <div className="fx-path__ticks">
-        <span>
-          {p.trailing ? "Trail SL" : "Stop"} {px(p.stop)}
-        </span>
-        <span>entry {px(p.entry)}</span>
-        <span>now {px(p.last)}</span>
-        <span>target {px(p.target)}</span>
-      </div>
-      <div className="path-meters">
+      <div className="path-meters path-meters--inline">
         <div className="path-meter path-meter--target">
-          <span>Remaining path to target</span>
-          <strong>
-            {p.remainingToTarget == null ? "—" : `${p.remainingToTarget.toFixed(1)} pts left`}
-          </strong>
+          <span>To target</span>
+          <strong>{p.toTarget == null ? "—" : `${p.toTarget.toFixed(1)} pts`}</strong>
           <div className="path-meter__bar" aria-hidden="true">
             <i style={{ width: `${remainW}%` }} />
           </div>
-          <small>How far the last print still is from target. Independent of stop.</small>
         </div>
         <div className="path-meter path-meter--stop">
-          <span>Risk distance to stop</span>
-          <strong>{p.riskToStop == null ? "—" : `${p.riskToStop.toFixed(1)} pts of room`}</strong>
+          <span>SL room</span>
+          <strong>{p.slRoom == null ? "—" : `${p.slRoom.toFixed(1)} pts`}</strong>
           <div className="path-meter__bar" aria-hidden="true">
             <i style={{ width: `${riskW}%` }} />
           </div>
-          <small>How far the last print still is from stop. Independent of target.</small>
         </div>
       </div>
     </div>
@@ -90,9 +76,10 @@ function HumanManage({ current, busy, onCancel, onSetLevels }) {
   const filled = current.filled !== false;
   const tgtN = Number(target);
   const stopN = Number(stop);
-  const entry = Number(current.entry ?? current.limit_price);
-  const orderOk = Number.isFinite(tgtN) && Number.isFinite(stopN) && tgtN > entry && entry > stopN;
+  const last = Number(current.last_ltp ?? current.entry ?? current.limit_price);
+  const orderOk = Number.isFinite(tgtN) && Number.isFinite(stopN) && tgtN > stopN;
   const canApply = filled && confirm && orderOk && !busy;
+  const throughTarget = orderOk && Number.isFinite(last) && last >= tgtN;
 
   if (!filled) {
     return (
@@ -114,13 +101,9 @@ function HumanManage({ current, busy, onCancel, onSetLevels }) {
         onSetLevels({ target: tgtN, stop: stopN });
       }}
     >
-      <p className="human-control__lead">
-        Human override — set paper TARGET and STOP. Immediate exit is refused (suicide on an open fill). No live
-        broker order.
-      </p>
       <div className="human-fields">
         <label>
-          Paper target (required)
+          Target
           <input
             type="number"
             step="0.05"
@@ -131,7 +114,7 @@ function HumanManage({ current, busy, onCancel, onSetLevels }) {
           />
         </label>
         <label>
-          Paper stop (required)
+          Stop
           <input
             type="number"
             step="0.05"
@@ -141,19 +124,19 @@ function HumanManage({ current, busy, onCancel, onSetLevels }) {
             onChange={(e) => setStop(e.target.value)}
           />
         </label>
+        <label className="human-confirm">
+          <input type="checkbox" checked={confirm} onChange={(e) => setConfirm(e.target.checked)} />
+          Lock these
+        </label>
+        <button type="submit" className="refresh-btn" disabled={!canApply}>
+          {busy ? "Sending…" : "Apply"}
+        </button>
       </div>
       <p className="desk-sub">
-        Long premium order: target {Number.isFinite(tgtN) ? tgtN.toFixed(2) : "—"} &gt; entry{" "}
-        {Number.isFinite(entry) ? entry.toFixed(2) : "—"} &gt; stop {Number.isFinite(stopN) ? stopN.toFixed(2) : "—"}.
-        {orderOk ? "" : " Fix the order before confirm."}
+        Keep or change. Target must be above stop. These replace the system levels. No unwind flatten.
+        {throughTarget ? " Last is already through target — next tick books TARGET." : ""}
+        {orderOk ? "" : " Target must be above stop."}
       </p>
-      <label className="human-confirm">
-        <input type="checkbox" checked={confirm} onChange={(e) => setConfirm(e.target.checked)} />
-        I confirm these paper levels. Do not flatten this ticket.
-      </label>
-      <button type="submit" className="refresh-btn" disabled={!canApply}>
-        {busy ? "Sending…" : "Apply paper target & stop"}
-      </button>
     </form>
   );
 }
@@ -191,7 +174,7 @@ export function InternalDesk() {
   useEffect(() => {
     const ac = new AbortController();
     load(true, ac.signal);
-    const id = setInterval(() => load(false, ac.signal), 12000);
+    const id = setInterval(() => load(false, ac.signal), BOARD_POLL_MS);
     return () => {
       ac.abort();
       clearInterval(id);
@@ -251,7 +234,7 @@ export function InternalDesk() {
         setHumanMsg(res.note || res.error || "Levels refused");
       } else {
         setHumanMsg(
-          `Paper target ${Number(target).toFixed(2)} / stop ${Number(stop).toFixed(2)} queued. Applies on next paper tick. No flatten. No live broker order.`,
+          `Locked paper target ${Number(target).toFixed(2)} / stop ${Number(stop).toFixed(2)}. System levels replaced. Stays until this ticket hits those or 15:16. No live broker order.`,
         );
       }
       await load(true);
@@ -274,7 +257,7 @@ export function InternalDesk() {
 
       <div className="desk-refresh">
         <p className="desk-sub">
-          {board?.as_of_ist ? board.as_of_ist.replace("T", " ").slice(0, 19) : "—"} · 12s light poll · #{tick}
+          {board?.as_of_ist ? board.as_of_ist.replace("T", " ").slice(0, 19) : "—"} · 2s light poll · #{tick}
         </p>
         <IstMarketClock />
         <button type="button" className="refresh-btn" onClick={() => load(true)} disabled={busy}>
@@ -300,14 +283,14 @@ export function InternalDesk() {
             ) : (
               <>
                 <div className="current-signal__hero">
-                  <div>
+                  <div className="current-signal__title">
                     <span className={`side-mini side-mini--${String(current.side).toLowerCase()}`}>{current.side}</span>
                     <h3 className="current-signal__name">
                       {current.underlying} {current.atm_strike}
                     </h3>
-                    <p className="desk-sub">{(current.books || [current.book_id]).join(" · ")}</p>
+                    {current.human_managed ? <span className="human-lock-pill">HUMAN LOCK</span> : null}
                   </div>
-                  <dl className="level-strip">
+                  <dl className="level-strip level-strip--compact">
                     <div>
                       <dt>Spot</dt>
                       <dd>{px(spot)}</dd>
@@ -321,7 +304,7 @@ export function InternalDesk() {
                       <dd>{px(path.last)}</dd>
                     </div>
                     <div>
-                      <dt>{path.trailing ? "Trail SL" : "Stop"}</dt>
+                      <dt>Stop</dt>
                       <dd>{px(path.stop)}</dd>
                     </div>
                     <div>
@@ -329,9 +312,9 @@ export function InternalDesk() {
                       <dd>{px(path.target)}</dd>
                     </div>
                     <div>
-                      <dt>Open P/L</dt>
+                      <dt>P/L</dt>
                       <dd className={moneyClass(path.vsEntry)}>
-                        {path.vsEntry == null ? "—" : `${path.vsEntry.toFixed(1)} pts`}
+                        {path.vsEntry == null ? "—" : `${path.vsEntry.toFixed(1)}`}
                       </dd>
                     </div>
                   </dl>
