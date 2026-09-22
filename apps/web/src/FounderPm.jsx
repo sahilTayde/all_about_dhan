@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { AppNav } from "./components/AppNav.jsx";
+import { FounderHonestyExam } from "./components/FounderHonestyExam.jsx";
 import { FounderRoster } from "./components/FounderRoster.jsx";
 import { Header } from "./components/Header.jsx";
 import { SodFillGraph, WatcherStrip } from "./components/SodFillGraph.jsx";
@@ -139,84 +140,6 @@ export function FounderPm() {
           </div>
 
           <FounderBookPicker />
-
-          <section className="panel exam-panel">
-            <h2>Honesty exam (06)</h2>
-            <p className="muted">
-              After-hours grade. Does not change overlay. One bad day is not a retune.{" "}
-              <code>python -m desk_ml sod-exam</code>
-            </p>
-            <div className="fx-health">
-              <span
-                className={`cleanup-pill ${
-                  exam?.overall_honesty === "CLEAN"
-                    ? "done"
-                    : exam?.overall_honesty === "PEEKED"
-                      ? "pending"
-                      : "in_progress"
-                }`}
-              >
-                {exam?.overall_honesty || "no file yet"}
-              </span>
-              <span className="cleanup-pill pending">NO_PROMOTE</span>
-            </div>
-            <p className="exam-headline">{exam?.headline || exam?.reason || "Run the exam to fill this box."}</p>
-            <p className="muted">{exam?.contract?.plain}</p>
-            <div className="founder-pl">
-              {(exam?.days || []).map((row) => (
-                <div key={row.day}>
-                  <span>{row.day}</span>
-                  <strong>{row.honesty || "—"}</strong>
-                  <em className="exam-day-story">{row.story}</em>
-                </div>
-              ))}
-            </div>
-            {(exam?.stories || []).length ? (
-              <ul className="founder-watch">
-                {(exam.stories || []).map((s, i) => (
-                  <li key={`${i}-${String(s).slice(0, 24)}`}>{s}</li>
-                ))}
-              </ul>
-            ) : null}
-            {(exam?.watch_next || []).length ? (
-              <p className="muted">
-                Watch next (not tonight&apos;s rewrite): {(exam.watch_next || []).join(" · ")}
-              </p>
-            ) : null}
-            {(exam?.days || []).some((d) => (d.spills || []).length) ? (
-              <div className="table-scroll">
-                <table className="book-table">
-                  <thead>
-                    <tr>
-                      <th>Day</th>
-                      <th>Room</th>
-                      <th>Why it spilled</th>
-                      <th>How to think about it</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {(exam.days || []).flatMap((d) =>
-                      (d.spills || []).slice(0, 8).map((sp, i) => (
-                        <tr key={`${d.day}-${i}`}>
-                          <td>
-                            {d.day} {sp.underlying} {sp.side}
-                          </td>
-                          <td>{sp.room}</td>
-                          <td>{sp.code}</td>
-                          <td>{sp.plain}</td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            ) : (
-              <p className="muted">
-                Spill rows appear after a real exam run. ATM-only 16/17/18 tape may have no ITM fills —
-                that is a data story, not a hidden win.
-              </p>
-            )}
-          </section>
 
           <section className="panel">
             <h2>Train the models</h2>
@@ -377,6 +300,8 @@ export function FounderPm() {
               ))}
             </div>
           </details>
+
+          <FounderHonestyExam exam={exam} />
         </>
       )}
     </div>

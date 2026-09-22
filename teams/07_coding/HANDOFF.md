@@ -1,5 +1,36 @@
 # Handoff log — Team 07 Coding
 
+## As of now (2026-09-22 IST) — honesty exam newest-first + contract grid (NO_PROMOTE)
+
+```text
+From:     teams/07_coding
+To:       founder / 00
+Date:     2026-09-22
+Status:   PAPER UI / NO_PROMOTE
+Accepted: Exam day boxes newest first; wheel maps to sideways
+  scroll. Day stories date-desc. Fill contract is a per-day grid.
+Rejected: Touching live book / START TRADE / fill graph.
+UNKNOWN: none
+```
+
+---
+
+## As of now (2026-09-22 IST) — /pm roster + honesty exam last (NO_PROMOTE)
+
+```text
+From:     teams/07_coding
+To:       founder / 00
+Date:     2026-09-22
+Status:   PAPER UI / NO_PROMOTE
+Accepted: Honesty exam (06) moved to last block on /pm. Day boxes
+  scroll sideways; long stories scroll down. Rooms section retitled
+  "Who speaks, who spends" with 4-step line + spend vs vote rails.
+Rejected: Touching live book / START TRADE / fill graph / overlay.
+UNKNOWN: none
+```
+
+---
+
 ## As of now (2026-09-22 IST) — hold_trending_open_stall write=false only (NO_PROMOTE)
 
 ```text

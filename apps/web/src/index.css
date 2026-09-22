@@ -2185,18 +2185,242 @@ a {
 }
 
 .exam-headline {
-  margin: 0.65rem 0 0.35rem;
+  margin: 0.55rem 0 0.7rem;
   font-size: 0.98rem;
   line-height: 1.45;
 }
 
-.exam-day-story {
-  display: block;
-  font-style: normal;
+.exam-panel {
+  overflow: visible;
+}
+
+.exam-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 0.85rem;
+  flex-wrap: wrap;
+}
+
+.exam-head h2,
+.roster-head h2,
+.roster-panel h3 {
+  margin: 0 0 0.2rem;
+}
+
+.exam-lead {
+  margin: 0;
+}
+
+.exam-head__pills {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
+.exam-days-rail,
+.roster-card-rail {
+  display: flex;
+  gap: 0.7rem;
+  overflow-x: auto;
+  overflow-y: hidden;
+  max-width: 100%;
+  min-width: 0;
+  padding: 0.2rem 0 0.7rem;
+  scroll-snap-type: x proximity;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+.exam-rail-hint {
+  margin: 0 0 0.45rem;
+  font-size: 0.78rem;
+}
+
+.exam-days-rail {
+  overflow-x: scroll;
+  overflow-y: hidden;
+  padding-bottom: 0.85rem;
+  scrollbar-width: auto;
+  scrollbar-gutter: stable;
+  touch-action: pan-x;
+  cursor: grab;
+}
+
+.exam-days-rail::-webkit-scrollbar,
+.roster-card-rail::-webkit-scrollbar,
+.exam-notes__scroll::-webkit-scrollbar,
+.exam-day-card::-webkit-scrollbar {
+  height: 8px;
+  width: 8px;
+}
+
+.exam-days-rail::-webkit-scrollbar {
+  height: 12px;
+}
+
+.exam-days-rail::-webkit-scrollbar-thumb,
+.roster-card-rail::-webkit-scrollbar-thumb,
+.exam-notes__scroll::-webkit-scrollbar-thumb,
+.exam-day-card::-webkit-scrollbar-thumb {
+  background: var(--line-strong);
+  border-radius: 999px;
+}
+
+.exam-day-card,
+.roster-card {
+  flex: 0 0 16.75rem;
+  width: 16.75rem;
+  scroll-snap-align: start;
+  padding: 0.7rem 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--bg-2);
+  min-width: 16.75rem;
+}
+
+.exam-day-card {
+  max-height: none;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.exam-days-rail .exam-day-card,
+.exam-days-rail .exam-day-card * {
+  pointer-events: none;
+}
+
+.exam-day-card header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.5rem;
+}
+
+.exam-day-card header span {
+  font-size: 0.72rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+
+.exam-day-card.is-clean {
+  border-color: rgba(61, 204, 140, 0.45);
+}
+
+.exam-day-card.is-peeked {
+  border-color: rgba(201, 162, 39, 0.55);
+}
+
+.exam-day-card dl {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.35rem;
+  margin: 0.55rem 0 0.45rem;
+}
+
+.exam-day-card dt {
+  font-size: 0.64rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+
+.exam-day-card dd {
+  margin: 0.1rem 0 0;
+  font-weight: 650;
+}
+
+.exam-day-card p,
+.roster-card p {
+  margin: 0;
   font-size: 0.78rem;
   color: var(--ink-soft);
-  font-weight: 400;
-  margin-top: 0.35rem;
+  line-height: 1.4;
+}
+
+.exam-notes {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+  margin: 0.15rem 0 0.75rem;
+}
+
+.exam-notes h3,
+.roster-col h3,
+.roster-block h3 {
+  font-size: 0.92rem;
+}
+
+.exam-notes__scroll {
+  margin: 0.35rem 0 0;
+  padding: 0.45rem 0.7rem 0.45rem 1.15rem;
+  max-height: 10.5rem;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--bg-2);
+}
+
+.exam-notes__scroll li {
+  margin: 0.35rem 0;
+  font-size: 0.82rem;
+}
+
+.table-scroll--exam {
+  max-height: min(32vh, 18rem);
+  margin-top: 0.65rem;
+}
+
+.exam-contract-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(14.5rem, 1fr));
+  gap: 0.65rem;
+  margin: 0.45rem 0 0.2rem;
+}
+
+.exam-contract-grid article {
+  padding: 0.65rem 0.7rem;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--bg-2);
+  display: grid;
+  gap: 0.3rem;
+}
+
+.exam-contract-grid header {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.45rem;
+}
+
+.exam-contract-grid header span {
+  font-size: 0.72rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+
+.exam-contract-grid article.is-clean {
+  border-color: rgba(61, 204, 140, 0.45);
+}
+
+.exam-contract-grid article.is-peeked {
+  border-color: rgba(201, 162, 39, 0.55);
+}
+
+.exam-contract-grid p {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--ink-soft);
+  line-height: 1.4;
+}
+
+.exam-contract-grid b {
+  color: var(--ink);
+  font-weight: 650;
 }
 
 .desk-refresh {
@@ -2765,54 +2989,147 @@ tr.is-click:hover {
   padding-left: 1.15rem;
 }
 
-.roster-rooms,
-.roster-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-  gap: 0.45rem;
-  margin: 0.45rem 0 0.75rem;
+.roster-panel {
+  overflow: visible;
 }
 
-.roster-rooms article,
-.roster-grid article {
-  padding: 0.55rem 0.6rem;
+.roster-flow {
+  list-style: none;
+  margin: 0.7rem 0 1rem;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.55rem;
+}
+
+.roster-flow li {
+  position: relative;
+  padding: 0.7rem 0.7rem 0.75rem;
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: 10px;
   background: var(--bg-2);
 }
 
-.roster-grid article.is-fill {
+.roster-flow li.is-spend {
   border-color: var(--accent);
+  box-shadow: inset 0 0 0 1px rgba(201, 162, 39, 0.25);
 }
 
-.roster-grid span,
-.roster-rooms p,
-.roster-grid p {
-  margin: 0.2rem 0 0;
+.roster-flow em {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.35rem;
+  height: 1.35rem;
+  border-radius: 999px;
+  background: var(--surface-2);
+  border: 1px solid var(--line-strong);
+  font-style: normal;
+  font-size: 0.75rem;
+  font-weight: 700;
+  margin-bottom: 0.4rem;
+}
+
+.roster-flow strong {
+  display: block;
+}
+
+.roster-flow p {
+  margin: 0.3rem 0 0;
   color: var(--ink-soft);
   font-size: 0.78rem;
 }
 
-.ind-list {
-  list-style: none;
-  margin: 0.4rem 0 0;
-  padding: 0;
+.roster-split {
   display: grid;
-  gap: 0.35rem;
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.4fr);
+  gap: 0.85rem;
+  margin-bottom: 0.85rem;
 }
 
-.ind-list li {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.45rem;
-  padding: 0.4rem 0.5rem;
+.roster-col,
+.roster-block {
+  min-width: 0;
+}
+
+.roster-card {
+  display: grid;
+  align-content: start;
+  gap: 0.28rem;
+}
+
+.roster-card.is-fill {
+  border-color: var(--accent);
+}
+
+.roster-card span {
+  font-size: 0.68rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+
+.roster-card b {
+  font-size: 0.68rem;
+  letter-spacing: 0.08em;
+  color: var(--accent);
+}
+
+.roster-card--strat {
+  min-height: 7.4rem;
+}
+
+.roster-vote {
+  display: inline-flex;
+  align-self: start;
+  margin-top: 0.25rem;
+  padding: 0.12rem 0.45rem;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  font-style: normal;
+  font-size: 0.7rem;
+  letter-spacing: 0.04em;
+}
+
+.roster-vote--ce {
+  color: var(--ce);
+  border-color: rgba(61, 204, 140, 0.45);
+}
+
+.roster-vote--pe {
+  color: var(--pe);
+  border-color: rgba(224, 107, 116, 0.45);
+}
+
+.roster-vote--hold {
+  color: var(--warn);
+  border-color: rgba(201, 162, 39, 0.5);
+}
+
+.roster-vote--silent {
+  color: var(--ink-soft);
+}
+
+.roster-ind-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(11.5rem, 1fr));
+  gap: 0.5rem;
+  margin-top: 0.45rem;
+}
+
+.roster-ind-grid article {
+  padding: 0.55rem 0.65rem;
   border: 1px solid var(--line);
   border-radius: 8px;
+  background: var(--bg-2);
+  display: grid;
+  gap: 0.25rem;
 }
 
-.ind-list em {
-  margin-left: auto;
-  color: var(--accent);
+.roster-ind-grid p {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 0.76rem;
 }
 
 .mini-split {
@@ -2821,10 +3138,28 @@ tr.is-click:hover {
   gap: 0.75rem;
 }
 
+@media (max-width: 900px) {
+  .roster-flow,
+  .roster-split,
+  .exam-notes {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
 @media (max-width: 720px) {
   .sod-wrap,
-  .mini-split {
+  .mini-split,
+  .roster-flow,
+  .roster-split,
+  .exam-notes {
     grid-template-columns: 1fr;
+  }
+
+  .exam-day-card,
+  .roster-card {
+    flex-basis: 14.5rem;
+    width: 14.5rem;
+    min-width: 14.5rem;
   }
 }
 
