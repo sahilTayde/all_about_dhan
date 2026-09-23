@@ -2904,6 +2904,144 @@ def test_trend_retracement_does_not_stall() -> None:
     assert stall_book_reason(pos, 220.0, ts, classified=hold) is None
 
 
+def test_exit_overlay_no_progress_after_three_closed_1m() -> None:
+    from desk_ml.paper_scalp import (
+        CANCEL_NO_PROGRESS,
+        _exit_reason,
+        exit_overlay_reason,
+        note_filled_wing_1m,
+    )
+
+    opened = int(datetime(2026, 9, 23, 10, 37, tzinfo=IST).timestamp())
+    pos = OpenPaper(
+        book_id="MIX-DEFAULT-BUY",
+        underlying="NIFTY",
+        side="CE",
+        trade_id="no-prog",
+        entry=278.95,
+        stop=262.0,
+        target=299.87,
+        atm_strike=23200.0,
+        opened_ts=opened,
+        opened_bar=0,
+        strike_source="ITM_100",
+        limit_price=278.95,
+        filled=True,
+        opened_minute_key="2026-09-23T10:37",
+    )
+    assert exit_overlay_reason(pos) is None
+    note_filled_wing_1m(pos, opened + 30, 278.95)
+    note_filled_wing_1m(pos, opened + 90, 279.10)
+    assert exit_overlay_reason(pos) is None
+    note_filled_wing_1m(pos, opened + 150, 278.40)
+    assert exit_overlay_reason(pos) is None
+    note_filled_wing_1m(pos, opened + 210, 278.20)
+    assert exit_overlay_reason(pos) is None
+    note_filled_wing_1m(pos, opened + 270, 277.90)
+    assert exit_overlay_reason(pos) == CANCEL_NO_PROGRESS
+    assert (
+        _exit_reason(pos, 277.90, opened + 270, 5, classified={"er": 0.40, "last3_impulse": None})
+        == CANCEL_NO_PROGRESS
+    )
+
+
+def test_exit_overlay_book_near_on_closed_1m_reverse() -> None:
+    from desk_ml.paper_scalp import CANCEL_BOOK_NEAR, exit_overlay_reason, note_filled_wing_1m
+
+    opened = int(datetime(2026, 9, 23, 10, 8, tzinfo=IST).timestamp())
+    pos = OpenPaper(
+        book_id="MIX-DEFAULT-BUY",
+        underlying="NIFTY",
+        side="PE",
+        trade_id="book-near",
+        entry=205.15,
+        stop=192.84,
+        target=220.54,
+        atm_strike=23550.0,
+        opened_ts=opened,
+        opened_bar=0,
+        strike_source="ITM_100",
+        limit_price=205.15,
+        filled=True,
+        opened_minute_key="2026-09-23T10:08",
+    )
+    # 70% of 15.39 ≈ 10.77 → MFE 216.15 on first closed bar, then reverse
+    note_filled_wing_1m(pos, opened + 90, 210.0)
+    note_filled_wing_1m(pos, opened + 90 + 20, 216.15)
+    note_filled_wing_1m(pos, opened + 150, 214.0)
+    note_filled_wing_1m(pos, opened + 210, 213.0)
+    assert exit_overlay_reason(pos) == CANCEL_BOOK_NEAR
+    pos_up = OpenPaper(
+        book_id="MIX-DEFAULT-BUY",
+        underlying="NIFTY",
+        side="PE",
+        trade_id="book-near-up",
+        entry=205.15,
+        stop=192.84,
+        target=220.54,
+        atm_strike=23550.0,
+        opened_ts=opened,
+        opened_bar=0,
+        strike_source="ITM_100",
+        limit_price=205.15,
+        filled=True,
+        opened_minute_key="2026-09-23T10:08",
+    )
+    note_filled_wing_1m(pos_up, opened + 90, 210.0)
+    note_filled_wing_1m(pos_up, opened + 150, 216.15)
+    assert exit_overlay_reason(pos_up) is None
+
+
+def test_exit_overlay_skips_observe_books() -> None:
+    from desk_ml.paper_scalp import exit_overlay_reason, note_filled_wing_1m
+
+    opened = int(datetime(2026, 9, 23, 10, 37, tzinfo=IST).timestamp())
+    pos = OpenPaper(
+        book_id="MIX-ML-LOGIT",
+        underlying="NIFTY",
+        side="CE",
+        trade_id="lab",
+        entry=278.95,
+        stop=262.0,
+        target=299.87,
+        atm_strike=23200.0,
+        opened_ts=opened,
+        opened_bar=0,
+        strike_source="ITM_100",
+        limit_price=278.95,
+        filled=True,
+        opened_minute_key="2026-09-23T10:37",
+    )
+    for off, px in ((30, 278.95), (90, 279.1), (150, 278.4), (210, 278.2), (270, 277.9)):
+        note_filled_wing_1m(pos, opened + off, px)
+    assert exit_overlay_reason(pos) is None
+
+
+def test_exit_overlay_target_beats_book_near() -> None:
+    from desk_ml.paper_scalp import _exit_reason, note_filled_wing_1m
+
+    opened = int(datetime(2026, 9, 23, 10, 8, tzinfo=IST).timestamp())
+    pos = OpenPaper(
+        book_id="MIX-DEFAULT-BUY",
+        underlying="NIFTY",
+        side="PE",
+        trade_id="tgt-first",
+        entry=205.15,
+        stop=192.84,
+        target=220.54,
+        atm_strike=23550.0,
+        opened_ts=opened,
+        opened_bar=0,
+        strike_source="ITM_100",
+        limit_price=205.15,
+        filled=True,
+        opened_minute_key="2026-09-23T10:08",
+    )
+    note_filled_wing_1m(pos, opened + 90, 216.15)
+    note_filled_wing_1m(pos, opened + 150, 214.0)
+    assert _exit_reason(pos, 220.54, opened + 150, 2) == "TARGET"
+
+
 def test_market_kind_labels() -> None:
     from desk_ml.paper_scalp import market_kind
 

@@ -157,6 +157,8 @@ REGIME_UNKNOWN_WAIT = "REGIME_UNKNOWN_WAIT"
 VOL_NOT_EXPANDING = "VOL_NOT_EXPANDING"
 CANCEL_BIN_ROLL = "CANCEL_BIN_ROLL"
 CANCEL_STALL = "CANCEL_STALL"
+CANCEL_NO_PROGRESS = "CANCEL_NO_PROGRESS"
+CANCEL_BOOK_NEAR = "CANCEL_BOOK_NEAR"
 CANCEL_AGAINST = "CANCEL_AGAINST"
 HUMAN_EXIT = "HUMAN_EXIT"
 CANCEL_HUMAN = "CANCEL_HUMAN"
@@ -175,6 +177,8 @@ HARD_EXIT_REASONS = {
     "CANCEL_ADVERSE",
     COVER_LONG_UNWIND,
     CANCEL_STALL,
+    CANCEL_NO_PROGRESS,
+    CANCEL_BOOK_NEAR,
     CANCEL_AGAINST,
     HUMAN_EXIT,
     CANCEL_HUMAN,
@@ -188,6 +192,10 @@ STALL_ER_MAX = 0.18
 STALL_TREND_ER = 0.35
 STALL_TARGET_PROGRESS = 0.55
 STALL_CHOP_PROGRESS = 0.40
+# Filled MIX-DEFAULT-BUY booking overlay (SOD desk). Causal closed 1m only.
+EXIT_NO_PROG_BARS = 3
+EXIT_NO_PROG_MFE = 2.0
+EXIT_BOOK_NEAR_FRAC = 0.70
 STALL_LOOKBACK = 15
 TIME_HARD_SEC = 45 * 60
 PREMIUM_PRINT_CAP = 24
@@ -396,7 +404,7 @@ def paper_close_result(*, unfilled: bool, reason: str, won: bool) -> str:
         return "LOSS"
     if str(reason) in {"FLATTEN_1516", "FLATTEN_1515", "FLATTEN_1500"}:
         return "FLATTEN"
-    if str(reason) == CANCEL_STALL:
+    if str(reason) in {CANCEL_STALL, CANCEL_NO_PROGRESS, CANCEL_BOOK_NEAR}:
         return "STALL"
     if str(reason) == CANCEL_AGAINST:
         return "AGAINST"
@@ -458,6 +466,16 @@ def paper_close_justification(
         )
         if exit_px is not None and target_px is not None:
             bits.append(f"exit {round(float(exit_px), 4)} vs target {round(float(target_px), 4)}")
+    elif reason == CANCEL_NO_PROGRESS:
+        bits.append(
+            f"exit overlay: {EXIT_NO_PROG_BARS} closed 1m with MFE < {EXIT_NO_PROG_MFE} pts — "
+            "flatten dead fill; do not sit to AGAINST"
+        )
+    elif reason == CANCEL_BOOK_NEAR:
+        bits.append(
+            f"exit overlay: running MFE ≥ {EXIT_BOOK_NEAR_FRAC:.0%} of target span and "
+            "closed 1m reversed — book; do not wait for TARGET or AGAINST"
+        )
     elif reason in {"FLATTEN_1516", "FLATTEN_1515", "FLATTEN_1500"}:
         bits.append("session flatten — leftover OPEN at 15:16 IST")
     if target_hit:
@@ -2716,6 +2734,11 @@ class OpenPaper:
     target_touch_ts: Optional[int] = None
     justification: str = ""
     model_names: list[str] = field(default_factory=list)
+    opened_minute_key: Optional[str] = None
+    wing_bar_key: Optional[str] = None
+    wing_bar_high: Optional[float] = None
+    wing_bar_close: Optional[float] = None
+    closed_wing_bars: list[dict[str, Any]] = field(default_factory=list)
 
 
 @dataclass
@@ -3449,6 +3472,96 @@ def _trend_continuation(
     return False
 
 
+def _ist_minute_key(ts: int) -> str:
+    return datetime.fromtimestamp(int(ts), tz=IST).strftime("%Y-%m-%dT%H:%M")
+
+
+def note_filled_wing_1m(pos: OpenPaper, ts: int, px: float) -> Optional[dict[str, Any]]:
+    """Close the prior IST minute on the booked wing. Entry minute is not a bar."""
+    if not pos.filled:
+        return None
+    try:
+        price = float(px)
+    except (TypeError, ValueError):
+        return None
+    key = _ist_minute_key(int(ts))
+    opened_key = getattr(pos, "opened_minute_key", None)
+    if not opened_key:
+        pos.opened_minute_key = _ist_minute_key(int(pos.opened_ts))
+        opened_key = pos.opened_minute_key
+    cur = getattr(pos, "wing_bar_key", None)
+    if cur is None:
+        pos.wing_bar_key = key
+        pos.wing_bar_high = price
+        pos.wing_bar_close = price
+        return None
+    if key == cur:
+        hi = getattr(pos, "wing_bar_high", None)
+        pos.wing_bar_high = price if hi is None else max(float(hi), price)
+        pos.wing_bar_close = price
+        return None
+    if key < cur:
+        return None
+    closed = None
+    if cur > opened_key:
+        try:
+            closed = {
+                "key": cur,
+                "high": float(pos.wing_bar_high),
+                "close": float(pos.wing_bar_close),
+            }
+        except (TypeError, ValueError):
+            closed = None
+        if closed is not None:
+            bars = list(getattr(pos, "closed_wing_bars", None) or [])
+            bars.append(closed)
+            pos.closed_wing_bars = bars[-16:]
+    pos.wing_bar_key = key
+    pos.wing_bar_high = price
+    pos.wing_bar_close = price
+    return closed
+
+
+def exit_overlay_reason(pos: OpenPaper) -> Optional[str]:
+    """Causal closed-1m bleed stop. No clocks. No peek of the live minute."""
+    if not pos.filled:
+        return None
+    if str(getattr(pos, "book_id", "") or "") != "MIX-DEFAULT-BUY":
+        return None
+    if int(getattr(pos, "target_step", 0) or 0) >= 1:
+        return None
+    bars = list(getattr(pos, "closed_wing_bars", None) or [])
+    if not bars:
+        return None
+    try:
+        entry = float(pos.entry)
+        target = float(pos.target)
+    except (TypeError, ValueError):
+        return None
+    mfe = entry
+    prev_close: Optional[float] = None
+    span = (target - entry) if target > entry else None
+    for i, raw in enumerate(bars, start=1):
+        try:
+            high = float(raw["high"])
+            close = float(raw["close"])
+        except (TypeError, ValueError, KeyError):
+            continue
+        mfe = max(mfe, high)
+        if i >= int(EXIT_NO_PROG_BARS) and (mfe - entry) < float(EXIT_NO_PROG_MFE):
+            return CANCEL_NO_PROGRESS
+        if (
+            span
+            and span > 0
+            and (mfe - entry) >= float(EXIT_BOOK_NEAR_FRAC) * span
+            and prev_close is not None
+            and close < prev_close
+        ):
+            return CANCEL_BOOK_NEAR
+        prev_close = close
+    return None
+
+
 def stall_book_reason(
     pos: OpenPaper,
     ltp: float,
@@ -3570,6 +3683,9 @@ def _exit_reason(
             return "STOP"
     if px >= pos.target:
         return "TARGET"
+    overlay = exit_overlay_reason(pos)
+    if overlay:
+        return overlay
     if ticket_against_market(pos, classified, ltp=px):
         return CANCEL_AGAINST
     give_up = float(pos.entry) * (1.0 - float(give_up_frac))
@@ -4664,6 +4780,8 @@ def mark_to_market(
         prints = list(getattr(pos, "premium_prints", None) or [])
         prints.append(px_now)
         pos.premium_prints = prints[-int(PREMIUM_PRINT_CAP) :]
+        if pos.filled:
+            note_filled_wing_1m(pos, int(tick.ts), px_now)
         if not pos.filled:
             live = leg_greeks(tick, pos.side, float(pos.atm_strike or 0))
             hist = getattr(engine, "_greeks_iv_hist", None)
@@ -4690,6 +4808,8 @@ def mark_to_market(
                     pos.entry = min(float(ltp), limit)
                 else:
                     pos.entry = limit
+                pos.opened_minute_key = _ist_minute_key(int(tick.ts))
+                note_filled_wing_1m(pos, int(tick.ts), float(ltp))
             elif u_reason:
                 _close(engine, pos, ltp=float(ltp), ts=tick.ts, reason=u_reason, root=engine.root)
                 continue
@@ -5850,7 +5970,11 @@ def skill_from_closed(
     nets = [_net_or_points(r) for r in rows]
     n_green = sum(1 for p in nets if p > 0)
     n_target = sum(1 for r in rows if str(r.get("exit_reason")) == "TARGET" or r.get("target_hit"))
-    n_stall = reasons.get("CANCEL_STALL", 0)
+    n_stall = (
+        int(reasons.get("CANCEL_STALL", 0))
+        + int(reasons.get("CANCEL_NO_PROGRESS", 0))
+        + int(reasons.get("CANCEL_BOOK_NEAR", 0))
+    )
     n_unwind = reasons.get("COVER_LONG_UNWIND", 0)
     n_time = reasons.get("TIME", 0)
     n_stop = sum(1 for r in rows if r.get("sl_hit") or str(r.get("exit_reason")) == "STOP")
@@ -6580,6 +6704,7 @@ def _append_mistakes(root: Path, mistakes: Sequence[dict[str, Any]]) -> None:
 def _open_ticket_row(pos: OpenPaper) -> dict[str, Any]:
     row = asdict(pos)
     row.pop("premium_prints", None)
+    row.pop("closed_wing_bars", None)
     row["status"] = agent_ticket_status(pos) if pos.filled or pos.cancel_eligible else "WORKING_LIMIT"
     if pos.filled and pos.target_step == 0 and not pos.cancel_eligible:
         row["status"] = "OPEN_PAPER"
@@ -6636,6 +6761,8 @@ SKIP_WHY = {
     BIN_LONG_UNWIND: "ITM strike OI down with premium down — long unwind, skip new buy on that wing.",
     COVER_LONG_UNWIND: "Same-wing OI down + premium down — long unwind; flatten. Do not wait T1.",
     CANCEL_STALL: "Premium high went stale in low-ER chop without last-3 continuation — book; do not sit a 9m clock.",
+    CANCEL_NO_PROGRESS: "Filled wing printed 3 closed 1m with almost no MFE — flatten the dead fill.",
+    CANCEL_BOOK_NEAR: "Filled wing reached ~70% of the target span then a closed 1m reversed — book; do not wait TARGET/AGAINST.",
     CANCEL_AGAINST: "Filled wing is against INDEX last-3 raw / 15m TREND / opposite ITM flow — flatten; do not wait pause or FOLLOWS CONFIRM.",
     "FOCUS_NIFTY_SENSEX": "Paper focus is NIFTY and SENSEX. BANKNIFTY NEW skipped (separate later).",
     "FOCUS_NIFTY_ONLY": "This ship books NIFTY only. SENSEX NEW skipped so unique P/L is not mixed.",
@@ -7138,6 +7265,12 @@ def build_dashboard(
                 "premium prints is chop, last-3 is not with the wing, and progress "
                 f"to target < {STALL_TARGET_PROGRESS}. True TREND (ER≥{STALL_TREND_ER}) holds."
             ),
+            "exit_overlay": (
+                f"SOD MIX-DEFAULT-BUY booking: after {EXIT_NO_PROG_BARS} closed 1m if "
+                f"MFE < {EXIT_NO_PROG_MFE} pts → CANCEL_NO_PROGRESS; if running MFE ≥ "
+                f"{EXIT_BOOK_NEAR_FRAC:.0%} of (target−entry) and closed 1m reverses → "
+                "CANCEL_BOOK_NEAR. Causal bars only. Before AGAINST. PAPER."
+            ),
             "cancel_adverse": f"same-side low <= entry×(1-{engine.paper_give_up_frac})",
             "cancel_thesis": "opposite BUY_*_CONFIRM only if already underwater vs entry",
             "cancel_greeks": "|delta| too low / IV rich / theta late on live chain — cancel WORKING or OPEN",
@@ -7195,7 +7328,7 @@ def build_dashboard(
             "FOUNDER LOCK: Mon–Fri only. Data 09:00–15:30 IST. NEW paper 09:30–15:16. Flatten all books at 15:16. ITM option premium only (never ATM/OTM). No Sat/Sun dual-tape.",
             "No NEW after 15:16 IST. Flatten leftover OPEN. Data ticks may persist until 15:30. live_session does not keep dead tickets overnight.",
             "paper_params nudge is session-only overfit. production_params_written stays false.",
-            "INDEX 1m regime TREND|SIDEWAYS|UNKNOWN is HYPOTHESIS. TREND = Kaufman 15m ER *or* last-3 1m impulse (PUT/CE) with volume not shrinking, plus VWAP/EMA/RSI when using the 15m path. itm_bin can label TREND at ER~0.05 — that is not a 9m hold. Filled stall: stale premium high + ER≤0.18 books CANCEL_STALL; ER≥0.35 / last-3 with the wing holds. SIDEWAYS skips NEW when last-3 is also chop. Feed stays live.",
+            "INDEX 1m regime TREND|SIDEWAYS|UNKNOWN is HYPOTHESIS. TREND = Kaufman 15m ER *or* last-3 1m impulse (PUT/CE) with volume not shrinking, plus VWAP/EMA/RSI when using the 15m path. itm_bin can label TREND at ER~0.05 — that is not a 9m hold. Filled stall: stale premium high + ER≤0.18 books CANCEL_STALL; ER≥0.35 / last-3 with the wing holds. Exit overlay (SOD MIX-DEFAULT-BUY booking): 3 closed 1m dead-fill CANCEL_NO_PROGRESS; 70% target MFE + closed-1m reverse CANCEL_BOOK_NEAR. SIDEWAYS skips NEW when last-3 is also chop. Feed stays live.",
             "Filled PE does not sit a CALL rally. CANCEL_AGAINST uses last3_impulse_raw and pre-bin INDEX direction — pause-wait / false-break / 10s PE bin must not keep the PUT. TREND ER≥0.35 continues only the same wing. A 10s itm_bin tick cannot overwrite INDEX TREND UP.",
             "TREND + direction UP kills new PE (confirm/kill overlay, not a STRAT). DOWN kills new CE. Last-3 price impulse is TREND even if INDEX volume shrinks (Dhan SENSEX vol spikes are not a skip). Dual-tape JSONL is kept on slate (not trimmed). Paper book epoch skips replaying old ticks as new trades. Not MIX-DEFAULT-BUY production.",
             "Founder ~57% wr during cash hours is an in-session PAPER observation, not this EOD Groww+STT filled hit rate. Not a promote.",

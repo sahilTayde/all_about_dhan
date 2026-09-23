@@ -1,5 +1,24 @@
 # Handoff log — Team 06 Backtesting
 
+## As of now (2026-09-23 IST) — exit overlay on SOD MIX-DEFAULT-BUY booking (PAPER)
+
+```text
+From:     teams/06_backtesting
+To:       founder / 00 / 07
+Date:     2026-09-23
+Status:   PAPER / NO_PROMOTE
+Accepted: MIX-DEFAULT-BUY booking exits only:
+  CANCEL_NO_PROGRESS after 3 closed 1m if MFE < 2 pts;
+  CANCEL_BOOK_NEAR if running MFE ≥ 70% of target span and closed 1m reverses.
+  Causal IST minute bars. Before AGAINST. Not C/D skip-at-open.
+  Analyst / picker / observer / ML observe books unchanged.
+Rejected: Same-wing lock (D), pause_wait skip (C), 20m cooldown, chop-day freeze.
+UNKNOWN: 18/21 official path tickets missing. 22 full 31 not on dashboard.
+Sandbox 23 recorded −₹1,13,153 → overlay −₹47,547 (14:34 TARGET cut).
+```
+
+---
+
 ## As of now (2026-09-22 IST) — weekend COVER_LONG_UNWIND queue (NO_PROMOTE)
 
 ```text
