@@ -109,6 +109,11 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="write=false A/B: skip CANCEL_STALL when market_kind_open==TRENDING. Requires --no-write. Default off. NO_PROMOTE.",
     )
+    ps.add_argument(
+        "--nifty-cover-closed-1m",
+        action="store_true",
+        help="write=false A/B Joint #2: SHORT_COVER/OI-up only on last closed 1m. Requires --no-write. Default off. NO_PROMOTE.",
+    )
     ff = sub.add_parser(
         "fix-first",
         help="Pre-open FIX-FIRST drill: write=false candle replay from 17 Sep. Skill track, not a wr.",
@@ -220,12 +225,22 @@ def main(argv: Optional[list[str]] = None) -> int:
         veto = getattr(args, "observer_veto_fills", None)
         sod_off = bool(getattr(args, "sod_off", False))
         hold_trend_stall = bool(getattr(args, "hold_trending_open_stall", False))
+        cover_1m = bool(getattr(args, "nifty_cover_closed_1m", False))
         if hold_trend_stall and not bool(args.no_write):
             _print(
                 {
                     "ok": False,
                     "promote": False,
                     "error": "hold_trending_open_stall requires --no-write. A/B only. NO_PROMOTE.",
+                }
+            )
+            return 2
+        if cover_1m and not bool(args.no_write):
+            _print(
+                {
+                    "ok": False,
+                    "promote": False,
+                    "error": "nifty_cover_closed_1m requires --no-write. A/B only. NO_PROMOTE.",
                 }
             )
             return 2
@@ -242,6 +257,7 @@ def main(argv: Optional[list[str]] = None) -> int:
             picker_majority=False if sod_off else True,
             observer_veto_fills=(None if veto is None else veto == "on"),
             hold_trending_open_stall=hold_trend_stall,
+            nifty_cover_closed_1m=cover_1m,
         )
         public = {
             k: report.get(k)
@@ -272,6 +288,7 @@ def main(argv: Optional[list[str]] = None) -> int:
             )
         }
         public["hold_trending_open_stall"] = report.get("hold_trending_open_stall")
+        public["nifty_cover_closed_1m"] = report.get("nifty_cover_closed_1m")
         public["n_closed"] = len(report.get("closed_trades") or [])
         public["n_open"] = len(report.get("open_trades") or [])
         public["overall_pnl_inr"] = report.get("overall_pnl_inr")

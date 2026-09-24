@@ -3131,6 +3131,40 @@ def test_nifty_bin_confirm_counts_as_strength() -> None:
         {"regime": "TREND", "direction": "UP", "er": 0.36, "last3_impulse": None, "reason": "er_vwap_ema_vol_rsi"},
         "CE",
     ) is True
+    live_cover = {
+        "last3_impulse": None,
+        "last3_reason": "wait_pause_after_impulse",
+        "reason": "itm_bin_pe_confirm",
+        "itm_bin": {"pe_votes": ["PE_SHORT_COVER", "PE_PREMIUM_UP"], "ce_votes": []},
+    }
+    assert nifty_has_entry_strength(live_cover, "PE") is True
+    assert nifty_has_entry_strength(live_cover, "PE", cover_closed_1m=True) is False
+    assert nifty_has_entry_strength(
+        live_cover, "PE", cover_closed_1m=True, closed_1m_has_cover=True
+    ) is True
+    unwind = {
+        "last3_impulse": None,
+        "last3_reason": "wait_pause_after_impulse",
+        "itm_bin": {"pe_votes": ["PE_LONG_UNWIND"], "ce_votes": []},
+    }
+    assert nifty_has_entry_strength(
+        unwind, "PE", cover_closed_1m=True, closed_1m_has_cover=True
+    ) is False
+    assert nifty_has_entry_strength(
+        {"last3_impulse": "DOWN", "itm_bin": {"pe_votes": ["PE_LONG_UNWIND"]}},
+        "PE",
+        cover_closed_1m=True,
+    ) is True
+    from desk_ml.paper_scalp import closed_1m_has_cover_strength
+
+    hist = {
+        "closed_1m": [
+            {"ce": {"px": 200.0, "oi": 100.0}, "pe": {"px": 210.0, "oi": 500.0}},
+            {"ce": {"px": 198.0, "oi": 90.0}, "pe": {"px": 220.0, "oi": 480.0}},
+        ]
+    }
+    assert closed_1m_has_cover_strength(hist, "PE") is True
+    assert closed_1m_has_cover_strength({"closed_1m": []}, "PE") is False
 
     engine = BookEngine(nifty_need_strength=True, nifty_allow_sides=("CE", "PE"))
     engine.last_regime["NIFTY"] = pause_wait

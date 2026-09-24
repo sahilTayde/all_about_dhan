@@ -1929,8 +1929,32 @@ def update_itm_bin(engine: BookEngine, underlying: str, tick: Triple) -> dict[st
     ticks.append(rec)
     hist["ticks"] = ticks[-int(BIN_KEEP_TICKS) :]
     hist["last"] = rec
+    form_key = hist.get("forming_key")
+    now_key = minute_key(int(tick.ts))
+    if form_key is not None and int(form_key) != int(now_key) and hist.get("forming") is not None:
+        closed = list(hist.get("closed_1m") or [])
+        closed.append({"ce": hist["forming"].get("ce"), "pe": hist["forming"].get("pe")})
+        hist["closed_1m"] = closed[-8:]
+    hist["forming_key"] = now_key
+    hist["forming"] = {"ce": pack.get("ce"), "pe": pack.get("pe")}
     engine.itm_bins[und] = hist
     return rec
+
+
+def closed_1m_cover_votes(hist: Optional[dict[str, Any]], side: str) -> list[str]:
+    """Cover/OI votes from the last two *closed* 1m ITM packs. Not the forming minute."""
+    bars = list((hist or {}).get("closed_1m") or [])
+    if len(bars) < 2:
+        return []
+    scored = score_itm_bin(bars[-2], bars[-1])
+    wing = str(side or "").upper()
+    return list(scored.get("pe_votes" if wing == "PE" else "ce_votes") or [])
+
+
+def closed_1m_has_cover_strength(hist: Optional[dict[str, Any]], side: str) -> bool:
+    wing = str(side or "").upper()
+    votes = closed_1m_cover_votes(hist, wing)
+    return f"{wing}_SHORT_COVER" in votes or f"{wing}_OI_UP_WITH_PREMIUM" in votes
 
 
 def apply_itm_bin_to_regime(classified: dict[str, Any], bin_rec: dict[str, Any]) -> dict[str, Any]:
@@ -2004,17 +2028,31 @@ def paper_impulse_fill(classified: dict[str, Any]) -> bool:
     return reason.startswith("itm_bin_") and reason.endswith("_confirm")
 
 
-def nifty_has_entry_strength(classified: Optional[dict[str, Any]], side: str) -> bool:
+def nifty_has_entry_strength(
+    classified: Optional[dict[str, Any]],
+    side: str,
+    *,
+    cover_closed_1m: bool = False,
+    closed_1m_has_cover: bool = False,
+) -> bool:
     """NIFTY NEW: last-3 / pause-continue / short-cover, or ITM-bin confirm+flow.
 
     Pause-wait at session high must not lock the dealer when the bin already confirms.
+    write=false A/B cover_closed_1m: 10s SHORT_COVER / OI-up is WATCH. Strength
+    needs the same vote on the last closed 1m, and live must not be LONG_UNWIND.
+    last-3 UP/DOWN and pause_continue still fill. Default off. NO_PROMOTE.
     """
     cl = classified or {}
+    wing = str(side or "").upper()
     if cl.get("last3_impulse") in {"UP", "DOWN"}:
         return True
     if cl.get("last3_reason") == "pause_continue":
         return True
-    if covering_label(cl, side) == "SHORT_COVER":
+    if cover_closed_1m:
+        if covering_label(cl, wing) == "LONG_UNWIND":
+            return False
+        return bool(closed_1m_has_cover)
+    if covering_label(cl, wing) == "SHORT_COVER":
         return True
     if paper_impulse_fill(cl):
         return True
@@ -2024,9 +2062,9 @@ def nifty_has_entry_strength(classified: Optional[dict[str, Any]], side: str) ->
         er = 0.0
     direction = cl.get("index_direction") or cl.get("direction")
     if cl.get("regime") == "TREND" and er >= float(STALL_TREND_ER):
-        if direction == "UP" and str(side or "").upper() == "CE":
+        if direction == "UP" and wing == "CE":
             return True
-        if direction == "DOWN" and str(side or "").upper() == "PE":
+        if direction == "DOWN" and wing == "PE":
             return True
     return False
 
@@ -2784,6 +2822,7 @@ class BookEngine:
     sensex_need_strength: bool = True  # SENSEX: continuation or short-cover, not every bin tick
     sensex_no_pause_wait: bool = True  # SENSEX last-3 confirm without extra pause (NIFTY still waits)
     nifty_need_strength: bool = False
+    nifty_cover_closed_1m: bool = False  # write=false A/B Joint #2. Default off. NO_PROMOTE.
     nifty_bin_only: bool = False  # never let last-3 override the ITM bin on NIFTY
     nifty_allow_sides: Optional[tuple[str, ...]] = None  # e.g. ("PE",)
     nifty_min_abs_delta: Optional[float] = None
@@ -4114,7 +4153,18 @@ def _try_open(
         and underlying.upper() == "NIFTY"
         and dealer_entry_book(book_id)
     ):
-        strong = nifty_has_entry_strength(classified, side)
+        closed_ok = False
+        if bool(getattr(engine, "nifty_cover_closed_1m", False)):
+            closed_ok = closed_1m_has_cover_strength(
+                (getattr(engine, "itm_bins", None) or {}).get(underlying.upper()),
+                side,
+            )
+        strong = nifty_has_entry_strength(
+            classified,
+            side,
+            cover_closed_1m=bool(getattr(engine, "nifty_cover_closed_1m", False)),
+            closed_1m_has_cover=closed_ok,
+        )
         if not strong:
             engine.mark_skip(
                 book_id,
@@ -5626,9 +5676,12 @@ def replay_paper_scalp(
     sod_one_ticket: Optional[bool] = None,
     picker_majority: Optional[bool] = None,
     hold_trending_open_stall: bool = False,
+    nifty_cover_closed_1m: bool = False,
 ) -> dict[str, Any]:
     if hold_trending_open_stall and write:
         raise ValueError("hold_trending_open_stall is write=false A/B only. NO_PROMOTE.")
+    if nifty_cover_closed_1m and write:
+        raise ValueError("nifty_cover_closed_1m is write=false A/B only. NO_PROMOTE.")
     base = root or repo_root()
     now = datetime.now(IST)
     session_day = session_ist_date or (now.date().isoformat() if live_session else None)
@@ -5815,6 +5868,7 @@ def replay_paper_scalp(
         sod_one_ticket=sod_on,
         picker_majority=picker_on,
         hold_trending_open_stall=bool(hold_trending_open_stall),
+        nifty_cover_closed_1m=bool(nifty_cover_closed_1m),
     )
     for book_id in LIVE_BOOKS:
         engine.equity[book_id] = float(plan["per_book"].get(book_id) or 0.0)
@@ -7245,6 +7299,7 @@ def build_dashboard(
         "customer_mix": "MIX-DEFAULT-BUY is the only SOD fill. Analysts vote in their own room.",
         "sod_one_ticket": bool(getattr(engine, "sod_one_ticket", True)),
         "hold_trending_open_stall": bool(getattr(engine, "hold_trending_open_stall", False)),
+        "nifty_cover_closed_1m": bool(getattr(engine, "nifty_cover_closed_1m", False)),
         "promote": False,
         "independent_books": not bool(getattr(engine, "sod_one_ticket", True)),
         "one_open_per": (
