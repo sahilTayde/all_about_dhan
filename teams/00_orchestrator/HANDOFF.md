@@ -2,6 +2,25 @@
 
 **Agents:** read **only the newest block**. Do not ingest this whole log. New files: [`docs/FILE_CREATION.md`](../../docs/FILE_CREATION.md). Append here — do not create `HANDOFF_TOMORROW.md` or extra `CONTINUE_*`.
 
+## As of now (2026-09-24 IST) — sleep close; tape STOPPED (NO_PROMOTE)
+
+```text
+From:     teams/00_orchestrator
+To:       founder / 02 / 06 / 09
+Date:     2026-09-24
+Status:   PAPER / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: desk.sh close. Dual-tape STOPPED. Nightly EXPIRY
+  (taken 0 / skipped 6 EXPIRED; P/L 0; BACKTEST_REQUIRED).
+  Honesty CLEAN (18–24 Sep; 24 = 33 SOD closed; 0 peek;
+  0 fill-contract fail). Auditor PASS. Tape + website OFF
+  (founder sleep / everything).
+Rejected: Promote. Auto-retune. Recode booking from EXPIRY.
+  git-add sqlite.
+UNKNOWN: EXPIRY is not a retune sample.
+```
+
 ## As of now (2026-09-24 IST) — Joint #2 on live paper tape (NO_PROMOTE)
 
 ```text

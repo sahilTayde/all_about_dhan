@@ -17,4 +17,6 @@ write=false. Overlay unchanged. Spill rooms: `booking` (stall/against/unwind) vs
 
 See the live JSON for CLEAN / PEEKED / spill room. This file is the ticket home, not invented P/L.
 
+**Run 2026-09-24 IST close (NIFTY dual-tape, write=false):** overall **CLEAN**. Fill-contract fails **0**. Peeked slices **0**. SOD closes: 18=17, 21=32, 22=27, 23=28, 24=33. Story every day: losses after fill (**booking:** stall/against/unwind) — watch booking on more **NORMAL** days; do not recode overlay tonight. 24 session_kind **EXPIRY** (not a retune sample). **NO_PROMOTE.** Win rate not claimed.
+
 **Run 2026-09-20 IST (NIFTY dual-tape, write=false):** overall **CLEAN**. Fill-contract fails **0**. Peeked slices **0**. SOD closes: 16=1, 17=4, 18=5. Story on all three: losses after fill (stop/stall/cancel) — **watch overlay only if more NORMAL days agree**. 18 session_kind UNKNOWN (no nightly tag). **NO_PROMOTE.** Win rate not claimed.

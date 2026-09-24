@@ -1,5 +1,22 @@
 # Handoff log — Team 06 Backtesting
 
+## As of now (2026-09-24 IST) — close: honesty CLEAN, EXPIRY nightly (NO_PROMOTE)
+
+```text
+From:     teams/06_backtesting
+To:       founder / 00 / 02
+Date:     2026-09-24
+Status:   PAPER / NO_PROMOTE
+Accepted: sod-exam 18/21/22/23/24 overall CLEAN. Peek 0.
+  Fill-contract fail 0. 24: 33 SOD closes, booking 19 / desk 3.
+  Nightly EXPIRY, taken 0 / skipped 6 EXPIRED, P/L 0.
+  Dual-tape STOPPED. Joint #2 stayed on for the restage.
+Rejected: Recode booking/overlay tonight. Promote. git-add sqlite.
+UNKNOWN: EXPIRY is not a retune sample. Paper wr is not a customer wr.
+```
+
+---
+
 ## As of now (2026-09-24 IST) — Joint #2 live paper NEW fills (NO_PROMOTE)
 
 ```text
