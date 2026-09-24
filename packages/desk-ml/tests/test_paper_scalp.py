@@ -3165,8 +3165,14 @@ def test_nifty_bin_confirm_counts_as_strength() -> None:
     }
     assert closed_1m_has_cover_strength(hist, "PE") is True
     assert closed_1m_has_cover_strength({"closed_1m": []}, "PE") is False
+    live = BookEngine(nifty_need_strength=True)
+    assert live.nifty_cover_closed_1m is True
 
-    engine = BookEngine(nifty_need_strength=True, nifty_allow_sides=("CE", "PE"))
+    engine = BookEngine(
+        nifty_need_strength=True,
+        nifty_allow_sides=("CE", "PE"),
+        nifty_cover_closed_1m=False,
+    )
     engine.last_regime["NIFTY"] = pause_wait
     tick = Triple(
         ts=_ts(10),

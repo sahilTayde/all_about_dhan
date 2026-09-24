@@ -1,5 +1,23 @@
 # Handoff log — Team 06 Backtesting
 
+## As of now (2026-09-24 IST) — Joint #2 live paper NEW fills (NO_PROMOTE)
+
+```text
+From:     teams/06_backtesting
+To:       founder / 00 / 07
+Date:     2026-09-24
+Status:   PAPER / NO_PROMOTE
+Accepted: nifty_cover_closed_1m ON for dual-tape write=True.
+  10s SHORT_COVER / OI-up is WATCH unless last two closed 1m
+  ITM packs agree. last-3 / pause_continue still fill.
+  A/B 24 Sep ~14:46 IST: control −₹83,082 vs J2 −₹6,678;
+  missed 2 PE TARGET (+₹35,205); skipped 11 PE losses (−₹1.38L).
+Rejected: Live Dhan orders. Promote. Recode overlay.
+UNKNOWN: 11:51 / 14:17 TARGET miss vs bleed saved. Rest of day.
+```
+
+---
+
 ## As of now (2026-09-23 IST) — exit overlay on SOD MIX-DEFAULT-BUY booking (PAPER)
 
 ```text

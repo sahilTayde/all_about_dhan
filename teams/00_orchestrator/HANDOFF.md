@@ -2,6 +2,21 @@
 
 **Agents:** read **only the newest block**. Do not ingest this whole log. New files: [`docs/FILE_CREATION.md`](../../docs/FILE_CREATION.md). Append here — do not create `HANDOFF_TOMORROW.md` or extra `CONTINUE_*`.
 
+## As of now (2026-09-24 IST) — Joint #2 on live paper tape (NO_PROMOTE)
+
+```text
+From:     teams/00_orchestrator
+To:       founder / 06 / 07
+Date:     2026-09-24
+Status:   PAPER / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+
+Accepted: Founder: ship Joint #2 to live paper dual-tape.
+  Default ON. write=True allowed. Orders still REFUSED.
+Rejected: Live Dhan. Promote. Overlay recode.
+UNKNOWN: Mid-session restage of today's book on next tick.
+```
+
 ## As of now (2026-09-22 IST) — sleep close; website ON (NO_PROMOTE)
 
 ```text

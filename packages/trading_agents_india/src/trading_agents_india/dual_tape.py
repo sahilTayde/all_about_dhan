@@ -1003,6 +1003,7 @@ def run_dual_tape_loop(
                             write=True,
                             live_session=True,
                             deny_model_signals=True,
+                            nifty_cover_closed_1m=True,
                         )
                         last_full_board = board
                         last_paths["ml_paper_dashboard"] = str(

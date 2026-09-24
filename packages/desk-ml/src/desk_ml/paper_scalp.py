@@ -302,6 +302,7 @@ DEFAULT_PAPER_PARAMS = {
     "observer_veto_fills": True,
     "sod_one_ticket": True,
     "picker_majority": True,
+    "nifty_cover_closed_1m": True,
 }
 
 
@@ -2038,9 +2039,9 @@ def nifty_has_entry_strength(
     """NIFTY NEW: last-3 / pause-continue / short-cover, or ITM-bin confirm+flow.
 
     Pause-wait at session high must not lock the dealer when the bin already confirms.
-    write=false A/B cover_closed_1m: 10s SHORT_COVER / OI-up is WATCH. Strength
+    cover_closed_1m (live default): 10s SHORT_COVER / OI-up is WATCH. Strength
     needs the same vote on the last closed 1m, and live must not be LONG_UNWIND.
-    last-3 UP/DOWN and pause_continue still fill. Default off. NO_PROMOTE.
+    last-3 UP/DOWN and pause_continue still fill. PAPER only. NO_PROMOTE.
     """
     cl = classified or {}
     wing = str(side or "").upper()
@@ -2822,7 +2823,7 @@ class BookEngine:
     sensex_need_strength: bool = True  # SENSEX: continuation or short-cover, not every bin tick
     sensex_no_pause_wait: bool = True  # SENSEX last-3 confirm without extra pause (NIFTY still waits)
     nifty_need_strength: bool = False
-    nifty_cover_closed_1m: bool = False  # write=false A/B Joint #2. Default off. NO_PROMOTE.
+    nifty_cover_closed_1m: bool = True  # live paper Joint #2. 10s cover is WATCH. NO_PROMOTE.
     nifty_bin_only: bool = False  # never let last-3 override the ITM bin on NIFTY
     nifty_allow_sides: Optional[tuple[str, ...]] = None  # e.g. ("PE",)
     nifty_min_abs_delta: Optional[float] = None
@@ -5426,6 +5427,7 @@ def load_paper_params(root: Path) -> dict[str, Any]:
         "nifty_halt_after_stops",
         "nifty_session_lean",
         "apply_target_shift",
+        "nifty_cover_closed_1m",
     ):
         if key in blob:
             out[key] = blob[key]
@@ -5676,12 +5678,10 @@ def replay_paper_scalp(
     sod_one_ticket: Optional[bool] = None,
     picker_majority: Optional[bool] = None,
     hold_trending_open_stall: bool = False,
-    nifty_cover_closed_1m: bool = False,
+    nifty_cover_closed_1m: Optional[bool] = None,
 ) -> dict[str, Any]:
     if hold_trending_open_stall and write:
         raise ValueError("hold_trending_open_stall is write=false A/B only. NO_PROMOTE.")
-    if nifty_cover_closed_1m and write:
-        raise ValueError("nifty_cover_closed_1m is write=false A/B only. NO_PROMOTE.")
     base = root or repo_root()
     now = datetime.now(IST)
     session_day = session_ist_date or (now.date().isoformat() if live_session else None)
@@ -5868,7 +5868,11 @@ def replay_paper_scalp(
         sod_one_ticket=sod_on,
         picker_majority=picker_on,
         hold_trending_open_stall=bool(hold_trending_open_stall),
-        nifty_cover_closed_1m=bool(nifty_cover_closed_1m),
+        nifty_cover_closed_1m=(
+            bool(nifty_cover_closed_1m)
+            if nifty_cover_closed_1m is not None
+            else bool(params.get("nifty_cover_closed_1m", True))
+        ),
     )
     for book_id in LIVE_BOOKS:
         engine.equity[book_id] = float(plan["per_book"].get(book_id) or 0.0)

@@ -111,9 +111,17 @@ def build_parser() -> argparse.ArgumentParser:
     )
     ps.add_argument(
         "--nifty-cover-closed-1m",
+        dest="nifty_cover_closed_1m",
         action="store_true",
-        help="write=false A/B Joint #2: SHORT_COVER/OI-up only on last closed 1m. Requires --no-write. Default off. NO_PROMOTE.",
+        help="NIFTY Joint #2 on: 10s SHORT_COVER/OI-up is WATCH unless last closed 1m agrees. Live default. PAPER. NO_PROMOTE.",
     )
+    ps.add_argument(
+        "--no-nifty-cover-closed-1m",
+        dest="nifty_cover_closed_1m",
+        action="store_false",
+        help="A/B off: restore 10s SHORT_COVER as NIFTY strength. PAPER. NO_PROMOTE.",
+    )
+    ps.set_defaults(nifty_cover_closed_1m=None)
     ff = sub.add_parser(
         "fix-first",
         help="Pre-open FIX-FIRST drill: write=false candle replay from 17 Sep. Skill track, not a wr.",
@@ -225,22 +233,13 @@ def main(argv: Optional[list[str]] = None) -> int:
         veto = getattr(args, "observer_veto_fills", None)
         sod_off = bool(getattr(args, "sod_off", False))
         hold_trend_stall = bool(getattr(args, "hold_trending_open_stall", False))
-        cover_1m = bool(getattr(args, "nifty_cover_closed_1m", False))
+        cover_1m = getattr(args, "nifty_cover_closed_1m", None)
         if hold_trend_stall and not bool(args.no_write):
             _print(
                 {
                     "ok": False,
                     "promote": False,
                     "error": "hold_trending_open_stall requires --no-write. A/B only. NO_PROMOTE.",
-                }
-            )
-            return 2
-        if cover_1m and not bool(args.no_write):
-            _print(
-                {
-                    "ok": False,
-                    "promote": False,
-                    "error": "nifty_cover_closed_1m requires --no-write. A/B only. NO_PROMOTE.",
                 }
             )
             return 2
