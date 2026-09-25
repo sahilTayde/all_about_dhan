@@ -5,6 +5,7 @@
 #   ./scripts/desk.sh close       # after 15:30: stop capture, keep website, honesty + nightly
 #   ./scripts/desk.sh website     # API + website only (no data capture)
 #   ./scripts/desk.sh status      # pids / URLs / where to read reports
+#   ./scripts/desk.sh watch-open  # wait until 09:30 IST Mon–Fri, then dual-tape
 #
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -41,6 +42,17 @@ stop_dual_tape() {
   screen -S dual-tape-live-5s -X quit 2>/dev/null || true
   screen -S dual-tape-live-2s -X quit 2>/dev/null || true
   rm -f "$RECON/paper_dual_tape_RUNNING.flag"
+}
+
+start_dual_tape() {
+  rm -f "$RECON/paper_dual_tape_STOPPED.flag"
+  screen -S dual-tape-live-2s -X quit 2>/dev/null || true
+  screen -dmS dual-tape-live-2s zsh -lc "cd '$ROOT' && '$PY' -u -m trading_agents_india dual-tape --live-chain --paper-train --paper-scalp --tick-seconds 2 --max-ticks 0 >> '$RECON/dual_tape_live_2s.log' 2>&1"
+}
+
+arm_dual_tape_when_open() {
+  screen -S dual-tape-watch-open -X quit 2>/dev/null || true
+  screen -dmS dual-tape-watch-open zsh -lc "cd '$ROOT' && ./scripts/desk.sh watch-open >> '$RECON/dual_tape_watch_open.log' 2>&1"
 }
 
 ensure_api_web() {
@@ -120,8 +132,8 @@ case "$CMD" in
     "$PY" -m desk_ml fix-first >> "$RECON/fix_first.log" 2>&1 || true
     screen -dmS api-server zsh -lc "cd '$ROOT' && PYTHONPATH=apps/api/src '$PY' -m uvicorn api.main:app --app-dir apps/api/src --host 127.0.0.1 --port 8000 >> '$RECON/api-server.log' 2>&1"
     screen -dmS web-dev zsh -lc "cd '$ROOT/apps/web' && '$VITE' --host 127.0.0.1 --port 5173 >> '$RECON/web-dev.log' 2>&1"
-    screen -dmS dual-tape-live-2s zsh -lc "cd '$ROOT' && '$PY' -u -m trading_agents_india dual-tape --live-chain --paper-train --paper-scalp --tick-seconds 2 --max-ticks 0 >> '$RECON/dual_tape_live_2s.log' 2>&1"
-    sleep 6
+    arm_dual_tape_when_open
+    sleep 2
     write_status
     echo "MORNING UP. Desk http://127.0.0.1:5173/desk  Founder http://127.0.0.1:5173/pm"
     echo "On /pm: pick index then START TRADE. PAPER. No live orders."
@@ -170,6 +182,52 @@ EOF
       cat "$RECON/close_status.txt"
     fi
     ;;
+  watch-open)
+    echo "dual-tape watch-open: Mon–Fri 09:30–15:29 IST capture window."
+    rm -f "$RECON/paper_dual_tape_STOPPED.flag"
+    if ! "$PY" -u - <<'PY'
+from datetime import datetime
+from zoneinfo import ZoneInfo
+import sys
+import time
+
+ist = ZoneInfo("Asia/Kolkata")
+now = datetime.now(ist)
+if now.weekday() >= 5:
+    print(f"WEEKEND ({now.date()}): no dual-tape", flush=True)
+    sys.exit(2)
+target = now.replace(hour=9, minute=30, second=0, microsecond=0)
+end = now.replace(hour=15, minute=29, second=0, microsecond=0)
+if now >= end:
+    print(f"past 15:29 IST ({now.isoformat()}); capture closed for today", flush=True)
+    sys.exit(3)
+if now < target:
+    secs = int((target - now).total_seconds())
+    print(
+        f"waiting until 09:30 IST ({target.isoformat()}) — ~{secs}s — "
+        "cash opened 09:15; first NEW paper + dual-tape ticks at 09:30",
+        flush=True,
+    )
+    while datetime.now(ist) < target:
+        time.sleep(20)
+else:
+    print(f"past 09:30 IST ({now.isoformat()}); starting dual-tape now", flush=True)
+PY
+    then
+      rc=$?
+      echo "watch-open aborted (rc=$rc). See data/recon/dual_tape_watch_open.log"
+      exit "$rc"
+    fi
+    if pgrep -f 'trading_agents_india dual-tape' >/dev/null 2>&1; then
+      echo "dual-tape already running — skip second start"
+    else
+      start_dual_tape
+      echo "dual-tape STARTED (PAPER). execution=refused"
+    fi
+    sleep 4
+    write_status " watch-open"
+    screen -ls || true
+    ;;
   watch-close)
     echo "Waiting until 15:40 IST then running close..."
     "$PY" - <<'PY'
@@ -190,7 +248,7 @@ PY
     exec "$0" close
     ;;
   *)
-    echo "usage: $0 morning|close|website|status|watch-close" >&2
+    echo "usage: $0 morning|close|website|status|watch-open|watch-close" >&2
     exit 2
     ;;
 esac
