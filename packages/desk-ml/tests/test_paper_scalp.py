@@ -200,7 +200,10 @@ def test_sideways_skips_new_opens_not_dealer_yaml() -> None:
     assert engine.last_regime["NIFTY"]["regime"] == "SIDEWAYS"
     for book in ("MIX-DEFAULT-BUY", "MIX-ML-LOGIT", "MIX-TV-EP-024"):
         assert engine.has_open(book, "NIFTY") is False
-    assert any(s.get("reason") == SIDEWAYS_HOLD and s.get("book_id") == "MIX-DEFAULT-BUY" for s in engine.skips)
+    assert any(
+        s.get("reason") in {SIDEWAYS_HOLD, "PATH_KIND_HOLD"} and s.get("book_id") == "MIX-DEFAULT-BUY"
+        for s in engine.skips
+    )
 
 
 def test_sideways_still_flattens_open_ticket() -> None:
@@ -2733,8 +2736,9 @@ def test_pe_does_not_sit_call_rally() -> None:
         },
         {"side": "PE", "reason": "itm_bin_pe_confirm", "pe_votes": ["PE_PREMIUM_UP"], "ce_votes": []},
     )
-    assert chop_bin["regime"] == "TREND"
-    assert chop_bin["direction"] == "DOWN"
+    assert chop_bin["regime"] == "SIDEWAYS"
+    assert chop_bin["direction"] == "FLAT"
+    assert chop_bin["itm_bin"]["side"] == "PE"
 
     ce = OpenPaper(
         book_id="MIX-DEFAULT-BUY",
@@ -3453,6 +3457,215 @@ def test_human_naked_exit_does_not_flatten(tmp_path) -> None:
     )
     mark_to_market(engine, tick, "NIFTY", 5)
     assert engine.has_open("MIX-DEFAULT-BUY", "NIFTY") is True
+
+
+def _nifty_open_tick(ts: int, *, idx: float = 23200.0) -> Triple:
+    atm = round(idx / 50.0) * 50.0
+    ce_itm = atm - 200.0
+    pe_itm = atm + 200.0
+    return Triple(
+        ts=ts,
+        idx_close=idx,
+        ce_close=120.0,
+        pe_close=80.0,
+        atm_strike=atm,
+        itm_ce_close=160.0,
+        itm_pe_close=140.0,
+        itm_ce_strike=ce_itm,
+        itm_pe_strike=pe_itm,
+        wing_quotes={
+            str(int(ce_itm)): {"ce": 160.0, "pe": 20.0},
+            str(int(atm)): {"ce": 120.0, "pe": 80.0},
+            str(int(pe_itm)): {"ce": 20.0, "pe": 140.0},
+        },
+    )
+
+
+def _chop_box_regime(*, regime: str = "TREND", reason: str = "itm_bin_ce_confirm") -> dict:
+    return {
+        "regime": regime,
+        "direction": "UP",
+        "reason": reason,
+        "er": 0.12,
+        "flip_frac": 0.45,
+        "range_over_atr": 2.0,
+        "last3_impulse": None,
+        "last3_impulse_raw": None,
+        "itm_bin": {"side": "CE", "ce_votes": ["CE_PREMIUM_UP"], "pe_votes": []},
+    }
+
+
+def _trending_a1_regime() -> dict:
+    return {
+        "regime": "TREND",
+        "direction": "UP",
+        "reason": "last3_up",
+        "er": 0.72,
+        "flip_frac": 0.10,
+        "range_over_atr": 6.0,
+        "last3_impulse": "UP",
+        "last3_impulse_raw": "UP",
+        "itm_bin": {"side": "CE", "ce_votes": ["CE_PREMIUM_UP"], "pe_votes": []},
+    }
+
+
+def test_b7_pe_unwind_same_tick_ce_chop_skips() -> None:
+    from desk_ml.paper_scalp import SAME_TICK_REOPEN, should_block_same_tick_reopen, _try_open
+
+    ts = _ts(10)
+    engine = BookEngine()
+    engine.last_regime["NIFTY"] = _chop_box_regime()
+    engine.last_exit_by_und["NIFTY"] = {"ts": ts, "side": "PE", "reason": "COVER_LONG_UNWIND"}
+    assert should_block_same_tick_reopen(engine.last_exit_by_und["NIFTY"], tick_ts=ts) is True
+    _try_open(
+        engine,
+        book_id="MIX-DEFAULT-BUY",
+        underlying="NIFTY",
+        side="CE",
+        tick=_nifty_open_tick(ts),
+        ce_path=[160.0],
+        pe_path=[140.0],
+        bar_i=10,
+    )
+    assert engine.has_open("MIX-DEFAULT-BUY", "NIFTY") is False
+    assert any(s.get("reason") == SAME_TICK_REOPEN for s in engine.skips)
+
+
+def test_b8_path_kind_hold_ignores_minted_trend() -> None:
+    from desk_ml.paper_scalp import (
+        PATH_KIND_HOLD,
+        should_index_path_kind_hold,
+        _try_open,
+    )
+
+    classified = _chop_box_regime(regime="TREND", reason="itm_bin_ce_confirm")
+    assert should_index_path_kind_hold(classified) is True
+    engine = BookEngine()
+    engine.last_regime["NIFTY"] = classified
+    _try_open(
+        engine,
+        book_id="MIX-DEFAULT-BUY",
+        underlying="NIFTY",
+        side="CE",
+        tick=_nifty_open_tick(_ts(10)),
+        ce_path=[160.0],
+        pe_path=[140.0],
+        bar_i=10,
+    )
+    assert engine.has_open("MIX-DEFAULT-BUY", "NIFTY") is False
+    assert any(s.get("reason") == PATH_KIND_HOLD for s in engine.skips)
+    assert not any(s.get("reason") == SIDEWAYS_HOLD for s in engine.skips)
+
+
+def test_t3_cancel_against_still_in_chop_cooldown() -> None:
+    from desk_ml.paper_scalp import (
+        CANCEL_AGAINST,
+        OVERLAY_CANCEL_COOLDOWN,
+        should_overlay_cancel_cooldown,
+        _try_open,
+    )
+
+    opened = _ts(10)
+    exit_ts = opened
+    tick_ts = exit_ts + 140
+    last_exit = {"ts": exit_ts, "side": "CE", "reason": CANCEL_AGAINST}
+    chop = _chop_box_regime()
+    assert should_overlay_cancel_cooldown(last_exit, side="CE", tick_ts=tick_ts, classified=chop) is True
+    engine = BookEngine(skip_new_when_sideways=False)
+    engine.last_regime["NIFTY"] = chop
+    engine.last_exit_by_und["NIFTY"] = last_exit
+    _try_open(
+        engine,
+        book_id="MIX-DEFAULT-BUY",
+        underlying="NIFTY",
+        side="CE",
+        tick=_nifty_open_tick(tick_ts),
+        ce_path=[160.0],
+        pe_path=[140.0],
+        bar_i=12,
+    )
+    assert engine.has_open("MIX-DEFAULT-BUY", "NIFTY") is False
+    assert any(s.get("reason") == OVERLAY_CANCEL_COOLDOWN for s in engine.skips)
+
+
+def test_a1_trending_last3_empty_cooldown_opens() -> None:
+    from desk_ml.paper_scalp import (
+        should_index_path_kind_hold,
+        should_overlay_cancel_cooldown,
+        _try_open,
+    )
+
+    classified = _trending_a1_regime()
+    assert should_index_path_kind_hold(classified) is False
+    assert should_overlay_cancel_cooldown(None, side="CE", tick_ts=_ts(11), classified=classified) is False
+    engine = BookEngine()
+    engine.last_regime["NIFTY"] = classified
+    _try_open(
+        engine,
+        book_id="MIX-DEFAULT-BUY",
+        underlying="NIFTY",
+        side="CE",
+        tick=_nifty_open_tick(_ts(11), idx=23350.0),
+        ce_path=[160.0],
+        pe_path=[140.0],
+        bar_i=11,
+    )
+    assert engine.has_open("MIX-DEFAULT-BUY", "NIFTY") is True
+
+
+def test_a5_next_tick_after_target_trending_opens() -> None:
+    from desk_ml.paper_scalp import should_block_same_tick_reopen, _try_open
+
+    exit_ts = _ts(20)
+    next_ts = exit_ts + 60
+    last_exit = {"ts": exit_ts, "side": "CE", "reason": "TARGET"}
+    assert should_block_same_tick_reopen(last_exit, tick_ts=next_ts) is False
+    engine = BookEngine()
+    engine.last_regime["NIFTY"] = _trending_a1_regime()
+    engine.last_exit_by_und["NIFTY"] = last_exit
+    _try_open(
+        engine,
+        book_id="MIX-DEFAULT-BUY",
+        underlying="NIFTY",
+        side="CE",
+        tick=_nifty_open_tick(next_ts),
+        ce_path=[160.0],
+        pe_path=[140.0],
+        bar_i=21,
+    )
+    assert engine.has_open("MIX-DEFAULT-BUY", "NIFTY") is True
+
+
+def test_b9_same_ts_target_reopen_skips() -> None:
+    from desk_ml.paper_scalp import SAME_TICK_REOPEN, should_block_same_tick_reopen, _try_open
+
+    ts = int(datetime(2026, 9, 10, 9, 40, tzinfo=IST).timestamp())
+    last_exit = {"ts": ts, "side": "CE", "reason": "TARGET"}
+    assert should_block_same_tick_reopen(last_exit, tick_ts=ts) is True
+    engine = BookEngine()
+    engine.last_regime["NIFTY"] = _trending_a1_regime()
+    engine.last_exit_by_und["NIFTY"] = last_exit
+    _try_open(
+        engine,
+        book_id="MIX-DEFAULT-BUY",
+        underlying="NIFTY",
+        side="CE",
+        tick=_nifty_open_tick(ts),
+        ce_path=[160.0],
+        pe_path=[140.0],
+        bar_i=10,
+    )
+    assert engine.has_open("MIX-DEFAULT-BUY", "NIFTY") is False
+    assert any(s.get("reason") == SAME_TICK_REOPEN for s in engine.skips)
+
+
+def test_r7_chop_bin_confirm_is_not_strength() -> None:
+    from desk_ml.paper_scalp import nifty_has_entry_strength
+
+    chop = _chop_box_regime()
+    assert nifty_has_entry_strength(chop, "CE") is False
+    assert nifty_has_entry_strength({**chop, "last3_impulse": "UP"}, "CE") is True
+    assert nifty_has_entry_strength({**chop, "last3_reason": "pause_continue"}, "CE") is True
 
 
 

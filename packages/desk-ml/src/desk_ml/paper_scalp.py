@@ -153,6 +153,10 @@ CANDLE_STRONG_BODY = 0.50
 SR_NEAR_FRAC = 0.0008  # ~0.08% (~20 NIFTY / ~60 SENSEX pts)
 VOL_BAR_VS_MEDIAN = 1.05
 SIDEWAYS_HOLD = "SIDEWAYS_HOLD"
+PATH_KIND_HOLD = "PATH_KIND_HOLD"
+SAME_TICK_REOPEN = "SAME_TICK_REOPEN"
+OVERLAY_CANCEL_COOLDOWN = "OVERLAY_CANCEL_COOLDOWN"
+OVERLAY_CANCEL_COOLDOWN_SEC = 15 * 60
 REGIME_UNKNOWN_WAIT = "REGIME_UNKNOWN_WAIT"
 VOL_NOT_EXPANDING = "VOL_NOT_EXPANDING"
 CANCEL_BIN_ROLL = "CANCEL_BIN_ROLL"
@@ -182,6 +186,14 @@ HARD_EXIT_REASONS = {
     CANCEL_AGAINST,
     HUMAN_EXIT,
     CANCEL_HUMAN,
+}
+OVERLAY_CANCEL_REASONS = {
+    CANCEL_NO_PROGRESS,
+    CANCEL_AGAINST,
+    CANCEL_STALL,
+    CANCEL_BOOK_NEAR,
+    "CANCEL_SIDEWAYS",
+    COVER_LONG_UNWIND,
 }
 # Stale-high stall (HYPOTHESIS): not a constant 9m TIME clock.
 STALL_MIN_SEC = 20 * 60
@@ -2004,6 +2016,9 @@ def apply_itm_bin_to_regime(classified: dict[str, Any], bin_rec: dict[str, Any])
         return out
     if strong_idx and idx_dir in {"UP", "DOWN"} and idx_dir != want:
         return out
+    # R2: do not mint TREND from itm_bin when INDEX ER is chop and last-3 is none.
+    if er < float(STALL_TREND_ER) and out.get("last3_impulse") not in {"UP", "DOWN"}:
+        return out
     out["regime"] = "TREND"
     out["direction"] = want
     out["reason"] = str(bin_rec.get("reason") or "itm_bin")
@@ -2049,6 +2064,9 @@ def nifty_has_entry_strength(
         return True
     if cl.get("last3_reason") == "pause_continue":
         return True
+    # R7: in chop, itm_bin confirm / 10s cover is not strength.
+    if index_path_is_chop(cl):
+        return False
     if cover_closed_1m:
         if covering_label(cl, wing) == "LONG_UNWIND":
             return False
@@ -3436,6 +3454,74 @@ def market_kind(classified: Optional[dict[str, Any]] = None, *, require_er: bool
     return "UNKNOWN"
 
 
+def index_path_is_chop(classified: Optional[dict[str, Any]] = None) -> bool:
+    """INDEX path chop from market_kind / ER. Ignore regime==TREND and itm_bin confirm."""
+    cl = classified or {}
+    kind = str(market_kind(cl) or "").upper()
+    if kind in {"CHOPPY", "SIDEWAYS"}:
+        return True
+    try:
+        er = cl.get("er")
+        if er is None:
+            return False
+        er_f = float(er)
+    except (TypeError, ValueError):
+        return False
+    last3 = cl.get("last3_impulse")
+    return er_f < float(STALL_TREND_ER) and last3 not in {"UP", "DOWN"}
+
+
+def should_index_path_kind_hold(classified: Optional[dict[str, Any]] = None) -> bool:
+    """R1: BLOCK NEW if INDEX path is chop. Never `if regime==SIDEWAYS: SIDEWAYS_HOLD`."""
+    return index_path_is_chop(classified)
+
+
+def should_overlay_cancel_cooldown(
+    last_exit: Optional[dict[str, Any]],
+    *,
+    side: Optional[str],
+    tick_ts: int,
+    classified: Optional[dict[str, Any]] = None,
+    cooldown_sec: int = OVERLAY_CANCEL_COOLDOWN_SEC,
+) -> bool:
+    """R3a: same underlying+side, 15m after overlay cancel, only while path is chop."""
+    if not index_path_is_chop(classified):
+        return False
+    if not isinstance(last_exit, dict):
+        return False
+    if str(last_exit.get("reason") or "") not in OVERLAY_CANCEL_REASONS:
+        return False
+    prev_side = str(last_exit.get("side") or "").upper()
+    want = str(side or "").upper()
+    if prev_side not in {"CE", "PE"} or want not in {"CE", "PE"} or prev_side != want:
+        return False
+    try:
+        prev_ts = int(last_exit.get("ts") or 0)
+    except (TypeError, ValueError):
+        return False
+    if prev_ts <= 0:
+        return False
+    age = int(tick_ts) - prev_ts
+    return 0 <= age < int(cooldown_sec)
+
+
+def should_block_same_tick_reopen(
+    last_exit: Optional[dict[str, Any]],
+    *,
+    tick_ts: int,
+) -> bool:
+    """R3b: last_exit.ts == tick.ts on that underlying, any wing."""
+    if not isinstance(last_exit, dict):
+        return False
+    try:
+        prev_ts = last_exit.get("ts")
+        if prev_ts is None:
+            return False
+        return int(prev_ts) == int(tick_ts)
+    except (TypeError, ValueError):
+        return False
+
+
 def market_kind_from_row(row: dict[str, Any], *, at: str = "open") -> str:
     """Fill kind = open ER. Exit kind = close ER. Missing ER → UNKNOWN."""
     stamped = row.get("market_kind_open") if at == "open" else row.get("market_kind_close")
@@ -4084,17 +4170,31 @@ def _try_open(
                 },
             )
         return
-    if engine.skip_new_when_sideways and regime == "SIDEWAYS":
+    prev_exit = (getattr(engine, "last_exit_by_und", None) or {}).get(str(underlying).upper())
+    if should_block_same_tick_reopen(prev_exit if isinstance(prev_exit, dict) else None, tick_ts=int(tick.ts)):
         engine.mark_skip(
             book_id,
             underlying,
-            SIDEWAYS_HOLD,
+            SAME_TICK_REOPEN,
+            ts=tick.ts,
+            index_regime=regime,
+            seen_side=side,
+            last_exit_reason=(prev_exit or {}).get("reason") if isinstance(prev_exit, dict) else None,
+            last_exit_side=(prev_exit or {}).get("side") if isinstance(prev_exit, dict) else None,
+        )
+        return
+    if engine.skip_new_when_sideways and should_index_path_kind_hold(classified):
+        engine.mark_skip(
+            book_id,
+            underlying,
+            PATH_KIND_HOLD,
             ts=tick.ts,
             index_regime=regime,
             regime_er=classified.get("er"),
             regime_flip_frac=classified.get("flip_frac"),
             regime_reason=classified.get("reason"),
             seen_side=side,
+            market_kind=market_kind(classified if isinstance(classified, dict) else {}),
         )
         if engine.root is not None:
             append_model_log(
@@ -4103,10 +4203,26 @@ def _try_open(
                     "event": "SKIP",
                     "model": book_id,
                     "underlying": underlying,
-                    "reason": SIDEWAYS_HOLD,
+                    "reason": PATH_KIND_HOLD,
                     "index_regime": regime,
                 },
             )
+        return
+    if should_overlay_cancel_cooldown(
+        prev_exit if isinstance(prev_exit, dict) else None,
+        side=side,
+        tick_ts=int(tick.ts),
+        classified=classified,
+    ):
+        engine.mark_skip(
+            book_id,
+            underlying,
+            OVERLAY_CANCEL_COOLDOWN,
+            ts=tick.ts,
+            index_regime=regime,
+            seen_side=side,
+            last_exit_reason=(prev_exit or {}).get("reason") if isinstance(prev_exit, dict) else None,
+        )
         return
     if side not in {"CE", "PE"}:
         engine.mark_skip(book_id, underlying, "NO_SIDE", ts=tick.ts, seen_side=side)
@@ -6782,6 +6898,9 @@ def _open_ticket_row(pos: OpenPaper) -> dict[str, Any]:
 
 SKIP_WHY = {
     SIDEWAYS_HOLD: "15m INDEX path was chop — NEW paper held. Last-3 impulse can TREND; true last-3 chop still holds.",
+    PATH_KIND_HOLD: "INDEX path is chop (market_kind CHOPPY/SIDEWAYS or ER<0.35 with last-3 none). itm_bin TREND is ignored.",
+    SAME_TICK_REOPEN: "Same-tick reopen after an exit on this underlying — any wing.",
+    OVERLAY_CANCEL_COOLDOWN: "Same side still inside 15m overlay-cancel cooldown while the INDEX path is chop.",
     REGIME_UNKNOWN_WAIT: "1m path mixed / Kaufman ER not a TREND — wait, do not guess CE/PE.",
     VOL_NOT_EXPANDING: "Last-3 1m volume shrank vs prior-3 — skip only when there is no last-3 price impulse.",
     "TREND_UP_KILL_PE": "INDEX 1m TREND UP — PE confirm/kill, not a fill.",
@@ -7180,7 +7299,9 @@ def build_dashboard(
     for row in board_book_rank:
         row["starting_capital_inr"] = engine.book_capital(str(row["book_id"]))
     picture = today_picture(engine.closed, board_book_rank)
-    side_skips = [s for s in engine.skips if str(s.get("reason")) == SIDEWAYS_HOLD]
+    side_skips = [
+        s for s in engine.skips if str(s.get("reason")) in {SIDEWAYS_HOLD, PATH_KIND_HOLD}
+    ]
     unk_skips = [s for s in engine.skips if str(s.get("reason")) == REGIME_UNKNOWN_WAIT]
     side_bars = {(s.get("ts"), s.get("underlying")) for s in side_skips}
     picture["n_skip_sideways"] = len(side_skips)
