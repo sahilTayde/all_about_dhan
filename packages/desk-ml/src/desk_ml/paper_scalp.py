@@ -13,6 +13,7 @@ import os
 from collections import Counter
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timedelta, timezone
+from functools import partial
 from pathlib import Path
 from typing import Any, Callable, Optional, Sequence
 
@@ -79,6 +80,13 @@ except ImportError:  # pragma: no cover
     judge_tick = None  # type: ignore[assignment]
 
 IST = timezone(timedelta(hours=5, minutes=30))
+USE_EVENT_BUS_ENV = "USE_EVENT_BUS"  # Phase 2 structural refactor; off = monolithic step_underlying
+
+
+def event_bus_enabled() -> bool:
+    return os.environ.get(USE_EVENT_BUS_ENV, "").strip().lower() in {"1", "true", "yes", "on"}
+
+
 # Founder lock: data 09:00–15:30; NEW 09:30–15:16; flatten 15:16; ITM premium only. No Sat/Sun.
 FLATTEN_MINUTES_IST = 15 * 60 + 16
 NO_NEW_MINUTES_IST = 15 * 60 + 16
@@ -4066,6 +4074,41 @@ def _try_open(
     strike: Optional[float] = None,
     strike_source: str = "ROUND_INDEX_HYPOTHESIS",
 ) -> None:
+    pos = _plan_open(
+        engine,
+        book_id=book_id,
+        underlying=underlying,
+        side=side,
+        tick=tick,
+        ce_path=ce_path,
+        pe_path=pe_path,
+        bar_i=bar_i,
+        skip_reason=skip_reason,
+        strike=strike,
+        strike_source=strike_source,
+    )
+    if pos is not None:
+        _commit_open(engine, pos)
+
+
+def _plan_open(
+    engine: BookEngine,
+    *,
+    book_id: str,
+    underlying: str,
+    side: Optional[str],
+    tick: Triple,
+    ce_path: Sequence[float],
+    pe_path: Sequence[float],
+    bar_i: int,
+    skip_reason: Optional[str] = None,
+    strike: Optional[float] = None,
+    strike_source: str = "ROUND_INDEX_HYPOTHESIS",
+) -> Optional[OpenPaper]:
+    """Boss half of `_try_open`: every entry gate, strike, levels and lots. Records skips.
+
+    Returns the proposed ticket, or None when a gate skipped it. Does not touch `engine.opens`.
+    """
     gate = new_paper_blocked(tick.ts)
     if gate:
         engine.mark_skip(book_id, underlying, gate, ts=tick.ts, seen_side=side)
@@ -4655,21 +4698,26 @@ def _try_open(
         ),
         model_names=list(getattr(engine, "_current_model_names", None) or [book_id]),
     )
-    engine.opens[(book_id, underlying)] = pos
-    engine.bump_regime_book(book_id, regime, f"OPEN_{side}")
+    return pos
+
+
+def _commit_open(engine: BookEngine, pos: OpenPaper) -> None:
+    """Desk half of `_try_open`: book the ticket planned by `_plan_open`."""
+    engine.opens[(pos.book_id, pos.underlying)] = pos
+    engine.bump_regime_book(pos.book_id, pos.index_regime, f"OPEN_{pos.side}")
     if engine.root is not None:
         append_model_log(
             engine.root,
             {
                 "event": "OPEN",
-                "model": book_id,
-                "book_id": book_id,
+                "model": pos.book_id,
+                "book_id": pos.book_id,
                 "trade_id": pos.trade_id,
-                "status": "IN_TRADE" if impulse_fill else "WORKING_LIMIT",
+                "status": "IN_TRADE" if pos.filled else "WORKING_LIMIT",
                 "target_step": 0,
-                "filled": impulse_fill,
-                "underlying": underlying,
-                "side": side,
+                "filled": pos.filled,
+                "underlying": pos.underlying,
+                "side": pos.side,
                 "strike": pos.atm_strike,
                 "strike_source": pos.strike_source,
                 "limit": pos.limit_price,
@@ -5048,8 +5096,64 @@ def step_underlying(
     tv_side: Optional[str],
     deny_model_signals: bool = True,
 ) -> None:
-    if i < 1:
+    s = step_context(engine, underlying=underlying, triples=triples, i=i)
+    if s is None:
         return
+    step_mark(engine, s)
+    inputs = step_vote_inputs(
+        engine,
+        s,
+        ml001_hold=ml001_hold,
+        ml002_hold=ml002_hold,
+        follow_gap=follow_gap,
+        logit=logit,
+        logit_xr=logit_xr,
+        ml1=ml1,
+        tv_side=tv_side,
+        deny_model_signals=deny_model_signals,
+    )
+    step_decide(engine, s, collect_analyst_votes(**inputs))
+
+
+@dataclass
+class TickStep:
+    """State one `step_underlying` tick passes between its phases (context → MTM → votes → decide).
+
+    The event path (packages/boss, desk, analysts) runs the same phases as separate services.
+    """
+
+    und: str
+    i: int
+    tick: Triple
+    prev: Triple
+    classified: dict[str, Any]
+    bin_rec: dict[str, Any]
+    dealer: dict[str, Any]
+    strike: float
+    window: list[Triple] = field(default_factory=list)
+    ml001_hold: bool = False
+    ml002_hold: bool = False
+    follow_gap: bool = False
+    logit: dict[str, Any] = field(default_factory=dict)
+    logit_xr: dict[str, Any] = field(default_factory=dict)
+    ml1: dict[str, Any] = field(default_factory=dict)
+    tv_side: Optional[str] = None
+    deny: bool = True
+    dealer_confirm: Optional[str] = None
+    ce_path: list[float] = field(default_factory=list)
+    pe_path: list[float] = field(default_factory=list)
+    impulse_side: Optional[str] = None
+    greeks_intent_side: Optional[str] = None
+    greeks_intent_skip: Optional[str] = None
+    rolled_1m: bool = False
+    older: Optional[Triple] = None
+    closed_1m: Optional[Triple] = None
+
+
+def step_context(engine: BookEngine, *, underlying: str, triples: Sequence[Triple], i: int) -> Optional[TickStep]:
+    """Market context for tick i: 1m bars, regime, ITM bin, FOLLOWS/dealer. Updates engine state."""
+    if i < 1:
+        return None
     und = underlying.upper()
     tick = triples[i]
     prev = triples[i - 1]
@@ -5122,14 +5226,39 @@ def step_underlying(
     strike = round_atm_strike(und, tick.idx_close)
     if tick.atm_strike is not None:
         strike = float(tick.atm_strike)
+    return TickStep(
+        und=und, i=i, tick=tick, prev=prev, classified=classified, bin_rec=bin_rec, dealer=dealer, strike=strike,
+        window=list(triples[max(0, i - RANGE_LOOKBACK) : i + 1]),
+    )
+
+
+def step_mark(engine: BookEngine, s: TickStep) -> None:
+    """Desk: fills, stops, targets and overlay exits on open tickets. Never waits on the boss."""
     mark_to_market(
         engine,
-        tick,
-        und,
-        i,
-        dealer_verdict=str(dealer.get("verdict") or ""),
-        atm_strike=strike,
+        s.tick,
+        s.und,
+        s.i,
+        dealer_verdict=str(s.dealer.get("verdict") or ""),
+        atm_strike=s.strike,
     )
+
+
+def step_vote_inputs(
+    engine: BookEngine,
+    s: TickStep,
+    *,
+    ml001_hold: bool,
+    ml002_hold: bool,
+    follow_gap: bool,
+    logit: dict[str, Any],
+    logit_xr: dict[str, Any],
+    ml1: dict[str, Any],
+    tv_side: Optional[str],
+    deny_model_signals: bool = True,
+) -> dict[str, Any]:
+    """Post-MTM bookkeeping for tick i; returns the `collect_analyst_votes` kwargs (analyst room input)."""
+    und, tick, prev, classified = s.und, s.tick, s.prev, s.classified
     vol_hist = getattr(engine, "_prev_idx_vol", None)
     if not isinstance(vol_hist, dict):
         vol_hist = {}
@@ -5138,30 +5267,15 @@ def step_underlying(
     if ivol is not None:
         vol_hist[und] = float(ivol)
 
+    dealer = s.dealer
     dealer_confirm = dealer.get("side") if dealer.get("side") in {"CE", "PE"} else None
-    window = triples[max(0, i - RANGE_LOOKBACK) : i + 1]
+    window = s.window
     ce_path = [
         float(t.itm_ce_close if t.itm_ce_close is not None else t.ce_close) for t in window
     ]
     pe_path = [
         float(t.itm_pe_close if t.itm_pe_close is not None else t.pe_close) for t in window
     ]
-    deny = bool(deny_model_signals)
-
-    def _open(book_id: str, side: Optional[str], skip: Optional[str]) -> None:
-        _try_open(
-            engine,
-            book_id=book_id,
-            underlying=und,
-            side=side,
-            tick=tick,
-            ce_path=ce_path,
-            pe_path=pe_path,
-            bar_i=i,
-            skip_reason=skip,
-            strike=strike,
-        )
-
     impulse_side = paper_impulse_side(classified) if classified.get("regime") == "TREND" else None
     greeks_intent_side, greeks_intent_skip = greeks_vote_intent(
         dealer_confirm=dealer_confirm,
@@ -5172,10 +5286,15 @@ def step_underlying(
     if rolled_1m:
         engine.prev_1m_close[und] = engine.last_1m_close.get(und)
         engine.last_1m_close[und] = prev
-    older = engine.prev_1m_close.get(und)
-    closed_1m = engine.last_1m_close.get(und)
+    s.ml001_hold, s.ml002_hold, s.follow_gap = ml001_hold, ml002_hold, follow_gap
+    s.logit, s.logit_xr, s.ml1, s.tv_side = logit, logit_xr, ml1, tv_side
+    s.deny = bool(deny_model_signals)
+    s.dealer_confirm, s.ce_path, s.pe_path, s.impulse_side = dealer_confirm, ce_path, pe_path, impulse_side
+    s.greeks_intent_side, s.greeks_intent_skip, s.rolled_1m = greeks_intent_side, greeks_intent_skip, rolled_1m
+    s.older = engine.prev_1m_close.get(und)
+    s.closed_1m = engine.last_1m_close.get(und)
     extra_votes = getattr(engine, "_sod_extra_votes", None)
-    votes = collect_analyst_votes(
+    return dict(
         follows=dealer,
         logit=logit,
         logit_xr=logit_xr,
@@ -5188,6 +5307,35 @@ def step_underlying(
         classified=classified,
         extra=list(extra_votes) if extra_votes else None,
     )
+
+
+OpenFn = Callable[..., None]
+
+
+def step_decide(engine: BookEngine, s: TickStep, votes: Sequence[Any], *, open_fn: Optional[OpenFn] = None) -> None:
+    """Boss: picker majority → observer → desk ticket (via `open_fn`, default `_try_open`), then tracking."""
+    und, tick, i, strike, classified, bin_rec, dealer = s.und, s.tick, s.i, s.strike, s.classified, s.bin_rec, s.dealer
+    ml001_hold, ml002_hold, follow_gap, logit, logit_xr = s.ml001_hold, s.ml002_hold, s.follow_gap, s.logit, s.logit_xr
+    ml1, tv_side, deny, dealer_confirm, impulse_side = s.ml1, s.tv_side, s.deny, s.dealer_confirm, s.impulse_side
+    greeks_intent_skip, rolled_1m, older, closed_1m = s.greeks_intent_skip, s.rolled_1m, s.older, s.closed_1m
+    ce_path, pe_path = s.ce_path, s.pe_path
+    votes = list(votes)
+    opener = open_fn or _try_open
+
+    def _open(book_id: str, side: Optional[str], skip: Optional[str]) -> None:
+        opener(
+            engine,
+            book_id=book_id,
+            underlying=und,
+            side=side,
+            tick=tick,
+            ce_path=ce_path,
+            pe_path=pe_path,
+            bar_i=i,
+            skip_reason=skip,
+            strike=strike,
+        )
+
     model_name_map = {
         "follows": "MIX-FORM-FOLLOWS",
         "logit": "MIX-ML-LOGIT",
@@ -5795,7 +5943,12 @@ def replay_paper_scalp(
     picker_majority: Optional[bool] = None,
     hold_trending_open_stall: bool = False,
     nifty_cover_closed_1m: Optional[bool] = None,
+    use_event_bus: Optional[bool] = None,
+    event_session: Optional[Any] = None,
 ) -> dict[str, Any]:
+    """`use_event_bus` (default: env USE_EVENT_BUS, off) runs each tick through desk_ml.event_path
+    (boss → analysts → desk → risk engine → PaperBroker → ledger) instead of `step_underlying`.
+    Same trades by construction; see docs/PHASE2_NOTES.md. `event_session` implies the flag."""
     if hold_trending_open_stall and write:
         raise ValueError("hold_trending_open_stall is write=false A/B only. NO_PROMOTE.")
     base = root or repo_root()
@@ -5994,6 +6147,13 @@ def replay_paper_scalp(
         engine.equity[book_id] = float(plan["per_book"].get(book_id) or 0.0)
     for und in ("NIFTY", "BANKNIFTY", "SENSEX"):
         engine.lot_by_und[und] = resolve_lot_size(und, root=base)
+    own_session = event_session is None and (event_bus_enabled() if use_event_bus is None else use_event_bus)
+    if own_session:
+        from desk_ml.event_path import EventSession
+
+        event_session = EventSession()
+    if event_session is not None:
+        event_session.attach(engine)
 
     for und in underlyings:
         u = und.upper()
@@ -6045,8 +6205,7 @@ def replay_paper_scalp(
             logit_xr = logit_xr_series[i] if i < len(logit_xr_series) else thin_logit
             # Recompute ML-1 as closes accumulate (still DI until 30).
             ml1 = ml1_meta_label(engine.closed)
-            step_underlying(
-                engine,
+            (event_session.step if event_session is not None else partial(step_underlying, engine))(
                 underlying=u,
                 triples=triples,
                 i=i,
@@ -6074,7 +6233,10 @@ def replay_paper_scalp(
                     continue
                 ltp = last.ce_close if pos.side == "CE" else last.pe_close
                 reason = "CANCEL_UNFILLED_FLAT" if not pos.filled else ("FLATTEN_1516" if past_flat else "REPLAY_END")
-                _close(engine, pos, ltp=float(ltp), ts=last.ts, reason=reason, root=base)
+                if event_session is not None:
+                    event_session.close_leftover(pos, ltp=float(ltp), ts=last.ts, reason=reason)
+                else:
+                    _close(engine, pos, ltp=float(ltp), ts=last.ts, reason=reason, root=base)
         steps[u] = {
             "status": "REPLAY_OK",
             "n_triples": len(triples),
@@ -6111,6 +6273,10 @@ def replay_paper_scalp(
         paper_params=params,
         paper_param_notes=nudge_notes,
     )
+    if event_session is not None:
+        board["event_bus"] = event_session.summary()
+        if own_session:
+            event_session.close()
     if write:
         write_dashboard(board, root=base)
         _append_mistakes(base, board.get("mistakes") or [])
