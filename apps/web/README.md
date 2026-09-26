@@ -4,9 +4,11 @@ Thin **Vite + React** UI for all_about_dhan. One site, three dashboards:
 
 | Route | Who | Job |
 |-------|-----|-----|
-| [`/`](http://localhost:5173/) | Customer | One suggested ticket. No indicator soup. |
-| [`/desk`](http://localhost:5173/desk) | Desk | Live signal, path to SL/target, history, discarded-by-boss list. |
-| [`/pm`](http://localhost:5173/pm) | Founder | Money, train metrics, SOD fill graph, all models/STRAT/indicators. |
+| [`/desk`](http://localhost:5173/desk) (`/` redirects here) | Desk | Live signal, path to SL/target, history, discarded-by-boss list. |
+| [`/pm`](http://localhost:5173/pm) | Founder | Money, ops health, train metrics, SOD fill graph, all models/STRAT/indicators. |
+| [`/customer`](http://localhost:5173/customer) | Customer | One suggested ticket (FIXTURE preview). No indicator soup. |
+
+Panels fed by static `public/mock` demo JSON (fill-room graph, roster, STRAT lights, indicator pills) carry a **DEMO · mock** badge until they are wired to the paper board.
 
 **Not investment advice.** PAPER / MOCK. Orders refused. Owned by team 07_coding.
 
@@ -32,15 +34,25 @@ npm install
 npm run dev
 ```
 
-Open [http://localhost:5173](http://localhost:5173) (customer), [http://localhost:5173/desk](http://localhost:5173/desk) (desk), or [http://localhost:5173/pm](http://localhost:5173/pm) (founder).
+Open [http://localhost:5173/desk](http://localhost:5173/desk) (desk), [http://localhost:5173/pm](http://localhost:5173/pm) (founder), or [http://localhost:5173/customer](http://localhost:5173/customer) (customer preview).
 
 | Command | What it does |
 |---------|----------------|
 | `npm run dev` | Vite dev server on port 5173 |
 | `npm run build` | Production bundle → `dist/` |
 | `npm run preview` | Serve the production bundle locally |
+| `npm run ui:snapshots` | Playwright layout check on a synthetic fixture (see below) |
 
-Copy `.env.example` to `.env` only if you want a remote API later. Leave `VITE_API_URL` empty to use mock JSON.
+Copy `.env.example` to `.env` only if you want a remote API later. With `VITE_API_URL` empty, Desk and Founder read the paper board from `/paper/ml-books` through the Vite proxy (the API adds `spot_at_entry` from the recorded dual tape) and fall back to `public/mock/ml_paper_dashboard.json` when the API is down.
+
+## Layout check (Playwright)
+
+```bash
+npx playwright install chromium   # once
+npm run ui:snapshots              # or: node scripts/ui_snapshots/run.mjs --out /tmp/shots --widths 390,1280
+```
+
+Serves the app with Vite, answers every data URL from `scripts/ui_snapshots/fixture.mjs` (invented numbers on a fake past session; no market data, no network, no API), and screenshots Desk, Founder and Customer at 390 / 1280 / 1440 / 1920 px into `scripts/ui_snapshots/out/`. It exits 1 if the page scrolls sideways, if any element is cut off at the viewport edge, or if the trade table's P/L / Status columns are not visible at 1280 px or wider.
 
 ## What the customer sees
 
@@ -109,7 +121,7 @@ Later: set `VITE_API_URL` (for example `http://127.0.0.1:8000`). The loader will
 
 | Path | Role |
 |------|------|
-| `src/App.jsx` | Customer `/` |
+| `src/App.jsx` | Customer `/customer` |
 | `src/InternalDesk.jsx` | Desk `/desk` live book |
 | `src/FounderPm.jsx` | Founder `/pm` money board |
 | `src/components/AppNav.jsx` | Customer / Desk / Founder switch |
