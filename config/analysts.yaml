@@ -1,0 +1,30 @@
+# Analyst registry for the USE_EVENT_BUS path (packages/analysts). Read once when a session starts.
+#
+# Order matters only for tie labels in the picker; keep the paper engine's room order below.
+# Add a new analyst / research feature: register it in code with `@analysts.register("KEY")`,
+# then append "KEY" here. It then votes in the picker majority like the others.
+# Timeout or crash = ABSTAIN for that analyst; the boss carries on with the rest.
+timeout_ms: 500
+analysts:
+  - follows
+  - logit
+  - xr
+  - greeks
+  - ML-001
+  - ML-002
+  - ML-1
+  - MIX-TV-EP-024
+  - STRAT-001
+  - STRAT-002
+  - STRAT-003
+  - STRAT-004
+  - STRAT-005
+  - STRAT-006
+  - STRAT-007
+  - STRAT-008
+  - STRAT-009
+  - STRAT-010
+  - STRAT-011
+  - STRAT-012
+  - STRAT-013
+  - STRAT-014
