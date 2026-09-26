@@ -1,0 +1,43 @@
+# Pre-trade risk limits (packages/risk-engine) and the live-order gate (packages/brokers).
+# Re-read on every check, so edits apply to the next order. No secrets here.
+#
+# mode: paper | shadow | limited_live | live        (default and safe: paper)
+# Real Dhan orders need ALL of:
+#   1. mode is limited_live or live (this file),
+#   2. env ALL_ABOUT_DHAN_LIVE_CONFIRM=I_UNDERSTAND_REAL_MONEY,
+#   3. the risk engine approved that exact order intent.
+# Anything else: DhanBroker refuses and logs. shadow does not send orders yet.
+mode: paper
+
+# Founder kill switch: true (or the file below existing) vetoes every new entry.
+# Exits, cancels and flatten are still allowed so positions can be closed.
+kill_switch: false
+kill_switch_file: data/ledger/KILL_SWITCH
+
+entry_start_ist: "09:15"          # no new entries before this
+entry_cutoff_ist: "15:00"         # no new entries at or after this
+cooldown_after_loss_minutes: 15   # block entries for 15 min after a losing exit
+idempotency_seconds: 60           # same symbol + side + lots within 60 s = duplicate
+
+# Losses are rupees; negative numbers, as in docs/04_MIGRATION_PLAN.md.
+modes:
+  paper:
+    max_lots_per_trade: 25
+    max_open_positions: 3
+    max_daily_loss: -15000
+    max_loss_per_trade: -5000
+  shadow:
+    max_lots_per_trade: 25
+    max_open_positions: 3
+    max_daily_loss: -15000
+    max_loss_per_trade: -5000
+  limited_live:
+    max_lots_per_trade: 5
+    max_open_positions: 1
+    max_daily_loss: -10000
+    max_loss_per_trade: -2000
+  live:
+    max_lots_per_trade: 100
+    max_open_positions: 5
+    max_daily_loss: -50000
+    max_loss_per_trade: -10000
