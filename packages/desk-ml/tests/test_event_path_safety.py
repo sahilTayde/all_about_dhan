@@ -41,6 +41,7 @@ def test_missing_package_fails_once_with_an_install_message(monkeypatch):
     assert "boss" in msg and "packages/boss" in msg
     assert "pip install -e packages/ledger" in msg
     assert "-e packages/brokers" in msg and "-e packages/risk-engine" in msg
+    assert "-e packages/trading_agents_india" in msg
     assert "-e packages/events" in msg and "-e packages/desk" in msg
     assert "stops here" in msg
 
@@ -157,3 +158,17 @@ def test_shadow_analysts_do_not_change_trades(monkeypatch, tmp_path):
     assert shadow_votes
     assert all(r["payload"].get("signal") == "ABSTAIN" for r in shadow_votes)
     assert "value" in shadow_votes[0]["payload"] and "flag" in shadow_votes[0]["payload"]
+
+
+def test_write_false_does_not_append_model_logs(tmp_path):
+    from desk_ml.paper_scalp import LOG_JSONL_NAME, _MODEL_LOGS, append_model_log
+
+    path = tmp_path / "data" / "recon" / LOG_JSONL_NAME
+    token = _MODEL_LOGS.set(False)
+    try:
+        append_model_log(tmp_path, {"event": "CLOSE", "trade_id": "t"})
+    finally:
+        _MODEL_LOGS.reset(token)
+    assert not path.exists()
+    append_model_log(tmp_path, {"event": "CLOSE", "trade_id": "t"})
+    assert path.is_file() and "CLOSE" in path.read_text(encoding="utf-8")

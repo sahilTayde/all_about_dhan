@@ -435,19 +435,96 @@ def _prior_daily(engine: Any, und: str, bars: Sequence[dict[str, Any]], session_
     return merge_daily(prior, extra)
 
 
-def _day_open(bars: Sequence[dict[str, Any]], session_date: str) -> Optional[float]:
-    """09:15 IST open. A later first print is not the session open."""
+_INDEX_SIDS = {"NIFTY": "13", "BANKNIFTY": "25", "SENSEX": "51"}
+_OHLC_OPEN_CACHE: dict[tuple[str, str, str], Optional[float]] = {}
+
+
+def _bar_open(bar: dict[str, Any]) -> Optional[float]:
+    open_ = _num(bar.get("open"))
+    if open_ is None:
+        open_ = _num(bar.get("close"))
+    return open_
+
+
+def _ohlc_session_open(root: Path, underlying: str, session_date: str, now_ts: int) -> Optional[float]:
+    """Open of the 09:15 IST bar in the saved index OHLC, if that bar is already known."""
+    key = (str(root), underlying.upper(), session_date)
+    if key in _OHLC_OPEN_CACHE:
+        return _OHLC_OPEN_CACHE[key]
+    found: Optional[float] = None
+    sid = _INDEX_SIDS.get(underlying.upper())
+    folder = root / "data" / "recon" / "ohlc"
+    if sid and folder.is_dir():
+        for path in sorted(folder.glob(f"INDEX_IDX_I_{sid}_1_*.json")):
+            try:
+                blob = json.loads(path.read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                continue
+            data = blob.get("data") if isinstance(blob.get("data"), dict) else blob
+            if not isinstance(data, dict):
+                continue
+            ts = data.get("timestamp") or data.get("time") or []
+            opens = data.get("open") or data.get("Open") or []
+            for i in range(min(len(ts), len(opens))):
+                try:
+                    stamp = int(ts[i])
+                    px = float(opens[i])
+                except (TypeError, ValueError):
+                    continue
+                if stamp > int(now_ts):
+                    continue
+                dt = ist_dt(stamp)
+                if dt.date().isoformat() == session_date and (dt.hour, dt.minute) == (9, 15):
+                    found = px
+                    break
+            if found is not None:
+                break
+    _OHLC_OPEN_CACHE[key] = found
+    return found
+
+
+def session_open(
+    bars: Sequence[dict[str, Any]],
+    session_date: str,
+    *,
+    quote_open: Optional[float] = None,
+    ohlc_open: Optional[float] = None,
+) -> tuple[Optional[float], Optional[str]]:
+    """(price, open_source). Quote or the OHLC 09:15 open, else the first bar we have.
+
+    Tapes that arm at 09:30 have no 09:15 bar. The fallback is logged as
+    ``fallback_first_bar`` so it is not a silent substitute for the session open.
+    """
+    if quote_open is not None:
+        return float(quote_open), "quote"
+    if ohlc_open is not None:
+        return float(ohlc_open), "ohlc"
+    first: Optional[dict[str, Any]] = None
     for bar in bars:
         try:
             dt = ist_dt(int(bar["ts"]))
         except (KeyError, TypeError, ValueError, OSError):
             continue
-        if dt.date().isoformat() != session_date or (dt.hour, dt.minute) != (9, 15):
+        if dt.date().isoformat() != session_date:
             continue
-        open_ = _num(bar.get("open"))
-        if open_ is None:
-            open_ = _num(bar.get("close"))
-        return open_
+        if first is None:
+            first = bar
+        if (dt.hour, dt.minute) == (9, 15):
+            px = _bar_open(bar)
+            if px is not None:
+                return px, "bar_0915"
+    if first is not None:
+        px = _bar_open(first)
+        if px is not None:
+            return px, "fallback_first_bar"
+    return None, None
+
+
+def _day_open(bars: Sequence[dict[str, Any]], session_date: str) -> Optional[float]:
+    """09:15 IST open when that bar is in the series. Otherwise None (see ``session_open``)."""
+    px, source = session_open(bars, session_date)
+    if source == "bar_0915":
+        return px
     return None
 
 
@@ -634,21 +711,33 @@ def _add_expiry(found: list[str], raw: Any) -> None:
 
 
 def expiries_on_tick(engine: Any, tick: Any, underlying: str, now_ts: int, session_date: str) -> list[str]:
-    """Expiries printed on this tick, or saved by the recorder at or before this tick."""
+    """This index's chain expiries only. A NIFTY Tuesday list is not applied here."""
+    und = str(underlying or "").upper()
     found: list[str] = []
-    for raw in getattr(engine, "shadow_expiries", None) or []:
-        _add_expiry(found, raw)
+    stored = getattr(engine, "shadow_expiries", None)
+    if isinstance(stored, dict):
+        raw = stored.get(und)
+        if isinstance(raw, (list, tuple)):
+            for item in raw:
+                _add_expiry(found, item)
+        else:
+            _add_expiry(found, raw)
     _add_expiry(found, getattr(tick, "expiry", None))
     chain = getattr(engine, "live_chain_rows", None)
     if isinstance(chain, dict):
-        _add_expiry(found, chain.get("expiry"))
-    elif chain is not None:
+        cu = str(chain.get("underlying") or "").upper()
+        if not cu or cu == und:
+            _add_expiry(found, chain.get("expiry"))
+    elif chain is not None and str(getattr(chain, "underlying", "") or "").upper() in {"", und}:
         _add_expiry(found, getattr(chain, "expiry", None))
     for row in _chain_rows(engine, tick, now_ts):
+        ru = str(row.get("underlying") or "").upper()
+        if ru and ru != und:
+            continue
         _add_expiry(found, row.get("expiry"))
     root = getattr(engine, "root", None)
     if root:
-        found.extend(_expiries_from_saved(Path(root), underlying, now_ts, session_date, found))
+        found.extend(_expiries_from_saved(Path(root), und, now_ts, session_date, found))
     return found
 
 
@@ -694,6 +783,9 @@ def _expiries_from_saved(
             ts = _as_of_ts(rec.get("timestamp") or rec.get("ts"))
             if ts is not None and ts > int(now_ts):
                 continue
+            row_und = str(rec.get("underlying") or "").upper()
+            if row_und != und:
+                continue
             _add_expiry(extra, rec.get("expiry"))
     return [d for d in extra if d not in already]
 
@@ -725,29 +817,31 @@ def extend_weekly_tuesdays(static: Sequence[str], session_date: str) -> tuple[li
 def resolve_expiries(
     engine: Any, tick: Any, underlying: str, now_ts: int, session_date: str
 ) -> tuple[list[str], str, bool]:
-    """(dates, source, static_calendar_exhausted). Warns once per session when the static list has run out."""
+    """(dates, source, static_calendar_exhausted).
+
+    A chain expiry for this index is used alone. The weekly-Tuesday list is a NIFTY
+    fallback only, and only when NIFTY has no chain expiry. Other indices do not borrow it.
+    Warns once per session when that NIFTY list has run out.
+    """
+    und = str(underlying or "").upper()
+    chain = expiries_on_tick(engine, tick, und, now_ts, session_date)
+    if chain:
+        return sorted(set(chain)), "chain", False
+    if und != "NIFTY":
+        return [], "no_index_expiry", False
     static = expiry_dates()
-    chain = expiries_on_tick(engine, tick, underlying, now_ts, session_date)
     extended, exhausted = extend_weekly_tuesdays(static, session_date)
     if exhausted and session_date not in _CALENDAR_WARNED:
         _CALENDAR_WARNED.add(session_date)
         last = static[-1] if static else "none"
         log.warning(
             "EXPIRY CALENDAR EXHAUSTED after %s (session %s, source %s). "
-            "Using chain expiries when the recorder saved them, otherwise weekly Tuesdays. "
-            "A holiday shift will not match that extension.",
+            "NIFTY is using weekly Tuesdays because this tick has no chain expiry. "
+            "Other indices are not given this calendar. A holiday shift will not match it.",
             last, session_date, STATIC_EXPIRY_SOURCE,
         )
-    merged = sorted(set(extended) | set(chain))
-    if chain:
-        source = "chain_or_recorder"
-        if exhausted:
-            source = "chain_or_recorder+weekly_tuesday_extension"
-    elif exhausted:
-        source = WEEKLY_EXPIRY_SOURCE
-    else:
-        source = STATIC_EXPIRY_SOURCE
-    return merged, source, exhausted
+    source = WEEKLY_EXPIRY_SOURCE if exhausted else STATIC_EXPIRY_SOURCE
+    return extended, source, exhausted
 
 
 def expiry_dates() -> list[str]:
@@ -901,15 +995,28 @@ def _build_shadow_snapshot(engine: Any, step: Any, shadow_cfg: Optional[dict[str
     if not p["c5_enabled"]:
         out["day_direction"] = _skip("DISABLED")
     else:
-        open_ = _day_open(bars, session_date)
+        root = getattr(engine, "root", None)
+        ohlc_open = _ohlc_session_open(Path(root), und, session_date, now_ts) if root else None
+        open_, open_source = session_open(
+            bars, session_date, quote_open=_num(getattr(tick, "day_open", None)), ohlc_open=ohlc_open,
+        )
         if open_ is None or spot is None:
             out["day_direction"] = _skip("NO_DAY_OPEN")
         elif spot > open_:
-            out["day_direction"] = _cell(spot - open_, "CE", "spot above day open; CE aligned", confidence=0.5, ce_allowed=True, pe_allowed=False)
+            out["day_direction"] = _cell(
+                spot - open_, "CE", f"spot above day open ({open_source}); CE aligned",
+                confidence=0.5, ce_allowed=True, pe_allowed=False, open_source=open_source, day_open=open_,
+            )
         elif spot < open_:
-            out["day_direction"] = _cell(spot - open_, "PE", "spot below day open; PE aligned", confidence=0.5, ce_allowed=False, pe_allowed=True)
+            out["day_direction"] = _cell(
+                spot - open_, "PE", f"spot below day open ({open_source}); PE aligned",
+                confidence=0.5, ce_allowed=False, pe_allowed=True, open_source=open_source, day_open=open_,
+            )
         else:
-            out["day_direction"] = _cell(0.0, "FLAT", "spot at day open", confidence=0.5, ce_allowed=False, pe_allowed=False)
+            out["day_direction"] = _cell(
+                0.0, "FLAT", f"spot at day open ({open_source})",
+                confidence=0.5, ce_allowed=False, pe_allowed=False, open_source=open_source, day_open=open_,
+            )
 
     if not p["c4_enabled"]:
         out["late_day_momentum"] = _skip("DISABLED")
@@ -919,7 +1026,12 @@ def _build_shadow_snapshot(engine: Any, step: Any, shadow_cfg: Optional[dict[str
     dates, expiry_source, exhausted = resolve_expiries(engine, tick, und, now_ts, session_date)
     dte = days_to_expiry(session_date, dates) if dates else None
     if dte is None:
-        why = "EXPIRY_CALENDAR_EXHAUSTED" if exhausted else "EXPIRY_CALENDAR_UNKNOWN"
+        if expiry_source == "no_index_expiry":
+            why = "NO_INDEX_EXPIRY"
+        elif exhausted:
+            why = "EXPIRY_CALENDAR_EXHAUSTED"
+        else:
+            why = "EXPIRY_CALENDAR_UNKNOWN"
         out["expiry_day"] = _skip(why)
     else:
         out["expiry_day"] = _cell(

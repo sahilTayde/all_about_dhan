@@ -1,14 +1,28 @@
 """A clean venv, with PYTHONPATH unset, can import the paper desk.
 
 packages/indicators and packages/contracts are notes only (no Python package).
+This test needs the network (pip). It skips when offline.
 """
 
 import os
+import socket
 import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 REPO = Path(__file__).resolve().parents[3]
+
+pytestmark = pytest.mark.network
+
+
+def _online() -> bool:
+    try:
+        socket.create_connection(("pypi.org", 443), timeout=3).close()
+        return True
+    except OSError:
+        return False
 
 # Same editable set as .cursor/install.sh, without apps/api (that app is not under packages/).
 PACKAGES = (
@@ -33,6 +47,8 @@ PACKAGES = (
 
 
 def test_clean_venv_installs_every_package_and_imports_desk(tmp_path):
+    if not _online():
+        pytest.skip("offline: clean-venv install needs network")
     venv = tmp_path / "venv"
     subprocess.check_call([sys.executable, "-m", "venv", str(venv)], cwd=REPO)
     py = venv / "bin" / "python"
@@ -47,9 +63,11 @@ def test_clean_venv_installs_every_package_and_imports_desk(tmp_path):
     subprocess.check_call(install, cwd=REPO, env=env)
     probe = (
         "import brokers, risk_engine, ledger, desk, desk_ml, events, analysts, boss, health, data_recorder\n"
+        "import trading_agents_india\n"
         "from desk_ml.event_path import EVENT_BUS_INSTALL\n"
         "assert 'packages/brokers' in EVENT_BUS_INSTALL\n"
         "assert 'packages/risk-engine' in EVENT_BUS_INSTALL\n"
         "assert 'packages/ledger' in EVENT_BUS_INSTALL\n"
+        "assert 'packages/trading_agents_india' in EVENT_BUS_INSTALL\n"
     )
     subprocess.check_call([str(py), "-c", probe], cwd=tmp_path, env=env)

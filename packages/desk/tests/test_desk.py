@@ -22,7 +22,7 @@ REPLAY_RISK = REPO / "config" / "risk_limits_replay.yaml"
 T0 = int(datetime(2026, 9, 10, 10, 30, tzinfo=IST).timestamp())
 
 
-def make_desk(tmp_path, risk_config=REPLAY_RISK):
+def make_desk(tmp_path, risk_config=REPLAY_RISK, *, live_loop=False):
     engine = ps.BookEngine(root=tmp_path)
     engine.lot_by_und["NIFTY"] = (65, "test")
     audit = EventAuditLog()
@@ -33,7 +33,10 @@ def make_desk(tmp_path, risk_config=REPLAY_RISK):
     broker = ClockedPaperBroker(clock=lambda: holder["desk"].clock(), slippage_ticks=0)
     attach_ledger(broker, led)
     steps = {}
-    desk = Desk(bus, engine, risk=risk, broker=broker, steps=steps, health_alerts_path=tmp_path / "alerts.jsonl")
+    desk = Desk(
+        bus, engine, risk=risk, broker=broker, steps=steps,
+        health_alerts_path=tmp_path / "alerts.jsonl", live_loop=live_loop,
+    )
     holder["desk"] = desk
     desk.now, desk.now_ts = ist(T0), T0
     return desk, bus, audit, led, steps
@@ -249,34 +252,85 @@ def test_mtm_error_closes_on_the_same_tick_and_blocks_entries(tmp_path, monkeypa
     assert "bad mark" in body["alerts"][1]["message"]
 
 
-def test_mtm_block_persists_across_a_new_desk(tmp_path, monkeypatch):
-    """The live loop rebuilds the desk every cycle. The block and the one alert stay."""
-    desk, bus, _audit, _led, steps = make_desk(tmp_path)
-    pos = ticket()
-    approve(bus, pos)
-    real_mark = ps.step_mark
-    monkeypatch.setattr(ps, "step_mark", lambda _e, _s: (_ for _ in ()).throw(RuntimeError("bad mark")))
-    steps["NIFTY:2"] = _tick(T0 + 20)
-    bus.publish("MARKET_TICK", {"key": "NIFTY:2"}, source="feed")
-    assert (tmp_path / "data" / "desk" / "mtm_halt.json").is_file()
-    monkeypatch.setattr(ps, "step_mark", real_mark)
+def _halt_file(tmp_path):
+    return tmp_path / "data" / "desk" / "live_loop" / "mtm_halt.json"
 
-    desk2, bus2, _audit2, _led2, steps2 = make_desk(tmp_path)
-    assert desk2.entries_blocked is False
-    steps2["NIFTY:2"] = _tick(T0 + 40)
-    bus2.publish("MARKET_TICK", {"key": "NIFTY:2"}, source="feed")
-    assert desk2.entries_blocked
-    approve(bus2, ticket(T0 + 80, side="PE"))
+
+def test_halt_keeps_earlier_trades_on_the_next_cycle(tmp_path, monkeypatch):
+    """Two live-loop cycles. Trades before the halt stay. Entries at or after it do not."""
+    def mark(_engine, step):
+        if int(step.tick.ts) >= T0 + 200:
+            raise RuntimeError("bad mark")
+
+    monkeypatch.setattr(ps, "step_mark", mark)
+    desk, bus, _audit, _led, steps = make_desk(tmp_path, live_loop=True)
+    early = ticket(T0 + 30)
+    approve(bus, early)
+    assert (early.book_id, "NIFTY") in desk.engine.opens
+    steps["NIFTY:2"] = _tick(T0 + 200)
+    bus.publish("MARKET_TICK", {"key": "NIFTY:2"}, source="feed")
+    assert desk.engine.opens == {}
+    assert desk.halt_from_ts == T0 + 200
+    saved = json.loads(_halt_file(tmp_path).read_text(encoding="utf-8"))
+    assert saved["halt_ts"] == T0 + 200 and saved["session"] == "2026-09-10"
+    assert "RuntimeError" in saved["kinds"]
+    late = ticket(T0 + 400, side="PE")
+    approve(bus, late)
+    assert desk.engine.skips[-1]["reason"] == MTM_HALT
+
+    desk2, bus2, _a2, _l2, steps2 = make_desk(tmp_path, live_loop=True)
+    steps2["NIFTY:1"] = _tick(T0 + 40)
+    bus2.publish("MARKET_TICK", {"key": "NIFTY:1"}, source="feed")
+    again = ticket(T0 + 40)
+    approve(bus2, again)
+    assert (again.book_id, "NIFTY") in desk2.engine.opens
+    blocked = ticket(T0 + 400, side="PE")
+    approve(bus2, blocked)
+    assert blocked.trade_id not in {p.trade_id for p in desk2.engine.opens.values()}
     assert desk2.engine.skips[-1]["reason"] == MTM_HALT
     assert len((tmp_path / "alerts.jsonl").read_text(encoding="utf-8").splitlines()) == 1
 
-    stale = json.loads((tmp_path / "data" / "desk" / "mtm_halt.json").read_text())
-    stale["session"] = "2026-09-09"
-    (tmp_path / "data" / "desk" / "mtm_halt.json").write_text(json.dumps(stale), encoding="utf-8")
-    desk3, bus3, _a3, _l3, steps3 = make_desk(tmp_path)
-    steps3["NIFTY:2"] = _tick(T0 + 100)
-    bus3.publish("MARKET_TICK", {"key": "NIFTY:2"}, source="feed")
-    assert desk3.entries_blocked is False
+    lab, lab_bus, _al, _ll, lab_steps = make_desk(tmp_path, live_loop=False)
+    lab_steps["NIFTY:1"] = _tick(T0 + 40)
+    lab_bus.publish("MARKET_TICK", {"key": "NIFTY:1"}, source="feed")
+    lab_ticket = ticket(T0 + 500, side="CE")
+    approve(lab_bus, lab_ticket)
+    assert (lab_ticket.book_id, "NIFTY") in lab.engine.opens
+
+    saved["session"] = "2026-09-09"
+    _halt_file(tmp_path).write_text(json.dumps(saved), encoding="utf-8")
+    nxt, nxt_bus, _an, _ln, nxt_steps = make_desk(tmp_path, live_loop=True)
+    nxt_steps["NIFTY:1"] = _tick(T0 + 40)
+    nxt_bus.publish("MARKET_TICK", {"key": "NIFTY:1"}, source="feed")
+    tomorrow = ticket(T0 + 500, side="PE")
+    approve(nxt_bus, tomorrow)
+    assert (tomorrow.book_id, "NIFTY") in nxt.engine.opens
+
+
+def test_corrupt_halt_file_blocks_entries(tmp_path, caplog, monkeypatch):
+    monkeypatch.setattr(ps, "step_mark", lambda _e, _s: None)
+    path = _halt_file(tmp_path)
+    path.parent.mkdir(parents=True)
+    path.write_text("{not json", encoding="utf-8")
+    desk, bus, audit, _led, steps = make_desk(tmp_path, live_loop=True)
+    steps["NIFTY:1"] = _tick(T0 + 10)
+    with caplog.at_level("ERROR", logger="desk"):
+        bus.publish("MARKET_TICK", {"key": "NIFTY:1"}, source="feed")
+    assert desk.halt_fail_closed and desk.entries_blocked
+    assert "corrupt" in caplog.text
+    approve(bus, ticket(T0 + 20))
+    assert desk.engine.opens == {} and desk.engine.skips[-1]["reason"] == MTM_HALT
+    alerts = audit.rows("HEALTH_ALERT")
+    assert alerts and alerts[-1]["payload"]["error_kind"] == "halt_file"
+    bus.publish("MARKET_TICK", {"key": "NIFTY:1"}, source="feed")
+    assert len(audit.rows("HEALTH_ALERT")) == 1
+
+    replay, replay_bus, _ar, _lr, replay_steps = make_desk(tmp_path, live_loop=False)
+    replay_steps["NIFTY:1"] = _tick(T0 + 10)
+    replay_bus.publish("MARKET_TICK", {"key": "NIFTY:1"}, source="feed")
+    kept = ticket(T0 + 30)
+    approve(replay_bus, kept)
+    assert (kept.book_id, "NIFTY") in replay.engine.opens
 
 
 def test_strict_risk_veto_logs_ticket_risk(tmp_path):

@@ -62,10 +62,13 @@ desk   founder pause? -> RiskEngine.check_entry -> PaperBroker.place_order -> bo
 - **Mark-to-market errors.** An exception in the desk's mark or stop path closes each open
   ticket on that index at the last good quote (else this tick's premium, else the entry),
   publishes `POSITION_CLOSED` with reason `failsafe_mtm_error`, emits one `HEALTH_ALERT` per
-  error kind for the session, appends `data/health/alerts.jsonl` (shown by `GET /health/alerts`),
-  and blocks new entries. The block is stored in `data/desk/mtm_halt.json` for that session
-  date, so the next live-loop cycle (a new desk) still refuses entries. The next session does
-  not inherit it. Flatten still closes positions. With the flag off, `step_mark` is unchanged.
+  error kind for the session, and appends the health alerts file. The live paper loop
+  (`run_loop` only) stores `halt_ts` and the error kind in `data/desk/live_loop/mtm_halt.json`.
+  The next cycle still books entries from before that timestamp and blocks entries at or after it.
+  A missing file does nothing. An unreadable or corrupt file blocks entries and logs a
+  `halt_file` alert. Replays, lab runs, and parity do not read that file. The next session
+  does not inherit the block. Flatten still closes positions. With the flag off, `step_mark`
+  is unchanged. `write=False` does not append `data/recon/ml_paper_model_logs.jsonl`.
 - **Analyst timeout.** `timeout_ms` in `config/analysts.yaml` (and an optional per-key
   `timeout_ms`) is the live paper loop's wall-clock budget. Replay and parity run analysts
   in order with no wall-clock abstain, so a busy machine cannot change a vote.
@@ -82,7 +85,8 @@ Python packages in dependency order. `desk` depends on `brokers`, `risk-engine`,
 
 ```bash
 pip install -e packages/ledger -e packages/risk-engine -e packages/brokers \
-  -e packages/events -e packages/desk-ml -e packages/analysts -e packages/boss -e packages/desk
+  -e packages/trading_agents_india -e packages/events -e packages/desk-ml \
+  -e packages/analysts -e packages/boss -e packages/desk
 ```
 
 With `USE_EVENT_BUS` on, the paper loop checks those imports once at startup. A missing package

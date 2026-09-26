@@ -31,6 +31,7 @@ EVENT_BUS_PACKAGES = (
     ("ledger", "packages/ledger"),
     ("risk_engine", "packages/risk-engine"),
     ("brokers", "packages/brokers"),
+    ("trading_agents_india", "packages/trading_agents_india"),
     ("desk_ml", "packages/desk-ml"),
     ("events", "packages/events"),
     ("analysts", "packages/analysts"),
@@ -40,7 +41,8 @@ EVENT_BUS_PACKAGES = (
 # One command. pip resolves these against each other only when they are installed together.
 EVENT_BUS_INSTALL = (
     "pip install -e packages/ledger -e packages/risk-engine -e packages/brokers "
-    "-e packages/events -e packages/desk-ml -e packages/analysts -e packages/boss -e packages/desk"
+    "-e packages/trading_agents_india -e packages/events -e packages/desk-ml "
+    "-e packages/analysts -e packages/boss -e packages/desk"
 )
 
 
@@ -133,6 +135,7 @@ class EventSession:
         room: Any = None,
         bus: Any = None,
         deterministic: bool = True,
+        live_loop: bool = False,
     ) -> None:
         from events import EventAuditLog, MemoryBus
 
@@ -146,6 +149,9 @@ class EventSession:
         # Default True: replay and parity do not abstain on wall-clock timeouts.
         # The live paper loop passes deterministic=False.
         self.deterministic = bool(deterministic)
+        # True only for the live paper loop. Replays, lab, and parity leave this off
+        # so a halt file from today's loop cannot block them.
+        self.live_loop = bool(live_loop)
         self._room = room
         self.prior_daily: dict[str, list[dict[str, Any]]] = {}
         self.engine: Any = None
@@ -163,7 +169,9 @@ class EventSession:
         self.room = self._room if self._room is not None else AnalystRoom.from_config(
             self.analysts_config, deterministic=self.deterministic
         )
-        self.desk = Desk(self.bus, engine, risk=None, broker=None, steps=self.steps)
+        self.desk = Desk(
+            self.bus, engine, risk=None, broker=None, steps=self.steps, live_loop=self.live_loop,
+        )
         self.room.attach(self.bus, self.contexts)
         self.boss = Boss(
             self.bus, engine, steps=self.steps, signals=self.signals, contexts=self.contexts,

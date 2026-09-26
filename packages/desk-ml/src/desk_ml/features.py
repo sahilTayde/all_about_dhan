@@ -38,6 +38,8 @@ class Triple:
     wing_quotes: Optional[dict] = None
     idx_volume: Optional[float] = None
     premium_kind: Optional[str] = None  # ITM | ATM | UNKNOWN — replay must not mix days
+    expiry: Optional[str] = None  # this index's chain expiry, when the tape printed one
+    day_open: Optional[float] = None  # session open from the quote, when the tape printed one
 
 
 def _ret(prev: float, cur: float) -> Optional[float]:

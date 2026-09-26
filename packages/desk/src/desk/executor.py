@@ -32,7 +32,8 @@ BROKER_REFUSED = "BROKER_REFUSED"
 FOUNDER_REASON = "FOUNDER_COMMAND"
 MTM_HALT = "MTM_HALT"  # mark-to-market / stop path failed; new entries blocked for the session
 FAILSAFE_MTM = "failsafe_mtm_error"  # close the open ticket on that same tick
-HALT_REL = Path("data") / "desk" / "mtm_halt.json"
+# Live paper loop only. Replays, lab, and parity of the same date must not read this.
+HALT_REL = Path("data") / "desk" / "live_loop" / "mtm_halt.json"
 
 
 def ist(ts: int) -> datetime:
@@ -49,6 +50,7 @@ class Desk:
         broker: Any,
         steps: dict[str, Any],
         health_alerts_path: Optional[Path] = None,
+        live_loop: bool = False,
     ) -> None:
         from desk_ml import paper_scalp as ps
 
@@ -64,6 +66,9 @@ class Desk:
         self.paused = False
         self.entries_blocked = False  # session halt after an MTM/stop error; flatten still runs
         self.mtm_halt_reason = ""
+        self.halt_from_ts: Optional[int] = None  # block entries at or after this unix ts
+        self.halt_fail_closed = False  # corrupt halt file: block every entry this session
+        self.live_loop = bool(live_loop)  # only this run reads/writes the halt file
         self._alerted_kinds: set[str] = set()
         if health_alerts_path is None:
             from desk_ml.persist import repo_root
@@ -111,7 +116,8 @@ class Desk:
         step = self.steps.get((event.payload or {}).get("key"))
         try:
             if step is not None:
-                self._apply_persisted_halt(ist(int(step.tick.ts)).date().isoformat())
+                ts = int(step.tick.ts)
+                self._apply_persisted_halt(ist(ts).date().isoformat(), ts)
             self._mark_tick(event)
         except Exception as exc:
             # Stops did not run. Close the open tickets on this tick, then keep entries blocked.
@@ -147,27 +153,76 @@ class Desk:
         base = Path(root) if root else self.health_alerts_path.parent
         return base / HALT_REL
 
-    def _read_halt(self) -> dict[str, Any]:
+    def _read_halt(self) -> tuple[str, dict[str, Any]]:
+        """(status, state). status is missing, ok, or corrupt. A missing file is not an error."""
         path = self._halt_path()
+        if not path.is_file():
+            return "missing", {}
         try:
             data = json.loads(path.read_text(encoding="utf-8"))
         except (OSError, ValueError):
-            return {}
-        return data if isinstance(data, dict) else {}
+            return "corrupt", {}
+        if not isinstance(data, dict):
+            return "corrupt", {}
+        return "ok", data
 
     def _write_halt(self, state: dict[str, Any]) -> None:
+        if not self.live_loop:
+            return
         path = self._halt_path()
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps(state) + "\n", encoding="utf-8")
 
-    def _apply_persisted_halt(self, session: str) -> None:
-        """The live loop rebuilds the desk every cycle. The block has to survive that."""
-        state = self._read_halt()
-        if state.get("session") != session or not state.get("entries_blocked"):
+    def _apply_persisted_halt(self, session: str, ts: int) -> None:
+        """Live loop only. Entries before halt_ts still book; entries at or after it do not."""
+        if not self.live_loop or self.halt_fail_closed:
             return
-        self.entries_blocked = True
+        status, state = self._read_halt()
+        if status == "missing":
+            return
+        if status == "corrupt":
+            self._fail_closed_halt(session, "unreadable or corrupt halt file")
+            return
+        if str(state.get("session") or "") != session:
+            return
+        try:
+            halt_ts = int(state["halt_ts"])
+        except (KeyError, TypeError, ValueError):
+            self._fail_closed_halt(session, "halt file for this session has no halt_ts")
+            return
+        if self.halt_from_ts is None or halt_ts < self.halt_from_ts:
+            self.halt_from_ts = halt_ts
         self.mtm_halt_reason = str(state.get("reason") or self.mtm_halt_reason)
         self._alerted_kinds.update(str(k) for k in (state.get("kinds") or []))
+        if int(ts) >= halt_ts:
+            self.entries_blocked = True
+
+    def _fail_closed_halt(self, session: str, why: str) -> None:
+        """Cannot trust the halt file. Block entries rather than keep trading."""
+        self.halt_fail_closed = True
+        self.entries_blocked = True
+        reason = f"MTM halt file failed closed ({why}). New entries blocked for this session."
+        self.mtm_halt_reason = reason
+        log.error("%s path=%s", reason, self._halt_path())
+        if "halt_file" in self._alerted_kinds:
+            return
+        self._alerted_kinds.add("halt_file")
+        try:
+            self._publish("HEALTH_ALERT", {
+                "service": "desk", "status": "CRITICAL", "check": "desk_mtm",
+                "reason": reason, "entries_blocked": True, "error_kind": "halt_file",
+                "session": session,
+            })
+        except Exception:
+            log.exception("failed to publish HEALTH_ALERT")
+        self._append_health_alert(reason, "halt_file")
+
+    def _entry_halted(self, ts: int) -> bool:
+        if self.halt_fail_closed:
+            return True
+        if self.halt_from_ts is not None and int(ts) >= int(self.halt_from_ts):
+            return True
+        return False
 
     def _failsafe_price(self, pos: Any, step: Any) -> float:
         """Last good quote, then this tick's premium, then the entry."""
@@ -212,6 +267,9 @@ class Desk:
             f"MTM or stop path failed ({kind}: {exc}). "
             "Open tickets closed at the last good quote. New entries blocked for this session."
         )
+        halt_ts = int(step.tick.ts) if step is not None else int(self.now_ts or 0)
+        if halt_ts > 0 and (self.halt_from_ts is None or halt_ts < self.halt_from_ts):
+            self.halt_from_ts = halt_ts
         self.mtm_halt_reason = reason
         log.error("%s", reason)
         session = ""
@@ -219,12 +277,20 @@ class Desk:
             session = ist(int(step.tick.ts)).date().isoformat()
         elif self.now_ts is not None:
             session = ist(int(self.now_ts)).date().isoformat()
-        state = self._read_halt()
-        if state.get("session") != session:
-            state = {"session": session, "entries_blocked": True, "kinds": []}
+        status, state = self._read_halt() if self.live_loop else ("missing", {})
+        if status != "ok" or state.get("session") != session:
+            state = {"session": session, "entries_blocked": True, "kinds": [], "halt_ts": self.halt_from_ts}
         kinds = [str(k) for k in (state.get("kinds") or [])]
         state["entries_blocked"] = True
         state["reason"] = reason
+        if self.halt_from_ts is not None:
+            prev = state.get("halt_ts")
+            try:
+                prev_i = int(prev)
+            except (TypeError, ValueError):
+                prev_i = None
+            if prev_i is None or self.halt_from_ts < prev_i:
+                state["halt_ts"] = self.halt_from_ts
         already = kind in kinds or kind in self._alerted_kinds
         if not already:
             kinds.append(kind)
@@ -274,7 +340,7 @@ class Desk:
         if self.paused:
             self._veto(pos, FOUNDER_PAUSED, {})
             return
-        if self.entries_blocked:
+        if self._entry_halted(int(pos.opened_ts)):
             self._veto(pos, MTM_HALT, {"reason_code": MTM_HALT, "detail": self.mtm_halt_reason})
             return
         symbol = option_symbol(pos.underlying, pos.atm_strike, pos.side)

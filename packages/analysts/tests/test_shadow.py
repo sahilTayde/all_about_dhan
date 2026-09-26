@@ -20,9 +20,11 @@ from analysts.shadow import (
     range_over_atr,
     realised_vol_pct,
     resolve_expiries,
+    session_open,
     log_returns,
     wilder_atr,
     _CALENDAR_WARNED,
+    _OHLC_OPEN_CACHE,
     _day_open,
     _prior_close_state,
 )
@@ -190,17 +192,42 @@ def test_export_one_row_per_session_minute(tmp_path):
     assert rows[1]["minute_ist"] == "10:16" and rows[1]["rng60_atr"] == "0.2"
 
 
-def test_day_open_is_0915_not_the_first_bar_received():
-    late = _bars(3, start=_ts("2026-09-10", 9, 20), close0=25010.0)
+def test_day_open_uses_quote_or_ohlc_else_the_first_bar(tmp_path):
+    late = _bars(3, start=_ts("2026-09-10", 9, 30), close0=25010.0)
     assert _day_open(late, "2026-09-10") is None
-    session_open = {"ts": _ts("2026-09-10", 9, 15), "open": 24900.0, "high": 24910.0, "low": 24890.0, "close": 24905.0}
-    assert _day_open([session_open] + late, "2026-09-10") == 24900.0
-    engine = SimpleNamespace(closed=[], opens={}, lot_by_und={"NIFTY": (65, "t")}, shadow_prior_daily={})
-    tick = SimpleNamespace(ts=late[-1]["ts"], idx_close=24950.0, wing_quotes={})
-    aligned = build_shadow_snapshot(engine, SimpleNamespace(und="NIFTY", tick=tick, bars_1m=[session_open] + late), None)
-    assert aligned["day_direction"]["flag"] == "CE"
-    missing = build_shadow_snapshot(engine, SimpleNamespace(und="NIFTY", tick=tick, bars_1m=late), None)
-    assert missing["day_direction"]["value"] is None and missing["day_direction"]["reasoning"] == "NO_DAY_OPEN"
+    px, source = session_open(late, "2026-09-10")
+    assert source == "fallback_first_bar" and px == late[0]["open"]
+    quoted, qsrc = session_open(late, "2026-09-10", quote_open=24900.0)
+    assert qsrc == "quote" and quoted == 24900.0
+    bar915 = {"ts": _ts("2026-09-10", 9, 15), "open": 24850.0, "high": 24860.0, "low": 24840.0, "close": 24855.0}
+    assert session_open([bar915] + late, "2026-09-10") == (24850.0, "bar_0915")
+
+    stamp = _ts("2026-09-10", 9, 15)
+    ohlc = tmp_path / "data" / "recon" / "ohlc"
+    ohlc.mkdir(parents=True)
+    (ohlc / "INDEX_IDX_I_13_1_sample.json").write_text(json.dumps({
+        "timestamp": [stamp, _ts("2026-09-10", 9, 16)],
+        "open": [24700.0, 24710.0],
+        "close": [24705.0, 24720.0],
+    }), encoding="utf-8")
+    _OHLC_OPEN_CACHE.clear()
+    engine = SimpleNamespace(root=tmp_path, closed=[], opens={}, lot_by_und={"NIFTY": (65, "t")}, shadow_prior_daily={})
+    tick = SimpleNamespace(ts=late[-1]["ts"], idx_close=24950.0, wing_quotes={}, day_open=None)
+    from_ohlc = build_shadow_snapshot(engine, SimpleNamespace(und="NIFTY", tick=tick, bars_1m=late), None)
+    assert from_ohlc["day_direction"]["extra"]["open_source"] == "ohlc"
+    assert from_ohlc["day_direction"]["extra"]["day_open"] == 24700.0
+    assert from_ohlc["day_direction"]["flag"] == "CE"
+
+    tick.day_open = 24900.0
+    from_quote = build_shadow_snapshot(engine, SimpleNamespace(und="NIFTY", tick=tick, bars_1m=late), None)
+    assert from_quote["day_direction"]["extra"]["open_source"] == "quote"
+    assert from_quote["day_direction"]["flag"] == "CE"
+
+    bare = SimpleNamespace(closed=[], opens={}, lot_by_und={"NIFTY": (65, "t")}, shadow_prior_daily={})
+    fallback = build_shadow_snapshot(bare, SimpleNamespace(und="NIFTY", tick=SimpleNamespace(
+        ts=late[-1]["ts"], idx_close=25000.0, wing_quotes={}, day_open=None,
+    ), bars_1m=late), None)
+    assert fallback["day_direction"]["extra"]["open_source"] == "fallback_first_bar"
 
 
 def test_stale_or_missing_prior_close_logs_no_sign():
@@ -236,35 +263,52 @@ def test_share_oi_is_normalised_and_the_window_is_logged():
     assert small["oi_unit"] == "shares" and small["gex"] == pytest.approx(one["gex"] / 50.0)
 
 
-def test_expiry_calendar_extends_and_warns_when_the_static_list_runs_out(tmp_path, caplog):
-    assert expiry_dates()[-1] == "2026-09-15"
-    session = "2026-09-22"
-    _CALENDAR_WARNED.discard(session)
-    now = _ts(session, 10, 30)
+def test_each_index_uses_its_own_chain_expiry(tmp_path, caplog):
+    """NIFTY Tuesdays must not override SENSEX or BANKNIFTY chain expiries."""
+    session = "2026-09-15"
+    now = _ts(session, 11, 0)
     chain = tmp_path / "data" / "recon" / "option_chain"
     chain.mkdir(parents=True)
-    (chain / "20260922.jsonl").write_text(
-        json.dumps({"timestamp": _ts(session, 10, 0), "expiry": "2026-09-24"}) + "\n"
-        + json.dumps({"timestamp": _ts(session, 15, 0), "expiry": "2026-10-01"}) + "\n",
+    (chain / "20260915.jsonl").write_text(
+        "\n".join([
+            json.dumps({"underlying": "NIFTY", "timestamp": now - 60, "expiry": "2026-09-15"}),
+            json.dumps({"underlying": "SENSEX", "timestamp": now - 60, "expiry": "2026-09-17"}),
+            json.dumps({"underlying": "BANKNIFTY", "timestamp": now - 60, "expiry": "2026-09-24"}),
+            json.dumps({"underlying": "SENSEX", "timestamp": now + 3600, "expiry": "2026-10-01"}),
+            json.dumps({"timestamp": now - 30, "expiry": "2026-09-15"}),
+        ]) + "\n",
         encoding="utf-8",
     )
-    snap = tmp_path / "data" / "desk_intel" / "snapshots" / "NIFTY"
-    snap.mkdir(parents=True)
-    (snap / "last.json").write_text(
-        json.dumps({"as_of_ist": "2026-09-22T10:00:00+05:30", "expiry": "2026-09-24"}),
-        encoding="utf-8",
-    )
-    engine = SimpleNamespace(root=tmp_path, shadow_expiries=[], live_chain_rows=None)
+    engine = SimpleNamespace(root=tmp_path, live_chain_rows=None)
     tick = SimpleNamespace(expiry=None, wing_quotes={})
+
+    def cell(und, expiry):
+        tick.expiry = expiry
+        dates, source, exhausted = resolve_expiries(engine, tick, und, now, session)
+        return days_to_expiry(session, dates), source, exhausted, dates
+
+    assert cell("NIFTY", "2026-09-15")[:3] == (0, "chain", False)
+    assert cell("SENSEX", "2026-09-17")[:3] == (2, "chain", False)
+    assert cell("BANKNIFTY", "2026-09-24")[:3] == (9, "chain", False)
+    # The jsonl row with no underlying is ignored, so it cannot stamp NIFTY's Tuesday onto SENSEX.
+    tick.expiry = None
+    sensex_dates, sensex_source, _ex = resolve_expiries(engine, tick, "SENSEX", now, session)
+    assert sensex_source == "chain" and sensex_dates == ["2026-09-17"]
+    assert days_to_expiry(session, sensex_dates) == 2
+    nifty_only, nifty_source, _ = resolve_expiries(engine, tick, "NIFTY", now, session)
+    assert nifty_source == "chain" and "2026-09-17" not in nifty_only
+
+    bare = SimpleNamespace(root=None, live_chain_rows=None)
+    empty_tick = SimpleNamespace(expiry=None, wing_quotes={})
+    _none, src, _ = resolve_expiries(bare, empty_tick, "SENSEX", now, session)
+    assert src == "no_index_expiry"
+    _CALENDAR_WARNED.discard("2026-09-22")
     with caplog.at_level("WARNING", logger="analysts.shadow"):
-        dates, source, exhausted = resolve_expiries(engine, tick, "NIFTY", now, session)
-    assert exhausted and "2026-09-22" in dates and "2026-09-24" in dates
-    assert "2026-10-01" not in dates
-    assert source == "chain_or_recorder+weekly_tuesday_extension"
-    assert days_to_expiry(session, dates) == 0
-    assert caplog.text.count("EXPIRY CALENDAR EXHAUSTED") == 1
-    resolve_expiries(engine, tick, "NIFTY", now, session)
-    assert caplog.text.count("EXPIRY CALENDAR EXHAUSTED") == 1
+        extended, ext_source, exhausted = resolve_expiries(
+            bare, empty_tick, "NIFTY", _ts("2026-09-22", 10, 0), "2026-09-22",
+        )
+    assert exhausted and ext_source == "weekly_tuesday_extension" and "2026-09-22" in extended
+    assert "EXPIRY CALENDAR EXHAUSTED" in caplog.text
 
 
 def test_boss_ignores_shadow_votes():
