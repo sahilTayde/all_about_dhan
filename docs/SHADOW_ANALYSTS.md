@@ -25,9 +25,9 @@ loop still uses `timeout_ms`.
 | `chasing` | Flag when `rng60_atr` > threshold. | `shadow.chasing.threshold` = 0.376 |
 | `high_vol` | Flag when `rv30` > threshold (percent). | `shadow.high_vol.rv30_min` = 10.06 |
 | `minutes_since_prior_trade` | Minutes since the last open or close on this index in the book. Future timestamps are ignored. | (book state) |
-| `day_direction` | Alignment: flag `CE` when spot > the day's open, `PE` when spot < the day's open, `FLAT` when equal. The open is the first 1-minute bar of this session. | `shadow.c5_trend_align.enabled` |
-| `late_day_momentum` | Sign of the **completed** 14:44 close versus the prior session's close (+1 / −1 / 0). Before 14:45 the value is empty (`NOT_YET`). A later bar does not replace the 14:44 close. | `shadow.c4_late_mom.enabled` |
-| `expiry_day` | `dte` from `default_expiry_tuesdays()` in `trading_agents_india.index_ce_pe_formulas` (the repo expiry calendar for this cache vintage). Flag is true when `dte` is 0. If the date is not covered, the value is empty. | (that calendar) |
+| `day_direction` | Alignment: flag `CE` when spot > the day's open, `PE` when spot < the day's open, `FLAT` when equal. The open is the quote `day_open` when the tape has it (only from a quote at or after 09:15 IST), else the 09:15 open in the saved index OHLC, else the 09:15 bar. Tapes that arm at 09:30 have none of those, so the first bar at or after 09:15 IST is used (its `open`, never a close) and the log says `open_source: fallback_first_bar`. 00:00 and pre-market prints are ignored: they carry the previous close. A missing saved chart is looked up again after 60 s, not cached for the day. | `shadow.c5_trend_align.enabled` |
+| `late_day_momentum` | Sign of the **completed** 14:44 close versus the prior session's close (+1 / −1 / 0). Before 14:45 the value is empty (`NOT_YET`). A later bar does not replace the 14:44 close. A missing prior close is `MISSING_PRIOR_CLOSE`. A prior close older than the previous weekday is `STALE_PRIOR_CLOSE`. Neither case invents a sign. | `shadow.c4_late_mom.enabled` |
+| `expiry_day` | `dte` until **this index's** chain expiry (the tape `expiry`, the chain snapshot under `data/desk_intel/snapshots/{UND}/`, or a recorder row in `data/recon/option_chain/{YYYYMMDD}.jsonl` whose `underlying` matches). Calendars are not mixed: a NIFTY Tuesday is not applied to SENSEX or BANKNIFTY. If this index has a chain expiry, that date is used alone. NIFTY with no chain expiry falls back to `default_expiry_tuesdays()` (ends 2026-09-15) and then weekly Tuesdays, with one `EXPIRY CALENDAR EXHAUSTED` warning. Other indices with no chain expiry are skipped (`NO_INDEX_EXPIRY`). Flag is true when `dte` is 0. | this index's chain |
 | `gex` | Dealer gamma exposure and the zero-gamma level. See below. | `shadow.gex.dealer_convention` |
 
 Daily ATR14 is Wilder's ATR on daily bars that end before today's session. When the history is
@@ -39,12 +39,18 @@ is not in the ATR.
 Convention `long_calls_short_puts` (the default): dealers are assumed long calls and short puts,
 so call GEX is positive and put GEX is negative.
 
-For each strike:
+For each strike inside the window (`shadow.gex.window_points`, default **±300** points of spot):
 
 ```
-call = + gamma_ce × oi_ce × lot_size × spot² × 0.01
-put  = − gamma_pe × oi_pe × lot_size × spot² × 0.01
+call = + gamma_ce × oi_contracts × lot_size × spot² × 0.01
+put  = − gamma_pe × oi_contracts × lot_size × spot² × 0.01
 ```
+
+Open interest on the tape is often in **shares** (about one lot times the contract count). If at
+least 80% of the positive OI prints in the window divide evenly by the lot, those prints are
+treated as shares and divided by the lot before the formula multiplies by the lot again. Otherwise
+they are treated as contracts. A row may set `oi_unit` to `shares` or `contracts` and that wins.
+The vote reasoning logs `oi_unit`, `strike_min`, `strike_max`, `window_points`, and `n_strikes`.
 
 `gex` is the sum. `flag` / `regime` is `pos` when the sum is positive, `neg` when it is negative,
 `flat` when it is zero. The zero-gamma level is the interpolated strike where the cumulative sum

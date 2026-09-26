@@ -1,6 +1,7 @@
 """Shadow features: causal math, GEX convention, CSV export, boss ignores them."""
 
 import csv
+import json
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 
@@ -13,12 +14,19 @@ from analysts.shadow import (
     build_shadow_snapshot,
     days_to_expiry,
     dealer_gex,
+    detect_oi_unit,
+    expiry_dates,
     late_momentum,
     range_over_atr,
     realised_vol_pct,
+    resolve_expiries,
+    session_open,
     log_returns,
     wilder_atr,
+    _CALENDAR_WARNED,
+    _OHLC_OPEN_CACHE,
     _day_open,
+    _prior_close_state,
 )
 from analysts.shadow_export import export_shadow_csv
 
@@ -182,6 +190,158 @@ def test_export_one_row_per_session_minute(tmp_path):
     assert rows[0]["rng60_atr"] == "0.5"
     assert rows[0]["rng60_atr_expected_abs_move_pts"] == "5.0"
     assert rows[1]["minute_ist"] == "10:16" and rows[1]["rng60_atr"] == "0.2"
+
+
+def test_day_open_uses_quote_or_ohlc_else_the_first_bar(tmp_path):
+    late = _bars(3, start=_ts("2026-09-10", 9, 30), close0=25010.0)
+    assert _day_open(late, "2026-09-10") is None
+    px, source = session_open(late, "2026-09-10")
+    assert source == "fallback_first_bar" and px == late[0]["open"]
+    quoted, qsrc = session_open(late, "2026-09-10", quote_open=24900.0)
+    assert qsrc == "quote" and quoted == 24900.0
+    bar915 = {"ts": _ts("2026-09-10", 9, 15), "open": 24850.0, "high": 24860.0, "low": 24840.0, "close": 24855.0}
+    assert session_open([bar915] + late, "2026-09-10") == (24850.0, "bar_0915")
+
+    stamp = _ts("2026-09-10", 9, 15)
+    ohlc = tmp_path / "data" / "recon" / "ohlc"
+    ohlc.mkdir(parents=True)
+    (ohlc / "INDEX_IDX_I_13_1_sample.json").write_text(json.dumps({
+        "timestamp": [stamp, _ts("2026-09-10", 9, 16)],
+        "open": [24700.0, 24710.0],
+        "close": [24705.0, 24720.0],
+    }), encoding="utf-8")
+    _OHLC_OPEN_CACHE.clear()
+    engine = SimpleNamespace(root=tmp_path, closed=[], opens={}, lot_by_und={"NIFTY": (65, "t")}, shadow_prior_daily={})
+    tick = SimpleNamespace(ts=late[-1]["ts"], idx_close=24950.0, wing_quotes={}, day_open=None)
+    from_ohlc = build_shadow_snapshot(engine, SimpleNamespace(und="NIFTY", tick=tick, bars_1m=late), None)
+    assert from_ohlc["day_direction"]["extra"]["open_source"] == "ohlc"
+    assert from_ohlc["day_direction"]["extra"]["day_open"] == 24700.0
+    assert from_ohlc["day_direction"]["flag"] == "CE"
+
+    tick.day_open = 24900.0
+    from_quote = build_shadow_snapshot(engine, SimpleNamespace(und="NIFTY", tick=tick, bars_1m=late), None)
+    assert from_quote["day_direction"]["extra"]["open_source"] == "quote"
+    assert from_quote["day_direction"]["flag"] == "CE"
+
+    bare = SimpleNamespace(closed=[], opens={}, lot_by_und={"NIFTY": (65, "t")}, shadow_prior_daily={})
+    fallback = build_shadow_snapshot(bare, SimpleNamespace(und="NIFTY", tick=SimpleNamespace(
+        ts=late[-1]["ts"], idx_close=25000.0, wing_quotes={}, day_open=None,
+    ), bars_1m=late), None)
+    assert fallback["day_direction"]["extra"]["open_source"] == "fallback_first_bar"
+
+
+def test_day_open_ignores_midnight_prints_and_retries_the_chart(tmp_path, monkeypatch):
+    """09-18/09-19 tapes start with a 00:00 print at the previous close. That is not the open."""
+    import analysts.shadow as sh
+
+    midnight = {"ts": _ts("2026-09-18", 0, 0), "open": 23270.60, "high": 23270.60, "low": 23270.60, "close": 23270.60}
+    premarket = {"ts": _ts("2026-09-18", 9, 8), "open": 23280.0, "high": 23280.0, "low": 23280.0, "close": 23280.0}
+    first = {"ts": _ts("2026-09-18", 9, 30), "open": 23298.15, "high": 23310.0, "low": 23290.0, "close": 23305.0}
+    no_open = {"ts": _ts("2026-09-18", 9, 29), "close": 23000.0}
+    assert session_open([midnight, premarket, no_open, first], "2026-09-18") == (23298.15, "fallback_first_bar")
+    assert session_open([midnight], "2026-09-18") == (None, None)
+
+    engine = SimpleNamespace(root=tmp_path, closed=[], opens={}, lot_by_und={"NIFTY": (65, "t")}, shadow_prior_daily={})
+    pre_tick = SimpleNamespace(ts=_ts("2026-09-18", 9, 5), idx_close=23300.0, wing_quotes={}, day_open=23270.60)
+    snap = build_shadow_snapshot(engine, SimpleNamespace(und="NIFTY", tick=pre_tick, bars_1m=[midnight]), None)
+    assert snap["day_direction"]["reasoning"] == "NO_DAY_OPEN"
+
+    clock = [1000.0]
+    monkeypatch.setattr("time.monotonic", lambda: clock[0])
+    _OHLC_OPEN_CACHE.clear()
+    sh._OHLC_MISS_AT.clear()
+    now = _ts("2026-09-18", 9, 40)
+    assert sh._ohlc_session_open(tmp_path, "NIFTY", "2026-09-18", now) is None
+    ohlc = tmp_path / "data" / "recon" / "ohlc"
+    ohlc.mkdir(parents=True)
+    (ohlc / "INDEX_IDX_I_13_1_late.json").write_text(json.dumps({
+        "timestamp": [_ts("2026-09-18", 9, 15)], "open": [23295.0], "close": [23300.0],
+    }), encoding="utf-8")
+    clock[0] += 10
+    assert sh._ohlc_session_open(tmp_path, "NIFTY", "2026-09-18", now) is None  # inside the retry window
+    clock[0] += sh.OHLC_MISS_RETRY_S
+    assert sh._ohlc_session_open(tmp_path, "NIFTY", "2026-09-18", now) == 23295.0
+
+
+def test_stale_or_missing_prior_close_logs_no_sign():
+    bar = {"ts": _ts("2026-09-10", 14, 44), "open": 100.0, "high": 101.0, "low": 99.0, "close": 110.0}
+    now = _ts("2026-09-10", 14, 50)
+    stale = late_momentum([bar], 90.0, now, prior_state="stale")
+    missing = late_momentum([bar], None, now, prior_state="missing")
+    assert stale["value"] is None and stale["reasoning"] == "STALE_PRIOR_CLOSE"
+    assert missing["value"] is None and missing["reasoning"] == "MISSING_PRIOR_CLOSE"
+    assert late_momentum([bar], 90.0, _ts("2026-09-10", 14, 44), prior_state="stale")["reasoning"] == "NOT_YET"
+    assert _prior_close_state([{"date": "2026-09-08", "close": 100.0}], "2026-09-10") == (None, "stale")
+    assert _prior_close_state([{"date": "2026-09-09", "close": 100.0}], "2026-09-10") == (100.0, "ok")
+    assert _prior_close_state([], "2026-09-10")[1] == "missing"
+
+
+def test_share_oi_is_normalised_and_the_window_is_logged():
+    contracts = [
+        {"strike": 100, "ce_gamma": 0.001, "ce_oi": 10, "pe_gamma": 0.001, "pe_oi": 4},
+        {"strike": 110, "ce_gamma": 0.001, "ce_oi": 2, "pe_gamma": 0.002, "pe_oi": 10},
+    ]
+    shares = [{**row, "ce_oi": row["ce_oi"] * 50, "pe_oi": row["pe_oi"] * 50} for row in contracts]
+    shares.append({"strike": 500, "ce_gamma": 0.01, "ce_oi": 50000, "pe_gamma": 0.01, "pe_oi": 50000})
+    got = dealer_gex(shares, 100.0, 50.0)
+    base = dealer_gex(contracts, 100.0, 50.0)
+    assert detect_oi_unit([10, 4, 2, 10], 50) == "contracts"
+    assert got["oi_unit"] == "shares" and base["oi_unit"] == "contracts"
+    assert got["gex"] == pytest.approx(base["gex"])
+    assert got["n_strikes"] == 2 and got["strike_min"] == 100 and got["strike_max"] == 110
+    assert got["window_points"] == 300
+    hinted = [{**contracts[0], "oi_unit": "shares"}]
+    small = dealer_gex(hinted, 100.0, 50.0)
+    one = dealer_gex([contracts[0]], 100.0, 50.0)
+    assert small["oi_unit"] == "shares" and small["gex"] == pytest.approx(one["gex"] / 50.0)
+
+
+def test_each_index_uses_its_own_chain_expiry(tmp_path, caplog):
+    """NIFTY Tuesdays must not override SENSEX or BANKNIFTY chain expiries."""
+    session = "2026-09-15"
+    now = _ts(session, 11, 0)
+    chain = tmp_path / "data" / "recon" / "option_chain"
+    chain.mkdir(parents=True)
+    (chain / "20260915.jsonl").write_text(
+        "\n".join([
+            json.dumps({"underlying": "NIFTY", "timestamp": now - 60, "expiry": "2026-09-15"}),
+            json.dumps({"underlying": "SENSEX", "timestamp": now - 60, "expiry": "2026-09-17"}),
+            json.dumps({"underlying": "BANKNIFTY", "timestamp": now - 60, "expiry": "2026-09-24"}),
+            json.dumps({"underlying": "SENSEX", "timestamp": now + 3600, "expiry": "2026-10-01"}),
+            json.dumps({"timestamp": now - 30, "expiry": "2026-09-15"}),
+        ]) + "\n",
+        encoding="utf-8",
+    )
+    engine = SimpleNamespace(root=tmp_path, live_chain_rows=None)
+    tick = SimpleNamespace(expiry=None, wing_quotes={})
+
+    def cell(und, expiry):
+        tick.expiry = expiry
+        dates, source, exhausted = resolve_expiries(engine, tick, und, now, session)
+        return days_to_expiry(session, dates), source, exhausted, dates
+
+    assert cell("NIFTY", "2026-09-15")[:3] == (0, "chain", False)
+    assert cell("SENSEX", "2026-09-17")[:3] == (2, "chain", False)
+    assert cell("BANKNIFTY", "2026-09-24")[:3] == (9, "chain", False)
+    # The jsonl row with no underlying is ignored, so it cannot stamp NIFTY's Tuesday onto SENSEX.
+    tick.expiry = None
+    sensex_dates, sensex_source, _ex = resolve_expiries(engine, tick, "SENSEX", now, session)
+    assert sensex_source == "chain" and sensex_dates == ["2026-09-17"]
+    assert days_to_expiry(session, sensex_dates) == 2
+    nifty_only, nifty_source, _ = resolve_expiries(engine, tick, "NIFTY", now, session)
+    assert nifty_source == "chain" and "2026-09-17" not in nifty_only
+
+    bare = SimpleNamespace(root=None, live_chain_rows=None)
+    empty_tick = SimpleNamespace(expiry=None, wing_quotes={})
+    _none, src, _ = resolve_expiries(bare, empty_tick, "SENSEX", now, session)
+    assert src == "no_index_expiry"
+    _CALENDAR_WARNED.discard("2026-09-22")
+    with caplog.at_level("WARNING", logger="analysts.shadow"):
+        extended, ext_source, exhausted = resolve_expiries(
+            bare, empty_tick, "NIFTY", _ts("2026-09-22", 10, 0), "2026-09-22",
+        )
+    assert exhausted and ext_source == "weekly_tuesday_extension" and "2026-09-22" in extended
+    assert "EXPIRY CALENDAR EXHAUSTED" in caplog.text
 
 
 def test_boss_ignores_shadow_votes():

@@ -452,6 +452,8 @@ def _snap_row(snap: dict[str, Any], as_of: Optional[int]) -> Optional[dict[str, 
         "wing_quotes": snap.get("wing_quotes") if isinstance(snap.get("wing_quotes"), dict) else {},
         "idx_volume": _opt_float(snap.get("index_volume")),
         "premium_kind": classify_snap_premium_kind(snap),
+        "expiry": snap.get("expiry"),
+        "day_open": _opt_float(snap.get("day_open")),
     }
 
 
@@ -554,6 +556,10 @@ def load_dual_tape_triples(
             prev["idx_volume"] = row["idx_volume"]
         if row.get("premium_kind") is not None:
             prev["premium_kind"] = row["premium_kind"]
+        if row.get("expiry"):
+            prev["expiry"] = row["expiry"]
+        if row.get("day_open") is not None:
+            prev["day_open"] = row["day_open"]
         prev["wing_quotes"] = merge_wing_quotes(prev.get("wing_quotes"), row.get("wing_quotes"))
     ordered = [by_ts[k] for k in sorted(by_ts)]
     triples = [
@@ -574,6 +580,8 @@ def load_dual_tape_triples(
             wing_quotes=row.get("wing_quotes") or None,
             idx_volume=row.get("idx_volume"),
             premium_kind=row.get("premium_kind"),
+            expiry=row.get("expiry"),
+            day_open=row.get("day_open"),
         )
         for row in ordered
     ]

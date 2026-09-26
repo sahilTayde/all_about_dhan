@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "dhan-client"
-version = "0.1.0"
+version = "0.1.0+aad"
 description = "Generic DhanHQ v2 REST + WebSocket skeleton (no orders, no strategy)."
 readme = "README.md"
 requires-python = ">=3.9"

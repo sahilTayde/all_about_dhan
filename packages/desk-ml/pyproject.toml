@@ -4,11 +4,12 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "desk-ml"
-version = "0.1.0"
+version = "0.1.0+aad"
 description = "ML-001 KMeans+IF and ML-002 MRR/OU overlays. No live orders. No auto-retune."
 readme = "README.md"
 requires-python = ">=3.9"
-dependencies = []
+# In-repo only: +aad cannot come from PyPI. uv resolves it from the workspace.
+dependencies = ["trading-agents-india==0.1.0+aad"]
 
 [project.optional-dependencies]
 dev = ["pytest>=8"]
@@ -21,3 +22,6 @@ where = ["src"]
 
 [tool.setuptools.package-data]
 desk_ml = ["py.typed"]
+
+[tool.uv.sources]
+trading-agents-india = { workspace = true }

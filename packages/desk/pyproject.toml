@@ -8,10 +8,18 @@ version = "0.1.0"
 description = "Paper desk: founder, risk engine, PaperBroker, ledger. Does not touch the live-order gate."
 readme = "README.md"
 requires-python = ">=3.9"
-dependencies = []
+# In-repo packages. The +aad local version cannot be uploaded to PyPI, so pip can only satisfy
+# these from this repo (install them together; see docs/PHASE2_NOTES.md). uv: tool.uv.sources.
+dependencies = ["brokers==0.1.0+aad", "risk-engine==0.1.0+aad", "ledger==0.1.0+aad", "desk-ml==0.1.0+aad"]
 
 [project.optional-dependencies]
 dev = ["pytest>=8"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.uv.sources]
+brokers = { workspace = true }
+risk-engine = { workspace = true }
+ledger = { workspace = true }
+desk-ml = { workspace = true }

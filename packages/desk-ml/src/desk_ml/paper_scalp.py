@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 import os
 from collections import Counter
+from contextvars import ContextVar
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timedelta, timezone
 from functools import partial
@@ -2979,7 +2980,13 @@ def paper_hit_rate_pct(pnls: Sequence[float]) -> Optional[float]:
     return round(rate * 100.0, 2)
 
 
+# replay_paper_scalp(write=False) sets this so lab and parity do not grow the jsonl.
+_MODEL_LOGS: ContextVar[bool] = ContextVar("aad_model_logs", default=True)
+
+
 def append_model_log(root: Path, rec: dict[str, Any]) -> None:
+    if not _MODEL_LOGS.get():
+        return
     path = root / "data" / "recon" / LOG_JSONL_NAME
     path.parent.mkdir(parents=True, exist_ok=True)
     rec = {**rec, "ts_ist": datetime.now(IST).isoformat(timespec="seconds")}
@@ -5947,10 +5954,85 @@ def replay_paper_scalp(
     nifty_cover_closed_1m: Optional[bool] = None,
     use_event_bus: Optional[bool] = None,
     event_session: Optional[Any] = None,
+    live_loop: bool = False,
 ) -> dict[str, Any]:
     """`use_event_bus` (default: env USE_EVENT_BUS, off) runs each tick through desk_ml.event_path
     (boss → analysts → desk → risk engine → PaperBroker → ledger) instead of `step_underlying`.
-    Same trades by construction; see docs/PHASE2_NOTES.md. `event_session` implies the flag."""
+    Same trades by construction; see docs/PHASE2_NOTES.md. `event_session` implies the flag.
+
+    `live_loop` is set only by `run_loop`. It is what may read the MTM halt file.
+    `write=False` does not append `data/recon/ml_paper_model_logs.jsonl`.
+    """
+    token = _MODEL_LOGS.set(bool(write))
+    try:
+        return _replay_paper_scalp(
+            root=root, underlyings=underlyings, source=source, triples_by_und=triples_by_und,
+            write=write, max_closes=max_closes, deny_model_signals=deny_model_signals,
+            starting_capital=starting_capital, live_session=live_session, session_ist_date=session_ist_date,
+            desk_capital=desk_capital, skip_bn_unless_last3=skip_bn_unless_last3,
+            apply_impulse_pause=apply_impulse_pause, apply_target_shift=apply_target_shift,
+            skip_banknifty=skip_banknifty, skip_sensex=skip_sensex,
+            sensex_need_strength=sensex_need_strength, sensex_no_pause_wait=sensex_no_pause_wait,
+            nifty_need_strength=nifty_need_strength, nifty_bin_only=nifty_bin_only,
+            nifty_allow_sides=nifty_allow_sides, nifty_min_abs_delta=nifty_min_abs_delta,
+            no_new_after_minutes=no_new_after_minutes, nifty_no_flip_minutes=nifty_no_flip_minutes,
+            nifty_no_pause_wait=nifty_no_pause_wait, nifty_align_impulse=nifty_align_impulse,
+            nifty_skip_side_after_stop=nifty_skip_side_after_stop, nifty_skip_ce_after_stop=nifty_skip_ce_after_stop,
+            nifty_max_filled_per_book=nifty_max_filled_per_book, nifty_halt_after_stops=nifty_halt_after_stops,
+            nifty_session_lean=nifty_session_lean, point_profile_overrides=point_profile_overrides,
+            paper_hold_bars=paper_hold_bars, observer_veto_fills=observer_veto_fills,
+            sod_one_ticket=sod_one_ticket, picker_majority=picker_majority,
+            hold_trending_open_stall=hold_trending_open_stall, nifty_cover_closed_1m=nifty_cover_closed_1m,
+            use_event_bus=use_event_bus, event_session=event_session, live_loop=live_loop,
+        )
+    finally:
+        _MODEL_LOGS.reset(token)
+
+
+def _replay_paper_scalp(
+    *,
+    root: Optional[Path] = None,
+    underlyings: Sequence[str] = ("NIFTY", "BANKNIFTY", "SENSEX"),
+    source: str = "cache",
+    triples_by_und: Optional[dict[str, list[Triple]]] = None,
+    write: bool = False,
+    max_closes: int = 0,
+    deny_model_signals: bool = True,
+    starting_capital: Optional[float] = None,
+    live_session: bool = False,
+    session_ist_date: Optional[str] = None,
+    desk_capital: Optional[float] = None,
+    skip_bn_unless_last3: Optional[bool] = None,
+    apply_impulse_pause: Optional[bool] = None,
+    apply_target_shift: Optional[bool] = None,
+    skip_banknifty: Optional[bool] = None,
+    skip_sensex: Optional[bool] = None,
+    sensex_need_strength: Optional[bool] = None,
+    sensex_no_pause_wait: Optional[bool] = None,
+    nifty_need_strength: Optional[bool] = None,
+    nifty_bin_only: Optional[bool] = None,
+    nifty_allow_sides: Optional[Sequence[str]] = None,
+    nifty_min_abs_delta: Optional[float] = None,
+    no_new_after_minutes: Optional[int] = None,
+    nifty_no_flip_minutes: Optional[int] = None,
+    nifty_no_pause_wait: Optional[bool] = None,
+    nifty_align_impulse: Optional[bool] = None,
+    nifty_skip_side_after_stop: Optional[bool] = None,
+    nifty_skip_ce_after_stop: Optional[bool] = None,
+    nifty_max_filled_per_book: Optional[int] = None,
+    nifty_halt_after_stops: Optional[int] = None,
+    nifty_session_lean: Optional[bool] = None,
+    point_profile_overrides: Optional[dict[str, dict[str, float]]] = None,
+    paper_hold_bars: Optional[int] = None,
+    observer_veto_fills: Optional[bool] = None,
+    sod_one_ticket: Optional[bool] = None,
+    picker_majority: Optional[bool] = None,
+    hold_trending_open_stall: bool = False,
+    nifty_cover_closed_1m: Optional[bool] = None,
+    use_event_bus: Optional[bool] = None,
+    event_session: Optional[Any] = None,
+    live_loop: bool = False,
+) -> dict[str, Any]:
     if hold_trending_open_stall and write:
         raise ValueError("hold_trending_open_stall is write=false A/B only. NO_PROMOTE.")
     base = root or repo_root()
@@ -6161,7 +6243,9 @@ def replay_paper_scalp(
                 "config/event_path.yaml sets live_risk_config to that file. "
                 "The default is the stricter config/risk_limits.yaml."
             )
-        event_session = EventSession(risk_config=risk_path, deterministic=not bool(live_session))
+        event_session = EventSession(
+            risk_config=risk_path, deterministic=not bool(live_session), live_loop=bool(live_loop),
+        )
     if event_session is not None:
         event_session.attach(engine)
 
@@ -8295,6 +8379,7 @@ def run_loop(
                 write=True,
                 deny_model_signals=True,
                 live_session=live_session,
+                live_loop=True,
             )
             last["loop_stopped"] = "ml_paper_scalp_STOPPED.flag"
             write_dashboard(last, root=base)
@@ -8305,6 +8390,7 @@ def run_loop(
             write=True,
             deny_model_signals=True,
             live_session=live_session,
+            live_loop=True,
         )
         last["heartbeat"] = {
             **(last.get("heartbeat") or {}),
