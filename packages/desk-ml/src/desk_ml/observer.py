@@ -201,24 +201,32 @@ def observer_review_ticket(
 
 
 def follow_gap_series_itm_1m(triples: Sequence[Triple]) -> list[bool]:
-    """Per tick: FOLLOW-GAP of the last closed 1m ITM pair. ATM/DI → False."""
-    by_min: dict[int, Triple] = {}
-    for t in triples:
-        by_min[int(t.ts) - int(t.ts) % 60] = t
-    minutes = sorted(by_min)
+    """Per tick: FOLLOW-GAP of the previous minute's last tick vs this tick.
+
+    ATM / missing ITM → False. The last tick of the current minute is not used
+    (that print can be up to ~59s ahead). O(n) on a time-ordered series: one
+    pass, latest completed minute kept in plain variables.
+    """
     out: list[bool] = []
+    done_key: Optional[int] = None
+    done_tick: Optional[Triple] = None
+    open_key: Optional[int] = None
+    open_tick: Optional[Triple] = None
     for t in triples:
         mk = int(t.ts) - int(t.ts) % 60
-        try:
-            i = minutes.index(mk)
-        except ValueError:
+        if open_key is None or mk > open_key:
+            if open_tick is not None and open_key is not None and (done_key is None or open_key > done_key):
+                done_key = open_key
+                done_tick = open_tick
+            open_key = mk
+            open_tick = t
+        elif mk == open_key:
+            open_tick = t
+        if done_tick is None or done_key is None or done_key >= mk:
             out.append(False)
-            continue
-        if i < 1:
-            out.append(False)
-            continue
-        gap = follow_gap_itm_1m(by_min[minutes[i - 1]], by_min[minutes[i]])
-        out.append(bool(gap.get("follow_gap")))
+        else:
+            gap = follow_gap_itm_1m(done_tick, t)
+            out.append(bool(gap.get("follow_gap")))
     return out
 
 

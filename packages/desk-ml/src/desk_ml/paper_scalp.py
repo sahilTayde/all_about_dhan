@@ -6011,9 +6011,11 @@ def replay_paper_scalp(
         if triples_by_und is not None:
             idx_closes = {int(t.ts): float(t.idx_close) for t in triples}
         sr_closes = dict(load_index_closes(u, root=base))
-        sr_closes.update({int(t.ts): float(t.idx_close) for t in triples})
+        # Prior sessions only. Today's session high/low fill tick by tick in step_underlying.
+        # Merging today's triples here let every early tick see the whole day's high/low.
         sr_day = session_day or (ist_calendar_date(int(triples[-1].ts)) if triples else None)
         if sr_day:
+            sr_closes = {k: v for k, v in sr_closes.items() if ist_calendar_date(int(k)) < sr_day}
             engine.sr_levels[u] = build_sr_levels(sr_closes, session_ist_date=sr_day)
         logit_series, logit_meta = logit_side_series(triples, index_closes=idx_closes, xr=False)
         logit_xr_series, logit_xr_meta = logit_side_series(triples, index_closes=idx_closes, xr=True)
