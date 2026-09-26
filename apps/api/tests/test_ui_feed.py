@@ -133,3 +133,24 @@ def test_trace_greys_steps_without_records(tmp_path) -> None:
     assert status["broker"] == "PAPER" and status["fill"] == "OK"
     assert trace["steps"][2]["why"] == "CE bin"
     assert trade_trace(tmp_path, "missing")["ok"] is False
+
+
+def test_mtm_halt_file_is_a_critical_alert_and_red_row(tmp_path) -> None:
+    from datetime import datetime
+
+    from api.ui_feed import IST, build_snapshot
+
+    halt = tmp_path / "data" / "desk" / "live_loop" / "mtm_halt.json"
+    halt.parent.mkdir(parents=True)
+    halt.write_text(json.dumps({"session": "2026-01-15", "halt_ts": 1768455000, "reason": "stop path failed", "kinds": ["mtm"],
+                                "forced_closes": [], "entries_blocked": True}), encoding="utf-8")
+    now = datetime(2026, 1, 15, 11, 0, tzinfo=IST)
+    snap = build_snapshot(tmp_path, now=now, fstatus={})
+    assert snap["risk_halt"]["reason"] == "stop path failed"
+    assert {r["id"]: r["tone"] for r in snap["health"]}["risk"] == "red"
+    assert snap["alerts"][0]["title"] == "Risk halt — new entries blocked"
+
+    halt.write_text("{not json", encoding="utf-8")
+    assert build_snapshot(tmp_path, now=now, fstatus={})["risk_halt"]["active"] is True
+    halt.write_text(json.dumps({"session": "2026-01-14", "halt_ts": 1}), encoding="utf-8")
+    assert build_snapshot(tmp_path, now=now, fstatus={})["risk_halt"] is None

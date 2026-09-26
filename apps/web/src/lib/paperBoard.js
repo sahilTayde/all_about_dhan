@@ -558,8 +558,9 @@ export function ticketState(t, { clock = null } = {}) {
   return { key: "dead", label: `DEAD · ${out}` };
 }
 
-/** Why no ticket is open: founder STOP on every index, else the desk's latest skip reason. */
-export function holdReason(board, founderBook) {
+/** Why no ticket is open: desk risk halt, founder STOP on every index, else the latest skip reason. */
+export function holdReason(board, founderBook, halt = null) {
+  if (halt?.active) return `Desk risk halt — new entries blocked: ${halt.reason}`;
   const status = founderBook?.index_status || {};
   const started = Object.entries(status).filter(([, v]) => v === "START").map(([k]) => k);
   if (Object.keys(status).length && !started.length) return "Founder STOP on every index — press START on /pm to allow new paper fills.";

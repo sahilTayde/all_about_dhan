@@ -140,7 +140,7 @@ export function FounderPm() {
             <LossByStage days={days} exam={snap?.exam} />
           </div>
           <div className="span-5">
-            <CurrentTrade t={current} last={d.uniqueClosed[0]} clock={clock} hold={current ? null : holdReason(board, snap?.founder_book)} title="Now open" />
+            <CurrentTrade t={current} last={d.uniqueClosed[0]} clock={clock} hold={current ? null : holdReason(board, snap?.founder_book, snap?.risk_halt)} title="Now open" />
           </div>
           <div className="span-3">
             <MarketPanel regimes={d.regimes} />

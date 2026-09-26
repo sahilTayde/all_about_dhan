@@ -288,6 +288,7 @@ export function snapshot(nowIso = "2026-02-01T10:00:00+05:30") {
       { id: "paper", name: "Paper loop", tone: "red", detail: "not running", age_s: null },
       { id: "broker", name: "Broker (paper)", tone: "green", detail: "paper broker · orders refused · no live connection" },
       { id: "data", name: "Market data", tone: "amber", detail: "slow · last tape tick 95s ago", age_s: 95 },
+      { id: "risk", name: "Risk / halt", tone: "green", detail: "no halt, no vetoed entry today" },
       { id: "db", name: "Database", tone: "grey", detail: "no ledger.sqlite yet (event path off)" },
       { id: "llm", name: "LLM", tone: "grey", detail: "off / rules-only" },
       { id: "news", name: "News", tone: "green", detail: "last news file 40 min ago" },
@@ -299,6 +300,7 @@ export function snapshot(nowIso = "2026-02-01T10:00:00+05:30") {
       { id: "restart:synth-open", severity: "CRITICAL", title: "Restart during an open trade", detail: "NIFTY PE opened before the paper loop restarted (synthetic)", ts: nowIso, source: "paper" },
       { id: "h:synth:recorder", severity: "WARNING", title: "recorder alert", detail: "last update 1.6 min ago (synthetic)", ts: nowIso, source: "health monitor" },
     ],
+    risk_halt: null,
     days,
     account: {
       starting_capital_inr: 500000,

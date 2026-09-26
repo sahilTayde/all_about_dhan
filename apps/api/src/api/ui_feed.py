@@ -252,6 +252,28 @@ def founder_book(root: Path = REPO) -> dict[str, Any]:
     }
 
 
+def risk_halt(root: Path, days: set[str]) -> Optional[dict[str, Any]]:
+    """Desk MTM halt (``data/desk/live_loop/mtm_halt.json``) for one of ``days``. A file the desk
+    cannot parse makes it block every entry, so an unreadable file is reported as active."""
+    path = root / "data" / "desk" / "live_loop" / "mtm_halt.json"
+    if not path.is_file():
+        return None
+    blob = read_json(path)
+    if not isinstance(blob, dict):
+        return {"active": True, "session": None, "reason": "halt file unreadable — the desk blocks every new entry (fail closed)"}
+    if blob.get("session") not in days:
+        return None
+    halt_ts = ts_of(blob.get("halt_ts"))
+    return {
+        "active": True,
+        "session": blob.get("session"),
+        "halt_ist": ist_iso(halt_ts),
+        "reason": blob.get("reason") or "MTM halt",
+        "kinds": blob.get("kinds") or [],
+        "forced_closes": len(blob.get("forced_closes") or []),
+    }
+
+
 # ---------- history ----------
 
 
@@ -446,7 +468,8 @@ def _row(rid: str, name: str, tone: str, detail: str, age: Optional[int] = None)
     return {"id": rid, "name": name, "tone": tone, "detail": detail, "age_s": age}
 
 
-def health_rows(root: Path, board: dict[str, Any], fstatus: dict[str, Any], hstatus: dict[str, Any], now: datetime) -> list[dict[str, Any]]:
+def health_rows(root: Path, board: dict[str, Any], fstatus: dict[str, Any], hstatus: dict[str, Any], now: datetime,
+                halt: Optional[dict[str, Any]] = None) -> list[dict[str, Any]]:
     market = in_market_hours(now)
     checks = hstatus.get("checks") or {}
     agents = {a.get("id"): a for a in fstatus.get("agents") or []}
@@ -478,6 +501,14 @@ def health_rows(root: Path, board: dict[str, Any], fstatus: dict[str, Any], hsta
         rows.append(_row("data", "Market data", "amber", f"slow · last tape tick {_fmt_age(age)}", age))
     else:
         rows.append(_row("data", "Market data", "green", f"fresh · last tape tick {_fmt_age(age)}", age))
+
+    veto = hstatus.get("latest_entry_veto") or {}
+    if halt:
+        rows.append(_row("risk", "Risk / halt", "red", f"HALT · {halt['reason']}"))
+    elif veto:
+        rows.append(_row("risk", "Risk / halt", "amber", f"last entry vetoed: {veto.get('reason_code')}"))
+    else:
+        rows.append(_row("risk", "Risk / halt", "green", "no halt, no vetoed entry today"))
 
     db = root / "data" / "ledger" / "ledger.sqlite"
     if not db.is_file():
@@ -520,9 +551,20 @@ def health_rows(root: Path, board: dict[str, Any], fstatus: dict[str, Any], hsta
 
 
 def alert_list(board: dict[str, Any], rows: list[dict[str, Any]], hstatus: dict[str, Any],
-               halerts: list[dict[str, Any]], fstatus: dict[str, Any], now: datetime) -> list[dict[str, Any]]:
+               halerts: list[dict[str, Any]], fstatus: dict[str, Any], now: datetime,
+               halt: Optional[dict[str, Any]] = None) -> list[dict[str, Any]]:
     day = now.astimezone(IST).date().isoformat()
     out: list[dict[str, Any]] = []
+    if halt:
+        out.append({"id": f"halt:{halt.get('session')}:{halt.get('halt_ist')}", "severity": "CRITICAL",
+                    "title": "Risk halt — new entries blocked", "detail": halt.get("reason"),
+                    "ts": halt.get("halt_ist") or now.isoformat(timespec="seconds"), "source": "desk"})
+    veto = hstatus.get("latest_entry_veto") or {}
+    if veto:
+        risk = veto.get("ticket_risk_inr")
+        out.append({"id": f"veto:{veto.get('ts')}", "severity": "WARNING", "title": f"Entry vetoed: {veto.get('reason_code')}",
+                    "detail": f"{veto.get('reason_text') or ''}{f' (ticket risk ₹{risk:,.0f})' if risk is not None else ''}".strip(),
+                    "ts": veto.get("ts"), "source": "risk"})
     by_id = {r["id"]: r for r in rows}
     titles = {"data": "Stale market data", "paper": "Paper loop down in market hours", "broker": "Broker reconciliation mismatch"}
     for rid, title in titles.items():
@@ -599,7 +641,8 @@ def build_snapshot(root: Path = REPO, *, now: Optional[datetime] = None, fstatus
     hstatus, halerts = _health_files(root)
     rows = history_rows(root, board)
     days = day_summaries(rows)
-    health = health_rows(root, board, fstatus, hstatus, now)
+    halt = risk_halt(root, {now.date().isoformat(), str(board.get("session_ist_date") or "")})
+    health = health_rows(root, board, fstatus, hstatus, now, halt)
     exam_path = root / "data" / "recon" / "sod_exam_report.json"
     exam = read_json(exam_path if exam_path.is_file() else root / "apps" / "web" / "public" / "mock" / "sod_exam_report.json")
     return {
@@ -611,7 +654,8 @@ def build_snapshot(root: Path = REPO, *, now: Optional[datetime] = None, fstatus
         "founder": {k: fstatus.get(k) for k in ("ok", "mode", "issues", "next_action", "agents", "services", "started_at_ist")},
         "founder_book": founder_book(root),
         "health": health,
-        "alerts": alert_list(board, health, hstatus, halerts, fstatus, now),
+        "alerts": alert_list(board, health, hstatus, halerts, fstatus, now, halt),
+        "risk_halt": halt,
         "days": days,
         "account": account(board, days),
         "orders": "REFUSED",

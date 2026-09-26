@@ -65,7 +65,7 @@ export function InternalDesk() {
       ) : (
         <div className="grid">
           <div className="span-8">
-            <CurrentTrade t={current} last={d.uniqueClosed[0]} clock={clock} hold={current ? null : holdReason(board, snap?.founder_book)} indexNow={indexNow}>
+            <CurrentTrade t={current} last={d.uniqueClosed[0]} clock={clock} hold={current ? null : holdReason(board, snap?.founder_book, snap?.risk_halt)} indexNow={indexNow}>
               {current ? (
                 <>
                   <HumanManage
