@@ -53,7 +53,9 @@ def test_vote_validates_and_round_trips():
 def test_default_registry_is_the_paper_room_in_order():
     assert [a.analyst_id for a in build()] == list(LEGACY_SOURCES)
     cfg = load_config(REPO / "config" / "analysts.yaml")
-    assert cfg["analysts"] == list(LEGACY_SOURCES) and cfg["timeout_ms"] == 500
+    assert cfg["voting"] == list(LEGACY_SOURCES) and cfg["timeout_ms"] == 500
+    assert "rng60_atr" in cfg["shadow"] and "gex" in cfg["shadow"]
+    assert all(k not in cfg["voting"] for k in cfg["shadow"])
     with pytest.raises(ValueError):
         build(["follows", "NO-SUCH-ANALYST"])
 
@@ -94,6 +96,26 @@ def test_register_new_analyst_by_config_key():
         room.close()
     finally:
         REGISTRY.pop(key, None)
+
+
+def test_replay_mode_does_not_abstain_on_wall_clock():
+    """Parity must not flake when an analyst is slow. deterministic=True ignores the timeout."""
+    room = AnalystRoom([Fixed("slow", sleep=0.2)], timeout_s=0.01, deterministic=True)
+    out = {v.analyst_id: v for v, _ in room.collect(ctx())}
+    assert out["slow"].signal == BUY_CE and room.stats["timeouts"] == 0
+    room.close()
+
+
+def test_per_analyst_timeout_overrides_the_default():
+    room = AnalystRoom(
+        [Fixed("fast"), Fixed("slow", sleep=0.3)],
+        timeout_s=2.0,
+        timeouts_s={"slow": 0.05},
+    )
+    out = {v.analyst_id: v for v, _ in room.collect(ctx())}
+    assert out["fast"].signal == BUY_CE
+    assert out["slow"].signal == ABSTAIN and out["slow"].reasoning == "TIMEOUT"
+    room.close()
 
 
 def test_timeout_and_crash_abstain_without_breaking_others():

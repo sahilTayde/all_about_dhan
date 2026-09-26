@@ -6,4 +6,7 @@ unchanged (`paper_scalp.step_decide`: picker majority → observer → entry gat
 
 Each ticket becomes `ENTRY_APPROVED` (with the sized ticket: strike, lots, limit, stop, target and
 the analysts behind it) or `NO_ENTRY` (with the gate that skipped it). The boss never calls the
-risk engine or a broker; the desk does. Flow and parity: docs/PHASE2_NOTES.md.
+risk engine or a broker; the desk does. Votes with `shadow: true` are audited and ignored.
+Flow and parity: docs/PHASE2_NOTES.md.
+
+Install: `pip install -e packages/boss`

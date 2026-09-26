@@ -33,6 +33,10 @@ python -m pip install \
   -e packages/agent_rag \
   -e packages/warehouse \
   -e packages/trading_agents_india \
+  -e packages/events \
+  -e packages/analysts \
+  -e packages/boss \
+  -e packages/desk \
   -e apps/api \
   pytest
 

@@ -4,7 +4,43 @@
 # Add a new analyst / research feature: register it in code with `@analysts.register("KEY")`,
 # then append "KEY" here. It then votes in the picker majority like the others.
 # Timeout or crash = ABSTAIN for that analyst; the boss carries on with the rest.
+#
+# timeout_ms is the default wall-clock budget per analyst (live paper loop only).
+# Replay and parity run analysts in order with no wall-clock abstain, so a slow machine
+# cannot change a vote. A single key can override with `timeout_ms` on its row.
+#
+# `shadow: true` still emits ANALYST_VOTE (value, flag, confidence, reasoning) but the boss
+# ignores it. See docs/SHADOW_ANALYSTS.md.
 timeout_ms: 500
+
+# Lab feature windows. Shadow analysts read these; they do not change entries.
+features:
+  vol:
+    rng60:
+      window_min: 60          # last 60 one-minute spot bars
+    rng5_3m:
+      n_bars: 5               # last 5 completed 3-minute bars
+    rv30:
+      window: 30              # 30 one-minute log returns
+    er30:
+      window: 30              # efficiency ratio, log only, low weight
+    br3_3m:
+      n_bars: 3               # mean body/range, log only, low weight
+
+shadow:
+  chasing:
+    threshold: 0.376          # flag when rng60_atr is above this
+  high_vol:
+    rv30_min: 10.06           # flag when annualised rv30 (%) is above this
+  c5_trend_align:
+    enabled: true             # CE if spot > day open, PE if spot < day open
+  c4_late_mom:
+    enabled: true             # sign of the completed 14:44 close vs prior session close
+  gex:
+    # Dealers long calls and short puts: call GEX positive, put GEX negative.
+    # GEX = gamma × OI × lot × spot² × 0.01, summed over strikes. regime is pos or neg.
+    dealer_convention: long_calls_short_puts
+
 analysts:
   - follows
   - logit
@@ -28,3 +64,15 @@ analysts:
   - STRAT-012
   - STRAT-013
   - STRAT-014
+  - {key: rng60_atr, shadow: true}
+  - {key: rng5_3m, shadow: true}
+  - {key: rv30, shadow: true}
+  - {key: er30, shadow: true}
+  - {key: br3_3m, shadow: true}
+  - {key: chasing, shadow: true}
+  - {key: high_vol, shadow: true}
+  - {key: minutes_since_prior_trade, shadow: true}
+  - {key: day_direction, shadow: true}
+  - {key: late_day_momentum, shadow: true}
+  - {key: expiry_day, shadow: true}
+  - {key: gex, shadow: true}

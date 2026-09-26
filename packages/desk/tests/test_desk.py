@@ -8,7 +8,7 @@ import pytest
 import yaml
 
 from brokers import OrderRefused, attach_ledger
-from desk import BROKER_REFUSED, FOUNDER_PAUSED, RISK_VETO, ClockedPaperBroker, Desk, client_order_id
+from desk import BROKER_REFUSED, FOUNDER_PAUSED, MTM_HALT, RISK_VETO, ClockedPaperBroker, Desk, client_order_id
 from desk.executor import ist
 from desk_ml import paper_scalp as ps
 from desk_ml.features import Triple
@@ -32,7 +32,7 @@ def make_desk(tmp_path, risk_config=REPLAY_RISK):
     broker = ClockedPaperBroker(clock=lambda: holder["desk"].clock(), slippage_ticks=0)
     attach_ledger(broker, led)
     steps = {}
-    desk = Desk(bus, engine, risk=risk, broker=broker, steps=steps)
+    desk = Desk(bus, engine, risk=risk, broker=broker, steps=steps, health_alerts_path=tmp_path / "alerts.jsonl")
     holder["desk"] = desk
     desk.now, desk.now_ts = ist(T0), T0
     return desk, bus, audit, led, steps
@@ -176,6 +176,57 @@ def test_broker_still_requires_matching_fresh_approval():
         with pytest.raises(OrderRefused):
             broker.place_order(intent, bad)
     assert broker.place_order(intent, ok).state.value == "SUBMITTED"
+
+
+def test_mtm_error_blocks_entries_alerts_and_still_flattens(tmp_path, monkeypatch):
+    """A mark/stop error must not be swallowed: HEALTH_ALERT, no new entries, flatten still closes."""
+    desk, bus, audit, _led, steps = make_desk(tmp_path)
+    pos = ticket()
+    approve(bus, pos)
+    assert (pos.book_id, "NIFTY") in desk.engine.opens
+
+    def boom(_engine, _s):
+        raise RuntimeError("bad mark")
+
+    monkeypatch.setattr(desk._ps, "step_mark", boom)
+    prev = Triple(ts=T0, idx_close=25000.0, ce_close=60.0, pe_close=60.0, atm_strike=25000.0,
+                  itm_ce_close=150.0, itm_pe_close=40.0, itm_ce_strike=24800.0, itm_pe_strike=25200.0,
+                  premium_kind="ITM")
+    tick = Triple(ts=T0 + 20, idx_close=24980.0, ce_close=50.0, pe_close=70.0, atm_strike=25000.0,
+                  itm_ce_close=130.0, itm_pe_close=45.0, itm_ce_strike=24800.0, itm_pe_strike=25200.0,
+                  premium_kind="ITM")
+    steps["NIFTY:2"] = ps.TickStep(und="NIFTY", i=2, tick=tick, prev=prev, classified={}, bin_rec={}, dealer={},
+                                   strike=25000.0)
+    bus.publish("MARKET_TICK", {"key": "NIFTY:2"}, source="feed")
+    assert desk.entries_blocked and not bus.errors
+    alerts = audit.rows("HEALTH_ALERT")
+    assert alerts and alerts[-1]["payload"]["check"] == "desk_mtm"
+    assert "bad mark" in alerts[-1]["payload"]["reason"] and alerts[-1]["payload"]["entries_blocked"] is True
+
+    later = ticket(T0 + 30, side="PE")
+    approve(bus, later)
+    assert later.trade_id not in {p.trade_id for p in desk.engine.opens.values()}
+    assert desk.engine.skips[-1]["reason"] == MTM_HALT
+    bus.publish("FOUNDER_COMMAND", {"command": "RESUME_ENTRIES"}, source="founder")
+    assert desk.entries_blocked and not desk.paused
+    approve(bus, ticket(T0 + 40))
+    assert desk.engine.skips[-1]["reason"] == MTM_HALT
+
+    desk.engine.opens[(pos.book_id, "NIFTY")].last_ltp = 158.0
+    bus.publish("FOUNDER_COMMAND", {"command": "FLATTEN_ALL"}, source="founder")
+    assert desk.engine.opens == {}
+    assert desk.engine.closed[-1]["exit_reason"] == "FOUNDER_COMMAND"
+
+    from api import health_alerts
+    from fastapi.testclient import TestClient
+    from api.main import create_app
+
+    monkeypatch.setattr(health_alerts, "HEALTH_DIR", tmp_path)
+    body = TestClient(create_app()).get("/health/alerts").json()
+    assert body["count"] >= 1
+    top = body["alerts"][0]
+    assert top["event"] == "ALERT" and top["check"] == "desk_mtm" and top["severity"] == "CRITICAL"
+    assert "bad mark" in top["message"]
 
 
 def test_broker_refusal_means_no_trade(tmp_path, monkeypatch):

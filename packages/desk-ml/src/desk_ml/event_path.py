@@ -21,8 +21,89 @@ from typing import Any, Optional, Sequence
 from desk_ml.persist import repo_root
 
 REPLAY_RISK_CONFIG = Path("config") / "risk_limits_replay.yaml"
+LIVE_RISK_CONFIG = Path("config") / "risk_limits.yaml"
+EVENT_PATH_CONFIG = Path("config") / "event_path.yaml"
 ANALYSTS_CONFIG = Path("config") / "analysts.yaml"
 CHARGES_CONFIG = Path("config") / "charges.yaml"
+
+# Import names the live loop checks once at startup when USE_EVENT_BUS is on.
+EVENT_BUS_PACKAGES = (
+    ("events", "packages/events"),
+    ("analysts", "packages/analysts"),
+    ("boss", "packages/boss"),
+    ("desk", "packages/desk"),
+)
+
+
+class EventBusStartupError(RuntimeError):
+    """USE_EVENT_BUS is on and a Phase 2 package cannot be imported. Raised once, before replay."""
+
+
+def require_event_packages() -> None:
+    """Fail at startup with a readable message if events/boss/desk/analysts are not importable.
+
+    A missing package must not raise ImportError on every replay of the live paper loop.
+    """
+    missing: list[str] = []
+    for name, rel in EVENT_BUS_PACKAGES:
+        try:
+            __import__(name)
+        except ImportError as exc:
+            missing.append(f"{name} ({rel}): {exc}")
+    if not missing:
+        return
+    install = "pip install -e packages/events -e packages/analysts -e packages/boss -e packages/desk"
+    lines = [
+        "USE_EVENT_BUS is on but these packages are not installed:",
+        *[f"  - {line}" for line in missing],
+        "Install them the same way as the other repo packages:",
+        f"  {install}",
+        "The paper loop stops here instead of crashing on every replay.",
+    ]
+    raise EventBusStartupError("\n".join(lines))
+
+
+def _read_yaml(path: Path) -> dict[str, Any]:
+    if not path.is_file():
+        return {}
+    try:
+        import yaml
+    except ImportError:
+        return {}
+    data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    return data if isinstance(data, dict) else {}
+
+
+def resolve_risk_config(
+    *,
+    live_session: bool,
+    root: Optional[Path] = None,
+    settings: Optional[dict[str, Any]] = None,
+) -> tuple[Path, bool]:
+    """Which risk file this event-bus run uses.
+
+    Replay and parity stay on ``config/risk_limits_replay.yaml``.
+    The live paper loop uses ``live_risk_config`` from ``config/event_path.yaml`` when that
+    key is set, otherwise the stricter ``config/risk_limits.yaml``. It never falls through
+    to the looser replay file unless the key names that file explicitly.
+
+    Returns ``(path, explicit)``. ``explicit`` is true when the live key was present.
+    """
+    base = repo_root() if root is None else Path(root)
+    if settings is None:
+        path = base / EVENT_PATH_CONFIG
+        if not path.is_file():
+            path = repo_root() / EVENT_PATH_CONFIG
+        settings = _read_yaml(path)
+    explicit = live_session and "live_risk_config" in settings
+    if live_session:
+        raw = settings.get("live_risk_config") or str(LIVE_RISK_CONFIG)
+    else:
+        raw = settings.get("replay_risk_config") or str(REPLAY_RISK_CONFIG)
+    chosen = Path(str(raw))
+    if not chosen.is_absolute():
+        chosen = repo_root() / chosen
+    return chosen, explicit
 
 
 def p99(values: Sequence[float]) -> Optional[float]:
@@ -42,6 +123,7 @@ class EventSession:
         analysts_config: Optional[Path] = None,
         room: Any = None,
         bus: Any = None,
+        deterministic: bool = True,
     ) -> None:
         from events import EventAuditLog, MemoryBus
 
@@ -52,7 +134,11 @@ class EventSession:
             raise ValueError("EventSession needs the synchronous memory bus (see module doc)")
         self.risk_config = Path(risk_config) if risk_config else repo_root() / REPLAY_RISK_CONFIG
         self.analysts_config = Path(analysts_config) if analysts_config else repo_root() / ANALYSTS_CONFIG
+        # Default True: replay and parity do not abstain on wall-clock timeouts.
+        # The live paper loop passes deterministic=False.
+        self.deterministic = bool(deterministic)
         self._room = room
+        self.prior_daily: dict[str, list[dict[str, Any]]] = {}
         self.engine: Any = None
         self.steps: dict[str, Any] = {}
         self.signals: dict[str, dict[str, Any]] = {}
@@ -65,11 +151,16 @@ class EventSession:
         from desk import Desk
 
         self.engine = engine
-        self.room = self._room if self._room is not None else AnalystRoom.from_config(self.analysts_config)
+        self.room = self._room if self._room is not None else AnalystRoom.from_config(
+            self.analysts_config, deterministic=self.deterministic
+        )
         self.desk = Desk(self.bus, engine, risk=None, broker=None, steps=self.steps)
         self.room.attach(self.bus, self.contexts)
-        self.boss = Boss(self.bus, engine, steps=self.steps, signals=self.signals, contexts=self.contexts,
-                         analyst_ids=self.room.analyst_ids)
+        self.boss = Boss(
+            self.bus, engine, steps=self.steps, signals=self.signals, contexts=self.contexts,
+            analyst_ids=self.room.analyst_ids, shadow_ids=getattr(self.room, "shadow_ids", ()),
+            shadow_cfg=getattr(self.room, "shadow_cfg", None),
+        )
         return self
 
     def use_underlying(self, und: str) -> None:
@@ -85,12 +176,20 @@ class EventSession:
         from ledger import Ledger
         from risk_engine import RiskEngine
 
+        if self.engine is not None:
+            self.engine.shadow_prior_daily = self.prior_daily
         if und not in self.stacks:
             led = self._ledger if self._ledger is not None else Ledger(":memory:", charges_path=repo_root() / CHARGES_CONFIG)
             broker = ClockedPaperBroker(clock=lambda: self.desk.clock(), slippage_ticks=0)
             attach_ledger(broker, led)
             self.stacks[und] = (led, RiskEngine(led, config_path=self.risk_config), broker)
         _led, self.desk.risk, self.desk.broker = self.stacks[und]
+
+    def set_prior_closes(self, und: str, closes_by_ts: dict[Any, Any]) -> None:
+        """Daily bars from sessions before today. Used only by shadow features (ATR14)."""
+        from analysts.shadow import daily_ohlc_from_closes
+
+        self.prior_daily[str(und).upper()] = daily_ohlc_from_closes(closes_by_ts or {})
 
     def ledger_trades(self) -> list[dict[str, Any]]:
         ledgers = {id(led): led for led, _r, _b in self.stacks.values()}
@@ -149,6 +248,8 @@ class EventSession:
         trades = self.ledger_trades()
         return {
             "backend": self.bus.backend,
+            "risk_config": str(self.risk_config),
+            "deterministic_analysts": self.deterministic,
             "events": self.audit.counts(),
             "handler_errors": list(self.bus.errors),
             "analysts": self.room.analyst_ids,

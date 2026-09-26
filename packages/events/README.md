@@ -19,5 +19,7 @@ bus.unsubscribe(sid)
 - The event types are `EventType`: the list from docs/04_MIGRATION_PLAN.md plus `MARKET_TICK`,
   `NO_ENTRY` and `ORDER_CANCELLED`.
 
+Install (same as the other repo packages): `pip install -e packages/events`
+
 Tests: `PYTHONPATH=packages/events/src:packages/ledger/src python -m pytest packages/events -q`
 (Redis tests skip without a server).

@@ -12,10 +12,12 @@ A risk veto, a broker refusal, or any exception while building the order = no tr
 
 from __future__ import annotations
 
+import json
 import logging
 import time
 from dataclasses import fields
 from datetime import datetime
+from pathlib import Path
 from typing import Any, Optional
 
 from brokers import Order, OrderRefused
@@ -28,6 +30,7 @@ FOUNDER_PAUSED = "FOUNDER_PAUSED"
 RISK_VETO = "RISK_VETO"
 BROKER_REFUSED = "BROKER_REFUSED"
 FOUNDER_REASON = "FOUNDER_COMMAND"
+MTM_HALT = "MTM_HALT"  # mark-to-market / stop path failed; new entries blocked for the session
 
 
 def ist(ts: int) -> datetime:
@@ -35,7 +38,16 @@ def ist(ts: int) -> datetime:
 
 
 class Desk:
-    def __init__(self, bus: Any, engine: Any, *, risk: Any, broker: Any, steps: dict[str, Any]) -> None:
+    def __init__(
+        self,
+        bus: Any,
+        engine: Any,
+        *,
+        risk: Any,
+        broker: Any,
+        steps: dict[str, Any],
+        health_alerts_path: Optional[Path] = None,
+    ) -> None:
         from desk_ml import paper_scalp as ps
 
         self._ps = ps
@@ -48,6 +60,13 @@ class Desk:
         self.now: Optional[datetime] = None
         self.now_ts: Optional[int] = None
         self.paused = False
+        self.entries_blocked = False  # session halt after an MTM/stop error; flatten still runs
+        self.mtm_halt_reason = ""
+        if health_alerts_path is None:
+            from desk_ml.persist import repo_root
+
+            health_alerts_path = repo_root() / "data" / "health" / "alerts.jsonl"
+        self.health_alerts_path = Path(health_alerts_path)
         self.tickets: dict[str, dict[str, Any]] = {}
         self.latency_ms: dict[str, list[float]] = {"entry": [], "tick": []}
         self.vetoes: list[dict[str, Any]] = []
@@ -86,6 +105,16 @@ class Desk:
 
     def on_tick(self, event: Any) -> None:
         t0 = time.perf_counter()
+        try:
+            self._mark_tick(event)
+        except Exception as exc:
+            # Fail safe: do not swallow a mark/stop error and keep taking entries.
+            # Flatten (FOUNDER_COMMAND) does not go through this path.
+            self._halt_entries(exc)
+        finally:
+            self.latency_ms["tick"].append((time.perf_counter() - t0) * 1000.0)
+
+    def _mark_tick(self, event: Any) -> None:
         s = self.steps[event.payload["key"]]
         self.now_ts = int(s.tick.ts)
         self.now = ist(self.now_ts)
@@ -104,7 +133,38 @@ class Desk:
                     "side": pos.side, "filled": bool(pos.filled), "entry": pos.entry, "stop": pos.stop,
                     "target": pos.target, "last_ltp": pos.last_ltp, "ts": self.now_ts,
                 })
-        self.latency_ms["tick"].append((time.perf_counter() - t0) * 1000.0)
+
+    def _halt_entries(self, exc: BaseException) -> None:
+        """Block new entries for the rest of the session and surface the error on /health/alerts."""
+        self.entries_blocked = True
+        reason = (
+            f"MTM or stop path failed ({type(exc).__name__}: {exc}). "
+            "New entries blocked for this session. Flatten still runs."
+        )
+        self.mtm_halt_reason = reason
+        log.error("%s", reason)
+        try:
+            self._publish("HEALTH_ALERT", {
+                "service": "desk", "status": "CRITICAL", "check": "desk_mtm",
+                "reason": reason, "entries_blocked": True,
+            })
+        except Exception:
+            log.exception("failed to publish HEALTH_ALERT")
+        self._append_health_alert(reason)
+
+    def _append_health_alert(self, reason: str) -> None:
+        """Same JSONL shape as packages/health (served by GET /health/alerts)."""
+        path = self.health_alerts_path
+        path.parent.mkdir(parents=True, exist_ok=True)
+        rec = {
+            "ts": datetime.now(IST).isoformat(timespec="seconds"),
+            "event": "ALERT",
+            "check": "desk_mtm",
+            "severity": "CRITICAL",
+            "message": reason,
+        }
+        with open(path, "a", encoding="utf-8") as f:
+            f.write(json.dumps(rec) + "\n")
 
     # --------------------------------------------------------------- entries
 
@@ -121,6 +181,9 @@ class Desk:
         pos = self._ps.OpenPaper(**{k: v for k, v in ticket.items() if k in self._ticket_fields})
         if self.paused:
             self._veto(pos, FOUNDER_PAUSED, {})
+            return
+        if self.entries_blocked:
+            self._veto(pos, MTM_HALT, {"reason_code": MTM_HALT, "detail": self.mtm_halt_reason})
             return
         symbol = option_symbol(pos.underlying, pos.atm_strike, pos.side)
         try:

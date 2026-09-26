@@ -15,3 +15,9 @@ the broker. `attach_ledger` records it in the ledger.
 `ClockedPaperBroker` is a `PaperBroker` whose approval-age check runs on the session clock (tape
 time in replay). Its `fill_at` books the paper engine's simulated fill for a single order. The
 Dhan broker and its live gate are not used or changed here.
+
+An error in mark-to-market or the stop path publishes `HEALTH_ALERT`, appends
+`data/health/alerts.jsonl` (visible at `GET /health/alerts`), and blocks new entries for the
+session. Flatten still closes positions.
+
+Install: `pip install -e packages/desk`
