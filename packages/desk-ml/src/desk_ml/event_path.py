@@ -22,6 +22,7 @@ from desk_ml.persist import repo_root
 
 REPLAY_RISK_CONFIG = Path("config") / "risk_limits_replay.yaml"
 ANALYSTS_CONFIG = Path("config") / "analysts.yaml"
+CHARGES_CONFIG = Path("config") / "charges.yaml"
 
 
 def p99(values: Sequence[float]) -> Optional[float]:
@@ -45,7 +46,7 @@ class EventSession:
         from events import EventAuditLog, MemoryBus
         from ledger import Ledger
 
-        self.ledger = ledger if ledger is not None else Ledger(":memory:")
+        self.ledger = ledger if ledger is not None else Ledger(":memory:", charges_path=repo_root() / CHARGES_CONFIG)
         self.audit = audit if audit is not None else EventAuditLog(self.ledger.conn)
         self.bus = bus if bus is not None else MemoryBus(self.audit)
         if self.bus.backend != "memory":
