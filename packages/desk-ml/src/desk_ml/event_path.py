@@ -44,10 +44,9 @@ class EventSession:
         bus: Any = None,
     ) -> None:
         from events import EventAuditLog, MemoryBus
-        from ledger import Ledger
 
-        self.ledger = ledger if ledger is not None else Ledger(":memory:", charges_path=repo_root() / CHARGES_CONFIG)
-        self.audit = audit if audit is not None else EventAuditLog(self.ledger.conn)
+        self._ledger = ledger
+        self.audit = audit if audit is not None else EventAuditLog(ledger.conn if ledger is not None else ":memory:")
         self.bus = bus if bus is not None else MemoryBus(self.audit)
         if self.bus.backend != "memory":
             raise ValueError("EventSession needs the synchronous memory bus (see module doc)")
@@ -58,24 +57,44 @@ class EventSession:
         self.steps: dict[str, Any] = {}
         self.signals: dict[str, dict[str, Any]] = {}
         self.contexts: dict[str, Any] = {}
+        self.stacks: dict[str, tuple[Any, Any, Any]] = {}  # underlying -> (ledger, risk engine, broker)
 
     def attach(self, engine: Any) -> "EventSession":
         from analysts import AnalystRoom
         from boss import Boss
-        from brokers import attach_ledger
-        from desk import ClockedPaperBroker, Desk
-        from risk_engine import RiskEngine
+        from desk import Desk
 
         self.engine = engine
-        self.risk = RiskEngine(self.ledger, config_path=self.risk_config)
         self.room = self._room if self._room is not None else AnalystRoom.from_config(self.analysts_config)
-        self.broker = ClockedPaperBroker(clock=lambda: self.desk.clock(), slippage_ticks=0)
-        attach_ledger(self.broker, self.ledger)
-        self.desk = Desk(self.bus, engine, risk=self.risk, broker=self.broker, steps=self.steps)
+        self.desk = Desk(self.bus, engine, risk=None, broker=None, steps=self.steps)
         self.room.attach(self.bus, self.contexts)
         self.boss = Boss(self.bus, engine, steps=self.steps, signals=self.signals, contexts=self.contexts,
                          analyst_ids=self.room.analyst_ids)
         return self
+
+    def use_underlying(self, und: str) -> None:
+        """Point the desk at this index's ledger, risk engine and broker.
+
+        ponytail: replay walks one index at a time (all of NIFTY, then SENSEX from 09:15 again),
+        so one shared ledger would show SENSEX's 10:00 risk check NIFTY's 14:49 losses (a
+        look-ahead in risk state). Each index walk gets its own execution stack; account-wide
+        limits across indices need a time-merged multi-index walk (later PR).
+        """
+        from brokers import attach_ledger
+        from desk import ClockedPaperBroker
+        from ledger import Ledger
+        from risk_engine import RiskEngine
+
+        if und not in self.stacks:
+            led = self._ledger if self._ledger is not None else Ledger(":memory:", charges_path=repo_root() / CHARGES_CONFIG)
+            broker = ClockedPaperBroker(clock=lambda: self.desk.clock(), slippage_ticks=0)
+            attach_ledger(broker, led)
+            self.stacks[und] = (led, RiskEngine(led, config_path=self.risk_config), broker)
+        _led, self.desk.risk, self.desk.broker = self.stacks[und]
+
+    def ledger_trades(self) -> list[dict[str, Any]]:
+        ledgers = {id(led): led for led, _r, _b in self.stacks.values()}
+        return [t for led in ledgers.values() for t in led.trades()]
 
     def step(
         self,
@@ -98,6 +117,7 @@ class EventSession:
         s = step_context(self.engine, underlying=underlying, triples=triples, i=i)
         if s is None:
             return
+        self.use_underlying(s.und)
         key = f"{s.und}:{i}"
         self.steps[key] = s
         self.signals[key] = dict(
@@ -118,6 +138,7 @@ class EventSession:
     def close_leftover(self, pos: Any, *, ltp: float, ts: int, reason: str) -> None:
         from desk.executor import ist
 
+        self.use_underlying(str(pos.underlying).upper())
         self.desk.now_ts, self.desk.now = int(ts), ist(ts)
         self.desk.close(pos, ltp=ltp, ts=ts, reason=reason)
 
@@ -125,7 +146,7 @@ class EventSession:
         return self.bus.publish("FOUNDER_COMMAND", {"command": command, "underlying": underlying}, source="founder")
 
     def summary(self) -> dict[str, Any]:
-        trades = self.ledger.trades()
+        trades = self.ledger_trades()
         return {
             "backend": self.bus.backend,
             "events": self.audit.counts(),

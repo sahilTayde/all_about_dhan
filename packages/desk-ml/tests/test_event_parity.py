@@ -44,6 +44,20 @@ def test_latency_budgets(report):
     assert lat["desk_entry"] < 100.0
 
 
+def test_two_indices_walked_one_after_another(monkeypatch, tmp_path):
+    """Replay walks NIFTY's whole day, then SENSEX from 09:15: SENSEX risk checks must not see NIFTY's later exits."""
+    from desk_ml.event_parity import run_parity, synthetic_triples
+    from desk_ml.founder_session import save_founder_book
+
+    monkeypatch.setattr(ps, "load_index_closes", lambda u, root=None: {})
+    monkeypatch.setattr(ps, "resolve_lot_size", lambda und, root=None: ({"NIFTY": 65, "SENSEX": 20}.get(und, 30), "t"))
+    tbu = {"NIFTY": synthetic_triples(seed=5)[:750], "SENSEX": synthetic_triples(seed=9, underlying="SENSEX")[:750]}
+    save_founder_book(list(tbu), root=tmp_path)
+    rep = run_parity(root=tmp_path, underlyings=tuple(tbu), triples_by_und=tbu, session_ist_date="2026-09-10")
+    assert rep["problems"] == [] and rep["ok"]
+    assert {r["underlying"] for r in rep["closed_trades"] if r["filled"]} == {"NIFTY", "SENSEX"}
+
+
 def test_flag_is_off_by_default_and_env_turns_it_on(monkeypatch):
     fx = load_fixture(FIXTURE)
     fx["triples"] = fx["triples"][:80]

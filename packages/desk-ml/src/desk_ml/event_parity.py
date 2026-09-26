@@ -53,10 +53,10 @@ def compare_boards(old: dict[str, Any], new: dict[str, Any]) -> list[str]:
     return problems
 
 
-def compare_ledger(closed: Sequence[dict[str, Any]], ledger: Any) -> list[str]:
+def compare_ledger(closed: Sequence[dict[str, Any]], ledger_trades: Sequence[dict[str, Any]]) -> list[str]:
     """Each filled paper trade is one CLOSED ledger trade: same qty, exit time, prices within a tick."""
     problems: list[str] = []
-    rows = {t["trade_id"]: t for t in ledger.trades()}
+    rows = {t["trade_id"]: t for t in ledger_trades}
     filled = [r for r in closed if r.get("filled")]
     n_ledger = sum(1 for t in rows.values() if t["status"] == "CLOSED")
     if n_ledger != len(filled):
@@ -99,7 +99,7 @@ def run_parity(**replay_kw: Any) -> dict[str, Any]:
     try:
         new = replay_paper_scalp(**kw, event_session=session)
         problems = compare_boards(old, new)
-        problems += compare_ledger(new.get("closed_trades") or [], session.ledger)
+        problems += compare_ledger(new.get("closed_trades") or [], session.ledger_trades())
         bus = new.get("event_bus") or {}
         if bus.get("handler_errors"):
             problems.append(f"event handler errors: {bus['handler_errors'][:3]}")
@@ -118,26 +118,32 @@ def run_parity(**replay_kw: Any) -> dict[str, Any]:
 # ------------------------------------------------------------------ fixtures
 
 
-def synthetic_triples(*, day: str = "2026-09-10", seed: int = 23, step_s: int = 20) -> list[Triple]:
-    """Deterministic NIFTY session: random-walk index with regime drift, ITM +/-200 premiums. Not market data."""
+SYNTHETIC_SHAPE = {"NIFTY": (25000.0, 1.0, 50, 200), "SENSEX": (80000.0, 3.2, 100, 300)}  # base, scale, step, ITM
+
+
+def synthetic_triples(
+    *, day: str = "2026-09-10", seed: int = 23, step_s: int = 20, underlying: str = "NIFTY"
+) -> list[Triple]:
+    """Deterministic session: random-walk index with regime drift, deep-ITM premiums. Not market data."""
+    base, k, step, itm = SYNTHETIC_SHAPE[underlying.upper()]
     rng = random.Random(seed)
     y, m, d = (int(p) for p in day.split("-"))
     t0 = int(datetime(y, m, d, 9, 15, tzinfo=IST).timestamp())
     t1 = int(datetime(y, m, d, 15, 30, tzinfo=IST).timestamp())
-    idx, drift, out = 25000.0, 0.0, []
+    idx, drift, out = base, 0.0, []
     for ts in range(t0, t1 + 1, step_s):
         if rng.random() < 0.01:
             drift = rng.choice([-1.2, -0.6, 0.0, 0.0, 0.6, 1.2])
-        idx += drift + rng.gauss(0, 3.0)
-        atm = round(idx / 50) * 50
+        idx += drift * k + rng.gauss(0, 3.0 * k)
+        atm = round(idx / step) * step
         out.append(Triple(
             ts=ts, idx_close=round(idx, 2),
             ce_close=round(max(0.05, max(0.0, idx - atm) + 60.0), 2),
             pe_close=round(max(0.05, max(0.0, atm - idx) + 60.0), 2),
             atm_strike=float(atm),
-            itm_ce_close=round(max(0.0, idx - (atm - 200)) + 40.0, 2),
-            itm_pe_close=round(max(0.0, (atm + 200) - idx) + 40.0, 2),
-            itm_ce_strike=float(atm - 200), itm_pe_strike=float(atm + 200),
+            itm_ce_close=round(max(0.0, idx - (atm - itm)) + 40.0, 2),
+            itm_pe_close=round(max(0.0, (atm + itm) - idx) + 40.0, 2),
+            itm_ce_strike=float(atm - itm), itm_pe_strike=float(atm + itm),
             idx_volume=float(1000 + rng.randint(0, 500)), premium_kind="ITM",
         ))
     return out

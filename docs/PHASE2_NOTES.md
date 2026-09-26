@@ -35,7 +35,12 @@ desk   founder pause? -> RiskEngine.check_entry -> PaperBroker.place_order -> bo
   also exit immediately, as they do today; routing target exits through boss `EXIT_APPROVED` is a
   later behaviour change.
 - **Audit.** Every event is appended to an append-only SQLite `events` table before any
-  subscriber sees it. By default this table sits in the same in-memory DB as the session ledger.
+  subscriber sees it. By default this is an in-memory DB for each replay; pass
+  `EventSession(audit=EventAuditLog(path))` to keep it on disk.
+- **One ledger per index walk.** Replay walks one index at a time: all of NIFTY, then SENSEX from
+  09:15. So each index gets its own ledger, risk engine and PaperBroker. A shared ledger would
+  let SENSEX's 10:00 risk check see NIFTY's 14:49 losing exit, a look-ahead that a live desk can
+  never hit. Account-wide limits across indices need a time-merged walk.
 - **Execution record.** The paper engine's working-limit fill model still decides when a ticket
   fills and at what price. `ClockedPaperBroker.fill_at` books that fill, rounded to the 0.05 tick.
   So ledger prices can differ from engine prices by up to half a tick (≤ ₹0.025).
