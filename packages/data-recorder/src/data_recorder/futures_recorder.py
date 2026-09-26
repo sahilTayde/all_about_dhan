@@ -45,22 +45,28 @@ class FuturesRecorder:
         next_month = today.replace(day=28) + timedelta(days=4)
         return next_month.replace(day=1).strftime("%Y-%m-%d")
 
-    def _get_instrument_for_future(self, symbol: str) -> Optional[FeedInstrument]:
-        """Look up futures instrument via existing instrument master."""
-        # In production: use client.instruments.fetch_scrip_master_text()
-        # and filter for current month futures contracts
-        # For now, return placeholder (dry-run will handle)
-        if self.client.dry_run:
-            return FeedInstrument(exchange_segment=1, security_id=99999)
+    def _get_instrument_for_future(
+        self, symbol: str, instruments_data: dict[str, Any]
+    ) -> Optional[FeedInstrument]:
+        """Look up futures instrument from parsed instrument master."""
+        futures = instruments_data.get("futures", {})
         
-        # TODO: Implement instrument lookup using existing instruments client
-        # Example logic (to be implemented):
-        # master_text = self.client.instruments.fetch_scrip_master_text()
-        # Parse CSV, filter by symbol + instrument_type="FUTIDX" + current expiry
-        log.warning(
-            "Futures instrument lookup not fully implemented. "
-            "Use client.instruments.fetch_scrip_master_text() to find security IDs."
-        )
+        # Check current month contract
+        if symbol in futures:
+            return FeedInstrument(
+                exchange_segment=2,  # NSE_FNO
+                security_id=futures[symbol]["security_id"],
+            )
+        
+        # During rollover, check next month
+        next_key = f"{symbol}_NEXT"
+        if next_key in futures:
+            log.info("Rollover period: subscribing to next month %s", symbol)
+            return FeedInstrument(
+                exchange_segment=2,
+                security_id=futures[next_key]["security_id"],
+            )
+        
         return None
 
     async def _on_packet(self, packet: JsonDict) -> None:
@@ -130,7 +136,7 @@ class FuturesRecorder:
             for key in to_remove:
                 del self._minute_bars[key]
 
-    async def run(self) -> None:
+    async def run(self, instruments_data: dict[str, Any]) -> None:
         """Run futures recorder (subscribes via websocket)."""
         if self.client.dry_run:
             await self._run_dry()
@@ -139,15 +145,18 @@ class FuturesRecorder:
         # Build FeedInstrument list
         instruments: list[FeedInstrument] = []
         for symbol in self.symbols:
-            inst = self._get_instrument_for_future(symbol)
+            inst = self._get_instrument_for_future(symbol, instruments_data)
             if inst:
                 instruments.append(inst)
+            else:
+                log.warning("No security ID found for future: %s", symbol)
 
         if not instruments:
             log.warning("No instruments to subscribe for futures recorder")
             return
 
-        collector = self.client.feed_collector(instruments, mode=FeedMode.FULL)
+        # FULL mode to get volume and OI
+        collector = self.client.feed_collector(instruments, mode=FeedMode.FULL, reconnect=True)
 
         await asyncio.gather(
             collector.run(self._on_packet),

@@ -36,18 +36,18 @@ class HeavyweightRecorder:
         self.verbose = verbose
         self._minute_bars: dict[str, dict[str, Any]] = {}
 
-    def _get_instrument_for_stock(self, symbol: str) -> Optional[FeedInstrument]:
-        """Look up equity instrument via existing instrument master."""
-        # In production: use client.instruments.fetch_scrip_master_text()
-        # and filter for NSE equity segment
-        if self.client.dry_run:
-            return FeedInstrument(exchange_segment=0, security_id=99999)
-
-        # TODO: Implement using existing instruments client
-        log.warning(
-            "Equity instrument lookup not fully implemented. "
-            "Use client.instruments.fetch_scrip_master_text() to find security IDs."
-        )
+    def _get_instrument_for_stock(
+        self, symbol: str, instruments_data: dict[str, Any]
+    ) -> Optional[FeedInstrument]:
+        """Look up equity instrument from parsed instrument master."""
+        heavyweights = instruments_data.get("heavyweights", {})
+        
+        if symbol in heavyweights:
+            return FeedInstrument(
+                exchange_segment=0,  # NSE_EQ
+                security_id=heavyweights[symbol],
+            )
+        
         return None
 
     async def _on_packet(self, packet: JsonDict) -> None:
@@ -112,7 +112,7 @@ class HeavyweightRecorder:
             for key in to_remove:
                 del self._minute_bars[key]
 
-    async def run(self) -> None:
+    async def run(self, instruments_data: dict[str, Any]) -> None:
         """Run heavyweight recorder (subscribes via websocket)."""
         if self.client.dry_run:
             await self._run_dry()
@@ -121,15 +121,17 @@ class HeavyweightRecorder:
         # Build FeedInstrument list
         instruments: list[FeedInstrument] = []
         for symbol in self.symbols:
-            inst = self._get_instrument_for_stock(symbol)
+            inst = self._get_instrument_for_stock(symbol, instruments_data)
             if inst:
                 instruments.append(inst)
+            else:
+                log.warning("No security ID found for heavyweight: %s", symbol)
 
         if not instruments:
             log.warning("No instruments to subscribe for heavyweight recorder")
             return
 
-        collector = self.client.feed_collector(instruments, mode=FeedMode.TICKER)
+        collector = self.client.feed_collector(instruments, mode=FeedMode.TICKER, reconnect=True)
 
         await asyncio.gather(
             collector.run(self._on_packet),

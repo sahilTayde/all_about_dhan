@@ -95,8 +95,10 @@ class OptionChainRecorder:
                 ce_data = strike_data.get("CE") or strike_data.get("call") or {}
                 pe_data = strike_data.get("PE") or strike_data.get("put") or {}
 
-                # Write CE record
+                # Write CE record (greeks/IV from Dhan API)
                 if ce_data:
+                    # Extract greeks dict (Dhan API returns greeks as nested dict)
+                    ce_greeks = ce_data.get("greeks") or {}
                     ce_record = {
                         "underlying": underlying,
                         "expiry": current_expiry,
@@ -108,16 +110,17 @@ class OptionChainRecorder:
                         "ask": ce_data.get("ask_price"),
                         "volume": ce_data.get("volume"),
                         "open_interest": ce_data.get("oi") or ce_data.get("open_interest"),
-                        "iv": ce_data.get("iv") or ce_data.get("implied_volatility"),
-                        "delta": ce_data.get("delta"),
-                        "gamma": ce_data.get("gamma"),
-                        "theta": ce_data.get("theta"),
-                        "vega": ce_data.get("vega"),
+                        "iv": ce_data.get("implied_volatility"),  # Dhan API returns IV
+                        "delta": ce_greeks.get("delta"),  # Dhan API returns greeks
+                        "gamma": ce_greeks.get("gamma"),
+                        "theta": ce_greeks.get("theta"),
+                        "vega": ce_greeks.get("vega"),
                     }
                     self.writer.write(ce_record)
 
-                # Write PE record
+                # Write PE record (greeks/IV from Dhan API)
                 if pe_data:
+                    pe_greeks = pe_data.get("greeks") or {}
                     pe_record = {
                         "underlying": underlying,
                         "expiry": current_expiry,
@@ -129,11 +132,11 @@ class OptionChainRecorder:
                         "ask": pe_data.get("ask_price"),
                         "volume": pe_data.get("volume"),
                         "open_interest": pe_data.get("oi") or pe_data.get("open_interest"),
-                        "iv": pe_data.get("iv") or pe_data.get("implied_volatility"),
-                        "delta": pe_data.get("delta"),
-                        "gamma": pe_data.get("gamma"),
-                        "theta": pe_data.get("theta"),
-                        "vega": pe_data.get("vega"),
+                        "iv": pe_data.get("implied_volatility"),
+                        "delta": pe_greeks.get("delta"),
+                        "gamma": pe_greeks.get("gamma"),
+                        "theta": pe_greeks.get("theta"),
+                        "vega": pe_greeks.get("vega"),
                     }
                     self.writer.write(pe_record)
 

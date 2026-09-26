@@ -18,6 +18,7 @@ from data_recorder.futures_recorder import FuturesRecorder
 from data_recorder.global_fetcher import GlobalFetcher
 from data_recorder.heavyweight_recorder import HeavyweightRecorder
 from data_recorder.index_recorder import IndexRecorder
+from data_recorder.instruments import load_instruments
 from data_recorder.news_scraper import NewsScraper
 from data_recorder.option_chain_recorder import OptionChainRecorder
 
@@ -46,6 +47,8 @@ class DataRecorderRunner:
         self.client = DhanClient(dry_run=config.dry_run)
         self.recorders: list[Any] = []
         self._shutdown = False
+        self._error_count = 0
+        self._max_errors = 10  # After 10 consecutive errors, write DATA_STALE
         self._setup_signal_handlers()
 
     def _setup_signal_handlers(self) -> None:
@@ -64,10 +67,15 @@ class DataRecorderRunner:
         heartbeat_file.parent.mkdir(parents=True, exist_ok=True)
 
         while not self._shutdown:
+            status = "running"
+            if self._error_count >= self._max_errors:
+                status = "DATA_STALE"  # Too many consecutive errors
+            
             heartbeat = {
                 "timestamp": datetime.now().isoformat(),
-                "status": "running",
+                "status": status,
                 "dry_run": self.config.dry_run,
+                "error_count": self._error_count,
             }
 
             # Append heartbeat
@@ -83,6 +91,17 @@ class DataRecorderRunner:
             "Data recorder starting (dry_run=%s, output_dir=%s)",
             self.config.dry_run,
             self.config.output_dir,
+        )
+
+        # Load instruments with daily cache
+        cache_dir = self.config.output_dir / ".instrument_cache"
+        instruments_data = load_instruments(self.client, cache_dir)
+        
+        log.info(
+            "Loaded instruments: %d indices, %d futures, %d heavyweights",
+            len(instruments_data.get("indices", {})),
+            len(instruments_data.get("futures", {})),
+            len(instruments_data.get("heavyweights", {})),
         )
 
         # Create all recorders
@@ -136,7 +155,7 @@ class DataRecorderRunner:
             await self._run_dry_mode()
         else:
             log.info("Running in PRODUCTION mode (live Dhan API)")
-            await self._run_production_mode()
+            await self._run_production_mode(instruments_data)
 
     async def _run_dry_mode(self) -> None:
         """Run dry-run mode (synchronous, quick test)."""
@@ -159,20 +178,62 @@ class DataRecorderRunner:
         self.client.close()
         log.info("Dry-run complete. Check output files in %s", self.config.output_dir)
 
-    async def _run_production_mode(self) -> None:
-        """Run production mode (continuous, all recorders concurrently)."""
+    async def _run_production_mode(self, instruments_data: dict[str, Any]) -> None:
+        """Run production mode (continuous, all recorders concurrently with error handling)."""
         index_rec, futures_rec, chain_rec, heavyweight_rec, news_scraper, global_fetcher = (
             self.recorders
         )
 
-        # Run all recorders + heartbeat concurrently
+        async def run_with_retry(coro, name: str) -> None:
+            """Run recorder with exponential backoff on failures."""
+            max_backoff = 300  # 5 minutes max
+            backoff = 1
+            
+            while not self._shutdown:
+                try:
+                    await coro
+                    # Reset error count on success
+                    self._error_count = 0
+                    backoff = 1
+                    
+                except Exception as e:
+                    self._error_count += 1
+                    log.error(
+                        "%s failed (error %d/%d): %s",
+                        name,
+                        self._error_count,
+                        self._max_errors,
+                        e,
+                    )
+                    
+                    if self._error_count >= self._max_errors:
+                        log.error(
+                            "%s: Too many consecutive errors. Writing DATA_STALE to heartbeat.",
+                            name,
+                        )
+                        # Don't crash, just mark as stale and retry
+                    
+                    # Exponential backoff
+                    await asyncio.sleep(backoff)
+                    backoff = min(backoff * 2, max_backoff)
+                    log.info("%s: Retrying after %ds backoff...", name, backoff)
+
+        # Run all recorders + heartbeat concurrently with retry logic
         tasks = [
-            asyncio.create_task(index_rec.run()),
-            asyncio.create_task(futures_rec.run()),
-            asyncio.create_task(chain_rec.run()),
-            asyncio.create_task(heavyweight_rec.run()),
-            asyncio.create_task(news_scraper.run()),
-            asyncio.create_task(global_fetcher.run()),
+            asyncio.create_task(
+                run_with_retry(index_rec.run(instruments_data), "Index recorder")
+            ),
+            asyncio.create_task(
+                run_with_retry(futures_rec.run(instruments_data), "Futures recorder")
+            ),
+            asyncio.create_task(
+                run_with_retry(chain_rec.run(), "Option chain recorder")
+            ),
+            asyncio.create_task(
+                run_with_retry(heavyweight_rec.run(instruments_data), "Heavyweight recorder")
+            ),
+            asyncio.create_task(run_with_retry(news_scraper.run(), "News scraper")),
+            asyncio.create_task(run_with_retry(global_fetcher.run(), "Global fetcher")),
             asyncio.create_task(self._write_heartbeat()),
         ]
 

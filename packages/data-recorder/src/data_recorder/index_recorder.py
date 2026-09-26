@@ -40,11 +40,9 @@ class IndexRecorder:
         self.verbose = verbose
         self._minute_bars: dict[str, dict[str, Any]] = {}
 
-    def _get_security_id(self, symbol: str) -> Optional[str]:
-        """Get security ID from instrument master (existing logic)."""
-        # In production, use client.instruments.fetch_scrip_master_text() and parse
-        # For now, use known IDs
-        return INDEX_SIDS.get(symbol)
+    def _get_security_id(self, symbol: str, instruments: dict[str, Any]) -> Optional[int]:
+        """Get security ID from instrument master."""
+        return instruments.get("indices", {}).get(symbol)
 
     async def _on_packet(self, packet: JsonDict) -> None:
         """Handle incoming websocket packet."""
@@ -110,7 +108,7 @@ class IndexRecorder:
             for key in to_remove:
                 del self._minute_bars[key]
 
-    async def run(self) -> None:
+    async def run(self, instruments_data: dict[str, Any]) -> None:
         """Run index recorder (subscribes via websocket)."""
         if self.client.dry_run:
             await self._run_dry()
@@ -119,21 +117,23 @@ class IndexRecorder:
         # Build FeedInstrument list
         instruments: list[FeedInstrument] = []
         for symbol in self.symbols:
-            sid = self._get_security_id(symbol)
+            sid = self._get_security_id(symbol, instruments_data)
             if sid:
                 instruments.append(
                     FeedInstrument(
-                        exchange_segment=1,  # NSE_FNO
+                        exchange_segment=1,  # NSE_FNO (indices trade here)
                         security_id=int(sid),
                     )
                 )
+            else:
+                log.warning("No security ID found for index: %s", symbol)
 
         if not instruments:
             log.warning("No instruments to subscribe for index recorder")
             return
 
-        # Create feed collector (reuses existing infrastructure)
-        collector = self.client.feed_collector(instruments, mode=FeedMode.TICKER)
+        # Create feed collector with reconnect (existing infrastructure handles reconnect)
+        collector = self.client.feed_collector(instruments, mode=FeedMode.TICKER, reconnect=True)
 
         # Run feed and flush tasks concurrently
         await asyncio.gather(
