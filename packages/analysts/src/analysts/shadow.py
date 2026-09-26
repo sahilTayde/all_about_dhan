@@ -437,20 +437,34 @@ def _prior_daily(engine: Any, und: str, bars: Sequence[dict[str, Any]], session_
 
 _INDEX_SIDS = {"NIFTY": "13", "BANKNIFTY": "25", "SENSEX": "51"}
 _OHLC_OPEN_CACHE: dict[tuple[str, str, str], Optional[float]] = {}
+_OHLC_MISS_AT: dict[tuple[str, str, str], float] = {}  # monotonic time of the last miss
+OHLC_MISS_RETRY_S = 60.0
 
 
 def _bar_open(bar: dict[str, Any]) -> Optional[float]:
-    open_ = _num(bar.get("open"))
-    if open_ is None:
-        open_ = _num(bar.get("close"))
-    return open_
+    """The bar's open. A close is not an open, so a bar without one is skipped."""
+    return _num(bar.get("open"))
+
+
+def _in_session(dt: datetime, session_date: str) -> bool:
+    """At or after 09:15 IST on this session. Midnight and pre-market prints carry yesterday's close."""
+    return dt.date().isoformat() == session_date and (dt.hour, dt.minute) >= (9, 15)
 
 
 def _ohlc_session_open(root: Path, underlying: str, session_date: str, now_ts: int) -> Optional[float]:
-    """Open of the 09:15 IST bar in the saved index OHLC, if that bar is already known."""
+    """Open of the 09:15 IST bar in the saved index OHLC, if that bar is already known.
+
+    A hit is cached. A miss is retried after ``OHLC_MISS_RETRY_S`` so a chart saved later in the
+    live-loop process is picked up.
+    """
+    import time
+
     key = (str(root), underlying.upper(), session_date)
-    if key in _OHLC_OPEN_CACHE:
+    if _OHLC_OPEN_CACHE.get(key) is not None:
         return _OHLC_OPEN_CACHE[key]
+    missed = _OHLC_MISS_AT.get(key)
+    if missed is not None and time.monotonic() - missed < OHLC_MISS_RETRY_S:
+        return None
     found: Optional[float] = None
     sid = _INDEX_SIDS.get(underlying.upper())
     folder = root / "data" / "recon" / "ohlc"
@@ -479,7 +493,11 @@ def _ohlc_session_open(root: Path, underlying: str, session_date: str, now_ts: i
                     break
             if found is not None:
                 break
-    _OHLC_OPEN_CACHE[key] = found
+    if found is None:
+        _OHLC_MISS_AT[key] = time.monotonic()
+    else:
+        _OHLC_OPEN_CACHE[key] = found
+        _OHLC_MISS_AT.pop(key, None)
     return found
 
 
@@ -490,33 +508,33 @@ def session_open(
     quote_open: Optional[float] = None,
     ohlc_open: Optional[float] = None,
 ) -> tuple[Optional[float], Optional[str]]:
-    """(price, open_source). Quote or the OHLC 09:15 open, else the first bar we have.
+    """(price, open_source). Quote or the OHLC 09:15 open, else the first session bar's open.
 
-    Tapes that arm at 09:30 have no 09:15 bar. The fallback is logged as
+    Only bars at or after 09:15 IST count: a 00:00 or pre-market print carries the previous
+    close. Tapes that arm at 09:30 have no 09:15 bar. That fallback is logged as
     ``fallback_first_bar`` so it is not a silent substitute for the session open.
     """
     if quote_open is not None:
         return float(quote_open), "quote"
     if ohlc_open is not None:
         return float(ohlc_open), "ohlc"
-    first: Optional[dict[str, Any]] = None
+    first: Optional[float] = None
     for bar in bars:
         try:
             dt = ist_dt(int(bar["ts"]))
         except (KeyError, TypeError, ValueError, OSError):
             continue
-        if dt.date().isoformat() != session_date:
+        if not _in_session(dt, session_date):
             continue
-        if first is None:
-            first = bar
+        px = _bar_open(bar)
+        if px is None:
+            continue
         if (dt.hour, dt.minute) == (9, 15):
-            px = _bar_open(bar)
-            if px is not None:
-                return px, "bar_0915"
+            return px, "bar_0915"
+        if first is None:
+            first = px
     if first is not None:
-        px = _bar_open(first)
-        if px is not None:
-            return px, "fallback_first_bar"
+        return first, "fallback_first_bar"
     return None, None
 
 
@@ -997,9 +1015,10 @@ def _build_shadow_snapshot(engine: Any, step: Any, shadow_cfg: Optional[dict[str
     else:
         root = getattr(engine, "root", None)
         ohlc_open = _ohlc_session_open(Path(root), und, session_date, now_ts) if root else None
-        open_, open_source = session_open(
-            bars, session_date, quote_open=_num(getattr(tick, "day_open", None)), ohlc_open=ohlc_open,
-        )
+        quote_open = _num(getattr(tick, "day_open", None))
+        if quote_open is not None and not _in_session(ist_dt(int(now_ts)), session_date):
+            quote_open = None  # a pre-market quote's day open is yesterday's close
+        open_, open_source = session_open(bars, session_date, quote_open=quote_open, ohlc_open=ohlc_open)
         if open_ is None or spot is None:
             out["day_direction"] = _skip("NO_DAY_OPEN")
         elif spot > open_:

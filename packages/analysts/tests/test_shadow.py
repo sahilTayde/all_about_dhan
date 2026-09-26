@@ -230,6 +230,39 @@ def test_day_open_uses_quote_or_ohlc_else_the_first_bar(tmp_path):
     assert fallback["day_direction"]["extra"]["open_source"] == "fallback_first_bar"
 
 
+def test_day_open_ignores_midnight_prints_and_retries_the_chart(tmp_path, monkeypatch):
+    """09-18/09-19 tapes start with a 00:00 print at the previous close. That is not the open."""
+    import analysts.shadow as sh
+
+    midnight = {"ts": _ts("2026-09-18", 0, 0), "open": 23270.60, "high": 23270.60, "low": 23270.60, "close": 23270.60}
+    premarket = {"ts": _ts("2026-09-18", 9, 8), "open": 23280.0, "high": 23280.0, "low": 23280.0, "close": 23280.0}
+    first = {"ts": _ts("2026-09-18", 9, 30), "open": 23298.15, "high": 23310.0, "low": 23290.0, "close": 23305.0}
+    no_open = {"ts": _ts("2026-09-18", 9, 29), "close": 23000.0}
+    assert session_open([midnight, premarket, no_open, first], "2026-09-18") == (23298.15, "fallback_first_bar")
+    assert session_open([midnight], "2026-09-18") == (None, None)
+
+    engine = SimpleNamespace(root=tmp_path, closed=[], opens={}, lot_by_und={"NIFTY": (65, "t")}, shadow_prior_daily={})
+    pre_tick = SimpleNamespace(ts=_ts("2026-09-18", 9, 5), idx_close=23300.0, wing_quotes={}, day_open=23270.60)
+    snap = build_shadow_snapshot(engine, SimpleNamespace(und="NIFTY", tick=pre_tick, bars_1m=[midnight]), None)
+    assert snap["day_direction"]["reasoning"] == "NO_DAY_OPEN"
+
+    clock = [1000.0]
+    monkeypatch.setattr("time.monotonic", lambda: clock[0])
+    _OHLC_OPEN_CACHE.clear()
+    sh._OHLC_MISS_AT.clear()
+    now = _ts("2026-09-18", 9, 40)
+    assert sh._ohlc_session_open(tmp_path, "NIFTY", "2026-09-18", now) is None
+    ohlc = tmp_path / "data" / "recon" / "ohlc"
+    ohlc.mkdir(parents=True)
+    (ohlc / "INDEX_IDX_I_13_1_late.json").write_text(json.dumps({
+        "timestamp": [_ts("2026-09-18", 9, 15)], "open": [23295.0], "close": [23300.0],
+    }), encoding="utf-8")
+    clock[0] += 10
+    assert sh._ohlc_session_open(tmp_path, "NIFTY", "2026-09-18", now) is None  # inside the retry window
+    clock[0] += sh.OHLC_MISS_RETRY_S
+    assert sh._ohlc_session_open(tmp_path, "NIFTY", "2026-09-18", now) == 23295.0
+
+
 def test_stale_or_missing_prior_close_logs_no_sign():
     bar = {"ts": _ts("2026-09-10", 14, 44), "open": 100.0, "high": 101.0, "low": 99.0, "close": 110.0}
     now = _ts("2026-09-10", 14, 50)
