@@ -4,11 +4,15 @@ Thin **Vite + React** UI for all_about_dhan. One site, three dashboards:
 
 | Route | Who | Job |
 |-------|-----|-----|
-| [`/desk`](http://localhost:5173/desk) (`/` redirects here) | Desk | Live signal, path to SL/target, history, discarded-by-boss list. |
-| [`/pm`](http://localhost:5173/pm) | Founder | Money, ops health, train metrics, SOD fill graph, all models/STRAT/indicators. |
+| [`/desk`](http://localhost:5173/desk) (`/` redirects here) | Desk | Alert bar · Current trade (entry, LTP, stop, T1/T2, trailing, P&L, elapsed, MFE/MAE) + paper target/stop override · Account (all recorded days) · Current market · Decision trace · Trade history (day picker, filters, columns) · Why days spilled |
+| [`/pm`](http://localhost:5173/pm) | Founder | KPIs · System health (red/amber/green) + issues + next action · Account · START/STOP trade desk · Founder controls (next PR, disabled) · Charts: cumulative P&L, daily/weekly/monthly P&L + win %, trades per day, per-model win % + trend, loss by stage · Now open · Decision trace · Compare fills · Honesty exam · Discarded · Roster (DEMO) |
 | [`/customer`](http://localhost:5173/customer) | Customer | One suggested ticket (FIXTURE preview). No indicator soup. |
 
-Panels fed by static `public/mock` demo JSON (fill-room graph, roster, STRAT lights, indicator pills) carry a **DEMO · mock** badge until they are wired to the paper board.
+Every panel shows `—` (or a greyed decision-trace step) when the data does not exist yet; nothing is invented. Panels still fed by static `public/mock` demo JSON (roster, STRAT lights, indicator pills) carry a **DEMO · mock** badge.
+
+**Data flow.** Desk and Founder open one server-sent-events stream, `GET /ui/stream`, which pushes the whole read-only snapshot (`apps/api/src/api/ui_feed.py`) only when it changes. If the stream drops they fall back to one batched `GET /ui/snapshot` every 2 s; if the API is down they show the static mock board with a CRITICAL "Website lost the API" alert. Past days (`/paper/history?day=`) and the decision trace (`/paper/trace?trade_id=`) are fetched on click. The alert bar can play a sound and raise a browser notification for CRITICAL / EMERGENCY alerts after you press **Enable alarm**.
+
+**Size.** Each page is its own chunk. Desk loads about 66 KB gzip of JS + 11 KB CSS; the chart library (lightweight-charts, 52 KB gzip) loads only on Founder and Customer.
 
 **Not investment advice.** PAPER / MOCK. Orders refused. Owned by team 07_coding.
 
@@ -43,7 +47,7 @@ Open [http://localhost:5173/desk](http://localhost:5173/desk) (desk), [http://lo
 | `npm run preview` | Serve the production bundle locally |
 | `npm run ui:snapshots` | Playwright layout check on a synthetic fixture (see below) |
 
-Copy `.env.example` to `.env` only if you want a remote API later. With `VITE_API_URL` empty, Desk and Founder read the paper board from `/paper/ml-books` through the Vite proxy (the API adds `spot_at_entry` from the recorded dual tape) and fall back to `public/mock/ml_paper_dashboard.json` when the API is down.
+Copy `.env.example` to `.env` only if you want a remote API later. With `VITE_API_URL` empty, the pages reach the API through the Vite proxy (`/ui`, `/paper`, `/founder`, `/health`).
 
 ## Layout check (Playwright)
 
@@ -52,7 +56,15 @@ npx playwright install chromium   # once
 npm run ui:snapshots              # or: node scripts/ui_snapshots/run.mjs --out /tmp/shots --widths 390,1280
 ```
 
-Serves the app with Vite, answers every data URL from `scripts/ui_snapshots/fixture.mjs` (invented numbers on a fake past session; no market data, no network, no API), and screenshots Desk, Founder and Customer at 390 / 1280 / 1440 / 1920 px into `scripts/ui_snapshots/out/`. It exits 1 if the page scrolls sideways, if any element is cut off at the viewport edge, or if the trade table's P/L / Status columns are not visible at 1280 px or wider.
+Builds the app, serves the production bundle with `vite preview`, and answers every data URL from `scripts/ui_snapshots/fixture.mjs` (invented numbers on a fake past session; no market data, no network, no API) through a tiny in-process fixture API that includes a real `/ui/stream` push. It screenshots Desk, Founder, Customer and Cleanup at 390 / 1280 / 1440 / 1920 px into `scripts/ui_snapshots/out/` and exits 1 if:
+
+- the page scrolls sideways, or any element is cut off at the viewport edge;
+- the trade table's P/L / Status columns are not visible at 1280 px or wider;
+- `NaN` / `undefined` shows on screen, or the page throws;
+- a Desk / Founder panel is missing (alert bar, health rows, 7 trace steps, charts, account, current-trade fields, disabled next-PR controls);
+- a pushed update takes 200 ms or more to reach the DOM, or the no-ticket state does not read ON HOLD.
+
+It prints first-contentful-paint and data-ready times per page. `--root <dir> --no-features` runs the layout checks against another checkout (used for the before/after gallery).
 
 ## What the customer sees
 

@@ -83,7 +83,10 @@ const open = [
   {
     ...trade(15),
     trade_id: "synth-open-NIFTY-PE",
+    underlying: "NIFTY",
     side: "PE",
+    atm_strike: 20350,
+    justification: "SYNTH buy PE ITM strike 20350 (ITM_100); why_now=PE: synthetic open ticket for the layout check; PAPER only. NO_PROMOTE.",
     status: "OPEN",
     exit: null,
     exit_reason: null,
@@ -96,6 +99,14 @@ const open = [
     last_ltp: 138.2,
     stop: 132.07,
     target: 148.93,
+    qty: 250,
+    lots: 5,
+    lot_size: 50,
+    seen_high: 143.1,
+    seen_low: 136.4,
+    trail_step: 0,
+    idx_at_open: 20260.4,
+    spot_at_entry: 20260.4,
     closed_ts: null,
     closed_ist: null,
     last_updated_ts: tapeLastTs - 4,
@@ -104,7 +115,20 @@ const open = [
 ];
 
 const net = closed.reduce((s, t) => s + t.realized_pnl_inr, 0);
-const regime = (index) => ({ regime: "TREND", direction: "UP", vwap: index - 3, itm_bin: { side: "PE", index } });
+const regime = (index, direction) => ({
+  regime: "TREND",
+  direction,
+  er: 0.42,
+  realized_vol: 0.00018,
+  iv: 12.4,
+  range_over_atr: 3.1,
+  vwap: index - 3.5,
+  ema: index - 1.2,
+  ema_len: 21,
+  proxy_poc: index - 6,
+  sr_near: { name: "pdh", px: index + 22, kind: "R" },
+  itm_bin: { side: "PE", index },
+});
 
 export const board = {
   ok: true,
@@ -122,7 +146,8 @@ export const board = {
     NIFTY: { status: "REPLAY_OK", span_ist: { first: ist(BASE_TS), last: ist(tapeLastTs) } },
     BANKNIFTY: { status: "REPLAY_OK", span_ist: { first: ist(BASE_TS), last: ist(tapeLastTs - 60) } },
   },
-  last_index_regime: { NIFTY: regime(20999.95), BANKNIFTY: regime(45999.9) },
+  last_index_regime: { NIFTY: regime(20999.95, "UP"), BANKNIFTY: regime(45999.9, "DOWN") },
+  capital_plan: { desk_capital_inr: 500000 },
   today: { net_pnl_inr: net, starting_desk_inr: 500000 },
   book_rank: [
     { book_id: "MIX-DEFAULT-BUY", kind: "dealer", n_filled: 15, win_rate_net_pct: 20, sum_pnl_inr: net, sum_charges_inr: 1500 },
@@ -134,7 +159,11 @@ export const board = {
     ],
     cancelled: [],
   },
-  model_signals: { latest: [] },
+  model_signals: {
+    latest: [
+      { source: "synth-a", side: "CE", vs_picker: "MATCH", underlying: "NIFTY", ts: BASE_TS + 14 * 1380, desk_opened: true },
+    ],
+  },
   closed_trades: closed,
   open_trades: open,
   orders: "REFUSED",
@@ -191,3 +220,135 @@ export const founderStatus = {
 };
 
 export const founderBook = { ok: true, trade_underlyings: ["NIFTY"], indices: {} };
+
+// ---------- snapshot + endpoints the pages read (same shapes as apps/api/src/api/ui_feed.py) ----------
+
+const REASONS = ["STOP", "TARGET", "CANCEL_AGAINST", "TIME"];
+
+function pastDays(n) {
+  const out = [];
+  const d = new Date(`${DAY}T00:00:00Z`);
+  while (out.length < n) {
+    d.setUTCDate(d.getUTCDate() - 1);
+    if (d.getUTCDay() % 6) out.push(d.toISOString().slice(0, 10));
+  }
+  return out;
+}
+
+function summary(day, i) {
+  const n = 6 + ((i * 5) % 9);
+  const wins = Math.max(1, Math.round(n * (0.2 + ((i * 7) % 5) / 12)));
+  const net = Math.round((wins * 2600 - (n - wins) * 1900) * (i % 3 ? 1 : 0.6));
+  const charges = n * 140;
+  return {
+    day,
+    n,
+    wins,
+    gross: net + charges,
+    charges,
+    net,
+    by_book: {
+      "MIX-DEFAULT-BUY": { n, wins, net },
+      "MIX-ML-LOGIT": { n: Math.max(1, n - 3), wins: Math.max(0, wins - 1), net: Math.round(net * 0.7) },
+    },
+    by_reason: Object.fromEntries(REASONS.map((r, k) => [r, { n: 1 + ((i + k) % 3), net: r === "TARGET" ? 2600 : -700 * (k + 1) }])),
+  };
+}
+
+const todayRows = closed.filter((t) => t.filled !== false);
+const today = {
+  day: DAY,
+  n: todayRows.length,
+  wins: todayRows.filter((t) => t.realized_pnl_inr > 0).length,
+  gross: todayRows.reduce((s, t) => s + t.gross_pnl_inr, 0),
+  charges: todayRows.reduce((s, t) => s + t.charges_inr, 0),
+  net: Math.round(net * 100) / 100,
+  by_book: { "MIX-DEFAULT-BUY": { n: todayRows.length, wins: 3, net } },
+  by_reason: {},
+};
+for (const t of todayRows) {
+  const r = (today.by_reason[t.exit_reason] ||= { n: 0, net: 0 });
+  r.n += 1;
+  r.net += t.realized_pnl_inr;
+}
+export const days = [today, ...pastDays(14).map(summary)];
+const allNet = days.reduce((s, d) => s + d.net, 0);
+
+export function snapshot(nowIso = "2026-02-01T10:00:00+05:30") {
+  return {
+    ok: true,
+    as_of: nowIso,
+    board,
+    exam,
+    tape_last_ist: ist(tapeLastTs),
+    founder: { ok: false, mode: "PAPER", issues: founderStatus.issues, next_action: founderStatus.next_action, agents: founderStatus.agents, started_at_ist: ist(tapeLastTs - 600) },
+    founder_book: { source: "file", index_status: { NIFTY: "START", BANKNIFTY: "STOP", SENSEX: "STOP" } },
+    health: [
+      { id: "api", name: "API", tone: "green", detail: "answering this request", age_s: 0 },
+      { id: "paper", name: "Paper loop", tone: "red", detail: "not running", age_s: null },
+      { id: "broker", name: "Broker (paper)", tone: "green", detail: "paper broker · orders refused · no live connection" },
+      { id: "data", name: "Market data", tone: "amber", detail: "slow · last tape tick 95s ago", age_s: 95 },
+      { id: "db", name: "Database", tone: "grey", detail: "no ledger.sqlite yet (event path off)" },
+      { id: "llm", name: "LLM", tone: "grey", detail: "off / rules-only" },
+      { id: "news", name: "News", tone: "green", detail: "last news file 40 min ago" },
+      { id: "queue", name: "Queue", tone: "grey", detail: "memory event bus in the paper process (no external queue to probe)" },
+      { id: "heartbeat", name: "Last heartbeat", tone: "amber", detail: "board written 95s ago", age_s: 95 },
+      { id: "monitor", name: "Health monitor", tone: "grey", detail: "not running (python -m health)" },
+    ],
+    alerts: [
+      { id: "restart:synth-open", severity: "CRITICAL", title: "Restart during an open trade", detail: "NIFTY PE opened before the paper loop restarted (synthetic)", ts: nowIso, source: "paper" },
+      { id: "h:synth:recorder", severity: "WARNING", title: "recorder alert", detail: "last update 1.6 min ago (synthetic)", ts: nowIso, source: "health monitor" },
+    ],
+    days,
+    account: {
+      starting_capital_inr: 500000,
+      gross_inr: days.reduce((s, d) => s + d.gross, 0),
+      charges_inr: days.reduce((s, d) => s + d.charges, 0),
+      net_inr: allNet,
+      equity_inr: 500000 + allNet,
+      n_days: days.length,
+      first_day: days.at(-1).day,
+      last_day: DAY,
+      funds_editable: false,
+      funds_note: "Add funds / minimum capital need an engine-side setting. Coming in the controls PR.",
+    },
+    orders: "REFUSED",
+    promote: false,
+  };
+}
+
+export function dayHistory(day) {
+  if (day === DAY) return { day, days: days.map((d) => d.day), trades: closed };
+  const i = days.findIndex((d) => d.day === day);
+  const s = days[i];
+  if (!s) return { day, days: [], trades: [] };
+  const trades = Array.from({ length: s.n }, (_, k) => {
+    const t = trade(k + i);
+    const shift = Date.parse(`${day}T00:00:00Z`) / 1000 - Date.parse(`${DAY}T00:00:00Z`) / 1000;
+    return { ...t, trade_id: `synth-${day}-${k}`, opened_ts: t.opened_ts + shift, opened_ist: ist(t.opened_ts + shift), closed_ist: ist(t.closed_ts + shift), closed_ts: t.closed_ts + shift, source: "model_log" };
+  });
+  return { day, days: days.map((d) => d.day), trades };
+}
+
+export function trace(tradeId) {
+  const t = [...open, ...closed].find((x) => x.trade_id === tradeId) || dayHistory(days[1].day).trades.find((x) => x.trade_id === tradeId);
+  if (!t) return { ok: false, trade_id: tradeId, reason: "trade not found in board, model log or ledger", steps: [] };
+  const none = (id, title, why = null) => ({ id, title, status: "NO_DATA", decided: null, why, fields: {}, source: null });
+  return {
+    ok: true,
+    trade_id: tradeId,
+    underlying: t.underlying,
+    side: t.side,
+    steps: [
+      { id: "data", title: "Data", status: "OK", decided: `${t.underlying} spot ${t.spot_at_entry}`, why: "itm_bin confirm (synthetic)", fields: { regime: t.index_regime, "spot source": "trade record" }, source: "trade record" },
+      { id: "analysts", title: "Analysts", status: "OK", decided: "agreed: MIX-SYNTH-A, MIX-SYNTH-B", why: null, fields: { "agreeing models": t.model_names }, source: "trade record" },
+      { id: "boss", title: "Boss", status: "OK", decided: `BUY ${t.side} via ${t.book_id}`, why: `${t.side}: synthetic reason`, fields: {}, source: "trade record" },
+      none("risk", "Risk", "No risk-engine record for this paper trade (event path not writing a ledger)."),
+      { id: "desk", title: "Desk", status: "OK", decided: `${t.atm_strike} ${t.side} limit ${t.entry}`, why: "strike from ITM_100", fields: { stop: t.stop, target: t.target, lots: t.lots }, source: "trade record + model log" },
+      { id: "broker", title: "Broker", status: "PAPER", decided: "Paper only — no broker order", why: "Paper mode: execution refused by design", fields: { execution: "refused" }, source: "trade record" },
+      t.exit == null
+        ? { id: "fill", title: "Fill", status: "OK", decided: `filled @ ${t.entry}`, why: "open", fields: { opened: t.opened_ist }, source: "trade record" }
+        : { id: "fill", title: "Fill", status: "OK", decided: `filled @ ${t.entry}`, why: t.exit_reason, fields: { opened: t.opened_ist, closed: t.closed_ist, exit: t.exit, "net ₹": t.realized_pnl_inr }, source: "trade record" },
+    ],
+  };
+}
