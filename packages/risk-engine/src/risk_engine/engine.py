@@ -1,9 +1,14 @@
-"""Deterministic pre-trade risk engine. Fail closed: any exception is a veto.
+"""Deterministic pre-trade risk engine. Entries fail closed: any exception is a veto.
 
 Limits come from config/risk_limits.yaml, re-read on every check so a founder edit (or the
 kill switch) applies to the very next order. State (open positions, today's net P&L, last
 losing exit, recent approvals, last reconciliation) is rebuilt from the ledger on every
 entry check, so a restart loses nothing.
+
+Reduce-only actions (EXIT, CANCEL, FLATTEN) never fail closed: a missing or corrupt config, or
+an audit write that fails, approves them ``degraded`` with a critical log. Refusing an exit
+leaves risk on, which is the wrong direction. ``MODE_NOT_ENABLED`` still applies to every
+action in the live tiers, and the broker adapters keep their own live-order gate.
 """
 
 from __future__ import annotations
@@ -29,6 +34,7 @@ LIVE_CONFIRM_VALUE = "I_UNDERSTAND_REAL_MONEY"
 LIMIT_KEYS = ("max_lots_per_trade", "max_open_positions", "max_daily_loss", "max_loss_per_trade")
 TOP_KEYS = ("entry_start_ist", "entry_cutoff_ist", "cooldown_after_loss_minutes", "idempotency_seconds")
 ADJUST_ACTIONS = ("EXIT", "MODIFY", "CANCEL", "FLATTEN")
+REDUCE_ONLY = ("EXIT", "CANCEL", "FLATTEN")
 
 
 def live_confirmed() -> bool:
@@ -108,6 +114,7 @@ class RiskDecision:
     reason: str
     ts: datetime
     critical: bool = False
+    degraded: bool = False  # reduce-only approval while the config or the audit was unavailable
 
 
 @dataclass
@@ -121,9 +128,35 @@ class RiskState:
 
 
 class RiskEngine:
-    def __init__(self, ledger: Any = None, config_path: Path = DEFAULT_CONFIG_PATH) -> None:
+    def __init__(self, ledger: Any = None, config_path: Path = DEFAULT_CONFIG_PATH, root: Optional[Path] = None) -> None:
         self.ledger = ledger
         self.config_path = Path(config_path)
+        # A relative kill_switch_file is resolved against this data root, never the process CWD.
+        # Default: the repo that holds config/<file> (config_path's grandparent).
+        parents = self.config_path.resolve().parents
+        self.root = Path(root) if root is not None else parents[min(1, len(parents) - 1)]
+
+    def kill_switch_path(self, cfg: dict[str, Any]) -> Optional[Path]:
+        raw = cfg.get("kill_switch_file")
+        if not raw:
+            return None
+        path = Path(str(raw))
+        return path if path.is_absolute() else self.root / path
+
+    def _kill_on(self, cfg: dict[str, Any]) -> bool:
+        """Kill switch flag or file. Anything but a clean "no such file" counts as ON."""
+        if cfg.get("kill_switch"):
+            return True
+        path = self.kill_switch_path(cfg)
+        if path is None:
+            return False
+        try:
+            os.stat(path)
+        except FileNotFoundError:
+            return False
+        except OSError:
+            return True
+        return True
 
     def check_entry(
         self, intent: TradeIntent, now: Optional[datetime] = None, state: Optional[RiskState] = None
@@ -148,8 +181,13 @@ class RiskEngine:
                 code, reason, critical = self._entry_veto(intent, now, cfg, state or self._state(now, cfg))
             else:
                 code, reason, critical = self._adjust_veto(intent, action, now, cfg)
-        except Exception as exc:  # fail closed
-            code, reason, critical = "ENGINE_ERROR", f"{type(exc).__name__}: {exc}", True
+        except Exception as exc:
+            if action in REDUCE_ONLY:  # never strand a position because the config is unreadable
+                log.critical("risk %s %s approved DEGRADED (config error %s: %s)", action, cid, type(exc).__name__, exc)
+                return self._record(RiskDecision(
+                    True, cid, action, "OK_DEGRADED", f"reduce-only approved; config error {type(exc).__name__}: {exc}",
+                    now, True, True), intent)
+            code, reason, critical = "ENGINE_ERROR", f"{type(exc).__name__}: {exc}", True  # fail closed
         return self._record(RiskDecision(code == "OK", cid, action, code, reason, now, critical), intent)
 
     def _state(self, now: datetime, cfg: dict[str, Any]) -> RiskState:
@@ -170,8 +208,8 @@ class RiskEngine:
         mode_veto = self._mode_veto(cfg)
         if mode_veto:
             return mode_veto
-        if cfg.get("kill_switch") or (cfg.get("kill_switch_file") and Path(cfg["kill_switch_file"]).exists()):
-            return "KILL_SWITCH", "founder kill switch is on", True
+        if self._kill_on(cfg):
+            return "KILL_SWITCH", f"founder kill switch is on ({self.kill_switch_path(cfg) or 'config flag'})", True
         if not st.recon_ok:
             return "RECON_MISMATCH", "last broker reconciliation found a mismatch; resolve it first", True
         if intent.purpose != "ENTRY" or intent.side not in ("BUY", "SELL") or intent.lots <= 0 or intent.lot_size <= 0:
@@ -239,7 +277,25 @@ class RiskEngine:
             self.ledger.record_decision(
                 {**asdict(d), "fingerprint": intent.fingerprint if intent else None, "intent": intent_payload}
             )
-        except Exception as exc:  # cannot audit -> cannot approve
-            log.error("risk decision not recorded (%s: %s); vetoing", type(exc).__name__, exc)
+        except Exception as exc:
+            if d.approved and d.action in REDUCE_ONLY:  # cannot audit an exit: spool it, still approve
+                self._spool(d, intent, exc)
+                return replace(d, degraded=True, critical=True)
+            log.error("risk decision not recorded (%s: %s); vetoing", type(exc).__name__, exc)  # cannot audit -> no entry
             return replace(d, approved=False, reason_code="ENGINE_ERROR", reason=f"ledger write failed: {exc}", critical=True)
         return d
+
+    def _spool(self, d: RiskDecision, intent: Optional[TradeIntent], exc: BaseException) -> None:
+        """Best effort: data/risk/audit_spool.jsonl, else the log. Never raises."""
+        import json
+
+        rec = {**asdict(d), "ts": d.ts.isoformat(), "intent": asdict(intent) if intent else None,
+               "audit_error": f"{type(exc).__name__}: {exc}"}
+        line = json.dumps(rec, default=str)
+        try:
+            path = self.root / "data" / "risk" / "audit_spool.jsonl"
+            path.parent.mkdir(parents=True, exist_ok=True)
+            with open(path, "a", encoding="utf-8") as fh:
+                fh.write(line + "\n")
+        except Exception:  # noqa: BLE001
+            log.critical("risk audit spool unwritable; decision: %s", line)
