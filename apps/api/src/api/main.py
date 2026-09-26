@@ -9,6 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from api.config import load_api_settings
 from api.desk_merge import merge_live_paper_into_desk, overlay_customer_sod_ticket
+from api.entry_spot import attach_entry_spots
 from api.founder_status import build_founder_status
 from api.health_alerts import router as health_router
 from api.models import TookTradeBody, TookTradeRecord
@@ -221,6 +222,7 @@ def create_app() -> FastAPI:
             blob.setdefault("orders", "REFUSED")
             blob.setdefault("promote", False)
             blob.setdefault("win_rate", None)
+            attach_entry_spots(blob, root / "data" / "recon" / "paper_watch" / "DUAL-TAPE")
         return blob
 
     @app.get("/paper/backtests/itm-scalp")
