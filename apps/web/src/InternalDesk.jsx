@@ -1,12 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
 import { AppNav } from "./components/AppNav.jsx";
 import { Disclaimer } from "./components/Disclaimer.jsx";
-import { Header } from "./components/Header.jsx";
+import { DemoBadge, Header } from "./components/Header.jsx";
 import { IstMarketClock } from "./components/IstMarketClock.jsx";
 import { SodFillGraph, WatcherStrip } from "./components/SodFillGraph.jsx";
 import { SpillLedger } from "./components/SpillLedger.jsx";
 import { TradeHistory } from "./components/TradeHistory.jsx";
 import {
+  boardClock,
+  boardSource,
   derivePaperBoard,
   deskLifeStatus,
   fetchFounderLab,
@@ -200,14 +202,10 @@ export function InternalDesk() {
 
   const d = useMemo(() => derivePaperBoard(board, lab), [board, lab]);
   const current = d?.current;
-  const life = deskLifeStatus(current);
+  const clock = boardClock(board);
+  const life = deskLifeStatus(current, { clock });
   const path = current ? pathInfo(current) : null;
-  const spot =
-    current && d?.regimes?.[current.underlying]
-      ? current.spot_at_entry ??
-        d.regimes[current.underlying].itm_bin?.index ??
-        d.regimes[current.underlying].vwap
-      : null;
+  const indexNow = current ? d?.regimes?.[current.underlying]?.itm_bin?.index ?? null : null;
   const room = roomId && d?.fillRooms?.[roomId] ? d.fillRooms[roomId] : d?.currentRoom;
 
   async function humanCancelWorking() {
@@ -269,12 +267,13 @@ export function InternalDesk() {
         title="Desk"
         kicker="Revalidate the ticket"
         sub="Live path, watchers, compare history to the signal that filled it."
-        sourceLabel={board?.live_session ? "PAPER" : "MOCK"}
+        sourceLabel={boardSource(board, clock)}
       />
 
       <div className="desk-refresh">
-        <p className="desk-sub">
-          {board?.as_of_ist ? board.as_of_ist.replace("T", " ").slice(0, 19) : "—"} · 12s light poll · #{tick}
+        <p className="desk-sub" title={clock.writtenIst ? `Board written ${clock.writtenIst}` : undefined}>
+          Tape as of {clock.label}
+          {clock.replay ? " · replay of a past session" : ""} · 12s light poll · #{tick}
         </p>
         <IstMarketClock />
         <button type="button" className="refresh-btn" onClick={() => load(true)} disabled={busy}>
@@ -309,8 +308,12 @@ export function InternalDesk() {
                   </div>
                   <dl className="level-strip">
                     <div>
-                      <dt>Spot</dt>
-                      <dd>{px(spot)}</dd>
+                      <dt>Spot @ entry</dt>
+                      <dd>{px(current.spot_at_entry)}</dd>
+                    </div>
+                    <div>
+                      <dt>Index now</dt>
+                      <dd>{px(indexNow)}</dd>
                     </div>
                     <div>
                       <dt>Entry</dt>
@@ -349,7 +352,10 @@ export function InternalDesk() {
           </section>
 
           <section className="panel">
-            <h2>Who is watching · how it filled</h2>
+            <div className="panel__head">
+              <h2>Who is watching · how it filled</h2>
+              <DemoBadge what="Fill-room graphs come from public/mock/founder_lab.json and are keyed to demo trade ids" />
+            </div>
             <SodFillGraph room={room} />
             <WatcherStrip watchers={room?.watchers} />
             {current ? (
@@ -363,7 +369,6 @@ export function InternalDesk() {
             <h2>Trade history</h2>
             <TradeHistory
               rows={d.uniqueClosed}
-              regimes={d.regimes}
               fillRooms={d.fillRooms}
               onOpen={(t) => setRoomId(t.trade_id)}
             />

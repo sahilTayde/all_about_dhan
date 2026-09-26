@@ -15,8 +15,16 @@ async function getJson(url, signal) {
 export async function fetchMlPaperBoard({ force = false, signal } = {}) {
   const now = Date.now();
   if (!force && _cache.board && now - _cache.boardAt < BOARD_POLL_MS) return _cache.board;
-  const url = API_URL ? `${API_URL}/paper/ml-books` : "/mock/ml_paper_dashboard.json";
-  const json = await getJson(`${url}${url.includes("?") ? "&" : "?"}t=${now}`, signal);
+  // /paper/ml-books adds spot_at_entry from the recorded tape; the static mock is the offline fallback.
+  const url = API_URL ? `${API_URL}/paper/ml-books` : "/paper/ml-books";
+  let json;
+  try {
+    json = await getJson(`${url}?t=${now}`, signal);
+    if (!API_URL && (!json || json.ok === false)) throw new Error("board missing");
+  } catch (err) {
+    if (err?.name === "AbortError" || API_URL) throw err;
+    json = await getJson(`/mock/ml_paper_dashboard.json?t=${now}`, signal);
+  }
   _cache.board = json;
   _cache.boardAt = now;
   return json;
@@ -217,7 +225,37 @@ export function pathInfo(t) {
   };
 }
 
-export function deskLifeStatus(t, { nowMs = Date.now() } = {}) {
+function istDateOf(ms) {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" }).format(new Date(ms));
+}
+
+/**
+ * Session clock of the board: the last recorded tape tick, not when the writer or replay ran.
+ * `replay` = the board is for an earlier IST day, so staleness is judged against the tape clock.
+ */
+export function boardClock(board, { nowMs = Date.now() } = {}) {
+  if (!board) return { ist: null, ms: null, replay: false, label: "—" };
+  const lasts = Object.values(board.steps || {})
+    .map((s) => s?.span_ist?.last)
+    .filter(Boolean)
+    .sort();
+  const ist = lasts[lasts.length - 1] || board.as_of_ist || null;
+  const ms = ist ? Date.parse(ist) : null;
+  const day = board.session_ist_date || sessionDate(ist);
+  const replay = Boolean(day && day !== "—" && day !== istDateOf(nowMs));
+  const label = ist ? `${String(ist).replace("T", " ").slice(0, 19)} IST` : "—";
+  return { ist, ms: Number.isFinite(ms) ? ms : null, replay, label, writtenIst: board.as_of_ist || null };
+}
+
+/** One source word for the header badge and the Founder pill. */
+export function boardSource(board, clock) {
+  if (!board) return "MOCK";
+  if (board.live_session || board.session_ist_date) return clock?.replay ? "PAPER · REPLAY" : "PAPER";
+  return "MOCK";
+}
+
+export function deskLifeStatus(t, { nowMs = Date.now(), clock = null } = {}) {
+  if (clock?.replay && clock.ms != null) nowMs = clock.ms;
   const status = String(t?.status || "");
   const reason = String(t?.exit_reason || "");
   if (!t) return "DEAD";

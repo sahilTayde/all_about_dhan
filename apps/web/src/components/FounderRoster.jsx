@@ -1,3 +1,5 @@
+import { DemoBadge } from "./Header.jsx";
+
 function voteTone(vote) {
   const v = String(vote || "").toUpperCase();
   if (v === "CE" || v === "CALL") return "ce";
@@ -30,6 +32,7 @@ export function FounderRoster({ catalog, confirmKill }) {
             Read this as a factory line. Rooms vote. Only the desk spends paper money. KEEP_ALL. UNVALIDATED.
           </p>
         </div>
+        <DemoBadge what="Roster, STRAT lights and indicator pills come from public/mock/founder_lab.json, not the paper board" />
       </div>
 
       <ol className="roster-flow" aria-label="How a paper ticket is built">
@@ -78,7 +81,9 @@ export function FounderRoster({ catalog, confirmKill }) {
       </div>
 
       <div className="roster-block">
-        <h3>STRAT-001–014 · KEEP_ALL</h3>
+        <h3>
+          STRAT-001–014 · KEEP_ALL <DemoBadge what="STRAT CE/HOLD/SILENT lights are static mock, not live votes" />
+        </h3>
         <p className="muted">Silent is not deleted. DATA_INSUFFICIENT stays on the book.</p>
         <div className="roster-card-rail roster-card-rail--tall" tabIndex={0} aria-label="Strategies, scroll sideways">
           {strats.map((s) => (
@@ -92,7 +97,9 @@ export function FounderRoster({ catalog, confirmKill }) {
       </div>
 
       <div className="roster-block">
-        <h3>Indicators · confirm or kill</h3>
+        <h3>
+          Indicators · confirm or kill <DemoBadge what="CONFIRM/KILL pills are static mock, not computed from the tape" />
+        </h3>
         <p className="muted">{confirmKill?.note || "5m lights never open a ticket. KILL holds."}</p>
         <div className="roster-ind-grid">
           {inds.map((i) => (

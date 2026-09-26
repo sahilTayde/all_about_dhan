@@ -1,3 +1,11 @@
+export function DemoBadge({ what = "Static demo data from public/mock — not wired to the paper board yet" }) {
+  return (
+    <span className="demo-badge" title={what}>
+      DEMO · mock
+    </span>
+  );
+}
+
 export function Header({
   sourceLabel,
   onInfo,
@@ -13,7 +21,7 @@ export function Header({
         <p className="desk-sub">{sub}</p>
       </div>
       <div className="desk-header__tools">
-        <span className="source-pill" title="Data is mock until an API is wired">
+        <span className="source-pill" title="Where this page's numbers come from">
           {sourceLabel}
         </span>
         {onInfo && (

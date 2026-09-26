@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
+import CustomerApp from "./App.jsx";
 import { CleanupCanvas } from "./CleanupCanvas.jsx";
 import { FounderPm } from "./FounderPm.jsx";
 import { InternalDesk } from "./InternalDesk.jsx";
@@ -22,6 +23,9 @@ function Root() {
   }
   if (path === "/cleanup" || path.startsWith("/cleanup/")) {
     return <CleanupCanvas />;
+  }
+  if (path === "/customer" || path.startsWith("/customer/")) {
+    return <CustomerApp />;
   }
   if (path === "/" || path === "") {
     if (typeof window !== "undefined" && window.location.pathname === "/") {

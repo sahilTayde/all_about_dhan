@@ -4,11 +4,13 @@ import { DiscardedBook } from "./components/DiscardedBook.jsx";
 import { FounderHonestyExam } from "./components/FounderHonestyExam.jsx";
 import { FounderOpenNow } from "./components/FounderOpenNow.jsx";
 import { FounderRoster } from "./components/FounderRoster.jsx";
-import { Header } from "./components/Header.jsx";
+import { DemoBadge, Header } from "./components/Header.jsx";
 import { SodFillGraph, WatcherStrip } from "./components/SodFillGraph.jsx";
 import { FounderBookPicker } from "./components/FounderBookPicker.jsx";
 import { TradeHistory } from "./components/TradeHistory.jsx";
 import {
+  boardClock,
+  boardSource,
   derivePaperBoard,
   fetchFounderLab,
   fetchMlPaperBoard,
@@ -81,6 +83,9 @@ export function FounderPm() {
   const paper = (status?.agents || []).find((a) => a.id === "paper-loop");
   const day = d?.todayDay;
   const room = roomId && d?.fillRooms?.[roomId] ? d.fillRooms[roomId] : d?.currentRoom;
+  const clock = boardClock(board);
+  const source = boardSource(board, clock);
+  const issues = status?.issues || [];
 
   return (
     <div className="shell shell--founder">
@@ -89,21 +94,63 @@ export function FounderPm() {
         title="Founder"
         kicker="Train · compare · do not promote"
         sub="Money, rooms, and how a paper fill was built. Click a node. PAPER only."
-        sourceLabel={board?.live_session ? "PAPER" : "MOCK"}
+        sourceLabel={source}
       />
-      <p className="desk-sub">
-        {board?.as_of_ist ? board.as_of_ist.replace("T", " ").slice(0, 16) : "…"} IST · light refresh 2s · orders
-        refused · NO_PROMOTE
+      <p className="desk-sub" title={clock.writtenIst ? `Board written ${clock.writtenIst}` : undefined}>
+        Tape as of {clock.label}
+        {clock.replay ? " · replay of a past session" : ""} · light refresh 2s · orders refused · NO_PROMOTE
       </p>
       {error ? <p className="desk-error">{error}. Mock book still loads.</p> : null}
 
       <div className="fx-health">
-        <span className={`cleanup-pill ${paper?.alive ? "done" : "pending"}`}>
-          paper {paper?.alive ? "ON" : "OFF / mock"}
+        <span
+          className={`cleanup-pill ${paper?.alive ? "done" : "pending"}`}
+          title="Paper market-hours loop (PID). The book below is the last board it or a replay wrote."
+        >
+          paper loop {paper ? (paper.alive ? "ON" : "OFF") : "unknown"}
         </span>
+        <span className="cleanup-pill pending">book: {source}</span>
         <span className="cleanup-pill pending">NO_PROMOTE</span>
         <span className="cleanup-pill pending">orders refused</span>
       </div>
+
+      <section className={`panel ops-issues ${status && !issues.length ? "is-ok" : "is-warn"}`} aria-live="polite">
+        <div className="panel__head">
+          <h2>Ops health</h2>
+          <span className={`cleanup-pill ${status && !issues.length ? "done" : "pending"}`}>
+            {status ? (issues.length ? `${issues.length} issue${issues.length > 1 ? "s" : ""}` : "OK") : "offline"}
+          </span>
+        </div>
+        <p className="ops-issues__next">
+          <strong>Next:</strong> {status?.next_action || "Ops status not reachable — start the API (scripts/desk.sh website)."}
+        </p>
+        {issues.length ? (
+          <ul className="ops-issues__list">
+            {issues.map((i) => (
+              <li key={i}>{i}</li>
+            ))}
+          </ul>
+        ) : null}
+        <details className="desk-context">
+          <summary>Services and agents</summary>
+          <div className="cleanup-grid">
+            {(status?.agents || []).map((a) => (
+              <article key={a.id} className={`cleanup-card founder-${a.tone || "grey"}`}>
+                <div className="cleanup-status">{a.alive ? "RUNNING" : "DOWN"}</div>
+                <strong>{a.name}</strong>
+                <p>{a.detail}</p>
+              </article>
+            ))}
+            {(status?.services || []).map((s) => (
+              <article key={s.id} className={`cleanup-card founder-${s.tone || "grey"}`}>
+                <div className="cleanup-status">{s.tone}</div>
+                <strong>{s.name}</strong>
+                <p>{s.detail}</p>
+              </article>
+            ))}
+          </div>
+        </details>
+      </section>
 
       {!d ? (
         <p className="muted">Loading founder book…</p>
@@ -142,8 +189,9 @@ export function FounderPm() {
             />
           </div>
 
+
           <FounderBookPicker />
-          <FounderOpenNow opens={d.uniqueOpen} />
+          <FounderOpenNow opens={d.uniqueOpen} clock={clock} />
 
           <section className="panel">
             <h2>Train the models</h2>
@@ -195,7 +243,10 @@ export function FounderPm() {
           </section>
 
           <section className="panel">
-            <h2>How this paper fill was placed</h2>
+            <div className="panel__head">
+              <h2>How this paper fill was placed</h2>
+              <DemoBadge what="Fill-room graphs come from public/mock/founder_lab.json and are keyed to demo trade ids" />
+            </div>
             <p className="muted">Click a node. Watchers and signal types sit under the graph.</p>
             <SodFillGraph room={room} />
             <WatcherStrip watchers={room?.watchers} />
@@ -279,31 +330,10 @@ export function FounderPm() {
             <p className="muted">Open tickets sit on top. Filter, then click a highlighted row that has a fill room.</p>
             <TradeHistory
               rows={[...(d.uniqueOpen || []), ...d.uniqueClosed]}
-              regimes={d.regimes}
               fillRooms={d.fillRooms}
               onOpen={(t) => setRoomId(t.trade_id)}
             />
           </section>
-
-          <details className="desk-context">
-            <summary>Ops health</summary>
-            <div className="cleanup-grid">
-              {(status?.agents || []).map((a) => (
-                <article key={a.id} className={`cleanup-card founder-${a.tone || "grey"}`}>
-                  <div className="cleanup-status">{a.alive ? "RUNNING" : "DOWN"}</div>
-                  <strong>{a.name}</strong>
-                  <p>{a.detail}</p>
-                </article>
-              ))}
-              {(status?.services || []).map((s) => (
-                <article key={s.id} className={`cleanup-card founder-${s.tone || "grey"}`}>
-                  <div className="cleanup-status">{s.tone}</div>
-                  <strong>{s.name}</strong>
-                  <p>{s.detail}</p>
-                </article>
-              ))}
-            </div>
-          </details>
 
           <FounderHonestyExam exam={exam} />
           <DiscardedBook rows={d.discardedRows} actorCounts={d.actorCounts} />

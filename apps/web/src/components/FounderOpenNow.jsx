@@ -1,6 +1,6 @@
 import { deskLifeStatus, moneyClass, pathInfo, px } from "../lib/paperBoard.js";
 
-export function FounderOpenNow({ opens }) {
+export function FounderOpenNow({ opens, clock }) {
   const rows = opens || [];
   return (
     <section className="panel founder-open-now">
@@ -17,7 +17,7 @@ export function FounderOpenNow({ opens }) {
         <div className="founder-open-grid">
           {rows.map((t) => {
             const p = pathInfo(t);
-            const life = deskLifeStatus(t);
+            const life = deskLifeStatus(t, { clock });
             return (
               <article key={t.trade_id} className="founder-open-card">
                 <header>
