@@ -20,17 +20,20 @@ cooldown_after_loss_minutes: 15   # block entries for 15 min after a losing exit
 idempotency_seconds: 60           # same symbol + side + lots within 60 s = duplicate
 
 # Losses are rupees; negative numbers, as in docs/04_MIGRATION_PLAN.md.
+# paper and shadow are sized for learning on a ~₹6L paper account trading 25 lots
+# (a typical ticket risks ₹14k–₹29k). They are NOT real-money limits: re-derive them
+# during go-live money management. limited_live and live are unchanged.
 modes:
   paper:
     max_lots_per_trade: 25
     max_open_positions: 3
-    max_daily_loss: -15000
-    max_loss_per_trade: -5000
+    max_daily_loss: -90000
+    max_loss_per_trade: -30000
   shadow:
     max_lots_per_trade: 25
     max_open_positions: 3
-    max_daily_loss: -15000
-    max_loss_per_trade: -5000
+    max_daily_loss: -90000
+    max_loss_per_trade: -30000
   limited_live:
     max_lots_per_trade: 5
     max_open_positions: 1

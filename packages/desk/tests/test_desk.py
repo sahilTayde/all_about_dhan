@@ -278,6 +278,11 @@ def test_halt_keeps_earlier_trades_on_the_next_cycle(tmp_path, monkeypatch):
     approve(bus, late)
     assert desk.engine.skips[-1]["reason"] == MTM_HALT
 
+    early_bird, early_bus, _ae, _le, _se = make_desk(tmp_path, live_loop=True)
+    first = ticket(T0 + 400, side="PE")
+    approve(early_bus, first)  # an entry before this desk's first tick still sees the saved halt
+    assert early_bird.engine.opens == {} and early_bird.engine.skips[-1]["reason"] == MTM_HALT
+
     desk2, bus2, _a2, _l2, steps2 = make_desk(tmp_path, live_loop=True)
     steps2["NIFTY:1"] = _tick(T0 + 40)
     bus2.publish("MARKET_TICK", {"key": "NIFTY:1"}, source="feed")
@@ -333,20 +338,190 @@ def test_corrupt_halt_file_blocks_entries(tmp_path, caplog, monkeypatch):
     assert (kept.book_id, "NIFTY") in replay.engine.opens
 
 
-def test_strict_risk_veto_logs_ticket_risk(tmp_path):
-    """config/risk_limits.yaml is unchanged. A veto still shows the reason and the rupee risk."""
+def _alert_kinds(tmp_path):
+    path = tmp_path / "alerts.jsonl"
+    if not path.is_file():
+        return []
+    return [json.loads(line)["error_kind"] for line in path.read_text(encoding="utf-8").splitlines()]
+
+
+def _live_cycle(tmp_path, entry_ts=T0 + 30):
+    """One live-loop cycle: a fresh desk, one tick, one entry attempt. Returns (desk, audit, pos)."""
+    desk, bus, audit, _led, steps = make_desk(tmp_path, live_loop=True)
+    steps["NIFTY:1"] = _tick(T0 + 10)
+    bus.publish("MARKET_TICK", {"key": "NIFTY:1"}, source="feed")
+    pos = ticket(entry_ts)
+    approve(bus, pos)
+    return desk, audit, pos
+
+
+def test_corrupt_halt_alerts_once_across_live_loop_cycles(tmp_path, monkeypatch):
+    monkeypatch.setattr(ps, "step_mark", lambda _e, _s: None)
+    path = _halt_file(tmp_path)
+    path.parent.mkdir(parents=True)
+    path.write_text("{not json", encoding="utf-8")
+    for _cycle in range(3):
+        desk, _audit, pos = _live_cycle(tmp_path)
+        assert desk.halt_fail_closed and desk.engine.opens == {}
+        assert desk.engine.skips[-1]["reason"] == MTM_HALT
+    assert _alert_kinds(tmp_path) == ["halt_file"]
+
+    path.write_text("[1, 2]", encoding="utf-8")  # the file changed: say so once
+    for _cycle in range(3):
+        desk, _audit, _pos = _live_cycle(tmp_path)
+        assert desk.halt_fail_closed and desk.engine.opens == {}
+    assert _alert_kinds(tmp_path) == ["halt_file", "halt_file"]
+
+
+@pytest.mark.parametrize(
+    "shape", ["directory", "parent_is_file", "broken_symlink", "unreadable", "bad_utf8", "no_session", "bad_forced_close"],
+)
+def test_unreadable_halt_path_fails_closed(tmp_path, monkeypatch, shape):
+    import os
+
+    if shape == "unreadable" and os.geteuid() == 0:
+        pytest.skip("root can read a chmod 000 file")
+    monkeypatch.setattr(ps, "step_mark", lambda _e, _s: None)
+    path = _halt_file(tmp_path)
+    if shape == "parent_is_file":
+        path.parent.parent.mkdir(parents=True)
+        path.parent.write_text("not a folder", encoding="utf-8")
+    else:
+        path.parent.mkdir(parents=True)
+    if shape == "directory":
+        path.mkdir()
+    elif shape == "broken_symlink":
+        path.symlink_to(tmp_path / "gone.json")
+    elif shape == "unreadable":
+        path.write_text(json.dumps({"session": "2026-09-10", "halt_ts": T0 + 500}), encoding="utf-8")
+        path.chmod(0)
+    elif shape == "bad_utf8":
+        path.write_bytes(b"\xff\xfe{}")
+    elif shape == "no_session":
+        path.write_text(json.dumps({"halt_ts": T0}), encoding="utf-8")
+    elif shape == "bad_forced_close":
+        path.write_text(json.dumps({"session": "2026-09-10", "halt_ts": T0 + 500,
+                                    "forced_closes": [{"trade_id": "x"}]}), encoding="utf-8")
+    for _cycle in range(3):
+        desk, audit, _pos = _live_cycle(tmp_path)
+        assert desk.halt_fail_closed and desk.engine.opens == {}
+    assert _alert_kinds(tmp_path) == ["halt_file"]
+
+
+def test_a_later_mtm_error_does_not_lift_a_corrupt_halt(tmp_path, monkeypatch):
+    def mark(_engine, step):
+        if int(step.tick.ts) >= T0 + 200:
+            raise RuntimeError("bad mark")
+
+    monkeypatch.setattr(ps, "step_mark", mark)
+    path = _halt_file(tmp_path)
+    path.parent.mkdir(parents=True)
+    path.write_text("{half written", encoding="utf-8")
+    desk, bus, _audit, _led, steps = make_desk(tmp_path, live_loop=True)
+    steps["NIFTY:2"] = _tick(T0 + 200)
+    bus.publish("MARKET_TICK", {"key": "NIFTY:2"}, source="feed")
+    assert path.read_text(encoding="utf-8") == "{half written"
+    for _cycle in range(2):
+        again, _a, _p = _live_cycle(tmp_path)
+        assert again.halt_fail_closed and again.engine.opens == {}
+    assert path.read_text(encoding="utf-8") == "{half written"
+    assert _alert_kinds(tmp_path) == ["halt_file", "RuntimeError"]
+
+
+def _cycle_with_mark(tmp_path, monkeypatch, *, error_at=None):
+    """A live-loop cycle over the same tape: entry at T0+30, ticks at T0+200 and T0+300.
+
+    T0+300 is a target in the tape. ``error_at`` makes the mark fail on that tick (cycle 1 only).
+    """
+    def mark(engine, step):
+        ts = int(step.tick.ts)
+        if error_at is not None and ts >= error_at:
+            raise RuntimeError("half-written tape line")
+        for pos in list(engine.opens.values()):
+            if ts >= T0 + 300:
+                ps._close(engine, pos, ltp=170.0, ts=ts, reason="TARGET", root=engine.root)
+            else:
+                pos.last_ltp = 146.0
+
+    monkeypatch.setattr(ps, "step_mark", mark)
+    desk, bus, audit, _led, steps = make_desk(tmp_path, live_loop=True)
+    steps["NIFTY:1"] = _tick(T0 + 10)
+    bus.publish("MARKET_TICK", {"key": "NIFTY:1"}, source="feed")
+    pos = ticket(T0 + 30)
+    approve(bus, pos)
+    for key, ts in (("NIFTY:2", T0 + 100), ("NIFTY:3", T0 + 200), ("NIFTY:4", T0 + 300)):
+        steps[key] = _tick(ts)
+        bus.publish("MARKET_TICK", {"key": key}, source="feed")
+    return desk, audit, pos
+
+
+def test_forced_close_is_replayed_when_the_error_goes_away(tmp_path, monkeypatch):
+    """Cycle 1 errors at T0+200 and force-closes. Cycles 2 and 3 have a clean tape that would hit the
+    target at T0+300. The booked result must stay the fail-safe close."""
+    first, _a1, pos = _cycle_with_mark(tmp_path, monkeypatch, error_at=T0 + 200)
+    (row1,) = [r for r in first.engine.closed if r["trade_id"] == pos.trade_id]
+    assert row1["exit_reason"] == FAILSAFE_MTM and row1["exit"] == pytest.approx(146.0)
+    saved = json.loads(_halt_file(tmp_path).read_text(encoding="utf-8"))
+    assert saved["forced_closes"][0]["trade_id"] == pos.trade_id
+    assert saved["forced_closes"][0]["closed_ts"] == T0 + 200 and saved["forced_closes"][0]["exit"] == 146.0
+    assert saved["forced_closes"][0]["opened_ts"] == T0 + 30
+
+    for _cycle in (2, 3):
+        desk, audit, _p = _cycle_with_mark(tmp_path, monkeypatch, error_at=None)
+        (row,) = [r for r in desk.engine.closed if r["trade_id"] == pos.trade_id]
+        assert row["exit_reason"] == FAILSAFE_MTM and row["closed_ts"] == T0 + 200
+        assert row["exit"] == row1["exit"] and row["realized_pnl_inr"] == row1["realized_pnl_inr"]
+        assert [r["payload"]["exit_reason"] for r in audit.rows("POSITION_CLOSED")] == [FAILSAFE_MTM]
+    assert _alert_kinds(tmp_path) == ["RuntimeError"]
+
+    replay_desk, replay_bus, _ar, _lr, replay_steps = make_desk(tmp_path, live_loop=False)
+    replay_steps["NIFTY:1"] = _tick(T0 + 10)
+    replay_bus.publish("MARKET_TICK", {"key": "NIFTY:1"}, source="feed")
+    approve(replay_bus, ticket(T0 + 30))
+    replay_steps["NIFTY:4"] = _tick(T0 + 300)
+    replay_bus.publish("MARKET_TICK", {"key": "NIFTY:4"}, source="feed")
+    assert replay_desk.engine.closed[-1]["exit_reason"] == "TARGET"  # replays ignore the live-loop file
+
+
+def test_unsaved_halt_is_kept_for_later_cycles_in_the_process(tmp_path, monkeypatch):
+    from desk.executor import Desk
+
+    def refuse(self, state):
+        raise PermissionError(13, "read-only disk")
+
+    monkeypatch.setattr(Desk, "_write_halt", refuse)
+    first, _a1, pos = _cycle_with_mark(tmp_path, monkeypatch, error_at=T0 + 200)
+    assert not _halt_file(tmp_path).exists()
+    exit1 = first.engine.closed[-1]["exit"]
+    for _cycle in (2, 3):
+        desk, _audit, _p = _cycle_with_mark(tmp_path, monkeypatch, error_at=None)
+        (row,) = [r for r in desk.engine.closed if r["trade_id"] == pos.trade_id]
+        assert row["exit_reason"] == FAILSAFE_MTM and row["exit"] == exit1
+        late = ticket(T0 + 400, side="PE")
+        assert desk._entry_halted(int(late.opened_ts))
+    assert sorted(_alert_kinds(tmp_path)) == ["RuntimeError", "halt_write"]
+
+
+def test_strict_risk_file_books_a_typical_ticket_and_logs_a_veto(tmp_path):
+    """Paper cap is ₹30,000. A ₹13,000 ticket books. A ₹31,037.50 ticket is vetoed with the reason split out."""
     desk, bus, audit, led, _steps = make_desk(tmp_path, REPO / "config" / "risk_limits.yaml")
-    approve(bus, ticket())  # (150-140) x 1300 = ₹13,000 against the ₹5,000 cap
-    assert desk.engine.opens == {}
+    ok = ticket()  # (150-140) x 1300 = ₹13,000
+    approve(bus, ok)
+    assert (ok.book_id, "NIFTY") in desk.engine.opens
+    big = ticket(T0 + 5, side="PE", book_id="MIX-ML-LOGIT", stop=130.9, lots=25, qty=1625)
+    approve(bus, big)
+    assert big.trade_id not in {p.trade_id for p in desk.engine.opens.values()}
     veto = audit.rows("ENTRY_VETOED")[-1]["payload"]
-    assert veto["reason_code"] == "MAX_LOSS_PER_TRADE"
-    assert veto["ticket_risk_inr"] == pytest.approx(13000)
-    assert "13,000" in veto["reason"] or "13000" in veto["reason"]
+    assert veto["reason"] == RISK_VETO and veto["reason_code"] == "MAX_LOSS_PER_TRADE"
+    assert "30,000" in veto["reason_text"] and "31,037" in veto["reason_text"]
+    assert veto["ticket_risk_inr"] == pytest.approx(31037.5)
+    assert "detail" not in veto
+    assert desk.engine.skips[-1]["reason"] == RISK_VETO and desk.engine.skips[-1]["reason_text"] == veto["reason_text"]
     stored = led.conn.execute(
         "SELECT reason_code, intent_json FROM risk_decisions WHERE approved = 0"
     ).fetchone()
     assert stored[0] == "MAX_LOSS_PER_TRADE"
-    assert json.loads(stored[1])["ticket_risk_inr"] == pytest.approx(13000)
+    assert json.loads(stored[1])["ticket_risk_inr"] == pytest.approx(31037.5)
 
 
 def test_failsafe_price_uses_the_tick_when_the_last_quote_is_missing():

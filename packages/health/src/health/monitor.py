@@ -141,7 +141,7 @@ def latest_entry_veto(ledger_path: Path, day: str) -> Optional[dict[str, Any]]:
     return {
         "ts": ts,
         "reason_code": code,
-        "reason": reason,
+        "reason_text": reason,
         "ticket_risk_inr": ticket_risk,
     }
 

@@ -130,15 +130,15 @@ def test_latest_entry_veto_shows_ticket_risk_without_failing_status(tmp_path):
     led.record_decision({
         "ts": MON_1030, "client_order_id": "maxloss", "action": "ENTRY", "approved": False,
         "reason_code": "MAX_LOSS_PER_TRADE",
-        "reason": "risk ₹14,000 exceeds max_loss_per_trade ₹5,000",
-        "critical": False, "intent": {"ticket_risk_inr": 14000},
+        "reason": "risk ₹31,000 exceeds max_loss_per_trade ₹30,000",
+        "critical": False, "intent": {"ticket_risk_inr": 31000},
     })
     status = m.run_once(MON_1030)
     assert status["ok"] is True and status["checks"]["risk_vetoes"]["ok"] is True
     veto = status["latest_entry_veto"]
     assert veto["reason_code"] == "MAX_LOSS_PER_TRADE"
-    assert veto["ticket_risk_inr"] == 14000
-    assert "14,000" in veto["reason"]
+    assert veto["ticket_risk_inr"] == 31000
+    assert "31,000" in veto["reason_text"] and "reason" not in veto
     assert alerts(m) == []
 
 

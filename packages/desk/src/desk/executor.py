@@ -12,8 +12,10 @@ A risk veto, a broker refusal, or any exception while building the order = no tr
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
+import os
 import time
 from dataclasses import fields
 from datetime import datetime
@@ -34,6 +36,14 @@ MTM_HALT = "MTM_HALT"  # mark-to-market / stop path failed; new entries blocked 
 FAILSAFE_MTM = "failsafe_mtm_error"  # close the open ticket on that same tick
 # Live paper loop only. Replays, lab, and parity of the same date must not read this.
 HALT_REL = Path("data") / "desk" / "live_loop" / "mtm_halt.json"
+HALT_FILE_KIND = "halt_file"  # the halt file cannot be trusted: every entry is blocked
+HALT_WRITE_KIND = "halt_write"  # the halt could not be saved; kept in this process instead
+
+# The live loop builds a new Desk every cycle in one process. These outlive a single desk.
+# ponytail: process memory only; a loop restart alerts once more per file state, and a halt that
+# could not be written to disk is lost on restart. Upgrade: persist both if restarts get frequent.
+_LIVE_ALERTED: set[tuple[str, str, str]] = set()  # (halt path, session, alert key)
+_UNSAVED_HALTS: dict[str, dict[str, Any]] = {}  # halt path -> state the disk refused
 
 
 def ist(ts: int) -> datetime:
@@ -69,6 +79,7 @@ class Desk:
         self.halt_from_ts: Optional[int] = None  # block entries at or after this unix ts
         self.halt_fail_closed = False  # corrupt halt file: block every entry this session
         self.live_loop = bool(live_loop)  # only this run reads/writes the halt file
+        self.forced_closes: dict[str, dict[str, Any]] = {}  # trade_id -> saved fail-safe close
         self._alerted_kinds: set[str] = set()
         if health_alerts_path is None:
             from desk_ml.persist import repo_root
@@ -118,13 +129,14 @@ class Desk:
             if step is not None:
                 ts = int(step.tick.ts)
                 self._apply_persisted_halt(ist(ts).date().isoformat(), ts)
+                self._reapply_forced_closes(ts)
             self._mark_tick(event)
         except Exception as exc:
             # Stops did not run. Close the open tickets on this tick, then keep entries blocked.
             # Flatten (FOUNDER_COMMAND) does not go through this path.
             self.entries_blocked = True
-            self._failsafe_close(step)
-            self._halt_entries(exc, step)
+            forced = self._failsafe_close(step)
+            self._halt_entries(exc, step, forced)
         finally:
             self.latency_ms["tick"].append((time.perf_counter() - t0) * 1000.0)
 
@@ -153,69 +165,170 @@ class Desk:
         base = Path(root) if root else self.health_alerts_path.parent
         return base / HALT_REL
 
-    def _read_halt(self) -> tuple[str, dict[str, Any]]:
-        """(status, state). status is missing, ok, or corrupt. A missing file is not an error."""
+    def _read_halt(self) -> tuple[str, dict[str, Any], str]:
+        """(status, state, fingerprint). status is missing, ok, or corrupt.
+
+        Only "no such file" is missing. A directory, a broken link, a parent that is a file,
+        an unreadable file, bad UTF-8, bad JSON, or JSON that is not an object is corrupt.
+        The fingerprint names the file state so the same bad file alerts once.
+        """
         path = self._halt_path()
-        if not path.is_file():
-            return "missing", {}
         try:
-            data = json.loads(path.read_text(encoding="utf-8"))
-        except (OSError, ValueError):
-            return "corrupt", {}
+            os.lstat(path)
+            raw = path.read_bytes()
+        except FileNotFoundError:
+            if path.is_symlink():
+                return "corrupt", {}, "broken_symlink"
+            return "missing", {}, ""
+        except OSError as exc:
+            return "corrupt", {}, f"{type(exc).__name__}:{exc.errno}"
+        digest = "sha256:" + hashlib.sha256(raw).hexdigest()[:16]
+        try:
+            data = json.loads(raw.decode("utf-8"))
+        except ValueError:
+            return "corrupt", {}, digest
         if not isinstance(data, dict):
-            return "corrupt", {}
-        return "ok", data
+            return "corrupt", {}, digest
+        return "ok", data, digest
+
+    @staticmethod
+    def _parse_halt(state: dict[str, Any], session: str) -> tuple[str, dict[str, Any]]:
+        """("other_session" | "ok" | "bad: why", normalised). Anything odd for today is bad."""
+        saved = state.get("session")
+        if not isinstance(saved, str) or len(saved) != 10:
+            return "bad: no session date", {}
+        if saved != session:
+            return "other_session", {}
+        try:
+            halt_ts = int(state["halt_ts"])
+        except (KeyError, TypeError, ValueError):
+            return "bad: no halt_ts for this session", {}
+        raw_closes = state.get("forced_closes", [])
+        if not isinstance(raw_closes, list):
+            return "bad: forced_closes is not a list", {}
+        closes: dict[str, dict[str, Any]] = {}
+        for row in raw_closes:
+            try:
+                trade_id = str(row["trade_id"])
+                fc = {**row, "trade_id": trade_id, "closed_ts": int(row["closed_ts"]), "exit": float(row["exit"])}
+            except (KeyError, TypeError, ValueError):
+                return "bad: unreadable forced close", {}
+            if not trade_id:
+                return "bad: forced close without trade_id", {}
+            closes.setdefault(trade_id, fc)
+        kinds = state.get("kinds") or []
+        kinds = [str(k) for k in kinds] if isinstance(kinds, list) else []
+        return "ok", {
+            "session": session, "halt_ts": halt_ts, "kinds": kinds,
+            "forced_closes": closes, "reason": str(state.get("reason") or ""),
+        }
+
+    @staticmethod
+    def _merge_halt(a: Optional[dict[str, Any]], b: Optional[dict[str, Any]]) -> Optional[dict[str, Any]]:
+        """Union of two parsed halts for one session: earliest halt_ts, every kind, every forced close."""
+        if not a:
+            return b
+        if not b:
+            return a
+        closes = dict(a["forced_closes"])
+        for tid, fc in b["forced_closes"].items():
+            closes.setdefault(tid, fc)
+        stamps = [t for t in (a.get("halt_ts"), b.get("halt_ts")) if t is not None]
+        return {
+            "session": a["session"], "halt_ts": min(stamps) if stamps else None,
+            "kinds": list(dict.fromkeys(list(a["kinds"]) + list(b["kinds"]))),
+            "forced_closes": closes, "reason": b.get("reason") or a.get("reason") or "",
+        }
+
+    def _unsaved_halt(self, session: str) -> Optional[dict[str, Any]]:
+        state = _UNSAVED_HALTS.get(str(self._halt_path()))
+        if state and state.get("session") == session:
+            return state
+        return None
 
     def _write_halt(self, state: dict[str, Any]) -> None:
-        if not self.live_loop:
-            return
+        """Atomic replace, so a crash mid-write never leaves a half-written (corrupt) file."""
         path = self._halt_path()
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(json.dumps(state) + "\n", encoding="utf-8")
+        tmp = path.with_name(f".{path.name}.{os.getpid()}.tmp")
+        out = {**state, "entries_blocked": True, "forced_closes": list(state["forced_closes"].values())}
+        tmp.write_text(json.dumps(out) + "\n", encoding="utf-8")
+        os.replace(tmp, path)
 
     def _apply_persisted_halt(self, session: str, ts: int) -> None:
         """Live loop only. Entries before halt_ts still book; entries at or after it do not."""
         if not self.live_loop or self.halt_fail_closed:
             return
-        status, state = self._read_halt()
-        if status == "missing":
-            return
+        status, state, fp = self._read_halt()
         if status == "corrupt":
-            self._fail_closed_halt(session, "unreadable or corrupt halt file")
+            self._fail_closed_halt(session, "unreadable or corrupt halt file", fp)
             return
-        if str(state.get("session") or "") != session:
+        parsed = None
+        if status == "ok":
+            verdict, parsed = self._parse_halt(state, session)
+            if verdict.startswith("bad"):
+                self._fail_closed_halt(session, verdict[5:], fp)
+                return
+            if verdict != "ok":
+                parsed = None
+        merged = self._merge_halt(parsed, self._unsaved_halt(session))
+        if not merged or merged.get("halt_ts") is None:
             return
-        try:
-            halt_ts = int(state["halt_ts"])
-        except (KeyError, TypeError, ValueError):
-            self._fail_closed_halt(session, "halt file for this session has no halt_ts")
-            return
+        halt_ts = int(merged["halt_ts"])
         if self.halt_from_ts is None or halt_ts < self.halt_from_ts:
             self.halt_from_ts = halt_ts
-        self.mtm_halt_reason = str(state.get("reason") or self.mtm_halt_reason)
-        self._alerted_kinds.update(str(k) for k in (state.get("kinds") or []))
+        for tid, fc in merged["forced_closes"].items():
+            self.forced_closes.setdefault(tid, fc)
+        self.mtm_halt_reason = merged.get("reason") or self.mtm_halt_reason
+        self._alerted_kinds.update(merged["kinds"])
         if int(ts) >= halt_ts:
             self.entries_blocked = True
 
-    def _fail_closed_halt(self, session: str, why: str) -> None:
-        """Cannot trust the halt file. Block entries rather than keep trading."""
+    def _reapply_forced_closes(self, ts: int) -> None:
+        """Re-book a saved fail-safe close at its saved time and price, even if this cycle's tape no
+        longer errors there. Without this the replay would run the trade to a different exit."""
+        if not self.forced_closes:
+            return
+        for pos in list(self.engine.opens.values()):
+            fc = self.forced_closes.get(str(pos.trade_id))
+            if fc is None or int(ts) < int(fc["closed_ts"]):
+                continue
+            log.warning("re-applying saved fail-safe close %s at %s", pos.trade_id, fc["exit"])
+            self.close(pos, ltp=float(fc["exit"]), ts=int(fc["closed_ts"]), reason=FAILSAFE_MTM)
+
+    def _fail_closed_halt(self, session: str, why: str, fingerprint: str = "") -> None:
+        """Cannot trust the halt file. Block entries rather than keep trading. Alert once per file state."""
         self.halt_fail_closed = True
         self.entries_blocked = True
         reason = f"MTM halt file failed closed ({why}). New entries blocked for this session."
         self.mtm_halt_reason = reason
-        log.error("%s path=%s", reason, self._halt_path())
-        if "halt_file" in self._alerted_kinds:
-            return
-        self._alerted_kinds.add("halt_file")
+        if self._alert_once(session, f"{HALT_FILE_KIND}:{fingerprint}", reason, HALT_FILE_KIND):
+            log.error("%s path=%s state=%s", reason, self._halt_path(), fingerprint)
+        else:
+            log.debug("%s (already alerted) path=%s", reason, self._halt_path())
+
+    def _alert_once(self, session: str, key: str, reason: str, kind: str) -> bool:
+        """One HEALTH_ALERT per key: per desk, and in the live loop per (halt path, session, key)."""
+        if key in self._alerted_kinds:
+            return False
+        self._alerted_kinds.add(key)
+        if self.live_loop:
+            shared = (str(self._halt_path()), session, key)
+            if shared in _LIVE_ALERTED:
+                return False
+            _LIVE_ALERTED.add(shared)
         try:
             self._publish("HEALTH_ALERT", {
                 "service": "desk", "status": "CRITICAL", "check": "desk_mtm",
-                "reason": reason, "entries_blocked": True, "error_kind": "halt_file",
-                "session": session,
+                "reason": reason, "entries_blocked": True, "error_kind": kind, "session": session,
             })
         except Exception:
             log.exception("failed to publish HEALTH_ALERT")
-        self._append_health_alert(reason, "halt_file")
+        try:
+            self._append_health_alert(reason, kind)
+        except OSError:
+            log.exception("failed to append health alert")
+        return True
 
     def _entry_halted(self, ts: int) -> bool:
         if self.halt_fail_closed:
@@ -240,7 +353,7 @@ class Desk:
             return float(pos.entry)
         return 0.0
 
-    def _failsafe_close(self, step: Any) -> None:
+    def _failsafe_close(self, step: Any) -> list[dict[str, Any]]:
         """Close whatever this tick failed to mark, at the last good quote, on this same tick."""
         if step is not None:
             self.now_ts = int(step.tick.ts)
@@ -249,17 +362,26 @@ class Desk:
         else:
             und = ""
         ts = int(self.now_ts if self.now_ts is not None else 0)
+        forced: list[dict[str, Any]] = []
         for pos in list(self.engine.opens.values()):
             if und and str(getattr(pos, "underlying", "") or "").upper() != und:
                 continue
             if ts <= 0:
                 ts = int(getattr(pos, "opened_ts", 0) or 0)
+            price = self._failsafe_price(pos, step)
             try:
-                self.close(pos, ltp=self._failsafe_price(pos, step), ts=ts, reason=FAILSAFE_MTM)
+                self.close(pos, ltp=price, ts=ts, reason=FAILSAFE_MTM)
             except Exception:
                 log.exception("failsafe close failed for %s", getattr(pos, "trade_id", "?"))
+                continue
+            forced.append({
+                "trade_id": str(pos.trade_id), "book_id": pos.book_id, "underlying": pos.underlying,
+                "side": pos.side, "entry": pos.entry, "opened_ts": int(pos.opened_ts),
+                "exit": float(price), "closed_ts": int(ts), "reason": FAILSAFE_MTM,
+            })
+        return forced
 
-    def _halt_entries(self, exc: BaseException, step: Any = None) -> None:
+    def _halt_entries(self, exc: BaseException, step: Any = None, forced: Optional[list[dict[str, Any]]] = None) -> None:
         """Block new entries for the rest of the session. One HEALTH_ALERT per error kind."""
         self.entries_blocked = True
         kind = type(exc).__name__
@@ -270,6 +392,8 @@ class Desk:
         halt_ts = int(step.tick.ts) if step is not None else int(self.now_ts or 0)
         if halt_ts > 0 and (self.halt_from_ts is None or halt_ts < self.halt_from_ts):
             self.halt_from_ts = halt_ts
+        for fc in forced or []:
+            self.forced_closes.setdefault(fc["trade_id"], fc)
         self.mtm_halt_reason = reason
         log.error("%s", reason)
         session = ""
@@ -277,35 +401,44 @@ class Desk:
             session = ist(int(step.tick.ts)).date().isoformat()
         elif self.now_ts is not None:
             session = ist(int(self.now_ts)).date().isoformat()
-        status, state = self._read_halt() if self.live_loop else ("missing", {})
-        if status != "ok" or state.get("session") != session:
-            state = {"session": session, "entries_blocked": True, "kinds": [], "halt_ts": self.halt_from_ts}
-        kinds = [str(k) for k in (state.get("kinds") or [])]
-        state["entries_blocked"] = True
-        state["reason"] = reason
-        if self.halt_from_ts is not None:
-            prev = state.get("halt_ts")
-            try:
-                prev_i = int(prev)
-            except (TypeError, ValueError):
-                prev_i = None
-            if prev_i is None or self.halt_from_ts < prev_i:
-                state["halt_ts"] = self.halt_from_ts
-        already = kind in kinds or kind in self._alerted_kinds
-        if not already:
-            kinds.append(kind)
-            self._alerted_kinds.add(kind)
-            try:
-                self._publish("HEALTH_ALERT", {
-                    "service": "desk", "status": "CRITICAL", "check": "desk_mtm",
-                    "reason": reason, "entries_blocked": True, "error_kind": kind,
-                })
-            except Exception:
-                log.exception("failed to publish HEALTH_ALERT")
-            self._append_health_alert(reason, kind)
-        state["kinds"] = kinds
-        if session:
-            self._write_halt(state)
+        if self.live_loop and session:
+            self._persist_halt(session, kind, reason)
+        self._alert_once(session, kind, reason, kind)
+
+    def _persist_halt(self, session: str, kind: str, reason: str) -> None:
+        """Merge this halt into the saved state. Never replace a corrupt file: it keeps blocking."""
+        if self.halt_fail_closed:
+            log.error("halt file already failed closed; not overwriting it path=%s", self._halt_path())
+            return
+        status, state, fp = self._read_halt()
+        if status == "corrupt":
+            self._fail_closed_halt(session, "unreadable or corrupt halt file", fp)
+            log.error("halt file is corrupt; not overwriting it path=%s", self._halt_path())
+            return
+        saved = None
+        if status == "ok":
+            verdict, saved = self._parse_halt(state, session)
+            if verdict.startswith("bad"):
+                self._fail_closed_halt(session, verdict[5:], fp)
+                log.error("halt file is not valid for this session; not overwriting it")
+                return
+            if verdict != "ok":
+                saved = None  # another session's file: stale, replace it
+        mine = {
+            "session": session, "halt_ts": self.halt_from_ts, "kinds": [kind],
+            "forced_closes": dict(self.forced_closes), "reason": reason,
+        }
+        merged = self._merge_halt(self._merge_halt(saved, self._unsaved_halt(session)), mine)
+        key = str(self._halt_path())
+        try:
+            self._write_halt(merged)
+        except OSError as exc:
+            _UNSAVED_HALTS[key] = merged  # later desks in this process still apply it
+            reason_w = f"MTM halt could not be saved ({type(exc).__name__}: {exc}). Kept in memory for this process."
+            self._alert_once(session, HALT_WRITE_KIND, reason_w, HALT_WRITE_KIND)
+            log.error("%s path=%s", reason_w, key)
+            return
+        _UNSAVED_HALTS.pop(key, None)
 
     def _append_health_alert(self, reason: str, kind: str) -> None:
         """Same JSONL shape as packages/health (served by GET /health/alerts)."""
@@ -325,11 +458,10 @@ class Desk:
     # --------------------------------------------------------------- entries
 
     def _veto(self, pos: Any, reason: str, detail: dict[str, Any]) -> None:
-        # ``detail`` may carry the human risk text under ``reason``. mark_skip already takes that name.
-        skip_detail = {k: v for k, v in detail.items() if k != "reason"}
-        self.engine.mark_skip(pos.book_id, pos.underlying, reason, ts=pos.opened_ts, seen_side=pos.side, **skip_detail)
-        row = {"trade_id": pos.trade_id, "book_id": pos.book_id, "underlying": pos.underlying, "side": pos.side,
-               "reason": reason, "ts": pos.opened_ts, **detail}
+        """``reason`` is the skip code and ``reason_code`` the machine code. Human text is ``reason_text``."""
+        self.engine.mark_skip(pos.book_id, pos.underlying, reason, ts=pos.opened_ts, seen_side=pos.side, **detail)
+        row = {**detail, "trade_id": pos.trade_id, "book_id": pos.book_id, "underlying": pos.underlying,
+               "side": pos.side, "reason": reason, "ts": pos.opened_ts}
         self.vetoes.append(row)
         self._publish("ENTRY_VETOED", row)
 
@@ -340,8 +472,10 @@ class Desk:
         if self.paused:
             self._veto(pos, FOUNDER_PAUSED, {})
             return
-        if self._entry_halted(int(pos.opened_ts)):
-            self._veto(pos, MTM_HALT, {"reason_code": MTM_HALT, "detail": self.mtm_halt_reason})
+        opened = int(pos.opened_ts)
+        self._apply_persisted_halt(ist(opened).date().isoformat(), opened)  # even before this desk's first tick
+        if self._entry_halted(opened):
+            self._veto(pos, MTM_HALT, {"reason_code": MTM_HALT, "reason_text": self.mtm_halt_reason})
             return
         symbol = option_symbol(pos.underlying, pos.atm_strike, pos.side)
         try:
@@ -353,8 +487,7 @@ class Desk:
             )
             decision = self.risk.check_entry(intent, now=self.clock())
         except Exception as exc:  # cannot size or check the order -> no trade
-            self._veto(pos, RISK_VETO, {"reason_code": "ENGINE_ERROR", "detail": f"{type(exc).__name__}: {exc}",
-                                        "reason": f"{type(exc).__name__}: {exc}"})
+            self._veto(pos, RISK_VETO, {"reason_code": "ENGINE_ERROR", "reason_text": f"{type(exc).__name__}: {exc}"})
             return
         ticket_risk = None
         try:
@@ -363,14 +496,14 @@ class Desk:
             ticket_risk = None
         if not decision.approved:
             self._veto(pos, RISK_VETO, {
-                "reason_code": decision.reason_code, "detail": decision.reason, "reason": decision.reason,
+                "reason_code": decision.reason_code, "reason_text": decision.reason,
                 "ticket_risk_inr": ticket_risk, "critical": bool(decision.critical),
             })
             return
         try:
             order = self.broker.place_order(intent, decision)
         except OrderRefused as exc:
-            self._veto(pos, BROKER_REFUSED, {"detail": str(exc)})
+            self._veto(pos, BROKER_REFUSED, {"reason_code": BROKER_REFUSED, "reason_text": str(exc)})
             return
         self.tickets[pos.trade_id] = {"order": order, "symbol": symbol, "filled": False, "pos": pos}
         self._publish("ORDER_SUBMITTED", self._order_payload(order, pos.trade_id))
