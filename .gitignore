@@ -21,6 +21,8 @@ data/recon/**
 !data/recon/.gitkeep
 !data/recon/ml/
 !data/recon/ml/.gitkeep
+data/archive/**
+!data/archive/.gitkeep
 
 # Live-rewritten founder board (open in Cursor / browser; do not commit ticks)
 teams/00_orchestrator/canvases/*
