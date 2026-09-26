@@ -48,27 +48,43 @@ desk   founder pause? -> RiskEngine.check_entry -> PaperBroker.place_order -> bo
   mirrors the engine's own gates) so the two paths still match. The **live paper loop**
   (`paper-scalp --loop`, or `replay_paper_scalp(live_session=True)` with the flag on) uses
   `live_risk_config` in `config/event_path.yaml`, which defaults to the stricter
-  `config/risk_limits.yaml` (₹5k per-trade cap, 15-minute cooldown, 15:00 cutoff). That loop
+  `config/risk_limits.yaml` (₹30k per-trade cap, 15-minute cooldown, 15:00 cutoff). That loop
   never silently falls through to the looser replay file; naming the replay file in
   `live_risk_config` is the only way to select it. The founder kill-switch file still vetoes
   entries. Parity passes its own `EventSession()`, so a parity run stays on the replay file
   even when `live_session=True`.
-- **The ₹5k cap is unchanged.** `config/risk_limits.yaml` values are a founder decision. Do not
-  edit them to fit a lab ticket. A lab-gated ticket whose worst-case loss is about ₹14k–₹29k
-  is vetoed by `MAX_LOSS_PER_TRADE` against that ₹5,000 `max_loss_per_trade`. The veto is not
-  a critical alarm (health `ok` stays true), but the reason text and `ticket_risk_inr` are on
-  the `ENTRY_VETOED` audit row, in `risk_decisions.intent_json`, and on `GET /health/status`
-  as `latest_entry_veto`.
+- **Paper and shadow risk limits (desk lead decision).** `paper` and `shadow` in
+  `config/risk_limits.yaml` are 25 lots, 3 open positions, ₹30,000 per trade and ₹90,000 per
+  day. They are sized for learning on a ~₹6L paper account trading 25 lots, where a lab ticket
+  risks about ₹14k–₹29k (the old ₹5k cap vetoed every one, and the old ₹15k daily cap was
+  smaller than one trade). They are not real-money limits: re-derive them during go-live money
+  management. `limited_live` and `live` are unchanged. A veto is not a critical alarm (health
+  `ok` stays true). `ENTRY_VETOED` keeps the skip code in `reason`, the machine code in
+  `reason_code` (for example `MAX_LOSS_PER_TRADE`), the human text in `reason_text`, and the
+  rupee risk in `ticket_risk_inr`. The ledger's `risk_decisions.intent_json` has
+  `ticket_risk_inr`, and `GET /health/status` shows `latest_entry_veto` with
+  `reason_code` / `reason_text` / `ticket_risk_inr`.
 - **Mark-to-market errors.** An exception in the desk's mark or stop path closes each open
   ticket on that index at the last good quote (else this tick's premium, else the entry),
-  publishes `POSITION_CLOSED` with reason `failsafe_mtm_error`, emits one `HEALTH_ALERT` per
-  error kind for the session, and appends the health alerts file. The live paper loop
-  (`run_loop` only) stores `halt_ts` and the error kind in `data/desk/live_loop/mtm_halt.json`.
-  The next cycle still books entries from before that timestamp and blocks entries at or after it.
-  A missing file does nothing. An unreadable or corrupt file blocks entries and logs a
-  `halt_file` alert. Replays, lab runs, and parity do not read that file. The next session
-  does not inherit the block. Flatten still closes positions. With the flag off, `step_mark`
-  is unchanged. `write=False` does not append `data/recon/ml_paper_model_logs.jsonl`.
+  publishes `POSITION_CLOSED` with reason `failsafe_mtm_error`, and blocks entries at or
+  after that tick. Flatten still closes positions. With the flag off, `step_mark` is unchanged.
+  `write=False` does not append `data/recon/ml_paper_model_logs.jsonl`.
+- **The live-loop halt file.** Only the live paper loop (`run_loop`) reads or writes
+  `data/desk/live_loop/mtm_halt.json`. Replays, lab runs, and parity never do. The file holds the
+  session, `halt_ts`, the error kinds, and every forced close (trade id, side, entry time and
+  price, exit time and price, reason). The loop re-replays the whole session each cycle, so on
+  every later cycle entries before `halt_ts` still book, entries at or after it are blocked,
+  and each saved forced close is re-booked at its saved time and price even if the tape no
+  longer errors there. New halts are merged into the file (earliest `halt_ts`, every kind,
+  every forced close) and written atomically. Anything that is not a readable halt for this
+  session fails closed and blocks every entry: a directory, a broken link, a parent that is a
+  file, an unreadable or half-written file, bad JSON, no session, no `halt_ts`, or a bad forced
+  close. A corrupt file is never overwritten; delete it to clear the block. A missing file or
+  another session's file does not block. One `HEALTH_ALERT` is raised per error kind and per
+  corrupt file state for the session, across loop cycles; a changed file alerts once more. If
+  the halt cannot be written, it is kept in memory for the rest of the loop process and a
+  `halt_write` alert is raised. That in-memory copy and the alert dedupe do not survive a loop
+  restart.
 - **Analyst timeout.** `timeout_ms` in `config/analysts.yaml` (and an optional per-key
   `timeout_ms`) is the live paper loop's wall-clock budget. Replay and parity run analysts
   in order with no wall-clock abstain, so a busy machine cannot change a vote.
@@ -81,7 +97,11 @@ desk   founder pause? -> RiskEngine.check_entry -> PaperBroker.place_order -> bo
 Every directory under `packages/` that contains Python is installable (`pip install -e`).
 `packages/indicators` and `packages/contracts` are notes only. `.cursor/install.sh` installs the
 Python packages in dependency order. `desk` depends on `brokers`, `risk-engine`, `ledger`, and
-`desk-ml`. pip only resolves those local names when they are on the same install command:
+`desk-ml`; `desk-ml` depends on `trading-agents-india`. In-repo dependencies are pinned to the
+local version `0.1.0+aad`. PyPI does not accept local versions, so a look-alike package on PyPI
+can never satisfy them. uv resolves them from the workspace (root `pyproject.toml`,
+`tool.uv.sources` with `workspace = true`). With pip, install them on one command, so every
+in-repo name comes from its folder; a single package on its own fails rather than fetching:
 
 ```bash
 pip install -e packages/ledger -e packages/risk-engine -e packages/brokers \
@@ -162,8 +182,8 @@ on both paths.
 ## Deliberately not done yet
 
 - Behaviour changes: the proven-fix rules, regime-weighted voting, LLM second opinion, and
-  boss-approved target exits. The live paper loop already reads `config/risk_limits.yaml`; its
-  rupee caps stay as written (see the ₹5k note above).
+  boss-approved target exits. The live paper loop already reads `config/risk_limits.yaml`
+  (see the paper and shadow limits above).
 - Full founder controls (per-position overrides, lot or target changes, time-window blacklist).
   The desk handles pause, resume and flatten only.
 - Persistent ledger and audit for the live paper loop. It re-replays the whole session on each

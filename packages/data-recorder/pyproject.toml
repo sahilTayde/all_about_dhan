@@ -8,10 +8,13 @@ version = "0.1.0"
 description = "Daily index, futures, and option-chain recorder. No orders."
 readme = "README.md"
 requires-python = ">=3.9"
-dependencies = ["dhan-client"]
+dependencies = ["dhan-client==0.1.0+aad"]
 
 [project.optional-dependencies]
 dev = ["pytest>=8"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.uv.sources]
+dhan-client = { workspace = true }

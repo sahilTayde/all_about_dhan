@@ -8,10 +8,14 @@ version = "0.1.0"
 description = "Boss orchestrator: analyst votes to ENTRY_APPROVED / NO_ENTRY. Paper only. Ignores shadow analysts."
 readme = "README.md"
 requires-python = ">=3.9"
-dependencies = ["analysts", "desk-ml"]
+dependencies = ["analysts==0.1.0+aad", "desk-ml==0.1.0+aad"]
 
 [project.optional-dependencies]
 dev = ["pytest>=8"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.uv.sources]
+analysts = { workspace = true }
+desk-ml = { workspace = true }

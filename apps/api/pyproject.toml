@@ -13,8 +13,8 @@ dependencies = [
     "uvicorn[standard]>=0.30",
     "pydantic>=2",
     "python-dotenv>=1.0",
-    "dhan-client",
-    "backtest-engine",
+    "dhan-client==0.1.0+aad",
+    "backtest-engine==0.1.0+aad",
 ]
 
 [project.scripts]
@@ -22,3 +22,7 @@ aad-api = "api.__main__:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.uv.sources]
+dhan-client = { workspace = true }
+backtest-engine = { workspace = true }

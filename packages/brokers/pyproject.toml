@@ -4,14 +4,17 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "brokers"
-version = "0.1.0"
+version = "0.1.0+aad"
 description = "Paper broker adapter and order state machine. Live Dhan orders stay behind the founder gate."
 readme = "README.md"
 requires-python = ">=3.9"
-dependencies = ["risk-engine"]
+dependencies = ["risk-engine==0.1.0+aad"]
 
 [project.optional-dependencies]
 dev = ["pytest>=8"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.uv.sources]
+risk-engine = { workspace = true }

@@ -4,11 +4,11 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "analysts"
-version = "0.1.0"
+version = "0.1.0+aad"
 description = "Analyst registry, room, and log-only shadow features. Paper only. No orders."
 readme = "README.md"
 requires-python = ">=3.9"
-dependencies = ["PyYAML>=6", "desk-ml"]
+dependencies = ["PyYAML>=6", "desk-ml==0.1.0+aad"]
 
 [project.optional-dependencies]
 dev = ["pytest>=8"]
@@ -18,3 +18,6 @@ export-shadow-audit = "analysts.shadow_export:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.uv.sources]
+desk-ml = { workspace = true }
