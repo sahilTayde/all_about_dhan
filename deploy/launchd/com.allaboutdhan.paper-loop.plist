@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Mac template (PAPER only). Replace REPO with the checkout path, then:
+       cp deploy/launchd/com.allaboutdhan.paper-loop.plist ~/Library/LaunchAgents/
+       launchctl load ~/Library/LaunchAgents/com.allaboutdhan.paper-loop.plist
+     launchd restarts the supervisor if it dies (KeepAlive on non-zero exit); health.supervise
+     restarts a crashed loop and kills+restarts a hung one. No broker credentials are read here. -->
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>com.allaboutdhan.paper-loop</string>
+  <key>WorkingDirectory</key><string>REPO</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>REPO/.venv/bin/python</string><string>-u</string><string>-m</string><string>health.supervise</string>
+    <string>--</string>
+    <string>REPO/.venv/bin/python</string><string>-u</string><string>-m</string><string>trading_agents_india</string>
+    <string>dual-tape</string><string>--live-chain</string><string>--paper-train</string><string>--paper-scalp</string>
+    <string>--tick-seconds</string><string>2</string><string>--max-ticks</string><string>0</string>
+  </array>
+  <key>KeepAlive</key><dict><key>SuccessfulExit</key><false/></dict>
+  <key>ThrottleInterval</key><integer>10</integer>
+  <key>StandardOutPath</key><string>REPO/data/recon/dual_tape_live_2s.log</string>
+  <key>StandardErrorPath</key><string>REPO/data/recon/dual_tape_live_2s.log</string>
+</dict>
+</plist>

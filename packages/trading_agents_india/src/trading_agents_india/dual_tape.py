@@ -524,7 +524,10 @@ def persist_tick(
     }
     jsonl = append_jsonl(mix_dir / f"{day}.jsonl", row)
     latest = mix_dir / "latest.json"
-    latest.write_text(json.dumps(row, indent=2, default=str, ensure_ascii=False) + "\n", encoding="utf-8")
+    # Atomic: the replay loader reads latest.json too, and must never see half a file.
+    tmp = latest.with_name(f".{latest.name}.{os.getpid()}.tmp")
+    tmp.write_text(json.dumps(row, indent=2, default=str, ensure_ascii=False) + "\n", encoding="utf-8")
+    os.replace(tmp, latest)
 
     overlay_path = ""
     try:
@@ -881,6 +884,25 @@ class DualTapeResult:
         }
 
 
+def _loop_beat(repo_root: Path) -> None:
+    try:
+        from desk_ml.live_cycle import loop_beat
+
+        loop_beat(repo_root)
+    except Exception:  # noqa: BLE001 — a stale heartbeat is the supervisor's signal
+        pass
+
+
+def _alert_once(repo_root: Path, check: str, kind: str, message: str) -> None:
+    """One persisted alert per (session, check, kind); stderr if desk_ml is not installed."""
+    try:
+        from desk_ml.reliability import AlertSink
+
+        AlertSink(repo_root).emit(session=now_ist().date().isoformat(), check=check, kind=kind, message=message)
+    except Exception:  # noqa: BLE001
+        print(json.dumps({"event": "ALERT", "check": check, "kind": kind, "message": message}), flush=True)
+
+
 def run_dual_tape_loop(
     *,
     underlyings: Optional[Sequence[str]] = None,
@@ -947,6 +969,8 @@ def run_dual_tape_loop(
             if founder_stop_requested(settings.repo_root):
                 stopped = "founder_stop_flag"
                 break
+            if paper_scalp:
+                _loop_beat(settings.repo_root)
             clock = snapshot()
             if not simulate:
                 ok, why = dual_tape_live_gate()
@@ -960,13 +984,18 @@ def run_dual_tape_loop(
             snaps: list[UnderlyingSnap] = []
             notes: list[DivergenceNote] = []
             for und in names:
-                snap = gather_underlying(
-                    und,
-                    prefer_live=prefer_live_chain,
-                    simulate=simulate,
-                    prev=prev_map.get(und),
-                    clock_in_shell=clock.in_session_shell,
-                )
+                try:
+                    snap = gather_underlying(
+                        und,
+                        prefer_live=prefer_live_chain,
+                        simulate=simulate,
+                        prev=prev_map.get(und),
+                        clock_in_shell=clock.in_session_shell,
+                    )
+                except Exception as exc:  # noqa: BLE001 — one index's feed must not stop the others
+                    _alert_once(settings.repo_root, "capture", f"gather_failed:{und}:{type(exc).__name__}",
+                                f"dual-tape gather failed for {und}: {type(exc).__name__}: {exc}")
+                    continue
                 note = judge_tick(
                     underlying=und,
                     index_delta=snap.index_delta,
@@ -981,29 +1010,35 @@ def run_dual_tape_loop(
                 notes.append(note)
                 prev_map[und] = snap.to_dict()
 
+            persisted = False
             if persist:
-                last_paths = persist_tick(
-                    settings.repo_root,
-                    tick_index=i,
-                    clock=clock.to_dict(),
-                    snaps=snaps,
-                    notes=notes,
-                    simulated=simulate,
-                    kb_path=settings.kb_path,
-                    paper_train=train,
-                    skip_spray_trades=bool(paper_scalp),
-                )
-                if paper_scalp:
+                try:
+                    last_paths = persist_tick(
+                        settings.repo_root,
+                        tick_index=i,
+                        clock=clock.to_dict(),
+                        snaps=snaps,
+                        notes=notes,
+                        simulated=simulate,
+                        kb_path=settings.kb_path,
+                        paper_train=train,
+                        skip_spray_trades=bool(paper_scalp),
+                    )
+                    persisted = True
+                except Exception as exc:  # noqa: BLE001 — e.g. ENOSPC: keep capturing, do not trade on a stale tape
+                    _alert_once(settings.repo_root, "capture", f"persist_failed:{type(exc).__name__}",
+                                f"dual-tape persist failed ({type(exc).__name__}: {exc}); paper cycle skipped")
+                    heartbeat_board = {"error": "persist_failed", "detail": str(exc)[:240]}
+                if paper_scalp and persisted:
                     try:
-                        from desk_ml.paper_scalp import replay_paper_scalp
+                        from desk_ml.live_cycle import run_cycle
 
-                        board = replay_paper_scalp(
-                            root=settings.repo_root,
+                        # One live cycle: control inputs -> replay -> booked-trade guard -> board ->
+                        # heartbeat. A failure is recorded and alerted there, and the board says so.
+                        board = run_cycle(
+                            settings.repo_root,
                             source="dual-tape",
-                            write=True,
-                            live_session=True,
-                            deny_model_signals=True,
-                            nifty_cover_closed_1m=True,
+                            replay_kw={"deny_model_signals": True, "nifty_cover_closed_1m": True},
                         )
                         last_full_board = board
                         last_paths["ml_paper_dashboard"] = str(
@@ -1030,12 +1065,12 @@ def run_dual_tape_loop(
                                 "from last tick. WS not enabled (no greeks on feed parse)."
                             ),
                         }
-                    except Exception as exc:  # noqa: BLE001 — scalper fail-soft
+                    except Exception as exc:  # noqa: BLE001 — recorded + alerted by run_cycle
                         heartbeat_board = {
                             "error": "paper_scalp_failed",
                             "detail": str(exc)[:240],
                         }
-                else:
+                elif not paper_scalp:
                     heartbeat_board = {}
 
             heartbeat = {
@@ -1080,7 +1115,8 @@ def run_dual_tape_loop(
                     try:
                         from desk_ml.paper_scalp import refresh_dashboard_clock, write_dashboard
 
-                        refresh_dashboard_clock(board, tick_seconds=int(tick_seconds))
+                        # Engine state comes from engine_heartbeat.json: a beat never revives a dead engine.
+                        refresh_dashboard_clock(board, tick_seconds=int(tick_seconds), root=settings.repo_root)
                         write_dashboard(board, root=settings.repo_root)
                     except Exception:  # noqa: BLE001
                         return

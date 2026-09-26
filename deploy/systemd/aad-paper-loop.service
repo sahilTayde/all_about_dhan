@@ -1,0 +1,20 @@
+# VPS template (PAPER only). Replace /opt/all_about_dhan with the checkout path, then:
+#   sudo cp deploy/systemd/aad-paper-loop.service /etc/systemd/system/
+#   sudo systemctl daemon-reload && sudo systemctl enable --now aad-paper-loop
+# systemd keeps the supervisor alive; health.supervise restarts a crashed loop and kills+restarts a
+# hung one (stale data/recon/engine_heartbeat.json). No broker credentials are read here.
+[Unit]
+Description=all_about_dhan paper loop (dual-tape + paper scalp, supervised)
+After=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/all_about_dhan
+ExecStart=/opt/all_about_dhan/.venv/bin/python -u -m health.supervise -- /opt/all_about_dhan/.venv/bin/python -u -m trading_agents_india dual-tape --live-chain --paper-train --paper-scalp --tick-seconds 2 --max-ticks 0
+Restart=on-failure
+RestartSec=10
+StandardOutput=append:/opt/all_about_dhan/data/recon/dual_tape_live_2s.log
+StandardError=append:/opt/all_about_dhan/data/recon/dual_tape_live_2s.log
+
+[Install]
+WantedBy=multi-user.target

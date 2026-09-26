@@ -160,3 +160,38 @@ def test_telegram_only_when_both_env_vars_set(tmp_path, monkeypatch, caplog):
     assert b"chat_id=42" in sent[0][1] and b"recorder" in sent[0][1]
     monkeypatch.setattr(mon.urllib.request, "urlopen", lambda *a, **k: (_ for _ in ()).throw(OSError("down")))
     assert mon.send_telegram("x") is False and "SECRET" not in caplog.text
+
+
+def _engine_heartbeat(tmp_path, *, ok_age, fails=0, now=MON_1030):
+    last_ok = (now - timedelta(seconds=ok_age)).isoformat(timespec="seconds")
+    hb = {"last_ok_ist": last_ok, "consecutive_failures": fails, "last_error": "RuntimeError: boom" if fails else None}
+    (tmp_path / "data" / "recon" / "engine_heartbeat.json").write_text(json.dumps(hb))
+
+
+def test_spof_S1_dead_engine_not_masked_by_fresh_dashboard_beats(tmp_path):
+    # The board was just rewritten by a UI beat (10 s old) but the last *good* cycle is 2 h old.
+    m = setup(tmp_path, recorder_age=30, paper_age=10)
+    _engine_heartbeat(tmp_path, ok_age=2 * 3600)
+    pe = m.run_once(MON_1030)["checks"]["paper_engine"]
+    assert pe["ok"] is False and "dead or hung" in pe["message"]
+
+
+def test_spof_S1_failing_engine_is_critical_even_when_recent(tmp_path):
+    m = setup(tmp_path, recorder_age=30, paper_age=10)
+    _engine_heartbeat(tmp_path, ok_age=5, fails=1)
+    pe = m.run_once(MON_1030)["checks"]["paper_engine"]
+    assert pe["ok"] is False and "failing" in pe["message"] and "boom" in pe["message"]
+
+
+def test_healthy_engine_heartbeat_is_ok(tmp_path):
+    m = setup(tmp_path, recorder_age=30, paper_age=10)
+    _engine_heartbeat(tmp_path, ok_age=30)
+    assert m.run_once(MON_1030)["checks"]["paper_engine"]["ok"] is True
+
+
+def test_legacy_board_that_says_dead_is_not_ok(tmp_path):
+    m = setup(tmp_path, recorder_age=30, paper_age=None)
+    stamp = MON_1030.isoformat(timespec="seconds")
+    (tmp_path / "data" / "recon" / "ml_paper_dashboard.json").write_text(
+        json.dumps({"as_of_ist": stamp, "heartbeat": {"as_of_ist": stamp, "alive": False, "engine_error": "x"}}))
+    assert m.run_once(MON_1030)["checks"]["paper_engine"]["ok"] is False

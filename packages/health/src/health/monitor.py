@@ -25,8 +25,12 @@ log = logging.getLogger("health")
 IST = timezone(timedelta(hours=5, minutes=30))
 MARKET_OPEN, MARKET_CLOSE = time(9, 15), time(15, 30)
 STALE_SECONDS = 300
+# The live paper cycle re-replays the whole day (O(n^2) late in the session); 30 s would page on a
+# healthy engine. A recorded engine error is CRITICAL immediately, whatever its age.
+ENGINE_STALE_SECONDS = 120
 RECORDER_HEARTBEAT = "recorder_heartbeat.jsonl"  # data-recorder (PR-001), one line per minute
-PAPER_DASHBOARD = "ml_paper_dashboard.json"  # desk_ml paper-scalp loop rewrites heartbeat.as_of_ist
+PAPER_DASHBOARD = "ml_paper_dashboard.json"  # desk_ml paper-scalp board (UI; beats refresh it)
+ENGINE_HEARTBEAT = "engine_heartbeat.json"  # desk_ml.live_cycle: written only by a finished cycle
 EVENT_CHECKS = {"risk_vetoes"}  # alert per new event; no "recovered" message
 
 
@@ -84,12 +88,41 @@ def check_recorder(recon_dir: Path, now: datetime) -> dict[str, Any]:
 
 
 def check_paper_engine(recon_dir: Path, now: datetime) -> dict[str, Any]:
+    """Alive = the last *successful* cycle is fresh and the engine is not failing.
+
+    Reads ``engine_heartbeat.json`` (only a finished cycle writes last_ok). The dashboard's own
+    timestamps are refreshed by UI beats between cycles, so they cannot prove the engine works;
+    they are used only when no engine heartbeat exists (older loops).
+    """
+    try:
+        hb = json.loads((recon_dir / ENGINE_HEARTBEAT).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        hb = None
+    if isinstance(hb, dict):
+        market = in_market_hours(now)
+        closed = "" if market else " (market closed)"
+        last_ok = parse_ts(hb.get("last_ok_ist"))
+        fails = int(hb.get("consecutive_failures") or 0)
+        if fails:
+            return _result("paper_engine", not market,
+                           f"engine failing: {fails} cycle(s) in a row, last error {hb.get('last_error')}{closed}",
+                           last_seen=last_ok)
+        if last_ok is None:
+            return _result("paper_engine", not market, f"engine has never completed a cycle{closed}")
+        age = (now - last_ok).total_seconds()
+        if market and age > ENGINE_STALE_SECONDS:
+            return _result("paper_engine", False,
+                           f"dead or hung: last good cycle {age:.0f}s ago (limit {ENGINE_STALE_SECONDS}s in market hours)",
+                           last_seen=last_ok)
+        return _result("paper_engine", True, f"last good cycle {age:.0f}s ago{closed}", last_seen=last_ok)
     try:
         board = json.loads((recon_dir / PAPER_DASHBOARD).read_text(encoding="utf-8"))
     except (OSError, ValueError):
         board = {}
     beat = board.get("heartbeat") or {}
-    return _freshness("paper_engine", parse_ts(beat.get("as_of_ist") or board.get("as_of_ist")), now)
+    if beat.get("engine_error") or beat.get("alive") is False:
+        return _result("paper_engine", not in_market_hours(now), f"engine reports failure: {beat.get('engine_error')}")
+    return _freshness("paper_engine", parse_ts(beat.get("engine_last_ok_ist") or beat.get("as_of_ist") or board.get("as_of_ist")), now)
 
 
 def _query(ledger_path: Path, sql: str, args: tuple = ()) -> Optional[list[tuple]]:
@@ -248,8 +281,11 @@ class HealthMonitor:
     def _alert(self, now: datetime, event: str, r: dict[str, Any]) -> None:
         rec = {"ts": now.isoformat(timespec="seconds"), "event": event, "check": r["check"],
                "severity": r["severity"], "message": r["message"]}
-        with open(self.alerts_path, "a", encoding="utf-8") as f:
-            f.write(json.dumps(rec) + "\n")
+        try:
+            with open(self.alerts_path, "a", encoding="utf-8") as f:
+                f.write(json.dumps(rec) + "\n")
+        except OSError as exc:  # a full disk must not stop the monitor from reporting
+            log.error("alerts.jsonl unwritable (%s): %s", exc, json.dumps(rec))
         log.log(logging.INFO if event == "RECOVERED" else logging.ERROR, "%s %s: %s", event, r["check"], r["message"])
         send_telegram(f"all_about_dhan {event} {r['check']} ({r['severity']}): {r['message']}")
 
