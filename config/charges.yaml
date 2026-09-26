@@ -1,0 +1,13 @@
+# Charges for Indian index options (NIFTY / BANKNIFTY / SENSEX), applied per executed order.
+# Read by packages/ledger (ledger.charges.load_rates). No secrets here.
+#
+# Rates are the same numbers as packages/desk-ml/src/desk_ml/groww_costs.py (the paper desk's
+# existing cost model), so paper and ledger P&L agree. Statutory rates are VERIFY: check the
+# latest NSE/BSE circulars and https://dhan.co/pricing before going live.
+
+brokerage_per_order_inr: 20.0   # flat ₹20 per executed order (charged once per order, not per partial fill)
+stt_sell_premium_frac: 0.0015   # STT 0.15% of sell-side premium (Budget 2026, from 1 Apr 2026)
+exchange_txn_frac: 0.0003503    # NSE options exchange transaction charge, 0.03503% of premium, both sides
+sebi_fee_frac: 0.000001         # SEBI turnover fee, ₹10 per crore, both sides
+stamp_duty_buy_frac: 0.00003    # stamp duty 0.003% of buy-side premium only
+gst_frac: 0.18                  # GST 18% on (brokerage + exchange charge + SEBI fee)
