@@ -10,6 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from api.config import load_api_settings
 from api.desk_merge import merge_live_paper_into_desk, overlay_customer_sod_ticket
 from api.founder_status import build_founder_status
+from api.health_alerts import router as health_router
 from api.models import TookTradeBody, TookTradeRecord
 from api.premium_bind import bind_premiums_onto_desk
 from api.store import SignalStore
@@ -264,6 +265,7 @@ def create_app() -> FastAPI:
         return json.loads(path.read_text(encoding="utf-8"))
 
     app.include_router(ws_router)
+    app.include_router(health_router)
     return app
 
 
