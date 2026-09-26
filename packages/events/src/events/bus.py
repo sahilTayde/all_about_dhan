@@ -17,6 +17,7 @@ import json
 import logging
 import os
 import threading
+from collections import deque
 from dataclasses import dataclass
 from typing import Any, Callable, Iterable, Optional
 
@@ -43,7 +44,7 @@ class EventBus:
     def __init__(self, audit: Optional[EventAuditLog] = None, *, raise_errors: bool = False) -> None:
         self.audit = audit
         self.raise_errors = raise_errors
-        self.errors: list[dict[str, Any]] = []
+        self.errors: deque[dict[str, Any]] = deque(maxlen=1000)  # bounded: a hot failing handler cannot grow memory
         self._subs: dict[str, Subscription] = {}
         self._by_type: dict[str, list[Subscription]] = {}
         self._counter = itertools.count(1)

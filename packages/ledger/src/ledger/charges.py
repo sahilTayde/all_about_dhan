@@ -8,7 +8,9 @@ from typing import Any
 
 import yaml
 
-DEFAULT_CHARGES_PATH = Path("config/charges.yaml")
+# This repo's config/charges.yaml (editable install), not the process CWD; CWD only as a fallback.
+_REPO_CHARGES = Path(__file__).resolve().parents[4] / "config" / "charges.yaml"
+DEFAULT_CHARGES_PATH = _REPO_CHARGES if _REPO_CHARGES.is_file() else Path("config/charges.yaml")
 RATE_KEYS = (
     "brokerage_per_order_inr",
     "stt_sell_premium_frac",

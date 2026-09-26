@@ -101,9 +101,9 @@ def test_live_paper_loop_uses_the_strict_risk_file(monkeypatch, tmp_path):
     seen: list[Path] = []
     orig = eng.RiskEngine.__init__
 
-    def wrapped(self, ledger=None, config_path=eng.DEFAULT_CONFIG_PATH):
+    def wrapped(self, ledger=None, config_path=eng.DEFAULT_CONFIG_PATH, **kw):
         seen.append(Path(config_path))
-        return orig(self, ledger, config_path)
+        return orig(self, ledger, config_path, **kw)
 
     monkeypatch.setattr(eng.RiskEngine, "__init__", wrapped)
     monkeypatch.setattr(ps, "load_index_closes", lambda u, root=None: {})

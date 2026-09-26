@@ -199,7 +199,8 @@ class EventSession:
             led = self._ledger if self._ledger is not None else Ledger(":memory:", charges_path=repo_root() / CHARGES_CONFIG)
             broker = ClockedPaperBroker(clock=lambda: self.desk.clock(), slippage_ticks=0)
             attach_ledger(broker, led)
-            self.stacks[und] = (led, RiskEngine(led, config_path=self.risk_config), broker)
+            root = getattr(self.engine, "root", None) if self.engine is not None else None
+            self.stacks[und] = (led, RiskEngine(led, config_path=self.risk_config, root=root), broker)
         _led, self.desk.risk, self.desk.broker = self.stacks[und]
 
     def set_prior_closes(self, und: str, closes_by_ts: dict[Any, Any]) -> None:
