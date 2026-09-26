@@ -1,0 +1,40 @@
+# Risk limits for the USE_EVENT_BUS replay path (desk_ml.event_path) ONLY. Paper mode, never live.
+#
+# Phase 2 is a structural refactor: the desk sends every entry through the risk engine, but the
+# paper engine already applies its own gates (09:30-15:16 IST, 20-30 lots, one SOD ticket per
+# index, stop/target levels). These limits mirror those gates so the event path reproduces the
+# monolith's trades. Tightening them (e.g. config/risk_limits.yaml's per-trade ₹ cap and 15-minute
+# loss cooldown) is a deliberate behaviour change for a later PR, not this one.
+#
+# The founder kill switch file still vetoes every new entry here too.
+mode: paper
+
+kill_switch: false
+kill_switch_file: data/ledger/KILL_SWITCH
+
+entry_start_ist: "09:15"
+entry_cutoff_ist: "15:30"
+cooldown_after_loss_minutes: 0
+idempotency_seconds: 0            # tickets are keyed by trade_id; reused client ids are still refused
+
+modes:
+  paper:
+    max_lots_per_trade: 30          # desk_ml.paper_scalp.PAPER_MAX_LOTS
+    max_open_positions: 30          # every paper book x index at once
+    max_daily_loss: -1000000000
+    max_loss_per_trade: -1000000000
+  shadow:
+    max_lots_per_trade: 30
+    max_open_positions: 30
+    max_daily_loss: -1000000000
+    max_loss_per_trade: -1000000000
+  limited_live:
+    max_lots_per_trade: 0
+    max_open_positions: 0
+    max_daily_loss: 0
+    max_loss_per_trade: 0
+  live:
+    max_lots_per_trade: 0
+    max_open_positions: 0
+    max_daily_loss: 0
+    max_loss_per_trade: 0
