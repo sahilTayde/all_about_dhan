@@ -1,0 +1,11 @@
+# Which risk file the USE_EVENT_BUS path uses. Paper only. Does not touch the live-order gate.
+#
+# Replay and the parity tool keep config/risk_limits_replay.yaml so trades match the monolith.
+# The live paper loop (`paper-scalp --loop`, or replay_paper_scalp(live_session=True) with the
+# flag on) uses live_risk_config. The default is the stricter config/risk_limits.yaml
+# (per-trade loss cap, 15-minute cooldown, 15:00 cutoff).
+#
+# The live loop never silently falls through to risk_limits_replay.yaml. To use that looser
+# file on the live loop you must set live_risk_config to it here, on purpose.
+live_risk_config: config/risk_limits.yaml
+replay_risk_config: config/risk_limits_replay.yaml

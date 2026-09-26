@@ -5131,6 +5131,7 @@ class TickStep:
     dealer: dict[str, Any]
     strike: float
     window: list[Triple] = field(default_factory=list)
+    bars_1m: list = field(default_factory=list)  # 1m bars from triples[: i + 1] only; shadow features, not entries
     ml001_hold: bool = False
     ml002_hold: bool = False
     follow_gap: bool = False
@@ -5229,6 +5230,7 @@ def step_context(engine: BookEngine, *, underlying: str, triples: Sequence[Tripl
     return TickStep(
         und=und, i=i, tick=tick, prev=prev, classified=classified, bin_rec=bin_rec, dealer=dealer, strike=strike,
         window=list(triples[max(0, i - RANGE_LOOKBACK) : i + 1]),
+        bars_1m=bars,
     )
 
 
@@ -6149,9 +6151,17 @@ def replay_paper_scalp(
         engine.lot_by_und[und] = resolve_lot_size(und, root=base)
     own_session = event_session is None and (event_bus_enabled() if use_event_bus is None else use_event_bus)
     if own_session:
-        from desk_ml.event_path import EventSession
+        from desk_ml.event_path import EventSession, require_event_packages, resolve_risk_config
 
-        event_session = EventSession()
+        require_event_packages()
+        risk_path, risk_explicit = resolve_risk_config(live_session=bool(live_session), root=base)
+        if live_session and risk_path.name == "risk_limits_replay.yaml" and not risk_explicit:
+            raise RuntimeError(
+                "live paper loop will not use config/risk_limits_replay.yaml unless "
+                "config/event_path.yaml sets live_risk_config to that file. "
+                "The default is the stricter config/risk_limits.yaml."
+            )
+        event_session = EventSession(risk_config=risk_path, deterministic=not bool(live_session))
     if event_session is not None:
         event_session.attach(engine)
 
@@ -6177,6 +6187,8 @@ def replay_paper_scalp(
         if sr_day:
             sr_closes = {k: v for k, v in sr_closes.items() if ist_calendar_date(int(k)) < sr_day}
             engine.sr_levels[u] = build_sr_levels(sr_closes, session_ist_date=sr_day)
+        if event_session is not None:
+            event_session.set_prior_closes(u, sr_closes if sr_day else {})
         logit_series, logit_meta = logit_side_series(triples, index_closes=idx_closes, xr=False)
         logit_xr_series, logit_xr_meta = logit_side_series(triples, index_closes=idx_closes, xr=True)
         thin_logit = {
@@ -8265,6 +8277,11 @@ def run_loop(
 ) -> dict[str, Any]:
     """Opt-in. Writes heartbeat into dashboard JSON. Does not arm paper_ops."""
     import time
+
+    if event_bus_enabled():
+        from desk_ml.event_path import require_event_packages
+
+        require_event_packages()  # once, before the replay loop
 
     sleep = sleep_fn or time.sleep
     base = root or repo_root()

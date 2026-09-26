@@ -51,6 +51,7 @@ def default_keys() -> list[str]:
 
 def build(keys: Optional[Sequence[str]] = None) -> list[Analyst]:
     import analysts.legacy  # noqa: F401  (registers the paper engine's room)
+    import analysts.shadow  # noqa: F401  (shadow analysts; boss ignores them)
 
     wanted = list(keys) if keys is not None else default_keys()
     unknown = [k for k in wanted if k not in REGISTRY]
@@ -59,13 +60,50 @@ def build(keys: Optional[Sequence[str]] = None) -> list[Analyst]:
     return [REGISTRY[k]() for k in wanted]
 
 
+def _parse_analyst_entry(item: Any) -> tuple[str, bool, Optional[int]]:
+    """A yaml string, or ``{key, shadow, timeout_ms}``. Returns (key, shadow, timeout_ms or None)."""
+    if isinstance(item, str):
+        return item, False, None
+    if isinstance(item, dict):
+        key = item.get("key") or item.get("id")
+        if not key:
+            raise ValueError(f"analyst entry missing key: {item}")
+        timeout = item.get("timeout_ms")
+        return str(key), bool(item.get("shadow")), (int(timeout) if timeout is not None else None)
+    return str(item), False, None
+
+
 def load_config(path: Optional[Path] = None) -> dict[str, Any]:
-    """config/analysts.yaml -> {"analysts": [keys], "timeout_ms": int}. Missing file = defaults."""
+    """config/analysts.yaml.
+
+    ``analysts`` is every enabled key in order. ``voting`` omits ``shadow: true`` rows
+    (those still run and are audited; the boss ignores them). ``timeout_ms`` is the
+    default per-analyst wall-clock budget; ``timeouts_ms`` overrides one key.
+    Missing file = the paper room, 500 ms, no shadows.
+    """
     cfg: dict[str, Any] = {}
     if path is not None and Path(path).is_file():
         cfg = yaml.safe_load(Path(path).read_text(encoding="utf-8")) or {}
-    keys = cfg.get("analysts") or default_keys()
-    return {"analysts": [str(k) for k in keys], "timeout_ms": int(cfg.get("timeout_ms") or DEFAULT_TIMEOUT_S * 1000)}
+    raw = cfg.get("analysts") or default_keys()
+    keys: list[str] = []
+    shadow: list[str] = []
+    timeouts: dict[str, int] = {}
+    for item in raw:
+        key, is_shadow, timeout = _parse_analyst_entry(item)
+        keys.append(key)
+        if is_shadow:
+            shadow.append(key)
+        if timeout is not None:
+            timeouts[key] = timeout
+    shadow_set = set(shadow)
+    return {
+        "analysts": keys,
+        "voting": [k for k in keys if k not in shadow_set],
+        "shadow": shadow,
+        "timeout_ms": int(cfg.get("timeout_ms") or DEFAULT_TIMEOUT_S * 1000),
+        "timeouts_ms": timeouts,
+        "shadow_cfg": {"features": cfg.get("features") or {}, "shadow": cfg.get("shadow") or {}},
+    }
 
 
 class AnalystRoom:
@@ -76,19 +114,45 @@ class AnalystRoom:
     if an analyst ever wraps blocking I/O.
     """
 
-    def __init__(self, analysts: Sequence[Analyst], *, timeout_s: float = DEFAULT_TIMEOUT_S) -> None:
+    def __init__(
+        self,
+        analysts: Sequence[Analyst],
+        *,
+        timeout_s: float = DEFAULT_TIMEOUT_S,
+        timeouts_s: Optional[dict[str, float]] = None,
+        shadow_ids: Optional[Sequence[str]] = None,
+        shadow_cfg: Optional[dict[str, Any]] = None,
+        deterministic: bool = False,
+    ) -> None:
         ids = [a.analyst_id for a in analysts]
         if len(set(ids)) != len(ids):
             raise ValueError(f"duplicate analyst ids {ids}")
         self.analysts = list(analysts)
         self.timeout_s = float(timeout_s)
-        self._pool = ThreadPoolExecutor(max_workers=max(1, len(self.analysts)), thread_name_prefix="analyst")
+        self.timeouts_s = {str(k): float(v) for k, v in (timeouts_s or {}).items()}
+        self.shadow_ids = set(shadow_ids or [])
+        self.shadow_cfg = dict(shadow_cfg or {})
+        # Replay/parity must not ABSTAIN because the machine was busy. Live paper keeps wall-clock timeouts.
+        self.deterministic = bool(deterministic)
+        self._pool = None if self.deterministic else ThreadPoolExecutor(
+            max_workers=max(1, len(self.analysts)), thread_name_prefix="analyst"
+        )
         self.stats = {"votes": 0, "timeouts": 0, "errors": 0}
 
     @classmethod
-    def from_config(cls, path: Optional[Path] = None) -> "AnalystRoom":
+    def from_config(cls, path: Optional[Path] = None, *, deterministic: bool = False) -> "AnalystRoom":
         cfg = load_config(path)
-        return cls(build(cfg["analysts"]), timeout_s=cfg["timeout_ms"] / 1000.0)
+        return cls(
+            build(cfg["analysts"]),
+            timeout_s=cfg["timeout_ms"] / 1000.0,
+            timeouts_s={k: v / 1000.0 for k, v in cfg["timeouts_ms"].items()},
+            shadow_ids=cfg["shadow"],
+            shadow_cfg=cfg["shadow_cfg"],
+            deterministic=deterministic,
+        )
+
+    def timeout_for(self, analyst: Analyst) -> float:
+        return float(self.timeouts_s.get(analyst.analyst_id, self.timeout_s))
 
     @property
     def analyst_ids(self) -> list[str]:
@@ -100,29 +164,62 @@ class AnalystRoom:
             raise TypeError(f"{analyst.analyst_id} returned {vote!r}, not its own Vote")
         return vote
 
-    def collect(self, ctx: MarketContext) -> list[tuple[Vote, float]]:
-        """[(vote, latency_ms)] in registry order. Never raises."""
-        start = time.perf_counter()
-        futures = [self._pool.submit(self._run, a, ctx) for a in self.analysts]
-        wait(futures, timeout=self.timeout_s)
+    def _take(self, analyst: Analyst, fut: Any, ms: float) -> tuple[Vote, float]:
+        exc = fut.exception()
+        if exc is not None:
+            self.stats["errors"] += 1
+            log.warning("analyst %s crashed (%s: %s) -> ABSTAIN", analyst.analyst_id, type(exc).__name__, exc)
+            return Vote.abstain(analyst.analyst_id, f"ERROR:{type(exc).__name__}"), ms
+        return fut.result(), ms
+
+    def _collect_sync(self, ctx: MarketContext) -> list[tuple[Vote, float]]:
+        """In-order, no wall clock. A crash is still ABSTAIN. Used for replay and parity."""
         out: list[tuple[Vote, float]] = []
-        for analyst, fut in zip(self.analysts, futures):
-            ms = (time.perf_counter() - start) * 1000.0
-            if not fut.done():
-                fut.cancel()
-                self.stats["timeouts"] += 1
-                log.warning("analyst %s timed out after %.0f ms -> ABSTAIN", analyst.analyst_id, ms)
-                out.append((Vote.abstain(analyst.analyst_id, "TIMEOUT"), ms))
-                continue
-            exc = fut.exception()
-            if exc is not None:
+        for analyst in self.analysts:
+            start = time.perf_counter()
+            try:
+                vote = self._run(analyst, ctx)
+            except Exception as exc:
                 self.stats["errors"] += 1
                 log.warning("analyst %s crashed (%s: %s) -> ABSTAIN", analyst.analyst_id, type(exc).__name__, exc)
-                out.append((Vote.abstain(analyst.analyst_id, f"ERROR:{type(exc).__name__}"), ms))
-                continue
-            out.append((fut.result(), ms))
+                vote = Vote.abstain(analyst.analyst_id, f"ERROR:{type(exc).__name__}")
+            out.append((vote, (time.perf_counter() - start) * 1000.0))
         self.stats["votes"] += len(out)
         return out
+
+    def _collect_timed(self, ctx: MarketContext) -> list[tuple[Vote, float]]:
+        """Parallel. Each analyst uses its own timeout (config ``timeout_ms`` or a per-key override)."""
+        assert self._pool is not None
+        start = time.perf_counter()
+        futures = [self._pool.submit(self._run, a, ctx) for a in self.analysts]
+        limits = [self.timeout_for(a) for a in self.analysts]
+        pending = {fut: (analyst, limit) for fut, analyst, limit in zip(futures, self.analysts, limits)}
+        done: dict[str, tuple[Vote, float]] = {}
+        while pending:
+            elapsed = time.perf_counter() - start
+            for fut, (analyst, limit) in list(pending.items()):
+                if fut.done():
+                    done[analyst.analyst_id] = self._take(analyst, fut, elapsed * 1000.0)
+                    del pending[fut]
+                elif elapsed >= limit:
+                    fut.cancel()
+                    self.stats["timeouts"] += 1
+                    log.warning("analyst %s timed out after %.0f ms -> ABSTAIN", analyst.analyst_id, elapsed * 1000.0)
+                    done[analyst.analyst_id] = (Vote.abstain(analyst.analyst_id, "TIMEOUT"), elapsed * 1000.0)
+                    del pending[fut]
+            if not pending:
+                break
+            remaining = min(limit - (time.perf_counter() - start) for _a, limit in pending.values())
+            wait(list(pending), timeout=max(0.0, remaining))
+        out = [done[a.analyst_id] for a in self.analysts]
+        self.stats["votes"] += len(out)
+        return out
+
+    def collect(self, ctx: MarketContext) -> list[tuple[Vote, float]]:
+        """[(vote, latency_ms)] in registry order. Never raises."""
+        if self.deterministic:
+            return self._collect_sync(ctx)
+        return self._collect_timed(ctx)
 
     def attach(self, bus: Any, contexts: dict[str, MarketContext], *, priority: int = 50) -> str:
         """Answer REQUEST_VOTES {request_id} with one ANALYST_VOTE per analyst.
@@ -135,14 +232,17 @@ class AnalystRoom:
             p = event.payload
             ctx = contexts[p["request_id"]]
             for vote, ms in self.collect(ctx):
-                bus.publish(
-                    "ANALYST_VOTE",
-                    {"request_id": p["request_id"], "underlying": ctx.underlying, "ts": ctx.ts,
-                     "latency_ms": round(ms, 3), **vote.to_payload()},
-                    source=f"analyst:{vote.analyst_id}",
-                )
+                payload = {
+                    "request_id": p["request_id"], "underlying": ctx.underlying, "ts": ctx.ts,
+                    "latency_ms": round(ms, 3), **vote.to_payload(),
+                }
+                if (vote.metadata or {}).get("shadow"):
+                    payload["value"] = vote.metadata.get("value")
+                    payload["flag"] = vote.metadata.get("flag")
+                bus.publish("ANALYST_VOTE", payload, source=f"analyst:{vote.analyst_id}")
 
         return bus.subscribe(["REQUEST_VOTES"], on_request, priority=priority)
 
     def close(self) -> None:
-        self._pool.shutdown(wait=False, cancel_futures=True)
+        if self._pool is not None:
+            self._pool.shutdown(wait=False, cancel_futures=True)

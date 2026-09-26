@@ -11,6 +11,7 @@ The boss never calls the broker or the risk engine; the desk does.
 
 from __future__ import annotations
 
+import logging
 import time
 import uuid
 from dataclasses import asdict
@@ -18,6 +19,8 @@ from typing import Any, Optional, Sequence
 
 from analysts import MarketContext, Vote
 from analysts.legacy import to_legacy
+
+log = logging.getLogger("boss")
 
 
 class Boss:
@@ -30,6 +33,8 @@ class Boss:
         signals: dict[str, dict[str, Any]],
         contexts: dict[str, MarketContext],
         analyst_ids: Sequence[str],
+        shadow_ids: Optional[Sequence[str]] = None,
+        shadow_cfg: Optional[dict[str, Any]] = None,
     ) -> None:
         from desk_ml import paper_scalp as ps
 
@@ -40,6 +45,8 @@ class Boss:
         self.signals = signals
         self.contexts = contexts
         self.analyst_ids = list(analyst_ids)
+        self.shadow_ids = set(shadow_ids or [])
+        self.shadow_cfg = dict(shadow_cfg or {})
         self._inbox: dict[str, list[Vote]] = {}
         self.latency_ms: dict[str, list[float]] = {"decision": []}
         self.subs = [
@@ -58,7 +65,9 @@ class Boss:
         inputs = self._ps.step_vote_inputs(self.engine, s, **self.signals[key])
         t0 = time.perf_counter()
         rid = uuid.uuid4().hex
-        self.contexts[rid] = MarketContext(underlying=s.und, ts=int(s.tick.ts), i=s.i, inputs=inputs)
+        self.contexts[rid] = MarketContext(
+            underlying=s.und, ts=int(s.tick.ts), i=s.i, inputs=inputs, features=self._shadow_features(s),
+        )
         self._inbox[rid] = []
         try:
             self.bus.publish(
@@ -73,10 +82,24 @@ class Boss:
         self._ps.step_decide(self.engine, s, self.legacy_votes(votes, inputs), open_fn=self._plan_and_emit)
         self.latency_ms["decision"].append((time.perf_counter() - t0) * 1000.0)
 
+    def _shadow_features(self, step: Any) -> Optional[dict[str, Any]]:
+        if not self.shadow_ids:
+            return None
+        try:
+            from analysts.shadow import build_shadow_snapshot
+
+            return {"shadow": build_shadow_snapshot(self.engine, step, self.shadow_cfg)}
+        except Exception:
+            log.exception("shadow snapshot failed; shadow analysts abstain")
+            return {"shadow": {}}
+
+    def _ignored(self, vote: Vote) -> bool:
+        return vote.analyst_id in self.shadow_ids or bool((vote.metadata or {}).get("shadow"))
+
     def legacy_votes(self, votes: Sequence[Vote], inputs: dict[str, Any]) -> list[Any]:
-        """Votes in registry order as picker Votes; engine `extra` votes keep their legacy slot."""
+        """Votes in registry order as picker Votes; shadow analysts are not included."""
         by_id = {v.analyst_id: v for v in votes}
-        out = [to_legacy(by_id[a]) for a in self.analyst_ids if a in by_id]
+        out = [to_legacy(by_id[a]) for a in self.analyst_ids if a in by_id and not self._ignored(by_id[a])]
         extra = [v for v in (inputs.get("extra") or [])
                  if not str(v.source).startswith("STRAT-") and v.source not in by_id]
         if extra:

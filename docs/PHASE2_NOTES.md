@@ -44,12 +44,37 @@ desk   founder pause? -> RiskEngine.check_entry -> PaperBroker.place_order -> bo
 - **Execution record.** The paper engine's working-limit fill model still decides when a ticket
   fills and at what price. `ClockedPaperBroker.fill_at` books that fill, rounded to the 0.05 tick.
   So ledger prices can differ from engine prices by up to half a tick (≤ ₹0.025).
-- **Risk config.** The event path uses `config/risk_limits_replay.yaml`. It is paper mode and
-  mirrors the engine's own gates. Using `config/risk_limits.yaml` (₹5k per-trade cap, 15-minute
-  cooldown, 15:00 cutoff) would veto trades the old path takes, so that switch is left for a
-  later PR. The founder kill-switch file still vetoes entries.
+- **Risk config.** Replay and the parity tool use `config/risk_limits_replay.yaml` (paper mode,
+  mirrors the engine's own gates) so the two paths still match. The **live paper loop**
+  (`paper-scalp --loop`, or `replay_paper_scalp(live_session=True)` with the flag on) uses
+  `live_risk_config` in `config/event_path.yaml`, which defaults to the stricter
+  `config/risk_limits.yaml` (₹5k per-trade cap, 15-minute cooldown, 15:00 cutoff). That loop
+  never silently falls through to the looser replay file; naming the replay file in
+  `live_risk_config` is the only way to select it. The founder kill-switch file still vetoes
+  entries. Parity passes its own `EventSession()`, so a parity run stays on the replay file
+  even when `live_session=True`.
+- **Mark-to-market errors.** An exception in the desk's mark or stop path publishes
+  `HEALTH_ALERT`, appends `data/health/alerts.jsonl` (shown by `GET /health/alerts`), and blocks
+  new entries for the session. Flatten still closes positions. With the flag off, `step_mark`
+  is unchanged.
+- **Analyst timeout.** `timeout_ms` in `config/analysts.yaml` (and an optional per-key
+  `timeout_ms`) is the live paper loop's wall-clock budget. Replay and parity run analysts
+  in order with no wall-clock abstain, so a busy machine cannot change a vote.
+- **Shadow analysts.** Rows with `shadow: true` log `value`, `flag`, `confidence` and
+  `reasoning` on `ANALYST_VOTE` and are ignored by the boss. Definitions:
+  `docs/SHADOW_ANALYSTS.md`. CSV: `python scripts/export_shadow_audit.py --audit <sqlite> --out shadow.csv`.
 
 ## Packages
+
+Install the four packages the same way as the other repo packages (`pip install -e`, also in
+`.cursor/install.sh`):
+
+```bash
+pip install -e packages/events -e packages/analysts -e packages/boss -e packages/desk
+```
+
+With `USE_EVENT_BUS` on, the paper loop checks those imports once at startup. A missing package
+raises `EventBusStartupError` with the install command. It does not crash again on every replay.
 
 | Package | Role |
 |---|---|
@@ -70,6 +95,8 @@ To add a research feature as an analyst:
 3. Add `KEY` to `config/analysts.yaml`.
 
 Once enabled, it votes in the majority. If it times out or crashes, its vote is `ABSTAIN`.
+A row with `shadow: true` is logged and left out of the majority. Replay does not apply the
+wall-clock timeout (see above).
 
 ## Tests
 

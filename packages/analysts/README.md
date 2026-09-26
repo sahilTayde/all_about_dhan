@@ -13,4 +13,6 @@ where `signal` is `BUY_CE | BUY_PE | HOLD | ABSTAIN`.
 - New research features: put values in `MarketContext.features`, write an analyst that reads
   them, register its key, and add the key to the config.
 
+Install: `pip install -e packages/analysts` (needs PyYAML). Shadow analysts (`shadow: true`) log only; see docs/SHADOW_ANALYSTS.md.
+
 Tests: see docs/PHASE2_NOTES.md.
