@@ -254,11 +254,12 @@ def test_mtm_block_persists_across_a_new_desk(tmp_path, monkeypatch):
     desk, bus, _audit, _led, steps = make_desk(tmp_path)
     pos = ticket()
     approve(bus, pos)
-    monkeypatch.setattr(desk._ps, "step_mark", lambda _e, _s: (_ for _ in ()).throw(RuntimeError("bad mark")))
+    real_mark = ps.step_mark
+    monkeypatch.setattr(ps, "step_mark", lambda _e, _s: (_ for _ in ()).throw(RuntimeError("bad mark")))
     steps["NIFTY:2"] = _tick(T0 + 20)
     bus.publish("MARKET_TICK", {"key": "NIFTY:2"}, source="feed")
     assert (tmp_path / "data" / "desk" / "mtm_halt.json").is_file()
-    monkeypatch.setattr(desk._ps, "step_mark", ps.step_mark)
+    monkeypatch.setattr(ps, "step_mark", real_mark)
 
     desk2, bus2, _audit2, _led2, steps2 = make_desk(tmp_path)
     assert desk2.entries_blocked is False

@@ -39,7 +39,9 @@ def test_missing_package_fails_once_with_an_install_message(monkeypatch):
     msg = str(caught.value)
     assert "USE_EVENT_BUS is on" in msg
     assert "boss" in msg and "packages/boss" in msg
-    assert "pip install -e packages/events" in msg
+    assert "pip install -e packages/ledger" in msg
+    assert "-e packages/brokers" in msg and "-e packages/risk-engine" in msg
+    assert "-e packages/events" in msg and "-e packages/desk" in msg
     assert "stops here" in msg
 
 

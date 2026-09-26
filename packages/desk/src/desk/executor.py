@@ -259,7 +259,9 @@ class Desk:
     # --------------------------------------------------------------- entries
 
     def _veto(self, pos: Any, reason: str, detail: dict[str, Any]) -> None:
-        self.engine.mark_skip(pos.book_id, pos.underlying, reason, ts=pos.opened_ts, seen_side=pos.side, **detail)
+        # ``detail`` may carry the human risk text under ``reason``. mark_skip already takes that name.
+        skip_detail = {k: v for k, v in detail.items() if k != "reason"}
+        self.engine.mark_skip(pos.book_id, pos.underlying, reason, ts=pos.opened_ts, seen_side=pos.side, **skip_detail)
         row = {"trade_id": pos.trade_id, "book_id": pos.book_id, "underlying": pos.underlying, "side": pos.side,
                "reason": reason, "ts": pos.opened_ts, **detail}
         self.vetoes.append(row)
