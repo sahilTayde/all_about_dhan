@@ -165,7 +165,7 @@ def test_observer_after_picker_veto_not_fill() -> None:
         assert step["observer"]["reason"] == REASON_FOLLOW_GAP
 
 
-def test_one_open_blocks_second_fill() -> None:
+def test_one_open_blocks_second_fill(founder_root) -> None:
     bars = []
     idx, ce, pe = 25000.0, 120.0, 180.0
     for i in range(16):
@@ -173,14 +173,21 @@ def test_one_open_blocks_second_fill() -> None:
         ce += 2.2
         pe -= 1.1
         bars.append(_bar(i=i, idx=idx, ce=ce, pe=pe, vol=2000 + i * 50))
-    engine = _engine(sod_one_ticket=True, picker_majority=True, nifty_max_filled_per_book=4)
+    engine = _engine(root=founder_root, sod_one_ticket=True, picker_majority=True, nifty_max_filled_per_book=4)
+    engine.capital_by_book = {b: 570000.0 for b in LIVE_BOOKS}  # the desk sizes 20+ lots
+    engine.lot_by_und["NIFTY"] = (65, "test")
+    first_open = None
     for i in range(1, 15):
         _step(engine, bars, i)
+        if first_open is None and engine.has_open(SOD_PRODUCT_BOOK, "NIFTY"):
+            first_open = i
+    assert first_open is not None, "precondition: the first SOD ticket must open, or this test proves nothing"
     n_prod = sum(1 for k in engine.opens if k[0] == SOD_PRODUCT_BOOK)
     n_lab = sum(1 for k in engine.opens if k[0] in FILL_ELIGIBLE_BOOKS and k[0] != SOD_PRODUCT_BOOK)
     assert n_lab == 0
-    assert n_prod <= 1
-    assert any(s.get("reason") == SOD_ONE_OPEN for s in engine.skips) or n_prod == 1
+    assert n_prod == 1
+    first_ts = bars[first_open].ts
+    assert any(s.get("reason") == SOD_ONE_OPEN and int(s.get("ts") or 0) > first_ts for s in engine.skips)
     step = engine.last_step
     if step["observer"]["action"] == ACTION_ALLOW:
         assert step["llm_review"]["job"] == JOB_ALLOW

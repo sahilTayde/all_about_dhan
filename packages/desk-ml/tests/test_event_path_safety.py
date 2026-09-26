@@ -160,15 +160,20 @@ def test_shadow_analysts_do_not_change_trades(monkeypatch, tmp_path):
     assert "value" in shadow_votes[0]["payload"] and "flag" in shadow_votes[0]["payload"]
 
 
-def test_write_false_does_not_append_model_logs(tmp_path):
+def test_model_log_is_written_only_through_a_session_sink(tmp_path):
     from desk_ml.paper_scalp import LOG_JSONL_NAME, _MODEL_LOGS, append_model_log
+    from desk_ml.reliability import ModelLogSink
 
-    path = tmp_path / "data" / "recon" / LOG_JSONL_NAME
-    token = _MODEL_LOGS.set(False)
+    append_model_log(tmp_path, {"event": "CLOSE", "trade_id": "t"})  # no write=True replay: no sink
+    assert not (tmp_path / "data" / "recon" / LOG_JSONL_NAME).exists()
+    assert not (tmp_path / "data" / "recon" / "model_log").exists()
+    sink = ModelLogSink(tmp_path, "2026-09-10")
+    token = _MODEL_LOGS.set(sink)
     try:
+        sink.set_tick("NIFTY", 1_000)
         append_model_log(tmp_path, {"event": "CLOSE", "trade_id": "t"})
+        sink.flush()
     finally:
         _MODEL_LOGS.reset(token)
-    assert not path.exists()
-    append_model_log(tmp_path, {"event": "CLOSE", "trade_id": "t"})
-    assert path.is_file() and "CLOSE" in path.read_text(encoding="utf-8")
+    assert "CLOSE" in sink.path.read_text(encoding="utf-8")
+    assert not (tmp_path / "data" / "recon" / LOG_JSONL_NAME).exists()
