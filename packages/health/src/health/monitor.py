@@ -112,6 +112,40 @@ def check_reconciliation(ledger_path: Path) -> dict[str, Any]:
     return _result("reconciliation", False, f"broker vs internal book mismatch at {ts}: {mismatches[:300]}")
 
 
+def latest_entry_veto(ledger_path: Path, day: str) -> Optional[dict[str, Any]]:
+    """Most recent rejected entry today, including the ticket's rupee risk.
+
+    ``MAX_LOSS_PER_TRADE`` is not critical, so the alarm check above does not show it.
+    The founder still needs the reason and the ticket risk on ``GET /health/status``.
+    """
+    rows = _query(
+        ledger_path,
+        "SELECT ts, reason_code, reason, intent_json FROM risk_decisions "
+        "WHERE approved = 0 AND action = 'ENTRY' AND day = ? ORDER BY id DESC LIMIT 1",
+        (day,),
+    )
+    if not rows:
+        return None
+    ts, code, reason, raw_intent = rows[0]
+    ticket_risk = None
+    if raw_intent:
+        try:
+            intent = json.loads(raw_intent)
+        except ValueError:
+            intent = None
+        if isinstance(intent, dict):
+            try:
+                ticket_risk = float(intent["ticket_risk_inr"]) if intent.get("ticket_risk_inr") is not None else None
+            except (TypeError, ValueError, KeyError):
+                ticket_risk = None
+    return {
+        "ts": ts,
+        "reason_code": code,
+        "reason": reason,
+        "ticket_risk_inr": ticket_risk,
+    }
+
+
 def check_risk_vetoes(ledger_path: Path, now: datetime, since_id: int) -> tuple[dict[str, Any], int]:
     rows = _query(
         ledger_path,
@@ -204,6 +238,7 @@ class HealthMonitor:
             "ok": all(r["ok"] for r in results),
             "checks": checks,
             "last_veto_id": last_veto_id,
+            "latest_entry_veto": latest_entry_veto(self.ledger_path, now.astimezone(IST).date().isoformat()),
         }
         tmp = self.status_path.with_suffix(".tmp")
         tmp.write_text(json.dumps(status, indent=2) + "\n", encoding="utf-8")

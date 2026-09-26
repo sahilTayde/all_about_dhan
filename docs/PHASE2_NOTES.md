@@ -53,10 +53,19 @@ desk   founder pause? -> RiskEngine.check_entry -> PaperBroker.place_order -> bo
   `live_risk_config` is the only way to select it. The founder kill-switch file still vetoes
   entries. Parity passes its own `EventSession()`, so a parity run stays on the replay file
   even when `live_session=True`.
-- **Mark-to-market errors.** An exception in the desk's mark or stop path publishes
-  `HEALTH_ALERT`, appends `data/health/alerts.jsonl` (shown by `GET /health/alerts`), and blocks
-  new entries for the session. Flatten still closes positions. With the flag off, `step_mark`
-  is unchanged.
+- **The ₹5k cap is unchanged.** `config/risk_limits.yaml` values are a founder decision. Do not
+  edit them to fit a lab ticket. A lab-gated ticket whose worst-case loss is about ₹14k–₹29k
+  is vetoed by `MAX_LOSS_PER_TRADE` against that ₹5,000 `max_loss_per_trade`. The veto is not
+  a critical alarm (health `ok` stays true), but the reason text and `ticket_risk_inr` are on
+  the `ENTRY_VETOED` audit row, in `risk_decisions.intent_json`, and on `GET /health/status`
+  as `latest_entry_veto`.
+- **Mark-to-market errors.** An exception in the desk's mark or stop path closes each open
+  ticket on that index at the last good quote (else this tick's premium, else the entry),
+  publishes `POSITION_CLOSED` with reason `failsafe_mtm_error`, emits one `HEALTH_ALERT` per
+  error kind for the session, appends `data/health/alerts.jsonl` (shown by `GET /health/alerts`),
+  and blocks new entries. The block is stored in `data/desk/mtm_halt.json` for that session
+  date, so the next live-loop cycle (a new desk) still refuses entries. The next session does
+  not inherit it. Flatten still closes positions. With the flag off, `step_mark` is unchanged.
 - **Analyst timeout.** `timeout_ms` in `config/analysts.yaml` (and an optional per-key
   `timeout_ms`) is the live paper loop's wall-clock budget. Replay and parity run analysts
   in order with no wall-clock abstain, so a busy machine cannot change a vote.
@@ -66,15 +75,18 @@ desk   founder pause? -> RiskEngine.check_entry -> PaperBroker.place_order -> bo
 
 ## Packages
 
-Install the four packages the same way as the other repo packages (`pip install -e`, also in
-`.cursor/install.sh`):
+Every directory under `packages/` that contains Python is installable (`pip install -e`).
+`packages/indicators` and `packages/contracts` are notes only. `.cursor/install.sh` installs the
+Python packages in dependency order. `desk` depends on `brokers`, `risk-engine`, `ledger`, and
+`desk-ml`. pip only resolves those local names when they are on the same install command:
 
 ```bash
-pip install -e packages/events -e packages/analysts -e packages/boss -e packages/desk
+pip install -e packages/ledger -e packages/risk-engine -e packages/brokers \
+  -e packages/events -e packages/desk-ml -e packages/analysts -e packages/boss -e packages/desk
 ```
 
 With `USE_EVENT_BUS` on, the paper loop checks those imports once at startup. A missing package
-raises `EventBusStartupError` with the install command. It does not crash again on every replay.
+raises `EventBusStartupError` with that install command. It does not crash again on every replay.
 
 | Package | Role |
 |---|---|
@@ -145,8 +157,9 @@ on both paths.
 
 ## Deliberately not done yet
 
-- Behaviour changes: the proven-fix rules, regime-weighted voting, LLM second opinion, boss-approved
-  target exits, and the stricter `config/risk_limits.yaml` on the paper desk.
+- Behaviour changes: the proven-fix rules, regime-weighted voting, LLM second opinion, and
+  boss-approved target exits. The live paper loop already reads `config/risk_limits.yaml`; its
+  rupee caps stay as written (see the ₹5k note above).
 - Full founder controls (per-position overrides, lot or target changes, time-window blacklist).
   The desk handles pause, resume and flatten only.
 - Persistent ledger and audit for the live paper loop. It re-replays the whole session on each

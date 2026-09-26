@@ -11,14 +11,25 @@ strategy lean, not an event detector). Do not invent a trading rule here.
 
 from __future__ import annotations
 
+import json
+import logging
 import math
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
+from pathlib import Path
 from typing import Any, Optional, Sequence
 
 from analysts.base import ABSTAIN, Analyst, MarketContext, Vote
 from analysts.registry import register
 
+log = logging.getLogger("analysts.shadow")
+
 IST = timezone(timedelta(hours=5, minutes=30))
+# Static list in trading_agents_india.index_ce_pe_formulas.default_expiry_tuesdays.
+# It ends 2026-09-15. After that we extend by weekly Tuesdays and say so.
+STATIC_EXPIRY_SOURCE = "default_expiry_tuesdays"
+WEEKLY_EXPIRY_SOURCE = "weekly_tuesday_extension"
+GEX_WINDOW_POINTS = 300.0
+_CALENDAR_WARNED: set[str] = set()
 MINUTES_PER_SESSION = 375  # 09:15–15:30 IST
 SESSIONS_PER_YEAR = 252
 ANN_FACTOR = math.sqrt(SESSIONS_PER_YEAR * MINUTES_PER_SESSION)
@@ -83,6 +94,7 @@ def shadow_params(cfg: Optional[dict[str, Any]]) -> dict[str, Any]:
         "c5_enabled": bool(_dig(shadow, "c5_trend_align.enabled", True)),
         "c4_enabled": bool(_dig(shadow, "c4_late_mom.enabled", True)),
         "gex_convention": str(_dig(shadow, "gex.dealer_convention", DEALER_LONG_CALLS_SHORT_PUTS)),
+        "gex_window": float(_dig(shadow, "gex.window_points", GEX_WINDOW_POINTS)),
     }
 
 
@@ -289,15 +301,45 @@ def body_range(bar: dict[str, Any]) -> Optional[float]:
     return abs(close - open_) / span
 
 
+def detect_oi_unit(values: Sequence[float], lot_size: float) -> str:
+    """``shares`` when open interest is a lot multiple (Dhan tape); else ``contracts``.
+
+    NSE lots cannot be fractional, so share OI divides by the lot. Contract counts
+    usually do not. 80% of the positive prints deciding the chain is enough; one
+    strike that happens to divide does not flip the rest.
+    """
+    lot = float(lot_size)
+    positives = [v for v in values if v is not None and v > 0]
+    if lot <= 1 or not positives:
+        return "contracts"
+    divisible = 0
+    for oi in positives:
+        q = oi / lot
+        if abs(q - round(q)) < 1e-6:
+            divisible += 1
+    if divisible / len(positives) >= 0.8:
+        return "shares"
+    return "contracts"
+
+
+def oi_to_contracts(oi: float, lot_size: float, unit: str) -> float:
+    if unit == "shares" and lot_size > 0:
+        return oi / float(lot_size)
+    return oi
+
+
 def dealer_gex(
     rows: Sequence[dict[str, Any]],
     spot: Optional[float],
     lot_size: Optional[float],
     *,
     convention: str = DEALER_LONG_CALLS_SHORT_PUTS,
+    window_points: float = GEX_WINDOW_POINTS,
 ) -> Optional[dict[str, Any]]:
-    """Sum over strikes of gamma × OI × lot × spot² × 0.01.
+    """Sum over strikes of gamma × contract OI × lot × spot² × 0.01.
 
+    Only strikes within ``window_points`` of spot are used (default ±300).
+    OI that is in shares is divided by the lot first, so the lot is not applied twice.
     ``long_calls_short_puts``: dealers long calls and short puts, so call GEX is
     positive and put GEX is negative. Returns None when chain data or greeks are
     missing (caller skips; it does not invent a number).
@@ -311,21 +353,37 @@ def dealer_gex(
         sign = -1.0
     else:
         return None
-    scale = lot_v * spot_v * spot_v * 0.01
-    per: list[tuple[float, float]] = []
+    window = abs(float(window_points))
+    usable: list[tuple[float, Optional[float], Optional[float], Optional[float], Optional[float]]] = []
+    oi_values: list[float] = []
     for row in rows:
         strike = _num(row.get("strike"))
-        if strike is None:
+        if strike is None or abs(strike - spot_v) > window:
             continue
-        gex = 0.0
-        used = False
         ce_g, ce_oi = _num(row.get("ce_gamma")), _num(row.get("ce_oi"))
         pe_g, pe_oi = _num(row.get("pe_gamma")), _num(row.get("pe_oi"))
+        usable.append((strike, ce_g, ce_oi, pe_g, pe_oi))
+        if ce_oi is not None:
+            oi_values.append(ce_oi)
+        if pe_oi is not None:
+            oi_values.append(pe_oi)
+    hinted = None
+    for row in rows:
+        raw = row.get("oi_unit")
+        if raw in ("shares", "contracts"):
+            hinted = str(raw)
+            break
+    unit = hinted or detect_oi_unit(oi_values, lot_v)
+    scale = lot_v * spot_v * spot_v * 0.01
+    per: list[tuple[float, float]] = []
+    for strike, ce_g, ce_oi, pe_g, pe_oi in usable:
+        gex = 0.0
+        used = False
         if ce_g is not None and ce_oi is not None:
-            gex += sign * ce_g * ce_oi * scale
+            gex += sign * ce_g * oi_to_contracts(ce_oi, lot_v, unit) * scale
             used = True
         if pe_g is not None and pe_oi is not None:
-            gex -= sign * pe_g * pe_oi * scale
+            gex -= sign * pe_g * oi_to_contracts(pe_oi, lot_v, unit) * scale
             used = True
         if used:
             per.append((strike, gex))
@@ -356,7 +414,17 @@ def dealer_gex(
         regime = "neg"
     else:
         regime = "flat"
-    return {"gex": total, "zero_gamma": zero, "regime": regime, "n_strikes": len(per)}
+    strikes = [s for s, _g in per]
+    return {
+        "gex": total,
+        "zero_gamma": zero,
+        "regime": regime,
+        "n_strikes": len(per),
+        "oi_unit": unit,
+        "window_points": window,
+        "strike_min": min(strikes) if strikes else None,
+        "strike_max": max(strikes) if strikes else None,
+    }
 
 
 def _prior_daily(engine: Any, und: str, bars: Sequence[dict[str, Any]], session_date: str) -> list[dict[str, Any]]:
@@ -368,11 +436,13 @@ def _prior_daily(engine: Any, und: str, bars: Sequence[dict[str, Any]], session_
 
 
 def _day_open(bars: Sequence[dict[str, Any]], session_date: str) -> Optional[float]:
+    """09:15 IST open. A later first print is not the session open."""
     for bar in bars:
         try:
-            if ist_date(int(bar["ts"])) != session_date:
-                continue
-        except (KeyError, TypeError, ValueError):
+            dt = ist_dt(int(bar["ts"]))
+        except (KeyError, TypeError, ValueError, OSError):
+            continue
+        if dt.date().isoformat() != session_date or (dt.hour, dt.minute) != (9, 15):
             continue
         open_ = _num(bar.get("open"))
         if open_ is None:
@@ -381,10 +451,30 @@ def _day_open(bars: Sequence[dict[str, Any]], session_date: str) -> Optional[flo
     return None
 
 
-def _prior_close(daily: Sequence[dict[str, Any]]) -> Optional[float]:
+def _previous_weekday(day: date) -> date:
+    d = day - timedelta(days=1)
+    while d.weekday() >= 5:
+        d -= timedelta(days=1)
+    return d
+
+
+def _prior_close_state(daily: Sequence[dict[str, Any]], session_date: str) -> tuple[Optional[float], str]:
+    """(close, status). status is ok, missing, or stale (more than one weekday back)."""
     if not daily:
-        return None
-    return _num(daily[-1].get("close"))
+        return None, "missing"
+    last = daily[-1]
+    close = _num(last.get("close"))
+    raw = str(last.get("date") or "")[:10]
+    try:
+        last_day = datetime.fromisoformat(raw).date()
+        session = datetime.fromisoformat(session_date).date()
+    except ValueError:
+        return None, "missing"
+    if close is None or last_day >= session:
+        return None, "missing"
+    if last_day < _previous_weekday(session):
+        return None, "stale"
+    return close, "ok"
 
 
 def _last_trade_ts(engine: Any, und: str, now_ts: int) -> Optional[int]:
@@ -508,6 +598,158 @@ def _normalize_wings(wings: dict[str, Any]) -> list[dict[str, Any]]:
     return out
 
 
+def _parse_day(raw: Any) -> Optional[str]:
+    text = str(raw or "").strip()[:10]
+    if len(text) < 10:
+        return None
+    try:
+        datetime.fromisoformat(text)
+    except ValueError:
+        return None
+    return text
+
+
+def _as_of_ts(raw: Any) -> Optional[int]:
+    if raw is None:
+        return None
+    num = _num(raw)
+    if num is not None:
+        return int(num if num < 1e12 else num / 1000.0)
+    text = str(raw).strip()
+    if not text:
+        return None
+    try:
+        dt = datetime.fromisoformat(text.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=IST)
+    return int(dt.timestamp())
+
+
+def _add_expiry(found: list[str], raw: Any) -> None:
+    day = _parse_day(raw)
+    if day and day not in found:
+        found.append(day)
+
+
+def expiries_on_tick(engine: Any, tick: Any, underlying: str, now_ts: int, session_date: str) -> list[str]:
+    """Expiries printed on this tick, or saved by the recorder at or before this tick."""
+    found: list[str] = []
+    for raw in getattr(engine, "shadow_expiries", None) or []:
+        _add_expiry(found, raw)
+    _add_expiry(found, getattr(tick, "expiry", None))
+    chain = getattr(engine, "live_chain_rows", None)
+    if isinstance(chain, dict):
+        _add_expiry(found, chain.get("expiry"))
+    elif chain is not None:
+        _add_expiry(found, getattr(chain, "expiry", None))
+    for row in _chain_rows(engine, tick, now_ts):
+        _add_expiry(found, row.get("expiry"))
+    root = getattr(engine, "root", None)
+    if root:
+        found.extend(_expiries_from_saved(Path(root), underlying, now_ts, session_date, found))
+    return found
+
+
+def _expiries_from_saved(
+    root: Path, underlying: str, now_ts: int, session_date: str, already: list[str]
+) -> list[str]:
+    """Chain snapshot JSON and the recorder's option-chain jsonl. Rows after this tick are ignored."""
+    extra: list[str] = []
+    und = underlying.upper()
+    snap_dir = root / "data" / "desk_intel" / "snapshots" / und
+    paths = []
+    last = snap_dir / "last.json"
+    if last.is_file():
+        paths.append(last)
+    day_dir = snap_dir / session_date
+    if day_dir.is_dir():
+        paths.extend(sorted(day_dir.glob("*.json")))
+    for path in paths:
+        try:
+            raw = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        if not isinstance(raw, dict):
+            continue
+        as_of = _as_of_ts(raw.get("as_of_ist") or raw.get("ts"))
+        if as_of is not None and as_of > int(now_ts):
+            continue
+        _add_expiry(extra, raw.get("expiry"))
+    ymd = session_date.replace("-", "")
+    jsonl = root / "data" / "recon" / "option_chain" / f"{ymd}.jsonl"
+    if jsonl.is_file():
+        try:
+            lines = jsonl.read_text(encoding="utf-8").splitlines()
+        except OSError:
+            lines = []
+        for line in lines:
+            try:
+                rec = json.loads(line)
+            except ValueError:
+                continue
+            if not isinstance(rec, dict):
+                continue
+            ts = _as_of_ts(rec.get("timestamp") or rec.get("ts"))
+            if ts is not None and ts > int(now_ts):
+                continue
+            _add_expiry(extra, rec.get("expiry"))
+    return [d for d in extra if d not in already]
+
+
+def extend_weekly_tuesdays(static: Sequence[str], session_date: str) -> tuple[list[str], bool]:
+    """After the static list runs out, keep weekly Tuesdays going. Holidays can still shift a week."""
+    days: list[date] = []
+    for raw in static:
+        parsed = _parse_day(raw)
+        if parsed:
+            days.append(datetime.fromisoformat(parsed).date())
+    if not days:
+        return [], False
+    last = max(days)
+    try:
+        session = datetime.fromisoformat(session_date).date()
+    except ValueError:
+        return [d.isoformat() for d in sorted(set(days))], False
+    if session <= last:
+        return [d.isoformat() for d in sorted(set(days))], False
+    cursor = last
+    horizon = session + timedelta(days=14)
+    while cursor < horizon:
+        cursor = cursor + timedelta(days=7)
+        days.append(cursor)
+    return [d.isoformat() for d in sorted(set(days))], True
+
+
+def resolve_expiries(
+    engine: Any, tick: Any, underlying: str, now_ts: int, session_date: str
+) -> tuple[list[str], str, bool]:
+    """(dates, source, static_calendar_exhausted). Warns once per session when the static list has run out."""
+    static = expiry_dates()
+    chain = expiries_on_tick(engine, tick, underlying, now_ts, session_date)
+    extended, exhausted = extend_weekly_tuesdays(static, session_date)
+    if exhausted and session_date not in _CALENDAR_WARNED:
+        _CALENDAR_WARNED.add(session_date)
+        last = static[-1] if static else "none"
+        log.warning(
+            "EXPIRY CALENDAR EXHAUSTED after %s (session %s, source %s). "
+            "Using chain expiries when the recorder saved them, otherwise weekly Tuesdays. "
+            "A holiday shift will not match that extension.",
+            last, session_date, STATIC_EXPIRY_SOURCE,
+        )
+    merged = sorted(set(extended) | set(chain))
+    if chain:
+        source = "chain_or_recorder"
+        if exhausted:
+            source = "chain_or_recorder+weekly_tuesday_extension"
+    elif exhausted:
+        source = WEEKLY_EXPIRY_SOURCE
+    else:
+        source = STATIC_EXPIRY_SOURCE
+    return merged, source, exhausted
+
+
 def expiry_dates() -> list[str]:
     """Repo expiry calendar (NIFTY weekly Tuesdays in the cache vintage). Empty if it cannot be imported."""
     try:
@@ -536,12 +778,23 @@ def days_to_expiry(session_date: str, dates: Sequence[str]) -> Optional[int]:
     return (min(future) - day).days
 
 
-def late_momentum(bars: Sequence[dict[str, Any]], prior_close: Optional[float], now_ts: int) -> dict[str, Any]:
-    """Sign of the completed 14:44 IST close versus the prior session close. Not known before 14:45."""
+def late_momentum(
+    bars: Sequence[dict[str, Any]],
+    prior_close: Optional[float],
+    now_ts: int,
+    *,
+    prior_state: str = "ok",
+) -> dict[str, Any]:
+    """Sign of the completed 14:44 IST close versus the prior session close. Not known before 14:45.
+
+    A prior close older than the previous weekday is stale: log it as missing, do not invent a sign.
+    """
     now = ist_dt(now_ts)
     if (now.hour, now.minute) < (14, 45):
         return _skip("NOT_YET")
-    if prior_close is None:
+    if prior_state == "stale":
+        return _skip("STALE_PRIOR_CLOSE")
+    if prior_close is None or prior_state == "missing":
         return _skip("MISSING_PRIOR_CLOSE")
     bar = None
     for row in bars_upto(bars, now_ts):
@@ -581,7 +834,7 @@ def _build_shadow_snapshot(engine: Any, step: Any, shadow_cfg: Optional[dict[str
     spot = _num(getattr(tick, "idx_close", None))
     daily = _prior_daily(engine, und, bars, session_date)
     atr = wilder_atr(daily, 14)
-    prior_close = _prior_close(daily)
+    prior_close, prior_state = _prior_close_state(daily, session_date)
     out: dict[str, dict[str, Any]] = {}
 
     window = bars[-p["rng60_window"]:] if len(bars) >= p["rng60_window"] else []
@@ -661,23 +914,37 @@ def _build_shadow_snapshot(engine: Any, step: Any, shadow_cfg: Optional[dict[str
     if not p["c4_enabled"]:
         out["late_day_momentum"] = _skip("DISABLED")
     else:
-        out["late_day_momentum"] = late_momentum(bars, prior_close, now_ts)
+        out["late_day_momentum"] = late_momentum(bars, prior_close, now_ts, prior_state=prior_state)
 
-    dates = expiry_dates()
+    dates, expiry_source, exhausted = resolve_expiries(engine, tick, und, now_ts, session_date)
     dte = days_to_expiry(session_date, dates) if dates else None
     if dte is None:
-        out["expiry_day"] = _skip("EXPIRY_CALENDAR_UNKNOWN")
+        why = "EXPIRY_CALENDAR_EXHAUSTED" if exhausted else "EXPIRY_CALENDAR_UNKNOWN"
+        out["expiry_day"] = _skip(why)
     else:
-        out["expiry_day"] = _cell(dte, dte == 0, "dte from repo expiry calendar", confidence=0.5)
+        out["expiry_day"] = _cell(
+            dte, dte == 0, f"dte from {expiry_source}", confidence=0.5, expiry_source=expiry_source,
+        )
 
-    gex = dealer_gex(_chain_rows(engine, tick, now_ts), spot, _lot_size(engine, und), convention=p["gex_convention"])
+    gex = dealer_gex(
+        _chain_rows(engine, tick, now_ts), spot, _lot_size(engine, und),
+        convention=p["gex_convention"], window_points=p["gex_window"],
+    )
     if gex is None:
         why = "MISSING_CHAIN_OR_GREEKS" if p["gex_convention"] in {DEALER_LONG_CALLS_SHORT_PUTS, "short_calls_long_puts"} else "UNKNOWN_CONVENTION"
         out["gex"] = _skip(why)
     else:
         out["gex"] = _cell(
-            gex["gex"], gex["regime"], f"dealer GEX {p['gex_convention']}", confidence=0.5,
+            gex["gex"], gex["regime"],
+            (
+                f"dealer GEX {p['gex_convention']} oi={gex['oi_unit']} "
+                f"strikes {gex['strike_min']}-{gex['strike_max']} "
+                f"window=±{gex['window_points']:g} n={gex['n_strikes']}"
+            ),
+            confidence=0.5,
             zero_gamma=gex["zero_gamma"], regime=gex["regime"], n_strikes=gex["n_strikes"],
+            oi_unit=gex["oi_unit"], window_points=gex["window_points"],
+            strike_min=gex["strike_min"], strike_max=gex["strike_max"],
         )
     return out
 

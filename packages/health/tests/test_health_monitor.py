@@ -123,6 +123,25 @@ def test_recon_mismatch_and_critical_vetoes_from_ledger(tmp_path):
     assert got == [("ALERT", "reconciliation"), ("ALERT", "risk_vetoes"), ("RECOVERED", "reconciliation"), ("ALERT", "risk_vetoes")]
 
 
+def test_latest_entry_veto_shows_ticket_risk_without_failing_status(tmp_path):
+    """MAX_LOSS_PER_TRADE is not critical. The reason and the rupee risk still show on status."""
+    m = setup(tmp_path, recorder_age=30)
+    led = Ledger(m.ledger_path, rates=load_rates(REPO / "config" / "charges.yaml"))
+    led.record_decision({
+        "ts": MON_1030, "client_order_id": "maxloss", "action": "ENTRY", "approved": False,
+        "reason_code": "MAX_LOSS_PER_TRADE",
+        "reason": "risk ₹14,000 exceeds max_loss_per_trade ₹5,000",
+        "critical": False, "intent": {"ticket_risk_inr": 14000},
+    })
+    status = m.run_once(MON_1030)
+    assert status["ok"] is True and status["checks"]["risk_vetoes"]["ok"] is True
+    veto = status["latest_entry_veto"]
+    assert veto["reason_code"] == "MAX_LOSS_PER_TRADE"
+    assert veto["ticket_risk_inr"] == 14000
+    assert "14,000" in veto["reason"]
+    assert alerts(m) == []
+
+
 def test_low_disk_alarm(tmp_path):
     m = setup(tmp_path, recorder_age=30)
     m.min_free_gb = 10**9

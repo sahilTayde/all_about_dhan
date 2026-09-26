@@ -229,10 +229,15 @@ class RiskEngine:
         log.log(level, "risk %s %s -> %s: %s", d.action, d.client_order_id, d.reason_code, d.reason)
         if self.ledger is None:
             return d
+        intent_payload = asdict(intent) if intent else None
+        if intent is not None and intent_payload is not None:
+            try:
+                intent_payload["ticket_risk_inr"] = round(float(intent.worst_case_loss()), 2)
+            except (TypeError, ValueError):
+                intent_payload["ticket_risk_inr"] = None
         try:
             self.ledger.record_decision(
-                {**asdict(d), "fingerprint": intent.fingerprint if intent else None,
-                 "intent": asdict(intent) if intent else None}
+                {**asdict(d), "fingerprint": intent.fingerprint if intent else None, "intent": intent_payload}
             )
         except Exception as exc:  # cannot audit -> cannot approve
             log.error("risk decision not recorded (%s: %s); vetoing", type(exc).__name__, exc)

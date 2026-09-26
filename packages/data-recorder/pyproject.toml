@@ -3,12 +3,12 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "boss"
+name = "data-recorder"
 version = "0.1.0"
-description = "Boss orchestrator: analyst votes to ENTRY_APPROVED / NO_ENTRY. Paper only. Ignores shadow analysts."
+description = "Daily index, futures, and option-chain recorder. No orders."
 readme = "README.md"
 requires-python = ">=3.9"
-dependencies = ["analysts", "desk-ml"]
+dependencies = ["dhan-client"]
 
 [project.optional-dependencies]
 dev = ["pytest>=8"]

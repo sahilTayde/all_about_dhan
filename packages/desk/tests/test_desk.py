@@ -1,5 +1,6 @@
 """Desk: founder first, risk veto = no trade, PaperBroker + ledger mirror, stops without the boss."""
 
+import json
 from dataclasses import asdict
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -8,7 +9,7 @@ import pytest
 import yaml
 
 from brokers import OrderRefused, attach_ledger
-from desk import BROKER_REFUSED, FOUNDER_PAUSED, MTM_HALT, RISK_VETO, ClockedPaperBroker, Desk, client_order_id
+from desk import BROKER_REFUSED, FAILSAFE_MTM, FOUNDER_PAUSED, MTM_HALT, RISK_VETO, ClockedPaperBroker, Desk, client_order_id
 from desk.executor import ist
 from desk_ml import paper_scalp as ps
 from desk_ml.features import Triple
@@ -178,10 +179,21 @@ def test_broker_still_requires_matching_fresh_approval():
     assert broker.place_order(intent, ok).state.value == "SUBMITTED"
 
 
-def test_mtm_error_blocks_entries_alerts_and_still_flattens(tmp_path, monkeypatch):
-    """A mark/stop error must not be swallowed: HEALTH_ALERT, no new entries, flatten still closes."""
+def _tick(ts):
+    prev = Triple(ts=ts - 20, idx_close=25000.0, ce_close=60.0, pe_close=60.0, atm_strike=25000.0,
+                  itm_ce_close=150.0, itm_pe_close=40.0, itm_ce_strike=24800.0, itm_pe_strike=25200.0,
+                  premium_kind="ITM")
+    tick = Triple(ts=ts, idx_close=24980.0, ce_close=50.0, pe_close=70.0, atm_strike=25000.0,
+                  itm_ce_close=130.0, itm_pe_close=45.0, itm_ce_strike=24800.0, itm_pe_strike=25200.0,
+                  premium_kind="ITM")
+    return ps.TickStep(und="NIFTY", i=2, tick=tick, prev=prev, classified={}, bin_rec={}, dealer={}, strike=25000.0)
+
+
+def test_mtm_error_closes_on_the_same_tick_and_blocks_entries(tmp_path, monkeypatch):
+    """A mark/stop error closes the ticket at the last good quote on that tick and blocks new entries."""
     desk, bus, audit, _led, steps = make_desk(tmp_path)
     pos = ticket()
+    pos.last_ltp = 142.0
     approve(bus, pos)
     assert (pos.book_id, "NIFTY") in desk.engine.opens
 
@@ -189,33 +201,39 @@ def test_mtm_error_blocks_entries_alerts_and_still_flattens(tmp_path, monkeypatc
         raise RuntimeError("bad mark")
 
     monkeypatch.setattr(desk._ps, "step_mark", boom)
-    prev = Triple(ts=T0, idx_close=25000.0, ce_close=60.0, pe_close=60.0, atm_strike=25000.0,
-                  itm_ce_close=150.0, itm_pe_close=40.0, itm_ce_strike=24800.0, itm_pe_strike=25200.0,
-                  premium_kind="ITM")
-    tick = Triple(ts=T0 + 20, idx_close=24980.0, ce_close=50.0, pe_close=70.0, atm_strike=25000.0,
-                  itm_ce_close=130.0, itm_pe_close=45.0, itm_ce_strike=24800.0, itm_pe_strike=25200.0,
-                  premium_kind="ITM")
-    steps["NIFTY:2"] = ps.TickStep(und="NIFTY", i=2, tick=tick, prev=prev, classified={}, bin_rec={}, dealer={},
-                                   strike=25000.0)
+    steps["NIFTY:2"] = _tick(T0 + 20)
     bus.publish("MARKET_TICK", {"key": "NIFTY:2"}, source="feed")
     assert desk.entries_blocked and not bus.errors
+    assert desk.engine.opens == {}
+    row = desk.engine.closed[-1]
+    assert row["exit_reason"] == FAILSAFE_MTM and row["exit"] == pytest.approx(142.0)
+    assert row["closed_ts"] == T0 + 20
+    closed = audit.rows("POSITION_CLOSED")
+    assert closed[-1]["payload"]["exit_reason"] == FAILSAFE_MTM
     alerts = audit.rows("HEALTH_ALERT")
     assert alerts and alerts[-1]["payload"]["check"] == "desk_mtm"
     assert "bad mark" in alerts[-1]["payload"]["reason"] and alerts[-1]["payload"]["entries_blocked"] is True
 
-    later = ticket(T0 + 30, side="PE")
+    steps["NIFTY:3"] = _tick(T0 + 40)
+    bus.publish("MARKET_TICK", {"key": "NIFTY:3"}, source="feed")
+    alert_lines = (tmp_path / "alerts.jsonl").read_text(encoding="utf-8").splitlines()
+    assert len(alert_lines) == 1 and len(audit.rows("HEALTH_ALERT")) == 1
+
+    def other(_engine, _s):
+        raise ValueError("bad quote")
+
+    monkeypatch.setattr(desk._ps, "step_mark", other)
+    steps["NIFTY:4"] = _tick(T0 + 50)
+    bus.publish("MARKET_TICK", {"key": "NIFTY:4"}, source="feed")
+    kinds = [json.loads(line)["error_kind"] for line in (tmp_path / "alerts.jsonl").read_text(encoding="utf-8").splitlines()]
+    assert kinds == ["RuntimeError", "ValueError"]
+
+    later = ticket(T0 + 60, side="PE")
     approve(bus, later)
     assert later.trade_id not in {p.trade_id for p in desk.engine.opens.values()}
     assert desk.engine.skips[-1]["reason"] == MTM_HALT
     bus.publish("FOUNDER_COMMAND", {"command": "RESUME_ENTRIES"}, source="founder")
     assert desk.entries_blocked and not desk.paused
-    approve(bus, ticket(T0 + 40))
-    assert desk.engine.skips[-1]["reason"] == MTM_HALT
-
-    desk.engine.opens[(pos.book_id, "NIFTY")].last_ltp = 158.0
-    bus.publish("FOUNDER_COMMAND", {"command": "FLATTEN_ALL"}, source="founder")
-    assert desk.engine.opens == {}
-    assert desk.engine.closed[-1]["exit_reason"] == "FOUNDER_COMMAND"
 
     from api import health_alerts
     from fastapi.testclient import TestClient
@@ -223,10 +241,71 @@ def test_mtm_error_blocks_entries_alerts_and_still_flattens(tmp_path, monkeypatc
 
     monkeypatch.setattr(health_alerts, "HEALTH_DIR", tmp_path)
     body = TestClient(create_app()).get("/health/alerts").json()
-    assert body["count"] >= 1
+    assert body["count"] == 2
+    assert [a["error_kind"] for a in body["alerts"]] == ["ValueError", "RuntimeError"]
     top = body["alerts"][0]
     assert top["event"] == "ALERT" and top["check"] == "desk_mtm" and top["severity"] == "CRITICAL"
-    assert "bad mark" in top["message"]
+    assert "bad quote" in top["message"]
+    assert "bad mark" in body["alerts"][1]["message"]
+
+
+def test_mtm_block_persists_across_a_new_desk(tmp_path, monkeypatch):
+    """The live loop rebuilds the desk every cycle. The block and the one alert stay."""
+    desk, bus, _audit, _led, steps = make_desk(tmp_path)
+    pos = ticket()
+    approve(bus, pos)
+    monkeypatch.setattr(desk._ps, "step_mark", lambda _e, _s: (_ for _ in ()).throw(RuntimeError("bad mark")))
+    steps["NIFTY:2"] = _tick(T0 + 20)
+    bus.publish("MARKET_TICK", {"key": "NIFTY:2"}, source="feed")
+    assert (tmp_path / "data" / "desk" / "mtm_halt.json").is_file()
+    monkeypatch.setattr(desk._ps, "step_mark", ps.step_mark)
+
+    desk2, bus2, _audit2, _led2, steps2 = make_desk(tmp_path)
+    assert desk2.entries_blocked is False
+    steps2["NIFTY:2"] = _tick(T0 + 40)
+    bus2.publish("MARKET_TICK", {"key": "NIFTY:2"}, source="feed")
+    assert desk2.entries_blocked
+    approve(bus2, ticket(T0 + 80, side="PE"))
+    assert desk2.engine.skips[-1]["reason"] == MTM_HALT
+    assert len((tmp_path / "alerts.jsonl").read_text(encoding="utf-8").splitlines()) == 1
+
+    stale = json.loads((tmp_path / "data" / "desk" / "mtm_halt.json").read_text())
+    stale["session"] = "2026-09-09"
+    (tmp_path / "data" / "desk" / "mtm_halt.json").write_text(json.dumps(stale), encoding="utf-8")
+    desk3, bus3, _a3, _l3, steps3 = make_desk(tmp_path)
+    steps3["NIFTY:2"] = _tick(T0 + 100)
+    bus3.publish("MARKET_TICK", {"key": "NIFTY:2"}, source="feed")
+    assert desk3.entries_blocked is False
+
+
+def test_strict_risk_veto_logs_ticket_risk(tmp_path):
+    """config/risk_limits.yaml is unchanged. A veto still shows the reason and the rupee risk."""
+    desk, bus, audit, led, _steps = make_desk(tmp_path, REPO / "config" / "risk_limits.yaml")
+    approve(bus, ticket())  # (150-140) x 1300 = ₹13,000 against the ₹5,000 cap
+    assert desk.engine.opens == {}
+    veto = audit.rows("ENTRY_VETOED")[-1]["payload"]
+    assert veto["reason_code"] == "MAX_LOSS_PER_TRADE"
+    assert veto["ticket_risk_inr"] == pytest.approx(13000)
+    assert "13,000" in veto["reason"] or "13000" in veto["reason"]
+    stored = led.conn.execute(
+        "SELECT reason_code, intent_json FROM risk_decisions WHERE approved = 0"
+    ).fetchone()
+    assert stored[0] == "MAX_LOSS_PER_TRADE"
+    assert json.loads(stored[1])["ticket_risk_inr"] == pytest.approx(13000)
+
+
+def test_failsafe_price_uses_the_tick_when_the_last_quote_is_missing():
+    from types import SimpleNamespace
+
+    from desk.executor import Desk
+
+    bare = object.__new__(Desk)
+    step = _tick(T0)
+    pos = SimpleNamespace(last_ltp=None, side="CE", entry=150.0)
+    assert bare._failsafe_price(pos, step) == pytest.approx(130.0)  # this tick's ITM CE
+    pos.side = "PE"
+    assert bare._failsafe_price(pos, step) == pytest.approx(45.0)
+    assert bare._failsafe_price(SimpleNamespace(last_ltp=None, side="CE", entry=150.0), None) == pytest.approx(150.0)
 
 
 def test_broker_refusal_means_no_trade(tmp_path, monkeypatch):

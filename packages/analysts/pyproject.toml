@@ -8,7 +8,7 @@ version = "0.1.0"
 description = "Analyst registry, room, and log-only shadow features. Paper only. No orders."
 readme = "README.md"
 requires-python = ">=3.9"
-dependencies = ["PyYAML>=6"]
+dependencies = ["PyYAML>=6", "desk-ml"]
 
 [project.optional-dependencies]
 dev = ["pytest>=8"]

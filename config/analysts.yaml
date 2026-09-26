@@ -38,8 +38,10 @@ shadow:
     enabled: true             # sign of the completed 14:44 close vs prior session close
   gex:
     # Dealers long calls and short puts: call GEX positive, put GEX negative.
-    # GEX = gamma × OI × lot × spot² × 0.01, summed over strikes. regime is pos or neg.
+    # GEX = gamma × contract OI × lot × spot² × 0.01, summed over strikes inside the window.
+    # Tape OI that divides by the lot is treated as shares and converted to contracts first.
     dealer_convention: long_calls_short_puts
+    window_points: 300
 
 analysts:
   - follows

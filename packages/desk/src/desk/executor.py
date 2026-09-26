@@ -31,6 +31,8 @@ RISK_VETO = "RISK_VETO"
 BROKER_REFUSED = "BROKER_REFUSED"
 FOUNDER_REASON = "FOUNDER_COMMAND"
 MTM_HALT = "MTM_HALT"  # mark-to-market / stop path failed; new entries blocked for the session
+FAILSAFE_MTM = "failsafe_mtm_error"  # close the open ticket on that same tick
+HALT_REL = Path("data") / "desk" / "mtm_halt.json"
 
 
 def ist(ts: int) -> datetime:
@@ -62,6 +64,7 @@ class Desk:
         self.paused = False
         self.entries_blocked = False  # session halt after an MTM/stop error; flatten still runs
         self.mtm_halt_reason = ""
+        self._alerted_kinds: set[str] = set()
         if health_alerts_path is None:
             from desk_ml.persist import repo_root
 
@@ -105,12 +108,17 @@ class Desk:
 
     def on_tick(self, event: Any) -> None:
         t0 = time.perf_counter()
+        step = self.steps.get((event.payload or {}).get("key"))
         try:
+            if step is not None:
+                self._apply_persisted_halt(ist(int(step.tick.ts)).date().isoformat())
             self._mark_tick(event)
         except Exception as exc:
-            # Fail safe: do not swallow a mark/stop error and keep taking entries.
+            # Stops did not run. Close the open tickets on this tick, then keep entries blocked.
             # Flatten (FOUNDER_COMMAND) does not go through this path.
-            self._halt_entries(exc)
+            self.entries_blocked = True
+            self._failsafe_close(step)
+            self._halt_entries(exc, step)
         finally:
             self.latency_ms["tick"].append((time.perf_counter() - t0) * 1000.0)
 
@@ -134,25 +142,106 @@ class Desk:
                     "target": pos.target, "last_ltp": pos.last_ltp, "ts": self.now_ts,
                 })
 
-    def _halt_entries(self, exc: BaseException) -> None:
-        """Block new entries for the rest of the session and surface the error on /health/alerts."""
+    def _halt_path(self) -> Path:
+        root = getattr(self.engine, "root", None)
+        base = Path(root) if root else self.health_alerts_path.parent
+        return base / HALT_REL
+
+    def _read_halt(self) -> dict[str, Any]:
+        path = self._halt_path()
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return {}
+        return data if isinstance(data, dict) else {}
+
+    def _write_halt(self, state: dict[str, Any]) -> None:
+        path = self._halt_path()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(state) + "\n", encoding="utf-8")
+
+    def _apply_persisted_halt(self, session: str) -> None:
+        """The live loop rebuilds the desk every cycle. The block has to survive that."""
+        state = self._read_halt()
+        if state.get("session") != session or not state.get("entries_blocked"):
+            return
         self.entries_blocked = True
+        self.mtm_halt_reason = str(state.get("reason") or self.mtm_halt_reason)
+        self._alerted_kinds.update(str(k) for k in (state.get("kinds") or []))
+
+    def _failsafe_price(self, pos: Any, step: Any) -> float:
+        """Last good quote, then this tick's premium, then the entry."""
+        if getattr(pos, "last_ltp", None) is not None:
+            return float(pos.last_ltp)
+        tick = getattr(step, "tick", None) if step is not None else None
+        side = str(getattr(pos, "side", "") or "").upper()
+        if tick is not None:
+            attrs = ("itm_ce_close", "ce_close") if side == "CE" else ("itm_pe_close", "pe_close")
+            for attr in attrs:
+                raw = getattr(tick, attr, None)
+                if raw is not None:
+                    return float(raw)
+        if getattr(pos, "entry", None) is not None:
+            return float(pos.entry)
+        return 0.0
+
+    def _failsafe_close(self, step: Any) -> None:
+        """Close whatever this tick failed to mark, at the last good quote, on this same tick."""
+        if step is not None:
+            self.now_ts = int(step.tick.ts)
+            self.now = ist(self.now_ts)
+            und = str(getattr(step, "und", "") or "").upper()
+        else:
+            und = ""
+        ts = int(self.now_ts if self.now_ts is not None else 0)
+        for pos in list(self.engine.opens.values()):
+            if und and str(getattr(pos, "underlying", "") or "").upper() != und:
+                continue
+            if ts <= 0:
+                ts = int(getattr(pos, "opened_ts", 0) or 0)
+            try:
+                self.close(pos, ltp=self._failsafe_price(pos, step), ts=ts, reason=FAILSAFE_MTM)
+            except Exception:
+                log.exception("failsafe close failed for %s", getattr(pos, "trade_id", "?"))
+
+    def _halt_entries(self, exc: BaseException, step: Any = None) -> None:
+        """Block new entries for the rest of the session. One HEALTH_ALERT per error kind."""
+        self.entries_blocked = True
+        kind = type(exc).__name__
         reason = (
-            f"MTM or stop path failed ({type(exc).__name__}: {exc}). "
-            "New entries blocked for this session. Flatten still runs."
+            f"MTM or stop path failed ({kind}: {exc}). "
+            "Open tickets closed at the last good quote. New entries blocked for this session."
         )
         self.mtm_halt_reason = reason
         log.error("%s", reason)
-        try:
-            self._publish("HEALTH_ALERT", {
-                "service": "desk", "status": "CRITICAL", "check": "desk_mtm",
-                "reason": reason, "entries_blocked": True,
-            })
-        except Exception:
-            log.exception("failed to publish HEALTH_ALERT")
-        self._append_health_alert(reason)
+        session = ""
+        if step is not None:
+            session = ist(int(step.tick.ts)).date().isoformat()
+        elif self.now_ts is not None:
+            session = ist(int(self.now_ts)).date().isoformat()
+        state = self._read_halt()
+        if state.get("session") != session:
+            state = {"session": session, "entries_blocked": True, "kinds": []}
+        kinds = [str(k) for k in (state.get("kinds") or [])]
+        state["entries_blocked"] = True
+        state["reason"] = reason
+        already = kind in kinds or kind in self._alerted_kinds
+        if not already:
+            kinds.append(kind)
+            self._alerted_kinds.add(kind)
+            try:
+                self._publish("HEALTH_ALERT", {
+                    "service": "desk", "status": "CRITICAL", "check": "desk_mtm",
+                    "reason": reason, "entries_blocked": True, "error_kind": kind,
+                })
+            except Exception:
+                log.exception("failed to publish HEALTH_ALERT")
+            self._append_health_alert(reason, kind)
+        state["kinds"] = kinds
+        if session:
+            self._write_halt(state)
 
-    def _append_health_alert(self, reason: str) -> None:
+    def _append_health_alert(self, reason: str, kind: str) -> None:
         """Same JSONL shape as packages/health (served by GET /health/alerts)."""
         path = self.health_alerts_path
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -161,6 +250,7 @@ class Desk:
             "event": "ALERT",
             "check": "desk_mtm",
             "severity": "CRITICAL",
+            "error_kind": kind,
             "message": reason,
         }
         with open(path, "a", encoding="utf-8") as f:
@@ -195,11 +285,19 @@ class Desk:
             )
             decision = self.risk.check_entry(intent, now=self.clock())
         except Exception as exc:  # cannot size or check the order -> no trade
-            self._veto(pos, RISK_VETO, {"reason_code": "ENGINE_ERROR", "detail": f"{type(exc).__name__}: {exc}"})
+            self._veto(pos, RISK_VETO, {"reason_code": "ENGINE_ERROR", "detail": f"{type(exc).__name__}: {exc}",
+                                        "reason": f"{type(exc).__name__}: {exc}"})
             return
+        ticket_risk = None
+        try:
+            ticket_risk = round(float(intent.worst_case_loss()), 2)
+        except (TypeError, ValueError):
+            ticket_risk = None
         if not decision.approved:
-            self._veto(pos, RISK_VETO, {"reason_code": decision.reason_code, "detail": decision.reason,
-                                        "critical": bool(decision.critical)})
+            self._veto(pos, RISK_VETO, {
+                "reason_code": decision.reason_code, "detail": decision.reason, "reason": decision.reason,
+                "ticket_risk_inr": ticket_risk, "critical": bool(decision.critical),
+            })
             return
         try:
             order = self.broker.place_order(intent, decision)

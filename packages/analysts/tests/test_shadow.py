@@ -1,6 +1,7 @@
 """Shadow features: causal math, GEX convention, CSV export, boss ignores them."""
 
 import csv
+import json
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 
@@ -13,12 +14,17 @@ from analysts.shadow import (
     build_shadow_snapshot,
     days_to_expiry,
     dealer_gex,
+    detect_oi_unit,
+    expiry_dates,
     late_momentum,
     range_over_atr,
     realised_vol_pct,
+    resolve_expiries,
     log_returns,
     wilder_atr,
+    _CALENDAR_WARNED,
     _day_open,
+    _prior_close_state,
 )
 from analysts.shadow_export import export_shadow_csv
 
@@ -182,6 +188,83 @@ def test_export_one_row_per_session_minute(tmp_path):
     assert rows[0]["rng60_atr"] == "0.5"
     assert rows[0]["rng60_atr_expected_abs_move_pts"] == "5.0"
     assert rows[1]["minute_ist"] == "10:16" and rows[1]["rng60_atr"] == "0.2"
+
+
+def test_day_open_is_0915_not_the_first_bar_received():
+    late = _bars(3, start=_ts("2026-09-10", 9, 20), close0=25010.0)
+    assert _day_open(late, "2026-09-10") is None
+    session_open = {"ts": _ts("2026-09-10", 9, 15), "open": 24900.0, "high": 24910.0, "low": 24890.0, "close": 24905.0}
+    assert _day_open([session_open] + late, "2026-09-10") == 24900.0
+    engine = SimpleNamespace(closed=[], opens={}, lot_by_und={"NIFTY": (65, "t")}, shadow_prior_daily={})
+    tick = SimpleNamespace(ts=late[-1]["ts"], idx_close=24950.0, wing_quotes={})
+    aligned = build_shadow_snapshot(engine, SimpleNamespace(und="NIFTY", tick=tick, bars_1m=[session_open] + late), None)
+    assert aligned["day_direction"]["flag"] == "CE"
+    missing = build_shadow_snapshot(engine, SimpleNamespace(und="NIFTY", tick=tick, bars_1m=late), None)
+    assert missing["day_direction"]["value"] is None and missing["day_direction"]["reasoning"] == "NO_DAY_OPEN"
+
+
+def test_stale_or_missing_prior_close_logs_no_sign():
+    bar = {"ts": _ts("2026-09-10", 14, 44), "open": 100.0, "high": 101.0, "low": 99.0, "close": 110.0}
+    now = _ts("2026-09-10", 14, 50)
+    stale = late_momentum([bar], 90.0, now, prior_state="stale")
+    missing = late_momentum([bar], None, now, prior_state="missing")
+    assert stale["value"] is None and stale["reasoning"] == "STALE_PRIOR_CLOSE"
+    assert missing["value"] is None and missing["reasoning"] == "MISSING_PRIOR_CLOSE"
+    assert late_momentum([bar], 90.0, _ts("2026-09-10", 14, 44), prior_state="stale")["reasoning"] == "NOT_YET"
+    assert _prior_close_state([{"date": "2026-09-08", "close": 100.0}], "2026-09-10") == (None, "stale")
+    assert _prior_close_state([{"date": "2026-09-09", "close": 100.0}], "2026-09-10") == (100.0, "ok")
+    assert _prior_close_state([], "2026-09-10")[1] == "missing"
+
+
+def test_share_oi_is_normalised_and_the_window_is_logged():
+    contracts = [
+        {"strike": 100, "ce_gamma": 0.001, "ce_oi": 10, "pe_gamma": 0.001, "pe_oi": 4},
+        {"strike": 110, "ce_gamma": 0.001, "ce_oi": 2, "pe_gamma": 0.002, "pe_oi": 10},
+    ]
+    shares = [{**row, "ce_oi": row["ce_oi"] * 50, "pe_oi": row["pe_oi"] * 50} for row in contracts]
+    shares.append({"strike": 500, "ce_gamma": 0.01, "ce_oi": 50000, "pe_gamma": 0.01, "pe_oi": 50000})
+    got = dealer_gex(shares, 100.0, 50.0)
+    base = dealer_gex(contracts, 100.0, 50.0)
+    assert detect_oi_unit([10, 4, 2, 10], 50) == "contracts"
+    assert got["oi_unit"] == "shares" and base["oi_unit"] == "contracts"
+    assert got["gex"] == pytest.approx(base["gex"])
+    assert got["n_strikes"] == 2 and got["strike_min"] == 100 and got["strike_max"] == 110
+    assert got["window_points"] == 300
+    hinted = [{**contracts[0], "oi_unit": "shares"}]
+    small = dealer_gex(hinted, 100.0, 50.0)
+    one = dealer_gex([contracts[0]], 100.0, 50.0)
+    assert small["oi_unit"] == "shares" and small["gex"] == pytest.approx(one["gex"] / 50.0)
+
+
+def test_expiry_calendar_extends_and_warns_when_the_static_list_runs_out(tmp_path, caplog):
+    assert expiry_dates()[-1] == "2026-09-15"
+    session = "2026-09-22"
+    _CALENDAR_WARNED.discard(session)
+    now = _ts(session, 10, 30)
+    chain = tmp_path / "data" / "recon" / "option_chain"
+    chain.mkdir(parents=True)
+    (chain / "20260922.jsonl").write_text(
+        json.dumps({"timestamp": _ts(session, 10, 0), "expiry": "2026-09-24"}) + "\n"
+        + json.dumps({"timestamp": _ts(session, 15, 0), "expiry": "2026-10-01"}) + "\n",
+        encoding="utf-8",
+    )
+    snap = tmp_path / "data" / "desk_intel" / "snapshots" / "NIFTY"
+    snap.mkdir(parents=True)
+    (snap / "last.json").write_text(
+        json.dumps({"as_of_ist": "2026-09-22T10:00:00+05:30", "expiry": "2026-09-24"}),
+        encoding="utf-8",
+    )
+    engine = SimpleNamespace(root=tmp_path, shadow_expiries=[], live_chain_rows=None)
+    tick = SimpleNamespace(expiry=None, wing_quotes={})
+    with caplog.at_level("WARNING", logger="analysts.shadow"):
+        dates, source, exhausted = resolve_expiries(engine, tick, "NIFTY", now, session)
+    assert exhausted and "2026-09-22" in dates and "2026-09-24" in dates
+    assert "2026-10-01" not in dates
+    assert source == "chain_or_recorder+weekly_tuesday_extension"
+    assert days_to_expiry(session, dates) == 0
+    assert caplog.text.count("EXPIRY CALENDAR EXHAUSTED") == 1
+    resolve_expiries(engine, tick, "NIFTY", now, session)
+    assert caplog.text.count("EXPIRY CALENDAR EXHAUSTED") == 1
 
 
 def test_boss_ignores_shadow_votes():

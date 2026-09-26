@@ -28,10 +28,19 @@ CHARGES_CONFIG = Path("config") / "charges.yaml"
 
 # Import names the live loop checks once at startup when USE_EVENT_BUS is on.
 EVENT_BUS_PACKAGES = (
+    ("ledger", "packages/ledger"),
+    ("risk_engine", "packages/risk-engine"),
+    ("brokers", "packages/brokers"),
+    ("desk_ml", "packages/desk-ml"),
     ("events", "packages/events"),
     ("analysts", "packages/analysts"),
     ("boss", "packages/boss"),
     ("desk", "packages/desk"),
+)
+# One command. pip resolves these against each other only when they are installed together.
+EVENT_BUS_INSTALL = (
+    "pip install -e packages/ledger -e packages/risk-engine -e packages/brokers "
+    "-e packages/events -e packages/desk-ml -e packages/analysts -e packages/boss -e packages/desk"
 )
 
 
@@ -52,7 +61,7 @@ def require_event_packages() -> None:
             missing.append(f"{name} ({rel}): {exc}")
     if not missing:
         return
-    install = "pip install -e packages/events -e packages/analysts -e packages/boss -e packages/desk"
+    install = EVENT_BUS_INSTALL
     lines = [
         "USE_EVENT_BUS is on but these packages are not installed:",
         *[f"  - {line}" for line in missing],

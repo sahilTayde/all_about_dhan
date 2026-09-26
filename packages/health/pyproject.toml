@@ -3,15 +3,18 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "boss"
+name = "health"
 version = "0.1.0"
-description = "Boss orchestrator: analyst votes to ENTRY_APPROVED / NO_ENTRY. Paper only. Ignores shadow analysts."
+description = "Founder health monitor: recorder, paper engine, recon, risk vetoes. No orders."
 readme = "README.md"
 requires-python = ">=3.9"
-dependencies = ["analysts", "desk-ml"]
+dependencies = []
 
 [project.optional-dependencies]
 dev = ["pytest>=8"]
+
+[project.scripts]
+health = "health.__main__:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
