@@ -13,11 +13,12 @@ history and as the source of the original acceptance tests and budgets.
   broker adapter, risk engine, health, ledger, event bus, LLM analyst, regime) are good and we keep them. The boss,
   desk and analyst extraction are wrappers around the old engine, so they get rebuilt.
 - **Why.** The founder froze the old engine. Many later steps were "fix or tune the old engine". Those are dropped. The
-  rest become tickets on the new stack. Two founder addenda (2026-09-27) add: every bug fixed in the old engine
-  becomes a must-pass regression test (REG-01 to REG-13, section 3), and research round 9 needs bid/ask depth data
-  that no dataset we have contains.
+  rest become tickets on the new stack. Three founder addenda (2026-09-27) add: every bug fixed in the old engine
+  becomes a must-pass regression test (REG-01 to REG-13, section 3); research round 9 needs bid/ask depth data
+  that no dataset we have contains; and entry location (not chasing the top of an impulse candle) is checked by both
+  the boss and the desk (V2-05b, V2-08b), log-only until research round 10.
 - **Next.** Start **recording depth now** (V2-D1, V2-D2), because it cannot be backfilled and 2-5 minute stops cannot
-  be tested without it. In parallel, build 22 more tickets of 200-500 lines each, in four tracks after two shared
+  be tested without it. In parallel, build 24 more tickets of 200-500 lines each, in four tracks after two shared
   foundation tickets. Milestone 1 is **paper-live on the new stack** (real Dhan data, paper broker, safe restarts,
   founder controls, alarms, all regression tests green). Milestone 2 is **customer-ready** (Postgres, accounts, auth,
   rate limits, backups, compliance sign-off). Neither milestone says a strategy makes money; that is decided by the
@@ -165,6 +166,17 @@ run in parallel. `REG-nn` ids refer to section 3; each ticket ships the regressi
   high/low) use prior-day data only; `REG-01f` a saved state file dated after the session is refused.
 - Depends on: V2-01, V2-03.
 
+**V2-05b Entry-location features** (`packages/indicators/location.py`, ~350 lines)
+- `EntryLocation` for every signal (section 2.18): signal candle and body in ATR; unfilled FVGs (3-bar rule, fill rule,
+  max age); candle 50%; VWAP from futures volume with a basis shift, else TWAP tagged `twap`; EMA20; volume POC from
+  futures volume only (absent otherwise); signed `distance_atr` per zone; `nearest` and `entry_distance_atr`.
+- Acceptance: hand-built fixtures for a bullish and a bearish FVG (formed, partly filled, fully filled, expired);
+  candle 50% and EMA20 match references; VWAP uses futures volume when present and falls back to TWAP with the tag
+  when not; POC is absent without futures volume and matches a hand-computed profile with it; distance signs are
+  correct for CE and PE; random-cut causality and strict view on every entry-location field (REG-01); an FVG formed
+  by the still-open bar is never reported.
+- Depends on: V2-05.
+
 **V2-06 Strategy runtime and registry client** (`packages/strategies`, ~400 lines)
 - `api.py` (section 2.5, including `ExitPlan.time_stops` and `Signal.strike_choice`), `registry.py` (contract for the
   separately built module + YAML fallback; no basket = no trades), `runtime.py` (load by module path, check declared
@@ -214,6 +226,31 @@ run in parallel. `REG-nn` ids refer to section 3; each ticket ships the regressi
   note per component, a `charges` row for every fill, lot size 65 from the instrument master fixture, slippage and
   fill model recorded.
 - Depends on: V2-01, V2-02.
+
+**V2-08b Order planner, boss stretch veto, trade-through limit fills** (`packages/oms/planner.py`,
+`packages/boss/src/boss/selector.py`, `packages/brokers/fills.py`, `config/v2/entry_location.yaml`, ~500 lines)
+- Planner actions CHASE / LIMIT (zone-priced option limit, `TIMEOUT_UNFILLED` cancel, invalidation cancel) / WAIT (one
+  consolidation candle, trigger on its break, `WAIT_EXPIRED`); boss veto `ENTRY_STRETCHED` above `max_stretch_atr`
+  or `candle_max_atr`; `log_only` (default) vs `enforce`; risk re-checked at send time; one entry order per signal;
+  pending plans in `entry_plans` and rebuilt on restart; exit plan re-anchored at the fill; `ENTRY_PLAN` and
+  `ENTRY_PLAN_RESULT` events with the 5-minute give-back; trade-through fill rule for resting limits.
+- Acceptance:
+  - `log_only`: with stretched fixtures the executed action is CHASE, `shadow_action` is LIMIT or WAIT, the boss logs
+    `would_veto: true` and does not veto, and trades are identical to a run with the feature off.
+  - `enforce` (test thresholds): not stretched gives CHASE; stretched with a zone gives LIMIT at the zone-derived price;
+    no zone or `prefer: WAIT` gives WAIT; above `max_stretch_atr` gives `HOLD ENTRY_STRETCHED` with the numbers logged
+    and no order.
+  - LIMIT unfilled at `limit_timeout_s` is cancelled `TIMEOUT_UNFILLED`; the underlying stop trading first cancels it;
+    WAIT fires on the consolidation bar's break and expires after `wait_max_bars`.
+  - Trade-through: a quote whose ask equals the limit does not fill; an ask one tick below, or a trade printed below,
+    fills at the limit; a marketable limit fills at the ask.
+  - Risk vetoes a LIMIT that fills after the entry cutoff or during a cooldown that started while it rested.
+  - `kill -9` with a pending LIMIT: after restart the plan and its order are recovered and never duplicated
+    (REG-04); the protective stop is placed on fill (REG-02).
+  - `enforce` with a `null` threshold is refused, the last-good log-only config stays, and `CONFIG_INVALID` is raised
+    (REG-07); changing any threshold changes `config_hash` (REG-13).
+  - Planner + features < 5 ms p99 per decision.
+- Depends on: V2-05b, V2-07, V2-08.
 
 **V2-09 Position manager, first-class time stops, exits** (`packages/oms/positions.py`, `exits.py`, ~450 lines)
 - Exit order of section 2.9: founder, stop, EOD flat on `CLOCK`, time stops (`TimeStop(after_s, when,
@@ -319,7 +356,8 @@ run in parallel. `REG-nn` ids refer to section 3; each ticket ships the regressi
 
 **V2-18 Warehouse ETL to DuckDB and pre-market publish** (`packages/warehouse`, `packages/premarket`, ~450 lines)
 - Retarget PR #19's ETL: ledger, events, tapes (including depth, quote snapshots and OI cadence), recorder, benchmark
-  and forward-harness outputs into Parquet partitions with DuckDB views (`duckdb` dependency added here);
+  and forward-harness outputs into Parquet partitions with DuckDB views (`duckdb` dependency added here); the daily
+  `entry_location_daily` review table (per action, zone and strategy: count, fill rate, give-back, stop-outs, net);
   pre-market publishes `PRE_MARKET_SUMMARY`, event-day holds and HAR inputs before 09:00.
 - Acceptance: ETL is idempotent (a second run changes nothing) and incremental; row counts equal the sources; the
   attribution query (signal → decision → order → trade) returns the full chain for fixture trades; daily
@@ -338,7 +376,8 @@ run in parallel. `REG-nn` ids refer to section 3; each ticket ships the regressi
 `python -m runtime forward-eval`, ~450 lines)
 - Spec files `config/v2/forward/specs/<spec_id>.yaml`, `prereg.lock` (sha256 of canonical spec + plugin source +
   coefficients), nightly offline evaluation with the same kernel over `TapeSource`, depth fills with FC-MEAS as the
-  second pricing, strike-router alternatives as shadow legs, placebos, pass/kill bar state machine (default Round 8
+  second pricing, strike-router alternatives and entry-action alternatives (CHASE / LIMIT per zone / WAIT) as shadow
+  legs, placebos, pass/kill bar state machine (default Round 8
   FWD-BAR), `forward_trades`/`forward_checkpoints`; `forward_eval.enabled: false` by default.
 - Acceptance: disabled by default (the job exits 0 doing nothing); a spec whose hash differs from the lock is refused;
   the evaluator reproduces hand-computed P&L for the chosen leg and each alternative on a synthetic day; the bar state
@@ -359,9 +398,11 @@ run in parallel. `REG-nn` ids refer to section 3; each ticket ships the regressi
 
 ```
 V2-D1 ─▶ V2-D2 (needs V2-01)  ── operate from merge; feeds V2-12, V2-20a
-V2-01 ─▶ V2-02 ─┬─▶ A: V2-03 ─▶ V2-05 ─▶ V2-06 ─▶ V2-06b ─▶ V2-07 ─────▶ V2-19
-                │        └──────▶ V2-04 ─┐
-                ├─▶ B: V2-08 ─▶ V2-09 ───┴─▶ V2-10 ─▶ V2-11
+V2-01 ─▶ V2-02 ─┬─▶ A: V2-03 ─┬─▶ V2-04
+                │             └─▶ V2-05 ─┬─▶ V2-06 ─▶ V2-06b ─▶ V2-07 ─▶ V2-19
+                │                        └─▶ V2-05b
+                ├─▶ B: V2-08 ─┬─▶ V2-09 ─▶ V2-10 (needs V2-04) ─▶ V2-11
+                │             └─▶ V2-08b (needs V2-05b, V2-07)
                 ├─▶ C: V2-12 (needs V2-03, V2-D2), V2-13, V2-14, V2-15
                 └─▶ D: V2-16 (needs V2-10, V2-12, V2-15), V2-18 (needs V2-10),
                        V2-20a (needs V2-04, V2-06b, V2-09) ─▶ V2-20b (needs V2-18)
@@ -408,7 +449,7 @@ Tally: SATISFIED 1 (REG-05 caps, with the halt part still to port), PARTIAL 8, N
 
 ### M1: paper-live on the new stack
 
-**Scope:** V2-D1, V2-D2, and V2-01 to V2-16 including V2-06b (V2-17 recommended alongside). The engine runs during
+**Scope:** V2-D1, V2-D2, and V2-01 to V2-16 including V2-05b, V2-06b and V2-08b (V2-17 recommended alongside). The engine runs during
 market hours on real Dhan market data (user box or VPS), with the paper broker, strategies at stage `shadow` or
 `paper` from a founder-approved basket, founder controls, alarms, backups, and the frozen benchmark running nightly for
 comparison.
@@ -457,8 +498,9 @@ M1 does **not** mean a strategy is profitable, and it does not enable live order
 
 ## 5. Handoff block
 
-- **Accepted:** the re-map in section 1; 24 tickets within the 200-500 line rule (V2-D1, V2-D2, V2-01 to V2-19,
-  V2-06b, V2-20a, V2-20b); M1 and M2 criteria that test invariants and operations, not P&L; founder addendum 1
+- **Accepted:** the re-map in section 1; 26 tickets within the 200-500 line rule (V2-D1, V2-D2, V2-01 to V2-19,
+  V2-05b, V2-06b, V2-08b, V2-20a, V2-20b); founder addendum 3 (entry location: V2-05b features, V2-08b desk planner,
+  boss stretch veto and trade-through fills, log-only until research round 10); M1 and M2 criteria that test invariants and operations, not P&L; founder addendum 1
   (REG-01 to REG-13 in section 3, each with test ids, owner and ticket); founder addendum 2 (depth and quote recording,
   OI cadence, strike router, first-class time stops, forward harness off by default) as early tickets in the new
   system only.
@@ -468,7 +510,8 @@ M1 does **not** mean a strategy is profitable, and it does not enable live order
   fallback); the lab's frozen hashes for E1-E3 (blocks V2-20b only); Dhan FULL-packet byte layout (V2-D1 verifies
   against a captured frame); whether chain REST carries bid/ask; OI update cadence (V2-D2 measures it); Dhan token
   refresh for unattended runs (V2-12/V2-15 VERIFY); exact code lines behind F1/F2/F3 and the ₹193k stop hole (from the
-  founder's Phase 2 review, not in the repo; the REG tests specify behaviour).
+  founder's Phase 2 review, not in the repo; the REG tests specify behaviour); entry-location thresholds (research
+  round 10, due Sunday; log-only until then).
 - **Gap addressed:** `docs/01_CURRENT_STATE_AND_GAPS.md` §5 (backtest/replay: one code path, no look-ahead), §6 (role
   separation without the monolith), §7 (tech stack and deployment), §3 (broker adapter restart safety), §4 (data
   capture: bid/ask depth).
