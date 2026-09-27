@@ -5,6 +5,7 @@ from __future__ import annotations
 import random
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -342,6 +343,46 @@ def test_rule_version_is_stable_for_same_rules() -> None:
 def test_parse_ts_rejects_naive() -> None:
     with pytest.raises(ValueError, match="timezone-aware"):
         parse_ts("2026-09-25T11:00:00")
+
+
+def test_cross_index_quote_is_rejected() -> None:
+    """A BANKNIFTY snapshot must not price or label a NIFTY alternative."""
+    when = datetime(2026, 9, 25, 11, 0, tzinfo=IST)
+    india = India()
+    expected_itm100 = india.format_instrument_id("NSE", "FNO", "NIFTY", "2026-09-29", "24400", "CE")
+    bank = india.format_instrument_id("NSE", "FNO", "BANKNIFTY", "2026-09-30", "54000", "CE")
+    quotes = [
+        DatedQuote(when - timedelta(seconds=0.4), _snap("ITM100", "CE", bank, 500.0, 501.0)),
+    ]
+    choice = _router().route(_signal(when=when), _View(24512.35, when), quotes)
+    itm100 = next(a for a in choice.alternatives if a.rule == "ITM100")
+    assert is_no_quote(itm100)
+    assert itm100.instrument_id == expected_itm100
+    assert "BANKNIFTY" not in itm100.instrument_id
+    assert itm100.mid is None
+
+
+def test_wrong_expiry_quote_is_rejected() -> None:
+    """Same index/side/bucket but a different expiry is treated as missing."""
+    when = datetime(2026, 9, 25, 11, 0, tzinfo=IST)
+    india = India()
+    expected_atm = india.format_instrument_id("NSE", "FNO", "NIFTY", "2026-09-29", "24500", "CE")
+    wrong_exp = india.format_instrument_id("NSE", "FNO", "NIFTY", "2026-10-06", "24500", "CE")
+    quotes = [
+        DatedQuote(when - timedelta(seconds=0.4), _snap("ATM", "CE", wrong_exp, 10.0, 10.2)),
+    ]
+    choice = _router().route(_signal(when=when), _View(24512.35, when), quotes)
+    atm = next(a for a in choice.alternatives if a.rule == "ATM")
+    assert is_no_quote(atm)
+    assert atm.instrument_id == expected_atm
+    assert ":2026-10-06:" not in atm.instrument_id
+    assert atm.mid is None
+
+
+def test_missing_router_yaml_is_explicit_error(tmp_path: Path) -> None:
+    missing = tmp_path / "no-such-strike-router.yaml"
+    with pytest.raises(ValueError, match=r"strike_router\.yaml missing"):
+        load_router_rules(missing)
 
 
 def _mids(alts: tuple[StrikeQuote, ...]) -> dict[str, float | None]:
