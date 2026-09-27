@@ -121,6 +121,51 @@ def regenerate_all(folder: Optional[Path] = None) -> dict[str, bytes]:
     return out
 
 
+# ------------------------------------------------------------------ goldens
+
+# A copy of the box's production params (not the code defaults): the legacy replay reads them.
+PARAMS_LEGACY = {"stop_frac": 0.38, "scalp_hold_bars": 9, "nudge_n_closed": 494}
+GOLDEN_FIXTURES = (LEGACY_FIXTURE, *FIXTURES)
+
+
+def golden_dump(name: str, *, flag: str = "off") -> bytes:
+    """Legacy flag-off (or flag-on, replay risk file) replay of a committed fixture, canonical bytes.
+
+    Founder JSON file (no command log) and a params file in a scratch root, live_session=True:
+    the same inputs the owner's offline replay uses. Also importable against main's code.
+    """
+    import tempfile
+
+    import desk_ml.paper_scalp as ps
+
+    fx = load_fixture(name)
+    saved = ps.load_index_closes, ps.resolve_lot_size
+    ps.load_index_closes = lambda u, root=None: {}
+    ps.resolve_lot_size = lambda und, root=None: (int(fx["lot_sizes"].get(und, LOT_SIZES[und])), "fixture")
+    try:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            recon = root / "data" / "recon"
+            recon.mkdir(parents=True)
+            (recon / "founder_trade_underlyings.json").write_text(json.dumps({"trade_underlyings": list(fx["triples"])}))
+            (recon / "ml_paper_session_params.json").write_text(json.dumps(PARAMS_LEGACY))
+            kw = dict(root=root, underlyings=tuple(fx["triples"]), triples_by_und=fx["triples"],
+                      session_ist_date=fx["day"], write=False, live_session=True)
+            if flag == "on":
+                from desk_ml.event_path import EventSession
+
+                session = EventSession()
+                try:
+                    board = ps.replay_paper_scalp(**kw, event_session=session)
+                finally:
+                    session.close()
+            else:
+                board = ps.replay_paper_scalp(**kw, use_event_bus=False)
+    finally:
+        ps.load_index_closes, ps.resolve_lot_size = saved
+    return canonical_dump(board)
+
+
 # ------------------------------------------------------------------ dual-tape JSONL
 
 
@@ -149,12 +194,19 @@ def tape_lines(triples_by_und: dict[str, Sequence[Triple]]) -> list[tuple[int, s
 
 
 def main(argv: Optional[Sequence[str]] = None) -> int:
-    """python -m desk_ml.testing.canonical --check | --write  (fixture provenance)."""
+    """python -m desk_ml.testing.canonical [--write | --write-goldens]  (fixture provenance / goldens)."""
     import argparse
 
     ap = argparse.ArgumentParser(prog="python -m desk_ml.testing.canonical")
     ap.add_argument("--write", action="store_true", help="rewrite the committed fixtures from the generator")
+    ap.add_argument("--write-goldens", action="store_true", help="rewrite tests/golden/*.legacy.json (say why in the PR)")
     args = ap.parse_args(argv)
+    if args.write_goldens:
+        GOLDEN_DIR.mkdir(parents=True, exist_ok=True)
+        for name in GOLDEN_FIXTURES:
+            (GOLDEN_DIR / f"{name}.legacy.json").write_bytes(golden_dump(name))
+            print(f"wrote {name}.legacy.json")
+        return 0
     bad = []
     for fname, data in regenerate_all().items():
         path = FIXTURE_DIR / fname

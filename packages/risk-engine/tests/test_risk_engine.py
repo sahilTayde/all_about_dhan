@@ -221,3 +221,66 @@ def test_state_reloads_from_ledger_after_restart(tmp_path):
     assert code(d) == "DUPLICATE"
     rows = restarted.ledger._all("SELECT reason_code, critical FROM risk_decisions ORDER BY id")
     assert [r["reason_code"] for r in rows] == ["COOLDOWN", "OK", "DUPLICATE"]
+
+
+def _exit_intent():
+    return TradeIntent(symbol="NIFTY 25000 CE", side="SELL", lots=1, lot_size=65, purpose="EXIT", exit_reason="STOP")
+
+
+def test_spof_S4_relative_kill_file_is_resolved_against_the_data_root_not_the_cwd(tmp_path, monkeypatch):
+    cfg = {**BASE_CFG, "kill_switch_file": "data/ledger/KILL_SWITCH"}
+    (tmp_path / "config").mkdir()
+    path = tmp_path / "config" / "risk_limits.yaml"
+    path.write_text(yaml.safe_dump(cfg))
+    (tmp_path / "data" / "ledger").mkdir(parents=True)
+    (tmp_path / "data" / "ledger" / "KILL_SWITCH").write_text("")
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    monkeypatch.chdir(elsewhere)
+    assert code(RiskEngine(config_path=path).check_entry(intent(), NOW, RiskState())) == "KILL_SWITCH"
+    data_root = tmp_path / "scratch"
+    data_root.mkdir()
+    assert code(RiskEngine(config_path=path, root=data_root).check_entry(intent(), NOW, RiskState())) != "KILL_SWITCH"
+
+
+def test_spof_S4_unreadable_kill_path_counts_as_on(tmp_path):
+    blocker = tmp_path / "file"
+    blocker.write_text("")
+    eng = make_engine(tmp_path, kill_switch_file=str(blocker / "KILL_SWITCH"))  # parent is a file: ENOTDIR
+    assert code(eng.check_entry(intent(), NOW, RiskState())) == "KILL_SWITCH"
+
+
+@pytest.mark.parametrize("content", ["", "{broken", "- a list\n", "mode: nonsense\n"])
+def test_spof_S6_exits_approved_on_a_corrupt_config_entries_refused(tmp_path, content):
+    path = tmp_path / "risk_limits.yaml"
+    path.write_text(content)
+    eng = RiskEngine(config_path=path)
+    assert code(eng.check_entry(intent(), NOW, RiskState())) == "ENGINE_ERROR"
+    for d in (eng.check_exit(_exit_intent(), now=NOW), eng.check_flatten(now=NOW),
+              eng.check_exit(intent(), action="CANCEL", now=NOW)):
+        assert d.approved and d.degraded and d.critical and d.reason_code == "OK_DEGRADED"
+
+
+def test_spof_S6_missing_config_still_lets_exits_through(tmp_path):
+    eng = RiskEngine(config_path=tmp_path / "nope.yaml")
+    assert eng.check_exit(_exit_intent(), now=NOW).approved
+    assert not eng.check_entry(intent(), NOW, RiskState()).approved
+
+
+def test_spof_S6_live_tier_gate_is_not_relaxed(tmp_path):
+    eng = make_engine(tmp_path, mode="live")
+    assert code(eng.check_exit(_exit_intent(), now=NOW)) == "MODE_NOT_ENABLED"
+
+
+def test_spof_S7_audit_failure_vetoes_entries_but_approves_exits(tmp_path):
+    class FullDisk(Ledger):
+        def record_decision(self, _row):
+            raise OSError(28, "No space left on device")
+
+    led = FullDisk(":memory:", rates=load_rates(REPO / "config" / "charges.yaml"))
+    eng = RiskEngine(ledger=led, config_path=make_engine(tmp_path).config_path, root=tmp_path)
+    assert code(eng.check_entry(intent(), NOW, RiskState())) == "ENGINE_ERROR"
+    d = eng.check_exit(_exit_intent(), now=NOW)
+    assert d.approved and d.degraded
+    spool = tmp_path / "data" / "risk" / "audit_spool.jsonl"
+    assert "No space left" in spool.read_text()

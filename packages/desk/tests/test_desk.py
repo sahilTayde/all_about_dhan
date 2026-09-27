@@ -543,3 +543,43 @@ def test_broker_refusal_means_no_trade(tmp_path, monkeypatch):
     monkeypatch.setattr(desk.broker, "max_decision_age_s", -10.0)
     approve(bus, ticket())
     assert desk.engine.opens == {} and desk.engine.skips[-1]["reason"] == BROKER_REFUSED
+
+
+def test_spof_S8_refused_exit_is_retried_every_tick_with_one_alert(tmp_path, monkeypatch):
+    monkeypatch.setattr(ps, "step_mark", lambda _e, _s: None)
+    desk, bus, audit, led, steps = make_desk(tmp_path)
+    pos = ticket()
+    approve(bus, pos)
+    real = desk.risk.check_exit
+    refusals = {"n": 2}
+
+    def flaky(intent, action="EXIT", now=None):
+        if refusals["n"] > 0:
+            refusals["n"] -= 1
+            from risk_engine import RiskDecision
+
+            return RiskDecision(False, intent.client_order_id, action, "SIMULATED_REFUSAL", "test", desk.clock())
+        return real(intent, action, now=now)
+
+    monkeypatch.setattr(desk.risk, "check_exit", flaky)
+    desk.close(pos, ltp=155.0, ts=T0 + 10, reason="TARGET")
+    assert desk.engine.opens == {}  # the engine books the exit; it is never refused
+    assert pos.trade_id in desk.pending_exits and [t["status"] for t in led.trades()] == ["OPEN"]
+    for n in range(1, 3):
+        steps[f"NIFTY:{n}"] = _tick(T0 + 10 + n)
+        bus.publish("MARKET_TICK", {"key": f"NIFTY:{n}"}, source="feed")
+    assert desk.pending_exits == {} and [t["status"] for t in led.trades()] == ["CLOSED"]
+    unmirrored = [a for a in audit.rows("HEALTH_ALERT") if "not mirrored" in a["payload"].get("reason", "")]
+    assert len(unmirrored) == 1
+
+
+def test_broker_timeout_on_entry_means_no_trade(tmp_path, monkeypatch):
+    desk, bus, _audit, led, _ = make_desk(tmp_path)
+
+    def timeout(_intent, _decision):
+        raise TimeoutError("no answer")
+
+    monkeypatch.setattr(desk.broker, "place_order", timeout)
+    approve(bus, ticket())
+    assert desk.engine.opens == {} and led.trades() == [] and not bus.errors
+    assert desk.vetoes[-1]["reason_code"] == "BROKER_ERROR"

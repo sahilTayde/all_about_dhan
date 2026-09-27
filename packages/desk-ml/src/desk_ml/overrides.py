@@ -49,9 +49,12 @@ def append_override(root: Path, payload: dict[str, Any], *, ts: float, source: s
 
 
 def _legacy_rows(root: Path) -> list[dict[str, Any]]:
+    path = view_path(root)
     try:
-        blob = json.loads(view_path(root).read_text(encoding="utf-8"))
+        blob = json.loads(path.read_text(encoding="utf-8"))
     except FileNotFoundError:
+        if path.is_symlink():
+            raise ValueError("human override view is a broken link") from None
         return []
     except (OSError, ValueError):
         raise ValueError("human override view is unreadable") from None

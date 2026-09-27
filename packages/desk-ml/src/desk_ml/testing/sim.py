@@ -152,7 +152,7 @@ def make_root(root: Path, *, day: str, founder: Sequence[str] = ("NIFTY", "BANKN
               params: Optional[dict[str, Any]] = None) -> Path:
     """Scratch data root: founder log (START from ts=0), params, lot cache, risk config copies."""
     from desk_ml.founder_session import save_founder_book
-    from desk_ml.persist import repo_root
+    from desk_ml.persist import code_root
 
     root = Path(root)
     recon = root / "data" / "recon"
@@ -162,7 +162,7 @@ def make_root(root: Path, *, day: str, founder: Sequence[str] = ("NIFTY", "BANKN
     (recon / "optidx_lot_cache.json").write_text(json.dumps({u: {"lot_size": n, "source": "sim"} for u, n in LOT_SIZES.items()}))
     cfg = root / "config"
     cfg.mkdir(parents=True, exist_ok=True)
-    code = repo_root() / "config"
+    code = code_root() / "config"
     (cfg / "risk_limits.yaml").write_text((code / "risk_limits.yaml").read_text())
     (cfg / "event_path.yaml").write_text(
         f"live_risk_config: {cfg / 'risk_limits.yaml'}\nreplay_risk_config: {code / 'risk_limits_replay.yaml'}\n"
@@ -276,7 +276,9 @@ def run_live_day(
         cutoff = ts_at(day, hhmm)
         prev = ts_at(day, cutoffs[k - 1]) if k else 0
         due = [f for f in faults if prev < ts_at(day, f.at) <= cutoff]
-        tape_path.write_text(_tape_for_cycle(lines, cutoff, faults, day, k), encoding="utf-8")
+        text = _tape_for_cycle(lines, cutoff, faults, day, k)
+        tape_path.write_text(text, encoding="utf-8")
+        tape_cut = _cutoffs(text)
         skew = 0.0
         for f in faults:
             if f.kind == "clock_skew":
@@ -286,11 +288,7 @@ def run_live_day(
             if f.kind == "founder":
                 set_index_trade(f.args["underlying"], f.args["action"], root=root, ts=at)
             elif f.kind == "override":
-                row = res.cycles[-1]["open"] if res.cycles else []
-                target = next((o for o in row if o["underlying"] == f.args.get("underlying", o["underlying"])), None)
-                if target is not None:
-                    ps.save_human_override({"action": "CANCEL", "trade_id": target["trade_id"],
-                                            "underlying": target["underlying"], "side": target["side"]}, root=root, ts=at)
+                ps.save_human_override({"action": "CANCEL", **f.args}, root=root, ts=at)
             elif f.kind == "params_change":
                 (root / "data" / "recon" / "ml_paper_session_params.json").write_text(json.dumps(f.args["params"]))
             elif f.kind == "corrupt":
@@ -323,10 +321,6 @@ def run_live_day(
                                   session_ist_date=day, replay_kw=kw)
             except Exception as exc:  # noqa: BLE001 — recorded; the loop keeps going
                 error = f"{type(exc).__name__}: {exc}"
-        tape_cut = {}
-        for u, tr in triples_by_und.items():
-            seen = [int(t.ts) for t in tr if int(t.ts) <= cutoff]
-            tape_cut[u] = max(seen) if seen else 0
         res.cycles.append({
             "k": k, "cutoff": cutoff, "hhmm": hhmm, "error": error, "tape_cut": tape_cut,
             "closed": [canonical_trade(r) for r in board.get("closed_trades") or []],
@@ -351,6 +345,23 @@ def run_live_day(
     except Exception:  # noqa: BLE001 — a corrupt log is a scenario, not a harness error
         res.founder_rows = []
     return res
+
+
+def _cutoffs(text: str) -> dict[str, int]:
+    """Last tick per underlying in the tape as written this cycle (what a replay can see)."""
+    from desk_ml.tape import parse_ts
+
+    out: dict[str, int] = {}
+    for line in text.splitlines():
+        try:
+            blob = json.loads(line)
+            ts = int(parse_ts(blob["as_of_ist"]))
+        except (ValueError, KeyError, TypeError):
+            continue
+        for snap in blob.get("underlyings") or []:
+            u = str(snap.get("underlying") or "").upper()
+            out[u] = max(out.get(u, 0), ts)
+    return out
 
 
 def _read_lines(path: Path) -> list[dict[str, Any]]:

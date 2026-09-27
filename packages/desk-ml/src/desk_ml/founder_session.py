@@ -61,6 +61,8 @@ def _clean(names: Iterable[Any]) -> list[str]:
 def load_founder_book(root: Optional[Path] = None) -> dict[str, Any]:
     path = session_path(root)
     if not path.is_file():
+        if path.exists() or path.is_symlink():  # a directory or a broken link is not "no file"
+            return _payload(list(DEFAULT), source="unreadable", ok=False)
         return _payload(list(DEFAULT), source="default")
     try:
         blob = json.loads(path.read_text(encoding="utf-8"))
