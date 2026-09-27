@@ -139,6 +139,31 @@ UNKNOWN: Dhan token refresh for unattended VPS (VERIFY). Docker-in-CI
 
 ---
 
+## As of now (2026-09-27 IST) — V2-09 paper position manager (NO_PROMOTE)
+
+```text
+From:     teams/07_coding
+To:       00 / 09
+Date:     2026-09-27
+Status:   V2-09 PAPER positions on V2-08 router / NO_PROMOTE
+Accepted: Exit loop from the held position + ExitPlan
+  (catastrophic, time stops, EOD, target/partial/trail,
+  founder, kill, strategy, failsafe MTM). IST clock.
+  REG-02a after envelopes, REG-03a-c, REG-05d, REG-15a-d.
+  In-place modify_order(order_id, qty) for protective SL-M
+  so stop qty == net. Cancel-then-replace only if modify
+  unsupported. Bounded idempotent replace retry; CRITICAL
+  STOP_RESIZE_FAILED + paper market flatten if still failing.
+  check_exit always allows reduce-only SELL <= net (kill
+  included). Never restore a stop larger than live net.
+Rejected: Durable ledger/rehydrate (V2-10). Structural /
+  ATR / grace / flip / defaults.yaml (V2-09b). Live/Dhan.
+  Cancel-then-naked-place without retry/flatten.
+UNKNOWN: V2-10 halt row / restart rehydrate.
+```
+
+---
+
 ## As of now (2026-09-27 IST) — V2-13 token-only ROLE_ACL (PAPER)
 
 ```text

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 
 import yaml
@@ -97,3 +97,43 @@ def test_reg_05c_kill_switch_vetoes_entry_allows_exit(tmp_path: Path) -> None:
     )
     assert risk_on.check_exit(exit_i, "EXIT", now=NOW).approved
     _ = datetime
+
+
+def test_reg_05d_raising_mark_closes_at_last_good_and_blocks_entries(
+    tmp_path: Path,
+) -> None:
+    from brokers.factory import make_broker
+    from brokers.fills import Quote
+    from helpers import INST, make_decision, make_exit_plan, make_manager, make_plan
+
+    clock = SimClock(NOW)
+    broker = make_broker(clock=clock)
+    pm = make_manager(tmp_path, clock, broker=broker)
+    order = pm.router.submit(
+        make_plan(), make_decision(), Account("founder"), exit_plan=make_exit_plan()
+    )
+    assert not isinstance(order, Veto)
+    clock.advance_by(timedelta(milliseconds=250))
+    broker.on_depth(
+        Quote(
+            available_ts=clock.now(),
+            bid=151.00,
+            ask=151.20,
+            ltp=151.10,
+            instrument_id=INST,
+        )
+    )
+    last_good = pm.open_book()[0]["last_good_quote"]
+    pm.mark_to_market(INST, float("nan"))
+    assert pm.open_book() == []
+    assert pm.store.closed[-1]["last_exit_price"] == last_good
+    assert pm.store.recon_ok is False
+    assert pm.store.session_halts
+    blocked = pm.router.submit(
+        make_plan(signal_id="sg_halt_nifty_20260928_1100_0"),
+        make_decision(),
+        Account("founder"),
+        exit_plan=make_exit_plan(),
+    )
+    assert isinstance(blocked, Veto)
+    assert blocked.reason_code == "RECON_MISMATCH"

@@ -41,6 +41,48 @@ def live_confirmed() -> bool:
     return os.environ.get(LIVE_CONFIRM_ENV) == LIVE_CONFIRM_VALUE
 
 
+def held_net_qty(ledger: Any, intent: TradeIntent) -> Optional[int]:
+    """Held net for this name, or None when the ledger has no per-name book."""
+    if ledger is None:
+        return None
+    positions = getattr(ledger, "positions", None)
+    if not isinstance(positions, dict):
+        return None
+    for key in (intent.instrument_id, intent.symbol):
+        if not key:
+            continue
+        pos = positions.get(key)
+        if isinstance(pos, dict):
+            return int(pos.get("net_qty") or 0)
+    for pos in positions.values():
+        if not isinstance(pos, dict):
+            continue
+        if intent.instrument_id and pos.get("instrument_id") == intent.instrument_id:
+            return int(pos.get("net_qty") or 0)
+        if intent.symbol and pos.get("symbol") == intent.symbol:
+            return int(pos.get("net_qty") or 0)
+    return None
+
+
+def is_reduce_only_sell(intent: Optional[TradeIntent], ledger: Any = None) -> bool:
+    """True for an EXIT SELL whose qty is <= held net (unknown book counts as reduce-only)."""
+    if intent is None or intent.side != "SELL" or intent.purpose != "EXIT":
+        return False
+    if intent.lots <= 0 or intent.lot_size <= 0:
+        return False
+    held = held_net_qty(ledger, intent)
+    if held is None:
+        return True
+    return intent.qty <= held
+
+
+def _sell_exceeds_held(intent: Optional[TradeIntent], ledger: Any) -> bool:
+    if intent is None or intent.side != "SELL" or intent.purpose != "EXIT":
+        return False
+    held = held_net_qty(ledger, intent)
+    return held is not None and intent.qty > held
+
+
 def new_client_order_id() -> str:
     """27 chars of [a-z0-9]; fits Dhan's correlationId (max 30, [a-zA-Z0-9 _-])."""
     return "aad" + uuid.uuid4().hex[:24]
@@ -168,7 +210,7 @@ class RiskEngine:
         return self._decide(intent, "ENTRY", now, state)
 
     def check_exit(self, intent: TradeIntent, action: str = "EXIT", now: Optional[datetime] = None) -> RiskDecision:
-        """Exit, modify (price fields only) or cancel. Allowed under kill switch and outside entry hours."""
+        """Exit / modify / cancel. Reduce-only SELL <= held net is never vetoed (kill included)."""
         return self._decide(intent, action, now, None)
 
     def check_flatten(self, now: Optional[datetime] = None) -> RiskDecision:
@@ -269,6 +311,16 @@ class RiskEngine:
         mode_veto = self._mode_veto(cfg)
         if mode_veto:
             return mode_veto
+        if action in ("EXIT", "MODIFY") and is_reduce_only_sell(intent, self.ledger):
+            if action == "EXIT" and self.ledger is not None and intent is not None:
+                used = self.ledger.risk_snapshot(now, int(cfg["idempotency_seconds"]))[
+                    "used_client_order_ids"
+                ]
+                if intent.client_order_id in used:
+                    return "DUPLICATE", "exit intent already approved", False
+            return "OK", "reduce-only sell does not add risk", False
+        if action in ("EXIT", "MODIFY") and _sell_exceeds_held(intent, self.ledger):
+            return "INVALID_INTENT", "SELL qty exceeds held net; not reduce-only", False
         if action == "EXIT":
             if intent is None or intent.purpose != "EXIT":
                 return "INVALID_INTENT", "exit needs an intent with purpose EXIT", False
