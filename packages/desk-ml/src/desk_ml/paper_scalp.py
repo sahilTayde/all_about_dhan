@@ -3189,7 +3189,7 @@ def logit_side_series(
         meta["status"] = "DATA_INSUFFICIENT"
         return [{**thin, "n_3m": len(bars)} for _ in triples], meta
     try:
-        from backtest_engine.ml_leans import lean_ml_logit
+        from backtest_engine.ml_leans import score_ml_logit
         from backtest_engine.patterns import lean_range_exp
     except ImportError:
         meta["status"] = "DATA_INSUFFICIENT"
@@ -3197,13 +3197,14 @@ def logit_side_series(
         return [{**thin, "reason": reason, "n_3m": len(bars)} for _ in triples], meta
     train_end = int(triples[0].ts)
     meta["train_end_ts"] = train_end
-    leans = lean_ml_logit(bars, train_end_ts=train_end)
+    leans, logit_probs = score_ml_logit(bars, train_end_ts=train_end)
     xr_leans = lean_range_exp(bars) if xr else None
     labeled_before = sum(1 for bar in bars if bar.ts < train_end)
     meta["n_train_3m_bars_before_session"] = labeled_before
     out: list[dict[str, Any]] = []
     last_logit = "SKIP"
     last_xr = "SKIP"
+    last_p: Optional[float] = None
     last_sess: Optional[str] = None
     bi = 0
     for t in triples:
@@ -3211,19 +3212,23 @@ def logit_side_series(
         if last_sess is not None and sess != last_sess:
             last_logit = "SKIP"
             last_xr = "SKIP"
+            last_p = None
         last_sess = sess
         while bi < len(bars) and bars[bi].ts <= int(t.ts):
             if ist_calendar_date(int(bars[bi].ts)) == sess:
                 last_logit = leans[bi]
+                last_p = logit_probs[bi]
                 if xr_leans is not None:
                     last_xr = xr_leans[bi]
             bi += 1
+        # `p` is the logit probability for the shadow log. Votes still read `side` only.
         if xr:
             if last_logit in {"CE", "PE"} and last_logit == last_xr:
                 out.append(
                     {
                         "side": last_logit,
                         "status": "OK",
+                        "p": last_p,
                         "n_3m": len(bars),
                         "train_end_ts": train_end,
                     }
@@ -3233,6 +3238,7 @@ def logit_side_series(
                     {
                         "side": None,
                         "status": "SKIP",
+                        "p": last_p,
                         "reason": f"XR filter logit={last_logit} range={last_xr}",
                         "n_3m": len(bars),
                         "train_end_ts": train_end,
@@ -3244,6 +3250,7 @@ def logit_side_series(
                 {
                     "side": last_logit,
                     "status": "OK",
+                    "p": last_p,
                     "n_3m": len(bars),
                     "train_end_ts": train_end,
                 }
@@ -3253,6 +3260,7 @@ def logit_side_series(
                 {
                     "side": None,
                     "status": "DATA_INSUFFICIENT" if last_logit == "SKIP" else "SKIP",
+                    "p": last_p,
                     "reason": (
                         "lean_ml_logit SKIP (needs ≥200 labeled 3m train rows before cutoff; "
                         "label is next INDEX close, not premium)"
@@ -5511,6 +5519,31 @@ def step_decide(engine: BookEngine, s: TickStep, votes: Sequence[Any], *, open_f
     pos = engine.opens.get((SOD_PRODUCT_BOOK, und)) if sod else next(
         (p for (b, u), p in engine.opens.items() if u == und), None
     )
+    # Log-only. A shadow failure must not change the ticket just opened above.
+    live_lots = getattr(pos, "lots", None) if pos is not None else None
+    try:
+        from desk_ml.shadow_log import safe_log_shadow
+
+        safe_log_shadow(
+            engine,
+            underlying=und,
+            ts=int(tick.ts),
+            votes=votes,
+            picker=picker,
+            live_lots=int(live_lots) if live_lots is not None else None,
+            prev=older,
+            closed=closed_1m,
+            classified=classified,
+            bars_1m=getattr(s, "bars_1m", None),
+            logit=logit,
+            wing_quotes=getattr(tick, "wing_quotes", None),
+            atm=float(strike) if strike is not None else None,
+            spot=float(tick.idx_close),
+        )
+    except Exception:
+        import logging
+
+        logging.getLogger("desk_ml.shadow_log").exception("shadow log failed")
     obs_action = str(review.get("action") or "") if isinstance(review, dict) else ""
     desk_fill_side = pos.side if pos is not None and pos.side in {"CE", "PE"} else None
     model_signals = track_model_signals(
