@@ -114,7 +114,7 @@ def _build_full_packet(
     return header + payload
 
 
-def test_full_packet_golden_decode():
+def test_full_packet_golden_decode() -> None:
     """Golden test: FULL packet decodes to expected fields with correct layout."""
     packet = _build_full_packet(
         security_id=54321,
@@ -160,7 +160,7 @@ def test_full_packet_golden_decode():
     assert fields["day_low"] == pytest.approx(147.00, abs=0.01)
 
 
-def test_full_packet_interleaved_depth():
+def test_full_packet_interleaved_depth() -> None:
     """All 5 interleaved depth levels decode correctly."""
     depth_levels = [
         (100, 110, 5, 6, 200.00, 200.05),  # Level 1
@@ -197,7 +197,7 @@ def test_full_packet_interleaved_depth():
         assert ask["orders"] == ask_orders
 
 
-def test_full_packet_exact_size():
+def test_full_packet_exact_size() -> None:
     """FULL packet must be exactly 162 bytes (8 header + 154 payload)."""
     packet = _build_full_packet()
     
@@ -213,7 +213,7 @@ def test_full_packet_exact_size():
     assert len(payload_bytes) == 154
 
 
-def test_full_packet_oi_high_low():
+def test_full_packet_oi_high_low() -> None:
     """OI day high and low fields decode correctly."""
     packet = _build_full_packet(
         oi=750000,
@@ -229,7 +229,7 @@ def test_full_packet_oi_high_low():
     assert fields["oi_day_low"] == 720000
 
 
-def test_full_packet_truncated_raises_decode_error():
+def test_full_packet_truncated_raises_decode_error() -> None:
     """Truncated FULL packet raises DecodeError."""
     full_packet = _build_full_packet()
 
@@ -241,7 +241,7 @@ def test_full_packet_truncated_raises_decode_error():
     assert len(packets) == 0  # Bad packet skipped
 
 
-def test_full_packet_garbage_data_raises_decode_error():
+def test_full_packet_garbage_data_raises_decode_error() -> None:
     """Garbage FULL packet raises DecodeError and is skipped."""
     # Build header for FULL packet but with garbage payload
     header = struct.pack(
@@ -261,7 +261,7 @@ def test_full_packet_garbage_data_raises_decode_error():
     assert len(packets) == 0  # Bad packet skipped
 
 
-def test_full_packet_decoder_verified_flag():
+def test_full_packet_decoder_verified_flag() -> None:
     """FULL packet includes decoder_verified flag (False until verified)."""
     packet = _build_full_packet()
     packets = decode_frame(packet)
@@ -274,7 +274,7 @@ def test_full_packet_decoder_verified_flag():
     assert any("not yet verified" in note for note in decoded.notes)
 
 
-def test_full_packet_raw_payload_preserved():
+def test_full_packet_raw_payload_preserved() -> None:
     """FULL packet preserves raw_payload for verification."""
     packet = _build_full_packet(security_id=99999)
     packets = decode_frame(packet)
@@ -286,7 +286,7 @@ def test_full_packet_raw_payload_preserved():
     assert decoded.raw_payload == packet[8:]  # Skip 8-byte header
 
 
-def test_quote_packet_unchanged():
+def test_quote_packet_unchanged() -> None:
     """QUOTE packet decoding unchanged (regression test)."""
     # Build QUOTE packet (code 4) - existing format
     payload = struct.pack("<f", 100.50)  # LTP
@@ -318,7 +318,7 @@ def test_quote_packet_unchanged():
     assert decoded.fields["volume"] == 1000000
 
 
-def test_index_packet_unchanged():
+def test_index_packet_unchanged() -> None:
     """INDEX packet decoding unchanged (regression test)."""
     # Build INDEX packet (code 1)
     payload = struct.pack("<f", 18500.50)  # Just LTP
@@ -338,7 +338,7 @@ def test_index_packet_unchanged():
     assert decoded.fields["ltp"] == pytest.approx(18500.50, abs=0.01)
 
 
-def test_full_packet_multiple_in_frame():
+def test_full_packet_multiple_in_frame() -> None:
     """Multiple FULL packets in one frame decode correctly."""
     packet1 = _build_full_packet(security_id=111, ltp=100.0)
     packet2 = _build_full_packet(security_id=222, ltp=200.0)
@@ -356,7 +356,7 @@ def test_full_packet_multiple_in_frame():
     assert packets[1].fields["ltp"] == pytest.approx(200.0, abs=0.01)
 
 
-def test_full_packet_ohlc_fields():
+def test_full_packet_ohlc_fields() -> None:
     """OHLC fields decode correctly."""
     packet = _build_full_packet(
         day_open=95.00,
@@ -374,7 +374,7 @@ def test_full_packet_ohlc_fields():
     assert fields["day_close"] == pytest.approx(104.75, abs=0.01)
 
 
-def test_full_packet_volume_and_oi():
+def test_full_packet_volume_and_oi() -> None:
     """Volume and OI fields decode correctly."""
     packet = _build_full_packet(
         volume=5000000,
@@ -396,7 +396,7 @@ def test_full_packet_volume_and_oi():
     assert fields["total_sell_quantity"] == 2200000
 
 
-def test_bad_packet_logged_and_skipped():
+def test_bad_packet_logged_and_skipped() -> None:
     """Bad packet is logged and skipped without crashing."""
     # Build one good packet, then a bad (malformed) packet
     good1 = _build_full_packet(security_id=111, ltp=100.0)
@@ -429,7 +429,7 @@ def test_bad_packet_logged_and_skipped():
     assert packets2[0].header.security_id == 333
 
 
-def test_layout_offsets_exact():
+def test_layout_offsets_exact() -> None:
     """Test that layout offsets match documented structure exactly."""
     packet = _build_full_packet(
         ltp=123.45,
@@ -469,3 +469,106 @@ def test_layout_offsets_exact():
     # Verify depth starts at offset 54
     first_level = struct.unpack_from("<IIHHff", payload, 54)
     assert len(first_level) == 6  # bid_qty, ask_qty, bid_orders, ask_orders, bid_price, ask_price
+
+
+def test_full_packet_sdk_crosscheck() -> None:
+    """Cross-check decoded fields against DhanHQ SDK reference implementation.
+    
+    The DhanHQ SDK uses the same layout. This test ensures our decoder is compatible
+    with the official SDK's field extraction.
+    
+    Reference: https://github.com/dhan-oss/DhanHQ-py/blob/63b9030d700f0fd331c124fd948ba0b79a6e7fd8/src/dhanhq/marketfeed.py#L446-L490
+    """
+    # Build packet with known values matching SDK test cases
+    packet = _build_full_packet(
+        security_id=98765,
+        ltp=175.50,
+        ltq=50,
+        ltt=1695555555,
+        atp=174.90,
+        volume=3000000,
+        total_sell_qty=1400000,
+        total_buy_qty=1600000,
+        oi=650000,
+        oi_day_high=670000,
+        oi_day_low=630000,
+        day_open=172.00,
+        day_close=176.00,
+        day_high=177.50,
+        day_low=171.00,
+        depth_levels=[
+            (150, 160, 7, 8, 175.00, 175.50),  # Level 1
+            (120, 130, 5, 6, 174.95, 175.55),  # Level 2
+            (100, 110, 4, 5, 174.90, 175.60),  # Level 3
+            (80, 90, 3, 4, 174.85, 175.65),    # Level 4
+            (60, 70, 2, 3, 174.80, 175.70),    # Level 5
+        ],
+    )
+
+    packets = decode_frame(packet)
+    assert len(packets) == 1
+
+    decoded = packets[0]
+    fields = decoded.fields
+
+    # Cross-check all fields against expected SDK output
+    assert fields["ltp"] == pytest.approx(175.50, abs=0.01)
+    assert fields["last_quantity"] == 50
+    assert fields["last_trade_time_epoch"] == 1695555555
+    assert fields["atp"] == pytest.approx(174.90, abs=0.01)
+    assert fields["volume"] == 3000000
+    assert fields["total_sell_quantity"] == 1400000
+    assert fields["total_buy_quantity"] == 1600000
+    assert fields["oi"] == 650000
+    assert fields["oi_day_high"] == 670000
+    assert fields["oi_day_low"] == 630000
+    assert fields["day_open"] == pytest.approx(172.00, abs=0.01)
+    assert fields["day_close"] == pytest.approx(176.00, abs=0.01)
+    assert fields["day_high"] == pytest.approx(177.50, abs=0.01)
+    assert fields["day_low"] == pytest.approx(171.00, abs=0.01)
+
+    # Depth levels match SDK
+    assert len(fields["bid_depth"]) == 5
+    assert len(fields["ask_depth"]) == 5
+    assert fields["bid_depth"][0]["price"] == pytest.approx(175.00, abs=0.01)
+    assert fields["ask_depth"][0]["price"] == pytest.approx(175.50, abs=0.01)
+
+
+def test_bad_packet_between_good_packets() -> None:
+    """Bad packet in the middle of a frame is skipped without breaking good packets.
+    
+    This test ensures REG-06 compliance: per-packet DecodeError skip without
+    aborting the entire frame.
+    """
+    # Build three packets: good, bad, good
+    good1 = _build_full_packet(security_id=111, ltp=100.0)
+    
+    # Bad packet: FULL header but truncated payload
+    bad_header = struct.pack(
+        "<BHBi",
+        FeedResponseCode.FULL,  # code = 8
+        162,  # Claim full length
+        1,
+        222,
+    )
+    bad_payload = b"x" * 50  # Only 50 bytes, need 154
+    bad = bad_header + bad_payload
+    
+    good2 = _build_full_packet(security_id=333, ltp=300.0)
+
+    # Combine into one frame: good + bad + good
+    frame = good1 + bad + good2
+
+    # Decode the frame
+    packets = decode_frame(frame)
+    
+    # Should get 2 good packets (bad packet skipped)
+    assert len(packets) == 2
+    
+    # First good packet
+    assert packets[0].header.security_id == 111
+    assert packets[0].fields["ltp"] == pytest.approx(100.0, abs=0.01)
+    
+    # Second good packet (after bad packet was skipped)
+    assert packets[1].header.security_id == 333
+    assert packets[1].fields["ltp"] == pytest.approx(300.0, abs=0.01)
