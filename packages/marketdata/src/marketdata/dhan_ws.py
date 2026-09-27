@@ -7,8 +7,6 @@ New entry point (recorder CLI is unchanged):
     python -m marketdata.dhan_ws --mode replay --tape PATH
 """
 
-# ruff: noqa: I001  — _dhan_ns must load before any other dhan_client import
-
 from __future__ import annotations
 
 import argparse
@@ -23,14 +21,11 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Protocol
 
-from marketdata._dhan_ns import (
-    CredentialsError,
-    FeedMode,
-    MarketFeedCollector,
-    Settings,
-    load_settings,
-    repo_root,
-)
+from dhan_client.config import Settings, load_settings, repo_root
+from dhan_client.errors import CredentialsError
+from dhan_client.feed import MarketFeedCollector
+from dhan_client.types import FeedMode
+
 from marketdata import logsafe
 from marketdata.bars import BarBuilder
 from marketdata.chain import ChainPoller, FetchChain

@@ -439,11 +439,11 @@ def test_reg02c_one_up_per_down_up_no_heartbeat_dup(tmp_path: Path) -> None:
     assert server.connections >= 2
 
 
-def test_live_data_never_constructs_order_or_trading_api(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """Live path uses feed + instrument/chain REST only. Never constructs order APIs.
+def test_live_data_never_constructs_or_calls_order_api(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """End-to-end fake WS: service publishes bars and never constructs ExecutionClient.
 
-    ``dhan_client.__init__`` re-exports ``DhanClient`` (which owns ``ExecutionClient``), so
-    importing any ``dhan_client.*`` submodule loads those names. Construction is the gate.
+    Importing the execution module is allowed. Constructing it or calling place_order is not.
+    ``DhanClient`` has no order-placing methods; ``ExecutionClient.place_order`` is the mutator.
     """
     import inspect
 
@@ -455,27 +455,36 @@ def test_live_data_never_constructs_order_or_trading_api(tmp_path: Path, monkeyp
         assert "place_order" not in src
         assert "DhanClient" not in src
 
-    constructed: list[str] = []
+    tripped: list[str] = []
 
-    def boom(name: str) -> Any:
-        def _raise(*_a: object, **_k: object) -> None:
-            constructed.append(name)
-            raise RuntimeError(f"{name} must not be constructed on the live-data path")
+    def boom_init(_self: object, *_a: object, **_k: object) -> None:
+        tripped.append("ExecutionClient.__init__")
+        raise RuntimeError("ExecutionClient must not be constructed on the live-data path")
 
-        return _raise
+    def boom_place(_self: object, *_a: object, **_k: object) -> None:
+        tripped.append("ExecutionClient.place_order")
+        raise RuntimeError("place_order must not be called on the live-data path")
 
     import dhan_client.client as client_mod
     import dhan_client.execution as execution
 
-    monkeypatch.setattr(execution, "ExecutionClient", boom("ExecutionClient"))
-    monkeypatch.setattr(client_mod, "DhanClient", boom("DhanClient"))
+    monkeypatch.setattr(execution.ExecutionClient, "__init__", boom_init)
+    monkeypatch.setattr(execution.ExecutionClient, "place_order", boom_place)
+    assert not hasattr(client_mod.DhanClient, "place_order")
 
     async def hook(t: datetime, server: FakeDhanServer, _live: LiveMarketData) -> None:
-        if t == ist(10, 0, 1):
-            await server.send(index_packet(13, 24512.35))
+        if t == ist(10, 0, 10):
+            await server.send(_full(t, 24500.0))
+        elif t == ist(10, 0, 40):
+            await server.send(_full(t, 24510.0))
+        elif t == ist(10, 1, 0):
+            await server.send(_full(t, 24520.0))
 
-    asyncio.run(_run_live(tmp_path, ist(10, 0), ist(10, 0, 3), hook=hook))
-    assert constructed == []
+    _live, _server, pub, _st = asyncio.run(_run_live(tmp_path, ist(10, 0), ist(10, 1, 2), hook=hook))
+    bars = [p for p in pub.payloads("BAR_CLOSED") if p["instrument_id"] == FUT]
+    assert bars
+    assert (bars[0]["o"], bars[0]["c"]) == (24500.0, 24510.0)
+    assert tripped == []
 
 
 def test_zero_and_missing_ltt_do_not_change_open_bar_ohlc(tmp_path: Path) -> None:
@@ -548,23 +557,14 @@ def test_memory_publisher_caps_after_50k_envelopes() -> None:
     assert pub.events[-1]["n"] == 49_999
 
 
-def test_import_dhan_ws_does_not_load_execution_or_order_client() -> None:
-    """Subprocess: import marketdata.dhan_ws must not load the order facade."""
-    proc = subprocess.run(
-        [
-            sys.executable,
-            "-c",
-            (
-                "import sys, marketdata.dhan_ws\n"
-                "bad = [m for m in sys.modules if 'execution' in m or m == 'dhan_client.client']\n"
-                "assert not bad, bad\n"
-                "print('ok')\n"
-            ),
-        ],
-        env=_empty_env(),
-        capture_output=True,
-        text=True,
-        timeout=30,
-    )
-    assert proc.returncode == 0, proc.stdout + proc.stderr
-    assert "ok" in proc.stdout
+def test_dhan_ws_import_leaves_normal_dhan_client_imports_working() -> None:
+    """After marketdata.dhan_ws, the real package still exports DhanClient / execution."""
+    import importlib
+
+    importlib.import_module("marketdata.dhan_ws")
+    import dhan_client.execution
+    from dhan_client import DhanClient
+
+    assert DhanClient is not None
+    assert dhan_client.execution.ExecutionClient is not None
+    assert hasattr(dhan_client.execution.ExecutionClient, "place_order")
