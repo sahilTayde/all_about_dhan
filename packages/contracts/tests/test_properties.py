@@ -35,5 +35,5 @@ def test_order_id_collision_1e6() -> None:
         leg = f"leg_{i % 10}"
         oid = order_id(account, signal, leg)
         ids.add(oid)
-    
+
     assert len(ids) == 10**6, f"Collision detected: {10**6 - len(ids)} duplicates"

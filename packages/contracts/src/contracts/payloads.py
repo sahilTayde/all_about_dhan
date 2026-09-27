@@ -5,10 +5,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-
 # ============================================================================
 # Market Data Payloads
 # ============================================================================
+
 
 @dataclass(frozen=True)
 class Tick:
@@ -33,7 +33,9 @@ class DepthQuote:
     ask_qty: int | None
     ltp: float | None
     oi: int | None
-    levels: dict[str, list[list[float | int]]]  # {"bid": [[price, qty], ...], "ask": [[price, qty], ...]}
+    levels: dict[
+        str, list[list[float | int]]
+    ]  # {"bid": [[price, qty], ...], "ask": [[price, qty], ...]}
     exchange_ts: str
     repeat: bool = False
     raw_b64: str | None = None
@@ -142,6 +144,7 @@ class FeedStatus:
 # ============================================================================
 # Strategy & Decision Payloads
 # ============================================================================
+
 
 @dataclass(frozen=True)
 class Level:
@@ -360,6 +363,7 @@ class EntryPlanResult:
 # Order & Position Payloads
 # ============================================================================
 
+
 @dataclass(frozen=True)
 class RiskDecision:
     """RISK_DECISION payload (oms:risk)."""
@@ -430,6 +434,7 @@ class PositionClosed:
 # ============================================================================
 # Control & Monitoring Payloads
 # ============================================================================
+
 
 @dataclass(frozen=True)
 class FounderCommand:
