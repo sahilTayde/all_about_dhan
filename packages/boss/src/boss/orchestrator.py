@@ -1,6 +1,7 @@
 """Boss (PR-007): asks analysts, runs the paper engine's decision rules, emits the entry decision.
 
 On MARKET_TICK (after the desk's mark-to-market):
+  0. basket selector, only when switched on (`boss.basket`): pre-open / regime change -> shadow log
   1. analyst-room inputs for the tick (`paper_scalp.step_vote_inputs`)
   2. REQUEST_VOTES -> AnalystRoom -> one ANALYST_VOTE per analyst (timeout/crash = ABSTAIN)
   3. picker majority + observer + entry gates, unchanged (`paper_scalp.step_decide`)
@@ -36,6 +37,7 @@ class Boss:
         analyst_ids: Sequence[str],
         shadow_ids: Optional[Sequence[str]] = None,
         shadow_cfg: Optional[dict[str, Any]] = None,
+        basket: Any = None,
     ) -> None:
         from desk_ml import paper_scalp as ps
 
@@ -48,6 +50,7 @@ class Boss:
         self.analyst_ids = list(analyst_ids)
         self.shadow_ids = set(shadow_ids or [])
         self.shadow_cfg = dict(shadow_cfg or {})
+        self.basket = basket  # boss.basket.BasketShadow when the selector is on; shadow log only
         self._inbox: dict[str, list[Vote]] = {}
         self.latency_ms: dict[str, list[float]] = {"decision": []}
         self.subs = [
@@ -63,6 +66,8 @@ class Boss:
     def on_tick(self, event: Any) -> None:
         key = event.payload["key"]
         s = self.steps[key]
+        if self.basket is not None:
+            self._basket_tick(s)
         inputs = self._ps.step_vote_inputs(self.engine, s, **self.signals[key])
         t0 = time.perf_counter()
         rid = uuid.uuid4().hex
@@ -82,6 +87,14 @@ class Boss:
             self.contexts.pop(rid, None)
         self._ps.step_decide(self.engine, s, self.legacy_votes(votes, inputs), open_fn=self._plan_and_emit)
         self.latency_ms["decision"].append((time.perf_counter() - t0) * 1000.0)
+
+    def _basket_tick(self, s: Any) -> None:
+        """Pre-open / regime-change basket selection. Reads only; a failure never touches the entry path."""
+        try:
+            prior = (getattr(self.engine, "shadow_prior_daily", None) or {}).get(s.und) or []
+            self.basket.on_tick(s.und, int(s.tick.ts), s.bars_1m, prior)
+        except Exception:
+            log.exception("basket selector failed; entries unaffected")
 
     def _shadow_features(self, step: Any) -> Optional[dict[str, Any]]:
         llm_on = LLM_KEY in self.analyst_ids  # PR-016: the LLM analyst reads the shadow pack + its own
