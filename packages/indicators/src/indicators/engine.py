@@ -4,9 +4,10 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from contracts.payloads import BarClosed
+from contracts.payloads import BarClosed, EntryLocation
 
 from indicators.core import ATR, EMA, VWAP, OIChange, RealizedVol
+from indicators.location import LocationTracker, underlying_id
 from indicators.view import FeatureValue, FeatureView
 
 
@@ -31,6 +32,9 @@ class FeatureEngine:
 
         # Feature storage: (name, instrument_id, tf) -> FeatureValue
         self._features: dict[tuple[str, str, str], FeatureValue] = {}
+
+        # Entry-location trackers keyed by underlying (closed 1m bars only)
+        self._location: dict[str, LocationTracker] = {}
 
     def on_bar(self, bar: BarClosed, available_ts: datetime) -> None:
         """
@@ -97,6 +101,11 @@ class FeatureEngine:
                     value=vol_val, as_of=bar_end, available_ts=available_ts
                 )
 
+        und = underlying_id(instrument_id)
+        if und not in self._location:
+            self._location[und] = LocationTracker()
+        self._location[und].on_bar(bar, available_ts)
+
     def on_oi_update(self, instrument_id: str, oi: int, ts: datetime) -> None:
         """
         Record OI observation.
@@ -124,6 +133,24 @@ class FeatureEngine:
         """
         return self._oi_change.get_lagged_change(instrument_id, decision_ts, lookback_bars)
 
+    def entry_location(
+        self, instrument_id: str, side: str, now: datetime, tf: str = "1m"
+    ) -> EntryLocation | None:
+        """EntryLocation at `now` from closed 1m bars with available_ts <= now."""
+        del tf
+        tracker = self._location.get(underlying_id(instrument_id))
+        if tracker is None:
+            return None
+        return tracker.snapshot(now, side=side, instrument_id=instrument_id)
+
+    def _merged_features(self, now: datetime | None) -> dict[tuple[str, str, str], FeatureValue]:
+        features = dict(self._features)
+        for tracker in self._location.values():
+            asof = now if now is not None else tracker.last_available_ts()
+            if asof is not None:
+                features.update(tracker.feature_values(asof, side="CE"))
+        return features
+
     def view(self, now: datetime | None = None, strict: bool = False) -> FeatureView:
         """
         Create a feature view.
@@ -135,20 +162,17 @@ class FeatureEngine:
         Returns:
             FeatureView
         """
-        # In strict mode, we pass ALL features to the view and let it check
-        # In non-strict mode, we filter to only available features
+        features = self._merged_features(now)
         if strict and now is not None:
-            # Pass all features and the 'now' timestamp for strict checking
-            return FeatureView._create_strict(self._features, now)
-        elif now is not None:
-            # Non-strict: filter to available features only
-            visible_features = {k: v for k, v in self._features.items() if v.available_ts <= now}
-            return FeatureView(visible_features, strict=False)
-        else:
-            # No 'now' specified: return all features
-            return FeatureView(dict(self._features), strict=False)
+            return FeatureView._create_strict(features, now)
+        if now is not None:
+            visible = {k: v for k, v in features.items() if v.available_ts <= now}
+            return FeatureView(visible, strict=False)
+        return FeatureView(features, strict=False)
 
     def reset_session(self) -> None:
         """Reset session-scoped state (e.g., VWAP)."""
         for vwap in self._vwap.values():
             vwap.reset()
+        for tracker in self._location.values():
+            tracker.reset()

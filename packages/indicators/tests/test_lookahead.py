@@ -14,7 +14,8 @@ from marketdata.bars import BarBuilder
 from marketdata.sources import ListSource
 
 from indicators.engine import FeatureEngine
-from indicators.view import LookAheadError
+from indicators.location import LOCATION_FIELDS
+from indicators.view import FeatureValue, FeatureView, LookAheadError
 
 
 def test_random_cut_causality_features():
@@ -309,3 +310,144 @@ def test_oi_lagged_future_poisoning():
         f"OI change affected by future: {change_orig} vs {change_poison}"
     )
     assert change_orig == 50.0  # 1100 - 1050
+
+
+_LOC_COMPARE = (
+    "loc_signal_candle_atr",
+    "loc_signal_body_atr",
+    "loc_atr",
+    "loc_spot",
+    "loc_candle_50",
+    "loc_ema20",
+    "loc_twap",
+    "loc_vwap",
+    "loc_entry_distance_atr",
+)
+
+
+def _drive(ticks: list[Tick], base_time: datetime) -> FeatureEngine:
+    clock = SimClock(base_time)
+    source = ListSource(ticks, clock)
+    builder = BarBuilder()
+    engine = FeatureEngine()
+    for event in source.events():
+        if event.event_type == "TICK":
+            for bar in builder.on_tick(event.payload, event.available_ts):
+                engine.on_bar(bar, event.available_ts)
+        elif event.event_type == "CLOCK":
+            for bar in builder.on_clock(event.available_ts):
+                engine.on_bar(bar, event.available_ts)
+    return engine
+
+
+def test_random_cut_causality_entry_location():
+    """REG-01b: location features match a truncated stream at the cut (V2-03 harness)."""
+    base_time = datetime(2026, 1, 2, 9, 15, 0, tzinfo=IST)
+    ticks = []
+    for i in range(1800):
+        ts = base_time + timedelta(seconds=i)
+        ticks.append(
+            Tick(
+                instrument_id="NIFTY",
+                ltp=22000.0 + (i % 100),
+                ltq=10,
+                volume=10,
+                oi=1000,
+                exchange_ts=ts.isoformat(),
+            )
+        )
+    engine_full = _drive(ticks, base_time)
+    for _ in range(5):
+        cut_index = random.randint(300, len(ticks) - 300)
+        cut_time = datetime.fromisoformat(ticks[cut_index - 1].exchange_ts)
+        engine_cut = _drive(ticks[:cut_index], base_time)
+        loc_full = engine_full.entry_location("NIFTY", "CE", cut_time)
+        loc_cut = engine_cut.entry_location("NIFTY", "CE", cut_time)
+        assert loc_full == loc_cut
+        view_full = engine_full.view(now=cut_time)
+        view_cut = engine_cut.view(now=cut_time)
+        for name in _LOC_COMPARE:
+            a = view_full.get(name, "NIFTY", "1m")
+            b = view_cut.get(name, "NIFTY", "1m")
+            if a is None or b is None:
+                assert a is None and b is None
+            else:
+                assert abs(a.value - b.value) < 1e-9, f"{name}: {a.value} vs {b.value}"
+
+
+def test_future_poisoning_entry_location():
+    """REG-01c: mutating bars after T does not change location at T (V2-03 harness)."""
+    base_time = datetime(2026, 1, 2, 9, 15, 0, tzinfo=IST)
+    original = []
+    for i in range(1200):
+        ts = base_time + timedelta(seconds=i)
+        original.append(
+            Tick(
+                instrument_id="NIFTY",
+                ltp=22000.0 + (i % 50),
+                ltq=10,
+                volume=10,
+                oi=1000,
+                exchange_ts=ts.isoformat(),
+            )
+        )
+    poison_time = base_time + timedelta(minutes=10)
+    poisoned = original[:600] + [
+        Tick(
+            instrument_id=t.instrument_id,
+            ltp=50000.0,
+            ltq=t.ltq,
+            volume=t.volume,
+            oi=t.oi,
+            exchange_ts=t.exchange_ts,
+        )
+        for t in original[600:]
+    ]
+    view_orig = _drive(original, base_time).view(now=poison_time)
+    view_poison = _drive(poisoned, base_time).view(now=poison_time)
+    for name in _LOC_COMPARE:
+        a = view_orig.get(name, "NIFTY", "1m")
+        b = view_poison.get(name, "NIFTY", "1m")
+        if a is None or b is None:
+            assert a is None and b is None
+        else:
+            assert abs(a.value - b.value) < 1e-9, f"{name} changed after poison"
+
+
+def test_strict_view_every_entry_location_field():
+    """REG-01d: strict view on every loc_* field; planted future raises; valid count is 0."""
+    base_time = datetime(2026, 1, 2, 9, 15, 0, tzinfo=IST)
+    engine = FeatureEngine()
+    for i in range(20):
+        start = base_time + timedelta(minutes=i)
+        end = start + timedelta(minutes=1)
+        available = end + timedelta(seconds=1.5)
+        engine.on_bar(
+            BarClosed(
+                instrument_id="NIFTY",
+                tf="1m",
+                start=start.isoformat(),
+                end=end.isoformat(),
+                o=22000.0,
+                h=22010.0,
+                l=21990.0,
+                c=22000.0 + i,
+                v=1000,
+                n_ticks=60,
+            ),
+            available,
+        )
+    now = base_time + timedelta(minutes=25)
+    view = engine.view(now=now, strict=True)
+    for name in LOCATION_FIELDS:
+        view.get(name, "NIFTY", "1m", now=now)
+    assert view.future_lookup_count == 0
+
+    planted = FeatureValue(
+        value=99.0,
+        as_of=now + timedelta(minutes=5),
+        available_ts=now + timedelta(minutes=5),
+    )
+    future_view = FeatureView._create_strict({("loc_fvg", "NIFTY", "1m"): planted}, now)
+    with pytest.raises(LookAheadError):
+        future_view.get("loc_fvg", "NIFTY", "1m", now=now)
