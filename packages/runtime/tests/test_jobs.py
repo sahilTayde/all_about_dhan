@@ -26,7 +26,7 @@ def test_reg_10a_overrunning_job_killed() -> None:
     def slow_job() -> None:
         time.sleep(10.0)
 
-    with pytest.raises(DeadlineExceeded, match="slow exceeded deadline") as exc_info:
+    with pytest.raises(DeadlineExceeded, match="slow exceeded") as exc_info:
         run_with_deadline(slow_job, timeout_s=1.0, job="slow")
     assert exc_info.value.job == "slow"
     assert exc_info.value.timeout_s == 1.0

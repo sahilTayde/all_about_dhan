@@ -1,16 +1,16 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "runtime"
-version = "0.1.0"
-description = "V2 engine kernel, job deadlines, and frozen legacy benchmark"
+version = "2.15.0"
+description = "V2 runtime: engine kernel, last-good config, job deadlines, service entry points, and frozen legacy benchmark. Paper only."
 requires-python = ">=3.11"
 # Sibling in-repo packages (contracts, events, marketdata) are installed by
 # scripts/ci/install.sh with --no-deps. Do not list their bare PyPI names here:
 # check_local_names.py requires a +aad pin, and `events` exists on PyPI.
 dependencies = []
-
-[build-system]
-requires = ["setuptools>=61"]
-build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
 where = ["src"]

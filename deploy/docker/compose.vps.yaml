@@ -1,0 +1,38 @@
+# VPS overlay: TLS proxy, restart caps, resource limits, log rotation.
+# Live-data secrets stay on the host (`/etc/aad/secrets/*`); never in the image.
+# There is no live-orders profile.
+services:
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports: ["443:443"]
+    volumes:
+      - ../Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy:/data
+    logging:
+      driver: json-file
+      options: { max-size: "50m", max-file: "10" }
+
+  engine:
+    restart: on-failure
+    deploy:
+      resources:
+        limits: { cpus: "1.0", memory: 512M }
+    logging:
+      driver: json-file
+      options: { max-size: "50m", max-file: "10" }
+
+  health:
+    restart: on-failure
+    logging:
+      driver: json-file
+      options: { max-size: "50m", max-file: "10" }
+
+  redis:
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options: { max-size: "50m", max-file: "10" }
+
+volumes:
+  caddy:

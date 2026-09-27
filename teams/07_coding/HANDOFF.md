@@ -1,5 +1,27 @@
 # Handoff log — Team 07 Coding
 
+## As of now (2026-09-27 IST) — V2-04 onto main 971bf81 / V2-15 (PAPER)
+
+```text
+From:     teams/07_coding
+To:       founder / 00 / 09
+Date:     2026-09-27
+Status:   PAPER / V2-04 / NO_PROMOTE / no live orders
+Accepted: Merged origin/main 971bf81 (PR #51 V2-15) with a
+  normal merge. Kept V2-15 __main__ dispatcher, JOBS,
+  publish_atomic, services, test_v2_15, pyproject 2.15.0.
+  Added kernel/config/store/sources additively. engine
+  --once still writes ENGINE_STATUS READY then runs the
+  kernel on an empty tape. JobTimeout is the timeout
+  class; DeadlineExceeded is an alias. requirements/*
+  byte-identical to main. install.sh unchanged.
+Rejected: Replacing the V2-15 dispatcher. Second jobs
+  module. Rebase / force-push / relock.
+UNKNOWN: none
+```
+
+---
+
 ## As of now (2026-09-27 IST) — V2-04 kernel onto current main (PAPER)
 
 ```text
@@ -26,6 +48,71 @@ Rejected: Second runtime package. contracts.config home.
   or force-push. Relock of requirements/.
 UNKNOWN: V2-15 (#51) jobs.py will merge onto this
   run_with_deadline + JobTimeout alias.
+```
+
+---
+
+## As of now (2026-09-27 IST) — V2-15 merged main a756e70 (#36/#44/#42/#48) (NO_PROMOTE)
+
+```text
+From:     teams/07_coding
+To:       00 / 09 / founder
+Date:     2026-09-27
+Status:   PAPER V2-15 / NO_PROMOTE
+Accepted: Merged origin/main a756e70 (V2-17 #36, V2-14 #44, #42, #48).
+  Keep this branch __main__/__init__/pyproject (one runtime package,
+  combined dispatcher). Took main bench_legacy.py, test_bench_legacy.py,
+  check_frozen_legacy.py, config/legacy_frozen.sha256, and the real
+  frozen-legacy CI job (one job). requirements/* byte-identical to main
+  (prometheus-client from #44). install.sh already = main list + runtime.
+  python -m runtime health reads the breaker file and writes
+  health_status.json; it does not import health.v2_* or start /metrics.
+  python -m health is the legacy PR-004 monitor. V2-14 MetricsEndpoint
+  is opt-in in the health package. One compose health process. Mac:
+  scripts/desk.sh unchanged.
+Rejected: Second frozen-legacy job. Starting a second health HTTP
+  server from runtime. Live-orders compose. Touching legacy engine
+  or data/.
+UNKNOWN: Dhan token refresh for unattended VPS (VERIFY).
+```
+
+---
+
+## As of now (2026-09-27 IST) — V2-15 + main merge + #36 runtime compat (NO_PROMOTE)
+
+```text
+From:     teams/07_coding
+To:       00 / 09 / founder
+Date:     2026-09-27
+Status:   PAPER V2-15 / NO_PROMOTE
+Accepted: Merged origin/main (6e5e582 V2-02). requirements/* byte-identical
+  to main. install.sh = main list + runtime (once). One packages/runtime
+  pyproject; python -m runtime dispatches engine/health/reset-breaker/job
+  and bench-legacy. Keep/take list executed after #36 landed (see newer
+  block).
+Rejected: Duplicating a placeholder frozen-legacy job. Live-orders
+  compose. Touching legacy engine or data/.
+UNKNOWN: (resolved) #36 has merged.
+```
+
+---
+
+## As of now (2026-09-27 IST) — V2-15 compose / deploy / breaker (NO_PROMOTE)
+
+```text
+From:     teams/07_coding
+To:       00 / 09 / founder
+Date:     2026-09-27
+Status:   PAPER V2-15 / NO_PROMOTE
+Accepted: Dockerfile (non-root, read-only root), compose replay (no creds),
+  compose.vps, Caddyfile, aad.service, deploy/backup/restore, restart
+  breaker + reset-breaker, job timeouts, §5.3 CI jobs, founder-guide V2
+  note. Stub engine writes ENGINE_STATUS READY (V2-04 kernel not here).
+  V2-14 breaker_open is a Protocol (BreakerView); this ticket owns the file.
+Rejected: Live-orders compose profile. Copying V2-14 health files.
+  Touching legacy engine, desk.sh behaviour, data/, config/v2/exits.
+UNKNOWN: Dhan token refresh for unattended VPS (VERIFY). Docker-in-CI
+  image build needs the runner's docker socket.
 ```
 
 ---

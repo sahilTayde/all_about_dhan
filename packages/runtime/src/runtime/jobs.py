@@ -1,32 +1,38 @@
-"""Job deadlines: ``run_with_deadline`` for every one-shot job (REG-10a).
+"""Wall-clock timeouts for every one-shot job (REG-10 / architecture §5.1).
 
-Library raises ``DeadlineExceeded`` (alias ``JobTimeout`` for V2-15). Callers
-(``python -m runtime``, deploy scripts) exit non-zero. Partial output is the
-caller's job: this wrapper does not write files.
+V2-15 owns the job registry and ``publish_atomic``. ``run_with_deadline``
+raises ``JobTimeout`` (alias ``DeadlineExceeded``). Callers exit non-zero.
+Partial output is written to ``*.tmp`` and renamed only on success.
 """
 
 from __future__ import annotations
 
-import logging
-import signal
+import threading
 from collections.abc import Callable
+from pathlib import Path
 from typing import TypeVar
-
-log = logging.getLogger("runtime.jobs")
 
 T = TypeVar("T")
 
+# Defaults until config/v2/engine.yaml jobs: exists. Seconds.
+JOBS: dict[str, int] = {
+    "replay": 600,
+    "forward-eval": 1800,
+    "etl": 1800,
+    "bench-legacy": 600,
+    "pre-market": 900,
+    "backup": 300,
+}
 
-class DeadlineExceeded(Exception):
-    """Job exceeded its wall-clock deadline."""
 
+class JobTimeout(Exception):
     def __init__(self, job: str, timeout_s: float) -> None:
-        super().__init__(f"{job} exceeded deadline of {timeout_s}s")
+        super().__init__(f"{job} exceeded {timeout_s}s")
         self.job = job
         self.timeout_s = timeout_s
 
 
-JobTimeout = DeadlineExceeded
+DeadlineExceeded = JobTimeout
 
 
 def run_with_deadline(
@@ -36,29 +42,31 @@ def run_with_deadline(
     *,
     job: str = "job",
 ) -> T:
-    """Run ``fn`` with a wall-clock timeout.
-
-    Uses ``signal.alarm`` (POSIX, 1s minimum). On timeout raises
-    ``DeadlineExceeded`` after a CRITICAL log. Does not ``sys.exit`` so V2-15
-    can catch ``JobTimeout`` and return 1 from ``python -m runtime``.
-    """
+    """Run ``fn``; on timeout raise JobTimeout and leave no published output."""
     name = job if job_name is None else job_name
+    box: list[tuple[str, T | BaseException]] = []
 
-    def _timeout_handler(signum: int, frame: object) -> None:
-        log.critical("Job %s exceeded deadline of %.1fs", name, timeout_s)
-        raise DeadlineExceeded(name, timeout_s)
+    def _run() -> None:
+        try:
+            box.append(("ok", fn()))
+        except BaseException as exc:
+            box.append(("err", exc))
 
-    alarm_seconds = max(1, int(timeout_s + 0.999))
-    old_handler = signal.signal(signal.SIGALRM, _timeout_handler)
-    signal.alarm(alarm_seconds)
-    try:
-        log.info("Starting job %s with deadline %.1fs (alarm at %ds)", name, timeout_s, alarm_seconds)
-        result = fn()
-        log.info("Job %s completed in time", name)
-        return result
-    except DeadlineExceeded:
-        log.critical("ALERT: Job %s killed at deadline", name)
-        raise
-    finally:
-        signal.alarm(0)
-        signal.signal(signal.SIGALRM, old_handler)
+    thread = threading.Thread(target=_run, name=f"deadline-{name}", daemon=True)
+    thread.start()
+    thread.join(timeout_s)
+    if thread.is_alive():
+        raise JobTimeout(name, timeout_s)
+    if not box:
+        raise JobTimeout(name, timeout_s)
+    kind, payload = box[0]
+    if kind == "err":
+        raise payload  # type: ignore[misc]
+    return payload  # type: ignore[return-value]
+
+
+def publish_atomic(dest: Path, body: str) -> None:
+    """Write dest via sibling .tmp; caller deletes .tmp on JobTimeout."""
+    tmp = dest.with_name(dest.name + ".tmp")
+    tmp.write_text(body, encoding="utf-8")
+    tmp.replace(dest)

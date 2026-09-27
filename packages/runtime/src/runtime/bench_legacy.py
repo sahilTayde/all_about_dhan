@@ -198,7 +198,7 @@ def main(argv: list[str] | None = None) -> int:
 
     # Validate day format
     try:
-        datetime.strptime(args.day, "%Y-%m-%d")  # noqa: DTZ007
+        datetime.strptime(args.day, "%Y-%m-%d")
     except ValueError:
         print(f"Error: invalid day format '{args.day}', expected YYYY-MM-DD", file=sys.stderr)
         return 1
