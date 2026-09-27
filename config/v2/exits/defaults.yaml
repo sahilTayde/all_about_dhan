@@ -1,0 +1,62 @@
+# Exit primitive defaults (round 11 result, 2026-09-27)
+# Source: docs/architecture/V2_BUILD_PLAN.md lines 599, 682-683
+# Source: docs/architecture/V2_PRODUCTION_ARCHITECTURE.md lines 600-606
+#
+# Round 11 finding: no tested exit rule passed.
+# Default exit: native strategy invalidation + ₹30k house stop, no tight cancel exit.
+#
+# These defaults are preregistered and hashed (K18). The file hash is frozen into each
+# strategy's plan via `defaults_from` (REG-13). Changing this file creates a new strategy
+# version, never a silent change to running strategies.
+
+# Catastrophic stop: the house stop (₹30k paper max_loss_per_trade)
+# Source: V2_PRODUCTION_ARCHITECTURE.md line 601-603
+# Source: V2_BUILD_PLAN.md line 315
+catastrophic:
+  max_loss: 30000  # ₹30,000 (paper `max_loss_per_trade`)
+
+# Structural stop: strategy's native invalidation level (required; each strategy must supply)
+# Source: V2_PRODUCTION_ARCHITECTURE.md line 604
+# Source: V2_BUILD_PLAN.md line 315
+structural:
+  # No default level; each strategy must declare its own native invalidation.
+  # Strategies without a native invalidation level refuse to inherit (REG-18).
+  enabled: true
+
+# ATR-based stop: off
+# Source: V2_PRODUCTION_ARCHITECTURE.md line 605
+# Source: V2_BUILD_PLAN.md line 315
+atr: null
+
+# Time stops: off
+# Source: V2_PRODUCTION_ARCHITECTURE.md line 605
+# Source: V2_BUILD_PLAN.md line 315
+time_stops: null
+
+# Grace period (blocks exits except catastrophic, EOD, founder commands): off
+# Source: V2_PRODUCTION_ARCHITECTURE.md line 605
+# Source: V2_BUILD_PLAN.md line 315
+grace: null
+
+# Signal flip exit (opposite signal): off
+# Source: V2_PRODUCTION_ARCHITECTURE.md line 605
+# Source: V2_BUILD_PLAN.md line 315
+signal_flip: null
+
+# Target hit: off
+# Source: V2_PRODUCTION_ARCHITECTURE.md line 605
+# Source: V2_BUILD_PLAN.md line 315
+target: null
+
+# Partial exits: off
+# Source: V2_PRODUCTION_ARCHITECTURE.md line 605
+# Source: V2_BUILD_PLAN.md line 315
+partials: null
+
+# Trailing stop: off
+# Source: V2_PRODUCTION_ARCHITECTURE.md line 605
+# Source: V2_BUILD_PLAN.md line 315
+trail: null
+
+# Note: EOD flatten, founder commands, and kill switch still apply (always active).
+# Source: V2_PRODUCTION_ARCHITECTURE.md line 605-606
