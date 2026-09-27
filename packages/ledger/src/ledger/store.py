@@ -34,6 +34,7 @@ CANCEL_REASONS = frozenset(
         "FOUNDER_COMMAND",
         "BROKER_CANCELLED",
         "EOD",
+        "STALE_ON_RESTART",
     }
 )
 
@@ -432,4 +433,7 @@ class Ledger:
                 )
             },
             "recon_ok": True if recon is None else bool(recon["ok"]),
+            "feed_status": getattr(self, "feed_status", "UP"),
+            "strategy_pnl": {},
+            "halt_unreadable": False,
         }

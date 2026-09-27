@@ -80,6 +80,7 @@ class TradeIntent:
     exchange: str = "NSE_FNO"
     product_type: str = "INTRADAY"
     trade_id: Optional[str] = None
+    strategy_id: str = ""
     client_order_id: str = field(default_factory=new_client_order_id)
 
     @property
@@ -125,6 +126,9 @@ class RiskState:
     recent_fingerprints: list[tuple[datetime, str]] = field(default_factory=list)
     used_client_order_ids: set[str] = field(default_factory=set)
     recon_ok: bool = True
+    feed_status: str = "UP"
+    strategy_pnl: dict[str, float] = field(default_factory=dict)
+    halt_unreadable: bool = False
 
 
 class RiskEngine:
@@ -212,6 +216,10 @@ class RiskEngine:
             return "KILL_SWITCH", f"founder kill switch is on ({self.kill_switch_path(cfg) or 'config flag'})", True
         if not st.recon_ok:
             return "RECON_MISMATCH", "last broker reconciliation found a mismatch; resolve it first", True
+        if st.halt_unreadable:
+            return "HALT_UNREADABLE", "session halt record is unreadable; entries blocked", True
+        if st.feed_status in ("DOWN", "STALE"):
+            return "FEED_STALE", f"feed is {st.feed_status}; entries blocked until UP", True
         if intent.purpose != "ENTRY" or intent.side not in ("BUY", "SELL") or intent.lots <= 0 or intent.lot_size <= 0:
             return "INVALID_INTENT", f"bad entry intent {intent.purpose} {intent.side} {intent.lots}x{intent.lot_size}", False
         start, cutoff = time.fromisoformat(cfg["entry_start_ist"]), time.fromisoformat(cfg["entry_cutoff_ist"])
@@ -240,6 +248,14 @@ class RiskEngine:
             return "MAX_DAILY_LOSS", (
                 f"would exceed max_daily_loss: ₹{st.realized_pnl_today:,.0f} - ₹{risk:,.0f} < -₹{daily:,.0f}"
             ), False
+        sid = getattr(intent, "strategy_id", "") or ""
+        if sid:
+            strat_cap = abs(float(cfg.get("max_strategy_daily_loss") or limits["max_daily_loss"]))
+            pnl = float(st.strategy_pnl.get(sid, 0.0))
+            if pnl <= -strat_cap:
+                return "STRATEGY_DAILY_LOSS", (
+                    f"strategy {sid} daily loss ₹{pnl:,.0f} <= -₹{strat_cap:,.0f}"
+                ), True
         cooldown = timedelta(minutes=float(cfg["cooldown_after_loss_minutes"]))
         if st.last_loss_exit_at and now - st.last_loss_exit_at < cooldown:
             return "COOLDOWN", f"losing exit at {st.last_loss_exit_at:%H:%M:%S}; cooldown {cooldown}", False

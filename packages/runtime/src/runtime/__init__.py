@@ -2,6 +2,7 @@
 
 from runtime.jobs import JOBS, DeadlineExceeded, JobTimeout, run_with_deadline
 from runtime.kernel import Engine, RunSummary
+from runtime.recovery import RecoveryResult, recover, rebuild_paper_broker
 from runtime.services import (
     BREAKER_EXIT,
     SERVICES,
@@ -23,10 +24,13 @@ __all__ = [
     "DeadlineExceeded",
     "Engine",
     "JobTimeout",
+    "RecoveryResult",
     "RestartBreaker",
     "RunSummary",
     "deploy",
     "reset_breaker",
+    "rebuild_paper_broker",
+    "recover",
     "run_guarded",
     "run_with_deadline",
     "write_engine_status",

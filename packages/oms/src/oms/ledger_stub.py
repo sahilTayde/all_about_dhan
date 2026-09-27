@@ -138,4 +138,7 @@ class MemoryLedger:
             "recent_fingerprints": fps,
             "used_client_order_ids": used,
             "recon_ok": self.recon_ok,
+            "feed_status": "UP",
+            "strategy_pnl": {},
+            "halt_unreadable": False,
         }

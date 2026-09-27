@@ -1,5 +1,27 @@
 # Handoff log — Team 07 Coding
 
+## As of now (2026-09-27 IST) — V2-10 ledger v2 + crash recovery (PAPER)
+
+```text
+From:     teams/07_coding
+To:       founder / 00 / 09
+Date:     2026-09-27
+Status:   PAPER / V2-10 / NO_PROMOTE / no live orders
+Accepted: Branched from cursor/v2-08-order-router-fills-1553 (already
+  contained origin/main 90455a6). Additive migrations 001_core +
+  002_v2_core (session_halts, ingest_errors, positions_v2, checkpoint,
+  outbox). SqliteLedgerStore implements LedgerStore. Recovery sequence
+  of §3.5. Paper broker rebuild_from_ledger. FEED_STALE +
+  STRATEGY_DAILY_LOSS + HALT_UNREADABLE. REG-02b/04a (real SIGKILL),
+  04b, 05e, 06b, 16c, 17a-d. Legacy Ledger() never auto-migrates;
+  DEFAULT_LEDGER_PATH refused unless allow_legacy. requirements/*
+  byte-identical. install.sh unchanged (ledger already on the list).
+Rejected: Auto-migrate of the Monday sqlite path. DhanBroker.
+  Rebase / force-push / relock.
+UNKNOWN: whether a later V2-08 merge commit lands before this PR
+  is retargeted to main after #45.
+```
+
 ## As of now (2026-09-27 IST) — V2-04 onto main 971bf81 / V2-15 (PAPER)
 
 ```text

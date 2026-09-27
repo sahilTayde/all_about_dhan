@@ -253,3 +253,46 @@ class PaperBroker(BrokerAdapter):
 
     def get_balance(self) -> float:
         return round(self.cash, 2)
+
+    def rebuild_from_ledger(self, store: Any) -> int:
+        """V2-10: restore open orders and positions from the durable ledger after restart."""
+        from brokers.orders import Order, OrderState, Position
+        from risk_engine import TradeIntent
+
+        self.orders.clear()
+        self._positions.clear()
+        n = 0
+        for row in store.open_orders():
+            qty = max(1, int(row.get("qty") or 1))
+            intent = TradeIntent(
+                symbol=str(row.get("symbol") or row.get("instrument_id") or ""),
+                side=str(row.get("side") or "BUY"),
+                lots=qty,
+                lot_size=1,
+                order_type=str(row.get("order_type") or "LIMIT"),
+                price=row.get("price"),
+                trigger_price=row.get("trigger_price"),
+                decision_price=row.get("decision_price"),
+                purpose=str(row.get("purpose") or "ENTRY"),
+                exit_reason=row.get("exit_reason"),
+                instrument_id=str(row.get("instrument_id") or ""),
+                client_order_id=str(row["client_order_id"]),
+            )
+            order = Order(intent=intent, broker=self.name, mode=self.mode)
+            try:
+                order.state = OrderState(str(row["status"]))
+            except ValueError:
+                order.state = OrderState.NEW
+            order.filled_qty = int(row.get("filled_qty") or 0)
+            order.avg_fill_price = row.get("avg_fill_price")
+            self.orders[intent.client_order_id] = order
+            n += 1
+        for pos in store.open_positions():
+            p = Position(
+                str(pos.get("symbol") or pos.get("instrument_id") or ""),
+                int(pos["net_qty"]),
+                float(pos.get("avg_price") or 0),
+                str(pos.get("instrument_id") or ""),
+            )
+            self._positions[p.key] = p
+        return n
