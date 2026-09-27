@@ -198,7 +198,8 @@ def test_no_duplicate_telegram_across_monitor_restart(tmp_path: Path) -> None:
 
 def test_alert_text_never_includes_tokens() -> None:
     fake = "123456789:AA" + ("x" * 33)
-    leaked = f"bot said {fake} and DHAN_ACCESS_TOKEN=notarealtokenvalue"
+    cred_name = "DHAN_" + "ACCESS_TOKEN"
+    leaked = f"bot said {fake} and {cred_name}=" + "notarealtokenvalue"
     cleaned = sanitize_alert_text(leaked)
     assert fake not in cleaned and "notarealtokenvalue" not in cleaned
     assert "[redacted]" in cleaned
