@@ -1,0 +1,68 @@
+# Regime service + adaptive analyst weights + intermarket overlay (roadmap PR-012 / PR-024).
+# Paper only. Code: packages/desk-ml/src/desk_ml/regime/. Report: scripts/regime_shadow_report.py.
+#
+# mode:
+#   off     nothing runs.
+#   shadow  (default) label every minute, compute adaptive weights and the overlay, log them next to
+#           the static picker decision and publish them on the event bus. Trades are NOT changed:
+#           the legacy replay stays byte-identical.
+#   apply   the boss uses the weighted picker (and the overlay veto if the overlay is enabled).
+#           Paper only. The overlay size multiplier is logged, not applied, in this version.
+mode: shadow
+
+# Minute labeller. Every threshold is here so the research lab's validated values can be dropped in.
+# Change `version` whenever a threshold changes; it is stamped on every label.
+labels:
+  version: v0-default-unvalidated
+  adx_period: 14            # Wilder DMI/ADX on completed 1m bars
+  adx_trend_min: 22.0       # ADX at or above this = trending
+  vwap_confirm_bps: 3.0     # trend also needs close on the same side of VWAP by at least this (bps)
+  rv_short: 15              # 1m log returns in the short realised-vol window
+  rv_long: 60               # 1m log returns in the long window (session so far if shorter)
+  rv_min_long: 20           # need this many long-window returns before any vol label
+  vol_expansion_ratio: 1.5  # short RV / long RV at or above this = vol_expansion
+  vol_compression_ratio: 0.6  # at or below this = vol_compression
+  gap_pct: 0.5              # |first open - prior close| / prior close (%) at or above this = gap_day
+  expiry_close_hhmm: "15:30"  # IST; minutes to expiry are counted to this time on the expiry date
+
+# Daily / weekly intermarket regime from data/recon/global_markets/YYYYMMDD.jsonl (data-recorder).
+# Only files dated BEFORE the session are read, so the label is known pre-market.
+# A missing input is dropped; with no input at all the regime is "unknown" (the overlay does nothing).
+intermarket:
+  dir: data/recon/global_markets
+  weekly_sessions: 5
+  risk_off_score: 0.5       # mean component score at or above this = risk_off
+  risk_on_score: -0.5       # at or below this = risk_on
+  inputs:                   # score +1 = risk-off for India, -1 = risk-on; |change| under the dead band = 0
+    usdinr: {symbols: ["USDINR=X", "USDINR"], risk_off_when: up, dead_band_pct: 0.15}
+    crude: {symbols: ["CL=F", "BZ=F", "CRUDE"], risk_off_when: up, dead_band_pct: 1.0}
+    us_futures: {symbols: ["ES=F", "NQ=F", "SPY"], risk_off_when: down, dead_band_pct: 0.4}
+    vix: {symbols: ["^VIX", "INDIAVIX", "^INDIAVIX"], risk_off_when: up, dead_band_pct: 5.0}
+
+# Adaptive analyst weights. Bayesian shrinkage toward static_weights; updates only from CLOSED trades
+# and matured vote outcomes.
+weights:
+  enabled: true
+  state_path: data/recon/regime/weights_state.json   # gitignored; written only by the report script
+  static_weights: {}        # analyst -> weight; missing = 1.0 (today's picker counts every vote once)
+  condition_on: primary     # regime key: primary label (trend_up / trend_down / range / unknown)
+  prior_strength: 20.0      # pseudo-samples pulling the pooled hit rate to 0.5
+  regime_prior_strength: 10.0  # pseudo-samples pulling the regime hit rate to the pooled one
+  min_samples: 30.0         # effective samples before an analyst moves off its static weight
+  min_samples_regime: 10.0  # below this the regime bucket falls back to the pooled estimate
+  half_life_days: 10.0      # exponential decay of old outcomes
+  gain: 1.0                 # multiplier = 1 + gain * 2 * (hit_rate - 0.5)
+  floor: 0.5                # multiplier floor (x static weight)
+  cap: 1.5                  # multiplier cap (x static weight)
+  max_share: 0.25           # no analyst above this share of the roster's total weight
+  trade_outcome_weight: 1.0 # one closed trade = this many samples per analyst that spoke at entry
+  vote_outcome_weight: 0.2  # one matured minute vote = this many samples (votes are autocorrelated)
+  vote_horizon_min: 15      # a vote matures this many completed minutes later
+  vote_dead_band_bps: 3.0   # index moves smaller than this are not scored
+
+# Intermarket overlay for the boss. Default OFF.
+overlay:
+  enabled: false
+  use: weekly               # daily | weekly | either
+  risk_off: {prefer: PE, veto_other_side: true, size_mult: 0.5}
+  risk_on: {prefer: null, veto_other_side: false, size_mult: 1.0}

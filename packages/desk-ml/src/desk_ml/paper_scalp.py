@@ -5381,6 +5381,7 @@ def step_vote_inputs(
 
 
 OpenFn = Callable[..., None]
+_REGIME_HOOK_DOWN: dict[str, float] = {}  # PR-012/024: monotonic time the regime hook last failed
 
 
 def step_decide(engine: BookEngine, s: TickStep, votes: Sequence[Any], *, open_fn: Optional[OpenFn] = None) -> None:
@@ -5420,6 +5421,21 @@ def step_decide(engine: BookEngine, s: TickStep, votes: Sequence[Any], *, open_f
     ]
     engine._current_model_names = spoken_model_names  # type: ignore[attr-defined]
     picker = picker_majority(votes, prev=older, closed=closed_1m, classified=classified)
+    # PR-012/024 regime (desk_ml.regime): shadow mode logs only and returns `picker` unchanged.
+    # A broken regime module logs once, keeps the static picker, and is retried at most once a minute.
+    from time import monotonic as _monotonic
+
+    if _monotonic() - _REGIME_HOOK_DOWN.get("at", -1e18) >= 60.0:
+        try:
+            from desk_ml.regime.shadow import boss_hook as _regime_hook
+
+            picker = _regime_hook(engine, s, votes, picker)
+        except Exception:
+            if "at" not in _REGIME_HOOK_DOWN:
+                import logging
+
+                logging.getLogger("desk_ml.regime").exception("regime hook unavailable; static picker kept")
+            _REGIME_HOOK_DOWN["at"] = _monotonic()
     sod = bool(getattr(engine, "sod_one_ticket", False))
     use_picker = sod or bool(getattr(engine, "picker_majority", False))
     fill_router = "sod_desk" if sod else "resolve_fill_intents"
