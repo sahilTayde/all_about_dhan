@@ -1,5 +1,23 @@
 # Handoff log — Team 07 Coding
 
+## As of now (2026-09-27 IST) — V2-11 founder controls v2 (PAPER)
+
+```text
+From:     teams/07_coding
+To:       founder / 00 / 09
+Date:     2026-09-27
+Status:   PAPER / V2-11 / NO_PROMOTE / no live orders
+Accepted: Branched from cursor/v2-10-ledger-crash-recovery-dcfd, then
+  a normal merge of PR #49 head cursor/v2-09-position-manager-7d86
+  @ 2229844f8baad6c3a09209d770ee96434a850c4c. packages/control
+  command log + engine handler + gateway /v2/control routes.
+  Flatten/kill go through PositionManager + risk.check_flatten.
+  KILL_SWITCH file + python -m runtime flatten work with Redis
+  down. DhanBroker never constructed. requirements/* unchanged.
+Rejected: Live/Dhan path. Gateway applying entries. Rebase / force-push.
+UNKNOWN: retarget to main after #45, #49, #58 merge.
+```
+
 ## As of now (2026-09-27 IST) — V2-10 ledger v2 + crash recovery (PAPER)
 
 ```text

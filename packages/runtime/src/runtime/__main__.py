@@ -1,7 +1,7 @@
 """python -m runtime <command> — paper only.
 
 Commands: engine, health, reset-breaker, deploy, backup, restore, job,
-and bench-legacy (V2-17 frozen replay).
+flatten (out-of-band paper flatten), and bench-legacy (V2-17 frozen replay).
 """
 
 from __future__ import annotations
@@ -57,9 +57,10 @@ def _idle(state_dir: Path, name: str) -> None:
     (state_dir / f"{name}.ready").write_text("ok\n", encoding="utf-8")
 
 
-_USAGE = """usage: python -m runtime {engine|health|reset-breaker|deploy|backup|restore|job|bench-legacy} ...
+_USAGE = """usage: python -m runtime {engine|health|reset-breaker|deploy|backup|restore|job|flatten|bench-legacy} ...
   engine|health [--once] [--state-dir DIR] [--now ISO] [--mode replay|paper]
   reset-breaker <service> [--state-dir DIR] [--now ISO]
+  flatten [--account founder] [--state-dir DIR] [--now ISO]
   job <name> [--state-dir DIR]
   bench-legacy --day YYYY-MM-DD --tape PATH [--out DIR] [--deadline SECONDS]
   deploy <sha> | backup | restore --snapshot PATH
@@ -88,6 +89,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--sha", default="")
     p.add_argument("--snapshot", default="")
     p.add_argument("--ready-timeout", type=float, default=5.0)
+    p.add_argument("--account", default="founder")
     args = p.parse_args(raw)
     if args.mode not in {"replay", "paper"}:
         print(
@@ -153,6 +155,17 @@ def main(argv: list[str] | None = None) -> int:
         digest = restore_state(snap_path, state)
         print(json.dumps({"ok": True, "output_hash": digest}))
         return 0
+
+    if cmd == "flatten":
+        from runtime.flatten_cli import flatten_cli
+
+        result = flatten_cli(
+            account=args.account or args.target or "founder",
+            state_dir=state,
+            clock=clock,
+        )
+        print(json.dumps(result))
+        return 0 if result.get("ok") else 1
 
     if cmd == "job":
         job = args.target or ""

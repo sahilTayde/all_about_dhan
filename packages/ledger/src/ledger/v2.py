@@ -601,6 +601,77 @@ class SqliteLedgerStore:
         snap["halt_unreadable"] = halt_bad
         return snap
 
+    def get_founder_command(self, command_id: str) -> dict[str, Any] | None:
+        if not self._has_table("founder_commands"):
+            return None
+        row = self.conn.execute(
+            "SELECT * FROM founder_commands WHERE command_id=?", (command_id,)
+        ).fetchone()
+        return self._founder_row(row) if row is not None else None
+
+    def record_founder_command(self, row: dict[str, Any]) -> dict[str, Any]:
+        cid = str(row.get("command_id") or row["id"])
+        existing = self.get_founder_command(cid)
+        if existing is not None:
+            return existing
+        args = row.get("args") if isinstance(row.get("args"), str) else json.dumps(row.get("args") or {})
+        self.conn.execute(
+            "INSERT INTO founder_commands (command_id, account_id, kind, args_json, actor, reason, "
+            "received_ts, applied_ts, status, status_reason) VALUES (?,?,?,?,?,?,?,?,?,?)",
+            (
+                cid,
+                str(row.get("account_id") or "founder"),
+                str(row["kind"]),
+                args,
+                str(row.get("actor") or "founder"),
+                str(row.get("reason") or ""),
+                str(row.get("available_ts") or row.get("received_ts") or iso_ist()),
+                row.get("applied_ts"),
+                str(row.get("status") or "received"),
+                row.get("status_reason"),
+            ),
+        )
+        if not self._in_txn:
+            self.conn.commit()
+        return self.get_founder_command(cid) or dict(row)
+
+    def ack_founder_command(
+        self,
+        command_id: str,
+        status: str,
+        status_reason: str | None,
+        applied_ts: str | None,
+    ) -> dict[str, Any]:
+        existing = self.get_founder_command(command_id)
+        if existing is None:
+            return {"command_id": command_id, "status": status, "status_reason": status_reason}
+        self.conn.execute(
+            "UPDATE founder_commands SET status=?, status_reason=?, applied_ts=? WHERE command_id=?",
+            (status, status_reason, applied_ts, command_id),
+        )
+        if not self._in_txn:
+            self.conn.commit()
+        return self.get_founder_command(command_id) or existing
+
+    def list_founder_commands(self) -> list[dict[str, Any]]:
+        if not self._has_table("founder_commands"):
+            return []
+        return [self._founder_row(r) for r in self.conn.execute("SELECT * FROM founder_commands")]
+
+    def _founder_row(self, row: Any) -> dict[str, Any]:
+        rec = dict(row)
+        raw = rec.pop("args_json", "{}")
+        try:
+            rec["args"] = json.loads(raw) if raw else {}
+        except json.JSONDecodeError:
+            rec["args"] = {}
+        rec["id"] = rec.get("command_id")
+        rec["available_ts"] = rec.get("received_ts")
+        rec["who"] = rec.get("actor")
+        rec["when"] = rec.get("applied_ts") or rec.get("received_ts")
+        rec["why"] = rec.get("reason")
+        return rec
+
     def _has_table(self, name: str) -> bool:
         return (
             self.conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?", (name,)).fetchone()

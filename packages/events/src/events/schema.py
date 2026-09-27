@@ -28,6 +28,7 @@ class EventType(str, Enum):
     ENTRY_VETOED = "ENTRY_VETOED"  # desk (risk engine / founder pause) -> boss, founder
     HEALTH_ALERT = "HEALTH_ALERT"  # monitor/desk -> founder, boss
     FOUNDER_COMMAND = "FOUNDER_COMMAND"  # founder -> desk, boss; highest priority
+    COMMAND_ACK = "COMMAND_ACK"  # engine -> founder; applied|rejected
     REGIME_LABEL = "REGIME_LABEL"  # regime service -> boss, audit (minute label change / intermarket)
     BOSS_SHADOW = "BOSS_SHADOW"  # boss -> audit: adaptive-weight / overlay decision next to the static one
 

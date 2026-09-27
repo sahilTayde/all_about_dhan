@@ -1,12 +1,13 @@
-"""V2-13 gateway: GET /v2/snapshot, WS /v2/ws, V2-11 control-route stub.
+"""V2-13 gateway: GET /v2/snapshot, WS /v2/ws, V2-11 founder control routes.
 
-Paper only. Browser never talks to Dhan or Redis. No founder control actions.
-Timestamps are IST (+05:30). No look-ahead: envelopes with available_ts in the
-future are refused. Legacy /ui/* and /ws/* stay as they are.
+Paper only. Browser never talks to Dhan or Redis. Control actions never place
+an entry. Timestamps are IST (+05:30). No look-ahead: envelopes with
+available_ts in the future are refused. Legacy /ui/* and /ws/* stay as they are.
 
 Identity is the paper token only (JWT is V2-23). A client-supplied role is
 never trusted. Missing/unknown token = customer. Subscribe cannot change
-token or role.
+token or role. Control routes are localhost-only unless the founder token
+is present (V2-13 auth on).
 """
 
 from __future__ import annotations
@@ -14,8 +15,10 @@ from __future__ import annotations
 import asyncio
 import os
 import queue
+import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 from typing import Any, Protocol, TypedDict
 
 from contracts.envelope import Envelope
@@ -29,10 +32,13 @@ from fastapi import (
     WebSocket,
     WebSocketDisconnect,
 )
+from pydantic import BaseModel, ConfigDict, Field
 
 IST = timezone(timedelta(hours=5, minutes=30))
 CONTROL_FLAG = "AAD_V2_CONTROL_ROUTES"
-# V2-11 STUB — surface only. Do not apply START/STOP/KILL/… here.
+REMOTE_ENV = "AAD_FOUNDER_CONTROLS_REMOTE"
+LOCAL_HOSTS = frozenset({"127.0.0.1", "::1", "localhost"})
+LOCAL_HOST_HEADERS = frozenset({"127.0.0.1", "localhost", "[::1]"})
 CONTROL_KINDS = (
     "START",
     "STOP",
@@ -614,36 +620,151 @@ def _trace_steps(row: dict[str, Any]) -> list[dict[str, Any]]:
     ]
 
 
+def _host_name(header: str | None) -> str:
+    h = str(header or "").strip().lower()
+    if h.startswith("["):
+        return h[: h.find("]") + 1] if "]" in h else h
+    return h.split(":")[0]
+
+
+def authorize_control(request: Request, token: str | None) -> None:
+    """Founder token (V2-13 auth on) or localhost. Customer tokens never pass."""
+    raw = (token or "").strip()
+    if raw and role_from_token(raw) != "founder":
+        raise HTTPException(403, "founder controls are founder-only")
+    if role_from_token(raw) == "founder":
+        return
+    host = request.client.host if request.client else None
+    local = (
+        host in LOCAL_HOSTS
+        and _host_name(request.headers.get("host")) in LOCAL_HOST_HEADERS
+        and "x-forwarded-for" not in request.headers
+        and os.environ.get(REMOTE_ENV) != "1"
+    )
+    if local:
+        return
+    raise HTTPException(403, "founder controls are localhost-only unless V2-13 auth is on")
+
+
+class ConfirmBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    kind: str = Field(..., min_length=1, max_length=32)
+    target: str | None = Field(None, max_length=200)
+
+
+class CommandBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    kind: str = Field(..., min_length=1, max_length=32)
+    args: dict[str, Any] = Field(default_factory=dict)
+    command_id: str | None = Field(None, max_length=64)
+    actor: str = Field("founder", min_length=1, max_length=64)
+    reason: str = Field(..., min_length=1, max_length=500)
+    confirm_token: str | None = Field(None, max_length=200)
+    available_ts: str | None = None
+
+
 @router.get("/v2/control")
-def v2_control_surface() -> dict[str, Any]:
-    """V2-11 STUB: lists the founder-control route surface. Does not apply commands."""
+def v2_control_surface(request: Request, token: str = "") -> dict[str, Any]:
+    authorize_control(request, token)
+    from control.kinds import KINDS
+
+    handler = getattr(request.app.state, "v2_control", None)
+    state = handler.book().state_at(handler.clock.now().timestamp()).as_dict() if handler else {}
     return {
-        "stub": True,
+        "stub": False,
         "ticket": "V2-11",
-        "implemented": False,
+        "implemented": True,
         "flag": CONTROL_FLAG,
-        "enabled": os.environ.get(CONTROL_FLAG) == "1",
-        "kinds": list(CONTROL_KINDS),
-        "note": "V2-11 STUB: route surface only. Founder control actions are not implemented.",
+        "enabled": True,
+        "kinds": list(KINDS),
+        "state": state,
         "orders": "REFUSED",
     }
+
+
+@router.post("/v2/control/confirm")
+def v2_control_confirm(request: Request, body: ConfirmBody, token: str = "") -> dict[str, Any]:
+    authorize_control(request, token)
+    from control.kinds import CONFIRM_KINDS, canonical_kind
+    from control.tokens import ConfirmTokens
+
+    kind = canonical_kind(body.kind)
+    if kind not in CONFIRM_KINDS:
+        raise HTTPException(422, f"{kind} does not need a confirm token")
+    tokens: ConfirmTokens = request.app.state.v2_tokens
+    hub: GatewayHub = request.app.state.v2_hub
+    return tokens.issue(kind, body.target, hub.clock.now().timestamp())
 
 
 @router.post("/v2/control/commands", response_model=None)
-def v2_control_command() -> dict[str, Any]:
-    """V2-11 STUB: never applies START/STOP/KILL/CUT_LOSS/…. Always 501."""
-    body = {
-        "stub": True,
+def v2_control_command(request: Request, body: CommandBody, token: str = "") -> dict[str, Any]:
+    """Apply one founder command. Idempotent command_id. Never places an entry."""
+    authorize_control(request, token)
+    from control.handler import submit
+    from control.kinds import CONFIRM_KINDS, KINDS, canonical_kind, validate_args
+
+    kind = canonical_kind(body.kind)
+    if kind not in KINDS:
+        raise HTTPException(422, f"unknown kind {kind!r}")
+    err = validate_args(kind, body.args)
+    if err:
+        raise HTTPException(422, err)
+    if kind in CONFIRM_KINDS:
+        tokens = request.app.state.v2_tokens
+        target = None
+        if kind == "CUT_LOSS":
+            target = str(
+                body.args.get("position_id")
+                or body.args.get("trade_id")
+                or body.args.get("instrument_id")
+                or ""
+            )
+        why = tokens.consume(body.confirm_token, kind, target, request.app.state.v2_hub.clock.now().timestamp())
+        if why:
+            raise HTTPException(422, why)
+    handler = request.app.state.v2_control
+    cid = body.command_id or uuid.uuid4().hex[:16]
+    existing = handler.store.get(cid)
+    if existing is not None and existing.get("status") in {"applied", "rejected"}:
+        ack = existing
+    else:
+        ack = submit(
+            handler,
+            kind,
+            dict(body.args),
+            actor=body.actor,
+            reason=body.reason,
+            command_id=cid,
+            available_ts=body.available_ts or handler.clock.now(),
+        )
+        if handler.bus is not None:
+            handler.bus.publish(
+                "FOUNDER_COMMAND",
+                {
+                    "command_id": cid,
+                    "kind": kind,
+                    "args": dict(body.args),
+                    "actor": body.actor,
+                    "reason": body.reason,
+                    "available_ts": ack.get("available_ts"),
+                },
+                source="gateway",
+            )
+    return {
+        "stub": False,
         "ticket": "V2-11",
-        "implemented": False,
-        "applied": False,
-        "note": "V2-11 STUB: founder control actions are not implemented on this branch.",
-        "orders": "REFUSED",
+        "implemented": True,
+        "command_id": ack.get("command_id") or cid,
+        "status": ack.get("status"),
+        "reason": ack.get("status_reason"),
+        "kind": kind,
+        "actor": body.actor,
+        "who": body.actor,
+        "when": ack.get("applied_ts") or ack.get("available_ts"),
+        "why": body.reason,
+        "applied": ack.get("status") == "applied",
+        "orders": "REFUSED" if kind not in {"CUT_LOSS", "FLATTEN_ALL", "KILL"} else "EXIT_ONLY",
     }
-    if os.environ.get(CONTROL_FLAG) != "1":
-        body["reason"] = f"{CONTROL_FLAG} is off"
-    raise HTTPException(status_code=501, detail=body)
-    return body
 
 
 @router.websocket("/v2/ws")
@@ -680,9 +801,29 @@ async def v2_ws(
 
 
 def attach_gateway(app: Any, bus: EventBus | None = None) -> GatewayHub:
+    import tempfile
+
+    from control.handler import ControlHandler
+    from control.tokens import ConfirmTokens
+
     hub = GatewayHub(bus)
     app.state.v2_hub = hub
     app.state.v2_bus = bus
+    handler = getattr(app.state, "v2_control", None)
+    if handler is None:
+        env_root = os.environ.get("AAD_STATE_DIR")
+        root = Path(env_root) if env_root else Path(tempfile.mkdtemp(prefix="aad-ctl-"))
+        handler = ControlHandler(
+            bus=bus,
+            clock=hub.clock,
+            root=root,
+            kill_switch_path=root / "KILL_SWITCH",
+        )
+        app.state.v2_control = handler
+        if bus is not None:
+            bus.subscribe(["FOUNDER_COMMAND"], handler.on_bus_event, priority=0)
+    if getattr(app.state, "v2_tokens", None) is None:
+        app.state.v2_tokens = ConfirmTokens()
     return hub
 
 

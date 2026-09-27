@@ -139,7 +139,7 @@ class PositionManager:
         for pos in list(self.store.open_positions()):
             ids = (pos.get("instrument_id"), pos.get("position_id"), pos.get("symbol"))
             quote_kinds = ("TICK", "DEPTH_QUOTE", "QUOTE_SNAPSHOT", "BAR_CLOSED")
-            if target and target not in ids and kind in quote_kinds:
+            if target and target not in ids and (kind in quote_kinds or kind == "FOUNDER_COMMAND"):
                 continue
             if "exit_plan" not in pos:
                 raw = pos.get("exit_plan_json")
