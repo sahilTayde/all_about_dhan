@@ -413,4 +413,16 @@ After these (Phase 2), you'll have a stable, well-tested paper trading system. T
 
 ---
 
-**Last updated:** 2026-09-26 (Rebuild planning package)
+## V2 paper stack (new)
+
+The new stack is **paper only**. It does not place broker orders.
+
+- **Laptop / CI:** `docker compose -f deploy/docker/compose.yaml up --build` (replay profile). No Dhan tokens. The engine writes `ENGINE_STATUS READY`.
+- **VPS:** `deploy/systemd/aad.service` runs the same compose file plus `compose.vps.yaml` (Caddy on 443). There is **no live-orders profile**.
+- **Deploy:** `deploy/scripts/deploy.sh <git-sha>` refuses between 09:00 and 15:35 IST (unless you pass `--emergency`), backs up state, waits for READY, and rolls back if READY never arrives.
+- **Backup / restore:** `deploy/scripts/backup.sh` and `restore.sh`. A restore must reproduce that day's `output_hash`.
+- **Restart loop:** if a service crashes 5 times in 10 minutes it stops. Health shows `RESTART_LOOP`. You clear it with `python -m runtime reset-breaker <service>`.
+- **Old day:** `./scripts/desk.sh` is unchanged. Keep using it until you switch to compose.
+
+**Last updated:** 2026-09-27 (V2-15 deploy / supervision)
+

@@ -1,0 +1,74 @@
+# Default profile = replay. No credentials, no live-orders profile.
+# Engine stub (V2-04 not merged) writes ENGINE_STATUS READY under AAD_STATE_DIR.
+name: aad-v2
+
+x-python: &python
+  build:
+    context: ../..
+    dockerfile: deploy/docker/Dockerfile
+  image: aad-python:${SHA:-local}
+  user: "10001:10001"
+  read_only: true
+  tmpfs:
+    - /tmp
+  environment:
+    AAD_STATE_DIR: /app/data/state
+    AAD_SHA: ${SHA:-local}
+    TZ: Asia/Kolkata
+  volumes:
+    - state:/app/data/state
+  depends_on:
+    redis:
+      condition: service_healthy
+  restart: on-failure
+
+services:
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes", "--appendfsync", "everysec"]
+    volumes: ["redis:/data"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: on-failure
+
+  engine:
+    <<: *python
+    command: ["python", "-m", "runtime", "engine", "--role", "all", "--mode", "replay"]
+    stop_grace_period: 30s
+
+  health:
+    <<: *python
+    command: ["python", "-m", "runtime", "health"]
+
+  marketdata:
+    <<: *python
+    command: ["python", "-m", "runtime", "marketdata", "--mode", "replay"]
+
+  gateway:
+    <<: *python
+    command: ["python", "-m", "runtime", "gateway"]
+    ports: ["127.0.0.1:8000:8000"]
+
+  llm-advisor:
+    <<: *python
+    command: ["python", "-m", "runtime", "llm-advisor"]
+    profiles: ["llm"]
+
+  recorder:
+    <<: *python
+    command: ["python", "-m", "runtime", "marketdata", "--mode", "replay"]
+    profiles: ["live-data"]
+
+  nightly:
+    <<: *python
+    profiles: ["nightly"]
+    restart: "no"
+    # REG-10: wall-clock timeout on every job (seconds from runtime.jobs.JOBS).
+    command: ["timeout", "1800", "python", "-m", "runtime", "job", "etl"]
+
+volumes:
+  redis:
+  state:

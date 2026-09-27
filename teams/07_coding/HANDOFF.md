@@ -1,5 +1,25 @@
 # Handoff log — Team 07 Coding
 
+## As of now (2026-09-27 IST) — V2-15 compose / deploy / breaker (NO_PROMOTE)
+
+```text
+From:     teams/07_coding
+To:       00 / 09 / founder
+Date:     2026-09-27
+Status:   PAPER V2-15 / NO_PROMOTE
+Accepted: Dockerfile (non-root, read-only root), compose replay (no creds),
+  compose.vps, Caddyfile, aad.service, deploy/backup/restore, restart
+  breaker + reset-breaker, job timeouts, §5.3 CI jobs, founder-guide V2
+  note. Stub engine writes ENGINE_STATUS READY (V2-04 kernel not here).
+  V2-14 breaker_open is a Protocol (BreakerView); this ticket owns the file.
+Rejected: Live-orders compose profile. Copying V2-14 health files.
+  Touching legacy engine, desk.sh behaviour, data/, config/v2/exits.
+UNKNOWN: Dhan token refresh for unattended VPS (VERIFY). Docker-in-CI
+  image build needs the runner's docker socket.
+```
+
+---
+
 ## As of now (2026-09-22 IST) — freeze spill cols + 2s tick (NO_PROMOTE)
 
 ```text
