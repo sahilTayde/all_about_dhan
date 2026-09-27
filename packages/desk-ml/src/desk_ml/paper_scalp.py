@@ -2877,10 +2877,10 @@ class BookEngine:
     sod_one_ticket: bool = True  # locked product: votes → picker → observer → one desk ticket
     picker_majority: bool = True  # RULES majority; implied by sod_one_ticket
     signal_log: list[dict[str, Any]] = field(default_factory=list)  # logit/XR/greeks vs picker even on VETO
-    exam_events: list[dict[str, Any]] = field(default_factory=list)  # 06 honesty exam; not a fill
-    hold_trending_open_stall: bool = False  # write=false A/B only. Default off. NO_PROMOTE.
     cost_model: str = costs.LEGACY  # PR-B: legacy | realistic (desk_ml.costs)
     cost_state: dict[str, Any] = field(default_factory=dict)  # PR-B: realistic fills, quotes, alerts
+    exam_events: list[dict[str, Any]] = field(default_factory=list)  # 06 honesty exam; not a fill
+    hold_trending_open_stall: bool = False  # write=false A/B only. Default off. NO_PROMOTE.
 
     def book_capital(self, book_id: str) -> float:
         if book_id in self.capital_by_book:
@@ -4891,11 +4891,6 @@ def mark_to_market(
             ltp = float(pos.entry)
             side_low = pos.seen_low if pos.seen_low is not None else ltp
             src = "ENTRY_PRINT"
-        if costs.is_realistic(engine):  # PR-B cost hook: stale-quote exit guard
-            due = costs.on_quote(engine, pos, tick, ltp, src)
-            if due and ltp is not None:
-                _close(engine, pos, ltp=float(ltp), ts=tick.ts, reason=due, root=engine.root)
-                continue
         override = load_human_override(engine.root)
         if override.get("active"):
             wants_trade = not override.get("trade_id") or override.get("trade_id") == pos.trade_id
@@ -5010,6 +5005,11 @@ def mark_to_market(
                     root=engine.root,
                 )
             continue
+        if costs.is_realistic(engine):  # PR-B cost hook: stale-quote exit guard
+            due = costs.on_quote(engine, pos, tick, ltp, src)
+            if due:
+                _close(engine, pos, ltp=float(ltp), ts=tick.ts, reason=due, root=engine.root)
+                continue
         if side_low is None:
             side_low = ltp
         pos.last_ltp = float(ltp)
