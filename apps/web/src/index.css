@@ -3675,15 +3675,19 @@ tr.is-click:hover {
   border-color: var(--yes);
 }
 
-.account-funds {
+.account-funds fieldset {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   align-items: end;
   gap: 0.45rem;
   margin: 0;
   padding: 0.45rem 0.55rem 0.55rem;
-  border: 1px dashed var(--line);
+  border: 1px solid var(--line);
   border-radius: 8px;
+  min-width: 0;
+}
+
+.account-funds fieldset:disabled {
   opacity: 0.6;
 }
 
@@ -3974,24 +3978,6 @@ tr.is-click:hover {
   font-variant-numeric: tabular-nums;
 }
 
-/* founder controls (next PR) */
-.controls-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.35rem;
-  margin: 0.3rem 0 0.4rem;
-}
-
-.ctrl-btn {
-  padding: 0.4rem 0.45rem;
-  border: 1px dashed var(--line-strong);
-  border-radius: 6px;
-  background: var(--bg-2);
-  color: var(--ink-soft);
-  font-size: 0.74rem;
-  cursor: not-allowed;
-}
-
 /* trade table extras */
 .day-summary {
   display: flex;
@@ -4156,3 +4142,43 @@ tr.is-click:hover {
   font-size: 0.95rem;
   color: var(--warn);
 }
+/* founder controls (roadmap step 14) */
+.founder-controls { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0.7rem; }
+.fc-status { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+.fc-pill { border: 1px solid var(--line-strong); border-radius: 999px; padding: 0.2rem 0.6rem; font-size: 0.8rem; }
+.fc-pill.is-ok { color: var(--yes); border-color: var(--yes); }
+.fc-pill.is-warn { color: var(--warn); border-color: var(--warn); }
+.fc-pill.is-bad { color: #fff; background: var(--lost); border-color: var(--lost); }
+.fc-row, .fc-inline { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: flex-end; }
+.fc-grid { display: grid; gap: 0.7rem; grid-template-columns: repeat(auto-fit, minmax(min(15rem, 100%), 1fr)); }
+.fc-box { border: 1px solid var(--line); border-radius: 8px; padding: 0.6rem 0.7rem; display: grid; gap: 0.45rem; min-width: 0; }
+.fc-box h3 { margin: 0; font-size: 0.85rem; letter-spacing: 0.04em; text-transform: uppercase; color: var(--ink-soft); }
+.fc-box--danger { border-color: var(--lost); }
+.fc-field { display: flex; flex-direction: column; gap: 0.2rem; min-width: 0; }
+.fc-field span { font-size: 0.72rem; color: var(--ink-soft); }
+.fc-field input { background: var(--surface-2); color: var(--ink); border: 1px solid var(--line); border-radius: 8px; padding: 0.45rem 0.55rem; min-width: 0; max-width: 11rem; font-size: 1rem; }
+.fc-grow { flex: 1 1 12rem; min-width: 0; }
+.fc-grow input { max-width: none; width: 100%; }
+.fc-btns { display: flex; gap: 0.4rem; flex-wrap: wrap; }
+.fc-btn { border: 1px solid var(--line-strong); background: var(--surface-2); color: var(--ink); border-radius: 8px; padding: 0.5rem 0.8rem; min-height: 2.5rem; cursor: pointer; font-weight: 600; }
+.fc-btn:hover:not(:disabled), .fc-btn:focus-visible { border-color: var(--inprogress); outline: none; }
+.fc-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.fc-btn--go { border-color: var(--yes); color: var(--yes); }
+.fc-btn--stop { border-color: var(--no); color: var(--no); }
+.fc-btn--kill { background: var(--lost); border-color: var(--lost); color: #fff; letter-spacing: 0.06em; }
+.fc-chip { border: 1px solid var(--line-strong); background: transparent; color: var(--ink); border-radius: 999px; padding: 0.35rem 0.7rem; min-height: 2.25rem; cursor: pointer; }
+.fc-chip.is-on { border-color: var(--yes); color: var(--yes); }
+.fc-chip.is-off { border-color: var(--no); color: var(--no); }
+.fc-opens { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.45rem; }
+.fc-opens li { display: flex; flex-wrap: wrap; gap: 0.5rem; justify-content: space-between; align-items: center; }
+.fc-open-name { font-family: var(--mono); font-size: 0.85rem; }
+.fc-history h3 { margin: 0 0 0.35rem; font-size: 0.85rem; text-transform: uppercase; color: var(--ink-soft); }
+.fc-table-wrap { overflow-x: auto; }
+.fc-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+.fc-table th, .fc-table td { text-align: left; padding: 0.35rem 0.45rem; border-bottom: 1px solid var(--line); vertical-align: top; }
+.fc-table .mono { font-family: var(--mono); white-space: nowrap; }
+.fc-status-badge { border-radius: 999px; padding: 0.1rem 0.5rem; font-size: 0.75rem; text-transform: uppercase; border: 1px solid currentColor; }
+.fc-status-badge.is-pending { color: var(--warn); }
+.fc-status-badge.is-applied { color: var(--yes); }
+.fc-status-badge.is-rejected { color: var(--no); }
+.founder-controls--compact .fc-grid { grid-template-columns: repeat(auto-fit, minmax(min(13rem, 100%), 1fr)); }
