@@ -46,7 +46,8 @@ class Fault:
 
     kinds: stall, feed_drop, chain_drop, half_line, corrupt_line, stale_quote, none_premium,
     dup_ooo, founder, override, params_change, corrupt, kill_on, kill_off, crash, restart,
-    clock_skew, disk_full, broker_reject, broker_timeout.
+    clock_skew, disk_full, broker_reject, broker_timeout, rederive_drift (the replay refuses to
+    re-derive any entry at or before the previous cut-off, as when a signal input drifts).
     """
 
     kind: str
@@ -229,9 +230,18 @@ def _corrupt(root: Path, target: str, how: str, day: str) -> None:
         "blocks": recon / "live_blocks" / f"{day}.json",
         "risk_yaml": Path(root) / "config" / "risk_limits.yaml",
     }
+    if target == "frozen_params_both":
+        _corrupt(root, "frozen_params", how, day)
+        bak = paths["frozen_params"].with_name(paths["frozen_params"].name + ".bak")
+        bak.write_text('{"params": ', encoding="utf-8")
+        return
     path = paths[target]
     path.parent.mkdir(parents=True, exist_ok=True)
     if path.is_dir():
+        return
+    if how == "half_append":  # a crash mid-append: a partial record with no newline at the end
+        with open(path, "a", encoding="utf-8") as fh:
+            fh.write('{"ts": 1789020000.5, "underlying": "NIF')
         return
     if how == "directory":
         if path.exists():
@@ -314,6 +324,16 @@ def run_live_day(
                 raise RuntimeError("engine crashed (simulated)")
 
             stack.enter_context(_patched(ps, "_replay_paper_scalp", boom))
+        if prev and any(f.kind == "rederive_drift" for f in active):
+            real_plan = ps._plan_open
+
+            def drifted(engine: Any, *, tick: Any, book_id: str, underlying: str, side: Any = None, **kw: Any) -> Any:
+                if int(tick.ts) <= prev:
+                    engine.mark_skip(book_id, underlying, "SIM_DRIFT", ts=tick.ts, seen_side=side)
+                    return None
+                return real_plan(engine, tick=tick, book_id=book_id, underlying=underlying, side=side, **kw)
+
+            stack.enter_context(_patched(ps, "_plan_open", drifted))
         error, board = None, {}
         with stack:
             try:

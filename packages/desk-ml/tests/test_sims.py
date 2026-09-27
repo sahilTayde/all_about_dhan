@@ -121,6 +121,26 @@ def test_human_cancel_applies_once_at_its_time(flag):
 
 @pytest.mark.sim
 @pytest.mark.parametrize("flag", ["off", "on"])
+def test_F3_booked_open_ticket_is_carried_to_its_own_exit_when_the_replay_drifts(flag):
+    """Later cycles do not re-derive earlier entries: the open ticket must persist, be managed at its
+    booked strike and close by its own rule exactly as in the control, with no forced close and no
+    entry block (drift is reconciled with one WARN, not a CRITICAL)."""
+    ctl = control(FULL, flag)
+    at_1030 = next(c for c in ctl.cycles if c["hhmm"] == "10:30")
+    assert at_1030["open"], "control must hold a ticket across 10:30, or this test proves nothing"
+    tid = at_1030["open"][0]["trade_id"]
+    res = _run(FULL, flag, [F("rederive_drift", "10:31", "15:31")])
+    assert_clean(res)
+    got, want = final(res)[tid], final(ctl)[tid]
+    assert got == want and not got["exit_reason"].startswith("FORCED")
+    assert not any(b["kind"] in ("HISTORY_UNRECONCILABLE", "HISTORY_REWRITE") for b in res.blocks)
+    warn = [a for a in res.alerts if a.get("check") == "history_guard"]
+    assert len(warn) == 1 and warn[0]["severity"] == "WARN"
+    assert not [a for a in res.alerts if a.get("severity") == "CRITICAL"]
+
+
+@pytest.mark.sim
+@pytest.mark.parametrize("flag", ["off", "on"])
 def test_params_change_mid_session_waits_for_next_session(flag):
     res = _run(FAST, flag, [F("params_change", "11:00", args={"params": {"stop_frac": 0.2, "scalp_hold_bars": 3}})])
     assert_clean(res)
@@ -197,6 +217,25 @@ def test_corrupt_control_file_blocks_entries_from_first_sight_and_keeps_history(
     assert_clean(res, expect_block_from=None if harmless else first)
     assert before(res, first) == before(control(FULL, "off"), first)
     assert all(c["error"] is None for c in res.cycles)
+
+
+@pytest.mark.sim
+@pytest.mark.parametrize("target", ["booked", "founder_log", "override_log"])
+def test_half_written_line_from_a_crash_is_quarantined_not_a_session_block(target):
+    res = _run(FULL, "off", [F("corrupt", "11:00", args={"target": target, "how": "half_append"})])
+    assert_clean(res)
+    assert not res.blocks, res.blocks
+    assert final(res) == final(control(FULL, "off"))
+
+
+@pytest.mark.sim
+def test_both_frozen_params_copies_corrupt_raise_one_critical_and_keep_history():
+    res = _run(FULL, "off", [F("corrupt", "11:00", args={"target": "frozen_params_both", "how": "truncated"})])
+    first = ts_at("2026-09-10", "11:15")
+    assert_clean(res, expect_block_from=first)
+    critical = [a for a in res.alerts if a.get("severity") == "CRITICAL"]
+    assert len(critical) == 1 and "PARAMS_UNREADABLE" in critical[0]["error_kind"], critical
+    assert before(res, first) == before(control(FULL, "off"), first)
 
 
 @pytest.mark.sim

@@ -11,6 +11,7 @@ from typing import Any, Optional, Sequence
 
 from desk_ml.features import Triple
 from desk_ml.persist import repo_root
+from desk_ml.reliability import recover_glued
 
 INDEX_SIDS = {"NIFTY": "13", "BANKNIFTY": "25", "SENSEX": "51"}
 IST = timezone(timedelta(hours=5, minutes=30))
@@ -515,6 +516,10 @@ def load_dual_tape_triples(
                     blobs.append(json.loads(line))
                 except json.JSONDecodeError:
                     if not (n == len(lines) - 1 and not text.endswith("\n")):
+                        glued = recover_glued(line) if strict else None
+                        if glued is not None:  # live: a crashed write glued onto the next tick
+                            blobs.append(glued)
+                            continue
                         skipped_lines += 1
                     continue
         else:

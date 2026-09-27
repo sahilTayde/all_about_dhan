@@ -296,7 +296,7 @@ def _row(tid, opened, closed, net=100.0, filled=True):
 
 
 def test_booked_trades_cannot_vanish_change_or_appear_in_the_past(tmp_path):
-    from desk_ml.live_cycle import guard_history, read_booked
+    from desk_ml.live_cycle import HISTORY_RECONCILED, guard_history, read_booked
 
     ctx = ReplayContext(root=tmp_path, session_ist_date=DAY, live_loop=True)
     tape = {"NIFTY": [_tick(at(11))]}
@@ -306,22 +306,78 @@ def test_booked_trades_cannot_vanish_change_or_appear_in_the_past(tmp_path):
     engine = ps.BookEngine(root=tmp_path)
     engine.closed = [_row("b", at(10, 40), at(10, 50))]  # "a" vanished; "b" appeared before 11:00
     rep = guard_history(engine, {"NIFTY": [_tick(at(12))]}, ctx)
-    assert rep["status"] == "HISTORY_REWRITE" and len(rep["problems"]) == 2
+    assert rep["status"] == HISTORY_RECONCILED and len(rep["reconciled"]) == 2 and not rep["unreconcilable"]
     assert [r["trade_id"] for r in engine.closed] == ["a"]  # the board shows the booked truth
     assert set(read_booked(tmp_path, DAY)) == {"a"}
 
 
-def test_an_open_ticket_that_vanishes_is_force_closed_not_left_unmanaged(tmp_path):
-    from desk_ml.live_cycle import FORCED_HISTORY_CLOSE, guard_history
+def _rolled_tick(ts: int, *, booked_px=None) -> Triple:
+    """The tape's ITM PE leg rolled to 23550 (121.9); the booked 23650 PE is only in the wing cells."""
+    wings = {"23550": {"ce": 30.0, "pe": 121.9}}
+    if booked_px is not None:
+        wings["23650"] = {"ce": 25.0, "pe": booked_px}
+    return Triple(ts=ts, idx_close=23500.0, ce_close=90.0, pe_close=95.0, atm_strike=23500.0,
+                  itm_pe_close=121.9, itm_pe_strike=23550.0, wing_quotes=wings)
+
+
+def _pe_23650(trade_id="pe1", last_ltp=205.0) -> ps.OpenPaper:
+    return ps.OpenPaper(book_id="MIX-DEFAULT-BUY", underlying="NIFTY", side="PE", trade_id=trade_id, entry=209.75,
+                        stop=190.0, target=240.0, atm_strike=23650.0, opened_ts=at(14, 9, 43), opened_bar=0,
+                        strike_source="ITM_100", limit_price=209.75, lot_size=65, lots=20, qty=1300, filled=True,
+                        last_ltp=last_ltp, index_regime="TREND")
+
+
+def test_F2_forced_exit_prices_the_booked_strike_after_the_itm_strike_rolled():
+    from desk_ml.live_cycle import booked_quote
+
+    px, meta = booked_quote(_pe_23650(), [_rolled_tick(at(14, 19), booked_px=204.5), _rolled_tick(at(14, 20), booked_px=204.5)])
+    assert px == 204.5 and meta["quote_src"] == "STRIKE_23650" and meta["quote_stale"] is False
+
+
+def test_F2_booked_strike_missing_now_uses_its_last_known_quote_flagged_stale():
+    from desk_ml.live_cycle import booked_quote
+
+    ticks = [_rolled_tick(at(14, 15), booked_px=201.0), _rolled_tick(at(14, 20))]  # no 23650 quote at 14:20
+    px, meta = booked_quote(_pe_23650(), ticks)
+    assert px == 201.0 and meta["quote_stale"] is True and meta["quote_ts"] == at(14, 15)
+    px, meta = booked_quote(_pe_23650(last_ltp=203.0), [_rolled_tick(at(14, 20))])
+    assert px == 203.0 and meta["quote_src"] == "LAST_MARK_BOOKED_STRIKE" and meta["quote_stale"] is True
+    assert px != 121.9  # never the rolled 23550 PE
+
+
+def test_an_open_ticket_that_cannot_be_carried_is_closed_at_its_booked_strike(tmp_path):
+    from desk_ml.live_cycle import FORCED_HISTORY_CLOSE, HISTORY_UNRECONCILABLE, guard_history
 
     ctx = ReplayContext(root=tmp_path, session_ist_date=DAY, live_loop=True)
     engine = ps.BookEngine(root=tmp_path)
-    engine.opens[("MIX-DEFAULT-BUY", "NIFTY")] = _open_pos("open1")
-    guard_history(engine, {"NIFTY": [_tick(at(11))]}, ctx)
-    engine = ps.BookEngine(root=tmp_path)  # next cycle: the replay no longer has it
-    rep = guard_history(engine, {"NIFTY": [_tick(at(11, 30))]}, ctx)
-    assert rep["status"] == "HISTORY_REWRITE"
-    assert engine.closed[-1]["trade_id"] == "open1" and engine.closed[-1]["exit_reason"] == FORCED_HISTORY_CLOSE
+    engine.opens[("MIX-DEFAULT-BUY", "NIFTY")] = _pe_23650()
+    guard_history(engine, {"NIFTY": [_rolled_tick(at(14, 10), booked_px=207.0)]}, ctx)
+    engine = ps.BookEngine(root=tmp_path)  # next cycle: gone, and no Pins to carry it
+    rep = guard_history(engine, {"NIFTY": [_rolled_tick(at(14, 20), booked_px=204.5)]}, ctx)
+    assert rep["status"] == HISTORY_UNRECONCILABLE
+    row = engine.closed[-1]
+    assert row["trade_id"] == "pe1" and row["exit_reason"] == FORCED_HISTORY_CLOSE
+    assert row["exit"] == 204.5 and row["quote_src"] == "STRIKE_23650"  # not 121.9 (the 23550 PE)
+
+
+def test_F2_failsafe_flatten_prices_the_booked_strike_from_the_raw_tape(tmp_path, monkeypatch):
+    from dataclasses import asdict
+
+    from desk_ml.live_cycle import FORCED_ENGINE_CLOSE, booked_state_path, failsafe_flatten, read_booked
+    from desk_ml.tape import dual_tape_dir
+
+    monkeypatch.setattr("desk_ml.tape.load_dual_tape_triples", lambda *a, **k: (_ for _ in ()).throw(RuntimeError("loader down")))
+    booked_state_path(tmp_path, DAY).parent.mkdir(parents=True)
+    booked_state_path(tmp_path, DAY).write_text(json.dumps({"cutoff_ts": {}, "open": {"pe1": asdict(_pe_23650())}}))
+    snap = {"underlying": "NIFTY", "index_ltp": 23300.0, "atm_strike": 23300.0, "atm_pe_ltp": 60.0,
+            "itm_pe_ltp": 108.0, "itm_pe_strike": 23200.0, "atm_ce_ltp": 70.0, "itm_ce_ltp": 150.0,
+            "itm_ce_strike": 23100.0, "wing_quotes": {"23650": {"ce": 20.0, "pe": 168.15}}}
+    folder = dual_tape_dir(tmp_path)
+    folder.mkdir(parents=True)
+    (folder / f"{DAY}.jsonl").write_text(json.dumps({"as_of_ist": "2026-09-10T14:30:00+05:30", "underlyings": [snap]}) + "\n")
+    assert failsafe_flatten(tmp_path, DAY) == ["pe1"]
+    row = read_booked(tmp_path, DAY)["pe1"]
+    assert row["exit_reason"] == FORCED_ENGINE_CLOSE and row["exit"] == 168.15  # not 108.0 (the 23200 PE)
 
 
 # ------------------------------------------------------------------ model log
@@ -384,3 +440,61 @@ def test_spof_S1_dashboard_beats_never_claim_alive(tmp_path):
     ps.refresh_dashboard_clock(board, tick_seconds=2, root=tmp_path)  # no successful cycle on record
     assert board["heartbeat"]["alive"] is False
     assert board["heartbeat"]["as_of_ist"] == "2026-09-10T09:00:00+05:30"
+
+
+def test_F3_root_cause_live_logit_sees_the_same_bars_in_every_cycle():
+    """The newest tick used to see a partial 3m bar that later cycles never show that tick."""
+    from desk_ml.event_parity import synthetic_triples
+    from desk_ml.testing.canonical import load_fixture
+
+    hist = {}
+    for k, day in enumerate(("2026-09-01", "2026-09-02", "2026-09-03", "2026-09-04", "2026-09-07", "2026-09-08", "2026-09-09")):
+        hist.update({int(t.ts): t.idx_close for t in synthetic_triples(day=day, seed=300 + k, step_s=60)})
+    tr = load_fixture("syn_multi_3idx_s5")["triples"]["NIFTY"][:320]
+    full_live, _ = ps.logit_side_series(tr, index_closes=hist, causal_bars=True)
+    full_legacy, _ = ps.logit_side_series(tr, index_closes=hist)
+    assert sum(1 for r in full_live if r.get("side")) > 100, "the logit must be active for this test to mean anything"
+    legacy_drift = live_drift = 0
+    for i in range(60, len(tr), 4):
+        live, _ = ps.logit_side_series(tr[: i + 1], index_closes=hist, causal_bars=True)
+        legacy, _ = ps.logit_side_series(tr[: i + 1], index_closes=hist)
+        live_drift += live[-1].get("side") != full_live[i].get("side")
+        legacy_drift += legacy[-1].get("side") != full_legacy[i].get("side")
+    assert live_drift == 0
+    assert legacy_drift > 0  # the mechanism that made a booked ticket vanish on the next cycle
+
+
+def test_crashed_append_is_repaired_before_the_next_record(tmp_path):
+    from desk_ml.reliability import append_line
+
+    path = tmp_path / "log.jsonl"
+    append_line(path, '{"a": 1}')
+    with open(path, "a") as fh:
+        fh.write('{"a": 2, "b"')  # the process died mid-append
+    append_line(path, '{"a": 3}')
+    assert read_jsonl(path) == [{"a": 1}, {"a": 3}]
+    assert (tmp_path / "log.jsonl.quarantine").read_text() == '{"a": 2, "b"\n'
+    with open(path, "a") as fh:
+        fh.write('{"a": 4}')  # complete record, newline lost: kept, not quarantined
+    append_line(path, '{"a": 5}')
+    assert [r["a"] for r in read_jsonl(path)] == [1, 3, 4, 5]
+
+
+def test_a_glued_line_yields_its_complete_record_and_real_damage_still_fails_closed(tmp_path):
+    path = tmp_path / "log.jsonl"
+    path.write_text('{"a": 1}\n{"a": 2, "b{"a": 3}\n')  # written before repair_tail existed
+    assert read_jsonl(path) == [{"a": 1}, {"a": 3}]
+    path.write_text('{"a": 1}\nnot json at all\n')
+    with pytest.raises(ValueError):
+        read_jsonl(path)
+
+
+def test_wipe_updates_both_frozen_params_copies(tmp_path):
+    from desk_ml.live_cycle import frozen_params_path, read_frozen_params, write_frozen_params
+
+    day = ps.datetime.now(IST).date().isoformat()
+    write_frozen_params(tmp_path, day, {"session": day, "params": {"stop_frac": 0.38}})
+    out = ps.wipe_today_paper_book(root=tmp_path, ist_date=day)
+    frozen_params_path(tmp_path, day).write_text("{broken")  # the primary is damaged after the wipe
+    snap = read_frozen_params(tmp_path, day)
+    assert snap["params"]["paper_book_epoch_ts"] == out["paper_book_epoch_ts"] and snap["wiped_ts"]

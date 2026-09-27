@@ -172,6 +172,7 @@ class EventSession:
         self.desk = Desk(
             self.bus, engine, risk=None, broker=None, steps=self.steps, live_loop=self.live_loop,
         )
+        engine._pin_hook = self.desk.adopt_booked  # tickets the live loop carries from an earlier cycle
         self.room.attach(self.bus, self.contexts)
         self.boss = Boss(
             self.bus, engine, steps=self.steps, signals=self.signals, contexts=self.contexts,

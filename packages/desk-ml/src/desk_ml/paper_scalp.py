@@ -2894,6 +2894,7 @@ class BookEngine:
     hold_trending_open_stall: bool = False  # write=false A/B only. Default off. NO_PROMOTE.
     ctx: Optional[ReplayContext] = None  # replay inputs (clock, live blocks, risk config); None = unit test
     overrides: Any = None  # desk_ml.overrides.OverrideBook, loaded once per replay
+    pinned_until: dict[str, int] = field(default_factory=dict)  # live: carried ticket frozen until the last cut-off
 
     def book_capital(self, book_id: str) -> float:
         if book_id in self.capital_by_book:
@@ -3208,8 +3209,17 @@ def logit_side_series(
     *,
     index_closes: Optional[dict[int, float]] = None,
     xr: bool = False,
+    causal_bars: bool = False,
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
-    """Walk-forward INDEX 3m logit. Train on INDEX history *before* the ATM session."""
+    """Walk-forward INDEX 3m logit. Train on INDEX history *before* the ATM session.
+
+    Legacy (offline replays): a 3m bar is visible from its last tick, so the newest tick of a
+    shorter tape sees a partial bar that the same tick never sees once the day continues.
+    ``causal_bars`` (the live loop, which re-replays the day every cycle): a bar is visible only
+    once its 3-minute bucket has closed, and today's bars come from the tape only (history files
+    that grow during the day are not read for today). Every tick then gets the same signal in
+    every cycle, so a booked ticket is re-derived instead of vanishing.
+    """
     thin = {
         "side": None,
         "status": "DATA_INSUFFICIENT",
@@ -3219,6 +3229,9 @@ def logit_side_series(
     if not triples:
         return [], {"n_3m": 0, "n_index_1m": 0}
     closes = dict(index_closes or {})
+    if causal_bars:
+        first_day = ist_calendar_date(int(triples[0].ts))
+        closes = {k: v for k, v in closes.items() if ist_calendar_date(int(k)) < first_day}
     for t in triples:
         closes.setdefault(int(t.ts), float(t.idx_close))
     bars = resample_closes_3m(closes)
@@ -3250,7 +3263,9 @@ def logit_side_series(
             last_logit = "SKIP"
             last_xr = "SKIP"
         last_sess = sess
-        while bi < len(bars) and bars[bi].ts <= int(t.ts):
+        while bi < len(bars) and (
+            (int(bars[bi].ts) - int(bars[bi].ts) % 180 + 180 <= int(t.ts)) if causal_bars else bars[bi].ts <= int(t.ts)
+        ):
             if ist_calendar_date(int(bars[bi].ts)) == sess:
                 last_logit = leans[bi]
                 if xr_leans is not None:
@@ -4915,6 +4930,8 @@ def mark_to_market(
         pos = engine.opens.get((book_id, underlying))
         if pos is None:
             continue
+        if engine.pinned_until and int(tick.ts) <= engine.pinned_until.get(str(pos.trade_id), -1):
+            continue  # a booked ticket carried by the live loop: its state is restored at the cut-off
         sod_mtm = bool(getattr(engine, "sod_one_ticket", True)) and book_id == SOD_PRODUCT_BOOK
         ltp, side_low, src = quote_for_side(tick, pos.side, strike=pos.atm_strike, itm_only=sod_mtm)
         if ltp is None and pos.last_ltp is not None:
@@ -6350,6 +6367,11 @@ def _replay_paper_scalp(
         )
     if event_session is not None:
         event_session.attach(engine)
+    pins = None
+    if ctx.live_loop and ctx.pinned_open:
+        from desk_ml.live_cycle import Pins
+
+        pins = engine._pins = Pins(engine, ctx)  # type: ignore[attr-defined]
 
     for und in underlyings:
         u = und.upper()
@@ -6386,8 +6408,10 @@ def _replay_paper_scalp(
             engine.sr_levels[u] = build_sr_levels(sr_closes, session_ist_date=sr_day)
         if event_session is not None:
             event_session.set_prior_closes(u, sr_closes if sr_day else {})
-        logit_series, logit_meta = logit_side_series(triples, index_closes=idx_closes, xr=False)
-        logit_xr_series, logit_xr_meta = logit_side_series(triples, index_closes=idx_closes, xr=True)
+        logit_series, logit_meta = logit_side_series(triples, index_closes=idx_closes, xr=False, causal_bars=ctx.live_loop)
+        logit_xr_series, logit_xr_meta = logit_side_series(
+            triples, index_closes=idx_closes, xr=True, causal_bars=ctx.live_loop
+        )
         thin_logit = {
             "side": None,
             "status": "DATA_INSUFFICIENT",
@@ -6408,6 +6432,8 @@ def _replay_paper_scalp(
                 continue
             if sink is not None:
                 sink.set_tick(u, int(tick.ts))
+            if pins is not None:
+                pins.before_tick(u, int(tick.ts))
             h1 = ml001[i] if i < len(ml001) else False
             h2 = ml002[i] if i < len(ml002) else False
             g = gap[i] if i < len(gap) else False
@@ -6429,10 +6455,14 @@ def _replay_paper_scalp(
                 tv_side=tv,
                 deny_model_signals=deny_model_signals,
             )
+            if pins is not None:
+                pins.after_tick(u, int(tick.ts))
             if max_closes > 0 and len(engine.closed) >= max_closes:
                 break
         if max_closes > 0 and len(engine.closed) >= max_closes:
             break
+        if pins is not None:
+            pins.finish(u)
         # Live session keeps WORKING/OPEN only before 15:16 IST. After flatten, leftovers close.
         last = triples[-1]
         past_flat = minutes_ist(last.ts) >= FLATTEN_MINUTES_IST
@@ -6470,6 +6500,9 @@ def _replay_paper_scalp(
     nudge_notes: list[str] = (
         ["session params frozen; nudge runs post-market: python -m desk_ml nudge-params"] if live_session else []
     )
+    if pins is not None:
+        for und in {str(d.get("underlying")).upper() for d in pins.saved.values()}:
+            pins.finish(und)  # indices with no tape this cycle keep their booked open tickets
     guard: Optional[dict[str, Any]] = None
     if ctx.live_loop and session_day:
         from desk_ml.live_cycle import guard_history
@@ -7995,7 +8028,7 @@ def wipe_today_paper_book(
             "paper_book_epoch_ist": now.isoformat(timespec="seconds"),
         },
     )
-    from desk_ml.live_cycle import frozen_params_path, read_frozen_params
+    from desk_ml.live_cycle import read_frozen_params, write_frozen_params
 
     try:
         snap = read_frozen_params(base, day)
@@ -8005,7 +8038,7 @@ def wipe_today_paper_book(
         snap["params"] = {**snap["params"], "paper_book_epoch_ts": epoch_ts,
                           "paper_book_epoch_ist": now.isoformat(timespec="seconds")}
         snap["wiped_ts"] = epoch_ts
-        atomic_write_json(frozen_params_path(base, day), snap, indent=1)
+        write_frozen_params(base, day, snap)  # primary and its .bak twin, or a damaged primary loses the wipe
     plan = allocate_desk_capital(tradable=tradable_fill_books(has_greeks=False))
     engine = BookEngine(
         deny_model_signals=True,

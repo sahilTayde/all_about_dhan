@@ -387,17 +387,17 @@ class Desk:
         return False
 
     def _failsafe_price(self, pos: Any, step: Any) -> float:
-        """Last good quote, then this tick's premium, then the entry."""
+        """Last good quote of the booked strike, then this tick's quote of THAT strike, then the entry.
+
+        Never the tape's current ITM/ATM leg when it is another strike.
+        """
         if getattr(pos, "last_ltp", None) is not None:
             return float(pos.last_ltp)
         tick = getattr(step, "tick", None) if step is not None else None
-        side = str(getattr(pos, "side", "") or "").upper()
-        if tick is not None:
-            attrs = ("itm_ce_close", "ce_close") if side == "CE" else ("itm_pe_close", "pe_close")
-            for attr in attrs:
-                raw = getattr(tick, attr, None)
-                if raw is not None:
-                    return float(raw)
+        if tick is not None and getattr(pos, "atm_strike", None) is not None:
+            ltp, _low, src = self._ps.quote_for_side(tick, str(pos.side).upper(), strike=float(pos.atm_strike), itm_only=True)
+            if ltp is not None and (src.startswith("STRIKE_") or src.startswith("ITM")):
+                return float(ltp)
         if getattr(pos, "entry", None) is not None:
             return float(pos.entry)
         return 0.0
@@ -583,6 +583,37 @@ class Desk:
         if pos.filled:
             self._fill_entry(pos.trade_id, float(pos.entry), int(pos.opened_ts))
         self.latency_ms["entry"].append((time.perf_counter() - t0) * 1000.0)
+
+    def adopt_booked(self, pos: Any) -> None:
+        """Mirror a ticket booked in an earlier live cycle (already approved then) to broker + ledger.
+
+        The live loop carries booked open tickets instead of re-deriving them; the broker and the
+        per-cycle ledger must hold them too so their exits are mirrored. Not a new entry.
+        """
+        from risk_engine import RiskDecision
+
+        if pos.trade_id in self.tickets:
+            return
+        symbol = option_symbol(pos.underlying, pos.atm_strike, pos.side)
+        try:
+            intent = TradeIntent(
+                symbol=symbol, side="BUY", lots=int(pos.lots), lot_size=int(pos.lot_size), order_type="LIMIT",
+                price=float(pos.limit_price or pos.entry), decision_price=float(pos.entry),
+                stop_loss=float(pos.stop), target=float(pos.target), purpose="ENTRY", trade_id=pos.trade_id,
+                client_order_id=client_order_id(pos.trade_id, "E"),
+            )
+            when = ist(int(pos.opened_ts))
+            decision = RiskDecision(True, intent.client_order_id, "ENTRY", "ADOPTED",
+                                    "booked in an earlier live cycle", self.now or when)
+            order = self.broker.place_order(intent, decision)
+        except Exception as exc:  # the engine still manages it; only the mirror is missing
+            session = ist(int(pos.opened_ts)).date().isoformat()
+            self._alert_once(session, f"adopt_failed:{pos.trade_id}", f"carried ticket {pos.trade_id} not mirrored: {exc}",
+                             "adopt_failed")
+            return
+        self.tickets[pos.trade_id] = {"order": order, "symbol": symbol, "filled": False, "pos": pos}
+        if pos.filled:
+            self._fill_entry(pos.trade_id, float(pos.entry), int(self.now_ts or pos.opened_ts))
 
     def _order_payload(self, order: Order, trade_id: str, **extra: Any) -> dict[str, Any]:
         i = order.intent

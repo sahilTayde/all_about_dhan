@@ -545,18 +545,19 @@ def test_strict_risk_file_books_a_typical_ticket_and_logs_a_veto(tmp_path):
     assert json.loads(stored[1])["ticket_risk_inr"] == pytest.approx(31037.5)
 
 
-def test_failsafe_price_uses_the_tick_when_the_last_quote_is_missing():
+def test_failsafe_price_uses_the_booked_strike_only():
     from types import SimpleNamespace
 
     from desk.executor import Desk
 
     bare = object.__new__(Desk)
-    step = _tick(T0)
-    pos = SimpleNamespace(last_ltp=None, side="CE", entry=150.0)
-    assert bare._failsafe_price(pos, step) == pytest.approx(130.0)  # this tick's ITM CE
-    pos.side = "PE"
-    assert bare._failsafe_price(pos, step) == pytest.approx(45.0)
-    assert bare._failsafe_price(SimpleNamespace(last_ltp=None, side="CE", entry=150.0), None) == pytest.approx(150.0)
+    bare._ps = ps
+    step = _tick(T0)  # the tape's ITM legs: 24800 CE at 130, 25200 PE at 45
+    assert bare._failsafe_price(SimpleNamespace(last_ltp=None, side="CE", entry=150.0, atm_strike=24800.0), step) == 130.0
+    assert bare._failsafe_price(SimpleNamespace(last_ltp=None, side="PE", entry=150.0, atm_strike=25200.0), step) == 45.0
+    # Booked at 24700 after the ITM strike rolled to 24800: never the 24800 price.
+    assert bare._failsafe_price(SimpleNamespace(last_ltp=None, side="CE", entry=150.0, atm_strike=24700.0), step) == 150.0
+    assert bare._failsafe_price(SimpleNamespace(last_ltp=None, side="CE", entry=150.0, atm_strike=24800.0), None) == 150.0
 
 
 def test_broker_refusal_means_no_trade(tmp_path, monkeypatch):

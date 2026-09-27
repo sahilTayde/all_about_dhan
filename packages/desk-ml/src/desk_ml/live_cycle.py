@@ -58,12 +58,14 @@ OVERRIDE_LOG_UNREADABLE = "OVERRIDE_LOG_UNREADABLE"
 PARAMS_UNREADABLE = "PARAMS_UNREADABLE"
 RISK_CONFIG_UNREADABLE = "RISK_CONFIG_UNREADABLE"
 DATA_ROOT_UNWRITABLE = "DATA_ROOT_UNWRITABLE"
-HISTORY_REWRITE = "HISTORY_REWRITE"
+HISTORY_REWRITE = "HISTORY_REWRITE"  # legacy name, kept for registries written by earlier builds
+HISTORY_UNRECONCILABLE = "HISTORY_UNRECONCILABLE"  # CRITICAL + blocks entries
+HISTORY_RECONCILED = "HISTORY_RECONCILED"  # WARN only: the booked truth was kept
 ENGINE_FAILED = "ENGINE_FAILED"
 BOOKED_LEDGER_UNREADABLE = "BOOKED_LEDGER_UNREADABLE"
 BLOCK_REGISTRY_UNREADABLE = "BLOCK_REGISTRY_UNREADABLE"
 FROZEN_PRIMARY_DAMAGED = "FROZEN_PARAMS_PRIMARY_DAMAGED"  # reported, not blocking (the backup is intact)
-STICKY = frozenset({MTM_HALT, PARAMS_UNREADABLE, HISTORY_REWRITE, ENGINE_FAILED, BOOKED_LEDGER_UNREADABLE,
+STICKY = frozenset({MTM_HALT, PARAMS_UNREADABLE, HISTORY_REWRITE, HISTORY_UNRECONCILABLE, ENGINE_FAILED, BOOKED_LEDGER_UNREADABLE,
                     BLOCK_REGISTRY_UNREADABLE})
 
 
@@ -234,7 +236,10 @@ def freeze_session(
     except ValueError as exc:
         snap = None
         present[PARAMS_UNREADABLE] = (None, f"frozen params unreadable: {exc}")
-    if snap is not None:
+        good = _last_good(root).get("frozen_params")
+        if isinstance(good, dict) and good.get("session") == day and isinstance(good.get("params"), dict):
+            snap = good  # both copies damaged: keep the params the session has been running on
+    if snap is not None and PARAMS_UNREADABLE not in present:
         try:
             _read_snapshot(frozen_params_path(root, day))
         except ValueError as exc:
@@ -252,6 +257,8 @@ def freeze_session(
         write_frozen_params(root, day, snap)
     elif snap is not None and snap.get("source") == "defaults_params_unreadable":
         present[PARAMS_UNREADABLE] = (float(snap.get("frozen_ts") or now), "session frozen on default params")
+    if snap is not None and PARAMS_UNREADABLE not in present:
+        _remember(root, "frozen_params", snap)
     params = dict((snap or {}).get("params") or {})
     if snap and snap.get("lot_sizes"):
         params["_lot_sizes"] = {k: tuple(v) for k, v in snap["lot_sizes"].items()}
@@ -335,6 +342,16 @@ def _last_good(root: Path) -> dict[str, Any]:
         return {}
 
 
+def _remember(root: Path, key: str, value: Any) -> None:
+    good = _last_good(root)
+    if good.get(key) == value:
+        return
+    try:
+        atomic_write_json(Path(root) / LAST_GOOD_REL, {**good, key: value})
+    except OSError:
+        pass
+
+
 def ingest_controls(
     root: Path, day: str, now_ts: float
 ) -> tuple[dict[str, tuple[Optional[float], str]], dict[str, Any]]:
@@ -360,11 +377,9 @@ def ingest_controls(
         present[OVERRIDE_LOG_UNREADABLE] = (None, str(exc))
         inputs["override_rows"] = good.get("override_rows", [])
     fresh = {k: inputs[k] for k in ("founder_rows", "override_rows") if k in inputs and inputs[k] != "unknown"}
-    if FOUNDER_STATE_UNREADABLE not in present and OVERRIDE_LOG_UNREADABLE not in present and fresh != good:
-        try:
-            atomic_write_json(root / LAST_GOOD_REL, fresh)
-        except OSError:
-            pass
+    if FOUNDER_STATE_UNREADABLE not in present and OVERRIDE_LOG_UNREADABLE not in present:
+        for key, value in fresh.items():
+            _remember(root, key, value)
     on, why = kill_switch_on(root)
     if on:
         present[KILL_SWITCH] = (None, why)
@@ -434,50 +449,219 @@ def read_booked(root: Path, day: str) -> dict[str, dict[str, Any]]:
     return out
 
 
-def _last_quote(pos: Any, tick: Any) -> float:
-    for attr in (("itm_ce_close", "ce_close") if pos.side == "CE" else ("itm_pe_close", "pe_close")):
-        raw = getattr(tick, attr, None)
-        if raw is not None:
-            return float(raw)
-    return float(pos.last_ltp if pos.last_ltp is not None else pos.entry)
+def booked_quote(pos: Any, ticks: Sequence[Any]) -> tuple[float, dict[str, Any]]:
+    """Exit price for a forced or guard close: the ticket's BOOKED strike and side, never another strike.
+
+    Same rule as the SOD mark-to-market (``quote_for_side(strike=booked, itm_only=True)``): a wing
+    cell for that strike, or the tape's ITM leg only when it IS that strike. Walks back to the last
+    tick that quoted it (``stale``), then the ticket's own last mark, then its entry (both stale).
+    """
+    from desk_ml.paper_scalp import quote_for_side
+
+    if pos.atm_strike is not None:
+        for back, tick in enumerate(reversed(list(ticks))):
+            if int(tick.ts) < int(pos.opened_ts):
+                break
+            ltp, _low, src = quote_for_side(tick, pos.side, strike=float(pos.atm_strike), itm_only=True)
+            if ltp is not None and (src.startswith("STRIKE_") or src.startswith("ITM")):
+                return float(ltp), {"quote_src": src, "quote_ts": int(tick.ts), "quote_stale": back > 0}
+    if pos.last_ltp is not None:
+        return float(pos.last_ltp), {"quote_src": "LAST_MARK_BOOKED_STRIKE", "quote_stale": True}
+    return float(pos.entry), {"quote_src": "ENTRY_PRINT", "quote_stale": True}
+
+
+def _snap_strike_quote(snap: dict[str, Any], strike: float, side: str) -> Optional[float]:
+    """The booked strike's price in one raw tape snap (wing cell or a matching ITM leg), else None."""
+    wings = snap.get("wing_quotes") if isinstance(snap.get("wing_quotes"), dict) else {}
+    key = "ce" if side == "CE" else "pe"
+    cell = wings.get(str(int(strike))) or wings.get(str(strike)) or wings.get(f"{strike:.1f}")
+    candidates = [cell.get(key)] if isinstance(cell, dict) else []
+    leg_strike = snap.get(f"itm_{key}_strike")
+    try:
+        if leg_strike is not None and abs(float(leg_strike) - float(strike)) < 1e-6:
+            candidates.append(snap.get(f"itm_{key}_ltp"))
+    except (TypeError, ValueError):
+        pass
+    for raw in candidates:
+        try:
+            val = float(raw)
+        except (TypeError, ValueError):
+            continue
+        if val == val and val > 0 and val != float("inf"):
+            return val
+    return None
+
+
+def booked_quote_from_tape(root: Path, day: str, pos: Any) -> tuple[float, dict[str, Any], int]:
+    """``booked_quote`` on the day's tape when the engine cannot run: (price, meta, quote ts)."""
+    try:
+        from desk_ml.tape import load_dual_tape_triples
+
+        ticks, _meta = load_dual_tape_triples(str(pos.underlying), root=Path(root), session_ist_date=day, strict=True)
+        if ticks:
+            px, meta = booked_quote(pos, ticks)
+            return px, meta, int(meta.get("quote_ts") or ticks[-1].ts)
+    except Exception:  # noqa: BLE001 — the loader may be what is failing; read the raw tape
+        pass
+    from desk_ml.tape import dual_tape_dir, parse_ts
+
+    und, latest = str(pos.underlying).upper(), None
+    try:
+        lines = (dual_tape_dir(Path(root)) / f"{day}.jsonl").read_text(encoding="utf-8").splitlines()
+    except OSError:
+        lines = []
+    for line in reversed(lines):
+        try:
+            blob = json.loads(line)
+            ts = int(parse_ts(blob.get("as_of_ist")))
+        except (ValueError, TypeError, AttributeError):
+            continue
+        for snap in blob.get("underlyings") or []:
+            if not isinstance(snap, dict) or str(snap.get("underlying") or "").upper() != und:
+                continue
+            latest = ts if latest is None else latest
+            px = _snap_strike_quote(snap, float(pos.atm_strike), pos.side) if pos.atm_strike is not None else None
+            if px is not None:
+                return px, {"quote_src": "RAW_TAPE_BOOKED_STRIKE", "quote_ts": ts, "quote_stale": ts != latest}, ts
+        if ts < int(pos.opened_ts):
+            break
+    px, meta = booked_quote(pos, [])
+    return px, meta, int(latest or pos.last_updated_ts or pos.opened_ts)
+
+
+def read_booked_state(root: Path, day: str) -> dict[str, Any]:
+    """{cutoff_ts, open} saved by the previous cycle; {} if none. Raises ValueError if unreadable."""
+    try:
+        state = json.loads(booked_state_path(root, day).read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        return {}
+    except OSError as exc:
+        raise ValueError(str(exc)) from exc
+    if not isinstance(state, dict):
+        raise ValueError("booked state is not an object")
+    return state
+
+
+class Pins:
+    """Booked open tickets carried from the previous cycle into this replay.
+
+    A ticket that was open at the previous cycle's cut-off stays the same ticket: from its booked
+    open time it holds its slot (frozen, so other entries cannot take it), and at the first tick
+    after the cut-off its saved state replaces whatever the re-derivation produced, so the engine
+    manages it at its booked strike to its own exit. With a stable replay this changes nothing.
+    """
+
+    def __init__(self, engine: Any, ctx: ReplayContext) -> None:
+        self.engine = engine
+        self.saved = dict(ctx.pinned_open or {})
+        self.cut = {str(k).upper(): int(v) for k, v in (ctx.pin_cutoffs or {}).items()}
+        self.restored: set[str] = set()
+        self.notes: list[str] = []
+        engine.pinned_until = {}
+
+    def _pos(self, tid: str) -> Any:
+        from desk_ml.paper_scalp import OpenPaper
+
+        known = {f.name for f in fields(OpenPaper)}
+        return OpenPaper(**{k: v for k, v in self.saved[tid].items() if k in known})
+
+    def _mine(self, und: str) -> list[str]:
+        return [t for t, d in self.saved.items() if t not in self.restored and str(d.get("underlying")).upper() == und]
+
+    def _slot(self, tid: str) -> tuple[str, str]:
+        d = self.saved[tid]
+        return str(d["book_id"]), str(d["underlying"]).upper()
+
+    def _take_slot(self, tid: str) -> None:
+        key = self._slot(tid)
+        other = self.engine.opens.get(key)
+        if other is not None and str(other.trade_id) != tid:
+            self.engine.opens.pop(key)
+            self.notes.append(f"replay opened {other.trade_id} while booked ticket {tid} was open; dropped it")
+
+    def after_tick(self, und: str, ts: int) -> None:
+        cut = self.cut.get(und)
+        if cut is None or ts > cut:
+            return
+        for tid in self._mine(und):
+            if ts < int(self.saved[tid]["opened_ts"]):
+                continue
+            if any(str(p.trade_id) == tid for p in self.engine.opens.values()):
+                continue
+            self._take_slot(tid)
+            self.engine.opens[self._slot(tid)] = self._pos(tid)
+            self.engine.pinned_until[tid] = cut
+            hook = getattr(self.engine, "_pin_hook", None)
+            if hook is not None:
+                hook(self.engine.opens[self._slot(tid)])
+            self.notes.append(f"booked open ticket {tid} was not re-derived; carried at its booked state")
+
+    def _restore(self, tid: str) -> None:
+        drifted = [r for r in self.engine.closed if str(r.get("trade_id")) == tid]
+        if drifted:
+            self.engine.closed = [r for r in self.engine.closed if str(r.get("trade_id")) != tid]
+            for r in drifted:
+                if r.get("realized_pnl_inr") is not None:
+                    book = str(r.get("book_id"))
+                    self.engine.equity[book] = self.engine.book_equity(book) - float(r["realized_pnl_inr"])
+            self.notes.append(f"replay closed booked open ticket {tid} before the cut-off; kept it open")
+        for key, p in list(self.engine.opens.items()):
+            if str(p.trade_id) == tid:
+                self.engine.opens.pop(key)
+        self._take_slot(tid)
+        self.engine.opens[self._slot(tid)] = self._pos(tid)
+        self.engine.pinned_until.pop(tid, None)
+        self.restored.add(tid)
+
+    def before_tick(self, und: str, ts: int) -> None:
+        cut = self.cut.get(und)
+        if cut is not None and ts > cut:
+            for tid in self._mine(und):
+                self._restore(tid)
+
+    def finish(self, und: str) -> None:
+        """No tick after the cut-off for this index this cycle: keep the booked state as it was."""
+        for tid in self._mine(und):
+            self._restore(tid)
 
 
 def guard_history(engine: Any, loaded: dict[str, list[Any]], ctx: ReplayContext) -> dict[str, Any]:
     """Make the replay agree with what earlier cycles booked. Mutates engine.closed / engine.opens.
 
-    Returns ``{"status", "problems", "new"}``. On any problem the board shows the booked truth
-    and the caller blocks new entries for the rest of the session.
+    Returns ``{"status", "reconciled", "unreconcilable", "new"}``:
+    - reconciled (a booked row kept as the truth, a re-derived ticket that was never booked dropped,
+      a booked open ticket carried by ``Pins``): the board shows the booked truth, WARN alert;
+    - unreconcilable (a booked open ticket with no saved state to carry): closed at its booked
+      strike's price, CRITICAL alert, and the caller blocks new entries.
     """
     from desk_ml.paper_scalp import OpenPaper, _close
 
     root, day = Path(ctx.root), str(ctx.session_ist_date)
     try:
         booked = read_booked(root, day)
-        try:
-            state = json.loads(booked_state_path(root, day).read_text(encoding="utf-8"))
-        except FileNotFoundError:
-            state = {}
-        if not isinstance(state, dict):
-            raise ValueError("booked state is not an object")
+        state = read_booked_state(root, day)
     except (OSError, ValueError) as exc:
-        return {"status": BOOKED_LEDGER_UNREADABLE, "problems": [f"booked file unreadable: {exc}"], "new": []}
+        return {"status": BOOKED_LEDGER_UNREADABLE, "reconciled": [], "unreconcilable": [f"booked file unreadable: {exc}"],
+                "problems": [f"booked file unreadable: {exc}"], "new": []}
     cutoffs = {str(k): int(v) for k, v in (state.get("cutoff_ts") or {}).items()}
     prev_open: dict[str, dict[str, Any]] = dict(state.get("open") or {})
 
     def before_cutoff(und: str, ts: int) -> bool:
         return und in cutoffs and int(ts) <= cutoffs[und]
 
-    problems: list[str] = []
+    pins = getattr(engine, "_pins", None)
+    reconciled: list[str] = list(pins.notes) if pins is not None else []
+    unreconcilable: list[str] = []
     replay = {str(r.get("trade_id")): r for r in engine.closed}
     for tid, row in booked.items():
         cur = replay.get(tid)
         if row.get("exit_reason") == FORCED_ENGINE_CLOSE:
             continue  # our own fail-safe close while the engine was down: expected to differ
         if cur is None:
-            problems.append(f"booked trade {tid} missing from the replay")
+            reconciled.append(f"booked trade {tid} missing from the replay; booked row kept")
         elif canonical_trade(cur) != canonical_trade(row):
             diff = {k: (row.get(k), cur.get(k)) for k in CANONICAL_TRADE_KEYS if canonical_trade(row)[k] != canonical_trade(cur)[k]}
-            problems.append(f"booked trade {tid} changed: {diff}")
+            reconciled.append(f"booked trade {tid} re-derived differently {diff}; booked row kept")
     new_rows: list[dict[str, Any]] = []
     vanished: dict[str, dict[str, Any]] = {}
     for row in engine.closed:
@@ -486,10 +670,10 @@ def guard_history(engine: Any, loaded: dict[str, list[Any]], ctx: ReplayContext)
             continue
         und = str(row.get("underlying") or "").upper()
         if tid not in prev_open and before_cutoff(und, int(row.get("opened_ts") or 0)):
-            problems.append(f"trade {tid} appeared before the previous cycle's cut-off; not booked")
+            reconciled.append(f"trade {tid} appeared before the previous cycle's cut-off; not booked")
             continue
         if tid in prev_open and before_cutoff(und, int(row.get("closed_ts") or 0)):
-            problems.append(f"open trade {tid} now closes before the previous cycle's cut-off")
+            unreconcilable.append(f"booked open ticket {tid} now closes before the previous cycle's cut-off")
             vanished[tid] = prev_open[tid]
             continue
         new_rows.append(row)
@@ -500,28 +684,29 @@ def guard_history(engine: Any, loaded: dict[str, list[Any]], ctx: ReplayContext)
         if tid in booked:
             engine.opens.pop(key)
             if booked[tid].get("exit_reason") != FORCED_ENGINE_CLOSE:
-                problems.append(f"booked-closed trade {tid} is open again in the replay")
+                reconciled.append(f"booked-closed trade {tid} is open again in the replay; kept closed")
         elif tid not in prev_open and before_cutoff(und, int(pos.opened_ts)):
             engine.opens.pop(key)
-            problems.append(f"open trade {tid} appeared before the previous cycle's cut-off; dropped")
+            reconciled.append(f"open trade {tid} appeared before the previous cycle's cut-off; dropped")
         else:
             open_ids.add(tid)
     closed_ids = {str(r.get("trade_id")) for r in new_rows}
     for tid, blob in prev_open.items():
         if tid not in booked and tid not in closed_ids and tid not in open_ids and tid not in vanished:
-            problems.append(f"open trade {tid} vanished from the replay")
+            unreconcilable.append(f"booked open ticket {tid} vanished and could not be carried")
             vanished[tid] = blob
     known = {f.name for f in fields(OpenPaper)}
     for tid, blob in vanished.items():
         pos = OpenPaper(**{k: v for k, v in blob.items() if k in known})
         ticks = loaded.get(str(pos.underlying).upper()) or []
-        if not ticks:
-            continue
-        tick = ticks[-1]
+        px, meta = booked_quote(pos, ticks)
+        ts = max(int(ticks[-1].ts) if ticks else int(pos.last_updated_ts or pos.opened_ts), int(pos.opened_ts))
         n = len(engine.closed)
-        _close(engine, pos, ltp=_last_quote(pos, tick), ts=max(int(tick.ts), int(pos.opened_ts)),
-               reason=FORCED_HISTORY_CLOSE, root=None)
+        _close(engine, pos, ltp=px, ts=ts, reason=FORCED_HISTORY_CLOSE, root=None)
+        for row in engine.closed[n:]:
+            row.update(meta)
         new_rows.extend(engine.closed[n:])
+    problems = reconciled + unreconcilable
     if problems or any(r.get("exit_reason") == FORCED_ENGINE_CLOSE for r in booked.values()):
         engine.closed = list(booked.values()) + new_rows
     new_cutoffs = dict(cutoffs)
@@ -537,37 +722,15 @@ def guard_history(engine: Any, loaded: dict[str, list[Any]], ctx: ReplayContext)
         }, indent=None)
     except OSError as exc:
         # Nothing new is marked booked; the next cycle retries these rows.
-        return {"status": "UNSAVED", "problems": problems, "new": [], "error": f"{type(exc).__name__}: {exc}"}
-    return {"status": HISTORY_REWRITE if problems else "OK", "problems": problems,
+        return {"status": "UNSAVED", "reconciled": reconciled, "unreconcilable": unreconcilable, "problems": problems,
+                "new": [], "error": f"{type(exc).__name__}: {exc}"}
+    status = HISTORY_UNRECONCILABLE if unreconcilable else (HISTORY_RECONCILED if reconciled else "OK")
+    return {"status": status, "reconciled": reconciled, "unreconcilable": unreconcilable, "problems": problems,
             "new": [str(r.get("trade_id")) for r in new_rows]}
 
 
-def _last_tape_quotes(root: Path, day: str) -> dict[str, tuple[int, dict[str, Any]]]:
-    """Latest readable snap per underlying in the day's tape: {und: (ts, snap)}."""
-    from desk_ml.tape import _finite_snap, dual_tape_dir, parse_ts
-
-    try:
-        lines = (dual_tape_dir(Path(root)) / f"{day}.jsonl").read_text(encoding="utf-8").splitlines()
-    except OSError:
-        return {}
-    out: dict[str, tuple[int, dict[str, Any]]] = {}
-    for line in reversed(lines):
-        try:
-            blob = json.loads(line)
-        except ValueError:
-            continue
-        ts = parse_ts((blob or {}).get("as_of_ist")) if isinstance(blob, dict) else None
-        for snap in (blob.get("underlyings") or []) if ts else []:
-            und = str((snap or {}).get("underlying") or "").upper()
-            if und and und not in out and isinstance(snap, dict) and _finite_snap(snap):
-                out[und] = (int(ts), snap)
-        if len(out) >= 3:
-            break
-    return out
-
-
 def failsafe_flatten(root: Path, day: str) -> list[str]:
-    """The engine keeps failing with open tickets: close them at the last tape quote and book them.
+    """The engine keeps failing with open tickets: close them at their BOOKED strike's price and book them.
 
     Same rule as the desk's MTM fail-safe (stops cannot run, so do not stay exposed). The closes
     are appended to the booked file, so the board keeps them after the engine recovers.
@@ -582,20 +745,16 @@ def failsafe_flatten(root: Path, day: str) -> list[str]:
     opens = dict(state.get("open") or {})
     if not opens:
         return []
-    quotes = _last_tape_quotes(root, day)
     known = {f.name for f in fields(OpenPaper)}
     scratch = BookEngine()
     closed: list[str] = []
     for tid, blob in list(opens.items()):
         pos = OpenPaper(**{k: v for k, v in blob.items() if k in known})
-        ts, snap = quotes.get(str(pos.underlying).upper(), (int(pos.last_updated_ts or pos.opened_ts), {}))
-        keys = ("itm_ce_ltp", "atm_ce_ltp") if pos.side == "CE" else ("itm_pe_ltp", "atm_pe_ltp")
-        px = next((float(snap[k]) for k in keys if snap.get(k) is not None), None)
-        if px is None:
-            px = float(pos.last_ltp if pos.last_ltp is not None else pos.entry)
+        px, meta, ts = booked_quote_from_tape(root, day, pos)
         n = len(scratch.closed)
         _close(scratch, pos, ltp=px, ts=max(int(ts), int(pos.opened_ts)), reason=FORCED_ENGINE_CLOSE, root=None)
         for row in scratch.closed[n:]:
+            row.update(meta)
             append_line(booked_path(root, day), json.dumps(row, default=str))
         opens.pop(tid)
         closed.append(tid)
@@ -652,20 +811,29 @@ def run_cycle(
             alerts.emit(session=day, check="frozen_params", kind="primary_damaged", ts=now.timestamp(),
                         severity="WARN", message=damaged[1])
         blocks.update(present, now.timestamp())
+        try:
+            carried = read_booked_state(root, day)
+        except ValueError:
+            carried = {}  # the guard reports the unreadable file and blocks entries
         ctx = ReplayContext(
             root=root, session_ist_date=day, live_loop=True, write=True, clock=clock, alerts=alerts,
             entry_blocks=tuple(blocks.intervals()), params=params, risk_config=risk_path,
             founder_rows=inputs.get("founder_rows"), override_rows=inputs.get("override_rows"),
+            pinned_open=dict(carried.get("open") or {}), pin_cutoffs=dict(carried.get("cutoff_ts") or {}),
         )
         board = replay_paper_scalp(  # no model-log writes while the disk refuses them (already alerted)
             root=root, underlyings=tuple(underlyings), source=source, write=not unwritable, live_session=True,
             session_ist_date=day, live_loop=True, ctx=ctx, **dict(replay_kw or {}),
         )
         guard = board.get("history_guard") or {}
-        if guard.get("status") in (HISTORY_REWRITE, BOOKED_LEDGER_UNREADABLE):
-            kind = HISTORY_REWRITE if guard["status"] == HISTORY_REWRITE else BOOKED_LEDGER_UNREADABLE
-            blocks.add_sticky(kind, now.timestamp(), "Replay disagreed with booked trades; the board shows the "
-                              "booked truth. " + "; ".join(guard.get("problems") or [])[:1500])
+        if guard.get("status") in (HISTORY_UNRECONCILABLE, BOOKED_LEDGER_UNREADABLE):
+            # Only a ticket the loop truly cannot carry blocks entries (one CRITICAL, via the block).
+            blocks.add_sticky(guard["status"], now.timestamp(), "Booked tickets could not be reconciled: "
+                              + "; ".join(guard.get("unreconcilable") or [])[:1500])
+        if guard.get("reconciled"):
+            alerts.emit(session=day, check="history_guard", kind=HISTORY_RECONCILED, ts=now.timestamp(), severity="WARN",
+                        message="Replay drifted from booked trades; booked truth kept and open tickets carried: "
+                        + "; ".join(guard["reconciled"])[:1500])
         bad = {u: int(((st or {}).get("tape") or {}).get("skipped_lines") or 0) for u, st in (board.get("steps") or {}).items()}
         if any(bad.values()):
             alerts.emit(session=day, check="tape", kind="corrupt_lines", ts=now.timestamp(), severity="WARN",

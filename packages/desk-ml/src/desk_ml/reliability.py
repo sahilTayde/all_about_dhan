@@ -73,10 +73,60 @@ def atomic_write_json(path: Path, obj: Any, **dumps_kw: Any) -> None:
     atomic_write_text(path, json.dumps(obj, **dumps_kw) + "\n")
 
 
+def repair_tail(path: Path) -> Optional[bytes]:
+    """Before appending: a last line without a newline is a crashed append. If it is a complete JSON
+    record, end it with a newline; otherwise move it to ``<name>.quarantine`` and cut it off, so the
+    next record starts on its own line instead of gluing onto the fragment. Returns the fragment."""
+    path = Path(path)
+    try:
+        size = path.stat().st_size
+    except FileNotFoundError:
+        return None
+    if size == 0:
+        return None
+    with open(path, "rb+") as fh:
+        fh.seek(-1, os.SEEK_END)
+        if fh.read(1) == b"\n":
+            return None
+        start = max(0, size - (1 << 20))
+        fh.seek(start)
+        chunk = fh.read()
+        cut = start + chunk.rfind(b"\n") + 1 if b"\n" in chunk else start
+        fragment = chunk[cut - start:]
+        try:
+            json.loads(fragment.decode("utf-8"))
+            fh.seek(0, os.SEEK_END)
+            fh.write(b"\n")
+            return None
+        except ValueError:
+            pass
+        with open(path.with_name(path.name + ".quarantine"), "ab") as q:
+            q.write(fragment + b"\n")
+        fh.truncate(cut)
+    _stderr(f"quarantined a partial last line of {path.name} ({len(fragment)} bytes)")
+    return fragment
+
+
+def recover_glued(line: str) -> Optional[dict[str, Any]]:
+    """``<partial record><complete record>`` on one line (an append after a crashed append):
+    the complete record, or None."""
+    for i in range(1, len(line)):
+        if line[i] != "{":
+            continue
+        try:
+            row = json.loads(line[i:])
+        except ValueError:
+            continue
+        if isinstance(row, dict):
+            return row
+    return None
+
+
 def append_line(path: Path, line: str) -> None:
-    """One fsync'd append. A crash leaves at most one partial last line (readers skip it)."""
+    """One fsync'd append, after repairing a crashed previous append (``repair_tail``)."""
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
+    repair_tail(path)
     with open(path, "a", encoding="utf-8") as fh:
         fh.write(line if line.endswith("\n") else line + "\n")
         fh.flush()
@@ -87,7 +137,8 @@ def read_jsonl(path: Path) -> Optional[list[dict[str, Any]]]:
     """Rows of an append-only JSONL log, or None if the file does not exist.
 
     A last line without a newline that does not parse is an append still in progress and is
-    ignored. Any other bad line, or a row that is not an object, raises ``ValueError``.
+    ignored. A line made of a crashed fragment followed by a complete record yields that record.
+    Any other bad line, or a row that is not an object, raises ``ValueError`` (fail closed).
     """
     path = Path(path)
     try:
@@ -106,7 +157,9 @@ def read_jsonl(path: Path) -> Optional[list[dict[str, Any]]]:
         except ValueError:
             if tail_open and n == len(lines) - 1:
                 break
-            raise ValueError(f"{path}: line {n + 1} is not JSON")
+            row = recover_glued(line)
+            if row is None:
+                raise ValueError(f"{path}: line {n + 1} is not JSON") from None
         if not isinstance(row, dict):
             raise ValueError(f"{path}: line {n + 1} is not an object")
         rows.append(row)
@@ -330,6 +383,7 @@ class ModelLogSink:
                 return
             if out:
                 self.path.parent.mkdir(parents=True, exist_ok=True)
+                repair_tail(self.path)
                 with open(self.path, "a", encoding="utf-8") as fh:
                     fh.write(text)
                     fh.flush()
@@ -368,6 +422,10 @@ class ReplayContext:
     # trustworthy founder state at all). None = read them from ``root`` (offline replays).
     founder_rows: Any = None
     override_rows: Optional[Sequence[Mapping[str, Any]]] = None
+    # Live cycle only: tickets open at the previous cycle's cut-off (trade_id -> saved state) and
+    # those cut-offs per index. The replay carries them instead of re-deriving them.
+    pinned_open: Optional[Mapping[str, Mapping[str, Any]]] = None
+    pin_cutoffs: Optional[Mapping[str, int]] = None
 
     def block_at(self, ts: int) -> Optional[tuple[str, float]]:
         hits = [(float(lo), kind) for kind, lo, hi in self.entry_blocks
