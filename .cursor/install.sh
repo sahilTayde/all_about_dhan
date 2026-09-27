@@ -28,6 +28,7 @@ python -m pip install --upgrade pip
 # packages/indicators and packages/contracts are notes only (no Python package).
 python -m pip install \
   -e packages/dhan-client \
+  -e packages/marketdata \
   -e packages/backtest \
   -e packages/ledger \
   -e packages/risk-engine \
@@ -46,7 +47,9 @@ python -m pip install \
   -e packages/desk \
   -e apps/api \
   pytest \
-  hypothesis
+  hypothesis \
+  jsonschema \
+  rfc3339-validator
 
 # Web app dependencies (mock-data customer desk; no Dhan in the browser).
 if [ -d apps/web ]; then

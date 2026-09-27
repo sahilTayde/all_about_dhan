@@ -1,0 +1,2577 @@
+{
+  "purpose": "Papers opened for a paper-only NIFTY/BANKNIFTY long-call and long-put research pass. Not a live order and not a win-rate claim.",
+  "tape": "1-minute index OHLC for 5 years; 60-second option-chain snapshots with LTP, volume and OI for 13-15 strikes over 3 years; India VIX daily; bid/ask depth only from Monday.",
+  "counts": {
+    "new_papers": 51,
+    "codable_rule_or_named_test": 32,
+    "opened_not_a_buy_rule": 19,
+    "already_tested_not_new": 7
+  },
+  "codable_means": "The opened pages name an entry, a side and an exit, or a calendar dummy, or a regression with the variables named. It does not mean the signal fits our tape, survived costs, or should be traded. Where a cutoff was not on the pages used, the record says so and does not invent one.",
+  "ssrn_access": "papers.ssrn.com returned HTTP 403. SSRN items in already_tested are abstract-only unless a reprint PDF is named.",
+  "papers": [
+    {
+      "id": "P01",
+      "rank": 1,
+      "codable": true,
+      "title": "Structural Limits of OHLCV-Based Intraday Momentum Signals in MNQ Futures: A Systematic Falsification Study",
+      "authors": [
+        "Mathias Mesfin"
+      ],
+      "year": 2026,
+      "url": "https://arxiv.org/abs/2605.04004",
+      "access": "full PDF opened",
+      "market_and_sample": "Micro E-mini Nasdaq-100 futures, 947 trading days, 5-minute bars, 2021-2025. Walk-forward.",
+      "horizon": "intraday, including a 15-bar (75-minute) hold",
+      "rule": {
+        "entry": "Opening-range breakout: price breaks the high or low of the first session bars. Fourteen families were tested, including gap continuation and a VVG reversal.",
+        "side": "ORB long follows the break; a separate reversal entry fades the open.",
+        "exit": "15-bar hold for the ORB long cited in Table 13. A 20-point stop was also examined.",
+        "filters": "Pass only if OOS net T>=2, at least 30 trades per fold, positive net after 2-point round-trip friction, and the same sign across test years.",
+        "parameters": "Friction floor 2.0 MNQ points. ORB long hold H=15 bars. Stop example 20 points."
+      },
+      "data_needed": [
+        {
+          "item": "1-minute index OHLC (5 years)",
+          "available_to_us": true,
+          "note": "Can aggregate to 5-minute or daily."
+        },
+        {
+          "item": "5-minute bars",
+          "available_to_us": true,
+          "note": "Aggregate the 1-minute index."
+        },
+        {
+          "item": "separate index-futures tape",
+          "available_to_us": false,
+          "note": "Cash index OHLC only."
+        }
+      ],
+      "performance": {
+        "quote": "ORB Long (H=15) gross +4.82 points, net +2.82, T-Net +0.88, N (OOS) 447 total. Failure mode: T-statistic < 2.0; year-unstable. VVG Classifier Reversal net +13.49, T-Net +1.26, N 35. Gap Continuation Short net +14.52, T-Net +1.46.",
+        "location": "Table 13 and section 4.1. Abstract: maximum gross return of the families that miss friction is 0.07 to 1.50 points. Section 4.1: 80.7% stop-out rate at a 20-point stop."
+      },
+      "after_costs": "yes — net of a 2-point round trip",
+      "red_flags": [
+        "US futures, not Nifty",
+        "friction is in MNQ points, not rupees",
+        "single-author 2026 manuscript"
+      ],
+      "topic": "opening range and intraday momentum",
+      "status": "new"
+    },
+    {
+      "id": "P02",
+      "rank": 2,
+      "codable": true,
+      "title": "A Validated Volatility-Volume-Gap Classifier for Regime Identification in MNQ Intraday Data",
+      "authors": [
+        "Mathias Mesfin"
+      ],
+      "year": 2026,
+      "url": "https://arxiv.org/abs/2605.11423",
+      "access": "full PDF opened",
+      "market_and_sample": "MNQ, 947 days, 5-minute bars, 2021 through August 2025.",
+      "horizon": "day tag at the first bar; next-day return and same-day path",
+      "rule": {
+        "entry": "Tag the day if first-30-minute return, absolute overnight gap, and first-bar volume deviation are each above the expanding-window 66.7th percentile computed through the prior day.",
+        "side": "The tag itself is not a side. The traded cousin fades the opening move when a regression of the first 30 minutes on the last 30 minutes predicts reversal.",
+        "exit": "Fade is judged on the last 30 minutes. A 15:30 close fade was also tried and did not reach 30 trades.",
+        "filters": "Expanding window only. No lookahead.",
+        "parameters": "Pseudocode on the PDF: r1_thresh, gap_thresh, vol_thresh = percentile_66.7 of history through D-1. vol_dev uses a 20-day rolling baseline. classifier[D]=1 only if all three exceed."
+      },
+      "data_needed": [
+        {
+          "item": "1-minute index OHLC (5 years)",
+          "available_to_us": true,
+          "note": "Can aggregate to 5-minute or daily."
+        },
+        {
+          "item": "first-bar volume",
+          "available_to_us": true,
+          "note": "Index volume on the 1-minute tape."
+        }
+      ],
+      "performance": {
+        "quote": "Activates on 40/947 days (Table 2, 4.2%). Next-day return +0.295% on tagged days vs +0.039% otherwise, spread +0.256% (25.6 bps), Table 3. Peak reversal by close 97/125 = 77.6%, mean giveback 11.73 points, Table 5. Fade: N=127 OOS, mean net +7.80 pts, T=+1.46, win rate 52.0%, 2024 net -26.75. Marked FAIL.",
+        "location": "Tables 2, 3, 5 and the OOS metric block (pdftotext page 8)."
+      },
+      "after_costs": "the +7.80 point fade is net; the 25.6 bp next-day spread is a return difference, not an option P&L",
+      "red_flags": [
+        "40 tagged days",
+        "year-unstable",
+        "US futures",
+        "author marks the trades FAIL"
+      ],
+      "topic": "opening gap, volume, reversal",
+      "status": "new"
+    },
+    {
+      "id": "P03",
+      "rank": 3,
+      "codable": true,
+      "title": "Expected Stock Returns and Variance Risk Premia",
+      "authors": [
+        "Tim Bollerslev",
+        "George Tauchen",
+        "Hao Zhou"
+      ],
+      "year": 2009,
+      "url": "https://public.econ.duke.edu/~boller/Published_Papers/rfs_09.pdf",
+      "access": "full PDF opened (author reprint)",
+      "market_and_sample": "S&P 500, January 1990 to December 2007, monthly observations.",
+      "horizon": "1 to 24 months; strongest at the quarterly horizon",
+      "rule": {
+        "entry": "Variance risk premium = model-free implied variance minus realized variance from high-frequency returns. High premium predicts higher future equity returns. For an option buyer the usable filter is the opposite of selling rich vol: do not buy premium when implied variance is far above realized variance.",
+        "side": "Equity timing is long the index when the premium is high. That is not a long-option trade.",
+        "exit": "Their regressions are monthly to two-year holding windows, not an intraday flat.",
+        "filters": "Model-free implied vol, not Black-Scholes IV. Realized variation from intraday data.",
+        "parameters": "Quarterly regression is the one they call impressive. No India VIX threshold is stated."
+      },
+      "data_needed": [
+        {
+          "item": "India VIX daily",
+          "available_to_us": true,
+          "note": ""
+        },
+        {
+          "item": "1-minute index OHLC (5 years)",
+          "available_to_us": true,
+          "note": "Can aggregate to 5-minute or daily."
+        },
+        {
+          "item": "model-free implied variance",
+          "available_to_us": false,
+          "note": "Partial only. Daily India VIX is a proxy; we do not store a full OTM book."
+        }
+      ],
+      "performance": {
+        "quote": "The quarterly return regression results in a much more impressive t-statistic of 2.86 and a corresponding R^2 of 6.82%.",
+        "location": "Body text and the monthly-horizon variance-premium table (adjusted R^2 row: 1 month 1.07, 3 months 6.82, 6 months 5.42). Also: Beckers and Bouten (2005) 'a market timing strategy based on the ratio of implied to historical volatilities doubles the Sharpe ratio relative to that of a constant S&P 500 exposure.'"
+      },
+      "after_costs": "not a trading P&L; regression R^2",
+      "red_flags": [
+        "US 1990-2007",
+        "horizon is months, so theta kills a long ATM hold",
+        "equity timing is the other side of buying options when vol is rich"
+      ],
+      "topic": "implied versus realized volatility",
+      "status": "new"
+    },
+    {
+      "id": "P04",
+      "rank": 4,
+      "codable": true,
+      "title": "The Economic Value of Volatility Timing",
+      "authors": [
+        "Jeff Fleming",
+        "Chris Kirby",
+        "Barbara Ostdiek"
+      ],
+      "year": 2001,
+      "url": "http://www.ruf.rice.edu/~jfleming/pub/jf0102.pdf",
+      "access": "PDF text opened via fetch",
+      "market_and_sample": "Daily stock, bond and gold returns. Journal of Finance 56(1), 329-352.",
+      "horizon": "daily rebalance of a mean-variance book",
+      "rule": {
+        "entry": "Conditional mean-variance weights use a volatility forecast. Take less risk when predicted variance is high.",
+        "side": "Long the risky assets, scaled. Not an option buy by itself.",
+        "exit": "Rebalance on the variance update.",
+        "filters": "Compared with the unconditionally efficient static portfolio with the same target expected return and volatility.",
+        "parameters": "Risk aversion g=1 and g=10 are reported. Decay and sample-size variants are in the tables."
+      },
+      "data_needed": [
+        {
+          "item": "1-minute index OHLC (5 years)",
+          "available_to_us": true,
+          "note": "Can aggregate to 5-minute or daily."
+        }
+      ],
+      "performance": {
+        "quote": "On average, the estimated fee exceeds 170 basis points per year.",
+        "location": "Introduction. Later: a risk-averse investor would be willing to pay an estimated 173 basis points annually. Another decay choice gives 241 basis points. Transaction-cost section: one-way S&P futures cost example 3.28 percent annualized does not offset the edge; costs would need to be at least six times that estimate."
+      },
+      "after_costs": "yes — simulated proportional costs",
+      "red_flags": [
+        "not India options",
+        "daily, not a scalp",
+        "Moreira-Muir already tested the descendant and passed"
+      ],
+      "topic": "volatility-managed sizing",
+      "status": "new"
+    },
+    {
+      "id": "P05",
+      "rank": 5,
+      "codable": true,
+      "title": "Assessing the profitability of intraday opening range breakout strategies",
+      "authors": [
+        "Ulf Holmberg",
+        "Carl Lönnbark",
+        "Christian Lundström"
+      ],
+      "year": 2013,
+      "url": "https://www.usbe.umu.se/digitalAssets/195/195397_ues948.pdf",
+      "access": "full text opened inside the Lundström thesis reprint of Finance Research Letters 10, 27-33",
+      "market_and_sample": "US crude oil futures, 1983-03-30 to 2011-01-26. Paper II in the same thesis also uses S&P 500 futures.",
+      "horizon": "intraday, enter on the break, exit at the close",
+      "rule": {
+        "entry": "Go long if price trades above a threshold a given percentage above the open; go short if it trades below the lower threshold. The range is set from normally distributed returns.",
+        "side": "With the break: long above, short below.",
+        "exit": "Market close. Paper II adds a stop.",
+        "filters": "Paper II splits by volatility state. Positive returns in the split sample are concentrated in 2001-10-12 to 2011-01-26.",
+        "parameters": "The numeric quantile of the normal range is described but the exact published q was not re-copied beyond 'normally distributed returns'. Thesis assumes zero spread and zero commission for the threshold test."
+      },
+      "data_needed": [
+        {
+          "item": "1-minute index OHLC (5 years)",
+          "available_to_us": true,
+          "note": "Can aggregate to 5-minute or daily."
+        },
+        {
+          "item": "India VIX daily",
+          "available_to_us": true,
+          "note": ""
+        }
+      ],
+      "performance": {
+        "quote": "We find an average difference in returns between the highest and the lowest volatility state of around 200 basis points per day for crude oil, and of around 150 basis points per day for the S&P 500.",
+        "location": "Thesis summary of Paper II. Paper I: significantly higher returns than zero on the full crude sample; significantly positive only in the 2001-2011 split."
+      },
+      "after_costs": "the threshold exercise in the reprint assumes zero spread and zero commission",
+      "red_flags": [
+        "US futures",
+        "zero-cost assumption",
+        "later Mesfin ORB fails after costs",
+        "exact quantile not re-copied"
+      ],
+      "topic": "opening range breakout",
+      "status": "new"
+    },
+    {
+      "id": "P06",
+      "rank": 6,
+      "codable": true,
+      "title": "Does Short-dated Options Introduction Mitigate Expiry Day Effects? Evidence from the Introduction of Weekly Index Options",
+      "authors": [
+        "K. Kiran Kumar"
+      ],
+      "year": 2022,
+      "url": "https://ielas.org/ijbe/index.php/ijbe/article/download/16/20/48",
+      "access": "full PDF text opened",
+      "market_and_sample": "Nifty 50 daily closes, 11 February 2018 to 10 February 2020. Pre: to 10 February 2019. Post: weekly options from 11 February 2019.",
+      "horizon": "expiry day versus the next day, daily returns",
+      "rule": {
+        "entry": "Not a buy. ARMA-GARCH with an expiry-day dummy, a next-day dummy, and an interaction with a post-weekly dummy.",
+        "side": "none",
+        "exit": "none",
+        "filters": "Compare expiry days with other days before and after weekly index options.",
+        "parameters": "Weekly contracts in that era ran Friday to the next Thursday, except the monthly expiry week."
+      },
+      "data_needed": [
+        {
+          "item": "1-minute index OHLC (5 years)",
+          "available_to_us": true,
+          "note": "Can aggregate to 5-minute or daily."
+        }
+      ],
+      "performance": {
+        "quote": "First, for the period before the introduction of weekly contracts, the study gathers empirical evidence suggesting the presence of upward shift in price effects around expiration day and a transitory upward shift in volatility. Next, the study shows ... these adverse expiration day effects disappear in the period after the introduction of weekly options.",
+        "location": "Abstract. Coefficient tables were not in the extract used, so no dummy t-stat is copied."
+      },
+      "after_costs": "not a trading P&L",
+      "red_flags": [
+        "sample ends February 2020",
+        "Thursday weekly expiry is stale",
+        "no numeric coefficient copied"
+      ],
+      "topic": "expiry-day effects",
+      "status": "new"
+    },
+    {
+      "id": "P07",
+      "rank": 7,
+      "codable": true,
+      "title": "Stock price clustering on option expiration dates",
+      "authors": [
+        "Sophie Xiaoyan Ni",
+        "Neil D. Pearson",
+        "Allen M. Poteshman"
+      ],
+      "year": 2005,
+      "url": "https://optionsoffice.ru/wp-content/uploads/2020/01/Stock-Price-Clustering-on-Option-Expiration-Dates.pdf",
+      "access": "full PDF opened (reprint). Journal: JFE 78(1), 49-87, 2005.",
+      "market_and_sample": "US optionable stocks versus non-optionable stocks, expiration Fridays.",
+      "horizon": "expiry-day close",
+      "rule": {
+        "entry": "Test whether the close is within a small distance of a strike (they use $0.125). A trade implication, not their regression, is a same-day drift toward the strike cluster.",
+        "side": "Toward the nearest strike if a pin is present.",
+        "exit": "Expiry close.",
+        "filters": "Compare optionable and non-optionable names. Logit controls for market-maker open interest and proprietary written volume.",
+        "parameters": "Bin width 0.01 bps in the return-alteration bound. Strike proximity $0.125."
+      },
+      "data_needed": [
+        {
+          "item": "1-minute index OHLC (5 years)",
+          "available_to_us": true,
+          "note": "Can aggregate to 5-minute or daily."
+        },
+        {
+          "item": "60-second chain LTP, volume, OI for 13-15 strikes (3 years)",
+          "available_to_us": true,
+          "note": "Near strikes only; not a full chain."
+        },
+        {
+          "item": "dealer gamma inventory",
+          "available_to_us": false,
+          "note": "OI is not a signed dealer book."
+        }
+      ],
+      "performance": {
+        "quote": "We estimate that optionable stocks have their returns altered on average by at least 16.5 basis points (bps) per expiration date. ... shift market capitalizations of optionable stocks by at least $9.1 billion per expiration date.",
+        "location": "Abstract and the return-alteration section. Body bound also stated as 16.57 bps. At least about two percent of optionable stocks are affected."
+      },
+      "after_costs": "not a trading P&L",
+      "red_flags": [
+        "US single stocks",
+        "needs a Nifty replication",
+        "Gupta et al. did not find a pin on five NSE stocks"
+      ],
+      "topic": "pinning and expiry",
+      "status": "new"
+    },
+    {
+      "id": "P08",
+      "rank": 8,
+      "codable": true,
+      "title": "The Effects of Option Expiration on NSE volume and prices",
+      "authors": [
+        "Akash Gupta",
+        "Samik Metia",
+        "Prashant Trivedi"
+      ],
+      "year": 2003,
+      "url": "https://econwpa.ub.uni-muenchen.de/econ-wp/fin/papers/0411/0411035.pdf",
+      "access": "full PDF opened",
+      "market_and_sample": "NSE stocks Reliance, Satyam, Infosys, Telco, HDFC. Tick data. June 2000-August 2002, with a 2002-2003 volume check. Control day is the prior Thursday (EXP-7).",
+      "horizon": "expiry day, last half-hour, and the next open",
+      "rule": {
+        "entry": "Tests, not a buy: dollar volume in the last half-hour over the day, versus EXP-7; five-minute return variance; reversal = sign flip from the last 30 minutes into the next open. Pin: close within 1/5 or 1/10 of the strike interval.",
+        "side": "none recommended",
+        "exit": "none",
+        "filters": "Compare EXP, EXP-1, EXP+1 with EXP-7.",
+        "parameters": "HDFC example: strike interval 30, so 1/10 is +/- 3 rupees."
+      },
+      "data_needed": [
+        {
+          "item": "1-minute index OHLC (5 years)",
+          "available_to_us": true,
+          "note": "Can aggregate to 5-minute or daily."
+        },
+        {
+          "item": "60-second chain LTP, volume, OI for 13-15 strikes (3 years)",
+          "available_to_us": true,
+          "note": "Near strikes only; not a full chain."
+        }
+      ],
+      "performance": {
+        "quote": "Even though on average, trading volume did turned out to be more on expiration day ... the difference was not statistically significant. Stock pinning behavior on expiration days also was not suggested by the data.",
+        "location": "Conclusion. HDFC closed within 3 of a strike 18.52% of the time, against their no-pin benchmark of about 20.833%."
+      },
+      "after_costs": "not a trading P&L",
+      "red_flags": [
+        "2000-2003",
+        "five stocks not the index",
+        "not significant"
+      ],
+      "topic": "expiry and pinning, India",
+      "status": "new"
+    },
+    {
+      "id": "P09",
+      "rank": 9,
+      "codable": true,
+      "title": "Options Order Flow, Volatility Demand and Variance Risk Premium",
+      "authors": [
+        "Prasenjit Chakrabarti",
+        "K. Kiran Kumar"
+      ],
+      "year": 2016,
+      "url": "http://www.isid.ac.in/~epu/acegd2016/papers/PrasenjitChakrabarti.pdf",
+      "access": "full PDF opened",
+      "market_and_sample": "Nifty options, 1 July 2015 to 31 December 2015. Five order-book snapshots a day. Minute Nifty for 5-minute realized variance.",
+      "horizon": "daily change in the variance premium; realized-variance innovation over the next month",
+      "rule": {
+        "entry": "Volatility demand = average of vega-weighted call-plus-put order imbalance at each strike and expiry, across 11:00, 12:00, 13:00, 14:00 and 15:00. Regress the daily change in variance premium on demand by moneyness.",
+        "side": "No option buy is specified. A positive premium change is said to line up with higher subsequent realized variance, which would be a reason to own vol only if the premium itself is not already rich.",
+        "exit": "not specified",
+        "filters": "Moneyness log(K/F). They drop the deepest ITM wings because activity is tiny.",
+        "parameters": "India VIX squared divided by 12 is monthly risk-neutral variance. Realized variance is the sum of 5-minute squared returns over 30 calendar days. GMM, Newey-West lags 7 and 30."
+      },
+      "data_needed": [
+        {
+          "item": "60-second chain LTP, volume, OI for 13-15 strikes (3 years)",
+          "available_to_us": true,
+          "note": "Near strikes only; not a full chain."
+        },
+        {
+          "item": "India VIX daily",
+          "available_to_us": true,
+          "note": ""
+        },
+        {
+          "item": "1-minute index OHLC (5 years)",
+          "available_to_us": true,
+          "note": "Can aggregate to 5-minute or daily."
+        },
+        {
+          "item": "signed option or stock trades",
+          "available_to_us": false,
+          "note": "Volume is unsigned."
+        },
+        {
+          "item": "bid/ask depth",
+          "available_to_us": false,
+          "note": "Only from Monday, not a history."
+        }
+      ],
+      "performance": {
+        "quote": "Analysis shows that volatility demand of options significantly impacts the variance risk premium change. Among the moneyness categories, we find that volatility demand of the most expensive options significantly impacts variance risk premium change.",
+        "location": "Abstract. Activity shares, not P&L: calls 51.59% of trades, puts 48.41%; ATM calls 34.36%, ATM puts 30.03%."
+      },
+      "after_costs": "not a trading P&L",
+      "red_flags": [
+        "six-month sample",
+        "needs signed trades",
+        "in-sample regression",
+        "no buy-side P&L"
+      ],
+      "topic": "option order flow and VRP, Nifty",
+      "status": "new"
+    },
+    {
+      "id": "P10",
+      "rank": 10,
+      "codable": true,
+      "title": "4-Factor Model for Overnight Returns",
+      "authors": [
+        "Zura Kakushadze"
+      ],
+      "year": 2015,
+      "url": "https://arxiv.org/abs/1410.5513",
+      "access": "full PDF opened",
+      "market_and_sample": "US stocks, top 2000 by average dollar volume, about five years, s=0 is 9/5/2014. arXiv:1410.5513.",
+      "horizon": "overnight factor, then an open-to-close residual trade",
+      "rule": {
+        "entry": "Factors: log prior close (price), prior open-to-close return (momentum), intraday high-low volatility, volume liquidity. Trade the cross-sectional residual.",
+        "side": "Mean-reversion on the residual: long negative residuals, short positive, at the open.",
+        "exit": "Same-day close. Fills assumed at the open and the close.",
+        "filters": "Universe rebalanced every 21 days. He also shows top 3000 and top 4000.",
+        "parameters": "No costs, no slippage, by design."
+      },
+      "data_needed": [
+        {
+          "item": "1-minute index OHLC (5 years)",
+          "available_to_us": true,
+          "note": "Can aggregate to 5-minute or daily."
+        },
+        {
+          "item": "stock cross-section",
+          "available_to_us": false,
+          "note": "Index tape only."
+        }
+      ],
+      "performance": {
+        "quote": "We check this by using our 4-factor model in an explicit intraday mean-reversion alpha.",
+        "location": "Abstract. P&L is Figures 1-2 and Table 5. No single P&L number was copied off the figure. He states the goal is not to build a trading strategy."
+      },
+      "after_costs": "no — explicit zero costs",
+      "red_flags": [
+        "US stock cross-section we lack",
+        "no costs",
+        "overlaps the already-tested overnight gap fade",
+        "figure P&L not copied"
+      ],
+      "topic": "overnight and intraday reversal",
+      "status": "new"
+    },
+    {
+      "id": "P11",
+      "rank": 11,
+      "codable": true,
+      "title": "A Volume-Price-Adjusted MACD Trading Strategy with Sensitivity Calibration for U.S. Equity Indices",
+      "authors": [
+        "Luyun Lin",
+        "Lixing Lin",
+        "Zhen Zhang",
+        "Moxuan Zheng",
+        "Yiqing Wang"
+      ],
+      "year": 2026,
+      "url": "https://arxiv.org/abs/2604.26063",
+      "access": "full PDF opened",
+      "market_and_sample": "Daily SPY, QQQ and DIA. Train 2018-2022 (1,259 days). Test 2023 through February 2026 (791 days).",
+      "horizon": "daily MACD holds, multi-day, not a same-day option scalp",
+      "rule": {
+        "entry": "MACD with a sensitivity lambda, and a volume-price MACD that also uses volume, volatility and intraday price structure.",
+        "side": "Follow the MACD signal (long or short the index).",
+        "exit": "MACD exit. Not flattened the same day.",
+        "filters": "Lambda chosen on the train set for Sharpe.",
+        "parameters": "SPY Table 1: lambda 0.90 for MACD-plus-lambda, 0.88 for VP-MACD."
+      },
+      "data_needed": [
+        {
+          "item": "1-minute index OHLC (5 years)",
+          "available_to_us": true,
+          "note": "Can aggregate to 5-minute or daily."
+        }
+      ],
+      "performance": {
+        "quote": "Table 2 SPY test. Baseline MACD: 40 trades, win rate 50.00%, total PnL $13,612.34, PnL ratio 1.39, Sharpe 0.47, max DD -13.78%, expectancy $19.39. MACD (lambda = 0.90): 36, 55.56%, $52,688.94, 2.98, Sharpe 1.35, -8.17%, $121.04. VP-MACD (lambda = 0.88): 6, 50.00%, $27,543.78, 8.61, Sharpe 0.96, -6.33%, $365.72.",
+        "location": "Table 2. Train and test lengths are in the sample section (1,259 and 791)."
+      },
+      "after_costs": "P&L is index-point dollars. Futures commissions are not stated.",
+      "red_flags": [
+        "six SPY test trades for VP-MACD",
+        "multi-day hold, theta works against a long option",
+        "US cash index",
+        "MACD-plus-lambda Sharpe 1.35 beats VP-MACD Sharpe 0.96 on SPY"
+      ],
+      "topic": "volume and price breakout",
+      "status": "new"
+    },
+    {
+      "id": "P12",
+      "rank": 12,
+      "codable": true,
+      "title": "Hidden Markov Models Applied To Intraday Momentum Trading With Side Information",
+      "authors": [
+        "Hugh Christensen",
+        "Richard Turner",
+        "Simon Godsill"
+      ],
+      "year": 2020,
+      "url": "https://arxiv.org/abs/2006.08307",
+      "access": "full PDF opened",
+      "market_and_sample": "E-mini S&P 500 futures, 1-minute bars, 258 trading days of 2011.",
+      "horizon": "intraday, next-bar sign of the latent momentum state",
+      "rule": {
+        "entry": "Infer a latent momentum state with a tied Gaussian HMM. Trade the sign of that state. Side information tried: realized-volatility ratio and intraday seasonality, via splines and an input-output HMM.",
+        "side": "With the latent trend.",
+        "exit": "Re-estimated each bar. No stated intraday flat.",
+        "filters": "State count chosen by cross-validation, penalized likelihood and bridge sampling.",
+        "parameters": "Stay probability beta = 0.5. Selected K = 3 on the bridge-sampling and penalized-likelihood plots."
+      },
+      "data_needed": [
+        {
+          "item": "1-minute index OHLC (5 years)",
+          "available_to_us": true,
+          "note": "Can aggregate to 5-minute or daily."
+        },
+        {
+          "item": "separate index-futures tape",
+          "available_to_us": false,
+          "note": "Cash index OHLC only."
+        }
+      ],
+      "performance": {
+        "quote": "pre-cost the models have a Sharpe ratio in excess of 2.0.",
+        "location": "Abstract. Figure 6 caption: mean (pre-cost) annualized Sharpe ratios. The figure is a plot; bar heights were not copied as numbers."
+      },
+      "after_costs": "no — the claim is pre-cost",
+      "red_flags": [
+        "one year, 2011",
+        "US futures",
+        "flexible state model",
+        "no cost haircut"
+      ],
+      "topic": "intraday momentum",
+      "status": "new"
+    },
+    {
+      "id": "P13",
+      "rank": 13,
+      "codable": true,
+      "title": "Hidden Order in Trades Predicts the Size of Price Moves",
+      "authors": [
+        "Mainak Singha"
+      ],
+      "year": 2025,
+      "url": "https://arxiv.org/abs/2512.15720",
+      "access": "full PDF opened",
+      "market_and_sample": "38.5 million SPY trades, 36 trading days.",
+      "horizon": "next 5 minutes after a 120-second entropy window",
+      "rule": {
+        "entry": "Entropy from a 15-state Markov matrix on signed trades in a 120-second window. Low entropy predicts a larger absolute move, not a direction.",
+        "side": "No direction. A long straddle would be the option translation, and the paper does not specify that contract in full.",
+        "exit": "5-minute absolute-return window.",
+        "filters": "Condition on entropy below the 5th percentile, or by quintile.",
+        "parameters": "15 states. 120-second window. 5-minute forward absolute return."
+      },
+      "data_needed": [
+        {
+          "item": "1-minute index OHLC (5 years)",
+          "available_to_us": true,
+          "note": "Can aggregate to 5-minute or daily."
+        },
+        {
+          "item": "signed option or stock trades",
+          "available_to_us": false,
+          "note": "Volume is unsigned."
+        },
+        {
+          "item": "tick / NBBO event time",
+          "available_to_us": false,
+          "note": ""
+        }
+      ],
+      "performance": {
+        "quote": "Conditioning on entropy below the 5th percentile yields 15.3 bps—a factor of 2.89 above the unconditional mean (t = 12.41, p < 10−4). The lowest quintile exhibits mean absolute returns of 8.14 bps versus 3.75 bps in the highest quintile. Directional accuracy is 45.0% (108/240 out-of-sample trades), z = −1.55, p = 0.12. Cumulative out-of-sample returns of +1,126 bps across 240 trades. Random entry yields mean PnL of 137 ± 201 bps versus observed 1,126 bps (z = 4.9).",
+        "location": "Abstract and the results paragraphs next to Figures 1-3. The fold table prints 1,125.6."
+      },
+      "after_costs": "the +1,126 bps path is a stated payoff, not an India option spread",
+      "red_flags": [
+        "36 days",
+        "needs signed ticks we do not have",
+        "direction is a coin flip",
+        "US SPY"
+      ],
+      "topic": "order-flow entropy, move size",
+      "status": "new"
+    },
+    {
+      "id": "P14",
+      "rank": 14,
+      "codable": true,
+      "title": "Does Overnight News Explain Overnight Returns?",
+      "authors": [
+        "Paul Glasserman",
+        "Kriste Krstovski",
+        "Paul Laliberte",
+        "Harry Mamaysky"
+      ],
+      "year": 2025,
+      "url": "https://arxiv.org/abs/2507.04481",
+      "access": "full PDF opened",
+      "market_and_sample": "S&P 500 stocks since 2000. News text 1996-2022, 2.4 million articles. Main forecast is one year ahead from four years of news.",
+      "horizon": "overnight versus the following cash session; the news model is a one-year forecast",
+      "rule": {
+        "entry": "Measurement, not a new fade: cumulative overnight return minus cumulative intraday return. The forecast of which names do well overnight uses topic exposures from news text.",
+        "side": "The measurement is long the overnight gap relative to the cash session. Do not recode it as another gap fade; that rule is already tested.",
+        "exit": "Not an option exit.",
+        "filters": "Needs the news topic model, which we cannot build.",
+        "parameters": "No numeric entry threshold for a Nifty option."
+      },
+      "data_needed": [
+        {
+          "item": "1-minute index OHLC (5 years)",
+          "available_to_us": true,
+          "note": "Can aggregate to 5-minute or daily."
+        },
+        {
+          "item": "stock cross-section",
+          "available_to_us": false,
+          "note": "Index tape only."
+        },
+        {
+          "item": "news or social text",
+          "available_to_us": false,
+          "note": ""
+        }
+      ],
+      "performance": {
+        "quote": "The difference averages to 2.75 basis points per day, or roughly 7.2% per year.",
+        "location": "Page 2, next to Figure 1 and Table 1."
+      },
+      "after_costs": "not after an option spread",
+      "red_flags": [
+        "stock cross-section",
+        "needs news text",
+        "not a Nifty option P&L",
+        "overlaps the already-tested gap fade"
+      ],
+      "topic": "overnight versus intraday",
+      "status": "new"
+    },
+    {
+      "id": "P15",
+      "rank": 15,
+      "codable": true,
+      "title": "Harvesting the Volatility Risk Premium: A Learning-to-Rank Approach",
+      "authors": [
+        "Maciej Wysocki"
+      ],
+      "year": 2026,
+      "url": "https://arxiv.org/abs/2608.24786",
+      "access": "full PDF opened",
+      "market_and_sample": "SPX weekly 0DTE options (SPXW). 2025 is the out-of-time year.",
+      "horizon": "same-day short puts, held under a margin cap",
+      "rule": {
+        "entry": "Each day a LightGBM LambdaRank ranker scores eight delta-targeted short puts plus a SKIP. Label is a path Sortino on 1-minute bars. Abstain when the top-two score gap is small.",
+        "side": "Short puts. This is the other side of a long-premium book.",
+        "exit": "0DTE expiry, with the paper's margin and abstention rules.",
+        "filters": "Margin cap. Abstention on a small score gap.",
+        "parameters": "Eight delta targets plus SKIP. Seven sizing methods."
+      },
+      "data_needed": [
+        {
+          "item": "full option surface with deltas",
+          "available_to_us": false,
+          "note": "13-15 strikes, LTP/volume/OI only."
+        },
+        {
+          "item": "1-minute index OHLC (5 years)",
+          "available_to_us": true,
+          "note": "Can aggregate to 5-minute or daily."
+        }
+      ],
+      "performance": {
+        "quote": "out-of-time annualized Sharpe ratios between 4.31 and 5.76, with the headline method reaching a Probabilistic Sharpe Ratio of 0.964 and a sample-period maximum drawdown of −2.28%, on a single hold-out year against a walk-forward range of 1.90 to 3.11.",
+        "location": "Abstract, first page."
+      },
+      "after_costs": "the paper states a tiered fee schedule; the quoted Sharpes are the reported out-of-time figures",
+      "red_flags": [
+        "option selling, not buying",
+        "one hold-out year",
+        "Sharpe too large to use as a target",
+        "US SPXW surface we do not have"
+      ],
+      "topic": "0DTE short premium",
+      "status": "new"
+    },
+    {
+      "id": "P16",
+      "rank": null,
+      "codable": true,
+      "title": "Physical Momentum in the Indian Stock Market",
+      "authors": [
+        "Tulasi Narendra Das Tripurana",
+        "Naresh Kumar Devulapally"
+      ],
+      "year": 2023,
+      "url": "https://arxiv.org/abs/2302.13245",
+      "access": "full PDF opened",
+      "market_and_sample": "NSE 500 stocks, equal weight, 2014-2021. Daily, weekly, monthly and yearly portfolios.",
+      "horizon": "daily (called high-frequency in the paper) through yearly",
+      "rule": {
+        "entry": "Rank NSE 500 names by Choi (2014) physical price momentum. Form winner and loser baskets.",
+        "side": "High-frequency (daily) books in the table are mostly contrarian: long losers, short winners. Longer horizons are mostly traditional momentum.",
+        "exit": "Hold for the formation horizon J-K.",
+        "filters": "Equal weight. Dollar-neutral baskets in the high-frequency table.",
+        "parameters": "Best high-frequency row: contrarian J-K 3-1, basket (L-W), portfolio p*2 (1/v, R)."
+      },
+      "data_needed": [
+        {
+          "item": "stock cross-section",
+          "available_to_us": false,
+          "note": "Index tape only."
+        }
+      ],
+      "performance": {
+        "quote": "The abstract says the best-performing portfolios 'yielded a 16-fold profit over the initial investment.' Table 3, p*2 (1/v, R), contrarian, J-K 3-1: final wealth 17.08302, Sharpe ratio 0.617544. Conclusion: 'All of the physical momentum portfolios have sharpe-ratio values of less than one'.",
+        "location": "Abstract, Table 3, and section 5."
+      },
+      "after_costs": "not stated in the lines read",
+      "red_flags": [
+        "stock cross-section we do not have",
+        "not an index-option rule",
+        "Sharpe below 1 by the authors' own conclusion"
+      ],
+      "topic": "India physical momentum",
+      "status": "new"
+    },
+    {
+      "id": "P17",
+      "rank": null,
+      "codable": true,
+      "title": "F&O Expiry vs. First-Day SIPs: A 22-Year Analysis of Timing Advantages in India's Nifty 50",
+      "authors": [
+        "Siddharth Gavhale"
+      ],
+      "year": 2025,
+      "url": "https://arxiv.org/abs/2507.04859",
+      "access": "full PDF opened",
+      "market_and_sample": "Nifty 50 monthly SIP, 2003-2024. First trading day versus F&O expiry day.",
+      "horizon": "monthly contribution, judged at 1-year to 20-year windows",
+      "rule": {
+        "entry": "Invest the SIP on the monthly F&O expiry day instead of the first trading day.",
+        "side": "Long the index via a SIP. Not a call or put.",
+        "exit": "Hold the SIP for the stated horizon.",
+        "filters": "None beyond the calendar day.",
+        "parameters": "Monthly contribution. No intraday threshold."
+      },
+      "data_needed": [
+        {
+          "item": "1-minute index OHLC (5 years)",
+          "available_to_us": true,
+          "note": "Can aggregate to 5-minute or daily."
+        }
+      ],
+      "performance": {
+        "quote": "The 25th percentile of its returns remains above that of the FTD-SIP across all horizons, with the largest margin of 111 basis points occurring in the volatile 1-year horizon. Table III CAGR differences: 0.07, 0.05 and 0.03. The text calls those 'economically negligible margins of 7, 5, and 3 basis points' on the two 10-year windows and the 20-year window.",
+        "location": "Distributional analysis next to Figure 2, and Table III."
+      },
+      "after_costs": "not an option spread; SIP return comparison",
+      "red_flags": [
+        "not an intraday scalp",
+        "the 111 bp figure is a 1-year left-tail gap, not a mean edge",
+        "long-window gaps are a few basis points"
+      ],
+      "topic": "expiry calendar, Nifty SIP",
+      "status": "new"
+    },
+    {
+      "id": "P18",
+      "rank": null,
+      "codable": false,
+      "title": "Survivorship Bias in Emerging Market Small-Cap Indices: Evidence from India's NIFTY Smallcap 250",
+      "authors": [
+        "Harjot Singh Ranse"
+      ],
+      "year": 2025,
+      "url": "https://arxiv.org/abs/2603.19380",
+      "access": "full PDF opened",
+      "market_and_sample": "NIFTY Smallcap 250 membership history. Today's 252 members versus 1,437 historical names.",
+      "horizon": "index-membership backtest, not a holding rule",
+      "rule": {
+        "entry": "Not a trade. Compare a backtest on current members with one on the historical universe.",
+        "side": "none",
+        "exit": "none",
+        "filters": "none",
+        "parameters": "none"
+      },
+      "data_needed": [
+        {
+          "item": "stock cross-section",
+          "available_to_us": false,
+          "note": "Index tape only."
+        }
+      ],
+      "performance": {
+        "quote": "Survivor-only backtesting overstates annual returns by 4.94 percentage points (26.17% vs. 21.23%). Sharpe: 1.160 vs. 1.063. Removal rate 82.5%. Historical universe 1,437 names.",
+        "location": "Executive summary and the results bullets."
+      },
+      "after_costs": "not a trading rule",
+      "red_flags": [
+        "not a signal",
+        "small-cap stocks, not Nifty index options"
+      ],
+      "topic": "survivorship warning",
+      "status": "new"
+    },
+    {
+      "id": "P19",
+      "rank": null,
+      "codable": false,
+      "title": "Predicting Stock Market Crash with Bayesian Generalised Pareto Regression",
+      "authors": [
+        "Sourish Das"
+      ],
+      "year": 2025,
+      "url": "https://arxiv.org/abs/2506.17549",
+      "access": "full PDF opened (first pages and abstract)",
+      "market_and_sample": "Indian equity crash risk, Nifty 50 focus. Bayesian generalised Pareto regression.",
+      "horizon": "extreme-loss forecast, not a session trade",
+      "rule": {
+        "entry": "Forecast the tail. No option entry, side or exit is fixed on the pages scanned.",
+        "side": "none",
+        "exit": "none",
+        "filters": "Scale linked to covariates with a log-linear function. Priors: Cauchy, Lasso, Ridge, Zellner g-prior.",
+        "parameters": "No position size."
+      },
+      "data_needed": [
+        {
+          "item": "1-minute index OHLC (5 years)",
+          "available_to_us": true,
+          "note": "Can aggregate to 5-minute or daily."
+        },
+        {
+          "item": "India VIX daily",
+          "available_to_us": true,
+          "note": ""
+        }
+      ],
+      "performance": {
+        "quote": "No option-buy P&L was copied from the pages scanned.",
+        "location": "Abstract and opening pages."
+      },
+      "after_costs": "not a trading P&L",
+      "red_flags": [
+        "forecast only",
+        "no entry"
+      ],
+      "topic": "India crash forecast",
+      "status": "new"
+    },
+    {
+      "id": "P20",
+      "rank": null,
+      "codable": false,
+      "title": "Understanding the Impact of News Articles on the Movement of Market Index: A Case on Nifty 50",
+      "authors": [
+        "Subhasis Dasgupta",
+        "Pratik Satpati"
+      ],
+      "year": 2024,
+      "url": "https://arxiv.org/abs/2412.06794",
+      "access": "full PDF opened (first pages)",
+      "market_and_sample": "News topics versus Nifty 50 moves.",
+      "horizon": "not fixed as an intraday hold",
+      "rule": {
+        "entry": "No mechanical entry on the pages scanned.",
+        "side": "none",
+        "exit": "none",
+        "filters": "none",
+        "parameters": "none"
+      },
+      "data_needed": [
+        {
+          "item": "1-minute index OHLC (5 years)",
+          "available_to_us": true,
+          "note": "Can aggregate to 5-minute or daily."
+        },
+        {
+          "item": "news or social text",
+          "available_to_us": false,
+          "note": ""
+        }
+      ],
+      "performance": {
+        "quote": "No trading P&L number was copied from the pages scanned.",
+        "location": "Opening pages."
+      },
+      "after_costs": "not a trading P&L",
+      "red_flags": [
+        "needs news text",
+        "no entry, side or exit"
+      ],
+      "topic": "Nifty news sentiment",
+      "status": "new"
+    },
+    {
+      "id": "P21",
+      "rank": null,
+      "codable": false,
+      "title": "Indian Stock Market Prediction using Augmented Financial Intelligence ML",
+      "authors": [
+        "Anishka Chauhan",
+        "Pratham Mayur",
+        "Yeshwanth Sai Gokarakonda",
+        "Pooriya Jamie",
+        "Naman Mehrotra"
+      ],
+      "year": 2024,
+      "url": "https://arxiv.org/abs/2407.02236",
+      "access": "full PDF opened (first pages)",
+      "market_and_sample": "Indian stock price forecasts. Models named: Bi-LSTM, ARIMA, CNN-LSTM, GRU, LSTM-GRU, plus superforecaster inputs. Scored by MAE.",
+      "horizon": "forecast, not a position",
+      "rule": {
+        "entry": "No position rule copied.",
+        "side": "none",
+        "exit": "none",
+        "filters": "none",
+        "parameters": "none"
+      },
+      "data_needed": [
+        {
+          "item": "stock cross-section",
+          "available_to_us": false,
+          "note": "Index tape only."
+        }
+      ],
+      "performance": {
+        "quote": "No trading P&L was copied. The abstract evaluates MAE.",
+        "location": "Abstract."
+      },
+      "after_costs": "not a trading P&L",
+      "red_flags": [
+        "forecast only",
+        "stock names, not the index option"
+      ],
+      "topic": "India ML forecast",
+      "status": "new"
+    },
+    {
+      "id": "P22",
+      "rank": null,
+      "codable": false,
+      "title": "A Novel Multivariate Bi-LSTM model for Short-Term Equity Price Forecasting",
+      "authors": [
+        "Omkar Oak",
+        "Rukmini Nazre",
+        "Rujuta Budke",
+        "Yogita Mahatekar"
+      ],
+      "year": 2024,
+      "url": "https://arxiv.org/abs/2409.14693",
+      "access": "full PDF opened (first pages)",
+      "market_and_sample": "Indian equity short-term forecast.",
+      "horizon": "forecast",
+      "rule": {
+        "entry": "No position rule copied.",
+        "side": "none",
+        "exit": "none",
+        "filters": "none",
+        "parameters": "none"
+      },
+      "data_needed": [
+        {
+          "item": "1-minute index OHLC (5 years)",
+          "available_to_us": true,
+          "note": "Can aggregate to 5-minute or daily."
+        }
+      ],
+      "performance": {
+        "quote": "No trading P&L was copied from the pages scanned.",
+        "location": "Abstract and opening pages."
+      },
+      "after_costs": "not a trading P&L",
+      "red_flags": [
+        "forecast only"
+      ],
+      "topic": "India Bi-LSTM forecast",
+      "status": "new"
+    },
+    {
+      "id": "P23",
+      "rank": null,
+      "codable": false,
+      "title": "Multi-Scale Analysis of Nifty 50: Return Characteristics, Valuation Dynamics and Market Complexity (1990–2024)",
+      "authors": [
+        "Chandradew Sharma"
+      ],
+      "year": 2025,
+      "url": "https://arxiv.org/abs/2509.00697",
+      "access": "full PDF opened (first pages)",
+      "market_and_sample": "Nifty 50, 1990-2024. Descriptive return and P/E analysis.",
+      "horizon": "days to decades, descriptive",
+      "rule": {
+        "entry": "No trade.",
+        "side": "none",
+        "exit": "none",
+        "filters": "none",
+        "parameters": "none"
+      },
+      "data_needed": [
+        {
+          "item": "1-minute index OHLC (5 years)",
+          "available_to_us": true,
+          "note": "Can aggregate to 5-minute or daily."
+        }
+      ],
+      "performance": {
+        "quote": "Abstract: one-year returns show a 74% probability of gain, with a modal return of 10.67%. This is a return distribution, not a strategy P&L.",
+        "location": "Abstract."
+      },
+      "after_costs": "not a trading P&L",
+      "red_flags": [
+        "descriptive",
+        "not an intraday option rule"
+      ],
+      "topic": "Nifty description",
+      "status": "new"
+    },
+    {
+      "id": "P24",
+      "rank": null,
+      "codable": false,
+      "title": "Adaptive Financial Sentiment Analysis for NIFTY 50 via Instruction-Tuned LLMs, RAG and Reinforcement Learning Approaches",
+      "authors": [
+        "Chaithra",
+        "Kamesh Kadimisetty",
+        "Biju R Mohan"
+      ],
+      "year": 2025,
+      "url": "https://arxiv.org/abs/2512.20082",
+      "access": "full PDF opened (first pages)",
+      "market_and_sample": "Nifty 50 sentiment. The opened page gives Chaithra with no surname.",
+      "horizon": "sentiment model, not a price rule",
+      "rule": {
+        "entry": "No price rule on the pages scanned.",
+        "side": "none",
+        "exit": "none",
+        "filters": "none",
+        "parameters": "none"
+      },
+      "data_needed": [
+        {
+          "item": "news or social text",
+          "available_to_us": false,
+          "note": ""
+        },
+        {
+          "item": "1-minute index OHLC (5 years)",
+          "available_to_us": true,
+          "note": "Can aggregate to 5-minute or daily."
+        }
+      ],
+      "performance": {
+        "quote": "No trading P&L was copied from the pages scanned.",
+        "location": "Abstract."
+      },
+      "after_costs": "not a trading P&L",
+      "red_flags": [
+        "needs text",
+        "no entry"
+      ],
+      "topic": "Nifty sentiment",
+      "status": "new"
+    },
+    {
+      "id": "P25",
+      "rank": null,
+      "codable": false,
+      "title": "Predicting Stock Prices using Permutation Decision Trees and Strategic Trailing",
+      "authors": [
+        "Vishrut Ramraj",
+        "Nithin Nagaraj",
+        "Harikrishnan N B"
+      ],
+      "year": 2025,
+      "url": "https://arxiv.org/abs/2504.12828",
+      "access": "full PDF opened (first pages)",
+      "market_and_sample": "Stock-price prediction with permutation decision trees and a trailing rule.",
+      "horizon": "not copied",
+      "rule": {
+        "entry": "The title names a trailing exit. The pages scanned did not give an entry threshold, so the rule is not copied.",
+        "side": "not copied",
+        "exit": "trailing, threshold not copied",
+        "filters": "not copied",
+        "parameters": "not copied"
+      },
+      "data_needed": [
+        {
+          "item": "1-minute index OHLC (5 years)",
+          "available_to_us": true,
+          "note": "Can aggregate to 5-minute or daily."
+        }
+      ],
+      "performance": {
+        "quote": "No P&L number was copied from the pages scanned.",
+        "location": "Opening pages."
+      },
+      "after_costs": "not copied",
+      "red_flags": [
+        "threshold not on the pages used",
+        "do not invent the trailing stop"
+      ],
+      "topic": "trailing rule, incomplete",
+      "status": "new"
+    },
+    {
+      "id": "P26",
+      "rank": null,
+      "codable": true,
+      "title": "Trend-Following strategies via Dynamic Momentum Learning",
+      "authors": [
+        "Bruno P. C. Levy",
+        "Hedibert F. Lopes"
+      ],
+      "year": 2021,
+      "url": "https://arxiv.org/abs/2106.08420",
+      "access": "full PDF opened",
+      "market_and_sample": "Time-series momentum on futures. Dynamic binary classifier over look-backs.",
+      "horizon": "daily, not a same-day option",
+      "rule": {
+        "entry": "A classifier picks the look-back that links past momentum to the next return. Position size is inverse volatility.",
+        "side": "Long if the selected momentum signal is positive, short if negative.",
+        "exit": "Next rebalance.",
+        "filters": "Volatility target.",
+        "parameters": "Annualized volatility target 40%, position 40%/sigma_t, the Moskowitz, Ooi and Pedersen scaling they cite."
+      },
+      "data_needed": [
+        {
+          "item": "separate index-futures tape",
+          "available_to_us": false,
+          "note": "Cash index OHLC only."
+        },
+        {
+          "item": "1-minute index OHLC (5 years)",
+          "available_to_us": true,
+          "note": "Can aggregate to 5-minute or daily."
+        }
+      ],
+      "performance": {
+        "quote": "the constant parameter counterpart of the DMS approach also performed quite well, delivering a 44% Sharpe ratio increase compared to the benchmark. ... willing to pay 425 basis points as annualized management fee to switch from the standard naive time-series momentum strategy.",
+        "location": "Abstract. A later line states 425.1 basis points."
+      },
+      "after_costs": "the 425 bp figure is a fee an investor would pay, not an India option spread",
+      "red_flags": [
+        "daily futures",
+        "not a same-day option",
+        "US and international futures, not Nifty options"
+      ],
+      "topic": "volatility-managed momentum",
+      "status": "new"
+    },
+    {
+      "id": "P27",
+      "rank": null,
+      "codable": true,
+      "title": "Enhancing Time Series Momentum Strategies Using Deep Neural Networks",
+      "authors": [
+        "Bryan Lim",
+        "Stefan Zohren",
+        "Stephen Roberts"
+      ],
+      "year": 2020,
+      "url": "https://arxiv.org/abs/1904.04912",
+      "access": "full PDF opened",
+      "market_and_sample": "88 continuous futures. LSTM trained on the Sharpe of the signal.",
+      "horizon": "daily",
+      "rule": {
+        "entry": "LSTM outputs a time-series-momentum position. Train by optimising the Sharpe of the signal.",
+        "side": "Long or short as the network sizes the trend.",
+        "exit": "Next rebalance.",
+        "filters": "Volatility target.",
+        "parameters": "Annualised volatility target 15%. Ex-ante vol from a 60-day exponential moving standard deviation."
+      },
+      "data_needed": [
+        {
+          "item": "separate index-futures tape",
+          "available_to_us": false,
+          "note": "Cash index OHLC only."
+        }
+      ],
+      "performance": {
+        "quote": "Sharpe-optimised LSTM still beats the benchmarks at transaction costs up to 2-3 basis points.",
+        "location": "Abstract and the transaction-cost discussion."
+      },
+      "after_costs": "yes — tested up to 2-3 bps, which is a futures cost, not an option spread",
+      "red_flags": [
+        "88 futures we do not have",
+        "not intraday",
+        "not Nifty options"
+      ],
+      "topic": "deep momentum",
+      "status": "new"
+    },
+    {
+      "id": "P28",
+      "rank": null,
+      "codable": true,
+      "title": "Slow Momentum with Fast Reversion: A Trading Strategy Using Deep Learning and Changepoint Detection",
+      "authors": [
+        "Kieran Wood",
+        "Stephen Roberts",
+        "Stefan Zohren"
+      ],
+      "year": 2021,
+      "url": "https://arxiv.org/abs/2105.13727",
+      "access": "full PDF opened",
+      "market_and_sample": "Same deep-momentum futures setting as Lim, Zohren and Roberts, plus a changepoint module.",
+      "horizon": "daily",
+      "rule": {
+        "entry": "Deep momentum network with a changepoint detector so the book can cut a trend when it breaks.",
+        "side": "Sized long or short by the network.",
+        "exit": "Next rebalance, with a faster cut at a detected changepoint.",
+        "filters": "Changepoint module on top of the slow momentum book.",
+        "parameters": "Trained on a Sharpe loss. Exact layer sizes were not re-copied."
+      },
+      "data_needed": [
+        {
+          "item": "separate index-futures tape",
+          "available_to_us": false,
+          "note": "Cash index OHLC only."
+        }
+      ],
+      "performance": {
+        "quote": "The module leads to an improvement in Sharpe ratio of one third.",
+        "location": "Abstract. A later results line says an improvement of Sharpe ratio of 33%."
+      },
+      "after_costs": "not restated as an option spread",
+      "red_flags": [
+        "daily futures",
+        "same data limit as the deep-momentum paper",
+        "exact architecture not re-copied"
+      ],
+      "topic": "changepoint momentum",
+      "status": "new"
+    },
+    {
+      "id": "P29",
+      "rank": null,
+      "codable": true,
+      "title": "Trading with the Momentum Transformer: An Intelligent and Interpretable Architecture",
+      "authors": [
+        "Kieran Wood",
+        "Sven Giegerich",
+        "Stephen Roberts",
+        "Stefan Zohren"
+      ],
+      "year": 2022,
+      "url": "https://arxiv.org/abs/2112.08534",
+      "access": "full PDF opened",
+      "market_and_sample": "Attention model on the same time-series-momentum futures family. Tested in successive five-year blocks.",
+      "horizon": "daily",
+      "rule": {
+        "entry": "Attention network sizes a univariate time-series-momentum position. Trained on Sharpe.",
+        "side": "Long or short as the network sizes the trend.",
+        "exit": "Next rebalance.",
+        "filters": "Successive five-year test blocks.",
+        "parameters": "No single position threshold was copied. A programmer still has to take the architecture from the paper."
+      },
+      "data_needed": [
+        {
+          "item": "separate index-futures tape",
+          "available_to_us": false,
+          "note": "Cash index OHLC only."
+        }
+      ],
+      "performance": {
+        "quote": "No single headline Sharpe was copied from the pages scanned.",
+        "location": "Opening and results pages scanned for a headline number; none was transcribed."
+      },
+      "after_costs": "not copied as a single figure",
+      "red_flags": [
+        "daily futures",
+        "headline Sharpe not copied",
+        "not our tape"
+      ],
+      "topic": "momentum transformer",
+      "status": "new"
+    },
+    {
+      "id": "P30",
+      "rank": null,
+      "codable": true,
+      "title": "DeepUnifiedMom: Unified Time-series Momentum Portfolio Construction via Multi-Task Learning with Multi-Gate Mixture of Experts",
+      "authors": [
+        "Joel Ong",
+        "Dorien Herremans"
+      ],
+      "year": 2024,
+      "url": "https://arxiv.org/abs/2406.08742",
+      "access": "full PDF opened (first pages and abstract)",
+      "market_and_sample": "Equity indexes, fixed income, FX and commodities. Multi-horizon time-series momentum.",
+      "horizon": "daily, several horizons at once",
+      "rule": {
+        "entry": "One network builds a momentum book across several look-backs, with a multi-gate mixture of experts. Sharpe is the training loss.",
+        "side": "Long or short per the unified momentum score.",
+        "exit": "Next rebalance.",
+        "filters": "Multi-horizon.",
+        "parameters": "Exact look-back list was not re-copied from the abstract pages."
+      },
+      "data_needed": [
+        {
+          "item": "separate index-futures tape",
+          "available_to_us": false,
+          "note": "Cash index OHLC only."
+        }
+      ],
+      "performance": {
+        "quote": "The abstract says the backtest outperforms benchmarks. No single Sharpe was copied from the pages used.",
+        "location": "Abstract."
+      },
+      "after_costs": "not copied as a number on the pages used",
+      "red_flags": [
+        "daily multi-asset futures",
+        "not Nifty options",
+        "Sharpe not copied"
+      ],
+      "topic": "multi-horizon momentum",
+      "status": "new"
+    },
+    {
+      "id": "P31",
+      "rank": null,
+      "codable": true,
+      "title": "Constructing Time-Series Momentum Portfolios with Deep Multi-Task Learning",
+      "authors": [
+        "Joel Ong",
+        "Dorien Herremans"
+      ],
+      "year": 2023,
+      "url": "https://arxiv.org/abs/2306.13661",
+      "access": "full PDF opened",
+      "market_and_sample": "Continuous futures, out-of-sample January 2000 to December 2020. Volatility scaled to 10%.",
+      "horizon": "daily",
+      "rule": {
+        "entry": "Multi-task network jointly learns the momentum portfolio and auxiliary volatility forecasts.",
+        "side": "Long or short the time-series-momentum position.",
+        "exit": "Next rebalance.",
+        "filters": "Transaction cost of 3 bps in the reported net metrics. Vol target 10%.",
+        "parameters": "Expanding window. Early stopping. Code link in the paper: https://github.com/joelowj/mtl-tsmom"
+      },
+      "data_needed": [
+        {
+          "item": "separate index-futures tape",
+          "available_to_us": false,
+          "note": "Cash index OHLC only."
+        }
+      ],
+      "performance": {
+        "quote": "even after accounting for transaction costs of up to 3 basis points, our approach outperforms existing TSMOM strategies. Table 2: MTL-TSMOM outperforms both TSMOM and CTA-MOM by 236 bps and 624 bps, respectively, over the 20 year test period. Conclusion: out-of-sample annualized return of 7.90% for 1 January 2000 to 31 December 2020.",
+        "location": "Abstract, Table 2 discussion, and section 6."
+      },
+      "after_costs": "yes — 3 bps futures costs, not an option spread",
+      "red_flags": [
+        "futures cross-section",
+        "daily",
+        "not a same-day Nifty option"
+      ],
+      "topic": "multi-task momentum",
+      "status": "new"
+    },
+    {
+      "id": "P32",
+      "rank": null,
+      "codable": true,
+      "title": "Network Momentum across Asset Classes",
+      "authors": [
+        "Xingyue (Stacy) Pu",
+        "Stephen Roberts",
+        "Xiaowen Dong",
+        "Stefan Zohren"
+      ],
+      "year": 2023,
+      "url": "https://arxiv.org/abs/2308.11294",
+      "access": "full PDF opened (first pages)",
+      "market_and_sample": "Momentum spillover across commodities, equities, bonds and currencies.",
+      "horizon": "daily trend",
+      "rule": {
+        "entry": "Add a network lead-lag signal to a univariate trend.",
+        "side": "Follow the combined trend.",
+        "exit": "Next rebalance.",
+        "filters": "Cross-asset graph.",
+        "parameters": "No single threshold was copied."
+      },
+      "data_needed": [
+        {
+          "item": "separate index-futures tape",
+          "available_to_us": false,
+          "note": "Cash index OHLC only."
+        }
+      ],
+      "performance": {
+        "quote": "No single P&L number was copied from the pages scanned.",
+        "location": "Abstract and opening pages."
+      },
+      "after_costs": "not copied",
+      "red_flags": [
+        "cross-asset futures we do not have",
+        "P&L not copied"
+      ],
+      "topic": "lead-lag network momentum",
+      "status": "new"
+    },
+    {
+      "id": "P33",
+      "rank": null,
+      "codable": true,
+      "title": "Follow the Leader: Enhancing Systematic Trend-Following Using Network Momentum",
+      "authors": [
+        "Linze Li",
+        "William Ferreira"
+      ],
+      "year": 2025,
+      "url": "https://arxiv.org/abs/2501.07135",
+      "access": "full PDF opened (first pages)",
+      "market_and_sample": "Commodity futures. Out of sample January 2005 to June 2024.",
+      "horizon": "daily trend",
+      "rule": {
+        "entry": "Combine a univariate trend with a network lead-lag momentum. Two lead-lag detectors plus a network-momentum score.",
+        "side": "Follow the combined trend.",
+        "exit": "Next rebalance.",
+        "filters": "They select the mix on out-of-sample net Sharpe.",
+        "parameters": "Exact Sharpe and the numeric weights were not copied."
+      },
+      "data_needed": [
+        {
+          "item": "separate index-futures tape",
+          "available_to_us": false,
+          "note": "Cash index OHLC only."
+        }
+      ],
+      "performance": {
+        "quote": "Exact Sharpe was not copied from the metric list on the pages scanned.",
+        "location": "Abstract and opening results pages."
+      },
+      "after_costs": "they discuss net Sharpe; the number was not copied",
+      "red_flags": [
+        "commodity futures",
+        "Sharpe not copied",
+        "selection on out-of-sample Sharpe is a snooping risk"
+      ],
+      "topic": "network trend following",
+      "status": "new"
+    },
+    {
+      "id": "P34",
+      "rank": null,
+      "codable": true,
+      "title": "Optimizing Returns Using the Hurst Exponent and Q Learning on Momentum and Mean Reversion Strategies",
+      "authors": [
+        "Yejun (Andrew) Chang",
+        "Christian Lizardi",
+        "Rohan Shah"
+      ],
+      "year": 2022,
+      "url": "https://arxiv.org/abs/2205.11122",
+      "access": "full PDF opened",
+      "market_and_sample": "Single-name equities. Hurst exponent switches momentum versus mean reversion. Q-learning is proposed as a later step.",
+      "horizon": "not an intraday option",
+      "rule": {
+        "entry": "If the Hurst exponent says the series is trending, trade momentum. If it says mean-reverting, trade mean reversion.",
+        "side": "With the trend, or against it, depending on the Hurst regime.",
+        "exit": "Not copied as a clock time.",
+        "filters": "Hurst regime switch.",
+        "parameters": "The numeric Hurst cutoff used in the tables was not re-copied. Do not invent it."
+      },
+      "data_needed": [
+        {
+          "item": "stock cross-section",
+          "available_to_us": false,
+          "note": "Index tape only."
+        }
+      ],
+      "performance": {
+        "quote": "They report that Sharpes on single names were low and unstable. No numeric Sharpe was safe to copy.",
+        "location": "Results discussion."
+      },
+      "after_costs": "not copied",
+      "red_flags": [
+        "cutoff not re-copied",
+        "stock names",
+        "Sharpes described as low and unstable"
+      ],
+      "topic": "Hurst regime switch",
+      "status": "new"
+    },
+    {
+      "id": "P35",
+      "rank": null,
+      "codable": true,
+      "title": "Time series momentum and contrarian effects in the Chinese stock market",
+      "authors": [
+        "Huai-Long Shi",
+        "Wei-Xing Zhou"
+      ],
+      "year": 2017,
+      "url": "https://arxiv.org/abs/1702.07374",
+      "access": "full PDF opened",
+      "market_and_sample": "Chinese indices including SHCI, SZCI and CSI 300. J and K in {1, 3, 6, 9, 12, 24, 36, 48, 60} months. 81 strategies.",
+      "horizon": "monthly formation and hold",
+      "rule": {
+        "entry": "Sign of the past J-month index return. Hold K months.",
+        "side": "Long if the past J-month return is positive, short if negative (time-series momentum). Long windows lean contrarian.",
+        "exit": "After K months.",
+        "filters": "Newey-West t-statistics.",
+        "parameters": "J, K grid as above. Significant momentum is concentrated when J, K < 12. Contrarian counts rise especially when J, K >= 24."
+      },
+      "data_needed": [
+        {
+          "item": "1-minute index OHLC (5 years)",
+          "available_to_us": true,
+          "note": "Can aggregate to 5-minute or daily."
+        }
+      ],
+      "performance": {
+        "quote": "there is a time series momentum effect in the short run and a contrarian effect in the long run in the Chinese stock market.",
+        "location": "Abstract. Body: significant TSMOM especially when J, K < 12; more significant contrarian strategies especially when J, K >= 24."
+      },
+      "after_costs": "not in the lines read",
+      "red_flags": [
+        "China cash indices",
+        "monthly, not a same-day option",
+        "costs not in the lines read"
+      ],
+      "topic": "time-series momentum and reversal",
+      "status": "new"
+    },
+    {
+      "id": "P36",
+      "rank": null,
+      "codable": true,
+      "title": "Physical approach to price momentum and its application to momentum strategy",
+      "authors": [
+        "Jaehyung Choi"
+      ],
+      "year": 2014,
+      "url": "https://arxiv.org/abs/1208.2775",
+      "access": "full PDF opened (first pages and abstract)",
+      "market_and_sample": "Weekly contrarian portfolios on KOSPI 200 and S&P 500 names.",
+      "horizon": "weekly",
+      "rule": {
+        "entry": "Rank names by a price-velocity (physical momentum) measure. Trade the weekly contrarian book.",
+        "side": "Contrarian: long the low physical-momentum names, short the high ones.",
+        "exit": "Next week.",
+        "filters": "KOSPI 200 or S&P 500 universe.",
+        "parameters": "The exact velocity formula is in the paper; the numeric cutoff was not re-copied."
+      },
+      "data_needed": [
+        {
+          "item": "stock cross-section",
+          "available_to_us": false,
+          "note": "Index tape only."
+        }
+      ],
+      "performance": {
+        "quote": "The alternative strategies constructed by the physical momentum achieve the better expected returns and reward–risk measures than those of the traditional contrarian strategy in weekly scale.",
+        "location": "Abstract. No single Sharpe was copied."
+      },
+      "after_costs": "not copied",
+      "red_flags": [
+        "stock cross-section",
+        "weekly, not intraday",
+        "Sharpe not copied"
+      ],
+      "topic": "weekly contrarian",
+      "status": "new"
+    },
+    {
+      "id": "P37",
+      "rank": null,
+      "codable": true,
+      "title": "Momentum universe shrinkage effect in price momentum",
+      "authors": [
+        "Jaehyung Choi",
+        "Sungsoo Choi",
+        "Wonseok Kang"
+      ],
+      "year": 2012,
+      "url": "https://arxiv.org/abs/1211.6517",
+      "access": "full PDF opened (first pages)",
+      "market_and_sample": "KOSPI 200 momentum, shrunk to sub-universes including large names (KOSPI 50).",
+      "horizon": "standard momentum holding period, not intraday",
+      "rule": {
+        "entry": "Run the usual price-momentum book inside a smaller KOSPI universe.",
+        "side": "Long winners, short losers.",
+        "exit": "Next formation period.",
+        "filters": "Drop or isolate the largest names.",
+        "parameters": "No P&L number was copied, so no cutoff is invented here."
+      },
+      "data_needed": [
+        {
+          "item": "stock cross-section",
+          "available_to_us": false,
+          "note": "Index tape only."
+        }
+      ],
+      "performance": {
+        "quote": "large-size companies such as the KOSPI 50 components hinder the performance of the momentum strategy.",
+        "location": "Abstract. No P&L number copied."
+      },
+      "after_costs": "not copied",
+      "red_flags": [
+        "Korea stocks",
+        "not intraday",
+        "P&L not copied"
+      ],
+      "topic": "momentum universe",
+      "status": "new"
+    },
+    {
+      "id": "P38",
+      "rank": null,
+      "codable": false,
+      "title": "Information ratio analysis of momentum strategies",
+      "authors": [
+        "Fernando F. Ferreira",
+        "A. Christian Silva",
+        "Ju-Yi Yen"
+      ],
+      "year": 2014,
+      "url": "https://arxiv.org/abs/1402.3030",
+      "access": "full PDF opened (first pages)",
+      "market_and_sample": "Theoretical information ratio of a momentum book, applied to 100-plus years of the Dow.",
+      "horizon": "look-back diagnostic",
+      "rule": {
+        "entry": "Diagnostic: short look-backs load on autocorrelation; a look-back near one year loads on drift. Not an option entry.",
+        "side": "none",
+        "exit": "none",
+        "filters": "none",
+        "parameters": "none"
+      },
+      "data_needed": [
+        {
+          "item": "1-minute index OHLC (5 years)",
+          "available_to_us": true,
+          "note": "Can aggregate to 5-minute or daily."
+        }
+      ],
+      "performance": {
+        "quote": "No trading P&L was copied.",
+        "location": "Abstract and opening pages."
+      },
+      "after_costs": "not a trading P&L",
+      "red_flags": [
+        "diagnostic, not a trade"
+      ],
+      "topic": "momentum look-back diagnostic",
+      "status": "new"
+    },
+    {
+      "id": "P39",
+      "rank": null,
+      "codable": true,
+      "title": "Reward-risk momentum strategies using classical tempered stable distribution",
+      "authors": [
+        "Jaehyung Choi",
+        "Young Shin Kim",
+        "Ivan Mitov"
+      ],
+      "year": 2015,
+      "url": "https://arxiv.org/abs/1403.6093",
+      "access": "full PDF opened (first pages and abstract)",
+      "market_and_sample": "Momentum ranked by reward-risk under a classical tempered stable distribution, several markets.",
+      "horizon": "monthly ranking",
+      "rule": {
+        "entry": "Rank by a reward-risk measure instead of raw return. Prefer the lower-volatility versions.",
+        "side": "Long the high reward-risk names, short the low ones.",
+        "exit": "Next month.",
+        "filters": "Tempered-stable reward-risk, lower vol.",
+        "parameters": "No single Sharpe or cutoff was copied."
+      },
+      "data_needed": [
+        {
+          "item": "stock cross-section",
+          "available_to_us": false,
+          "note": "Index tape only."
+        }
+      ],
+      "performance": {
+        "quote": "The reward-risk momentum strategies with lower volatility levels outperform the traditional momentum strategy regardless of asset class and market.",
+        "location": "Abstract. No one Sharpe copied. Factor-neutral returns are called significant in the body; the t-stat was not copied."
+      },
+      "after_costs": "not copied",
+      "red_flags": [
+        "monthly stock ranking",
+        "not our tape",
+        "Sharpe not copied"
+      ],
+      "topic": "reward-risk momentum",
+      "status": "new"
+    },
+    {
+      "id": "P40",
+      "rank": null,
+      "codable": false,
+      "title": "Overreaction as an indicator for momentum in algorithmic trading: A Case of AAPL stocks",
+      "authors": [
+        "Szymon Lis",
+        "Robert Ślepaczuk",
+        "Pawel Sakowski"
+      ],
+      "year": 2026,
+      "url": "https://arxiv.org/abs/2602.18912",
+      "access": "full PDF opened (first pages)",
+      "market_and_sample": "AAPL intraday, volatility-normalized returns plus transformer emotion features from tweets.",
+      "horizon": "intraday overreaction",
+      "rule": {
+        "entry": "An overreaction is an extreme intraday return relative to volatility and costs, then used as a momentum signal. The numeric threshold was not copied.",
+        "side": "Momentum after the predicted overreaction class. Three-class model.",
+        "exit": "Not copied.",
+        "filters": "Needs tweet emotion features.",
+        "parameters": "Do not invent the extreme-return cutoff."
+      },
+      "data_needed": [
+        {
+          "item": "tick / NBBO event time",
+          "available_to_us": false,
+          "note": ""
+        },
+        {
+          "item": "news or social text",
+          "available_to_us": false,
+          "note": ""
+        }
+      ],
+      "performance": {
+        "quote": "They say Sharpe and Sortino stay significant after costs. The numeric Sharpe was not in the sentences scanned.",
+        "location": "Abstract and opening pages."
+      },
+      "after_costs": "they say yes; the number was not copied",
+      "red_flags": [
+        "needs tweets",
+        "one US stock",
+        "threshold not copied"
+      ],
+      "topic": "tweet overreaction",
+      "status": "new"
+    },
+    {
+      "id": "P41",
+      "rank": null,
+      "codable": false,
+      "title": "Push-response anomalies in high-frequency S&P 500 price series",
+      "authors": [
+        "Dmitrii Vlasiuk",
+        "Mikhail Smirnov"
+      ],
+      "year": 2025,
+      "url": "https://arxiv.org/abs/2511.06177",
+      "access": "full PDF opened (first 18 pages used for the quote)",
+      "market_and_sample": "SPY NBBO event time, about 1,500 regular trading days.",
+      "horizon": "lags of 1 to 5,000 ticks, and longer",
+      "rule": {
+        "entry": "For each lag, pair a backward price increment (push) with the forward increment (response). This is a measurement, not a CE/PE entry.",
+        "side": "none",
+        "exit": "none",
+        "filters": "none",
+        "parameters": "Lags 1 to 5,000 ticks."
+      },
+      "data_needed": [
+        {
+          "item": "tick / NBBO event time",
+          "available_to_us": false,
+          "note": ""
+        }
+      ],
+      "performance": {
+        "quote": "for short lags (1-5,000 ticks), expected responses cluster near zero across most push magnitudes",
+        "location": "Abstract. No Sharpe in the first 18 pages."
+      },
+      "after_costs": "not a trading P&L",
+      "red_flags": [
+        "needs NBBO",
+        "no option rule",
+        "short-lag response near zero"
+      ],
+      "topic": "high-frequency push-response",
+      "status": "new"
+    },
+    {
+      "id": "P42",
+      "rank": null,
+      "codable": false,
+      "title": "Improving S&P 500 Volatility Forecasting through Regime-Switching Methods",
+      "authors": [
+        "Ava C. Blake",
+        "Nivika A. Gandhi",
+        "Anurag R. Jakkula"
+      ],
+      "year": 2025,
+      "url": "https://arxiv.org/abs/2510.03236",
+      "access": "full PDF opened (first pages)",
+      "market_and_sample": "SPX 5-minute realized volatility, 1 May 2014 to 27 May 2025. XGBoost on regime means for the next day.",
+      "horizon": "next-day vol forecast",
+      "rule": {
+        "entry": "Forecast next-day realized volatility. Not a position.",
+        "side": "none",
+        "exit": "none",
+        "filters": "Regime-switching features.",
+        "parameters": "Daily RV from 5-minute log returns."
+      },
+      "data_needed": [
+        {
+          "item": "1-minute index OHLC (5 years)",
+          "available_to_us": true,
+          "note": "Can aggregate to 5-minute or daily."
+        }
+      ],
+      "performance": {
+        "quote": "No error number was copied from the pages scanned.",
+        "location": "Abstract and opening pages."
+      },
+      "after_costs": "not a trading P&L",
+      "red_flags": [
+        "forecast only",
+        "US index",
+        "could feed a VRP filter only after the error is checked"
+      ],
+      "topic": "realized-vol forecast",
+      "status": "new"
+    },
+    {
+      "id": "P43",
+      "rank": null,
+      "codable": false,
+      "title": "Rise of the Machines? Intraday High-Frequency Trading Patterns of Cryptocurrencies",
+      "authors": [
+        "Alla A. Petukhina",
+        "Raphael C. G. Reule",
+        "Wolfgang Karl Härdle"
+      ],
+      "year": 2020,
+      "url": "https://arxiv.org/abs/2009.04200",
+      "access": "full PDF opened (first pages)",
+      "market_and_sample": "European crypto venues. Intraday return, volume and volatility patterns.",
+      "horizon": "time-of-day description",
+      "rule": {
+        "entry": "Descriptive. No equity-index entry.",
+        "side": "none",
+        "exit": "none",
+        "filters": "none",
+        "parameters": "none"
+      },
+      "data_needed": [
+        {
+          "item": "1-minute index OHLC (5 years)",
+          "available_to_us": true,
+          "note": "Can aggregate to 5-minute or daily."
+        }
+      ],
+      "performance": {
+        "quote": "No strategy P&L was copied.",
+        "location": "Abstract."
+      },
+      "after_costs": "not a trading P&L",
+      "red_flags": [
+        "crypto",
+        "descriptive"
+      ],
+      "topic": "crypto intraday pattern",
+      "status": "new"
+    },
+    {
+      "id": "P44",
+      "rank": null,
+      "codable": false,
+      "title": "Black Magic Investigation Made Simple: Monte Carlo Simulations and Historical Back Testing of Momentum Cross-Over Strategies Using FRACTI Patterns",
+      "authors": [
+        "Jorge M. Faleiro Jr",
+        "Edward P. K. Tsang"
+      ],
+      "year": 2016,
+      "url": "https://arxiv.org/abs/1808.07949",
+      "access": "full PDF opened (first pages)",
+      "market_and_sample": "Methods paper on reproducible momentum-crossover backtests. Working paper WP078-16, University of Essex.",
+      "horizon": "method",
+      "rule": {
+        "entry": "No strategy P&L and no fixed crossover parameters were copied.",
+        "side": "none",
+        "exit": "none",
+        "filters": "none",
+        "parameters": "none"
+      },
+      "data_needed": [
+        {
+          "item": "1-minute index OHLC (5 years)",
+          "available_to_us": true,
+          "note": "Can aggregate to 5-minute or daily."
+        }
+      ],
+      "performance": {
+        "quote": "No strategy P&L was copied.",
+        "location": "Opening pages."
+      },
+      "after_costs": "not a trading P&L",
+      "red_flags": [
+        "methods paper"
+      ],
+      "topic": "backtest method",
+      "status": "new"
+    },
+    {
+      "id": "P45",
+      "rank": null,
+      "codable": false,
+      "title": "Artificial Intelligence Approach to Momentum Risk-Taking",
+      "authors": [
+        "Ivan Cherednik"
+      ],
+      "year": 2020,
+      "url": "https://arxiv.org/abs/1911.08448",
+      "access": "full PDF opened (first pages)",
+      "market_and_sample": "Algebraic news-impact model and an automated equity momentum book.",
+      "horizon": "short-term volatility, parameters not copied",
+      "rule": {
+        "entry": "No parameter block was copied from the pages scanned.",
+        "side": "not copied",
+        "exit": "not copied",
+        "filters": "not copied",
+        "parameters": "not copied"
+      },
+      "data_needed": [
+        {
+          "item": "news or social text",
+          "available_to_us": false,
+          "note": ""
+        },
+        {
+          "item": "stock cross-section",
+          "available_to_us": false,
+          "note": "Index tape only."
+        }
+      ],
+      "performance": {
+        "quote": "No P&L number was copied from the pages scanned.",
+        "location": "Abstract and opening pages."
+      },
+      "after_costs": "not copied",
+      "red_flags": [
+        "parameters not copied",
+        "do not invent the rule"
+      ],
+      "topic": "momentum risk-taking, incomplete",
+      "status": "new"
+    },
+    {
+      "id": "P46",
+      "rank": null,
+      "codable": false,
+      "title": "Application of Deep Reinforcement Learning to At-the-Money S&P 500 Options Hedging",
+      "authors": [
+        "Zofia Bracha",
+        "Paweł Sakowski",
+        "Jakub Michańków"
+      ],
+      "year": 2025,
+      "url": "https://arxiv.org/abs/2510.09247",
+      "access": "full PDF opened (first pages)",
+      "market_and_sample": "ATM S&P 500 call hedges, 2004-2024 intraday. TD3 agent. Six predictors.",
+      "horizon": "hedge rebalance, not a directional buy",
+      "rule": {
+        "entry": "Hedge an existing ATM call. Do not open a directional long.",
+        "side": "hedge",
+        "exit": "hedge horizon of the option",
+        "filters": "none for a buy",
+        "parameters": "TD3."
+      },
+      "data_needed": [
+        {
+          "item": "60-second chain LTP, volume, OI for 13-15 strikes (3 years)",
+          "available_to_us": true,
+          "note": "Near strikes only; not a full chain."
+        },
+        {
+          "item": "1-minute index OHLC (5 years)",
+          "available_to_us": true,
+          "note": "Can aggregate to 5-minute or daily."
+        }
+      ],
+      "performance": {
+        "quote": "No directional-buy P&L was copied.",
+        "location": "Abstract."
+      },
+      "after_costs": "hedge study",
+      "red_flags": [
+        "hedge, not a buy",
+        "US SPX options"
+      ],
+      "topic": "option hedging",
+      "status": "new"
+    },
+    {
+      "id": "P47",
+      "rank": null,
+      "codable": false,
+      "title": "Deep Hedging with Reinforcement Learning: A Practical Framework for Option Risk Management",
+      "authors": [
+        "Travon Lucius",
+        "Christian (Chip) Koch Jr",
+        "Jacob Starling",
+        "Julia Zhu",
+        "Miguel Urena",
+        "Carrie Hu"
+      ],
+      "year": 2025,
+      "url": "https://arxiv.org/abs/2512.12420",
+      "access": "full PDF opened (first page)",
+      "market_and_sample": "Hedge one unit of option-implied SPY delta. Option surface and macro variables are state, not a pricing engine.",
+      "horizon": "hedge",
+      "rule": {
+        "entry": "Trade SPY to offset delta. Not a long call or put entry.",
+        "side": "hedge",
+        "exit": "continuous hedge",
+        "filters": "transaction costs and position limits",
+        "parameters": "normalized one unit of underlying delta"
+      },
+      "data_needed": [
+        {
+          "item": "full option surface with deltas",
+          "available_to_us": false,
+          "note": "13-15 strikes, LTP/volume/OI only."
+        },
+        {
+          "item": "1-minute index OHLC (5 years)",
+          "available_to_us": true,
+          "note": "Can aggregate to 5-minute or daily."
+        }
+      ],
+      "performance": {
+        "quote": "No directional-buy P&L was copied from the first page.",
+        "location": "Abstract."
+      },
+      "after_costs": "hedge study, costs mentioned, no buy P&L copied",
+      "red_flags": [
+        "hedge, not a buy"
+      ],
+      "topic": "option hedging",
+      "status": "new"
+    },
+    {
+      "id": "P48",
+      "rank": null,
+      "codable": false,
+      "title": "Mining Intraday Risk Factors via Hierarchical Reinforcement Learning with Transferred Options",
+      "authors": [
+        "Wenyan Xu",
+        "Jiayu Chen",
+        "Dawei Xiang",
+        "Chen Li",
+        "Yonghong Hu",
+        "Zhonghua Lu"
+      ],
+      "year": 2025,
+      "url": "https://arxiv.org/abs/2501.07274",
+      "access": "full PDF opened (first page)",
+      "market_and_sample": "Search over intraday risk-factor formulas.",
+      "horizon": "search, not a fixed rule",
+      "rule": {
+        "entry": "The method searches formulas. No fixed entry was copied from the abstract.",
+        "side": "none",
+        "exit": "none",
+        "filters": "none",
+        "parameters": "none"
+      },
+      "data_needed": [
+        {
+          "item": "1-minute index OHLC (5 years)",
+          "available_to_us": true,
+          "note": "Can aggregate to 5-minute or daily."
+        }
+      ],
+      "performance": {
+        "quote": "No fixed-rule P&L was copied.",
+        "location": "First page."
+      },
+      "after_costs": "not a fixed rule",
+      "red_flags": [
+        "formula search, not a rule a programmer can code from the abstract"
+      ],
+      "topic": "factor mining",
+      "status": "new"
+    },
+    {
+      "id": "P49",
+      "rank": null,
+      "codable": false,
+      "title": "SpotV2Net: Multivariate Intraday Spot Volatility Forecasting via Vol-of-Vol-Informed Graph Attention Networks",
+      "authors": [
+        "Alessio Brini",
+        "Giacomo Toscano"
+      ],
+      "year": 2025,
+      "url": "https://arxiv.org/abs/2401.06249",
+      "access": "full PDF opened (first pages)",
+      "market_and_sample": "Multivariate intraday spot-volatility forecast. Assets are graph nodes. Fourier vol-of-vol features.",
+      "horizon": "intraday vol forecast",
+      "rule": {
+        "entry": "Forecast spot volatility. Not a buy.",
+        "side": "none",
+        "exit": "none",
+        "filters": "none",
+        "parameters": "none"
+      },
+      "data_needed": [
+        {
+          "item": "1-minute index OHLC (5 years)",
+          "available_to_us": true,
+          "note": "Can aggregate to 5-minute or daily."
+        }
+      ],
+      "performance": {
+        "quote": "No buy-side P&L was copied from the pages scanned.",
+        "location": "Abstract."
+      },
+      "after_costs": "not a trading P&L",
+      "red_flags": [
+        "forecast only"
+      ],
+      "topic": "spot volatility forecast",
+      "status": "new"
+    },
+    {
+      "id": "P50",
+      "rank": null,
+      "codable": true,
+      "title": "Sequential Structure in Intraday Futures Data: LSTM vs Gradient Boosting on MNQ",
+      "authors": [
+        "Mathias Mesfin"
+      ],
+      "year": 2026,
+      "url": "https://arxiv.org/abs/2605.17724",
+      "access": "full PDF opened",
+      "market_and_sample": "Micro E-mini Nasdaq-100, 944 days, 5-minute bars. Tests in 2023, 2024 and 2025.",
+      "horizon": "from the 10:30 bar to the session close",
+      "rule": {
+        "entry": "Predict whether the session close is more than 10 points above the 10:30 bar's open.",
+        "side": "Long if the model says yes. Every reported model fails, so do not trade the signal.",
+        "exit": "Session close.",
+        "filters": "Walk-forward. Permutation test on shuffled labels.",
+        "parameters": "Features include overnight gap, first-bar return, ATR ratio and a 12-bar return sequence. Threshold: close > 10:30 open + 10 points."
+      },
+      "data_needed": [
+        {
+          "item": "1-minute index OHLC (5 years)",
+          "available_to_us": true,
+          "note": "Can aggregate to 5-minute or daily."
+        },
+        {
+          "item": "separate index-futures tape",
+          "available_to_us": false,
+          "note": "Cash index OHLC only."
+        }
+      ],
+      "performance": {
+        "quote": "The intraday long target has a 51.80% base rate. Combined out-of-sample accuracies range from 50.00% to 50.89% across all gradient boosting variants. The LSTM produces combined OOS accuracy of 50.59%. Figure 2: p-values of 0.135, 0.390, and 0.515 respectively (GB-Intraday, GB-VolAdj, and LSTM). All FAIL.",
+        "location": "Table 1 base rate 51.80%. Abstract for the accuracy range. Figure 2 caption for the three p-values. Table 10 for the LSTM combined accuracy."
+      },
+      "after_costs": "accuracy test, not a costed P&L",
+      "red_flags": [
+        "negative result",
+        "US futures",
+        "single-author 2026 manuscript",
+        "accuracy at or below a useful edge over the base rate"
+      ],
+      "topic": "intraday ML, negative",
+      "status": "new"
+    },
+    {
+      "id": "P51",
+      "rank": null,
+      "codable": true,
+      "title": "Commonality in the Volatility Risk Premium",
+      "authors": [
+        "Prasenjit Chakrabarti",
+        "K. Kiran Kumar"
+      ],
+      "year": 2017,
+      "url": "https://ifrogs.org/PDF/CONF_2017/Chakrabarti_Kumar_2017.pdf",
+      "access": "full PDF opened",
+      "market_and_sample": "44 liquid Nifty stocks. Market VRP is closing India VIX minus forecast Nifty realized volatility (scaled two-scale realized volatility). Stock implied vol from best bid and ask.",
+      "horizon": "daily commonality regression, not a same-day option buy",
+      "rule": {
+        "entry": "Regress stock variance-risk premia on the market variance-risk premium, the market volatility level, and the change in market volatility.",
+        "side": "No directional buy.",
+        "exit": "none",
+        "filters": "Newey-West.",
+        "parameters": "Table 3, model 3 is the specification quoted."
+      },
+      "data_needed": [
+        {
+          "item": "India VIX daily",
+          "available_to_us": true,
+          "note": ""
+        },
+        {
+          "item": "1-minute index OHLC (5 years)",
+          "available_to_us": true,
+          "note": "Can aggregate to 5-minute or daily."
+        },
+        {
+          "item": "stock cross-section",
+          "available_to_us": false,
+          "note": "Index tape only."
+        },
+        {
+          "item": "bid/ask depth",
+          "available_to_us": false,
+          "note": "Only from Monday, not a history."
+        }
+      ],
+      "performance": {
+        "quote": "Table 3, model 3: contemporaneous market VRP coefficient 0.491 (t = 10.51); market volatility level -0.958 (t = -9.42); change in market volatility 0.323 (t = 5.16).",
+        "location": "Table 3, model 3. Newey-West t-statistics."
+      },
+      "after_costs": "not a trading P&L",
+      "red_flags": [
+        "needs stock-option bid and ask",
+        "not a buy",
+        "single-stock options, not our 13-15 index strikes"
+      ],
+      "topic": "VRP commonality, India",
+      "status": "new"
+    }
+  ],
+  "already_tested": [
+    {
+      "id": "T01",
+      "title": "Market intraday momentum",
+      "authors": [
+        "Lei Gao",
+        "Yufeng Han",
+        "Sophia Zhengzi Li",
+        "Guofu Zhou"
+      ],
+      "year": 2018,
+      "url": "https://storage.courtlistener.com/recap/gov.uscourts.nysd.590344/gov.uscourts.nysd.590344.161.2.pdf",
+      "access": "journal PDF opened",
+      "market_and_sample": "SPY, 1 February 1993 to 31 December 2013. Journal of Financial Economics 2018.",
+      "horizon": "last half-hour",
+      "rule": {
+        "entry": "First half-hour return, measured from the prior close, predicts the last half-hour. A second predictor is the twelfth half-hour.",
+        "side": "Sign timing: long the last half-hour if the predictor is positive.",
+        "exit": "End of the last half-hour.",
+        "filters": "Already tested. Do not re-list as new.",
+        "parameters": "Risk aversion five in the certainty-equivalent exercise."
+      },
+      "data_needed": [
+        {
+          "item": "1-minute index OHLC (5 years)",
+          "available_to_us": true,
+          "note": "Can aggregate to 5-minute or daily."
+        }
+      ],
+      "performance": {
+        "quote": "Table 1: slope 6.94 (scaled by 100), R^2 1.6%. Joint with the twelfth half-hour, R^2 2.6%. Out-of-sample R^2 1.4% and 2.0%. Certainty-equivalent gains 6.02% and 6.18% a year at risk aversion five. Sign timing: average return 6.67%, standard deviation 6.19%, Sharpe 1.08, versus buy-and-hold Sharpe 0.29 (average return 6.04%, standard deviation 20.57%).",
+        "location": "Table 1 and the trading section of the opened PDF."
+      },
+      "after_costs": "they say the edge survives reasonable costs",
+      "red_flags": [
+        "already tested",
+        "US ETF"
+      ],
+      "topic": "already tested: last-half-hour momentum",
+      "status": "already_tested",
+      "codable": false,
+      "rank": null
+    },
+    {
+      "id": "T02",
+      "title": "Hedging demand and market intraday momentum",
+      "authors": [
+        "Guido Baltussen",
+        "Zhi Da",
+        "Sten Lammers",
+        "Martin Martens"
+      ],
+      "year": 2021,
+      "url": "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=3760365",
+      "access": "abstract only. SSRN PDF was blocked. Abstract text is from search, not a downloaded PDF.",
+      "market_and_sample": "More than 60 futures: equities, bonds, commodities and FX, 1974-2020. Journal of Financial Economics 2021.",
+      "horizon": "last 30 minutes",
+      "rule": {
+        "entry": "Last 30 minutes are positively predicted by the return from the prior close until that window. They tie it to gamma hedging.",
+        "side": "With the earlier session return.",
+        "exit": "End of the last 30 minutes.",
+        "filters": "Already tested. Do not re-list.",
+        "parameters": "No table parameter was on the abstract."
+      },
+      "data_needed": [
+        {
+          "item": "1-minute index OHLC (5 years)",
+          "available_to_us": true,
+          "note": "Can aggregate to 5-minute or daily."
+        },
+        {
+          "item": "separate index-futures tape",
+          "available_to_us": false,
+          "note": "Cash index OHLC only."
+        },
+        {
+          "item": "dealer gamma inventory",
+          "available_to_us": false,
+          "note": "OI is not a signed dealer book."
+        }
+      ],
+      "performance": {
+        "quote": "No table number was on the abstract.",
+        "location": "SSRN abstract only."
+      },
+      "after_costs": "not on the abstract",
+      "red_flags": [
+        "abstract only",
+        "already tested"
+      ],
+      "topic": "already tested: intraday momentum",
+      "status": "already_tested",
+      "codable": false,
+      "rank": null
+    },
+    {
+      "id": "T03",
+      "title": "Intraday time series momentum: Global evidence and determinants",
+      "authors": [
+        "Zeming Li",
+        "Athanasios Sakkas",
+        "Andrew Urquhart"
+      ],
+      "year": 2022,
+      "url": "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=3460965",
+      "access": "abstract only. SSRN PDF was blocked.",
+      "market_and_sample": "16 developed markets. Journal of Financial Markets 2022.",
+      "horizon": "intraday",
+      "rule": {
+        "entry": "Intraday time-series momentum. Stronger when liquidity is low, volatility is high, and information is discrete.",
+        "side": "With the intraday trend.",
+        "exit": "Not specified beyond the abstract.",
+        "filters": "Already tested. Do not re-list.",
+        "parameters": "No Sharpe and no parameter block on the abstract."
+      },
+      "data_needed": [
+        {
+          "item": "1-minute index OHLC (5 years)",
+          "available_to_us": true,
+          "note": "Can aggregate to 5-minute or daily."
+        }
+      ],
+      "performance": {
+        "quote": "Economically sizable in and out of sample in most countries. No Sharpe on the abstract.",
+        "location": "SSRN abstract only."
+      },
+      "after_costs": "not on the abstract",
+      "red_flags": [
+        "abstract only",
+        "already tested"
+      ],
+      "topic": "already tested: intraday momentum",
+      "status": "already_tested",
+      "codable": false,
+      "rank": null
+    },
+    {
+      "id": "T04",
+      "title": "Beat the Market: An Effective Intraday Momentum Strategy for S&P500 ETF (SPY)",
+      "authors": [
+        "Carlo Zarattini",
+        "Andrew Aziz",
+        "Andrea Barbon"
+      ],
+      "year": 2024,
+      "url": "https://alexandria.unisg.ch/bitstreams/a99aba00-f967-49b3-aceb-f544dc386e0b/download",
+      "access": "working-paper PDF opened. SSRN 4824172.",
+      "market_and_sample": "SPY, 2007 to early 2024.",
+      "horizon": "intraday, flat at the close",
+      "rule": {
+        "entry": "Noise area = average same-minute move over the prior 14 days, widened for the overnight gap. Trade only at HH:00 and HH:30.",
+        "side": "Long above the upper band, short below the lower band.",
+        "exit": "Flat at the close. The abstract's higher number uses trailing stops. The body base model does not.",
+        "filters": "Already tested. Do not re-list. Do not quote the abstract return as the base rule.",
+        "parameters": "14-day same-minute average. Entries on the hour and the half-hour."
+      },
+      "data_needed": [
+        {
+          "item": "1-minute index OHLC (5 years)",
+          "available_to_us": true,
+          "note": "Can aggregate to 5-minute or daily."
+        }
+      ],
+      "performance": {
+        "quote": "Abstract, with trailing stops: total return 1,985% net of costs, annualized 19.6%, Sharpe 1.33. Body base model without that stop (Table 1 / Figure 3): total return 178%, average annual return 6.2%, volatility 10.9%, Sharpe 0.61, worst day -10.33%.",
+        "location": "Abstract versus Table 1 / Figure 3."
+      },
+      "after_costs": "abstract says net of costs. The base-model row is the one in the body.",
+      "red_flags": [
+        "already tested",
+        "two different strategies",
+        "US SPY"
+      ],
+      "topic": "already tested: noise-area breakout",
+      "status": "already_tested",
+      "codable": false,
+      "rank": null
+    },
+    {
+      "id": "T05",
+      "title": "Volatility-Managed Portfolios",
+      "authors": [
+        "Alan Moreira",
+        "Tyler Muir"
+      ],
+      "year": 2017,
+      "url": "https://www.nber.org/system/files/working_papers/w22208/w22208.pdf",
+      "access": "NBER w22208 opened (June 2016 revision). Journal of Finance 2017.",
+      "market_and_sample": "Market and factor portfolios. Monthly.",
+      "horizon": "monthly factor timing",
+      "rule": {
+        "entry": "Scale exposure by the inverse of recent realized variance.",
+        "side": "Same side as the unmanaged factor, smaller when variance was high.",
+        "exit": "Next month.",
+        "filters": "Passed in the project. Do not re-list as new.",
+        "parameters": "Inverse realized variance."
+      },
+      "data_needed": [
+        {
+          "item": "1-minute index OHLC (5 years)",
+          "available_to_us": true,
+          "note": "Can aggregate to 5-minute or daily."
+        }
+      ],
+      "performance": {
+        "quote": "For the market, alpha 4.9%, appraisal ratio 0.33, and a 25% increase in the buy-and-hold Sharpe ratio.",
+        "location": "NBER working paper, June 2016 revision, text around Figure 1."
+      },
+      "after_costs": "the quoted alpha is the paper's managed-portfolio result, not an option spread",
+      "red_flags": [
+        "already tested and passed",
+        "monthly, not an intraday option entry"
+      ],
+      "topic": "already tested: volatility-managed sizing",
+      "status": "already_tested",
+      "codable": false,
+      "rank": null
+    },
+    {
+      "id": "T06",
+      "title": "Intraday Stock Predictability Everywhere",
+      "authors": [
+        "Hong Liu",
+        "Lars Stentoft"
+      ],
+      "year": 2023,
+      "url": "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=4496917",
+      "access": "abstract only. This is the already-tested gradient-boosting paper, not a geometric Brownian motion.",
+      "market_and_sample": "US stocks. Ensemble and nonlinear models on constituent returns.",
+      "horizon": "intraday long-short",
+      "rule": {
+        "entry": "Machine-learning intraday long-short. Features are constituent returns we do not have.",
+        "side": "Long-short.",
+        "exit": "Intraday.",
+        "filters": "Already tested. Do not re-list. Companion Huddleston, Liu and Stentoft, SSRN 3726765, is the same line (abstract Sharpe 0.98 after costs) and is not a new paper here.",
+        "parameters": "Not on the abstract."
+      },
+      "data_needed": [
+        {
+          "item": "stock cross-section",
+          "available_to_us": false,
+          "note": "Index tape only."
+        }
+      ],
+      "performance": {
+        "quote": "machine-learning intraday long-short portfolios attain Sharpe ratios of 4 after transaction costs.",
+        "location": "SSRN 4496917 abstract only. Companion SSRN 3726765 abstract Sharpe 0.98 after costs; that PDF was not opened."
+      },
+      "after_costs": "abstract says after transaction costs",
+      "red_flags": [
+        "abstract only",
+        "already tested",
+        "Sharpe of 4 is not a target",
+        "stock features we lack"
+      ],
+      "topic": "already tested: gradient boosting",
+      "status": "already_tested",
+      "codable": false,
+      "rank": null
+    },
+    {
+      "id": "T07",
+      "title": "Overnight gap fade (project test; no canonical paper was re-opened)",
+      "authors": [],
+      "year": null,
+      "url": null,
+      "access": "not re-opened. No URL is attached because this pass did not open one canonical fade paper.",
+      "market_and_sample": "Already tested by the project. Not a new citation.",
+      "horizon": "overnight gap, faded in the cash session",
+      "rule": {
+        "entry": "Fade the overnight gap. Already tested. Do not add another fade from Glasserman et al., which is a measurement (P14), not a second backtest.",
+        "side": "Against the gap.",
+        "exit": "Session, as previously tested.",
+        "filters": "Already tested.",
+        "parameters": "No new parameters."
+      },
+      "data_needed": [
+        {
+          "item": "1-minute index OHLC (5 years)",
+          "available_to_us": true,
+          "note": "Can aggregate to 5-minute or daily."
+        }
+      ],
+      "performance": {
+        "quote": "No new number. This pass did not reopen a fade paper.",
+        "location": "Project test, not a page in this harvest."
+      },
+      "after_costs": "already tested by the project; not re-quoted here",
+      "red_flags": [
+        "already tested",
+        "do not invent a source paper"
+      ],
+      "topic": "already tested: overnight gap fade",
+      "status": "already_tested",
+      "codable": false,
+      "rank": null
+    }
+  ]
+}

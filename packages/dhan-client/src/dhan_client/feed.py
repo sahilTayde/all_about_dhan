@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import asyncio
 import json
-from typing import Awaitable, Callable, Optional, Sequence
+from typing import Any, Awaitable, Callable, Optional, Sequence, Union
 from urllib.parse import urlencode
 
 from dhan_client.annexure import FeedRequestCode
@@ -34,11 +34,19 @@ from dhan_client.types import FeedInstrument, FeedMode, JsonDict
 log = get_logger(__name__)
 
 OnPacket = Callable[[JsonDict], Optional[Awaitable[None]]]
+# Receives every websocket message (bytes or text) untouched; the caller owns decoding.
+OnFrame = Callable[[Union[bytes, str]], Optional[Awaitable[None]]]
 
 _SUBSCRIBE_CODE = {
     FeedMode.TICKER: FeedRequestCode.SUBSCRIBE_TICKER,
     FeedMode.QUOTE: FeedRequestCode.SUBSCRIBE_QUOTE,
     FeedMode.FULL: FeedRequestCode.SUBSCRIBE_FULL,
+}
+
+_UNSUBSCRIBE_CODE = {
+    FeedMode.TICKER: FeedRequestCode.UNSUBSCRIBE_TICKER,
+    FeedMode.QUOTE: FeedRequestCode.UNSUBSCRIBE_QUOTE,
+    FeedMode.FULL: FeedRequestCode.UNSUBSCRIBE_FULL,
 }
 
 
@@ -49,12 +57,14 @@ def chunked(items: Sequence[FeedInstrument], size: int) -> list[list[FeedInstrum
 def subscribe_messages(
     instruments: Sequence[FeedInstrument],
     mode: FeedMode = FeedMode.TICKER,
+    *,
+    unsubscribe: bool = False,
 ) -> list[dict[str, object]]:
     if len(instruments) > FEED_MAX_INSTRUMENTS_PER_CONNECTION:
         raise ValueError(
             f"max {FEED_MAX_INSTRUMENTS_PER_CONNECTION} instruments per connection"
         )
-    request_code = int(_SUBSCRIBE_CODE[mode])
+    request_code = int((_UNSUBSCRIBE_CODE if unsubscribe else _SUBSCRIBE_CODE)[mode])
     messages: list[dict[str, object]] = []
     for group in chunked(list(instruments), FEED_MAX_INSTRUMENTS_PER_MESSAGE):
         messages.append(
@@ -104,11 +114,49 @@ class MarketFeedCollector:
         self.reconnect = reconnect
         self.max_backoff_seconds = max_backoff_seconds
         self._stop = asyncio.Event()
+        self._ws: Any = None
+        # Read-only connection state for supervisors (never holds secrets).
+        self.connected = False
+        self.connect_count = 0
+        self.error_count = 0
+        self.last_error: Optional[BaseException] = None
 
     def stop(self) -> None:
         self._stop.set()
 
-    async def run(self, on_packet: Optional[OnPacket] = None) -> None:
+    async def subscribe(self, instruments: Sequence[FeedInstrument]) -> None:
+        """Add instruments; sent now if a socket is open, and on every reconnect."""
+        new = [i for i in instruments if i not in self.instruments]
+        if not new:
+            return
+        self.instruments.extend(new)
+        await self._send_batches(subscribe_messages(new, self.mode))
+
+    async def unsubscribe(self, instruments: Sequence[FeedInstrument]) -> None:
+        gone = [i for i in instruments if i in self.instruments]
+        if not gone:
+            return
+        self.instruments = [i for i in self.instruments if i not in gone]
+        await self._send_batches(subscribe_messages(gone, self.mode, unsubscribe=True))
+
+    async def _send_batches(self, messages: list[dict[str, object]]) -> None:
+        ws = self._ws
+        if ws is None:
+            return
+        for msg in messages:
+            await ws.send(json.dumps(msg))
+            log.info(
+                "sent batch count=%s request_code=%s",
+                msg.get("InstrumentCount"),
+                msg.get("RequestCode"),
+            )
+
+    async def run(
+        self,
+        on_packet: Optional[OnPacket] = None,
+        *,
+        on_frame: Optional[OnFrame] = None,
+    ) -> None:
         if self.settings.dry_run:
             await self._run_dry(on_packet)
             return
@@ -119,11 +167,13 @@ class MarketFeedCollector:
         backoff = 1.0
         while not self._stop.is_set():
             try:
-                await self._run_socket(on_packet)
+                await self._run_socket(on_packet, on_frame)
                 backoff = 1.0
             except asyncio.CancelledError:
                 raise
-            except Exception:
+            except Exception as exc:
+                self.last_error = exc
+                self.error_count += 1
                 log.exception("feed connection dropped")
             if not self.reconnect or self._stop.is_set():
                 break
@@ -169,7 +219,9 @@ class MarketFeedCollector:
             if asyncio.iscoroutine(result):
                 await result
 
-    async def _run_socket(self, on_packet: Optional[OnPacket]) -> None:
+    async def _run_socket(
+        self, on_packet: Optional[OnPacket], on_frame: Optional[OnFrame] = None
+    ) -> None:
         try:
             import websockets
         except ImportError as exc:
@@ -183,30 +235,50 @@ class MarketFeedCollector:
             ping_timeout=FEED_STALE_DISCONNECT_SECONDS,
             max_size=2**20,
         ) as ws:
-            for msg in subscribe_messages(self.instruments, self.mode):
-                await ws.send(json.dumps(msg))
-                log.info(
-                    "subscribed batch count=%s request_code=%s",
-                    msg.get("InstrumentCount"),
-                    msg.get("RequestCode"),
-                )
-            while not self._stop.is_set():
-                try:
-                    raw = await asyncio.wait_for(ws.recv(), timeout=FEED_STALE_DISCONNECT_SECONDS)
-                except asyncio.TimeoutError:
-                    log.info("feed recv timeout; reconnecting")
-                    break
-                if isinstance(raw, str):
-                    log.info("feed text frame len=%s (unexpected; responses are binary)", len(raw))
-                    continue
-                for packet in decode_frame(raw):
-                    payload = packet_as_dict(packet)
-                    if on_packet is not None:
-                        result = on_packet(payload)
-                        if asyncio.iscoroutine(result):
-                            await result
-
+            self.connect_count += 1
+            # Set before the initial batches so a concurrent subscribe() is never dropped
+            # (a duplicate subscribe is harmless).
+            self._ws = ws
             try:
-                await ws.send(json.dumps({"RequestCode": int(FeedRequestCode.DISCONNECT)}))
-            except Exception:
-                log.debug("feed disconnect send failed", exc_info=True)
+                for msg in subscribe_messages(self.instruments, self.mode):
+                    await ws.send(json.dumps(msg))
+                    log.info(
+                        "subscribed batch count=%s request_code=%s",
+                        msg.get("InstrumentCount"),
+                        msg.get("RequestCode"),
+                    )
+                self.connected = True
+                self.last_error = None
+                while not self._stop.is_set():
+                    try:
+                        raw = await asyncio.wait_for(
+                            ws.recv(), timeout=FEED_STALE_DISCONNECT_SECONDS
+                        )
+                    except asyncio.TimeoutError:
+                        log.info("feed recv timeout; reconnecting")
+                        break
+                    if on_frame is not None:
+                        handled = on_frame(raw)
+                        if asyncio.iscoroutine(handled):
+                            await handled
+                        continue
+                    if isinstance(raw, str):
+                        log.info(
+                            "feed text frame len=%s (unexpected; responses are binary)",
+                            len(raw),
+                        )
+                        continue
+                    for packet in decode_frame(raw):
+                        payload = packet_as_dict(packet)
+                        if on_packet is not None:
+                            result = on_packet(payload)
+                            if asyncio.iscoroutine(result):
+                                await result
+
+                try:
+                    await ws.send(json.dumps({"RequestCode": int(FeedRequestCode.DISCONNECT)}))
+                except Exception:
+                    log.debug("feed disconnect send failed", exc_info=True)
+            finally:
+                self._ws = None
+                self.connected = False
