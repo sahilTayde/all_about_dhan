@@ -34,9 +34,7 @@ def _choice() -> StrikeChoice:
         est_delta=0.65,
         est_round_trip_pts=2.0,
     )
-    return StrikeChoice(
-        chosen="ITM100", reason="TEST", rule_version="t", alternatives=(quote,)
-    )
+    return StrikeChoice(chosen="ITM100", reason="TEST", rule_version="t", alternatives=(quote,))
 
 
 def _loc(zone_atr: float, ema: float = 2.4, twap: float = 3.1) -> dict[str, object]:

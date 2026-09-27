@@ -30,6 +30,8 @@ class EventType(str, Enum):
     FOUNDER_COMMAND = "FOUNDER_COMMAND"  # founder -> desk, boss; highest priority
     REGIME_LABEL = "REGIME_LABEL"  # regime service -> boss, audit (minute label change / intermarket)
     BOSS_SHADOW = "BOSS_SHADOW"  # boss -> audit: adaptive-weight / overlay decision next to the static one
+    ENTRY_PLAN = "ENTRY_PLAN"  # oms planner -> audit (V2-08b)
+    ENTRY_PLAN_RESULT = "ENTRY_PLAN_RESULT"  # oms planner -> audit (V2-08b)
 
 
 FOUNDER_FIRST = {EventType.FOUNDER_COMMAND.value: 0}

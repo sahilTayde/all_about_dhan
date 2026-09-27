@@ -10,7 +10,7 @@ from ledger.charges import (  # type: ignore[import-untyped, unused-ignore]
     exchange_for,
     order_charges,
 )
-from risk_engine.engine import IST
+from risk_engine.engine import IST  # type: ignore[import-untyped, unused-ignore]
 
 
 @dataclass

@@ -6,16 +6,22 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any, Protocol, cast
 
-from brokers.factory import LiveBrokerDisabled, make_broker
-from brokers.fills import ClockedPaperBroker
-from brokers.orders import Order, OrderState
+from brokers.factory import (  # type: ignore[import-untyped, unused-ignore]
+    LiveBrokerDisabled,
+    make_broker,
+)
+from brokers.fills import ClockedPaperBroker  # type: ignore[import-untyped, unused-ignore]
+from brokers.orders import Order, OrderState  # type: ignore[import-untyped, unused-ignore]
 from contracts.ids import order_id
 from contracts.instruments import India
 from contracts.payloads import Decision, EntryPlan, ExitPlan
 from events.bus import MemoryBus
 from ledger.charges import load_rates  # type: ignore[import-untyped, unused-ignore]
-from risk_engine import RiskDecision, TradeIntent
-from risk_engine.last_good import LastGood, V2RiskEngine
+from risk_engine import RiskDecision, TradeIntent  # type: ignore[import-untyped, unused-ignore]
+from risk_engine.last_good import (  # type: ignore[import-untyped, unused-ignore]
+    LastGood,
+    V2RiskEngine,
+)
 
 from oms.ledger_stub import MemoryLedger
 
@@ -52,7 +58,7 @@ def is_paper_desk_broker(broker: object) -> bool:
 def require_paper_broker(broker: object) -> PaperDeskBroker:
     """Router boundary: refuse anything that is not a paper desk broker."""
     if isinstance(broker, ClockedPaperBroker) and is_paper_desk_broker(broker):
-        return broker
+        return cast(PaperDeskBroker, broker)
     if is_paper_desk_broker(broker) and callable(getattr(broker, "place_order", None)):
         return cast(PaperDeskBroker, broker)
     raise LiveBrokerDisabled(

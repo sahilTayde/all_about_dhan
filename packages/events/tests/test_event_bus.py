@@ -13,7 +13,7 @@ from events import Event, EventAuditLog, EventType, MemoryBus, RedisStreamsBus, 
 def test_plan_event_types_exist():
     for name in ("PRE_MARKET_SUMMARY", "REQUEST_VOTES", "ANALYST_VOTE", "ENTRY_APPROVED", "EXIT_APPROVED",
                  "ORDER_SUBMITTED", "ORDER_FILLED", "POSITION_UPDATE", "POSITION_CLOSED", "ENTRY_VETOED",
-                 "HEALTH_ALERT", "FOUNDER_COMMAND"):
+                 "HEALTH_ALERT", "FOUNDER_COMMAND", "ENTRY_PLAN", "ENTRY_PLAN_RESULT"):
         assert EventType(name).value == name
 
 

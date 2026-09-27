@@ -215,9 +215,7 @@ def entry_files_hash(entry_path: Path | None = None, chase_path: Path | None = N
     return hashlib.sha256(blob.encode("utf-8")).hexdigest()[:16]
 
 
-def stretch_from_location(
-    location: Mapping[str, Any] | None, config_hash: str
-) -> dict[str, Any]:
+def stretch_from_location(location: Mapping[str, Any] | None, config_hash: str) -> dict[str, Any]:
     """Record-only stretch block. Never used to HOLD or veto (K19)."""
     loc = dict(location or {})
     nearest = loc.get("nearest") if isinstance(loc.get("nearest"), dict) else {}
@@ -230,9 +228,10 @@ def stretch_from_location(
         if zone.get("zone") == "ema20":
             ema20_atr = zone.get("distance_atr")  # type: ignore[assignment]
         source = zone.get("source")
-        if zone.get("zone") in ("vwap", "twap") or source in ("twap", "fut_vwap"):
-            if twap_atr is None or source == "twap":
-                twap_atr = zone.get("distance_atr")  # type: ignore[assignment]
+        if (zone.get("zone") in ("vwap", "twap") or source in ("twap", "fut_vwap")) and (
+            twap_atr is None or source == "twap"
+        ):
+            twap_atr = zone.get("distance_atr")  # type: ignore[assignment]
     zone_atr = nearest.get("distance_atr") if nearest else loc.get("entry_distance_atr")
     return {
         "record_only": True,

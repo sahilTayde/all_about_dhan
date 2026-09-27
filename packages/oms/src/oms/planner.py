@@ -10,11 +10,11 @@ from pathlib import Path
 from typing import Any
 
 import yaml  # type: ignore[import-untyped]
-from brokers.fills import TICK, Quote
+from brokers.fills import TICK, Quote  # type: ignore[import-untyped, unused-ignore]
 from contracts.ids import order_id
 from contracts.payloads import Decision, EntryPlan, EntryPlanResult
 from events.bus import MemoryBus
-from risk_engine.last_good import ConfigInvalid
+from risk_engine.last_good import ConfigInvalid  # type: ignore[import-untyped, unused-ignore]
 
 from oms.ledger_stub import MemoryLedger
 from oms.router import Account, OrderRouter, Veto
@@ -64,15 +64,19 @@ def plan_id(account_id: str, decision_id: str, signal_id: str) -> str:
     return f"ep_{digest}"
 
 
+def _as_map(raw: object) -> dict[str, Any]:
+    return dict(raw) if isinstance(raw, dict) else {}
+
+
 def validate_entry_location(raw: object) -> dict[str, Any]:
     if not isinstance(raw, dict):
         raise ConfigInvalid("entry", "entry_location.yaml must be a mapping")
     if raw.get("boss_stretch") != "record_only":
         raise ConfigInvalid("entry", "boss_stretch must be record_only")
-    pullback = raw.get("pullback_limit") if isinstance(raw.get("pullback_limit"), dict) else {}
+    pullback = _as_map(raw.get("pullback_limit"))
     if pullback.get("enabled") and pullback.get("limit_timeout_s") is None:
         raise ConfigInvalid("entry", "pullback_limit.enabled with a null parameter")
-    wait = raw.get("wait_consolidation") if isinstance(raw.get("wait_consolidation"), dict) else {}
+    wait = _as_map(raw.get("wait_consolidation"))
     if wait.get("enabled") and (
         wait.get("wait_max_bars") is None or wait.get("consol_max_atr") is None
     ):
@@ -201,12 +205,8 @@ class OrderPlanner:
 
     def effective_mode(self, policy: CardPolicy) -> str:
         cfg = self.config.get()
-        pullback = cfg.get("pullback_limit") if isinstance(cfg.get("pullback_limit"), dict) else {}
-        wait = (
-            cfg.get("wait_consolidation")
-            if isinstance(cfg.get("wait_consolidation"), dict)
-            else {}
-        )
+        pullback = _as_map(cfg.get("pullback_limit"))
+        wait = _as_map(cfg.get("wait_consolidation"))
         if policy.mode == "pullback_limit" and pullback.get("enabled"):
             return "pullback_limit"
         if policy.mode == "wait_consolidation" and wait.get("enabled"):
@@ -234,7 +234,7 @@ class OrderPlanner:
         mode = self.effective_mode(resolved)
         action = {"chase": "CHASE", "pullback_limit": "LIMIT", "wait_consolidation": "WAIT"}[mode]
         loc = decision.entry_location or {}
-        nearest = loc.get("nearest") if isinstance(loc.get("nearest"), dict) else {}
+        nearest = _as_map(loc.get("nearest"))
         zone = nearest.get("zone") if nearest else None
         zprice = zone_price if zone_price is not None else nearest.get("price")
         row: dict[str, Any] = {
@@ -252,7 +252,9 @@ class OrderPlanner:
             "policy": resolved,
             "decision": decision,
             "account": account,
-            "limit_price": float(zprice) if mode == "pullback_limit" and zprice is not None else 0.0,
+            "limit_price": float(zprice)
+            if mode == "pullback_limit" and zprice is not None
+            else 0.0,
             "zone": zone,
             "zone_price": float(zprice) if zprice is not None else None,
             "entry_distance_atr": loc.get("entry_distance_atr"),
@@ -323,9 +325,12 @@ class OrderPlanner:
                 max_bars = wait.get("wait_max_bars")
                 if max_bars is not None and int(row["bars_seen"]) >= int(max_bars):
                     self._missed(row, "MISSED")
-            if row["status"] == "MISSED_CHASE" and row.get("shadow_until") is not None:
-                if now >= row["shadow_until"]:
-                    self._finalize_missed_chase(row)
+            if (
+                row["status"] == "MISSED_CHASE"
+                and row.get("shadow_until") is not None
+                and now >= row["shadow_until"]
+            ):
+                self._finalize_missed_chase(row)
         self._collect_fills()
 
     def rebuild(self) -> None:
@@ -352,6 +357,8 @@ class OrderPlanner:
             timeout_s = (self.config.get().get("pullback_limit") or {}).get("limit_timeout_s") or 0
             expires = self.clock.now() + timedelta(seconds=float(timeout_s))
         oid = order_id(row["account_id"], row["signal_id"], "entry")
+        stretch = stretch_floats(row.get("stretch"))
+        stretch["catastrophic_price"] = max(TICK, float(row["limit_price"]) - 1.0)
         plan = EntryPlan(
             plan_id=row["plan_id"],
             decision_id=row["decision_id"],
@@ -359,7 +366,7 @@ class OrderPlanner:
             account_id=row["account_id"],
             action=row["action"],
             shadow_actions=list(SHADOW_ACTIONS),
-            stretch=stretch_floats(row.get("stretch")),
+            stretch=stretch,
             zone=row.get("zone"),
             zone_price=row.get("zone_price"),
             entry_distance_atr=row.get("entry_distance_atr"),
