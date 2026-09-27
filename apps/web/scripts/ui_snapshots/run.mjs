@@ -37,7 +37,7 @@ const PAGES = [
 ];
 
 // ---------- fixture API ----------
-const state = { bumped: false, flat: false, down: false, episode: 0 };
+const state = { bumped: false, flat: false, down: false, episode: 0, indexing: false };
 const clients = new Set();
 function currentSnap() {
   const s = structuredClone(snapshot());
@@ -48,6 +48,12 @@ function currentSnap() {
   if (state.flat) {
     s.board.open_trades = [];
     s.founder_book.index_status = { NIFTY: "START", BANKNIFTY: "STOP", SENSEX: "STOP" };
+  }
+  if (state.indexing) {
+    // API still reading the model log: only today is known, the all-days totals are partial.
+    s.history_complete = false;
+    s.days = s.days.slice(0, 1);
+    s.account = { ...s.account, net_inr: s.days[0].net, gross_inr: s.days[0].gross, charges_inr: s.days[0].charges, n_days: 1, equity_inr: 500000 + s.days[0].net };
   }
   // A new episode of the same alert (it cleared and came back): same id, new start time.
   s.alerts = s.alerts.map((a) => ({ ...a, since: `episode-${state.episode}` }));
@@ -79,6 +85,7 @@ function fixtureApi(req, res, next) {
     if (what === "bump") state.bumped = true;
     if (what === "flat") state.flat = true;
     if (what === "episode") state.episode += 1;
+    if (what === "indexing") state.indexing = true;
     if (what === "down") {
       state.down = true;
       for (const c of clients) c.destroy();
@@ -361,6 +368,24 @@ async function main() {
       check("stage-sum", sum === net, `sum of bars ${sum} · book net ${net}`);
       await page.locator(".founder-desk").screenshot({ path: resolve(OUT, "founder_1440_trade_desk.png") });
       await page.locator(".grid > div").filter({ has: page.locator(".stage-bars") }).screenshot({ path: resolve(OUT, "founder_pnl_by_stage.png") });
+
+      // History still indexing: every all-days / account / multi-day chart figure shows a label, no rupees.
+      await page.evaluate(() => fetch("/__fixture/indexing"));
+      for (const [path, need] of [["/desk", 4], ["/pm", 9]]) {
+        await page.goto(`${base}${path}`, { waitUntil: "load" });
+        await page.waitForSelector(".needs-history", { timeout: 5000 }).catch(() => {}); // absent = FAIL below
+        await page.waitForTimeout(400);
+        const cells = await page.locator(".needs-history").allInnerTexts();
+        const leaks = cells.filter((t) => t.includes("₹") || !t.includes("Indexing history"));
+        const allDaysTab = path === "/pm" ? await page.locator(".seg button", { hasText: "All days" }).isDisabled() : true;
+        await page.screenshot({ path: resolve(OUT, `${path.slice(1)}_1440_indexing.png`), fullPage: true });
+        check(
+          `indexing${path}`,
+          cells.length >= need && leaks.length === 0 && allDaysTab,
+          `${cells.length} all-days figures show "Indexing history…", rupee leaks=${JSON.stringify(leaks)}, all-days chart tab disabled=${allDaysTab}`,
+        );
+      }
+      state.indexing = false;
 
       // API down: static mock must read MOCK · OFFLINE with a banner, never PAPER.
       await page.evaluate(() => fetch("/__fixture/down"));

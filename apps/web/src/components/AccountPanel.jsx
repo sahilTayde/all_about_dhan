@@ -3,15 +3,17 @@ import { inr, moneyClass } from "../lib/paperBoard.js";
 const INDICES = ["NIFTY", "BANKNIFTY", "SENSEX"];
 
 /** Account across every recorded day (server `account`), not the engine's daily reset. */
-export function AccountPanel({ account, today, founderBook }) {
+// While the API is still reading the model log, every all-days figure is partial: show none of them.
+export function AccountPanel({ account, today, founderBook, indexing = false }) {
   const a = account || {};
   const status = founderBook?.index_status || {};
+  const allDays = (value, tone) => (indexing ? [<span className="indexing">Indexing history…</span>, "needs-history"] : [value, tone]);
   const rows = [
     ["Starting capital", inr(a.starting_capital_inr, { signed: false }), ""],
-    ["Running gross", inr(a.gross_inr), moneyClass(a.gross_inr)],
-    ["Charges", inr(a.charges_inr == null ? null : -a.charges_inr), a.charges_inr ? "is-down" : ""],
-    ["Net (all days)", inr(a.net_inr), moneyClass(a.net_inr)],
-    ["Equity", inr(a.equity_inr, { signed: false }), moneyClass((a.equity_inr ?? 0) - (a.starting_capital_inr ?? 0))],
+    ["Running gross", ...allDays(inr(a.gross_inr), moneyClass(a.gross_inr))],
+    ["Charges", ...allDays(inr(a.charges_inr == null ? null : -a.charges_inr), a.charges_inr ? "is-down" : "")],
+    ["Net (all days)", ...allDays(inr(a.net_inr), moneyClass(a.net_inr))],
+    ["Equity", ...allDays(inr(a.equity_inr, { signed: false }), moneyClass((a.equity_inr ?? 0) - (a.starting_capital_inr ?? 0)))],
     ["Net today", inr(today?.net), moneyClass(today?.net)],
   ];
   return (
@@ -19,7 +21,11 @@ export function AccountPanel({ account, today, founderBook }) {
       <div className="panel__head">
         <h2>Account</h2>
         <span className="muted small">
-          {a.n_days ? `${a.n_days} day${a.n_days > 1 ? "s" : ""} · ${a.first_day} → ${a.last_day}` : "no recorded days"}
+          {indexing
+            ? "indexing history…"
+            : a.n_days
+              ? `${a.n_days} day${a.n_days > 1 ? "s" : ""} · ${a.first_day} → ${a.last_day}`
+              : "no recorded days"}
         </span>
       </div>
       <dl className="kv-grid kv-grid--2">

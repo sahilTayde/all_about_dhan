@@ -4114,3 +4114,45 @@ tr.is-click:hover {
 .chart-box {
   margin-top: 0.25rem;
 }
+
+.indexing {
+  color: var(--warn);
+  font-family: var(--sans);
+  font-size: 0.8rem;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+}
+
+.indexing::before {
+  content: "";
+  display: inline-block;
+  width: 0.55rem;
+  height: 0.55rem;
+  margin-right: 0.4rem;
+  border: 2px solid var(--warn);
+  border-right-color: transparent;
+  border-radius: 50%;
+  vertical-align: -1px;
+  animation: spin 0.9s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .indexing::before { animation: none; }
+}
+
+.indexing-state {
+  display: grid;
+  gap: 0.3rem;
+  justify-items: center;
+  padding: 1.6rem 0.5rem;
+  text-align: center;
+}
+
+.fx-stat.needs-history .fx-stat__value {
+  font-size: 0.95rem;
+  color: var(--warn);
+}

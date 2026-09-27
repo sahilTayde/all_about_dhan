@@ -51,11 +51,29 @@ function Empty({ children = "No recorded days yet." }) {
   return <p className="muted chart-empty">{children}</p>;
 }
 
+/** Multi-day figures while the API is still reading the model log: a label, never a partial number. */
+function IndexingState() {
+  return (
+    <div className="needs-history indexing-state" role="status">
+      <span className="indexing">Indexing history…</span>
+      <span className="muted small">Multi-day figures appear once the model log is fully read.</span>
+    </div>
+  );
+}
+
 function Tabs({ value, onChange, options }) {
   return (
     <div className="seg" role="tablist">
-      {options.map(([v, l]) => (
-        <button key={v} type="button" role="tab" aria-selected={value === v} className={value === v ? "is-on" : ""} onClick={() => onChange(v)}>
+      {options.map(([v, l, disabled]) => (
+        <button
+          key={v}
+          type="button"
+          role="tab"
+          aria-selected={value === v}
+          className={value === v ? "is-on" : ""}
+          disabled={Boolean(disabled)}
+          onClick={() => onChange(v)}
+        >
           {l}
         </button>
       ))}
@@ -63,7 +81,7 @@ function Tabs({ value, onChange, options }) {
   );
 }
 
-export function CumulativeChart({ days, todayTrades }) {
+export function CumulativeChart({ days, todayTrades, indexing = false }) {
   const byDay = useMemo(() => {
     let run = 0;
     return periodBuckets(days, "D").map((b) => ({ time: b.time, value: Math.round((run += b.net)) }));
@@ -79,7 +97,7 @@ export function CumulativeChart({ days, todayTrades }) {
       .map((p) => ({ time: p.ts + IST_S, value: Math.round((run += p.v)) }));
   }, [todayTrades]);
   const [mode, setMode] = useState(null);
-  const pick = mode || (byDay.length > 1 ? "D" : "I");
+  const pick = indexing ? "I" : mode || (byDay.length > 1 ? "D" : "I");
   const data = pick === "D" ? byDay : intraday;
   const last = data.at(-1)?.value;
   const series = useMemo(() => [{ kind: "line", data, color: (last ?? 0) >= 0 ? UP : DOWN }], [data, last]);
@@ -87,7 +105,7 @@ export function CumulativeChart({ days, todayTrades }) {
     <section className="panel chart-panel">
       <div className="panel__head">
         <h2>Cumulative net P&L</h2>
-        <Tabs value={pick} onChange={setMode} options={[["I", "Today"], ["D", "All days"]]} />
+        <Tabs value={pick} onChange={setMode} options={[["I", "Today"], ["D", indexing ? "All days · indexing…" : "All days", indexing]]} />
       </div>
       <p className={`chart-headline ${moneyClass(last)}`}>{inr(last)}</p>
       {data.length ? <TimeChart series={series} timeVisible={pick === "I"} label="Cumulative net P&L" /> : <Empty />}
@@ -95,7 +113,7 @@ export function CumulativeChart({ days, todayTrades }) {
   );
 }
 
-export function PeriodChart({ days }) {
+export function PeriodChart({ days, indexing = false }) {
   const [period, setPeriod] = useState("D");
   const buckets = useMemo(() => periodBuckets(days, period), [days, period]);
   const series = useMemo(
@@ -114,18 +132,18 @@ export function PeriodChart({ days }) {
       </div>
       <p className="chart-legend">
         <span className="lg lg--bar">net ₹ (right)</span> <span className="lg lg--line">win % (left)</span>
-        {last ? (
+        {last && !indexing ? (
           <span className="muted">
             latest {last.time}: <b className={moneyClass(last.net)}>{inr(last.net)}</b> · {last.wr ?? "—"}% of {last.n}
           </span>
         ) : null}
       </p>
-      {buckets.length ? <TimeChart series={series} label="Net P&L bars and win rate line per period" /> : <Empty />}
+      {indexing ? <IndexingState /> : buckets.length ? <TimeChart series={series} label="Net P&L bars and win rate line per period" /> : <Empty />}
     </section>
   );
 }
 
-export function TradesPerDay({ days }) {
+export function TradesPerDay({ days, indexing = false }) {
   const series = useMemo(
     () => [{ kind: "histogram", color: "#5b9cff", data: periodBuckets(days, "D").map((b) => ({ time: b.time, value: b.n })) }],
     [days],
@@ -136,7 +154,7 @@ export function TradesPerDay({ days }) {
         <h2>Trades per day</h2>
         <span className="muted small">unique fills</span>
       </div>
-      {days?.length ? <TimeChart series={series} height={150} label="Trades per day" /> : <Empty />}
+      {indexing ? <IndexingState /> : days?.length ? <TimeChart series={series} height={150} label="Trades per day" /> : <Empty />}
     </section>
   );
 }
@@ -155,7 +173,7 @@ function Spark({ values }) {
   );
 }
 
-export function ModelScores({ days }) {
+export function ModelScores({ days, indexing = false }) {
   const rows = useMemo(() => modelScores(days), [days]);
   return (
     <section className="panel">
@@ -163,7 +181,9 @@ export function ModelScores({ days }) {
         <h2>Models · win rate and trend</h2>
         <span className="muted small">per book, all recorded days · not a promote</span>
       </div>
-      {rows.length ? (
+      {indexing ? (
+        <IndexingState />
+      ) : rows.length ? (
         <div className="table-scroll">
           <table className="book-table compact-table">
             <thead>
@@ -203,7 +223,7 @@ export function ModelScores({ days }) {
   );
 }
 
-export function LossByStage({ days, exam }) {
+export function LossByStage({ days, exam, indexing = false }) {
   const { rows, sum, net } = useMemo(() => lossByStage(days), [days]);
   const rooms = useMemo(() => {
     const map = new Map();
@@ -227,7 +247,9 @@ export function LossByStage({ days, exam }) {
         <h2>P&L by stage</h2>
         <span className="muted small">gross per exit stage + charges = net</span>
       </div>
-      {rows.length ? (
+      {indexing ? (
+        <IndexingState />
+      ) : rows.length ? (
         <>
           <ul className="stage-bars">
             {rows.map((r) => (
@@ -246,7 +268,7 @@ export function LossByStage({ days, exam }) {
       ) : (
         <Empty>No closed trades recorded.</Empty>
       )}
-      {rooms.length ? (
+      {rooms.length && !indexing ? (
         <>
           <h3>Honesty exam · spill by room</h3>
           <ul className="stage-bars">

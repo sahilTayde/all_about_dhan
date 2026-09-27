@@ -25,9 +25,9 @@ const NEXT_PR_CONTROLS = [
   ["Kill switch", "Stop everything and flatten"],
 ];
 
-function Stat({ label, value, hint, tone }) {
+function Stat({ label, value, hint, tone, className = "" }) {
   return (
-    <div className={`fx-stat ${tone ? `fx-stat--${tone}` : ""}`}>
+    <div className={`fx-stat ${tone ? `fx-stat--${tone}` : ""} ${className}`}>
       <span className="fx-stat__label">{label}</span>
       <strong className={`fx-stat__value ${tone === "up" ? "is-up" : ""} ${tone === "down" ? "is-down" : ""}`}>{value}</strong>
       {hint ? <span className="fx-stat__hint">{hint}</span> : null}
@@ -50,6 +50,7 @@ export function FounderPm() {
   const d = useMemo(() => derivePaperBoard(board, null), [board]);
   const clock = boardClock(board);
   const offline = Boolean(snap?.offline);
+  const indexing = snap?.history_complete === false;
   const source = boardSource(board, clock, offline);
   const days = snap?.days || [];
   const liveDay = board?.session_ist_date || clock.ist?.slice(0, 10);
@@ -96,9 +97,10 @@ export function FounderPm() {
             <Stat label="Net today" value={inr(day?.net)} hint={day ? `charges ${inr(day.charges, { signed: false })}` : "no fills"} tone={Number(day?.net) >= 0 ? "up" : "down"} />
             <Stat
               label="Net all days"
-              value={inr(snap?.account?.net_inr)}
-              hint={snap?.account?.n_days ? `${snap.account.n_days} recorded days` : "API offline"}
-              tone={Number(snap?.account?.net_inr) >= 0 ? "up" : "down"}
+              value={indexing ? "Indexing history…" : inr(snap?.account?.net_inr)}
+              hint={indexing ? "model log still loading" : snap?.account?.n_days ? `${snap.account.n_days} recorded days` : "API offline"}
+              tone={indexing ? "" : Number(snap?.account?.net_inr) >= 0 ? "up" : "down"}
+              className={indexing ? "needs-history" : ""}
             />
           </div>
 
@@ -106,7 +108,7 @@ export function FounderPm() {
             <HealthPanel rows={snap?.health} founder={snap?.founder} conn={conn} />
           </div>
           <div className="span-4">
-            <AccountPanel account={snap?.account} today={day} founderBook={snap?.founder_book} />
+            <AccountPanel account={snap?.account} today={day} founderBook={snap?.founder_book} indexing={indexing} />
           </div>
           <div className="span-4 stack">
             <FounderBookPicker />
@@ -127,23 +129,23 @@ export function FounderPm() {
           </div>
 
           <div className="span-6">
-            <CumulativeChart days={days} todayTrades={d.uniqueClosed} />
+            <CumulativeChart days={days} todayTrades={d.uniqueClosed} indexing={indexing} />
           </div>
           <div className="span-6">
-            <PeriodChart days={days} />
+            <PeriodChart days={days} indexing={indexing} />
           </div>
           <div className="span-4">
-            <TradesPerDay days={days} />
+            <TradesPerDay days={days} indexing={indexing} />
           </div>
           <div className="span-8">
-            <ModelScores days={days} />
+            <ModelScores days={days} indexing={indexing} />
           </div>
 
           <div className="span-4">
-            <LossByStage days={days} exam={snap?.exam} />
+            <LossByStage days={days} exam={snap?.exam} indexing={indexing} />
           </div>
           <div className="span-5">
-            <CurrentTrade t={current} last={d.uniqueClosed[0]} clock={clock} hold={current ? null : holdReason(board, snap?.founder_book, snap?.risk_halt)} title="Now open" />
+            <CurrentTrade t={current} last={d.uniqueClosed[0]} clock={clock} hold={current ? null : holdReason(board, snap?.founder_book, snap?.risk_halt, offline)} title="Now open" />
           </div>
           <div className="span-3">
             <MarketPanel regimes={d.regimes} />
@@ -160,6 +162,7 @@ export function FounderPm() {
           <section className="panel span-12">
             <h2>Compare fills</h2>
             <TradeHistory
+              indexing={indexing}
               rows={[...(d.uniqueOpen || []), ...d.uniqueClosed]}
               days={days}
               liveDay={board?.session_ist_date}

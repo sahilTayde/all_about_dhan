@@ -566,7 +566,8 @@ export function ticketState(t, { clock = null } = {}) {
 }
 
 /** Why no ticket is open: desk risk halt, founder STOP on every index, else the latest skip reason. */
-export function holdReason(board, founderBook, halt = null) {
+export function holdReason(board, founderBook, halt = null, offline = false) {
+  if (offline) return "API offline — the live hold reason is unavailable (static mock board).";
   if (halt?.active) return `Desk risk halt — new entries blocked: ${halt.reason}`;
   const status = founderBook?.index_status || {};
   const started = Object.entries(status).filter(([, v]) => v === "START").map(([k]) => k);

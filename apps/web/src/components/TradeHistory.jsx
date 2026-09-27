@@ -71,13 +71,13 @@ function reasonFor(t) {
   return t.exit_reason || t.cancel_reason || (t.exit == null ? "—" : t.status) || "—";
 }
 
-function Field({ label, value, onChange, options, render }) {
+function Field({ label, value, onChange, options, render, disabledOptions = [] }) {
   return (
     <label className="filter-field">
       <span>{label}</span>
       <select value={value} onChange={(e) => onChange(e.target.value)}>
         {options.map((opt) => (
-          <option key={opt} value={opt}>
+          <option key={opt} value={opt} disabled={disabledOptions.includes(opt)}>
             {render ? render(opt) : opt === "ALL" ? `All ${label.toLowerCase()}` : opt}
           </option>
         ))}
@@ -159,7 +159,7 @@ function DaySummary({ s }) {
   );
 }
 
-export function TradeHistory({ rows, days, liveDay, clock, fillRooms, onOpen, onSelect, selectedId }) {
+export function TradeHistory({ rows, days, liveDay, clock, fillRooms, onOpen, onSelect, selectedId, indexing = false }) {
   const [index, setIndex] = useState("ALL");
   const [side, setSide] = useState("ALL");
   const [state, setState] = useState("ALL");
@@ -305,8 +305,9 @@ export function TradeHistory({ rows, days, liveDay, clock, fillRooms, onOpen, on
           label="Day"
           value={day}
           onChange={setDay}
-          options={["LIVE", ...pastDays]}
-          render={(d) => (d === "LIVE" ? `${liveDay || "Today"} · live board` : d)}
+          options={["LIVE", ...pastDays, ...(indexing ? ["INDEXING"] : [])]}
+          render={(d) => (d === "LIVE" ? `${liveDay || "Today"} · live board` : d === "INDEXING" ? "older days: indexing…" : d)}
+          disabledOptions={["INDEXING"]}
         />
         <Field label="Index" value={index} onChange={setIndex} options={opts((t) => t.underlying)} />
         <Field label="Side" value={side} onChange={setSide} options={opts((t) => t.side)} />

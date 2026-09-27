@@ -23,6 +23,7 @@ export function InternalDesk() {
   const d = useMemo(() => derivePaperBoard(board, null), [board]);
   const clock = boardClock(board);
   const offline = Boolean(snap?.offline);
+  const indexing = snap?.history_complete === false;
   const current = d?.current;
   const indexNow = current ? d?.regimes?.[current.underlying]?.itm_bin?.index ?? null : null;
   const fresh = picked && [...(d?.uniqueOpen || []), ...(d?.uniqueClosed || [])].find((t) => t.trade_id === picked.trade_id);
@@ -68,7 +69,7 @@ export function InternalDesk() {
       ) : (
         <div className="grid">
           <div className="span-8">
-            <CurrentTrade t={current} last={d.uniqueClosed[0]} clock={clock} hold={current ? null : holdReason(board, snap?.founder_book, snap?.risk_halt)} indexNow={indexNow}>
+            <CurrentTrade t={current} last={d.uniqueClosed[0]} clock={clock} hold={current ? null : holdReason(board, snap?.founder_book, snap?.risk_halt, offline)} indexNow={indexNow}>
               {current ? (
                 <>
                   <HumanManage
@@ -100,7 +101,7 @@ export function InternalDesk() {
             </CurrentTrade>
           </div>
           <div className="span-4 stack">
-            <AccountPanel account={snap?.account} today={today} founderBook={snap?.founder_book} />
+            <AccountPanel account={snap?.account} today={today} founderBook={snap?.founder_book} indexing={indexing} />
             <MarketPanel regimes={d.regimes} />
           </div>
           <div className="span-12">
@@ -113,6 +114,7 @@ export function InternalDesk() {
           <section className="panel span-12">
             <h2>Trade history</h2>
             <TradeHistory
+              indexing={indexing}
               rows={[...(d.uniqueOpen || []), ...d.uniqueClosed]}
               days={snap?.days}
               liveDay={board?.session_ist_date}
