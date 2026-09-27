@@ -21,6 +21,7 @@ from analysts import MarketContext, Vote
 from analysts.legacy import to_legacy
 
 log = logging.getLogger("boss")
+LLM_KEY = "LLM-ANALYST"
 
 
 class Boss:
@@ -83,15 +84,21 @@ class Boss:
         self.latency_ms["decision"].append((time.perf_counter() - t0) * 1000.0)
 
     def _shadow_features(self, step: Any) -> Optional[dict[str, Any]]:
-        if not self.shadow_ids:
+        llm_on = LLM_KEY in self.analyst_ids  # PR-016: the LLM analyst reads the shadow pack + its own
+        if not self.shadow_ids and not llm_on:
             return None
         try:
             from analysts.shadow import build_shadow_snapshot
 
-            return {"shadow": build_shadow_snapshot(self.engine, step, self.shadow_cfg)}
+            out = {"shadow": build_shadow_snapshot(self.engine, step, self.shadow_cfg)}
         except Exception:
             log.exception("shadow snapshot failed; shadow analysts abstain")
-            return {"shadow": {}}
+            out = {"shadow": {}}
+        if llm_on:
+            from analysts.llm import llm_snapshot
+
+            out["llm"] = llm_snapshot(self.engine, step)
+        return out
 
     def _ignored(self, vote: Vote) -> bool:
         return vote.analyst_id in self.shadow_ids or bool((vote.metadata or {}).get("shadow"))
