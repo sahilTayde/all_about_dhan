@@ -4794,12 +4794,12 @@ def _plan_open(
         ),
         model_names=list(getattr(engine, "_current_model_names", None) or [book_id]),
     )
-    if costs.is_realistic(engine):  # PR-B cost hook: tick-floor the limit, note entry spread
-        costs.on_plan_open(engine, pos, tick, impulse=impulse_fill)
-    veto = paper_guard.risk_veto(engine, pos)  # after the cost hook: the risk check sees the final limit
+    veto = paper_guard.risk_veto(engine, pos)
     if veto is not None:
         engine.mark_skip(book_id, underlying, paper_guard.RISK_VETO, ts=tick.ts, seen_side=side, **veto)
         return None
+    if costs.is_realistic(engine):  # PR-B cost hook: tick-floor the limit, note entry spread
+        costs.on_plan_open(engine, pos, tick, impulse=impulse_fill)
     return pos
 
 
