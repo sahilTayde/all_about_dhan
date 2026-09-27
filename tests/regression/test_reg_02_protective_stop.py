@@ -40,6 +40,43 @@ def test_reg_02a_protective_stop_exists_after_every_entry_fill(tmp_path: Path) -
     assert broker.orders[stop_id].intent.purpose == "EXIT"
 
 
+def test_reg_02a_stop_invariant_holds_after_every_envelope(tmp_path: Path) -> None:
+    from helpers import envelope, make_exit_plan, make_manager
+
+    clock = SimClock(NOW)
+    broker = make_broker(clock=clock)
+    pm = make_manager(tmp_path, clock, broker=broker)
+    order = pm.router.submit(
+        make_plan(), make_decision(), Account("founder"), exit_plan=make_exit_plan()
+    )
+    assert not isinstance(order, Veto)
+    clock.advance_by(timedelta(milliseconds=250))
+    broker.on_depth(
+        Quote(available_ts=clock.now(), bid=151.00, ask=151.20, ltp=151.10, instrument_id=INST)
+    )
+    events = [
+        envelope("TICK", clock.now(), {"instrument_id": INST, "ltp": 151.20, "bid": 151.10, "ask": 151.30}),
+        envelope("CLOCK", clock.now(), {"minute": "10:01"}),
+        envelope(
+            "DEPTH_QUOTE",
+            clock.now(),
+            {"instrument_id": INST, "bid": 151.15, "ask": 151.35, "ltp": 151.25},
+        ),
+        envelope(
+            "BAR_CLOSED",
+            clock.now(),
+            {"instrument_id": INST, "tf": "1m", "c": 151.25},
+        ),
+    ]
+    for env in events:
+        clock.advance_by(timedelta(seconds=1))
+        # rewrite available_ts to now so the envelope is visible
+        env = envelope(env.event_type, clock.now(), env.payload, event_id=env.event_id)
+        pm.on_market(env)
+        pm.assert_stop_invariant()
+        assert pm.open_book()
+
+
 def test_reg_02e_bad_risk_yaml_still_allows_exit(tmp_path: Path) -> None:
     clock = SimClock(NOW)
     store = MemoryLedger()

@@ -7,12 +7,13 @@ from pathlib import Path
 from typing import Any
 
 import yaml
+from contracts.envelope import Envelope
 from contracts.ids import order_id
-from contracts.payloads import Decision, EntryPlan
+from contracts.payloads import CatastrophicStop, Decision, EntryPlan, ExitPlan, Level
 from events.bus import MemoryBus
 from risk_engine import IST, V2RiskEngine
 
-from oms import MemoryLedger, OrderRouter
+from oms import MemoryLedger, OrderRouter, PositionManager
 
 NOW = datetime(2026, 9, 28, 10, 1, tzinfo=IST)
 INST = "NSE_FNO:NIFTY:2026-09-29:24400:CE"
@@ -65,6 +66,39 @@ def make_decision(**kw: Any) -> Decision:
     )
     data.update(kw)
     return Decision(**data)
+
+
+def make_exit_plan(**kw: Any) -> ExitPlan:
+    data: dict[str, Any] = dict(
+        catastrophic=CatastrophicStop(level=Level(kind="premium", price=140.0)),
+        time_stops=(),
+        flat_by_ist="15:15",
+    )
+    data.update(kw)
+    return ExitPlan(**data)
+
+
+def envelope(event_type: str, ts: Any, payload: dict[str, Any] | None = None, event_id: str = "e1") -> Envelope:
+    iso = ts.isoformat() if hasattr(ts, "isoformat") else str(ts)
+    return Envelope(
+        v=2,
+        event_type=event_type,
+        event_id=event_id,
+        stream="md",
+        source="test",
+        event_ts=iso,
+        available_ts=iso,
+        timestamp=iso,
+        account_id="founder",
+        correlation_id=SIG,
+        causation_id=None,
+        payload=payload or {},
+    )
+
+
+def make_manager(tmp_path: Path, clock: Any, **kw: Any) -> PositionManager:
+    router = kw.pop("router", None) or make_router(tmp_path, clock, **kw)
+    return PositionManager(clock=clock, router=router, store=router.store, bus=router.bus)
 
 
 def make_router(tmp_path: Path, clock: Any, **kw: Any) -> OrderRouter:
