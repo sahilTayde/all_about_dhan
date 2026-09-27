@@ -443,7 +443,7 @@ def test_spof_S1_dashboard_beats_never_claim_alive(tmp_path):
 
 
 def test_F3_root_cause_live_logit_sees_the_same_bars_in_every_cycle():
-    """The newest tick used to see a partial 3m bar that later cycles never show that tick."""
+    """The newest tick used to see a partial 3m bar that later cycles never show that tick (#25 rule)."""
     from desk_ml.event_parity import synthetic_triples
     from desk_ml.testing.canonical import load_fixture
 
@@ -451,17 +451,13 @@ def test_F3_root_cause_live_logit_sees_the_same_bars_in_every_cycle():
     for k, day in enumerate(("2026-09-01", "2026-09-02", "2026-09-03", "2026-09-04", "2026-09-07", "2026-09-08", "2026-09-09")):
         hist.update({int(t.ts): t.idx_close for t in synthetic_triples(day=day, seed=300 + k, step_s=60)})
     tr = load_fixture("syn_multi_3idx_s5")["triples"]["NIFTY"][:320]
-    full_live, _ = ps.logit_side_series(tr, index_closes=hist, causal_bars=True)
-    full_legacy, _ = ps.logit_side_series(tr, index_closes=hist)
-    assert sum(1 for r in full_live if r.get("side")) > 100, "the logit must be active for this test to mean anything"
-    legacy_drift = live_drift = 0
+    full, _ = ps.logit_side_series(tr, index_closes=hist)
+    assert sum(1 for r in full if r.get("side")) > 100, "the logit must be active for this test to mean anything"
+    drift = 0
     for i in range(60, len(tr), 4):
-        live, _ = ps.logit_side_series(tr[: i + 1], index_closes=hist, causal_bars=True)
-        legacy, _ = ps.logit_side_series(tr[: i + 1], index_closes=hist)
-        live_drift += live[-1].get("side") != full_live[i].get("side")
-        legacy_drift += legacy[-1].get("side") != full_legacy[i].get("side")
-    assert live_drift == 0
-    assert legacy_drift > 0  # the mechanism that made a booked ticket vanish on the next cycle
+        cycle, _ = ps.logit_side_series(tr[: i + 1], index_closes=hist)
+        drift += cycle[-1].get("side") != full[i].get("side")
+    assert drift == 0
 
 
 def test_crashed_append_is_repaired_before_the_next_record(tmp_path):

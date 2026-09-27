@@ -3204,6 +3204,11 @@ def resample_closes_3m(closes: dict[int, float]) -> list[Any]:
     return bars
 
 
+def bar_3m_end_ts(ts: int) -> int:
+    """End (exclusive) of the 3m bucket that holds `ts`: the first moment the bar is complete."""
+    return int(ts) - int(ts) % 180 + 180
+
+
 def resample_index_3m(triples: Sequence[Triple]) -> list[Any]:
     """3m INDEX bars from 1m triples. Does not fabricate missing days."""
     return resample_closes_3m({int(t.ts): float(t.idx_close) for t in triples})
@@ -3214,17 +3219,8 @@ def logit_side_series(
     *,
     index_closes: Optional[dict[int, float]] = None,
     xr: bool = False,
-    causal_bars: bool = False,
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
-    """Walk-forward INDEX 3m logit. Train on INDEX history *before* the ATM session.
-
-    Legacy (offline replays): a 3m bar is visible from its last tick, so the newest tick of a
-    shorter tape sees a partial bar that the same tick never sees once the day continues.
-    ``causal_bars`` (the live loop, which re-replays the day every cycle): a bar is visible only
-    once its 3-minute bucket has closed, and today's bars come from the tape only (history files
-    that grow during the day are not read for today). Every tick then gets the same signal in
-    every cycle, so a booked ticket is re-derived instead of vanishing.
-    """
+    """Walk-forward INDEX 3m logit. Train on INDEX history *before* the ATM session."""
     thin = {
         "side": None,
         "status": "DATA_INSUFFICIENT",
@@ -3233,10 +3229,10 @@ def logit_side_series(
     }
     if not triples:
         return [], {"n_3m": 0, "n_index_1m": 0}
-    closes = dict(index_closes or {})
-    if causal_bars:
-        first_day = ist_calendar_date(int(triples[0].ts))
-        closes = {k: v for k, v in closes.items() if ist_calendar_date(int(k)) < first_day}
+    # 1m chart closes are keyed at the minute OPEN, so only minutes that ended before the first print
+    # count as history; session bars come from the tape prints alone.
+    session_start = int(triples[0].ts)
+    closes = {int(k): float(v) for k, v in (index_closes or {}).items() if int(k) + 60 <= session_start}
     for t in triples:
         closes.setdefault(int(t.ts), float(t.idx_close))
     bars = resample_closes_3m(closes)
@@ -3270,9 +3266,9 @@ def logit_side_series(
             last_xr = "SKIP"
             last_p = None
         last_sess = sess
-        while bi < len(bars) and (
-            (int(bars[bi].ts) - int(bars[bi].ts) % 180 + 180 <= int(t.ts)) if causal_bars else bars[bi].ts <= int(t.ts)
-        ):
+        # Bars are stamped at their last print; a bar is usable only once its bucket has ended, so a
+        # replay never knows which print was the bucket's last and live never uses a half-built bar.
+        while bi < len(bars) and bar_3m_end_ts(bars[bi].ts) <= int(t.ts):
             if ist_calendar_date(int(bars[bi].ts)) == sess:
                 last_logit = leans[bi]
                 last_p = logit_probs[bi]
@@ -6562,9 +6558,9 @@ def _replay_paper_scalp(
             engine.sr_levels[u] = build_sr_levels(sr_closes, session_ist_date=sr_day)
         if event_session is not None:
             event_session.set_prior_closes(u, sr_closes if sr_day else {})
-        logit_series, logit_meta = logit_side_series(triples, index_closes=idx_closes, xr=False, causal_bars=ctx.live_loop)
+        logit_series, logit_meta = logit_side_series(triples, index_closes=idx_closes, xr=False)
         logit_xr_series, logit_xr_meta = logit_side_series(
-            triples, index_closes=idx_closes, xr=True, causal_bars=ctx.live_loop
+            triples, index_closes=idx_closes, xr=True
         )
         thin_logit = {
             "side": None,

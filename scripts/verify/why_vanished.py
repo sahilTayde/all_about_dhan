@@ -7,7 +7,7 @@ logit / XR sides, votes, picker, observer, and the skip reasons recorded at that
 root is only read. Runs on main and on the PR head.
 
     python scripts/verify/why_vanished.py --root $R --day 2026-09-21 --underlying NIFTY \\
-        --entry 14:09:43 --cut-a 14:10 --cut-b 14:20 [--live-logit]
+        --entry 14:09:43 --cut-a 14:10 --cut-b 14:20
 """
 
 from __future__ import annotations
@@ -61,17 +61,12 @@ def capture(args, cut: int) -> dict:
         return out
 
     ps.step_decide = spy
-    if args.live_logit:
-        real_logit = ps.logit_side_series
-        ps.logit_side_series = lambda *a, **k: real_logit(*a, **{**k, "causal_bars": True})
     try:
         board = ps.replay_paper_scalp(root=scratch, underlyings=(args.underlying,), source="dual-tape", write=False,
                                       live_session=True, session_ist_date=args.day, deny_model_signals=True,
                                       nifty_cover_closed_1m=True)
     finally:
         ps.step_decide = real_decide
-        if args.live_logit:
-            ps.logit_side_series = real_logit
     seen["tickets_opened_at_entry"] = [r["trade_id"] for r in (board.get("closed_trades") or []) + (board.get("open_trades") or [])
                                        if int(r.get("opened_ts") or 0) == target]
     seen["tape_last_tick"] = json.loads(keep[-1])["as_of_ist"] if keep else None
@@ -86,7 +81,6 @@ def main(argv=None) -> int:
     ap.add_argument("--entry", required=True, help="HH:MM:SS of the ticket's entry tick")
     ap.add_argument("--cut-a", required=True, help="HH:MM of the cycle that booked it")
     ap.add_argument("--cut-b", required=True, help="HH:MM of the cycle that lost it")
-    ap.add_argument("--live-logit", action="store_true", help="PR head: use the live loop's closed-bucket logit")
     args = ap.parse_args(argv)
     a, b = capture(args, at(args.day, args.cut_a)), capture(args, at(args.day, args.cut_b))
     print(f"entry tick {args.entry}: cycle {args.cut_a} opened {a.get('tickets_opened_at_entry')}, "

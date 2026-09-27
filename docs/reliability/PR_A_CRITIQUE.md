@@ -201,9 +201,9 @@ The fault sims found more than the critique predicted. Each change below has a t
   tick, so the newest tick of every cycle saw the bucket so far, while the same tick in any later
   cycle does not see that bar. The picker could book a ticket on that signal that no later cycle
   re-derives, and the ticket vanished. Measured with prior-day history: the last tick's logit side
-  differed from its full-day value at 20% of ticks. The live loop now uses only closed buckets and
-  builds today's bars from the tape alone (history files that grow during the day are not read for
-  today). Offline replays keep the legacy rule, byte for byte.
+  differed from its full-day value at 20% of ticks. This branch first applied the closed-bucket rule
+  in the live loop only; #25 (merged on `main`) made it unconditional, and this branch now uses #25's
+  rule everywhere (offline numbers moved with #25, by the owner's decision, not by this PR).
 - **Booked open tickets are carried, not re-derived** (`live_cycle.Pins`). From its booked open
   time a ticket holds its slot, and at the first tick after the previous cut-off its saved state
   replaces the re-derivation, so it is managed at its booked strike to its own exit. Drift is
