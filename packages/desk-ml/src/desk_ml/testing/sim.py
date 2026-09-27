@@ -20,7 +20,7 @@ import os
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any, Callable, Iterator, Optional, Sequence
+from typing import Any, Iterator, Optional, Sequence
 
 from desk_ml.features import Triple
 from desk_ml.testing.canonical import LOT_SIZES, canonical_trade, tape_lines

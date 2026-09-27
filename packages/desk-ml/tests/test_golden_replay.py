@@ -13,7 +13,6 @@ import subprocess
 import sys
 import sys as _sys
 from datetime import datetime
-from pathlib import Path
 
 import pytest
 

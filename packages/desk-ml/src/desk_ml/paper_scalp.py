@@ -41,7 +41,7 @@ from desk_ml.mrr import Z_HOLD, ols_beta, rolling_z
 from desk_ml.persist import pack_estimators, repo_root, unpack_estimators
 from desk_ml import paper_guard
 from desk_ml.founder_session import UNREADABLE_REASON as FOUNDER_UNREADABLE
-from desk_ml.reliability import AlertSink, ModelLogSink, ReplayContext, atomic_write_json, atomic_write_text
+from desk_ml.reliability import ModelLogSink, ReplayContext, atomic_write_json, atomic_write_text
 from desk_ml.paper_lots import (
     STARTING_CAPITAL_INR,
     pnl_inr,
