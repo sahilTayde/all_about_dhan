@@ -37,7 +37,9 @@ def _ticks(base_time: datetime, n: int, ltp_fn) -> list[Tick]:
     return out
 
 
-def _run_engine(ticks: list[Tick], base_time: datetime) -> tuple[FeatureEngine, list[tuple[BarClosed, datetime]]]:
+def _run_engine(
+    ticks: list[Tick], base_time: datetime
+) -> tuple[FeatureEngine, list[tuple[BarClosed, datetime]]]:
     clock = SimClock(base_time)
     source = ListSource(ticks, clock)
     builder = BarBuilder()

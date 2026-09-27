@@ -6,7 +6,7 @@ from datetime import datetime
 
 from marketdata.types import BarClosed, parse_ts
 
-from indicators.core import ATR, EMA, OIChange, RealizedVol, VWAP
+from indicators.core import ATR, EMA, VWAP, OIChange, RealizedVol
 from indicators.view import FeatureValue, FeatureView
 
 
