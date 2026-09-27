@@ -74,27 +74,6 @@
         "what": "Greeks / theta vote"
       },
       {
-        "id": "ML-001",
-        "kind": "ML",
-        "room": "analyst",
-        "capital": false,
-        "what": "KMeans overlay \u2014 silent unless own side"
-      },
-      {
-        "id": "ML-002",
-        "kind": "ML",
-        "room": "analyst",
-        "capital": false,
-        "what": "IsolationForest overlay \u2014 silent unless own side"
-      },
-      {
-        "id": "ML-1",
-        "kind": "ML",
-        "room": "analyst",
-        "capital": false,
-        "what": "Observe book. \u20b90."
-      },
-      {
         "id": "MIX-TV-EP-024",
         "kind": "LAB",
         "room": "analyst",
@@ -124,7 +103,7 @@
       },
       {
         "id": "STRAT-002",
-        "name": "Slightly OTM 20\u201330% premium",
+        "name": "Slightly OTM 20–30% premium",
         "vote": "SILENT"
       },
       {
@@ -192,17 +171,17 @@
       {
         "id": "ST_5M",
         "name": "5m Supertrend",
-        "use": "confirm / kill \u2014 not entry"
+        "use": "confirm / kill — not entry"
       },
       {
         "id": "MACD_5M",
         "name": "5m MACD",
-        "use": "confirm / kill \u2014 not entry"
+        "use": "confirm / kill — not entry"
       },
       {
         "id": "RSI_5M",
         "name": "5m RSI",
-        "use": "confirm / kill \u2014 not entry"
+        "use": "confirm / kill — not entry"
       },
       {
         "id": "EMA_SET",
@@ -217,7 +196,7 @@
       {
         "id": "PCR_OI",
         "name": "PCR (OI)",
-        "use": "hold ticket if extreme \u2014 not alpha"
+        "use": "hold ticket if extreme — not alpha"
       },
       {
         "id": "ITM_BIN",
@@ -299,15 +278,9 @@
         },
         {
           "who": "STRAT-005",
-          "watching": "delta 0.60\u20130.75",
+          "watching": "delta 0.60–0.75",
           "signal": "CE",
           "type": "MATCH"
-        },
-        {
-          "who": "ML-001",
-          "watching": "KMeans regime",
-          "signal": "SILENT",
-          "type": "SILENT"
         },
         {
           "who": "picker_majority",
@@ -359,7 +332,7 @@
           "label": "greeks",
           "side": "HOLD",
           "vs": "SPOKEN_PICKER_HOLD",
-          "detail": "Theta vs entry high \u2014 HOLD."
+          "detail": "Theta vs entry high — HOLD."
         },
         {
           "id": "strat-001",
@@ -406,8 +379,8 @@
         "14:42 follows spoke CE",
         "picker_majority CE FILL",
         "observer PASS on ITM 1m",
-        "desk paper-filled 148.40 \u00b7 SL 144.80 \u00b7 trail 146.90 \u00b7 T1 158.20",
-        "Still OPEN \u2014 path score is distance, not a win rate"
+        "desk paper-filled 148.40 · SL 144.80 · trail 146.90 · T1 158.20",
+        "Still OPEN — path score is distance, not a win rate"
       ]
     },
     "lab-target-nifty-pe": {

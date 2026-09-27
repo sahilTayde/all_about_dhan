@@ -37,8 +37,11 @@ def itm_wing_strikes(underlying: str, atm: float) -> dict[str, float]:
     return {"CE": atm_f - n * step, "PE": atm_f + n * step}
 
 
+_DEPTH_KEYS = tuple(f"{leg}_{side}{q}" for leg in ("ce", "pe") for side in ("bid", "ask") for q in ("", "_qty"))
+
+
 def _pack_leg(row: Any) -> dict[str, Any]:
-    return {
+    cell = {
         "ce": getattr(row, "ce_ltp", None),
         "pe": getattr(row, "pe_ltp", None),
         "ce_delta": getattr(row, "ce_delta", None),
@@ -56,6 +59,12 @@ def _pack_leg(row: Any) -> dict[str, Any]:
         "ce_oi": getattr(row, "ce_oi", None),
         "pe_oi": getattr(row, "pe_oi", None),
     }
+    # Depth-1 keys only when Dhan sent them, so tapes without a book keep their old shape.
+    for key in _DEPTH_KEYS:
+        value = getattr(row, key, None)
+        if value is not None:
+            cell[key] = value
+    return cell
 
 
 def _attach_itm_quotes(rows: list[Any], underlying: str, meta: dict[str, Any]) -> None:
