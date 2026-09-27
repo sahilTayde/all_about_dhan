@@ -1,493 +1,540 @@
-# Round 8 strategy redesign: attack the option round-trip cost, not the side
+# Round 8 strategy redesign: an active option-buyer desk, and what the round trip really costs
 
 Layer: **HYPOTHESIS / DESIGN** (paper-only). No engine, config, broker or credential change. Nothing here is a
 `VALIDATION` result, a win-rate claim, or a customer ticket. Written 2026-09-27 as an adversarial senior-quant review
-of lab rounds 7, 7-follow-up, 7B and 7C (uploaded reports; paths under `/workspace/dhan/output/lab_round7*/` on the
-lab box). Every number marked **(arith)** is computed below from `config/charges.yaml` and stated assumptions; every
-number marked **(lab)** is quoted from the round-7/7B/7C reports; every number marked **VERIFY** must be measured
-(mostly by the depth recorder that starts Mon 28 Sep) before it can move a verdict.
+of lab rounds 7, 7-follow-up, 7B and 7C (uploaded reports; lab-box paths under `/workspace/dhan/output/lab_round7*/`).
 
-Code paths referenced: the engine and picker are `packages/desk-ml/src/desk_ml/paper_scalp.py` and
-`packages/desk-ml/src/desk_ml/picker.py` (not `packages/backtest/...`); fees are `config/charges.yaml` =
-`packages/desk-ml/src/desk_ml/groww_costs.py`; the other repo cost model is
-`packages/backtest/src/backtest_engine/costs.py`. Signal staging rules: `teams/04_quant/docs/SIGNAL_STAGING.md`
-(5m indicators confirm/kill only). Event handling: `teams/06_backtesting/docs/EVENT_MEMORY.md`.
+**Founder steer (takes priority over the original brief):** we are **option buyers**. No recommendation to hold ATM
+options for 30-120 minutes. Longer holds appear only as a comparison, and only in futures or deep ITM options. The
+centre of this document is an **active option-buyer design** as practised by skilled intraday discretionary traders,
+turned into preregistrable specs. Option-writing structures (flies, condors, credit spreads) are out of scope; we study
+how writers behave only so a buyer can exploit it.
+
+Number tags: **(arith)** = computed here from `config/charges.yaml` (via `groww_round_trip_charges()`) and Black-76
+with stated assumptions; **(lab)** = quoted from the round-7/7B/7C reports; **VERIFY** = must be measured (mostly by the
+depth recorder starting Mon 28 Sep) before it can move a verdict.
+
+Repo paths: engine and picker are `packages/desk-ml/src/desk_ml/paper_scalp.py` and `.../picker.py` (not
+`packages/backtest/...`); fees are `config/charges.yaml` = `packages/desk-ml/src/desk_ml/groww_costs.py`; the second
+cost model is `packages/backtest/src/backtest_engine/costs.py`. Reusable building blocks for the detector below already
+exist in `packages/analysts/src/analysts/shadow.py`: `range_over_atr()`, `efficiency_ratio()`, `realised_vol_pct()`,
+`complete_bars_3m()` and `dealer_gex()`. That file also states that **no consolidation-box detector exists yet**.
+Cross-team rules: `teams/04_quant/docs/SIGNAL_STAGING.md` (5m indicators confirm/kill only),
+`teams/06_backtesting/docs/EVENT_MEMORY.md` (event days held and scored separately).
 
 ---
 
 ## 0. Now / Why / Next (plain English)
 
-- **Now.** Our trend analysts really do know a little about direction (52-53% on the next 30 minutes, about 0.02-0.05
-  of an expected move per trade). Every way we have tried to buy options on that skill loses, because one round trip
-  costs about as much as the skill earns in 30 minutes.
-- **Why.** A 30-minute option trade has to earn back about **1.2-1.7 index points** of fixed cost per unit of delta
-  (arith). Our measured 30-minute skill is about **0.5-1.4 index points**. No exit rule can fix that: maths (the
-  optional-stopping theorem) says an exit only chooses *how long* you hold. It cannot create edge. The only levers
-  are: hold longer where the drift keeps growing, pay less per round trip, trade only the strongest signals, or be
-  the side that collects the premium.
-- **Next.** Run one cheap, price-free test first (§4, T1): does the analysts' drift keep growing from 30 minutes to
-  2-4 hours? If yes, the best candidate is a deep-ITM, hold-to-15:15, one-trade-a-day book with small, cap-aware
-  size (Family A). If no, directional option buying on these signals is dead and we should stop spending on it.
+- **Now.** Holding options on our analysts' slow trend drift cannot work. The drift moves the index about **0.02-0.05
+  points per minute**, but an ITM100/ATM option loses **0.06-0.47 index points per minute** of time value (per unit of
+  delta) when the market is quiet. Every past round lost for this reason plus the ~₹2,200 round trip.
+- **Why the active design might work.** A real breakout moves the index **1.4-2.7 points per minute** (0.5 EM30 in 5-10
+  minutes). That is roughly 20-50× faster than the decay of the strikes the engine buys, and it clears the round trip
+  within minutes. So a buyer should be flat
+  in consolidation, where quiet markets cost the full decay, and long only in the minutes after a confirmed breakout.
+  If there is no follow-through within 3 minutes, get out small. The loss on a failed trade is then ~₹5-11k at
+  25 lots. A trade that captures 0.75 EM30 earns ~₹17-27k. So the book breaks even if **about 29-32%** of confirmed
+  breakouts follow through (arith, §1.4).
+- **Next.** Tonight, measure on 5 years of index bars (no option prices needed) how often breakouts from consolidation
+  boxes follow through, and whether 2+ confirmations raise that rate above ~30% (§5, TA0-TA1). Then run the full
+  BRK-BUY spec (§1.6) on the 3-year chain. No engine change on Monday.
 
 ---
 
-## 1. The cost problem from first principles
+## 1. Active option-buyer design (founder steer)
 
-### 1.1 Assumptions for the arithmetic
+### 1.1 The thesis, and the one reason it could be real
+
+A long option is long gamma and short theta. Per minute its P&L is δ·ΔS + ½Γ·ΔS² − θ. With no directional view, the
+buyer wins only in minutes when the index moves more than the premium implies, and loses θ in every quiet minute.
+Intraday NIFTY alternates between quiet consolidation, where realised vol is far below implied, and short bursts,
+where realised vol is far above it. **A buyer who is flat in consolidation and long only in bursts pays theta only
+when gamma is paying it back.**
+
+Maths caution (§2.3): the optional-stopping theorem says an exit rule cannot create edge on a martingale. The time
+stop and the trail are exits, so they add value only if something is **predictable** from the path. Two things are
+plausibly predictable, and both are testable:
+
+1. **Volatility clustering** is strong and well documented. 7C's HARI forecaster has an out-of-sample R² of 0.69 for
+   next-hour realised vol. A burst that has started tends to continue; a breakout that stalls tends to go back to
+   quiet. Keeping a long-gamma position while realised vol stays high, and cutting it when it drops, harvests that.
+2. **Direction after a confirmed breakout.** Breakout-type analysts already show 30-minute direction skill (7B: ORB15
+   and ORB30 DEV direction t ≈ 3.8-3.9; ZAB noise-area t 3.9). They lost money under a ~38-minute hold with a
+   1 EM stop and 2 EM target (W) and no consolidation prerequisite. They were never tested with a fast time stop.
+
+What would kill the thesis: implied vol reprices the burst immediately. Premium expansion means we buy at a higher IV.
+Round 7 idea E (buy a straddle when the vol label flips to expanding) lost money even before costs, so this is a
+real risk. §5 TA2 measures realised vs implied in the 5-15 minutes after confirmed breakouts.
+
+### 1.2 Decay per holding minute, by DTE and time of day (arith)
+
+Gross theta = what the option loses per minute if the index does not move (the consolidation case), in ₹ per minute at
+25 lots (1,625 units). In brackets: how many quiet minutes equal one ₹2,200 round trip. Assumptions: NIFTY 25,000, IV
+13%, Black-76, variance clock where each overnight carries 25% of a day's variance (VERIFY from the chain). With all
+decay inside the session (w = 0, harshest case), multiply by ~1.3. DTE = sessions to expiry; 0 = expiry day (Tuesday).
+
+| Strike | DTE | 09:30 | 11:00 | 13:00 | 14:30 | 15:00 |
+|---|---|---|---|---|---|---|
+| ATM | 0 | ₹157 (14 min) | ₹181 (12) | ₹243 (9) | **₹385 (6)** | **₹546 (4)** |
+| ITM100 | 0 | ₹132 (17) | ₹144 (15) | ₹162 (14) | ₹140 (16) | ₹72 (31) |
+| ITM200 | 0 | ₹80 (28) | ₹74 (30) | ₹48 (46) | ₹7 (330) | ~₹0 |
+| ATM | 1 | ₹101 (22) | ₹107 (21) | ₹116 (19) | ₹125 (18) | ₹129 (17) |
+| ITM100 | 1 | ₹94 (23) | ₹99 (22) | ₹106 (21) | ₹113 (20) | ₹115 (19) |
+| ITM200 | 1 | ₹76 (29) | ₹78 (28) | ₹80 (28) | ₹81 (27) | ₹82 (27) |
+| ATM | 2 | ₹80 (27) | ₹83 (26) | ₹88 (25) | ₹91 (24) | ₹92 (24) |
+| ITM100 | 2 | ₹77 (29) | ₹79 (28) | ₹83 (27) | ₹86 (26) | ₹87 (25) |
+| ITM200 | 2 | ₹67 (33) | ₹69 (32) | ₹71 (31) | ₹72 (30) | ₹73 (30) |
+| ATM | 4 | ₹61 (36) | ₹62 (35) | ₹64 (34) | ₹65 (34) | ₹66 (33) |
+| ITM100 | 4 | ₹59 (37) | ₹61 (36) | ₹62 (35) | ₹63 (35) | ₹64 (35) |
+| ITM200 | 4 | ₹55 (40) | ₹56 (39) | ₹57 (39) | ₹58 (38) | ₹58 (38) |
+| NIFTY future | any | ₹0 | ₹0 | ₹0 | ₹0 | ₹0, but the round trip is **₹24.5k** at 25 lots (15.1 idx pts, §2.2) |
+
+Readings:
+- **A quiet 60-minute ATM hold costs 2.3-6.6× the round trip in decay alone**: ₹4,980 at DTE 2 at 11:00 and ₹14,580 on
+  expiry day at 13:00. This is the founder's point, quantified.
+- **For a 2-5 minute trade, the round trip dominates**: ₹110-650 of decay at DTE ≥ 1 vs ₹2,200 of cost. Decay matters
+  in fast trades only for ATM on expiry afternoons (₹770-2,730 over 2-5 minutes after 14:30).
+- **Deep ITM barely decays** (₹7-80 per minute; ~₹0 on expiry afternoons). That is why long holds are only compared in
+  deep ITM (and futures, which pay no decay but a ₹24.5k round trip at 25 lots).
+- **Gross vs average decay.** Averaged over all minutes, realised moves repay most of theta through gamma. Measured net
+  decay (round-7 straddle data) is only ~0.11-0.24 pt per ATM leg per 30 minutes, vs 1.5 pts gross at DTE 2. **In a
+  quiet market a buyer pays 6-14× the average decay.** That is the quantitative case for rule (a), "don't trade
+  consolidation". It also means the case against long ATM holds is really three costs: flat-period theta, the worst
+  cost per delta (§2.2), and stop-outs. At 25 lots, the ₹30k cap is hit after ~26 index points on ITM100, which is
+  less than one EM30 (§2.5).
+
+### 1.3 Break-even move per minute held (arith)
+
+m*(t) = (C + θ·t) / δ = the index move in our direction that pays the round trip plus t minutes of quiet-market decay.
+Gamma is ignored (conservative; it matters only for 0DTE ATM, where a 27-point move adds ~2 pts). First number:
+C = ₹2,200 (1.35 option pts, the founder's figure). Second: C = 0.95 pt (my fee + slippage arithmetic; the ₹2,200 also
+includes ~38 minutes of decay and stop-fill losses, §2.3).
+
+| Case (w = 0.25) | δ | Marginal decay speed θ/δ (idx pts/min) | t = 2 | t = 3 | t = 5 | t = 10 | t = 15 | t = 30 |
+|---|---|---|---|---|---|---|---|---|
+| DTE 2 ITM100, 11:00 (engine rule) | 0.62 | 0.078 | 2.3 / 1.7 | 2.4 / 1.8 | 2.6 / 1.9 | 3.0 / 2.3 | 3.3 / 2.7 | 4.5 / 3.9 |
+| DTE 2 ATM, 11:00 | 0.50 | 0.102 | 2.9 / 2.1 | 3.0 / 2.2 | 3.2 / 2.4 | 3.7 / 2.9 | 4.2 / 3.4 | 5.8 / 4.9 |
+| DTE 1 ITM200, 11:00 (engine rule) | 0.79 | 0.061 | 1.8 / 1.3 | 1.9 / 1.4 | 2.0 / 1.5 | 2.3 / 1.8 | 2.6 / 2.1 | 3.5 / 3.0 |
+| DTE 0 ITM200, 11:00 | 0.91 | 0.050 | 1.6 / 1.1 | 1.6 / 1.2 | 1.7 / 1.3 | 2.0 / 1.5 | 2.2 / 1.8 | 3.0 / 2.5 |
+| DTE 0 ITM200, 14:30 | 1.00 | 0.004 | 1.4 / 1.0 | 1.4 / 1.0 | 1.4 / 1.0 | 1.4 / 1.0 | 1.4 / 1.0 | 1.5 / 1.1 |
+| DTE 0 ATM, 11:00 | 0.50 | 0.222 | 3.1 / 2.3 | 3.4 / 2.6 | 3.8 / 3.0 | 4.9 / 4.1 | 6.0 / 5.2 | 9.4 / 8.6 |
+| DTE 0 ATM, 14:30 | 0.50 | 0.473 | 3.7 / 2.8 | 4.1 / 3.3 | 5.1 / 4.3 | 7.4 / 6.6 | 9.8 / 9.0 | 16.9 / 16.1 |
+| DTE 4 ITM100, 11:00 | 0.59 | 0.063 | 2.4 / 1.7 | 2.5 / 1.8 | 2.6 / 1.9 | 2.9 / 2.2 | 3.2 / 2.5 | 4.2 / 3.5 |
+| NIFTY future (comparison) | 1.00 | 0 | 15.1 | 15.1 | 15.1 | 15.1 | 15.1 | 15.1 |
+| Noise: 1σ index move over t | | | 8.9 | 10.8 | 14.0 | 19.8 | 24.3 | 34.3 |
+
+Three speeds decide everything:
+
+| Speed (index pts per minute) | Value |
+|---|---|
+| Our analysts' average trend drift (μ30 = 0.02-0.05 EM30) | **0.018-0.046** |
+| Marginal decay per delta, ITM100/ATM, DTE 0-4 | **0.06-0.47** |
+| Marginal decay per delta, deep ITM (DTE 0-1) | **0.004-0.06** |
+| A real breakout: 0.5 EM30 (≈ 14 pts) in 5-10 min | **1.4-2.7** |
+
+Slow drift is slower than the decay of every non-deep option, so drift-holding buyers lose by construction. Breakouts
+are roughly 20-50× faster than the decay of the engine's strikes (0.05-0.08 per minute). The fixed cost of 1.4-3.1
+index pts is only 0.1-0.2σ of a 5-minute move. **For the
+active design, per-trade cost is not the binding constraint. The share of breakouts that follow through is.**
+
+### 1.4 Break-even follow-through rate for the active design (arith)
+
+There are three outcomes: time-stopped (no follow-through; exit at 3 minutes about 3 index pts adverse), failed-breakout
+stop (back inside the box; about 0.45 EM30 ≈ 12 pts adverse in ~4 minutes), and winner (partial plus trail capturing an
+average of 0.5, 0.75 or 1.0 EM30). Losers are assumed 70% time-stopped and 30% failed-breakout. f* is the share of
+entries that must be winners. Money is at 25 lots, C = ₹2,200.
+
+| Strike / time | Avg loser (₹) | f* at 0.5 EM30 captured | f* at 0.75 EM30 | f* at 1.0 EM30 |
+|---|---|---|---|---|
+| DTE 2 ITM100, 11:00 | ₹8.3k | 43% | **32%** | 26% |
+| DTE 1 ITM200, 11:00 | ₹9.9k | 40% | **30%** | 24% |
+| DTE 0 ITM200, 11:00 | ₹11.0k | 39% | **29%** | 23% |
+| DTE 0 ATM, 14:30 (diagnostic only) | ₹8.2k | 58% | 45% | 36% |
+
+At C = 0.95 pt, every f* drops by 1-5 points. For reference, round 7's runner geometries (0.5-1.0 EM stop, 2 EM
+target) realised 28-34% wins against 22-32% break-even (lab), so the required band is not fantasy. **0DTE ATM is the
+worst buyer instrument even for fast trades**: expiry-afternoon decay forces a 45% follow-through rate. It stays a
+diagnostic only.
+
+### 1.5 How writers and institutions position around consolidation and breakouts, and how a buyer exploits it
+
+Layer: market-structure **HYPOTHESIS** unless marked. Our data: 60-second LTP, volume and OI for 13-15 strikes plus the
+index. We have no futures volume history and no depth until Monday.
+
+**Who is on the other side.** SEBI's F&O studies (Jan 2023 and Sep 2024, SOURCE_FACT, VERIFY exact figures) found that
+about 9 in 10 individual F&O traders lost money, and that proprietary and FPI (largely algorithmic) accounts took most of
+the gains. Individuals are mostly option buyers. So an intraday buyer is usually trading against professional writers
+and market makers who price the variance premium and are, as a group, **short gamma**.
+
+**In consolidation (writers' home ground).**
+- Writers sell strangles or straddles around the range. **OI builds at the nearest OTM strikes above (a "call wall")
+  and below (a "put wall")**. ATM IV drifts down, the ATM straddle decays at roughly the theta rate, and volume is
+  thin.
+- Buyer rule: **stand aside** (spec AB-1). This is exactly where §1.2's quiet-market decay is paid.
+- One exception worth logging: if the ATM straddle decays **slower than theta** while the index is flat, someone is
+  buying volatility ahead of a move. That is a pre-breakout feature (F7), not a trade.
+
+**At the breakout (writers' pain).**
+- When the index pushes through a wall, short-call (or short-put) writers are losing. They can buy back the options,
+  which sends that strike's premium and IV up and its **OI down** (covering). Or they can delta-hedge by buying
+  futures into strength (selling into weakness for puts). Both add fuel. That is the "gamma squeeze" mechanism a
+  buyer wants to ride.
+- Observable in our chain: OI at the broken-side wall strike falls; volume in that strike bursts; the option premium
+  rises faster than δ × index move (IV expansion); 7C's synthetic-forward innovation leads the index.
+- **Counter-signal: fresh writing into the breakout.** If OI at the next strike beyond the break rises as price
+  approaches it, and ATM IV is flat or falling, writers are selling the breakout. Those breakouts should fail more
+  often; this is a veto (spec AB-2).
+
+**After a real breakout.** Put writers "roll up" in rallies: PE OI builds at higher strikes, so the floor moves up. Call
+writers roll down in selloffs. A rising PE-OI floor under a CE trade (mirror for PE) is a continuation condition for
+the trail.
+
+**Gamma sign.** A short-gamma writer community amplifies moves (breakouts run); a long-gamma one dampens them
+(pinning). The repo's `dealer_gex()` defaults to `DEALER_LONG_CALLS_SHORT_PUTS`, a US-market convention. For NIFTY
+weeklies, "writers short both calls and puts" is at least as plausible. The sign is **UNKNOWN**, so log GEX under both
+conventions. 7B called GEX "untestable (no greeks history)", but greeks can be recomputed from chain LTP and index
+with Black-76, so it is testable on the 3-year chain as long as the OI cadence is usable (TA4).
+
+**Expiry day.** OI concentrates at round strikes, and pinning around the max-OI strike is common folklore. SEBI's
+3 Jul 2025 interim order alleged that a large trading firm moved the index on expiry days to profit on options
+positions (SOURCE_FACT, VERIFY wording), and surveillance rose after it. Any expiry-day pattern must be split at that
+date. Buyer implication: on DTE 0, a break away from the max-OI strike after 13:00 has the most gamma per rupee but the
+worst decay (₹243-546 per minute ATM). Use deep ITM unless the 0DTE-ATM diagnostic passes on its own.
+
+**Honest limits of the OI story.**
+- OI does not say who wrote. "Price up and OI up = fresh longs" style rules are ambiguous.
+- NSE's OI dissemination cadence may be slower than our 60-second snapshots (VERIFY, TA4).
+- 7C found OI-change features have **about zero predictive power for the next 1-5 minutes** (information coefficient
+  −0.001 to +0.007).
+- So OI is used here only as **context**: is the range defended, and is a breakout being covered or faded? It is
+  never a minute-level direction trigger. It earns a place only if TA7 shows it separates follow-through from failure.
+
+### 1.6 Preregistrable spec: BRK-BUY (research ID; becomes a `MIX-*` only after it passes 09's five-pass)
+
+#### 1.6.0 Common definitions (also used by §3)
+
+- **Index and data.** NIFTY for money (the minute chain exists). BANKNIFTY/SENSEX: price-free replication only, unless
+  their chains exist (then the same spec runs as a replication, not a new trial). Decisions on completed 1-minute index
+  closes; option prices from the 60-second exact-strike chain (the tape from Sep 17).
+- **EM30** = 7B walk-forward EM′ (reference 27.4 pts). Sensitivity only: 7C HARI EM30 × 1.123 (reference 30.0).
+- **VOLSIZE-7B** = clip(round(25 × 27.4 / EM30), 5, 25).
+- **CAPLOTS(δ, stop_pts)** = floor(28,000 / (65 · δ · stop_pts)). **Lots = min(VOLSIZE-7B, CAPLOTS)**; skip if < 2.
+- **Fills.** Signal on the close of minute t; fill at the option price of the next snapshot (t+1) plus the half-spread.
+  Exits fill at the snapshot after the exit condition. A missing strike means skip, and the miss rate is logged.
+- **Cost model FC1.** `charges.yaml` **current** rates (STT 0.15%) for every period (not era rates). Plus half-spread
+  HS plus an adverse half tick. Interim HS (HYPOTHESIS until ≥ 10 recorder sessions): 0.20 for |moneyness| ≤ 100 at
+  DTE ≥ 1; 0.30 for ITM200+ and DTE 0. **Burst surcharge: HS × 1.5 on entries and stops in the breakout minute**
+  (spreads widen exactly then). 1.5× stress = fees × 1.5 and HS × 1.5. Swapping in the measured HS table is a re-run,
+  not a new trial.
+- **Periods.** P0 = 2021-09..2023-08 (index only). P1 = 2023-08-28..2025-08-31 (chain). P2 = 2025-09-01..2026-07-02
+  (chain; **seen by four rounds, so validation, not holdout**). P3 = 2026-07-03..2026-09-25 (index only, plus the Sep
+  17-25 tape). FWD = shadow log from 28 Sep: the only clean holdout.
+- **Money pass bar.**
+  1. Net > 0 at 1.5× on P1 and on P2 separately.
+  2. Pooled day-clustered one-sided t at 1×: ≥ 2.39 = **PASS** (Bonferroni over the 6 money primaries in §6);
+     1.645-2.39 with all other gates met = **PROMISING** (shadow only).
+  3. Placebos ≥ 95th percentile.
+  4. A +1-snapshot delayed entry keeps ≥ 50% of net.
+  5. Worst day ≥ −₹90k; worst trade ≥ −₹40k.
+  6. Report the deflated Sharpe ratio (DSR) with both effective and raw trial counts.
+
+  PASS still needs 09's five-pass before any paper book.
+
+#### 1.6.1 The spec
+
+| Component | Rule (one preregistered value each; diagnostics listed separately) |
+|---|---|
+| **AB-1 Consolidation box** | At minute t a box is active if, over the trailing **W = 20** minutes: (i) range (max high − min low) ≤ **0.9 × EM30** (a Brownian 20-min path has an expected range ≈ 1.6 EM30, so this is about the quietest fifth of windows; report the realised percentile on P1); (ii) `efficiency_ratio()` over 20 closes ≤ **0.30**; (iii) t ≥ 09:35. Box top/bottom = window high/low; it extends while price stays inside. It **dissolves** if the range grows beyond 1.3 × EM30 without a qualifying breakout. **No entries while a box is active.** |
+| **AB-1 logger** (log only) | Every box minute, log: F1 close position in box (0-1); F2 minutes in box; F3 range / EM30; F4 cumulative 7C synthetic-forward innovation (x3); F5 cumulative signed option volume (7C x1); F6 wall OI build = ΔOI(nearest OTM CE above) − ΔOI(nearest OTM PE below), normalised; F7 straddle decay ratio = actual ATM straddle change / theta-expected change; F8 VWAP side and distance / EM30; F9 trend-analyst votes (S003, ORB30, ZAB, VWAP_DEV_MOM); F10 BANKNIFTY relative return over the box; F11 GEX proxy under both dealer conventions; F12 DTE, minute of day, HARI ρ. **Direction model:** logistic regression on F1-F12 predicting the first break's side, fit on P1 boxes, frozen, scored on P2 and P3. It becomes confirmation C5 only if P1 cross-validated AUC ≥ 0.55 **and** P2 AUC ≥ 0.53; otherwise it is dropped (rule fixed now). |
+| **AB-2 Breakout trigger** | 1-minute close beyond the box top (bottom) by **b = max(0.15 × EM30, 4 pts)** → buy CE (PE). |
+| **AB-2 Confirmations** (need **≥ 2 of 5**) | **C1 volume burst:** near-ATM (±200) option volume in the breakout minute ≥ **3×** the box's median per-minute volume. **C2 premium expansion:** the option we would buy rose ≥ **1.15 × δ × index move** in the breakout minute (IV rising), or the ATM straddle rose ≥ 1%. **C3 trend agreement:** ≥ 2 of S003, ORB30, ZAB, VWAP_DEV_MOM vote the breakout side. **C4 writer covering:** OI at the nearest strike on the broken side fell ≥ **2%** over the last 3 snapshots (counts as "unavailable", not "false", if OI is stale per TA4). **C5:** the pre-breakout model agrees (only if it qualified). |
+| **AB-2 Vetoes** | **Fade flag:** OI at the next strike beyond the break rose ≥ 3% in the breakout minute **and** ATM IV fell → skip. **Chasing guard** (7C tape lesson): skip if the index is already ≥ 0.5 × EM30 beyond the box edge at the signal minute; the entry must come within the first 2 minutes of the break. |
+| **Instrument / strike** | Nearest weekly expiry. Engine DTE rule: **ITM100 if DTE ≥ 2, else ITM200** (it beat ATM and ITM100 in every round-7 segment). No ATM in the primary. |
+| **AB-3 Fast time stop** | At entry + **3 minutes** (three 60-second snapshots): if no 1-minute close since entry has reached **+0.25 × EM30** (≈ 7 pts) beyond the entry index level, exit at the next snapshot. **Failed-breakout stop** (any time): a 1-minute close back inside the box by ≥ 0.25 × EM30 → exit. The stop distance is ≈ b + 0.25 EM30 + slippage ≈ **0.45 EM30** (≈ 12 pts), which is used for sizing. Hard: −₹30k mark. |
+| **AB-4 Partial and trail** | At **+0.5 × EM30** (≈ 14 pts) favourable: sell **50%** of lots (floor) and move the stop on the rest to the entry index level. Trail the remainder: stop = max(entry, best 1-minute close since entry − **0.5 × EM30**) (mirror for PE). Also exit the remainder if a new AB-1 box forms (the trend has paused). **Max hold: 30 minutes for ITM100; 60 minutes only when δ ≥ 0.85 (deep ITM)**. Flat by 15:15. |
+| **AB-4 Re-entry** | After any exit, a new trade needs a **fresh AB-1 box (≥ 10 minutes)** and a new AB-2 breakout. Exception: after a partial-plus-trail exit, one continuation entry per move is allowed on a pullback that re-breaks the post-entry extreme with ≥ 2 confirmations. After a time-stop or failed-breakout exit, **no same-direction re-entry off the same level** until a fresh box forms. |
+| **AB-5 Frequency** | Set by the market: no fixed daily count. Rails only: ≤ 6 entries per day per index; 3 consecutive losing exits → 30-minute lockout; day stop −₹90k; 1 position per index; ≤ 3 across indices. Report the trades-per-day distribution (0 on trend-from-open or chaotic days is expected). |
+| **Sizing** | lots = min(VOLSIZE-7B, CAPLOTS(δ, 0.45 × EM30 + 3)). At median EM30 and δ 0.62, CAPLOTS ≈ 45, so VOLSIZE governs (~21 lots average; 5-25). |
+| **Skip rules** | Event calendar per `EVENT_MEMORY.md` (held and scored separately, never deleted); no box can form before 09:35; no new entries after 15:00. |
+| **Break-even** | §1.4: follow-through share f ≥ ~29-32% at 0.75 EM30 average capture (FC1 at 1×); recompute f* from the realised average loser and winner, which must be self-consistent. |
+| **Placebos** (2,000 draws) | **PL-SIDE:** same breakout minutes, random side. This tests whether the break direction matters. **PL-TIME:** same number of entries per day at random non-box minutes, same exits. This tests whether box-then-break timing matters. **PL-CONF:** same breakouts, but the ≥ 2-of-5 rule is applied to randomly permuted confirmation labels. This tests whether the confirmations add value. All three must be ≥ 95th percentile. |
+| **Component claims** (each must hold on P1 and P2) | Time stop: BRK-BUY beats the same entries without AB-3. Box prerequisite: out-of-box breakouts beat the same breakout rule without AB-1. Confirmations: ≥ 2-of-5 beats 0-of-5. |
+| **Diagnostics** (counted, not selectable) | Time stop at 2 and 5 minutes; W = 15 and 30; ATM strike on DTE 0 after 13:00 with a 10-minute max hold; ITM200 at all DTEs. |
+| **Trials** | 1 primary + 6 diagnostics + 3 component ablations + 1 direction model = **11**. |
+
+### 1.7 What prior rounds already say about this design
+
+For:
+- Moves happen, and traders fail to keep them. 54-59% of entries reach +1 EM; median favourable excursion is 1.16-1.31
+  EM vs 0.89-0.93 EM adverse; the signal exit kept only 3-8% of the best available gain (round 7 §3.3).
+- The only payoff shape with a consistent cushion over break-even is asymmetric (0.5-1.0 EM stop, 2 EM target; round 7
+  §3.2). BRK-BUY is that shape, with a time dimension added.
+- Breakout-type analysts have real direction skill (7B ORB30 / ZAB, DEV t ≈ 3.8-3.9).
+
+Against:
+- **Chasing.** On the tape, entries made after option flow had already moved our way lost ₹116k of ₹129k (7C). On
+  history the "skip chasers" rule was inconsistent. C2 (premium expansion) is a form of chasing, hence the chasing
+  guard and PL-CONF.
+- **The flow edge decays within one bar** (7C: AUC 0.50 with one-bar-stale features). A 60-second loop is late by
+  construction; TA3 measures this "confirmation tax".
+- **Round 7 idea E** (long straddle on the vol-label flip) lost before costs: vol expansion gets priced fast.
+- **ZAB noise-area breakout** made +22L in DEV, −3.2L OOS, and failed the random-time placebo even in DEV. That is a
+  "long options on trend days" effect. BRK-BUY differs by requiring the box, the time stop and the confirmations, but
+  the same failure mode is possible.
+- The engine proxy already includes a "no-consolidation" component (round 6/7 proxy book). Its marginal value was
+  never isolated; the component claim above does that.
+
+### 1.8 Red team of the active design
+
+- **Granularity.** Snapshots are 60 seconds apart, so a 3-minute time stop is three observations and a 2-minute stop
+  is two. Nothing below 2 minutes is testable until the depth recorder has data.
+- **Spreads and stops in bursts.** Spreads widen and failed breakouts snap back fast. The flat 0.20 slippage is least
+  credible exactly here, hence the burst surcharge. Monday's recorder must measure half-spreads in breakout minutes
+  specifically.
+- **Knob count.** W, the range threshold, the efficiency-ratio threshold, b, three confirmation thresholds, the time
+  stop, the partial level and the trail give roughly 10 knobs. Each has one preregistered value above, and none may
+  be tuned. Only the listed diagnostics run, and they are counted.
+- **Crowding.** Box breakouts are the most popular retail pattern. Writers know it and fade it. The fade flag is our
+  only defence, and it rests on OI data of uncertain cadence.
+- **The index box may not line up with the OI walls.** Log the distance from the box edge to the nearest wall strike
+  (TA7). If breakouts through a wall behave differently, that is a new trial, not a retune.
+- **Optional stopping still applies.** If TA2 shows realised/implied after confirmed breakouts is not above 1, the time
+  stop and trail only reshape the distribution and the design is dead. Do not rescue it by tuning.
+
+---
+
+## 2. The cost problem from first principles
+
+### 2.1 Assumptions
 
 | Item | Value | Source |
 |---|---|---|
-| NIFTY spot | 25,000 (scale linearly for futures STT) | `option_chain_poller.py` default; VERIFY live |
+| NIFTY spot | 25,000 | `option_chain_poller.py` default; VERIFY live |
 | Lot / paper size | 65 / 25 lots = 1,625 units | `test_event_parity.py` fixture; `paper_scalp.py` `PAPER_TARGET_LOTS` |
-| Implied vol for premiums | 13% Black-76, calendar time | assumption (India VIX-like) |
-| Option fees | brokerage ₹20/order, STT 0.15% sell premium, exch 0.03503% both, SEBI 0.0001%, stamp 0.003% buy, GST 18% | `config/charges.yaml` via `groww_round_trip_charges()` |
-| Option slippage (lab) | 0.20 pt/side + adverse tick rounding (avg ½ tick = 0.025) | round-6/7 `fill()` (lab) |
-| Futures fees | STT 0.05% sell (Budget 2026), exch 0.00173% both, stamp 0.002% buy, SEBI, GST | **not in `charges.yaml`; VERIFY** |
-| EM30 | median 27.4 index pts (DEV median of 7B EM′) | lab |
-| σ30 (1-sd 30-min move) | EM30 × √(π/2) = 34.3 pts | arith (normal) |
-| Net decay b of a long ATM leg (theta minus realised gamma) | 0.11 (DEV) to 0.24 (OOS) option pts per 30 min | arith from lab round-7 D: seller +2.5 / +5.7 pts per straddle over 09:30→15:20 |
+| Option fees | ₹20/order; STT 0.15% sell premium; exchange 0.03503% both sides; SEBI 0.0001%; stamp 0.003% buy; GST 18% | `config/charges.yaml` |
+| Option slippage (lab) | 0.20 pt/side + adverse half tick (0.025) | round-6/7 `fill()` |
+| Futures fees | STT 0.05% sell (Budget 2026); exchange 0.00173%; stamp 0.002% buy | **not in `charges.yaml`; VERIFY** |
+| EM30 / σ30 | 27.4 / 34.3 index pts | lab / arith |
 
-Note on b: 7C says implied intraday move ≈ 1.5× realised, which would imply a bleed of ~56% of Black-Scholes theta.
-That ratio is inflated by 7C's trading-minute clock (it folds overnight variance into the intraday forecast; 7C says
-so). The measured straddle decay above is the ground truth: the intraday variance premium a long leg pays is only
-about 0.1-0.25 pt per 30 minutes. **The fixed round-trip cost, not decay, is what kills 30-minute trades.**
+### 2.2 Cost per round trip, and per index point of exposure (arith, 25 lots)
 
-### 1.2 Cost per round trip, and per index point of exposure (arith, 25 lots)
-
-| Instrument | Premium | Delta | Fees | Slip (lab 0.20) | Total (opt pts/unit) | **Per index pt of delta** | Per delta at 0.10 half-spread | at 0.50 half-spread |
+| Instrument | Premium | δ | Fees | Slip | Total (opt pts) | **Per idx pt of δ** | at 0.10 half-spread | at 0.50 |
 |---|---|---|---|---|---|---|---|---|
-| NIFTY future | — | 1.00 | 14.1 (STT 12.5) | 1.0 (0.5/side, VERIFY) | 15.1 idx pts | **15.1** | 14.3 | 15.1 |
+| NIFTY future | — | 1.00 | 14.1 (STT 12.5) | 1.0 (VERIFY) | 15.1 (**₹24.5k** at 25 lots) | **15.1** | 14.3 | 15.1 |
 | ATM CE, DTE 2 | 96 | 0.50 | 0.26 | 0.45 | 0.71 | **1.41** | 1.01 | 2.60 |
-| ITM100 CE, DTE 2 (engine rule) | 154 | 0.66 | 0.39 | 0.45 | 0.84 | **1.27** | 0.97 | 2.17 |
-| ITM200 CE, DTE 1 (engine rule) | 210 | 0.88 | 0.52 | 0.45 | 0.97 | **1.10** | 0.88 | 1.79 |
-| ITM200 CE, DTE 0 at 10:00 | 200 | 0.99 | 0.50 | 0.45 | 0.95 | **0.96** | 0.76 | 1.56 |
-| OTM200 CE, DTE 2 | 28 | 0.21 | 0.09 | 0.45 | 0.54 | **2.65** | 1.68 | 5.58 |
-| Debit call spread ATM/+200, DTE 2 | 68 net | 0.30 | 2 legs | 2 legs | 1.25 | **4.21** | ~2.8 | ~8.2 |
-| Credit put spread ATM/−200, DTE 2 | 69 credit | 0.30 | 2 legs | 2 legs | 1.25 (0.62 if both legs expire OTM) | **4.20** | ~2.8 | ~8.2 |
-| Iron fly ±300, DTE 2 (4 legs) | 168 credit | ~0 | 4 legs | 4 legs | **2.89** per fly-unit | n/a | | |
-| Iron fly ±200, DTE 0 at 10:00 | 85 credit | ~0 | 4 legs | 4 legs | **2.60** per fly-unit | n/a | | |
+| ITM100 CE, DTE 2 | 154 | 0.66 | 0.39 | 0.45 | 0.84 | **1.27** | 0.97 | 2.17 |
+| ITM200 CE, DTE 1 | 210 | 0.88 | 0.52 | 0.45 | 0.97 | **1.10** | 0.88 | 1.79 |
+| ITM200 CE, DTE 0, 10:00 | 200 | 0.99 | 0.50 | 0.45 | 0.95 | **0.96** | 0.76 | 1.56 |
+| Debit spread ATM/+200, DTE 2 | 68 | 0.30 | 2 legs | 2 legs | 1.25 | **4.21** | ~2.8 | ~8.2 |
 
 What this says:
-1. **Futures are 10-15× more expensive per index point than options** because futures STT is charged on notional
-   (0.05% × 25,000 = 12.5 pts) while option STT is charged on premium (0.15% × 200 = 0.30 pt). 7C's "~14 pts" matches.
-   Intraday futures are dead for any signal we have (§1.4 row 1).
-2. **Deep ITM near expiry is the cheapest delta we can buy** (0.96-1.10 index pts per delta at lab slippage), because
-   delta is ~0.9-1.0 but STT is still on premium. The engine's DTE rule (ITM200 when DTE < 2) already leans this way;
-   that is plausibly why it beat ATM and ITM100 "in every segment" (round 7 §5).
-3. **Slippage, not statute, is the swing factor for options.** Fees are 0.26-0.52 pt; the lab's slippage is 0.45 pt;
-   a realistic range is 0.25-1.05 pt depending on strike, DTE, time of day and 1,625-unit size. The depth recorder
-   decides which column is true. The two repo cost models disagree by 7-10×: the lab uses 0.20 pt/side, while
-   `costs.py` uses 1% of premium per side (1.5-2.1 pts/side at these premiums). Nobody should cite a backtest without
-   saying which one it used.
-4. **Spreads double the per-leg friction and cut delta**, so per index point they cost 3-4× a single ITM leg. They are
-   only worth it if they remove a larger decay or vega cost than the extra leg adds (§1.5).
-5. **The 4-leg fly costs 2.6-2.9 pts (arith), not the 5.4 pts/lot 7C reports.** Either 7C used wider wing slippage,
-   the 1.5× stress, or double-counted a leg; it must be reconciled (§4, T7). It does not rescue the fly: 7C's raw edge
-   was +0.3 to +0.9 pt.
+- **Futures cost 10-15× more per index point than options.** Futures STT is on notional; option STT is on premium.
+- **Deep ITM near expiry is the cheapest delta a buyer can own.**
+- **Slippage is the swing factor for options.** Fees are 0.26-0.52 pt, lab slippage 0.45, and the realistic range is
+  0.25-1.05 depending on strike, DTE, time of day and 1,625-unit size.
+- **The two repo cost models disagree 7-10×**: the lab's 0.20 pt/side vs `costs.py`'s 1% of premium per side.
+- **Debit spreads** double the per-leg friction and cut delta, so they lose intraday.
 
-### 1.3 The one equation: exits choose holding time, they do not create edge
+### 2.3 Exits choose holding time; they do not create edge
 
-For a position with delta δ on an index path with drift μ̇ (index pts per minute in the signal's direction) plus
-martingale noise, the optional-stopping theorem gives, for any exit rule τ (stop, target, trail, time):
+For any exit rule τ on a drift-plus-martingale path: E[gross] ≈ δ · μ̇ · E[τ] − (average decay) · E[τ]. An exit changes
+only E[τ] (and stop-fill quality). That is why round 7 found realised win rate tracking break-even within 0-6 points
+across 58 geometries. The W exit (1 EM stop / 2 EM target) is a ~38-minute hold: E[τ] = a·b/σ² ≈ 0.8 × 1.6 × 30 min.
+"54-59% reach +1 EM, and half of those still lose" is what a driftless martingale does.
 
-    E[gross option P&L] ≈ δ · μ̇ · E[τ]  −  b · E[τ]/30  (+ ½Γ(σ_realised² − σ_implied²)·S²·E[τ], already inside b)
-    E[net] = E[gross] − c
+The ₹2,200 random-entry loss (1.35 pts) decomposes, as a hypothesis to confirm (T2), into:
+- fees 0.39-0.52
+- slippage 0.45
+- ~38 minutes of net decay 0.14-0.30
+- stop-fill and gap-through residual 0.1-0.35
 
-So an exit can only change **E[τ]** (and the fill quality of the stops). That is the formal reason round 7 found
-"realised win rate tracks break-even within 0-6 points across 58 geometries": a barrier exit reshapes the win/loss
-distribution but leaves the mean at drift × expected holding time. Two consequences:
+The skilled analysts claw back ~₹1,000 (≈ 0.03 EM30). **§1's design is the one way around optional stopping that does
+not need slow drift.** It relies on predictable volatility clustering and post-breakout direction, which must be shown
+(TA2, TA1).
 
-- **The W exit (stop 1 EM / target 2 EM) is a ~38-minute hold.** For Brownian barriers at −a and +b, E[τ] = a·b/σ²
-  = (0.80 σ30)(1.60 σ30)/σ30² × 30 min ≈ 38 min (arith, ignoring the 15:15 flat). It harvests about 1.3× the 30-minute
-  drift and pays the full round trip, plus extra stop-fill slippage (stops fill at the next bar's open after the
-  barrier breaks).
-- **Round 7's "54-59% reach +1 EM, half of those still lose" is what a driftless martingale does.** It is not
-  "give-back" that a clever exit can capture.
+### 2.4 Break-even for each buyer idea (time exits)
 
-Decomposing the ₹2,200 per random-entry trade (lab) = 1.35 option pts per unit, as a hypothesis to confirm in T2:
-fees 0.39-0.52 (arith; lower in DEV at the old 0.0625%/0.10% STT) + slippage 0.45 + decay over ~38 min 0.14-0.30 +
-stop-fill and −30k gap-through residual ≈ 0.1-0.35. The skilled analysts claw back ~₹1,000 (0.62 option pts ≈ 0.9
-index pts ≈ 0.03 EM30), which is consistent with μ30 ≈ 0.02-0.05 EM30.
+k(h) = (c + b·h/30)/δ is the break-even mean move over a hold of h minutes, using **average** (net-of-gamma) decay b.
+p*(h) = Φ(k/σ_h) is the break-even direction hit rate. Measured skill: μ30 = 0.02-0.05 EM30 (0.55-1.37 pts).
+**Money is linear in μ, not in hit rate** (52% ⇒ 1.72 pts; 0.05 EM ⇒ 51.6%).
 
-### 1.4 Break-even for each idea, and whether our skill clears it
+| Idea (buyer only) | c / δ / b | Required μ (pts) | EM30 | p* | Clears? |
+|---|---|---|---|---|---|
+| Intraday future, 30 min | 15.1 / 1 / 0 | 15.1 | 0.55 | 67.0% | **No** |
+| Future held to 15:15 (comparison) | 15.1 / 1 / 0 | 15.1 | 0.55 | 56.2% | **No** |
+| ITM100, 30-min hold (engine today) | 0.84 / 0.66 / 0.14 | 1.48 | 0.054 | 51.7% | No / marginal |
+| Deep ITM, 30 min | 0.95 / 0.88 / 0.08 | 1.17 | 0.043 | 51.4% | DEV-like only |
+| Debit spread, 30 min | 1.25 / 0.30 / 0.03 | 4.3 | 0.16 | 54.9% | **No** |
+| **Deep ITM held 120 min** (comparison) | 0.95 / 0.88 / 0.08 | 1.44 | 0.053 | 50.8% | Only if drift accrues |
+| **Deep ITM held to 15:15** (comparison) | same | 1.81 | 0.066 | 50.7% | Only if drift accrues |
+| Maker entry and exit, ITM100, 30 min (zero adverse selection) | 0.44 / 0.66 / 0.14 | 0.88 | 0.032 | 51.0% | Only with measured adverse selection |
+| Deep ITM on DTE 0, 30 min | 0.95 / 0.99 / ~0 | 0.96-1.56 | 0.035-0.057 | 51.1-51.8% | Only if 0DTE deep-ITM spreads are tight (**VERIFY**) |
 
-Definitions: c = round-trip cost (option pts/unit), b = decay per 30 min, h = hold (minutes), k(h) = (c + b·h/30)/δ
-= break-even mean index move in the signal's direction, p*(h) = Φ(k/σ_h) = break-even **direction** hit rate at that
-horizon (the trade win rate at break-even is ~50% for a time exit). σ_h = 34.3·√(h/30).
-Measured skill: μ30 = **0.05 EM30 = 1.37 pts** (DEV-like, S003/ZAB/ORB 52-53%) down to **0.02 EM30 = 0.55 pts**
-(S003 OOS, t 1.7). Note 52% ⇒ μ30 = 1.72 pts and 53% ⇒ 2.58 pts under normality, but 0.05 EM ⇒ only 51.6%; the
-tails are fat. **Money is linear in μ, not in hit rate; stop quoting hit rates as the skill metric.**
+Long-hold net per trade, deep ITM (option pts per unit; comparison only):
 
-| # | Idea | c / δ / b | Required μ (idx pts) | Required μ (EM30) | p*(h) | Skill clears? |
-|---|---|---|---|---|---|---|
-| 1 | Intraday NIFTY future, 30 min | 15.1 / 1 / 0 | 15.1 | 0.55 | 67.0% | **No** (10-27× short) |
-| 1b | Future held to 15:15 (4 h) | same | 15.1 | 0.55 | 56.2% | **No** |
-| 2 | ATM option, 30 min | 0.71 / 0.50 / 0.15 | 1.71 | 0.062 | 52.0% | No (DEV marginal) |
-| 3 | ITM100, 30 min (engine today) | 0.84 / 0.66 / 0.14 | 1.48 | 0.054 | 51.7% | **No** at 0.02; marginal at 0.05 |
-| 4 | Deep ITM (ITM200, DTE ≤ 1), 30 min | 0.95 / 0.88 / 0.08 | 1.17 | 0.043 | 51.4% | DEV-like yes (+0.18 pt); OOS-like no |
-| 5 | Debit spread ATM/+200, 30 min | 1.25 / 0.30 / ~0.03 | 4.3 | 0.16 | 54.9% | **No** |
-| 6 | Credit spread ATM/−200, 30 min | 1.25 / 0.30 / −0.05 | 4.0 | 0.15 | 54.6% | **No** |
-| 6b | Credit spread held to 15:15 (DTE 2) | 1.25 / 0.30 / −0.05 | 2.9 | 0.11 | 51.2% (225-min) | Only if drift accrues (see 7) |
-| 7 | **Deep ITM held 120 min** | 0.95 / 0.88 / 0.08 | 1.44 | 0.053 | 50.8% | **Yes iff μ accrues** (linear from 0.02 ⇒ 0.08 EM30) |
-| 7b | **Deep ITM held 240 min / to 15:15** | same | 1.81 | 0.066 | 50.7% | **Yes iff μ accrues**; no if flat |
-| 8 | Top-decile signals only, ITM100 30 min | as row 3 | 1.48 | 0.054 | 51.7% | Needs top-decile μ ≥ 1.1-2.7× the average; **unknown** (T1) |
-| 9 | Maker on both legs, ITM100 30 min, zero adverse selection (fees + tick only) | 0.44 / 0.66 / 0.14 | 0.88 | 0.032 | 51.0% | DEV-like yes; if adverse selection eats half the saving (c ≈ 0.64) ⇒ 1.18 pts, 0.043 EM30 |
-| 10 | Quiet-day iron fly, 60 min (7C V3) | 2.6-2.9 (arith) / 5.4 (lab) per fly | raw ≥ 2.6-5.4 pts | n/a | n/a | **No**: measured raw +0.3 to +0.9 (3-18× short) |
-| 11 | Iron fly ±200 on expiry day, 10:00→15:15 | 2.60 per fly (3.9 at 1.5×) | raw ≥ 2.6 pts ≈ 3% of an ~85-pt credit | n/a | n/a | **Unknown**: 7C's long straddles lost −8.2L on expiry days (sellers' side), never sliced for sellers (T6) |
-| 12 | Deep ITM directional on expiry day (DTE 0), 30 min | 0.95 / 0.99 / ~0 | 0.96 (1.56 at 0.50 half-spread) | 0.035-0.057 | 51.1-51.8% | Plausible only if deep-ITM 0DTE spreads are tight (**VERIFY Monday**) |
-
-How the holding-period lever behaves, deep ITM at lab cost (net option pts/unit per trade; arith):
-
-| μ30 and how drift accrues | 30 min | 60 min | 120 min | 240 min |
+| μ30 and accrual | 30 min | 60 min | 120 min | 240 min |
 |---|---|---|---|---|
-| 0.02 EM30, linear (μ ∝ h) | −0.55 | −0.15 | **+0.66** | **+2.27** |
-| 0.02 EM30, √h (constant information ratio) | −0.55 | −0.43 | −0.31 | −0.23 |
-| 0.02 EM30, flat (all edge in first 30 min) | −0.55 | −0.63 | −0.79 | −1.11 |
-| 0.05 EM30, linear | +0.18 | +1.30 | **+3.55** | **+8.05** |
-| 0.05 EM30, √h | +0.18 | +0.59 | +1.14 | +1.82 |
+| 0.02 EM30, linear | −0.55 | −0.15 | +0.66 | +2.27 |
+| 0.02 EM30, flat | −0.55 | −0.63 | −0.79 | −1.11 |
+| 0.05 EM30, linear | +0.18 | +1.30 | +3.55 | +8.05 |
 | 0.05 EM30, flat | +0.18 | +0.10 | −0.06 | −0.38 |
 
-**The whole redesign hinges on one measurable fact: the shape of μ(h).** The only evidence we have points the right
-way but is thin: on the wide book, the move in the trade's direction was +0.02/+0.06 EM at 30 min and +0.14/+0.09 EM
-at 60 min (DEV/OOS, t 1.7-4.0; round 7 §3.3), i.e. more than linear from 30 to 60 minutes. On the proxy book OOS it was
-flat (+0.10 → +0.11). T1 measures it on 5 years, price-free.
+### 2.5 The ₹30k cap is a hidden stop
 
-### 1.5 Verdict on each lever
-
-1. **Instrument choice.** For intraday horizons: deep ITM (δ ≥ 0.85, DTE ≤ 1) > ITM100 > ATM ≫ spreads ≫ futures, per
-   index point. Futures only make sense for multi-day holds, and even then they pay 15 pts against options' ~1.
-   Debit spreads are dominated intraday; their one legitimate use is if T2 shows momentum entries lose > 0.3 pt to
-   IV crush (vega), which a spread neutralises. Credit spreads earn decay, but at DTE 2 the −200 wing decays ~70% as
-   fast as the ATM leg (φ(0.83)/φ(0) = 0.71), so the net decay is only ~0.3 × b; they only become interesting on DTE 0-1,
-   where the wing is nearly worthless.
-2. **Holding-period extension.** The strongest lever if (and only if) drift accrues. It collides with the ₹30k
-   per-trade cap: at 25 lots the cap is hit after **26 index pts** adverse on ITM100 (δ 0.7) and **21 pts** on
-   ITM200 (δ 0.88), i.e. **< 1 EM30**. A 4-hour hold has σ ≈ 97 pts, so at 25 lots the cap is a 0.2σ stop and would
-   stop out most trades long before the drift arrives. **Longer holds require smaller size:**
-   CAPLOTS = floor(28,000 / (65 · δ · stop_pts)) → 4-6 lots for a 1.5σ stop to the close. Rupees per trade therefore
-   do not grow; cost plus decay as a share of gross edge falls from ~100% to ~15-40% (linear accrual from 0.05 / 0.02
-   EM30), which is what matters.
-3. **Trade-frequency cut.** Helps only if signal strength ranks μ. Needed: top-decile μ30 ≥ 0.054 EM30 (ITM100) or
-   ≥ 0.043 (deep ITM). Unknown; T1 measures μ by strength decile. Selecting on strength is one fitted threshold, so it
-   is cheap in trials.
-4. **Maker/limit entries.** Swing of up to 2 × half-spread per side (≈ 0.4 pt at lab slippage; 0.8 pt if both legs are
-   passive). Break-even: 0.8·f − A − (1 − f)·E[missed net] > 0, where f = fill rate, A = adverse selection on
-   fills. 7C shows why A is not zero: options lead the index by < 1 minute, so a resting CE bid fills exactly when the
-   option flow turns against us. Only the depth recorder can measure A. The one legitimate use of 7C's 57.7%
-   next-minute predictor is to **choose when to rest** a passive order, not to take liquidity.
-5. **Theta-positive structures on HARI-quiet days.** Measured raw decay is 3-18× below cost on non-expiry days. Dead
-   except possibly on expiry day (row 11), where all the remaining time value decays inside one session and there is
-   no overnight clock bias. Capacity is small: a ±200 fly with an ~85-pt credit has max loss (200 − 85) × 65 = ₹7.5k per
-   lot, so the cap allows 3 lots.
-6. **Expiry-day dynamics.** Two separate effects: (a) deep ITM at DTE 0 is a synthetic future at option-premium STT
-   with ~zero decay, the cheapest directional delta available (row 12); (b) 0DTE short gamma may carry a real variance
-   premium (row 11). Both must be split at the regime dates in §3.9 (Nov 2024 SEBI measures, the Jul 2025 SEBI interim
-   order on expiry-day trading, the Thursday→Tuesday switch on 1 Sep 2025). 7B's dte0 cells had a mean OOS direction
-   t of −0.41 across its 29 models, so signal quality on expiry days is not assumed.
+At 25 lots the cap is hit after **26 index pts** on ITM100 (δ 0.7) and **21 pts** on ITM200 (δ 0.88), i.e. **less than
+one EM30**. Long holds therefore need CAPLOTS of about 4-6 lots. BRK-BUY's structural stop (≈ 12 pts) sits well inside
+the cap, which is why it can run full VOLSIZE size.
 
 ---
 
-## 2. Ranked strategy families with preregistrable specs
+## 3. Comparison benchmarks (long holds only in deep ITM or futures) and overlays
 
-### 2.0 Common definitions (apply to every family)
+These exist to answer "is the active design better than simply holding a cheap delta?" They follow §1.6.0.
 
-- **Index.** NIFTY for money (the minute chain exists). BANKNIFTY/SENSEX: price-free replication of the premise only,
-  unless their chains exist, in which case the identical spec runs as a replication (not a new trial). SENSEX is on
-  BSE (different exchange charge, VERIFY).
-- **Signals** (all causal, from 7B `r7b_feat`): `S003_ST3_TWAP`, `ORB30`, `P_ZAB_NOISE`, `VWAP_DEV_MOM`.
-  **CONS4** = side where ≥ 3 of 4 vote the same way and none votes the other way. **Strength**
-  s = |close_t − TWAP_t| / EM30_t. The ML votes (LOGIT8, LS-GBM) are excluded: they are side-biased (7B §3).
-- **EM30** = 7B walk-forward EM′ (preferred, reference 27.4). Sensitivity only: 7C HARI EM30 × 1.123 (reference 30.0).
-- **VOLSIZE-7B** = clip(round(25 × 27.4 / EM30), 5, 25).
-- **CAPLOTS(δ, stop_pts)** = floor(28,000 / (65 · δ · stop_pts)); ₹2k headroom for stop slippage. For defined-risk
-  structures, MAXLOSSLOTS = floor(28,000 / (65 · max_loss_pts)).
-- **Lots** = min(VOLSIZE-7B, CAPLOTS or MAXLOSSLOTS). **Skip if lots < 2.** One position per family per index per day.
-  Book limits unchanged: ≤ 25 lots, −₹30k/trade, −₹90k/day, ≤ 3 positions.
-- **Fills.** Signal on the close of bar t, fill at the option open of bar t+1 (exact-strike chain). Time exits fill
-  at the open of the bar after the exit time. Skip the trade if the strike is missing from the snapshot (and log the
-  miss rate).
-- **Cost model FC1** (forward-looking, the same for all periods): `charges.yaml` **current** rates (STT 0.15%) for
-  every period, not era rates; slippage = half-spread table HS + adverse ½ tick. Interim HS (HYPOTHESIS until the
-  recorder has ≥ 10 sessions): 0.20 for |moneyness| ≤ 100 and DTE ≥ 1; 0.30 for ITM200+, DTE 0, and wings. 1.5× stress
-  = fees × 1.5 and HS × 1.5. Swapping in the measured HS table later is a re-run, not a new trial.
-- **Periods.** P0 = 2021-09-06..2023-08-25 (index only). P1 = 2023-08-28..2025-08-31 (chain). P2 = 2025-09-01..2026-07-02
-  (chain; **seen by four rounds, now treated as validation, not holdout**). P3 = 2026-07-03..2026-09-25 (index only;
-  chain only on the Sep 17-25 tape). FWD = shadow log from Mon 28 Sep 2026: the only clean holdout left.
-- **Placebos** (2,000 draws each). PL-SIDE: same times, random side. PL-TIME: same count per day, random start inside
-  the family's allowed window, random side, same hold rule. PL-DAY (structure families): random same-count eligible
-  days, same entry time and structure.
-- **Pass bar (money families).**
-  (i) net > 0 at 1.5× on P1 and on P2 separately;
-  (ii) pooled P1+P2 day-clustered one-sided t at 1× ≥ **2.39** (Bonferroni α = 0.05/6 families) → **PASS**;
-  1.645 ≤ t < 2.39 with every other gate met → **PROMISING** (shadow-log only);
-  (iii) PL-SIDE and PL-TIME (or PL-DAY) ≥ 95th percentile;
-  (iv) a +1-bar delayed entry keeps ≥ 50% of net;
-  (v) worst day ≥ −₹90k and worst trade ≥ −₹40k (gap-through allowance);
-  (vi) for directional families, the price-free premise holds on P0 and on P3 with the same sign and t ≥ 1.5;
-  (vii) report DSR with the effective trial count N_eff (§3.7) and with raw cumulative N.
-  PASS still needs 09's five-pass before any paper book (gate in `.cursor/rules/expert-coalition.mdc`).
-
-### 2.1 Ranking
-
-| Rank | Family | Lever attacked | Why it ranks here | Capacity at ₹30k cap |
+| ID | Spec | Sizing | Pass bar / placebos | Trials |
 |---|---|---|---|---|
-| 1 | **A. TREND-HOLD-DEEP** | holding time + cheapest delta + frequency cut | Only design where plausible skill (0.02-0.05 EM30, if it accrues) clears cost with margin; premise testable price-free on 5 years | 4-6 lots, ~1 trade/day |
-| 2 | **B. TIMEX** (engine entries, time exit) | holding time | Cheapest decisive test of §1.3; reuses existing round-7 paths; falsifies the thesis fast | 6-9 lots |
-| 3 | **C. EXPIRY-FLY-0DTE** | collect the variance premium where it concentrates | Our own data hint (7C expiry-day long-straddle losses); no overnight; defined risk | 2-3 lots, 1/week (NIFTY) |
-| 4 | **E. MAKER-ENTRY** overlay | spread capture | Largest cost component (0.45 of ~0.95 pt); needs depth data, overnight test is a proxy only | overlay |
-| 5 | **D. QUIET-CREDIT-01** (directional credit spread, DTE 0-1) | decay + direction stacked | Dominated by A at DTE ≥ 2 (§1.5); only DTE 0-1 has enough net decay | 3-4 lots |
-| 6 | **F. SWING-DEEP** (1-night deep ITM on trend days) | holding time (days) | Tiny cost vs daily σ (1.1 vs ~200 pts) but gap risk forces 1-2 lots | 1-2 lots |
+| **CMP-A Trend-hold, deep ITM** | Premise gate (T1): μ(to 15:15) ≥ 0.10 EM30 and μ(120) ≥ 1.6 × μ(30), t ≥ 2 on P0 and P1. Entry: first of {10:15, 11:30, 13:00} where ≥ 3 of the 4 trend analysts agree and none dissents, and s = \|close − TWAP\| / EM30 ≥ P1 q90. ITM200 (ITM300 if DTE ≥ 3). Exit 15:15; catastrophe stop 1.5 × EM30 × √(minutes left / 30). | min(VOLSIZE, CAPLOTS(0.9, stop)) ≈ 4-6 lots | §1.6.0; PL-SIDE, PL-TIME | 1 |
+| **CMP-B Engine entries, time exit, deep ITM** | Round-7 wide book (no logit gate). Strike forced to ITM200. Exit at entry + 90 min or 15:15. The same lots are applied to the signal-exit (XS) and engine-geometry (X0) comparators. | min(VOLSIZE, CAPLOTS(δ, 1.5 × EM30 × √3)) ≈ 6-9 | Also Δ vs XS and X0 > 0 at 1.5× on P1 and P2 | 1 + 3 diagnostics (60 min, 120 min, EOD) |
+| **CMP-F One-night deep ITM** | After a trend day (\|C − O\| / (H − L) ≥ 0.6 and \|C − O\| ≥ 0.6 × ATR14), buy ITM300 on the next expiry ≥ 2 sessions away at 15:20; exit next day 15:15. Price-free premise first (T9). | CAPLOTS ≈ 1-2 | §1.6.0 | 1 |
+| **CMP-FUT Same signal as CMP-A in futures** | Same entry and exit as CMP-A. | CAPLOTS(1.0, stop) | Reported next to CMP-A. It is expected to fail on the 15.1-pt cost; it exists to put a number on the option-vs-future choice. | 1 |
+| **E Maker-entry overlay** (on BRK-BUY and CMP-A) | Rest a buy at the best bid for ≤ 2 minutes (BRK-BUY) or ≤ 3 (CMP-A). No chase: a miss counts as a missed trade at its taker P&L. Stops always cross. The history proxy (fill if a later LTP ≤ limit − 1 tick) is labelled PROXY and cannot pass. On real depth data (≥ 20 sessions): per-signal gain ≥ +0.2 pt, fill rate ≥ 60%. | overlay | Note: a breakout buyer is paying for urgency, so the passive fill rate on real breakouts may be low. That is exactly what E measures. | 1 (+1 proxy) |
 
-Rejected outright (numbers in §1.4): intraday futures; debit spreads intraday; credit spreads at 30 minutes;
-non-expiry quiet-day flies/condors; long straddles on HARI > implied (lose before costs, 7C); taker trades on the
-option-flow signal (edge 0.1 pt vs 0.5 pt cost, 7C); side routers (7B: side is not the binding constraint).
-
-### 2.2 Family A: TREND-HOLD-DEEP
-
-| Field | Spec |
-|---|---|
-| Premise gate (must pass first, T1) | CONS4 signed index move satisfies μ(to 15:15) ≥ **0.10 EM30** (clears FC1 at 1.5×) and μ(120) ≥ 1.6 × μ(30), day-clustered t ≥ 2.0 on P0 **and** P1, same sign on P2 and P3. If it fails, A and F are closed without a money run (B still runs: it is cheap and tests the exit claim directly). |
-| Entry | Decision times {10:15, 11:30, 13:00}. Take the **first** decision of the day where CONS4 speaks and s ≥ q90(s \| CONS4 speaks, P1). q90 is the only fitted number; it is frozen from P1. |
-| Side | CONS4 side: CE if up, PE if down. |
-| Instrument / strike | Nearest weekly expiry, **ITM200** (NIFTY; δ ≈ 0.85-0.99 at DTE ≤ 2). If DTE ≥ 3, ITM300 (keeps δ ≈ 0.8+). |
-| Exit | Time exit 15:15. Catastrophe index stop at 1.5 × EM30 × √(m/30) against, where m = minutes from entry to 15:15 (≈ 113 pts from 11:30, 87 from 13:00). **No target, no signal exit, no trail.** |
-| Sizing | lots = min(VOLSIZE-7B, CAPLOTS(0.9, stop_pts)); typical 4-6. Skip if < 2. |
-| Skip rule | Preregistered event calendar (RBI policy, Union Budget, election results, index rebalancing day) per `EVENT_MEMORY.md`; skip if the day's open gap > 1.0 × daily ATR14 (gap days are scored separately, not deleted). |
-| Break-even | From 11:30 (225 min): μ ≥ 1.8 idx pts (lab cost), 2.0 (FC1 1×, HS 0.30), 2.65 (FC1 1.5×) = 0.066 / 0.073 / 0.097 EM30. |
-| Pass bar | §2.0. |
-| Placebos | PL-SIDE; PL-TIME over {10:15, 11:30, 13:00} on the same day. |
-| Diagnostics (not selectable) | Split by DTE 0 / 1 / 2+; by P1 pre/post 2024-11-20; 4/4 vs 3/4 agreement; exit at 14:15 vs 15:15. |
-| Trials | 1 primary. |
-
-Rupee reality check (arith, lab cost, 240-min hold): with linear accrual from μ30 = 0.02 EM30, 4 lots earn about
-+2.3 pts × 260 units ≈ ₹590 per trade; from 0.05 EM30, ≈ ₹2,100. At ~150 trades a year that is ₹0.9-3.1L on a ₹6L
-account, with per-trade 1σ risk of about ₹22k (4 × 65 × 0.9 × 94 pts). That is an annual Sharpe of roughly 0.3-1.2,
-at best. It is also the only design whose cost plus decay is 15-40% of its gross edge rather than 100%+.
-
-### 2.3 Family B: TIMEX (engine entries, pure time exit)
-
-| Field | Spec |
-|---|---|
-| Entries | Round-7 **wide book** (S003 3m + STRAT-007 clock + no-consolidation + 15-min loss cooldown, **no logit gate**; 1,146 trades). Proxy book (with logit_agree) as secondary report. |
-| Side / instrument | Unchanged: book side, engine DTE rule (ITM100 if DTE ≥ 2, else ITM200). The exit is the only change. |
-| Exit | **H90**: time exit at entry + 90 min or 15:15, whichever is first. Catastrophe stop = the cap. H90 is fixed a priori (≥ 2× W's ~38-min expected hold). |
-| Sizing | lots = min(VOLSIZE-7B, CAPLOTS(δ_entry, 1.5 × EM30 × √3)); typically 6-9. **The same lots are applied to the XS and X0 comparators**, so the comparison isolates the exit. |
-| Skip rule | None beyond the book's own filters. |
-| Break-even | k(90) ≈ 1.9 idx pts (ITM100, lab cost) ⇒ μ(90) ≥ 0.070 EM30 (p* 51.3%). |
-| Pass bar | §2.0, plus Δ vs XS > 0 and Δ vs X0 > 0 at 1.5× on P1 and on P2. |
-| Placebos | PL-SIDE; random-exit-time placebo (hold drawn uniformly from 20-150 min). |
-| Diagnostics (counted, not selectable) | H60, H120, EOD. |
-| Trials | 1 primary + 3 diagnostics. |
-
-### 2.4 Family C: EXPIRY-FLY-0DTE
-
-| Field | Spec |
-|---|---|
-| Days | NIFTY weekly expiry days only (Thursday before 2025-09-01, Tuesday after). Verdict needs the post-2025-07-03 segment > 0 on its own (n ≈ 40 expiries to 2026-07-02; low power, disclosed). |
-| Entry | 10:00 decision, fill at 10:01 option opens. Only if 7C's R = HARI EM(10:00→15:15) / straddle-implied move ≤ 0.8. On 0DTE there is no overnight, so R's clock bias vanishes. |
-| Structure | Short ATM CE + ATM PE, long CE ATM+200 and PE ATM−200 (NIFTY), same expiry. |
-| Exit | Close all legs at 15:15. Diagnostic only: hold to settlement (OTM legs expire with no exit cost; ITM legs pay exercise STT on intrinsic, rate VERIFY). |
-| Sizing | lots = min(VOLSIZE-7B, MAXLOSSLOTS(200 − credit)); typically 2-3. Skip if credit < 40 pts. |
-| Skip rule | Open gap > 0.75 × ATR14; event calendar; prior-day India VIX change ≥ +5%. |
-| Break-even | raw ≥ 2.6 pts/fly (lab) and ≥ 3.9 at 1.5×; or ≥ 5.4 if 7C's cost figure survives T7. |
-| Pass bar | §2.0 with PL-DAY (random eligible expiry days × same time) replacing PL-SIDE/PL-TIME. Also: worst trade ≤ max loss (by construction), and positive in ≥ 2 of the 3 regime segments (pre-2024-11-20, 2024-11-20..2025-07-03, post-2025-07-03). |
-| Trials | 1 primary + 1 diagnostic (settle). |
-
-Capacity reality: 3 lots × 65 × (say) 5 pts net ≈ ₹1k per expiry ≈ ₹0.5L/year on NIFTY alone. This is a diversifier
-to learn from, not the business, unless the cap is revisited for defined-risk structures (founder decision, not ours).
-
-### 2.5 Family E: MAKER-ENTRY overlay (on A or B signals)
-
-| Field | Spec |
-|---|---|
-| Rule | On signal, rest a buy limit at the best bid (depth data) for up to 3 minutes. Cancel if unfilled (**no chase**). If 7C's OFL score says the option should dip next minute (p_up < 0.5 for CE; > 0.5 for PE), keep resting; otherwise rest one minute only. Time exits: rest at the best ask from T−10 min, cross at T. Stops always cross. |
-| History proxy (overnight, labelled PROXY) | LTP only: a fill happens if a later snapshot's LTP ≤ limit − 1 tick (trade-through); limit = LTP_t − 0.05. This understates adverse selection and cannot see queue position, so it **cannot pass** on history. It only bounds the idea. |
-| Break-even | 0.8·f − A − (1 − f)·E[net of missed trades] > 0; A = mean mid move against us in the 3 minutes after a fill. |
-| Pass bar (depth data, ≥ 20 sessions) | Per-signal net improvement vs taker (unfilled trades count at their taker P&L as "missed") ≥ +0.2 opt pt, f ≥ 60%, both 10-session halves positive. |
-| Trials | 1 (on depth data); the proxy is a diagnostic. |
-
-### 2.6 Family D: QUIET-CREDIT-01 (directional credit spread, DTE 0-1)
-
-| Field | Spec |
-|---|---|
-| Entry | 11:30 decision; CONS4 speaks; DTE ∈ {0, 1}; R ≤ 0.8. |
-| Structure | Bullish: short ATM PE, long PE ATM−200. Bearish: short ATM CE, long CE ATM+200. |
-| Exit | 15:15; catastrophe: close if the index moves 1.5 × EM30 × √(m/30) against. |
-| Sizing | min(VOLSIZE-7B, MAXLOSSLOTS(200 − credit)); skip if credit < 30. |
-| Break-even | (c − net decay)/δ ≈ (1.25 − 0.6..0.75)/0.30 ≈ 1.7-2.2 pts ⇒ μ(225 min) ≥ 0.06-0.08 EM30 (DTE 0-1 net decay is roughly double the DTE-2 value because the wing is nearly worthless). |
-| Pass bar / placebos | §2.0; PL-SIDE (the short leg on the random side). |
-| Trials | 1. Run only if T1 and T6 are both non-negative. |
-
-### 2.7 Family F: SWING-DEEP (one night, deep ITM)
-
-| Field | Spec |
-|---|---|
-| Premise gate (T9, price-free, 5 years) | After a "trend day" (\|C − O\| / (H − L) ≥ 0.6 and \|C − O\| ≥ 0.6 × ATR14), the next-day open→15:15 move in the trend direction has mean ≥ 0.02 × daily σ with t ≥ 2 on P0 and P1. |
-| Entry | 15:20 on a trend day; buy ITM300 on the next weekly expiry that is ≥ 2 sessions away (δ ≈ 0.9). |
-| Exit | Next session 15:15. Catastrophe: −₹28k mark. |
-| Sizing | min(VOLSIZE-7B, CAPLOTS(0.9, 1.5 × (overnight σ + day σ) ≈ 300 pts)) ⇒ 1-2 lots. |
-| Break-even | ~1.2 idx pts vs next-day σ ≈ 200 ⇒ 0.006σ. The cost bar is trivial; the risk and capacity are the problem. |
-| Trials | 1 (only if the premise passes). |
-
-### 2.8 Trial budget for round 8
-
-6 money primaries (A, B, C, D, E, F) + 5 money diagnostics (B ×3, C ×1, E-proxy ×1) + about 40 price-free premise
-estimates (T1: 5 signal sets × 7 horizons + strength deciles; T9) ⇒ **≈ 51 new trials; cumulative ≈ 2,703**.
-Preregister with a sha256 hash before computing anything (the round-7 practice). The price-free estimates are the
-evidence base, not selections; report them all.
+**Out of scope under the buyer steer:** iron flies, condors and credit spreads (7C's expiry-day long-straddle losses of
+−8.2L suggest the writers' side earns on expiry days; we use that to understand our opponent, not to trade it);
+intraday futures; debit spreads intraday; long straddles on HARI > implied; taker trades on the option-flow signal;
+more side routers.
 
 ---
 
-## 3. Red team: where we are fooling ourselves, in both directions
+## 4. Methodology red team (both directions)
 
-### 3.1 The "OOS" year is burned (too lenient)
-Sep 2025-Jul 2026 has now been examined by rounds 6, 7, 7-follow-up, 7B and 7C. The W exit was picked after seeing
-the OOS geometry map (7B critique point 4), and "stop 1 EM / target 2 EM" was named as robust from OOS ranks (round 7
-§3.2). Every later look leaks. From round 8 on, treat P2 as validation. The clean holdouts are: price-free P0 (for
-horizons and consensus rules 7B never scored), price-free P3, and forward shadow.
+1. **The "OOS" year is burned** (too lenient). Rounds 6, 7, 7-follow-up, 7B and 7C all examined Sep 2025-Jul 2026. W
+   was picked after seeing the OOS geometry map. From round 8 on, P2 is validation; the clean holdouts are P0 for new
+   rules, P3 price-free, and FWD.
+2. **The bar has little power for modest real edges** (too strict). Minimum detectable edge: 200 trades → annual
+   Sharpe 1.8-2.6; 700 trades over 2.85 years → 0.97-1.42; 5 years price-free → 0.74-1.07 (z 1.645-2.39). PF ≈ 1 +
+   2.5 × IR, so "PF > 1.2 at 1.5×" demands IR ≈ 0.08 per trade (Sharpe ~1.8 at ~500 trades a year). A true Sharpe-1.2
+   strategy passes the round-7/7B conjunction only about **5-15%** of the time. The gates pass with roughly: DEV 0.95,
+   OOS 0.87, both halves 0.63, placebo 0.45, PF 0.25; they are correlated. The fix is fewer pre-committed trials with
+   one primary endpoint, not a lower bar: with N = 2,652 the expected best null z is 3.97.
+3. **Reduced-form money backtests waste data.** Estimate the noisy term (follow-through / direction) price-free on 5
+   years. Measure the low-variance terms (cost, decay) precisely from the chain and depth. Confirm with money runs.
+4. **Cost-model bias, both ways.**
+   - Two cost worlds in the repo (7-10× apart).
+   - Flat slippage is too generous for ITM200 at DTE 0-1, for the open and close, for burst minutes and for 1,625
+     units, and too harsh for ATM.
+   - STT eras: 0.0625% → 0.10% (Oct 2024) → 0.15% (Apr 2026). That is +0.175 pt = ₹284 per trade at a 200-pt premium
+     vs DEV-era rates.
+   - 7C's fly cost (5.4 pts) vs 2.6-2.9 by arithmetic (T7).
+   - Exercise STT and BSE charges are missing.
+5. **Exact-strike proxy issues.**
+   - **LTP staleness flatters momentum and breakout entries.** On thin ITM strikes the last trade can predate the
+     move. For breakouts this matters twice: at entry (a stale, cheap LTP) and at C2 (premium expansion
+     under-measured). T3 measures it.
+   - Strikes drift off the 13-15-strike window after big moves.
+   - A 60-second LTP is not a quote.
+   - The chain ends 2026-07-02.
+6. **The W exit is not neutral.** It tests the horizon where drift is weakest relative to cost. At 25 lots on DTE < 2
+   the cap, not W, is the real stop.
+7. **Trial count.** Raw N (2,652) over-counts correlated trials. An effective N of 100-300 lowers the best null z only
+   to 3.0-3.4. DSR ≈ 0 is robust; adaptive reuse of one year is the bigger issue.
+8. **Placebos and shift.** The +1-bar test is lenient on chain prices. Random-side placebos keep timing, so long gamma
+   in high-vol windows can pass PL-TIME without any direction skill. That is why BRK-BUY needs PL-SIDE **and** PL-TIME
+   **and** PL-CONF.
+9. **Market-structure breaks inside the sample:**
+   - SEBI F&O measures (20 Nov 2024)
+   - the SEBI interim order on expiry-day conduct (3 Jul 2025)
+   - NIFTY expiry Thursday → Tuesday on 1 Sep 2025, **exactly the P1/P2 boundary**
+   - the STT increase (1 Apr 2026)
+   - lot size 75 → 65
 
-### 3.2 The bar has almost no power for real but modest edges (too strict)
-Minimum detectable edge (arith, one-sided):
-
-| Sample | z = 1.645 | z = 2.39 (Bonferroni over 6) |
-|---|---|---|
-| 200 trades / 0.85 years (a typical OOS book) | IR/trade 0.116, annual SR 1.78 | IR 0.169, SR 2.59 |
-| 700 trades / 2.85 years (chain window) | IR 0.062, SR 0.97 | IR 0.090, SR 1.42 |
-| 1,250 days / 5 years (price-free) | IR 0.047, SR 0.74 | IR 0.068, SR 1.07 |
-
-PF ≈ 1 + 2.5 × IR per trade (normal approximation), so **"PF > 1.2 at 1.5× costs" alone demands a net IR ≈ 0.08 per
-trade, roughly an annual Sharpe of 1.8 after stressed costs at ~500 trades a year**. That is a top-decile hedge-fund
-bar. For a strategy with a true full-sample t of 2 over 3 years (Sharpe ~1.2), the gates pass with roughly these
-probabilities: DEV > 0 ≈ 0.95 (t 1.63), OOS > 0 ≈ 0.87 (t 1.15), both OOS halves > 0 ≈ 0.63, placebo ≥ 90th pct
-≈ 0.45, PF ≥ 1.2 at 1.5× ≈ 0.25. The product is ≈ 0.06; the gates are positively correlated, so the joint pass rate is
-roughly **5-15%** (arith). So "nothing passes" is partly a power ceiling, not proof of no edge. The fix is **fewer, pre-committed
-trials with one primary endpoint** (§2.0), not a lower bar: with N = 2,652 trials the expected best null z is
-√(2 ln N) ≈ 3.97.
-
-### 3.3 Reduced-form P&L backtests waste the data (too strict, fixable)
-Net ₹ = δ·μ·τ − c − b·τ. The noisy term is μ (direction). The cost terms c and b are **low-variance** and can be
-measured precisely from the chain and the depth feed. Estimate μ(h) on 5 years of index bars (price-free, n ≈ 1,250
-days × several decisions), and c and b from the chain; then the P&L follows by multiplication. That uses the 5-year
-index history, which the money backtests throw away because it has no option prices. Reduced-form money runs stay as
-the confirmation, not the discovery tool.
-
-### 3.4 Biased cost model (both directions)
-- **Two cost worlds in the repo:** lab 0.20 pt/side vs `costs.py` 1% of premium per side (7-10× more). Pick one per
-  report and say which.
-- **Flat slippage is wrong in both directions:** probably too generous for ITM200/ITM300 at DTE 0-1, at 09:15-09:30
-  and 15:00+, and for 1,625 units (it may exceed top-of-book on ITM strikes), and too harsh for ATM (typically 0.05-0.10
-  half-spread). The engine's DTE rule sends expiry-adjacent trades to exactly the strikes where 0.20 is most doubtful.
-- **STT eras:** 0.0625% until 30 Sep 2024, 0.10% until 31 Mar 2026, 0.15% after (Budget 2024 and Budget 2026;
-  `groww_costs.py` carries only the 2026 rate and says "VERIFY vs older slabs"). At a 200-pt
-  premium the step from the DEV-era rate to today's is +0.175 pt per trade = ₹284 at 25 lots. DEV results priced at
-  era rates overstate what the same trades would earn going forward. Use FC1 (current rates for all periods) for
-  decisions.
-- **Fly cost:** 7C's 5.4 pts/lot vs 2.6-2.9 by arithmetic. Reconcile (T7).
-- **Missing items:** exercise STT for settle-to-expiry legs, BSE vs NSE charges for SENSEX, IPF/clearing (small).
-
-### 3.5 Exact-strike proxy issues (direction of bias partly unknown)
-- **LTP staleness favours momentum entries.** Chain prices are last trades. On thinner ITM strikes the LTP can lag
-  the index by a minute or more. A trend signal fires right after an index move, so a stale LTP is a price from
-  *before* the move: a favourable entry that could not really be had. 7C found options lead the index at ATM; that
-  need not hold at ITM200. T3 measures it. If the bias is ≥ 0.2 pt, every momentum-entry backtest is optimistic by
-  that much.
-- **Strike leaves the window.** With 13-15 strikes (±350 pts), an ITM200 contract drifts off the recorded window
-  after a ~150-pt move, and those trades are the biggest winners and losers. Log how each is priced (dropped? rolling
-  series?).
-- **"Option open at t+1"** from a 60-second LTP snapshot is not a quote. It is a trade price at an unknown time
-  inside the minute.
-- **Chain ends 2026-07-02**; Jul-Sep 2026 uses the rolling series with its ~2.7 pt/trade gamma bias (round-7
-  errata). Never mix it into money verdicts.
-
-### 3.6 The 1×/2× exit (W) is not neutral (too strict for trend signals)
-W is a ~38-minute hold with next-bar stop fills. It tests the one horizon where our measured drift is weakest
-relative to cost. Hit rates of 30-35% against a 34% break-even just restate μ ≈ 0 at that horizon. Separately, at
-25 lots the ₹30k cap hits after 21 index pts on ITM200 (< 1 EM30), so on DTE < 2 trades **the cap, not W, is the real
-stop**. The cap silently tightens the stop on exactly the expiry-adjacent days where moves are largest.
-
-### 3.7 Trial-count inflation (DSR is right to be ≈ 0, for a different reason)
-The raw cumulative N (2,652) counts highly correlated trials (58 geometries on one entry list; 1,450 overlapping
-skill-map cells). An effective N from the trial-return correlation matrix (eigenvalues explaining 90% of variance, or
-ONC clustering) is probably 100-300. That lowers the expected best null z only from 3.97 to about 3.0-3.4, and every
-OOS Sharpe so far is far below that. So DSR ≈ 0 is robust to the N choice. The real inflation is adaptive reuse of one
-year (§3.1), which DSR does not model.
-
-### 3.8 Placebo and shift tests
-- The +1-bar test is lenient on chain prices (a 1-minute bounce often improves the fill; 7B said so). Keep it, but it
-  should never be the binding "pass".
-- Random-side placebos keep the timing, so a strategy that times high-vol windows can pass PL-TIME by being long
-  gamma, not by knowing direction. 7B already requires both placebos. Keep that.
-- Momentum entries buy after the index has moved, often after IV has jumped. The IV mean-reversion after entry is a
-  hidden vega cost that no side placebo isolates. T2 measures it; if it is > 0.3 pt, debit spreads or lower-vega deep
-  ITM are the fix.
-
-### 3.9 Market-structure breaks inside the sample (both directions)
-- 20 Nov 2024 SEBI F&O measures: one weekly expiry per exchange (BANKNIFTY weekly ended), larger contracts, upfront
-  premium, extra expiry-day margin on shorts. This is inside P1.
-- 3 Jul 2025 SEBI interim order on alleged expiry-day index manipulation (Jan 2023-May 2025 conduct). Expiry-day
-  patterns in P1 may not recur.
-- 1 Sep 2025 NIFTY expiry moved from Thursday to Tuesday (SENSEX to Thursday). This is **exactly the P1/P2 boundary**,
-  so every DTE- or weekday-conditioned rule changes meaning across the split.
-- 1 Apr 2026 STT increase (options 0.15%, futures 0.05%). Lot size 75 → 65.
-- Any expiry or DTE result must be reported by these segments.
-
-### 3.10 Edge we may be throwing away
-1. **The 60-minute drift on the wide book (t 2.5-4.0)** was only ever monetised through barrier exits and 25-lot
-   sizing that the cap turns into a sub-1-EM stop. It has never been held with a pure time exit at cap-aware size.
-   Families A/B test exactly this.
-2. **Vol-managed sizing** passed twice with independent forecasts (round-7 B3 and 7B P7). It improves risk-adjusted
-   return on any positive book. Keep it inside every spec (done).
-3. **Expiry-day sellers' side:** 7C's long straddles lost −8.2L on expiry days. Nobody has priced the mirror trade
-   with defined risk on 0DTE (Family C).
-4. **The option-flow predictor** is worthless as a taker signal but may be worth the half-spread as a timing tool for
-   passive orders (Family E).
-5. **5-year direction skill is real** (S003 t 4.9 DEV, 3.7 in 2021-23). The problem is monetisation, not discovery.
-   Stop building side models.
-
-What is **not** edge: the proxy book's +4.2L OOS (PF 1.05 at 1.5×, DSR ≈ 0); P5b (38 trades, lost in DEV, side placebo
-69%); the day-skip model (7B already explained why not).
+   Split every expiry-, DTE- or OI-conditioned result by these dates.
+10. **Edge we may be throwing away.**
+    - The fast-exit asymmetric shape was only ever tested without a consolidation prerequisite or confirmations.
+    - Vol-managed sizing passed twice.
+    - Breakout analysts' direction skill was never tested with a time stop.
+    - OI covering vs fresh writing at breakouts was never tested.
 
 ---
 
-## 4. Overnight test plan (run locally before Mon 09:15 IST, in priority order)
+## 5. Overnight test plan (run locally before Mon 09:15 IST, in priority order)
 
-All tests are offline on the lab box, with no broker calls and no engine or config change. Write
-`output/lab_round8/PREREGISTRATION.md` with this section's specs and hash it **before** T1.
+Offline on the lab box only. No broker calls, no engine or config change. Write
+`output/lab_round8/PREREGISTRATION.md` (§1.6, §3, this section) and hash it **before** TA0.
 
-| # | Test | Data | Method | Output | Decision rule | Compute |
-|---|---|---|---|---|---|---|
-| T0 | Integrity and freeze | tapes, chain, `scratch/r7` | Reproduce RAW 66 / −128,730.49, P2C 38 / +94,962, proxy 198 / +4.17L (golden hashes, per the 09-25 truncation lesson). Hash the preregistration. | `T0_baselines.csv`, `.sha256` | Any mismatch ⇒ stop and fix the data first | light |
-| T1 | **μ(h) curve** (the crux) | 5-yr NIFTY 1m (+ BANKNIFTY, SENSEX), 7B `r7b_feat` votes | For S003, ORB30, ZAB, VWAP_DEV_MOM, CONS4 (≥ 3/4, 4/4) and the wide-book entry times: mean signed move in EM30 units at h ∈ {15, 30, 60, 90, 120, 180, to 15:15}; day- and week-clustered t; by P0/P1/P2/P3; by strength decile; by DTE bucket. | `T1_mu_curve.csv`, one plot | Premise for A: μ(120) ≥ 1.6 × μ(30) and μ(15:15) ≥ 0.10 EM30, t ≥ 2 on P0 and P1, same sign on P2/P3. Frequency cut is alive if top-decile μ30 ≥ 0.054 EM30. **If the premise fails, close A and D (and F if T9 also fails) and record "directional option buying on these signals is closed" as the round-8 result.** B still runs (T4). | light (price-free) |
-| T2 | Random-entry loss decomposition | chain P1+P2 | 10k random ITM100 and ITM200 entries × {H30, H60, H120, 15:15, W}: split net into fees, slippage, δ × index move, and residual; split the residual into decay and vega using chain ATM IV at entry and exit. Repeat on CONS4 entry times (vega after momentum). | `T2_decomp.csv` | Confirms or refutes §1.3 (1.35 pt = fees + slip + decay + stop residual); gives measured b(h) by strike/DTE for the break-even table; vega loss > 0.3 pt ⇒ promote spreads/deeper ITM in A | medium |
-| T3 | LTP staleness audit | chain P1+P2 | Per strike offset (ATM, ITM100, ITM200) and last-minute volume: lead/lag regression of option returns on index returns (lags 0/1/2); entry-price bias conditional on a trend signal (sign-aligned LTP minus a B76 synthetic from ATM IV and synchronous spot). | `T3_staleness.csv` | Bias ≥ 0.2 pt in the trade's favour ⇒ re-price every momentum backtest on the synthetic mid; report old vs new | medium |
-| T4 | Family B (TIMEX H90) | round-7 wide/proxy paths | §2.3 spec, identical lots for XS/X0 comparators, FC1 costs | `T4_timex.csv` | §2.0 bar + Δ vs XS/X0 | light (paths exist) |
-| T5 | Family A | chain P1+P2, P0/P3 price-free | §2.2 spec; run only if T1 passes | `T5_trendhold.csv` | §2.0 bar | medium |
-| T6 | Expiry-day slice, then Family C | 7C `f2_pnl_all.parquet`, `F2_trades.parquet`, chain | First: slice existing raw straddle/fly P&L by DTE = 0 and by segment (pre-2024-11-20 / to 2025-07-03 / after). Then run the §2.4 spec. | `T6_expiry_slice.csv`, `T6_fly0dte.csv` | Slice raw < 2.6 pts/fly on post-2025-07 ⇒ close C without the full run | light, then medium |
-| T7 | Cost reconciliation | lab `fees()`, `fill()`, 7C V3 legs | Recompute the 5.4 pt/lot fly cost leg by leg vs 2.6-2.9 (arith); state which STT era each round used; build FC1; re-price the headline proxy book under FC1 | `T7_costs.md` (in the lab output folder, not the repo) | Any cost ≥ 20% off ⇒ restate the affected verdicts in an errata | light |
-| T8 | Family D | chain | §2.6 spec; only if T1 and T6 are non-negative | `T8_credit01.csv` | §2.0 bar | medium |
-| T9 | Family F premise, then money | 5-yr index; chain | Next-day continuation after trend days (price-free), then the §2.7 spec if t ≥ 2 on P0 and P1 | `T9_swing.csv` | §2.7 gate | light |
-| T10 | Monday measurement protocol (no backtest) | depth recorder from 28 Sep | Log half-spread and top-of-book size by strike offset (ATM, ITM100, ITM200, ITM300, ±200 wings) × DTE × {09:15-09:30, 09:30-14:30, 14:30-15:30}, plus the cost of sweeping 1,625 units. After 10 sessions: replace the interim HS table in FC1. After 20: run Family E on real quotes. | recorder files | Measured HS ≥ 0.4 on ITM200 at DTE 0-1 ⇒ recompute rows 4, 7, 12 and the A instrument choice (ITM100 may beat ITM200) | n/a |
+| # | Test | Data | Method | Decision rule | Compute |
+|---|---|---|---|---|---|
+| T0 | Integrity and freeze | tapes, chain, `scratch/r7` | Reproduce RAW 66 / −128,730.49, P2C 38 / +94,962 and proxy 198 / +4.17L against the golden hashes; hash the preregistration. | Any mismatch ⇒ stop. | light |
+| **TA0** | **Box and breakout base rates** | 5-yr NIFTY 1m (+ BANKNIFTY, SENSEX) | Run AB-1 and the AB-2 trigger price-free. Report: boxes per day; box length; breakouts per day; follow-through = reaches +0.5 EM30 before failing back 0.25 EM30 inside the box; failure within 3 and 5 minutes; MFE/MAE in EM30 at 3/5/10/15/30 minutes; by P0-P3, DTE and time of day; the trades-per-day distribution. | Unconfirmed follow-through share is the baseline. If it is < 20% everywhere, confirmations must lift it ~10+ points or the design is closed. | light |
+| **TA1** | **Do confirmations raise follow-through?** | index (C3) 5 yrs; chain P1-P2 (C1, C2, C4) | Follow-through rate by number of confirmations (0 / 1 / 2 / 3+) and by each confirmation alone; day-clustered CIs; PL-CONF permutation. | Need monotone improvement and ≥ 2-of-5 follow-through ≥ f* (~30%) on P1 **and** P2, same sign on P0 for C3. | light-medium |
+| **TA2** | **Is long gamma paid after breakouts?** | chain P1-P2 | Realised vol over the next 5/15 minutes ÷ ATM Black-76 implied at entry, for confirmed breakouts vs random non-box minutes vs box minutes; also the ATM IV change over the same window (the vega paid for chasing). | Ratio > 1 after confirmed breakouts and < 1 in boxes ⇒ thesis alive. Ratio ≤ 1 after breakouts ⇒ close BRK-BUY without a money run. | medium |
+| **TA3** | **Confirmation tax** | chain + index | Index and option move between the breakout-minute close and the next-snapshot fill; as a share of the median follow-through. | Tax > 30% of median follow-through ⇒ report BRK-BUY as latency-bound; retest on depth data. | light |
+| **TA4** | **OI cadence audit** | chain, tape | Distinct OI updates per strike per hour, by strike offset and time of day. | If updates are slower than one per 3 minutes, C4 and the fade flag are "unavailable" (not tuned away). | light |
+| **TA5** | **BRK-BUY money run** | chain P1-P2 (tape for P3) | Full §1.6 spec with FC1 costs; three placebos; component ablations; diagnostics. | §1.6.0 bar and the component claims. | medium |
+| **TA6** | **Pre-breakout direction model** | chain P1 → P2 | Fit the F1-F12 logistic on P1 boxes, freeze, score P2 AUC and calibration. | Enters as C5 only if P1 CV AUC ≥ 0.55 and P2 ≥ 0.53. | light |
+| **TA7** | **Writer-positioning study** | chain P1-P2 | In boxes: wall OI build vs later break side and follow-through. At breakouts: covering vs fresh writing vs follow-through; distance from the box edge to the wall strike; GEX-proxy sign under both conventions vs follow-through. Split at 2024-11-20, 2025-07-03 and 2025-09-01. | Informs C4 and the fade flag. Any new rule found here is a **new trial for round 9**, not a retune. | medium |
+| T1 | Drift curve μ(h) (for CMP-A/B/F) | 5-yr index | Mean signed move in EM30 at 15-240 min and to 15:15 for the four trend analysts, the consensus rule and wide-book times; by period and strength decile. | CMP-A premise (§3). | light |
+| T2 | Random-entry loss decomposition | chain | Split net into fees, slippage, δ × move and residual (decay vs vega from chain IV) for random ITM100/ITM200 entries at {3, 5, 15, 30 min, W}. | Confirms §2.3 and §1.2 (measured gross vs net decay by DTE and time of day). | medium |
+| T3 | LTP staleness | chain | Lead/lag of ITM option returns vs index; entry-price bias conditional on a breakout or trend signal vs a Black-76 synthetic mid. | Bias ≥ 0.2 pt ⇒ re-price every breakout/momentum backtest on the synthetic mid. | medium |
+| T4 | CMP-B | round-7 paths | §3 spec. | §3 bar. | light |
+| T5 | CMP-A and CMP-FUT | chain | Only if T1 passes. | §3 bar. | medium |
+| T7 | Cost reconciliation | lab `fees()` / `fill()` | STT era used by each round; build FC1; re-price the headline proxy. | Any ≥ 20% error ⇒ errata. | light |
+| T9 | CMP-F premise, then money | index, chain | Next-day continuation after trend days. | t ≥ 2 on P0 and P1. | light |
+| T10 | Monday measurement protocol | depth recorder | Half-spread and top-of-book size by strike (ATM, ITM100, ITM200, ITM300) × DTE × {09:15-09:30, normal, **breakout minutes**, 14:30+}; the cost of sweeping 1,625 units. After 10 sessions: replace interim HS. After 20: run overlay E and second-level time stops. | Burst half-spread ≥ 0.5 on the DTE-rule strike ⇒ recompute §1.3-1.4 before any BRK-BUY verdict. | n/a |
 
-What to tell the desk on Monday regardless of results: **no engine change**. Round 8's outputs are, at most, specs for
-the shadow log (A/B/C as counterfactual rows next to live entries, VOLSIZE-7B as a counterfactual size column) with
-written kill criteria, followed by a fresh preregistered test on forward data.
+Monday regardless of results: **no engine change.** At most, BRK-BUY and CMP-A/B go into the shadow log as
+counterfactual rows next to live entries, with VOLSIZE-7B as a counterfactual size column and written kill criteria.
+That is followed by a fresh preregistered test on forward data.
 
 ---
 
-## 5. Handoff block
+## 6. Trial budget
 
-- **Accepted** (from rounds 7/7B/7C): direction skill is real but small; side is not the binding constraint; the
-  exact-strike chain is the only valid money pricing; the rolling series is retired for P&L; VOLSIZE-7B is the one
-  overlay that passed twice; HARI is the best move-size forecast (with 7B's scoring discrepancy still open); the
-  logit side bias is a known defect.
-- **Rejected:** "a better exit will fix it" (optional stopping, §1.3); futures for intraday signals (15 pts per round
-  trip); debit/credit spreads at 30-minute horizons; non-expiry quiet-day flies; further side routers; the 7C 5.4-pt
-  fly cost as final (it needs T7); hit rate as the skill metric.
-- **UNKNOWN / DATA_INSUFFICIENT:** the shape of μ(h) beyond 60 minutes (T1); real half-spreads by strike/DTE/size
-  (T10); LTP staleness bias on ITM strikes (T3); the expiry-day seller P&L after the Jul-2025 SEBI order (T6);
-  adverse selection on passive fills (depth data); BANKNIFTY/SENSEX chain availability; futures and exercise STT
-  rates (VERIFY; not in `charges.yaml`).
-- **Cross-team citations:** 04 `SIGNAL_STAGING.md` (5m indicators confirm/kill only; CONS4 uses 3m/1m trend votes and
-  ORB/ZAB/VWAP rules, no 5m entry); 06 `EVENT_MEMORY.md` (event days are held and scored separately, not deleted); 09
-  five-pass gate before any paper book; KEEP_ALL untouched (no `STRAT-*` is deleted or re-labelled here; families are
-  research designs, not `MIX-*` catalog entries until one passes).
+| Block | Trials |
+|---|---|
+| BRK-BUY: 1 primary + 6 diagnostics + 3 ablations + 1 direction model | 11 |
+| CMP-A, CMP-B (+3 diagnostics), CMP-F, CMP-FUT | 7 |
+| Overlay E (+ proxy) | 2 |
+| Price-free base rates and premises (TA0, TA1, TA2, T1, T9; all reported) | ~70 |
+| **Total new** | **≈ 90 → cumulative ≈ 2,742** |
+
+The money primaries for Bonferroni are BRK-BUY, CMP-A, CMP-B, CMP-F, CMP-FUT and E (6), so a PASS needs z ≥ 2.39.
+
+---
+
+## 7. Handoff block
+
+- **Accepted** (from rounds 7/7B/7C):
+  - Direction skill is real but small; side is not the binding constraint.
+  - Money results use exact-strike chain prices only; the rolling series is retired for P&L.
+  - VOLSIZE-7B is the one overlay that passed twice.
+  - HARI is the best move-size forecast (7B's scoring discrepancy is still open).
+  - The logit side bias is a known defect.
+  - Founder steer: buyer-only desk; no long ATM holds; long holds only in deep ITM or futures, as comparisons.
+- **Rejected:**
+  - Holding ITM100/ATM on slow drift: drift of 0.02-0.05 pts/min is below decay of 0.06-0.47 pts/min per delta.
+  - "A better exit alone fixes it" (optional stopping).
+  - Intraday futures (₹24.5k per round trip at 25 lots).
+  - Debit spreads intraday.
+  - Writer-side structures (out of scope).
+  - More side routers.
+  - Hit rate as the skill metric.
+- **UNKNOWN / DATA_INSUFFICIENT:**
+  - Follow-through base rates of box breakouts and the lift from confirmations (TA0/TA1).
+  - Realised vs implied after breakouts (TA2).
+  - The confirmation tax at 60-second granularity (TA3).
+  - OI dissemination cadence (TA4); who is writing, since OI has no side.
+  - Half-spreads in breakout minutes (T10).
+  - LTP staleness on ITM strikes (T3).
+  - The GEX sign convention for NIFTY weeklies.
+  - BANKNIFTY/SENSEX chain availability.
+  - Futures and exercise STT rates (VERIFY; not in `charges.yaml`).
+  - The overnight variance weight w used in the decay tables (VERIFY from the chain).
+- **Cross-team citations:**
+  - 04 `SIGNAL_STAGING.md`: 5m indicators confirm or kill, never enter. C3 uses 3m/1m trend votes and ORB/ZAB/VWAP
+    rules.
+  - 06 `EVENT_MEMORY.md`: event days are held and scored separately.
+  - 09 five-pass gate before any paper book.
+  - KEEP_ALL untouched: no `STRAT-*` is deleted or relabelled. BRK-BUY and the CMP-* entries are research IDs, not
+    `MIX-*` catalogue rows, until one passes.
