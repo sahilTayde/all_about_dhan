@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Callable
 from dataclasses import dataclass, replace
 from typing import Any, Protocol, cast
@@ -23,6 +24,10 @@ from oms.ledger_stub import MemoryLedger
 _LIVEISH_NAMES = frozenset({"dhan", "live", "limited_live", "shadow"})
 _STOP_RESIZE_ATTEMPTS = 3
 _STOP_RESIZE_FAILED = "STOP_RESIZE_FAILED"
+_LOG = logging.getLogger(__name__)
+_LOT_SIZE_MISMATCH = "LOT_SIZE_MISMATCH"
+_QTY_NOT_WHOLE_LOT = "QTY_NOT_WHOLE_LOT"
+_ODD_LOT_FLATTEN = "ODD_LOT_FLATTEN"
 
 
 class PaperDeskBroker(Protocol):
@@ -190,6 +195,8 @@ class OrderRouter:
         instrument_id = decision.instrument_id or ""
         lots = int(decision.lots or 0)
         lot_size = lot_size_for(instrument_id)
+        if decision.lot_size is not None and int(decision.lot_size) != lot_size:
+            return self._lot_mismatch_veto(oid, int(decision.lot_size), lot_size, "decision")
         stop = _catastrophic_price(plan, decision)
         intent = self._intent(
             client_order_id=oid,
@@ -235,14 +242,9 @@ class OrderRouter:
             )
         if exit_plan is not None and self.positions is not None:
             self.positions.remember_plan(oid, exit_plan)
-        try:
-            order = self.broker.place_order(intent, rd)
-        except TimeoutError:
-            self.store.mark_needs_lookup(oid)
-            row = self.store.get_order(oid)
-            if row is not None:
-                row["needs_lookup"] = True
-            raise
+        placed = self._place_entry(intent, rd, oid)
+        if isinstance(placed, Veto):
+            return placed
         self.broker.remember(
             oid,
             available_ts=self.clock.now(),
@@ -254,7 +256,7 @@ class OrderRouter:
             {"client_order_id": oid, "account_id": account.account_id},
             source="oms",
         )
-        return order
+        return placed
 
     def _place_adopt(
         self,
@@ -263,11 +265,28 @@ class OrderRouter:
         decision: Decision,
         account: Account,
         oid: str,
-    ) -> Order:
+    ) -> Order | Veto:
         """Lookup-by-id before resend. Risk already approved this client_order_id."""
         instrument_id = str(existing.get("instrument_id") or decision.instrument_id or "")
         lots = int(existing.get("lots") or decision.lots or 0)
         lot_size = lot_size_for(instrument_id)
+        stored = existing.get("lot_size")
+        if stored is not None and int(stored) != lot_size:
+            _LOG.error(
+                "rebuild refused: stored lot_size %s != exchange %s for %s",
+                stored,
+                lot_size,
+                instrument_id,
+            )
+            return self._lot_mismatch_veto(oid, int(stored), lot_size, "stored")
+        if decision.lot_size is not None and int(decision.lot_size) != lot_size:
+            _LOG.error(
+                "rebuild refused: decision lot_size %s != exchange %s for %s",
+                decision.lot_size,
+                lot_size,
+                instrument_id,
+            )
+            return self._lot_mismatch_veto(oid, int(decision.lot_size), lot_size, "decision")
         intent = self._intent(
             client_order_id=oid,
             instrument_id=instrument_id,
@@ -286,17 +305,52 @@ class OrderRouter:
         )
         rd = RiskDecision(True, oid, "ENTRY", "OK", "adopt", self.clock.now())
         try:
-            order = self.broker.place_order(intent, rd)
+            placed = self._place_entry(intent, rd, oid)
         except TimeoutError:
             existing["needs_lookup"] = True
             raise
+        if isinstance(placed, Veto):
+            return placed
         self.broker.remember(
             oid,
             available_ts=self.clock.now(),
             decision_ts=self.clock.now(),
             moneyness=_moneyness(decision),
         )
-        return order
+        return placed
+
+    def _lot_mismatch_veto(self, oid: str, claimed: int, exchange: int, source: str) -> Veto:
+        _LOG.error(
+            "LOT_SIZE_MISMATCH %s claimed=%s exchange=%s oid=%s",
+            source,
+            claimed,
+            exchange,
+            oid,
+        )
+        return self._veto(
+            oid,
+            _LOT_SIZE_MISMATCH,
+            f"{source} lot_size {claimed} != exchange {exchange}",
+        )
+
+    def _place_entry(self, intent: TradeIntent, rd: RiskDecision, oid: str) -> Order | Veto:
+        """Send-time guard: qty > 0 and a whole multiple of the exchange lot."""
+        exchange = lot_size_for(intent.instrument_id)
+        qty = int(intent.qty)
+        if qty <= 0 or qty % exchange != 0:
+            return self._veto(
+                oid,
+                _QTY_NOT_WHOLE_LOT,
+                f"qty {qty} is not a positive whole multiple of lot {exchange}",
+            )
+        try:
+            return self.broker.place_order(intent, rd)
+        except TimeoutError:
+            self.store.mark_needs_lookup(oid)
+            row = self.store.get_order(oid)
+            if row is not None:
+                row["needs_lookup"] = True
+            raise
 
     def _veto(self, oid: str, code: str, reason: str) -> Veto:
         self.bus.publish(
@@ -671,9 +725,24 @@ class OrderRouter:
         """REG-03: always `exit_intent` from the held instrument and whole-lot qty."""
         inst = str(position.get("instrument_id") or "")
         lot = lot_size_for(inst)
-        qty = whole_lots_qty(int(position.get("net_qty") or 0), lot)
-        if qty <= 0:
-            raise ValueError("exit qty must be a whole lot")
+        raw_net = int(position.get("net_qty") or 0)
+        qty = whole_lots_qty(raw_net, lot)
+        if raw_net != qty:
+            detail = f"net_qty {raw_net} is not a whole multiple of lot {lot}; closing {qty}"
+            _LOG.error("ODD_LOT_FLATTEN %s %s", inst, detail)
+            self.bus.publish(
+                "HEALTH_ALERT",
+                {
+                    "reason_code": _ODD_LOT_FLATTEN,
+                    "instrument_id": inst,
+                    "detail": detail,
+                    "severity": "CRITICAL",
+                    "ts": self.clock.now().isoformat(),
+                },
+                source="oms",
+            )
+        if qty <= 0 or qty > raw_net:
+            raise ValueError(f"exit qty {raw_net} has no whole lot <= net (lot {lot})")
         key = inst or str(position.get("symbol") or "")
         live = self.store.positions.get(key)
         live_net = int(live["net_qty"]) if live is not None else qty
