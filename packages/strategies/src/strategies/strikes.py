@@ -76,16 +76,20 @@ def rule_version(rules: Mapping[str, Any]) -> str:
 
 
 def load_router_rules(path: Path | None = None) -> dict[str, Any]:
-    """Load strike-router YAML. Missing file falls back to the packaged defaults."""
+    """Load strike-router YAML. A missing file is an error (no silent weekday fallback)."""
     import yaml  # type: ignore[import-untyped]
 
     target = path if path is not None else _default_yaml_path()
-    if target is not None and target.is_file():
-        loaded = yaml.safe_load(target.read_text(encoding="utf-8"))
-        if not isinstance(loaded, dict):
-            raise ValueError("strike_router.yaml must be a mapping")
-        return loaded
-    return dict(_DEFAULT_RULES)
+    if target is None or not target.is_file():
+        shown = target if target is not None else "config/v2/strategies/strike_router.yaml"
+        raise ValueError(
+            f"strike_router.yaml missing at {shown}; "
+            "pass rules= explicitly — packaged weekday defaults are not applied"
+        )
+    loaded = yaml.safe_load(target.read_text(encoding="utf-8"))
+    if not isinstance(loaded, dict):
+        raise ValueError("strike_router.yaml must be a mapping")
+    return loaded
 
 
 def nearest_strike(spot: float, step: int) -> int:
@@ -126,43 +130,6 @@ def _default_yaml_path() -> Path | None:
         if candidate.is_file():
             return candidate
     return None
-
-
-_DEFAULT_RULES: dict[str, Any] = {
-    "version": "1.0.0",
-    "underlyings": {
-        "NIFTY": {
-            "exchange": "NSE",
-            "segment": "FNO",
-            "strike_step": 50,
-            "weekly_expiry_weekday": "tuesday",
-        },
-        "SENSEX": {
-            "exchange": "BSE",
-            "segment": "FNO",
-            "strike_step": 100,
-            "weekly_expiry_weekday": "friday",
-        },
-        "BANKNIFTY": {
-            "exchange": "NSE",
-            "segment": "FNO",
-            "strike_step": 100,
-            "weekly_expiry_weekday": "wednesday",
-        },
-    },
-    "rules": {
-        "no_atm_on_expiry_day": True,
-        "open_decay_window": {"start": "09:15", "end": "10:00", "choice": "ITM200"},
-        "dte": {"le_1": "ITM200", "ge_2": "ITM100"},
-        "atm_max_hold_s": 300,
-        "default_hold_s": 900,
-        "lowest_breakeven": True,
-        "honor_strategy_fixed": True,
-    },
-    "costs": {"brokerage_inr_per_order": 20},
-    "delta": {"ATM": 0.50, "ITM100": 0.65, "ITM200": 0.80},
-    "decay_k": {"ATM": 1.0, "ITM100": 0.55, "ITM200": 0.30},
-}
 
 
 def _hhmm(text: str) -> time:
@@ -241,6 +208,8 @@ def _match_quote(
         payload = item.payload
         if isinstance(payload, QuoteSnapshot):
             if payload.rule != rule or payload.side != side:
+                continue
+            if payload.instrument_id != instrument_id:
                 continue
         elif isinstance(payload, DepthQuote):
             if payload.instrument_id != instrument_id:
@@ -410,8 +379,6 @@ class StrikeRouter:
                 )
                 continue
             bid, ask, mid, spread = _prices(hit.payload)
-            if isinstance(hit.payload, QuoteSnapshot) and hit.payload.instrument_id:
-                instrument_id = hit.payload.instrument_id
             age_ms = int((decision_ts - hit.available_ts).total_seconds() * 1000)
             brokerage = float((self.rules.get("costs") or {}).get("brokerage_inr_per_order", 20))
             charge_pts = (2.0 * brokerage) / float(lot_size)
