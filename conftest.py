@@ -1,262 +1,129 @@
+"""Root conftest: repo-wide test-data guard (REG-11a / REG-11b).
+
+REG-11a: any write into data/ or config/ from test code fails the test.
+         Enforced with a CPython audit hook, which sees every open() path
+         (builtins.open, io.open, os.open, pathlib, shutil, pandas) plus
+         sqlite3.connect, rename/replace, mkdir, remove, and is active from
+         pytest_configure, so import/collection-time writes are caught too.
+REG-11b: the session fails if data/ or config/ differ from the start of the run
+         (catches C-extension and subprocess writes the hook cannot see, e.g.
+         pyarrow's native writer or `subprocess.run(... > data/x)`).
 """
-Root conftest: comprehensive test-data guard (REG-11a/REG-11b).
 
-REG-11a: Tests cannot write to data/ or config/ directories.
-REG-11b: The full test suite leaves git status clean in data/ and config/.
+from __future__ import annotations
 
-Implementation: sys.addaudithook covering all write operations.
-"""
-
+import os
 import sys
 from pathlib import Path
 from typing import Any
 
 import pytest
 
-# Workspace root
-WORKSPACE_ROOT = Path(__file__).parent
-
-# Protected directories (read-only during tests)
-PROTECTED_DIRS = {
-    WORKSPACE_ROOT / "data",
-    WORKSPACE_ROOT / "config",
-}
+ROOT = Path(__file__).resolve().parent
+PROTECTED = tuple(str(ROOT / d) for d in ("data", "config"))
+_WRITE_FLAGS = os.O_WRONLY | os.O_RDWR | os.O_CREAT | os.O_APPEND | os.O_TRUNC
+_state: dict[str, Any] = {"armed": False, "violations": [], "snapshot": {}}
 
 
-def _is_protected_path(path: str | Path | int) -> bool:
-    """Check if path is under a protected directory."""
-    # Allow integer file descriptors
-    if isinstance(path, int):
-        return False
-
+def _protected(path: Any) -> str | None:
+    if isinstance(path, int) or path is None:
+        return None
     try:
-        resolved = Path(path).resolve()
-        return any(
-            resolved == protected or protected in resolved.parents
-            for protected in PROTECTED_DIRS
-        )
-    except (OSError, ValueError):
-        # Invalid path, let it through (will fail naturally)
-        return False
+        p = os.path.realpath(os.fsdecode(path))
+    except (TypeError, ValueError):
+        return None
+    return p if any(p == d or p.startswith(d + os.sep) for d in PROTECTED) else None
 
 
-_guard_armed = False
-_violations: list[str] = []
+def _violation(what: str, path: str) -> None:
+    msg = f"REG-11: test wrote into a protected path via {what}: {path}"
+    _state["violations"].append(msg)
+    raise PermissionError(msg)
 
 
-def _audit_hook(event: str, args: tuple[Any, ...]) -> None:
-    """Audit hook for file operations."""
-    if not _guard_armed:
+def _at(path: Any, dir_fd: Any) -> Any:
+    """Resolve a dir_fd-relative path (shutil.rmtree uses os.rmdir/unlink(name, dir_fd=fd))."""
+    if isinstance(dir_fd, int) and not os.path.isabs(os.fsdecode(path)):
+        try:
+            return os.path.join(os.readlink(f"/proc/self/fd/{dir_fd}"), os.fsdecode(path))
+        except OSError:
+            return None
+    return path
+
+
+def _hook(event: str, args: tuple[Any, ...]) -> None:
+    if not _state["armed"]:
         return
-
-    # Open operations
+    if event in ("os.mkdir", "os.rmdir", "os.remove") and args:
+        args = (_at(args[0], args[-1]),) + tuple(args[1:])
     if event == "open":
-        path, mode, *_ = args
-        if any(m in str(mode) for m in ["w", "a", "x", "+"]) and _is_protected_path(
-            path
-        ):
-            msg = f"Test attempted to write (open) to protected path: {path}"
-            _violations.append(msg)
-            raise PermissionError(
-                msg + "\nTests must not modify data/ or config/ (REG-11)"
-            )
-
-    # pathlib operations
-    elif event == "pathlib.Path.open":
-        _, path, mode, *_ = args
-        if any(m in str(mode) for m in ["w", "a", "x", "+"]) and _is_protected_path(
-            path
-        ):
-            msg = f"Test attempted to write (Path.open) to protected path: {path}"
-            _violations.append(msg)
-            raise PermissionError(
-                msg + "\nTests must not modify data/ or config/ (REG-11)"
-            )
-
-    elif event in ("pathlib.Path.write_text", "pathlib.Path.write_bytes"):
-        _, path, *_ = args
-        if _is_protected_path(path):
-            msg = f"Test attempted to write ({event}) to protected path: {path}"
-            _violations.append(msg)
-            raise PermissionError(
-                msg + "\nTests must not modify data/ or config/ (REG-11)"
-            )
-
-    elif event in ("pathlib.Path.mkdir", "os.mkdir", "os.makedirs"):
-        if event.startswith("pathlib"):
-            _, path, *_ = args
-        else:
-            path, *_ = args
-        # Only block if creating new dir under protected (parent must be protected)
-        parent = Path(path).parent if not isinstance(path, int) else None
-        if parent and _is_protected_path(parent):
-            msg = f"Test attempted mkdir in protected path: {path}"
-            _violations.append(msg)
-            raise PermissionError(
-                msg + "\nTests must not modify data/ or config/ (REG-11)"
-            )
-
-    elif event in (
-        "pathlib.Path.rename",
-        "pathlib.Path.replace",
-        "os.rename",
-        "os.replace",
-    ):
-        if event.startswith("pathlib"):
-            _, src, dst, *_ = args
-        else:
-            src, dst, *_ = args
-        if _is_protected_path(src) or _is_protected_path(dst):
-            msg = f"Test attempted rename/replace in protected path: {src} -> {dst}"
-            _violations.append(msg)
-            raise PermissionError(
-                msg + "\nTests must not modify data/ or config/ (REG-11)"
-            )
-
-    elif event in (
-        "pathlib.Path.unlink",
-        "pathlib.Path.rmdir",
-        "os.remove",
-        "os.unlink",
-        "os.rmdir",
-    ):
-        if event.startswith("pathlib"):
-            _, path, *_ = args
-        else:
-            path, *_ = args
-        if _is_protected_path(path):
-            msg = f"Test attempted remove in protected path: {path}"
-            _violations.append(msg)
-            raise PermissionError(
-                msg + "\nTests must not modify data/ or config/ (REG-11)"
-            )
-
-    # sqlite3 operations (allow read-only)
-    elif event == "sqlite3.connect":
-        path, *_ = args
-        # Check if connection will be read-only (uri=True with mode=ro)
-        # For simplicity, we check the path but sqlite3 audit doesn't give us mode
-        # We'll catch writes at the execute level
-        if _is_protected_path(path) and not (
-            isinstance(path, str) and (":memory:" in path or "mode=ro" in path)
-        ):
-            # Otherwise, let it through but monitor execute
-            pass
-
-    elif event == "sqlite3.connect/handle":
-        # Actual connection made
-        pass
-
-
-_snapshot_before: dict[str, tuple[float, int]] = {}
-
-
-def _take_snapshot() -> dict[str, tuple[float, int]]:
-    """Take snapshot of data/ and config/ (mtime, size), excluding __pycache__."""
-    snapshot = {}
-    for protected in PROTECTED_DIRS:
-        if not protected.exists():
-            continue
-        for path in protected.rglob("*"):
-            # Skip __pycache__ directories and their contents (Python import side effect)
-            if "__pycache__" in path.parts:
-                continue
-            if path.is_file():
-                try:
-                    stat = path.stat()
-                    snapshot[str(path.relative_to(WORKSPACE_ROOT))] = (
-                        stat.st_mtime,
-                        stat.st_size,
-                    )
-                except (OSError, ValueError):
-                    pass
-    return snapshot
-
-
-def pytest_configure(config: Any) -> None:
-    """Arm the guard at pytest start."""
-    global _guard_armed, _snapshot_before
-
-    # Register markers
-    config.addinivalue_line(
-        "markers", "reg11a_probe: REG-11a probe test (exempt from guard)"
-    )
-
-    # Take snapshot before tests
-    _snapshot_before = _take_snapshot()
-
-    # Arm the audit hook
-    sys.addaudithook(_audit_hook)
-    _guard_armed = True
-
-
-def pytest_sessionfinish(session: Any, exitstatus: int) -> None:
-    """Check snapshot diff at end (REG-11b)."""
-    snapshot_after = _take_snapshot()
-
-    # Compare snapshots
-    changes = []
-    for path, (mtime_before, size_before) in _snapshot_before.items():
-        if path not in snapshot_after:
-            changes.append(f"DELETED: {path}")
-        else:
-            mtime_after, size_after = snapshot_after[path]
-            if mtime_after != mtime_before or size_after != size_before:
-                changes.append(
-                    f"MODIFIED: {path} (mtime: {mtime_before} -> {mtime_after}, size: {size_before} -> {size_after})"
-                )
-
-    for path in snapshot_after:
-        if path not in _snapshot_before:
-            changes.append(f"CREATED: {path}")
-
-    if changes:
-        print("\n" + "=" * 80)
-        print("REG-11b VIOLATION: data/ or config/ changed during test run")
-        print("=" * 80)
-        for change in changes:
-            print(f"  {change}")
-        print("=" * 80)
-        pytest.exit(
-            "REG-11b FAILED: Test suite modified data/ or config/", returncode=1
+        path, mode, flags = args
+        writing = (mode is not None and any(c in mode for c in "wax+")) or (
+            mode is None and isinstance(flags, int) and flags & _WRITE_FLAGS
         )
+        if writing and (p := _protected(path)):
+            _violation("open", p)
+    elif event == "sqlite3.connect":
+        db = args[0]
+        if (p := _protected(db)) and "mode=ro" not in str(db):
+            _violation("sqlite3.connect", p)
+    elif event in ("os.rename", "shutil.move", "shutil.copyfile", "shutil.copytree"):
+        if p := _protected(args[1]):
+            _violation(event, p)
+    elif event == "os.mkdir":  # mkdir(exist_ok=True) on an existing dir changes nothing
+        if (p := _protected(args[0])) and not os.path.exists(p):
+            _violation(event, p)
+    elif event == "os.rmdir":  # os.removedirs walks up; a non-empty dir cannot be removed anyway
+        if (p := _protected(args[0])) and os.path.isdir(p) and not os.listdir(p):
+            _violation(event, p)
+    elif event in ("os.remove", "os.truncate", "os.chmod", "shutil.rmtree", "os.symlink", "os.link"):
+        target = args[1] if event in ("os.symlink", "os.link") else args[0]
+        if p := _protected(target):
+            _violation(event, p)
 
 
-def pytest_runtest_makereport(item: Any, call: Any) -> None:
-    """Fail tests that swallow PermissionError from the guard."""
-    # Check if test is marked as reg11a_probe (exempt)
-    if "reg11a_probe" in [marker.name for marker in item.iter_markers()]:
-        return
+def _snapshot() -> dict[str, tuple[int, int]]:
+    snap: dict[str, tuple[int, int]] = {}
+    for base in PROTECTED:
+        for dirpath, dirnames, filenames in os.walk(base):
+            dirnames[:] = [d for d in dirnames if d != "__pycache__"]
+            snap[dirpath] = (0, 0)
+            for name in filenames:
+                full = os.path.join(dirpath, name)
+                try:
+                    st = os.stat(full)
+                except OSError:
+                    continue
+                snap[full] = (st.st_size, st.st_mtime_ns)
+    return snap
 
-    if call.excinfo and _violations:
-        # Test swallowed a PermissionError from our guard
-        last_violation = _violations[-1]
-        pytest.fail(f"Test swallowed REG-11 guard PermissionError: {last_violation}")
+
+def pytest_configure(config: pytest.Config) -> None:
+    config.addinivalue_line("markers", "reg11a_probe: REG-11a probe test (exempt from guard)")
+    if not getattr(sys, "_reg11_hook", False):  # audit hooks cannot be removed; install once
+        sys.addaudithook(_hook)
+        sys._reg11_hook = True  # type: ignore[attr-defined]
+    _state["snapshot"] = _snapshot()
+    _state["armed"] = True
 
 
 @pytest.hookimpl(hookwrapper=True)
-def pytest_runtest_call(item: Any) -> Any:
-    """
-    Hookwrapper to catch and re-raise PermissionErrors from the guard.
-    
-    If a test swallows a PermissionError from our audit hook, this hookwrapper
-    will detect it via _violations and fail the test.
-    """
-    # Clear violations before test
-    violations_before = len(_violations)
-    
-    # Run the test
+def pytest_runtest_call(item: pytest.Item) -> Any:
+    # Skip guard check for probe tests
+    is_probe = any(mark.name == "reg11a_probe" for mark in item.iter_markers())
+    before = len(_state["violations"])
     outcome = yield
-    
-    # Check if test is exempt
-    if "reg11a_probe" in [marker.name for marker in item.iter_markers()]:
-        return
-    
-    # Check if violations occurred during test but test didn't fail
-    if len(_violations) > violations_before and outcome.excinfo is None:
-        # Test swallowed a guard error
-        new_violations = _violations[violations_before:]
-        pytest.fail(
-            f"REG-11 guard detected {len(new_violations)} write attempt(s) to protected paths, "
-            f"but test did not fail:\n" + "\n".join(new_violations)
-        )
+    if is_probe:
+        return  # Probe tests are allowed to trigger the guard
+    new = _state["violations"][before:]
+    if new and outcome.excinfo is None:  # the code under test swallowed the PermissionError
+        pytest.fail("\n".join(new), pytrace=False)
+
+
+def pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
+    _state["armed"] = False
+    before, after = _state["snapshot"], _snapshot()
+    changed = sorted(k for k in before.keys() | after.keys() if before.get(k) != after.get(k))
+    if changed:
+        sys.stderr.write("\nREG-11b: data/ or config/ changed during the test run:\n  " + "\n  ".join(changed) + "\n")
+        session.exitstatus = pytest.ExitCode.TESTS_FAILED
