@@ -54,6 +54,13 @@ python -m marketdata.dhan_ws --mode replay --tape /path/to/ticks.jsonl
 
 `--mode live-data` refuses to start without `DHAN_CLIENT_ID` / `DHAN_ACCESS_TOKEN`. `--mode replay` needs no credentials and plays a tape into an in-process publisher (or Redis with `--redis-url`).
 
+### Live bars (V2-12)
+
+- **LTT or it does not make the bar.** A tick is published either way. `ts_source='ltt'` when packet LTT is present, non-zero, and within one hour of receive time; otherwise `ts_source='recv'`. Recv-stamped ticks (missing or zero LTT, or LTT outside the window) do **not** update bar OHLC. `BarBuilder` never sees them. They increment `unstamped_ticks` on the next closed bar for that instrument.
+- **STALE / DOWN gap bars are not published.** A 1m bar whose `[start, end)` overlaps a STALE or DOWN period, or that closes while the feed is STALE or DOWN, is dropped (`suppressed_bars`). Downstream sees the hole via `FEED_STATUS` and the missing `BAR_CLOSED`. Published bars carry `feed_quality='OK'`. No clean-looking OHLC is emitted for the gap.
+- **In-process publisher is bounded.** With no `--redis-url`, the live path uses `MemoryPublisher` (`deque`, default `maxlen=10_000`). It is not an unbounded list. Redis `XADD` stays the production sink.
+- **No order client.** `python -m marketdata.dhan_ws` loads `dhan_client.feed` / REST instrument and chain helpers only. It does not import `dhan_client.client` or `dhan_client.execution`.
+
 ## What it records
 
 At startup: the scrip master CSV (cached daily in `data/cache/marketdata/`), the nearest

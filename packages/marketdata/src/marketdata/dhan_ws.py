@@ -7,6 +7,8 @@ New entry point (recorder CLI is unchanged):
     python -m marketdata.dhan_ws --mode replay --tape PATH
 """
 
+# ruff: noqa: I001  — _dhan_ns must load before any other dhan_client import
+
 from __future__ import annotations
 
 import argparse
@@ -15,16 +17,20 @@ import json
 import logging
 import sys
 import uuid
+from collections import deque
 from collections.abc import Callable
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Protocol
 
-from dhan_client.config import Settings, load_settings, repo_root
-from dhan_client.errors import CredentialsError
-from dhan_client.feed import MarketFeedCollector
-from dhan_client.types import FeedMode
-
+from marketdata._dhan_ns import (
+    CredentialsError,
+    FeedMode,
+    MarketFeedCollector,
+    Settings,
+    load_settings,
+    repo_root,
+)
 from marketdata import logsafe
 from marketdata.bars import BarBuilder
 from marketdata.chain import ChainPoller, FetchChain
@@ -32,7 +38,7 @@ from marketdata.clock import Clock, LiveClock, iso, market_close, market_open, s
 from marketdata.config import RecorderConfig
 from marketdata.frames import decode_frame_checked
 from marketdata.instruments import UNDERLYINGS, DhanInstrumentSource, Universe, load_universe
-from marketdata.normalize import SecurityMap, bar_payload, stamp_exchange_ts, tick_from_packet, tick_payload
+from marketdata.normalize import SecurityMap, bar_payload, resolve_exchange_ts, tick_from_packet, tick_payload
 from marketdata.sources import TapeSource
 from marketdata.strikes import Change, StrikeSet
 from marketdata.tape import TapeWriter
@@ -48,6 +54,8 @@ STREAMS: dict[str, tuple[str, str]] = {
     "CLOCK": ("clock", "md:clock"),
 }
 OnFeedStatus = Callable[[dict[str, Any]], None]
+MEMORY_PUBLISHER_MAXLEN = 10_000
+_BAD_QUALITY = frozenset({"STALE", "DOWN"})
 
 
 class Publisher(Protocol):
@@ -55,10 +63,11 @@ class Publisher(Protocol):
 
 
 class MemoryPublisher:
-    """In-process sink (tests, replay without Redis)."""
+    """Bounded in-process sink. Live path must never use an unbounded list."""
 
-    def __init__(self) -> None:
-        self.events: list[dict[str, Any]] = []
+    def __init__(self, *, maxlen: int = MEMORY_PUBLISHER_MAXLEN) -> None:
+        self.maxlen = maxlen
+        self.events: deque[dict[str, Any]] = deque(maxlen=maxlen)
 
     def publish(self, envelope: dict[str, Any]) -> None:
         self.events.append(envelope)
@@ -148,6 +157,12 @@ class LiveMarketData:
         self._subscribed_s: dict[str, float] = {}
         self._stale: set[str] = set()
         self._open_dt: datetime | None = None
+        self.unstamped_tick_count: int = 0
+        self._unstamped_open: dict[str, int] = {}
+        self.suppressed_bars: int = 0
+        self._quality = "DOWN"
+        self._quality_since: datetime | None = None
+        self._bad_ranges: list[tuple[datetime, datetime, str]] = []
 
     def request_stop(self, reason: str = "stop requested") -> None:
         if self.stop_reason is None:
@@ -253,14 +268,19 @@ class LiveMarketData:
             inst = self.securities.resolve(header.exchange_segment, header.security_id)
             if inst is None or inst.instrument_id not in self.strikes.subscribed:
                 continue
-            exchange_ts = stamp_exchange_ts(packet.decoded.fields, now)
+            exchange_ts, ts_source = resolve_exchange_ts(packet.decoded.fields, now)
             tick = tick_from_packet(packet, inst.instrument_id, exchange_ts)
             if tick is None:
                 continue
             self._last_tick_s[inst.instrument_id] = now.timestamp()
-            self._emit("TICK", tick_payload(tick), now, tick.exchange_ts)
-            for bar in self.bars.on_tick(tick, now):
-                self._emit_bar(bar)
+            self._emit("TICK", tick_payload(tick, ts_source=ts_source), now, tick.exchange_ts)
+            if ts_source != "ltt":
+                self.unstamped_tick_count += 1
+                iid = inst.instrument_id
+                self._unstamped_open[iid] = self._unstamped_open.get(iid, 0) + 1
+            else:
+                for bar in self.bars.on_tick(tick, now):
+                    self._emit_bar(bar)
             if inst.kind == "INDEX" and tick.ltp:
                 self.spot = tick.ltp
                 await self._apply(self.strikes.update(self.spot, now.timestamp()), now)
@@ -312,9 +332,45 @@ class LiveMarketData:
         for inst in change.subscribe:
             self._subscribed_s[inst.instrument_id] = now.timestamp()
 
+    def _bar_feed_quality(self, start: datetime, end: datetime) -> str:
+        """Worst STALE/DOWN overlapping ``[start, end)``, else OK."""
+        worst: str | None = None
+        if self._quality in _BAD_QUALITY and (self._quality_since is None or self._quality_since < end):
+            worst = self._quality
+        for bad_start, bad_end, reason in self._bad_ranges:
+            if bad_start < end and bad_end > start and (reason == "DOWN" or worst != "DOWN"):
+                worst = reason
+        return worst or "OK"
+
+    def _note_quality(self, now: datetime, status: str) -> None:
+        if status == "DOWN":
+            new_q = "DOWN"
+        elif status == "STALE":
+            new_q = "DOWN" if not self._connected else "STALE"
+        elif status == "UP":
+            new_q = "STALE" if self._stale else "OK"
+        elif status == "FRESH":
+            new_q = "OK" if self._connected else "DOWN"
+        else:
+            return
+        if new_q == self._quality:
+            return
+        if self._quality in _BAD_QUALITY and self._quality_since is not None:
+            self._bad_ranges.append((self._quality_since, now, self._quality))
+        self._quality = new_q
+        self._quality_since = now
+
     def _emit_bar(self, bar: BarClosed) -> None:
+        start, end = parse_ts(bar.start), parse_ts(bar.end)
+        quality = self._bar_feed_quality(start, end)
+        unstamped = self._unstamped_open.pop(bar.instrument_id, 0)
+        if quality != "OK":
+            # Gap bars are not published as clean OHLC. FEED_STATUS covers the hole.
+            self.suppressed_bars += 1
+            return
         avail = parse_ts(bar.available_ts)
-        env = make_envelope("BAR_CLOSED", bar_payload(bar), avail, bar.end)
+        payload = bar_payload(bar, unstamped_ticks=unstamped, feed_quality=quality)
+        env = make_envelope("BAR_CLOSED", payload, avail, bar.end)
         env["available_ts"] = bar.available_ts
         self._publish(env, avail)
 
@@ -331,6 +387,7 @@ class LiveMarketData:
 
     def _status(self, now: datetime, status: str, **extra: Any) -> None:
         self._emit("FEED_STATUS", {"status": status, "since": iso(now), **extra}, now, iso(now))
+        self._note_quality(now, status)
 
 
 def replay_tape(path: Path, publisher: Publisher, *, clock: SimClock | None = None) -> int:

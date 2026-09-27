@@ -16,17 +16,26 @@ from marketdata.types import BarClosed, Tick
 _IST_EPOCH_SHIFT = 19800
 
 
-def stamp_exchange_ts(fields: dict[str, Any], recv: datetime) -> str:
-    """Packet LTT when it is within an hour of receive time; otherwise receive time."""
+def resolve_exchange_ts(fields: dict[str, Any], recv: datetime) -> tuple[str, str]:
+    """``(exchange_ts, ts_source)``. ``ts_source`` is ``ltt`` only when packet LTT is usable.
+
+    Missing, zero, or out-of-window LTT falls back to receive time and is marked ``recv``.
+    Recv-stamped ticks must not update bar OHLC.
+    """
     epoch = fields.get("last_trade_time_epoch")
     if not epoch:
-        return iso(recv)
+        return iso(recv), "recv"
     now_s = recv.timestamp()
     for shift in (0, _IST_EPOCH_SHIFT):
         candidate = int(epoch) - shift
         if abs(candidate - now_s) < 3600:
-            return iso(datetime.fromtimestamp(candidate, IST))
-    return iso(recv)
+            return iso(datetime.fromtimestamp(candidate, IST)), "ltt"
+    return iso(recv), "recv"
+
+
+def stamp_exchange_ts(fields: dict[str, Any], recv: datetime) -> str:
+    """Packet LTT when usable; otherwise receive time. See ``resolve_exchange_ts``."""
+    return resolve_exchange_ts(fields, recv)[0]
 
 
 class SecurityMap:
@@ -71,7 +80,7 @@ def tick_from_packet(packet: Packet, instrument_id: str, exchange_ts: str) -> Ti
     return tick_from_fields(instrument_id, packet.decoded.fields, exchange_ts)
 
 
-def tick_payload(tick: Tick) -> dict[str, Any]:
+def tick_payload(tick: Tick, *, ts_source: str = "ltt") -> dict[str, Any]:
     return {
         "instrument_id": tick.instrument_id,
         "ltp": tick.ltp,
@@ -79,10 +88,16 @@ def tick_payload(tick: Tick) -> dict[str, Any]:
         "volume": tick.volume,
         "oi": tick.oi,
         "exchange_ts": tick.exchange_ts,
+        "ts_source": ts_source,
     }
 
 
-def bar_payload(bar: BarClosed) -> dict[str, Any]:
+def bar_payload(
+    bar: BarClosed,
+    *,
+    unstamped_ticks: int = 0,
+    feed_quality: str = "OK",
+) -> dict[str, Any]:
     return {
         "instrument_id": bar.instrument_id,
         "tf": bar.tf,
@@ -96,6 +111,8 @@ def bar_payload(bar: BarClosed) -> dict[str, Any]:
         "n_ticks": bar.n_ticks,
         "gap": bar.gap,
         "late_ticks": bar.late_ticks,
+        "unstamped_ticks": unstamped_ticks,
+        "feed_quality": feed_quality,
     }
 
 
