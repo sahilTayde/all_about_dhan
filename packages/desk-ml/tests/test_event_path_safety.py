@@ -177,3 +177,16 @@ def test_model_log_is_written_only_through_a_session_sink(tmp_path):
         _MODEL_LOGS.reset(token)
     assert "CLOSE" in sink.path.read_text(encoding="utf-8")
     assert not (tmp_path / "data" / "recon" / LOG_JSONL_NAME).exists()
+
+
+def test_live_loop_keeps_the_llm_analyst_live_while_analysts_stay_deterministic(tmp_path):
+    """#17 took replay mode from `deterministic`; the live loop is deterministic but not a replay."""
+    for live, want_replay in ((False, True), (True, False)):
+        session = EventSession(live_loop=live)
+        try:
+            session.attach(ps.BookEngine(root=tmp_path))
+            llm = [a for a in session.room.analysts if a.analyst_id == "LLM-ANALYST"]
+            assert llm and llm[0].replay is want_replay
+            assert session.room.deterministic is True
+        finally:
+            session.close()

@@ -167,7 +167,7 @@ class EventSession:
 
         self.engine = engine
         self.room = self._room if self._room is not None else AnalystRoom.from_config(
-            self.analysts_config, deterministic=self.deterministic
+            self.analysts_config, deterministic=self.deterministic, replay=not self.live_loop
         )
         self.desk = Desk(
             self.bus, engine, risk=None, broker=None, steps=self.steps, live_loop=self.live_loop,

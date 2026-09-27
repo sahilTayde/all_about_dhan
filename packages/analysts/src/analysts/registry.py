@@ -124,6 +124,7 @@ class AnalystRoom:
         shadow_ids: Optional[Sequence[str]] = None,
         shadow_cfg: Optional[dict[str, Any]] = None,
         deterministic: bool = False,
+        replay: Optional[bool] = None,
     ) -> None:
         ids = [a.analyst_id for a in analysts]
         if len(set(ids)) != len(ids):
@@ -135,16 +136,21 @@ class AnalystRoom:
         self.shadow_cfg = dict(shadow_cfg or {})
         # Replay/parity must not ABSTAIN because the machine was busy. Live paper keeps wall-clock timeouts.
         self.deterministic = bool(deterministic)
-        for a in self.analysts:  # PR-016: replay/parity rooms keep the LLM analyst offline
+        # PR-016: replay/parity rooms keep the LLM analyst offline. ``replay`` defaults to
+        # ``deterministic``; the live paper loop runs deterministic (no wall-clock timeouts, since it
+        # re-replays the day every cycle) but is not a replay, so it keeps the live provider.
+        for a in self.analysts:
             if hasattr(a, "set_replay"):
-                a.set_replay(self.deterministic)
+                a.set_replay(self.deterministic if replay is None else bool(replay))
         self._pool = None if self.deterministic else ThreadPoolExecutor(
             max_workers=max(1, len(self.analysts)), thread_name_prefix="analyst"
         )
         self.stats = {"votes": 0, "timeouts": 0, "errors": 0}
 
     @classmethod
-    def from_config(cls, path: Optional[Path] = None, *, deterministic: bool = False) -> "AnalystRoom":
+    def from_config(
+        cls, path: Optional[Path] = None, *, deterministic: bool = False, replay: Optional[bool] = None
+    ) -> "AnalystRoom":
         cfg = load_config(path)
         return cls(
             build(cfg["analysts"]),
@@ -153,6 +159,7 @@ class AnalystRoom:
             shadow_ids=cfg["shadow"],
             shadow_cfg=cfg["shadow_cfg"],
             deterministic=deterministic,
+            replay=replay,
         )
 
     def timeout_for(self, analyst: Analyst) -> float:
