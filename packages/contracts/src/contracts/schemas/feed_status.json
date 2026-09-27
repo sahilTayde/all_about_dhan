@@ -1,0 +1,16 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["status"],
+  "properties": {
+    "status": {
+      "type": "string",
+      "enum": ["UP", "DOWN", "STALE", "FRESH", "AUTH_FAILED", "DISCONNECT"]
+    },
+    "instrument_id": {"type": ["string", "null"]},
+    "since": {"type": ["string", "null"], "format": "date-time"},
+    "gap_s": {"type": ["number", "null"]},
+    "detail": {"type": ["string", "null"]}
+  }
+}

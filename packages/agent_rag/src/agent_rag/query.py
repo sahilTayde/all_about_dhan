@@ -6,7 +6,6 @@ import re
 import sqlite3
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
 
 from agent_rag.paths import agent_rag_db, repo_root
 
@@ -36,15 +35,13 @@ def query(
     text: str,
     *,
     limit: int = 8,
-    kind: Optional[str] = None,
+    kind: str | None = None,
     root: Path | None = None,
 ) -> list[Hit]:
     root = root or repo_root()
     db = agent_rag_db(root)
     if not db.is_file():
-        raise FileNotFoundError(
-            f"missing {db} — run: python -m agent_rag rebuild"
-        )
+        raise FileNotFoundError(f"missing {db} — run: python -m agent_rag rebuild")
     match = _fts_query(text)
     sql = """
         SELECT
@@ -65,7 +62,8 @@ def query(
     sql += " ORDER BY score LIMIT ?"
     params.append(limit)
 
-    conn = sqlite3.connect(str(db))
+    # Open read-only + immutable (REG-11: tests must not write to data/, no WAL sidecars)
+    conn = sqlite3.connect(f"{db.resolve().as_uri()}?mode=ro&immutable=1", uri=True)
     try:
         rows = conn.execute(sql, params).fetchall()
     finally:

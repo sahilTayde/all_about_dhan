@@ -1,0 +1,16 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["role", "status", "session", "code_version", "config_hash", "restart", "input_lag_ms"],
+  "properties": {
+    "role": {"type": "string"},
+    "status": {"type": "string", "enum": ["STARTING", "READY", "DEGRADED", "HALTED"]},
+    "session": {"type": "string"},
+    "code_version": {"type": "string"},
+    "config_hash": {"type": "string"},
+    "basket_hash": {"type": ["string", "null"]},
+    "restart": {"type": "boolean"},
+    "input_lag_ms": {"type": "integer"}
+  }
+}

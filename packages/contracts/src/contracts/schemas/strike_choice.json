@@ -1,0 +1,32 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["chosen", "reason", "rule_version", "alternatives"],
+  "properties": {
+    "chosen": {"type": "string", "enum": ["ATM", "ITM100", "ITM200"]},
+    "reason": {"type": "string"},
+    "rule_version": {"type": "string"},
+    "alternatives": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 3,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["rule", "instrument_id"],
+        "properties": {
+          "rule": {"type": "string", "enum": ["ATM", "ITM100", "ITM200"]},
+          "instrument_id": {"type": "string"},
+          "bid": {"type": ["number", "null"]},
+          "ask": {"type": ["number", "null"]},
+          "mid": {"type": ["number", "null"]},
+          "spread": {"type": ["number", "null"]},
+          "quote_age_ms": {"type": ["integer", "null"]},
+          "est_delta": {"type": ["number", "null"]},
+          "est_round_trip_pts": {"type": ["number", "null"]}
+        }
+      }
+    }
+  }
+}
