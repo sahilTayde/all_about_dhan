@@ -66,10 +66,21 @@ def _pos(pid: str, qty: int = 65) -> dict[str, Any]:
     }
 
 
-def test_resolve_role_customer_token_cannot_be_founder() -> None:
+def test_resolve_role_token_only_never_trusts_client_role() -> None:
+    from api.v2_gateway import role_from_token
+
+    assert role_from_token("founder") == "founder"
+    assert role_from_token(" FOUNDER ") == "founder"
+    assert role_from_token("customer") == "customer"
+    assert role_from_token("") == "customer"
+    assert role_from_token(None) == "customer"
+    assert role_from_token("x") == "customer"
     assert resolve_role("founder", "customer") == "customer"
-    assert resolve_role("customer", "founder") == "customer"
+    assert resolve_role("customer", "founder") == "founder"
     assert resolve_role("founder", "founder") == "founder"
+    assert resolve_role("founder", "") == "customer"
+    assert resolve_role("founder", None) == "customer"
+    assert resolve_role(None, None) == "customer"
 
 
 def test_ist_iso_offset() -> None:
@@ -166,13 +177,11 @@ def test_customer_cannot_subscribe_founder_channels() -> None:
     assert body["denied"] == ["positions", "decisions", "health"]
     assert body["channels"] == {}
     assert body["positions"] == []
-    with c.websocket_connect("/v2/ws?role=customer&token=customer") as ws:
+    with c.websocket_connect("/v2/ws?token=customer") as ws:
         ws.send_json(
             {
                 "op": "subscribe",
                 "channels": ["positions", "signals:public"],
-                "role": "customer",
-                "token": "customer",
             }
         )
         denied = ws.receive_json()
@@ -211,7 +220,7 @@ def test_ws_snapshot_then_ordered_deltas() -> None:
     assert deltas[0]["channel"] == "positions"
     assert deltas[0]["as_of"].endswith("+05:30")
     c, _hub = _app()
-    with c.websocket_connect("/v2/ws?role=founder") as ws:
+    with c.websocket_connect("/v2/ws?token=founder") as ws:
         ws.send_json({"op": "subscribe", "channels": ["positions"]})
         assert ws.receive_json()["op"] == "snapshot"
 
@@ -278,7 +287,9 @@ def test_v2_trace_route_strike_choice() -> None:
             eid="9" * 32,
         )
     )
-    body = c.get("/v2/trace", params={"correlation_id": "corr-t"}).json()
+    body = c.get(
+        "/v2/trace", params={"correlation_id": "corr-t", "token": "founder"}
+    ).json()
     assert body["ok"] is True
     assert body["strike_choice"]["chosen"] == "ITM100"
     assert len(body["alternatives"]) == 2
@@ -294,3 +305,236 @@ def test_simclock_no_backward() -> None:
         assert "backwards" in str(exc)
     else:
         raise AssertionError("expected look-ahead / backward refusal")
+
+
+def _leak_ui() -> dict[str, Any]:
+    return {
+        "board": {
+            "open_trades": [{"id": "t-open", "qty": 65}],
+            "closed_trades": [{"id": "t-closed"}],
+            "model_signals": [{"id": "ms1"}],
+            "seen_not_taken": [{"id": "snt1"}],
+        },
+        "founder": {"secret": True},
+        "founder_book": {"rows": [1]},
+        "account": {"cash": 999},
+        "alerts": [{"id": "a1"}],
+        "exam": {"ok": True},
+        "days": [{"net": 1}],
+        "health": [{"ok": True}],
+        "risk_halt": False,
+        "history_complete": True,
+        "tape_last_ist": TS,
+    }
+
+
+def _signal_with_secrets() -> dict[str, Any]:
+    return {
+        "signal_id": "sg_acl",
+        "underlying": "NIFTY",
+        "side": "CE",
+        "decision": "HOLD",
+        "trend": "up",
+        "chain_3m": {"pcr": 0.9},
+        "news": "cited",
+        "cited_news": ["n1"],
+        "strike_choice": {
+            "chosen": "ITM100",
+            "reason": "LOWEST_BREAKEVEN_AT_HOLD",
+            "alternatives": [{"rule": "ATM"}, {"rule": "ITM100"}],
+        },
+        "stop": 24400.0,
+        "rsi": 71,
+        "account_id": "founder",
+    }
+
+
+def _payload_fields(obj: Any, out: set[str]) -> None:
+    if isinstance(obj, dict):
+        payload = obj.get("payload")
+        if isinstance(payload, dict):
+            out.update(payload)
+        for value in obj.values():
+            _payload_fields(value, out)
+    elif isinstance(obj, list):
+        for value in obj:
+            _payload_fields(value, out)
+
+
+def test_ws_subscribe_cannot_escalate_identity() -> None:
+    """Exploit 1: in-band role/token must not replace the connect-time identity.
+
+    Fails on the old gateway: subscribe {role:founder, token:x} after
+    token=customer returned founder positions/decisions snapshots.
+    """
+    c, hub = _app()
+    hub.ingest(_env("POSITION_UPDATE", _pos("ps_leak"), eid="2" * 32))
+    with c.websocket_connect("/v2/ws?token=customer") as ws:
+        ws.send_json(
+            {
+                "op": "subscribe",
+                "role": "founder",
+                "token": "x",
+                "channels": ["positions", "decisions"],
+            }
+        )
+        first = ws.receive_json()
+        second = ws.receive_json()
+        msgs = [first, second]
+        assert any(m.get("code") == "IDENTITY_IMMUTABLE" for m in msgs)
+        assert any(m.get("code") == "FORBIDDEN_CHANNEL" for m in msgs)
+        denied = next(m for m in msgs if m.get("code") == "FORBIDDEN_CHANNEL")
+        assert "positions" in denied["denied"]
+        assert "decisions" in denied["denied"]
+        assert denied["role"] == "customer"
+        assert not any(m.get("op") == "snapshot" for m in msgs)
+        assert not any(m.get("channel") in {"positions", "decisions"} for m in msgs)
+
+    with c.websocket_connect("/v2/ws?role=customer") as ws:
+        ws.send_json({"op": "subscribe", "role": "founder", "channels": ["positions"]})
+        msgs = [ws.receive_json(), ws.receive_json()]
+        assert any(m.get("code") == "IDENTITY_IMMUTABLE" for m in msgs)
+        assert not any(
+            m.get("op") == "snapshot" and m.get("channel") == "positions" for m in msgs
+        )
+
+
+def test_connect_role_query_is_not_trusted() -> None:
+    c, _hub = _app()
+    body = c.get(
+        "/v2/snapshot", params={"role": "founder", "channels": "positions"}
+    ).json()
+    assert body["role"] == "customer"
+    assert "positions" in body["denied"]
+    with c.websocket_connect("/v2/ws?role=founder") as ws:
+        ws.send_json({"op": "subscribe", "channels": ["positions"]})
+        err = ws.receive_json()
+        assert err.get("code") == "FORBIDDEN_CHANNEL"
+        assert err["role"] == "customer"
+
+
+def test_customer_snapshot_omits_legacy_founder_overlay(monkeypatch: Any) -> None:
+    """Exploit 2: /v2/snapshot?token=customer must not merge board/founder/account.
+
+    Fails on the old gateway: customer snapshot emptied positions/traces then
+    merged legacy desk keys for every role.
+    """
+    monkeypatch.setattr("api.v2_gateway._legacy_ui", _leak_ui)
+    c, _hub = _app()
+    customer = c.get("/v2/snapshot", params={"token": "customer"}).json()
+    assert customer["role"] == "customer"
+    assert customer["positions"] == []
+    assert customer["traces"] == {}
+    leaked = set(customer) & {
+        "board",
+        "founder",
+        "founder_book",
+        "account",
+        "alerts",
+        "exam",
+        "days",
+        "health_rows",
+        "risk_halt",
+        "history_complete",
+        "tape_last_ist",
+    }
+    assert leaked == set(), leaked
+    founder = c.get("/v2/snapshot", params={"token": "founder"}).json()
+    assert founder["board"]["open_trades"][0]["id"] == "t-open"
+    assert founder["founder"]["secret"] is True
+    assert founder["founder_book"]["rows"] == [1]
+    assert founder["account"]["cash"] == 999
+    assert founder["health_rows"] == [{"ok": True}]
+
+
+def test_customer_trace_is_founder_only() -> None:
+    """Exploit 3: /v2/trace must 403 unless the token is founder.
+
+    Fails on the old gateway: no role check; customer received strike_choice.
+    """
+    c, hub = _app()
+    hub.ingest(_env("SIGNAL", _signal_with_secrets(), cid="corr-acl", eid="3" * 32))
+    params = {"correlation_id": "corr-acl"}
+    customer = c.get("/v2/trace", params={**params, "token": "customer"})
+    assert customer.status_code == 403
+    assert customer.json()["detail"]["code"] == "FOUNDER_ONLY"
+    missing = c.get("/v2/trace", params=params)
+    assert missing.status_code == 403
+    spoof = c.get("/v2/trace", params={**params, "role": "founder", "token": "x"})
+    assert spoof.status_code == 403
+    founder = c.get("/v2/trace", params={**params, "token": "founder"})
+    assert founder.status_code == 200
+    body = founder.json()
+    assert body["strike_choice"]["chosen"] == "ITM100"
+    assert len(body["alternatives"]) == 2
+
+
+def test_customer_received_channels_and_fields_are_in_allow_list(
+    monkeypatch: Any,
+) -> None:
+    from api.v2_gateway import (
+        CUSTOMER_CHANNELS,
+        CUSTOMER_SIGNAL_FIELDS,
+        FOUNDER_CHANNELS,
+        ROLE_ACL,
+    )
+
+    monkeypatch.setattr("api.v2_gateway._legacy_ui", _leak_ui)
+    c, hub = _app()
+    hub.ingest(_env("POSITION_UPDATE", _pos("ps_acl"), eid="4" * 32))
+    hub.ingest(_env("SIGNAL", _signal_with_secrets(), cid="corr-pub", eid="5" * 32))
+    want = ROLE_ACL["customer"]
+    assert want["channels"] == CUSTOMER_CHANNELS
+    assert want["signal_fields"] == CUSTOMER_SIGNAL_FIELDS
+    assert want["legacy_keys"] == frozenset()
+    assert want["trace"] is False
+    http = c.get(
+        "/v2/snapshot",
+        params={
+            "token": "customer",
+            "channels": "positions,decisions,health,trace,signals:public",
+        },
+    ).json()
+    extra_keys = set(http) - want["snapshot_keys"]
+    assert extra_keys == set(), extra_keys
+    extra_ch = set(http["channels"]) - want["channels"]
+    assert extra_ch == set(), extra_ch
+    fields: set[str] = set()
+    _payload_fields(http, fields)
+    assert fields <= want["signal_fields"], fields - want["signal_fields"]
+    assert "strike_choice" not in fields
+    assert "rsi" not in fields
+
+    seen_channels: set[str] = set()
+    with c.websocket_connect("/v2/ws?token=customer") as ws:
+        ws.send_json(
+            {
+                "op": "subscribe",
+                "role": "founder",
+                "token": "founder",
+                "channels": sorted(FOUNDER_CHANNELS | CUSTOMER_CHANNELS),
+            }
+        )
+        msgs = [ws.receive_json() for _ in range(3)]
+        hub.ingest(
+            _env(
+                "SIGNAL",
+                {**_signal_with_secrets(), "signal_id": "sg_delta"},
+                cid="corr-delta",
+                eid="6" * 32,
+            )
+        )
+        msgs.append(ws.receive_json())
+    for msg in msgs:
+        if "channel" in msg:
+            seen_channels.add(str(msg["channel"]))
+        _payload_fields(msg, fields)
+    extra_ws = seen_channels - want["channels"]
+    assert extra_ws == set(), extra_ws
+    assert fields <= want["signal_fields"], fields - want["signal_fields"]
+    assert any(
+        m.get("op") == "delta" and m.get("channel") == "signals:public" for m in msgs
+    )
+    delta = next(m for m in msgs if m.get("op") == "delta")
+    assert set(delta["envelope"]["payload"]) <= want["signal_fields"]
+    assert "strike_choice" not in delta["envelope"]["payload"]

@@ -61,7 +61,7 @@ export function useV2Feed() {
     async function boot() {
       const t0 = performance.now();
       try {
-        const res = await fetch(`${API_BASE}/v2/snapshot?role=founder&t=${Date.now()}`, {
+        const res = await fetch(`${API_BASE}/v2/snapshot?token=founder&t=${Date.now()}`, {
           signal: ac.signal,
           cache: "no-store",
         });
@@ -81,7 +81,7 @@ export function useV2Feed() {
       const wsBase = API_BASE
         ? API_BASE.replace(/^http/, "ws")
         : `${location.protocol === "https:" ? "wss:" : "ws:"}//${location.host}`;
-      const url = `${wsBase}/v2/ws?role=founder&channels=positions,decisions,health,market:NIFTY`;
+      const url = `${wsBase}/v2/ws?token=founder&channels=positions,decisions,health,market:NIFTY`;
       let gotV2 = false;
       try {
         ws = new WebSocket(url);

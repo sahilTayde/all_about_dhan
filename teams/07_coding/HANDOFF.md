@@ -1,5 +1,29 @@
 # Handoff log — Team 07 Coding
 
+## As of now (2026-09-27 IST) — V2-13 token-only ROLE_ACL (PAPER)
+
+```text
+From:     teams/07_coding
+To:       founder / 00 / 09
+Date:     2026-09-27
+Status:   PAPER / V2-13 / NO_PROMOTE / no live orders
+Accepted: One ROLE_ACL per role, enforced on WS snapshot, WS
+  deltas, GET /v2/snapshot, GET /v2/trace. Identity is the
+  paper token only (founder iff token=founder). Missing or
+  unknown token = customer. Client-supplied role is never
+  trusted. Subscribe role/token fields yield IDENTITY_IMMUTABLE
+  and do not change the connection. Customers get only
+  CUSTOMER_TALK public signal fields; no legacy board /
+  founder / founder_book / account overlay. /v2/trace is
+  founder-only (403 otherwise). Control POST stays 501.
+Rejected: JWT (V2-23). Trusting query/body role. Customer
+  overlay of desk JSON. Changing 501 control or loopback.
+UNKNOWN: Founder UI behind VITE_V2_FEED=1 now sends the
+  paper token=founder label (not a secret; JWT still V2-23).
+```
+
+---
+
 ## As of now (2026-09-27 IST) — V2-13 gateway websocket + UI rewire (PAPER)
 
 ```text

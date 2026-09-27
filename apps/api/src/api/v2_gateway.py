@@ -3,6 +3,10 @@
 Paper only. Browser never talks to Dhan or Redis. No founder control actions.
 Timestamps are IST (+05:30). No look-ahead: envelopes with available_ts in the
 future are refused. Legacy /ui/* and /ws/* stay as they are.
+
+Identity is the paper token only (JWT is V2-23). A client-supplied role is
+never trusted. Missing/unknown token = customer. Subscribe cannot change
+token or role.
 """
 
 from __future__ import annotations
@@ -12,7 +16,7 @@ import os
 import queue
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
-from typing import Any, Protocol
+from typing import Any, Protocol, TypedDict
 
 from contracts.envelope import Envelope
 from events.bus import EventBus
@@ -56,9 +60,75 @@ FOUNDER_CHANNELS = frozenset(
     }
 )
 CUSTOMER_CHANNELS = frozenset({"signals:public"})
+CUSTOMER_SIGNAL_FIELDS = frozenset(
+    {
+        "underlying",
+        "side",
+        "decision",
+        "trend",
+        "chain_3m",
+        "news",
+        "cited_news",
+    }
+)
+_HTTP_BASE_KEYS = frozenset(
+    {
+        "ok",
+        "as_of",
+        "role",
+        "channels",
+        "denied",
+        "positions",
+        "traces",
+        "orders",
+        "promote",
+        "v2",
+    }
+)
+FOUNDER_LEGACY_KEYS = frozenset(
+    {
+        "board",
+        "exam",
+        "alerts",
+        "days",
+        "account",
+        "founder",
+        "founder_book",
+        "risk_halt",
+        "history_complete",
+        "tape_last_ist",
+        "health_rows",
+    }
+)
+
+
+class RoleAcl(TypedDict):
+    channels: frozenset[str]
+    snapshot_keys: frozenset[str]
+    legacy_keys: frozenset[str]
+    signal_fields: frozenset[str]
+    trace: bool
+
+
+# One allow-list per role. Enforced on WS snapshot, WS deltas, /v2/snapshot, /v2/trace.
+ROLE_ACL: dict[str, RoleAcl] = {
+    "founder": {
+        "channels": FOUNDER_CHANNELS | CUSTOMER_CHANNELS,
+        "snapshot_keys": _HTTP_BASE_KEYS | FOUNDER_LEGACY_KEYS,
+        "legacy_keys": FOUNDER_LEGACY_KEYS,
+        "signal_fields": frozenset(),
+        "trace": True,
+    },
+    "customer": {
+        "channels": CUSTOMER_CHANNELS,
+        "snapshot_keys": _HTTP_BASE_KEYS,
+        "legacy_keys": frozenset(),
+        "signal_fields": CUSTOMER_SIGNAL_FIELDS,
+        "trace": False,
+    },
+}
 ROLE_CHANNELS: dict[str, frozenset[str]] = {
-    "founder": FOUNDER_CHANNELS | CUSTOMER_CHANNELS,
-    "customer": CUSTOMER_CHANNELS,
+    role: spec["channels"] for role, spec in ROLE_ACL.items()
 }
 _POS_TYPES = frozenset({"POSITION_UPDATE", "POSITION_CLOSED"})
 _DEC_TYPES = frozenset(
@@ -103,13 +173,19 @@ def parse_ist(raw: str) -> datetime:
     return dt.astimezone(IST)
 
 
+def role_from_token(token: str | None) -> str:
+    """Paper labels only — not credentials. Founder iff token == founder."""
+    return "founder" if (token or "").strip().lower() == "founder" else "customer"
+
+
 def resolve_role(role: str | None, token: str | None) -> str:
-    """Paper role labels only — not credentials. customer token cannot be founder."""
-    r = (role or "").strip().lower()
-    t = (token or "").strip().lower()
-    if t == "customer" or r == "customer":
-        return "customer"
-    return "founder"
+    """Token decides. Client-supplied role is ignored (never trusted)."""
+    del role
+    return role_from_token(token)
+
+
+def acl_for(role: str) -> RoleAcl:
+    return ROLE_ACL.get(role, ROLE_ACL["customer"])
 
 
 def channel_for(env: Envelope) -> str | None:
@@ -132,19 +208,34 @@ def channel_for(env: Envelope) -> str | None:
 
 def customer_safe(payload: dict[str, Any]) -> dict[str, Any]:
     """CUSTOMER_TALK.md: trend + 3m chain + cited news. No indicator soup."""
-    return {
-        k: payload[k]
-        for k in (
-            "underlying",
-            "side",
-            "decision",
-            "trend",
-            "chain_3m",
-            "news",
-            "cited_news",
-        )
-        if k in payload and payload[k] is not None
-    }
+    fields = ROLE_ACL["customer"]["signal_fields"]
+    return {k: payload[k] for k in fields if k in payload and payload[k] is not None}
+
+
+def envelope_for_role(role: str, envelope: dict[str, Any]) -> dict[str, Any]:
+    fields = acl_for(role)["signal_fields"]
+    payload = envelope.get("payload")
+    if not fields or not isinstance(payload, dict):
+        return envelope
+    return {**envelope, "payload": customer_safe(payload)}
+
+
+def project_snapshot(role: str, body: dict[str, Any]) -> dict[str, Any]:
+    allowed = acl_for(role)["snapshot_keys"]
+    return {k: v for k, v in body.items() if k in allowed}
+
+
+def apply_legacy_overlay(role: str, body: dict[str, Any], ui: dict[str, Any]) -> None:
+    """Founder-only desk overlay. Customers get no legacy board/account/founder keys."""
+    if not ui:
+        return
+    for key in acl_for(role)["legacy_keys"]:
+        if key == "health_rows":
+            if "health" in ui:
+                body["health_rows"] = ui.get("health")
+            continue
+        if key in ui:
+            body[key] = ui[key]
 
 
 def _pid(row: dict[str, Any]) -> str:
@@ -254,16 +345,21 @@ class GatewayHub:
         self.seq["trace"] = self.seq.get("trace", 0) + 1
 
     def _fanout(self, channel: str, seq: int, envelope: dict[str, Any]) -> None:
-        msg = {
-            "op": "delta",
-            "channel": channel,
-            "seq": seq,
-            "envelope": envelope,
-            "as_of": ist_iso(self.now()),
-        }
+        as_of = ist_iso(self.now())
         for c in self._clients:
-            if channel in c.channels:
-                c.push(msg)
+            if channel not in acl_for(c.role)["channels"]:
+                continue
+            if channel not in c.channels:
+                continue
+            c.push(
+                {
+                    "op": "delta",
+                    "channel": channel,
+                    "seq": seq,
+                    "envelope": envelope_for_role(c.role, envelope),
+                    "as_of": as_of,
+                }
+            )
 
     def _fanout_public(self, env: Envelope, body: dict[str, Any]) -> None:
         ch = "signals:public"
@@ -278,27 +374,34 @@ class GatewayHub:
         return [dict(v) for v in self._ledger_open.values()]
 
     def allowed(self, role: str, requested: list[str]) -> tuple[list[str], list[str]]:
-        scope = ROLE_CHANNELS.get(role, CUSTOMER_CHANNELS)
+        scope = acl_for(role)["channels"]
         ok = [c for c in requested if c in scope]
         denied = [c for c in requested if c not in scope]
         return ok, denied
 
-    def snapshot_channel(self, channel: str) -> dict[str, Any]:
+    def snapshot_channel(self, channel: str, role: str = "founder") -> dict[str, Any]:
+        if channel not in acl_for(role)["channels"]:
+            return {"seq": self.seq.get(channel, 0), "items": []}
         if channel == "positions":
             items: list[Any] = self.positions()
         elif channel == "trace":
             items = list(self.traces.values())
         else:
             items = list(self.hot.get(channel, ()))
+        if role != "founder":
+            items = [
+                envelope_for_role(role, it) if isinstance(it, dict) else it
+                for it in items
+            ]
         return {"seq": self.seq.get(channel, 0), "items": items}
 
     def snapshot(self, channels: list[str], role: str) -> dict[str, Any]:
         ok, denied = self.allowed(role, channels)
-        return {
+        body = {
             "ok": True,
             "as_of": ist_iso(self.now()),
             "role": role,
-            "channels": {c: self.snapshot_channel(c) for c in ok},
+            "channels": {c: self.snapshot_channel(c, role) for c in ok},
             "denied": denied,
             "positions": self.positions() if role == "founder" else [],
             "traces": dict(self.traces) if role == "founder" else {},
@@ -306,6 +409,7 @@ class GatewayHub:
             "promote": False,
             "v2": True,
         }
+        return project_snapshot(role, body)
 
     def connect(self, *, role: str) -> WsClient:
         client = WsClient(
@@ -323,7 +427,7 @@ class GatewayHub:
         client.channels = frozenset(ok)
         as_of = ist_iso(self.now())
         for ch in ok:
-            data = self.snapshot_channel(ch)
+            data = self.snapshot_channel(ch, client.role)
             client.last_seq[ch] = int(data["seq"])
             client.push(
                 {
@@ -346,7 +450,10 @@ class GatewayHub:
         return denied
 
     def resync(self, client: WsClient, channel: str) -> None:
-        if channel not in client.channels:
+        if (
+            channel not in client.channels
+            or channel not in acl_for(client.role)["channels"]
+        ):
             client.push(
                 {
                     "op": "error",
@@ -356,7 +463,7 @@ class GatewayHub:
                 }
             )
             return
-        data = self.snapshot_channel(channel)
+        data = self.snapshot_channel(channel, client.role)
         client.last_seq[channel] = int(data["seq"])
         client.push(
             {
@@ -370,6 +477,16 @@ class GatewayHub:
         )
 
     def handle_op(self, client: WsClient, body: dict[str, Any]) -> None:
+        if "role" in body or "token" in body:
+            client.push(
+                {
+                    "op": "error",
+                    "code": "IDENTITY_IMMUTABLE",
+                    "role": client.role,
+                    "note": "role and token are fixed at connect from the authenticated token",
+                }
+            )
+            body = {k: v for k, v in body.items() if k not in {"role", "token"}}
         op = str(body.get("op") or "")
         if op == "subscribe":
             chans = [str(c) for c in (body.get("channels") or [])]
@@ -426,31 +543,16 @@ router = APIRouter()
 def v2_snapshot(
     request: Request,
     channels: str = Query(default="positions,decisions,health,market:NIFTY"),
-    role: str = Query(default="founder"),
+    role: str = Query(default=""),
     token: str = Query(default=""),
 ) -> dict[str, Any]:
-    who = resolve_role(role, token)
+    del role  # never trusted; token only
+    who = role_from_token(token)
     chans = [c.strip() for c in channels.split(",") if c.strip()]
     hub: GatewayHub = request.app.state.v2_hub
     body = hub.snapshot(chans, who)
-    ui = _legacy_ui()
-    if ui:
-        for key in (
-            "board",
-            "exam",
-            "alerts",
-            "days",
-            "account",
-            "founder",
-            "founder_book",
-            "risk_halt",
-            "history_complete",
-            "tape_last_ist",
-        ):
-            if key in ui:
-                body[key] = ui[key]
-        body["health_rows"] = ui.get("health")
-    return body
+    apply_legacy_overlay(who, body, _legacy_ui())
+    return project_snapshot(who, body)
 
 
 @router.get("/v2/trace")
@@ -458,7 +560,21 @@ def v2_trace(
     request: Request,
     trade_id: str | None = None,
     correlation_id: str | None = None,
+    token: str = Query(default=""),
+    role: str = Query(default=""),
 ) -> dict[str, Any]:
+    del role  # never trusted; token only
+    who = role_from_token(token)
+    if not acl_for(who)["trace"]:
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "ok": False,
+                "code": "FOUNDER_ONLY",
+                "role": who,
+                "orders": "REFUSED",
+            },
+        )
     hub: GatewayHub = request.app.state.v2_hub
     cid = correlation_id or trade_id
     row = hub.traces.get(cid or "")
@@ -533,13 +649,14 @@ def v2_control_command() -> dict[str, Any]:
 @router.websocket("/v2/ws")
 async def v2_ws(
     websocket: WebSocket,
-    role: str = "founder",
+    role: str = "",
     token: str = "",
     channels: str = "",
 ) -> None:
+    del role  # never trusted; token only
     await websocket.accept()
     hub: GatewayHub = websocket.app.state.v2_hub
-    who = resolve_role(role, token)
+    who = role_from_token(token)
     client = hub.connect(role=who)
     if channels.strip():
         hub.subscribe(client, [c.strip() for c in channels.split(",") if c.strip()])
@@ -555,11 +672,6 @@ async def v2_ws(
             except TimeoutError:
                 continue
             if isinstance(body, dict):
-                if "role" in body or "token" in body:
-                    client.role = resolve_role(
-                        str(body.get("role") or client.role),
-                        str(body.get("token") or token),
-                    )
                 hub.handle_op(client, body)
     except WebSocketDisconnect:
         pass
@@ -578,13 +690,18 @@ __all__ = [
     "CONTROL_FLAG",
     "CONTROL_KINDS",
     "CUSTOMER_CHANNELS",
+    "CUSTOMER_SIGNAL_FIELDS",
     "FOUNDER_CHANNELS",
+    "FOUNDER_LEGACY_KEYS",
     "IST",
+    "ROLE_ACL",
     "GatewayHub",
     "WsClient",
+    "acl_for",
     "attach_gateway",
     "envelope_from_parts",
     "ist_iso",
     "resolve_role",
+    "role_from_token",
     "router",
 ]
