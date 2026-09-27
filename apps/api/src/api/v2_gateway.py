@@ -643,7 +643,9 @@ def authorize_control(request: Request, token: str | None) -> None:
     )
     if local:
         return
-    raise HTTPException(403, "founder controls are localhost-only unless V2-13 auth is on")
+    raise HTTPException(
+        403, "founder controls are localhost-only unless V2-13 auth is on"
+    )
 
 
 class ConfirmBody(BaseModel):
@@ -669,7 +671,11 @@ def v2_control_surface(request: Request, token: str = "") -> dict[str, Any]:
     from control.kinds import KINDS
 
     handler = getattr(request.app.state, "v2_control", None)
-    state = handler.book().state_at(handler.clock.now().timestamp()).as_dict() if handler else {}
+    state = (
+        handler.book().state_at(handler.clock.now().timestamp()).as_dict()
+        if handler
+        else {}
+    )
     return {
         "stub": False,
         "ticket": "V2-11",
@@ -683,7 +689,9 @@ def v2_control_surface(request: Request, token: str = "") -> dict[str, Any]:
 
 
 @router.post("/v2/control/confirm")
-def v2_control_confirm(request: Request, body: ConfirmBody, token: str = "") -> dict[str, Any]:
+def v2_control_confirm(
+    request: Request, body: ConfirmBody, token: str = ""
+) -> dict[str, Any]:
     authorize_control(request, token)
     from control.kinds import CONFIRM_KINDS, canonical_kind
     from control.tokens import ConfirmTokens
@@ -697,7 +705,9 @@ def v2_control_confirm(request: Request, body: ConfirmBody, token: str = "") -> 
 
 
 @router.post("/v2/control/commands", response_model=None)
-def v2_control_command(request: Request, body: CommandBody, token: str = "") -> dict[str, Any]:
+def v2_control_command(
+    request: Request, body: CommandBody, token: str = ""
+) -> dict[str, Any]:
     """Apply one founder command. Idempotent command_id. Never places an entry."""
     authorize_control(request, token)
     from control.handler import submit
@@ -719,7 +729,12 @@ def v2_control_command(request: Request, body: CommandBody, token: str = "") -> 
                 or body.args.get("instrument_id")
                 or ""
             )
-        why = tokens.consume(body.confirm_token, kind, target, request.app.state.v2_hub.clock.now().timestamp())
+        why = tokens.consume(
+            body.confirm_token,
+            kind,
+            target,
+            request.app.state.v2_hub.clock.now().timestamp(),
+        )
         if why:
             raise HTTPException(422, why)
     handler = request.app.state.v2_control
@@ -763,7 +778,9 @@ def v2_control_command(request: Request, body: CommandBody, token: str = "") -> 
         "when": ack.get("applied_ts") or ack.get("available_ts"),
         "why": body.reason,
         "applied": ack.get("status") == "applied",
-        "orders": "REFUSED" if kind not in {"CUT_LOSS", "FLATTEN_ALL", "KILL"} else "EXIT_ONLY",
+        "orders": "REFUSED"
+        if kind not in {"CUT_LOSS", "FLATTEN_ALL", "KILL"}
+        else "EXIT_ONLY",
     }
 
 
