@@ -197,7 +197,17 @@ class India:
         return lot_sizes.get(symbol.upper(), 1)
 
     def eod_flat_time(self, session_date: date) -> time:
-        """Return EOD flatten time (15:15 normally)."""
+        """
+        Return EOD flatten time.
+        
+        Default: 15:15 IST (V2 architecture section 2.9: EOD flatten on CLOCK after market close).
+        The legacy engine uses 15:20 (PR #20 paper_costs.yaml stale_exit_hard_flatten_ist) and
+        stays unchanged. V2 uses 15:15 to flatten positions before post-close auction.
+        
+        Note: This can be made configurable via engine.yaml if needed; currently returns
+        the V2 default from architecture section 2.9 and K16 (REG-15: EOD flatten never
+        held back by stale-quote guard).
+        """
         return time(15, 15)
 
     def parse_instrument_id(self, instrument_id: str) -> dict[str, str]:
