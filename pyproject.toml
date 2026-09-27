@@ -1,0 +1,29 @@
+# Repo root: not a package. uv workspace (in-repo dependencies never resolve from PyPI)
+# and shared pytest settings. pip users: see docs/PHASE2_NOTES.md for the one install command.
+
+[tool.uv.workspace]
+members = [
+    "packages/agent_rag",
+    "packages/analysts",
+    "packages/backtest",
+    "packages/boss",
+    "packages/brokers",
+    "packages/data-recorder",
+    "packages/desk",
+    "packages/desk-intel",
+    "packages/desk-ml",
+    "packages/dhan-client",
+    "packages/docs-auditor",
+    "packages/events",
+    "packages/health",
+    "packages/ledger",
+    "packages/risk-engine",
+    "packages/trading_agents_india",
+    "packages/warehouse",
+    "apps/api",
+]
+
+[tool.pytest.ini_options]
+markers = [
+    "network: needs internet (pip/PyPI); skips when offline",
+]

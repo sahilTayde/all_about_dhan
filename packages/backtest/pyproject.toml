@@ -4,13 +4,16 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "backtest-engine"
-version = "0.1.0"
+version = "0.1.0+aad"
 description = "Fixture/live-OHLC backtests. No orders. No invented win rates."
 requires-python = ">=3.9"
-dependencies = ["dhan-client"]
+dependencies = ["dhan-client==0.1.0+aad"]
 
 [project.scripts]
 backtest-engine = "backtest_engine.__main__:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.uv.sources]
+dhan-client = { workspace = true }

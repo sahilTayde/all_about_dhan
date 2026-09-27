@@ -25,15 +25,22 @@ source .venv/bin/activate
 
 python -m pip install --upgrade pip
 
+# packages/indicators and packages/contracts are notes only (no Python package).
 python -m pip install \
   -e packages/dhan-client \
   -e packages/backtest \
+  -e packages/ledger \
+  -e packages/risk-engine \
+  -e packages/brokers \
+  -e packages/health \
+  -e packages/data-recorder \
   -e packages/desk-intel \
   -e packages/docs-auditor \
   -e packages/agent_rag \
   -e packages/warehouse \
   -e packages/trading_agents_india \
   -e packages/events \
+  -e packages/desk-ml \
   -e packages/analysts \
   -e packages/boss \
   -e packages/desk \

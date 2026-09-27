@@ -3,21 +3,18 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "analysts"
+name = "brokers"
 version = "0.1.0+aad"
-description = "Analyst registry, room, and log-only shadow features. Paper only. No orders."
+description = "Paper broker adapter and order state machine. Live Dhan orders stay behind the founder gate."
 readme = "README.md"
 requires-python = ">=3.9"
-dependencies = ["PyYAML>=6", "desk-ml==0.1.0+aad"]
+dependencies = ["risk-engine==0.1.0+aad"]
 
 [project.optional-dependencies]
 dev = ["pytest>=8"]
-
-[project.scripts]
-export-shadow-audit = "analysts.shadow_export:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
 
 [tool.uv.sources]
-desk-ml = { workspace = true }
+risk-engine = { workspace = true }

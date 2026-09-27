@@ -107,7 +107,7 @@ If you notice the system loses money every day between 12:00-12:30 PM (lunch hou
 You can change these in the Founder Page → **Risk Limits** section:
 
 - **Max lots per trade:** Default 25 (paper mode). When you go live, you might start with 5 lots (limited-live mode), then raise to 100 lots after you're confident.
-- **Max daily loss:** Default -₹15,000 (paper mode). If you lose this much in one day, Risk Manager blocks all new trades (you can override, but it'll ask for confirmation).
+- **Max daily loss:** Default -₹90,000 (paper mode), with -₹30,000 max loss per trade. These paper numbers fit a ~₹6 lakh paper account trading 25 lots and must be re-set before real money. If you lose this much in one day, Risk Manager blocks all new trades (you can override, but it'll ask for confirmation).
 - **Max open positions:** Default 3. If you want to allow only 1 trade at a time (safer), change to 1.
 
 **Important:** Changing risk limits requires confirmation (a popup will ask "Are you sure?"). This prevents accidental clicks.
