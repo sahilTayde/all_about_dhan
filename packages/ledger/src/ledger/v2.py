@@ -6,6 +6,7 @@ import hashlib
 import json
 import sqlite3
 from datetime import datetime
+from decimal import ROUND_HALF_UP, Decimal
 from pathlib import Path
 from typing import Any, Protocol, Self
 
@@ -19,6 +20,63 @@ from ledger.migrate import (
     migrate,
 )
 from ledger.store import IST, OPEN_ORDER_STATES, Ledger, iso_ist
+
+_PAISE = Decimal("0.01")
+# Longer names first so BANKNIFTY is not matched as NIFTY.
+_LOT_SIZES = (
+    ("BANKNIFTY", 30),
+    ("MIDCPNIFTY", 50),
+    ("FINNIFTY", 40),
+    ("BANKEX", 15),
+    ("SENSEX", 20),
+    ("NIFTY", 65),
+)
+
+
+def money(value: Any) -> Decimal:
+    """Quantize to paise. Never use Python float for ledger money."""
+    if isinstance(value, Decimal):
+        return value.quantize(_PAISE, rounding=ROUND_HALF_UP)
+    return Decimal(str(value)).quantize(_PAISE, rounding=ROUND_HALF_UP)
+
+
+def money_sql(value: Any) -> str:
+    return format(money(value), "f")
+
+
+def _charges_api_price(px: Decimal) -> float:
+    """charges.order_charges still types price as float; it re-Decimals immediately."""
+    return float(money_sql(px))
+
+
+def lot_size_for_symbol(symbol_or_id: str) -> int:
+    text = (symbol_or_id or "").upper()
+    for name, size in _LOT_SIZES:
+        if name in text:
+            return size
+    return 65
+
+
+def lots_from_qty(qty: int, symbol_or_id: str) -> tuple[int, int]:
+    lot = lot_size_for_symbol(symbol_or_id)
+    if lot <= 0 or qty <= 0 or qty % lot != 0:
+        raise ValueError(f"qty {qty} is not a whole multiple of lot size {lot}")
+    return qty // lot, lot
+
+
+def resolve_order_qty(row: dict[str, Any]) -> int:
+    """Store contracts. Never multiply an already-contract qty by lot_size."""
+    symbol = str(row.get("symbol") or row.get("instrument_id") or "")
+    lot = int(row["lot_size"]) if row.get("lot_size") not in (None, "") else lot_size_for_symbol(symbol)
+    if row.get("qty") not in (None, ""):
+        qty = int(row["qty"])
+    elif row.get("lots") not in (None, ""):
+        qty = int(row["lots"]) * lot
+    else:
+        raise ValueError("order needs qty or lots")
+    if lot <= 0 or qty <= 0 or qty % lot != 0:
+        raise ValueError(f"qty {qty} is not a whole multiple of lot size {lot}")
+    return qty
 
 
 class CheckpointEnvelope(Protocol):
@@ -84,6 +142,7 @@ class SqliteLedgerStore:
         self.feed_status = feed_status
         self._in_txn = False
         self._seq = 0
+        self._crash_after: str | None = None
         if is_legacy_path(path) and not allow_legacy:
             raise LegacyPathError(f"v2 store refuses legacy path {path} unless allow_legacy=True")
         if migrate_schema:
@@ -103,6 +162,18 @@ class SqliteLedgerStore:
         self._legacy.conn.close()
         self._legacy.conn = self.conn
         self._legacy.rates = rates if rates is not None else self._legacy.rates
+        self._install_charges_pending_trigger()
+
+    def _install_charges_pending_trigger(self) -> None:
+        """Allow PENDING -> FINAL in place. Trigger replacement, not a table DROP."""
+        if not self._has_column("charges", "charges_status"):
+            return
+        self.conn.execute("DROP TRIGGER IF EXISTS charges_no_update")
+        self.conn.execute(
+            "CREATE TRIGGER charges_no_update BEFORE UPDATE ON charges BEGIN "
+            "SELECT CASE WHEN OLD.charges_status = 'PENDING' THEN NULL "
+            "ELSE RAISE(ABORT, 'ledger is append-only') END; END"
+        )
 
     def close(self) -> None:
         self.conn.close()
@@ -158,7 +229,7 @@ class SqliteLedgerStore:
         account_id: str,
         instrument_id: str,
         net_qty: int,
-        avg_price: float,
+        avg_price: Decimal | float | str,
         *,
         strategy_id: str | None = None,
         exit_plan_json: str | None = None,
@@ -171,7 +242,16 @@ class SqliteLedgerStore:
             "ON CONFLICT(account_id, instrument_id) DO UPDATE SET net_qty=excluded.net_qty, "
             "avg_price=excluded.avg_price, strategy_id=excluded.strategy_id, "
             "exit_plan_json=excluded.exit_plan_json, updated_at=excluded.updated_at",
-            (account_id, instrument_id, net_qty, avg_price, opened_at or stamp, strategy_id, exit_plan_json, stamp),
+            (
+                account_id,
+                instrument_id,
+                net_qty,
+                money_sql(avg_price),
+                opened_at or stamp,
+                strategy_id,
+                exit_plan_json,
+                stamp,
+            ),
         )
         if not self._in_txn:
             self.conn.commit()
@@ -235,17 +315,19 @@ class SqliteLedgerStore:
                 row.get("symbol") or row.get("instrument_id") or "",
                 row.get("instrument_id"),
                 row.get("side") or "BUY",
-                int(row.get("qty") or row.get("lots") or 0) * int(row.get("lot_size") or 1)
-                if row.get("lots")
-                else int(row.get("qty") or 0),
+                resolve_order_qty(row),
                 row.get("order_type") or "LIMIT",
-                row.get("price"),
-                row.get("trigger_price") or row.get("stop_loss"),
-                row.get("decision_price") or row.get("price"),
+                None if row.get("price") is None else money_sql(row.get("price")),
+                None
+                if row.get("trigger_price") is None and row.get("stop_loss") is None
+                else money_sql(row.get("trigger_price") or row.get("stop_loss")),
+                None
+                if row.get("decision_price") is None and row.get("price") is None
+                else money_sql(row.get("decision_price") or row.get("price")),
                 row.get("purpose") or "ENTRY",
                 row.get("state") or row.get("status") or "NEW",
                 int(row.get("filled_qty") or 0),
-                row.get("avg_fill_price"),
+                None if row.get("avg_fill_price") is None else money_sql(row.get("avg_fill_price")),
                 row.get("exit_reason"),
                 row.get("cancel_reason"),
                 stamp,
@@ -292,7 +374,7 @@ class SqliteLedgerStore:
         self,
         client_order_id: str,
         qty: int,
-        price: float,
+        price: Decimal | float | str,
         *,
         fill_model: str = "fcmeas",
         ts: datetime | None = None,
@@ -302,7 +384,67 @@ class SqliteLedgerStore:
         account_id: str = "founder",
         strategy_id: str | None = None,
         rates: dict[str, Any] | None = None,
+        fill_seq: int = 1,
+        fill_id: str | None = None,
     ) -> dict[str, Any]:
+        px = money(price)
+        qty = int(qty)
+        identity = fill_id or f"{client_order_id}:{fill_seq}"
+        own = False
+        if not self._in_txn:
+            self.conn.execute("BEGIN IMMEDIATE")
+            self._in_txn = True
+            own = True
+        try:
+            result = self._record_fill_inner(
+                client_order_id,
+                qty,
+                px,
+                fill_model=fill_model,
+                ts=ts,
+                side=side,
+                symbol=symbol,
+                instrument_id=instrument_id,
+                account_id=account_id,
+                strategy_id=strategy_id,
+                rates=rates,
+                fill_seq=fill_seq,
+                fill_id=identity,
+            )
+            if own:
+                self.conn.commit()
+            return result
+        except Exception:
+            if own:
+                self.conn.rollback()
+            raise
+        finally:
+            if own:
+                self._in_txn = False
+
+    def _record_fill_inner(
+        self,
+        client_order_id: str,
+        qty: int,
+        px: Decimal,
+        *,
+        fill_model: str,
+        ts: datetime | None,
+        side: str,
+        symbol: str,
+        instrument_id: str,
+        account_id: str,
+        strategy_id: str | None,
+        rates: dict[str, Any] | None,
+        fill_seq: int,
+        fill_id: str,
+    ) -> dict[str, Any]:
+        existing = self.conn.execute(
+            "SELECT * FROM fills WHERE fill_id=? OR (client_order_id=? AND fill_seq=?)",
+            (fill_id, client_order_id, fill_seq),
+        ).fetchone()
+        if existing is not None:
+            return self._existing_fill_result(existing)
         stamp = iso_ist(ts)
         rates = rates if rates is not None else self.rates
         o = self.get_order(client_order_id)
@@ -311,30 +453,50 @@ class SqliteLedgerStore:
             symbol = str(o.get("symbol") or symbol)
             instrument_id = str(o.get("instrument_id") or instrument_id)
             account_id = str(o.get("account_id") or account_id)
+        lot = lot_size_for_symbol(symbol or instrument_id)
+        if qty <= 0 or qty % lot != 0:
+            raise ValueError(f"qty {qty} is not a whole multiple of lot size {lot}")
         status = "PENDING"
-        components: dict[str, float] = {}
+        components: dict[str, Decimal] = {}
         exchange: str | None = None
         if rates is not None and rates.get(UNDERLYING_EXCHANGE):
             exchange = exchange_for(symbol or instrument_id, rates)
             if exchange is None:
                 raise ValueError(f"unmapped underlying for {symbol or instrument_id!r}")
             try:
-                components = order_charges(side, qty, price, rates, exchange=exchange)
+                components = {
+                    k: money(v)
+                    for k, v in order_charges(side, qty, _charges_api_price(px), rates, exchange=exchange).items()
+                }
                 status = "FINAL"
             except (ValueError, KeyError, TypeError):
                 status = "PENDING"
                 components = {}
         elif rates is not None:
             try:
-                components = order_charges(side, qty, price, rates)
+                components = {k: money(v) for k, v in order_charges(side, qty, _charges_api_price(px), rates).items()}
                 status = "FINAL"
             except (ValueError, KeyError, TypeError):
                 status = "PENDING"
                 components = {}
-        trade_id = (o or {}).get("trade_id") or f"T-{client_order_id}"
+        key = instrument_id or symbol
+        open_trade = self.conn.execute(
+            "SELECT * FROM trades WHERE account_id=? AND instrument_id=? AND status='OPEN'",
+            (account_id, key),
+        ).fetchone()
+        signed = qty if side == "BUY" else -qty
+        is_close = open_trade is not None and (
+            (open_trade["direction"] == "LONG" and side == "SELL")
+            or (open_trade["direction"] == "SHORT" and side == "BUY")
+        )
+        trade_id = str(open_trade["trade_id"]) if is_close else ((o or {}).get("trade_id") or f"T-{client_order_id}")
+        tagged = exchange or "UNKNOWN"
+        if tagged == "UNKNOWN" and rates is not None and rates.get(UNDERLYING_EXCHANGE):
+            raise ValueError(f"unmapped underlying for {symbol or instrument_id!r}")
         self.conn.execute(
             "INSERT INTO fills (client_order_id, trade_id, ts, symbol, side, qty, price, "
-            "decision_price, slippage, fill_model, slippage_source) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+            "decision_price, slippage, fill_model, slippage_source, fill_id, fill_seq) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
             (
                 client_order_id,
                 trade_id,
@@ -342,14 +504,18 @@ class SqliteLedgerStore:
                 symbol,
                 side,
                 qty,
-                price,
-                (o or {}).get("decision_price"),
+                money_sql(px),
+                None if not o or o.get("decision_price") is None else money_sql(o.get("decision_price")),
                 None,
                 fill_model,
                 "depth" if fill_model == "depth" else "fcmeas",
+                fill_id,
+                fill_seq,
             ),
         )
-        turnover = float(qty) * float(price)
+        if self._crash_after == "fills":
+            raise RuntimeError("injected crash after fills")
+        turnover = money(qty) * px
         self.conn.execute(
             "INSERT INTO charges (trade_id, client_order_id, ts, day, turnover, brokerage, stt, "
             "exchange, sebi, stamp, gst, total, charges_status) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
@@ -358,78 +524,127 @@ class SqliteLedgerStore:
                 client_order_id,
                 stamp,
                 stamp[:10],
-                turnover,
-                components.get("brokerage", 0.0) if status == "FINAL" else 0.0,
-                components.get("stt", 0.0) if status == "FINAL" else 0.0,
-                components.get("exchange", 0.0) if status == "FINAL" else 0.0,
-                components.get("sebi", 0.0) if status == "FINAL" else 0.0,
-                components.get("stamp", 0.0) if status == "FINAL" else 0.0,
-                components.get("gst", 0.0) if status == "FINAL" else 0.0,
-                components["total"] if status == "FINAL" else -1.0,
+                money_sql(turnover),
+                money_sql(components["brokerage"]) if status == "FINAL" else money_sql(0),
+                money_sql(components["stt"]) if status == "FINAL" else money_sql(0),
+                money_sql(components["exchange"]) if status == "FINAL" else money_sql(0),
+                money_sql(components["sebi"]) if status == "FINAL" else money_sql(0),
+                money_sql(components["stamp"]) if status == "FINAL" else money_sql(0),
+                money_sql(components["gst"]) if status == "FINAL" else money_sql(0),
+                money_sql(components["total"]) if status == "FINAL" else money_sql(-1),
                 status,
             ),
         )
-        tagged = exchange or "UNKNOWN"
-        if tagged == "UNKNOWN" and rates is not None and rates.get(UNDERLYING_EXCHANGE):
-            raise ValueError(f"unmapped underlying for {symbol or instrument_id!r}")
-        self.conn.execute(
-            "INSERT INTO trades (trade_id, symbol, instrument_id, direction, status, mode, broker, "
-            "entry_client_order_id, entry_time, day, entry_qty, entry_value, entry_price, account_id, "
-            "strategy_id, exchange) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) "
-            "ON CONFLICT(trade_id) DO UPDATE SET day=excluded.day, exchange=excluded.exchange",
-            (
-                trade_id,
-                symbol,
-                instrument_id,
-                "LONG" if side == "BUY" else "SHORT",
-                "OPEN",
-                "paper",
-                "paper",
-                client_order_id,
-                stamp,
-                stamp[:10],
-                qty,
-                turnover,
-                price,
-                account_id,
-                strategy_id,
-                tagged if tagged != "UNKNOWN" else (exchange or "UNKNOWN"),
-            ),
-        )
-        # PENDING path may lack a tag; refuse only when we had a map and still failed
-        if tagged == "UNKNOWN" and rates is not None and rates.get(UNDERLYING_EXCHANGE):
-            raise ValueError(f"unmapped underlying for {symbol or instrument_id!r}")
-        signed = qty if side == "BUY" else -qty
-        key = instrument_id or symbol
+        if is_close and open_trade is not None:
+            entry_px = money(open_trade["entry_price"])
+            close_qty = min(abs(int(open_trade["entry_qty"] or qty)), qty)
+            if open_trade["direction"] == "LONG":
+                gross = (px - entry_px) * money(close_qty)
+            else:
+                gross = (entry_px - px) * money(close_qty)
+            self.conn.execute(
+                "UPDATE trades SET status='CLOSED', exit_time=?, exit_qty=?, exit_value=?, exit_price=?, "
+                "gross_pnl=?, charges=?, net_pnl=?, exchange=? WHERE trade_id=?",
+                (
+                    stamp,
+                    close_qty,
+                    money_sql(px * money(close_qty)),
+                    money_sql(px),
+                    money_sql(gross),
+                    money_sql(0),
+                    money_sql(gross),
+                    tagged if tagged != "UNKNOWN" else (open_trade["exchange"] or tagged),
+                    trade_id,
+                ),
+            )
+            self._apply_trade_charges(trade_id)
+        else:
+            self.conn.execute(
+                "INSERT INTO trades (trade_id, symbol, instrument_id, direction, status, mode, broker, "
+                "entry_client_order_id, entry_time, day, entry_qty, entry_value, entry_price, account_id, "
+                "strategy_id, exchange, charges, gross_pnl, net_pnl) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) "
+                "ON CONFLICT(trade_id) DO UPDATE SET day=excluded.day, exchange=excluded.exchange",
+                (
+                    trade_id,
+                    symbol,
+                    instrument_id,
+                    "LONG" if side == "BUY" else "SHORT",
+                    "OPEN",
+                    "paper",
+                    "paper",
+                    client_order_id,
+                    stamp,
+                    stamp[:10],
+                    qty,
+                    money_sql(turnover),
+                    money_sql(px),
+                    account_id,
+                    strategy_id,
+                    tagged if tagged != "UNKNOWN" else (exchange or "UNKNOWN"),
+                    money_sql(0),
+                    money_sql(0),
+                    money_sql(0),
+                ),
+            )
         prev = self.conn.execute(
             "SELECT net_qty, avg_price FROM positions_v2 WHERE account_id=? AND instrument_id=?",
             (account_id, key),
         ).fetchone()
         net = int(prev[0]) + signed if prev else signed
         if net == 0:
-            avg = 0.0
+            avg = money(0)
         elif prev and (int(prev[0]) > 0) == (signed > 0):
-            avg = (float(prev[1]) * abs(int(prev[0])) + price * qty) / abs(net)
+            avg = (money(prev[1]) * money(abs(int(prev[0]))) + px * money(qty)) / money(abs(net))
         else:
-            avg = price
+            avg = px
         self.upsert_position_v2(account_id, key, net, avg, strategy_id=strategy_id, opened_at=stamp)
         self.conn.execute(
             "UPDATE orders SET status=?, filled_qty=filled_qty+?, avg_fill_price=?, updated_at=? "
             "WHERE client_order_id=?",
-            ("FILLED", qty, price, stamp, client_order_id),
+            ("FILLED", qty, money_sql(px), stamp, client_order_id),
         )
-        if not self._in_txn:
-            self.conn.commit()
         return {
             "trade_id": trade_id,
             "charges_status": status,
             "exchange": exchange,
             "components": components,
             "client_order_id": client_order_id,
+            "fill_id": fill_id,
+            "fill_seq": fill_seq,
         }
 
+    def _existing_fill_result(self, existing: sqlite3.Row) -> dict[str, Any]:
+        ch = self.conn.execute(
+            "SELECT charges_status, total FROM charges WHERE client_order_id=? AND trade_id=? ORDER BY id DESC LIMIT 1",
+            (existing["client_order_id"], existing["trade_id"]),
+        ).fetchone()
+        trade = self.conn.execute("SELECT exchange FROM trades WHERE trade_id=?", (existing["trade_id"],)).fetchone()
+        return {
+            "trade_id": existing["trade_id"],
+            "charges_status": ch["charges_status"] if ch else "PENDING",
+            "exchange": trade["exchange"] if trade else None,
+            "components": {},
+            "client_order_id": existing["client_order_id"],
+            "fill_id": existing["fill_id"],
+            "fill_seq": existing["fill_seq"],
+            "idempotent": True,
+        }
+
+    def _apply_trade_charges(self, trade_id: str) -> None:
+        row = self.conn.execute(
+            "SELECT COALESCE(SUM(total),0) FROM charges WHERE trade_id=? AND charges_status='FINAL' AND total > 0",
+            (trade_id,),
+        ).fetchone()
+        total = money(row[0] if row else 0)
+        trade = self.conn.execute("SELECT gross_pnl FROM trades WHERE trade_id=?", (trade_id,)).fetchone()
+        gross = money(trade[0] if trade and trade[0] is not None else 0)
+        self.conn.execute(
+            "UPDATE trades SET charges=?, net_pnl=? WHERE trade_id=?",
+            (money_sql(total), money_sql(gross - total), trade_id),
+        )
+
     def recharge_pending(self, rates: dict[str, Any]) -> int:
-        """REG-16c: apply valid rates to PENDING charge rows. Never invent a zero total."""
+        """REG-16c: finalize PENDING rows in place. Never add a second FINAL."""
         rows = list(self.conn.execute("SELECT * FROM charges WHERE charges_status='PENDING'"))
         n = 0
         for r in rows:
@@ -442,34 +657,32 @@ class SqliteLedgerStore:
             trade = self.conn.execute("SELECT * FROM trades WHERE trade_id=?", (r["trade_id"],)).fetchone()
             symbol = (trade["symbol"] if trade else fill["symbol"]) or ""
             ex = exchange_for(symbol, rates)
-            ch = order_charges(fill["side"], int(fill["qty"]), float(fill["price"]), rates, exchange=ex)
+            ch = {
+                k: money(v)
+                for k, v in order_charges(
+                    fill["side"], int(fill["qty"]), _charges_api_price(money(fill["price"])), rates, exchange=ex
+                ).items()
+            }
             if ch["total"] == 0:
                 raise RuntimeError("recharge produced zero charges; refuse")
-            # charges is append-only: insert a FINAL correcting row; leave PENDING as history
             self.conn.execute(
-                "INSERT INTO charges (trade_id, client_order_id, ts, day, turnover, brokerage, stt, "
-                "exchange, sebi, stamp, gst, total, charges_status) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                "UPDATE charges SET turnover=?, brokerage=?, stt=?, exchange=?, sebi=?, stamp=?, gst=?, "
+                "total=?, charges_status='FINAL' WHERE id=?",
                 (
-                    r["trade_id"],
-                    r["client_order_id"],
-                    iso_ist(),
-                    iso_ist()[:10],
-                    ch["turnover"],
-                    ch["brokerage"],
-                    ch["stt"],
-                    ch["exchange"],
-                    ch["sebi"],
-                    ch["stamp"],
-                    ch["gst"],
-                    ch["total"],
-                    "FINAL",
+                    money_sql(ch["turnover"]),
+                    money_sql(ch["brokerage"]),
+                    money_sql(ch["stt"]),
+                    money_sql(ch["exchange"]),
+                    money_sql(ch["sebi"]),
+                    money_sql(ch["stamp"]),
+                    money_sql(ch["gst"]),
+                    money_sql(ch["total"]),
+                    r["id"],
                 ),
             )
-            self.conn.execute(
-                "UPDATE trades SET charges=ROUND(charges+?,2), net_pnl=ROUND(gross_pnl-(charges+?),2), "
-                "exchange=? WHERE trade_id=?",
-                (ch["total"], ch["total"], ex, r["trade_id"]),
-            )
+            self._apply_trade_charges(str(r["trade_id"]))
+            if ex:
+                self.conn.execute("UPDATE trades SET exchange=? WHERE trade_id=?", (ex, r["trade_id"]))
             n += 1
         if n and not self._in_txn:
             self.conn.commit()
@@ -538,7 +751,7 @@ class SqliteLedgerStore:
         self.record_fill(
             close.get("client_order_id") or f"halt-{close['instrument_id']}",
             int(close["qty"]),
-            float(close["price"]),
+            money(close["price"]),
             ts=datetime.fromisoformat(ts) if isinstance(ts, str) else ts,
             side=str(close.get("side") or "SELL"),
             symbol=str(close.get("symbol") or close["instrument_id"]),
@@ -585,7 +798,7 @@ class SqliteLedgerStore:
             snap["open_positions"] = self.conn.execute(
                 "SELECT COUNT(*) FROM positions_v2 WHERE net_qty != 0"
             ).fetchone()[0]
-        strategy_pnl: dict[str, float] = {}
+        strategy_pnl: dict[str, str] = {}
         if self._has_column("trades", "strategy_id"):
             day = iso_ist(now)[:10]
             for r in self.conn.execute(
@@ -594,7 +807,7 @@ class SqliteLedgerStore:
                 (day,),
             ):
                 if r[0]:
-                    strategy_pnl[str(r[0])] = float(r[1])
+                    strategy_pnl[str(r[0])] = money_sql(r[1])
         _, halt_bad = self.load_halts()
         snap["feed_status"] = self.feed_status
         snap["strategy_pnl"] = strategy_pnl

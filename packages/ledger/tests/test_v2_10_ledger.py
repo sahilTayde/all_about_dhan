@@ -88,9 +88,9 @@ def test_reg_16c_pending_charges_never_zero(tmp_path: Path) -> None:
 
 def test_reg_17a_trade_exchange_from_underlying(tmp_path: Path) -> None:
     store = SqliteLedgerStore(tmp_path / "aad.sqlite", migrate_schema=True, rates=RATES)
-    for cid, symbol, inst in (
-        ("aadnse00000000000000000001", "NIFTY 24400 CE", "NSE_FNO:NIFTY:2026-09-29:24400:CE"),
-        ("aadbse00000000000000000001", "SENSEX 82000 CE", "BSE_FNO:SENSEX:2026-09-29:82000:CE"),
+    for cid, symbol, inst, qty in (
+        ("aadnse00000000000000000001", "NIFTY 24400 CE", "NSE_FNO:NIFTY:2026-09-29:24400:CE", 65),
+        ("aadbse00000000000000000001", "SENSEX 82000 CE", "BSE_FNO:SENSEX:2026-09-29:82000:CE", 20),
     ):
         store.insert_order(
             {
@@ -98,12 +98,12 @@ def test_reg_17a_trade_exchange_from_underlying(tmp_path: Path) -> None:
                 "symbol": symbol,
                 "instrument_id": inst,
                 "side": "BUY",
-                "qty": 65,
+                "qty": qty,
                 "purpose": "ENTRY",
                 "state": "SUBMITTED",
             }
         )
-        row = store.record_fill(cid, 65, 100.0, ts=NOW, side="BUY", symbol=symbol, instrument_id=inst)
+        row = store.record_fill(cid, qty, 100.0, ts=NOW, side="BUY", symbol=symbol, instrument_id=inst)
         trade = store.conn.execute("SELECT exchange FROM trades WHERE trade_id=?", (row["trade_id"],)).fetchone()
         assert trade[0] == exchange_for(symbol, RATES)
     store.close()
@@ -145,21 +145,21 @@ def test_reg_17c_charges_match_tagged_exchange(tmp_path: Path) -> None:
             "symbol": "SENSEX 82000 CE",
             "instrument_id": "BSE_FNO:SENSEX:2026-09-29:82000:CE",
             "side": "BUY",
-            "qty": 65,
+            "qty": 20,
             "purpose": "ENTRY",
             "state": "SUBMITTED",
         }
     )
     row = store.record_fill(
         "aadbse00000000000000000002",
-        65,
+        20,
         100.0,
         ts=NOW,
         side="BUY",
         symbol="SENSEX 82000 CE",
         instrument_id="BSE_FNO:SENSEX:2026-09-29:82000:CE",
     )
-    want = order_charges("BUY", 65, 100.0, RATES, exchange="BSE")
+    want = order_charges("BUY", 20, 100.0, RATES, exchange="BSE")
     ch = store.conn.execute(
         "SELECT exchange, total FROM charges WHERE client_order_id=? AND charges_status='FINAL'",
         ("aadbse00000000000000000002",),

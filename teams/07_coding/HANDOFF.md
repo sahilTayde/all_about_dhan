@@ -1,5 +1,26 @@
 # Handoff log — Team 07 Coding
 
+## As of now (2026-09-27 IST) — V2-10 fix round (atomic / idempotent / P&L / qty / Decimal)
+
+```text
+From:     teams/07_coding
+To:       founder / 00 / 09
+Date:     2026-09-27
+Status:   PAPER / V2-10 / NO_PROMOTE / no live orders
+Accepted: record_fill owns one BEGIN IMMEDIATE; raise
+  after INSERT INTO fills rolls back; replay = 1 fill.
+  UNIQUE(client_order_id, fill_seq) + fill_id.
+  record_fill twice is a no-op. recover() twice does
+  not rebook halt. recharge_pending UPDATEs PENDING
+  in place. Close writes gross 650 / charges once /
+  CLOSED / net_qty 0. insert_order no longer does
+  qty*lot_size. rebuild lots=1 lot_size=65. Decimal
+  money()/money_sql() on the v2 path.
+Rejected: Rebase / force-push / merge. DhanBroker.
+  Editing Mac-ops merge files. Relock requirements/.
+UNKNOWN: GitHub CI on the new head.
+```
+
 ## As of now (2026-09-27 IST) — V2-10 ledger v2 + crash recovery (PAPER)
 
 ```text
