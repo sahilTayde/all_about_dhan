@@ -1,0 +1,39 @@
+# V2-07 boss holds, windows, and sizing. Paper only. No secrets.
+# Holds are data (architecture §2.6). The selector reads this file; it does not
+# hard-code the 09:15–10:00 / 14:45 windows or the Round 8 §3.0 constants.
+timezone: "+05:30"
+
+holds:
+  founder_pause: false
+  founder_stop: false
+  event_day: false
+  news_hold: false
+  recon_mismatch: false
+  feed_status_holds: ["DOWN", "STALE"]
+  no_atm_on_expiry_day: true
+  windows:
+    - id: OPEN_NO_BUY
+      start: "09:15"
+      end: "10:00"
+      except_specs: []          # a spec that prices the open window may be listed here
+    - id: LATE_ENTRY
+      start: "14:45"
+      end: "15:30"
+      except_specs: []
+
+sizing:
+  # VOLSIZE(EM30) = round(volsize_ref_lots * volsize_ref_em30 / EM30)   Round 8 §3.0
+  volsize_ref_lots: 25
+  volsize_ref_em30: 27.4
+  # CAPLOTS = floor(risk_budget_inr / (delta * stop * lot_size))
+  # lot_size comes from the instrument master (India adapter), never a literal.
+  risk_budget_inr: 30000
+  min_lots: 2
+
+regime:
+  # shadow: BOSS_SHADOW is logged; the decision is unchanged (C5 / K5).
+  # apply: accepted in the schema; V2-07 still does not change the decision
+  # until a preregistered forward spec passes the forward bar (K5).
+  mode: shadow
+
+paper_stages: ["paper", "live_eligible"]
