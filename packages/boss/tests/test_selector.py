@@ -235,7 +235,10 @@ class TestConflictsAndBasket:
         clock = SimClock(_ist(10, 5))
         sel = _selector(clock)
         out = sel.decide(
-            [_signal(side="CE", signal_id="sg_ce"), _signal(sid="PAPER-B", signal_id="sg_pe", side="PE")],
+            [
+                _signal(side="CE", signal_id="sg_ce"),
+                _signal(sid="PAPER-B", signal_id="sg_pe", side="PE"),
+            ],
             _ctx(clock.now()),
         )
         assert out.decisions[0].decision == "HOLD"
@@ -245,7 +248,10 @@ class TestConflictsAndBasket:
         clock = SimClock(_ist(10, 5))
         sel = _selector(clock, basket=_basket(("PAPER-A", 1.0, 25), ("PAPER-B", 2.0, 25)))
         out = sel.decide(
-            [_signal(side="CE", signal_id="sg_ce"), _signal(sid="PAPER-B", signal_id="sg_pe", side="PE")],
+            [
+                _signal(side="CE", signal_id="sg_ce"),
+                _signal(sid="PAPER-B", signal_id="sg_pe", side="PE"),
+            ],
             _ctx(clock.now()),
         )
         assert out.decisions[0].decision == "ENTER"
@@ -294,7 +300,7 @@ class TestConflictsAndBasket:
 
 
 class TestSizing:
-    """Round 8 §3.0 fixtures. Lot size from the instrument master, never a literal in the formula call."""
+    """Round 8 §3.0 fixtures. Lot size from the instrument master."""
 
     def test_volsize_matches_hand_computed(self) -> None:
         cfg = _cfg()
@@ -322,9 +328,7 @@ class TestSizing:
         )
         assert skip is None
         assert small["volsize"] == 1
-        capped, _ = size_lots(
-            em30=27.4, delta=0.5, stop=50.0, lot_size=lot, basket_max=10, cfg=cfg
-        )
+        capped, _ = size_lots(em30=27.4, delta=0.5, stop=50.0, lot_size=lot, basket_max=10, cfg=cfg)
         assert capped == 10
 
     def test_enter_carries_sizing_and_strike_choice(self) -> None:

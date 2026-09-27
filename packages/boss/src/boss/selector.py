@@ -163,7 +163,7 @@ def engine_config_hash(raw: Mapping[str, Any]) -> str:
 
 def load_engine_config(path: Path | None = None) -> EngineConfig:
     """Load holds and sizing from YAML. Missing file → fail closed."""
-    import yaml  # type: ignore[import-untyped]
+    import yaml
 
     target = path if path is not None else ENGINE_YAML
     if not target.is_file():
@@ -213,11 +213,11 @@ def volsize(em30: float, cfg: EngineConfig) -> int:
     """Round 8 §3.0 VOLSIZE(EM30) = round(ref_lots * ref_em30 / EM30)."""
     if em30 <= 0:
         raise ValueError("EM30 must be positive")
-    return int(round(cfg.volsize_ref_lots * cfg.volsize_ref_em30 / em30))
+    return round(cfg.volsize_ref_lots * cfg.volsize_ref_em30 / em30)
 
 
 def caplots(risk_budget_inr: float, delta: float, stop: float, lot_size: int) -> int:
-    """Round 8 §3.0 CAPLOTS = floor(risk_budget / (δ × stop × lot_size))."""
+    """Round 8 §3.0 CAPLOTS = floor(risk_budget / (delta * stop * lot_size))."""
     if delta <= 0 or stop <= 0 or lot_size <= 0:
         raise ValueError("delta, stop and lot_size must be positive")
     return int(risk_budget_inr // (delta * stop * lot_size))
@@ -272,9 +272,15 @@ def evaluate_holds(
         reasons.append(HOLD_RECON)
     feed = ctx.feed_status.upper()
     if feed in cfg.feed_status_holds:
-        reasons.append(HOLD_FEED_DOWN if feed == "DOWN" else HOLD_FEED_STALE if feed == "STALE" else f"FEED_{feed}")
+        if feed == "DOWN":
+            reasons.append(HOLD_FEED_DOWN)
+        elif feed == "STALE":
+            reasons.append(HOLD_FEED_STALE)
+        else:
+            reasons.append(f"FEED_{feed}")
     for window in cfg.windows:
-        if in_window(now, window) and (strategy_id is None or strategy_id not in window.except_specs):
+        exempt = strategy_id is not None and strategy_id in window.except_specs
+        if in_window(now, window) and not exempt:
             reasons.append(window.id)
     if cfg.no_atm_on_expiry_day and ctx.is_expiry and chosen_rule == "ATM":
         reasons.append(HOLD_ATM_EXPIRY)
@@ -341,7 +347,7 @@ class BossSelector:
         decisions: list[Decision] = []
         shadows: list[dict[str, Any]] = []
         choices: dict[str, StrikeChoice] = {}
-        for underlying, group in grouped.items():
+        for _underlying, group in grouped.items():
             decision, shadow, choice = self._one_underlying(group, ctx, now)
             decisions.append(decision)
             shadows.append(shadow)
@@ -358,7 +364,9 @@ class BossSelector:
         gated, gate_holds = self._basket_gate(signals, ctx)
         if not gated:
             return (
-                self._emit("HOLD", ctx, now, signals, shadow, holds=gate_holds or [HOLD_NOT_IN_BASKET]),
+                self._emit(
+                    "HOLD", ctx, now, signals, shadow, holds=gate_holds or [HOLD_NOT_IN_BASKET]
+                ),
                 shadow,
                 None,
             )
@@ -366,14 +374,26 @@ class BossSelector:
         if len(sides) > 1:
             winner = self._priority_side(gated, weights)
             if winner is None:
-                return self._emit("HOLD", ctx, now, gated, shadow, holds=[HOLD_CONFLICT]), shadow, None
+                return (
+                    self._emit("HOLD", ctx, now, gated, shadow, holds=[HOLD_CONFLICT]),
+                    shadow,
+                    None,
+                )
             gated = [s for s in gated if s.side == winner]
         pick = max(gated, key=lambda s: (weights.get(s.strategy_id, 1.0), s.signal_id))
         holds = evaluate_holds(
-            self.config, ctx, now, strategy_id=pick.strategy_id, chosen_rule=pick.strike_choice.chosen
+            self.config,
+            ctx,
+            now,
+            strategy_id=pick.strategy_id,
+            chosen_rule=pick.strike_choice.chosen,
         )
         if holds:
-            return self._emit("HOLD", ctx, now, gated, shadow, holds=holds), shadow, pick.strike_choice
+            return (
+                self._emit("HOLD", ctx, now, gated, shadow, holds=holds),
+                shadow,
+                pick.strike_choice,
+            )
         entry = self.basket.entry(pick.strategy_id)
         basket_max = entry.max_lots if entry is not None else 0
         if ctx.em30 is None or ctx.delta is None or ctx.stop is None:
@@ -392,17 +412,30 @@ class BossSelector:
         )
         if lots is None:
             return (
-                self._emit("HOLD", ctx, now, gated, shadow, holds=[HOLD_BELOW_MIN_LOTS], sizing=sizing),
+                self._emit(
+                    "HOLD", ctx, now, gated, shadow, holds=[HOLD_BELOW_MIN_LOTS], sizing=sizing
+                ),
                 shadow,
                 pick.strike_choice,
             )
         return (
-            self._emit("ENTER", ctx, now, gated, shadow, lots=lots, sizing=sizing, choice=pick.strike_choice),
+            self._emit(
+                "ENTER",
+                ctx,
+                now,
+                gated,
+                shadow,
+                lots=lots,
+                sizing=sizing,
+                choice=pick.strike_choice,
+            ),
             shadow,
             pick.strike_choice,
         )
 
-    def _basket_gate(self, signals: Sequence[Signal], ctx: BarContext) -> tuple[list[Signal], list[str]]:
+    def _basket_gate(
+        self, signals: Sequence[Signal], ctx: BarContext
+    ) -> tuple[list[Signal], list[str]]:
         kept: list[Signal] = []
         holds: list[str] = []
         active = self.basket.active_ids()
@@ -451,13 +484,13 @@ class BossSelector:
         weights: Mapping[str, float],
         intermarket: Mapping[str, Any],
     ) -> dict[str, Any]:
-        ranks = sorted(
-            (
-                {"strategy_id": s.strategy_id, "side": s.side, "weight": float(weights.get(s.strategy_id, 1.0))}
-                for s in signals
-            ),
-            key=lambda row: (-float(row["weight"]), str(row["strategy_id"])),
-        )
+        ranked: list[tuple[str, str, float]] = [
+            (s.strategy_id, s.side, float(weights.get(s.strategy_id, 1.0))) for s in signals
+        ]
+        ranked.sort(key=lambda row: (-row[2], row[0]))
+        ranks = [
+            {"strategy_id": sid, "side": side, "weight": weight} for sid, side, weight in ranked
+        ]
         return {
             "event_type": "BOSS_SHADOW",
             "mode": self.config.regime_mode,
@@ -467,7 +500,9 @@ class BossSelector:
             "decision_unchanged": True,
         }
 
-    def _shadow_block(self, shadow: Mapping[str, Any], choice: StrikeChoice | None) -> dict[str, Any]:
+    def _shadow_block(
+        self, shadow: Mapping[str, Any], choice: StrikeChoice | None
+    ) -> dict[str, Any]:
         block = {
             "regime": shadow.get("regime"),
             "ranks": list(shadow.get("ranks") or ()),

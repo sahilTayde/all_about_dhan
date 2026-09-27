@@ -12,7 +12,13 @@ from contracts.payloads import CatastrophicStop, ExitPlan, Level, StrikeChoice, 
 from strategies.api import Signal
 from strategies.registry import Basket, BasketEntry
 
-from boss.selector import BarContext, BossSelector, SessionBasketGate, load_engine_config
+from boss.selector import (
+    BarContext,
+    BossSelector,
+    SelectorResult,
+    SessionBasketGate,
+    load_engine_config,
+)
 
 
 def _choice() -> StrikeChoice:
@@ -45,7 +51,9 @@ def _signal(sid: str, signal_id: str, side: str, ts: datetime) -> Signal:
         strike_choice=_choice(),
         decision_ts=ts.isoformat(),
         confidence=0.6,
-        exit_plan=ExitPlan(catastrophic=CatastrophicStop(level=Level(kind="premium", price=30000.0))),
+        exit_plan=ExitPlan(
+            catastrophic=CatastrophicStop(level=Level(kind="premium", price=30000.0))
+        ),
         reasons=("DEMO",),
         features={},
     )
@@ -69,9 +77,9 @@ def _ctx(now: datetime, **overrides: object) -> BarContext:
     return BarContext(**base)  # type: ignore[arg-type]
 
 
-def _show(label: str, result: object) -> None:
-    decisions = getattr(result, "decisions")
-    shadows = getattr(result, "shadow_events")
+def _show(label: str, result: SelectorResult) -> None:
+    decisions = result.decisions
+    shadows = result.shadow_events
     print(f"--- {label} ---")
     for d in decisions:
         holds = list(d.holds) if d.holds else []
@@ -128,18 +136,30 @@ def main() -> int:
                 _signal("PAPER-A", "sg_ce", "CE", t1),
                 _signal("PAPER-B", "sg_pe", "PE", t1),
             ],
-            _ctx(t1),
+            _ctx(t1, weights={"PAPER-A": 1.0, "PAPER-B": 1.0}),
         ),
     )
 
-    _show("10:05 IST shadow stage dropped", sel.decide([_signal("SHADOW-X", "sg_sh", "CE", t1)], _ctx(t1)))
+    _show(
+        "10:05 IST shadow stage dropped",
+        sel.decide([_signal("SHADOW-X", "sg_sh", "CE", t1)], _ctx(t1)),
+    )
 
-    _show("10:05 IST FEED_STALE", sel.decide([_signal("PAPER-A", "sg_stale", "CE", t1)], _ctx(t1, feed_status="STALE")))
+    _show(
+        "10:05 IST FEED_STALE",
+        sel.decide([_signal("PAPER-A", "sg_stale", "CE", t1)], _ctx(t1, feed_status="STALE")),
+    )
 
-    _show("10:05 IST BELOW_MIN_LOTS", sel.decide([_signal("PAPER-A", "sg_tiny", "CE", t1)], _ctx(t1, em30=685.0)))
+    _show(
+        "10:05 IST BELOW_MIN_LOTS",
+        sel.decide([_signal("PAPER-A", "sg_tiny", "CE", t1)], _ctx(t1, em30=685.0)),
+    )
 
     sel.basket_remove("PAPER-A")
-    _show("10:05 IST after BASKET_REMOVE PAPER-A", sel.decide([_signal("PAPER-A", "sg_rm", "CE", t1)], _ctx(t1)))
+    _show(
+        "10:05 IST after BASKET_REMOVE PAPER-A",
+        sel.decide([_signal("PAPER-A", "sg_rm", "CE", t1)], _ctx(t1)),
+    )
 
     try:
         sel.basket_add(BasketEntry("NEW-X", ("NIFTY",), 1.0, 10, "paper"))
