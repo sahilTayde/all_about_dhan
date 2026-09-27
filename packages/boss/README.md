@@ -1,12 +1,29 @@
-# boss (PR-007)
+# boss
 
-`Boss` handles `MARKET_TICK` after the desk. It builds the analyst-room context, publishes
-`REQUEST_VOTES`, collects the `ANALYST_VOTE`s, and then runs the paper engine's decision rules
-unchanged (`paper_scalp.step_decide`: picker majority → observer → entry gates).
+Paper only. Never calls a broker or constructs a Dhan client.
 
-Each ticket becomes `ENTRY_APPROVED` (with the sized ticket: strike, lots, limit, stop, target and
-the analysts behind it) or `NO_ENTRY` (with the gate that skipped it). The boss never calls the
-risk engine or a broker; the desk does. Votes with `shadow: true` are audited and ignored.
-Flow and parity: docs/PHASE2_NOTES.md.
+## Packages in this tree
 
-Install: `pip install -e packages/boss`
+- **Frozen PR-007** — `orchestrator.py` (do not edit). Votes → `paper_scalp.step_decide`.
+- **V2-07** — `selector.py`. Basket gate, YAML holds, conflicts, VOLSIZE/CAPLOTS,
+  `DECISION` + `BOSS_SHADOW`. Uses `desk_ml.regime` for ranks only. Does **not**
+  import `desk_ml.paper_scalp`.
+
+Holds and Round 8 §3.0 constants live in `config/v2/engine.yaml` (data, not code).
+`StrikeChoice` / `ExitPlan` come from `contracts.payloads`. Signals come from
+`strategies.api`. Lot size comes from `contracts.instruments.India`.
+
+## Install
+
+```bash
+pip install -e packages/boss
+```
+
+## Tests
+
+```bash
+pytest packages/boss/tests/test_selector.py packages/boss/tests/test_reg_11_boss.py
+mypy --strict --config-file packages/boss/pyproject.toml packages/boss/src/boss/selector.py
+ruff check packages/boss/src/boss/selector.py packages/boss/tests/test_selector.py
+python packages/boss/tests/demo_selector.py
+```
