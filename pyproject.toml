@@ -24,8 +24,12 @@ members = [
 ]
 
 [tool.pytest.ini_options]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
 markers = [
     "network: needs internet (pip/PyPI); skips when offline",
     "sim: fault-injection full-day live-loop simulations (CI job: faults)",
     "slow: long-running; excluded from the unit job",
+    "reg11a_probe: REG-11a test data guard probe (exempt from guard)",
 ]
