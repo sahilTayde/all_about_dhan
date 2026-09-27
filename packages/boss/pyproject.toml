@@ -5,13 +5,19 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "boss"
 version = "0.1.0"
-description = "Boss orchestrator: analyst votes to ENTRY_APPROVED / NO_ENTRY. Paper only. Ignores shadow analysts."
+description = "Boss orchestrator (frozen) plus V2-07 selector. Paper only. Never calls a broker."
 readme = "README.md"
 requires-python = ">=3.9"
-dependencies = ["analysts==0.1.0+aad", "desk-ml==0.1.0+aad"]
+dependencies = [
+    "analysts==0.1.0+aad",
+    "desk-ml==0.1.0+aad",
+    "contracts>=2.0.0",
+    "strategies>=2.0.0",
+    "PyYAML>=6",
+]
 
 [project.optional-dependencies]
-dev = ["pytest>=8"]
+dev = ["pytest>=8", "mypy>=1.0.0", "ruff>=0.1.0"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
@@ -19,3 +25,24 @@ where = ["src"]
 [tool.uv.sources]
 analysts = { workspace = true }
 desk-ml = { workspace = true }
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+extend-exclude = ["src/boss/orchestrator.py", "tests/test_boss.py"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "SIM", "RUF"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+mypy_path = "../contracts/src:../strategies/src:../desk-ml/src"
+exclude = ["orchestrator\\.py"]
+
+[[tool.mypy.overrides]]
+module = ["desk_ml.*", "strategies.*", "yaml"]
+ignore_missing_imports = true
