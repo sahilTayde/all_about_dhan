@@ -104,11 +104,8 @@ def resolve_exit_plan(
         raise ExitPlanLoadError("REG-18d: a plan without a catastrophic stop refuses to load")
 
     structural = _structural_from(data.get("structural"))
-    if inherited and _structural_required(defaults):
-        if structural is None:
-            raise ExitPlanLoadError(
-                "a strategy with no native invalidation level refuses to inherit"
-            )
+    if inherited and _structural_required(defaults) and structural is None:
+        raise ExitPlanLoadError("a strategy with no native invalidation level refuses to inherit")
 
     for name in relies_on:
         if name == "catastrophic":
@@ -153,9 +150,7 @@ def inherit_exit_defaults(
 ) -> ExitPlan:
     """Round-11 inherit: house ₹30k stop + native structural; everything else off."""
     if not isinstance(native_invalidation, Level):
-        raise ExitPlanLoadError(
-            "a strategy with no native invalidation level refuses to inherit"
-        )
+        raise ExitPlanLoadError("a strategy with no native invalidation level refuses to inherit")
     if defaults is None or defaults_sha256 is None:
         loaded, digest = load_exit_defaults(path)
         defaults = loaded if defaults is None else defaults

@@ -13,7 +13,7 @@ from helpers import INST, NOW, envelope, make_decision, make_exit_plan, make_man
 from risk_engine import IST
 
 from oms import Account, Veto
-from oms.exits import evaluate, freeze_fill_levels, freeze_atr_level
+from oms.exits import evaluate, freeze_atr_level, freeze_fill_levels
 
 IDX = "NSE_IDX:NIFTY"
 PE_INST = "NSE_FNO:NIFTY:2026-09-29:24400:PE"
@@ -22,12 +22,15 @@ PE_INST = "NSE_FNO:NIFTY:2026-09-29:24400:PE"
 def _enter(pm, clock, plan, lots=2, *, inst=INST, fill_ctx=None):
     if fill_ctx:
         # client_order_id is derived from SIG in make_plan
-        from helpers import SIG
         from contracts.ids import order_id
+        from helpers import SIG
 
         pm.remember_fill_context(order_id("founder", SIG, "entry"), **fill_ctx)
     out = pm.router.submit(
-        make_plan(), make_decision(lots=lots, instrument_id=inst), Account("founder"), exit_plan=plan
+        make_plan(),
+        make_decision(lots=lots, instrument_id=inst),
+        Account("founder"),
+        exit_plan=plan,
     )
     assert not isinstance(out, Veto)
     clock.advance_by(timedelta(milliseconds=250))
@@ -46,7 +49,9 @@ def _bar(ts, close: float, inst: str = IDX, **extra):
 
 def test_structural_stop_bar_close_exact_time_and_price(tmp_path):
     plan = make_exit_plan(
-        structural=StructuralStop(level=Level(kind="underlying", price=24400.0), trigger="bar_close")
+        structural=StructuralStop(
+            level=Level(kind="underlying", price=24400.0), trigger="bar_close"
+        )
     )
     clock = SimClock(NOW)
     pm = make_manager(tmp_path, clock, broker=make_broker(clock=clock))
@@ -57,7 +62,13 @@ def test_structural_stop_bar_close_exact_time_and_price(tmp_path):
         envelope(
             "TICK",
             clock.now(),
-            {"instrument_id": INST, "ltp": 151.10, "bid": 151.00, "ask": 151.20, "underlying_ltp": 24390.0},
+            {
+                "instrument_id": INST,
+                "ltp": 151.10,
+                "bid": 151.00,
+                "ask": 151.20,
+                "underlying_ltp": 24390.0,
+            },
         )
     )
     assert pm.open_book()
@@ -101,9 +112,7 @@ def test_atr_stop_fixed_at_fill_exact_time_and_price(tmp_path):
 
 
 def test_signal_flip_own_opposite_on_bar_close(tmp_path):
-    plan = make_exit_plan(
-        signal_flip=SignalFlipExit(on=("own_opposite",), trigger="bar_close")
-    )
+    plan = make_exit_plan(signal_flip=SignalFlipExit(on=("own_opposite",), trigger="bar_close"))
     clock = SimClock(NOW)
     pm = make_manager(tmp_path, clock, broker=make_broker(clock=clock))
     row = _enter(pm, clock, plan)
@@ -134,9 +143,7 @@ def test_signal_flip_own_opposite_on_bar_close(tmp_path):
 
 
 def test_signal_flip_boss_opposite_on_bar_close(tmp_path):
-    plan = make_exit_plan(
-        signal_flip=SignalFlipExit(on=("boss_opposite",), trigger="bar_close")
-    )
+    plan = make_exit_plan(signal_flip=SignalFlipExit(on=("boss_opposite",), trigger="bar_close"))
     clock = SimClock(NOW)
     pm = make_manager(tmp_path, clock, broker=make_broker(clock=clock))
     _enter(pm, clock, plan)
@@ -208,9 +215,7 @@ def test_evaluate_table_structural_atr_flip_exact():
     atr_plan = make_exit_plan(atr=AtrStop(k=2.0, trigger="bar_close"))
     atr_pos = dict(pos)
     atr_pos["exit_plan"] = atr_plan
-    freeze_fill_levels(
-        atr_pos, atr_plan, 151.10, 130, entry_underlying=24500.0, atr14=10.0
-    )
+    freeze_fill_levels(atr_pos, atr_plan, 151.10, 130, entry_underlying=24500.0, atr14=10.0)
     assert atr_pos["atr_stop_level"] == pytest.approx(24480.0)
     miss = evaluate(
         atr_pos,

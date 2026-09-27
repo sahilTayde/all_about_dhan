@@ -200,7 +200,8 @@ def run_09b(tmp: Path, clock: SimClock) -> None:
     print(
         f"\n== V2-09b defaults == house={HOUSE_MAX_LOSS_INR} "
         f"defaults_from=exit_defaults@{digest[:12]}… "
-        f"atr={defaults.get('atr')} grace={defaults.get('grace')} flip={defaults.get('signal_flip')}"
+        f"atr={defaults.get('atr')} grace={defaults.get('grace')} "
+        f"flip={defaults.get('signal_flip')}"
     )
     structural = defaults.get("structural")
     if isinstance(structural, dict) and structural.get("enabled"):

@@ -90,10 +90,8 @@ def option_side(instrument_id: str) -> str:
     return "CE"
 
 
-def house_stop_premium(
-    entry: float, qty: int, max_loss: float = HOUSE_MAX_LOSS_INR
-) -> float:
-    """Premium stop so qty × (entry − stop) ≤ max_loss (round 11 house stop)."""
+def house_stop_premium(entry: float, qty: int, max_loss: float = HOUSE_MAX_LOSS_INR) -> float:
+    """Premium stop so qty * (entry - stop) <= max_loss (round 11 house stop)."""
     if qty <= 0:
         raise ValueError("qty must be positive")
     return max(PREMIUM_TICK, round(float(entry) - float(max_loss) / int(qty), 2))
@@ -110,7 +108,7 @@ def resolve_catastrophic_premium(plan: ExitPlan, fill_price: float, qty: int) ->
 
 
 def freeze_atr_level(side: str, entry_underlying: float, k: float, atr14: float) -> float:
-    """ATR stop fixed at the fill: entry ∓ k × ATR14(1m)."""
+    """ATR stop fixed at the fill: entry -/+ k * ATR14(1m)."""
     offset = float(k) * float(atr14)
     if side == "PE":
         return round(float(entry_underlying) + offset, 2)
@@ -146,7 +144,7 @@ def freeze_fill_levels(
 
 def load_exit_defaults(path: Path | None = None) -> tuple[dict[str, Any], str]:
     """Load `config/v2/exits/defaults.yaml` and the sha256 of the raw bytes."""
-    import yaml  # type: ignore[import-untyped]
+    import yaml
 
     target = path if path is not None else DEFAULTS_RELATIVE
     raw = target.read_bytes()
@@ -166,9 +164,7 @@ def assert_exit_reason(req: ExitRequest, plan: ExitPlan) -> None:
         raise RuntimeError(f"REG-18a: illegal exit reason {req.reason}")
     expected = REASON_PLAN_FIELD.get(req.reason)
     if expected is None or req.plan_field != expected:
-        raise RuntimeError(
-            f"REG-18a: {req.reason} must name {expected}, got {req.plan_field!r}"
-        )
+        raise RuntimeError(f"REG-18a: {req.reason} must name {expected}, got {req.plan_field!r}")
     if req.reason in ALWAYS_ON_REASONS:
         return
     field = expected

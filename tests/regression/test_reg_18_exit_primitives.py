@@ -18,16 +18,18 @@ from contracts.payloads import (
     StructuralStop,
     TimeStop,
 )
-from helpers import INST, NOW, depth_env, envelope, make_decision, make_exit_plan, make_manager, make_plan
-from risk_engine import IST
-from strategies.params_hash import (
-    ExitPlanLoadError,
-    inherit_exit_defaults,
-    load_exit_defaults,
-    resolve_exit_plan,
+from helpers import (
+    INST,
+    NOW,
+    depth_env,
+    envelope,
+    make_decision,
+    make_exit_plan,
+    make_manager,
+    make_plan,
 )
-
-from oms import Account, Veto, load_exit_defaults as oms_load_defaults
+from oms import Account, Veto
+from oms import load_exit_defaults as oms_load_defaults
 from oms.exits import (
     ALLOWED_REASONS,
     HOUSE_MAX_LOSS_INR,
@@ -35,6 +37,13 @@ from oms.exits import (
     evaluate,
     house_stop_premium,
     plan_from_mapping,
+)
+from risk_engine import IST
+from strategies.params_hash import (
+    ExitPlanLoadError,
+    inherit_exit_defaults,
+    load_exit_defaults,
+    resolve_exit_plan,
 )
 
 REPO = Path(__file__).resolve().parents[2]
@@ -61,7 +70,13 @@ def _enter(pm, clock, plan, lots=2, *, fill_ctx=None):
     assert not isinstance(out, Veto)
     clock.advance_by(timedelta(milliseconds=250))
     pm.router.broker.on_depth(
-        Quote(available_ts=clock.now(), bid=151.00, ask=151.20, ltp=151.10, instrument_id=INST)
+        Quote(
+            available_ts=clock.now(),
+            bid=151.00,
+            ask=151.20,
+            ltp=151.10,
+            instrument_id=INST,
+        )
     )
     return pm.open_book()[0]
 
@@ -75,7 +90,9 @@ def test_reg_18a_every_exit_names_plan_field(tmp_path):
     _enter(pm, clock, make_exit_plan())
     clock.advance_to(NOW.replace(hour=10, minute=30))
     fired = pm.on_market(
-        envelope("FOUNDER_COMMAND", clock.now(), {"kind": "CUT_LOSS", "instrument_id": INST})
+        envelope(
+            "FOUNDER_COMMAND", clock.now(), {"kind": "CUT_LOSS", "instrument_id": INST}
+        )
     )
     fixtures.append(("FOUNDER_COMMAND", fired[0] if fired else None))
 
@@ -124,7 +141,9 @@ def test_reg_18a_every_exit_names_plan_field(tmp_path):
             raise AssertionError(f"REG-18a: {name} did not fire")
         if hasattr(item, "reason"):
             assert item.reason in ALLOWED_REASONS
-            assert_exit_reason(item, make_exit_plan() if name != "STRUCTURAL_STOP" else plan)
+            assert_exit_reason(
+                item, make_exit_plan() if name != "STRUCTURAL_STOP" else plan
+            )
             assert item.reason == name
         else:
             assert item == name
@@ -153,7 +172,9 @@ def test_reg_18b_catastrophic_and_time_never_closes_on_plus_minus_5(tmp_path):
     assert pm.store.closed[-1]["exit_reason"] == "TIME_EXIT"
 
 
-def test_reg_18c_grace_blocks_structural_atr_time_flip_not_catastrophic_eod_founder(tmp_path):
+def test_reg_18c_grace_blocks_structural_atr_time_flip_not_catastrophic_eod_founder(
+    tmp_path,
+):
     """REG-18c: grace blocks structural/ATR/time/flip; not catastrophic, EOD, founder."""
     grace = GracePeriod(seconds=180)
     fill = NOW
@@ -184,8 +205,12 @@ def test_reg_18c_grace_blocks_structural_atr_time_flip_not_catastrophic_eod_foun
         "STRUCTURAL_STOP",
     )
     atr_plan = make_exit_plan(grace=grace, atr=AtrStop(k=1.5))
-    time_plan = make_exit_plan(grace=grace, time_stops=(TimeStop(after_s=1, when="always"),))
-    flip_plan = make_exit_plan(grace=grace, signal_flip=SignalFlipExit(on=("own_opposite",)))
+    time_plan = make_exit_plan(
+        grace=grace, time_stops=(TimeStop(after_s=1, when="always"),)
+    )
+    flip_plan = make_exit_plan(
+        grace=grace, signal_flip=SignalFlipExit(on=("own_opposite",))
+    )
 
     for plan, kind, kw, _name in (
         blocked,
@@ -239,12 +264,18 @@ def test_reg_18c_grace_blocks_structural_atr_time_flip_not_catastrophic_eod_foun
         envelope(
             "BAR_CLOSED",
             clock.now(),
-            {"instrument_id": "NSE_IDX:NIFTY", "c": 24300.0, "underlying_close": 24300.0},
+            {
+                "instrument_id": "NSE_IDX:NIFTY",
+                "c": 24300.0,
+                "underlying_close": 24300.0,
+            },
         )
     )
     assert pm.open_book()
     pm.on_market(
-        envelope("FOUNDER_COMMAND", clock.now(), {"kind": "CUT_LOSS", "instrument_id": INST})
+        envelope(
+            "FOUNDER_COMMAND", clock.now(), {"kind": "CUT_LOSS", "instrument_id": INST}
+        )
     )
     assert not pm.open_book()
 
@@ -252,7 +283,9 @@ def test_reg_18c_grace_blocks_structural_atr_time_flip_not_catastrophic_eod_foun
 def test_reg_18d_plan_without_catastrophic_refuses_to_load():
     """REG-18d: a plan without a catastrophic stop refuses to load."""
     with pytest.raises(ValueError, match="catastrophic"):
-        plan_from_mapping({"structural": {"level": {"kind": "underlying", "price": 1.0}}})
+        plan_from_mapping(
+            {"structural": {"level": {"kind": "underlying", "price": 1.0}}}
+        )
     with pytest.raises(ExitPlanLoadError, match="REG-18d"):
         resolve_exit_plan({})
 
@@ -307,7 +340,11 @@ def test_defaults_all_null_omitted_relied_on_primitive_refuses(tmp_path):
         resolve_exit_plan({}, defaults=defaults, defaults_sha256=digest)
     with pytest.raises(ExitPlanLoadError, match="relies on structural"):
         resolve_exit_plan(
-            {"catastrophic": CatastrophicStop(level=Level(kind="premium", price=140.0))},
+            {
+                "catastrophic": CatastrophicStop(
+                    level=Level(kind="premium", price=140.0)
+                )
+            },
             defaults=defaults,
             defaults_sha256=digest,
             relies_on=("structural",),
@@ -319,7 +356,13 @@ def test_legacy_cancel_reasons_absent_from_oms_and_strategies():
     hits: list[str] = []
     for root in (OMS_SRC, STRAT_SRC):
         for path in root.rglob("*"):
-            if not path.is_file() or path.suffix not in {".py", ".md", ".toml", ".yaml", ".yml"}:
+            if not path.is_file() or path.suffix not in {
+                ".py",
+                ".md",
+                ".toml",
+                ".yaml",
+                ".yml",
+            }:
                 continue
             text = path.read_text(encoding="utf-8", errors="replace")
             for token in LEGACY_CANCELS:
@@ -361,7 +404,11 @@ def test_inherit_defaults_exits_only_native_house_eod_founder_kill(tmp_path):
         envelope(
             "BAR_CLOSED",
             clock.now(),
-            {"instrument_id": "NSE_IDX:NIFTY", "c": 24450.0, "underlying_close": 24450.0},
+            {
+                "instrument_id": "NSE_IDX:NIFTY",
+                "c": 24450.0,
+                "underlying_close": 24450.0,
+            },
         )
     )
     assert pm.open_book()

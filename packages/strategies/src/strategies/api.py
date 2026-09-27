@@ -41,11 +41,8 @@ __all__ = [
     "ExitPlan",
     "ExitRequest",
     "GracePeriod",
-    "inherit_exit_defaults",
     "Level",
-    "load_exit_defaults",
     "Partial",
-    "resolve_exit_plan",
     "PositionUpdate",
     "SessionContext",
     "Signal",
@@ -57,6 +54,9 @@ __all__ = [
     "StructuralStop",
     "TimeStop",
     "Trail",
+    "inherit_exit_defaults",
+    "load_exit_defaults",
+    "resolve_exit_plan",
 ]
 
 

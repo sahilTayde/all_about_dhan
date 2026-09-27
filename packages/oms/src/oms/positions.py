@@ -165,9 +165,9 @@ class PositionManager:
         for pos in list(self.store.open_positions()):
             ids = (pos.get("instrument_id"), pos.get("position_id"), pos.get("symbol"))
             quote_kinds = ("TICK", "DEPTH_QUOTE", "QUOTE_SNAPSHOT", "BAR_CLOSED")
-            if target and target not in ids and kind in quote_kinds:
-                if not (kind == "BAR_CLOSED" and _same_underlying(target, pos)):
-                    continue
+            skip_other = target and target not in ids and kind in quote_kinds
+            if skip_other and not (kind == "BAR_CLOSED" and _same_underlying(target, pos)):
+                continue
             if "exit_plan" not in pos:
                 raw = pos.get("exit_plan_json")
                 if raw:
@@ -547,17 +547,9 @@ def _underlying_px(kind: str, payload: dict[str, Any], pos: dict[str, Any]) -> f
     return float(held) if held is not None else None
 
 
-def _flip_flags(
-    kind: str, payload: dict[str, Any], pos: dict[str, Any]
-) -> tuple[bool, bool]:
-    if payload.get("own_opposite") is True:
-        own = True
-    else:
-        own = False
-    if payload.get("boss_opposite") is True:
-        boss = True
-    else:
-        boss = False
+def _flip_flags(kind: str, payload: dict[str, Any], pos: dict[str, Any]) -> tuple[bool, bool]:
+    own = payload.get("own_opposite") is True
+    boss = payload.get("boss_opposite") is True
     side = option_side(str(pos.get("instrument_id") or ""))
     other = str(payload.get("side") or "")
     if other not in {"CE", "PE"}:
@@ -572,13 +564,16 @@ def _flip_flags(
         strat = str(payload.get("strategy_id") or "")
         if strat and strat == str(pos.get("strategy_id") or ""):
             own = True
-    if kind in {"DECISION", "BOSS_DECISION"} and opposite:
-        if str(payload.get("decision") or "ENTER") == "ENTER":
-            under = str(payload.get("underlying") or "")
-            inst = str(pos.get("instrument_id") or "")
-            pos_under = str(_INDIA.parse_instrument_id(inst).get("symbol") or "")
-            if not under or under == pos_under:
-                boss = True
+    if (
+        kind in {"DECISION", "BOSS_DECISION"}
+        and opposite
+        and str(payload.get("decision") or "ENTER") == "ENTER"
+    ):
+        under = str(payload.get("underlying") or "")
+        inst = str(pos.get("instrument_id") or "")
+        pos_under = str(_INDIA.parse_instrument_id(inst).get("symbol") or "")
+        if not under or under == pos_under:
+            boss = True
     return own, boss
 
 
