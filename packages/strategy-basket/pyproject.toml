@@ -7,7 +7,7 @@ name = "strategy-basket"
 version = "0.1.0"
 description = "Strategy registry and shadow basket selector for the boss. Paper only; logs, never orders. Off by default."
 requires-python = ">=3.9"
-dependencies = ["PyYAML>=6", "desk-ml==0.1.0+aad"]
+dependencies = ["PyYAML>=6", "analysts==0.1.0+aad", "desk-ml==0.1.0+aad"]
 
 [project.optional-dependencies]
 dev = ["pytest>=8"]
@@ -16,4 +16,5 @@ dev = ["pytest>=8"]
 where = ["src"]
 
 [tool.uv.sources]
+analysts = { workspace = true }
 desk-ml = { workspace = true }

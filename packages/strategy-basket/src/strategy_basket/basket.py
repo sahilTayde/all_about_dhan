@@ -3,7 +3,8 @@
     config/baskets/<market>.yaml   instruments, selection gates, strategy cards
     config/baskets/selector.yaml   flags: enabled (default false), founder off file, paths
     data/shadow/basket/lab/basket_<market>.json  lab refresh (optional, gitignored); cards replace yaml cards by id
-    data/shadow/basket/<day>.jsonl one row per selection (pre_open, then each regime change)
+    data/shadow/basket/<day>.jsonl one row per selection (pre_open, then each regime change) and one
+                                   per boss ticket (signal: entry distance + each card's entry-policy verdict)
 
 Regime labels are not computed here: they are the regime service's (`desk_ml.regime`, PR #21)
 minute labels, built from completed 1m bars only. `pre_open` runs on an index's first tick, before
@@ -37,6 +38,7 @@ import yaml
 from desk_ml.regime.labels import (
     EXPIRY_DAY, IST, PRIMARY_LABELS, UNKNOWN, VOL_COMPRESSION, VOL_EXPANSION,
 )
+from strategy_basket.entry import ENTRY_KEYS, MODES, POLICIES, POLICY_KEYS, ZONES, measure, verdict
 
 log = logging.getLogger("boss.basket")
 ENV_FLAG = "USE_BASKET_SELECTOR"
@@ -49,7 +51,7 @@ VOL_NORMAL, NON_EXPIRY_DAY = "vol_normal", "non_expiry_day"
 VOLS, EXPIRIES = (VOL_EXPANSION, VOL_COMPRESSION, VOL_NORMAL), (EXPIRY_DAY, NON_EXPIRY_DAY)
 REGIME_KEYS = tuple(f"{p}.{v}.{e}" for p in PRIMARY_LABELS for v in VOLS for e in EXPIRIES)
 WEEKDAYS = ("MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN")
-CARD_KEYS = {"id", "source", "markets", "adaptations", "rules", "param_ranges", "scores", "notes"}
+CARD_KEYS = {"id", "source", "markets", "adaptations", "rules", "param_ranges", "entry_policy", "scores", "notes"}
 SCORE_KEYS = ("net_pnl", "pf", "trades", "win_rate", "dsr", "weight", "rank", "status")
 SELECTION_KEYS = {"max_total_weight", "min_trades", "min_pf", "min_dsr", "require_positive_net"}
 _ID = re.compile(r"^[A-Z][A-Z0-9_.-]{1,63}$")
@@ -80,6 +82,7 @@ class StrategyCard:
     rules: dict
     param_ranges: dict
     scores: dict  # regime key -> RegimeScore
+    entry_policy: dict  # strategy_basket.entry: kind, zone, timeout_bars, max_stretch_atr
     notes: str = ""
 
 
@@ -100,6 +103,7 @@ class Basket:
     instruments: dict  # symbol -> Instrument
     selection: dict
     lab_scores: Optional[str]
+    entry: dict  # entry_location: mode + placeholder thresholds (strategy_basket.entry)
     cards: dict  # id -> StrategyCard
     path: str = ""
 
@@ -187,7 +191,53 @@ def parse_card(raw: Any, *, require_scores: bool, where: str = "card") -> Strate
             raise BasketError(f"{where}.scores: {key!r} is not a regime key {list(REGIME_KEYS)}")
         scores[key] = parse_score(sc, f"{where}.scores.{key}")
     return StrategyCard(id=cid, source=dict(src), markets=markets, adaptations=dict(adaptations), rules=dict(rules),
-                        param_ranges=dict(ranges), scores=scores, notes=str(d.get("notes") or ""))
+                        param_ranges=dict(ranges), scores=scores, entry_policy=parse_entry_policy(d.get("entry_policy"), where),
+                        notes=str(d.get("notes") or ""))
+
+
+def parse_entry_policy(raw: Any, where: str) -> dict:
+    """Required on every card: chase | pullback_limit(zone, timeout_bars) | wait_consolidation, + max_stretch_atr."""
+    where = f"{where}.entry_policy"
+    d = _map(raw, where)
+    _no_extra(d, POLICY_KEYS, where)
+    kind = d.get("kind")
+    if kind not in POLICIES:
+        raise BasketError(f"{where}.kind: {kind!r} not in {list(POLICIES)}")
+    zone, timeout, cap = d.get("zone"), d.get("timeout_bars"), d.get("max_stretch_atr")
+    if kind == "pullback_limit":
+        if zone not in ZONES:
+            raise BasketError(f"{where}.zone: pullback_limit needs a zone in {list(ZONES)}")
+        if timeout is None:
+            raise BasketError(f"{where}.timeout_bars: pullback_limit needs a timeout (closed 1m bars)")
+    elif zone is not None:
+        raise BasketError(f"{where}.zone: only pullback_limit rests at a zone")
+    if kind == "chase" and timeout is not None:
+        raise BasketError(f"{where}.timeout_bars: chase does not wait")
+    return {
+        "kind": kind, "zone": zone,
+        "timeout_bars": None if timeout is None else _number(timeout, f"{where}.timeout_bars", lo=1, integer=True),
+        "max_stretch_atr": None if cap is None else _number(cap, f"{where}.max_stretch_atr", lo=0),
+    }
+
+
+def parse_entry_location(raw: Any, where: str) -> dict:
+    d = _map(raw, where)
+    missing = sorted(ENTRY_KEYS - set(d))
+    if missing:
+        raise BasketError(f"{where}: missing {missing}")
+    _no_extra(d, ENTRY_KEYS, where)
+    if d["mode"] not in MODES:
+        raise BasketError(f"{where}.mode: {d['mode']!r} not in {list(MODES)}")
+    cap = d["max_stretch_atr"]
+    return {
+        "mode": d["mode"],
+        "max_stretch_atr": None if cap is None else _number(cap, f"{where}.max_stretch_atr", lo=0),
+        "chase_weight_mult": _number(d["chase_weight_mult"], f"{where}.chase_weight_mult", lo=0, hi=1),
+        "atr_period": _number(d["atr_period"], f"{where}.atr_period", lo=1, integer=True),
+        "lookback_bars": _number(d["lookback_bars"], f"{where}.lookback_bars", lo=3, integer=True),
+        "impulse_atr_mult": _number(d["impulse_atr_mult"], f"{where}.impulse_atr_mult", lo=0),
+        "poc_bucket_atr": _number(d["poc_bucket_atr"], f"{where}.poc_bucket_atr", lo=0.001),
+    }
 
 
 def _instrument(sym: str, raw: Any) -> Instrument:
@@ -232,7 +282,8 @@ def load_basket(path: Path) -> Basket:
         _check_markets(card, instruments)
         cards[card.id] = card
     return Basket(market=market, activatable=d["activatable"], instruments=instruments, selection=selection,
-                  lab_scores=d.get("lab_scores"), cards=cards, path=str(path))
+                  lab_scores=d.get("lab_scores"), entry=parse_entry_location(d.get("entry_location"), "entry_location"),
+                  cards=cards, path=str(path))
 
 
 def _check_markets(card: StrategyCard, instruments: dict) -> None:
@@ -366,6 +417,7 @@ def _gate(sc: Optional[RegimeScore], sel: dict) -> Optional[str]:
 def select_basket(basket: Basket, underlying: str, regime: dict[str, Any]) -> dict[str, Any]:
     """Ranked, weighted strategies for ``underlying`` in ``regime``. Failed / parked / unscored = weight 0."""
     und, key, sel = underlying.upper(), regime.get("key"), basket.selection
+    mode, mult = basket.entry["mode"], basket.entry["chase_weight_mult"]
     rows = []
     for cid in sorted(basket.cards):
         card = basket.cards[cid]
@@ -378,8 +430,18 @@ def select_basket(basket: Basket, underlying: str, regime: dict[str, Any]) -> di
             reason = "regime_unknown"
         else:
             reason = _gate(sc, sel)
-        rows.append({"id": cid, "raw_weight": sc.weight if reason is None else 0.0, "reason": reason or "selected",
-                     "score": asdict(sc) if sc else None, "_rank": sc.rank if sc else 0})
+        chase = card.entry_policy["kind"] == "chase"
+        raw, note = (sc.weight if reason is None else 0.0), None
+        if chase and reason is None:
+            if mode == "require":
+                reason, raw, note = "entry_policy_chase", 0.0, "require: chasing policies get weight 0"
+            elif mode == "prefer":
+                raw, note = raw * mult, f"prefer: chase weight x{mult}"
+            else:
+                note = f"log_only: prefer would give x{mult}, require would give 0"
+        rows.append({"id": cid, "raw_weight": raw, "reason": reason or "selected", "score": asdict(sc) if sc else None,
+                     "entry_policy": dict(card.entry_policy), "entry_note": note,
+                     "_rank": (sc.rank if sc else 0, chase and mode != "log_only")})
     total = sum(r["raw_weight"] for r in rows)
     cap = sel["max_total_weight"]
     scale = min(1.0, cap / total) if total > 0 else 1.0
@@ -393,7 +455,8 @@ def select_basket(basket: Basket, underlying: str, regime: dict[str, Any]) -> di
         out.append({**r, "weight": weight, "rank": n if r["raw_weight"] > 0 else None})
     return {
         "market": basket.market, "underlying": und, "regime_key": key, "active": bool(live) and basket.activatable,
-        "total_weight": round(sum(r["weight"] for r in out), 6), "cap": cap, "scaled": scale < 1.0, "strategies": out,
+        "total_weight": round(sum(r["weight"] for r in out), 6), "cap": cap, "scaled": scale < 1.0,
+        "entry_mode": mode, "strategies": out,
     }
 
 
@@ -418,6 +481,7 @@ class BasketShadow:
         self.rows: list[dict[str, Any]] = []
         self.labels_seen = 0
         self._last: dict[tuple[str, str], str] = {}  # (underlying, day) -> regime key last logged
+        self._latest: dict[tuple[str, str], dict] = {}  # (underlying, day) -> last basket selection
         self._seen: dict[Path, set] = {}
 
     def founder_off(self) -> bool:
@@ -454,17 +518,49 @@ class BasketShadow:
             return None  # the label list moved (e.g. gap_day) but the basket key did not
         return self._emit(basket, und, now_ts, day, reg, "regime_change")
 
+    def on_signal(self, ticket: Mapping[str, Any], bars_1m: Sequence[Mapping[str, Any]], index_price: float,
+                  now_ts: int) -> Optional[dict]:
+        """One boss ENTRY_APPROVED ticket: entry distance from the imbalance, and each card's entry-policy verdict."""
+        und = str(ticket.get("underlying") or "").upper()
+        basket = self._basket(und)
+        if basket is None:
+            return None
+        day = ist_date(now_ts)
+        basket, lab = self._session_basket(basket, day)
+        sig = measure(bars_1m, now_ts, float(index_price), str(ticket.get("side")), basket.entry)
+        weights = {s["id"]: s["weight"] for s in (self._latest.get((und, day)) or {}).get("strategies", [])}
+        verdicts = {cid: {**verdict(c.entry_policy, sig, basket.entry), "weight": weights.get(cid)}
+                    for cid, c in sorted(basket.cards.items()) if und in c.markets}
+        row = {
+            **self._head(und, basket.market, now_ts, day, "signal"),
+            "regime_key": self._last.get((und, day)), "entry_mode": basket.entry["mode"],
+            "signal": {"trade_id": ticket.get("trade_id"), "book_id": ticket.get("book_id"),
+                       "strike": ticket.get("strike"), "entry_premium": ticket.get("entry"), **sig},
+            "verdicts": verdicts, "vetoes": {cid: v["veto_reason"] for cid, v in verdicts.items() if v["veto_reason"]},
+            "lab": lab,
+        }
+        return self._store(day, row)
+
+    def _session_basket(self, basket: Basket, day: str) -> tuple[Basket, Optional[dict]]:
+        if basket.market not in self.labs:
+            return basket, None
+        cards, meta = self.labs[basket.market]
+        return for_session(basket, cards, meta, day)
+
+    @staticmethod
+    def _head(und: str, market: str, ts: int, day: str, trigger: str) -> dict[str, Any]:
+        return {"day": day, "ts": int(ts), "time_ist": datetime.fromtimestamp(int(ts), IST).isoformat(timespec="seconds"),
+                "underlying": und, "market": market, "trigger": trigger, "shadow": True, "places_orders": False}
+
     def _emit(self, basket: Basket, und: str, ts: int, day: str, reg: dict, trigger: str) -> dict:
         self._last[(und, day)] = reg["key"]
-        lab = None
-        if basket.market in self.labs:
-            cards, meta = self.labs[basket.market]
-            basket, lab = for_session(basket, cards, meta, day)
-        row = {
-            "day": day, "ts": int(ts), "time_ist": datetime.fromtimestamp(int(ts), IST).isoformat(timespec="seconds"),
-            "underlying": und, "market": basket.market, "trigger": trigger, "regime": reg,
-            "basket": select_basket(basket, und, reg), "lab": lab, "shadow": True, "places_orders": False,
-        }
+        basket, lab = self._session_basket(basket, day)
+        selection = select_basket(basket, und, reg)
+        self._latest[(und, day)] = selection
+        row = {**self._head(und, basket.market, ts, day, trigger), "regime": reg, "basket": selection, "lab": lab}
+        return self._store(day, row)
+
+    def _store(self, day: str, row: dict) -> dict:
         self.rows.append(row)
         self._write(day, row)
         return row
@@ -575,6 +671,7 @@ class BasketBus:
     the first tick of an index and day triggers `pre_open`, and every tick sets the clock that
     REGIME_LABEL is checked against. REGIME_LABEL is published by the regime service while the boss
     handles that same tick, so each label is judged against the tick it was computed on.
+    ENTRY_APPROVED (the boss's ticket, same tick): logs the entry distance and each card's policy verdict.
     Any error is logged and kept in `errors`; it never reaches `bus.errors` or the entry path.
     """
 
@@ -589,7 +686,9 @@ class BasketBus:
         self.subs = [
             bus.subscribe(["MARKET_TICK"], self.on_tick, priority=15),
             bus.subscribe(["REGIME_LABEL"], self.on_label, priority=50),
+            bus.subscribe(["ENTRY_APPROVED"], self.on_entry, priority=50),
         ]
+        self._key: Any = None
 
     def _fail(self, where: str, exc: Exception) -> None:
         if len(self.errors) < 20:
@@ -600,7 +699,7 @@ class BasketBus:
         try:
             p = event.payload
             und, ts = str(p["underlying"]).upper(), int(p["ts"])
-            self.now_ts = ts
+            self.now_ts, self._key = ts, p.get("key")
             day = ist_date(ts)
             if (und, day) in self._opened:
                 return
@@ -616,6 +715,17 @@ class BasketBus:
                 self.shadow.on_label(event.payload, self.now_ts)
         except Exception as exc:
             self._fail("on_label", exc)
+
+    def on_entry(self, event: Any) -> None:
+        """A boss ticket for this tick: log how stretched its entry is. Reads the tick's step; changes nothing."""
+        try:
+            step = self.steps.get(self._key)
+            if step is None or self.now_ts is None:
+                raise ValueError(f"no tick context for ENTRY_APPROVED {event.payload.get('trade_id')}")
+            self.shadow.on_signal(event.payload, list(getattr(step, "bars_1m", None) or []),
+                                  float(step.tick.idx_close), self.now_ts)
+        except Exception as exc:
+            self._fail("on_entry", exc)
 
     def _expiry_day(self, step: Any, und: str, ts: int, day: str) -> bool:
         """Same expiry calendar the regime labeller is given for this session (desk_ml.regime.shadow)."""

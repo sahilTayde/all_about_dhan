@@ -20,6 +20,20 @@ selection:
   min_dsr: 0.95
   require_positive_net: true
 
+# Entry-location policy (strategy_basket.entry). PLACEHOLDERS: every number below is a stand-in until
+# research round 10 sets it. mode log_only (default) changes no weight; it logs what prefer/require would do.
+#   log_only  weights unchanged; chase cards and stretched signals are logged with the would-be effect
+#   prefer    chase cards' weight x chase_weight_mult, and ranked after non-chasing cards of the same rank
+#   require   chase cards weight 0 (reason entry_policy_chase); chase signals log CHASE_POLICY_NOT_ALLOWED
+entry_location:
+  mode: log_only
+  max_stretch_atr: 1.0      # PLACEHOLDER: signal further than this beyond its zone = stretched (card may override)
+  chase_weight_mult: 0.5    # PLACEHOLDER: prefer-mode weight multiplier for chase cards
+  atr_period: 14            # Wilder ATR on today's closed 1m index bars
+  lookback_bars: 30         # PLACEHOLDER: closed 1m bars searched for the last FVG / impulse candle
+  impulse_atr_mult: 1.5     # PLACEHOLDER: a candle with range >= this x ATR is an impulse (its 50% is a zone)
+  poc_bucket_atr: 0.25      # PLACEHOLDER: point-of-control price bucket, as a fraction of ATR
+
 lab_scores: data/shadow/basket/lab/basket_forex.json
 
 strategies: []
