@@ -1,0 +1,43 @@
+# V2-06b strike router rules (paper only). No secrets.
+# Weekdays come from the instrument master; India calendar rolls holiday expiries back.
+# Do not hard-code Thursday (or any weekday) in code.
+version: "1.0.0"
+underlyings:
+  NIFTY:
+    exchange: NSE
+    segment: FNO
+    strike_step: 50
+    weekly_expiry_weekday: tuesday
+  SENSEX:
+    exchange: BSE
+    segment: FNO
+    strike_step: 100
+    weekly_expiry_weekday: friday
+  BANKNIFTY:
+    exchange: NSE
+    segment: FNO
+    strike_step: 100
+    weekly_expiry_weekday: wednesday
+rules:
+  no_atm_on_expiry_day: true
+  open_decay_window:
+    start: "09:15"
+    end: "10:00"
+    choice: ITM200
+  dte:
+    le_1: ITM200
+    ge_2: ITM100
+  atm_max_hold_s: 300
+  default_hold_s: 900
+  lowest_breakeven: true
+  honor_strategy_fixed: true
+costs:
+  brokerage_inr_per_order: 20
+delta:
+  ATM: 0.50
+  ITM100: 0.65
+  ITM200: 0.80
+decay_k:
+  ATM: 1.0
+  ITM100: 0.55
+  ITM200: 0.30
