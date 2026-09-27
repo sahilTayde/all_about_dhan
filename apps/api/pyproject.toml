@@ -15,6 +15,8 @@ dependencies = [
     "python-dotenv>=1.0",
     "dhan-client==0.1.0+aad",
     "backtest-engine==0.1.0+aad",
+    "events==0.1.0+aad",
+    "contracts==2.0.0",
 ]
 
 [project.scripts]
@@ -26,3 +28,5 @@ where = ["src"]
 [tool.uv.sources]
 dhan-client = { workspace = true }
 backtest-engine = { workspace = true }
+events = { workspace = true }
+contracts = { workspace = true }

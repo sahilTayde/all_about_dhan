@@ -28,6 +28,7 @@ const WEB = resolve(arg("root", resolve(HERE, "../..")));
 const OUT = resolve(arg("out", resolve(HERE, "out")));
 const WIDTHS = arg("widths", "390,1280,1440,1920").split(",").map(Number);
 const FEATURES = !args.includes("--no-features");
+const V2 = args.includes("--v2");
 const READY = ".grid, table.desk-history, .signal-layout, .cleanup-desk, .shell";
 const PAGES = [
   { name: "desk", path: "/desk", tradeTable: true },
@@ -69,7 +70,7 @@ function fixtureApi(req, res, next) {
     res.setHeader("content-type", "application/json");
     res.end(JSON.stringify(o));
   };
-  if (state.down && p.startsWith("/ui/")) {
+  if (state.down && (p.startsWith("/ui/") || p.startsWith("/v2/"))) {
     res.statusCode = 503;
     return res.end("fixture: API down");
   }
@@ -98,8 +99,30 @@ function fixtureApi(req, res, next) {
     res.statusCode = 503;
     return res.end("fixture: API down");
   }
-  if (p === "/ui/snapshot") return json(currentSnap());
-  if (p === "/paper/trace") return json(trace(url.searchParams.get("trade_id")));
+  if (p === "/ui/snapshot" || p === "/v2/snapshot") {
+    const s = currentSnap();
+    if (p === "/v2/snapshot") {
+      s.v2 = true;
+      s.orders = "REFUSED";
+      s.positions = (s.board?.open_trades || []).map((t) => ({
+        position_id: t.trade_id,
+        instrument_id: t.underlying,
+        net_qty: t.qty,
+        mark: t.last_ltp,
+      }));
+    }
+    return json(s);
+  }
+  if (p === "/v2/stream") {
+    res.writeHead(200, { "content-type": "text/event-stream", "cache-control": "no-cache", connection: "keep-alive" });
+    const s = currentSnap();
+    s.v2 = true;
+    res.write(`data: ${JSON.stringify(s)}\n\n`);
+    clients.add(res);
+    req.on("close", () => clients.delete(res));
+    return undefined;
+  }
+  if (p === "/paper/trace" || p === "/v2/trace") return json(trace(url.searchParams.get("trade_id")));
   if (p === "/paper/history") return json(dayHistory(url.searchParams.get("day")));
   if (p === "/paper/ml-books" || p === "/mock/ml_paper_dashboard.json") return json(board);
   if (p === "/paper/sod-exam" || p === "/mock/sod_exam_report.json") return json(exam);
@@ -221,7 +244,13 @@ async function main() {
       server.middlewares.use(fixtureApi);
     },
   };
-  const common = { root: WEB, configFile: resolve(WEB, "vite.config.js"), logLevel: "error", build: { outDir, emptyOutDir: true } };
+  const common = {
+    root: WEB,
+    configFile: resolve(WEB, "vite.config.js"),
+    logLevel: "error",
+    define: V2 ? { "import.meta.env.VITE_V2_FEED": JSON.stringify("1") } : {},
+    build: { outDir, emptyOutDir: true },
+  };
   await build(common);
   const server = await preview({
     ...common,

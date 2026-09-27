@@ -84,7 +84,11 @@ const _trace = new Map();
 
 export async function fetchTrace(tradeId, { signal, force = false } = {}) {
   if (!force && _trace.has(tradeId)) return _trace.get(tradeId);
-  const json = await getJson(`${API_BASE}/paper/trace?trade_id=${encodeURIComponent(tradeId)}`, signal);
+  const v2 = import.meta.env.VITE_V2_FEED === "1";
+  const url = v2
+    ? `${API_BASE}/v2/trace?trade_id=${encodeURIComponent(tradeId)}`
+    : `${API_BASE}/paper/trace?trade_id=${encodeURIComponent(tradeId)}`;
+  const json = await getJson(url, signal);
   if (json?.closed) _trace.set(tradeId, json); // an open trade's trace keeps changing: never cache it
   return json;
 }

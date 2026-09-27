@@ -1,5 +1,28 @@
 # Handoff log — Team 07 Coding
 
+## As of now (2026-09-27 IST) — V2-13 gateway websocket + UI rewire (PAPER)
+
+```text
+From:     teams/07_coding
+To:       founder / 00 / 09
+Date:     2026-09-27
+Status:   PAPER / V2-13 / NO_PROMOTE / no live orders
+Accepted: GET /v2/snapshot + WS /v2/ws (subscribe, snapshot,
+  ordered seq deltas, resync). Role-scoped channels: customer
+  token cannot take founder channels. REG-04c snapshot lists
+  every ledger-open position. Decision trace from correlation
+  id includes strike_choice + alternatives. Desk/Founder use
+  v2 feed only when VITE_V2_FEED=1. Legacy /ui/* /ws/* stay.
+  V2-11 control routes are a marked stub (501, no actions).
+Rejected: Implementing founder control actions (V2-11). JWT
+  auth (V2-23). Touching legacy engine / marketdata / dhan-
+  client / runtime / strategies / data/ / exits defaults.
+UNKNOWN: Playwright chromium in this agent image. Ledger
+  positions until V2-10 exists are in-memory on the hub.
+```
+
+---
+
 ## As of now (2026-09-22 IST) — freeze spill cols + 2s tick (NO_PROMOTE)
 
 ```text

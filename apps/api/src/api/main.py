@@ -7,19 +7,22 @@ import json
 from contextlib import asynccontextmanager
 from typing import Any, Optional
 
+from events.bus import MemoryBus  # type: ignore[import-untyped]
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 
+from api import ui_feed
 from api.config import load_api_settings
 from api.desk_merge import merge_live_paper_into_desk, overlay_customer_sod_ticket
 from api.founder_controls import router as founder_controls_router
 from api.founder_status import build_founder_status
-from api import ui_feed
 from api.health_alerts import router as health_router
 from api.models import TookTradeBody, TookTradeRecord
 from api.premium_bind import bind_premiums_onto_desk
 from api.store import SignalStore
+from api.v2_gateway import attach_gateway
+from api.v2_gateway import router as v2_router
 from api.ws import router as ws_router
 
 
@@ -44,6 +47,7 @@ def create_app() -> FastAPI:
     app.state.settings = settings
     app.state.store = SignalStore()
     app.state.live_paper = None
+    attach_gateway(app, MemoryBus())
 
     app.add_middleware(
         CORSMiddleware,
@@ -111,12 +115,18 @@ def create_app() -> FastAPI:
     def _desk(*, bind_premium: bool = True) -> dict[str, Any]:
         store: SignalStore = app.state.store
         live = getattr(app.state, "live_paper", None)
-        merged = overlay_customer_sod_ticket(merge_live_paper_into_desk(store.paper_desk(), live))
+        merged = overlay_customer_sod_ticket(
+            merge_live_paper_into_desk(store.paper_desk(), live)
+        )
         # When live WS already bound premiums, skip duplicate chain calls.
         live_has_premium = False
         if live and isinstance(live, dict):
             for row in (live.get("underlyings") or {}).values():
-                if isinstance(row, dict) and row.get("entry") not in (None, "", "DATA_INSUFFICIENT"):
+                if isinstance(row, dict) and row.get("entry") not in (
+                    None,
+                    "",
+                    "DATA_INSUFFICIENT",
+                ):
                     live_has_premium = True
                     break
         if bind_premium and not live_has_premium and not settings.dhan.dry_run:
@@ -239,8 +249,14 @@ def create_app() -> FastAPI:
             last = None
             idle = 0
             while not await request.is_disconnected():
-                snap = await asyncio.to_thread(ui_feed.build_snapshot, budget_s=ui_feed.SNAPSHOT_BUDGET_S)
-                body = json.dumps({k: v for k, v in snap.items() if k != "as_of"}, default=str, separators=(",", ":"))
+                snap = await asyncio.to_thread(
+                    ui_feed.build_snapshot, budget_s=ui_feed.SNAPSHOT_BUDGET_S
+                )
+                body = json.dumps(
+                    {k: v for k, v in snap.items() if k != "as_of"},
+                    default=str,
+                    separators=(",", ":"),
+                )
                 if body != last:
                     last, idle = body, 0
                     yield f"data: {json.dumps(snap, default=str, separators=(',', ':'))}\n\n"
@@ -272,7 +288,12 @@ def create_app() -> FastAPI:
         import json
         from pathlib import Path
 
-        path = Path(__file__).resolve().parents[4] / "data" / "recon" / "itm_scalp_backtest.json"
+        path = (
+            Path(__file__).resolve().parents[4]
+            / "data"
+            / "recon"
+            / "itm_scalp_backtest.json"
+        )
         if not path.is_file():
             return {
                 "ok": False,
@@ -298,8 +319,7 @@ def create_app() -> FastAPI:
             return {
                 "ok": False,
                 "reason": (
-                    "DATA_INSUFFICIENT: run "
-                    "python -m backtest_engine.run_itm_champions"
+                    "DATA_INSUFFICIENT: run python -m backtest_engine.run_itm_champions"
                 ),
                 "orders": "refused",
                 "promotion": "NO_PROMOTE",
@@ -310,6 +330,7 @@ def create_app() -> FastAPI:
     app.include_router(ws_router)
     app.include_router(health_router)
     app.include_router(founder_controls_router)
+    app.include_router(v2_router)
     return app
 
 
