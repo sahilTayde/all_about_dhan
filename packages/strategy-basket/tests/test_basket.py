@@ -3,25 +3,29 @@
 import copy
 import json
 import random
-import tempfile
+from dataclasses import replace
 from datetime import datetime
 from pathlib import Path
 
 import pytest
 
 import desk_ml.paper_scalp as ps
-from boss.basket import (
-    IST, REGIME_KEYS, BasketError, BasketShadow, intraday_regime, load_basket, load_lab_basket, parse_card,
-    preopen_regime, select_basket, shadow_from_settings, with_lab,
-)
 from desk_ml.event_parity import fixture_replay_kwargs, load_fixture
-from desk_ml.event_path import EventSession, _read_yaml
+from desk_ml.event_path import EventSession
 from desk_ml.features import Triple
+from desk_ml.regime.labels import IST
+from events import MemoryBus
+from strategy_basket.basket import (
+    REGIME_KEYS, BasketBus, BasketError, BasketEventSession, BasketShadow, attach_from_settings, basket_parity, for_session,
+    load_basket, load_lab, load_lab_basket, load_settings, parse_card, preopen_regime, regime_from_label,
+    select_basket, shadow_from_settings,
+)
 
 REPO = Path(__file__).resolve().parents[3]
 INDIA, FOREX = REPO / "config" / "baskets" / "india.yaml", REPO / "config" / "baskets" / "forex.yaml"
 FIXTURE = REPO / "packages" / "desk-ml" / "tests" / "fixtures" / "synthetic_session_nifty.json"
-KEY = "trend.low_vol.non_expiry"
+KEY = "trend_up.vol_normal.non_expiry_day"
+DAY = "2026-09-10"
 
 
 def score(**kw):
@@ -42,16 +46,31 @@ def card(cid="MIX-LAB-A", scores=None, markets=("NIFTY",)):
 
 
 def lab_file(tmp, cards, **top):
-    blob = {"schema_version": 1, "market": "india", "generated_at": "2026-09-26T18:00:00+05:30",
-            "source": "scripts/lab run 42", "strategies": cards, **top}
+    blob = {"schema_version": 1, "market": "india", "generated_at": "2026-09-09T18:00:00+05:30",
+            "source": "scripts/lab run 42", "data_until": "2026-09-09", "strategies": cards, **top}
     path = Path(tmp) / "basket_india.json"
     path.write_text(json.dumps(blob), encoding="utf-8")
     return path
 
 
 def regime(key=KEY):
-    t, v, e = key.split(".")
-    return {"trend": t, "vol": v, "expiry": e, "key": key}
+    p, v, e = key.split(".")
+    return {"primary": p, "vol": v, "expiry": e, "key": key}
+
+
+def _ts(hh, mm, day=DAY):
+    y, m, d = map(int, day.split("-"))
+    return int(datetime(y, m, d, hh, mm, tzinfo=IST).timestamp())
+
+
+def minute_label(hh, mm, primary="trend_up", vol=None, expiry_day=False, und="NIFTY"):
+    return {"scope": "minute", "underlying": und, "ts": _ts(hh, mm), "primary": primary, "vol": vol,
+            "expiry_day": expiry_day, "gap_day": False, "labels": [primary], "features": {"adx": 30.0},
+            "version": "v0-default-unvalidated"}
+
+
+def _basket(cards):
+    return replace(load_basket(INDIA), cards={c["id"]: parse_card(c, require_scores=False) for c in cards})
 
 
 # ------------------------------------------------------------------ schema
@@ -67,12 +86,19 @@ def test_committed_baskets_load_and_validate():
     assert "Source:" in text and "TODO(verify)" in text
 
 
+def test_basket_file_may_not_define_its_own_regime_thresholds(tmp_path):
+    p = tmp_path / "b.yaml"
+    p.write_text(INDIA.read_text(encoding="utf-8") + "\nregime: {intraday_bars: 30}\n", encoding="utf-8")
+    with pytest.raises(BasketError, match="config/regime.yaml"):
+        load_basket(p)
+
+
 @pytest.mark.parametrize("mutate, message", [
     (lambda c: c.update(id="bad id"), "id"),
     (lambda c: c["source"].update(kind="guru"), "source"),
     (lambda c: c["rules"].pop("skip"), "rules"),
     (lambda c: c["rules"].update(entry={}), "exact parameters"),
-    (lambda c: c["scores"].update({"sideways.low_vol.expiry": score()}), "regime key"),
+    (lambda c: c["scores"].update({"trend.high_vol.expiry": score()}), "regime key"),
     (lambda c: c["scores"][KEY].update(status="live"), "status"),
     (lambda c: c["scores"][KEY].update(win_rate=1.5), "win_rate"),
     (lambda c: c["scores"][KEY].update(trades=10.5), "trades"),
@@ -90,8 +116,13 @@ def test_card_validation_rejects_malformed(mutate, message):
         parse_card(raw, require_scores=True)
 
 
-def test_every_regime_key_is_trend_vol_expiry():
-    assert len(REGIME_KEYS) == 8 and all(k.count(".") == 2 for k in REGIME_KEYS)
+def test_regime_keys_are_the_regime_services_labels():
+    assert len(REGIME_KEYS) == 4 * 3 * 2
+    assert {k.split(".")[0] for k in REGIME_KEYS} == {"trend_up", "trend_down", "range", "unknown"}
+    assert regime_from_label(minute_label(10, 0, "range", "vol_expansion", True))["key"] == "range.vol_expansion.expiry_day"
+    assert regime_from_label(minute_label(10, 0, "trend_down", None))["key"] == "trend_down.vol_normal.non_expiry_day"
+    assert regime_from_label({"primary": "sideways"})["key"] == "unknown.vol_normal.non_expiry_day"
+    assert preopen_regime(True)["key"] == "unknown.vol_normal.expiry_day"
 
 
 def test_lab_loader_accepts_good_rejects_bad_entries(tmp_path):
@@ -99,8 +130,8 @@ def test_lab_loader_accepts_good_rejects_bad_entries(tmp_path):
     unscored = card("MIX-LAB-B", scores={})
     wrong_market = card("MIX-LAB-C", markets=("BANKNIFTY",))
     path = lab_file(tmp_path, [card(), unscored, wrong_market, card(), "not a card"])
-    cards, rejected = load_lab_basket(path, india)
-    assert list(cards) == ["MIX-LAB-A"]
+    cards, rejected, until = load_lab_basket(path, india)
+    assert list(cards) == ["MIX-LAB-A"] and until == "2026-09-09"
     reasons = {r["index"]: r["reason"] for r in rejected}
     assert "unscored" in reasons[1] and "not instruments" in reasons[2] and "duplicate" in reasons[3]
     assert "mapping" in reasons[4]
@@ -111,6 +142,8 @@ def test_lab_loader_accepts_good_rejects_bad_entries(tmp_path):
     ({"market": "forex"}, "market"),
     ({"strategies": {"a": 1}}, "list"),
     ({"source": ""}, "source"),
+    ({"data_until": None}, "data_until"),
+    ({"data_until": "yesterday"}, "data_until"),
 ])
 def test_lab_loader_rejects_malformed_file(tmp_path, top, message):
     with pytest.raises(BasketError, match=message):
@@ -127,26 +160,31 @@ def test_lab_loader_rejects_nan_and_garbage(tmp_path):
         load_lab_basket(p, load_basket(INDIA))
 
 
-def test_with_lab_merges_by_id_and_ignores_a_broken_file(tmp_path):
-    from dataclasses import replace
-
+def test_lab_cards_merge_by_id_and_a_broken_file_is_ignored(tmp_path):
     india = replace(load_basket(INDIA), lab_scores="basket_india.json")
     lab_file(tmp_path, [card(), card("MIX-DEFAULT-BUY", markets=("NIFTY", "SENSEX"))])
-    merged, meta = with_lab(india, tmp_path)
+    cards, meta = load_lab(india, tmp_path)
     assert meta["found"] and meta["error"] is None and meta["loaded"] == ["MIX-DEFAULT-BUY", "MIX-LAB-A"]
-    assert merged.cards["MIX-DEFAULT-BUY"].scores[KEY].weight == 0.5  # lab refreshed the yaml card
+    merged, used = for_session(india, cards, meta, DAY)
+    assert used["used"] and merged.cards["MIX-DEFAULT-BUY"].scores[KEY].weight == 0.5  # lab refreshed the yaml card
     (tmp_path / "basket_india.json").write_text("[]", encoding="utf-8")
-    same, meta = with_lab(india, tmp_path)
-    assert same is india and meta["error"]
+    cards, meta = load_lab(india, tmp_path)
+    assert cards == {} and meta["error"]
+    assert for_session(india, cards, meta, DAY)[0] is india
+
+
+def test_lab_scored_on_the_session_day_or_later_is_ignored(tmp_path):
+    """Same rule as the regime service's saved weight state: scores may only use sessions before today."""
+    india = replace(load_basket(INDIA), lab_scores="basket_india.json")
+    for until, used in (("2026-09-09", True), (DAY, False), ("2026-09-11", False)):
+        lab_file(tmp_path, [card()], data_until=until)
+        basket, meta = for_session(india, *load_lab(india, tmp_path), DAY)
+        assert meta["used"] is used and ("MIX-LAB-A" in basket.cards) is used
+        if not used:
+            assert "not before" in meta["ignored"]
 
 
 # ------------------------------------------------------------------ selector
-
-
-def _basket(cards):
-    from dataclasses import replace
-
-    return replace(load_basket(INDIA), cards={c["id"]: parse_card(c, require_scores=False) for c in cards})
 
 
 def test_selector_zeroes_failed_parked_and_caps_total_weight():
@@ -160,7 +198,7 @@ def test_selector_zeroes_failed_parked_and_caps_total_weight():
         card("MIX-PF", {KEY: score(pf=0.9)}),
         card("MIX-LOSS", {KEY: score(net_pnl=-1.0)}),
         card("MIX-DSR", {KEY: score(dsr=0.4)}),
-        card("MIX-OTHER-REGIME", {"chop.high_vol.expiry": score()}),
+        card("MIX-OTHER-REGIME", {"range.vol_expansion.expiry_day": score()}),
         card("MIX-SENSEX-ONLY", {KEY: score()}, markets=("SENSEX",)),
     ]
     out = select_basket(_basket(cards), "NIFTY", regime())
@@ -171,7 +209,6 @@ def test_selector_zeroes_failed_parked_and_caps_total_weight():
     assert out["scaled"] and 1.0 - 2e-6 <= out["total_weight"] <= 1.0  # 0.8 + 0.6 capped to 1.0, rounded down
     assert by["MIX-A"]["weight"] == pytest.approx(0.8 / 1.4, abs=1e-6)
     assert by["MIX-B"]["weight"] == pytest.approx(0.6 / 1.4, abs=1e-6)
-    assert out["total_weight"] <= out["cap"]
     assert {k: by[k]["reason"] for k in by if by[k]["weight"] == 0} == {
         "MIX-PARKED": "status_parked", "MIX-WATCH": "status_watch", "MIX-FX": "status_parked_for_forex_test",
         "MIX-THIN": "failed_min_trades", "MIX-PF": "failed_pf", "MIX-LOSS": "failed_net_pnl",
@@ -192,40 +229,35 @@ def test_selector_is_deterministic_regardless_of_card_order():
         assert json.dumps(select_basket(_basket(shuffled), "NIFTY", regime()), sort_keys=True) == first
 
 
-# ------------------------------------------------------------------ regime inputs: no look-ahead
+# ------------------------------------------------------------------ no look-ahead on regime inputs
 
 
-def _ts(hh, mm, day="2026-09-10"):
-    y, m, d = map(int, day.split("-"))
-    return int(datetime(y, m, d, hh, mm, tzinfo=IST).timestamp())
+def test_a_label_for_a_minute_still_forming_is_refused(tmp_path):
+    shadow = BasketShadow([load_basket(INDIA)], out_dir=tmp_path)
+    shadow.pre_open("NIFTY", _ts(9, 15), expiry_day=False)
+    with pytest.raises(ValueError, match="not complete"):
+        shadow.on_label(minute_label(10, 0), _ts(10, 0) + 59)  # 10:00 bar closes at 10:01:00
+    assert len(shadow.rows) == 1
+    assert shadow.on_label(minute_label(10, 0), _ts(10, 1))["regime"]["key"] == KEY
+    assert shadow.on_label(minute_label(10, 1), _ts(10, 2)) is None  # same key: no new row
+    assert shadow.on_label({"scope": "intermarket", "session_date": DAY}, _ts(10, 2)) is None
 
 
-def test_preopen_labels_ignore_today_and_later_rows():
-    india = load_basket(INDIA)
-    prior = [{"date": f"2026-08-{d:02d}", "close": 25000 + 40 * d} for d in range(10, 30)]
-    base = preopen_regime(prior, "2026-09-10", india.instruments["NIFTY"], india.regime)
-    assert base["key"] == "trend.low_vol.non_expiry" and base["inputs"]["last_day"] == "2026-08-29"
-    future = prior + [{"date": "2026-09-10", "close": 1.0}, {"date": "2026-09-11", "close": 99999.0}]
-    assert preopen_regime(future, "2026-09-10", india.instruments["NIFTY"], india.regime) == base
-    tuesday = preopen_regime(prior, "2026-09-08", india.instruments["NIFTY"], india.regime)
-    assert tuesday["expiry"] == "expiry"
-
-
-def test_intraday_labels_use_only_closed_minutes():
-    india = load_basket(INDIA)
-    inst, cfg = india.instruments["NIFTY"], india.regime
-    bars = [{"ts": _ts(9, 15) + 60 * n, "close": 25000 + (n % 4)} for n in range(40)]
-    now = bars[35]["ts"] + 20  # 20 s into minute 35: bars 0..34 are closed
-    base = intraday_regime(bars[:36], now, "2026-09-10", inst, cfg)
-    assert base["inputs"]["last_bar_ts"] == bars[34]["ts"] and base["key"] is not None
-    spoiled = [dict(b) for b in bars]
-    for b in spoiled[35:]:
-        b["close"] = 30000.0  # the forming minute and everything after it
-    assert intraday_regime(spoiled, now, "2026-09-10", inst, cfg) == base
+def test_basket_errors_never_reach_the_bus_or_the_entry_path(tmp_path):
+    bus = MemoryBus()
+    bridge = BasketBus(BasketShadow([load_basket(INDIA)], out_dir=tmp_path), bus, engine=None)
+    bus.publish("MARKET_TICK", {"key": "x", "underlying": "NIFTY", "ts": _ts(10, 0) + 30}, source="feed")
+    bus.publish("REGIME_LABEL", {**minute_label(10, 0), "ts": "garbage"}, source="regime")
+    bus.publish("REGIME_LABEL", minute_label(10, 0), source="regime")  # 10:00 bar not closed at 10:00:30
+    assert bus.errors == [] and len(bridge.errors) == 2
 
 
 def _replay(fx, root, **kw):
     return ps.replay_paper_scalp(**fixture_replay_kwargs(fx, Path(root)), write=False, **kw)
+
+
+def _shadow(out):
+    return BasketShadow([load_basket(INDIA), load_basket(FOREX)], out_dir=Path(out))
 
 
 @pytest.fixture()
@@ -237,22 +269,18 @@ def fx(monkeypatch):
     return load_fixture(FIXTURE)
 
 
-def _shadow(out):
-    return BasketShadow([load_basket(INDIA), load_basket(FOREX)], out_dir=Path(out))
-
-
 def test_changing_the_future_does_not_change_earlier_basket_rows(fx, tmp_path):
-    fx["triples"] = fx["triples"][:600]
-    cut = fx["triples"][400].ts
+    fx["triples"] = fx["triples"][:900]
+    cut = fx["triples"][500].ts
     a = _shadow(tmp_path / "a")
-    _replay(fx, tmp_path / "ra", event_session=EventSession(basket=a))
+    _replay(fx, tmp_path / "ra", event_session=BasketEventSession(basket=a))
     future = copy.deepcopy(fx)
-    future["triples"] = fx["triples"][:401] + [
+    future["triples"] = fx["triples"][:501] + [
         Triple(**{**t.__dict__, "idx_close": t.idx_close * (1.02 if n % 2 else 0.98)})
-        for n, t in enumerate(fx["triples"][401:])
+        for n, t in enumerate(fx["triples"][501:])
     ]
     b = _shadow(tmp_path / "b")
-    _replay(future, tmp_path / "rb", event_session=EventSession(basket=b))
+    _replay(future, tmp_path / "rb", event_session=BasketEventSession(basket=b))
     early = lambda s: [r for r in s.rows if r["ts"] <= cut]  # noqa: E731
     assert len(early(a)) >= 3 and early(a) == early(b)
     assert a.rows != b.rows, "the perturbation must actually change later labels"
@@ -271,39 +299,53 @@ def replays(tmp_path_factory):
         mp.delenv(ps.USE_EVENT_BUS_ENV, raising=False)
         fx = load_fixture(FIXTURE)
         shadow_1, shadow_2 = _shadow(tmp / "s1"), _shadow(tmp / "s2")
-        off_session = EventSession()  # no basket argument: reads config/event_path.yaml, where it is off
+        default_session = BasketEventSession()  # no basket argument: reads config/baskets/selector.yaml (off)
         return {
             "monolith": _replay(fx, tmp / "r0", use_event_bus=False),
-            "event_off": _replay(fx, tmp / "r1", event_session=off_session),
-            "event_on": _replay(fx, tmp / "r2", event_session=EventSession(basket=shadow_1)),
-            "event_on_again": _replay(fx, tmp / "r3", event_session=EventSession(basket=shadow_2)),
-            "off_session": off_session, "shadows": (shadow_1, shadow_2),
+            "event_main": _replay(fx, tmp / "r1", event_session=EventSession()),
+            "event_default": _replay(fx, tmp / "r2", event_session=default_session),
+            "event_on": _replay(fx, tmp / "r3", event_session=BasketEventSession(basket=shadow_1)),
+            "event_on_again": _replay(fx, tmp / "r4", event_session=BasketEventSession(basket=shadow_2)),
+            "default_session": default_session, "shadows": (shadow_1, shadow_2),
         }
 
 
 def test_flag_off_is_the_default():
-    settings = _read_yaml(REPO / "config" / "event_path.yaml")
-    assert settings["basket_selector"]["enabled"] is False
+    settings = load_settings(REPO)
+    assert settings["enabled"] is False
     assert shadow_from_settings(settings, root=REPO) is None
+    assert attach_from_settings(MemoryBus(), engine=None, root=REPO) is None
 
 
 def test_off_by_default_replay_is_byte_identical_and_on_changes_no_trade(replays):
     dump = lambda b: json.dumps(  # noqa: E731
         {k: b.get(k) for k in ("closed_trades", "open_trades", "skip_reason_counts")}, sort_keys=True, default=str)
     assert len(replays["monolith"]["closed_trades"]) >= 5
-    assert replays["off_session"].boss.basket is None
-    assert "basket_shadow" not in replays["event_off"]["event_bus"]
-    assert dump(replays["monolith"]) == dump(replays["event_off"]) == dump(replays["event_on"])
-    assert replays["event_off"]["event_bus"]["events"] == replays["event_on"]["event_bus"]["events"]
-    assert replays["event_on"]["event_bus"]["basket_shadow"]["rows"] >= 2
+    assert replays["default_session"].basket_bus is None
+    assert "basket_shadow" not in replays["event_default"]["event_bus"]
+    assert (dump(replays["monolith"]) == dump(replays["event_main"]) == dump(replays["event_default"])
+            == dump(replays["event_on"]))
+    events = replays["event_main"]["event_bus"]["events"]
+    assert events == replays["event_default"]["event_bus"]["events"] == replays["event_on"]["event_bus"]["events"]
+    on = replays["event_on"]["event_bus"]
+    assert on["handler_errors"] == [] and on["basket_shadow"]["errors"] == []
+    assert on["basket_shadow"]["labels_seen"] >= 5 and on["basket_shadow"]["rows"] >= 5
+
+
+def test_every_row_uses_only_minutes_closed_before_its_tick(replays):
+    rows = replays["shadows"][0].rows
+    assert rows[0]["trigger"] == "pre_open" and rows[0]["regime"]["key"].startswith("unknown.")
+    changes = rows[1:]
+    assert changes and all(r["trigger"] == "regime_change" and r["regime"]["source"] == "regime_service" for r in changes)
+    assert all(r["regime"]["label_ts"] + 60 <= r["ts"] for r in changes)
+    assert all(a["regime"]["key"] != b["regime"]["key"] for a, b in zip(rows, rows[1:]) if a["underlying"] == b["underlying"])
 
 
 def test_shadow_log_is_deterministic_and_says_no_orders(replays):
     s1, s2 = replays["shadows"]
-    f1, f2 = (Path(s.out_dir) / "2026-09-10.jsonl" for s in (s1, s2))
+    f1, f2 = (Path(s.out_dir) / f"{DAY}.jsonl" for s in (s1, s2))
     assert f1.read_bytes() == f2.read_bytes()
     rows = [json.loads(line) for line in f1.read_text(encoding="utf-8").splitlines()]
-    assert rows[0]["trigger"] == "pre_open" and {r["trigger"] for r in rows[1:]} == {"regime_change"}
     assert all(r["shadow"] is True and r["places_orders"] is False for r in rows)
     assert all(r["basket"]["total_weight"] <= r["basket"]["cap"] for r in rows)
     s1._seen.clear()
@@ -311,10 +353,20 @@ def test_shadow_log_is_deterministic_and_says_no_orders(replays):
     assert len(f1.read_text(encoding="utf-8").splitlines()) == len(rows)
 
 
+def test_parity_helper_reports_parity_and_writes_nothing_to_the_repo(fx, tmp_path):
+    fx["triples"] = fx["triples"][:600]
+    before = sorted((REPO / "data" / "shadow" / "basket").glob("*.jsonl"))
+    rep = basket_parity(**fixture_replay_kwargs(fx, tmp_path))
+    assert rep["ok"] and rep["problems"] == [] and rep["old"] == rep["new"]
+    assert rep["basket"]["rows"] >= 2 and rep["basket"]["errors"] == []
+    assert sorted((REPO / "data" / "shadow" / "basket").glob("*.jsonl")) == before
+
+
 def test_founder_switch_turns_it_off_entirely(tmp_path, monkeypatch):
-    founder = tmp_path / "data" / "founder" / "basket_selector_off"
-    settings = {"basket_selector": {"enabled": True, "founder_off_file": "data/founder/basket_selector_off",
-                                    "baskets": [str(INDIA), str(FOREX)], "out_dir": "out"}}
+    founder = tmp_path / "data" / "shadow" / "basket" / "FOUNDER_OFF"
+    settings = {"enabled": True, "founder_off_file": "data/shadow/basket/FOUNDER_OFF",
+                "baskets": [str(INDIA), str(FOREX)], "out_dir": "out"}
+    monkeypatch.delenv("USE_BASKET_SELECTOR", raising=False)
     assert shadow_from_settings(settings, root=tmp_path) is not None
     monkeypatch.setenv("USE_BASKET_SELECTOR", "0")
     assert shadow_from_settings(settings, root=tmp_path) is None
@@ -323,15 +375,14 @@ def test_founder_switch_turns_it_off_entirely(tmp_path, monkeypatch):
     founder.parent.mkdir(parents=True)
     founder.write_text("off\n", encoding="utf-8")
     assert shadow_from_settings(settings, root=tmp_path) is None
-    assert shadow.on_tick("NIFTY", _ts(9, 16), [], []) is None and shadow.rows == []  # mid-session too
+    assert shadow.pre_open("NIFTY", _ts(9, 16), expiry_day=False) is None  # mid-session too
+    assert shadow.on_label(minute_label(10, 0), _ts(10, 1)) is None and shadow.rows == []
 
 
 # ------------------------------------------------------------------ forex stays parked
 
 
 def test_forex_basket_loads_but_never_activates(tmp_path):
-    from dataclasses import replace
-
     forex = load_basket(FOREX)
     fx_card = card("MIX-FX-TREND", {KEY: score()}, markets=("EURUSD",))
     loaded = replace(forex, cards={"MIX-FX-TREND": parse_card(fx_card, require_scores=True)})
@@ -339,8 +390,9 @@ def test_forex_basket_loads_but_never_activates(tmp_path):
     assert not out["active"] and out["total_weight"] == 0
     assert [r["reason"] for r in out["strategies"]] == ["basket_parked"]
     shadow = BasketShadow([load_basket(INDIA), loaded], out_dir=tmp_path)
-    assert "EURUSD" not in shadow.by_und and shadow.on_tick("EURUSD", _ts(10, 0), [], []) is None
-    with tempfile.TemporaryDirectory() as tmp:
-        settings = {"basket_selector": {"enabled": True, "baskets": [str(INDIA), str(FOREX)], "out_dir": tmp}}
-        live = shadow_from_settings(settings, root=REPO)
+    assert "EURUSD" not in shadow.by_und
+    assert shadow.pre_open("EURUSD", _ts(10, 0), expiry_day=False) is None
+    assert shadow.on_label(minute_label(10, 0, und="EURUSD"), _ts(10, 1)) is None
+    settings = {"enabled": True, "baskets": [str(INDIA), str(FOREX)], "out_dir": str(tmp_path / "out")}
+    live = shadow_from_settings(settings, root=tmp_path)
     assert {b.market for b in live.baskets} == {"india", "forex"} and set(live.by_und) == {"NIFTY", "SENSEX"}
