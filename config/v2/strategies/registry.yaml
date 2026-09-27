@@ -1,0 +1,10 @@
+# V2 Strategy Registry (YAML fallback)
+# Real registry module will replace this when it's built separately.
+# Source: V2_BUILD_PLAN.md V2-06 section
+
+strategies:
+  - strategy_id: "TEST-CROSS"
+    module_path: "strategies.plugins.test_cross"
+    version: "1.0.0"
+    params_hash: "71297a52486f9039"  # Must match TestCrossStrategy.meta.params_hash
+    stage: "shadow"

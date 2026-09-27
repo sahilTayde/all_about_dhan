@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "strategies"
 version = "2.0.0+aad"
-description = "V2 strategy runtime (paper only). V2-06b: strike router."
+description = "V2 strategy runtime (paper only). V2-06 registry/runtime + V2-06b strike router."
 requires-python = ">=3.11"
 dependencies = ["contracts==2.0.0+aad", "PyYAML>=6"]
 
