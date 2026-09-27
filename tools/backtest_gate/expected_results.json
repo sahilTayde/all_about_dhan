@@ -3,7 +3,8 @@
   "cand_101_sensex/live_paper_risk": {
    "charges_inr": 4852.31,
    "events": {
-    "ANALYST_VOTE": 38250,
+    "ANALYST_VOTE": 36000,
+    "BOSS_SHADOW": 693,
     "ENTRY_APPROVED": 39,
     "ENTRY_VETOED": 28,
     "MARKET_TICK": 1125,
@@ -12,6 +13,7 @@
     "ORDER_SUBMITTED": 22,
     "POSITION_CLOSED": 11,
     "POSITION_UPDATE": 313,
+    "REGIME_LABEL": 23,
     "REQUEST_VOTES": 1125
    },
    "exit_reasons": {
@@ -290,7 +292,8 @@
   "cand_101_sensex/replay_risk": {
    "charges_inr": 9550.32,
    "events": {
-    "ANALYST_VOTE": 38250,
+    "ANALYST_VOTE": 36000,
+    "BOSS_SHADOW": 695,
     "ENTRY_APPROVED": 22,
     "MARKET_TICK": 1125,
     "NO_ENTRY": 1103,
@@ -298,6 +301,7 @@
     "ORDER_SUBMITTED": 44,
     "POSITION_CLOSED": 22,
     "POSITION_UPDATE": 420,
+    "REGIME_LABEL": 23,
     "REQUEST_VOTES": 1125
    },
    "exit_reasons": {
@@ -805,7 +809,8 @@
   "cand_101_sensex/target_shift": {
    "charges_inr": 8487.21,
    "events": {
-    "ANALYST_VOTE": 38250,
+    "ANALYST_VOTE": 36000,
+    "BOSS_SHADOW": 690,
     "ENTRY_APPROVED": 20,
     "MARKET_TICK": 1125,
     "NO_ENTRY": 1105,
@@ -813,6 +818,7 @@
     "ORDER_SUBMITTED": 40,
     "POSITION_CLOSED": 20,
     "POSITION_UPDATE": 423,
+    "REGIME_LABEL": 23,
     "REQUEST_VOTES": 1125
    },
    "exit_reasons": {
@@ -1276,7 +1282,8 @@
   "cand_106_sensex/live_paper_risk": {
    "charges_inr": 6569.24,
    "events": {
-    "ANALYST_VOTE": 38250,
+    "ANALYST_VOTE": 36000,
+    "BOSS_SHADOW": 868,
     "ENTRY_APPROVED": 14,
     "MARKET_TICK": 1125,
     "NO_ENTRY": 1111,
@@ -1284,6 +1291,7 @@
     "ORDER_SUBMITTED": 28,
     "POSITION_CLOSED": 14,
     "POSITION_UPDATE": 540,
+    "REGIME_LABEL": 42,
     "REQUEST_VOTES": 1125
    },
    "exit_reasons": {
@@ -1618,7 +1626,8 @@
   "cand_106_sensex/replay_risk": {
    "charges_inr": 6569.24,
    "events": {
-    "ANALYST_VOTE": 38250,
+    "ANALYST_VOTE": 36000,
+    "BOSS_SHADOW": 868,
     "ENTRY_APPROVED": 14,
     "MARKET_TICK": 1125,
     "NO_ENTRY": 1111,
@@ -1626,6 +1635,7 @@
     "ORDER_SUBMITTED": 28,
     "POSITION_CLOSED": 14,
     "POSITION_UPDATE": 540,
+    "REGIME_LABEL": 42,
     "REQUEST_VOTES": 1125
    },
    "exit_reasons": {
@@ -1960,7 +1970,8 @@
   "cand_106_sensex/target_shift": {
    "charges_inr": 6349.03,
    "events": {
-    "ANALYST_VOTE": 38250,
+    "ANALYST_VOTE": 36000,
+    "BOSS_SHADOW": 868,
     "ENTRY_APPROVED": 14,
     "MARKET_TICK": 1125,
     "NO_ENTRY": 1111,
@@ -1968,6 +1979,7 @@
     "ORDER_SUBMITTED": 28,
     "POSITION_CLOSED": 14,
     "POSITION_UPDATE": 458,
+    "REGIME_LABEL": 42,
     "REQUEST_VOTES": 1125
    },
    "exit_reasons": {
@@ -2304,7 +2316,8 @@
   "cand_110_nifty/live_paper_risk": {
    "charges_inr": 6509.36,
    "events": {
-    "ANALYST_VOTE": 38250,
+    "ANALYST_VOTE": 36000,
+    "BOSS_SHADOW": 615,
     "ENTRY_APPROVED": 16,
     "ENTRY_VETOED": 9,
     "MARKET_TICK": 1125,
@@ -2313,6 +2326,7 @@
     "ORDER_SUBMITTED": 14,
     "POSITION_CLOSED": 7,
     "POSITION_UPDATE": 50,
+    "REGIME_LABEL": 33,
     "REQUEST_VOTES": 1125
    },
    "exit_reasons": {
@@ -2504,7 +2518,8 @@
   "cand_110_nifty/replay_risk": {
    "charges_inr": 12991.34,
    "events": {
-    "ANALYST_VOTE": 38250,
+    "ANALYST_VOTE": 36000,
+    "BOSS_SHADOW": 615,
     "ENTRY_APPROVED": 14,
     "MARKET_TICK": 1125,
     "NO_ENTRY": 1111,
@@ -2512,6 +2527,7 @@
     "ORDER_SUBMITTED": 28,
     "POSITION_CLOSED": 14,
     "POSITION_UPDATE": 182,
+    "REGIME_LABEL": 33,
     "REQUEST_VOTES": 1125
    },
    "exit_reasons": {
@@ -2847,7 +2863,8 @@
   "cand_110_nifty/target_shift": {
    "charges_inr": 10364.1,
    "events": {
-    "ANALYST_VOTE": 38250,
+    "ANALYST_VOTE": 36000,
+    "BOSS_SHADOW": 615,
     "ENTRY_APPROVED": 11,
     "MARKET_TICK": 1125,
     "NO_ENTRY": 1114,
@@ -2855,6 +2872,7 @@
     "ORDER_SUBMITTED": 22,
     "POSITION_CLOSED": 11,
     "POSITION_UPDATE": 169,
+    "REGIME_LABEL": 33,
     "REQUEST_VOTES": 1125
    },
    "exit_reasons": {
@@ -3128,7 +3146,8 @@
   "cand_117_nifty/live_paper_risk": {
    "charges_inr": 4028.15,
    "events": {
-    "ANALYST_VOTE": 38250,
+    "ANALYST_VOTE": 36000,
+    "BOSS_SHADOW": 665,
     "ENTRY_APPROVED": 6,
     "ENTRY_VETOED": 2,
     "MARKET_TICK": 1125,
@@ -3137,6 +3156,7 @@
     "ORDER_SUBMITTED": 8,
     "POSITION_CLOSED": 4,
     "POSITION_UPDATE": 139,
+    "REGIME_LABEL": 36,
     "REQUEST_VOTES": 1125
    },
    "exit_reasons": {
@@ -3265,7 +3285,8 @@
   "cand_117_nifty/replay_risk": {
    "charges_inr": 5955.4,
    "events": {
-    "ANALYST_VOTE": 38250,
+    "ANALYST_VOTE": 36000,
+    "BOSS_SHADOW": 665,
     "ENTRY_APPROVED": 6,
     "MARKET_TICK": 1125,
     "NO_ENTRY": 1119,
@@ -3273,6 +3294,7 @@
     "ORDER_SUBMITTED": 12,
     "POSITION_CLOSED": 6,
     "POSITION_UPDATE": 146,
+    "REGIME_LABEL": 36,
     "REQUEST_VOTES": 1125
    },
    "exit_reasons": {
@@ -3441,7 +3463,8 @@
   "cand_117_nifty/target_shift": {
    "charges_inr": 2851.7,
    "events": {
-    "ANALYST_VOTE": 38250,
+    "ANALYST_VOTE": 36000,
+    "BOSS_SHADOW": 665,
     "ENTRY_APPROVED": 3,
     "MARKET_TICK": 1125,
     "NO_ENTRY": 1122,
@@ -3449,6 +3472,7 @@
     "ORDER_SUBMITTED": 6,
     "POSITION_CLOSED": 3,
     "POSITION_UPDATE": 24,
+    "REGIME_LABEL": 36,
     "REQUEST_VOTES": 1125
    },
    "exit_reasons": {
@@ -3553,7 +3577,8 @@
   "cand_128_sensex/live_paper_risk": {
    "charges_inr": 478.1,
    "events": {
-    "ANALYST_VOTE": 38250,
+    "ANALYST_VOTE": 36000,
+    "BOSS_SHADOW": 764,
     "ENTRY_APPROVED": 6,
     "ENTRY_VETOED": 5,
     "MARKET_TICK": 1125,
@@ -3562,6 +3587,7 @@
     "ORDER_SUBMITTED": 2,
     "POSITION_CLOSED": 1,
     "POSITION_UPDATE": 9,
+    "REGIME_LABEL": 15,
     "REQUEST_VOTES": 1125
    },
    "exit_reasons": {
@@ -3624,7 +3650,8 @@
   "cand_128_sensex/replay_risk": {
    "charges_inr": 1049.8,
    "events": {
-    "ANALYST_VOTE": 38250,
+    "ANALYST_VOTE": 36000,
+    "BOSS_SHADOW": 764,
     "ENTRY_APPROVED": 3,
     "MARKET_TICK": 1125,
     "NO_ENTRY": 1122,
@@ -3632,6 +3659,7 @@
     "ORDER_SUBMITTED": 6,
     "POSITION_CLOSED": 3,
     "POSITION_UPDATE": 88,
+    "REGIME_LABEL": 15,
     "REQUEST_VOTES": 1125
    },
    "exit_reasons": {
@@ -3735,7 +3763,8 @@
   "cand_128_sensex/target_shift": {
    "charges_inr": 993.46,
    "events": {
-    "ANALYST_VOTE": 38250,
+    "ANALYST_VOTE": 36000,
+    "BOSS_SHADOW": 764,
     "ENTRY_APPROVED": 3,
     "MARKET_TICK": 1125,
     "NO_ENTRY": 1122,
@@ -3743,6 +3772,7 @@
     "ORDER_SUBMITTED": 6,
     "POSITION_CLOSED": 3,
     "POSITION_UPDATE": 90,
+    "REGIME_LABEL": 15,
     "REQUEST_VOTES": 1125
    },
    "exit_reasons": {
@@ -3846,7 +3876,8 @@
   "cand_131_sensex/live_paper_risk": {
    "charges_inr": 7422.93,
    "events": {
-    "ANALYST_VOTE": 38250,
+    "ANALYST_VOTE": 36000,
+    "BOSS_SHADOW": 1057,
     "ENTRY_APPROVED": 74,
     "ENTRY_VETOED": 58,
     "MARKET_TICK": 1125,
@@ -3855,6 +3886,7 @@
     "ORDER_SUBMITTED": 32,
     "POSITION_CLOSED": 16,
     "POSITION_UPDATE": 774,
+    "REGIME_LABEL": 24,
     "REQUEST_VOTES": 1125
    },
    "exit_reasons": {
@@ -4237,7 +4269,8 @@
   "cand_131_sensex/replay_risk": {
    "charges_inr": 8370.9,
    "events": {
-    "ANALYST_VOTE": 38250,
+    "ANALYST_VOTE": 36000,
+    "BOSS_SHADOW": 1057,
     "ENTRY_APPROVED": 18,
     "MARKET_TICK": 1125,
     "NO_ENTRY": 1107,
@@ -4245,6 +4278,7 @@
     "ORDER_SUBMITTED": 36,
     "POSITION_CLOSED": 18,
     "POSITION_UPDATE": 936,
+    "REGIME_LABEL": 24,
     "REQUEST_VOTES": 1125
    },
    "exit_reasons": {
@@ -4664,7 +4698,8 @@
   "cand_131_sensex/target_shift": {
    "charges_inr": 11072.14,
    "events": {
-    "ANALYST_VOTE": 38250,
+    "ANALYST_VOTE": 36000,
+    "BOSS_SHADOW": 1057,
     "ENTRY_APPROVED": 26,
     "MARKET_TICK": 1125,
     "NO_ENTRY": 1099,
@@ -4672,6 +4707,7 @@
     "ORDER_SUBMITTED": 52,
     "POSITION_CLOSED": 26,
     "POSITION_UPDATE": 869,
+    "REGIME_LABEL": 24,
     "REQUEST_VOTES": 1125
    },
    "exit_reasons": {
@@ -5260,7 +5296,8 @@
   "cand_207_nifty/live_paper_risk": {
    "charges_inr": 11675.58,
    "events": {
-    "ANALYST_VOTE": 38250,
+    "ANALYST_VOTE": 36000,
+    "BOSS_SHADOW": 567,
     "ENTRY_APPROVED": 56,
     "ENTRY_VETOED": 44,
     "MARKET_TICK": 1125,
@@ -5269,6 +5306,7 @@
     "ORDER_SUBMITTED": 24,
     "POSITION_CLOSED": 12,
     "POSITION_UPDATE": 40,
+    "REGIME_LABEL": 33,
     "REQUEST_VOTES": 1125
    },
    "exit_reasons": {
@@ -5569,7 +5607,8 @@
   "cand_207_nifty/replay_risk": {
    "charges_inr": 30344.18,
    "events": {
-    "ANALYST_VOTE": 38250,
+    "ANALYST_VOTE": 36000,
+    "BOSS_SHADOW": 570,
     "ENTRY_APPROVED": 32,
     "MARKET_TICK": 1125,
     "NO_ENTRY": 1093,
@@ -5577,6 +5616,7 @@
     "ORDER_SUBMITTED": 64,
     "POSITION_CLOSED": 32,
     "POSITION_UPDATE": 143,
+    "REGIME_LABEL": 33,
     "REQUEST_VOTES": 1125
    },
    "exit_reasons": {
@@ -6294,7 +6334,8 @@
   "cand_207_nifty/target_shift": {
    "charges_inr": 29279.9,
    "events": {
-    "ANALYST_VOTE": 38250,
+    "ANALYST_VOTE": 36000,
+    "BOSS_SHADOW": 570,
     "ENTRY_APPROVED": 31,
     "MARKET_TICK": 1125,
     "NO_ENTRY": 1094,
@@ -6302,6 +6343,7 @@
     "ORDER_SUBMITTED": 62,
     "POSITION_CLOSED": 31,
     "POSITION_UPDATE": 159,
+    "REGIME_LABEL": 33,
     "REQUEST_VOTES": 1125
    },
    "exit_reasons": {
@@ -6997,7 +7039,8 @@
   "cand_211_sensex/live_paper_risk": {
    "charges_inr": 11781.89,
    "events": {
-    "ANALYST_VOTE": 38250,
+    "ANALYST_VOTE": 36000,
+    "BOSS_SHADOW": 647,
     "ENTRY_APPROVED": 176,
     "ENTRY_VETOED": 150,
     "MARKET_TICK": 1125,
@@ -7006,6 +7049,7 @@
     "ORDER_SUBMITTED": 52,
     "POSITION_CLOSED": 26,
     "POSITION_UPDATE": 48,
+    "REGIME_LABEL": 15,
     "REQUEST_VOTES": 1125
    },
    "exit_reasons": {
@@ -7599,7 +7643,8 @@
   "cand_211_sensex/replay_risk": {
    "charges_inr": 47057.39,
    "events": {
-    "ANALYST_VOTE": 38250,
+    "ANALYST_VOTE": 36000,
+    "BOSS_SHADOW": 642,
     "ENTRY_APPROVED": 105,
     "MARKET_TICK": 1125,
     "NO_ENTRY": 1020,
@@ -7607,6 +7652,7 @@
     "ORDER_SUBMITTED": 210,
     "POSITION_CLOSED": 105,
     "POSITION_UPDATE": 194,
+    "REGIME_LABEL": 15,
     "REQUEST_VOTES": 1125
    },
    "exit_reasons": {
@@ -9855,7 +9901,8 @@
   "cand_211_sensex/target_shift": {
    "charges_inr": 39158.73,
    "events": {
-    "ANALYST_VOTE": 38250,
+    "ANALYST_VOTE": 36000,
+    "BOSS_SHADOW": 650,
     "ENTRY_APPROVED": 89,
     "MARKET_TICK": 1125,
     "NO_ENTRY": 1036,
@@ -9863,6 +9910,7 @@
     "ORDER_SUBMITTED": 178,
     "POSITION_CLOSED": 89,
     "POSITION_UPDATE": 266,
+    "REGIME_LABEL": 15,
     "REQUEST_VOTES": 1125
    },
    "exit_reasons": {
@@ -11775,7 +11823,8 @@
   "cand_305_sensex/live_paper_risk": {
    "charges_inr": 5981.95,
    "events": {
-    "ANALYST_VOTE": 38250,
+    "ANALYST_VOTE": 36000,
+    "BOSS_SHADOW": 720,
     "ENTRY_APPROVED": 16,
     "ENTRY_VETOED": 3,
     "MARKET_TICK": 1125,
@@ -11784,6 +11833,7 @@
     "ORDER_SUBMITTED": 26,
     "POSITION_CLOSED": 13,
     "POSITION_UPDATE": 464,
+    "REGIME_LABEL": 34,
     "REQUEST_VOTES": 1125
    },
    "exit_reasons": {
@@ -12101,7 +12151,8 @@
   "cand_305_sensex/replay_risk": {
    "charges_inr": 6406.87,
    "events": {
-    "ANALYST_VOTE": 38250,
+    "ANALYST_VOTE": 36000,
+    "BOSS_SHADOW": 720,
     "ENTRY_APPROVED": 14,
     "MARKET_TICK": 1125,
     "NO_ENTRY": 1111,
@@ -12109,6 +12160,7 @@
     "ORDER_SUBMITTED": 28,
     "POSITION_CLOSED": 14,
     "POSITION_UPDATE": 495,
+    "REGIME_LABEL": 34,
     "REQUEST_VOTES": 1125
    },
    "exit_reasons": {
@@ -12444,7 +12496,8 @@
   "cand_305_sensex/target_shift": {
    "charges_inr": 5839.36,
    "events": {
-    "ANALYST_VOTE": 38250,
+    "ANALYST_VOTE": 36000,
+    "BOSS_SHADOW": 720,
     "ENTRY_APPROVED": 13,
     "MARKET_TICK": 1125,
     "NO_ENTRY": 1112,
@@ -12452,6 +12505,7 @@
     "ORDER_SUBMITTED": 26,
     "POSITION_CLOSED": 13,
     "POSITION_UPDATE": 460,
+    "REGIME_LABEL": 34,
     "REQUEST_VOTES": 1125
    },
    "exit_reasons": {
@@ -12766,7 +12820,8 @@
   "cand_341_banknifty/live_paper_risk": {
    "charges_inr": 641.64,
    "events": {
-    "ANALYST_VOTE": 38250,
+    "ANALYST_VOTE": 36000,
+    "BOSS_SHADOW": 629,
     "ENTRY_APPROVED": 15,
     "ENTRY_VETOED": 14,
     "MARKET_TICK": 1125,
@@ -12775,6 +12830,7 @@
     "ORDER_SUBMITTED": 2,
     "POSITION_CLOSED": 1,
     "POSITION_UPDATE": 4,
+    "REGIME_LABEL": 32,
     "REQUEST_VOTES": 1125
    },
    "exit_reasons": {
@@ -12840,7 +12896,8 @@
   "cand_341_banknifty/replay_risk": {
    "charges_inr": 11691.71,
    "events": {
-    "ANALYST_VOTE": 38250,
+    "ANALYST_VOTE": 36000,
+    "BOSS_SHADOW": 636,
     "ENTRY_APPROVED": 15,
     "MARKET_TICK": 1125,
     "NO_ENTRY": 1110,
@@ -12848,6 +12905,7 @@
     "ORDER_SUBMITTED": 30,
     "POSITION_CLOSED": 15,
     "POSITION_UPDATE": 37,
+    "REGIME_LABEL": 32,
     "REQUEST_VOTES": 1125
    },
    "exit_reasons": {
@@ -13205,7 +13263,8 @@
   "cand_341_banknifty/target_shift": {
    "charges_inr": 11126.07,
    "events": {
-    "ANALYST_VOTE": 38250,
+    "ANALYST_VOTE": 36000,
+    "BOSS_SHADOW": 635,
     "ENTRY_APPROVED": 15,
     "MARKET_TICK": 1125,
     "NO_ENTRY": 1110,
@@ -13213,6 +13272,7 @@
     "ORDER_SUBMITTED": 30,
     "POSITION_CLOSED": 15,
     "POSITION_UPDATE": 71,
+    "REGIME_LABEL": 32,
     "REQUEST_VOTES": 1125
    },
    "exit_reasons": {
@@ -13570,7 +13630,8 @@
   "synthetic_session_nifty/live_paper_risk": {
    "charges_inr": 8866.04,
    "events": {
-    "ANALYST_VOTE": 38250,
+    "ANALYST_VOTE": 36000,
+    "BOSS_SHADOW": 771,
     "ENTRY_APPROVED": 12,
     "ENTRY_VETOED": 3,
     "MARKET_TICK": 1125,
@@ -13579,6 +13640,7 @@
     "ORDER_SUBMITTED": 18,
     "POSITION_CLOSED": 9,
     "POSITION_UPDATE": 273,
+    "REGIME_LABEL": 31,
     "REQUEST_VOTES": 1125
    },
    "exit_reasons": {
@@ -13814,7 +13876,8 @@
   "synthetic_session_nifty/replay_risk": {
    "charges_inr": 11674.43,
    "events": {
-    "ANALYST_VOTE": 38250,
+    "ANALYST_VOTE": 36000,
+    "BOSS_SHADOW": 772,
     "ENTRY_APPROVED": 12,
     "MARKET_TICK": 1125,
     "NO_ENTRY": 1113,
@@ -13822,6 +13885,7 @@
     "ORDER_SUBMITTED": 24,
     "POSITION_CLOSED": 12,
     "POSITION_UPDATE": 299,
+    "REGIME_LABEL": 31,
     "REQUEST_VOTES": 1125
    },
    "exit_reasons": {
@@ -14116,7 +14180,8 @@
   "synthetic_session_nifty/target_shift": {
    "charges_inr": 7797.42,
    "events": {
-    "ANALYST_VOTE": 38250,
+    "ANALYST_VOTE": 36000,
+    "BOSS_SHADOW": 771,
     "ENTRY_APPROVED": 8,
     "MARKET_TICK": 1125,
     "NO_ENTRY": 1117,
@@ -14124,6 +14189,7 @@
     "ORDER_SUBMITTED": 16,
     "POSITION_CLOSED": 8,
     "POSITION_UPDATE": 164,
+    "REGIME_LABEL": 31,
     "REQUEST_VOTES": 1125
    },
    "exit_reasons": {
@@ -14335,7 +14401,8 @@
   "synthetic_session_sensex/live_paper_risk": {
    "charges_inr": 6003.32,
    "events": {
-    "ANALYST_VOTE": 38250,
+    "ANALYST_VOTE": 36000,
+    "BOSS_SHADOW": 671,
     "ENTRY_APPROVED": 36,
     "ENTRY_VETOED": 23,
     "MARKET_TICK": 1125,
@@ -14344,6 +14411,7 @@
     "ORDER_SUBMITTED": 26,
     "POSITION_CLOSED": 13,
     "POSITION_UPDATE": 275,
+    "REGIME_LABEL": 27,
     "REQUEST_VOTES": 1125
    },
    "exit_reasons": {
@@ -14664,7 +14732,8 @@
   "synthetic_session_sensex/replay_risk": {
    "charges_inr": 9831.79,
    "events": {
-    "ANALYST_VOTE": 38250,
+    "ANALYST_VOTE": 36000,
+    "BOSS_SHADOW": 670,
     "ENTRY_APPROVED": 22,
     "MARKET_TICK": 1125,
     "NO_ENTRY": 1103,
@@ -14672,6 +14741,7 @@
     "ORDER_SUBMITTED": 44,
     "POSITION_CLOSED": 22,
     "POSITION_UPDATE": 416,
+    "REGIME_LABEL": 27,
     "REQUEST_VOTES": 1125
    },
    "exit_reasons": {
@@ -15178,7 +15248,8 @@
   "synthetic_session_sensex/target_shift": {
    "charges_inr": 9515.5,
    "events": {
-    "ANALYST_VOTE": 38250,
+    "ANALYST_VOTE": 36000,
+    "BOSS_SHADOW": 670,
     "ENTRY_APPROVED": 22,
     "MARKET_TICK": 1125,
     "NO_ENTRY": 1103,
@@ -15186,6 +15257,7 @@
     "ORDER_SUBMITTED": 44,
     "POSITION_CLOSED": 22,
     "POSITION_UPDATE": 383,
+    "REGIME_LABEL": 27,
     "REQUEST_VOTES": 1125
    },
    "exit_reasons": {
