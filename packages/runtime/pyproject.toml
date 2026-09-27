@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "runtime"
-version = "2.15.0"
-description = "V2 runtime: engine kernel, last-good config, job deadlines, service entry points, and frozen legacy benchmark. Paper only."
+version = "2.19.0"
+description = "V2 runtime: engine kernel, last-good config, job deadlines, service entry points, llm-advisor, and frozen legacy benchmark. Paper only."
 requires-python = ">=3.11"
 # Sibling in-repo packages (contracts, events, marketdata) are installed by
 # scripts/ci/install.sh with --no-deps. Do not list their bare PyPI names here:
