@@ -1,8 +1,9 @@
 """Tests for core indicators (batch reference, incremental correctness)."""
 
 import math
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 
+import pytest
 from marketdata.clock import IST
 
 from indicators.core import ATR, EMA, VWAP, OIChange, RealizedVol
@@ -154,15 +155,85 @@ def test_vwap_reset_clears_all_accumulators():
     vwap = VWAP()
     vwap.update(10.0, 100.0)
     vwap.update(20.0, 100.0)
+    vwap.update(float("nan"), 100.0)
     vwap.reset()
     assert vwap.sum_pv == 0.0
     assert vwap.sum_v == 0.0
     assert vwap.sum_p == 0.0
     assert vwap.n_bars == 0
     assert vwap.seen_volume is False
+    assert vwap.vwap_rejected_bars == 0
     val, mode = vwap.update(7.0, None)
     assert mode == "twap"
     assert val == 7.0
+
+
+def test_vwap_skips_nan_price_and_stays_clean():
+    """A NaN-price bar is rejected; VWAP stays the clean-bar value 15.0."""
+    vwap = VWAP()
+    v1, m1 = vwap.update(10.0, 100.0)
+    assert m1 == "vwap"
+    assert v1 == 10.0
+    v2, m2 = vwap.update(float("nan"), 100.0)
+    assert m2 == "vwap"
+    assert v2 == 10.0
+    assert vwap.vwap_rejected_bars == 1
+    v3, m3 = vwap.update(20.0, 100.0)
+    assert m3 == "vwap"
+    assert v3 == 15.0
+    assert vwap.vwap_rejected_bars == 1
+
+
+def test_vwap_skips_inf_price_and_stays_clean():
+    """An inf-price bar is rejected the same way as NaN; VWAP stays 15.0."""
+    vwap = VWAP()
+    vwap.update(10.0, 100.0)
+    v2, m2 = vwap.update(float("inf"), 100.0)
+    assert m2 == "vwap"
+    assert v2 == 10.0
+    assert vwap.vwap_rejected_bars == 1
+    v3, m3 = vwap.update(20.0, 100.0)
+    assert m3 == "vwap"
+    assert v3 == 15.0
+    assert vwap.vwap_rejected_bars == 1
+
+
+def test_vwap_skips_nonfinite_and_negative_volume():
+    """Inf volume and negative volume are rejected; they do not accumulate."""
+    vwap = VWAP()
+    vwap.update(10.0, 100.0)
+    v_inf, m_inf = vwap.update(999.0, float("inf"))
+    assert m_inf == "vwap"
+    assert v_inf == 10.0
+    v_neg, m_neg = vwap.update(1000.0, -5.0)
+    assert m_neg == "vwap"
+    assert v_neg == 10.0
+    assert vwap.vwap_rejected_bars == 2
+    v3, m3 = vwap.update(20.0, 100.0)
+    assert m3 == "vwap"
+    assert v3 == 15.0
+
+
+def test_vwap_nan_before_any_volume_does_not_break_twap():
+    """A leading NaN bar must not break the TWAP fallback."""
+    vwap = VWAP()
+    val, mode = vwap.update(float("nan"), None)
+    assert val is None
+    assert vwap.vwap_rejected_bars == 1
+    assert vwap.seen_volume is False
+    v1, m1 = vwap.update(10.0, None)
+    assert m1 == "twap"
+    assert v1 == 10.0
+    v2, m2 = vwap.update(20.0, None)
+    assert m2 == "twap"
+    assert v2 == 15.0
+    # NaN with volume before any accepted volume bar also stays on TWAP.
+    vwap2 = VWAP()
+    vwap2.update(float("nan"), 100.0)
+    val2, mode2 = vwap2.update(10.0, None)
+    assert mode2 == "twap"
+    assert val2 == 10.0
+    assert vwap2.seen_volume is False
 
 
 def test_realized_vol_matches_batch():
@@ -255,3 +326,68 @@ def test_realized_vol_skips_nonpositive_close():
     rv.update(101.0)
     assert rv.value is not None
     assert rv.value >= 0.0
+
+
+def test_realized_vol_skips_nan_and_inf_close():
+    """NaN and inf closes are skipped the same way as <=0; prev_close stays clean."""
+    rv = RealizedVol(period=5)
+    assert rv.update(100.0) is None
+    assert rv.update(float("nan")) is None
+    assert rv.update(float("inf")) is None
+    assert rv.prev_close == 100.0
+    later = rv.update(102.0)
+    assert later is None  # one valid return (100 -> 102)
+    rv.update(101.0)
+    assert rv.value is not None
+    assert math.isfinite(rv.value)
+
+
+def test_oi_naive_timestamp_rejected_at_ingest():
+    """Naive OI timestamps raise ValueError at add, not later at compare time."""
+    oi_tracker = OIChange()
+    naive = datetime(2026, 1, 2, 10, 4, 50)
+    with pytest.raises(ValueError, match="timezone-aware"):
+        oi_tracker.update("NIFTY", 1000, naive)
+    assert oi_tracker.oi_history == {}
+
+
+def test_oi_utc_converted_and_cut_off_by_ist_minute():
+    """UTC snapshots convert to IST; 10:05:30 IST excludes 04:35:10Z, includes 04:34:50Z."""
+    oi_tracker = OIChange()
+    t_prior = datetime(2026, 1, 2, 4, 33, 0, tzinfo=UTC)  # 10:03:00 IST
+    t_last = datetime(2026, 1, 2, 4, 34, 50, tzinfo=UTC)  # 10:04:50 IST
+    t_in_minute = datetime(2026, 1, 2, 4, 35, 10, tzinfo=UTC)  # 10:05:10 IST
+    oi_tracker.update("NIFTY", 1000, t_prior)
+    oi_tracker.update("NIFTY", 1100, t_last)
+    oi_tracker.update("NIFTY", 9999, t_in_minute)
+
+    for ts, _oi in oi_tracker.oi_history["NIFTY"]:
+        assert ts.tzinfo is not None
+        assert ts.utcoffset() == timedelta(hours=5, minutes=30)
+
+    decision_ts = datetime(2026, 1, 2, 10, 5, 30, tzinfo=IST)
+    change = oi_tracker.get_lagged_change("NIFTY", decision_ts, lookback_bars=1)
+    assert change == 100.0
+
+
+def test_oi_ist_aware_input_unchanged():
+    """IST-aware snapshots stay IST and still use the minute floor."""
+    oi_tracker = OIChange()
+    t_prior = datetime(2026, 1, 2, 10, 3, 0, tzinfo=IST)
+    t_last = datetime(2026, 1, 2, 10, 4, 50, tzinfo=IST)
+    t_in_minute = datetime(2026, 1, 2, 10, 5, 10, tzinfo=IST)
+    oi_tracker.update("NIFTY", 1000, t_prior)
+    oi_tracker.update("NIFTY", 1100, t_last)
+    oi_tracker.update("NIFTY", 9999, t_in_minute)
+    stored = [ts for ts, _oi in oi_tracker.oi_history["NIFTY"]]
+    assert stored[0] == t_prior
+    decision_ts = datetime(2026, 1, 2, 10, 5, 30, tzinfo=IST)
+    assert oi_tracker.get_lagged_change("NIFTY", decision_ts, lookback_bars=1) == 100.0
+
+
+def test_oi_naive_decision_ts_raises():
+    """Naive decision_ts raises ValueError at query time (same contract as view now)."""
+    oi_tracker = OIChange()
+    oi_tracker.update("NIFTY", 1000, datetime(2026, 1, 2, 10, 4, 50, tzinfo=IST))
+    with pytest.raises(ValueError, match="decision_ts"):
+        oi_tracker.get_lagged_change("NIFTY", datetime(2026, 1, 2, 10, 5, 30))

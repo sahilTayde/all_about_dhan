@@ -1,6 +1,7 @@
 """Tests for FeatureEngine and FeatureView."""
 
-from datetime import datetime, timedelta
+from dataclasses import replace
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from marketdata.clock import IST
@@ -141,6 +142,50 @@ def test_view_requires_now() -> None:
         engine.view()  # type: ignore[call-arg]
     with pytest.raises(ValueError, match="requires now"):
         engine.view(None)  # type: ignore[arg-type]
+
+
+def test_view_naive_now_raises() -> None:
+    """Naive view(now) raises ValueError; UTC-aware now is converted to IST."""
+    base_time = datetime(2026, 1, 2, 9, 15, 0, tzinfo=IST)
+    engine = FeatureEngine()
+    bar, available_ts = _bar(base_time, 22000.0)
+    engine.on_bar(bar, available_ts)
+
+    with pytest.raises(ValueError, match="timezone-aware"):
+        engine.view(datetime(2026, 1, 2, 9, 20, 0))
+
+    now_utc = datetime(2026, 1, 2, 4, 0, 0, tzinfo=UTC)  # 09:30 IST
+    view = engine.view(now_utc)
+    assert view.get("ema20", "NIFTY", "1m") is not None
+
+
+def test_engine_oi_naive_rejected_utc_converted() -> None:
+    """on_oi_update rejects naive ts; UTC snapshots follow the IST minute floor."""
+    engine = FeatureEngine()
+    with pytest.raises(ValueError, match="timezone-aware"):
+        engine.on_oi_update("NIFTY", 1000, datetime(2026, 1, 2, 10, 4, 50))
+
+    engine.on_oi_update("NIFTY", 1000, datetime(2026, 1, 2, 4, 33, 0, tzinfo=UTC))
+    engine.on_oi_update("NIFTY", 1100, datetime(2026, 1, 2, 4, 34, 50, tzinfo=UTC))
+    engine.on_oi_update("NIFTY", 9999, datetime(2026, 1, 2, 4, 35, 10, tzinfo=UTC))
+    decision_ts = datetime(2026, 1, 2, 10, 5, 30, tzinfo=IST)
+    assert engine.get_oi_change("NIFTY", decision_ts, lookback_bars=1) == 100.0
+    # Stored data must not crash view().
+    view = engine.view(decision_ts)
+    assert view.get("ema20", "NIFTY", "1m") is None
+
+
+def test_engine_vwap_rejected_bars_exposed() -> None:
+    """FeatureEngine.vwap_rejected_bars sums per-session VWAP rejects."""
+    base_time = datetime(2026, 1, 2, 9, 15, 0, tzinfo=IST)
+    engine = FeatureEngine()
+    bar_ok, ts_ok = _bar(base_time, 10.0)
+    bar_ok = replace(bar_ok, c=10.0, h=10.0, l=10.0, v=100)
+    engine.on_bar(bar_ok, ts_ok)
+    bar_nan, ts_nan = _bar(base_time + timedelta(minutes=1), 20.0)
+    bar_nan = replace(bar_nan, c=float("nan"), h=float("nan"), l=float("nan"), v=100)
+    engine.on_bar(bar_nan, ts_nan)
+    assert engine.vwap_rejected_bars == 1
 
 
 def test_oi_change_in_engine() -> None:

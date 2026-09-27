@@ -6,7 +6,7 @@ from datetime import datetime
 
 from marketdata.types import BarClosed, parse_ts
 
-from indicators.core import ATR, EMA, VWAP, OIChange, RealizedVol
+from indicators.core import ATR, EMA, VWAP, OIChange, RealizedVol, _as_ist
 from indicators.view import FeatureValue, FeatureView
 
 
@@ -129,10 +129,16 @@ class FeatureEngine:
         """
         return self._oi_change.get_lagged_change(instrument_id, decision_ts, lookback_bars)
 
+    @property
+    def vwap_rejected_bars(self) -> int:
+        """Bars rejected by every session VWAP (non-finite price/volume or negative volume)."""
+        return sum(vwap.vwap_rejected_bars for vwap in self._vwap.values())
+
     def view(self, now: datetime, *, strict: bool = False) -> FeatureView:
-        """Read-only feature view as of ``now``. ``now`` is required (no unfiltered view)."""
+        """Read-only feature view as of ``now``. ``now`` is required and must be tz-aware."""
         if now is None:
             raise ValueError("FeatureEngine.view requires now (unfiltered view is forbidden)")
+        now = _as_ist(now, what="view now")
         if strict:
             return FeatureView._create_strict(self._features, now)
         visible_features = {k: v for k, v in self._features.items() if v.available_ts <= now}

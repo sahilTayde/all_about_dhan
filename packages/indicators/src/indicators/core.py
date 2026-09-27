@@ -9,6 +9,13 @@ from datetime import datetime
 from marketdata.clock import IST
 
 
+def _as_ist(ts: datetime, *, what: str) -> datetime:
+    """Require a timezone-aware datetime and return it in IST."""
+    if ts.tzinfo is None:
+        raise ValueError(f"{what} must be timezone-aware (got naive datetime)")
+    return ts.astimezone(IST)
+
+
 @dataclass
 class EMA:
     """Exponential Moving Average (incremental)."""
@@ -114,9 +121,26 @@ class VWAP:
     n_bars: int = 0
     seen_volume: bool = False
     mode: str = "twap"
+    vwap_rejected_bars: int = 0
+
+    def _current(self) -> tuple[float | None, str]:
+        if self.seen_volume and self.sum_v > 0:
+            return (self.sum_pv / self.sum_v, "vwap")
+        if self.n_bars > 0:
+            return (self.sum_p / self.n_bars, "twap")
+        return (None, self.mode)
 
     def update(self, price: float, volume: float | None = None) -> tuple[float | None, str]:
-        """Update with a bar. Returns (value, 'vwap'|'twap')."""
+        """Update with a bar. Returns (value, 'vwap'|'twap').
+
+        Non-finite price/volume and negative volume are rejected (not accumulated).
+        """
+        if not math.isfinite(price):
+            self.vwap_rejected_bars += 1
+            return self._current()
+        if volume is not None and (not math.isfinite(volume) or volume < 0):
+            self.vwap_rejected_bars += 1
+            return self._current()
         if volume is not None and volume > 0:
             self.seen_volume = True
             self.sum_pv += price * volume
@@ -125,7 +149,7 @@ class VWAP:
             return (self.sum_pv / self.sum_v, "vwap")
         if self.seen_volume:
             self.mode = "vwap"
-            return (self.sum_pv / self.sum_v if self.sum_v > 0 else None, "vwap")
+            return self._current()
         self.n_bars += 1
         self.sum_p += price
         self.mode = "twap"
@@ -139,6 +163,7 @@ class VWAP:
         self.n_bars = 0
         self.seen_volume = False
         self.mode = "twap"
+        self.vwap_rejected_bars = 0
 
 
 @dataclass
@@ -163,10 +188,10 @@ class RealizedVol:
         self.prev_close = None
 
     def update(self, close: float) -> float | None:
-        """Update with a bar close. Non-positive prices skip the return (no domain error)."""
-        if close <= 0:
+        """Update with a bar close. Non-finite or non-positive prices skip the return."""
+        if not math.isfinite(close) or close <= 0:
             return self.value
-        if self.prev_close is not None and self.prev_close > 0:
+        if self.prev_close is not None and math.isfinite(self.prev_close) and self.prev_close > 0:
             log_return = math.log(close / self.prev_close)
             self.returns.append(log_return)
             if len(self.returns) > self.period:
@@ -179,12 +204,6 @@ class RealizedVol:
         return self.value
 
 
-def _floor_minute_ist(ts: datetime) -> datetime:
-    """Floor ``ts`` to the IST minute (naive values are treated as IST)."""
-    local = ts.replace(tzinfo=IST) if ts.tzinfo is None else ts.astimezone(IST)
-    return local.replace(second=0, microsecond=0)
-
-
 @dataclass
 class OIChange:
     """OI change lagged to the last snapshot strictly before the decision minute (REG-01)."""
@@ -195,21 +214,28 @@ class OIChange:
         self.oi_history = {}
 
     def update(self, instrument_id: str, oi: int, ts: datetime) -> None:
+        """Record an OI snapshot. Naive ``ts`` is rejected; other zones convert to IST."""
+        stored = _as_ist(ts, what="OI timestamp")
         if instrument_id not in self.oi_history:
             self.oi_history[instrument_id] = []
-        self.oi_history[instrument_id].append((ts, oi))
+        self.oi_history[instrument_id].append((stored, oi))
         if len(self.oi_history[instrument_id]) > 100:
             self.oi_history[instrument_id] = self.oi_history[instrument_id][-100:]
 
     def get_lagged_change(
         self, instrument_id: str, decision_ts: datetime, lookback_bars: int = 1
     ) -> float | None:
-        """OI change using only snapshots with ``ts < floor_minute(decision_ts)`` in IST."""
+        """OI change using only snapshots with ``ts < floor_minute(decision_ts)`` in IST.
+
+        Stored snapshots are always IST-aware (validated at ingest). ``decision_ts``
+        must be timezone-aware.
+        """
         if instrument_id not in self.oi_history:
             return None
         history = self.oi_history[instrument_id]
-        cutoff = _floor_minute_ist(decision_ts)
-        valid_entries = [(ts, oi) for ts, oi in history if ts < cutoff]
+        cutoff = _as_ist(decision_ts, what="decision_ts").replace(second=0, microsecond=0)
+        # Stored rows are IST-aware after ingest. Skip a naive row rather than TypeError.
+        valid_entries = [(ts, oi) for ts, oi in history if ts.tzinfo is not None and ts < cutoff]
         if len(valid_entries) < lookback_bars + 1:
             return None
         current_oi = valid_entries[-1][1]
