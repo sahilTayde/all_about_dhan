@@ -1,13 +1,6 @@
-"""
-Test Engine kernel.
+"""Engine kernel acceptance tests (V2_BUILD_PLAN.md V2-04)."""
 
-Acceptance tests from V2_BUILD_PLAN.md V2-04:
-- Same tape twice gives same output hash
-- Rehydrate over finished run reports zero mismatches
-- Planted non-deterministic handler caught by rehydrate
-- Kernel raises on time going backwards
-- ListSource 100k envelopes in < 5s
-"""
+from __future__ import annotations
 
 import random
 import time
@@ -17,13 +10,15 @@ import pytest
 from contracts.clock import IST, SimClock
 from contracts.envelope import Envelope
 from events.bus import MemoryBus
+from marketdata.sources import ListSource
+from marketdata.types import Tick
 from runtime.kernel import Engine
-from runtime.sources import ListSource
+from runtime.sources import EnvelopeSource, envelopes_from_list_source
 from runtime.store import InMemoryLedgerStore
 
 
 def make_envelope(seq: int, base_time: datetime) -> Envelope:
-    """Create test envelope."""
+    """Create a test envelope."""
     event_ts = base_time + timedelta(seconds=seq)
     available_ts = event_ts + timedelta(milliseconds=10)
     return Envelope(
@@ -42,50 +37,36 @@ def make_envelope(seq: int, base_time: datetime) -> Envelope:
     )
 
 
-def test_same_tape_twice_same_hash():
-    """Same tape twice gives same output hash."""
+def test_same_tape_twice_same_hash() -> None:
+    """Same tape twice gives the same output hash."""
     base_time = datetime(2026, 9, 28, 10, 0, 0, tzinfo=IST)
-
-    # Create 100 envelopes
     envelopes = [make_envelope(i, base_time) for i in range(100)]
 
-    # Run 1
-    source1 = ListSource(envelopes.copy())
-    clock1 = SimClock(base_time)
-    bus1 = MemoryBus()
-    store1 = InMemoryLedgerStore()
-    engine1 = Engine(source1, clock1, bus1, [], store1, mode="run")
-    summary1 = engine1.run()
-
-    # Run 2
-    source2 = ListSource(envelopes.copy())
-    clock2 = SimClock(base_time)
-    bus2 = MemoryBus()
-    store2 = InMemoryLedgerStore()
-    engine2 = Engine(source2, clock2, bus2, [], store2, mode="run")
-    summary2 = engine2.run()
+    summary1 = Engine(
+        EnvelopeSource(list(envelopes)), SimClock(base_time), MemoryBus(), [], InMemoryLedgerStore()
+    ).run()
+    summary2 = Engine(
+        EnvelopeSource(list(envelopes)), SimClock(base_time), MemoryBus(), [], InMemoryLedgerStore()
+    ).run()
 
     assert summary1.output_hash == summary2.output_hash
     assert summary1.envelope_count == 100
     assert summary2.envelope_count == 100
 
 
-def test_kernel_raises_on_time_backwards():
+def test_kernel_raises_on_time_backwards() -> None:
     """Kernel raises on time going backwards."""
     base_time = datetime(2026, 9, 28, 10, 0, 0, tzinfo=IST)
-
-    # Create envelopes with non-monotonic available_ts
     env1 = make_envelope(1, base_time)
-    # Second envelope with earlier available_ts (manually override)
     env2 = make_envelope(2, base_time)
-    env2_earlier = Envelope(
+    earlier = Envelope(
         v=env2.v,
         event_type=env2.event_type,
         event_id=env2.event_id,
         stream=env2.stream,
         source=env2.source,
         event_ts=env2.event_ts,
-        available_ts=(datetime.fromisoformat(env1.available_ts) - timedelta(seconds=2)).isoformat(),  # Earlier!
+        available_ts=(datetime.fromisoformat(env1.available_ts) - timedelta(seconds=2)).isoformat(),
         timestamp=env2.timestamp,
         account_id=env2.account_id,
         correlation_id=env2.correlation_id,
@@ -93,29 +74,33 @@ def test_kernel_raises_on_time_backwards():
         payload=env2.payload,
     )
 
-    source = ListSource([env1, env2_earlier])
-    clock = SimClock(base_time)
-    bus = MemoryBus()
-    store = InMemoryLedgerStore()
-    engine = Engine(source, clock, bus, [], store, mode="run")
-
+    engine = Engine(
+        EnvelopeSource([env1, earlier]), SimClock(base_time), MemoryBus(), [], InMemoryLedgerStore()
+    )
     with pytest.raises(ValueError, match="cannot go backwards"):
         engine.run()
 
 
-def test_listsource_100k_envelopes_fast():
-    """ListSource 100k envelopes in < 5s."""
+def test_listsource_100k_envelopes_fast() -> None:
+    """V2-03 ListSource ticks, wrapped as envelopes, 100k in < 5s."""
     base_time = datetime(2026, 9, 28, 10, 0, 0, tzinfo=IST)
+    ticks = [
+        Tick(
+            instrument_id="NIFTY",
+            ltp=22000.0,
+            ltq=1,
+            volume=i,
+            oi=None,
+            exchange_ts=(base_time + timedelta(milliseconds=i)).isoformat(),
+        )
+        for i in range(100_000)
+    ]
+    envelopes = envelopes_from_list_source(ListSource(ticks))
+    assert len(envelopes) == 100_000
 
-    # Create 100k envelopes
-    envelopes = [make_envelope(i, base_time) for i in range(100_000)]
-
-    source = ListSource(envelopes)
-    clock = SimClock(base_time)
-    bus = MemoryBus()
-    store = InMemoryLedgerStore()
-    engine = Engine(source, clock, bus, [], store, mode="run")
-
+    engine = Engine(
+        EnvelopeSource(envelopes), SimClock(base_time), MemoryBus(), [], InMemoryLedgerStore()
+    )
     start = time.time()
     summary = engine.run()
     duration = time.time() - start
@@ -124,48 +109,52 @@ def test_listsource_100k_envelopes_fast():
     assert duration < 5.0, f"Took {duration:.2f}s, expected < 5s"
 
 
-def test_handler_called_for_each_envelope():
-    """Handlers are called for each envelope."""
+def test_kernel_reuses_marketdata_list_source() -> None:
+    """Kernel consumes envelopes produced from marketdata.ListSource (no duplicate class)."""
+    base_time = datetime(2026, 9, 28, 10, 0, 0, tzinfo=IST)
+    ticks = [
+        Tick(
+            instrument_id="NIFTY",
+            ltp=22000.0 + i,
+            ltq=1,
+            volume=10,
+            oi=None,
+            exchange_ts=(base_time + timedelta(seconds=i)).isoformat(),
+        )
+        for i in range(3)
+    ]
+    envelopes = envelopes_from_list_source(ListSource(ticks))
+    summary = Engine(
+        EnvelopeSource(envelopes), SimClock(base_time), MemoryBus(), [], InMemoryLedgerStore()
+    ).run()
+    assert summary.envelope_count == 3
+    assert summary.mismatches == 0
+
+
+def test_handler_called_for_each_envelope() -> None:
+    """Bus subscribers run for each envelope."""
     base_time = datetime(2026, 9, 28, 10, 0, 0, tzinfo=IST)
     envelopes = [make_envelope(i, base_time) for i in range(10)]
-
     call_count = [0]
-
-    class TestHandler:
-        def handle(self, envelope: Envelope) -> None:
-            call_count[0] += 1
-
-    source = ListSource(envelopes)
-    clock = SimClock(base_time)
     bus = MemoryBus()
-    store = InMemoryLedgerStore()
 
-    # Subscribe handler to bus
     def handler_fn(event: object) -> None:
         call_count[0] += 1
 
     bus.subscribe(["MARKET_TICK"], handler_fn)
-
-    engine = Engine(source, clock, bus, [], store, mode="run")
-    summary = engine.run()
-
+    summary = Engine(
+        EnvelopeSource(envelopes), SimClock(base_time), bus, [], InMemoryLedgerStore()
+    ).run()
     assert summary.envelope_count == 10
     assert call_count[0] == 10
 
 
-def test_checkpoint_recorded():
+def test_checkpoint_recorded() -> None:
     """Checkpoint is recorded after each envelope."""
     base_time = datetime(2026, 9, 28, 10, 0, 0, tzinfo=IST)
     envelopes = [make_envelope(i, base_time) for i in range(5)]
-
-    source = ListSource(envelopes)
-    clock = SimClock(base_time)
-    bus = MemoryBus()
     store = InMemoryLedgerStore()
-    engine = Engine(source, clock, bus, [], store, mode="run")
-
-    summary = engine.run()
-
+    Engine(EnvelopeSource(envelopes), SimClock(base_time), MemoryBus(), [], store).run()
     checkpoint = store.get_last_checkpoint()
     assert checkpoint is not None
     event_id, available_ts = checkpoint
@@ -173,45 +162,33 @@ def test_checkpoint_recorded():
     assert available_ts == envelopes[4].available_ts
 
 
-def test_non_deterministic_handler_detected():
-    """Planted non-deterministic handler (reads random()) is detected by hash difference."""
+def test_non_deterministic_handler_detected() -> None:
+    """Planted non-deterministic handler is documented: hashes match without random outputs."""
     base_time = datetime(2026, 9, 28, 10, 0, 0, tzinfo=IST)
     envelopes = [make_envelope(i, base_time) for i in range(10)]
 
-    # Run with different random seeds
     random.seed(42)
-    source1 = ListSource(envelopes.copy())
-    clock1 = SimClock(base_time)
-    bus1 = MemoryBus()
-    store1 = InMemoryLedgerStore()
-    engine1 = Engine(source1, clock1, bus1, [], store1, mode="run")
-    summary1 = engine1.run()
-
-    random.seed(123)  # Different seed
-    source2 = ListSource(envelopes.copy())
-    clock2 = SimClock(base_time)
-    bus2 = MemoryBus()
-    store2 = InMemoryLedgerStore()
-    engine2 = Engine(source2, clock2, bus2, [], store2, mode="run")
-    summary2 = engine2.run()
-
-    # Without non-determinism, hashes should match (they do, because we don't inject randomness yet)
-    # This test documents the expectation; actual non-determinism detection would need handlers
-    # that emit envelopes with random data
+    summary1 = Engine(
+        EnvelopeSource(list(envelopes)), SimClock(base_time), MemoryBus(), [], InMemoryLedgerStore()
+    ).run()
+    random.seed(123)
+    summary2 = Engine(
+        EnvelopeSource(list(envelopes)), SimClock(base_time), MemoryBus(), [], InMemoryLedgerStore()
+    ).run()
     assert summary1.output_hash == summary2.output_hash
 
 
-def test_rehydrate_mode_placeholder():
-    """Rehydrate mode exists (full implementation in later tickets)."""
+def test_rehydrate_mode_placeholder() -> None:
+    """Rehydrate mode exists (intent comparison deferred)."""
     base_time = datetime(2026, 9, 28, 10, 0, 0, tzinfo=IST)
     envelopes = [make_envelope(i, base_time) for i in range(5)]
-
-    source = ListSource(envelopes)
-    clock = SimClock(base_time)
-    bus = MemoryBus()
-    store = InMemoryLedgerStore()
-    engine = Engine(source, clock, bus, [], store, mode="rehydrate")
-
-    summary = engine.run()
+    summary = Engine(
+        EnvelopeSource(envelopes),
+        SimClock(base_time),
+        MemoryBus(),
+        [],
+        InMemoryLedgerStore(),
+        mode="rehydrate",
+    ).run()
     assert summary.envelope_count == 5
-    assert summary.mismatches == 0  # No comparison logic yet
+    assert summary.mismatches == 0

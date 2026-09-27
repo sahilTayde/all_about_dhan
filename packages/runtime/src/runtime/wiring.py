@@ -1,8 +1,4 @@
-"""
-Engine wiring from config.
-
-Spec: V2_BUILD_PLAN.md V2-04
-"""
+"""Engine wiring from runtime config."""
 
 from __future__ import annotations
 
@@ -10,27 +6,30 @@ import logging
 from pathlib import Path
 from typing import Any
 
-from contracts.config import load_with_last_good
+from runtime.config import ConfigLoadError, load_with_last_good
 
 log = logging.getLogger("runtime.wiring")
 
 
 class EngineConfig:
-    """
-    Engine configuration loaded from YAML.
+    """Engine configuration loaded from YAML.
 
-    For V2-04: minimal config to wire the engine.
-    Later tickets add more fields.
+    V2-04: ``exits_only`` plus the raw mapping. Later tickets add fields.
+    Unknown keys are kept (forward compatible); known keys are type-checked.
     """
 
     def __init__(self, data: dict[str, Any]) -> None:
+        if "exits_only" in data and not isinstance(data["exits_only"], bool):
+            raise ConfigLoadError(
+                f"rejected: exits_only must be a bool, got {type(data['exits_only']).__name__}"
+            )
         self.data = data
-        self.exits_only = data.get("exits_only", False)
+        self.exits_only = bool(data.get("exits_only", False))
 
     @classmethod
-    def load(cls, path: str | Path) -> EngineConfig:
-        """Load engine config with last-good fallback."""
-        data = load_with_last_good(path, exits_only_on_missing=True)
+    def load(cls, path: str | Path, *, cache_dir: str | Path | None = None) -> EngineConfig:
+        """Load engine config with last-good fallback (exits-only if nothing valid)."""
+        data = load_with_last_good(path, cache_dir=cache_dir, exits_only_on_missing=True)
         return cls(data)
 
     def __repr__(self) -> str:

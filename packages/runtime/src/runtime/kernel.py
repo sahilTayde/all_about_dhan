@@ -1,5 +1,4 @@
-"""
-V2 Engine kernel: one transaction per input, checkpoint, rehydrate mode.
+"""V2 engine kernel: one transaction per input, checkpoint, rehydrate mode.
 
 Spec: V2_BUILD_PLAN.md V2-04, V2_PRODUCTION_ARCHITECTURE.md section 4.1
 """
@@ -7,15 +6,13 @@ Spec: V2_BUILD_PLAN.md V2-04, V2_PRODUCTION_ARCHITECTURE.md section 4.1
 from __future__ import annotations
 
 import hashlib
+import json
 import logging
 from dataclasses import dataclass
 from datetime import datetime
-from typing import TYPE_CHECKING, Literal, Protocol
+from typing import Literal, Protocol, Self
 
-if TYPE_CHECKING:
-    from contracts.clock import SimClock
-else:
-    from contracts.clock import Clock as SimClock
+from contracts.clock import SimClock
 from contracts.envelope import Envelope
 from events.bus import EventBus
 
@@ -65,7 +62,7 @@ class LedgerStore(Protocol):
 class LedgerTransaction(Protocol):
     """Transaction context manager."""
 
-    def __enter__(self) -> LedgerTransaction:
+    def __enter__(self) -> Self:
         ...
 
     def __exit__(
@@ -84,46 +81,30 @@ class RunSummary:
     envelope_count: int
     start_time: datetime
     end_time: datetime
-    output_hash: str  # sha256 hex digest of deterministic outputs
-    mismatches: int = 0  # rehydrate mode only
+    output_hash: str
+    mismatches: int = 0
 
 
 class Engine:
-    """
-    V2 engine kernel: processes ordered envelopes, one transaction per input.
+    """V2 engine kernel: processes ordered envelopes, one transaction per input.
 
     Modes:
     - run: normal execution
     - rehydrate: replay with no-op router, compare intents (determinism check)
 
-    Design principles (section 4):
-    - One code path for test/replay/live
-    - Event time (clock) driven by available_ts
-    - Envelope contract: available_ts >= event_ts, monotonic
-    - Idempotent everywhere
-    - Durable before visible (commit, then publish)
+    Design (section 4): one code path, event time from available_ts, durable
+    before visible (commit, then ack).
     """
 
     def __init__(
         self,
         source: EventSource,
-        clock: SimClock,  # type: ignore[valid-type]
+        clock: SimClock,
         bus: EventBus,
         handlers: list[Handler],
         store: LedgerStore,
         mode: Literal["run", "rehydrate"] = "run",
     ) -> None:
-        """
-        Initialize engine.
-
-        Args:
-            source: Event source (tape, warehouse, Redis)
-            clock: SimClock or LiveClock
-            bus: EventBus for publish/subscribe
-            handlers: List of handlers to process envelopes
-            store: Durable ledger store (single writer)
-            mode: "run" (normal) or "rehydrate" (determinism check)
-        """
         self.source = source
         self.clock = clock
         self.bus = bus
@@ -134,20 +115,7 @@ class Engine:
         self._mismatches = 0
 
     def run(self) -> RunSummary:
-        """
-        Run engine to completion.
-
-        Processes envelopes in order:
-        1. Advance clock to envelope.available_ts (monotonic check)
-        2. Begin transaction
-        3. Publish envelope to bus (handlers run synchronously)
-        4. Checkpoint envelope
-        5. Commit transaction
-        6. Ack source
-
-        Returns:
-            RunSummary with envelope count, times, output hash, mismatches
-        """
+        """Run engine to completion. Raises if clock would go backwards."""
         start = datetime.now(self.clock.now().tzinfo)
         count = 0
 
@@ -161,25 +129,14 @@ class Engine:
         try:
             for envelope in self.source:
                 count += 1
-
-                # Advance clock (monotonic check)
-                # Parse available_ts
                 available_dt = datetime.fromisoformat(envelope.available_ts)
                 self.clock.advance_to(available_dt)
 
-                # One transaction per input
                 with self.store.transaction():
-                    # Publish to bus (handlers run synchronously, depth-first)
-                    # Bus expects event_type and payload
                     self.bus.publish(envelope.event_type, envelope.payload, source=envelope.source)
-
-                    # Checkpoint
                     self.store.checkpoint(envelope)
-
-                    # Update output hash (deterministic outputs only)
                     self._update_output_hash(envelope)
 
-                # Ack after commit
                 self.source.ack(envelope)
 
                 if count % 1000 == 0:
@@ -208,16 +165,7 @@ class Engine:
         )
 
     def _update_output_hash(self, envelope: Envelope) -> None:
-        """
-        Update output hash with deterministic fields.
-
-        Only hashes envelopes that represent deterministic outputs (orders, decisions, etc).
-        """
-        # Hash event_id and payload for determinism check
-        # In rehydrate mode, this would be compared against expected
+        """Hash event_id + canonical payload JSON (determinism check)."""
         self._output_hasher.update(envelope.event_id.encode())
-        # Simple payload hash (would be more sophisticated in production)
-        import json
-
         payload_str = json.dumps(envelope.payload, sort_keys=True, separators=(",", ":"))
         self._output_hasher.update(payload_str.encode())

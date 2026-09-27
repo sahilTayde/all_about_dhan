@@ -1,30 +1,37 @@
-[build-system]
-requires = ["setuptools>=61.0"]
-build-backend = "setuptools.build_meta"
-
 [project]
 name = "runtime"
 version = "0.1.0"
-description = "V2 engine runtime: kernel, wiring, job deadlines"
+description = "V2 engine kernel, job deadlines, and frozen legacy benchmark"
 requires-python = ">=3.11"
-dependencies = [
-    "contracts",
-    "events",
-]
+# Sibling in-repo packages (contracts, events, marketdata) are installed by
+# scripts/ci/install.sh with --no-deps. Do not list their bare PyPI names here:
+# check_local_names.py requires a +aad pin, and `events` exists on PyPI.
+dependencies = []
+
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
 where = ["src"]
 
-[tool.pytest.ini_options]
-testpaths = ["tests"]
-pythonpath = ["src"]
+[tool.setuptools.package-data]
+runtime = ["py.typed"]
 
 [tool.ruff]
 line-length = 120
 target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "SIM", "RUF"]
 
 [tool.mypy]
 python_version = "3.11"
 strict = true
 warn_return_any = true
 warn_unused_configs = true
+disallow_untyped_defs = true
+
+[[tool.mypy.overrides]]
+module = ["yaml"]
+ignore_missing_imports = true

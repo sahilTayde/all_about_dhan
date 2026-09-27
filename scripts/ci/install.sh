@@ -6,8 +6,8 @@ set -euo pipefail
 cd "$(dirname "$0")/../.."
 python -m pip install --require-hashes -r requirements/ci.txt
 args=()
-for p in dhan-client backtest ledger risk-engine brokers health data-recorder desk-intel docs-auditor \
-         agent_rag warehouse trading_agents_india events contracts desk-ml analysts boss desk; do
+for p in dhan-client marketdata indicators backtest ledger risk-engine brokers health data-recorder desk-intel docs-auditor \
+         agent_rag warehouse trading_agents_india events contracts desk-ml analysts boss desk runtime; do
   args+=(-e "packages/$p")
 done
 args+=(-e apps/api)

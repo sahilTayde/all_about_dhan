@@ -1,13 +1,10 @@
-"""
-Ledger store implementations.
-
-Spec: V2_BUILD_PLAN.md V2-04 (stub), V2-10 (real implementation)
-"""
+"""Ledger store stub for V2-04. V2-10 replaces this with SQLite/Postgres."""
 
 from __future__ import annotations
 
 import logging
 import types
+from typing import Self
 
 from contracts.envelope import Envelope
 
@@ -15,11 +12,7 @@ log = logging.getLogger("runtime.store")
 
 
 class InMemoryLedgerStore:
-    """
-    In-memory ledger store for V2-04.
-
-    V2-10 will replace this with SQLite/Postgres implementation.
-    """
+    """In-memory ledger store. Not durable across processes."""
 
     def __init__(self) -> None:
         self._checkpoint: tuple[str, str] | None = None
@@ -42,12 +35,12 @@ class InMemoryLedgerStore:
 
 
 class InMemoryTransaction:
-    """Transaction context for in-memory store."""
+    """Transaction context for the in-memory store."""
 
     def __init__(self, store: InMemoryLedgerStore) -> None:
         self.store = store
 
-    def __enter__(self) -> InMemoryTransaction:
+    def __enter__(self) -> Self:
         if self.store._in_transaction:
             raise RuntimeError("nested transaction")
         self.store._in_transaction = True
@@ -61,8 +54,6 @@ class InMemoryTransaction:
     ) -> None:
         self.store._in_transaction = False
         if exc_type is not None:
-            # Rollback (no-op for in-memory)
             log.debug("Transaction rolled back")
         else:
-            # Commit (no-op for in-memory)
             log.debug("Transaction committed")

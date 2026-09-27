@@ -1,6 +1,14 @@
-"""V2 engine runtime: kernel, wiring, job deadlines."""
+"""Runtime package: engine kernel, job deadlines, and frozen legacy benchmark."""
 
-from runtime.jobs import run_with_deadline
+from runtime.jobs import DeadlineExceeded, JobTimeout, run_with_deadline
 from runtime.kernel import Engine, RunSummary
 
-__all__ = ["Engine", "RunSummary", "run_with_deadline"]
+__version__ = "0.1.0"
+
+__all__ = [
+    "DeadlineExceeded",
+    "Engine",
+    "JobTimeout",
+    "RunSummary",
+    "run_with_deadline",
+]

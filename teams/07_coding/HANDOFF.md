@@ -1,5 +1,83 @@
 # Handoff log — Team 07 Coding
 
+## As of now (2026-09-27 IST) — V2-04 kernel onto current main (PAPER)
+
+```text
+From:     teams/07_coding
+To:       founder / 00 / 09
+Date:     2026-09-27
+Status:   PAPER / V2-04 / NO_PROMOTE / no live orders
+Accepted: Merged origin/main (a756e70) into PR #38 with a
+  normal merge. One packages/runtime: keep V2-17 bench_legacy
+  and python -m runtime bench-legacy; add kernel, jobs,
+  wiring, store. Config loader is runtime.config (not
+  contracts): contracts owns envelope/schema/clock/ids;
+  last-good YAML is runtime config. Deleted duplicate
+  ListSource; reuse marketdata.sources.ListSource via
+  envelopes_from_list_source. __main__ left as main's
+  minimal dispatcher (V2-15 adds commands additively).
+  requirements/* byte-identical to main. install.sh is
+  main's list (runtime already once). events import
+  resolves (in-repo sibling; pyproject deps stay empty
+  so check_local_names / PyPI 'events' cannot collide).
+Rejected: Second runtime package. contracts.config home.
+  sys.exit inside run_with_deadline (library raises
+  DeadlineExceeded / JobTimeout; CLI exits 1). Rebase
+  or force-push. Relock of requirements/.
+UNKNOWN: V2-15 (#51) jobs.py will merge onto this
+  run_with_deadline + JobTimeout alias.
+```
+
+---
+
+## As of now (2026-09-27 IST) — V2-13 token-only ROLE_ACL (PAPER)
+
+```text
+From:     teams/07_coding
+To:       founder / 00 / 09
+Date:     2026-09-27
+Status:   PAPER / V2-13 / NO_PROMOTE / no live orders
+Accepted: One ROLE_ACL per role, enforced on WS snapshot, WS
+  deltas, GET /v2/snapshot, GET /v2/trace. Identity is the
+  paper token only (founder iff token=founder). Missing or
+  unknown token = customer. Client-supplied role is never
+  trusted. Subscribe role/token fields yield IDENTITY_IMMUTABLE
+  and do not change the connection. Customers get only
+  CUSTOMER_TALK public signal fields; no legacy board /
+  founder / founder_book / account overlay. /v2/trace is
+  founder-only (403 otherwise). Control POST stays 501.
+Rejected: JWT (V2-23). Trusting query/body role. Customer
+  overlay of desk JSON. Changing 501 control or loopback.
+UNKNOWN: Founder UI behind VITE_V2_FEED=1 now sends the
+  paper token=founder label (not a secret; JWT still V2-23).
+```
+
+---
+
+## As of now (2026-09-27 IST) — V2-13 gateway websocket + UI rewire (PAPER)
+
+```text
+From:     teams/07_coding
+To:       founder / 00 / 09
+Date:     2026-09-27
+Status:   PAPER / V2-13 / NO_PROMOTE / no live orders
+Accepted: GET /v2/snapshot + WS /v2/ws (subscribe, snapshot,
+  ordered seq deltas, resync). Role-scoped channels: customer
+  token cannot take founder channels. REG-04c snapshot lists
+  every ledger-open position. Decision trace from correlation
+  id includes strike_choice + alternatives. Desk/Founder use
+  v2 feed only when VITE_V2_FEED=1. Legacy /ui/* /ws/* stay.
+  V2-11 control routes are a marked stub (501, no actions).
+Rejected: Implementing founder control actions (V2-11). JWT
+  auth (V2-23). Touching legacy engine / marketdata / dhan-
+  client / runtime / strategies / data/ / exits defaults.
+UNKNOWN: Ledger positions until V2-10 exists are
+  in-memory on the hub. Playwright --v2 (PR #15 widths)
+  passed on the fixture feed after SSE fallback.
+```
+
+---
+
 ## As of now (2026-09-22 IST) — freeze spill cols + 2s tick (NO_PROMOTE)
 
 ```text

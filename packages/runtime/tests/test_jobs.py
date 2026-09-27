@@ -1,51 +1,65 @@
-"""
-Test job deadlines.
+"""Job deadlines (REG-10a)."""
 
-REG-10a from V2_BUILD_PLAN.md:
-- An overrunning job is killed, exits non-zero, alerts, and leaves no partial output
-"""
+from __future__ import annotations
 
+import subprocess
+import sys
 import time
 
 import pytest
-from runtime.jobs import DeadlineExceeded, run_with_deadline
+from runtime.jobs import DeadlineExceeded, JobTimeout, run_with_deadline
 
 
-def test_job_completes_within_deadline():
+def test_job_completes_within_deadline() -> None:
     """Job that completes within deadline returns normally."""
 
     def quick_job() -> str:
         return "success"
 
-    result = run_with_deadline(quick_job, timeout_s=5.0, job_name="quick")
-    assert result == "success"
+    assert run_with_deadline(quick_job, timeout_s=5.0, job_name="quick") == "success"
 
 
-def test_reg_10a_overrunning_job_killed():
-    """REG-10a: Overrunning job is killed and exits non-zero."""
+def test_reg_10a_overrunning_job_killed() -> None:
+    """REG-10a: overrunning job is killed and raises DeadlineExceeded."""
 
     def slow_job() -> None:
-        time.sleep(10.0)  # Way over deadline
+        time.sleep(10.0)
 
-    # This should raise DeadlineExceeded then exit(1)
-    # signal.alarm requires >= 1s, so we use 1s timeout
-    with pytest.raises(SystemExit) as exc_info:
-        run_with_deadline(slow_job, timeout_s=1.0, job_name="slow")
-
-    assert exc_info.value.code == 1
+    with pytest.raises(DeadlineExceeded, match="slow exceeded deadline") as exc_info:
+        run_with_deadline(slow_job, timeout_s=1.0, job="slow")
+    assert exc_info.value.job == "slow"
+    assert exc_info.value.timeout_s == 1.0
 
 
-def test_job_returns_result():
+def test_reg_10a_cli_exits_nonzero() -> None:
+    """REG-10a: a caller that catches DeadlineExceeded exits non-zero."""
+    code = (
+        "import sys, time\n"
+        "from runtime.jobs import DeadlineExceeded, run_with_deadline\n"
+        "try:\n"
+        "    run_with_deadline(lambda: time.sleep(10), 1.0, job='slow')\n"
+        "except DeadlineExceeded:\n"
+        "    sys.exit(1)\n"
+    )
+    result = subprocess.run([sys.executable, "-c", code], check=False, timeout=8)
+    assert result.returncode == 1
+
+
+def test_job_timeout_alias() -> None:
+    """V2-15 name JobTimeout is the same class."""
+    assert JobTimeout is DeadlineExceeded
+
+
+def test_job_returns_result() -> None:
     """Job result is returned."""
 
     def calc_job() -> int:
         return 42 + 100
 
-    result = run_with_deadline(calc_job, timeout_s=1.0, job_name="calc")
-    assert result == 142
+    assert run_with_deadline(calc_job, timeout_s=1.0, job_name="calc") == 142
 
 
-def test_job_can_raise_other_exceptions():
+def test_job_can_raise_other_exceptions() -> None:
     """Job can raise exceptions other than DeadlineExceeded."""
 
     def failing_job() -> None:
@@ -55,29 +69,17 @@ def test_job_can_raise_other_exceptions():
         run_with_deadline(failing_job, timeout_s=5.0, job_name="failing")
 
 
-def test_multiple_jobs_sequential():
+def test_multiple_jobs_sequential() -> None:
     """Multiple jobs can run sequentially."""
-    results = []
-
-    def job1() -> str:
-        return "first"
-
-    def job2() -> str:
-        return "second"
-
-    r1 = run_with_deadline(job1, timeout_s=1.0, job_name="job1")
-    r2 = run_with_deadline(job2, timeout_s=1.0, job_name="job2")
-
-    assert r1 == "first"
-    assert r2 == "second"
+    assert run_with_deadline(lambda: "first", timeout_s=1.0, job_name="job1") == "first"
+    assert run_with_deadline(lambda: "second", timeout_s=1.0, job_name="job2") == "second"
 
 
-def test_very_short_timeout():
-    """Job with very short timeout (< 1s) is killed."""
+def test_very_short_timeout() -> None:
+    """Sub-second timeout is rounded up to 1s (signal.alarm limitation)."""
 
     def medium_job() -> None:
-        time.sleep(2.0)  # Longer than the 1s alarm
+        time.sleep(2.0)
 
-    # Sub-second timeouts are rounded up to 1s minimum (signal.alarm limitation)
-    with pytest.raises(SystemExit):
+    with pytest.raises(DeadlineExceeded):
         run_with_deadline(medium_job, timeout_s=0.5, job_name="medium")
