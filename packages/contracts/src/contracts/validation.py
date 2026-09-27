@@ -22,7 +22,8 @@ _SCHEMAS_DIR = Path(__file__).parent / "schemas"
 def _load_schema(name: str) -> dict[str, Any]:
     """Load JSON schema by name."""
     schema_path = _SCHEMAS_DIR / f"{name}.json"
-    return json.loads(schema_path.read_text())
+    data: dict[str, Any] = json.loads(schema_path.read_text())
+    return data
 
 
 def validate_payload(payload_type: str, data: dict[str, Any]) -> None:

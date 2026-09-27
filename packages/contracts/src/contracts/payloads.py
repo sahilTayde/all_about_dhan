@@ -317,7 +317,7 @@ class Decision:
     lot_size: int | None = None
     limit_price: float | None = None
     sizing: dict[str, int] | None = None
-    holds: list[str] = ()
+    holds: list[str] = ()  # type: ignore[assignment]
     basket_hash: str | None = None
     shadow: dict[str, Any] | None = None
     entry_location: dict[str, Any] | None = None  # EntryLocation as dict
