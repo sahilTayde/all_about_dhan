@@ -62,7 +62,9 @@ def ledger_exit_reason(reason: str) -> str:
         return "TARGET_HIT"
     if r.startswith("FLATTEN"):
         return "FLATTEN_EOD"
-    if r == "FOUNDER_COMMAND":
+    if r == "FOUNDER_KILL":
+        return "KILL_SWITCH"
+    if r.startswith("FOUNDER_"):
         return "FOUNDER_COMMAND"
     if r in ("CANCEL_HUMAN", "HUMAN_EXIT"):
         return "MANUAL"
@@ -73,7 +75,9 @@ def ledger_exit_reason(reason: str) -> str:
 
 def ledger_cancel_reason(reason: str) -> str:
     r = str(reason)
-    if r == "FOUNDER_COMMAND":
+    if r == "FOUNDER_KILL":
+        return "KILL_SWITCH"
+    if r.startswith("FOUNDER_"):
         return "FOUNDER_COMMAND"
     if r == "CANCEL_HUMAN":
         return "USER_CANCEL"

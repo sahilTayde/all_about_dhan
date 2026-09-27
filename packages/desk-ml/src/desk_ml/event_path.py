@@ -166,8 +166,10 @@ class EventSession:
         from desk import Desk
 
         self.engine = engine
+        engine.regime_bus = self.bus  # PR-012/024: REGIME_LABEL / BOSS_SHADOW go on the audit log
+        engine.regime_live_loop = self.live_loop  # PR-012/024: re-replays do not re-log the same bars
         self.room = self._room if self._room is not None else AnalystRoom.from_config(
-            self.analysts_config, deterministic=self.deterministic
+            self.analysts_config, deterministic=self.deterministic, live_loop=self.live_loop,
         )
         self.desk = Desk(
             self.bus, engine, risk=None, broker=None, steps=self.steps, live_loop=self.live_loop,
@@ -198,6 +200,10 @@ class EventSession:
         if und not in self.stacks:
             led = self._ledger if self._ledger is not None else Ledger(":memory:", charges_path=repo_root() / CHARGES_CONFIG)
             broker = ClockedPaperBroker(clock=lambda: self.desk.clock(), slippage_ticks=0)
+            from desk_ml.costs import ledger_rates  # PR-B: per-exchange fees when cost_model=realistic
+
+            if self._ledger is None and (rates := ledger_rates(self.engine)) is not None:
+                led.rates = rates
             attach_ledger(broker, led)
             self.stacks[und] = (led, RiskEngine(led, config_path=self.risk_config), broker)
         _led, self.desk.risk, self.desk.broker = self.stacks[und]

@@ -46,7 +46,8 @@ python -m pip install \
   -e packages/boss \
   -e packages/desk \
   -e apps/api \
-  pytest
+  pytest \
+  hypothesis
 
 # Web app dependencies (mock-data customer desk; no Dhan in the browser).
 if [ -d apps/web ]; then

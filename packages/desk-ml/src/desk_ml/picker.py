@@ -1,7 +1,8 @@
 """Boss/picker: RULES majority on spoken CE vs PE. Not LLM. Not paper wr.
 
-Analysts (STRAT-001–014 KEEP_ALL, MIX-FORM-FOLLOWS, logit, XR, greeks,
-ML-001/002 silent) vote or stay silent. Silent / DATA_INSUFFICIENT does not
+Analysts (STRAT-001–014 KEEP_ALL, MIX-FORM-FOLLOWS, logit, XR, greeks)
+vote or stay silent. ML-001, ML-002 and ML-1 are retired from this room
+(they never spoke a wing on replay). Silent / DATA_INSUFFICIENT does not
 vote. 8-7 or soup = HOLD. INDEX 1m against the winning wing = HOLD.
 FOLLOWS is an analyst — not desk, not observer. Does not invent CE/PE.
 Logit / XR / greeks stay analysts even when picker HOLD or observer VETO —
@@ -47,8 +48,10 @@ SOD_LAB_OBSERVE = "SOD_LAB_OBSERVE"
 SOD_ONE_OPEN = "SOD_ONE_OPEN"
 SIGNAL_TRACK_SOURCES = ("follows", "logit", "xr", "greeks")
 SIGNAL_ALWAYS_TRACK = frozenset(
-    (*SIGNAL_TRACK_SOURCES, "ML-1", "MIX-TV-EP-024", "STRAT-003")
+    (*SIGNAL_TRACK_SOURCES, "MIX-TV-EP-024", "STRAT-003")
 )
+# Log-only shadow picker drops these. The live majority still counts them.
+SHADOW_PICKER_EXCLUDED = frozenset({"logit", "xr", "MIX-ML-LOGIT", "MIX-ML-LOGIT-XR"})
 SIGNAL_LOG_MAX = 2000
 
 
@@ -187,19 +190,13 @@ def collect_analyst_votes(
     else:
         votes.append(_silent("greeks", str(greeks_skip or "DATA_INSUFFICIENT")))
 
-    # ML-001/002: HOLD overlay is not a wing vote. Do not invent CE/PE from KMeans.
-    votes.append(_silent("ML-001", "HOLD" if ml001_hold else "OBSERVE_NO_OWN_SIDE"))
-    votes.append(_silent("ML-002", "HOLD" if ml002_hold else "OBSERVE_NO_OWN_SIDE"))
+    # ML-001 / ML-002 / ML-1 no longer vote. On replay they were always silent
+    # (ml1_meta_label never sets a side), so picker_majority is unchanged.
+    # kwargs stay so paper_scalp and the event path do not have to churn.
+    del ml001_hold, ml002_hold, ml1
 
     extra_non_strat = [v for v in (extra or []) if not str(v.source).startswith("STRAT-")]
     extra_src = {v.source for v in extra_non_strat}
-
-    if "ML-1" not in extra_src:
-        m = ml1 or {}
-        if m.get("side") in {"CE", "PE"}:
-            votes.append(_vote("ML-1", str(m["side"]), REASON_CONFIRM, str(m.get("status") or "")))
-        else:
-            votes.append(_silent("ML-1", str(m.get("reason") or m.get("status") or "OBSERVE_NO_OWN_SIDE")))
 
     if "MIX-TV-EP-024" not in extra_src:
         if tv_side in {"CE", "PE"}:
@@ -323,6 +320,38 @@ def picker_majority(
         "detail": DETAIL_OK,
         "reason_class": win_class,
     }
+
+
+def decision_brief(picker: dict[str, Any]) -> dict[str, Any]:
+    """Side-by-side fields for the shadow log. Not a ticket."""
+    return {
+        "action": picker.get("action"),
+        "side": picker.get("side"),
+        "detail": picker.get("detail"),
+        "skip": picker.get("skip"),
+    }
+
+
+def shadow_picker_majority(
+    votes: Sequence[Vote],
+    *,
+    prev: Optional[Triple] = None,
+    closed: Optional[Triple] = None,
+    classified: Optional[dict[str, Any]] = None,
+) -> dict[str, Any]:
+    """What `picker_majority` would say with MIX-ML-LOGIT and XR removed.
+
+    Does not replace the live call. Log only.
+    """
+    kept: list[Vote] = []
+    for v in votes:
+        src = getattr(v, "source", None)
+        if src is None and isinstance(v, dict):
+            src = v.get("source")
+        if src in SHADOW_PICKER_EXCLUDED:
+            continue
+        kept.append(v)
+    return picker_majority(kept, prev=prev, closed=closed, classified=classified)
 
 
 def track_model_signals(

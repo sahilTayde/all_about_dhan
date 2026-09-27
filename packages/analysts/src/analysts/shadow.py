@@ -218,30 +218,84 @@ def _closes(bars: Sequence[dict[str, Any]]) -> list[float]:
     return out
 
 
-def complete_bars_3m(bars_1m: Sequence[dict[str, Any]], now_ts: int) -> list[dict[str, Any]]:
-    """IST-epoch 3-minute buckets. The bucket still forming at ``now_ts`` is left out."""
-    buckets: dict[int, dict[str, Any]] = {}
-    order: list[int] = []
-    for bar in bars_upto(bars_1m, now_ts):
+def _fold_3m(buckets: dict[int, dict[str, Any]], order: list[int], bar: dict[str, Any], *, isolate: bool = False) -> None:
+    try:
         ts = int(bar["ts"])
-        key = ts - (ts % 180)
-        high, low = _bar_hl(bar)
-        close = _num(bar.get("close"))
-        open_ = _num(bar.get("open"))
-        if high is None or low is None or close is None:
-            continue
-        if open_ is None:
-            open_ = close
-        row = buckets.get(key)
-        if row is None:
-            order.append(key)
-            buckets[key] = {"ts": key, "open": open_, "high": high, "low": low, "close": close}
-            continue
-        row["high"] = max(float(row["high"]), high)
-        row["low"] = min(float(row["low"]), low)
-        row["close"] = close
+    except (KeyError, TypeError, ValueError):
+        return
+    key = ts - (ts % 180)
+    high, low = _bar_hl(bar)
+    close = _num(bar.get("close"))
+    open_ = _num(bar.get("open"))
+    if high is None or low is None or close is None:
+        return
+    if open_ is None:
+        open_ = close
+    row = buckets.get(key)
+    if row is None:
+        order.append(key)
+        buckets[key] = {"ts": key, "open": open_, "high": high, "low": low, "close": close}
+        return
+    if isolate:
+        # The forming minute shares a bucket with committed bars. Copy before writing so the cache stays closed-only.
+        row = dict(row)
+        buckets[key] = row
+    row["high"] = max(float(row["high"]), high)
+    row["low"] = min(float(row["low"]), low)
+    row["close"] = close
+
+
+def complete_bars_3m(
+    bars_1m: Sequence[dict[str, Any]], now_ts: int, cache: Optional[dict[str, Any]] = None,
+) -> list[dict[str, Any]]:
+    """IST-epoch 3-minute buckets. The bucket still forming at ``now_ts`` is left out.
+
+    `cache` (one dict per underlying, kept on the engine) remembers closed 1-minute bars.
+    A later tick only folds the new minute and the bar that is still forming.
+    """
+    bars = bars_upto(bars_1m, now_ts)
     now = int(now_ts)
-    return [buckets[k] for k in order if k + 180 <= now]
+    if cache is None:
+        buckets: dict[int, dict[str, Any]] = {}
+        order: list[int] = []
+        for bar in bars:
+            _fold_3m(buckets, order, bar)
+        return [buckets[k] for k in order if k + 180 <= now]
+
+    first: Optional[int] = None
+    if bars:
+        try:
+            first = int(bars[0]["ts"])
+        except (KeyError, TypeError, ValueError):
+            first = None
+    n_closed = max(0, len(bars) - 1)
+    ok = cache.get("buckets") is not None and cache.get("first") == first and int(cache.get("n") or 0) <= n_closed
+    if ok and cache.get("n"):
+        try:
+            ok = int(bars[int(cache["n"]) - 1]["ts"]) == cache.get("anchor_ts")
+        except (KeyError, TypeError, ValueError, IndexError):
+            ok = False
+    if not ok:
+        cache.clear()
+        cache["buckets"] = {}
+        cache["order"] = []
+        cache["n"] = 0
+        cache["first"] = first
+        cache["anchor_ts"] = None
+    buckets = cache["buckets"]
+    order = cache["order"]
+    while cache["n"] < n_closed:
+        _fold_3m(buckets, order, bars[cache["n"]])
+        cache["n"] += 1
+        try:
+            cache["anchor_ts"] = int(bars[cache["n"] - 1]["ts"])
+        except (KeyError, TypeError, ValueError):
+            cache["anchor_ts"] = None
+    view_b = dict(buckets)
+    view_o = list(order)
+    if bars:
+        _fold_3m(view_b, view_o, bars[-1], isolate=True)
+    return [view_b[k] for k in view_o if k + 180 <= now]
 
 
 def range_over_atr(bars: Sequence[dict[str, Any]], atr: Optional[float]) -> Optional[float]:
@@ -427,12 +481,51 @@ def dealer_gex(
     }
 
 
+def _intraday_prior(engine: Any, und: str, bars: Sequence[dict[str, Any]], session_date: str) -> list[dict[str, Any]]:
+    """Prior-day bars inside this tape. Once the tape is on `session_date`, new bars do not change it."""
+    root = getattr(engine, "_intraday_prior", None)
+    if not isinstance(root, dict):
+        root = {}
+        try:
+            setattr(engine, "_intraday_prior", root)
+        except (AttributeError, TypeError):
+            return daily_from_intraday(bars, before_date=session_date)
+    first: Optional[int] = None
+    if bars:
+        try:
+            first = int(bars[0]["ts"])
+        except (KeyError, TypeError, ValueError):
+            first = None
+    st = root.get(und)
+    if (
+        isinstance(st, dict)
+        and st.get("session") == session_date
+        and st.get("first") == first
+        and int(st.get("n") or 0) <= len(bars)
+    ):
+        dirty = False
+        for bar in bars[int(st["n"]):]:
+            try:
+                day = ist_date(int(bar["ts"]))
+            except (KeyError, TypeError, ValueError):
+                dirty = True
+                break
+            if day < session_date:
+                dirty = True
+                break
+        if not dirty:
+            st["n"] = len(bars)
+            return st["extra"]
+    extra = daily_from_intraday(bars, before_date=session_date)
+    root[und] = {"session": session_date, "first": first, "n": len(bars), "extra": extra}
+    return extra
+
+
 def _prior_daily(engine: Any, und: str, bars: Sequence[dict[str, Any]], session_date: str) -> list[dict[str, Any]]:
     stored = getattr(engine, "shadow_prior_daily", None) or {}
     prior = list(stored.get(und) or [])
     prior = [r for r in prior if str(r.get("date") or "") < session_date]
-    extra = daily_from_intraday(bars, before_date=session_date)
-    return merge_daily(prior, extra)
+    return merge_daily(prior, _intraday_prior(engine, und, bars, session_date))
 
 
 _INDEX_SIDS = {"NIFTY": "13", "BANKNIFTY": "25", "SENSEX": "51"}
@@ -958,7 +1051,20 @@ def _build_shadow_snapshot(engine: Any, step: Any, shadow_cfg: Optional[dict[str
         rng_cell = _cell(ratio, None, f"60m range / ATR14 ({atr:.4f})", confidence=0.5, expected_abs_move_pts=expected, atr14=atr)
     out["rng60_atr"] = rng_cell
 
-    bars3 = complete_bars_3m(bars, now_ts)
+    root3 = getattr(engine, "_bars3", None)
+    if not isinstance(root3, dict):
+        root3 = {}
+        try:
+            setattr(engine, "_bars3", root3)
+        except (AttributeError, TypeError):
+            root3 = None
+    state3 = None
+    if root3 is not None:
+        state3 = root3.get(und)
+        if state3 is None:
+            state3 = {}
+            root3[und] = state3
+    bars3 = complete_bars_3m(bars, now_ts, cache=state3)
     last5 = bars3[-p["rng5_n"]:] if len(bars3) >= p["rng5_n"] else []
     ratio5 = range_over_atr(last5, atr)
     if ratio5 is None:

@@ -395,14 +395,12 @@ def ingest_backtest_md_snips(conn: sqlite3.Connection, root: Path) -> int:
     return n
 
 
-def rebuild(root: Path | None = None, *, db_path: Path | None = None) -> dict[str, Any]:
-    """Read sources under `root`; write the KB to `db_path` (default data/knowledge/agent_rag.sqlite)
-    and AGENT_RAG_BUILD.json next to it."""
+def rebuild(root: Path | None = None) -> dict[str, Any]:
     root = root or repo_root()
     tdb = transcripts_db(root)
     assert tdb.name == "transcripts.sqlite"
 
-    db_path = Path(db_path) if db_path is not None else agent_rag_db(root)
+    db_path = agent_rag_db(root)
     db_path.parent.mkdir(parents=True, exist_ok=True)
     if db_path.is_file():
         db_path.unlink()
@@ -437,20 +435,18 @@ def rebuild(root: Path | None = None, *, db_path: Path | None = None) -> dict[st
             )
         conn.commit()
         report = {
-            "db": str(db_path.relative_to(root)) if db_path.is_relative_to(root) else str(db_path),
+            "db": str(db_path.relative_to(root)),
             "doc_count": total,
             "counts": counts,
             "built_at": meta["built_at"],
             "embeddings": "skipped",
             "transcripts_sqlite_untouched": True,
         }
-        report_path = db_path.parent / "AGENT_RAG_BUILD.json"
+        report_path = root / "data" / "knowledge" / "AGENT_RAG_BUILD.json"
         report_path.write_text(
             json.dumps(report, indent=2) + "\n", encoding="utf-8"
         )
-        report["report"] = (
-            str(report_path.relative_to(root)) if report_path.is_relative_to(root) else str(report_path)
-        )
+        report["report"] = str(report_path.relative_to(root))
         return report
     finally:
         conn.close()

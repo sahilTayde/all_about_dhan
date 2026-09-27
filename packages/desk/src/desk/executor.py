@@ -24,7 +24,7 @@ from typing import Any, Optional
 
 from brokers import Order, OrderRefused
 from desk.paper import client_order_id, ledger_cancel_reason, ledger_exit_reason, option_symbol
-from risk_engine import IST, TradeIntent
+from risk_engine import IST, RiskDecision, TradeIntent
 
 log = logging.getLogger("desk")
 
@@ -149,7 +149,7 @@ class Desk:
         self._ps.step_mark(self.engine, s)
         for (_b, u), pos in list(self.engine.opens.items()):
             if u == s.und and pos.filled and was_filled.get(pos.trade_id) is False:
-                self._fill_entry(pos.trade_id, float(pos.entry), self.now_ts)
+                self._fill_entry(pos.trade_id, self._ps.costs.booked_entry(self.engine, pos), self.now_ts)
         for row in self.engine.closed[n_closed:]:
             self._mirror_close(row)
         for (_b, u), pos in self.engine.opens.items():
@@ -509,7 +509,7 @@ class Desk:
         self._publish("ORDER_SUBMITTED", self._order_payload(order, pos.trade_id))
         self._ps._commit_open(self.engine, pos)
         if pos.filled:
-            self._fill_entry(pos.trade_id, float(pos.entry), int(pos.opened_ts))
+            self._fill_entry(pos.trade_id, self._ps.costs.booked_entry(self.engine, pos), int(pos.opened_ts))
         self.latency_ms["entry"].append((time.perf_counter() - t0) * 1000.0)
 
     def _order_payload(self, order: Order, trade_id: str, **extra: Any) -> dict[str, Any]:
@@ -562,10 +562,11 @@ class Desk:
             i = order.intent
             intent = TradeIntent(
                 symbol=i.symbol, side="SELL", lots=i.lots, lot_size=i.lot_size, order_type="MARKET",
-                decision_price=float(row["exit"]), purpose="EXIT", exit_reason=ledger_exit_reason(row["exit_reason"]),
+                decision_price=float(row.get("decision_exit", row["exit"])), purpose="EXIT",
+                exit_reason=ledger_exit_reason(row["exit_reason"]),
                 trade_id=trade_id, client_order_id=client_order_id(trade_id, "X"),
             )
-            decision = self.risk.check_exit(intent, now=self.clock())
+            decision = self._exit_decision(intent, "EXIT", row)
             if not decision.approved:
                 self._alert_unmirrored(trade_id, f"exit refused by risk: {decision.reason_code}")
             else:
@@ -575,7 +576,7 @@ class Desk:
                 self._publish("ORDER_FILLED", self._order_payload(
                     exit_order, trade_id, fill_price=exit_order.avg_fill_price, engine_price=row["exit"], ts=ts))
         elif order.is_open:
-            decision = self.risk.check_exit(order.intent, "CANCEL", now=self.clock())
+            decision = self._exit_decision(order.intent, "CANCEL", row)
             if not decision.approved:
                 self._alert_unmirrored(trade_id, f"cancel refused by risk: {decision.reason_code}")
             else:
@@ -587,6 +588,25 @@ class Desk:
                 "gross_pnl_inr", "charges_inr", "realized_pnl_inr", "opened_ts", "closed_ts",
             )
         })
+
+    def _exit_decision(self, intent: TradeIntent, action: str, row: dict[str, Any]) -> RiskDecision:
+        """Founder-controls hook: a founder exit (FOUNDER_*) is mirrored even if the risk engine raises or refuses."""
+        founder = str(row.get("exit_reason") or "").startswith("FOUNDER_")
+        try:
+            decision = self.risk.check_exit(intent, action, now=self.clock())
+        except Exception as exc:
+            if not founder:
+                raise
+            why = f"{type(exc).__name__}: {exc}"
+        else:
+            if decision.approved or not founder:
+                return decision
+            why = decision.reason_code
+        self._publish("HEALTH_ALERT", {
+            "service": "desk", "status": "CRITICAL", "trade_id": row.get("trade_id"),
+            "reason": f"founder exit mirrored without risk approval: {why}",
+        })
+        return RiskDecision(True, intent.client_order_id, action, "FOUNDER_OVERRIDE", why, self.clock(), critical=True)
 
     def _alert_unmirrored(self, trade_id: str, why: str) -> None:
         log.error("paper close %s not mirrored to broker: %s", trade_id, why)

@@ -12,7 +12,9 @@ from analysts.base import ABSTAIN, BUY_CE, BUY_PE, HOLD, SIDE_OF, Analyst, Marke
 from analysts.registry import register
 
 STRAT_IDS = tuple(f"STRAT-{i:03d}" for i in range(1, 15))
-LEGACY_SOURCES = ("follows", "logit", "xr", "greeks", "ML-001", "ML-002", "ML-1", "MIX-TV-EP-024", *STRAT_IDS)
+# ML-001, ML-002 and ML-1 are retired from the vote room. On main they were always
+# silent (no CE/PE), so dropping them does not change picker_majority.
+LEGACY_SOURCES = ("follows", "logit", "xr", "greeks", "MIX-TV-EP-024", *STRAT_IDS)
 
 
 def from_legacy(v: Any) -> Vote:

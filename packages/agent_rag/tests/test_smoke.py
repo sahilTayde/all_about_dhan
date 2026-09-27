@@ -11,34 +11,43 @@ from agent_rag.paths import agent_rag_db, repo_root, transcripts_db
 from agent_rag.query import query
 
 
+def _scratch_root(tmp_path: Path) -> Path:
+    """Read the repo's source trees; write the knowledge DB only under tmp_path."""
+    root = tmp_path / "repo"
+    (root / "data" / "knowledge").mkdir(parents=True)
+    real = repo_root()
+    (root / "teams").symlink_to(real / "teams")
+    knowledge = real / "data" / "knowledge"
+    for name in ("trading_agents_india.sqlite", "transcripts.sqlite"):
+        src = knowledge / name
+        if src.is_file():
+            (root / "data" / "knowledge" / name).symlink_to(src)
+    return root
+
+
 def test_rebuild_and_query_fake_breakout(tmp_path: Path) -> None:
-    """Reads the checkout's docs; writes the KB and build report under tmp_path (never data/knowledge)."""
-    root = repo_root()
+    root = _scratch_root(tmp_path)
     tdb = transcripts_db(root)
     tdb_mtime = tdb.stat().st_mtime if tdb.is_file() else None
-    kb = agent_rag_db(root)
-    kb_mtime = kb.stat().st_mtime if kb.is_file() else None
-    db = tmp_path / "agent_rag.sqlite"
-    report = rebuild(root, db_path=db)
+    report = rebuild(root)
     assert report["doc_count"] > 10
     assert report["transcripts_sqlite_untouched"] is True
-    assert db.is_file() and (tmp_path / "AGENT_RAG_BUILD.json").is_file()
+    assert agent_rag_db(root).is_file()
     if tdb_mtime is not None:
         assert tdb.stat().st_mtime == tdb_mtime
-    assert (kb.stat().st_mtime if kb.is_file() else None) == kb_mtime
-    hits = query("fake breakout", limit=5, root=root, db=db)
+    hits = query("fake breakout", limit=5, root=root)
     # May be empty if phrase absent — still must not crash
     assert isinstance(hits, list)
-    book_hits = query("purged cv premium", limit=8, root=root, db=db)
+    book_hits = query("purged cv premium", limit=8, root=root)
     assert any(h.kind == "phd_book_kb" for h in book_hits)
     assert report["counts"].get("phd_book_kb", 0) >= 20
-    theta_hits = query("theta decay", limit=8, root=root, db=db)
-    intrinsic_hits = query("intrinsic", limit=8, root=root, db=db)
+    theta_hits = query("theta decay", limit=8, root=root)
+    intrinsic_hits = query("intrinsic", limit=8, root=root)
     assert any(h.kind == "phd_book_kb" for h in theta_hits)
     assert any(h.kind == "phd_book_kb" for h in intrinsic_hits)
     assert any("topics/" in h.source_path for h in theta_hits + intrinsic_hits)
     assert report["counts"].get("research_book_notes", 0) >= 1
-    club_hits = query("seven books KEEP_ALL", limit=8, root=root, db=db)
+    club_hits = query("seven books KEEP_ALL", limit=8, root=root)
     assert any(h.kind == "research_book_notes" for h in club_hits)
 
 
