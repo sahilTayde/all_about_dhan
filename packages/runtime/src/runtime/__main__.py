@@ -68,7 +68,10 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--ready-timeout", type=float, default=5.0)
     args = p.parse_args(argv)
     if args.mode not in {"replay", "paper"}:
-        print("live-data/live modes are not started from this ticket (no credentials)", file=sys.stderr)
+        print(
+            "live-data/live modes are not started from this ticket (no credentials)",
+            file=sys.stderr,
+        )
         return 2
     state = _state_dir(args.state_dir)
     clock = _clock(args.now)
@@ -121,11 +124,11 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if cmd == "restore":
-        snap = Path(args.snapshot or args.target or "")
-        if not snap:
+        snap_path = Path(args.snapshot or args.target or "")
+        if not snap_path:
             print("restore requires --snapshot", file=sys.stderr)
             return 2
-        digest = restore_state(snap, state)
+        digest = restore_state(snap_path, state)
         print(json.dumps({"ok": True, "output_hash": digest}))
         return 0
 

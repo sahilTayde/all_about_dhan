@@ -39,7 +39,7 @@ def run_with_deadline(fn: Callable[[], T], timeout_s: float, *, job: str = "job"
     def _run() -> None:
         try:
             box.append(("ok", fn()))
-        except BaseException as exc:  # noqa: BLE001 — surface to caller
+        except BaseException as exc:
             box.append(("err", exc))
 
     thread = threading.Thread(target=_run, name=f"deadline-{job}", daemon=True)

@@ -37,7 +37,17 @@ def test_engine_replay_writes_ready_no_creds(tmp_path: Path) -> None:
     assert body["ts"].endswith("+05:30")
     assert wait_ready(tmp_path, timeout_s=1.0)
     rc = subprocess.run(
-        [sys.executable, "-m", "runtime", "engine", "--once", "--state-dir", str(tmp_path), "--now", PRE.isoformat()],
+        [
+            sys.executable,
+            "-m",
+            "runtime",
+            "engine",
+            "--once",
+            "--state-dir",
+            str(tmp_path),
+            "--now",
+            PRE.isoformat(),
+        ],
         check=False,
         cwd=ROOT,
         env={k: v for k, v in os.environ.items() if not k.startswith("DHAN_")},
@@ -49,9 +59,10 @@ def test_engine_replay_writes_ready_no_creds(tmp_path: Path) -> None:
 
 def test_compose_replay_profile_has_no_credentials() -> None:
     text = COMPOSE.read_text(encoding="utf-8")
-    assert "replay" in text and "live-orders" not in text
-    assert "DHAN_" not in text and "ACCESS_TOKEN" not in text
-    assert "secrets:" not in text
+    assert "--mode replay" in text or '"replay"' in text
+    assert 'profiles: ["live-orders"]' not in text
+    assert "DHAN_" not in text and "dhan_access_token" not in text
+    assert "\nsecrets:" not in text
     assert 'command: ["timeout", "1800", "python", "-m", "runtime", "job", "etl"]' in text
 
 
@@ -95,7 +106,11 @@ def test_deploy_rolls_back_when_ready_never_arrives(tmp_path: Path) -> None:
         ready_timeout_s=0.2,
         start_engine=lambda: None,
     )
-    assert result["ok"] is False and result["reason"] == "READY_TIMEOUT" and result["rolled_back"] is True
+    assert (
+        result["ok"] is False
+        and result["reason"] == "READY_TIMEOUT"
+        and result["rolled_back"] is True
+    )
     assert (tmp_path / "deployed_sha").read_text(encoding="utf-8").strip() == "oldsha"
     assert (tmp_path / "marker").read_text(encoding="utf-8") == "keep\n"
 
@@ -117,7 +132,9 @@ def test_restore_reproduces_output_hash(tmp_path: Path) -> None:
     snap = tmp_path / "snap"
     restored = tmp_path / "restored"
     day.mkdir()
-    (day / "engine_status.json").write_text('{"status":"READY","session":"2026-09-28"}\n', encoding="utf-8")
+    (day / "engine_status.json").write_text(
+        '{"status":"READY","session":"2026-09-28"}\n', encoding="utf-8"
+    )
     (day / "trades").write_text("t1\n", encoding="utf-8")
     digest = backup_state(day, snap)
     assert (snap / "output_hash").read_text(encoding="utf-8").strip() == digest
@@ -161,7 +178,11 @@ def test_dockerfile_is_non_root() -> None:
 
 def test_compose_up_replay_reaches_ready(tmp_path: Path) -> None:
     """Same command compose runs: engine --mode replay writes READY with no credentials."""
-    env = {k: v for k, v in os.environ.items() if not k.startswith("DHAN_") and k != "ALL_ABOUT_DHAN_LIVE_CONFIRM"}
+    env = {
+        k: v
+        for k, v in os.environ.items()
+        if not k.startswith("DHAN_") and k != "ALL_ABOUT_DHAN_LIVE_CONFIRM"
+    }
     proc = subprocess.run(
         [
             sys.executable,

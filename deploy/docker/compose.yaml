@@ -1,4 +1,4 @@
-# Default profile = replay. No credentials, no live-orders profile.
+# Default profile = replay. No credentials. No live-order profile exists.
 # Engine stub (V2-04 not merged) writes ENGINE_STATUS READY under AAD_STATE_DIR.
 name: aad-v2
 

@@ -15,7 +15,8 @@ import shutil
 import time
 from collections.abc import Callable
 from dataclasses import asdict
-from datetime import datetime, time as dt_time, timedelta
+from datetime import datetime, timedelta
+from datetime import time as dt_time
 from pathlib import Path
 from typing import Any, Protocol
 
@@ -208,7 +209,9 @@ def in_market_deploy_window(now: datetime) -> bool:
     return DEPLOY_BLOCK_START <= t <= DEPLOY_BLOCK_END
 
 
-def wait_ready(state_dir: Path, *, timeout_s: float = 30.0, sleep: Callable[[float], None] = time.sleep) -> bool:
+def wait_ready(
+    state_dir: Path, *, timeout_s: float = 30.0, sleep: Callable[[float], None] = time.sleep
+) -> bool:
     deadline = time.monotonic() + timeout_s
     while time.monotonic() < deadline:
         path = engine_status_path(state_dir)
@@ -267,12 +270,13 @@ def deploy(
     now = clock.now()
     if in_market_deploy_window(now) and not emergency:
         return {"ok": False, "reason": "MARKET_HOURS", "ts": now.isoformat(timespec="seconds")}
-    prev = state_dir / "backup_prev"
+    prev = state_dir.parent / (state_dir.name + ".backup_prev")
     if state_dir.exists():
         backup_state(state_dir, prev)
-    current = (state_dir / "deployed_sha").read_text(encoding="utf-8").strip() if (state_dir / "deployed_sha").is_file() else ""
+    sha_file = state_dir / "deployed_sha"
+    current = sha_file.read_text(encoding="utf-8").strip() if sha_file.is_file() else ""
     state_dir.mkdir(parents=True, exist_ok=True)
-    (state_dir / "deployed_sha").write_text(sha + "\n", encoding="utf-8")
+    sha_file.write_text(sha + "\n", encoding="utf-8")
     (state_dir / "migrated").write_text("ok\n", encoding="utf-8")  # expand-only stub (V2-10)
     if start_engine is not None:
         start_engine()
