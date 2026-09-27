@@ -29,6 +29,7 @@ RATES = load_rates(REPO / "config" / "charges.yaml", by_exchange=True)
 def _risk(tmp_path: Path, store: SqliteLedgerStore) -> V2RiskEngine:
     raw = yaml.safe_load((REPO / "config" / "risk_limits.yaml").read_text())
     raw["kill_switch_file"] = str(tmp_path / "KILL_SWITCH")
+    tmp_path.mkdir(parents=True, exist_ok=True)
     path = tmp_path / "risk_limits.yaml"
     path.write_text(yaml.safe_dump(raw))
     return V2RiskEngine(ledger=store, config_path=path)

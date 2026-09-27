@@ -295,4 +295,5 @@ class PaperBroker(BrokerAdapter):
                 str(pos.get("instrument_id") or ""),
             )
             self._positions[p.key] = p
+            n += 1
         return n

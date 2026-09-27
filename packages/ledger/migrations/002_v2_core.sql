@@ -1,4 +1,4 @@
--- V2-10 schema additions (architecture §3.3). Additive; never DROP/RENAME.
+-- V2-10 schema additions (architecture §3.3). Additive. Never DROP or RENAME.
 ALTER TABLE orders       ADD COLUMN account_id TEXT NOT NULL DEFAULT 'founder';
 ALTER TABLE orders       ADD COLUMN signal_id TEXT;
 ALTER TABLE orders       ADD COLUMN decision_id TEXT;

@@ -203,6 +203,8 @@ def test_reg_04a_kill_9_at_each_fault_matrix_point(tmp_path: Path) -> None:
 
 
 def test_reg_04b_broker_only_and_ledger_only_recon_mismatch(tmp_path: Path) -> None:
+    from brokers.reconcile import reconcile
+
     store = _store(tmp_path)
     clock = _clock()
     broker = ClockedPaperBroker(clock=clock)
@@ -216,11 +218,11 @@ def test_reg_04b_broker_only_and_ledger_only_recon_mismatch(tmp_path: Path) -> N
     intent = TradeIntent(
         symbol="NIFTY 24400 CE", side="BUY", lots=1, lot_size=65, decision_price=100.0, stop_loss=90.0
     )
-    # broker-only
+    # recover() rebuilds the paper book from the ledger; plant the mismatch after that
+    rebuild_paper_broker(broker, store)
     broker._positions["BROKERONLY"] = Position("NIFTY 25000 PE", 65, 50.0, "BROKERONLY")
-    result = recover(store, broker=broker, clock=clock, state_dir=tmp_path / "bo")
-    assert result.recon_ok is False
-    assert any(m.get("kind") == "ORPHAN_BROKER" for m in result.mismatches)
+    mismatches = reconcile(broker, store, NOW)
+    assert any(m.kind == "ORPHAN_BROKER" for m in mismatches)
     d = risk.check_entry(intent, now=NOW)
     assert d.reason_code == "RECON_MISMATCH" and not d.approved
     assert risk.check_exit(
@@ -231,12 +233,8 @@ def test_reg_04b_broker_only_and_ledger_only_recon_mismatch(tmp_path: Path) -> N
     store2 = SqliteLedgerStore(tmp_path / "led.sqlite", migrate_schema=True, rates=RATES)
     _seed_fill(store2)
     broker2 = ClockedPaperBroker(clock=clock)
-    # ledger-only: do not rebuild; empty broker vs ledger position
-    from brokers.reconcile import reconcile
-
-    mismatches = reconcile(broker2, store2, NOW)
-    assert any(m.kind == "ORPHAN_INTERNAL" for m in mismatches)
-    store2.record_recon([{"kind": m.kind, "key": m.key} for m in mismatches], NOW)
+    mm2 = reconcile(broker2, store2, NOW)
+    assert any(m.kind == "ORPHAN_INTERNAL" for m in mm2)
     snap = store2.risk_snapshot(NOW, 60)
     assert snap["recon_ok"] is False
     d2 = risk.check_entry(intent, now=NOW, state=RiskState(recon_ok=False))

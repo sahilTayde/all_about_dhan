@@ -9,13 +9,6 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Protocol, Self
 
-
-class CheckpointEnvelope(Protocol):
-    event_id: str
-    stream: str
-    available_ts: str
-    event_type: str
-    payload: dict[str, Any]
 from ledger.charges import UNDERLYING_EXCHANGE, exchange_for, load_rates, order_charges
 from ledger.migrate import (
     CODE_SCHEMA_VERSION,
@@ -26,6 +19,14 @@ from ledger.migrate import (
     migrate,
 )
 from ledger.store import IST, OPEN_ORDER_STATES, Ledger, iso_ist
+
+
+class CheckpointEnvelope(Protocol):
+    event_id: str
+    stream: str
+    available_ts: str
+    event_type: str
+    payload: dict[str, Any]
 
 
 class SqliteTransaction:
@@ -78,7 +79,8 @@ class SqliteLedgerStore:
             migrate(path, allow_legacy=allow_legacy)
         if str(path) != ":memory:":
             Path(path).parent.mkdir(parents=True, exist_ok=True)
-        self.conn = sqlite3.connect(str(path))
+        # isolation_level=None: explicit BEGIN IMMEDIATE / COMMIT (no implicit txn)
+        self.conn = sqlite3.connect(str(path), isolation_level=None)
         self.conn.row_factory = sqlite3.Row
         self.conn.execute("PRAGMA journal_mode=WAL")
         self.conn.execute("PRAGMA synchronous=FULL")
@@ -215,7 +217,7 @@ class SqliteLedgerStore:
             "INSERT INTO orders (client_order_id, broker_order_id, trade_id, broker, mode, symbol, "
             "instrument_id, side, qty, order_type, price, trigger_price, decision_price, purpose, "
             "status, filled_qty, avg_fill_price, exit_reason, cancel_reason, created_at, updated_at, "
-            "account_id, signal_id, decision_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            "account_id, signal_id, decision_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             (
                 row["client_order_id"],
                 row.get("broker_order_id"),

@@ -89,6 +89,7 @@ def rebuild_paper_broker(broker: ClockedPaperBroker | Any, store: SqliteLedgerSt
         )
         if hasattr(broker, "_positions"):
             broker._positions[p.key] = p
+        n += 1
     return n
 
 
@@ -205,18 +206,32 @@ def recover(
     halt_bad = _rebook_forced_closes(store)
     rehydrate_mismatches = 0
     if source is not None:
-        engine = Engine(
-            source,
-            clock if isinstance(clock, SimClock) else SimClock(now),
-            bus or MemoryBus(),
-            handlers or [],
-            store,
-            mode="rehydrate",
-        )
-        rehydrate_mismatches = engine.run().mismatches
-        if rehydrate_mismatches:
-            recon_ok = False
-            log.critical("REHYDRATE_MISMATCH: %s", rehydrate_mismatches)
+        last = store.get_last_checkpoint()
+        last_id = last[0] if last else None
+        pending: list[Any] = []
+        skipping = last_id is not None
+        for env in source:
+            if skipping:
+                if getattr(env, "event_id", None) == last_id:
+                    skipping = False
+                continue
+            pending.append(env)
+        if pending:
+            first = datetime.fromisoformat(str(pending[0].available_ts))
+            if first.tzinfo is None:
+                first = first.replace(tzinfo=IST)
+            engine = Engine(
+                EnvelopeSource(pending),
+                SimClock(first),
+                bus or MemoryBus(),
+                handlers or [],
+                store,
+                mode="rehydrate",
+            )
+            rehydrate_mismatches = engine.run().mismatches
+            if rehydrate_mismatches:
+                recon_ok = False
+                log.critical("REHYDRATE_MISMATCH: %s", rehydrate_mismatches)
     stops = _recheck_stops(store, broker, clock, risk)
     elapsed = (datetime.now(IST) - t0).total_seconds()
     write_engine_status(state_dir, clock, restart=True)

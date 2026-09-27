@@ -60,10 +60,19 @@ def check_schema(conn: sqlite3.Connection, *, code_version: int = CODE_SCHEMA_VE
     return ver
 
 
+def _strip_line_comments(sql: str) -> str:
+    """Drop `--` comments so a semicolon inside a comment is not a statement split."""
+    lines: list[str] = []
+    for line in sql.splitlines():
+        cut = line.find("--")
+        lines.append(line if cut < 0 else line[:cut])
+    return "\n".join(lines)
+
+
 def _apply_sql(conn: sqlite3.Connection, sql: str) -> None:
     # ponytail: split on ';' so one duplicate-column ALTER does not abort the rest
-    for stmt in (s.strip() for s in sql.split(";")):
-        if not stmt or stmt.startswith("--"):
+    for stmt in (s.strip() for s in _strip_line_comments(sql).split(";")):
+        if not stmt:
             continue
         try:
             conn.execute(stmt)
