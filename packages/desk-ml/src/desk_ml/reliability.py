@@ -17,10 +17,10 @@ import json
 import os
 import sys
 import threading
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any, Callable, Mapping, Optional
+from typing import Any, Callable, Mapping, Optional, Sequence
 
 IST = timezone(timedelta(hours=5, minutes=30))
 ALERTS_REL = Path("data") / "health" / "alerts.jsonl"
@@ -124,6 +124,8 @@ def _stderr(msg: str) -> None:
 # process so a new sink per cycle still dedupes. ponytail: lost on restart when the disk refuses
 # writes; the restart then alerts once more.
 _UNSAVED_STATE: dict[str, dict[str, dict[str, Any]]] = {}
+# Alert lines alerts.jsonl refused (disk full): written by the next emit that can write.
+_PENDING_ALERTS: dict[str, list[str]] = {}
 
 
 class AlertSink:
@@ -218,11 +220,22 @@ class AlertSink:
                 "event": "ALERT", "check": check, "severity": severity, "error_kind": kind,
                 "session": session, "message": str(message)[:2000], **dict(extra or {}),
             }
-            try:
-                append_line(self.alerts_path, json.dumps(rec, default=str))
-            except Exception as exc:  # noqa: BLE001
-                _stderr(f"ALERT (alerts.jsonl unwritable: {type(exc).__name__}) {json.dumps(rec, default=str)}")
+            line = json.dumps(rec, default=str)
+            _PENDING_ALERTS.setdefault(str(self.alerts_path), []).append(line)
+            if not self.flush_pending():
+                _stderr(f"ALERT (alerts.jsonl unwritable; queued) {line}")
         return True, first_ts
+
+    def flush_pending(self) -> bool:
+        """Write queued alert lines. True when nothing is left queued. Never raises."""
+        queue = _PENDING_ALERTS.get(str(self.alerts_path)) or []
+        while queue:
+            try:
+                append_line(self.alerts_path, queue[0])
+            except Exception:  # noqa: BLE001
+                return False
+            queue.pop(0)
+        return True
 
     def _save(self, state: dict[str, dict[str, Any]], key: str) -> None:
         cutoff = (self.clock() - timedelta(days=ALERT_STATE_KEEP_DAYS)).date().isoformat()
@@ -335,9 +348,10 @@ class ModelLogSink:
 class ReplayContext:
     """Explicit inputs of one replay. Engine code reads these, never ``repo_root()`` or the wall clock.
 
-    ``entry_blocks`` maps a block reason to the unix ts it applies from (time-bounded, so a
-    re-replay reproduces every trade before the block). The live cycle fills it from the
-    incident registry; offline replays leave it empty.
+    ``entry_blocks`` holds ``(reason, from_ts, until_ts or None)`` intervals: new entries are
+    blocked for ``from_ts <= tick.ts < until_ts``, so a re-replay reproduces every trade booked
+    before a block. The live cycle fills it from ``live_cycle.BlockRegistry``; offline replays
+    leave it empty.
     """
 
     root: Path
@@ -347,12 +361,17 @@ class ReplayContext:
     clock: Callable[[], datetime] = wall_clock
     alerts: Optional[AlertSink] = None
     model_log: Optional[ModelLogSink] = None
-    entry_blocks: Mapping[str, float] = field(default_factory=dict)
+    entry_blocks: Sequence[tuple[str, float, Optional[float]]] = ()
     params: Optional[Mapping[str, Any]] = None
     risk_config: Optional[Path] = None
+    # Live cycle only: the founder / override rows as read once for this cycle ("unknown" = no
+    # trustworthy founder state at all). None = read them from ``root`` (offline replays).
+    founder_rows: Any = None
+    override_rows: Optional[Sequence[Mapping[str, Any]]] = None
 
     def block_at(self, ts: int) -> Optional[tuple[str, float]]:
-        hits = [(from_ts, kind) for kind, from_ts in self.entry_blocks.items() if float(ts) >= float(from_ts)]
+        hits = [(float(lo), kind) for kind, lo, hi in self.entry_blocks
+                if float(lo) <= float(ts) and (hi is None or float(ts) < float(hi))]
         if not hits:
             return None
         from_ts, kind = min(hits)

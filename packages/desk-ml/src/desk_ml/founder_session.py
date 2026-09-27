@@ -292,15 +292,20 @@ def new_fill_decision(underlying: str, *, root: Optional[Path] = None) -> dict[s
     }
 
 
-def fill_decision_at(underlying: str, *, root: Optional[Path], ts: float) -> dict[str, Any]:
+def fill_decision_at(underlying: str, *, root: Optional[Path], ts: float, rows: Any = None) -> dict[str, Any]:
     """The founder gate for one entry at tick ``ts``. Raises FounderStateError when untrustworthy.
 
-    No data root is an error (never fall back to this checkout). Without a command log the
-    legacy JSON path runs unchanged (``new_fill_decision`` → ``allows_new_fill``).
+    ``rows`` are the command rows the live cycle read for this cycle (``"unknown"`` = no trustworthy
+    state). Otherwise they are read from ``root``. No data root is an error (never fall back to
+    this checkout). Without a command log the legacy JSON path runs unchanged
+    (``new_fill_decision`` → ``allows_new_fill``).
     """
+    if rows == "unknown":
+        raise FounderStateError("founder command log unreadable and no earlier good copy")
     if root is None:
         raise FounderStateError("no data root: founder state unknown")
-    rows = read_commands(Path(root))
+    if rows is None:
+        rows = read_commands(Path(root))
     if rows is None:
         book = load_founder_book(root)
         if not book.get("ok", True):

@@ -175,8 +175,11 @@ def score_last(
     return scored
 
 
-def score_features_dict(features: dict[str, float], bundle: dict[str, Any]) -> dict[str, Any]:
-    scaler, kmeans, labels, forest = unpack_estimators(bundle)
+def score_features_dict(
+    features: dict[str, float], bundle: dict[str, Any], *, estimators: Optional[tuple[Any, Any, Any, Any]] = None
+) -> dict[str, Any]:
+    """``estimators`` = ``unpack_estimators(bundle)`` done once by a caller scoring many rows (read-only)."""
+    scaler, kmeans, labels, forest = estimators if estimators is not None else unpack_estimators(bundle)
     names = ("idx_ret", "ce_ret", "pe_ret", "spread_chg", "abs_residual")
     x_orig = [float(features[n]) for n in names]
     x_scaled = scaler.transform([x_orig])[0]

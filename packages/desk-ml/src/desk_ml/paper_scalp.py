@@ -38,7 +38,7 @@ from desk_ml.picker import (
     track_model_signals,
 )
 from desk_ml.mrr import Z_HOLD, ols_beta, rolling_z
-from desk_ml.persist import pack_estimators, repo_root
+from desk_ml.persist import pack_estimators, repo_root, unpack_estimators
 from desk_ml import paper_guard
 from desk_ml.founder_session import UNREADABLE_REASON as FOUNDER_UNREADABLE
 from desk_ml.reliability import AlertSink, ModelLogSink, ReplayContext, atomic_write_json, atomic_write_text
@@ -3043,7 +3043,8 @@ def human_override_for(
         from desk_ml.overrides import OverrideBook, read_overrides
 
         try:
-            rows = read_overrides(engine.root)
+            live_rows = getattr(engine.ctx, "override_rows", None)
+            rows = list(live_rows) if live_rows is not None else read_overrides(engine.root)
         except (OSError, ValueError):
             # An unreadable log cannot be applied. Exits keep running on the ticket's own levels;
             # the live cycle blocks new entries from first sight and alerts.
@@ -4185,7 +4186,8 @@ def _plan_open(
     try:
         from desk_ml.founder_session import fill_decision_at
 
-        decision = fill_decision_at(underlying, root=engine.root, ts=int(tick.ts))
+        decision = fill_decision_at(underlying, root=engine.root, ts=int(tick.ts),
+                                    rows=getattr(engine.ctx, "founder_rows", None))
     except Exception as exc:  # untrusted founder state: no new fill on ANY index
         engine.mark_skip(
             book_id, underlying, FOUNDER_UNREADABLE, ts=tick.ts, seen_side=side,
@@ -5667,6 +5669,7 @@ def _hold_series(triples: Sequence[Triple], *, seed: int = 14) -> tuple[list[boo
         ]
     zs = rolling_z(residual, 40) if residual else []
     names = ("idx_ret", "ce_ret", "pe_ret", "spread_chg", "abs_residual")
+    estimators = unpack_estimators(bundle)  # once per replay, not once per tick (same numbers)
     by_ts = {int(r["ts"]): r for r in rows}
     ml001: list[bool] = []
     ml002: list[bool] = []
@@ -5679,7 +5682,7 @@ def _hold_series(triples: Sequence[Triple], *, seed: int = 14) -> tuple[list[boo
             continue
         row_i += 1
         feat = {name: float(feat_row[name]) for name in names}
-        scored = score_features_dict(feat, bundle)
+        scored = score_features_dict(feat, bundle, estimators=estimators)
         z_hold = False
         if row_i < len(zs) and zs[row_i] is not None:
             z_hold = abs(float(zs[row_i])) >= Z_HOLD
@@ -6160,7 +6163,7 @@ def _replay_paper_scalp(
                 tape["session_ist_date"] = session_day
                 tape["aligned_triples"] = len(triples)
         elif src in {"dual-tape", "dual_tape"}:
-            triples, tape = load_dual_tape_triples(u, root=base, session_ist_date=session_day)
+            triples, tape = load_dual_tape_triples(u, root=base, session_ist_date=session_day, strict=ctx.live_loop)
         else:
             triples, tape = load_triples(u, root=base)
             if session_day:
@@ -6359,7 +6362,18 @@ def _replay_paper_scalp(
                 "tape": tape,
             }
             continue
-        ml001, ml002, gap, hold_meta = _hold_series(triples)
+        try:
+            ml001, ml002, gap, hold_meta = _hold_series(triples)
+        except Exception as exc:
+            if not ctx.live_loop:
+                raise
+            # Observe-only overlay. In the live loop a degenerate fit must not stop exits.
+            n = len(triples)
+            ml001, ml002, gap = [False] * n, [False] * n, [False] * n
+            hold_meta = {"status": "DATA_INSUFFICIENT", "error": f"{type(exc).__name__}: {exc}"}
+            if ctx.alerts is not None:
+                ctx.alerts.emit(session=str(session_day), check="paper_engine", kind=f"hold_series:{u}",
+                                severity="WARN", message=f"{u} ML hold overlay failed ({exc}); holds off for this cycle")
         idx_closes = load_index_closes(u, root=base)
         if triples_by_und is not None:
             idx_closes = {int(t.ts): float(t.idx_close) for t in triples}
