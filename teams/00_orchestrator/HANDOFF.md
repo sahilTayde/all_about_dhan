@@ -15,9 +15,10 @@ Accepted: PR #58 fix round. One BEGIN IMMEDIATE around
   identity. Closing fill writes gross/charges/net once.
   qty = lots*65 stored as contracts. Decimal paise in
   the v2 path. Named tests after each verifier fail.
-Rejected: Rebase / force-push / merge. Live orders.
+  Merged V2-08 7c09f84 (lot_size mismatch veto).
+Rejected: Rebase / force-push / merge of this PR. Live orders.
   Touching frozen legacy or requirements/*.
-UNKNOWN: GitHub CI on the new head (not yet pushed).
+UNKNOWN: GitHub CI on the new head.
 ```
 
 ## As of now (2026-09-27 IST) — V2-10 ledger v2 + crash recovery (PAPER)
