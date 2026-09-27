@@ -3157,6 +3157,11 @@ def resample_closes_3m(closes: dict[int, float]) -> list[Any]:
     return bars
 
 
+def bar_3m_end_ts(ts: int) -> int:
+    """End (exclusive) of the 3m bucket that holds `ts`: the first moment the bar is complete."""
+    return int(ts) - int(ts) % 180 + 180
+
+
 def resample_index_3m(triples: Sequence[Triple]) -> list[Any]:
     """3m INDEX bars from 1m triples. Does not fabricate missing days."""
     return resample_closes_3m({int(t.ts): float(t.idx_close) for t in triples})
@@ -3177,7 +3182,10 @@ def logit_side_series(
     }
     if not triples:
         return [], {"n_3m": 0, "n_index_1m": 0}
-    closes = dict(index_closes or {})
+    # 1m chart closes are keyed at the minute OPEN, so only minutes that ended before the first print
+    # count as history; session bars come from the tape prints alone.
+    session_start = int(triples[0].ts)
+    closes = {int(k): float(v) for k, v in (index_closes or {}).items() if int(k) + 60 <= session_start}
     for t in triples:
         closes.setdefault(int(t.ts), float(t.idx_close))
     bars = resample_closes_3m(closes)
@@ -3209,7 +3217,9 @@ def logit_side_series(
             last_logit = "SKIP"
             last_xr = "SKIP"
         last_sess = sess
-        while bi < len(bars) and bars[bi].ts <= int(t.ts):
+        # Bars are stamped at their last print; a bar is usable only once its bucket has ended, so a
+        # replay never knows which print was the bucket's last and live never uses a half-built bar.
+        while bi < len(bars) and bar_3m_end_ts(bars[bi].ts) <= int(t.ts):
             if ist_calendar_date(int(bars[bi].ts)) == sess:
                 last_logit = leans[bi]
                 if xr_leans is not None:
