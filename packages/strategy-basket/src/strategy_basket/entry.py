@@ -20,9 +20,10 @@ Thresholds are placeholders in config/baskets/<market>.yaml until research round
 
 from __future__ import annotations
 
-from typing import Any, Mapping, Optional, Sequence
+from collections.abc import Mapping, Sequence
+from typing import Any
 
-from analysts.shadow import wilder_atr
+from analysts.shadow import wilder_atr  # type: ignore[import-untyped]
 
 POLICIES = ("chase", "pullback_limit", "wait_consolidation")
 ZONES = ("fvg", "candle_50", "poc")
@@ -37,7 +38,7 @@ def closed_bars(bars: Sequence[Mapping[str, Any]], now_ts: int) -> list[Mapping[
     return [b for b in bars if int(b["ts"]) + 60 <= int(now_ts)]
 
 
-def last_fvg(bars: Sequence[Mapping[str, Any]], side: str) -> Optional[tuple[float, float]]:
+def last_fvg(bars: Sequence[Mapping[str, Any]], side: str) -> tuple[float, float] | None:
     """Most recent 3-candle fair-value gap in the trade's direction: (low, high) of the gap."""
     for i in range(len(bars) - 1, 1, -1):
         a, c = bars[i - 2], bars[i]
@@ -48,7 +49,7 @@ def last_fvg(bars: Sequence[Mapping[str, Any]], side: str) -> Optional[tuple[flo
     return None
 
 
-def impulse_mid(bars: Sequence[Mapping[str, Any]], side: str, atr: float, mult: float) -> Optional[tuple[float, float]]:
+def impulse_mid(bars: Sequence[Mapping[str, Any]], side: str, atr: float, mult: float) -> tuple[float, float] | None:
     """50% of the most recent impulse candle (range >= mult x ATR, body in the trade's direction)."""
     for b in reversed(bars):
         o, h, lo, c = (float(b[k]) for k in ("open", "high", "low", "close"))
@@ -58,7 +59,7 @@ def impulse_mid(bars: Sequence[Mapping[str, Any]], side: str, atr: float, mult: 
     return None
 
 
-def point_of_control(bars: Sequence[Mapping[str, Any]], bucket: float) -> Optional[tuple[float, float]]:
+def point_of_control(bars: Sequence[Mapping[str, Any]], bucket: float) -> tuple[float, float] | None:
     """Session price bucket with the most volume (bar count when the index tape has no volume)."""
     if not bars or bucket <= 0:
         return None

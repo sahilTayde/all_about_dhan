@@ -288,13 +288,26 @@ Lab P2C is a separate stack (loss cooldown, session window 10:00–14:30). `repl
 not have those rules, so the checker records the quote and does not recompute it.
 
 ```bash
-PYTHONPATH=packages/strategy-basket/src python -m strategy_basket baselines
+SHADOW_LOG=0 PYTHONPATH=packages/strategy-basket/src python -m strategy_basket baselines
 ```
 
-The command forces `SHADOW_LOG=0`, clears `USE_BASKET_SELECTOR` and `USE_EVENT_BUS`, and walks each
-day on the legacy path (`use_event_bus=False`). Exit 0 when both replay totals match. Exit 2 when
-this machine has no dual-tape days (not a pass, not a mismatch). Exit 1 when a total differs.
-It restores the three env vars before it returns.
+That command is the same entry point as `scripts/pr20_verify/replay_dump.py` on main (the post-#25
+closed-bar path). For each index, for each dual-tape day from 2026-09-17 through 2026-09-25, it calls:
+
+```python
+desk_ml.paper_scalp.replay_paper_scalp(
+    root=root, underlyings=(index,), source="dual-tape", write=False,
+    live_session=True, session_ist_date=day, use_event_bus=False, cost_model="legacy",
+)
+```
+
+NIFTY is one walk and uses the founder file. The three-index total does **not** pass NIFTY, BANKNIFTY
+and SENSEX into one replay (that shares a ledger and collapses to whichever index the file has
+started). It runs each index on its own engine, with replay_dump's `--all-start` so that index may
+open, and adds the filled trades. Exit 0 when NIFTY is 63 / −96,190.79 and the sum is 140 /
+−27,022.54. Exit 2 when this machine has no dual-tape days (not a pass, not a mismatch). Exit 1
+when a total differs. It restores `SHADOW_LOG`, `USE_BASKET_SELECTOR` and `USE_EVENT_BUS` before it
+returns.
 
 The dual-tape files are not in git, so CI proves the basket-off path on the committed fixture day.
 With `SHADOW_LOG=0`, the monolith replay and `BasketEventSession` with the flag off produce the same

@@ -6,21 +6,46 @@ import os
 import random
 from dataclasses import replace
 from datetime import datetime
+from itertools import pairwise
 from pathlib import Path
 
-import pytest
-
 import desk_ml.paper_scalp as ps
+import pytest
 from desk_ml.event_parity import fixture_replay_kwargs, load_fixture
 from desk_ml.event_path import EventSession
 from desk_ml.features import Triple
 from desk_ml.regime.labels import IST
 from events import MemoryBus
-from strategy_basket.entry import impulse_mid, last_fvg, measure, point_of_control, stretch_atr, verdict
 from strategy_basket.basket import (
-    MAIN_LAB_BASELINE, MAIN_REPLAY_BASELINES, REGIME_KEYS, BasketBus, BasketError, BasketEventSession, BasketShadow,
-    attach_from_settings, basket_parity, check_main_baselines, for_session, legacy_replay_total, load_basket, load_lab,
-    load_lab_basket, load_settings, parse_card, preopen_regime, regime_from_label, select_basket, shadow_from_settings,
+    MAIN_LAB_BASELINE,
+    MAIN_REPLAY_BASELINES,
+    REGIME_KEYS,
+    BasketBus,
+    BasketError,
+    BasketEventSession,
+    BasketShadow,
+    attach_from_settings,
+    basket_parity,
+    check_main_baselines,
+    for_session,
+    legacy_replay_total,
+    load_basket,
+    load_lab,
+    load_lab_basket,
+    load_settings,
+    parse_card,
+    preopen_regime,
+    regime_from_label,
+    select_basket,
+    shadow_from_settings,
+)
+from strategy_basket.entry import (
+    impulse_mid,
+    last_fvg,
+    measure,
+    point_of_control,
+    stretch_atr,
+    verdict,
 )
 
 REPO = Path(__file__).resolve().parents[3]
@@ -260,7 +285,7 @@ def test_selector_zeroes_failed_parked_and_caps_total_weight():
 def test_selector_entry_policy_modes():
     cards = [card("MIX-CHASE", {KEY: score(weight=0.4, rank=1)}, policy=CHASE),
              card("MIX-PULL", {KEY: score(weight=0.2, rank=1)})]
-    by = lambda out: {r["id"]: r for r in out["strategies"]}  # noqa: E731
+    by = lambda out: {r["id"]: r for r in out["strategies"]}
     log_only = select_basket(_basket(cards), "NIFTY", regime())
     assert log_only["entry_mode"] == "log_only"
     assert by(log_only)["MIX-CHASE"]["weight"] == 0.4 and "would" in by(log_only)["MIX-CHASE"]["entry_note"]
@@ -405,7 +430,7 @@ def test_changing_the_future_does_not_change_earlier_basket_rows(fx, tmp_path):
     ]
     b = _shadow(tmp_path / "b")
     _replay(future, tmp_path / "rb", event_session=BasketEventSession(basket=b))
-    early = lambda s: [r for r in s.rows if r["ts"] <= cut]  # noqa: E731
+    early = lambda s: [r for r in s.rows if r["ts"] <= cut]
     assert len(early(a)) >= 3 and early(a) == early(b)
     assert any(r["trigger"] == "signal" for r in early(a)), "signal rows (entry distance) are covered too"
     assert a.rows != b.rows, "the perturbation must actually change later labels"
@@ -443,7 +468,7 @@ def test_flag_off_is_the_default():
 
 
 def test_off_by_default_replay_is_byte_identical_and_on_changes_no_trade(replays):
-    dump = lambda b: json.dumps(  # noqa: E731
+    dump = lambda b: json.dumps(
         {k: b.get(k) for k in ("closed_trades", "open_trades", "skip_reason_counts")}, sort_keys=True, default=str)
     assert len(replays["monolith"]["closed_trades"]) >= 5
     assert replays["default_session"].basket_bus is None
@@ -479,7 +504,7 @@ def test_every_row_uses_only_minutes_closed_before_its_tick(replays):
     changes = rows[1:]
     assert changes and all(r["trigger"] == "regime_change" and r["regime"]["source"] == "regime_service" for r in changes)
     assert all(r["regime"]["label_ts"] + 60 <= r["ts"] for r in changes)
-    assert all(a["regime"]["key"] != b["regime"]["key"] for a, b in zip(rows, rows[1:]) if a["underlying"] == b["underlying"])
+    assert all(a["regime"]["key"] != b["regime"]["key"] for a, b in pairwise(rows) if a["underlying"] == b["underlying"])
 
 
 def test_shadow_log_is_deterministic_and_says_no_orders(replays):
@@ -513,6 +538,46 @@ def test_shadow_log_off_basket_off_matches_the_legacy_replay(fx, tmp_path, monke
     assert _board(legacy) == _board(hooked)
     assert "basket_shadow" not in (hooked.get("event_bus") or {})
     assert list((tmp_path / "hooked").glob("data/shadow/**/*.jsonl")) == []
+
+
+def test_baselines_replay_each_index_through_replay_dump(monkeypatch, tmp_path):
+    """The quoted totals are one replay_dump walk per index, then a sum. Not one shared replay."""
+    from desk_ml import founder_session
+    from desk_ml.founder_session import save_founder_book
+
+    folder = tmp_path / "data" / "recon" / "paper_watch" / "DUAL-TAPE"
+    folder.mkdir(parents=True)
+    for day in ("2026-09-17", "2026-09-18"):
+        (folder / f"{day}.jsonl").write_text("{}\n")
+    save_founder_book([], root=tmp_path)  # file stops every index; all-start must override per index
+    calls = []
+
+    def fake(**kw):
+        und = kw["underlyings"]
+        assert und == (und[0],) and len(und) == 1
+        calls.append({**kw, "allowed": founder_session.allows_new_fill(und[0], root=tmp_path)})
+        return {"closed_trades": [{"filled": True, "underlying": und[0], "realized_pnl_inr": 10.0,
+                                   "book_id": "MIX-DEFAULT-BUY"}]}
+
+    monkeypatch.setattr("desk_ml.paper_scalp.replay_paper_scalp", fake)
+    report = check_main_baselines(tmp_path, since="2026-09-17", until="2026-09-25")
+    assert [c["underlyings"] for c in calls] == [
+        ("NIFTY",), ("NIFTY",),
+        ("NIFTY",), ("NIFTY",), ("BANKNIFTY",), ("BANKNIFTY",), ("SENSEX",), ("SENSEX",),
+    ]
+    for call in calls:
+        assert call["source"] == "dual-tape" and call["write"] is False
+        assert call["live_session"] is True and call["use_event_bus"] is False
+        assert call["cost_model"] == "legacy"
+        assert call["session_ist_date"] in {"2026-09-17", "2026-09-18"}
+    assert [c["allowed"] for c in calls[:2]] == [False, False]  # NIFTY baseline keeps the founder file
+    assert all(c["allowed"] for c in calls[2:])  # three-index total is --all-start, one index at a time
+    assert founder_session.allows_new_fill("NIFTY", root=tmp_path) is False  # patch restored
+    nifty, all_idx = report["runs"]
+    assert nifty["n_trades"] == 2 and nifty["net_pnl_inr"] == 20.0 and nifty["match"] is False
+    assert [row["underlying"] for row in all_idx["by_index"]] == ["NIFTY", "BANKNIFTY", "SENSEX"]
+    assert all_idx["n_trades"] == 6 and all_idx["net_pnl_inr"] == 60.0
+    assert report["ok"] is False and report["reason"] == "checked"
 
 
 def test_main_baseline_quotes_and_no_tapes_is_not_a_pass(tmp_path, monkeypatch):

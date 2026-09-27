@@ -18,7 +18,7 @@ without touching boss code; the one-line integration point and the schema are in
 
     python -m strategy_basket validate data/shadow/basket/lab/basket_india.json   # lab: check a file before shipping it
     python -m strategy_basket off | on | status                     # founder control
-    python -m strategy_basket baselines                             # SHADOW_LOG=0 legacy replay vs main ec91e9e
+    SHADOW_LOG=0 python -m strategy_basket baselines                # per-index replay_dump vs main ec91e9e
 """
 
 from __future__ import annotations
@@ -29,17 +29,31 @@ import logging
 import math
 import os
 import re
+from collections.abc import Mapping, Sequence
 from dataclasses import asdict, dataclass, replace
 from datetime import date, datetime
 from pathlib import Path
-from typing import Any, Mapping, Optional, Sequence
+from typing import Any
 
-import yaml
-
+import yaml  # type: ignore[import-untyped]
 from desk_ml.regime.labels import (
-    EXPIRY_DAY, IST, PRIMARY_LABELS, UNKNOWN, VOL_COMPRESSION, VOL_EXPANSION,
+    EXPIRY_DAY,
+    IST,
+    PRIMARY_LABELS,
+    UNKNOWN,
+    VOL_COMPRESSION,
+    VOL_EXPANSION,
 )
-from strategy_basket.entry import ENTRY_KEYS, MODES, POLICIES, POLICY_KEYS, ZONES, measure, verdict
+
+from strategy_basket.entry import (
+    ENTRY_KEYS,
+    MODES,
+    POLICIES,
+    POLICY_KEYS,
+    ZONES,
+    measure,
+    verdict,
+)
 
 log = logging.getLogger("boss.basket")
 ENV_FLAG = "USE_BASKET_SELECTOR"
@@ -77,48 +91,48 @@ class RegimeScore:
 @dataclass(frozen=True)
 class StrategyCard:
     id: str
-    source: dict
-    markets: tuple
-    adaptations: dict
-    rules: dict
-    param_ranges: dict
-    scores: dict  # regime key -> RegimeScore
-    entry_policy: dict  # strategy_basket.entry: kind, zone, timeout_bars, max_stretch_atr
+    source: dict[str, Any]
+    markets: tuple[str, ...]
+    adaptations: dict[str, Any]
+    rules: dict[str, Any]
+    param_ranges: dict[str, Any]
+    scores: dict[str, RegimeScore]  # regime key -> RegimeScore
+    entry_policy: dict[str, Any]  # strategy_basket.entry: kind, zone, timeout_bars, max_stretch_atr
     notes: str = ""
 
 
 @dataclass(frozen=True)
 class Instrument:
     symbol: str
-    exchange: Optional[str]
-    lot_size: Optional[int]
-    expiry_weekday: Optional[str]
-    session: dict
-    tick_size: Optional[float]
+    exchange: str | None
+    lot_size: int | None
+    expiry_weekday: str | None
+    session: dict[str, Any]
+    tick_size: float | None
 
 
 @dataclass(frozen=True)
 class Basket:
     market: str
     activatable: bool
-    instruments: dict  # symbol -> Instrument
-    selection: dict
-    lab_scores: Optional[str]
-    entry: dict  # entry_location: mode + placeholder thresholds (strategy_basket.entry)
-    cards: dict  # id -> StrategyCard
+    instruments: dict[str, Instrument]  # symbol -> Instrument
+    selection: dict[str, Any]
+    lab_scores: str | None
+    entry: dict[str, Any]  # entry_location: mode + placeholder thresholds (strategy_basket.entry)
+    cards: dict[str, StrategyCard]  # id -> StrategyCard
     path: str = ""
 
 
 # ------------------------------------------------------------------ validation
 
 
-def _map(raw: Any, where: str) -> dict:
+def _map(raw: Any, where: str) -> dict[str, Any]:
     if not isinstance(raw, dict):
         raise BasketError(f"{where}: expected a mapping")
     return raw
 
 
-def _number(raw: Any, where: str, *, lo: Optional[float] = None, hi: Optional[float] = None, integer: bool = False) -> Any:
+def _number(raw: Any, where: str, *, lo: float | None = None, hi: float | None = None, integer: bool = False) -> Any:
     if isinstance(raw, bool) or not isinstance(raw, (int, float)) or (integer and not isinstance(raw, int)):
         raise BasketError(f"{where}: expected {'an integer' if integer else 'a number'}, got {raw!r}")
     if not math.isfinite(float(raw)):
@@ -128,7 +142,7 @@ def _number(raw: Any, where: str, *, lo: Optional[float] = None, hi: Optional[fl
     return int(raw) if integer else float(raw)
 
 
-def _no_extra(raw: dict, allowed: set, where: str) -> None:
+def _no_extra(raw: dict[str, Any], allowed: set[str], where: str) -> None:
     extra = sorted(set(raw) - allowed)
     if extra:
         raise BasketError(f"{where}: unknown keys {extra}")
@@ -186,7 +200,7 @@ def parse_card(raw: Any, *, require_scores: bool, where: str = "card") -> Strate
     scores_raw = _map(d.get("scores", {}), f"{where}.scores")
     if require_scores and not scores_raw:
         raise BasketError(f"{where}: unscored (no regime scores)")
-    scores = {}
+    scores: dict[str, RegimeScore] = {}
     for key, sc in scores_raw.items():
         if key not in REGIME_KEYS:
             raise BasketError(f"{where}.scores: {key!r} is not a regime key {list(REGIME_KEYS)}")
@@ -196,7 +210,7 @@ def parse_card(raw: Any, *, require_scores: bool, where: str = "card") -> Strate
                         notes=str(d.get("notes") or ""))
 
 
-def parse_entry_policy(raw: Any, where: str) -> dict:
+def parse_entry_policy(raw: Any, where: str) -> dict[str, Any]:
     """Required on every card: chase | pullback_limit(zone, timeout_bars) | wait_consolidation, + max_stretch_atr."""
     where = f"{where}.entry_policy"
     d = _map(raw, where)
@@ -221,7 +235,7 @@ def parse_entry_policy(raw: Any, where: str) -> dict:
     }
 
 
-def parse_entry_location(raw: Any, where: str) -> dict:
+def parse_entry_location(raw: Any, where: str) -> dict[str, Any]:
     d = _map(raw, where)
     missing = sorted(ENTRY_KEYS - set(d))
     if missing:
@@ -287,13 +301,13 @@ def load_basket(path: Path) -> Basket:
                   cards=cards, path=str(path))
 
 
-def _check_markets(card: StrategyCard, instruments: dict) -> None:
+def _check_markets(card: StrategyCard, instruments: Mapping[str, Instrument]) -> None:
     unknown = [m for m in card.markets if m not in instruments]
     if unknown:
         raise BasketError(f"card {card.id}: markets {unknown} are not instruments of this basket")
 
 
-def load_lab_basket(path: Path, basket: Basket) -> tuple[dict, list, str]:
+def load_lab_basket(path: Path, basket: Basket) -> tuple[dict[str, StrategyCard], list[dict[str, Any]], str]:
     """(valid cards by id, rejected entries, data_until). A malformed file raises BasketError; bad entries
     are rejected one by one."""
     try:
@@ -334,7 +348,7 @@ def _reject_constant(name: str) -> Any:
     raise ValueError(f"{name} is not allowed (cap pf / weights before writing)")
 
 
-def load_lab(basket: Basket, root: Path) -> tuple[dict, dict[str, Any]]:
+def load_lab(basket: Basket, root: Path) -> tuple[dict[str, StrategyCard], dict[str, Any]]:
     """(lab cards by id, meta). A broken lab file is ignored as a whole and reported in meta."""
     meta: dict[str, Any] = {"path": basket.lab_scores, "found": False, "loaded": [], "rejected": [],
                             "data_until": None, "error": None}
@@ -355,7 +369,8 @@ def load_lab(basket: Basket, root: Path) -> tuple[dict, dict[str, Any]]:
     return cards, meta
 
 
-def for_session(basket: Basket, lab_cards: dict, meta: dict[str, Any], day: str) -> tuple[Basket, dict[str, Any]]:
+def for_session(basket: Basket, lab_cards: Mapping[str, StrategyCard], meta: dict[str, Any], day: str,
+                ) -> tuple[Basket, dict[str, Any]]:
     """Lab cards merged in (lab wins by id) only when their scores end before ``day``.
 
     Scores that used the session day or later would leak the future into the selection, so the file
@@ -387,7 +402,7 @@ def regime_from_label(label: Mapping[str, Any], *, source: str = "regime_service
             "version": label.get("version"), "features": dict(label.get("features") or {})}
 
 
-def preopen_regime(expiry_day: bool, version: Optional[str] = None) -> dict[str, Any]:
+def preopen_regime(expiry_day: bool, version: str | None = None) -> dict[str, Any]:
     """Before the first completed bar the labeller is warming up: primary unknown, only the expiry flag is known."""
     labels = [UNKNOWN] + ([EXPIRY_DAY] if expiry_day else [])
     return regime_from_label({"primary": UNKNOWN, "vol": None, "expiry_day": expiry_day, "labels": labels,
@@ -397,7 +412,7 @@ def preopen_regime(expiry_day: bool, version: Optional[str] = None) -> dict[str,
 # ------------------------------------------------------------------ selector (pure, deterministic)
 
 
-def _gate(sc: Optional[RegimeScore], sel: dict) -> Optional[str]:
+def _gate(sc: RegimeScore | None, sel: Mapping[str, Any]) -> str | None:
     if sc is None:
         return "unscored_regime"
     if sc.status != "active_candidate":
@@ -419,20 +434,22 @@ def select_basket(basket: Basket, underlying: str, regime: dict[str, Any]) -> di
     """Ranked, weighted strategies for ``underlying`` in ``regime``. Failed / parked / unscored = weight 0."""
     und, key, sel = underlying.upper(), regime.get("key"), basket.selection
     mode, mult = basket.entry["mode"], basket.entry["chase_weight_mult"]
-    rows = []
+    rows: list[dict[str, Any]] = []
     for cid in sorted(basket.cards):
         card = basket.cards[cid]
         if und not in card.markets:
             continue
-        sc = card.scores.get(key) if key else None
+        sc = card.scores.get(key) if isinstance(key, str) else None
+        reason: str | None
         if not basket.activatable:
             reason = "basket_parked"
-        elif key is None:
+        elif not isinstance(key, str):
             reason = "regime_unknown"
         else:
             reason = _gate(sc, sel)
         chase = card.entry_policy["kind"] == "chase"
-        raw, note = (sc.weight if reason is None else 0.0), None
+        raw = sc.weight if sc is not None and reason is None else 0.0
+        note: str | None = None
         if chase and reason is None:
             if mode == "require":
                 reason, raw, note = "entry_policy_chase", 0.0, "require: chasing policies get weight 0"
@@ -467,8 +484,8 @@ def select_basket(basket: Basket, underlying: str, regime: dict[str, Any]) -> di
 class BasketShadow:
     """What the boss holds when the feature is on. Writes rows; returns them for tests. Never orders."""
 
-    def __init__(self, baskets: Sequence[Basket], *, out_dir: Path, founder_off_file: Optional[Path] = None,
-                 labs: Optional[dict[str, tuple[dict, dict]]] = None) -> None:
+    def __init__(self, baskets: Sequence[Basket], *, out_dir: Path, founder_off_file: Path | None = None,
+                 labs: dict[str, tuple[dict[str, StrategyCard], dict[str, Any]]] | None = None) -> None:
         self.baskets = list(baskets)
         self.by_und: dict[str, Basket] = {}
         for b in self.baskets:
@@ -482,17 +499,18 @@ class BasketShadow:
         self.rows: list[dict[str, Any]] = []
         self.labels_seen = 0
         self._last: dict[tuple[str, str], str] = {}  # (underlying, day) -> regime key last logged
-        self._latest: dict[tuple[str, str], dict] = {}  # (underlying, day) -> last basket selection
-        self._seen: dict[Path, set] = {}
+        self._latest: dict[tuple[str, str], dict[str, Any]] = {}  # (underlying, day) -> last basket selection
+        self._seen: dict[Path, set[str]] = {}
 
     def founder_off(self) -> bool:
         return self.founder_off_file is not None and self.founder_off_file.exists()
 
-    def _basket(self, und: str) -> Optional[Basket]:
+    def _basket(self, und: str) -> Basket | None:
         basket = self.by_und.get(und)
         return None if basket is None or self.founder_off() else basket
 
-    def pre_open(self, underlying: str, now_ts: int, *, expiry_day: bool, version: Optional[str] = None) -> Optional[dict]:
+    def pre_open(self, underlying: str, now_ts: int, *, expiry_day: bool, version: str | None = None,
+                 ) -> dict[str, Any] | None:
         """Once per index and day, before its first decision."""
         und = underlying.upper()
         basket = self._basket(und)
@@ -501,7 +519,7 @@ class BasketShadow:
             return None
         return self._emit(basket, und, now_ts, day, preopen_regime(expiry_day, version), "pre_open")
 
-    def on_label(self, label: Mapping[str, Any], now_ts: int) -> Optional[dict]:
+    def on_label(self, label: Mapping[str, Any], now_ts: int) -> dict[str, Any] | None:
         """A regime-service REGIME_LABEL payload seen at tick ``now_ts``. Minute labels only."""
         if label.get("scope") != "minute":
             return None
@@ -520,7 +538,7 @@ class BasketShadow:
         return self._emit(basket, und, now_ts, day, reg, "regime_change")
 
     def on_signal(self, ticket: Mapping[str, Any], bars_1m: Sequence[Mapping[str, Any]], index_price: float,
-                  now_ts: int) -> Optional[dict]:
+                  now_ts: int) -> dict[str, Any] | None:
         """One boss ENTRY_APPROVED ticket: entry distance from the imbalance, and each card's entry-policy verdict."""
         und = str(ticket.get("underlying") or "").upper()
         basket = self._basket(und)
@@ -542,7 +560,7 @@ class BasketShadow:
         }
         return self._store(day, row)
 
-    def _session_basket(self, basket: Basket, day: str) -> tuple[Basket, Optional[dict]]:
+    def _session_basket(self, basket: Basket, day: str) -> tuple[Basket, dict[str, Any] | None]:
         if basket.market not in self.labs:
             return basket, None
         cards, meta = self.labs[basket.market]
@@ -553,7 +571,8 @@ class BasketShadow:
         return {"day": day, "ts": int(ts), "time_ist": datetime.fromtimestamp(int(ts), IST).isoformat(timespec="seconds"),
                 "underlying": und, "market": market, "trigger": trigger, "shadow": True, "places_orders": False}
 
-    def _emit(self, basket: Basket, und: str, ts: int, day: str, reg: dict, trigger: str) -> dict:
+    def _emit(self, basket: Basket, und: str, ts: int, day: str, reg: dict[str, Any], trigger: str,
+              ) -> dict[str, Any]:
         self._last[(und, day)] = reg["key"]
         basket, lab = self._session_basket(basket, day)
         selection = select_basket(basket, und, reg)
@@ -561,12 +580,12 @@ class BasketShadow:
         row = {**self._head(und, basket.market, ts, day, trigger), "regime": reg, "basket": selection, "lab": lab}
         return self._store(day, row)
 
-    def _store(self, day: str, row: dict) -> dict:
+    def _store(self, day: str, row: dict[str, Any]) -> dict[str, Any]:
         self.rows.append(row)
         self._write(day, row)
         return row
 
-    def _write(self, day: str, row: dict) -> None:
+    def _write(self, day: str, row: dict[str, Any]) -> None:
         path = self.out_dir / f"{day}.jsonl"
         line = json.dumps(row, sort_keys=True, separators=(",", ":"), default=str)
         seen = self._seen.get(path)
@@ -589,7 +608,7 @@ SETTINGS_PATH = Path("config") / "baskets" / "selector.yaml"
 DEFAULT_FOUNDER_OFF = "data/shadow/basket/FOUNDER_OFF"
 
 
-def load_settings(root: Optional[Path] = None) -> dict[str, Any]:
+def load_settings(root: Path | None = None) -> dict[str, Any]:
     """`config/baskets/selector.yaml`; a missing file means off."""
     from desk_ml.persist import repo_root
 
@@ -611,7 +630,7 @@ def founder_off_path(settings: Mapping[str, Any], root: Path) -> Path:
     return Path(root) / str(settings.get("founder_off_file") or DEFAULT_FOUNDER_OFF)
 
 
-def shadow_from_settings(settings: Mapping[str, Any], *, root: Path) -> Optional[BasketShadow]:
+def shadow_from_settings(settings: Mapping[str, Any], *, root: Path) -> BasketShadow | None:
     """None unless the feature is on and the founder has not switched it off. Bad config = off, logged."""
     if not enabled(settings):
         return None
@@ -627,7 +646,7 @@ def shadow_from_settings(settings: Mapping[str, Any], *, root: Path) -> Optional
         return None
 
 
-def build_shadow(settings: Mapping[str, Any], *, root: Path, out_dir: Optional[Path] = None) -> BasketShadow:
+def build_shadow(settings: Mapping[str, Any], *, root: Path, out_dir: Path | None = None) -> BasketShadow:
     """Load every configured basket and its lab file. Ignores the on/off flags; raises on bad config."""
     root = Path(root)
     baskets, labs = [], {}
@@ -676,12 +695,12 @@ class BasketBus:
     Any error is logged and kept in `errors`; it never reaches `bus.errors` or the entry path.
     """
 
-    def __init__(self, shadow: BasketShadow, bus: Any, engine: Any, steps: Optional[Mapping[str, Any]] = None,
-                 *, label_version: Optional[str] = None) -> None:
+    def __init__(self, shadow: BasketShadow, bus: Any, engine: Any, steps: Mapping[str, Any] | None = None,
+                 *, label_version: str | None = None) -> None:
         self.shadow, self.bus, self.engine = shadow, bus, engine
         self.steps = steps if steps is not None else {}
         self.label_version = label_version
-        self.now_ts: Optional[int] = None
+        self.now_ts: int | None = None
         self.errors: list[str] = []
         self._opened: set[tuple[str, str]] = set()
         self.subs = [
@@ -707,14 +726,14 @@ class BasketBus:
             self._opened.add((und, day))
             step = self.steps.get(p.get("key"))
             self.shadow.pre_open(und, ts, expiry_day=self._expiry_day(step, und, ts, day), version=self.label_version)
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 - a shadow failure must not reach the bus
             self._fail("pre_open", exc)
 
     def on_label(self, event: Any) -> None:
         try:
             if self.now_ts is not None:
                 self.shadow.on_label(event.payload, self.now_ts)
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 - a shadow failure must not reach the bus
             self._fail("on_label", exc)
 
     def on_entry(self, event: Any) -> None:
@@ -725,7 +744,7 @@ class BasketBus:
                 raise ValueError(f"no tick context for ENTRY_APPROVED {event.payload.get('trade_id')}")
             self.shadow.on_signal(event.payload, list(getattr(step, "bars_1m", None) or []),
                                   float(step.tick.idx_close), self.now_ts)
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 - a shadow failure must not reach the bus
             self._fail("on_entry", exc)
 
     def _expiry_day(self, step: Any, und: str, ts: int, day: str) -> bool:
@@ -740,8 +759,8 @@ class BasketBus:
         return {**self.shadow.summary(), "errors": list(self.errors)}
 
 
-def attach_from_settings(bus: Any, engine: Any, steps: Optional[Mapping[str, Any]] = None, *,
-                         root: Optional[Path] = None, shadow: Optional[BasketShadow] = None) -> Optional[BasketBus]:
+def attach_from_settings(bus: Any, engine: Any, steps: Mapping[str, Any] | None = None, *,
+                         root: Path | None = None, shadow: BasketShadow | None = None) -> BasketBus | None:
     """The one-line integration point for `EventSession.attach` (docs/baskets.md). None when off."""
     from desk_ml.persist import repo_root
     from desk_ml.regime import load_config
@@ -752,7 +771,7 @@ def attach_from_settings(bus: Any, engine: Any, steps: Optional[Mapping[str, Any
         return None
     try:
         version = load_config(root).labels.version
-    except Exception:
+    except (OSError, ValueError, TypeError, AttributeError, yaml.YAMLError):
         version = None
     return BasketBus(shadow, bus, engine, steps, label_version=version)
 
@@ -769,9 +788,9 @@ def _event_session_class() -> type:
         def __init__(self, *, basket: Any = None, **kw: Any) -> None:
             super().__init__(**kw)
             self._basket_arg = basket
-            self.basket_bus: Optional[BasketBus] = None
+            self.basket_bus: BasketBus | None = None
 
-        def attach(self, engine: Any) -> "EventSession":
+        def attach(self, engine: Any) -> EventSession:
             super().attach(engine)
             if self._basket_arg is not False:
                 self.basket_bus = attach_from_settings(self.bus, engine, self.steps, shadow=self._basket_arg)
@@ -786,7 +805,7 @@ def _event_session_class() -> type:
     return _BasketEventSession
 
 
-def BasketEventSession(**kw: Any) -> Any:  # noqa: N802 - reads like the class it builds
+def BasketEventSession(**kw: Any) -> Any:
     return _event_session_class()(**kw)
 
 
@@ -805,30 +824,92 @@ MAIN_LAB_BASELINE = ("LAB_P2C", 36, 110000.29)
 _REPLAY_ENV = ("SHADOW_LOG", "USE_BASKET_SELECTOR", "USE_EVENT_BUS")
 
 
+def replay_dump_day(root: Path, underlying: str, day: str) -> dict[str, Any]:
+    """One index, one session. Same entry point as ``scripts/pr20_verify/replay_dump.py`` on main.
+
+    That script is the post-#25 path: ``desk_ml.paper_scalp.replay_paper_scalp`` (a 3m bar counts
+    only after its bucket has ended), flag off, legacy costs, live-session params, ``write=False``.
+    Passing one index keeps that index on its own engine and its own ledger.
+    """
+    from desk_ml.paper_scalp import replay_paper_scalp
+
+    return replay_paper_scalp(
+        root=root,
+        underlyings=(underlying.upper(),),
+        source="dual-tape",
+        write=False,
+        live_session=True,
+        session_ist_date=day,
+        use_event_bus=False,
+        cost_model="legacy",
+    )
+
+
+def _filled_net(board: Mapping[str, Any], underlying: str) -> tuple[int, float]:
+    rows = [
+        r for r in (board.get("closed_trades") or [])
+        if r.get("filled") and str(r.get("underlying") or underlying).upper() == underlying.upper()
+    ]
+    return len(rows), round(sum(float(r.get("realized_pnl_inr") or 0.0) for r in rows), 2)
+
+
+def _sum_one_index(root: Path, underlying: str, days: Sequence[str], *, all_start: bool) -> dict[str, Any]:
+    """Replay ``underlying`` alone across ``days`` and sum filled trades.
+
+    ``all_start`` is replay_dump's ``--all-start``: allow this index to open even when the founder
+    file has it stopped. The NIFTY baseline leaves the file in charge. The three-index total turns
+    it on for each index, then restores the founder check.
+    """
+    from desk_ml import founder_session
+
+    index = underlying.upper()
+    previous = founder_session.allows_new_fill
+    if all_start:
+        def _allow(name: str, *, root: object = None) -> bool:
+            return str(name).upper() == index
+
+        founder_session.allows_new_fill = _allow  # type: ignore[assignment]
+    n, net = 0, 0.0
+    try:
+        for day in days:
+            got_n, got_net = _filled_net(replay_dump_day(root, index, day), index)
+            n += got_n
+            net = round(net + got_net, 2)
+    finally:
+        founder_session.allows_new_fill = previous
+    return {"underlying": index, "n_trades": n, "net_pnl_inr": net, "all_start": all_start}
+
+
 def legacy_replay_total(root: Path, underlyings: Sequence[str], *, since: str = "2026-09-17",
                         until: str = "2026-09-25") -> dict[str, Any]:
-    """One index walk per day, the legacy path only. Basket code is not called. SHADOW_LOG=0.
+    """Sum of one replay_dump walk per index. Basket code is not called. SHADOW_LOG=0.
 
-    Restores the three env vars it touches, so a check cannot change a later replay in-process.
+    A single ``replay_paper_scalp`` call with all three indices shares one ledger, so the total
+    collapses to whichever index the founder file has started. Each index is run on its own and
+    the filled trades are added. Restores the env vars it touches.
     """
-    from desk_ml.paper_scalp import list_fix_first_days, replay_paper_scalp
+    from desk_ml.paper_scalp import list_fix_first_days
 
+    names = tuple(dict.fromkeys(u.upper() for u in underlyings))
     saved = {k: os.environ.get(k) for k in _REPLAY_ENV}
     try:
         os.environ["SHADOW_LOG"] = "0"
         os.environ.pop("USE_BASKET_SELECTOR", None)
         os.environ.pop("USE_EVENT_BUS", None)
         days = [d for d in list_fix_first_days(root=root, since=since) if d <= until]
-        n, net = 0, 0.0
-        for day in days:
-            board = replay_paper_scalp(
-                root=root, underlyings=tuple(underlyings), source="dual-tape", write=False,
-                live_session=True, session_ist_date=day, use_event_bus=False,
-            )
-            filled = [r for r in (board.get("closed_trades") or []) if r.get("filled")]
-            n += len(filled)
-            net = round(net + sum(float(r.get("realized_pnl_inr") or 0.0) for r in filled), 2)
-        return {"days": days, "n_trades": n, "net_pnl_inr": net, "shadow_log": "0", "use_event_bus": False}
+        # One index uses the founder file (NIFTY 63). Several indices each get --all-start.
+        all_start = len(names) > 1
+        by_index = [_sum_one_index(root, name, days, all_start=all_start) for name in names]
+        return {
+            "days": days,
+            "n_trades": sum(row["n_trades"] for row in by_index),
+            "net_pnl_inr": round(sum(row["net_pnl_inr"] for row in by_index), 2),
+            "by_index": by_index,
+            "shadow_log": "0",
+            "use_event_bus": False,
+            "cost_model": "legacy",
+            "entry_point": "desk_ml.paper_scalp.replay_paper_scalp",
+        }
     finally:
         for key, value in saved.items():
             if value is None:
@@ -866,7 +947,7 @@ def check_main_baselines(root: Path, *, since: str = "2026-09-17", until: str = 
 # ----------------------------------------------------------------------- CLI
 
 
-def main(argv: Optional[Sequence[str]] = None) -> int:
+def main(argv: Sequence[str] | None = None) -> int:
     from desk_ml.persist import repo_root
 
     ap = argparse.ArgumentParser(prog="python -m strategy_basket",
