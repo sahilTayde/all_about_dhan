@@ -1,0 +1,18 @@
+[
+ {
+  "category": "DII **",
+  "date": "25-Sep-2026",
+  "buyValue": "14,210.50",
+  "sellValue": "12,400.25",
+  "netValue": "1,810.25",
+  "note": "SYNTHETIC fixture for offline tests. Not market data."
+ },
+ {
+  "category": "FII/FPI **",
+  "date": "25-Sep-2026",
+  "buyValue": "13,880.00",
+  "sellValue": "12,380.00",
+  "netValue": "1,500.00",
+  "note": "SYNTHETIC fixture for offline tests. Not market data."
+ }
+]

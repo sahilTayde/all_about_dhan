@@ -1,0 +1,62 @@
+{
+ "note": "SYNTHETIC fixture for offline tests. Not market data.",
+ "chart": {
+  "result": [
+   {
+    "meta": {
+     "symbol": "DX-Y.NYB",
+     "gmtoffset": -14400,
+     "regularMarketPrice": 97.709,
+     "regularMarketTime": 1790549700
+    },
+    "timestamp": [
+     1789996500,
+     1790082900,
+     1790169300,
+     1790255700,
+     1790342100,
+     1790601300
+    ],
+    "indicators": {
+     "quote": [
+      {
+       "open": [
+        97.03,
+        97.22,
+        97.41,
+        97.61,
+        98.0,
+        97.51
+       ],
+       "high": [
+        97.8,
+        97.99,
+        98.2,
+        98.4,
+        98.79,
+        98.3
+       ],
+       "low": [
+        96.54,
+        96.73,
+        96.93,
+        97.13,
+        97.51,
+        97.03
+       ],
+       "close": [
+        97.22,
+        97.41,
+        97.61,
+        97.81,
+        98.2,
+        97.709
+       ]
+      }
+     ]
+    }
+   }
+  ],
+  "error": null
+ }
+}

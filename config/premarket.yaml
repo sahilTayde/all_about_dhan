@@ -1,0 +1,62 @@
+# Pre-market analysis service (PR-017): `python -m premarket`.
+# ADVISORY ONLY. It never places orders and nothing in the engine waits for it.
+# Each source fails on its own and is listed under `missing` in the output.
+# Bias and event-risk rules are HYPOTHESIS (not backtested, not a validated edge).
+# Free public endpoints only; no keys, no broker. URLs of free feeds rot: fix them here, not in code.
+
+timeout_s: 6        # per HTTP request
+deadline_s: 45      # whole run; unfinished sources are marked MISSING
+stale_after_h: 96   # quotes older than this are STALE (covers a weekend)
+
+markets:
+  india_index:
+    timezone: Asia/Kolkata
+    brief_by: "09:00"
+    open_time: "09:15"
+    underlyings: [NIFTY, BANKNIFTY, SENSEX]
+    sources:
+      - {name: gift_nifty, type: yahoo_quotes, symbols: {}}  # no free GIFT Nifty feed by default; add {GIFT_NIFTY: <ticker>} to enable
+      - {name: us_futures, type: yahoo_quotes, symbols: {ES: "ES=F", NQ: "NQ=F"}}
+      - {name: crude, type: yahoo_quotes, symbols: {BRENT: "BZ=F"}}
+      - {name: usdinr, type: yahoo_quotes, symbols: {USDINR: "INR=X"}}
+      - {name: dxy, type: yahoo_quotes, symbols: {DXY: "DX-Y.NYB"}}
+      - {name: india_vix, type: yahoo_quotes, symbols: {INDIAVIX: "^INDIAVIX"}}
+      - {name: prev_day_levels, type: prev_day_levels, symbols: {NIFTY: "^NSEI", BANKNIFTY: "^NSEBANK", SENSEX: "^BSESN"}}
+      - {name: oi_walls, type: local_oi_walls}
+      - {name: fii_dii, type: nse_fii_dii, url: "https://www.nseindia.com/api/fiidiiTradeReact"}
+      - name: nse_announcements
+        type: rss
+        role: announcements
+        urls: ["https://nsearchives.nseindia.com/content/RSS/Online_announcements.xml"]
+      - name: bse_announcements
+        type: rss
+        role: announcements
+        urls: ["https://www.bseindia.com/data/xml/notices.xml"]
+      - name: global_news
+        type: rss
+        role: news
+        urls:
+          - "https://news.google.com/rss/search?q=nifty+OR+sensex+OR+%22reserve+bank+of+india%22+OR+FOMC+when:1d&hl=en-IN&gl=IN&ceid=IN:en"
+          - "https://economictimes.indiatimes.com/markets/rssfeeds/1977021501.cms"
+          - "https://www.livemint.com/rss/markets"
+    # vote = sign when metric.field is beyond +/- threshold; sign = effect on the index when it rises.
+    bias_rules:
+      - {metric: GIFT_NIFTY, field: change_pct, sign: 1, threshold: 0.3}
+      - {metric: ES, field: change_pct, sign: 1, threshold: 0.3}
+      - {metric: NQ, field: change_pct, sign: 1, threshold: 0.4}
+      - {metric: BRENT, field: change_pct, sign: -1, threshold: 1.5}
+      - {metric: USDINR, field: change_pct, sign: -1, threshold: 0.3}
+      - {metric: DXY, field: change_pct, sign: -1, threshold: 0.4}
+      - {metric: FII_NET_CR, field: value, sign: 1, threshold: 1000}
+    min_bias_inputs: 3
+    event_risk:
+      vix_metric: INDIAVIX
+      vix_level_high: 20
+      vix_change_pct_high: 8
+      # news headlines (role: news) only; each keyword counts once
+      keywords: {rbi: 2, "monetary policy": 2, fomc: 2, fed: 1, cpi: 1, inflation: 1, gdp: 1, budget: 2,
+                 election: 2, war: 2, attack: 2, sanctions: 1, tariff: 1, crash: 2, "circuit breaker": 2,
+                 downgrade: 1}
+      medium_at: 2
+      high_at: 4
+      calendar: []  # e.g. [{date: "2026-10-01", event: "RBI policy", weight: 3}]

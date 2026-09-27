@@ -1,0 +1,3 @@
+<?xml version="1.0"?>
+<!-- SYNTHETIC fixture for offline tests. Not market data. -->
+<rss version="2.0"><channel><title>synthetic</title><item><title>Synthetic Ltd - Board meeting intimation</title><link>https://example.invalid/0</link><pubDate>Sun, 27 Sep 2026 14:00:00 +0000</pubDate></item><item><title>Example Industries - Outcome of AGM</title><link>https://example.invalid/1</link><pubDate>Sat, 26 Sep 2026 09:00:00 +0000</pubDate></item></channel></rss>

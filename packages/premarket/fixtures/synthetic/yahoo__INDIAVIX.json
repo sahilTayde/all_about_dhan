@@ -1,0 +1,57 @@
+{
+ "note": "SYNTHETIC fixture for offline tests. Not market data.",
+ "chart": {
+  "result": [
+   {
+    "meta": {
+     "symbol": "^INDIAVIX",
+     "gmtoffset": 19800,
+     "regularMarketPrice": 13.1988,
+     "regularMarketTime": 1790330400
+    },
+    "timestamp": [
+     1789962300,
+     1790048700,
+     1790135100,
+     1790221500,
+     1790307900
+    ],
+    "indicators": {
+     "quote": [
+      {
+       "open": [
+        12.81,
+        12.83,
+        12.86,
+        12.91,
+        13.17
+       ],
+       "high": [
+        12.92,
+        12.94,
+        12.97,
+        13.02,
+        13.28
+       ],
+       "low": [
+        12.75,
+        12.77,
+        12.8,
+        12.85,
+        13.11
+       ],
+       "close": [
+        12.84,
+        12.86,
+        12.89,
+        12.94,
+        13.1988
+       ]
+      }
+     ]
+    }
+   }
+  ],
+  "error": null
+ }
+}

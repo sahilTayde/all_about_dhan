@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "aad-premarket"
+version = "0.1.0+aad"
+description = "Pre-market context from free public sources. Advisory only; never places orders or blocks trading."
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = ["PyYAML>=6"]
+
+[project.optional-dependencies]
+dev = ["pytest>=8"]
+
+[project.scripts]
+aad-premarket = "premarket.__main__:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]

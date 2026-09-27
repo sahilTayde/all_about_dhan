@@ -38,6 +38,7 @@ python -m pip install \
   -e packages/docs-auditor \
   -e packages/agent_rag \
   -e packages/warehouse \
+  -e packages/premarket \
   -e packages/trading_agents_india \
   -e packages/events \
   -e packages/desk-ml \
