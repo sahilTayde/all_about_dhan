@@ -4,7 +4,7 @@ Private workspace for a DhanHQ-only **index-options signal** company. First book
 
 **No live orders.** Paper and research only. Gate is **not** `RESEARCH_READY_FOR_PROGRAMMING`. Do not treat dashboard P/L as a real book.
 
-**Mac operations boundary:** on the founder's Mac, agents start/stop services and read logs only — they must not edit tracked code. Full list: [`AGENT.md`](AGENT.md) (top) and [`.cursor/rules/mac-ops-boundary.mdc`](.cursor/rules/mac-ops-boundary.mdc).
+**Mac operations boundary:** on the founder's Mac, agents may start/stop services and tune the **legacy** engine. They must not edit V2. Paths: [`scripts/mac/protected_paths.txt`](scripts/mac/protected_paths.txt), [`AGENT.md`](AGENT.md) (top), [`.cursor/rules/mac-ops-boundary.mdc`](.cursor/rules/mac-ops-boundary.mdc).
 
 ---
 

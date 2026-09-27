@@ -2,30 +2,39 @@
 
 ## Mac operations boundary
 
-Applies only when this agent is running **on the founder's Mac** (local Cursor / Grok during market hours). Cloud agents working on PRs may edit code.
+Applies only when this agent is running **on the founder's Mac** (local Cursor / Grok during market hours). Cloud agents working on PRs may edit V2.
 
-This Mac starts, stops, and restarts paper services and reads logs. It must **never** change the V2 build or any tracked file.
+This Mac may start/stop/restart paper services **and** tune the **old (legacy) engine**. It must **never** change V2. Single list: [`scripts/mac/protected_paths.txt`](scripts/mac/protected_paths.txt).
 
 **ALLOWED**
 
 - `./scripts/desk.sh <morning|status|close|...>`
 - start / stop / restart the recorder (`python -m marketdata --record-only`) and other existing services
-- read logs and data files
-- edit `.env` for the Dhan token
-- `git checkout main && git pull`
-- create venvs and `pip install -e` existing packages
+- read logs and data files; edit `.env` for the Dhan token
+- `git checkout main && git pull`; create venvs and `pip install -e` existing packages
 - back up sqlite to `~/dhan_backups`
+- **Edit** the legacy engine and its knobs:
+  - `packages/desk-ml/**` (`paper_scalp.py`, `picker.py`, overlay, lots, costs, regime, llm_analyst, …)
+  - `packages/analysts/**`, `packages/desk/**` (`paper.py`, `executor.py`)
+  - `packages/trading_agents_india/**` (Monday dual-tape)
+  - `packages/backtest/**`
+  - `config/analysts.yaml`, `config/paper_costs.yaml`, `config/regime.yaml`, `config/llm_analyst.yaml`, `config/event_path.yaml`, `config/shadow/**`, `config/charges.yaml`, `config/risk_limits.yaml`, `config/risk_limits_replay.yaml`
+  - `teams/04_quant/docs/candidates/**` (STRAT-001–014, MIX-*), `teams/04_quant/docs/MIX_CATALOG.md`
+  - `notebooks/**`, `output/**`, `scratch/**`
 
-**FORBIDDEN**
+Legacy tuning stays **uncommitted** or on `legacy-tuning/<date>`. Do not push it to `main`.
 
-- edit, create, delete, format, or "fix" any tracked file (especially `packages/**`, `apps/**`, `config/**`, `deploy/**`, `scripts/**`, `tests/**`, `.github/**`, `requirements/**`, `docs/**`, `teams/**`)
-- `git commit`, `git push`, `git merge`, `git rebase`, `git reset --hard`, `git stash` of tracked changes, `git clean`
-- create or delete branches
-- open PRs or change GitHub settings
+**FORBIDDEN (V2)**
 
-If a service fails and the fix needs a code change: **stop**. Capture the exact error / log lines and the command. Report them to the founder. Do not patch.
+Never edit, move, delete, reformat, or refactor a path in `scripts/mac/protected_paths.txt` (`packages/runtime`, `packages/boss`, `packages/contracts`, `packages/events`, `packages/oms`, `packages/strategies`, `packages/indicators`, `packages/health`, `packages/control`, `packages/dhan-client`, `packages/marketdata`, `config/v2/**`, `deploy/docker/**`, V2 docs, `scripts/ci/**`, `requirements/**`, `tests/regression/**`, gateway v2 files, this guard).
 
-If `git pull` fails because of local edits: report it. Do not discard or commit anything.
+Never `git reset --hard`, `git clean`, or `git checkout --` on a protected path. Never force-push. Never push to `main` / `master`.
+
+If a service fails and the fix needs a **V2** change: **stop**. Capture the exact error / log lines and the command. Tell the owner. Do not patch V2.
+
+If a legacy tune seems to need a V2 file change: **stop** and tell the owner.
+
+If `git pull` fails because of local edits: report it. Do not discard protected files.
 
 Optional local guard (this checkout only; CI / cloud agents are unaffected): `./scripts/mac/install_guard.sh`. Undo: `git config --unset core.hooksPath`.
 
