@@ -86,7 +86,9 @@ class PositionManager:
         now = self.clock.now()
         key = instrument_id or symbol
         row = self.store.positions.get(key)
-        plan = exit_plan or self._plans.get(client_order_id) or self._plans.get(entry_order_id or "")
+        plan = (
+            exit_plan or self._plans.get(client_order_id) or self._plans.get(entry_order_id or "")
+        )
         if side == "BUY" and row is not None:
             if plan is None and row.get("exit_plan_json"):
                 plan = plan_from_mapping(row["exit_plan_json"])
@@ -132,9 +134,10 @@ class PositionManager:
         self._ingest_quote(kind, payload, available)
         target = str(payload.get("instrument_id") or payload.get("position_id") or "")
         for pos in list(self.store.open_positions()):
-            if target and target not in (pos.get("instrument_id"), pos.get("position_id"), pos.get("symbol")):
-                if kind in ("TICK", "DEPTH_QUOTE", "QUOTE_SNAPSHOT", "BAR_CLOSED"):
-                    continue
+            ids = (pos.get("instrument_id"), pos.get("position_id"), pos.get("symbol"))
+            quote_kinds = ("TICK", "DEPTH_QUOTE", "QUOTE_SNAPSHOT", "BAR_CLOSED")
+            if target and target not in ids and kind in quote_kinds:
+                continue
             if "exit_plan" not in pos:
                 raw = pos.get("exit_plan_json")
                 if raw:
@@ -142,7 +145,8 @@ class PositionManager:
                 else:
                     continue
             if pos.get("exit_in_flight") and not (
-                self._pending.get(_key(pos)) and not quote_is_stale(
+                self._pending.get(_key(pos))
+                and not quote_is_stale(
                     pos.get("last_good_ts"), self.clock.now(), self.quote_max_age_s
                 )
             ):
@@ -150,7 +154,11 @@ class PositionManager:
             req = evaluate(
                 pos,
                 self.clock.now(),
-                mark=pos.get("mark") if pos.get("mark") == pos.get("mark") else pos.get("last_good_quote"),
+                mark=(
+                    pos.get("mark")
+                    if pos.get("mark") == pos.get("mark")
+                    else pos.get("last_good_quote")
+                ),
                 quote_ts=pos.get("last_good_ts"),
                 kill=self.kill_switch,
                 founder_kind=founder,
@@ -216,7 +224,11 @@ class PositionManager:
         inst = str(payload.get("instrument_id") or "")
         mark = payload.get("ltp")
         if mark is None:
-            mark = payload.get("c") if kind == "BAR_CLOSED" else payload.get("bid") or payload.get("ask")
+            mark = (
+                payload.get("c")
+                if kind == "BAR_CLOSED"
+                else payload.get("bid") or payload.get("ask")
+            )
         bid = payload.get("bid")
         ask = payload.get("ask")
         if inst and mark is not None:
@@ -228,6 +240,7 @@ class PositionManager:
                 instrument_id=inst,
             )
             if available <= self.clock.now():
+                self._fill_clock_exits(quote)
                 self.router.broker.on_depth(quote)
         if mark is None or not inst:
             return
@@ -235,6 +248,22 @@ class PositionManager:
             self._set_mark(inst, float(mark), available)
         except Exception:
             self._failsafe_mtm()
+
+    def _fill_clock_exits(self, quote: Quote) -> None:
+        """Time-stop / pending MARKET exits fill at the first post-deadline depth bid."""
+        for order in list(self.router.broker.orders.values()):
+            if not order.is_open or order.intent.purpose != "EXIT":
+                continue
+            if order.intent.exit_reason != "TIME_EXIT":
+                continue
+            same = quote.instrument_id == order.intent.instrument_id
+            if quote.instrument_id and order.intent.instrument_id and not same:
+                continue
+            px = quote.bid if quote.bid is not None else quote.ltp
+            if px is None:
+                continue
+            self.router.broker._fill(order, float(px), quote.available_ts)
+            self.router.broker.fill_models[order.client_order_id] = "depth"
 
     def _set_mark(self, instrument_id: str, price: float, ts: datetime) -> None:
         if price != price or price < 0:
@@ -263,7 +292,8 @@ class PositionManager:
             return req
         work = dict(pos)
         work["net_qty"] = req.qty
-        work["symbol"] = work.get("symbol") or symbol_from_instrument(str(work.get("instrument_id") or ""))
+        inst = str(work.get("instrument_id") or "")
+        work["symbol"] = work.get("symbol") or symbol_from_instrument(inst)
         hint = req.price_hint if req.price_hint is not None else work.get("last_good_quote")
         work["exit_price_hint"] = hint
         work["exit_reason"] = req.reason
@@ -274,33 +304,44 @@ class PositionManager:
             chosen = pos.get("chosen_time_stop")
             fill_ts = pos.get("fill_ts")
             last_ts = pos.get("last_good_ts")
-            deadline = as_ist(fill_ts) + timedelta(seconds=int(chosen.after_s)) if chosen and fill_ts else None
+            deadline = None
+            if chosen and fill_ts:
+                deadline = as_ist(fill_ts) + timedelta(seconds=int(chosen.after_s))
             if deadline is not None and last_ts is not None and as_ist(last_ts) >= deadline:
-                self._try_fill_exit(order, work, req)
-        elif req.reason in STALE_EXEMPT or not stale:
-            self._try_fill_exit(order, work, req)
-        if req.reason == "PARTIAL" and key in self.store.positions:
+                self._try_fill_exit(order, work, req, force_hint=False)
+        elif req.reason in STALE_EXEMPT:
+            self._try_fill_exit(order, work, req, force_hint=True)
+        elif not stale:
+            self._try_fill_exit(order, work, req, force_hint=False)
+        if req.reason == "TRAIL_STOP":
+            pos["exit_in_flight"] = False
+        elif req.reason == "PARTIAL" and key in self.store.positions:
+            self.store.positions[key]["exit_in_flight"] = False
             self.store.positions[key]["partials_done"] = int(pos.get("partials_done") or 0) + 1
         if req.stale_quote or (stale and req.reason in STALE_EXEMPT):
             self._alert("STALE_QUOTE", key, req.reason)
         return req
 
-    def _try_fill_exit(self, order: Any, pos: dict[str, Any], req: ExitRequest) -> None:
+    def _try_fill_exit(
+        self, order: Any, pos: dict[str, Any], req: ExitRequest, *, force_hint: bool
+    ) -> None:
         inst = str(pos.get("instrument_id") or "")
         px = req.price_hint if req.price_hint is not None else pos.get("last_good_quote")
         if px is None:
             return
-        bid = float(px)
-        ask = round(bid + 0.20, 2)
+        if force_hint:
+            # EOD / founder / kill / failsafe: last good print, not a later fill-model path.
+            self.router.broker._fill(order, float(px), self.clock.now())
+            self.router.broker.fill_models[order.client_order_id] = "stale_last_good"
+            return
         quote = Quote(
             available_ts=self.clock.now(),
-            bid=bid,
-            ask=ask,
+            bid=float(px),
+            ask=round(float(px) + 0.20, 2),
             ltp=float(px),
             instrument_id=inst,
         )
         self.router.broker.on_depth(quote)
-        _ = order
 
     def _failsafe_mtm(self) -> None:
         now = self.clock.now()
@@ -325,7 +366,12 @@ class PositionManager:
             )
 
     def _alert(self, code: str, instrument_id: str, detail: str) -> None:
-        rec = {"reason_code": code, "instrument_id": instrument_id, "detail": detail, "ts": self.clock.now().isoformat()}
+        rec = {
+            "reason_code": code,
+            "instrument_id": instrument_id,
+            "detail": detail,
+            "ts": self.clock.now().isoformat(),
+        }
         self.alerts.append(rec)
         self.bus.publish("HEALTH_ALERT", rec, source="oms")
 
@@ -366,8 +412,14 @@ class PositionManager:
         qty = abs(int(pos.get("last_exit_qty") or pos.get("orig_qty") or 0))
         exit_px = float(pos.get("last_exit_price") or 0)
         avg = float(pos.get("avg_price") or 0)
-        gross = round((exit_px - avg) * qty, 2) if qty else round(float(pos.get("realized_pnl") or 0), 2)
-        charges = sum(c.components.get("total", 0.0) for c in self.store.charges if c.client_order_id in {pos.get("entry_order_id"), exit_oid})
+        if qty:
+            gross = round((exit_px - avg) * qty, 2)
+        else:
+            gross = round(float(pos.get("realized_pnl") or 0), 2)
+        ids = {pos.get("entry_order_id"), exit_oid}
+        charges = sum(
+            c.components.get("total", 0.0) for c in self.store.charges if c.client_order_id in ids
+        )
         opened = pos.get("opened_at") or pos.get("fill_ts")
         held = 0
         if isinstance(opened, datetime):
@@ -408,7 +460,11 @@ def held_position(row: dict[str, Any]) -> Position:
 
 
 def exit_from_held(row: dict[str, Any], reason: str) -> Any:
-    return exit_intent(held_position(row), exit_reason=reason, decision_price=row.get("exit_price_hint"))
+    return exit_intent(
+        held_position(row),
+        exit_reason=reason,
+        decision_price=row.get("exit_price_hint"),
+    )
 
 
 __all__ = [

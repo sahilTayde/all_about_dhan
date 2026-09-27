@@ -9,9 +9,19 @@ from brokers.factory import make_broker
 from brokers.fills import Quote
 from contracts.clock import SimClock
 from contracts.payloads import Level, Partial, TimeStop, Trail
-from helpers import INST, NOW, envelope, make_decision, make_exit_plan, make_manager, make_plan
-from oms import Account, Veto
+from helpers import (
+    INST,
+    NOW,
+    depth_env,
+    envelope,
+    make_decision,
+    make_exit_plan,
+    make_manager,
+    make_plan,
+)
 from risk_engine import IST
+
+from oms import Account, Veto
 
 OPEN_0920 = datetime(2026, 9, 28, 9, 20, tzinfo=IST)
 EXPIRY_DAY = datetime(2026, 9, 29, 9, 20, tzinfo=IST)
@@ -19,7 +29,9 @@ LATE_ENTRY = datetime(2026, 9, 28, 11, 0, tzinfo=IST)
 
 
 def _enter(pm, clock, plan, lots=2):
-    out = pm.router.submit(make_plan(), make_decision(lots=lots), Account("founder"), exit_plan=plan)
+    out = pm.router.submit(
+        make_plan(), make_decision(lots=lots), Account("founder"), exit_plan=plan
+    )
     assert not isinstance(out, Veto)
     clock.advance_by(timedelta(milliseconds=250))
     pm.router.broker.on_depth(
@@ -37,7 +49,9 @@ def test_exit_kind_table_exact_time_and_price(tmp_path):
     pm = make_manager(tmp_path, clock, broker=make_broker(clock=clock))
     _enter(pm, clock, make_exit_plan())
     clock.advance_to(NOW.replace(hour=10, minute=30))
-    pm.on_market(envelope("FOUNDER_COMMAND", clock.now(), {"kind": "CUT_LOSS", "instrument_id": INST}))
+    pm.on_market(
+        envelope("FOUNDER_COMMAND", clock.now(), {"kind": "CUT_LOSS", "instrument_id": INST})
+    )
     closed = pm.store.closed[-1]
     rows.append(("FOUNDER_COMMAND", clock.now(), closed["last_exit_price"]))
     assert closed["last_exit_price"] > 0
@@ -48,7 +62,11 @@ def test_exit_kind_table_exact_time_and_price(tmp_path):
     _enter(pm, clock, make_exit_plan())
     clock.advance_to(NOW.replace(hour=10, minute=31))
     pm.kill_switch = True
-    pm.on_market(envelope("CLOCK", clock.now(), {"session": "2026-09-28", "phase": "MARKET", "minute": "10:31"}))
+    pm.on_market(
+        envelope(
+            "CLOCK", clock.now(), {"session": "2026-09-28", "phase": "MARKET", "minute": "10:31"}
+        )
+    )
     assert not pm.open_book()
     rows.append(("KILL_SWITCH", clock.now(), pm.store.closed[-1]["last_exit_price"]))
 
@@ -57,7 +75,11 @@ def test_exit_kind_table_exact_time_and_price(tmp_path):
     _enter(pm, clock, make_exit_plan())
     clock.advance_to(NOW.replace(hour=10, minute=32))
     pm.on_market(
-        envelope("TICK", clock.now(), {"instrument_id": INST, "ltp": 139.90, "bid": 139.80, "ask": 140.00})
+        envelope(
+            "TICK",
+            clock.now(),
+            {"instrument_id": INST, "ltp": 139.90, "bid": 139.80, "ask": 140.00},
+        )
     )
     assert not pm.open_book()
     rows.append(("CATASTROPHIC_STOP", clock.now(), pm.store.closed[-1]["last_exit_price"]))
@@ -71,16 +93,15 @@ def test_exit_kind_table_exact_time_and_price(tmp_path):
         make_exit_plan(target=Level(kind="premium", price=160.0)),
     )
     clock.advance_to(NOW.replace(hour=10, minute=33))
-    pm.on_market(
-        envelope("DEPTH_QUOTE", clock.now(), {"instrument_id": INST, "bid": 160.00, "ask": 160.20, "ltp": 160.10})
-    )
+    pm.on_market(depth_env(clock.now(), 160.00, 160.20, 160.10))
     assert not pm.open_book()
     rows.append(("TARGET_HIT", clock.now(), pm.store.closed[-1]["last_exit_price"]))
 
     clock = SimClock(NOW)
     pm = make_manager(tmp_path, clock, broker=make_broker(clock=clock))
     _enter(pm, clock, make_exit_plan())
-    clock.advance_to(NOW.replace(hour=10, minute=34))
+    clock.advance_by(timedelta(seconds=2))
+    pm.on_market(depth_env(clock.now(), 151.00, 151.20, 151.10))
     fired = pm.request_strategy_exit(INST)
     assert fired and fired[0].reason == "STRATEGY_EXIT"
     assert not pm.open_book()
@@ -107,7 +128,7 @@ def test_time_stop_0920_and_expiry_zero_ticks(tmp_path):
     pm = make_manager(tmp_path, clock, broker=make_broker(clock=clock))
     row = _enter(pm, clock, plan)
     assert row["chosen_time_stop"].when == "entry_in:09:15-10:00"
-    deadline = OPEN_0920 + timedelta(seconds=180)
+    deadline = row["fill_ts"] + timedelta(seconds=180)
     clock.advance_to(deadline)
     fired = pm.on_market(envelope("CLOCK", clock.now(), {"minute": "09:23"}))
     assert fired and fired[0].reason == "TIME_EXIT"
@@ -115,22 +136,19 @@ def test_time_stop_0920_and_expiry_zero_ticks(tmp_path):
     # still open until the first depth after the deadline
     assert pm.open_book()
     clock.advance_by(timedelta(milliseconds=400))
-    pm.on_market(
-        envelope("DEPTH_QUOTE", clock.now(), {"instrument_id": INST, "bid": 149.50, "ask": 149.70, "ltp": 149.55})
-    )
+    pm.on_market(depth_env(clock.now(), 149.50, 149.70, 149.55))
     assert not pm.open_book()
     assert pm.store.closed[-1]["last_exit_price"] == pytest.approx(149.50)
 
-    clock = SimClock(EXPIRY_DAY)
+    expiry_late = datetime(2026, 9, 29, 11, 0, tzinfo=IST)
+    clock = SimClock(expiry_late)
     pm = make_manager(tmp_path, clock, broker=make_broker(clock=clock))
     row = _enter(pm, clock, plan)
     assert row["chosen_time_stop"].when == "expiry_day"
-    clock.advance_to(EXPIRY_DAY + timedelta(seconds=180))
+    clock.advance_to(row["fill_ts"] + timedelta(seconds=180))
     pm.on_market(envelope("CLOCK", clock.now(), {"minute": "09:23"}))
     clock.advance_by(timedelta(milliseconds=200))
-    pm.on_market(
-        envelope("DEPTH_QUOTE", clock.now(), {"instrument_id": INST, "bid": 148.00, "ask": 148.20, "ltp": 148.10})
-    )
+    pm.on_market(depth_env(clock.now(), 148.00, 148.20, 148.10))
     assert not pm.open_book()
     assert pm.store.closed[-1]["last_exit_price"] == pytest.approx(148.00)
 
@@ -147,12 +165,10 @@ def test_non_matching_window_uses_always_time_stop(tmp_path):
     row = _enter(pm, clock, plan)
     assert row["chosen_time_stop"].when == "always"
     assert row["chosen_time_stop"].after_s == 600
-    clock.advance_to(LATE_ENTRY + timedelta(seconds=600))
+    clock.advance_to(row["fill_ts"] + timedelta(seconds=600))
     pm.on_market(envelope("CLOCK", clock.now(), {"minute": "11:10"}))
     clock.advance_by(timedelta(milliseconds=200))
-    pm.on_market(
-        envelope("DEPTH_QUOTE", clock.now(), {"instrument_id": INST, "bid": 150.00, "ask": 150.20, "ltp": 150.10})
-    )
+    pm.on_market(depth_env(clock.now(), 150.00, 150.20, 150.10))
     assert not pm.open_book()
 
 
@@ -179,16 +195,12 @@ def test_partial_then_trail_moves_resting_stop(tmp_path):
     _enter(pm, clock, plan, lots=2)
     stop_before = pm.open_book()[0]["stop_price"]
     clock.advance_to(NOW.replace(hour=10, minute=40))
-    pm.on_market(
-        envelope("DEPTH_QUOTE", clock.now(), {"instrument_id": INST, "bid": 155.00, "ask": 155.20, "ltp": 155.10})
-    )
+    pm.on_market(depth_env(clock.now(), 155.00, 155.20, 155.10))
     book = pm.open_book()
     assert len(book) == 1
     assert book[0]["net_qty"] == 65
     clock.advance_by(timedelta(seconds=2))
-    pm.on_market(
-        envelope("DEPTH_QUOTE", clock.now(), {"instrument_id": INST, "bid": 157.00, "ask": 157.20, "ltp": 157.10})
-    )
+    pm.on_market(depth_env(clock.now(), 157.00, 157.20, 157.10))
     book = pm.open_book()
     assert book[0]["stop_price"] > stop_before
     key = INST
@@ -220,6 +232,9 @@ def test_flat_by_ist_invariant_on_fixtures(tmp_path):
         clock = SimClock(stamp)
         pm = make_manager(tmp_path, clock, broker=make_broker(clock=clock))
         _enter(pm, clock, make_exit_plan())
-        clock.advance_to(datetime.combine(stamp.date(), datetime.strptime("15:15", "%H:%M").time(), tzinfo=IST))
+        flat = datetime.combine(
+            stamp.date(), datetime.strptime("15:15", "%H:%M").time(), tzinfo=IST
+        )
+        clock.advance_to(flat)
         pm.on_market(envelope("CLOCK", clock.now(), {"minute": "15:15"}))
         assert pm.open_book() == [], stamp

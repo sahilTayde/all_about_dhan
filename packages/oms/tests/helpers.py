@@ -78,7 +78,12 @@ def make_exit_plan(**kw: Any) -> ExitPlan:
     return ExitPlan(**data)
 
 
-def envelope(event_type: str, ts: Any, payload: dict[str, Any] | None = None, event_id: str = "e1") -> Envelope:
+def envelope(
+    event_type: str,
+    ts: Any,
+    payload: dict[str, Any] | None = None,
+    event_id: str = "e1",
+) -> Envelope:
     iso = ts.isoformat() if hasattr(ts, "isoformat") else str(ts)
     return Envelope(
         v=2,
@@ -93,6 +98,14 @@ def envelope(event_type: str, ts: Any, payload: dict[str, Any] | None = None, ev
         correlation_id=SIG,
         causation_id=None,
         payload=payload or {},
+    )
+
+
+def depth_env(ts: Any, bid: float, ask: float, ltp: float, inst: str = INST) -> Envelope:
+    return envelope(
+        "DEPTH_QUOTE",
+        ts,
+        {"instrument_id": inst, "bid": bid, "ask": ask, "ltp": ltp},
     )
 
 

@@ -11,8 +11,8 @@ from brokers.orders import Order, OrderState, Position, exit_intent
 from contracts.ids import order_id
 from contracts.instruments import India
 from contracts.payloads import Decision, EntryPlan, ExitPlan
-from events.bus import MemoryBus  # type: ignore[import-untyped]
-from ledger.charges import load_rates  # type: ignore[import-untyped]
+from events.bus import MemoryBus
+from ledger.charges import load_rates
 from risk_engine import RiskDecision, TradeIntent
 from risk_engine.last_good import LastGood, V2RiskEngine
 
@@ -340,7 +340,9 @@ class OrderRouter:
         raw = exit_intent(
             held,
             exit_reason=reason,
-            decision_price=float(hint) if hint is not None else (float(position.get("avg_price") or 0) or None),
+            decision_price=(
+                float(hint) if hint is not None else (float(position.get("avg_price") or 0) or None)
+            ),
         )
         intent = replace(raw, client_order_id=oid)
         if inst:

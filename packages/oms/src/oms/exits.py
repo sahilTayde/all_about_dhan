@@ -87,9 +87,7 @@ def when_matches(when: str, fill_ts: datetime, expiry: datetime | None) -> bool:
     return True
 
 
-def choose_time_stop(
-    plan: ExitPlan, fill_ts: datetime, expiry: datetime | None
-) -> TimeStop | None:
+def choose_time_stop(plan: ExitPlan, fill_ts: datetime, expiry: datetime | None) -> TimeStop | None:
     """First matching `when` at the fill wins; stored on the position."""
     for stop in plan.time_stops:
         if when_matches(stop.when, fill_ts, expiry):
@@ -115,11 +113,18 @@ def plan_from_mapping(raw: dict[str, Any] | None) -> ExitPlan:
     return ExitPlan(
         catastrophic=CatastrophicStop(level=_level(cat["level"]) or Level("premium", 0.05)),
         structural=(
-            StructuralStop(level=_level(structural["level"]) or Level("premium", 0.0), trigger=structural.get("trigger", "bar_close"))
+            StructuralStop(
+                level=_level(structural["level"]) or Level("premium", 0.0),
+                trigger=structural.get("trigger", "bar_close"),
+            )
             if structural and structural.get("level")
             else None
         ),
-        atr=AtrStop(k=float(atr["k"]), trigger=str(atr.get("trigger", "bar_close"))) if atr else None,
+        atr=(
+            AtrStop(k=float(atr["k"]), trigger=str(atr.get("trigger", "bar_close")))
+            if atr
+            else None
+        ),
         time_stops=tuple(
             TimeStop(
                 after_s=int(t["after_s"]),
@@ -130,7 +135,10 @@ def plan_from_mapping(raw: dict[str, Any] | None) -> ExitPlan:
         ),
         grace=GracePeriod(seconds=int(grace["seconds"])) if grace else None,
         signal_flip=(
-            SignalFlipExit(on=tuple(flip.get("on") or ("own_opposite",)), trigger=str(flip.get("trigger", "bar_close")))
+            SignalFlipExit(
+                on=tuple(flip.get("on") or ("own_opposite",)),
+                trigger=str(flip.get("trigger", "bar_close")),
+            )
             if flip
             else None
         ),
@@ -159,7 +167,9 @@ def plan_as_json(plan: ExitPlan) -> dict[str, Any]:
     return asdict(plan)
 
 
-def quote_is_stale(quote_ts: datetime | None, now: datetime, max_age_s: float = STALE_MAX_AGE_S) -> bool:
+def quote_is_stale(
+    quote_ts: datetime | None, now: datetime, max_age_s: float = STALE_MAX_AGE_S
+) -> bool:
     if quote_ts is None:
         return True
     return (as_ist(now) - as_ist(quote_ts)).total_seconds() > max_age_s
@@ -222,7 +232,8 @@ def evaluate(
         if done < len(partials):
             part = partials[done]
             if _hit_long(part.at, mark):
-                close_qty = max(1, int(round(int(pos.get("orig_qty") or qty) * float(part.fraction))))
+                orig = int(pos.get("orig_qty") or qty)
+                close_qty = max(1, round(orig * float(part.fraction)))
                 close_qty = min(close_qty, qty)
                 return ExitRequest("PARTIAL", "partials", close_qty, price_hint=mark)
         if _hit_long(plan.target, mark):
@@ -230,9 +241,12 @@ def evaluate(
         trail = plan.trail
         if trail is not None and _hit_long(trail.activate_at, mark):
             step = float(trail.step or 0.0)
-            proposed = max(stop, mark - step) if step else max(stop, float(trail.activate_at.price))
+            floor = float(trail.activate_at.price)
+            proposed = max(stop, mark - step) if step else max(stop, floor)
             if proposed > stop + 1e-9:
-                return ExitRequest("TRAIL_STOP", "trail", 0, new_stop=round(proposed, 2), price_hint=mark)
+                return ExitRequest(
+                    "TRAIL_STOP", "trail", 0, new_stop=round(proposed, 2), price_hint=mark
+                )
 
     if strategy_exit:
         return ExitRequest("STRATEGY_EXIT", "strategy", qty, price_hint=hint)

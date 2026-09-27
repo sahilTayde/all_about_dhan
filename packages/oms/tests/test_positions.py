@@ -9,8 +9,9 @@ from brokers.factory import make_broker
 from brokers.fills import Quote
 from contracts.clock import SimClock
 from helpers import INST, NOW, SIG, envelope, make_decision, make_exit_plan, make_manager, make_plan
-from oms import Account, Veto
 from risk_engine import IST
+
+from oms import Account, Veto
 
 
 def _fill_entry(router, clock, inst=INST, bid=151.00, ask=151.20, ltp=151.10):
@@ -56,8 +57,6 @@ def test_open_add_partial_full_close_pnl_ist(tmp_path):
             {"instrument_id": INST, "bid": 160.00, "ask": 160.20, "ltp": 160.10},
         )
     )
-    # no target/partial in this plan — explicit strategy exit of 65
-    book[0]["net_qty"] = 65
     work = dict(book[0])
     work["net_qty"] = 65
     work["exit_price_hint"] = 160.00

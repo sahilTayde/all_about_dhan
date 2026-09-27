@@ -76,15 +76,16 @@ def _print_book(label: str, pm: PositionManager) -> None:
     if not opens:
         print("  open positions: (none)")
     for p in opens:
+        mark = float(p.get("mark") or p["avg_price"])
+        unreal = (mark - float(p["avg_price"])) * int(p["net_qty"])
         print(
             f"  OPEN {p['instrument_id']} qty={p['net_qty']} avg={p['avg_price']:.2f} "
             f"mark={p.get('mark')} stop={p.get('stop_price')} "
-            f"unreal={(float(p.get('mark') or p['avg_price']) - float(p['avg_price'])) * int(p['net_qty']):.2f} "
-            f"realized={float(p.get('realized_pnl') or 0):.2f}"
+            f"unreal={unreal:.2f} realized={float(p.get('realized_pnl') or 0):.2f}"
         )
     for c in pm.store.closed:
         ts = c.get("last_exit_ts")
-        stamp = ts.astimezone(IST).isoformat() if hasattr(ts, "astimezone") else ts
+        stamp = ts.astimezone(IST).isoformat() if ts is not None else None
         print(
             f"  CLOSED {c.get('instrument_id')} exit={c.get('last_exit_price')} "
             f"qty={c.get('last_exit_qty')} realized={float(c.get('realized_pnl') or 0):.2f} "
@@ -105,18 +106,32 @@ def run() -> None:
         plan = _exit_plan()
 
         sig1 = "sg_demo_nifty_20260928_1001_0"
-        a = router.submit(_plan(sig1, "ep_1", "dc_1"), _decision("dc_1", 2), Account("founder"), exit_plan=plan)
+        a = router.submit(
+            _plan(sig1, "ep_1", "dc_1"),
+            _decision("dc_1", 2),
+            Account("founder"),
+            exit_plan=plan,
+        )
         assert not isinstance(a, Veto)
         clock.advance_by(timedelta(milliseconds=250))
-        broker.on_depth(Quote(available_ts=clock.now(), bid=151.00, ask=151.20, ltp=151.10, instrument_id=INST))
+        broker.on_depth(
+            Quote(available_ts=clock.now(), bid=151.00, ask=151.20, ltp=151.10, instrument_id=INST)
+        )
         _print_book("opened 2 lots", pm)
 
         clock.advance_to(START + timedelta(minutes=4))
         sig2 = "sg_demo_nifty_20260928_1005_0"
-        b = router.submit(_plan(sig2, "ep_2", "dc_2"), _decision("dc_2", 1), Account("founder"), exit_plan=plan)
+        b = router.submit(
+            _plan(sig2, "ep_2", "dc_2"),
+            _decision("dc_2", 1),
+            Account("founder"),
+            exit_plan=plan,
+        )
         assert not isinstance(b, Veto)
         clock.advance_by(timedelta(milliseconds=250))
-        broker.on_depth(Quote(available_ts=clock.now(), bid=151.00, ask=151.20, ltp=151.10, instrument_id=INST))
+        broker.on_depth(
+            Quote(available_ts=clock.now(), bid=151.00, ask=151.20, ltp=151.10, instrument_id=INST)
+        )
         _print_book("added 1 lot", pm)
 
         from contracts.envelope import Envelope

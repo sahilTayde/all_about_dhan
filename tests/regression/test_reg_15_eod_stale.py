@@ -7,7 +7,15 @@ from datetime import datetime, timedelta
 from brokers.factory import make_broker
 from brokers.fills import Quote
 from contracts.clock import SimClock
-from helpers import INST, NOW, envelope, make_decision, make_exit_plan, make_manager, make_plan
+from helpers import (
+    INST,
+    NOW,
+    envelope,
+    make_decision,
+    make_exit_plan,
+    make_manager,
+    make_plan,
+)
 from oms import Account, Veto
 from risk_engine import IST
 
@@ -19,19 +27,33 @@ def _open_and_stale_from(tmp_path, start, stale_from):
     broker = make_broker(clock=clock)
     pm = make_manager(tmp_path, clock, broker=broker)
     order = pm.router.submit(
-        make_plan(), make_decision(lots=2), Account("founder"), exit_plan=make_exit_plan()
+        make_plan(),
+        make_decision(lots=2),
+        Account("founder"),
+        exit_plan=make_exit_plan(),
     )
     assert not isinstance(order, Veto)
     clock.advance_by(timedelta(milliseconds=250))
     broker.on_depth(
-        Quote(available_ts=clock.now(), bid=151.00, ask=151.20, ltp=151.10, instrument_id=INST)
+        Quote(
+            available_ts=clock.now(),
+            bid=151.00,
+            ask=151.20,
+            ltp=151.10,
+            instrument_id=INST,
+        )
     )
     clock.advance_to(stale_from)
     pm.on_market(
         envelope(
             "DEPTH_QUOTE",
             clock.now(),
-            {"instrument_id": INST, "bid": LAST_GOOD, "ask": LAST_GOOD + 0.20, "ltp": LAST_GOOD},
+            {
+                "instrument_id": INST,
+                "bid": LAST_GOOD,
+                "ask": LAST_GOOD + 0.20,
+                "ltp": LAST_GOOD,
+            },
         )
     )
     return clock, pm
@@ -68,11 +90,19 @@ def test_reg_15c_ordinary_exits_wait_for_fresh_quote(tmp_path) -> None:
     from contracts.payloads import Level
 
     plan = make_exit_plan(target=Level(kind="premium", price=160.0))
-    order = pm.router.submit(make_plan(), make_decision(), Account("founder"), exit_plan=plan)
+    order = pm.router.submit(
+        make_plan(), make_decision(), Account("founder"), exit_plan=plan
+    )
     assert not isinstance(order, Veto)
     clock.advance_by(timedelta(milliseconds=250))
     broker.on_depth(
-        Quote(available_ts=clock.now(), bid=151.00, ask=151.20, ltp=151.10, instrument_id=INST)
+        Quote(
+            available_ts=clock.now(),
+            bid=151.00,
+            ask=151.20,
+            ltp=151.10,
+            instrument_id=INST,
+        )
     )
     clock.advance_by(timedelta(seconds=120))  # last good is now > 90s old
     # mark is still 151.10 (below target) and stale — even a strategy exit waits
@@ -81,7 +111,11 @@ def test_reg_15c_ordinary_exits_wait_for_fresh_quote(tmp_path) -> None:
     assert pm.open_book()
     clock.advance_by(timedelta(seconds=1))
     fired = pm.on_market(
-        envelope("DEPTH_QUOTE", clock.now(), {"instrument_id": INST, "bid": 151.00, "ask": 151.20, "ltp": 151.10})
+        envelope(
+            "DEPTH_QUOTE",
+            clock.now(),
+            {"instrument_id": INST, "bid": 151.00, "ask": 151.20, "ltp": 151.10},
+        )
     )
     assert fired and fired[0].reason == "STRATEGY_EXIT"
     assert not pm.open_book()

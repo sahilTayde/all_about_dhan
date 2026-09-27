@@ -33,7 +33,9 @@ def test_reg_05a_cap_table(tmp_path: Path) -> None:
     )
     assert lots_over.reason_code == "MAX_LOTS"
     # max loss per trade ₹30k: (100-50)*25*65 = 81,250
-    loss = risk.check_entry(_intent(lots=25, price=100.0, stop=50.0), now=NOW, state=RiskState())
+    loss = risk.check_entry(
+        _intent(lots=25, price=100.0, stop=50.0), now=NOW, state=RiskState()
+    )
     assert loss.reason_code == "MAX_LOSS_PER_TRADE"
     # would-cross daily cap: realized -80k, ticket risk 15k → would exceed 90k
     st = RiskState(realized_pnl_today=-80000.0)
@@ -41,9 +43,13 @@ def test_reg_05a_cap_table(tmp_path: Path) -> None:
     assert d.reason_code == "MAX_DAILY_LOSS"
     # max open positions 3
     st = RiskState(open_positions=3)
-    open_cap = risk.check_entry(_intent(lots=1, price=100.0, stop=90.0), now=NOW, state=st)
+    open_cap = risk.check_entry(
+        _intent(lots=1, price=100.0, stop=90.0), now=NOW, state=st
+    )
     assert open_cap.reason_code == "MAX_OPEN_POSITIONS"
-    ok = risk.check_entry(_intent(lots=2, price=100.0, stop=97.0), now=NOW, state=RiskState())
+    ok = risk.check_entry(
+        _intent(lots=2, price=100.0, stop=97.0), now=NOW, state=RiskState()
+    )
     assert ok.approved
     _ = clock
 
@@ -55,7 +61,9 @@ def test_reg_05b_missing_cap_key_fails_validation(tmp_path: Path) -> None:
     path = tmp_path / "risk_limits.yaml"
     path.write_text(yaml.safe_dump(raw))
     risk = V2RiskEngine(ledger=MemoryLedger(), config_path=path)
-    d = risk.check_entry(_intent(lots=1, price=100.0, stop=90.0), now=NOW, state=RiskState())
+    d = risk.check_entry(
+        _intent(lots=1, price=100.0, stop=90.0), now=NOW, state=RiskState()
+    )
     assert not d.approved
     assert d.reason_code in ("CONFIG_INVALID", "ENGINE_ERROR")
 
@@ -70,7 +78,9 @@ def test_reg_05c_kill_switch_vetoes_entry_allows_exit(tmp_path: Path) -> None:
     assert not isinstance(first, Veto)
     cfg_on = write_risk_cfg(tmp_path, kill_switch=True)
     risk_on = V2RiskEngine(ledger=store, config_path=cfg_on)
-    router_on = make_router(tmp_path, clock, store=store, risk=risk_on, broker=router.broker)
+    router_on = make_router(
+        tmp_path, clock, store=store, risk=risk_on, broker=router.broker
+    )
     # new signal id so order_id differs
     blocked = router_on.submit(
         make_plan(signal_id="sg_other_nifty_20260928_1002_0"),
@@ -82,12 +92,16 @@ def test_reg_05c_kill_switch_vetoes_entry_allows_exit(tmp_path: Path) -> None:
     # exits still allowed
     from dataclasses import replace
 
-    exit_i = replace(intent, purpose="EXIT", side="SELL", client_order_id="aad" + "e" * 24)
+    exit_i = replace(
+        intent, purpose="EXIT", side="SELL", client_order_id="aad" + "e" * 24
+    )
     assert risk_on.check_exit(exit_i, "EXIT", now=NOW).approved
     _ = datetime
 
 
-def test_reg_05d_raising_mark_closes_at_last_good_and_blocks_entries(tmp_path: Path) -> None:
+def test_reg_05d_raising_mark_closes_at_last_good_and_blocks_entries(
+    tmp_path: Path,
+) -> None:
     from brokers.factory import make_broker
     from brokers.fills import Quote
     from helpers import INST, make_decision, make_exit_plan, make_manager, make_plan
@@ -101,7 +115,13 @@ def test_reg_05d_raising_mark_closes_at_last_good_and_blocks_entries(tmp_path: P
     assert not isinstance(order, Veto)
     clock.advance_by(timedelta(milliseconds=250))
     broker.on_depth(
-        Quote(available_ts=clock.now(), bid=151.00, ask=151.20, ltp=151.10, instrument_id=INST)
+        Quote(
+            available_ts=clock.now(),
+            bid=151.00,
+            ask=151.20,
+            ltp=151.10,
+            instrument_id=INST,
+        )
     )
     last_good = pm.open_book()[0]["last_good_quote"]
     pm.mark_to_market(INST, float("nan"))
