@@ -51,6 +51,17 @@ def run_benchmark(
     Raises:
         TimeoutError: If benchmark exceeds deadline
     """
+    # REG-11: prevent writing to checkout's data/ folder
+    # Check if out_dir (or any ancestor before reaching /) is under a git repo's data/
+    check_path = out_dir.absolute()
+    while check_path != check_path.parent:
+        parent = check_path.parent
+        if check_path.name == "data" and (parent / ".git").exists():
+            # out_dir is at or under a git repo's data/ folder
+            msg = f"REG-11: Cannot write benchmark output to {out_dir.absolute()} (under checkout data/)"
+            raise ValueError(msg)
+        check_path = parent
+
     # REG-10: deadline guard
     signal.signal(signal.SIGALRM, _alarm_handler)
     signal.alarm(deadline_s)
