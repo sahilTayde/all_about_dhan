@@ -1,5 +1,57 @@
 # Handoff log — Team 07 Coding
 
+## As of now (2026-09-27 IST) — V2-04 onto main 971bf81 / V2-15 (PAPER)
+
+```text
+From:     teams/07_coding
+To:       founder / 00 / 09
+Date:     2026-09-27
+Status:   PAPER / V2-04 / NO_PROMOTE / no live orders
+Accepted: Merged origin/main 971bf81 (PR #51 V2-15) with a
+  normal merge. Kept V2-15 __main__ dispatcher, JOBS,
+  publish_atomic, services, test_v2_15, pyproject 2.15.0.
+  Added kernel/config/store/sources additively. engine
+  --once still writes ENGINE_STATUS READY then runs the
+  kernel on an empty tape. JobTimeout is the timeout
+  class; DeadlineExceeded is an alias. requirements/*
+  byte-identical to main. install.sh unchanged.
+Rejected: Replacing the V2-15 dispatcher. Second jobs
+  module. Rebase / force-push / relock.
+UNKNOWN: none
+```
+
+---
+
+## As of now (2026-09-27 IST) — V2-04 kernel onto current main (PAPER)
+
+```text
+From:     teams/07_coding
+To:       founder / 00 / 09
+Date:     2026-09-27
+Status:   PAPER / V2-04 / NO_PROMOTE / no live orders
+Accepted: Merged origin/main (a756e70) into PR #38 with a
+  normal merge. One packages/runtime: keep V2-17 bench_legacy
+  and python -m runtime bench-legacy; add kernel, jobs,
+  wiring, store. Config loader is runtime.config (not
+  contracts): contracts owns envelope/schema/clock/ids;
+  last-good YAML is runtime config. Deleted duplicate
+  ListSource; reuse marketdata.sources.ListSource via
+  envelopes_from_list_source. __main__ left as main's
+  minimal dispatcher (V2-15 adds commands additively).
+  requirements/* byte-identical to main. install.sh is
+  main's list (runtime already once). events import
+  resolves (in-repo sibling; pyproject deps stay empty
+  so check_local_names / PyPI 'events' cannot collide).
+Rejected: Second runtime package. contracts.config home.
+  sys.exit inside run_with_deadline (library raises
+  DeadlineExceeded / JobTimeout; CLI exits 1). Rebase
+  or force-push. Relock of requirements/.
+UNKNOWN: V2-15 (#51) jobs.py will merge onto this
+  run_with_deadline + JobTimeout alias.
+```
+
+---
+
 ## As of now (2026-09-27 IST) — V2-15 merged main a756e70 (#36/#44/#42/#48) (NO_PROMOTE)
 
 ```text
@@ -64,7 +116,6 @@ UNKNOWN: Dhan token refresh for unattended VPS (VERIFY). Docker-in-CI
 ```
 
 ---
-
 
 ## As of now (2026-09-27 IST) — V2-13 token-only ROLE_ACL (PAPER)
 
