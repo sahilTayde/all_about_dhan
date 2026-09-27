@@ -161,7 +161,7 @@ class Desk:
         self._ps.step_mark(self.engine, s)
         for (_b, u), pos in list(self.engine.opens.items()):
             if u == s.und and pos.filled and was_filled.get(pos.trade_id) is False:
-                self._fill_entry(pos.trade_id, float(pos.entry), self.now_ts)
+                self._fill_entry(pos.trade_id, self._ps.costs.booked_entry(self.engine, pos), self.now_ts)
         for row in self.engine.closed[n_closed:]:
             self._mirror_close(row)
         for (_b, u), pos in self.engine.opens.items():
@@ -581,7 +581,7 @@ class Desk:
         self._publish("ORDER_SUBMITTED", self._order_payload(order, pos.trade_id))
         self._ps._commit_open(self.engine, pos)
         if pos.filled:
-            self._fill_entry(pos.trade_id, float(pos.entry), int(pos.opened_ts))
+            self._fill_entry(pos.trade_id, self._ps.costs.booked_entry(self.engine, pos), int(pos.opened_ts))
         self.latency_ms["entry"].append((time.perf_counter() - t0) * 1000.0)
 
     def adopt_booked(self, pos: Any) -> None:
@@ -682,7 +682,8 @@ class Desk:
             i = order.intent
             intent = TradeIntent(
                 symbol=i.symbol, side="SELL", lots=i.lots, lot_size=i.lot_size, order_type="MARKET",
-                decision_price=float(row["exit"]), purpose="EXIT", exit_reason=ledger_exit_reason(row["exit_reason"]),
+                decision_price=float(row.get("decision_exit", row["exit"])), purpose="EXIT",
+                exit_reason=ledger_exit_reason(row["exit_reason"]),
                 trade_id=trade_id, client_order_id=client_order_id(trade_id, "X"),
             )
             exit_order = t.get("exit_order")  # a retry after the exit was placed but not filled

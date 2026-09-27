@@ -26,6 +26,8 @@ data/ledger/
 data/health/
 # LLM analyst call log (PR-016)
 data/llm_analyst/
+# Shadow decision logs. The engine creates data/shadow/ at runtime. Do not commit rows.
+data/shadow/
 
 # Live-rewritten founder board (open in Cursor / browser; do not commit ticks)
 teams/00_orchestrator/canvases/*
