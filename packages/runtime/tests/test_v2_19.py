@@ -170,7 +170,11 @@ def test_v2_19_secrets_scrubbed_from_stored_context(tmp_path: Path, monkeypatch:
     ctx = context_from_decision(DECISION, tick_ts=int(TEN.timestamp()), book=raw, brief=brief)
     assert token not in json.dumps(ctx) and "access_token" not in json.dumps(ctx)
     reused = build_context(
-        underlying="NIFTY", tick_ts=int(TEN.timestamp()), signal={"side": "CE", "strike": 24400.0}, book=raw, brief=brief
+        underlying="NIFTY",
+        tick_ts=int(TEN.timestamp()),
+        signal={"side": "CE", "strike": 24400.0},
+        book=raw,
+        brief=brief,
     )
     assert token not in json.dumps(reused)
     cfg = _cfg(tmp_path)
