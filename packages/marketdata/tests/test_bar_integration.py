@@ -47,7 +47,7 @@ def test_replay_from_synthetic_depth_quotes_fixture(tmp_path: Path) -> None:
     assert first.start == "2026-01-06T09:15:00+05:30"
     assert first.end == "2026-01-06T09:16:00+05:30"
     assert first.o is not None
-    for prev, cur in zip(bars, bars[1:]):
+    for prev, cur in zip(bars, bars[1:], strict=False):
         assert datetime.fromisoformat(cur.start) >= datetime.fromisoformat(prev.end)
 
 

@@ -16,10 +16,13 @@ def test_bar_closed_at_bucket_close() -> None:
         Tick("NIFTY", 22000.0, 100, 100, 1000, "2026-01-06T09:15:30+05:30"),
         clock.now(),
     )
-    assert builder.on_tick(
-        Tick("NIFTY", 22000.0, 1, 1, 1000, "2026-01-06T09:15:59+05:30"),
-        datetime(2026, 1, 6, 9, 15, 59, tzinfo=IST),
-    ) == []
+    assert (
+        builder.on_tick(
+            Tick("NIFTY", 22000.0, 1, 1, 1000, "2026-01-06T09:15:59+05:30"),
+            datetime(2026, 1, 6, 9, 15, 59, tzinfo=IST),
+        )
+        == []
+    )
 
     clock.advance_to(datetime(2026, 1, 6, 9, 16, 0, tzinfo=IST))
     bars = builder.on_tick(
