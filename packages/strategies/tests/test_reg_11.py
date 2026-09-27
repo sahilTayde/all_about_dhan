@@ -5,7 +5,6 @@ The root conftest.py audit hook (V2-01) blocks writes to data/ and config/.
 These tests verify the guard works.
 """
 
-import pytest
 from pathlib import Path
 
 

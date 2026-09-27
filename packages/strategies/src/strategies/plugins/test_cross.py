@@ -1,56 +1,47 @@
+"""TEST-CROSS: moving-average crossover. Shadow-only test plugin.
+
+Never put this in a real basket. Used only to exercise V2-06 code paths.
 """
-TEST-CROSS: Moving average crossover test plugin (shadow only).
 
-This is a TEST-ONLY strategy used to exercise code paths in V2-06.
-It should NEVER be in a real basket or move beyond shadow stage.
-
-Signal: When fast MA crosses above slow MA, emit CE signal.
-When fast crosses below slow, emit PE signal.
-
-Exit plan: Round 11 defaults (catastrophic only, structural invalidation).
-"""
+from __future__ import annotations
 
 from typing import Any
 
-from strategies import (
+from contracts.payloads import CatastrophicStop, ExitPlan, Level, StrikeChoice, StrikeQuote
+
+from strategies.api import (
     Bar,
     ChainSnapshot,
-    ExitPlan,
+    EntryPolicy,
     ExitRequest,
     PositionUpdate,
     SessionContext,
     Signal,
-    Strategy,
     StrategyMeta,
-    StrikeChoice,
-    StrikeQuote,
-    compute_params_hash,
 )
 from strategies.feature_view_stub import FeatureView
+from strategies.params_hash import compute_params_hash
 
-# Test strategy parameters
 FAST_PERIOD = 5
 SLOW_PERIOD = 20
-PARAMS_DICT = {
+
+EXIT_PLAN = ExitPlan(
+    catastrophic=CatastrophicStop(level=Level(kind="premium", price=30000.0)),
+    structural=None,
+    flat_by_ist="15:15",
+    defaults_from=None,
+)
+
+PARAMS_DICT: dict[str, Any] = {
     "fast_period": FAST_PERIOD,
     "slow_period": SLOW_PERIOD,
-    "exit_plan": {
-        "catastrophic_max_loss": 30000,
-        "structural_stop": {"kind": "premium", "price": 0.0},  # invalidation at 0
-        "flat_by_ist": "15:15",
-        "defaults_from": "round11_defaults",  # placeholder for K18
-    },
+    "exit_plan": EXIT_PLAN,
 }
 PARAMS_HASH = compute_params_hash(PARAMS_DICT)
 
 
-class TestCrossStrategy:
-    """
-    Test moving average cross strategy.
-
-    Shadow-only. Emits signals when MAs cross. Used only to exercise
-    the strategy runtime code paths in tests.
-    """
+class CrossPlugin:
+    """Shadow-only MA cross. Emits CE on cross-up, PE on cross-down."""
 
     meta = StrategyMeta(
         strategy_id="TEST-CROSS",
@@ -59,10 +50,13 @@ class TestCrossStrategy:
         markets=("IN_INDEX_OPT",),
         underlyings=("NIFTY",),
         inputs=("bars:1m",),
-        features=("ema_5", "ema_20"),  # Will use stub feature view in tests
+        features=("ema_5", "ema_20"),
         stage="shadow",
         max_positions=1,
+        entry_policy=EntryPolicy(),
+        legacy_logic_from=(),
     )
+    exit_plan = EXIT_PLAN
 
     def __init__(self) -> None:
         self.fast_ma_prev: float | None = None
@@ -70,135 +64,74 @@ class TestCrossStrategy:
         self.signal_count = 0
 
     def on_session_start(self, ctx: SessionContext) -> None:
-        """Reset state at session start."""
+        del ctx
         self.fast_ma_prev = None
         self.slow_ma_prev = None
         self.signal_count = 0
 
     def on_bar(self, bar: Bar, view: FeatureView) -> list[Signal]:
-        """
-        Check for MA cross and emit signal.
-
-        Cross-up (fast > slow and prev fast <= prev slow) -> CE
-        Cross-down (fast < slow and prev fast >= prev slow) -> PE
-        """
-        # Get MA values from feature view (stub will return None in tests)
-        fast_ma = view.get("ema_5")
-        slow_ma = view.get("ema_20")
-
-        if fast_ma is None or slow_ma is None:
+        fast_raw = view.get("ema_5")
+        slow_raw = view.get("ema_20")
+        if not isinstance(fast_raw, (int, float)) or not isinstance(slow_raw, (int, float)):
             return []
-
-        # Check for cross
+        fast_ma = float(fast_raw)
+        slow_ma = float(slow_raw)
         signal: Signal | None = None
-
         if self.fast_ma_prev is not None and self.slow_ma_prev is not None:
-            # Cross-up
             if fast_ma > slow_ma and self.fast_ma_prev <= self.slow_ma_prev:
-                signal = self._create_signal("CE", bar.timestamp, view)
-            # Cross-down
+                signal = self._create_signal("CE", bar.available_ts, fast_ma, slow_ma)
             elif fast_ma < slow_ma and self.fast_ma_prev >= self.slow_ma_prev:
-                signal = self._create_signal("PE", bar.timestamp, view)
-
-        # Update prev values
+                signal = self._create_signal("PE", bar.available_ts, fast_ma, slow_ma)
         self.fast_ma_prev = fast_ma
         self.slow_ma_prev = slow_ma
-
         return [signal] if signal else []
 
     def on_chain(self, snap: ChainSnapshot, view: FeatureView) -> list[Signal]:
-        """Not used by TEST-CROSS."""
+        del snap, view
         return []
 
     def on_position(self, update: PositionUpdate) -> list[ExitRequest]:
-        """Not used by TEST-CROSS."""
+        del update
         return []
 
     def on_session_end(self) -> dict[str, Any]:
-        """Return day stats."""
-        return {
-            "signals_emitted": self.signal_count,
-            "fast_period": FAST_PERIOD,
-            "slow_period": SLOW_PERIOD,
-        }
+        return {"signals_emitted": self.signal_count}
 
-    def _create_signal(self, side: str, decision_ts: str, view: FeatureView) -> Signal:
-        """Create a signal with test defaults."""
+    def _create_signal(self, side: str, decision_ts: str, fast_ma: float, slow_ma: float) -> Signal:
         self.signal_count += 1
-
-        # Signal ID: simplified for test (real one uses contracts.ids.signal_id)
-        signal_id = f"sg_test-cross-v1.0.0_{decision_ts.replace(':', '').replace('-', '')}_{self.signal_count}"
-
-        # Strike choice: test stub
-        strike_choice = StrikeChoice(
+        stamp = decision_ts.replace(":", "").replace("-", "")
+        signal_id = f"sg_test-cross-v1.0.0_{stamp}_{self.signal_count}"
+        empty = StrikeQuote(
+            rule="ATM",
+            instrument_id="NSE_FNO:NIFTY:2026-09-29:24500:CE",
+            bid=None,
+            ask=None,
+            mid=None,
+            spread=None,
+            quote_age_ms=None,
+            est_delta=None,
+            est_round_trip_pts=None,
+        )
+        choice = StrikeChoice(
             chosen="ITM100",
             reason="TEST_DEFAULT",
             rule_version="test_v1",
-            alternatives=(
-                StrikeQuote(
-                    rule="ATM",
-                    instrument_id="NSE_FNO:NIFTY:2026-09-29:24500:CE",
-                    bid=150.0,
-                    ask=151.0,
-                    mid=150.5,
-                    spread=1.0,
-                    quote_age_ms=100,
-                    est_delta=0.5,
-                    est_round_trip_pts=25.0,
-                ),
-                StrikeQuote(
-                    rule="ITM100",
-                    instrument_id="NSE_FNO:NIFTY:2026-09-29:24400:CE",
-                    bid=160.0,
-                    ask=161.0,
-                    mid=160.5,
-                    spread=1.0,
-                    quote_age_ms=100,
-                    est_delta=0.6,
-                    est_round_trip_pts=26.0,
-                ),
-                StrikeQuote(
-                    rule="ITM200",
-                    instrument_id="NSE_FNO:NIFTY:2026-09-29:24300:CE",
-                    bid=170.0,
-                    ask=171.0,
-                    mid=170.5,
-                    spread=1.0,
-                    quote_age_ms=100,
-                    est_delta=0.7,
-                    est_round_trip_pts=27.0,
-                ),
-            ),
+            alternatives=(empty,),
         )
-
-        # Exit plan: Round 11 defaults
-        exit_plan = ExitPlan(
-            catastrophic_max_loss=30000,
-            structural_stop=None,  # Native invalidation would go here
-            flat_by_ist="15:15",
-            defaults_from="round11_defaults",
-        )
-
-        # Feature snapshot
-        features = {
-            "ema_5": view.get("ema_5", 0.0) or 0.0,
-            "ema_20": view.get("ema_20", 0.0) or 0.0,
-        }
-
+        direction = "above" if side == "CE" else "below"
         return Signal(
             signal_id=signal_id,
             strategy_id="TEST-CROSS",
             underlying="NIFTY",
             side=side,
             strike_rule="ROUTER",
-            strike_choice=strike_choice,
+            strike_choice=choice,
             decision_ts=decision_ts,
-            confidence=0.5,  # Test default
-            exit_plan=exit_plan,
-            reasons=("MA_CROSS", f"Fast={FAST_PERIOD} crossed {'above' if side == 'CE' else 'below'} Slow={SLOW_PERIOD}"),
-            features=features,
+            confidence=0.5,
+            exit_plan=self.exit_plan,
+            reasons=("MA_CROSS", f"Fast={FAST_PERIOD} crossed {direction} Slow={SLOW_PERIOD}"),
+            features={"ema_5": fast_ma, "ema_20": slow_ma},
         )
 
 
-# Module-level strategy instance (runtime expects this)
-strategy = TestCrossStrategy()
+strategy = CrossPlugin()

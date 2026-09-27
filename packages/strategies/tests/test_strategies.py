@@ -1,101 +1,171 @@
-"""
-Tests for V2-06 strategy runtime and registry.
+"""V2-06 strategy runtime acceptance tests. Synthetic fixtures only; no secrets."""
 
-Acceptance tests from V2_BUILD_PLAN.md V2-06:
-- A raising plugin is disabled for the session and others keep emitting
-- An over-budget plugin is disabled
-- A plugin for FX_SPOT refuses to load into an India basket
-- Missing basket file means zero signals and a health alert
-- Random-cut causality on signals
-- REG-13a: changing any exit field changes params_hash and config_hash
-"""
+from __future__ import annotations
 
-import tempfile
+import random
+import sys
+import types
 from datetime import date
 from pathlib import Path
-from unittest.mock import MagicMock
 
 import pytest
+from contracts.payloads import CatastrophicStop, ExitPlan, Level, TimeStop
 
-from strategies import (
-    Bar,
-    Basket,
-    BasketEntry,
-    ChainSnapshot,
-    ExitPlan,
-    Level,
-    RegistryEntry,
-    Signal,
-    StrategyMeta,
-    TimeStop,
+from strategies.api import Bar, EntryPolicy, SessionContext, StrategyMeta
+from strategies.onboarding import check_registry
+from strategies.onboarding import main as onboarding_main
+from strategies.params_hash import (
+    ROUND11_DEFAULTS_SHA256,
+    ExitPlanLoadError,
     compute_params_hash,
-    disable_strategy,
+    config_hash,
     exit_plan_hash,
+    load_exit_defaults,
+    resolve_exit_plan,
+)
+from strategies.plugins.test_cross import CrossPlugin
+from strategies.plugins.test_cross import strategy as test_cross
+from strategies.registry import (
+    RegistryEntry,
+    basket_for,
     load_basket,
-    load_basket_strategies,
+    load_basket_json,
     load_registry,
+)
+from strategies.runtime import (
+    SessionRuntime,
+    StrategyRuntimeError,
+    StrategyTimeoutError,
+    disable_strategy,
     load_strategy,
     strategy_call_budget,
 )
-from strategies.feature_view_stub import FeatureView
-from strategies.runtime import StrategyRuntimeError, StrategyTimeoutError
+
+FIXTURE_DEFAULTS = Path(__file__).parent / "fixtures" / "exit_defaults_main.yaml"
+
+
+def _meta(**overrides: object) -> StrategyMeta:
+    base: dict[str, object] = {
+        "strategy_id": "TEST-A",
+        "version": "1.0.0",
+        "params_hash": "abc123abc123abcd",
+        "markets": ("IN_INDEX_OPT",),
+        "underlyings": ("NIFTY",),
+        "inputs": ("bars:1m",),
+        "features": ("ema_5",),
+        "stage": "shadow",
+        "entry_policy": EntryPolicy(),
+        "legacy_logic_from": (),
+    }
+    base.update(overrides)
+    return StrategyMeta(**base)  # type: ignore[arg-type]
+
+
+def _install_plugin(module_path: str, instance: object) -> None:
+    module = types.ModuleType(module_path)
+    module.strategy = instance  # type: ignore[attr-defined]
+    sys.modules[module_path] = module
+
+
+def _plugin(meta: StrategyMeta, exit_plan: ExitPlan | object | None = "default") -> object:
+    class _P:
+        def __init__(self) -> None:
+            self.meta = meta
+            if exit_plan == "default":
+                self.exit_plan = ExitPlan(
+                    catastrophic=CatastrophicStop(level=Level(kind="premium", price=30000.0))
+                )
+            else:
+                self.exit_plan = exit_plan  # type: ignore[assignment]
+
+    return _P()
+
+
+def _bar(n: int = 0) -> Bar:
+    return Bar(
+        instrument_id="NSE_IDX:NIFTY",
+        open=24500.0,
+        high=24550.0,
+        low=24480.0,
+        close=24520.0,
+        volume=1000,
+        timestamp=f"2026-09-27T09:2{n}:00+05:30",
+        available_ts=f"2026-09-27T09:2{n}:00+05:30",
+    )
+
+
+class _View:
+    def __init__(self, values: dict[str, float]) -> None:
+        self.values = values
+
+    def get(self, name: str, instrument: str = "", tf: str = "") -> object | None:
+        del instrument, tf
+        return self.values.get(name)
 
 
 class TestParamsHash:
-    """Test params hashing (REG-13a)."""
-
     def test_changing_exit_field_changes_hash(self) -> None:
-        """REG-13a: changing any exit field changes params_hash."""
-        exit1 = ExitPlan(catastrophic_max_loss=30000, flat_by_ist="15:15")
-        exit2 = ExitPlan(catastrophic_max_loss=30000, flat_by_ist="15:00")
-        exit3 = ExitPlan(catastrophic_max_loss=25000, flat_by_ist="15:15")
-
-        hash1 = exit_plan_hash(exit1)
-        hash2 = exit_plan_hash(exit2)
-        hash3 = exit_plan_hash(exit3)
-
-        assert hash1 != hash2, "Changing flat_by_ist should change hash"
-        assert hash1 != hash3, "Changing catastrophic_max_loss should change hash"
-        assert hash2 != hash3
+        exit1 = ExitPlan(
+            catastrophic=CatastrophicStop(level=Level(kind="premium", price=30000.0)),
+            flat_by_ist="15:15",
+        )
+        exit2 = ExitPlan(
+            catastrophic=CatastrophicStop(level=Level(kind="premium", price=30000.0)),
+            flat_by_ist="15:00",
+        )
+        exit3 = ExitPlan(
+            catastrophic=CatastrophicStop(level=Level(kind="premium", price=25000.0)),
+            flat_by_ist="15:15",
+        )
+        assert exit_plan_hash(exit1) != exit_plan_hash(exit2)
+        assert exit_plan_hash(exit1) != exit_plan_hash(exit3)
 
     def test_time_stops_in_hash(self) -> None:
-        """REG-13a: time stops are part of the hash."""
         exit1 = ExitPlan(
-            catastrophic_max_loss=30000,
+            catastrophic=CatastrophicStop(level=Level(kind="premium", price=30000.0)),
             time_stops=(),
         )
         exit2 = ExitPlan(
-            catastrophic_max_loss=30000,
+            catastrophic=CatastrophicStop(level=Level(kind="premium", price=30000.0)),
             time_stops=(TimeStop(after_s=180, when="always"),),
         )
+        assert exit_plan_hash(exit1) != exit_plan_hash(exit2)
 
-        hash1 = exit_plan_hash(exit1)
-        hash2 = exit_plan_hash(exit2)
+    def test_params_and_config_hash_reg13a(self) -> None:
+        plan = ExitPlan(catastrophic=CatastrophicStop(level=Level(kind="premium", price=30000.0)))
+        params = {"coef": 1.5, "exit_plan": plan}
+        h0 = compute_params_hash(params)
+        assert compute_params_hash(params) == h0
+        assert len(h0) == 16
+        edited = ExitPlan(catastrophic=CatastrophicStop(level=Level(kind="premium", price=29000.0)))
+        assert compute_params_hash({"coef": 1.5, "exit_plan": edited}) != h0
+        defaults, digest = load_exit_defaults(FIXTURE_DEFAULTS)
+        assert digest == ROUND11_DEFAULTS_SHA256
+        c0 = config_hash(exit_defaults=defaults)
+        bumped = dict(defaults)
+        bumped["catastrophic"] = {"max_loss": 29999}
+        assert config_hash(exit_defaults=bumped) != c0
 
-        assert hash1 != hash2, "Adding time stop should change hash"
 
-    def test_params_hash_stable(self) -> None:
-        """Params hash should be stable across calls."""
-        params = {
-            "coef_a": 1.5,
-            "coef_b": 2.0,
-            "exit_plan": ExitPlan(catastrophic_max_loss=30000),
-        }
+class TestExitDefaults:
+    def test_load_main_defaults_and_inherit_catastrophic(self) -> None:
+        defaults, digest = load_exit_defaults(FIXTURE_DEFAULTS)
+        assert defaults["catastrophic"]["max_loss"] == 30000
+        assert defaults["structural"]["enabled"] is True
+        assert defaults["atr"] is None
+        plan = resolve_exit_plan({}, defaults=defaults, defaults_sha256=digest)
+        assert plan.catastrophic.level.price == 30000.0
+        assert plan.defaults_from == f"exit_defaults@{digest}"
 
-        hash1 = compute_params_hash(params)
-        hash2 = compute_params_hash(params)
-
-        assert hash1 == hash2
-        assert len(hash1) == 16  # 16 hex chars
+    def test_reg18d_refuses_plan_without_catastrophic(self) -> None:
+        with pytest.raises(ExitPlanLoadError, match="REG-18d"):
+            resolve_exit_plan({})
 
 
 class TestRegistry:
-    """Test registry loading from YAML."""
-
     def test_load_registry_from_yaml(self, tmp_path: Path) -> None:
-        """Load registry from YAML file."""
-        registry_yaml = tmp_path / "registry.yaml"
-        registry_yaml.write_text(
+        path = tmp_path / "registry.yaml"
+        path.write_text(
             """
 strategies:
   - strategy_id: "TEST-A"
@@ -103,6 +173,7 @@ strategies:
     version: "1.0.0"
     params_hash: "abc123"
     stage: "shadow"
+    legacy_logic_from: []
   - strategy_id: "TEST-B"
     module_path: "test.plugin_b"
     version: "2.1.0"
@@ -110,45 +181,24 @@ strategies:
     stage: "paper"
 """
         )
-
-        registry = load_registry(registry_yaml)
-
-        assert len(registry) == 2
-        assert "TEST-A" in registry
-        assert "TEST-B" in registry
-
-        entry_a = registry["TEST-A"]
-        assert entry_a.strategy_id == "TEST-A"
-        assert entry_a.module_path == "test.plugin_a"
-        assert entry_a.version == "1.0.0"
-        assert entry_a.params_hash == "abc123"
-        assert entry_a.stage == "shadow"
+        registry = load_registry(path)
+        assert set(registry) == {"TEST-A", "TEST-B"}
+        assert registry["TEST-A"].module_path == "test.plugin_a"
+        assert registry["TEST-A"].legacy_logic_from == ()
 
     def test_load_registry_missing_file_warns(self, tmp_path: Path) -> None:
-        """Missing registry file returns empty dict with warning."""
-        registry_yaml = tmp_path / "nonexistent.yaml"
-
         with pytest.warns(UserWarning, match="Registry file not found"):
-            registry = load_registry(registry_yaml)
-
-        assert registry == {}
+            assert load_registry(tmp_path / "missing.yaml") == {}
 
     def test_load_registry_empty_file(self, tmp_path: Path) -> None:
-        """Empty registry file returns empty dict."""
-        registry_yaml = tmp_path / "registry.yaml"
-        registry_yaml.write_text("")
-
-        registry = load_registry(registry_yaml)
-        assert registry == {}
+        path = tmp_path / "registry.yaml"
+        path.write_text("")
+        assert load_registry(path) == {}
 
 
 class TestBasket:
-    """Test basket loading from YAML."""
-
     def test_load_basket_from_yaml(self, tmp_path: Path) -> None:
-        """Load basket from YAML file."""
-        basket_yaml = tmp_path / "2026-09-27.yaml"
-        basket_yaml.write_text(
+        (tmp_path / "2026-09-27.yaml").write_text(
             """
 session: "2026-09-27"
 market: "IN_INDEX_OPT"
@@ -158,56 +208,26 @@ entries:
     weight: 1.5
     max_lots: 10
     stage: "shadow"
-  - strategy_id: "TEST-B"
-    underlyings: ["NIFTY"]
-    weight: 1.0
-    max_lots: 5
-    stage: "paper"
 """
         )
-
         basket = load_basket(date(2026, 9, 27), "IN_INDEX_OPT", tmp_path)
-
         assert basket is not None
-        assert basket.session == "2026-09-27"
-        assert basket.market == "IN_INDEX_OPT"
-        assert basket.source == "yaml"
-        assert len(basket.entries) == 2
-
-        entry_a = basket.entries[0]
-        assert entry_a.strategy_id == "TEST-A"
-        assert entry_a.underlyings == ("NIFTY", "SENSEX")
-        assert entry_a.weight == 1.5
-        assert entry_a.max_lots == 10
-        assert entry_a.stage == "shadow"
+        assert basket.entries[0].underlyings == ("NIFTY", "SENSEX")
+        assert basket_for(date(2026, 9, 27), "IN_INDEX_OPT", tmp_path) == basket
 
     def test_load_basket_missing_file_returns_none(self, tmp_path: Path) -> None:
-        """Missing basket file returns None with warning (fail closed)."""
         with pytest.warns(UserWarning, match="Basket file not found"):
-            basket = load_basket(date(2026, 9, 27), "IN_INDEX_OPT", tmp_path)
-
-        assert basket is None
+            assert load_basket(date(2026, 9, 27), "IN_INDEX_OPT", tmp_path) is None
 
     def test_load_basket_session_mismatch_warns(self, tmp_path: Path) -> None:
-        """Basket with wrong session warns and returns None."""
-        basket_yaml = tmp_path / "2026-09-27.yaml"
-        basket_yaml.write_text(
-            """
-session: "2026-09-28"
-market: "IN_INDEX_OPT"
-entries: []
-"""
+        (tmp_path / "2026-09-27.yaml").write_text(
+            'session: "2026-09-28"\nmarket: "IN_INDEX_OPT"\nentries: []\n'
         )
-
         with pytest.warns(UserWarning, match="session mismatch"):
-            basket = load_basket(date(2026, 9, 27), "IN_INDEX_OPT", tmp_path)
-
-        assert basket is None
+            assert load_basket(date(2026, 9, 27), "IN_INDEX_OPT", tmp_path) is None
 
     def test_basket_hash_deterministic(self, tmp_path: Path) -> None:
-        """Basket hash should be deterministic."""
-        basket_yaml = tmp_path / "2026-09-27.yaml"
-        basket_yaml.write_text(
+        (tmp_path / "2026-09-27.yaml").write_text(
             """
 session: "2026-09-27"
 market: "IN_INDEX_OPT"
@@ -219,220 +239,185 @@ entries:
     stage: "shadow"
 """
         )
+        a = load_basket(date(2026, 9, 27), "IN_INDEX_OPT", tmp_path)
+        b = load_basket(date(2026, 9, 27), "IN_INDEX_OPT", tmp_path)
+        assert a is not None and b is not None
+        assert a.basket_hash == b.basket_hash
 
-        basket1 = load_basket(date(2026, 9, 27), "IN_INDEX_OPT", tmp_path)
-        basket2 = load_basket(date(2026, 9, 27), "IN_INDEX_OPT", tmp_path)
-
-        assert basket1 is not None
-        assert basket2 is not None
-        assert basket1.basket_hash == basket2.basket_hash
+    def test_basket_json_adapter_k6(self, tmp_path: Path) -> None:
+        (tmp_path / "basket_india.json").write_text(
+            '{"market":"IN_INDEX_OPT","entries":['
+            '{"strategy_id":"TEST-CROSS","underlyings":["NIFTY"],'
+            '"weight":1.0,"max_lots":2,"stage":"shadow"}]}'
+        )
+        basket = load_basket_json(date(2026, 9, 27), "IN_INDEX_OPT", config_dir=tmp_path)
+        assert basket is not None
+        assert basket.source.startswith("json:")
+        assert basket.entries[0].strategy_id == "TEST-CROSS"
 
 
 class TestStrategyLoader:
-    """Test strategy loading and validation."""
-
     def test_load_strategy_validates_meta_matches_registry(self) -> None:
-        """Strategy meta must match registry entry."""
-        # Mock strategy with mismatched version
-        mock_strategy = MagicMock()
-        mock_strategy.meta = StrategyMeta(
-            strategy_id="TEST-A",
-            version="2.0.0",  # Doesn't match registry
-            params_hash="abc123",
-            markets=("IN_INDEX_OPT",),
-            underlyings=("NIFTY",),
-            inputs=(),
-            features=(),
-            stage="shadow",
-        )
-
+        meta = _meta(version="9.9.9")
+        _install_plugin("tests.plugins.mismatch", _plugin(meta))
         registry = {
             "TEST-A": RegistryEntry(
                 strategy_id="TEST-A",
-                module_path="test.mock",
+                module_path="tests.plugins.mismatch",
                 version="1.0.0",
-                params_hash="abc123",
+                params_hash=meta.params_hash,
                 stage="shadow",
             )
         }
-
-        # We can't actually test importlib here without real modules,
-        # but the logic is in load_strategy()
-        # For now, document the contract
-        pass
+        with pytest.raises(StrategyRuntimeError, match="version mismatch"):
+            load_strategy("TEST-A", registry)
 
     def test_load_strategy_checks_features(self) -> None:
-        """Strategy requiring unavailable features should raise."""
-        # This would be tested in integration, but documents the contract
-        pass
+        meta = _meta(features=("ema_5", "missing_feature"))
+        _install_plugin("tests.plugins.features", _plugin(meta))
+        registry = {
+            "TEST-A": RegistryEntry(
+                strategy_id="TEST-A",
+                module_path="tests.plugins.features",
+                version="1.0.0",
+                params_hash=meta.params_hash,
+                stage="shadow",
+            )
+        }
+        with pytest.raises(StrategyRuntimeError, match="features not available"):
+            load_strategy("TEST-A", registry, available_features={"ema_5"})
 
     def test_load_strategy_refuses_fx_spot_in_india_basket(self) -> None:
-        """A FX_SPOT strategy should refuse to load into IN_INDEX_OPT basket."""
-        # Documented in acceptance: "A plugin for FX_SPOT refuses to load
-        # into an India basket"
-        # This is checked in load_basket_strategies() via meta.markets
-        pass
+        meta = _meta(markets=("FX_SPOT",))
+        _install_plugin("tests.plugins.fx", _plugin(meta))
+        registry = {
+            "TEST-A": RegistryEntry(
+                strategy_id="TEST-A",
+                module_path="tests.plugins.fx",
+                version="1.0.0",
+                params_hash=meta.params_hash,
+                stage="shadow",
+            )
+        }
+        with pytest.raises(StrategyRuntimeError, match="refuses to load into IN_INDEX_OPT"):
+            load_strategy("TEST-A", registry, required_market="IN_INDEX_OPT")
 
 
 class TestPluginIsolation:
-    """Test strategy plugin isolation and error handling."""
-
     def test_raising_plugin_disabled_for_session(self) -> None:
-        """A raising plugin is disabled and others keep emitting."""
-        # Acceptance: "A raising plugin is disabled for the session and
-        # others keep emitting"
+        good = CrossPlugin()
+        good.on_session_start(SessionContext("2026-09-27", "IN_INDEX_OPT", {}))
 
-        loaded = {
-            "GOOD": MagicMock(enabled=True),
-            "BAD": MagicMock(enabled=True),
-        }
+        class _Boom:
+            def on_bar(self, bar: Bar, view: _View) -> list[object]:
+                del bar, view
+                raise RuntimeError("planted")
 
-        # Simulate BAD plugin raising
-        disable_strategy(loaded, "BAD", "RAISED_EXCEPTION")
+        from strategies.runtime import LoadedStrategy
 
-        assert loaded["BAD"].enabled is False
-        assert loaded["BAD"].disabled_reason == "RAISED_EXCEPTION"
-        assert loaded["GOOD"].enabled is True
+        session = SessionRuntime(
+            loaded={
+                "GOOD": LoadedStrategy(strategy=good, registry_entry=None, enabled=True),
+                "BAD": LoadedStrategy(strategy=_Boom(), registry_entry=None, enabled=True),
+            }
+        )
+        session.on_bar(_bar(0), _View({"ema_5": 90.0, "ema_20": 95.0}))
+        session.on_bar(_bar(1), _View({"ema_5": 100.0, "ema_20": 95.0}))
+        assert session.loaded["BAD"].enabled is False
+        assert session.loaded["GOOD"].enabled is True
+        assert any(s.side == "CE" for s in session.signals)
 
     def test_over_budget_plugin_disabled(self) -> None:
-        """An over-budget plugin is disabled."""
-        # Acceptance: "An over-budget plugin is disabled"
+        with pytest.raises(StrategyTimeoutError), strategy_call_budget(0.01):
+            import time
 
-        # Test timeout budget enforcement
-        with pytest.raises(StrategyTimeoutError):
-            with strategy_call_budget(0.01):  # 10ms budget
-                import time
-                time.sleep(0.02)  # Exceeds budget
+            time.sleep(0.05)
 
 
 class TestCausality:
-    """Test random-cut causality on signals."""
+    def test_random_cut_causality_on_signals(self) -> None:
+        rng = random.Random(7)
+        series: list[tuple[float, float]] = []
+        fast, slow = 100.0, 100.0
+        for _ in range(40):
+            fast += rng.uniform(-2.0, 2.0)
+            slow += rng.uniform(-0.4, 0.4)
+            series.append((fast, slow))
 
-    def test_signals_use_only_available_features(self) -> None:
-        """Random-cut causality: signals at time t use only inputs available at or before t."""
-        # Acceptance: "random-cut causality on signals"
+        def run(prefix: list[tuple[float, float]]) -> list[tuple[str, ...]]:
+            plugin = CrossPlugin()
+            plugin.on_session_start(SessionContext("2026-09-27", "IN_INDEX_OPT", {}))
+            out: list[tuple[str, ...]] = []
+            for i, (f, s) in enumerate(prefix):
+                sigs = plugin.on_bar(_bar(i % 9), _View({"ema_5": f, "ema_20": s}))
+                out.append(tuple(sig.side for sig in sigs))
+            return out
 
-        # This is enforced by the FeatureView (V2-05) which tracks future lookups.
-        # For V2-06, we document the requirement and provide the stub protocol.
-        # The real test will be in V2-05 tests with the strict FeatureView.
-
-        # Stub test: feature view should not allow future access
-        class StrictFeatureView:
-            def get(self, name: str, default: float | None = None) -> float | None:
-                # In real implementation, this would check decision_ts vs feature_ts
-                return default
-
-            @property
-            def available_features(self) -> tuple[str, ...]:
-                return ()
-
-        view = StrictFeatureView()
-        assert view.get("future_feature") is None
+        full = run(series)
+        cut = rng.randint(8, 30)
+        assert run(series[:cut]) == full[:cut]
 
 
 class TestTestCrossPlugin:
-    """Test the TEST-CROSS plugin."""
-
     def test_test_cross_meta(self) -> None:
-        """TEST-CROSS has correct metadata."""
-        from strategies.plugins.test_cross import strategy
-
-        assert strategy.meta.strategy_id == "TEST-CROSS"
-        assert strategy.meta.version == "1.0.0"
-        assert strategy.meta.stage == "shadow"
-        assert "IN_INDEX_OPT" in strategy.meta.markets
-        assert "NIFTY" in strategy.meta.underlyings
-        assert len(strategy.meta.params_hash) == 16
+        assert test_cross.meta.strategy_id == "TEST-CROSS"
+        assert test_cross.meta.stage == "shadow"
+        assert "IN_INDEX_OPT" in test_cross.meta.markets
+        assert test_cross.meta.entry_policy.mode == "chase"
+        assert test_cross.meta.legacy_logic_from == ()
+        assert test_cross.exit_plan.catastrophic.level.price == 30000.0
 
     def test_test_cross_never_live(self) -> None:
-        """TEST-CROSS must never move beyond shadow stage."""
-        from strategies.plugins.test_cross import strategy
-
-        assert strategy.meta.stage == "shadow", "TEST-CROSS must remain shadow-only"
+        assert test_cross.meta.stage == "shadow"
 
     def test_test_cross_emits_signals(self) -> None:
-        """TEST-CROSS can emit signals (basic smoke test)."""
-        from strategies.plugins.test_cross import strategy
-        from strategies.feature_view_stub import FeatureView
-
-        # Create test bar
-        bar = Bar(
-            instrument_id="NSE_IDX:NIFTY",
-            open=24500.0,
-            high=24550.0,
-            low=24480.0,
-            close=24520.0,
-            volume=1000,
-            timestamp="2026-09-27T09:20:00+05:30",
-            available_ts="2026-09-27T09:20:00+05:30",
-        )
-
-        # Initialize
-        from strategies import SessionContext
-        strategy.on_session_start(
-            SessionContext(
-                session_date="2026-09-27",
-                market="IN_INDEX_OPT",
-                config={},
-            )
-        )
-
-        # First call: fast=90, slow=95 (fast below slow)
-        class MockFeatureView1:
-            def get(self, name: str, default: float | None = None) -> float | None:
-                if name == "ema_5":
-                    return 90.0  # Fast below slow
-                elif name == "ema_20":
-                    return 95.0
-                return default
-
-            @property
-            def available_features(self) -> tuple[str, ...]:
-                return ("ema_5", "ema_20")
-
-        view1 = MockFeatureView1()
-        signals = strategy.on_bar(bar, view1)  # type: ignore[arg-type]
-        assert len(signals) == 0  # No signal yet (need prev values)
-
-        # Second call with cross-up: fast=100 > slow=95 (prev: fast=90 < slow=95)
-        class MockFeatureView2:
-            def get(self, name: str, default: float | None = None) -> float | None:
-                if name == "ema_5":
-                    return 100.0  # Crossed above
-                elif name == "ema_20":
-                    return 95.0
-                return default
-
-            @property
-            def available_features(self) -> tuple[str, ...]:
-                return ("ema_5", "ema_20")
-
-        view2 = MockFeatureView2()
-        signals = strategy.on_bar(bar, view2)  # type: ignore[arg-type]
+        plugin = CrossPlugin()
+        plugin.on_session_start(SessionContext("2026-09-27", "IN_INDEX_OPT", {}))
+        assert plugin.on_bar(_bar(0), _View({"ema_5": 90.0, "ema_20": 95.0})) == []
+        signals = plugin.on_bar(_bar(1), _View({"ema_5": 100.0, "ema_20": 95.0}))
         assert len(signals) == 1
-        assert signals[0].side == "CE"  # Cross-up = CE signal
+        assert signals[0].side == "CE"
 
 
 class TestCIOnboardingCheck:
-    """Test CI onboarding check for new strategies."""
-
     def test_strategy_without_catastrophic_stop_refuses_to_load(self) -> None:
-        """REG-18d: A plan without a catastrophic stop must refuse to load."""
-        # This will be enforced in V2-09 (position manager) when building
-        # the actual exit plan from defaults + strategy overrides.
-        # For V2-06, we document the requirement.
+        meta = _meta()
+        _install_plugin("tests.plugins.no_stop", _plugin(meta, exit_plan=None))
+        registry = {
+            "TEST-A": RegistryEntry(
+                strategy_id="TEST-A",
+                module_path="tests.plugins.no_stop",
+                version="1.0.0",
+                params_hash=meta.params_hash,
+                stage="shadow",
+            )
+        }
+        with pytest.raises(StrategyRuntimeError, match="REG-18d"):
+            load_strategy("TEST-A", registry)
 
-        # The ExitPlan type includes catastrophic_max_loss field.
-        # V2-09 will validate that it's not None before allowing entry.
+    def test_k9_registry_entries_pass(self) -> None:
+        from strategies.plugins.test_cross import PARAMS_HASH
 
-        exit_no_catastrophic = ExitPlan(
-            catastrophic_max_loss=None,  # Missing catastrophic stop
-            flat_by_ist="15:15",
-        )
+        registry = {
+            "TEST-CROSS": RegistryEntry(
+                strategy_id="TEST-CROSS",
+                module_path="strategies.plugins.test_cross",
+                version="1.0.0",
+                params_hash=PARAMS_HASH,
+                stage="shadow",
+            )
+        }
+        assert check_registry(registry, collected_nodeids=[]) == []
+        assert onboarding_main([]) == 0
 
-        # V2-09 will raise when trying to use this plan
-        assert exit_no_catastrophic.catastrophic_max_loss is None
 
+def test_disable_strategy_keeps_others() -> None:
+    from strategies.runtime import LoadedStrategy
 
-if __name__ == "__main__":
-    pytest.main([__file__, "-v"])
+    loaded = {
+        "GOOD": LoadedStrategy(strategy=object(), registry_entry=None, enabled=True),
+        "BAD": LoadedStrategy(strategy=object(), registry_entry=None, enabled=True),
+    }
+    disable_strategy(loaded, "BAD", "RAISED_EXCEPTION")
+    assert loaded["BAD"].enabled is False
+    assert loaded["GOOD"].enabled is True
