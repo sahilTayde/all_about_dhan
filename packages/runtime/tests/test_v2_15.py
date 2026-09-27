@@ -29,6 +29,19 @@ TEN = datetime(2026, 9, 28, 10, 0, tzinfo=IST)
 PRE = datetime(2026, 9, 28, 8, 0, tzinfo=IST)
 
 
+def test_runtime_help_lists_bench_legacy_and_engine() -> None:
+    proc = subprocess.run(
+        [sys.executable, "-m", "runtime", "--help"],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert proc.returncode == 0
+    assert "bench-legacy" in proc.stdout and "engine" in proc.stdout
+    assert "reset-breaker" in proc.stdout and "job" in proc.stdout
+
+
 def test_engine_replay_writes_ready_no_creds(tmp_path: Path) -> None:
     clock = SimClock(PRE)
     status = write_engine_status(tmp_path, clock)

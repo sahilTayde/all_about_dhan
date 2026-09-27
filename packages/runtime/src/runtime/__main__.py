@@ -1,4 +1,8 @@
-"""python -m runtime <service|job|reset-breaker|deploy|backup|restore> — paper only."""
+"""python -m runtime <command> — paper only.
+
+Commands: engine, health, reset-breaker, deploy, backup, restore, job,
+and bench-legacy (V2-17 frozen replay).
+"""
 
 from __future__ import annotations
 
@@ -53,7 +57,25 @@ def _idle(state_dir: Path, name: str) -> None:
     (state_dir / f"{name}.ready").write_text("ok\n", encoding="utf-8")
 
 
+_USAGE = """usage: python -m runtime {engine|health|reset-breaker|deploy|backup|restore|job|bench-legacy} ...
+  engine|health [--once] [--state-dir DIR] [--now ISO] [--mode replay|paper]
+  reset-breaker <service> [--state-dir DIR] [--now ISO]
+  job <name> [--state-dir DIR]
+  bench-legacy --day YYYY-MM-DD --tape PATH [--out DIR] [--deadline SECONDS]
+  deploy <sha> | backup | restore --snapshot PATH
+"""
+
+
 def main(argv: list[str] | None = None) -> int:
+    raw = list(sys.argv[1:] if argv is None else argv)
+    if not raw or raw[0] in ("-h", "--help"):
+        print(_USAGE, end="")
+        return 0
+    if raw[0].replace("_", "-") == "bench-legacy":
+        from runtime.bench_legacy import main as bench_legacy_main
+
+        return bench_legacy_main(raw[1:])
+
     p = argparse.ArgumentParser(description="V2 runtime (paper only; no broker orders)")
     p.add_argument("command")
     p.add_argument("target", nargs="?")
@@ -66,7 +88,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--sha", default="")
     p.add_argument("--snapshot", default="")
     p.add_argument("--ready-timeout", type=float, default=5.0)
-    args = p.parse_args(argv)
+    args = p.parse_args(raw)
     if args.mode not in {"replay", "paper"}:
         print(
             "live-data/live modes are not started from this ticket (no credentials)",

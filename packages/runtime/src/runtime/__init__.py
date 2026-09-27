@@ -1,4 +1,4 @@
-"""V2-15 runtime: service entry points, restart breaker, job timeouts. Paper only."""
+"""V2 runtime: service entry points, restart breaker, job timeouts, frozen legacy benchmark."""
 
 from runtime.jobs import JOBS, JobTimeout, run_with_deadline
 from runtime.services import (
