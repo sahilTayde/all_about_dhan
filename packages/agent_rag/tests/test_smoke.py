@@ -51,8 +51,8 @@ def test_rebuild_and_query_fake_breakout(tmp_path: Path) -> None:
     assert any(h.kind == "research_book_notes" for h in club_hits)
 
 
-def test_eod_recon_retune_required(tmp_path: Path | None = None) -> None:
-    root = repo_root()
+def test_eod_recon_retune_required(tmp_path: Path) -> None:
+    root = _scratch_root(tmp_path)
     out = run_eod_recon(
         day="2026-09-02",
         root=root,

@@ -1,4 +1,4 @@
-"""CLI: python -m desk_ml fit|score|mrr-fit|inventory|book-tune|replay-hold. Cache only. No live Dhan. No orders."""
+"""CLI: python -m desk_ml fit|score|mrr-fit|inventory|book-tune|replay-hold|nudge-params. Cache only. No live Dhan. No orders."""
 
 from __future__ import annotations
 
@@ -55,6 +55,11 @@ def build_parser() -> argparse.ArgumentParser:
     rp.add_argument("--underlying", default="NIFTY")
     rp.add_argument("--horizon-bars", type=int, default=15)
     rp.add_argument("--seed", type=int, default=14)
+    np_ = sub.add_parser(
+        "nudge-params",
+        help="Post-market: nudge paper params from a finished session's booked trades (next session only)",
+    )
+    np_.add_argument("--day", default="", help="IST session date (default: today)")
     ps = sub.add_parser(
         "paper-scalp",
         help="Parallel PAPER scalper books + monitoring JSON. Opt-in loop. No paper_ops. No live orders.",
@@ -209,6 +214,11 @@ def main(argv: Optional[list[str]] = None) -> int:
         )
         _print(report)
         return 0 if report.get("ok") else 2
+    if args.cmd == "nudge-params":
+        from desk_ml.paper_scalp import nudge_for_next_session
+
+        _print(nudge_for_next_session(root=root, day=(str(args.day).strip() or None)))
+        return 0
     if args.cmd == "paper-scalp":
         names = tuple(u.strip().upper() for u in str(args.underlyings).split(",") if u.strip())
         if getattr(args, "wipe_today", False):

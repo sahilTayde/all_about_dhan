@@ -190,9 +190,9 @@ def test_open_settle_skips_new_opens_flatten_still_ok() -> None:
     assert engine.has_open("MIX-DEFAULT-BUY", "NIFTY") is False
 
 
-def test_sideways_skips_new_opens_not_dealer_yaml() -> None:
+def test_sideways_skips_new_opens_not_dealer_yaml(founder_root) -> None:
     triples = _chop_triples()
-    engine = BookEngine()
+    engine = BookEngine(root=founder_root)
     step_underlying(
         engine,
         underlying="NIFTY",
@@ -432,9 +432,9 @@ def test_resolve_fill_dealer_confirms_matching_logit() -> None:
     assert out["MIX-ML-LOGIT-XR"] == ("CE", None)
 
 
-def test_trend_up_kills_new_pe_not_a_strat() -> None:
+def test_trend_up_kills_new_pe_not_a_strat(founder_root) -> None:
     triples = _triples(n=50, trend=8.0)
-    engine = BookEngine(sod_one_ticket=False, picker_majority=False)
+    engine = BookEngine(root=founder_root, sod_one_ticket=False, picker_majority=False)
     step_underlying(
         engine,
         underlying="NIFTY",
@@ -506,9 +506,9 @@ def test_greeks_cancel_filled_when_delta_dies() -> None:
     assert reason == "CANCEL_GREEKS_DELTA_TOO_LOW"
 
 
-def test_ml001_hold_does_not_block_dealer() -> None:
+def test_ml001_hold_does_not_block_dealer(founder_root) -> None:
     triples = _triples()
-    engine = BookEngine(sod_one_ticket=False, picker_majority=False)
+    engine = BookEngine(root=founder_root, sod_one_ticket=False, picker_majority=False)
     i = 40
     step_underlying(
         engine,
@@ -533,9 +533,9 @@ def test_ml001_hold_does_not_block_dealer() -> None:
     assert "ML-001" in skip_books
 
 
-def test_logit_fills_dealer_does_not_clone_observe_books() -> None:
+def test_logit_fills_dealer_does_not_clone_observe_books(founder_root) -> None:
     triples = _triples()
-    engine = _desk_ready(BookEngine(sod_one_ticket=False, picker_majority=False))
+    engine = _desk_ready(BookEngine(root=founder_root, sod_one_ticket=False, picker_majority=False))
     step_underlying(
         engine,
         underlying="NIFTY",
@@ -588,9 +588,9 @@ def test_one_open_per_book_underlying() -> None:
     assert engine.has_open("ML-001", "NIFTY") is False
 
 
-def test_scalp_time_exit_closes_premium_pnl() -> None:
+def test_scalp_time_exit_closes_premium_pnl(founder_root) -> None:
     triples = _triples(n=80)
-    engine = _desk_ready(BookEngine(sod_one_ticket=False, picker_majority=False))
+    engine = _desk_ready(BookEngine(root=founder_root, sod_one_ticket=False, picker_majority=False))
     for i in range(20, 70):
         step_underlying(
             engine,
@@ -1461,9 +1461,9 @@ def _ten_sec_trend(*, n: int, trend: float = 8.0) -> list[Triple]:
     return out
 
 
-def test_skip_new_open_when_1m_regime_unknown_on_10s_ticks() -> None:
+def test_skip_new_open_when_1m_regime_unknown_on_10s_ticks(founder_root) -> None:
     triples = _ten_sec_trend(n=12)
-    engine = BookEngine()
+    engine = BookEngine(root=founder_root)
     step_underlying(
         engine,
         underlying="NIFTY",
@@ -1488,9 +1488,9 @@ def test_skip_new_open_when_1m_regime_unknown_on_10s_ticks() -> None:
     )
 
 
-def test_allow_new_open_after_12_1m_trend_bars() -> None:
+def test_allow_new_open_after_12_1m_trend_bars(founder_root) -> None:
     triples = _triples(n=20, trend=8.0)
-    engine = _desk_ready(BookEngine())
+    engine = _desk_ready(BookEngine(root=founder_root))
     step_underlying(
         engine,
         underlying="NIFTY",
@@ -1865,10 +1865,10 @@ def test_skip_sensex_focus_nifty_only(tmp_path) -> None:
     assert any(s.get("reason") == "FOCUS_NIFTY_ONLY" for s in engine.skips)
 
 
-def test_nifty_pe_filter_skips_ce() -> None:
+def test_nifty_pe_filter_skips_ce(founder_root) -> None:
     from desk_ml.paper_scalp import _try_open
 
-    engine = BookEngine(nifty_allow_sides=("PE",))
+    engine = BookEngine(root=founder_root, nifty_allow_sides=("PE",))
     engine.last_regime["NIFTY"] = {"regime": "TREND", "direction": "UP", "itm_bin": {"side": "CE"}, "last3_impulse": "UP"}
     tick = Triple(ts=_ts(10), idx_close=23200.0, ce_close=120.0, pe_close=80.0, atm_strike=23200.0)
     _try_open(
@@ -1885,11 +1885,12 @@ def test_nifty_pe_filter_skips_ce() -> None:
     assert any(s.get("reason") == "NIFTY_SIDE_FILTER" for s in engine.skips)
 
 
-def test_nifty_ce_opens_on_up_strength_when_both_wings_allowed() -> None:
+def test_nifty_ce_opens_on_up_strength_when_both_wings_allowed(founder_root) -> None:
     from desk_ml.paper_scalp import _try_open
 
     engine = _desk_ready(
         BookEngine(
+            root=founder_root,
             nifty_allow_sides=("CE", "PE"),
             nifty_need_strength=True,
             nifty_align_impulse=True,
@@ -1943,10 +1944,10 @@ def test_nifty_ce_opens_on_up_strength_when_both_wings_allowed() -> None:
     assert any(s.get("reason") in {"TREND_UP_KILL_PE", "NIFTY_IMPULSE_ALIGN", "BIN_SIDE_MISMATCH"} for s in engine.skips)
 
 
-def test_nifty_impulse_align_skips_ce_on_last3_down() -> None:
+def test_nifty_impulse_align_skips_ce_on_last3_down(founder_root) -> None:
     from desk_ml.paper_scalp import _try_open
 
-    engine = BookEngine(nifty_align_impulse=True, skip_trend_against=False)
+    engine = BookEngine(root=founder_root, nifty_align_impulse=True, skip_trend_against=False)
     engine.last_regime["NIFTY"] = {
         "regime": "TREND",
         "direction": "DOWN",
@@ -1968,10 +1969,10 @@ def test_nifty_impulse_align_skips_ce_on_last3_down() -> None:
     assert any(s.get("reason") == "NIFTY_IMPULSE_ALIGN" for s in engine.skips)
 
 
-def test_nifty_skip_side_after_stop() -> None:
+def test_nifty_skip_side_after_stop(founder_root) -> None:
     from desk_ml.paper_scalp import _try_open
 
-    engine = BookEngine(nifty_skip_side_after_stop=True)
+    engine = BookEngine(root=founder_root, nifty_skip_side_after_stop=True)
     engine.last_stop_side_by_und["NIFTY"] = {"CE": _ts(8)}
     engine.last_regime["NIFTY"] = {
         "regime": "TREND",
@@ -1994,10 +1995,10 @@ def test_nifty_skip_side_after_stop() -> None:
     assert any(s.get("reason") == "NIFTY_SIDE_AFTER_STOP" for s in engine.skips)
 
 
-def test_nifty_skip_ce_after_stop() -> None:
+def test_nifty_skip_ce_after_stop(founder_root) -> None:
     from desk_ml.paper_scalp import _try_open
 
-    engine = BookEngine(nifty_skip_ce_after_stop=True)
+    engine = BookEngine(root=founder_root, nifty_skip_ce_after_stop=True)
     engine.last_stop_side_by_und["NIFTY"] = {"CE": _ts(8)}
     engine.last_regime["NIFTY"] = {
         "regime": "TREND",
@@ -2020,10 +2021,10 @@ def test_nifty_skip_ce_after_stop() -> None:
     assert any(s.get("reason") == "NIFTY_CE_AFTER_STOP" for s in engine.skips)
 
 
-def test_nifty_two_stop_halt() -> None:
+def test_nifty_two_stop_halt(founder_root) -> None:
     from desk_ml.paper_scalp import _try_open
 
-    engine = BookEngine(nifty_halt_after_stops=2)
+    engine = BookEngine(root=founder_root, nifty_halt_after_stops=2)
     engine.session_stop_count["NIFTY"] = 2
     engine.last_regime["NIFTY"] = {
         "regime": "TREND",
@@ -2219,7 +2220,7 @@ def test_itm_bin_two_votes_trend_without_three_index_bars() -> None:
     assert "CE_PREMIUM_UP" in prem_only["ce_votes"]
 
 
-def test_itm_bin_opens_pe_on_chop_index_without_last3() -> None:
+def test_itm_bin_opens_pe_on_chop_index_without_last3(founder_root) -> None:
     triples = _chop_triples(n=42)
     def _with_wings(t: Triple, pe_px: float, ce_px: float, pe_vol: float, ce_vol: float, pe_oi: float, ce_oi: float) -> Triple:
         atm = 25000.0
@@ -2240,7 +2241,7 @@ def test_itm_bin_opens_pe_on_chop_index_without_last3() -> None:
 
     triples[40] = _with_wings(triples[40], 150.0, 140.0, 10000.0, 10000.0, 80000.0, 80000.0)
     triples[41] = _with_wings(triples[41], 168.0, 128.0, 16000.0, 13000.0, 86000.0, 79000.0)
-    engine = _desk_ready(BookEngine(sod_one_ticket=False, picker_majority=False))
+    engine = _desk_ready(BookEngine(root=founder_root, sod_one_ticket=False, picker_majority=False))
     kwargs = dict(
         underlying="NIFTY",
         triples=triples,
@@ -3143,7 +3144,7 @@ def test_close_stamps_open_and_exit_kind() -> None:
     assert any("TRENDING-at-open" in x for x in skill["lessons"])
 
 
-def test_nifty_bin_confirm_counts_as_strength() -> None:
+def test_nifty_bin_confirm_counts_as_strength(founder_root) -> None:
     from desk_ml.paper_scalp import nifty_has_entry_strength, _try_open
 
     pause_wait = {
@@ -3194,11 +3195,12 @@ def test_nifty_bin_confirm_counts_as_strength() -> None:
     }
     assert closed_1m_has_cover_strength(hist, "PE") is True
     assert closed_1m_has_cover_strength({"closed_1m": []}, "PE") is False
-    live = BookEngine(nifty_need_strength=True)
+    live = BookEngine(root=founder_root, nifty_need_strength=True)
     assert live.nifty_cover_closed_1m is True
 
     engine = _desk_ready(
         BookEngine(
+            root=founder_root,
             nifty_need_strength=True,
             nifty_allow_sides=("CE", "PE"),
             nifty_cover_closed_1m=False,
@@ -3233,7 +3235,7 @@ def test_nifty_bin_confirm_counts_as_strength() -> None:
     assert not any(s.get("reason") == "NIFTY_WAIT_STRENGTH" for s in engine.skips)
 
 
-def test_logit_fills_when_dealer_waits_strength() -> None:
+def test_logit_fills_when_dealer_waits_strength(founder_root) -> None:
     from desk_ml.paper_scalp import _try_open
 
     weak = {
@@ -3244,7 +3246,7 @@ def test_logit_fills_when_dealer_waits_strength() -> None:
         "last3_reason": "wait_pause_after_impulse",
         "itm_bin": {"side": "CE"},
     }
-    engine = _desk_ready(BookEngine(nifty_need_strength=True, nifty_allow_sides=("CE", "PE")))
+    engine = _desk_ready(BookEngine(root=founder_root, nifty_need_strength=True, nifty_allow_sides=("CE", "PE")))
     engine.last_regime["NIFTY"] = weak
     tick = Triple(
         ts=_ts(10),
@@ -3415,6 +3417,7 @@ def test_human_set_levels_does_not_flatten(tmp_path) -> None:
             "stop": 220.0,
         },
         root=tmp_path,
+        ts=_ts(1),  # overrides apply from their own timestamp (append-only log)
     )
     tick = Triple(
         ts=_ts(5),
@@ -3535,11 +3538,11 @@ def _trending_a1_regime() -> dict:
     }
 
 
-def test_b7_pe_unwind_same_tick_ce_chop_skips() -> None:
+def test_b7_pe_unwind_same_tick_ce_chop_skips(founder_root) -> None:
     from desk_ml.paper_scalp import SAME_TICK_REOPEN, should_block_same_tick_reopen, _try_open
 
     ts = _ts(10)
-    engine = _desk_ready(BookEngine())
+    engine = _desk_ready(BookEngine(root=founder_root))
     engine.last_regime["NIFTY"] = _chop_box_regime()
     engine.last_exit_by_und["NIFTY"] = {"ts": ts, "side": "PE", "reason": "COVER_LONG_UNWIND"}
     assert should_block_same_tick_reopen(engine.last_exit_by_und["NIFTY"], tick_ts=ts) is True
@@ -3557,7 +3560,7 @@ def test_b7_pe_unwind_same_tick_ce_chop_skips() -> None:
     assert any(s.get("reason") == SAME_TICK_REOPEN for s in engine.skips)
 
 
-def test_b8_path_kind_hold_ignores_minted_trend() -> None:
+def test_b8_path_kind_hold_ignores_minted_trend(founder_root) -> None:
     from desk_ml.paper_scalp import (
         PATH_KIND_HOLD,
         should_index_path_kind_hold,
@@ -3566,7 +3569,7 @@ def test_b8_path_kind_hold_ignores_minted_trend() -> None:
 
     classified = _chop_box_regime(regime="TREND", reason="itm_bin_ce_confirm")
     assert should_index_path_kind_hold(classified) is True
-    engine = _desk_ready(BookEngine())
+    engine = _desk_ready(BookEngine(root=founder_root))
     engine.last_regime["NIFTY"] = classified
     _try_open(
         engine,
@@ -3583,7 +3586,7 @@ def test_b8_path_kind_hold_ignores_minted_trend() -> None:
     assert not any(s.get("reason") == SIDEWAYS_HOLD for s in engine.skips)
 
 
-def test_t3_cancel_against_still_in_chop_cooldown() -> None:
+def test_t3_cancel_against_still_in_chop_cooldown(founder_root) -> None:
     from desk_ml.paper_scalp import (
         CANCEL_AGAINST,
         OVERLAY_CANCEL_COOLDOWN,
@@ -3597,7 +3600,7 @@ def test_t3_cancel_against_still_in_chop_cooldown() -> None:
     last_exit = {"ts": exit_ts, "side": "CE", "reason": CANCEL_AGAINST}
     chop = _chop_box_regime()
     assert should_overlay_cancel_cooldown(last_exit, side="CE", tick_ts=tick_ts, classified=chop) is True
-    engine = _desk_ready(BookEngine(skip_new_when_sideways=False))
+    engine = _desk_ready(BookEngine(root=founder_root, skip_new_when_sideways=False))
     engine.last_regime["NIFTY"] = chop
     engine.last_exit_by_und["NIFTY"] = last_exit
     _try_open(
@@ -3614,7 +3617,7 @@ def test_t3_cancel_against_still_in_chop_cooldown() -> None:
     assert any(s.get("reason") == OVERLAY_CANCEL_COOLDOWN for s in engine.skips)
 
 
-def test_a1_trending_last3_empty_cooldown_opens() -> None:
+def test_a1_trending_last3_empty_cooldown_opens(founder_root) -> None:
     from desk_ml.paper_scalp import (
         should_index_path_kind_hold,
         should_overlay_cancel_cooldown,
@@ -3624,7 +3627,7 @@ def test_a1_trending_last3_empty_cooldown_opens() -> None:
     classified = _trending_a1_regime()
     assert should_index_path_kind_hold(classified) is False
     assert should_overlay_cancel_cooldown(None, side="CE", tick_ts=_ts(11), classified=classified) is False
-    engine = _desk_ready(BookEngine())
+    engine = _desk_ready(BookEngine(root=founder_root))
     engine.last_regime["NIFTY"] = classified
     _try_open(
         engine,
@@ -3639,14 +3642,14 @@ def test_a1_trending_last3_empty_cooldown_opens() -> None:
     assert engine.has_open("MIX-DEFAULT-BUY", "NIFTY") is True
 
 
-def test_a5_next_tick_after_target_trending_opens() -> None:
+def test_a5_next_tick_after_target_trending_opens(founder_root) -> None:
     from desk_ml.paper_scalp import should_block_same_tick_reopen, _try_open
 
     exit_ts = _ts(20)
     next_ts = exit_ts + 60
     last_exit = {"ts": exit_ts, "side": "CE", "reason": "TARGET"}
     assert should_block_same_tick_reopen(last_exit, tick_ts=next_ts) is False
-    engine = _desk_ready(BookEngine())
+    engine = _desk_ready(BookEngine(root=founder_root))
     engine.last_regime["NIFTY"] = _trending_a1_regime()
     engine.last_exit_by_und["NIFTY"] = last_exit
     _try_open(
@@ -3662,13 +3665,13 @@ def test_a5_next_tick_after_target_trending_opens() -> None:
     assert engine.has_open("MIX-DEFAULT-BUY", "NIFTY") is True
 
 
-def test_b9_same_ts_target_reopen_skips() -> None:
+def test_b9_same_ts_target_reopen_skips(founder_root) -> None:
     from desk_ml.paper_scalp import SAME_TICK_REOPEN, should_block_same_tick_reopen, _try_open
 
     ts = int(datetime(2026, 9, 10, 9, 40, tzinfo=IST).timestamp())
     last_exit = {"ts": ts, "side": "CE", "reason": "TARGET"}
     assert should_block_same_tick_reopen(last_exit, tick_ts=ts) is True
-    engine = _desk_ready(BookEngine())
+    engine = _desk_ready(BookEngine(root=founder_root))
     engine.last_regime["NIFTY"] = _trending_a1_regime()
     engine.last_exit_by_und["NIFTY"] = last_exit
     _try_open(

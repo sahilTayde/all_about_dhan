@@ -20,7 +20,7 @@ from trading_agents_india.session_runner import run_market_hours_loop
 
 def _settings(tmp_path: Path, name: str = "tai.sqlite") -> Settings:
     return Settings(
-        repo_root=Path(__file__).resolve().parents[3],
+        repo_root=tmp_path,  # writes (paper_watch, ledgers) stay out of the checkout
         kb_path=tmp_path / name,
         openai_model="gpt-4o",
         openai_key_present=False,

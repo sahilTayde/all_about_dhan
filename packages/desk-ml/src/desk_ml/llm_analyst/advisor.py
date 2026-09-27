@@ -96,9 +96,9 @@ def shared_budget(cfg: Mapping[str, Any]) -> DayBudget:
 
 def load_config(path: Optional[Path] = None, root: Optional[Path] = None) -> dict[str, Any]:
     """config/llm_analyst.yaml over DEFAULTS. Relative paths resolve against `root` (repo root)."""
-    from desk_ml.persist import repo_root
+    from desk_ml.persist import code_root
 
-    base = Path(root) if root is not None else repo_root()
+    base = Path(root) if root is not None else code_root()  # code config, not a replay's data root
     p = Path(path) if path is not None else base / CONFIG_PATH
     raw: dict[str, Any] = {}
     if p.is_file():

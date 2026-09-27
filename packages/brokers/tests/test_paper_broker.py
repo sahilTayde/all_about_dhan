@@ -161,3 +161,25 @@ def test_risk_engine_to_paper_broker_to_ledger(tmp_path):
     vetoed = buy(decision_price=100.0, stop_loss=95.0, trade_id="other")
     with pytest.raises(OrderRefused):
         broker.place_order(vetoed, engine.check_entry(vetoed))
+
+
+def test_spof_S10_ledger_hook_failure_leaves_no_orphan_order():
+    from brokers import LedgerWriteFailed
+
+    broker = PaperBroker()
+    calls = []
+
+    def hook(order, prev, to, reason):
+        calls.append(to)
+        if to == OrderState.SUBMITTED:
+            raise OSError(28, "No space left on device")
+
+    broker.on_transition = hook
+    intent = buy(order_type="MARKET")
+    with pytest.raises(LedgerWriteFailed):
+        place(broker, intent)
+    order = next(iter(broker.orders.values()), None)
+    if order is not None:  # the broker kept the object: it must not claim SUBMITTED
+        assert order.state != OrderState.SUBMITTED
+        assert all(h["to"] != "SUBMITTED" for h in order.history)
+    assert calls == [OrderState.SUBMITTED]

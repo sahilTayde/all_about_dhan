@@ -101,9 +101,9 @@ def test_live_paper_loop_uses_the_strict_risk_file(monkeypatch, tmp_path):
     seen: list[Path] = []
     orig = eng.RiskEngine.__init__
 
-    def wrapped(self, ledger=None, config_path=eng.DEFAULT_CONFIG_PATH):
+    def wrapped(self, ledger=None, config_path=eng.DEFAULT_CONFIG_PATH, **kw):
         seen.append(Path(config_path))
-        return orig(self, ledger, config_path)
+        return orig(self, ledger, config_path, **kw)
 
     monkeypatch.setattr(eng.RiskEngine, "__init__", wrapped)
     monkeypatch.setattr(ps, "load_index_closes", lambda u, root=None: {})
@@ -160,15 +160,33 @@ def test_shadow_analysts_do_not_change_trades(monkeypatch, tmp_path):
     assert "value" in shadow_votes[0]["payload"] and "flag" in shadow_votes[0]["payload"]
 
 
-def test_write_false_does_not_append_model_logs(tmp_path):
+def test_model_log_is_written_only_through_a_session_sink(tmp_path):
     from desk_ml.paper_scalp import LOG_JSONL_NAME, _MODEL_LOGS, append_model_log
+    from desk_ml.reliability import ModelLogSink
 
-    path = tmp_path / "data" / "recon" / LOG_JSONL_NAME
-    token = _MODEL_LOGS.set(False)
+    append_model_log(tmp_path, {"event": "CLOSE", "trade_id": "t"})  # no write=True replay: no sink
+    assert not (tmp_path / "data" / "recon" / LOG_JSONL_NAME).exists()
+    assert not (tmp_path / "data" / "recon" / "model_log").exists()
+    sink = ModelLogSink(tmp_path, "2026-09-10")
+    token = _MODEL_LOGS.set(sink)
     try:
+        sink.set_tick("NIFTY", 1_000)
         append_model_log(tmp_path, {"event": "CLOSE", "trade_id": "t"})
+        sink.flush()
     finally:
         _MODEL_LOGS.reset(token)
-    assert not path.exists()
-    append_model_log(tmp_path, {"event": "CLOSE", "trade_id": "t"})
-    assert path.is_file() and "CLOSE" in path.read_text(encoding="utf-8")
+    assert "CLOSE" in sink.path.read_text(encoding="utf-8")
+    assert not (tmp_path / "data" / "recon" / LOG_JSONL_NAME).exists()
+
+
+def test_live_loop_keeps_the_llm_analyst_live_while_analysts_stay_deterministic(tmp_path):
+    """#17 took replay mode from `deterministic`; the live loop is deterministic but not a replay."""
+    for live, want_replay in ((False, True), (True, False)):
+        session = EventSession(live_loop=live)
+        try:
+            session.attach(ps.BookEngine(root=tmp_path))
+            llm = [a for a in session.room.analysts if a.analyst_id == "LLM-ANALYST"]
+            assert llm and llm[0].replay is want_replay
+            assert session.room.deterministic is True
+        finally:
+            session.close()

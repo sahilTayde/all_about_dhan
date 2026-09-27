@@ -30,8 +30,9 @@ def test_greeks_ml_hold_missing_and_rich_iv() -> None:
     assert ok["take"] is True
 
 
-def _engine() -> BookEngine:
+def _engine(root) -> BookEngine:
     engine = BookEngine(
+        root=root,
         sod_one_ticket=False,
         picker_majority=False,
         skip_new_when_sideways=False,
@@ -63,12 +64,12 @@ def _triples(*, greeks: bool) -> list[Triple]:
     ]
 
 
-def _step(engine: BookEngine, triples: list[Triple]) -> None:
+def _step(engine: BookEngine, triples: list[Triple], *, i: int = 20) -> None:
     step_underlying(
         engine,
         underlying="NIFTY",
         triples=triples,
-        i=20,
+        i=i,
         ml001_hold=False,
         ml002_hold=False,
         follow_gap=False,
@@ -80,17 +81,24 @@ def _step(engine: BookEngine, triples: list[Triple]) -> None:
     )
 
 
-def test_mix_ml_greeks_skips_without_chain() -> None:
-    engine = _engine()
+def test_mix_ml_greeks_skips_without_chain(founder_root) -> None:
+    engine = _engine(founder_root)
     _step(engine, _triples(greeks=False))
     assert "MIX-ML-GREEKS" in LIVE_BOOKS
     assert engine.has_open("MIX-ML-GREEKS", "NIFTY") is False
     assert any(s.get("reason") == "GREEKS_MISSING" for s in engine.skips if s.get("book_id") == "MIX-ML-GREEKS")
 
 
-def test_mix_ml_greeks_opens_when_delta_ok() -> None:
-    engine = _engine()
-    _step(engine, _triples(greeks=True))
+def test_mix_ml_greeks_opens_when_delta_ok(founder_root) -> None:
+    # The observer needs closed 1m bars (walk the session, not one tick) and the desk sizes 20+ lots.
+    engine = _engine(founder_root)
+    engine.lot_by_und["NIFTY"] = (65, "test")
+    engine.capital_by_book = {b: 570000.0 for b in LIVE_BOOKS}
+    triples = _triples(greeks=True)
+    for i in range(1, 21):
+        _step(engine, triples, i=i)
+    review = (engine.observer_by_book.get("NIFTY") or {}).get("MIX-ML-GREEKS") or {}
+    assert review.get("action") == "ALLOW", "precondition: the observer let the greeks ticket through"
     assert engine.has_open("MIX-ML-GREEKS", "NIFTY") is True
     pos = engine.opens[("MIX-ML-GREEKS", "NIFTY")]
     assert pos.delta is not None
