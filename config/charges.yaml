@@ -11,3 +11,17 @@ exchange_txn_frac: 0.0003503    # NSE options exchange transaction charge, 0.035
 sebi_fee_frac: 0.000001         # SEBI turnover fee, ₹10 per crore, both sides
 stamp_duty_buy_frac: 0.00003    # stamp duty 0.003% of buy-side premium only
 gst_frac: 0.18                  # GST 18% on (brokerage + exchange charge + SEBI fee)
+
+# Per-exchange options transaction charge, both sides, on premium. Used only when a caller asks
+# for per-exchange rates (paper cost_model: realistic, config/paper_costs.yaml). Every legacy
+# caller keeps exchange_txn_frac above for every index.
+exchange_txn_frac_by_exchange:
+  NSE: 0.0003553   # NSE/FA/73061 (27 Feb 2026, from 1 Mar 2026): Rs 3,552.99 txn + Rs 0.01 IPFT per crore premium
+  BSE: 0.000325    # BSE notice 20240927-37 (from 1 Oct 2024): SENSEX/BANKEX options Rs 3,250 per crore premium
+underlying_exchange:
+  NIFTY: NSE
+  BANKNIFTY: NSE
+  FINNIFTY: NSE
+  MIDCPNIFTY: NSE
+  SENSEX: BSE
+  BANKEX: BSE
