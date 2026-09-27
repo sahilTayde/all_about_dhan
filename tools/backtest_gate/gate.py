@@ -15,6 +15,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import sys
 import tempfile
 from pathlib import Path
@@ -23,27 +24,54 @@ from typing import Any, Optional, Sequence
 REPO = Path(__file__).resolve().parents[2]
 HERE = Path(__file__).resolve().parent
 EXPECTED = HERE / "expected_results.json"
-FIXTURES = (
+BASE_FIXTURES = (
     REPO / "packages" / "desk-ml" / "tests" / "fixtures" / "synthetic_session_nifty.json",
     HERE / "fixtures" / "synthetic_session_sensex.json",
 )
+
+
+def fixture_paths() -> list[Path]:
+    """The two original days plus every recipe day in fixtures/recipes.json (see synth.py)."""
+    sys.path.insert(0, str(HERE))
+    import synth
+
+    return [*BASE_FIXTURES, *(synth.fixture_path(r) for r in synth.load_recipes())]
 TRADE_KEYS = ("trade_id", "book_id", "underlying", "side", "atm_strike", "strike_source", "opened_ts", "closed_ts",
               "entry", "exit", "stop", "target", "lots", "qty", "exit_reason", "filled", "gross_pnl_inr",
               "charges_inr", "realized_pnl_inr")
+
+
+def _rel(p: Path) -> str:
+    p = Path(p).resolve()
+    if p.is_relative_to(REPO):
+        return p.relative_to(REPO).as_posix()
+    return f"recipe:{p.stem}"  # generated from fixtures/recipes.json into the temp cache
 
 
 def _r(x: Any) -> Any:
     return round(x, 2) if isinstance(x, float) else x
 
 
-RISK_PROFILES = {"replay_risk": False, "live_paper_risk": True}  # profile -> resolve_risk_config(live_session=...)
+# Each fixture replays under every profile:
+# - replay_risk: config/risk_limits_replay.yaml (what parity uses)
+# - live_paper_risk: the live paper loop's `live_risk_config` (config/event_path.yaml), so a change to
+#   either risk file is caught
+# - target_shift: the optional T1 lock + T2 path (`apply_target_shift`, a session param that is off by
+#   default). It is the only path that reads the trail band, TARGET_STEP_MAX and T1_CONFIRM_SECONDS.
+PROFILES: dict[str, dict[str, Any]] = {
+    "replay_risk": {"live_risk": False, "replay_kw": {}},
+    "live_paper_risk": {"live_risk": True, "replay_kw": {}},
+    "target_shift": {"live_risk": False, "replay_kw": {"apply_target_shift": True}},
+}
 
 
-def replay_fixture(path: Path, *, live_risk: bool = False) -> dict[str, Any]:
+def replay_fixture(path: Path, *, live_risk: bool = False, event_path: bool = True,
+                   replay_kw: Optional[dict[str, Any]] = None) -> dict[str, Any]:
     """One synthetic day through the event path, reduced to the numbers that must not move silently.
 
-    `live_risk` swaps in the live paper loop's risk file (config/event_path.yaml `live_risk_config`)
-    so a change to either risk file is caught; the replay's own strategy parameters stay the same.
+    `live_risk` swaps in the live paper loop's risk file; `replay_kw` adds replay_paper_scalp kwargs
+    (a profile's session params). `event_path=False` is the faster monolith replay (same trades by the
+    parity harness, no risk engine or ledger); only the fixture search in mutate.py uses it.
     """
     import desk_ml.paper_scalp as ps
     from desk_ml.event_parity import fixture_replay_kwargs, load_fixture
@@ -54,14 +82,19 @@ def replay_fixture(path: Path, *, live_risk: bool = False) -> dict[str, Any]:
     saved = ps.load_index_closes, ps.resolve_lot_size
     ps.load_index_closes = lambda u, root=None: {}  # no prior-day files: the fixture never reads repo data
     ps.resolve_lot_size = lambda und, root=None: (int(fx["lot_size"]), "fixture")
-    session = EventSession(risk_config=risk_file)
+    session = EventSession(risk_config=risk_file) if event_path else None
     try:
         with tempfile.TemporaryDirectory() as tmp:
-            board = ps.replay_paper_scalp(**fixture_replay_kwargs(fx, Path(tmp)), write=False, event_session=session)
-        bus = session.summary()
-        ledger = session.ledger_trades()
+            kw = {**fixture_replay_kwargs(fx, Path(tmp)), **(replay_kw or {})}
+            if session is None:
+                board = ps.replay_paper_scalp(**kw, write=False, use_event_bus=False)
+            else:
+                board = ps.replay_paper_scalp(**kw, write=False, event_session=session)
+        bus = session.summary() if session else {}
+        ledger = session.ledger_trades() if session else []
     finally:
-        session.close()
+        if session is not None:
+            session.close()
         ps.load_index_closes, ps.resolve_lot_size = saved
 
     trades = [{k: _r(t.get(k)) for k in TRADE_KEYS} for t in board.get("closed_trades") or []]
@@ -75,8 +108,8 @@ def replay_fixture(path: Path, *, live_risk: bool = False) -> dict[str, Any]:
         vetoes[key] = vetoes.get(key, 0) + 1
     closed_ledger = [t for t in ledger if t["status"] == "CLOSED"]
     return {
-        "fixture": Path(path).resolve().relative_to(REPO).as_posix(),
-        "risk_config": Path(risk_file).resolve().relative_to(REPO).as_posix(),
+        "fixture": _rel(path),
+        "risk_config": _rel(risk_file),
         "session_ist_date": fx["session_ist_date"],
         "underlying": fx["underlying"],
         "n_trades": len(filled),
@@ -97,10 +130,28 @@ def replay_fixture(path: Path, *, live_risk: bool = False) -> dict[str, Any]:
     }
 
 
-def run_all(fixtures: Sequence[Path] = FIXTURES) -> dict[str, Any]:
+def replay_profile(path: Path, profile: str) -> dict[str, Any]:
+    p = PROFILES[profile]
+    return replay_fixture(Path(path), live_risk=p["live_risk"], replay_kw=p["replay_kw"])
+
+
+def _replay_combo(args: tuple[str, str]) -> dict[str, Any]:
+    return replay_profile(Path(args[0]), args[1])
+
+
+def run_all(fixtures: Optional[Sequence[Path]] = None, jobs: int = 1) -> dict[str, Any]:
+    """Every fixture under every profile. Replays patch module globals, so parallel runs use processes."""
+    fixtures = fixture_paths() if fixtures is None else fixtures
+    combos = [(f"{p.stem}/{name}", (str(p), name)) for p in fixtures for name in PROFILES]
+    if jobs > 1:
+        import multiprocessing
+
+        with multiprocessing.get_context("spawn").Pool(jobs) as pool:
+            results = pool.map(_replay_combo, [c[1] for c in combos])
+    else:
+        results = [_replay_combo(c[1]) for c in combos]
     return {"note": "Synthetic fixture replays (not market data). Regenerate with --update; see tools/backtest_gate/README.md.",
-            "fixtures": {f"{p.stem}/{name}": replay_fixture(p, live_risk=live)
-                         for p in fixtures for name, live in RISK_PROFILES.items()}}
+            "fixtures": {key: r for (key, _a), r in zip(combos, results)}}
 
 
 def diff(expected: Any, actual: Any, path: str = "") -> list[str]:
@@ -129,9 +180,10 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     ap.add_argument("--update", action="store_true", help="write the current results as the new expected file")
     ap.add_argument("--expected", type=Path, default=EXPECTED)
     ap.add_argument("--max-lines", type=int, default=60)
+    ap.add_argument("--jobs", type=int, default=min(4, os.cpu_count() or 1), help="parallel replay processes")
     args = ap.parse_args(argv)
 
-    actual = run_all()
+    actual = run_all(jobs=args.jobs)
     for name, r in actual["fixtures"].items():
         print(f"{name}: trades {r['n_trades']} wins {r['n_wins']} net ₹{r['net_pnl_inr']:,.2f} "
               f"(gross ₹{r['gross_pnl_inr']:,.2f}, charges ₹{r['charges_inr']:,.2f}) vetoes {sum(r['risk_vetoes'].values())}")
