@@ -102,7 +102,7 @@ class DecodedPacket:
 def _header(buf: bytes, offset: int) -> FeedHeader:
     if len(buf) - offset < HEADER_SIZE:
         raise DecodeError("short frame: need 8-byte header")
-    code, length, segment, security_id = struct.unpack_from("<BhBi", buf, offset)
+    code, length, segment, security_id = struct.unpack_from("<BHBI", buf, offset)
     return FeedHeader(
         response_code=code,
         message_length=length,

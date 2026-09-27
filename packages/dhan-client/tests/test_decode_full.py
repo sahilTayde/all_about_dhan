@@ -114,7 +114,7 @@ def _build_full_packet(
     return header + payload
 
 
-def test_full_packet_golden_decode():
+def test_full_packet_golden_decode() -> None:
     """Golden test: FULL packet decodes to expected fields with correct layout."""
     packet = _build_full_packet(
         security_id=54321,
@@ -160,7 +160,7 @@ def test_full_packet_golden_decode():
     assert fields["day_low"] == pytest.approx(147.00, abs=0.01)
 
 
-def test_full_packet_interleaved_depth():
+def test_full_packet_interleaved_depth() -> None:
     """All 5 interleaved depth levels decode correctly."""
     depth_levels = [
         (100, 110, 5, 6, 200.00, 200.05),  # Level 1
@@ -213,7 +213,7 @@ def test_full_packet_exact_size():
     assert len(payload_bytes) == 154
 
 
-def test_full_packet_oi_high_low():
+def test_full_packet_oi_high_low() -> None:
     """OI day high and low fields decode correctly."""
     packet = _build_full_packet(
         oi=750000,
@@ -338,7 +338,7 @@ def test_index_packet_unchanged():
     assert decoded.fields["ltp"] == pytest.approx(18500.50, abs=0.01)
 
 
-def test_full_packet_multiple_in_frame():
+def test_full_packet_multiple_in_frame() -> None:
     """Multiple FULL packets in one frame decode correctly."""
     packet1 = _build_full_packet(security_id=111, ltp=100.0)
     packet2 = _build_full_packet(security_id=222, ltp=200.0)
@@ -356,7 +356,7 @@ def test_full_packet_multiple_in_frame():
     assert packets[1].fields["ltp"] == pytest.approx(200.0, abs=0.01)
 
 
-def test_full_packet_ohlc_fields():
+def test_full_packet_ohlc_fields() -> None:
     """OHLC fields decode correctly."""
     packet = _build_full_packet(
         day_open=95.00,
@@ -374,7 +374,7 @@ def test_full_packet_ohlc_fields():
     assert fields["day_close"] == pytest.approx(104.75, abs=0.01)
 
 
-def test_full_packet_volume_and_oi():
+def test_full_packet_volume_and_oi() -> None:
     """Volume and OI fields decode correctly."""
     packet = _build_full_packet(
         volume=5000000,
@@ -429,7 +429,7 @@ def test_bad_packet_logged_and_skipped():
     assert packets2[0].header.security_id == 333
 
 
-def test_layout_offsets_exact():
+def test_layout_offsets_exact() -> None:
     """Test that layout offsets match documented structure exactly."""
     packet = _build_full_packet(
         ltp=123.45,
@@ -469,3 +469,120 @@ def test_layout_offsets_exact():
     # Verify depth starts at offset 54
     first_level = struct.unpack_from("<IIHHff", payload, 54)
     assert len(first_level) == 6  # bid_qty, ask_qty, bid_orders, ask_orders, bid_price, ask_price
+
+
+def test_sdk_cross_check() -> None:
+    """SDK cross-check: hand-built 162-byte frame with distinct values in every field,
+    decoded field-by-field against expected values computed with struct directly from
+    the documented layout (independent of decode.py's own format strings)."""
+    # Hand-build with distinct values for every field
+    security_id = 987654
+    exchange_segment = 3
+    ltp = 111.11
+    ltq = 11
+    ltt = 1111111111
+    atp = 222.22
+    volume = 2222222
+    total_sell = 333333
+    total_buy = 444444
+    oi = 555555
+    oi_high = 666666
+    oi_low = 777777
+    day_open = 88.88
+    day_close = 99.99
+    day_high = 100.10
+    day_low = 77.77
+    
+    # 5 levels with distinct values
+    depth = [
+        (1000, 1001, 10, 11, 110.00, 110.05),  # L1
+        (2000, 2001, 20, 21, 109.95, 110.10),  # L2
+        (3000, 3001, 30, 31, 109.90, 110.15),  # L3
+        (4000, 4001, 40, 41, 109.85, 110.20),  # L4
+        (5000, 5001, 50, 51, 109.80, 110.25),  # L5
+    ]
+    
+    # Build payload manually using struct (the documented layout)
+    payload = struct.pack("<f", ltp)
+    payload += struct.pack("<H", ltq)
+    payload += struct.pack("<I", ltt)
+    payload += struct.pack("<f", atp)
+    payload += struct.pack("<I", volume)
+    payload += struct.pack("<I", total_sell)
+    payload += struct.pack("<I", total_buy)
+    payload += struct.pack("<I", oi)
+    payload += struct.pack("<I", oi_high)
+    payload += struct.pack("<I", oi_low)
+    payload += struct.pack("<f", day_open)
+    payload += struct.pack("<f", day_close)
+    payload += struct.pack("<f", day_high)
+    payload += struct.pack("<f", day_low)
+    
+    for bq, aq, bo, ao, bp, ap in depth:
+        payload += struct.pack("<IIHHff", bq, aq, bo, ao, bp, ap)
+    
+    # Build header
+    msg_len = len(payload) + 8
+    header = struct.pack("<BHBi", 8, msg_len, exchange_segment, security_id)
+    packet = header + payload
+    
+    # Decode using decode_frame
+    packets = decode_frame(packet)
+    assert len(packets) == 1
+    decoded = packets[0]
+    
+    # Verify header fields
+    assert decoded.header.response_code == 8
+    assert decoded.header.security_id == security_id
+    assert decoded.header.exchange_segment_byte == exchange_segment
+    
+    # Verify body fields against expected values
+    f = decoded.fields
+    assert f["ltp"] == pytest.approx(ltp, abs=0.01)
+    assert f["last_quantity"] == ltq
+    assert f["last_trade_time_epoch"] == ltt
+    assert f["atp"] == pytest.approx(atp, abs=0.01)
+    assert f["volume"] == volume
+    assert f["total_sell_quantity"] == total_sell
+    assert f["total_buy_quantity"] == total_buy
+    assert f["oi"] == oi
+    assert f["oi_day_high"] == oi_high
+    assert f["oi_day_low"] == oi_low
+    assert f["day_open"] == pytest.approx(day_open, abs=0.01)
+    assert f["day_close"] == pytest.approx(day_close, abs=0.01)
+    assert f["day_high"] == pytest.approx(day_high, abs=0.01)
+    assert f["day_low"] == pytest.approx(day_low, abs=0.01)
+    
+    # Verify depth levels
+    assert len(f["bid_depth"]) == 5
+    assert len(f["ask_depth"]) == 5
+    for i, (bq, aq, bo, ao, bp, ap) in enumerate(depth):
+        assert f["bid_depth"][i]["quantity"] == bq
+        assert f["bid_depth"][i]["orders"] == bo
+        assert f["bid_depth"][i]["price"] == pytest.approx(bp, abs=0.01)
+        assert f["ask_depth"][i]["quantity"] == aq
+        assert f["ask_depth"][i]["orders"] == ao
+        assert f["ask_depth"][i]["price"] == pytest.approx(ap, abs=0.01)
+
+
+def test_decode_frame_bad_packet_between_good() -> None:
+    """decode_frame with a bad packet between two good packets in the same frame:
+    the bad packet is skipped and logged, and both good packets are decoded."""
+    good1 = _build_full_packet(security_id=111, ltp=100.0)
+    good2 = _build_full_packet(security_id=222, ltp=200.0)
+    
+    # Bad packet: valid header but truncated payload (only 50 bytes instead of 154)
+    bad_header = struct.pack("<BHBi", 8, 58, 1, 999)  # 8 byte header + 50 payload = 58 total
+    bad_payload = b"X" * 50  # Not enough for a valid FULL packet
+    bad = bad_header + bad_payload
+    
+    # Frame: good1 + bad + good2
+    frame = good1 + bad + good2
+    
+    packets = decode_frame(frame)
+    # Should decode good1 and good2, skip bad
+    assert len(packets) == 2
+    assert packets[0].header.security_id == 111
+    assert packets[0].fields["ltp"] == pytest.approx(100.0, abs=0.01)
+    assert packets[1].header.security_id == 222
+    assert packets[1].fields["ltp"] == pytest.approx(200.0, abs=0.01)
