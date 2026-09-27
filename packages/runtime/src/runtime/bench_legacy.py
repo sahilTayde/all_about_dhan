@@ -37,9 +37,9 @@ def _patch_module_attr(mod: ModuleType, name: str, value: object) -> None:
 
 
 def _checkout_root(start: Path) -> Path | None:
-    """Walk parents for a .git checkout. None if this file is not inside a repo."""
+    """Walk parents to the dir that contains `.git` or `packages/`. None if neither exists."""
     for p in start.resolve().parents:
-        if (p / ".git").exists():
+        if (p / ".git").exists() or (p / "packages").is_dir():
             return p
     return None
 

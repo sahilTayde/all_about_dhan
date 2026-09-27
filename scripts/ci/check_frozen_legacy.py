@@ -2,15 +2,40 @@
 """Check frozen legacy manifest: editing any frozen file fails CI.
 
 Exit 0 if all files match the manifest, 1 otherwise.
+
+Optional argv[1] is the input being checked so the failure message cites the
+right baseline: committed golden 12 / +69,364.32, tape 63 / -96,190.79.
 """
 
 import hashlib
 import sys
 from pathlib import Path
 
+COMMITTED_GOLDEN = "12 / +69,364.32"
+TAPE_BASELINE = "63 / -96,190.79"
 
-def main() -> int:
+
+def baseline_for(input_path: str | None) -> str:
+    """Cite the committed golden unless the input is a recorder tape."""
+    if input_path is None:
+        return COMMITTED_GOLDEN
+    name = input_path.replace("\\", "/").lower()
+    if "synthetic_session" in name or "/fixtures/" in name:
+        return COMMITTED_GOLDEN
+    if (
+        name.endswith(".jsonl")
+        or "dual-tape" in name
+        or "/recon/" in name
+        or "/tape" in name
+    ):
+        return TAPE_BASELINE
+    return COMMITTED_GOLDEN
+
+
+def main(argv: list[str] | None = None) -> int:
     """Check frozen legacy manifest."""
+    args = list(sys.argv[1:] if argv is None else argv)
+    input_path = args[0] if args else None
     repo_root = Path(__file__).resolve().parents[2]
     manifest_path = repo_root / "config" / "legacy_frozen.sha256"
 
@@ -55,7 +80,7 @@ def main() -> int:
             file=sys.stderr,
         )
         print(
-            "Editing frozen files breaks the legacy baseline (NIFTY 63/-96,190.79)",
+            f"Editing frozen files breaks the legacy baseline ({baseline_for(input_path)})",
             file=sys.stderr,
         )
         return 1
