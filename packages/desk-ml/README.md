@@ -32,3 +32,22 @@ Empty / non-overlapping cache → `DATA_INSUFFICIENT`. Models land in `data/reco
 ```bash
 python -m desk_ml.llm_analyst.scorer --log data/llm_analyst/calls.jsonl --trades closed_trades.json
 ```
+
+## Regime service + adaptive analyst weights (`desk_ml.regime`, PR-012 / PR-024)
+
+Knobs: [`config/regime.yaml`](../../config/regime.yaml). Default `mode: shadow`: trades are unchanged (legacy
+replay byte-identical); the boss logs the weighted / overlay decision next to the static picker.
+
+- `labels.py`: causal minute labels (`trend_up`, `trend_down`, `range`, `vol_expansion`, `vol_compression`,
+  `expiry_day`, `gap_day`) from ADX/DMI, VWAP distance, short/long realised vol, opening gap and time to expiry.
+  All thresholds live under `labels:` with a `version` stamp, so lab-validated values drop in without code.
+- `intermarket.py`: daily / weekly `risk_on` / `risk_off` from `data/recon/global_markets` (files before the
+  session only); missing inputs are dropped, none at all = `unknown`. Overlay (default **off**): risk-off → prefer PE, smaller size.
+- `weights.py`: per-analyst, per-regime Beta shrinkage toward the static weights (min samples, half-life,
+  floor/cap, max share), updated only from closed trades and matured votes. State: atomic, versioned JSON.
+- `shadow.py`: the hook in `paper_scalp.step_decide`; publishes `REGIME_LABEL` / `BOSS_SHADOW` on the event bus.
+
+```bash
+python scripts/regime_shadow_report.py --since 2026-09-17 --until 2026-09-25 --underlyings NIFTY --check-identical
+python scripts/regime_shadow_report.py --synthetic 5 --fresh-state   # synthetic sessions, not market data
+```
