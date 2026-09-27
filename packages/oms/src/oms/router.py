@@ -62,7 +62,7 @@ def is_paper_desk_broker(broker: object) -> bool:
 def require_paper_broker(broker: object) -> PaperDeskBroker:
     """Router boundary: refuse anything that is not a paper desk broker."""
     if isinstance(broker, ClockedPaperBroker) and is_paper_desk_broker(broker):
-        return broker
+        return cast(PaperDeskBroker, broker)
     if is_paper_desk_broker(broker) and callable(getattr(broker, "place_order", None)):
         return cast(PaperDeskBroker, broker)
     raise LiveBrokerDisabled(
