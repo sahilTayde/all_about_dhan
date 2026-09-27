@@ -147,7 +147,7 @@ def engine_status_path(state_dir: Path) -> Path:
 
 
 def write_engine_status(state_dir: Path, clock: Clock, *, restart: bool = False) -> EngineStatus:
-    """Stub engine (V2-04 kernel not on this branch): ENGINE_STATUS READY, no creds."""
+    """Compose READY contract: ENGINE_STATUS READY, no creds. Kernel does not change this."""
     now = clock.now()
     session = now.astimezone(IST).date().isoformat()
     payload = EngineStatus(
@@ -166,9 +166,23 @@ def write_engine_status(state_dir: Path, clock: Clock, *, restart: bool = False)
     return payload
 
 
+def _run_kernel_once(clock: Clock) -> None:
+    """V2-04 kernel behind ``python -m runtime engine``. Empty tape when no source is wired."""
+    from contracts.clock import SimClock
+    from events.bus import MemoryBus
+
+    from runtime.kernel import Engine
+    from runtime.sources import EnvelopeSource
+    from runtime.store import InMemoryLedgerStore
+
+    sim = clock if isinstance(clock, SimClock) else SimClock(clock.now())
+    Engine(EnvelopeSource([]), sim, MemoryBus(), [], InMemoryLedgerStore()).run()
+
+
 def run_engine(state_dir: Path, clock: Clock | None = None, *, once: bool = False) -> None:
     clock = clock or LiveClock()
     write_engine_status(state_dir, clock)
+    _run_kernel_once(clock)
     if once:
         return
     while True:
