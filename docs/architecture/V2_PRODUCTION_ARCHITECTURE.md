@@ -27,8 +27,8 @@ and the merged code in `packages/{data-recorder,brokers,risk-engine,health,ledge
 - **Next.** Build a small event-driven engine where backtest, replay and live run the **same code**. A bar only becomes
   visible after it closes. Every order has an idempotent id. Every state change is written to a durable ledger before
   anyone acts on it. Strategies are plugins that emit signals, not orders. The boss picks, the risk engine can veto, and
-  the router and position manager execute. Where we enter is checked by both: the boss vetoes stretched entries and the
-  desk prefers a pullback limit or a consolidation break to chasing. Recording ≤ 1 s bid/ask depth starts first, because it cannot be
+  the router and position manager execute. Entries are marketable next-bar orders (round 10 found no
+  entry-location rule), and exits are per-strategy primitives with no hard-coded tight cancels. Recording ≤ 1 s bid/ask depth starts first, because it cannot be
   backfilled and short stops cannot be tested without it. The first milestone is **paper-live on the new stack**: real Dhan market
   data, paper broker, safe restarts, founder controls, health alarms. The old engine runs next to it only as a frozen
   benchmark.
@@ -81,11 +81,11 @@ A strategy reaches customers only after the Round 8 forward bar (FWD-BAR) and 09
    │ engine  (ONE process, single-threaded kernel, in-process MemoryBus)                    │
    │                                                                                        │
    │  features ─▶ strategy ─▶ boss ─▶ order planner ─▶ risk ─▶ order router ─▶ broker       │
-   │  (+entry     runtime     (basket, (entry location: (veto)  (idempotent)    (paper now) │
-   │   location)  (plugins,   select,   chase / limit /                                     │
-   │     ▲         registry,  size,     wait)            position manager ◀── fills         │
-   │     │         basket)    stretch                    (exits, time stops, trail)         │
-   │     │                    veto)                                                         │
+   │  (+entry     runtime     (basket, (marketable     (veto)  (idempotent)    (paper now)  │
+   │   location)  (plugins,   select,   next-bar entry;                                     │
+   │     ▲         registry,  size,                      position manager ◀── fills         │
+   │     │         basket)    stretch                    (exit primitives per strategy)     │
+   │     │                    record)                                                       │
    │  founder controls (commands)                        ledger + charges + outbox          │
    └───────┬────────────────────────────────────────────────────┬───────────────────────────┘
            │ Redis Streams ctl:*, sig:*, boss:*, oms:*, pos:* (from outbox)
@@ -257,21 +257,50 @@ class StrategyMeta:
     max_positions: int = 1
     entry_policy: EntryPolicy = EntryPolicy()   # how the desk may enter (section 2.18)
 
+# Exit primitives (section 2.9). Each strategy declares the ones it uses; there are no hidden engine exits.
 @dataclass(frozen=True)
-class TimeStop:                   # first-class exit primitive
+class CatastrophicStop:           # required on every strategy; the resting broker-side stop (REG-02)
+    level: Level                  # Level(kind="premium"|"underlying", price=..) or an ATR/percent rule resolved at fill
+
+@dataclass(frozen=True)
+class StructuralStop:             # beyond the structure that defines the idea (swing, box edge, FVG edge)
+    level: Level
+    trigger: str = "bar_close"    # "bar_close" (1m close beyond) | "tick"
+
+@dataclass(frozen=True)
+class AtrStop:
+    k: float                      # stop = entry_underlying -/+ k * ATR14(1m) at fill
+    trigger: str = "bar_close"
+
+@dataclass(frozen=True)
+class TimeStop:
     after_s: int                  # seconds after the entry fill, e.g. 180
     when: str = "always"          # "always" | "entry_in:09:15-10:00" | "expiry_day" | "entry_in:..&expiry_day"
-    unless_profit_pts: float | None = None   # optional: skip the stop if the premium is up at least this much
+    unless_profit_pts: float | None = None   # optional: skip if the premium is up at least this much
+
+@dataclass(frozen=True)
+class GracePeriod:
+    seconds: int                  # after the fill, only the catastrophic stop, EOD flat and founder commands can exit
+
+@dataclass(frozen=True)
+class SignalFlipExit:
+    on: tuple[str, ...] = ("own_opposite",)  # "own_opposite" (same strategy signals the other side) |
+                                             # "boss_opposite" (boss DECISION ENTER on the other side, same underlying)
+    trigger: str = "bar_close"
 
 @dataclass(frozen=True)
 class ExitPlan:
-    stop: Level | None            # Level(kind="premium"|"underlying", price=..)
-    target: Level | None
-    time_stops: tuple[TimeStop, ...] = ()    # first matching `when` at entry wins; evaluated on the 1 s CLOCK
+    catastrophic: CatastrophicStop                   # required; a plan without it refuses to load
+    structural: StructuralStop | None = None
+    atr: AtrStop | None = None
+    time_stops: tuple[TimeStop, ...] = ()            # first matching `when` at the fill wins; checked on the 1 s CLOCK
+    grace: GracePeriod | None = None
+    signal_flip: SignalFlipExit | None = None
+    target: Level | None = None
+    partials: tuple[Partial, ...] = ()               # Partial(at=Level, fraction=0.5)
+    trail: Trail | None = None                       # Trail(kind="step", activate_at=Level, step=..)
     flat_by_ist: str = "15:15"
-    partials: tuple[Partial, ...] = ()   # Partial(at=Level, fraction=0.5)
-    trail: Trail | None = None           # Trail(kind="step", activate_at=Level, step=..)
-    protective_stop: Level | None = None # resting broker-side stop (disaster stop)
+    defaults_from: str | None = None                 # "exit_defaults@<hash>" when fields came from config/v2/exits/defaults.yaml
 
 @dataclass(frozen=True)
 class Signal:
@@ -305,10 +334,10 @@ class EntryLocation:             # shared: every strategy gets it the same way
     atr: float; spot: float; as_of: str   # as_of = available_ts of the last closed bar used
 
 @dataclass(frozen=True)
-class EntryPolicy:
-    allowed: tuple[str, ...] = ("CHASE", "LIMIT", "WAIT")  # a strategy may forbid some actions
-    prefer: str = "LIMIT"          # when stretched and a zone exists: LIMIT or WAIT
-    zones: tuple[str, ...] = ("fvg", "candle_50", "vwap", "ema20", "poc")  # zones it trusts
+class EntryPolicy:                # kept on every strategy card (founder addendum 6)
+    mode: str = "chase"            # "chase" (marketable next-bar entry; default) | "pullback_limit" | "wait_consolidation"
+                                   # the last two are supported but globally disabled in config/v2/entry_location.yaml
+    zones: tuple[str, ...] = ("fvg", "candle_50")   # zones used for the stretch record (EMA20 and TWAP always recorded)
 
 class Strategy(Protocol):
     meta: StrategyMeta
@@ -387,14 +416,9 @@ The boss turns signals into at most one **decision** per underlying per bar. It 
 4. **Sizing.** `lots = min(basket max_lots, VOLSIZE(EM30), CAPLOTS(risk budget, δ, stop))`, skip if < 2 (Round 8 §3.0).
    The strike comes from the signal's `strike_choice` (section 2.5); lot size comes from the instrument master
    (never hard-coded; NIFTY 65 today).
-5. **Entry-location veto (supervisor).** If `entry_distance_atr > max_stretch_atr` or
-   `signal_candle_atr > max_candle_atr` (thresholds in `config/v2/entry_location.yaml`), the decision is
-   `HOLD` with reason code `ENTRY_STRETCHED` and the numbers (`entry_distance_atr`, nearest zone type and price,
-   `signal_candle_atr`, thresholds, config hash). This is a hard veto: the desk never sees the signal. It runs before
-   the desk's order planner, so the two thresholds nest. Below the planner's `chase_max_atr` the desk may chase.
-   Between that and `max_stretch_atr` the desk must use a pullback limit or wait. Above `max_stretch_atr` the boss
-   vetoes. In `log_only` mode (the default until research round 10) the boss logs `would_veto: true` and does not
-   veto (section 2.18).
+5. **Entry-location record (no veto power).** On every signal the boss records the stretch in ATR from the nearest
+   zone (FVG or candle 50%), from EMA20 and from TWAP (section 2.18) in the decision's `stretch` block. Round 10 found
+   no entry-location rule (founder addendum 6), so stretch never holds or vetoes an entry.
 6. **Regime and weights (shadow).** The merged adaptive weights (`desk_ml.regime.weights`) and the intermarket overlay
    run next to the static decision and publish `BOSS_SHADOW`, exactly as today. They do not change the decision
    until a founder-approved config flips `regime.mode: apply`.
@@ -467,7 +491,7 @@ so a restart loses nothing. Wrapped for v2:
   - Before PR #20, `PaperBroker` filled limits on a touch (`ltp <= order.price`). That rule only exists behind
     `cost_model="legacy"` on `main` now, and v2 never selects it.
 - **Protective stop.** After an entry fills, the router places a resting stop order (`SL-M`, from
-  `ExitPlan.protective_stop`, else the strategy stop widened by a configured buffer). If the engine dies, the position
+  `ExitPlan.catastrophic`, which every plan must have). If the engine dies, the position
   is still protected at the broker. In paper, `PaperBroker` simulates it. The position manager cancels or modifies it
   on every exit or trail step.
 - **Stop invariant (REG-02).** Every open position has an enforced stop at all times: a resting protective order at
@@ -504,19 +528,58 @@ so a restart loses nothing. Wrapped for v2:
 
 ### 2.9 Position / desk manager (`packages/oms/positions.py`, `exits.py`, in the engine)
 
-Owns every open position after the entry fill. On each `TICK`/`DEPTH`/`BAR_CLOSED`/`CLOCK` it checks, in this order:
+Owns every open position after the entry fill.
 
-1. founder `CUT_LOSS`, `FLATTEN_ALL` or kill switch, then exit at market (never refused);
-2. **stop** (premium or underlying level; bar-close or tick trigger as the plan says);
-3. **EOD flat** at `flat_by_ist` (15:15 default) using the `CLOCK` heartbeat, so it fires with no ticks at all. The EOD
+**Exit layer = per-strategy primitives, nothing hidden (founder addendum 6, REG-18).** The -4/-5 point loss
+cluster the founder saw came from the legacy engine's hard-coded tight cancel exits: `CANCEL_AGAINST`,
+`CANCEL_ADVERSE`, the stall cancel, and `COVER_LONG_UNWIND` (`paper_scalp.py` around lines 3846 and 4865). In v2 the
+position manager has **no exit logic of its own**. It runs only the primitives in the position's `ExitPlan`
+(section 2.5), plus three non-strategy exits that always apply: founder commands, the kill switch, and the EOD
+flatten. The primitives are:
+
+| Primitive | What it does | Notes |
+|---|---|---|
+| `CatastrophicStop` | Resting broker-side stop at a far level | **Required** on every plan; it is the protective stop of REG-02 |
+| `StructuralStop` | Exit when the structure behind the idea breaks (swing, box edge, FVG edge); bar-close or tick trigger | Underlying level; survives a restart |
+| `AtrStop` | Exit at entry ∓ k × ATR14 of the underlying, fixed at the fill | Bar-close or tick trigger |
+| `TimeStop` | Exit `after_s` seconds after the fill; windows such as the open or expiry day | See below |
+| `GracePeriod` | For N seconds after the fill, only the catastrophic stop, EOD flatten and founder commands can exit | Stops noise exits in the first bars; it never delays the catastrophic stop |
+| `SignalFlipExit` | Exit when the same strategy signals the opposite side (or the boss enters the opposite side on that underlying), on a bar close | Replaces the legacy "ticket against market" cancel with an explicit, per-strategy choice |
+
+Targets, partials and trailing stay available as before.
+
+**Order checked on each `TICK`/`DEPTH`/`BAR_CLOSED`/`CLOCK`:**
+1. founder `CUT_LOSS`, `FLATTEN_ALL` or kill switch → exit at market (never refused);
+2. **catastrophic stop** (resting at the broker; the engine also checks it in case the resting order failed);
+3. **EOD flat** at `flat_by_ist` (15:15 default) on the `CLOCK` heartbeat, so it fires with no ticks at all. The EOD
    flatten is **never held back by the stale-quote guard** (REG-15). On `main`, PR #20's guard defers the
    `FLATTEN_1516` exit while the quote is older than `exit_quote_max_age_s` until `stale_exit_hard_flatten_ist:
    "15:20"`. In v2 the flatten is sent at `flat_by_ist` regardless. In paper it is priced at the freshest quote, or the
    last good print flagged `STALE_QUOTE`, with an alert. In live it is a market exit at the broker;
-4. **time stop** (first-class; see below);
-5. **target** or **partials** (scale out a fraction, then move the stop as the plan says);
-6. **trailing** (step trail once activated; every step modifies the protective stop);
-7. strategy `on_position` exit requests.
+4. if inside the **grace period**, stop here;
+5. **structural stop**, then **ATR stop**;
+6. **time stop**;
+7. **signal-flip exit**;
+8. **target** or **partials**, then **trailing** (every step modifies the resting catastrophic stop only toward
+   safety);
+9. strategy `on_position` exit requests.
+
+**Rules that keep it honest:**
+- Every exit's reason is one of the primitive names (`CATASTROPHIC_STOP`, `STRUCTURAL_STOP`, `ATR_STOP`, `TIME_EXIT`,
+  `SIGNAL_FLIP`, `TARGET_HIT`, `PARTIAL`, `TRAIL_STOP`, `FLATTEN_EOD`, `FOUNDER_COMMAND`, `KILL_SWITCH`,
+  `STRATEGY_EXIT`, `FAILSAFE_MTM`), and it cites the `ExitPlan` field that fired. An exit with any other reason, or
+  one fired by a primitive the plan does not contain, is a test failure (REG-18). `CANCEL_AGAINST`,
+  `CANCEL_ADVERSE`, `CANCEL_STALL` and `COVER_LONG_UNWIND` do not exist in v2.
+- **Defaults come from research round 11** (due 08:00 CT Sunday) in `config/v2/exits/defaults.yaml`. Until that file
+  has values, every strategy must declare its own full `ExitPlan`, and a plan missing a field it does not declare
+  refuses to load (fail closed). When defaults exist, a strategy may inherit them. The inherited values and the
+  defaults file hash are frozen into the plan (`defaults_from`) and the params hash (REG-13), so changing the
+  defaults is a new strategy version, never a silent change to running strategies.
+- The resolved plan is stored on the position (`positions_v2.exit_plan_json`) at the fill, so restarts use exactly
+  the same exits.
+- Exit-rule changes follow the Round 8 caution that exits choose holding time rather than create edge. A new
+  default must come from a preregistered round (round 11) and pass the forward harness, not intraday tuning
+  (build plan §4.2 K18).
 
 **Time stops are a first-class exit primitive.** Research round 9 found that a 3-minute time stop at the open and on
 expiry day drove most of the strike router's improvement. So:
@@ -536,8 +599,7 @@ Each exit is an `EXIT` intent through `risk.check_exit` (allowed under the kill 
 exception keeps the merged fail-safe behaviour (`desk.executor` `failsafe_mtm_error`): close at the last good quote and
 block new entries for the session. The PR #14 halt semantics are ported too: the halt is saved durably (a
 `session_halts` row instead of `mtm_halt.json`); a halt record that cannot be read blocks every entry (fail closed);
-forced closes are re-booked at their saved time and price on rehydrate; and flatten always runs (REG-05). Exits are mechanics, not edge (Round 8 §4.3), so there is no exit tuning in the
-build plan.
+forced closes are re-booked at their saved time and price on rehydrate; and flatten always runs (REG-05).
 
 ### 2.10 Ledger and charges (`packages/ledger`, in the engine; read by gateway, health, nightly)
 
@@ -626,94 +688,73 @@ pass and kill bars. It is the Round 8 FWD-BAR process built into the platform.
 - **Data gate:** a session where depth coverage for the spec's strikes is below 95% of minutes is marked
   `DATA_INSUFFICIENT` for depth pricing and does not count toward n.
 - **Entry alternatives:** for every signal the harness also prices the entry actions it did not take (CHASE, LIMIT
-  at each zone, WAIT) as shadow legs (`leg = "entry:LIMIT:fvg"` and so on), so research round 10's thresholds can be
-  checked on forward data before `enforce` is turned on.
+  at each zone, WAIT) as shadow legs (`leg = "entry:LIMIT:fvg"` and so on). Round 10 found no entry-location rule, so these legs
+  only keep the question open on forward data; they never change a live entry. Exit primitives likewise get shadow
+  legs for the round 11 default versus each strategy's own plan.
 
-### 2.18 Entry location (desk order planner + boss veto)
+### 2.18 Entry location (desk order planner; boss records stretch, no veto)
 
-**Founder observation (2026-09-27).** The legacy engine entered at the top of big impulse candles. Price then
-retraced 4-5 points to the imbalance (fair value gap, candle 50%, or volume POC where futures volume exists), and
-the position was stopped out. So in v2, **where** we enter is a first-class concern of both the boss and the desk.
+**History.** The founder observed (C9) that the legacy engine entered at the top of big impulse candles, gave back
+4-5 points, and got stopped. Research round 10 (founder addendum 6, 2026-09-27) tested that and **found no
+entry-location rule**:
+- stretched entries do not carry a disproportionate share of the losses;
+- pullback limits fill the losers and miss the winners (the same adverse selection Round 8 found for passive entries).
 
-**Features (`indicators/location.py`, shared; computed by the strategy runtime for every signal).** Built only from
-closed 1m bars of the underlying, so the look-ahead rules (REG-01) cover them. "Pullback side" means below price for
-a CE signal and above price for a PE signal.
-- `signal_candle_atr` and `signal_body_atr`: range and body of the signal bar (the last closed bar at
-  `decision_ts`) divided by ATR14 on 1m.
-- **Zones** on the pullback side, each reported as a `ZoneDistance` with `distance_atr = (spot − zone edge) / ATR`,
-  signed so that a positive number means price is stretched away from the zone:
-  - `fvg`: 3-bar imbalance from the current session. It is bullish at bar i when `low[i] > high[i−2]`, with zone
-    `[high[i−2], low[i]]` (bearish mirrored). It stays **unfilled** until a later closed bar trades back through its
-    far edge (`fill_rule: full`, or `half` for the midpoint). It expires after `max_age_bars`. Only zones formed by
-    closed bars count.
-  - `candle_50`: midpoint of the signal candle.
-  - `vwap`: session VWAP of the current **future** when futures volume exists (the PR-001 futures recorder captures
-    it), shifted to index terms by the live basis. Otherwise TWAP of the index, tagged `source: twap`, because the
-    index itself has no volume.
-  - `ema20`: EMA20 on 1m closes.
-  - `poc`: point of control of the session volume profile of the current future (basis-adjusted). **Only where
-    futures volume exists**; otherwise the zone is absent, never faked.
-- `nearest` = the zone with the smallest positive distance among the zones the strategy's `EntryPolicy` trusts, and
-  `entry_distance_atr` = its distance. `None` means no zone was found; the planner then treats the entry as
-  stretched if `signal_candle_atr > candle_max_atr`.
+The -4/-5 point loss cluster comes from the old engine's **tight cancel exits**, not from where it entered. In
+`paper_scalp.py`, `CANCEL_AGAINST` (from `ticket_against_market`), `CANCEL_ADVERSE` and the stall cancel, and
+`COVER_LONG_UNWIND` (a long-unwind label, even when only 3 points underwater in chop) are hard-coded. So v2 fixes
+this in the exit layer (section 2.9, REG-18), and entry location becomes a **recorded diagnostic** with no rule
+attached.
 
-**Boss (supervisor, hard veto).** Section 2.6 step 5: above `max_stretch_atr` (or `max_candle_atr`) the decision is
-`HOLD ENTRY_STRETCHED`, with the numbers logged.
+**Desk: marketable next-bar entries.** For trend signals the desk enters with a marketable limit (best ask + at most
+`max_chase_ticks`) at the first quote after the signal bar closes. This is `EntryPolicy.mode = "chase"`, the default
+on every strategy card.
+- `pullback_limit` and `wait_consolidation` stay **supported but off** (`enabled: false` in
+  `config/v2/entry_location.yaml`). Turning either on needs a founder-approved config change, a new strategy version
+  (REG-13), and a preregistered forward spec that shows it helps.
+- If a resting limit is ever used, it fills only at the limit when price trades through it (REG-14). Every signal
+  whose limit expires or is cancelled unfilled is counted as **MISSED**: an `ENTRY_PLAN_RESULT` with status `MISSED`,
+  plus the shadow P&L the chase entry would have made. Fill rate and missed-winner cost are on the daily review.
+- A WAIT plan works the same way: it expires as `MISSED` when no consolidation break comes.
 
-**Desk order planner (`oms/planner.py`; runs between the boss and the router).** For each `DECISION ENTER` it picks
-one action and emits an `EntryPlan`:
+**Boss: records stretch, no veto power.** On every signal the boss records the stretch in ATR from:
+- the nearest trusted **zone** (unfilled FVG or candle 50%);
+- **EMA20**;
+- **TWAP** (futures VWAP when futures volume exists, kept as an extra column).
 
-| Action | When | What the desk does |
-|---|---|---|
-| **CHASE** | `entry_distance_atr ≤ chase_max_atr` and `signal_candle_atr ≤ candle_max_atr` | Marketable limit at best ask + at most `max_chase_ticks` (never a naked market order) |
-| **LIMIT** | stretched, a trusted zone exists, `prefer: LIMIT` | Resting buy limit on the option, priced from the zone: `limit = ask_now − est_delta × (spot_now − zone_price)`, tick-rounded. Cancelled with the ledger's existing `TIMEOUT_UNFILLED` reason after `limit_timeout_s`, or with `BOSS_CHANGED_MIND` if the signal's underlying stop trades before the fill |
-| **WAIT** | stretched and `prefer: WAIT`, or no trusted zone | Wait for **one consolidation candle**: the next closed bar with range ≤ `consol_max_atr` × ATR that does not print beyond the signal bar's extreme. Arm a trigger at its high (CE) or low (PE); when the underlying trades through it, send a CHASE-style marketable limit. Expire after `wait_max_bars` bars with `WAIT_EXPIRED` |
-| **VETO** | set by the boss | Nothing is sent; the plan is logged |
+The boss never holds or vetoes an entry because of stretch. The `ENTRY_STRETCHED` hold code is not used; the field
+is kept in the schema so that a future, evidence-backed rule has a place to go.
 
-- **Risk is checked when the order is actually sent** (the fill of a LIMIT or the trigger of a WAIT can be minutes
-  later), with the real limit price, so caps, cooldown, time gates and holds apply at that moment.
-- **One entry order per signal.** The entry leg's `client_order_id` is derived from the signal id, so a WAIT trigger
-  or a restart never creates a second order. Pending LIMIT and WAIT plans are stored in `entry_plans` and rebuilt on
-  restart (REG-04). An unfilled LIMIT has no position, so it needs no protective stop. The stop is placed on fill
-  (REG-02).
-- **Exit plan re-anchored at the fill.** Underlying-level stops and targets are unchanged. Premium-level stops and
-  targets are recomputed from the actual fill price. Time stops start at the fill.
-- **Sim realism.** LIMIT fills use the trade-through rule (section 2.8). WAIT triggers use ticks on the underlying and
-  then the depth fill model.
+**Features (`indicators/location.py`, shared).** Unchanged from V2-05b and built only from closed 1m bars (REG-01):
+- signal candle and body in ATR;
+- zone distances: FVG (3-bar rule, fill rule, max age) and candle 50%;
+- EMA20 and TWAP distances, plus futures VWAP and POC where futures volume exists (absent otherwise).
 
-**Mode and thresholds (`config/v2/entry_location.yaml`).** Thresholds come from research round 10 (results due
-Sunday). Until then the file runs **log-only**:
+All distances are signed so that a positive number means price is stretched away from the pullback side.
+
+**Config (`config/v2/entry_location.yaml`).**
 
 ```yaml
-mode: log_only            # log_only | enforce. enforce needs every threshold set and founder approval
-source: "research round 10 (pending)"
-thresholds:               # all null until round 10; ATR = ATR14 on 1m bars of the underlying
-  chase_max_atr: null     # at or below: CHASE allowed
-  max_stretch_atr: null   # above: boss veto ENTRY_STRETCHED
-  candle_max_atr: null    # signal candle bigger than this counts as stretched
-  limit_timeout_s: null
-  max_chase_ticks: null
-  consol_max_atr: null
-  wait_max_bars: null
-zones: [fvg, candle_50, vwap, ema20, poc]
+source: "research round 10: no entry-location rule found (founder addendum 6)"
+boss_stretch: record_only        # no veto power; the only allowed value
+default_entry_policy: chase      # marketable next-bar entry
+max_chase_ticks: 2               # default (₹0.10 above best ask) for the marketable limit; founder may change
+pullback_limit: {enabled: false, limit_timeout_s: null}
+wait_consolidation: {enabled: false, consol_max_atr: null, wait_max_bars: null}
+zones: [fvg, candle_50]          # "zone" for the stretch record; EMA20 and TWAP always recorded
 fvg: {fill_rule: full, max_age_bars: 60}
 ```
 
-- `log_only`: features are computed and logged; the planner logs the action it **would** take (`shadow_action`) and
-  executes CHASE (today's behaviour); the boss logs `would_veto` and does not veto. The forward harness prices every
-  alternative.
-- `enforce` with any threshold still `null` is an invalid config. The last-good (log-only) config stays in force and
-  `CONFIG_INVALID` is raised (REG-07).
-- The thresholds, zone list and FVG rule are part of the engine `config_hash` and of the strategy gate (REG-13).
+A config that sets `boss_stretch` to anything else, or enables an optional mode with a `null` parameter, is invalid.
+The last-good config stays in force and `CONFIG_INVALID` is raised (REG-07). All values are in `config_hash`
+(REG-13).
 
-**Logging for daily review.** Every plan is an `ENTRY_PLAN` event (stream `oms:plans`, kept in the `events` audit
-table). Its result follows as `ENTRY_PLAN_RESULT`: `FILLED` (price, time, seconds waited), `CANCELLED_TIMEOUT`,
-`CANCELLED_INVALIDATED`, `WAIT_EXPIRED` or `VETOED`. For fills it also records the **give-back**: the maximum adverse
-excursion in index points and in ATR over the first 5 minutes after the fill, which measures the founder's 4-5 point
-observation directly. The nightly ETL builds `entry_location_daily` (per action, zone type and strategy: count, fill
-rate, give-back, stop-out rate, net P&L; and the same for the shadow alternatives). The founder page shows it as a
-daily review table.
-
+**Logging for daily review.** Every entry is an `ENTRY_PLAN` event, and its result follows as `ENTRY_PLAN_RESULT`
+(`FILLED`, `MISSED`, `CANCELLED_INVALIDATED`). Both carry the three stretch readings, the zone type,
+`signal_candle_atr`, the action taken, and for fills the 5-minute give-back. The nightly ETL builds
+`entry_location_daily` (by stretch bucket, zone type, strategy and action: count, fill rate, missed signals,
+give-back, stop-outs, net P&L). The forward harness keeps pricing the non-default entry actions as shadow legs, so
+the data can reopen the question later without a code change.
 ---
 
 ## 3. Data
@@ -1002,9 +1043,12 @@ Existing values stay (`PRE_MARKET_SUMMARY`, `POSITION_UPDATE`, `POSITION_CLOSED`
 // SIGNAL  (sig:signals)
 {"signal_id":"sg_r8e1_nifty_20260928_1001_0","strategy_id":"R8-E1-COIL-SIDE","version":"1.0.0","params_hash":"30416a4a…",
  "stage":"shadow","underlying":"NIFTY","side":"CE","strike_rule":"ROUTER","decision_ts":"2026-09-28T10:01:01.512+05:30",
- "confidence":0.63,"exit_plan":{"stop":{"kind":"underlying","price":24488.0},"target":{"kind":"underlying","price":24531.0},
+ "confidence":0.63,"exit_plan":{"catastrophic":{"level":{"kind":"premium","price":118.0}},
+ "structural":{"level":{"kind":"underlying","price":24488.0},"trigger":"bar_close"},"atr":null,
+ "grace":{"seconds":60},"signal_flip":{"on":["own_opposite"],"trigger":"bar_close"},
+ "target":{"kind":"underlying","price":24531.0},
  "time_stops":[{"after_s":180,"when":"entry_in:09:15-10:00"},{"after_s":180,"when":"expiry_day"},{"after_s":900,"when":"always"}],
- "flat_by_ist":"15:15","partials":[],"trail":null,"protective_stop":{"kind":"premium","price":118.0}},
+ "flat_by_ist":"15:15","partials":[],"trail":null,"defaults_from":null},
  "strike_choice":{"chosen":"ITM100","reason":"LOWEST_BREAKEVEN_AT_HOLD","rule_version":"router-1.0.0+9c2e…","alternatives":[
    {"rule":"ATM","instrument_id":"NSE_FNO:NIFTY:2026-09-29:24500:CE","bid":88.05,"ask":88.25,"mid":88.15,"spread":0.20,"quote_age_ms":640,"est_delta":0.51,"est_round_trip_pts":0.64},
    {"rule":"ITM100","instrument_id":"NSE_FNO:NIFTY:2026-09-29:24400:CE","bid":151.10,"ask":151.35,"mid":151.23,"spread":0.25,"quote_age_ms":410,"est_delta":0.66,"est_round_trip_pts":0.88},
@@ -1019,11 +1063,11 @@ Existing values stay (`PRE_MARKET_SUMMARY`, `POSITION_UPDATE`, `POSITION_CLOSED`
    "nearest":{"zone":"fvg","price":24501.5,"distance_atr":1.6,"source":"1m"},
    "zones":[{"zone":"fvg","price":24501.5,"distance_atr":1.6,"source":"1m"},{"zone":"candle_50","price":24504.2,"distance_atr":1.2,"source":"1m"},
             {"zone":"vwap","price":24488.9,"distance_atr":3.4,"source":"fut_vwap"},{"zone":"ema20","price":24496.0,"distance_atr":2.4,"source":"1m"}]},
- "stretch":{"mode":"log_only","would_veto":false,"max_stretch_atr":null,"config_hash":"e4a0…"}}
+ "stretch":{"record_only":true,"zone_atr":1.6,"zone":"fvg","ema20_atr":2.4,"twap_atr":3.1,"config_hash":"e4a0…"}}
 
 // ENTRY_PLAN  (oms:plans)
-{"plan_id":"ep_…","decision_id":"dc_nifty_20260928_1001","signal_id":"sg_…","account_id":"founder","mode":"log_only",
- "action":"CHASE","shadow_action":"LIMIT","zone":"fvg","zone_price":24501.5,"entry_distance_atr":1.6,"signal_candle_atr":2.4,
+{"plan_id":"ep_…","decision_id":"dc_nifty_20260928_1001","signal_id":"sg_…","account_id":"founder",
+ "action":"CHASE","shadow_actions":["LIMIT:fvg","WAIT"],"stretch":{"zone_atr":1.6,"ema20_atr":2.4,"twap_atr":3.1},"zone":"fvg","zone_price":24501.5,"entry_distance_atr":1.6,"signal_candle_atr":2.4,
  "limit_price":144.10,"est_delta":0.66,"expires_at":"2026-09-28T10:04:01.512+05:30","client_order_id":"aad3f9…"}
 
 // ENTRY_PLAN_RESULT  (oms:plans)
@@ -1139,7 +1183,7 @@ localhost-only, secret scan). Jobs on every PR:
 | `unit` | pytest, Python 3.11 and 3.13, no network | yes |
 | `integration` | engine + in-memory bus; engine + real Redis (service container) | yes |
 | `no-lookahead` | truncation invariance, future poisoning, bar visibility, strict view (section 4.2) | yes |
-| `regression` | legacy bug carry-over REG-01 to REG-17 (section 6.5); no skips, no xfail | yes |
+| `regression` | legacy bug carry-over REG-01 to REG-18 (section 6.5); no skips, no xfail | yes |
 | `determinism` | same tape twice gives identical output hash; rehydrate equals run | yes |
 | `faults` | fault matrix (section 6.2) | yes |
 | `perf` | budgets (section 6.3) on the CI runner, with a 2x headroom factor | yes |
@@ -1264,7 +1308,7 @@ A PR that touches `runtime`, `oms`, `strategies`, `indicators`, `marketdata`, `e
    | Clock skew between processes | decisions unchanged (event time) |
 
 4. **No-look-ahead tests** (section 4.2).
-5. **Legacy regression suite** `tests/regression/test_reg_*.py` (REG-01 to REG-17, section 6.5). Every test must pass;
+5. **Legacy regression suite** `tests/regression/test_reg_*.py` (REG-01 to REG-18, section 6.5). Every test must pass;
    none may be skipped or marked xfail.
 6. **Determinism:** same tape twice gives the same output hash; rehydrate equals run; the live-like dry run over
    Redis equals the in-process replay (decisions, orders, fills compared field by field).
@@ -1343,6 +1387,7 @@ exists, with a named gap; **NEW** = needs new work.
 | **REG-15** | The end-of-day flatten is **never held back by the stale-quote guard**. | PR #20: `desk_ml.costs` defers any exit on a quote older than `exit_quote_max_age_s` (90 s) until `stale_exit_hard_flatten_ist` (15:20), and that includes the 15:16 `FLATTEN_1516` | `REG-15a` all quotes stale from 15:10: the EOD flatten is sent at `flat_by_ist` (15:15), not later; `REG-15b` it is priced at the last good print flagged `STALE_QUOTE`, with an alert; `REG-15c` ordinary (non-EOD) exits still wait for a fresh quote up to the guard limit; `REG-15d` no position is open after `flat_by_ist` on any fixture (shared with the REG-02 invariant) | engine: oms (positions/exits) | V2-09 | **NEW.** The merged guard holds the EOD flatten until 15:20; v2 exempts EOD, founder and kill-switch flattens from it. |
 | **REG-16** | A malformed cost config fails closed with an alert, never a crash. | `ledger.charges.load_rates` raises `ValueError` on missing or bad keys, and nothing catches it | `REG-16a` corrupt, truncated or key-missing `charges.yaml` / `paper_costs.yaml` at start: the engine runs exits-only, raises `CONFIG_INVALID(costs)`, and does not crash; `REG-16b` corrupted mid-session: last-good rates are kept, entries block, exits are charged at the last-good rates; `REG-16c` a fill booked with no valid rates is `charges_status = PENDING`, never zero, and is recharged when a valid file returns | contracts (config loader), ledger (charges) | V2-08, V2-10 | **NEW.** Validation exists (`load_rates` rejects missing keys), but the error is uncaught, with no last-good copy and no alert. |
 | **REG-17** | Every closed trade row carries its **exchange tag** (NSE vs BSE rates differ). | PR #20 added per-exchange charges but no exchange column on `trades` | `REG-17a` every closed trade in NIFTY and SENSEX fixtures has `exchange` = NSE / BSE matching `underlying_exchange`; `REG-17b` an underlying missing from the map is refused at entry (no trade with `UNKNOWN`); `REG-17c` the charges on a trade match the rate of its tagged exchange; `REG-17d` the migration backfills existing rows from the map | ledger | V2-10 | **PARTIAL.** `exchange_for()` and per-exchange charges exist, and a missing underlying raises; `trades` has no exchange column. |
+| **REG-18** | No hard-coded tight cancel exits. Every exit comes from a declared per-strategy primitive (catastrophic, structural, ATR or time stop, grace period, signal-flip, target/partial/trail) or from founder, kill-switch or EOD. | Founder addendum 6 / round 10: the -4/-5 pt loss cluster came from `CANCEL_AGAINST` (`ticket_against_market`), `CANCEL_ADVERSE`, the stall cancel and `COVER_LONG_UNWIND` hard-coded in `paper_scalp.py` | `REG-18a` on every fixture, every exit reason is in the allowed list and names the `ExitPlan` field that fired; `REG-18b` a position whose plan has only a catastrophic stop and a time stop is never closed by anything else while the premium wanders ±5 pts; `REG-18c` a grace period blocks structural, ATR, time and flip exits but never the catastrophic stop, EOD flatten or founder commands; `REG-18d` a plan without a catastrophic stop refuses to load; `REG-18e` changing `config/v2/exits/defaults.yaml` does not change a running strategy's resolved plan (it needs a new version) | engine: oms (positions/exits), strategies | V2-06, V2-09 | **NEW.** No merged component has exit logic outside the legacy engine; the legacy cancels are frozen and not ported. |
 
 ---
 
@@ -1398,14 +1443,19 @@ class LedgerStore(Protocol):  # existing Ledger methods + these
     skips live in config.
   - Every merged safety component, reused or wrapped (section 6.1).
   - The existing performance budgets from `04_MIGRATION_PLAN.md`.
-  - Founder addendum 1 (2026-09-27): every legacy bug fixed becomes a named regression requirement, REG-01 to REG-17 (REG-14 to REG-17 from addendum 5)
+  - Founder addendum 1 (2026-09-27): every legacy bug fixed becomes a named regression requirement, REG-01 to REG-18 (REG-14 to REG-17 from addendum 5, REG-18 from addendum 6)
     (section 6.5), in the merge gate and the M1 exit criteria.
   - Founder addendum 5 (PR #20 cost realism, merged `c004ace`): limits fill only at the limit on a trade-through
     and stops at or worse than the trigger (REG-14); the EOD flatten is never held back by the stale-quote guard
     (REG-15); a malformed cost config fails closed with an alert (REG-16); every trade carries its exchange tag
     (REG-17); the verified cost stack with the BSE rate, recorded half-spread slippage and a 0.20 pt/side fallback
     (REG-12). Realistic fills are the only mode in v2.
-  - Founder addendum 3: entry location is first-class for the boss (hard stretch veto, `ENTRY_STRETCHED`) and the
+  - Founder addendum 6 (round 10 result): no entry-location rule. The desk uses marketable next-bar entries (chase
+    default); `pullback_limit` and `wait_consolidation` are supported but off, and missed signals are counted if a
+    resting limit is ever used. The boss records stretch (zone, EMA20, TWAP) with no veto power. The exit layer is
+    per-strategy primitives (catastrophic, structural, ATR and time stops, grace period, signal-flip), with no
+    hard-coded tight cancels (REG-18); round 11 sets the defaults.
+  - Founder addendum 3 (superseded in part by addendum 6): entry location is first-class for the boss (hard stretch veto, `ENTRY_STRETCHED`) and the
     desk (order planner: CHASE / LIMIT with timeout / WAIT for one consolidation candle), with trade-through limit
     fills in simulation and `ENTRY_PLAN` logging for daily review. Log-only until research round 10 sets the
     thresholds (section 2.18).
@@ -1428,8 +1478,7 @@ class LedgerStore(Protocol):  # existing Ledger methods + these
   - Whether the option chain REST response really carries bid/ask. The PR-001 recorder reads `bid_price`/`ask_price`
     without a verified field name.
   - OI update cadence (it decides whether E1's lag rule is stale); V2-D2 measures it from day 1.
-  - Entry-location thresholds (`chase_max_atr`, `max_stretch_atr`, `candle_max_atr`, timeouts): research round 10,
-    results due Sunday. Until then log-only.
+  - Round 11 exit defaults (due 08:00 CT Sunday). Until then every strategy must declare its own exit primitives.
   - How well `ask − est_delta × (spot − zone)` predicts the option price when the underlying reaches the zone (IV and
     decay move meanwhile). The forward harness measures it; if it is poor, LIMIT becomes an engine-side zone trigger.
   - Futures volume quality per minute (it decides whether VWAP and POC come from futures or fall back / go absent).
