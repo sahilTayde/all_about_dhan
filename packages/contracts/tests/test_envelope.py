@@ -37,7 +37,7 @@ def test_envelope_v2_roundtrip() -> None:
 
 def test_old_event_json_still_loads() -> None:
     """Test that real legacy events.schema.Event JSON still loads (backward compatibility)."""
-    from events.schema import Event  # type: ignore[import-untyped]
+    from events.schema import Event
 
     # Create a real legacy Event
     legacy_event = Event(

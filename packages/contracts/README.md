@@ -29,9 +29,9 @@ from contracts import Envelope, India, order_id, signal_id, load_tick
 oid = order_id("acc123", "sg_r8-e1-v1.0.0_bfe5cd_nifty_20260927_1001_0", "entry")
 print(oid)  # "aad..." (27 chars)
 
-# Market adapter
+# Market adapter (2026-09-29 is a Tuesday trading day)
 india = India()
-print(india.is_open(datetime(2026, 9, 27, 10, 0, tzinfo=ZoneInfo("Asia/Kolkata"))))  # True
+print(india.is_open(datetime(2026, 9, 29, 10, 0, tzinfo=ZoneInfo("Asia/Kolkata"))))  # True
 
 # Load and validate payload
 tick_data = {"instrument_id": "NSE_FNO:NIFTY:2026-09-29:24500:CE", "ltp": 150.0, ...}
@@ -58,5 +58,5 @@ The root `conftest.py` audit hook blocks test writes to `data/` and `config/`. T
 ## Requirements
 
 - Python ≥3.11
-- `jsonschema` (test extra)
+- `jsonschema`, `referencing`, `rfc3339-validator` (runtime; payload validation)
 - `hypothesis` (test extra, optional)
