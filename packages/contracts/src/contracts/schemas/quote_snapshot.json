@@ -1,0 +1,19 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "required": ["instrument_id", "rule", "side", "bid", "ask", "mid", "spread", "ltp", "ltt", "oi", "depth_age_ms", "stale"],
+  "properties": {
+    "instrument_id": {"type": "string"},
+    "rule": {"type": "string", "enum": ["ATM", "ITM100", "ITM200"]},
+    "side": {"type": "string", "enum": ["CE", "PE"]},
+    "bid": {"type": ["number", "null"]},
+    "ask": {"type": ["number", "null"]},
+    "mid": {"type": ["number", "null"]},
+    "spread": {"type": ["number", "null"]},
+    "ltp": {"type": ["number", "null"]},
+    "ltt": {"type": ["string", "null"], "format": "date-time"},
+    "oi": {"type": ["integer", "null"]},
+    "depth_age_ms": {"type": ["integer", "null"]},
+    "stale": {"type": "boolean"}
+  }
+}

@@ -1,0 +1,47 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "required": ["instrument_id", "bid", "bid_qty", "ask", "ask_qty", "ltp", "oi", "levels", "exchange_ts", "repeat"],
+  "properties": {
+    "instrument_id": {"type": "string"},
+    "bid": {"type": ["number", "null"]},
+    "bid_qty": {"type": ["integer", "null"]},
+    "ask": {"type": ["number", "null"]},
+    "ask_qty": {"type": ["integer", "null"]},
+    "ltp": {"type": ["number", "null"]},
+    "oi": {"type": ["integer", "null"]},
+    "levels": {
+      "type": "object",
+      "required": ["bid", "ask"],
+      "properties": {
+        "bid": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "minItems": 2,
+            "maxItems": 2,
+            "items": [
+              {"type": "number"},
+              {"type": "integer"}
+            ]
+          }
+        },
+        "ask": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "minItems": 2,
+            "maxItems": 2,
+            "items": [
+              {"type": "number"},
+              {"type": "integer"}
+            ]
+          }
+        }
+      }
+    },
+    "exchange_ts": {"type": "string", "format": "date-time"},
+    "repeat": {"type": "boolean"},
+    "raw_b64": {"type": ["string", "null"]}
+  }
+}
