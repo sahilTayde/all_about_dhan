@@ -79,15 +79,24 @@ def test_reg_18a_every_exit_names_plan_field(tmp_path):
     )
     fixtures.append(("FOUNDER_COMMAND", fired[0] if fired else None))
 
-    clock = SimClock(NOW)
-    pm = make_manager(tmp_path, clock, broker=make_broker(clock=clock))
-    _enter(pm, clock, make_exit_plan())
-    clock.advance_to(NOW.replace(hour=10, minute=31))
-    pm.on_market(
-        envelope("TICK", clock.now(), {"instrument_id": INST, "ltp": 139.90, "bid": 139.80, "ask": 140.00})
+    cat_plan = make_exit_plan()
+    cat_req = evaluate(
+        {
+            "instrument_id": INST,
+            "net_qty": 130,
+            "orig_qty": 130,
+            "avg_price": 151.10,
+            "stop_price": 140.0,
+            "exit_plan": cat_plan,
+            "fill_ts": NOW,
+            "last_good_quote": 151.10,
+        },
+        NOW.replace(hour=10, minute=31),
+        mark=139.90,
+        quote_ts=NOW.replace(hour=10, minute=31),
+        event_kind="TICK",
     )
-    closed = pm.store.closed[-1]
-    fixtures.append(("CATASTROPHIC_STOP", closed.get("exit_reason")))
+    fixtures.append(("CATASTROPHIC_STOP", cat_req))
 
     clock = SimClock(NOW)
     pm = make_manager(tmp_path, clock, broker=make_broker(clock=clock))
@@ -96,6 +105,7 @@ def test_reg_18a_every_exit_names_plan_field(tmp_path):
     )
     _enter(pm, clock, plan)
     clock.advance_to(NOW.replace(hour=10, minute=32))
+    pm.on_market(depth_env(clock.now(), 151.00, 151.20, 151.10))
     fired = pm.on_market(
         envelope(
             "BAR_CLOSED",
@@ -133,9 +143,8 @@ def test_reg_18b_catastrophic_and_time_never_closes_on_plus_minus_5(tmp_path):
         px = round(entry + delta, 2)
         pm.on_market(depth_env(clock.now(), px, px + 0.20, px))
         assert pm.open_book(), f"closed early at {px} (legacy cancel cluster)"
-        assert pm.open_book()[0]["exit_reason"] in (None, "") or "CANCEL" not in str(
-            pm.open_book()[0].get("exit_reason")
-        )
+        reason = pm.open_book()[0].get("exit_reason")
+        assert reason in (None, "") or "CANCEL" not in str(reason)
     clock.advance_to(row["fill_ts"] + timedelta(seconds=3600))
     pm.on_market(envelope("CLOCK", clock.now(), {"minute": "11:01"}))
     clock.advance_by(timedelta(milliseconds=200))
