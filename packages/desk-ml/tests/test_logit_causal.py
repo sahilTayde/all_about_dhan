@@ -50,11 +50,13 @@ def test_bar_used_only_after_its_bucket_ends(monkeypatch: pytest.MonkeyPatch) ->
     import backtest_engine.ml_leans as ml
 
     def by_index(bars, *, train_end_ts):  # label every bar by its index so consumption timing is visible
-        return ["CE" if i % 2 == 0 else "PE" for i in range(len(bars))]
+        n = len(bars)
+        return ["CE" if i % 2 == 0 else "PE" for i in range(n)], [float(i) for i in range(n)]
 
-    monkeypatch.setattr(ml, "lean_ml_logit", by_index)
+    monkeypatch.setattr(ml, "score_ml_logit", by_index)
     hist, ticks = _history(), _session()
     series, _ = logit_side_series(ticks, index_closes=hist, xr=False)
+    assert series[-1].get("status") == "OK"
     from desk_ml.paper_scalp import resample_closes_3m
 
     closes = {k: v for k, v in hist.items() if k < ticks[0].ts}
@@ -65,6 +67,7 @@ def test_bar_used_only_after_its_bucket_ends(monkeypatch: pytest.MonkeyPatch) ->
         done = [j for j, b in enumerate(bars) if b.ts >= ticks[0].ts and b.ts - b.ts % 180 + 180 <= t.ts]
         want = ("CE" if done[-1] % 2 == 0 else "PE") if done else None
         assert series[i].get("side") == want, (i, t.ts)
+        assert series[i].get("p") == (float(done[-1]) if done else None), (i, t.ts)
 
 
 def test_same_session_index_closes_are_ignored() -> None:
