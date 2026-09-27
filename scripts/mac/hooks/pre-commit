@@ -1,0 +1,19 @@
+#!/bin/sh
+# Installed only via scripts/mac/install_guard.sh (core.hooksPath).
+# CI and cloud agents do not set that path, so this never runs there.
+set -eu
+
+hook_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+# shellcheck disable=SC1091
+. "$hook_dir/protected.sh"
+
+hits=$(protected_hits)
+if [ -n "$hits" ]; then
+  printf '%s\n' "V2 protected path staged. This Mac may tune the legacy engine only." \
+    "Protected list: scripts/mac/protected_paths.txt" \
+    "Offending staged path(s):"
+  printf '%s\n' "$hits" | sed 's/^/  /'
+  printf '%s\n' "If a legacy change seems to need a V2 file, stop and tell the owner."
+  exit 1
+fi
+exit 0
