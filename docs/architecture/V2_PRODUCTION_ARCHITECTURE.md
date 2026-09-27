@@ -394,7 +394,7 @@ class Strategy(Protocol):
   `config/v2/baskets/YYYY-MM-DD.yaml`. The basket module's JSON (`basket_india.json`, `basket_forex.json`) is
   **canonical** (decision K6) and is read through a read-only adapter. **No basket means no trades** (fail closed). The runtime publishes
   `BASKET_LOADED {basket_hash, entries}` at session start. The basket is fixed for the session; a founder command
-  can only remove entries mid-session, not add them (decision K5, desk default pending founder review). The boss
+  can only remove entries mid-session, not add them (decision K5, final: desk default adopted, founder-delegated). The boss
   applies the basket and logs regime-based ranks in shadow. Intraday regime selection by the boss is a preregistered
   forward shadow spec with no live effect until it passes the forward bar.
 - **Markets.** `India NIFTY/SENSEX` now (BANKNIFTY data is recorded; trading it is a basket decision). Forex later
@@ -459,7 +459,7 @@ so a restart loses nothing. Wrapped for v2:
   raises a `CONFIG_INVALID` alert. Entries stay blocked until a valid file is back (fail closed), and exits, cancels
   and flatten always run on the last-good limits. The same loader (`contracts.config.load_with_last_good`) is used
   for every YAML the engine reads, and a config error never stops the bus.
-- **No per-day trade-count cap anywhere** (decision K1, desk default pending founder review). The 15-minute loss
+- **No per-day trade-count cap anywhere** (decision K1, final: desk default adopted, founder-delegated). The 15-minute loss
   cooldown, the 3-position cap and the ₹90k daily loss cap stay as risk limits. Round 8's E2 keeps its
   preregistered one-trade-per-day rule, because that rule belongs to the spec, not to the engine.
 - Latency budget stays at < 10 ms p99 (SQLite reads, WAL).
@@ -597,7 +597,13 @@ Targets, partials and trailing stay available as before.
   `STRATEGY_EXIT`, `FAILSAFE_MTM`), and it cites the `ExitPlan` field that fired. An exit with any other reason, or
   one fired by a primitive the plan does not contain, is a test failure (REG-18). `CANCEL_AGAINST`,
   `CANCEL_ADVERSE`, `CANCEL_STALL` and `COVER_LONG_UNWIND` do not exist in v2.
-- **Defaults come from research round 11** (due 08:00 CT Sunday) in `config/v2/exits/defaults.yaml` (decision K18).
+- **Default exit = native strategy invalidation + the ₹30k house stop, no tight cancel exit (round 11: no tested exit rule passed).** In
+  `config/v2/exits/defaults.yaml`: `catastrophic` = the house stop, a premium level set at the fill so the position
+  loses at most ₹30,000 (the paper `max_loss_per_trade`), or the strategy's own tighter catastrophic stop;
+  `structural` = the strategy's native invalidation level, which every strategy must supply; `atr`, `time_stops`,
+  `grace`, `signal_flip`, `target`, `partials` and `trail` = off. EOD flatten, founder commands and the kill switch
+  still apply. A strategy may add other primitives only through a preregistered spec and a new version.
+- **Defaults come from research round 11** in `config/v2/exits/defaults.yaml` (decision K18).
   Round 11 is preregistered and hashed before outcomes, and its trials count toward the cumulative trial budget
   (about 4,621 after round 10, plus deep dive 1's 6,693 on its own book). The defaults are a versioned, hashed input,
   never tuned intraday. Until that file
@@ -715,8 +721,8 @@ pass and kill bars. It is the Round 8 FWD-BAR process built into the platform.
   - **Total net after costs** is the headline and the ranking metric (C2).
   - Promotion to a non-zero engine weight still needs FWD-BAR and 09's five-pass, including significance. The
     founder's rules are "no luck" and "proven on unseen data": a net-positive spec that fails significance is not
-    proven, so it stays in shadow (`NET_POSITIVE_NOT_SIGNIFICANT`) and keeps collecting forward data. K3 is a desk
-    default pending founder review.
+    proven, so it stays in shadow (`NET_POSITIVE_NOT_SIGNIFICANT`) and keeps collecting forward data. K3 is final (desk
+    default adopted, founder-delegated).
   - There is no cap on the number of harvested specs. Each one is preregistered and counted, and every report
     carries the deflated Sharpe ratio and the cumulative trial count.
 - **Output:** append-only `forward_trades` and `forward_checkpoints` tables (warehouse copy nightly), and one line
@@ -1503,8 +1509,8 @@ class LedgerStore(Protocol):  # existing Ledger methods + these
     (REG-17); the verified cost stack with the BSE rate, recorded half-spread slippage and a fallback (0.20 pt/side
     in the addendum, changed to the FC-MEAS moneyness table by decision K15)
     (REG-12). Realistic fills are the only mode in v2.
-  - Desk-lead decisions (2026-09-27) on K1, K3-K9, K12 and K14-K17 (build plan §4.2). K1, K3 and K5 are desk defaults
-    pending founder review in the 08:00 CT report; the rest are decided. The one that changes the design is K15: the
+  - Desk-lead decisions (2026-09-27) on K1, K3-K9, K12 and K14-K17 (build plan §4.2). K1, K3 and K5 are final (desk
+    defaults adopted under the founder's delegation, 02:08 CT); the rest are decided. The one that changes the design is K15: the
     no-bid/ask fallback fill is the FC-MEAS moneyness table, with flat 0.20 as a sensitivity.
   - Decisions K18, K19 and K20 (2026-09-27):
     - K18: round 11 is preregistered and hashed before outcomes, and its trials count toward the budget (about 4,621
@@ -1517,7 +1523,7 @@ class LedgerStore(Protocol):  # existing Ledger methods + these
     default); `pullback_limit` and `wait_consolidation` are supported but off, and missed signals are counted if a
     resting limit is ever used. The boss records stretch (zone, EMA20, TWAP) with no veto power. The exit layer is
     per-strategy primitives (catastrophic, structural, ATR and time stops, grace period, signal-flip), with no
-    hard-coded tight cancels (REG-18); round 11 sets the defaults.
+    hard-coded tight cancels (REG-18); round 11 set the default: native strategy invalidation + the ₹30k house stop, no tight cancel exit (round 11: no tested exit rule passed).
   - Founder addendum 3 (superseded in part by addendum 6): entry location is first-class for the boss (hard stretch veto, `ENTRY_STRETCHED`) and the
     desk (order planner: CHASE / LIMIT with timeout / WAIT for one consolidation candle), with trade-through limit
     fills in simulation and `ENTRY_PLAN` logging for daily review. Log-only until research round 10 sets the
@@ -1541,7 +1547,6 @@ class LedgerStore(Protocol):  # existing Ledger methods + these
   - Whether the option chain REST response really carries bid/ask. The PR-001 recorder reads `bid_price`/`ask_price`
     without a verified field name.
   - OI update cadence (it decides whether E1's lag rule is stale); V2-D2 measures it from day 1.
-  - Round 11 exit defaults (due 08:00 CT Sunday). Until then every strategy must declare its own exit primitives.
   - The recalibrated `max_chase_ticks` / `chase_timeout_s` (after 5 sessions of V2-D2 depth).
   - How well `ask − est_delta × (spot − zone)` predicts the option price when the underlying reaches the zone (IV and
     decay move meanwhile). The forward harness measures it; if it is poor, LIMIT becomes an engine-side zone trigger.
