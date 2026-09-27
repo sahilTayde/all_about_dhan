@@ -1,0 +1,10 @@
+# V2 Strategy Registry (YAML fallback until the registry module lands).
+# TEST-CROSS is shadow-only and must never sit in a real basket.
+
+strategies:
+  - strategy_id: "TEST-CROSS"
+    module_path: "strategies.plugins.test_cross"
+    version: "1.0.0"
+    params_hash: "b82f3dd90643d8e4"
+    stage: "shadow"
+    legacy_logic_from: []

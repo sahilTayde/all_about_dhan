@@ -1,0 +1,12 @@
+# Daily basket for 2026-09-27 (test fixture)
+# Source: V2_BUILD_PLAN.md V2-06 section
+
+session: "2026-09-27"
+market: "IN_INDEX_OPT"
+entries:
+  - strategy_id: "TEST-CROSS"
+    underlyings:
+      - "NIFTY"
+    weight: 1.0
+    max_lots: 10
+    stage: "shadow"
