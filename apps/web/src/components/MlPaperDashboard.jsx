@@ -128,7 +128,8 @@ function skipPlain(reason) {
   if (r === "GREEKS_NO_CLONE") return "Greeks book does not copy the same fill";
   if (r.startsWith("XR")) return "XR filter skipped this side";
   if (r.includes("OBSERVE")) return "Observe book — ₹0, no fill";
-  if (r.includes("ML-001") || r.includes("HOLD")) return "ML-001 holding";
+  if (r.includes("ML-001") || r.includes("ML-002") || r.includes("ML-1")) return "Retired ML book — no fill";
+  if (r.includes("HOLD")) return "Picker hold";
   return r.replaceAll("_", " ");
 }
 
@@ -587,7 +588,7 @@ export function MlPaperDashboard({ compact = false }) {
             ))}
           </ul>
           <p className="muted">
-            Observe books (ML-001 / ML-002 / ML-1 / TV-EP) keep ₹0 so they cannot fake the desk.
+            Observe books (TV-EP) keep ₹0 so they cannot fake the desk. ML-001, ML-002 and ML-1 are retired from the vote room.
           </p>
         </div>
       )}

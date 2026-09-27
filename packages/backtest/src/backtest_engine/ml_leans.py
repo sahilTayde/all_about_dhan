@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+from typing import Optional
 
 from backtest_engine.clocks import minutes_ist, session_date_ist
 from backtest_engine.indicators import Bar, sma
@@ -70,15 +71,18 @@ def _scale(x: list[float], mu: list[float], sd: list[float]) -> list[float]:
     return [(a - m) / s for a, m, s in zip(x, mu, sd)]
 
 
-def lean_ml_logit(bars: list[Bar], *, train_end_ts: int) -> list[str]:
-    """Fit on bars with next-bar label strictly before train_end_ts. Predict after.
+def score_ml_logit(
+    bars: list[Bar], *, train_end_ts: int
+) -> tuple[list[str], list[Optional[float]]]:
+    """Same leans as `lean_ml_logit`, plus the sigmoid probability at each bar.
 
-    Label is next INDEX 3m close direction, not option premium (no fill leak).
+    Probability is log-only. The lean strings are what the paper engine votes.
     """
     n = len(bars)
     out = ["SKIP"] * n
+    probs: list[Optional[float]] = [None] * n
     if n < 40:
-        return out
+        return out, probs
     sma20 = sma([b.close for b in bars], 20)
     xs: list[list[float]] = []
     ys: list[float] = []
@@ -95,7 +99,7 @@ def lean_ml_logit(bars: list[Bar], *, train_end_ts: int) -> list[str]:
         ys.append(1.0 if bars[i + 1].close > bars[i].close else 0.0)
         xs.append(feat)
     if len(xs) < 200:
-        return out
+        return out, probs
     if len(xs) > 25000:
         step = max(1, len(xs) // 25000)
         xs = xs[::step]
@@ -113,8 +117,18 @@ def lean_ml_logit(bars: list[Bar], *, train_end_ts: int) -> list[str]:
             continue
         z = b + sum(wj * xj for wj, xj in zip(w, _scale(feat, mu, sd)))
         p = _sigmoid(z)
+        probs[i] = p
         if p >= 0.55:
             out[i] = "CE"
         elif p <= 0.45:
             out[i] = "PE"
-    return out
+    return out, probs
+
+
+def lean_ml_logit(bars: list[Bar], *, train_end_ts: int) -> list[str]:
+    """Fit on bars with next-bar label strictly before train_end_ts. Predict after.
+
+    Label is next INDEX 3m close direction, not option premium (no fill leak).
+    """
+    sides, _probs = score_ml_logit(bars, train_end_ts=train_end_ts)
+    return sides

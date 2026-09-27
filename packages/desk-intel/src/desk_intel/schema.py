@@ -118,6 +118,15 @@ class StrikeRow:
     pe_vega: Optional[float] = None
     ce_iv: Optional[float] = None
     pe_iv: Optional[float] = None
+    # Depth 1 (Dhan option chain top_bid/top_ask). Paper cost model uses half the spread.
+    ce_bid: Optional[float] = None
+    ce_ask: Optional[float] = None
+    pe_bid: Optional[float] = None
+    pe_ask: Optional[float] = None
+    ce_bid_qty: Optional[int] = None
+    ce_ask_qty: Optional[int] = None
+    pe_bid_qty: Optional[int] = None
+    pe_ask_qty: Optional[int] = None
 
     @property
     def ce_oi_change(self) -> int:

@@ -263,7 +263,8 @@ export function skipPlain(reason) {
   if (r === "NO_NEW_AFTER_1515") return "No new paper after 15:15 IST";
   if (r.startsWith("XR")) return "XR filter skipped this side";
   if (r.includes("OBSERVE")) return "Observe book — ₹0, no fill";
-  if (r.includes("ML-001") || r.includes("HOLD")) return "ML-001 holding";
+  if (r.includes("ML-001") || r.includes("ML-002") || r.includes("ML-1")) return "Retired ML book — no fill";
+  if (r.includes("HOLD")) return "Picker hold";
   if (r.includes("VETO")) return "Observer / boss veto";
   if (r.includes("DEALER")) return "Dealer discarded";
   return r.replaceAll("_", " ");
