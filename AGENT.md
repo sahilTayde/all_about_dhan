@@ -30,13 +30,20 @@ Never edit, move, delete, reformat, or refactor a path in `scripts/mac/protected
 
 Never `git reset --hard`, `git clean`, or `git checkout --` on a protected path. Never force-push. Never push to `main` / `master`.
 
+**NEVER**
+
+- never use `git commit --no-verify` or `git push --no-verify`
+- never run `git config --unset core.hooksPath` or edit/remove the hooks or `protected_paths.txt` (only the owner may undo the guard, by typing it himself)
+- never `git stash drop` / `git restore` / `git checkout` away someone else's uncommitted changes in protected paths
+- never delete or rewrite branches other than `legacy-tuning/*`
+
 If a service fails and the fix needs a **V2** change: **stop**. Capture the exact error / log lines and the command. Tell the owner. Do not patch V2.
 
 If a legacy tune seems to need a V2 file change: **stop** and tell the owner.
 
 If `git pull` fails because of local edits: report it. Do not discard protected files.
 
-Optional local guard (this checkout only; CI / cloud agents are unaffected): `./scripts/mac/install_guard.sh`. Undo: `git config --unset core.hooksPath`.
+Optional local guard (this checkout only; CI / cloud agents are unaffected): `./scripts/mac/install_guard.sh`. Only the owner may undo it, by typing `git config --unset core.hooksPath` himself.
 
 ---
 
