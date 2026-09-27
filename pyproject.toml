@@ -24,6 +24,11 @@ members = [
 ]
 
 [tool.pytest.ini_options]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = "--import-mode=importlib"
 markers = [
     "network: needs internet (pip/PyPI); skips when offline",
+    "reg11a_probe: REG-11a test data guard probe (exempt from guard)",
 ]
