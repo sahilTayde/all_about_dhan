@@ -287,7 +287,7 @@ class MarketDataRecorder:
             if feed.done():
                 exc = feed.exception()
                 self.request_stop(f"feed task ended: {exc!r}", exit_code=1)
-                return
+                raise exc if exc is not None else RuntimeError("feed task ended while recording")
             await self._tick(now, now_s, last_s)
             last_s = now_s
             await self._nap(self.config.tick_s)
@@ -455,7 +455,18 @@ class MarketDataRecorder:
                     sha256=hashlib.sha256(packet.raw).hexdigest(),
                     raw_b64=_b64(packet.raw),
                 )
-            await self._on_packet(packet, now)
+            try:
+                await self._on_packet(packet, now)
+            except Exception as exc:
+                # One packet must never take the socket down (the collector would reconnect).
+                log.exception("packet handling failed")
+                self._error(
+                    f"packet handling failed: {type(exc).__name__}: {exc}",
+                    now,
+                    security_id=str(packet.decoded.header.security_id),
+                    sha256=hashlib.sha256(packet.raw).hexdigest(),
+                    raw_b64=_b64(packet.raw),
+                )
 
     async def _on_packet(self, packet: Packet, now: datetime) -> None:
         assert self.strikes is not None

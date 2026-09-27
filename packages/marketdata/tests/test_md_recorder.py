@@ -7,6 +7,7 @@ import json
 import math
 from datetime import datetime, timedelta
 from pathlib import Path
+from typing import Any
 
 import pytest
 from dhan_client.errors import DhanApiError
@@ -317,3 +318,50 @@ def test_stop_during_startup_retry_returns_promptly(tmp_path: Path) -> None:
     code, took = asyncio.run(scenario())
     assert code == 0
     assert took < 1.0
+
+
+def test_run_reraises_when_the_feed_task_dies(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from dhan_client.feed import MarketFeedCollector
+
+    async def boom(_self: MarketFeedCollector, *_a: object, **_kw: object) -> None:
+        raise RuntimeError("feed exploded")
+
+    monkeypatch.setattr(MarketFeedCollector, "run", boom)
+    with pytest.raises(RuntimeError, match="feed exploded"):
+        asyncio.run(run_session(tmp_path, ist(10, 0), ist(10, 1), source=StubSource(), wait_connect=False))
+    assert (tmp_path / "tape" / "2026-09-28" / "coverage_summary.json").is_file()  # writers still closed
+
+
+def test_run_reraises_when_the_clock_task_dies(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    calls = {"n": 0}
+    real_tick = MarketDataRecorder._tick
+
+    async def tick(self: MarketDataRecorder, *args: Any) -> None:
+        calls["n"] += 1
+        if calls["n"] == 20:
+            raise AttributeError("'DepthTracker' object has no attribute '_last_emit'")
+        await real_tick(self, *args)
+
+    monkeypatch.setattr(MarketDataRecorder, "_tick", tick)
+    with pytest.raises(AttributeError, match="_last_emit"):
+        asyncio.run(run_session(tmp_path, ist(10, 0), ist(10, 1), source=StubSource()))
+
+
+def test_a_failing_packet_handler_is_contained(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    real = MarketDataRecorder._on_packet
+    seen = {"n": 0}
+
+    async def flaky(self: MarketDataRecorder, packet: Any, now: datetime) -> None:
+        seen["n"] += 1
+        if seen["n"] % 10 == 0:
+            raise KeyError("boom")
+        await real(self, packet, now)
+
+    monkeypatch.setattr(MarketDataRecorder, "_on_packet", flaky)
+    s = asyncio.run(run_session(tmp_path, ist(10, 0), ist(10, 0, 30), source=StubSource()))
+    assert s.exit_code == 0
+    assert s.recorder.collector is not None
+    assert s.recorder.collector.connect_count == 1  # no reconnect storm
+    errors = [e for e in s.rows("ingest_errors") if e["reason"].startswith("packet handling failed: KeyError")]
+    assert len(errors) == seen["n"] // 10
+    assert len(s.rows("depth_quotes")) > 200
