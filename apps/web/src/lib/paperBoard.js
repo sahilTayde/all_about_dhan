@@ -4,45 +4,12 @@ export const UNIQUE_BOOKS = ["MIX-DEFAULT-BUY", "MIX-ML-LOGIT", "MIX-ML-LOGIT-XR
 export const BOARD_POLL_MS = 2000;
 const STALE_MS = 90_000;
 
-const _cache = { board: null, boardAt: 0, lab: null };
+const _cache = { lab: null };
 
 async function getJson(url, signal) {
   const res = await fetch(url, { signal, cache: "no-store" });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return res.json();
-}
-
-export async function fetchMlPaperBoard({ force = false, signal } = {}) {
-  const now = Date.now();
-  if (!force && _cache.board && now - _cache.boardAt < BOARD_POLL_MS) return _cache.board;
-  const url = API_URL ? `${API_URL}/paper/ml-books` : "/mock/ml_paper_dashboard.json";
-  const json = await getJson(`${url}${url.includes("?") ? "&" : "?"}t=${now}`, signal);
-  _cache.board = json;
-  _cache.boardAt = now;
-  return json;
-}
-
-export async function fetchSodExam({ signal } = {}) {
-  const now = Date.now();
-  const url = API_URL ? `${API_URL}/paper/sod-exam` : "/paper/sod-exam";
-  try {
-    return await getJson(`${url}${url.includes("?") ? "&" : "?"}t=${now}`, signal);
-  } catch {
-    try {
-      return await getJson(`/mock/sod_exam_report.json?t=${now}`, signal);
-    } catch {
-      return {
-        ok: false,
-        overall_honesty: "NOT_ENOUGH_DATA",
-        headline: "Exam file missing. Run python -m desk_ml sod-exam after close.",
-        days: [],
-        stories: [],
-        watch_next: [],
-        promote: false,
-        orders: "REFUSED",
-      };
-    }
-  }
 }
 
 export async function fetchFounderLab({ signal } = {}) {
@@ -217,7 +184,38 @@ export function pathInfo(t) {
   };
 }
 
-export function deskLifeStatus(t, { nowMs = Date.now() } = {}) {
+function istDateOf(ms) {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" }).format(new Date(ms));
+}
+
+/**
+ * Session clock of the board: the last recorded tape tick, not when the writer or replay ran.
+ * `replay` = the board is for an earlier IST day, so staleness is judged against the tape clock.
+ */
+export function boardClock(board, { nowMs = Date.now() } = {}) {
+  if (!board) return { ist: null, ms: null, replay: false, label: "—" };
+  const lasts = Object.values(board.steps || {})
+    .map((s) => s?.span_ist?.last)
+    .filter(Boolean)
+    .sort();
+  const ist = lasts[lasts.length - 1] || board.as_of_ist || null;
+  const ms = ist ? Date.parse(ist) : null;
+  const day = board.session_ist_date || sessionDate(ist);
+  const replay = Boolean(day && day !== "—" && day !== istDateOf(nowMs));
+  const label = ist ? `${String(ist).replace("T", " ").slice(0, 19)} IST` : "—";
+  return { ist, ms: Number.isFinite(ms) ? ms : null, replay, label, writtenIst: board.as_of_ist || null };
+}
+
+/** One source word for the header badge and the Founder pill. Offline = static mock, never PAPER. */
+export function boardSource(board, clock, offline = false) {
+  if (offline) return "MOCK · OFFLINE";
+  if (!board) return "MOCK";
+  if (board.live_session || board.session_ist_date) return clock?.replay ? "PAPER · REPLAY" : "PAPER";
+  return "MOCK";
+}
+
+export function deskLifeStatus(t, { nowMs = Date.now(), clock = null } = {}) {
+  if (clock?.replay && clock.ms != null) nowMs = clock.ms;
   const status = String(t?.status || "");
   const reason = String(t?.exit_reason || "");
   if (!t) return "DEAD";
@@ -254,18 +252,6 @@ export function outcomeLabel(t) {
   if (t?.result === "SUCCESS") return "ACHIEVED";
   if (t?.result === "LOSS") return "STOP LOSS HIT";
   return reason || t?.status || "—";
-}
-
-export function outcomeSlug(label) {
-  const s = String(label || "").toLowerCase();
-  if (s.includes("target 2")) return "target2";
-  if (s.includes("target")) return "target";
-  if (s.includes("trail")) return "trail";
-  if (s.includes("stop")) return "stop";
-  if (s.includes("cancel")) return "cancel";
-  if (s === "time" || s === "flatten") return "time";
-  if (s.includes("achiev") || s.includes("done")) return "done";
-  return "plain";
 }
 
 export function skipPlain(reason) {
@@ -543,4 +529,164 @@ function groupNet(rows, key) {
     ...g,
     wr: g.n ? Math.round((g.wins / g.n) * 1000) / 10 : null,
   }));
+}
+
+function num(v) {
+  if (v == null || v === "") return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+}
+
+export function isOpenRow(t) {
+  const s = String(t?.status || "");
+  return !t?.closed_ist && t?.exit == null && (s.includes("OPEN") || s === "IN_TRADE" || s === "WORKING_LIMIT" || s.startsWith("TARGET_STEP") || s === "TRAIL_STOP" || s === "CANCEL_ELIGIBLE");
+}
+
+/**
+ * One plain state per ticket: IN PROGRESS / STALE / TARGET HIT / STOPPED / DEAD (+ why).
+ * `key` drives the colour; `label` is what the founder reads.
+ */
+export function ticketState(t, { clock = null } = {}) {
+  if (!t) return { key: "waiting", label: "WAITING FOR NEXT SIGNAL" };
+  if (isOpenRow(t)) {
+    if (deskLifeStatus(t, { clock }) === "STALE") return { key: "stale", label: "STALE · no update 90 s+" };
+    if (t.filled === false) return { key: "progress", label: "IN PROGRESS · working limit" };
+    return { key: "progress", label: "IN PROGRESS" };
+  }
+  const out = outcomeLabel(t);
+  if (out.includes("TARGET")) return { key: "target", label: out };
+  if (out.includes("STOP LOSS")) return { key: "stopped", label: `STOPPED · ${out.replace("STOP LOSS ", "SL ")}` };
+  const net = Number(t.realized_pnl_inr);
+  if (t.filled !== false && t.exit != null && Number.isFinite(net) && net !== 0) {
+    // Filled, then closed by an overlay cancel / time / unwind: a real result, not a dead ticket.
+    const kind = out === "CANCELLED" ? "cancel" : out.toLowerCase();
+    return { key: net > 0 ? "closed-up" : "closed-down", label: `CLOSED (${kind})` };
+  }
+  return { key: "dead", label: `DEAD · ${out}` };
+}
+
+/** Why no ticket is open: desk risk halt, founder STOP on every index, else the latest skip reason. */
+export function holdReason(board, founderBook, halt = null, offline = false) {
+  if (offline) return "API offline — the live hold reason is unavailable (static mock board).";
+  if (halt?.active) return `Desk risk halt — new entries blocked: ${halt.reason}`;
+  const status = founderBook?.index_status || {};
+  const started = Object.entries(status).filter(([, v]) => v === "START").map(([k]) => k);
+  if (Object.keys(status).length && !started.length) return "Founder STOP on every index — press START on /pm to allow new paper fills.";
+  const on = (r) => !Object.keys(status).length || status[String(r.underlying || "").toUpperCase()] === "START";
+  const skips = (board?.seen_not_taken?.skipped_latest || []).filter(on);
+  const skip = skips.find((r) => String(r.book_id || "").includes("DEFAULT")) || skips[0];
+  if (!skip) return null;
+  return `${skip.underlying || ""} ${skip.why || skipPlain(skip.reason)}`.trim();
+}
+
+export function fmtElapsed(ms) {
+  if (ms == null || !Number.isFinite(ms) || ms < 0) return "—";
+  const s = Math.floor(ms / 1000);
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const pad = (n) => String(n).padStart(2, "0");
+  return h ? `${h}h ${pad(m)}m` : `${m}m ${pad(s % 60)}s`;
+}
+
+/** Current-trade numbers. Anything the record does not carry stays null (rendered "—"). */
+export function tradeNow(t, { nowMs = Date.now() } = {}) {
+  const entry = num(t.entry ?? t.limit_price);
+  const ltp = num(t.last_ltp);
+  const qty = num(t.qty) ?? (num(t.lots) != null && num(t.lot_size) != null ? num(t.lots) * num(t.lot_size) : null);
+  const step = Number(t.target_step || 0);
+  const trailing = Number(t.trail_step || 0) > 0 || t.trail_stop != null ? num(t.trail_stop ?? t.stop) : null;
+  const pts = entry != null && ltp != null ? ltp - entry : null;
+  const opened = num(t.opened_ts);
+  return {
+    entry,
+    ltp,
+    qty,
+    stop: num(t.path_stop ?? t.stop),
+    trailing,
+    t1: step >= 1 ? "hit" : num(t.target),
+    t2: num(t.target2) ?? (step >= 1 ? num(t.target) : null),
+    pts,
+    inr: pts != null && qty != null ? pts * qty : null,
+    elapsedMs: opened != null ? nowMs - opened * 1000 : null,
+    // Excursions from entry: MFE is never below 0, MAE never above 0.
+    mfe: entry != null && num(t.seen_high) != null ? Math.max(0, num(t.seen_high) - entry) : null,
+    mae: entry != null && num(t.seen_low) != null ? Math.min(0, num(t.seen_low) - entry) : null,
+  };
+}
+
+function isoWeekStart(day) {
+  const d = new Date(`${day}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() - ((d.getUTCDay() + 6) % 7));
+  return d.toISOString().slice(0, 10);
+}
+
+/** Server day summaries → daily / weekly / monthly buckets, oldest first. */
+export function periodBuckets(days, period = "D") {
+  const map = new Map();
+  for (const d of days || []) {
+    const key = period === "W" ? isoWeekStart(d.day) : period === "M" ? `${d.day.slice(0, 7)}-01` : d.day;
+    const b = map.get(key) || { time: key, n: 0, wins: 0, net: 0, gross: 0, charges: 0 };
+    b.n += d.n;
+    b.wins += d.wins;
+    b.net += d.net;
+    b.gross += d.gross;
+    b.charges += d.charges;
+    map.set(key, b);
+  }
+  return [...map.values()]
+    .map((b) => ({ ...b, wr: b.n ? Math.round((b.wins / b.n) * 1000) / 10 : null }))
+    .sort((a, b) => a.time.localeCompare(b.time));
+}
+
+/** Per-book totals and per-day win % across the recorded days (oldest → newest trend). */
+export function modelScores(days) {
+  const map = new Map();
+  for (const d of [...(days || [])].reverse()) {
+    for (const [book, s] of Object.entries(d.by_book || {})) {
+      const m = map.get(book) || { book, n: 0, wins: 0, net: 0, trend: [] };
+      m.n += s.n;
+      m.wins += s.wins;
+      m.net += s.net;
+      m.trend.push(s.n ? (s.wins / s.n) * 100 : null);
+      map.set(book, m);
+    }
+  }
+  return [...map.values()]
+    .map((m) => ({ ...m, wr: m.n ? Math.round((m.wins / m.n) * 1000) / 10 : null }))
+    .sort((a, b) => b.n - a.n);
+}
+
+const STAGE_OF = [
+  [/^TARGET/, "Desk · target hit"],
+  [/TRAIL/, "Desk · trailing stop"],
+  [/^STOP/, "Desk · stop loss hit"],
+  [/^CANCEL/, "Desk overlay · cancelled after fill"],
+  [/UNWIND/, "Desk overlay · long unwind"],
+  [/^TIME|FLATTEN/, "Clock · time / flatten exit"],
+  [/HUMAN/, "Founder · human exit"],
+];
+
+/**
+ * Where money is made and lost: gross P&L per exit stage plus one charges bar. The bars sum to the
+ * true net (per-reason net already includes charges, so net-per-stage + a charges bar would count them twice).
+ */
+export function lossByStage(days) {
+  const map = new Map();
+  let charges = 0;
+  let net = 0;
+  for (const d of days || []) {
+    net += d.net || 0;
+    for (const [reason, r] of Object.entries(d.by_reason || {})) {
+      const stage = (STAGE_OF.find(([re]) => re.test(reason)) || [null, `Other · ${reason}`])[1];
+      const s = map.get(stage) || { stage, n: 0, value: 0 };
+      s.n += r.n;
+      s.value += r.gross ?? r.net;
+      charges += r.gross == null ? 0 : r.charges || 0;
+      map.set(stage, s);
+    }
+  }
+  const rows = [...map.values()].sort((a, b) => a.value - b.value);
+  if (charges > 0) rows.push({ stage: "Execution · charges (Groww + STT)", n: null, value: -charges });
+  const sum = rows.reduce((t, r) => t + r.value, 0);
+  return { rows, sum: Math.round(sum * 100) / 100, net: Math.round(net * 100) / 100 };
 }

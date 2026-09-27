@@ -130,9 +130,15 @@ export function SignalCard({ signal, fields, confidence, ticket, deskMeta }) {
                 <div key={key}>
                   <dt>{label}</dt>
                   <dd>
-                    {key === "strike"
-                      ? formatLevel(levels[key])
-                      : formatPremiumSlot(levels[key])}
+                    {key === "strike" ? (
+                      formatLevel(levels[key])
+                    ) : formatPremiumSlot(levels[key]) === "DATA_INSUFFICIENT" ? (
+                      <span className="level-di" title="Option premium not bound yet — not a fill">
+                        DATA_INSUFFICIENT
+                      </span>
+                    ) : (
+                      formatPremiumSlot(levels[key])
+                    )}
                   </dd>
                 </div>
               ))}

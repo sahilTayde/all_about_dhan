@@ -58,6 +58,17 @@ Edit `src/api/models.py` when a reviewed spec exists. `expiry: "placeholder"` is
 
 ---
 
+## Desk / Founder feed (read-only)
+
+`src/api/ui_feed.py` reads the paper board, the dual tape, the model log (`ml_paper_model_logs.jsonl` + archived copies), the ledger sqlite (opened read-only, if present) and the health-monitor files. It never writes and never calls a broker.
+
+| Route | What |
+|---|---|
+| `GET /ui/stream` | Server-sent events: the snapshot below, pushed only when it changes (checked every 0.5 s). |
+| `GET /ui/snapshot` | Trimmed board, health rows (API, paper loop, broker, market data, database, LLM, news, queue, heartbeat, monitor), alerts (INFO / WARNING / CRITICAL / EMERGENCY), day summaries, account across all recorded days, founder book, honesty exam. |
+| `GET /paper/history?day=YYYY-MM-DD` | Closed paper trades for one IST day (board + model log + ledger). |
+| `GET /paper/trace?trade_id=…` | Decision trace Data → Analysts → Boss → Risk → Desk → Broker → Fill. Steps with no record come back `NO_DATA`. |
+
 ## Modules
 
 | Path | Role |
