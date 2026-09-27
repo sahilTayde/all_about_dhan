@@ -166,6 +166,7 @@ class EventSession:
         from desk import Desk
 
         self.engine = engine
+        engine.regime_bus = self.bus  # PR-012/024: REGIME_LABEL / BOSS_SHADOW go on the audit log
         self.room = self._room if self._room is not None else AnalystRoom.from_config(
             self.analysts_config, deterministic=self.deterministic
         )
