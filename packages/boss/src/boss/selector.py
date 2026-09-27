@@ -25,6 +25,8 @@ from strategies.api import Signal
 from strategies.registry import Basket, BasketEntry
 
 ENGINE_YAML = Path("config/v2/engine.yaml")
+ENTRY_YAML = Path("config/v2/entry_location.yaml")
+CHASE_YAML = Path("config/v2/entry/chase_defaults.yaml")
 PAPER_STAGES = ("paper", "live_eligible")
 _NY = ZoneInfo("America/New_York")
 _INDIA_CASH_CLOSE = time(15, 30)
@@ -200,6 +202,48 @@ def engine_config_hash(raw: Mapping[str, Any]) -> str:
     return hashlib.sha256(blob.encode("utf-8")).hexdigest()[:16]
 
 
+def entry_files_hash(entry_path: Path | None = None, chase_path: Path | None = None) -> str:
+    """REG-13: hash of entry_location.yaml + chase_defaults.yaml contents."""
+    entry = entry_path if entry_path is not None else ENTRY_YAML
+    chase = chase_path if chase_path is not None else CHASE_YAML
+    payload: dict[str, Any] = {}
+    if entry.is_file():
+        payload["entry"] = entry.read_text(encoding="utf-8")
+    if chase.is_file():
+        payload["chase"] = chase.read_text(encoding="utf-8")
+    blob = json.dumps(payload, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(blob.encode("utf-8")).hexdigest()[:16]
+
+
+def stretch_from_location(
+    location: Mapping[str, Any] | None, config_hash: str
+) -> dict[str, Any]:
+    """Record-only stretch block. Never used to HOLD or veto (K19)."""
+    loc = dict(location or {})
+    nearest = loc.get("nearest") if isinstance(loc.get("nearest"), dict) else {}
+    zones = loc.get("zones") if isinstance(loc.get("zones"), list) else []
+    ema20_atr: float | None = None
+    twap_atr: float | None = None
+    for zone in zones:
+        if not isinstance(zone, dict):
+            continue
+        if zone.get("zone") == "ema20":
+            ema20_atr = zone.get("distance_atr")  # type: ignore[assignment]
+        source = zone.get("source")
+        if zone.get("zone") in ("vwap", "twap") or source in ("twap", "fut_vwap"):
+            if twap_atr is None or source == "twap":
+                twap_atr = zone.get("distance_atr")  # type: ignore[assignment]
+    zone_atr = nearest.get("distance_atr") if nearest else loc.get("entry_distance_atr")
+    return {
+        "record_only": True,
+        "zone_atr": zone_atr,
+        "zone": nearest.get("zone") if nearest else None,
+        "ema20_atr": ema20_atr,
+        "twap_atr": twap_atr,
+        "config_hash": config_hash,
+    }
+
+
 def load_engine_config(path: Path | None = None) -> EngineConfig:
     """Load holds and sizing from YAML. Missing file → fail closed."""
     import yaml
@@ -353,12 +397,16 @@ class BossSelector:
         config: EngineConfig,
         basket: SessionBasketGate,
         lot_size_fn: Callable[[str], int] | None = None,
+        entry_config_hash: str | None = None,
     ) -> None:
         self.clock = clock
         self.config = config
         self.basket = basket
         self._lot_size = lot_size_fn or India().lot_size
         self._seq = 0
+        self.entry_config_hash = (
+            entry_config_hash if entry_config_hash is not None else entry_files_hash()
+        )
 
     def basket_remove(self, strategy_id: str) -> None:
         """Founder `BASKET_REMOVE {strategy_id}` (K5)."""
@@ -581,6 +629,12 @@ class BossSelector:
     ) -> Decision:
         self._seq += 1
         picked = choice or (signals[0].strike_choice if signals else None)
+        location: dict[str, Any] | None = None
+        for sig in signals:
+            loc = getattr(sig, "entry_location", None)
+            if loc:
+                location = loc
+                break
         return Decision(
             decision_id=_decision_id(ctx.underlying, now, self._seq),
             underlying=ctx.underlying,
@@ -594,6 +648,6 @@ class BossSelector:
             holds=list(holds),
             basket_hash=self.basket.basket.basket_hash,
             shadow=self._shadow_block(shadow, picked),
-            entry_location=None,
-            stretch=None,
+            entry_location=location,
+            stretch=stretch_from_location(location, self.entry_config_hash),
         )

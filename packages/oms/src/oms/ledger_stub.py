@@ -36,8 +36,23 @@ class MemoryLedger:
     positions: dict[str, dict[str, Any]] = field(default_factory=dict)
     decisions: list[dict[str, Any]] = field(default_factory=list)
     protective: dict[str, str] = field(default_factory=dict)  # position_key -> stop order_id
+    entry_plans: dict[str, dict[str, Any]] = field(default_factory=dict)
     rates: dict[str, Any] | None = None
     recon_ok: bool = True
+
+    def get_plan(self, plan_id: str) -> dict[str, Any] | None:
+        return self.entry_plans.get(plan_id)
+
+    def upsert_plan(self, row: dict[str, Any]) -> dict[str, Any]:
+        pid = str(row["plan_id"])
+        if pid in self.entry_plans:
+            self.entry_plans[pid].update(row)
+        else:
+            self.entry_plans[pid] = dict(row)
+        return self.entry_plans[pid]
+
+    def pending_plans(self) -> list[dict[str, Any]]:
+        return [p for p in self.entry_plans.values() if p.get("status") in ("PENDING", "WORKING")]
 
     def get_order(self, client_order_id: str) -> dict[str, Any] | None:
         return self.orders.get(client_order_id)

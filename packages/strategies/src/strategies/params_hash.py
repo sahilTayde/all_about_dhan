@@ -39,15 +39,20 @@ def config_hash(
     exit_defaults: dict[str, Any] | None = None,
     router_rules: dict[str, Any] | None = None,
     extra: dict[str, Any] | None = None,
+    entry_location: dict[str, Any] | None = None,
+    chase_defaults: dict[str, Any] | None = None,
 ) -> str:
     """Hash of shared engine config (defaults + router rules + extras)."""
-    return compute_params_hash(
-        {
-            "exit_defaults": exit_defaults or {},
-            "router_rules": router_rules or {},
-            "extra": extra or {},
-        }
-    )
+    payload: dict[str, Any] = {
+        "exit_defaults": exit_defaults or {},
+        "router_rules": router_rules or {},
+        "extra": extra or {},
+    }
+    if entry_location is not None:
+        payload["entry_location"] = entry_location
+    if chase_defaults is not None:
+        payload["chase_defaults"] = chase_defaults
+    return compute_params_hash(payload)
 
 
 def exit_plan_hash(plan: ExitPlan) -> str:

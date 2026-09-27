@@ -35,6 +35,10 @@ class PaperDeskBroker(Protocol):
 
     def remember(self, client_order_id: str, **fields: Any) -> None: ...
 
+    def cancel_order(
+        self, order: Order, decision: RiskDecision, reason: str = "USER_CANCEL"
+    ) -> Order: ...
+
 
 def is_paper_desk_broker(broker: object) -> bool:
     """True only for a paper desk broker. Live-like name or mode is never paper."""
@@ -332,6 +336,16 @@ class OrderRouter:
         self.broker.place_order(intent, rd)
         key = parent.intent.instrument_id or parent.intent.symbol
         self.store.set_protective(key, stop_oid)
+
+    def cancel(self, client_order_id: str, reason: str = "TIMEOUT_UNFILLED") -> Order | None:
+        """Cancel an open paper order (chase / limit timeout). Never a live path."""
+        order = self.broker.orders.get(client_order_id)
+        if order is None:
+            return None
+        if not getattr(order, "is_open", False):
+            return order
+        rd = RiskDecision(True, client_order_id, "CANCEL", "OK", reason, self.clock.now())
+        return self.broker.cancel_order(order, rd, reason)
 
     def exit(self, position: dict[str, Any], reason: str) -> Order:
         inst = str(position.get("instrument_id") or "")

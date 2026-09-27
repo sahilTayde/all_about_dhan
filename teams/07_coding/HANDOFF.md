@@ -1,5 +1,31 @@
 # Handoff log — Team 07 Coding
 
+## As of now (2026-09-28 IST) — V2-08b order planner + chase + stretch (PAPER)
+
+```text
+From:     teams/07_coding
+To:       founder / 00 / 09
+Date:     2026-09-28
+Status:   PAPER / V2-08b / NO_PROMOTE / no live orders
+Accepted: V2-08b on top of V2-08 + origin/main (V2-06/06b/07).
+  Default entry is a marketable LIMIT at ask + max_chase_ticks
+  (chase_defaults.yaml v1.0.0 hashed, K20). Never MARKET.
+  Unfilled chase → TIMEOUT_UNFILLED + MISSED_CHASE with
+  ask-at-cancel, first fillable ask in 5s, shadow P&L.
+  Per-card overrides change params_hash. Boss records
+  stretch (zone/ema20/twap) with no veto. pullback_limit
+  and wait_consolidation implemented, globally off.
+  Bad entry YAML → last-good + CONFIG_INVALID (REG-07).
+  Restart rebuilds pending plans without duplicates (REG-04).
+  Resting limits use V2-08 trade-through (REG-14).
+Rejected: Plain MARKET entries. Stretch veto. Intraday
+  chase recalibration. Price improvement on marketable
+  limits (K17). Touching legacy engine / data / lock.
+UNKNOWN: Recalibrated max_chase_ticks after 5 V2-D2 sessions.
+```
+
+---
+
 ## As of now (2026-09-27 IST) — V2-04 onto main 971bf81 / V2-15 (PAPER)
 
 ```text
