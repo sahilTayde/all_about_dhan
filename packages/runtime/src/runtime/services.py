@@ -190,6 +190,50 @@ def run_engine(state_dir: Path, clock: Clock | None = None, *, once: bool = Fals
         write_engine_status(state_dir, clock)
 
 
+def run_llm_advisor(
+    state_dir: Path,
+    clock: Clock | None = None,
+    *,
+    once: bool = False,
+    mode: str = "replay",
+    bus: Any | None = None,
+    advisor: Any | None = None,
+) -> None:
+    """``python -m runtime llm-advisor``. Replay/CI never call a live provider."""
+    from events.bus import create_bus
+
+    from runtime.advisor import LlmAdvisorService, make_replay_advisor
+
+    clock = clock or LiveClock()
+    if advisor is None:
+        if mode == "replay":
+            advisor = make_replay_advisor()
+        else:
+            from desk_ml.llm_analyst import Advisor, load_config
+
+            advisor = Advisor(load_config(), replay=False)
+    wired = bus if bus is not None else create_bus()
+    svc = LlmAdvisorService(wired, advisor, clock)
+    svc.start()
+    state_dir.mkdir(parents=True, exist_ok=True)
+    (state_dir / "llm-advisor.ready").write_text("ok\n", encoding="utf-8")
+    try:
+        if once:
+            poll = getattr(wired, "poll", None)
+            if callable(poll):
+                poll(block_ms=50, count=50)
+            svc.drain(timeout_s=0.2)
+            return
+        while True:
+            poll = getattr(wired, "poll", None)
+            if callable(poll):
+                poll(block_ms=1000, count=100)
+            else:
+                time.sleep(1)
+    finally:
+        svc.stop()
+
+
 def health_snapshot(state_dir: Path, clock: Clock) -> dict[str, Any]:
     """One health pass. V2-14 can copy ``breaker_open`` into its snapshot."""
     status_file = engine_status_path(state_dir)
