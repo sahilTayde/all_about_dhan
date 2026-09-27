@@ -80,7 +80,14 @@ invariants in `desk_ml.testing.sim.check`.
   `consecutive_failures`, `last_error`) and at the top of each loop iteration (`last_loop_epoch`).
   `python -m health` reports `paper_engine` CRITICAL when the last good cycle is older than 120 s in
   market hours or the engine is failing.
-- `python -m health.supervise -- <loop command>` restarts a crashed loop and kills and restarts a
-  hung one. `scripts/desk.sh morning` starts dual-tape under it; templates for launchd and systemd
-  are in `deploy/`.
+- `python -m health.supervise -- <loop command>` restarts a crashed loop (backoff 5 s → 10 min,
+  at most 5 restarts per incident) and kills and restarts a hung one. Exit 0 and exit 2 (dual-tape's
+  "market closed": weekend, before 09:30 IST, after 15:29 IST) end supervision cleanly. One incident
+  = one alert when it starts, one more if it gives up. Default heartbeat/alert paths are absolute
+  from the repo root. `scripts/desk.sh morning` starts dual-tape under it at 09:30 (`watch-open`);
+  `deploy/` has a launchd plist and a systemd service + timer that start it Mon–Fri 09:30 IST and
+  never respawn a supervisor that gave up.
+- Booked open tickets are carried across cycles and managed at their booked strike; forced exits
+  (fail-safe flatten, guard) price the booked strike only (last known quote of that strike, flagged
+  `quote_stale`, never another strike).
 - Post-market params nudge (next session only): `python -m desk_ml nudge-params --day YYYY-MM-DD`.

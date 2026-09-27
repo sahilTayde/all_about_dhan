@@ -194,3 +194,34 @@ The fault sims found more than the critique predicted. Each change below has a t
    split into 2 CI shards. Flag-on runs on the 3-index fixture only where the desk matters.
 10. **Deferred**: the agent_rag tests still rebuild the tracked `data/knowledge/agent_rag.sqlite`
     in the checkout (outside the trading engine; the desk-ml suite fails if it writes the checkout).
+
+## 8. Round 2 (owner's real-tape verification: three live-path blockers)
+
+- **F3 root cause: the live logit saw a partial 3-minute bar.** A 3m bar was visible from its last
+  tick, so the newest tick of every cycle saw the bucket so far, while the same tick in any later
+  cycle does not see that bar. The picker could book a ticket on that signal that no later cycle
+  re-derives, and the ticket vanished. Measured with prior-day history: the last tick's logit side
+  differed from its full-day value at 20% of ticks. The live loop now uses only closed buckets and
+  builds today's bars from the tape alone (history files that grow during the day are not read for
+  today). Offline replays keep the legacy rule, byte for byte.
+- **Booked open tickets are carried, not re-derived** (`live_cycle.Pins`). From its booked open
+  time a ticket holds its slot, and at the first tick after the previous cut-off its saved state
+  replaces the re-derivation, so it is managed at its booked strike to its own exit. Drift is
+  reconciled with one WARN. Only a ticket that cannot be carried is CRITICAL and blocks entries
+  (`HISTORY_UNRECONCILABLE`). This reverses the round-1 choice of a forced close plus a
+  rest-of-day block.
+- **F2: forced exits price the booked strike** (`live_cycle.booked_quote`, the SOD mark-to-market
+  rule): guard closes, the fail-safe flatten (raw-tape fallback when the loader is down) and the
+  desk's MTM fail-safe. The round-1 code priced the tape's current ITM/ATM leg.
+- **F1: exit code 2 is a clean stop**, restarts are capped with backoff, one alert per incident;
+  the deploy templates start the loop each trading morning and never respawn a supervisor that gave up.
+- Also: the `risk_limits.yaml` header now says limits apply from the next session (the code
+  freezes them; applying them mid-day would change how the morning re-derives). The wipe updates
+  the frozen-params backup. A crashed half-written append is repaired and quarantined before the
+  next append, and readers recover a record glued onto a fragment; real damage still fails closed.
+  With both frozen-params copies damaged, the last good params are kept (one CRITICAL, no drift).
+  The agent_rag tests rebuild into a temp root.
+- After merging `main` (#17): the live loop keeps the LLM analyst's live provider while analysts
+  stay deterministic. Its config is read as code config. With `weight: 1` and an online provider,
+  its votes can differ between re-replays; the booked-trade guard and the carried tickets absorb
+  that drift, but it would show as WARN reconciliations.
