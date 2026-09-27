@@ -12,7 +12,7 @@ import shutil
 from pathlib import Path
 from typing import Any
 
-import yaml
+import yaml  # type: ignore[import-untyped,unused-ignore]
 
 log = logging.getLogger("runtime.config")
 

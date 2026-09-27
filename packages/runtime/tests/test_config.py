@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-import yaml
+import yaml  # type: ignore[import-untyped,unused-ignore]
 
 from runtime.config import ConfigLoadError, load_with_last_good
 from runtime.wiring import EngineConfig
