@@ -116,16 +116,10 @@ class FeatureEngine:
     def get_oi_change(
         self, instrument_id: str, decision_ts: datetime, lookback_bars: int = 1
     ) -> float | None:
-        """
-        Get OI change lagged to strictly before decision_ts.
+        """OI change using snapshots with ``ts < floor_minute(decision_ts)`` in IST.
 
-        Args:
-            instrument_id: instrument ID
-            decision_ts: decision timestamp
-            lookback_bars: number of bars to look back
-
-        Returns:
-            OI change or None if insufficient data
+        ``decision_ts`` must be timezone-aware. Naive timestamps are rejected at
+        ingest (``on_oi_update``); stored rows never raise at query time.
         """
         return self._oi_change.get_lagged_change(instrument_id, decision_ts, lookback_bars)
 
@@ -145,6 +139,11 @@ class FeatureEngine:
         return FeatureView(visible_features, strict=False)
 
     def reset_session(self) -> None:
-        """Reset session-scoped state (e.g., VWAP)."""
+        """Reset session-scoped VWAP state and drop published vwap / vwap_mode values."""
         for vwap in self._vwap.values():
             vwap.reset()
+        self._features = {
+            key: value
+            for key, value in self._features.items()
+            if key[0] not in {"vwap", "vwap_mode"}
+        }

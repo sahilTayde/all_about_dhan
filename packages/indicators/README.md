@@ -14,6 +14,9 @@ timestamps are rejected at ingest; other zones convert to IST.
 `FeatureView(strict=True)` raises `LookAheadError` if a value's `available_ts` is after
 `clock.now()`. Strategies treat a missing/warming-up feature as no signal.
 
-REG-01e (prior-day levels) and REG-01f (refuse a future-dated state file) are **not**
-in this ticket: REG-01e is V2-05b entry-location; REG-01f waits for feature-state
-persistence.
+Deferred (not in this ticket):
+
+- REG-01e prior-day levels — V2-05b entry-location
+- REG-01f refuse a future-dated state file — persistence ticket
+- Daily HAR forecast — V2-18
+- RegimeLabeller / shadow adapters — V2-07

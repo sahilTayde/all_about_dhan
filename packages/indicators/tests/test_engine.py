@@ -188,6 +188,31 @@ def test_engine_vwap_rejected_bars_exposed() -> None:
     assert engine.vwap_rejected_bars == 1
 
 
+def test_reset_session_clears_stale_vwap_features() -> None:
+    """reset_session drops published vwap/vwap_mode so a new session cannot leak yesterday."""
+    base_time = datetime(2026, 1, 2, 9, 15, 0, tzinfo=IST)
+    engine = FeatureEngine()
+    bar, available_ts = _bar(base_time, 22000.0)
+    engine.on_bar(bar, available_ts)
+    now = base_time + timedelta(minutes=5)
+    assert engine.view(now).get("vwap", "NIFTY", "1m") is not None
+    assert engine.view(now).get("vwap_mode", "NIFTY", "1m") is not None
+    assert engine.view(now).get("ema20", "NIFTY", "1m") is not None
+
+    engine.reset_session()
+    view = engine.view(now)
+    assert view.get("vwap", "NIFTY", "1m") is None
+    assert view.get("vwap_mode", "NIFTY", "1m") is None
+    assert view.get("ema20", "NIFTY", "1m") is not None
+    assert engine.vwap_rejected_bars == 0
+
+    bar2, ts2 = _bar(base_time + timedelta(minutes=1), 22100.0)
+    engine.on_bar(bar2, ts2)
+    fresh = engine.view(now + timedelta(minutes=5)).get("vwap", "NIFTY", "1m")
+    assert fresh is not None
+    assert fresh.as_of == datetime.fromisoformat(bar2.end)
+
+
 def test_oi_change_in_engine() -> None:
     """FeatureEngine tracks OI change with strict lag."""
     base_time = datetime(2026, 1, 2, 10, 0, 0, tzinfo=IST)
