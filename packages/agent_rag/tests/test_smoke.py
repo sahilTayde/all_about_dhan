@@ -11,23 +11,22 @@ from agent_rag.paths import agent_rag_db, repo_root, transcripts_db
 from agent_rag.query import query
 
 
-def _sandbox(tmp_path: Path) -> Path:
-    """This repo's docs and code, linked read-only, with an empty data/ of its own.
-
-    rebuild() and run_eod_recon() write under <root>/data; the checkout's tracked
-    data/knowledge/agent_rag.sqlite and AGENT_RAG_BUILD.json must not change when tests run.
-    """
+def _scratch_root(tmp_path: Path) -> Path:
+    """Read the repo's source trees; write the knowledge DB only under tmp_path."""
+    root = tmp_path / "repo"
+    (root / "data" / "knowledge").mkdir(parents=True)
     real = repo_root()
-    for entry in real.iterdir():
-        if entry.name not in {"data", ".git", ".venv", "node_modules"}:
-            (tmp_path / entry.name).symlink_to(entry)
-    (tmp_path / "data" / "knowledge").mkdir(parents=True)
-    (tmp_path / "data" / "recon").mkdir(parents=True)
-    return tmp_path
+    (root / "teams").symlink_to(real / "teams")
+    knowledge = real / "data" / "knowledge"
+    for name in ("trading_agents_india.sqlite", "transcripts.sqlite"):
+        src = knowledge / name
+        if src.is_file():
+            (root / "data" / "knowledge" / name).symlink_to(src)
+    return root
 
 
 def test_rebuild_and_query_fake_breakout(tmp_path: Path) -> None:
-    root = _sandbox(tmp_path)
+    root = _scratch_root(tmp_path)
     tdb = transcripts_db(root)
     tdb_mtime = tdb.stat().st_mtime if tdb.is_file() else None
     report = rebuild(root)
@@ -53,7 +52,7 @@ def test_rebuild_and_query_fake_breakout(tmp_path: Path) -> None:
 
 
 def test_eod_recon_retune_required(tmp_path: Path) -> None:
-    root = _sandbox(tmp_path)
+    root = _scratch_root(tmp_path)
     out = run_eod_recon(
         day="2026-09-02",
         root=root,

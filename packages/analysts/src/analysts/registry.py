@@ -18,6 +18,7 @@ from __future__ import annotations
 import logging
 import time
 from concurrent.futures import ThreadPoolExecutor, wait
+from concurrent.futures import TimeoutError as FutureTimeout
 from pathlib import Path
 from typing import Any, Callable, Optional, Sequence
 
@@ -58,7 +59,14 @@ def build(keys: Optional[Sequence[str]] = None) -> list[Analyst]:
     unknown = [k for k in wanted if k not in REGISTRY]
     if unknown:
         raise ValueError(f"unknown analyst keys {unknown}; registered: {sorted(REGISTRY)}")
-    return [REGISTRY[k]() for k in wanted]
+    out: list[Analyst] = []
+    for key in wanted:
+        try:
+            out.append(REGISTRY[key]())
+        except Exception as exc:
+            # A broken analyst (bad yaml, import error) is dropped. The rest of the room still votes.
+            log.error("analyst %s failed to start (%s: %s); disabled", key, type(exc).__name__, exc)
+    return out
 
 
 def _parse_analyst_entry(item: Any) -> tuple[str, bool, Optional[int]]:
@@ -124,7 +132,7 @@ class AnalystRoom:
         shadow_ids: Optional[Sequence[str]] = None,
         shadow_cfg: Optional[dict[str, Any]] = None,
         deterministic: bool = False,
-        replay: Optional[bool] = None,
+        live_loop: bool = False,
     ) -> None:
         ids = [a.analyst_id for a in analysts]
         if len(set(ids)) != len(ids):
@@ -134,32 +142,37 @@ class AnalystRoom:
         self.timeouts_s = {str(k): float(v) for k, v in (timeouts_s or {}).items()}
         self.shadow_ids = set(shadow_ids or [])
         self.shadow_cfg = dict(shadow_cfg or {})
-        # Replay/parity must not ABSTAIN because the machine was busy. Live paper keeps wall-clock timeouts.
+        # Replay/parity must not ABSTAIN the voting room because the machine was busy.
+        # Analysts that block (the LLM, `wall_clock`) still get a hard cap so one hang cannot stall a replay.
         self.deterministic = bool(deterministic)
-        # PR-016: replay/parity rooms keep the LLM analyst offline. ``replay`` defaults to
-        # ``deterministic``; the live paper loop runs deterministic (no wall-clock timeouts, since it
-        # re-replays the day every cycle) but is not a replay, so it keeps the live provider.
+        # Online LLM only while the live paper loop is running. live_session replays stay offline.
+        self.live_loop = bool(live_loop)
         for a in self.analysts:
             if hasattr(a, "set_replay"):
-                a.set_replay(self.deterministic if replay is None else bool(replay))
+                a.set_replay(not self.live_loop)
         self._pool = None if self.deterministic else ThreadPoolExecutor(
             max_workers=max(1, len(self.analysts)), thread_name_prefix="analyst"
         )
+        self._cap_pool: Optional[ThreadPoolExecutor] = None
+        self._inflight: dict[str, Any] = {}
         self.stats = {"votes": 0, "timeouts": 0, "errors": 0}
 
     @classmethod
-    def from_config(
-        cls, path: Optional[Path] = None, *, deterministic: bool = False, replay: Optional[bool] = None
-    ) -> "AnalystRoom":
-        cfg = load_config(path)
+    def from_config(cls, path: Optional[Path] = None, *, deterministic: bool = False, live_loop: bool = False) -> "AnalystRoom":
+        try:
+            cfg = load_config(path)
+            analysts = build(cfg["analysts"])
+        except Exception as exc:
+            log.exception("analyst config %s failed (%s); using the default paper room", path, exc)
+            return cls(build(default_keys()), timeout_s=DEFAULT_TIMEOUT_S, deterministic=deterministic, live_loop=live_loop)
         return cls(
-            build(cfg["analysts"]),
+            analysts,
             timeout_s=cfg["timeout_ms"] / 1000.0,
             timeouts_s={k: v / 1000.0 for k, v in cfg["timeouts_ms"].items()},
             shadow_ids=cfg["shadow"],
             shadow_cfg=cfg["shadow_cfg"],
             deterministic=deterministic,
-            replay=replay,
+            live_loop=live_loop,
         )
 
     def timeout_for(self, analyst: Analyst) -> float:
@@ -183,10 +196,41 @@ class AnalystRoom:
             return Vote.abstain(analyst.analyst_id, f"ERROR:{type(exc).__name__}"), ms
         return fut.result(), ms
 
+    def _replay_capped(self, analyst: Analyst) -> bool:
+        """Per-key timeout_ms, or an analyst that can block (the LLM). Voting analysts stay inline."""
+        return analyst.analyst_id in self.timeouts_s or bool(getattr(analyst, "wall_clock", False))
+
+    def _run_capped(self, analyst: Analyst, ctx: MarketContext, limit: float) -> tuple[Vote, float]:
+        """Wall-clock cap. A call that is still stuck from last tick abstains immediately."""
+        prev = self._inflight.get(analyst.analyst_id)
+        if prev is not None and not prev.done():
+            self.stats["timeouts"] += 1
+            log.warning("analyst %s still running from the last tick -> ABSTAIN", analyst.analyst_id)
+            return Vote.abstain(analyst.analyst_id, "TIMEOUT"), 0.0
+        if self._cap_pool is None:
+            self._cap_pool = ThreadPoolExecutor(max_workers=4, thread_name_prefix="analyst-cap")
+        start = time.perf_counter()
+        fut = self._cap_pool.submit(self._run, analyst, ctx)
+        self._inflight[analyst.analyst_id] = fut
+        try:
+            vote = fut.result(timeout=limit)
+        except FutureTimeout:
+            self.stats["timeouts"] += 1
+            log.warning("analyst %s timed out after %.0f ms -> ABSTAIN", analyst.analyst_id, limit * 1000.0)
+            return Vote.abstain(analyst.analyst_id, "TIMEOUT"), (time.perf_counter() - start) * 1000.0
+        except Exception as exc:
+            self.stats["errors"] += 1
+            log.warning("analyst %s crashed (%s: %s) -> ABSTAIN", analyst.analyst_id, type(exc).__name__, exc)
+            return Vote.abstain(analyst.analyst_id, f"ERROR:{type(exc).__name__}"), (time.perf_counter() - start) * 1000.0
+        return vote, (time.perf_counter() - start) * 1000.0
+
     def _collect_sync(self, ctx: MarketContext) -> list[tuple[Vote, float]]:
-        """In-order, no wall clock. A crash is still ABSTAIN. Used for replay and parity."""
+        """In order. Voting analysts have no wall-clock abstain. A capped analyst cannot stall the rest."""
         out: list[tuple[Vote, float]] = []
         for analyst in self.analysts:
+            if self._replay_capped(analyst):
+                out.append(self._run_capped(analyst, ctx, self.timeout_for(analyst)))
+                continue
             start = time.perf_counter()
             try:
                 vote = self._run(analyst, ctx)
@@ -257,3 +301,5 @@ class AnalystRoom:
     def close(self) -> None:
         if self._pool is not None:
             self._pool.shutdown(wait=False, cancel_futures=True)
+        if self._cap_pool is not None:
+            self._cap_pool.shutdown(wait=False, cancel_futures=True)

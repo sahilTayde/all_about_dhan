@@ -169,7 +169,7 @@ class EventSession:
         engine.regime_bus = self.bus  # PR-012/024: REGIME_LABEL / BOSS_SHADOW go on the audit log
         engine.regime_live_loop = self.live_loop  # PR-012/024: re-replays do not re-log the same bars
         self.room = self._room if self._room is not None else AnalystRoom.from_config(
-            self.analysts_config, deterministic=self.deterministic, replay=not self.live_loop
+            self.analysts_config, deterministic=self.deterministic, live_loop=self.live_loop,
         )
         self.desk = Desk(
             self.bus, engine, risk=None, broker=None, steps=self.steps, live_loop=self.live_loop,
