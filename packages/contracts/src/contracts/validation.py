@@ -9,6 +9,7 @@ from typing import Any
 try:
     import jsonschema
     from jsonschema import Draft7Validator, FormatChecker
+
     HAS_JSONSCHEMA = True
 except ImportError:
     HAS_JSONSCHEMA = False
