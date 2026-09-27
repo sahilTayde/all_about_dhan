@@ -10,7 +10,23 @@ centre of this document is an **active option-buyer design** as practised by ski
 turned into preregistrable specs. Option-writing structures (flies, condors, credit spreads) are out of scope; we study
 how writers behave only so a buyer can exploit it.
 
-Number tags: **(arith)** = computed here from `config/charges.yaml` (via `groww_round_trip_charges()`) and Black-76
+**Founder correction (applied to every break-even below):** ₹2,200 is **not** the round-trip cost. It was the average
+loss per random entry under the 1 EM stop / 2 EM target exit, which includes decay and stop-outs (§2.3 decomposes it).
+The true friction is:
+- Dhan brokerage ₹20 per order;
+- STT 0.15% of sell premium;
+- exchange 0.0355299% both sides;
+- SEBI 0.0001%;
+- stamp 0.003% on the buy;
+- GST 18% on brokerage, exchange and SEBI;
+- NIFTY lot 65.
+
+At a ₹150 premium that is ₹70 per round trip for 1 lot and **₹625 for 25 lots**. Slippage s per side is shown at
+**0.05, 0.10 and 0.20** points. All-in at 25 lots: ₹1,080-1,660 at s = 0.20 for premiums of 100-250, and ₹790-950 at
+s = 0.05-0.10 for a 150 premium.
+
+Number tags: **(arith)** = computed here from the founder's friction above (it reproduces ₹70.3 and ₹625.1 exactly;
+`config/charges.yaml` has exchange 0.03503%, which is ₹3 lower at 25 lots, VERIFY which is current) and Black-76
 with stated assumptions; **(lab)** = quoted from the round-7/7B/7C reports; **VERIFY** = must be measured (mostly by the
 depth recorder starting Mon 28 Sep) before it can move a verdict.
 
@@ -28,16 +44,18 @@ Cross-team rules: `teams/04_quant/docs/SIGNAL_STAGING.md` (5m indicators confirm
 
 - **Now.** Holding options on our analysts' slow trend drift cannot work. The drift moves the index about **0.02-0.05
   points per minute**, but an ITM100/ATM option loses **0.06-0.47 index points per minute** of time value (per unit of
-  delta) when the market is quiet. Every past round lost for this reason plus the ~₹2,200 round trip.
+  delta) when the market is quiet. Every past round lost for this reason plus a ₹790-1,660 round trip at 25 lots.
+  (₹2,200 was the average random-entry loss, including decay and stop-outs, not the friction.)
 - **Why the active design might work.** A real breakout moves the index **1.4-2.7 points per minute** (0.5 EM30 in 5-10
   minutes). That is roughly 20-50× faster than the decay of the strikes the engine buys, and it clears the round trip
   within minutes. So a buyer should be flat
   in consolidation, where quiet markets cost the full decay, and long only in the minutes after a confirmed breakout.
-  If there is no follow-through within 3 minutes, get out small. The loss on a failed trade is then ~₹5-11k at
-  25 lots. A trade that captures 0.75 EM30 earns ~₹17-27k. So the book breaks even if **about 29-32%** of confirmed
-  breakouts follow through (arith, §1.4).
+  If there is no follow-through within 3 minutes, get out small. A time-stopped trade then loses ~₹4.2-6.1k at 25
+  lots (₹7.1-10.3k averaged with the failed-breakout stops). A trade that captures 0.75 EM30 earns ~₹18-28k. So the
+  book breaks even if **about 26-29%** of confirmed breakouts follow through, from s = 0.05 to s = 0.20 (arith, §1.4).
+  Slippage moves that break-even by only 1-2 points, because losers are driven by index points, not friction.
 - **Next.** Tonight, measure on 5 years of index bars (no option prices needed) how often breakouts from consolidation
-  boxes follow through, and whether 2+ confirmations raise that rate above ~30% (§5, TA0-TA1). Then run the full
+  boxes follow through, and whether 2+ confirmations raise that rate above ~29% (§5, TA0-TA1). Then run the full
   BRK-BUY spec (§1.6) on the 3-year chain. No engine change on Monday.
 
 ---
@@ -70,59 +88,80 @@ real risk. §5 TA2 measures realised vs implied in the 5-15 minutes after confir
 ### 1.2 Decay per holding minute, by DTE and time of day (arith)
 
 Gross theta = what the option loses per minute if the index does not move (the consolidation case), in ₹ per minute at
-25 lots (1,625 units). In brackets: how many quiet minutes equal one ₹2,200 round trip. Assumptions: NIFTY 25,000, IV
-13%, Black-76, variance clock where each overnight carries 25% of a day's variance (VERIFY from the chain). With all
-decay inside the session (w = 0, harshest case), multiply by ~1.3. DTE = sessions to expiry; 0 = expiry day (Tuesday).
+25 lots (1,625 units). In brackets: **how many quiet minutes equal one all-in round trip for that option at slippage
+0.05 / 0.10 / 0.20** (the round trip uses that cell's own premium). Assumptions: NIFTY 25,000, IV 13%, Black-76,
+variance clock where each overnight carries 25% of a day's variance (VERIFY from the chain). With all decay inside the
+session (w = 0, harshest case), multiply decay by ~1.3. DTE = sessions to expiry; 0 = expiry day (Tuesday).
 
 | Strike | DTE | 09:30 | 11:00 | 13:00 | 14:30 | 15:00 |
 |---|---|---|---|---|---|---|
-| ATM | 0 | ₹157 (14 min) | ₹181 (12) | ₹243 (9) | **₹385 (6)** | **₹546 (4)** |
-| ITM100 | 0 | ₹132 (17) | ₹144 (15) | ₹162 (14) | ₹140 (16) | ₹72 (31) |
-| ITM200 | 0 | ₹80 (28) | ₹74 (30) | ₹48 (46) | ₹7 (330) | ~₹0 |
-| ATM | 1 | ₹101 (22) | ₹107 (21) | ₹116 (19) | ₹125 (18) | ₹129 (17) |
-| ITM100 | 1 | ₹94 (23) | ₹99 (22) | ₹106 (21) | ₹113 (20) | ₹115 (19) |
-| ITM200 | 1 | ₹76 (29) | ₹78 (28) | ₹80 (28) | ₹81 (27) | ₹82 (27) |
-| ATM | 2 | ₹80 (27) | ₹83 (26) | ₹88 (25) | ₹91 (24) | ₹92 (24) |
-| ITM100 | 2 | ₹77 (29) | ₹79 (28) | ₹83 (27) | ₹86 (26) | ₹87 (25) |
-| ITM200 | 2 | ₹67 (33) | ₹69 (32) | ₹71 (31) | ₹72 (30) | ₹73 (30) |
-| ATM | 4 | ₹61 (36) | ₹62 (35) | ₹64 (34) | ₹65 (34) | ₹66 (33) |
-| ITM100 | 4 | ₹59 (37) | ₹61 (36) | ₹62 (35) | ₹63 (35) | ₹64 (35) |
-| ITM200 | 4 | ₹55 (40) | ₹56 (39) | ₹57 (39) | ₹58 (38) | ₹58 (38) |
-| NIFTY future | any | ₹0 | ₹0 | ₹0 | ₹0 | ₹0, but the round trip is **₹24.5k** at 25 lots (15.1 idx pts, §2.2) |
+| ATM | 0 | ₹157 (3/4/6) | ₹181 (2/3/5) | ₹243 (2/2/4) | **₹385 (1/1/2)** | **₹546 (1/1/1)** |
+| ITM100 | 0 | ₹132 (5/7/9) | ₹144 (5/6/8) | ₹162 (4/5/7) | ₹140 (4/5/8) | ₹72 (8/11/15) |
+| ITM200 | 0 | ₹80 (13/15/19) | ₹74 (14/16/20) | ₹48 (20/24/30) | ₹7 (146/170/218) | ~₹0 |
+| ATM | 1 | ₹101 (6/8/11) | ₹107 (6/7/10) | ₹116 (5/6/9) | ₹125 (4/6/8) | ₹129 (4/5/8) |
+| ITM100 | 1 | ₹94 (9/11/14) | ₹99 (8/10/13) | ₹106 (7/9/12) | ₹113 (7/8/11) | ₹115 (7/8/11) |
+| ITM200 | 1 | ₹76 (15/17/21) | ₹78 (14/16/20) | ₹80 (13/15/20) | ₹81 (13/15/19) | ₹82 (13/15/19) |
+| ATM | 2 | ₹80 (9/11/15) | ₹83 (9/10/14) | ₹88 (8/10/13) | ₹91 (7/9/13) | ₹92 (7/9/12) |
+| ITM100 | 2 | ₹77 (12/14/19) | ₹79 (12/14/18) | ₹83 (11/13/17) | ₹86 (10/12/16) | ₹87 (10/12/16) |
+| ITM200 | 2 | ₹67 (18/20/25) | ₹69 (17/20/24) | ₹71 (16/19/23) | ₹72 (16/18/23) | ₹73 (16/18/22) |
+| ATM | 4 | ₹61 (15/17/23) | ₹62 (14/17/22) | ₹64 (13/16/21) | ₹65 (13/15/20) | ₹66 (13/15/20) |
+| ITM100 | 4 | ₹59 (19/21/27) | ₹61 (18/21/26) | ₹62 (17/20/25) | ₹63 (17/19/24) | ₹64 (17/19/24) |
+| ITM200 | 4 | ₹55 (24/27/33) | ₹56 (24/27/33) | ₹57 (23/26/32) | ₹58 (23/25/31) | ₹58 (22/25/31) |
+| NIFTY future | any | ₹0 | ₹0 | ₹0 | ₹0 | ₹0, but the round trip is **₹23.1-23.6k** at 25 lots (14.2-14.5 idx pts, §2.2) |
+
+All-in round trip at 25 lots by premium (arith, founder friction):
+
+| Premium | Charges | s = 0.05 | s = 0.10 | s = 0.20 |
+|---|---|---|---|---|
+| 30 | ₹163 | ₹325 (0.20 pt) | ₹488 (0.30) | ₹813 (0.50) |
+| 60 | ₹278 | ₹441 (0.27) | ₹603 (0.37) | ₹928 (0.57) |
+| 100 | ₹432 | ₹595 (0.37) | ₹757 (0.47) | ₹1,082 (0.67) |
+| **150** | **₹625** | **₹788 (0.48)** | **₹950 (0.58)** | **₹1,275 (0.78)** |
+| 200 | ₹818 | ₹980 (0.60) | ₹1,143 (0.70) | ₹1,468 (0.90) |
+| 250 | ₹1,010 | ₹1,173 (0.72) | ₹1,335 (0.82) | ₹1,660 (1.02) |
+| 300 | ₹1,203 | ₹1,365 (0.84) | ₹1,528 (0.94) | ₹1,853 (1.14) |
 
 Readings:
-- **A quiet 60-minute ATM hold costs 2.3-6.6× the round trip in decay alone**: ₹4,980 at DTE 2 at 11:00 and ₹14,580 on
-  expiry day at 13:00. This is the founder's point, quantified.
-- **For a 2-5 minute trade, the round trip dominates**: ₹110-650 of decay at DTE ≥ 1 vs ₹2,200 of cost. Decay matters
-  in fast trades only for ATM on expiry afternoons (₹770-2,730 over 2-5 minutes after 14:30).
-- **Deep ITM barely decays** (₹7-80 per minute; ~₹0 on expiry afternoons). That is why long holds are only compared in
-  deep ITM (and futures, which pay no decay but a ₹24.5k round trip at 25 lots).
+- **A quiet 60-minute ATM hold costs 4-7× the round trip in decay alone at DTE 2** (₹4,998 at 11:00 vs a ₹715-1,200
+  round trip on a 130 premium). **On expiry day at 13:00 it costs 17-38×** (₹14,563 vs ₹380-870 on a 45 premium). With
+  the corrected friction the founder's point is stronger, not weaker: on ATM, decay rather than friction is the
+  dominant cost of any hold longer than 5-15 minutes.
+- **For a 2-5 minute trade, friction and decay are the same order**: ₹110-650 of decay at DTE ≥ 1 vs a ₹790-1,660
+  round trip. On ATM expiry afternoons decay overtakes the whole round trip within 1-2 minutes (₹385-546 per minute).
+- **Deep ITM barely decays** (₹7-80 per minute; ~₹0 on expiry afternoons). A quiet 15-30 minutes of deep ITM costs
+  about one round trip. That is why long holds are only compared in deep ITM (and in futures, which pay no decay but a
+  ₹23k round trip at 25 lots).
 - **Gross vs average decay.** Averaged over all minutes, realised moves repay most of theta through gamma. Measured net
-  decay (round-7 straddle data) is only ~0.11-0.24 pt per ATM leg per 30 minutes, vs 1.5 pts gross at DTE 2. **In a
-  quiet market a buyer pays 6-14× the average decay.** That is the quantitative case for rule (a), "don't trade
-  consolidation". It also means the case against long ATM holds is really three costs: flat-period theta, the worst
-  cost per delta (§2.2), and stop-outs. At 25 lots, the ₹30k cap is hit after ~26 index points on ITM100, which is
-  less than one EM30 (§2.5).
+  decay (round-7 straddle data) is only ~0.11-0.24 pt per ATM leg per 30 minutes, vs 1.5 pts gross at DTE 2, i.e.
+  κ = net/gross ≈ 0.07-0.16. Under Black-76, θ = ½σ²S²Γ, so κ = 1 − (σ_realised/σ_implied)², the same for every
+  strike; §2.4 uses κ = 0.12. **In a quiet market a buyer pays 6-14× the average decay.** That is the quantitative case
+  for rule (a), "don't trade consolidation". It also means the case against long ATM holds is really three costs:
+  flat-period theta, the worst cost per delta at wide spreads (§2.2), and stop-outs. At 25 lots the ₹30k cap is hit
+  after ~24-30 index points (δ 0.79-0.62), about one EM30 (§2.5).
 
 ### 1.3 Break-even move per minute held (arith)
 
-m*(t) = (C + θ·t) / δ = the index move in our direction that pays the round trip plus t minutes of quiet-market decay.
-Gamma is ignored (conservative; it matters only for 0DTE ATM, where a 27-point move adds ~2 pts). First number:
-C = ₹2,200 (1.35 option pts, the founder's figure). Second: C = 0.95 pt (my fee + slippage arithmetic; the ₹2,200 also
-includes ~38 minutes of decay and stop-fill losses, §2.3).
+m*(t) = (C + θ·t) / δ = the index move in our direction that pays the all-in round trip C (that option's own
+premium, founder friction) plus t minutes of quiet-market decay. Gamma is ignored (conservative; it matters only for
+0DTE ATM, where a 27-point move adds ~2 pts). **Each cell is s = 0.05 / 0.10 / 0.20.** "Fixed" = C/δ, the move
+needed with zero hold time.
 
-| Case (w = 0.25) | δ | Marginal decay speed θ/δ (idx pts/min) | t = 2 | t = 3 | t = 5 | t = 10 | t = 15 | t = 30 |
+| Case (w = 0.25, 11:00 unless stated) | Premium | δ | Decay speed θ/δ (idx pts/min) | Fixed C/δ | t = 3 | t = 5 | t = 15 | t = 30 |
 |---|---|---|---|---|---|---|---|---|
-| DTE 2 ITM100, 11:00 (engine rule) | 0.62 | 0.078 | 2.3 / 1.7 | 2.4 / 1.8 | 2.6 / 1.9 | 3.0 / 2.3 | 3.3 / 2.7 | 4.5 / 3.9 |
-| DTE 2 ATM, 11:00 | 0.50 | 0.102 | 2.9 / 2.1 | 3.0 / 2.2 | 3.2 / 2.4 | 3.7 / 2.9 | 4.2 / 3.4 | 5.8 / 4.9 |
-| DTE 1 ITM200, 11:00 (engine rule) | 0.79 | 0.061 | 1.8 / 1.3 | 1.9 / 1.4 | 2.0 / 1.5 | 2.3 / 1.8 | 2.6 / 2.1 | 3.5 / 3.0 |
-| DTE 0 ITM200, 11:00 | 0.91 | 0.050 | 1.6 / 1.1 | 1.6 / 1.2 | 1.7 / 1.3 | 2.0 / 1.5 | 2.2 / 1.8 | 3.0 / 2.5 |
-| DTE 0 ITM200, 14:30 | 1.00 | 0.004 | 1.4 / 1.0 | 1.4 / 1.0 | 1.4 / 1.0 | 1.4 / 1.0 | 1.4 / 1.0 | 1.5 / 1.1 |
-| DTE 0 ATM, 11:00 | 0.50 | 0.222 | 3.1 / 2.3 | 3.4 / 2.6 | 3.8 / 3.0 | 4.9 / 4.1 | 6.0 / 5.2 | 9.4 / 8.6 |
-| DTE 0 ATM, 14:30 | 0.50 | 0.473 | 3.7 / 2.8 | 4.1 / 3.3 | 5.1 / 4.3 | 7.4 / 6.6 | 9.8 / 9.0 | 16.9 / 16.1 |
-| DTE 4 ITM100, 11:00 | 0.59 | 0.063 | 2.4 / 1.7 | 2.5 / 1.8 | 2.6 / 1.9 | 2.9 / 2.2 | 3.2 / 2.5 | 4.2 / 3.5 |
-| NIFTY future (comparison) | 1.00 | 0 | 15.1 | 15.1 | 15.1 | 15.1 | 15.1 | 15.1 |
-| Noise: 1σ index move over t | | | 8.9 | 10.8 | 14.0 | 19.8 | 24.3 | 34.3 |
+| DTE 2 ITM100 (engine rule) | 186 | 0.62 | 0.078 | 0.91 / 1.08 / 1.40 | 1.1 / 1.3 / 1.6 | 1.3 / 1.5 / 1.8 | 2.1 / 2.2 / 2.6 | 3.3 / 3.4 / 3.7 |
+| DTE 2 ATM | 130 | 0.50 | 0.102 | 0.87 / 1.07 / 1.47 | 1.2 / 1.4 / 1.8 | 1.4 / 1.6 / 2.0 | 2.4 / 2.6 / 3.0 | 3.9 / 4.1 / 4.5 |
+| DTE 1 ITM200 (engine rule) | 231 | 0.79 | 0.061 | 0.86 / 0.99 / 1.24 | 1.0 / 1.2 / 1.4 | 1.2 / 1.3 / 1.5 | 1.8 / 1.9 / 2.2 | 2.7 / 2.8 / 3.1 |
+| DTE 0 ITM200 | 206 | 0.91 | 0.050 | 0.68 / 0.79 / 1.01 | 0.8 / 0.9 / 1.2 | 0.9 / 1.0 / 1.3 | 1.4 / 1.5 / 1.8 | 2.2 / 2.3 / 2.5 |
+| DTE 0 ITM200, 14:30 | 200 | 1.00 | 0.004 | 0.60 / 0.70 / 0.91 | 0.6 / 0.7 / 0.9 | 0.6 / 0.7 / 0.9 | 0.7 / 0.8 / 1.0 | 0.7 / 0.8 / 1.0 |
+| DTE 0 ATM | 60 | 0.50 | 0.222 | 0.54 / 0.74 / 1.14 | 1.2 / 1.4 / 1.8 | 1.7 / 1.9 / 2.2 | 3.9 / 4.1 / 4.5 | 7.2 / 7.4 / 7.8 |
+| DTE 0 ATM, 14:30 | 28 | 0.50 | 0.473 | 0.39 / 0.59 / 0.99 | 1.8 / 2.0 / 2.4 | 2.8 / 3.0 / 3.4 | 7.5 / 7.7 / 8.1 | 14.6 / 14.8 / 15.2 |
+| DTE 4 ITM100 | 228 | 0.59 | 0.063 | 1.13 / 1.30 / 1.63 | 1.3 / 1.5 / 1.8 | 1.4 / 1.6 / 1.9 | 2.1 / 2.2 / 2.6 | 3.0 / 3.2 / 3.5 |
+| NIFTY future (comparison) | — | 1.00 | 0 | 14.2 / 14.3 / 14.5 | same | same | same | same |
+| Noise: 1σ index move over t | | | | | 10.8 | 14.0 | 24.3 | 34.3 |
+
+Reading the sensitivity: going from s = 0.20 to s = 0.05 cuts the fixed move by 0.3-0.6 index pts on every option
+(0.30 option pt ÷ δ). That is worth about 6 minutes of decay on the DTE-rule strikes, and **about one minute on ATM
+expiry afternoons**, where decay swamps friction. Tight spreads help slow trades; they do not rescue ATM holds.
 
 Three speeds decide everything:
 
@@ -134,28 +173,35 @@ Three speeds decide everything:
 | A real breakout: 0.5 EM30 (≈ 14 pts) in 5-10 min | **1.4-2.7** |
 
 Slow drift is slower than the decay of every non-deep option, so drift-holding buyers lose by construction. Breakouts
-are roughly 20-50× faster than the decay of the engine's strikes (0.05-0.08 per minute). The fixed cost of 1.4-3.1
-index pts is only 0.1-0.2σ of a 5-minute move. **For the
-active design, per-trade cost is not the binding constraint. The share of breakouts that follow through is.**
+are roughly 20-50× faster than the decay of the engine's strikes (0.05-0.08 per minute). The fixed move of 0.4-1.6
+index pts is only 0.03-0.12σ of a 5-minute move. **For the active design, per-trade friction is not the binding
+constraint. The share of breakouts that follow through is.**
 
 ### 1.4 Break-even follow-through rate for the active design (arith)
 
-There are three outcomes: time-stopped (no follow-through; exit at 3 minutes about 3 index pts adverse), failed-breakout
-stop (back inside the box; about 0.45 EM30 ≈ 12 pts adverse in ~4 minutes), and winner (partial plus trail capturing an
-average of 0.5, 0.75 or 1.0 EM30). Losers are assumed 70% time-stopped and 30% failed-breakout. f* is the share of
-entries that must be winners. Money is at 25 lots, C = ₹2,200.
+There are three outcomes:
+- **Time-stopped** (no follow-through): exit at 3 minutes, about 3 index pts adverse.
+- **Failed-breakout stop** (back inside the box): about 0.45 EM30 ≈ 12 pts adverse in ~4 minutes.
+- **Winner** (partial plus trail): captures an average of 0.5, 0.75 or 1.0 EM30 over 8-15 minutes.
 
-| Strike / time | Avg loser (₹) | f* at 0.5 EM30 captured | f* at 0.75 EM30 | f* at 1.0 EM30 |
-|---|---|---|---|---|
-| DTE 2 ITM100, 11:00 | ₹8.3k | 43% | **32%** | 26% |
-| DTE 1 ITM200, 11:00 | ₹9.9k | 40% | **30%** | 24% |
-| DTE 0 ITM200, 11:00 | ₹11.0k | 39% | **29%** | 23% |
-| DTE 0 ATM, 14:30 (diagnostic only) | ₹8.2k | 58% | 45% | 36% |
+Losers are assumed 70% time-stopped and 30% failed-breakout. f* is the share of entries that must be winners. C is the
+all-in round trip on that option's premium at 25 lots.
 
-At C = 0.95 pt, every f* drops by 1-5 points. For reference, round 7's runner geometries (0.5-1.0 EM stop, 2 EM
-target) realised 28-34% wins against 22-32% break-even (lab), so the required band is not fantasy. **0DTE ATM is the
-worst buyer instrument even for fast trades**: expiry-afternoon decay forces a 45% follow-through rate. It stays a
-diagnostic only.
+| Strike / time | Round trip C (s = 0.05 / 0.10 / 0.20) | Time-stopped loss at s = 0.20 | Avg loser at s = 0.20 | Winner at 0.75 EM30, s = 0.20 | **f* at 0.75 EM30 (s = 0.05 / 0.10 / 0.20)** | f* at 0.5 / 1.0 EM30 (s = 0.20) |
+|---|---|---|---|---|---|---|
+| DTE 2 ITM100, 11:00 | ₹926 / ₹1,089 / ₹1,414 | ₹4.7k | ₹7.5k | ₹18.4k | **27.2% / 27.8% / 29.0%** | 39.0% / 23.1% |
+| DTE 1 ITM200, 11:00 | ₹1,099 / ₹1,262 / ₹1,587 | ₹5.7k | ₹9.3k | ₹23.8k | **26.6% / 27.1% / 28.0%** | 37.7% / 22.3% |
+| DTE 0 ITM200, 11:00 | ₹1,005 / ₹1,167 / ₹1,492 | ₹6.1k | ₹10.3k | ₹28.0k | **25.6% / 26.1% / 26.9%** | 36.2% / 21.4% |
+| DTE 0 ATM, 14:30 (diagnostic only) | ₹319 / ₹481 / ₹806 | ₹4.4k | ₹6.8k | ₹11.3k | **34.9% / 35.8% / 37.6%** | 48.3% / 30.2% |
+
+Readings:
+- **Slippage moves the break-even follow-through rate by only 1-2 points** (0.05 → 0.20). A failed trade's loss is
+  mostly index points (δ × 3-12 pts ≈ ₹3-18k), not friction (₹0.3-1.6k). What matters is how often breakouts follow
+  through and how far winners run, not the spread.
+- For reference, round 7's runner geometries (0.5-1.0 EM stop, 2 EM target) realised 28-34% wins against 22-32%
+  break-even (lab), so the required 26-29% band is not fantasy.
+- **0DTE ATM is still the worst buyer instrument for fast trades**, even though its friction is the lowest (₹319-806):
+  expiry-afternoon decay forces a 35-38% follow-through rate. It stays a diagnostic.
 
 ### 1.5 How writers and institutions position around consolidation and breakouts, and how a buyer exploits it
 
@@ -220,18 +266,28 @@ worst decay (₹243-546 per minute ATM). Use deep ITM unless the 0DTE-ATM diagno
 - **EM30** = 7B walk-forward EM′ (reference 27.4 pts). Sensitivity only: 7C HARI EM30 × 1.123 (reference 30.0).
 - **VOLSIZE-7B** = clip(round(25 × 27.4 / EM30), 5, 25).
 - **CAPLOTS(δ, stop_pts)** = floor(28,000 / (65 · δ · stop_pts)). **Lots = min(VOLSIZE-7B, CAPLOTS)**; skip if < 2.
-- **Fills.** Signal on the close of minute t; fill at the option price of the next snapshot (t+1) plus the half-spread.
+- **Fills.** Signal on the close of minute t; fill at the option price of the next snapshot (t+1) plus slippage s.
   Exits fill at the snapshot after the exit condition. A missing strike means skip, and the miss rate is logged.
-- **Cost model FC1.** `charges.yaml` **current** rates (STT 0.15%) for every period (not era rates). Plus half-spread
-  HS plus an adverse half tick. Interim HS (HYPOTHESIS until ≥ 10 recorder sessions): 0.20 for |moneyness| ≤ 100 at
-  DTE ≥ 1; 0.30 for ITM200+ and DTE 0. **Burst surcharge: HS × 1.5 on entries and stops in the breakout minute**
-  (spreads widen exactly then). 1.5× stress = fees × 1.5 and HS × 1.5. Swapping in the measured HS table is a re-run,
-  not a new trial.
+- **Cost model FC1** (founder friction). Charges are applied at **current** rates to every period (not era rates):
+  - Dhan ₹20 per order;
+  - STT 0.15% of sell premium;
+  - exchange 0.0355299% both sides;
+  - SEBI 0.0001%;
+  - stamp 0.003% buy;
+  - GST 18% on brokerage, exchange and SEBI.
+
+  Slippage s per side, including tick rounding:
+  - **verdict at s = 0.20** (conservative);
+  - sensitivities at **s = 0.10 and 0.05** (the realistic ATM spread range), always reported;
+  - **stress = fees × 1.5 and s = 0.30**. This also stands in for wider spreads in breakout minutes; a result that
+    only survives at s ≤ 0.10 is PROMISING at best.
+
+  Swapping in the measured spread table (≥ 10 recorder sessions) is a re-run, not a new trial.
 - **Periods.** P0 = 2021-09..2023-08 (index only). P1 = 2023-08-28..2025-08-31 (chain). P2 = 2025-09-01..2026-07-02
   (chain; **seen by four rounds, so validation, not holdout**). P3 = 2026-07-03..2026-09-25 (index only, plus the Sep
   17-25 tape). FWD = shadow log from 28 Sep: the only clean holdout.
 - **Money pass bar.**
-  1. Net > 0 at 1.5× on P1 and on P2 separately.
+  1. Net > 0 at s = 0.20 **and** under stress (fees × 1.5, s = 0.30) on P1 and on P2 separately.
   2. Pooled day-clustered one-sided t at 1×: ≥ 2.39 = **PASS** (Bonferroni over the 6 money primaries in §6);
      1.645-2.39 with all other gates met = **PROMISING** (shadow only).
   3. Placebos ≥ 95th percentile.
@@ -257,7 +313,7 @@ worst decay (₹243-546 per minute ATM). Use deep ITM unless the 0DTE-ATM diagno
 | **AB-5 Frequency** | Set by the market: no fixed daily count. Rails only: ≤ 6 entries per day per index; 3 consecutive losing exits → 30-minute lockout; day stop −₹90k; 1 position per index; ≤ 3 across indices. Report the trades-per-day distribution (0 on trend-from-open or chaotic days is expected). |
 | **Sizing** | lots = min(VOLSIZE-7B, CAPLOTS(δ, 0.45 × EM30 + 3)). At median EM30 and δ 0.62, CAPLOTS ≈ 45, so VOLSIZE governs (~21 lots average; 5-25). |
 | **Skip rules** | Event calendar per `EVENT_MEMORY.md` (held and scored separately, never deleted); no box can form before 09:35; no new entries after 15:00. |
-| **Break-even** | §1.4: follow-through share f ≥ ~29-32% at 0.75 EM30 average capture (FC1 at 1×); recompute f* from the realised average loser and winner, which must be self-consistent. |
+| **Break-even** | §1.4: follow-through share f ≥ ~27-29% at 0.75 EM30 average capture on the DTE-rule strikes (26-28% at s = 0.05); recompute f* from the realised average loser and winner, which must be self-consistent. |
 | **Placebos** (2,000 draws) | **PL-SIDE:** same breakout minutes, random side. This tests whether the break direction matters. **PL-TIME:** same number of entries per day at random non-box minutes, same exits. This tests whether box-then-break timing matters. **PL-CONF:** same breakouts, but the ≥ 2-of-5 rule is applied to randomly permuted confirmation labels. This tests whether the confirmations add value. All three must be ≥ 95th percentile. |
 | **Component claims** (each must hold on P1 and P2) | Time stop: BRK-BUY beats the same entries without AB-3. Box prerequisite: out-of-box breakouts beat the same breakout rule without AB-1. Confirmations: ≥ 2-of-5 beats 0-of-5. |
 | **Diagnostics** (counted, not selectable) | Time stop at 2 and 5 minutes; W = 15 and 30; ATM strike on DTE 0 after 13:00 with a 10-minute max hold; ITM200 at all DTEs. |
@@ -290,7 +346,7 @@ Against:
 - **Granularity.** Snapshots are 60 seconds apart, so a 3-minute time stop is three observations and a 2-minute stop
   is two. Nothing below 2 minutes is testable until the depth recorder has data.
 - **Spreads and stops in bursts.** Spreads widen and failed breakouts snap back fast. The flat 0.20 slippage is least
-  credible exactly here, hence the burst surcharge. Monday's recorder must measure half-spreads in breakout minutes
+  credible exactly here, hence the s = 0.30 stress being binding. Monday's recorder must measure half-spreads in breakout minutes
   specifically.
 - **Knob count.** W, the range threshold, the efficiency-ratio threshold, b, three confirmation thresholds, the time
   stop, the partial level and the trail give roughly 10 knobs. Each has one preregistered value above, and none may
@@ -311,80 +367,101 @@ Against:
 | Item | Value | Source |
 |---|---|---|
 | NIFTY spot | 25,000 | `option_chain_poller.py` default; VERIFY live |
-| Lot / paper size | 65 / 25 lots = 1,625 units | `test_event_parity.py` fixture; `paper_scalp.py` `PAPER_TARGET_LOTS` |
-| Option fees | ₹20/order; STT 0.15% sell premium; exchange 0.03503% both sides; SEBI 0.0001%; stamp 0.003% buy; GST 18% | `config/charges.yaml` |
-| Option slippage (lab) | 0.20 pt/side + adverse half tick (0.025) | round-6/7 `fill()` |
+| Lot / paper size | 65 / 25 lots = 1,625 units | founder; `test_event_parity.py` fixture; `paper_scalp.py` `PAPER_TARGET_LOTS` |
+| Option charges | Dhan ₹20/order; STT 0.15% sell premium; exchange 0.0355299% both; SEBI 0.0001%; stamp 0.003% buy; GST 18% on brokerage + exchange + SEBI | founder (reproduces ₹70 / 1 lot and ₹625 / 25 lots at a 150 premium); `charges.yaml` exchange is 0.03503% (VERIFY) |
+| Option slippage s | **0.05 / 0.10 / 0.20 pt per side** (0.20 = lab assumption; 0.05-0.10 = realistic ATM spread) | founder |
+| Premiums and deltas | Black-76, IV 13%, overnight carries 25% of a day's variance, 11:00 | arith |
 | Futures fees | STT 0.05% sell (Budget 2026); exchange 0.00173%; stamp 0.002% buy | **not in `charges.yaml`; VERIFY** |
 | EM30 / σ30 | 27.4 / 34.3 index pts | lab / arith |
+| Average net decay b | κ × gross θ, κ = 0.12 (0.07-0.16 measured) | §1.2 |
 
 ### 2.2 Cost per round trip, and per index point of exposure (arith, 25 lots)
 
-| Instrument | Premium | δ | Fees | Slip | Total (opt pts) | **Per idx pt of δ** | at 0.10 half-spread | at 0.50 |
-|---|---|---|---|---|---|---|---|---|
-| NIFTY future | — | 1.00 | 14.1 (STT 12.5) | 1.0 (VERIFY) | 15.1 (**₹24.5k** at 25 lots) | **15.1** | 14.3 | 15.1 |
-| ATM CE, DTE 2 | 96 | 0.50 | 0.26 | 0.45 | 0.71 | **1.41** | 1.01 | 2.60 |
-| ITM100 CE, DTE 2 | 154 | 0.66 | 0.39 | 0.45 | 0.84 | **1.27** | 0.97 | 2.17 |
-| ITM200 CE, DTE 1 | 210 | 0.88 | 0.52 | 0.45 | 0.97 | **1.10** | 0.88 | 1.79 |
-| ITM200 CE, DTE 0, 10:00 | 200 | 0.99 | 0.50 | 0.45 | 0.95 | **0.96** | 0.76 | 1.56 |
-| Debit spread ATM/+200, DTE 2 | 68 | 0.30 | 2 legs | 2 legs | 1.25 | **4.21** | ~2.8 | ~8.2 |
+Each cell is **s = 0.05 / 0.10 / 0.20**.
+
+| Instrument | Premium | δ | Charges (pts) | All-in round trip (opt pts) | All-in (₹, 25 lots) | **Per index pt of δ** |
+|---|---|---|---|---|---|---|
+| NIFTY future | — | 1.00 | 14.1 (STT 12.5) | 14.2 / 14.3 / 14.5 idx pts | ₹23.1k / 23.3k / 23.6k | **14.2 / 14.3 / 14.5** |
+| ATM CE, DTE 2 | 130 | 0.50 | 0.34 | 0.44 / 0.54 / 0.74 | ₹715 / 878 / 1,203 | **0.87 / 1.07 / 1.47** |
+| ITM100 CE, DTE 2 | 186 | 0.62 | 0.47 | 0.57 / 0.67 / 0.87 | ₹926 / 1,089 / 1,414 | **0.91 / 1.08 / 1.40** |
+| ITM200 CE, DTE 1 | 231 | 0.79 | 0.58 | 0.68 / 0.78 / 0.98 | ₹1,099 / 1,262 / 1,587 | **0.86 / 0.99 / 1.24** |
+| ITM200 CE, DTE 0 | 206 | 0.91 | 0.52 | 0.62 / 0.72 / 0.92 | ₹1,005 / 1,167 / 1,492 | **0.68 / 0.79 / 1.01** |
+| Debit spread ATM/+200, DTE 2 | 76 net | 0.23 | 2 legs | 0.70 / 0.90 / 1.30 | ₹1,138 / 1,463 / 2,113 | **3.03 / 3.90 / 5.64** |
 
 What this says:
-- **Futures cost 10-15× more per index point than options.** Futures STT is on notional; option STT is on premium.
-- **Deep ITM near expiry is the cheapest delta a buyer can own.**
-- **Slippage is the swing factor for options.** Fees are 0.26-0.52 pt, lab slippage 0.45, and the realistic range is
-  0.25-1.05 depending on strike, DTE, time of day and 1,625-unit size.
-- **The two repo cost models disagree 7-10×**: the lab's 0.20 pt/side vs `costs.py`'s 1% of premium per side.
-- **Debit spreads** double the per-leg friction and cut delta, so they lose intraday.
+- **Futures cost 10-20× more per index point than options.** Futures STT is on notional; option STT is on premium.
+- **At s = 0.05, ATM, ITM100 and ITM200 cost almost the same per index point (0.87-0.91).** At s = 0.20, deep ITM is
+  clearly cheapest (1.01-1.24 vs 1.40-1.47). The strike choice therefore depends on the real spread of each strike.
+  If Monday's recorder shows ATM at 0.05 and ITM200 at 0.20, the per-delta cost is equal (0.87 vs 1.01-1.24), and ATM's
+  decay (§1.2) becomes the tie-breaker against it.
+- **Slippage is half the option round trip at s = 0.20** (₹650 of ₹1,275 at a 150 premium) and a fifth at s = 0.05
+  (₹163 of ₹788). STT is the largest charge (₹366 of ₹625).
+- **The two repo cost models disagree 7-12×**: the lab uses 0.20 pt/side, while `costs.py` uses 1% of premium per
+  side (1.3-2.3 pts/side at these premiums).
+- **Debit spreads** double the per-leg friction and cut delta, so they lose intraday at every slippage level.
 
 ### 2.3 Exits choose holding time; they do not create edge
 
-For any exit rule τ on a drift-plus-martingale path: E[gross] ≈ δ · μ̇ · E[τ] − (average decay) · E[τ]. An exit changes
-only E[τ] (and stop-fill quality). That is why round 7 found realised win rate tracking break-even within 0-6 points
-across 58 geometries. The W exit (1 EM stop / 2 EM target) is a ~38-minute hold: E[τ] = a·b/σ² ≈ 0.8 × 1.6 × 30 min.
-"54-59% reach +1 EM, and half of those still lose" is what a driftless martingale does.
+For any exit rule τ on a drift-plus-martingale path: E[gross] ≈ δ · μ̇ · E[τ] − b · E[τ]. An exit changes only E[τ]
+(and stop-fill quality). That is why round 7 found realised win rate tracking break-even within 0-6 points across 58
+geometries. The W exit (1 EM stop / 2 EM target) is a ~38-minute hold: E[τ] = a·b/σ² ≈ 0.8 × 1.6 × 30 min.
 
-The ₹2,200 random-entry loss (1.35 pts) decomposes, as a hypothesis to confirm (T2), into:
-- fees 0.39-0.52
-- slippage 0.45
-- ~38 minutes of net decay 0.14-0.30
-- stop-fill and gap-through residual 0.1-0.35
+**Decomposing the ₹2,200 random-entry loss** (1.35 option pts at 25 lots), per the founder's correction (arith; confirm
+in T2):
 
-The skilled analysts claw back ~₹1,000 (≈ 0.03 EM30). **§1's design is the one way around optional stopping that does
-not need slow drift.** It relies on predictable volatility clustering and post-breakout direction, which must be shown
-(TA2, TA1).
+| Component | ₹ at 25 lots | Option pts |
+|---|---|---|
+| Charges (premium 150-231) | ₹625-937 | 0.38-0.58 |
+| Slippage at s = 0.20 | ₹650 | 0.40 |
+| **All-in friction** | **₹1,275-1,587** | **0.78-0.98** |
+| Net decay over ~38 min (κ 0.07-0.16) | ₹210-480 | 0.13-0.30 |
+| Residual: stop fills at the next bar after the barrier, −₹30k gap-throughs | ₹130-715 | 0.08-0.44 |
+| **Total** | **₹2,200** | **1.35** |
+
+At s = 0.05 the friction line falls to ₹788-1,100, so a random entry would lose ~₹1,710 instead of ₹2,200. That
+is still a loss, because decay and stop mechanics remain. The skilled analysts claw back ~₹1,000 (≈ 0.03 EM30).
+**§1's design is the one way around optional stopping that does not need slow drift.** It relies on predictable
+volatility clustering and post-breakout direction, which must be shown (TA2, TA1).
 
 ### 2.4 Break-even for each buyer idea (time exits)
 
-k(h) = (c + b·h/30)/δ is the break-even mean move over a hold of h minutes, using **average** (net-of-gamma) decay b.
-p*(h) = Φ(k/σ_h) is the break-even direction hit rate. Measured skill: μ30 = 0.02-0.05 EM30 (0.55-1.37 pts).
-**Money is linear in μ, not in hit rate** (52% ⇒ 1.72 pts; 0.05 EM ⇒ 51.6%).
+k(h) = (C + b·h/30)/δ is the break-even mean move over a hold of h minutes. p*(h) = Φ(k/σ_h) is the break-even
+direction hit rate. Measured skill: μ30 = 0.02 EM30 (0.55 pts, OOS-like) to 0.05 EM30 (1.37 pts, DEV-like). **Money
+is linear in μ, not in hit rate** (52% ⇒ 1.72 pts; 0.05 EM ⇒ 51.6%). **Each cell is s = 0.05 / 0.10 / 0.20.**
 
-| Idea (buyer only) | c / δ / b | Required μ (pts) | EM30 | p* | Clears? |
+| Idea (buyer only) | δ / b per 30 min | Required μ (idx pts) | Required μ (EM30) | p* | Clears measured skill? |
 |---|---|---|---|---|---|
-| Intraday future, 30 min | 15.1 / 1 / 0 | 15.1 | 0.55 | 67.0% | **No** |
-| Future held to 15:15 (comparison) | 15.1 / 1 / 0 | 15.1 | 0.55 | 56.2% | **No** |
-| ITM100, 30-min hold (engine today) | 0.84 / 0.66 / 0.14 | 1.48 | 0.054 | 51.7% | No / marginal |
-| Deep ITM, 30 min | 0.95 / 0.88 / 0.08 | 1.17 | 0.043 | 51.4% | DEV-like only |
-| Debit spread, 30 min | 1.25 / 0.30 / 0.03 | 4.3 | 0.16 | 54.9% | **No** |
-| **Deep ITM held 120 min** (comparison) | 0.95 / 0.88 / 0.08 | 1.44 | 0.053 | 50.8% | Only if drift accrues |
-| **Deep ITM held to 15:15** (comparison) | same | 1.81 | 0.066 | 50.7% | Only if drift accrues |
-| Maker entry and exit, ITM100, 30 min (zero adverse selection) | 0.44 / 0.66 / 0.14 | 0.88 | 0.032 | 51.0% | Only with measured adverse selection |
-| Deep ITM on DTE 0, 30 min | 0.95 / 0.99 / ~0 | 0.96-1.56 | 0.035-0.057 | 51.1-51.8% | Only if 0DTE deep-ITM spreads are tight (**VERIFY**) |
+| Intraday future, 30 min | 1 / 0 | 14.2 / 14.3 / 14.5 | 0.52 / 0.52 / 0.53 | 66.1-66.4% | **No** (10-26× short) |
+| Future held to 15:15 (comparison) | 1 / 0 | same | same | 55.8-55.9% | **No** |
+| ITM100 DTE 2, 30-min hold (engine today) | 0.62 / 0.18 | 1.20 / 1.36 / 1.68 | 0.044 / 0.050 / 0.061 | 51.4 / 51.6 / 52.0% | DEV-like skill clears only at s = 0.05 (break-even at 0.10); OOS-like never |
+| ATM DTE 2, 30-min hold (arithmetic only; not recommended) | 0.50 / 0.18 | 1.24 / 1.44 / 1.83 | 0.045 / 0.052 / 0.067 | 51.4 / 51.7 / 52.1% | Same as ITM100, with worse quiet-market decay (§1.2) |
+| Deep ITM (ITM200 DTE 0, 11:00), 30 min | 0.91 / 0.16 | 0.86 / 0.97 / 1.19 | 0.031 / 0.035 / 0.043 | 51.0 / 51.1 / 51.4% | DEV-like yes at all s; OOS-like no |
+| ITM200 DTE 0 at 14:30, 30 min | 1.00 / 0.01 | 0.62 / 0.72 / 0.92 | 0.023 / 0.026 / 0.034 | 50.7 / 50.8 / 51.1% | DEV-like yes; OOS-like borderline. Only if deep-ITM 0DTE spreads are really ≤ 0.10 (**VERIFY**) |
+| Debit spread ATM/+200, 30 min | 0.23 / 0.03 | 3.16 / 4.03 / 5.77 | 0.115 / 0.147 / 0.211 | 53.7 / 54.7 / 56.7% | **No** |
+| Maker entry and exit, ITM100 (charges only, zero adverse selection) | 0.62 / 0.18 | 1.04 | 0.038 | 51.2% | Upper bound only; adverse selection is unmeasured |
+| **Deep ITM (ITM200 DTE 1) held 120 min** (comparison) | 0.79 / 0.17 | 1.74 / 1.86 / 2.12 | 0.063 / 0.068 / 0.077 | 51.0-51.2% | Only if drift accrues |
+| **Deep ITM held 225 min, 11:30 → 15:15** (comparison) | 0.79 / 0.17 | 2.51 / 2.63 / 2.89 (stress 3.51) | 0.091 / 0.096 / 0.105 (stress 0.128) | 51.1-51.2% | Only if drift accrues |
+| ITM100, 90-min time exit (CMP-B-like) | 0.62 / 0.18 | 1.76 / 1.92 / 2.24 | 0.064 / 0.070 / 0.082 | 51.2-51.5% | Only if drift accrues (and ITM100 is not deep, so CMP-B forces ITM200) |
 
-Long-hold net per trade, deep ITM (option pts per unit; comparison only):
+Long-hold net per trade, deep ITM (ITM200 DTE 1), option pts per unit; comparison only:
 
-| μ30 and accrual | 30 min | 60 min | 120 min | 240 min |
+| μ30, accrual, slippage | 30 min | 60 min | 120 min | 240 min |
 |---|---|---|---|---|
-| 0.02 EM30, linear | −0.55 | −0.15 | +0.66 | +2.27 |
-| 0.02 EM30, flat | −0.55 | −0.63 | −0.79 | −1.11 |
-| 0.05 EM30, linear | +0.18 | +1.30 | +3.55 | +8.05 |
-| 0.05 EM30, flat | +0.18 | +0.10 | −0.06 | −0.38 |
+| 0.02 EM30, linear, s = 0.05 | −0.42 | −0.16 | +0.36 | +1.39 |
+| 0.02 EM30, linear, s = 0.20 | −0.72 | −0.46 | +0.06 | +1.09 |
+| 0.02 EM30, flat, s = 0.05 | −0.42 | −0.59 | −0.94 | −1.63 |
+| 0.05 EM30, linear, s = 0.05 | +0.23 | +1.13 | +2.94 | +6.57 |
+| 0.05 EM30, linear, s = 0.20 | −0.07 | +0.83 | +2.64 | +6.27 |
+| 0.05 EM30, flat, s = 0.20 | −0.07 | −0.24 | −0.59 | −1.28 |
+
+Slippage is a fixed 0.30 pt shift. It matters for 30-minute trades and hardly at all for long holds, where decay (κθ)
+and the shape of the drift dominate.
 
 ### 2.5 The ₹30k cap is a hidden stop
 
-At 25 lots the cap is hit after **26 index pts** on ITM100 (δ 0.7) and **21 pts** on ITM200 (δ 0.88), i.e. **less than
-one EM30**. Long holds therefore need CAPLOTS of about 4-6 lots. BRK-BUY's structural stop (≈ 12 pts) sits well inside
-the cap, which is why it can run full VOLSIZE size.
+At 25 lots the cap is hit after **~30 index pts** on ITM100 (δ 0.62) and **~23 pts** on ITM200 (δ 0.79), about one
+EM30. Long holds therefore need CAPLOTS of about 4-6 lots. BRK-BUY's structural stop (≈ 15 pts including slippage)
+sits well inside the cap, which is why it can run full VOLSIZE size (CAPLOTS ≈ 45 at δ 0.62).
 
 ---
 
@@ -394,10 +471,10 @@ These exist to answer "is the active design better than simply holding a cheap d
 
 | ID | Spec | Sizing | Pass bar / placebos | Trials |
 |---|---|---|---|---|
-| **CMP-A Trend-hold, deep ITM** | Premise gate (T1): μ(to 15:15) ≥ 0.10 EM30 and μ(120) ≥ 1.6 × μ(30), t ≥ 2 on P0 and P1. Entry: first of {10:15, 11:30, 13:00} where ≥ 3 of the 4 trend analysts agree and none dissents, and s = \|close − TWAP\| / EM30 ≥ P1 q90. ITM200 (ITM300 if DTE ≥ 3). Exit 15:15; catastrophe stop 1.5 × EM30 × √(minutes left / 30). | min(VOLSIZE, CAPLOTS(0.9, stop)) ≈ 4-6 lots | §1.6.0; PL-SIDE, PL-TIME | 1 |
-| **CMP-B Engine entries, time exit, deep ITM** | Round-7 wide book (no logit gate). Strike forced to ITM200. Exit at entry + 90 min or 15:15. The same lots are applied to the signal-exit (XS) and engine-geometry (X0) comparators. | min(VOLSIZE, CAPLOTS(δ, 1.5 × EM30 × √3)) ≈ 6-9 | Also Δ vs XS and X0 > 0 at 1.5× on P1 and P2 | 1 + 3 diagnostics (60 min, 120 min, EOD) |
+| **CMP-A Trend-hold, deep ITM** | Premise gate (T1): μ(to 15:15) ≥ **0.13 EM30** (clears the stress case in §2.4) and μ(120) ≥ 1.6 × μ(30), t ≥ 2 on P0 and P1. Entry: first of {10:15, 11:30, 13:00} where ≥ 3 of the 4 trend analysts agree and none dissents, and strength z = \|close − TWAP\| / EM30 ≥ P1 q90. ITM200 (ITM300 if DTE ≥ 3). Exit 15:15; catastrophe stop 1.5 × EM30 × √(minutes left / 30). | min(VOLSIZE, CAPLOTS(0.9, stop)) ≈ 4-6 lots | §1.6.0; PL-SIDE, PL-TIME | 1 |
+| **CMP-B Engine entries, time exit, deep ITM** | Round-7 wide book (no logit gate). Strike forced to ITM200. Exit at entry + 90 min or 15:15. The same lots are applied to the signal-exit (XS) and engine-geometry (X0) comparators. | min(VOLSIZE, CAPLOTS(δ, 1.5 × EM30 × √3)) ≈ 6-9 | Also Δ vs XS and X0 > 0 under stress on P1 and P2 | 1 + 3 diagnostics (60 min, 120 min, EOD) |
 | **CMP-F One-night deep ITM** | After a trend day (\|C − O\| / (H − L) ≥ 0.6 and \|C − O\| ≥ 0.6 × ATR14), buy ITM300 on the next expiry ≥ 2 sessions away at 15:20; exit next day 15:15. Price-free premise first (T9). | CAPLOTS ≈ 1-2 | §1.6.0 | 1 |
-| **CMP-FUT Same signal as CMP-A in futures** | Same entry and exit as CMP-A. | CAPLOTS(1.0, stop) | Reported next to CMP-A. It is expected to fail on the 15.1-pt cost; it exists to put a number on the option-vs-future choice. | 1 |
+| **CMP-FUT Same signal as CMP-A in futures** | Same entry and exit as CMP-A. | CAPLOTS(1.0, stop) | Reported next to CMP-A. It is expected to fail on the 14.2-14.5-pt cost; it exists to put a number on the option-vs-future choice. | 1 |
 | **E Maker-entry overlay** (on BRK-BUY and CMP-A) | Rest a buy at the best bid for ≤ 2 minutes (BRK-BUY) or ≤ 3 (CMP-A). No chase: a miss counts as a missed trade at its taker P&L. Stops always cross. The history proxy (fill if a later LTP ≤ limit − 1 tick) is labelled PROXY and cannot pass. On real depth data (≥ 20 sessions): per-signal gain ≥ +0.2 pt, fill rate ≥ 60%. | overlay | Note: a breakout buyer is paying for urgency, so the passive fill rate on real breakouts may be low. That is exactly what E measures. | 1 (+1 proxy) |
 
 **Out of scope under the buyer steer:** iron flies, condors and credit spreads (7C's expiry-day long-straddle losses of
@@ -421,12 +498,17 @@ more side routers.
 3. **Reduced-form money backtests waste data.** Estimate the noisy term (follow-through / direction) price-free on 5
    years. Measure the low-variance terms (cost, decay) precisely from the chain and depth. Confirm with money runs.
 4. **Cost-model bias, both ways.**
-   - Two cost worlds in the repo (7-10× apart).
-   - Flat slippage is too generous for ITM200 at DTE 0-1, for the open and close, for burst minutes and for 1,625
-     units, and too harsh for ATM.
+   - **The ₹2,200 figure was being read as the round trip.** It is the random-entry loss under W, including decay and
+     stop-outs (§2.3). The true all-in round trip is ₹790-1,660 at 25 lots. Any doc or prompt quoting ₹2,200 as
+     "cost" overstates friction by 30-180%.
+   - Two cost worlds in the repo (7-12× apart), plus a small exchange-rate mismatch: founder 0.0355299% vs
+     `charges.yaml` 0.03503%.
+   - A flat s = 0.20 is too generous for ITM200 at DTE 0-1, for the open and close, for burst minutes and for 1,625
+     units, and too harsh for ATM (0.05-0.10). Hence every verdict is reported at 0.05 / 0.10 / 0.20 and at stress.
    - STT eras: 0.0625% → 0.10% (Oct 2024) → 0.15% (Apr 2026). That is +0.175 pt = ₹284 per trade at a 200-pt premium
      vs DEV-era rates.
-   - 7C's fly cost (5.4 pts) vs 2.6-2.9 by arithmetic (T7).
+   - 7C's fly cost (5.4 pts) is roughly double what the arithmetic gives (T7; flies are out of scope, but the same cost
+     code may be used elsewhere).
    - Exercise STT and BSE charges are missing.
 5. **Exact-strike proxy issues.**
    - **LTP staleness flatters momentum and breakout entries.** On thin ITM strikes the last trade can predate the
@@ -481,7 +563,7 @@ Offline on the lab box only. No broker calls, no engine or config change. Write
 | T5 | CMP-A and CMP-FUT | chain | Only if T1 passes. | §3 bar. | medium |
 | T7 | Cost reconciliation | lab `fees()` / `fill()` | STT era used by each round; build FC1; re-price the headline proxy. | Any ≥ 20% error ⇒ errata. | light |
 | T9 | CMP-F premise, then money | index, chain | Next-day continuation after trend days. | t ≥ 2 on P0 and P1. | light |
-| T10 | Monday measurement protocol | depth recorder | Half-spread and top-of-book size by strike (ATM, ITM100, ITM200, ITM300) × DTE × {09:15-09:30, normal, **breakout minutes**, 14:30+}; the cost of sweeping 1,625 units. After 10 sessions: replace interim HS. After 20: run overlay E and second-level time stops. | Burst half-spread ≥ 0.5 on the DTE-rule strike ⇒ recompute §1.3-1.4 before any BRK-BUY verdict. | n/a |
+| T10 | Monday measurement protocol | depth recorder | Half-spread and top-of-book size by strike (ATM, ITM100, ITM200, ITM300) × DTE × {09:15-09:30, normal, **breakout minutes**, 14:30+}; the cost of sweeping 1,625 units. After 10 sessions: replace the assumed slippage s with measured half-spreads. After 20: run overlay E and second-level time stops. | Burst half-spread > 0.30 (above the stress level) on the DTE-rule strike ⇒ recompute §1.3-1.4 before any BRK-BUY verdict. | n/a |
 
 Monday regardless of results: **no engine change.** At most, BRK-BUY and CMP-A/B go into the shadow log as
 counterfactual rows next to live entries, with VOLSIZE-7B as a counterfactual size column and written kill criteria.
@@ -512,14 +594,17 @@ The money primaries for Bonferroni are BRK-BUY, CMP-A, CMP-B, CMP-F, CMP-FUT and
   - HARI is the best move-size forecast (7B's scoring discrepancy is still open).
   - The logit side bias is a known defect.
   - Founder steer: buyer-only desk; no long ATM holds; long holds only in deep ITM or futures, as comparisons.
+  - Founder friction: Dhan ₹20/order, STT 0.15%, exchange 0.0355299%, stamp 0.003%, GST 18%, lot 65; slippage
+    0.05 / 0.10 / 0.20 per side. ₹2,200 is the random-entry loss, not the round trip.
 - **Rejected:**
   - Holding ITM100/ATM on slow drift: drift of 0.02-0.05 pts/min is below decay of 0.06-0.47 pts/min per delta.
   - "A better exit alone fixes it" (optional stopping).
-  - Intraday futures (₹24.5k per round trip at 25 lots).
+  - Intraday futures (₹23.1-23.6k per round trip at 25 lots).
   - Debit spreads intraday.
   - Writer-side structures (out of scope).
   - More side routers.
   - Hit rate as the skill metric.
+  - Quoting ₹2,200 as the round-trip cost.
 - **UNKNOWN / DATA_INSUFFICIENT:**
   - Follow-through base rates of box breakouts and the lift from confirmations (TA0/TA1).
   - Realised vs implied after breakouts (TA2).
