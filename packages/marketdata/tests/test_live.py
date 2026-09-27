@@ -10,6 +10,7 @@ import asyncio
 import json
 import logging
 import os
+import struct
 import subprocess
 import sys
 from datetime import datetime, timedelta
@@ -39,16 +40,27 @@ from marketdata import logsafe
 from marketdata.__main__ import setup_logging
 from marketdata.chain import ChainPoller, snapshot_from_chain
 from marketdata.config import RecorderConfig
-from marketdata.dhan_ws import LiveMarketData, MemoryPublisher, RedisPublisher, replay_tape
+from marketdata.dhan_ws import MEMORY_PUBLISHER_MAXLEN, LiveMarketData, MemoryPublisher, RedisPublisher, replay_tape
 from marketdata.frames import decode_frame_checked
 from marketdata.lookahead import lookahead_failures
-from marketdata.normalize import SecurityMap, stamp_exchange_ts, tick_from_packet, tick_payload
+from marketdata.normalize import SecurityMap, resolve_exchange_ts, stamp_exchange_ts, tick_from_packet, tick_payload
 from marketdata.types import BarClosed, SimClock
 
 NSE_IDX = "NSE_IDX:NIFTY"
 FUT = "NSE_FNO:NIFTY:2026-09-29"
 NSE_FNO_SEG = 2
 FUT_SID = 35000
+
+
+def _full(t: datetime, ltp: float, *, ltt: datetime | None = None, ltt_epoch: int | None = None) -> bytes:
+    epoch = dhan_ltt(ltt if ltt is not None else t) if ltt_epoch is None else ltt_epoch
+    return full_packet(FUT_SID, NSE_FNO_SEG, ltp, ltp - 0.05, ltp + 0.05, ltt_epoch=epoch)
+
+
+def _index_on_fut(ltp: float) -> bytes:
+    """INDEX response on the future: LTP only, no ``last_trade_time_epoch``."""
+    payload = struct.pack("<fI", ltp, 0)
+    return struct.pack("<BHBI", 1, 8 + len(payload), NSE_FNO_SEG, FUT_SID) + payload
 
 
 def _closed_emissions(pub: MemoryPublisher) -> list[tuple[BarClosed, datetime]]:
@@ -86,7 +98,7 @@ async def _run_live(
     end: datetime,
     *,
     hook: Any = None,
-    stale_after_s: float = 5.0,
+    stale_after_s: float = 3600.0,
     chain_fetch: Any = None,
     step: float = 0.1,
 ) -> tuple[LiveMarketData, FakeDhanServer, MemoryPublisher, list[dict[str, Any]]]:
@@ -166,23 +178,25 @@ def test_chain_poller_rate_limit_and_snapshot() -> None:
 def test_ticks_and_closed_bars_match_fixture(tmp_path: Path) -> None:
     async def hook(t: datetime, server: FakeDhanServer, _live: LiveMarketData) -> None:
         if t == ist(10, 0, 10):
-            await server.send(index_packet(13, 24500.0))
+            await server.send(_full(t, 24500.0))
         elif t == ist(10, 0, 40):
-            await server.send(index_packet(13, 24510.0))
+            await server.send(_full(t, 24510.0))
         elif t == ist(10, 1, 0):
-            await server.send(index_packet(13, 24520.0))
+            await server.send(_full(t, 24520.0))
 
     _live, _server, pub, _st = asyncio.run(_run_live(tmp_path, ist(10, 0), ist(10, 1, 2), hook=hook))
-    ticks = [p for p in pub.payloads("TICK") if p["instrument_id"] == NSE_IDX]
+    ticks = [p for p in pub.payloads("TICK") if p["instrument_id"] == FUT]
     assert [(round(p["ltp"], 2) if p["ltp"] is not None else None) for p in ticks] == [24500.0, 24510.0, 24520.0]
     for tick in ticks:
         assert tick["exchange_ts"].endswith("+05:30")
-    bars = [p for p in pub.payloads("BAR_CLOSED") if p["instrument_id"] == NSE_IDX and p["tf"] == "1m"]
+        assert tick["ts_source"] == "ltt"
+    bars = [p for p in pub.payloads("BAR_CLOSED") if p["instrument_id"] == FUT and p["tf"] == "1m"]
     assert len(bars) == 1
     bar = bars[0]
     assert bar["start"] == "2026-09-28T10:00:00+05:30"
     assert bar["end"] == "2026-09-28T10:01:00+05:30"
     assert (bar["o"], bar["h"], bar["l"], bar["c"]) == (24500.0, 24510.0, 24500.0, 24510.0)
+    assert bar["feed_quality"] == "OK"
     env = next(e for e in pub.of("BAR_CLOSED") if e["payload"] is bar)
     assert datetime.fromisoformat(env["available_ts"]) >= datetime.fromisoformat(bar["end"])
     assert datetime.fromisoformat(env["available_ts"]) <= datetime.fromisoformat("2026-09-28T10:01:00.100+05:30")
@@ -358,7 +372,11 @@ def test_stamp_exchange_ts_uses_packet_ltt() -> None:
     stamped = stamp_exchange_ts(fields, recv)
     assert stamped.startswith("2026-09-28T10:00:45")
     assert stamped.endswith("+05:30")
+    assert resolve_exchange_ts(fields, recv)[1] == "ltt"
     assert stamp_exchange_ts({}, recv).startswith("2026-09-28T10:01:05")
+    assert resolve_exchange_ts({}, recv) == (stamp_exchange_ts({}, recv), "recv")
+    assert resolve_exchange_ts({"last_trade_time_epoch": 0}, recv)[1] == "recv"
+    assert resolve_exchange_ts({"last_trade_time_epoch": None}, recv)[1] == "recv"
 
 
 def test_delayed_previous_minute_packet_is_late_not_in_ohlc(tmp_path: Path) -> None:
@@ -458,3 +476,95 @@ def test_live_data_never_constructs_order_or_trading_api(tmp_path: Path, monkeyp
 
     asyncio.run(_run_live(tmp_path, ist(10, 0), ist(10, 0, 3), hook=hook))
     assert constructed == []
+
+
+def test_zero_and_missing_ltt_do_not_change_open_bar_ohlc(tmp_path: Path) -> None:
+    """Zero LTT and missing LTT stay off the open bar; unstamped_ticks increments."""
+
+    async def hook(t: datetime, server: FakeDhanServer, _live: LiveMarketData) -> None:
+        if t == ist(10, 1, 0):
+            await server.send(_full(t, 100.0))
+        elif t == ist(10, 1, 5):
+            await server.send(_full(t, 999.0, ltt_epoch=0))
+            await server.send(_index_on_fut(888.0))
+        elif t == ist(10, 2, 0):
+            await server.send(_full(t, 101.0))
+
+    live, _server, pub, _st = asyncio.run(_run_live(tmp_path, ist(10, 0, 50), ist(10, 2, 2), hook=hook))
+    ticks = [p for p in pub.payloads("TICK") if p["instrument_id"] == FUT]
+    sources = [p["ts_source"] for p in ticks]
+    assert "recv" in sources
+    assert sources.count("recv") == 2
+    bars = [p for p in pub.payloads("BAR_CLOSED") if p["instrument_id"] == FUT]
+    bar = next(p for p in bars if p["start"].startswith("2026-09-28T10:01:00"))
+    assert (bar["o"], bar["h"], bar["l"], bar["c"]) == (100.0, 100.0, 100.0, 100.0)
+    assert 999.0 not in (bar["o"], bar["h"], bar["l"], bar["c"])
+    assert 888.0 not in (bar["o"], bar["h"], bar["l"], bar["c"])
+    assert bar["unstamped_ticks"] == 2
+    assert live.unstamped_tick_count == 2
+    assert lookahead_failures(_closed_emissions(pub)) == []
+
+
+def test_stale_then_down_gap_publishes_no_clean_bar(tmp_path: Path) -> None:
+    """UP → STALE → DOWN → UP: no clean BAR_CLOSED for the gap interval."""
+
+    async def hook(t: datetime, server: FakeDhanServer, _live: LiveMarketData) -> None:
+        if t == ist(10, 0, 1):
+            await server.send(_full(t, 100.0))
+        if t == ist(10, 0, 12):
+            await server.drop_clients()
+            await until(lambda: server.connections >= 2 and len(server.subscribed) == 8, timeout=10)
+        if t >= ist(10, 0, 20) and t.microsecond == 0 and t.second % 2 == 0:
+            await server.send(index_packet(13, 24512.35))
+        if t == ist(10, 1, 0):
+            await server.send(_full(t, 101.0))
+        if t == ist(10, 2, 0):
+            await server.send(_full(t, 102.0))
+
+    live, _server, pub, statuses = asyncio.run(
+        _run_live(tmp_path, ist(10, 0), ist(10, 2, 2), hook=hook, stale_after_s=5.0)
+    )
+    seq = [s["status"] for s in statuses]
+    assert "UP" in seq
+    assert "STALE" in seq
+    assert "DOWN" in seq
+    gap = [p for p in pub.payloads("BAR_CLOSED") if p["start"].startswith("2026-09-28T10:00:00")]
+    assert gap == []
+    later = [p for p in pub.payloads("BAR_CLOSED") if p["start"].startswith("2026-09-28T10:01:00")]
+    assert later
+    assert later[0]["feed_quality"] == "OK"
+    assert (later[0]["o"], later[0]["c"]) == (101.0, 101.0)
+    assert live.suppressed_bars >= 1
+    assert lookahead_failures(_closed_emissions(pub)) == []
+
+
+def test_memory_publisher_caps_after_50k_envelopes() -> None:
+    pub = MemoryPublisher()
+    assert pub.maxlen == MEMORY_PUBLISHER_MAXLEN
+    for i in range(50_000):
+        pub.publish({"event_type": "TICK", "n": i, "stream": "md:ticks"})
+    assert len(pub.events) == MEMORY_PUBLISHER_MAXLEN
+    assert pub.events[0]["n"] == 50_000 - MEMORY_PUBLISHER_MAXLEN
+    assert pub.events[-1]["n"] == 49_999
+
+
+def test_import_dhan_ws_does_not_load_execution_or_order_client() -> None:
+    """Subprocess: import marketdata.dhan_ws must not load the order facade."""
+    proc = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            (
+                "import sys, marketdata.dhan_ws\n"
+                "bad = [m for m in sys.modules if 'execution' in m or m == 'dhan_client.client']\n"
+                "assert not bad, bad\n"
+                "print('ok')\n"
+            ),
+        ],
+        env=_empty_env(),
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+    assert "ok" in proc.stdout
