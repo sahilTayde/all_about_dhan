@@ -116,9 +116,11 @@ class OrderRouter:
         store: MemoryLedger | None = None,
         bus: MemoryBus | None = None,
         rates: LastGood | None = None,
+        controls: Any | None = None,
     ) -> None:
         self.clock = clock
         self.risk = risk
+        self.controls = controls
         raw: object = broker if broker is not None else make_broker(mode="paper", clock=clock)
         self.broker = require_paper_broker(raw)
         self.store = store if store is not None else MemoryLedger()
@@ -135,6 +137,34 @@ class OrderRouter:
             return
         got = self.rates.get()
         self.store.rates = got
+
+    def _founder_entry_veto(
+        self,
+        oid: str,
+        instrument_id: str,
+        lots: int,
+        plan: EntryPlan,
+        decision: Decision,
+    ) -> Veto | None:
+        """PAUSE / STOP / INDEX / BASKET_REMOVE / SET_LOTS / KILL consult the CommandBook."""
+        ctl = self.controls
+        if ctl is None:
+            return None
+        now = self.clock.now()
+        und = ""
+        if instrument_id:
+            und = underlying_from_instrument(instrument_id)
+        elif getattr(decision, "underlying", None):
+            und = str(decision.underlying)
+        sid = str(getattr(plan, "signal_id", "") or "")
+        why = ctl.allows_entry(now, underlying=und, strategy_id=sid)
+        if why:
+            return self._veto(oid, why, why)
+        book = ctl.book()
+        cap = book.state_at(now.timestamp()).lots
+        if cap is not None and lots > int(cap):
+            return self._veto(oid, "FOUNDER_LOTS_CAP", f"{lots} lots exceeds SET_LOTS ({cap})")
+        return None
 
     def _intent(
         self,
@@ -197,6 +227,9 @@ class OrderRouter:
         lot_size = lot_size_for(instrument_id)
         if decision.lot_size is not None and int(decision.lot_size) != lot_size:
             return self._lot_mismatch_veto(oid, int(decision.lot_size), lot_size, "decision")
+        blocked = self._founder_entry_veto(oid, instrument_id, lots, plan, decision)
+        if blocked is not None:
+            return blocked
         stop = _catastrophic_price(plan, decision)
         intent = self._intent(
             client_order_id=oid,

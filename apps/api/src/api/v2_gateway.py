@@ -7,7 +7,8 @@ available_ts in the future are refused. Legacy /ui/* and /ws/* stay as they are.
 Identity is the paper token only (JWT is V2-23). A client-supplied role is
 never trusted. Missing/unknown token = customer. Subscribe cannot change
 token or role. Control routes are localhost-only unless the founder token
-is present (V2-13 auth on).
+is present (V2-13 auth on). The `founder` token is a label, not auth, and
+must be replaced before any non-localhost deploy.
 """
 
 from __future__ import annotations
@@ -817,28 +818,78 @@ async def v2_ws(
         hub.disconnect(client)
 
 
-def attach_gateway(app: Any, bus: EventBus | None = None) -> GatewayHub:
-    import tempfile
+def desk_state_dir() -> Path:
+    """Persistent desk root (same tree as the ledger). Tests set AAD_STATE_DIR."""
+    import sys
 
+    env = os.environ.get("AAD_STATE_DIR")
+    if env:
+        return Path(env)
+    # pytest collection imports create_app() before PYTEST_CURRENT_TEST exists.
+    if os.environ.get("PYTEST_CURRENT_TEST") or "pytest" in sys.modules:
+        import tempfile
+
+        return Path(tempfile.mkdtemp(prefix="aad-ctl-"))
+    return Path.cwd()
+
+
+def _wire_paper_desk(
+    handler: Any, clock: Any, bus: EventBus | None, root: Path
+) -> None:
+    """Paper router + manager so HTTP KILL/FLATTEN actually flatten. Never DhanBroker."""
+    from brokers.factory import make_broker  # type: ignore[import-untyped]
+    from oms import OrderRouter, PositionManager  # type: ignore[import-untyped]
+    from oms.ledger_stub import MemoryLedger  # type: ignore[import-untyped]
+    from risk_engine.last_good import V2RiskEngine  # type: ignore[import-untyped]
+
+    store = MemoryLedger()
+    risk = V2RiskEngine(ledger=store, root=root, bus=bus)
+    broker = make_broker(mode="paper", clock=clock)
+    router = OrderRouter(
+        clock=clock, risk=risk, broker=broker, store=store, bus=bus, controls=handler
+    )
+    manager = PositionManager(clock=clock, router=router, store=store, bus=bus)
+    handler.manager = manager
+    handler.risk = risk
+    handler._sync_lots_cap()
+
+
+def attach_gateway(app: Any, bus: EventBus | None = None) -> GatewayHub:
     from control.handler import ControlHandler
     from control.tokens import ConfirmTokens
 
-    hub = GatewayHub(bus)
+    now_raw = os.environ.get("AAD_NOW")
+    clock = None
+    if now_raw:
+        from contracts.clock import SimClock
+
+        dt = datetime.fromisoformat(now_raw)
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=IST)
+        clock = SimClock(dt)
+    hub = GatewayHub(bus, clock=clock)
     app.state.v2_hub = hub
     app.state.v2_bus = bus
     handler = getattr(app.state, "v2_control", None)
     if handler is None:
-        env_root = os.environ.get("AAD_STATE_DIR")
-        root = Path(env_root) if env_root else Path(tempfile.mkdtemp(prefix="aad-ctl-"))
+        root = desk_state_dir()
+        ledger_dir = root / "data" / "ledger"
+        ledger_dir.mkdir(parents=True, exist_ok=True)
         handler = ControlHandler(
             bus=bus,
             clock=hub.clock,
             root=root,
-            kill_switch_path=root / "KILL_SWITCH",
+            kill_switch_path=ledger_dir / "KILL_SWITCH",
         )
+        _wire_paper_desk(handler, hub.clock, bus, root)
         app.state.v2_control = handler
+        app.state.v2_desk_root = root
         if bus is not None:
-            bus.subscribe(["FOUNDER_COMMAND"], handler.on_bus_event, priority=0)
+
+            def _on_cmd(event: Event) -> None:
+                handler.on_bus_event(event)
+
+            bus.subscribe(["FOUNDER_COMMAND"], _on_cmd, priority=0)
     if getattr(app.state, "v2_tokens", None) is None:
         app.state.v2_tokens = ConfirmTokens()
     return hub

@@ -49,6 +49,7 @@ def test_v2_11_command_table_applied(tmp_path: object, kind: str, args: dict) ->
         ("PAUSE", {"minutes": -1}, "minutes"),
         ("PAUSE", {"minutes": 99999}, "minutes"),
         ("SET_LOTS", {"lots": 0}, "lots"),
+        ("SET_LOTS", {"lots": 26}, "lots"),
         ("INDEX", {"underlying": "nifty", "enabled": True}, "underlying"),
         ("INDEX", {"underlying": "NIFTY"}, "enabled"),
         ("BASKET_REMOVE", {}, "strategy_id"),

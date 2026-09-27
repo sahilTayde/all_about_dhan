@@ -27,7 +27,7 @@ REPO = Path(__file__).resolve().parents[3]
 def write_risk_cfg(tmp_path: Path, **overrides: Any) -> Path:
     cfg = yaml.safe_load((REPO / "config" / "risk_limits.yaml").read_text())
     cfg.update(overrides)
-    cfg["kill_switch_file"] = str(tmp_path / "KILL_SWITCH")
+    cfg["kill_switch_file"] = str(tmp_path / "data" / "ledger" / "KILL_SWITCH")
     path = tmp_path / "risk_limits.yaml"
     path.write_text(yaml.safe_dump(cfg))
     return path
@@ -116,7 +116,7 @@ def make_handler(tmp_path: Path, clock: SimClock | None = None, **kw: Any) -> Co
         clock=clock,
         manager=manager,
         risk=kw.pop("risk", manager.router.risk if manager is not None else None),
-        kill_switch_path=tmp_path / "KILL_SWITCH",
+        kill_switch_path=tmp_path / "data" / "ledger" / "KILL_SWITCH",
         bus=kw.pop("bus", None),
         **kw,
     )

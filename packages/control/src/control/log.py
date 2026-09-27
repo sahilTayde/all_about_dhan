@@ -23,7 +23,8 @@ class ReadResult:
 
 
 def log_path(root: Path) -> Path:
-    return Path(root) / "data" / "recon" / LOG_NAME
+    """Same directory as the v2 ledger (`data/ledger/`)."""
+    return Path(root) / "data" / "ledger" / LOG_NAME
 
 
 def append_command(root: Path, row: dict[str, Any]) -> dict[str, Any]:
@@ -37,7 +38,9 @@ def append_command(root: Path, row: dict[str, Any]) -> dict[str, Any]:
     existing = read_commands(root)
     for prev in existing.rows:
         if str(prev.get("command_id") or prev.get("id")) == cid:
-            return prev
+            if prev.get("status") == row.get("status") and prev.get("applied_ts") == row.get("applied_ts"):
+                return prev
+            break
     _drop_torn_tail(path)
     line = json.dumps(row, separators=(",", ":"), allow_nan=False) + "\n"
     with path.open("ab") as fh:
@@ -90,7 +93,7 @@ def read_commands(root: Path, *, path: Path | None = None) -> ReadResult:
         last_good = max(last_good, float(ts_of(row.get("ts") or row["available_ts"])))
         cid = str(row.get("command_id") or row["id"])
         if cid in seen:
-            continue
+            out.rows = [r for r in out.rows if str(r.get("command_id") or r.get("id")) != cid]
         seen.add(cid)
         out.rows.append(row)
     return out

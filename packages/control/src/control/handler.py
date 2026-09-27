@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from contextlib import suppress
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -52,11 +53,15 @@ class ControlHandler:
         self.bus = bus
         self.manager = manager
         self.risk = risk
-        default_kill = (self.root / KILL_NAME) if self.root is not None else Path(KILL_NAME)
+        default_kill = self.root / "data" / "ledger" / KILL_NAME if self.root is not None else Path(KILL_NAME)
         self.kill_switch_path = Path(kill_switch_path) if kill_switch_path is not None else default_kill
         self.ledger = ledger
         self.last_ack: dict[str, Any] | None = None
         self.entry_orders: list[str] = []
+        self._hydrate_store()
+        self._sync_lots_cap()
+        if self.manager is not None:
+            self.manager.router.controls = self
 
     def book(self) -> CommandBook:
         if self.root is None:
@@ -110,8 +115,6 @@ class ControlHandler:
             self.last_ack = stored
             self._publish_ack(stored)
             return stored
-        if self.root is not None:
-            append_command(self.root, stored)
         if self.ledger is not None and hasattr(self.ledger, "record_founder_command"):
             self.ledger.record_founder_command(stored)
         ack = self._run(stored)
@@ -137,7 +140,9 @@ class ControlHandler:
             return self._ack(row, "rejected", "CONTROL_MUST_NOT_PLACE_ENTRY")
         extra = {"who": row["actor"], "when": row["available_ts"], "why": row["reason"]}
         extra.update(detail)
-        return self._ack(row, "applied", None, extra)
+        ack = self._ack(row, "applied", None, extra)
+        self._sync_lots_cap()
+        return ack
 
     def _apply_exit(self, row: dict[str, Any]) -> dict[str, Any]:
         kind = canonical_kind(str(row["kind"]))
@@ -146,11 +151,13 @@ class ControlHandler:
             rd = self.risk.check_flatten(now=now)
             if not getattr(rd, "approved", False):
                 raise RuntimeError(getattr(rd, "reason_code", None) or getattr(rd, "reason", "RISK_VETO"))
+        cancelled: list[str] = []
         if kind == "KILL":
             self.kill_switch_path.parent.mkdir(parents=True, exist_ok=True)
             self.kill_switch_path.write_text("on\n", encoding="utf-8")
             if self.manager is not None:
                 self.manager.kill_switch = True
+            cancelled = self._cancel_working_entries()
         fired: list[str] = []
         if self.manager is not None:
             args = dict(row.get("args") or {})
@@ -198,7 +205,7 @@ class ControlHandler:
                     )
                     for req in self.manager.on_market(env):
                         fired.append(req.reason)
-        return {"exits": fired, "kind": kind}
+        return {"exits": fired, "kind": kind, "cancelled_entries": cancelled}
 
     def _targets(self, kind: str, args: dict[str, Any]) -> list[dict[str, Any]]:
         if self.manager is None:
@@ -220,6 +227,46 @@ class ControlHandler:
             und = str(args["underlying"]).upper()
             return [p for p in open_pos if und in str(p.get("instrument_id") or "").upper()]
         return []
+
+    def _cancel_working_entries(self) -> list[str]:
+        """Cancel every unfilled ENTRY. Never places a new entry."""
+        if self.manager is None:
+            return []
+        router = self.manager.router
+        broker = router.broker
+        cancelled: list[str] = []
+        for order in list(getattr(broker, "orders", {}).values()):
+            intent = getattr(order, "intent", None)
+            if getattr(intent, "purpose", "") != "ENTRY":
+                continue
+            if not getattr(order, "is_open", False):
+                continue
+            rd = router.risk.check_exit(intent, "CANCEL", now=self.clock.now())
+            broker.cancel_order(order, rd, reason="FOUNDER_KILL")
+            cancelled.append(str(order.client_order_id))
+        return cancelled
+
+    def _hydrate_store(self) -> None:
+        if self.root is None:
+            return
+        for row in read_commands(self.root).rows:
+            cid = str(row.get("command_id") or row.get("id") or "")
+            if not cid or self.store.get(cid) is not None:
+                continue
+            self.store.put_if_absent(row)
+        if self.ledger is not None and hasattr(self.ledger, "list_founder_commands"):
+            for row in self.ledger.list_founder_commands():
+                cid = str(row.get("command_id") or row.get("id") or "")
+                if not cid or self.store.get(cid) is not None:
+                    continue
+                self.store.put_if_absent(row)
+
+    def _sync_lots_cap(self) -> None:
+        if self.risk is None:
+            return
+        now = self.clock.now()
+        cap = self.book().state_at(now.timestamp()).lots
+        self.risk.lots_cap = cap
 
     def _rearm(self) -> dict[str, Any]:
         if self.kill_switch_path.exists():
@@ -259,6 +306,9 @@ class ControlHandler:
             stored.update(extra)
         if self.ledger is not None and cid and hasattr(self.ledger, "ack_founder_command"):
             self.ledger.ack_founder_command(cid, status, reason, applied)
+        if self.root is not None:
+            with suppress(ValueError):
+                append_command(self.root, stored)
         self.last_ack = stored
         self._publish_ack(stored)
         return stored

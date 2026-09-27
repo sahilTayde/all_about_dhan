@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import math
+import os
 import re
 from bisect import bisect_right
 from dataclasses import dataclass, field, replace
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 from typing import Any
 
 IST = timezone(timedelta(hours=5, minutes=30))
@@ -37,6 +39,8 @@ BLOCKED_WINDOW = "FOUNDER_BLOCKED_WINDOW"
 INDEX_DISABLED = "FOUNDER_INDEX_DISABLED"
 BELOW_MIN_CAPITAL = "FOUNDER_MIN_CAPITAL"
 BASKET_REMOVED = "FOUNDER_BASKET_REMOVED"
+LOTS_CAP = "FOUNDER_LOTS_CAP"
+DEFAULT_LOTS_CEILING = 25
 
 MAX_PAUSE_MINUTES = 24 * 60
 MAX_WINDOWS = 12
@@ -79,6 +83,24 @@ def canonical_kind(kind: str) -> str:
     return _KIND_ALIAS.get(kind, kind)
 
 
+def lots_ceiling(path: Path | None = None) -> int:
+    """Paper max_lots_per_trade from config/risk_limits.yaml (currently 25)."""
+    src = path
+    if src is None:
+        env = os.environ.get("AAD_RISK_LIMITS")
+        src = Path(env) if env else Path(__file__).resolve().parents[4] / "config" / "risk_limits.yaml"
+    try:
+        import yaml  # type: ignore[import-untyped]
+
+        cfg = yaml.safe_load(Path(src).read_text(encoding="utf-8")) or {}
+        mode = str(cfg.get("mode") or "paper")
+        raw = ((cfg.get("modes") or {}).get(mode) or {}).get("max_lots_per_trade")
+        n = int(raw) if raw is not None else DEFAULT_LOTS_CEILING
+        return n if n >= 1 else DEFAULT_LOTS_CEILING
+    except Exception:
+        return DEFAULT_LOTS_CEILING
+
+
 def validate_args(kind: str, args: Any) -> str | None:
     kind = canonical_kind(kind)
     if not isinstance(args, dict):
@@ -116,8 +138,9 @@ def validate_args(kind: str, args: Any) -> str | None:
         n = args.get("lots")
         if n is None:
             return None
-        if isinstance(n, bool) or not isinstance(n, int) or n < 1:
-            return "lots must be a whole number >= 1 (or null to clear)"
+        ceil = lots_ceiling()
+        if isinstance(n, bool) or not isinstance(n, int) or n < 1 or n > ceil:
+            return f"lots must be a whole number 1..{ceil} (or null to clear)"
         return None
     if kind == "INDEX":
         if not isinstance(args.get("underlying"), str) or not _INDEX.match(str(args["underlying"])):

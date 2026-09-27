@@ -1,5 +1,25 @@
 # Handoff log — Team 07 Coding
 
+## As of now (2026-09-28 IST) — V2-11 fix round (PR #61 verifier)
+
+```text
+From:     teams/07_coding
+To:       founder / 00 / 09
+Date:     2026-09-28
+Status:   PAPER / V2-11 / NO_PROMOTE / no live orders
+Accepted: Normal merge of PR #49 head 65fea643 (lot-size guards).
+  OrderRouter.submit consults CommandBook: PAUSE/STOP/INDEX/
+  BASKET_REMOVE veto entries; SET_LOTS caps lots (ceiling from
+  config/risk_limits.yaml paper max_lots_per_trade=25).
+  KILL cancels working ENTRY orders and flattens via the wired
+  paper manager. Command log JSONL under data/ledger (same tree
+  as the ledger); resent command_id after restart is a no-op.
+  attach_gateway uses AAD_STATE_DIR or cwd (not mkdtemp on the
+  real api). Founder token is a label, not auth.
+Rejected: Rebase / force-push. DhanBroker. requirements/* edits.
+UNKNOWN: retarget to main after #45, #49, #58 merge.
+```
+
 ## As of now (2026-09-27 IST) — V2-11 founder controls v2 (PAPER)
 
 ```text
