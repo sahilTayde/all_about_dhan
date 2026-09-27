@@ -273,10 +273,34 @@ Check a file before shipping it:
 `PYTHONPATH=packages/strategy-basket/src python -m strategy_basket validate data/shadow/basket/lab/basket_india.json`
 (exit 1 on any reject).
 
-## Parity on the recorded Sep 17–25 tapes (local only)
+## Parity against main `ec91e9e` (SHADOW_LOG=0, basket off)
 
-The dual-tape files are not in git, so CI proves parity on the committed fixture day. On a machine
-that has the tapes, run:
+Quoted Sep 17–25 dual-tape live-session totals on main after the closed-bar logit fix (#25).
+These are the numbers a basket-off legacy replay must match:
+
+| Run | Trades | Net INR |
+|---|---:|---:|
+| NIFTY | 63 | −96,190.79 |
+| NIFTY + BANKNIFTY + SENSEX | 140 | −27,022.54 |
+| Lab P2C | 36 | +110,000.29 |
+
+Lab P2C is a separate stack (loss cooldown, session window 10:00–14:30). `replay_paper_scalp` does
+not have those rules, so the checker records the quote and does not recompute it.
+
+```bash
+PYTHONPATH=packages/strategy-basket/src python -m strategy_basket baselines
+```
+
+The command forces `SHADOW_LOG=0`, clears `USE_BASKET_SELECTOR` and `USE_EVENT_BUS`, and walks each
+day on the legacy path (`use_event_bus=False`). Exit 0 when both replay totals match. Exit 2 when
+this machine has no dual-tape days (not a pass, not a mismatch). Exit 1 when a total differs.
+It restores the three env vars before it returns.
+
+The dual-tape files are not in git, so CI proves the basket-off path on the committed fixture day.
+With `SHADOW_LOG=0`, the monolith replay and `BasketEventSession` with the flag off produce the same
+closed trades, open tickets, and skip counts.
+
+On a machine that has the tapes, the selector-on comparison is:
 
 ```bash
 PYTHONPATH=packages/strategy-basket/src python -m strategy_basket parity --since 2026-09-17 --until 2026-09-25
@@ -284,6 +308,6 @@ PYTHONPATH=packages/strategy-basket/src python -m strategy_basket parity --since
 
 For each day it replays the legacy path, then the event path with the selector forced on (rows go
 to a temporary directory), and compares closed trades and skip counts. It prints `PARITY` or
-`MISMATCH` per day and the totals. The legacy NIFTY total must still read 66 trades / −128,730.49.
-Pass extra replay kwargs with `--kw key=json`, as `desk_ml.event_parity` accepts them. With the flag
-off, the selector never runs, so the legacy replay is unchanged by construction.
+`MISMATCH` per day and the totals. The legacy NIFTY total on that run must still read 63 trades /
+−96,190.79. Pass extra replay kwargs with `--kw key=json`, as `desk_ml.event_parity` accepts them.
+With the flag off, the selector never runs, so the legacy replay is the main path.

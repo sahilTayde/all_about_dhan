@@ -2,6 +2,7 @@
 
 import copy
 import json
+import os
 import random
 from dataclasses import replace
 from datetime import datetime
@@ -17,9 +18,9 @@ from desk_ml.regime.labels import IST
 from events import MemoryBus
 from strategy_basket.entry import impulse_mid, last_fvg, measure, point_of_control, stretch_atr, verdict
 from strategy_basket.basket import (
-    REGIME_KEYS, BasketBus, BasketError, BasketEventSession, BasketShadow, attach_from_settings, basket_parity, for_session,
-    load_basket, load_lab, load_lab_basket, load_settings, parse_card, preopen_regime, regime_from_label,
-    select_basket, shadow_from_settings,
+    MAIN_LAB_BASELINE, MAIN_REPLAY_BASELINES, REGIME_KEYS, BasketBus, BasketError, BasketEventSession, BasketShadow,
+    attach_from_settings, basket_parity, check_main_baselines, for_session, legacy_replay_total, load_basket, load_lab,
+    load_lab_basket, load_settings, parse_card, preopen_regime, regime_from_label, select_basket, shadow_from_settings,
 )
 
 REPO = Path(__file__).resolve().parents[3]
@@ -491,6 +492,45 @@ def test_shadow_log_is_deterministic_and_says_no_orders(replays):
     s1._seen.clear()
     s1._write(rows[0]["day"], s1.rows[0])  # a re-replay (live loop) must not append the same row twice
     assert len(f1.read_text(encoding="utf-8").splitlines()) == len(rows)
+
+
+def _board(board):
+    return json.dumps(
+        {k: board.get(k) for k in ("closed_trades", "open_trades", "skip_reason_counts")},
+        sort_keys=True, default=str)
+
+
+def test_shadow_log_off_basket_off_matches_the_legacy_replay(fx, tmp_path, monkeypatch):
+    """SHADOW_LOG=0 and the selector off: BasketEventSession is the legacy board, byte for byte."""
+    monkeypatch.setenv("SHADOW_LOG", "0")
+    monkeypatch.delenv("USE_BASKET_SELECTOR", raising=False)
+    monkeypatch.delenv(ps.USE_EVENT_BUS_ENV, raising=False)
+    fx["triples"] = fx["triples"][:600]
+    legacy = _replay(fx, tmp_path / "legacy", use_event_bus=False)
+    session = BasketEventSession()
+    hooked = _replay(fx, tmp_path / "hooked", event_session=session)
+    assert session.basket_bus is None
+    assert _board(legacy) == _board(hooked)
+    assert "basket_shadow" not in (hooked.get("event_bus") or {})
+    assert list((tmp_path / "hooked").glob("data/shadow/**/*.jsonl")) == []
+
+
+def test_main_baseline_quotes_and_no_tapes_is_not_a_pass(tmp_path, monkeypatch):
+    assert MAIN_REPLAY_BASELINES == (
+        ("NIFTY", ("NIFTY",), 63, -96190.79),
+        ("ALL", ("NIFTY", "BANKNIFTY", "SENSEX"), 140, -27022.54),
+    )
+    assert MAIN_LAB_BASELINE == ("LAB_P2C", 36, 110000.29)
+    monkeypatch.setenv("SHADOW_LOG", "1")
+    monkeypatch.setenv("USE_BASKET_SELECTOR", "1")
+    monkeypatch.setenv("USE_EVENT_BUS", "1")
+    empty = legacy_replay_total(tmp_path, ("NIFTY",))
+    assert empty["n_trades"] == 0 and empty["days"] == [] and empty["shadow_log"] == "0"
+    assert os.environ["SHADOW_LOG"] == "1" and os.environ["USE_BASKET_SELECTOR"] == "1"
+    report = check_main_baselines(tmp_path)
+    assert report["ok"] is None and report["reason"] == "no_tapes" and report["runs"] == []
+    assert report["lab"]["expected_trades"] == 36 and report["lab"]["expected_net_pnl_inr"] == 110000.29
+    assert "not replay_paper_scalp" in report["lab"]["reason"]
 
 
 def test_parity_helper_reports_parity_and_writes_nothing_to_the_repo(fx, tmp_path):

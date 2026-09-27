@@ -18,6 +18,7 @@ without touching boss code; the one-line integration point and the schema are in
 
     python -m strategy_basket validate data/shadow/basket/lab/basket_india.json   # lab: check a file before shipping it
     python -m strategy_basket off | on | status                     # founder control
+    python -m strategy_basket baselines                             # SHADOW_LOG=0 legacy replay vs main ec91e9e
 """
 
 from __future__ import annotations
@@ -789,6 +790,79 @@ def BasketEventSession(**kw: Any) -> Any:  # noqa: N802 - reads like the class i
     return _event_session_class()(**kw)
 
 
+# --------------------------------------------------------------- main baselines (basket off)
+
+
+# Sep 17-25 dual-tape totals on main ec91e9e, SHADOW_LOG=0, basket off, live-session replay.
+# Lab P2C is a separate stack (loss cooldown, 10:00-14:30). replay_paper_scalp does not have it.
+MAIN_REPLAY_BASELINES = (
+    ("NIFTY", ("NIFTY",), 63, -96190.79),
+    ("ALL", ("NIFTY", "BANKNIFTY", "SENSEX"), 140, -27022.54),
+)
+MAIN_LAB_BASELINE = ("LAB_P2C", 36, 110000.29)
+
+
+_REPLAY_ENV = ("SHADOW_LOG", "USE_BASKET_SELECTOR", "USE_EVENT_BUS")
+
+
+def legacy_replay_total(root: Path, underlyings: Sequence[str], *, since: str = "2026-09-17",
+                        until: str = "2026-09-25") -> dict[str, Any]:
+    """One index walk per day, the legacy path only. Basket code is not called. SHADOW_LOG=0.
+
+    Restores the three env vars it touches, so a check cannot change a later replay in-process.
+    """
+    from desk_ml.paper_scalp import list_fix_first_days, replay_paper_scalp
+
+    saved = {k: os.environ.get(k) for k in _REPLAY_ENV}
+    try:
+        os.environ["SHADOW_LOG"] = "0"
+        os.environ.pop("USE_BASKET_SELECTOR", None)
+        os.environ.pop("USE_EVENT_BUS", None)
+        days = [d for d in list_fix_first_days(root=root, since=since) if d <= until]
+        n, net = 0, 0.0
+        for day in days:
+            board = replay_paper_scalp(
+                root=root, underlyings=tuple(underlyings), source="dual-tape", write=False,
+                live_session=True, session_ist_date=day, use_event_bus=False,
+            )
+            filled = [r for r in (board.get("closed_trades") or []) if r.get("filled")]
+            n += len(filled)
+            net = round(net + sum(float(r.get("realized_pnl_inr") or 0.0) for r in filled), 2)
+        return {"days": days, "n_trades": n, "net_pnl_inr": net, "shadow_log": "0", "use_event_bus": False}
+    finally:
+        for key, value in saved.items():
+            if value is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = value
+
+
+def check_main_baselines(root: Path, *, since: str = "2026-09-17", until: str = "2026-09-25") -> dict[str, Any]:
+    """Compare the legacy replay to the quoted main totals. No tapes = not checked, not a pass."""
+    from desk_ml.paper_scalp import list_fix_first_days
+
+    days = [d for d in list_fix_first_days(root=root, since=since) if d <= until]
+    if not days:
+        return {"ok": None, "reason": "no_tapes", "runs": [], "lab": {
+            "name": MAIN_LAB_BASELINE[0], "expected_trades": MAIN_LAB_BASELINE[1],
+            "expected_net_pnl_inr": MAIN_LAB_BASELINE[2],
+            "reason": "lab P2C is not replay_paper_scalp; this repo cannot recompute it",
+        }}
+    runs = []
+    ok = True
+    for name, unds, exp_n, exp_net in MAIN_REPLAY_BASELINES:
+        got = legacy_replay_total(root, unds, since=since, until=until)
+        match = got["n_trades"] == exp_n and got["net_pnl_inr"] == exp_net
+        ok = ok and match
+        runs.append({"name": name, "underlyings": list(unds), "expected_trades": exp_n,
+                     "expected_net_pnl_inr": exp_net, **got, "match": match})
+    return {"ok": ok, "reason": "checked", "runs": runs, "lab": {
+        "name": MAIN_LAB_BASELINE[0], "expected_trades": MAIN_LAB_BASELINE[1],
+        "expected_net_pnl_inr": MAIN_LAB_BASELINE[2],
+        "reason": "lab P2C is not replay_paper_scalp; this repo cannot recompute it",
+    }}
+
+
 # ----------------------------------------------------------------------- CLI
 
 
@@ -810,6 +884,9 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     par.add_argument("--source", default="dual-tape")
     par.add_argument("--no-live-session", action="store_true", help="historical replay instead of live-session params")
     par.add_argument("--kw", action="append", default=[], metavar="KEY=JSON", help="extra replay_paper_scalp kwarg")
+    base = sub.add_parser("baselines", help="SHADOW_LOG=0 legacy replay vs the main ec91e9e Sep 17-25 totals")
+    base.add_argument("--since", default="2026-09-17")
+    base.add_argument("--until", default="2026-09-25")
     args = ap.parse_args(argv)
     root = repo_root()
     settings = load_settings(root)
@@ -825,6 +902,12 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         return 1 if rejected else 0
     if args.cmd == "parity":
         return _parity_cli(args, root)
+    if args.cmd == "baselines":
+        report = check_main_baselines(root, since=args.since, until=args.until)
+        print(json.dumps(report, indent=2))
+        if report["ok"] is None:
+            return 2  # not checked (no tapes). Distinct from a mismatch.
+        return 0 if report["ok"] else 1
     if args.cmd == "off":
         founder.parent.mkdir(parents=True, exist_ok=True)
         founder.write_text("basket selector switched off by founder\n", encoding="utf-8")
