@@ -11,9 +11,10 @@ import json
 from collections import defaultdict
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
-from datetime import datetime, time, timedelta, timezone
+from datetime import date, datetime, time, timedelta, timezone
 from pathlib import Path
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from contracts.clock import IST, Clock
 from contracts.instruments import India
@@ -25,6 +26,9 @@ from strategies.registry import Basket, BasketEntry
 
 ENGINE_YAML = Path("config/v2/engine.yaml")
 PAPER_STAGES = ("paper", "live_eligible")
+_NY = ZoneInfo("America/New_York")
+_INDIA_CASH_CLOSE = time(15, 30)
+_US_CASH_CLOSE = time(16, 0)
 HOLD_CONFLICT = "CONFLICT"
 HOLD_BELOW_MIN_LOTS = "BELOW_MIN_LOTS"
 HOLD_NOT_IN_BASKET = "NOT_IN_BASKET"
@@ -153,6 +157,41 @@ def _aware(ts: datetime | str, label: str) -> datetime:
     if dt.tzinfo is None:
         raise ValueError(f"{label} must be timezone-aware IST")
     return dt
+
+
+def _india_listed(symbol: str) -> bool:
+    key = symbol.upper().lstrip("^")
+    return key.startswith("USDINR") or key == "INDIAVIX"
+
+
+def close_available_ist(symbol: str, day: str) -> datetime:
+    """IST instant a daily close for `day` becomes usable. Missing/bad dates raise ValueError."""
+    d = date.fromisoformat(day)
+    if _india_listed(symbol):
+        return datetime.combine(d, _INDIA_CASH_CLOSE, tzinfo=IST)
+    ny = datetime.combine(d, _US_CASH_CLOSE, tzinfo=_NY)
+    return ny.astimezone(IST)
+
+
+def causal_intermarket_closes(
+    closes: Mapping[str, Sequence[tuple[str, float]]],
+    now: datetime,
+) -> dict[str, list[tuple[str, float]]]:
+    """Keep closes whose market-close instant (in IST) is <= `now`. Others are missing."""
+    kept: dict[str, list[tuple[str, float]]] = {}
+    for symbol, series in closes.items():
+        rows: list[tuple[str, float]] = []
+        for raw_day, raw_close in series:
+            day = str(raw_day)
+            try:
+                available = close_available_ist(str(symbol), day)
+            except ValueError:
+                continue
+            if available <= now:
+                rows.append((day, float(raw_close)))
+        if rows:
+            kept[str(symbol)] = rows
+    return kept
 
 
 def engine_config_hash(raw: Mapping[str, Any]) -> str:
@@ -359,7 +398,7 @@ class BossSelector:
         self, signals: list[Signal], ctx: BarContext, now: datetime
     ) -> tuple[Decision, dict[str, Any], StrikeChoice | None]:
         weights = self._weights([s.strategy_id for s in signals], ctx)
-        intermarket = self._intermarket(ctx)
+        intermarket = self._intermarket(ctx, now)
         shadow = self._boss_shadow(signals, ctx, weights, intermarket)
         gated, gate_holds = self._basket_gate(signals, ctx)
         if not gated:
@@ -443,7 +482,14 @@ class BossSelector:
             if sig.strategy_id not in active:
                 holds.append(HOLD_NOT_IN_BASKET)
                 continue
-            stage = ctx.signal_stages.get(sig.strategy_id, "shadow")
+            entry = self.basket.entry(sig.strategy_id)
+            stage = entry.stage if entry is not None else "shadow"
+            caller = ctx.signal_stages.get(sig.strategy_id)
+            if caller is not None and caller != stage:
+                raise ValueError(
+                    f"signal_stages[{sig.strategy_id!r}]={caller!r} "
+                    f"disagrees with basket stage {stage!r}"
+                )
             if stage not in self.config.paper_stages:
                 holds.append(HOLD_STAGE)
                 continue
@@ -470,11 +516,14 @@ class BossSelector:
         cfg = WeightConfig(static_weights=raw)
         return cap_shares({sid: cfg.static(sid) for sid in strategy_ids}, cfg.max_share)
 
-    def _intermarket(self, ctx: BarContext) -> dict[str, Any]:
+    def _intermarket(self, ctx: BarContext, now: datetime) -> dict[str, Any]:
         if ctx.intermarket:
             return dict(ctx.intermarket)
         if ctx.intermarket_closes:
-            return intermarket_regime(ctx.intermarket_closes)
+            closes = causal_intermarket_closes(ctx.intermarket_closes, now)
+            if not closes:
+                return {"regime": "unknown"}
+            return intermarket_regime(closes)
         return {"regime": "unknown"}
 
     def _boss_shadow(

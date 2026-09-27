@@ -34,6 +34,8 @@ from boss.selector import (
     LookAheadError,
     SessionBasketGate,
     caplots,
+    causal_intermarket_closes,
+    close_available_ist,
     evaluate_holds,
     load_engine_config,
     size_lots,
@@ -96,14 +98,17 @@ def _signal(
     )
 
 
-def _basket(*rows: tuple[str, float, int]) -> SessionBasketGate:
+def _basket(
+    *rows: tuple[str, float, int], stages: dict[str, str] | None = None
+) -> SessionBasketGate:
+    stage_of = stages or {}
     entries = tuple(
         BasketEntry(
             strategy_id=sid,
             underlyings=("NIFTY",),
             weight=weight,
             max_lots=max_lots,
-            stage="paper",
+            stage=stage_of.get(sid, "paper"),
         )
         for sid, weight, max_lots in rows
     )
@@ -276,10 +281,32 @@ class TestConflictsAndBasket:
 
     def test_shadow_stage_never_enters(self) -> None:
         clock = SimClock(_ist(10, 5))
-        sel = _selector(clock, basket=_basket(("SHADOW-X", 1.0, 25)))
+        sel = _selector(clock, basket=_basket(("SHADOW-X", 1.0, 25), stages={"SHADOW-X": "shadow"}))
         out = sel.decide([_signal(sid="SHADOW-X")], _ctx(clock.now()))
         assert out.decisions[0].decision == "HOLD"
         assert HOLD_STAGE in list(out.decisions[0].holds)
+
+    def test_stage_comes_from_basket_not_caller(self) -> None:
+        clock = SimClock(_ist(10, 5))
+        sel = _selector(clock, basket=_basket(("PAPER-A", 1.0, 25), stages={"PAPER-A": "shadow"}))
+        out = sel.decide(
+            [_signal()],
+            _ctx(clock.now(), signal_stages={"PAPER-A": "shadow"}),
+        )
+        assert out.decisions[0].decision == "HOLD"
+        assert HOLD_STAGE in list(out.decisions[0].holds)
+
+    def test_stage_omitted_by_caller_uses_basket_paper(self) -> None:
+        clock = SimClock(_ist(10, 5))
+        sel = _selector(clock)
+        out = sel.decide([_signal()], _ctx(clock.now(), signal_stages={}))
+        assert out.decisions[0].decision == "ENTER"
+
+    def test_caller_stage_must_agree_with_basket(self) -> None:
+        clock = SimClock(_ist(10, 5))
+        sel = _selector(clock, basket=_basket(("PAPER-A", 1.0, 25), stages={"PAPER-A": "shadow"}))
+        with pytest.raises(ValueError, match="disagrees with basket stage"):
+            sel.decide([_signal()], _ctx(clock.now()))
 
     def test_basket_remove_then_signal_dropped(self) -> None:
         clock = SimClock(_ist(10, 5))
@@ -416,6 +443,37 @@ class TestCausality:
                 [_signal()],
                 _ctx(clock.now(), bar_ts=datetime(2026, 9, 28, 10, 5)),
             )
+
+    def test_future_dated_close_is_missing_before_that_market_close(self) -> None:
+        """Old leak: a 2026-09-25 SPY close flipped daily as_of at 09-24 11:00 IST."""
+        now = datetime(2026, 9, 24, 11, 0, tzinfo=IST)
+        leak = {
+            "SPY": [
+                ("2026-09-22", 100.0),
+                ("2026-09-23", 100.2),
+                ("2026-09-25", 90.0),
+            ]
+        }
+        causal = {
+            "SPY": [
+                ("2026-09-22", 100.0),
+                ("2026-09-23", 100.2),
+            ]
+        }
+        assert causal_intermarket_closes(leak, now) == causal
+        spy_25 = close_available_ist("SPY", "2026-09-25")
+        assert spy_25 > now
+
+        clock = SimClock(now)
+        sel = _selector(clock)
+        leak_out = sel.decide([_signal(ts=now)], _ctx(now, intermarket_closes=leak))
+        causal_out = sel.decide([_signal(ts=now)], _ctx(now, intermarket_closes=causal))
+        leak_im = leak_out.shadow_events[0]["intermarket"]
+        causal_im = causal_out.shadow_events[0]["intermarket"]
+        assert leak_im == causal_im
+        us = (leak_im.get("daily") or {}).get("components", {}).get("us_futures") or {}
+        assert us.get("as_of") == "2026-09-23"
+        assert "2026-09-25" not in {us.get("as_of")}
 
     def test_random_cut_prefix_matches(self) -> None:
         rng = random.Random(7)
