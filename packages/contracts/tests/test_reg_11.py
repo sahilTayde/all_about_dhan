@@ -34,7 +34,7 @@ def test_reg11a_tmp_path_is_allowed(tmp_path):
 def test_reg11b_git_status_clean_after_suite():
     """
     REG-11b: git status --porcelain --ignored data config is empty after full suite.
-    
+
     Run at end of session to verify no test left data/ or config/ files behind.
     """
     result = subprocess.run(
@@ -49,4 +49,3 @@ def test_reg11b_git_status_clean_after_suite():
             f"REG-11b: Tests left files in data/ or config/:\n{output}\n"
             "Run 'git status data config' to inspect."
         )
-

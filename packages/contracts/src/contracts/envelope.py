@@ -15,7 +15,7 @@ from typing import Any
 class Envelope:
     """
     V2 event envelope (extends events.schema.Event schema).
-    
+
     Writer strictly requires v2 fields (event_ts, available_ts, stream).
     Reader tolerates unknown keys (forward compatible) and handles v=None for legacy events.
     """
@@ -36,7 +36,7 @@ class Envelope:
     def from_json(cls, data: dict[str, Any]) -> Envelope:
         """
         Load Envelope from JSON dict.
-        
+
         Forward-compatible: tolerates unknown keys in data.
         Backward-compatible: accepts legacy Event (v=None, missing event_ts/available_ts/stream).
         """

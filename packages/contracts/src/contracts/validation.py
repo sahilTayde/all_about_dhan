@@ -28,20 +28,21 @@ def _load_schema(name: str) -> dict[str, Any]:
 def validate_payload(payload_type: str, data: dict[str, Any]) -> None:
     """
     Validate payload data against JSON schema.
-    
+
     Raises:
         ImportError: If jsonschema is not installed.
         jsonschema.ValidationError: If validation fails.
     """
     if not HAS_JSONSCHEMA:
         raise ImportError("jsonschema is required for validation (install with test extra)")
-    
+
     schema = _load_schema(payload_type)
     validator = Draft7Validator(schema, format_checker=FormatChecker())
     validator.validate(data)
 
 
 # JSON-to-dataclass loaders for all section 4.4 types
+
 
 def load_tick(data: dict[str, Any]) -> payloads.Tick:
     """Load TICK from JSON dict."""

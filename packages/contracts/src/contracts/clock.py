@@ -63,7 +63,5 @@ class SimClock:
             ValueError: if delta is negative (time cannot go backwards)
         """
         if delta < timedelta(0):
-            raise ValueError(
-                f"SimClock.advance_by refuses negative delta: {delta}"
-            )
+            raise ValueError(f"SimClock.advance_by refuses negative delta: {delta}")
         self._current += delta
