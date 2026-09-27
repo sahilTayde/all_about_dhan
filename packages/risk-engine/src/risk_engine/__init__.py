@@ -15,6 +15,7 @@ from risk_engine.engine import (
     load_limits,
     new_client_order_id,
 )
+from risk_engine.last_good import ConfigInvalid, LastGood, V2RiskEngine
 
 __all__ = [
     "DEFAULT_CONFIG_PATH",
@@ -23,10 +24,13 @@ __all__ = [
     "LIVE_CONFIRM_VALUE",
     "LIVE_MODES",
     "MODES",
+    "ConfigInvalid",
+    "LastGood",
     "RiskDecision",
     "RiskEngine",
     "RiskState",
     "TradeIntent",
+    "V2RiskEngine",
     "live_confirmed",
     "load_limits",
     "new_client_order_id",
