@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 import yaml
+
 from runtime.config import ConfigLoadError, load_with_last_good
 from runtime.wiring import EngineConfig
 

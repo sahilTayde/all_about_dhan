@@ -12,6 +12,7 @@ from contracts.envelope import Envelope
 from events.bus import MemoryBus
 from marketdata.sources import ListSource
 from marketdata.types import Tick
+
 from runtime.kernel import Engine
 from runtime.sources import EnvelopeSource, envelopes_from_list_source
 from runtime.store import InMemoryLedgerStore
@@ -74,9 +75,7 @@ def test_kernel_raises_on_time_backwards() -> None:
         payload=env2.payload,
     )
 
-    engine = Engine(
-        EnvelopeSource([env1, earlier]), SimClock(base_time), MemoryBus(), [], InMemoryLedgerStore()
-    )
+    engine = Engine(EnvelopeSource([env1, earlier]), SimClock(base_time), MemoryBus(), [], InMemoryLedgerStore())
     with pytest.raises(ValueError, match="cannot go backwards"):
         engine.run()
 
@@ -98,9 +97,7 @@ def test_listsource_100k_envelopes_fast() -> None:
     envelopes = envelopes_from_list_source(ListSource(ticks))
     assert len(envelopes) == 100_000
 
-    engine = Engine(
-        EnvelopeSource(envelopes), SimClock(base_time), MemoryBus(), [], InMemoryLedgerStore()
-    )
+    engine = Engine(EnvelopeSource(envelopes), SimClock(base_time), MemoryBus(), [], InMemoryLedgerStore())
     start = time.time()
     summary = engine.run()
     duration = time.time() - start
@@ -124,9 +121,7 @@ def test_kernel_reuses_marketdata_list_source() -> None:
         for i in range(3)
     ]
     envelopes = envelopes_from_list_source(ListSource(ticks))
-    summary = Engine(
-        EnvelopeSource(envelopes), SimClock(base_time), MemoryBus(), [], InMemoryLedgerStore()
-    ).run()
+    summary = Engine(EnvelopeSource(envelopes), SimClock(base_time), MemoryBus(), [], InMemoryLedgerStore()).run()
     assert summary.envelope_count == 3
     assert summary.mismatches == 0
 
@@ -142,9 +137,7 @@ def test_handler_called_for_each_envelope() -> None:
         call_count[0] += 1
 
     bus.subscribe(["MARKET_TICK"], handler_fn)
-    summary = Engine(
-        EnvelopeSource(envelopes), SimClock(base_time), bus, [], InMemoryLedgerStore()
-    ).run()
+    summary = Engine(EnvelopeSource(envelopes), SimClock(base_time), bus, [], InMemoryLedgerStore()).run()
     assert summary.envelope_count == 10
     assert call_count[0] == 10
 

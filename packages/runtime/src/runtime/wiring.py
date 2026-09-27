@@ -20,9 +20,7 @@ class EngineConfig:
 
     def __init__(self, data: dict[str, Any]) -> None:
         if "exits_only" in data and not isinstance(data["exits_only"], bool):
-            raise ConfigLoadError(
-                f"rejected: exits_only must be a bool, got {type(data['exits_only']).__name__}"
-            )
+            raise ConfigLoadError(f"rejected: exits_only must be a bool, got {type(data['exits_only']).__name__}")
         self.data = data
         self.exits_only = bool(data.get("exits_only", False))
 

@@ -62,16 +62,14 @@ class LedgerStore(Protocol):
 class LedgerTransaction(Protocol):
     """Transaction context manager."""
 
-    def __enter__(self) -> Self:
-        ...
+    def __enter__(self) -> Self: ...
 
     def __exit__(
         self,
         exc_type: type[BaseException] | None,
         exc_val: BaseException | None,
         exc_tb: object,
-    ) -> None:
-        ...
+    ) -> None: ...
 
 
 @dataclass(frozen=True)

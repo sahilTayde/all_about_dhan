@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 import logging
-import types
 from typing import Self
 
 from contracts.envelope import Envelope
+
+from runtime.kernel import LedgerTransaction
 
 log = logging.getLogger("runtime.store")
 
@@ -18,7 +19,7 @@ class InMemoryLedgerStore:
         self._checkpoint: tuple[str, str] | None = None
         self._in_transaction = False
 
-    def transaction(self) -> InMemoryTransaction:
+    def transaction(self) -> LedgerTransaction:
         """Begin transaction."""
         return InMemoryTransaction(self)
 
@@ -50,7 +51,7 @@ class InMemoryTransaction:
         self,
         exc_type: type[BaseException] | None,
         exc_val: BaseException | None,
-        exc_tb: types.TracebackType | None,
+        exc_tb: object,
     ) -> None:
         self.store._in_transaction = False
         if exc_type is not None:
