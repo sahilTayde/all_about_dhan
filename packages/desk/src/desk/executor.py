@@ -24,7 +24,7 @@ from typing import Any, Optional
 
 from brokers import Order, OrderRefused
 from desk.paper import client_order_id, ledger_cancel_reason, ledger_exit_reason, option_symbol
-from risk_engine import IST, TradeIntent
+from risk_engine import IST, RiskDecision, TradeIntent
 
 log = logging.getLogger("desk")
 
@@ -688,7 +688,7 @@ class Desk:
             )
             exit_order = t.get("exit_order")  # a retry after the exit was placed but not filled
             if exit_order is None:
-                decision = self.risk.check_exit(intent, now=self.clock())
+                decision = self._exit_decision(intent, "EXIT", row)
                 if not decision.approved:
                     self._pend_exit(trade_id, t, row, f"exit refused by risk: {decision.reason_code}")
                     return
@@ -700,7 +700,7 @@ class Desk:
                 self._publish("ORDER_FILLED", self._order_payload(
                     exit_order, trade_id, fill_price=exit_order.avg_fill_price, engine_price=row["exit"], ts=ts))
         elif order.is_open:
-            decision = self.risk.check_exit(order.intent, "CANCEL", now=self.clock())
+            decision = self._exit_decision(order.intent, "CANCEL", row)
             if not decision.approved:
                 self._pend_exit(trade_id, t, row, f"cancel refused by risk: {decision.reason_code}")
                 return
@@ -713,6 +713,25 @@ class Desk:
                 "gross_pnl_inr", "charges_inr", "realized_pnl_inr", "opened_ts", "closed_ts",
             )
         })
+
+    def _exit_decision(self, intent: TradeIntent, action: str, row: dict[str, Any]) -> RiskDecision:
+        """Founder-controls hook: a founder exit (FOUNDER_*) is mirrored even if the risk engine raises or refuses."""
+        founder = str(row.get("exit_reason") or "").startswith("FOUNDER_")
+        try:
+            decision = self.risk.check_exit(intent, action, now=self.clock())
+        except Exception as exc:
+            if not founder:
+                raise
+            why = f"{type(exc).__name__}: {exc}"
+        else:
+            if decision.approved or not founder:
+                return decision
+            why = decision.reason_code
+        self._publish("HEALTH_ALERT", {
+            "service": "desk", "status": "CRITICAL", "trade_id": row.get("trade_id"),
+            "reason": f"founder exit mirrored without risk approval: {why}",
+        })
+        return RiskDecision(True, intent.client_order_id, action, "FOUNDER_OVERRIDE", why, self.clock(), critical=True)
 
     def _alert_unmirrored(self, trade_id: str, why: str) -> None:
         """One alert per trade (not per retry)."""

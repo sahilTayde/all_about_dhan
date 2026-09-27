@@ -2375,7 +2375,7 @@ def apply_target_lock_shift(
     prev_idx_volume: Optional[float] = None,
 ) -> bool:
     """Optional T1 lock+T2. Default off: first TARGET flattens. Trail SL is separate. PAPER."""
-    if not getattr(engine, "apply_target_shift", False):
+    if not (getattr(engine, "apply_target_shift", False) or getattr(pos, "founder_t2", False)):
         return False
     if not pos.filled:
         return False
@@ -2820,6 +2820,7 @@ class OpenPaper:
     wing_bar_high: Optional[float] = None
     wing_bar_close: Optional[float] = None
     closed_wing_bars: list[dict[str, Any]] = field(default_factory=list)
+    founder_t2: bool = False  # founder GO_T2: first target locks + extends instead of flattening
 
 
 @dataclass
@@ -2898,6 +2899,7 @@ class BookEngine:
     ctx: Optional[ReplayContext] = None  # replay inputs (clock, live blocks, risk config); None = unit test
     overrides: Any = None  # desk_ml.overrides.OverrideBook, loaded once per replay
     pinned_until: dict[str, int] = field(default_factory=dict)  # live: carried ticket frozen until the last cut-off
+    founder_controls: Any = None  # desk_ml.founder_commands.CommandBook; None = no founder commands
 
     def book_capital(self, book_id: str) -> float:
         if book_id in self.capital_by_book:
@@ -4223,11 +4225,26 @@ def _plan_open(
     if blocked:
         engine.mark_skip(book_id, underlying, blocked[0], ts=tick.ts, seen_side=side, detail=blocked[1])
         return
+    # --- founder-controls hook (roadmap step 14): human commands outrank every algo gate ---
+    fc = getattr(engine, "founder_controls", None)
+    fc_index = None
+    if fc is not None:
+        try:
+            fc_block, fc_index = fc.entry_gate(engine, underlying, int(tick.ts))
+        except Exception:  # entries fail closed
+            fc_block = "FOUNDER_CONTROLS_UNREADABLE"
+        if fc_block:
+            engine.mark_skip(book_id, underlying, fc_block, ts=tick.ts, seen_side=side)
+            return
+    # --- end founder-controls hook ---
     try:
         from desk_ml.founder_session import fill_decision_at
 
-        decision = fill_decision_at(underlying, root=engine.root, ts=int(tick.ts),
-                                    rows=getattr(engine.ctx, "founder_rows", None))
+        if fc_index is True:  # an explicit founder INDEX enable (founder-controls hook) outranks START/STOP
+            decision = {"allow": True}
+        else:
+            decision = fill_decision_at(underlying, root=engine.root, ts=int(tick.ts),
+                                        rows=getattr(engine.ctx, "founder_rows", None))
     except Exception as exc:  # untrusted founder state: no new fill on ANY index
         engine.mark_skip(
             book_id, underlying, FOUNDER_UNREADABLE, ts=tick.ts, seen_side=side,
@@ -4719,16 +4736,25 @@ def _plan_open(
         classified=cl,
     )
     lot_size, lot_src = engine.lot_by_und.get(underlying.upper(), (None, "unset"))
+    lot_bounds = {
+        "min_lots": int(getattr(engine, "paper_min_lots", PAPER_MIN_LOTS) or PAPER_MIN_LOTS),
+        "target_lots": int(getattr(engine, "paper_target_lots", PAPER_TARGET_LOTS) or PAPER_TARGET_LOTS),
+        "max_lots": int(getattr(engine, "paper_max_lots", PAPER_MAX_LOTS) or PAPER_MAX_LOTS),
+    }
+    if fc is not None:  # founder-controls hook: added funds + lots override for the next fills
+        try:
+            capital, lot_bounds = fc.sizing(capital, lot_bounds, int(tick.ts))
+        except Exception:  # entries fail closed
+            engine.mark_skip(book_id, underlying, "FOUNDER_CONTROLS_UNREADABLE", ts=tick.ts, seen_side=side)
+            return None
     sized = size_lots(
         entry=float(levels["limit_price"] or levels["entry"]),
         lot_size=lot_size,
         capital_inr=capital,
-        min_lots=int(getattr(engine, "paper_min_lots", PAPER_MIN_LOTS) or PAPER_MIN_LOTS),
-        target_lots=int(getattr(engine, "paper_target_lots", PAPER_TARGET_LOTS) or PAPER_TARGET_LOTS),
-        max_lots=int(getattr(engine, "paper_max_lots", PAPER_MAX_LOTS) or PAPER_MAX_LOTS),
+        **lot_bounds,
     )
     n_lots = int(sized.get("lots") or 0)
-    min_need = int(getattr(engine, "paper_min_lots", PAPER_MIN_LOTS) or PAPER_MIN_LOTS)
+    min_need = lot_bounds["min_lots"]
     if n_lots < min_need:
         engine.mark_skip(
             book_id,
@@ -4937,6 +4963,17 @@ def paper_watch_ticket(
     return None
 
 
+def _founder_exit(engine: BookEngine, fc: Any, pos: OpenPaper, ts: int, ltp: Optional[float]) -> bool:
+    """Founder-controls hook: cut loss / kill switch close at market; GO_T2 flags the ticket.
+
+    True when the ticket is closed. A failure in the command book never skips the engine's own exits.
+    """
+    try:
+        return bool(fc.manage(engine, pos, ts, ltp, _close))
+    except Exception:
+        return engine.opens.get((pos.book_id, pos.underlying)) is not pos
+
+
 def mark_to_market(
     engine: BookEngine,
     tick: Triple,
@@ -4969,6 +5006,10 @@ def mark_to_market(
             ltp = float(pos.entry)
             side_low = pos.seen_low if pos.seen_low is not None else ltp
             src = "ENTRY_PRINT"
+        # --- founder-controls hook (roadmap step 14): founder exits run first and are never refused ---
+        fc = getattr(engine, "founder_controls", None)
+        if fc is not None and _founder_exit(engine, fc, pos, int(tick.ts), ltp):
+            continue
         hit = human_override_for(engine, pos, underlying, int(tick.ts))
         if hit is not None:
             row_n, override = hit
@@ -6088,6 +6129,26 @@ def _as_side_tuple(value: Any) -> Optional[tuple[str, ...]]:
     return tuple(out) or None
 
 
+def _report_founder_controls(
+    board: dict[str, Any], engine: BookEngine, root: Path, *, session_day: Optional[str], write: bool, now: datetime
+) -> None:
+    """Founder-controls hook: every command's status on the board; a writing replay also acks them."""
+    from desk_ml.founder_commands import append_statuses
+
+    fc = engine.founder_controls
+    results = fc.results_for(session_day)
+    last = max(fc.last_ts.values(), default=None)
+    board["founder_controls"] = {
+        "results": results,
+        "state": fc.state_at(last if last is not None else now.timestamp()).as_dict(now=last),
+        "problems": list(fc.problems),
+        "entries_blocked_from_ts": fc.blocked_from,
+        "as_of_ts": last,
+    }
+    if write:
+        append_statuses(root, results)  # best effort; never raises
+
+
 def replay_paper_scalp(
     *,
     root: Optional[Path] = None,
@@ -6133,6 +6194,7 @@ def replay_paper_scalp(
     event_session: Optional[Any] = None,
     live_loop: bool = False,
     ctx: Optional[ReplayContext] = None,
+    founder_commands: Any = None,
 ) -> dict[str, Any]:
     """`use_event_bus` (default: env USE_EVENT_BUS, off) runs each tick through desk_ml.event_path
     (boss → analysts → desk → risk engine → PaperBroker → ledger) instead of `step_underlying`.
@@ -6144,6 +6206,9 @@ def replay_paper_scalp(
     `ctx` carries the explicit replay inputs; without it one is built from the arguments (data root,
     wall clock, no live blocks), which is exactly the pre-PR-A behaviour.
     Only `write=True` writes the per-session model log (`data/recon/model_log/<day>.jsonl`).
+    `founder_commands` (desk_ml.founder_commands.load_book): None reads `root`'s founder command
+    log, a path replays a saved commands file, a list uses those rows, `[]` ignores the log.
+    Each command applies from its own timestamp; with no commands the replay is unchanged.
     """
     token = _MODEL_LOGS.set(None)
     try:
@@ -6166,6 +6231,7 @@ def replay_paper_scalp(
             sod_one_ticket=sod_one_ticket, picker_majority=picker_majority,
             hold_trending_open_stall=hold_trending_open_stall, nifty_cover_closed_1m=nifty_cover_closed_1m,
             use_event_bus=use_event_bus, event_session=event_session, live_loop=live_loop, ctx=ctx,
+            founder_commands=founder_commands,
         )
     finally:
         _MODEL_LOGS.reset(token)
@@ -6216,6 +6282,7 @@ def _replay_paper_scalp(
     event_session: Optional[Any] = None,
     live_loop: bool = False,
     ctx: Optional[ReplayContext] = None,
+    founder_commands: Any = None,
 ) -> dict[str, Any]:
     if hold_trending_open_stall and write:
         raise ValueError("hold_trending_open_stall is write=false A/B only. NO_PROMOTE.")
@@ -6428,6 +6495,13 @@ def _replay_paper_scalp(
         engine.lot_by_und[und] = tuple(frozen_lots[und]) if und in frozen_lots else resolve_lot_size(und, root=base)
     sink = ModelLogSink(base, session_day, alerts=ctx.alerts) if write and session_day else None
     _MODEL_LOGS.set(sink)
+    # --- founder-controls hook (roadmap step 14): read the command log once per replay / live cycle ---
+    from desk_ml.founder_commands import load_book
+
+    tape_as_of = max((int(t.ts) for tl in loaded.values() for t in tl), default=int(now.timestamp()))
+    engine.founder_controls = load_book(
+        base, founder_commands, as_of=tape_as_of, record=bool(write), engine_max_lots=engine.paper_max_lots
+    )
     own_session = event_session is None and (event_bus_enabled() if use_event_bus is None else use_event_bus)
     if own_session:
         from desk_ml.event_path import EventSession, require_event_packages, resolve_risk_config
@@ -6609,6 +6683,8 @@ def _replay_paper_scalp(
         board["event_bus"] = event_session.summary()
         if own_session:
             event_session.close()
+    if engine.founder_controls is not None:  # founder-controls hook: status of every command
+        _report_founder_controls(board, engine, base, session_day=session_day, write=write, now=now)
     if write and not ctx.live_loop:  # the live cycle publishes after its own checks
         write_dashboard(board, root=base)
         _append_mistakes(base, board.get("mistakes") or [])

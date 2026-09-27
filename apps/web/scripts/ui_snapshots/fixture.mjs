@@ -223,6 +223,34 @@ export const founderStatus = {
 
 export const founderBook = { ok: true, trade_underlyings: ["NIFTY"], indices: {} };
 
+// GET /founder/controls: one command per status, synthetic ids and times.
+const cmd = (id, kind, args, mins, status, why) => ({
+  id, kind, args, ts: BASE_TS + mins * 60, ts_ist: ist(BASE_TS + mins * 60), actor: "founder", reason: `synthetic ${kind}`,
+  status, status_reason: why || null, applied_ist: status === "applied" ? ist(BASE_TS + mins * 60 + 5) : null,
+});
+export const founderControls = {
+  commands: [
+    cmd("fx-4", "KILL", {}, 40, "pending"),
+    cmd("fx-3", "SET_LOTS", { lots: 99 }, 30, "rejected", "LOTS_OVER_LIMIT: at most 25 lots per trade (engine and risk limits)"),
+    cmd("fx-2", "PAUSE", { minutes: 15 }, 20, "applied"),
+    cmd("fx-1", "BLOCK_WINDOWS", { windows: [{ start: "09:15", end: "09:30" }, { start: "14:45", end: "15:30" }] }, 10, "applied"),
+  ],
+  state: {
+    running: true, paused_until_ist: null, blocked_windows: [{ start: "09:15", end: "09:30" }, { start: "14:45", end: "15:30" }],
+    lots: null, killed: false, killed_at_ist: null, index_enabled: { SENSEX: false }, min_capital_inr: null,
+    funds_added_inr: 0, entries_blocked_reason: null,
+  },
+  problems: [],
+  open_trades: open.map(({ trade_id, underlying, side, atm_strike, lots, entry, last_ltp, filled, target, stop, book_id }) => ({
+    trade_id, underlying, side, atm_strike, lots, entry, last_ltp, filled, target, stop, founder_t2: false, book_id,
+  })),
+  limits: { max_lots: 25, known_indices: ["BANKNIFTY", "NIFTY", "SENSEX"], confirm_kinds: ["CUT_LOSS", "KILL", "REARM"] },
+  board_as_of_ist: board.as_of_ist,
+  desk_capital_inr: 500000,
+  paper_only: true,
+  orders: "REFUSED",
+};
+
 // ---------- snapshot + endpoints the pages read (same shapes as apps/api/src/api/ui_feed.py) ----------
 
 const REASONS = ["STOP", "TARGET", "CANCEL_AGAINST", "TIME"];
@@ -334,8 +362,10 @@ export function snapshot(nowIso = "2026-02-01T10:00:00+05:30") {
       n_days: days.length,
       first_day: days.at(-1).day,
       last_day: DAY,
-      funds_editable: false,
-      funds_note: "Add funds / minimum capital need an engine-side setting. Coming in the controls PR.",
+      funds_added_inr: 0,
+      min_capital_inr: null,
+      funds_editable: true,
+      funds_note: "Founder commands: logged with who/why, applied by the engine from their timestamp. PAPER only.",
     },
     orders: "REFUSED",
     promote: false,
