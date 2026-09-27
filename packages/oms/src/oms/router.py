@@ -2,22 +2,60 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, replace
-from typing import Any
+from typing import Any, Protocol, cast
 
-from brokers.factory import make_broker
+from brokers.factory import LiveBrokerDisabled, make_broker
 from brokers.fills import ClockedPaperBroker
 from brokers.orders import Order, OrderState, Position, exit_intent
 from contracts.ids import order_id
 from contracts.instruments import India
 from contracts.payloads import Decision, EntryPlan, ExitPlan
 from events.bus import MemoryBus
-from ledger.charges import load_rates
+from ledger.charges import load_rates  # type: ignore[import-untyped, unused-ignore]
 from risk_engine import RiskDecision, TradeIntent
 from risk_engine.last_good import LastGood, V2RiskEngine
 
 from oms.exits import whole_lots_qty
 from oms.ledger_stub import MemoryLedger
+
+_LIVEISH_NAMES = frozenset({"dhan", "live", "limited_live", "shadow"})
+
+
+class PaperDeskBroker(Protocol):
+    """Marker protocol: only paper brokers set `is_paper is True` and `mode == "paper"`."""
+
+    is_paper: bool
+    mode: str
+    name: str
+    orders: dict[str, Order]
+    on_fill: Callable[..., None] | None
+
+    def place_order(self, intent: TradeIntent, decision: RiskDecision) -> Order: ...
+
+    def remember(self, client_order_id: str, **fields: Any) -> None: ...
+
+
+def is_paper_desk_broker(broker: object) -> bool:
+    """True only for a paper desk broker. Live-like name or mode is never paper."""
+    return (
+        getattr(broker, "is_paper", False) is True
+        and getattr(broker, "mode", None) == "paper"
+        and str(getattr(broker, "name", "") or "").lower() not in _LIVEISH_NAMES
+    )
+
+
+def require_paper_broker(broker: object) -> PaperDeskBroker:
+    """Router boundary: refuse anything that is not a paper desk broker."""
+    if isinstance(broker, ClockedPaperBroker) and is_paper_desk_broker(broker):
+        return broker
+    if is_paper_desk_broker(broker) and callable(getattr(broker, "place_order", None)):
+        return cast(PaperDeskBroker, broker)
+    raise LiveBrokerDisabled(
+        "V2 paper-only: OrderRouter accepts only ClockedPaperBroker "
+        "(or is_paper=True and mode='paper'); live/Dhan inject is refused"
+    )
 
 
 @dataclass(frozen=True)
@@ -56,14 +94,15 @@ class OrderRouter:
         *,
         clock: Any,
         risk: V2RiskEngine | Any,
-        broker: ClockedPaperBroker | Any | None = None,
+        broker: PaperDeskBroker | None = None,
         store: MemoryLedger | None = None,
         bus: MemoryBus | None = None,
         rates: LastGood | None = None,
     ) -> None:
         self.clock = clock
         self.risk = risk
-        self.broker = broker if broker is not None else make_broker(mode="paper", clock=clock)
+        raw: object = broker if broker is not None else make_broker(mode="paper", clock=clock)
+        self.broker = require_paper_broker(raw)
         self.store = store if store is not None else MemoryLedger()
         self.bus = bus if bus is not None else MemoryBus()
         self.rates = rates
@@ -429,8 +468,11 @@ __all__ = [
     "Account",
     "ExitPlan",
     "OrderRouter",
+    "PaperDeskBroker",
     "Veto",
+    "is_paper_desk_broker",
     "load_cost_rates",
     "lot_size_for",
+    "require_paper_broker",
     "symbol_from_instrument",
 ]

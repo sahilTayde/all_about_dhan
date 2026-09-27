@@ -253,6 +253,7 @@ class ClockedPaperBroker(PaperBroker):
 
     name = "paper"
     mode = "paper"
+    is_paper = True
 
     def __init__(
         self,
