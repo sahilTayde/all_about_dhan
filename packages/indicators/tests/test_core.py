@@ -9,7 +9,7 @@ from marketdata.clock import IST
 from indicators.core import ATR, EMA, VWAP, OIChange, RealizedVol
 
 
-def test_ema_matches_batch_reference():
+def test_ema_matches_batch_reference() -> None:
     """EMA incremental matches batch calculation (within 1e-9)."""
     prices = [100.0, 102.0, 101.0, 103.0, 104.0, 103.5, 105.0, 106.0, 105.5, 107.0]
     period = 5
@@ -35,7 +35,7 @@ def test_ema_matches_batch_reference():
         assert abs(inc - batch) < 1e-9, f"Mismatch at index {i}: {inc} vs {batch}"
 
 
-def test_atr_matches_batch_reference():
+def test_atr_matches_batch_reference() -> None:
     """ATR incremental matches batch calculation (within 1e-9)."""
     # OHLC bars
     bars = [
@@ -87,7 +87,7 @@ def test_atr_matches_batch_reference():
         assert abs(inc - batch) < 1e-9, f"Mismatch at index {i}: {inc} vs {batch}"
 
 
-def test_vwap_with_volume():
+def test_vwap_with_volume() -> None:
     """VWAP incremental with volume."""
     # (price, volume) pairs
     data = [(100.0, 1000.0), (102.0, 1500.0), (101.0, 1200.0), (103.0, 1800.0)]
@@ -114,7 +114,7 @@ def test_vwap_with_volume():
         assert abs(inc - batch) < 1e-9, f"Mismatch at index {i}: {inc} vs {batch}"
 
 
-def test_vwap_fallback_to_twap():
+def test_vwap_fallback_to_twap() -> None:
     """All-None volume stays TWAP for the session (index instruments)."""
     prices = [100.0, 102.0, 101.0, 103.0]
 
@@ -136,7 +136,7 @@ def test_vwap_fallback_to_twap():
         assert abs(inc - batch) < 1e-9, f"Mismatch at index {i}: {inc} vs {batch}"
 
 
-def test_vwap_zero_volume_mid_session_does_not_corrupt():
+def test_vwap_zero_volume_mid_session_does_not_corrupt() -> None:
     """A zero-volume bar after volume has been seen is ignored; VWAP stays 15.0."""
     vwap = VWAP()
     v1, m1 = vwap.update(10.0, 100.0)
@@ -150,7 +150,7 @@ def test_vwap_zero_volume_mid_session_does_not_corrupt():
     assert v3 == 15.0
 
 
-def test_vwap_reset_clears_all_accumulators():
+def test_vwap_reset_clears_all_accumulators() -> None:
     """reset() clears VWAP and TWAP accumulators so a new session starts clean."""
     vwap = VWAP()
     vwap.update(10.0, 100.0)
@@ -168,7 +168,7 @@ def test_vwap_reset_clears_all_accumulators():
     assert val == 7.0
 
 
-def test_vwap_skips_nan_price_and_stays_clean():
+def test_vwap_skips_nan_price_and_stays_clean() -> None:
     """A NaN-price bar is rejected; VWAP stays the clean-bar value 15.0."""
     vwap = VWAP()
     v1, m1 = vwap.update(10.0, 100.0)
@@ -184,7 +184,7 @@ def test_vwap_skips_nan_price_and_stays_clean():
     assert vwap.vwap_rejected_bars == 1
 
 
-def test_vwap_skips_inf_price_and_stays_clean():
+def test_vwap_skips_inf_price_and_stays_clean() -> None:
     """An inf-price bar is rejected the same way as NaN; VWAP stays 15.0."""
     vwap = VWAP()
     vwap.update(10.0, 100.0)
@@ -198,7 +198,7 @@ def test_vwap_skips_inf_price_and_stays_clean():
     assert vwap.vwap_rejected_bars == 1
 
 
-def test_vwap_skips_nonfinite_and_negative_volume():
+def test_vwap_skips_nonfinite_and_negative_volume() -> None:
     """Inf volume and negative volume are rejected; they do not accumulate."""
     vwap = VWAP()
     vwap.update(10.0, 100.0)
@@ -214,7 +214,7 @@ def test_vwap_skips_nonfinite_and_negative_volume():
     assert v3 == 15.0
 
 
-def test_vwap_nan_before_any_volume_does_not_break_twap():
+def test_vwap_nan_before_any_volume_does_not_break_twap() -> None:
     """A leading NaN bar must not break the TWAP fallback."""
     vwap = VWAP()
     val, mode = vwap.update(float("nan"), None)
@@ -236,7 +236,7 @@ def test_vwap_nan_before_any_volume_does_not_break_twap():
     assert vwap2.seen_volume is False
 
 
-def test_realized_vol_matches_batch():
+def test_realized_vol_matches_batch() -> None:
     """Realized vol incremental matches batch calculation."""
     prices = [100.0, 102.0, 101.0, 103.0, 104.0, 103.5, 105.0, 106.0, 105.5, 107.0]
     period = 5
@@ -250,7 +250,7 @@ def test_realized_vol_matches_batch():
 
     # Batch reference
     def batch_realized_vol(prices: list[float], period: int) -> list[float | None]:
-        result = []
+        result: list[float | None] = []
         for i in range(len(prices)):
             if i == 0:
                 result.append(None)
@@ -286,7 +286,7 @@ def test_realized_vol_matches_batch():
             assert abs(inc - batch) < 1e-9, f"Mismatch at index {i}: {inc} vs {batch}"
 
 
-def test_oi_change_lagged_strictly_before_decision_minute():
+def test_oi_change_lagged_strictly_before_decision_minute() -> None:
     """Decision at 10:05:30 must not see 10:05:10; it must see 10:04:50 (REG-01)."""
     oi_tracker = OIChange()
     t_prior = datetime(2026, 1, 2, 10, 3, 0, tzinfo=IST)
@@ -301,7 +301,7 @@ def test_oi_change_lagged_strictly_before_decision_minute():
     assert change == 100.0
 
 
-def test_oi_change_lookback():
+def test_oi_change_lookback() -> None:
     """OI lookback uses only snapshots before the decision minute."""
     base_time = datetime(2026, 1, 2, 10, 0, 0, tzinfo=IST)
     oi_tracker = OIChange()
@@ -315,7 +315,7 @@ def test_oi_change_lookback():
     assert change == 100.0
 
 
-def test_realized_vol_skips_nonpositive_close():
+def test_realized_vol_skips_nonpositive_close() -> None:
     """close<=0 or prev_close<=0 skips the return; no math domain error."""
     rv = RealizedVol(period=5)
     assert rv.update(100.0) is None
@@ -328,7 +328,7 @@ def test_realized_vol_skips_nonpositive_close():
     assert rv.value >= 0.0
 
 
-def test_realized_vol_skips_nan_and_inf_close():
+def test_realized_vol_skips_nan_and_inf_close() -> None:
     """NaN and inf closes are skipped the same way as <=0; prev_close stays clean."""
     rv = RealizedVol(period=5)
     assert rv.update(100.0) is None
@@ -342,7 +342,7 @@ def test_realized_vol_skips_nan_and_inf_close():
     assert math.isfinite(rv.value)
 
 
-def test_oi_naive_timestamp_rejected_at_ingest():
+def test_oi_naive_timestamp_rejected_at_ingest() -> None:
     """Naive OI timestamps raise ValueError at add, not later at compare time."""
     oi_tracker = OIChange()
     naive = datetime(2026, 1, 2, 10, 4, 50)
@@ -351,7 +351,7 @@ def test_oi_naive_timestamp_rejected_at_ingest():
     assert oi_tracker.oi_history == {}
 
 
-def test_oi_utc_converted_and_cut_off_by_ist_minute():
+def test_oi_utc_converted_and_cut_off_by_ist_minute() -> None:
     """UTC snapshots convert to IST; 10:05:30 IST excludes 04:35:10Z, includes 04:34:50Z."""
     oi_tracker = OIChange()
     t_prior = datetime(2026, 1, 2, 4, 33, 0, tzinfo=UTC)  # 10:03:00 IST
@@ -370,7 +370,7 @@ def test_oi_utc_converted_and_cut_off_by_ist_minute():
     assert change == 100.0
 
 
-def test_oi_ist_aware_input_unchanged():
+def test_oi_ist_aware_input_unchanged() -> None:
     """IST-aware snapshots stay IST and still use the minute floor."""
     oi_tracker = OIChange()
     t_prior = datetime(2026, 1, 2, 10, 3, 0, tzinfo=IST)
@@ -385,7 +385,7 @@ def test_oi_ist_aware_input_unchanged():
     assert oi_tracker.get_lagged_change("NIFTY", decision_ts, lookback_bars=1) == 100.0
 
 
-def test_oi_naive_decision_ts_raises():
+def test_oi_naive_decision_ts_raises() -> None:
     """Naive decision_ts raises ValueError at query time (same contract as view now)."""
     oi_tracker = OIChange()
     oi_tracker.update("NIFTY", 1000, datetime(2026, 1, 2, 10, 4, 50, tzinfo=IST))

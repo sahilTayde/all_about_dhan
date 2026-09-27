@@ -11,11 +11,11 @@ import { IstMarketClock } from "./components/IstMarketClock.jsx";
 import { MarketPanel } from "./components/MarketPanel.jsx";
 import { SpillLedger } from "./components/SpillLedger.jsx";
 import { TradeHistory } from "./components/TradeHistory.jsx";
-import { useFeed } from "./lib/feed.js";
+import { useDeskFeed } from "./lib/v2Feed.js";
 import { boardClock, boardSource, derivePaperBoard, holdReason, postHumanOverride } from "./lib/paperBoard.js";
 
 export function InternalDesk() {
-  const { snap, conn, latencyMs } = useFeed();
+  const { snap, conn, latencyMs } = useDeskFeed();
   const [busy, setBusy] = useState(false);
   const [humanMsg, setHumanMsg] = useState("");
   const [picked, setPicked] = useState(null);
