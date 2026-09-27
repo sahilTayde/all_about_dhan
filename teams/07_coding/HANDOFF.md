@@ -1,5 +1,27 @@
 # Handoff log — Team 07 Coding
 
+## As of now (2026-09-27 IST) — V2-09b exit primitives (NO_PROMOTE)
+
+```text
+From:     teams/07_coding
+To:       00 / 09
+Date:     2026-09-27
+Status:   V2-09b PAPER exit primitives on V2-09 / NO_PROMOTE
+Accepted: StructuralStop, AtrStop (fixed at fill), GracePeriod,
+  SignalFlipExit (own_opposite, boss_opposite on bar close).
+  defaults.yaml loader freezes values + file hash into
+  defaults_from. REG-18a-e. Grep: no CANCEL_AGAINST /
+  CANCEL_ADVERSE / CANCEL_STALL / COVER_LONG_UNWIND in
+  packages/oms or packages/strategies. Inherit = ₹30k
+  house stop + native invalidation; no native level
+  refuses. V2-09 stop qty == net invariant kept.
+Rejected: Live/Dhan. Intraday exit retune. Loosening REG-02
+  resize/flatten. STRAT-015+.
+UNKNOWN: V2-10 durable rehydrate of frozen atr_stop_level.
+```
+
+---
+
 ## As of now (2026-09-27 IST) — V2-04 onto main 971bf81 / V2-15 (PAPER)
 
 ```text

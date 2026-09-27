@@ -13,9 +13,12 @@ from pathlib import Path
 from typing import Any
 
 from contracts.payloads import (
+    AtrStop,
     CatastrophicStop,
     ExitPlan,
+    GracePeriod,
     Level,
+    SignalFlipExit,
     StructuralStop,
 )
 
@@ -82,12 +85,14 @@ def resolve_exit_plan(
     *,
     defaults: dict[str, Any] | None = None,
     defaults_sha256: str | None = None,
+    relies_on: tuple[str, ...] = (),
 ) -> ExitPlan:
     """Build an ExitPlan from overrides + optional round-11 defaults.
 
     REG-18d: refuse if neither the plan nor the defaults supply a catastrophic
-    stop. Structural has no default level (defaults.yaml `structural.enabled`);
-    a strategy that wants one must declare it.
+    stop. Inheriting round-11 defaults requires the strategy's native
+    invalidation level. A strategy that relies on a primitive that is null in
+    both the plan and the defaults file refuses to load.
     """
     data = dict(overrides or {})
     inherited = False
@@ -99,6 +104,24 @@ def resolve_exit_plan(
         raise ExitPlanLoadError("REG-18d: a plan without a catastrophic stop refuses to load")
 
     structural = _structural_from(data.get("structural"))
+    if inherited and _structural_required(defaults):
+        if structural is None:
+            raise ExitPlanLoadError(
+                "a strategy with no native invalidation level refuses to inherit"
+            )
+
+    for name in relies_on:
+        if name == "catastrophic":
+            continue
+        if name == "structural" and structural is not None:
+            continue
+        own = data.get(name)
+        shared = defaults.get(name) if defaults else None
+        if _is_absent(own) and _is_absent(shared):
+            raise ExitPlanLoadError(
+                f"strategy relies on {name} but the defaults file leaves it null"
+            )
+
     tag = None
     if inherited and defaults_sha256:
         tag = defaults_from_tag(defaults_sha256)
@@ -108,15 +131,41 @@ def resolve_exit_plan(
     return ExitPlan(
         catastrophic=catastrophic,
         structural=structural,
-        atr=None,
+        atr=_atr_from(data.get("atr")),
         time_stops=tuple(data.get("time_stops") or ()),
-        grace=None,
-        signal_flip=None,
+        grace=_grace_from(data.get("grace")),
+        signal_flip=_flip_from(data.get("signal_flip")),
         target=data.get("target"),
         partials=tuple(data.get("partials") or ()),
         trail=data.get("trail"),
         flat_by_ist=str(data.get("flat_by_ist") or "15:15"),
         defaults_from=tag,
+    )
+
+
+def inherit_exit_defaults(
+    *,
+    native_invalidation: Level,
+    trigger: str = "bar_close",
+    defaults: dict[str, Any] | None = None,
+    defaults_sha256: str | None = None,
+    path: Path | None = None,
+) -> ExitPlan:
+    """Round-11 inherit: house ₹30k stop + native structural; everything else off."""
+    if not isinstance(native_invalidation, Level):
+        raise ExitPlanLoadError(
+            "a strategy with no native invalidation level refuses to inherit"
+        )
+    if defaults is None or defaults_sha256 is None:
+        loaded, digest = load_exit_defaults(path)
+        defaults = loaded if defaults is None else defaults
+        defaults_sha256 = digest if defaults_sha256 is None else defaults_sha256
+    return resolve_exit_plan(
+        {
+            "structural": StructuralStop(level=native_invalidation, trigger=trigger),
+        },
+        defaults=defaults,
+        defaults_sha256=defaults_sha256,
     )
 
 
@@ -144,7 +193,49 @@ def _catastrophic_from_defaults(defaults: dict[str, Any]) -> CatastrophicStop | 
         return None
     if "max_loss" not in block:
         return None
-    return CatastrophicStop(level=Level(kind="premium", price=float(block["max_loss"])))
+    return CatastrophicStop(level=Level(kind="max_loss_inr", price=float(block["max_loss"])))
+
+
+def _structural_required(defaults: dict[str, Any] | None) -> bool:
+    if not defaults:
+        return False
+    block = defaults.get("structural")
+    return isinstance(block, dict) and bool(block.get("enabled"))
+
+
+def _is_absent(raw: object) -> bool:
+    return raw in (None, (), [], {})
+
+
+def _atr_from(raw: object) -> AtrStop | None:
+    if raw is None:
+        return None
+    if isinstance(raw, AtrStop):
+        return raw
+    if isinstance(raw, dict) and "k" in raw:
+        return AtrStop(k=float(raw["k"]), trigger=str(raw.get("trigger") or "bar_close"))
+    return None
+
+
+def _grace_from(raw: object) -> GracePeriod | None:
+    if raw is None:
+        return None
+    if isinstance(raw, GracePeriod):
+        return raw
+    if isinstance(raw, dict) and "seconds" in raw:
+        return GracePeriod(seconds=int(raw["seconds"]))
+    return None
+
+
+def _flip_from(raw: object) -> SignalFlipExit | None:
+    if raw is None:
+        return None
+    if isinstance(raw, SignalFlipExit):
+        return raw
+    if isinstance(raw, dict):
+        on = raw.get("on") or ("own_opposite",)
+        return SignalFlipExit(on=tuple(on), trigger=str(raw.get("trigger") or "bar_close"))
+    return None
 
 
 def _structural_from(raw: object) -> StructuralStop | None:

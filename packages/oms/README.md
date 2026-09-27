@@ -1,8 +1,9 @@
-# oms (V2-08 + V2-09)
+# oms (V2-08 + V2-09 + V2-09b)
 
 Paper-only order router and position manager. Risk checks run before any broker
 call. Duplicate `order_id` submits are idempotent. Exits are built from the
-held position record. Live/Dhan construction is disabled.
+held position record plus declared ExitPlan primitives (catastrophic, structural,
+ATR fixed at fill, time, grace, signal-flip). Live/Dhan construction is disabled.
 
 ## Whole-lot quantities
 
@@ -24,6 +25,6 @@ pytest packages/oms tests/regression/test_reg_02_protective_stop.py \
   tests/regression/test_reg_03_held_instrument.py \
   tests/regression/test_reg_05_caps.py tests/regression/test_reg_12_cost_stack.py \
   tests/regression/test_reg_14_fill_rules.py tests/regression/test_reg_15_eod_stale.py \
-  tests/regression/test_reg_16_cost_config.py
+  tests/regression/test_reg_16_cost_config.py tests/regression/test_reg_18_exit_primitives.py
 python -m oms.demo
 ```
