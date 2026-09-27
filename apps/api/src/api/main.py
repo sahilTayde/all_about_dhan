@@ -2,14 +2,19 @@
 
 from __future__ import annotations
 
-from typing import Any
+import asyncio
+import json
+from contextlib import asynccontextmanager
+from typing import Any, Optional
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 
 from api.config import load_api_settings
 from api.desk_merge import merge_live_paper_into_desk, overlay_customer_sod_ticket
 from api.founder_status import build_founder_status
+from api import ui_feed
 from api.health_alerts import router as health_router
 from api.models import TookTradeBody, TookTradeRecord
 from api.premium_bind import bind_premiums_onto_desk
@@ -17,9 +22,17 @@ from api.store import SignalStore
 from api.ws import router as ws_router
 
 
+@asynccontextmanager
+async def _lifespan(_app: FastAPI):
+    # Index the model log off the request path so /ui/* never shows partial history for long.
+    ui_feed.start_history_warmer()
+    yield
+
+
 def create_app() -> FastAPI:
     settings = load_api_settings()
     app = FastAPI(
+        lifespan=_lifespan,
         title=settings.title,
         version="0.1.0",
         description=(
@@ -200,14 +213,8 @@ def create_app() -> FastAPI:
     @app.get("/paper/ml-books")
     def paper_ml_books() -> dict[str, Any]:
         """Parallel ML/dealer PAPER scalper board. Net ₹ after Groww+STT. NO_PROMOTE."""
-        import json
-        from pathlib import Path
-
-        root = Path(__file__).resolve().parents[4]
-        recon = root / "data" / "recon" / "ml_paper_dashboard.json"
-        mock = root / "apps" / "web" / "public" / "mock" / "ml_paper_dashboard.json"
-        path = recon if recon.is_file() else mock
-        if not path.is_file():
+        blob = ui_feed.load_board(budget_s=ui_feed.SNAPSHOT_BUDGET_S)
+        if blob is None:
             return {
                 "ok": False,
                 "reason": "DATA_INSUFFICIENT: run python -m desk_ml paper-scalp --replay",
@@ -216,12 +223,47 @@ def create_app() -> FastAPI:
                 "win_rate": None,
                 "gate": "not RESEARCH_READY_FOR_PROGRAMMING",
             }
-        blob = json.loads(path.read_text(encoding="utf-8"))
-        if isinstance(blob, dict):
-            blob.setdefault("orders", "REFUSED")
-            blob.setdefault("promote", False)
-            blob.setdefault("win_rate", None)
         return blob
+
+    @app.get("/ui/snapshot")
+    def ui_snapshot() -> dict[str, Any]:
+        """Everything Desk / Founder render, in one read-only payload. No orders."""
+        return ui_feed.build_snapshot(budget_s=ui_feed.SNAPSHOT_BUDGET_S)
+
+    @app.get("/ui/stream")
+    async def ui_stream(request: Request) -> StreamingResponse:
+        """Server-sent events: the snapshot, pushed only when it changes (checked every 0.5 s)."""
+
+        async def events():
+            last = None
+            idle = 0
+            while not await request.is_disconnected():
+                snap = await asyncio.to_thread(ui_feed.build_snapshot, budget_s=ui_feed.SNAPSHOT_BUDGET_S)
+                body = json.dumps({k: v for k, v in snap.items() if k != "as_of"}, default=str, separators=(",", ":"))
+                if body != last:
+                    last, idle = body, 0
+                    yield f"data: {json.dumps(snap, default=str, separators=(',', ':'))}\n\n"
+                else:
+                    idle += 1
+                    if idle % 30 == 0:
+                        yield ": keepalive\n\n"
+                await asyncio.sleep(0.5)
+
+        return StreamingResponse(
+            events(),
+            media_type="text/event-stream",
+            headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+        )
+
+    @app.get("/paper/history")
+    def paper_history(day: Optional[str] = None) -> dict[str, Any]:
+        """Closed paper trades for one IST day (board + model log + ledger). Read-only."""
+        return ui_feed.day_history(day=day, budget_s=2.0)
+
+    @app.get("/paper/trace")
+    def paper_trace(trade_id: str) -> dict[str, Any]:
+        """Decision trace Data → Analysts → Boss → Risk → Desk → Broker → Fill for one trade."""
+        return ui_feed.trade_trace(trade_id=trade_id, budget_s=1.0)
 
     @app.get("/paper/backtests/itm-scalp")
     def paper_itm_scalp_backtest() -> dict[str, Any]:

@@ -4,9 +4,15 @@ Thin **Vite + React** UI for all_about_dhan. One site, three dashboards:
 
 | Route | Who | Job |
 |-------|-----|-----|
-| [`/`](http://localhost:5173/) | Customer | One suggested ticket. No indicator soup. |
-| [`/desk`](http://localhost:5173/desk) | Desk | Live signal, path to SL/target, history, discarded-by-boss list. |
-| [`/pm`](http://localhost:5173/pm) | Founder | Money, train metrics, SOD fill graph, all models/STRAT/indicators. |
+| [`/desk`](http://localhost:5173/desk) (`/` redirects here) | Desk | Alert bar · Current trade (entry, LTP, stop, T1/T2, trailing, P&L, elapsed, MFE/MAE) + paper target/stop override · Account (all recorded days) · Current market · Decision trace · Trade history (day picker, filters, columns) · Why days spilled |
+| [`/pm`](http://localhost:5173/pm) | Founder | KPIs · System health (red/amber/green) + issues + next action · Account · START/STOP trade desk · Founder controls (next PR, disabled) · Charts: cumulative P&L, daily/weekly/monthly P&L + win %, trades per day, per-model win % + trend, loss by stage · Now open · Decision trace · Compare fills · Honesty exam · Discarded · Roster (DEMO) |
+| [`/customer`](http://localhost:5173/customer) | Customer | One suggested ticket (FIXTURE preview). No indicator soup. |
+
+Every panel shows `—` (or a greyed decision-trace step) when the data does not exist yet; nothing is invented. Panels still fed by static `public/mock` demo JSON (roster, STRAT lights, indicator pills) carry a **DEMO · mock** badge.
+
+**Data flow.** Desk and Founder open one server-sent-events stream, `GET /ui/stream`, which pushes the whole read-only snapshot (`apps/api/src/api/ui_feed.py`) only when it changes. If the stream drops they fall back to one batched `GET /ui/snapshot` every 2 s; if the API is down they show the static mock board with a CRITICAL "Website lost the API" alert. Past days (`/paper/history?day=`) and the decision trace (`/paper/trace?trade_id=`) are fetched on click. The alert bar can play a sound and raise a browser notification for CRITICAL / EMERGENCY alerts after you press **Enable alarm**.
+
+**Size.** Each page is its own chunk. Desk loads about 66 KB gzip of JS + 11 KB CSS; the chart library (lightweight-charts, 52 KB gzip) loads only on Founder and Customer.
 
 **Not investment advice.** PAPER / MOCK. Orders refused. Owned by team 07_coding.
 
@@ -32,15 +38,33 @@ npm install
 npm run dev
 ```
 
-Open [http://localhost:5173](http://localhost:5173) (customer), [http://localhost:5173/desk](http://localhost:5173/desk) (desk), or [http://localhost:5173/pm](http://localhost:5173/pm) (founder).
+Open [http://localhost:5173/desk](http://localhost:5173/desk) (desk), [http://localhost:5173/pm](http://localhost:5173/pm) (founder), or [http://localhost:5173/customer](http://localhost:5173/customer) (customer preview).
 
 | Command | What it does |
 |---------|----------------|
 | `npm run dev` | Vite dev server on port 5173 |
 | `npm run build` | Production bundle → `dist/` |
 | `npm run preview` | Serve the production bundle locally |
+| `npm run ui:snapshots` | Playwright layout check on a synthetic fixture (see below) |
 
-Copy `.env.example` to `.env` only if you want a remote API later. Leave `VITE_API_URL` empty to use mock JSON.
+Copy `.env.example` to `.env` only if you want a remote API later. With `VITE_API_URL` empty, the pages reach the API through the Vite proxy (`/ui`, `/paper`, `/founder`, `/health`).
+
+## Layout check (Playwright)
+
+```bash
+npx playwright install chromium   # once
+npm run ui:snapshots              # or: node scripts/ui_snapshots/run.mjs --out /tmp/shots --widths 390,1280
+```
+
+Builds the app, serves the production bundle with `vite preview`, and answers every data URL from `scripts/ui_snapshots/fixture.mjs` (invented numbers on a fake past session; no market data, no network, no API) through a tiny in-process fixture API that includes a real `/ui/stream` push. It screenshots Desk, Founder, Customer and Cleanup at 390 / 1280 / 1440 / 1920 px into `scripts/ui_snapshots/out/` and exits 1 if:
+
+- the page scrolls sideways, or any element is cut off at the viewport edge;
+- the trade table's P/L / Status columns are not visible at 1280 px or wider;
+- `NaN` / `undefined` shows on screen, or the page throws;
+- a Desk / Founder panel is missing (alert bar, health rows, 7 trace steps, charts, account, current-trade fields, disabled next-PR controls);
+- a pushed update takes 200 ms or more to reach the DOM, or the no-ticket state does not read ON HOLD.
+
+It prints first-contentful-paint and data-ready times per page. `--root <dir> --no-features` runs the layout checks against another checkout (used for the before/after gallery).
 
 ## What the customer sees
 
@@ -109,7 +133,7 @@ Later: set `VITE_API_URL` (for example `http://127.0.0.1:8000`). The loader will
 
 | Path | Role |
 |------|------|
-| `src/App.jsx` | Customer `/` |
+| `src/App.jsx` | Customer `/customer` |
 | `src/InternalDesk.jsx` | Desk `/desk` live book |
 | `src/FounderPm.jsx` | Founder `/pm` money board |
 | `src/components/AppNav.jsx` | Customer / Desk / Founder switch |
