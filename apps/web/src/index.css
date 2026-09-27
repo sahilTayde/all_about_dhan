@@ -2933,9 +2933,9 @@ a {
 
 .founder-desk__grid {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  gap: 1rem;
-  margin: 0.9rem 0 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 11rem), 1fr));
+  gap: 0.6rem;
+  margin: 0.6rem 0 0.7rem;
 }
 
 @media (max-width: 720px) {
@@ -2948,7 +2948,8 @@ a {
   border: 1px solid var(--line);
   border-radius: 10px;
   background: var(--surface-2);
-  padding: 0.85rem 1rem;
+  padding: 0.6rem 0.7rem;
+  min-width: 0;
 }
 
 .founder-desk__section h3 {
@@ -2963,8 +2964,9 @@ a {
 }
 
 .founder-desk__btn {
-  min-width: 9.5rem;
-  padding: 0.55rem 0.85rem;
+  flex: 1 1 7rem;
+  min-width: 0;
+  padding: 0.55rem 0.6rem;
   border-radius: 8px;
   font-weight: 700;
   cursor: pointer;
@@ -3591,6 +3593,8 @@ tr.is-click:hover {
 .state-pill--target { color: var(--achieved); border-color: var(--achieved); }
 .state-pill--stopped { color: var(--pe); border-color: var(--pe); }
 .state-pill--dead { color: var(--expired); }
+.state-pill--closed-up { color: var(--yes); border-color: var(--yes); }
+.state-pill--closed-down { color: var(--pe); border-color: rgba(224, 107, 116, 0.6); }
 .state-pill--stale { color: var(--warn); border-color: var(--warn); }
 .state-pill--waiting { color: var(--ink-soft); }
 .state-pill--hold { color: var(--vetoed); border-color: var(--vetoed); }
@@ -4050,4 +4054,63 @@ tr.is-click:hover {
 
 .last-ticket .kv dd {
   font-size: 0.85rem;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 480px) {
+  .last-ticket.kv-grid--3 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.offline-banner {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.3rem 0.8rem;
+  padding: 0.55rem 0.8rem;
+  border: 1px solid var(--lost);
+  border-radius: 8px;
+  background: repeating-linear-gradient(135deg, #3a0f19 0 12px, #2a0b12 12px 24px);
+  color: #ffd7de;
+  font-size: 0.82rem;
+}
+
+.offline-banner strong {
+  letter-spacing: 0.08em;
+  color: #fff;
+}
+
+.stage-bars__bar i.is-pos {
+  background: var(--yes);
+}
+
+.stage-total {
+  margin: 0.2rem 0 0.5rem;
+  font-size: 0.78rem;
+  color: var(--ink-soft);
+}
+
+.stage-total b {
+  font-family: var(--mono);
+}
+
+.page-foot {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0.3rem 1rem;
+  margin: 0;
+}
+
+.page-foot a {
+  color: var(--ink-soft);
+}
+
+.chart-box {
+  margin-top: 0.25rem;
 }

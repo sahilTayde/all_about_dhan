@@ -206,8 +206,9 @@ export function boardClock(board, { nowMs = Date.now() } = {}) {
   return { ist, ms: Number.isFinite(ms) ? ms : null, replay, label, writtenIst: board.as_of_ist || null };
 }
 
-/** One source word for the header badge and the Founder pill. */
-export function boardSource(board, clock) {
+/** One source word for the header badge and the Founder pill. Offline = static mock, never PAPER. */
+export function boardSource(board, clock, offline = false) {
+  if (offline) return "MOCK · OFFLINE";
   if (!board) return "MOCK";
   if (board.live_session || board.session_ist_date) return clock?.replay ? "PAPER · REPLAY" : "PAPER";
   return "MOCK";
@@ -536,7 +537,7 @@ function num(v) {
   return Number.isFinite(n) ? n : null;
 }
 
-function isOpenRow(t) {
+export function isOpenRow(t) {
   const s = String(t?.status || "");
   return !t?.closed_ist && t?.exit == null && (s.includes("OPEN") || s === "IN_TRADE" || s === "WORKING_LIMIT" || s.startsWith("TARGET_STEP") || s === "TRAIL_STOP" || s === "CANCEL_ELIGIBLE");
 }
@@ -555,6 +556,12 @@ export function ticketState(t, { clock = null } = {}) {
   const out = outcomeLabel(t);
   if (out.includes("TARGET")) return { key: "target", label: out };
   if (out.includes("STOP LOSS")) return { key: "stopped", label: `STOPPED · ${out.replace("STOP LOSS ", "SL ")}` };
+  const net = Number(t.realized_pnl_inr);
+  if (t.filled !== false && t.exit != null && Number.isFinite(net) && net !== 0) {
+    // Filled, then closed by an overlay cancel / time / unwind: a real result, not a dead ticket.
+    const kind = out === "CANCELLED" ? "cancel" : out.toLowerCase();
+    return { key: net > 0 ? "closed-up" : "closed-down", label: `CLOSED (${kind})` };
+  }
   return { key: "dead", label: `DEAD · ${out}` };
 }
 
@@ -564,8 +571,9 @@ export function holdReason(board, founderBook, halt = null) {
   const status = founderBook?.index_status || {};
   const started = Object.entries(status).filter(([, v]) => v === "START").map(([k]) => k);
   if (Object.keys(status).length && !started.length) return "Founder STOP on every index — press START on /pm to allow new paper fills.";
-  const skip = (board?.seen_not_taken?.skipped_latest || []).find((r) => String(r.book_id || "").includes("DEFAULT")) ||
-    (board?.seen_not_taken?.skipped_latest || [])[0];
+  const on = (r) => !Object.keys(status).length || status[String(r.underlying || "").toUpperCase()] === "START";
+  const skips = (board?.seen_not_taken?.skipped_latest || []).filter(on);
+  const skip = skips.find((r) => String(r.book_id || "").includes("DEFAULT")) || skips[0];
   if (!skip) return null;
   return `${skip.underlying || ""} ${skip.why || skipPlain(skip.reason)}`.trim();
 }
@@ -599,8 +607,9 @@ export function tradeNow(t, { nowMs = Date.now() } = {}) {
     pts,
     inr: pts != null && qty != null ? pts * qty : null,
     elapsedMs: opened != null ? nowMs - opened * 1000 : null,
-    mfe: entry != null && num(t.seen_high) != null ? num(t.seen_high) - entry : null,
-    mae: entry != null && num(t.seen_low) != null ? num(t.seen_low) - entry : null,
+    // Excursions from entry: MFE is never below 0, MAE never above 0.
+    mfe: entry != null && num(t.seen_high) != null ? Math.max(0, num(t.seen_high) - entry) : null,
+    mae: entry != null && num(t.seen_low) != null ? Math.min(0, num(t.seen_low) - entry) : null,
   };
 }
 
@@ -647,6 +656,7 @@ export function modelScores(days) {
 }
 
 const STAGE_OF = [
+  [/^TARGET/, "Desk · target hit"],
   [/TRAIL/, "Desk · trailing stop"],
   [/^STOP/, "Desk · stop loss hit"],
   [/^CANCEL/, "Desk overlay · cancelled after fill"],
@@ -655,21 +665,27 @@ const STAGE_OF = [
   [/HUMAN/, "Founder · human exit"],
 ];
 
-/** Where money leaks: net loss by exit stage, plus charges as the execution cost. */
+/**
+ * Where money is made and lost: gross P&L per exit stage plus one charges bar. The bars sum to the
+ * true net (per-reason net already includes charges, so net-per-stage + a charges bar would count them twice).
+ */
 export function lossByStage(days) {
   const map = new Map();
   let charges = 0;
+  let net = 0;
   for (const d of days || []) {
-    charges += d.charges || 0;
+    net += d.net || 0;
     for (const [reason, r] of Object.entries(d.by_reason || {})) {
       const stage = (STAGE_OF.find(([re]) => re.test(reason)) || [null, `Other · ${reason}`])[1];
-      const s = map.get(stage) || { stage, n: 0, net: 0 };
+      const s = map.get(stage) || { stage, n: 0, value: 0 };
       s.n += r.n;
-      s.net += r.net;
+      s.value += r.gross ?? r.net;
+      charges += r.gross == null ? 0 : r.charges || 0;
       map.set(stage, s);
     }
   }
-  const rows = [...map.values()].filter((s) => s.net < 0);
-  if (charges > 0) rows.push({ stage: "Execution · charges (Groww + STT)", n: null, net: -charges });
-  return rows.sort((a, b) => a.net - b.net);
+  const rows = [...map.values()].sort((a, b) => a.value - b.value);
+  if (charges > 0) rows.push({ stage: "Execution · charges (Groww + STT)", n: null, value: -charges });
+  const sum = rows.reduce((t, r) => t + r.value, 0);
+  return { rows, sum: Math.round(sum * 100) / 100, net: Math.round(net * 100) / 100 };
 }

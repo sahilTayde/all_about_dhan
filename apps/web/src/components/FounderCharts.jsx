@@ -6,13 +6,16 @@ const UP = "#3dcc8c";
 const DOWN = "#e06b74";
 const IST_S = 19800; // lightweight-charts renders UTC; shift epoch seconds so the axis reads IST
 
+// Attribution is the "Charts by TradingView Lightweight Charts" link in the page footer (licence
+// NOTICE), so the in-chart logo that covered the first bar is off.
+const SCALE = { borderColor: "#2a333d", minimumWidth: 64, scaleMargins: { top: 0.14, bottom: 0.08 } };
 const BASE = {
   autoSize: true,
-  layout: { background: { type: ColorType.Solid, color: "transparent" }, textColor: "#8b97a5", fontSize: 11 },
+  layout: { background: { type: ColorType.Solid, color: "transparent" }, textColor: "#8b97a5", fontSize: 11, attributionLogo: false },
   grid: { vertLines: { color: "rgba(42,51,61,0.45)" }, horzLines: { color: "rgba(42,51,61,0.45)" } },
-  rightPriceScale: { borderColor: "#2a333d" },
-  leftPriceScale: { borderColor: "#2a333d" },
-  timeScale: { borderColor: "#2a333d" },
+  rightPriceScale: SCALE,
+  leftPriceScale: SCALE,
+  timeScale: { borderColor: "#2a333d", fixLeftEdge: true, fixRightEdge: true, rightOffset: 1, minBarSpacing: 4 },
   handleScroll: false,
   handleScale: false,
 };
@@ -32,7 +35,7 @@ function TimeChart({ series, height = 180, timeVisible = false, label }) {
         color: s.color,
         priceScaleId: s.scale || "right",
         priceLineVisible: false,
-        lastValueVisible: true,
+        lastValueVisible: s.scale !== "left",
         priceFormat: { type: "price", precision: 0, minMove: 1 },
       };
       const api = s.kind === "histogram" ? chart.addHistogramSeries(opts) : chart.addLineSeries({ ...opts, lineWidth: 2 });
@@ -201,7 +204,7 @@ export function ModelScores({ days }) {
 }
 
 export function LossByStage({ days, exam }) {
-  const rows = useMemo(() => lossByStage(days), [days]);
+  const { rows, sum, net } = useMemo(() => lossByStage(days), [days]);
   const rooms = useMemo(() => {
     const map = new Map();
     for (const d of exam?.days || []) {
@@ -212,28 +215,36 @@ export function LossByStage({ days, exam }) {
     }
     return [...map.entries()].filter(([, v]) => v < 0).sort((a, b) => a[1] - b[1]);
   }, [exam]);
-  const worst = Math.min(...rows.map((r) => r.net), ...rooms.map(([, v]) => v), -1);
+  const scale = Math.max(1, ...rows.map((r) => Math.abs(r.value)), ...rooms.map(([, v]) => Math.abs(v)));
+  const bar = (v) => (
+    <span className="stage-bars__bar">
+      <i className={v >= 0 ? "is-pos" : ""} style={{ width: `${(Math.abs(v) / scale) * 100}%` }} />
+    </span>
+  );
   return (
     <section className="panel">
       <div className="panel__head">
-        <h2>Loss by stage</h2>
-        <span className="muted small">which step loses money</span>
+        <h2>P&L by stage</h2>
+        <span className="muted small">gross per exit stage + charges = net</span>
       </div>
       {rows.length ? (
-        <ul className="stage-bars">
-          {rows.map((r) => (
-            <li key={r.stage}>
-              <span>{r.stage}</span>
-              <span className="stage-bars__bar">
-                <i style={{ width: `${(r.net / worst) * 100}%` }} />
-              </span>
-              <b className="is-down">{inr(r.net)}</b>
-              <em className="muted small">{r.n == null ? "" : `${r.n} trades`}</em>
-            </li>
-          ))}
-        </ul>
+        <>
+          <ul className="stage-bars">
+            {rows.map((r) => (
+              <li key={r.stage}>
+                <span title={r.stage}>{r.stage}</span>
+                {bar(r.value)}
+                <b className={moneyClass(r.value)}>{inr(r.value)}</b>
+                <em className="muted small">{r.n == null ? "" : `${r.n} trades`}</em>
+              </li>
+            ))}
+          </ul>
+          <p className="stage-total">
+            Sum of bars <b className={moneyClass(sum)}>{inr(sum)}</b> · book net <b className={moneyClass(net)}>{inr(net)}</b>
+          </p>
+        </>
       ) : (
-        <Empty>No losing exits recorded.</Empty>
+        <Empty>No closed trades recorded.</Empty>
       )}
       {rooms.length ? (
         <>
@@ -242,9 +253,7 @@ export function LossByStage({ days, exam }) {
             {rooms.map(([room, v]) => (
               <li key={room}>
                 <span>{room}</span>
-                <span className="stage-bars__bar">
-                  <i style={{ width: `${(v / worst) * 100}%` }} />
-                </span>
+                {bar(v)}
                 <b className="is-down">{inr(v)}</b>
                 <em />
               </li>

@@ -16,7 +16,7 @@ async function mockSnapshot(signal) {
     getJson("/mock/ml_paper_dashboard.json", signal),
     getJson("/mock/sod_exam_report.json", signal).catch(() => null),
   ]);
-  return { ok: true, offline: true, board, exam, health: [], alerts: [], days: [], account: null, founder: {} };
+  return { ok: true, offline: true, board, exam, health: [], alerts: null, days: [], account: null, founder: {} };
 }
 
 /**
@@ -85,7 +85,7 @@ const _trace = new Map();
 export async function fetchTrace(tradeId, { signal, force = false } = {}) {
   if (!force && _trace.has(tradeId)) return _trace.get(tradeId);
   const json = await getJson(`${API_BASE}/paper/trace?trade_id=${encodeURIComponent(tradeId)}`, signal);
-  _trace.set(tradeId, json);
+  if (json?.closed) _trace.set(tradeId, json); // an open trade's trace keeps changing: never cache it
   return json;
 }
 

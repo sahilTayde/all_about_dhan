@@ -5,7 +5,7 @@ import { AppNav } from "./components/AppNav.jsx";
 import { CurrentTrade, HumanManage } from "./components/CurrentTrade.jsx";
 import { DecisionTrace } from "./components/DecisionTrace.jsx";
 import { Disclaimer } from "./components/Disclaimer.jsx";
-import { Header } from "./components/Header.jsx";
+import { Header, OfflineBanner } from "./components/Header.jsx";
 import { IstMarketClock } from "./components/IstMarketClock.jsx";
 import { MarketPanel } from "./components/MarketPanel.jsx";
 import { SpillLedger } from "./components/SpillLedger.jsx";
@@ -22,10 +22,12 @@ export function InternalDesk() {
   const board = snap?.board || null;
   const d = useMemo(() => derivePaperBoard(board, null), [board]);
   const clock = boardClock(board);
+  const offline = Boolean(snap?.offline);
   const current = d?.current;
   const indexNow = current ? d?.regimes?.[current.underlying]?.itm_bin?.index ?? null : null;
-  const traceId = picked?.trade_id || current?.trade_id || d?.uniqueClosed?.[0]?.trade_id || null;
-  const traceRow = picked || current || d?.uniqueClosed?.[0];
+  const fresh = picked && [...(d?.uniqueOpen || []), ...(d?.uniqueClosed || [])].find((t) => t.trade_id === picked.trade_id);
+  const traceRow = fresh || picked || current || d?.uniqueClosed?.[0];
+  const traceId = traceRow?.trade_id || null;
   const today = (snap?.days || []).find((x) => x.day === (board?.session_ist_date || clock.ist?.slice(0, 10)));
 
   async function human(body, okMsg) {
@@ -48,16 +50,17 @@ export function InternalDesk() {
         title="Desk"
         kicker="Revalidate the ticket"
         sub="Live ticket, path, decision trace and every trade. PAPER only."
-        sourceLabel={boardSource(board, clock)}
+        sourceLabel={boardSource(board, clock, offline)}
       />
       <div className="desk-refresh">
         <p className="desk-sub" title={clock.writtenIst ? `Board written ${clock.writtenIst}` : undefined}>
           Tape as of {clock.label}
-          {clock.replay ? " · replay of a past session" : ""} · {conn === "live" ? "live push" : conn}
+          {offline ? " · static mock (API offline)" : clock.replay ? " · replay of a past session" : ""} · {conn === "live" ? "live push" : conn}
           {latencyMs != null ? ` · update ${latencyMs} ms` : ""}
         </p>
         <IstMarketClock />
       </div>
+      {offline ? <OfflineBanner /> : null}
       <AlertBar alerts={snap?.alerts} conn={conn} />
 
       {!d ? (
@@ -102,6 +105,7 @@ export function InternalDesk() {
           </div>
           <div className="span-12">
             <DecisionTrace
+              refreshKey={traceRow?.last_updated_ts}
               tradeId={traceId}
               label={traceRow ? `${traceRow.underlying} ${traceRow.side} ${traceRow.atm_strike ?? ""} · ${String(traceRow.opened_ist || "").slice(11, 19)}` : null}
             />

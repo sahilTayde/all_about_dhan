@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { fetchTrace } from "../lib/feed.js";
 
 function Value({ v }) {
@@ -16,25 +16,30 @@ function Value({ v }) {
 }
 
 /** Decision trace (§49): Data → Analysts → Boss → Risk → Desk → Broker → Fill, from recorded logs only. */
-export function DecisionTrace({ tradeId, label }) {
+export function DecisionTrace({ tradeId, label, refreshKey }) {
   const [trace, setTrace] = useState(null);
   const [err, setErr] = useState(null);
   const [pick, setPick] = useState(null);
+  const shownId = useRef(null);
 
+  // refreshKey changes whenever an open ticket updates, so its trace follows the trade.
   useEffect(() => {
     if (!tradeId) return undefined;
     const ac = new AbortController();
-    setErr(null);
-    setTrace(null);
+    const switched = shownId.current !== tradeId;
+    if (switched) {
+      setErr(null);
+      setTrace(null);
+    }
     fetchTrace(tradeId, { signal: ac.signal })
       .then((t) => {
+        shownId.current = tradeId;
         setTrace(t);
-        const first = (t.steps || []).find((s) => s.status !== "NO_DATA");
-        setPick(first?.id || null);
+        if (switched) setPick((t.steps || []).find((s) => s.status !== "NO_DATA")?.id || null);
       })
       .catch((e) => e?.name !== "AbortError" && setErr("Trace needs the API (read-only /paper/trace)."));
     return () => ac.abort();
-  }, [tradeId]);
+  }, [tradeId, refreshKey]);
 
   const steps = trace?.steps || [];
   const sel = steps.find((s) => s.id === pick);

@@ -6,6 +6,19 @@ export function DemoBadge({ what = "Static demo data from public/mock — not wi
   );
 }
 
+/** Static mock shown because the API is unreachable: must never pass for real paper trades. */
+export function OfflineBanner() {
+  return (
+    <div className="offline-banner" role="alert">
+      <strong>API OFFLINE · MOCK DATA</strong>
+      <span>
+        Every number below is the static demo board from public/mock — not your paper trades. Start the API:{" "}
+        <code>./scripts/desk.sh website</code>
+      </span>
+    </div>
+  );
+}
+
 export function Header({
   sourceLabel,
   onInfo,

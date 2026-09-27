@@ -1,9 +1,9 @@
 import { Fragment, useEffect, useMemo, useState } from "react";
 import { fetchDay } from "../lib/feed.js";
-import { inr, moneyClass, outcomeLabel, px, ticketState, uniqueFills } from "../lib/paperBoard.js";
+import { inr, isOpenRow, moneyClass, outcomeLabel, px, ticketState, uniqueFills } from "../lib/paperBoard.js";
 
 const COLS_KEY = "desk.tradeHistory.columns.v3";
-const STATE_WORD = { progress: "IN PROGRESS", stale: "STALE", target: "TARGET HIT", stopped: "STOPPED", dead: "DEAD" };
+const STATE_WORD = { progress: "IN PROGRESS", stale: "STALE", target: "TARGET HIT", stopped: "STOPPED", closed: "CLOSED", dead: "DEAD" };
 
 // `key` columns are on by default and sized to fit at 1280px; the rest are one click away in the
 // column picker (the table then scrolls inside its own box) and always shown in the row detail.
@@ -194,7 +194,10 @@ export function TradeHistory({ rows, days, liveDay, clock, fillRooms, onOpen, on
 
   const source = day === "LIVE" ? rows || [] : dayRows || [];
   const visible = useMemo(() => COLUMNS.filter((c) => !hidden.includes(c.id)), [hidden]);
-  const stateOf = (t) => ticketState(t, { clock }).key;
+  const stateOf = (t) => {
+    const k = ticketState(t, { clock }).key;
+    return k.startsWith("closed") ? "closed" : k;
+  };
   const opts = (fn) => ["ALL", ...[...new Set(source.map(fn).filter(Boolean))].sort()];
   const multiDay = useMemo(() => new Set(source.map((t) => String(t.opened_ist || "").slice(0, 10))).size > 1, [source]);
 
@@ -227,7 +230,7 @@ export function TradeHistory({ rows, days, liveDay, clock, fillRooms, onOpen, on
         return <span title={fullClock(t.opened_ist)}>{shortClock(t.opened_ist, multiDay)}</span>;
       case "end": {
         const end = t.closed_ist || (t.exit != null ? t.last_updated_ist : null);
-        return <span title={fullClock(end)}>{end ? shortClock(end, multiDay) : "open"}</span>;
+        return <span title={fullClock(end)}>{end ? shortClock(end, multiDay) : isOpenRow(t) ? "open" : "—"}</span>;
       }
       case "index":
         return t.underlying;
@@ -253,7 +256,7 @@ export function TradeHistory({ rows, days, liveDay, clock, fillRooms, onOpen, on
         return slippage(t) ?? "—";
       case "status": {
         const s = ticketState(t, { clock });
-        return <span className={`state-pill state-pill--${s.key}`} title={s.label}>{STATE_WORD[s.key] || s.label}</span>;
+        return <span className={`state-pill state-pill--${s.key}`} title={s.label}>{s.key.startsWith("closed") ? s.label : STATE_WORD[s.key] || s.label}</span>;
       }
       case "reason":
         return <span title={outcomeLabel(t)}>{reasonFor(t)}</span>;

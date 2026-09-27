@@ -9,7 +9,7 @@ import { CumulativeChart, LossByStage, ModelScores, PeriodChart, TradesPerDay } 
 import { FounderBookPicker } from "./components/FounderBookPicker.jsx";
 import { FounderHonestyExam } from "./components/FounderHonestyExam.jsx";
 import { FounderRoster } from "./components/FounderRoster.jsx";
-import { Header } from "./components/Header.jsx";
+import { Header, OfflineBanner } from "./components/Header.jsx";
 import { HealthPanel } from "./components/HealthPanel.jsx";
 import { MarketPanel } from "./components/MarketPanel.jsx";
 import { TradeHistory } from "./components/TradeHistory.jsx";
@@ -49,13 +49,15 @@ export function FounderPm() {
   const board = snap?.board || null;
   const d = useMemo(() => derivePaperBoard(board, null), [board]);
   const clock = boardClock(board);
-  const source = boardSource(board, clock);
+  const offline = Boolean(snap?.offline);
+  const source = boardSource(board, clock, offline);
   const days = snap?.days || [];
   const liveDay = board?.session_ist_date || clock.ist?.slice(0, 10);
   const day = days.find((x) => x.day === liveDay) || d?.todayDay;
   const paper = (snap?.founder?.agents || []).find((a) => a.id === "paper-loop");
   const current = d?.current;
-  const traceRow = picked || current || d?.uniqueClosed?.[0];
+  const fresh = picked && [...(d?.uniqueOpen || []), ...(d?.uniqueClosed || [])].find((t) => t.trade_id === picked.trade_id);
+  const traceRow = fresh || picked || current || d?.uniqueClosed?.[0];
 
   return (
     <div className="shell shell--founder">
@@ -69,7 +71,7 @@ export function FounderPm() {
       <div className="desk-refresh">
         <p className="desk-sub" title={clock.writtenIst ? `Board written ${clock.writtenIst}` : undefined}>
           Tape as of {clock.label}
-          {clock.replay ? " · replay of a past session" : ""} · {conn === "live" ? "live push" : conn}
+          {offline ? " · static mock (API offline)" : clock.replay ? " · replay of a past session" : ""} · {conn === "live" ? "live push" : conn}
           {latencyMs != null ? ` · update ${latencyMs} ms` : ""} · orders refused · NO_PROMOTE
         </p>
         <div className="fx-health">
@@ -79,6 +81,7 @@ export function FounderPm() {
           <span className="cleanup-pill pending">book: {source}</span>
         </div>
       </div>
+      {offline ? <OfflineBanner /> : null}
       <AlertBar alerts={snap?.alerts} conn={conn} />
 
       {!d ? (
@@ -99,13 +102,13 @@ export function FounderPm() {
             />
           </div>
 
-          <div className="span-5">
+          <div className="span-4">
             <HealthPanel rows={snap?.health} founder={snap?.founder} conn={conn} />
           </div>
           <div className="span-4">
             <AccountPanel account={snap?.account} today={day} founderBook={snap?.founder_book} />
           </div>
-          <div className="span-3 stack">
+          <div className="span-4 stack">
             <FounderBookPicker />
             <section className="panel controls-next">
               <div className="panel__head">
@@ -148,6 +151,7 @@ export function FounderPm() {
 
           <div className="span-12">
             <DecisionTrace
+              refreshKey={traceRow?.last_updated_ts}
               tradeId={traceRow?.trade_id}
               label={traceRow ? `${traceRow.underlying} ${traceRow.side} ${traceRow.atm_strike ?? ""} · ${String(traceRow.opened_ist || "").slice(11, 19)}` : null}
             />
@@ -176,7 +180,12 @@ export function FounderPm() {
           </div>
         </div>
       )}
-      <p className="muted small perf-note">Last update applied in {latencyMs ?? "—"} ms · one push stream, no per-panel polling.</p>
+      <footer className="page-foot muted small">
+        <span>Last update applied in {latencyMs ?? "—"} ms · one push stream, no per-panel polling.</span>
+        <a href="https://www.tradingview.com/" target="_blank" rel="noreferrer">
+          Charts by TradingView Lightweight Charts
+        </a>
+      </footer>
     </div>
   );
 }
