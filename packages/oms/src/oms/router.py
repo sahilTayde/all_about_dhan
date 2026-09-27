@@ -725,10 +725,10 @@ class OrderRouter:
         """REG-03: always `exit_intent` from the held instrument and whole-lot qty."""
         inst = str(position.get("instrument_id") or "")
         lot = lot_size_for(inst)
-        raw_qty = int(position.get("net_qty") or 0)
-        qty = whole_lots_qty(raw_qty, lot)
-        if raw_qty != qty:
-            detail = f"net_qty {raw_qty} is not a whole multiple of lot {lot}; closing {qty}"
+        raw_net = int(position.get("net_qty") or 0)
+        qty = whole_lots_qty(raw_net, lot)
+        if raw_net != qty:
+            detail = f"net_qty {raw_net} is not a whole multiple of lot {lot}; closing {qty}"
             _LOG.error("ODD_LOT_FLATTEN %s %s", inst, detail)
             self.bus.publish(
                 "HEALTH_ALERT",
@@ -741,8 +741,8 @@ class OrderRouter:
                 },
                 source="oms",
             )
-        if qty <= 0:
-            raise ValueError("exit qty must be a whole lot")
+        if qty <= 0 or qty > raw_net:
+            raise ValueError(f"exit qty {raw_net} has no whole lot <= net (lot {lot})")
         key = inst or str(position.get("symbol") or "")
         live = self.store.positions.get(key)
         # Snapshot flatten (CLI / lot-guard tests) has no store row — send whole lots.
