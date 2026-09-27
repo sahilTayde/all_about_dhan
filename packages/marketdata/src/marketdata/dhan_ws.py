@@ -32,7 +32,7 @@ from marketdata.clock import Clock, LiveClock, iso, market_close, market_open, s
 from marketdata.config import RecorderConfig
 from marketdata.frames import decode_frame_checked
 from marketdata.instruments import UNDERLYINGS, DhanInstrumentSource, Universe, load_universe
-from marketdata.normalize import SecurityMap, bar_payload, tick_from_packet, tick_payload
+from marketdata.normalize import SecurityMap, bar_payload, stamp_exchange_ts, tick_from_packet, tick_payload
 from marketdata.sources import TapeSource
 from marketdata.strikes import Change, StrikeSet
 from marketdata.tape import TapeWriter
@@ -253,7 +253,7 @@ class LiveMarketData:
             inst = self.securities.resolve(header.exchange_segment, header.security_id)
             if inst is None or inst.instrument_id not in self.strikes.subscribed:
                 continue
-            exchange_ts = iso(now)
+            exchange_ts = stamp_exchange_ts(packet.decoded.fields, now)
             tick = tick_from_packet(packet, inst.instrument_id, exchange_ts)
             if tick is None:
                 continue

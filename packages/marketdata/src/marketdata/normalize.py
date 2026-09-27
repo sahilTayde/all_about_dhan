@@ -3,12 +3,30 @@
 from __future__ import annotations
 
 from collections.abc import Iterable
+from datetime import datetime
 from typing import Any
 
+from marketdata.clock import IST, iso
 from marketdata.depth import quote_from_full, quote_from_ltp
 from marketdata.frames import Packet
 from marketdata.instruments import Instrument
 from marketdata.types import BarClosed, Tick
+
+# Same IST-vs-UTC probe as the recorder: Dhan LTT is epoch or epoch+19800.
+_IST_EPOCH_SHIFT = 19800
+
+
+def stamp_exchange_ts(fields: dict[str, Any], recv: datetime) -> str:
+    """Packet LTT when it is within an hour of receive time; otherwise receive time."""
+    epoch = fields.get("last_trade_time_epoch")
+    if not epoch:
+        return iso(recv)
+    now_s = recv.timestamp()
+    for shift in (0, _IST_EPOCH_SHIFT):
+        candidate = int(epoch) - shift
+        if abs(candidate - now_s) < 3600:
+            return iso(datetime.fromtimestamp(candidate, IST))
+    return iso(recv)
 
 
 class SecurityMap:

@@ -24,6 +24,7 @@ from md_fake_dhan import (
     TEST_TOKEN,
     FakeClock,
     FakeDhanServer,
+    dhan_ltt,
     full_packet,
     index_packet,
     ist,
@@ -40,10 +41,38 @@ from marketdata.chain import ChainPoller, snapshot_from_chain
 from marketdata.config import RecorderConfig
 from marketdata.dhan_ws import LiveMarketData, MemoryPublisher, RedisPublisher, replay_tape
 from marketdata.frames import decode_frame_checked
-from marketdata.normalize import SecurityMap, tick_from_packet, tick_payload
-from marketdata.types import SimClock
+from marketdata.lookahead import lookahead_failures
+from marketdata.normalize import SecurityMap, stamp_exchange_ts, tick_from_packet, tick_payload
+from marketdata.types import BarClosed, SimClock
 
 NSE_IDX = "NSE_IDX:NIFTY"
+FUT = "NSE_FNO:NIFTY:2026-09-29"
+NSE_FNO_SEG = 2
+FUT_SID = 35000
+
+
+def _closed_emissions(pub: MemoryPublisher) -> list[tuple[BarClosed, datetime]]:
+    """(BarClosed, emission time) for lookahead_failures."""
+    out: list[tuple[BarClosed, datetime]] = []
+    for env in pub.of("BAR_CLOSED"):
+        payload = env["payload"]
+        bar = BarClosed(
+            instrument_id=payload["instrument_id"],
+            tf=payload["tf"],
+            start=payload["start"],
+            end=payload["end"],
+            o=payload["o"],
+            h=payload["h"],
+            l=payload["l"],
+            c=payload["c"],
+            v=payload["v"],
+            n_ticks=payload["n_ticks"],
+            gap=payload.get("gap", False),
+            late_ticks=payload.get("late_ticks", 0),
+            available_ts=env["available_ts"],
+        )
+        out.append((bar, datetime.fromisoformat(env["timestamp"])))
+    return out
 
 
 def _empty_env() -> dict[str, str]:
@@ -157,6 +186,7 @@ def test_ticks_and_closed_bars_match_fixture(tmp_path: Path) -> None:
     env = next(e for e in pub.of("BAR_CLOSED") if e["payload"] is bar)
     assert datetime.fromisoformat(env["available_ts"]) >= datetime.fromisoformat(bar["end"])
     assert datetime.fromisoformat(env["available_ts"]) <= datetime.fromisoformat("2026-09-28T10:01:00.100+05:30")
+    assert lookahead_failures(_closed_emissions(pub)) == []
 
 
 def test_disconnect_down_up_resubscribe_and_reg02c(tmp_path: Path) -> None:
@@ -282,6 +312,7 @@ def test_replay_tape_emits_ticks_and_bars(tmp_path: Path) -> None:
     assert bars
     assert bars[0]["end"] == "2026-09-28T10:01:00+05:30"
     assert datetime.fromisoformat(pub.of("BAR_CLOSED")[0]["available_ts"]) >= datetime.fromisoformat(bars[0]["end"])
+    assert lookahead_failures(_closed_emissions(pub)) == []
 
     class _Redis:
         def __init__(self) -> None:
@@ -319,3 +350,111 @@ def test_chain_emitted_on_live_loop(tmp_path: Path) -> None:
     assert snaps
     assert snaps[0]["underlying"] == "NIFTY"
     assert snaps[0]["strikes"]
+
+
+def test_stamp_exchange_ts_uses_packet_ltt() -> None:
+    recv = ist(10, 1, 5)
+    fields = {"last_trade_time_epoch": dhan_ltt(ist(10, 0, 45))}
+    stamped = stamp_exchange_ts(fields, recv)
+    assert stamped.startswith("2026-09-28T10:00:45")
+    assert stamped.endswith("+05:30")
+    assert stamp_exchange_ts({}, recv).startswith("2026-09-28T10:01:05")
+
+
+def test_delayed_previous_minute_packet_is_late_not_in_ohlc(tmp_path: Path) -> None:
+    """Delayed LTT from the previous minute after the next minute's first tick is dropped."""
+
+    async def hook(t: datetime, server: FakeDhanServer, _live: LiveMarketData) -> None:
+        if t == ist(10, 1, 0):
+            await server.send(full_packet(FUT_SID, NSE_FNO_SEG, 100.0, 99.95, 100.05, ltt_epoch=dhan_ltt(t)))
+        elif t == ist(10, 1, 5):
+            late_ltt = dhan_ltt(ist(10, 0, 45))
+            await server.send(full_packet(FUT_SID, NSE_FNO_SEG, 999.0, 998.0, 999.1, ltt_epoch=late_ltt))
+        elif t == ist(10, 2, 0):
+            await server.send(full_packet(FUT_SID, NSE_FNO_SEG, 101.0, 100.95, 101.05, ltt_epoch=dhan_ltt(t)))
+
+    live, _server, pub, _st = asyncio.run(_run_live(tmp_path, ist(10, 0, 50), ist(10, 2, 2), hook=hook))
+    bars = [p for p in pub.payloads("BAR_CLOSED") if p["instrument_id"] == FUT]
+    assert bars
+    bar = next(p for p in bars if p["start"].startswith("2026-09-28T10:01:00"))
+    assert (bar["o"], bar["h"], bar["l"], bar["c"]) == (100.0, 100.0, 100.0, 100.0)
+    assert 999.0 not in (bar["o"], bar["h"], bar["l"], bar["c"])
+    assert bar["late_ticks"] == 1
+    assert live.bars.late_tick_count == 1
+    assert lookahead_failures(_closed_emissions(pub)) == []
+
+
+def test_published_bars_pass_lookahead_on_replay(tmp_path: Path) -> None:
+    tape = tmp_path / "ticks.jsonl"
+    rows = [
+        {"instrument_id": NSE_IDX, "ltp": 24500.0, "ltq": 1, "volume": 1, "oi": None, "exchange_ts": ts}
+        for ts in (
+            "2026-09-28T10:00:10.000+05:30",
+            "2026-09-28T10:00:40.000+05:30",
+            "2026-09-28T10:01:00.000+05:30",
+            "2026-09-28T10:01:30.000+05:30",
+            "2026-09-28T10:02:00.000+05:30",
+        )
+    ]
+    tape.write_text("".join(json.dumps(r) + "\n" for r in rows), encoding="utf-8")
+    pub = MemoryPublisher()
+    replay_tape(tape, pub, clock=SimClock(datetime.fromisoformat("2026-09-28T10:00:00+05:30")))
+    assert pub.payloads("BAR_CLOSED")
+    assert lookahead_failures(_closed_emissions(pub)) == []
+
+
+def test_reg02c_one_up_per_down_up_no_heartbeat_dup(tmp_path: Path) -> None:
+    """REG-02c: on_feed_status UP once per reconnect; heartbeats do not duplicate UP."""
+
+    async def hook(t: datetime, server: FakeDhanServer, _live: LiveMarketData) -> None:
+        if t == ist(10, 0, 2):
+            await server.send(index_packet(13, 24512.35))
+        if t == ist(10, 0, 25):
+            await server.drop_clients()
+            await until(lambda: server.connections >= 2 and len(server.subscribed) == 8, timeout=10)
+
+    _live, server, _pub, statuses = asyncio.run(_run_live(tmp_path, ist(10, 0), ist(10, 0, 45), hook=hook))
+    seq = [s["status"] for s in statuses if s["status"] in ("UP", "DOWN")]
+    assert seq == ["UP", "DOWN", "UP", "DOWN"]
+    assert seq.count("UP") == 2
+    assert not any(a == b == "UP" for a, b in zip(seq, seq[1:], strict=False))
+    assert server.connections >= 2
+
+
+def test_live_data_never_constructs_order_or_trading_api(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Live path uses feed + instrument/chain REST only. Never constructs order APIs.
+
+    ``dhan_client.__init__`` re-exports ``DhanClient`` (which owns ``ExecutionClient``), so
+    importing any ``dhan_client.*`` submodule loads those names. Construction is the gate.
+    """
+    import inspect
+
+    from marketdata import chain, dhan_ws, normalize
+
+    for mod in (dhan_ws, chain, normalize):
+        src = inspect.getsource(mod)
+        assert "ExecutionClient" not in src
+        assert "place_order" not in src
+        assert "DhanClient" not in src
+
+    constructed: list[str] = []
+
+    def boom(name: str) -> Any:
+        def _raise(*_a: object, **_k: object) -> None:
+            constructed.append(name)
+            raise RuntimeError(f"{name} must not be constructed on the live-data path")
+
+        return _raise
+
+    import dhan_client.client as client_mod
+    import dhan_client.execution as execution
+
+    monkeypatch.setattr(execution, "ExecutionClient", boom("ExecutionClient"))
+    monkeypatch.setattr(client_mod, "DhanClient", boom("DhanClient"))
+
+    async def hook(t: datetime, server: FakeDhanServer, _live: LiveMarketData) -> None:
+        if t == ist(10, 0, 1):
+            await server.send(index_packet(13, 24512.35))
+
+    asyncio.run(_run_live(tmp_path, ist(10, 0), ist(10, 0, 3), hook=hook))
+    assert constructed == []
