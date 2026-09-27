@@ -65,7 +65,7 @@ def _bearish_fvg_triple(i0: int = 0) -> list[tuple[BarClosed, datetime]]:
     ]
 
 
-def test_bullish_fvg_formed_partial_full_expired():
+def test_bullish_fvg_formed_partial_full_expired() -> None:
     """Hand fixture: bullish FVG formed, partly filled, fully filled, expired."""
     formed = [b for b, _ in _bullish_fvg_triple()]
     gaps = detect_fvgs(formed)
@@ -89,7 +89,7 @@ def test_bullish_fvg_formed_partial_full_expired():
     assert len(detect_fvgs(almost)) == 1
 
 
-def test_bearish_fvg_formed_partial_full_expired():
+def test_bearish_fvg_formed_partial_full_expired() -> None:
     """Hand fixture: bearish FVG formed, partly filled, fully filled, expired."""
     formed = [b for b, _ in _bearish_fvg_triple()]
     gaps = detect_fvgs(formed)
@@ -111,7 +111,7 @@ def test_bearish_fvg_formed_partial_full_expired():
     assert detect_fvgs(aged) == []
 
 
-def test_open_bar_never_forms_fvg():
+def test_open_bar_never_forms_fvg() -> None:
     """An FVG whose third bar is still open is never reported."""
     first_two = [b for b, _ in _bullish_fvg_triple()[:2]]
     assert detect_fvgs(first_two) == []
@@ -125,7 +125,7 @@ def test_open_bar_never_forms_fvg():
     assert all(z["zone"] != "fvg" for z in loc.zones)
 
 
-def test_candle_50_and_ema20_match_reference():
+def test_candle_50_and_ema20_match_reference() -> None:
     """Candle 50% and EMA20 match the closed-bar references."""
     stamped = [_bar(i, 22000, 22010, 21990, 22000.0 + i) for i in range(25)]
     bars = [b for b, _ in stamped]
@@ -144,7 +144,7 @@ def test_candle_50_and_ema20_match_reference():
     assert abs(loc.signal_candle_atr - (bars[-1].h - bars[-1].l) / loc.atr) < 1e-9  # type: ignore[operator]
 
 
-def test_vwap_futures_volume_or_twap_fallback():
+def test_vwap_futures_volume_or_twap_fallback() -> None:
     """VWAP uses futures volume when present; otherwise TWAP with the tag."""
     index_only = [_bar(i, 22000, 22010, 21990, 22000, v=None)[0] for i in range(5)]
     loc = compute_entry_location(index_only, side="CE")
@@ -170,7 +170,7 @@ def test_vwap_futures_volume_or_twap_fallback():
     assert "fut_vwap" in sources and "twap" in sources
 
 
-def test_poc_absent_without_futures_volume_matches_hand_profile():
+def test_poc_absent_without_futures_volume_matches_hand_profile() -> None:
     """POC is absent without futures volume; matches a hand-computed profile with it."""
     index = [_bar(i, 22000, 22010, 21990, 22000, v=None)[0] for i in range(3)]
     loc = compute_entry_location(index, side="CE")
@@ -190,7 +190,7 @@ def test_poc_absent_without_futures_volume_matches_hand_profile():
     assert poc["source"] == "fut_volume_profile"
 
 
-def test_distance_signs_ce_and_pe():
+def test_distance_signs_ce_and_pe() -> None:
     """Positive distance_atr means stretched away from the pullback side."""
     bars = [b for b, _ in _bullish_fvg_triple()]
     # Close of last bar is 22060, FVG top 22040, candle 50% = 22065? last h=22090 l=22040 mid=22065
@@ -208,7 +208,7 @@ def test_distance_signs_ce_and_pe():
     assert pe_above and float(pe_above[0]["distance_atr"]) > 0
 
 
-def test_engine_entry_location_closed_bars_only():
+def test_engine_entry_location_closed_bars_only() -> None:
     """FeatureEngine.entry_location uses only closed 1m bars (REG-01)."""
     engine = FeatureEngine()
     for bar, ts in _bullish_fvg_triple():
@@ -222,7 +222,7 @@ def test_engine_entry_location_closed_bars_only():
     assert loc_early is None or all(z["zone"] != "fvg" for z in loc_early.zones)
 
 
-def test_view_respects_requested_side():
+def test_view_respects_requested_side() -> None:
     """loc_entry_distance_atr in view(side=) matches entry_location for that side."""
     engine = FeatureEngine()
     for bar, ts in _bullish_fvg_triple():
@@ -245,11 +245,9 @@ def test_view_respects_requested_side():
         assert pe is None
 
 
-def test_tracker_mid_cut_equivalence():
+def test_tracker_mid_cut_equivalence() -> None:
     """Truncated tracker matches full tracker at the same t (REG-01b)."""
-    stamped = _bullish_fvg_triple() + [
-        _bar(3 + i, 22080, 22090, 22070, 22080) for i in range(20)
-    ]
+    stamped = _bullish_fvg_triple() + [_bar(3 + i, 22080, 22090, 22070, 22080) for i in range(20)]
     full = LocationTracker()
     for bar, ts in stamped:
         full.on_bar(bar, ts)
@@ -263,7 +261,7 @@ def test_tracker_mid_cut_equivalence():
     assert full.feature_values(now, side="CE") == trunc.feature_values(now, side="CE")
 
 
-def test_reset_session_clears_location():
+def test_reset_session_clears_location() -> None:
     """reset_session drops location bars so yesterday's zones cannot leak."""
     engine = FeatureEngine()
     for bar, ts in _bullish_fvg_triple():

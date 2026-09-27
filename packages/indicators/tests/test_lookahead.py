@@ -7,6 +7,7 @@ Feeds only closed bars from V2-03 ``BarBuilder`` and reuses
 from __future__ import annotations
 
 import random
+from collections.abc import Callable
 from datetime import datetime, timedelta
 
 import pytest
@@ -21,7 +22,7 @@ from indicators.location import LOCATION_FIELDS
 from indicators.view import FeatureValue, FeatureView, LookAheadError
 
 
-def _ticks(base_time: datetime, n: int, ltp_fn) -> list[Tick]:
+def _ticks(base_time: datetime, n: int, ltp_fn: Callable[[int], float]) -> list[Tick]:
     out: list[Tick] = []
     for i in range(n):
         ts = base_time + timedelta(seconds=i)
