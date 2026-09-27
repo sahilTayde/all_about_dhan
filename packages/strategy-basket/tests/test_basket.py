@@ -15,6 +15,7 @@ from desk_ml.event_path import EventSession
 from desk_ml.features import Triple
 from desk_ml.regime.labels import IST
 from events import MemoryBus
+from strategy_basket.entry import impulse_mid, last_fvg, measure, point_of_control, stretch_atr, verdict
 from strategy_basket.basket import (
     REGIME_KEYS, BasketBus, BasketError, BasketEventSession, BasketShadow, attach_from_settings, basket_parity, for_session,
     load_basket, load_lab, load_lab_basket, load_settings, parse_card, preopen_regime, regime_from_label,
@@ -34,13 +35,18 @@ def score(**kw):
     return {**base, **kw}
 
 
-def card(cid="MIX-LAB-A", scores=None, markets=("NIFTY",)):
+PULLBACK = {"kind": "pullback_limit", "zone": "fvg", "timeout_bars": 3, "max_stretch_atr": None}
+CHASE = {"kind": "chase"}
+
+
+def card(cid="MIX-LAB-A", scores=None, markets=("NIFTY",), policy=None):
     return {
         "id": cid, "source": {"kind": "trader", "ref": "lab run 42"}, "markets": list(markets),
         "adaptations": {markets[0]: {"stop_frac": 0.35}},
         "rules": {"entry": {"signal": "orb_break", "minutes": 15}, "exit": {"stop_frac": 0.4, "target_frac": 0.55},
                   "strike": {"premium": "ITM", "depth": 1}, "sizing": {"lots": 25}, "skip": {"sideways": True}},
         "param_ranges": {"stop_frac": [0.3, 0.35, 0.4]},
+        "entry_policy": dict(policy or PULLBACK),
         "scores": {KEY: score()} if scores is None else scores,
     }
 
@@ -69,8 +75,9 @@ def minute_label(hh, mm, primary="trend_up", vol=None, expiry_day=False, und="NI
             "version": "v0-default-unvalidated"}
 
 
-def _basket(cards):
-    return replace(load_basket(INDIA), cards={c["id"]: parse_card(c, require_scores=False) for c in cards})
+def _basket(cards, **entry):
+    b = load_basket(INDIA)
+    return replace(b, entry={**b.entry, **entry}, cards={c["id"]: parse_card(c, require_scores=False) for c in cards})
 
 
 # ------------------------------------------------------------------ schema
@@ -84,6 +91,26 @@ def test_committed_baskets_load_and_validate():
     assert not forex.activatable and "EURUSD" in forex.instruments
     text = INDIA.read_text(encoding="utf-8") + FOREX.read_text(encoding="utf-8")
     assert "Source:" in text and "TODO(verify)" in text
+
+
+def test_every_committed_card_and_basket_carries_an_entry_policy():
+    india = load_basket(INDIA)
+    assert india.cards["MIX-DEFAULT-BUY"].entry_policy["kind"] == "chase"  # what legacy does
+    assert india.entry["mode"] == "log_only" and load_basket(FOREX).entry["mode"] == "log_only"
+    assert "PLACEHOLDER" in INDIA.read_text(encoding="utf-8")
+
+
+def test_basket_without_entry_location_is_rejected(tmp_path):
+    text = INDIA.read_text(encoding="utf-8")
+    start = text.index("entry_location:")
+    end = text.index("\n\n", start)
+    p = tmp_path / "b.yaml"
+    p.write_text(text[:start] + text[end:], encoding="utf-8")
+    with pytest.raises(BasketError, match="entry_location"):
+        load_basket(p)
+    p.write_text(text.replace("mode: log_only", "mode: enforce"), encoding="utf-8")
+    with pytest.raises(BasketError, match="mode"):
+        load_basket(p)
 
 
 def test_basket_file_may_not_define_its_own_regime_thresholds(tmp_path):
@@ -108,6 +135,15 @@ def test_basket_file_may_not_define_its_own_regime_thresholds(tmp_path):
     (lambda c: c.update(stoploss=5), "unknown keys"),
     (lambda c: c["param_ranges"].update(stop_frac=[]), "param_ranges"),
     (lambda c: c.update(adaptations={"BANKNIFTY": {}}), "adaptations"),
+    (lambda c: c.pop("entry_policy"), "entry_policy"),
+    (lambda c: c.update(entry_policy={"kind": "fomo"}), "kind"),
+    (lambda c: c.update(entry_policy={"kind": "pullback_limit", "timeout_bars": 3}), "zone"),
+    (lambda c: c.update(entry_policy={"kind": "pullback_limit", "zone": "vwap", "timeout_bars": 3}), "zone"),
+    (lambda c: c.update(entry_policy={"kind": "pullback_limit", "zone": "poc"}), "timeout"),
+    (lambda c: c.update(entry_policy={"kind": "chase", "timeout_bars": 2}), "does not wait"),
+    (lambda c: c.update(entry_policy={"kind": "wait_consolidation", "zone": "fvg"}), "only pullback_limit"),
+    (lambda c: c.update(entry_policy={"kind": "chase", "max_stretch_atr": -1}), "max_stretch_atr"),
+    (lambda c: c.update(entry_policy={"kind": "chase", "stretch": 1}), "unknown keys"),
 ])
 def test_card_validation_rejects_malformed(mutate, message):
     raw = card()
@@ -220,6 +256,22 @@ def test_selector_zeroes_failed_parked_and_caps_total_weight():
     assert {r["reason"] for r in unknown["strategies"]} == {"regime_unknown"}
 
 
+def test_selector_entry_policy_modes():
+    cards = [card("MIX-CHASE", {KEY: score(weight=0.4, rank=1)}, policy=CHASE),
+             card("MIX-PULL", {KEY: score(weight=0.2, rank=1)})]
+    by = lambda out: {r["id"]: r for r in out["strategies"]}  # noqa: E731
+    log_only = select_basket(_basket(cards), "NIFTY", regime())
+    assert log_only["entry_mode"] == "log_only"
+    assert by(log_only)["MIX-CHASE"]["weight"] == 0.4 and "would" in by(log_only)["MIX-CHASE"]["entry_note"]
+    assert [r["id"] for r in log_only["strategies"]] == ["MIX-CHASE", "MIX-PULL"]
+    prefer = select_basket(_basket(cards, mode="prefer"), "NIFTY", regime())
+    assert by(prefer)["MIX-CHASE"]["weight"] == pytest.approx(0.2) and by(prefer)["MIX-CHASE"]["reason"] == "selected"
+    assert [r["id"] for r in prefer["strategies"]] == ["MIX-PULL", "MIX-CHASE"]  # non-chasing first at equal rank
+    require = select_basket(_basket(cards, mode="require"), "NIFTY", regime())
+    assert by(require)["MIX-CHASE"]["weight"] == 0 and by(require)["MIX-CHASE"]["reason"] == "entry_policy_chase"
+    assert by(require)["MIX-PULL"]["weight"] == 0.2 and by(require)["MIX-PULL"]["entry_policy"]["zone"] == "fvg"
+
+
 def test_selector_is_deterministic_regardless_of_card_order():
     cards = [card(f"MIX-{n}", {KEY: score(weight=0.1 * n, rank=1 + n % 3)}) for n in range(1, 9)]
     first = json.dumps(select_basket(_basket(cards), "NIFTY", regime()), sort_keys=True)
@@ -227,6 +279,77 @@ def test_selector_is_deterministic_regardless_of_card_order():
         shuffled = copy.deepcopy(cards)
         random.Random(seed).shuffle(shuffled)
         assert json.dumps(select_basket(_basket(shuffled), "NIFTY", regime()), sort_keys=True) == first
+
+
+# ------------------------------------------------------------------ entry location (zones, distance, verdict)
+
+
+def bar(n, o, h, lo, c, vol=None):
+    return {"ts": _ts(10, 0) + 60 * n, "open": o, "high": h, "low": lo, "close": c, "volume": vol}
+
+
+def test_zone_finders():
+    ce_gap = [bar(0, 100, 101, 99, 100.5), bar(1, 100.5, 104, 100.4, 103.8), bar(2, 103.8, 105, 102, 104.5)]
+    assert last_fvg(ce_gap, "CE") == (101.0, 102.0) and last_fvg(ce_gap, "PE") is None
+    pe_gap = [bar(0, 100, 101, 99, 99.5), bar(1, 99.5, 99.6, 95, 95.2), bar(2, 95.2, 97, 94, 94.5)]
+    assert last_fvg(pe_gap, "PE") == (97.0, 99.0)
+    assert impulse_mid(ce_gap, "CE", atr=2.0, mult=1.5) == (103.5, 103.5)  # most recent: bar 2, range 3 >= 3
+    assert impulse_mid(ce_gap, "CE", atr=2.0, mult=1.6) == (102.2, 102.2)  # only bar 1 (range 3.6) >= 3.2
+    assert impulse_mid(ce_gap, "PE", atr=2.0, mult=1.5) is None
+    by_vol = [bar(0, 1, 1, 1, 100.2, 10), bar(1, 1, 1, 1, 103.1, 50), bar(2, 1, 1, 1, 100.7, 10)]
+    assert point_of_control(by_vol, 1.0) == (103.0, 104.0)
+    no_vol = [dict(b, volume=None) for b in by_vol]
+    assert point_of_control(no_vol, 1.0) == (100.0, 101.0)  # time at price when the tape has no volume
+    assert stretch_atr(106.0, (101.0, 102.0), "CE", 2.0) == 2.0
+    assert stretch_atr(101.5, (101.0, 102.0), "CE", 2.0) == 0.0
+    assert stretch_atr(95.0, (97.0, 99.0), "PE", 1.0) == 2.0 and stretch_atr(100.0, (97.0, 99.0), "PE", 1.0) == -1.0
+
+
+def _cfg(**kw):
+    return {**load_basket(INDIA).entry, **kw}
+
+
+def _impulse_tape(extra_close=112.0):
+    """20 quiet bars around 100, then a CE impulse that leaves an FVG, then the forming minute."""
+    bars = [bar(n, 100, 100.6, 99.6, 100.1 + (n % 2) * 0.2, 100) for n in range(20)]
+    bars += [bar(20, 100.2, 100.5, 100.0, 100.4, 100), bar(21, 100.4, 104.5, 100.3, 104.4, 300),
+             bar(22, 104.4, 106.0, 103.0, 105.8, 200), bar(23, 105.8, 200.0, 50.0, extra_close, 1)]
+    return bars
+
+
+def test_measure_uses_only_closed_bars_and_the_nearest_zone_behind_the_price():
+    now = _ts(10, 23) + 30  # 30 s into minute 23: bars 0..22 are closed
+    sig = measure(_impulse_tape(), now, 107.0, "CE", _cfg())
+    assert sig["n_bars"] == 23 and sig["atr"] is not None
+    assert sig["zones"]["fvg"]["lo"] == 100.5 and sig["zones"]["fvg"]["hi"] == 103.0
+    behind = {k: z["distance_atr"] for k, z in sig["zones"].items() if z and z["distance_atr"] >= 0}
+    assert len(behind) >= 2 and sig["entry_distance_atr"] == min(behind.values()) > 0
+    assert sig["zone_type"] == min(behind, key=behind.get)
+    assert measure(_impulse_tape(extra_close=1.0), now, 107.0, "CE", _cfg()) == sig  # forming minute ignored
+    below = measure(_impulse_tape(), now, 99.0, "CE", _cfg())
+    assert all(z is None or z["distance_atr"] < 0 for z in below["zones"].values())
+    assert below["entry_distance_atr"] is None and below["zone_type"] is None  # zones ahead are never picked
+
+
+def test_verdicts_log_vetoes_and_never_enforce():
+    now = _ts(10, 23) + 30
+    sig = measure(_impulse_tape(), now, 107.0, "CE", _cfg())
+    d = sig["entry_distance_atr"]
+    chase = verdict({"kind": "chase"}, sig, _cfg(max_stretch_atr=d / 2))
+    assert chase["action"] == "VETO_STRETCHED" and chase["veto_reason"].startswith("STRETCHED_ENTRY")
+    assert verdict({"kind": "chase", "max_stretch_atr": d * 2}, sig, _cfg(max_stretch_atr=d / 2))["action"] == "ENTER"
+    pull = verdict({"kind": "pullback_limit", "zone": "fvg", "timeout_bars": 3}, sig, _cfg(max_stretch_atr=d / 2))
+    assert pull["action"] == "WAIT_PULLBACK" and pull["limit_index_level"] == 103.0 and pull["veto_reason"] is None
+    wait = verdict({"kind": "wait_consolidation"}, sig, _cfg(max_stretch_atr=d / 2))
+    assert wait["action"] == "WAIT_CONSOLIDATION"
+    req = verdict({"kind": "chase"}, sig, _cfg(mode="require"))
+    assert req["action"] == "CHASE_NOT_ALLOWED" and req["veto_reason"] == "CHASE_POLICY_NOT_ALLOWED"
+    assert verdict({"kind": "chase"}, sig, _cfg(max_stretch_atr=None))["action"] == "ENTER"  # no cap configured
+    below = measure(_impulse_tape(), now, 99.0, "CE", _cfg())
+    assert verdict({"kind": "chase"}, below, _cfg())["action"] == "NO_ZONE_BEHIND"
+    thin = measure(_impulse_tape()[:5], _ts(10, 5), 100.0, "CE", _cfg())
+    assert verdict({"kind": "chase"}, thin, _cfg())["action"] == "DATA_INSUFFICIENT"
+    assert all(v["enforced"] is False for v in (chase, pull, wait, req))
 
 
 # ------------------------------------------------------------------ no look-ahead on regime inputs
@@ -283,6 +406,7 @@ def test_changing_the_future_does_not_change_earlier_basket_rows(fx, tmp_path):
     _replay(future, tmp_path / "rb", event_session=BasketEventSession(basket=b))
     early = lambda s: [r for r in s.rows if r["ts"] <= cut]  # noqa: E731
     assert len(early(a)) >= 3 and early(a) == early(b)
+    assert any(r["trigger"] == "signal" for r in early(a)), "signal rows (entry distance) are covered too"
     assert a.rows != b.rows, "the perturbation must actually change later labels"
 
 
@@ -332,8 +456,24 @@ def test_off_by_default_replay_is_byte_identical_and_on_changes_no_trade(replays
     assert on["basket_shadow"]["labels_seen"] >= 5 and on["basket_shadow"]["rows"] >= 5
 
 
+def test_every_boss_ticket_gets_an_entry_location_row(replays):
+    rows = [r for r in replays["shadows"][0].rows if r["trigger"] == "signal"]
+    n_tickets = replays["event_on"]["event_bus"]["events"]["ENTRY_APPROVED"]
+    assert n_tickets >= 5 and len(rows) == n_tickets
+    tickets = {r["trade_id"] for r in replays["event_on"]["closed_trades"]}
+    assert {r["signal"]["trade_id"] for r in rows} <= tickets
+    for r in rows:
+        s = r["signal"]
+        assert {"entry_distance_atr", "zone_type", "zones", "atr"} <= set(s) and s["side"] in ("CE", "PE")
+        assert s["entry_distance_atr"] is None or s["entry_distance_atr"] >= 0
+        v = r["verdicts"]["MIX-DEFAULT-BUY"]
+        assert v["policy"] == "chase" and v["enforced"] is False and r["places_orders"] is False
+        assert (v["action"] == "VETO_STRETCHED") == ("MIX-DEFAULT-BUY" in r["vetoes"])
+    assert any(r["vetoes"] for r in rows), "the placeholder cap should flag at least one stretched legacy entry"
+
+
 def test_every_row_uses_only_minutes_closed_before_its_tick(replays):
-    rows = replays["shadows"][0].rows
+    rows = [r for r in replays["shadows"][0].rows if r["trigger"] != "signal"]
     assert rows[0]["trigger"] == "pre_open" and rows[0]["regime"]["key"].startswith("unknown.")
     changes = rows[1:]
     assert changes and all(r["trigger"] == "regime_change" and r["regime"]["source"] == "regime_service" for r in changes)
@@ -347,7 +487,7 @@ def test_shadow_log_is_deterministic_and_says_no_orders(replays):
     assert f1.read_bytes() == f2.read_bytes()
     rows = [json.loads(line) for line in f1.read_text(encoding="utf-8").splitlines()]
     assert all(r["shadow"] is True and r["places_orders"] is False for r in rows)
-    assert all(r["basket"]["total_weight"] <= r["basket"]["cap"] for r in rows)
+    assert all(r["basket"]["total_weight"] <= r["basket"]["cap"] for r in rows if r["trigger"] != "signal")
     s1._seen.clear()
     s1._write(rows[0]["day"], s1.rows[0])  # a re-replay (live loop) must not append the same row twice
     assert len(f1.read_text(encoding="utf-8").splitlines()) == len(rows)
