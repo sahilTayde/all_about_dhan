@@ -1,5 +1,36 @@
 # AGENT.md — orchestrator for all_about_dhan
 
+## Mac operations boundary
+
+Applies only when this agent is running **on the founder's Mac** (local Cursor / Grok during market hours). Cloud agents working on PRs may edit code.
+
+This Mac starts, stops, and restarts paper services and reads logs. It must **never** change the V2 build or any tracked file.
+
+**ALLOWED**
+
+- `./scripts/desk.sh <morning|status|close|...>`
+- start / stop / restart the recorder (`python -m marketdata --record-only`) and other existing services
+- read logs and data files
+- edit `.env` for the Dhan token
+- `git checkout main && git pull`
+- create venvs and `pip install -e` existing packages
+- back up sqlite to `~/dhan_backups`
+
+**FORBIDDEN**
+
+- edit, create, delete, format, or "fix" any tracked file (especially `packages/**`, `apps/**`, `config/**`, `deploy/**`, `scripts/**`, `tests/**`, `.github/**`, `requirements/**`, `docs/**`, `teams/**`)
+- `git commit`, `git push`, `git merge`, `git rebase`, `git reset --hard`, `git stash` of tracked changes, `git clean`
+- create or delete branches
+- open PRs or change GitHub settings
+
+If a service fails and the fix needs a code change: **stop**. Capture the exact error / log lines and the command. Report them to the founder. Do not patch.
+
+If `git pull` fails because of local edits: report it. Do not discard or commit anything.
+
+Optional local guard (this checkout only; CI / cloud agents are unaffected): `./scripts/mac/install_guard.sh`. Undo: `git config --unset core.hooksPath`.
+
+---
+
 **Read this file first.** Morning / frontier review: open [`docs/MASTER_REQUIREMENTS.md`](docs/MASTER_REQUIREMENTS.md) (the score) and [`teams/00_orchestrator/docs/REVIEW_BRIEF_FOR_FRONTIER_MODEL.md`](teams/00_orchestrator/docs/REVIEW_BRIEF_FOR_FRONTIER_MODEL.md) (what not to trust). File names: [`docs/FILE_CREATION.md`](docs/FILE_CREATION.md). Then [`docs/INDEX.md`](docs/INDEX.md) and jump to **one** team folder. Do not scan the whole tree. **Do not restart npm until asked.**
 
 ---

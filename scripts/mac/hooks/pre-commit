@@ -1,0 +1,5 @@
+#!/bin/sh
+# Installed only via scripts/mac/install_guard.sh (core.hooksPath).
+# CI and cloud agents do not set that path, so this never runs there.
+printf '%s\n' "This Mac is operations-only. V2 code changes happen in cloud agents via PRs."
+exit 1
