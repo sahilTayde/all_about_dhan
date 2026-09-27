@@ -1,0 +1,16 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["plan_id", "status"],
+  "properties": {
+    "plan_id": {"type": "string"},
+    "status": {"type": "string", "enum": ["FILLED", "MISSED", "CANCELLED"]},
+    "fill_price": {"type": ["number", "null"]},
+    "filled_at": {"type": ["string", "null"], "format": "date-time"},
+    "waited_s": {"type": ["number", "null"]},
+    "giveback_5m_pts": {"type": ["number", "null"]},
+    "giveback_5m_atr": {"type": ["number", "null"]},
+    "shadow": {"type": ["object", "null"]}
+  }
+}
