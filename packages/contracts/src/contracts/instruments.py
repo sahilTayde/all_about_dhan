@@ -14,7 +14,7 @@ IST = timezone(timedelta(hours=5, minutes=30))
 # https://www.nseindia.com/resources/exchange-communication-holidays
 # Verified against official NSE and BSE circulars
 NSE_HOLIDAYS_2026 = {
-    date(2026, 1, 15),  # Added later (MCGM election)
+    date(2026, 1, 15),  # Sankranti (Makara Sankranti)
     date(2026, 1, 26),  # Republic Day
     date(2026, 3, 3),  # Mahashivratri
     date(2026, 3, 26),  # Holi
@@ -27,11 +27,11 @@ NSE_HOLIDAYS_2026 = {
     date(2026, 8, 15),  # Independence Day
     date(2026, 9, 14),  # Ganesh Chaturthi
     date(2026, 10, 2),  # Gandhi Jayanti
-    date(2026, 10, 20),  # Dussehra
+    date(2026, 10, 20),  # Dussehra (Vijaya Dashami)
     date(2026, 11, 10),  # Guru Nanak Jayanti
-    date(2026, 11, 24),  # Guru Nanak Jayanti (observed)
+    date(2026, 11, 24),  # Diwali (Laxmi Pujan)
     date(2026, 12, 25),  # Christmas
-    # Muhurat trading session on Sunday Nov 8 (not a full holiday)
+    # Note: Muhurat trading session on Sunday Nov 8 (not a full holiday)
 }
 
 

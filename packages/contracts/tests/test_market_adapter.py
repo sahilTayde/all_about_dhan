@@ -290,3 +290,40 @@ def test_nse_holidays_2026_includes_major_holidays() -> None:
     assert date(2026, 8, 15) in NSE_HOLIDAYS_2026  # Independence Day
     assert date(2026, 10, 2) in NSE_HOLIDAYS_2026  # Gandhi Jayanti
     assert date(2026, 12, 25) in NSE_HOLIDAYS_2026  # Christmas
+
+
+def test_india_is_trading_day_full_year_consistency() -> None:
+    """Test is_trading_day consistency over full year 2026."""
+    from datetime import timedelta
+
+    india = India()
+
+    # Iterate through every day of 2026
+    start_date = date(2026, 1, 1)
+    end_date = date(2026, 12, 31)
+    current = start_date
+
+    trading_days = 0
+    non_trading_days = 0
+
+    while current <= end_date:
+        is_weekend = current.weekday() in (5, 6)  # Saturday or Sunday
+        is_holiday = current in NSE_HOLIDAYS_2026
+
+        if is_weekend or is_holiday:
+            # Should not be a trading day
+            assert not india.is_trading_day(current), f"{current} should not be a trading day"
+            non_trading_days += 1
+        else:
+            # Should be a trading day (weekday, not holiday)
+            assert india.is_trading_day(current), f"{current} should be a trading day"
+            trading_days += 1
+
+        current += timedelta(days=1)
+
+    # Sanity check: 2026 has 365 days
+    assert trading_days + non_trading_days == 365
+    # 2026 has 52 weeks + 1 day (starts on Thursday), so 104 weekend days
+    # Plus 17 holidays (some may fall on weekends, but NSE_HOLIDAYS_2026 only lists weekday
+    # holidays). So expect approximately 365 - 104 - 17 = 244 trading days
+    assert 240 <= trading_days <= 250, f"Expected ~244 trading days, got {trading_days}"

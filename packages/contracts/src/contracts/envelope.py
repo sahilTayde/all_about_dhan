@@ -37,48 +37,57 @@ class Envelope:
     payload: dict[str, Any]
 
     @classmethod
-    def from_json(cls, data: dict[str, Any]) -> Envelope:
+    def from_json(cls, data: str | bytes | dict[str, Any]) -> Envelope:
         """
-        Load Envelope from JSON dict.
+        Load Envelope from JSON string, bytes, or dict.
 
         Forward-compatible: tolerates unknown keys in data.
         Backward-compatible: accepts legacy events.schema.Event (event_type, payload, source,
         event_id, timestamp - no 'v' field). V2 fields (stream, event_ts, available_ts) are
         optional and default from 'timestamp' if missing.
         """
+        # Parse JSON if string or bytes
+        parsed_data: dict[str, Any]
+        if isinstance(data, (str, bytes)):
+            import json
+
+            parsed_data = json.loads(data)
+        else:
+            parsed_data = data
+
         # Check if V2 (has 'v' field) or legacy (no 'v' field)
-        if "v" in data:
+        if "v" in parsed_data:
             # V2 event: use fields as-is
             return cls(
-                v=data["v"],
-                event_type=data["event_type"],
-                event_id=data["event_id"],
-                stream=data["stream"],
-                source=data["source"],
-                event_ts=data["event_ts"],
-                available_ts=data["available_ts"],
-                timestamp=data["timestamp"],
-                account_id=data.get("account_id"),
-                correlation_id=data.get("correlation_id"),
-                causation_id=data.get("causation_id"),
-                payload=data["payload"],
+                v=parsed_data["v"],
+                event_type=parsed_data["event_type"],
+                event_id=parsed_data["event_id"],
+                stream=parsed_data["stream"],
+                source=parsed_data["source"],
+                event_ts=parsed_data["event_ts"],
+                available_ts=parsed_data["available_ts"],
+                timestamp=parsed_data["timestamp"],
+                account_id=parsed_data.get("account_id"),
+                correlation_id=parsed_data.get("correlation_id"),
+                causation_id=parsed_data.get("causation_id"),
+                payload=parsed_data["payload"],
             )
 
         # Legacy events.schema.Event: event_type, payload, source, event_id, timestamp
         # V2-specific fields default from timestamp
         return cls(
             v=1,
-            event_type=data["event_type"],
-            event_id=data["event_id"],
-            stream=data.get("stream", "legacy"),
-            source=data["source"],
-            event_ts=data.get("event_ts", data["timestamp"]),
-            available_ts=data.get("available_ts", data["timestamp"]),
-            timestamp=data["timestamp"],
-            account_id=data.get("account_id"),
-            correlation_id=data.get("correlation_id"),
-            causation_id=data.get("causation_id"),
-            payload=data["payload"],
+            event_type=parsed_data["event_type"],
+            event_id=parsed_data["event_id"],
+            stream=parsed_data.get("stream", "legacy"),
+            source=parsed_data["source"],
+            event_ts=parsed_data.get("event_ts", parsed_data["timestamp"]),
+            available_ts=parsed_data.get("available_ts", parsed_data["timestamp"]),
+            timestamp=parsed_data["timestamp"],
+            account_id=parsed_data.get("account_id"),
+            correlation_id=parsed_data.get("correlation_id"),
+            causation_id=parsed_data.get("causation_id"),
+            payload=parsed_data["payload"],
         )
 
     def to_json(self) -> dict[str, Any]:

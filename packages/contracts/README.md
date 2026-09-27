@@ -26,7 +26,7 @@ pip install -e packages/contracts[test,dev]
 from contracts import Envelope, India, order_id, signal_id, load_tick
 
 # Generate IDs
-oid = order_id("acc123", "sg_r8e1_nifty_20260927_1001_0", "entry")
+oid = order_id("acc123", "sg_r8-e1-v1.0.0_bfe5cd_nifty_20260927_1001_0", "entry")
 print(oid)  # "aad..." (27 chars)
 
 # Market adapter

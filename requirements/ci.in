@@ -11,3 +11,6 @@ pytest-socket>=0.7
 setuptools>=68
 wheel>=0.42
 hypothesis>=6
+jsonschema>=4.20
+referencing>=0.30
+rfc3339-validator>=0.1.4

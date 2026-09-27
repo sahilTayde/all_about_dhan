@@ -48,17 +48,8 @@ def test_old_event_json_still_loads() -> None:
         timestamp="2026-09-28T10:01:00.000+05:30",
     )
 
-    # Convert to dict (what from_json receives)
-    legacy_dict = {
-        "event_type": legacy_event.event_type,
-        "payload": legacy_event.payload,
-        "source": legacy_event.source,
-        "event_id": legacy_event.event_id,
-        "timestamp": legacy_event.timestamp,
-    }
-
-    # Load via Envelope.from_json (no 'v' field, so it's legacy)
-    envelope = Envelope.from_json(legacy_dict)
+    # Load via Envelope.from_json using the real JSON string from legacy Event
+    envelope = Envelope.from_json(legacy_event.to_json())
 
     # Check fields mapped correctly
     assert envelope.event_type == "POSITION_UPDATE"
@@ -70,8 +61,8 @@ def test_old_event_json_still_loads() -> None:
     # Check V2-specific fields defaulted from timestamp
     assert envelope.v == 1
     assert envelope.stream == "legacy"
-    assert envelope.event_ts == legacy_dict["timestamp"]
-    assert envelope.available_ts == legacy_dict["timestamp"]
+    assert envelope.event_ts == legacy_event.timestamp
+    assert envelope.available_ts == legacy_event.timestamp
 
 
 def test_envelope_spec_example() -> None:

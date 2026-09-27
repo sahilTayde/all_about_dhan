@@ -161,6 +161,21 @@ def test_order_id_collision_resistance() -> None:
     assert len(order_ids) == 1000
 
 
+def test_order_id_collision_1e6() -> None:
+    """Generate 10^6 order_ids and assert no collisions."""
+    ids = set()
+    for i in range(10**6):
+        # Generate unique (account, signal, leg) tuples
+        # Use i directly to ensure uniqueness
+        account = f"acc_{i % 100}"  # 100 unique accounts
+        signal = f"sg_{i}"  # Each i gets a unique signal
+        leg = f"leg_{i % 10}"  # 10 unique legs
+        oid = order_id(account, signal, leg)
+        ids.add(oid)
+
+    assert len(ids) == 10**6, f"Collision detected: {10**6 - len(ids)} duplicates"
+
+
 def test_signal_id_version_collision_resistance() -> None:
     """Test signal_id distinguishes versions like 1.10.0 vs 11.0.0."""
     from datetime import timedelta

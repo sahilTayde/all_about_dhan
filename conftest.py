@@ -68,20 +68,22 @@ def _hook(event: str, args: tuple[Any, ...]) -> None:
         writing = (mode is not None and any(c in mode for c in "wax+")) or (
             mode is None and isinstance(flags, int) and flags & _WRITE_FLAGS
         )
-        if writing and (p := _protected(path)):
-            if not _is_pycache_write(p):  # Ignore Python bytecode writes
-                _violation("open", p)
+        if writing and (p := _protected(path)) and not _is_pycache_write(p):
+            _violation("open", p)
     elif event == "sqlite3.connect":
         db = args[0]
         if (p := _protected(db)) and "mode=ro" not in str(db):
             _violation("sqlite3.connect", p)
     elif event in ("os.rename", "shutil.move", "shutil.copyfile", "shutil.copytree"):
-        if p := _protected(args[1]):
+        if (p := _protected(args[1])) and not _is_pycache_write(p):
             _violation(event, p)
     elif event == "os.mkdir":  # mkdir(exist_ok=True) on an existing dir changes nothing
-        if (p := _protected(args[0])) and not os.path.exists(p):
-            if not _is_pycache_write(p):  # Ignore __pycache__ directory creation
-                _violation(event, p)
+        if (
+            (p := _protected(args[0]))
+            and not os.path.exists(p)
+            and not _is_pycache_write(p)
+        ):
+            _violation(event, p)
     elif (
         event == "os.rmdir"
     ):  # os.removedirs walks up; a non-empty dir cannot be removed anyway
@@ -96,7 +98,9 @@ def _hook(event: str, args: tuple[Any, ...]) -> None:
         "os.link",
     ):
         target = args[1] if event in ("os.symlink", "os.link") else args[0]
-        if p := _protected(target):
+        if (p := _protected(target)) and not (
+            event == "os.remove" and _is_pycache_write(p)
+        ):
             _violation(event, p)
 
 

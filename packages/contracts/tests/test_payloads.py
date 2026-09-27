@@ -243,7 +243,7 @@ def test_strike_choice_with_alternatives() -> None:
 def test_signal_payload() -> None:
     """Test SIGNAL payload (sig:signals)."""
     signal = Signal(
-        signal_id="sg_r8e1_nifty_20260928_1001_0",
+        signal_id="sg_r8-e1-coil-side-v1.0.0_f49f4b_nifty_20260928_1001_0",
         strategy_id="R8-E1-COIL-SIDE",
         version="1.0.0",
         params_hash="30416a4a",
@@ -268,7 +268,7 @@ def test_signal_schema_validation() -> None:
 
     # Valid signal with complete exit_plan and strike_choice
     valid_signal = {
-        "signal_id": "sg_r8e1-v1.0.0_nifty_20260928_1001_0",
+        "signal_id": "sg_r8-e1-v1.0.0_bfe5cd_nifty_20260928_1001_0",
         "strategy_id": "R8-E1",
         "version": "1.0.0",
         "params_hash": "30416a4a",
@@ -299,7 +299,46 @@ def test_signal_schema_validation() -> None:
     validate_payload("signal", valid_signal)
 
     # Invalid exit_plan should raise
+    from jsonschema import ValidationError
+
     invalid_signal = {**valid_signal, "exit_plan": {"foo": 1}}
+    with pytest.raises(ValidationError):
+        validate_payload("signal", invalid_signal)
+
+
+def test_signal_schema_rejects_invalid_stage() -> None:
+    """Test SIGNAL schema rejects invalid stage values."""
+    from jsonschema import ValidationError
+
+    from contracts.validation import validate_payload
+
+    invalid_signal = {
+        "signal_id": "sg_r8-e1-v1.0.0_bfe5cd_nifty_20260928_1001_0",
+        "strategy_id": "R8-E1",
+        "version": "1.0.0",
+        "params_hash": "30416a4a",
+        "stage": "VETOED",  # Invalid stage (not in enum)
+        "underlying": "NIFTY",
+        "side": "CE",
+        "strike_rule": "ROUTER",
+        "decision_ts": "2026-09-28T10:01:01.512+05:30",
+        "exit_plan": {
+            "catastrophic": {"level": {"kind": "premium", "price": 300.0}},
+            "flat_by_ist": "15:15",
+        },
+        "strike_choice": {
+            "chosen": "ATM",
+            "reason": "optimal delta",
+            "rule_version": "v1",
+            "alternatives": [],
+        },
+        "reasons": ["VETOED_BY_RISK"],
+        "features": {"p_up": 0.63},
+    }
+
+    # Should raise ValidationError for invalid stage
+    with pytest.raises(ValidationError):
+        validate_payload("signal", invalid_signal)
     with pytest.raises(Exception) as exc_info:
         validate_payload("signal", invalid_signal)
     assert "ValidationError" in type(exc_info.value).__name__ or "Schema" in str(exc_info.value)
@@ -311,7 +350,7 @@ def test_decision_payload() -> None:
         decision_id="dc_nifty_20260928_1001",
         underlying="NIFTY",
         decision="ENTER",
-        signal_ids=["sg_r8e1_nifty_20260928_1001_0"],
+        signal_ids=["sg_r8-e1-v1.0.0_bfe5cd_nifty_20260928_1001_0"],
         instrument_id="NSE_FNO:NIFTY:2026-09-29:24400:CE",
         lots=14,
         lot_size=65,
@@ -332,7 +371,7 @@ def test_entry_plan_payload() -> None:
     plan = EntryPlan(
         plan_id="ep_001",
         decision_id="dc_nifty_20260928_1001",
-        signal_id="sg_r8e1_nifty_20260928_1001_0",
+        signal_id="sg_r8-e1-v1.0.0_bfe5cd_nifty_20260928_1001_0",
         account_id="founder",
         action="CHASE",
         shadow_actions=["LIMIT:fvg", "WAIT"],

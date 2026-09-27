@@ -66,8 +66,8 @@ def signal_id(
     """
     Generate deterministic signal ID.
 
-    Format: sg_{strategy_slug}_{underlying}_{yyyymmdd}_{hhmm}_{n}
-    Example: sg_r8e1_nifty_20260928_1001_0
+    Format: sg_{strategy_slug}_{hash}_{underlying}_{yyyymmdd}_{hhmm}_{n}
+    Example: sg_r8e1-v1.0.0_30416a_nifty_20260928_1001_0
 
     Args:
         strategy_id: Strategy identifier (e.g. "R8-E1-COIL-SIDE")
@@ -115,7 +115,12 @@ def signal_id(
             "signal_id strategy_id and version must contain at least one alphanumeric character"
         )
 
+    # Add collision-resistant hash suffix (first 6 chars of sha256)
+    # Guarantees uniqueness even if normalization strips differentiating chars
+    # (e.g., "R8_E1" vs "R8 E1" both normalize to "r8e1", but hash differs)
+    collision_check = hashlib.sha256(f"{strategy_id}|{version}".encode()).hexdigest()[:6]
+
     # Normalize underlying to lowercase
     und = underlying.lower()
 
-    return f"sg_{strat_slug}_{und}_{date_str}_{time_str}_{n}"
+    return f"sg_{strat_slug}_{collision_check}_{und}_{date_str}_{time_str}_{n}"

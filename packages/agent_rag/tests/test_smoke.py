@@ -52,15 +52,9 @@ def test_rebuild_and_query_fake_breakout(tmp_path: Path) -> None:
 
 
 def test_eod_recon_retune_required(tmp_path: Path) -> None:
-    root = tmp_path
-    # Create minimal structure for eod_recon to work
-    (root / "data" / "recon" / "paper_ledger").mkdir(parents=True)
-    (root / "teams" / "00_orchestrator" / "docs").mkdir(parents=True)
-    # Add empty ledger to trigger BACKTEST_REQUIRED (empty ledger path)
-    day = "2026-09-02"
-    (root / "data" / "recon" / "paper_ledger" / f"{day}.jsonl").write_text("", encoding="utf-8")
+    root = _scratch_root(tmp_path)
     out = run_eod_recon(
-        day=day,
+        day="2026-09-02",
         root=root,
         offline=True,
         update_continue=False,

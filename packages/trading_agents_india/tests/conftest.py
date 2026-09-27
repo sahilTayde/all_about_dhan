@@ -14,7 +14,7 @@ def _redirect_repo_roots(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Non
     _repo_root()/data/recon/premium_tape and mkdirs it. This fixture redirects
     all _repo_root() calls to tmp_path so tape writes go to tmp_path/data/...
     """
-    from trading_agents_india import premium_tape, chain_iv
+    from trading_agents_india import chain_iv, premium_tape
 
     monkeypatch.setattr(premium_tape, "_repo_root", lambda: tmp_path)
     monkeypatch.setattr(chain_iv, "_repo_root", lambda: tmp_path)
