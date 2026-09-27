@@ -196,7 +196,10 @@ class EventSession:
         if self.engine is not None:
             self.engine.shadow_prior_daily = self.prior_daily
         if und not in self.stacks:
-            led = self._ledger if self._ledger is not None else Ledger(":memory:", charges_path=repo_root() / CHARGES_CONFIG)
+            from desk_ml.costs import ledger_rates  # PR-B: per-exchange fees when cost_model=realistic
+
+            led = self._ledger if self._ledger is not None else Ledger(
+                ":memory:", charges_path=repo_root() / CHARGES_CONFIG, rates=ledger_rates(self.engine))
             broker = ClockedPaperBroker(clock=lambda: self.desk.clock(), slippage_ticks=0)
             attach_ledger(broker, led)
             self.stacks[und] = (led, RiskEngine(led, config_path=self.risk_config), broker)
