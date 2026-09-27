@@ -59,6 +59,7 @@ TICK_NE_DASHBOARD_REASON = (
 LIMIT_DISCOUNT_FRAC = 0.012  # working buy limit below signal LTP; fill is not assumed at signal
 from desk_ml.groww_costs import as_dict as groww_cost_meta
 from desk_ml.groww_costs import breakeven_premium, groww_round_trip_charges, net_pnl_inr
+from desk_ml import costs  # PR-B cost model: every hook is gated on costs.is_realistic(engine)
 from desk_ml.greeks_ml import score_greeks_ticket, session_iv_median, wing_ivs
 from desk_ml.tape import (
     index_1m_close_vol_from_ticks,
@@ -2876,6 +2877,8 @@ class BookEngine:
     sod_one_ticket: bool = True  # locked product: votes → picker → observer → one desk ticket
     picker_majority: bool = True  # RULES majority; implied by sod_one_ticket
     signal_log: list[dict[str, Any]] = field(default_factory=list)  # logit/XR/greeks vs picker even on VETO
+    cost_model: str = costs.LEGACY  # PR-B: legacy | realistic (desk_ml.costs)
+    cost_state: dict[str, Any] = field(default_factory=dict)  # PR-B: realistic fills, quotes, alerts
     exam_events: list[dict[str, Any]] = field(default_factory=list)  # 06 honesty exam; not a fill
     hold_trending_open_stall: bool = False  # write=false A/B only. Default off. NO_PROMOTE.
 
@@ -3343,8 +3346,12 @@ def _unfilled_reason(
     session_iv: Optional[float] = None,
     wing_iv_list: Optional[Sequence[float]] = None,
     index_regime: Optional[str] = None,
+    fill_below: float = 0.0,
 ) -> Optional[str]:
-    """Working buy limit. Do not assume a fill. Cancel if the candle walked away."""
+    """Working buy limit. Do not assume a fill. Cancel if the candle walked away.
+
+    `fill_below` > 0 (realistic trade-through) needs a print that far under the limit to fill.
+    """
     px = float(ltp)
     low = float(side_low) if side_low is not None else px
     if pos.seen_low is not None:
@@ -3352,7 +3359,7 @@ def _unfilled_reason(
     else:
         touch = min(px, low)
     limit = float(pos.limit_price or pos.entry)
-    if touch <= limit + 1e-9:
+    if touch <= limit - fill_below + 1e-9:
         return "FILL"
     if px >= limit * (1.0 + FILL_AWAY_FRAC):
         return "CANCEL_UNFILLED_AWAY"
@@ -3896,7 +3903,15 @@ def _close(engine: BookEngine, pos: OpenPaper, *, ltp: float, ts: int, reason: s
     qty = pos.qty
     if qty is None and pos.lot_size is not None and int(pos.lot_size) > 0:
         qty = int(pos.lot_size) * int(pos.lots)
-    charges = groww_round_trip_charges(
+    # PR-B cost hook: realistic mode books fill prices / BSE fee, or defers a stale-quote exit.
+    rc = costs.realistic_close(engine, pos, ltp=ltp, ts=ts, reason=reason, qty=qty, unfilled=unfilled) \
+        if costs.is_realistic(engine) else None
+    if rc is not None and rc.get("defer"):
+        return
+    entry_px = pos.entry if rc is None else rc["entry"]
+    if rc is not None:
+        ltp, reason = rc["exit"], rc["reason"]
+    charges = rc["charges"] if rc is not None and rc["charges"] is not None else groww_round_trip_charges(
         exit_premium=float(ltp),
         entry_premium=float(pos.entry) if pos.entry is not None else None,
         qty=qty,
@@ -3909,7 +3924,7 @@ def _close(engine: BookEngine, pos: OpenPaper, *, ltp: float, ts: int, reason: s
         result = "CANCELLED"
         won = False
     else:
-        points = float(ltp) - float(pos.entry)
+        points = float(ltp) - float(entry_px)
         gross = pnl_inr(points=points, lot_size=pos.lot_size, lots=pos.lots)
         inr = net_pnl_inr(gross_inr=gross, charges_inr=float(charges["charges_inr"]))
         if inr is None:
@@ -3960,7 +3975,7 @@ def _close(engine: BookEngine, pos: OpenPaper, *, ltp: float, ts: int, reason: s
             "trade_id": pos.trade_id,
             "status": status,
             "target_step": pos.target_step,
-            "entry": pos.entry,
+            "entry": entry_px,
             "limit_price": pos.limit_price or pos.entry,
             "exit": round(float(ltp), 4),
             "stop": pos.stop,
@@ -4021,6 +4036,8 @@ def _close(engine: BookEngine, pos: OpenPaper, *, ltp: float, ts: int, reason: s
             "filled": (not unfilled),
         }
     )
+    if rc is not None:
+        engine.closed[-1].update(rc["extra"])
     if inr is not None:
         engine.equity[pos.book_id] = engine.book_equity(pos.book_id) + inr
     engine.opens.pop((pos.book_id, pos.underlying), None)
@@ -4705,6 +4722,8 @@ def _plan_open(
         ),
         model_names=list(getattr(engine, "_current_model_names", None) or [book_id]),
     )
+    if costs.is_realistic(engine):  # PR-B cost hook: tick-floor the limit, note entry spread
+        costs.on_plan_open(engine, pos, tick, impulse=impulse_fill)
     return pos
 
 
@@ -4986,6 +5005,11 @@ def mark_to_market(
                     root=engine.root,
                 )
             continue
+        if costs.is_realistic(engine):  # PR-B cost hook: stale-quote exit guard
+            due = costs.on_quote(engine, pos, tick, ltp, src)
+            if due:
+                _close(engine, pos, ltp=float(ltp), ts=tick.ts, reason=due, root=engine.root)
+                continue
         if side_low is None:
             side_low = ltp
         pos.last_ltp = float(ltp)
@@ -5021,12 +5045,15 @@ def mark_to_market(
                 session_iv=session_iv_median(prior),
                 wing_iv_list=wing_ivs(tick.wing_quotes),
                 index_regime=regime,
+                fill_below=costs.limit_fill_below(engine),
             )
             if u_reason == "FILL":
                 pos.filled = True
                 pos.agent_status = "IN_TRADE"
                 limit = float(pos.limit_price or pos.entry)
-                if float(ltp) <= limit + 1e-9:
+                if costs.is_realistic(engine):  # PR-B cost hook: resting limit fills at the limit
+                    costs.on_limit_fill(engine, pos)
+                elif float(ltp) <= limit + 1e-9:
                     pos.entry = min(float(ltp), limit)
                 else:
                     pos.entry = limit
@@ -5967,6 +5994,7 @@ def replay_paper_scalp(
     sod_one_ticket: Optional[bool] = None,
     picker_majority: Optional[bool] = None,
     hold_trending_open_stall: bool = False,
+    cost_model: Optional[str] = None,
     nifty_cover_closed_1m: Optional[bool] = None,
     use_event_bus: Optional[bool] = None,
     event_session: Optional[Any] = None,
@@ -5974,6 +6002,7 @@ def replay_paper_scalp(
 ) -> dict[str, Any]:
     """`use_event_bus` (default: env USE_EVENT_BUS, off) runs each tick through desk_ml.event_path
     (boss → analysts → desk → risk engine → PaperBroker → ledger) instead of `step_underlying`.
+    `cost_model` (legacy | realistic) overrides env PAPER_COST_MODEL and config/paper_costs.yaml.
     Same trades by construction; see docs/PHASE2_NOTES.md. `event_session` implies the flag.
 
     `live_loop` is set only by `run_loop`. It is what may read the MTM halt file.
@@ -5996,7 +6025,7 @@ def replay_paper_scalp(
             nifty_skip_side_after_stop=nifty_skip_side_after_stop, nifty_skip_ce_after_stop=nifty_skip_ce_after_stop,
             nifty_max_filled_per_book=nifty_max_filled_per_book, nifty_halt_after_stops=nifty_halt_after_stops,
             nifty_session_lean=nifty_session_lean, point_profile_overrides=point_profile_overrides,
-            paper_hold_bars=paper_hold_bars, observer_veto_fills=observer_veto_fills,
+            paper_hold_bars=paper_hold_bars, observer_veto_fills=observer_veto_fills, cost_model=cost_model,
             sod_one_ticket=sod_one_ticket, picker_majority=picker_majority,
             hold_trending_open_stall=hold_trending_open_stall, nifty_cover_closed_1m=nifty_cover_closed_1m,
             use_event_bus=use_event_bus, event_session=event_session, live_loop=live_loop,
@@ -6044,6 +6073,7 @@ def _replay_paper_scalp(
     sod_one_ticket: Optional[bool] = None,
     picker_majority: Optional[bool] = None,
     hold_trending_open_stall: bool = False,
+    cost_model: Optional[str] = None,
     nifty_cover_closed_1m: Optional[bool] = None,
     use_event_bus: Optional[bool] = None,
     event_session: Optional[Any] = None,
@@ -6243,6 +6273,7 @@ def _replay_paper_scalp(
             else bool(params.get("nifty_cover_closed_1m", True))
         ),
     )
+    engine.cost_model = costs.resolve_cost_model(cost_model)  # PR-B
     for book_id in LIVE_BOOKS:
         engine.equity[book_id] = float(plan["per_book"].get(book_id) or 0.0)
     for und in ("NIFTY", "BANKNIFTY", "SENSEX"):
@@ -7659,7 +7690,7 @@ def build_dashboard(
         "fill_contract": (engine.last_step or {}).get("exam"),
         "book_rank": board_book_rank,
         "index_notes": adj_notes,
-        "cost_model": groww_cost_meta(),
+        "cost_model": costs.board_meta(engine),
         "paper_params": params,
         "nifty_overlay": {
             "allow_sides": list(engine.nifty_allow_sides or []),
