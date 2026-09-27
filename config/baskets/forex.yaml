@@ -1,0 +1,33 @@
+# Forex basket. PARKED: loadable and validated, but `activatable: false` means the selector never
+# gives it a non-zero weight and the boss never attaches it to an underlying. Forex is P4
+# (docs/01_CURRENT_STATE_AND_GAPS.md section 8); no forex broker or data feed exists in this repo.
+market: forex
+activatable: false
+
+instruments:
+  EURUSD:
+    # TODO(verify): every field below depends on the forex broker contract spec, which is not chosen yet.
+    exchange: null
+    lot_size: null
+    expiry_weekday: null     # spot forex has no expiry; the expiry label stays "unknown"
+    session: {open: null, close: null, tz: null}
+    tick_size: null
+
+selection:
+  max_total_weight: 1.0
+  min_trades: 30
+  min_pf: 1.0
+  min_dsr: 0.95
+  require_positive_net: true
+
+regime:
+  preopen_days: 10
+  preopen_trend_er_min: 0.30
+  preopen_high_vol_pct: 8.0     # TODO(verify): placeholder until the lab calibrates forex vol
+  intraday_bars: 30
+  intraday_trend_er_min: 0.30
+  intraday_high_vol_pct: 8.0    # TODO(verify): placeholder until the lab calibrates forex vol
+
+lab_scores: data/lab/basket_forex.json
+
+strategies: []

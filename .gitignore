@@ -85,3 +85,7 @@ yesterday_gemini*
 *_laerning.txt
 teams/07_ui/
 
+# Basket selector: shadow log, lab refresh files, founder off switch (docs/baskets.md)
+data/shadow/
+data/lab/
+data/founder/

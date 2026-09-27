@@ -1,0 +1,74 @@
+# India index-options basket (NIFTY, SENSEX). SHADOW ONLY: the boss logs a ranked, weighted
+# basket per regime to data/shadow/basket/<day>.jsonl. Nothing here places an order and the paper
+# engine does not read this file. Schema and lab refresh: docs/baskets.md.
+market: india
+activatable: true
+
+# Instrument metadata. The paper engine still resolves its own lot size from the Dhan instrument
+# master (desk_ml.paper_lots.resolve_lot_size); these values feed regime labels and the basket log only.
+instruments:
+  NIFTY:
+    exchange: NSE
+    # Source: NSE F&O lot revision for NIFTY (75 -> 65); matches the lot the repo fixtures replay with.
+    # TODO(verify): re-check against the Dhan instrument master after every NSE lot revision.
+    lot_size: 65
+    # Source: NSE weekly index expiry moved to Tuesday (Sep 2025); repo calendar
+    # trading_agents_india.index_ce_pe_formulas.default_expiry_tuesdays uses Tuesdays.
+    # TODO(verify): holiday-shifted expiries are not modelled (label says non_expiry on the shifted day).
+    expiry_weekday: TUE
+    # Source: NSE equity-derivatives normal market hours, IST.
+    session: {open: "09:15", close: "15:30", tz: Asia/Kolkata}
+    # Source: NSE option tick size; the ledger and ClockedPaperBroker book on the same 0.05 tick.
+    tick_size: 0.05
+  SENSEX:
+    exchange: BSE
+    # Source: BSE SENSEX derivatives lot (repo tests replay SENSEX with 20).
+    # TODO(verify): confirm against the Dhan instrument master / latest BSE lot circular.
+    lot_size: 20
+    # Source: BSE moved SENSEX weekly expiry to Thursday (Sep 2025).
+    # TODO(verify): confirm against the current BSE circular; holiday shifts are not modelled.
+    expiry_weekday: THU
+    # Source: BSE equity-derivatives normal market hours, IST.
+    session: {open: "09:15", close: "15:30", tz: Asia/Kolkata}
+    # TODO(verify): BSE option tick size; 0.05 assumed from the shared ledger tick, not from a BSE circular.
+    tick_size: 0.05
+
+# Gates a regime score must pass to get a non-zero weight. Anything else is weight 0 with a reason.
+selection:
+  max_total_weight: 1.0      # weights are scaled down proportionally when their sum is above this
+  min_trades: 30             # fewer scored trades in this regime = weight 0
+  min_pf: 1.0                # profit factor below this = weight 0
+  min_dsr: 0.95              # deflated Sharpe ratio (probability, 0..1) below this = weight 0
+  require_positive_net: true # net_pnl <= 0 = weight 0
+
+# Pre-entry regime labels. Only data available before the decision is used: prior sessions for
+# pre-open, and closed 1-minute bars of today (never the minute still forming) intraday.
+regime:
+  preopen_days: 10              # prior daily closes for the pre-open trend/vol label
+  preopen_trend_er_min: 0.30    # Kaufman efficiency ratio at or above this = trend, else chop
+  preopen_high_vol_pct: 15.0    # annualised close-to-close vol (%) at or above this = high_vol
+  intraday_bars: 30             # closed 1m bars needed before intraday labels replace pre-open ones
+  intraday_trend_er_min: 0.30   # same threshold the engine's REGIME_ER_MAX uses for chop
+  intraday_high_vol_pct: 10.06  # annualised rv30 (%) threshold; same as config/analysts.yaml shadow.high_vol
+
+# Lab output (gitignored). When present and valid its cards replace the cards below by id.
+lab_scores: data/lab/basket_india.json
+
+strategies:
+  # Describes today's paper stack so the registry has one real card. The engine does NOT read it;
+  # values mirror desk_ml.paper_scalp DEFAULT_PAPER_PARAMS. Unscored until the lab writes
+  # data/lab/basket_india.json, so the selector gives it weight 0 (reason unscored_regime).
+  - id: MIX-DEFAULT-BUY
+    source: {kind: paper, ref: "desk_ml.paper_scalp DEFAULT_PAPER_PARAMS (SOD rooms, picker majority, FOLLOW_GAP_ITM_1M observer)"}
+    markets: [NIFTY, SENSEX]
+    adaptations:
+      NIFTY: {need_strength: true, align_impulse: true, skip_ce_after_stop: true, cover_closed_1m: true}
+      SENSEX: {need_strength: true, no_pause_wait: true}
+    rules:
+      entry: {vote: picker_majority, observer: FOLLOW_GAP_ITM_1M, sod_one_ticket: true, no_new_before_ist: "09:30", limit_discount_frac: 0.012}
+      exit: {stop_frac: 0.40, target_frac: 0.55, max_target_r: 2.0, hold_bars_1m: 8, give_up_frac: 0.12, flatten_ist: "15:16"}
+      strike: {premium: ITM, side: CE_or_PE_buy}
+      sizing: {min_lots: 20, target_lots: 25, max_lots: 30}
+      skip: {sideways: true, trend_against: true, regime_er_max: 0.30, regime_lookback_1m: 15}
+    param_ranges: {}
+    scores: {}
