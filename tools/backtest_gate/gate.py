@@ -77,6 +77,11 @@ def replay_fixture(path: Path, *, live_risk: bool = False, event_path: bool = Tr
     from desk_ml.event_parity import fixture_replay_kwargs, load_fixture
     from desk_ml.event_path import EventSession, resolve_risk_config
 
+    # paper_scalp imports these optionally; without them targets and entries change silently.
+    missing = [n for n in ("evaluate_long_premium", "judge_tick") if getattr(ps, n) is None]
+    if missing:
+        raise RuntimeError(f"optional engine hooks missing ({', '.join(missing)}): install packages/warehouse "
+                           "and packages/trading_agents_india, or the replay does not match expected_results.json")
     fx = load_fixture(path)
     risk_file, _explicit = resolve_risk_config(live_session=live_risk, root=REPO)
     saved = ps.load_index_closes, ps.resolve_lot_size

@@ -61,7 +61,7 @@ jobs:
           python -m pip install \
             -e packages/dhan-client -e packages/backtest -e packages/ledger -e packages/risk-engine \
             -e packages/brokers -e packages/trading_agents_india -e packages/events -e packages/desk-ml \
-            -e packages/analysts -e packages/boss -e packages/desk pytest
+            -e packages/analysts -e packages/boss -e packages/desk -e packages/warehouse pytest
       - name: Exit-constant mutation check
         env:
           GATE_MUTATION: "1"

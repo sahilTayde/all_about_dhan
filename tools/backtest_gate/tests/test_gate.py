@@ -46,6 +46,15 @@ def test_expected_file_covers_every_fixture_and_risk_profile() -> None:
         assert "not market data" in json.loads((gate.REPO / r["fixture"]).read_text(encoding="utf-8"))["note"].lower()
 
 
+def test_replay_refuses_to_run_without_optional_engine_hooks(monkeypatch) -> None:
+    import pytest
+    import desk_ml.paper_scalp as ps
+
+    monkeypatch.setattr(ps, "evaluate_long_premium", None)
+    with pytest.raises(RuntimeError, match="evaluate_long_premium"):
+        gate.replay_fixture(gate.BASE_FIXTURES[0])
+
+
 def test_no_gated_change_needs_nothing() -> None:
     assert pr_check.check("", ["packages/warehouse/src/warehouse/etl.py", "docs/x.md"]) == []
 
