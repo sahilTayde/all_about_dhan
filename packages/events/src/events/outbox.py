@@ -17,7 +17,9 @@ log = logging.getLogger("events.outbox")
 class OutboxStore(Protocol):
     """Protocol for outbox storage (SQLite, PostgreSQL, etc.)."""
 
-    def fetch_unpublished(self, limit: int = 100) -> list[tuple[int, str, str, dict[str, Any]]]:
+    def fetch_unpublished(
+        self, limit: int = 100
+    ) -> list[tuple[int, str, str, dict[str, Any]]]:
         """Fetch unpublished rows: (row_id, stream, event_json, metadata)."""
         ...
 
@@ -69,7 +71,9 @@ class OutboxPublisher:
             retries = 0
             while retries < max_retries:
                 try:
-                    self.publisher.publish_to_stream(stream, event_json, message_id=message_id)
+                    self.publisher.publish_to_stream(
+                        stream, event_json, message_id=message_id
+                    )
                     published_ids.append(row_id)
                     break
                 except Exception as exc:  # noqa: BLE001
@@ -85,7 +89,12 @@ class OutboxPublisher:
                         self.error_count += 1
                     else:
                         log.warning(
-                            "Retry %d/%d for row %d to %s: %s", retries, max_retries, row_id, stream, exc
+                            "Retry %d/%d for row %d to %s: %s",
+                            retries,
+                            max_retries,
+                            row_id,
+                            stream,
+                            exc,
                         )
                         time.sleep(0.1 * (2**retries))  # exponential backoff
 
@@ -98,7 +107,11 @@ class OutboxPublisher:
 
     def run_loop(self, *, interval_ms: int = 100, limit: int = 100) -> None:
         """Run continuous drain loop (for daemon mode)."""
-        log.info("Starting outbox publisher loop (interval=%d ms, limit=%d)", interval_ms, limit)
+        log.info(
+            "Starting outbox publisher loop (interval=%d ms, limit=%d)",
+            interval_ms,
+            limit,
+        )
         while True:
             try:
                 published = self.drain(limit=limit)

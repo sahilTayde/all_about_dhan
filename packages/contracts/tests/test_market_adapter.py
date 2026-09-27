@@ -4,7 +4,7 @@ from datetime import date, datetime, time
 
 import pytest
 
-from contracts.instruments import IST, NSE_HOLIDAYS_2026, India
+from contracts.instruments import IST, NSE_HOLIDAY_LABELS_2026, NSE_HOLIDAYS_2026, India
 
 
 def test_india_session_hours() -> None:
@@ -278,18 +278,45 @@ def test_india_custom_holidays() -> None:
 
 
 def test_nse_holidays_2026_count() -> None:
-    """Test NSE 2026 holidays set has expected count (per official NSE circular NSE/CMTR/71775)."""
-    # NSE 2026 has 17 full trading holidays per official circular
+    """NSE 2026 weekday holiday set is 17 dates."""
     assert len(NSE_HOLIDAYS_2026) == 17
+    assert set(NSE_HOLIDAY_LABELS_2026) == NSE_HOLIDAYS_2026
 
 
-def test_nse_holidays_2026_includes_major_holidays() -> None:
-    """Test NSE 2026 holidays includes major holidays."""
-    # Major holidays that must be present
-    assert date(2026, 1, 26) in NSE_HOLIDAYS_2026  # Republic Day
-    assert date(2026, 8, 15) in NSE_HOLIDAYS_2026  # Independence Day
-    assert date(2026, 10, 2) in NSE_HOLIDAYS_2026  # Gandhi Jayanti
-    assert date(2026, 12, 25) in NSE_HOLIDAYS_2026  # Christmas
+def test_nse_holidays_2026_pins_every_date_and_label() -> None:
+    """Pin every 2026 holiday date and its exchange label."""
+    expected = {
+        date(2026, 1, 15): "municipal election",
+        date(2026, 1, 26): "Republic Day",
+        date(2026, 3, 3): "Holi",
+        date(2026, 3, 26): "Ram Navami",
+        date(2026, 3, 31): "Mahavir Jayanti",
+        date(2026, 4, 3): "Good Friday",
+        date(2026, 4, 14): "Dr. Ambedkar Jayanti",
+        date(2026, 5, 1): "Maharashtra Day",
+        date(2026, 5, 28): "Bakri Id",
+        date(2026, 6, 26): "Muharram",
+        date(2026, 8, 15): "Independence Day",
+        date(2026, 9, 14): "Ganesh Chaturthi",
+        date(2026, 10, 2): "Gandhi Jayanti",
+        date(2026, 10, 20): "Dussehra",
+        date(2026, 11, 10): "Diwali-Balipratipada",
+        date(2026, 11, 24): "Guru Nanak Dev",
+        date(2026, 12, 25): "Christmas",
+    }
+    assert expected == NSE_HOLIDAY_LABELS_2026
+    india = India()
+    for day in expected:
+        assert not india.is_trading_day(day)
+
+
+def test_nse_2026_selected_weekdays_are_trading_days() -> None:
+    """Aug 27, Oct 27, Oct 28 2026 are weekdays and not holidays."""
+    india = India()
+    for day in (date(2026, 8, 27), date(2026, 10, 27), date(2026, 10, 28)):
+        assert day.weekday() < 5
+        assert day not in NSE_HOLIDAYS_2026
+        assert india.is_trading_day(day)
 
 
 def test_india_is_trading_day_full_year_consistency() -> None:
