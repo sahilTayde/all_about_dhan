@@ -1,0 +1,41 @@
+# Paper cost model for the flag-off paper engine (desk_ml.paper_scalp) and its event-path twin.
+# Read by packages/desk-ml/src/desk_ml/costs.py. Paper only: nothing here reaches a broker.
+#
+# Precedence: replay_paper_scalp(cost_model=...) > env PAPER_COST_MODEL > cost_model below.
+# legacy    = today's numbers exactly (fill at the signal print, no spread, target at the print,
+#             NSE fee for every index). Historical replays and goldens stay byte-identical.
+# realistic = the lab 5 fixes (desk/specs cost_audit.md D1, D3, D4, D5, D7, D8).
+cost_model: legacy
+
+# Adverse premium points per side on marketable fills (impulse entries, non-target exits).
+# Replaced by half the recorded spread when the tape has bid/ask for the held strike.
+slippage_pts_per_side:
+  default: 0.20
+  NIFTY: 0.20
+  BANKNIFTY: 0.20
+  SENSEX: 0.20
+use_recorded_spread: true
+
+tick_size: 0.05
+
+# resting_limit: a TARGET exit books the target level (tick-ceiled), no slippage.
+# market_at_poll: a TARGET exit books the print minus slippage.
+target_fill: resting_limit
+
+# An exit is never booked on a quote older than this. The exit waits for the first fresh print
+# of the held strike (reason kept); at stale_exit_hard_flatten_ist it closes at the last good
+# print as FLATTEN_STALE_QUOTE. null turns the guard off.
+exit_quote_max_age_s: 90
+stale_exit_hard_flatten_ist: "15:20"
+
+# trade_through: a working buy limit fills only when a print after placement trades at least one
+# tick below it, and fills at the limit (never better). Limits are tick-floored at creation.
+# touch: legacy rule (any touch fills, at the better print).
+limit_fill: trade_through
+
+# per_exchange: SENSEX/BANKEX at the BSE rate, NSE indices at the NSE rate (config/charges.yaml).
+# nse_flat: legacy rate for every index (ablation only).
+exchange_fees: per_exchange
+
+# D2 (cost_audit.md): no evidence of systematic latency bias on the tapes. Not modelled.
+entry_latency_ticks: 0

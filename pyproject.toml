@@ -13,6 +13,7 @@ members = [
     "packages/desk-intel",
     "packages/desk-ml",
     "packages/dhan-client",
+    "packages/marketdata",
     "packages/docs-auditor",
     "packages/events",
     "packages/health",
@@ -26,4 +27,6 @@ members = [
 [tool.pytest.ini_options]
 markers = [
     "network: needs internet (pip/PyPI); skips when offline",
+    "sim: fault-injection full-day live-loop simulations (CI job: faults)",
+    "slow: long-running; excluded from the unit job",
 ]

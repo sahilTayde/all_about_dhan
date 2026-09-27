@@ -37,6 +37,10 @@ class InvalidTransition(Exception):
     pass
 
 
+class LedgerWriteFailed(Exception):
+    """The ``on_transition`` hook (ledger) raised; the order kept its previous state (no orphan)."""
+
+
 class OrderRefused(Exception):
     """No valid, fresh, matching risk approval."""
 
@@ -116,12 +120,17 @@ class Order:
         if to not in TRANSITIONS.get(self.state, ()):
             raise InvalidTransition(f"{self.client_order_id}: {self.state.value} -> {to.value} not allowed")
         prev, self.state = self.state, to
-        self.history.append(
-            {"ts": datetime.now(IST).isoformat(timespec="milliseconds"), "from": prev.value, "to": to.value, "reason": reason}
-        )
-        log.info("order %s %s -> %s %s", self.client_order_id, prev.value, to.value, reason)
+        entry = {"ts": datetime.now(IST).isoformat(timespec="milliseconds"), "from": prev.value, "to": to.value, "reason": reason}
+        self.history.append(entry)
         if self.on_transition:
-            self.on_transition(self, prev, to, reason)
+            try:
+                self.on_transition(self, prev, to, reason)
+            except Exception as exc:  # the ledger did not record it: the broker must not either
+                self.state = prev
+                if self.history and self.history[-1] is entry:
+                    self.history.pop()
+                raise LedgerWriteFailed(f"{self.client_order_id}: {prev.value} -> {to.value} not recorded: {exc}") from exc
+        log.info("order %s %s -> %s %s", self.client_order_id, prev.value, to.value, reason)
 
     def apply_fill(self, qty: int, price: float, ts: Any = None) -> None:
         if self.state not in (S.SUBMITTED, S.PARTIAL):

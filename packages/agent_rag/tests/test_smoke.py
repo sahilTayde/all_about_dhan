@@ -11,8 +11,22 @@ from agent_rag.paths import agent_rag_db, repo_root, transcripts_db
 from agent_rag.query import query
 
 
-def test_rebuild_and_query_fake_breakout() -> None:
-    root = repo_root()
+def _scratch_root(tmp_path: Path) -> Path:
+    """Read the repo's source trees; write the knowledge DB only under tmp_path."""
+    root = tmp_path / "repo"
+    (root / "data" / "knowledge").mkdir(parents=True)
+    real = repo_root()
+    (root / "teams").symlink_to(real / "teams")
+    knowledge = real / "data" / "knowledge"
+    for name in ("trading_agents_india.sqlite", "transcripts.sqlite"):
+        src = knowledge / name
+        if src.is_file():
+            (root / "data" / "knowledge" / name).symlink_to(src)
+    return root
+
+
+def test_rebuild_and_query_fake_breakout(tmp_path: Path) -> None:
+    root = _scratch_root(tmp_path)
     tdb = transcripts_db(root)
     tdb_mtime = tdb.stat().st_mtime if tdb.is_file() else None
     report = rebuild(root)
@@ -37,8 +51,8 @@ def test_rebuild_and_query_fake_breakout() -> None:
     assert any(h.kind == "research_book_notes" for h in club_hits)
 
 
-def test_eod_recon_retune_required(tmp_path: Path | None = None) -> None:
-    root = repo_root()
+def test_eod_recon_retune_required(tmp_path: Path) -> None:
+    root = _scratch_root(tmp_path)
     out = run_eod_recon(
         day="2026-09-02",
         root=root,

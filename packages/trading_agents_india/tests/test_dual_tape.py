@@ -142,3 +142,39 @@ def test_live_dual_tape_refuses_weekend(tmp_path: Path, monkeypatch) -> None:
     )
     assert result.stopped_reason == WEEKEND_NO_MARKET
     assert result.ticks == []
+
+
+def test_spof_S2_one_index_feed_error_does_not_stop_capture(tmp_path: Path, monkeypatch) -> None:
+    import trading_agents_india.dual_tape as dt
+
+    real = dt.gather_underlying
+
+    def flaky(und, **kw):
+        if und == "BANKNIFTY":
+            raise ConnectionError("chain fetch failed")
+        return real(und, **kw)
+
+    monkeypatch.setattr(dt, "gather_underlying", flaky)
+    result = run_dual_tape_loop(
+        underlyings=["NIFTY", "BANKNIFTY"], max_ticks=2, simulate=True, persist=False,
+        settings=_settings(tmp_path), write_run_flag_on_start=False,
+    )
+    assert result.stopped_reason == "completed_max_ticks" and len(result.ticks) == 2
+    assert set(result.ticks[0]["index_ltp"]) == {"NIFTY"}
+    alerts = (tmp_path / "data" / "health" / "alerts.jsonl").read_text().splitlines()
+    assert len(alerts) == 1 and "BANKNIFTY" in alerts[0]  # once per session, not per tick
+
+
+def test_spof_S2_persist_failure_skips_the_paper_cycle_but_keeps_looping(tmp_path: Path, monkeypatch) -> None:
+    import trading_agents_india.dual_tape as dt
+
+    def full(*_a, **_k):
+        raise OSError(28, "No space left on device")
+
+    monkeypatch.setattr(dt, "persist_tick", full)
+    result = run_dual_tape_loop(
+        underlyings=["NIFTY"], max_ticks=2, simulate=True, persist=True, paper_scalp=True,
+        settings=_settings(tmp_path), write_run_flag_on_start=False,
+    )
+    assert len(result.ticks) == 2
+    assert result.ticks[0]["paper_scalp_board"]["error"] == "persist_failed"

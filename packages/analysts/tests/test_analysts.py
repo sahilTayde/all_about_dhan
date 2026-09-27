@@ -67,7 +67,8 @@ def test_wrapped_room_is_lossless():
     assert [to_legacy(v) for v in votes] == legacy
     assert all(to_legacy(from_legacy(v)) == v for v in legacy)
     signals = {v.analyst_id: v.signal for v in votes}
-    assert signals["follows"] == "BUY_CE" and signals["logit"] == "BUY_PE" and signals["ML-001"] == "HOLD"
+    assert signals["follows"] == "BUY_CE" and signals["logit"] == "BUY_PE"
+    assert "ML-001" not in signals and "ML-002" not in signals and "ML-1" not in signals
     assert signals["STRAT-003"] == "BUY_CE" and signals["STRAT-001"] == ABSTAIN
     room.close()
 
@@ -96,6 +97,72 @@ def test_register_new_analyst_by_config_key():
         room.close()
     finally:
         REGISTRY.pop(key, None)
+
+
+def test_replay_wall_clock_timeout_does_not_stall_the_room():
+    """A hung capped analyst abstains. The rest of the replay tick still returns, and the next tick does not wait."""
+    import threading
+
+    release = threading.Event()
+
+    class Hung(Analyst):
+        analyst_id = "hung"
+        wall_clock = True
+
+        def vote(self, context):
+            release.wait(2)
+            return Vote(self.analyst_id, BUY_CE, 0.7, "late")
+
+    class Capped(Analyst):
+        analyst_id = "capped"
+
+        def vote(self, context):
+            return Vote(self.analyst_id, BUY_CE, 0.7, "fast")
+
+    room = AnalystRoom(
+        [Fixed("ok"), Hung(), Capped()],
+        timeout_s=0.05,
+        timeouts_s={"capped": 1.0},
+        deterministic=True,
+    )
+    try:
+        t0 = time.perf_counter()
+        out = {v.analyst_id: v for v, _ in room.collect(ctx())}
+        assert time.perf_counter() - t0 < 0.5
+        assert out["ok"].signal == BUY_CE and out["capped"].signal == BUY_CE
+        assert out["hung"].signal == ABSTAIN and out["hung"].reasoning == "TIMEOUT"
+        t1 = time.perf_counter()
+        again = {v.analyst_id: v for v, _ in room.collect(ctx())}
+        assert time.perf_counter() - t1 < 0.2
+        assert again["ok"].signal == BUY_CE and again["capped"].signal == BUY_CE
+        assert again["hung"].reasoning == "TIMEOUT"
+        assert room.stats["timeouts"] >= 2
+    finally:
+        release.set()
+        room.close()
+
+
+def test_malformed_analyst_yaml_does_not_stop_the_event_bus(tmp_path, caplog):
+    """A broken analysts.yaml is logged and replaced with the default room. The bus still runs."""
+    import logging
+    from types import SimpleNamespace
+
+    from desk_ml.event_path import EventSession
+    from events import MemoryBus
+
+    bad = tmp_path / "analysts.yaml"
+    bad.write_text("analysts: [\n  - {key: LLM-ANALYST\n")
+    bus = MemoryBus()
+    session = EventSession(bus=bus, analysts_config=bad, deterministic=True)
+    with caplog.at_level(logging.ERROR, logger="analysts"):
+        session.attach(SimpleNamespace())
+    try:
+        assert "follows" in session.room.analyst_ids
+        assert any("analyst config" in rec.message for rec in caplog.records)
+        bus.publish("FOUNDER_COMMAND", {"command": "PAUSE_ENTRIES"}, source="test")
+        assert session.desk.paused is True and bus.errors == []
+    finally:
+        session.close()
 
 
 def test_replay_mode_does_not_abstain_on_wall_clock():

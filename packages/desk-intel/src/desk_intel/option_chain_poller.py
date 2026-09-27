@@ -64,6 +64,22 @@ def _opt_greek(value: Any) -> Optional[float]:
     return num
 
 
+def _opt_depth(value: Any) -> Optional[float]:
+    """Top-of-book price/qty. 0 or missing = no quote on that side."""
+    num = _opt_float(value)
+    return num if num is not None and num > 0 else None
+
+
+def _depth_fields(ce: dict[str, Any], pe: dict[str, Any]) -> dict[str, Any]:
+    out: dict[str, Any] = {}
+    for leg, cell in (("ce", ce), ("pe", pe)):
+        for side in ("bid", "ask"):
+            px, qty = _opt_depth(cell.get(f"top_{side}_price")), _opt_depth(cell.get(f"top_{side}_quantity"))
+            out[f"{leg}_{side}"] = px
+            out[f"{leg}_{side}_qty"] = int(qty) if qty is not None else None
+    return out
+
+
 def unwrap_chain_payload(payload: Any) -> Optional[dict[str, Any]]:
     if not isinstance(payload, dict):
         return None
@@ -136,6 +152,7 @@ def parse_oc(oc: Any) -> list[StrikeRow]:
                 pe_vega=_opt_greek(g_pe.get("vega")),
                 ce_iv=_opt_greek(ce.get("implied_volatility")),
                 pe_iv=_opt_greek(pe.get("implied_volatility")),
+                **_depth_fields(ce, pe),
             )
         )
     rows.sort(key=lambda r: r.strike)

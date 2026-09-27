@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import math
 from typing import Any, Optional
 
 from brokers.orders import (
@@ -26,13 +27,21 @@ class PaperBroker(BrokerAdapter):
     limit. SL-M becomes MARKET once LTP touches the trigger; SL becomes LIMIT. A super order's
     target (LIMIT) and stop (SL-M, optionally trailing) legs appear after the entry fills; when
     one leg fills the other is cancelled (OCO).
+
+    `cost_model="realistic"` (config/paper_costs.yaml): prices round against the order's side
+    (buys up, sells down; limits never beyond the limit), and a LIMIT fills only when LTP trades
+    through it by one tick, at the limit. `legacy` keeps nearest-tick rounding and touch fills.
     """
 
     name = "paper"
     mode = "paper"
 
-    def __init__(self, *, slippage_ticks: int = 1, tick_size: float = 0.05, starting_cash: float = 0.0) -> None:
+    def __init__(self, *, slippage_ticks: int = 1, tick_size: float = 0.05, starting_cash: float = 0.0,
+                 cost_model: str = "legacy") -> None:
         super().__init__()
+        if cost_model not in ("legacy", "realistic"):
+            raise ValueError(f"cost_model must be legacy or realistic, got {cost_model!r}")
+        self.cost_model = cost_model
         self.tick_size = tick_size
         self.slippage = slippage_ticks * tick_size
         self.cash = starting_cash
@@ -122,13 +131,20 @@ class PaperBroker(BrokerAdapter):
             if px is not None:
                 self._fill(order, px, ts)
 
-    def _tick(self, x: float) -> float:
-        return max(self.tick_size, round(round(x / self.tick_size) * self.tick_size, 2))
+    def _tick(self, x: float, side: Optional[str] = None) -> float:
+        """Nearest tick (legacy), or against `side` in realistic mode: BUY rounds up, SELL down."""
+        if self.cost_model != "realistic" or side not in ("BUY", "SELL"):
+            return max(self.tick_size, round(round(x / self.tick_size) * self.tick_size, 2))
+        n = round(x / self.tick_size, 6)  # 230.05 / 0.05 = 4600.999... is 4601 ticks
+        n = math.ceil(n) if side == "BUY" else math.floor(n)
+        return max(self.tick_size, round(n * self.tick_size, 2))
 
     def _fill_price(self, order: Order, ltp: float) -> Optional[float]:
         buy = order.intent.side == "BUY"
         slip = self.slippage if buy else -self.slippage
         kind = order.intent.order_type
+        if self.cost_model == "realistic":
+            return self._fill_price_realistic(order, ltp, buy, slip, kind)
         if kind == "MARKET":
             return self._tick(ltp + slip)
         if kind in ("SL", "SL-M") and order.client_order_id not in self._triggered:
@@ -141,6 +157,29 @@ class PaperBroker(BrokerAdapter):
             return self._tick(min(order.price, ltp + slip))
         if not buy and ltp >= order.price:
             return self._tick(max(order.price, ltp + slip))
+        return None
+
+    def _fill_price_realistic(self, order: Order, ltp: float, buy: bool, slip: float, kind: str) -> Optional[float]:
+        side = "BUY" if buy else "SELL"
+        if kind == "MARKET":
+            return self._tick(ltp + slip, side)
+        if kind in ("SL", "SL-M") and order.client_order_id not in self._triggered:
+            if not (ltp >= order.trigger_price if buy else ltp <= order.trigger_price):
+                return None
+            self._triggered.add(order.client_order_id)
+        if kind == "SL-M":
+            return self._tick(ltp + slip, side)
+        # Resting limit on-tick and never beyond itself (buy floors, sell ceils); trade-through, at the limit.
+        n = round(order.price / self.tick_size, 6)
+        ticks = math.floor(n) if buy else math.ceil(n)
+        if ticks < 1:
+            return None
+        limit = round(ticks * self.tick_size, 2)
+        eps = 1e-9
+        if buy and ltp <= limit - self.tick_size + eps:
+            return limit
+        if not buy and ltp >= limit + self.tick_size - eps:
+            return limit
         return None
 
     def _trail(self, order: Order, ltp: float) -> None:

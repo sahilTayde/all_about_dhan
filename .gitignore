@@ -24,6 +24,13 @@ data/recon/**
 # Trade ledger (orders, fills, P&L) and health alerts — never commit
 data/ledger/
 data/health/
+# LLM analyst call log (PR-016)
+data/llm_analyst/
+# Shadow decision logs. The engine creates data/shadow/ at runtime. Do not commit rows.
+data/shadow/
+# V2 market-data tapes (depth, quotes, OI cadence, raw frames) and the scrip-master cache
+data/tape/
+data/cache/
 
 # Live-rewritten founder board (open in Cursor / browser; do not commit ticks)
 teams/00_orchestrator/canvases/*
@@ -54,6 +61,8 @@ packages/*/.venv/
 data/asr_cache/
 
 # Knowledge DB WAL sidecars (commit the .sqlite when useful)
+# The trading_agents_india KB holds captured sessions, tickets and tape snippets: never public.
+data/knowledge/trading_agents_india.sqlite
 data/knowledge/*.sqlite-wal
 data/knowledge/*.sqlite-shm
 data/knowledge/warehouse.sqlite

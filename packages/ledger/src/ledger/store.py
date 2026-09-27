@@ -15,7 +15,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Optional, Union
 
-from ledger.charges import DEFAULT_CHARGES_PATH, load_rates, order_charges
+from ledger.charges import DEFAULT_CHARGES_PATH, exchange_for, load_rates, order_charges
 
 IST = timezone(timedelta(hours=5, minutes=30))
 DEFAULT_LEDGER_PATH = Path("data/ledger/ledger.sqlite")
@@ -271,7 +271,8 @@ class Ledger:
         signed = qty if o["side"] == "BUY" else -qty
         with self.conn:
             first = self._one("SELECT 1 FROM fills WHERE client_order_id = ? LIMIT 1", (client_order_id,)) is None
-            ch = order_charges(o["side"], qty, price, self.rates, include_brokerage=first)
+            ch = order_charges(o["side"], qty, price, self.rates, include_brokerage=first,
+                               exchange=exchange_for(o["symbol"], self.rates))
             pos = self._one("SELECT * FROM positions WHERE symbol = ?", (o["symbol"],))
             net = pos["net_qty"] if pos else 0
             avg = pos["avg_price"] if pos else 0.0

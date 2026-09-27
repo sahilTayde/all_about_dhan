@@ -50,7 +50,7 @@ Founder  →  D4 PM  (00)
 | Path | What it is |
 |------|------------|
 | `teams/00_orchestrator` … `09_review` | Pipeline: tickets, research, specs, review. **Team 02 lives in `02_phd_math` only.** |
-| `apps/web` | Customer `/`, research `/desk`, founder `/pm` (UI still MOCK in places) |
+| `apps/web` | Desk `/desk` (`/` redirects), founder `/pm`, customer preview `/customer` (DEMO panels badged) |
 | `apps/api` | FastAPI. Dhan **data** allowed when token is set. **Orders refused.** |
 | `packages/dhan-client` | DhanHQ client + SafeMode |
 | `packages/desk-intel` | News + 3m chain → desk signal / nightly jobs |

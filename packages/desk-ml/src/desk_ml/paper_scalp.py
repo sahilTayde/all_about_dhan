@@ -38,7 +38,10 @@ from desk_ml.picker import (
     track_model_signals,
 )
 from desk_ml.mrr import Z_HOLD, ols_beta, rolling_z
-from desk_ml.persist import pack_estimators, repo_root
+from desk_ml.persist import pack_estimators, repo_root, unpack_estimators
+from desk_ml import paper_guard
+from desk_ml.founder_session import UNREADABLE_REASON as FOUNDER_UNREADABLE
+from desk_ml.reliability import ModelLogSink, ReplayContext, atomic_write_json, atomic_write_text
 from desk_ml.paper_lots import (
     STARTING_CAPITAL_INR,
     pnl_inr,
@@ -59,6 +62,7 @@ TICK_NE_DASHBOARD_REASON = (
 LIMIT_DISCOUNT_FRAC = 0.012  # working buy limit below signal LTP; fill is not assumed at signal
 from desk_ml.groww_costs import as_dict as groww_cost_meta
 from desk_ml.groww_costs import breakeven_premium, groww_round_trip_charges, net_pnl_inr
+from desk_ml import costs  # PR-B cost model: every hook is gated on costs.is_realistic(engine)
 from desk_ml.greeks_ml import score_greeks_ticket, session_iv_median, wing_ivs
 from desk_ml.tape import (
     index_1m_close_vol_from_ticks,
@@ -1502,13 +1506,24 @@ def sleep_with_beats(
     return "slept"
 
 
-def refresh_dashboard_clock(board: dict[str, Any], *, tick_seconds: int) -> dict[str, Any]:
-    """Rewrite as_of from last tick. Does not re-walk the tape or call Dhan."""
-    stamp = datetime.now(IST).isoformat(timespec="seconds")
-    board["as_of_ist"] = stamp
+def refresh_dashboard_clock(
+    board: dict[str, Any], *, tick_seconds: int, root: Optional[Path] = None
+) -> dict[str, Any]:
+    """UI clock beat between cycles. Does not re-walk the tape or call Dhan.
+
+    Never claims the engine is alive: ``alive`` and the ``engine_*`` fields come from
+    ``engine_heartbeat.json``, which only a finished cycle writes. ``heartbeat.as_of_ist`` stays the
+    last cycle's time; the beat goes to ``beat_ist``.
+    """
+    now = datetime.now(IST)
     heart = dict(board.get("heartbeat") or {})
-    heart["as_of_ist"] = stamp
-    heart["alive"] = True
+    if root is not None:
+        from desk_ml.live_cycle import engine_state
+
+        heart.update(engine_state(root, now))
+    else:
+        heart["alive"] = False
+        heart["beat_ist"] = now.isoformat(timespec="seconds")
     heart["dashboard_write_seconds"] = DASHBOARD_HEARTBEAT_SECONDS
     heart["tick_seconds"] = int(tick_seconds)
     heart["tick_ne_dashboard_reason"] = TICK_NE_DASHBOARD_REASON
@@ -2360,7 +2375,7 @@ def apply_target_lock_shift(
     prev_idx_volume: Optional[float] = None,
 ) -> bool:
     """Optional T1 lock+T2. Default off: first TARGET flattens. Trail SL is separate. PAPER."""
-    if not getattr(engine, "apply_target_shift", False):
+    if not (getattr(engine, "apply_target_shift", False) or getattr(pos, "founder_t2", False)):
         return False
     if not pos.filled:
         return False
@@ -2805,6 +2820,7 @@ class OpenPaper:
     wing_bar_high: Optional[float] = None
     wing_bar_close: Optional[float] = None
     closed_wing_bars: list[dict[str, Any]] = field(default_factory=list)
+    founder_t2: bool = False  # founder GO_T2: first target locks + extends instead of flattening
 
 
 @dataclass
@@ -2876,8 +2892,14 @@ class BookEngine:
     sod_one_ticket: bool = True  # locked product: votes → picker → observer → one desk ticket
     picker_majority: bool = True  # RULES majority; implied by sod_one_ticket
     signal_log: list[dict[str, Any]] = field(default_factory=list)  # logit/XR/greeks vs picker even on VETO
+    cost_model: str = costs.LEGACY  # PR-B: legacy | realistic (desk_ml.costs)
+    cost_state: dict[str, Any] = field(default_factory=dict)  # PR-B: realistic fills, quotes, alerts
     exam_events: list[dict[str, Any]] = field(default_factory=list)  # 06 honesty exam; not a fill
     hold_trending_open_stall: bool = False  # write=false A/B only. Default off. NO_PROMOTE.
+    ctx: Optional[ReplayContext] = None  # replay inputs (clock, live blocks, risk config); None = unit test
+    overrides: Any = None  # desk_ml.overrides.OverrideBook, loaded once per replay
+    pinned_until: dict[str, int] = field(default_factory=dict)  # live: carried ticket frozen until the last cut-off
+    founder_controls: Any = None  # desk_ml.founder_commands.CommandBook; None = no founder commands
 
     def book_capital(self, book_id: str) -> float:
         if book_id in self.capital_by_book:
@@ -2980,28 +3002,22 @@ def paper_hit_rate_pct(pnls: Sequence[float]) -> Optional[float]:
     return round(rate * 100.0, 2)
 
 
-# replay_paper_scalp(write=False) sets this so lab and parity do not grow the jsonl.
-_MODEL_LOGS: ContextVar[bool] = ContextVar("aad_model_logs", default=True)
+# Only a write=True replay installs a sink (per-session file, deduplicated across re-replays).
+# Without one nothing is written: lab, parity, tests and plain replays never touch the log.
+_MODEL_LOGS: ContextVar[Optional[ModelLogSink]] = ContextVar("aad_model_logs", default=None)
 
 
 def append_model_log(root: Path, rec: dict[str, Any]) -> None:
-    if not _MODEL_LOGS.get():
+    sink = _MODEL_LOGS.get()
+    if sink is None:
         return
-    path = root / "data" / "recon" / LOG_JSONL_NAME
-    path.parent.mkdir(parents=True, exist_ok=True)
-    rec = {**rec, "ts_ist": datetime.now(IST).isoformat(timespec="seconds")}
+    rec = dict(rec)
     rec.setdefault("trade_id", rec.get("trade_id"))
     rec.setdefault("book_id", rec.get("model") or rec.get("book_id"))
     rec.setdefault("status", rec.get("status"))
     rec.setdefault("target_step", rec.get("target_step"))
     rec.setdefault("filled", rec.get("filled"))
-    with path.open("a", encoding="utf-8") as fh:
-        fh.write(json.dumps(rec, default=str) + "\n")
-        fh.flush()
-        try:
-            os.fsync(fh.fileno())
-        except OSError:
-            pass
+    sink.write(rec)
 
 
 def human_override_path(root: Optional[Path] = None) -> Path:
@@ -3025,6 +3041,24 @@ def load_human_override(root: Optional[Path] = None) -> dict[str, Any]:
     return blob
 
 
+def human_override_for(
+    engine: "BookEngine", pos: "OpenPaper", underlying: str, ts: int
+) -> Optional[tuple[int, dict[str, Any]]]:
+    """The first not-yet-applied override row for this ticket at or before tick ``ts``."""
+    if engine.overrides is None:
+        from desk_ml.overrides import OverrideBook, read_overrides
+
+        try:
+            live_rows = getattr(engine.ctx, "override_rows", None)
+            rows = list(live_rows) if live_rows is not None else read_overrides(engine.root)
+        except (OSError, ValueError):
+            # An unreadable log cannot be applied. Exits keep running on the ticket's own levels;
+            # the live cycle blocks new entries from first sight and alerts.
+            rows = []
+        engine.overrides = OverrideBook(rows)
+    return engine.overrides.pending_for(pos, underlying, ts)
+
+
 def _human_px(raw: Any) -> Optional[float]:
     if raw is None or raw == "":
         return None
@@ -3037,12 +3071,17 @@ def _human_px(raw: Any) -> Optional[float]:
     return round(v, 4)
 
 
-def save_human_override(body: dict[str, Any], *, root: Optional[Path] = None) -> dict[str, Any]:
+def save_human_override(
+    body: dict[str, Any], *, root: Optional[Path] = None, ts: Optional[float] = None
+) -> dict[str, Any]:
     """Paper-only human instruction. Naked EXIT on an open fill is refused.
 
     Filled tickets: SET_LEVELS / MANAGE with required target + stop.
     Unfilled working limits: CANCEL. CLEAR drops the instruction.
     Live broker orders stay REFUSED.
+
+    Accepted instructions are appended to ``human_overrides.jsonl`` stamped ``ts`` (default now)
+    and apply from that moment only (``desk_ml.overrides``). The JSON file is the UI view.
     """
     body = body if isinstance(body, dict) else {}
     action = str(body.get("action") or "").upper().replace("-", "_").replace(" ", "_")
@@ -3124,9 +3163,17 @@ def save_human_override(body: dict[str, Any], *, root: Optional[Path] = None) ->
             else "Human-in-loop paper override. Highest priority over boss/desk for open paper tickets."
         ),
     }
-    path = human_override_path(root)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+    base = root or repo_root()
+    stamp = datetime.now(IST).timestamp() if ts is None else float(ts)
+    payload["as_of_ist"] = datetime.fromtimestamp(stamp, IST).isoformat(timespec="seconds")
+    from desk_ml.overrides import append_override, log_path
+
+    if not log_path(base).exists():
+        from desk_ml.overrides import ingest_legacy
+
+        ingest_legacy(base, ts=stamp)  # keep a still-active dated instruction before replacing its view
+    atomic_write_json(human_override_path(base), payload, indent=2)
+    append_override(base, payload, ts=stamp)
     return payload
 
 
@@ -3157,6 +3204,11 @@ def resample_closes_3m(closes: dict[int, float]) -> list[Any]:
     return bars
 
 
+def bar_3m_end_ts(ts: int) -> int:
+    """End (exclusive) of the 3m bucket that holds `ts`: the first moment the bar is complete."""
+    return int(ts) - int(ts) % 180 + 180
+
+
 def resample_index_3m(triples: Sequence[Triple]) -> list[Any]:
     """3m INDEX bars from 1m triples. Does not fabricate missing days."""
     return resample_closes_3m({int(t.ts): float(t.idx_close) for t in triples})
@@ -3177,7 +3229,10 @@ def logit_side_series(
     }
     if not triples:
         return [], {"n_3m": 0, "n_index_1m": 0}
-    closes = dict(index_closes or {})
+    # 1m chart closes are keyed at the minute OPEN, so only minutes that ended before the first print
+    # count as history; session bars come from the tape prints alone.
+    session_start = int(triples[0].ts)
+    closes = {int(k): float(v) for k, v in (index_closes or {}).items() if int(k) + 60 <= session_start}
     for t in triples:
         closes.setdefault(int(t.ts), float(t.idx_close))
     bars = resample_closes_3m(closes)
@@ -3186,7 +3241,7 @@ def logit_side_series(
         meta["status"] = "DATA_INSUFFICIENT"
         return [{**thin, "n_3m": len(bars)} for _ in triples], meta
     try:
-        from backtest_engine.ml_leans import lean_ml_logit
+        from backtest_engine.ml_leans import score_ml_logit
         from backtest_engine.patterns import lean_range_exp
     except ImportError:
         meta["status"] = "DATA_INSUFFICIENT"
@@ -3194,13 +3249,14 @@ def logit_side_series(
         return [{**thin, "reason": reason, "n_3m": len(bars)} for _ in triples], meta
     train_end = int(triples[0].ts)
     meta["train_end_ts"] = train_end
-    leans = lean_ml_logit(bars, train_end_ts=train_end)
+    leans, logit_probs = score_ml_logit(bars, train_end_ts=train_end)
     xr_leans = lean_range_exp(bars) if xr else None
     labeled_before = sum(1 for bar in bars if bar.ts < train_end)
     meta["n_train_3m_bars_before_session"] = labeled_before
     out: list[dict[str, Any]] = []
     last_logit = "SKIP"
     last_xr = "SKIP"
+    last_p: Optional[float] = None
     last_sess: Optional[str] = None
     bi = 0
     for t in triples:
@@ -3208,19 +3264,25 @@ def logit_side_series(
         if last_sess is not None and sess != last_sess:
             last_logit = "SKIP"
             last_xr = "SKIP"
+            last_p = None
         last_sess = sess
-        while bi < len(bars) and bars[bi].ts <= int(t.ts):
+        # Bars are stamped at their last print; a bar is usable only once its bucket has ended, so a
+        # replay never knows which print was the bucket's last and live never uses a half-built bar.
+        while bi < len(bars) and bar_3m_end_ts(bars[bi].ts) <= int(t.ts):
             if ist_calendar_date(int(bars[bi].ts)) == sess:
                 last_logit = leans[bi]
+                last_p = logit_probs[bi]
                 if xr_leans is not None:
                     last_xr = xr_leans[bi]
             bi += 1
+        # `p` is the logit probability for the shadow log. Votes still read `side` only.
         if xr:
             if last_logit in {"CE", "PE"} and last_logit == last_xr:
                 out.append(
                     {
                         "side": last_logit,
                         "status": "OK",
+                        "p": last_p,
                         "n_3m": len(bars),
                         "train_end_ts": train_end,
                     }
@@ -3230,6 +3292,7 @@ def logit_side_series(
                     {
                         "side": None,
                         "status": "SKIP",
+                        "p": last_p,
                         "reason": f"XR filter logit={last_logit} range={last_xr}",
                         "n_3m": len(bars),
                         "train_end_ts": train_end,
@@ -3241,6 +3304,7 @@ def logit_side_series(
                 {
                     "side": last_logit,
                     "status": "OK",
+                    "p": last_p,
                     "n_3m": len(bars),
                     "train_end_ts": train_end,
                 }
@@ -3250,6 +3314,7 @@ def logit_side_series(
                 {
                     "side": None,
                     "status": "DATA_INSUFFICIENT" if last_logit == "SKIP" else "SKIP",
+                    "p": last_p,
                     "reason": (
                         "lean_ml_logit SKIP (needs ≥200 labeled 3m train rows before cutoff; "
                         "label is next INDEX close, not premium)"
@@ -3343,8 +3408,12 @@ def _unfilled_reason(
     session_iv: Optional[float] = None,
     wing_iv_list: Optional[Sequence[float]] = None,
     index_regime: Optional[str] = None,
+    fill_below: float = 0.0,
 ) -> Optional[str]:
-    """Working buy limit. Do not assume a fill. Cancel if the candle walked away."""
+    """Working buy limit. Do not assume a fill. Cancel if the candle walked away.
+
+    `fill_below` > 0 (realistic trade-through) needs a print that far under the limit to fill.
+    """
     px = float(ltp)
     low = float(side_low) if side_low is not None else px
     if pos.seen_low is not None:
@@ -3352,7 +3421,7 @@ def _unfilled_reason(
     else:
         touch = min(px, low)
     limit = float(pos.limit_price or pos.entry)
-    if touch <= limit + 1e-9:
+    if touch <= limit - fill_below + 1e-9:
         return "FILL"
     if px >= limit * (1.0 + FILL_AWAY_FRAC):
         return "CANCEL_UNFILLED_AWAY"
@@ -3896,7 +3965,15 @@ def _close(engine: BookEngine, pos: OpenPaper, *, ltp: float, ts: int, reason: s
     qty = pos.qty
     if qty is None and pos.lot_size is not None and int(pos.lot_size) > 0:
         qty = int(pos.lot_size) * int(pos.lots)
-    charges = groww_round_trip_charges(
+    # PR-B cost hook: realistic mode books fill prices / BSE fee, or defers a stale-quote exit.
+    rc = costs.realistic_close(engine, pos, ltp=ltp, ts=ts, reason=reason, qty=qty, unfilled=unfilled) \
+        if costs.is_realistic(engine) else None
+    if rc is not None and rc.get("defer"):
+        return
+    entry_px = pos.entry if rc is None else rc["entry"]
+    if rc is not None:
+        ltp, reason = rc["exit"], rc["reason"]
+    charges = rc["charges"] if rc is not None and rc["charges"] is not None else groww_round_trip_charges(
         exit_premium=float(ltp),
         entry_premium=float(pos.entry) if pos.entry is not None else None,
         qty=qty,
@@ -3909,7 +3986,7 @@ def _close(engine: BookEngine, pos: OpenPaper, *, ltp: float, ts: int, reason: s
         result = "CANCELLED"
         won = False
     else:
-        points = float(ltp) - float(pos.entry)
+        points = float(ltp) - float(entry_px)
         gross = pnl_inr(points=points, lot_size=pos.lot_size, lots=pos.lots)
         inr = net_pnl_inr(gross_inr=gross, charges_inr=float(charges["charges_inr"]))
         if inr is None:
@@ -3960,7 +4037,7 @@ def _close(engine: BookEngine, pos: OpenPaper, *, ltp: float, ts: int, reason: s
             "trade_id": pos.trade_id,
             "status": status,
             "target_step": pos.target_step,
-            "entry": pos.entry,
+            "entry": entry_px,
             "limit_price": pos.limit_price or pos.entry,
             "exit": round(float(ltp), 4),
             "stop": pos.stop,
@@ -4021,6 +4098,8 @@ def _close(engine: BookEngine, pos: OpenPaper, *, ltp: float, ts: int, reason: s
             "filled": (not unfilled),
         }
     )
+    if rc is not None:
+        engine.closed[-1].update(rc["extra"])
     if inr is not None:
         engine.equity[pos.book_id] = engine.book_equity(pos.book_id) + inr
     engine.opens.pop((pos.book_id, pos.underlying), None)
@@ -4138,23 +4217,46 @@ def _plan_open(
         if bool(getattr(engine, "sod_one_ticket", False)):
             engine.mark_skip(book_id, underlying, SOD_ONE_OPEN, ts=tick.ts, seen_side=side)
         return
+    blocked = paper_guard.entry_block(engine, int(tick.ts))
+    if blocked:
+        engine.mark_skip(book_id, underlying, blocked[0], ts=tick.ts, seen_side=side, detail=blocked[1])
+        return
+    # --- founder-controls hook (roadmap step 14): human commands outrank every algo gate ---
+    fc = getattr(engine, "founder_controls", None)
+    fc_index = None
+    if fc is not None:
+        try:
+            fc_block, fc_index = fc.entry_gate(engine, underlying, int(tick.ts))
+        except Exception:  # entries fail closed
+            fc_block = "FOUNDER_CONTROLS_UNREADABLE"
+        if fc_block:
+            engine.mark_skip(book_id, underlying, fc_block, ts=tick.ts, seen_side=side)
+            return
+    # --- end founder-controls hook ---
     try:
-        from desk_ml.founder_session import new_fill_decision
+        from desk_ml.founder_session import fill_decision_at
 
-        decision = new_fill_decision(underlying, root=getattr(engine, "root", None))
-        if not decision.get("allow"):
-            engine.mark_skip(
-                book_id,
-                underlying,
-                str(decision.get("reason") or "FOUNDER_STOP_TRADING_ON_INDEX"),
-                ts=tick.ts,
-                seen_side=side,
-                detail=decision.get("note"),
-            )
-            return
-    except Exception:
-        if str(underlying).upper() not in {"NIFTY"}:
-            return
+        if fc_index is True:  # an explicit founder INDEX enable (founder-controls hook) outranks START/STOP
+            decision = {"allow": True}
+        else:
+            decision = fill_decision_at(underlying, root=engine.root, ts=int(tick.ts),
+                                        rows=getattr(engine.ctx, "founder_rows", None))
+    except Exception as exc:  # untrusted founder state: no new fill on ANY index
+        engine.mark_skip(
+            book_id, underlying, FOUNDER_UNREADABLE, ts=tick.ts, seen_side=side,
+            detail=f"{type(exc).__name__}: {exc}",
+        )
+        return
+    if not decision.get("allow"):
+        engine.mark_skip(
+            book_id,
+            underlying,
+            str(decision.get("reason") or "FOUNDER_STOP_TRADING_ON_INDEX"),
+            ts=tick.ts,
+            seen_side=side,
+            detail=decision.get("note"),
+        )
+        return
     if getattr(engine, "skip_banknifty", False) and str(underlying).upper() == "BANKNIFTY":
         engine.mark_skip(
             book_id,
@@ -4630,16 +4732,25 @@ def _plan_open(
         classified=cl,
     )
     lot_size, lot_src = engine.lot_by_und.get(underlying.upper(), (None, "unset"))
+    lot_bounds = {
+        "min_lots": int(getattr(engine, "paper_min_lots", PAPER_MIN_LOTS) or PAPER_MIN_LOTS),
+        "target_lots": int(getattr(engine, "paper_target_lots", PAPER_TARGET_LOTS) or PAPER_TARGET_LOTS),
+        "max_lots": int(getattr(engine, "paper_max_lots", PAPER_MAX_LOTS) or PAPER_MAX_LOTS),
+    }
+    if fc is not None:  # founder-controls hook: added funds + lots override for the next fills
+        try:
+            capital, lot_bounds = fc.sizing(capital, lot_bounds, int(tick.ts))
+        except Exception:  # entries fail closed
+            engine.mark_skip(book_id, underlying, "FOUNDER_CONTROLS_UNREADABLE", ts=tick.ts, seen_side=side)
+            return None
     sized = size_lots(
         entry=float(levels["limit_price"] or levels["entry"]),
         lot_size=lot_size,
         capital_inr=capital,
-        min_lots=int(getattr(engine, "paper_min_lots", PAPER_MIN_LOTS) or PAPER_MIN_LOTS),
-        target_lots=int(getattr(engine, "paper_target_lots", PAPER_TARGET_LOTS) or PAPER_TARGET_LOTS),
-        max_lots=int(getattr(engine, "paper_max_lots", PAPER_MAX_LOTS) or PAPER_MAX_LOTS),
+        **lot_bounds,
     )
     n_lots = int(sized.get("lots") or 0)
-    min_need = int(getattr(engine, "paper_min_lots", PAPER_MIN_LOTS) or PAPER_MIN_LOTS)
+    min_need = lot_bounds["min_lots"]
     if n_lots < min_need:
         engine.mark_skip(
             book_id,
@@ -4705,6 +4816,12 @@ def _plan_open(
         ),
         model_names=list(getattr(engine, "_current_model_names", None) or [book_id]),
     )
+    veto = paper_guard.risk_veto(engine, pos)
+    if veto is not None:
+        engine.mark_skip(book_id, underlying, paper_guard.RISK_VETO, ts=tick.ts, seen_side=side, **veto)
+        return None
+    if costs.is_realistic(engine):  # PR-B cost hook: tick-floor the limit, note entry spread
+        costs.on_plan_open(engine, pos, tick, impulse=impulse_fill)
     return pos
 
 
@@ -4842,6 +4959,17 @@ def paper_watch_ticket(
     return None
 
 
+def _founder_exit(engine: BookEngine, fc: Any, pos: OpenPaper, ts: int, ltp: Optional[float]) -> bool:
+    """Founder-controls hook: cut loss / kill switch close at market; GO_T2 flags the ticket.
+
+    True when the ticket is closed. A failure in the command book never skips the engine's own exits.
+    """
+    try:
+        return bool(fc.manage(engine, pos, ts, ltp, _close))
+    except Exception:
+        return engine.opens.get((pos.book_id, pos.underlying)) is not pos
+
+
 def mark_to_market(
     engine: BookEngine,
     tick: Triple,
@@ -4862,6 +4990,8 @@ def mark_to_market(
         pos = engine.opens.get((book_id, underlying))
         if pos is None:
             continue
+        if engine.pinned_until and int(tick.ts) <= engine.pinned_until.get(str(pos.trade_id), -1):
+            continue  # a booked ticket carried by the live loop: its state is restored at the cut-off
         sod_mtm = bool(getattr(engine, "sod_one_ticket", True)) and book_id == SOD_PRODUCT_BOOK
         ltp, side_low, src = quote_for_side(tick, pos.side, strike=pos.atm_strike, itm_only=sod_mtm)
         if ltp is None and pos.last_ltp is not None:
@@ -4872,109 +5002,105 @@ def mark_to_market(
             ltp = float(pos.entry)
             side_low = pos.seen_low if pos.seen_low is not None else ltp
             src = "ENTRY_PRINT"
-        override = load_human_override(engine.root)
-        if override.get("active"):
-            wants_trade = not override.get("trade_id") or override.get("trade_id") == pos.trade_id
-            wants_und = not override.get("underlying") or override.get("underlying") == underlying.upper()
-            wants_side = not override.get("side") or override.get("side") == pos.side
-            if wants_trade and wants_und and wants_side:
-                action = str(override.get("action") or "").upper()
-                if action == "CANCEL" or (action == "EXIT" and not pos.filled):
-                    human_reason = CANCEL_HUMAN
-                    exit_px = float(ltp if ltp is not None else pos.last_ltp or pos.entry)
-                    _close(engine, pos, ltp=exit_px, ts=tick.ts, reason=human_reason, root=engine.root)
-                    if engine.root is not None:
-                        append_model_log(
-                            engine.root,
-                            {
-                                "event": "HUMAN_OVERRIDE",
-                                "model": book_id,
-                                "book_id": book_id,
-                                "trade_id": pos.trade_id,
-                                "underlying": underlying,
-                                "side": pos.side,
-                                "reason": human_reason,
-                                "status": "CLOSED_BY_HUMAN",
-                                "filled": bool(pos.filled),
-                                "priority": "HUMAN_SUPERIOR",
-                            },
-                        )
-                    if engine.root is not None:
-                        save_human_override({"action": "CLEAR"}, root=engine.root)
-                    continue
-                if action in {"SET_LEVELS", "MANAGE", "MANAGE_TRADE", "SET_TARGET_STOP"}:
-                    new_tgt = _human_px(override.get("target"))
-                    new_stop = _human_px(override.get("stop"))
-                    entry = float(pos.entry) if pos.entry is not None else None
-                    levels_ok = (
-                        new_tgt is not None
-                        and new_stop is not None
-                        and new_tgt > new_stop
-                        and (entry is None or (new_tgt > entry > new_stop))
+        # --- founder-controls hook (roadmap step 14): founder exits run first and are never refused ---
+        fc = getattr(engine, "founder_controls", None)
+        if fc is not None and _founder_exit(engine, fc, pos, int(tick.ts), ltp):
+            continue
+        hit = human_override_for(engine, pos, underlying, int(tick.ts))
+        if hit is not None:
+            row_n, override = hit
+            engine.overrides.consume(row_n, override, ts=int(tick.ts), trade_id=pos.trade_id)
+            action = str(override.get("action") or "").upper()
+            if action == "CANCEL" or (action == "EXIT" and not pos.filled):
+                human_reason = CANCEL_HUMAN
+                exit_px = float(ltp if ltp is not None else pos.last_ltp or pos.entry)
+                _close(engine, pos, ltp=exit_px, ts=tick.ts, reason=human_reason, root=engine.root)
+                if engine.root is not None:
+                    append_model_log(
+                        engine.root,
+                        {
+                            "event": "HUMAN_OVERRIDE",
+                            "model": book_id,
+                            "book_id": book_id,
+                            "trade_id": pos.trade_id,
+                            "underlying": underlying,
+                            "side": pos.side,
+                            "reason": human_reason,
+                            "status": "CLOSED_BY_HUMAN",
+                            "filled": bool(pos.filled),
+                            "priority": "HUMAN_SUPERIOR",
+                        },
                     )
-                    if levels_ok:
-                        pos.stop = float(new_stop)
-                        pos.path_stop = float(new_stop)
-                        pos.target = float(new_tgt)
-                        pos.justification = (
-                            f"{pos.justification} | HUMAN_SET_LEVELS stop={new_stop} target={new_tgt}"
-                        ).strip(" |")
-                        if engine.root is not None:
-                            append_model_log(
-                                engine.root,
-                                {
-                                    "event": "HUMAN_SET_LEVELS",
-                                    "model": book_id,
-                                    "book_id": book_id,
-                                    "trade_id": pos.trade_id,
-                                    "underlying": underlying,
-                                    "side": pos.side,
-                                    "stop": new_stop,
-                                    "target": new_tgt,
-                                    "status": "OPEN_PAPER",
-                                    "filled": bool(pos.filled),
-                                    "priority": "HUMAN_SUPERIOR",
-                                    "orders": "REFUSED",
-                                },
-                            )
-                        if engine.root is not None:
-                            save_human_override({"action": "CLEAR"}, root=engine.root)
-                    else:
-                        if engine.root is not None:
-                            append_model_log(
-                                engine.root,
-                                {
-                                    "event": "HUMAN_LEVELS_REJECTED",
-                                    "model": book_id,
-                                    "book_id": book_id,
-                                    "trade_id": pos.trade_id,
-                                    "reason": "LEVELS_ORDER",
-                                    "status": "OPEN_PAPER",
-                                    "orders": "REFUSED",
-                                },
-                            )
-                            save_human_override({"action": "CLEAR"}, root=engine.root)
-                    # Do not flatten. Fall through to normal MTM with new levels.
-                else:
-                    # Naked EXIT on a fill is suicide — ignore flatten, keep the ticket.
+                continue
+            if action in {"SET_LEVELS", "MANAGE", "MANAGE_TRADE", "SET_TARGET_STOP"}:
+                new_tgt = _human_px(override.get("target"))
+                new_stop = _human_px(override.get("stop"))
+                entry = float(pos.entry) if pos.entry is not None else None
+                levels_ok = (
+                    new_tgt is not None
+                    and new_stop is not None
+                    and new_tgt > new_stop
+                    and (entry is None or (new_tgt > entry > new_stop))
+                )
+                if levels_ok:
+                    pos.stop = float(new_stop)
+                    pos.path_stop = float(new_stop)
+                    pos.target = float(new_tgt)
+                    pos.justification = (
+                        f"{pos.justification} | HUMAN_SET_LEVELS stop={new_stop} target={new_tgt}"
+                    ).strip(" |")
                     if engine.root is not None:
                         append_model_log(
                             engine.root,
                             {
-                                "event": "HUMAN_EXIT_REFUSED",
+                                "event": "HUMAN_SET_LEVELS",
                                 "model": book_id,
                                 "book_id": book_id,
                                 "trade_id": pos.trade_id,
                                 "underlying": underlying,
                                 "side": pos.side,
-                                "reason": "HUMAN_LEVELS_REQUIRED",
+                                "stop": new_stop,
+                                "target": new_tgt,
                                 "status": "OPEN_PAPER",
                                 "filled": bool(pos.filled),
                                 "priority": "HUMAN_SUPERIOR",
                                 "orders": "REFUSED",
                             },
                         )
-                        save_human_override({"action": "CLEAR"}, root=engine.root)
+                else:
+                    if engine.root is not None:
+                        append_model_log(
+                            engine.root,
+                            {
+                                "event": "HUMAN_LEVELS_REJECTED",
+                                "model": book_id,
+                                "book_id": book_id,
+                                "trade_id": pos.trade_id,
+                                "reason": "LEVELS_ORDER",
+                                "status": "OPEN_PAPER",
+                                "orders": "REFUSED",
+                            },
+                        )
+                # Do not flatten. Fall through to normal MTM with new levels.
+            else:
+                # Naked EXIT on a fill is suicide — ignore flatten, keep the ticket.
+                if engine.root is not None:
+                    append_model_log(
+                        engine.root,
+                        {
+                            "event": "HUMAN_EXIT_REFUSED",
+                            "model": book_id,
+                            "book_id": book_id,
+                            "trade_id": pos.trade_id,
+                            "underlying": underlying,
+                            "side": pos.side,
+                            "reason": "HUMAN_LEVELS_REQUIRED",
+                            "status": "OPEN_PAPER",
+                            "filled": bool(pos.filled),
+                            "priority": "HUMAN_SUPERIOR",
+                            "orders": "REFUSED",
+                        },
+                    )
         if ltp is None:
             if minutes_ist(tick.ts) >= FLATTEN_MINUTES_IST:
                 _close(
@@ -4986,6 +5112,11 @@ def mark_to_market(
                     root=engine.root,
                 )
             continue
+        if costs.is_realistic(engine):  # PR-B cost hook: stale-quote exit guard
+            due = costs.on_quote(engine, pos, tick, ltp, src)
+            if due:
+                _close(engine, pos, ltp=float(ltp), ts=tick.ts, reason=due, root=engine.root)
+                continue
         if side_low is None:
             side_low = ltp
         pos.last_ltp = float(ltp)
@@ -5021,12 +5152,15 @@ def mark_to_market(
                 session_iv=session_iv_median(prior),
                 wing_iv_list=wing_ivs(tick.wing_quotes),
                 index_regime=regime,
+                fill_below=costs.limit_fill_below(engine),
             )
             if u_reason == "FILL":
                 pos.filled = True
                 pos.agent_status = "IN_TRADE"
                 limit = float(pos.limit_price or pos.entry)
-                if float(ltp) <= limit + 1e-9:
+                if costs.is_realistic(engine):  # PR-B cost hook: resting limit fills at the limit
+                    costs.on_limit_fill(engine, pos)
+                elif float(ltp) <= limit + 1e-9:
                     pos.entry = min(float(ltp), limit)
                 else:
                     pos.entry = limit
@@ -5319,6 +5453,7 @@ def step_vote_inputs(
 
 
 OpenFn = Callable[..., None]
+_REGIME_HOOK_DOWN: dict[str, float] = {}  # PR-012/024: monotonic time the regime hook last failed
 
 
 def step_decide(engine: BookEngine, s: TickStep, votes: Sequence[Any], *, open_fn: Optional[OpenFn] = None) -> None:
@@ -5358,6 +5493,21 @@ def step_decide(engine: BookEngine, s: TickStep, votes: Sequence[Any], *, open_f
     ]
     engine._current_model_names = spoken_model_names  # type: ignore[attr-defined]
     picker = picker_majority(votes, prev=older, closed=closed_1m, classified=classified)
+    # PR-012/024 regime (desk_ml.regime): shadow mode logs only and returns `picker` unchanged.
+    # A broken regime module logs once, keeps the static picker, and is retried at most once a minute.
+    from time import monotonic as _monotonic
+
+    if _monotonic() - _REGIME_HOOK_DOWN.get("at", -1e18) >= 60.0:
+        try:
+            from desk_ml.regime.shadow import boss_hook as _regime_hook
+
+            picker = _regime_hook(engine, s, votes, picker)
+        except Exception:
+            if "at" not in _REGIME_HOOK_DOWN:
+                import logging
+
+                logging.getLogger("desk_ml.regime").exception("regime hook unavailable; static picker kept")
+            _REGIME_HOOK_DOWN["at"] = _monotonic()
     sod = bool(getattr(engine, "sod_one_ticket", False))
     use_picker = sod or bool(getattr(engine, "picker_majority", False))
     fill_router = "sod_desk" if sod else "resolve_fill_intents"
@@ -5468,6 +5618,31 @@ def step_decide(engine: BookEngine, s: TickStep, votes: Sequence[Any], *, open_f
     pos = engine.opens.get((SOD_PRODUCT_BOOK, und)) if sod else next(
         (p for (b, u), p in engine.opens.items() if u == und), None
     )
+    # Log-only. A shadow failure must not change the ticket just opened above.
+    live_lots = getattr(pos, "lots", None) if pos is not None else None
+    try:
+        from desk_ml.shadow_log import safe_log_shadow
+
+        safe_log_shadow(
+            engine,
+            underlying=und,
+            ts=int(tick.ts),
+            votes=votes,
+            picker=picker,
+            live_lots=int(live_lots) if live_lots is not None else None,
+            prev=older,
+            closed=closed_1m,
+            classified=classified,
+            bars_1m=getattr(s, "bars_1m", None),
+            logit=logit,
+            wing_quotes=getattr(tick, "wing_quotes", None),
+            atm=float(strike) if strike is not None else None,
+            spot=float(tick.idx_close),
+        )
+    except Exception:
+        import logging
+
+        logging.getLogger("desk_ml.shadow_log").exception("shadow log failed")
     obs_action = str(review.get("action") or "") if isinstance(review, dict) else ""
     desk_fill_side = pos.side if pos is not None and pos.side in {"CE", "PE"} else None
     model_signals = track_model_signals(
@@ -5624,6 +5799,7 @@ def _hold_series(triples: Sequence[Triple], *, seed: int = 14) -> tuple[list[boo
         ]
     zs = rolling_z(residual, 40) if residual else []
     names = ("idx_ret", "ce_ret", "pe_ret", "spread_chg", "abs_residual")
+    estimators = unpack_estimators(bundle)  # once per replay, not once per tick (same numbers)
     by_ts = {int(r["ts"]): r for r in rows}
     ml001: list[bool] = []
     ml002: list[bool] = []
@@ -5636,7 +5812,7 @@ def _hold_series(triples: Sequence[Triple], *, seed: int = 14) -> tuple[list[boo
             continue
         row_i += 1
         feat = {name: float(feat_row[name]) for name in names}
-        scored = score_features_dict(feat, bundle)
+        scored = score_features_dict(feat, bundle, estimators=estimators)
         z_hold = False
         if row_i < len(zs) and zs[row_i] is not None:
             z_hold = abs(float(zs[row_i])) >= Z_HOLD
@@ -5738,15 +5914,29 @@ def load_paper_params(root: Path) -> dict[str, Any]:
 
 
 def save_paper_params(root: Path, params: dict[str, Any]) -> None:
-    recon = root / "data" / "recon"
-    recon.mkdir(parents=True, exist_ok=True)
     payload = {
         **DEFAULT_PAPER_PARAMS,
-        **params,
+        **{k: v for k, v in params.items() if not str(k).startswith("_")},
         "production_params_written": False,
         "as_of_ist": datetime.now(IST).isoformat(timespec="seconds"),
     }
-    (recon / PAPER_PARAMS_NAME).write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+    atomic_write_json(root / "data" / "recon" / PAPER_PARAMS_NAME, payload, indent=2)
+
+
+def _session_params(root: Path, day: Optional[str]) -> dict[str, Any]:
+    """Live-session params: the snapshot the live loop froze for ``day``, else the params file."""
+    from desk_ml.live_cycle import read_frozen_params
+
+    try:
+        snap = read_frozen_params(root, day)
+    except ValueError:
+        snap = None
+    if snap is None:
+        return load_paper_params(root)
+    params = dict(snap["params"])
+    if snap.get("lot_sizes"):
+        params["_lot_sizes"] = {k: tuple(v) for k, v in snap["lot_sizes"].items()}
+    return params
 
 
 def mistakes_from_closed(closed: Sequence[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -5898,6 +6088,29 @@ def nudge_paper_params(closed: Sequence[dict[str, Any]], current: dict[str, Any]
     return params, notes
 
 
+def nudge_for_next_session(*, root: Optional[Path] = None, day: Optional[str] = None) -> dict[str, Any]:
+    """Post-market: nudge the params file from one finished session's booked trades.
+
+    Writes the params file only, so the change applies from the next session's freeze. The diff
+    is appended to ``data/recon/params_nudge_log.jsonl``. Never runs inside the live loop.
+    """
+    from desk_ml.live_cycle import read_booked
+    from desk_ml.reliability import append_line
+
+    base = Path(root or repo_root())
+    now = datetime.now(IST)
+    day = day or now.date().isoformat()
+    closed = list(read_booked(base, day).values())
+    current = load_paper_params(base)
+    nudged, notes = nudge_paper_params(closed, {**current, "nudge_n_closed": 0})
+    diff = {k: [current.get(k), nudged.get(k)] for k in sorted(set(current) | set(nudged)) if current.get(k) != nudged.get(k)}
+    if diff:
+        save_paper_params(base, nudged)
+    rec = {"session": day, "n_closed": len(closed), "diff": diff, "notes": notes, "ts_ist": now.isoformat(timespec="seconds")}
+    append_line(base / "data" / "recon" / "params_nudge_log.jsonl", json.dumps(rec, default=str))
+    return {"ok": True, "applies_from": "next session", "production_params_written": False, **rec}
+
+
 def _as_side_tuple(value: Any) -> Optional[tuple[str, ...]]:
     if not value:
         return None
@@ -5910,6 +6123,26 @@ def _as_side_tuple(value: Any) -> Optional[tuple[str, ...]]:
         if token in {"CE", "PE"}:
             out.append(token)
     return tuple(out) or None
+
+
+def _report_founder_controls(
+    board: dict[str, Any], engine: BookEngine, root: Path, *, session_day: Optional[str], write: bool, now: datetime
+) -> None:
+    """Founder-controls hook: every command's status on the board; a writing replay also acks them."""
+    from desk_ml.founder_commands import append_statuses
+
+    fc = engine.founder_controls
+    results = fc.results_for(session_day)
+    last = max(fc.last_ts.values(), default=None)
+    board["founder_controls"] = {
+        "results": results,
+        "state": fc.state_at(last if last is not None else now.timestamp()).as_dict(now=last),
+        "problems": list(fc.problems),
+        "entries_blocked_from_ts": fc.blocked_from,
+        "as_of_ts": last,
+    }
+    if write:
+        append_statuses(root, results)  # best effort; never raises
 
 
 def replay_paper_scalp(
@@ -5951,19 +6184,29 @@ def replay_paper_scalp(
     sod_one_ticket: Optional[bool] = None,
     picker_majority: Optional[bool] = None,
     hold_trending_open_stall: bool = False,
+    cost_model: Optional[str] = None,
     nifty_cover_closed_1m: Optional[bool] = None,
     use_event_bus: Optional[bool] = None,
     event_session: Optional[Any] = None,
     live_loop: bool = False,
+    ctx: Optional[ReplayContext] = None,
+    founder_commands: Any = None,
 ) -> dict[str, Any]:
     """`use_event_bus` (default: env USE_EVENT_BUS, off) runs each tick through desk_ml.event_path
     (boss → analysts → desk → risk engine → PaperBroker → ledger) instead of `step_underlying`.
+    `cost_model` (legacy | realistic) overrides env PAPER_COST_MODEL and config/paper_costs.yaml.
     Same trades by construction; see docs/PHASE2_NOTES.md. `event_session` implies the flag.
 
-    `live_loop` is set only by `run_loop`. It is what may read the MTM halt file.
-    `write=False` does not append `data/recon/ml_paper_model_logs.jsonl`.
+    `live_loop` is set only by the live cycle (`desk_ml.live_cycle`). It is what may read the MTM
+    halt file, apply live entry blocks and check the replay against booked trades.
+    `ctx` carries the explicit replay inputs; without it one is built from the arguments (data root,
+    wall clock, no live blocks), which is exactly the pre-PR-A behaviour.
+    Only `write=True` writes the per-session model log (`data/recon/model_log/<day>.jsonl`).
+    `founder_commands` (desk_ml.founder_commands.load_book): None reads `root`'s founder command
+    log, a path replays a saved commands file, a list uses those rows, `[]` ignores the log.
+    Each command applies from its own timestamp; with no commands the replay is unchanged.
     """
-    token = _MODEL_LOGS.set(bool(write))
+    token = _MODEL_LOGS.set(None)
     try:
         return _replay_paper_scalp(
             root=root, underlyings=underlyings, source=source, triples_by_und=triples_by_und,
@@ -5980,10 +6223,11 @@ def replay_paper_scalp(
             nifty_skip_side_after_stop=nifty_skip_side_after_stop, nifty_skip_ce_after_stop=nifty_skip_ce_after_stop,
             nifty_max_filled_per_book=nifty_max_filled_per_book, nifty_halt_after_stops=nifty_halt_after_stops,
             nifty_session_lean=nifty_session_lean, point_profile_overrides=point_profile_overrides,
-            paper_hold_bars=paper_hold_bars, observer_veto_fills=observer_veto_fills,
+            paper_hold_bars=paper_hold_bars, observer_veto_fills=observer_veto_fills, cost_model=cost_model,
             sod_one_ticket=sod_one_ticket, picker_majority=picker_majority,
             hold_trending_open_stall=hold_trending_open_stall, nifty_cover_closed_1m=nifty_cover_closed_1m,
-            use_event_bus=use_event_bus, event_session=event_session, live_loop=live_loop,
+            use_event_bus=use_event_bus, event_session=event_session, live_loop=live_loop, ctx=ctx,
+            founder_commands=founder_commands,
         )
     finally:
         _MODEL_LOGS.reset(token)
@@ -6028,17 +6272,28 @@ def _replay_paper_scalp(
     sod_one_ticket: Optional[bool] = None,
     picker_majority: Optional[bool] = None,
     hold_trending_open_stall: bool = False,
+    cost_model: Optional[str] = None,
     nifty_cover_closed_1m: Optional[bool] = None,
     use_event_bus: Optional[bool] = None,
     event_session: Optional[Any] = None,
     live_loop: bool = False,
+    ctx: Optional[ReplayContext] = None,
+    founder_commands: Any = None,
 ) -> dict[str, Any]:
     if hold_trending_open_stall and write:
         raise ValueError("hold_trending_open_stall is write=false A/B only. NO_PROMOTE.")
-    base = root or repo_root()
-    now = datetime.now(IST)
+    if ctx is None:  # CLI / offline replay: the data root is the only implicit input
+        ctx = ReplayContext(root=Path(root or repo_root()), session_ist_date=session_ist_date,
+                            live_loop=bool(live_loop), write=bool(write))
+    base = Path(ctx.root)
+    now = ctx.clock()
     session_day = session_ist_date or (now.date().isoformat() if live_session else None)
-    params = load_paper_params(base) if live_session else dict(DEFAULT_PAPER_PARAMS)
+    if ctx.params is not None:
+        params = dict(ctx.params)
+    elif live_session:
+        params = _session_params(base, session_day)
+    else:
+        params = dict(DEFAULT_PAPER_PARAMS)
     params = dict(params)
     if live_session:
         # Founder /pm START/STOP is the only NEW-fill halt. Do not auto-stop after 4 fills.
@@ -6067,7 +6322,7 @@ def _replay_paper_scalp(
                 tape["session_ist_date"] = session_day
                 tape["aligned_triples"] = len(triples)
         elif src in {"dual-tape", "dual_tape"}:
-            triples, tape = load_dual_tape_triples(u, root=base, session_ist_date=session_day)
+            triples, tape = load_dual_tape_triples(u, root=base, session_ist_date=session_day, strict=ctx.live_loop)
         else:
             triples, tape = load_triples(u, root=base)
             if session_day:
@@ -6086,6 +6341,7 @@ def _replay_paper_scalp(
 
     engine = BookEngine(
         root=base,
+        ctx=ctx,
         deny_model_signals=deny_model_signals,
         starting_capital=STARTING_CAPITAL_INR,
         paper_stop_frac=float(params.get("stop_frac") or STOP_FRAC),
@@ -6227,10 +6483,21 @@ def _replay_paper_scalp(
             else bool(params.get("nifty_cover_closed_1m", True))
         ),
     )
+    engine.cost_model = costs.resolve_cost_model(cost_model)  # PR-B
     for book_id in LIVE_BOOKS:
         engine.equity[book_id] = float(plan["per_book"].get(book_id) or 0.0)
+    frozen_lots = params.get("_lot_sizes") or {}
     for und in ("NIFTY", "BANKNIFTY", "SENSEX"):
-        engine.lot_by_und[und] = resolve_lot_size(und, root=base)
+        engine.lot_by_und[und] = tuple(frozen_lots[und]) if und in frozen_lots else resolve_lot_size(und, root=base)
+    sink = ModelLogSink(base, session_day, alerts=ctx.alerts) if write and session_day else None
+    _MODEL_LOGS.set(sink)
+    # --- founder-controls hook (roadmap step 14): read the command log once per replay / live cycle ---
+    from desk_ml.founder_commands import load_book
+
+    tape_as_of = max((int(t.ts) for tl in loaded.values() for t in tl), default=int(now.timestamp()))
+    engine.founder_controls = load_book(
+        base, founder_commands, as_of=tape_as_of, record=bool(write), engine_max_lots=engine.paper_max_lots
+    )
     own_session = event_session is None and (event_bus_enabled() if use_event_bus is None else use_event_bus)
     if own_session:
         from desk_ml.event_path import EventSession, require_event_packages, resolve_risk_config
@@ -6243,11 +6510,18 @@ def _replay_paper_scalp(
                 "config/event_path.yaml sets live_risk_config to that file. "
                 "The default is the stricter config/risk_limits.yaml."
             )
+        # Deterministic analysts in the live loop too: it re-replays the whole day every cycle, so a
+        # wall-clock timeout would let one cycle's votes (and booked trades) differ from the next.
         event_session = EventSession(
-            risk_config=risk_path, deterministic=not bool(live_session), live_loop=bool(live_loop),
+            risk_config=ctx.risk_config or risk_path, deterministic=True, live_loop=bool(live_loop),
         )
     if event_session is not None:
         event_session.attach(engine)
+    pins = None
+    if ctx.live_loop and ctx.pinned_open:
+        from desk_ml.live_cycle import Pins
+
+        pins = engine._pins = Pins(engine, ctx)  # type: ignore[attr-defined]
 
     for und in underlyings:
         u = und.upper()
@@ -6260,7 +6534,18 @@ def _replay_paper_scalp(
                 "tape": tape,
             }
             continue
-        ml001, ml002, gap, hold_meta = _hold_series(triples)
+        try:
+            ml001, ml002, gap, hold_meta = _hold_series(triples)
+        except Exception as exc:
+            if not ctx.live_loop:
+                raise
+            # Observe-only overlay. In the live loop a degenerate fit must not stop exits.
+            n = len(triples)
+            ml001, ml002, gap = [False] * n, [False] * n, [False] * n
+            hold_meta = {"status": "DATA_INSUFFICIENT", "error": f"{type(exc).__name__}: {exc}"}
+            if ctx.alerts is not None:
+                ctx.alerts.emit(session=str(session_day), check="paper_engine", kind=f"hold_series:{u}",
+                                severity="WARN", message=f"{u} ML hold overlay failed ({exc}); holds off for this cycle")
         idx_closes = load_index_closes(u, root=base)
         if triples_by_und is not None:
             idx_closes = {int(t.ts): float(t.idx_close) for t in triples}
@@ -6274,7 +6559,9 @@ def _replay_paper_scalp(
         if event_session is not None:
             event_session.set_prior_closes(u, sr_closes if sr_day else {})
         logit_series, logit_meta = logit_side_series(triples, index_closes=idx_closes, xr=False)
-        logit_xr_series, logit_xr_meta = logit_side_series(triples, index_closes=idx_closes, xr=True)
+        logit_xr_series, logit_xr_meta = logit_side_series(
+            triples, index_closes=idx_closes, xr=True
+        )
         thin_logit = {
             "side": None,
             "status": "DATA_INSUFFICIENT",
@@ -6293,6 +6580,10 @@ def _replay_paper_scalp(
             idx_path.append(tick.idx_close)
             if epoch_ts is not None and int(tick.ts) < epoch_ts:
                 continue
+            if sink is not None:
+                sink.set_tick(u, int(tick.ts))
+            if pins is not None:
+                pins.before_tick(u, int(tick.ts))
             h1 = ml001[i] if i < len(ml001) else False
             h2 = ml002[i] if i < len(ml002) else False
             g = gap[i] if i < len(gap) else False
@@ -6314,15 +6605,21 @@ def _replay_paper_scalp(
                 tv_side=tv,
                 deny_model_signals=deny_model_signals,
             )
+            if pins is not None:
+                pins.after_tick(u, int(tick.ts))
             if max_closes > 0 and len(engine.closed) >= max_closes:
                 break
         if max_closes > 0 and len(engine.closed) >= max_closes:
             break
+        if pins is not None:
+            pins.finish(u)
         # Live session keeps WORKING/OPEN only before 15:16 IST. After flatten, leftovers close.
         last = triples[-1]
         past_flat = minutes_ist(last.ts) >= FLATTEN_MINUTES_IST
         if (not live_session) or past_flat:
             last = triples[-1]
+            if sink is not None:
+                sink.set_tick(u, int(last.ts))
             for book_id in LIVE_BOOKS:
                 pos = engine.opens.get((book_id, u))
                 if pos is None:
@@ -6348,14 +6645,21 @@ def _replay_paper_scalp(
             },
         }
 
-    nudge_notes: list[str] = []
-    if live_session and write:
-        params, nudge_notes = nudge_paper_params(engine.closed, params)
-        save_paper_params(base, params)
-        engine.paper_stop_frac = float(params["stop_frac"])
-        engine.paper_target_frac = float(params["target_frac"])
-        engine.paper_hold_bars = int(params["scalp_hold_bars"])
-        engine.paper_give_up_frac = float(params.get("give_up_frac") or GIVE_UP_FRAC)
+    # Params are frozen for the session: re-deriving the day with params nudged from its own closes
+    # was look-ahead and rewrote history. The nudge is a post-market command for the next session.
+    nudge_notes: list[str] = (
+        ["session params frozen; nudge runs post-market: python -m desk_ml nudge-params"] if live_session else []
+    )
+    if pins is not None:
+        for und in {str(d.get("underlying")).upper() for d in pins.saved.values()}:
+            pins.finish(und)  # indices with no tape this cycle keep their booked open tickets
+    guard: Optional[dict[str, Any]] = None
+    if ctx.live_loop and session_day:
+        from desk_ml.live_cycle import guard_history
+
+        guard = guard_history(engine, loaded, ctx)
+    if sink is not None:
+        sink.flush()
 
     board = build_dashboard(
         engine,
@@ -6369,11 +6673,15 @@ def _replay_paper_scalp(
         paper_params=params,
         paper_param_notes=nudge_notes,
     )
+    if guard is not None:
+        board["history_guard"] = guard
     if event_session is not None:
         board["event_bus"] = event_session.summary()
         if own_session:
             event_session.close()
-    if write:
+    if engine.founder_controls is not None:  # founder-controls hook: status of every command
+        _report_founder_controls(board, engine, base, session_day=session_day, write=write, now=now)
+    if write and not ctx.live_loop:  # the live cycle publishes after its own checks
         write_dashboard(board, root=base)
         _append_mistakes(base, board.get("mistakes") or [])
     return board
@@ -7643,7 +7951,7 @@ def build_dashboard(
         "fill_contract": (engine.last_step or {}).get("exam"),
         "book_rank": board_book_rank,
         "index_notes": adj_notes,
-        "cost_model": groww_cost_meta(),
+        "cost_model": costs.board_meta(engine),
         "paper_params": params,
         "nifty_overlay": {
             "allow_sides": list(engine.nifty_allow_sides or []),
@@ -7842,14 +8150,18 @@ def wipe_today_paper_book(
     moved: list[str] = []
     tape_jsonl = recon / "paper_watch" / "DUAL-TAPE" / f"{day}.jsonl"
     jsonl_keep: dict[str, Any] = {"ok": True, "kept": "untouched" if keep_jsonl else 0, "path": str(tape_jsonl)}
-    sources = [recon / "paper_ledger" / f"{day}.jsonl", recon / LOG_JSONL_NAME]
+    # The day's booked trades go too: the wipe is the one deliberate, founder-run rewrite of the
+    # book, so the next live cycle must not report it as HISTORY_REWRITE.
+    sources = [
+        recon / "paper_ledger" / f"{day}.jsonl", recon / LOG_JSONL_NAME,
+        recon / "paper_booked" / f"{day}.jsonl", recon / "paper_booked" / f"{day}.state.json",
+        recon / "model_log" / f"{day}.jsonl", recon / "model_log" / f"{day}.state.json",
+    ]
     if not keep_jsonl:
         sources = [tape_jsonl, *sources]
     for src in sources:
         if src.is_file():
-            dest = archive / f"{src.name}.{day}.pre_slate"
-            dest.write_bytes(src.read_bytes())
-            src.unlink()
+            os.replace(src, archive / f"{src.name}.{day}.pre_slate")  # rename, never read into memory
             moved.append(str(src))
     if not keep_jsonl:
         latest = recon / "paper_watch" / "DUAL-TAPE" / "latest.json"
@@ -7868,6 +8180,17 @@ def wipe_today_paper_book(
             "paper_book_epoch_ist": now.isoformat(timespec="seconds"),
         },
     )
+    from desk_ml.live_cycle import read_frozen_params, write_frozen_params
+
+    try:
+        snap = read_frozen_params(base, day)
+    except ValueError:
+        snap = None
+    if snap is not None:  # the session is frozen: the epoch must reach the params the loop uses
+        snap["params"] = {**snap["params"], "paper_book_epoch_ts": epoch_ts,
+                          "paper_book_epoch_ist": now.isoformat(timespec="seconds")}
+        snap["wiped_ts"] = epoch_ts
+        write_frozen_params(base, day, snap)  # primary and its .bak twin, or a damaged primary loses the wipe
     plan = allocate_desk_capital(tradable=tradable_fill_books(has_greeks=False))
     engine = BookEngine(
         deny_model_signals=True,
@@ -7926,11 +8249,10 @@ def write_dashboard(board: dict[str, Any], *, root: Optional[Path] = None) -> di
     recon = base / "data" / "recon"
     recon.mkdir(parents=True, exist_ok=True)
     json_path = recon / DASH_JSON_NAME
-    json_path.write_text(json.dumps(board, indent=2, default=str) + "\n", encoding="utf-8")
+    atomic_write_json(json_path, board, indent=2)
     md = render_markdown(board)
     md_path = base / DASH_MD_REL
-    md_path.parent.mkdir(parents=True, exist_ok=True)
-    md_path.write_text(md, encoding="utf-8")
+    atomic_write_text(md_path, md)
     mock = base / MOCK_JSON_REL
     mock.parent.mkdir(parents=True, exist_ok=True)
     compact = {
@@ -8007,7 +8329,7 @@ def write_dashboard(board: dict[str, Any], *, root: Optional[Path] = None) -> di
     compact["mistakes"] = (board.get("mistakes") or [])[-20:]
     compact["successes"] = (board.get("successes") or [])[-12:]
     compact["note"] = "Compact mock. Full closed tape is data/recon/ml_paper_dashboard.json (gitignored)."
-    mock.write_text(json.dumps(compact, indent=2, default=str) + "\n", encoding="utf-8")
+    atomic_write_json(mock, compact, indent=2)
     return {"json": str(json_path), "md": str(md_path), "mock": str(mock)}
 
 
@@ -8359,57 +8681,60 @@ def run_loop(
     source: str = "dual-tape",
     live_session: bool = True,
 ) -> dict[str, Any]:
-    """Opt-in. Writes heartbeat into dashboard JSON. Does not arm paper_ops."""
+    """Opt-in live paper loop (``desk_ml.live_cycle.run_cycle`` every tick). Does not arm paper_ops.
+
+    A failed cycle is recorded in ``engine_heartbeat.json`` and alerted once; the loop keeps
+    going and the dashboard shows the engine as failing, never as alive.
+    """
     import time
+
+    from desk_ml.live_cycle import loop_beat, run_cycle
 
     if event_bus_enabled():
         from desk_ml.event_path import require_event_packages
 
         require_event_packages()  # once, before the replay loop
 
+    if not live_session:
+        raise ValueError("run_loop is the live paper loop; use replay_paper_scalp for offline replays")
     sleep = sleep_fn or time.sleep
     base = root or repo_root()
     i = 0
     last: dict[str, Any] = {}
+
+    def cycle() -> dict[str, Any]:
+        loop_beat(base)
+        try:
+            return run_cycle(base, source=source)
+        except Exception as exc:  # noqa: BLE001 — recorded + alerted by run_cycle; keep looping
+            return {**last, "loop_error": f"{type(exc).__name__}: {exc}"}
+
     while True:
         if stop_requested(base):
-            last = replay_paper_scalp(
-                root=base,
-                source=source,
-                write=True,
-                deny_model_signals=True,
-                live_session=live_session,
-                live_loop=True,
-            )
+            last = cycle()
             last["loop_stopped"] = "ml_paper_scalp_STOPPED.flag"
-            write_dashboard(last, root=base)
             return last
-        last = replay_paper_scalp(
-            root=base,
-            source=source,
-            write=True,
-            deny_model_signals=True,
-            live_session=live_session,
-            live_loop=True,
-        )
+        last = cycle()
         last["heartbeat"] = {
             **(last.get("heartbeat") or {}),
             "tick_index": i,
-            "as_of_ist": datetime.now(IST).isoformat(timespec="seconds"),
-            "alive": True,
             "dashboard_write_seconds": DASHBOARD_HEARTBEAT_SECONDS,
             "tick_seconds": int(tick_seconds),
             "tick_ne_dashboard_reason": TICK_NE_DASHBOARD_REASON,
         }
-        write_dashboard(last, root=base)
         i += 1
         if max_ticks > 0 and i >= max_ticks:
             last["loop_stopped"] = "completed_max_ticks"
             return last
 
         def _beat(_remaining: float) -> None:
-            refresh_dashboard_clock(last, tick_seconds=int(tick_seconds))
-            write_dashboard(last, root=base)
+            if not last or last.get("loop_error"):
+                return
+            refresh_dashboard_clock(last, tick_seconds=int(tick_seconds), root=base)
+            try:
+                write_dashboard(last, root=base)
+            except OSError:
+                pass
 
         slept = sleep_with_beats(
             float(tick_seconds),
@@ -8420,5 +8745,4 @@ def run_loop(
         )
         if slept == "stopped":
             last["loop_stopped"] = "ml_paper_scalp_STOPPED.flag"
-            write_dashboard(last, root=base)
             return last

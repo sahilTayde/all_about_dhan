@@ -1,6 +1,7 @@
 const LINKS = [
   { href: "/desk", label: "Desk", hint: "Signals & book" },
   { href: "/pm", label: "Founder", hint: "Money & models" },
+  { href: "/customer", label: "Customer", hint: "Ticket preview · fixture" },
 ];
 
 export function AppNav({ current }) {
