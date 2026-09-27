@@ -1,0 +1,10 @@
+**/.env
+**/secrets
+**/.git
+**/data
+**/.venv
+**/__pycache__
+**/*.pyc
+**/.mypy_cache
+**/.ruff_cache
+**/node_modules
