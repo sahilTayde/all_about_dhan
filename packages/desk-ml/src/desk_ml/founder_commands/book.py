@@ -232,6 +232,7 @@ class CommandBook:
                 self._states.append(st)
         self.results: dict[str, dict[str, Any]] = {}
         self.last_ts: dict[str, int] = {}
+        self.lots_cap: Optional[int] = None  # risk-limits cap for lots overrides; None = only lower
 
     def __bool__(self) -> bool:
         return bool(self.commands or self.rejected or self.problems)
@@ -288,12 +289,14 @@ class CommandBook:
     def sizing(self, capital: float, bounds: dict[str, int], ts: int) -> tuple[float, dict[str, int]]:
         """Added funds raise the book's capital; a lots override sets the next fills' size.
 
-        The override never exceeds the engine's own ``max_lots`` (the API also checks the risk limits).
+        The override never exceeds the engine's ``max_lots`` nor the risk limits' cap (``lots_cap``).
+        When the limits could not be read it may only lower the engine's target (fail closed).
         """
         st = self.state_at(ts)
         capital = float(capital) + st.funds_added
         if st.lots is not None:
-            n = min(int(st.lots), int(bounds["max_lots"]))
+            cap = self.lots_cap if self.lots_cap is not None else int(bounds["target_lots"])
+            n = min(int(st.lots), int(bounds["max_lots"]), int(cap))
             bounds = {"min_lots": min(n, int(bounds["min_lots"])), "target_lots": n, "max_lots": n}
         return capital, bounds
 
@@ -348,11 +351,12 @@ class CommandBook:
             if r["id"] in self.results:
                 out.append({**self._result(r, "applied"), **self.results[r["id"]]})
             elif r["kind"] in POSITION_KINDS:
-                if day is not None and r["session"] < day:
+                session = r["session"] if isinstance(r.get("session"), str) else session_of(r["ts"])  # may be missing
+                if day is not None and session < day:
                     continue  # judged by the replay of its own session
                 und = next((u for u in self.last_ts if f"-{u}-" in r["args"]["trade_id"]), None)
                 last = self.last_ts.get(und) if und else None
-                if r["session"] == day and last is not None and last >= float(r["ts"]):
+                if session == day and last is not None and last >= float(r["ts"]):
                     out.append(self._result(r, "rejected", "TRADE_NOT_OPEN: no open ticket with this id at or after the command"))
                 else:
                     out.append(self._result(r, "pending"))

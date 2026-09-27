@@ -11,6 +11,9 @@
 * ``founder_controls_status.jsonl``: the engine's acks (applied / rejected), written by the live
   loop. Best effort: engine behaviour never depends on it.
 * ``founder_account.json``: current account view (funds added, minimum capital) for the UI.
+* ``founder_controls_problems.json``: when the live loop first saw each unreadable/invalid line.
+  The loop re-replays the whole day every cycle, so entries are blocked only from that first sight;
+  trades booked before it stay as they were.
 """
 
 from __future__ import annotations
@@ -36,6 +39,7 @@ LOG_NAME = "founder_controls.jsonl"
 TORN_NAME = "founder_controls.torn"
 STATUS_NAME = "founder_controls_status.jsonl"
 ACCOUNT_NAME = "founder_account.json"
+FIRST_SEEN_NAME = "founder_controls_problems.json"
 SPOOL_ENV = "AAD_FOUNDER_SPOOL_DIR"
 
 
@@ -51,6 +55,10 @@ def account_path(root: Path) -> Path:
     return Path(root) / RECON / ACCOUNT_NAME
 
 
+def first_seen_path(root: Path) -> Path:
+    return Path(root) / RECON / FIRST_SEEN_NAME
+
+
 def spool_path(root: Path) -> Path:
     base = os.environ.get(SPOOL_ENV) or ("/dev/shm" if Path("/dev/shm").is_dir() else tempfile.gettempdir())
     key = hashlib.sha1(str(Path(root).resolve()).encode()).hexdigest()[:12]
@@ -61,12 +69,14 @@ def spool_path(root: Path) -> Path:
 class ReadResult:
     rows: list[dict[str, Any]] = field(default_factory=list)
     problems: list[str] = field(default_factory=list)
-    # Entries are blocked from here on. Lines are appended in time order, so a bad line was written
-    # after the last good line before it: trades booked before that stay as they were.
+    # Without a first-seen record, entries are blocked from the last good line before the bad one
+    # (lines are appended in time order), or from the start. See ``anchor_first_seen``.
     blocked_from: Optional[float] = None
+    anchors: list[tuple[str, float]] = field(default_factory=list)  # (problem key, last good ts)
 
-    def problem(self, text: str, since: float) -> None:
+    def problem(self, text: str, since: float, key: str) -> None:
         self.problems.append(text)
+        self.anchors.append((key, since))
         self.blocked_from = since if self.blocked_from is None else min(self.blocked_from, since)
 
 
@@ -76,14 +86,15 @@ def _parse(blob: bytes, label: str, out: ReadResult, seen: set[str]) -> None:
     for n, raw in enumerate(lines[:-1], start=1):  # lines[-1] is b"" or an unfinished write
         if not raw.strip():
             continue
+        key = f"{label}:{hashlib.sha1(raw).hexdigest()}"
         try:
             row = json.loads(raw.decode("utf-8"))
-        except (UnicodeDecodeError, ValueError):
-            out.problem(f"{label} line {n}: not JSON", last_good)
+            err = validate_row(row)
+        except Exception:  # any line (e.g. nested past the recursion limit) is one problem, never a crash
+            out.problem(f"{label} line {n}: not JSON", last_good, key)
             continue
-        err = validate_row(row)
         if err:
-            out.problem(f"{label} line {n}: {err}", last_good)
+            out.problem(f"{label} line {n}: {err}", last_good, key)
             continue
         last_good = max(last_good, float(row["ts"]))
         if row["id"] in seen:  # idempotent: the first write of an id wins
@@ -109,7 +120,7 @@ def read_commands(root: Path, *, path: Optional[Path] = None, spool: bool = True
         try:
             blob = _read_bytes(src)
         except OSError as exc:  # a directory at the path, permission denied, I/O error
-            out.problem(f"{label} unreadable: {type(exc).__name__}", 0.0)
+            out.problem(f"{label} unreadable: {type(exc).__name__}", 0.0, f"{label}:unreadable")
             continue
         if blob is not None:
             _parse(blob, label, out, seen)
@@ -261,15 +272,14 @@ def append_statuses(root: Path, results: list[dict[str, Any]]) -> int:
         return 0
 
 
-def write_account_view(root: Path, account: dict[str, Any]) -> bool:
+def _atomic_json(path: Path, obj: Any) -> bool:
     """Atomic replace (tmp in the same dir, fsync, rename). Never raises."""
-    path = account_path(root)
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
-        fd, tmp = tempfile.mkstemp(dir=path.parent, prefix=f".{ACCOUNT_NAME}.")
+        fd, tmp = tempfile.mkstemp(dir=path.parent, prefix=f".{path.name}.")
         try:
             with os.fdopen(fd, "w", encoding="utf-8") as fh:
-                json.dump(account, fh, indent=2, sort_keys=True)
+                json.dump(obj, fh, indent=2, sort_keys=True)
                 fh.write("\n")
                 fh.flush()
                 os.fsync(fh.fileno())
@@ -281,3 +291,46 @@ def write_account_view(root: Path, account: dict[str, Any]) -> bool:
         return True
     except OSError:
         return False
+
+
+def write_account_view(root: Path, account: dict[str, Any]) -> bool:
+    return _atomic_json(account_path(root), account)
+
+
+def anchor_first_seen(root: Path, res: ReadResult, *, as_of: Optional[float] = None, record: bool = False) -> Optional[float]:
+    """When new entries start being blocked for the log's problems: each problem's first sight.
+
+    ``record`` (the writing live loop) stores a problem not seen before at ``as_of`` (the tape
+    time of that cycle). A problem without a stored first sight, or a first-seen file that cannot
+    be read or written, falls back to ``res.blocked_from`` (the last good line before it, or the
+    start): later, never earlier, would let a re-replay book entries the loop had refused.
+    """
+    if not res.anchors:
+        return None
+    path = first_seen_path(root)
+    seen: dict[str, Any] = {}
+    trusted = True
+    try:
+        blob = json.loads(path.read_text(encoding="utf-8"))
+        seen = blob if isinstance(blob, dict) else {}
+        trusted = isinstance(blob, dict)
+    except FileNotFoundError:
+        pass
+    except (OSError, ValueError):
+        trusted = False
+    if not trusted:
+        return res.blocked_from
+    new: dict[str, float] = {}
+    starts = []
+    for key, since in res.anchors:
+        first = seen.get(key, new.get(key))
+        if isinstance(first, (int, float)) and not isinstance(first, bool):
+            starts.append(max(since, float(first)))
+        elif record and as_of is not None:
+            new[key] = float(as_of)
+            starts.append(max(since, float(as_of)))
+        else:
+            starts.append(since)
+    if new and not _atomic_json(path, {**seen, **new}):
+        return anchor_first_seen(root, res)  # not persisted: this cycle must not open later than the next
+    return min(starts)

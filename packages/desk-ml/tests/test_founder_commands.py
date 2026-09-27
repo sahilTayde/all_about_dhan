@@ -48,13 +48,13 @@ def _isolated(monkeypatch, fx):
     monkeypatch.setenv("AAD_FOUNDER_SPOOL_DIR", "/nonexistent-spool-for-tests")
 
 
-def replay(fx, root, commands=None, *, until=None, founder_file=True, **kw):
+def replay(fx, root, commands=None, *, until=None, founder_file=True, write=False, **kw):
     kwargs = fixture_replay_kwargs(fx, root)
     if not founder_file:
         save_founder_book([], root=root)
     if until is not None:
         kwargs["triples_by_und"] = {"NIFTY": [t for t in fx["triples"] if t.ts <= at(until)]}
-    return ps.replay_paper_scalp(**kwargs, write=False, founder_commands=commands, **kw)
+    return ps.replay_paper_scalp(**kwargs, write=write, founder_commands=commands, **kw)
 
 
 @pytest.fixture(scope="module")
@@ -178,9 +178,31 @@ def test_change_lots_for_next_trades(fx, tmp_path, baseline):
     assert {r["lots"] for r in rows if int(r["opened_ts"]) < at("12:00")} == {25}
 
 
-def test_lots_override_never_exceeds_engine_max(fx, tmp_path):
-    rows = replay(fx, tmp_path, [cmd("SET_LOTS", "09:00", lots=500)])["closed_trades"]
-    assert rows and {r["lots"] for r in rows if r["filled"]} == {ps.PAPER_MAX_LOTS}
+def _risk_limits(root, max_lots):
+    src = (Path(__file__).resolve().parents[3] / "config" / "risk_limits.yaml").read_text(encoding="utf-8")
+    (root / "config").mkdir(exist_ok=True)
+    (root / "config" / "risk_limits.yaml").write_text(
+        src.replace("  paper:\n    max_lots_per_trade: 25", f"  paper:\n    max_lots_per_trade: {max_lots}"), encoding="utf-8"
+    )
+
+
+def test_lots_override_is_capped_by_the_risk_limits_in_the_engine(fx, tmp_path):
+    """A hand-written row that bypasses the API still cannot exceed the risk limits' lots cap."""
+    _risk_limits(tmp_path, 22)
+    rows = replay(fx, tmp_path, [cmd("SET_LOTS", "09:00", lots=40)])["closed_trades"]
+    assert rows and {r["lots"] for r in rows if r["filled"]} == {22}
+    _risk_limits(tmp_path, 25)  # the repo's paper cap
+    rows = replay(fx, tmp_path, [cmd("SET_LOTS", "09:00", lots=40)])["closed_trades"]
+    assert {r["lots"] for r in rows if r["filled"]} == {25}
+
+
+def test_unreadable_risk_limits_let_a_lots_override_only_lower(fx, tmp_path):
+    (tmp_path / "config").mkdir()
+    (tmp_path / "config" / "risk_limits.yaml").write_text("mode: [broken", encoding="utf-8")
+    up = replay(fx, tmp_path, [cmd("SET_LOTS", "09:00", lots=40)])["closed_trades"]
+    assert up and {r["lots"] for r in up if r["filled"]} == {ps.PAPER_TARGET_LOTS}
+    down = replay(fx, tmp_path, [cmd("SET_LOTS", "09:00", lots=10)])["closed_trades"]
+    assert {r["lots"] for r in down if r["filled"]} == {10}
 
 
 def test_kill_switch_flattens_open_positions_and_blocks_until_rearm(fx, tmp_path, baseline):
@@ -282,6 +304,79 @@ def test_corrupt_log_fails_closed_for_entries_and_open_for_exits(fx, tmp_path, b
     assert_unchanged_before(rows, baseline, at("13:45"))
     assert board["skip_reason_counts"].get(fcb.UNREADABLE)
     assert board["founder_controls"]["problems"] == ["log line 2: not JSON"]
+
+
+def _live_cycles(fx, root, cycles, appends):
+    """The live loop: before each cycle, append due log lines; then re-replay the day up to that time (write=True)."""
+    path = log_path(root)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    boards = {}
+    for hhmm in cycles:
+        for due, line in [a for a in appends if a[0] <= hhmm]:
+            with path.open("a", encoding="utf-8") as fh:
+                fh.write(line + "\n")
+        appends = [a for a in appends if a[0] > hhmm]
+        boards[hhmm] = replay(fx, root, until=hhmm, write=True)
+    return boards
+
+
+@pytest.mark.parametrize("earlier_good_command", [True, False])
+def test_live_loop_keeps_trades_booked_before_a_corrupt_line_appeared(fx, tmp_path, baseline, earlier_good_command):
+    """Sep-25 finding: a line going bad at 12:30 must not erase trades the loop booked before it saw it."""
+    good = [("10:00", json.dumps(cmd("INDEX", "10:00", underlying="SENSEX", enabled=True)))] if earlier_good_command else []
+    appends = good + [("12:30", '{"id": "broken", "kind": "STO')]
+    boards = _live_cycles(fx, tmp_path, ["12:20", "12:40", "13:30", "15:30"], appends)
+    booked = boards["12:20"]["closed_trades"]
+    assert by_id(booked) == {k: v for k, v in by_id(baseline).items() if int(v["closed_ts"]) <= at("12:20")}
+    assert len(booked) == 4
+    for hhmm in ("12:40", "13:30", "15:30"):
+        rows = by_id(boards[hhmm]["closed_trades"])
+        for row in booked:
+            assert rows.get(row["trade_id"]) == row, f"{row['trade_id']} vanished or changed in the {hhmm} cycle"
+    first_seen = json.loads((tmp_path / "data" / "recon" / "founder_controls_problems.json").read_text())
+    seen_at = max(t.ts for t in fx["triples"] if t.ts <= at("12:40"))
+    assert list(first_seen.values()) == [seen_at]  # tape time of the first cycle that saw it
+    final = boards["15:30"]
+    assert not opened_between(final["closed_trades"], seen_at, at("15:30"))
+    assert opened_between(final["closed_trades"], at("12:20"), seen_at), "entries before first sight stay"
+    assert final["founder_controls"]["entries_blocked_from_ts"] == seen_at
+    # a later offline replay of the same root reads the first-seen record: same board as the live loop
+    assert replay(fx, tmp_path)["closed_trades"] == final["closed_trades"]
+
+
+def test_first_seen_falls_back_to_the_last_good_line_when_it_cannot_be_stored(tmp_path, monkeypatch):
+    import desk_ml.founder_commands.log as fl
+
+    path = log_path(tmp_path)
+    path.parent.mkdir(parents=True)
+    path.write_text(json.dumps(cmd("STOP", "10:00")) + "\nnot json\n", encoding="utf-8")
+    res = read_commands(tmp_path)
+    monkeypatch.setattr(fl, "_atomic_json", lambda *a, **k: False)
+    assert fl.anchor_first_seen(tmp_path, res, as_of=at("12:40"), record=True) == at("10:00")
+    monkeypatch.undo()
+    assert fl.anchor_first_seen(tmp_path, res, as_of=at("12:40"), record=True) == at("12:40")
+    assert fl.anchor_first_seen(tmp_path, res, as_of=at("14:00"), record=True) == at("12:40"), "first sight is kept"
+    fl.first_seen_path(tmp_path).write_text("[1, 2]", encoding="utf-8")  # untrusted record: never later
+    assert fl.anchor_first_seen(tmp_path, res, as_of=at("14:00"), record=True) == at("10:00")
+
+
+def test_deeply_nested_line_is_a_problem_not_a_crash(fx, tmp_path, baseline):
+    path = log_path(tmp_path)
+    path.parent.mkdir(parents=True)
+    deep = "[" * 200_000 + "]" * 200_000
+    path.write_text(json.dumps(cmd("CUT_LOSS", "14:00", trade_id=CUT_ID)) + "\n" + deep + "\n", encoding="utf-8")
+    res = read_commands(tmp_path)
+    assert [r["id"] for r in res.rows] == ["CUT_LOSS-1400"] and res.problems == ["log line 2: not JSON"]
+    board = replay(fx, tmp_path)
+    assert by_id(board["closed_trades"])[CUT_ID]["exit_reason"] == fcb.CUT_LOSS_REASON, "exits still run"
+
+
+def test_cut_loss_row_without_session_does_not_crash_the_report(fx, tmp_path, baseline):
+    row = cmd("CUT_LOSS", "11:00", trade_id=T1_ID)  # T1 closed at 10:17: rejected at report time
+    del row["session"]
+    board = replay(fx, tmp_path, [row])
+    assert board["closed_trades"] == baseline
+    assert result(board, "CUT_LOSS-1100")["status"] == "rejected"
 
 
 def test_unreadable_log_blocks_every_entry(fx, tmp_path):

@@ -6315,7 +6315,10 @@ def _replay_paper_scalp(
     # --- founder-controls hook (roadmap step 14): read the command log once per replay / live cycle ---
     from desk_ml.founder_commands import load_book
 
-    engine.founder_controls = load_book(base, founder_commands)
+    tape_as_of = max((int(t.ts) for tl in loaded.values() for t in tl), default=int(now.timestamp()))
+    engine.founder_controls = load_book(
+        base, founder_commands, as_of=tape_as_of, record=bool(write), engine_max_lots=engine.paper_max_lots
+    )
     own_session = event_session is None and (event_bus_enabled() if use_event_bus is None else use_event_bus)
     if own_session:
         from desk_ml.event_path import EventSession, require_event_packages, resolve_risk_config
