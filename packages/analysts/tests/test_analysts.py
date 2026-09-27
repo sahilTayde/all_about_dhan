@@ -67,7 +67,8 @@ def test_wrapped_room_is_lossless():
     assert [to_legacy(v) for v in votes] == legacy
     assert all(to_legacy(from_legacy(v)) == v for v in legacy)
     signals = {v.analyst_id: v.signal for v in votes}
-    assert signals["follows"] == "BUY_CE" and signals["logit"] == "BUY_PE" and signals["ML-001"] == "HOLD"
+    assert signals["follows"] == "BUY_CE" and signals["logit"] == "BUY_PE"
+    assert "ML-001" not in signals and "ML-002" not in signals and "ML-1" not in signals
     assert signals["STRAT-003"] == "BUY_CE" and signals["STRAT-001"] == ABSTAIN
     room.close()
 

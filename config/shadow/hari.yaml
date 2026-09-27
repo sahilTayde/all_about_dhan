@@ -1,0 +1,10 @@
+# S1 HARI shadow forecast. Log only. These weights do not size or block any order.
+# Placeholder coefficients. The lab will replace them with fitted HAR-RV weights.
+# Leave fitted: false until that fit is checked in.
+fitted: false
+note: Lab will supply the fitted coefficients. Zeros mean the forecast is not a fake edge.
+intercept: 0.0
+rv_5: 0.0
+rv_30: 0.0
+rv_120: 0.0
+rv_prev_day: 0.0
