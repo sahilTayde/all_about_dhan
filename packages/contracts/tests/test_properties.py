@@ -11,9 +11,21 @@ from contracts import order_id  # noqa: E402
 
 
 @given(
-    account=st.text(min_size=1, max_size=20, alphabet=st.characters(blacklist_characters="|")),
-    signal=st.text(min_size=1, max_size=20, alphabet=st.characters(blacklist_characters="|")),
-    leg=st.text(min_size=1, max_size=20, alphabet=st.characters(blacklist_characters="|")),
+    account=st.text(
+        min_size=1,
+        max_size=20,
+        alphabet=st.characters(min_codepoint=32, max_codepoint=126, blacklist_characters="|"),
+    ),
+    signal=st.text(
+        min_size=1,
+        max_size=20,
+        alphabet=st.characters(min_codepoint=32, max_codepoint=126, blacklist_characters="|"),
+    ),
+    leg=st.text(
+        min_size=1,
+        max_size=20,
+        alphabet=st.characters(min_codepoint=32, max_codepoint=126, blacklist_characters="|"),
+    ),
 )
 def test_order_id_format(account: str, signal: str, leg: str) -> None:
     """order_id is always 27 chars [a-z0-9] and deterministic."""

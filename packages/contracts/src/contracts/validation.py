@@ -8,6 +8,8 @@ from typing import Any
 
 try:
     from jsonschema import Draft7Validator, FormatChecker
+    from referencing import Registry, Resource
+    from referencing.jsonschema import DRAFT7
 
     HAS_JSONSCHEMA = True
 except ImportError:
@@ -16,6 +18,26 @@ except ImportError:
 from contracts import payloads
 
 _SCHEMAS_DIR = Path(__file__).parent / "schemas"
+_REGISTRY: Registry | None = None
+
+
+def _build_registry() -> Registry:
+    """Build a referencing.Registry with all schemas in the schemas/ directory."""
+    resources = {}
+    for schema_file in _SCHEMAS_DIR.glob("*.json"):
+        schema_data = json.loads(schema_file.read_text())
+        # Use the filename as the URI (e.g. "exit_plan.json")
+        uri = schema_file.name
+        resources[uri] = Resource.from_contents(schema_data, default_specification=DRAFT7)
+    return Registry().with_resources([(uri, res) for uri, res in resources.items()])
+
+
+def _get_registry() -> Registry:
+    """Get or create the schema registry (cached)."""
+    global _REGISTRY
+    if _REGISTRY is None:
+        _REGISTRY = _build_registry()
+    return _REGISTRY
 
 
 def _load_schema(name: str) -> dict[str, Any]:
@@ -27,7 +49,7 @@ def _load_schema(name: str) -> dict[str, Any]:
 
 def validate_payload(payload_type: str, data: dict[str, Any]) -> None:
     """
-    Validate payload data against JSON schema.
+    Validate payload data against JSON schema (with $ref resolution via Registry).
 
     Raises:
         ImportError: If jsonschema is not installed.
@@ -37,7 +59,8 @@ def validate_payload(payload_type: str, data: dict[str, Any]) -> None:
         raise ImportError("jsonschema is required for validation (install with test extra)")
 
     schema = _load_schema(payload_type)
-    validator = Draft7Validator(schema, format_checker=FormatChecker())
+    registry = _get_registry()
+    validator = Draft7Validator(schema, registry=registry, format_checker=FormatChecker())
     validator.validate(data)
 
 

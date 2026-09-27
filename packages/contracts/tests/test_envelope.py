@@ -35,33 +35,43 @@ def test_envelope_v2_roundtrip() -> None:
     assert envelope == envelope2
 
 
-def test_envelope_legacy_event_compatibility() -> None:
-    """Test backward compatibility with legacy events.schema.Event."""
-    # Legacy event with typ/role/pl/ts (no event_ts/available_ts/stream)
-    legacy_event = {
-        "ts": "2026-09-28T10:01:00.000+05:30",
-        "role": "desk",
-        "event_id": "abc123",
-        "input_event_id": "xyz789",
-        "typ": "POSITION_UPDATE",
-        "pl": {"position_id": "ps_001", "net_qty": 100},
+def test_old_event_json_still_loads() -> None:
+    """Test that real legacy events.schema.Event JSON still loads (backward compatibility)."""
+    from events.schema import Event  # type: ignore[import-untyped]
+
+    # Create a real legacy Event
+    legacy_event = Event(
+        event_type="POSITION_UPDATE",
+        payload={"position_id": "ps_001", "net_qty": 100},
+        source="desk",
+        event_id="abc123",
+        timestamp="2026-09-28T10:01:00.000+05:30",
+    )
+
+    # Convert to dict (what from_json receives)
+    legacy_dict = {
+        "event_type": legacy_event.event_type,
+        "payload": legacy_event.payload,
+        "source": legacy_event.source,
+        "event_id": legacy_event.event_id,
+        "timestamp": legacy_event.timestamp,
     }
 
-    # Load legacy event
-    envelope = Envelope.from_json(legacy_event)
+    # Load via Envelope.from_json (no 'v' field, so it's legacy)
+    envelope = Envelope.from_json(legacy_dict)
 
-    # Check mapping: typ -> event_type, role -> source, pl -> payload
+    # Check fields mapped correctly
     assert envelope.event_type == "POSITION_UPDATE"
     assert envelope.source == "desk"
+    assert envelope.event_id == "abc123"
     assert envelope.payload["position_id"] == "ps_001"
+    assert envelope.timestamp == "2026-09-28T10:01:00.000+05:30"
 
-    # Check fallback values
+    # Check V2-specific fields defaulted from timestamp
+    assert envelope.v == 1
     assert envelope.stream == "legacy"
-    assert envelope.event_ts == legacy_event["ts"]
-    assert envelope.available_ts == legacy_event["ts"]
-    assert envelope.timestamp == legacy_event["ts"]
-    assert envelope.correlation_id == "xyz789"  # input_event_id -> correlation_id
-    assert envelope.v == 1  # Legacy events default to v=1
+    assert envelope.event_ts == legacy_dict["timestamp"]
+    assert envelope.available_ts == legacy_dict["timestamp"]
 
 
 def test_envelope_spec_example() -> None:

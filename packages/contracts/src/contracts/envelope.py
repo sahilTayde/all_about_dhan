@@ -42,39 +42,38 @@ class Envelope:
         Load Envelope from JSON dict.
 
         Forward-compatible: tolerates unknown keys in data.
-        Backward-compatible: accepts legacy events.schema.Event with typ/role/pl/ts fields.
+        Backward-compatible: accepts legacy events.schema.Event (event_type, payload, source,
+        event_id, timestamp - no 'v' field). V2 fields (stream, event_ts, available_ts) are
+        optional and default from 'timestamp' if missing.
         """
-        # Legacy Event fields: typ, role, pl, ts (no event_ts/available_ts/stream)
-        # V2 fields: event_type, source, payload, timestamp (plus event_ts/available_ts/stream)
-
-        # Handle legacy events.schema.Event (typ/role/pl/ts)
-        if "typ" in data:
-            # Legacy event: map old fields to new
+        # Check if V2 (has 'v' field) or legacy (no 'v' field)
+        if "v" in data:
+            # V2 event: use fields as-is
             return cls(
-                v=data.get("v", 1),  # Legacy events have no v field
-                event_type=data["typ"],  # typ -> event_type
+                v=data["v"],
+                event_type=data["event_type"],
                 event_id=data["event_id"],
-                stream=data.get("stream", "legacy"),  # Default stream for legacy
-                source=data.get("role", "unknown"),  # role -> source
-                event_ts=data.get("event_ts", data["ts"]),  # Fallback to ts
-                available_ts=data.get("available_ts", data["ts"]),  # Fallback to ts
-                timestamp=data.get("timestamp", data["ts"]),  # timestamp = ts for legacy
+                stream=data["stream"],
+                source=data["source"],
+                event_ts=data["event_ts"],
+                available_ts=data["available_ts"],
+                timestamp=data["timestamp"],
                 account_id=data.get("account_id"),
-                correlation_id=data.get("correlation_id")
-                or data.get("input_event_id"),  # input_event_id -> correlation_id
+                correlation_id=data.get("correlation_id"),
                 causation_id=data.get("causation_id"),
-                payload=data.get("pl", {}),  # pl -> payload
+                payload=data["payload"],
             )
 
-        # V2 event: use fields as-is
+        # Legacy events.schema.Event: event_type, payload, source, event_id, timestamp
+        # V2-specific fields default from timestamp
         return cls(
-            v=data["v"],
+            v=1,
             event_type=data["event_type"],
             event_id=data["event_id"],
-            stream=data["stream"],
+            stream=data.get("stream", "legacy"),
             source=data["source"],
-            event_ts=data["event_ts"],
-            available_ts=data["available_ts"],
+            event_ts=data.get("event_ts", data["timestamp"]),
+            available_ts=data.get("available_ts", data["timestamp"]),
             timestamp=data["timestamp"],
             account_id=data.get("account_id"),
             correlation_id=data.get("correlation_id"),

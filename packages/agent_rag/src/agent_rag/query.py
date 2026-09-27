@@ -65,7 +65,8 @@ def query(
     sql += " ORDER BY score LIMIT ?"
     params.append(limit)
 
-    conn = sqlite3.connect(str(db))
+    # Open read-only (REG-11: tests must not write to data/)
+    conn = sqlite3.connect(f"file:{db}?mode=ro", uri=True)
     try:
         rows = conn.execute(sql, params).fetchall()
     finally:

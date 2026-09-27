@@ -57,10 +57,10 @@ def test_india_is_trading_day_holidays() -> None:
     assert republic_day in NSE_HOLIDAYS_2026
     assert not india.is_trading_day(republic_day)
 
-    # Diwali
-    diwali = date(2026, 10, 27)
-    assert diwali in NSE_HOLIDAYS_2026
-    assert not india.is_trading_day(diwali)
+    # Dussehra
+    dussehra = date(2026, 10, 20)
+    assert dussehra in NSE_HOLIDAYS_2026
+    assert not india.is_trading_day(dussehra)
 
 
 def test_india_is_open_during_market_hours() -> None:
@@ -278,9 +278,9 @@ def test_india_custom_holidays() -> None:
 
 
 def test_nse_holidays_2026_count() -> None:
-    """Test NSE 2026 holidays set has expected count (per official NSE circular)."""
-    # NSE 2026 has 20 trading holidays per official circular
-    assert len(NSE_HOLIDAYS_2026) == 20
+    """Test NSE 2026 holidays set has expected count (per official NSE circular NSE/CMTR/71775)."""
+    # NSE 2026 has 17 full trading holidays per official circular
+    assert len(NSE_HOLIDAYS_2026) == 17
 
 
 def test_nse_holidays_2026_includes_major_holidays() -> None:

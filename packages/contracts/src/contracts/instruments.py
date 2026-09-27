@@ -10,11 +10,11 @@ from typing import Protocol
 IST = timezone(timedelta(hours=5, minutes=30))
 
 # NSE/BSE equity and F&O trading holidays for 2026
-# Source: NSE Circular - Trading Holidays 2026 (Equity & F&O Segment)
-# https://www.nseindia.com/companies-listing/corporate-compliance-trading-holidays
-# Verified against official NSE circular for 2026
+# Source: NSE Circular NSE/CMTR/71775 - Trading Holidays 2026 (Equity & F&O Segment)
+# https://www.nseindia.com/resources/exchange-communication-holidays
+# Verified against official NSE and BSE circulars
 NSE_HOLIDAYS_2026 = {
-    date(2026, 1, 15),  # Makar Sankranti
+    date(2026, 1, 15),  # Added later (MCGM election)
     date(2026, 1, 26),  # Republic Day
     date(2026, 3, 3),  # Mahashivratri
     date(2026, 3, 26),  # Holi
@@ -25,15 +25,13 @@ NSE_HOLIDAYS_2026 = {
     date(2026, 5, 28),  # Buddha Purnima
     date(2026, 6, 26),  # Muharram
     date(2026, 8, 15),  # Independence Day
-    date(2026, 8, 27),  # Ganesh Chaturthi
-    date(2026, 9, 14),  # Eid-e-Milad
+    date(2026, 9, 14),  # Ganesh Chaturthi
     date(2026, 10, 2),  # Gandhi Jayanti
     date(2026, 10, 20),  # Dussehra
-    date(2026, 10, 27),  # Diwali Laxmi Pujan
-    date(2026, 10, 28),  # Diwali Balipratipada
     date(2026, 11, 10),  # Guru Nanak Jayanti
-    date(2026, 11, 24),  # Prakash Parv - Guru Nanak Jayanti
+    date(2026, 11, 24),  # Guru Nanak Jayanti (observed)
     date(2026, 12, 25),  # Christmas
+    # Muhurat trading session on Sunday Nov 8 (not a full holiday)
 }
 
 

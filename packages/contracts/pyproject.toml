@@ -13,6 +13,7 @@ dependencies = []
 test = [
     "pytest>=7.0.0",
     "jsonschema>=4.20.0",
+    "referencing>=0.30.0",
     "hypothesis>=6.0.0",
     "rfc3339-validator>=0.1.4",
 ]

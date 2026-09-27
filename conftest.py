@@ -45,10 +45,17 @@ def _at(path: Any, dir_fd: Any) -> Any:
     """Resolve a dir_fd-relative path (shutil.rmtree uses os.rmdir/unlink(name, dir_fd=fd))."""
     if isinstance(dir_fd, int) and not os.path.isabs(os.fsdecode(path)):
         try:
-            return os.path.join(os.readlink(f"/proc/self/fd/{dir_fd}"), os.fsdecode(path))
+            return os.path.join(
+                os.readlink(f"/proc/self/fd/{dir_fd}"), os.fsdecode(path)
+            )
         except OSError:
             return None
     return path
+
+
+def _is_pycache_write(path: str) -> bool:
+    """Check if path is a Python bytecode cache write (__pycache__/ dir or .pyc file)."""
+    return "__pycache__" in path or path.endswith(".pyc")
 
 
 def _hook(event: str, args: tuple[Any, ...]) -> None:
@@ -62,7 +69,8 @@ def _hook(event: str, args: tuple[Any, ...]) -> None:
             mode is None and isinstance(flags, int) and flags & _WRITE_FLAGS
         )
         if writing and (p := _protected(path)):
-            _violation("open", p)
+            if not _is_pycache_write(p):  # Ignore Python bytecode writes
+                _violation("open", p)
     elif event == "sqlite3.connect":
         db = args[0]
         if (p := _protected(db)) and "mode=ro" not in str(db):
@@ -72,11 +80,21 @@ def _hook(event: str, args: tuple[Any, ...]) -> None:
             _violation(event, p)
     elif event == "os.mkdir":  # mkdir(exist_ok=True) on an existing dir changes nothing
         if (p := _protected(args[0])) and not os.path.exists(p):
-            _violation(event, p)
-    elif event == "os.rmdir":  # os.removedirs walks up; a non-empty dir cannot be removed anyway
+            if not _is_pycache_write(p):  # Ignore __pycache__ directory creation
+                _violation(event, p)
+    elif (
+        event == "os.rmdir"
+    ):  # os.removedirs walks up; a non-empty dir cannot be removed anyway
         if (p := _protected(args[0])) and os.path.isdir(p) and not os.listdir(p):
             _violation(event, p)
-    elif event in ("os.remove", "os.truncate", "os.chmod", "shutil.rmtree", "os.symlink", "os.link"):
+    elif event in (
+        "os.remove",
+        "os.truncate",
+        "os.chmod",
+        "shutil.rmtree",
+        "os.symlink",
+        "os.link",
+    ):
         target = args[1] if event in ("os.symlink", "os.link") else args[0]
         if p := _protected(target):
             _violation(event, p)
@@ -84,11 +102,18 @@ def _hook(event: str, args: tuple[Any, ...]) -> None:
 
 def _snapshot() -> dict[str, tuple[int, int]]:
     snap: dict[str, tuple[int, int]] = {}
+    config_pycache = str(ROOT / "config" / "__pycache__")
     for base in PROTECTED:
         for dirpath, dirnames, filenames in os.walk(base):
-            dirnames[:] = [d for d in dirnames if d != "__pycache__"]
+            # Only exclude config/__pycache__ (not data/**/__pycache__/)
+            if dirpath == config_pycache:
+                dirnames.clear()
+                continue
             snap[dirpath] = (0, 0)
             for name in filenames:
+                # Skip .pyc files under config/__pycache__ only
+                if dirpath == config_pycache and name.endswith(".pyc"):
+                    continue
                 full = os.path.join(dirpath, name)
                 try:
                     st = os.stat(full)
@@ -99,8 +124,12 @@ def _snapshot() -> dict[str, tuple[int, int]]:
 
 
 def pytest_configure(config: pytest.Config) -> None:
-    config.addinivalue_line("markers", "reg11a_probe: REG-11a probe test (exempt from guard)")
-    if not getattr(sys, "_reg11_hook", False):  # audit hooks cannot be removed; install once
+    config.addinivalue_line(
+        "markers", "reg11a_probe: REG-11a probe test (exempt from guard)"
+    )
+    if not getattr(
+        sys, "_reg11_hook", False
+    ):  # audit hooks cannot be removed; install once
         sys.addaudithook(_hook)
         sys._reg11_hook = True  # type: ignore[attr-defined]
     _state["snapshot"] = _snapshot()
@@ -116,14 +145,22 @@ def pytest_runtest_call(item: pytest.Item) -> Any:
     if is_probe:
         return  # Probe tests are allowed to trigger the guard
     new = _state["violations"][before:]
-    if new and outcome.excinfo is None:  # the code under test swallowed the PermissionError
+    if (
+        new and outcome.excinfo is None
+    ):  # the code under test swallowed the PermissionError
         pytest.fail("\n".join(new), pytrace=False)
 
 
 def pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
     _state["armed"] = False
     before, after = _state["snapshot"], _snapshot()
-    changed = sorted(k for k in before.keys() | after.keys() if before.get(k) != after.get(k))
+    changed = sorted(
+        k for k in before.keys() | after.keys() if before.get(k) != after.get(k)
+    )
     if changed:
-        sys.stderr.write("\nREG-11b: data/ or config/ changed during the test run:\n  " + "\n  ".join(changed) + "\n")
+        sys.stderr.write(
+            "\nREG-11b: data/ or config/ changed during the test run:\n  "
+            + "\n  ".join(changed)
+            + "\n"
+        )
         session.exitstatus = pytest.ExitCode.TESTS_FAILED

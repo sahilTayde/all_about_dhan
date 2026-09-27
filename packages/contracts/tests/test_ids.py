@@ -159,3 +159,37 @@ def test_order_id_collision_resistance() -> None:
 
     # All should be unique
     assert len(order_ids) == 1000
+
+
+def test_signal_id_version_collision_resistance() -> None:
+    """Test signal_id distinguishes versions like 1.10.0 vs 11.0.0."""
+    from datetime import timedelta
+
+    ist = timezone(timedelta(hours=5, minutes=30))
+    dt = datetime(2026, 9, 28, 10, 1, 0, tzinfo=ist)
+
+    # Test version collision resistance
+    sid_1_10 = signal_id("R8-E1", "1.10.0", "NIFTY", dt, 0)
+    sid_11_0 = signal_id("R8-E1", "11.0.0", "NIFTY", dt, 0)
+
+    # Must be distinct (was bug: both gave sg_r8e1v1100_...)
+    assert sid_1_10 != sid_11_0
+    assert "v1.10.0" in sid_1_10
+    assert "v11.0.0" in sid_11_0
+
+
+def test_signal_id_strategy_name_collision_resistance() -> None:
+    """Test signal_id distinguishes strategy names like R8-E1 vs R8E1."""
+    from datetime import timedelta
+
+    ist = timezone(timedelta(hours=5, minutes=30))
+    dt = datetime(2026, 9, 28, 10, 1, 0, tzinfo=ist)
+
+    # Test strategy name collision resistance
+    sid_with_dash = signal_id("R8-E1", "1.0.0", "NIFTY", dt, 0)
+    sid_no_dash = signal_id("R8E1", "1.0.0", "NIFTY", dt, 0)
+
+    # Must be distinct (was bug: both gave sg_r8e1_...)
+    assert sid_with_dash != sid_no_dash
+    assert "r8-e1" in sid_with_dash
+    assert "r8e1" in sid_no_dash

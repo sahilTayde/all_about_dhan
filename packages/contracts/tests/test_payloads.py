@@ -1,5 +1,6 @@
 """Tests for payload dataclasses (section 4.4 types)."""
 
+import pytest
 
 from contracts.payloads import (
     AtrStop,
@@ -259,6 +260,49 @@ def test_signal_payload() -> None:
     )
     assert signal.strategy_id == "R8-E1-COIL-SIDE"
     assert signal.confidence == 0.63
+
+
+def test_signal_schema_validation() -> None:
+    """Test SIGNAL schema validation with nested exit_plan and strike_choice ($ref resolution)."""
+    from contracts.validation import validate_payload
+
+    # Valid signal with complete exit_plan and strike_choice
+    valid_signal = {
+        "signal_id": "sg_r8e1-v1.0.0_nifty_20260928_1001_0",
+        "strategy_id": "R8-E1",
+        "version": "1.0.0",
+        "params_hash": "30416a4a",
+        "stage": "shadow",
+        "underlying": "NIFTY",
+        "side": "CE",
+        "strike_rule": "ROUTER",
+        "decision_ts": "2026-09-28T10:01:01.512+05:30",
+        "exit_plan": {
+            "catastrophic": {"level": {"kind": "premium", "price": 300.0}},
+            "flat_by_ist": "15:15",
+        },
+        "strike_choice": {
+            "chosen": "ATM",
+            "reason": "optimal delta",
+            "rule_version": "v1",
+            "alternatives": [
+                {"rule": "ATM", "instrument_id": "NSE_FNO:NIFTY:2026-09-29:24400:CE"},
+                {"rule": "ITM100", "instrument_id": "NSE_FNO:NIFTY:2026-09-29:24300:CE"},
+                {"rule": "ITM200", "instrument_id": "NSE_FNO:NIFTY:2026-09-29:24200:CE"},
+            ],
+        },
+        "reasons": ["COIL_AGE_7M"],
+        "features": {"p_up": 0.63},
+    }
+
+    # Should not raise (validates with $ref resolution)
+    validate_payload("signal", valid_signal)
+
+    # Invalid exit_plan should raise
+    invalid_signal = {**valid_signal, "exit_plan": {"foo": 1}}
+    with pytest.raises(Exception) as exc_info:
+        validate_payload("signal", invalid_signal)
+    assert "ValidationError" in type(exc_info.value).__name__ or "Schema" in str(exc_info.value)
 
 
 def test_decision_payload() -> None:

@@ -101,13 +101,16 @@ def signal_id(
     time_str = dt_ist.strftime("%H%M")
 
     # Normalize strategy_id + version to slug: collision-free, includes version
-    # Keep all alphanumerics (lowercase) to ensure distinct strategies get distinct slugs
-    # "R8-E1" + "1.0.0" -> "r8e1v100"
-    # "R8-E1-COIL-SIDE" + "1.0.0" -> "r8e1coilsidev100"
-    combined = strategy_id + "v" + version
-    strat_slug = "".join(c for c in combined.lower() if c.isalnum())
+    # Keep [a-z0-9.-] and join with "-v" to preserve version separators
+    # "R8-E1" + "1.0.0" -> "r8-e1-v1.0.0" (dots preserved)
+    # "R8-E1" + "1.10.0" -> "r8-e1-v1.10.0" (distinct from 11.0.0)
+    # "R8-E1" + "11.0.0" -> "r8-e1-v11.0.0" (distinct!)
+    # "R8-E1" -> "r8-e1" vs "R8E1" -> "r8e1" (distinct!)
+    strategy_slug = "".join(c.lower() if c.isalnum() or c in ".-" else "" for c in strategy_id)
+    version_slug = "".join(c if c.isalnum() or c in ".-" else "" for c in version)
+    strat_slug = f"{strategy_slug}-v{version_slug}"
 
-    if not strat_slug:
+    if not strategy_slug or not version_slug:
         raise ValueError(
             "signal_id strategy_id and version must contain at least one alphanumeric character"
         )
