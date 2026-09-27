@@ -156,7 +156,8 @@ def _replay(monkeypatch, tmp_path, *, shadow: str):
     fx = load_fixture(FIXTURE)
     monkeypatch.setattr(ps, "load_index_closes", lambda u, root=None: {})
     monkeypatch.setattr(ps, "resolve_lot_size", lambda und, root=None: (int(fx["lot_size"]), "fixture"))
-    return ps.replay_paper_scalp(**fixture_replay_kwargs(fx, tmp_path), write=False)
+    # write=True: shadow rows are written only by replays that write (write=False writes nothing).
+    return ps.replay_paper_scalp(**fixture_replay_kwargs(fx, tmp_path), write=True)
 
 
 def _fingerprint(board):
