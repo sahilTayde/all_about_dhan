@@ -58,6 +58,8 @@ packages/*/.venv/
 data/asr_cache/
 
 # Knowledge DB WAL sidecars (commit the .sqlite when useful)
+# The trading_agents_india KB holds captured sessions, tickets and tape snippets: never public.
+data/knowledge/trading_agents_india.sqlite
 data/knowledge/*.sqlite-wal
 data/knowledge/*.sqlite-shm
 data/knowledge/warehouse.sqlite

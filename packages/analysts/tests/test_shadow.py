@@ -12,6 +12,7 @@ from analysts.shadow import (
     DEALER_LONG_CALLS_SHORT_PUTS,
     bars_upto,
     build_shadow_snapshot,
+    complete_bars_3m,
     days_to_expiry,
     dealer_gex,
     detect_oi_unit,
@@ -99,6 +100,27 @@ def test_truncated_series_does_not_see_the_future():
 
     opens = _bars(5, start=start, close0=25000.0, step=1.0)
     assert _day_open(opens, "2026-09-10") == _day_open(opens + [future], "2026-09-10")
+
+
+def test_cached_3m_bars_match_a_full_scan_including_a_rewind():
+    start = _ts("2026-09-10", 9, 15)
+    start -= start % 60
+    bars: list[dict] = []
+    cache: dict = {}
+    for i in range(90):
+        ts = start + (i // 3) * 60
+        px = 25000.0 + float(i)
+        if bars and bars[-1]["ts"] == ts:
+            bars[-1]["high"] = max(bars[-1]["high"], px + 1)
+            bars[-1]["low"] = min(bars[-1]["low"], px - 1)
+            bars[-1]["close"] = px
+        else:
+            bars.append({"ts": ts, "open": px, "high": px + 1, "low": px - 1, "close": px})
+        now = ts + 20
+        assert complete_bars_3m(bars, now, cache=cache) == complete_bars_3m(bars, now)
+    short = bars[:8]
+    now = int(short[-1]["ts"]) + 5
+    assert complete_bars_3m(short, now, cache=cache) == complete_bars_3m(short, now)
 
 
 def test_snapshot_drops_a_bar_after_the_tick():

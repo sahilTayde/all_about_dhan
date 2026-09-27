@@ -1,3 +1,5 @@
+import { useState } from "react";
+import { sendControl } from "../lib/founderControls.js";
 import { inr, moneyClass } from "../lib/paperBoard.js";
 
 const INDICES = ["NIFTY", "BANKNIFTY", "SENSEX"];
@@ -7,9 +9,41 @@ const INDICES = ["NIFTY", "BANKNIFTY", "SENSEX"];
 export function AccountPanel({ account, today, founderBook, indexing = false }) {
   const a = account || {};
   const status = founderBook?.index_status || {};
+  const [funds, setFunds] = useState("");
+  const [minCap, setMinCap] = useState("");
+  const [why, setWhy] = useState("");
+  const [msg, setMsg] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  async function saveFunds(e) {
+    e.preventDefault();
+    if (!why.trim()) {
+      setMsg("Type a reason first. It is logged with the command.");
+      return;
+    }
+    setBusy(true);
+    setMsg("");
+    try {
+      const done = [];
+      if (funds) done.push((await sendControl("add-funds", { reason: why.trim(), amount_inr: Number(funds) })).kind);
+      if (minCap !== "") done.push((await sendControl("min-capital", { reason: why.trim(), amount_inr: Number(minCap) })).kind);
+      setMsg(done.length ? `Recorded ${done.join(" + ")} · pending until the engine's next cycle.` : "Enter an amount.");
+      if (done.length) {
+        setFunds("");
+        setMinCap("");
+        setWhy("");
+      }
+    } catch (err) {
+      setMsg(err.message || String(err));
+    } finally {
+      setBusy(false);
+    }
+  }
   const allDays = (value, tone) => (indexing ? [<span className="indexing">Indexing history…</span>, "needs-history"] : [value, tone]);
   const rows = [
     ["Starting capital", inr(a.starting_capital_inr, { signed: false }), ""],
+    ["Funds added", inr(a.funds_added_inr, { signed: false }), ""],
+    ["Min capital to trade", a.min_capital_inr == null ? "—" : inr(a.min_capital_inr, { signed: false }), ""],
     ["Running gross", ...allDays(inr(a.gross_inr), moneyClass(a.gross_inr))],
     ["Charges", ...allDays(inr(a.charges_inr == null ? null : -a.charges_inr), a.charges_inr ? "is-down" : "")],
     ["Net (all days)", ...allDays(inr(a.net_inr), moneyClass(a.net_inr))],
@@ -43,21 +77,27 @@ export function AccountPanel({ account, today, founderBook, indexing = false }) 
           </span>
         ))}
       </div>
-      <fieldset className="account-funds" disabled>
-        <legend>Funds · coming in controls PR</legend>
-        <label>
-          Add funds ₹
-          <input type="number" placeholder="—" />
-        </label>
-        <label>
-          Min capital to trade ₹
-          <input type="number" placeholder="—" />
-        </label>
-        <button type="button" className="refresh-btn">
-          Save
-        </button>
-      </fieldset>
-      <p className="muted small">{a.funds_note || "Add funds / minimum capital need an engine-side setting. Coming in the controls PR."}</p>
+      <form className="account-funds" onSubmit={saveFunds}>
+        <fieldset disabled={busy}>
+          <legend>Funds (founder command)</legend>
+          <label>
+            Add funds ₹
+            <input type="number" min="1" value={funds} onChange={(e) => setFunds(e.target.value)} placeholder="—" />
+          </label>
+          <label>
+            Min capital to trade ₹
+            <input type="number" min="0" value={minCap} onChange={(e) => setMinCap(e.target.value)} placeholder="—" />
+          </label>
+          <label>
+            Reason
+            <input value={why} onChange={(e) => setWhy(e.target.value)} maxLength={500} placeholder="logged" />
+          </label>
+          <button type="submit" className="refresh-btn">
+            {busy ? "Saving…" : "Save"}
+          </button>
+        </fieldset>
+      </form>
+      <p className="muted small">{msg || a.funds_note || "Funds and minimum capital are founder commands (PAPER)."}</p>
     </section>
   );
 }

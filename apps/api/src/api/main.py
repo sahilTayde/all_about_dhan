@@ -13,6 +13,7 @@ from fastapi.responses import StreamingResponse
 
 from api.config import load_api_settings
 from api.desk_merge import merge_live_paper_into_desk, overlay_customer_sod_ticket
+from api.founder_controls import router as founder_controls_router
 from api.founder_status import build_founder_status
 from api import ui_feed
 from api.health_alerts import router as health_router
@@ -308,6 +309,7 @@ def create_app() -> FastAPI:
 
     app.include_router(ws_router)
     app.include_router(health_router)
+    app.include_router(founder_controls_router)
     return app
 
 

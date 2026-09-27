@@ -1,5 +1,8 @@
 # Pre-trade risk limits (packages/risk-engine) and the live-order gate (packages/brokers).
-# Re-read on every check, so edits apply to the next order. No secrets here.
+# The live paper loop freezes these limits at its first cycle of the day: edits to the limits,
+# mode, entry window or cooldown apply from the NEXT session (applying them mid-day would change how
+# the morning re-derives). The kill switch is the exception and applies within one cycle.
+# Other callers of the risk engine re-read this file on every check. No secrets here.
 #
 # mode: paper | shadow | limited_live | live        (default and safe: paper)
 # Real Dhan orders need ALL of:
@@ -9,7 +12,8 @@
 # Anything else: DhanBroker refuses and logs. shadow does not send orders yet.
 mode: paper
 
-# Founder kill switch: true (or the file below existing) vetoes every new entry.
+# Founder kill switch: true (or the file below existing) vetoes every new entry from the moment the
+# live loop sees it (it does not erase earlier trades); removing it lets entries resume.
 # Exits, cancels and flatten are still allowed so positions can be closed.
 kill_switch: false
 kill_switch_file: data/ledger/KILL_SWITCH

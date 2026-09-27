@@ -142,7 +142,8 @@ def test_call_budget_cost_budget_rate_limit_and_stale_ticks(tmp_path):
     assert adv.review(ctx(ts=int(NOW) - 2))["status"] == "BUDGET_CALLS"
     assert adv.review(ctx(ts=int(NOW) - 10_000))["status"] == "STALE_TICK"
     assert prov.calls == 2
-    # A restart the same day reads today's spend back from the log.
+    # A restart the same day reads today's spend back from the log (memory ledger cleared).
+    reset_advisors()
     again = Advisor(cfg(tmp_path, max_calls_per_day=2), replay=False, clock=lambda: clock["t"], provider=Online())
     assert again.calls_today == 2 and again.review(ctx(ts=int(NOW) - 3))["status"] == "BUDGET_CALLS"
     assert again.review(ctx(ts=int(NOW)))["cached"]  # verdicts come back too
@@ -169,6 +170,28 @@ def test_background_review_never_blocks_and_logs_later(tmp_path):
     adv.wait_idle()
     assert rows(tmp_path / "calls.jsonl")[0]["status"] == "ok"
     assert adv.review(ctx(), background=True)["cached"]
+
+
+def test_online_and_offline_share_one_call_and_token_budget(tmp_path):
+    base = cfg(tmp_path, max_calls_per_day=2, max_cost_usd_per_day=0.015)
+    online = Advisor(base, replay=False, clock=lambda: NOW, provider=Online(cost=0.01))
+    offline = Advisor(base, replay=True, clock=lambda: NOW)
+    assert online.budget is offline.budget
+    assert offline.review(ctx(ts=int(NOW)))["status"] == "ok"  # counted, not refused
+    assert online.review(ctx(ts=int(NOW) - 1))["status"] == "ok"
+    assert online.budget.calls == 2 and offline.calls_today == 2
+    assert online.review(ctx(ts=int(NOW) - 2))["status"] == "BUDGET_CALLS"
+    assert offline.review(ctx(ts=int(NOW) - 3))["status"] == "ok"  # replay still answers
+    assert online.budget.calls == 3 and online.budget.tokens == 120  # one online reply, 100+20
+
+    priced = cfg(tmp_path / "priced", max_calls_per_day=10, max_cost_usd_per_day=0.015)
+    first = Advisor(priced, replay=False, clock=lambda: NOW, provider=Online(cost=0.01))
+    second = Advisor(priced, replay=False, clock=lambda: NOW, provider=Online(cost=0.01))
+    assert first.budget is second.budget
+    assert first.review(ctx())["status"] == "ok"
+    assert second.budget.tokens == first.budget.tokens == 120
+    assert second.cost_today == first.cost_today
+    assert second.review(ctx(ts=int(NOW) - 1))["status"] == "BUDGET_COST"
 
 
 def test_offline_providers_skip_budgets_so_replay_is_deterministic(tmp_path):
@@ -257,6 +280,96 @@ def test_config_default_is_shadow_and_only_0_or_1(tmp_path):
         p.write_text(body)
         with pytest.raises(ValueError):
             load_config(p)
+
+
+def test_malformed_llm_yaml_falls_back_to_defaults(tmp_path, caplog):
+    import logging
+
+    from analysts.llm import LLMAnalyst
+
+    bad = tmp_path / "llm.yaml"
+    bad.write_text("weight: [\n")
+    with caplog.at_level(logging.ERROR, logger="analysts.llm"):
+        analyst = LLMAnalyst(bad)
+    assert analyst.weight == 0.0 and analyst.cfg["provider"] == "mock"
+    assert any("llm_analyst config failed" in rec.message for rec in caplog.records)
+
+
+def test_online_mode_follows_the_live_loop_not_live_session():
+    from types import SimpleNamespace
+
+    from analysts import AnalystRoom
+    from analysts.llm import LLMAnalyst
+    from desk_ml.event_path import EventSession
+
+    room = AnalystRoom([LLMAnalyst()], deterministic=False, live_loop=False)
+    assert room.analysts[0].replay is True  # live_session used to force online; it no longer does
+    room.close()
+    room = AnalystRoom([LLMAnalyst()], deterministic=True, live_loop=True)
+    assert room.analysts[0].replay is False
+    room.close()
+
+    offline = EventSession(deterministic=False, live_loop=False)
+    offline.attach(SimpleNamespace())
+    try:
+        llm = next(a for a in offline.room.analysts if a.analyst_id == "LLM-ANALYST")
+        assert llm.replay is True
+    finally:
+        offline.close()
+    online = EventSession(live_loop=True)
+    online.attach(SimpleNamespace())
+    try:
+        llm = next(a for a in online.room.analysts if a.analyst_id == "LLM-ANALYST")
+        assert llm.replay is False
+    finally:
+        online.close()
+
+
+def test_session_high_low_matches_a_full_scan_and_ignores_a_rewind():
+    from datetime import datetime, timedelta, timezone
+
+    from analysts.llm import clear_llm_caches, session_high_low
+    from analysts.shadow import _bar_hl, ist_date
+
+    class Eng:
+        pass
+
+    clear_llm_caches()
+    engine = Eng()
+    ist = timezone(timedelta(hours=5, minutes=30))
+    start = int(datetime(2026, 9, 17, 10, 0, tzinfo=ist).timestamp())
+    start -= start % 60
+    day = ist_date(start)
+    yday = start - 86400
+    bars = [{"ts": yday - (yday % 60), "high": 99999.0, "low": 1.0, "close": 50.0}]
+
+    def naive(rows, now):
+        highs, lows = [], []
+        for bar in rows:
+            if int(bar["ts"]) > now or ist_date(int(bar["ts"])) != day:
+                continue
+            high, low = _bar_hl(bar)
+            if high is not None:
+                highs.append(high)
+            if low is not None:
+                lows.append(low)
+        return (max(highs) if highs else None, min(lows) if lows else None)
+
+    for i in range(40):
+        ts = start + (i // 2) * 60
+        px = 100.0 + i
+        if len(bars) > 1 and bars[-1]["ts"] == ts:
+            bars[-1]["high"] = max(bars[-1]["high"], px)
+            bars[-1]["low"] = min(bars[-1]["low"], px - 5)
+            bars[-1]["close"] = px
+        else:
+            bars.append({"ts": ts, "high": px, "low": px - 5, "close": px})
+        now = ts + 10
+        assert session_high_low(engine, bars, now=now, day=day) == naive(bars, now)
+    short = bars[:2]
+    now = int(short[-1]["ts"]) + 10
+    assert session_high_low(engine, short, now=now, day=day) == naive(short, now)
+    clear_llm_caches()
 
 
 def test_llm_module_cannot_reach_broker_desk_or_order_paths():

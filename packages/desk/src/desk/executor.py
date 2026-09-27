@@ -24,7 +24,7 @@ from typing import Any, Optional
 
 from brokers import Order, OrderRefused
 from desk.paper import client_order_id, ledger_cancel_reason, ledger_exit_reason, option_symbol
-from risk_engine import IST, TradeIntent
+from risk_engine import IST, RiskDecision, TradeIntent
 
 log = logging.getLogger("desk")
 
@@ -36,12 +36,17 @@ MTM_HALT = "MTM_HALT"  # mark-to-market / stop path failed; new entries blocked 
 FAILSAFE_MTM = "failsafe_mtm_error"  # close the open ticket on that same tick
 # Live paper loop only. Replays, lab, and parity of the same date must not read this.
 HALT_REL = Path("data") / "desk" / "live_loop" / "mtm_halt.json"
+# Second copy when the halt folder refuses writes (e.g. read-only), so the halt survives a restart.
+HALT_FALLBACK_REL = Path("data") / "health" / "mtm_halt.fallback.json"
 HALT_FILE_KIND = "halt_file"  # the halt file cannot be trusted: every entry is blocked
 HALT_WRITE_KIND = "halt_write"  # the halt could not be saved; kept in this process instead
+EXIT_UNMIRRORED_KIND = "exit_unmirrored"
 
 # The live loop builds a new Desk every cycle in one process. These outlive a single desk.
-# ponytail: process memory only; a loop restart alerts once more per file state, and a halt that
-# could not be written to disk is lost on restart. Upgrade: persist both if restarts get frequent.
+# Alert dedupe is persisted by desk_ml.reliability.AlertSink when the engine has a data root;
+# _LIVE_ALERTED is the in-process fallback. ponytail: a halt that neither the halt folder nor the
+# fallback file accepted (whole disk refusing writes) lives only here and is lost on restart; the
+# live cycle then blocks entries while the data root is unwritable.
 _LIVE_ALERTED: set[tuple[str, str, str]] = set()  # (halt path, session, alert key)
 _UNSAVED_HALTS: dict[str, dict[str, Any]] = {}  # halt path -> state the disk refused
 
@@ -80,12 +85,18 @@ class Desk:
         self.halt_fail_closed = False  # corrupt halt file: block every entry this session
         self.live_loop = bool(live_loop)  # only this run reads/writes the halt file
         self.forced_closes: dict[str, dict[str, Any]] = {}  # trade_id -> saved fail-safe close
+        self.pending_exits: dict[str, dict[str, Any]] = {}  # trade_id -> closed row the broker has not mirrored
         self._alerted_kinds: set[str] = set()
-        if health_alerts_path is None:
-            from desk_ml.persist import repo_root
-
-            health_alerts_path = repo_root() / "data" / "health" / "alerts.jsonl"
-        self.health_alerts_path = Path(health_alerts_path)
+        root = getattr(engine, "root", None)
+        ctx = getattr(engine, "ctx", None)
+        # Under the live cycle a corrupt halt file blocks entries from the moment it was first seen
+        # (a time-bounded block the cycle owns), so re-running the day keeps earlier trades, and
+        # alerts dedupe through the cycle's persisted AlertSink. Replays never touch that state.
+        self.time_bounded = bool(getattr(ctx, "live_loop", False)) and self.live_loop
+        self.alerts = getattr(ctx, "alerts", None) if self.time_bounded else None
+        if health_alerts_path is None and root is not None:
+            health_alerts_path = Path(root) / "data" / "health" / "alerts.jsonl"
+        self.health_alerts_path = Path(health_alerts_path) if health_alerts_path is not None else None
         self.tickets: dict[str, dict[str, Any]] = {}
         self.latency_ms: dict[str, list[float]] = {"entry": [], "tick": []}
         self.vetoes: list[dict[str, Any]] = []
@@ -130,6 +141,7 @@ class Desk:
                 ts = int(step.tick.ts)
                 self._apply_persisted_halt(ist(ts).date().isoformat(), ts)
                 self._reapply_forced_closes(ts)
+            self._retry_pending_exits()
             self._mark_tick(event)
         except Exception as exc:
             # Stops did not run. Close the open tickets on this tick, then keep entries blocked.
@@ -160,10 +172,28 @@ class Desk:
                     "target": pos.target, "last_ltp": pos.last_ltp, "ts": self.now_ts,
                 })
 
-    def _halt_path(self) -> Path:
+    def _data_base(self) -> Path:
         root = getattr(self.engine, "root", None)
-        base = Path(root) if root else self.health_alerts_path.parent
-        return base / HALT_REL
+        if root:
+            return Path(root)
+        return self.health_alerts_path.parent if self.health_alerts_path is not None else Path(".")
+
+    def _halt_path(self) -> Path:
+        return self._data_base() / HALT_REL
+
+    def _fallback_path(self) -> Path:
+        return self._data_base() / HALT_FALLBACK_REL
+
+    def _read_fallback(self, session: str) -> Optional[dict[str, Any]]:
+        """The fallback copy for this session, or None. Unreadable = ignored (the primary rules)."""
+        try:
+            data = json.loads(self._fallback_path().read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return None
+        if not isinstance(data, dict):
+            return None
+        verdict, parsed = self._parse_halt(data, session)
+        return parsed if verdict == "ok" else None
 
     def _read_halt(self) -> tuple[str, dict[str, Any], str]:
         """(status, state, fingerprint). status is missing, ok, or corrupt.
@@ -271,7 +301,7 @@ class Desk:
                 return
             if verdict != "ok":
                 parsed = None
-        merged = self._merge_halt(parsed, self._unsaved_halt(session))
+        merged = self._merge_halt(self._merge_halt(parsed, self._read_fallback(session)), self._unsaved_halt(session))
         if not merged or merged.get("halt_ts") is None:
             return
         halt_ts = int(merged["halt_ts"])
@@ -297,11 +327,18 @@ class Desk:
             self.close(pos, ltp=float(fc["exit"]), ts=int(fc["closed_ts"]), reason=FAILSAFE_MTM)
 
     def _fail_closed_halt(self, session: str, why: str, fingerprint: str = "") -> None:
-        """Cannot trust the halt file. Block entries rather than keep trading. Alert once per file state."""
-        self.halt_fail_closed = True
-        self.entries_blocked = True
+        """Cannot trust the halt file. Block entries rather than keep trading. Alert once per file state.
+
+        Under the live cycle the block starts when the cycle first saw the bad file (it alerts and
+        blocks from then on), so this desk does not block the whole session retroactively.
+        """
         reason = f"MTM halt file failed closed ({why}). New entries blocked for this session."
         self.mtm_halt_reason = reason
+        if self.time_bounded:
+            log.error("%s (time-bounded by the live cycle) path=%s", reason, self._halt_path())
+            return
+        self.halt_fail_closed = True
+        self.entries_blocked = True
         if self._alert_once(session, f"{HALT_FILE_KIND}:{fingerprint}", reason, HALT_FILE_KIND):
             log.error("%s path=%s state=%s", reason, self._halt_path(), fingerprint)
         else:
@@ -317,6 +354,18 @@ class Desk:
             if shared in _LIVE_ALERTED:
                 return False
             _LIVE_ALERTED.add(shared)
+        if self.alerts is not None:  # persisted: a restart does not alert the same incident again
+            if not self.alerts.emit(session=session or "unknown", check="desk_mtm", kind=key, message=reason,
+                                    ts=float(self.now_ts) if self.now_ts else None, entries_blocked=True):
+                return False
+            try:
+                self._publish("HEALTH_ALERT", {
+                    "service": "desk", "status": "CRITICAL", "check": "desk_mtm",
+                    "reason": reason, "entries_blocked": True, "error_kind": kind, "session": session,
+                })
+            except Exception:
+                log.exception("failed to publish HEALTH_ALERT")
+            return True
         try:
             self._publish("HEALTH_ALERT", {
                 "service": "desk", "status": "CRITICAL", "check": "desk_mtm",
@@ -338,17 +387,17 @@ class Desk:
         return False
 
     def _failsafe_price(self, pos: Any, step: Any) -> float:
-        """Last good quote, then this tick's premium, then the entry."""
+        """Last good quote of the booked strike, then this tick's quote of THAT strike, then the entry.
+
+        Never the tape's current ITM/ATM leg when it is another strike.
+        """
         if getattr(pos, "last_ltp", None) is not None:
             return float(pos.last_ltp)
         tick = getattr(step, "tick", None) if step is not None else None
-        side = str(getattr(pos, "side", "") or "").upper()
-        if tick is not None:
-            attrs = ("itm_ce_close", "ce_close") if side == "CE" else ("itm_pe_close", "pe_close")
-            for attr in attrs:
-                raw = getattr(tick, attr, None)
-                if raw is not None:
-                    return float(raw)
+        if tick is not None and getattr(pos, "atm_strike", None) is not None:
+            ltp, _low, src = self._ps.quote_for_side(tick, str(pos.side).upper(), strike=float(pos.atm_strike), itm_only=True)
+            if ltp is not None and (src.startswith("STRIKE_") or src.startswith("ITM")):
+                return float(ltp)
         if getattr(pos, "entry", None) is not None:
             return float(pos.entry)
         return 0.0
@@ -414,6 +463,9 @@ class Desk:
         if status == "corrupt":
             self._fail_closed_halt(session, "unreadable or corrupt halt file", fp)
             log.error("halt file is corrupt; not overwriting it path=%s", self._halt_path())
+            mine = {"session": session, "halt_ts": self.halt_from_ts, "kinds": [kind],
+                    "forced_closes": dict(self.forced_closes), "reason": reason}
+            self._save_fallback(self._merge_halt(self._read_fallback(session), mine), session)
             return
         saved = None
         if status == "ok":
@@ -433,19 +485,36 @@ class Desk:
         try:
             self._write_halt(merged)
         except OSError as exc:
-            _UNSAVED_HALTS[key] = merged  # later desks in this process still apply it
-            reason_w = f"MTM halt could not be saved ({type(exc).__name__}: {exc}). Kept in memory for this process."
+            reason_w = f"MTM halt could not be saved ({type(exc).__name__}: {exc})."
             self._alert_once(session, HALT_WRITE_KIND, reason_w, HALT_WRITE_KIND)
             log.error("%s path=%s", reason_w, key)
+            self._save_fallback(self._merge_halt(self._read_fallback(session), merged), session)
             return
         _UNSAVED_HALTS.pop(key, None)
 
+    def _save_fallback(self, state: Optional[dict[str, Any]], session: str) -> None:
+        """Fallback copy of a halt the primary path could not hold; memory if that fails too."""
+        if not state:
+            return
+        key = str(self._halt_path())
+        out = {**state, "entries_blocked": True, "forced_closes": list(state["forced_closes"].values())}
+        try:
+            from desk_ml.reliability import atomic_write_json
+
+            atomic_write_json(self._fallback_path(), out)
+        except OSError as exc:
+            _UNSAVED_HALTS[key] = state  # later desks in this process still apply it
+            log.error("halt fallback not saved either (%s); kept in memory for this process", exc)
+
     def _append_health_alert(self, reason: str, kind: str) -> None:
-        """Same JSONL shape as packages/health (served by GET /health/alerts)."""
+        """Same JSONL shape as packages/health (served by GET /health/alerts). Session-clock ts."""
         path = self.health_alerts_path
+        if path is None:  # rootless unit-test desk: log only
+            return
         path.parent.mkdir(parents=True, exist_ok=True)
         rec = {
-            "ts": datetime.now(IST).isoformat(timespec="seconds"),
+            "ts": self.clock().isoformat(timespec="seconds"),
+            "wall_ts": datetime.now(IST).isoformat(timespec="seconds"),
             "event": "ALERT",
             "check": "desk_mtm",
             "severity": "CRITICAL",
@@ -505,12 +574,46 @@ class Desk:
         except OrderRefused as exc:
             self._veto(pos, BROKER_REFUSED, {"reason_code": BROKER_REFUSED, "reason_text": str(exc)})
             return
+        except Exception as exc:  # timeout / broker error: the order state is unknown -> no entry
+            self._veto(pos, BROKER_REFUSED, {"reason_code": "BROKER_ERROR", "reason_text": f"{type(exc).__name__}: {exc}"})
+            return
         self.tickets[pos.trade_id] = {"order": order, "symbol": symbol, "filled": False, "pos": pos}
         self._publish("ORDER_SUBMITTED", self._order_payload(order, pos.trade_id))
         self._ps._commit_open(self.engine, pos)
         if pos.filled:
             self._fill_entry(pos.trade_id, self._ps.costs.booked_entry(self.engine, pos), int(pos.opened_ts))
         self.latency_ms["entry"].append((time.perf_counter() - t0) * 1000.0)
+
+    def adopt_booked(self, pos: Any) -> None:
+        """Mirror a ticket booked in an earlier live cycle (already approved then) to broker + ledger.
+
+        The live loop carries booked open tickets instead of re-deriving them; the broker and the
+        per-cycle ledger must hold them too so their exits are mirrored. Not a new entry.
+        """
+        from risk_engine import RiskDecision
+
+        if pos.trade_id in self.tickets:
+            return
+        symbol = option_symbol(pos.underlying, pos.atm_strike, pos.side)
+        try:
+            intent = TradeIntent(
+                symbol=symbol, side="BUY", lots=int(pos.lots), lot_size=int(pos.lot_size), order_type="LIMIT",
+                price=float(pos.limit_price or pos.entry), decision_price=float(pos.entry),
+                stop_loss=float(pos.stop), target=float(pos.target), purpose="ENTRY", trade_id=pos.trade_id,
+                client_order_id=client_order_id(pos.trade_id, "E"),
+            )
+            when = ist(int(pos.opened_ts))
+            decision = RiskDecision(True, intent.client_order_id, "ENTRY", "ADOPTED",
+                                    "booked in an earlier live cycle", self.now or when)
+            order = self.broker.place_order(intent, decision)
+        except Exception as exc:  # the engine still manages it; only the mirror is missing
+            session = ist(int(pos.opened_ts)).date().isoformat()
+            self._alert_once(session, f"adopt_failed:{pos.trade_id}", f"carried ticket {pos.trade_id} not mirrored: {exc}",
+                             "adopt_failed")
+            return
+        self.tickets[pos.trade_id] = {"order": order, "symbol": symbol, "filled": False, "pos": pos}
+        if pos.filled:
+            self._fill_entry(pos.trade_id, float(pos.entry), int(self.now_ts or pos.opened_ts))
 
     def _order_payload(self, order: Order, trade_id: str, **extra: Any) -> dict[str, Any]:
         i = order.intent
@@ -548,11 +651,28 @@ class Desk:
         for row in self.engine.closed[n_closed:]:
             self._mirror_close(row)
 
+    def _retry_pending_exits(self) -> None:
+        for trade_id, pend in list(self.pending_exits.items()):
+            self.tickets.setdefault(trade_id, pend["ticket"])
+            self.pending_exits.pop(trade_id, None)
+            self._mirror_close(pend["row"])
+
+    def _pend_exit(self, trade_id: str, t: dict[str, Any], row: dict[str, Any], why: str) -> None:
+        """The engine booked the close; the broker/ledger did not. Keep it and retry every tick."""
+        self.pending_exits[trade_id] = {"ticket": t, "row": row}
+        self._alert_unmirrored(trade_id, why)
+
     def _mirror_close(self, row: dict[str, Any]) -> None:
         trade_id = str(row.get("trade_id"))
         t = self.tickets.pop(trade_id, None)
         if t is None:
             return
+        try:
+            self._mirror_close_ticket(trade_id, t, row)
+        except Exception as exc:  # never lose the exit: retry next tick
+            self._pend_exit(trade_id, t, row, f"exit mirror failed: {type(exc).__name__}: {exc}")
+
+    def _mirror_close_ticket(self, trade_id: str, t: dict[str, Any], row: dict[str, Any]) -> None:
         order, ts = t["order"], int(row["closed_ts"])
         if row.get("filled"):
             if not t["filled"]:
@@ -566,19 +686,24 @@ class Desk:
                 exit_reason=ledger_exit_reason(row["exit_reason"]),
                 trade_id=trade_id, client_order_id=client_order_id(trade_id, "X"),
             )
-            decision = self.risk.check_exit(intent, now=self.clock())
-            if not decision.approved:
-                self._alert_unmirrored(trade_id, f"exit refused by risk: {decision.reason_code}")
-            else:
+            exit_order = t.get("exit_order")  # a retry after the exit was placed but not filled
+            if exit_order is None:
+                decision = self._exit_decision(intent, "EXIT", row)
+                if not decision.approved:
+                    self._pend_exit(trade_id, t, row, f"exit refused by risk: {decision.reason_code}")
+                    return
                 exit_order = self.broker.place_order(intent, decision)
+                t["exit_order"] = exit_order
                 self._publish("ORDER_SUBMITTED", self._order_payload(exit_order, trade_id))
+            if exit_order.is_open:
                 self.broker.fill_at(exit_order, float(row["exit"]), ist(ts))
                 self._publish("ORDER_FILLED", self._order_payload(
                     exit_order, trade_id, fill_price=exit_order.avg_fill_price, engine_price=row["exit"], ts=ts))
         elif order.is_open:
-            decision = self.risk.check_exit(order.intent, "CANCEL", now=self.clock())
+            decision = self._exit_decision(order.intent, "CANCEL", row)
             if not decision.approved:
-                self._alert_unmirrored(trade_id, f"cancel refused by risk: {decision.reason_code}")
+                self._pend_exit(trade_id, t, row, f"cancel refused by risk: {decision.reason_code}")
+                return
             else:
                 self.broker.cancel_order(order, decision, reason=ledger_cancel_reason(row["exit_reason"]))
                 self._publish("ORDER_CANCELLED", self._order_payload(order, trade_id, reason=order.cancel_reason))
@@ -589,6 +714,28 @@ class Desk:
             )
         })
 
+    def _exit_decision(self, intent: TradeIntent, action: str, row: dict[str, Any]) -> RiskDecision:
+        """Founder-controls hook: a founder exit (FOUNDER_*) is mirrored even if the risk engine raises or refuses."""
+        founder = str(row.get("exit_reason") or "").startswith("FOUNDER_")
+        try:
+            decision = self.risk.check_exit(intent, action, now=self.clock())
+        except Exception as exc:
+            if not founder:
+                raise
+            why = f"{type(exc).__name__}: {exc}"
+        else:
+            if decision.approved or not founder:
+                return decision
+            why = decision.reason_code
+        self._publish("HEALTH_ALERT", {
+            "service": "desk", "status": "CRITICAL", "trade_id": row.get("trade_id"),
+            "reason": f"founder exit mirrored without risk approval: {why}",
+        })
+        return RiskDecision(True, intent.client_order_id, action, "FOUNDER_OVERRIDE", why, self.clock(), critical=True)
+
     def _alert_unmirrored(self, trade_id: str, why: str) -> None:
+        """One alert per trade (not per retry)."""
         log.error("paper close %s not mirrored to broker: %s", trade_id, why)
-        self._publish("HEALTH_ALERT", {"service": "desk", "status": "CRITICAL", "trade_id": trade_id, "reason": why})
+        session = ist(int(self.now_ts)).date().isoformat() if self.now_ts else "unknown"
+        self._alert_once(session, f"{EXIT_UNMIRRORED_KIND}:{trade_id}", f"paper close {trade_id} not mirrored: {why}",
+                         EXIT_UNMIRRORED_KIND)

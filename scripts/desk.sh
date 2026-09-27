@@ -44,10 +44,22 @@ stop_dual_tape() {
   rm -f "$RECON/paper_dual_tape_RUNNING.flag"
 }
 
+rotate_log() {  # size-based, keep 7: the live log must not fill the disk
+  local log="$1" max=$((50 * 1024 * 1024))
+  [[ -f "$log" ]] || return 0
+  local size
+  size=$(wc -c <"$log" | tr -d ' ')
+  (( size < max )) && return 0
+  for n in 6 5 4 3 2 1; do [[ -f "$log.$n" ]] && mv -f "$log.$n" "$log.$((n + 1))"; done
+  mv -f "$log" "$log.1"
+}
+
 start_dual_tape() {
   rm -f "$RECON/paper_dual_tape_STOPPED.flag"
   screen -S dual-tape-live-2s -X quit 2>/dev/null || true
-  screen -dmS dual-tape-live-2s zsh -lc "cd '$ROOT' && '$PY' -u -m trading_agents_india dual-tape --live-chain --paper-train --paper-scalp --tick-seconds 2 --max-ticks 0 >> '$RECON/dual_tape_live_2s.log' 2>&1"
+  rotate_log "$RECON/dual_tape_live_2s.log"
+  # health.supervise restarts a crashed loop and kills+restarts a hung one (stale engine heartbeat).
+  screen -dmS dual-tape-live-2s zsh -lc "cd '$ROOT' && '$PY' -u -m health.supervise -- '$PY' -u -m trading_agents_india dual-tape --live-chain --paper-train --paper-scalp --tick-seconds 2 --max-ticks 0 >> '$RECON/dual_tape_live_2s.log' 2>&1"
 }
 
 arm_dual_tape_when_open() {

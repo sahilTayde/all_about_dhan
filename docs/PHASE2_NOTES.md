@@ -85,9 +85,12 @@ desk   founder pause? -> RiskEngine.check_entry -> PaperBroker.place_order -> bo
   the halt cannot be written, it is kept in memory for the rest of the loop process and a
   `halt_write` alert is raised. That in-memory copy and the alert dedupe do not survive a loop
   restart.
-- **Analyst timeout.** `timeout_ms` in `config/analysts.yaml` (and an optional per-key
-  `timeout_ms`) is the live paper loop's wall-clock budget. Replay and parity run analysts
-  in order with no wall-clock abstain, so a busy machine cannot change a vote.
+- **Analyst timeout.** `timeout_ms` in `config/analysts.yaml` is the live paper loop's
+  wall-clock budget for every analyst. Replay and parity still run the voting room in
+  order with no wall-clock abstain, so a busy machine cannot change a vote. A row with
+  its own `timeout_ms` (LLM-ANALYST) is also capped during replay, so a hung call cannot
+  stall the tape. The LLM's online provider runs only when `live_loop` is on; a
+  `live_session` replay stays on the offline provider.
 - **Shadow analysts.** Rows with `shadow: true` log `value`, `flag`, `confidence` and
   `reasoning` on `ANALYST_VOTE` and are ignored by the boss. Definitions:
   `docs/SHADOW_ANALYSTS.md`. CSV: `python scripts/export_shadow_audit.py --audit <sqlite> --out shadow.csv`.
@@ -172,8 +175,11 @@ and every skip-reason count matched, and the event path's ledger holds the same 
 Run it with no active `human_trade_override.json`: the first path clears the override, so the
 second path would see a different input.
 
-The quoted baseline, **+94,962.39 over 38 trades** ("Phase-2 rules + 10:00–14:30 window"), came
-from a lab run of the proven-fix stack (loss cooldown, 10:00–14:30 clock). `replay_paper_scalp`
+The quoted baseline, **+110,000.29 over 36 trades** ("Phase-2 rules + 10:00–14:30 window", Sep 17–25
+tapes), came from a lab run of the proven-fix stack (loss cooldown, 10:00–14:30 clock). The older
+figure, +94,962.39 over 38 trades, predates the closed-bar fix in `logit_side_series`: that run let the
+3m logit vote use a bar on the print that later turned out to be its bucket's last one, which live
+can never know. Now a bar counts only after its 3-minute bucket has ended. `replay_paper_scalp`
 does not have those rules yet (they are PR-010-class behaviour changes). So this harness proves
 the two paths are equivalent for whatever replay configuration you pass; it does not recompute
 that lab number. Once those rules land in the replay, rerun the command above to check the figure

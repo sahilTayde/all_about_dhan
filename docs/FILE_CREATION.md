@@ -41,6 +41,7 @@
 | `V2_PRODUCTION_ARCHITECTURE.md` / `V2_BUILD_PLAN.md` | `docs/architecture/` | V2 stack design and build order (founder 2026-09-26). Edit in place. No other files in this folder. |
 | `FOUNDER_COMMENTS_LOG.md` | `docs/founder/` | Single source of truth for the founder's mid-build comments (C1, C2, …). Append rows; never a second copy. |
 | Cursor rule `*.mdc` | `.cursor/rules/` | New always-on routing. Keep short. |
+| `PR_A_CRITIQUE.md` / `README.md` | `docs/reliability/` | Reliability build: spec critique + CI / offline verification commands. Edit in place. |
 
 Teacher books, `config/workspace.yaml` `sources.books[]`, STRAT/MIX/CAS catalogs, and `docs/` product standards (`COMPLIANCE`, `SECURITY`, `SDLC`, `REVIEW`, `INDEX`, `COMPANY_DEPARTMENTS`, …) are **edit-in-place**.
 
