@@ -1,5 +1,9 @@
 # Migration Plan
 
+> **Superseded for new work (founder, 2026-09-26):** the old engine is frozen as a reference benchmark. Build order
+> is now [`architecture/V2_BUILD_PLAN.md`](architecture/V2_BUILD_PLAN.md), which marks each step below as done,
+> reuse, rebuild or drop. This file stays as history and as the source of the original acceptance tests and budgets.
+
 **Purpose:** Ordered list of small PRs to migrate from current monolithic system to target modular architecture. Each PR has scope, acceptance test, risk assessment, and performance budget (where applicable).
 
 **Principles:**
