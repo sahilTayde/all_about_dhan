@@ -11,7 +11,7 @@ from brokers.orders import Order, OrderState
 from contracts.ids import order_id
 from contracts.instruments import India
 from contracts.payloads import Decision, EntryPlan, ExitPlan
-from events.bus import MemoryBus  # type: ignore[import-untyped]
+from events.bus import MemoryBus
 from ledger.charges import load_rates  # type: ignore[import-untyped]
 from risk_engine import RiskDecision, TradeIntent
 from risk_engine.last_good import LastGood, V2RiskEngine

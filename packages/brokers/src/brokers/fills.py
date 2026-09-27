@@ -8,7 +8,7 @@ from datetime import datetime, time, timedelta
 from pathlib import Path
 from typing import Any, Protocol
 
-import yaml
+import yaml  # type: ignore[import-untyped]
 from risk_engine import IST, RiskDecision
 
 from brokers.orders import Order, OrderRefused
@@ -21,7 +21,9 @@ DEFAULT_TABLE: dict[str, dict[str, float]] = {
     "ITM100": {"before_12": 0.30, "from_12": 0.35, "after_15": 0.40},
     "ITM200": {"before_12": 0.35, "from_12": 0.40, "after_15": 0.45},
 }
-_INDIA_YAML = Path(__file__).resolve().parents[4] / "config" / "v2" / "markets" / "india.yaml"
+_INDIA_YAML = (
+    Path(__file__).resolve().parents[4] / "config" / "v2" / "markets" / "india.yaml"
+)
 
 
 def tick_against(price: float, side: str, tick: float = TICK) -> float:
@@ -39,7 +41,9 @@ def resting_limit(limit: float, side: str, tick: float = TICK) -> float | None:
     return round(ticks * tick, 2)
 
 
-def traded_through(print_px: float, limit: float, side: str, tick: float = TICK) -> bool:
+def traded_through(
+    print_px: float, limit: float, side: str, tick: float = TICK
+) -> bool:
     rest = resting_limit(limit, side, tick)
     if rest is None:
         return False
@@ -48,7 +52,9 @@ def traded_through(print_px: float, limit: float, side: str, tick: float = TICK)
     return print_px >= rest + tick - 1e-9
 
 
-def limit_fill_price(print_px: float, limit: float, side: str, tick: float = TICK) -> float | None:
+def limit_fill_price(
+    print_px: float, limit: float, side: str, tick: float = TICK
+) -> float | None:
     """REG-14: fill only on a trade-through, always at the limit. Touch is not a fill."""
     rest = resting_limit(limit, side, tick)
     if rest is None or not traded_through(print_px, limit, side, tick):
@@ -94,7 +100,9 @@ def load_fcmeas_table(path: Path | None = None) -> dict[str, dict[str, float]]:
         return {k: dict(v) for k, v in DEFAULT_TABLE.items()}
     data = yaml.safe_load(src.read_text(encoding="utf-8")) or {}
     raw = data.get("fcmeas_pts_per_side") or DEFAULT_TABLE
-    return {str(k): {str(bk): float(bv) for bk, bv in row.items()} for k, row in raw.items()}
+    return {
+        str(k): {str(bk): float(bv) for bk, bv in row.items()} for k, row in raw.items()
+    }
 
 
 @dataclass(frozen=True)
@@ -167,13 +175,19 @@ class DepthFill:
             return None
         if kind == "MARKET":
             raw = (touch if touch is not None else print_px) or 0.0
-            raw = raw + _impact(order.lots) if side == "BUY" else raw - _impact(order.lots)
+            raw = (
+                raw + _impact(order.lots)
+                if side == "BUY"
+                else raw - _impact(order.lots)
+            )
             return tick_against(raw, side, order.tick_size), self.name
         if kind in ("SL", "SL-M"):
             if order.trigger_price is None or print_px is None:
                 return None
             slip = fcmeas_half_spread(order.moneyness, now)
-            px = stop_fill_price(print_px, order.trigger_price, side, slip, order.tick_size)
+            px = stop_fill_price(
+                print_px, order.trigger_price, side, slip, order.tick_size
+            )
             return (px, self.name) if px is not None else None
         if order.price is None:
             return None
@@ -211,7 +225,9 @@ class FcMeasFill:
         if kind in ("SL", "SL-M"):
             if order.trigger_price is None:
                 return None
-            px = stop_fill_price(px_ltp, order.trigger_price, side, slip, order.tick_size)
+            px = stop_fill_price(
+                px_ltp, order.trigger_price, side, slip, order.tick_size
+            )
             return (px, self.name) if px is not None else None
         if order.price is None:
             return None
@@ -260,7 +276,9 @@ class ClockedPaperBroker(PaperBroker):
         self.sensitivity_flat: dict[str, float] = {}
         self._order_meta: dict[str, FillOrder] = {}
 
-    def approval_problems(self, decision: Any, action: str, client_order_id: str) -> list[str]:
+    def approval_problems(
+        self, decision: Any, action: str, client_order_id: str
+    ) -> list[str]:
         if not isinstance(decision, RiskDecision):
             return ["no risk decision"]
         problems: list[str] = []
@@ -272,10 +290,14 @@ class ClockedPaperBroker(PaperBroker):
             problems.append("decision is for a different order")
         age = (self.clock.now() - decision.ts).total_seconds()
         if not -5 <= age <= self.max_decision_age_s:
-            problems.append(f"decision is {age:.0f}s old (max {self.max_decision_age_s:.0f}s)")
+            problems.append(
+                f"decision is {age:.0f}s old (max {self.max_decision_age_s:.0f}s)"
+            )
         return problems
 
-    def require_approval(self, decision: Any, action: str, client_order_id: str) -> None:
+    def require_approval(
+        self, decision: Any, action: str, client_order_id: str
+    ) -> None:
         problems = self.approval_problems(decision, action, client_order_id)
         if problems:
             raise OrderRefused("; ".join(problems))
@@ -342,7 +364,9 @@ class ClockedPaperBroker(PaperBroker):
         quote = Quote(available_ts=q_ts, bid=None, ask=None, ltp=ltp)
         if q_ts <= now:
             self.quotes.append(quote)
-        for order in [o for o in self.orders.values() if o.is_open and o.intent.symbol == symbol]:
+        for order in [
+            o for o in self.orders.values() if o.is_open and o.intent.symbol == symbol
+        ]:
             if not order.is_open:
                 continue
             self._trail(order, ltp)
@@ -358,5 +382,7 @@ class ClockedPaperBroker(PaperBroker):
             if px is None:
                 continue
             self.fill_models[order.client_order_id] = model
-            self.sensitivity_flat[order.client_order_id] = flat_sensitivity(ltp, order.intent.side)
+            self.sensitivity_flat[order.client_order_id] = flat_sensitivity(
+                ltp, order.intent.side
+            )
             self._fill(order, px, ts)

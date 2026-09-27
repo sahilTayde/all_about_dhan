@@ -30,7 +30,13 @@ def test_reg_02a_protective_stop_exists_after_every_entry_fill(tmp_path: Path) -
     assert not isinstance(order, Veto)
     clock.advance_by(timedelta(milliseconds=250))
     broker.on_depth(
-        Quote(available_ts=clock.now(), bid=151.00, ask=151.20, ltp=151.10, instrument_id=INST)
+        Quote(
+            available_ts=clock.now(),
+            bid=151.00,
+            ask=151.20,
+            ltp=151.10,
+            instrument_id=INST,
+        )
     )
     assert order.state.value == "FILLED"
     stop_id = order_id("founder", SIG, "stop")
@@ -51,7 +57,13 @@ def test_reg_02e_bad_risk_yaml_still_allows_exit(tmp_path: Path) -> None:
     assert not isinstance(order, Veto)
     clock.advance_by(timedelta(milliseconds=250))
     broker.on_depth(
-        Quote(available_ts=clock.now(), bid=151.00, ask=151.20, ltp=151.10, instrument_id=INST)
+        Quote(
+            available_ts=clock.now(),
+            bid=151.00,
+            ask=151.20,
+            ltp=151.10,
+            instrument_id=INST,
+        )
     )
     cfg.write_text("mode: [this is not: valid yaml")
     pos = store.open_positions()[0]
