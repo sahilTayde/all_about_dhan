@@ -30,9 +30,11 @@ def test_order_id_collision_1e6() -> None:
     """Generate 10^6 order_ids and assert no collisions."""
     ids = set()
     for i in range(10**6):
-        account = f"acc_{i // 10000}"
-        signal = f"sg_{i // 100}"
-        leg = f"leg_{i % 10}"
+        # Generate unique (account, signal, leg) tuples
+        # Use i directly to ensure uniqueness
+        account = f"acc_{i % 100}"  # 100 unique accounts
+        signal = f"sg_{i}"  # Each i gets a unique signal
+        leg = f"leg_{i % 10}"  # 10 unique legs
         oid = order_id(account, signal, leg)
         ids.add(oid)
 

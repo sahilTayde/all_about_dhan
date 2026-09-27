@@ -252,8 +252,8 @@ class India:
         strike = parts[3] if len(parts) > 3 else ""
         option_type = parts[4] if len(parts) > 4 else ""
 
-        # Validate expiry (must have year if present)
-        if expiry and len(expiry) < 4:
+        # Validate expiry (must have 4-digit year if present)
+        if expiry and ("-" not in expiry or len(expiry.split("-")[0]) != 4):
             raise ValueError(f"Invalid expiry format (must include year): {expiry}")
 
         # Validate option_type (must be CE or PE if present)

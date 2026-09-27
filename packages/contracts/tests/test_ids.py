@@ -69,8 +69,6 @@ def test_event_id_different_sequence() -> None:
 
 def test_signal_id_format() -> None:
     """Test signal_id format matches spec example."""
-    ist = timezone(datetime.now().astimezone().utcoffset() or 0)  # Use local offset as IST proxy
-    # Use IST explicitly
     from datetime import timedelta
 
     ist = timezone(timedelta(hours=5, minutes=30))

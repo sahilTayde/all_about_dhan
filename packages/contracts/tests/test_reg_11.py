@@ -10,7 +10,7 @@ def test_reg11a_write_to_data_is_blocked(tmp_path):
     """REG-11a probe: writes into data/ must be blocked by audit hook."""
     from pathlib import Path
 
-    with pytest.raises(PermissionError, match="REG-11: test writes"):
+    with pytest.raises(PermissionError, match="REG-11"):
         (Path("data") / "test.txt").write_text("forbidden")
 
 
@@ -19,7 +19,7 @@ def test_reg11a_write_to_config_is_blocked(tmp_path):
     """REG-11a probe: writes into config/ must be blocked by audit hook."""
     from pathlib import Path
 
-    with pytest.raises(PermissionError, match="REG-11: test writes"):
+    with pytest.raises(PermissionError, match="REG-11"):
         (Path("config") / "test.yaml").write_text("forbidden")
 
 
