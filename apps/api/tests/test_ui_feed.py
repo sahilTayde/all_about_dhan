@@ -105,7 +105,12 @@ def test_history_merges_board_and_model_log_across_days(tmp_path) -> None:
                        "by_reason": {"STOP": {"n": 1, "gross": -400.0, "charges": 60.0, "net": -460.0}}}
     acct = account(board, days)
     assert acct["net_inr"] == 540.0 and acct["equity_inr"] == 500540.0 and acct["n_days"] == 2
-    assert acct["funds_editable"] is False
+    assert acct["funds_editable"] is True and acct["funds_added_inr"] == 0.0 and acct["min_capital_inr"] is None
+    (tmp_path / "data" / "recon").mkdir(parents=True, exist_ok=True)
+    (tmp_path / "data" / "recon" / "founder_account.json").write_text('{"funds_added_inr": 50000, "min_capital_inr": 300000}')
+    funded = account(board, days, tmp_path)
+    assert funded["funds_added_inr"] == 50000 and funded["min_capital_inr"] == 300000
+    assert funded["equity_inr"] == 550540.0
 
 
 def test_stale_tape_in_market_hours_is_red_and_alerts(tmp_path) -> None:

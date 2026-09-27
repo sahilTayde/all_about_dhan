@@ -499,23 +499,29 @@ def day_summaries(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return sorted(days.values(), key=lambda d: d["day"], reverse=True)
 
 
-def account(board: dict[str, Any], days: list[dict[str, Any]]) -> dict[str, Any]:
+def account(board: dict[str, Any], days: list[dict[str, Any]], root: Optional[Path] = None) -> dict[str, Any]:
     plan = board.get("capital_plan") or {}
     start = plan.get("desk_capital_inr") or board.get("starting_desk_inr")
     gross = round(sum(d["gross"] for d in days), 2)
     charges = round(sum(d["charges"] for d in days), 2)
     net = round(sum(d["net"] for d in days), 2)
+    # founder ADD_FUNDS / MIN_CAPITAL (desk_ml.founder_commands); the command log is the source of truth
+    view = read_json(root / "data" / "recon" / "founder_account.json") if root is not None else None
+    view = view if isinstance(view, dict) else {}
+    added = float(view.get("funds_added_inr") or 0.0)
     return {
         "starting_capital_inr": start,
+        "funds_added_inr": added,
+        "min_capital_inr": view.get("min_capital_inr"),
         "gross_inr": gross,
         "charges_inr": charges,
         "net_inr": net,
-        "equity_inr": round(float(start) + net, 2) if start is not None else None,
+        "equity_inr": round(float(start) + added + net, 2) if start is not None else None,
         "n_days": len(days),
         "first_day": days[-1]["day"] if days else None,
         "last_day": days[0]["day"] if days else None,
-        "funds_editable": False,
-        "funds_note": "Add funds / minimum capital need an engine-side setting. Coming in the controls PR.",
+        "funds_editable": True,
+        "funds_note": "Founder commands: logged with who/why, applied by the engine from their timestamp. PAPER only.",
     }
 
 
@@ -778,7 +784,7 @@ def build_snapshot(root: Path = REPO, *, now: Optional[datetime] = None, fstatus
         "risk_halt": halt,
         "days": days,
         "history_complete": history_complete,
-        "account": account(board, days),
+        "account": account(board, days, root),
         "orders": "REFUSED",
         "promote": False,
     }
