@@ -5978,19 +5978,19 @@ def replay_paper_scalp(
     sod_one_ticket: Optional[bool] = None,
     picker_majority: Optional[bool] = None,
     hold_trending_open_stall: bool = False,
+    cost_model: Optional[str] = None,
     nifty_cover_closed_1m: Optional[bool] = None,
     use_event_bus: Optional[bool] = None,
     event_session: Optional[Any] = None,
     live_loop: bool = False,
-    cost_model: Optional[str] = None,
 ) -> dict[str, Any]:
     """`use_event_bus` (default: env USE_EVENT_BUS, off) runs each tick through desk_ml.event_path
     (boss → analysts → desk → risk engine → PaperBroker → ledger) instead of `step_underlying`.
+    `cost_model` (legacy | realistic) overrides env PAPER_COST_MODEL and config/paper_costs.yaml.
     Same trades by construction; see docs/PHASE2_NOTES.md. `event_session` implies the flag.
 
     `live_loop` is set only by `run_loop`. It is what may read the MTM halt file.
     `write=False` does not append `data/recon/ml_paper_model_logs.jsonl`.
-    `cost_model` (legacy | realistic) overrides env PAPER_COST_MODEL and config/paper_costs.yaml.
     """
     token = _MODEL_LOGS.set(bool(write))
     try:
@@ -6009,11 +6009,10 @@ def replay_paper_scalp(
             nifty_skip_side_after_stop=nifty_skip_side_after_stop, nifty_skip_ce_after_stop=nifty_skip_ce_after_stop,
             nifty_max_filled_per_book=nifty_max_filled_per_book, nifty_halt_after_stops=nifty_halt_after_stops,
             nifty_session_lean=nifty_session_lean, point_profile_overrides=point_profile_overrides,
-            paper_hold_bars=paper_hold_bars, observer_veto_fills=observer_veto_fills,
+            paper_hold_bars=paper_hold_bars, observer_veto_fills=observer_veto_fills, cost_model=cost_model,
             sod_one_ticket=sod_one_ticket, picker_majority=picker_majority,
             hold_trending_open_stall=hold_trending_open_stall, nifty_cover_closed_1m=nifty_cover_closed_1m,
             use_event_bus=use_event_bus, event_session=event_session, live_loop=live_loop,
-            cost_model=cost_model,
         )
     finally:
         _MODEL_LOGS.reset(token)
@@ -6058,11 +6057,11 @@ def _replay_paper_scalp(
     sod_one_ticket: Optional[bool] = None,
     picker_majority: Optional[bool] = None,
     hold_trending_open_stall: bool = False,
+    cost_model: Optional[str] = None,
     nifty_cover_closed_1m: Optional[bool] = None,
     use_event_bus: Optional[bool] = None,
     event_session: Optional[Any] = None,
     live_loop: bool = False,
-    cost_model: Optional[str] = None,
 ) -> dict[str, Any]:
     if hold_trending_open_stall and write:
         raise ValueError("hold_trending_open_stall is write=false A/B only. NO_PROMOTE.")
