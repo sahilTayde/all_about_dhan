@@ -251,6 +251,14 @@ def test_process_exits_promptly_after_a_hung_source(tmp_path: Path) -> None:
     import subprocess
     import sys
 
+    # Skip if loopback interface is unavailable (e.g. some container/CI environments)
+    try:
+        test_socket = socket.socket()
+        test_socket.bind(("127.0.0.1", 0))
+        test_socket.close()
+    except OSError as e:
+        pytest.skip(f"Loopback interface unavailable: {e}")
+
     srv = socket.socket()
     srv.bind(("127.0.0.1", 0))
     srv.listen(8)
