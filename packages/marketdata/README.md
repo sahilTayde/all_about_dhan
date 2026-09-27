@@ -45,6 +45,15 @@ python -m marketdata --record-only
 - Options: `--underlying NIFTY|BANKNIFTY|SENSEX`, `--tape-root PATH`.
   `python -m marketdata --coverage YYYY-MM-DD` recomputes the coverage summary.
 
+The live service (V2-12) is a **separate** entry point so Monday's `--record-only` CLI stays the same:
+
+```bash
+python -m marketdata.dhan_ws --mode live-data
+python -m marketdata.dhan_ws --mode replay --tape /path/to/ticks.jsonl
+```
+
+`--mode live-data` refuses to start without `DHAN_CLIENT_ID` / `DHAN_ACCESS_TOKEN`. `--mode replay` needs no credentials and plays a tape into an in-process publisher (or Redis with `--redis-url`).
+
 ## What it records
 
 At startup: the scrip master CSV (cached daily in `data/cache/marketdata/`), the nearest
