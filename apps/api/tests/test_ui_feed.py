@@ -199,3 +199,37 @@ def test_alert_ids_change_per_episode_and_news_uses_item_time(tmp_path) -> None:
                                                         {"headline": "b", "time_ist": "2026-01-15T09:30:00+05:30"}]}))
     (tmp_path / "data" / "desk_intel" / ".gitkeep").write_text("")
     assert latest_news_ts(tmp_path) == int(datetime(2026, 1, 15, 9, 30, tzinfo=IST).timestamp())
+
+
+def test_history_complete_flag_and_non_blocking_warmer(tmp_path) -> None:
+    import threading
+    import time
+
+    from api import ui_feed
+    from api.ui_feed import build_snapshot, start_history_warmer
+
+    prior_ts = 1768362000
+    rows = [{"event": "SKIP", "i": i, "pad": "x" * 200} for i in range(30000)]
+    rows.append({"event": "CLOSE", "trade_id": f"paper-X-NIFTY-{prior_ts}-PE", "book_id": "MIX-DEFAULT-BUY", "underlying": "NIFTY",
+                 "side": "PE", "pnl_points": -4.0, "gross_pnl_inr": -400.0, "charges_inr": 60.0, "pnl_inr": -460.0,
+                 "exit_reason": "STOP", "filled": True, "ts_ist": "2026-01-14T09:24:00+05:30"})
+    _write(tmp_path / "data" / "recon" / "ml_paper_model_logs.jsonl", rows)
+
+    # A budgeted snapshot that has not read the whole log says so, and counts no partial day.
+    first = build_snapshot(tmp_path, fstatus={}, budget_s=0.0)
+    assert first["history_complete"] is False and first["days"] == []
+
+    # While the warmer holds the index, a snapshot returns at once with the flag still false.
+    with ui_feed._EVENTS_LOCK:
+        t0 = time.monotonic()
+        held = build_snapshot(tmp_path, fstatus={}, budget_s=ui_feed.SNAPSHOT_BUDGET_S)
+        assert time.monotonic() - t0 < 1.0
+        assert held["history_complete"] is False
+
+    warmer = start_history_warmer(tmp_path)
+    assert isinstance(warmer, threading.Thread)
+    warmer.join(10)
+    done = build_snapshot(tmp_path, fstatus={}, budget_s=ui_feed.SNAPSHOT_BUDGET_S)
+    assert done["history_complete"] is True
+    assert [(d["day"], d["net"]) for d in done["days"]] == [("2026-01-14", -460.0)]
+    assert done["account"]["net_inr"] == -460.0

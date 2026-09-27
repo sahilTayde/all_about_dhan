@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+from contextlib import asynccontextmanager
 from typing import Any, Optional
 
 from fastapi import FastAPI, HTTPException, Request
@@ -21,9 +22,17 @@ from api.store import SignalStore
 from api.ws import router as ws_router
 
 
+@asynccontextmanager
+async def _lifespan(_app: FastAPI):
+    # Index the model log off the request path so /ui/* never shows partial history for long.
+    ui_feed.start_history_warmer()
+    yield
+
+
 def create_app() -> FastAPI:
     settings = load_api_settings()
     app = FastAPI(
+        lifespan=_lifespan,
         title=settings.title,
         version="0.1.0",
         description=(

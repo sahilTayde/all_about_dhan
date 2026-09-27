@@ -17,6 +17,7 @@ import json
 import os
 import re
 import sqlite3
+import threading
 import time as _time
 from bisect import bisect_right
 from datetime import datetime, time, timedelta, timezone
@@ -214,8 +215,11 @@ _EVENT_NEEDLES = tuple(f'"event": "{e}"'.encode() for e in sorted(TRADE_EVENTS))
 SESSION_WRITE_END = time(15, 40)
 
 
-def trade_events(root: Path = REPO, budget_s: Optional[float] = None) -> tuple[dict[str, list[dict[str, Any]]], bool]:
-    """trade_id -> model-log events (live file + archived pre-slate copies), and whether indexing is complete."""
+_EVENTS_LOCK = threading.Lock()
+_EVENTS_VIEW: dict[str, tuple[dict[str, list[dict[str, Any]]], bool]] = {}
+
+
+def _index_events(root: Path, budget_s: Optional[float]) -> tuple[dict[str, list[dict[str, Any]]], bool]:
     recon = root / "data" / "recon"
     files = [recon / MODEL_LOG, *sorted((recon / "archive").glob(f"{MODEL_LOG}.*"))]
     merged: dict[str, list[dict[str, Any]]] = {}
@@ -235,6 +239,34 @@ def trade_events(root: Path = REPO, budget_s: Optional[float] = None) -> tuple[d
         for tid, evs in acc.items():
             merged.setdefault(tid, []).extend(evs)
     return merged, complete
+
+
+def trade_events(root: Path = REPO, budget_s: Optional[float] = None, *, wait: bool = True
+                 ) -> tuple[dict[str, list[dict[str, Any]]], bool]:
+    """trade_id -> model-log events (live file + archived pre-slate copies), and whether indexing is complete.
+
+    ``wait=False`` never blocks: while the start-up warmer holds the index, the caller gets the
+    last published view with ``complete=False`` (the UI then shows "Indexing history…").
+    """
+    if not _EVENTS_LOCK.acquire(blocking=wait):
+        return _EVENTS_VIEW.get(str(root), ({}, False))[0], False
+    try:
+        view = _index_events(root, budget_s)
+        _EVENTS_VIEW[str(root)] = view
+        return view
+    finally:
+        _EVENTS_LOCK.release()
+
+
+def warm_history(root: Path = REPO) -> bool:
+    """Index the whole model log in one go (run once in a background thread at API start)."""
+    return trade_events(root, None, wait=True)[1]
+
+
+def start_history_warmer(root: Path = REPO) -> threading.Thread:
+    thread = threading.Thread(target=warm_history, args=(root,), name="ui-feed-history-warmer", daemon=True)
+    thread.start()
+    return thread
 
 
 def live_write(row: dict[str, Any], opened_ts: Optional[int], max_after_s: int) -> bool:
@@ -726,7 +758,7 @@ def build_snapshot(root: Path = REPO, *, now: Optional[datetime] = None, fstatus
         except Exception:  # noqa: BLE001 — ops status is advisory; the snapshot must still load
             fstatus = {}
     hstatus, halerts = _health_files(root)
-    events, history_complete = trade_events(root, budget_s)
+    events, history_complete = trade_events(root, budget_s, wait=budget_s is None)
     rows = history_rows(root, board, events)
     days = day_summaries(rows)
     halt = risk_halt(root, {now.date().isoformat(), str(board.get("session_ist_date") or "")})
@@ -754,7 +786,7 @@ def build_snapshot(root: Path = REPO, *, now: Optional[datetime] = None, fstatus
 
 def day_history(root: Path = REPO, day: Optional[str] = None, budget_s: Optional[float] = None) -> dict[str, Any]:
     board = load_board(root, budget_s) or {}
-    events, complete = trade_events(root, budget_s)
+    events, complete = trade_events(root, budget_s, wait=budget_s is None)
     rows = history_rows(root, board, events)
     days = sorted({r["day"] for r in rows if r.get("day")}, reverse=True)
     pick = day or (days[0] if days else None)
@@ -788,7 +820,7 @@ def _r(v: Any, dp: int) -> Any:
 
 def trade_trace(root: Path = REPO, trade_id: str = "", budget_s: Optional[float] = None) -> dict[str, Any]:
     board = load_board(root, budget_s) or {}
-    events, _ = trade_events(root, budget_s)
+    events, _ = trade_events(root, budget_s, wait=budget_s is None)
     trades = [*(board.get("open_trades") or []), *(board.get("closed_trades") or [])]
     t = next((x for x in trades if x.get("trade_id") == trade_id), None)
     if t is None:
