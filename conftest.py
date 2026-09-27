@@ -232,3 +232,31 @@ def pytest_runtest_makereport(item: Any, call: Any) -> None:
         # Test swallowed a PermissionError from our guard
         last_violation = _violations[-1]
         pytest.fail(f"Test swallowed REG-11 guard PermissionError: {last_violation}")
+
+
+@pytest.hookimpl(hookwrapper=True)
+def pytest_runtest_call(item: Any) -> Any:
+    """
+    Hookwrapper to catch and re-raise PermissionErrors from the guard.
+    
+    If a test swallows a PermissionError from our audit hook, this hookwrapper
+    will detect it via _violations and fail the test.
+    """
+    # Clear violations before test
+    violations_before = len(_violations)
+    
+    # Run the test
+    outcome = yield
+    
+    # Check if test is exempt
+    if "reg11a_probe" in [marker.name for marker in item.iter_markers()]:
+        return
+    
+    # Check if violations occurred during test but test didn't fail
+    if len(_violations) > violations_before and outcome.excinfo is None:
+        # Test swallowed a guard error
+        new_violations = _violations[violations_before:]
+        pytest.fail(
+            f"REG-11 guard detected {len(new_violations)} write attempt(s) to protected paths, "
+            f"but test did not fail:\n" + "\n".join(new_violations)
+        )

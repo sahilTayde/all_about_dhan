@@ -82,7 +82,7 @@ class BarClosed:
     end: str  # ISO-8601
     o: float | None
     h: float | None
-    l: float | None
+    l: float | None  # noqa: E741 (OHLC standard)
     c: float | None
     v: int | None  # volume
     n_ticks: int

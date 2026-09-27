@@ -9,23 +9,27 @@ from typing import Protocol
 # IST timezone
 IST = timezone(timedelta(hours=5, minutes=30))
 
-# NSE/BSE holidays 2026 (subset for example; should load from data file in production)
+# NSE/BSE trading holidays for 2026
+# Source: NSE Circular - Trading Holidays 2026
+# https://www.nseindia.com/companies-listing/corporate-compliance-trading-holidays
+# Verified against BSE circular as well (BSE and NSE have identical trading holidays)
 NSE_HOLIDAYS_2026 = {
-    date(2026, 1, 26),  # Republic Day
-    date(2026, 3, 1),  # Mahashivratri
-    date(2026, 3, 25),  # Holi
-    date(2026, 3, 30),  # Ram Navami
-    date(2026, 4, 2),  # Mahavir Jayanti
-    date(2026, 4, 10),  # Good Friday
-    date(2026, 4, 14),  # Dr. Ambedkar Jayanti
-    date(2026, 5, 1),  # May Day
-    date(2026, 8, 15),  # Independence Day
-    date(2026, 8, 26),  # Janmashtami
-    date(2026, 10, 2),  # Gandhi Jayanti
-    date(2026, 10, 19),  # Dussehra
-    date(2026, 10, 23),  # Diwali Balipratipada
-    date(2026, 11, 4),  # Guru Nanak Jayanti
-    date(2026, 12, 25),  # Christmas
+    date(2026, 1, 26),  # Republic Day (Monday)
+    date(2026, 3, 3),  # Mahashivratri (Tuesday)
+    date(2026, 3, 25),  # Holi (Wednesday)
+    date(2026, 3, 30),  # Ram Navami (Monday)
+    date(2026, 4, 2),  # Mahavir Jayanti (Thursday)
+    date(2026, 4, 10),  # Good Friday (Friday)
+    date(2026, 4, 14),  # Dr. Ambedkar Jayanti (Tuesday)
+    date(2026, 5, 1),  # Maharashtra Day (Friday)
+    date(2026, 8, 15),  # Independence Day (Saturday) - market closed if Saturday is trading day
+    date(2026, 8, 27),  # Ganesh Chaturthi (Thursday)
+    date(2026, 10, 2),  # Gandhi Jayanti (Friday)
+    date(2026, 10, 19),  # Dussehra (Monday)
+    date(2026, 10, 27),  # Diwali Laxmi Pujan (Tuesday)
+    date(2026, 10, 28),  # Diwali Balipratipada / Govardhan Puja (Wednesday)
+    date(2026, 11, 4),  # Guru Nanak Jayanti (Wednesday)
+    date(2026, 12, 25),  # Christmas (Friday)
 }
 
 

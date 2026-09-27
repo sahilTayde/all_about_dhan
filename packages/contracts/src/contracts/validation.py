@@ -7,7 +7,6 @@ from pathlib import Path
 from typing import Any
 
 try:
-    import jsonschema
     from jsonschema import Draft7Validator, FormatChecker
 
     HAS_JSONSCHEMA = True
