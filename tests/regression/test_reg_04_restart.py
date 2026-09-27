@@ -39,7 +39,17 @@ def _kill9(tmp_path: Path, point: str) -> Path:
     db = tmp_path / f"{point}.sqlite"
     marker = tmp_path / f"{point}.marker"
     proc = subprocess.Popen(
-        [sys.executable, "-m", "runtime.fault_worker", "--db", str(db), "--marker", str(marker), "--crash-at", point],
+        [
+            sys.executable,
+            "-m",
+            "runtime.fault_worker",
+            "--db",
+            str(db),
+            "--marker",
+            str(marker),
+            "--crash-at",
+            point,
+        ],
         cwd=str(REPO),
     )
     for _ in range(200):
@@ -73,7 +83,12 @@ def test_reg_04a_kill_9_at_each_fault_matrix_point(tmp_path: Path) -> None:
         store = SqliteLedgerStore(db, rates=RATES)
         before = {r["instrument_id"]: r["net_qty"] for r in store.positions_v2()}
         assert before, f"missing seed at {point}"
-        result = recover(store, broker=ClockedPaperBroker(clock=SimClock(NOW)), clock=SimClock(NOW), state_dir=tmp_path / point)
+        result = recover(
+            store,
+            broker=ClockedPaperBroker(clock=SimClock(NOW)),
+            clock=SimClock(NOW),
+            state_dir=tmp_path / point,
+        )
         after = {r["instrument_id"]: r["net_qty"] for r in store.positions_v2()}
         for inst, qty in before.items():
             assert after.get(inst) == qty
@@ -89,14 +104,30 @@ def test_reg_04b_broker_only_and_ledger_only_recon_mismatch(tmp_path: Path) -> N
     mismatches = reconcile(broker, store, NOW)
     assert any(m.kind == "ORPHAN_BROKER" for m in mismatches)
     risk = _risk(tmp_path, store)
-    intent = TradeIntent(symbol="NIFTY 24400 CE", side="BUY", lots=1, lot_size=65, decision_price=100.0, stop_loss=90.0)
+    intent = TradeIntent(
+        symbol="NIFTY 24400 CE",
+        side="BUY",
+        lots=1,
+        lot_size=65,
+        decision_price=100.0,
+        stop_loss=90.0,
+    )
     assert risk.check_entry(intent, now=NOW).reason_code == "RECON_MISMATCH"
     assert risk.check_exit(
-        TradeIntent(symbol="NIFTY 24400 CE", side="SELL", lots=1, lot_size=65, purpose="EXIT", exit_reason="STOP_HIT"),
+        TradeIntent(
+            symbol="NIFTY 24400 CE",
+            side="SELL",
+            lots=1,
+            lot_size=65,
+            purpose="EXIT",
+            exit_reason="STOP_HIT",
+        ),
         now=NOW,
     ).approved
 
-    store2 = SqliteLedgerStore(tmp_path / "led.sqlite", migrate_schema=True, rates=RATES)
+    store2 = SqliteLedgerStore(
+        tmp_path / "led.sqlite", migrate_schema=True, rates=RATES
+    )
     store2.insert_order(
         {
             "client_order_id": "aadled000000000000000000001",
@@ -108,14 +139,29 @@ def test_reg_04b_broker_only_and_ledger_only_recon_mismatch(tmp_path: Path) -> N
             "state": "SUBMITTED",
         }
     )
-    store2.record_fill("aadled000000000000000000001", 65, 100.0, ts=NOW, side="BUY", symbol="NIFTY 24400 CE", instrument_id=INST)
+    store2.record_fill(
+        "aadled000000000000000000001",
+        65,
+        100.0,
+        ts=NOW,
+        side="BUY",
+        symbol="NIFTY 24400 CE",
+        instrument_id=INST,
+    )
     empty = ClockedPaperBroker(clock=clock)
     mm2 = reconcile(empty, store2, NOW)
     assert any(m.kind == "ORPHAN_INTERNAL" for m in mm2)
     risk2 = _risk(tmp_path / "b", store2)
     assert risk2.check_entry(intent, now=NOW).reason_code == "RECON_MISMATCH"
     assert risk2.check_exit(
-        TradeIntent(symbol="NIFTY 24400 CE", side="SELL", lots=1, lot_size=65, purpose="EXIT", exit_reason="STOP_HIT"),
+        TradeIntent(
+            symbol="NIFTY 24400 CE",
+            side="SELL",
+            lots=1,
+            lot_size=65,
+            purpose="EXIT",
+            exit_reason="STOP_HIT",
+        ),
         now=NOW,
     ).approved
     store.close()
@@ -125,16 +171,35 @@ def test_reg_04b_broker_only_and_ledger_only_recon_mismatch(tmp_path: Path) -> N
 def test_reg_05e_unreadable_halt_blocks_entries(tmp_path: Path) -> None:
     store = SqliteLedgerStore(tmp_path / "aad.sqlite", migrate_schema=True, rates=RATES)
     store.record_halt("2026-09-28", "founder", NOW.isoformat(), "MTM", "{not-json")
-    result = recover(store, broker=ClockedPaperBroker(clock=SimClock(NOW)), clock=SimClock(NOW), state_dir=tmp_path)
+    result = recover(
+        store,
+        broker=ClockedPaperBroker(clock=SimClock(NOW)),
+        clock=SimClock(NOW),
+        state_dir=tmp_path,
+    )
     assert result.halt_unreadable is True
     risk = _risk(tmp_path, store)
     d = risk.check_entry(
-        TradeIntent(symbol="NIFTY 24400 CE", side="BUY", lots=1, lot_size=65, decision_price=100.0, stop_loss=90.0),
+        TradeIntent(
+            symbol="NIFTY 24400 CE",
+            side="BUY",
+            lots=1,
+            lot_size=65,
+            decision_price=100.0,
+            stop_loss=90.0,
+        ),
         now=NOW,
     )
     assert d.reason_code == "HALT_UNREADABLE" and not d.approved
     assert risk.check_exit(
-        TradeIntent(symbol="NIFTY 24400 CE", side="SELL", lots=1, lot_size=65, purpose="EXIT", exit_reason="STOP_HIT"),
+        TradeIntent(
+            symbol="NIFTY 24400 CE",
+            side="SELL",
+            lots=1,
+            lot_size=65,
+            purpose="EXIT",
+            exit_reason="STOP_HIT",
+        ),
         now=NOW,
     ).approved
     store.close()
@@ -171,8 +236,18 @@ def test_reg_05e_forced_closes_rebook_at_saved_time_and_price(tmp_path: Path) ->
             }
         ],
     )
-    recover(store, broker=ClockedPaperBroker(clock=SimClock(NOW)), clock=SimClock(NOW), state_dir=tmp_path)
-    fills = list(store.conn.execute("SELECT price, ts FROM fills WHERE client_order_id=?", ("aadhalt0000000000000000001",)))
+    recover(
+        store,
+        broker=ClockedPaperBroker(clock=SimClock(NOW)),
+        clock=SimClock(NOW),
+        state_dir=tmp_path,
+    )
+    fills = list(
+        store.conn.execute(
+            "SELECT price, ts FROM fills WHERE client_order_id=?",
+            ("aadhalt0000000000000000001",),
+        )
+    )
     assert fills and float(fills[0][0]) == 88.5
     store.close()
 
@@ -182,5 +257,7 @@ def test_reg_05e_halt_unreadable_state(tmp_path: Path) -> None:
     store.record_halt("2026-09-28", "founder", NOW.isoformat(), "MTM", "{broken")
     snap = store.risk_snapshot(NOW, 60)
     assert snap["halt_unreadable"] is True
-    assert RiskState(**{k: snap[k] for k in RiskState.__dataclass_fields__ if k in snap}).halt_unreadable
+    assert RiskState(
+        **{k: snap[k] for k in RiskState.__dataclass_fields__ if k in snap}
+    ).halt_unreadable
     store.close()
