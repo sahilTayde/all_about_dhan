@@ -7,7 +7,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
-import yaml
+import yaml  # type: ignore[import-untyped]
 
 from risk_engine.engine import (
     LIVE_MODES,
@@ -59,7 +59,11 @@ class LastGood:
         if self.bus is not None:
             self.bus.publish(
                 "HEALTH_ALERT",
-                {"reason_code": "CONFIG_INVALID", "component": self.component, "detail": detail},
+                {
+                    "reason_code": "CONFIG_INVALID",
+                    "component": self.component,
+                    "detail": detail,
+                },
                 source="risk",
             )
 
@@ -101,7 +105,9 @@ class V2RiskEngine:
         self.bus = bus
         self.limits.get()  # prime last-good; None means exits-only
 
-    def check_entry(self, intent: TradeIntent, now: Any = None, state: Any = None) -> RiskDecision:
+    def check_entry(
+        self, intent: TradeIntent, now: Any = None, state: Any = None
+    ) -> RiskDecision:
         from datetime import datetime
 
         from risk_engine.engine import IST

@@ -25,7 +25,9 @@ from oms.router import load_cost_rates
 
 def test_reg_12a_golden_contract_note_nse_and_bse() -> None:
     rates = load_rates(REPO / "config" / "charges.yaml", by_exchange=True)
-    assert rates["exchange_txn_frac_by_exchange"]["NSE"] == 0.0003553  # IPFT included (K14)
+    assert (
+        rates["exchange_txn_frac_by_exchange"]["NSE"] == 0.0003553
+    )  # IPFT included (K14)
     assert rates["exchange_txn_frac_by_exchange"]["BSE"] == 0.000325
     qty = India().lot_size("NIFTY") * 25
     for exchange in ("NSE", "BSE"):
@@ -50,7 +52,13 @@ def test_reg_12b_every_fill_has_charges_row(tmp_path: Path) -> None:
     order = router.submit(make_plan(), make_decision(), Account("founder"))
     clock.advance_by(timedelta(milliseconds=250))
     broker.on_depth(
-        Quote(available_ts=clock.now(), bid=151.00, ask=151.20, ltp=151.10, instrument_id=INST)
+        Quote(
+            available_ts=clock.now(),
+            bid=151.00,
+            ask=151.20,
+            ltp=151.10,
+            instrument_id=INST,
+        )
     )
     assert order.state.value == "FILLED"
     assert store.charges, "fill escaped the ledger"
@@ -94,7 +102,9 @@ def test_reg_12d_depth_vs_fcmeas_and_tod_table() -> None:
         instrument_id=INST,
         moneyness="ITM100",
     )
-    q = Quote(available_ts=morning, bid=151.10, ask=151.35, ltp=151.20, instrument_id=INST)
+    q = Quote(
+        available_ts=morning, bid=151.10, ask=151.35, ltp=151.20, instrument_id=INST
+    )
     px, model = choose_fill(order, [q], 151.20, morning)  # type: ignore[misc]
     assert model == "depth"
     assert abs(px - 151.35) < 0.06
@@ -110,6 +120,8 @@ def test_reg_12e_no_legacy_cost_model_path() -> None:
     assert broker.cost_model == "realistic"
     with pytest.raises(LiveBrokerDisabled):
         make_broker(mode="paper", clock=clock, cost_model="legacy")
-    yaml_path = Path(__file__).resolve().parents[2] / "config" / "v2" / "markets" / "india.yaml"
+    yaml_path = (
+        Path(__file__).resolve().parents[2] / "config" / "v2" / "markets" / "india.yaml"
+    )
     assert "cost_model: legacy" not in yaml_path.read_text(encoding="utf-8")
     assert "cost_model" not in yaml_path.read_text(encoding="utf-8")

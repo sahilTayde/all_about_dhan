@@ -19,7 +19,9 @@ def test_reg_16a_bad_charges_at_start_exits_only_no_crash(tmp_path: Path) -> Non
     bus_alerts: list[str] = []
 
     class _Bus:
-        def publish(self, typ: str, payload: dict[str, object], source: str = "") -> None:
+        def publish(
+            self, typ: str, payload: dict[str, object], source: str = ""
+        ) -> None:
             bus_alerts.append(str(payload.get("reason_code")))
 
     rates = load_cost_rates(bad, bus=_Bus())
@@ -47,7 +49,13 @@ def test_reg_16b_mid_session_keeps_last_good_and_blocks_entries(tmp_path: Path) 
     assert not isinstance(first, Veto)
     clock.advance_by(timedelta(milliseconds=250))
     broker.on_depth(
-        Quote(available_ts=clock.now(), bid=151.00, ask=151.20, ltp=151.10, instrument_id=INST)
+        Quote(
+            available_ts=clock.now(),
+            bid=151.00,
+            ask=151.20,
+            ltp=151.10,
+            instrument_id=INST,
+        )
     )
     assert store.charges[0].charges_status == "FINAL"
     last_good_nse = rates.last["exchange_txn_frac_by_exchange"]["NSE"]
@@ -73,7 +81,12 @@ def test_reg_16_pending_when_no_rates(tmp_path: Path) -> None:
     store = MemoryLedger()
     store.rates = None
     row = store.record_fill(
-        "aad" + "p" * 24, 65, 100.0, fill_model="fcmeas", side="BUY", symbol="NIFTY 24400 CE"
+        "aad" + "p" * 24,
+        65,
+        100.0,
+        fill_model="fcmeas",
+        side="BUY",
+        symbol="NIFTY 24400 CE",
     )
     assert row.charges_status == "PENDING"
     assert row.components == {}

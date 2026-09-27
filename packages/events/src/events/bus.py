@@ -64,7 +64,9 @@ class BadEntryStore:
                 """
             )
 
-    def record(self, stream: str, entry_id: str, raw_data: bytes | str | None, error: str) -> bool:
+    def record(
+        self, stream: str, entry_id: str, raw_data: bytes | str | None, error: str
+    ) -> bool:
         """Record bad entry. Returns True if newly recorded, False if already exists."""
         raw_str = raw_data.decode("utf-8") if isinstance(raw_data, bytes) else raw_data
         with self._lock:
@@ -74,7 +76,9 @@ class BadEntryStore:
                         "INSERT INTO bad_entries (entry_id, stream, raw_data, error) VALUES (?, ?, ?, ?)",
                         (entry_id, stream, raw_str, error),
                     )
-                log.warning("Recorded bad entry %s in stream %s: %s", entry_id, stream, error)
+                log.warning(
+                    "Recorded bad entry %s in stream %s: %s", entry_id, stream, error
+                )
                 return True
             except sqlite3.IntegrityError:
                 # Already recorded
@@ -102,7 +106,8 @@ class BadEntryStore:
                     (stream,),
                 ).fetchall()
             return [
-                {"entry_id": r[0], "stream": r[1], "error": r[2], "recorded_at": r[3]} for r in rows
+                {"entry_id": r[0], "stream": r[1], "error": r[2], "recorded_at": r[3]}
+                for r in rows
             ]
 
 
@@ -118,16 +123,22 @@ class Subscription:
 class EventBus:
     backend = "base"
 
-    def __init__(self, audit: EventAuditLog | None = None, *, raise_errors: bool = False) -> None:
+    def __init__(
+        self, audit: EventAuditLog | None = None, *, raise_errors: bool = False
+    ) -> None:
         self.audit = audit
         self.raise_errors = raise_errors
-        self.errors: list[dict[str, Any]] = []  # capped at MAX_ERRORS: a hot failing handler cannot grow memory
+        self.errors: list[
+            dict[str, Any]
+        ] = []  # capped at MAX_ERRORS: a hot failing handler cannot grow memory
         self._subs: dict[str, Subscription] = {}
         self._by_type: dict[str, list[Subscription]] = {}
         self._counter = itertools.count(1)
         self._lock = threading.RLock()
 
-    def subscribe(self, event_types: Iterable[Any], callback: Handler, *, priority: int = 100) -> str:
+    def subscribe(
+        self, event_types: Iterable[Any], callback: Handler, *, priority: int = 100
+    ) -> str:
         kinds = frozenset(EventType(getattr(t, "value", t)).value for t in event_types)
         n = next(self._counter)
         sub = Subscription(f"sub-{n}", kinds, callback, int(priority), n)
@@ -149,9 +160,17 @@ class EventBus:
                 by_type.setdefault(kind, []).append(sub)
         self._by_type = by_type
 
-    def publish(self, event_type: Any, payload: dict[str, Any] | None = None, *, source: str = "unknown") -> str:
+    def publish(
+        self,
+        event_type: Any,
+        payload: dict[str, Any] | None = None,
+        *,
+        source: str = "unknown",
+    ) -> str:
         event = make_event(event_type, payload, source=source)
-        raw = json.dumps(event.payload, separators=(",", ":"), allow_nan=False)  # JSON contract
+        raw = json.dumps(
+            event.payload, separators=(",", ":"), allow_nan=False
+        )  # JSON contract
         with self._lock:
             if self.audit is not None:
                 self.audit.append(event, raw)
@@ -166,10 +185,16 @@ class EventBus:
             try:
                 sub.callback(event)
             except Exception as exc:
-                log.exception("subscriber %s failed on %s", sub.sub_id, event.event_type)
+                log.exception(
+                    "subscriber %s failed on %s", sub.sub_id, event.event_type
+                )
                 self.errors.append(
-                    {"sub_id": sub.sub_id, "event_type": event.event_type, "event_id": event.event_id,
-                     "error": f"{type(exc).__name__}: {exc}"}
+                    {
+                        "sub_id": sub.sub_id,
+                        "event_type": event.event_type,
+                        "event_id": event.event_id,
+                        "error": f"{type(exc).__name__}: {exc}",
+                    }
                 )
                 if len(self.errors) > MAX_ERRORS:
                     del self.errors[0]
@@ -215,29 +240,32 @@ class RedisStreamsBus(EventBus):
     ) -> None:
         super().__init__(audit, raise_errors=raise_errors)
         if client is None:
-            import redis  # optional dependency
+            import redis  # type: ignore[import-not-found]  # optional dependency
 
             client = redis.Redis.from_url(redis_url)
         self.client = client
-        
+
         # Backward compat: old API used single 'stream', new API uses 'stream_prefix'
+        self._legacy_single_stream: str | None
         if stream is not None and stream_prefix is None:
             # Legacy mode: single stream for all events
-            self.stream_prefix = stream.rsplit(":", 1)[0] + ":" if ":" in stream else "events:"
+            self.stream_prefix = (
+                stream.rsplit(":", 1)[0] + ":" if ":" in stream else "events:"
+            )
             self._legacy_single_stream = stream
         else:
             self.stream_prefix = stream_prefix or "all_about_dhan:"
             self._legacy_single_stream = None
-            
+
         self.consumer_group = consumer_group
         self.consumer_name = consumer_name or f"consumer-{uuid.uuid4().hex[:8]}"
         self.maxlen = maxlen
         self.start_id = start_id
-        
+
         # Replay mode: if start_id is not "$", use a unique consumer group for replay
         if start_id != "$":
             self.consumer_group = f"replay-{uuid.uuid4().hex[:12]}"
-            
+
         self.bad_entries = BadEntryStore(bad_entry_db)
         # Track last_id per stream for consumer group resume
         self._stream_last_ids: dict[str, str] = {}
@@ -252,8 +280,12 @@ class RedisStreamsBus(EventBus):
     def _ensure_consumer_group(self, stream: str) -> None:
         """Ensure consumer group exists for the stream."""
         try:
-            self.client.xgroup_create(stream, self.consumer_group, id="0", mkstream=True)
-            log.info("Created consumer group %s for stream %s", self.consumer_group, stream)
+            self.client.xgroup_create(
+                stream, self.consumer_group, id="0", mkstream=True
+            )
+            log.info(
+                "Created consumer group %s for stream %s", self.consumer_group, stream
+            )
         except Exception as exc:  # noqa: BLE001
             # Group already exists (BUSYGROUP) or other error
             if "BUSYGROUP" not in str(exc):
@@ -262,9 +294,13 @@ class RedisStreamsBus(EventBus):
     def _send(self, event: Event) -> None:
         stream = self._stream_name(event.event_type)
         self._ensure_consumer_group(stream)
-        self.client.xadd(stream, {"event": event.to_json()}, maxlen=self.maxlen, approximate=True)
+        self.client.xadd(
+            stream, {"event": event.to_json()}, maxlen=self.maxlen, approximate=True
+        )
 
-    def _try_parse_event(self, stream: str, entry_id: str, raw: bytes | str) -> Event | None:
+    def _try_parse_event(
+        self, stream: str, entry_id: str, raw: bytes | str
+    ) -> Event | None:
         """Per-entry guarded parsing (REG-06). Returns None if parse fails (bad entry recorded)."""
         try:
             return Event.from_json(raw)
@@ -307,7 +343,11 @@ class RedisStreamsBus(EventBus):
         ack_map: dict[str, list[str]] = {}  # {stream: [entry_id, ...]}
 
         for stream_bytes, entries in resp or ():
-            stream = stream_bytes.decode("utf-8") if isinstance(stream_bytes, bytes) else stream_bytes
+            stream = (
+                stream_bytes.decode("utf-8")
+                if isinstance(stream_bytes, bytes)
+                else stream_bytes
+            )
             ack_map.setdefault(stream, [])
 
             for entry_id_bytes, fields in entries:
@@ -316,7 +356,9 @@ class RedisStreamsBus(EventBus):
                     if isinstance(entry_id_bytes, bytes)
                     else entry_id_bytes
                 )
-                raw = fields.get(b"event") if b"event" in fields else fields.get("event")
+                raw = (
+                    fields.get(b"event") if b"event" in fields else fields.get("event")
+                )
 
                 # Per-entry guarded parsing (REG-06)
                 event = self._try_parse_event(stream, entry_id, raw)
@@ -365,7 +407,9 @@ class RedisStreamsBus(EventBus):
 
             # Filter by idle time
             idle_entries = [
-                p["message_id"] for p in pending if p.get("time_since_delivered", 0) >= idle_ms
+                p["message_id"]
+                for p in pending
+                if p.get("time_since_delivered", 0) >= idle_ms
             ]
             if not idle_entries:
                 continue
@@ -392,7 +436,9 @@ class RedisStreamsBus(EventBus):
                     if isinstance(entry_id_bytes, bytes)
                     else entry_id_bytes
                 )
-                raw = fields.get(b"event") if b"event" in fields else fields.get("event")
+                raw = (
+                    fields.get(b"event") if b"event" in fields else fields.get("event")
+                )
                 event = self._try_parse_event(stream, entry_id, raw)
                 if event is not None:
                     batch.append(event)
@@ -409,12 +455,20 @@ class RedisStreamsBus(EventBus):
         return claimed_count
 
 
-def create_bus(backend: str | None = None, *, audit: EventAuditLog | None = None, **kw: Any) -> EventBus:
+def create_bus(
+    backend: str | None = None, *, audit: EventAuditLog | None = None, **kw: Any
+) -> EventBus:
     """`memory` (default) or `redis` (env USE_EVENT_BUS_BACKEND / EVENT_BUS_REDIS_URL)."""
-    name = (backend or os.environ.get("USE_EVENT_BUS_BACKEND") or "memory").strip().lower()
+    name = (
+        (backend or os.environ.get("USE_EVENT_BUS_BACKEND") or "memory").strip().lower()
+    )
     if name == "memory":
         return MemoryBus(audit, **kw)
     if name == "redis":
-        url = kw.pop("redis_url", None) or os.environ.get("EVENT_BUS_REDIS_URL") or "redis://localhost:6379/0"
+        url = (
+            kw.pop("redis_url", None)
+            or os.environ.get("EVENT_BUS_REDIS_URL")
+            or "redis://localhost:6379/0"
+        )
         return RedisStreamsBus(url, audit=audit, **kw)
     raise ValueError(f"unknown event bus backend {name!r} (memory | redis)")

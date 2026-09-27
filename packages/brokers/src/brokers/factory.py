@@ -19,7 +19,9 @@ def live_brokers_enabled() -> bool:
     return V2_LIVE_BROKERS_ENABLED
 
 
-def make_broker(*, mode: str = "paper", clock: Any, **kwargs: Any) -> ClockedPaperBroker:
+def make_broker(
+    *, mode: str = "paper", clock: Any, **kwargs: Any
+) -> ClockedPaperBroker:
     """Return a clocked paper broker. Any non-paper mode fails closed."""
     if mode != "paper" or live_brokers_enabled():
         raise LiveBrokerDisabled(
@@ -27,5 +29,7 @@ def make_broker(*, mode: str = "paper", clock: Any, **kwargs: Any) -> ClockedPap
             "from tests or default config"
         )
     if "cost_model" in kwargs:
-        raise LiveBrokerDisabled("V2 has no cost_model switch; realistic fills are the only mode")
+        raise LiveBrokerDisabled(
+            "V2 has no cost_model switch; realistic fills are the only mode"
+        )
     return ClockedPaperBroker(clock=clock, **kwargs)
