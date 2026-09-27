@@ -17,8 +17,9 @@ Accepted: GET /v2/snapshot + WS /v2/ws (subscribe, snapshot,
 Rejected: Implementing founder control actions (V2-11). JWT
   auth (V2-23). Touching legacy engine / marketdata / dhan-
   client / runtime / strategies / data/ / exits defaults.
-UNKNOWN: Playwright chromium in this agent image. Ledger
-  positions until V2-10 exists are in-memory on the hub.
+UNKNOWN: Ledger positions until V2-10 exists are
+  in-memory on the hub. Playwright --v2 (PR #15 widths)
+  passed on the fixture feed after SSE fallback.
 ```
 
 ---
