@@ -11,7 +11,7 @@ async function getJson(url, signal) {
 }
 
 /** API down: the static mock board and exam, clearly marked offline. No health, no history. */
-async function mockSnapshot(signal) {
+export async function mockSnapshot(signal) {
   const [board, exam] = await Promise.all([
     getJson("/mock/ml_paper_dashboard.json", signal),
     getJson("/mock/sod_exam_report.json", signal).catch(() => null),
@@ -84,7 +84,11 @@ const _trace = new Map();
 
 export async function fetchTrace(tradeId, { signal, force = false } = {}) {
   if (!force && _trace.has(tradeId)) return _trace.get(tradeId);
-  const json = await getJson(`${API_BASE}/paper/trace?trade_id=${encodeURIComponent(tradeId)}`, signal);
+  const v2 = import.meta.env.VITE_V2_FEED === "1";
+  const url = v2
+    ? `${API_BASE}/v2/trace?token=founder&trade_id=${encodeURIComponent(tradeId)}`
+    : `${API_BASE}/paper/trace?trade_id=${encodeURIComponent(tradeId)}`;
+  const json = await getJson(url, signal);
   if (json?.closed) _trace.set(tradeId, json); // an open trade's trace keeps changing: never cache it
   return json;
 }
