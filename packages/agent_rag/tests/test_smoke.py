@@ -11,8 +11,23 @@ from agent_rag.paths import agent_rag_db, repo_root, transcripts_db
 from agent_rag.query import query
 
 
-def test_rebuild_and_query_fake_breakout() -> None:
-    root = repo_root()
+def _sandbox(tmp_path: Path) -> Path:
+    """This repo's docs and code, linked read-only, with an empty data/ of its own.
+
+    rebuild() and run_eod_recon() write under <root>/data; the checkout's tracked
+    data/knowledge/agent_rag.sqlite and AGENT_RAG_BUILD.json must not change when tests run.
+    """
+    real = repo_root()
+    for entry in real.iterdir():
+        if entry.name not in {"data", ".git", ".venv", "node_modules"}:
+            (tmp_path / entry.name).symlink_to(entry)
+    (tmp_path / "data" / "knowledge").mkdir(parents=True)
+    (tmp_path / "data" / "recon").mkdir(parents=True)
+    return tmp_path
+
+
+def test_rebuild_and_query_fake_breakout(tmp_path: Path) -> None:
+    root = _sandbox(tmp_path)
     tdb = transcripts_db(root)
     tdb_mtime = tdb.stat().st_mtime if tdb.is_file() else None
     report = rebuild(root)
@@ -37,8 +52,8 @@ def test_rebuild_and_query_fake_breakout() -> None:
     assert any(h.kind == "research_book_notes" for h in club_hits)
 
 
-def test_eod_recon_retune_required(tmp_path: Path | None = None) -> None:
-    root = repo_root()
+def test_eod_recon_retune_required(tmp_path: Path) -> None:
+    root = _sandbox(tmp_path)
     out = run_eod_recon(
         day="2026-09-02",
         root=root,
