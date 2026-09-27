@@ -1,0 +1,62 @@
+# Backtest gate (PR-021). Paper only: synthetic fixtures, no broker calls, no secrets.
+# - replay: the synthetic fixture days must match tools/backtest_gate/expected_results.json,
+#   plus event-path parity and the tests for the gate, the warehouse ETL and the pre-market service.
+# - honest-backtest: strategy/risk/cost changes need the honest-backtest section of the PR body.
+name: backtest-gate
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, edited]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: backtest-gate-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  replay:
+    # A description edit does not change code; only the honest-backtest job re-runs for it.
+    if: github.event_name == 'push' || github.event.action != 'edited'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install in-repo packages (one command so nothing resolves from PyPI)
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install \
+            -e packages/dhan-client -e packages/backtest -e packages/ledger -e packages/risk-engine \
+            -e packages/brokers -e packages/trading_agents_india -e packages/events -e packages/desk-ml \
+            -e packages/analysts -e packages/boss -e packages/desk -e packages/warehouse \
+            -e packages/premarket pytest
+      - name: Backtest gate (synthetic replay vs expected_results.json)
+        run: python tools/backtest_gate/gate.py
+      - name: Event-path parity (synthetic NIFTY session)
+        run: python -m desk_ml.event_parity --fixture packages/desk-ml/tests/fixtures/synthetic_session_nifty.json
+      - name: Tests (gate, warehouse ETL, pre-market)
+        run: python -m pytest tools/backtest_gate packages/warehouse/tests packages/premarket -q
+
+  honest-backtest:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Honest-backtest section present when strategy/risk code changed
+        # The PR body is read from $GITHUB_EVENT_PATH inside the script, never interpolated here.
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: python tools/backtest_gate/pr_check.py --base "$BASE_SHA" --head "$HEAD_SHA"
