@@ -1,5 +1,28 @@
 # Handoff log — Team 07 Coding
 
+## As of now (2026-09-27 IST) — V2-16 merge gate (PAPER)
+
+```text
+From:     teams/07_coding
+To:       founder / 00 / 09
+Date:     2026-09-27
+Status:   PAPER / V2-16 / NO_PROMOTE / no live orders
+Accepted: Fail-closed merge gate (scripts/gate/merge_gate.py):
+  invariants §6.2, fault matrix, perf (2x headroom), 1x-hour /
+  10x-day dry run (JSON hop stands in for Redis; no sockets),
+  REG collect, TRACE-01, REG-13c, REG-10b, frozen-legacy baselines
+  NIFTY 63 / -96,190.79 and 3-index 140 / -27,022.54. Verdict
+  only — never merges or pushes. CI adds perf + gate jobs;
+  every existing job left unchanged. Branched from
+  cursor/v2-10-ledger-crash-recovery-dcfd. Depends on #45 and
+  #58; retarget to main after they merge.
+Rejected: Auto-merge. git push from the gate. DhanBroker.
+  Network in tests. Editing existing CI jobs. Touching frozen
+  legacy / data / requirements.
+UNKNOWN: full Redis compose dry-run on a recorded tape (no
+  tape in CI; fixture JSON hop only).
+```
+
 ## As of now (2026-09-27 IST) — V2-10 ledger v2 + crash recovery (PAPER)
 
 ```text
