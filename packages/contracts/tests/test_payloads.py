@@ -1,5 +1,7 @@
 """Tests for payload dataclasses (section 4.4 types)."""
 
+from typing import Any
+
 import pytest
 
 from contracts.payloads import (
@@ -164,9 +166,31 @@ def test_feed_status_payload() -> None:
         instrument_id="BSE_IDX:SENSEX",
         since="2026-09-28T11:14:03+05:30",
         gap_s=7.2,
+        detail=None,
     )
     assert status.status == "STALE"
     assert status.gap_s == 7.2
+    assert status.detail is None
+
+
+def test_feed_status_accepts_recorder_auth_failed_row() -> None:
+    """Real marketdata recorder._status AUTH_FAILED row (status, since, detail)."""
+    from contracts.validation import load_feed_status
+
+    # packages/marketdata/src/marketdata/recorder.py:
+    #   _status(now, status, **extra) emits {"status", "since": iso(now), **extra}
+    # AUTH_FAILED extra is detail=f"websocket handshake HTTP {status}"
+    row = {
+        "status": "AUTH_FAILED",
+        "since": "2026-09-28T10:00:02.000+05:30",
+        "detail": "websocket handshake HTTP 401",
+    }
+    loaded = load_feed_status(row)
+    assert loaded.status == "AUTH_FAILED"
+    assert loaded.since == "2026-09-28T10:00:02.000+05:30"
+    assert loaded.detail == "websocket handshake HTTP 401"
+    assert loaded.instrument_id is None
+    assert loaded.gap_s is None
 
 
 def test_exit_plan_complete() -> None:
@@ -306,18 +330,13 @@ def test_signal_schema_validation() -> None:
         validate_payload("signal", invalid_signal)
 
 
-def test_signal_schema_rejects_invalid_stage() -> None:
-    """Test SIGNAL schema rejects invalid stage values."""
-    from jsonschema import ValidationError
-
-    from contracts.validation import validate_payload
-
-    invalid_signal = {
+def _valid_signal_row() -> dict[str, Any]:
+    return {
         "signal_id": "sg_r8-e1-v1.0.0_bfe5cd_nifty_20260928_1001_0",
         "strategy_id": "R8-E1",
         "version": "1.0.0",
         "params_hash": "30416a4a",
-        "stage": "VETOED",  # Invalid stage (not in enum)
+        "stage": "shadow",
         "underlying": "NIFTY",
         "side": "CE",
         "strike_rule": "ROUTER",
@@ -330,18 +349,38 @@ def test_signal_schema_rejects_invalid_stage() -> None:
             "chosen": "ATM",
             "reason": "optimal delta",
             "rule_version": "v1",
-            "alternatives": [],
+            "alternatives": [
+                {"rule": "ATM", "instrument_id": "NSE_FNO:NIFTY:2026-09-29:24400:CE"},
+                {"rule": "ITM100", "instrument_id": "NSE_FNO:NIFTY:2026-09-29:24300:CE"},
+                {"rule": "ITM200", "instrument_id": "NSE_FNO:NIFTY:2026-09-29:24200:CE"},
+            ],
         },
-        "reasons": ["VETOED_BY_RISK"],
+        "reasons": ["COIL_AGE_7M"],
         "features": {"p_up": 0.63},
     }
 
-    # Should raise ValidationError for invalid stage
+
+def test_signal_schema_rejects_invalid_stage() -> None:
+    """Test SIGNAL schema rejects invalid stage values (only stage is wrong)."""
+    from jsonschema import ValidationError
+
+    from contracts.validation import validate_payload
+
+    invalid_signal = {**_valid_signal_row(), "stage": "VETOED"}
+    with pytest.raises(ValidationError) as exc_info:
+        validate_payload("signal", invalid_signal)
+    assert "stage" in str(exc_info.value)
+
+
+def test_signal_schema_rejects_garbage_strike_choice() -> None:
+    """Test SIGNAL schema rejects a garbage strike_choice object."""
+    from jsonschema import ValidationError
+
+    from contracts.validation import validate_payload
+
+    invalid_signal = {**_valid_signal_row(), "strike_choice": {"foo": 1}}
     with pytest.raises(ValidationError):
         validate_payload("signal", invalid_signal)
-    with pytest.raises(Exception) as exc_info:
-        validate_payload("signal", invalid_signal)
-    assert "ValidationError" in type(exc_info.value).__name__ or "Schema" in str(exc_info.value)
 
 
 def test_decision_payload() -> None:

@@ -22,6 +22,7 @@
 | `EQ-*` / `SO-*` | `teams/04_quant/docs/candidates/` | Equity/stock-options backlog — not the index default. |
 | SOURCE_FACT packet | `teams/01_research/docs/handoffs/<videoId>.md` | New verified transcript extract. Packets (`OPTIONS_INDEX_PACKET.md` etc.) stay the rollups. |
 | Backtest evidence | `teams/06_backtesting/docs/BACKTEST_<TOPIC>.md` | After a real run. **One** file per topic; overwrite/append. Do not stack `BACKTEST_*_YYYY-MM-DD.md` copies. |
+| `ROUND<N>_<TOPIC>.md` | `docs/research/` | Founder-requested lab-round design / adversarial review (HYPOTHESIS layer). **One** file per round; edit in place. Results stay in the lab output folder, not here. |
 | Review evidence | `teams/09_review/docs/` named charter files | Five-pass / KEEP_ALL / auditor. No `*_NOTES_YYYY-MM-DD.md` dumps. |
 | `AUDIT_LATEST.md` | `teams/00_orchestrator/docs/` | Auditor writes this. Humans do not hand-author a second audit file. |
 | `NIGHTLY_YYYY-MM-DD.md` | `teams/02_phd_math/docs/handoffs/` | **`desk_intel nightly` only.** Agents do not hand-author extras. Keep the latest; do not stack unused days. |
@@ -38,6 +39,8 @@
 | `BOOK_MODEL_TUNE.md` | `teams/06_backtesting/docs/` | Cache ML-001 + ML-002 book tune. **One** file; overwrite. Not a promote. |
 | `SESSION_PREP_ML.md` | `teams/06_backtesting/docs/` | How to start paper dual-tape + `desk_ml score` at 09:15 IST. FOLLOW-GAP HOLD. Not a promote. |
 | `OPENAI_OVERLAY_REVIEW.md` | `teams/06_backtesting/docs/` | Paper overlay counsel: reject reasons, recode, new verdict. Not a five-pass. |
+| `V2_PRODUCTION_ARCHITECTURE.md` / `V2_BUILD_PLAN.md` | `docs/architecture/` | V2 stack design and build order (founder 2026-09-26). Edit in place. No other files in this folder. |
+| `FOUNDER_COMMENTS_LOG.md` | `docs/founder/` | Single source of truth for the founder's mid-build comments (C1, C2, …). Append rows; never a second copy. |
 | Cursor rule `*.mdc` | `.cursor/rules/` | New always-on routing. Keep short. |
 | `PR_A_CRITIQUE.md` / `README.md` | `docs/reliability/` | Reliability build: spec critique + CI / offline verification commands. Edit in place. |
 
