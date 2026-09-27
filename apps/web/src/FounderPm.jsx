@@ -7,6 +7,7 @@ import { DecisionTrace } from "./components/DecisionTrace.jsx";
 import { DiscardedBook } from "./components/DiscardedBook.jsx";
 import { CumulativeChart, LossByStage, ModelScores, PeriodChart, TradesPerDay } from "./components/FounderCharts.jsx";
 import { FounderBookPicker } from "./components/FounderBookPicker.jsx";
+import { FounderControls } from "./components/FounderControls.jsx";
 import { FounderHonestyExam } from "./components/FounderHonestyExam.jsx";
 import { FounderRoster } from "./components/FounderRoster.jsx";
 import { Header, OfflineBanner } from "./components/Header.jsx";
@@ -15,15 +16,6 @@ import { MarketPanel } from "./components/MarketPanel.jsx";
 import { TradeHistory } from "./components/TradeHistory.jsx";
 import { useFeed } from "./lib/feed.js";
 import { boardClock, boardSource, derivePaperBoard, fetchFounderLab, holdReason, inr, pct } from "./lib/paperBoard.js";
-
-const NEXT_PR_CONTROLS = [
-  ["Pause for…", "Pause new fills for N minutes"],
-  ["Time-window blacklist", "Never trade inside chosen IST windows"],
-  ["Cut loss now", "Exit the open paper ticket at market"],
-  ["Go for T2", "Hold past T1 toward target 2"],
-  ["Change lots", "Raise or lower lots on the next fill"],
-  ["Kill switch", "Stop everything and flatten"],
-];
 
 function Stat({ label, value, hint, tone, className = "" }) {
   return (
@@ -112,20 +104,9 @@ export function FounderPm() {
           </div>
           <div className="span-4 stack">
             <FounderBookPicker />
-            <section className="panel controls-next">
-              <div className="panel__head">
-                <h2>Founder controls</h2>
-                <span className="demo-badge">next PR</span>
-              </div>
-              <div className="controls-grid">
-                {NEXT_PR_CONTROLS.map(([label, what]) => (
-                  <button key={label} type="button" className="ctrl-btn" disabled title={`${what} — needs an engine command (controls PR)`}>
-                    {label}
-                  </button>
-                ))}
-              </div>
-              <p className="muted small">Disabled here: each needs an engine command in the controls PR. START/STOP and the paper target/stop override work today.</p>
-            </section>
+          </div>
+          <div className="span-12">
+            <FounderControls />
           </div>
 
           <div className="span-6">

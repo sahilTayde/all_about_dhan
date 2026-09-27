@@ -85,9 +85,12 @@ desk   founder pause? -> RiskEngine.check_entry -> PaperBroker.place_order -> bo
   the halt cannot be written, it is kept in memory for the rest of the loop process and a
   `halt_write` alert is raised. That in-memory copy and the alert dedupe do not survive a loop
   restart.
-- **Analyst timeout.** `timeout_ms` in `config/analysts.yaml` (and an optional per-key
-  `timeout_ms`) is the live paper loop's wall-clock budget. Replay and parity run analysts
-  in order with no wall-clock abstain, so a busy machine cannot change a vote.
+- **Analyst timeout.** `timeout_ms` in `config/analysts.yaml` is the live paper loop's
+  wall-clock budget for every analyst. Replay and parity still run the voting room in
+  order with no wall-clock abstain, so a busy machine cannot change a vote. A row with
+  its own `timeout_ms` (LLM-ANALYST) is also capped during replay, so a hung call cannot
+  stall the tape. The LLM's online provider runs only when `live_loop` is on; a
+  `live_session` replay stays on the offline provider.
 - **Shadow analysts.** Rows with `shadow: true` log `value`, `flag`, `confidence` and
   `reasoning` on `ANALYST_VOTE` and are ignored by the boss. Definitions:
   `docs/SHADOW_ANALYSTS.md`. CSV: `python scripts/export_shadow_audit.py --audit <sqlite> --out shadow.csv`.

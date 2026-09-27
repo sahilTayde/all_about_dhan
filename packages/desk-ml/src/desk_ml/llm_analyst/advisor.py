@@ -2,10 +2,11 @@
 
 Guardrails, in order: cache (identical context -> same verdict, no call) -> signal reuse (same
 underlying/side/strike reviewed < reuse_window_s of tick time ago -> that verdict) -> stale tick -> per-day
-call budget -> per-day cost budget -> rate limit -> one call in flight -> hard wall-clock timeout
--> strict schema. Offline providers (mock / recorded) skip the budget and rate checks so replays
-are deterministic. Every provider call is appended to a JSONL log (offline calls only if
-`replay_log_path` is set).
+call budget -> per-day token-cost budget -> rate limit -> one call in flight -> hard wall-clock timeout
+-> strict schema. Online and offline advisors for the same config share one call and token ledger.
+Offline providers (mock / recorded) still always answer, so a replay stays deterministic; their calls
+are counted on that same ledger, and the rate limit, stale-tick skip and cost refusal stay online-only.
+Every provider call is appended to a JSONL log (offline calls only if `replay_log_path` is set).
 """
 
 from __future__ import annotations
@@ -50,6 +51,47 @@ DEFAULTS: dict[str, Any] = {
     "premarket_brief_path": None,
 }
 ALLOWED_WEIGHTS = (0.0, 1.0)
+
+
+class DayBudget:
+    """One day's call count and token spend. Shared by the online and offline advisors of one config."""
+
+    def __init__(self) -> None:
+        self.lock = threading.Lock()
+        self.day = ""
+        self.calls = 0
+        self.tokens = 0
+        self.cost = 0.0
+        self.seeded = False
+
+
+_BUDGETS: dict[str, DayBudget] = {}
+_BUDGETS_LOCK = threading.Lock()
+
+
+def _budget_key(cfg: Mapping[str, Any]) -> str:
+    """Same config shares a ledger. The replay flag is not part of the key."""
+    return json.dumps(
+        {
+            "max_calls_per_day": cfg.get("max_calls_per_day"),
+            "max_cost_usd_per_day": cfg.get("max_cost_usd_per_day"),
+            "model": cfg.get("model"),
+            "log_path": cfg.get("log_path"),
+            "replay_log_path": cfg.get("replay_log_path"),
+        },
+        sort_keys=True,
+        default=str,
+    )
+
+
+def shared_budget(cfg: Mapping[str, Any]) -> DayBudget:
+    key = _budget_key(cfg)
+    with _BUDGETS_LOCK:
+        budget = _BUDGETS.get(key)
+        if budget is None:
+            budget = DayBudget()
+            _BUDGETS[key] = budget
+        return budget
 
 
 def load_config(path: Optional[Path] = None, root: Optional[Path] = None) -> dict[str, Any]:
@@ -103,11 +145,9 @@ class Advisor:
         # Online calls -> log_path (the record the scorer and `recorded` provider read). Offline
         # (mock / recorded) calls -> replay_log_path, off by default so replays write nothing.
         self.log_path = self.cfg["replay_log_path"] if self.provider.offline else self.cfg["log_path"]
+        self.budget = shared_budget(self.cfg)
         self._lock = threading.Lock()
         self._cache: OrderedDict[str, dict[str, Any]] = OrderedDict()
-        self._day = ""
-        self.calls_today = 0
-        self.cost_today = 0.0
         self._last_call = float("-inf")
         self._bg: Optional[Future] = None
         self._last_by_signal: dict[tuple[Any, ...], tuple[float, dict[str, Any]]] = {}
@@ -116,10 +156,17 @@ class Advisor:
         self._pool = ThreadPoolExecutor(max_workers=2, thread_name_prefix="llm")
         self._bg_pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix="llm-bg")
         self.stats: dict[str, int] = {}
-        if not self.provider.offline:
-            self._seed_from_log()
+        self._seed_from_log()
 
     # ------------------------------------------------------------------ state
+
+    @property
+    def calls_today(self) -> int:
+        return self.budget.calls
+
+    @property
+    def cost_today(self) -> float:
+        return self.budget.cost
 
     def _bump(self, key: str) -> None:
         self.stats[key] = self.stats.get(key, 0) + 1
@@ -128,31 +175,70 @@ class Advisor:
         return datetime.fromtimestamp(self.clock(), IST).date().isoformat()
 
     def _roll_day(self) -> None:
+        """Move the shared ledger onto this clock's IST day. Never rewind: a replay clock must not wipe today's spend."""
         day = self._ist_day()
-        if day != self._day:
-            self._day, self.calls_today, self.cost_today = day, 0, 0.0
+        with self.budget.lock:
+            if self.budget.day and day <= self.budget.day:
+                return
+            self.budget.day = day
+            self.budget.calls = 0
+            self.budget.tokens = 0
+            self.budget.cost = 0.0
+            self.budget.seeded = False
 
     def _cache_key(self, h: str) -> str:
         return f"{PROMPT_VERSION}|{self.provider.name}|{self.provider.model}|{h}"
 
+    def _log_rows(self) -> list[dict[str, Any]]:
+        """Online and offline logs. The shared ledger counts both; a path listed twice is read once."""
+        rows: list[dict[str, Any]] = []
+        seen: set[str] = set()
+        for raw in (self.cfg.get("log_path"), self.cfg.get("replay_log_path")):
+            if not raw or str(raw) in seen:
+                continue
+            seen.add(str(raw))
+            path = Path(str(raw))
+            if not path.is_file():
+                continue
+            for line in path.read_text(encoding="utf-8").splitlines():
+                try:
+                    row = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if isinstance(row, dict):
+                    rows.append(row)
+        return rows
+
     def _seed_from_log(self) -> None:
-        """Today's spend and verdicts from the log, so a restart cannot reset the budget."""
-        self._roll_day()
-        path = Path(self.log_path) if self.log_path else None
-        if path is None or not path.is_file():
-            return
-        for line in path.read_text(encoding="utf-8").splitlines():
-            try:
-                row = json.loads(line)
-            except json.JSONDecodeError:
+        """Today's spend from the logs, once per ledger, so a restart cannot reset or double-count it."""
+        day = self._ist_day()
+        calls, cost, tokens = 0, 0.0, 0
+        cache_rows: list[tuple[str, dict[str, Any]]] = []
+        for row in self._log_rows():
+            if row.get("ist_date") != day:
                 continue
-            if not isinstance(row, dict) or row.get("ist_date") != self._day or row.get("provider") != self.provider.name:
-                continue
-            self.calls_today += 1
-            self.cost_today += float(row.get("cost_usd") or 0.0)
-            if row.get("status") == "ok" and isinstance(row.get("verdict"), dict) and row.get("prompt_version") == PROMPT_VERSION \
+            calls += 1
+            cost += float(row.get("cost_usd") or 0.0)
+            tokens += int(row.get("tokens_in") or 0) + int(row.get("tokens_out") or 0)
+            if row.get("provider") == self.provider.name and row.get("status") == "ok" \
+                    and isinstance(row.get("verdict"), dict) and row.get("prompt_version") == PROMPT_VERSION \
                     and row.get("model") == self.provider.model:
-                self._remember(self._cache_key(str(row.get("context_hash"))), {**row["verdict"], "status": "ok"})
+                cache_rows.append((self._cache_key(str(row.get("context_hash"))), {**row["verdict"], "status": "ok"}))
+        with self.budget.lock:
+            # Same rule as _roll_day: a later IST day replaces the ledger; an earlier clock does not.
+            if not self.budget.day or day > self.budget.day:
+                self.budget.day = day
+                self.budget.calls = 0
+                self.budget.tokens = 0
+                self.budget.cost = 0.0
+                self.budget.seeded = False
+            if self.budget.day == day and not self.budget.seeded:
+                self.budget.calls = calls
+                self.budget.cost = cost
+                self.budget.tokens = tokens
+                self.budget.seeded = True
+        for key, outcome in cache_rows:
+            self._remember(key, outcome)
 
     def _remember(self, key: str, outcome: dict[str, Any]) -> None:
         self._cache[key] = outcome
@@ -209,49 +295,64 @@ class Advisor:
         return None
 
     def _refuse(self, context: Mapping[str, Any]) -> Optional[str]:
-        """Called under the lock. Offline providers are free and deterministic: never refused."""
-        if self.provider.offline:
-            return None
+        """Called under the lock. Offline calls count, and are never refused (replay stays deterministic)."""
         now = self.clock()
         self._roll_day()
+        if self.provider.offline:
+            with self.budget.lock:
+                self.budget.calls += 1
+            return None
         tick_ts = context.get("tick_ts")
         if isinstance(tick_ts, (int, float)) and now - float(tick_ts) > float(self.cfg["max_tick_age_s"]):
             return "STALE_TICK"
-        if self.calls_today >= int(self.cfg["max_calls_per_day"]):
-            return "BUDGET_CALLS"
         system, user = build_messages(context)
-        if self.cost_today + self.provider.estimate_cost_usd(system, user) > float(self.cfg["max_cost_usd_per_day"]):
-            return "BUDGET_COST"
-        if now - self._last_call < float(self.cfg["min_interval_s"]):
-            return "RATE_LIMITED"
-        if self._bg is not None and not self._bg.done():
-            return "BUSY"
-        self._last_call = now
-        self.calls_today += 1
+        estimate = self.provider.estimate_cost_usd(system, user)
+        with self.budget.lock:
+            if self.budget.calls >= int(self.cfg["max_calls_per_day"]):
+                return "BUDGET_CALLS"
+            if self.budget.cost + estimate > float(self.cfg["max_cost_usd_per_day"]):
+                return "BUDGET_COST"
+            if now - self._last_call < float(self.cfg["min_interval_s"]):
+                return "RATE_LIMITED"
+            if self._bg is not None and not self._bg.done():
+                return "BUSY"
+            self._last_call = now
+            self.budget.calls += 1
         return None
+
+    def _invoke(self, system: str, user: str, context: Mapping[str, Any], h: str) -> tuple[Any, Any, str, Optional[str]]:
+        reply = None
+        try:
+            reply = self.provider.complete(system, user, context=context, context_hash=h, timeout_s=self.timeout_s)
+            return reply, parse_verdict(reply.text), "ok", None
+        except VerdictError as exc:
+            return reply, None, "invalid", str(exc)[:200]
+        except Exception as exc:
+            return reply, None, "error", f"{type(exc).__name__}:{str(exc)[:120]}"
 
     def _call(self, context: Mapping[str, Any], h: str) -> dict[str, Any]:
         system, user = build_messages(context)
         t0 = time.perf_counter()
-        reply, verdict, status, error = None, None, "ok", None
-        fut = self._pool.submit(
-            self.provider.complete, system, user, context=context, context_hash=h, timeout_s=self.timeout_s,
-        )
-        try:
-            reply = fut.result(timeout=self.timeout_s)
-            verdict = parse_verdict(reply.text)
-        except FutureTimeout:
-            fut.cancel()
-            status, error = "timeout", f"TIMEOUT_{int(self.timeout_s * 1000)}MS"
-        except VerdictError as exc:
-            status, error = "invalid", str(exc)[:200]
-        except Exception as exc:
-            status, error = "error", f"{type(exc).__name__}:{str(exc)[:120]}"
+        # Offline providers are in-process. A thread per replay tick is pure overhead; the room's
+        # replay cap is what stops a hang. Online calls keep the hard wall-clock timeout.
+        if self.provider.offline:
+            reply, verdict, status, error = self._invoke(system, user, context, h)
+        else:
+            reply, verdict, status, error = None, None, "ok", None
+            fut = self._pool.submit(self._invoke, system, user, context, h)
+            try:
+                reply, verdict, status, error = fut.result(timeout=self.timeout_s)
+            except FutureTimeout:
+                fut.cancel()
+                status, error = "timeout", f"TIMEOUT_{int(self.timeout_s * 1000)}MS"
         latency_ms = round((time.perf_counter() - t0) * 1000.0, 3)
         cost = float(reply.cost_usd) if reply is not None else 0.0
+        tokens = (int(reply.tokens_in) + int(reply.tokens_out)) if reply is not None else 0
         outcome = {**(verdict or abstain(status)), "status": status}
         with self._lock:
-            self.cost_today += cost
+            with self.budget.lock:
+                self.budget.cost += cost
+                self.budget.tokens += tokens
             self._bump(status)
             if status == "ok":
                 self._remember(self._cache_key(h), outcome)
@@ -325,3 +426,5 @@ def reset_advisors() -> None:
         for adv in _ADVISORS.values():
             adv.close()
         _ADVISORS.clear()
+    with _BUDGETS_LOCK:
+        _BUDGETS.clear()

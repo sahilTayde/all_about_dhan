@@ -16,7 +16,7 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { chromium } from "playwright";
 import { build, preview } from "vite";
-import { board, dayHistory, exam, founderBook, founderStatus, snapshot, trace } from "./fixture.mjs";
+import { board, dayHistory, exam, founderBook, founderControls, founderStatus, snapshot, trace } from "./fixture.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const args = process.argv.slice(2);
@@ -104,6 +104,7 @@ function fixtureApi(req, res, next) {
   if (p === "/paper/ml-books" || p === "/mock/ml_paper_dashboard.json") return json(board);
   if (p === "/paper/sod-exam" || p === "/mock/sod_exam_report.json") return json(exam);
   if (p === "/founder/status") return json(founderStatus);
+  if (p === "/founder/controls") return json(founderControls);
   if (p === "/paper/founder-book") return json(founderBook);
   if (p === "/paper/human-override") return json({ ok: false, note: "fixture" });
   return next();
@@ -192,7 +193,8 @@ async function measure(page) {
         currentFields: count(".current-trade .kv"),
         accountRows: count(".account-panel .kv"),
         marketCards: count(".market-card"),
-        disabledControls: count(".ctrl-btn:disabled"),
+        founderControls: count(".founder-controls .fc-box"),
+        historyRows: count(".founder-controls .fc-table tbody tr"),
       },
     };
   });
@@ -201,8 +203,8 @@ async function measure(page) {
 function featureProblems(name, width, f) {
   if (!FEATURES) return [];
   const need = {
-    desk: { alertBar: 1, traceNodes: 7, currentFields: 13, accountRows: 6, marketCards: 1 },
-    founder: { alertBar: 1, ragRows: 7, traceNodes: 7, charts: 3, accountRows: 6, disabledControls: 6 },
+    desk: { alertBar: 1, traceNodes: 7, currentFields: 13, accountRows: 6, marketCards: 1, founderControls: 7, historyRows: 3 },
+    founder: { alertBar: 1, ragRows: 7, traceNodes: 7, charts: 3, accountRows: 6, founderControls: 7, historyRows: 3 },
   }[name];
   if (!need) return [];
   return Object.entries(need)

@@ -5,6 +5,7 @@ import { AppNav } from "./components/AppNav.jsx";
 import { CurrentTrade, HumanManage } from "./components/CurrentTrade.jsx";
 import { DecisionTrace } from "./components/DecisionTrace.jsx";
 import { Disclaimer } from "./components/Disclaimer.jsx";
+import { FounderControls } from "./components/FounderControls.jsx";
 import { Header, OfflineBanner } from "./components/Header.jsx";
 import { IstMarketClock } from "./components/IstMarketClock.jsx";
 import { MarketPanel } from "./components/MarketPanel.jsx";
@@ -103,6 +104,9 @@ export function InternalDesk() {
           <div className="span-4 stack">
             <AccountPanel account={snap?.account} today={today} founderBook={snap?.founder_book} indexing={indexing} />
             <MarketPanel regimes={d.regimes} />
+          </div>
+          <div className="span-12">
+            <FounderControls compact />
           </div>
           <div className="span-12">
             <DecisionTrace
