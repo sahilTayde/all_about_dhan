@@ -149,7 +149,7 @@ run in parallel. `REG-nn` ids refer to section 3; each ticket ships the regressi
 - Depends on: V2-01.
 
 **V2-04 Engine kernel, config loader, job deadlines** (`packages/runtime/kernel.py`, `wiring.py`, `jobs.py`,
-`packages/contracts/config.py`, ~450 lines)
+`packages/runtime/config.py`, ~450 lines)
 - `Engine(source, clock, bus, handlers, store, mode)`, one transaction per input, checkpoint, rehydrate mode (router
   no-op plus intent comparison), `RunSummary` with an output hash; `load_with_last_good` for every engine YAML;
   `run_with_deadline(fn, timeout_s)` for every one-shot job.
@@ -504,7 +504,7 @@ and V2 adds only the test. **PARTIAL** = a merged mechanism exists, with the nam
 | REG-04 | No open ticket vanishes (F3); positions rebuilt from the durable ledger on restart; reconciliation | REG-04a-c | engine: ledger, runtime (recovery) | V2-10, V2-13 | PARTIAL: append-only ledger, `brokers.reconcile`, `risk_snapshot` from disk. Gaps: positions keyed by symbol only, no restart sequence, paper broker not rebuilt |
 | REG-05 | Caps inside the risk veto: ₹30k/trade, ₹90k/day, 25 lots, 3 positions (paper, configurable); PR #14 halt and kill-switch semantics | REG-05a-e | engine: risk-engine, oms | V2-08, V2-09, V2-10 | **SATISFIED for caps and kill switch** (`RiskEngine._entry_veto`, `load_limits` rejects missing keys, values in `config/risk_limits.yaml`). PARTIAL for the halt: lives in legacy `desk/executor.py` + JSON file; ported to `session_halts` |
 | REG-06 | A corrupt or partial line mid-day never erases earlier trades or state; per-line guarded parsing; first bad line recorded durably (PR #18 scenario 2e) | REG-06a-c | events, marketdata, control, ledger | V2-02, V2-03, V2-10, V2-11, V2-D2 | PARTIAL: ledger and event audit are SQLite with append-only triggers (satisfied there). Gaps: `RedisStreamsBus.poll` skips good entries before a bad one; no durable bad-line record; PR #18 unmerged |
-| REG-07 | Bad YAML/config never stops the bus; last-good config kept; alarm | REG-07a-c | contracts (config loader), engine: risk-engine | V2-04, V2-08 | PARTIAL: `MemoryBus` catches subscriber errors; risk fails closed. Gaps: no last-good copy, no alarm, bad YAML vetoes exits |
+| REG-07 | Bad YAML/config never stops the bus; last-good config kept; alarm | REG-07a-c | runtime (config loader), engine: risk-engine | V2-04, V2-08 | PARTIAL: `MemoryBus` catches subscriber errors; risk fails closed. Gaps: no last-good copy, no alarm, bad YAML vetoes exits |
 | REG-08 | ETL and loaders skip and log bad lines, never crash | REG-08a-b | warehouse, marketdata (sources) | V2-03, V2-18 | PARTIAL: `warehouse/ingest.py` catches some errors but reads whole files; PR #19 ETL unmerged |
 | REG-09 | Supervisor never restart-loops (F1): backoff, circuit breaker, alarm | REG-09a-b | runtime (services), health | V2-15, V2-14 | NEW (recorder and feed have backoff only) |
 | REG-10 | Every replay and job has a wall-clock timeout | REG-10a-b | runtime (jobs) | V2-04, V2-15, V2-16 | NEW |
@@ -554,7 +554,7 @@ the founder's delegation of 02:08 CT, 2026-09-27). Nothing is settled silently.
 | REG-04 | No open ticket vanishes (F3); rebuild from ledger; reconcile | ledger, runtime (recovery) | V2-10, V2-13 | REG-04a-c | — |
 | REG-05 | Caps in the risk veto (₹30k/trade, ₹90k/day, 25 lots, 3 positions); PR #14 halt and kill switch | risk engine, oms | V2-08, V2-09, V2-10 | REG-05a-e | ⚑ K1 |
 | REG-06 | A corrupt line never erases earlier state; first bad line recorded durably (PR #18 2e) | events, marketdata, control, ledger | V2-02, V2-03, V2-10, V2-11, V2-D2 | REG-06a-c | — |
-| REG-07 | Bad config never stops the bus; last-good kept; alarm | contracts, risk engine | V2-04, V2-08 | REG-07a-c | — |
+| REG-07 | Bad config never stops the bus; last-good kept; alarm | runtime, risk engine | V2-04, V2-08 | REG-07a-c | — |
 | REG-08 | ETL and loaders skip and log bad lines | warehouse, marketdata | V2-03, V2-18 | REG-08a-b | — |
 | REG-09 | No restart loop (F1): backoff, breaker, alarm | runtime, health | V2-15, V2-14 | REG-09a-b | — |
 | REG-10 | Wall-clock timeout on every replay and job | runtime | V2-04, V2-15, V2-16 | REG-10a-b | — |
