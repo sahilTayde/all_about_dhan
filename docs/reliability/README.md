@@ -47,9 +47,10 @@ python -m desk_ml.event_parity --root $R $D
 python -m desk_ml.event_parity --root $R $D --underlyings NIFTY BANKNIFTY SENSEX
 ```
 
-Expected totals: NIFTY 66 / −128,730.49; all three 143 / −59,562.24. The lab baseline
-(38 / +94,962.39) runs through the box's existing `lab_p2c.py` unchanged; extra kwargs can also be
-passed to `replay_dump.py` with `--kw key=<json>`.
+Expected totals with `SHADOW_LOG=0` (`main` @ `ec91e9e`, #25's closed-bar logit): NIFTY 63 /
+−96,190.79; all three 140 / −27,022.54. The lab baseline (36 / +110,000.29) runs through the box's
+existing `lab_p2c.py` unchanged; extra kwargs can also be passed to `replay_dump.py` with
+`--kw key=<json>`.
 
 Live-loop history check on a recorded day (before: `main`; after: PR head):
 
