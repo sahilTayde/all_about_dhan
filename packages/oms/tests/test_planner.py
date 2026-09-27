@@ -292,6 +292,22 @@ def test_off_tick_ask_is_snapped_to_0_05_and_not_above_cap() -> None:
     assert on_tick, f"marketable_limit({ask})={got} is not a 0.05 tick"
 
 
+def test_bad_lot_size_must_not_send(tmp_path: Path) -> None:
+    clock = SimClock(NOW)
+    planner = _planner(tmp_path, clock)
+    planner.on_decision(
+        make_decision(lots=1, lot_size=10),
+        account=Account("founder"),
+        signal_id=SIG,
+        bar_close_ts=BAR_CLOSE,
+    )
+    planner.on_quote(_quote(clock, ask=151.20))
+    assert planner.router.broker.orders == {}
+    row = next(iter(planner.store.entry_plans.values()))
+    assert row["status"] == "VETOED"
+    assert row["veto"] == "LOT_SIZE_MISMATCH"
+
+
 def test_veto_is_persisted_on_the_plan_row(tmp_path: Path) -> None:
     clock = SimClock(NOW)
     planner = _planner(tmp_path, clock)
