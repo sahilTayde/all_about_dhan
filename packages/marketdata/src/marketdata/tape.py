@@ -22,6 +22,9 @@ class TapeWriter:
         self._current_date: str | None = None
         self._flush_task: asyncio.Task[None] | None = None
         self._should_stop = False
+        
+        # Repair existing files on init (crash recovery)
+        self._repair_existing_files()
 
     def _ensure_open(self, ts: datetime) -> None:
         """Ensure file is open for today's date."""
@@ -37,11 +40,26 @@ class TapeWriter:
         day_dir.mkdir(parents=True, exist_ok=True)
 
         filepath = day_dir / f"{self.stream_name}.jsonl"
+        
+        # Repair BEFORE opening for append
+        self._repair_truncated_line(filepath)
+        
         self._file = open(filepath, "a", encoding="utf-8")
         self._current_date = date_str
 
-        self._repair_truncated_line(filepath)
-
+    def _repair_existing_files(self) -> None:
+        """Repair all existing JSONL files for this stream (crash recovery on init)."""
+        if not self.tape_root.exists():
+            return
+        
+        # Find all day directories
+        for day_dir in self.tape_root.iterdir():
+            if not day_dir.is_dir():
+                continue
+            filepath = day_dir / f"{self.stream_name}.jsonl"
+            if filepath.exists():
+                self._repair_truncated_line(filepath)
+    
     def _repair_truncated_line(self, filepath: Path) -> None:
         """Remove truncated last line (crash recovery). Scan back past 8KB."""
         if not filepath.exists():
@@ -62,6 +80,7 @@ class TapeWriter:
             if size == 0:
                 f.truncate(0)
                 return
+            # Truncate after stripping NUL tail
             f.truncate(size)
 
             # Check if ends with newline

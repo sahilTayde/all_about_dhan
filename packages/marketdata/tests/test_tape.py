@@ -67,10 +67,10 @@ def test_tape_repair_scans_past_8kb(tmp_path: Path) -> None:
     day_dir.mkdir(parents=True)
     
     tape_file = day_dir / "test.jsonl"
-    with open(tape_file, "w") as f:
+    with open(tape_file, "wb") as f:
         # Write 500 valid rows
         for i in range(500):
-            f.write(f'{{"id":{i}}}\n')
+            f.write(f'{{"id":{i}}}\n'.encode("utf-8"))
         # Add 64KB NUL tail (simulates power loss with buffered writes)
         f.write(b"\x00" * 65536)
     
