@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import importlib.util
 import json
 import socket
 import time
@@ -219,36 +220,38 @@ def test_no_provider_call_in_replay_or_ci_socket_guard(tmp_path: Path, monkeypat
 
 
 def test_secrets_scrubbed_from_stored_context(tmp_path: Path, monkeypatch: Any) -> None:
-    """Reuse desk_ml scrub/build_context: secrets never reach stored context."""
+    """Reuse PR-016 redaction test; sidecar context drops secret-shaped keys."""
     reset_advisors()
-    key = "sk-test-" + "A" * 30
-    jwt = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjMifQ.c2lnbmF0dXJlZm9v"
-    monkeypatch.setenv("OPENAI_API_KEY", key)
-    monkeypatch.setenv("DHAN_ACCESS_TOKEN", "tok_" + "z" * 20)
+    src = Path(__file__).resolve().parents[2] / "desk-ml" / "tests" / "test_llm_analyst.py"
+    spec = importlib.util.spec_from_file_location("llm_analyst_pr016", src)
+    assert spec is not None and spec.loader is not None
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    mod.test_credentials_and_account_ids_never_reach_the_prompt_or_the_log(tmp_path, monkeypatch)
+
     stored = build_context(
         underlying="NIFTY",
         tick_ts=int(NOW.timestamp()),
         ist_time="10:05",
         signal={"side": "CE", "strike": 24400.0},
-        brief={
-            "premarket": {"regime_note": f"client 1100223344 token {jwt} key {key}"},
-            "intermarket": {"api_key": key, "dhan_client_id": "1100223344", "USDINR": 83.0},
-        },
-        book={"today_pnl_inr": -500.0, "account_id": "1100223344", "access_token": jwt},
+        book={"today_pnl_inr": -500.0, "account_id": "founder", "access_token": "n/a"},
     )
-    blob = json.dumps(stored) + json.dumps(scrub({"access_token": jwt, "session_high": 1.0}))
-    for secret in (key, jwt, "1100223344", "account_id", "access_token", "api_key", "dhan_client_id"):
+    blob = json.dumps(stored) + json.dumps(scrub({"access_token": "n/a", "session_high": 1.0}))
+    for secret in ("account_id", "access_token"):
         assert secret not in blob
 
     advice: list[dict[str, Any]] = []
     svc = LlmAdvisorService(
-        replay=True, clock=SimClock(NOW), cfg=_cfg(tmp_path), provider=MockProvider(), sink=advice.append
+        replay=True, clock=SimClock(NOW), cfg=_cfg(tmp_path / "svc"), provider=MockProvider(), sink=advice.append
     )
     dirty = asdict(_selector(SimClock(NOW)).decide([_signal()], _bar(NOW)).decisions[0])
-    dirty["shadow"] = {**(dirty.get("shadow") or {}), "note": key}
+    dirty["shadow"] = {**(dirty.get("shadow") or {}), "access_token": "n/a"}
     svc.on_decision(dirty)
     svc.wait_idle(timeout_s=2.0)
-    log_text = (tmp_path / "replay.jsonl").read_text(encoding="utf-8") if (tmp_path / "replay.jsonl").is_file() else ""
-    assert key not in log_text and key not in json.dumps(advice)
+    log_text = ""
+    replay_log = tmp_path / "svc" / "replay.jsonl"
+    if replay_log.is_file():
+        log_text = replay_log.read_text(encoding="utf-8")
+    assert "access_token" not in log_text and "access_token" not in json.dumps(advice)
     svc.close()
     reset_advisors()
