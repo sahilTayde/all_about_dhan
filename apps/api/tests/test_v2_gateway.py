@@ -18,8 +18,8 @@ from api.v2_gateway import (
 )
 from contracts.clock import SimClock
 from contracts.envelope import Envelope
-from events.bus import MemoryBus  # type: ignore[import-untyped]
-from events.schema import EventType  # type: ignore[import-untyped]
+from events.bus import MemoryBus
+from events.schema import EventType
 from fastapi.testclient import TestClient
 
 TS = "2026-09-28T10:01:00.000+05:30"

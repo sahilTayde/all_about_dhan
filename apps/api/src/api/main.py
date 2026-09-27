@@ -5,9 +5,9 @@ from __future__ import annotations
 import asyncio
 import json
 from contextlib import asynccontextmanager
-from typing import Any, Optional
+from typing import Any
 
-from events.bus import MemoryBus  # type: ignore[import-untyped]
+from events.bus import MemoryBus
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
@@ -273,7 +273,7 @@ def create_app() -> FastAPI:
         )
 
     @app.get("/paper/history")
-    def paper_history(day: Optional[str] = None) -> dict[str, Any]:
+    def paper_history(day: str | None = None) -> dict[str, Any]:
         """Closed paper trades for one IST day (board + model log + ledger). Read-only."""
         return ui_feed.day_history(day=day, budget_s=2.0)
 

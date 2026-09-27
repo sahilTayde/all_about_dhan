@@ -15,8 +15,8 @@ from datetime import datetime, timedelta, timezone
 from typing import Any, Protocol
 
 from contracts.envelope import Envelope
-from events.bus import EventBus  # type: ignore[import-untyped]
-from events.schema import Event, EventType  # type: ignore[import-untyped]
+from events.bus import EventBus
+from events.schema import Event, EventType
 from fastapi import (
     APIRouter,
     HTTPException,
