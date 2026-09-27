@@ -1,5 +1,33 @@
 # Handoff log — Team 07 Coding
 
+## As of now (2026-09-28 IST) — V2-08b order planner + stretch record (PAPER)
+
+```text
+From:     teams/07_coding
+To:       founder / 00 / 09
+Date:     2026-09-28
+Status:   PAPER / V2-08b / NO_PROMOTE / no live orders
+Accepted: Order planner (packages/oms/planner.py) sends one
+  marketable LIMIT at ask + max_chase_ticks (default 2);
+  never a MARKET entry. chase_defaults.yaml hashed (K20).
+  Unfilled chase -> TIMEOUT_UNFILLED + MISSED_CHASE with
+  shadow P&L. pullback_limit / wait_consolidation implemented
+  and globally disabled. Boss selector records stretch
+  (zone/EMA20/TWAP) with no veto. REG-07 last-good +
+  CONFIG_INVALID; REG-13 entry config_hash; REG-04 rebuild
+  pending plans without duplicates; REG-14 reused for
+  resting limits. Risk re-checked at send. Merged
+  origin/main (V2-05b / V2-07) into this branch; install.sh
+  is union (strategies + oms, each once).
+Rejected: MARKET entries. Stretch veto / ENTRY_STRETCHED.
+  Live/Dhan. Rebase / force-push.
+UNKNOWN: Recalibration of max_chase_ticks after 5 V2-D2
+  depth sessions (K20 ticket note). Price improvement (K17)
+  stays fill-at-limit until that review.
+```
+
+---
+
 ## As of now (2026-09-27 IST) — V2-04 onto main 971bf81 / V2-15 (PAPER)
 
 ```text

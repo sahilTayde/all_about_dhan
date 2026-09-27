@@ -1,0 +1,8 @@
+# V2-08b chase defaults (decision K20). Versioned and hashed like exit defaults.
+# Recalibrate once from the first 5 sessions of V2-D2 depth (ATM / ITM100 / ITM200
+# × time-of-day × expiry). Never adjust this file intraday.
+version: "1.0.0"
+source: "decision K20: marketable limits only; never a plain market order"
+max_chase_ticks: 2          # 2 ticks = ₹0.10 at tick_size 0.05
+chase_timeout_s: 2.0        # unfilled -> TIMEOUT_UNFILLED / MISSED_CHASE
+tick_size: 0.05

@@ -110,6 +110,8 @@ class BarContext:
     intermarket_closes: Mapping[str, Sequence[tuple[str, float]]] | None = None
     weights: Mapping[str, float] | None = None
     signal_stages: Mapping[str, str] = field(default_factory=dict)
+    entry_location: dict[str, Any] | None = None
+    entry_config_hash: str = ""
 
 
 @dataclass
@@ -192,6 +194,35 @@ def causal_intermarket_closes(
         if rows:
             kept[str(symbol)] = rows
     return kept
+
+
+def _zone_atr(zones: Sequence[Mapping[str, Any]], name: str) -> float | None:
+    for zone in zones:
+        if str(zone.get("zone")) == name and zone.get("distance_atr") is not None:
+            return float(zone["distance_atr"])
+    return None
+
+
+def record_stretch(
+    entry_location: Mapping[str, Any] | None,
+    config_hash: str = "",
+) -> dict[str, Any]:
+    """Stretch block on every decision. Record only — never a hold or veto (K19)."""
+    loc = dict(entry_location or {})
+    zones = [z for z in (loc.get("zones") or []) if isinstance(z, Mapping)]
+    nearest = loc.get("nearest") if isinstance(loc.get("nearest"), Mapping) else {}
+    zone_atr = nearest.get("distance_atr") if nearest else loc.get("entry_distance_atr")
+    twap = _zone_atr(zones, "twap")
+    if twap is None:
+        twap = _zone_atr(zones, "vwap")
+    return {
+        "record_only": True,
+        "zone_atr": float(zone_atr) if zone_atr is not None else None,
+        "zone": nearest.get("zone") if nearest else None,
+        "ema20_atr": _zone_atr(zones, "ema20"),
+        "twap_atr": twap,
+        "config_hash": config_hash,
+    }
 
 
 def engine_config_hash(raw: Mapping[str, Any]) -> str:
@@ -581,6 +612,7 @@ class BossSelector:
     ) -> Decision:
         self._seq += 1
         picked = choice or (signals[0].strike_choice if signals else None)
+        loc = dict(ctx.entry_location) if ctx.entry_location else None
         return Decision(
             decision_id=_decision_id(ctx.underlying, now, self._seq),
             underlying=ctx.underlying,
@@ -594,6 +626,6 @@ class BossSelector:
             holds=list(holds),
             basket_hash=self.basket.basket.basket_hash,
             shadow=self._shadow_block(shadow, picked),
-            entry_location=None,
-            stretch=None,
+            entry_location=loc,
+            stretch=record_stretch(loc, ctx.entry_config_hash),
         )

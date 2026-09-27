@@ -12,6 +12,8 @@ from contracts.payloads import Decision, EntryPlan
 from events.bus import MemoryBus
 from risk_engine import IST, V2RiskEngine
 
+from brokers.fills import ClockedPaperBroker, Quote
+
 from oms import MemoryLedger, OrderRouter
 
 NOW = datetime(2026, 9, 28, 10, 1, tzinfo=IST)
@@ -65,6 +67,46 @@ def make_decision(**kw: Any) -> Decision:
     )
     data.update(kw)
     return Decision(**data)
+
+
+class NoFillBroker(ClockedPaperBroker):
+    """Records quotes but never fills (timeout / restart paths)."""
+
+    def on_depth(self, quote: Quote) -> None:
+        if quote.available_ts <= self.clock.now():
+            self.quotes.append(quote)
+
+
+class SpyBroker(NoFillBroker):
+    def __init__(self, *args: object, **kwargs: object) -> None:
+        super().__init__(*args, **kwargs)  # type: ignore[arg-type]
+        self.place_calls = 0
+        self.types: list[str] = []
+
+    def place_order(self, intent: object, decision: object) -> object:
+        self.place_calls += 1
+        self.types.append(str(getattr(intent, "order_type", "")))
+        return super().place_order(intent, decision)  # type: ignore[arg-type]
+
+
+def quote_at(
+    now: datetime, ask: float, bid: float | None = None, ltp: float | None = None
+) -> Quote:
+    return Quote(
+        available_ts=now,
+        bid=bid if bid is not None else ask - 0.10,
+        ask=ask,
+        ltp=ltp if ltp is not None else ask,
+        instrument_id=INST,
+    )
+
+
+def write_entry_cfg(tmp_path: Path, **overrides: Any) -> Path:
+    cfg = yaml.safe_load((REPO / "config" / "v2" / "entry_location.yaml").read_text())
+    cfg.update(overrides)
+    path = tmp_path / "entry_location.yaml"
+    path.write_text(yaml.safe_dump(cfg, sort_keys=False), encoding="utf-8")
+    return path
 
 
 def make_router(tmp_path: Path, clock: Any, **kw: Any) -> OrderRouter:
