@@ -4,11 +4,13 @@ Thin **Vite + React** UI for all_about_dhan. One site, three dashboards:
 
 | Route | Who | Job |
 |-------|-----|-----|
-| [`/desk`](http://localhost:5173/desk) (`/` redirects here) | Desk | Alert bar · Current trade (entry, LTP, stop, T1/T2, trailing, P&L, elapsed, MFE/MAE) + paper target/stop override · Account (all recorded days) · Current market · Decision trace · Trade history (day picker, filters, columns) · Why days spilled |
-| [`/pm`](http://localhost:5173/pm) | Founder | KPIs · System health (red/amber/green) + issues + next action · Account · START/STOP trade desk · Founder controls (next PR, disabled) · Charts: cumulative P&L, daily/weekly/monthly P&L + win %, trades per day, per-model win % + trend, loss by stage · Now open · Decision trace · Compare fills · Honesty exam · Discarded · Roster (DEMO) |
+| [`/desk`](http://localhost:5173/desk) (`/` redirects here) | Desk | Alert bar · Current trade (entry, LTP, stop, T1/T2, trailing, P&L, elapsed, MFE/MAE) + paper target/stop override · Account (all recorded days; add funds / min capital) · Current market · Founder controls (compact) · Decision trace · Trade history (day picker, filters, columns) · Why days spilled |
+| [`/pm`](http://localhost:5173/pm) | Founder | KPIs · System health (red/amber/green) + issues + next action · Account · START/STOP trade desk · Founder controls (start/stop, pause, blocked windows, lots, per-index, capital, cut loss, go for T2, kill switch + re-arm, command history) · Charts: cumulative P&L, daily/weekly/monthly P&L + win %, trades per day, per-model win % + trend, loss by stage · Now open · Decision trace · Compare fills · Honesty exam · Discarded · Roster (DEMO) |
 | [`/customer`](http://localhost:5173/customer) | Customer | One suggested ticket (FIXTURE preview). No indicator soup. |
 
 Every panel shows `—` (or a greyed decision-trace step) when the data does not exist yet; nothing is invented. Panels still fed by static `public/mock` demo JSON (roster, STRAT lights, indicator pills) carry a **DEMO · mock** badge.
+
+**Founder controls.** `POST /founder/controls/*` (localhost only) appends one timestamped command (who, why) to the durable founder log; the paper engine applies it from that timestamp on its next cycle and the history shows pending → applied / rejected. Kill switch, cut loss and re-arm ask for confirmation (a single-use token). PAPER only; no order leaves the box.
 
 **Data flow.** Desk and Founder open one server-sent-events stream, `GET /ui/stream`, which pushes the whole read-only snapshot (`apps/api/src/api/ui_feed.py`) only when it changes. If the stream drops they fall back to one batched `GET /ui/snapshot` every 2 s; if the API is down they show the static mock board with a CRITICAL "Website lost the API" alert. Past days (`/paper/history?day=`) and the decision trace (`/paper/trace?trade_id=`) are fetched on click. The alert bar can play a sound and raise a browser notification for CRITICAL / EMERGENCY alerts after you press **Enable alarm**.
 
