@@ -1,20 +1,18 @@
 # VPS template (PAPER only). Replace /opt/all_about_dhan with the checkout path, then:
-#   sudo cp deploy/systemd/aad-paper-loop.service /etc/systemd/system/
-#   sudo systemctl daemon-reload && sudo systemctl enable --now aad-paper-loop
-# systemd keeps the supervisor alive; health.supervise restarts a crashed loop and kills+restarts a
-# hung one (stale data/recon/engine_heartbeat.json). No broker credentials are read here.
+#   sudo cp deploy/systemd/aad-paper-loop.service deploy/systemd/aad-paper-loop.timer /etc/systemd/system/
+#   sudo systemctl daemon-reload && sudo systemctl enable --now aad-paper-loop.timer
+# The timer starts it Mon-Fri 09:30 IST. health.supervise restarts a crashed loop (capped, with
+# backoff) and kills+restarts a hung one; a closed market (exit 2) or the founder stop flag ends it
+# cleanly. Restart=no: a supervisor that gave up is not respawned. No broker credentials are read.
 [Unit]
 Description=all_about_dhan paper loop (dual-tape + paper scalp, supervised)
 After=network-online.target
 
 [Service]
 Type=simple
+SuccessExitStatus=2
 WorkingDirectory=/opt/all_about_dhan
 ExecStart=/opt/all_about_dhan/.venv/bin/python -u -m health.supervise -- /opt/all_about_dhan/.venv/bin/python -u -m trading_agents_india dual-tape --live-chain --paper-train --paper-scalp --tick-seconds 2 --max-ticks 0
-Restart=on-failure
-RestartSec=10
+Restart=no
 StandardOutput=append:/opt/all_about_dhan/data/recon/dual_tape_live_2s.log
 StandardError=append:/opt/all_about_dhan/data/recon/dual_tape_live_2s.log
-
-[Install]
-WantedBy=multi-user.target
