@@ -8,7 +8,7 @@ bad = [k for k in os.environ if k.startswith("DHAN_") or k == "ALL_ABOUT_DHAN_LI
 sys.exit(f"broker credentials / live confirm must not be set in CI: {bad}" if bad else 0)
 PY
 rc=0
-for t in packages/*/tests apps/api/tests; do
+for t in packages/*/tests apps/api/tests tests/regression; do
   [ -d "$t" ] || continue
   echo "::group::$t"
   python -m pytest -q -p no:cacheprovider --allow-hosts=127.0.0.1,localhost --allow-unix-socket \

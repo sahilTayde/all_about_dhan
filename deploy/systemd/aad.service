@@ -1,0 +1,16 @@
+[Unit]
+Description=all_about_dhan v2 compose (paper)
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory=/opt/aad
+Environment=SHA=%i
+ExecStart=/usr/bin/docker compose -f deploy/docker/compose.yaml -f deploy/docker/compose.vps.yaml up -d
+ExecStop=/usr/bin/docker compose -f deploy/docker/compose.yaml -f deploy/docker/compose.vps.yaml down
+TimeoutStartSec=120
+
+[Install]
+WantedBy=multi-user.target

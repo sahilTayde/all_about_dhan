@@ -7,6 +7,13 @@ from datetime import datetime
 from marketdata.types import BarClosed, parse_ts
 
 from indicators.core import ATR, EMA, VWAP, OIChange, RealizedVol, _as_ist
+from indicators.location import (
+    EntryLocation,
+    LocationTracker,
+    is_index_future,
+    is_index_spot,
+    underlying_id,
+)
 from indicators.view import FeatureValue, FeatureView
 
 
@@ -31,6 +38,9 @@ class FeatureEngine:
 
         # Feature storage: (name, instrument_id, tf) -> FeatureValue
         self._features: dict[tuple[str, str, str], FeatureValue] = {}
+
+        # Entry-location trackers keyed by underlying (closed 1m bars only)
+        self._location: dict[str, LocationTracker] = {}
 
     def on_bar(self, bar: BarClosed, available_ts: datetime | None = None) -> None:
         """Process a closed bar and update features.
@@ -102,6 +112,12 @@ class FeatureEngine:
                     value=vol_val, as_of=bar_end, available_ts=available_ts
                 )
 
+        if is_index_spot(instrument_id) or is_index_future(instrument_id):
+            und = underlying_id(instrument_id)
+            if und not in self._location:
+                self._location[und] = LocationTracker()
+            self._location[und].on_bar(bar, available_ts)
+
     def on_oi_update(self, instrument_id: str, oi: int, ts: datetime) -> None:
         """
         Record OI observation.
@@ -128,14 +144,34 @@ class FeatureEngine:
         """Bars rejected by every session VWAP (non-finite price/volume or negative volume)."""
         return sum(vwap.vwap_rejected_bars for vwap in self._vwap.values())
 
-    def view(self, now: datetime, *, strict: bool = False) -> FeatureView:
+    def entry_location(
+        self, instrument_id: str, side: str, now: datetime, tf: str = "1m"
+    ) -> EntryLocation | None:
+        """EntryLocation at `now` from closed 1m bars with available_ts <= now."""
+        del tf
+        now = _as_ist(now, what="entry_location now")
+        tracker = self._location.get(underlying_id(instrument_id))
+        if tracker is None:
+            return None
+        return tracker.snapshot(now, side=side, instrument_id=instrument_id)
+
+    def _merged_features(
+        self, now: datetime, *, side: str = "CE"
+    ) -> dict[tuple[str, str, str], FeatureValue]:
+        features = dict(self._features)
+        for tracker in self._location.values():
+            features.update(tracker.feature_values(now, side=side))
+        return features
+
+    def view(self, now: datetime, *, strict: bool = False, side: str = "CE") -> FeatureView:
         """Read-only feature view as of ``now``. ``now`` is required and must be tz-aware."""
         if now is None:
             raise ValueError("FeatureEngine.view requires now (unfiltered view is forbidden)")
         now = _as_ist(now, what="view now")
+        features = self._merged_features(now, side=side)
         if strict:
-            return FeatureView._create_strict(self._features, now)
-        visible_features = {k: v for k, v in self._features.items() if v.available_ts <= now}
+            return FeatureView._create_strict(features, now)
+        visible_features = {k: v for k, v in features.items() if v.available_ts <= now}
         return FeatureView(visible_features, strict=False)
 
     def reset_session(self) -> None:
@@ -147,3 +183,5 @@ class FeatureEngine:
             for key, value in self._features.items()
             if key[0] not in {"vwap", "vwap_mode"}
         }
+        for tracker in self._location.values():
+            tracker.reset()
