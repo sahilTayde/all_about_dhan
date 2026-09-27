@@ -9,7 +9,7 @@ instruments:
     # TODO(verify): every field below depends on the forex broker contract spec, which is not chosen yet.
     exchange: null
     lot_size: null
-    expiry_weekday: null     # spot forex has no expiry; the expiry label stays "unknown"
+    expiry_weekday: null     # spot forex has no expiry
     session: {open: null, close: null, tz: null}
     tick_size: null
 
@@ -20,14 +20,6 @@ selection:
   min_dsr: 0.95
   require_positive_net: true
 
-regime:
-  preopen_days: 10
-  preopen_trend_er_min: 0.30
-  preopen_high_vol_pct: 8.0     # TODO(verify): placeholder until the lab calibrates forex vol
-  intraday_bars: 30
-  intraday_trend_er_min: 0.30
-  intraday_high_vol_pct: 8.0    # TODO(verify): placeholder until the lab calibrates forex vol
-
-lab_scores: data/lab/basket_forex.json
+lab_scores: data/shadow/basket/lab/basket_forex.json
 
 strategies: []

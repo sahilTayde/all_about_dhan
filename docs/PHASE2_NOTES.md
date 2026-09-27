@@ -119,7 +119,7 @@ raises `EventBusStartupError` with that install command. It does not crash again
 |---|---|
 | `packages/events` | `EventType` / `Event` (JSON), `MemoryBus` (sync, default), `RedisStreamsBus` (optional), `EventAuditLog` |
 | `packages/analysts` | `Analyst.vote(ctx) -> Vote(signal, confidence, reasoning)`, `register("KEY")`, `AnalystRoom`, `config/analysts.yaml` |
-| `packages/boss` | `Boss`: REQUEST_VOTES → decision rules → ENTRY_APPROVED / NO_ENTRY. `boss.basket`: strategy basket selector, shadow only, off by default (`docs/baskets.md`) |
+| `packages/boss` | `Boss`: REQUEST_VOTES → decision rules → ENTRY_APPROVED / NO_ENTRY |
 | `packages/desk` | `Desk` (founder → risk → broker → ledger), `ClockedPaperBroker` |
 | `desk_ml.event_path` | `EventSession`: wires bus, audit, ledger, risk, broker, analysts, boss, desk for one replay |
 | `desk_ml.event_parity` | parity harness + CLI |

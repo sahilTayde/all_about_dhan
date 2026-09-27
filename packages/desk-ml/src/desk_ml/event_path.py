@@ -136,7 +136,6 @@ class EventSession:
         bus: Any = None,
         deterministic: bool = True,
         live_loop: bool = False,
-        basket: Any = None,
     ) -> None:
         from events import EventAuditLog, MemoryBus
 
@@ -153,9 +152,6 @@ class EventSession:
         # True only for the live paper loop. Replays, lab, and parity leave this off
         # so a halt file from today's loop cannot block them.
         self.live_loop = bool(live_loop)
-        # Basket selector (shadow log only). None = read basket_selector in config/event_path.yaml
-        # (off by default), False = off, or a boss.basket.BasketShadow.
-        self._basket = basket
         self._room = room
         self.prior_daily: dict[str, list[dict[str, Any]]] = {}
         self.engine: Any = None
@@ -179,15 +175,10 @@ class EventSession:
             self.bus, engine, risk=None, broker=None, steps=self.steps, live_loop=self.live_loop,
         )
         self.room.attach(self.bus, self.contexts)
-        basket = self._basket
-        if basket is None:
-            from boss.basket import shadow_from_settings
-
-            basket = shadow_from_settings(_read_yaml(repo_root() / EVENT_PATH_CONFIG), root=repo_root())
         self.boss = Boss(
             self.bus, engine, steps=self.steps, signals=self.signals, contexts=self.contexts,
             analyst_ids=self.room.analyst_ids, shadow_ids=getattr(self.room, "shadow_ids", ()),
-            shadow_cfg=getattr(self.room, "shadow_cfg", None), basket=basket or None,
+            shadow_cfg=getattr(self.room, "shadow_cfg", None),
         )
         return self
 
@@ -278,7 +269,7 @@ class EventSession:
 
     def summary(self) -> dict[str, Any]:
         trades = self.ledger_trades()
-        out = {
+        return {
             "backend": self.bus.backend,
             "risk_config": str(self.risk_config),
             "deterministic_analysts": self.deterministic,
@@ -296,9 +287,6 @@ class EventSession:
                 "desk_tick": p99(self.desk.latency_ms["tick"]),
             },
         }
-        if self.boss.basket is not None:
-            out["basket_shadow"] = self.boss.basket.summary()
-        return out
 
     def close(self) -> None:
         self.room.close()

@@ -1,0 +1,13 @@
+# Strategy basket selector (packages/strategy-basket, docs/baskets.md). SHADOW ONLY: it writes the
+# chosen basket and its reasons to out_dir/<day>.jsonl and places no orders.
+#
+# Off by default. Env USE_BASKET_SELECTOR=1 (or 0) overrides `enabled`. It needs the event path
+# (USE_EVENT_BUS=1) and the regime service's minute labels (config/regime.yaml mode shadow or apply).
+# Founder control: while founder_off_file exists the selector never runs, even when enabled
+# (`python -m strategy_basket off` creates it, `on` removes it, `status` shows both).
+enabled: false
+founder_off_file: data/shadow/basket/FOUNDER_OFF
+out_dir: data/shadow/basket
+baskets:
+  - config/baskets/india.yaml
+  - config/baskets/forex.yaml   # parked: loaded and validated, never activated

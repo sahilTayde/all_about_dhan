@@ -9,16 +9,3 @@
 # file on the live loop you must set live_risk_config to it here, on purpose.
 live_risk_config: config/risk_limits.yaml
 replay_risk_config: config/risk_limits_replay.yaml
-
-# Strategy basket selector (packages/boss/src/boss/basket.py, docs/baskets.md). SHADOW ONLY:
-# the boss writes the chosen basket and its reasons to out_dir/<day>.jsonl and places no orders.
-# Off by default; env USE_BASKET_SELECTOR=1 (or 0) overrides `enabled`. Needs USE_EVENT_BUS.
-# Founder control: while founder_off_file exists the selector never runs, even when enabled
-# (`python -m boss.basket off` creates it, `python -m boss.basket on` removes it).
-basket_selector:
-  enabled: false
-  founder_off_file: data/founder/basket_selector_off
-  out_dir: data/shadow/basket
-  baskets:
-    - config/baskets/india.yaml
-    - config/baskets/forex.yaml   # parked: loaded and validated, never activated
