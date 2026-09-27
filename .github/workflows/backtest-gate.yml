@@ -47,9 +47,14 @@ jobs:
 
   mutation:
     # Every exit constant moved by one small step must fail the gate (tools/backtest_gate/mutate.py).
+    # Four shards: one runner replays all 50 mutants in well over 40 minutes.
     if: github.event_name == 'push' || github.event.action != 'edited'
     runs-on: ubuntu-latest
     timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1, 2, 3]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -65,7 +70,8 @@ jobs:
       - name: Exit-constant mutation check
         env:
           GATE_MUTATION: "1"
-        run: python -m pytest tools/backtest_gate/tests/test_mutation.py -q
+          GATE_MUTATION_SHARD: "${{ matrix.shard }}/4"
+        run: python -m pytest tools/backtest_gate/tests/test_mutation.py -q -rxs
 
   honest-backtest:
     if: github.event_name == 'pull_request'

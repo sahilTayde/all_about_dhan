@@ -4,6 +4,7 @@ Slow (one subprocess per constant, each replaying fixtures until one result move
 only with GATE_MUTATION=1 (the `mutation` job in .github/workflows/backtest-gate.yml):
 
     GATE_MUTATION=1 python -m pytest tools/backtest_gate/tests/test_mutation.py -q
+    GATE_MUTATION=1 GATE_MUTATION_SHARD=0/4 python -m pytest ...   # CI matrix: one quarter of the constants
 """
 
 from __future__ import annotations
@@ -22,9 +23,28 @@ import mutate  # noqa: E402
 pytestmark = pytest.mark.skipif(os.environ.get("GATE_MUTATION") != "1", reason="slow; set GATE_MUTATION=1")
 
 
+def shard_names() -> list[str]:
+    """GATE_MUTATION_SHARD=k/n keeps every n-th constant. Uncaught ones replay every result, so they are
+    dealt out first to keep the shards even."""
+    k, _, n = os.environ.get("GATE_MUTATION_SHARD", "0/1").partition("/")
+    slow = [m for m in mutate.EXIT_MUTANTS if m in mutate.UNEXERCISABLE or m in mutate.NOT_REACHED]
+    order = slow + [m for m in mutate.EXIT_MUTANTS if m not in slow]
+    return order[int(k)::int(n)]
+
+
+SHARD = shard_names()
+
+
 @pytest.fixture(scope="module")
 def results() -> dict:
-    return mutate.check(list(mutate.EXIT_MUTANTS), jobs=os.cpu_count() or 2)
+    return mutate.check(SHARD, jobs=os.cpu_count() or 2)
+
+
+@pytest.fixture(autouse=True)
+def _in_shard(request) -> None:
+    name = request.node.callspec.params.get("name") if hasattr(request.node, "callspec") else "EXIT_BOOK_NEAR_FRAC"
+    if name not in SHARD:
+        pytest.skip("in another GATE_MUTATION_SHARD")
 
 
 @pytest.mark.parametrize("name", [n for n in mutate.EXIT_MUTANTS if n not in mutate.UNEXERCISABLE])
