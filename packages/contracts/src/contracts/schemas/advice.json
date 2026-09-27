@@ -1,0 +1,15 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["decision_id", "verdict", "reasons", "provider", "prompt_version", "cost_usd", "context_hash"],
+  "properties": {
+    "decision_id": {"type": "string"},
+    "verdict": {"type": "string", "enum": ["agree", "disagree", "abstain"]},
+    "reasons": {"type": "array", "items": {"type": "string"}},
+    "provider": {"type": "string"},
+    "prompt_version": {"type": "string"},
+    "cost_usd": {"type": "number"},
+    "context_hash": {"type": "string"}
+  }
+}
