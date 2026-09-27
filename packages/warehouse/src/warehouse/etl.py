@@ -11,6 +11,12 @@ ponytail: stdlib SQLite, not DuckDB (DuckDB is not installed and adds a dependen
 plain SQLite file, so DuckDB can still read it later with `ATTACH 'analytics.sqlite' (TYPE sqlite)`.
 Every fact row carries `src_file`, so a changed source is replaced by deleting its rows and reloading
 it in one transaction. Rollups (daily/weekly/monthly P&L, attribution) are views, never stored copies.
+
+Bad input never stops the run. A bad field (non-finite, out-of-range timestamp, wrong type) is stored as
+NULL, a bad record (invalid JSON, not an object, no id) is skipped, and a bad file (top level not an
+object, not SQLite) is skipped; each gets one row in `rejects` (file, line number, field, reason,
+sample). Rejects belong to their file like any other row, so an unchanged file is not re-read and a
+re-run adds nothing. Only transient failures (unreadable or locked right now) are `errors` and retried.
 """
 
 from __future__ import annotations
@@ -18,11 +24,12 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import math
 import re
 import sqlite3
 import sys
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Callable, Iterable, Iterator, Optional, Sequence
 
@@ -95,6 +102,12 @@ CREATE TABLE IF NOT EXISTS recon_reports (
     n_mismatches INTEGER, summary_json TEXT NOT NULL,
     PRIMARY KEY (src_file, run_id)
 );
+-- Quarantine: one row per bad line (field '*'), bad field, or bad file (line_no 0). Loading carries on.
+-- line_no is 1-based for text files and the row id / event seq for SQLite sources.
+CREATE TABLE IF NOT EXISTS rejects (
+    src_file TEXT NOT NULL, line_no INTEGER NOT NULL, field TEXT NOT NULL, reason TEXT NOT NULL, sample TEXT,
+    PRIMARY KEY (src_file, line_no, field)
+);
 
 DROP VIEW IF EXISTS trades;
 CREATE VIEW trades AS
@@ -160,48 +173,86 @@ FROM trades WHERE filled = 1 AND day IS NOT NULL GROUP BY {expr}, book_id;
 VIEWS = "".join(_PNL_VIEW.format(name={"day": "daily", "week": "weekly", "month": "monthly"}[k], expr=v)
                 for k, v in PERIODS.items())
 FACT_TABLES = ("trades_raw", "trade_models", "fills", "charges", "analyst_votes", "stage_events", "model_log",
-               "recon_reports")
+               "recon_reports", "rejects")
 
 
 # ------------------------------------------------------------------ helpers
 
 
-def _f(x: Any) -> Optional[float]:
-    try:
-        return None if x is None or x == "" else float(x)
-    except (TypeError, ValueError):
+EPOCH_MIN, EPOCH_MAX = 946684800, 4102444800  # 2000-01-01 .. 2100-01-01 UTC
+NUM_ABS_MAX = 1e12  # no paper price, P&L or quantity comes near this
+
+
+class Bad(ValueError):
+    """One unusable value; the caller stores NULL and a reject row."""
+
+
+def _num(x: Any) -> Optional[float]:
+    if x is None or x == "":
         return None
+    if isinstance(x, bool) or not isinstance(x, (int, float, str)):
+        raise Bad(f"expected a number, got {type(x).__name__}")
+    try:
+        v = float(x)
+    except OverflowError:
+        raise Bad("out of range") from None
+    except ValueError:
+        raise Bad("not a number") from None
+    if not math.isfinite(v):
+        raise Bad("not finite")
+    if abs(v) > NUM_ABS_MAX:
+        raise Bad("out of range")
+    return v
 
 
-def _i(x: Any) -> Optional[int]:
-    v = _f(x)
+def _int(x: Any) -> Optional[int]:
+    v = _num(x)
     return None if v is None else int(v)
 
 
-def _ist_day(ts: Any) -> Optional[str]:
-    """Epoch seconds or ISO string -> IST date."""
-    if ts is None or ts == "":
+def _epoch(x: Any) -> Optional[int]:
+    """Epoch seconds (number or digits) or an ISO timestamp (naive = IST) -> epoch seconds."""
+    if x is None or x == "":
         return None
-    v = _f(ts)
-    if v is not None and v > 1e9:
-        return datetime.fromtimestamp(v, IST).date().isoformat()
-    s = str(ts)
-    try:
-        dt = datetime.fromisoformat(s)
-    except ValueError:
-        return s[:10] if re.match(r"\d{4}-\d{2}-\d{2}", s) else None
-    return (dt.astimezone(IST) if dt.tzinfo else dt).date().isoformat()
+    if isinstance(x, str) and not re.fullmatch(r"\s*-?\d+(\.\d+)?([eE][-+]?\d+)?\s*", x):
+        try:
+            dt = datetime.fromisoformat(x.strip().replace("Z", "+00:00"))
+        except ValueError:
+            raise Bad("unparseable timestamp") from None
+        v = (dt if dt.tzinfo else dt.replace(tzinfo=IST)).timestamp()
+    else:
+        v = _num(x)
+    if not EPOCH_MIN <= v <= EPOCH_MAX:
+        raise Bad("timestamp out of range")
+    return int(v)
 
 
-def _epoch(ts: Any) -> Optional[int]:
-    v = _f(ts)
-    if v is not None:
-        return int(v)
-    try:
-        dt = datetime.fromisoformat(str(ts))
-    except (TypeError, ValueError):
+def _day(x: Any) -> Optional[str]:
+    """Epoch, ISO timestamp or YYYY-MM-DD -> IST date."""
+    if isinstance(x, str) and re.fullmatch(r"\d{4}-\d{2}-\d{2}", x.strip()):
+        try:
+            return date.fromisoformat(x.strip()).isoformat()
+        except ValueError:
+            raise Bad("invalid date") from None
+    v = _epoch(x)
+    return None if v is None else datetime.fromtimestamp(v, IST).date().isoformat()
+
+
+def _text(x: Any, limit: int = 200) -> Optional[str]:
+    if x is None:
         return None
-    return int((dt if dt.tzinfo else dt.replace(tzinfo=IST)).timestamp())
+    if isinstance(x, float) and not math.isfinite(x):
+        raise Bad("not finite")
+    if isinstance(x, (str, int, float)) and not isinstance(x, bool):
+        return str(x)[:limit]
+    raise Bad(f"expected text, got {type(x).__name__}")
+
+
+def _sample(x: Any) -> str:
+    try:
+        return json.dumps(x, default=str)[:300]
+    except (TypeError, ValueError, OverflowError):
+        return repr(x)[:300]
 
 
 def _sha(*paths: Path, limit: Optional[int] = None) -> str:
@@ -225,48 +276,9 @@ def _now() -> str:
     return datetime.now(IST).isoformat(timespec="seconds")
 
 
-def paper_trade_row(r: dict[str, Any], *, source: str, priority: int, day: Optional[str] = None) -> dict[str, Any]:
-    """One closed paper-engine trade (paper_booked line or board closed_trades row)."""
-    entry, limit = _f(r.get("entry")), _f(r.get("limit_price"))
-    return {
-        "source": source, "priority": priority, "trade_id": str(r.get("trade_id")),
-        "day": _ist_day(r.get("closed_ts")) or _ist_day(r.get("opened_ts")) or day,
-        "book_id": r.get("book_id"), "underlying": r.get("underlying"), "side": r.get("side"),
-        "strike": _f(r.get("atm_strike")), "opened_ts": _i(r.get("opened_ts")), "closed_ts": _i(r.get("closed_ts")),
-        "entry": entry, "exit": _f(r.get("exit")), "limit_price": limit, "qty": _i(r.get("qty")),
-        "lots": _i(r.get("lots")), "exit_reason": r.get("exit_reason"), "regime": r.get("index_regime"),
-        "gross_pnl": _f(r.get("gross_pnl_inr")), "charges": _f(r.get("charges_inr")),
-        "net_pnl": _f(r.get("realized_pnl_inr")), "brokerage": _f(r.get("brokerage_inr")),
-        "stt": _f(r.get("stt_inr")), "exchange": _f(r.get("exchange_inr")), "sebi": _f(r.get("sebi_inr")),
-        "stamp": _f(r.get("stamp_inr")), "gst": _f(r.get("gst_inr")),
-        # Premium points per unit paid above the working limit (buys only; + is worse).
-        "entry_slippage": None if entry is None or limit is None else round(entry - limit, 4),
-        "exit_slippage": None, "filled": 1 if r.get("filled") else 0,
-    }
-
-
-_UNDERLYING = re.compile(r"^(BANKNIFTY|FINNIFTY|MIDCPNIFTY|NIFTY|SENSEX|BANKEX)")
-
-
-def ledger_trade_row(t: dict[str, Any]) -> dict[str, Any]:
-    sym = str(t.get("symbol") or "")
-    m = _UNDERLYING.match(sym.upper())
-    side = "CE" if sym.upper().endswith("CE") else "PE" if sym.upper().endswith("PE") else None
-    return {
-        "source": "ledger", "priority": PRIO_LEDGER, "trade_id": str(t["trade_id"]),
-        "day": t.get("day") or _ist_day(t.get("exit_time")) or _ist_day(t.get("entry_time")),
-        "book_id": None, "underlying": m.group(1) if m else sym or None, "side": side, "strike": None,
-        "opened_ts": _epoch(t.get("entry_time")), "closed_ts": _epoch(t.get("exit_time")),
-        "entry": _f(t.get("entry_price")), "exit": _f(t.get("exit_price")), "limit_price": None,
-        "qty": _i(t.get("entry_qty")), "lots": None, "exit_reason": t.get("exit_reason"), "regime": None,
-        "gross_pnl": _f(t.get("gross_pnl")), "charges": _f(t.get("charges")), "net_pnl": _f(t.get("net_pnl")),
-        "brokerage": None, "stt": None, "exchange": None, "sebi": None, "stamp": None, "gst": None,
-        "entry_slippage": _f(t.get("entry_slippage")), "exit_slippage": _f(t.get("exit_slippage")),
-        "filled": 1 if t.get("status") == "CLOSED" else 0,
-    }
-
-
 # ------------------------------------------------------------------ loaders
+
+REJECT_CAP = 500  # per unit; beyond this only a count row is kept
 
 
 @dataclass
@@ -275,77 +287,224 @@ class Batch:
 
     src_file: str
     rows: dict[str, list[dict[str, Any]]] = field(default_factory=dict)
+    n_rejects: int = 0
 
     def add(self, table: str, row: dict[str, Any]) -> None:
         self.rows.setdefault(table, []).append({"src_file": self.src_file, **row})
 
+    def reject(self, line_no: int, fld: str, reason: str, sample: Any = None) -> None:
+        self.n_rejects += 1
+        if self.n_rejects <= REJECT_CAP:
+            self.add("rejects", {"line_no": line_no, "field": fld, "reason": reason[:300],
+                                 "sample": None if sample is None else _sample(sample)})
+
+    def finish(self) -> "Batch":
+        if self.n_rejects > REJECT_CAP:
+            self.add("rejects", {"line_no": -1, "field": "*", "reason": f"{self.n_rejects - REJECT_CAP} more rejects not stored",
+                                 "sample": None})
+        return self
+
     def count(self) -> int:
-        return sum(len(v) for v in self.rows.values())
+        return sum(len(v) for k, v in self.rows.items() if k != "rejects")
 
 
-def _jsonl(lines: Iterable[str]) -> Iterator[tuple[int, dict[str, Any]]]:
-    for n, line in enumerate(lines):
+class Rec:
+    """Field reader for one source record: a bad field becomes None plus one reject row."""
+
+    def __init__(self, batch: Batch, line_no: int, rec: dict[str, Any], prefix: str = "") -> None:
+        self.batch, self.line_no, self.rec, self.prefix = batch, line_no, rec, prefix
+
+    def __call__(self, key: str, conv: Callable[[Any], Any] = _text) -> Any:
+        raw = self.rec.get(key)
+        try:
+            return conv(raw)
+        except Bad as exc:
+            self.batch.reject(self.line_no, self.prefix + key, str(exc), raw)
+            return None
+
+
+def paper_trade_row(g: Rec, *, source: str, priority: int, day: Optional[str] = None) -> dict[str, Any]:
+    """One closed paper-engine trade (paper_booked line or board closed_trades row)."""
+    entry, limit = g("entry", _num), g("limit_price", _num)
+    opened, closed = g("opened_ts", _epoch), g("closed_ts", _epoch)
+    return {
+        "source": source, "priority": priority, "trade_id": g("trade_id"),
+        "day": _day(closed or opened) or day,
+        "book_id": g("book_id"), "underlying": g("underlying"), "side": g("side"),
+        "strike": g("atm_strike", _num), "opened_ts": opened, "closed_ts": closed,
+        "entry": entry, "exit": g("exit", _num), "limit_price": limit, "qty": g("qty", _int),
+        "lots": g("lots", _int), "exit_reason": g("exit_reason"), "regime": g("index_regime"),
+        "gross_pnl": g("gross_pnl_inr", _num), "charges": g("charges_inr", _num),
+        "net_pnl": g("realized_pnl_inr", _num), "brokerage": g("brokerage_inr", _num),
+        "stt": g("stt_inr", _num), "exchange": g("exchange_inr", _num), "sebi": g("sebi_inr", _num),
+        "stamp": g("stamp_inr", _num), "gst": g("gst_inr", _num),
+        # Premium points per unit paid above the working limit (buys only; + is worse).
+        "entry_slippage": None if entry is None or limit is None else round(entry - limit, 4),
+        "exit_slippage": None, "filled": 1 if g.rec.get("filled") is True else 0,
+    }
+
+
+_UNDERLYING = re.compile(r"^(BANKNIFTY|FINNIFTY|MIDCPNIFTY|NIFTY|SENSEX|BANKEX)")
+
+
+def ledger_trade_row(g: Rec) -> dict[str, Any]:
+    sym = (g("symbol") or "").upper()
+    m = _UNDERLYING.match(sym)
+    side = "CE" if sym.endswith("CE") else "PE" if sym.endswith("PE") else None
+    opened, closed = g("entry_time", _epoch), g("exit_time", _epoch)
+    return {
+        "source": "ledger", "priority": PRIO_LEDGER, "trade_id": g("trade_id"),
+        "day": g("day", _day) or _day(closed or opened),
+        "book_id": None, "underlying": m.group(1) if m else sym or None, "side": side, "strike": None,
+        "opened_ts": opened, "closed_ts": closed,
+        "entry": g("entry_price", _num), "exit": g("exit_price", _num), "limit_price": None,
+        "qty": g("entry_qty", _int), "lots": None, "exit_reason": g("exit_reason"), "regime": None,
+        "gross_pnl": g("gross_pnl", _num), "charges": g("charges", _num), "net_pnl": g("net_pnl", _num),
+        "brokerage": None, "stt": None, "exchange": None, "sebi": None, "stamp": None, "gst": None,
+        "entry_slippage": g("entry_slippage", _num), "exit_slippage": g("exit_slippage", _num),
+        "filled": 1 if g.rec.get("status") == "CLOSED" else 0,
+    }
+
+
+def _record(batch: Batch, line_no: int, rec: Any, build: Callable[[Rec], list[tuple[str, dict[str, Any]]]],
+            prefix: str = "") -> None:
+    """Build every row of one record, then add them; any surprise skips just this record."""
+    if not isinstance(rec, dict):
+        batch.reject(line_no, "*", f"record is {type(rec).__name__}, not an object", rec)
+        return
+    try:
+        rows = build(Rec(batch, line_no, rec, prefix))
+    except Bad as exc:
+        batch.reject(line_no, "*", f"record skipped: {exc}", rec)
+        return
+    except Exception as exc:  # noqa: BLE001 - one odd record must never stop the night's load
+        batch.reject(line_no, "*", f"record skipped: {type(exc).__name__}: {exc}", rec)
+        return
+    for table, row in rows:
+        batch.add(table, row)
+
+
+def _jsonl(batch: Batch, lines: Iterable[str], first_line: int) -> Iterator[tuple[int, Any]]:
+    """(1-based line number, parsed JSON) for every non-blank line; bad JSON is rejected here."""
+    for n, line in enumerate(lines, start=first_line + 1):
         line = line.strip()
         if not line:
             continue
         try:
-            rec = json.loads(line)
-        except ValueError:
-            continue
-        if isinstance(rec, dict):
-            yield n, rec
+            yield n, json.loads(line)
+        except (ValueError, RecursionError) as exc:
+            batch.reject(n, "*", f"invalid JSON: {exc}"[:200], line[:300])
+
+
+def _need_id(g: Rec, key: str = "trade_id") -> str:
+    tid = g(key)
+    if not tid:
+        raise Bad(f"missing {key}")
+    return tid
 
 
 def load_paper_booked(batch: Batch, lines: Sequence[str], first_line: int, path: Path) -> None:
-    for _n, rec in _jsonl(lines):
-        if rec.get("trade_id") is None:
-            continue
-        batch.add("trades_raw", paper_trade_row(rec, source="paper_booked", priority=PRIO_PAPER_BOOKED, day=path.stem))
+    def build(g: Rec) -> list[tuple[str, dict[str, Any]]]:
+        _need_id(g)
+        return [("trades_raw", paper_trade_row(g, source="paper_booked", priority=PRIO_PAPER_BOOKED, day=path.stem))]
+
+    for n, rec in _jsonl(batch, lines, first_line):
+        _record(batch, n, rec, build)
 
 
 def load_model_log(batch: Batch, lines: Sequence[str], first_line: int, path: Path) -> None:
-    for n, rec in _jsonl(lines):
-        batch.add("model_log", {
-            "line_no": first_line + n, "day": _ist_day(rec.get("ts")) or _ist_day(rec.get("ts_ist")),
-            "ts_ist": rec.get("ts_ist"), "event": rec.get("event"), "book_id": rec.get("book_id") or rec.get("model"),
-            "trade_id": rec.get("trade_id"), "status": rec.get("status"),
-            "reason": None if rec.get("reason") is None else str(rec.get("reason"))[:200],
-        })
+    def build(g: Rec) -> list[tuple[str, dict[str, Any]]]:
+        return [("model_log", {
+            "line_no": g.line_no, "day": g("ts", _day) or g("ts_ist", _day), "ts_ist": g("ts_ist"),
+            "event": g("event"), "book_id": g("book_id") or g("model"), "trade_id": g("trade_id"),
+            "status": g("status"), "reason": g("reason"),
+        })]
+
+    for n, rec in _jsonl(batch, lines, first_line):
+        _record(batch, n, rec, build)
+
+
+def _whole_json(path: Path, batch: Batch) -> Optional[dict[str, Any]]:
+    """Top-level JSON object, or None after a file-level reject (bad JSON, list, number, ...)."""
+    try:
+        blob = json.loads(path.read_text(encoding="utf-8"))
+    except (ValueError, RecursionError) as exc:  # includes UnicodeDecodeError
+        batch.reject(0, "*", f"invalid JSON file: {exc}"[:200])
+        return None
+    if not isinstance(blob, dict):
+        batch.reject(0, "*", f"top-level JSON is {type(blob).__name__}, expected an object", blob)
+        return None
+    return blob
 
 
 def load_dashboard(path: Path) -> list[Batch]:
     """The board is rewritten all day and holds one session, so each session day is its own unit."""
-    board = json.loads(path.read_text(encoding="utf-8"))
-    day = board.get("session_ist_date") or _ist_day(board.get("as_of_ist"))
+    file_unit = Batch(str(path))
+    board = _whole_json(path, file_unit)
+    if board is None:
+        return [file_unit.finish()]
+    day = Rec(file_unit, 0, board)("session_ist_date", _day) or Rec(file_unit, 0, board)("as_of_ist", _day)
     if not day:
-        return []
+        file_unit.reject(0, "session_ist_date", "board has no usable session date")
+        return [file_unit.finish()]
     batch = Batch(f"{path}#{day}")
-    for r in board.get("closed_trades") or []:
-        if isinstance(r, dict) and r.get("trade_id") is not None:
-            row = paper_trade_row(r, source="dashboard", priority=PRIO_DASHBOARD, day=day)
-            batch.add("trades_raw", row)
-            for model in r.get("model_names") or []:
-                batch.add("trade_models", {"trade_id": row["trade_id"], "model": str(model)})
-            if r.get("book_id"):
-                batch.add("trade_models", {"trade_id": row["trade_id"], "model": str(r["book_id"])})
-    for reason, n in (board.get("skip_reason_counts") or {}).items():
-        batch.add("stage_events", {"priority": PRIO_BOARD_SKIPS, "day": day, "stage": "boss", "outcome": "NO_ENTRY",
-                                   "reason": str(reason), "n": int(n)})
-    return [batch]
+    trades = board.get("closed_trades")
+    if trades is not None and not isinstance(trades, list):
+        batch.reject(0, "closed_trades", f"expected a list, got {type(trades).__name__}", trades)
+        trades = []
+
+    def build(g: Rec) -> list[tuple[str, dict[str, Any]]]:
+        _need_id(g)
+        row = paper_trade_row(g, source="dashboard", priority=PRIO_DASHBOARD, day=day)
+        models = g.rec.get("model_names") or []
+        if not isinstance(models, list):
+            g.batch.reject(g.line_no, g.prefix + "model_names", "expected a list", models)
+            models = []
+        out = [("trades_raw", row)]
+        for m in [*models, g.rec.get("book_id")]:
+            try:
+                name = _text(m)
+            except Bad as exc:
+                g.batch.reject(g.line_no, g.prefix + "model_names", str(exc), m)
+                continue
+            if name:
+                out.append(("trade_models", {"trade_id": row["trade_id"], "model": name}))
+        return out
+
+    for i, r in enumerate(trades or [], start=1):
+        _record(batch, i, r, build, prefix="closed_trades.")
+    skips = board.get("skip_reason_counts") or {}
+    if not isinstance(skips, dict):
+        batch.reject(0, "skip_reason_counts", f"expected an object, got {type(skips).__name__}", skips)
+        skips = {}
+    for reason, n in skips.items():
+        try:
+            count = _int(n)
+        except Bad as exc:
+            batch.reject(0, f"skip_reason_counts.{reason}"[:200], str(exc), n)
+            continue
+        if count is not None:
+            batch.add("stage_events", {"priority": PRIO_BOARD_SKIPS, "day": day, "stage": "boss",
+                                       "outcome": "NO_ENTRY", "reason": str(reason)[:200], "n": count})
+    return [file_unit.finish(), batch.finish()]
 
 
 def load_eod_recon(path: Path) -> list[Batch]:
-    blob = json.loads(path.read_text(encoding="utf-8"))
-    m = re.search(r"(\d{4}-\d{2}-\d{2})", path.name)
-    scalars = {k: v for k, v in blob.items() if isinstance(v, (str, int, float, bool)) or v is None}
     batch = Batch(str(path))
+    blob = _whole_json(path, batch)
+    if blob is None:
+        return [batch.finish()]
+    m = re.search(r"(\d{4}-\d{2}-\d{2})", path.name)
+    g = Rec(batch, 0, blob)
+    scalars = {str(k)[:80]: v for k, v in blob.items()
+               if (isinstance(v, (str, int, bool)) or v is None or (isinstance(v, float) and math.isfinite(v)))}
     ok = blob.get("ok")
     batch.add("recon_reports", {
-        "run_id": 0, "kind": "eod_recon", "day": m.group(1) if m else _ist_day(blob.get("as_of_ist")),
-        "ts": blob.get("as_of_ist"), "ok": None if ok is None else int(bool(ok)),
-        "n_mismatches": None, "summary_json": json.dumps(dict(list(scalars.items())[:40]), default=str),
+        "run_id": 0, "kind": "eod_recon", "day": m.group(1) if m else g("as_of_ist", _day),
+        "ts": g("as_of_ist"), "ok": None if ok is None else int(bool(ok)),
+        "n_mismatches": None, "summary_json": json.dumps(dict(list(scalars.items())[:40])),
     })
-    return [batch]
+    return [batch.finish()]
 
 
 def _tables(conn: sqlite3.Connection) -> set[str]:
@@ -365,49 +524,58 @@ def load_sqlite(path: Path) -> list[Batch]:
         names = _tables(conn)
         batch = Batch(str(path))
         if "trades" in names:
-            for t in _rows(conn, "SELECT * FROM trades WHERE status IN ('CLOSED', 'CANCELLED')"):
-                batch.add("trades_raw", ledger_trade_row(t))
+            for t in _rows(conn, "SELECT rowid AS _row, * FROM trades WHERE status IN ('CLOSED', 'CANCELLED')"):
+                _record(batch, _int(t["_row"]) or 0, t,
+                        lambda g: [("trades_raw", {**ledger_trade_row(g), "trade_id": _need_id(g)})], "trades.")
         if "fills" in names:
             for r in _rows(conn, "SELECT * FROM fills"):
-                batch.add("fills", {
-                    "fill_id": r["id"], "trade_id": r.get("trade_id"), "client_order_id": r.get("client_order_id"),
-                    "ts": r.get("ts"), "day": _ist_day(r.get("ts")), "symbol": r.get("symbol"), "side": r.get("side"),
-                    "qty": r.get("qty"), "price": r.get("price"), "decision_price": r.get("decision_price"),
-                    "slippage": r.get("slippage"),
-                })
+                _record(batch, _int(r.get("id")) or 0, r, lambda g: [("fills", {
+                    "fill_id": _int(g.rec["id"]), "trade_id": g("trade_id"), "client_order_id": g("client_order_id"),
+                    "ts": g("ts"), "day": g("ts", _day), "symbol": g("symbol"), "side": g("side"),
+                    "qty": g("qty", _int), "price": g("price", _num), "decision_price": g("decision_price", _num),
+                    "slippage": g("slippage", _num),
+                })], "fills.")
         if "charges" in names:
             for r in _rows(conn, "SELECT * FROM charges"):
-                batch.add("charges", {"charge_id": r["id"], **{k: r.get(k) for k in (
-                    "trade_id", "client_order_id", "ts", "day", "turnover", "brokerage", "stt", "exchange", "sebi",
-                    "stamp", "gst", "total")}})
+                _record(batch, _int(r.get("id")) or 0, r, lambda g: [("charges", {
+                    "charge_id": _int(g.rec["id"]), "trade_id": g("trade_id"), "client_order_id": g("client_order_id"),
+                    "ts": g("ts"), "day": g("day", _day),
+                    **{k: g(k, _num) for k in ("turnover", "brokerage", "stt", "exchange", "sebi", "stamp", "gst", "total")},
+                })], "charges.")
         if "risk_decisions" in names:
             agg: dict[tuple[str, str, str], int] = {}
-            for r in _rows(conn, "SELECT day, approved, reason_code FROM risk_decisions"):
-                key = (str(r["day"]), "APPROVED" if r["approved"] else "VETOED", str(r["reason_code"]))
+
+            def risk(g: Rec) -> list[tuple[str, dict[str, Any]]]:
+                key = (g("day", _day) or "UNKNOWN", "APPROVED" if g.rec.get("approved") else "VETOED",
+                       g("reason_code") or "")
                 agg[key] = agg.get(key, 0) + 1
+                return []
+
+            for r in _rows(conn, "SELECT rowid AS _row, day, approved, reason_code FROM risk_decisions"):
+                _record(batch, _int(r["_row"]) or 0, r, risk, "risk_decisions.")
             for (day, outcome, reason), n in agg.items():
                 batch.add("stage_events", {"priority": PRIO_LEDGER_RISK, "day": day, "stage": "risk",
                                            "outcome": outcome, "reason": reason, "n": n})
         if "recon_runs" in names:
-            for r in _rows(conn, "SELECT * FROM recon_runs"):
+            def recon(g: Rec) -> list[tuple[str, dict[str, Any]]]:
                 try:
-                    mism = json.loads(r.get("mismatches_json") or "[]")
-                except ValueError:
-                    mism = []
-                batch.add("recon_reports", {
-                    "run_id": r["id"], "kind": "ledger_recon", "day": _ist_day(r.get("ts")), "ts": r.get("ts"),
-                    "ok": int(bool(r.get("ok"))), "n_mismatches": len(mism) if isinstance(mism, list) else None,
+                    mism = json.loads(g.rec.get("mismatches_json") or "[]")
+                except (TypeError, ValueError):
+                    g.batch.reject(g.line_no, g.prefix + "mismatches_json", "invalid JSON", g.rec.get("mismatches_json"))
+                    mism = None
+                return [("recon_reports", {
+                    "run_id": _int(g.rec["id"]), "kind": "ledger_recon", "day": g("ts", _day), "ts": g("ts"),
+                    "ok": int(bool(g.rec.get("ok"))), "n_mismatches": len(mism) if isinstance(mism, list) else None,
                     "summary_json": "{}",
-                })
+                })]
+
+            for r in _rows(conn, "SELECT * FROM recon_runs"):
+                _record(batch, _int(r.get("id")) or 0, r, recon, "recon_runs.")
         if "events" in names:
             _load_events(conn, batch)
-        return [batch] if batch.count() else []
+        return [batch.finish()] if batch.count() or batch.n_rejects else []
     finally:
         conn.close()
-
-
-def _event_day(ev_ts: Any, payload: dict[str, Any]) -> str:
-    return _ist_day(payload.get("ts")) or _ist_day(ev_ts) or "UNKNOWN"
 
 
 def _load_events(conn: sqlite3.Connection, batch: Batch) -> None:
@@ -415,38 +583,47 @@ def _load_events(conn: sqlite3.Connection, batch: Batch) -> None:
     stages: dict[tuple[str, str, str, str], int] = {}
 
     def stage(day: str, name: str, outcome: str, reason: Any) -> None:
-        key = (day, name, outcome, str(reason or ""))
+        key = (day, name, outcome, reason or "")
         stages[key] = stages.get(key, 0) + 1
 
-    for ev_type, ev_ts, raw in conn.execute("SELECT event_type, ts, payload_json FROM events ORDER BY seq"):
-        try:
-            p = json.loads(raw)
-        except ValueError:
-            continue
-        if not isinstance(p, dict):
-            continue
-        day = _event_day(ev_ts, p)
+    def build(g: Rec) -> list[tuple[str, dict[str, Any]]]:
+        ev_type = g.rec["_type"]
+        day = g("ts", _day) or g("_ts", _day) or "UNKNOWN"
+        out: list[tuple[str, dict[str, Any]]] = []
         if ev_type == "ANALYST_VOTE":
-            key = (day, str(p.get("underlying") or ""), str(p.get("analyst_id") or ""), str(p.get("signal") or ""))
+            key = (day, g("underlying") or "", g("analyst_id") or "", g("signal") or "")
             acc = votes.setdefault(key, [0, 0.0])
             acc[0] += 1
-            acc[1] += _f(p.get("confidence")) or 0.0
+            acc[1] += g("confidence", _num) or 0.0
         elif ev_type == "ENTRY_APPROVED":
-            stage(day, "boss", "ENTRY_APPROVED", p.get("book_id"))
-            for model in p.get("analysts") or []:
-                batch.add("trade_models", {"trade_id": str(p.get("trade_id")), "model": str(model)})
-            if p.get("book_id"):
-                batch.add("trade_models", {"trade_id": str(p.get("trade_id")), "model": str(p["book_id"])})
+            tid = _need_id(g)
+            stage(day, "boss", "ENTRY_APPROVED", g("book_id"))
+            models = g.rec.get("analysts") or []
+            for m in [*(models if isinstance(models, list) else []), g.rec.get("book_id")]:
+                name = _text(m) if isinstance(m, (str, int)) else None
+                if name:
+                    out.append(("trade_models", {"trade_id": tid, "model": name}))
         elif ev_type == "NO_ENTRY":
-            stage(day, "boss", "NO_ENTRY", p.get("reason"))
+            stage(day, "boss", "NO_ENTRY", g("reason"))
         elif ev_type == "ENTRY_VETOED":
-            stage(day, "risk", "VETOED", p.get("reason_code") or p.get("reason"))
+            stage(day, "risk", "VETOED", g("reason_code") or g("reason"))
         elif ev_type == "ORDER_FILLED":
-            stage(day, "desk", "ORDER_FILLED", p.get("purpose") or p.get("side"))
+            stage(day, "desk", "ORDER_FILLED", g("purpose") or g("side"))
         elif ev_type == "ORDER_REJECTED":
-            stage(day, "desk", "ORDER_REJECTED", p.get("reason"))
+            stage(day, "desk", "ORDER_REJECTED", g("reason"))
         elif ev_type == "POSITION_CLOSED":
-            stage(day, "desk", "POSITION_CLOSED", p.get("exit_reason") or p.get("reason"))
+            stage(day, "desk", "POSITION_CLOSED", g("exit_reason") or g("reason"))
+        return out
+
+    for seq, ev_type, ev_ts, raw in conn.execute("SELECT seq, event_type, ts, payload_json FROM events ORDER BY seq"):
+        try:
+            p = json.loads(raw)
+        except (TypeError, ValueError, RecursionError) as exc:
+            batch.reject(int(seq), "events.payload_json", f"invalid JSON: {exc}"[:200], raw)
+            continue
+        if isinstance(p, dict):
+            p = {**p, "_type": ev_type, "_ts": ev_ts}
+        _record(batch, int(seq), p, build, "events.")
     for (day, und, analyst, signal), (n, conf) in votes.items():
         batch.add("analyst_votes", {"day": day, "underlying": und, "analyst_id": analyst, "signal": signal,
                                     "n": n, "confidence_sum": round(conf, 6)})
@@ -489,6 +666,8 @@ def connect(db: Path) -> sqlite3.Connection:
     conn = sqlite3.connect(str(db))
     conn.execute("PRAGMA journal_mode=WAL")
     conn.executescript(SCHEMA + VIEWS)
+    if "rejects" not in {r[1] for r in conn.execute("PRAGMA table_info(etl_runs)")}:
+        conn.execute("ALTER TABLE etl_runs ADD COLUMN rejects INTEGER NOT NULL DEFAULT 0")
     conn.execute("INSERT OR REPLACE INTO etl_meta (key, value) VALUES ('etl_version', ?)", (ETL_VERSION,))
     conn.commit()
     return conn
@@ -521,18 +700,19 @@ def _load_jsonl(conn: sqlite3.Connection, src: Source, path: Path, prev: Optiona
         _size, sha, consumed, rows = prev
         if consumed <= end and hashlib.sha256(data[:consumed]).hexdigest() == sha:
             if consumed == end:
-                return "skipped", 0
+                return "skipped", 0, 0
             start, first_line = consumed, data[:consumed].count(b"\n")
     batch = Batch(str(path))
     lines = data[start:end].decode("utf-8", errors="replace").splitlines()
     src.jsonl(batch, lines, first_line, path)
+    batch.finish()
     with conn:
         if start == 0:
             _delete_unit(conn, str(path))
         _insert(conn, batch)
         total = batch.count() + (prev[3] if start else 0)
         _record_file(conn, str(path), src.kind, len(data), hashlib.sha256(data[:end]).hexdigest(), end, total)
-    return ("tailed" if start else "loaded"), batch.count()
+    return ("tailed" if start else "loaded"), batch.count(), batch.n_rejects
 
 
 def _load_whole(conn: sqlite3.Connection, src: Source, path: Path, prev: Optional[tuple]) -> tuple[str, int]:
@@ -540,18 +720,23 @@ def _load_whole(conn: sqlite3.Connection, src: Source, path: Path, prev: Optiona
     sha = _sha(path, sidecar)
     size = path.stat().st_size + (sidecar.stat().st_size if sidecar.is_file() else 0)
     if prev is not None and prev[1] == sha:
-        return "skipped", 0
-    batches = src.whole(path)
+        return "skipped", 0, 0
+    try:
+        batches = src.whole(path)
+    except sqlite3.OperationalError:
+        raise  # locked / unreadable right now: an error, retried next run
+    except sqlite3.DatabaseError as exc:  # not a database, corrupt: the same bytes fail every night
+        batches = [Batch(str(path))]
+        batches[0].reject(0, "*", f"unreadable SQLite file: {exc}"[:200])
     n = sum(b.count() for b in batches)
     with conn:
-        # The board only ever holds today's session, so earlier `<path>#<day>` units stay as history.
-        if src.kind != "dashboard":
-            _delete_unit(conn, str(path))
+        # Exact-match delete: the board's earlier `<path>#<day>` units stay as history.
+        _delete_unit(conn, str(path))
         for b in batches:
             _delete_unit(conn, b.src_file)
             _insert(conn, b)
         _record_file(conn, str(path), src.kind, size, sha, size, n)
-    return "loaded", n
+    return "loaded", n, sum(b.n_rejects for b in batches)
 
 
 def discover(root: Path, sources: Sequence[Source] = SOURCES) -> list[tuple[Source, Path]]:
@@ -584,27 +769,32 @@ def run_etl(
                 conn.execute("DELETE FROM etl_files")
         prev_rows = {r[0]: r[1:] for r in conn.execute("SELECT path, size, sha256, consumed, rows FROM etl_files")}
         stats = {"loaded": 0, "tailed": 0, "skipped": 0}
-        rows, errors, files = 0, [], discover(root, sources)
+        rows, rejects, errors, files = 0, 0, [], discover(root, sources)
         for src, path in files:
             if path.resolve() == db:
                 continue
             try:
                 loader = _load_jsonl if src.jsonl else _load_whole
-                status, n = loader(conn, src, path, prev_rows.get(str(path)))
-            except (OSError, ValueError, sqlite3.Error, KeyError, TypeError) as exc:
+                status, n, r = loader(conn, src, path, prev_rows.get(str(path)))
+            except (OSError, sqlite3.Error) as exc:
+                # Transient (unreadable now, locked): nothing recorded, so the next run retries the file.
+                errors.append({"path": str(path.relative_to(root)), "error": f"{type(exc).__name__}: {exc}"[:300]})
+                continue
+            except Exception as exc:  # noqa: BLE001 - a loader bug must not stop the other files
                 errors.append({"path": str(path.relative_to(root)), "error": f"{type(exc).__name__}: {exc}"[:300]})
                 continue
             stats[status] += 1
             rows += n
+            rejects += r
         with conn:
             conn.execute(
                 "INSERT INTO etl_runs (started_at, finished_at, full_rebuild, files_seen, files_loaded, files_tailed, "
-                "files_skipped, rows, errors_json) VALUES (?,?,?,?,?,?,?,?,?)",
+                "files_skipped, rows, errors_json, rejects) VALUES (?,?,?,?,?,?,?,?,?,?)",
                 (started, _now(), int(full), len(files), stats["loaded"], stats["tailed"], stats["skipped"], rows,
-                 json.dumps(errors)),
+                 json.dumps(errors), rejects),
             )
         return {"ok": not errors, "db": str(db), "files_seen": len(files), **{f"files_{k}": v for k, v in stats.items()},
-                "rows": rows, "errors": errors, "orders": "never"}
+                "rows": rows, "rejects": rejects, "errors": errors, "orders": "never"}
     finally:
         conn.close()
 
@@ -621,7 +811,8 @@ def build_parser() -> argparse.ArgumentParser:
     p_run.add_argument("--full", action="store_true", help="drop fact rows and reload every file")
     sub.add_parser("status", help="row counts and the last run")
     p_q = sub.add_parser("query", help="read-only query helpers")
-    p_q.add_argument("what", choices=("pnl", "exit-reasons", "models", "stages", "votes", "slippage", "charges"))
+    p_q.add_argument("what", choices=("pnl", "exit-reasons", "models", "stages", "votes", "slippage", "charges",
+                                      "rejects"))
     p_q.add_argument("--period", choices=tuple(PERIODS), default="day")
     p_q.add_argument("--since")
     p_q.add_argument("--until")
@@ -652,6 +843,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         "votes": lambda: queries.analyst_votes(db, **rng),
         "slippage": lambda: queries.slippage(db, book_id=args.book, **rng),
         "charges": lambda: queries.charges(db, period=args.period, **rng),
+        "rejects": lambda: queries.rejects(db, limit=args.limit),
     }[args.what]
     print(json.dumps(fn(), indent=2, default=str))
     return 0

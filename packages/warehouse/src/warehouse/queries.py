@@ -143,6 +143,12 @@ def charges(db: Optional[Path] = None, *, period: str = "day", since: Optional[s
     return _select(db, sql, (*args, int(limit)))
 
 
+def rejects(db: Optional[Path] = None, *, limit: int = 200) -> list[dict[str, Any]]:
+    """Quarantined lines / fields / files: file, line number (0 = whole file), field, reason, sample."""
+    return _select(db, "SELECT src_file, line_no, field, reason, sample FROM rejects ORDER BY src_file, line_no LIMIT ?",
+                   (int(limit),))
+
+
 def etl_status(db: Optional[Path] = None) -> dict[str, Any]:
     conn = _ro(db)
     if conn is None:

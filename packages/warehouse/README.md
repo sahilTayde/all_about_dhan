@@ -27,13 +27,17 @@ Separate derived file: `data/warehouse/analytics.sqlite` (gitignored, rebuildabl
 - Idempotent: every row carries `src_file`; a changed file's rows are replaced in one transaction.
 - Incremental: JSONL files are tail-loaded from the last consumed byte (a rewritten prefix reloads
   the file); other files reload only when their bytes change. `run --full` rebuilds.
+- Bad input is quarantined, never fatal: a bad field is stored as NULL, a bad line or file is
+  skipped, and each gets a `rejects` row (file, line number, field, reason, sample;
+  `python -m warehouse.etl query rejects`). Re-runs skip unchanged files, so the same rejects are
+  not re-read every night. Only transient read failures count as `errors` (exit 1) and are retried.
 - Rollups are views: `trades` (one row per trade id, best source wins), `pnl_daily|weekly|monthly`,
   `exit_reasons`, `model_attribution`, `stage_attribution`, `analyst_vote_summary`.
 - Read-only helpers for the Founder page: `warehouse.queries` (`pnl`, `exit_reasons`,
   `model_attribution`, `stage_attribution`, `analyst_votes`, `slippage`, `charges`, `etl_status`).
 
 ```bash
-python -m warehouse.etl run                     # or scripts/nightly_warehouse_etl.sh (cron)
+python -m warehouse.etl run                     # or scripts/nightly_warehouse_etl.sh [--root DIR] (cron)
 python -m warehouse.etl query pnl --period week
 python -m warehouse.etl status
 ```

@@ -7,7 +7,8 @@
 # cron (server clock in UTC): 16:35 IST = 11:05 UTC
 #   5 11 * * 1-5   /path/to/all_about_dhan/scripts/nightly_warehouse_etl.sh
 #
-# Extra args go to `python -m warehouse.etl`, e.g. `--root /data/aad` or `run --full`.
+# Args go to `python -m warehouse.etl`: `[--root DIR] [--db FILE] run [--full]` (or `status`, `query ...`).
+# If no subcommand is given, `run` is appended: `--root /data/aad` = `--root /data/aad run`.
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -24,7 +25,10 @@ if ! flock -n 9; then
   exit 0
 fi
 
-if [ "$#" -eq 0 ]; then set -- run; fi
+case " $* " in
+  *" run "* | *" status "* | *" query "*) ;;
+  *) set -- "$@" run ;;
+esac
 echo "$(date -Is) warehouse ETL start: $*" >>"$LOG_DIR/etl.log"
 status=0
 "$PY" -m warehouse.etl "$@" >>"$LOG_DIR/etl.log" 2>&1 || status=$?
