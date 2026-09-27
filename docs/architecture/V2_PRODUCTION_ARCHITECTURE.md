@@ -141,7 +141,7 @@ packages/
   boss/src/boss/               REBUILD  selector.py (v2 boss). orchestrator.py stays, frozen legacy.
   risk-engine/                 REUSE+WRAP  (account scope, injected clock; section 7.2)
   brokers/                     REUSE+WRAP  (clock injection, fill models, paper state rehydrate)
-      fills.py (NEW: DepthFill, HalfSpreadFill, LtpSlippageFill)
+      fills.py (NEW: DepthFill, LtpSlippageFill 0.20 pt/side; realistic rules only, from PR #20)
   oms/src/oms/                 NEW   planner.py (order planner: entry location -> CHASE / LIMIT / WAIT), router.py (order router),
                                      positions.py (position/desk manager), exits.py
   ledger/                      REUSE+EXTEND  migrations/NNN_*.sql, account_id, checkpoint, outbox, commands
@@ -445,16 +445,27 @@ so a restart loses nothing. Wrapped for v2:
 - **Clock injection:** `BrokerAdapter.approval_problems` reads `datetime.now(IST)` for the 30 s decision age today
   (`ClockedPaperBroker` overrides it for replay). v2 passes the engine clock to every adapter (`clock=` constructor
   argument), so replay and live check age the same way.
-- **Paper fills (`brokers/fills.py`):** `PaperBroker` gets a pluggable fill model. Priority: `DepthFill` (buy at the
-  recorded ask, sell at the bid, of the first depth quote with `available_ts ≥ order.available_ts + latency_ms`, plus
-  0.05 impact at 25 lots), then `HalfSpreadFill` (LTP ± the measured half-spread by moneyness and time of day, the
-  Round 8 FC-MEAS table in `config/v2/markets/india.yaml`), then the current `LtpSlippageFill` as the last fallback.
-  The fill model used is stored on every fill. Charges come from `ledger.charges` (`config/charges.yaml`).
-  **Resting limits must trade through.** A resting buy limit fills only when the market trades *through* it: best ask
-  at least one tick **below** the limit on a depth quote, or a trade printed below the limit. Touching the limit
-  price is not a fill. The fill price is the limit. Sells are symmetric. A limit that is marketable when placed
-  fills at once at the ask (price improvement allowed). Today `PaperBroker` fills a limit on a touch
-  (`ltp <= order.price`), so this rule is new work in `brokers/fills.py`.
+- **Paper fills (`brokers/fills.py`): realistic is the only mode.** v2 has no optimistic or `legacy` cost mode. The
+  merged `PaperBroker(cost_model="realistic")` logic from PR #20 (`c004ace`: side-aware tick rounding, trade-through
+  limits at the limit) is the base, and the `cost_model` switch is not exposed in any v2 config (REG-12e). The
+  slippage source, in order:
+  1. `DepthFill`: the recorded ask (buy) or bid (sell) of the first depth quote with
+     `available_ts ≥ order.available_ts + latency_ms`, which is the real half-spread, plus 0.05 impact at 25 lots.
+  2. `LtpSlippageFill`: LTP ± **0.20 premium points per side** (the `config/paper_costs.yaml`
+     `slippage_pts_per_side` default) when no recorded bid/ask exists for that strike at that time.
+  The Round 8 FC-MEAS moneyness table (ATM 0.20, ITM100 0.30, ITM200 0.35) is reported as a stress sensitivity in
+  forward-harness reports, not used as the fill (see build plan §4.2 K15). The fill model and slippage source are
+  stored on every fill.
+  **Order-type fill rules (REG-14):**
+  - A resting **limit** (take-profit or entry) fills only when the market trades *through* it by at least one tick (a
+    depth quote with the ask one tick below a buy limit, or a print below it; mirrored for sells), and **always at the
+    limit price**. It never fills at an overshoot print. In the PR #20 verification, fixing this one rule moved
+    paper P&L by −₹164,934 over 7 days of ALL3. Touching the limit is not a fill. A limit that is already marketable when placed
+    also fills at its limit price, which is conservative (build plan §4.2 K17).
+  - A **stop** (SL-M) fills at or worse than its trigger: at the triggering print (or the depth bid/ask) minus or plus
+    slippage, tick-rounded against the order's side, never better than the trigger.
+  - Before PR #20, `PaperBroker` filled limits on a touch (`ltp <= order.price`). That rule only exists behind
+    `cost_model="legacy"` on `main` now, and v2 never selects it.
 - **Protective stop.** After an entry fills, the router places a resting stop order (`SL-M`, from
   `ExitPlan.protective_stop`, else the strategy stop widened by a configured buffer). If the engine dies, the position
   is still protected at the broker. In paper, `PaperBroker` simulates it. The position manager cancels or modifies it
@@ -465,11 +476,31 @@ so a restart loses nothing. Wrapped for v2:
   missing protective stop before any new entry is allowed. A position without one raises a CRITICAL alert and
   blocks entries. `PaperBroker` resting orders are rebuilt from the ledger on restart (today they live only in
   memory).
-- **Every simulated fill pays the real cost stack (REG-12).** Paper fills always go through the ledger, which charges
-  them with `ledger.charges.order_charges`: Dhan ₹20 per order, STT 0.15% of sell premium, NSE exchange 0.0355299%,
-  stamp 0.003% on buy, SEBI fee, and GST 18% on brokerage + exchange + SEBI, plus the configurable slippage in the
-  fill model. `config/charges.yaml` has exchange `0.0003503` today; it moves to the founder's `0.000355299` in V2-08
-  (statutory rates stay VERIFY against the circular). Lot sizes come from the instrument master.
+- **Every simulated fill pays the verified cost stack (REG-12).** Paper fills always go through the ledger, which
+  charges them with `ledger.charges.order_charges(..., exchange=...)` using `load_rates(by_exchange=True)`:
+  - Dhan brokerage ₹20 per order;
+  - STT 0.15% of sell premium;
+  - exchange transaction charge **per exchange**: NSE 0.0355299% (`config/charges.yaml` has `0.0003553`, i.e.
+    ₹3,552.99 + ₹0.01 IPFT per crore; build plan §4.2 K14) and BSE ₹3,250 per crore (`0.000325`), picked from
+    `underlying_exchange` (SENSEX and BANKEX → BSE);
+  - SEBI fee;
+  - stamp duty 0.003% on buy;
+  - GST 18% on brokerage + exchange + SEBI.
+
+  The flat `exchange_txn_frac: 0.0003503` in the same file serves only legacy callers and is never read by v2. Lot
+  sizes come from the instrument master (NIFTY 65).
+- **Every closed trade carries its exchange tag (REG-17).** `trades.exchange` (`NSE` | `BSE`, not null) is written
+  when the trade opens, from the same `underlying_exchange` map the charges use. NSE and BSE rates differ, so
+  reports and reconciliation group by it.
+- **A malformed cost config fails closed (REG-16).** `load_rates` raises `ValueError` on a bad or incomplete
+  `charges.yaml`/`paper_costs.yaml`, and today nothing catches it. v2 loads both through `load_with_last_good`
+  (REG-07):
+  - a bad file mid-session keeps the last-good rates, raises `CONFIG_INVALID` (component `costs`) and blocks new
+    entries, while exits and flatten continue on the last-good rates;
+  - with no valid cost config at start, the engine runs exits-only, and any fill booked meanwhile gets
+    `charges_status = PENDING`, then is recharged once a valid file appears.
+
+  Never a crash, never a fill booked at zero cost.
 
 ### 2.9 Position / desk manager (`packages/oms/positions.py`, `exits.py`, in the engine)
 
@@ -477,7 +508,11 @@ Owns every open position after the entry fill. On each `TICK`/`DEPTH`/`BAR_CLOSE
 
 1. founder `CUT_LOSS`, `FLATTEN_ALL` or kill switch, then exit at market (never refused);
 2. **stop** (premium or underlying level; bar-close or tick trigger as the plan says);
-3. **EOD flat** at `flat_by_ist` (15:15 default) using the `CLOCK` heartbeat, so it fires with no ticks at all;
+3. **EOD flat** at `flat_by_ist` (15:15 default) using the `CLOCK` heartbeat, so it fires with no ticks at all. The EOD
+   flatten is **never held back by the stale-quote guard** (REG-15). On `main`, PR #20's guard defers the
+   `FLATTEN_1516` exit while the quote is older than `exit_quote_max_age_s` until `stale_exit_hard_flatten_ist:
+   "15:20"`. In v2 the flatten is sent at `flat_by_ist` regardless. In paper it is priced at the freshest quote, or the
+   last good print flagged `STALE_QUOTE`, with an alert. In live it is a market exit at the broker;
 4. **time stop** (first-class; see below);
 5. **target** or **partials** (scale out a fraction, then move the stop as the plan says);
 6. **trailing** (step trail once activated; every step modifies the protective stop);
@@ -582,7 +617,7 @@ pass and kill bars. It is the Round 8 FWD-BAR process built into the platform.
   the lock. Changing anything means a new `spec_id` and a new count; a bug fix restarts the count (Round 8 rule).
 - **Run:** `python -m runtime forward-eval --session <day>` runs after close, when `forward_eval.enabled: true` in
   `config/v2/engine.yaml` (default `false`). It uses the **same engine kernel** over `TapeSource` for that day
-  (one code path), with the plugin at stage `shadow`, `PaperBroker(DepthFill)` with `HalfSpreadFill` as the
+  (one code path), with the plugin at stage `shadow`, `PaperBroker(DepthFill)` with the FC-MEAS moneyness table reported as the
   conservative second pricing, and the strike router's alternatives priced as extra shadow legs.
 - **Output:** append-only `forward_trades` and `forward_checkpoints` tables (warehouse copy nightly), and one line
   per spec on the founder page: n, gross, net at depth and at FC-MEAS, current bar state (`RUNNING`, `KILLED`,
@@ -727,6 +762,10 @@ ALTER TABLE orders       ADD COLUMN decision_id TEXT;
 ALTER TABLE fills        ADD COLUMN fill_model TEXT;            -- depth | half_spread | ltp_slippage | broker
 ALTER TABLE trades       ADD COLUMN account_id TEXT NOT NULL DEFAULT 'founder';
 ALTER TABLE trades       ADD COLUMN strategy_id TEXT;
+ALTER TABLE trades       ADD COLUMN exchange TEXT NOT NULL DEFAULT 'UNKNOWN'; -- NSE | BSE (REG-17); backfilled from
+                                                             -- underlying_exchange; v2 never writes UNKNOWN
+ALTER TABLE fills        ADD COLUMN slippage_source TEXT;       -- depth | ltp_0.20 (REG-12)
+ALTER TABLE charges      ADD COLUMN charges_status TEXT NOT NULL DEFAULT 'FINAL'; -- FINAL | PENDING (REG-16)
 -- positions: new table keyed by account + instrument (old table stays for the legacy path)
 CREATE TABLE positions_v2 (
   account_id TEXT NOT NULL, instrument_id TEXT NOT NULL, net_qty INTEGER NOT NULL,
@@ -848,7 +887,7 @@ class Engine:
 | Use | `EventSource` | Broker | Clock |
 |---|---|---|---|
 | Unit / integration tests | `ListSource` (fixtures) | `PaperBroker` | `SimClock` |
-| Historical backtest (years) | `WarehouseSource` (1-minute bars and chain from the warehouse, converted to envelopes with conservative `available_ts`) | `PaperBroker(HalfSpreadFill)` | `SimClock` |
+| Historical backtest (years) | `WarehouseSource` (1-minute bars and chain from the warehouse, converted to envelopes with conservative `available_ts`) | `PaperBroker(DepthFill, else LtpSlippageFill 0.20)` | `SimClock` |
 | Tape replay | `TapeSource(data/tape/v2/<day>)` or `RecorderTapeSource(data/recon)` | `PaperBroker(DepthFill)` | `SimClock` |
 | Live-like dry run | `RedisSource` fed by `marketdata --replay <day>` at 1x or 10x | `PaperBroker(DepthFill)` | `SimClock` driven by `available_ts` |
 | Paper-live | `RedisSource` fed by Dhan | `PaperBroker(DepthFill)` | same |
@@ -1100,7 +1139,7 @@ localhost-only, secret scan). Jobs on every PR:
 | `unit` | pytest, Python 3.11 and 3.13, no network | yes |
 | `integration` | engine + in-memory bus; engine + real Redis (service container) | yes |
 | `no-lookahead` | truncation invariance, future poisoning, bar visibility, strict view (section 4.2) | yes |
-| `regression` | legacy bug carry-over REG-01 to REG-13 (section 6.5); no skips, no xfail | yes |
+| `regression` | legacy bug carry-over REG-01 to REG-17 (section 6.5); no skips, no xfail | yes |
 | `determinism` | same tape twice gives identical output hash; rehydrate equals run | yes |
 | `faults` | fault matrix (section 6.2) | yes |
 | `perf` | budgets (section 6.3) on the CI runner, with a 2x headroom factor | yes |
@@ -1192,10 +1231,11 @@ localhost-only, secret scan). Jobs on every PR:
   exit-command spool) and `book.py` semantics into `packages/control`. Do not extend the old engine hooks.
 - #19 (warehouse ETL, pre-market, backtest gate): keep `premarket` and the ETL structure, and retarget the ETL sink to
   DuckDB. Replace its expected-results gate with the v2 gate.
-- #20 (cost realism): port the BSE fee, stale-quote guard and tick rounding into `brokers/fills.py` and
-  `ledger.charges`. The `paper_scalp.py` hooks are not needed once the legacy engine is frozen.
-- #23 (ML shadow logging): it edits `paper_scalp.py`. Under the freeze it should merge only if it is
-  benchmark-neutral; its shadow schema can feed the forward evaluator.
+- #20 (cost realism): **merged** (`c004ace`). v2 reuses its realistic fill rules (`PaperBroker` realistic branch),
+  per-exchange charges (`load_rates(by_exchange=True)`, `exchange_for`) and the property tests, as the only mode.
+  Its stale-quote guard is reused for ordinary exits, but not for the EOD flatten (REG-15). Its `legacy` mode and
+  `paper_scalp.py` hooks are not used by v2.
+- #23 (ML shadow logging): **merged** (`5c3b913`). Its shadow schema can feed the forward harness.
 - #22, #24 (research docs): inputs to strategy plugins; no engine change.
 
 ### 6.2 The new merge gate (replaces "byte-identical to the old engine")
@@ -1224,7 +1264,7 @@ A PR that touches `runtime`, `oms`, `strategies`, `indicators`, `marketdata`, `e
    | Clock skew between processes | decisions unchanged (event time) |
 
 4. **No-look-ahead tests** (section 4.2).
-5. **Legacy regression suite** `tests/regression/test_reg_*.py` (REG-01 to REG-13, section 6.5). Every test must pass;
+5. **Legacy regression suite** `tests/regression/test_reg_*.py` (REG-01 to REG-17, section 6.5). Every test must pass;
    none may be skipped or marked xfail.
 6. **Determinism:** same tape twice gives the same output hash; rehydrate equals run; the live-like dry run over
    Redis equals the in-process replay (decisions, orders, fills compared field by field).
@@ -1273,8 +1313,9 @@ CI.
 
 ### 6.5 Legacy bug carry-over (must-pass tests)
 
-Founder addendum (2026-09-27): every bug found and fixed in the legacy engine carries into v2 as a named regression
-requirement. Each has a test id, an owner service and the ticket that implements it. The tests live in
+Founder addenda 1 and 5 (2026-09-27): every bug found and fixed in the legacy engine carries into v2 as a named
+regression requirement (REG-14 to REG-17 and the REG-12 update come from addendum 5, the PR #20 cost-realism
+verification). Each has a test id, an owner service and the ticket that implements it. The tests live in
 `tests/regression/test_reg_<nn>_*.py`, run in CI as the `regression` job, and are part of the merge gate
 (section 6.2) and of the M1 exit criteria. They are written against the v2 stack; the legacy engine is not patched.
 
@@ -1296,8 +1337,12 @@ exists, with a named gap; **NEW** = needs new work.
 | **REG-09** | The supervisor never restart-loops: backoff, circuit breaker and an alarm. | F1: legacy supervisor restart loop | `REG-09a` a service that crashes at start: restarts back off, the breaker opens after 5 crashes in 10 minutes, and `RESTART_LOOP` is raised once; `REG-09b` `reset-breaker` restores normal restarts | runtime (services), health | V2-15, V2-14 | **NEW.** The recorder backs off per recorder (up to 300 s) and the feed reconnects with backoff (up to 30 s), but there is no circuit breaker and no restart-loop alarm. |
 | **REG-10** | Every replay and job has a wall-clock timeout. | Founder addendum (legacy finding) | `REG-10a` a job that sleeps past its deadline is killed, exits non-zero, raises `JOB_TIMEOUT`, and leaves no partial output; `REG-10b` every job entry point is registered with a deadline (test enumerates them) | runtime (jobs) | V2-04, V2-15, V2-16 | **NEW.** |
 | **REG-11** | Tests never write into real data folders. | `agent_rag` tests rewrote `data/knowledge` | `REG-11a` a repo-wide pytest guard makes `data/` and `config/` read-only during tests (write attempts fail the test) and every fixture uses `tmp_path`; `REG-11b` the checkout's `git status` is clean after the full suite | CI (all packages) | V2-01 | **NEW.** PR #16 (unmerged) adds a similar guard for `desk-ml` only. |
-| **REG-12** | The real cost stack is applied to every simulated fill: Dhan ₹20/order brokerage, STT 0.15% of sell premium, NSE exchange 0.0355299%, stamp 0.003% on buy, SEBI fee, GST 18% on brokerage + exchange + SEBI, NIFTY lot 65, plus configurable slippage. | Legacy paper P&L used an older cost model; Round 8 friction | `REG-12a` golden contract-note test per component for a buy and a sell at 65 × 25 lots; `REG-12b` every paper fill in every fixture has a `charges` row (no fill escapes the ledger); `REG-12c` lot size comes from the instrument master fixture (65), never a literal; `REG-12d` slippage and the fill model are recorded on each fill | engine: brokers (fills), ledger (charges) | V2-08 | **PARTIAL.** `ledger.charges.order_charges` already applies ₹20/order, STT 0.15% sell, stamp 0.003% buy, SEBI, and GST 18% on brokerage + exchange + SEBI, and `Ledger.record_fill` charges every fill; `PaperBroker` slippage is configurable. Gap: `config/charges.yaml` has exchange `0.0003503`, not `0.000355299`. |
+| **REG-12** | The **verified** cost stack is applied to every simulated fill: Dhan ₹20/order brokerage, STT 0.15% of sell premium, NSE exchange 0.0355299%, **BSE ₹3,250/crore**, SEBI fee, stamp 0.003% on buy, GST 18%, NIFTY lot 65. Slippage comes from the recorded bid/ask half-spread once recorded, with a 0.20 pt/side fallback. **Realistic fills are the only mode in v2**; there is no optimistic legacy mode. | Legacy paper P&L used an older cost model; Round 8 friction; founder addenda 1 and 5 (PR #20 verification) | `REG-12a` golden contract-note test per component for a buy and a sell at 65 × 25 lots, on NIFTY (NSE rate) and SENSEX (BSE rate); `REG-12b` every paper fill in every fixture has a `charges` row (no fill escapes the ledger); `REG-12c` lot size comes from the instrument master fixture (65), never a literal; `REG-12d` a strike with recorded bid/ask fills at the ask/bid (slippage source `depth`); without it, LTP ± 0.20 (`ltp_0.20`); the source is recorded on each fill; `REG-12e` no v2 code path or config can select `cost_model: legacy` (config schema rejects it; `PaperBroker` is always built realistic) | engine: brokers (fills), ledger (charges) | V2-08 | **PARTIAL (mostly satisfied on `main` after PR #20).** `order_charges` has every component, including per-exchange rates via `load_rates(by_exchange=True)` (NSE `0.0003553`, BSE `0.000325`); `Ledger.record_fill` charges every fill with its exchange; `paper_costs.yaml` has the 0.20 pt/side default and `use_recorded_spread`. Gaps: `cost_model: legacy` is still the default on `main`; the flat legacy rate `0.0003503` still exists for legacy callers; the NSE value differs from the founder's by the IPFT (K14). |
 | **REG-13** | Exit params are part of every strategy and config gate. | Infra PR #19's gate compared results but did not hash exit params | `REG-13a` changing any exit field (stop, target, time stops, trail, partials, flat time, strike-router rules) changes the strategy `params_hash` and the engine `config_hash`; `REG-13b` the forward harness refuses a spec whose exit params differ from the prereg lock; `REG-13c` the gate fails a PR that changes exit params without a new strategy version | engine: strategies, forward harness, CI gate | V2-06, V2-06b, V2-16, V2-20a | **NEW.** |
+| **REG-14** | Take-profit and other limit orders fill **only at the limit price** when price trades through it, never at an overshoot print. Stops fill at or worse than the trigger. | PR #20 verification (`desk/specs/reliability_evidence/pr20_verify.md`, on the box, not in the repo): fixing the overshoot-print rule alone moved paper P&L by −₹164,934 over 7 days of ALL3 | `REG-14a` a buy/sell limit is not filled by a print or quote exactly at the limit; `REG-14b` a print one tick through fills at the limit; `REG-14c` a gap print far through the limit (overshoot) still fills at the limit, never at the print; `REG-14d` an SL-M sell stop triggered by a gap print fills at that print minus slippage (≤ trigger), and a buy stop at print plus slippage (≥ trigger); `REG-14e` property test over random price paths: no limit fill is ever better than its limit, and no stop fill is ever better than its trigger | engine: brokers (fills) | V2-08 | **SATISFIED in the merged realistic branch** (`PaperBroker._fill_price_realistic`: trade-through by one tick, at the limit; SL-M at print ± slippage, side-rounded; `test_paper_fill_properties.py`). PARTIAL overall: only when `cost_model="realistic"`, which is not the default on `main`; v2 makes it the only mode. |
+| **REG-15** | The end-of-day flatten is **never held back by the stale-quote guard**. | PR #20: `desk_ml.costs` defers any exit on a quote older than `exit_quote_max_age_s` (90 s) until `stale_exit_hard_flatten_ist` (15:20), and that includes the 15:16 `FLATTEN_1516` | `REG-15a` all quotes stale from 15:10: the EOD flatten is sent at `flat_by_ist` (15:15), not later; `REG-15b` it is priced at the last good print flagged `STALE_QUOTE`, with an alert; `REG-15c` ordinary (non-EOD) exits still wait for a fresh quote up to the guard limit; `REG-15d` no position is open after `flat_by_ist` on any fixture (shared with the REG-02 invariant) | engine: oms (positions/exits) | V2-09 | **NEW.** The merged guard holds the EOD flatten until 15:20; v2 exempts EOD, founder and kill-switch flattens from it. |
+| **REG-16** | A malformed cost config fails closed with an alert, never a crash. | `ledger.charges.load_rates` raises `ValueError` on missing or bad keys, and nothing catches it | `REG-16a` corrupt, truncated or key-missing `charges.yaml` / `paper_costs.yaml` at start: the engine runs exits-only, raises `CONFIG_INVALID(costs)`, and does not crash; `REG-16b` corrupted mid-session: last-good rates are kept, entries block, exits are charged at the last-good rates; `REG-16c` a fill booked with no valid rates is `charges_status = PENDING`, never zero, and is recharged when a valid file returns | contracts (config loader), ledger (charges) | V2-08, V2-10 | **NEW.** Validation exists (`load_rates` rejects missing keys), but the error is uncaught, with no last-good copy and no alert. |
+| **REG-17** | Every closed trade row carries its **exchange tag** (NSE vs BSE rates differ). | PR #20 added per-exchange charges but no exchange column on `trades` | `REG-17a` every closed trade in NIFTY and SENSEX fixtures has `exchange` = NSE / BSE matching `underlying_exchange`; `REG-17b` an underlying missing from the map is refused at entry (no trade with `UNKNOWN`); `REG-17c` the charges on a trade match the rate of its tagged exchange; `REG-17d` the migration backfills existing rows from the map | ledger | V2-10 | **PARTIAL.** `exchange_for()` and per-exchange charges exist, and a missing underlying raises; `trades` has no exchange column. |
 
 ---
 
@@ -1353,8 +1398,13 @@ class LedgerStore(Protocol):  # existing Ledger methods + these
     skips live in config.
   - Every merged safety component, reused or wrapped (section 6.1).
   - The existing performance budgets from `04_MIGRATION_PLAN.md`.
-  - Founder addendum 1 (2026-09-27): every legacy bug fixed becomes a named regression requirement, REG-01 to REG-13
+  - Founder addendum 1 (2026-09-27): every legacy bug fixed becomes a named regression requirement, REG-01 to REG-17 (REG-14 to REG-17 from addendum 5)
     (section 6.5), in the merge gate and the M1 exit criteria.
+  - Founder addendum 5 (PR #20 cost realism, merged `c004ace`): limits fill only at the limit on a trade-through
+    and stops at or worse than the trigger (REG-14); the EOD flatten is never held back by the stale-quote guard
+    (REG-15); a malformed cost config fails closed with an alert (REG-16); every trade carries its exchange tag
+    (REG-17); the verified cost stack with the BSE rate, recorded half-spread slippage and a 0.20 pt/side fallback
+    (REG-12). Realistic fills are the only mode in v2.
   - Founder addendum 3: entry location is first-class for the boss (hard stretch veto, `ENTRY_STRETCHED`) and the
     desk (order planner: CHASE / LIMIT with timeout / WAIT for one consolidation candle), with trade-through limit
     fills in simulation and `ENTRY_PLAN` logging for daily review. Log-only until research round 10 sets the

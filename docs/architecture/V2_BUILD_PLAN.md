@@ -14,7 +14,8 @@ history and as the source of the original acceptance tests and budgets.
   desk and analyst extraction are wrappers around the old engine, so they get rebuilt.
 - **Why.** The founder froze the old engine. Many later steps were "fix or tune the old engine". Those are dropped. The
   rest become tickets on the new stack. Three founder addenda (2026-09-27) add: every bug fixed in the old engine
-  becomes a must-pass regression test (REG-01 to REG-13, section 3); research round 9 needs bid/ask depth data
+  becomes a must-pass regression test (REG-01 to REG-17, section 3; REG-14 to REG-17 from the PR #20 cost-realism
+  verification, with realistic fills as the only mode); research round 9 needs bid/ask depth data
   that no dataset we have contains; and entry location (not chasing the top of an impulse candle) is checked by both
   the boss and the desk (V2-05b, V2-08b), log-only until research round 10.
 - **Next.** Start **recording depth now** (V2-D1, V2-D2), because it cannot be backfilled and 2-5 minute stops cannot
@@ -216,16 +217,20 @@ run in parallel. `REG-nn` ids refer to section 3; each ticket ships the regressi
 **V2-08 Order router, fill models, broker and risk wraps** (`packages/oms/router.py`, `packages/brokers/fills.py`,
 `packages/risk-engine`, ~500 lines)
 - Deterministic ids, `risk.check_entry(now=clock.now())`, order row `NEW` before submit, `needs_lookup` adopt path,
-  protective stop placement; `clock=` injection into `BrokerAdapter`/`PaperBroker`; `DepthFill`, `HalfSpreadFill`
-  (FC-MEAS table in `config/v2/markets/india.yaml`), `LtpSlippageFill`; risk engine keeps last-good limits so exits
-  and flatten never fail on a bad YAML; `config/charges.yaml` exchange rate to `0.000355299` (VERIFY stays).
+  protective stop placement; `clock=` injection into `BrokerAdapter`/`PaperBroker`; fills built on the merged PR #20
+  realistic branch as the **only** mode (`DepthFill` from recorded bid/ask, else `LtpSlippageFill` 0.20 pt/side;
+  limits at the limit on a trade-through; stops at or worse than the trigger); per-exchange charges
+  (`load_rates(by_exchange=True)`); risk and cost configs keep last-good values so exits and flatten never fail on a
+  bad YAML.
 - Acceptance: the same decision routed twice yields one order; a risk veto yields `ENTRY_VETOED` and no broker call;
   decision age is checked with the engine clock in replay (a test freezes wall time far in the future); `DepthFill`
   buys at the ask of the first quote after latency; fallback order and `fill_model` recorded; `DhanBroker` is never
   constructed in tests (guard test); `REG-02a` protective stop exists after every entry fill; `REG-02e` bad risk YAML
-  still allows the exit; `REG-05a/b/c` cap tables, missing-key validation, kill switch; `REG-12a-d` golden contract
-  note per component, a `charges` row for every fill, lot size 65 from the instrument master fixture, slippage and
-  fill model recorded.
+  still allows the exit; `REG-05a/b/c` cap tables, missing-key validation, kill switch; `REG-12a-e` golden contract
+  note per component on NSE and BSE, a `charges` row for every fill, lot size 65 from the instrument master fixture,
+  depth vs 0.20 fallback slippage recorded, no path to `cost_model: legacy`; `REG-14a-e` limits never fill on a touch
+  or at an overshoot print, stops never better than the trigger (property test); `REG-16a/b` malformed cost config:
+  exits-only or last-good rates with `CONFIG_INVALID`, never a crash.
 - Depends on: V2-01, V2-02.
 
 **V2-08b Order planner, boss stretch veto, trade-through limit fills** (`packages/oms/planner.py`,
@@ -234,7 +239,7 @@ run in parallel. `REG-nn` ids refer to section 3; each ticket ships the regressi
   consolidation candle, trigger on its break, `WAIT_EXPIRED`); boss veto `ENTRY_STRETCHED` above `max_stretch_atr`
   or `candle_max_atr`; `log_only` (default) vs `enforce`; risk re-checked at send time; one entry order per signal;
   pending plans in `entry_plans` and rebuilt on restart; exit plan re-anchored at the fill; `ENTRY_PLAN` and
-  `ENTRY_PLAN_RESULT` events with the 5-minute give-back; trade-through fill rule for resting limits.
+  `ENTRY_PLAN_RESULT` events with the 5-minute give-back; entry limits use V2-08's trade-through rule (REG-14).
 - Acceptance:
   - `log_only`: with stretched fixtures the executed action is CHASE, `shadow_action` is LIMIT or WAIT, the boss logs
     `would_veto: true` and does not veto, and trades are identical to a run with the feature off.
@@ -264,7 +269,8 @@ run in parallel. `REG-nn` ids refer to section 3; each ticket ships the regressi
   trail step moves the protective stop; exits are allowed under the kill switch; invariant "no position after
   `flat_by_ist`" holds on all fixtures; `REG-02a` the stop invariant holds after every envelope; `REG-03a/b/c` spot
   moves 3 strikes and every forced close still exits the held instrument and qty; `REG-05d` a raising mark closes at
-  the last good quote and blocks entries.
+  the last good quote and blocks entries; `REG-15a-d` with every quote stale from 15:10 the EOD flatten is still sent
+  at 15:15, priced at the last good print and flagged `STALE_QUOTE`, while ordinary exits still wait for a fresh quote.
 - Depends on: V2-08.
 
 **V2-10 Ledger v2 and crash recovery** (`packages/ledger/migrations`, `packages/runtime/recovery.py`, ~500 lines)
@@ -277,7 +283,10 @@ run in parallel. `REG-nn` ids refer to section 3; each ticket ships the regressi
   any entry; `REG-04a` `kill -9` at each fault-matrix point loses no open position; `REG-04b` broker-only and
   ledger-only positions each give `RECON_MISMATCH`, block entries and allow exits; `REG-05e` an unreadable halt
   record blocks all entries, and forced closes re-book at saved time and price; `REG-06b` the first bad line of a
-  file is written once to `ingest_errors` and survives restart.
+  file is written once to `ingest_errors` and survives restart; `REG-16c` a fill booked without valid rates is
+  `charges_status = PENDING` and recharged later, never zero; `REG-17a-d` every trade row has `exchange` NSE/BSE
+  from `underlying_exchange`, an unmapped underlying is refused, charges match the tagged exchange, and the migration
+  backfills old rows.
 - Depends on: V2-04, V2-08.
 
 **V2-11 Founder controls v2** (`packages/control`, gateway routes, engine handler, ~450 lines)
@@ -419,8 +428,8 @@ goes first so recording starts weeks before M1.
 
 ## 3. Legacy bug carry-over (must-pass tests)
 
-Founder addendum (2026-09-27): every bug found and fixed in the legacy engine carries into V2 as a named regression
-requirement with a test id, an owner service and the ticket that implements it. Full requirement text, legacy source
+Founder addenda 1 and 5 (2026-09-27): every bug found and fixed in the legacy engine carries into V2 as a named regression
+requirement (addendum 5, from the PR #20 cost-realism verification, added REG-14 to REG-17 and updated REG-12) with a test id, an owner service and the ticket that implements it. Full requirement text, legacy source
 and test descriptions are in architecture section 6.5. The tests live in `tests/regression/test_reg_<nn>_*.py` and
 run in the `regression` CI job; none may be skipped or marked xfail. All of them green is an M1 exit criterion.
 
@@ -440,10 +449,15 @@ and V2 adds only the test. **PARTIAL** = a merged mechanism exists, with the nam
 | REG-09 | Supervisor never restart-loops (F1): backoff, circuit breaker, alarm | REG-09a-b | runtime (services), health | V2-15, V2-14 | NEW (recorder and feed have backoff only) |
 | REG-10 | Every replay and job has a wall-clock timeout | REG-10a-b | runtime (jobs) | V2-04, V2-15, V2-16 | NEW |
 | REG-11 | Tests never write into real data folders (`agent_rag` rewrote `data/knowledge`) | REG-11a-b | CI (all packages) | V2-01 | NEW (PR #16's guard covers `desk-ml` only, unmerged) |
-| REG-12 | Real cost stack on every simulated fill: ₹20/order, STT 0.15% sell, NSE exchange 0.0355299%, stamp 0.003% buy, SEBI, GST 18% on brokerage+exchange+SEBI, NIFTY lot 65, configurable slippage | REG-12a-d | engine: brokers (fills), ledger (charges) | V2-08 | PARTIAL: `ledger.charges.order_charges` has every component and `Ledger.record_fill` charges every fill; `PaperBroker` slippage configurable. Gap: `config/charges.yaml` exchange is `0.0003503`, not `0.000355299` |
+| REG-12 | Verified cost stack on every simulated fill: ₹20/order, STT 0.15% sell, NSE 0.0355299%, BSE ₹3,250/crore, SEBI, stamp 0.003% buy, GST 18%, NIFTY lot 65; slippage from the recorded bid/ask half-spread, 0.20 pt/side fallback; **realistic fills only, no legacy mode** | REG-12a-e | engine: brokers (fills), ledger (charges) | V2-08 | PARTIAL (mostly on `main` after PR #20): per-exchange `order_charges` (NSE `0.0003553`, BSE `0.000325`), every ledger fill charged with its exchange, 0.20 default slippage + `use_recorded_spread`. Gaps: `cost_model: legacy` is still the default on `main`; the NSE value includes ₹0.01/crore IPFT (K14) |
 | REG-13 | Exit params are part of every strategy and config gate (infra PR #19 miss) | REG-13a-c | engine: strategies, forward harness, CI gate | V2-06, V2-06b, V2-16, V2-20a | NEW |
+| REG-14 | Limits (take-profit and entry) fill only at the limit when price trades through it, never at an overshoot print (−₹164,934 over 7 days of ALL3 in the PR #20 verification); stops at or worse than the trigger | REG-14a-e | engine: brokers (fills) | V2-08 (entry limits reused by V2-08b) | SATISFIED in the merged realistic branch (`_fill_price_realistic`, `test_paper_fill_properties.py`); v2 makes it the only mode |
+| REG-15 | The EOD flatten is never held back by the stale-quote guard | REG-15a-d | engine: oms (exits) | V2-09 | NEW: on `main` the guard defers `FLATTEN_1516` until 15:20 (`desk_ml.costs`) |
+| REG-16 | A malformed cost config fails closed with an alert, never a crash | REG-16a-c | contracts (config loader), ledger | V2-08, V2-10 | NEW: `load_rates` validates but raises uncaught; no last-good copy, no alert |
+| REG-17 | Every closed trade row carries its exchange tag (NSE vs BSE) | REG-17a-d | ledger | V2-10 | PARTIAL: `exchange_for()` + per-exchange charges exist; `trades` has no exchange column |
 
-Tally: SATISFIED 1 (REG-05 caps, with the halt part still to port), PARTIAL 8, NEW 4.
+Tally: SATISFIED 2 (REG-05 caps, with the halt part still to port; REG-14 in the merged realistic branch, not yet the
+default on `main`), PARTIAL 9, NEW 6.
 
 ---
 
@@ -451,7 +465,7 @@ Tally: SATISFIED 1 (REG-05 caps, with the halt part still to port), PARTIAL 8, N
 
 Source of truth: [`docs/founder/FOUNDER_COMMENTS_LOG.md`](../founder/FOUNDER_COMMENTS_LOG.md) (C1-C11, committed
 verbatim from the founder's upload; times there are CT on 2026-09-26). This table maps every comment, and every legacy
-carry-over item, to the V2 service, ticket and test that satisfies it. Following the log's rule, nothing here counts as
+carry-over item (REG-01 to REG-17), to the V2 service, ticket and test that satisfies it. Following the log's rule, nothing here counts as
 done until its test passes. A comment that conflicts with another comment or with the 32-step plan is marked
 **⚑ Kn** and listed in section 4.2. Those conflicts are **not** resolved here. The design's current default is stated
 so the build can continue, and the founder decides.
@@ -467,7 +481,7 @@ so the build can continue, and the founder decides.
 | **C5** | Strategy library; India basket (NIFTY + SENSEX) and forex basket (parked); per-regime weight/rank so the boss picks a daily basket | registry/basket client (strategy runtime), boss | V2-06, V2-07 | V2-06: loads the basket module's output; no basket means no trades; an `FX_SPOT` plugin refuses an India basket; V2-07: regime weights and ranks are logged as `BOSS_SHADOW` and do not change the decision in `shadow` mode | ⚑ K5, ⚑ K6 |
 | **C6** | The basket module is a separate parallel track; never blocks the 32-step build; draft PR, merges later | strategy runtime (`registry.py` contract + YAML fallback) | V2-06 | V2-06: the runtime works with the YAML fallback and no basket module installed; the contract test runs against a fixture of the module's output | ⚑ K6, ⚑ K7 |
 | **C7** | Don't follow the old engine; build our own production system (Redis, DuckDB, websockets, VPS, customer-ready); old tape engine is reference only | whole V2 stack | all tickets; V2-15 (deploy), V2-16 (gate), V2-17 (freeze) | New merge gate (architecture §6.2: unit, integration, fault, no-look-ahead, determinism, perf, live-like dry run); V2-17 `frozen-legacy` CI check; M1 exit criteria | ⚑ K7, ⚑ K8 |
-| **C8** | Bring every fix done on the old engine into the new one | per REG item below | per REG item | The 13 REG rows below, each one must-pass test set in the `regression` CI job (V2-16 meta-test fails if any REG id has no collected test) | ⚑ K8, ⚑ K9 |
+| **C8** | Bring every fix done on the old engine into the new one | per REG item below | per REG item | The 17 REG rows below, each one must-pass test set in the `regression` CI job (V2-16 meta-test fails if any REG id has no collected test) | ⚑ K8, ⚑ K9 |
 | **C9** | The system enters at the top of big candles, gives back 4-5 pts to the imbalance/POC, then stops out | entry-location features, desk order planner, boss veto; research round 10 (external lab) | V2-05b, V2-08b, V2-20a | V2-05b feature fixtures (FVG, candle 50%, VWAP, EMA20, POC; causal); V2-08b: 5-minute give-back logged on every fill; V2-20a prices CHASE vs LIMIT vs WAIT legs; thresholds come from the round 10 report | ⚑ K2, ⚑ K10 |
 | **C10** | Boss and desk must be aligned on the entry-location rule | boss selector, desk order planner; basket strategy cards | V2-08b | V2-08b: one config file and one `config_hash` feed both the boss veto and the planner (nesting test: chase ≤ limit/wait ≤ veto); log-only until round 10 thresholds; `enforce` with a null threshold is refused | ⚑ K11 |
 | **C11** | Don't mess up with mid-build comments; lots of money and time spent | this log + this table; morning status checklist | V2-16 | V2-16 docs meta-test (**TRACE-01**): every `C#` row in `FOUNDER_COMMENTS_LOG.md` and every `REG-nn` has a row in this table with a ticket and a test; the build fails otherwise | — |
@@ -482,9 +496,14 @@ so the build can continue, and the founder decides.
 | REG-09 | No restart loop (F1): backoff, breaker, alarm | runtime, health | V2-15, V2-14 | REG-09a-b | — |
 | REG-10 | Wall-clock timeout on every replay and job | runtime | V2-04, V2-15, V2-16 | REG-10a-b | — |
 | REG-11 | Tests never write into real data folders | CI | V2-01 | REG-11a-b | — |
-| REG-12 | Real cost stack on every simulated fill | brokers (fills), ledger | V2-08 | REG-12a-d | ⚑ K12 |
+| REG-12 | Verified cost stack incl. BSE ₹3,250/crore; recorded half-spread slippage, 0.20 fallback; realistic only | brokers (fills), ledger | V2-08 | REG-12a-e | ⚑ K12, ⚑ K14, ⚑ K15 |
 | REG-13 | Exit params in every strategy/config gate | strategies, forward harness, CI | V2-06, V2-06b, V2-16, V2-20a | REG-13a-c | — |
+| REG-14 | Limits fill only at the limit on a trade-through, never at an overshoot print; stops at or worse than the trigger | brokers (fills) | V2-08, V2-08b | REG-14a-e | ⚑ K17 |
+| REG-15 | EOD flatten never held back by the stale-quote guard | oms (exits) | V2-09 | REG-15a-d | ⚑ K16 |
+| REG-16 | Malformed cost config fails closed with an alert, never a crash | contracts, ledger | V2-08, V2-10 | REG-16a-c | — |
+| REG-17 | Every closed trade carries its exchange tag (NSE vs BSE) | ledger | V2-10 | REG-17a-d | — |
 | *not in log* | Founder addendum 2 (research round 9): ≤ 1 s depth, ≤ 5 s bid/ask snapshots, OI cadence, time stops first-class, forward harness | marketdata, oms, forward harness | V2-D1, V2-D2, V2-09, V2-20a | V2-D2 cadence tests; V2-09 time-stop tests; V2-20a harness tests | ⚑ K13 |
+| *not in log* | Founder addendum 5 (PR #20 cost realism merged as `c004ace`): items (a)-(e) above as REG-14 to REG-17 and the REG-12 update; realistic fills only | brokers, oms, ledger | V2-08, V2-09, V2-10 | REG-12, REG-14 to REG-17 | ⚑ K13 |
 | *not in log* | Standing rules at the foot of the log (paper only; every number from a source file or real run; verified cost stack; live for customers only on Sahil's call) | all | all; V2-08 (costs); M2 criterion 6 | Live-order gate unchanged (three-part gate, no live-orders compose profile); REG-12 cost tests; PR evidence sections cite source files or runs | ⚑ K12 |
 
 ### 4.2 Conflicts flagged (not silently resolved)
@@ -501,11 +520,15 @@ Each entry: what conflicts, what the V2 design does **by default** until the fou
 | **K6** | The basket track (bc-80505954) writes `basket_india.json` / `basket_forex.json`. The V2 contract assumed `config/v2/baskets/YYYY-MM-DD.yaml` | C5/C6 vs architecture §2.5 | V2-06 adds a read-only adapter for the basket module's JSON; no change is asked of the basket track (C6) | Confirm the basket JSON is the canonical format |
 | **K7** | C6 says the basket track "never blocks the 32-step build". After C7 the 32-step plan is superseded for new work by this V2 plan | C6 vs C7, `04_MIGRATION_PLAN.md` | Read as "never blocks the V2 build plan"; V2-06 runs on the YAML/JSON fallback | Confirm the reading |
 | **K8** | C7 (don't follow the old engine) conflicts with the 32-step plan's own principles: "Incremental, not rewrite", "No breaking changes to working paper system", and the PR-007 to PR-009 acceptance tests that require identical trades to `paper_scalp.py` | C7 vs `04_MIGRATION_PLAN.md` principles 1 and 6, PR-007..009 | V2 follows C7 (the later, explicit founder direction). `04_MIGRATION_PLAN.md` carries a "superseded for new work" note; parity is no longer a gate | Confirm that C7 overrides those plan principles |
-| **K9** | C8 (bring every old-engine fix across) against C7 (don't follow the old engine). Also, PR-010's known-but-unfixed legacy bugs (look-ahead in `_hold_series`, reversed OI signal, double-counted `greeks_vote_intent`, degenerate ML models) are not in the 13 REG items | C8 vs C7, PR-010 | Fixes carry over as **behaviour tests** (REG), not code. PR-010's analyst-specific bugs are not REG items because those analysts are not ported; the `_hold_series` look-ahead is covered generically by REG-01 | Should PR-010's analyst bugs become REG tests anyway (for example, if a legacy analyst is re-implemented as a v2 strategy)? |
+| **K9** | C8 (bring every old-engine fix across) against C7 (don't follow the old engine). Also, PR-010's known-but-unfixed legacy bugs (look-ahead in `_hold_series`, reversed OI signal, double-counted `greeks_vote_intent`, degenerate ML models) are not in the REG items (REG-01 to REG-17) | C8 vs C7, PR-010 | Fixes carry over as **behaviour tests** (REG), not code. PR-010's analyst-specific bugs are not REG items because those analysts are not ported; the `_hold_series` look-ahead is covered generically by REG-01 | Should PR-010's analyst bugs become REG tests anyway (for example, if a legacy analyst is re-implemented as a v2 strategy)? |
 | **K10** | C9's pullback limits are passive entries. Round 8 **closed** passive entries on breakout-style signals: 94-96% fill rate, saved ~₹355/trade in spread, and lost more to adverse selection (fills cluster on failed breaks) | C9 vs Round 8 §1.1 | Log-only; round 10 decides the thresholds; the forward harness measures fill-conditional outcomes for LIMIT vs CHASE | After round 10: does the pullback limit avoid the adverse selection Round 8 found? |
 | **K11** | C10 requires the basket's strategy cards to follow the entry-location rule. That is a dependency on the basket track, which C6 says must stay independent | C10 vs C6 | A strategy card without an entry policy gets the default `EntryPolicy`; V2 does not wait on the basket track | Should entry-policy fields be required on basket strategy cards? |
-| **K12** | The log's standing cost stack lists "GST 18%" and no SEBI fee. Founder addendum 1 (REG-12) specifies a SEBI fee and GST on brokerage + exchange + SEBI. `config/charges.yaml` also has the NSE rate at `0.0003503`, not the `0.0355299%` both sources state | Log standing rules vs REG-12 vs `config/charges.yaml` | REG-12 as written (includes SEBI; GST on brokerage + exchange + SEBI); V2-08 moves the NSE rate to `0.000355299` (VERIFY against the circular) | Confirm SEBI fee and GST base |
-| **K13** | Founder addendum 2 (depth and quote recording, OI cadence, first-class time stops, forward harness) has **no C# entry** in the log. The log's rule says every comment gets an entry the same turn. This addendum (commit the log plus traceability) is not in the log either | Log completeness | Tracked here as *not in log*; the log file is committed verbatim and not edited by the agent | Add C12+ entries for these (the founder owns the log's numbering and times) |
+| **K12** | The log's standing cost stack lists "GST 18%" without saying what it applies to, and no SEBI fee. Addendum 5 now lists the SEBI fee but still not the GST base. REG-12 (addendum 1) says GST on brokerage + exchange + SEBI | Log standing rules vs addenda 1 and 5 | REG-12 as written (includes SEBI; GST on brokerage + exchange + SEBI, as `order_charges` does) | Confirm the GST base |
+| **K13** | Founder addenda 2 and 5 (depth and quote recording, OI cadence, first-class time stops, forward harness; PR #20 cost-realism carry-over) have **no C# entry** in the log. The log's rule says every comment gets an entry the same turn. This addendum (commit the log plus traceability) is not in the log either | Log completeness | Tracked here as *not in log*; the log file is committed verbatim and not edited by the agent | Add C12+ entries for these (the founder owns the log's numbering and times) |
+| **K14** | Addendum 5 and the log say NSE 0.0355299%. The merged `config/charges.yaml` (PR #20) has `0.0003553` = ₹3,552.99 transaction charge + ₹0.01 IPFT per crore (NSE/FA/73061) | Addendum 5 vs merged config | Keep the merged, circular-cited `0.0003553` (the founder's figure plus IPFT; about ₹0.0001 per lakh of premium) | Include the IPFT or not? |
+| **K15** | Addendum 5 sets the no-bid/ask fallback at a flat **0.20 pt/side**. Round 8's FC-MEAS used measured upper bounds by moneyness (ATM 0.20, ITM100 0.30, ITM200 0.35; more after 12:00) and an earlier v2 draft used that table as the fill | Addendum 5 vs Round 8 §3.0 | Flat 0.20 fallback in fills (addendum 5, the latest instruction); FC-MEAS shown as a stress sensitivity in forward-harness reports | Keep flat 0.20, or use the moneyness table for ITM strikes until depth data exists? |
+| **K16** | REG-15 (EOD flatten never held back) changes behaviour that is merged on `main`: PR #20's guard defers `FLATTEN_1516` until `stale_exit_hard_flatten_ist: "15:20"` | Addendum 5 vs merged PR #20 | v2 exempts EOD, founder and kill-switch flattens from the guard. The legacy engine is frozen and not changed | Confirm; and should the legacy `paper_costs.yaml` 15:20 value be left as is (benchmark only)? |
+| **K17** | REG-14 "limits fill only at the limit price" also covers a limit that is already marketable when placed (for example the order planner's CHASE limit at ask + ticks). A real exchange would fill that at the better resting ask. The merged realistic branch also fills it at the limit | REG-14 vs exchange behaviour, V2-08b CHASE | Fill every limit at its limit price (conservative; matches the merged code) | Allow price improvement for limits marketable on arrival? |
 
 ---
 
@@ -519,7 +542,7 @@ market hours on real Dhan market data (user box or VPS), with the paper broker, 
 comparison.
 
 **Exit criteria (all required):**
-1. Every merge gate check green on `main` (section 6.2 of the architecture), including **every REG-01 to REG-13
+1. Every merge gate check green on `main` (section 6.2 of the architecture), including **every REG-01 to REG-17
    test** (section 3) and `TRACE-01` (section 4); every C1-C11 row whose ticket is in M1 has its test passing.
 2. **10 consecutive sessions** on the new stack with: zero duplicate orders; zero unresolved reconciliation
    mismatches at EOD; every open position had a protective stop; flat by 15:15; no entry under a hold.
@@ -565,11 +588,12 @@ M1 does **not** mean a strategy is profitable, and it does not enable live order
 - **Accepted:** the re-map in section 1; 26 tickets within the 200-500 line rule (V2-D1, V2-D2, V2-01 to V2-19,
   V2-05b, V2-06b, V2-08b, V2-20a, V2-20b); founder addendum 3 (entry location: V2-05b features, V2-08b desk planner,
   boss stretch veto and trade-through fills, log-only until research round 10); M1 and M2 criteria that test invariants and operations, not P&L; founder addendum 1
-  (REG-01 to REG-13 in section 3, each with test ids, owner and ticket); founder addendum 2 (depth and quote recording,
+  (REG-01 to REG-13 in section 3, each with test ids, owner and ticket); founder addendum 5 (PR #20 cost realism:
+  REG-14 to REG-17, REG-12 updated, realistic fills the only mode); founder addendum 2 (depth and quote recording,
   OI cadence, strike router, first-class time stops, forward harness off by default) as early tickets in the new
   system only.
 - **Also accepted:** `docs/founder/FOUNDER_COMMENTS_LOG.md` (C1-C11) committed verbatim as the single source of truth
-  for mid-build comments, with the traceability table and 13 flagged conflicts (K1-K13) in section 4. The conflicts
+  for mid-build comments, with the traceability table and 17 flagged conflicts (K1-K17) in section 4. The conflicts
   are left for the founder; the table states only the design's current default.
 - **Rejected:** old-engine bug fixes (PR-010), tuning steps (PR-022, PR-023), RAG (PR-030) and crypto (PR-032) as
   build work; byte-identical parity as a gate; patching `paper_scalp.py` for any addendum item.
