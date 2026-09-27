@@ -4,6 +4,7 @@ from indicators.core import ATR, EMA, VWAP, OIChange, RealizedVol
 from indicators.engine import FeatureEngine
 from indicators.location import (
     LOCATION_FIELDS,
+    EntryLocation,
     LocationTracker,
     compute_entry_location,
     detect_fvgs,
@@ -18,6 +19,7 @@ __all__ = [
     "FeatureValue",
     "FeatureView",
     "LOCATION_FIELDS",
+    "EntryLocation",
     "LocationTracker",
     "LookAheadError",
     "OIChange",

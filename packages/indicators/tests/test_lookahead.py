@@ -1,315 +1,199 @@
-"""
-Lookahead tests for feature engine (REG-01b, REG-01c, REG-01d).
+"""Lookahead tests for the feature engine (REG-01b, REG-01c, REG-01d).
 
-Uses random-cut causality and future poisoning harness from V2-03.
+Feeds only closed bars from V2-03 ``BarBuilder`` and reuses
+``marketdata.lookahead.lookahead_failures`` on every emission.
 """
+
+from __future__ import annotations
 
 import random
 from datetime import datetime, timedelta
 
 import pytest
-from contracts.clock import IST, SimClock
-from contracts.payloads import BarClosed, Tick
 from marketdata.bars import BarBuilder
+from marketdata.clock import IST
+from marketdata.lookahead import lookahead_failures
 from marketdata.sources import ListSource
+from marketdata.types import BarClosed, SimClock, Tick
 
 from indicators.engine import FeatureEngine
 from indicators.location import LOCATION_FIELDS
 from indicators.view import FeatureValue, FeatureView, LookAheadError
 
 
-def test_random_cut_causality_features():
-    """
-    REG-01b: Random-cut causality on features.
-
-    Features computed from a truncated stream must match the full stream
-    for all bars before the cut point.
-    """
-    # Generate synthetic tick stream (30 minutes)
-    base_time = datetime(2026, 1, 2, 9, 15, 0, tzinfo=IST)
-    ticks = []
-    for i in range(1800):
+def _ticks(base_time: datetime, n: int, ltp_fn) -> list[Tick]:
+    out: list[Tick] = []
+    for i in range(n):
         ts = base_time + timedelta(seconds=i)
-        tick = Tick(
-            instrument_id="NIFTY",
-            ltp=22000.0 + (i % 100),
-            ltq=10,
-            volume=10,
-            oi=1000,
-            exchange_ts=ts.isoformat(),
+        out.append(
+            Tick(
+                instrument_id="NIFTY",
+                ltp=ltp_fn(i),
+                ltq=10,
+                volume=10,
+                oi=1000,
+                exchange_ts=ts.isoformat(),
+            )
         )
-        ticks.append(tick)
+    return out
 
-    # Full run
-    clock_full = SimClock(base_time)
-    source_full = ListSource(ticks, clock_full)
-    builder_full = BarBuilder()
-    engine_full = FeatureEngine()
 
-    for event in source_full.events():
+def _run_engine(
+    ticks: list[Tick], base_time: datetime
+) -> tuple[FeatureEngine, list[tuple[BarClosed, datetime]]]:
+    clock = SimClock(base_time)
+    source = ListSource(ticks, clock)
+    builder = BarBuilder()
+    engine = FeatureEngine()
+    emissions: list[tuple[BarClosed, datetime]] = []
+    for event in source.events():
         if event.event_type == "TICK":
-            bars = builder_full.on_tick(event.payload, event.available_ts)
-            for bar in bars:
-                engine_full.on_bar(bar, event.available_ts)
+            bars = builder.on_tick(event.payload, event.available_ts)
         elif event.event_type == "CLOCK":
-            bars = builder_full.on_clock(event.available_ts)
-            for bar in bars:
-                engine_full.on_bar(bar, event.available_ts)
+            bars = builder.on_clock(event.available_ts)
+        else:
+            continue
+        for bar in bars:
+            emissions.append((bar, event.available_ts))
+            engine.on_bar(bar, event.available_ts)
+    assert lookahead_failures(emissions) == []
+    return engine, emissions
 
-    # Get full features
-    view_full = engine_full.view()
 
-    # Random cuts (test 5 random cut points)
+def _hand_bar(start: datetime, close: float) -> tuple[BarClosed, datetime]:
+    end = start + timedelta(minutes=1)
+    available_ts = end + timedelta(seconds=1.5)
+    bar = BarClosed(
+        instrument_id="NIFTY",
+        tf="1m",
+        start=start.isoformat(),
+        end=end.isoformat(),
+        o=22000.0,
+        h=22010.0,
+        l=21990.0,
+        c=close,
+        v=1000,
+        n_ticks=60,
+        available_ts=available_ts.isoformat(),
+    )
+    return bar, available_ts
+
+
+def test_random_cut_causality_features() -> None:
+    """REG-01b: truncated stream matches full-run features before the cut."""
+    base_time = datetime(2026, 1, 2, 9, 15, 0, tzinfo=IST)
+    ticks = _ticks(base_time, 1800, lambda i: 22000.0 + (i % 100))
+    engine_full, _ = _run_engine(ticks, base_time)
+
     for _ in range(5):
         cut_index = random.randint(300, len(ticks) - 300)
-        truncated_ticks = ticks[:cut_index]
-        cut_time = datetime.fromisoformat(truncated_ticks[-1].exchange_ts)
-
-        clock_cut = SimClock(base_time)
-        source_cut = ListSource(truncated_ticks, clock_cut)
-        builder_cut = BarBuilder()
-        engine_cut = FeatureEngine()
-
-        for event in source_cut.events():
-            if event.event_type == "TICK":
-                bars = builder_cut.on_tick(event.payload, event.available_ts)
-                for bar in bars:
-                    engine_cut.on_bar(bar, event.available_ts)
-            elif event.event_type == "CLOCK":
-                bars = builder_cut.on_clock(event.available_ts)
-                for bar in bars:
-                    engine_cut.on_bar(bar, event.available_ts)
-
-        # Compare features at cut time
-        view_cut = engine_cut.view(now=cut_time)
-
-        # Check EMA20 (if available in both)
-        ema_full = view_full.get("ema20", "NIFTY", "1m")
-        ema_cut = view_cut.get("ema20", "NIFTY", "1m")
-
-        if ema_full is not None and ema_cut is not None and ema_cut.available_ts <= cut_time:
-            # If cut run has an EMA, it should match full run at that time
-            # Find corresponding full feature
-            full_ema_at_cut_time = None
-            view_full_at_cut = engine_full.view(now=cut_time)
-            full_ema_at_cut_time = view_full_at_cut.get("ema20", "NIFTY", "1m")
-
-            if full_ema_at_cut_time is not None:
-                assert abs(ema_cut.value - full_ema_at_cut_time.value) < 1e-6, (
-                    f"EMA mismatch at cut: {ema_cut.value} vs {full_ema_at_cut_time.value}"
-                )
+        truncated = ticks[:cut_index]
+        cut_time = datetime.fromisoformat(truncated[-1].exchange_ts)
+        engine_cut, _ = _run_engine(truncated, base_time)
+        ema_cut = engine_cut.view(now=cut_time).get("ema20", "NIFTY", "1m")
+        ema_full = engine_full.view(now=cut_time).get("ema20", "NIFTY", "1m")
+        if ema_cut is not None and ema_full is not None:
+            assert abs(ema_cut.value - ema_full.value) < 1e-6
 
 
-def test_future_poisoning_features():
-    """
-    REG-01c: Future poisoning on features.
-
-    Mutate bars after time T. Features at or before T must not change.
-    """
+def test_future_poisoning_features() -> None:
+    """REG-01c: mutating ticks after T does not change features at or before T."""
     base_time = datetime(2026, 1, 2, 9, 15, 0, tzinfo=IST)
+    original = _ticks(base_time, 1200, lambda i: 22000.0 + (i % 50))
+    engine_orig, _ = _run_engine(original, base_time)
 
-    # Original tick stream (20 minutes)
-    original_ticks = []
-    for i in range(1200):
-        ts = base_time + timedelta(seconds=i)
-        tick = Tick(
-            instrument_id="NIFTY",
-            ltp=22000.0 + (i % 50),
-            ltq=10,
-            volume=10,
-            oi=1000,
-            exchange_ts=ts.isoformat(),
-        )
-        original_ticks.append(tick)
-
-    # Run with original ticks
-    clock_orig = SimClock(base_time)
-    source_orig = ListSource(original_ticks, clock_orig)
-    builder_orig = BarBuilder()
-    engine_orig = FeatureEngine()
-
-    for event in source_orig.events():
-        if event.event_type == "TICK":
-            bars = builder_orig.on_tick(event.payload, event.available_ts)
-            for bar in bars:
-                engine_orig.on_bar(bar, event.available_ts)
-        elif event.event_type == "CLOCK":
-            bars = builder_orig.on_clock(event.available_ts)
-            for bar in bars:
-                engine_orig.on_bar(bar, event.available_ts)
-
-    # Poison time T = 10 minutes
     poison_time = base_time + timedelta(minutes=10)
     poison_index = 10 * 60
+    poisoned = original[:poison_index] + [
+        Tick(
+            instrument_id=t.instrument_id,
+            ltp=50000.0,
+            ltq=t.ltq,
+            volume=t.volume,
+            oi=t.oi,
+            exchange_ts=t.exchange_ts,
+        )
+        for t in original[poison_index:]
+    ]
+    engine_poison, _ = _run_engine(poisoned, base_time)
 
-    # Mutate ticks after T
-    poisoned_ticks = (
-        original_ticks[:poison_index]
-        + [
-            Tick(
-                instrument_id=t.instrument_id,
-                ltp=50000.0,  # Drastically different
-                ltq=t.ltq,
-                volume=t.volume,
-                oi=t.oi,
-                exchange_ts=t.exchange_ts,
-            )
-            for t in original_ticks[poison_index:]
-        ]
-    )
-
-    # Run with poisoned ticks
-    clock_poison = SimClock(base_time)
-    source_poison = ListSource(poisoned_ticks, clock_poison)
-    builder_poison = BarBuilder()
-    engine_poison = FeatureEngine()
-
-    for event in source_poison.events():
-        if event.event_type == "TICK":
-            bars = builder_poison.on_tick(event.payload, event.available_ts)
-            for bar in bars:
-                engine_poison.on_bar(bar, event.available_ts)
-        elif event.event_type == "CLOCK":
-            bars = builder_poison.on_clock(event.available_ts)
-            for bar in bars:
-                engine_poison.on_bar(bar, event.available_ts)
-
-    # Features at or before poison time should be identical
     view_orig = engine_orig.view(now=poison_time)
     view_poison = engine_poison.view(now=poison_time)
-
-    # Check EMA20
     ema_orig = view_orig.get("ema20", "NIFTY", "1m")
     ema_poison = view_poison.get("ema20", "NIFTY", "1m")
-
     if ema_orig is not None and ema_poison is not None:
-        assert abs(ema_orig.value - ema_poison.value) < 1e-6, (
-            f"EMA changed after poisoning: {ema_orig.value} vs {ema_poison.value}"
-        )
-
-    # Check ATR
+        assert abs(ema_orig.value - ema_poison.value) < 1e-6
     atr_orig = view_orig.get("atr", "NIFTY", "1m")
     atr_poison = view_poison.get("atr", "NIFTY", "1m")
-
     if atr_orig is not None and atr_poison is not None:
-        assert abs(atr_orig.value - atr_poison.value) < 1e-6, (
-            f"ATR changed after poisoning: {atr_orig.value} vs {atr_poison.value}"
-        )
+        assert abs(atr_orig.value - atr_poison.value) < 1e-6
 
 
-def test_strict_view_with_planted_future_value():
-    """
-    REG-01d: Strict view raises on planted future value.
-
-    This demonstrates the harness can catch look-ahead bugs.
-    """
+def test_strict_view_with_planted_future_value() -> None:
+    """REG-01d: strict view raises on a planted future value."""
     base_time = datetime(2026, 1, 2, 9, 15, 0, tzinfo=IST)
     engine = FeatureEngine()
-
-    # Generate bars
     for i in range(10):
-        bar_start = base_time + timedelta(minutes=i)
-        bar_end = bar_start + timedelta(minutes=1)
-        available_ts = bar_end + timedelta(seconds=1.5)
-
-        bar = BarClosed(
-            instrument_id="NIFTY",
-            tf="1m",
-            start=bar_start.isoformat(),
-            end=bar_end.isoformat(),
-            o=22000.0,
-            h=22010.0,
-            l=21990.0,
-            c=22000.0 + i,
-            v=1000,
-            n_ticks=60,
-        )
+        bar, available_ts = _hand_bar(base_time + timedelta(minutes=i), 22000.0 + i)
         engine.on_bar(bar, available_ts)
 
-    # Try to access feature at a time before it was available
-    now = base_time + timedelta(seconds=30)  # Before first bar closed
+    now = base_time + timedelta(seconds=30)
     view = engine.view(now=now, strict=True)
-
-    # This should raise because no features are available yet
     with pytest.raises(LookAheadError):
         view.get("ema20", "NIFTY", "1m", now=now)
 
 
-def test_lookup_counter_zero_on_valid_fixtures():
-    """
-    REG-01d: Lookup counter is 0 on fixtures with no look-ahead.
-    """
+def test_lookup_counter_zero_on_valid_fixtures() -> None:
+    """REG-01d: lookup counter is 0 on fixtures with no look-ahead."""
     base_time = datetime(2026, 1, 2, 9, 15, 0, tzinfo=IST)
     engine = FeatureEngine()
-
-    # Generate bars
     for i in range(20):
-        bar_start = base_time + timedelta(minutes=i)
-        bar_end = bar_start + timedelta(minutes=1)
-        available_ts = bar_end + timedelta(seconds=1.5)
-
-        bar = BarClosed(
-            instrument_id="NIFTY",
-            tf="1m",
-            start=bar_start.isoformat(),
-            end=bar_end.isoformat(),
-            o=22000.0,
-            h=22010.0,
-            l=21990.0,
-            c=22000.0 + i,
-            v=1000,
-            n_ticks=60,
-        )
+        bar, available_ts = _hand_bar(base_time + timedelta(minutes=i), 22000.0 + i)
         engine.on_bar(bar, available_ts)
 
-    # Access features with strict view (valid accesses only)
     now = base_time + timedelta(minutes=25)
     view = engine.view(now=now, strict=True)
-
-    # Access multiple features
     for _ in range(10):
         view.get("ema20", "NIFTY", "1m", now=now)
         view.get("atr", "NIFTY", "1m", now=now)
         view.get("vwap", "NIFTY", "1m", now=now)
 
-    # Future lookup counter should be 0
-    assert view.future_lookup_count == 0, f"Future lookups detected: {view.future_lookup_count}"
-    assert view.lookup_count == 30  # 10 iterations × 3 features
+    assert view.future_lookup_count == 0
+    assert view.lookup_count == 30
 
 
-def test_oi_lagged_future_poisoning():
-    """
-    REG-01c: OI change is immune to future poisoning.
-
-    OI updates after decision time should not affect lagged OI change.
-    """
+def test_oi_lagged_future_poisoning() -> None:
+    """REG-01c: OI change ignores updates at or after the decision time."""
     base_time = datetime(2026, 1, 2, 10, 0, 0, tzinfo=IST)
-
-    # Original OI stream
     engine_orig = FeatureEngine()
     engine_orig.on_oi_update("NIFTY", 1000, base_time)
     engine_orig.on_oi_update("NIFTY", 1050, base_time + timedelta(seconds=30))
     engine_orig.on_oi_update("NIFTY", 1100, base_time + timedelta(seconds=60))
     engine_orig.on_oi_update("NIFTY", 1150, base_time + timedelta(seconds=90))
 
-    # Poisoned OI stream (different values after 60s)
     engine_poison = FeatureEngine()
     engine_poison.on_oi_update("NIFTY", 1000, base_time)
     engine_poison.on_oi_update("NIFTY", 1050, base_time + timedelta(seconds=30))
     engine_poison.on_oi_update("NIFTY", 1100, base_time + timedelta(seconds=60))
-    engine_poison.on_oi_update("NIFTY", 9999, base_time + timedelta(seconds=90))  # Poisoned
+    engine_poison.on_oi_update("NIFTY", 9999, base_time + timedelta(seconds=90))
 
-    # Decision at 60s
     decision_ts = base_time + timedelta(seconds=60)
-
-    # OI change should be identical (both see only up to 30s)
     change_orig = engine_orig.get_oi_change("NIFTY", decision_ts, lookback_bars=1)
     change_poison = engine_poison.get_oi_change("NIFTY", decision_ts, lookback_bars=1)
+    assert change_orig == change_poison
+    assert change_orig == 50.0
 
-    assert change_orig == change_poison, (
-        f"OI change affected by future: {change_orig} vs {change_poison}"
-    )
-    assert change_orig == 50.0  # 1100 - 1050
+
+def test_builder_emissions_have_no_lookahead() -> None:
+    """Every closed bar fed to the engine passes V2-03 lookahead_failures."""
+    base_time = datetime(2026, 1, 2, 9, 15, 0, tzinfo=IST)
+    ticks = _ticks(base_time, 600, lambda i: 22000.0 + (i % 20))
+    _engine, emissions = _run_engine(ticks, base_time)
+    assert emissions
+    assert lookahead_failures(emissions) == []
+    for bar, when in emissions:
+        assert when.isoformat() >= bar.end
+        assert bar.available_ts >= bar.end
 
 
 _LOC_COMPARE = (
@@ -325,42 +209,16 @@ _LOC_COMPARE = (
 )
 
 
-def _drive(ticks: list[Tick], base_time: datetime) -> FeatureEngine:
-    clock = SimClock(base_time)
-    source = ListSource(ticks, clock)
-    builder = BarBuilder()
-    engine = FeatureEngine()
-    for event in source.events():
-        if event.event_type == "TICK":
-            for bar in builder.on_tick(event.payload, event.available_ts):
-                engine.on_bar(bar, event.available_ts)
-        elif event.event_type == "CLOCK":
-            for bar in builder.on_clock(event.available_ts):
-                engine.on_bar(bar, event.available_ts)
-    return engine
-
-
-def test_random_cut_causality_entry_location():
+def test_random_cut_causality_entry_location() -> None:
     """REG-01b: location features match a truncated stream at the cut (V2-03 harness)."""
     base_time = datetime(2026, 1, 2, 9, 15, 0, tzinfo=IST)
-    ticks = []
-    for i in range(1800):
-        ts = base_time + timedelta(seconds=i)
-        ticks.append(
-            Tick(
-                instrument_id="NIFTY",
-                ltp=22000.0 + (i % 100),
-                ltq=10,
-                volume=10,
-                oi=1000,
-                exchange_ts=ts.isoformat(),
-            )
-        )
-    engine_full = _drive(ticks, base_time)
+    ticks = _ticks(base_time, 1800, lambda i: 22000.0 + (i % 100))
+    engine_full, _ = _run_engine(ticks, base_time)
     for _ in range(5):
         cut_index = random.randint(300, len(ticks) - 300)
-        cut_time = datetime.fromisoformat(ticks[cut_index - 1].exchange_ts)
-        engine_cut = _drive(ticks[:cut_index], base_time)
+        truncated = ticks[:cut_index]
+        cut_time = datetime.fromisoformat(truncated[-1].exchange_ts)
+        engine_cut, _ = _run_engine(truncated, base_time)
         loc_full = engine_full.entry_location("NIFTY", "CE", cut_time)
         loc_cut = engine_cut.entry_location("NIFTY", "CE", cut_time)
         assert loc_full == loc_cut
@@ -375,24 +233,13 @@ def test_random_cut_causality_entry_location():
                 assert abs(a.value - b.value) < 1e-9, f"{name}: {a.value} vs {b.value}"
 
 
-def test_future_poisoning_entry_location():
+def test_future_poisoning_entry_location() -> None:
     """REG-01c: mutating bars after T does not change location at T (V2-03 harness)."""
     base_time = datetime(2026, 1, 2, 9, 15, 0, tzinfo=IST)
-    original = []
-    for i in range(1200):
-        ts = base_time + timedelta(seconds=i)
-        original.append(
-            Tick(
-                instrument_id="NIFTY",
-                ltp=22000.0 + (i % 50),
-                ltq=10,
-                volume=10,
-                oi=1000,
-                exchange_ts=ts.isoformat(),
-            )
-        )
+    original = _ticks(base_time, 1200, lambda i: 22000.0 + (i % 50))
     poison_time = base_time + timedelta(minutes=10)
-    poisoned = original[:600] + [
+    poison_index = 10 * 60
+    poisoned = original[:poison_index] + [
         Tick(
             instrument_id=t.instrument_id,
             ltp=50000.0,
@@ -401,10 +248,10 @@ def test_future_poisoning_entry_location():
             oi=t.oi,
             exchange_ts=t.exchange_ts,
         )
-        for t in original[600:]
+        for t in original[poison_index:]
     ]
-    view_orig = _drive(original, base_time).view(now=poison_time)
-    view_poison = _drive(poisoned, base_time).view(now=poison_time)
+    view_orig = _run_engine(original, base_time)[0].view(now=poison_time)
+    view_poison = _run_engine(poisoned, base_time)[0].view(now=poison_time)
     for name in _LOC_COMPARE:
         a = view_orig.get(name, "NIFTY", "1m")
         b = view_poison.get(name, "NIFTY", "1m")
@@ -414,29 +261,13 @@ def test_future_poisoning_entry_location():
             assert abs(a.value - b.value) < 1e-9, f"{name} changed after poison"
 
 
-def test_strict_view_every_entry_location_field():
+def test_strict_view_every_entry_location_field() -> None:
     """REG-01d: strict view on every loc_* field; planted future raises; valid count is 0."""
     base_time = datetime(2026, 1, 2, 9, 15, 0, tzinfo=IST)
     engine = FeatureEngine()
     for i in range(20):
-        start = base_time + timedelta(minutes=i)
-        end = start + timedelta(minutes=1)
-        available = end + timedelta(seconds=1.5)
-        engine.on_bar(
-            BarClosed(
-                instrument_id="NIFTY",
-                tf="1m",
-                start=start.isoformat(),
-                end=end.isoformat(),
-                o=22000.0,
-                h=22010.0,
-                l=21990.0,
-                c=22000.0 + i,
-                v=1000,
-                n_ticks=60,
-            ),
-            available,
-        )
+        bar, available_ts = _hand_bar(base_time + timedelta(minutes=i), 22000.0 + i)
+        engine.on_bar(bar, available_ts)
     now = base_time + timedelta(minutes=25)
     view = engine.view(now=now, strict=True)
     for name in LOCATION_FIELDS:

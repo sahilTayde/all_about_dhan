@@ -9,10 +9,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
+from typing import Any
 
-from contracts.payloads import BarClosed, EntryLocation
+from marketdata.types import BarClosed, parse_ts
 
-from indicators.core import ATR, EMA
+from indicators.core import ATR, EMA, _as_ist
 from indicators.view import FeatureValue
 
 MAX_AGE_BARS = 60
@@ -32,6 +33,19 @@ LOCATION_FIELDS = (
     "loc_poc",
     "loc_fvg",
 )
+
+
+@dataclass(frozen=True)
+class EntryLocation:
+    """Entry-location diagnostic from closed 1m bars (research round 10: no rule)."""
+
+    signal_candle_atr: float
+    signal_body_atr: float
+    entry_distance_atr: float | None
+    atr: float
+    spot: float
+    nearest: dict[str, Any] | None
+    zones: list[dict[str, Any]]
 
 
 @dataclass(frozen=True)
@@ -289,6 +303,12 @@ class LocationTracker:
         """Record a CLOSED bar. Open bars never arrive here."""
         if bar.tf != "1m":
             return
+        available_ts = _as_ist(available_ts, what="location available_ts")
+        bar_end = parse_ts(bar.end)
+        if available_ts < bar_end:
+            raise ValueError(
+                f"refusing bar {bar.start}/{bar.end} at available_ts={available_ts.isoformat()}"
+            )
         stamped = _StampedBar(bar, available_ts)
         if is_index_future(bar.instrument_id):
             self._fut.append(stamped)
@@ -308,6 +328,7 @@ class LocationTracker:
         return max(used) if used else None
 
     def _asof(self, now: datetime) -> tuple[list[BarClosed], list[BarClosed], datetime | None]:
+        now = _as_ist(now, what="location now")
         spot = [s.bar for s in self._spot if s.available_ts <= now]
         fut = [s.bar for s in self._fut if s.available_ts <= now]
         used = [s.available_ts for s in self._spot + self._fut if s.available_ts <= now]
@@ -335,7 +356,7 @@ class LocationTracker:
         if parts is None or avail is None or inst is None:
             return {}
         loc, prices = parts
-        as_of = datetime.fromisoformat(spot[-1].end) if spot else avail
+        as_of = parse_ts(spot[-1].end) if spot else avail
         out: dict[tuple[str, str, str], FeatureValue] = {}
 
         def put(name: str, value: float | None) -> None:

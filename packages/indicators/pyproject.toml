@@ -1,37 +1,37 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "indicators"
 version = "0.1.0"
-description = "Feature engine and incremental indicators for all_about_dhan V2"
-requires-python = ">=3.11"
+description = "V2-05 feature engine: incremental indicators on closed bars only (paper)."
+readme = "README.md"
+requires-python = ">=3.10"
 dependencies = [
-    "contracts",
+    "marketdata==0.1.0+aad",
 ]
 
 [project.optional-dependencies]
-test = [
-    "pytest>=7.0",
-    "hypothesis>=6.0",
-]
-dev = [
-    "ruff>=0.1.0",
-    "mypy>=1.0",
-]
-
-[build-system]
-requires = ["setuptools>=65.0"]
-build-backend = "setuptools.build_meta"
+dev = ["pytest>=8"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
 
 [tool.mypy]
+python_version = "3.10"
 strict = true
-warn_return_any = true
 warn_unused_configs = true
+mypy_path = "src:tests"
+files = ["src", "tests"]
+
+[[tool.mypy.overrides]]
+module = ["marketdata.*"]
+follow_imports = "silent"
 
 [tool.ruff]
 line-length = 100
-target-version = "py311"
+target-version = "py310"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "SIM"]

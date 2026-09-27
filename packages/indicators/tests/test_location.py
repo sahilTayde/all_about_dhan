@@ -2,8 +2,8 @@
 
 from datetime import datetime, timedelta
 
-from contracts.clock import IST
-from contracts.payloads import BarClosed
+from marketdata.clock import IST
+from marketdata.types import BarClosed
 
 from indicators.core import EMA
 from indicators.engine import FeatureEngine
@@ -42,6 +42,7 @@ def _bar(
         c=c,
         v=v,
         n_ticks=60,
+        available_ts=available.isoformat(),
     )
     return bar, available
 
@@ -219,3 +220,56 @@ def test_engine_entry_location_closed_bars_only():
     early = datetime(2026, 1, 2, 9, 16, 30, tzinfo=IST)  # second bar still open
     loc_early = engine.entry_location("NIFTY", "CE", early)
     assert loc_early is None or all(z["zone"] != "fvg" for z in loc_early.zones)
+
+
+def test_view_respects_requested_side():
+    """loc_entry_distance_atr in view(side=) matches entry_location for that side."""
+    engine = FeatureEngine()
+    for bar, ts in _bullish_fvg_triple():
+        engine.on_bar(bar, ts)
+    now = datetime.fromisoformat(_bullish_fvg_triple()[-1][0].end) + timedelta(seconds=1.5)
+    loc_ce = engine.entry_location("NIFTY", "CE", now)
+    loc_pe = engine.entry_location("NIFTY", "PE", now)
+    assert loc_ce is not None and loc_pe is not None
+    ce = engine.view(now, side="CE").get("loc_entry_distance_atr", "NIFTY", "1m")
+    pe = engine.view(now, side="PE").get("loc_entry_distance_atr", "NIFTY", "1m")
+    if loc_ce.entry_distance_atr is not None:
+        assert ce is not None
+        assert abs(ce.value - loc_ce.entry_distance_atr) < 1e-9
+    else:
+        assert ce is None
+    if loc_pe.entry_distance_atr is not None:
+        assert pe is not None
+        assert abs(pe.value - loc_pe.entry_distance_atr) < 1e-9
+    else:
+        assert pe is None
+
+
+def test_tracker_mid_cut_equivalence():
+    """Truncated tracker matches full tracker at the same t (REG-01b)."""
+    stamped = _bullish_fvg_triple() + [
+        _bar(3 + i, 22080, 22090, 22070, 22080) for i in range(20)
+    ]
+    full = LocationTracker()
+    for bar, ts in stamped:
+        full.on_bar(bar, ts)
+    cut = 10
+    now = stamped[cut][1]
+    trunc = LocationTracker()
+    for bar, ts in stamped:
+        if ts <= now:
+            trunc.on_bar(bar, ts)
+    assert full.snapshot(now, side="CE") == trunc.snapshot(now, side="CE")
+    assert full.feature_values(now, side="CE") == trunc.feature_values(now, side="CE")
+
+
+def test_reset_session_clears_location():
+    """reset_session drops location bars so yesterday's zones cannot leak."""
+    engine = FeatureEngine()
+    for bar, ts in _bullish_fvg_triple():
+        engine.on_bar(bar, ts)
+    now = datetime.fromisoformat(_bullish_fvg_triple()[-1][0].end) + timedelta(seconds=1.5)
+    assert engine.entry_location("NIFTY", "CE", now) is not None
+    engine.reset_session()
+    assert engine.entry_location("NIFTY", "CE", now) is None
+    assert engine.view(now).get("loc_spot", "NIFTY", "1m") is None

@@ -4,10 +4,10 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from contracts.payloads import BarClosed, EntryLocation
+from marketdata.types import BarClosed, parse_ts
 
-from indicators.core import ATR, EMA, VWAP, OIChange, RealizedVol
-from indicators.location import LocationTracker, underlying_id
+from indicators.core import ATR, EMA, VWAP, OIChange, RealizedVol, _as_ist
+from indicators.location import EntryLocation, LocationTracker, underlying_id
 from indicators.view import FeatureValue, FeatureView
 
 
@@ -28,7 +28,7 @@ class FeatureEngine:
         self._realized_vol: dict[tuple[str, str], RealizedVol] = {}
 
         # OI change tracker (instrument-level, not per-tf)
-        self._oi_change = OIChange(lag_seconds=60)
+        self._oi_change = OIChange()
 
         # Feature storage: (name, instrument_id, tf) -> FeatureValue
         self._features: dict[tuple[str, str, str], FeatureValue] = {}
@@ -36,20 +36,25 @@ class FeatureEngine:
         # Entry-location trackers keyed by underlying (closed 1m bars only)
         self._location: dict[str, LocationTracker] = {}
 
-    def on_bar(self, bar: BarClosed, available_ts: datetime) -> None:
-        """
-        Process a closed bar and update features.
+    def on_bar(self, bar: BarClosed, available_ts: datetime | None = None) -> None:
+        """Process a closed bar and update features.
 
-        Args:
-            bar: closed bar
-            available_ts: when this bar became available (must be >= bar.end)
+        ``available_ts`` defaults to ``bar.available_ts`` (V2-03 stamp). A feature
+        is never written from a bar whose end is after that stamp.
         """
+        if available_ts is None:
+            if not bar.available_ts:
+                raise ValueError("closed bar missing available_ts")
+            available_ts = parse_ts(bar.available_ts)
         instrument_id = bar.instrument_id
         tf = bar.tf
         key = (instrument_id, tf)
 
-        # Bar end time
-        bar_end = datetime.fromisoformat(bar.end)
+        bar_end = parse_ts(bar.end)
+        if available_ts < bar_end:
+            raise ValueError(
+                f"refusing bar {bar.start}/{bar.end} at available_ts={available_ts.isoformat()}"
+            )
 
         # Typical price for VWAP
         if bar.h is not None and bar.l is not None and bar.c is not None:
@@ -120,59 +125,56 @@ class FeatureEngine:
     def get_oi_change(
         self, instrument_id: str, decision_ts: datetime, lookback_bars: int = 1
     ) -> float | None:
-        """
-        Get OI change lagged to strictly before decision_ts.
+        """OI change using snapshots with ``ts < floor_minute(decision_ts)`` in IST.
 
-        Args:
-            instrument_id: instrument ID
-            decision_ts: decision timestamp
-            lookback_bars: number of bars to look back
-
-        Returns:
-            OI change or None if insufficient data
+        ``decision_ts`` must be timezone-aware. Naive timestamps are rejected at
+        ingest (``on_oi_update``); stored rows never raise at query time.
         """
         return self._oi_change.get_lagged_change(instrument_id, decision_ts, lookback_bars)
+
+    @property
+    def vwap_rejected_bars(self) -> int:
+        """Bars rejected by every session VWAP (non-finite price/volume or negative volume)."""
+        return sum(vwap.vwap_rejected_bars for vwap in self._vwap.values())
 
     def entry_location(
         self, instrument_id: str, side: str, now: datetime, tf: str = "1m"
     ) -> EntryLocation | None:
         """EntryLocation at `now` from closed 1m bars with available_ts <= now."""
         del tf
+        now = _as_ist(now, what="entry_location now")
         tracker = self._location.get(underlying_id(instrument_id))
         if tracker is None:
             return None
         return tracker.snapshot(now, side=side, instrument_id=instrument_id)
 
-    def _merged_features(self, now: datetime | None) -> dict[tuple[str, str, str], FeatureValue]:
+    def _merged_features(
+        self, now: datetime, *, side: str = "CE"
+    ) -> dict[tuple[str, str, str], FeatureValue]:
         features = dict(self._features)
         for tracker in self._location.values():
-            asof = now if now is not None else tracker.last_available_ts()
-            if asof is not None:
-                features.update(tracker.feature_values(asof, side="CE"))
+            features.update(tracker.feature_values(now, side=side))
         return features
 
-    def view(self, now: datetime | None = None, strict: bool = False) -> FeatureView:
-        """
-        Create a feature view.
-
-        Args:
-            now: current time (for strict mode future-lookup detection)
-            strict: if True, raise on future lookups
-
-        Returns:
-            FeatureView
-        """
-        features = self._merged_features(now)
-        if strict and now is not None:
+    def view(self, now: datetime, *, strict: bool = False, side: str = "CE") -> FeatureView:
+        """Read-only feature view as of ``now``. ``now`` is required and must be tz-aware."""
+        if now is None:
+            raise ValueError("FeatureEngine.view requires now (unfiltered view is forbidden)")
+        now = _as_ist(now, what="view now")
+        features = self._merged_features(now, side=side)
+        if strict:
             return FeatureView._create_strict(features, now)
-        if now is not None:
-            visible = {k: v for k, v in features.items() if v.available_ts <= now}
-            return FeatureView(visible, strict=False)
-        return FeatureView(features, strict=False)
+        visible_features = {k: v for k, v in features.items() if v.available_ts <= now}
+        return FeatureView(visible_features, strict=False)
 
     def reset_session(self) -> None:
-        """Reset session-scoped state (e.g., VWAP)."""
+        """Reset session-scoped VWAP state and drop published vwap / vwap_mode values."""
         for vwap in self._vwap.values():
             vwap.reset()
+        self._features = {
+            key: value
+            for key, value in self._features.items()
+            if key[0] not in {"vwap", "vwap_mode"}
+        }
         for tracker in self._location.values():
             tracker.reset()
