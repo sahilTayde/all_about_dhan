@@ -4,9 +4,13 @@
   "additionalProperties": false,
   "required": ["status"],
   "properties": {
-    "status": {"type": "string", "enum": ["UP", "DOWN", "STALE"]},
+    "status": {
+      "type": "string",
+      "enum": ["UP", "DOWN", "STALE", "FRESH", "AUTH_FAILED", "DISCONNECT"]
+    },
     "instrument_id": {"type": ["string", "null"]},
     "since": {"type": ["string", "null"], "format": "date-time"},
-    "gap_s": {"type": ["number", "null"]}
+    "gap_s": {"type": ["number", "null"]},
+    "detail": {"type": ["string", "null"]}
   }
 }

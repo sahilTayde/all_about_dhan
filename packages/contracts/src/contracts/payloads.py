@@ -133,12 +133,13 @@ class Clock:
 
 @dataclass(frozen=True)
 class FeedStatus:
-    """FEED_STATUS payload (md:status)."""
+    """FEED_STATUS payload (md:status). Matches packages/marketdata recorder._status."""
 
-    status: str  # "UP" | "DOWN" | "STALE"
+    status: str  # "UP" | "DOWN" | "STALE" | "FRESH" | "AUTH_FAILED" | "DISCONNECT"
     instrument_id: str | None = None
     since: str | None = None
     gap_s: float | None = None
+    detail: str | None = None
 
 
 # ============================================================================
