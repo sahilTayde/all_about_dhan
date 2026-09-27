@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import random
 import sys
+import threading
 import types
 from datetime import date
 from pathlib import Path
@@ -332,6 +333,121 @@ class TestPluginIsolation:
             import time
 
             time.sleep(0.05)
+
+    def test_non_list_return_disables_only_that_strategy(self) -> None:
+        good = CrossPlugin()
+        good.on_session_start(SessionContext("2026-09-27", "IN_INDEX_OPT", {}))
+
+        class _BadType:
+            def on_bar(self, bar: Bar, view: _View) -> object:
+                del bar, view
+                return 7
+
+        from strategies.runtime import LoadedStrategy
+
+        session = SessionRuntime(
+            loaded={
+                "GOOD": LoadedStrategy(strategy=good, registry_entry=None, enabled=True),
+                "BAD": LoadedStrategy(strategy=_BadType(), registry_entry=None, enabled=True),
+            }
+        )
+        session.on_bar(_bar(0), _View({"ema_5": 90.0, "ema_20": 95.0}))
+        session.on_bar(_bar(1), _View({"ema_5": 100.0, "ema_20": 95.0}))
+        assert session.loaded["BAD"].enabled is False
+        assert "TypeError" in (session.loaded["BAD"].disabled_reason or "")
+        assert session.loaded["GOOD"].enabled is True
+        assert any(s.side == "CE" for s in session.signals)
+
+    def test_systemexit_and_keyboardinterrupt_are_isolated(self) -> None:
+        good = CrossPlugin()
+        good.on_session_start(SessionContext("2026-09-27", "IN_INDEX_OPT", {}))
+
+        class _Exit:
+            def on_bar(self, bar: Bar, view: _View) -> list[object]:
+                del bar, view
+                raise SystemExit("planted exit")
+
+        class _Interrupt:
+            def on_bar(self, bar: Bar, view: _View) -> list[object]:
+                del bar, view
+                raise KeyboardInterrupt("planted interrupt")
+
+        from strategies.runtime import LoadedStrategy
+
+        session = SessionRuntime(
+            loaded={
+                "GOOD": LoadedStrategy(strategy=good, registry_entry=None, enabled=True),
+                "EXIT": LoadedStrategy(strategy=_Exit(), registry_entry=None, enabled=True),
+                "INT": LoadedStrategy(strategy=_Interrupt(), registry_entry=None, enabled=True),
+            }
+        )
+        session.on_bar(_bar(0), _View({"ema_5": 90.0, "ema_20": 95.0}))
+        session.on_bar(_bar(1), _View({"ema_5": 100.0, "ema_20": 95.0}))
+        assert session.loaded["EXIT"].enabled is False
+        assert session.loaded["INT"].enabled is False
+        assert session.loaded["GOOD"].enabled is True
+        assert any(s.side == "CE" for s in session.signals)
+
+    def test_off_main_thread_does_not_disable_healthy_strategies(self) -> None:
+        good = CrossPlugin()
+        good.on_session_start(SessionContext("2026-09-27", "IN_INDEX_OPT", {}))
+        from strategies.runtime import LoadedStrategy
+
+        session = SessionRuntime(
+            loaded={"GOOD": LoadedStrategy(strategy=good, registry_entry=None, enabled=True)}
+        )
+        errors: list[BaseException] = []
+
+        def _run() -> None:
+            try:
+                session.on_bar(_bar(0), _View({"ema_5": 90.0, "ema_20": 95.0}))
+                session.on_bar(_bar(1), _View({"ema_5": 100.0, "ema_20": 95.0}))
+            except BaseException as exc:
+                errors.append(exc)
+
+        worker = threading.Thread(target=_run)
+        worker.start()
+        worker.join(2.0)
+        assert not worker.is_alive()
+        assert errors == []
+        assert session.loaded["GOOD"].enabled is True
+        assert any(s.side == "CE" for s in session.signals)
+
+    def test_non_shadow_without_forward_spec_does_not_emit(self) -> None:
+        class _Paper:
+            meta = _meta(strategy_id="PAPER-X", stage="paper")
+
+            def on_bar(self, bar: Bar, view: _View) -> list[object]:
+                del bar, view
+                return [object()]
+
+        from strategies.runtime import LoadedStrategy
+
+        entry = RegistryEntry(
+            strategy_id="PAPER-X",
+            module_path="tests.plugins.paper_x",
+            version="1.0.0",
+            params_hash="abc123abc123abcd",
+            stage="paper",
+        )
+        session = SessionRuntime(
+            loaded={
+                "PAPER-X": LoadedStrategy(strategy=_Paper(), registry_entry=entry, enabled=True)
+            }
+        )
+        out = session.on_bar(_bar(0), _View({}))
+        assert out == []
+        assert session.signals == []
+        assert session.loaded["PAPER-X"].enabled is True
+
+    def test_fixture_basket_is_not_in_real_config_dir(self) -> None:
+        real = Path("config/v2/baskets/2026-09-27.yaml")
+        fixture = Path(__file__).parent / "fixtures" / "2026-09-27.yaml"
+        assert not real.is_file()
+        assert fixture.is_file()
+        basket = load_basket(date(2026, 9, 27), "IN_INDEX_OPT", fixture.parent)
+        assert basket is not None
+        assert basket.entries[0].strategy_id == "TEST-CROSS"
 
 
 class TestCausality:

@@ -6,11 +6,14 @@ Paper / shadow only. Synthetic bars. No secrets, no orders.
 from __future__ import annotations
 
 from datetime import date
+from pathlib import Path
 
 from strategies.api import Bar, SessionContext
 from strategies.plugins.test_cross import CrossPlugin
 from strategies.registry import load_basket, load_registry
 from strategies.runtime import LoadedStrategy, SessionRuntime, basket_loaded_event
+
+_FIXTURE_BASKETS = Path(__file__).parent / "fixtures"
 
 
 class _View:
@@ -44,7 +47,7 @@ def _bar(minute: int) -> Bar:
 def main() -> int:
     registry = load_registry()
     print(f"registry_ids={sorted(registry)}")
-    basket = load_basket(date(2026, 9, 27), "IN_INDEX_OPT")
+    basket = load_basket(date(2026, 9, 27), "IN_INDEX_OPT", _FIXTURE_BASKETS)
     print(f"basket={'none' if basket is None else basket.basket_hash}")
     if basket is not None:
         print(f"BASKET_LOADED={basket_loaded_event(basket)}")

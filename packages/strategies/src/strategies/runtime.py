@@ -4,11 +4,12 @@ from __future__ import annotations
 
 import importlib
 import logging
-import signal as signal_module
+import time
 from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import date
+from pathlib import Path
 from typing import Any
 
 from contracts.payloads import ExitPlan
@@ -183,18 +184,38 @@ def basket_loaded_event(basket: Basket) -> dict[str, Any]:
 
 @contextmanager
 def strategy_call_budget(timeout_s: float = DEFAULT_BUDGET_S) -> Iterator[None]:
-    """Enforce a wall-clock budget on one strategy call (SIGALRM)."""
+    """Enforce a wall-clock budget on one strategy call (thread-safe).
 
-    def timeout_handler(signum: int, frame: Any) -> None:
-        raise StrategyTimeoutError(f"Strategy call exceeded {timeout_s}s budget")
-
-    old_handler = signal_module.signal(signal_module.SIGALRM, timeout_handler)
-    signal_module.setitimer(signal_module.ITIMER_REAL, timeout_s)
+    Measures elapsed time so the guard works off the main thread. SIGALRM
+    is not used: installing it off the main thread raised and disabled
+    every healthy plugin.
+    """
+    start = time.monotonic()
     try:
         yield
     finally:
-        signal_module.setitimer(signal_module.ITIMER_REAL, 0)
-        signal_module.signal(signal_module.SIGALRM, old_handler)
+        elapsed = time.monotonic() - start
+    if elapsed > timeout_s:
+        raise StrategyTimeoutError(f"Strategy call exceeded {timeout_s}s budget")
+
+
+def _stage_of(row: LoadedStrategy, strategy_id: str) -> str:
+    if row.registry_entry is not None and row.registry_entry.stage:
+        return row.registry_entry.stage
+    meta = getattr(row.strategy, "meta", None)
+    stage = getattr(meta, "stage", None)
+    if isinstance(stage, str) and stage:
+        return stage
+    del strategy_id
+    return "shadow"
+
+
+def emission_approved(strategy_id: str, stage: str) -> bool:
+    """Shadow may emit. Any other stage needs a preregistered forward spec."""
+    if stage == "shadow":
+        return True
+    spec = Path("config/v2/forward/specs") / f"{strategy_id}.yaml"
+    return spec.is_file()
 
 
 def disable_strategy(loaded: dict[str, LoadedStrategy], strategy_id: str, reason: str) -> None:
@@ -228,11 +249,24 @@ class SessionRuntime:
             on_bar = getattr(row.strategy, "on_bar", None)
             if on_bar is None:
                 continue
+            stage = _stage_of(row, sid)
+            if not emission_approved(sid, stage):
+                logger.warning(
+                    "refusing to emit for %s: stage %s is not onboarding-approved",
+                    sid,
+                    stage,
+                )
+                continue
             try:
                 with strategy_call_budget(self.budget_s):
                     out = on_bar(bar, view)
-            except Exception as exc:
+                    if out is None:
+                        out = []
+                    if not isinstance(out, list):
+                        raise TypeError(f"on_bar must return a list, got {type(out).__name__}")
+            except BaseException as exc:
                 reason = f"RAISED:{type(exc).__name__}:{exc}"
+                logger.warning("strategy %s isolated: %s", sid, reason)
                 disable_strategy(self.loaded, sid, reason)
                 self.alerts.append(
                     HealthAlert(kind="STRATEGY_DISABLED", strategy_id=sid, reason=reason)
