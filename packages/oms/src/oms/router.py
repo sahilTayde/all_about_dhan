@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any
 
 from brokers.factory import make_broker
 from brokers.fills import ClockedPaperBroker
-from brokers.orders import Order, OrderState
+from brokers.orders import Order, OrderState, Position, exit_intent
 from contracts.ids import order_id
 from contracts.instruments import India
 from contracts.payloads import Decision, EntryPlan, ExitPlan
@@ -66,6 +66,8 @@ class OrderRouter:
         self.store = store if store is not None else MemoryLedger()
         self.bus = bus if bus is not None else MemoryBus()
         self.rates = rates
+        self.positions: Any | None = None
+        self._exit_seq = 0
         self._sync_rates()
         self.broker.on_fill = self._on_broker_fill
 
@@ -106,7 +108,14 @@ class OrderRouter:
             client_order_id=client_order_id,
         )
 
-    def submit(self, plan: EntryPlan, decision: Decision, account: Account) -> Order | Veto:
+    def submit(
+        self,
+        plan: EntryPlan,
+        decision: Decision,
+        account: Account,
+        *,
+        exit_plan: ExitPlan | None = None,
+    ) -> Order | Veto:
         self._sync_rates()
         oid = order_id(account.account_id, plan.signal_id, "entry")
         existing = self.store.get_order(oid)
@@ -167,8 +176,11 @@ class OrderRouter:
                     "purpose": "ENTRY",
                     "needs_lookup": False,
                     "stop_loss": stop,
+                    "exit_plan": exit_plan,
                 }
             )
+        if exit_plan is not None and self.positions is not None:
+            self.positions.remember_plan(oid, exit_plan)
         try:
             order = self.broker.place_order(intent, rd)
         except TimeoutError:
@@ -242,6 +254,8 @@ class OrderRouter:
 
     def _on_broker_fill(self, order: Order, qty: int, price: float, ts: Any) -> None:
         model = getattr(self.broker, "fill_models", {}).get(order.client_order_id, "fcmeas")
+        row = self.store.get_order(order.client_order_id)
+        account_id = str((row or {}).get("account_id") or "founder")
         self.store.record_fill(
             order.client_order_id,
             qty,
@@ -251,7 +265,21 @@ class OrderRouter:
             side=order.intent.side,
             symbol=order.intent.symbol,
             instrument_id=order.intent.instrument_id,
+            account_id=account_id,
         )
+        if self.positions is not None:
+            plan = (row or {}).get("exit_plan")
+            self.positions.on_fill(
+                client_order_id=order.client_order_id,
+                qty=qty,
+                price=price,
+                side=order.intent.side,
+                instrument_id=order.intent.instrument_id,
+                symbol=order.intent.symbol,
+                account_id=account_id,
+                entry_order_id=str((row or {}).get("signal_id") or order.client_order_id),
+                exit_plan=plan,
+            )
         self.bus.publish(
             "ORDER_FILLED",
             {
@@ -295,28 +323,68 @@ class OrderRouter:
         self.store.set_protective(key, stop_oid)
 
     def exit(self, position: dict[str, Any], reason: str) -> Order:
+        """REG-03: always `exit_intent` from the held instrument and qty."""
         inst = str(position.get("instrument_id") or "")
         qty = int(position.get("net_qty") or 0)
-        lot_size = lot_size_for(inst) if inst else 1
-        lots = max(1, qty // lot_size) if lot_size else qty
         acc = str(position.get("account_id") or "founder")
-        parent = str(position.get("entry_order_id") or "x")
-        oid = order_id(acc, parent, "exit")
+        parent = str(position.get("entry_order_id") or position.get("position_id") or "x")
+        self._exit_seq += 1
+        oid = order_id(acc, parent, f"exit{self._exit_seq}")
+        hint = position.get("exit_price_hint")
+        held = Position(
+            symbol=str(position.get("symbol") or (symbol_from_instrument(inst) if inst else "")),
+            net_qty=qty,
+            avg_price=float(position.get("avg_price") or 0),
+            instrument_id=inst,
+        )
+        raw = exit_intent(
+            held,
+            exit_reason=reason,
+            decision_price=float(hint) if hint is not None else (float(position.get("avg_price") or 0) or None),
+        )
+        intent = replace(raw, client_order_id=oid)
+        if inst:
+            position["instrument_id"] = inst
+        rd = self.risk.check_exit(intent, "EXIT", now=self.clock.now())
+        order = self.broker.place_order(intent, rd)
+        self.broker.remember(oid, available_ts=self.clock.now(), decision_ts=self.clock.now())
+        return order
+
+    def tighten_stop(self, position_key: str, new_trigger: float) -> None:
+        """Trail: move the resting protective stop only toward safety (higher for a long)."""
+        oid = self.store.protective.get(position_key)
+        if not oid:
+            return
+        order = self.broker.orders.get(oid)
+        if order is None or not order.is_open:
+            return
+        old = float(order.trigger_price or 0)
+        if new_trigger <= old + 1e-9:
+            return
+        order.trigger_price = new_trigger
+        self.broker.remember(oid, trigger_price=new_trigger)
+
+    def cancel_protective(self, position_key: str) -> None:
+        oid = self.store.protective.get(position_key)
+        if not oid:
+            return
+        order = self.broker.orders.get(oid)
+        if order is None or not order.is_open:
+            return
         intent = self._intent(
             client_order_id=oid,
-            instrument_id=inst,
-            lots=lots,
-            lot_size=lot_size,
-            order_type="MARKET",
-            price=float(position.get("avg_price") or 0) or None,
-            trigger=None,
+            instrument_id=order.intent.instrument_id,
+            lots=1,
+            lot_size=1,
+            order_type="SL-M",
+            price=None,
+            trigger=order.trigger_price,
             stop_loss=None,
             purpose="EXIT",
             side="SELL",
-            exit_reason=reason,
         )
-        rd = self.risk.check_exit(intent, "EXIT", now=self.clock.now())
-        return self.broker.place_order(intent, rd)
+        rd = self.risk.check_exit(intent, "CANCEL", now=self.clock.now())
+        self.broker.cancel_order(order, rd, reason="POSITION_FLAT")
 
 
 def _catastrophic_price(plan: EntryPlan, decision: Decision) -> float | None:
