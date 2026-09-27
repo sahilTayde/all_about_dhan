@@ -11,3 +11,6 @@ pytest-socket>=0.7
 setuptools>=68
 wheel>=0.42
 hypothesis>=6
+# marketdata tests: JSON Schema validation with an active RFC 3339 date-time checker
+jsonschema>=4
+rfc3339-validator>=0.1.4
