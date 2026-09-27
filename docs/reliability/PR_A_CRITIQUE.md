@@ -123,10 +123,9 @@ non-raising and atomic. I7 ("exactly one alert per incident") is scoped to engin
 
 - **Byte-identical legacy replay.** Offline replays (`live_loop=False`) read the same inputs as
   today: the founder JSON when no log exists, the params file when no frozen snapshot exists,
-  and no halt/kill/booked state. The paper guard runs the existing `RiskEngine` on flag-off with
-  the same config choice as the event path (`risk_limits_replay.yaml` for replays, whose limits
-  are non-binding by design and already produce 0 vetoes on the real tapes flag-on). CI pins
-  this with golden canonical dumps of the committed fixtures and the flag-on/flag-off parity.
+  and no halt/kill/booked/block state. The paper guard's risk limits run only in the live loop
+  (see 7.1). CI pins this with golden canonical dumps of the committed fixtures, verified
+  byte-identical to `main`, and the flag-on/flag-off parity.
 - **The owner's harness monkeypatch** (`fs.allows_new_fill = lambda underlying, root=None: True`)
   keeps working: without a founder log the engine still calls `new_fill_decision(u, root=...)`
   → `allows_new_fill(u, root=...)` with today's signature.
@@ -148,7 +147,7 @@ non-raising and atomic. I7 ("exactly one alert per incident") is scoped to engin
 5. Frozen per-session params in live; nudge moved to `python -m desk_ml nudge-params`.
 6. `live_cycle.run_cycle`: ingest control files → replay → booked-trade guard → atomic board →
    heartbeat. Used by `dual_tape --paper-scalp` and `run_loop`. Honest heartbeat, health
-   check on last-ok time and error state, `python -m health supervise` restarts a dead or hung
+   check on last-ok time and error state, `python -m health.supervise` restarts a dead or hung
    engine; launchd/systemd templates keep the supervisor alive.
 7. Desk: halt blocks time-bounded, dedupe through the persisted AlertSink, unsaved halt
    fallback file, refused exits retried each tick with one alert per trade, `Order.transition`
@@ -159,3 +158,39 @@ non-raising and atomic. I7 ("exactly one alert per incident") is scoped to engin
 10. CI (`.github/workflows/ci.yml`): hygiene (secret/size/data scan, local-name guard), unit
     matrix 3.11/3.13 with sockets disabled, parity + golden replay, sims. Stop tracking the 70 MB
     sqlite.
+
+## 7. Changes made while building (after the critique above)
+
+The fault sims found more than the critique predicted. Each change below has a test.
+
+1. **Paper-guard risk limits run in the live loop only**, on the session's frozen copy of
+   `risk_limits.yaml` (paper tier: 25 lots, 3 positions, −30,000 per trade, −90,000 per day,
+   15-minute loss cooldown, 09:15–15:00). Offline replays skip them: the lab P2C config was never
+   parity-checked flag on, so any ticket the replay file vetoed would move a legacy number. The
+   live flag-off path therefore now trades under the same limits as the live flag-on path.
+2. **Blocks live in their own registry** (`data/recon/live_blocks/<day>.json`, intervals with
+   `from` and `until`), not in the alert state. Removing the kill file or repairing a control file
+   closes the interval and entries resume; halt, rewrite, engine-failure and frozen-params blocks
+   are sticky for the session. A corrupt registry blocks from the moment it is seen.
+3. **Last-good inputs.** If the founder or override log turns unreadable mid-day, the live replay
+   keeps the last good rows (`live_inputs_last_good.json`) so everything before the damage
+   re-derives identically; new entries are blocked from first sight. The frozen params are
+   written with a `.bak` twin.
+4. **Fail-safe flatten.** After 3 failed cycles in a row with open tickets, the live cycle closes
+   them at the last tape quote and books them (`FORCED_ENGINE_FAILURE`), like the desk's MTM
+   fail-safe. Nothing stays unmanaged while the engine is down.
+5. **Tape validation in the live loop only**: a NaN premium crashed `_hold_series` (KMeans could
+   not name 4 clusters) and stopped every exit. The live loader drops non-finite prices and a
+   failing ML hold overlay degrades to "no holds" with one alert. Offline replays are unchanged.
+6. **Deterministic analysts in the live loop.** The event path used wall-clock analyst timeouts
+   when `live_session=True`, so two cycles could vote differently on the same past tick.
+7. **`_hold_series` unpacks the fitted model once per replay** instead of once per tick (about 5×
+   faster replays, same arithmetic; goldens and the synthetic multi-day dumps are byte-identical to
+   `main`). This shortens every live cycle.
+8. **Grep gate replaced by a runtime test**: the monolith hosts CLI helpers that legitimately
+   default to `repo_root()`, so the test makes `repo_root()` raise and runs the replays flag off and
+   flag on. Code config now comes from `persist.code_root()`.
+9. **Sim cadence**: 9 cycles a day (every 45 minutes) plus extra cut-offs around each fault,
+   split into 2 CI shards. Flag-on runs on the 3-index fixture only where the desk matters.
+10. **Deferred**: the agent_rag tests still rebuild the tracked `data/knowledge/agent_rag.sqlite`
+    in the checkout (outside the trading engine; the desk-ml suite fails if it writes the checkout).

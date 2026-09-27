@@ -55,8 +55,8 @@ def tracked() -> list[str]:
 def self_test() -> None:
     """Each rule fires on a synthetic sample and stays quiet on the placeholders the repo uses."""
     samples = {
-        "private_key": "-----BEGIN RSA PRIVATE KEY-----", "aws_access_key": "AKIA" + "ABCDEFGHIJKLMNOP",
-        "github_token": "ghp_" + "a" * 36, "openai_key": "sk-" + "A1" * 20, "slack_token": "xoxb-1234567890-abc",
+        "private_key": "-----BEGIN RSA " + "PRIVATE KEY-----", "aws_access_key": "AKIA" + "ABCDEFGHIJKLMNOP",
+        "github_token": "ghp_" + "a" * 36, "openai_key": "sk-" + "A1" * 20, "slack_token": "xox" + "b-1234567890-abc",
         "jwt": "eyJ" + "a" * 20 + ".eyJ" + "b" * 20 + "." + "c" * 12,
         "dhan_credential": "DHAN_ACCESS_TOKEN=" + "Z" * 30, "telegram_bot_token": "123456789:AA" + "x" * 33,
     }
