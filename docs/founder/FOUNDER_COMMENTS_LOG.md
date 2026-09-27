@@ -22,3 +22,16 @@ Times are CT, 2026-09-26.
 Standing rules that also apply: paper only; every number from a source file or real run; verified cost stack
 (Dhan Rs20/order, STT 0.15% sell premium, NSE 0.0355299%, stamp 0.003% buy, GST 18%, lot 65); going live for
 customers only on Sahil's explicit call.
+
+## Desk-lead design inputs (A#; not founder comments)
+
+These are the desk lead's design inputs to the v2 architecture, kept separate from Sahil's C# entries. Numbering
+follows the design addenda (A1 and A3 are covered by C8 and C9/C10). Times are CT, 2026-09-26, when the design agent
+received them.
+
+| # | Time | Input (paraphrased) | Where it goes | Proof / test | Status |
+|---|------|---------------------|---------------|--------------|--------|
+| A2 | 22:09 | Round 9 data needs: order-book depth <= 1 s and bid/ask quote snapshots <= 5 s for ATM/ITM100/ITM200 both sides; log OI update frequency; strike router with reason and shadow-priced alternatives; time stops as a first-class exit; preregistered forward-test harness, off by default | v2 marketdata (V2-D1, V2-D2), strike router (V2-06b), exits (V2-09), forward harness (V2-20a) | V2-D2 cadence tests; V2-06b router tests; V2-09 time-stop tests; V2-20a harness tests | Designed (PR #27) |
+| A4 | 22:24 | Commit this log as the single source of truth and keep a traceability table from every C# (and every legacy carry-over item) to service, ticket and test; flag conflicts instead of resolving them silently | This file; `docs/architecture/V2_BUILD_PLAN.md` §4 | TRACE-01 meta-test in V2-16 | Designed (PR #27) |
+| A5 | 22:28 | PR #20 cost-realism lessons (merged as c004ace): limits fill only at the limit on a trade-through, stops at or worse than the trigger; EOD flatten never held back by the stale-quote guard; malformed cost config fails closed with an alert; every trade tagged NSE/BSE; verified cost stack with BSE Rs 3,250/crore, recorded half-spread slippage, 0.20 pt/side fallback; realistic fills only | v2 fills and charges (V2-08), exits (V2-09), ledger (V2-10) | REG-12, REG-14, REG-15, REG-16, REG-17 | Designed (PR #27) |
+| A6 | 22:33 | Round 10 entry result: no entry-location rule; marketable next-bar entries; entry_policy kept on strategy cards (chase default; pullback_limit and wait_consolidation supported but off); boss records stretch with no veto; the -4/-5 pt cluster comes from legacy tight cancel exits, so exits become per-strategy primitives with round 11 defaults | v2 order planner and boss (V2-08b), exit primitives (V2-09, V2-09b) | V2-08b acceptance; REG-18 | Designed (PR #27); exit defaults wait for round 11 |
