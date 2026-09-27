@@ -11,8 +11,6 @@ requires-python = ">=3.9"
 dependencies = [
     "analysts==0.1.0+aad",
     "desk-ml==0.1.0+aad",
-    "contracts>=2.0.0",
-    "strategies>=2.0.0",
     "PyYAML>=6",
 ]
 
