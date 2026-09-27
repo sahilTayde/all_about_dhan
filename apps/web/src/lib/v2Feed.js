@@ -4,7 +4,7 @@
  * Browser never talks to Dhan or Redis. PAPER only.
  */
 import { useEffect, useState } from "react";
-import { API_BASE, useFeed } from "./feed.js";
+import { API_BASE, mockSnapshot, useFeed } from "./feed.js";
 import { BOARD_POLL_MS } from "./paperBoard.js";
 
 export const V2_FEED_ON = import.meta.env.VITE_V2_FEED === "1";
@@ -69,26 +69,47 @@ export function useV2Feed() {
         accept(await res.json(), "polling", t0);
       } catch (err) {
         if (err?.name === "AbortError") return;
-        setState((s) => ({ ...s, conn: "offline" }));
+        try {
+          accept(await mockSnapshot(ac.signal), "offline", t0);
+        } catch {
+          setState((s) => ({ ...s, conn: "offline" }));
+        }
         if (!stopped) timer = setTimeout(boot, BOARD_POLL_MS);
         return;
       }
       if (stopped) return;
-      const url = `${API_BASE.replace(/^http/, "ws") || (location.protocol === "https:" ? "wss://" : "ws://") + location.host}/v2/ws?role=founder&channels=positions,decisions,health,market:NIFTY`;
+      const wsBase = API_BASE
+        ? API_BASE.replace(/^http/, "ws")
+        : `${location.protocol === "https:" ? "wss:" : "ws:"}//${location.host}`;
+      const url = `${wsBase}/v2/ws?role=founder&channels=positions,decisions,health,market:NIFTY`;
+      let gotV2 = false;
       try {
         ws = new WebSocket(url);
-        ws.onmessage = (e) => onMsg(JSON.parse(e.data), "live", performance.now());
+        ws.onmessage = (e) => {
+          gotV2 = true;
+          onMsg(JSON.parse(e.data), "live", performance.now());
+        };
         ws.onerror = () => {
           if (ws) ws.close();
           ws = null;
           openSse();
         };
+        // Preview/fixture has no WS upgrade: fall back to /v2/stream so push still works.
+        setTimeout(() => {
+          if (stopped || gotV2 || es) return;
+          if (ws) {
+            ws.close();
+            ws = null;
+          }
+          openSse();
+        }, 400);
       } catch {
         openSse();
       }
     }
 
     function openSse() {
+      if (es) return;
       if (typeof EventSource === "undefined") {
         timer = setTimeout(boot, BOARD_POLL_MS);
         return;

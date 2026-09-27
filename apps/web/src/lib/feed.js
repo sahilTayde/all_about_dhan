@@ -11,7 +11,7 @@ async function getJson(url, signal) {
 }
 
 /** API down: the static mock board and exam, clearly marked offline. No health, no history. */
-async function mockSnapshot(signal) {
+export async function mockSnapshot(signal) {
   const [board, exam] = await Promise.all([
     getJson("/mock/ml_paper_dashboard.json", signal),
     getJson("/mock/sod_exam_report.json", signal).catch(() => null),

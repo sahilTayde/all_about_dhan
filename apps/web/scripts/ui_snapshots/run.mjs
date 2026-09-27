@@ -325,7 +325,10 @@ async function main() {
       });
       const page = await ctx.newPage();
       const traceHits = [];
-      page.on("request", (r) => r.url().includes("/paper/trace") && traceHits.push(r.url()));
+      page.on("request", (r) => {
+        const u = r.url();
+        if (u.includes("/paper/trace") || (V2 && u.includes("/v2/trace"))) traceHits.push(u);
+      });
       await page.goto(`${base}/desk`, { waitUntil: "load" });
       await page.waitForSelector(".grid .current-trade .kv");
 
