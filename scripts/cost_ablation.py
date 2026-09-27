@@ -24,12 +24,14 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import shutil
 import sys
 import tempfile
 from contextlib import ExitStack
 from pathlib import Path
 from typing import Any, Optional, Sequence
+from unittest.mock import patch
 
 DEFAULT_LOTS = {"NIFTY": 65, "BANKNIFTY": 30, "SENSEX": 20}  # optidx_lot_cache.json on the box (cost_audit.md)
 OFF = {"target_fill": "market_at_poll", "exit_quote_max_age_s": None, "exchange_fees": "nse_flat",
@@ -199,6 +201,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     from desk_ml.paper_scalp import list_fix_first_days
 
     with ExitStack() as stack:
+        # Shadow rows (desk_ml.shadow_log) append under the replay root even with write=False.
+        stack.enter_context(patch.dict(os.environ, {"SHADOW_LOG": "0"}))
         root, scratch = resolve_root(args, stack)
         founder = [u.strip().upper() for u in args.founder_start.split(",") if u.strip()] if args.founder_start \
             else (list(args.underlyings) if scratch else None)
