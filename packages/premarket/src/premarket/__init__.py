@@ -3,5 +3,12 @@
 from premarket.service import build_context, render_brief, write_outputs
 from premarket.sources import SOURCE_TYPES, Source, SourceResult, register_source_type
 
-__all__ = ["SOURCE_TYPES", "Source", "SourceResult", "build_context", "register_source_type", "render_brief",
-           "write_outputs"]
+__all__ = [
+    "SOURCE_TYPES",
+    "Source",
+    "SourceResult",
+    "build_context",
+    "register_source_type",
+    "render_brief",
+    "write_outputs",
+]

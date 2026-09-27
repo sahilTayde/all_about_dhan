@@ -21,9 +21,10 @@ import os
 import re
 import subprocess
 import sys
+from collections.abc import Sequence
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
-from typing import Any, Optional, Sequence
+from typing import Any
 
 HERE = Path(__file__).resolve().parent
 TARGET = "desk_ml.paper_scalp"
@@ -62,11 +63,31 @@ EXIT_MUTANTS: dict[str, str] = {
     "PREMIUM_PRINT_CAP": "18",
 }
 PROFILE_STEPS = {
-    "NIFTY": {"atr_stop_k": 1.0, "min_stop": 5.0, "max_stop": 15.0, "trail_k": 0.75, "trail_min": 3.0,
-              "trail_max": 8.0, "rr_continue": 2.2, "rr_trend": 1.8, "rr_sr": 1.1, "rr_base": 1.3,
-              "chop_target_cap": 8.0},
-    "SENSEX": {"atr_stop_k": 1.5, "min_stop": 15.0, "max_stop": 36.0, "trail_k": 1.25, "trail_min": 10.0,
-               "trail_max": 24.0, "rr_continue": 2.0, "rr_trend": 1.6, "rr_sr": 1.05, "rr_base": 1.25},
+    "NIFTY": {
+        "atr_stop_k": 1.0,
+        "min_stop": 5.0,
+        "max_stop": 15.0,
+        "trail_k": 0.75,
+        "trail_min": 3.0,
+        "trail_max": 8.0,
+        "rr_continue": 2.2,
+        "rr_trend": 1.8,
+        "rr_sr": 1.1,
+        "rr_base": 1.3,
+        "chop_target_cap": 8.0,
+    },
+    "SENSEX": {
+        "atr_stop_k": 1.5,
+        "min_stop": 15.0,
+        "max_stop": 36.0,
+        "trail_k": 1.25,
+        "trail_min": 10.0,
+        "trail_max": 24.0,
+        "rr_continue": 2.0,
+        "rr_trend": 1.6,
+        "rr_sr": 1.05,
+        "rr_base": 1.25,
+    },
 }
 for _und, _steps in PROFILE_STEPS.items():
     for _k, _v in _steps.items():
@@ -138,10 +159,10 @@ class SourcePatch(importlib.abc.MetaPathFinder, importlib.abc.Loader):
     def __init__(self, name: str, value: str) -> None:
         self.name, self.value = name, value
 
-    def find_spec(self, fullname: str, path: Any = None, target: Any = None):  # noqa: D401
+    def find_spec(self, fullname: str, path: Any = None, target: Any = None):
         if fullname != TARGET or not path:
             return None
-        origin = str(Path(list(path)[0]) / "paper_scalp.py")
+        origin = str(Path(next(iter(path))) / "paper_scalp.py")
         return importlib.util.spec_from_file_location(fullname, origin, loader=self)
 
     def create_module(self, spec):  # default module creation
@@ -151,16 +172,23 @@ class SourcePatch(importlib.abc.MetaPathFinder, importlib.abc.Loader):
         text = Path(module.__file__).read_text(encoding="utf-8")
         if "." in self.name:
             code = compile(text, module.__file__, "exec")
-            exec(code, module.__dict__)
+            exec(code, module.__dict__)  # noqa: S102
             table, und, key = self.name.split(".")
             if key not in getattr(module, table)[und]:
                 raise KeyError(f"{self.name} not found")
             getattr(module, table)[und][key] = float(self.value)
             return
-        new, n = re.subn(rf"^{re.escape(self.name)}(\s*:[^=]+)?\s*=.*$", f"{self.name} = {self.value}", text, flags=re.M)
+        new, n = re.subn(
+            rf"^{re.escape(self.name)}(\s*:[^=]+)?\s*=.*$",
+            f"{self.name} = {self.value}",
+            text,
+            flags=re.MULTILINE,
+        )
         if n != 1:
-            raise ValueError(f"{self.name}: expected one top-level assignment, found {n}")
-        exec(compile(new, module.__file__, "exec"), module.__dict__)
+            raise ValueError(
+                f"{self.name}: expected one top-level assignment, found {n}"
+            )
+        exec(compile(new, module.__file__, "exec"), module.__dict__)  # noqa: S102
 
 
 # ------------------------------------------------------------------ worker (one mutant per process)
@@ -175,11 +203,19 @@ def _worker(args: argparse.Namespace) -> int:
 
     if args.mode == "search":
         out = {}
-        variants = (("", {}),) if args.no_shift else (("", {}), ("+shift", {"apply_target_shift": True}))
+        variants = (
+            (("", {}),)
+            if args.no_shift
+            else (("", {}), ("+shift", {"apply_target_shift": True}))
+        )
         for p in args.fixtures:
             for tag, kw in variants:
                 r = gate.replay_fixture(Path(p), event_path=False, replay_kw=kw)
-                out[Path(p).stem + tag] = {"n": r["n_trades"], "net": r["net_pnl_inr"], "sha": r["trades_sha256"]}
+                out[Path(p).stem + tag] = {
+                    "n": r["n_trades"],
+                    "net": r["net_pnl_inr"],
+                    "sha": r["trades_sha256"],
+                }
         print(json.dumps(out))
         return 0
     expected = json.loads(gate.EXPECTED.read_text(encoding="utf-8"))["fixtures"]
@@ -199,8 +235,14 @@ def _worker(args: argparse.Namespace) -> int:
 
 def _spawn(argv: list[str], timeout: float = 900) -> subprocess.CompletedProcess:
     env = {**os.environ, "PYTHONHASHSEED": "0"}
-    return subprocess.run([sys.executable, str(Path(__file__).resolve()), *argv], capture_output=True, text=True,
-                          timeout=timeout, env=env)
+    return subprocess.run(
+        [sys.executable, str(Path(__file__).resolve()), *argv],
+        capture_output=True,
+        text=True,
+        timeout=timeout,
+        env=env,
+        check=False,
+    )
 
 
 def _last_json(stdout: str) -> dict[str, Any]:
@@ -215,7 +257,9 @@ def _last_json(stdout: str) -> dict[str, Any]:
 
 def check(names: Sequence[str], jobs: int = 4) -> dict[str, dict[str, Any]]:
     """name -> {"caught": combo or None, "error": ...}. Uses the committed expected results."""
-    hints = json.loads((HERE / "fixtures" / "recipes.json").read_text(encoding="utf-8")).get("catches", {})
+    hints = json.loads(
+        (HERE / "fixtures" / "recipes.json").read_text(encoding="utf-8")
+    ).get("catches", {})
 
     def one(name: str) -> tuple[str, dict[str, Any]]:
         argv = ["worker", "--mode", "gate", "--mutant", f"{name}={EXIT_MUTANTS[name]}"]
@@ -237,61 +281,125 @@ def check(names: Sequence[str], jobs: int = 4) -> dict[str, dict[str, Any]]:
 def candidate_recipes(n: int, start: int) -> list[dict[str, Any]]:
     import random
 
-    days = ["2026-09-07", "2026-09-08", "2026-09-09", "2026-09-14", "2026-09-15", "2026-09-16", "2026-09-17",
-            "2026-09-18", "2026-09-21", "2026-09-22", "2026-09-23", "2026-09-24"]
+    days = [
+        "2026-09-07",
+        "2026-09-08",
+        "2026-09-09",
+        "2026-09-14",
+        "2026-09-15",
+        "2026-09-16",
+        "2026-09-17",
+        "2026-09-18",
+        "2026-09-21",
+        "2026-09-22",
+        "2026-09-23",
+        "2026-09-24",
+    ]
     out = []
     for i in range(start, start + n):
         rng = random.Random(1000 + i)
         und = ("NIFTY", "SENSEX", "NIFTY", "SENSEX", "BANKNIFTY")[i % 5]
-        r: dict[str, Any] = {"id": f"cand_{i:03d}_{und.lower()}", "underlying": und, "day": days[i % len(days)],
-                             "seed": 100 + i, "p_switch": round(rng.choice([0.004, 0.008, 0.012, 0.02, 0.03]), 3),
-                             "drift": round(rng.uniform(0.4, 2.0), 2), "noise": round(rng.uniform(1.5, 5.0), 2),
-                             "revert": round(rng.uniform(0.01, 0.12), 3), "tv_open": round(rng.uniform(45, 80), 1),
-                             "tv_close": round(rng.uniform(15, 40), 1)}
+        r: dict[str, Any] = {
+            "id": f"cand_{i:03d}_{und.lower()}",
+            "underlying": und,
+            "day": days[i % len(days)],
+            "seed": 100 + i,
+            "p_switch": round(rng.choice([0.004, 0.008, 0.012, 0.02, 0.03]), 3),
+            "drift": round(rng.uniform(0.4, 2.0), 2),
+            "noise": round(rng.uniform(1.5, 5.0), 2),
+            "revert": round(rng.uniform(0.01, 0.12), 3),
+            "tv_open": round(rng.uniform(45, 80), 1),
+            "tv_close": round(rng.uniform(15, 40), 1),
+        }
         if i >= 100:  # round 2: shapes the plain regime walk rarely makes
-            r.update({
-                "noise": round(rng.choice([rng.uniform(0.5, 1.5), rng.uniform(1.5, 5.0)]), 2),
-                "quiet": round(rng.uniform(0.06, 0.4), 3),
-                "wick": round(rng.choice([0.0, rng.uniform(0.5, 3.0)]), 2),
-                "vol_trend": round(rng.uniform(0, 1500)),
-                "vol_spike": round(rng.choice([0.0, rng.uniform(0.01, 0.06)]), 3),
-                "weights": [rng.choice([1, 2, 3]) for _ in range(4)],
-            })
-        if i >= 200:  # round 3: chain cells with OI (cover / unwind votes) and a wider volatility range
-            r.update({"wings": rng.random() < 0.8, "oi_cover": round(rng.uniform(-1.0, 1.0), 2),
-                      "noise": round(rng.choice([rng.uniform(0.8, 2.0), rng.uniform(2.0, 5.0), rng.uniform(5.0, 9.0)]), 2),
-                      "wick": round(rng.uniform(0.5, 3.0), 2)})
+            r.update(
+                {
+                    "noise": round(
+                        rng.choice([rng.uniform(0.5, 1.5), rng.uniform(1.5, 5.0)]), 2
+                    ),
+                    "quiet": round(rng.uniform(0.06, 0.4), 3),
+                    "wick": round(rng.choice([0.0, rng.uniform(0.5, 3.0)]), 2),
+                    "vol_trend": round(rng.uniform(0, 1500)),
+                    "vol_spike": round(rng.choice([0.0, rng.uniform(0.01, 0.06)]), 3),
+                    "weights": [rng.choice([1, 2, 3]) for _ in range(4)],
+                }
+            )
+        if (
+            i >= 200
+        ):  # round 3: chain cells with OI (cover / unwind votes) and a wider volatility range
+            r.update(
+                {
+                    "wings": rng.random() < 0.8,
+                    "oi_cover": round(rng.uniform(-1.0, 1.0), 2),
+                    "noise": round(
+                        rng.choice(
+                            [
+                                rng.uniform(0.8, 2.0),
+                                rng.uniform(2.0, 5.0),
+                                rng.uniform(5.0, 9.0),
+                            ]
+                        ),
+                        2,
+                    ),
+                    "wick": round(rng.uniform(0.5, 3.0), 2),
+                }
+            )
         out.append(r)
     return out
 
 
-def search(n: int, start: int, jobs: int, names: Sequence[str], extra: Sequence[Path],
-           recipes: Optional[list[dict[str, Any]]] = None, no_shift: bool = False) -> dict[str, Any]:
+def search(
+    n: int,
+    start: int,
+    jobs: int,
+    names: Sequence[str],
+    extra: Sequence[Path],
+    recipes: list[dict[str, Any]] | None = None,
+    no_shift: bool = False,
+) -> dict[str, Any]:
     import synth
 
     recipes = candidate_recipes(n, start) if recipes is None else recipes
     paths = [*extra, *(synth.fixture_path(r) for r in recipes)]
     fx = [str(p) for p in paths]
 
-    def one(mutant: Optional[str]) -> tuple[Optional[str], dict[str, Any]]:
-        argv = ["worker", "--mode", "search", "--fixtures", *fx, *(["--no-shift"] if no_shift else [])]
+    def one(mutant: str | None) -> tuple[str | None, dict[str, Any]]:
+        argv = [
+            "worker",
+            "--mode",
+            "search",
+            "--fixtures",
+            *fx,
+            *(["--no-shift"] if no_shift else []),
+        ]
         if mutant:
             argv += ["--mutant", f"{mutant}={EXIT_MUTANTS[mutant]}"]
         proc = _spawn(argv, timeout=3600)
         try:
             return mutant, _last_json(proc.stdout)
         except ValueError as exc:
-            raise RuntimeError(f"worker {mutant or 'baseline'} failed: {proc.stderr[-800:]}") from exc
+            raise RuntimeError(
+                f"worker {mutant or 'baseline'} failed: {proc.stderr[-800:]}"
+            ) from exc
 
     with ThreadPoolExecutor(max_workers=jobs) as pool:
         results = dict(pool.map(one, [None, *names]))
     base = results.pop(None)
-    catches = {m: [stem for stem, fp in res.items() if fp != base[stem]] for m, res in results.items()}
-    return {"recipes": {r["id"]: r for r in recipes}, "baseline": base, "catches": catches}
+    catches = {
+        m: [stem for stem, fp in res.items() if fp != base[stem]]
+        for m, res in results.items()
+    }
+    return {
+        "recipes": {r["id"]: r for r in recipes},
+        "baseline": base,
+        "catches": catches,
+    }
 
 
-def main(argv: Optional[Sequence[str]] = None) -> int:
-    ap = argparse.ArgumentParser(prog="tools/backtest_gate/mutate.py", description=__doc__.split("\n\n")[0])
+def main(argv: Sequence[str] | None = None) -> int:
+    ap = argparse.ArgumentParser(
+        prog="tools/backtest_gate/mutate.py", description=__doc__.split("\n\n")[0]
+    )
     sub = ap.add_subparsers(dest="cmd", required=True)
     w = sub.add_parser("worker")
     w.add_argument("--mode", choices=("gate", "search"), required=True)
@@ -307,10 +415,24 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     s.add_argument("--start", type=int, default=0)
     s.add_argument("--jobs", type=int, default=os.cpu_count() or 2)
     s.add_argument("--only", nargs="*")
-    s.add_argument("--extra", nargs="*", default=[], type=Path, help="existing fixture files to include")
+    s.add_argument(
+        "--extra",
+        nargs="*",
+        default=[],
+        type=Path,
+        help="existing fixture files to include",
+    )
     s.add_argument("--out", type=Path)
-    s.add_argument("--recipes", type=Path, help="search these recipes (JSON list or {recipes: [...]}) instead")
-    s.add_argument("--no-shift", action="store_true", help="default profile only (skip the target-shift replay)")
+    s.add_argument(
+        "--recipes",
+        type=Path,
+        help="search these recipes (JSON list or {recipes: [...]}) instead",
+    )
+    s.add_argument(
+        "--no-shift",
+        action="store_true",
+        help="default profile only (skip the target-shift replay)",
+    )
     args = ap.parse_args(argv)
 
     if args.cmd == "worker":
@@ -321,7 +443,15 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         if args.recipes:
             blob = json.loads(args.recipes.read_text(encoding="utf-8"))
             given = blob["recipes"] if isinstance(blob, dict) else blob
-        res = search(args.n, args.start, args.jobs, names, args.extra, recipes=given, no_shift=args.no_shift)
+        res = search(
+            args.n,
+            args.start,
+            args.jobs,
+            names,
+            args.extra,
+            recipes=given,
+            no_shift=args.no_shift,
+        )
         if args.out:
             args.out.write_text(json.dumps(res, indent=1), encoding="utf-8")
         for m, stems in res["catches"].items():
@@ -335,8 +465,16 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         if caught:
             tag = "CAUGHT"
         else:
-            tag = "UNEXERCISABLE" if name in UNEXERCISABLE else "NOT-REACHED" if name in NOT_REACHED else "MISSED"
-        print(f"{tag:13s} {name} = {EXIT_MUTANTS[name]:10s} {caught or r.get('error', '')[:200]}")
+            tag = (
+                "UNEXERCISABLE"
+                if name in UNEXERCISABLE
+                else "NOT-REACHED"
+                if name in NOT_REACHED
+                else "MISSED"
+            )
+        print(
+            f"{tag:13s} {name} = {EXIT_MUTANTS[name]:10s} {caught or r.get('error', '')[:200]}"
+        )
         if not caught and name not in UNEXERCISABLE and name not in NOT_REACHED:
             missed.append(name)
         if caught and name in UNEXERCISABLE:

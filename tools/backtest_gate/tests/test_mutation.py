@@ -18,18 +18,24 @@ import pytest
 HERE = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(HERE))
 
-import mutate  # noqa: E402
+import mutate
 
-pytestmark = pytest.mark.skipif(os.environ.get("GATE_MUTATION") != "1", reason="slow; set GATE_MUTATION=1")
+pytestmark = pytest.mark.skipif(
+    os.environ.get("GATE_MUTATION") != "1", reason="slow; set GATE_MUTATION=1"
+)
 
 
 def shard_names() -> list[str]:
     """GATE_MUTATION_SHARD=k/n keeps every n-th constant. Uncaught ones replay every result, so they are
     dealt out first to keep the shards even."""
     k, _, n = os.environ.get("GATE_MUTATION_SHARD", "0/1").partition("/")
-    slow = [m for m in mutate.EXIT_MUTANTS if m in mutate.UNEXERCISABLE or m in mutate.NOT_REACHED]
+    slow = [
+        m
+        for m in mutate.EXIT_MUTANTS
+        if m in mutate.UNEXERCISABLE or m in mutate.NOT_REACHED
+    ]
     order = slow + [m for m in mutate.EXIT_MUTANTS if m not in slow]
-    return order[int(k)::int(n)]
+    return order[int(k) :: int(n)]
 
 
 SHARD = shard_names()
@@ -42,18 +48,26 @@ def results() -> dict:
 
 @pytest.fixture(autouse=True)
 def _in_shard(request) -> None:
-    name = request.node.callspec.params.get("name") if hasattr(request.node, "callspec") else "EXIT_BOOK_NEAR_FRAC"
+    name = (
+        request.node.callspec.params.get("name")
+        if hasattr(request.node, "callspec")
+        else "EXIT_BOOK_NEAR_FRAC"
+    )
     if name not in SHARD:
         pytest.skip("in another GATE_MUTATION_SHARD")
 
 
-@pytest.mark.parametrize("name", [n for n in mutate.EXIT_MUTANTS if n not in mutate.UNEXERCISABLE])
+@pytest.mark.parametrize(
+    "name", [n for n in mutate.EXIT_MUTANTS if n not in mutate.UNEXERCISABLE]
+)
 def test_gate_catches_exit_constant_step(results: dict, name: str) -> None:
     r = results[name]
     assert "error" not in r, r["error"]
     if name in mutate.NOT_REACHED and not r.get("caught"):
         pytest.xfail(f"not reached by any fixture day yet: {mutate.NOT_REACHED[name]}")
-    assert r.get("caught"), f"{name} = {mutate.EXIT_MUTANTS[name]} did not move any fixture"
+    assert r.get("caught"), (
+        f"{name} = {mutate.EXIT_MUTANTS[name]} did not move any fixture"
+    )
 
 
 def test_book_near_threshold_070_to_060_fails_the_gate(results: dict) -> None:
@@ -63,8 +77,12 @@ def test_book_near_threshold_070_to_060_fails_the_gate(results: dict) -> None:
 
 
 @pytest.mark.parametrize("name", list(mutate.UNEXERCISABLE))
-def test_documented_unexercisable_constant_still_cannot_move_results(results: dict, name: str) -> None:
+def test_documented_unexercisable_constant_still_cannot_move_results(
+    results: dict, name: str
+) -> None:
     """If one of these starts moving results, drop it from UNEXERCISABLE (and the README list)."""
     r = results[name]
     assert "error" not in r, r["error"]
-    assert r["caught"] is None, f"{name} now moves {r['caught']}: remove it from UNEXERCISABLE"
+    assert r["caught"] is None, (
+        f"{name} now moves {r['caught']}: remove it from UNEXERCISABLE"
+    )

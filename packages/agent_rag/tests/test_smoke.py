@@ -103,8 +103,10 @@ def test_eod_retune_proposal_extracts_observations(tmp_path: Path) -> None:
                 "candidate_id": "STRAT-004",
                 "outcome": "DATA_INSUFFICIENT",
                 "data_gaps": [
-                    "DATA_INSUFFICIENT: PAPER evaluator unbound "
-                    "(PARKED/WAITING/NOT_CODED/overlay-incomplete); KEEP_ALL — not deleted"
+                    (
+                        "DATA_INSUFFICIENT: PAPER evaluator unbound "
+                        "(PARKED/WAITING/NOT_CODED/overlay-incomplete); KEEP_ALL — not deleted"
+                    )
                 ],
                 "provenance": {"candidate_evaluator_available": False},
             }
@@ -152,7 +154,9 @@ def test_eod_reads_paper_ledger_jsonl(tmp_path: Path) -> None:
     (root / "data" / "recon").mkdir(parents=True, exist_ok=True)
     (root / "teams" / "00_orchestrator" / "docs").mkdir(parents=True, exist_ok=True)
     out = run_eod_recon(day=day, root=root, offline=True, update_continue=False)
-    payload = (root / "data" / "recon" / f"EOD_RECON_{day}.json").read_text(encoding="utf-8")
+    payload = (root / "data" / "recon" / f"EOD_RECON_{day}.json").read_text(
+        encoding="utf-8"
+    )
     import json
 
     blob = json.loads(payload)

@@ -8,12 +8,12 @@ from __future__ import annotations
 
 import sqlite3
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 from warehouse.etl import FACT_TABLES, PERIODS, default_analytics_db
 
 
-def _ro(db: Optional[Path]) -> Optional[sqlite3.Connection]:
+def _ro(db: Path | None) -> sqlite3.Connection | None:
     path = Path(db or default_analytics_db())
     if not path.is_file():
         return None
@@ -22,7 +22,7 @@ def _ro(db: Optional[Path]) -> Optional[sqlite3.Connection]:
     return conn
 
 
-def _select(db: Optional[Path], sql: str, args: tuple = ()) -> list[dict[str, Any]]:
+def _select(db: Path | None, sql: str, args: tuple = ()) -> list[dict[str, Any]]:
     conn = _ro(db)
     if conn is None:
         return []
@@ -32,7 +32,12 @@ def _select(db: Optional[Path], sql: str, args: tuple = ()) -> list[dict[str, An
         conn.close()
 
 
-def _where(col: str, since: Optional[str], until: Optional[str], extra: tuple[tuple[str, Any], ...] = ()) -> tuple[str, tuple]:
+def _where(
+    col: str,
+    since: str | None,
+    until: str | None,
+    extra: tuple[tuple[str, Any], ...] = (),
+) -> tuple[str, tuple]:
     parts, args = [], []
     if since:
         parts.append(f"{col} >= ?")
@@ -48,8 +53,13 @@ def _where(col: str, since: Optional[str], until: Optional[str], extra: tuple[tu
 
 
 def pnl(
-    db: Optional[Path] = None, *, period: str = "day", book_id: Optional[str] = None,
-    since: Optional[str] = None, until: Optional[str] = None, limit: int = 200,
+    db: Path | None = None,
+    *,
+    period: str = "day",
+    book_id: str | None = None,
+    since: str | None = None,
+    until: str | None = None,
+    limit: int = 200,
 ) -> list[dict[str, Any]]:
     """P&L and win rate per period and book. `period` is day | week (Monday) | month (YYYY-MM).
 
@@ -70,15 +80,29 @@ def pnl(
     return _select(db, sql, (*args, int(limit)))
 
 
-def exit_reasons(db: Optional[Path] = None, *, book_id: Optional[str] = None, since: Optional[str] = None,
-                 until: Optional[str] = None, limit: int = 200) -> list[dict[str, Any]]:
+def exit_reasons(
+    db: Path | None = None,
+    *,
+    book_id: str | None = None,
+    since: str | None = None,
+    until: str | None = None,
+    limit: int = 200,
+) -> list[dict[str, Any]]:
     where, args = _where("day", since, until, (("book_id = ?", book_id),))
-    return _select(db, f"SELECT * FROM exit_reasons{where} ORDER BY day DESC, n_trades DESC LIMIT ?",
-                   (*args, int(limit)))
+    return _select(
+        db,
+        f"SELECT * FROM exit_reasons{where} ORDER BY day DESC, n_trades DESC LIMIT ?",
+        (*args, int(limit)),
+    )
 
 
-def model_attribution(db: Optional[Path] = None, *, since: Optional[str] = None, until: Optional[str] = None,
-                      limit: int = 200) -> list[dict[str, Any]]:
+def model_attribution(
+    db: Path | None = None,
+    *,
+    since: str | None = None,
+    until: str | None = None,
+    limit: int = 200,
+) -> list[dict[str, Any]]:
     """Per model/analyst named on the ticket: trades, wins, net P&L (a trade counts once per model it names)."""
     where, args = _where("day", since, until)
     sql = (
@@ -89,8 +113,13 @@ def model_attribution(db: Optional[Path] = None, *, since: Optional[str] = None,
     return _select(db, sql, (*args, int(limit)))
 
 
-def stage_attribution(db: Optional[Path] = None, *, since: Optional[str] = None, until: Optional[str] = None,
-                      limit: int = 500) -> list[dict[str, Any]]:
+def stage_attribution(
+    db: Path | None = None,
+    *,
+    since: str | None = None,
+    until: str | None = None,
+    limit: int = 500,
+) -> list[dict[str, Any]]:
     """Counts per stage (boss / risk / desk / exit) and reason; exit rows also carry net P&L."""
     where, args = _where("day", since, until)
     sql = (
@@ -100,8 +129,13 @@ def stage_attribution(db: Optional[Path] = None, *, since: Optional[str] = None,
     return _select(db, sql, (*args, int(limit)))
 
 
-def analyst_votes(db: Optional[Path] = None, *, since: Optional[str] = None, until: Optional[str] = None,
-                  limit: int = 500) -> list[dict[str, Any]]:
+def analyst_votes(
+    db: Path | None = None,
+    *,
+    since: str | None = None,
+    until: str | None = None,
+    limit: int = 500,
+) -> list[dict[str, Any]]:
     where, args = _where("day", since, until)
     sql = (
         "SELECT analyst_id, signal, SUM(n) AS n, ROUND(SUM(n * avg_confidence) / SUM(n), 4) AS avg_confidence "
@@ -110,8 +144,14 @@ def analyst_votes(db: Optional[Path] = None, *, since: Optional[str] = None, unt
     return _select(db, sql, (*args, int(limit)))
 
 
-def slippage(db: Optional[Path] = None, *, book_id: Optional[str] = None, since: Optional[str] = None,
-             until: Optional[str] = None, limit: int = 200) -> list[dict[str, Any]]:
+def slippage(
+    db: Path | None = None,
+    *,
+    book_id: str | None = None,
+    since: str | None = None,
+    until: str | None = None,
+    limit: int = 200,
+) -> list[dict[str, Any]]:
     """Per day and book: average slippage, fill price minus decision price, premium points per unit.
 
     Books are long premium, so a positive entry slippage is a cost and a positive exit slippage
@@ -130,35 +170,63 @@ def slippage(db: Optional[Path] = None, *, book_id: Optional[str] = None, since:
     return _select(db, sql, (*args, int(limit)))
 
 
-def charges(db: Optional[Path] = None, *, period: str = "day", since: Optional[str] = None,
-            until: Optional[str] = None, limit: int = 200) -> list[dict[str, Any]]:
+def charges(
+    db: Path | None = None,
+    *,
+    period: str = "day",
+    since: str | None = None,
+    until: str | None = None,
+    limit: int = 200,
+) -> list[dict[str, Any]]:
     """Charge components per period from the paper book breakdown (ledger charge lines are in `charges`)."""
     if period not in PERIODS:
         raise ValueError(f"period must be one of {tuple(PERIODS)}")
     expr = PERIODS[period]
     where, args = _where("day", since, until)
     where = (where + " AND" if where else " WHERE") + " filled = 1 AND day IS NOT NULL"
-    cols = ", ".join(f"ROUND(SUM({c}), 2) AS {c}" for c in ("brokerage", "stt", "exchange", "sebi", "stamp", "gst", "charges"))
+    cols = ", ".join(
+        f"ROUND(SUM({c}), 2) AS {c}"
+        for c in ("brokerage", "stt", "exchange", "sebi", "stamp", "gst", "charges")
+    )
     sql = f"SELECT {expr} AS period, COUNT(*) AS n_trades, {cols} FROM trades{where} GROUP BY {expr} ORDER BY period DESC LIMIT ?"
     return _select(db, sql, (*args, int(limit)))
 
 
-def rejects(db: Optional[Path] = None, *, limit: int = 200) -> list[dict[str, Any]]:
+def rejects(db: Path | None = None, *, limit: int = 200) -> list[dict[str, Any]]:
     """Quarantined lines / fields / files: file, line number (0 = whole file), field, reason, sample."""
-    return _select(db, "SELECT src_file, line_no, field, reason, sample FROM rejects ORDER BY src_file, line_no LIMIT ?",
-                   (int(limit),))
+    return _select(
+        db,
+        "SELECT src_file, line_no, field, reason, sample FROM rejects ORDER BY src_file, line_no LIMIT ?",
+        (int(limit),),
+    )
 
 
-def etl_status(db: Optional[Path] = None) -> dict[str, Any]:
+def etl_status(db: Path | None = None) -> dict[str, Any]:
     conn = _ro(db)
     if conn is None:
-        return {"ok": False, "db": str(db or default_analytics_db()), "note": "no warehouse yet; run python -m warehouse.etl run"}
+        return {
+            "ok": False,
+            "db": str(db or default_analytics_db()),
+            "note": "no warehouse yet; run python -m warehouse.etl run",
+        }
     try:
-        counts = {t: conn.execute(f"SELECT COUNT(*) FROM {t}").fetchone()[0] for t in FACT_TABLES}
+        counts = {
+            t: conn.execute(f"SELECT COUNT(*) FROM {t}").fetchone()[0]
+            for t in FACT_TABLES
+        }
         counts["trades"] = conn.execute("SELECT COUNT(*) FROM trades").fetchone()[0]
-        last = conn.execute("SELECT * FROM etl_runs ORDER BY id DESC LIMIT 1").fetchone()
-        days = conn.execute("SELECT MIN(day), MAX(day) FROM trades WHERE filled = 1").fetchone()
-        return {"ok": True, "db": str(db or default_analytics_db()), "counts": counts,
-                "trade_days": {"first": days[0], "last": days[1]}, "last_run": dict(last) if last else None}
+        last = conn.execute(
+            "SELECT * FROM etl_runs ORDER BY id DESC LIMIT 1"
+        ).fetchone()
+        days = conn.execute(
+            "SELECT MIN(day), MAX(day) FROM trades WHERE filled = 1"
+        ).fetchone()
+        return {
+            "ok": True,
+            "db": str(db or default_analytics_db()),
+            "counts": counts,
+            "trade_days": {"first": days[0], "last": days[1]},
+            "last_run": dict(last) if last else None,
+        }
     finally:
         conn.close()

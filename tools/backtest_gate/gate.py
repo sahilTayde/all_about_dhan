@@ -18,14 +18,20 @@ import json
 import os
 import sys
 import tempfile
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Any, Optional, Sequence
+from typing import Any
 
 REPO = Path(__file__).resolve().parents[2]
 HERE = Path(__file__).resolve().parent
 EXPECTED = HERE / "expected_results.json"
 BASE_FIXTURES = (
-    REPO / "packages" / "desk-ml" / "tests" / "fixtures" / "synthetic_session_nifty.json",
+    REPO
+    / "packages"
+    / "desk-ml"
+    / "tests"
+    / "fixtures"
+    / "synthetic_session_nifty.json",
     HERE / "fixtures" / "synthetic_session_sensex.json",
 )
 
@@ -36,16 +42,38 @@ def fixture_paths() -> list[Path]:
     import synth
 
     return [*BASE_FIXTURES, *(synth.fixture_path(r) for r in synth.load_recipes())]
-TRADE_KEYS = ("trade_id", "book_id", "underlying", "side", "atm_strike", "strike_source", "opened_ts", "closed_ts",
-              "entry", "exit", "stop", "target", "lots", "qty", "exit_reason", "filled", "gross_pnl_inr",
-              "charges_inr", "realized_pnl_inr")
+
+
+TRADE_KEYS = (
+    "trade_id",
+    "book_id",
+    "underlying",
+    "side",
+    "atm_strike",
+    "strike_source",
+    "opened_ts",
+    "closed_ts",
+    "entry",
+    "exit",
+    "stop",
+    "target",
+    "lots",
+    "qty",
+    "exit_reason",
+    "filled",
+    "gross_pnl_inr",
+    "charges_inr",
+    "realized_pnl_inr",
+)
 
 
 def _rel(p: Path) -> str:
     p = Path(p).resolve()
     if p.is_relative_to(REPO):
         return p.relative_to(REPO).as_posix()
-    return f"recipe:{p.stem}"  # generated from fixtures/recipes.json into the temp cache
+    return (
+        f"recipe:{p.stem}"  # generated from fixtures/recipes.json into the temp cache
+    )
 
 
 def _r(x: Any) -> Any:
@@ -65,8 +93,13 @@ PROFILES: dict[str, dict[str, Any]] = {
 }
 
 
-def replay_fixture(path: Path, *, live_risk: bool = False, event_path: bool = True,
-                   replay_kw: Optional[dict[str, Any]] = None) -> dict[str, Any]:
+def replay_fixture(
+    path: Path,
+    *,
+    live_risk: bool = False,
+    event_path: bool = True,
+    replay_kw: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     """One synthetic day through the event path, reduced to the numbers that must not move silently.
 
     `live_risk` swaps in the live paper loop's risk file; `replay_kw` adds replay_paper_scalp kwargs
@@ -78,15 +111,20 @@ def replay_fixture(path: Path, *, live_risk: bool = False, event_path: bool = Tr
     from desk_ml.event_path import EventSession, resolve_risk_config
 
     # paper_scalp imports these optionally; without them targets and entries change silently.
-    missing = [n for n in ("evaluate_long_premium", "judge_tick") if getattr(ps, n) is None]
+    missing = [
+        n for n in ("evaluate_long_premium", "judge_tick") if getattr(ps, n) is None
+    ]
     if missing:
-        raise RuntimeError(f"optional engine hooks missing ({', '.join(missing)}): install packages/warehouse "
-                           "and packages/trading_agents_india, or the replay does not match expected_results.json")
+        raise RuntimeError(
+            f"optional engine hooks missing ({', '.join(missing)}): install packages/warehouse "
+            "and packages/trading_agents_india, or the replay does not match expected_results.json"
+        )
     fx = load_fixture(path)
     risk_file, _explicit = resolve_risk_config(live_session=live_risk, root=REPO)
     saved = ps.load_index_closes, ps.resolve_lot_size
-    ps.load_index_closes = lambda u, root=None: {}  # no prior-day files: the fixture never reads repo data
-    ps.resolve_lot_size = lambda und, root=None: (int(fx["lot_size"]), "fixture")
+    ps.load_index_closes = lambda u, root=None: {}  # type: ignore[misc]
+    # no prior-day files: the fixture never reads repo data
+    ps.resolve_lot_size = lambda und, root=None: (int(fx["lot_size"]), "fixture")  # type: ignore[misc]
     session = EventSession(risk_config=risk_file) if event_path else None
     try:
         with tempfile.TemporaryDirectory() as tmp:
@@ -102,7 +140,9 @@ def replay_fixture(path: Path, *, live_risk: bool = False, event_path: bool = Tr
             session.close()
         ps.load_index_closes, ps.resolve_lot_size = saved
 
-    trades = [{k: _r(t.get(k)) for k in TRADE_KEYS} for t in board.get("closed_trades") or []]
+    trades = [
+        {k: _r(t.get(k)) for k in TRADE_KEYS} for t in board.get("closed_trades") or []
+    ]
     filled = [t for t in trades if t["filled"]]
     exits: dict[str, int] = {}
     for t in filled:
@@ -123,31 +163,42 @@ def replay_fixture(path: Path, *, live_risk: bool = False, event_path: bool = Tr
         "charges_inr": round(sum(t["charges_inr"] or 0 for t in filled), 2),
         "net_pnl_inr": round(sum(t["realized_pnl_inr"] or 0 for t in filled), 2),
         "exit_reasons": dict(sorted(exits.items())),
-        "skip_reason_counts": dict(sorted((board.get("skip_reason_counts") or {}).items())),
+        "skip_reason_counts": dict(
+            sorted((board.get("skip_reason_counts") or {}).items())
+        ),
         "risk_vetoes": dict(sorted(vetoes.items())),
         "events": dict(sorted((bus.get("events") or {}).items())),
         "handler_errors": len(bus.get("handler_errors") or []),
-        "ledger": {"closed": len(closed_ledger), "gross_pnl": round(sum(t["gross_pnl"] for t in closed_ledger), 2),
-                   "charges": round(sum(t["charges"] for t in closed_ledger), 2),
-                   "net_pnl": round(sum(t["net_pnl"] for t in closed_ledger), 2)},
-        "trades_sha256": hashlib.sha256(json.dumps(trades, sort_keys=True).encode()).hexdigest(),
+        "ledger": {
+            "closed": len(closed_ledger),
+            "gross_pnl": round(sum(t["gross_pnl"] for t in closed_ledger), 2),
+            "charges": round(sum(t["charges"] for t in closed_ledger), 2),
+            "net_pnl": round(sum(t["net_pnl"] for t in closed_ledger), 2),
+        },
+        "trades_sha256": hashlib.sha256(
+            json.dumps(trades, sort_keys=True).encode()
+        ).hexdigest(),
         "trades": trades,
     }
 
 
 def replay_profile(path: Path, profile: str) -> dict[str, Any]:
     p = PROFILES[profile]
-    return replay_fixture(Path(path), live_risk=p["live_risk"], replay_kw=p["replay_kw"])
+    return replay_fixture(
+        Path(path), live_risk=p["live_risk"], replay_kw=p["replay_kw"]
+    )
 
 
 def _replay_combo(args: tuple[str, str]) -> dict[str, Any]:
     return replay_profile(Path(args[0]), args[1])
 
 
-def run_all(fixtures: Optional[Sequence[Path]] = None, jobs: int = 1) -> dict[str, Any]:
+def run_all(fixtures: Sequence[Path] | None = None, jobs: int = 1) -> dict[str, Any]:
     """Every fixture under every profile. Replays patch module globals, so parallel runs use processes."""
     fixtures = fixture_paths() if fixtures is None else fixtures
-    combos = [(f"{p.stem}/{name}", (str(p), name)) for p in fixtures for name in PROFILES]
+    combos = [
+        (f"{p.stem}/{name}", (str(p), name)) for p in fixtures for name in PROFILES
+    ]
     if jobs > 1:
         import multiprocessing
 
@@ -155,8 +206,10 @@ def run_all(fixtures: Optional[Sequence[Path]] = None, jobs: int = 1) -> dict[st
             results = pool.map(_replay_combo, [c[1] for c in combos])
     else:
         results = [_replay_combo(c[1]) for c in combos]
-    return {"note": "Synthetic fixture replays (not market data). Regenerate with --update; see tools/backtest_gate/README.md.",
-            "fixtures": {key: r for (key, _a), r in zip(combos, results)}}
+    return {
+        "note": "Synthetic fixture replays (not market data). Regenerate with --update; see tools/backtest_gate/README.md.",
+        "fixtures": {key: r for (key, _a), r in zip(combos, results)},
+    }
 
 
 def diff(expected: Any, actual: Any, path: str = "") -> list[str]:
@@ -173,28 +226,53 @@ def diff(expected: Any, actual: Any, path: str = "") -> list[str]:
                 out += diff(expected[k], actual[k], sub)
         return out
     if isinstance(expected, list) and isinstance(actual, list):
-        out = [f"{path}: {len(expected)} -> {len(actual)} rows"] if len(expected) != len(actual) else []
+        out = (
+            [f"{path}: {len(expected)} -> {len(actual)} rows"]
+            if len(expected) != len(actual)
+            else []
+        )
         for n, (a, b) in enumerate(zip(expected, actual)):
             out += diff(a, b, f"{path}[{n}]")
         return out
-    return [] if expected == actual else [f"{path}: {json.dumps(expected)} -> {json.dumps(actual)}"]
+    return (
+        []
+        if expected == actual
+        else [f"{path}: {json.dumps(expected)} -> {json.dumps(actual)}"]
+    )
 
 
-def main(argv: Optional[Sequence[str]] = None) -> int:
-    ap = argparse.ArgumentParser(prog="tools/backtest_gate/gate.py", description=__doc__.split("\n\n")[0])
-    ap.add_argument("--update", action="store_true", help="write the current results as the new expected file")
+def main(argv: Sequence[str] | None = None) -> int:
+    ap = argparse.ArgumentParser(
+        prog="tools/backtest_gate/gate.py", description=__doc__.split("\n\n")[0]
+    )
+    ap.add_argument(
+        "--update",
+        action="store_true",
+        help="write the current results as the new expected file",
+    )
     ap.add_argument("--expected", type=Path, default=EXPECTED)
     ap.add_argument("--max-lines", type=int, default=60)
-    ap.add_argument("--jobs", type=int, default=min(4, os.cpu_count() or 1), help="parallel replay processes")
+    ap.add_argument(
+        "--jobs",
+        type=int,
+        default=min(4, os.cpu_count() or 1),
+        help="parallel replay processes",
+    )
     args = ap.parse_args(argv)
 
     actual = run_all(jobs=args.jobs)
     for name, r in actual["fixtures"].items():
-        print(f"{name}: trades {r['n_trades']} wins {r['n_wins']} net ₹{r['net_pnl_inr']:,.2f} "
-              f"(gross ₹{r['gross_pnl_inr']:,.2f}, charges ₹{r['charges_inr']:,.2f}) vetoes {sum(r['risk_vetoes'].values())}")
+        print(
+            f"{name}: trades {r['n_trades']} wins {r['n_wins']} net ₹{r['net_pnl_inr']:,.2f} "
+            f"(gross ₹{r['gross_pnl_inr']:,.2f}, charges ₹{r['charges_inr']:,.2f}) vetoes {sum(r['risk_vetoes'].values())}"
+        )
     if args.update:
-        args.expected.write_text(json.dumps(actual, indent=1, sort_keys=True) + "\n", encoding="utf-8")
-        print(f"UPDATED {args.expected.relative_to(REPO)}: commit it with the change and fill in the honest-backtest section.")
+        args.expected.write_text(
+            json.dumps(actual, indent=1, sort_keys=True) + "\n", encoding="utf-8"
+        )
+        print(
+            f"UPDATED {args.expected.relative_to(REPO)}: commit it with the change and fill in the honest-backtest section."
+        )
         return 0
     if not args.expected.is_file():
         print(f"FAIL: {args.expected} missing; run with --update and commit it.")
@@ -204,13 +282,17 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     if not problems:
         print("PASS: synthetic replay matches expected_results.json")
         return 0
-    print(f"FAIL: {len(problems)} result(s) moved without an updated expected_results.json:")
+    print(
+        f"FAIL: {len(problems)} result(s) moved without an updated expected_results.json:"
+    )
     for line in problems[: args.max_lines]:
         print(f"  {line}")
     if len(problems) > args.max_lines:
         print(f"  ... {len(problems) - args.max_lines} more")
-    print("If the change is intended: python tools/backtest_gate/gate.py --update, commit the file, and fill in the "
-          "honest-backtest section of the PR (OOS, costs, DSR, trial count).")
+    print(
+        "If the change is intended: python tools/backtest_gate/gate.py --update, commit the file, and fill in the "
+        "honest-backtest section of the PR (OOS, costs, DSR, trial count)."
+    )
     return 1
 
 

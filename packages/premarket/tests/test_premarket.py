@@ -9,11 +9,17 @@ from datetime import date, datetime
 from pathlib import Path
 
 import pytest
-
 from premarket.__main__ import main as cli
 from premarket.service import build_context, load_config, render_brief, write_outputs
-from premarket.sources import (FixtureFetcher, NoNetworkFetcher, Source, SourceResult, parse_feed, pivots,
-                               register_source_type)
+from premarket.sources import (
+    FixtureFetcher,
+    NoNetworkFetcher,
+    Source,
+    SourceResult,
+    parse_feed,
+    pivots,
+    register_source_type,
+)
 
 FIX = Path(__file__).resolve().parents[1] / "fixtures" / "synthetic"
 NOW = datetime.fromisoformat("2026-09-28T08:30:00+05:30")
@@ -21,22 +27,41 @@ DAY = date(2026, 9, 28)
 
 
 def _ctx(**kw):
-    base = dict(config=load_config(), fetcher=FixtureFetcher(FIX), root=FIX / "root", now=NOW, session_date=DAY)
+    base = {
+        "config": load_config(),
+        "fetcher": FixtureFetcher(FIX),
+        "root": FIX / "root",
+        "now": NOW,
+        "session_date": DAY,
+    }
     return build_context("india_index", **{**base, **kw})
 
 
 def test_fixture_context_is_structured_and_marks_missing() -> None:
     c = _ctx()
-    assert c["advisory_only"] is True and c["orders"] == "never" and c["blocks_trading"] is False
+    assert (
+        c["advisory_only"] is True
+        and c["orders"] == "never"
+        and c["blocks_trading"] is False
+    )
     assert c["layer"] == "HYPOTHESIS" and c["validated"] is False
     assert c["missing"] == ["gift_nifty", "bse_announcements"]
     assert "no free endpoint" in c["sources"]["gift_nifty"]["error"]
-    assert c["bias"]["label"] == "BULLISH" and c["bias"]["n_inputs"] == 6 and c["bias"]["score"] == 4
+    assert (
+        c["bias"]["label"] == "BULLISH"
+        and c["bias"]["n_inputs"] == 6
+        and c["bias"]["score"] == 4
+    )
     assert 0 < c["confidence"] < 1
     nifty = c["levels"]["NIFTY"]
     assert nifty["prev_day"]["date"] == "2026-09-25"
-    assert nifty["oi_walls"]["call_wall_strike"] == 25050.0 and nifty["oi_walls"]["put_wall_strike"] == 24800.0
-    assert "oi_walls" not in c["levels"]["SENSEX"]  # no SENSEX chain in the snapshot: level row still present
+    assert (
+        nifty["oi_walls"]["call_wall_strike"] == 25050.0
+        and nifty["oi_walls"]["put_wall_strike"] == 24800.0
+    )
+    assert (
+        "oi_walls" not in c["levels"]["SENSEX"]
+    )  # no SENSEX chain in the snapshot: level row still present
     assert c["flows"]["FII_NET_CR"] == 1500.0
     assert c["event_risk"]["label"] == "MEDIUM" and not c["hold_new_tickets_advice"]
     assert [h["title"] for h in c["headlines"]] == [
@@ -46,7 +71,10 @@ def test_fixture_context_is_structured_and_marks_missing() -> None:
     assert c["generated_before_brief_by"] is True
     json.dumps(c, allow_nan=False)  # plain JSON
     brief = render_brief(c)
-    assert "BULLISH" in brief and "Missing sources:** gift_nifty, bse_announcements" in brief
+    assert (
+        "BULLISH" in brief
+        and "Missing sources:** gift_nifty, bse_announcements" in brief
+    )
 
 
 def test_everything_missing_still_writes_a_context(tmp_path: Path) -> None:
@@ -57,7 +85,11 @@ def test_everything_missing_still_writes_a_context(tmp_path: Path) -> None:
     paths = write_outputs(c, tmp_path / "out")
     saved = json.loads(Path(paths["json"]).read_text(encoding="utf-8"))
     assert saved["missing"] == c["missing"]
-    assert Path(paths["brief"]).read_text(encoding="utf-8").startswith("# Pre-market brief")
+    assert (
+        Path(paths["brief"])
+        .read_text(encoding="utf-8")
+        .startswith("# Pre-market brief")
+    )
     assert not list((tmp_path / "out").glob(".*.tmp"))
 
 
@@ -78,13 +110,25 @@ def test_a_crashing_or_hanging_source_does_not_hold_the_others() -> None:
     cfg = load_config()
     cfg["deadline_s"] = 0.5
     m = cfg["markets"]["india_index"]
-    m["sources"] = [*m["sources"], {"name": "boom", "type": "test_boom"}, {"name": "hang", "type": "test_hang"}]
+    m["sources"] = [
+        *m["sources"],
+        {"name": "boom", "type": "test_boom"},
+        {"name": "hang", "type": "test_hang"},
+    ]
     t0 = time.perf_counter()
     c = _ctx(config=cfg)
     assert time.perf_counter() - t0 < 2.5
-    assert c["sources"]["boom"]["status"] == "MISSING" and "KeyError" in c["sources"]["boom"]["error"]
-    assert c["sources"]["hang"]["status"] == "MISSING" and "deadline" in c["sources"]["hang"]["error"]
-    assert c["sources"]["us_futures"]["status"] == "OK" and c["bias"]["label"] == "BULLISH"
+    assert (
+        c["sources"]["boom"]["status"] == "MISSING"
+        and "KeyError" in c["sources"]["boom"]["error"]
+    )
+    assert (
+        c["sources"]["hang"]["status"] == "MISSING"
+        and "deadline" in c["sources"]["hang"]["error"]
+    )
+    assert (
+        c["sources"]["us_futures"]["status"] == "OK" and c["bias"]["label"] == "BULLISH"
+    )
 
 
 def test_stale_quotes_are_flagged_and_left_out_of_the_bias() -> None:
@@ -97,7 +141,9 @@ def test_stale_quotes_are_flagged_and_left_out_of_the_bias() -> None:
 
 def test_calendar_event_makes_risk_high_and_advises_hold() -> None:
     cfg = load_config()
-    cfg["markets"]["india_index"]["event_risk"]["calendar"] = [{"date": "2026-09-28", "event": "RBI policy", "weight": 3}]
+    cfg["markets"]["india_index"]["event_risk"]["calendar"] = [
+        {"date": "2026-09-28", "event": "RBI policy", "weight": 3}
+    ]
     c = _ctx(config=cfg)
     assert c["event_risk"]["label"] == "HIGH" and c["hold_new_tickets_advice"] is True
     assert "calendar: RBI policy" in c["event_risk"]["reasons"]
@@ -107,13 +153,45 @@ def test_another_market_reuses_the_source_types(tmp_path: Path) -> None:
     shutil.copy(FIX / "yahoo_DX-Y.NYB.json", tmp_path / "yahoo_DX-Y.NYB.json")
     shutil.copy(FIX / "yahoo_ES_F.json", tmp_path / "yahoo_EURUSD_X.json")
     shutil.copy(FIX / "rss_global_news_0.xml", tmp_path / "rss_fx_news_0.xml")
-    cfg = {"deadline_s": 5, "markets": {"forex_majors": {
-        "timezone": "Europe/London", "underlyings": ["EURUSD"],
-        "sources": [{"name": "fx", "type": "yahoo_quotes", "symbols": {"EURUSD": "EURUSD=X", "DXY": "DX-Y.NYB"}},
-                    {"name": "fx_news", "type": "rss", "role": "news", "urls": ["https://example.invalid/fx.xml"]}],
-        "bias_rules": [{"metric": "DXY", "field": "change_pct", "sign": -1, "threshold": 0.3}],
-        "min_bias_inputs": 1, "event_risk": {"keywords": {"fed": 1}}}}}
-    c = build_context("forex_majors", config=cfg, fetcher=FixtureFetcher(tmp_path), root=tmp_path, now=NOW)
+    cfg = {
+        "deadline_s": 5,
+        "markets": {
+            "forex_majors": {
+                "timezone": "Europe/London",
+                "underlyings": ["EURUSD"],
+                "sources": [
+                    {
+                        "name": "fx",
+                        "type": "yahoo_quotes",
+                        "symbols": {"EURUSD": "EURUSD=X", "DXY": "DX-Y.NYB"},
+                    },
+                    {
+                        "name": "fx_news",
+                        "type": "rss",
+                        "role": "news",
+                        "urls": ["https://example.invalid/fx.xml"],
+                    },
+                ],
+                "bias_rules": [
+                    {
+                        "metric": "DXY",
+                        "field": "change_pct",
+                        "sign": -1,
+                        "threshold": 0.3,
+                    }
+                ],
+                "min_bias_inputs": 1,
+                "event_risk": {"keywords": {"fed": 1}},
+            }
+        },
+    }
+    c = build_context(
+        "forex_majors",
+        config=cfg,
+        fetcher=FixtureFetcher(tmp_path),
+        root=tmp_path,
+        now=NOW,
+    )
     assert c["market"] == "forex_majors" and c["as_of"].endswith("+01:00")
     assert c["bias"]["label"] == "BULLISH" and c["missing"] == []
     assert c["event_risk"]["label"] == "LOW" and c["event_risk"]["score"] == 1
@@ -124,12 +202,27 @@ def test_unknown_market_or_source_type_is_a_config_error() -> None:
     with pytest.raises(ValueError):
         build_context("crypto", config={"markets": {}})
     with pytest.raises(ValueError):
-        build_context("x", config={"markets": {"x": {"sources": [{"name": "a", "type": "nope"}]}}})
+        build_context(
+            "x", config={"markets": {"x": {"sources": [{"name": "a", "type": "nope"}]}}}
+        )
 
 
-def test_cli_offline_writes_and_exits_zero(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
-    rc = cli(["--offline", "--root", str(tmp_path), "--out-dir", str(tmp_path / "out"), "--date", "2026-09-28",
-              "--now", "2026-09-28T08:30:00+05:30"])
+def test_cli_offline_writes_and_exits_zero(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    rc = cli(
+        [
+            "--offline",
+            "--root",
+            str(tmp_path),
+            "--out-dir",
+            str(tmp_path / "out"),
+            "--date",
+            "2026-09-28",
+            "--now",
+            "2026-09-28T08:30:00+05:30",
+        ]
+    )
     assert rc == 0
     assert (tmp_path / "out" / "india_index_2026-09-28.json").is_file()
     assert (tmp_path / "out" / "india_index_latest.json").is_file()
@@ -137,11 +230,17 @@ def test_cli_offline_writes_and_exits_zero(tmp_path: Path, capsys: pytest.Captur
 
 
 def test_atom_feed_and_pivots() -> None:
-    atom = (b'<feed xmlns="http://www.w3.org/2005/Atom"><entry><title>Synthetic  atom</title>'
-            b'<link href="https://example.invalid/a"/><updated>2026-09-28T01:00:00Z</updated></entry></feed>')
+    atom = (
+        b'<feed xmlns="http://www.w3.org/2005/Atom"><entry><title>Synthetic  atom</title>'
+        b'<link href="https://example.invalid/a"/><updated>2026-09-28T01:00:00Z</updated></entry></feed>'
+    )
     [item] = parse_feed(atom, "x")
-    assert item == {"title": "Synthetic atom", "link": "https://example.invalid/a",
-                    "published": "2026-09-28T01:00:00+00:00", "source": "x"}
+    assert item == {
+        "title": "Synthetic atom",
+        "link": "https://example.invalid/a",
+        "published": "2026-09-28T01:00:00+00:00",
+        "source": "x",
+    }
     p = pivots(110.0, 90.0, 100.0)
     assert p == {"pivot": 100.0, "r1": 110.0, "s1": 90.0, "r2": 120.0, "s2": 80.0}
 
@@ -160,12 +259,29 @@ def test_process_exits_promptly_after_a_hung_source(tmp_path: Path) -> None:
     cfg.write_text(
         "timeout_s: 60\ndeadline_s: 1\nmarkets:\n  india_index:\n    timezone: Asia/Kolkata\n    sources:\n"
         f"      - {{name: stuck, type: rss, role: news, urls: ['http://127.0.0.1:{port}/feed']}}\n",
-        encoding="utf-8")
+        encoding="utf-8",
+    )
     t0 = time.perf_counter()
     try:
-        proc = subprocess.run([sys.executable, "-m", "premarket", "--config", str(cfg), "--root", str(tmp_path),
-                               "--out-dir", str(tmp_path / "out"), "--print", "none"], capture_output=True, text=True,
-                              timeout=30)
+        proc = subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                "premarket",
+                "--config",
+                str(cfg),
+                "--root",
+                str(tmp_path),
+                "--out-dir",
+                str(tmp_path / "out"),
+                "--print",
+                "none",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=30,
+            check=False,
+        )
     finally:
         srv.close()
     elapsed = time.perf_counter() - t0
@@ -173,11 +289,15 @@ def test_process_exits_promptly_after_a_hung_source(tmp_path: Path) -> None:
     assert elapsed < 8, f"process took {elapsed:.1f}s to exit"
     [written] = (tmp_path / "out").glob("india_index_2*.json")
     ctx = json.loads(written.read_text(encoding="utf-8"))
-    assert ctx["missing"] == ["stuck"] and "deadline" in ctx["sources"]["stuck"]["error"]
+    assert (
+        ctx["missing"] == ["stuck"] and "deadline" in ctx["sources"]["stuck"]["error"]
+    )
 
 
 @pytest.mark.parametrize("text", ["markets: [unclosed\n", "- just\n- a list\n"])
-def test_bad_config_exits_2(tmp_path: Path, text: str, capsys: pytest.CaptureFixture[str]) -> None:
+def test_bad_config_exits_2(
+    tmp_path: Path, text: str, capsys: pytest.CaptureFixture[str]
+) -> None:
     cfg = tmp_path / "bad.yaml"
     cfg.write_text(text, encoding="utf-8")
     assert cli(["--config", str(cfg), "--offline", "--no-write"]) == 2
