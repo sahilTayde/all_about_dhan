@@ -61,13 +61,10 @@ def test_synthetic_session_parity() -> None:
 
 def test_no_writes_to_data_folder() -> None:
     """REG-11 guard: benchmark outputs never go into the checkout's data/ folder."""
-    # Try to write to data/ (should fail)
+    # Ask the CLI to write under data/. Do not mkdir/rmtree here: V2-01 conftest
+    # REG-11a blocks in-process writes under data/, and the CLI must reject --out
+    # before creating the directory (REG-11b).
     data_dir = REPO_ROOT / "data" / "test_bench_output"
-    if data_dir.exists():
-        # Clean up from previous run
-        import shutil
-
-        shutil.rmtree(data_dir)
 
     result = subprocess.run(
         [

@@ -36,6 +36,14 @@ def _patch_module_attr(mod: ModuleType, name: str, value: object) -> None:
     mod.__dict__[name] = value
 
 
+def _checkout_root(start: Path) -> Path | None:
+    """Walk parents for a .git checkout. None if this file is not inside a repo."""
+    for p in start.resolve().parents:
+        if (p / ".git").exists():
+            return p
+    return None
+
+
 def run_benchmark(
     *,
     day: str,
@@ -206,13 +214,14 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Output directory: {out_dir}")
     else:
         out_dir = args.out
-        # Prevent writes into checkout's data/ folder
+        # Prevent writes into checkout's data/ folder (find .git, not a fixed parent count)
         try:
-            repo_root = Path(__file__).resolve().parents[3]
-            data_dir = repo_root / "data"
-            if out_dir.resolve().is_relative_to(data_dir):
-                print(f"Error: --out cannot be under {data_dir} (REG-11 guard)", file=sys.stderr)
-                return 1
+            repo_root = _checkout_root(Path(__file__))
+            if repo_root is not None:
+                data_dir = repo_root / "data"
+                if out_dir.resolve().is_relative_to(data_dir):
+                    print(f"Error: --out cannot be under {data_dir} (REG-11 guard)", file=sys.stderr)
+                    return 1
         except (ValueError, OSError):
             pass  # Not in repo, allow
 
