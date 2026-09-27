@@ -17,6 +17,7 @@ import sys
 import tempfile
 from datetime import datetime
 from pathlib import Path
+from types import FrameType, ModuleType
 from typing import Any
 
 # ponytail: Dynamic import after sys.path guard. Caller ensures desk-ml is installed.
@@ -26,8 +27,13 @@ class TimeoutError(Exception):
     """Raised when the benchmark exceeds the deadline."""
 
 
-def _alarm_handler(signum: int, frame: Any) -> None:
+def _alarm_handler(signum: int, frame: FrameType | None) -> None:
     raise TimeoutError("Benchmark exceeded deadline")
+
+
+def _patch_module_attr(mod: ModuleType, name: str, value: object) -> None:
+    """Write a module global. paper_scalp re-exports resolve_lot_size, so attribute assignment is implicit-reexport."""
+    mod.__dict__[name] = value
 
 
 def run_benchmark(
@@ -67,14 +73,21 @@ def run_benchmark(
     signal.alarm(deadline_s)
 
     try:
-        # Import desk_ml only after sys.path is ready
-        from desk_ml.paper_scalp import replay_paper_scalp  # type: ignore[import-not-found]
-        from desk_ml.testing.canonical import load_fixture  # type: ignore[import-not-found]
+        # desk-ml is an installed workspace package (same as CI). paper_scalp re-exports
+        # resolve_lot_size implicitly; patch the module dict so replay sees fixture lots.
+        import desk_ml.paper_scalp as paper_scalp_mod
+        from desk_ml.paper_lots import resolve_lot_size
+        from desk_ml.paper_scalp import replay_paper_scalp
+        from desk_ml.testing.canonical import load_fixture
 
         # Load the tape
         fixture = load_fixture(tape_path.stem, folder=tape_path.parent)
         triples_by_und = fixture["triples"]
         lot_sizes = fixture["lot_sizes"]
+
+        def _fixture_lot_size(und: str, root: Path | None = None) -> tuple[int | None, str]:
+            _ = root
+            return (int(lot_sizes.get(und, 25)), "fixture")
 
         # Setup minimal recon (no disk writes to data/)
         with tempfile.TemporaryDirectory() as tmp_root:
@@ -91,14 +104,9 @@ def run_benchmark(
                 json.dumps({"stop_frac": 0.38, "scalp_hold_bars": 9, "nudge_n_closed": 494})
             )
 
-            # Patch lot size resolver
-            saved_resolve = None
+            saved_resolve = resolve_lot_size
+            _patch_module_attr(paper_scalp_mod, "resolve_lot_size", _fixture_lot_size)
             try:
-                import desk_ml.paper_scalp as ps  # type: ignore[import-not-found]
-
-                saved_resolve = ps.resolve_lot_size
-                ps.resolve_lot_size = lambda und, root=None: (int(lot_sizes.get(und, 25)), "fixture")
-
                 # Run frozen replay (flag off, live_session=True, write=False)
                 board = replay_paper_scalp(
                     root=tmp_path,
@@ -110,8 +118,7 @@ def run_benchmark(
                     use_event_bus=False,
                 )
             finally:
-                if saved_resolve is not None:
-                    ps.resolve_lot_size = saved_resolve
+                _patch_module_attr(paper_scalp_mod, "resolve_lot_size", saved_resolve)
 
         # Extract filled trades
         closed_trades = board.get("closed_trades") or []
