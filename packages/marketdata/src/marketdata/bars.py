@@ -29,6 +29,7 @@ class _OpenBar:
     n_ticks: int = 0
     gap_detected: bool = False
     last_tick_ts: datetime | None = None
+    late_ticks: int = 0
 
 
 class BarBuilder:
@@ -53,11 +54,18 @@ class BarBuilder:
             self.late_tick_count += 1
             return []
 
+        open_bar = self._open_bars.get(instrument_id)
+        # A delayed print from an earlier bucket must not pollute the current open bar,
+        # even if no bar has been finalized yet (F1).
+        if open_bar is not None and event_ts < open_bar.start:
+            self.late_tick_count += 1
+            open_bar.late_ticks += 1
+            return []
+
         start = bucket_start(event_ts)
         end = start + timedelta(minutes=1)
         closed: list[BarClosed] = []
 
-        open_bar = self._open_bars.get(instrument_id)
         if open_bar is not None and event_ts >= open_bar.end:
             closed.append(self._finalize(open_bar, available_ts))
             del self._open_bars[instrument_id]
@@ -112,7 +120,7 @@ class BarBuilder:
             v=bar.v,
             n_ticks=bar.n_ticks,
             gap=bar.gap_detected,
-            late_ticks=0,
+            late_ticks=bar.late_ticks,
             available_ts=available_ts.isoformat(),
         )
 
@@ -181,6 +189,6 @@ class HigherTFBuilder:
             v=volume,
             n_ticks=n_ticks,
             gap=any(m.gap for m in members) or len(members) < self._tf_minutes,
-            late_ticks=0,
+            late_ticks=sum(m.late_ticks for m in members),
             available_ts=end.isoformat(),
         )
