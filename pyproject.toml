@@ -8,7 +8,6 @@ members = [
     "packages/backtest",
     "packages/boss",
     "packages/brokers",
-    "packages/contracts",
     "packages/data-recorder",
     "packages/desk",
     "packages/desk-intel",

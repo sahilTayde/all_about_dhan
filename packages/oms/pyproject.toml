@@ -8,12 +8,12 @@ version = "0.1.0+aad"
 description = "V2 order router (paper only). Risk before broker; realistic fills."
 readme = "README.md"
 requires-python = ">=3.11"
+# contracts (2.0.0) and events (0.1.0) are imported from V2-01/V2-02 but are
+# not +aad-pinned, so they stay off this list (desk in-repo pin check).
 dependencies = [
-    "contracts",
     "brokers==0.1.0+aad",
     "risk-engine==0.1.0+aad",
-    "events",
-    "ledger",
+    "ledger==0.1.0+aad",
 ]
 
 [project.optional-dependencies]
@@ -37,8 +37,6 @@ warn_unused_configs = true
 disallow_untyped_defs = true
 
 [tool.uv.sources]
-contracts = { workspace = true }
 brokers = { workspace = true }
 risk-engine = { workspace = true }
-events = { workspace = true }
 ledger = { workspace = true }
