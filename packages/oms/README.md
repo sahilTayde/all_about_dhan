@@ -16,6 +16,8 @@ time stop, EOD, founder, kill, failsafe, target, strategy) are `lots * lot_size`
   (130), not 98 units.
 - A **1-lot** book **skips** the partial. A partial is not a flatten; target,
   time stop, EOD, founder, kill, or strategy still close the single lot.
+- Protective SL-M qty tracks net: in-place `modify_order(order_id, qty)`,
+  cancel-then-replace only if modify is unsupported, then CRITICAL flatten.
 
 ```bash
 pytest packages/oms tests/regression/test_reg_02_protective_stop.py \

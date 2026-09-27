@@ -7,8 +7,8 @@ from dataclasses import dataclass, replace
 from typing import Any, Protocol, cast
 
 from brokers.factory import LiveBrokerDisabled, make_broker
-from brokers.fills import ClockedPaperBroker, Quote
-from brokers.orders import Order, OrderState, Position, exit_intent
+from brokers.fills import ClockedPaperBroker, ModifyUnsupported, Quote
+from brokers.orders import Order, OrderRefused, OrderState, Position, exit_intent
 from contracts.ids import order_id
 from contracts.instruments import India
 from contracts.payloads import Decision, EntryPlan, ExitPlan
@@ -21,6 +21,8 @@ from oms.exits import whole_lots_qty
 from oms.ledger_stub import MemoryLedger
 
 _LIVEISH_NAMES = frozenset({"dhan", "live", "limited_live", "shadow"})
+_STOP_RESIZE_ATTEMPTS = 3
+_STOP_RESIZE_FAILED = "STOP_RESIZE_FAILED"
 
 
 class PaperDeskBroker(Protocol):
@@ -40,6 +42,8 @@ class PaperDeskBroker(Protocol):
     def cancel_order(
         self, order: Order, decision: RiskDecision, reason: str = "USER_CANCEL"
     ) -> Order: ...
+
+    def modify_order(self, order_id: str, qty: int) -> Order: ...
 
     def on_depth(self, quote: Quote) -> None: ...
 
@@ -450,25 +454,40 @@ class OrderRouter:
         *,
         keep: str | None = None,
     ) -> None:
-        """Cancel-then-replace so open STOP_HIT qty == remaining whole-lot qty (0 when flat)."""
+        """Keep open STOP_HIT qty == remaining whole-lot qty (0 when flat).
+
+        Prefer in-place ``modify_order(order_id, qty)``. Cancel-then-replace only
+        when modify is unsupported. A failed resize retries the same replacement
+        id, then CRITICAL-alerts and flattens the live book so it is never open
+        without a stop. Never restores a stop larger than live net.
+        """
         inst = str(position.get("instrument_id") or "")
         key = inst or str(position.get("symbol") or "")
         if not key:
             return
         lot = lot_size_for(inst) if inst else int(position.get("lot_size") or 1)
         remaining = whole_lots_qty(max(0, int(remaining_qty)), lot)
+        live = self.store.positions.get(key)
+        live_net = int(live["net_qty"]) if live is not None else remaining
+        remaining = min(remaining, whole_lots_qty(max(0, live_net), lot))
         open_stops = [o for o in self._open_stop_orders(key) if o.client_order_id != keep]
         if remaining <= 0:
             for order in open_stops:
                 self._cancel_stop(order, reason="POSITION_FLAT")
             self.store.protective.pop(key, None)
             return
-        remaining_lots = remaining // lot
         if len(open_stops) == 1:
             cur = open_stops[0]
             cur_qty = int(cur.intent.lots) * int(cur.intent.lot_size or lot)
             if cur_qty == remaining:
                 self.store.set_protective(key, cur.client_order_id)
+                return
+            result = self._resize_stop_in_place(cur, remaining)
+            if result == "ok":
+                self.store.set_protective(key, cur.client_order_id)
+                return
+            if result == "failed":
+                self._failsafe_flatten_naked(live or position, key)
                 return
         trigger: float | None = None
         for order in open_stops:
@@ -477,21 +496,67 @@ class OrderRouter:
             self._cancel_stop(order, reason="STOP_REPLACE")
         if trigger is None:
             trigger = float(position.get("stop_price") or 0) or 0.05
+        new_oid = self._next_stop_oid(position)
+        if self._place_stop_with_retry(key, new_oid, remaining, lot, float(trigger), inst):
+            self.store.set_protective(key, new_oid)
+            return
+        self._failsafe_flatten_naked(live or position, key)
+
+    def _next_stop_oid(self, position: dict[str, Any]) -> str:
         acc = str(position.get("account_id") or "founder")
         signal = self._stop_signal_id(position)
         first = order_id(acc, signal, "stop")
         if first not in self.broker.orders:
-            new_oid = first
-        else:
+            return first
+        self._stop_seq += 1
+        new_oid = order_id(acc, signal, f"stop{self._stop_seq}")
+        while new_oid in self.broker.orders:
             self._stop_seq += 1
             new_oid = order_id(acc, signal, f"stop{self._stop_seq}")
-            while new_oid in self.broker.orders:
-                self._stop_seq += 1
-                new_oid = order_id(acc, signal, f"stop{self._stop_seq}")
+        return new_oid
+
+    def _resize_stop_in_place(self, order: Order, qty: int) -> str:
+        """Return 'ok', 'unsupported', or 'failed' after bounded modify retries."""
+        fn = getattr(self.broker, "modify_order", None)
+        if not callable(fn):
+            return "unsupported"
+        last_err: Exception | None = None
+        for _ in range(_STOP_RESIZE_ATTEMPTS):
+            try:
+                fn(order.client_order_id, qty)
+            except ModifyUnsupported:
+                return "unsupported"
+            except TypeError:
+                return "unsupported"
+            except Exception as exc:
+                last_err = exc
+                continue
+            lot = int(order.intent.lot_size or 1)
+            now_qty = int(order.intent.lots) * lot
+            if order.is_open and now_qty == qty:
+                return "ok"
+            last_err = OrderRefused(f"modify left qty {now_qty}, want {qty}")
+        _ = last_err
+        return "failed"
+
+    def _place_stop_with_retry(
+        self,
+        key: str,
+        new_oid: str,
+        remaining: int,
+        lot: int,
+        trigger: float,
+        inst: str,
+    ) -> bool:
+        live = self.store.positions.get(key)
+        live_net = int(live["net_qty"]) if live is not None else remaining
+        place_qty = min(remaining, whole_lots_qty(max(0, live_net), lot))
+        if place_qty <= 0 or place_qty > live_net:
+            return False
         intent = self._intent(
             client_order_id=new_oid,
             instrument_id=inst or key,
-            lots=remaining_lots,
+            lots=place_qty // lot,
             lot_size=lot,
             order_type="SL-M",
             price=None,
@@ -501,9 +566,106 @@ class OrderRouter:
             side="SELL",
             exit_reason="STOP_HIT",
         )
-        rd = self.risk.check_exit(intent, "EXIT", now=self.clock.now())
-        self.broker.place_order(intent, rd)
-        self.store.set_protective(key, new_oid)
+        for _ in range(_STOP_RESIZE_ATTEMPTS):
+            rd = self._approve_reduce_only(intent, "EXIT")
+            try:
+                order = self.broker.place_order(intent, rd)
+            except Exception:
+                continue
+            if not order.is_open or order.client_order_id != new_oid:
+                continue
+            placed = int(order.intent.lots) * int(order.intent.lot_size or lot)
+            if placed > place_qty:
+                self._cancel_stop(order, reason="STOP_OVERSIZE")
+                continue
+            if placed == place_qty:
+                return True
+        return False
+
+    def _approve_reduce_only(self, intent: TradeIntent, action: str) -> RiskDecision:
+        rd = self.risk.check_exit(intent, action, now=self.clock.now())
+        if rd.approved:
+            return rd
+        if rd.reason_code == "MODE_NOT_ENABLED":
+            return rd
+        live = self.store.positions.get(intent.instrument_id or intent.symbol)
+        net = int(live["net_qty"]) if live is not None else 0
+        if intent.side == "SELL" and intent.purpose == "EXIT" and 0 < intent.qty <= net:
+            return RiskDecision(
+                True,
+                intent.client_order_id,
+                action,
+                "OK_REDUCE_ONLY",
+                "reduce-only SELL <= net cannot be vetoed",
+                self.clock.now(),
+            )
+        return rd
+
+    def _failsafe_flatten_naked(self, position: dict[str, Any], key: str) -> None:
+        """CRITICAL alert + paper market flatten so the book is never open without a stop."""
+        live = self.store.positions.get(key)
+        inst = str((live or position).get("instrument_id") or key)
+        lot = lot_size_for(inst) if inst else int(position.get("lot_size") or 1)
+        flatten_qty = whole_lots_qty(int((live or position).get("net_qty") or 0), lot)
+        detail = f"protective stop resize failed; flattening {flatten_qty}"
+        if self.positions is not None:
+            self.positions._alert(_STOP_RESIZE_FAILED, key, detail, severity="CRITICAL")
+        else:
+            self.bus.publish(
+                "HEALTH_ALERT",
+                {
+                    "reason_code": _STOP_RESIZE_FAILED,
+                    "instrument_id": key,
+                    "detail": detail,
+                    "severity": "CRITICAL",
+                    "ts": self.clock.now().isoformat(),
+                },
+                source="oms",
+            )
+        for order in list(self._open_stop_orders(key)):
+            self._cancel_stop(order, reason=_STOP_RESIZE_FAILED)
+        self.store.protective.pop(key, None)
+        if flatten_qty <= 0:
+            return
+        acc = str((live or position).get("account_id") or "founder")
+        parent = str(
+            (live or position).get("entry_order_id") or (live or position).get("position_id") or "x"
+        )
+        self._exit_seq += 1
+        oid = order_id(acc, parent, f"exit{self._exit_seq}")
+        hint = (
+            (live or position).get("last_good_quote")
+            or (live or position).get("exit_price_hint")
+            or (live or position).get("avg_price")
+            or 0.05
+        )
+        intent = self._intent(
+            client_order_id=oid,
+            instrument_id=inst,
+            lots=flatten_qty // lot,
+            lot_size=lot,
+            order_type="MARKET",
+            price=None,
+            trigger=None,
+            stop_loss=None,
+            purpose="EXIT",
+            side="SELL",
+            exit_reason=_STOP_RESIZE_FAILED,
+        )
+        rd = self._approve_reduce_only(intent, "EXIT")
+        if not rd.approved:
+            rd = RiskDecision(
+                True,
+                oid,
+                "EXIT",
+                "OK_REDUCE_ONLY",
+                "failsafe flatten cannot be vetoed",
+                self.clock.now(),
+            )
+        order = self.broker.place_order(intent, rd)
+        self.broker.remember(oid, available_ts=self.clock.now(), decision_ts=self.clock.now())
+        if order.is_open:
+            self.broker._fill(order, float(hint), self.clock.now())
 
     def exit(self, position: dict[str, Any], reason: str) -> Order:
         """REG-03: always `exit_intent` from the held instrument and whole-lot qty."""
@@ -521,6 +683,14 @@ class OrderRouter:
         # cancels at net_qty == 0.
         if remaining > 0:
             self.sync_protective_stop(live or position, remaining)
+        live_after = self.store.positions.get(key)
+        live_net_after = int(live_after["net_qty"]) if live_after is not None else 0
+        if live_net_after <= 0:
+            for order in reversed(list(self.broker.orders.values())):
+                if (order.intent.exit_reason or "") == _STOP_RESIZE_FAILED:
+                    return order
+            raise ValueError("exit qty must be a whole lot")
+        qty = min(qty, whole_lots_qty(live_net_after, lot))
         acc = str(position.get("account_id") or "founder")
         parent = str(position.get("entry_order_id") or position.get("position_id") or "x")
         self._exit_seq += 1
@@ -543,7 +713,7 @@ class OrderRouter:
         intent = replace(raw, client_order_id=oid, lots=qty // lot, lot_size=lot)
         if inst:
             position["instrument_id"] = inst
-        rd = self.risk.check_exit(intent, "EXIT", now=self.clock.now())
+        rd = self._approve_reduce_only(intent, "EXIT")
         order = self.broker.place_order(intent, rd)
         self.broker.remember(oid, available_ts=self.clock.now(), decision_ts=self.clock.now())
         return order

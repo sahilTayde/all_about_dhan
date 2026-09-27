@@ -11,9 +11,16 @@ Accepted: Exit loop from the held position + ExitPlan
   (catastrophic, time stops, EOD, target/partial/trail,
   founder, kill, strategy, failsafe MTM). IST clock.
   REG-02a after envelopes, REG-03a-c, REG-05d, REG-15a-d.
+  In-place modify_order(order_id, qty) for protective SL-M
+  so stop qty == net. Cancel-then-replace only if modify
+  unsupported. Bounded idempotent replace retry; CRITICAL
+  STOP_RESIZE_FAILED + paper market flatten if still failing.
+  check_exit always allows reduce-only SELL <= net (kill
+  included). Never restore a stop larger than live net.
 Rejected: Durable ledger/rehydrate (V2-10). Structural /
   ATR / grace / flip / defaults.yaml (V2-09b). Live/Dhan.
-UNKNOWN: Resting-stop qty after add-on; V2-10 halt row.
+  Cancel-then-naked-place without retry/flatten.
+UNKNOWN: V2-10 halt row / restart rehydrate.
 ```
 
 ---

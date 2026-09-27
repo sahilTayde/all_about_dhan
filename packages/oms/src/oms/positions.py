@@ -401,11 +401,14 @@ class PositionManager:
                 ExitRequest("FAILSAFE_MTM", "mark", qty, stale_quote=True, price_hint=hint),
             )
 
-    def _alert(self, code: str, instrument_id: str, detail: str) -> None:
+    def _alert(
+        self, code: str, instrument_id: str, detail: str, *, severity: str = "WARNING"
+    ) -> None:
         rec = {
             "reason_code": code,
             "instrument_id": instrument_id,
             "detail": detail,
+            "severity": severity,
             "ts": self.clock.now().isoformat(),
         }
         self.alerts.append(rec)
