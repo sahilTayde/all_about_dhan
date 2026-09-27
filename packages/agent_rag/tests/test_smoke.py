@@ -52,13 +52,7 @@ def test_rebuild_and_query_fake_breakout(tmp_path: Path) -> None:
 
 
 def test_eod_recon_retune_required(tmp_path: Path) -> None:
-<<<<<<< HEAD
-    root = tmp_path
-    (root / "data" / "recon").mkdir(parents=True)
-    (root / "teams" / "00_orchestrator" / "docs").mkdir(parents=True)
-=======
     root = _scratch_root(tmp_path)
->>>>>>> origin/main
     out = run_eod_recon(
         day="2026-09-02",
         root=root,
