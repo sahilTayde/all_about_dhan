@@ -1,0 +1,22 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["decision_id", "underlying", "decision", "signal_ids"],
+  "properties": {
+    "decision_id": {"type": "string"},
+    "underlying": {"type": "string"},
+    "decision": {"type": "string", "enum": ["ENTER", "HOLD"]},
+    "signal_ids": {"type": "array", "items": {"type": "string"}},
+    "instrument_id": {"type": ["string", "null"]},
+    "lots": {"type": ["integer", "null"]},
+    "lot_size": {"type": ["integer", "null"]},
+    "limit_price": {"type": ["number", "null"]},
+    "sizing": {"type": ["object", "null"]},
+    "holds": {"type": "array", "items": {"type": "string"}},
+    "basket_hash": {"type": ["string", "null"]},
+    "shadow": {"type": ["object", "null"]},
+    "entry_location": {"type": ["object", "null"]},
+    "stretch": {"type": ["object", "null"]}
+  }
+}

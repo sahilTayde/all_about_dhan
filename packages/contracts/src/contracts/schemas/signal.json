@@ -1,0 +1,22 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["signal_id", "strategy_id", "version", "params_hash", "stage", "underlying", "side", "strike_rule", "decision_ts", "exit_plan", "strike_choice", "reasons", "features"],
+  "properties": {
+    "signal_id": {"type": "string"},
+    "strategy_id": {"type": "string"},
+    "version": {"type": "string"},
+    "params_hash": {"type": "string"},
+    "stage": {"type": "string", "enum": ["shadow", "paper", "live_eligible"]},
+    "underlying": {"type": "string"},
+    "side": {"type": "string", "enum": ["CE", "PE"]},
+    "strike_rule": {"type": "string"},
+    "decision_ts": {"type": "string", "format": "date-time"},
+    "confidence": {"type": ["number", "null"]},
+    "exit_plan": {"$ref": "exit_plan.json"},
+    "strike_choice": {"$ref": "strike_choice.json"},
+    "reasons": {"type": "array", "items": {"type": "string"}},
+    "features": {"type": "object"}
+  }
+}

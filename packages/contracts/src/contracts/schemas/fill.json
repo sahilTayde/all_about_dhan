@@ -1,0 +1,14 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["client_order_id", "qty", "price", "fill_model"],
+  "properties": {
+    "client_order_id": {"type": "string"},
+    "qty": {"type": "integer"},
+    "price": {"type": "number"},
+    "fill_model": {"type": "string", "enum": ["depth", "ltp_slippage"]},
+    "quote_available_ts": {"type": ["string", "null"], "format": "date-time"},
+    "charges_inr": {"type": ["number", "null"]}
+  }
+}
