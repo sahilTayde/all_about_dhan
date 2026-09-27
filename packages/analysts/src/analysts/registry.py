@@ -52,6 +52,7 @@ def default_keys() -> list[str]:
 def build(keys: Optional[Sequence[str]] = None) -> list[Analyst]:
     import analysts.legacy  # noqa: F401  (registers the paper engine's room)
     import analysts.shadow  # noqa: F401  (shadow analysts; boss ignores them)
+    import analysts.llm  # noqa: F401  (PR-016 LLM-ANALYST; advisory, weight 0 = shadow)
 
     wanted = list(keys) if keys is not None else default_keys()
     unknown = [k for k in wanted if k not in REGISTRY]
@@ -134,6 +135,9 @@ class AnalystRoom:
         self.shadow_cfg = dict(shadow_cfg or {})
         # Replay/parity must not ABSTAIN because the machine was busy. Live paper keeps wall-clock timeouts.
         self.deterministic = bool(deterministic)
+        for a in self.analysts:  # PR-016: replay/parity rooms keep the LLM analyst offline
+            if hasattr(a, "set_replay"):
+                a.set_replay(self.deterministic)
         self._pool = None if self.deterministic else ThreadPoolExecutor(
             max_workers=max(1, len(self.analysts)), thread_name_prefix="analyst"
         )

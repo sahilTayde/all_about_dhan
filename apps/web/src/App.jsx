@@ -133,7 +133,7 @@ export default function App() {
   if (error) {
     return (
       <div className="shell">
-        <AppNav current="/" />
+        <AppNav current="/customer" />
         <Header sourceLabel="ERROR" />
         <p className="error-banner">{error}</p>
         <Disclaimer />
@@ -144,7 +144,7 @@ export default function App() {
   if (!desk || !signal) {
     return (
       <div className="shell">
-        <AppNav current="/" />
+        <AppNav current="/customer" />
         <Header sourceLabel={sourceLabel} />
         <p className="muted">Loading desk…</p>
       </div>
@@ -156,7 +156,7 @@ export default function App() {
 
   return (
     <div className="shell shell--customer">
-      <AppNav current="/" />
+      <AppNav current="/customer" />
       <Header
         sourceLabel={sourceLabel}
         onInfo={() => setLegendOpen(true)}

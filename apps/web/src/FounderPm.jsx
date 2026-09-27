@@ -1,86 +1,64 @@
 import { useEffect, useMemo, useState } from "react";
+import { AccountPanel } from "./components/AccountPanel.jsx";
+import { AlertBar } from "./components/AlertBar.jsx";
 import { AppNav } from "./components/AppNav.jsx";
+import { CurrentTrade } from "./components/CurrentTrade.jsx";
+import { DecisionTrace } from "./components/DecisionTrace.jsx";
 import { DiscardedBook } from "./components/DiscardedBook.jsx";
-import { FounderHonestyExam } from "./components/FounderHonestyExam.jsx";
-import { FounderOpenNow } from "./components/FounderOpenNow.jsx";
-import { FounderRoster } from "./components/FounderRoster.jsx";
-import { Header } from "./components/Header.jsx";
-import { SodFillGraph, WatcherStrip } from "./components/SodFillGraph.jsx";
+import { CumulativeChart, LossByStage, ModelScores, PeriodChart, TradesPerDay } from "./components/FounderCharts.jsx";
 import { FounderBookPicker } from "./components/FounderBookPicker.jsx";
+import { FounderHonestyExam } from "./components/FounderHonestyExam.jsx";
+import { FounderRoster } from "./components/FounderRoster.jsx";
+import { Header, OfflineBanner } from "./components/Header.jsx";
+import { HealthPanel } from "./components/HealthPanel.jsx";
+import { MarketPanel } from "./components/MarketPanel.jsx";
 import { TradeHistory } from "./components/TradeHistory.jsx";
-import {
-  derivePaperBoard,
-  fetchFounderLab,
-  fetchMlPaperBoard,
-  fetchSodExam,
-  BOARD_POLL_MS,
-  inr,
-  moneyClass,
-  pct,
-} from "./lib/paperBoard.js";
+import { useFeed } from "./lib/feed.js";
+import { boardClock, boardSource, derivePaperBoard, fetchFounderLab, holdReason, inr, pct } from "./lib/paperBoard.js";
 
-function fetchFounderStatus(signal) {
-  const base = (import.meta.env.VITE_API_URL || "").replace(/\/$/, "");
-  const url = base ? `${base}/founder/status` : "/founder/status";
-  return fetch(`${url}?t=${Date.now()}`, { signal }).then((res) => {
-    if (!res.ok) throw new Error(`status ${res.status}`);
-    return res.json();
-  });
-}
+const NEXT_PR_CONTROLS = [
+  ["Pause for…", "Pause new fills for N minutes"],
+  ["Time-window blacklist", "Never trade inside chosen IST windows"],
+  ["Cut loss now", "Exit the open paper ticket at market"],
+  ["Go for T2", "Hold past T1 toward target 2"],
+  ["Change lots", "Raise or lower lots on the next fill"],
+  ["Kill switch", "Stop everything and flatten"],
+];
 
-function Stat({ label, value, hint, tone }) {
+function Stat({ label, value, hint, tone, className = "" }) {
   return (
-    <div className={`fx-stat ${tone ? `fx-stat--${tone}` : ""}`}>
+    <div className={`fx-stat ${tone ? `fx-stat--${tone}` : ""} ${className}`}>
       <span className="fx-stat__label">{label}</span>
-      <strong className={`fx-stat__value ${tone === "up" ? "is-up" : ""} ${tone === "down" ? "is-down" : ""}`}>
-        {value}
-      </strong>
+      <strong className={`fx-stat__value ${tone === "up" ? "is-up" : ""} ${tone === "down" ? "is-down" : ""}`}>{value}</strong>
       {hint ? <span className="fx-stat__hint">{hint}</span> : null}
     </div>
   );
 }
 
 export function FounderPm() {
-  const [status, setStatus] = useState(null);
-  const [board, setBoard] = useState(null);
+  const { snap, conn, latencyMs } = useFeed();
   const [lab, setLab] = useState(null);
-  const [exam, setExam] = useState(null);
-  const [error, setError] = useState(null);
-  const [roomId, setRoomId] = useState(null);
+  const [picked, setPicked] = useState(null);
 
   useEffect(() => {
-    let cancelled = false;
     const ac = new AbortController();
-    async function pull(force) {
-      const results = await Promise.allSettled([
-        fetchFounderStatus(ac.signal),
-        fetchMlPaperBoard({ force, signal: ac.signal }),
-        fetchFounderLab({ signal: ac.signal }),
-        fetchSodExam({ signal: ac.signal }),
-      ]);
-      if (cancelled) return;
-      const nextErr = [];
-      if (results[0].status === "fulfilled") setStatus(results[0].value);
-      else nextErr.push("ops health offline");
-      if (results[1].status === "fulfilled") setBoard(results[1].value);
-      else nextErr.push("paper book missing");
-      if (results[2].status === "fulfilled") setLab(results[2].value);
-      if (results[3].status === "fulfilled") setExam(results[3].value);
-      setError(nextErr.length ? nextErr.join(" · ") : null);
-    }
-    pull(true);
-    const id = setInterval(() => pull(false), BOARD_POLL_MS);
-    return () => {
-      cancelled = true;
-      ac.abort();
-      clearInterval(id);
-    };
+    fetchFounderLab({ signal: ac.signal }).then(setLab).catch(() => {});
+    return () => ac.abort();
   }, []);
 
-  const d = useMemo(() => derivePaperBoard(board, lab), [board, lab]);
-  const paper = (status?.agents || []).find((a) => a.id === "paper-loop");
-  const day = d?.todayDay;
-  const room = roomId && d?.fillRooms?.[roomId] ? d.fillRooms[roomId] : d?.currentRoom;
+  const board = snap?.board || null;
+  const d = useMemo(() => derivePaperBoard(board, null), [board]);
+  const clock = boardClock(board);
+  const offline = Boolean(snap?.offline);
+  const indexing = snap?.history_complete === false;
+  const source = boardSource(board, clock, offline);
+  const days = snap?.days || [];
+  const liveDay = board?.session_ist_date || clock.ist?.slice(0, 10);
+  const day = days.find((x) => x.day === liveDay) || d?.todayDay;
+  const paper = (snap?.founder?.agents || []).find((a) => a.id === "paper-loop");
+  const current = d?.current;
+  const fresh = picked && [...(d?.uniqueOpen || []), ...(d?.uniqueClosed || [])].find((t) => t.trade_id === picked.trade_id);
+  const traceRow = fresh || picked || current || d?.uniqueClosed?.[0];
 
   return (
     <div className="shell shell--founder">
@@ -88,227 +66,129 @@ export function FounderPm() {
       <Header
         title="Founder"
         kicker="Train · compare · do not promote"
-        sub="Money, rooms, and how a paper fill was built. Click a node. PAPER only."
-        sourceLabel={board?.live_session ? "PAPER" : "MOCK"}
+        sub="Money, health, models and how each paper fill was decided. PAPER only."
+        sourceLabel={source}
       />
-      <p className="desk-sub">
-        {board?.as_of_ist ? board.as_of_ist.replace("T", " ").slice(0, 16) : "…"} IST · light refresh 2s · orders
-        refused · NO_PROMOTE
-      </p>
-      {error ? <p className="desk-error">{error}. Mock book still loads.</p> : null}
-
-      <div className="fx-health">
-        <span className={`cleanup-pill ${paper?.alive ? "done" : "pending"}`}>
-          paper {paper?.alive ? "ON" : "OFF / mock"}
-        </span>
-        <span className="cleanup-pill pending">NO_PROMOTE</span>
-        <span className="cleanup-pill pending">orders refused</span>
+      <div className="desk-refresh">
+        <p className="desk-sub" title={clock.writtenIst ? `Board written ${clock.writtenIst}` : undefined}>
+          Tape as of {clock.label}
+          {offline ? " · static mock (API offline)" : clock.replay ? " · replay of a past session" : ""} · {conn === "live" ? "live push" : conn}
+          {latencyMs != null ? ` · update ${latencyMs} ms` : ""} · orders refused · NO_PROMOTE
+        </p>
+        <div className="fx-health">
+          <span className={`cleanup-pill ${paper?.alive ? "done" : "pending"}`} title="Paper market-hours loop (PID)">
+            paper loop {paper ? (paper.alive ? "ON" : "OFF") : "unknown"}
+          </span>
+          <span className="cleanup-pill pending">book: {source}</span>
+        </div>
       </div>
+      {offline ? <OfflineBanner /> : null}
+      <AlertBar alerts={snap?.alerts} conn={conn} />
 
       {!d ? (
         <p className="muted">Loading founder book…</p>
       ) : (
-        <>
-          <div className="fx-stats founder-kpis">
+        <div className="grid">
+          <div className="fx-stats founder-kpis span-12">
+            <Stat label="Trades today" value={String(day?.n ?? d.uniqueClosed.length)} hint={liveDay || "—"} />
+            <Stat label="Win rate today" value={pct(day?.n ? (day.wins / day.n) * 100 : d.uniqueWr)} hint="net ₹ > 0 after charges" />
+            <Stat label="Profit today" value={inr(d.todayDay?.profit)} hint="winning fills" tone="up" />
+            <Stat label="Loss today" value={inr(d.todayDay?.loss)} hint="losing fills" tone="down" />
+            <Stat label="Net today" value={inr(day?.net)} hint={day ? `charges ${inr(day.charges, { signed: false })}` : "no fills"} tone={Number(day?.net) >= 0 ? "up" : "down"} />
             <Stat
-              label="Total trades"
-              value={String(d.uniqueClosed.length)}
-              hint={d.liveMoney ? "Live closed only" : "Paper book (no lab trainer)"}
-            />
-            <Stat label="Win rate" value={pct(d.uniqueWr ?? d.moneyWr)} hint="Net ₹ > 0 after charges · live book" />
-            <Stat
-              label="Account"
-              value={inr(d.equity, { signed: false })}
-              hint={`Start ${inr(d.startCap, { signed: false })}`}
-              tone={Number(d.equity) >= Number(d.startCap) ? "up" : "down"}
-            />
-            <Stat
-              label="Profit today"
-              value={inr(day?.profit)}
-              hint={day?.n ? `${day.day} · ${day.n} live` : `${day?.day || "—"} · no live fills`}
-              tone="up"
-            />
-            <Stat
-              label="Loss today"
-              value={inr(day?.loss)}
-              hint={day?.n ? `${day.n} live fills` : "no live fills"}
-              tone="down"
-            />
-            <Stat
-              label="Net today"
-              value={inr(day?.net)}
-              hint={d.liveMoney ? "This IST session only" : day?.day}
-              tone={Number(day?.net) >= 0 ? "up" : "down"}
+              label="Net all days"
+              value={indexing ? "Indexing history…" : inr(snap?.account?.net_inr)}
+              hint={indexing ? "model log still loading" : snap?.account?.n_days ? `${snap.account.n_days} recorded days` : "API offline"}
+              tone={indexing ? "" : Number(snap?.account?.net_inr) >= 0 ? "up" : "down"}
+              className={indexing ? "needs-history" : ""}
             />
           </div>
 
-          <FounderBookPicker />
-          <FounderOpenNow opens={d.uniqueOpen} />
-
-          <section className="panel">
-            <h2>Train the models</h2>
-            <p className="muted">
-              {d.training?.label_note || "Label analysts from MATCH / DISSENT vs TARGET. Not a customer win rate."}
-            </p>
-            <div className="founder-pl">
-              <div>
-                <span>Target wr</span>
-                <strong>{pct(d.targetWr)}</strong>
+          <div className="span-4">
+            <HealthPanel rows={snap?.health} founder={snap?.founder} conn={conn} />
+          </div>
+          <div className="span-4">
+            <AccountPanel account={snap?.account} today={day} founderBook={snap?.founder_book} indexing={indexing} />
+          </div>
+          <div className="span-4 stack">
+            <FounderBookPicker />
+            <section className="panel controls-next">
+              <div className="panel__head">
+                <h2>Founder controls</h2>
+                <span className="demo-badge">next PR</span>
               </div>
-              <div>
-                <span>Money wr</span>
-                <strong>{pct(d.moneyWr)}</strong>
-              </div>
-              <div>
-                <span>MATCH</span>
-                <strong>{d.nMatch}</strong>
-              </div>
-              <div>
-                <span>DISSENT</span>
-                <strong>{d.nDissent}</strong>
-              </div>
-              <div>
-                <span>Charges</span>
-                <strong>{inr(d.charges, { signed: false })}</strong>
-              </div>
-              <div>
-                <span>Clone drag</span>
-                <strong>{inr(d.cloneDrag)}</strong>
-              </div>
-            </div>
-            <div className="mini-split">
-              <ul className="founder-watch">
-                {(d.byIndex || []).map((g) => (
-                  <li key={g.key}>
-                    {g.key} · {g.n} · {pct(g.wr)} · <span className={moneyClass(g.net)}>{inr(g.net)}</span>
-                  </li>
+              <div className="controls-grid">
+                {NEXT_PR_CONTROLS.map(([label, what]) => (
+                  <button key={label} type="button" className="ctrl-btn" disabled title={`${what} — needs an engine command (controls PR)`}>
+                    {label}
+                  </button>
                 ))}
-              </ul>
-              <ul className="founder-watch">
-                {(d.byRegime || []).map((g) => (
-                  <li key={g.key}>
-                    {g.key} · {g.n} · {pct(g.wr)} · <span className={moneyClass(g.net)}>{inr(g.net)}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          </section>
+              </div>
+              <p className="muted small">Disabled here: each needs an engine command in the controls PR. START/STOP and the paper target/stop override work today.</p>
+            </section>
+          </div>
 
-          <section className="panel">
-            <h2>How this paper fill was placed</h2>
-            <p className="muted">Click a node. Watchers and signal types sit under the graph.</p>
-            <SodFillGraph room={room} />
-            <WatcherStrip watchers={room?.watchers} />
-            {room?.steps?.length ? (
-              <ol className="step-list">
-                {room.steps.map((s) => (
-                  <li key={s}>{s}</li>
-                ))}
-              </ol>
-            ) : null}
-          </section>
+          <div className="span-6">
+            <CumulativeChart days={days} todayTrades={d.uniqueClosed} indexing={indexing} />
+          </div>
+          <div className="span-6">
+            <PeriodChart days={days} indexing={indexing} />
+          </div>
+          <div className="span-4">
+            <TradesPerDay days={days} indexing={indexing} />
+          </div>
+          <div className="span-8">
+            <ModelScores days={days} indexing={indexing} />
+          </div>
 
-          <FounderRoster catalog={d.catalog} confirmKill={d.confirmKill} />
+          <div className="span-4">
+            <LossByStage days={days} exam={snap?.exam} indexing={indexing} />
+          </div>
+          <div className="span-5">
+            <CurrentTrade t={current} last={d.uniqueClosed[0]} clock={clock} hold={current ? null : holdReason(board, snap?.founder_book, snap?.risk_halt, offline)} title="Now open" />
+          </div>
+          <div className="span-3">
+            <MarketPanel regimes={d.regimes} />
+          </div>
 
-          <section className="panel">
-            <h2>Models — win % today</h2>
-            <div className="table-scroll">
-              <table className="book-table">
-                <thead>
-                  <tr>
-                    <th>Model</th>
-                    <th>Kind</th>
-                    <th>Fills</th>
-                    <th>Win % today</th>
-                    <th>Win % book</th>
-                    <th>Charges</th>
-                    <th>Net ₹</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {d.books.map((r) => (
-                    <tr key={r.book_id}>
-                      <td>{r.book_id}</td>
-                      <td>{r.kind || "—"}</td>
-                      <td className="num">{r.day_n ?? r.n_filled ?? 0}</td>
-                      <td className="num">{r.day_wr == null ? "—" : pct(r.day_wr)}</td>
-                      <td className="num">{r.win_rate_net_pct == null ? "—" : pct(r.win_rate_net_pct)}</td>
-                      <td className="num">{inr(r.sum_charges_inr, { signed: false })}</td>
-                      <td className={`num ${moneyClass(r.sum_pnl_inr)}`}>{inr(r.sum_pnl_inr)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </section>
+          <div className="span-12">
+            <DecisionTrace
+              refreshKey={traceRow?.last_updated_ts}
+              tradeId={traceRow?.trade_id}
+              label={traceRow ? `${traceRow.underlying} ${traceRow.side} ${traceRow.atm_strike ?? ""} · ${String(traceRow.opened_ist || "").slice(11, 19)}` : null}
+            />
+          </div>
 
-          <section className="panel">
-            <h2>Each day</h2>
-            <div className="table-scroll">
-              <table className="book-table">
-                <thead>
-                  <tr>
-                    <th>Date</th>
-                    <th>Trades</th>
-                    <th>Win %</th>
-                    <th>Profit</th>
-                    <th>Loss</th>
-                    <th>Charges</th>
-                    <th>Net</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {d.days.map((row) => (
-                    <tr key={row.day}>
-                      <td>{row.day}</td>
-                      <td className="num">{row.n}</td>
-                      <td className="num">{pct(row.wr)}</td>
-                      <td className={`num ${moneyClass(row.profit)}`}>{inr(row.profit)}</td>
-                      <td className={`num ${moneyClass(row.loss)}`}>{inr(row.loss)}</td>
-                      <td className="num">{inr(row.charges, { signed: false })}</td>
-                      <td className={`num ${moneyClass(row.net)}`}>{inr(row.net)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </section>
-
-          <section className="panel">
+          <section className="panel span-12">
             <h2>Compare fills</h2>
-            <p className="muted">Open tickets sit on top. Filter, then click a highlighted row that has a fill room.</p>
             <TradeHistory
+              indexing={indexing}
               rows={[...(d.uniqueOpen || []), ...d.uniqueClosed]}
-              regimes={d.regimes}
-              fillRooms={d.fillRooms}
-              onOpen={(t) => setRoomId(t.trade_id)}
+              days={days}
+              liveDay={board?.session_ist_date}
+              clock={clock}
+              onSelect={setPicked}
+              selectedId={traceRow?.trade_id}
             />
           </section>
 
-          <details className="desk-context">
-            <summary>Ops health</summary>
-            <div className="cleanup-grid">
-              {(status?.agents || []).map((a) => (
-                <article key={a.id} className={`cleanup-card founder-${a.tone || "grey"}`}>
-                  <div className="cleanup-status">{a.alive ? "RUNNING" : "DOWN"}</div>
-                  <strong>{a.name}</strong>
-                  <p>{a.detail}</p>
-                </article>
-              ))}
-              {(status?.services || []).map((s) => (
-                <article key={s.id} className={`cleanup-card founder-${s.tone || "grey"}`}>
-                  <div className="cleanup-status">{s.tone}</div>
-                  <strong>{s.name}</strong>
-                  <p>{s.detail}</p>
-                </article>
-              ))}
-            </div>
-          </details>
-
-          <FounderHonestyExam exam={exam} />
-          <DiscardedBook rows={d.discardedRows} actorCounts={d.actorCounts} />
-        </>
+          <div className="span-12">
+            <FounderHonestyExam exam={snap?.exam} />
+          </div>
+          <div className="span-12">
+            <DiscardedBook rows={d.discardedRows} actorCounts={d.actorCounts} />
+          </div>
+          <div className="span-12">
+            <FounderRoster catalog={lab?.catalog} confirmKill={lab?.confirm_kill} />
+          </div>
+        </div>
       )}
+      <footer className="page-foot muted small">
+        <span>Last update applied in {latencyMs ?? "—"} ms · one push stream, no per-panel polling.</span>
+        <a href="https://www.tradingview.com/" target="_blank" rel="noreferrer">
+          Charts by TradingView Lightweight Charts
+        </a>
+      </footer>
     </div>
   );
 }
