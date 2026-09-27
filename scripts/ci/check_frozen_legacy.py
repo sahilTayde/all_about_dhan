@@ -50,8 +50,14 @@ def main() -> int:
             mismatches.append(rel_path)
 
     if mismatches:
-        print(f"\nFrozen legacy check failed: {len(mismatches)} file(s) modified", file=sys.stderr)
-        print("Editing frozen files breaks the legacy baseline (NIFTY 63/-96,190.79)", file=sys.stderr)
+        print(
+            f"\nFrozen legacy check failed: {len(mismatches)} file(s) modified",
+            file=sys.stderr,
+        )
+        print(
+            "Editing frozen files breaks the legacy baseline (NIFTY 63/-96,190.79)",
+            file=sys.stderr,
+        )
         return 1
 
     print(f"Frozen legacy check passed: {len(expected)} files unchanged")

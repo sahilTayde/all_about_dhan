@@ -9,9 +9,6 @@ import sys
 import tempfile
 from pathlib import Path
 
-import pytest
-
-
 REPO_ROOT = Path(__file__).resolve().parents[3]
 SYNTHETIC_FIXTURE = REPO_ROOT / "packages/desk-ml/tests/fixtures/synthetic_session_nifty.json"
 
@@ -41,6 +38,7 @@ def test_synthetic_session_parity() -> None:
             capture_output=True,
             text=True,
             env={**os.environ, "SHADOW_LOG": "0"},
+            check=False,
         )
 
         assert result.returncode == 0, f"Benchmark failed:\n{result.stderr}"
@@ -52,9 +50,7 @@ def test_synthetic_session_parity() -> None:
 
         # Frozen baseline: NIFTY 12 trades / net +69,364.32 (synthetic_session_nifty golden)
         assert summary["n_trades"] == 12, f"Expected 12 trades, got {summary['n_trades']}"
-        assert abs(summary["net_pnl_inr"] - 69364.32) < 0.01, (
-            f"Expected net +69,364.32, got {summary['net_pnl_inr']}"
-        )
+        assert abs(summary["net_pnl_inr"] - 69364.32) < 0.01, f"Expected net +69,364.32, got {summary['net_pnl_inr']}"
 
         # Check CSV exists and has the right number of rows
         csv_path = out_dir / "trades.csv"
@@ -91,6 +87,7 @@ def test_no_writes_to_data_folder() -> None:
         capture_output=True,
         text=True,
         env={**os.environ, "SHADOW_LOG": "0"},
+        check=False,
     )
 
     # Should fail with REG-11 error
@@ -103,6 +100,7 @@ def test_no_writes_to_data_folder() -> None:
         cwd=REPO_ROOT,
         capture_output=True,
         text=True,
+        check=False,
     )
     assert not git_result.stdout.strip(), f"Git detected changes in data/:\n{git_result.stdout}"
 
@@ -126,6 +124,7 @@ def test_deadline_enforced() -> None:
         capture_output=True,
         text=True,
         env={**os.environ, "SHADOW_LOG": "0"},
+        check=False,
     )
 
     # Should exit with code 2 (timeout)
@@ -149,6 +148,7 @@ def test_manifest_tamper_detection() -> None:
             cwd=REPO_ROOT,
             capture_output=True,
             text=True,
+            check=False,
         )
 
         # Should fail
@@ -168,6 +168,7 @@ def test_manifest_check_passes_on_clean_repo() -> None:
         cwd=REPO_ROOT,
         capture_output=True,
         text=True,
+        check=False,
     )
 
     assert result.returncode == 0, f"Manifest check failed:\n{result.stderr}"

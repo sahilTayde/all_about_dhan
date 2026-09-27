@@ -12,13 +12,12 @@ from __future__ import annotations
 import argparse
 import csv
 import json
-import os
 import signal
 import sys
 import tempfile
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 # ponytail: Dynamic import after sys.path guard. Caller ensures desk-ml is installed.
 
@@ -58,8 +57,8 @@ def run_benchmark(
 
     try:
         # Import desk_ml only after sys.path is ready
-        from desk_ml.paper_scalp import replay_paper_scalp  # type: ignore[import-untyped]
-        from desk_ml.testing.canonical import load_fixture  # type: ignore[import-untyped]
+        from desk_ml.paper_scalp import replay_paper_scalp  # type: ignore[import-not-found]
+        from desk_ml.testing.canonical import load_fixture  # type: ignore[import-not-found]
 
         # Load the tape
         fixture = load_fixture(tape_path.stem, folder=tape_path.parent)
@@ -74,9 +73,7 @@ def run_benchmark(
 
             # Minimal founder config
             underlyings = list(triples_by_und.keys())
-            (recon_dir / "founder_trade_underlyings.json").write_text(
-                json.dumps({"trade_underlyings": underlyings})
-            )
+            (recon_dir / "founder_trade_underlyings.json").write_text(json.dumps({"trade_underlyings": underlyings}))
 
             # Legacy params (from canonical.PARAMS_LEGACY)
             (recon_dir / "ml_paper_session_params.json").write_text(
@@ -86,10 +83,10 @@ def run_benchmark(
             # Patch lot size resolver
             saved_resolve = None
             try:
-                import desk_ml.paper_scalp as ps  # type: ignore[import-untyped]
+                import desk_ml.paper_scalp as ps  # type: ignore[import-not-found]
 
                 saved_resolve = ps.resolve_lot_size
-                ps.resolve_lot_size = lambda und, root=None: (int(lot_sizes.get(und, 25)), "fixture")  # type: ignore[misc,assignment]
+                ps.resolve_lot_size = lambda und, root=None: (int(lot_sizes.get(und, 25)), "fixture")
 
                 # Run frozen replay (flag off, live_session=True, write=False)
                 board = replay_paper_scalp(
@@ -103,7 +100,7 @@ def run_benchmark(
                 )
             finally:
                 if saved_resolve is not None:
-                    ps.resolve_lot_size = saved_resolve  # type: ignore[misc]
+                    ps.resolve_lot_size = saved_resolve
 
         # Extract filled trades
         closed_trades = board.get("closed_trades") or []
@@ -155,7 +152,7 @@ def run_benchmark(
         signal.alarm(0)
 
 
-def main(argv: Optional[list[str]] = None) -> int:
+def main(argv: list[str] | None = None) -> int:
     """Frozen legacy benchmark CLI."""
     ap = argparse.ArgumentParser(
         prog="python -m runtime bench-legacy",
@@ -175,7 +172,7 @@ def main(argv: Optional[list[str]] = None) -> int:
 
     # Validate day format
     try:
-        datetime.strptime(args.day, "%Y-%m-%d")
+        datetime.strptime(args.day, "%Y-%m-%d")  # noqa: DTZ007
     except ValueError:
         print(f"Error: invalid day format '{args.day}', expected YYYY-MM-DD", file=sys.stderr)
         return 1
@@ -215,7 +212,7 @@ def main(argv: Optional[list[str]] = None) -> int:
     except TimeoutError as e:
         print(f"Error: {e}", file=sys.stderr)
         return 2
-    except Exception as e:
+    except (ImportError, FileNotFoundError, ValueError, RuntimeError) as e:
         print(f"Error: {e}", file=sys.stderr)
         import traceback
 
