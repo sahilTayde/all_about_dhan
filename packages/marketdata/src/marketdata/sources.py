@@ -21,6 +21,8 @@ from marketdata.types import SimClock, Tick, bucket_start, parse_ts
 logger = logging.getLogger(__name__)
 
 _CLOCK_INTERVAL = timedelta(seconds=5)
+# Extra CLOCK after the last tick so the last 1m bar can finalize (shared by every source).
+_TAIL_DRAIN = timedelta(minutes=2)
 
 
 @dataclass(frozen=True)
@@ -82,6 +84,18 @@ def _iter_clocks(
     return cursor, out
 
 
+def _drain_tail(
+    last_clock: datetime | None,
+    last_event_ts: datetime | None,
+    clock: SimClock | None,
+) -> list[SourceEvent]:
+    """Emit CLOCK heartbeats for two minutes past the last tick (every source)."""
+    if clock is None or last_clock is None or last_event_ts is None:
+        return []
+    _cursor, clocks = _iter_clocks(last_clock, last_event_ts + _TAIL_DRAIN, clock)
+    return clocks
+
+
 class ListSource:
     """Yield TICK events from an in-memory list, optionally with CLOCK heartbeats."""
 
@@ -93,6 +107,7 @@ class ListSource:
         if not self._ticks:
             return
         last_clock: datetime | None = None
+        last_event_ts: datetime | None = None
         for tick in self._ticks:
             if not tick.exchange_ts:
                 continue
@@ -100,11 +115,8 @@ class ListSource:
             last_clock, clocks = _iter_clocks(last_clock, event_ts, self._clock)
             yield from clocks
             yield SourceEvent(event_type="TICK", payload=tick, available_ts=event_ts)
-        if self._clock is not None and last_clock is not None:
-            # Drain two extra minutes so the last 1m bar can finalize on CLOCK.
-            final_ts = parse_ts(self._ticks[-1].exchange_ts) + timedelta(minutes=2)
-            last_clock, clocks = _iter_clocks(last_clock, final_ts, self._clock)
-            yield from clocks
+            last_event_ts = event_ts
+        yield from _drain_tail(last_clock, last_event_ts, self._clock)
 
 
 class _JsonlSource:
@@ -122,10 +134,13 @@ class _JsonlSource:
 
     def events(self) -> Iterator[SourceEvent]:
         last_clock: datetime | None = None
+        last_event_ts: datetime | None = None
         for tick, event_ts in self._read_ticks():
             last_clock, clocks = _iter_clocks(last_clock, event_ts, self._clock)
             yield from clocks
             yield SourceEvent(event_type="TICK", payload=tick, available_ts=event_ts)
+            last_event_ts = event_ts
+        yield from _drain_tail(last_clock, last_event_ts, self._clock)
 
     def _open(self) -> TextIO:
         if self._path.suffix == ".gz" or self._path.name.endswith(".jsonl.gz"):
