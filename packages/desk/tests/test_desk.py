@@ -502,6 +502,27 @@ def test_unsaved_halt_is_kept_for_later_cycles_in_the_process(tmp_path, monkeypa
     assert sorted(_alert_kinds(tmp_path)) == ["RuntimeError", "halt_write"]
 
 
+def test_unsaved_halt_survives_a_restart_through_the_fallback_file(tmp_path, monkeypatch):
+    """PR #14 leftover: a halt the halt folder refused was lost when the loop restarted."""
+    import desk.executor as ex
+    from desk.executor import Desk
+
+    def refuse(self, state):
+        raise PermissionError(13, "read-only halt folder")
+
+    monkeypatch.setattr(Desk, "_write_halt", refuse)
+    first, _a1, pos = _cycle_with_mark(tmp_path, monkeypatch, error_at=T0 + 200)
+    assert not _halt_file(tmp_path).exists()
+    assert (tmp_path / ex.HALT_FALLBACK_REL).is_file()
+    exit1 = first.engine.closed[-1]["exit"]
+    ex._UNSAVED_HALTS.clear()  # the process restarts: memory is gone
+    ex._LIVE_ALERTED.clear()
+    desk, _audit, _p = _cycle_with_mark(tmp_path, monkeypatch, error_at=None)
+    (row,) = [r for r in desk.engine.closed if r["trade_id"] == pos.trade_id]
+    assert row["exit_reason"] == FAILSAFE_MTM and row["exit"] == exit1
+    assert desk._entry_halted(int(ticket(T0 + 400, side="PE").opened_ts))
+
+
 def test_strict_risk_file_books_a_typical_ticket_and_logs_a_veto(tmp_path):
     """Paper cap is ₹30,000. A ₹13,000 ticket books. A ₹31,037.50 ticket is vetoed with the reason split out."""
     desk, bus, audit, led, _steps = make_desk(tmp_path, REPO / "config" / "risk_limits.yaml")
