@@ -17,6 +17,7 @@ members = [
     "packages/events",
     "packages/health",
     "packages/ledger",
+    "packages/marketdata",
     "packages/risk-engine",
     "packages/trading_agents_india",
     "packages/warehouse",
