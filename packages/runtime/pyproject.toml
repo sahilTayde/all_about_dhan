@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "runtime"
 version = "2.15.0"
-description = "V2 runtime: engine kernel, last-good config, job deadlines, service entry points, and frozen legacy benchmark. Paper only."
+description = "V2 runtime: engine kernel, last-good config, job deadlines, service entry points, llm-advisor sidecar, and frozen legacy benchmark. Paper only."
 requires-python = ">=3.11"
 # Sibling in-repo packages (contracts, events, marketdata) are installed by
 # scripts/ci/install.sh with --no-deps. Do not list their bare PyPI names here:
@@ -35,3 +35,7 @@ strict = true
 warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = true
+
+[[tool.mypy.overrides]]
+module = ["desk_ml.*", "boss.*", "strategies.*"]
+ignore_missing_imports = true

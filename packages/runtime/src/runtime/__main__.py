@@ -24,6 +24,7 @@ from runtime.services import (
     run_engine,
     run_guarded,
     run_health,
+    run_llm_advisor,
     write_engine_status,
 )
 
@@ -57,8 +58,8 @@ def _idle(state_dir: Path, name: str) -> None:
     (state_dir / f"{name}.ready").write_text("ok\n", encoding="utf-8")
 
 
-_USAGE = """usage: python -m runtime {engine|health|reset-breaker|deploy|backup|restore|job|bench-legacy} ...
-  engine|health [--once] [--state-dir DIR] [--now ISO] [--mode replay|paper]
+_USAGE = """usage: python -m runtime {engine|health|llm-advisor|reset-breaker|deploy|backup|restore|job} ...
+  engine|health|llm-advisor [--once] [--state-dir DIR] [--now ISO] [--mode replay|paper]
   reset-breaker <service> [--state-dir DIR] [--now ISO]
   job <name> [--state-dir DIR]
   bench-legacy --day YYYY-MM-DD --tape PATH [--out DIR] [--deadline SECONDS]
@@ -120,7 +121,14 @@ def main(argv: list[str] | None = None) -> int:
             clock=clock,
         )
 
-    if cmd in {"marketdata", "gateway", "llm-advisor"}:
+    if cmd == "llm-advisor":
+
+        def _advisor() -> None:
+            run_llm_advisor(state, clock, once=args.once, replay=args.mode == "replay")
+
+        return run_guarded("llm-advisor", _advisor, state_dir=state, clock=clock)
+
+    if cmd in {"marketdata", "gateway"}:
         return run_guarded(cmd, lambda: _idle(state, cmd), state_dir=state, clock=clock)
 
     if cmd == "deploy":

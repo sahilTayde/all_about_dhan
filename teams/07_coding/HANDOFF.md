@@ -1,5 +1,28 @@
 # Handoff log — Team 07 Coding
 
+## As of now (2026-09-27 IST) — V2-19 llm-advisor sidecar (PAPER)
+
+```text
+From:     teams/07_coding
+To:       founder / 00 / 09
+Date:     2026-09-27
+Status:   PAPER / V2-19 / NO_PROMOTE / no live orders
+Accepted: V2-19 wires desk_ml.llm_analyst as python -m runtime
+  llm-advisor. Consumes boss:decisions (+ pos:updates book
+  snapshot), publishes ADVICE on llm:advice. Weight 0.
+  Replay uses RecordedProvider. Budget/provider config reused
+  (config/llm_analyst.yaml + Advisor DayBudget). Engine
+  kernel and BossSelector stay unaware of the sidecar: on /
+  off / hung provider leave decisions and timings identical.
+  Secrets stay on existing scrub/build_context tests.
+Rejected: LLM veto. Blocking review on the engine path.
+  DhanBroker. EventType enum change. Relock. Rebase.
+UNKNOWN: Redis consumer-group wiring for llm-advisor in
+  compose live-data (V2-15 still uses MemoryBus / ready file).
+```
+
+---
+
 ## As of now (2026-09-27 IST) — V2-04 onto main 971bf81 / V2-15 (PAPER)
 
 ```text

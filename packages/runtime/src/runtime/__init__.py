@@ -6,10 +6,12 @@ from runtime.services import (
     BREAKER_EXIT,
     SERVICES,
     BreakerView,
+    LlmAdvisorService,
     RestartBreaker,
     deploy,
     reset_breaker,
     run_guarded,
+    run_llm_advisor,
     write_engine_status,
 )
 
@@ -23,11 +25,13 @@ __all__ = [
     "DeadlineExceeded",
     "Engine",
     "JobTimeout",
+    "LlmAdvisorService",
     "RestartBreaker",
     "RunSummary",
     "deploy",
     "reset_breaker",
     "run_guarded",
+    "run_llm_advisor",
     "run_with_deadline",
     "write_engine_status",
 ]

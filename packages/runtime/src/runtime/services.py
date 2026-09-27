@@ -1,4 +1,4 @@
-"""V2-15 service entry points: restart breaker, stub engine, health, deploy.
+"""V2-15 service entry points + V2-19 llm-advisor sidecar.
 
 Paper only. No broker calls. Tests inject ``state_dir`` — never write ``data/``.
 
@@ -7,15 +7,22 @@ the file and ``python -m runtime health`` / ``reset-breaker``. We do not import
 ``health.v2_*`` and do not start the V2-14 loopback ``/metrics`` server.
 ``python -m health`` stays the legacy PR-004 monitor. One compose health
 process (this CLI). Protocol for the sibling: ``BreakerView.is_open``.
+
+V2-19: ``LlmAdvisorService`` consumes ``boss:decisions`` and publishes ``ADVICE``
+on ``llm:advice``. Weight 0: never waits in the engine, never vetoes, never
+places an order. Replay uses ``RecordedProvider`` (no provider HTTP).
 """
 
 from __future__ import annotations
 
+import contextlib
 import json
+import logging
 import os
 import shutil
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
+from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import asdict
 from datetime import datetime, timedelta
 from datetime import time as dt_time
@@ -24,6 +31,11 @@ from typing import Any, Protocol
 
 from contracts.clock import IST, Clock, LiveClock
 from contracts.payloads import EngineStatus
+
+log = logging.getLogger("runtime.services")
+ADVICE_STREAM = "llm:advice"
+DECISION_STREAM = "boss:decisions"
+POSITION_STREAM = "pos:updates"
 
 BREAKER_EXIT = 9
 CRASH_LIMIT = 5
@@ -301,3 +313,148 @@ def deploy(
     elif current:
         (state_dir / "deployed_sha").write_text(current + "\n", encoding="utf-8")
     return {"ok": False, "reason": "READY_TIMEOUT", "rolled_back": True, "sha": current or None}
+
+
+# ---------------------------------------------------------------------------
+# V2-19 llm-advisor sidecar (off the engine path; advice only)
+# ---------------------------------------------------------------------------
+
+
+def _side_from_instrument(instrument_id: object) -> str | None:
+    if not isinstance(instrument_id, str) or ":" not in instrument_id:
+        return None
+    tail = instrument_id.rsplit(":", 1)[-1].upper()
+    return tail if tail in {"CE", "PE"} else None
+
+
+class LlmAdvisorService:
+    """Consume DECISION / POSITION_UPDATE; emit ADVICE. Never on the hot path."""
+
+    def __init__(
+        self,
+        *,
+        replay: bool,
+        clock: Clock,
+        cfg: Mapping[str, Any] | None = None,
+        provider: Any = None,
+        sink: Callable[[dict[str, Any]], None] | None = None,
+        state_dir: Path | None = None,
+    ) -> None:
+        from desk_ml.llm_analyst import Advisor, load_config
+        from desk_ml.llm_analyst.providers import RecordedProvider
+
+        loaded = dict(cfg) if cfg is not None else load_config()
+        loaded["weight"] = 0.0
+        if state_dir is not None:
+            loaded["log_path"] = str(state_dir / "llm_calls.jsonl")
+            loaded["recorded_path"] = str(state_dir / "llm_recorded.jsonl")
+            if loaded.get("replay_log_path"):
+                loaded["replay_log_path"] = str(state_dir / "llm_replay.jsonl")
+        if replay:
+            loaded["replay_provider"] = "recorded"
+        self.clock = clock
+        self.replay = replay
+        self.cfg = loaded
+        self._sink = sink
+        self._book: dict[str, Any] | None = None
+        self.advisor = Advisor(loaded, replay=replay, provider=provider)
+        if replay and provider is None and not isinstance(self.advisor.provider, RecordedProvider):
+            self.advisor.provider = RecordedProvider(loaded)
+        self._pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix="llm-advisor")
+        self._pending: list[Future[None]] = []
+
+    def on_decision(self, decision: Mapping[str, Any]) -> None:
+        """Fire-and-forget. Returns immediately. Never raises into the caller."""
+        try:
+            self._pending.append(self._pool.submit(self._review_and_publish, dict(decision)))
+        except Exception:
+            log.exception("llm-advisor submit failed")
+
+    def on_position(self, update: Mapping[str, Any]) -> None:
+        """Remember the last book snapshot for the next compact context."""
+        try:
+            qty = update.get("net_qty")
+            self._book = {
+                "open_positions": 1 if isinstance(qty, (int, float)) and qty else 0,
+                "unrealized_inr": update.get("unrealized_inr"),
+                "mark": update.get("mark"),
+            }
+        except Exception:
+            log.exception("llm-advisor position snapshot failed")
+
+    def consume(self, stream: str, payload: Mapping[str, Any]) -> None:
+        if stream == DECISION_STREAM:
+            self.on_decision(payload)
+        elif stream == POSITION_STREAM:
+            self.on_position(payload)
+
+    def _context(self, decision: Mapping[str, Any]) -> dict[str, Any]:
+        from desk_ml.llm_analyst import build_context
+
+        now = self.clock.now()
+        if now.tzinfo is None:
+            raise ValueError("advisor clock must be IST-aware")
+        raw_shadow = decision.get("shadow")
+        shadow: Mapping[str, Any] = raw_shadow if isinstance(raw_shadow, Mapping) else {}
+        regime = {"regime": shadow.get("regime")} if shadow.get("regime") else None
+        return build_context(
+            underlying=str(decision.get("underlying") or ""),
+            tick_ts=int(now.timestamp()),
+            ist_time=now.astimezone(IST).strftime("%H:%M"),
+            signal={
+                "side": _side_from_instrument(decision.get("instrument_id")),
+                "confidence": 1.0 if decision.get("decision") == "ENTER" else 0.0,
+            },
+            regime=regime,
+            book=self._book,
+        )
+
+    def _review_and_publish(self, decision: dict[str, Any]) -> None:
+        from desk_ml.llm_analyst import PROMPT_VERSION
+
+        try:
+            out = self.advisor.review(self._context(decision))
+            verdict = str(out.get("verdict") or "abstain")
+            if verdict not in {"agree", "disagree", "abstain"}:
+                verdict = "abstain"
+            payload = {
+                "decision_id": str(decision.get("decision_id") or ""),
+                "verdict": verdict,
+                "reasons": [str(r) for r in (out.get("reasons") or [])],
+                "provider": str(self.advisor.provider.name),
+                "prompt_version": str(PROMPT_VERSION),
+                "cost_usd": float(out.get("cost_usd") or 0.0),
+                "context_hash": str(out.get("context_hash") or ""),
+            }
+            if self._sink is not None:
+                self._sink(payload)
+        except Exception:
+            log.exception("llm-advisor review failed (decision unchanged)")
+
+    def wait_idle(self, timeout_s: float = 5.0) -> None:
+        for fut in list(self._pending):
+            with contextlib.suppress(Exception):
+                fut.result(timeout=timeout_s)
+
+    def close(self) -> None:
+        self._pool.shutdown(wait=False, cancel_futures=True)
+        self.advisor.close()
+
+
+def run_llm_advisor(
+    state_dir: Path,
+    clock: Clock | None = None,
+    *,
+    once: bool = True,
+    replay: bool = True,
+    service: LlmAdvisorService | None = None,
+) -> LlmAdvisorService:
+    """``python -m runtime llm-advisor``. Replay defaults to RecordedProvider. No broker."""
+    clock = clock or LiveClock()
+    state_dir.mkdir(parents=True, exist_ok=True)
+    (state_dir / "llm-advisor.ready").write_text("ok\n", encoding="utf-8")
+    svc = service or LlmAdvisorService(replay=replay, clock=clock, state_dir=state_dir)
+    if once:
+        return svc
+    while True:
+        time.sleep(5)
