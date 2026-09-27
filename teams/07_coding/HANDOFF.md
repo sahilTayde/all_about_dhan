@@ -1,5 +1,23 @@
 # Handoff log — Team 07 Coding
 
+## As of now (2026-09-27 IST) — V2-09 paper position manager (NO_PROMOTE)
+
+```text
+From:     teams/07_coding
+To:       00 / 09
+Date:     2026-09-27
+Status:   V2-09 PAPER positions on V2-08 router / NO_PROMOTE
+Accepted: Exit loop from the held position + ExitPlan
+  (catastrophic, time stops, EOD, target/partial/trail,
+  founder, kill, strategy, failsafe MTM). IST clock.
+  REG-02a after envelopes, REG-03a-c, REG-05d, REG-15a-d.
+Rejected: Durable ledger/rehydrate (V2-10). Structural /
+  ATR / grace / flip / defaults.yaml (V2-09b). Live/Dhan.
+UNKNOWN: Resting-stop qty after add-on; V2-10 halt row.
+```
+
+---
+
 ## As of now (2026-09-22 IST) — freeze spill cols + 2s tick (NO_PROMOTE)
 
 ```text
