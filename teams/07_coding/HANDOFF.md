@@ -1,5 +1,65 @@
 # Handoff log — Team 07 Coding
 
+## As of now (2026-09-27 IST) — V2-15 + main merge + #36 runtime compat (NO_PROMOTE)
+
+```text
+From:     teams/07_coding
+To:       00 / 09 / founder
+Date:     2026-09-27
+Status:   PAPER V2-15 / NO_PROMOTE
+Accepted: Merged origin/main (6e5e582 V2-02). requirements/* byte-identical
+  to main. install.sh = main list + runtime (once). One packages/runtime
+  pyproject; python -m runtime dispatches engine/health/reset-breaker/job
+  and bench-legacy (V2-17 module copied from #36 @ 6286463). CI extra jobs
+  that can stay green: lint, types, integration, regression, determinism,
+  dry-run, docs, image. Removed placeholder jobs (no-lookahead, perf,
+  frozen-legacy). Mac: scripts/desk.sh unchanged; no new env; docker not
+  required for the Mac day.
+Rejected: Duplicating #36's frozen-legacy CI job / check_frozen_legacy.py /
+  config/legacy_frozen.sha256. Live-orders compose. Touching legacy engine
+  or data/.
+UNKNOWN: Whether #36 has merged yet. If not, resolve as below when it lands.
+
+When #36 (V2-17) merges to main, merge main into this branch (no rebase,
+no force-push). Exact keep/take:
+
+  packages/runtime/pyproject.toml
+    KEEP ours (name=runtime, combined description, ruff lint select,
+    line-length 120, mypy strict). One package only.
+
+  packages/runtime/src/runtime/__init__.py
+    KEEP ours (V2-15 exports; mentions frozen benchmark).
+
+  packages/runtime/src/runtime/__main__.py
+    KEEP ours (bench-legacy first, then engine/health/reset-breaker/job).
+
+  packages/runtime/src/runtime/bench_legacy.py
+    TAKE theirs if they differ. Ours was copied from #36 @ 6286463.
+
+  packages/runtime/tests/test_bench_legacy.py
+    TAKE theirs (includes manifest tests). Ours omitted tests that need
+    check_frozen_legacy.py.
+
+  .github/workflows/ci.yml
+    KEEP our extra jobs listed above. TAKE their frozen-legacy job (the
+    one that runs python scripts/ci/check_frozen_legacy.py). Do not keep
+    any echo-only placeholder.
+
+  scripts/ci/install.sh
+    Both add runtime. Result must be main's list + runtime, each once.
+
+  config/legacy_frozen.sha256
+    TAKE theirs (this branch does not add it).
+
+  scripts/ci/check_frozen_legacy.py
+    TAKE theirs (this branch does not add it).
+
+  requirements/*
+    KEEP main / byte-identical. No new third-party packages.
+```
+
+---
+
 ## As of now (2026-09-27 IST) — V2-15 compose / deploy / breaker (NO_PROMOTE)
 
 ```text
