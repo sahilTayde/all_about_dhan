@@ -34,6 +34,7 @@ SECRET_RULES = {
 # (path, rule) pairs that are known fakes. Keep this list short and explained.
 ALLOW = {
     ("packages/docs-auditor/tests/test_docs_auditor.py", "dhan_credential"),  # fake token proving the auditor redacts
+    ("packages/desk-ml/tests/test_llm_analyst.py", "jwt"),  # fake JWT proving the LLM prompt/log redacts (#17)
 }
 DATA_PAYLOADS = ("data/**/*.jsonl", "*.sqlite", "*.parquet", "*.feather", "data/tape/*", "*DUAL-TAPE*")
 # Tracked before PR-A and small; the derived agent_rag knowledge base is committed on purpose.
