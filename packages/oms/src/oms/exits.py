@@ -4,8 +4,10 @@ from __future__ import annotations
 
 from dataclasses import asdict, dataclass
 from datetime import datetime, time, timedelta
+from math import floor
 from typing import Any
 
+from contracts.instruments import India
 from contracts.payloads import (
     AtrStop,
     CatastrophicStop,
@@ -38,6 +40,47 @@ STALE_EXEMPT = frozenset({"FLATTEN_EOD", "FOUNDER_COMMAND", "KILL_SWITCH", "FAIL
 SEND_ON_CLOCK = frozenset({"TIME_EXIT", "FLATTEN_EOD"})
 STALE_MAX_AGE_S = 90.0
 FOUNDER_KINDS = frozenset({"CUT_LOSS", "FLATTEN", "FLATTEN_ALL", "KILL"})
+_INDIA = India()
+
+
+def instrument_lot_size(instrument_id: str) -> int:
+    """Lot size from `contracts.instruments.India`, never a hard-coded 65."""
+    symbol = str(_INDIA.parse_instrument_id(instrument_id).get("symbol") or "")
+    return _INDIA.lot_size(symbol)
+
+
+def whole_lots_qty(qty: int, lot_size: int) -> int:
+    """Largest whole-lot unit count ≤ qty. Raises if lot_size is not positive."""
+    if lot_size <= 0:
+        raise ValueError("lot_size must be positive")
+    return (int(qty) // lot_size) * lot_size
+
+
+def partial_exit_qty(
+    *,
+    orig_qty: int,
+    net_qty: int,
+    fraction: float,
+    instrument_id: str,
+) -> int | None:
+    """Units to sell on a PARTIAL, or None to skip.
+
+    close_lots = floor(orig_lots * fraction), minimum 1 lot when the book has
+    2+ lots. A 1-lot book skips: a partial is not a flatten.
+    """
+    lot = instrument_lot_size(instrument_id)
+    held_lots = int(net_qty) // lot
+    orig_lots = int(orig_qty) // lot
+    if held_lots <= 1:
+        return None
+    close_lots = min(held_lots, max(1, floor(orig_lots * float(fraction))))
+    return close_lots * lot
+
+
+def _held_exit_qty(pos: dict[str, Any]) -> int:
+    inst = str(pos.get("instrument_id") or "")
+    lot = instrument_lot_size(inst)
+    return whole_lots_qty(int(pos.get("net_qty") or 0), lot)
 
 
 @dataclass(frozen=True)
@@ -191,7 +234,7 @@ def evaluate(
     quote_max_age_s: float = STALE_MAX_AGE_S,
 ) -> ExitRequest | None:
     """Order of section 2.9. Structural / ATR / grace / flip are V2-09b (ignored here)."""
-    qty = int(pos.get("net_qty") or 0)
+    qty = _held_exit_qty(pos)
     if qty <= 0:
         return None
     plan: ExitPlan = pos["exit_plan"]
@@ -232,17 +275,21 @@ def evaluate(
         if done < len(partials):
             part = partials[done]
             if _hit_long(part.at, mark):
-                orig = int(pos.get("orig_qty") or qty)
-                close_qty = max(1, round(orig * float(part.fraction)))
-                close_qty = min(close_qty, qty)
-                return ExitRequest("PARTIAL", "partials", close_qty, price_hint=mark)
+                close_qty = partial_exit_qty(
+                    orig_qty=int(pos.get("orig_qty") or qty),
+                    net_qty=qty,
+                    fraction=float(part.fraction),
+                    instrument_id=str(pos.get("instrument_id") or ""),
+                )
+                if close_qty:
+                    return ExitRequest("PARTIAL", "partials", close_qty, price_hint=mark)
         if _hit_long(plan.target, mark):
             return ExitRequest("TARGET_HIT", "target", qty, price_hint=mark)
         trail = plan.trail
         if trail is not None and _hit_long(trail.activate_at, mark):
             step = float(trail.step or 0.0)
-            floor = float(trail.activate_at.price)
-            proposed = max(stop, mark - step) if step else max(stop, floor)
+            trail_floor = float(trail.activate_at.price)
+            proposed = max(stop, mark - step) if step else max(stop, trail_floor)
             if proposed > stop + 1e-9:
                 return ExitRequest(
                     "TRAIL_STOP", "trail", 0, new_stop=round(proposed, 2), price_hint=mark

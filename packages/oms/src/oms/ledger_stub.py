@@ -6,8 +6,21 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from typing import Any
 
+from contracts.instruments import India
 from ledger.charges import exchange_for, order_charges
 from risk_engine.engine import IST
+
+_INDIA = India()
+
+
+def _fill_lot_size(instrument_id: str) -> int | None:
+    if not instrument_id:
+        return None
+    try:
+        symbol = str(_INDIA.parse_instrument_id(instrument_id).get("symbol") or "")
+        return _INDIA.lot_size(symbol)
+    except ValueError:
+        return None
 
 
 @dataclass
@@ -72,6 +85,9 @@ class MemoryLedger:
         strategy_id: str = "",
     ) -> ChargeRow:
         stamp = ts or datetime.now(IST)
+        lot = _fill_lot_size(instrument_id)
+        if lot is not None and int(qty) % lot != 0:
+            raise ValueError(f"fill qty {qty} is not a multiple of lot size {lot}")
         status = "PENDING"
         components: dict[str, float] = {}
         exchange: str | None = None

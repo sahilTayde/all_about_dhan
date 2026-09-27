@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import datetime, timedelta
 from typing import Any
 
@@ -21,9 +22,11 @@ from oms.exits import (
     as_ist,
     choose_time_stop,
     evaluate,
+    instrument_lot_size,
     plan_as_json,
     plan_from_mapping,
     quote_is_stale,
+    whole_lots_qty,
 )
 from oms.ledger_stub import MemoryLedger
 from oms.router import OrderRouter, symbol_from_instrument
@@ -358,7 +361,10 @@ class PositionManager:
         )
         self._alert("FAILSAFE_MTM", "*", "raising mark")
         for pos in list(self.store.open_positions()):
-            qty = int(pos["net_qty"])
+            inst = str(pos.get("instrument_id") or "")
+            qty = whole_lots_qty(int(pos["net_qty"]), instrument_lot_size(inst))
+            if qty <= 0:
+                continue
             hint = pos.get("last_good_quote")
             self._apply(
                 pos,
@@ -451,20 +457,25 @@ class PositionManager:
 def held_position(row: dict[str, Any]) -> Position:
     """REG-03: exit is built from the held record, never a recomputed strike."""
     inst = str(row.get("instrument_id") or "")
+    lot = instrument_lot_size(inst)
+    qty = whole_lots_qty(int(row.get("net_qty") or 0), lot)
     return Position(
         symbol=str(row.get("symbol") or symbol_from_instrument(inst)),
-        net_qty=int(row.get("net_qty") or 0),
+        net_qty=qty,
         avg_price=float(row.get("avg_price") or 0),
         instrument_id=inst,
     )
 
 
 def exit_from_held(row: dict[str, Any], reason: str) -> Any:
-    return exit_intent(
-        held_position(row),
+    held = held_position(row)
+    lot = instrument_lot_size(held.instrument_id)
+    raw = exit_intent(
+        held,
         exit_reason=reason,
         decision_price=row.get("exit_price_hint"),
     )
+    return replace(raw, lots=held.net_qty // lot, lot_size=lot)
 
 
 __all__ = [

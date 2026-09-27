@@ -16,6 +16,7 @@ from ledger.charges import load_rates
 from risk_engine import RiskDecision, TradeIntent
 from risk_engine.last_good import LastGood, V2RiskEngine
 
+from oms.exits import whole_lots_qty
 from oms.ledger_stub import MemoryLedger
 
 
@@ -135,7 +136,7 @@ class OrderRouter:
             return self._veto(oid, "CONFIG_INVALID", "cost config invalid; entries blocked")
         instrument_id = decision.instrument_id or ""
         lots = int(decision.lots or 0)
-        lot_size = int(decision.lot_size or lot_size_for(instrument_id))
+        lot_size = lot_size_for(instrument_id)
         stop = _catastrophic_price(plan, decision)
         intent = self._intent(
             client_order_id=oid,
@@ -213,7 +214,7 @@ class OrderRouter:
         """Lookup-by-id before resend. Risk already approved this client_order_id."""
         instrument_id = str(existing.get("instrument_id") or decision.instrument_id or "")
         lots = int(existing.get("lots") or decision.lots or 0)
-        lot_size = int(existing.get("lot_size") or decision.lot_size or lot_size_for(instrument_id))
+        lot_size = lot_size_for(instrument_id)
         intent = self._intent(
             client_order_id=oid,
             instrument_id=instrument_id,
@@ -323,9 +324,12 @@ class OrderRouter:
         self.store.set_protective(key, stop_oid)
 
     def exit(self, position: dict[str, Any], reason: str) -> Order:
-        """REG-03: always `exit_intent` from the held instrument and qty."""
+        """REG-03: always `exit_intent` from the held instrument and whole-lot qty."""
         inst = str(position.get("instrument_id") or "")
-        qty = int(position.get("net_qty") or 0)
+        lot = lot_size_for(inst)
+        qty = whole_lots_qty(int(position.get("net_qty") or 0), lot)
+        if qty <= 0:
+            raise ValueError("exit qty must be a whole lot")
         acc = str(position.get("account_id") or "founder")
         parent = str(position.get("entry_order_id") or position.get("position_id") or "x")
         self._exit_seq += 1
@@ -344,7 +348,8 @@ class OrderRouter:
                 float(hint) if hint is not None else (float(position.get("avg_price") or 0) or None)
             ),
         )
-        intent = replace(raw, client_order_id=oid)
+        # exit_intent uses lot_size=1; rewrite to India lot size so lots are whole lots.
+        intent = replace(raw, client_order_id=oid, lots=qty // lot, lot_size=lot)
         if inst:
             position["instrument_id"] = inst
         rd = self.risk.check_exit(intent, "EXIT", now=self.clock.now())

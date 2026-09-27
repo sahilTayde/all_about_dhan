@@ -21,7 +21,7 @@ from contracts.payloads import (
 from events.bus import MemoryBus
 from risk_engine import IST, V2RiskEngine
 
-from oms import Account, MemoryLedger, OrderRouter, PositionManager, Veto
+from oms import Account, MemoryLedger, OrderRouter, PositionManager, Veto, lot_size_for
 
 INST = "NSE_FNO:NIFTY:2026-09-29:24400:CE"
 START = datetime(2026, 9, 28, 10, 1, tzinfo=IST)
@@ -55,7 +55,7 @@ def _decision(decision_id: str, lots: int) -> Decision:
         signal_ids=[],
         instrument_id=INST,
         lots=lots,
-        lot_size=65,
+        lot_size=lot_size_for(INST),
         limit_price=151.40,
         shadow={"chosen": "ITM100"},
     )
@@ -154,7 +154,7 @@ def run() -> None:
                 payload={"instrument_id": INST, "bid": 155.00, "ask": 155.20, "ltp": 155.10},
             )
         )
-        _print_book("partial at 155 (50% of original)", pm)
+        _print_book("partial at 155 (50% → floor 1 lot, leave 2)", pm)
 
         clock.advance_to(START.replace(hour=10, minute=45))
         iso = clock.now().isoformat()
