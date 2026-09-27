@@ -209,9 +209,7 @@ def in_market_deploy_window(now: datetime) -> bool:
     return DEPLOY_BLOCK_START <= t <= DEPLOY_BLOCK_END
 
 
-def wait_ready(
-    state_dir: Path, *, timeout_s: float = 30.0, sleep: Callable[[float], None] = time.sleep
-) -> bool:
+def wait_ready(state_dir: Path, *, timeout_s: float = 30.0, sleep: Callable[[float], None] = time.sleep) -> bool:
     deadline = time.monotonic() + timeout_s
     while time.monotonic() < deadline:
         path = engine_status_path(state_dir)

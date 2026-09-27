@@ -119,23 +119,23 @@ def test_deploy_rolls_back_when_ready_never_arrives(tmp_path: Path) -> None:
         ready_timeout_s=0.2,
         start_engine=lambda: None,
     )
-    assert (
-        result["ok"] is False
-        and result["reason"] == "READY_TIMEOUT"
-        and result["rolled_back"] is True
-    )
+    assert result["ok"] is False and result["reason"] == "READY_TIMEOUT" and result["rolled_back"] is True
     assert (tmp_path / "deployed_sha").read_text(encoding="utf-8").strip() == "oldsha"
     assert (tmp_path / "marker").read_text(encoding="utf-8") == "keep\n"
 
 
 def test_deploy_succeeds_before_open_when_ready(tmp_path: Path) -> None:
     clock = SimClock(PRE)
+
+    def _start() -> None:
+        write_engine_status(tmp_path, clock)
+
     result = deploy(
         "newsha",
         state_dir=tmp_path,
         clock=clock,
         ready_timeout_s=2.0,
-        start_engine=lambda: write_engine_status(tmp_path, clock),
+        start_engine=_start,
     )
     assert result["ok"] is True and result["sha"] == "newsha"
 
@@ -145,9 +145,7 @@ def test_restore_reproduces_output_hash(tmp_path: Path) -> None:
     snap = tmp_path / "snap"
     restored = tmp_path / "restored"
     day.mkdir()
-    (day / "engine_status.json").write_text(
-        '{"status":"READY","session":"2026-09-28"}\n', encoding="utf-8"
-    )
+    (day / "engine_status.json").write_text('{"status":"READY","session":"2026-09-28"}\n', encoding="utf-8")
     (day / "trades").write_text("t1\n", encoding="utf-8")
     digest = backup_state(day, snap)
     assert (snap / "output_hash").read_text(encoding="utf-8").strip() == digest
@@ -191,11 +189,7 @@ def test_dockerfile_is_non_root() -> None:
 
 def test_compose_up_replay_reaches_ready(tmp_path: Path) -> None:
     """Same command compose runs: engine --mode replay writes READY with no credentials."""
-    env = {
-        k: v
-        for k, v in os.environ.items()
-        if not k.startswith("DHAN_") and k != "ALL_ABOUT_DHAN_LIVE_CONFIRM"
-    }
+    env = {k: v for k, v in os.environ.items() if not k.startswith("DHAN_") and k != "ALL_ABOUT_DHAN_LIVE_CONFIRM"}
     proc = subprocess.run(
         [
             sys.executable,
