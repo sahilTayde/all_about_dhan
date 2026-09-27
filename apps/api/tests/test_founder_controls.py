@@ -2,6 +2,7 @@
 
 import json
 import shutil
+import time
 from pathlib import Path
 
 import pytest
@@ -9,10 +10,12 @@ from fastapi.testclient import TestClient
 
 from api import founder_controls as fcr
 from api.main import create_app
-from desk_ml.founder_commands import append_statuses, read_commands
+from desk_ml.founder_commands import append_statuses, make_row, read_commands
+from desk_ml.founder_commands.log import first_seen_path
 
 REPO = Path(__file__).resolve().parents[3]
 LOCAL = ("127.0.0.1", 50000)
+BASE = "http://127.0.0.1:8000"
 
 
 @pytest.fixture
@@ -28,7 +31,7 @@ def root(tmp_path, monkeypatch):
 def client(root):
     app = create_app()
     app.state.founder_root = root
-    return TestClient(app, client=LOCAL)
+    return TestClient(app, client=LOCAL, base_url=BASE)
 
 
 def token(client, kind, trade_id=None):
@@ -53,13 +56,19 @@ ROUTES = [
 def test_localhost_only(root, monkeypatch):
     app = create_app()
     app.state.founder_root = root
-    assert TestClient(app).get("/founder/controls").status_code == 403  # host "testclient"
-    assert TestClient(app, client=("10.0.0.7", 1)).post("/founder/controls/stop", json={"reason": "x"}).status_code == 403
-    local = TestClient(app, client=LOCAL)
+    assert TestClient(app, base_url=BASE).get("/founder/controls").status_code == 403  # client "testclient"
+    remote = TestClient(app, client=("10.0.0.7", 1), base_url=BASE)
+    assert remote.post("/founder/controls/stop", json={"reason": "x"}).status_code == 403
+    local = TestClient(app, client=LOCAL, base_url=BASE)
     assert local.get("/founder/controls").status_code == 200
     assert local.get("/founder/controls", headers={"X-Forwarded-For": "1.2.3.4"}).status_code == 403
+    for host in ("localhost:5173", "[::1]:8000", "127.0.0.1"):
+        assert local.get("/founder/controls", headers={"Host": host}).status_code == 200, host
+    for host in ("evil.example", "evil.example:8000", "127.0.0.1.evil.example", ""):  # DNS rebinding
+        assert local.post("/founder/controls/stop", json={"reason": "x"}, headers={"Host": host}).status_code == 403, host
+    assert TestClient(app, client=LOCAL).get("/founder/controls").status_code == 403  # Host "testserver"
     monkeypatch.setenv(fcr.REMOTE_ENV, "1")
-    assert TestClient(app, client=("10.0.0.7", 1)).get("/founder/controls").status_code == 200
+    assert remote.get("/founder/controls").status_code == 200
     assert read_commands(root).rows == []  # the refused POST wrote nothing
 
 
@@ -175,6 +184,19 @@ def test_history_shows_pending_applied_and_rejected(client, root):
     assert body["state"]["paused_until_ist"] and body["state"]["running"] is False  # START, STOP, PAUSE 15
     assert body["state"]["entries_blocked_reason"] == "FOUNDER_STOPPED"
     assert body["limits"]["max_lots"] == 25 and body["paper_only"] and body["orders"] == "REFUSED"
+
+
+def test_history_uses_the_first_seen_anchor(client, root):
+    """Entries are blocked from when the live loop first saw the bad line, not from the last good one."""
+    now = time.time()
+    path = root / "data" / "recon" / "founder_controls.jsonl"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    good = make_row("START", {}, actor="t", reason="t", ts=now - 7200, command_id="g1")
+    path.write_text(json.dumps(good) + "\ngarbage\n", encoding="utf-8")
+    assert client.get("/founder/controls").json()["state"]["entries_blocked_reason"] == "FOUNDER_CONTROLS_UNREADABLE"
+    key = read_commands(root).anchors[0][0]
+    first_seen_path(root).write_text(json.dumps({key: now + 3600}), encoding="utf-8")  # loop sees it in an hour
+    assert client.get("/founder/controls").json()["state"]["entries_blocked_reason"] is None
 
 
 def test_corrupt_log_shows_entries_blocked(client, root):

@@ -5,7 +5,8 @@ Each POST appends one timestamped command (actor, reason) to the durable founder
 it from that timestamp on its next cycle and reports applied / rejected. A resent
 ``command_id`` returns the stored ack instead of a second command.
 
-Localhost only, unless ``AAD_FOUNDER_CONTROLS_REMOTE=1`` (put your own auth in front first).
+Localhost only (client address and Host header, which also stops DNS rebinding), unless
+``AAD_FOUNDER_CONTROLS_REMOTE=1`` (put your own auth in front first).
 Kill switch, cut loss and re-arm need a single-use token from ``POST /founder/controls/confirm``.
 Nothing here places or routes an order.
 """
@@ -29,17 +30,28 @@ from pydantic import BaseModel, ConfigDict, Field
 
 REMOTE_ENV = "AAD_FOUNDER_CONTROLS_REMOTE"
 LOCAL_HOSTS = frozenset({"127.0.0.1", "::1", "localhost"})
+LOCAL_HOST_HEADERS = frozenset({"127.0.0.1", "localhost", "[::1]"})
 TOKEN_TTL_S = 120
 KNOWN_INDICES = ("NIFTY", "BANKNIFTY", "SENSEX")
 _ID = r"^[A-Za-z0-9_.:-]{1,64}$"
 _HHMM = r"^([01]\d|2[0-3]):[0-5]\d$"
 
 
+def _host_name(header: Optional[str]) -> str:
+    """Host header without the port: ``127.0.0.1:8000`` -> ``127.0.0.1``, ``[::1]:8000`` -> ``[::1]``."""
+    h = str(header or "").strip().lower()
+    if h.startswith("["):
+        return h[: h.find("]") + 1] if "]" in h else h
+    return h.split(":")[0]
+
+
 def local_only(request: Request) -> None:
     if os.environ.get(REMOTE_ENV) == "1":
         return
     host = request.client.host if request.client else None
-    if host not in LOCAL_HOSTS or "x-forwarded-for" in request.headers:
+    if host not in LOCAL_HOSTS or _host_name(request.headers.get("host")) not in LOCAL_HOST_HEADERS or (
+        "x-forwarded-for" in request.headers
+    ):
         raise HTTPException(403, f"founder controls are localhost-only (set {REMOTE_ENV}=1 behind your own auth)")
 
 
@@ -153,14 +165,10 @@ class ConfirmBody(BaseModel):
 
 def lots_cap(root: Path) -> Optional[int]:
     """Largest lots override allowed: the engine's paper max and the risk limits for the active mode."""
-    try:
-        from desk_ml.paper_scalp import PAPER_MAX_LOTS
-        from risk_engine.engine import load_limits
+    from desk_ml.founder_commands import lots_cap as shared_cap
+    from desk_ml.paper_scalp import PAPER_MAX_LOTS
 
-        cfg = load_limits(root / "config" / "risk_limits.yaml")
-        return min(int(PAPER_MAX_LOTS), int(cfg["modes"][cfg["mode"]]["max_lots_per_trade"]))
-    except Exception:
-        return None
+    return shared_cap(root, PAPER_MAX_LOTS)
 
 
 def _ist(ts: float) -> str:
@@ -259,11 +267,11 @@ router = APIRouter(prefix="/founder/controls", tags=["founder-controls"], depend
 @router.get("")
 def history(request: Request, limit: int = 200) -> dict[str, Any]:
     """Every command (newest first) with pending / applied / rejected, the current state and open tickets."""
-    from desk_ml.founder_commands import CommandBook, read_commands, read_statuses
+    from desk_ml.founder_commands import CommandBook, anchor_first_seen, read_commands, read_statuses
 
     root, now = data_root(request), time.time()
     res = read_commands(root)
-    book = CommandBook(res.rows, res.problems, res.blocked_from)
+    book = CommandBook(res.rows, res.problems, anchor_first_seen(root, res) if res.anchors else None)
     board = _read_board(root)
     live = {r["id"]: r for r in ((board.get("founder_controls") or {}).get("results") or []) if r.get("id")}
     acks = read_statuses(root)
