@@ -1,0 +1,41 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "strategies"
+version = "2.0.0+aad"
+description = "V2 strategy runtime (paper only). V2-06 registry/runtime + V2-06b strike router."
+requires-python = ">=3.11"
+dependencies = ["contracts==2.0.0+aad", "PyYAML>=6"]
+
+[project.optional-dependencies]
+dev = ["pytest>=7.0.0", "mypy>=1.0.0", "ruff>=0.1.0"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "SIM", "RUF"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+mypy_path = "../contracts/src"
+
+[[tool.mypy.overrides]]
+module = "contracts.*"
+# contracts ships without py.typed on this branch; types still live in payloads.py.
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "strategies.strikes"
+# Unchanged V2-06b file from PR #43.
+disable_error_code = ["no-any-return"]
