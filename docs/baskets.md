@@ -9,6 +9,7 @@ It is a separate module that does not edit any existing file:
 | Path | What |
 |---|---|
 | `packages/strategy-basket/src/strategy_basket/basket.py` | card schema, loaders, selector, shadow log, bus wiring, CLI |
+| `packages/strategy-basket/src/strategy_basket/entry.py` | entry-location policy: zones (FVG, candle 50%, POC), entry distance in ATR, verdicts |
 | `packages/strategy-basket/tests/` | tests (`conftest.py` puts `src` on the path until the package is installed) |
 | `config/baskets/selector.yaml` | flags: `enabled` (default `false`), founder off file, paths |
 | `config/baskets/india.yaml`, `config/baskets/forex.yaml` | instruments, selection gates, strategy cards |
@@ -69,7 +70,8 @@ after `self.boss = Boss(...)` (plus its import):
 
 `attach_from_settings` returns `None` when the feature is off or the founder switch is set, and
 then it subscribes nothing. When it is on, it subscribes to `MARKET_TICK` (priority 15: after the
-desk's mark-to-market at 10, before the boss at 20) and to `REGIME_LABEL`. It never publishes,
+desk's mark-to-market at 10, before the boss at 20), `REGIME_LABEL`, and `ENTRY_APPROVED` (to
+measure each boss ticket). It never publishes,
 and it catches its own errors, so it cannot add to `bus.errors` or change an entry. Merging it
 also needs `packages/strategy-basket` added to `.cursor/install.sh` and the uv workspace; after
 that, the tests' `conftest.py` can be deleted.
@@ -77,6 +79,66 @@ that, the tests' `conftest.py` can be deleted.
 Until the hook lands, `strategy_basket.BasketEventSession(...)` is an `EventSession` with that
 line applied. Replays and tests use it:
 `replay_paper_scalp(..., event_session=BasketEventSession())`.
+
+## Entry-location policy
+
+Legacy entries chase the top of big impulse candles, then give 4–5 points back as price retraces
+into the imbalance the move came from. So every strategy card must declare where it enters, and
+every boss ticket gets its entry location measured.
+
+**On each card** (required):
+
+```yaml
+entry_policy: {kind: chase}                                           # enter at the signal (legacy)
+entry_policy: {kind: pullback_limit, zone: fvg, timeout_bars: 3}      # zone: fvg | candle_50 | poc
+entry_policy: {kind: wait_consolidation, timeout_bars: 5}             # timeout optional
+# any kind may add  max_stretch_atr: 1.2   (else the basket's entry_location.max_stretch_atr)
+```
+
+`pullback_limit` needs a `zone` and `timeout_bars` (closed 1-minute bars). `chase` has no timeout.
+Only `pullback_limit` names a zone. The seed card `MIX-DEFAULT-BUY` is `chase`, because that is
+what legacy does.
+
+**On each signal.** For every boss `ENTRY_APPROVED` ticket, a `signal` row is written. It uses
+only today's index 1-minute bars that closed before the ticket's tick; the forming minute is never
+read. The row records:
+- the index price;
+- Wilder ATR (`atr_period`) on those bars;
+- each zone:
+  - `fvg`: the last 3-candle fair-value gap in the trade's direction within `lookback_bars`;
+  - `candle_50`: 50% of the last candle in the trade's direction with range ≥ `impulse_atr_mult` × ATR;
+  - `poc`: the session's highest-volume price bucket, `poc_bucket_atr` × ATR wide, using time at
+    price when the tape has no volume.
+- each zone's `distance_atr`: signed distance from the zone's near edge, positive when price has
+  run beyond it in the trade's direction (above for CE, below for PE), 0 inside it, negative when
+  the zone is still ahead;
+- `entry_distance_atr` and `zone_type`: the nearest zone **behind** the price (distance ≥ 0).
+  Zones ahead are logged but never picked, so a far-away POC cannot hide a stretched entry.
+
+Each applicable card then gets a verdict. Nothing is enforced (`enforced: false`); the basket is
+shadow only.
+
+| action | when | `veto_reason` |
+|---|---|---|
+| `ENTER` | distance ≤ cap, or no cap configured | — |
+| `VETO_STRETCHED` | `chase` card, distance > cap | `STRETCHED_ENTRY: <d> ATR beyond <zone> > max <cap>` |
+| `WAIT_PULLBACK` | `pullback_limit`, distance to its zone > cap; logs `limit_index_level` (the zone edge) | — |
+| `WAIT_CONSOLIDATION` | `wait_consolidation`, distance > cap | — |
+| `CHASE_NOT_ALLOWED` | `chase` card while `mode: require` | `CHASE_POLICY_NOT_ALLOWED` |
+| `NO_ZONE_BEHIND` | no zone behind the price (or the card's own zone is ahead of it) | — |
+| `DATA_INSUFFICIENT` | not enough closed bars for ATR | — |
+
+**In the selector** (`entry_location.mode` in the basket yaml):
+- `log_only` (default): weights are unchanged, and chase cards carry an `entry_note` saying what
+  the other modes would do.
+- `prefer`: a chase card's weight is multiplied by `chase_weight_mult`, and it ranks after
+  non-chasing cards of the same rank.
+- `require`: chase cards get weight 0 with reason `entry_policy_chase`.
+
+**All thresholds are placeholders.** `max_stretch_atr`, `chase_weight_mult`, `lookback_bars`,
+`impulse_atr_mult` and `poc_bucket_atr` are marked `PLACEHOLDER` in `config/baskets/india.yaml`
+until research round 10 sets them. On the synthetic fixture day, with the placeholder 1.0 ATR cap,
+7 of 12 legacy tickets log `VETO_STRETCHED`. That is a smoke check on synthetic data, not evidence.
 
 ## Switching it on and off
 
@@ -101,16 +163,21 @@ must be identical.
 
 One JSON object per line with these fields:
 - `day`, `ts` (the tick it was decided on), `time_ist`, `underlying`, `market`;
-- `trigger` (`pre_open` | `regime_change`);
+- `trigger` (`pre_open` | `regime_change` | `signal`);
 - `regime`: `primary`, `vol`, `expiry`, `key`, `source` (`pre_open` | `regime_service`),
   `label_ts` (the labelled minute), `labels`, `version`, `features`;
 - `basket`;
 - `lab`: which lab file, whether it was used or ignored and why, rejected entries, error;
 - `shadow: true`, `places_orders: false`.
 
+`signal` rows carry `signal` (trade id, side, strike, entry premium, price, `atr`, `zones`,
+`entry_distance_atr`, `zone_type`), `verdicts` (one per card for that index, with its current
+weight), `vetoes` (card id → `veto_reason`), `regime_key` and `entry_mode`, instead of `regime`
+and `basket`.
+
 `basket.strategies` is ranked. Selected strategies come first (by the lab's `rank`, then weight,
 then id), then weight-0 strategies by id. Each entry has `id`, `weight`, `raw_weight`, `rank`
-(null when the weight is 0), `reason` and `score`.
+(null when the weight is 0), `reason`, `score`, `entry_policy` and `entry_note`.
 
 | reason | weight 0 because |
 |---|---|
@@ -121,6 +188,7 @@ then id), then weight-0 strategies by id. Each entry has `id`, `weight`, `raw_we
 | `status_watch` / `status_parked` / `status_parked_for_forex_test` | the status for this regime is not `active_candidate` |
 | `failed_min_trades` / `failed_pf` / `failed_net_pnl` / `failed_dsr` | below the `selection` gates |
 | `zero_weight` | the lab gave weight 0 |
+| `entry_policy_chase` | `entry_location.mode: require` and the card's `entry_policy` is `chase` |
 
 If the selected weights add up to more than `selection.max_total_weight`, they are scaled down
 proportionally and rounded down to 1e-6, so the total never exceeds the cap. Rows contain no
@@ -138,6 +206,9 @@ and validates, but it is never attached to an underlying and the selector gives 
   are metadata for the basket only. The engine gets its lot size from the Dhan instrument master,
   and the `expiry_day` flag comes from the regime service's calendar.
 - `selection`: `max_total_weight`, `min_trades`, `min_pf`, `min_dsr` (0..1), `require_positive_net`.
+- `entry_location` (required): `mode` (`log_only` | `prefer` | `require`), `max_stretch_atr`
+  (null = no cap), `chase_weight_mult`, `atr_period`, `lookback_bars`, `impulse_atr_mult`,
+  `poc_bucket_atr`. See the entry-location section.
 - `lab_scores`: path of the lab refresh file (relative to the repo root).
 - `strategies`: strategy cards. In yaml, `scores` may be empty (the card is then weight 0 until the lab scores it).
 - A `regime:` block is rejected. Regime thresholds belong to `config/regime.yaml`.
@@ -158,6 +229,8 @@ rules:                     # all five, each a non-empty mapping of exact paramet
   skip: {...}
 param_ranges:              # the values that were actually tested
   stop_frac: [0.30, 0.35, 0.40]
+entry_policy:              # required; see the entry-location section
+  {kind: pullback_limit, zone: fvg, timeout_bars: 3, max_stretch_atr: 1.2}
 scores:                    # keyed by regime key; every field required
   trend_up.vol_normal.non_expiry_day:
     {net_pnl: 41250.5, pf: 1.42, trades: 64, win_rate: 0.53, dsr: 0.96, weight: 0.4, rank: 1, status: active_candidate}
