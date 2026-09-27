@@ -152,12 +152,15 @@ _snapshot_before: dict[str, tuple[float, int]] = {}
 
 
 def _take_snapshot() -> dict[str, tuple[float, int]]:
-    """Take snapshot of data/ and config/ (mtime, size)."""
+    """Take snapshot of data/ and config/ (mtime, size), excluding __pycache__."""
     snapshot = {}
     for protected in PROTECTED_DIRS:
         if not protected.exists():
             continue
         for path in protected.rglob("*"):
+            # Skip __pycache__ directories and their contents (Python import side effect)
+            if "__pycache__" in path.parts:
+                continue
             if path.is_file():
                 try:
                     stat = path.stat()
