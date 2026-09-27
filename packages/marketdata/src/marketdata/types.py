@@ -39,7 +39,7 @@ class BarClosed:
     v: int | None
     n_ticks: int
     gap: bool = False
-    late_ticks: int = 0
+    late_ticks: int = 0  # ticks dropped while this bar was open (event_ts before bucket start)
     available_ts: str = ""
 
 

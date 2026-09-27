@@ -37,6 +37,30 @@ def test_bar_closed_at_bucket_close() -> None:
     assert clock.now() >= datetime.fromisoformat(bar.end)
 
 
+def test_late_tick_before_any_finalize_does_not_pollute_open_bar() -> None:
+    """F1: delayed 09:15:45 print must not rewrite an open 09:16 bar (no bar finalized yet)."""
+    builder = BarBuilder()
+    first_ts = datetime(2026, 1, 6, 9, 16, 0, tzinfo=IST)
+    builder.on_tick(Tick("NIFTY", 22000.0, 10, 10, 1000, "2026-01-06T09:16:00+05:30"), first_ts)
+    late = builder.on_tick(Tick("NIFTY", 21000.0, 10, 10, 1000, "2026-01-06T09:15:45+05:30"), first_ts)
+    assert late == []
+    assert builder.late_tick_count == 1
+    bars = builder.on_tick(
+        Tick("NIFTY", 22010.0, 10, 10, 1000, "2026-01-06T09:17:00+05:30"),
+        datetime(2026, 1, 6, 9, 17, 0, tzinfo=IST),
+    )
+    assert len(bars) == 1
+    bar = bars[0]
+    assert bar.start == "2026-01-06T09:16:00+05:30"
+    assert bar.end == "2026-01-06T09:17:00+05:30"
+    assert bar.o == 22000.0
+    assert bar.h == 22000.0
+    assert bar.l == 22000.0
+    assert bar.c == 22000.0
+    assert bar.n_ticks == 1
+    assert bar.late_ticks == 1
+
+
 def test_bar_never_revised() -> None:
     builder = BarBuilder()
     clock = SimClock(datetime(2026, 1, 6, 9, 15, 0, tzinfo=IST))
@@ -50,6 +74,7 @@ def test_bar_never_revised() -> None:
     assert builder.late_tick_count == 1
     assert first.o == 22000.0
     assert first.c == 22000.0
+    assert first.late_ticks == 0  # already emitted; late print cannot revise it
 
 
 def test_finalize_delay() -> None:
