@@ -211,14 +211,31 @@ class PositionManager:
         )
 
     def assert_stop_invariant(self) -> None:
+        """sum(open STOP_HIT qty) == net_qty for every name; 0 open stops when flat."""
+        open_keys: set[str] = set()
         for pos in self.store.open_positions():
             key = _key(pos)
-            if not self.store.has_protective(key):
+            open_keys.add(key)
+            net = int(pos.get("net_qty") or 0)
+            stop_qty = self.router.open_stop_qty(key)
+            if stop_qty != net:
+                raise RuntimeError(f"REG-02: open stop qty {stop_qty} != net_qty {net} for {key}")
+            if net > 0 and not self.store.has_protective(key):
                 raise RuntimeError(f"REG-02: open position {key} has no protective stop")
-            stop_oid = self.store.protective[key]
-            held = self.router.broker.orders.get(stop_oid)
+            stop_oid = self.store.protective.get(key)
+            held = self.router.broker.orders.get(stop_oid) if stop_oid else None
             if held is None or not held.is_open:
                 raise RuntimeError(f"REG-02: protective stop {stop_oid} is not resting")
+        for order in list(self.router.broker.orders.values()):
+            if not order.is_open:
+                continue
+            if order.intent.purpose != "EXIT" or (order.intent.exit_reason or "") != "STOP_HIT":
+                continue
+            key = order.intent.instrument_id or order.intent.symbol
+            if key not in open_keys:
+                raise RuntimeError(
+                    f"REG-02: leftover open stop {order.client_order_id} for flat {key}"
+                )
 
     def open_book(self) -> list[dict[str, Any]]:
         return self.store.open_positions()
@@ -302,7 +319,9 @@ class PositionManager:
         work["exit_reason"] = req.reason
         pos["exit_in_flight"] = True
         pos["exit_reason"] = req.reason
-        order = self.router.exit(work, req.reason)
+        live_net = int(pos.get("net_qty") or 0)
+        flatten_now = req.qty >= live_net
+        time_due = False
         if req.reason == "TIME_EXIT":
             chosen = pos.get("chosen_time_stop")
             fill_ts = pos.get("fill_ts")
@@ -310,7 +329,18 @@ class PositionManager:
             deadline = None
             if chosen and fill_ts:
                 deadline = as_ist(fill_ts) + timedelta(seconds=int(chosen.after_s))
-            if deadline is not None and last_ts is not None and as_ist(last_ts) >= deadline:
+            time_due = bool(
+                deadline is not None and last_ts is not None and as_ist(last_ts) >= deadline
+            )
+        will_fill = time_due or (
+            req.reason != "TIME_EXIT" and (req.reason in STALE_EXEMPT or not stale)
+        )
+        order = self.router.exit(work, req.reason)
+        # Same-step flatten fill: drop the SL-M first so on_depth cannot oversell.
+        if flatten_now and will_fill:
+            self.router.sync_protective_stop(pos, 0)
+        if req.reason == "TIME_EXIT":
+            if time_due:
                 self._try_fill_exit(order, work, req, force_hint=False)
         elif req.reason in STALE_EXEMPT:
             self._try_fill_exit(order, work, req, force_hint=True)
@@ -330,7 +360,7 @@ class PositionManager:
     ) -> None:
         inst = str(pos.get("instrument_id") or "")
         px = req.price_hint if req.price_hint is not None else pos.get("last_good_quote")
-        if px is None:
+        if px is None or not getattr(order, "is_open", False):
             return
         if force_hint:
             # EOD / founder / kill / failsafe: last good print, not a later fill-model path.

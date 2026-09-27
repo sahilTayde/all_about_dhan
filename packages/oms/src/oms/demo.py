@@ -78,11 +78,21 @@ def _print_book(label: str, pm: PositionManager) -> None:
     for p in opens:
         mark = float(p.get("mark") or p["avg_price"])
         unreal = (mark - float(p["avg_price"])) * int(p["net_qty"])
+        stop_qty = pm.router.open_stop_qty(str(p.get("instrument_id") or ""))
         print(
             f"  OPEN {p['instrument_id']} qty={p['net_qty']} avg={p['avg_price']:.2f} "
-            f"mark={p.get('mark')} stop={p.get('stop_price')} "
+            f"mark={p.get('mark')} stop={p.get('stop_price')} stop_qty={stop_qty} "
             f"unreal={unreal:.2f} realized={float(p.get('realized_pnl') or 0):.2f}"
         )
+    open_stops = [
+        o
+        for o in pm.router.broker.orders.values()
+        if o.is_open and (o.intent.exit_reason or "") == "STOP_HIT"
+    ]
+    print(
+        f"  open STOP_HIT count={len(open_stops)} "
+        f"qty={sum(int(o.intent.lots) * int(o.intent.lot_size or 1) for o in open_stops)}"
+    )
     for c in pm.store.closed:
         ts = c.get("last_exit_ts")
         stamp = ts.astimezone(IST).isoformat() if ts is not None else None
