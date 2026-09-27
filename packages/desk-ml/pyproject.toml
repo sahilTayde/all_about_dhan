@@ -9,7 +9,7 @@ description = "ML-001 KMeans+IF and ML-002 MRR/OU overlays. No live orders. No a
 readme = "README.md"
 requires-python = ">=3.9"
 # In-repo only: +aad cannot come from PyPI. uv resolves it from the workspace.
-dependencies = ["trading-agents-india==0.1.0+aad"]
+dependencies = ["trading-agents-india==0.1.0+aad", "risk-engine==0.1.0+aad"]  # risk-engine: paper guard on the flag-off path
 
 [project.optional-dependencies]
 dev = ["pytest>=8"]
@@ -25,3 +25,4 @@ desk_ml = ["py.typed"]
 
 [tool.uv.sources]
 trading-agents-india = { workspace = true }
+risk-engine = { workspace = true }

@@ -1,0 +1,12 @@
+# Third-party packages for CI (local packages are installed with --no-deps from this repo).
+fastapi>=0.115
+uvicorn>=0.30
+pydantic>=2
+python-dotenv>=1.0
+httpx>=0.27
+websockets>=12
+PyYAML>=6
+pytest>=8
+pytest-socket>=0.7
+setuptools>=68
+wheel>=0.42
