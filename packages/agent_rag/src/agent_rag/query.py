@@ -38,9 +38,10 @@ def query(
     limit: int = 8,
     kind: Optional[str] = None,
     root: Path | None = None,
+    db: Path | None = None,
 ) -> list[Hit]:
     root = root or repo_root()
-    db = agent_rag_db(root)
+    db = Path(db) if db is not None else agent_rag_db(root)
     if not db.is_file():
         raise FileNotFoundError(
             f"missing {db} — run: python -m agent_rag rebuild"

@@ -11,34 +11,41 @@ from agent_rag.paths import agent_rag_db, repo_root, transcripts_db
 from agent_rag.query import query
 
 
-def test_rebuild_and_query_fake_breakout() -> None:
+def test_rebuild_and_query_fake_breakout(tmp_path: Path) -> None:
+    """Reads the checkout's docs; writes the KB and build report under tmp_path (never data/knowledge)."""
     root = repo_root()
     tdb = transcripts_db(root)
     tdb_mtime = tdb.stat().st_mtime if tdb.is_file() else None
-    report = rebuild(root)
+    kb = agent_rag_db(root)
+    kb_mtime = kb.stat().st_mtime if kb.is_file() else None
+    db = tmp_path / "agent_rag.sqlite"
+    report = rebuild(root, db_path=db)
     assert report["doc_count"] > 10
     assert report["transcripts_sqlite_untouched"] is True
-    assert agent_rag_db(root).is_file()
+    assert db.is_file() and (tmp_path / "AGENT_RAG_BUILD.json").is_file()
     if tdb_mtime is not None:
         assert tdb.stat().st_mtime == tdb_mtime
-    hits = query("fake breakout", limit=5, root=root)
+    assert (kb.stat().st_mtime if kb.is_file() else None) == kb_mtime
+    hits = query("fake breakout", limit=5, root=root, db=db)
     # May be empty if phrase absent — still must not crash
     assert isinstance(hits, list)
-    book_hits = query("purged cv premium", limit=8, root=root)
+    book_hits = query("purged cv premium", limit=8, root=root, db=db)
     assert any(h.kind == "phd_book_kb" for h in book_hits)
     assert report["counts"].get("phd_book_kb", 0) >= 20
-    theta_hits = query("theta decay", limit=8, root=root)
-    intrinsic_hits = query("intrinsic", limit=8, root=root)
+    theta_hits = query("theta decay", limit=8, root=root, db=db)
+    intrinsic_hits = query("intrinsic", limit=8, root=root, db=db)
     assert any(h.kind == "phd_book_kb" for h in theta_hits)
     assert any(h.kind == "phd_book_kb" for h in intrinsic_hits)
     assert any("topics/" in h.source_path for h in theta_hits + intrinsic_hits)
     assert report["counts"].get("research_book_notes", 0) >= 1
-    club_hits = query("seven books KEEP_ALL", limit=8, root=root)
+    club_hits = query("seven books KEEP_ALL", limit=8, root=root, db=db)
     assert any(h.kind == "research_book_notes" for h in club_hits)
 
 
-def test_eod_recon_retune_required(tmp_path: Path | None = None) -> None:
-    root = repo_root()
+def test_eod_recon_retune_required(tmp_path: Path) -> None:
+    root = tmp_path
+    (root / "data" / "recon").mkdir(parents=True)
+    (root / "teams" / "00_orchestrator" / "docs").mkdir(parents=True)
     out = run_eod_recon(
         day="2026-09-02",
         root=root,
