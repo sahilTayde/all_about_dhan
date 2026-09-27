@@ -1,0 +1,15 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["client_order_id", "action", "approved"],
+  "properties": {
+    "client_order_id": {"type": "string"},
+    "action": {"type": "string", "enum": ["ENTRY", "EXIT"]},
+    "approved": {"type": "boolean"},
+    "reason_code": {"type": ["string", "null"]},
+    "reason": {"type": ["string", "null"]},
+    "critical": {"type": "boolean"},
+    "ticket_risk_inr": {"type": ["number", "null"]}
+  }
+}

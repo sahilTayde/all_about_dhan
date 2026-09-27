@@ -1,0 +1,11 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["session", "phase", "minute"],
+  "properties": {
+    "session": {"type": "string"},
+    "phase": {"type": "string", "enum": ["PRE_OPEN", "MARKET", "POST_CLOSE", "CLOSED"]},
+    "minute": {"type": "string", "pattern": "^\\d{2}:\\d{2}$"}
+  }
+}
