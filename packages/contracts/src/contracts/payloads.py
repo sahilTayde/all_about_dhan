@@ -384,8 +384,8 @@ class OrderUpdate:
     client_order_id: str
     broker_order_id: str
     account_id: str
-    from_state: str
-    to_state: str
+    from_: str  # Order state transition: from (field name uses trailing _ to avoid Python keyword)
+    to_: str  # Order state transition: to (field name uses trailing _ to avoid Python keyword)
     reason: str
     purpose: str  # "ENTRY" | "STOP" | "EXIT"
 

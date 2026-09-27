@@ -182,13 +182,13 @@ def test_india_tick_size() -> None:
 
 
 def test_india_lot_size() -> None:
-    """Test lot sizes for major indices."""
+    """Test lot sizes for major indices (from instrument master)."""
     india = India()
 
     assert india.lot_size("NIFTY") == 65
     assert india.lot_size("BANKNIFTY") == 30
     assert india.lot_size("FINNIFTY") == 40
-    assert india.lot_size("SENSEX") == 10
+    assert india.lot_size("SENSEX") == 20  # Per instrument master
 
 
 def test_india_parse_instrument_id_index() -> None:
@@ -278,9 +278,9 @@ def test_india_custom_holidays() -> None:
 
 
 def test_nse_holidays_2026_count() -> None:
-    """Test NSE 2026 holidays set has expected count."""
-    # NSE typically has 14-16 holidays per year
-    assert 14 <= len(NSE_HOLIDAYS_2026) <= 17
+    """Test NSE 2026 holidays set has expected count (per official NSE circular)."""
+    # NSE 2026 has 20 trading holidays per official circular
+    assert len(NSE_HOLIDAYS_2026) == 20
 
 
 def test_nse_holidays_2026_includes_major_holidays() -> None:

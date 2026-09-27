@@ -4,10 +4,10 @@ import pytest
 
 hypothesis = pytest.importorskip("hypothesis")
 
-from hypothesis import given
-from hypothesis import strategies as st
+from hypothesis import given  # noqa: E402
+from hypothesis import strategies as st  # noqa: E402
 
-from contracts import order_id
+from contracts import order_id  # noqa: E402
 
 
 @given(

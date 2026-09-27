@@ -136,9 +136,15 @@ def load_risk_decision(data: dict[str, Any]) -> payloads.RiskDecision:
 
 
 def load_order_update(data: dict[str, Any]) -> payloads.OrderUpdate:
-    """Load ORDER_UPDATE from JSON dict."""
+    """Load ORDER_UPDATE from JSON dict (maps 'from'/'to' to from_/to_)."""
     validate_payload("order_update", data)
-    return payloads.OrderUpdate(**data)
+    # Map JSON field names to Python field names (from/to are Python keywords)
+    kwargs = {**data}
+    if "from" in kwargs:
+        kwargs["from_"] = kwargs.pop("from")
+    if "to" in kwargs:
+        kwargs["to_"] = kwargs.pop("to")
+    return payloads.OrderUpdate(**kwargs)
 
 
 def load_fill(data: dict[str, Any]) -> payloads.Fill:

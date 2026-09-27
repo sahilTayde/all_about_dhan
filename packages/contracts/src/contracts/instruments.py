@@ -9,27 +9,31 @@ from typing import Protocol
 # IST timezone
 IST = timezone(timedelta(hours=5, minutes=30))
 
-# NSE/BSE trading holidays for 2026
-# Source: NSE Circular - Trading Holidays 2026
+# NSE/BSE equity and F&O trading holidays for 2026
+# Source: NSE Circular - Trading Holidays 2026 (Equity & F&O Segment)
 # https://www.nseindia.com/companies-listing/corporate-compliance-trading-holidays
-# Verified against BSE circular as well (BSE and NSE have identical trading holidays)
+# Verified against official NSE circular for 2026
 NSE_HOLIDAYS_2026 = {
-    date(2026, 1, 26),  # Republic Day (Monday)
-    date(2026, 3, 3),  # Mahashivratri (Tuesday)
-    date(2026, 3, 25),  # Holi (Wednesday)
-    date(2026, 3, 30),  # Ram Navami (Monday)
-    date(2026, 4, 2),  # Mahavir Jayanti (Thursday)
-    date(2026, 4, 10),  # Good Friday (Friday)
-    date(2026, 4, 14),  # Dr. Ambedkar Jayanti (Tuesday)
-    date(2026, 5, 1),  # Maharashtra Day (Friday)
-    date(2026, 8, 15),  # Independence Day (Saturday) - market closed if Saturday is trading day
-    date(2026, 8, 27),  # Ganesh Chaturthi (Thursday)
-    date(2026, 10, 2),  # Gandhi Jayanti (Friday)
-    date(2026, 10, 19),  # Dussehra (Monday)
-    date(2026, 10, 27),  # Diwali Laxmi Pujan (Tuesday)
-    date(2026, 10, 28),  # Diwali Balipratipada / Govardhan Puja (Wednesday)
-    date(2026, 11, 4),  # Guru Nanak Jayanti (Wednesday)
-    date(2026, 12, 25),  # Christmas (Friday)
+    date(2026, 1, 15),  # Makar Sankranti
+    date(2026, 1, 26),  # Republic Day
+    date(2026, 3, 3),  # Mahashivratri
+    date(2026, 3, 26),  # Holi
+    date(2026, 3, 31),  # Id-Ul-Fitr (Ramzan Id)
+    date(2026, 4, 3),  # Good Friday
+    date(2026, 4, 14),  # Dr. Ambedkar Jayanti
+    date(2026, 5, 1),  # Maharashtra Day
+    date(2026, 5, 28),  # Buddha Purnima
+    date(2026, 6, 26),  # Muharram
+    date(2026, 8, 15),  # Independence Day
+    date(2026, 8, 27),  # Ganesh Chaturthi
+    date(2026, 9, 14),  # Eid-e-Milad
+    date(2026, 10, 2),  # Gandhi Jayanti
+    date(2026, 10, 20),  # Dussehra
+    date(2026, 10, 27),  # Diwali Laxmi Pujan
+    date(2026, 10, 28),  # Diwali Balipratipada
+    date(2026, 11, 10),  # Guru Nanak Jayanti
+    date(2026, 11, 24),  # Prakash Parv - Guru Nanak Jayanti
+    date(2026, 12, 25),  # Christmas
 }
 
 
@@ -188,17 +192,21 @@ class India:
 
     def lot_size(self, symbol: str) -> int:
         """
-        Return lot size for symbol.
+        Return lot size for symbol from instrument master.
 
-        NIFTY: 65 (as of spec example)
+        Raises:
+            ValueError: if symbol is not in instrument master
         """
         lot_sizes = {
             "NIFTY": 65,
             "BANKNIFTY": 30,
             "FINNIFTY": 40,
-            "SENSEX": 10,
+            "SENSEX": 20,  # Per instrument master
         }
-        return lot_sizes.get(symbol.upper(), 1)
+        sym_upper = symbol.upper()
+        if sym_upper not in lot_sizes:
+            raise ValueError(f"Unknown symbol: {symbol} (not in instrument master)")
+        return lot_sizes[sym_upper]
 
     def eod_flat_time(self, session_date: date) -> time:
         """
@@ -287,11 +295,8 @@ class India:
         - Option: format_instrument_id("NSE", "FNO", "NIFTY", "2026-09-29", "24500", "CE")
                   -> "NSE_FNO:NIFTY:2026-09-29:24500:CE"
         """
-        if segment:
-            parts = [f"{exchange}_{segment}", symbol]
-        else:
-            # Handle FX case with no segment
-            parts = [exchange, symbol]
+        # Handle FX case with no segment
+        parts = [f"{exchange}_{segment}", symbol] if segment else [exchange, symbol]
 
         if expiry:
             parts.append(expiry)

@@ -14,8 +14,8 @@
     "strike_rule": {"type": "string"},
     "decision_ts": {"type": "string", "format": "date-time"},
     "confidence": {"type": ["number", "null"]},
-    "exit_plan": {"type": "object"},
-    "strike_choice": {"type": "object"},
+    "exit_plan": {"$ref": "exit_plan.json"},
+    "strike_choice": {"$ref": "strike_choice.json"},
     "reasons": {"type": "array", "items": {"type": "string"}},
     "features": {"type": "object"}
   }

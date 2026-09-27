@@ -44,7 +44,14 @@ def event_id(role: str, input_event_id: str, n: int) -> str:
 
     Returns:
         32-character hex string
+
+    Raises:
+        ValueError: if any input contains "|"
     """
+    # Reject "|" in inputs to prevent collision attacks
+    if "|" in role or "|" in input_event_id:
+        raise ValueError("event_id inputs must not contain '|' separator")
+
     h = hashlib.sha256(f"{role}|{input_event_id}|{n}".encode()).hexdigest()
     return h[:32]
 
@@ -76,10 +83,7 @@ def signal_id(
         ValueError: if decision_ts is naive (no timezone)
     """
     # Parse decision_ts to datetime if string
-    if isinstance(decision_ts, str):
-        dt = datetime.fromisoformat(decision_ts)
-    else:
-        dt = decision_ts
+    dt = datetime.fromisoformat(decision_ts) if isinstance(decision_ts, str) else decision_ts
 
     # Reject naive timestamps
     if dt.tzinfo is None:
@@ -96,13 +100,17 @@ def signal_id(
     date_str = dt_ist.strftime("%Y%m%d")
     time_str = dt_ist.strftime("%H%M")
 
-    # Normalize strategy_id to slug: lowercase, remove hyphens/underscores
-    # "R8-E1-COIL-SIDE" -> "r8e1coilside" -> "r8e1"
-    # Match spec example: sg_r8e1_nifty_...
-    strat_slug = strategy_id.lower().replace("-", "").replace("_", "")
-    # Take first meaningful part (before common suffixes)
-    # For now, simple: remove common words and take first part
-    strat_slug = strat_slug.split("coil")[0].split("side")[0].split("gate")[0].split("hv")[0]
+    # Normalize strategy_id + version to slug: collision-free, includes version
+    # Keep all alphanumerics (lowercase) to ensure distinct strategies get distinct slugs
+    # "R8-E1" + "1.0.0" -> "r8e1v100"
+    # "R8-E1-COIL-SIDE" + "1.0.0" -> "r8e1coilsidev100"
+    combined = strategy_id + "v" + version
+    strat_slug = "".join(c for c in combined.lower() if c.isalnum())
+
+    if not strat_slug:
+        raise ValueError(
+            "signal_id strategy_id and version must contain at least one alphanumeric character"
+        )
 
     # Normalize underlying to lowercase
     und = underlying.lower()

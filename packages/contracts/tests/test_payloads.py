@@ -343,12 +343,12 @@ def test_order_update_payload() -> None:
         client_order_id="aad3f9",
         broker_order_id="PAPER-aad3f9",
         account_id="founder",
-        from_state="SUBMITTED",
-        to_state="FILLED",
+        from_="SUBMITTED",
+        to_="FILLED",
         reason="fill 910 @ 151.35",
         purpose="ENTRY",
     )
-    assert update.to_state == "FILLED"
+    assert update.to_ == "FILLED"
     assert update.purpose == "ENTRY"
 
 
