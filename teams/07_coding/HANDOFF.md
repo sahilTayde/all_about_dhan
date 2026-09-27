@@ -1,5 +1,44 @@
 # Handoff log — Team 07 Coding
 
+## As of now (2026-09-27 IST) — V2-10 fix round (atomic / idempotent / P&L / qty / Decimal)
+
+```text
+From:     teams/07_coding
+To:       founder / 00 / 09
+Date:     2026-09-27
+Status:   PAPER / V2-10 / NO_PROMOTE / no live orders
+Accepted: record_fill owns one BEGIN IMMEDIATE; raise
+  after INSERT INTO fills rolls back; replay = 1 fill.
+  UNIQUE(client_order_id, fill_seq) + fill_id.
+  record_fill twice is a no-op. recover() twice does
+  not rebook halt. recharge_pending UPDATEs PENDING
+  in place. Close writes gross 650 / charges once /
+  CLOSED / net_qty 0. insert_order no longer does
+  qty*lot_size. rebuild lots=1 lot_size=65. Decimal
+  money()/money_sql() on the v2 path. Merged V2-08
+  7c09f84 (lot_size mismatch veto) with a normal merge.
+Rejected: Rebase / force-push / merge of this PR.
+  DhanBroker. Editing Mac-ops merge files. Relock.
+UNKNOWN: GitHub CI on the new head.
+```
+
+## As of now (2026-09-27 IST) — V2-08 lot-size exchange-only (PAPER)
+
+```text
+From:     teams/07_coding
+To:       00 / 09
+Date:     2026-09-27
+Status:   V2-08 PAPER router / NO_PROMOTE
+Accepted: Exchange lot_size always from lot_size_for(instrument_id).
+  decision.lot_size or stored lot_size that differs is LOT_SIZE_MISMATCH
+  veto; nothing reaches the broker. Send-time guard: qty>0 and
+  qty % exchange lot == 0. Flatten closes only whole lots <= net_qty
+  and alerts ODD_LOT_FLATTEN when net is not a multiple.
+Rejected: Using decision.lot_size as the send qty. Rounding leftover
+  units UP past net_qty.
+UNKNOWN: none
+```
+
 ## As of now (2026-09-27 IST) — V2-10 ledger v2 + crash recovery (PAPER)
 
 ```text
@@ -21,6 +60,8 @@ Rejected: Auto-migrate of the Monday sqlite path. DhanBroker.
 UNKNOWN: whether a later V2-08 merge commit lands before this PR
   is retargeted to main after #45.
 ```
+
+---
 
 ## As of now (2026-09-27 IST) — V2-04 onto main 971bf81 / V2-15 (PAPER)
 

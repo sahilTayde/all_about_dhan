@@ -53,7 +53,14 @@ def test_halt_unreadable_blocks_entries_allows_exits(tmp_path: Path) -> None:
     d = engine.check_entry(_intent(), NOW, RiskState(halt_unreadable=True))
     assert not d.approved and d.reason_code == "HALT_UNREADABLE"
     exit_ok = engine.check_exit(
-        TradeIntent(symbol="NIFTY 25000 CE", side="SELL", lots=1, lot_size=65, purpose="EXIT", exit_reason="STOP_HIT"),
+        TradeIntent(
+            symbol="NIFTY 25000 CE",
+            side="SELL",
+            lots=1,
+            lot_size=65,
+            purpose="EXIT",
+            exit_reason="STOP_HIT",
+        ),
         now=NOW,
     )
     assert exit_ok.approved

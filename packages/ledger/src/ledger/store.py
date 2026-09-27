@@ -211,7 +211,9 @@ class Ledger:
 
     # ---------------------------------------------------------------- orders
 
-    def record_order(self, row: dict[str, Any], from_state: Optional[str], to_state: str, reason: str = "", ts: Ts = None) -> None:
+    def record_order(
+        self, row: dict[str, Any], from_state: Optional[str], to_state: str, reason: str = "", ts: Ts = None
+    ) -> None:
         """Upsert the order row and append one order_events line for this transition."""
         if row.get("exit_reason") and row["exit_reason"] not in EXIT_REASONS:
             raise ValueError(f"unknown exit_reason {row['exit_reason']!r}")
@@ -219,9 +221,24 @@ class Ledger:
             raise ValueError(f"CANCELLED needs a cancel_reason in {sorted(CANCEL_REASONS)}")
         stamp = iso_ist(ts)
         cols = (
-            "client_order_id", "broker_order_id", "trade_id", "broker", "mode", "symbol", "instrument_id",
-            "side", "qty", "order_type", "price", "trigger_price", "decision_price", "purpose",
-            "filled_qty", "avg_fill_price", "exit_reason", "cancel_reason",
+            "client_order_id",
+            "broker_order_id",
+            "trade_id",
+            "broker",
+            "mode",
+            "symbol",
+            "instrument_id",
+            "side",
+            "qty",
+            "order_type",
+            "price",
+            "trigger_price",
+            "decision_price",
+            "purpose",
+            "filled_qty",
+            "avg_fill_price",
+            "exit_reason",
+            "cancel_reason",
         )
         values = [row.get(c) for c in cols]
         mutable = ("broker_order_id", "price", "trigger_price", "filled_qty", "avg_fill_price", "cancel_reason")
@@ -230,8 +247,7 @@ class Ledger:
                 f"INSERT INTO orders ({', '.join(cols)}, status, created_at, updated_at) "
                 f"VALUES ({', '.join('?' * len(cols))}, ?, ?, ?) "
                 "ON CONFLICT(client_order_id) DO UPDATE SET status = excluded.status, "
-                "updated_at = excluded.updated_at, "
-                + ", ".join(f"{c} = excluded.{c}" for c in mutable),
+                "updated_at = excluded.updated_at, " + ", ".join(f"{c} = excluded.{c}" for c in mutable),
                 (*values, to_state, stamp, stamp),
             )
             self.conn.execute(
@@ -244,9 +260,14 @@ class Ledger:
                     "entry_client_order_id, day, cancel_reason) VALUES (?, ?, ?, ?, 'CANCELLED', ?, ?, ?, ?, ?)",
                     (
                         row.get("trade_id") or f"T-{row['client_order_id']}",
-                        row["symbol"], row.get("instrument_id"),
+                        row["symbol"],
+                        row.get("instrument_id"),
                         "LONG" if row["side"] == "BUY" else "SHORT",
-                        row.get("mode"), row.get("broker"), row["client_order_id"], stamp[:10], row["cancel_reason"],
+                        row.get("mode"),
+                        row.get("broker"),
+                        row["client_order_id"],
+                        stamp[:10],
+                        row["cancel_reason"],
                     ),
                 )
 
@@ -272,8 +293,14 @@ class Ledger:
         signed = qty if o["side"] == "BUY" else -qty
         with self.conn:
             first = self._one("SELECT 1 FROM fills WHERE client_order_id = ? LIMIT 1", (client_order_id,)) is None
-            ch = order_charges(o["side"], qty, price, self.rates, include_brokerage=first,
-                               exchange=exchange_for(o["symbol"], self.rates))
+            ch = order_charges(
+                o["side"],
+                qty,
+                price,
+                self.rates,
+                include_brokerage=first,
+                exchange=exchange_for(o["symbol"], self.rates),
+            )
             pos = self._one("SELECT * FROM positions WHERE symbol = ?", (o["symbol"],))
             net = pos["net_qty"] if pos else 0
             avg = pos["avg_price"] if pos else 0.0
@@ -320,8 +347,18 @@ class Ledger:
                 "INSERT INTO charges (trade_id, client_order_id, ts, day, turnover, brokerage, stt, exchange, sebi, "
                 "stamp, gst, total) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (
-                    charge_trade, client_order_id, stamp, stamp[:10], ch["turnover"], ch["brokerage"], ch["stt"],
-                    ch["exchange"], ch["sebi"], ch["stamp"], ch["gst"], ch["total"],
+                    charge_trade,
+                    client_order_id,
+                    stamp,
+                    stamp[:10],
+                    ch["turnover"],
+                    ch["brokerage"],
+                    ch["stt"],
+                    ch["exchange"],
+                    ch["sebi"],
+                    ch["stamp"],
+                    ch["gst"],
+                    ch["total"],
                 ),
             )
             self.conn.execute(
@@ -341,8 +378,14 @@ class Ledger:
             "INSERT INTO trades (trade_id, symbol, instrument_id, direction, status, mode, broker, "
             "entry_client_order_id, entry_time) VALUES (?, ?, ?, ?, 'OPEN', ?, ?, ?, ?)",
             (
-                trade_id, o["symbol"], o["instrument_id"], "LONG" if o["side"] == "BUY" else "SHORT",
-                o["mode"], o["broker"], o["client_order_id"], stamp,
+                trade_id,
+                o["symbol"],
+                o["instrument_id"],
+                "LONG" if o["side"] == "BUY" else "SHORT",
+                o["mode"],
+                o["broker"],
+                o["client_order_id"],
+                stamp,
             ),
         )
         return trade_id
@@ -389,9 +432,16 @@ class Ledger:
                 "INSERT INTO risk_decisions (ts, day, client_order_id, fingerprint, action, approved, reason_code, "
                 "reason, critical, intent_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (
-                    stamp, stamp[:10], decision["client_order_id"], decision.get("fingerprint"), decision["action"],
-                    int(bool(decision["approved"])), decision["reason_code"], decision.get("reason"),
-                    int(bool(decision.get("critical"))), json.dumps(decision.get("intent"), default=str),
+                    stamp,
+                    stamp[:10],
+                    decision["client_order_id"],
+                    decision.get("fingerprint"),
+                    decision["action"],
+                    int(bool(decision["approved"])),
+                    decision["reason_code"],
+                    decision.get("reason"),
+                    int(bool(decision.get("critical"))),
+                    json.dumps(decision.get("intent"), default=str),
                 ),
             )
 

@@ -23,7 +23,11 @@ def test_reg_06b_first_bad_line_written_once_survives_restart(tmp_path: Path) ->
     store.close()
     again = SqliteLedgerStore(db)
     rows = again.ingest_errors()
-    assert len(rows) == 1 and rows[0]["byte_offset"] == 120 and len(rows[0]["line_sha256"]) == 64
+    assert (
+        len(rows) == 1
+        and rows[0]["byte_offset"] == 120
+        and len(rows[0]["line_sha256"]) == 64
+    )
     again.close()
 
 
@@ -51,10 +55,14 @@ def test_reg_16c_pending_charges_never_zero_then_recharged(tmp_path: Path) -> No
     )
     assert row["charges_status"] == "PENDING"
     assert row["components"].get("total", None) != 0.0
-    pending = store.conn.execute("SELECT total FROM charges WHERE charges_status='PENDING'").fetchone()
+    pending = store.conn.execute(
+        "SELECT total FROM charges WHERE charges_status='PENDING'"
+    ).fetchone()
     assert pending is not None and pending[0] != 0
     assert store.recharge_pending(RATES) == 1
-    final = store.conn.execute("SELECT total FROM charges WHERE charges_status='FINAL'").fetchone()
+    final = store.conn.execute(
+        "SELECT total FROM charges WHERE charges_status='FINAL'"
+    ).fetchone()
     assert final is not None and final[0] > 0
     store.close()
 
@@ -62,15 +70,37 @@ def test_reg_16c_pending_charges_never_zero_then_recharged(tmp_path: Path) -> No
 def test_reg_17a_every_trade_has_exchange_from_underlying(tmp_path: Path) -> None:
     store = SqliteLedgerStore(tmp_path / "aad.sqlite", migrate_schema=True, rates=RATES)
     cases = (
-        ("aadnse00000000000000000001", "NIFTY 24400 CE", "NSE_FNO:NIFTY:2026-09-29:24400:CE"),
-        ("aadbse00000000000000000001", "SENSEX 82000 CE", "BSE_FNO:SENSEX:2026-09-29:82000:CE"),
+        (
+            "aadnse00000000000000000001",
+            "NIFTY 24400 CE",
+            "NSE_FNO:NIFTY:2026-09-29:24400:CE",
+            65,
+        ),
+        (
+            "aadbse00000000000000000001",
+            "SENSEX 82000 CE",
+            "BSE_FNO:SENSEX:2026-09-29:82000:CE",
+            20,
+        ),
     )
-    for cid, symbol, inst in cases:
+    for cid, symbol, inst, qty in cases:
         store.insert_order(
-            {"client_order_id": cid, "symbol": symbol, "instrument_id": inst, "side": "BUY", "qty": 65, "purpose": "ENTRY", "state": "SUBMITTED"}
+            {
+                "client_order_id": cid,
+                "symbol": symbol,
+                "instrument_id": inst,
+                "side": "BUY",
+                "qty": qty,
+                "purpose": "ENTRY",
+                "state": "SUBMITTED",
+            }
         )
-        row = store.record_fill(cid, 65, 100.0, ts=NOW, side="BUY", symbol=symbol, instrument_id=inst)
-        ex = store.conn.execute("SELECT exchange FROM trades WHERE trade_id=?", (row["trade_id"],)).fetchone()[0]
+        row = store.record_fill(
+            cid, qty, 100.0, ts=NOW, side="BUY", symbol=symbol, instrument_id=inst
+        )
+        ex = store.conn.execute(
+            "SELECT exchange FROM trades WHERE trade_id=?", (row["trade_id"],)
+        ).fetchone()[0]
         assert ex == exchange_for(symbol, RATES)
         assert ex in ("NSE", "BSE")
     store.close()
@@ -110,21 +140,21 @@ def test_reg_17c_charges_match_tagged_exchange(tmp_path: Path) -> None:
             "symbol": "SENSEX 82000 CE",
             "instrument_id": "BSE_FNO:SENSEX:2026-09-29:82000:CE",
             "side": "BUY",
-            "qty": 65,
+            "qty": 20,
             "purpose": "ENTRY",
             "state": "SUBMITTED",
         }
     )
     row = store.record_fill(
         "aadbse00000000000000000002",
-        65,
+        20,
         100.0,
         ts=NOW,
         side="BUY",
         symbol="SENSEX 82000 CE",
         instrument_id="BSE_FNO:SENSEX:2026-09-29:82000:CE",
     )
-    want = order_charges("BUY", 65, 100.0, RATES, exchange="BSE")
+    want = order_charges("BUY", 20, 100.0, RATES, exchange="BSE")
     got = store.conn.execute(
         "SELECT total FROM charges WHERE client_order_id=? AND charges_status='FINAL'",
         ("aadbse00000000000000000002",),
@@ -158,5 +188,10 @@ def test_reg_17d_migration_backfills_old_rows(tmp_path: Path) -> None:
     led.close()
     migrate(db)
     store = SqliteLedgerStore(db)
-    assert store.conn.execute("SELECT exchange FROM trades WHERE trade_id=?", (tid,)).fetchone()[0] == "NSE"
+    assert (
+        store.conn.execute(
+            "SELECT exchange FROM trades WHERE trade_id=?", (tid,)
+        ).fetchone()[0]
+        == "NSE"
+    )
     store.close()

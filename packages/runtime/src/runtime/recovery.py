@@ -16,7 +16,7 @@ from brokers.reconcile import reconcile  # type: ignore[import-untyped]
 from contracts.clock import IST, SimClock
 from events.bus import MemoryBus
 from ledger.migrate import check_schema
-from ledger.v2 import SqliteLedgerStore
+from ledger.v2 import SqliteLedgerStore, lots_from_qty
 from risk_engine import RiskDecision, TradeIntent  # type: ignore[import-untyped]
 
 from runtime.kernel import Engine, Handler
@@ -53,11 +53,13 @@ def rebuild_paper_broker(broker: ClockedPaperBroker | Any, store: SqliteLedgerSt
     n = 0
     for row in store.open_orders():
         qty = max(1, int(row.get("qty") or 1))
+        symbol = str(row.get("symbol") or row.get("instrument_id") or "")
+        lots, lot_size = lots_from_qty(qty, symbol)
         intent = TradeIntent(
-            symbol=str(row.get("symbol") or row.get("instrument_id") or ""),
+            symbol=symbol,
             side=str(row.get("side") or "BUY"),
-            lots=qty,
-            lot_size=1,
+            lots=lots,
+            lot_size=lot_size,
             order_type=str(row.get("order_type") or "LIMIT"),
             price=row.get("price"),
             trigger_price=row.get("trigger_price"),
@@ -139,11 +141,13 @@ def _recheck_stops(store: SqliteLedgerStore, broker: Any, clock: Any, risk: Any 
             with contextlib.suppress(json.JSONDecodeError, TypeError, ValueError):
                 trigger = float(json.loads(plan).get("catastrophic_price") or trigger)
         qty = max(1, abs(int(pos.get("net_qty") or 1)))
+        symbol = str(pos.get("symbol") or key)
+        lots, lot_size = lots_from_qty(qty, symbol)
         intent = TradeIntent(
-            symbol=str(pos.get("symbol") or key),
+            symbol=symbol,
             side="SELL",
-            lots=qty,
-            lot_size=1,
+            lots=lots,
+            lot_size=lot_size,
             order_type="SL-M",
             trigger_price=trigger,
             purpose="EXIT",
