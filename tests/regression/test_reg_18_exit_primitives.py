@@ -96,6 +96,17 @@ def test_reg_18a_every_exit_names_plan_field(tmp_path):
     )
     fixtures.append(("FOUNDER_COMMAND", fired[0] if fired else None))
 
+    clock = SimClock(NOW)
+    pm = make_manager(tmp_path, clock, broker=make_broker(clock=clock))
+    _enter(pm, clock, make_exit_plan())
+    clock.advance_to(NOW.replace(hour=10, minute=30, second=30))
+    fired = pm.on_market(
+        envelope(
+            "FOUNDER_COMMAND", clock.now(), {"kind": "KILL", "instrument_id": INST}
+        )
+    )
+    fixtures.append(("KILL_SWITCH", fired[0] if fired else None))
+
     cat_plan = make_exit_plan()
     cat_req = evaluate(
         {

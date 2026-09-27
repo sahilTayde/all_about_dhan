@@ -13,7 +13,14 @@ from helpers import INST, NOW, envelope, make_decision, make_exit_plan, make_man
 from risk_engine import IST
 
 from oms import Account, Veto
-from oms.exits import evaluate, freeze_atr_level, freeze_fill_levels
+from oms.exits import (
+    ExitRequest,
+    assert_exit_reason,
+    evaluate,
+    freeze_atr_level,
+    freeze_fill_levels,
+    house_stop_premium,
+)
 
 IDX = "NSE_IDX:NIFTY"
 PE_INST = "NSE_FNO:NIFTY:2026-09-29:24400:PE"
@@ -284,4 +291,95 @@ def test_grace_is_not_required_on_v2_09_plans(tmp_path):
         )
     )
     assert not pm.open_book()
+    pm.assert_stop_invariant()
+
+
+def test_house_stop_premium_snaps_up_to_tick_grid() -> None:
+    """Long stop snaps up onto the 0.05 grid so loss stays <= ₹30k."""
+    px = house_stop_premium(500, 65, 30000)
+    assert px == pytest.approx(38.50)
+    assert abs(round(px / 0.05) * 0.05 - px) < 1e-9
+    assert 65 * (500.0 - px) <= 30000.0 + 1e-9
+
+
+def test_evaluate_founder_kill_names_kill_switch() -> None:
+    plan = make_exit_plan()
+    req = evaluate(
+        {
+            "instrument_id": INST,
+            "net_qty": 130,
+            "orig_qty": 130,
+            "avg_price": 151.10,
+            "stop_price": 140.0,
+            "exit_plan": plan,
+            "fill_ts": NOW,
+            "last_good_quote": 151.10,
+        },
+        NOW,
+        mark=151.10,
+        quote_ts=NOW,
+        founder_kind="KILL",
+    )
+    assert req is not None
+    assert req.reason == "KILL_SWITCH"
+    assert req.plan_field == "kill_switch"
+    assert_exit_reason(req, plan)
+
+
+def test_founder_kill_through_manager_flattens_whole_lots(tmp_path):
+    """FOUNDER_COMMAND kind=KILL goes through on_market and SELLs net qty."""
+    clock = SimClock(NOW)
+    broker = make_broker(clock=clock)
+    pm = make_manager(tmp_path, clock, broker=broker)
+    row = _enter(pm, clock, make_exit_plan(), lots=2)
+    net = int(row["net_qty"])
+    assert net == 130
+    fired = pm.on_market(
+        envelope("FOUNDER_COMMAND", clock.now(), {"kind": "KILL", "instrument_id": INST})
+    )
+    assert fired and len(fired) == 1
+    assert fired[0].reason == "KILL_SWITCH"
+    assert fired[0].plan_field == "kill_switch"
+    assert fired[0].qty == net
+    assert not pm.open_book()
+    kills = [o for o in broker.orders.values() if (o.intent.exit_reason or "") == "KILL_SWITCH"]
+    assert len(kills) == 1
+    assert kills[0].intent.qty == net
+    assert pm.store.closed[-1]["exit_reason"] == "KILL_SWITCH"
+    pm.assert_stop_invariant()
+
+
+def test_exit_reason_mismatch_never_blocks_flatten(tmp_path, monkeypatch, caplog):
+    """A REG-18a field mismatch logs CRITICAL and still flattens."""
+    import logging
+
+    import oms.positions as positions_mod
+
+    clock = SimClock(NOW)
+    pm = make_manager(tmp_path, clock, broker=make_broker(clock=clock))
+    _enter(pm, clock, make_exit_plan(), lots=2)
+    real = positions_mod.evaluate
+
+    def mismatched(*args, **kwargs):
+        req = real(*args, **kwargs)
+        if req is None:
+            return None
+        return ExitRequest(
+            req.reason,
+            "structural",
+            req.qty,
+            stale_quote=req.stale_quote,
+            price_hint=req.price_hint,
+        )
+
+    monkeypatch.setattr(positions_mod, "evaluate", mismatched)
+    caplog.set_level(logging.CRITICAL)
+    fired = pm.on_market(
+        envelope("FOUNDER_COMMAND", clock.now(), {"kind": "CUT_LOSS", "instrument_id": INST})
+    )
+    assert fired
+    assert not pm.open_book()
+    assert any(a["reason_code"] == "REG_18A_MISMATCH" for a in pm.alerts)
+    assert "REG-18a" in caplog.text
+    assert "flattening anyway" in caplog.text
     pm.assert_stop_invariant()

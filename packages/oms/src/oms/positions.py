@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from dataclasses import replace
 from datetime import datetime, timedelta
 from typing import Any
@@ -35,6 +36,7 @@ from oms.ledger_stub import MemoryLedger
 from oms.router import OrderRouter, symbol_from_instrument
 
 _INDIA = India()
+_LOG = logging.getLogger(__name__)
 
 
 def _expiry_of(instrument_id: str) -> datetime | None:
@@ -208,8 +210,35 @@ class PositionManager:
                     req = pending
             if req is None:
                 continue
-            assert_exit_reason(req, pos["exit_plan"])
-            applied = self._apply(pos, req)
+            try:
+                assert_exit_reason(req, pos["exit_plan"])
+            except RuntimeError as exc:
+                _LOG.critical("REG-18a: %s; flattening anyway", exc)
+                self._alert(
+                    "REG_18A_MISMATCH",
+                    _key(pos),
+                    str(exc),
+                    severity="CRITICAL",
+                )
+            try:
+                applied = self._apply(pos, req)
+            except Exception as exc:
+                _LOG.critical("exit apply failed; failsafe flatten: %s", exc)
+                self._alert("EXIT_APPLY_FAILED", _key(pos), str(exc), severity="CRITICAL")
+                inst = str(pos.get("instrument_id") or "")
+                qty = whole_lots_qty(int(pos.get("net_qty") or 0), instrument_lot_size(inst))
+                if qty <= 0:
+                    continue
+                applied = self._apply(
+                    pos,
+                    ExitRequest(
+                        "FAILSAFE_MTM",
+                        "mark",
+                        qty,
+                        stale_quote=True,
+                        price_hint=pos.get("last_good_quote"),
+                    ),
+                )
             if applied is not None:
                 fired.append(applied)
         self.assert_stop_invariant()

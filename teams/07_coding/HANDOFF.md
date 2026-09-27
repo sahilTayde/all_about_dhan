@@ -1,5 +1,22 @@
 # Handoff log — Team 07 Coding
 
+## As of now (2026-09-27 IST) — V2-09b founder KILL flatten (NO_PROMOTE)
+
+```text
+From:     teams/07_coding
+To:       00 / 09
+Date:     2026-09-27
+Status:   V2-09b PAPER fix / NO_PROMOTE
+Accepted: Founder FOUNDER_COMMAND kind=KILL now emits
+  KILL_SWITCH / plan_field=kill_switch. REG-18a mismatch
+  logs CRITICAL and still flattens. house_stop_premium
+  snaps UP onto the 0.05 grid.
+Rejected: Raising out of on_market on a REG-18a mismatch.
+UNKNOWN: none
+```
+
+---
+
 ## As of now (2026-09-27 IST) — V2-09b exit primitives (NO_PROMOTE)
 
 ```text

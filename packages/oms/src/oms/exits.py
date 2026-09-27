@@ -5,7 +5,7 @@ from __future__ import annotations
 import hashlib
 from dataclasses import asdict, dataclass
 from datetime import datetime, time, timedelta
-from math import floor
+from math import ceil, floor
 from pathlib import Path
 from typing import Any
 
@@ -91,10 +91,16 @@ def option_side(instrument_id: str) -> str:
 
 
 def house_stop_premium(entry: float, qty: int, max_loss: float = HOUSE_MAX_LOSS_INR) -> float:
-    """Premium stop so qty * (entry - stop) <= max_loss (round 11 house stop)."""
+    """Premium stop so qty * (entry - stop) <= max_loss (round 11 house stop).
+
+    The trigger snaps UP onto the 0.05 premium grid (protective for a long).
+    """
     if qty <= 0:
         raise ValueError("qty must be positive")
-    return max(PREMIUM_TICK, round(float(entry) - float(max_loss) / int(qty), 2))
+    raw = float(entry) - float(max_loss) / int(qty)
+    ticks = ceil(raw / PREMIUM_TICK - 1e-12)
+    snapped = round(ticks * PREMIUM_TICK, 2)
+    return max(PREMIUM_TICK, snapped)
 
 
 def resolve_catastrophic_premium(plan: ExitPlan, fill_price: float, qty: int) -> float:
@@ -399,8 +405,11 @@ def evaluate(
     side = option_side(str(pos.get("instrument_id") or ""))
 
     if founder_kind in FOUNDER_KINDS:
-        reason = "KILL_SWITCH" if founder_kind == "KILL" else "FOUNDER_COMMAND"
-        return ExitRequest(reason, "founder", qty, stale_quote=stale, price_hint=hint)
+        if founder_kind == "KILL":
+            return ExitRequest(
+                "KILL_SWITCH", "kill_switch", qty, stale_quote=stale, price_hint=hint
+            )
+        return ExitRequest("FOUNDER_COMMAND", "founder", qty, stale_quote=stale, price_hint=hint)
     if kill:
         return ExitRequest("KILL_SWITCH", "kill_switch", qty, stale_quote=stale, price_hint=hint)
 
