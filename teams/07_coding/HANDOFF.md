@@ -1,5 +1,23 @@
 # Handoff log — Team 07 Coding
 
+## As of now (2026-09-28 IST) — V2-08b verifier fix round (PAPER)
+
+```text
+From:     teams/07_coding
+To:       founder / 00 / 09
+Date:     2026-09-28
+Status:   PAPER / V2-08b fix / NO_PROMOTE / no live orders
+Accepted: Decimal tick snap (ask 151.23 → 151.35). Persist veto.
+  Bound _live + quotes (no quote tape on the plan row).
+  Config paths from repo root. Catastrophic stop from
+  risk max_loss_per_trade, never stretch.catastrophic_price.
+  stretch_from_location typed for mypy --strict.
+Rejected: Stretch as a stop source. cwd-relative config.
+UNKNOWN: #45 lot-size commit (poll; planner guard if absent).
+```
+
+---
+
 ## As of now (2026-09-28 IST) — V2-08b order planner + chase + stretch (PAPER)
 
 ```text

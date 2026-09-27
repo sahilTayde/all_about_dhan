@@ -144,3 +144,14 @@ def test_stretch_present_on_hold_too() -> None:
     assert out.stretch["zone_atr"] == 1.6
     built = stretch_from_location(_loc(1.6), "testhash")
     assert built["config_hash"] == "testhash"
+
+
+def test_stretch_from_location_returns_floats() -> None:
+    built = stretch_from_location(_loc(1.6), "testhash")
+    assert isinstance(built["zone_atr"], float)
+    assert isinstance(built["ema20_atr"], float)
+    assert isinstance(built["twap_atr"], float)
+    assert "catastrophic_price" not in built
+    empty = stretch_from_location(None, "x")
+    assert empty["record_only"] is True
+    assert empty["zone_atr"] is None

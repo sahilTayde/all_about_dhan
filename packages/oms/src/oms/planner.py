@@ -6,6 +6,7 @@ import hashlib
 import json
 from dataclasses import dataclass
 from datetime import datetime, timedelta
+from decimal import ROUND_CEILING, Decimal
 from pathlib import Path
 from typing import Any
 
@@ -19,10 +20,28 @@ from risk_engine.last_good import ConfigInvalid  # type: ignore[import-untyped, 
 from oms.ledger_stub import MemoryLedger
 from oms.router import Account, OrderRouter, Veto
 
-ENTRY_YAML = Path("config/v2/entry_location.yaml")
-CHASE_YAML = Path("config/v2/entry/chase_defaults.yaml")
 CHASE_LOOKAHEAD_S = 5.0
 SHADOW_ACTIONS = ("LIMIT:fvg", "WAIT")
+_MAX_LIVE_QUOTES = 2
+_DONE = frozenset({"FILLED", "VETOED", "MISSED"})
+_TICK_D = Decimal(str(TICK))
+
+
+def _repo_root() -> Path:
+    """Resolve the checkout from this package, not cwd."""
+    here = Path(__file__).resolve()
+    for candidate in here.parents:
+        if (candidate / "config" / "v2").is_dir() and (candidate / "AGENT.md").is_file():
+            return candidate
+    return Path.cwd()
+
+
+def _v2_yaml(*parts: str) -> Path:
+    return _repo_root().joinpath("config", "v2", *parts)
+
+
+ENTRY_YAML = _v2_yaml("entry_location.yaml")
+CHASE_YAML = _v2_yaml("entry", "chase_defaults.yaml")
 
 
 @dataclass(frozen=True)
@@ -160,8 +179,21 @@ def load_entry_config(
     return EntryLocationConfig(path, chase_path, bus=bus)
 
 
+def snap_ask_up(ask: float | Decimal, tick: Decimal | None = None) -> Decimal:
+    """Snap an ask UP onto the tick grid (0.05). Already-on-tick stays."""
+    tick_d = tick if tick is not None else _TICK_D
+    raw = ask if isinstance(ask, Decimal) else Decimal(str(ask))
+    units = (raw / tick_d).to_integral_value(rounding=ROUND_CEILING)
+    return units * tick_d
+
+
 def marketable_limit(ask: float, max_chase_ticks: int, tick: float = TICK) -> float:
-    return round(ask + max_chase_ticks * tick, 2)
+    """Ask snapped up to `tick`, plus `max_chase_ticks` ticks. Never above that cap."""
+    tick_d = Decimal(str(tick))
+    snapped = snap_ask_up(ask, tick_d)
+    cap = snapped + Decimal(int(max_chase_ticks)) * tick_d
+    priced = min(cap, snapped + Decimal(int(max_chase_ticks)) * tick_d)
+    return float(priced)
 
 
 def stretch_floats(stretch: dict[str, Any] | None) -> dict[str, float]:
@@ -283,7 +315,9 @@ class OrderPlanner:
                 continue
             if quote.available_ts < row["bar_close_ts"]:
                 continue
-            row["quotes"].append(quote)
+            held = list(row.get("quotes") or ())
+            held.append(quote)
+            row["quotes"] = held[-_MAX_LIVE_QUOTES:]
             if quote.ask is not None:
                 row["last_ask"] = quote.ask
             if row["status"] == "PENDING" and row["mode"] in ("chase", "pullback_limit"):
@@ -299,6 +333,7 @@ class OrderPlanner:
             if callable(on_depth):
                 on_depth(quote)
         self._collect_fills()
+        self._prune_live()
 
     def on_bar_close(self) -> None:
         for row in self._live.values():
@@ -332,6 +367,7 @@ class OrderPlanner:
             ):
                 self._finalize_missed_chase(row)
         self._collect_fills()
+        self._prune_live()
 
     def rebuild(self) -> None:
         """REG-04: restore pending plans; never duplicate a live order."""
@@ -358,7 +394,6 @@ class OrderPlanner:
             expires = self.clock.now() + timedelta(seconds=float(timeout_s))
         oid = order_id(row["account_id"], row["signal_id"], "entry")
         stretch = stretch_floats(row.get("stretch"))
-        stretch["catastrophic_price"] = max(TICK, float(row["limit_price"]) - 1.0)
         plan = EntryPlan(
             plan_id=row["plan_id"],
             decision_id=row["decision_id"],
@@ -381,6 +416,7 @@ class OrderPlanner:
             row["status"] = "VETOED"
             row["veto"] = out.reason_code
             self.store.upsert_plan(self._persistable(row))
+            self._prune_live()
             return
         row["client_order_id"] = oid
         row["sent_at"] = self.clock.now()
@@ -490,6 +526,16 @@ class OrderPlanner:
                 self.store.upsert_plan(self._persistable(row))
                 self.bus.publish("ENTRY_PLAN_RESULT", result.__dict__, source="oms")
 
+    def _prune_live(self) -> None:
+        for pid, row in list(self._live.items()):
+            status = str(row.get("status") or "")
+            if status in _DONE or (
+                status == "MISSED_CHASE"
+                and row.get("result") is not None
+                and row.get("shadow_until") is None
+            ):
+                del self._live[pid]
+
     def _persistable(self, row: dict[str, Any]) -> dict[str, Any]:
         return {
             "plan_id": row["plan_id"],
@@ -518,11 +564,11 @@ class OrderPlanner:
             "ask_at_cancel": row.get("ask_at_cancel"),
             "first_fillable_ask": row.get("first_fillable_ask"),
             "sent_at": row.get("sent_at"),
-            "quotes": list(row.get("quotes") or ()),
             "bars_seen": row.get("bars_seen", 0),
             "last_ask": row.get("last_ask"),
             "shadow_until": row.get("shadow_until"),
             "result": row.get("result"),
+            "veto": row.get("veto"),
         }
 
 
@@ -538,5 +584,6 @@ __all__ = [
     "marketable_limit",
     "plan_id",
     "policy_params_hash",
+    "snap_ask_up",
     "validate_entry_location",
 ]

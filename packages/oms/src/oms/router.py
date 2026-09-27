@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass
+from decimal import ROUND_CEILING, Decimal
 from typing import Any, Protocol, cast
 
 from brokers.factory import (  # type: ignore[import-untyped, unused-ignore]
@@ -176,7 +177,7 @@ class OrderRouter:
         instrument_id = decision.instrument_id or ""
         lots = int(decision.lots or 0)
         lot_size = int(decision.lot_size or lot_size_for(instrument_id))
-        stop = _catastrophic_price(plan, decision)
+        stop = _catastrophic_price(plan, decision, risk=self.risk, qty=max(0, lots * lot_size))
         intent = self._intent(
             client_order_id=oid,
             instrument_id=instrument_id,
@@ -262,7 +263,9 @@ class OrderRouter:
             stop_loss=(
                 float(existing["stop_loss"])
                 if existing.get("stop_loss") is not None
-                else _catastrophic_price(plan, decision)
+                else _catastrophic_price(
+                    plan, decision, risk=self.risk, qty=max(0, lots * lot_size)
+                )
             ),
             purpose="ENTRY",
             side="BUY",
@@ -378,17 +381,53 @@ class OrderRouter:
         return self.broker.place_order(intent, rd)
 
 
-def _catastrophic_price(plan: EntryPlan, decision: Decision) -> float | None:
-    stretch = plan.stretch or {}
-    raw = stretch.get("catastrophic_price")
-    if raw is not None:
-        return float(raw)
-    loc = decision.entry_location or {}
-    if "catastrophic_price" in loc:
-        return float(loc["catastrophic_price"])
-    if decision.limit_price:
-        return max(0.05, float(decision.limit_price) - 1.0)
-    return max(0.05, plan.limit_price - 1.0)
+def _max_loss_rupees(risk: Any) -> float:
+    """Paper house stop from risk_limits.yaml (₹30k on paper). Stretch is not a source."""
+    cfg: dict[str, Any] | None = None
+    limits = getattr(risk, "limits", None)
+    getter = getattr(limits, "get", None)
+    if callable(getter):
+        got = getter()
+        if isinstance(got, dict):
+            cfg = got
+    if cfg is None:
+        return 30000.0
+    mode = str(cfg.get("mode") or "paper")
+    block = (cfg.get("modes") or {}).get(mode) or {}
+    try:
+        return abs(float(block.get("max_loss_per_trade") or 30000))
+    except (TypeError, ValueError):
+        return 30000.0
+
+
+def _stop_from_max_loss(entry: float, qty: int, max_loss: float) -> float:
+    """BUY stop at or below entry so worst-case rupees ≤ max_loss, on the 0.05 grid."""
+    tick = Decimal(str(0.05))
+    entry_d = Decimal(str(entry)) if entry > 0 else tick
+    if qty <= 0:
+        return float(tick)
+    pts = Decimal(str(max_loss)) / Decimal(qty)
+    raw = entry_d - pts
+    if raw < tick:
+        return float(tick)
+    units = (raw / tick).to_integral_value(rounding=ROUND_CEILING)
+    stop = units * tick
+    if stop >= entry_d:
+        stop = entry_d - tick
+    return float(max(tick, stop))
+
+
+def _catastrophic_price(
+    plan: EntryPlan,
+    decision: Decision,
+    *,
+    risk: Any | None = None,
+    qty: int = 0,
+) -> float:
+    """Catastrophic stop from the risk config, never from stretch."""
+    entry = float(plan.limit_price or 0) or float(decision.limit_price or 0) or 0.05
+    max_loss = _max_loss_rupees(risk) if risk is not None else 30000.0
+    return _stop_from_max_loss(entry, qty, max_loss)
 
 
 def _moneyness(decision: Decision) -> str:

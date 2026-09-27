@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import time
 from datetime import timedelta
+from decimal import Decimal
 from pathlib import Path
 
 import pytest
@@ -21,6 +22,7 @@ from oms.planner import (
     entry_config_hash,
     load_entry_config,
     marketable_limit,
+    snap_ask_up,
 )
 
 BAR_CLOSE = NOW - timedelta(seconds=1)
@@ -273,3 +275,90 @@ def test_reg_13_entry_location_config_hash_changes(tmp_path: Path) -> None:
     assert config_hash(entry_location=entry, chase_defaults=chase) != config_hash(
         entry_location=changed, chase_defaults=chase
     )
+
+
+def test_off_tick_ask_is_snapped_to_0_05_and_not_above_cap() -> None:
+    ask = 151.23
+    got = marketable_limit(ask, 2)
+    snapped = float(snap_ask_up(ask))
+    assert snapped == pytest.approx(151.25)
+    cap = snapped + 2 * 0.05
+    assert got == pytest.approx(cap)
+    assert got == pytest.approx(151.35)
+    assert got <= cap
+    units = Decimal(str(got)) / Decimal("0.05")
+    assert units == units.to_integral_value()
+    on_tick = (Decimal(str(got)) % Decimal("0.05")) == 0
+    assert on_tick, f"marketable_limit({ask})={got} is not a 0.05 tick"
+
+
+def test_veto_is_persisted_on_the_plan_row(tmp_path: Path) -> None:
+    clock = SimClock(NOW)
+    planner = _planner(tmp_path, clock)
+    planner.on_decision(
+        make_decision(lots=99),
+        account=Account("founder"),
+        signal_id=SIG,
+        bar_close_ts=BAR_CLOSE,
+    )
+    planner.on_quote(_quote(clock, ask=151.20))
+    assert planner.router.broker.orders == {}
+    row = next(iter(planner.store.entry_plans.values()))
+    assert row["status"] == "VETOED"
+    assert row["veto"] == "MAX_LOTS"
+
+
+def test_live_and_quotes_are_bounded(tmp_path: Path) -> None:
+    clock = SimClock(NOW)
+    planner = _planner(tmp_path, clock)
+    planner.on_decision(
+        make_decision(), account=Account("founder"), signal_id=SIG, bar_close_ts=BAR_CLOSE
+    )
+    planner.on_quote(_quote(clock, ask=151.20))
+    for _ in range(20):
+        clock.advance_by(timedelta(milliseconds=40))
+        planner.on_quote(_quote(clock, ask=200.00, ltp=200.00))
+    live = list(planner._live.values())
+    assert live
+    assert len(live[0]["quotes"]) <= 2
+    stored = next(iter(planner.store.entry_plans.values()))
+    assert "quotes" not in stored
+    clock.advance_by(timedelta(seconds=2))
+    planner.on_clock()
+    clock.advance_by(timedelta(seconds=CHASE_LOOKAHEAD_S))
+    planner.on_clock()
+    assert not planner._live
+
+
+def test_config_paths_resolve_from_repo_root(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    cfg = load_entry_config()
+    assert cfg.path.exists()
+    assert cfg.get()["boss_stretch"] == "record_only"
+    from boss.selector import entry_files_hash, load_engine_config
+
+    load_engine_config()
+    assert len(entry_files_hash()) == 16
+
+
+def test_stretch_has_no_catastrophic_price(tmp_path: Path) -> None:
+    src = (REPO / "packages/oms/src/oms/planner.py").read_text(encoding="utf-8")
+    assert "catastrophic_price" not in src
+    clock = SimClock(NOW)
+    planner = _planner(tmp_path, clock)
+    planner.on_decision(
+        make_decision(
+            stretch={"record_only": True, "zone_atr": 1.6, "ema20_atr": 2.4, "twap_atr": 3.1}
+        ),
+        account=Account("founder"),
+        signal_id=SIG,
+        bar_close_ts=BAR_CLOSE,
+    )
+    planner.on_quote(_quote(clock, ask=151.20))
+    order = next(iter(planner.router.broker.orders.values()))
+    assert order.intent.stop_loss is not None
+    assert order.intent.stop_loss < float(order.intent.price or 0)
+    assert order.intent.stop_loss != pytest.approx(float(order.intent.price or 0) - 1.0)
+    assert "catastrophic_price" not in (order.intent.__dict__)

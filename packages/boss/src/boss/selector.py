@@ -24,9 +24,23 @@ from desk_ml.regime.weights import WeightConfig, cap_shares
 from strategies.api import Signal
 from strategies.registry import Basket, BasketEntry
 
-ENGINE_YAML = Path("config/v2/engine.yaml")
-ENTRY_YAML = Path("config/v2/entry_location.yaml")
-CHASE_YAML = Path("config/v2/entry/chase_defaults.yaml")
+
+def _repo_root() -> Path:
+    """Resolve the checkout from this package, not cwd."""
+    here = Path(__file__).resolve()
+    for candidate in here.parents:
+        if (candidate / "config" / "v2").is_dir() and (candidate / "AGENT.md").is_file():
+            return candidate
+    return Path.cwd()
+
+
+def _v2_yaml(*parts: str) -> Path:
+    return _repo_root().joinpath("config", "v2", *parts)
+
+
+ENGINE_YAML = _v2_yaml("engine.yaml")
+ENTRY_YAML = _v2_yaml("entry_location.yaml")
+CHASE_YAML = _v2_yaml("entry", "chase_defaults.yaml")
 PAPER_STAGES = ("paper", "live_eligible")
 _NY = ZoneInfo("America/New_York")
 _INDIA_CASH_CLOSE = time(15, 30)
@@ -215,28 +229,44 @@ def entry_files_hash(entry_path: Path | None = None, chase_path: Path | None = N
     return hashlib.sha256(blob.encode("utf-8")).hexdigest()[:16]
 
 
+def _opt_float(raw: object) -> float | None:
+    if isinstance(raw, bool):
+        return None
+    if isinstance(raw, int | float):
+        return float(raw)
+    return None
+
+
 def stretch_from_location(location: Mapping[str, Any] | None, config_hash: str) -> dict[str, Any]:
     """Record-only stretch block. Never used to HOLD or veto (K19)."""
     loc = dict(location or {})
-    nearest = loc.get("nearest") if isinstance(loc.get("nearest"), dict) else {}
-    zones = loc.get("zones") if isinstance(loc.get("zones"), list) else []
+    nearest_raw = loc.get("nearest")
+    nearest: Mapping[str, Any] = nearest_raw if isinstance(nearest_raw, dict) else {}
+    zones_raw = loc.get("zones")
+    zones: list[object] = list(zones_raw) if isinstance(zones_raw, list) else []
     ema20_atr: float | None = None
     twap_atr: float | None = None
-    for zone in zones:
-        if not isinstance(zone, dict):
+    for zone_obj in zones:
+        if not isinstance(zone_obj, dict):
             continue
+        zone: Mapping[str, Any] = zone_obj
         if zone.get("zone") == "ema20":
-            ema20_atr = zone.get("distance_atr")  # type: ignore[assignment]
+            ema20_atr = _opt_float(zone.get("distance_atr"))
         source = zone.get("source")
         if (zone.get("zone") in ("vwap", "twap") or source in ("twap", "fut_vwap")) and (
             twap_atr is None or source == "twap"
         ):
-            twap_atr = zone.get("distance_atr")  # type: ignore[assignment]
-    zone_atr = nearest.get("distance_atr") if nearest else loc.get("entry_distance_atr")
+            twap_atr = _opt_float(zone.get("distance_atr"))
+    zone_atr = (
+        _opt_float(nearest.get("distance_atr"))
+        if nearest
+        else _opt_float(loc.get("entry_distance_atr"))
+    )
+    zone_name = nearest.get("zone") if nearest else None
     return {
         "record_only": True,
         "zone_atr": zone_atr,
-        "zone": nearest.get("zone") if nearest else None,
+        "zone": str(zone_name) if zone_name is not None else None,
         "ema20_atr": ema20_atr,
         "twap_atr": twap_atr,
         "config_hash": config_hash,
@@ -245,7 +275,7 @@ def stretch_from_location(location: Mapping[str, Any] | None, config_hash: str) 
 
 def load_engine_config(path: Path | None = None) -> EngineConfig:
     """Load holds and sizing from YAML. Missing file → fail closed."""
-    import yaml
+    import yaml  # type: ignore[import-untyped]
 
     target = path if path is not None else ENGINE_YAML
     if not target.is_file():
