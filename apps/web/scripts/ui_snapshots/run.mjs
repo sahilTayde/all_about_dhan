@@ -37,18 +37,25 @@ const PAGES = [
 ];
 
 // ---------- fixture API ----------
-let bumped = false;
-let flat = false;
+const state = { bumped: false, flat: false, down: false, episode: 0 };
 const clients = new Set();
 function currentSnap() {
   const s = structuredClone(snapshot());
-  if (bumped) s.board.open_trades[0].last_ltp = 139.95;
-  if (flat) {
-    s.board.open_trades = [];
-    s.founder_book.index_status = { NIFTY: "STOP", BANKNIFTY: "STOP", SENSEX: "STOP" };
+  if (state.bumped) {
+    s.board.open_trades[0].last_ltp = 139.95;
+    s.board.open_trades[0].last_updated_ts += 2;
   }
+  if (state.flat) {
+    s.board.open_trades = [];
+    s.founder_book.index_status = { NIFTY: "START", BANKNIFTY: "STOP", SENSEX: "STOP" };
+  }
+  // A new episode of the same alert (it cleared and came back): same id, new start time.
+  s.alerts = s.alerts.map((a) => ({ ...a, since: `episode-${state.episode}` }));
   return s;
 }
+const push = () => {
+  for (const c of clients) c.write(`data: ${JSON.stringify(currentSnap())}\n\n`);
+};
 function fixtureApi(req, res, next) {
   const url = new URL(req.url, "http://fixture");
   const p = url.pathname;
@@ -56,6 +63,10 @@ function fixtureApi(req, res, next) {
     res.setHeader("content-type", "application/json");
     res.end(JSON.stringify(o));
   };
+  if (state.down && p.startsWith("/ui/")) {
+    res.statusCode = 503;
+    return res.end("fixture: API down");
+  }
   if (p === "/ui/stream") {
     res.writeHead(200, { "content-type": "text/event-stream", "cache-control": "no-cache", connection: "keep-alive" });
     res.write(`data: ${JSON.stringify(currentSnap())}\n\n`);
@@ -63,14 +74,22 @@ function fixtureApi(req, res, next) {
     req.on("close", () => clients.delete(res));
     return undefined;
   }
-  if (p === "/__fixture/bump") {
-    bumped = true;
-    for (const c of clients) c.write(`data: ${JSON.stringify(currentSnap())}\n\n`);
+  if (p.startsWith("/__fixture/")) {
+    const what = p.slice("/__fixture/".length);
+    if (what === "bump") state.bumped = true;
+    if (what === "flat") state.flat = true;
+    if (what === "episode") state.episode += 1;
+    if (what === "down") {
+      state.down = true;
+      for (const c of clients) c.destroy();
+      clients.clear();
+    }
+    push();
     return json({ ok: true, clients: clients.size });
   }
-  if (p === "/__fixture/flat") {
-    flat = true;
-    return json({ ok: true });
+  if (state.down && p.startsWith("/ui/")) {
+    res.statusCode = 503;
+    return res.end("fixture: API down");
   }
   if (p === "/ui/snapshot") return json(currentSnap());
   if (p === "/paper/trace") return json(trace(url.searchParams.get("trade_id")));
@@ -119,6 +138,33 @@ async function measure(page) {
       }
       if (!contained) clipped.push(`${el.tagName.toLowerCase()}.${String(el.className).split(" ")[0]} right=${Math.round(r.right)}`);
     }
+    // Interactive elements cut off INSIDE an overflow:hidden/clip ancestor (per axis). A scroll
+    // container between the element and that ancestor makes the overflow reachable, so it is skipped.
+    const clippedInside = [];
+    const interactive = document.querySelectorAll(
+      'button, a[href], input, select, textarea, [role="button"], [role="tab"], [tabindex]:not([tabindex="-1"])',
+    );
+    for (const el of interactive) {
+      const r = el.getBoundingClientRect();
+      if (r.width < 2 || r.height < 2) continue;
+      let scrollX = false;
+      let scrollY = false;
+      for (let a = el.parentElement; a && a !== document.body; a = a.parentElement) {
+        const cs = getComputedStyle(a);
+        const b = a.getBoundingClientRect();
+        const cut = (v) => v === "hidden" || v === "clip";
+        const scroll = (v) => v === "auto" || v === "scroll";
+        const outX = r.left < b.left - 1 || r.right > b.right + 1;
+        const outY = r.top < b.top - 1 || r.bottom > b.bottom + 1;
+        if ((cut(cs.overflowX) && !scrollX && outX) || (cut(cs.overflowY) && !scrollY && outY)) {
+          const label = (el.textContent || el.getAttribute("aria-label") || el.tagName).trim().slice(0, 24);
+          clippedInside.push(`${el.tagName.toLowerCase()} "${label}" in ${a.tagName.toLowerCase()}.${String(a.className).split(" ")[0]}`);
+          break;
+        }
+        scrollX = scrollX || scroll(cs.overflowX);
+        scrollY = scrollY || scroll(cs.overflowY);
+      }
+    }
     const text = document.body.innerText;
     const bad = (text.match(/\b(NaN|undefined)\b/g) || []).length;
     const count = (s) => document.querySelectorAll(s).length;
@@ -127,6 +173,7 @@ async function measure(page) {
       scrollWidth: se.scrollWidth,
       clientWidth: se.clientWidth,
       clipped: clipped.slice(0, 8),
+      clippedInside: clippedInside.slice(0, 8),
       cols,
       bad,
       fcpMs: fcp == null ? null : Math.round(fcp),
@@ -192,7 +239,7 @@ async function main() {
         const readyMs = Date.now() - t0;
         await page.waitForTimeout(900);
         const m = await measure(page);
-        const overflowOk = m.scrollWidth <= m.clientWidth && m.clipped.length === 0;
+        const overflowOk = m.scrollWidth <= m.clientWidth && m.clipped.length === 0 && m.clippedInside.length === 0;
         let colsOk = true;
         if (pg.tradeTable && width >= 1280) {
           for (const k of ["pnl", "status"]) {
@@ -210,6 +257,7 @@ async function main() {
             (pg.tradeTable ? `  P/L=${JSON.stringify(m.cols.pnl)} Status=${JSON.stringify(m.cols.status)} rowH=${m.cols.rowHeight}` : "") +
             `  fcp=${m.fcpMs}ms ready=${readyMs}ms` +
             (m.clipped.length ? `  clipped=${JSON.stringify(m.clipped)}` : "") +
+            (m.clippedInside.length ? `  clippedInside=${JSON.stringify(m.clippedInside)}` : "") +
             (m.bad ? `  NaN/undefined=${m.bad}` : "") +
             (missing.length ? `  missing=${JSON.stringify(missing)}` : "") +
             (errors.length ? `  errors=${JSON.stringify(errors)}` : ""),
@@ -220,15 +268,53 @@ async function main() {
     }
 
     if (FEATURES) {
-      // Interaction shots + push-to-DOM refresh time on the Desk (fixture flips the open ticket's LTP).
+      const check = (name, pass, detail) => {
+        results.push({ page: name, pass: Boolean(pass), detail });
+        console.log(`${pass ? "PASS" : "FAIL"} ${name.padEnd(16)} ${detail}`);
+      };
       const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+      await ctx.grantPermissions(["notifications"]);
+      // Count browser notifications (the alarm) without a real OS popup.
+      await ctx.addInitScript(() => {
+        window.__notes = [];
+        window.Notification = class {
+          static permission = "granted";
+          static requestPermission = async () => "granted";
+          constructor(title) {
+            window.__notes.push(title);
+          }
+        };
+      });
       const page = await ctx.newPage();
+      const traceHits = [];
+      page.on("request", (r) => r.url().includes("/paper/trace") && traceHits.push(r.url()));
       await page.goto(`${base}/desk`, { waitUntil: "load" });
       await page.waitForSelector(".grid .current-trade .kv");
+
+      // Alarm: enabling it must sound + notify for the CRITICAL alert that is already showing.
+      await page.locator(".alert-bar .chip-btn").click();
+      await page.waitForTimeout(300);
+      const notes = await page.evaluate(() => window.__notes.slice());
+      check("alarm-existing", notes.some((t) => t.startsWith("CRITICAL")), `notifications after Enable alarm: ${JSON.stringify(notes)}`);
+
+      // Dismissal lasts one episode: dismiss, then the same alert starts again → it must be back.
+      const critical = page.locator(".alert-bar__list li", { hasText: "Restart during an open trade" });
+      await critical.locator(".icon-btn").click();
+      const hidden = (await critical.count()) === 0;
+      await page.evaluate(() => fetch("/__fixture/episode"));
+      await page.waitForTimeout(400);
+      const back = (await critical.count()) === 1;
+      const stored = await page.evaluate(() => JSON.parse(localStorage.getItem("desk.alerts.dismissed.v2") || "[]"));
+      check("dismiss-episode", hidden && back && stored.length === 0, `hidden=${hidden} back-on-new-episode=${back} stale-dismissals=${stored.length}`);
+
+      // Row + trace screenshot, then push-to-DOM refresh time (fixture flips the open ticket's LTP).
       await page.locator("table.desk-history tbody tr").nth(1).click();
       await page.locator(".trace-node").nth(2).click();
       await page.waitForTimeout(400);
       await page.screenshot({ path: resolve(OUT, "desk_1440_row_and_trace.png"), fullPage: false, clip: { x: 0, y: 0, width: 1440, height: 900 } });
+      await page.locator("table.desk-history tbody tr").first().click(); // the open ticket
+      await page.waitForTimeout(300);
+      const hitsBefore = traceHits.length;
       const refreshMs = await page.evaluate(async () => {
         const dd = [...document.querySelectorAll(".current-trade .kv")].find((k) => k.querySelector("dt")?.textContent === "LTP")?.querySelector("dd");
         const before = dd.textContent;
@@ -239,17 +325,53 @@ async function main() {
         fetch("/__fixture/bump");
         return Math.round(await done);
       });
-      results.push({ page: "desk-refresh", refreshMs, pass: refreshMs < 200 });
-      console.log(`${refreshMs < 200 ? "PASS" : "FAIL"} refresh  push → DOM ${refreshMs} ms (target < 200 ms)`);
+      check("refresh", refreshMs < 200, `push → DOM ${refreshMs} ms (target < 200 ms)`);
+      await page.waitForTimeout(400);
+      check("trace-refresh", traceHits.length > hitsBefore, `open-ticket trace refetched after its update (${traceHits.length - hitsBefore} request)`);
 
-      // No open ticket + founder STOP on every index: the panel must say ON HOLD and why.
+      // Past day: model-log rows have no close time → Out reads "—", never "open".
+      const pastDay = await page.locator(".filter-row select").first().locator("option").nth(1).getAttribute("value");
+      await page.locator(".filter-row select").first().selectOption(pastDay);
+      await page.waitForSelector("table.desk-history tbody tr td.col-end");
+      const outs = await page.locator("table.desk-history tbody td.col-end").allTextContents();
+      await page.locator(".grid > section.panel").first().screenshot({ path: resolve(OUT, "desk_1440_past_day.png") });
+      check("past-day-out", outs.length > 0 && !outs.includes("open"), `${pastDay}: Out cells ${JSON.stringify([...new Set(outs)])}`);
+
+      // No open ticket; founder has NIFTY on, SENSEX off, and SENSEX is first in the skip list.
       await page.evaluate(() => fetch("/__fixture/flat"));
       await page.reload({ waitUntil: "load" });
       await page.waitForSelector(".current-trade__empty");
       const hold = (await page.locator(".current-trade .state-pill").first().textContent()).trim();
+      const why = (await page.locator(".current-trade__empty .muted").first().textContent()).trim();
       await page.locator(".current-trade").screenshot({ path: resolve(OUT, "desk_1440_on_hold.png") });
-      results.push({ page: "desk-on-hold", hold, pass: hold === "ON HOLD" });
-      console.log(`${hold === "ON HOLD" ? "PASS" : "FAIL"} on-hold  current trade pill "${hold}"`);
+      check("on-hold", hold === "ON HOLD" && why.includes("NIFTY") && !why.includes("SENSEX"), `pill "${hold}" · ${why}`);
+      await page.setViewportSize({ width: 390, height: 900 });
+      await page.waitForTimeout(300);
+      const cut = await page.evaluate(() =>
+        [...document.querySelectorAll(".last-ticket dd")].filter((dd) => dd.scrollWidth > dd.clientWidth + 1).map((dd) => dd.textContent),
+      );
+      await page.locator(".current-trade").screenshot({ path: resolve(OUT, "desk_390_on_hold.png") });
+      check("last-ticket-390", cut.length === 0, `truncated last-ticket values at 390px: ${JSON.stringify(cut)}`);
+      await page.setViewportSize({ width: 1440, height: 900 });
+
+      // Founder: P&L-by-stage bars add up to the book net; START/STOP fully inside its panel.
+      await page.goto(`${base}/pm`, { waitUntil: "load" });
+      await page.waitForSelector(".stage-total");
+      const [sum, net] = await page.locator(".stage-total b").allTextContents();
+      check("stage-sum", sum === net, `sum of bars ${sum} · book net ${net}`);
+      await page.locator(".founder-desk").screenshot({ path: resolve(OUT, "founder_1440_trade_desk.png") });
+      await page.locator(".grid > div").filter({ has: page.locator(".stage-bars") }).screenshot({ path: resolve(OUT, "founder_pnl_by_stage.png") });
+
+      // API down: static mock must read MOCK · OFFLINE with a banner, never PAPER.
+      await page.evaluate(() => fetch("/__fixture/down"));
+      for (const path of ["/desk", "/pm"]) {
+        await page.goto(`${base}${path}`, { waitUntil: "load" });
+        await page.waitForSelector(".offline-banner", { timeout: 8000 }).catch(() => {});
+        const badge = (await page.locator(".source-pill").first().textContent()).trim();
+        const banner = await page.locator(".offline-banner").count();
+        await page.screenshot({ path: resolve(OUT, `${path.slice(1) || "desk"}_1440_offline.png`), clip: { x: 0, y: 0, width: 1440, height: 520 } });
+        check(`offline${path}`, badge.includes("OFFLINE") && !badge.includes("PAPER") && banner === 1, `badge "${badge}" banner=${banner}`);
+      }
       await ctx.close();
     }
   } finally {

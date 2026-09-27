@@ -155,7 +155,9 @@ export const board = {
   ],
   seen_not_taken: {
     skipped_latest: [
-      { underlying: "NIFTY", side: "CE", reason: "CANCEL_AGAINST", action: "CANCEL", book_id: "MIX-DEFAULT-BUY", last_updated_ist: ist(BASE_TS + 900) },
+      // SENSEX is OFF in the founder book: the hold reason must not quote it.
+      { underlying: "SENSEX", side: "PE", reason: "NO_NEW_AFTER_1516", why: "No NEW after 15:16 IST (synthetic).", action: "SKIP", book_id: "MIX-DEFAULT-BUY" },
+      { underlying: "NIFTY", side: "CE", reason: "CANCEL_AGAINST", why: "Overlay cancelled the CE after the thesis broke (synthetic).", action: "CANCEL", book_id: "MIX-DEFAULT-BUY", last_updated_ist: ist(BASE_TS + 900) },
     ],
     cancelled: [],
   },
@@ -251,8 +253,27 @@ function summary(day, i) {
       "MIX-DEFAULT-BUY": { n, wins, net },
       "MIX-ML-LOGIT": { n: Math.max(1, n - 3), wins: Math.max(0, wins - 1), net: Math.round(net * 0.7) },
     },
-    by_reason: Object.fromEntries(REASONS.map((r, k) => [r, { n: 1 + ((i + k) % 3), net: r === "TARGET" ? 2600 : -700 * (k + 1) }])),
+    by_reason: splitByReason(n, wins, net + charges, charges),
   };
+}
+
+// Per-reason gross / charges / net that add up exactly to the day's totals (P&L-by-stage must sum to net).
+function splitByReason(n, wins, gross, charges) {
+  const counts = { TARGET: wins, STOP: Math.ceil((n - wins) / 3), CANCEL_AGAINST: Math.floor((n - wins) / 3) };
+  counts.TIME = n - counts.TARGET - counts.STOP - counts.CANCEL_AGAINST;
+  const targetGross = wins * 2600;
+  const rest = gross - targetGross;
+  const losers = n - wins || 1;
+  const out = {};
+  let left = rest;
+  const keys = Object.keys(counts).filter((k) => counts[k] > 0);
+  keys.forEach((k, j) => {
+    const g = k === "TARGET" ? targetGross : j === keys.length - 1 ? left : Math.round((rest * counts[k]) / losers);
+    if (k !== "TARGET") left -= g;
+    const c = counts[k] * 140;
+    out[k] = { n: counts[k], gross: g, charges: c, net: g - c };
+  });
+  return out;
 }
 
 const todayRows = closed.filter((t) => t.filled !== false);
@@ -267,8 +288,10 @@ const today = {
   by_reason: {},
 };
 for (const t of todayRows) {
-  const r = (today.by_reason[t.exit_reason] ||= { n: 0, net: 0 });
+  const r = (today.by_reason[t.exit_reason] ||= { n: 0, gross: 0, charges: 0, net: 0 });
   r.n += 1;
+  r.gross += t.gross_pnl_inr;
+  r.charges += t.charges_inr;
   r.net += t.realized_pnl_inr;
 }
 export const days = [today, ...pastDays(14).map(summary)];
@@ -327,7 +350,8 @@ export function dayHistory(day) {
   const trades = Array.from({ length: s.n }, (_, k) => {
     const t = trade(k + i);
     const shift = Date.parse(`${day}T00:00:00Z`) / 1000 - Date.parse(`${DAY}T00:00:00Z`) / 1000;
-    return { ...t, trade_id: `synth-${day}-${k}`, opened_ts: t.opened_ts + shift, opened_ist: ist(t.opened_ts + shift), closed_ist: ist(t.closed_ts + shift), closed_ts: t.closed_ts + shift, source: "model_log" };
+    // model-log rows carry no close time: the Out column must read "—", not "open"
+    return { ...t, trade_id: `synth-${day}-${k}`, opened_ts: t.opened_ts + shift, opened_ist: ist(t.opened_ts + shift), closed_ist: null, closed_ts: null, last_updated_ist: null, spot_at_entry: k % 3 ? t.spot_at_entry : null, source: "model_log (live)" };
   });
   return { day, days: days.map((d) => d.day), trades };
 }
