@@ -179,7 +179,8 @@ run in parallel. `REG-nn` ids refer to section 3; each ticket ships the regressi
 
 **V2-06 Strategy runtime and registry client** (`packages/strategies`, ~400 lines)
 - `api.py` (section 2.5, including `ExitPlan.time_stops` and `Signal.strike_choice`), `registry.py` (contract for the
-  separately built module + YAML fallback; no basket = no trades), `runtime.py` (load by module path, check declared
+  separately built module + YAML fallback + a read-only adapter for the basket track's `basket_india.json` /
+  `basket_forex.json`, section 4.2 K6; no basket = no trades), `runtime.py` (load by module path, check declared
   features and markets, isolation, per-call budget, `BASKET_LOADED`), `params_hash` over all params **including the
   exit plan, time stops and strike-router rules**, and one test-only plugin `TEST-CROSS` (moving-average cross used
   only to exercise code paths; stage `shadow`, never in a real basket).
@@ -343,7 +344,8 @@ run in parallel. `REG-nn` ids refer to section 3; each ticket ships the regressi
 - Acceptance: the invariant checker catches each planted violation (self-test per invariant); the dry run on the fixture
   day reports zero diffs; perf report within budgets on the CI runner; wired as required CI checks; `REG-10b` every job
   entry point is registered with a deadline; `REG-13c` a PR fixture that edits exit params without a version bump
-  fails; a meta-test fails if any REG id in section 3 has no collected test.
+  fails; a meta-test fails if any REG id in section 3 has no collected test; `TRACE-01` fails if any `C#` in
+  `docs/founder/FOUNDER_COMMENTS_LOG.md` or any `REG-nn` lacks a row with a ticket and a test in section 4.1.
 - Depends on: V2-10, V2-12, V2-15.
 
 **V2-17 Frozen legacy benchmark** (`packages/runtime/bench_legacy.py`, `config/legacy_frozen.sha256`, ~250 lines)
@@ -445,7 +447,69 @@ Tally: SATISFIED 1 (REG-05 caps, with the halt part still to port), PARTIAL 8, N
 
 ---
 
-## 4. Milestones
+## 4. Founder comments traceability
+
+Source of truth: [`docs/founder/FOUNDER_COMMENTS_LOG.md`](../founder/FOUNDER_COMMENTS_LOG.md) (C1-C11, committed
+verbatim from the founder's upload; times there are CT on 2026-09-26). This table maps every comment, and every legacy
+carry-over item, to the V2 service, ticket and test that satisfies it. Following the log's rule, nothing here counts as
+done until its test passes. A comment that conflicts with another comment or with the 32-step plan is marked
+**⚑ Kn** and listed in section 4.2. Those conflicts are **not** resolved here. The design's current default is stated
+so the build can continue, and the founder decides.
+
+### 4.1 Traceability table
+
+| Item | What it asks (short) | V2 service(s) | Ticket(s) | Test / proof that satisfies it | Conflict |
+|---|---|---|---|---|---|
+| **C1** | Option buyer; no long ATM holds; no 1-2 trades/day cap; active management; market-driven trade count | strategy runtime, strike router, position manager, risk engine | V2-06, V2-06b, V2-09 | V2-06b: ATM is never chosen for a planned hold beyond the router's ATM limit; V2-09: exit table tests (time stops, partials, trail); no trade-count limit exists in `risk_limits.yaml` or engine config (config schema test) | ⚑ K1, ⚑ K2 |
+| **C2** | Judge strategies on final total net P&L after costs; small losers and low win rate are fine | forward harness, warehouse, founder page | V2-20a, V2-18, V2-08 (costs) | V2-20a: every spec report's headline is total net after the REG-12 cost stack (depth and FC-MEAS), and win rate is never a pass criterion (bar state-machine tests); V2-18: daily report headline = total net | ⚑ K3 |
+| **C3** | Strike per trade with a reason (ATM ≤ 5 min holds, ITM100/200 for 15-30+ min; care on expiry day and 09:20-10:00) | strike router (strategy runtime) | V2-06b, V2-20a | V2-06b: router table tests for hold length, expiry day and the open window; every signal carries `strike_choice.reason` and all three alternatives priced at the same timestamp; V2-20a prices the alternatives as shadow legs. Log status: shadow, router lost less than fixed strikes but still lost, so no promotion | — |
+| **C4** | Use SSRN papers and good traders' setups; test them, don't trust posted win rates | research track (harvest lab, PR #24) feeding the forward harness | V2-20a (plus the external harvest lab) | Each harvested idea enters V2 only as a preregistered, hash-locked spec (`prereg.lock` refusal test, REG-13b); posted win rates are never an input field in the spec schema (schema test) | ⚑ K4 |
+| **C5** | Strategy library; India basket (NIFTY + SENSEX) and forex basket (parked); per-regime weight/rank so the boss picks a daily basket | registry/basket client (strategy runtime), boss | V2-06, V2-07 | V2-06: loads the basket module's output; no basket means no trades; an `FX_SPOT` plugin refuses an India basket; V2-07: regime weights and ranks are logged as `BOSS_SHADOW` and do not change the decision in `shadow` mode | ⚑ K5, ⚑ K6 |
+| **C6** | The basket module is a separate parallel track; never blocks the 32-step build; draft PR, merges later | strategy runtime (`registry.py` contract + YAML fallback) | V2-06 | V2-06: the runtime works with the YAML fallback and no basket module installed; the contract test runs against a fixture of the module's output | ⚑ K6, ⚑ K7 |
+| **C7** | Don't follow the old engine; build our own production system (Redis, DuckDB, websockets, VPS, customer-ready); old tape engine is reference only | whole V2 stack | all tickets; V2-15 (deploy), V2-16 (gate), V2-17 (freeze) | New merge gate (architecture §6.2: unit, integration, fault, no-look-ahead, determinism, perf, live-like dry run); V2-17 `frozen-legacy` CI check; M1 exit criteria | ⚑ K7, ⚑ K8 |
+| **C8** | Bring every fix done on the old engine into the new one | per REG item below | per REG item | The 13 REG rows below, each one must-pass test set in the `regression` CI job (V2-16 meta-test fails if any REG id has no collected test) | ⚑ K8, ⚑ K9 |
+| **C9** | The system enters at the top of big candles, gives back 4-5 pts to the imbalance/POC, then stops out | entry-location features, desk order planner, boss veto; research round 10 (external lab) | V2-05b, V2-08b, V2-20a | V2-05b feature fixtures (FVG, candle 50%, VWAP, EMA20, POC; causal); V2-08b: 5-minute give-back logged on every fill; V2-20a prices CHASE vs LIMIT vs WAIT legs; thresholds come from the round 10 report | ⚑ K2, ⚑ K10 |
+| **C10** | Boss and desk must be aligned on the entry-location rule | boss selector, desk order planner; basket strategy cards | V2-08b | V2-08b: one config file and one `config_hash` feed both the boss veto and the planner (nesting test: chase ≤ limit/wait ≤ veto); log-only until round 10 thresholds; `enforce` with a null threshold is refused | ⚑ K11 |
+| **C11** | Don't mess up with mid-build comments; lots of money and time spent | this log + this table; morning status checklist | V2-16 | V2-16 docs meta-test (**TRACE-01**): every `C#` row in `FOUNDER_COMMENTS_LOG.md` and every `REG-nn` has a row in this table with a ticket and a test; the build fails otherwise | — |
+| REG-01 | Closed bars only; no bucket stamped at last print (legacy 3m resample; PR #11, PR #21 leaks) | marketdata, indicators, strategies | V2-03, V2-05, V2-16 | REG-01a-f | — |
+| REG-02 | Enforced stop on every open position at all times, incl. restart/reconnect (~₹193k hole) | oms | V2-08, V2-09, V2-10, V2-12, V2-14 | REG-02a-e | — |
+| REG-03 | Forced close hits the exact held instrument (F2) | oms (positions) | V2-09 | REG-03a-c | — |
+| REG-04 | No open ticket vanishes (F3); rebuild from ledger; reconcile | ledger, runtime (recovery) | V2-10, V2-13 | REG-04a-c | — |
+| REG-05 | Caps in the risk veto (₹30k/trade, ₹90k/day, 25 lots, 3 positions); PR #14 halt and kill switch | risk engine, oms | V2-08, V2-09, V2-10 | REG-05a-e | ⚑ K1 |
+| REG-06 | A corrupt line never erases earlier state; first bad line recorded durably (PR #18 2e) | events, marketdata, control, ledger | V2-02, V2-03, V2-10, V2-11, V2-D2 | REG-06a-c | — |
+| REG-07 | Bad config never stops the bus; last-good kept; alarm | contracts, risk engine | V2-04, V2-08 | REG-07a-c | — |
+| REG-08 | ETL and loaders skip and log bad lines | warehouse, marketdata | V2-03, V2-18 | REG-08a-b | — |
+| REG-09 | No restart loop (F1): backoff, breaker, alarm | runtime, health | V2-15, V2-14 | REG-09a-b | — |
+| REG-10 | Wall-clock timeout on every replay and job | runtime | V2-04, V2-15, V2-16 | REG-10a-b | — |
+| REG-11 | Tests never write into real data folders | CI | V2-01 | REG-11a-b | — |
+| REG-12 | Real cost stack on every simulated fill | brokers (fills), ledger | V2-08 | REG-12a-d | ⚑ K12 |
+| REG-13 | Exit params in every strategy/config gate | strategies, forward harness, CI | V2-06, V2-06b, V2-16, V2-20a | REG-13a-c | — |
+| *not in log* | Founder addendum 2 (research round 9): ≤ 1 s depth, ≤ 5 s bid/ask snapshots, OI cadence, time stops first-class, forward harness | marketdata, oms, forward harness | V2-D1, V2-D2, V2-09, V2-20a | V2-D2 cadence tests; V2-09 time-stop tests; V2-20a harness tests | ⚑ K13 |
+| *not in log* | Standing rules at the foot of the log (paper only; every number from a source file or real run; verified cost stack; live for customers only on Sahil's call) | all | all; V2-08 (costs); M2 criterion 6 | Live-order gate unchanged (three-part gate, no live-orders compose profile); REG-12 cost tests; PR evidence sections cite source files or runs | ⚑ K12 |
+
+### 4.2 Conflicts flagged (not silently resolved)
+
+Each entry: what conflicts, what the V2 design does **by default** until the founder decides, and the decision needed.
+
+| # | Conflict | Items | Current V2 default (not a resolution) | Founder decision needed |
+|---|---|---|---|---|
+| **K1** | C1 says "no 1-2 trades/day cap, market-driven trade count". The risk engine and the old plan still limit activity: 15-minute cooldown after a loss (PR-011 proven fix, `cooldown_after_loss_minutes: 15`), max 3 open positions, ₹90k daily loss cap (REG-05), and Round 8 E2 allows "no second trade per day" | C1 vs REG-05, PR-011, Round 8 E2 | No per-day trade-count cap anywhere. The cooldown, position cap and daily loss cap stay, because they are risk limits, not count caps. E2 keeps its preregistered one-per-day rule (changing it would break its preregistration) | Keep the 15-minute loss cooldown and the 3-position cap as they are, or loosen them for an active buyer? |
+| **K2** | C9/C10 pullback limits and "wait for a consolidation candle" skip or delay entries. That reduces trade count and misses some moves, against C1's active, market-driven trading | C9/C10 vs C1 | Log-only: trades stay as today (chase); the missed-move cost is measured by the CHASE vs LIMIT vs WAIT shadow legs | After round 10: accept fewer trades for better entry location? |
+| **K3** | C2 says judge on total net P&L. The Round 8 forward bar (FWD-BAR) also requires a gross > 0 kill check at n = 30, both halves net > 0, a placebo percentile, and one-sided t ≥ 2.13 at n ≥ 120 before 09's five-pass. A strategy can be net-positive and still fail significance | C2 vs Round 8 FWD-BAR, 09 five-pass (SDLC gate) | Total net is the report headline; promotion still needs FWD-BAR and the five-pass | Is total net alone enough to promote, or does significance still gate promotion? |
+| **K4** | C4 wants SSRN papers and traders' setups tested actively. Round 8 §5 warns that selection at the current trial count (3,841) is not informative and every new test raises it | C4 vs Round 8 multiple-testing rules | Every harvested idea is one preregistered spec, trials are counted, and reports carry the deflated Sharpe | Accept the trial budget, or cap the number of harvested specs per round? |
+| **K5** | C5 says "the boss picks a daily basket". The V2 design has the basket module (pre-market) produce the basket and the boss only *apply* it, freezing it for the session (founder can remove, not add) | C5 vs architecture §2.5/§2.6 | Basket module picks; the boss applies and logs regime ranks in shadow | Should the boss choose among basket entries by regime intraday, or keep the basket fixed per session? |
+| **K6** | The basket track (bc-80505954) writes `basket_india.json` / `basket_forex.json`. The V2 contract assumed `config/v2/baskets/YYYY-MM-DD.yaml` | C5/C6 vs architecture §2.5 | V2-06 adds a read-only adapter for the basket module's JSON; no change is asked of the basket track (C6) | Confirm the basket JSON is the canonical format |
+| **K7** | C6 says the basket track "never blocks the 32-step build". After C7 the 32-step plan is superseded for new work by this V2 plan | C6 vs C7, `04_MIGRATION_PLAN.md` | Read as "never blocks the V2 build plan"; V2-06 runs on the YAML/JSON fallback | Confirm the reading |
+| **K8** | C7 (don't follow the old engine) conflicts with the 32-step plan's own principles: "Incremental, not rewrite", "No breaking changes to working paper system", and the PR-007 to PR-009 acceptance tests that require identical trades to `paper_scalp.py` | C7 vs `04_MIGRATION_PLAN.md` principles 1 and 6, PR-007..009 | V2 follows C7 (the later, explicit founder direction). `04_MIGRATION_PLAN.md` carries a "superseded for new work" note; parity is no longer a gate | Confirm that C7 overrides those plan principles |
+| **K9** | C8 (bring every old-engine fix across) against C7 (don't follow the old engine). Also, PR-010's known-but-unfixed legacy bugs (look-ahead in `_hold_series`, reversed OI signal, double-counted `greeks_vote_intent`, degenerate ML models) are not in the 13 REG items | C8 vs C7, PR-010 | Fixes carry over as **behaviour tests** (REG), not code. PR-010's analyst-specific bugs are not REG items because those analysts are not ported; the `_hold_series` look-ahead is covered generically by REG-01 | Should PR-010's analyst bugs become REG tests anyway (for example, if a legacy analyst is re-implemented as a v2 strategy)? |
+| **K10** | C9's pullback limits are passive entries. Round 8 **closed** passive entries on breakout-style signals: 94-96% fill rate, saved ~₹355/trade in spread, and lost more to adverse selection (fills cluster on failed breaks) | C9 vs Round 8 §1.1 | Log-only; round 10 decides the thresholds; the forward harness measures fill-conditional outcomes for LIMIT vs CHASE | After round 10: does the pullback limit avoid the adverse selection Round 8 found? |
+| **K11** | C10 requires the basket's strategy cards to follow the entry-location rule. That is a dependency on the basket track, which C6 says must stay independent | C10 vs C6 | A strategy card without an entry policy gets the default `EntryPolicy`; V2 does not wait on the basket track | Should entry-policy fields be required on basket strategy cards? |
+| **K12** | The log's standing cost stack lists "GST 18%" and no SEBI fee. Founder addendum 1 (REG-12) specifies a SEBI fee and GST on brokerage + exchange + SEBI. `config/charges.yaml` also has the NSE rate at `0.0003503`, not the `0.0355299%` both sources state | Log standing rules vs REG-12 vs `config/charges.yaml` | REG-12 as written (includes SEBI; GST on brokerage + exchange + SEBI); V2-08 moves the NSE rate to `0.000355299` (VERIFY against the circular) | Confirm SEBI fee and GST base |
+| **K13** | Founder addendum 2 (depth and quote recording, OI cadence, first-class time stops, forward harness) has **no C# entry** in the log. The log's rule says every comment gets an entry the same turn. This addendum (commit the log plus traceability) is not in the log either | Log completeness | Tracked here as *not in log*; the log file is committed verbatim and not edited by the agent | Add C12+ entries for these (the founder owns the log's numbering and times) |
+
+---
+
+## 5. Milestones
 
 ### M1: paper-live on the new stack
 
@@ -456,7 +520,7 @@ comparison.
 
 **Exit criteria (all required):**
 1. Every merge gate check green on `main` (section 6.2 of the architecture), including **every REG-01 to REG-13
-   test** (section 3).
+   test** (section 3) and `TRACE-01` (section 4); every C1-C11 row whose ticket is in M1 has its test passing.
 2. **10 consecutive sessions** on the new stack with: zero duplicate orders; zero unresolved reconciliation
    mismatches at EOD; every open position had a protective stop; flat by 15:15; no entry under a hold.
 3. **Nightly determinism:** replaying each session's tape through the engine reproduces that session's decisions,
@@ -496,7 +560,7 @@ M1 does **not** mean a strategy is profitable, and it does not enable live order
 
 ---
 
-## 5. Handoff block
+## 6. Handoff block
 
 - **Accepted:** the re-map in section 1; 26 tickets within the 200-500 line rule (V2-D1, V2-D2, V2-01 to V2-19,
   V2-05b, V2-06b, V2-08b, V2-20a, V2-20b); founder addendum 3 (entry location: V2-05b features, V2-08b desk planner,
@@ -504,6 +568,9 @@ M1 does **not** mean a strategy is profitable, and it does not enable live order
   (REG-01 to REG-13 in section 3, each with test ids, owner and ticket); founder addendum 2 (depth and quote recording,
   OI cadence, strike router, first-class time stops, forward harness off by default) as early tickets in the new
   system only.
+- **Also accepted:** `docs/founder/FOUNDER_COMMENTS_LOG.md` (C1-C11) committed verbatim as the single source of truth
+  for mid-build comments, with the traceability table and 13 flagged conflicts (K1-K13) in section 4. The conflicts
+  are left for the founder; the table states only the design's current default.
 - **Rejected:** old-engine bug fixes (PR-010), tuning steps (PR-022, PR-023), RAG (PR-030) and crypto (PR-032) as
   build work; byte-identical parity as a gate; patching `paper_scalp.py` for any addendum item.
 - **UNKNOWN / DATA_INSUFFICIENT:** the registry/basket module's final API (V2-06 codes to the contract and a YAML
