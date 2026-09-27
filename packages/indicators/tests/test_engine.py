@@ -44,7 +44,8 @@ def test_feature_engine_ema() -> None:
         bar, available_ts = _bar(base_time + timedelta(minutes=i), 22000.0 + i)
         engine.on_bar(bar, available_ts)
 
-    ema_val = engine.view().get("ema20", "NIFTY", "1m")
+    now = base_time + timedelta(minutes=40)
+    ema_val = engine.view(now).get("ema20", "NIFTY", "1m")
     assert ema_val is not None
     assert ema_val.value > 0.0
 
@@ -63,7 +64,8 @@ def test_feature_engine_atr() -> None:
         )
         engine.on_bar(bar, available_ts)
 
-    atr_val = engine.view().get("atr", "NIFTY", "1m")
+    now = base_time + timedelta(minutes=30)
+    atr_val = engine.view(now).get("atr", "NIFTY", "1m")
     assert atr_val is not None
     assert atr_val.value > 0.0
 
@@ -77,7 +79,8 @@ def test_feature_engine_vwap() -> None:
         bar, available_ts = _bar(base_time + timedelta(minutes=i), 22000.0)
         engine.on_bar(bar, available_ts)
 
-    vwap_val = engine.view().get("vwap", "NIFTY", "1m")
+    now = base_time + timedelta(minutes=20)
+    vwap_val = engine.view(now).get("vwap", "NIFTY", "1m")
     assert vwap_val is not None
     assert vwap_val.value > 0.0
 
@@ -129,6 +132,15 @@ def test_feature_view_filters_by_now() -> None:
     now_early = base_time + timedelta(seconds=30)
     view_early = engine.view(now=now_early, strict=False)
     assert view_early.get("ema20", "NIFTY", "1m") is None
+
+
+def test_view_requires_now() -> None:
+    """Unfiltered view is forbidden (now is required)."""
+    engine = FeatureEngine()
+    with pytest.raises(TypeError):
+        engine.view()  # type: ignore[call-arg]
+    with pytest.raises(ValueError, match="requires now"):
+        engine.view(None)  # type: ignore[arg-type]
 
 
 def test_oi_change_in_engine() -> None:

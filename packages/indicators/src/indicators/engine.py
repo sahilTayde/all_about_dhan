@@ -27,7 +27,7 @@ class FeatureEngine:
         self._realized_vol: dict[tuple[str, str], RealizedVol] = {}
 
         # OI change tracker (instrument-level, not per-tf)
-        self._oi_change = OIChange(lag_seconds=60)
+        self._oi_change = OIChange()
 
         # Feature storage: (name, instrument_id, tf) -> FeatureValue
         self._features: dict[tuple[str, str, str], FeatureValue] = {}
@@ -129,29 +129,14 @@ class FeatureEngine:
         """
         return self._oi_change.get_lagged_change(instrument_id, decision_ts, lookback_bars)
 
-    def view(self, now: datetime | None = None, strict: bool = False) -> FeatureView:
-        """
-        Create a feature view.
-
-        Args:
-            now: current time (for strict mode future-lookup detection)
-            strict: if True, raise on future lookups
-
-        Returns:
-            FeatureView
-        """
-        # In strict mode, we pass ALL features to the view and let it check
-        # In non-strict mode, we filter to only available features
-        if strict and now is not None:
-            # Pass all features and the 'now' timestamp for strict checking
+    def view(self, now: datetime, *, strict: bool = False) -> FeatureView:
+        """Read-only feature view as of ``now``. ``now`` is required (no unfiltered view)."""
+        if now is None:
+            raise ValueError("FeatureEngine.view requires now (unfiltered view is forbidden)")
+        if strict:
             return FeatureView._create_strict(self._features, now)
-        elif now is not None:
-            # Non-strict: filter to available features only
-            visible_features = {k: v for k, v in self._features.items() if v.available_ts <= now}
-            return FeatureView(visible_features, strict=False)
-        else:
-            # No 'now' specified: return all features
-            return FeatureView(dict(self._features), strict=False)
+        visible_features = {k: v for k, v in self._features.items() if v.available_ts <= now}
+        return FeatureView(visible_features, strict=False)
 
     def reset_session(self) -> None:
         """Reset session-scoped state (e.g., VWAP)."""
