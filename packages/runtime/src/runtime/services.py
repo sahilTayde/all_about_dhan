@@ -4,7 +4,9 @@ Paper only. No broker calls. Tests inject ``state_dir`` — never write ``data/`
 
 V2-14 (PR #44) consumes ``breaker_open`` on a health snapshot. This module owns
 the file and ``python -m runtime health`` / ``reset-breaker``. We do not import
-``health.v2_*``. Protocol for the sibling: ``BreakerView.is_open``.
+``health.v2_*`` and do not start the V2-14 loopback ``/metrics`` server.
+``python -m health`` stays the legacy PR-004 monitor. One compose health
+process (this CLI). Protocol for the sibling: ``BreakerView.is_open``.
 """
 
 from __future__ import annotations
