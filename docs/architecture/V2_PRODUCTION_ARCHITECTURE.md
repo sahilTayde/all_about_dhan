@@ -338,6 +338,9 @@ class EntryPolicy:                # kept on every strategy card (founder addendu
     mode: str = "chase"            # "chase" (marketable next-bar entry; default) | "pullback_limit" | "wait_consolidation"
                                    # the last two are supported but globally disabled in config/v2/entry_location.yaml
     zones: tuple[str, ...] = ("fvg", "candle_50")   # zones used for the stretch record (EMA20 and TWAP always recorded)
+    max_chase_ticks: int = 2       # marketable limit = best ask + this many ticks (2 = ₹0.10); never a plain market order
+    chase_timeout_s: float = 2.0   # unfilled after this -> cancel and record MISSED_CHASE
+    chase_calibration: str = "chase_defaults@<hash>"  # versioned source of the two values above (decision K20)
 
 class Strategy(Protocol):
     meta: StrategyMeta
@@ -570,7 +573,10 @@ Targets, partials and trailing stay available as before.
   `STRATEGY_EXIT`, `FAILSAFE_MTM`), and it cites the `ExitPlan` field that fired. An exit with any other reason, or
   one fired by a primitive the plan does not contain, is a test failure (REG-18). `CANCEL_AGAINST`,
   `CANCEL_ADVERSE`, `CANCEL_STALL` and `COVER_LONG_UNWIND` do not exist in v2.
-- **Defaults come from research round 11** (due 08:00 CT Sunday) in `config/v2/exits/defaults.yaml`. Until that file
+- **Defaults come from research round 11** (due 08:00 CT Sunday) in `config/v2/exits/defaults.yaml` (decision K18).
+  Round 11 is preregistered and hashed before outcomes, and its trials count toward the cumulative trial budget
+  (about 4,621 after round 10, plus deep dive 1's 6,693 on its own book). The defaults are a versioned, hashed input,
+  never tuned intraday. Until that file
   has values, every strategy must declare its own full `ExitPlan`, and a plan missing a field it does not declare
   refuses to load (fail closed). When defaults exist, a strategy may inherit them. The inherited values and the
   defaults file hash are frozen into the plan (`defaults_from`) and the params hash (REG-13), so changing the
@@ -578,8 +584,8 @@ Targets, partials and trailing stay available as before.
 - The resolved plan is stored on the position (`positions_v2.exit_plan_json`) at the fill, so restarts use exactly
   the same exits.
 - Exit-rule changes follow the Round 8 caution that exits choose holding time rather than create edge. A new
-  default must come from a preregistered round (round 11) and pass the forward harness, not intraday tuning
-  (build plan §4.2 K18).
+  default must come from a preregistered, hashed round with its trials counted, and is shadow-priced in the forward
+  harness. Never intraday tuning (K18, decided).
 
 **Time stops are a first-class exit primitive.** Research round 9 found that a 3-minute time stop at the open and on
 expiry day drove most of the strike router's improvement. So:
@@ -706,9 +712,19 @@ The -4/-5 point loss cluster comes from the old engine's **tight cancel exits**,
 this in the exit layer (section 2.9, REG-18), and entry location becomes a **recorded diagnostic** with no rule
 attached.
 
-**Desk: marketable next-bar entries.** For trend signals the desk enters with a marketable limit (best ask + at most
-`max_chase_ticks`) at the first quote after the signal bar closes. This is `EntryPolicy.mode = "chase"`, the default
-on every strategy card.
+**Desk: marketable next-bar entries (decision K20).** For trend signals the desk enters with a **marketable limit,
+never a plain market order**: best ask + `max_chase_ticks` at the first quote after the signal bar closes. This is
+`EntryPolicy.mode = "chase"`, the default on every strategy card.
+- `max_chase_ticks` (default **2**, ₹0.10) and `chase_timeout_s` (default **2 s**) are per strategy card.
+- If the chase limit is not filled within `chase_timeout_s`, it is cancelled (`TIMEOUT_UNFILLED`) and the result is
+  `MISSED_CHASE`. That result records the price chasing would have paid (the best ask at the cancel, and the first
+  ask that would have filled it within the next 5 s of depth), plus the shadow P&L of that fill.
+- The two defaults are versioned like the exit defaults: `config/v2/entry/chase_defaults.yaml` is hashed, its hash is
+  frozen into each strategy's params (REG-13), and a change is a new strategy version.
+- They are **recalibrated once** from the first 5 sessions of V2-D2 recorded depth: the spread distribution per
+  strike bucket (ATM / ITM100 / ITM200 × time-of-day band × expiry vs non-expiry), chosen so that the cap covers the
+  measured p90 half-spread plus one tick. The recalibration is a documented, versioned change, never an intraday
+  adjustment.
 - `pullback_limit` and `wait_consolidation` stay **supported but off** (`enabled: false` in
   `config/v2/entry_location.yaml`). Turning either on needs a founder-approved config change, a new strategy version
   (REG-13), and a preregistered forward spec that shows it helps.
@@ -722,8 +738,10 @@ on every strategy card.
 - **EMA20**;
 - **TWAP** (futures VWAP when futures volume exists, kept as an extra column).
 
-The boss never holds or vetoes an entry because of stretch. The `ENTRY_STRETCHED` hold code is not used; the field
-is kept in the schema so that a future, evidence-backed rule has a place to go.
+The boss never holds or vetoes an entry because of stretch (decision K19: C10 is met by the boss and desk being
+aligned on the round 10 outcome). A veto can come back **only** through a future preregistered research result plus
+a new strategy version. There is no config switch for it. The `ENTRY_STRETCHED` hold code is reserved in the schema
+for that case and is unused today.
 
 **Features (`indicators/location.py`, shared).** Unchanged from V2-05b and built only from closed 1m bars (REG-01):
 - signal candle and body in ATR;
@@ -738,7 +756,8 @@ All distances are signed so that a positive number means price is stretched away
 source: "research round 10: no entry-location rule found (founder addendum 6)"
 boss_stretch: record_only        # no veto power; the only allowed value
 default_entry_policy: chase      # marketable next-bar entry
-max_chase_ticks: 2               # default (₹0.10 above best ask) for the marketable limit; founder may change
+chase_defaults: config/v2/entry/chase_defaults.yaml   # max_chase_ticks: 2, chase_timeout_s: 2.0 (versioned, hashed;
+                                                       # per-card overrides allowed; recalibrated from 5 depth sessions)
 pullback_limit: {enabled: false, limit_timeout_s: null}
 wait_consolidation: {enabled: false, consol_max_atr: null, wait_max_bars: null}
 zones: [fvg, candle_50]          # "zone" for the stretch record; EMA20 and TWAP always recorded
@@ -750,7 +769,8 @@ The last-good config stays in force and `CONFIG_INVALID` is raised (REG-07). All
 (REG-13).
 
 **Logging for daily review.** Every entry is an `ENTRY_PLAN` event, and its result follows as `ENTRY_PLAN_RESULT`
-(`FILLED`, `MISSED`, `CANCELLED_INVALIDATED`). Both carry the three stretch readings, the zone type,
+(`FILLED`, `MISSED_CHASE` with the price chasing would have paid, `MISSED` for an optional resting mode,
+`CANCELLED_INVALIDATED`). Both carry the three stretch readings, the zone type,
 `signal_candle_atr`, the action taken, and for fills the 5-minute give-back. The nightly ETL builds
 `entry_location_daily` (by stretch bucket, zone type, strategy and action: count, fill rate, missed signals,
 give-back, stop-outs, net P&L). The forward harness keeps pricing the non-default entry actions as shadow legs, so
@@ -1450,6 +1470,13 @@ class LedgerStore(Protocol):  # existing Ledger methods + these
     (REG-15); a malformed cost config fails closed with an alert (REG-16); every trade carries its exchange tag
     (REG-17); the verified cost stack with the BSE rate, recorded half-spread slippage and a 0.20 pt/side fallback
     (REG-12). Realistic fills are the only mode in v2.
+  - Decisions K18, K19 and K20 (2026-09-27):
+    - K18: round 11 is preregistered and hashed before outcomes, and its trials count toward the budget (about 4,621
+      after round 10, plus deep dive 1's 6,693 on its own book). Exit defaults are versioned and hashed.
+    - K19: C10 is met; the boss records stretch with no veto, and a veto can only return through preregistered
+      research plus a new strategy version.
+    - K20: marketable limits only; `max_chase_ticks: 2` and a 2 s fill timeout per strategy card; `MISSED_CHASE` with
+      the price chasing would have paid; one recalibration from 5 sessions of V2-D2 depth, versioned.
   - Founder addendum 6 (round 10 result): no entry-location rule. The desk uses marketable next-bar entries (chase
     default); `pullback_limit` and `wait_consolidation` are supported but off, and missed signals are counted if a
     resting limit is ever used. The boss records stretch (zone, EMA20, TWAP) with no veto power. The exit layer is
@@ -1479,6 +1506,7 @@ class LedgerStore(Protocol):  # existing Ledger methods + these
     without a verified field name.
   - OI update cadence (it decides whether E1's lag rule is stale); V2-D2 measures it from day 1.
   - Round 11 exit defaults (due 08:00 CT Sunday). Until then every strategy must declare its own exit primitives.
+  - The recalibrated `max_chase_ticks` / `chase_timeout_s` (after 5 sessions of V2-D2 depth).
   - How well `ask − est_delta × (spot − zone)` predicts the option price when the underlying reaches the zone (IV and
     decay move meanwhile). The forward harness measures it; if it is poor, LIMIT becomes an engine-side zone trigger.
   - Futures volume quality per minute (it decides whether VWAP and POC come from futures or fall back / go absent).

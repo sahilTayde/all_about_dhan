@@ -98,7 +98,8 @@ run in parallel. `REG-nn` ids refer to section 3; each ticket ships the regressi
 - Traded-strike set per basket underlying: ATM, ITM100, ITM200 on CE and PE (nearest weekly), plus index and future;
   re-centred on spot moves, old strikes kept 10 minutes, open positions always kept. FULL-mode subscription;
   `DEPTH_QUOTE` at ≤ 1 s (throttled to 250 ms, 1 s heartbeat repeat); `QUOTE_SNAPSHOT` with bid/ask every 5 s;
-  `OI_CADENCE` every minute; `TapeWriter` to `data/tape/v2/YYYY-MM-DD/`, raw frames base64 until V2-D1 is verified.
+  `OI_CADENCE` every minute; `TapeWriter` to `data/tape/v2/YYYY-MM-DD/`, raw frames base64 until V2-D1 is verified;
+  a nightly spread-distribution report per strike bucket (input to the K20 chase recalibration).
   Runs standalone, without the engine.
 - Acceptance: against a fake websocket server with fixture frames, the tape has a depth row per instrument at least
   once per second and a quote snapshot every 5 s ± 0.5 s; re-centring subscribes the new strikes and keeps the old
@@ -240,8 +241,12 @@ run in parallel. `REG-nn` ids refer to section 3; each ticket ships the regressi
 
 **V2-08b Order planner (chase default) and boss stretch record** (`packages/oms/planner.py`,
 `packages/boss/src/boss/selector.py`, `config/v2/entry_location.yaml`, ~350 lines)
-- Round 10 found no entry-location rule (founder addendum 6). The planner sends a marketable next-bar entry (best ask
-  + `max_chase_ticks`) for every decision, per `EntryPolicy.mode = "chase"`. `pullback_limit` and
+- Round 10 found no entry-location rule (founder addendum 6). The planner sends a marketable next-bar entry for every
+  decision, per `EntryPolicy.mode = "chase"`: a **marketable limit, never a plain market order**, at best ask +
+  `max_chase_ticks` (per strategy card, default 2 = ₹0.10), with a fill timeout `chase_timeout_s` (default 2 s). If
+  it is unfilled at the timeout, it is cancelled (`TIMEOUT_UNFILLED`) and recorded as `MISSED_CHASE` with the price
+  chasing would have paid and its shadow P&L. The defaults live in the versioned, hashed
+  `config/v2/entry/chase_defaults.yaml` (decision K20). `pullback_limit` and
   `wait_consolidation` are implemented but globally disabled. When a resting limit is used, it takes V2-08's
   trade-through rule (REG-14), and each unfilled signal is counted as `MISSED` with its shadow chase P&L. The boss
   records stretch in ATR from zone, EMA20 and TWAP on every decision, with **no veto power**. `ENTRY_PLAN` and
@@ -249,7 +254,10 @@ run in parallel. `REG-nn` ids refer to section 3; each ticket ships the regressi
   entry order per signal; pending plans in `entry_plans` are rebuilt on restart.
 - Acceptance:
   - Default config: every decision becomes one marketable limit at ask + `max_chase_ticks`, sent at the first quote
-    after the signal bar closes.
+    after the signal bar closes; no code path emits a `MARKET` entry order (guard test).
+  - A chase limit not filled within `chase_timeout_s` (2 s) is cancelled `TIMEOUT_UNFILLED` and recorded as
+    `MISSED_CHASE` with the best ask at the cancel, the first ask that would have filled within the next 5 s, and its
+    shadow P&L; a per-card override of `max_chase_ticks` or `chase_timeout_s` is honoured and changes `params_hash`.
   - Stretch never changes a decision: the same fixtures with stretch values far above any plausible threshold give
     identical decisions and trades; the `stretch` block is present on every decision with `zone_atr`, `ema20_atr`,
     `twap_atr`.
@@ -261,6 +269,11 @@ run in parallel. `REG-nn` ids refer to section 3; each ticket ships the regressi
   - `kill -9` with a pending limit (test config): recovered and never duplicated (REG-04).
   - Changing any entry-location config value changes `config_hash` (REG-13).
   - Planner + features < 5 ms p99 per decision.
+- **Ticket note (K20, recalibration):** after the first 5 sessions of V2-D2 recorded depth, recalibrate
+  `max_chase_ticks` and `chase_timeout_s` from the spread distribution per strike bucket (ATM / ITM100 / ITM200 ×
+  time-of-day band × expiry vs non-expiry), so the cap covers the measured p90 half-spread plus one tick. Ship it as
+  a new `chase_defaults.yaml` version with its hash, exactly like the exit defaults. Strategies that inherit it get a
+  new version; nothing changes intraday.
 - Depends on: V2-05b, V2-07, V2-08.
 
 **V2-09 Position manager core: catastrophic stop, time stops, EOD, targets** (`packages/oms/positions.py`,
@@ -379,7 +392,7 @@ run in parallel. `REG-nn` ids refer to section 3; each ticket ships the regressi
 - Acceptance: the invariant checker catches each planted violation (self-test per invariant); the dry run on the fixture
   day reports zero diffs; perf report within budgets on the CI runner; wired as required CI checks; `REG-10b` every job
   entry point is registered with a deadline; `REG-13c` a PR fixture that edits exit params without a version bump
-  fails; a meta-test fails if any REG id in section 3 has no collected test; `TRACE-01` fails if any `C#` in
+  fails; a meta-test fails if any REG id in section 3 has no collected test; `TRACE-01` fails if any `C#` or `A#` in
   `docs/founder/FOUNDER_COMMENTS_LOG.md` or any `REG-nn` lacks a row with a ticket and a test in section 4.1.
 - Depends on: V2-10, V2-12, V2-15.
 
@@ -492,8 +505,9 @@ default on `main`), PARTIAL 9, NEW 7.
 
 ## 4. Founder comments traceability
 
-Source of truth: [`docs/founder/FOUNDER_COMMENTS_LOG.md`](../founder/FOUNDER_COMMENTS_LOG.md) (C1-C11, committed
-verbatim from the founder's upload; times there are CT on 2026-09-26). This table maps every comment, and every legacy
+Source of truth: [`docs/founder/FOUNDER_COMMENTS_LOG.md`](../founder/FOUNDER_COMMENTS_LOG.md): Sahil's comments C1-C11
+(committed verbatim from the founder's upload) and, in a separate table, the desk lead's design inputs A2, A4, A5 and
+A6 (not founder comments). Times there are CT on 2026-09-26. This table maps every comment, and every legacy
 carry-over item (REG-01 to REG-18), to the V2 service, ticket and test that satisfies it. Following the log's rule, nothing here counts as
 done until its test passes. A comment that conflicts with another comment or with the 32-step plan is marked
 **⚑ Kn** and listed in section 4.2. Those conflicts are **not** resolved here. The design's current default is stated
@@ -513,7 +527,7 @@ so the build can continue, and the founder decides.
 | **C8** | Bring every fix done on the old engine into the new one | per REG item below | per REG item | The 18 REG rows below, each one must-pass test set in the `regression` CI job (V2-16 meta-test fails if any REG id has no collected test) | ⚑ K8, ⚑ K9 |
 | **C9** | The system enters at the top of big candles, gives back 4-5 pts to the imbalance/POC, then stops out | exit layer (position manager, exit primitives); entry-location features as diagnostics; research rounds 10 and 11 (external lab) | V2-09, V2-09b, V2-05b, V2-08b, V2-20a | Round 10 (addendum 6): no entry-location rule; the cluster comes from the legacy tight cancel exits. Proof in v2: REG-18a-e (no hidden cancels, including the ±5 pt wander test), stretch and 5-minute give-back logged on every fill (V2-08b), exit-plan shadow legs in V2-20a | ⚑ K2, ⚑ K10 (resolved by addendum 6) |
 | **C10** | Boss and desk must be aligned to the entry-location rule | boss selector, desk order planner; basket strategy cards | V2-08b | Aligned on the round 10 outcome: one config (`entry_location.yaml`) and one `config_hash` feed both; the desk chases by default, the boss records stretch with no veto; V2-08b tests that stretch never changes a decision; `entry_policy` field kept on every strategy card | ⚑ K11 (resolved by addendum 6), ⚑ K19 |
-| **C11** | Don't mess up with mid-build comments; lots of money and time spent | this log + this table; morning status checklist | V2-16 | V2-16 docs meta-test (**TRACE-01**): every `C#` row in `FOUNDER_COMMENTS_LOG.md` and every `REG-nn` has a row in this table with a ticket and a test; the build fails otherwise | — |
+| **C11** | Don't mess up with mid-build comments; lots of money and time spent | this log + this table; morning status checklist | V2-16 | V2-16 docs meta-test (**TRACE-01**): every `C#` and `A#` row in `FOUNDER_COMMENTS_LOG.md` and every `REG-nn` has a row in this table with a ticket and a test; the build fails otherwise | — |
 | REG-01 | Closed bars only; no bucket stamped at last print (legacy 3m resample; PR #11, PR #21 leaks) | marketdata, indicators, strategies | V2-03, V2-05, V2-16 | REG-01a-f | — |
 | REG-02 | Enforced stop on every open position at all times, incl. restart/reconnect (~₹193k hole) | oms | V2-08, V2-09, V2-10, V2-12, V2-14 | REG-02a-e | — |
 | REG-03 | Forced close hits the exact held instrument (F2) | oms (positions) | V2-09 | REG-03a-c | — |
@@ -532,9 +546,10 @@ so the build can continue, and the founder decides.
 | REG-16 | Malformed cost config fails closed with an alert, never a crash | contracts, ledger | V2-08, V2-10 | REG-16a-c | — |
 | REG-17 | Every closed trade carries its exchange tag (NSE vs BSE) | ledger | V2-10 | REG-17a-d | — |
 | REG-18 | No hard-coded tight cancels; exits only from declared per-strategy primitives | oms (exits), strategies | V2-09b, V2-09, V2-06 | REG-18a-e | ⚑ K18 |
-| *not in log* | Founder addendum 2 (research round 9): ≤ 1 s depth, ≤ 5 s bid/ask snapshots, OI cadence, time stops first-class, forward harness | marketdata, oms, forward harness | V2-D1, V2-D2, V2-09, V2-20a | V2-D2 cadence tests; V2-09 time-stop tests; V2-20a harness tests | ⚑ K13 |
-| *not in log* | Founder addendum 5 (PR #20 cost realism merged as `c004ace`): items (a)-(e) above as REG-14 to REG-17 and the REG-12 update; realistic fills only | brokers, oms, ledger | V2-08, V2-09, V2-10 | REG-12, REG-14 to REG-17 | ⚑ K13 |
-| *not in log* | Founder addendum 6 (round 10 result): marketable next-bar entries, `entry_policy` kept (chase default; pullback_limit and wait_consolidation supported but off; missed signals counted), boss stretch record-only, exit layer as per-strategy primitives with round 11 defaults | oms (planner, exits), boss, strategies | V2-08b, V2-09, V2-09b | V2-08b acceptance; REG-18a-e | ⚑ K13, ⚑ K18, ⚑ K20 |
+| **A2** | Desk-lead input: round 9 data needs (≤ 1 s depth, ≤ 5 s bid/ask snapshots, OI cadence, strike router, time stops first-class, forward harness off by default) | marketdata, strike router, oms, forward harness | V2-D1, V2-D2, V2-06b, V2-09, V2-20a | V2-D2 cadence tests; V2-06b router tests; V2-09 time-stop tests; V2-20a harness tests | — |
+| **A4** | Desk-lead input: commit the comments log as the single source of truth; trace every C# and legacy item to service, ticket and test; flag conflicts | this log + this table | V2-16 | TRACE-01 (covers every C#, A# and REG-nn) | — |
+| **A5** | Desk-lead input: PR #20 cost-realism lessons (merged as `c004ace`), items (a)-(e) as REG-14 to REG-17 and the REG-12 update; realistic fills only | brokers, oms, ledger | V2-08, V2-09, V2-10 | REG-12, REG-14 to REG-17 | ⚑ K14, ⚑ K15, ⚑ K16, ⚑ K17 |
+| **A6** | Desk-lead input: round 10 entry result (no entry-location rule; marketable next-bar entries; `entry_policy` kept, chase default; boss records stretch, no veto) and the exit primitives with round 11 defaults | oms (planner, exits), boss, strategies | V2-08b, V2-09, V2-09b | V2-08b acceptance (incl. `MISSED_CHASE`); REG-18a-e | ⚑ K18, ⚑ K19, ⚑ K20 (all decided) |
 | *not in log* | Standing rules at the foot of the log (paper only; every number from a source file or real run; verified cost stack; live for customers only on Sahil's call) | all | all; V2-08 (costs); M2 criterion 6 | Live-order gate unchanged (three-part gate, no live-orders compose profile); REG-12 cost tests; PR evidence sections cite source files or runs | ⚑ K12 |
 
 ### 4.2 Conflicts flagged (not silently resolved)
@@ -555,14 +570,14 @@ Each entry: what conflicts, what the V2 design does **by default** until the fou
 | **K10** | C9's pullback limits are passive entries. Round 8 **closed** passive entries on breakout-style signals: 94-96% fill rate, saved ~₹355/trade in spread, and lost more to adverse selection (fills cluster on failed breaks) | C9 vs Round 8 §1.1 | Log-only; round 10 decides the thresholds; the forward harness measures fill-conditional outcomes for LIMIT vs CHASE | After round 10: does the pullback limit avoid the adverse selection Round 8 found? **RESOLVED by addendum 6**: round 10 confirmed it (pullback limits fill the losers and miss the winners); pullback limits are off |
 | **K11** | C10 requires the basket's strategy cards to follow the entry-location rule. That is a dependency on the basket track, which C6 says must stay independent | C10 vs C6 | A strategy card without an entry policy gets the default `EntryPolicy`; V2 does not wait on the basket track | Should entry-policy fields be required on basket strategy cards? **RESOLVED by addendum 6**: keep the `entry_policy` field on the strategy card (chase default) |
 | **K12** | The log's standing cost stack lists "GST 18%" without saying what it applies to, and no SEBI fee. Addendum 5 now lists the SEBI fee but still not the GST base. REG-12 (addendum 1) says GST on brokerage + exchange + SEBI | Log standing rules vs addenda 1 and 5 | REG-12 as written (includes SEBI; GST on brokerage + exchange + SEBI, as `order_charges` does) | Confirm the GST base |
-| **K13** | Founder addenda 2, 5 and 6 (depth and quote recording, OI cadence, first-class time stops, forward harness; PR #20 cost-realism carry-over) have **no C# entry** in the log. The log's rule says every comment gets an entry the same turn. This addendum (commit the log plus traceability) is not in the log either | Log completeness | Tracked here as *not in log*; the log file is committed verbatim and not edited by the agent | Add C12+ entries for these (the founder owns the log's numbering and times) |
+| **K13** | Founder addenda 2, 5 and 6 (depth and quote recording, OI cadence, first-class time stops, forward harness; PR #20 cost-realism carry-over) have **no C# entry** in the log. The log's rule says every comment gets an entry the same turn. This addendum (commit the log plus traceability) is not in the log either | Log completeness | Tracked here as *not in log*; the log file is committed verbatim and not edited by the agent | Add C12+ entries for these (the founder owns the log's numbering and times) **RESOLVED**: the desk lead added A2, A4, A5 and A6 to the log as design inputs, separate from the founder's C# entries |
 | **K14** | Addendum 5 and the log say NSE 0.0355299%. The merged `config/charges.yaml` (PR #20) has `0.0003553` = ₹3,552.99 transaction charge + ₹0.01 IPFT per crore (NSE/FA/73061) | Addendum 5 vs merged config | Keep the merged, circular-cited `0.0003553` (the founder's figure plus IPFT; about ₹0.0001 per lakh of premium) | Include the IPFT or not? |
 | **K15** | Addendum 5 sets the no-bid/ask fallback at a flat **0.20 pt/side**. Round 8's FC-MEAS used measured upper bounds by moneyness (ATM 0.20, ITM100 0.30, ITM200 0.35; more after 12:00) and an earlier v2 draft used that table as the fill | Addendum 5 vs Round 8 §3.0 | Flat 0.20 fallback in fills (addendum 5, the latest instruction); FC-MEAS shown as a stress sensitivity in forward-harness reports | Keep flat 0.20, or use the moneyness table for ITM strikes until depth data exists? |
 | **K16** | REG-15 (EOD flatten never held back) changes behaviour that is merged on `main`: PR #20's guard defers `FLATTEN_1516` until `stale_exit_hard_flatten_ist: "15:20"` | Addendum 5 vs merged PR #20 | v2 exempts EOD, founder and kill-switch flattens from the guard. The legacy engine is frozen and not changed | Confirm; and should the legacy `paper_costs.yaml` 15:20 value be left as is (benchmark only)? |
 | **K17** | REG-14 "limits fill only at the limit price" also covers a limit that is already marketable when placed (for example the order planner's CHASE limit at ask + ticks). A real exchange would fill that at the better resting ask. The merged realistic branch also fills it at the limit | REG-14 vs exchange behaviour, V2-08b CHASE | Fill every limit at its limit price (conservative; matches the merged code) | Allow price improvement for limits marketable on arrival? |
-| **K18** | Addendum 6 has research round 11 set the default exit rules. Round 8 §4.3 says exits choose holding time rather than create edge, the earlier V2 plan listed PR-023 (exit tuning) as DROP, and Round 8 lists "exit or time-stop tuning" among the closed families | Addendum 6 vs Round 8 §3.5/§4.3, the earlier PR-023 verdict | Round 11 defaults are accepted as a **preregistered** input: frozen into each plan by hash (`defaults_from`), versioned (REG-13), and shadow-priced against each strategy's own plan in the forward harness. No intraday or post-hoc tuning. PR-023 re-mapped to REBUILD for the primitives | Confirm that round 11 is preregistered and its defaults count as trials in the budget |
-| **K19** | C10 asked that the boss and desk be aligned *to the entry-location rule*, and addendum 3 gave the boss a hard stretch veto. Addendum 6 removes both (no rule, boss record-only) | C10 and addendum 3 vs addendum 6 | Addendum 6 (the later instruction) applied: no veto code path is active; the `ENTRY_STRETCHED` code stays reserved in the schema | Confirm that C10 is satisfied by alignment on "no rule" |
-| **K20** | Addendum 6 says "marketable next-bar entries" without a price cap. The design uses a marketable limit at best ask + `max_chase_ticks`, defaulting to **2 ticks** (₹0.10). That number is the agent's placeholder, not a founder or research value | Addendum 6 vs design default | 2 ticks, recorded in `config_hash`; entries that fail to fill within the cap are counted `MISSED` | Set `max_chase_ticks` (or allow a plain market order)? |
+| **K18** | Addendum 6 has research round 11 set the default exit rules. Round 8 §4.3 says exits choose holding time rather than create edge, the earlier V2 plan listed PR-023 (exit tuning) as DROP, and Round 8 lists "exit or time-stop tuning" among the closed families | Addendum 6 vs Round 8 §3.5/§4.3, the earlier PR-023 verdict | Round 11 defaults are accepted as a **preregistered** input: frozen into each plan by hash (`defaults_from`), versioned (REG-13), and shadow-priced against each strategy's own plan in the forward harness. No intraday or post-hoc tuning. PR-023 re-mapped to REBUILD for the primitives | Confirm that round 11 is preregistered and its defaults count as trials in the budget **DECIDED (2026-09-27)**: confirmed. Round 11 is preregistered and hashed before outcomes; its trials count toward the cumulative budget (about 4,621 after round 10, plus deep dive 1's 6,693 on its own book). Exit defaults are a versioned, hashed input, never tuned intraday. Until round 11 lands every strategy declares its full exit plan or refuses to load |
+| **K19** | C10 asked that the boss and desk be aligned *to the entry-location rule*, and addendum 3 gave the boss a hard stretch veto. Addendum 6 removes both (no rule, boss record-only) | C10 and addendum 3 vs addendum 6 | Addendum 6 (the later instruction) applied: no veto code path is active; the `ENTRY_STRETCHED` code stays reserved in the schema | Confirm that C10 is satisfied by alignment on "no rule" **DECIDED (2026-09-27)**: C10 counts as met. Boss and desk are aligned on the round 10 outcome (no entry rule); the boss records stretch on every signal and has no veto. A veto can return only through a future preregistered research result plus a new strategy version |
+| **K20** | Addendum 6 says "marketable next-bar entries" without a price cap. The design uses a marketable limit at best ask + `max_chase_ticks`, defaulting to **2 ticks** (₹0.10). That number is the agent's placeholder, not a founder or research value | Addendum 6 vs design default | 2 ticks, recorded in `config_hash`; entries that fail to fill within the cap are counted `MISSED` | Set `max_chase_ticks` (or allow a plain market order)? **DECIDED (2026-09-27)**: marketable limits only, never plain market orders. `max_chase_ticks: 2` (₹0.10) per strategy card with a 2 s fill timeout; unfilled → cancel and record `MISSED_CHASE` with the price chasing would have paid. Recalibrate once from the first 5 sessions of V2-D2 depth (spread distribution per strike bucket), versioned like the exit defaults (V2-08b ticket note) |
 
 ---
 
@@ -577,7 +592,7 @@ comparison.
 
 **Exit criteria (all required):**
 1. Every merge gate check green on `main` (section 6.2 of the architecture), including **every REG-01 to REG-18
-   test** (section 3) and `TRACE-01` (section 4); every C1-C11 row whose ticket is in M1 has its test passing.
+   test** (section 3) and `TRACE-01` (section 4); every C1-C11 and A# row whose ticket is in M1 has its test passing.
 2. **10 consecutive sessions** on the new stack with: zero duplicate orders; zero unresolved reconciliation
    mismatches at EOD; every open position had a protective stop; flat by 15:15; no entry under a hold.
 3. **Nightly determinism:** replaying each session's tape through the engine reproduces that session's decisions,
@@ -630,12 +645,17 @@ M1 does **not** mean a strategy is profitable, and it does not enable live order
   - Founder addendum 3 (superseded in part by addendum 6): entry-location features (V2-05b) and the order planner
     (V2-08b).
   - Founder addendum 5: PR #20 cost realism as REG-14 to REG-17, REG-12 updated, realistic fills the only mode.
+  - Decisions K18, K19, K20 (2026-09-27), written into both docs and §4.2: round 11 preregistered and hashed, with its
+    trials counted (about 4,621 after round 10, plus deep dive 1's 6,693 on its own book); C10 met with a record-only
+    boss; marketable limits only, `max_chase_ticks: 2` and a 2 s timeout per card, `MISSED_CHASE`, one versioned
+    recalibration from 5 depth sessions.
+  - Desk-lead design inputs A2, A4, A5, A6 added to the comments log, separate from the founder's C# entries.
   - Founder addendum 6: round 10 found no entry-location rule, so marketable next-bar entries (chase default), with
     `pullback_limit` and `wait_consolidation` supported but off and missed signals counted. The boss records stretch
     (zone, EMA20, TWAP) with no veto. Exit primitives in V2-09/V2-09b with REG-18; round 11 sets the defaults.
 - **Also accepted:** `docs/founder/FOUNDER_COMMENTS_LOG.md` (C1-C11) committed verbatim as the single source of truth
-  for mid-build comments, with the traceability table and 20 flagged conflicts (K1-K20; K2, K10 and K11 resolved by
-  addendum 6) in section 4. The open conflicts are left for the founder; the table states only the design's current
+  for mid-build comments, with the traceability table and 20 flagged conflicts (K1-K20) in section 4: K2, K10 and K11 resolved by
+  addendum 6; K13 resolved by the A# entries; K18, K19 and K20 decided. The open conflicts are left for the founder; the table states only the design's current
   default.
 - **Rejected:**
   - As build work: old-engine bug fixes (PR-010), the round 2 filters (PR-022), RAG (PR-030) and crypto (PR-032).
@@ -654,7 +674,7 @@ M1 does **not** mean a strategy is profitable, and it does not enable live order
   - The exact code lines behind F1/F2/F3 and the ₹193k stop hole (from the founder's Phase 2 review, not in the repo;
     the REG tests specify behaviour).
   - **Round 11 exit defaults** (due 08:00 CT Sunday). Until then every strategy declares its full exit plan.
-  - `max_chase_ticks` (K20).
+  - The recalibrated chase defaults (after 5 sessions of V2-D2 depth).
 - **Gap addressed:** `docs/01_CURRENT_STATE_AND_GAPS.md` §5 (backtest/replay: one code path, no look-ahead), §6 (role
   separation without the monolith), §7 (tech stack and deployment), §3 (broker adapter restart safety), §4 (data
   capture: bid/ask depth).
