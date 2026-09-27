@@ -67,21 +67,36 @@ def signal_id(
     Generate deterministic signal ID.
 
     Format: sg_{strategy_slug}_{hash}_{underlying}_{yyyymmdd}_{hhmm}_{n}
-    Example: sg_r8e1-v1.0.0_30416a_nifty_20260928_1001_0
+    Example: sg_r8-e1-v1.0.0_bfe5cd_nifty_20260928_1001_0
 
     Args:
-        strategy_id: Strategy identifier (e.g. "R8-E1-COIL-SIDE")
-        version: Strategy version (e.g. "1.0.0")
-        underlying: Underlying symbol (e.g. "NIFTY")
+        strategy_id: Strategy identifier (e.g. "R8-E1-COIL-SIDE"); must not contain "|"
+        version: Strategy version (e.g. "1.0.0"); must not contain "|"
+        underlying: Underlying symbol (e.g. "NIFTY"); must not contain "|"
         decision_ts: Decision timestamp (ISO-8601 string or datetime, must be timezone-aware)
-        n: Sequence number for this strategy/underlying/minute
+        n: Sequence number for this strategy/underlying/minute (int >= 0)
 
     Returns:
         Signal ID string
 
     Raises:
-        ValueError: if decision_ts is naive (no timezone)
+        ValueError: if any string input contains "|", decision_ts is naive,
+            underlying is empty, or n is not a non-negative int
     """
+    if not isinstance(n, int) or isinstance(n, bool) or n < 0:
+        raise ValueError("signal_id n must be a non-negative int")
+
+    if not isinstance(underlying, str) or not any(c.isalnum() for c in underlying):
+        raise ValueError("signal_id underlying must contain at least one alphanumeric character")
+
+    if isinstance(decision_ts, str) and "|" in decision_ts:
+        raise ValueError("signal_id inputs must not contain '|' separator")
+
+    # Reject "|" so the hash field separator cannot be forged
+    # ("R8|", "1.0") vs ("R8", "|1.0") would otherwise collide.
+    if "|" in strategy_id or "|" in version or "|" in underlying:
+        raise ValueError("signal_id inputs must not contain '|' separator")
+
     # Parse decision_ts to datetime if string
     dt = datetime.fromisoformat(decision_ts) if isinstance(decision_ts, str) else decision_ts
 
@@ -90,7 +105,6 @@ def signal_id(
         raise ValueError("signal_id decision_ts must be timezone-aware")
 
     # Normalize to IST (Asia/Kolkata, UTC+5:30)
-    # Note: Python doesn't have zoneinfo in stdlib until 3.9, but we can use timedelta
     from datetime import timedelta
 
     ist = timezone(timedelta(hours=5, minutes=30))
@@ -100,12 +114,8 @@ def signal_id(
     date_str = dt_ist.strftime("%Y%m%d")
     time_str = dt_ist.strftime("%H%M")
 
-    # Normalize strategy_id + version to slug: collision-free, includes version
-    # Keep [a-z0-9.-] and join with "-v" to preserve version separators
-    # "R8-E1" + "1.0.0" -> "r8-e1-v1.0.0" (dots preserved)
+    # Normalize strategy_id + version to slug: keep [a-z0-9.-], join with "-v"
     # "R8-E1" + "1.10.0" -> "r8-e1-v1.10.0" (distinct from 11.0.0)
-    # "R8-E1" + "11.0.0" -> "r8-e1-v11.0.0" (distinct!)
-    # "R8-E1" -> "r8-e1" vs "R8E1" -> "r8e1" (distinct!)
     strategy_slug = "".join(c.lower() if c.isalnum() or c in ".-" else "" for c in strategy_id)
     version_slug = "".join(c if c.isalnum() or c in ".-" else "" for c in version)
     strat_slug = f"{strategy_slug}-v{version_slug}"
@@ -115,12 +125,11 @@ def signal_id(
             "signal_id strategy_id and version must contain at least one alphanumeric character"
         )
 
-    # Add collision-resistant hash suffix (first 6 chars of sha256)
-    # Guarantees uniqueness even if normalization strips differentiating chars
-    # (e.g., "R8_E1" vs "R8 E1" both normalize to "r8e1", but hash differs)
-    collision_check = hashlib.sha256(f"{strategy_id}|{version}".encode()).hexdigest()[:6]
+    # Hash every input so distinct accepted tuples cannot collide
+    collision_check = hashlib.sha256(
+        f"{strategy_id}|{version}|{underlying}|{dt_ist.isoformat()}|{n}".encode()
+    ).hexdigest()[:6]
 
-    # Normalize underlying to lowercase
     und = underlying.lower()
 
     return f"sg_{strat_slug}_{collision_check}_{und}_{date_str}_{time_str}_{n}"

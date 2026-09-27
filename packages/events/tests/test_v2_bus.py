@@ -1,22 +1,24 @@
 """V2-02 tests: envelope v2, consumer groups, outbox exactly-once, REG-06 bad-entry handling."""
 
-import json
-import sqlite3
-import time
 import uuid
 from pathlib import Path
 from typing import Any
 
 import pytest
-
-from events import BadEntryStore, Event, EventType, MemoryBus, RedisStreamsBus, make_event
+from events import BadEntryStore, MemoryBus, RedisStreamsBus, make_event
 
 
 def test_bad_entry_store_records_and_dedupes(tmp_path: Path) -> None:
     """REG-06: bad entry store records first occurrence and dedupes."""
     store = BadEntryStore(tmp_path / "bad_entries.db")
-    assert store.record("stream1", "entry-1", b"bad json", "JSONDecodeError: invalid") is True
-    assert store.record("stream1", "entry-1", b"bad json", "JSONDecodeError: invalid") is False  # dedupe
+    assert (
+        store.record("stream1", "entry-1", b"bad json", "JSONDecodeError: invalid")
+        is True
+    )
+    assert (
+        store.record("stream1", "entry-1", b"bad json", "JSONDecodeError: invalid")
+        is False
+    )  # dedupe
     assert store.count("stream1") == 1
     assert store.count() == 1
 
@@ -39,6 +41,7 @@ def _redis_or_skip() -> Any:
     """Get a fakeredis client for testing (no real Redis server needed)."""
     try:
         import fakeredis
+
         return fakeredis.FakeStrictRedis(decode_responses=False)
     except ImportError:
         pytest.skip("fakeredis not installed")
@@ -49,7 +52,9 @@ def test_redis_one_stream_per_topic() -> None:
     client = _redis_or_skip()
     prefix = f"test:v2:{uuid.uuid4().hex}:"
     try:
-        bus = RedisStreamsBus(client=client, stream_prefix=prefix, consumer_group="test_cg")
+        bus = RedisStreamsBus(
+            client=client, stream_prefix=prefix, consumer_group="test_cg"
+        )
         seen = []
         bus.subscribe(["ENTRY_APPROVED"], lambda e: seen.append(("ENTRY", e.payload)))
         bus.subscribe(["ORDER_FILLED"], lambda e: seen.append(("FILL", e.payload)))
@@ -73,13 +78,15 @@ def test_redis_consumer_group_resume_after_restart() -> None:
     """V2-02: consumer killed before XACK gets the entry again on restart."""
     client = _redis_or_skip()
     prefix = f"test:resume:{uuid.uuid4().hex}:"
-    stream = f"{prefix}MARKET_TICK"
     group = "resume_test_group"
 
     try:
         # First consumer: subscribe and publish
         bus1 = RedisStreamsBus(
-            client=client, stream_prefix=prefix, consumer_group=group, consumer_name="consumer1"
+            client=client,
+            stream_prefix=prefix,
+            consumer_group=group,
+            consumer_name="consumer1",
         )
         seen1 = []
         bus1.subscribe(["MARKET_TICK"], lambda e: seen1.append(e.payload["n"]))
@@ -91,7 +98,10 @@ def test_redis_consumer_group_resume_after_restart() -> None:
 
         # Second consumer: same group, different name
         bus2 = RedisStreamsBus(
-            client=client, stream_prefix=prefix, consumer_group=group, consumer_name="consumer2"
+            client=client,
+            stream_prefix=prefix,
+            consumer_group=group,
+            consumer_name="consumer2",
         )
         seen2 = []
         bus2.subscribe(["MARKET_TICK"], lambda e: seen2.append(e.payload["n"]))
@@ -124,7 +134,10 @@ def test_redis_bad_entry_in_middle_of_batch() -> None:
         client.xadd(stream, {"event": make_event("HEALTH_ALERT", {"n": 3}).to_json()})
 
         bus = RedisStreamsBus(
-            client=client, stream_prefix=prefix, consumer_group=group, bad_entry_db=":memory:"
+            client=client,
+            stream_prefix=prefix,
+            consumer_group=group,
+            bad_entry_db=":memory:",
         )
         seen = []
         bus.subscribe(["HEALTH_ALERT"], lambda e: seen.append(e.payload["n"]))
@@ -153,7 +166,10 @@ def test_redis_claim_pending_messages() -> None:
     try:
         # Consumer 1: read but don't ack (simulate crash)
         bus1 = RedisStreamsBus(
-            client=client, stream_prefix=prefix, consumer_group=group, consumer_name="consumer1"
+            client=client,
+            stream_prefix=prefix,
+            consumer_group=group,
+            consumer_name="consumer1",
         )
         bus1.subscribe(["POSITION_UPDATE"], lambda e: None)  # no-op handler
         bus1.publish("POSITION_UPDATE", {"pos": 1}, source="desk")
@@ -161,15 +177,18 @@ def test_redis_claim_pending_messages() -> None:
         # Manually read without ack using lower-level API
         try:
             client.xgroup_create(stream, group, id="0", mkstream=True)
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             if "BUSYGROUP" not in str(exc):
                 raise
-        resp = client.xreadgroup(group, "consumer1", {stream: ">"}, count=1)
+        client.xreadgroup(group, "consumer1", {stream: ">"}, count=1)
         # consumer1 has pending message now
 
         # Consumer 2: claim pending
         bus2 = RedisStreamsBus(
-            client=client, stream_prefix=prefix, consumer_group=group, consumer_name="consumer2"
+            client=client,
+            stream_prefix=prefix,
+            consumer_group=group,
+            consumer_name="consumer2",
         )
         seen = []
         bus2.subscribe(["POSITION_UPDATE"], lambda e: seen.append(e.payload["pos"]))
@@ -195,13 +214,17 @@ class FakeOutboxStore:
         self.published_ids: set[int] = set()
         self.next_id = 1
 
-    def add(self, stream: str, event_json: str, metadata: dict[str, Any] | None = None) -> int:
+    def add(
+        self, stream: str, event_json: str, metadata: dict[str, Any] | None = None
+    ) -> int:
         row_id = self.next_id
         self.next_id += 1
         self.rows.append((row_id, stream, event_json, metadata or {}))
         return row_id
 
-    def fetch_unpublished(self, limit: int = 100) -> list[tuple[int, str, str, dict[str, Any]]]:
+    def fetch_unpublished(
+        self, limit: int = 100
+    ) -> list[tuple[int, str, str, dict[str, Any]]]:
         return [r for r in self.rows if r[0] not in self.published_ids][:limit]
 
     def mark_published(self, row_ids: list[int]) -> None:
@@ -212,7 +235,9 @@ class FakeEventPublisher:
     """In-memory publisher for testing."""
 
     def __init__(self) -> None:
-        self.published: list[tuple[str, str, str | None]] = []  # (stream, event_json, message_id)
+        self.published: list[
+            tuple[str, str, str | None]
+        ] = []  # (stream, event_json, message_id)
         self.fail_count = 0  # simulate failures
 
     def publish_to_stream(
@@ -303,7 +328,9 @@ def test_memory_bus_and_redis_bus_same_subscription_contract() -> None:
     client = _redis_or_skip()
     prefix = f"test:contract:{uuid.uuid4().hex}:"
     try:
-        redis_bus = RedisStreamsBus(client=client, stream_prefix=prefix, consumer_group="contract")
+        redis_bus = RedisStreamsBus(
+            client=client, stream_prefix=prefix, consumer_group="contract"
+        )
         seen_redis = []
         redis_bus.subscribe(["ENTRY_APPROVED"], lambda e: seen_redis.append(e.payload))
         redis_bus.publish("ENTRY_APPROVED", {"t": 1}, source="boss")
@@ -323,7 +350,9 @@ def test_memory_bus_and_redis_bus_same_publish_contract() -> None:
     client = _redis_or_skip()
     prefix = f"test:pub:{uuid.uuid4().hex}:"
     try:
-        redis_bus = RedisStreamsBus(client=client, stream_prefix=prefix, consumer_group="pub")
+        redis_bus = RedisStreamsBus(
+            client=client, stream_prefix=prefix, consumer_group="pub"
+        )
         event_id2 = redis_bus.publish("ORDER_FILLED", {"price": 100}, source="desk")
         assert len(event_id2) == 32
     finally:
@@ -335,8 +364,12 @@ def test_memory_bus_founder_first_preserved() -> None:
     """MemoryBus preserves founder-first dispatch order."""
     bus = MemoryBus()
     seen = []
-    bus.subscribe(["ENTRY_APPROVED", "FOUNDER_COMMAND"], lambda e: seen.append(e.event_type))
-    bus._dispatch_batch([make_event("ENTRY_APPROVED", {}), make_event("FOUNDER_COMMAND", {})])
+    bus.subscribe(
+        ["ENTRY_APPROVED", "FOUNDER_COMMAND"], lambda e: seen.append(e.event_type)
+    )
+    bus._dispatch_batch(
+        [make_event("ENTRY_APPROVED", {}), make_event("FOUNDER_COMMAND", {})]
+    )
     assert seen == ["FOUNDER_COMMAND", "ENTRY_APPROVED"]
 
 
@@ -345,9 +378,13 @@ def test_redis_bus_founder_first_preserved() -> None:
     client = _redis_or_skip()
     prefix = f"test:founder:{uuid.uuid4().hex}:"
     try:
-        bus = RedisStreamsBus(client=client, stream_prefix=prefix, consumer_group="founder")
+        bus = RedisStreamsBus(
+            client=client, stream_prefix=prefix, consumer_group="founder"
+        )
         seen = []
-        bus.subscribe(["ENTRY_APPROVED", "FOUNDER_COMMAND"], lambda e: seen.append(e.event_type))
+        bus.subscribe(
+            ["ENTRY_APPROVED", "FOUNDER_COMMAND"], lambda e: seen.append(e.event_type)
+        )
         bus.publish("ENTRY_APPROVED", {"t": 1}, source="boss")
         bus.publish("FOUNDER_COMMAND", {"cmd": "PAUSE"}, source="founder")
         bus.poll()

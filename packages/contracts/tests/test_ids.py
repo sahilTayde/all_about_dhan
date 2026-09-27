@@ -208,3 +208,37 @@ def test_signal_id_strategy_name_collision_resistance() -> None:
     assert sid_with_dash != sid_no_dash
     assert "r8-e1" in sid_with_dash
     assert "r8e1" in sid_no_dash
+
+
+def test_signal_id_rejects_pipe_in_every_string_input() -> None:
+    """'|' in strategy_id, version, underlying, or timestamp string is rejected."""
+    from datetime import timedelta
+
+    ist = timezone(timedelta(hours=5, minutes=30))
+    dt = datetime(2026, 9, 28, 10, 1, 0, tzinfo=ist)
+
+    with pytest.raises(ValueError, match=r"must not contain '\|'"):
+        signal_id("R8|", "1.0", "NIFTY", dt, 0)
+    with pytest.raises(ValueError, match=r"must not contain '\|'"):
+        signal_id("R8", "|1.0", "NIFTY", dt, 0)
+    with pytest.raises(ValueError, match=r"must not contain '\|'"):
+        signal_id("R8", "1.0", "NIF|TY", dt, 0)
+    with pytest.raises(ValueError, match=r"must not contain '\|'"):
+        signal_id("R8", "1.0", "NIFTY", "2026-09-28T10:01:00+05:30|x", 0)
+
+
+def test_signal_id_validates_underlying_and_n() -> None:
+    """underlying must have an alphanumeric; n must be a non-negative int."""
+    from datetime import timedelta
+
+    ist = timezone(timedelta(hours=5, minutes=30))
+    dt = datetime(2026, 9, 28, 10, 1, 0, tzinfo=ist)
+
+    with pytest.raises(ValueError, match="underlying"):
+        signal_id("R8", "1.0", "", dt, 0)
+    with pytest.raises(ValueError, match="underlying"):
+        signal_id("R8", "1.0", "---", dt, 0)
+    with pytest.raises(ValueError, match="non-negative int"):
+        signal_id("R8", "1.0", "NIFTY", dt, -1)
+    with pytest.raises(ValueError, match="non-negative int"):
+        signal_id("R8", "1.0", "NIFTY", dt, True)
