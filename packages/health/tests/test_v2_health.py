@@ -52,7 +52,9 @@ def _monitor(tmp_path: Path, clock: SimClock, sink: RecordingSink) -> V2HealthMo
     )
 
 
-def test_each_alert_fires_within_threshold_and_clears_on_recovery(tmp_path: Path) -> None:
+def test_each_alert_fires_within_threshold_and_clears_on_recovery(
+    tmp_path: Path,
+) -> None:
     clock = SimClock(MON)
     cases: list[tuple[str, HealthSnapshot, HealthSnapshot]] = [
         (
@@ -108,11 +110,21 @@ def test_each_alert_fires_within_threshold_and_clears_on_recovery(tmp_path: Path
         (
             "PROTECTIVE_STOP",
             healthy(positions=(OpenPosition("p1", 65, None, None),)),
-            healthy(positions=(OpenPosition("p1", 65, "aad-S", {"kind": "underlying", "price": 1.0}),)),
+            healthy(
+                positions=(
+                    OpenPosition(
+                        "p1", 65, "aad-S", {"kind": "underlying", "price": 1.0}
+                    ),
+                )
+            ),
         ),
         ("DISK", healthy(disk_free_gb=3.0), healthy(disk_free_gb=12.0)),
         ("BACKUP_AGE", healthy(backup_age_s=27 * 3600), healthy(backup_age_s=3600)),
-        ("TOKEN_EXPIRY", healthy(token_expires_in_s=30 * 60), healthy(token_expires_in_s=8 * 3600)),
+        (
+            "TOKEN_EXPIRY",
+            healthy(token_expires_in_s=30 * 60),
+            healthy(token_expires_in_s=8 * 3600),
+        ),
         ("RESTART_LOOP", healthy(breaker_open=True), healthy(breaker_open=False)),
         ("CHECKPOINT_AGE", healthy(checkpoint_age_s=90), healthy(checkpoint_age_s=5)),
         (
@@ -159,7 +171,9 @@ def test_feed_stale_outside_market_hours_is_not_an_alarm() -> None:
 
 def test_feed_stale_uses_india_session(tmp_path: Path) -> None:
     sink = RecordingSink()
-    mon = V2HealthMonitor(clock=SimClock(SAT), sink=sink, queue_sink=False, state_path=tmp_path / "d.json")
+    mon = V2HealthMonitor(
+        clock=SimClock(SAT), sink=sink, queue_sink=False, state_path=tmp_path / "d.json"
+    )
     assert mon.run_once(healthy(feed_status="STALE")) == []
 
 
@@ -170,9 +184,19 @@ def test_reg_02d_position_without_protective_stop_is_critical(tmp_path: Path) ->
     bad = healthy(positions=(OpenPosition("ps_bare", 65, None, {}),))
     events = mon.run_once(bad)
     hit = [a for a in events if a.rule == "PROTECTIVE_STOP"]
-    assert len(hit) == 1 and hit[0].severity == "CRITICAL" and "ps_bare" in hit[0].message
-    ok = healthy(positions=(OpenPosition("ps_bare", 65, "aad-S", {"kind": "underlying", "price": 24400.0}),))
-    assert any(a.event == "RECOVERED" and a.rule == "PROTECTIVE_STOP" for a in mon.run_once(ok))
+    assert (
+        len(hit) == 1 and hit[0].severity == "CRITICAL" and "ps_bare" in hit[0].message
+    )
+    ok = healthy(
+        positions=(
+            OpenPosition(
+                "ps_bare", 65, "aad-S", {"kind": "underlying", "price": 24400.0}
+            ),
+        )
+    )
+    assert any(
+        a.event == "RECOVERED" and a.rule == "PROTECTIVE_STOP" for a in mon.run_once(ok)
+    )
 
 
 def test_reg_09a_open_breaker_raises_restart_loop_once(tmp_path: Path) -> None:
@@ -180,9 +204,13 @@ def test_reg_09a_open_breaker_raises_restart_loop_once(tmp_path: Path) -> None:
     sink = RecordingSink()
     mon = _monitor(tmp_path, clock, sink)
     first = mon.run_once(healthy(breaker_open=True))
-    assert [a.rule for a in first] == ["RESTART_LOOP"] and first[0].severity == "CRITICAL"
+    assert [a.rule for a in first] == ["RESTART_LOOP"] and first[
+        0
+    ].severity == "CRITICAL"
     assert mon.run_once(healthy(breaker_open=True)) == []
-    assert any(a.event == "RECOVERED" for a in mon.run_once(healthy(breaker_open=False)))
+    assert any(
+        a.event == "RECOVERED" for a in mon.run_once(healthy(breaker_open=False))
+    )
 
 
 def test_no_duplicate_telegram_across_monitor_restart(tmp_path: Path) -> None:
@@ -190,10 +218,15 @@ def test_no_duplicate_telegram_across_monitor_restart(tmp_path: Path) -> None:
     clock = SimClock(MON)
     sink = RecordingSink()
     m1 = V2HealthMonitor(clock=clock, sink=sink, queue_sink=False, state_path=state)
-    assert any(a.rule == "RESTART_LOOP" for a in m1.run_once(healthy(breaker_open=True)))
+    assert any(
+        a.rule == "RESTART_LOOP" for a in m1.run_once(healthy(breaker_open=True))
+    )
     m2 = V2HealthMonitor(clock=clock, sink=sink, queue_sink=False, state_path=state)
     assert m2.run_once(healthy(breaker_open=True)) == []
-    assert sum(1 for a in sink.alerts if a.rule == "RESTART_LOOP" and a.event == "ALERT") == 1
+    assert (
+        sum(1 for a in sink.alerts if a.rule == "RESTART_LOOP" and a.event == "ALERT")
+        == 1
+    )
 
 
 def test_alert_text_never_includes_tokens() -> None:
@@ -213,7 +246,14 @@ def test_dedupe_store_round_trip(tmp_path: Path) -> None:
     path = tmp_path / "state.json"
     store = DedupeStore(path)
     now = MON
-    alert = Alert("DISK", "ALERT", "WARN", "only 1.0 GB free (min 5.0 GB)", "DISK", now.isoformat())
+    alert = Alert(
+        "DISK",
+        "ALERT",
+        "WARN",
+        "only 1.0 GB free (min 5.0 GB)",
+        "DISK",
+        now.isoformat(),
+    )
     first = store.diff({"DISK": alert}, now)
     assert first[0].event == "ALERT"
     store2 = DedupeStore(path)

@@ -16,8 +16,8 @@ from typing import Any
 from contracts.clock import Clock, LiveClock
 from contracts.envelope import Envelope
 from contracts.instruments import India
-from events.bus import EventBus  # type: ignore[import-untyped]
-from events.schema import Event  # type: ignore[import-untyped]
+from events.bus import EventBus
+from events.schema import Event
 
 from health.v2_alerts import (
     Alert,
@@ -123,7 +123,12 @@ def failing_alerts(snap: HealthSnapshot, *, in_market: bool) -> dict[str, Alert]
         )
 
     if snap.feed_status == "DOWN" and snap.feed_down_s > FEED_DOWN_S:
-        add("FEED_DOWN", "FEED_DOWN", "CRITICAL", f"feed DOWN for {snap.feed_down_s:.0f}s (limit {FEED_DOWN_S:.0f}s)")
+        add(
+            "FEED_DOWN",
+            "FEED_DOWN",
+            "CRITICAL",
+            f"feed DOWN for {snap.feed_down_s:.0f}s (limit {FEED_DOWN_S:.0f}s)",
+        )
     if snap.feed_status == "STALE" and in_market:
         add("FEED_STALE", "FEED_STALE", "CRITICAL", "feed STALE in market hours")
 
@@ -157,13 +162,25 @@ def failing_alerts(snap: HealthSnapshot, *, in_market: bool) -> dict[str, Alert]
     if not snap.recon_ok:
         add("RECON_MISMATCH", "RECON_MISMATCH", "CRITICAL", "reconciliation mismatch")
     if snap.rehydrate_mismatch:
-        add("REHYDRATE_MISMATCH", "REHYDRATE_MISMATCH", "CRITICAL", "REHYDRATE_MISMATCH")
+        add(
+            "REHYDRATE_MISMATCH", "REHYDRATE_MISMATCH", "CRITICAL", "REHYDRATE_MISMATCH"
+        )
 
     for code in snap.critical_veto_codes:
-        add("CRITICAL_VETO", f"CRITICAL_VETO:{code}", "CRITICAL", f"critical risk veto: {code}")
+        add(
+            "CRITICAL_VETO",
+            f"CRITICAL_VETO:{code}",
+            "CRITICAL",
+            f"critical risk veto: {code}",
+        )
 
     for sid in snap.disabled_strategies:
-        add("STRATEGY_DISABLED", f"STRATEGY_DISABLED:{sid}", "WARN", f"strategy disabled: {sid}")
+        add(
+            "STRATEGY_DISABLED",
+            f"STRATEGY_DISABLED:{sid}",
+            "WARN",
+            f"strategy disabled: {sid}",
+        )
 
     for order in snap.stuck_orders:
         if order.state == "SUBMITTED" and order.submitted_age_s > ORDER_STUCK_S:
@@ -185,7 +202,12 @@ def failing_alerts(snap: HealthSnapshot, *, in_market: bool) -> dict[str, Alert]
             )
 
     if snap.disk_free_gb is not None and snap.disk_free_gb < DISK_MIN_GB:
-        add("DISK", "DISK", "WARN", f"only {snap.disk_free_gb:.1f} GB free (min {DISK_MIN_GB:.1f} GB)")
+        add(
+            "DISK",
+            "DISK",
+            "WARN",
+            f"only {snap.disk_free_gb:.1f} GB free (min {DISK_MIN_GB:.1f} GB)",
+        )
 
     if snap.backup_age_s is not None and snap.backup_age_s > BACKUP_MAX_S:
         add(
@@ -197,10 +219,17 @@ def failing_alerts(snap: HealthSnapshot, *, in_market: bool) -> dict[str, Alert]
 
     if snap.token_expires_in_s is not None and snap.token_expires_in_s < TOKEN_EXPIRY_S:
         mins = max(0, int(snap.token_expires_in_s // 60))
-        add("TOKEN_EXPIRY", "TOKEN_EXPIRY", "CRITICAL", f"Dhan token expires in {mins}m")
+        add(
+            "TOKEN_EXPIRY", "TOKEN_EXPIRY", "CRITICAL", f"Dhan token expires in {mins}m"
+        )
 
     if snap.breaker_open:
-        add("RESTART_LOOP", "RESTART_LOOP", "CRITICAL", "RESTART_LOOP: service breaker is open")
+        add(
+            "RESTART_LOOP",
+            "RESTART_LOOP",
+            "CRITICAL",
+            "RESTART_LOOP: service breaker is open",
+        )
 
     if snap.checkpoint_age_s is not None and snap.checkpoint_age_s > CHECKPOINT_MAX_S:
         add(
@@ -276,7 +305,9 @@ class BusHealthCollector:
                         self._feed_since = None
             elif kind in {"ENGINE_STATUS", "health:engine"}:
                 try:
-                    self._engine_seen = datetime.fromisoformat(env.event_ts or env.timestamp)
+                    self._engine_seen = datetime.fromisoformat(
+                        env.event_ts or env.timestamp
+                    )
                 except ValueError:
                     self._engine_seen = None
             elif kind == "ENTRY_VETOED":
@@ -290,7 +321,9 @@ class BusHealthCollector:
             if payload.get("breaker_open") is True:
                 pass  # breaker is snapshot-injected (V2-15 owns the file)
 
-    def snapshot(self, now: datetime, base: HealthSnapshot | None = None) -> HealthSnapshot:
+    def snapshot(
+        self, now: datetime, base: HealthSnapshot | None = None
+    ) -> HealthSnapshot:
         snap = base or HealthSnapshot()
         with self._lock:
             feed_down = 0.0
@@ -300,9 +333,13 @@ class BusHealthCollector:
             if self._engine_seen is not None:
                 engine_age = max(0.0, (now - self._engine_seen).total_seconds())
             return HealthSnapshot(
-                feed_status=self._feed_status if self._feed_status is not None else snap.feed_status,
+                feed_status=self._feed_status
+                if self._feed_status is not None
+                else snap.feed_status,
                 feed_down_s=feed_down or snap.feed_down_s,
-                engine_heartbeat_age_s=engine_age if engine_age is not None else snap.engine_heartbeat_age_s,
+                engine_heartbeat_age_s=engine_age
+                if engine_age is not None
+                else snap.engine_heartbeat_age_s,
                 consumer_lag_s=dict(snap.consumer_lag_s),
                 outbox_backlog=snap.outbox_backlog,
                 checkpoint_age_s=snap.checkpoint_age_s,

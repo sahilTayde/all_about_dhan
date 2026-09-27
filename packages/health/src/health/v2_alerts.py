@@ -110,7 +110,9 @@ class QueuedAlertSink:
         self._q: queue.Queue[Alert | object] = queue.Queue(maxsize=maxsize)
         self._sentinel = object()
         self._busy = threading.Event()
-        self._thread = threading.Thread(target=self._run, name="health-v2-alerts", daemon=True)
+        self._thread = threading.Thread(
+            target=self._run, name="health-v2-alerts", daemon=True
+        )
         self._thread.start()
 
     def emit(self, alert: Alert) -> None:
@@ -160,13 +162,19 @@ class DedupeStore:
         if not isinstance(raw, dict):
             return
         for key, row in raw.items():
-            if isinstance(row, dict) and row.get("active") and isinstance(row.get("fingerprint"), str):
+            if (
+                isinstance(row, dict)
+                and row.get("active")
+                and isinstance(row.get("fingerprint"), str)
+            ):
                 self._active[str(key)] = str(row["fingerprint"])
 
     def _save(self) -> None:
         if self.path is None:
             return
-        payload = {k: {"active": True, "fingerprint": fp} for k, fp in self._active.items()}
+        payload = {
+            k: {"active": True, "fingerprint": fp} for k, fp in self._active.items()
+        }
         try:
             self.path.parent.mkdir(parents=True, exist_ok=True)
             tmp = self.path.with_suffix(".tmp")

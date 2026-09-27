@@ -20,13 +20,22 @@ def test_metrics_registry_lists_every_budget_name() -> None:
 
 def test_metrics_endpoint_loopback_http() -> None:
     reg = MetricsRegistry()
-    reg.observe_latencies(tick_to_bar_s=0.01, bar_to_decision_s=0.02, risk_check_s=0.003, decision_to_paper_ack_s=0.01)
-    reg.apply_gauges(outbox_backlog=3, checkpoint_age_s=4.0, open_positions=1, engine_rss_bytes=1000)
+    reg.observe_latencies(
+        tick_to_bar_s=0.01,
+        bar_to_decision_s=0.02,
+        risk_check_s=0.003,
+        decision_to_paper_ack_s=0.01,
+    )
+    reg.apply_gauges(
+        outbox_backlog=3, checkpoint_age_s=4.0, open_positions=1, engine_rss_bytes=1000
+    )
     ep = MetricsEndpoint(reg, host="127.0.0.1", port=0)
     host, port = ep.start()
     try:
         assert host == "127.0.0.1" and port > 0
-        with urllib.request.urlopen(f"http://127.0.0.1:{port}/metrics", timeout=2) as resp:
+        with urllib.request.urlopen(
+            f"http://127.0.0.1:{port}/metrics", timeout=2
+        ) as resp:
             body = resp.read().decode("utf-8")
             assert resp.status == 200
         missing = [n for n in BUDGET_METRIC_NAMES if n not in body]

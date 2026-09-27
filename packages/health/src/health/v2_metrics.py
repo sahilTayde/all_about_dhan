@@ -74,28 +74,58 @@ class MetricsRegistry:
             buckets=_LATENCY_BUCKETS,
         )
         self.consumer_lag = Gauge(
-            "aad_consumer_lag_seconds", "Consumer-group lag per stream", ["stream"], registry=self.registry
+            "aad_consumer_lag_seconds",
+            "Consumer-group lag per stream",
+            ["stream"],
+            registry=self.registry,
         )
-        self.outbox_backlog = Gauge("aad_outbox_backlog", "Unpublished outbox rows", registry=self.registry)
+        self.outbox_backlog = Gauge(
+            "aad_outbox_backlog", "Unpublished outbox rows", registry=self.registry
+        )
         self.checkpoint_age = Gauge(
-            "aad_checkpoint_age_seconds", "Engine checkpoint age", registry=self.registry
+            "aad_checkpoint_age_seconds",
+            "Engine checkpoint age",
+            registry=self.registry,
         )
-        self.vetoes = Counter("aad_vetoes_total", "Risk vetoes by code", ["code"], registry=self.registry)
-        self.orders = Gauge("aad_orders", "Open orders by state", ["state"], registry=self.registry)
-        self.open_positions = Gauge("aad_open_positions", "Open positions", registry=self.registry)
-        self.pnl_realised = Gauge("aad_pnl_realised_inr", "Realised P&L INR", registry=self.registry)
-        self.pnl_unrealised = Gauge("aad_pnl_unrealised_inr", "Unrealised P&L INR", registry=self.registry)
+        self.vetoes = Counter(
+            "aad_vetoes_total", "Risk vetoes by code", ["code"], registry=self.registry
+        )
+        self.orders = Gauge(
+            "aad_orders", "Open orders by state", ["state"], registry=self.registry
+        )
+        self.open_positions = Gauge(
+            "aad_open_positions", "Open positions", registry=self.registry
+        )
+        self.pnl_realised = Gauge(
+            "aad_pnl_realised_inr", "Realised P&L INR", registry=self.registry
+        )
+        self.pnl_unrealised = Gauge(
+            "aad_pnl_unrealised_inr", "Unrealised P&L INR", registry=self.registry
+        )
         self.strategy_exceptions = Counter(
-            "aad_strategy_exceptions_total", "Strategy exceptions", registry=self.registry
+            "aad_strategy_exceptions_total",
+            "Strategy exceptions",
+            registry=self.registry,
         )
         self.feed_reconnects = Counter(
             "aad_feed_reconnects_total", "Feed reconnects", registry=self.registry
         )
-        self.late_ticks = Counter("aad_late_ticks_total", "Late ticks for a closed bar", registry=self.registry)
-        self.llm_spend = Gauge("aad_llm_spend_usd", "LLM spend USD", registry=self.registry)
-        self.engine_rss = Gauge("aad_engine_rss_bytes", "Engine RSS bytes", registry=self.registry)
+        self.late_ticks = Counter(
+            "aad_late_ticks_total",
+            "Late ticks for a closed bar",
+            registry=self.registry,
+        )
+        self.llm_spend = Gauge(
+            "aad_llm_spend_usd", "LLM spend USD", registry=self.registry
+        )
+        self.engine_rss = Gauge(
+            "aad_engine_rss_bytes", "Engine RSS bytes", registry=self.registry
+        )
         self.depth_coverage = Gauge(
-            "aad_depth_coverage", "Depth coverage fraction per traded strike", ["strike"], registry=self.registry
+            "aad_depth_coverage",
+            "Depth coverage fraction per traded strike",
+            ["strike"],
+            registry=self.registry,
         )
         # Seed labelled series so /metrics lists every budget name even before samples.
         self.consumer_lag.labels(stream="_").set(0)
@@ -165,7 +195,9 @@ class MetricsRegistry:
 class MetricsEndpoint:
     """Loopback HTTP /metrics. Bind 127.0.0.1 only (paper-live scrapes itself)."""
 
-    def __init__(self, metrics: MetricsRegistry, host: str = "127.0.0.1", port: int = 0) -> None:
+    def __init__(
+        self, metrics: MetricsRegistry, host: str = "127.0.0.1", port: int = 0
+    ) -> None:
         if host not in {"127.0.0.1", "localhost", "::1"}:
             raise ValueError("metrics endpoint must bind loopback")
         self._metrics = metrics
@@ -195,7 +227,9 @@ class MetricsEndpoint:
 
         httpd = ThreadingHTTPServer((self._host, self._port), Handler)
         self._httpd = httpd
-        self._thread = threading.Thread(target=httpd.serve_forever, name="health-v2-metrics", daemon=True)
+        self._thread = threading.Thread(
+            target=httpd.serve_forever, name="health-v2-metrics", daemon=True
+        )
         self._thread.start()
         host, port = httpd.server_address[:2]
         return str(host), int(port)
