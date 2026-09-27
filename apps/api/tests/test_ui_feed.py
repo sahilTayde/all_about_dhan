@@ -78,24 +78,31 @@ def test_history_merges_board_and_model_log_across_days(tmp_path) -> None:
                           _board_trade("a-LOGIT", "MIX-ML-LOGIT", 1000.0, today)],
     }
     prior_ts = 1768362000  # 2026-01-14 09:10 IST, earlier day that only the model log remembers
+    tid = f"paper-X-NIFTY-{prior_ts}-PE"
+    close = {"event": "CLOSE", "trade_id": tid, "book_id": "MIX-DEFAULT-BUY", "underlying": "NIFTY", "side": "PE",
+             "strike": 20100, "pnl_points": -4.0, "gross_pnl_inr": -400.0, "charges_inr": 60.0, "pnl_inr": -460.0,
+             "exit_reason": "STOP", "filled": True}
+    replay_ts = 1768449000  # 2026-01-15 09:20 IST
     _write(tmp_path / "data" / "recon" / "ml_paper_model_logs.jsonl", [
-        {"event": "OPEN", "trade_id": f"paper-X-NIFTY-{prior_ts}-PE", "limit": 90.0, "lots": 2, "lot_size": 50},
-        {"event": "SKIP", "reason": "HOLD_MAJORITY"},
-        {"event": "CLOSE", "trade_id": f"paper-X-NIFTY-{prior_ts}-PE", "book_id": "MIX-DEFAULT-BUY", "underlying": "NIFTY",
-         "side": "PE", "strike": 20100, "pnl_points": -4.0, "gross_pnl_inr": -400.0, "charges_inr": 60.0,
-         "pnl_inr": -460.0, "exit_reason": "STOP", "filled": True},
+        {"event": "OPEN", "trade_id": tid, "limit": 90.0, "lots": 2, "lot_size": 50, "ts_ist": "2026-01-14T09:10:05+05:30"},
+        {"event": "SKIP", "reason": "HOLD_MAJORITY", "ts_ist": "2026-01-14T09:11:00+05:30"},
+        {**close, "ts_ist": "2026-01-14T09:24:00+05:30"},
+        # the same day replayed two days later, and a replay of the board's own day: neither may count
+        {**close, "trade_id": f"paper-X-NIFTY-{prior_ts + 60}-PE", "ts_ist": "2026-01-16T20:00:00+05:30"},
+        {**close, "trade_id": f"paper-X-NIFTY-{replay_ts}-CE", "ts_ist": "2026-01-15T09:30:00+05:30"},
+        {**close, "trade_id": f"paper-X-NIFTY-{replay_ts + 60}-CE", "ts_ist": "2026-01-15T18:30:00+05:30"},
     ])
     rows = history_rows(tmp_path, board)
     assert [r["day"] for r in rows] == [DAY, DAY, "2026-01-14"]
     old = rows[-1]
-    assert old["source"] == "model_log" and old["entry"] == 90.0 and old["exit"] == 86.0
+    assert old["source"] == "model_log (live)" and old["entry"] == 90.0 and old["exit"] == 86.0
 
     days = day_summaries(rows)
     assert days[0]["n"] == 1 and days[0]["net"] == 1000.0
     assert days[0]["by_book"]["MIX-ML-LOGIT"]["n"] == 1
     assert days[1] == {"day": "2026-01-14", "n": 1, "wins": 0, "gross": -400.0, "charges": 60.0, "net": -460.0,
                        "by_book": {"MIX-DEFAULT-BUY": {"n": 1, "wins": 0, "net": -460.0}},
-                       "by_reason": {"STOP": {"n": 1, "net": -460.0}}}
+                       "by_reason": {"STOP": {"n": 1, "gross": -400.0, "charges": 60.0, "net": -460.0}}}
     acct = account(board, days)
     assert acct["net_inr"] == 540.0 and acct["equity_inr"] == 500540.0 and acct["n_days"] == 2
     assert acct["funds_editable"] is False
@@ -154,3 +161,41 @@ def test_mtm_halt_file_is_a_critical_alert_and_red_row(tmp_path) -> None:
     assert build_snapshot(tmp_path, now=now, fstatus={})["risk_halt"]["active"] is True
     halt.write_text(json.dumps({"session": "2026-01-14", "halt_ts": 1}), encoding="utf-8")
     assert build_snapshot(tmp_path, now=now, fstatus={})["risk_halt"] is None
+
+
+def test_new_rows_streams_from_offset_with_needles_and_budget(tmp_path) -> None:
+    from api.ui_feed import new_rows
+
+    path = tmp_path / "log.jsonl"
+    _write(path, [{"event": "SKIP", "i": i} for i in range(5000)] + [{"event": "CLOSE", "i": -1}])
+    rows, reset, done = new_rows(path, (b'"event": "CLOSE"',), budget_s=0.0)
+    assert reset and not done and rows == []  # budget spent after the first 2048 lines
+    while not done:
+        more, reset, done = new_rows(path, (b'"event": "CLOSE"',), budget_s=0.0)
+        assert not reset
+        rows += more
+    assert rows == [{"event": "CLOSE", "i": -1}]
+    with path.open("a", encoding="utf-8") as fh:
+        fh.write(json.dumps({"event": "CLOSE", "i": 7}) + "\n" + '{"event": "CLOSE", "i"')  # half-written tail
+    assert new_rows(path, (b'"event": "CLOSE"',))[0] == [{"event": "CLOSE", "i": 7}]
+
+
+def test_alert_ids_change_per_episode_and_news_uses_item_time(tmp_path) -> None:
+    from datetime import datetime
+
+    from api.ui_feed import IST, alert_list, health_rows, latest_news_ts
+
+    now = datetime(2026, 1, 15, 11, 0, tzinfo=IST)
+    ids = []
+    for last in ("2026-01-15T10:50:00+05:30", "2026-01-15T10:40:00+05:30"):
+        board = {"steps": {"NIFTY": {"span_ist": {"last": last}}}}
+        rows = health_rows(tmp_path, board, {"agents": [{"id": "paper-loop", "alive": True}]}, {}, now)
+        ids.append(next(a["id"] for a in alert_list(board, rows, {}, [], {}, now) if a["title"] == "Stale market data"))
+    assert ids[0] != ids[1]
+
+    folder = tmp_path / "data" / "desk_intel" / "signals"
+    folder.mkdir(parents=True)
+    (folder / "x.json").write_text(json.dumps({"news": [{"headline": "a", "time_ist": "2026-01-15T08:00:00+05:30"},
+                                                        {"headline": "b", "time_ist": "2026-01-15T09:30:00+05:30"}]}))
+    (tmp_path / "data" / "desk_intel" / ".gitkeep").write_text("")
+    assert latest_news_ts(tmp_path) == int(datetime(2026, 1, 15, 9, 30, tzinfo=IST).timestamp())

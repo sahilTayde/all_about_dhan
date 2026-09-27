@@ -17,6 +17,7 @@ import json
 import os
 import re
 import sqlite3
+import time as _time
 from bisect import bisect_right
 from datetime import datetime, time, timedelta, timezone
 from pathlib import Path
@@ -68,35 +69,41 @@ def read_json(path: Path) -> Any:
     return blob
 
 
-def new_rows(path: Path) -> tuple[list[dict[str, Any]], bool]:
-    """Rows appended to a JSONL file since the last call.
+def new_rows(path: Path, needles: tuple[bytes, ...] = (), budget_s: Optional[float] = None) -> tuple[list[dict[str, Any]], bool, bool]:
+    """Rows appended to a JSONL file since the last call, streamed from the saved byte offset.
 
-    ``reset`` is True on the first read, when the file was rewritten (shrank) or removed:
-    callers then drop what they accumulated for this path.
+    Only lines containing one of ``needles`` are JSON-parsed (the model log is mostly SKIP/HOLD
+    rows nobody here reads). ``budget_s`` caps the time spent, so a cold 200 MB log is indexed
+    over several snapshots instead of blocking one. Returns ``(rows, reset, complete)``: ``reset``
+    is True on the first read or when the file shrank or vanished, so callers drop their cache.
     """
     key = str(path)
     stamp = _stamp(path)
     if stamp is None:
-        return [], _TAIL.pop(key, None) is not None
+        return [], _TAIL.pop(key, None) is not None, True
     size = stamp[1]
     reset = key not in _TAIL or size < _TAIL[key]
     offset = 0 if reset else _TAIL[key]
     rows: list[dict[str, Any]] = []
+    deadline = None if budget_s is None else _time.monotonic() + budget_s
     if size > offset:
         with path.open("rb") as fh:
             fh.seek(offset)
-            chunk = fh.read(size - offset)
-        end = chunk.rfind(b"\n") + 1  # a half-written last line waits for the next call
-        offset += end
-        for line in chunk[:end].splitlines():
-            try:
-                row = json.loads(line)
-            except ValueError:
-                continue
-            if isinstance(row, dict):
-                rows.append(row)
+            for n, line in enumerate(fh, 1):
+                if not line.endswith(b"\n"):
+                    break  # half-written last line: picked up next call
+                offset += len(line)
+                if not needles or any(x in line for x in needles):
+                    try:
+                        row = json.loads(line)
+                    except ValueError:
+                        row = None
+                    if isinstance(row, dict):
+                        rows.append(row)
+                if deadline is not None and n % 2048 == 0 and _time.monotonic() > deadline:
+                    break
     _TAIL[key] = offset
-    return rows, reset
+    return rows, reset, offset >= size
 
 
 def ts_of(raw: Any) -> Optional[int]:
@@ -124,10 +131,12 @@ def in_market_hours(now: datetime) -> bool:
 # ---------- spot at entry (dual tape) ----------
 
 _SPOTS: dict[str, dict[str, tuple[list[int], list[float]]]] = {}
+_TAPE_DONE: dict[str, bool] = {}
 
 
-def _tape_series(path: Path) -> dict[str, tuple[list[int], list[float]]]:
-    rows, reset = new_rows(path)
+def _tape_series(path: Path, budget_s: Optional[float] = None) -> dict[str, tuple[list[int], list[float]]]:
+    rows, reset, done = new_rows(path, budget_s=budget_s)
+    _TAPE_DONE[str(path)] = done
     if reset:
         _SPOTS[str(path)] = {}
     series = _SPOTS.setdefault(str(path), {})
@@ -150,20 +159,24 @@ def _tape_series(path: Path) -> dict[str, tuple[list[int], list[float]]]:
     return series
 
 
-def spot_at(tape_dir: Path, underlying: Any, opened: Any) -> Optional[float]:
+def spot_at(tape_dir: Path, underlying: Any, opened: Any, budget_s: Optional[float] = None) -> Optional[float]:
     ts = ts_of(opened)
     if ts is None or not underlying:
         return None
     day = datetime.fromtimestamp(ts, IST).date().isoformat()
-    tss, idxs = _tape_series(tape_dir / f"{day}.jsonl").get(str(underlying).upper(), ([], []))
+    path = tape_dir / f"{day}.jsonl"
+    tss, idxs = _tape_series(path, budget_s).get(str(underlying).upper(), ([], []))
+    if not _TAPE_DONE.get(str(path)) and (not tss or tss[-1] < ts):
+        return None  # tape not indexed up to the entry yet: answer on a later call, never a stale print
     i = bisect_right(tss, ts) - 1
     if i < 0 or ts - tss[i] > MAX_SPOT_GAP_S:
         return None
     return idxs[i]
 
 
-def attach_entry_spots(blob: dict[str, Any], tape_dir: Path) -> dict[str, Any]:
+def attach_entry_spots(blob: dict[str, Any], tape_dir: Path, budget_s: Optional[float] = None) -> dict[str, Any]:
     """Fill missing ``spot_at_entry`` in place. Open tickets carry ``idx_at_open``; closed ones use the tape."""
+    deadline = None if budget_s is None else _time.monotonic() + budget_s
     for key in TRADE_KEYS:
         for t in blob.get(key) or []:
             if not isinstance(t, dict) or t.get("spot_at_entry") is not None:
@@ -173,7 +186,8 @@ def attach_entry_spots(blob: dict[str, Any], tape_dir: Path) -> dict[str, Any]:
                 continue
             if not tape_dir.is_dir():
                 continue
-            spot = spot_at(tape_dir, t.get("underlying"), t.get("opened_ts") or t.get("opened_ist"))
+            left = None if deadline is None else max(0.0, deadline - _time.monotonic())
+            spot = spot_at(tape_dir, t.get("underlying"), t.get("opened_ts") or t.get("opened_ist"), left)
             if spot is not None:
                 t["spot_at_entry"], t["spot_at_entry_src"] = spot, "DUAL-TAPE"
     return blob
@@ -182,7 +196,7 @@ def attach_entry_spots(blob: dict[str, Any], tape_dir: Path) -> dict[str, Any]:
 # ---------- sources ----------
 
 
-def load_board(root: Path = REPO) -> Optional[dict[str, Any]]:
+def load_board(root: Path = REPO, budget_s: Optional[float] = None) -> Optional[dict[str, Any]]:
     recon = root / "data" / "recon" / "ml_paper_dashboard.json"
     mock = root / "apps" / "web" / "public" / "mock" / "ml_paper_dashboard.json"
     blob = read_json(recon if recon.is_file() else mock)
@@ -191,20 +205,26 @@ def load_board(root: Path = REPO) -> Optional[dict[str, Any]]:
     blob.setdefault("orders", "REFUSED")
     blob.setdefault("promote", False)
     blob.setdefault("win_rate", None)
-    attach_entry_spots(blob, root / "data" / "recon" / "paper_watch" / "DUAL-TAPE")
+    attach_entry_spots(blob, root / "data" / "recon" / "paper_watch" / "DUAL-TAPE", budget_s)
     return blob
 
 
 _EVENTS: dict[str, dict[str, list[dict[str, Any]]]] = {}
+_EVENT_NEEDLES = tuple(f'"event": "{e}"'.encode() for e in sorted(TRADE_EVENTS))
+SESSION_WRITE_END = time(15, 40)
 
 
-def trade_events(root: Path = REPO) -> dict[str, list[dict[str, Any]]]:
-    """trade_id -> model-log events (live file + archived pre-slate copies)."""
+def trade_events(root: Path = REPO, budget_s: Optional[float] = None) -> tuple[dict[str, list[dict[str, Any]]], bool]:
+    """trade_id -> model-log events (live file + archived pre-slate copies), and whether indexing is complete."""
     recon = root / "data" / "recon"
     files = [recon / MODEL_LOG, *sorted((recon / "archive").glob(f"{MODEL_LOG}.*"))]
     merged: dict[str, list[dict[str, Any]]] = {}
+    complete = True
+    deadline = None if budget_s is None else _time.monotonic() + budget_s
     for path in files:
-        rows, reset = new_rows(path)
+        left = None if deadline is None else max(0.0, deadline - _time.monotonic())
+        rows, reset, done = new_rows(path, _EVENT_NEEDLES, left)
+        complete = complete and done
         if reset:
             _EVENTS[str(path)] = {}
         acc = _EVENTS.setdefault(str(path), {})
@@ -214,7 +234,22 @@ def trade_events(root: Path = REPO) -> dict[str, list[dict[str, Any]]]:
                 acc.setdefault(str(tid), []).append(r)
         for tid, evs in acc.items():
             merged.setdefault(tid, []).extend(evs)
-    return merged
+    return merged, complete
+
+
+def live_write(row: dict[str, Any], opened_ts: Optional[int], max_after_s: int) -> bool:
+    """Was this model-log row written by the live paper loop for this trade?
+
+    The log also holds replay runs, and its rows carry no replay tag. A live row is written on the
+    trade's own IST day, before the session ends, and within ``max_after_s`` of the entry.
+    ponytail: a replay of today's tape run during market hours inside the hold window still passes;
+    ceiling = rare same-session replays; upgrade = the engine writes a mode on every row.
+    """
+    ts = ts_of(row.get("ts_ist"))
+    if ts is None or opened_ts is None:
+        return False
+    wrote, opened = datetime.fromtimestamp(ts, IST), datetime.fromtimestamp(opened_ts, IST)
+    return wrote.date() == opened.date() and wrote.time() <= SESSION_WRITE_END and opened_ts - 120 <= ts <= opened_ts + max_after_s
 
 
 def _ledger(root: Path) -> Optional[sqlite3.Connection]:
@@ -286,14 +321,15 @@ def _opened_ts(t: dict[str, Any]) -> Optional[int]:
 
 
 def _row_from_log(tid: str, evs: list[dict[str, Any]]) -> Optional[dict[str, Any]]:
-    close = next((e for e in reversed(evs) if e.get("event") == "CLOSE"), None)
+    """Rebuild a closed trade from live-written OPEN / CLOSE rows only (replay rows are skipped)."""
+    ts = _opened_ts({"trade_id": tid})
+    close = next((e for e in evs if e.get("event") == "CLOSE" and live_write(e, ts, 3 * 3600)), None)
     if close is None:
         return None
-    opened = next((e for e in evs if e.get("event") == "OPEN"), {})
+    opened = next((e for e in evs if e.get("event") == "OPEN" and live_write(e, ts, 15 * 60)), {})
     entry = opened.get("limit") if opened.get("limit") is not None else close.get("limit")
     pts = close.get("pnl_points")
     exit_px = round(float(entry) + float(pts), 4) if entry is not None and pts is not None else None
-    ts = _opened_ts({"trade_id": tid})
     return {
         "trade_id": tid,
         "book_id": close.get("book_id") or close.get("model"),
@@ -320,7 +356,7 @@ def _row_from_log(tid: str, evs: list[dict[str, Any]]) -> Optional[dict[str, Any
         "justification": close.get("justification") or opened.get("justification"),
         "opened_ts": ts,
         "opened_ist": ist_iso(ts),
-        "source": "model_log",
+        "source": "model_log (live)",
     }
 
 
@@ -354,25 +390,35 @@ def _day(t: dict[str, Any]) -> Optional[str]:
     return datetime.fromtimestamp(ts, IST).date().isoformat() if ts else None
 
 
-def history_rows(root: Path = REPO, board: Optional[dict[str, Any]] = None) -> list[dict[str, Any]]:
-    """Every closed paper trade we have a record of, one row per book, newest first."""
+def history_rows(root: Path = REPO, board: Optional[dict[str, Any]] = None,
+                 events: Optional[dict[str, list[dict[str, Any]]]] = None) -> list[dict[str, Any]]:
+    """Every closed paper trade we have a record of, one row per book, newest first.
+
+    Source of truth per IST day, first match wins: the paper board for its own session day, then the
+    event-path ledger, then live-written model-log rows. A lower source never adds trades to a day a
+    higher one already covers, so a replay in the model log cannot inflate a day the board owns.
+    """
     board = board if board is not None else load_board(root) or {}
     rows: dict[str, dict[str, Any]] = {}
     for t in board.get("closed_trades") or []:
         if t.get("trade_id"):
             rows[str(t["trade_id"])] = {**t, "source": "board"}
-    for tid, evs in trade_events(root).items():
-        if tid not in rows:
-            row = _row_from_log(tid, evs)
-            if row:
-                rows[tid] = row
-    for r in _ledger_query(root, "SELECT * FROM trades WHERE status = 'CLOSED'"):
+    owned = {_day(t) for t in rows.values()} - {None}
+    ledger_rows = _ledger_query(root, "SELECT * FROM trades WHERE status = 'CLOSED'")
+    for r in ledger_rows:
         tid = str(r.get("trade_id") or "")
         if tid in rows:
             rows[tid].setdefault("entry_slippage", r.get("entry_slippage"))
             rows[tid].setdefault("exit_slippage", r.get("exit_slippage"))
-        elif tid:
+        elif tid and r.get("day") not in owned:
             rows[tid] = _row_from_ledger(r)
+    owned |= {r.get("day") for r in ledger_rows if r.get("day")}
+    for tid, evs in (events if events is not None else trade_events(root)[0]).items():
+        if tid in rows:
+            continue
+        row = _row_from_log(tid, evs)
+        if row and _day(row) not in owned:
+            rows[tid] = row
     out = []
     for r in rows.values():
         r["day"] = _day(r)
@@ -412,8 +458,11 @@ def day_summaries(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
         d["gross"] = round(d["gross"] + float(t.get("gross_pnl_inr") or 0), 2)
         d["charges"] = round(d["charges"] + float(t.get("charges_inr") or 0), 2)
         d["net"] = round(d["net"] + net, 2)
-        reason = d["by_reason"].setdefault(str(t.get("exit_reason") or t.get("status") or "UNKNOWN"), {"n": 0, "net": 0.0})
+        reason = d["by_reason"].setdefault(str(t.get("exit_reason") or t.get("status") or "UNKNOWN"),
+                                           {"n": 0, "gross": 0.0, "charges": 0.0, "net": 0.0})
         reason["n"] += 1
+        reason["gross"] = round(reason["gross"] + float(t.get("gross_pnl_inr") or 0), 2)
+        reason["charges"] = round(reason["charges"] + float(t.get("charges_inr") or 0), 2)
         reason["net"] = round(reason["net"] + net, 2)
     return sorted(days.values(), key=lambda d: d["day"], reverse=True)
 
@@ -462,6 +511,34 @@ def tape_last(board: dict[str, Any]) -> Optional[str]:
     lasts = sorted(str((s or {}).get("span_ist", {}).get("last")) for s in (board.get("steps") or {}).values()
                    if (s or {}).get("span_ist", {}).get("last"))
     return lasts[-1] if lasts else board.get("as_of_ist")
+
+
+def _news_times(blob: Any, out: list[int], depth: int = 0) -> None:
+    if depth > 6:
+        return
+    if isinstance(blob, dict):
+        if blob.get("headline") and blob.get("time_ist"):
+            ts = ts_of(blob["time_ist"])
+            if ts:
+                out.append(ts)
+        for v in blob.values():
+            _news_times(v, out, depth + 1)
+    elif isinstance(blob, list):
+        for v in blob:
+            _news_times(v, out, depth + 1)
+
+
+def latest_news_ts(root: Path, max_files: int = 8, max_bytes: int = 5_000_000) -> Optional[int]:
+    """Newest ``time_ist`` of any news item (``headline`` + ``time_ist``) in the latest desk-intel JSON files."""
+    folder = root / "data" / "desk_intel"
+    if not folder.is_dir():
+        return None
+    files = sorted((p for p in folder.rglob("*.json") if p.is_file()), key=lambda p: p.stat().st_mtime, reverse=True)
+    times: list[int] = []
+    for path in files[:max_files]:
+        if path.stat().st_size <= max_bytes:
+            _news_times(read_json(path), times)
+    return max(times, default=None)
 
 
 def _row(rid: str, name: str, tone: str, detail: str, age: Optional[int] = None) -> dict[str, Any]:
@@ -526,13 +603,12 @@ def health_rows(root: Path, board: dict[str, Any], fstatus: dict[str, Any], hsta
     llm = agents.get("llm-agents") or {}
     rows.append(_row("llm", "LLM", "green" if llm.get("alive") else "grey", str(llm.get("detail") or "off / rules-only")))
 
-    news_dir = root / "data" / "desk_intel"
-    newest = max((p.stat().st_mtime for p in news_dir.rglob("*") if p.is_file()), default=None) if news_dir.is_dir() else None
+    newest = latest_news_ts(root)
     if newest is None:
-        rows.append(_row("news", "News", "grey", "no news data on disk"))
+        rows.append(_row("news", "News", "grey", "no news items on disk"))
     else:
         n_age = int(now.timestamp() - newest)
-        rows.append(_row("news", "News", "green" if n_age < 86400 else "amber", f"last news file {_fmt_age(n_age)}", n_age))
+        rows.append(_row("news", "News", "green" if n_age < 86400 else "amber", f"newest news item {_fmt_age(n_age)}", n_age))
 
     backend = os.environ.get("EVENT_BUS_BACKEND", "memory")
     rows.append(_row("queue", "Queue", "grey", f"{backend} event bus in the paper process (no external queue to probe)"))
@@ -566,12 +642,18 @@ def alert_list(board: dict[str, Any], rows: list[dict[str, Any]], hstatus: dict[
                     "detail": f"{veto.get('reason_text') or ''}{f' (ticket risk ₹{risk:,.0f})' if risk is not None else ''}".strip(),
                     "ts": veto.get("ts"), "source": "risk"})
     by_id = {r["id"]: r for r in rows}
-    titles = {"data": "Stale market data", "paper": "Paper loop down in market hours", "broker": "Broker reconciliation mismatch"}
-    for rid, title in titles.items():
+    # One id per episode (when the condition started), so a second outage the same day alerts again.
+    recon = (hstatus.get("checks") or {}).get("reconciliation") or {}
+    episodes = {
+        "data": ("Stale market data", tape_last(board)),
+        "paper": ("Paper loop down in market hours", (board.get("heartbeat") or {}).get("as_of_ist") or board.get("as_of_ist")),
+        "broker": ("Broker reconciliation mismatch", str(recon.get("message") or "")[:80]),
+    }
+    for rid, (title, since) in episodes.items():
         r = by_id.get(rid)
         if r and r["tone"] == "red":
-            out.append({"id": f"{rid}:{day}", "severity": "CRITICAL", "title": title, "detail": r["detail"],
-                        "ts": now.isoformat(timespec="seconds"), "source": "health"})
+            out.append({"id": f"{rid}:{since or day}", "severity": "CRITICAL", "title": title, "detail": r["detail"],
+                        "since": since, "ts": now.isoformat(timespec="seconds"), "source": "health"})
     vetoes = (hstatus.get("checks") or {}).get("risk_vetoes") or {}
     if vetoes and not vetoes.get("ok", True):
         out.append({"id": f"risk:{vetoes.get('last_seen') or day}", "severity": "CRITICAL", "title": "Risk limit hit",
@@ -628,9 +710,14 @@ def trim_board(board: dict[str, Any]) -> dict[str, Any]:
     return out
 
 
-def build_snapshot(root: Path = REPO, *, now: Optional[datetime] = None, fstatus: Optional[dict[str, Any]] = None) -> dict[str, Any]:
+SNAPSHOT_BUDGET_S = 0.25
+
+
+def build_snapshot(root: Path = REPO, *, now: Optional[datetime] = None, fstatus: Optional[dict[str, Any]] = None,
+                   budget_s: Optional[float] = None) -> dict[str, Any]:
+    """``budget_s`` caps log/tape indexing per call; the API passes SNAPSHOT_BUDGET_S, tests pass None (read all)."""
     now = (now or datetime.now(IST)).astimezone(IST)
-    board = load_board(root) or {}
+    board = load_board(root, budget_s) or {}
     if fstatus is None:
         from api.founder_status import build_founder_status
 
@@ -639,7 +726,8 @@ def build_snapshot(root: Path = REPO, *, now: Optional[datetime] = None, fstatus
         except Exception:  # noqa: BLE001 — ops status is advisory; the snapshot must still load
             fstatus = {}
     hstatus, halerts = _health_files(root)
-    rows = history_rows(root, board)
+    events, history_complete = trade_events(root, budget_s)
+    rows = history_rows(root, board, events)
     days = day_summaries(rows)
     halt = risk_halt(root, {now.date().isoformat(), str(board.get("session_ist_date") or "")})
     health = health_rows(root, board, fstatus, hstatus, now, halt)
@@ -657,17 +745,22 @@ def build_snapshot(root: Path = REPO, *, now: Optional[datetime] = None, fstatus
         "alerts": alert_list(board, health, hstatus, halerts, fstatus, now, halt),
         "risk_halt": halt,
         "days": days,
+        "history_complete": history_complete,
         "account": account(board, days),
         "orders": "REFUSED",
         "promote": False,
     }
 
 
-def day_history(root: Path = REPO, day: Optional[str] = None) -> dict[str, Any]:
-    rows = history_rows(root)
+def day_history(root: Path = REPO, day: Optional[str] = None, budget_s: Optional[float] = None) -> dict[str, Any]:
+    board = load_board(root, budget_s) or {}
+    events, complete = trade_events(root, budget_s)
+    rows = history_rows(root, board, events)
     days = sorted({r["day"] for r in rows if r.get("day")}, reverse=True)
     pick = day or (days[0] if days else None)
-    return {"day": pick, "days": days, "trades": [r for r in rows if r.get("day") == pick]}
+    trades = [r for r in rows if r.get("day") == pick]
+    attach_entry_spots({"closed_trades": trades}, root / "data" / "recon" / "paper_watch" / "DUAL-TAPE", budget_s)
+    return {"day": pick, "days": days, "trades": trades, "complete": complete}
 
 
 # ---------- decision trace ----------
@@ -689,16 +782,21 @@ def _why_now(text: Any) -> Optional[str]:
     return m.group(1).strip() if m else None
 
 
-def trade_trace(root: Path = REPO, trade_id: str = "") -> dict[str, Any]:
-    board = load_board(root) or {}
+def _r(v: Any, dp: int) -> Any:
+    return round(v, dp) if isinstance(v, float) else v
+
+
+def trade_trace(root: Path = REPO, trade_id: str = "", budget_s: Optional[float] = None) -> dict[str, Any]:
+    board = load_board(root, budget_s) or {}
+    events, _ = trade_events(root, budget_s)
     trades = [*(board.get("open_trades") or []), *(board.get("closed_trades") or [])]
     t = next((x for x in trades if x.get("trade_id") == trade_id), None)
     if t is None:
-        t = next((x for x in history_rows(root, board) if x.get("trade_id") == trade_id), None)
+        t = next((x for x in history_rows(root, board, events) if x.get("trade_id") == trade_id), None)
     if t is None:
         return {"ok": False, "trade_id": trade_id, "reason": "trade not found in board, model log or ledger", "steps": []}
-    evs = trade_events(root).get(trade_id, [])
     opened = _opened_ts(t)
+    evs = [e for e in events.get(trade_id, []) if live_write(e, opened, 3 * 3600)]
     und = t.get("underlying")
     sig = board.get("model_signals") or {}
     votes = [s for s in [*(sig.get("recent") or []), *(sig.get("latest") or [])]
@@ -718,8 +816,8 @@ def trade_trace(root: Path = REPO, trade_id: str = "") -> dict[str, Any]:
         _step("data", "Data",
               f"{und} spot {t.get('spot_at_entry')}" if t.get("spot_at_entry") is not None else None,
               t.get("regime_reason"),
-              {"regime": t.get("index_regime"), "market kind": t.get("market_kind_open"), "ER": t.get("regime_er"),
-               "range/ATR": t.get("regime_range_over_atr"), "IV": t.get("iv"), "delta": t.get("delta"),
+              {"regime": t.get("index_regime"), "market kind": t.get("market_kind_open"), "ER": _r(t.get("regime_er"), 3),
+               "range/ATR": _r(t.get("regime_range_over_atr"), 2), "IV": _r(t.get("iv"), 2), "delta": _r(t.get("delta"), 3),
                "spot source": t.get("spot_at_entry_src")},
               "trade record"),
         _step("analysts", "Analysts",
@@ -765,4 +863,5 @@ def trade_trace(root: Path = REPO, trade_id: str = "") -> dict[str, Any]:
                         if e.get("event") in ("TRAIL_STOP", "TARGET_LOCK_SHIFT")]},
               "trade record + model log"),
     ]
-    return {"ok": True, "trade_id": trade_id, "underlying": und, "side": t.get("side"), "steps": steps}
+    closed = t.get("exit") is not None or bool(t.get("closed_ist"))
+    return {"ok": True, "trade_id": trade_id, "underlying": und, "side": t.get("side"), "closed": closed, "steps": steps}

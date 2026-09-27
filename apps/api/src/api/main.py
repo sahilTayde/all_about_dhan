@@ -204,7 +204,7 @@ def create_app() -> FastAPI:
     @app.get("/paper/ml-books")
     def paper_ml_books() -> dict[str, Any]:
         """Parallel ML/dealer PAPER scalper board. Net ₹ after Groww+STT. NO_PROMOTE."""
-        blob = ui_feed.load_board()
+        blob = ui_feed.load_board(budget_s=ui_feed.SNAPSHOT_BUDGET_S)
         if blob is None:
             return {
                 "ok": False,
@@ -219,7 +219,7 @@ def create_app() -> FastAPI:
     @app.get("/ui/snapshot")
     def ui_snapshot() -> dict[str, Any]:
         """Everything Desk / Founder render, in one read-only payload. No orders."""
-        return ui_feed.build_snapshot()
+        return ui_feed.build_snapshot(budget_s=ui_feed.SNAPSHOT_BUDGET_S)
 
     @app.get("/ui/stream")
     async def ui_stream(request: Request) -> StreamingResponse:
@@ -229,7 +229,7 @@ def create_app() -> FastAPI:
             last = None
             idle = 0
             while not await request.is_disconnected():
-                snap = await asyncio.to_thread(ui_feed.build_snapshot)
+                snap = await asyncio.to_thread(ui_feed.build_snapshot, budget_s=ui_feed.SNAPSHOT_BUDGET_S)
                 body = json.dumps({k: v for k, v in snap.items() if k != "as_of"}, default=str, separators=(",", ":"))
                 if body != last:
                     last, idle = body, 0
@@ -249,12 +249,12 @@ def create_app() -> FastAPI:
     @app.get("/paper/history")
     def paper_history(day: Optional[str] = None) -> dict[str, Any]:
         """Closed paper trades for one IST day (board + model log + ledger). Read-only."""
-        return ui_feed.day_history(day=day)
+        return ui_feed.day_history(day=day, budget_s=2.0)
 
     @app.get("/paper/trace")
     def paper_trace(trade_id: str) -> dict[str, Any]:
         """Decision trace Data → Analysts → Boss → Risk → Desk → Broker → Fill for one trade."""
-        return ui_feed.trade_trace(trade_id=trade_id)
+        return ui_feed.trade_trace(trade_id=trade_id, budget_s=1.0)
 
     @app.get("/paper/backtests/itm-scalp")
     def paper_itm_scalp_backtest() -> dict[str, Any]:
