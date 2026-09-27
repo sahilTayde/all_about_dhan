@@ -6,7 +6,9 @@ boss never counts it, and with an online provider the call runs in the backgroun
 waits. `weight: 1` (and no `shadow: true` on the analysts.yaml row) = agree becomes one CONFIRM vote for the side; disagree is HOLD (silent), so the
 LLM can add a vote but can never veto, size, or place anything.
 
-Replay/parity rooms (`deterministic=True`) always use the offline `replay_provider`.
+Online (`provider`) only while the live paper loop is running (`live_loop`). A `live_session`
+replay stays on the offline `replay_provider`. A bad config falls back to the defaults so the
+event bus still starts.
 """
 
 from __future__ import annotations
@@ -14,6 +16,7 @@ from __future__ import annotations
 import json
 import logging
 import threading
+import weakref
 from pathlib import Path
 from typing import Any, Mapping, Optional
 
@@ -43,16 +46,169 @@ def llm_snapshot(engine: Any, step: Any) -> dict[str, Any]:
         return {}
 
 
+# BookEngine is a dataclass (unhashable), so it cannot be a WeakKeyDictionary key. The cache lives
+# on the engine and dies with it. `_TRACKED` only exists so tests can wipe it.
+_TRACKED: list[weakref.ReferenceType] = []
+_FALLBACK: dict[str, dict[int, dict]] = {}
+
+
+def _slot(engine: Any, attr: str) -> dict:
+    slot = getattr(engine, attr, None)
+    if isinstance(slot, dict):
+        return slot
+    slot = {}
+    try:
+        setattr(engine, attr, slot)
+    except (AttributeError, TypeError):
+        # ponytail: id() fallback for a slotted engine that rejects attributes; one engine at a time.
+        return _FALLBACK.setdefault(attr, {}).setdefault(id(engine), slot)
+    try:
+        _TRACKED.append(weakref.ref(engine))
+    except TypeError:
+        pass
+    return slot
+
+
+def clear_llm_caches() -> None:
+    for ref in _TRACKED:
+        eng = ref()
+        if eng is None:
+            continue
+        for attr in ("_llm_hl", "_llm_closed"):
+            try:
+                delattr(eng, attr)
+            except (AttributeError, TypeError):
+                pass
+    _TRACKED.clear()
+    _FALLBACK.clear()
+
+
+def _fold_hl(high: Optional[float], low: Optional[float], bar: Mapping[str, Any]) -> tuple[Optional[float], Optional[float]]:
+    from analysts.shadow import _bar_hl
+
+    h, lo = _bar_hl(bar)
+    if h is not None:
+        high = h if high is None else max(high, h)
+    if lo is not None:
+        low = lo if low is None else min(low, lo)
+    return high, low
+
+
+def _bar_ts(bar: Mapping[str, Any]) -> Optional[int]:
+    try:
+        return int(bar["ts"])
+    except (KeyError, TypeError, ValueError):
+        return None
+
+
+def session_high_low(engine: Any, bars: list, *, now: int, day: str) -> tuple[Optional[float], Optional[float]]:
+    """Today's high/low up to this tick.
+
+    Closed minutes stay cached on the engine. Each later tick only folds the forming bar, or the
+    one minute that just closed. Same result as scanning every bar every tick.
+    """
+    from analysts.shadow import ist_date
+
+    def usable(bar: Mapping[str, Any]) -> Optional[int]:
+        ts = _bar_ts(bar)
+        if ts is None or ts > now or ist_date(ts) != day:
+            return None
+        return ts
+
+    slot = _slot(engine, "_llm_hl")
+    state = slot.get(day)
+    if state is not None and len(bars) < int(state.get("n") or 0):
+        state = None  # tape rewound on this engine; scan again
+    if not bars:
+        return (state["high"], state["low"]) if state else (None, None)
+
+    # Fast path: the list is the same session, last bar is still today's forming minute.
+    last_ts = usable(bars[-1]) if state is not None else None
+    if state is not None and last_ts is not None and last_ts == state.get("forming_ts"):
+        state["n"] = len(bars)
+        return _fold_hl(state["high"], state["low"], bars[-1])
+
+    if state is not None and last_ts is not None and state.get("forming_ts") is not None and last_ts > state["forming_ts"]:
+        # Commit minutes that closed since the last tick (walk back, stop at the cached minute).
+        newly: list = []
+        closed_ts = state.get("closed_ts")
+        for bar in reversed(bars[:-1]):
+            ts = _bar_ts(bar)
+            if ts is None:
+                continue
+            if closed_ts is not None and ts <= closed_ts:
+                break
+            if ts <= now and ist_date(ts) == day:
+                newly.append(bar)
+            elif ts <= now and ist_date(ts) < day:
+                break
+        high, low = state["high"], state["low"]
+        new_closed = closed_ts
+        for bar in reversed(newly):
+            high, low = _fold_hl(high, low, bar)
+            new_closed = _bar_ts(bar)
+        state["high"], state["low"], state["closed_ts"] = high, low, new_closed
+        state["forming_ts"] = last_ts
+        state["n"] = len(bars)
+        return _fold_hl(high, low, bars[-1])
+
+    # First sight of this engine/day, or the tape was rewound: one full scan, then the fast path.
+    high = low = None
+    closed_ts = None
+    forming = None
+    for bar in bars:
+        ts = usable(bar)
+        if ts is None:
+            continue
+        if forming is not None:
+            high, low = _fold_hl(high, low, forming)
+            closed_ts = _bar_ts(forming)
+        forming = bar
+    state = {
+        "high": high, "low": low, "closed_ts": closed_ts, "n": len(bars),
+        "forming_ts": _bar_ts(forming) if forming is not None else None,
+    }
+    slot[day] = state
+    if forming is None:
+        return None, None
+    return _fold_hl(high, low, forming)
+
+
+def _today_closed(engine: Any, und: str, day: str, now: int) -> list:
+    """Today's filled closes at or before this tick. `engine.closed` is append-only."""
+    from analysts.shadow import ist_date
+
+    closed = getattr(engine, "closed", None) or []
+    slot = _slot(engine, "_llm_closed")
+    state = slot.get((und, day))
+    if state is None or state["n"] > len(closed):
+        state = {"n": 0, "rows": []}
+        slot[(und, day)] = state
+    i = int(state["n"])
+    rows = state["rows"]
+    while i < len(closed):
+        row = closed[i]
+        ts = _num(row.get("closed_ts")) if isinstance(row, Mapping) else None
+        same = isinstance(row, Mapping) and str(row.get("underlying") or "").upper() == und and row.get("filled", True)
+        if same and ts is not None and int(ts) > now:
+            break  # not closed yet; revisit on a later tick
+        if same and ts is not None and ist_date(int(ts)) == day:
+            rows.append(row)
+        i += 1
+    state["n"] = i
+    return rows
+
+
 def _llm_snapshot(engine: Any, step: Any) -> dict[str, Any]:
-    from analysts.shadow import _bar_hl, bars_upto, ist_date, ist_dt
+    from analysts.shadow import ist_date, ist_dt
 
     und = str(getattr(step, "und", "") or "").upper()
     now = int(step.tick.ts)
     day = ist_date(now)
     spot = _num(getattr(step.tick, "idx_close", None))
-    bars = [b for b in bars_upto(list(getattr(step, "bars_1m", None) or []), now) if ist_date(int(b["ts"])) == day]
-    highs = [h for h, _l in map(_bar_hl, bars) if h is not None]
-    lows = [lo for _h, lo in map(_bar_hl, bars) if lo is not None]
+    raw_bars = getattr(step, "bars_1m", None) or []
+    bars = raw_bars if isinstance(raw_bars, list) else list(raw_bars)
+    session_high, session_low = session_high_low(engine, bars, now=now, day=day)
     sr = (getattr(engine, "sr_levels", None) or {}).get(und) or {}
     swings = []
     if spot:
@@ -61,15 +217,12 @@ def _llm_snapshot(engine: Any, step: Any) -> dict[str, Any]:
                   for s in sorted(near, key=lambda s: abs(float(s["px"]) - spot))[:4]]
     levels = {
         "spot": spot,
-        "session_high": max(highs) if highs else None,
-        "session_low": min(lows) if lows else None,
+        "session_high": session_high,
+        "session_low": session_low,
         "pdh": _num(sr.get("pdh")), "pdl": _num(sr.get("pdl")), "pdc": _num(sr.get("pdc")),
         "near_swings": swings or None,
     }
-    closed = [r for r in getattr(engine, "closed", None) or []
-              if str(r.get("underlying") or "").upper() == und and r.get("filled", True)
-              and _num(r.get("closed_ts")) is not None and int(r["closed_ts"]) <= now]
-    today = [r for r in closed if ist_date(int(r["closed_ts"])) == day]
+    today = _today_closed(engine, und, day, now)
     recent = sorted(today, key=lambda r: int(r["closed_ts"]))[-RECENT_TRADES:]
     opens = getattr(engine, "opens", None) or {}
     book = {
@@ -152,16 +305,32 @@ def _shadow_bits(features: Mapping[str, Any]) -> tuple[Any, Any, dict[str, Any],
 
 class LLMAnalyst(Analyst):
     analyst_id = LLM_KEY
+    # Replay runs this analyst under a wall-clock cap so a hung call cannot stall the tape.
+    wall_clock = True
 
     def __init__(self, config_path: Optional[Path] = None) -> None:
         from desk_ml.llm_analyst import load_config
 
-        self.cfg = load_config(config_path)
+        try:
+            self.cfg = load_config(config_path)
+        except Exception as exc:
+            log.error("llm_analyst config failed (%s: %s); using defaults", type(exc).__name__, exc)
+            self.cfg = load_config(Path("/nonexistent/llm_analyst.yaml"))
         self.weight = float(self.cfg["weight"])
-        self.replay = True  # offline until a live (non-deterministic) room says otherwise
+        self.replay = True  # offline until the live paper loop (live_loop) says otherwise
+        self._advisor: Any = None
+        self._advisor_replay: Optional[bool] = None
 
     def set_replay(self, replay: bool) -> None:
         self.replay = bool(replay)
+
+    def _get_advisor(self) -> Any:
+        if self._advisor is None or self._advisor_replay != self.replay:
+            from desk_ml.llm_analyst import get_advisor
+
+            self._advisor = get_advisor(self.cfg, replay=self.replay)
+            self._advisor_replay = self.replay
+        return self._advisor
 
     def build_context(self, ctx: MarketContext, signal: Mapping[str, Any]) -> dict[str, Any]:
         from desk_ml.llm_analyst import build_context
@@ -181,13 +350,11 @@ class LLMAnalyst(Analyst):
         )
 
     def vote(self, context: MarketContext) -> Vote:
-        from desk_ml.llm_analyst import get_advisor
-
         signal = provisional_signal(context)
         side = signal.get("side")
         if side not in ("CE", "PE"):
             return self._vote(None, {"verdict": "abstain", "confidence": 0.0, "status": "NO_SIGNAL"})
-        advisor = get_advisor(self.cfg, replay=self.replay)
+        advisor = self._get_advisor()
         background = self.weight == 0.0 and not advisor.provider.offline
         return self._vote(side, advisor.review(self.build_context(context, signal), background=background))
 

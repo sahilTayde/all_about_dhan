@@ -70,8 +70,23 @@ def _secret_key(name: str) -> bool:
     return bool(toks & _SECRET_TOKENS) or any(pair <= toks for pair in _SECRET_PAIRS)
 
 
-def _env_secret_values() -> list[str]:
-    return [v for k, v in os.environ.items() if _ENV_SECRET_NAME.search(k) and v and len(v.strip()) >= 8]
+_ENV_STAMP: Optional[tuple[Any, ...]] = None
+_ENV_VALS: tuple[str, ...] = ()
+
+
+def _env_secret_values() -> tuple[str, ...]:
+    """Secret-shaped env values. Recomputed only when the environment changes."""
+    global _ENV_STAMP, _ENV_VALS
+    try:
+        stamp = (len(os.environ), hash(tuple(os.environ.values())))
+    except TypeError:
+        stamp = None
+    if stamp is not None and stamp == _ENV_STAMP:
+        return _ENV_VALS
+    vals = tuple(v for k, v in os.environ.items() if _ENV_SECRET_NAME.search(k) and v and len(v.strip()) >= 8)
+    if stamp is not None:
+        _ENV_STAMP, _ENV_VALS = stamp, vals
+    return vals
 
 
 def _scrub_str(s: str, env_vals: Sequence[str]) -> str:

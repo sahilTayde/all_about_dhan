@@ -5,9 +5,10 @@
 # then append "KEY" here. It then votes in the picker majority like the others.
 # Timeout or crash = ABSTAIN for that analyst; the boss carries on with the rest.
 #
-# timeout_ms is the default wall-clock budget per analyst (live paper loop only).
-# Replay and parity run analysts in order with no wall-clock abstain, so a slow machine
-# cannot change a vote. A single key can override with `timeout_ms` on its row.
+# timeout_ms is the default wall-clock budget per analyst on the live paper loop.
+# Replay and parity still run the voting room in order with no wall-clock abstain, so a
+# slow machine cannot change a vote. An analyst with its own timeout_ms (the LLM row)
+# is capped during replay too, so a hung call cannot stall the tape.
 #
 # `shadow: true` still emits ANALYST_VOTE (value, flag, confidence, reasoning) but the boss
 # ignores it. See docs/SHADOW_ANALYSTS.md.
