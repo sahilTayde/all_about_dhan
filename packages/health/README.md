@@ -25,3 +25,13 @@ PYTHONPATH=packages/health/src python -m health          # loop every 60 s
 ```
 
 Tests: `PYTHONPATH=packages/ledger/src:packages/health/src python -m pytest packages/health -q`
+
+## V2-14 (paper only)
+
+`V2HealthMonitor` adds section 5.4 checks on a snapshot (engine heartbeat, feed
+status, consumer lag, outbox backlog, checkpoint age, protective stop, restart
+breaker, backup age, token expiry, depth coverage) plus a loopback
+`127.0.0.1/metrics` endpoint (`prometheus-client`). Alerts are queued: a slow or
+failing Telegram sink cannot stall `MemoryBus.publish`. Alert text is sanitised
+so tokens never appear. REG-02d / REG-09a (alarm half) live in
+`packages/health/tests/test_v2_health.py`.

@@ -14,7 +14,7 @@ import { Header, OfflineBanner } from "./components/Header.jsx";
 import { HealthPanel } from "./components/HealthPanel.jsx";
 import { MarketPanel } from "./components/MarketPanel.jsx";
 import { TradeHistory } from "./components/TradeHistory.jsx";
-import { useFeed } from "./lib/feed.js";
+import { useDeskFeed } from "./lib/v2Feed.js";
 import { boardClock, boardSource, derivePaperBoard, fetchFounderLab, holdReason, inr, pct } from "./lib/paperBoard.js";
 
 function Stat({ label, value, hint, tone, className = "" }) {
@@ -28,7 +28,7 @@ function Stat({ label, value, hint, tone, className = "" }) {
 }
 
 export function FounderPm() {
-  const { snap, conn, latencyMs } = useFeed();
+  const { snap, conn, latencyMs } = useDeskFeed();
   const [lab, setLab] = useState(null);
   const [picked, setPicked] = useState(null);
 
