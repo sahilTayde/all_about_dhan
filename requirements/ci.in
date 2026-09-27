@@ -16,3 +16,5 @@ jsonschema>=4
 rfc3339-validator>=0.1.4
 # events Redis bus tests (hash-pinned CI); pulls redis as a transitive dep
 fakeredis>=2.26
+# V2-14 health metrics endpoint
+prometheus-client>=0.20

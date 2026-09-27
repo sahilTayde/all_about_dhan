@@ -1,0 +1,17 @@
+# REG-10: every one-shot job has a wall-clock timeout (TimeoutStartSec + coreutils timeout).
+# Instance name is a key in runtime.jobs.JOBS (replay, forward-eval, etl, bench-legacy, pre-market, backup).
+[Unit]
+Description=aad v2 job %i
+After=aad.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/aad
+Environment=AAD_STATE_DIR=/opt/aad/data/state
+# Hard cap; python -m runtime job also applies the per-job deadline.
+TimeoutStartSec=1800
+ExecStart=/usr/bin/timeout 1800 /usr/bin/python -m runtime job %i
+Nice=10
+
+[Install]
+WantedBy=multi-user.target
