@@ -7,7 +7,9 @@ would flip, and the first-order P&L effect on the static replay's trades. Paper 
     python scripts/regime_shadow_report.py --fixture packages/desk-ml/tests/fixtures/synthetic_session_nifty.json
     python scripts/regime_shadow_report.py --synthetic 5 --check-identical
 
-Weights carry across days in date order (each day starts from the previous day's state).
+Weights carry across days in date order (each day starts from the previous day's state). A saved state
+holding any outcome on or after a replayed day is ignored with a warning (it would leak the future),
+and `--save-state` is then refused.
 `--check-identical` also replays each day with the regime hook forced off and requires the two
 boards to be byte-identical after dropping wall-clock fields (exit 1 otherwise).
 `--save-state` writes the final weight state atomically (the only writer of that file).
@@ -26,7 +28,7 @@ from pathlib import Path
 from typing import Any, Iterator, Optional, Sequence
 
 from desk_ml.regime.shadow import RegimeShadow, jsonl_sink, load_config, use_runner
-from desk_ml.regime.weights import WeightState
+from desk_ml.regime.weights import StateVersionConflict, WeightState
 
 VOLATILE_KEYS = frozenset({"as_of_ist", "last_run_ist", "max_ts", "latency_p99_ms"})
 
@@ -172,7 +174,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         else:
             from desk_ml.paper_scalp import list_fix_first_days
 
-            names = args.days or [d for d in list_fix_first_days(root=root, since=args.since) if d <= args.until]
+            names = sorted(args.days or [d for d in list_fix_first_days(root=root, since=args.since) if d <= args.until])
             if not names:
                 print(f"no dual-tape days in {root}/data/recon/paper_watch/DUAL-TAPE for {args.since}..{args.until}")
                 return 1
@@ -182,8 +184,17 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             rep = run_report(days, runner, check_identical=args.check_identical)
 
     _print(rep)
+    if runner.stale_state:
+        print(f"saved weight state ignored (outcomes on/after {runner.stale_state['day']}): {runner.stale_state}")
     if args.save_state:
-        print(f"weights state v{runner.state.save(state_path)} -> {state_path}")
+        if runner.stale_state:
+            print(f"--save-state refused: the replayed days are older than the saved state; {state_path} unchanged")
+            return 1
+        try:
+            print(f"weights state v{runner.state.save(state_path)} -> {state_path}")
+        except StateVersionConflict as exc:
+            print(f"--save-state refused: {exc}")
+            return 1
     if args.json:
         print(json.dumps(rep, indent=2, default=str))
     return 0 if rep["ok"] else 1

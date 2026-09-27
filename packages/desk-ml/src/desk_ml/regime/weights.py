@@ -21,13 +21,17 @@ counter that must match on save (optimistic lock against a concurrent writer).
 from __future__ import annotations
 
 import json
+import logging
 import math
 import os
 import tempfile
 from collections import Counter
+from contextlib import contextmanager
 from dataclasses import dataclass, fields
 from pathlib import Path
-from typing import Any, Iterable, Mapping, Optional, Sequence
+from typing import Any, Iterable, Iterator, Mapping, Optional, Sequence
+
+log = logging.getLogger("desk_ml.regime")
 
 SCHEMA = 1
 POOLED = "__all__"
@@ -82,14 +86,20 @@ class WeightState:
         self.buckets: dict[str, dict[str, list[float]]] = {}  # analyst -> bucket -> [hits, misses, ts]
         self.applied: dict[str, int] = {}  # outcome id -> outcome ts (idempotent re-replays)
         self.last_outcome_ts: Optional[int] = None
+        self.future_blocked = 0  # lookups that found a bucket updated after the decision time (not persisted)
 
     # -- decay ------------------------------------------------------------------------------
     def _decay(self, dt: float) -> float:
         return 0.5 ** (max(0.0, dt) / (self.cfg.half_life_days * DAY_S))
 
     def counts(self, analyst: str, bucket: str, now_ts: int) -> tuple[float, float]:
+        """Decayed (hits, misses) as of `now_ts`. A bucket last updated after `now_ts` holds an outcome
+        from the future; it cannot be split, so the whole bucket is ignored (static weight)."""
         row = (self.buckets.get(analyst) or {}).get(bucket)
         if not row:
+            return 0.0, 0.0
+        if row[2] > now_ts:
+            self.future_blocked += 1
             return 0.0, 0.0
         f = self._decay(now_ts - row[2])
         return row[0] * f, row[1] * f
@@ -161,9 +171,18 @@ class WeightState:
     @classmethod
     def load(cls, path: Path, cfg: Optional[WeightConfig] = None) -> "WeightState":
         path = Path(path)
+        if path.parent.is_dir():
+            with _locked(path):
+                _remove_orphans(path)
         if not path.is_file():
             return cls(cfg)
         return cls.from_dict(json.loads(path.read_text(encoding="utf-8")), cfg)
+
+    def usable_before(self, ts: int) -> bool:
+        """True if every scored outcome is strictly before `ts` (safe to replay a session starting at `ts`)."""
+        rows = [row[2] for bk in self.buckets.values() for row in bk.values()]
+        last = max([int(self.last_outcome_ts or 0), *self.applied.values(), *rows])
+        return last < int(ts)
 
     def prune(self, keep_half_lives: float = 10.0) -> None:
         if self.last_outcome_ts is None:
@@ -175,28 +194,73 @@ class WeightState:
         """Atomic write. Raises StateVersionConflict if the file moved on since this state was loaded."""
         path = Path(path)
         path.parent.mkdir(parents=True, exist_ok=True)
-        if path.is_file():
-            on_disk = int(json.loads(path.read_text(encoding="utf-8")).get("version") or 0)
-            if on_disk != self.version:
-                raise StateVersionConflict(f"{path}: on-disk version {on_disk}, loaded {self.version}")
-        elif self.version != 0:
-            raise StateVersionConflict(f"{path}: missing, loaded version {self.version}")
-        self.prune()
-        self.version += 1
-        blob = json.dumps(self.to_dict(), sort_keys=True, separators=(",", ":"), allow_nan=False)
-        fd, tmp = tempfile.mkstemp(prefix=path.name, suffix=".tmp", dir=str(path.parent))
-        try:
-            with os.fdopen(fd, "w", encoding="utf-8") as fh:
-                fh.write(blob + "\n")
-                fh.flush()
-                os.fsync(fh.fileno())
-            os.replace(tmp, path)
-        except BaseException:
-            self.version -= 1
-            if os.path.exists(tmp):
-                os.unlink(tmp)
-            raise
+        with _locked(path):
+            _remove_orphans(path)
+            if path.is_file():
+                on_disk = int(json.loads(path.read_text(encoding="utf-8")).get("version") or 0)
+                if on_disk != self.version:
+                    raise StateVersionConflict(f"{path}: on-disk version {on_disk}, loaded {self.version}")
+            elif self.version != 0:
+                raise StateVersionConflict(f"{path}: missing, loaded version {self.version}")
+            self.prune()
+            blob = json.dumps({**self.to_dict(), "version": self.version + 1}, sort_keys=True,
+                              separators=(",", ":"), allow_nan=False)
+            fd, tmp = tempfile.mkstemp(prefix=path.name + ".", suffix=TMP_SUFFIX, dir=str(path.parent))
+            try:
+                with os.fdopen(fd, "w", encoding="utf-8") as fh:
+                    fh.write(blob + "\n")
+                    fh.flush()
+                    os.fsync(fh.fileno())
+                os.replace(tmp, path)
+                _fsync_dir(path.parent)
+            except BaseException:
+                if os.path.exists(tmp):
+                    os.unlink(tmp)
+                raise
+            self.version += 1
         return self.version
+
+
+TMP_SUFFIX = ".tmp"
+
+
+@contextmanager
+def _locked(path: Path) -> Iterator[None]:
+    """Exclusive advisory lock on `<state>.lock` for the version check + write (and orphan cleanup)."""
+    try:
+        import fcntl
+    except ImportError:  # ponytail: no fcntl (Windows) = no lock; Mac/VPS have it
+        yield
+        return
+    with open(path.with_name(path.name + ".lock"), "a+") as fh:
+        fcntl.flock(fh.fileno(), fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            fcntl.flock(fh.fileno(), fcntl.LOCK_UN)
+
+
+def _remove_orphans(path: Path) -> None:
+    """Temp files left by a writer that died mid-save. Call only while holding the lock."""
+    for tmp in path.parent.glob(f"{path.name}.*{TMP_SUFFIX}"):
+        try:
+            tmp.unlink()
+            log.warning("removed orphan weight-state temp file %s", tmp)
+        except OSError:
+            pass
+
+
+def _fsync_dir(folder: Path) -> None:
+    try:
+        fd = os.open(str(folder), os.O_RDONLY)
+    except OSError:
+        return
+    try:
+        os.fsync(fd)
+    except OSError:
+        pass
+    finally:
+        os.close(fd)
 
 
 def cap_shares(weights: Mapping[str, float], max_share: float) -> dict[str, float]:

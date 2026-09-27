@@ -18,6 +18,7 @@ from __future__ import annotations
 import json
 import logging
 import math
+import time
 from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass, field
@@ -41,6 +42,9 @@ FLIP_KINDS = (FLIP_SUPPRESS, FLIP_NEW, FLIP_REVERSE)
 # None = build one per engine from config/regime.yaml; False = forced off (report's identity check).
 _RUNNER: ContextVar[Any] = ContextVar("aad_regime_shadow", default=None)
 _warned: set[str] = set()
+SETUP_RETRY_S = 60.0
+_setup_failed: dict[str, float] = {}  # root -> monotonic time of the last failed setup
+_emitted: dict[str, set[tuple[Any, ...]]] = {}  # live loop only: session day -> event keys already on the audit log
 
 
 @dataclass(frozen=True)
@@ -98,9 +102,9 @@ def boss_hook(engine: Any, step: Any, votes: Sequence[Any], picker: dict[str, An
         if runner is None:
             runner = engine.__dict__.get("_regime_runner")
             if runner is None:
-                cfg = load_config(getattr(engine, "root", None))
-                runner = RegimeShadow(cfg, root=getattr(engine, "root", None)) if cfg.mode != "off" else False
-                engine.__dict__["_regime_runner"] = runner
+                runner = _setup(engine)
+                if runner is None:
+                    return picker
         if not runner:
             return picker
         return runner.observe(engine, step, votes, picker)
@@ -110,6 +114,24 @@ def boss_hook(engine: Any, step: Any, votes: Sequence[Any], picker: dict[str, An
             _warned.add(key)
             log.exception("regime shadow failed; static picker kept")
         return picker
+
+
+def _setup(engine: Any) -> Any:
+    """Build the per-engine runner from config. A failure is cached and retried at most once a minute."""
+    root = getattr(engine, "root", None)
+    key = str(root)
+    if time.monotonic() - _setup_failed.get(key, -math.inf) < SETUP_RETRY_S:
+        return None
+    try:
+        cfg = load_config(root)
+        runner = RegimeShadow(cfg, root=root) if cfg.mode != "off" else False
+    except Exception:
+        _setup_failed[key] = time.monotonic()
+        log.exception("regime shadow setup failed; static picker kept, retry in %.0f s", SETUP_RETRY_S)
+        return None
+    _setup_failed.pop(key, None)
+    engine.__dict__["_regime_runner"] = runner
+    return runner
 
 
 def _finite(x: Any) -> Any:
@@ -204,6 +226,7 @@ class RegimeShadow:
         # needs a time-merged multi-index walk (same limit as the ledger in event_path).
         self._work: dict[str, WeightState] = {}
         self._to_merge: list[tuple[str, int, str, list[tuple[str, bool]], float]] = []
+        self.stale_state: Optional[dict[str, Any]] = None  # set when a saved state from the future was ignored
 
     # -- engine / session -------------------------------------------------------------------
     def _bind(self, engine: Any) -> None:
@@ -241,10 +264,24 @@ class RegimeShadow:
                                         expiry_dates=_expiry_dates(engine, step.tick, und, ts, day)),
             )
             self.sessions[und] = sess
+            self._check_state(day)
             if day not in self.intermarket:
                 self.intermarket[day] = regime_for_session(self.root, day, self.cfg.intermarket)
                 self._emit("REGIME_LABEL", {"scope": "intermarket", "session_date": day, **self.intermarket[day]})
         return sess
+
+    def _check_state(self, day: str) -> None:
+        """Saved state with any outcome on or after this session's day would leak the future: ignore it."""
+        start = int(datetime.fromisoformat(day).replace(tzinfo=IST).timestamp())
+        if self.state.usable_before(start):
+            return
+        log.warning(
+            "regime: saved weight state v%s has outcomes up to %s, on or after session %s; ignored for this "
+            "replay (fresh state, static weights until outcomes mature)", self.state.version,
+            self.state.last_outcome_ts, day)
+        self.stale_state = {"day": day, "version": self.state.version, "last_outcome_ts": self.state.last_outcome_ts}
+        self.state = WeightState(self.cfg.weights)
+        self._work = {}
 
     def _day(self, und: str, day: str) -> dict[str, Any]:
         return self.days.setdefault((day, und), {
@@ -255,6 +292,18 @@ class RegimeShadow:
 
     def _emit(self, kind: str, payload: dict[str, Any]) -> None:
         payload = _finite(payload)
+        if self.engine is not None and getattr(self.engine, "regime_live_loop", False):
+            # The live loop re-replays the whole session each heartbeat: log each bar/tick once.
+            ts = payload.get("ts")
+            day = payload.get("day") or payload.get("session_date") or (
+                datetime.fromtimestamp(int(ts), IST).date().isoformat() if ts is not None else "")
+            seen = _emitted.setdefault(day, set())
+            for old in [d for d in _emitted if d != day and d < day]:
+                _emitted.pop(old)
+            key = (kind, payload.get("scope"), payload.get("underlying"), ts)
+            if key in seen:
+                return
+            seen.add(key)
         if self.sink is not None:
             self.sink(kind, payload)
         bus = getattr(self.engine, "regime_bus", None) if self.engine is not None else None

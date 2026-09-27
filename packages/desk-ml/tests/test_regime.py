@@ -53,11 +53,11 @@ def fx_patched(monkeypatch):
     return fx
 
 
-def _replay(fx, runner=None, triples=None, **kw):
+def _replay(fx, runner=None, triples=None, root=None, **kw):
     fx = {**fx, "triples": triples if triples is not None else fx["triples"]}
     with tempfile.TemporaryDirectory() as tmp:
         with use_runner(runner):
-            board = ps.replay_paper_scalp(**fixture_replay_kwargs(fx, Path(tmp)), write=False, **kw)
+            board = ps.replay_paper_scalp(**fixture_replay_kwargs(fx, Path(root or tmp)), write=False, **kw)
     return board
 
 
@@ -270,7 +270,7 @@ def test_state_persists_atomically_with_versions(tmp_path):
     with pytest.raises(StateVersionConflict):
         st.save(path)  # stale writer (still at v1)
     assert json.loads(path.read_text())["version"] == 2
-    assert [p.name for p in tmp_path.iterdir()] == ["state.json"]  # no temp files left
+    assert sorted(p.name for p in tmp_path.iterdir()) == ["state.json", "state.json.lock"]  # no temp files left
     path.write_text(json.dumps({"schema": 99}))
     with pytest.raises(ValueError):
         WeightState.load(path)
@@ -344,3 +344,163 @@ def test_labels_have_no_nan():
     for r in label_bars(synthetic_bars(n=5)):
         for v in r["features"].values():
             assert not (isinstance(v, float) and math.isnan(v))
+
+
+# ------------------------------------------------------------------ review round 2
+
+
+CONFIG = Path(__file__).resolve().parents[3] / "config" / "regime.yaml"
+
+
+def _count_future_lookups(monkeypatch) -> dict:
+    """Count weight lookups where any scored outcome, or any bucket the roster would read, is after the tick."""
+    seen = {"calls": 0, "future": 0}
+    real = WeightState.weights
+
+    def checked(self, roster, bucket, now_ts):  # counted, not raised: the hook swallows exceptions
+        rows = [r[2] for a in roster for r in (self.buckets.get(a) or {}).values()]
+        latest = max([*self.applied.values(), *rows, int(self.last_outcome_ts or 0)], default=0)
+        seen["future"] += int(latest > now_ts)
+        seen["calls"] += 1
+        return real(self, roster, bucket, now_ts)
+
+    monkeypatch.setattr(WeightState, "weights", checked)
+    return seen
+
+
+def test_saved_state_from_a_later_day_is_not_used_to_replay_an_earlier_day(monkeypatch, tmp_path, caplog):
+    """Blocker from the Sep 17-25 review: save after day N, replay day N-2 with the saved state loaded."""
+    from desk_ml.event_parity import fixture_replay_kwargs, synthetic_triples
+    from desk_ml.regime.report import _fixture_patches, main, run_report, synthetic_days
+
+    args = ["--synthetic", "3", "--root", str(tmp_path), "--config", str(CONFIG)]
+    assert main(args + ["--fresh-state", "--save-state"]) == 0
+    cfg = load_config(tmp_path, CONFIG)
+    state_path = tmp_path / cfg.weights.state_path
+    saved = WeightState.load(state_path, cfg.weights)
+    day_n, day_early = synthetic_days(3)[-1], synthetic_days(3)[0]
+    assert saved.version == 1 and datetime.fromtimestamp(saved.last_outcome_ts, IST).date().isoformat() == day_n
+
+    def replay_early(runner):
+        fx = {"underlying": "NIFTY", "session_ist_date": day_early, "lot_size": 65,
+              "triples": synthetic_triples(day=day_early, seed=100)}
+        with tempfile.TemporaryDirectory() as tmp, _fixture_patches(65):
+            return run_report([(day_early, fixture_replay_kwargs(fx, Path(tmp)))], runner)["days"][0]
+
+    seen = _count_future_lookups(monkeypatch)
+    caplog.set_level("WARNING", logger="desk_ml.regime")
+    loaded = RegimeShadow(cfg, root=tmp_path)  # default: loads the saved state
+    assert loaded.state.version == 1
+    rep_loaded = replay_early(loaded)
+    assert seen["calls"] > 1000 and seen["future"] == 0, seen
+    assert loaded.stale_state and loaded.stale_state["version"] == 1
+    assert any("ignored for this replay" in r.getMessage() for r in caplog.records)
+    rep_fresh = replay_early(RegimeShadow(cfg, root=tmp_path, state=WeightState(cfg.weights)))
+    assert rep_loaded["flips_actionable"] == rep_fresh["flips_actionable"]
+    # the CLI refuses to overwrite the newer saved state with a replay of an older day
+    before = state_path.read_bytes()
+    monkeypatch.setattr("desk_ml.regime.report.synthetic_days", lambda n: [day_early])
+    assert main(args + ["--save-state"]) == 1
+    assert state_path.read_bytes() == before
+
+
+def test_lookup_ignores_a_bucket_updated_after_the_decision_time():
+    st = WeightState(WeightConfig(min_samples=1, prior_strength=1))
+    t1 = 1_790_000_000
+    for i in range(20):
+        st.apply_outcome(f"o{i}", t1, "range", [("a", True)], 1.0)
+    assert st.multiplier("a", "range", t1 - 1)["mult"] == 1.0 and st.future_blocked > 0
+    assert st.multiplier("a", "range", t1)["mult"] > 1.0
+    assert not st.usable_before(t1) and st.usable_before(t1 + 1)
+
+
+def test_broken_regime_module_logs_once_and_keeps_the_static_decision(fx_patched, monkeypatch, caplog):
+    import sys
+
+    monkeypatch.setattr(ps, "_REGIME_HOOK_DOWN", {})
+    monkeypatch.setitem(sys.modules, "desk_ml.regime.shadow", None)  # any import of it raises ImportError
+    caplog.set_level("ERROR", logger="desk_ml.regime")
+    broken = _replay(fx_patched, None, triples=fx_patched["triples"][:300])
+    assert sum("regime hook unavailable" in r.getMessage() for r in caplog.records) == 1
+    monkeypatch.delitem(sys.modules, "desk_ml.regime.shadow")
+    assert board_fingerprint(broken) == board_fingerprint(_replay(fx_patched, False, triples=fx_patched["triples"][:300]))
+
+
+def test_failed_setup_is_cached_not_retried_every_tick(fx_patched, monkeypatch, tmp_path):
+    import desk_ml.regime.shadow as sh
+
+    calls = {"n": 0}
+
+    def boom(root=None, path=None):
+        calls["n"] += 1
+        raise OSError("config unreadable")
+
+    monkeypatch.setattr(sh, "_setup_failed", {})
+    monkeypatch.setattr(sh, "load_config", boom)
+    board = _replay(fx_patched, None, triples=fx_patched["triples"][:300], root=tmp_path)
+    assert calls["n"] == 1
+    _replay(fx_patched, None, triples=fx_patched["triples"][:100], root=tmp_path)  # a new engine inside the minute: no retry
+    assert calls["n"] == 1
+    sh._setup_failed[str(tmp_path)] -= 61  # a minute later: one retry, then cached again
+    _replay(fx_patched, None, triples=fx_patched["triples"][:100], root=tmp_path)
+    assert calls["n"] == 2
+    assert board_fingerprint(board) == board_fingerprint(_replay(fx_patched, False, triples=fx_patched["triples"][:300]))
+
+
+def test_state_write_locks_fsyncs_file_and_dir_and_cleans_orphans(tmp_path, monkeypatch):
+    import fcntl
+    import os
+    import threading
+    import time as _t
+
+    path = tmp_path / "state.json"
+    orphan = tmp_path / "state.json.abc123.tmp"
+    orphan.write_text("half a write")
+    st = WeightState.load(path)  # start: orphan removed
+    assert not orphan.exists()
+    synced = []
+    real_fsync = os.fsync
+    monkeypatch.setattr(os, "fsync", lambda fd: (synced.append(fd), real_fsync(fd)))
+    st.apply_outcome("t1", 1, "range", [("a", True)], 1.0)
+    assert st.save(path) == 1 and len(synced) >= 2  # temp file + directory
+    orphan.write_text("crashed writer")
+    lock = open(path.with_name("state.json.lock"), "a+")
+    fcntl.flock(lock.fileno(), fcntl.LOCK_EX)
+    done = []
+    worker = threading.Thread(target=lambda: done.append(st.save(path)))
+    worker.start()
+    _t.sleep(0.3)
+    assert worker.is_alive() and not done  # waits for the lock before the version check
+    fcntl.flock(lock.fileno(), fcntl.LOCK_UN)
+    lock.close()
+    worker.join(5)
+    assert done == [2] and not orphan.exists()
+    assert json.loads(path.read_text())["version"] == 2
+
+
+def test_live_loop_re_replay_does_not_re_log_the_same_bars(fx_patched, monkeypatch):
+    import desk_ml.regime.shadow as sh
+    from desk_ml.event_path import EventSession
+    from events import EventAuditLog
+
+    monkeypatch.setattr(sh, "_emitted", {})
+    audit = EventAuditLog(":memory:")
+    triples = fx_patched["triples"]
+
+    def heartbeat(n, live=True):
+        session = EventSession(audit=audit, live_loop=live)
+        try:
+            _replay(fx_patched, None, triples=triples[:n], event_session=session)
+        finally:
+            session.close()
+        c = audit.counts()
+        return c.get("REGIME_LABEL", 0), c.get("BOSS_SHADOW", 0)
+
+    first = heartbeat(300)
+    assert first[0] > 1 and first[1] > 0
+    assert heartbeat(300) == first  # same session re-replayed: nothing new on the audit log
+    grown = heartbeat(400)
+    assert grown[0] > first[0] or grown[1] > first[1]  # only the new bars/ticks are added
+    assert heartbeat(400) == grown
+    control = heartbeat(300, live=False)  # plain replays are not deduped
+    assert control[1] > grown[1]
