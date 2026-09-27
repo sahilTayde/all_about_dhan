@@ -39,6 +39,7 @@
 | `SESSION_PREP_ML.md` | `teams/06_backtesting/docs/` | How to start paper dual-tape + `desk_ml score` at 09:15 IST. FOLLOW-GAP HOLD. Not a promote. |
 | `OPENAI_OVERLAY_REVIEW.md` | `teams/06_backtesting/docs/` | Paper overlay counsel: reject reasons, recode, new verdict. Not a five-pass. |
 | `V2_PRODUCTION_ARCHITECTURE.md` / `V2_BUILD_PLAN.md` | `docs/architecture/` | V2 stack design and build order (founder 2026-09-26). Edit in place. No other files in this folder. |
+| `FOUNDER_COMMENTS_LOG.md` | `docs/founder/` | Single source of truth for the founder's mid-build comments (C1, C2, …). Append rows; never a second copy. |
 | Cursor rule `*.mdc` | `.cursor/rules/` | New always-on routing. Keep short. |
 
 Teacher books, `config/workspace.yaml` `sources.books[]`, STRAT/MIX/CAS catalogs, and `docs/` product standards (`COMPLIANCE`, `SECURITY`, `SDLC`, `REVIEW`, `INDEX`, `COMPANY_DEPARTMENTS`, …) are **edit-in-place**.
