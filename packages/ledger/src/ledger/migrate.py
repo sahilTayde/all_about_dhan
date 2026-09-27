@@ -4,14 +4,14 @@ from __future__ import annotations
 
 import re
 import sqlite3
+from collections.abc import Iterable
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Iterable
 
 IST = timezone(timedelta(hours=5, minutes=30))
 CODE_SCHEMA_VERSION = 2
 LEGACY_DB_NAME = "ledger.sqlite"
-_DUP_COL = re.compile(r"duplicate column name", re.I)
+_DUP_COL = re.compile(r"duplicate column name", re.IGNORECASE)
 
 
 class SchemaTooNew(RuntimeError):
@@ -43,9 +43,7 @@ def list_migration_files() -> list[Path]:
 
 
 def current_version(conn: sqlite3.Connection) -> int:
-    row = conn.execute(
-        "SELECT name FROM sqlite_master WHERE type='table' AND name='schema_version'"
-    ).fetchone()
+    row = conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='schema_version'").fetchone()
     if row is None:
         return 0
     got = conn.execute("SELECT COALESCE(MAX(version), 0) FROM schema_version").fetchone()
@@ -83,9 +81,7 @@ def _apply_sql(conn: sqlite3.Connection, sql: str) -> None:
 
 
 def _record_version(conn: sqlite3.Connection, version: int) -> None:
-    conn.execute(
-        "CREATE TABLE IF NOT EXISTS schema_version (version INTEGER PRIMARY KEY, applied_at TEXT NOT NULL)"
-    )
+    conn.execute("CREATE TABLE IF NOT EXISTS schema_version (version INTEGER PRIMARY KEY, applied_at TEXT NOT NULL)")
     stamp = datetime.now(IST).isoformat(timespec="seconds")
     conn.execute(
         "INSERT OR IGNORE INTO schema_version (version, applied_at) VALUES (?, ?)",
@@ -107,9 +103,7 @@ def migrate(
     """Apply pending numbered SQL files. Returns the resulting schema_version."""
     db = Path(path)
     if is_legacy_path(db) and not allow_legacy:
-        raise LegacyPathError(
-            f"refusing to migrate legacy DB {db}; pass allow_legacy=True to invoke explicitly"
-        )
+        raise LegacyPathError(f"refusing to migrate legacy DB {db}; pass allow_legacy=True to invoke explicitly")
     if str(db) != ":memory:":
         db.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(str(db))

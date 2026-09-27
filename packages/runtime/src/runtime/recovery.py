@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import json
 import logging
 from dataclasses import asdict, dataclass, field
@@ -9,14 +10,15 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from brokers.fills import ClockedPaperBroker
-from brokers.orders import Order, OrderState, Position
-from brokers.reconcile import reconcile
+from brokers.fills import ClockedPaperBroker  # type: ignore[import-untyped]
+from brokers.orders import Order, OrderState, Position  # type: ignore[import-untyped]
+from brokers.reconcile import reconcile  # type: ignore[import-untyped]
 from contracts.clock import IST, SimClock
 from events.bus import MemoryBus
 from ledger.migrate import check_schema
 from ledger.v2 import SqliteLedgerStore
-from risk_engine import RiskDecision, TradeIntent
+from risk_engine import RiskDecision, TradeIntent  # type: ignore[import-untyped]
+
 from runtime.kernel import Engine, Handler
 from runtime.services import write_engine_status
 from runtime.sources import EnvelopeSource
@@ -134,10 +136,8 @@ def _recheck_stops(store: SqliteLedgerStore, broker: Any, clock: Any, risk: Any 
         trigger = 0.05
         plan = pos.get("exit_plan_json")
         if plan:
-            try:
+            with contextlib.suppress(json.JSONDecodeError, TypeError, ValueError):
                 trigger = float(json.loads(plan).get("catastrophic_price") or trigger)
-            except (json.JSONDecodeError, TypeError, ValueError):
-                pass
         qty = max(1, abs(int(pos.get("net_qty") or 1)))
         intent = TradeIntent(
             symbol=str(pos.get("symbol") or key),

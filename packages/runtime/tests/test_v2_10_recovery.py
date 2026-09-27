@@ -10,14 +10,15 @@ import time
 from datetime import datetime, timedelta
 from pathlib import Path
 
-from brokers.fills import ClockedPaperBroker
-from brokers.orders import Position
+from brokers.fills import ClockedPaperBroker  # type: ignore[import-untyped]
+from brokers.orders import Position  # type: ignore[import-untyped]
 from contracts.clock import IST, SimClock
 from contracts.envelope import Envelope
 from ledger.charges import load_rates
 from ledger.v2 import SqliteLedgerStore
-from risk_engine import RiskState, TradeIntent, V2RiskEngine
-from runtime.recovery import FAULT_MATRIX_KILL_POINTS, recover, rebuild_paper_broker
+from risk_engine import RiskState, TradeIntent, V2RiskEngine  # type: ignore[import-untyped]
+
+from runtime.recovery import FAULT_MATRIX_KILL_POINTS, rebuild_paper_broker, recover
 from runtime.sources import EnvelopeSource
 
 REPO = Path(__file__).resolve().parents[3]
@@ -104,7 +105,7 @@ def test_paper_broker_rebuilt_from_ledger(tmp_path: Path) -> None:
 
 
 def test_feed_stale_and_strategy_daily_loss(tmp_path: Path) -> None:
-    import yaml
+    import yaml  # type: ignore[import-untyped,unused-ignore]
 
     raw = yaml.safe_load((REPO / "config" / "risk_limits.yaml").read_text())
     raw["kill_switch_file"] = str(tmp_path / "KILL_SWITCH")
@@ -170,7 +171,7 @@ def test_reg_02b_kill_9_between_fill_and_stop(tmp_path: Path) -> None:
     for pos in store.open_positions():
         assert store.has_protective(str(pos.get("instrument_id") or pos.get("symbol")))
     cfg = tmp_path / "risk_limits.yaml"
-    import yaml
+    import yaml  # type: ignore[import-untyped,unused-ignore]
 
     raw = yaml.safe_load((REPO / "config" / "risk_limits.yaml").read_text())
     raw["kill_switch_file"] = str(tmp_path / "KILL_SWITCH")
@@ -203,21 +204,19 @@ def test_reg_04a_kill_9_at_each_fault_matrix_point(tmp_path: Path) -> None:
 
 
 def test_reg_04b_broker_only_and_ledger_only_recon_mismatch(tmp_path: Path) -> None:
-    from brokers.reconcile import reconcile
+    from brokers.reconcile import reconcile  # type: ignore[import-untyped]
 
     store = _store(tmp_path)
     clock = _clock()
     broker = ClockedPaperBroker(clock=clock)
     cfg = tmp_path / "risk_limits.yaml"
-    import yaml
+    import yaml  # type: ignore[import-untyped,unused-ignore]
 
     raw = yaml.safe_load((REPO / "config" / "risk_limits.yaml").read_text())
     raw["kill_switch_file"] = str(tmp_path / "KILL_SWITCH")
     cfg.write_text(yaml.safe_dump(raw))
     risk = V2RiskEngine(ledger=store, config_path=cfg)
-    intent = TradeIntent(
-        symbol="NIFTY 24400 CE", side="BUY", lots=1, lot_size=65, decision_price=100.0, stop_loss=90.0
-    )
+    intent = TradeIntent(symbol="NIFTY 24400 CE", side="BUY", lots=1, lot_size=65, decision_price=100.0, stop_loss=90.0)
     # recover() rebuilds the paper book from the ledger; plant the mismatch after that
     rebuild_paper_broker(broker, store)
     broker._positions["BROKERONLY"] = Position("NIFTY 25000 PE", 65, 50.0, "BROKERONLY")
@@ -257,7 +256,7 @@ def test_reg_05e_unreadable_halt_blocks_entries(tmp_path: Path) -> None:
     snap = store.risk_snapshot(NOW, 60)
     assert snap["halt_unreadable"] is True
     cfg = tmp_path / "risk_limits.yaml"
-    import yaml
+    import yaml  # type: ignore[import-untyped,unused-ignore]
 
     raw = yaml.safe_load((REPO / "config" / "risk_limits.yaml").read_text())
     raw["kill_switch_file"] = str(tmp_path / "KILL_SWITCH")
@@ -305,7 +304,9 @@ def test_reg_05e_forced_closes_rebook_at_saved_time_and_price(tmp_path: Path) ->
     clock = _clock()
     broker = ClockedPaperBroker(clock=clock)
     recover(store, broker=broker, clock=clock, state_dir=tmp_path)
-    fills = list(store.conn.execute("SELECT price, ts FROM fills WHERE client_order_id=?", ("aadhalt0000000000000000001",)))
+    fills = list(
+        store.conn.execute("SELECT price, ts FROM fills WHERE client_order_id=?", ("aadhalt0000000000000000001",))
+    )
     assert fills and float(fills[0][0]) == 88.5
     assert NOW.isoformat()[:19] in str(fills[0][1])
     store.close()

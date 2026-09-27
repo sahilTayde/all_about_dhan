@@ -22,11 +22,22 @@ from ledger.store import IST, OPEN_ORDER_STATES, Ledger, iso_ist
 
 
 class CheckpointEnvelope(Protocol):
-    event_id: str
-    stream: str
-    available_ts: str
-    event_type: str
-    payload: dict[str, Any]
+    """Structural envelope. Properties so a frozen dataclass matches."""
+
+    @property
+    def event_id(self) -> str: ...
+
+    @property
+    def stream(self) -> str: ...
+
+    @property
+    def available_ts(self) -> str: ...
+
+    @property
+    def event_type(self) -> str: ...
+
+    @property
+    def payload(self) -> dict[str, Any]: ...
 
 
 class SqliteTransaction:
@@ -188,10 +199,7 @@ class SqliteLedgerStore:
     def open_orders(self) -> list[dict[str, Any]]:
         marks = ", ".join("?" * len(OPEN_ORDER_STATES))
         return [
-            dict(r)
-            for r in self.conn.execute(
-                f"SELECT * FROM orders WHERE status IN ({marks})", OPEN_ORDER_STATES
-            )
+            dict(r) for r in self.conn.execute(f"SELECT * FROM orders WHERE status IN ({marks})", OPEN_ORDER_STATES)
         ]
 
     def todays_trades(self, day: str) -> list[dict[str, Any]]:
@@ -261,9 +269,7 @@ class SqliteLedgerStore:
         if not self._in_txn:
             self.conn.commit()
 
-    def mark_order_status(
-        self, client_order_id: str, status: str, *, cancel_reason: str | None = None
-    ) -> None:
+    def mark_order_status(self, client_order_id: str, status: str, *, cancel_reason: str | None = None) -> None:
         self.conn.execute(
             "UPDATE orders SET status=?, cancel_reason=COALESCE(?, cancel_reason), updated_at=? "
             "WHERE client_order_id=?",
@@ -390,10 +396,9 @@ class SqliteLedgerStore:
                 tagged if tagged != "UNKNOWN" else (exchange or "UNKNOWN"),
             ),
         )
-        if tagged == "UNKNOWN":
-            # PENDING path may lack a tag; refuse only when we had a map and still failed
-            if rates is not None and rates.get(UNDERLYING_EXCHANGE):
-                raise ValueError(f"unmapped underlying for {symbol or instrument_id!r}")
+        # PENDING path may lack a tag; refuse only when we had a map and still failed
+        if tagged == "UNKNOWN" and rates is not None and rates.get(UNDERLYING_EXCHANGE):
+            raise ValueError(f"unmapped underlying for {symbol or instrument_id!r}")
         signed = qty if side == "BUY" else -qty
         key = instrument_id or symbol
         prev = self.conn.execute(
@@ -520,7 +525,7 @@ class SqliteLedgerStore:
             try:
                 rec["forced_closes"] = json.loads(r["forced_closes_json"])
                 if not isinstance(rec["forced_closes"], list):
-                    raise ValueError("forced_closes must be a list")
+                    raise TypeError("forced_closes must be a list")
             except (json.JSONDecodeError, TypeError, ValueError):
                 unreadable = True
                 rec["forced_closes"] = None
@@ -598,9 +603,7 @@ class SqliteLedgerStore:
 
     def _has_table(self, name: str) -> bool:
         return (
-            self.conn.execute(
-                "SELECT 1 FROM sqlite_master WHERE type='table' AND name=?", (name,)
-            ).fetchone()
+            self.conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?", (name,)).fetchone()
             is not None
         )
 
