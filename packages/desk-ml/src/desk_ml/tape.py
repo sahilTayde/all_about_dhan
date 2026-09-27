@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import math
 import sqlite3
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -10,6 +11,7 @@ from typing import Any, Optional, Sequence
 
 from desk_ml.features import Triple
 from desk_ml.persist import repo_root
+from desk_ml.reliability import recover_glued
 
 INDEX_SIDS = {"NIFTY": "13", "BANKNIFTY": "25", "SENSEX": "51"}
 IST = timezone(timedelta(hours=5, minutes=30))
@@ -457,13 +459,34 @@ def _snap_row(snap: dict[str, Any], as_of: Optional[int]) -> Optional[dict[str, 
     }
 
 
+def _finite_snap(snap: dict[str, Any]) -> bool:
+    """Live-loop input check: every price the loader may use is a finite positive number or absent."""
+    for key in ("index_ltp", "atm_ce_ltp", "atm_pe_ltp", "itm_ce_ltp", "itm_pe_ltp"):
+        raw = snap.get(key)
+        if raw is None:
+            continue
+        try:
+            val = float(raw)
+        except (TypeError, ValueError):
+            return False
+        if not math.isfinite(val) or val <= 0:
+            return False
+    return True
+
+
 def load_dual_tape_triples(
     underlying: str,
     *,
     root: Optional[Path] = None,
     session_ist_date: Optional[str] = None,
+    strict: bool = False,
 ) -> tuple[list[Triple], dict[str, Any]]:
-    """Consecutive dual-tape ticks: INDEX + ITM CE/PE LTP (legacy ATM if ITM missing)."""
+    """Consecutive dual-tape ticks: INDEX + ITM CE/PE LTP (legacy ATM if ITM missing).
+
+    ``meta["skipped_lines"]`` counts unreadable lines mid-file (an unparseable last line is an
+    append in progress and is not counted). ``strict`` (the live loop) also drops snaps with a
+    non-finite or non-positive price; offline replays keep the legacy behaviour byte for byte.
+    """
     base = root or repo_root()
     folder = dual_tape_dir(base)
     und = underlying.upper()
@@ -475,6 +498,7 @@ def load_dual_tape_triples(
         if latest.is_file():
             files.append(latest)
     seen: set[tuple[int, float, float, float]] = set()
+    skipped_lines = 0
     for path in files:
         try:
             text = path.read_text(encoding="utf-8")
@@ -483,13 +507,20 @@ def load_dual_tape_triples(
         blobs: list[Any]
         if path.suffix == ".jsonl":
             blobs = []
-            for line in text.splitlines():
+            lines = text.splitlines()
+            for n, line in enumerate(lines):
                 line = line.strip()
                 if not line:
                     continue
                 try:
                     blobs.append(json.loads(line))
                 except json.JSONDecodeError:
+                    if not (n == len(lines) - 1 and not text.endswith("\n")):
+                        glued = recover_glued(line) if strict else None
+                        if glued is not None:  # live: a crashed write glued onto the next tick
+                            blobs.append(glued)
+                            continue
+                        skipped_lines += 1
                     continue
         else:
             try:
@@ -504,6 +535,8 @@ def load_dual_tape_triples(
                 if not isinstance(snap, dict):
                     continue
                 if str(snap.get("underlying") or "").upper() != und:
+                    continue
+                if strict and not _finite_snap(snap):
                     continue
                 row = _snap_row(snap, as_of)
                 if row is None:
@@ -596,6 +629,7 @@ def load_dual_tape_triples(
         "session_ist_date": session_ist_date,
         "live_dhan": False,
         "execution": "refused",
+        "skipped_lines": skipped_lines,
     }
     if triples:
         meta["first_ts"] = triples[0].ts

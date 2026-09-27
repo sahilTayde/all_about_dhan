@@ -23,6 +23,7 @@ from typing import Any, Callable, Iterable, Optional
 from events.audit import EventAuditLog
 from events.schema import FOUNDER_FIRST, Event, EventType, make_event
 
+MAX_ERRORS = 1000
 log = logging.getLogger("events.bus")
 
 Handler = Callable[[Event], None]
@@ -43,7 +44,7 @@ class EventBus:
     def __init__(self, audit: Optional[EventAuditLog] = None, *, raise_errors: bool = False) -> None:
         self.audit = audit
         self.raise_errors = raise_errors
-        self.errors: list[dict[str, Any]] = []
+        self.errors: list[dict[str, Any]] = []  # capped at MAX_ERRORS: a hot failing handler cannot grow memory
         self._subs: dict[str, Subscription] = {}
         self._by_type: dict[str, list[Subscription]] = {}
         self._counter = itertools.count(1)
@@ -93,6 +94,8 @@ class EventBus:
                     {"sub_id": sub.sub_id, "event_type": event.event_type, "event_id": event.event_id,
                      "error": f"{type(exc).__name__}: {exc}"}
                 )
+                if len(self.errors) > MAX_ERRORS:
+                    del self.errors[0]
                 if self.raise_errors:
                     raise
 

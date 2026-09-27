@@ -502,6 +502,27 @@ def test_unsaved_halt_is_kept_for_later_cycles_in_the_process(tmp_path, monkeypa
     assert sorted(_alert_kinds(tmp_path)) == ["RuntimeError", "halt_write"]
 
 
+def test_unsaved_halt_survives_a_restart_through_the_fallback_file(tmp_path, monkeypatch):
+    """PR #14 leftover: a halt the halt folder refused was lost when the loop restarted."""
+    import desk.executor as ex
+    from desk.executor import Desk
+
+    def refuse(self, state):
+        raise PermissionError(13, "read-only halt folder")
+
+    monkeypatch.setattr(Desk, "_write_halt", refuse)
+    first, _a1, pos = _cycle_with_mark(tmp_path, monkeypatch, error_at=T0 + 200)
+    assert not _halt_file(tmp_path).exists()
+    assert (tmp_path / ex.HALT_FALLBACK_REL).is_file()
+    exit1 = first.engine.closed[-1]["exit"]
+    ex._UNSAVED_HALTS.clear()  # the process restarts: memory is gone
+    ex._LIVE_ALERTED.clear()
+    desk, _audit, _p = _cycle_with_mark(tmp_path, monkeypatch, error_at=None)
+    (row,) = [r for r in desk.engine.closed if r["trade_id"] == pos.trade_id]
+    assert row["exit_reason"] == FAILSAFE_MTM and row["exit"] == exit1
+    assert desk._entry_halted(int(ticket(T0 + 400, side="PE").opened_ts))
+
+
 def test_strict_risk_file_books_a_typical_ticket_and_logs_a_veto(tmp_path):
     """Paper cap is ₹30,000. A ₹13,000 ticket books. A ₹31,037.50 ticket is vetoed with the reason split out."""
     desk, bus, audit, led, _steps = make_desk(tmp_path, REPO / "config" / "risk_limits.yaml")
@@ -524,18 +545,19 @@ def test_strict_risk_file_books_a_typical_ticket_and_logs_a_veto(tmp_path):
     assert json.loads(stored[1])["ticket_risk_inr"] == pytest.approx(31037.5)
 
 
-def test_failsafe_price_uses_the_tick_when_the_last_quote_is_missing():
+def test_failsafe_price_uses_the_booked_strike_only():
     from types import SimpleNamespace
 
     from desk.executor import Desk
 
     bare = object.__new__(Desk)
-    step = _tick(T0)
-    pos = SimpleNamespace(last_ltp=None, side="CE", entry=150.0)
-    assert bare._failsafe_price(pos, step) == pytest.approx(130.0)  # this tick's ITM CE
-    pos.side = "PE"
-    assert bare._failsafe_price(pos, step) == pytest.approx(45.0)
-    assert bare._failsafe_price(SimpleNamespace(last_ltp=None, side="CE", entry=150.0), None) == pytest.approx(150.0)
+    bare._ps = ps
+    step = _tick(T0)  # the tape's ITM legs: 24800 CE at 130, 25200 PE at 45
+    assert bare._failsafe_price(SimpleNamespace(last_ltp=None, side="CE", entry=150.0, atm_strike=24800.0), step) == 130.0
+    assert bare._failsafe_price(SimpleNamespace(last_ltp=None, side="PE", entry=150.0, atm_strike=25200.0), step) == 45.0
+    # Booked at 24700 after the ITM strike rolled to 24800: never the 24800 price.
+    assert bare._failsafe_price(SimpleNamespace(last_ltp=None, side="CE", entry=150.0, atm_strike=24700.0), step) == 150.0
+    assert bare._failsafe_price(SimpleNamespace(last_ltp=None, side="CE", entry=150.0, atm_strike=24800.0), None) == 150.0
 
 
 def test_broker_refusal_means_no_trade(tmp_path, monkeypatch):
@@ -543,3 +565,43 @@ def test_broker_refusal_means_no_trade(tmp_path, monkeypatch):
     monkeypatch.setattr(desk.broker, "max_decision_age_s", -10.0)
     approve(bus, ticket())
     assert desk.engine.opens == {} and desk.engine.skips[-1]["reason"] == BROKER_REFUSED
+
+
+def test_spof_S8_refused_exit_is_retried_every_tick_with_one_alert(tmp_path, monkeypatch):
+    monkeypatch.setattr(ps, "step_mark", lambda _e, _s: None)
+    desk, bus, audit, led, steps = make_desk(tmp_path)
+    pos = ticket()
+    approve(bus, pos)
+    real = desk.risk.check_exit
+    refusals = {"n": 2}
+
+    def flaky(intent, action="EXIT", now=None):
+        if refusals["n"] > 0:
+            refusals["n"] -= 1
+            from risk_engine import RiskDecision
+
+            return RiskDecision(False, intent.client_order_id, action, "SIMULATED_REFUSAL", "test", desk.clock())
+        return real(intent, action, now=now)
+
+    monkeypatch.setattr(desk.risk, "check_exit", flaky)
+    desk.close(pos, ltp=155.0, ts=T0 + 10, reason="TARGET")
+    assert desk.engine.opens == {}  # the engine books the exit; it is never refused
+    assert pos.trade_id in desk.pending_exits and [t["status"] for t in led.trades()] == ["OPEN"]
+    for n in range(1, 3):
+        steps[f"NIFTY:{n}"] = _tick(T0 + 10 + n)
+        bus.publish("MARKET_TICK", {"key": f"NIFTY:{n}"}, source="feed")
+    assert desk.pending_exits == {} and [t["status"] for t in led.trades()] == ["CLOSED"]
+    unmirrored = [a for a in audit.rows("HEALTH_ALERT") if "not mirrored" in a["payload"].get("reason", "")]
+    assert len(unmirrored) == 1
+
+
+def test_broker_timeout_on_entry_means_no_trade(tmp_path, monkeypatch):
+    desk, bus, _audit, led, _ = make_desk(tmp_path)
+
+    def timeout(_intent, _decision):
+        raise TimeoutError("no answer")
+
+    monkeypatch.setattr(desk.broker, "place_order", timeout)
+    approve(bus, ticket())
+    assert desk.engine.opens == {} and led.trades() == [] and not bus.errors
+    assert desk.vetoes[-1]["reason_code"] == "BROKER_ERROR"

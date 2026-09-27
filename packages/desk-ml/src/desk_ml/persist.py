@@ -14,8 +14,14 @@ MODEL_VERSION = "ml001-kmeans-if-v1"
 IST = timezone(timedelta(hours=5, minutes=30))
 
 
-def repo_root() -> Path:
+def code_root() -> Path:
+    """This checkout: code and ``config/*.yaml``. Never a source of runtime data."""
     return Path(__file__).resolve().parents[4]
+
+
+def repo_root() -> Path:
+    """Default *data* root for CLI entry points only. Engine paths take an explicit root."""
+    return code_root()
 
 
 def ml_dir(root: Optional[Path] = None) -> Path:

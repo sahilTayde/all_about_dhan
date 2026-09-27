@@ -18,7 +18,7 @@ import math
 from pathlib import Path
 from typing import Any, Optional, Sequence
 
-from desk_ml.persist import repo_root
+from desk_ml.persist import code_root
 
 REPLAY_RISK_CONFIG = Path("config") / "risk_limits_replay.yaml"
 LIVE_RISK_CONFIG = Path("config") / "risk_limits.yaml"
@@ -100,11 +100,11 @@ def resolve_risk_config(
 
     Returns ``(path, explicit)``. ``explicit`` is true when the live key was present.
     """
-    base = repo_root() if root is None else Path(root)
+    base = code_root() if root is None else Path(root)
     if settings is None:
         path = base / EVENT_PATH_CONFIG
         if not path.is_file():
-            path = repo_root() / EVENT_PATH_CONFIG
+            path = code_root() / EVENT_PATH_CONFIG
         settings = _read_yaml(path)
     explicit = live_session and "live_risk_config" in settings
     if live_session:
@@ -113,7 +113,7 @@ def resolve_risk_config(
         raw = settings.get("replay_risk_config") or str(REPLAY_RISK_CONFIG)
     chosen = Path(str(raw))
     if not chosen.is_absolute():
-        chosen = repo_root() / chosen
+        chosen = code_root() / chosen
     return chosen, explicit
 
 
@@ -144,8 +144,8 @@ class EventSession:
         self.bus = bus if bus is not None else MemoryBus(self.audit)
         if self.bus.backend != "memory":
             raise ValueError("EventSession needs the synchronous memory bus (see module doc)")
-        self.risk_config = Path(risk_config) if risk_config else repo_root() / REPLAY_RISK_CONFIG
-        self.analysts_config = Path(analysts_config) if analysts_config else repo_root() / ANALYSTS_CONFIG
+        self.risk_config = Path(risk_config) if risk_config else code_root() / REPLAY_RISK_CONFIG
+        self.analysts_config = Path(analysts_config) if analysts_config else code_root() / ANALYSTS_CONFIG
         # Default True: replay and parity do not abstain on wall-clock timeouts.
         # The live paper loop passes deterministic=False.
         self.deterministic = bool(deterministic)
@@ -174,6 +174,7 @@ class EventSession:
         self.desk = Desk(
             self.bus, engine, risk=None, broker=None, steps=self.steps, live_loop=self.live_loop,
         )
+        engine._pin_hook = self.desk.adopt_booked  # tickets the live loop carries from an earlier cycle
         self.room.attach(self.bus, self.contexts)
         self.boss = Boss(
             self.bus, engine, steps=self.steps, signals=self.signals, contexts=self.contexts,
@@ -198,14 +199,15 @@ class EventSession:
         if self.engine is not None:
             self.engine.shadow_prior_daily = self.prior_daily
         if und not in self.stacks:
-            led = self._ledger if self._ledger is not None else Ledger(":memory:", charges_path=repo_root() / CHARGES_CONFIG)
+            led = self._ledger if self._ledger is not None else Ledger(":memory:", charges_path=code_root() / CHARGES_CONFIG)
             broker = ClockedPaperBroker(clock=lambda: self.desk.clock(), slippage_ticks=0)
             from desk_ml.costs import ledger_rates  # PR-B: per-exchange fees when cost_model=realistic
 
             if self._ledger is None and (rates := ledger_rates(self.engine)) is not None:
                 led.rates = rates
             attach_ledger(broker, led)
-            self.stacks[und] = (led, RiskEngine(led, config_path=self.risk_config), broker)
+            root = getattr(self.engine, "root", None) if self.engine is not None else None
+            self.stacks[und] = (led, RiskEngine(led, config_path=self.risk_config, root=root), broker)
         _led, self.desk.risk, self.desk.broker = self.stacks[und]
 
     def set_prior_closes(self, und: str, closes_by_ts: dict[Any, Any]) -> None:

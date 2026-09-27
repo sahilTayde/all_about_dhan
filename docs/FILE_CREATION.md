@@ -39,6 +39,7 @@
 | `SESSION_PREP_ML.md` | `teams/06_backtesting/docs/` | How to start paper dual-tape + `desk_ml score` at 09:15 IST. FOLLOW-GAP HOLD. Not a promote. |
 | `OPENAI_OVERLAY_REVIEW.md` | `teams/06_backtesting/docs/` | Paper overlay counsel: reject reasons, recode, new verdict. Not a five-pass. |
 | Cursor rule `*.mdc` | `.cursor/rules/` | New always-on routing. Keep short. |
+| `PR_A_CRITIQUE.md` / `README.md` | `docs/reliability/` | Reliability build: spec critique + CI / offline verification commands. Edit in place. |
 
 Teacher books, `config/workspace.yaml` `sources.books[]`, STRAT/MIX/CAS catalogs, and `docs/` product standards (`COMPLIANCE`, `SECURITY`, `SDLC`, `REVIEW`, `INDEX`, `COMPANY_DEPARTMENTS`, …) are **edit-in-place**.
 

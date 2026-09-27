@@ -147,6 +147,9 @@ def log_decision_shadow(engine: Any, **kwargs: Any) -> Optional[dict[str, Any]]:
     """Write at most one row per index per IST minute. May raise; caller catches."""
     if not shadow_logging_enabled(engine):
         return None
+    ctx = getattr(engine, "ctx", None)
+    if ctx is not None and not getattr(ctx, "write", True):
+        return None  # write=False replays (lab, parity, offline verification) write nothing
     ts = int(kwargs["ts"])
     und = str(kwargs["underlying"]).upper()
     seen = getattr(engine, "_shadow_minutes", None)

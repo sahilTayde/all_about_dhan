@@ -1,0 +1,10 @@
+# Starts aad-paper-loop.service each trading morning (see the service file).
+[Unit]
+Description=Start the all_about_dhan paper loop Mon-Fri 09:30 IST
+
+[Timer]
+OnCalendar=Mon..Fri 09:30:05 Asia/Kolkata
+Persistent=false
+
+[Install]
+WantedBy=timers.target

@@ -245,7 +245,7 @@ def test_apply_pass_leaves_fills() -> None:
     assert out["MIX-DEFAULT-BUY"] == ("CE", None)
 
 
-def test_step_vetoes_logit_ce_when_itm_dead() -> None:
+def test_step_vetoes_logit_ce_when_itm_dead(founder_root) -> None:
     bars = []
     idx, ce, pe = 25000.0, 220.0, 160.0
     for i in range(12):
@@ -254,6 +254,7 @@ def test_step_vetoes_logit_ce_when_itm_dead() -> None:
         pe += 0.4
         bars.append(_bar(i=i, idx=idx, ce=ce, pe=pe, kind="ITM"))
     engine = BookEngine(
+        root=founder_root,
         skip_new_when_sideways=False,
         nifty_need_strength=False,
         sod_one_ticket=False,
