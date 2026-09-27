@@ -8,10 +8,14 @@ from marketdata.types import BarClosed
 from indicators.core import EMA
 from indicators.engine import FeatureEngine
 from indicators.location import (
+    LOCATION_FIELDS,
     LocationTracker,
     candle_50,
     compute_entry_location,
     detect_fvgs,
+    is_index_future,
+    is_index_spot,
+    is_option,
     signed_distance_atr,
 )
 
@@ -271,3 +275,106 @@ def test_reset_session_clears_location() -> None:
     engine.reset_session()
     assert engine.entry_location("NIFTY", "CE", now) is None
     assert engine.view(now).get("loc_spot", "NIFTY", "1m") is None
+
+
+def test_id_helpers_spot_future_option() -> None:
+    """Live marketdata ids: index, 3-part future, 5-part CE/PE option."""
+    assert is_index_spot("NIFTY")
+    assert is_index_spot("NSE_IDX:NIFTY")
+    assert is_index_spot("BSE_IDX:SENSEX")
+    assert not is_index_spot("NSE_FNO:NIFTY:2026-09-29")
+    assert not is_index_spot("NSE_FNO:NIFTY:2026-09-29:24500:CE")
+    assert is_index_future("NSE_FNO:NIFTY:2026-09-29")
+    assert is_index_future("BSE_FNO:SENSEX:2026-09-29")
+    assert not is_index_future("NSE_FNO:NIFTY:2026-09-29:24500:CE")
+    assert is_option("NSE_FNO:NIFTY:2026-09-29:24500:CE")
+    assert is_option("NSE_FNO:NIFTY:2026-09-29:24500:PE")
+    assert is_option("BSE_FNO:SENSEX:2026-09-29:75000:CE")
+    assert not is_option("NSE_FNO:NIFTY:2026-09-29")
+    assert not is_option("NSE_IDX:NIFTY")
+
+
+def test_option_bars_do_not_pollute_spot_or_future_series() -> None:
+    """Option premiums must not enter _spot; snapshot matches spot+future only."""
+    spot_id = "NSE_IDX:NIFTY"
+    fut_id = "NSE_FNO:NIFTY:2026-01-29"
+    ce_id = "NSE_FNO:NIFTY:2026-01-29:22000:CE"
+    pe_id = "NSE_FNO:NIFTY:2026-01-29:22000:PE"
+    spot = [_bar(i, 22000, 22010, 21990, 22000.0 + i, instrument_id=spot_id) for i in range(20)]
+    fut = [
+        _bar(
+            i,
+            22010,
+            22020,
+            22000,
+            22010.0 + i,
+            instrument_id=fut_id,
+            v=1000 + 10 * i,
+        )
+        for i in range(20)
+    ]
+    options = [_bar(i, 150, 180, 120, 160, instrument_id=ce_id, v=500) for i in range(20)] + [
+        _bar(i, 140, 170, 110, 155, instrument_id=pe_id, v=400) for i in range(20)
+    ]
+
+    clean = FeatureEngine()
+    mixed = FeatureEngine()
+    # Interleave like a live session: spot, future, CE, PE for each minute.
+    for i in range(20):
+        clean.on_bar(*spot[i])
+        clean.on_bar(*fut[i])
+        mixed.on_bar(*spot[i])
+        mixed.on_bar(*fut[i])
+        mixed.on_bar(*options[i])
+        mixed.on_bar(*options[20 + i])
+
+    now = spot[-1][1]
+    loc_clean = clean.entry_location(spot_id, "CE", now)
+    loc_mixed = mixed.entry_location(ce_id, "CE", now)
+    assert loc_clean is not None and loc_mixed is not None
+    assert loc_clean == loc_mixed
+    assert loc_clean.spot > 20000  # index, not option premium
+    view_clean = clean.view(now, side="CE")
+    view_mixed = mixed.view(now, side="CE")
+    for name in LOCATION_FIELDS:
+        a = view_clean.get(name, spot_id, "1m")
+        b = view_mixed.get(name, spot_id, "1m")
+        if a is None or b is None:
+            assert a is None and b is None
+        else:
+            assert abs(a.value - b.value) < 1e-9, name
+    nifty = mixed._location["NIFTY"]
+    assert all(is_index_spot(s.bar.instrument_id) for s in nifty._spot)
+    assert all(is_index_future(s.bar.instrument_id) for s in nifty._fut)
+    assert not any(is_option(s.bar.instrument_id) for s in nifty._spot + nifty._fut)
+
+
+def test_sensex_option_does_not_land_in_nifty_tracker() -> None:
+    """A BSE SENSEX option must not enter the NIFTY location book."""
+    spot = [_bar(i, 22000, 22010, 21990, 22000.0 + i) for i in range(8)]
+    sensex_opt = [
+        _bar(
+            i,
+            200,
+            250,
+            180,
+            220,
+            instrument_id="BSE_FNO:SENSEX:2026-01-29:75000:CE",
+        )
+        for i in range(8)
+    ]
+    nifty_only = FeatureEngine()
+    with_sensex = FeatureEngine()
+    for bar, ts in spot:
+        nifty_only.on_bar(bar, ts)
+        with_sensex.on_bar(bar, ts)
+    for bar, ts in sensex_opt:
+        with_sensex.on_bar(bar, ts)
+    now = spot[-1][1]
+    assert with_sensex.entry_location("NIFTY", "CE", now) == nifty_only.entry_location(
+        "NIFTY", "CE", now
+    )
+    assert "SENSEX" not in with_sensex._location
+    nifty = with_sensex._location["NIFTY"]
+    assert all(s.bar.instrument_id == "NIFTY" for s in nifty._spot)
+    assert with_sensex.entry_location("BSE_FNO:SENSEX:2026-01-29:75000:CE", "CE", now) is None

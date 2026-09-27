@@ -71,10 +71,24 @@ def underlying_id(instrument_id: str) -> str:
     return parts[1] if len(parts) >= 2 else instrument_id
 
 
+def is_index_spot(instrument_id: str) -> bool:
+    """True for index cash (`NIFTY` or `NSE_IDX:NIFTY`), not futures or options."""
+    parts = instrument_id.split(":")
+    if len(parts) == 1:
+        return bool(parts[0])
+    return len(parts) == 2 and parts[0].endswith("_IDX") and bool(parts[1])
+
+
 def is_index_future(instrument_id: str) -> bool:
     """True for an index future (`NSE_FNO:NIFTY:YYYY-MM-DD`), not options."""
     parts = instrument_id.split(":")
     return len(parts) == 3 and "FNO" in parts[0]
+
+
+def is_option(instrument_id: str) -> bool:
+    """True for a CE/PE option (`NSE_FNO:NIFTY:YYYY-MM-DD:24500:CE`)."""
+    parts = instrument_id.split(":")
+    return len(parts) == 5 and "FNO" in parts[0] and parts[4] in {"CE", "PE"}
 
 
 def signed_distance_atr(spot: float, zone: float, atr: float, side: str) -> float:
@@ -312,7 +326,7 @@ class LocationTracker:
         stamped = _StampedBar(bar, available_ts)
         if is_index_future(bar.instrument_id):
             self._fut.append(stamped)
-        else:
+        elif is_index_spot(bar.instrument_id):
             self._spot.append(stamped)
             self.spot_instrument_id = bar.instrument_id
 

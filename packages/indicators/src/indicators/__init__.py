@@ -8,6 +8,9 @@ from indicators.location import (
     LocationTracker,
     compute_entry_location,
     detect_fvgs,
+    is_index_future,
+    is_index_spot,
+    is_option,
     signed_distance_atr,
 )
 from indicators.view import FeatureValue, FeatureView, LookAheadError
@@ -27,5 +30,8 @@ __all__ = [
     "VWAP",
     "compute_entry_location",
     "detect_fvgs",
+    "is_index_future",
+    "is_index_spot",
+    "is_option",
     "signed_distance_atr",
 ]

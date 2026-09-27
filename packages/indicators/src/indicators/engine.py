@@ -7,7 +7,13 @@ from datetime import datetime
 from marketdata.types import BarClosed, parse_ts
 
 from indicators.core import ATR, EMA, VWAP, OIChange, RealizedVol, _as_ist
-from indicators.location import EntryLocation, LocationTracker, underlying_id
+from indicators.location import (
+    EntryLocation,
+    LocationTracker,
+    is_index_future,
+    is_index_spot,
+    underlying_id,
+)
 from indicators.view import FeatureValue, FeatureView
 
 
@@ -106,10 +112,11 @@ class FeatureEngine:
                     value=vol_val, as_of=bar_end, available_ts=available_ts
                 )
 
-        und = underlying_id(instrument_id)
-        if und not in self._location:
-            self._location[und] = LocationTracker()
-        self._location[und].on_bar(bar, available_ts)
+        if is_index_spot(instrument_id) or is_index_future(instrument_id):
+            und = underlying_id(instrument_id)
+            if und not in self._location:
+                self._location[und] = LocationTracker()
+            self._location[und].on_bar(bar, available_ts)
 
     def on_oi_update(self, instrument_id: str, oi: int, ts: datetime) -> None:
         """
