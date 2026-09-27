@@ -1,9 +1,12 @@
-import React, { useEffect, useState } from "react";
+import React, { Suspense, lazy, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { CleanupCanvas } from "./CleanupCanvas.jsx";
-import { FounderPm } from "./FounderPm.jsx";
-import { InternalDesk } from "./InternalDesk.jsx";
 import "./index.css";
+
+// One chunk per page: Desk never downloads the chart library the Founder and Customer pages use.
+const InternalDesk = lazy(() => import("./InternalDesk.jsx").then((m) => ({ default: m.InternalDesk })));
+const FounderPm = lazy(() => import("./FounderPm.jsx").then((m) => ({ default: m.FounderPm })));
+const CustomerApp = lazy(() => import("./App.jsx"));
+const CleanupCanvas = lazy(() => import("./CleanupCanvas.jsx").then((m) => ({ default: m.CleanupCanvas })));
 
 function usePathname() {
   const [path, setPath] = useState(() => window.location.pathname);
@@ -15,25 +18,19 @@ function usePathname() {
   return path;
 }
 
-function Root() {
+function Page() {
   const path = usePathname();
-  if (path === "/pm" || path.startsWith("/pm/")) {
-    return <FounderPm />;
-  }
-  if (path === "/cleanup" || path.startsWith("/cleanup/")) {
-    return <CleanupCanvas />;
-  }
-  if (path === "/" || path === "") {
-    if (typeof window !== "undefined" && window.location.pathname === "/") {
-      window.history.replaceState({}, "", "/desk");
-    }
-    return <InternalDesk />;
-  }
+  if (path === "/pm" || path.startsWith("/pm/")) return <FounderPm />;
+  if (path === "/cleanup" || path.startsWith("/cleanup/")) return <CleanupCanvas />;
+  if (path === "/customer" || path.startsWith("/customer/")) return <CustomerApp />;
+  if (path === "/" || path === "") window.history.replaceState({}, "", "/desk");
   return <InternalDesk />;
 }
 
 createRoot(document.getElementById("root")).render(
   <React.StrictMode>
-    <Root />
+    <Suspense fallback={<p className="muted boot">Loading…</p>}>
+      <Page />
+    </Suspense>
   </React.StrictMode>
 );

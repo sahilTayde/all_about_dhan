@@ -1,0 +1,28 @@
+# LLM-ANALYST (PR-016). ADVISORY ONLY, paper only. It returns agree / disagree / abstain on the
+# analyst room's provisional CE/PE side. It never places, sizes, vetoes or cancels anything.
+#
+# weight: 0  = shadow (default). Logged and audited; the boss never counts it.
+#              With an online provider the call runs in the background: the tick never waits.
+# weight: 1  = "agree" becomes one CONFIRM vote in the picker majority; "disagree" is HOLD (silent).
+#              Also remove `shadow: true` from the LLM-ANALYST row in config/analysts.yaml.
+#              The call then blocks up to timeout_ms (the analysts.yaml row allows 2500 ms).
+# Nothing else is accepted: the picker is an unweighted majority (fractional weights = PR-012).
+#
+# The OpenAI key is read from the OPENAI_API_KEY env var at call time. Never put a key here.
+provider: mock              # live paper loop: mock | recorded | openai
+replay_provider: mock       # replay / parity rooms: mock | recorded (online providers are refused)
+model: gpt-4o-mini
+weight: 0
+timeout_ms: 2000            # hard wall-clock cap per call; timeout = abstain
+max_calls_per_day: 200      # online providers only
+max_cost_usd_per_day: 1.0   # online providers only; checked with a worst-case estimate before each call
+min_interval_s: 2.0         # rate limit between online calls
+max_tick_age_s: 180         # online: skip ticks older than this (the loop re-replays the whole day)
+cache_size: 5000            # identical context -> cached verdict, no call
+reuse_window_s: 300         # online: same underlying/side/strike within 5 min of tick time reuses the last verdict
+max_output_tokens: 300
+price_usd_per_1m_tokens: {input: 0.15, output: 0.60}   # for the cost budget; update if the model changes
+log_path: data/llm_analyst/calls.jsonl                 # append-only; every online (openai, ...) call
+replay_log_path: null       # append-only log for offline (mock / recorded) calls; null = off, e.g. to score a replay
+recorded_path: data/llm_analyst/calls.jsonl            # `recorded` provider reads ok rows from here by context hash
+premarket_brief_path: null  # optional JSON: desk_intel PRE_MARKET payload (+ optional `intermarket: {...}`)

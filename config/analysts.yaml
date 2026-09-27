@@ -78,3 +78,5 @@ analysts:
   - {key: late_day_momentum, shadow: true}
   - {key: expiry_day, shadow: true}
   - {key: gex, shadow: true}
+  # PR-016 advisory LLM (config/llm_analyst.yaml). To let it vote: weight 1 there AND drop shadow here.
+  - {key: LLM-ANALYST, shadow: true, timeout_ms: 2500}
