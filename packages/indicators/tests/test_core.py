@@ -3,7 +3,7 @@
 import math
 from datetime import datetime, timedelta
 
-from contracts.clock import IST
+from marketdata.clock import IST
 
 from indicators.core import ATR, EMA, VWAP, OIChange, RealizedVol
 

@@ -4,9 +4,9 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from contracts.payloads import BarClosed
+from marketdata.types import BarClosed, parse_ts
 
-from indicators.core import ATR, EMA, VWAP, OIChange, RealizedVol
+from indicators.core import ATR, EMA, OIChange, RealizedVol, VWAP
 from indicators.view import FeatureValue, FeatureView
 
 
@@ -32,20 +32,25 @@ class FeatureEngine:
         # Feature storage: (name, instrument_id, tf) -> FeatureValue
         self._features: dict[tuple[str, str, str], FeatureValue] = {}
 
-    def on_bar(self, bar: BarClosed, available_ts: datetime) -> None:
-        """
-        Process a closed bar and update features.
+    def on_bar(self, bar: BarClosed, available_ts: datetime | None = None) -> None:
+        """Process a closed bar and update features.
 
-        Args:
-            bar: closed bar
-            available_ts: when this bar became available (must be >= bar.end)
+        ``available_ts`` defaults to ``bar.available_ts`` (V2-03 stamp). A feature
+        is never written from a bar whose end is after that stamp.
         """
+        if available_ts is None:
+            if not bar.available_ts:
+                raise ValueError("closed bar missing available_ts")
+            available_ts = parse_ts(bar.available_ts)
         instrument_id = bar.instrument_id
         tf = bar.tf
         key = (instrument_id, tf)
 
-        # Bar end time
-        bar_end = datetime.fromisoformat(bar.end)
+        bar_end = parse_ts(bar.end)
+        if available_ts < bar_end:
+            raise ValueError(
+                f"refusing bar {bar.start}/{bar.end} at available_ts={available_ts.isoformat()}"
+            )
 
         # Typical price for VWAP
         if bar.h is not None and bar.l is not None and bar.c is not None:

@@ -1,4 +1,9 @@
-"""Event sources: ListSource, TapeSource, RecorderTapeSource."""
+"""Event sources: ListSource, TapeSource, RecorderTapeSource.
+
+CLOCK heartbeats are synthesized every 5 s when a SimClock is provided.
+JSONL readers skip bad lines (truncated, non-JSON, wrong schema) and keep
+loading the lines before and after (REG-06a, REG-08a).
+"""
 
 from __future__ import annotations
 
@@ -9,367 +14,171 @@ from collections.abc import Iterator
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any, Protocol
+from typing import Any, Protocol, TextIO
 
-from contracts.clock import IST, SimClock
-from contracts.payloads import Tick
+from marketdata.types import SimClock, Tick, bucket_start, parse_ts
 
 logger = logging.getLogger(__name__)
+
+_CLOCK_INTERVAL = timedelta(seconds=5)
+# Extra CLOCK after the last tick so the last 1m bar can finalize (shared by every source).
+_TAIL_DRAIN = timedelta(minutes=2)
 
 
 @dataclass(frozen=True)
 class SourceEvent:
-    """Event from a source with its available timestamp."""
-
     event_type: str  # "TICK" | "CLOCK"
     payload: Any
     available_ts: datetime
 
 
 class EventSource(Protocol):
-    """Protocol for event sources."""
+    def events(self) -> Iterator[SourceEvent]: ...
 
-    def events(self) -> Iterator[SourceEvent]:
-        """Yield events with their available timestamps."""
-        ...
+
+def _tick_from_obj(obj: dict[str, Any]) -> Tick:
+    """Accept a flat tick, a V2 envelope (data/tape/v2 depth_quotes), or a recorder row."""
+    payload = obj.get("payload")
+    row: dict[str, Any] = payload if isinstance(payload, dict) else obj
+    instrument_id = row.get("instrument_id")
+    if not isinstance(instrument_id, str) or not instrument_id:
+        raise ValueError("missing instrument_id")
+    exchange_ts = row.get("exchange_ts") or row.get("timestamp") or obj.get("event_ts") or obj.get("timestamp")
+    if not isinstance(exchange_ts, str) or not exchange_ts:
+        raise ValueError("missing exchange_ts")
+    return Tick(
+        instrument_id=instrument_id,
+        ltp=_opt_float(row.get("ltp")),
+        ltq=_opt_int(row.get("ltq")),
+        volume=_opt_int(row.get("volume")),
+        oi=_opt_int(row.get("oi")),
+        exchange_ts=exchange_ts,
+    )
+
+
+def _opt_float(value: Any) -> float | None:
+    if value is None:
+        return None
+    return float(value)
+
+
+def _opt_int(value: Any) -> int | None:
+    if value is None:
+        return None
+    return int(value)
+
+
+def _iter_clocks(
+    last_clock: datetime | None,
+    event_ts: datetime,
+    clock: SimClock | None,
+) -> tuple[datetime | None, list[SourceEvent]]:
+    if clock is None:
+        return last_clock, []
+    clock.advance_to(event_ts)
+    out: list[SourceEvent] = []
+    cursor = last_clock if last_clock is not None else bucket_start(event_ts)
+    while cursor + _CLOCK_INTERVAL <= event_ts:
+        cursor += _CLOCK_INTERVAL
+        out.append(SourceEvent(event_type="CLOCK", payload={"ts": cursor.isoformat()}, available_ts=cursor))
+    return cursor, out
+
+
+def _drain_tail(
+    last_clock: datetime | None,
+    last_event_ts: datetime | None,
+    clock: SimClock | None,
+) -> list[SourceEvent]:
+    """Emit CLOCK heartbeats for two minutes past the last tick (every source)."""
+    if clock is None or last_clock is None or last_event_ts is None:
+        return []
+    _cursor, clocks = _iter_clocks(last_clock, last_event_ts + _TAIL_DRAIN, clock)
+    return clocks
 
 
 class ListSource:
-    """Source that yields events from a list."""
+    """Yield TICK events from an in-memory list, optionally with CLOCK heartbeats."""
 
-    def __init__(self, ticks: list[Tick], clock: SimClock | None = None):
-        """
-        Initialize from tick list.
-
-        Args:
-            ticks: list of ticks (must be sorted by exchange_ts)
-            clock: optional clock to advance (if None, no CLOCK events emitted)
-        """
+    def __init__(self, ticks: list[Tick], clock: SimClock | None = None) -> None:
         self._ticks = ticks
         self._clock = clock
 
     def events(self) -> Iterator[SourceEvent]:
-        """
-        Yield TICK events with CLOCK heartbeats.
-
-        available_ts is set to exchange_ts for ticks.
-        CLOCK events are synthesized every 5s.
-        """
         if not self._ticks:
             return
-
         last_clock: datetime | None = None
-        clock_interval = timedelta(seconds=5)
-
+        last_event_ts: datetime | None = None
         for tick in self._ticks:
-            if tick.exchange_ts is None:
+            if not tick.exchange_ts:
                 continue
-
-            event_ts = self._parse_ts(tick.exchange_ts)
-
-            # Advance clock if we have one
-            if self._clock is not None:
-                self._clock.advance_to(event_ts)
-
-            # Synthesize CLOCK heartbeats
-            if self._clock is not None:
-                if last_clock is None:
-                    last_clock = self._bucket_start(event_ts)
-
-                while last_clock + clock_interval <= event_ts:
-                    last_clock += clock_interval
-                    yield SourceEvent(
-                        event_type="CLOCK",
-                        payload={"ts": last_clock.isoformat()},
-                        available_ts=last_clock,
-                    )
-
-            # Yield tick
-            yield SourceEvent(
-                event_type="TICK",
-                payload=tick,
-                available_ts=event_ts,
-            )
-
-        # Final clock event if needed
-        if self._clock is not None and last_clock is not None:
-            final_ts = self._parse_ts(self._ticks[-1].exchange_ts)
-            final_bucket = self._bucket_start(final_ts) + timedelta(minutes=2)
-            while last_clock + clock_interval <= final_bucket:
-                last_clock += clock_interval
-                yield SourceEvent(
-                    event_type="CLOCK",
-                    payload={"ts": last_clock.isoformat()},
-                    available_ts=last_clock,
-                )
-
-    def _bucket_start(self, ts: datetime) -> datetime:
-        """Compute minute bucket start."""
-        return ts.replace(second=0, microsecond=0)
-
-    def _parse_ts(self, ts_str: str) -> datetime:
-        """Parse ISO-8601 timestamp."""
-        dt = datetime.fromisoformat(ts_str)
-        if dt.tzinfo is None:
-            dt = dt.replace(tzinfo=IST)
-        return dt
+            event_ts = parse_ts(tick.exchange_ts)
+            last_clock, clocks = _iter_clocks(last_clock, event_ts, self._clock)
+            yield from clocks
+            yield SourceEvent(event_type="TICK", payload=tick, available_ts=event_ts)
+            last_event_ts = event_ts
+        yield from _drain_tail(last_clock, last_event_ts, self._clock)
 
 
-class TapeSource:
-    """
-    Source that reads from tape files (data/tape/v2/YYYY-MM-DD/*.jsonl).
+class _JsonlSource:
+    """Shared per-line guarded JSONL reader."""
 
-    Per-line guarded parsing: bad lines are skipped and logged (REG-06a, REG-08a).
-    """
-
-    def __init__(
-        self,
-        tape_path: Path,
-        clock: SimClock | None = None,
-        record_errors: bool = True,
-    ):
-        """
-        Initialize from tape file.
-
-        Args:
-            tape_path: path to JSONL tape file (may be gzipped)
-            clock: optional clock to advance
-            record_errors: if True, log parse errors
-        """
-        self._tape_path = tape_path
+    def __init__(self, path: Path, clock: SimClock | None = None, record_errors: bool = True) -> None:
+        self._path = path
         self._clock = clock
         self._record_errors = record_errors
         self._parse_errors: list[dict[str, Any]] = []
 
-    def events(self) -> Iterator[SourceEvent]:
-        """
-        Yield events from tape with CLOCK heartbeats.
-
-        Bad lines are skipped and logged. Lines before and after still load (REG-06a).
-        """
-        last_clock: datetime | None = None
-        clock_interval = timedelta(seconds=5)
-
-        for tick, event_ts in self._read_ticks():
-            # Advance clock
-            if self._clock is not None:
-                self._clock.advance_to(event_ts)
-
-            # Synthesize CLOCK heartbeats
-            if self._clock is not None:
-                if last_clock is None:
-                    last_clock = self._bucket_start(event_ts)
-
-                while last_clock + clock_interval <= event_ts:
-                    last_clock += clock_interval
-                    yield SourceEvent(
-                        event_type="CLOCK",
-                        payload={"ts": last_clock.isoformat()},
-                        available_ts=last_clock,
-                    )
-
-            # Yield tick
-            yield SourceEvent(
-                event_type="TICK",
-                payload=tick,
-                available_ts=event_ts,
-            )
-
-    def _read_ticks(self) -> Iterator[tuple[Tick, datetime]]:
-        """Read and parse ticks from file, skipping bad lines."""
-        open_fn = gzip.open if self._tape_path.suffix == ".gz" else open
-
-        try:
-            with open_fn(self._tape_path, "rt", encoding="utf-8") as f:
-                line_no = 0
-                for line in f:
-                    line_no += 1
-                    line = line.strip()
-                    if not line:
-                        continue
-
-                    try:
-                        obj = json.loads(line)
-                        tick = self._parse_tick(obj)
-                        if tick.exchange_ts is None:
-                            continue
-                        event_ts = self._parse_ts(tick.exchange_ts)
-                        yield tick, event_ts
-                    except (json.JSONDecodeError, KeyError, ValueError, TypeError) as e:
-                        # Skip bad line (REG-06a, REG-08a)
-                        if self._record_errors:
-                            error = {
-                                "path": str(self._tape_path),
-                                "line_no": line_no,
-                                "error": str(e),
-                                "line": line[:100],
-                            }
-                            self._parse_errors.append(error)
-                            logger.warning(
-                                "Skipped bad line in %s:%d: %s", self._tape_path, line_no, e
-                            )
-                        continue
-        except (OSError, EOFError) as e:
-            # File errors: log and continue (REG-08a)
-            if self._record_errors:
-                logger.error("Error reading tape %s: %s", self._tape_path, e)
-
-    def _parse_tick(self, obj: dict[str, Any]) -> Tick:
-        """Parse tick from JSON object."""
-        return Tick(
-            instrument_id=obj["instrument_id"],
-            ltp=obj.get("ltp"),
-            ltq=obj.get("ltq"),
-            volume=obj.get("volume"),
-            oi=obj.get("oi"),
-            exchange_ts=obj["exchange_ts"],
-        )
-
-    def _bucket_start(self, ts: datetime) -> datetime:
-        """Compute minute bucket start."""
-        return ts.replace(second=0, microsecond=0)
-
-    def _parse_ts(self, ts_str: str) -> datetime:
-        """Parse ISO-8601 timestamp."""
-        dt = datetime.fromisoformat(ts_str)
-        if dt.tzinfo is None:
-            dt = dt.replace(tzinfo=IST)
-        return dt
-
     @property
     def parse_errors(self) -> list[dict[str, Any]]:
-        """Return parse errors encountered."""
         return self._parse_errors
-
-
-class RecorderTapeSource:
-    """
-    Source that reads from recorder files (data/recon/*/YYYYMMDD.jsonl).
-
-    This is for the existing PR-001 recorder format (depth_quotes rows).
-    Per-line guarded parsing (REG-06a, REG-08a).
-    """
-
-    def __init__(
-        self,
-        recorder_path: Path,
-        clock: SimClock | None = None,
-        record_errors: bool = True,
-    ):
-        """
-        Initialize from recorder file.
-
-        Args:
-            recorder_path: path to recorder JSONL file
-            clock: optional clock to advance
-            record_errors: if True, log parse errors
-        """
-        self._recorder_path = recorder_path
-        self._clock = clock
-        self._record_errors = record_errors
-        self._parse_errors: list[dict[str, Any]] = []
 
     def events(self) -> Iterator[SourceEvent]:
-        """
-        Yield events from recorder with CLOCK heartbeats.
-
-        Bad lines are skipped and logged (REG-06a, REG-08a).
-        """
         last_clock: datetime | None = None
-        clock_interval = timedelta(seconds=5)
-
+        last_event_ts: datetime | None = None
         for tick, event_ts in self._read_ticks():
-            # Advance clock
-            if self._clock is not None:
-                self._clock.advance_to(event_ts)
+            last_clock, clocks = _iter_clocks(last_clock, event_ts, self._clock)
+            yield from clocks
+            yield SourceEvent(event_type="TICK", payload=tick, available_ts=event_ts)
+            last_event_ts = event_ts
+        yield from _drain_tail(last_clock, last_event_ts, self._clock)
 
-            # Synthesize CLOCK heartbeats
-            if self._clock is not None:
-                if last_clock is None:
-                    last_clock = self._bucket_start(event_ts)
-
-                while last_clock + clock_interval <= event_ts:
-                    last_clock += clock_interval
-                    yield SourceEvent(
-                        event_type="CLOCK",
-                        payload={"ts": last_clock.isoformat()},
-                        available_ts=last_clock,
-                    )
-
-            # Yield tick
-            yield SourceEvent(
-                event_type="TICK",
-                payload=tick,
-                available_ts=event_ts,
-            )
+    def _open(self) -> TextIO:
+        if self._path.suffix == ".gz" or self._path.name.endswith(".jsonl.gz"):
+            return gzip.open(self._path, "rt", encoding="utf-8")
+        return self._path.open(encoding="utf-8")
 
     def _read_ticks(self) -> Iterator[tuple[Tick, datetime]]:
-        """Read and parse ticks from recorder file, skipping bad lines."""
         try:
-            with open(self._recorder_path, encoding="utf-8") as f:
-                line_no = 0
-                for line in f:
-                    line_no += 1
-                    line = line.strip()
+            with self._open() as handle:
+                for line_no, raw in enumerate(handle, start=1):
+                    line = raw.strip()
                     if not line:
                         continue
-
                     try:
                         obj = json.loads(line)
-                        # Recorder format: depth_quotes row
-                        tick = self._parse_recorder_tick(obj)
-                        if tick.exchange_ts is None:
-                            continue
-                        event_ts = self._parse_ts(tick.exchange_ts)
-                        yield tick, event_ts
-                    except (json.JSONDecodeError, KeyError, ValueError, TypeError) as e:
-                        # Skip bad line (REG-06a, REG-08a)
+                        if not isinstance(obj, dict):
+                            raise ValueError("row is not a JSON object")
+                        tick = _tick_from_obj(obj)
+                        yield tick, parse_ts(tick.exchange_ts)
+                    except (json.JSONDecodeError, KeyError, ValueError, TypeError) as exc:
                         if self._record_errors:
-                            error = {
-                                "path": str(self._recorder_path),
-                                "line_no": line_no,
-                                "error": str(e),
-                                "line": line[:100],
-                            }
-                            self._parse_errors.append(error)
-                            logger.warning(
-                                "Skipped bad line in %s:%d: %s", self._recorder_path, line_no, e
+                            self._parse_errors.append(
+                                {
+                                    "path": str(self._path),
+                                    "line_no": line_no,
+                                    "error": str(exc),
+                                    "line": line[:100],
+                                }
                             )
-                        continue
-        except OSError as e:
+                            logger.warning("Skipped bad line in %s:%d: %s", self._path, line_no, exc)
+        except (OSError, EOFError) as exc:
             if self._record_errors:
-                logger.error("Error reading recorder file %s: %s", self._recorder_path, e)
+                logger.error("Error reading %s: %s", self._path, exc)
 
-    def _parse_recorder_tick(self, obj: dict[str, Any]) -> Tick:
-        """
-        Parse tick from recorder depth_quotes row.
 
-        Recorder format has: instrument_id, ltp, timestamp, etc.
-        """
-        exchange_ts = obj.get("timestamp") or obj.get("exchange_ts", "")
-        if not isinstance(exchange_ts, str):
-            exchange_ts = str(exchange_ts) if exchange_ts else ""
-        return Tick(
-            instrument_id=obj["instrument_id"],
-            ltp=obj.get("ltp"),
-            ltq=obj.get("ltq"),
-            volume=obj.get("volume"),
-            oi=obj.get("oi"),
-            exchange_ts=exchange_ts,
-        )
+class TapeSource(_JsonlSource):
+    """Read ``data/tape/v2/YYYY-MM-DD/*.jsonl`` (envelope v2 or flat ticks)."""
 
-    def _bucket_start(self, ts: datetime) -> datetime:
-        """Compute minute bucket start."""
-        return ts.replace(second=0, microsecond=0)
 
-    def _parse_ts(self, ts_str: str) -> datetime:
-        """Parse ISO-8601 timestamp."""
-        dt = datetime.fromisoformat(ts_str)
-        if dt.tzinfo is None:
-            dt = dt.replace(tzinfo=IST)
-        return dt
-
-    @property
-    def parse_errors(self) -> list[dict[str, Any]]:
-        """Return parse errors encountered."""
-        return self._parse_errors
+class RecorderTapeSource(_JsonlSource):
+    """Read a recorder-shaped JSONL (depth_quotes / recon rows). Same guarded parser."""

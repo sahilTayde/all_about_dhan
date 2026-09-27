@@ -1,258 +1,166 @@
-"""Tests for BarBuilder."""
+"""Closed 1m / 3m bar builder tests (REG-01a)."""
 
 from datetime import datetime, timedelta
 
-import pytest
-
-from contracts.clock import IST, SimClock
-from contracts.payloads import BarClosed, Tick
-from marketdata.bars import BarBuilder
+from marketdata.bars import BarBuilder, HigherTFBuilder
+from marketdata.clock import IST
+from marketdata.types import SimClock, Tick
 
 
-def test_bar_closed_at_bucket_close():
-    """REG-01a: Bar available_ts must be >= end (never before bucket close)."""
+def test_bar_closed_at_bucket_close() -> None:
+    """REG-01a: bar available_ts is at or after end, never the last print before close."""
     builder = BarBuilder(finalize_delay_s=1.5)
-    clock = SimClock(datetime(2026, 1, 2, 9, 15, 0, tzinfo=IST))
+    clock = SimClock(datetime(2026, 1, 6, 9, 15, 0, tzinfo=IST))  # Tuesday
 
-    # Tick at 09:15:30
-    tick1 = Tick(
-        instrument_id="NIFTY",
-        ltp=22000.0,
-        ltq=100,
-        volume=100,
-        oi=1000,
-        exchange_ts="2026-01-02T09:15:30+05:30",
+    builder.on_tick(
+        Tick("NIFTY", 22000.0, 100, 100, 1000, "2026-01-06T09:15:30+05:30"),
+        clock.now(),
     )
-    bars = builder.on_tick(tick1, clock.now())
-    assert len(bars) == 0
+    assert (
+        builder.on_tick(
+            Tick("NIFTY", 22000.0, 1, 1, 1000, "2026-01-06T09:15:59+05:30"),
+            datetime(2026, 1, 6, 9, 15, 59, tzinfo=IST),
+        )
+        == []
+    )
 
-    # Tick at 09:16:00 - closes previous bar
-    clock.advance_to(datetime(2026, 1, 2, 9, 16, 0, tzinfo=IST))
-    tick2 = Tick(
-        instrument_id="NIFTY",
-        ltp=22010.0,
-        ltq=50,
-        volume=50,
-        oi=1000,
-        exchange_ts="2026-01-02T09:16:00+05:30",
+    clock.advance_to(datetime(2026, 1, 6, 9, 16, 0, tzinfo=IST))
+    bars = builder.on_tick(
+        Tick("NIFTY", 22010.0, 50, 50, 1000, "2026-01-06T09:16:00+05:30"),
+        clock.now(),
     )
-    bars = builder.on_tick(tick2, clock.now())
     assert len(bars) == 1
-
     bar = bars[0]
-    # Bar end is 09:16:00, available_ts should be >= end
-    bar_end = datetime.fromisoformat(bar.end)
-    # available_ts is the second argument to on_tick
-    assert clock.now() >= bar_end
-    assert bar.start == "2026-01-02T09:15:00+05:30"
-    assert bar.end == "2026-01-02T09:16:00+05:30"
+    assert bar.start == "2026-01-06T09:15:00+05:30"
+    assert bar.end == "2026-01-06T09:16:00+05:30"
+    assert datetime.fromisoformat(bar.available_ts) >= datetime.fromisoformat(bar.end)
+    assert clock.now() >= datetime.fromisoformat(bar.end)
 
 
-def test_bar_never_revised():
-    """Bars are never revised after close."""
+def test_late_tick_before_any_finalize_does_not_pollute_open_bar() -> None:
+    """F1: delayed 09:15:45 print must not rewrite an open 09:16 bar (no bar finalized yet)."""
     builder = BarBuilder()
-    clock = SimClock(datetime(2026, 1, 2, 9, 15, 0, tzinfo=IST))
-
-    # First tick in bar
-    tick1 = Tick(
-        instrument_id="NIFTY",
-        ltp=22000.0,
-        ltq=100,
-        volume=100,
-        oi=1000,
-        exchange_ts="2026-01-02T09:15:30+05:30",
-    )
-    builder.on_tick(tick1, clock.now())
-
-    # Close the bar
-    clock.advance_to(datetime(2026, 1, 2, 9, 16, 0, tzinfo=IST))
-    tick2 = Tick(
-        instrument_id="NIFTY",
-        ltp=22010.0,
-        ltq=50,
-        volume=50,
-        oi=1000,
-        exchange_ts="2026-01-02T09:16:00+05:30",
-    )
-    bars = builder.on_tick(tick2, clock.now())
-    assert len(bars) == 1
-    original_bar = bars[0]
-
-    # Late tick for the closed bar (should be dropped)
-    tick3 = Tick(
-        instrument_id="NIFTY",
-        ltp=21990.0,
-        ltq=200,
-        volume=200,
-        oi=1000,
-        exchange_ts="2026-01-02T09:15:45+05:30",  # Before bar end
-    )
-    bars = builder.on_tick(tick3, clock.now())
-    assert len(bars) == 0  # No new bar emitted
+    first_ts = datetime(2026, 1, 6, 9, 16, 0, tzinfo=IST)
+    builder.on_tick(Tick("NIFTY", 22000.0, 10, 10, 1000, "2026-01-06T09:16:00+05:30"), first_ts)
+    late = builder.on_tick(Tick("NIFTY", 21000.0, 10, 10, 1000, "2026-01-06T09:15:45+05:30"), first_ts)
+    assert late == []
     assert builder.late_tick_count == 1
-
-
-def test_finalize_delay():
-    """Bar finalized by CLOCK heartbeat after finalize_delay."""
-    builder = BarBuilder(finalize_delay_s=1.5)
-    clock = SimClock(datetime(2026, 1, 2, 9, 15, 0, tzinfo=IST))
-
-    # Tick at 09:15:30
-    tick1 = Tick(
-        instrument_id="NIFTY",
-        ltp=22000.0,
-        ltq=100,
-        volume=100,
-        oi=1000,
-        exchange_ts="2026-01-02T09:15:30+05:30",
+    bars = builder.on_tick(
+        Tick("NIFTY", 22010.0, 10, 10, 1000, "2026-01-06T09:17:00+05:30"),
+        datetime(2026, 1, 6, 9, 17, 0, tzinfo=IST),
     )
-    builder.on_tick(tick1, clock.now())
+    assert len(bars) == 1
+    bar = bars[0]
+    assert bar.start == "2026-01-06T09:16:00+05:30"
+    assert bar.end == "2026-01-06T09:17:00+05:30"
+    assert bar.o == 22000.0
+    assert bar.h == 22000.0
+    assert bar.l == 22000.0
+    assert bar.c == 22000.0
+    assert bar.n_ticks == 1
+    assert bar.late_ticks == 1
 
-    # No more ticks, but CLOCK heartbeat at 09:16:01.5
-    clock.advance_to(datetime(2026, 1, 2, 9, 16, 1, 500000, tzinfo=IST))
+
+def test_bar_never_revised() -> None:
+    builder = BarBuilder()
+    clock = SimClock(datetime(2026, 1, 6, 9, 15, 0, tzinfo=IST))
+    builder.on_tick(Tick("NIFTY", 22000.0, 100, 100, 1000, "2026-01-06T09:15:30+05:30"), clock.now())
+    clock.advance_to(datetime(2026, 1, 6, 9, 16, 0, tzinfo=IST))
+    bars = builder.on_tick(Tick("NIFTY", 22010.0, 50, 50, 1000, "2026-01-06T09:16:00+05:30"), clock.now())
+    assert len(bars) == 1
+    first = bars[0]
+    late = builder.on_tick(Tick("NIFTY", 21990.0, 200, 200, 1000, "2026-01-06T09:15:45+05:30"), clock.now())
+    assert late == []
+    assert builder.late_tick_count == 1
+    assert first.o == 22000.0
+    assert first.c == 22000.0
+    assert first.late_ticks == 0  # already emitted; late print cannot revise it
+
+
+def test_finalize_delay() -> None:
+    builder = BarBuilder(finalize_delay_s=1.5)
+    clock = SimClock(datetime(2026, 1, 6, 9, 15, 0, tzinfo=IST))
+    builder.on_tick(Tick("NIFTY", 22000.0, 100, 100, 1000, "2026-01-06T09:15:30+05:30"), clock.now())
+    clock.advance_to(datetime(2026, 1, 6, 9, 16, 1, 500000, tzinfo=IST))
     bars = builder.on_clock(clock.now())
     assert len(bars) == 1
-    assert bars[0].start == "2026-01-02T09:15:00+05:30"
-    assert bars[0].end == "2026-01-02T09:16:00+05:30"
+    assert bars[0].start == "2026-01-06T09:15:00+05:30"
+    assert bars[0].end == "2026-01-06T09:16:00+05:30"
+    assert datetime.fromisoformat(bars[0].available_ts) >= datetime.fromisoformat(bars[0].end)
 
 
-def test_gap_detection():
-    """Gap flag set when > 30s between ticks."""
+def test_gap_detection() -> None:
     builder = BarBuilder(gap_threshold_s=30.0)
-    clock = SimClock(datetime(2026, 1, 2, 9, 15, 0, tzinfo=IST))
-
-    # First tick
-    tick1 = Tick(
-        instrument_id="NIFTY",
-        ltp=22000.0,
-        ltq=100,
-        volume=100,
-        oi=1000,
-        exchange_ts="2026-01-02T09:15:10+05:30",
-    )
-    builder.on_tick(tick1, clock.now())
-
-    # Second tick 35s later (gap)
-    clock.advance_to(datetime(2026, 1, 2, 9, 15, 45, tzinfo=IST))
-    tick2 = Tick(
-        instrument_id="NIFTY",
-        ltp=22010.0,
-        ltq=50,
-        volume=50,
-        oi=1000,
-        exchange_ts="2026-01-02T09:15:45+05:30",
-    )
-    builder.on_tick(tick2, clock.now())
-
-    # Close bar
-    clock.advance_to(datetime(2026, 1, 2, 9, 16, 0, tzinfo=IST))
-    tick3 = Tick(
-        instrument_id="NIFTY",
-        ltp=22015.0,
-        ltq=50,
-        volume=50,
-        oi=1000,
-        exchange_ts="2026-01-02T09:16:00+05:30",
-    )
-    bars = builder.on_tick(tick3, clock.now())
+    clock = SimClock(datetime(2026, 1, 6, 9, 15, 0, tzinfo=IST))
+    builder.on_tick(Tick("NIFTY", 22000.0, 100, 100, 1000, "2026-01-06T09:15:10+05:30"), clock.now())
+    clock.advance_to(datetime(2026, 1, 6, 9, 15, 45, tzinfo=IST))
+    builder.on_tick(Tick("NIFTY", 22010.0, 50, 50, 1000, "2026-01-06T09:15:45+05:30"), clock.now())
+    clock.advance_to(datetime(2026, 1, 6, 9, 16, 0, tzinfo=IST))
+    bars = builder.on_tick(Tick("NIFTY", 22015.0, 50, 50, 1000, "2026-01-06T09:16:00+05:30"), clock.now())
     assert len(bars) == 1
     assert bars[0].gap is True
 
 
-def test_ohlc_calculation():
-    """Verify OHLC and volume calculation."""
+def test_ohlc_calculation() -> None:
     builder = BarBuilder()
-    clock = SimClock(datetime(2026, 1, 2, 9, 15, 0, tzinfo=IST))
-
-    ticks = [
-        (22000.0, 100, "2026-01-02T09:15:10+05:30"),
-        (22010.0, 50, "2026-01-02T09:15:20+05:30"),
-        (21995.0, 75, "2026-01-02T09:15:30+05:30"),
-        (22005.0, 25, "2026-01-02T09:15:40+05:30"),
+    clock = SimClock(datetime(2026, 1, 6, 9, 15, 0, tzinfo=IST))
+    prints = [
+        (22000.0, 100, "2026-01-06T09:15:10+05:30"),
+        (22010.0, 50, "2026-01-06T09:15:20+05:30"),
+        (21995.0, 75, "2026-01-06T09:15:30+05:30"),
+        (22005.0, 25, "2026-01-06T09:15:40+05:30"),
     ]
-
-    for ltp, ltq, ts in ticks:
+    for ltp, ltq, ts in prints:
         clock.advance_to(datetime.fromisoformat(ts))
-        tick = Tick(
-            instrument_id="NIFTY",
-            ltp=ltp,
-            ltq=ltq,
-            volume=ltq,
-            oi=1000,
-            exchange_ts=ts,
-        )
-        builder.on_tick(tick, clock.now())
-
-    # Close bar
-    clock.advance_to(datetime(2026, 1, 2, 9, 16, 0, tzinfo=IST))
-    tick_close = Tick(
-        instrument_id="NIFTY",
-        ltp=22000.0,
-        ltq=10,
-        volume=10,
-        oi=1000,
-        exchange_ts="2026-01-02T09:16:00+05:30",
-    )
-    bars = builder.on_tick(tick_close, clock.now())
+        builder.on_tick(Tick("NIFTY", ltp, ltq, ltq, 1000, ts), clock.now())
+    clock.advance_to(datetime(2026, 1, 6, 9, 16, 0, tzinfo=IST))
+    bars = builder.on_tick(Tick("NIFTY", 22000.0, 10, 10, 1000, "2026-01-06T09:16:00+05:30"), clock.now())
     assert len(bars) == 1
-
     bar = bars[0]
     assert bar.o == 22000.0
     assert bar.h == 22010.0
     assert bar.l == 21995.0
     assert bar.c == 22005.0
-    assert bar.v == 100 + 50 + 75 + 25
+    assert bar.v == 250
     assert bar.n_ticks == 4
 
 
-def test_multiple_instruments():
-    """BarBuilder tracks multiple instruments independently."""
+def test_multiple_instruments() -> None:
     builder = BarBuilder()
-    clock = SimClock(datetime(2026, 1, 2, 9, 15, 0, tzinfo=IST))
+    clock = SimClock(datetime(2026, 1, 6, 9, 15, 0, tzinfo=IST))
+    clock.advance_to(datetime(2026, 1, 6, 9, 15, 30, tzinfo=IST))
+    builder.on_tick(Tick("NIFTY", 22000.0, 100, 100, 1000, "2026-01-06T09:15:30+05:30"), clock.now())
+    builder.on_tick(Tick("BANKNIFTY", 48000.0, 50, 50, 500, "2026-01-06T09:15:30+05:30"), clock.now())
+    clock.advance_to(datetime(2026, 1, 6, 9, 16, 0, tzinfo=IST))
+    nifty = builder.on_tick(Tick("NIFTY", 22010.0, 50, 50, 1000, "2026-01-06T09:16:00+05:30"), clock.now())
+    bank = builder.on_tick(Tick("BANKNIFTY", 48010.0, 25, 25, 500, "2026-01-06T09:16:00+05:30"), clock.now())
+    assert len(nifty) == 1
+    assert len(bank) == 1
+    assert nifty[0].instrument_id == "NIFTY"
+    assert bank[0].instrument_id == "BANKNIFTY"
 
-    # Tick for NIFTY
-    clock.advance_to(datetime(2026, 1, 2, 9, 15, 30, tzinfo=IST))
-    tick1 = Tick(
-        instrument_id="NIFTY",
-        ltp=22000.0,
-        ltq=100,
-        volume=100,
-        oi=1000,
-        exchange_ts="2026-01-02T09:15:30+05:30",
-    )
-    builder.on_tick(tick1, clock.now())
 
-    # Tick for BANKNIFTY
-    tick2 = Tick(
-        instrument_id="BANKNIFTY",
-        ltp=48000.0,
-        ltq=50,
-        volume=50,
-        oi=500,
-        exchange_ts="2026-01-02T09:15:30+05:30",
-    )
-    builder.on_tick(tick2, clock.now())
+def test_reg01a_3m_stamped_at_bucket_close_not_last_print() -> None:
+    """REG-01a: 3m bar available_ts is the 3m close, not the last 1m print."""
+    one_m = BarBuilder()
+    three_m = HigherTFBuilder(3)
+    clock = SimClock(datetime(2026, 1, 6, 9, 15, 0, tzinfo=IST))
+    # One tick per minute at :30 (last print well before each 1m close).
+    emitted_3m = []
+    for minute in range(4):
+        ts = datetime(2026, 1, 6, 9, 15 + minute, 30, tzinfo=IST)
+        clock.advance_to(ts)
+        one_m.on_tick(Tick("NIFTY", 22000.0 + minute, 10, 10, 1000, ts.isoformat()), clock.now())
+        close = datetime(2026, 1, 6, 9, 16 + minute, 0, tzinfo=IST)
+        clock.advance_to(close)
+        for bar in one_m.on_clock(close + timedelta(seconds=2)):
+            emitted_3m.extend(three_m.on_1m(bar))
 
-    # Close both bars
-    clock.advance_to(datetime(2026, 1, 2, 9, 16, 0, tzinfo=IST))
-    tick3 = Tick(
-        instrument_id="NIFTY",
-        ltp=22010.0,
-        ltq=50,
-        volume=50,
-        oi=1000,
-        exchange_ts="2026-01-02T09:16:00+05:30",
-    )
-    bars = builder.on_tick(tick3, clock.now())
-    assert len(bars) == 1  # NIFTY bar closed
-
-    tick4 = Tick(
-        instrument_id="BANKNIFTY",
-        ltp=48010.0,
-        ltq=25,
-        volume=25,
-        oi=500,
-        exchange_ts="2026-01-02T09:16:00+05:30",
-    )
-    bars = builder.on_tick(tick4, clock.now())
-    assert len(bars) == 1  # BANKNIFTY bar closed
+    assert len(emitted_3m) == 1
+    bar = emitted_3m[0]
+    assert bar.tf == "3m"
+    assert bar.start == "2026-01-06T09:15:00+05:30"
+    assert bar.end == "2026-01-06T09:18:00+05:30"
+    assert bar.available_ts == bar.end
+    assert bar.o == 22000.0
+    assert bar.c == 22002.0
