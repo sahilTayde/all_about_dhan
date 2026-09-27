@@ -1,7 +1,7 @@
 """Wall-clock timeouts for every one-shot job (REG-10 / architecture §5.1).
 
-V2-04 owns the full kernel ``run_with_deadline``; this module is the V2-15
-registry so every job unit has a timeout before that ticket lands.
+V2-15 owns the job registry and ``publish_atomic``. ``run_with_deadline``
+raises ``JobTimeout`` (alias ``DeadlineExceeded``). Callers exit non-zero.
 Partial output is written to ``*.tmp`` and renamed only on success.
 """
 
@@ -14,7 +14,7 @@ from typing import TypeVar
 
 T = TypeVar("T")
 
-# Defaults until config/v2/engine.yaml jobs: exists (V2-04). Seconds.
+# Defaults until config/v2/engine.yaml jobs: exists. Seconds.
 JOBS: dict[str, int] = {
     "replay": 600,
     "forward-eval": 1800,
@@ -32,8 +32,18 @@ class JobTimeout(Exception):
         self.timeout_s = timeout_s
 
 
-def run_with_deadline(fn: Callable[[], T], timeout_s: float, *, job: str = "job") -> T:
+DeadlineExceeded = JobTimeout
+
+
+def run_with_deadline(
+    fn: Callable[[], T],
+    timeout_s: float,
+    job_name: str | None = None,
+    *,
+    job: str = "job",
+) -> T:
     """Run ``fn``; on timeout raise JobTimeout and leave no published output."""
+    name = job if job_name is None else job_name
     box: list[tuple[str, T | BaseException]] = []
 
     def _run() -> None:
@@ -42,13 +52,13 @@ def run_with_deadline(fn: Callable[[], T], timeout_s: float, *, job: str = "job"
         except BaseException as exc:
             box.append(("err", exc))
 
-    thread = threading.Thread(target=_run, name=f"deadline-{job}", daemon=True)
+    thread = threading.Thread(target=_run, name=f"deadline-{name}", daemon=True)
     thread.start()
     thread.join(timeout_s)
     if thread.is_alive():
-        raise JobTimeout(job, timeout_s)
+        raise JobTimeout(name, timeout_s)
     if not box:
-        raise JobTimeout(job, timeout_s)
+        raise JobTimeout(name, timeout_s)
     kind, payload = box[0]
     if kind == "err":
         raise payload  # type: ignore[misc]
