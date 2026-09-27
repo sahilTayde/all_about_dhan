@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "marketdata"
 version = "0.1.0"
-description = "V2 market data: recorder (depth, quotes, OI cadence) and closed-bar builder (record only, no orders)."
+description = "V2 market data: recorder, closed-bar builder, live ticks/bars/chain/status (record only, no orders)."
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
@@ -38,6 +38,11 @@ follow_imports = "silent"
 [[tool.mypy.overrides]]
 # test-only dependency without bundled types
 module = ["jsonschema"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+# optional replay sink; not a package dependency
+module = ["redis"]
 ignore_missing_imports = true
 
 [tool.ruff]
