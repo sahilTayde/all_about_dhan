@@ -8,9 +8,10 @@ from __future__ import annotations
 
 import json
 import os
+import queue
 import re
+import threading
 import time
-from concurrent.futures import ThreadPoolExecutor, wait
 from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Any, Optional
@@ -27,8 +28,19 @@ def repo_root() -> Path:
     return Path(__file__).resolve().parents[4]
 
 
+class ConfigError(ValueError):
+    pass
+
+
 def load_config(path: Optional[Path] = None) -> dict[str, Any]:
-    return yaml.safe_load(Path(path or repo_root() / "config" / "premarket.yaml").read_text(encoding="utf-8")) or {}
+    path = Path(path or repo_root() / "config" / "premarket.yaml")
+    try:
+        cfg = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    except (OSError, yaml.YAMLError) as exc:
+        raise ConfigError(f"{path}: {exc}") from exc
+    if not isinstance(cfg, dict):
+        raise ConfigError(f"{path}: top level must be a mapping, got {type(cfg).__name__}")
+    return cfg
 
 
 def build_sources(market_cfg: dict[str, Any]) -> list[Any]:
@@ -53,13 +65,20 @@ def _run_one(src: Any, ctx: SourceContext) -> SourceResult:
 
 
 def collect(sources: list[Any], ctx: SourceContext, deadline_s: float) -> dict[str, SourceResult]:
-    pool = ThreadPoolExecutor(max_workers=max(1, min(8, len(sources))))
-    futures = {pool.submit(_run_one, s, ctx): s for s in sources}
-    done, pending = wait(futures, timeout=deadline_s)
-    pool.shutdown(wait=False, cancel_futures=True)  # a hung socket must not hold the brief
-    results = {futures[f].name: f.result() for f in done}
-    for f in pending:
-        results[futures[f].name] = SourceResult(futures[f].name, "MISSING", {}, f"deadline {deadline_s}s exceeded")
+    """One daemon thread per source: a hung socket can neither hold the brief nor keep the process alive."""
+    done: "queue.Queue[SourceResult]" = queue.Queue()
+    for s in sources:
+        threading.Thread(target=lambda s=s: done.put(_run_one(s, ctx)), name=f"premarket-{s.name}", daemon=True).start()
+    results: dict[str, SourceResult] = {}
+    end = time.monotonic() + deadline_s
+    while len(results) < len(sources):
+        try:
+            r = done.get(timeout=max(0.0, end - time.monotonic()))
+        except queue.Empty:
+            break
+        results[r.name] = r
+    for s in sources:
+        results.setdefault(s.name, SourceResult(s.name, "MISSING", {}, f"deadline {deadline_s}s exceeded"))
     return {s.name: results[s.name] for s in sources}
 
 

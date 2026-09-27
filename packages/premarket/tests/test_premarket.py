@@ -144,3 +144,41 @@ def test_atom_feed_and_pivots() -> None:
                     "published": "2026-09-28T01:00:00+00:00", "source": "x"}
     p = pivots(110.0, 90.0, 100.0)
     assert p == {"pivot": 100.0, "r1": 110.0, "s1": 90.0, "r2": 120.0, "s2": 80.0}
+
+
+def test_process_exits_promptly_after_a_hung_source(tmp_path: Path) -> None:
+    """A server that accepts and never answers: the file is written at the deadline and the process exits."""
+    import socket
+    import subprocess
+    import sys
+
+    srv = socket.socket()
+    srv.bind(("127.0.0.1", 0))
+    srv.listen(8)
+    port = srv.getsockname()[1]
+    cfg = tmp_path / "pm.yaml"
+    cfg.write_text(
+        "timeout_s: 60\ndeadline_s: 1\nmarkets:\n  india_index:\n    timezone: Asia/Kolkata\n    sources:\n"
+        f"      - {{name: stuck, type: rss, role: news, urls: ['http://127.0.0.1:{port}/feed']}}\n",
+        encoding="utf-8")
+    t0 = time.perf_counter()
+    try:
+        proc = subprocess.run([sys.executable, "-m", "premarket", "--config", str(cfg), "--root", str(tmp_path),
+                               "--out-dir", str(tmp_path / "out"), "--print", "none"], capture_output=True, text=True,
+                              timeout=30)
+    finally:
+        srv.close()
+    elapsed = time.perf_counter() - t0
+    assert proc.returncode == 0, proc.stderr
+    assert elapsed < 8, f"process took {elapsed:.1f}s to exit"
+    [written] = (tmp_path / "out").glob("india_index_2*.json")
+    ctx = json.loads(written.read_text(encoding="utf-8"))
+    assert ctx["missing"] == ["stuck"] and "deadline" in ctx["sources"]["stuck"]["error"]
+
+
+@pytest.mark.parametrize("text", ["markets: [unclosed\n", "- just\n- a list\n"])
+def test_bad_config_exits_2(tmp_path: Path, text: str, capsys: pytest.CaptureFixture[str]) -> None:
+    cfg = tmp_path / "bad.yaml"
+    cfg.write_text(text, encoding="utf-8")
+    assert cli(["--config", str(cfg), "--offline", "--no-write"]) == 2
+    assert "bad config" in capsys.readouterr().err
