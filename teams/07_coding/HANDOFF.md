@@ -19,6 +19,25 @@ UNKNOWN: Redis stream name mapping (prefix+DECISION vs boss:decisions)
 
 ---
 
+## As of now (2026-09-27 IST) — V2-08 lot-size exchange-only (PAPER)
+
+```text
+From:     teams/07_coding
+To:       00 / 09
+Date:     2026-09-27
+Status:   V2-08 PAPER router / NO_PROMOTE
+Accepted: Exchange lot_size always from lot_size_for(instrument_id).
+  decision.lot_size or stored lot_size that differs is LOT_SIZE_MISMATCH
+  veto; nothing reaches the broker. Send-time guard: qty>0 and
+  qty % exchange lot == 0. Flatten closes only whole lots <= net_qty
+  and alerts ODD_LOT_FLATTEN when net is not a multiple.
+Rejected: Using decision.lot_size as the send qty. Rounding leftover
+  units UP past net_qty.
+UNKNOWN: none
+```
+
+---
+
 ## As of now (2026-09-27 IST) — V2-04 onto main 971bf81 / V2-15 (PAPER)
 
 ```text
