@@ -170,8 +170,7 @@ class FuturesRecorder:
         expiry = self._get_current_month_expiry()
 
         for minute in range(2):
-            timestamp = base_time.replace(second=0, microsecond=0)
-            timestamp = timestamp.replace(minute=base_time.minute + minute)
+            timestamp = base_time.replace(second=0, microsecond=0) + timedelta(minutes=minute)
 
             for i, symbol in enumerate(self.symbols):
                 base_price = 19850.0 + i * 100.0
