@@ -1,0 +1,38 @@
+# Round 8 E2 P5-HV. stage: shadow. HAR code hash is not recorded by the lab.
+# Causal: pre-open HAR only. 09:59 HARI is look-ahead and is never an input.
+spec_id: R8-E2-P5-HV
+strategy_id: R8-E2-P5-HV
+plugin: strategies.plugins.r8_e2_p5_hv
+version: "1.0.0"
+stage: shadow
+prereg_status: PENDING_LAB
+start_session: "2026-09-28"
+cost_model: depth
+coefficients: {}
+missing_lab:
+  - recorded sha256 of the E2/E3 HAR forecast code (Round 8 §6 step 1)
+  - confirmation that lab8 used pre-open HAR, not the 09:59 HARI tercile
+params:
+  decision_ist: "09:30"
+  gap_min_atr: 0.1
+  gap_max_atr: 2.0
+  one_per_day: true
+  har_source: preopen
+  strike_dte_ge2: ITM100
+  strike_else: ITM200
+  stop_em: 1.0
+  target_em: 2.0
+  exit_plan:
+    catastrophic:
+      max_loss: 30000
+    time_stops: []
+    flat_by_ist: "15:15"
+bars:
+  n_kill: 30
+  n_promising: 60
+  n_pass: 120
+  t_crit: 2.13
+placebos:
+  - side_flip
+  - random_minute
+signals: []

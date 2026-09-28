@@ -124,6 +124,10 @@ jobs:
       - run: >-
           python -m ruff check packages/runtime
           packages/strategies/src/strategies/forward
+          packages/strategies/src/strategies/plugins/lab_lock.py
+          packages/strategies/src/strategies/plugins/r8_e1_coil_side.py
+          packages/strategies/src/strategies/plugins/r8_e2_p5_hv.py
+          packages/strategies/src/strategies/plugins/r8_e3_hv_gate.py
           packages/warehouse/src/warehouse/etl.py
           packages/warehouse/src/warehouse/calendar.py
           packages/warehouse/src/warehouse/__init__.py
@@ -131,6 +135,10 @@ jobs:
       - run: >-
           python -m ruff format --check packages/runtime
           packages/strategies/src/strategies/forward
+          packages/strategies/src/strategies/plugins/lab_lock.py
+          packages/strategies/src/strategies/plugins/r8_e1_coil_side.py
+          packages/strategies/src/strategies/plugins/r8_e2_p5_hv.py
+          packages/strategies/src/strategies/plugins/r8_e3_hv_gate.py
           packages/warehouse/src/warehouse/etl.py
           packages/warehouse/src/warehouse/calendar.py
           packages/warehouse/src/warehouse/__init__.py
@@ -154,8 +162,13 @@ jobs:
           packages/warehouse/src/warehouse/etl.py
           packages/warehouse/src/warehouse/calendar.py
           packages/premarket/src
-      - name: mypy --strict on strategies.forward
-        run: python -m mypy --strict src/strategies/forward
+      - name: mypy --strict on strategies.forward and V2-20b plugins
+        run: >-
+          python -m mypy --strict src/strategies/forward
+          src/strategies/plugins/lab_lock.py
+          src/strategies/plugins/r8_e1_coil_side.py
+          src/strategies/plugins/r8_e2_p5_hv.py
+          src/strategies/plugins/r8_e3_hv_gate.py
         working-directory: packages/strategies
 
   integration:

@@ -1,0 +1,40 @@
+# Round 8 E1 COIL-SIDE. stage: shadow. Lab coefficients are not in the repo.
+spec_id: R8-E1-COIL-SIDE
+strategy_id: R8-E1-COIL-SIDE
+plugin: strategies.plugins.r8_e1_coil_side
+version: "1.0.0"
+stage: shadow
+prereg_status: PENDING_LAB
+start_session: "2026-09-28"
+cost_model: depth
+coefficients: {}
+missing_lab:
+  - E1 logistic coefficients from r8_chop_features.py (refit 2023-08..2026-07)
+  - q10/q90 thresholds of in-sample p_up
+  - r8_active.py coil-detector parameters
+  - recorded sha256 of the frozen coefficient file
+params:
+  coil_min_age_min: 5
+  d_min_pts: 12.0
+  b_em_mult: 0.15
+  b_floor_pts: 4.0
+  entry_start_ist: "10:00"
+  entry_end_ist: "14:45"
+  strike: ITM100
+  one_per_coil: true
+  exit_plan:
+    catastrophic:
+      max_loss: 30000
+    time_stops:
+      - after_s: 900
+        when: always
+    flat_by_ist: "15:15"
+bars:
+  n_kill: 30
+  n_promising: 60
+  n_pass: 120
+  t_crit: 2.13
+placebos:
+  - side_flip
+  - random_minute
+signals: []
