@@ -1,5 +1,45 @@
 # Handoff log — Team 06 Backtesting
 
+## As of now (2026-09-28 IST) — Exit Lab 11-item self-audit run (PAPER)
+
+```text
+From:     teams/06_backtesting
+To:       00 / 04 / 07 / 09 / founder
+Date:     2026-09-28
+Status:   PAPER / SHADOW / NO_PROMOTE
+Accepted: Audit research /tmp/exitlab-audit (command:
+  python -m exitlab research --data .local_data --out
+  /tmp/exitlab-audit --seed 7 --max-hist-days 24
+  --extra-seeds 11,19 --reuse-entries /tmp/exitlab-run/entries.json).
+  n_variants=68, n_entries_live=419, n_entries_hist=48,
+  n_trade_results=14944. Every library plan x random 278 /
+  legacy 81 / v2_boss 60 / random_hist 48. Random seeds 7
+  (146), 11 (66), 19 (66). Category coverage: 36 mapped
+  categories replayed (467 trades each); 4 skipped (HAR,
+  size-from-stop, re-entry, unfilled — reasons in REPORT).
+  OOS: choose session<=2026-09-22 (142), report 23-28 Sep
+  (136), winner noise_2.2 net 152135.16 CI 98013.41-201492.30
+  DSR 8.39 (68-variant correction). Stress tabled including
+  spread_x2 / slip_x2 / gaps / reject_p15 / 1pct gap / IV
+  crush / 1-lot REJECT half-fill + 2-lot and 25-lot addon.
+  Lookahead HONEST_OK + INJECT_RAISED. Cost hand-work MATCH
+  True (55.85). Desk own 81 fills -151497.43; cancelled
+  entries SKIP_SUM 3450. Three own ideas replayed
+  (quote_persistence / tod_two_speed / elasticity_die).
+  Edges 6 passed. Suite HEAD 1784 passed / 9 skipped;
+  BASE inferred 1752; ruff+mypy green. Playbook
+  enabled:false. defaults.yaml unchanged vs origin/main.
+Rejected: Promote. Enable playbook. Edit paper_scalp.py /
+  defaults.yaml / live V2 defaults. Rank n<30 cells.
+UNKNOWN: Live-at-entry regime (router used the day label).
+  Full V2 plugin signals (selector is a 1m-direction proxy).
+DATA_INSUFFICIENT: 2026 history OOS (entries only
+  2025-10-06..14); v2_spread_sample empty so spread_x2==base;
+  news/event tags; ATR=0 on 16/17/18; 14 after-hours;
+  expiry_chop random n=3 LOW; IV-crush trigger on the real
+  tape (synthetic stress only).
+```
+
 ## As of now (2026-09-28 IST) — Exit Lab REPORT filled from replay (PAPER)
 
 ```text
