@@ -24,6 +24,7 @@ from typing import Any, Protocol
 from dhan_client.config import Settings, load_settings, repo_root
 from dhan_client.errors import CredentialsError
 from dhan_client.feed import MarketFeedCollector
+from dhan_client.rate_limit import rate_limit_hits
 from dhan_client.types import FeedMode
 
 from marketdata import logsafe
@@ -36,7 +37,7 @@ from marketdata.instruments import UNDERLYINGS, DhanInstrumentSource, Universe, 
 from marketdata.normalize import SecurityMap, bar_payload, resolve_exchange_ts, tick_from_packet, tick_payload
 from marketdata.sources import TapeSource
 from marketdata.strikes import Change, StrikeSet
-from marketdata.tape import TapeWriter
+from marketdata.tape import TapeWriter, tape_drop_count
 from marketdata.types import BarClosed, SimClock, Tick, parse_ts
 
 log = logging.getLogger("marketdata.live")
@@ -136,7 +137,16 @@ class LiveMarketData:
         self.securities = SecurityMap(universe.all_instruments())
         self.chain = ChainPoller(chain_fetch) if chain_fetch is not None else None
         self.tape = (
-            {stem: TapeWriter(tape_root, stem, background=True) for stem, _ in STREAMS.values()}
+            {
+                stem: TapeWriter(
+                    tape_root,
+                    stem,
+                    background=True,
+                    queue_max=self.config.tape_queue_max,
+                    put_timeout_s=self.config.tape_queue_put_timeout_s,
+                )
+                for stem, _ in STREAMS.values()
+            }
             if tape_root is not None
             else {}
         )
@@ -189,6 +199,7 @@ class LiveMarketData:
             self.settings,
             [inst.feed for inst in first.subscribe],
             mode=FeedMode.FULL,
+            index_mode=FeedMode(self.config.index_feed_mode),
             reconnect=True,
             max_backoff_seconds=self.config.max_backoff_s,
         )
@@ -259,6 +270,7 @@ class LiveMarketData:
             kind = packet.decoded.kind
             if kind in ("disconnect", "market_status", "prev_close"):
                 continue
+            # Index spot is ticker/quote/index (request 15/17), not FULL depth.
             header = packet.decoded.header
             inst = self.securities.resolve(header.exchange_segment, header.security_id)
             if inst is None or inst.instrument_id not in self.strikes.subscribed:
@@ -381,7 +393,18 @@ class LiveMarketData:
             self.on_feed_status(env["payload"])
 
     def _status(self, now: datetime, status: str, **extra: Any) -> None:
-        self._emit("FEED_STATUS", {"status": status, "since": iso(now), **extra}, now, iso(now))
+        self._emit(
+            "FEED_STATUS",
+            {
+                "status": status,
+                "since": iso(now),
+                **extra,
+                "tape_drops": tape_drop_count(),
+                "rest_429s": rate_limit_hits(),
+            },
+            now,
+            iso(now),
+        )
         self._note_quality(now, status)
 
 

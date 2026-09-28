@@ -18,7 +18,6 @@ from __future__ import annotations
 
 from dhan_client import endpoints
 from dhan_client.errors import NotImplementedInSkeleton
-from dhan_client.rate_limit import MinIntervalGate
 from dhan_client.rest import RestClient
 from dhan_client.types import JsonDict, OptionChainBody, OptionExpiryListBody
 
@@ -37,16 +36,8 @@ def _require_underlying(body: dict) -> dict:
 class OptionChainClient:
     def __init__(self, rest: RestClient) -> None:
         self._rest = rest
-        # Docs: 1 unique option-chain request / 3 s (expiry list + chain share the budget).
-        self._gate = MinIntervalGate(endpoints.RATE_LIMIT_OPTION_CHAIN_SECONDS)
-
-    def _wait_rate_limit(self) -> None:
-        if self._rest.settings.dry_run:
-            return
-        self._gate.wait()
 
     def expiry_list(self, body: OptionExpiryListBody) -> JsonDict:
-        self._wait_rate_limit()
         return self._rest.request(
             "POST",
             endpoints.OPTION_CHAIN_EXPIRY_LIST,
@@ -58,7 +49,6 @@ class OptionChainClient:
         if not payload.get("Expiry"):
             raise ValueError("Expiry is required (YYYY-MM-DD)")
         payload["Expiry"] = str(payload["Expiry"])
-        self._wait_rate_limit()
         return self._rest.request(
             "POST",
             endpoints.OPTION_CHAIN,

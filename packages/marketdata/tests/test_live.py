@@ -217,7 +217,8 @@ def test_disconnect_down_up_resubscribe_and_reg02c(tmp_path: Path) -> None:
     seq = [s["status"] for s in statuses if s["status"] in ("UP", "DOWN")]
     assert seq[:3] == ["UP", "DOWN", "UP"]
     assert server.connections >= 2
-    assert any(r.get("RequestCode") == 21 and r.get("InstrumentCount") == 8 for _, r in server.requests)
+    assert any(r.get("RequestCode") == 21 and r.get("InstrumentCount") == 7 for _, r in server.requests)
+    assert any(r.get("RequestCode") == 15 and r.get("InstrumentCount") == 1 for _, r in server.requests)
     # REG-02c: reconnect publishes DOWN then UP on on_feed_status (engine stop re-check).
     rechecks = [i for i in range(1, len(seq)) if seq[i - 1] == "DOWN" and seq[i] == "UP"]
     assert rechecks

@@ -1,5 +1,20 @@
 # Handoff log — Team 07 Coding
 
+## As of now (2026-09-28 IST) — merge main 6d4e645 (#64) into V2-recorder (PAPER)
+
+```text
+From:     teams/07_coding
+To:       founder / 00 / 09
+Date:     2026-09-28
+Status:   PAPER / V2-recorder ∪ gateway ingest / NO_PROMOTE / no live orders
+Accepted: Normal-merge origin/main 6d4e645. Keep BOTH imports:
+  uuid (main command_id) + dataclasses.replace (#63 v=1 bus stamp).
+  #63 stamps available_ts from hub clock so MemoryBus is not lookahead.
+  test_ingest_from_memory_bus stays unpinned GatewayHub(bus).
+Rejected: Rebase / force-push. Dropping either import.
+UNKNOWN: none
+```
+
 ## As of now (2026-09-28 IST) — merge main 045ce0e (#65) into V2-OMS-risk (PAPER)
 
 ```text

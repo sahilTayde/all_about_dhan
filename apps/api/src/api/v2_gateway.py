@@ -17,7 +17,7 @@ import asyncio
 import os
 import queue
 import uuid
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Protocol, TypedDict
@@ -293,7 +293,13 @@ class GatewayHub:
         return self.clock.now().astimezone(IST)
 
     def _on_bus(self, event: Event) -> None:
-        self.ingest(Envelope.from_json(event.to_json()))
+        env = Envelope.from_json(event.to_json())
+        # Legacy MemoryBus events carry wall-clock timestamp. A sim clock in the
+        # past would refuse them as lookahead. Delivery on this hub is "now".
+        if env.v == 1:
+            now = ist_iso(self.now())
+            env = replace(env, available_ts=now, event_ts=now, timestamp=now)
+        self.ingest(env)
 
     def ingest(self, env: Envelope) -> int | None:
         """Apply envelope if available_ts <= now. Returns new channel seq, or None if refused."""
