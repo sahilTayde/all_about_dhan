@@ -359,6 +359,25 @@ def test_config_paths_resolve_from_repo_root(
     assert len(entry_files_hash()) == 16
 
 
+def test_planner_uses_sqlite_ledger_entry_plans(tmp_path: Path) -> None:
+    """V2-10 real ledger already has entry_plans; planner writes there, not a second store."""
+    from ledger.v2 import SqliteLedgerStore
+
+    clock = SimClock(NOW)
+    store = SqliteLedgerStore(tmp_path / "aad.sqlite", migrate_schema=True)
+    planner = _planner(tmp_path, clock, store=store)
+    planner.on_decision(
+        make_decision(), account=Account("founder"), signal_id=SIG, bar_close_ts=BAR_CLOSE
+    )
+    assert len(store.entry_plans) == 1
+    pid = next(iter(store.entry_plans))
+    assert store.get_plan(pid) is not None
+    assert store.pending_plans()[0]["plan_id"] == pid
+    revived = OrderPlanner(clock=clock, router=planner.router, config=planner.config, store=store)
+    revived.rebuild()
+    assert pid in revived._live
+
+
 def test_stretch_has_no_catastrophic_price(tmp_path: Path) -> None:
     src = (REPO / "packages/oms/src/oms/planner.py").read_text(encoding="utf-8")
     assert "catastrophic_price" not in src

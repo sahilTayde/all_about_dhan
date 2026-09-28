@@ -1,5 +1,25 @@
 # Handoff log — Team 07 Coding
 
+## As of now (2026-09-28 IST) — merge main 78013e4 (V2-10) into V2-08b (PAPER)
+
+```text
+From:     teams/07_coding
+To:       founder / 00 / 09
+Date:     2026-09-28
+Status:   PAPER / V2-08b + V2-10 union / NO_PROMOTE / no live orders
+Accepted: Normal-merge origin/main 78013e4 (#58). Keep BOTH:
+  V2-10 SqliteLedgerStore / crash recovery / FEED_STALE /
+  HALT_UNREADABLE / STRATEGY_DAILY_LOSS / reduce-only
+  and V2-08b planner/chase. MemoryLedger is the in-memory
+  adapter (not superseded): entry_plans + snapshot veto
+  fields. Planner PlanStore API also writes the real
+  ledger entry_plans table. Risk before broker. Never MARKET.
+Rejected: Two durable ledgers. Rebase / force-push.
+UNKNOWN: none
+```
+
+---
+
 ## As of now (2026-09-28 IST) — merge main 879a94b (V2-09b) into V2-08b (PAPER)
 
 ```text
@@ -128,6 +148,30 @@ UNKNOWN: V2-10 durable rehydrate of frozen atr_stop_level.
 
 ---
 
+## As of now (2026-09-27 IST) — V2-10 fix round (atomic / idempotent / P&L / qty / Decimal)
+
+```text
+From:     teams/07_coding
+To:       founder / 00 / 09
+Date:     2026-09-27
+Status:   PAPER / V2-10 / NO_PROMOTE / no live orders
+Accepted: record_fill owns one BEGIN IMMEDIATE; raise
+  after INSERT INTO fills rolls back; replay = 1 fill.
+  UNIQUE(client_order_id, fill_seq) + fill_id.
+  record_fill twice is a no-op. recover() twice does
+  not rebook halt. recharge_pending UPDATEs PENDING
+  in place. Close writes gross 650 / charges once /
+  CLOSED / net_qty 0. insert_order no longer does
+  qty*lot_size. rebuild lots=1 lot_size=65. Decimal
+  money()/money_sql() on the v2 path. Merged V2-08
+  7c09f84 (lot_size mismatch veto) with a normal merge.
+Rejected: Rebase / force-push / merge of this PR.
+  DhanBroker. Editing Mac-ops merge files. Relock.
+UNKNOWN: GitHub CI on the new head.
+```
+
+---
+
 ## As of now (2026-09-28 IST) — V2-08b order planner + chase + stretch (PAPER)
 
 ```text
@@ -169,6 +213,28 @@ Accepted: Exchange lot_size always from lot_size_for(instrument_id).
 Rejected: Using decision.lot_size as the send qty. Rounding leftover
   units UP past net_qty.
 UNKNOWN: none
+```
+
+## As of now (2026-09-27 IST) — V2-10 ledger v2 + crash recovery (PAPER)
+
+```text
+From:     teams/07_coding
+To:       founder / 00 / 09
+Date:     2026-09-27
+Status:   PAPER / V2-10 / NO_PROMOTE / no live orders
+Accepted: Branched from cursor/v2-08-order-router-fills-1553 (already
+  contained origin/main 90455a6). Additive migrations 001_core +
+  002_v2_core (session_halts, ingest_errors, positions_v2, checkpoint,
+  outbox). SqliteLedgerStore implements LedgerStore. Recovery sequence
+  of §3.5. Paper broker rebuild_from_ledger. FEED_STALE +
+  STRATEGY_DAILY_LOSS + HALT_UNREADABLE. REG-02b/04a (real SIGKILL),
+  04b, 05e, 06b, 16c, 17a-d. Legacy Ledger() never auto-migrates;
+  DEFAULT_LEDGER_PATH refused unless allow_legacy. requirements/*
+  byte-identical. install.sh unchanged (ledger already on the list).
+Rejected: Auto-migrate of the Monday sqlite path. DhanBroker.
+  Rebase / force-push / relock.
+UNKNOWN: whether a later V2-08 merge commit lands before this PR
+  is retargeted to main after #45.
 ```
 
 ---

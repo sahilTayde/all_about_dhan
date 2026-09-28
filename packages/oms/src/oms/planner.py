@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from decimal import ROUND_CEILING, Decimal
 from pathlib import Path
-from typing import Any
+from typing import Any, Protocol
 
 import yaml  # type: ignore[import-untyped]
 from brokers.fills import TICK, Quote  # type: ignore[import-untyped, unused-ignore]
@@ -17,8 +17,17 @@ from contracts.payloads import Decision, EntryPlan, EntryPlanResult
 from events.bus import MemoryBus
 from risk_engine.last_good import ConfigInvalid  # type: ignore[import-untyped, unused-ignore]
 
-from oms.ledger_stub import MemoryLedger
 from oms.router import Account, OrderRouter, Veto
+
+
+class PlanStore(Protocol):
+    """MemoryLedger or SqliteLedgerStore. One plan API; no second ledger."""
+
+    def get_plan(self, plan_id: str) -> dict[str, Any] | None: ...
+
+    def upsert_plan(self, row: dict[str, Any]) -> dict[str, Any]: ...
+
+    def pending_plans(self) -> list[dict[str, Any]]: ...
 
 CHASE_LOOKAHEAD_S = 5.0
 SHADOW_ACTIONS = ("LIMIT:fvg", "WAIT")
@@ -215,7 +224,7 @@ class OrderPlanner:
         clock: Any,
         router: OrderRouter,
         config: EntryLocationConfig,
-        store: MemoryLedger | None = None,
+        store: PlanStore | None = None,
         bus: MemoryBus | None = None,
     ) -> None:
         self.clock = clock

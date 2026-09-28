@@ -15,3 +15,15 @@ dev = ["pytest>=8", "hypothesis>=6"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+ledger = ["py.typed"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+files = ["src/ledger/migrate.py", "src/ledger/v2.py", "src/ledger/__main__.py"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"

@@ -1,4 +1,4 @@
-"""In-memory ledger stub until V2-10. Paper fills always get a charges row (or PENDING)."""
+"""In-memory ledger adapter. Same plan/snapshot API as SqliteLedgerStore for paper tests."""
 
 from __future__ import annotations
 
@@ -41,7 +41,7 @@ class ChargeRow:
 
 @dataclass
 class MemoryLedger:
-    """V2-10 comes later. Enough for router/risk/fill tests. No disk writes."""
+    """Paper/test double of V2-10: plans, session_halts, and snapshot veto fields. No disk."""
 
     orders: dict[str, dict[str, Any]] = field(default_factory=dict)
     fills: list[dict[str, Any]] = field(default_factory=list)
@@ -209,4 +209,7 @@ class MemoryLedger:
             "recent_fingerprints": fps,
             "used_client_order_ids": used,
             "recon_ok": self.recon_ok,
+            "feed_status": "UP",
+            "strategy_pnl": {},
+            "halt_unreadable": False,
         }
