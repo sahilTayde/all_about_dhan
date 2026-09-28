@@ -121,8 +121,8 @@ jobs:
         with:
           python-version: "3.13"
       - run: python -m pip install ruff
-      - run: python -m ruff check packages/runtime packages/control apps/api/src/api/v2_gateway.py
-      - run: python -m ruff format --check packages/runtime packages/control apps/api/src/api/v2_gateway.py
+      - run: python -m ruff check packages/runtime packages/control apps/api/src/api/v2_gateway.py packages/warehouse/src/warehouse/etl.py packages/warehouse/src/warehouse/calendar.py packages/warehouse/src/warehouse/__init__.py packages/premarket
+      - run: python -m ruff format --check packages/runtime packages/control apps/api/src/api/v2_gateway.py packages/warehouse/src/warehouse/etl.py packages/warehouse/src/warehouse/calendar.py packages/warehouse/src/warehouse/__init__.py packages/premarket
 
   types:
     runs-on: ubuntu-24.04
@@ -137,7 +137,7 @@ jobs:
       - run: bash scripts/ci/install.sh
       - run: python -m pip install mypy
       - name: mypy --strict on new packages
-        run: python -m mypy --strict packages/runtime packages/control/src
+        run: python -m mypy --strict packages/runtime packages/control/src packages/warehouse/src/warehouse/etl.py packages/warehouse/src/warehouse/calendar.py packages/premarket/src
 
   integration:
     runs-on: ubuntu-24.04
