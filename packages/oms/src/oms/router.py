@@ -132,9 +132,11 @@ class OrderRouter:
         store: MemoryLedger | None = None,
         bus: MemoryBus | None = None,
         rates: LastGood | None = None,
+        controls: Any | None = None,
     ) -> None:
         self.clock = clock
         self.risk = risk
+        self.controls = controls
         raw: object = broker if broker is not None else make_broker(mode="paper", clock=clock)
         self.broker = require_paper_broker(raw)
         self.store = store if store is not None else MemoryLedger()
@@ -151,6 +153,34 @@ class OrderRouter:
             return
         got = self.rates.get()
         self.store.rates = got
+
+    def _founder_entry_veto(
+        self,
+        oid: str,
+        instrument_id: str,
+        lots: int,
+        plan: EntryPlan,
+        decision: Decision,
+    ) -> Veto | None:
+        """PAUSE / STOP / INDEX / BASKET_REMOVE / SET_LOTS / KILL consult the CommandBook."""
+        ctl = self.controls
+        if ctl is None:
+            return None
+        now = self.clock.now()
+        und = ""
+        if instrument_id:
+            und = underlying_from_instrument(instrument_id)
+        elif getattr(decision, "underlying", None):
+            und = str(decision.underlying)
+        sid = str(getattr(plan, "signal_id", "") or "")
+        why = ctl.allows_entry(now, underlying=und, strategy_id=sid)
+        if why:
+            return self._veto(oid, why, why)
+        book = ctl.book()
+        cap = book.state_at(now.timestamp()).lots
+        if cap is not None and lots > int(cap):
+            return self._veto(oid, "FOUNDER_LOTS_CAP", f"{lots} lots exceeds SET_LOTS ({cap})")
+        return None
 
     def _intent(
         self,
@@ -213,6 +243,9 @@ class OrderRouter:
         lot_size = lot_size_for(instrument_id)
         if decision.lot_size is not None and int(decision.lot_size) != lot_size:
             return self._lot_mismatch_veto(oid, int(decision.lot_size), lot_size, "decision")
+        blocked = self._founder_entry_veto(oid, instrument_id, lots, plan, decision)
+        if blocked is not None:
+            return blocked
         stop = _catastrophic_price(plan, decision, risk=self.risk, qty=max(0, lots * lot_size))
         intent = self._intent(
             client_order_id=oid,
@@ -819,21 +852,24 @@ class OrderRouter:
             raise ValueError(f"exit qty {raw_net} has no whole lot <= net (lot {lot})")
         key = inst or str(position.get("symbol") or "")
         live = self._live_position(key)
-        live_net = int(live["net_qty"]) if live is not None else qty
-        remaining = max(0, live_net - qty)
-        # Resize before a partial leaves the book. Flatten keeps the stop until the
-        # exit fill lands so a CLOCK-only time stop is never naked; after-fill sync
-        # cancels at net_qty == 0.
-        if remaining > 0:
-            self.sync_protective_stop(live or position, remaining)
-        live_after = self._live_position(key)
-        live_net_after = int(live_after["net_qty"]) if live_after is not None else 0
-        if live_net_after <= 0:
-            for order in reversed(list(self.broker.orders.values())):
-                if (order.intent.exit_reason or "") == _STOP_RESIZE_FAILED:
-                    return order
-            raise ValueError("exit qty must be a whole lot")
-        qty = min(qty, whole_lots_qty(live_net_after, lot))
+        # Snapshot flatten (CLI / lot-guard tests) has no store row — send whole lots.
+        # A live book row still resizes the protective stop before a partial leave.
+        if live is not None:
+            live_net = int(live["net_qty"])
+            remaining = max(0, live_net - qty)
+            # Resize before a partial leaves the book. Flatten keeps the stop until the
+            # exit fill lands so a CLOCK-only time stop is never naked; after-fill sync
+            # cancels at net_qty == 0.
+            if remaining > 0:
+                self.sync_protective_stop(live, remaining)
+            live_after = self._live_position(key)
+            live_net_after = int(live_after["net_qty"]) if live_after is not None else 0
+            if live_net_after <= 0:
+                for order in reversed(list(self.broker.orders.values())):
+                    if (order.intent.exit_reason or "") == _STOP_RESIZE_FAILED:
+                        return order
+                raise ValueError("exit qty must be a whole lot")
+            qty = min(qty, whole_lots_qty(live_net_after, lot))
         acc = str(position.get("account_id") or "founder")
         parent = str(position.get("entry_order_id") or position.get("position_id") or "x")
         self._exit_seq += 1

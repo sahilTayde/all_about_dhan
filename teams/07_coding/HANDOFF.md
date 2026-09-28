@@ -1,5 +1,21 @@
 # Handoff log — Team 07 Coding
 
+## As of now (2026-09-28 IST) — merge main 0d7951c (#61+#62) into V2-08b (PAPER)
+
+```text
+From:     teams/07_coding
+To:       founder / 00 / 09
+Date:     2026-09-28
+Status:   PAPER / V2-08b + V2-11 union / NO_PROMOTE / no live orders
+Accepted: Normal-merge origin/main 0d7951c. Keep BOTH:
+  V2-11 _founder_entry_veto first on submit, then V2-08b
+  _catastrophic_price(risk, qty). exit() uses store-agnostic
+  _live_position; missing row skips resize (snapshot flatten
+  never raises). Live sqlite/memory row still resizes.
+Rejected: Rebase / force-push. Dropping founder veto or risk-qty stop.
+UNKNOWN: none
+```
+
 ## As of now (2026-09-28 IST) — merge main 78013e4 (V2-10) into V2-08b (PAPER)
 
 ```text
@@ -18,58 +34,59 @@ Rejected: Two durable ledgers. Rebase / force-push.
 UNKNOWN: none
 ```
 
----
-
-## As of now (2026-09-28 IST) — merge main 879a94b (V2-09b) into V2-08b (PAPER)
+## As of now (2026-09-28 IST) — V2-11 + main 78013e4 (PAPER)
 
 ```text
 From:     teams/07_coding
 To:       founder / 00 / 09
 Date:     2026-09-28
-Status:   PAPER / V2-08b + V2-09 + V2-09b union / NO_PROMOTE / no live orders
-Accepted: Normal-merge origin/main 879a94b (#54). Keep BOTH:
-  V2-09b house_stop_premium / load_exit_defaults / REG-18
-  and V2-08b planner/chase exports. Risk before broker.
-Rejected: Dropping either side. Rebase / force-push.
-UNKNOWN: none
+Status:   PAPER / V2-11 / NO_PROMOTE / no live orders
+Accepted: Normal merge of origin/main 78013e4. Kept #54 BAR_CLOSED
+  same-underlying + #61 targeted FOUNDER_COMMAND skip. Kept #58
+  FEED_STALE / HALT_UNREADABLE / STRATEGY_DAILY_LOSS / reduce-only
+  and #61 FOUNDER_LOTS_CAP. Runtime keeps flatten and llm-advisor.
+Rejected: Rebase / force-push. Dropping any veto.
+UNKNOWN: none for this merge.
 ```
 
----
-
-## As of now (2026-09-28 IST) — SL-M prefers ExitPlan stop_price (PAPER)
+## As of now (2026-09-28 IST) — V2-11 fix round (PR #61 verifier)
 
 ```text
 From:     teams/07_coding
 To:       founder / 00 / 09
 Date:     2026-09-28
-Status:   PAPER / V2-08b + V2-09 union fix / NO_PROMOTE / no live orders
-Accepted: _place_protective_stop uses live.stop_price (ExitPlan
-  catastrophic) before entry intent.stop_loss (risk max_loss floor).
-  Risk still check_entry's with the V2-08b floor; stretch still never
-  sets the entry stop. V2-09 SL-M at 140 still fills on a 139 print.
-Rejected: Using stretch.catastrophic_price as the entry stop again.
-UNKNOWN: none
+Status:   PAPER / V2-11 / NO_PROMOTE / no live orders
+Accepted: Normal merge of PR #49 head 65fea643 (lot-size guards).
+  OrderRouter.submit consults CommandBook: PAUSE/STOP/INDEX/
+  BASKET_REMOVE veto entries; SET_LOTS caps lots (ceiling from
+  config/risk_limits.yaml paper max_lots_per_trade=25).
+  KILL cancels working ENTRY orders and flattens via the wired
+  paper manager. Command log JSONL under data/ledger (same tree
+  as the ledger); resent command_id after restart is a no-op.
+  attach_gateway uses AAD_STATE_DIR or cwd (not mkdtemp on the
+  real api). Founder token is a label, not auth.
+Rejected: Rebase / force-push. DhanBroker. requirements/* edits.
+UNKNOWN: retarget to main after #45, #49, #58 merge.
 ```
 
----
-
-## As of now (2026-09-28 IST) — merge main f2c0795 (V2-09) into V2-08b (PAPER)
+## As of now (2026-09-27 IST) — V2-11 founder controls v2 (PAPER)
 
 ```text
 From:     teams/07_coding
 To:       founder / 00 / 09
-Date:     2026-09-28
-Status:   PAPER / V2-08b + V2-09 union / NO_PROMOTE / no live orders
-Accepted: Normal-merge origin/main f2c0795 (#49). Keep BOTH:
-  V2-09 exit/stop/flatten + #45 lot-size guards + V2-08b
-  planner/chase. Risk still runs before any broker call.
-  router imports + PaperDeskBroker methods unioned.
-  ledger entry_plans AND session_halts. __init__ exports both.
-Rejected: Dropping either side. Rebase / force-push.
-UNKNOWN: none
+Date:     2026-09-27
+Status:   PAPER / V2-11 / NO_PROMOTE / no live orders
+Accepted: Branched from cursor/v2-10-ledger-crash-recovery-dcfd, then
+  a normal merge of PR #49 head cursor/v2-09-position-manager-7d86
+  @ 2229844f8baad6c3a09209d770ee96434a850c4c. packages/control
+  command log + engine handler + gateway /v2/control routes.
+  Flatten/kill go through PositionManager + risk.check_flatten.
+  KILL_SWITCH file + python -m runtime flatten work with Redis
+  down. DhanBroker never constructed. requirements/* unchanged.
+  Later: normal merge of updated V2-10 tip (atomic fills / lot veto).
+Rejected: Live/Dhan path. Gateway applying entries. Rebase / force-push.
+UNKNOWN: retarget to main after #45, #49, #58 merge.
 ```
-
----
 
 ## As of now (2026-09-27 IST) — V2-19 llm-advisor service (PAPER)
 
@@ -102,25 +119,6 @@ Accepted: Founder FOUNDER_COMMAND kind=KILL now emits
   logs CRITICAL and still flattens. house_stop_premium
   snaps UP onto the 0.05 grid.
 Rejected: Raising out of on_market on a REG-18a mismatch.
-UNKNOWN: none
-```
-
----
-
-## As of now (2026-09-28 IST) — V2-08b verifier fix round (PAPER)
-
-```text
-From:     teams/07_coding
-To:       founder / 00 / 09
-Date:     2026-09-28
-Status:   PAPER / V2-08b fix / NO_PROMOTE / no live orders
-Accepted: Decimal tick snap (ask 151.23 → 151.35). Persist veto.
-  Bound _live + quotes (no quote tape on the plan row).
-  Config paths from repo root. Catastrophic stop from
-  risk max_loss_per_trade, never stretch.catastrophic_price.
-  stretch_from_location typed for mypy --strict.
-  Merged #45 7c09f84 LOT_SIZE_MISMATCH + qty % lot guard.
-Rejected: Stretch as a stop source. cwd-relative config.
 UNKNOWN: none
 ```
 
@@ -168,32 +166,6 @@ Accepted: record_fill owns one BEGIN IMMEDIATE; raise
 Rejected: Rebase / force-push / merge of this PR.
   DhanBroker. Editing Mac-ops merge files. Relock.
 UNKNOWN: GitHub CI on the new head.
-```
-
----
-
-## As of now (2026-09-28 IST) — V2-08b order planner + chase + stretch (PAPER)
-
-```text
-From:     teams/07_coding
-To:       founder / 00 / 09
-Date:     2026-09-28
-Status:   PAPER / V2-08b / NO_PROMOTE / no live orders
-Accepted: V2-08b on top of V2-08 + origin/main (V2-06/06b/07).
-  Default entry is a marketable LIMIT at ask + max_chase_ticks
-  (chase_defaults.yaml v1.0.0 hashed, K20). Never MARKET.
-  Unfilled chase → TIMEOUT_UNFILLED + MISSED_CHASE with
-  ask-at-cancel, first fillable ask in 5s, shadow P&L.
-  Per-card overrides change params_hash. Boss records
-  stretch (zone/ema20/twap) with no veto. pullback_limit
-  and wait_consolidation implemented, globally off.
-  Bad entry YAML → last-good + CONFIG_INVALID (REG-07).
-  Restart rebuilds pending plans without duplicates (REG-04).
-  Resting limits use V2-08 trade-through (REG-14).
-Rejected: Plain MARKET entries. Stretch veto. Intraday
-  chase recalibration. Price improvement on marketable
-  limits (K17). Touching legacy engine / data / lock.
-UNKNOWN: Recalibrated max_chase_ticks after 5 V2-D2 sessions.
 ```
 
 ---
