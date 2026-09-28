@@ -165,11 +165,10 @@ def test_d_mac_setup_v2_never_touches_legacy_venv() -> None:
     assert ".venv-v2" in text
     assert "refusing to install v2 packages into the legacy .venv" in text
     assert "dhan-client" in text and "marketdata" in text
-    assert "contracts" in text and "events" in text and "runtime" in text
-    assert "--no-deps" in text
-    assert "packages/desk-ml" not in text
     assert "python3.11" in text and "python3.12" in text
     assert "uv" in text
+    assert "python -m runtime" not in text
+    assert "packages/runtime" not in text
 
 
 def test_d_mac_setup_refuses_legacy_venv_path(tmp_path: Path) -> None:
@@ -213,83 +212,12 @@ def test_e_recorder_start_refuses_second_copy(tmp_path: Path) -> None:
 
 def test_e_close_stops_v2_recorder() -> None:
     text = DESK.read_text(encoding="utf-8")
-    close = text.split("close|night|nightly|stop-all)", 1)[1].split("website)", 1)[0]
-    assert "v2_stop" in close
-    assert "recorder_stop" in text
+    close = text.split("close|night|nightly)", 1)[1].split("website)", 1)[0]
+    assert "recorder_stop" in close
     assert "stop_dual_tape" in close
-
-
-def test_v2_mode_refuses_live(tmp_path: Path) -> None:
-    proc = _source(tmp_path, "v2_mode", env={"AAD_V2_MODE": "live"})
-    assert proc.returncode != 0
-    assert "paper or replay" in proc.stderr
-    assert "Live broker orders are refused" in proc.stderr
-
-
-def test_v2_start_refuses_second_engine(tmp_path: Path) -> None:
-    bin_dir = tmp_path / "bin"
-    bin_dir.mkdir()
-    _write_exec(bin_dir / "pgrep", "#!/bin/sh\necho 4242\n")
-    _write_exec(bin_dir / "screen", "#!/bin/sh\necho .v2-engine (Detached)\n")
-    v2 = tmp_path / "venv-v2" / "bin"
-    v2.mkdir(parents=True)
-    _write_exec(
-        v2 / "python",
-        '#!/bin/sh\nif [ "$1" = "-V" ]; then echo \'Python 3.11.0\'; exit 0; fi\nexit 0\n',
-    )
-    proc = _source(
-        tmp_path,
-        "v2_start_engine",
-        env={
-            "PATH": f"{bin_dir}:/usr/bin:/bin",
-            "AAD_V2_PY": str(v2 / "python"),
-            "AAD_STATE_DIR": str(tmp_path / "state"),
-        },
-    )
-    assert proc.returncode != 0
-    assert "already running" in proc.stderr
-    assert "Refusing a second copy" in proc.stderr
-
-
-def test_v2_start_wires_all_services_and_skips_recorder_without_token() -> None:
-    text = DESK.read_text(encoding="utf-8")
-    start = text.split("v2_start()", 1)[1].split("v2_stop()", 1)[0]
-    assert "v2_start_engine" in start
-    assert "v2_start_health" in start
-    assert "v2_start_gateway" in start
-    assert "recorder_start" in start
-    assert "token_keys_set" in start
-    assert "8000" not in start or "does not bind" in start or "no bind on 8000" in start
-    # runtime gateway stub must not listen on the legacy ports
-    launch = text.split("v2_start_gateway()", 1)[1].split("v2_start()", 1)[0]
-    assert "runtime gateway" in launch
-    assert "--port 8000" not in launch
-    assert "--port 5173" not in launch
-    assert "while true" in launch  # keep-alive after stub exits
-
-
-def test_start_all_is_website_watch_open_v2() -> None:
-    text = DESK.read_text(encoding="utf-8")
-    block = text.split("\n  start-all)", 1)[1].split("\n  status)", 1)[0]
-    assert "preflight" in block
-    assert "ensure_api_web" in block
-    assert "arm_dual_tape_when_open" in block
-    assert "v2_start" in block
-
-
-def test_stop_all_is_close() -> None:
-    text = DESK.read_text(encoding="utf-8")
-    assert "close|night|nightly|stop-all)" in text
-
-
-def test_v2_status_reports_all_services() -> None:
-    text = DESK.read_text(encoding="utf-8")
-    status = text.split("v2_status()", 1)[1].split("token_file_present()", 1)[0]
-    assert "v2 engine process" in status
-    assert "v2 health process" in status
-    assert "v2 gateway process" in status
-    assert "recorder_status" in status
-    assert "does not bind 8000/5173" in status
+    assert "v2_stop" not in close
+    assert "v2_start" not in text
+    assert "start-all" not in text
 
 
 def test_e_recorder_status_last_log_line(tmp_path: Path) -> None:
@@ -392,17 +320,45 @@ def test_f_preflight_token_presence_does_not_print_token(tmp_path: Path) -> None
 
 def test_f_morning_and_website_call_preflight() -> None:
     text = DESK.read_text(encoding="utf-8")
-    morning = text.split("morning|start)", 1)[1].split(
-        "close|night|nightly|stop-all)", 1
-    )[0]
+    morning = text.split("morning|start)", 1)[1].split("close|night|nightly)", 1)[0]
     website = text.split("\n  website)", 1)[1].split("recorder-start)", 1)[0]
     assert "preflight" in morning
     assert "preflight" in website
+    assert "v2_start" not in morning
+    assert "recorder_start" not in morning
 
 
-def test_f_preflight_covers_v2_stack_imports() -> None:
-    text = DESK.read_text(encoding="utf-8")
-    pre = text.split("preflight()", 1)[1].split("write_status()", 1)[0]
-    assert "dhan_client, marketdata, contracts, events, runtime" in pre
-    assert "does not bind 8000/5173" in pre
-    assert "paper|replay" in pre or "paper|replay only" in pre
+def test_f_preflight_missing_v2_is_warning_only(tmp_path: Path) -> None:
+    home = tmp_path / "home"
+    path_dir = tmp_path / "nodebin"
+    path_dir.mkdir()
+    home.mkdir()
+    _write_exec(path_dir / "node", "#!/bin/sh\nexit 0\n")
+    fake_py = tmp_path / "legacy.py"
+    _write_exec(
+        fake_py,
+        textwrap.dedent(
+            """\
+            #!/usr/bin/env python3
+            import sys
+            if len(sys.argv) >= 2 and sys.argv[1] == "-V":
+                print("Python 3.9.6")
+                raise SystemExit(0)
+            raise SystemExit(0)
+            """
+        ),
+    )
+    proc = _source(
+        tmp_path,
+        "preflight",
+        env={
+            "HOME": str(home),
+            "PATH": f"{path_dir}:/usr/bin:/bin",
+            "AAD_PY": str(fake_py),
+            "AAD_V2_PY": str(tmp_path / "no-v2"),
+        },
+    )
+    blob = proc.stdout + proc.stderr
+    assert proc.returncode == 0, blob
+    assert "WARNING: v2 python missing" in blob
+    assert "legacy desk can start" in blob

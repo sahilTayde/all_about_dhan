@@ -10,23 +10,23 @@ From the repo root. PAPER. No live orders.
 | **One-time v2 venv** | `./scripts/mac_setup_v2.sh` | Builds `.venv-v2` (3.11+). **Does not touch** `.venv`. |
 | **Website** | `./scripts/desk.sh website` | Runs `preflight`, then API `:8000` + Vite `:5173`. Capture off. |
 | **Open** (Mon–Fri 09:30 IST) | `./scripts/desk.sh watch-open` | Dual-tape (2s). If `health.supervise` is missing in `.venv`, starts dual-tape directly. |
-| **Both stacks** | `./scripts/desk.sh start-all` | Legacy website (`:8000`/`:5173`) + arms `watch-open` + `v2-start`. |
-| **V2 stack** | `./scripts/desk.sh v2-start` | Recorder + `python -m runtime engine|health|gateway` in `.venv-v2`. Screens `v2-recorder`, `v2-engine`, `v2-health`, `v2-gateway`. `caffeinate` on macOS. Paper/replay only. Gateway stub does **not** bind a port. |
-| **V2 recorder only** | `./scripts/desk.sh recorder-start` | Tape only: `.venv-v2/bin/python -m marketdata --record-only` in screen `v2-recorder`. |
-| **Checks** | `./scripts/desk.sh status` and `./scripts/desk.sh v2-status` | Legacy pids/URLs plus every V2 process, screen, and last status line. |
-| **After close** (15:40 IST) | `./scripts/desk.sh stop-all` (same as `close`) | Stops dual-tape **and ALL V2** (tapes + state files left intact). **Keeps the website on.** Honesty + nightly. |
-| **Morning shortcut** | `./scripts/desk.sh morning` then `./scripts/desk.sh v2-start` | Legacy `preflight` + pre-market + API + website + arms `watch-open`, then the V2 paper stack. |
+| **V2 recorder** | `./scripts/desk.sh recorder-start` | `caffeinate -dimsu` on macOS; `.venv-v2/bin/python -m marketdata --record-only` in screen `v2-recorder`. Refuses a second copy. Failure only warns — it does not stop the legacy desk. |
+| **Checks** | `./scripts/desk.sh status` and `./scripts/desk.sh recorder-status` | Pids, URLs, last line of `data/tape/v2/<IST-date>/recorder.log`. |
+| **After close** (15:40 IST) | `./scripts/desk.sh close` | Stops dual-tape **and** the v2 recorder if still up (tapes left intact). **Keeps the website on.** Honesty + nightly. |
+| **Morning shortcut** | `./scripts/desk.sh morning` | `preflight` + pre-market drill + API + website + arms `watch-open`. Then open `/pm`, pick index, **START TRADE**. |
 
-**Session-night command list** (copy-paste, repo root, PAPER only, both stacks):
+**Session-night command list** (copy-paste, repo root, PAPER only):
 
 ```bash
 # token: edit .env locally — never print it
 ./scripts/mac_setup_v2.sh          # first time / after pull if .venv-v2 missing
-./scripts/desk.sh start-all        # website + watch-open + v2-start
+./scripts/desk.sh website
+./scripts/desk.sh watch-open
+./scripts/desk.sh recorder-start
 ./scripts/desk.sh status
-./scripts/desk.sh v2-status
+./scripts/desk.sh recorder-status
 # after 15:40 IST
-./scripts/desk.sh stop-all         # same as close
+./scripts/desk.sh close
 ```
 
 **Morning review URLs**

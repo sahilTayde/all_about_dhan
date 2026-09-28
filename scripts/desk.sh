@@ -8,12 +8,7 @@
 #   ./scripts/desk.sh recorder-start   # v2 marketdata --record-only in .venv-v2 (screen v2-recorder)
 #   ./scripts/desk.sh recorder-stop    # stop v2 recorder; leave tapes intact
 #   ./scripts/desk.sh recorder-status  # process + last line of today's IST recorder.log
-#   ./scripts/desk.sh v2-start         # ALL V2 paper services (recorder + runtime engine/health/gateway)
-#   ./scripts/desk.sh v2-stop          # stop ALL V2 services; leave tapes + state files intact
-#   ./scripts/desk.sh v2-status        # process + screen + last status line per V2 service
-#   ./scripts/desk.sh start-all        # website + watch-open + v2-start (both stacks)
-#   ./scripts/desk.sh stop-all         # same as close
-#   ./scripts/desk.sh close            # after 15:30: stop capture + ALL V2, keep website, honesty + nightly
+#   ./scripts/desk.sh close            # after 15:30: stop capture + v2 recorder, keep website, honesty + nightly
 #   ./scripts/desk.sh status           # pids / URLs / where to read reports
 #
 set -euo pipefail
@@ -26,9 +21,6 @@ VITE="$ROOT/apps/web/node_modules/.bin/vite"
 RECON="${AAD_RECON:-$ROOT/data/recon}"
 TAPE_V2="${AAD_TAPE_V2:-$ROOT/data/tape/v2}"
 RECORDER_SCREEN="v2-recorder"
-ENGINE_SCREEN="v2-engine"
-HEALTH_SCREEN="v2-health"
-GATEWAY_SCREEN="v2-gateway"
 NODE_DIR="${NODE_DIR:-}"
 mkdir -p "$RECON"
 CMD="${1:-status}"
@@ -256,214 +248,6 @@ recorder_status() {
   fi
 }
 
-# --- V2 paper stack (engine / health / gateway stub + recorder). No port 8000/5173. ---
-
-v2_mode() {
-  local m="${AAD_V2_MODE:-paper}"
-  case "$m" in
-    paper|replay) printf '%s' "$m" ;;
-    *)
-      echo "ERROR: V2 mode must be paper or replay (got $m). Live broker orders are refused." >&2
-      return 1
-      ;;
-  esac
-}
-
-v2_state_dir() {
-  printf '%s' "${AAD_STATE_DIR:-$ROOT/data/state}"
-}
-
-v2_caffeinate_prefix() {
-  if [[ "$(uname -s)" == "Darwin" ]] && command -v caffeinate >/dev/null 2>&1; then
-    printf '%s' "caffeinate -dimsu "
-  fi
-}
-
-v2_screen_up() {
-  local name="$1"
-  screen -ls 2>/dev/null | grep -qE "[.]${name}[[:space:]]"
-}
-
-v2_engine_pids() {
-  pgrep -f '[Pp]ython.*-m runtime engine' 2>/dev/null || true
-}
-
-v2_health_pids() {
-  pgrep -f '[Pp]ython.*-m runtime health' 2>/dev/null || true
-}
-
-v2_gateway_pids() {
-  pgrep -f '[Pp]ython.*-m runtime gateway' 2>/dev/null || true
-}
-
-v2_engine_running() {
-  v2_screen_up "$ENGINE_SCREEN" || [[ -n "$(v2_engine_pids)" ]]
-}
-
-v2_health_running() {
-  v2_screen_up "$HEALTH_SCREEN" || [[ -n "$(v2_health_pids)" ]]
-}
-
-v2_gateway_running() {
-  v2_screen_up "$GATEWAY_SCREEN" || [[ -n "$(v2_gateway_pids)" ]]
-}
-
-v2_any_running() {
-  recorder_is_running || v2_engine_running || v2_health_running || v2_gateway_running
-}
-
-v2_kill_pids() {
-  local pids="$1" label="$2"
-  if [[ -z "$pids" ]]; then
-    return 0
-  fi
-  echo "Stopping $label: $pids"
-  # shellcheck disable=SC2086
-  kill $pids 2>/dev/null || true
-  local i
-  for i in 1 2 3 4 5 6 7 8 9 10; do
-    # shellcheck disable=SC2086
-    kill -0 $pids 2>/dev/null || break
-    sleep 1
-  done
-  # shellcheck disable=SC2086
-  kill -9 $pids 2>/dev/null || true
-}
-
-v2_start_engine() {
-  if v2_engine_running; then
-    echo "ERROR: v2 engine already running (screen $ENGINE_SCREEN). Refusing a second copy." >&2
-    return 1
-  fi
-  local mode state wrap
-  mode="$(v2_mode)" || return 1
-  state="$(v2_state_dir)"
-  mkdir -p "$state"
-  wrap="$(v2_caffeinate_prefix)"
-  screen -dmS "$ENGINE_SCREEN" zsh -lc "cd '$ROOT' && export AAD_STATE_DIR='$state' && ${wrap}'$V2_PY' -u -m runtime engine --mode '$mode' --state-dir '$state' >> '$RECON/v2-engine.log' 2>&1"
-  echo "v2 engine STARTED (PAPER, mode=$mode, no live orders). screen=$ENGINE_SCREEN state=$state"
-}
-
-v2_start_health() {
-  if v2_health_running; then
-    echo "ERROR: v2 health already running (screen $HEALTH_SCREEN). Refusing a second copy." >&2
-    return 1
-  fi
-  local state wrap
-  state="$(v2_state_dir)"
-  mkdir -p "$state"
-  wrap="$(v2_caffeinate_prefix)"
-  # No --once: loops writing health_status.json. Does not bind 8000/5173.
-  screen -dmS "$HEALTH_SCREEN" zsh -lc "cd '$ROOT' && export AAD_STATE_DIR='$state' && ${wrap}'$V2_PY' -u -m runtime health --state-dir '$state' >> '$RECON/v2-health.log' 2>&1"
-  echo "v2 health STARTED (PAPER). screen=$HEALTH_SCREEN state=$state"
-}
-
-v2_start_gateway() {
-  if v2_gateway_running; then
-    echo "ERROR: v2 gateway already running (screen $GATEWAY_SCREEN). Refusing a second copy." >&2
-    return 1
-  fi
-  local mode state wrap
-  mode="$(v2_mode)" || return 1
-  state="$(v2_state_dir)"
-  mkdir -p "$state"
-  wrap="$(v2_caffeinate_prefix)"
-  # On main, `python -m runtime gateway` is a stub: writes gateway.ready and exits.
-  # Keep the screen so v2-status can see it. No HTTP listen — no clash with :8000/:5173.
-  screen -dmS "$GATEWAY_SCREEN" zsh -lc "cd '$ROOT' && export AAD_STATE_DIR='$state' && ${wrap}'$V2_PY' -u -m runtime gateway --mode '$mode' --state-dir '$state' >> '$RECON/v2-gateway.log' 2>&1; echo 'gateway stub ready (no HTTP port)'; while true; do sleep 3600; done"
-  echo "v2 gateway STARTED (PAPER stub, no HTTP port). screen=$GATEWAY_SCREEN state=$state"
-}
-
-v2_start() {
-  local rc=0
-  if [[ ! -x "$V2_PY" ]]; then
-    echo "ERROR: $V2_PY missing. Run ./scripts/mac_setup_v2.sh (does not touch .venv)." >&2
-    return 1
-  fi
-  v2_mode >/dev/null || return 1
-  echo "=== v2-start (PAPER only; no live orders; no bind on 8000/5173) ==="
-  echo "v2 python: $V2_PY ($("$V2_PY" -V 2>&1))"
-  echo "v2 mode: $(v2_mode)  state: $(v2_state_dir)"
-  if ! "$V2_PY" -c "import dhan_client, marketdata, contracts, events, runtime" >/dev/null 2>&1; then
-    echo "ERROR: v2 imports failed in .venv-v2 (need dhan_client, marketdata, contracts, events, runtime). Re-run ./scripts/mac_setup_v2.sh" >&2
-    return 1
-  fi
-  v2_start_engine || rc=1
-  v2_start_health || rc=1
-  v2_start_gateway || rc=1
-  if token_keys_set; then
-    recorder_start || rc=1
-  else
-    echo "WARNING: v2 recorder not started — DHAN_CLIENT_ID / DHAN_ACCESS_TOKEN missing in .env (engine/health/gateway still run in paper/replay; recorder needs creds for the live feed). Values not printed."
-  fi
-  if [[ "$rc" -ne 0 ]]; then
-    echo "v2-start completed with errors (duplicates or a service failed). PAPER. No live orders." >&2
-    return "$rc"
-  fi
-  echo "v2 stack UP (PAPER). HTTP v2 routes stay on legacy :8000 only if events is importable in .venv; runtime gateway does not listen."
-  return 0
-}
-
-v2_stop() {
-  echo "=== v2-stop (leave tapes and state files intact) ==="
-  recorder_stop
-  v2_kill_pids "$(v2_engine_pids)" "v2 engine"
-  v2_kill_pids "$(v2_health_pids)" "v2 health"
-  v2_kill_pids "$(v2_gateway_pids)" "v2 gateway"
-  screen -S "$ENGINE_SCREEN" -X quit >/dev/null 2>&1 || true
-  screen -S "$HEALTH_SCREEN" -X quit >/dev/null 2>&1 || true
-  screen -S "$GATEWAY_SCREEN" -X quit >/dev/null 2>&1 || true
-  echo "v2 stack STOPPED (tapes under data/tape/v2/; state under $(v2_state_dir))"
-}
-
-v2_status_file_line() {
-  local path="$1" label="$2"
-  echo "$label: $path"
-  if [[ -f "$path" ]]; then
-    echo "$label last line: $(tail -1 "$path" || true)"
-  else
-    echo "$label last line: (missing)"
-  fi
-}
-
-v2_status() {
-  local state epids hpids gpids
-  state="$(v2_state_dir)"
-  epids="$(v2_engine_pids)"
-  hpids="$(v2_health_pids)"
-  gpids="$(v2_gateway_pids)"
-  echo "=== v2 status (PAPER) ==="
-  if [[ -x "$V2_PY" ]]; then
-    echo "v2 python: $V2_PY ($("$V2_PY" -V 2>&1))"
-  else
-    echo "v2 python: $V2_PY MISSING"
-  fi
-  echo "v2 mode: ${AAD_V2_MODE:-paper}  state: $state"
-  echo "v2 engine process: ${epids:-STOPPED}"
-  if v2_screen_up "$ENGINE_SCREEN"; then
-    echo "v2 engine screen: $ENGINE_SCREEN UP"
-  else
-    echo "v2 engine screen: $ENGINE_SCREEN DOWN"
-  fi
-  echo "v2 health process: ${hpids:-STOPPED}"
-  if v2_screen_up "$HEALTH_SCREEN"; then
-    echo "v2 health screen: $HEALTH_SCREEN UP"
-  else
-    echo "v2 health screen: $HEALTH_SCREEN DOWN"
-  fi
-  echo "v2 gateway process: ${gpids:-STOPPED}"
-  if v2_screen_up "$GATEWAY_SCREEN"; then
-    echo "v2 gateway screen: $GATEWAY_SCREEN UP"
-  else
-    echo "v2 gateway screen: $GATEWAY_SCREEN DOWN"
-  fi
-  echo "v2 gateway HTTP: none (runtime gateway is a stub; does not bind 8000/5173)"
-  v2_status_file_line "$state/engine_status.json" "v2 engine status"
-  v2_status_file_line "$state/health_status.json" "v2 health status"
-  v2_status_file_line "$state/gateway.ready" "v2 gateway ready"
-  recorder_status
-}
-
 token_file_present() {
   # Presence only. Never print values.
   local envf="$ROOT/.env"
@@ -508,13 +292,11 @@ preflight() {
   fi
 
   if [[ -x "$V2_PY" ]]; then
-    if ! "$V2_PY" -c "import dhan_client, marketdata, contracts, events, runtime" >/dev/null 2>&1; then
-      echo "WARNING: v2 imports failed in .venv-v2 (dhan_client / marketdata / contracts / events / runtime) — v2-start will not start"
+    if ! "$V2_PY" -c "import dhan_client, marketdata" >/dev/null 2>&1; then
+      echo "WARNING: v2 imports failed in .venv-v2 (dhan_client / marketdata) — recorder will not start (legacy desk still starts)"
     else
-      echo "v2 imports: ok (dhan_client, marketdata, contracts, events, runtime)"
+      echo "v2 imports: ok (dhan_client, marketdata)"
     fi
-    echo "v2 mode: ${AAD_V2_MODE:-paper} (paper|replay only; live refused)"
-    echo "v2 gateway: python -m runtime gateway (stub, no HTTP; does not bind 8000/5173)"
   fi
 
   if find_node; then
@@ -622,10 +404,10 @@ case "$CMD" in
     echo "On /pm: pick index then START TRADE. PAPER. No live orders."
     screen -ls || true
     ;;
-  close|night|nightly|stop-all)
-    echo "CLOSE: stop data capture + ALL V2, keep website, honesty exam + nightly."
+  close|night|nightly)
+    echo "CLOSE: stop data capture, keep website, honesty exam + nightly."
     stop_dual_tape
-    v2_stop
+    recorder_stop || echo "WARNING: v2 recorder stop failed (legacy close continues)" >&2
     ensure_api_web
     DAYS="$(exam_days)"
     echo "Nightly first so exam can read session_kind. Then honesty exam."
@@ -663,31 +445,13 @@ EOF
   recorder-status)
     recorder_status
     ;;
-  v2-start)
-    v2_start
-    ;;
-  v2-stop)
-    v2_stop
-    ;;
-  v2-status)
-    v2_status
-    ;;
-  start-all)
-    preflight
-    stop_dual_tape
-    ensure_api_web
-    write_status " start-all"
-    echo "Website ON (legacy :8000 / :5173). Capture armed via watch-open. PAPER."
-    arm_dual_tape_when_open
-    v2_start
-    ;;
   status)
     write_status
     echo "=== desk status ==="
     echo "API  : $(lsof -tiTCP:8000 -sTCP:LISTEN 2>/dev/null | head -1 || echo DOWN)  http://127.0.0.1:8000/health"
     echo "WEB  : $(lsof -tiTCP:5173 -sTCP:LISTEN 2>/dev/null | head -1 || echo DOWN)  http://127.0.0.1:5173/desk"
     echo "TAPE : $(pgrep -f 'trading_agents_india dual-tape' | head -1 || echo STOPPED)"
-    v2_status
+    recorder_status
     echo "Honesty: http://127.0.0.1:5173/pm  and  data/recon/sod_exam_report.json"
     echo "Nightly: data/recon/\$(IST-date).json  and  teams/02_phd_math/docs/handoffs/NIGHTLY_*.md"
     if [[ -f "$RECON/close_status.txt" ]]; then
@@ -761,7 +525,7 @@ PY
     exec "$0" close
     ;;
   *)
-    echo "usage: $0 morning|close|website|status|watch-open|watch-close|preflight|recorder-start|recorder-stop|recorder-status|v2-start|v2-stop|v2-status|start-all|stop-all" >&2
+    echo "usage: $0 morning|close|website|status|watch-open|watch-close|preflight|recorder-start|recorder-stop|recorder-status" >&2
     exit 2
     ;;
 esac

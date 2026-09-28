@@ -97,10 +97,7 @@ YouTube catalog work needs `YOUTUBE_API_KEY`. Live Dhan **quotes** need `DHAN_*`
 
 ## Mac session night (paper only)
 
-From the repo root on the Mac. **No live orders.** One checkout, two stacks side by side:
-
-- **OLD** — `.venv` (may be Python 3.9): legacy API `:8000`, Vite `:5173`, dual-tape, founder book.
-- **NEW** — `.venv-v2` (3.11+): V2 recorder (`python -m marketdata --record-only`) plus `python -m runtime {engine,health,gateway}` in paper/replay. Runtime gateway is a stub (writes `gateway.ready`, **does not bind a port**). HTTP `/v2/*` stays on the legacy API if `events` is importable in `.venv`. No clash with 8000/5173.
+From the repo root on the Mac. **No live orders.** The legacy desk uses `.venv` (may be Python 3.9). The v2 recorder uses `.venv-v2` (3.11+) and never writes into `.venv`. A missing recorder never blocks the legacy desk.
 
 ```bash
 cd ~/Documents/all_about_dhan
@@ -109,27 +106,26 @@ cd ~/Documents/all_about_dhan
 #    Never commit .env. Never print the token.
 #    cp .env.example .env   # first time only
 
-# 2. One-time (or whenever main gains V2 packages): isolated v2 venv
+# 2. One-time (or whenever main gains recorder packages): isolated v2 venv
 ./scripts/mac_setup_v2.sh
 
-# 3. Both stacks: legacy website + arm dual-tape + ALL V2 paper services
-./scripts/desk.sh start-all
-# Equivalent step-by-step:
-#   ./scripts/desk.sh website
-#   ./scripts/desk.sh watch-open
-#   ./scripts/desk.sh v2-start
+# 3. Website (API :8000 + Vite :5173). Capture off.
+./scripts/desk.sh website
 
-# 4. Checks
+# 4. Dual-tape at the cash open (Mon–Fri 09:30 IST)
+./scripts/desk.sh watch-open
+
+# 5. V2 recorder (caffeinate on macOS; screen v2-recorder; auto-stops 15:30 IST)
+./scripts/desk.sh recorder-start
+
+# 6. Checks
 ./scripts/desk.sh status
-./scripts/desk.sh v2-status
+./scripts/desk.sh recorder-status
 # Desk:    http://127.0.0.1:5173/desk
 # Founder: http://127.0.0.1:5173/pm
 
-# 5. After 15:40 IST — stop capture + ALL V2, keep website, honesty + nightly
-./scripts/desk.sh stop-all
-# same as: ./scripts/desk.sh close
+# 7. After 15:40 IST — stop capture + recorder, keep website, honesty + nightly
+./scripts/desk.sh close
 ```
 
-`v2-start` screens: `v2-recorder`, `v2-engine`, `v2-health`, `v2-gateway` (each `caffeinate -dimsu` on macOS; refuses a second copy). Recorder is skipped with a warning if `.env` has no Dhan keys (engine/health/gateway still run). `AAD_V2_MODE=paper` (default) or `replay`; live is refused.
-
-Same-morning shortcut: `./scripts/desk.sh morning` (legacy only: `preflight` + API + website + arms `watch-open`). Then `./scripts/desk.sh v2-start`. `./scripts/desk.sh preflight` is also callable on its own. Details: [`SESSION_PREP_ML.md`](teams/06_backtesting/docs/SESSION_PREP_ML.md).
+Same-morning shortcut: `./scripts/desk.sh morning` (runs `preflight`, then API + website + arms `watch-open`). `./scripts/desk.sh preflight` is also callable on its own. Details: [`SESSION_PREP_ML.md`](teams/06_backtesting/docs/SESSION_PREP_ML.md).
