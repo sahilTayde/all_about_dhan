@@ -9,7 +9,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 IST = timezone(timedelta(hours=5, minutes=30))
-CODE_SCHEMA_VERSION = 2
+CODE_SCHEMA_VERSION = 3
 LEGACY_DB_NAME = "ledger.sqlite"
 _DUP_COL = re.compile(r"duplicate column name", re.IGNORECASE)
 
@@ -94,6 +94,34 @@ def _version_of(path: Path) -> int:
     return int(m.group(1)) if m else 0
 
 
+def _install_v3_triggers(conn: sqlite3.Connection) -> None:
+    """PENDING->FINAL charges update plus v1 append-only guards. Never called from open()."""
+    conn.execute("DROP TRIGGER IF EXISTS charges_no_update")
+    conn.execute(
+        "CREATE TRIGGER IF NOT EXISTS charges_no_update BEFORE UPDATE ON charges BEGIN "
+        "SELECT CASE WHEN OLD.charges_status = 'PENDING' THEN NULL "
+        "ELSE RAISE(ABORT, 'ledger is append-only') END; END"
+    )
+    for table in (
+        "orders",
+        "order_events",
+        "fills",
+        "trades",
+        "charges",
+        "risk_decisions",
+        "recon_runs",
+    ):
+        conn.execute(
+            f"CREATE TRIGGER IF NOT EXISTS {table}_no_delete BEFORE DELETE ON {table} "
+            "BEGIN SELECT RAISE(ABORT, 'ledger is append-only'); END"
+        )
+    for table in ("order_events", "fills", "risk_decisions", "recon_runs"):
+        conn.execute(
+            f"CREATE TRIGGER IF NOT EXISTS {table}_no_update BEFORE UPDATE ON {table} "
+            "BEGIN SELECT RAISE(ABORT, 'ledger is append-only'); END"
+        )
+
+
 def migrate(
     path: Path | str,
     *,
@@ -108,6 +136,7 @@ def migrate(
         db.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(str(db))
     try:
+        conn.execute("PRAGMA busy_timeout=5000")
         conn.execute("PRAGMA journal_mode=WAL")
         conn.execute("PRAGMA synchronous=FULL")
         check_schema(conn)
@@ -123,6 +152,8 @@ def migrate(
                     "OR NEW.envelope_json != OLD.envelope_json OR NEW.created_at != OLD.created_at "
                     "OR NEW.seq != OLD.seq THEN RAISE(ABORT, 'ledger is append-only') END; END"
                 )
+            if _version_of(f) >= 3:
+                _install_v3_triggers(conn)
             conn.commit()
         ver = current_version(conn)
         if ver == 0:

@@ -33,6 +33,8 @@ class EventType(str, Enum):
     BOSS_SHADOW = "BOSS_SHADOW"  # boss -> audit: adaptive-weight / overlay decision next to the static one
     DECISION = "DECISION"  # boss -> desk / llm-advisor (stream boss:decisions)
     ADVICE = "ADVICE"  # llm-advisor -> audit (stream llm:advice)
+    ENTRY_PLAN = "ENTRY_PLAN"  # oms planner -> audit (V2-08b)
+    ENTRY_PLAN_RESULT = "ENTRY_PLAN_RESULT"  # oms planner -> audit (V2-08b)
 
 
 FOUNDER_FIRST = {EventType.FOUNDER_COMMAND.value: 0}

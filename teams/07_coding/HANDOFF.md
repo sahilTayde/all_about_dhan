@@ -1,5 +1,39 @@
 # Handoff log — Team 07 Coding
 
+## As of now (2026-09-28 IST) — merge main 0d7951c (#61+#62) into V2-08b (PAPER)
+
+```text
+From:     teams/07_coding
+To:       founder / 00 / 09
+Date:     2026-09-28
+Status:   PAPER / V2-08b + V2-11 union / NO_PROMOTE / no live orders
+Accepted: Normal-merge origin/main 0d7951c. Keep BOTH:
+  V2-11 _founder_entry_veto first on submit, then V2-08b
+  _catastrophic_price(risk, qty). exit() uses store-agnostic
+  _live_position; missing row skips resize (snapshot flatten
+  never raises). Live sqlite/memory row still resizes.
+Rejected: Rebase / force-push. Dropping founder veto or risk-qty stop.
+UNKNOWN: none
+```
+
+## As of now (2026-09-28 IST) — merge main 78013e4 (V2-10) into V2-08b (PAPER)
+
+```text
+From:     teams/07_coding
+To:       founder / 00 / 09
+Date:     2026-09-28
+Status:   PAPER / V2-08b + V2-10 union / NO_PROMOTE / no live orders
+Accepted: Normal-merge origin/main 78013e4 (#58). Keep BOTH:
+  V2-10 SqliteLedgerStore / crash recovery / FEED_STALE /
+  HALT_UNREADABLE / STRATEGY_DAILY_LOSS / reduce-only
+  and V2-08b planner/chase. MemoryLedger is the in-memory
+  adapter (not superseded): entry_plans + snapshot veto
+  fields. Planner PlanStore API also writes the real
+  ledger entry_plans table. Risk before broker. Never MARKET.
+Rejected: Two durable ledgers. Rebase / force-push.
+UNKNOWN: none
+```
+
 ## As of now (2026-09-28 IST) — V2-11 + main 78013e4 (PAPER)
 
 ```text
