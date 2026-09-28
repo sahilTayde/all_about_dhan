@@ -232,8 +232,8 @@ recorder_stop() {
       kill -9 $pids 2>/dev/null || true
     fi
   fi
-  screen -S "$RECORDER_SCREEN" -X quit 2>/dev/null || true
-  echo "v2 recorder STOPPED (tapes left intact under data/tape/v2/)"
+  screen -S "$RECORDER_SCREEN" -X quit >/dev/null 2>&1 || true
+  echo "v2 recorder STOPPED (tapes left intact under $TAPE_V2)"
 }
 
 recorder_status() {
@@ -410,9 +410,9 @@ v2_stop() {
   v2_kill_pids "$(v2_engine_pids)" "v2 engine"
   v2_kill_pids "$(v2_health_pids)" "v2 health"
   v2_kill_pids "$(v2_gateway_pids)" "v2 gateway"
-  screen -S "$ENGINE_SCREEN" -X quit 2>/dev/null || true
-  screen -S "$HEALTH_SCREEN" -X quit 2>/dev/null || true
-  screen -S "$GATEWAY_SCREEN" -X quit 2>/dev/null || true
+  screen -S "$ENGINE_SCREEN" -X quit >/dev/null 2>&1 || true
+  screen -S "$HEALTH_SCREEN" -X quit >/dev/null 2>&1 || true
+  screen -S "$GATEWAY_SCREEN" -X quit >/dev/null 2>&1 || true
   echo "v2 stack STOPPED (tapes under data/tape/v2/; state under $(v2_state_dir))"
 }
 

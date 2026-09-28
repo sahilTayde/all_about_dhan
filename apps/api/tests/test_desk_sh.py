@@ -235,7 +235,7 @@ def test_v2_start_refuses_second_engine(tmp_path: Path) -> None:
     v2.mkdir(parents=True)
     _write_exec(
         v2 / "python",
-        "#!/bin/sh\nif [ \"$1\" = \"-V\" ]; then echo 'Python 3.11.0'; exit 0; fi\nexit 0\n",
+        '#!/bin/sh\nif [ "$1" = "-V" ]; then echo \'Python 3.11.0\'; exit 0; fi\nexit 0\n',
     )
     proc = _source(
         tmp_path,
@@ -392,7 +392,9 @@ def test_f_preflight_token_presence_does_not_print_token(tmp_path: Path) -> None
 
 def test_f_morning_and_website_call_preflight() -> None:
     text = DESK.read_text(encoding="utf-8")
-    morning = text.split("morning|start)", 1)[1].split("close|night|nightly|stop-all)", 1)[0]
+    morning = text.split("morning|start)", 1)[1].split(
+        "close|night|nightly|stop-all)", 1
+    )[0]
     website = text.split("\n  website)", 1)[1].split("recorder-start)", 1)[0]
     assert "preflight" in morning
     assert "preflight" in website
