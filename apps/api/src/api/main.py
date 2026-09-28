@@ -6,7 +6,7 @@ import asyncio
 import json
 import logging
 from contextlib import asynccontextmanager
-from typing import Any
+from typing import Any, Optional
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -292,7 +292,7 @@ def create_app() -> FastAPI:
         )
 
     @app.get("/paper/history")
-    def paper_history(day: str | None = None) -> dict[str, Any]:
+    def paper_history(day: Optional[str] = None) -> dict[str, Any]:  # noqa: UP045 — FastAPI evals params on 3.9
         """Closed paper trades for one IST day (board + model log + ledger). Read-only."""
         return ui_feed.day_history(day=day, budget_s=2.0)
 
