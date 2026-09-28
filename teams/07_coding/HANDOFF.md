@@ -1,5 +1,32 @@
 # Handoff log — Team 07 Coding
 
+## As of now (2026-09-28 IST) — merge main c723001 (#59) into V2-16 (PAPER)
+
+```text
+From:     teams/07_coding
+To:       founder / 00 / 09
+Date:     2026-09-28
+Status:   PAPER / V2-16 / NO_PROMOTE / advisory BLOCK (exit 0)
+Accepted: Normal-merge origin/main c723001 (incl #61 #55 #59).
+  Gate stays advisory. GATE_ENFORCE is not set.
+Rejected: Rebase / force-push. GATE_ENFORCE=1.
+UNKNOWN: none
+```
+
+## As of now (2026-09-28 IST) — V2-16 advisory mode (do not paint CI red)
+
+```text
+From:     teams/07_coding
+To:       founder / 00 / 09
+Date:     2026-09-28
+Status:   PAPER / V2-16 / NO_PROMOTE / advisory BLOCK (exit 0)
+Accepted: Verdict step always writes the full gate JSON.
+  Default advisory: BLOCK exits 0. GATE_ENFORCE=1 BLOCKs with exit 1.
+  --merge / --push still exit 2. Missing/stub never PASS.
+Rejected: GATE_ENFORCE=1. Making gate a required check today.
+UNKNOWN: none
+```
+
 ## As of now (2026-09-28 IST) — merge main 0d7951c (#61+#62) into V2-08b (PAPER)
 
 ```text
