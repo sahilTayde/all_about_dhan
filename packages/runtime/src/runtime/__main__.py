@@ -58,7 +58,8 @@ def _idle(state_dir: Path, name: str) -> None:
     (state_dir / f"{name}.ready").write_text("ok\n", encoding="utf-8")
 
 
-_USAGE = """usage: python -m runtime {engine|health|llm-advisor|reset-breaker|deploy|backup|restore|job|flatten|bench-legacy} ...
+_USAGE = """usage: python -m runtime {engine|health|llm-advisor|reset-breaker|
+  deploy|backup|restore|job|flatten|bench-legacy} ...
   engine|health|llm-advisor [--once] [--state-dir DIR] [--now ISO] [--mode replay|paper]
   reset-breaker <service> [--state-dir DIR] [--now ISO]
   flatten [--account founder] [--state-dir DIR] [--now ISO]
