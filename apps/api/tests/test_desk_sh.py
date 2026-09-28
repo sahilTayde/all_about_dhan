@@ -113,7 +113,11 @@ def test_c_find_node_path_then_anaconda_then_homebrew_then_nvm(tmp_path: Path) -
     proc = _source(
         tmp_path,
         "find_node && echo NODE_DIR=$NODE_DIR",
-        env={"HOME": str(home), "PATH": "/usr/bin:/bin"},
+        env={
+            "HOME": str(home),
+            "PATH": "/usr/bin:/bin",
+            "AAD_SKIP_SYSTEM_NODE_DIRS": "1",
+        },
     )
     assert proc.returncode == 0, proc.stdout + proc.stderr
     assert str(anaconda) in proc.stdout
@@ -129,7 +133,11 @@ def test_c_find_node_path_then_anaconda_then_homebrew_then_nvm(tmp_path: Path) -
     proc = _source(
         tmp_path,
         "find_node && echo NODE_DIR=$NODE_DIR",
-        env={"HOME": str(home), "PATH": "/usr/bin:/bin"},
+        env={
+            "HOME": str(home),
+            "PATH": "/usr/bin:/bin",
+            "AAD_SKIP_SYSTEM_NODE_DIRS": "1",
+        },
     )
     assert proc.returncode == 0, proc.stdout + proc.stderr
     assert "v20.11.0" in proc.stdout
@@ -142,7 +150,11 @@ def test_c_find_node_errors_when_missing(tmp_path: Path) -> None:
     proc = _source(
         tmp_path,
         "find_node",
-        env={"HOME": str(home), "PATH": "/usr/bin:/bin"},
+        env={
+            "HOME": str(home),
+            "PATH": "/usr/bin:/bin",
+            "AAD_SKIP_SYSTEM_NODE_DIRS": "1",
+        },
     )
     assert proc.returncode != 0
     assert "ERROR: node not found" in proc.stderr
@@ -257,8 +269,9 @@ def test_f_preflight_token_presence_does_not_print_token(tmp_path: Path) -> None
     # Never read or echo a real token. Build a private fake root instead.
     fake_root = tmp_path / "repo"
     fake_root.mkdir()
+    # scan_repo allows the your_* placeholder form; never embed a long fake token in source.
     (fake_root / ".env").write_text(
-        "DHAN_CLIENT_ID=unit-test-client\nDHAN_ACCESS_TOKEN=super-secret-token-value-do-not-print\n",
+        "DHAN_CLIENT_ID=your_client_id\nDHAN_ACCESS_TOKEN=your_access_token\n",
         encoding="utf-8",
     )
     (fake_root / "apps" / "api" / "src").mkdir(parents=True)
@@ -293,8 +306,8 @@ def test_f_preflight_token_presence_does_not_print_token(tmp_path: Path) -> None
         check=False,
     )
     blob = proc.stdout + proc.stderr
-    assert "super-secret-token-value-do-not-print" not in blob
-    assert "unit-test-client" not in blob
+    assert "your_access_token" not in blob
+    assert "your_client_id" not in blob
     assert "Dhan token file" in blob
     assert "values not printed" in blob
     assert envf.name == ".env"  # keep the real path unused

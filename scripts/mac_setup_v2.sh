@@ -14,13 +14,19 @@ LEGACY="$ROOT/.venv"
 echo "mac_setup_v2: repo=$ROOT"
 echo "mac_setup_v2: v2 venv=$VENV (legacy .venv is not used)"
 
-if [[ -d "$LEGACY" ]]; then
-  if command -v realpath >/dev/null 2>&1; then
-    if [[ "$(realpath "$VENV")" == "$(realpath "$LEGACY")" ]]; then
-      echo "ERROR: refusing to install v2 packages into the legacy .venv" >&2
-      exit 1
-    fi
-  elif [[ "$VENV" == "$LEGACY" ]]; then
+_abs() {
+  local p="$1" parent
+  parent="$(cd "$(dirname "$p")" 2>/dev/null && pwd)" || return 1
+  printf "%s/%s" "$parent" "$(basename "$p")"
+}
+VENV_ABS="$(_abs "$VENV" || echo "$VENV")"
+LEGACY_ABS="$(_abs "$LEGACY" || echo "$LEGACY")"
+if [[ "$VENV" == "$LEGACY" || "$VENV_ABS" == "$LEGACY_ABS" ]]; then
+  echo "ERROR: refusing to install v2 packages into the legacy .venv" >&2
+  exit 1
+fi
+if [[ -d "$LEGACY" ]] && command -v realpath >/dev/null 2>&1; then
+  if [[ "$(realpath "$VENV" 2>/dev/null || true)" == "$(realpath "$LEGACY")" ]]; then
     echo "ERROR: refusing to install v2 packages into the legacy .venv" >&2
     exit 1
   fi

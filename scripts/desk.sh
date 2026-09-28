@@ -107,7 +107,7 @@ find_node() {
     echo "node: $NODE_DIR/node"
     return 0
   fi
-  for dir in "$HOME/Documents/anaconda3/bin" /opt/homebrew/bin /usr/local/bin; do
+  for dir in "$HOME/Documents/anaconda3/bin"; do
     if [[ -x "$dir/node" ]]; then
       NODE_DIR="$dir"
       export PATH="$NODE_DIR:$PATH"
@@ -115,6 +115,16 @@ find_node() {
       return 0
     fi
   done
+  if [[ "${AAD_SKIP_SYSTEM_NODE_DIRS:-0}" != "1" ]]; then
+    for dir in /opt/homebrew/bin /usr/local/bin; do
+      if [[ -x "$dir/node" ]]; then
+        NODE_DIR="$dir"
+        export PATH="$NODE_DIR:$PATH"
+        echo "node: $NODE_DIR/node"
+        return 0
+      fi
+    done
+  fi
   newest=""
   for cand in "$HOME"/.nvm/versions/node/*/bin; do
     if [[ -x "$cand/node" ]]; then
