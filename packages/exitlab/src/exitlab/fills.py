@@ -61,6 +61,10 @@ class SlippageModel:
                 return float(quote.ltp)
             if quote.bid and quote.ask:
                 return (float(quote.bid) + float(quote.ask)) / 2.0
+            if quote.bid and quote.bid > 0:
+                return float(quote.bid)
+            if quote.ask and quote.ask > 0:
+                return float(quote.ask)
         if bar is not None:
             clock.visible(bar.available_ts, label="bar")
             return float(bar.close)

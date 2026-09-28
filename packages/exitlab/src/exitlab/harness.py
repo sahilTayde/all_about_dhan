@@ -169,11 +169,10 @@ def replay_trade(
 
     if state.remaining_qty > 0:
         # Forced square-off at last visible mark / model exit.
-        px = (
-            model.exit_px(last_quote, last_bar, clock)
-            if (last_quote or last_bar)
-            else entry.entry_price
-        )
+        try:
+            px = model.exit_px(last_quote, last_bar, clock)
+        except ValueError:
+            px = entry.entry_price
         fill = Fill("SELL", clock.now, state.remaining_qty, px, model.name, "FLATTEN_EOD")
         ch = fill_charges(fill, rates)
         buy = Fill("BUY", entry.ts, state.remaining_qty, entry.entry_price, model.name, "ENTRY")

@@ -215,6 +215,8 @@ def v2_selector_entries(
     )
     out: list[Entry] = []
     prev_close: float | None = None
+    last_entry_ts: datetime | None = None
+    sel = BossSelector(clock=SimClock(bars[0]["available_ts"]), config=cfg, basket=basket)
     for i, tick in enumerate(bars):
         raw = tick["index_1m"]
         close = float(raw["close"])
@@ -225,9 +227,16 @@ def v2_selector_entries(
         if prev_close is None:
             prev_close = close
             continue
+        gap_s = (as_ist(avail) - as_ist(last_entry_ts)).total_seconds() if last_entry_ts else 1e9
+        if gap_s < 30 * 60:
+            prev_close = close
+            continue
+        if len(out) >= 8:
+            break
         side = "CE" if close >= prev_close else "PE"
         prev_close = close
         clock = SimClock(avail)
+        sel.clock = clock
         plan = ExitPlan(catastrophic=CatastrophicStop(level=Level(kind="premium", price=30000.0)))
         quote = StrikeQuote(
             rule="ITM100",
@@ -268,7 +277,6 @@ def v2_selector_entries(
             is_expiry=scenario.startswith("expiry"),
             signal_stages={"EXITLAB-PROXY": "paper"},
         )
-        sel = BossSelector(clock=clock, config=cfg, basket=basket)
         result = sel.decide([sig], ctx)
         if not result.decisions or result.decisions[0].decision != "ENTER":
             continue
@@ -302,6 +310,7 @@ def v2_selector_entries(
                 extra={"regime_at_entry": scenario, "holds": list(getattr(dec, "holds", ()) or ())},
             )
         )
+        last_entry_ts = avail
     return out
 
 
