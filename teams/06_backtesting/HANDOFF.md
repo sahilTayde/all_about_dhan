@@ -1,5 +1,28 @@
 # Handoff log — Team 06 Backtesting
 
+## As of now (2026-09-28 IST) — Exit Lab REPORT filled from replay (PAPER)
+
+```text
+From:     teams/06_backtesting
+To:       00 / 04 / 07 / 09 / founder
+Date:     2026-09-28
+Status:   PAPER / SHADOW / NO_PROMOTE
+Accepted: REPORT.md tables copied from /tmp/exitlab-run (seed 7,
+  --max-hist-days 24). n_variants=51, n_entries_live=287,
+  n_entries_hist=48, n_trade_results=4545. Desk own 81 fills
+  net -151497.43 (CANCEL_AGAINST 32 / -312387, COVER_LONG_UNWIND
+  22 / -218234, TARGET 6 / +261506). Sweep winner noise_1.6
+  OOS 72 random later-day trades +86908.92 (CI 47742-130826,
+  DSR 5.07). Playbook still enabled:false.
+Rejected: Promote. Enable playbook. Fabricate V2 spread or 2026
+  history OOS. Compare 25-lot desk rupees to 1-lot random.
+UNKNOWN: Live-at-entry regime (router used the day label).
+  Full V2 plugin signals (selector is a 1m-direction proxy).
+DATA_INSUFFICIENT: 2026 history OOS (entries only 2025-10-06..14);
+  v2_spread_sample empty; news/event tags; ATR=0 on 16/17/18;
+  14 after-hours; expiry_chop random n=1; IV-crush trigger.
+```
+
 ## As of now (2026-09-28 IST) — Exit Lab harness + playbook (PAPER)
 
 ```text
