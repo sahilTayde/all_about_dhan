@@ -11,10 +11,11 @@ from runtime.services import (
     deploy,
     reset_breaker,
     run_guarded,
+    run_llm_advisor,
     write_engine_status,
 )
 
-__version__ = "2.15.0"
+__version__ = "2.19.0"
 
 __all__ = [
     "BREAKER_EXIT",
@@ -32,6 +33,7 @@ __all__ = [
     "recover",
     "reset_breaker",
     "run_guarded",
+    "run_llm_advisor",
     "run_with_deadline",
     "write_engine_status",
 ]

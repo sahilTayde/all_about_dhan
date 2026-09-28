@@ -9,6 +9,7 @@ from tempfile import TemporaryDirectory
 from brokers.factory import make_broker
 from brokers.fills import Quote
 from contracts.clock import SimClock
+from contracts.envelope import Envelope
 from contracts.ids import order_id
 from contracts.payloads import (
     CatastrophicStop,
@@ -17,6 +18,7 @@ from contracts.payloads import (
     ExitPlan,
     Level,
     Partial,
+    StructuralStop,
 )
 from events.bus import MemoryBus
 from risk_engine import IST, V2RiskEngine
@@ -144,8 +146,6 @@ def run() -> None:
         )
         _print_book("added 1 lot", pm)
 
-        from contracts.envelope import Envelope
-
         clock.advance_to(START.replace(minute=20))
         iso = clock.now().isoformat()
         pm.on_market(
@@ -188,6 +188,70 @@ def run() -> None:
         print("\nIST clock end:", clock.now().isoformat())
         print("session_halts (in-memory, V2-10 durable later):", store.session_halts)
         print("realized_pnl_today:", store.realized_pnl_today)
+
+        run_09b(tmp, clock)
+
+
+def run_09b(tmp: Path, clock: SimClock) -> None:
+    """V2-09b: structural on bar close; inherit refuses without native invalidation."""
+    from oms.exits import HOUSE_MAX_LOSS_INR, load_exit_defaults
+
+    defaults, digest = load_exit_defaults()
+    print(
+        f"\n== V2-09b defaults == house={HOUSE_MAX_LOSS_INR} "
+        f"defaults_from=exit_defaults@{digest[:12]}… "
+        f"atr={defaults.get('atr')} grace={defaults.get('grace')} "
+        f"flip={defaults.get('signal_flip')}"
+    )
+    structural = defaults.get("structural")
+    if isinstance(structural, dict) and structural.get("enabled"):
+        print("inherit without native invalidation: refused")
+
+    bus = MemoryBus()
+    store = MemoryLedger()
+    risk = V2RiskEngine(ledger=store, config_path=_risk(tmp), bus=bus)
+    broker = make_broker(clock=clock)
+    router = OrderRouter(clock=clock, risk=risk, broker=broker, store=store, bus=bus)
+    pm = PositionManager(clock=clock, router=router, store=store, bus=bus)
+    plan = ExitPlan(
+        catastrophic=CatastrophicStop(level=Level(kind="premium", price=140.0)),
+        structural=StructuralStop(level=Level(kind="underlying", price=24400.0)),
+        flat_by_ist="15:15",
+    )
+    sig = "sg_demo_nifty_20260928_1100_0"
+    order = router.submit(
+        _plan(sig, "ep_s", "dc_s"),
+        _decision("dc_s", 1),
+        Account("founder"),
+        exit_plan=plan,
+    )
+    assert not isinstance(order, Veto)
+    clock.advance_by(timedelta(milliseconds=250))
+    broker.on_depth(
+        Quote(available_ts=clock.now(), bid=151.00, ask=151.20, ltp=151.10, instrument_id=INST)
+    )
+    iso = clock.now().isoformat()
+    pm.on_market(
+        Envelope(
+            v=2,
+            event_type="BAR_CLOSED",
+            event_id="bar1",
+            stream="md",
+            source="demo",
+            event_ts=iso,
+            available_ts=iso,
+            timestamp=iso,
+            account_id="founder",
+            correlation_id=sig,
+            causation_id=None,
+            payload={
+                "instrument_id": "NSE_IDX:NIFTY",
+                "c": 24390.0,
+                "underlying_close": 24390.0,
+            },
+        )
+    )
+    _print_book("V2-09b structural bar-close", pm)
 
 
 def _risk(tmp: Path) -> Path:

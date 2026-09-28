@@ -244,7 +244,11 @@ class RiskEngine:
     def check_exit(
         self, intent: TradeIntent, action: str = "EXIT", now: Optional[datetime] = None
     ) -> RiskDecision:
-        """Exit / modify / cancel. Reduce-only SELL <= held net is never vetoed (kill included)."""
+        """Exit, modify (price fields only) or cancel.
+
+        Allowed under kill switch and outside entry hours. Reduce-only SELL
+        whose qty is <= held net is never vetoed (kill included).
+        """
         return self._decide(intent, action, now, None)
 
     def check_flatten(self, now: Optional[datetime] = None) -> RiskDecision:

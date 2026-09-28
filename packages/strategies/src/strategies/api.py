@@ -26,6 +26,11 @@ from contracts.payloads import (
 )
 
 from .feature_view_stub import FeatureView
+from .params_hash import (
+    inherit_exit_defaults,
+    load_exit_defaults,
+    resolve_exit_plan,
+)
 
 __all__ = [
     "AtrStop",
@@ -49,6 +54,9 @@ __all__ = [
     "StructuralStop",
     "TimeStop",
     "Trail",
+    "inherit_exit_defaults",
+    "load_exit_defaults",
+    "resolve_exit_plan",
 ]
 
 

@@ -1,5 +1,20 @@
 # Handoff log — Team 07 Coding
 
+## As of now (2026-09-28 IST) — V2-11 + main 78013e4 (PAPER)
+
+```text
+From:     teams/07_coding
+To:       founder / 00 / 09
+Date:     2026-09-28
+Status:   PAPER / V2-11 / NO_PROMOTE / no live orders
+Accepted: Normal merge of origin/main 78013e4. Kept #54 BAR_CLOSED
+  same-underlying + #61 targeted FOUNDER_COMMAND skip. Kept #58
+  FEED_STALE / HALT_UNREADABLE / STRATEGY_DAILY_LOSS / reduce-only
+  and #61 FOUNDER_LOTS_CAP. Runtime keeps flatten and llm-advisor.
+Rejected: Rebase / force-push. Dropping any veto.
+UNKNOWN: none for this merge.
+```
+
 ## As of now (2026-09-28 IST) — V2-11 fix round (PR #61 verifier)
 
 ```text
@@ -39,6 +54,64 @@ Rejected: Live/Dhan path. Gateway applying entries. Rebase / force-push.
 UNKNOWN: retarget to main after #45, #49, #58 merge.
 ```
 
+## As of now (2026-09-27 IST) — V2-19 llm-advisor service (PAPER)
+
+```text
+From:     teams/07_coding
+To:       founder / 00 / 09
+Date:     2026-09-27
+Status:   PAPER / V2-19 / NO_PROMOTE / no live orders
+Accepted: Wiring python -m runtime llm-advisor over desk_ml.llm_analyst.
+  Consumes DECISION (boss:decisions), publishes ADVICE. Replay uses
+  RecordedProvider/mock. Queue-decoupled so a hung provider cannot
+  change, delay, or veto an engine decision. EventType DECISION+ADVICE.
+Rejected: Putting the advisor on the engine handler list. Live OpenAI
+  in CI/replay. DhanBroker. Rebase / force-push / relock.
+UNKNOWN: Redis stream name mapping (prefix+DECISION vs boss:decisions)
+  until compose wires a topic map.
+```
+
+---
+
+## As of now (2026-09-27 IST) — V2-09b founder KILL flatten (NO_PROMOTE)
+
+```text
+From:     teams/07_coding
+To:       00 / 09
+Date:     2026-09-27
+Status:   V2-09b PAPER fix / NO_PROMOTE
+Accepted: Founder FOUNDER_COMMAND kind=KILL now emits
+  KILL_SWITCH / plan_field=kill_switch. REG-18a mismatch
+  logs CRITICAL and still flattens. house_stop_premium
+  snaps UP onto the 0.05 grid.
+Rejected: Raising out of on_market on a REG-18a mismatch.
+UNKNOWN: none
+```
+
+---
+
+## As of now (2026-09-27 IST) — V2-09b exit primitives (NO_PROMOTE)
+
+```text
+From:     teams/07_coding
+To:       00 / 09
+Date:     2026-09-27
+Status:   V2-09b PAPER exit primitives on V2-09 / NO_PROMOTE
+Accepted: StructuralStop, AtrStop (fixed at fill), GracePeriod,
+  SignalFlipExit (own_opposite, boss_opposite on bar close).
+  defaults.yaml loader freezes values + file hash into
+  defaults_from. REG-18a-e. Grep: no CANCEL_AGAINST /
+  CANCEL_ADVERSE / CANCEL_STALL / COVER_LONG_UNWIND in
+  packages/oms or packages/strategies. Inherit = ₹30k
+  house stop + native invalidation; no native level
+  refuses. V2-09 stop qty == net invariant kept.
+Rejected: Live/Dhan. Intraday exit retune. Loosening REG-02
+  resize/flatten. STRAT-015+.
+UNKNOWN: V2-10 durable rehydrate of frozen atr_stop_level.
+```
+
+---
+
 ## As of now (2026-09-27 IST) — V2-10 fix round (atomic / idempotent / P&L / qty / Decimal)
 
 ```text
@@ -60,6 +133,8 @@ Rejected: Rebase / force-push / merge of this PR.
   DhanBroker. Editing Mac-ops merge files. Relock.
 UNKNOWN: GitHub CI on the new head.
 ```
+
+---
 
 ## As of now (2026-09-27 IST) — V2-08 lot-size exchange-only (PAPER)
 
