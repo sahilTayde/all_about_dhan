@@ -104,6 +104,7 @@ class V2RiskEngine:
         self.inner = RiskEngine(ledger=ledger, config_path=path, root=root)
         self.limits = LastGood(path, load_limits, component="risk", bus=bus)
         self.bus = bus
+        self.lots_cap: int | None = None
         self.limits.get()  # prime last-good; None means exits-only
 
     def check_entry(
@@ -134,6 +135,15 @@ class V2RiskEngine:
                 "V2 paper-only: live modes cannot be enabled from tests or default config",
                 ts,
                 True,
+            )
+        if self.lots_cap is not None and intent.lots > int(self.lots_cap):
+            return RiskDecision(
+                False,
+                intent.client_order_id,
+                "ENTRY",
+                "FOUNDER_LOTS_CAP",
+                f"{intent.lots} lots exceeds SET_LOTS ({self.lots_cap})",
+                ts,
             )
         return self.inner.check_entry(intent, now=ts, state=state)
 

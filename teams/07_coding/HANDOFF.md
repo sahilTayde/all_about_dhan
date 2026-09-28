@@ -1,19 +1,15 @@
 # Handoff log — Team 07 Coding
 
-## As of now (2026-09-28 IST) — V2-16 normal-merge main 78013e4
+## As of now (2026-09-28 IST) — merge main c723001 (#59) into V2-16 (PAPER)
 
 ```text
 From:     teams/07_coding
 To:       founder / 00 / 09
 Date:     2026-09-28
 Status:   PAPER / V2-16 / NO_PROMOTE / advisory BLOCK (exit 0)
-Accepted: Normal-merge origin/main
-  78013e45124f91a0160cc60e8029c977ce88a8ef (PR #58 on main).
-  Keep main OMS exit primitives + REG-18 and V2-09b HANDOFF.
-  Gate files unchanged. GATE_ENFORCE is not set in
-  .github/workflows (advisory default).
-Rejected: Rebase / force-push / merge of this PR.
-  GATE_ENFORCE=1. Making gate a required check today.
+Accepted: Normal-merge origin/main c723001 (incl #61 #55 #59).
+  Gate stays advisory. GATE_ENFORCE is not set.
+Rejected: Rebase / force-push. GATE_ENFORCE=1.
 UNKNOWN: none
 ```
 
@@ -24,75 +20,99 @@ From:     teams/07_coding
 To:       founder / 00 / 09
 Date:     2026-09-28
 Status:   PAPER / V2-16 / NO_PROMOTE / advisory BLOCK (exit 0)
-Accepted: Verdict step always writes the full gate JSON to
-  GITHUB_STEP_SUMMARY and --json-out (CI artifact). Default
-  advisory: BLOCK exits 0. GATE_ENFORCE=1 BLOCKs with exit 1.
-  --merge / --push still exit 2 in both modes. Evaluator
-  unchanged: missing/stub never PASS.
-Rejected: Making gate a required hard-fail check today.
-  Adding REG-01/07/08/11/18 or the 12 fault nodeids now.
-  Rebase / force-push / merge of this PR.
+Accepted: Verdict step always writes the full gate JSON.
+  Default advisory: BLOCK exits 0. GATE_ENFORCE=1 BLOCKs with exit 1.
+  --merge / --push still exit 2. Missing/stub never PASS.
+Rejected: GATE_ENFORCE=1. Making gate a required check today.
 UNKNOWN: none
-BEFORE GATE_ENFORCE=1 and before making `gate` a required
-check, these three evidence items must exist (do not add
-the tests in this round):
-  1. junit passed outcomes covering REG-01, REG-07, REG-08,
-     REG-11, REG-18
-  2. fault-rows.json with 12 named pytest nodeids (one per
-     §6.2 fault row)
-  3. a real redis_compose report with redis=true and empty
-     hour_diffs / day_diffs (not the JSON hop)
 ```
 
-## As of now (2026-09-28 IST) — V2-16 fix round (fail-closed evidence)
+## As of now (2026-09-28 IST) — merge main 0d7951c (#61+#62) into V2-08b (PAPER)
 
 ```text
 From:     teams/07_coding
 To:       founder / 00 / 09
 Date:     2026-09-28
-Status:   PAPER / V2-16 / NO_PROMOTE / BLOCK until evidence is real
-Accepted: Gate never PASSes on absent or stubbed evidence.
-  CI conclusions are a required input (every ci.yml job except
-  gate). Missing file, missing job, or any result other than
-  success = BLOCK. Workflow gate needs: those jobs and writes
-  conclusions in-repo (no GitHub client, no tokens).
-  requirements/*.txt sha256 lock (config/requirements_lock.sha256).
-  golden-replay + determinism consumed from that conclusions file.
-  reg_collect uses pytest outcomes or is MISSING (grep-only is
-  not evidence). Fault matrix: 12 rows MISSING unless a per-row
-  pass list + faults job success prove they ran. no-lookahead
-  CI job runs the #25 cut test + V2-03 random-cut.
-Rejected: PASS from JSON-hop dry run. Auto-merge. git push from
-  the gate. DhanBroker. subprocess / GitHub client / tokens in
-  the gate. Rebase / force-push / merge of this PR tonight.
-UNKNOWN: none for these inputs — they are present or MISSING.
-OPEN: Redis compose dry-run on a recorded tape. CI cannot run
-  real compose+Redis here, so redis_compose is MISSING (never
-  PASS from the in-process JSON hop). That stays a known open
-  item; it blocks the gate until a real compose report exists.
+Status:   PAPER / V2-08b + V2-11 union / NO_PROMOTE / no live orders
+Accepted: Normal-merge origin/main 0d7951c. Keep BOTH:
+  V2-11 _founder_entry_veto first on submit, then V2-08b
+  _catastrophic_price(risk, qty). exit() uses store-agnostic
+  _live_position; missing row skips resize (snapshot flatten
+  never raises). Live sqlite/memory row still resizes.
+Rejected: Rebase / force-push. Dropping founder veto or risk-qty stop.
+UNKNOWN: none
 ```
 
-## As of now (2026-09-27 IST) — V2-16 merge gate (PAPER)
+## As of now (2026-09-28 IST) — merge main 78013e4 (V2-10) into V2-08b (PAPER)
+
+```text
+From:     teams/07_coding
+To:       founder / 00 / 09
+Date:     2026-09-28
+Status:   PAPER / V2-08b + V2-10 union / NO_PROMOTE / no live orders
+Accepted: Normal-merge origin/main 78013e4 (#58). Keep BOTH:
+  V2-10 SqliteLedgerStore / crash recovery / FEED_STALE /
+  HALT_UNREADABLE / STRATEGY_DAILY_LOSS / reduce-only
+  and V2-08b planner/chase. MemoryLedger is the in-memory
+  adapter (not superseded): entry_plans + snapshot veto
+  fields. Planner PlanStore API also writes the real
+  ledger entry_plans table. Risk before broker. Never MARKET.
+Rejected: Two durable ledgers. Rebase / force-push.
+UNKNOWN: none
+```
+
+## As of now (2026-09-28 IST) — V2-11 + main 78013e4 (PAPER)
+
+```text
+From:     teams/07_coding
+To:       founder / 00 / 09
+Date:     2026-09-28
+Status:   PAPER / V2-11 / NO_PROMOTE / no live orders
+Accepted: Normal merge of origin/main 78013e4. Kept #54 BAR_CLOSED
+  same-underlying + #61 targeted FOUNDER_COMMAND skip. Kept #58
+  FEED_STALE / HALT_UNREADABLE / STRATEGY_DAILY_LOSS / reduce-only
+  and #61 FOUNDER_LOTS_CAP. Runtime keeps flatten and llm-advisor.
+Rejected: Rebase / force-push. Dropping any veto.
+UNKNOWN: none for this merge.
+```
+
+## As of now (2026-09-28 IST) — V2-11 fix round (PR #61 verifier)
+
+```text
+From:     teams/07_coding
+To:       founder / 00 / 09
+Date:     2026-09-28
+Status:   PAPER / V2-11 / NO_PROMOTE / no live orders
+Accepted: Normal merge of PR #49 head 65fea643 (lot-size guards).
+  OrderRouter.submit consults CommandBook: PAUSE/STOP/INDEX/
+  BASKET_REMOVE veto entries; SET_LOTS caps lots (ceiling from
+  config/risk_limits.yaml paper max_lots_per_trade=25).
+  KILL cancels working ENTRY orders and flattens via the wired
+  paper manager. Command log JSONL under data/ledger (same tree
+  as the ledger); resent command_id after restart is a no-op.
+  attach_gateway uses AAD_STATE_DIR or cwd (not mkdtemp on the
+  real api). Founder token is a label, not auth.
+Rejected: Rebase / force-push. DhanBroker. requirements/* edits.
+UNKNOWN: retarget to main after #45, #49, #58 merge.
+```
+
+## As of now (2026-09-27 IST) — V2-11 founder controls v2 (PAPER)
 
 ```text
 From:     teams/07_coding
 To:       founder / 00 / 09
 Date:     2026-09-27
-Status:   PAPER / V2-16 / NO_PROMOTE / no live orders
-Accepted: Fail-closed merge gate (scripts/gate/merge_gate.py):
-  invariants §6.2, fault matrix, perf (2x headroom), 1x-hour /
-  10x-day dry run (JSON hop stands in for Redis; no sockets),
-  REG collect, TRACE-01, REG-13c, REG-10b, frozen-legacy baselines
-  NIFTY 63 / -96,190.79 and 3-index 140 / -27,022.54. Verdict
-  only — never merges or pushes. CI adds perf + gate jobs;
-  every existing job left unchanged. Branched from
-  cursor/v2-10-ledger-crash-recovery-dcfd. Depends on #45 and
-  #58; retarget to main after they merge.
-Rejected: Auto-merge. git push from the gate. DhanBroker.
-  Network in tests. Editing existing CI jobs. Touching frozen
-  legacy / data / requirements.
-UNKNOWN: full Redis compose dry-run on a recorded tape (no
-  tape in CI; fixture JSON hop only).
+Status:   PAPER / V2-11 / NO_PROMOTE / no live orders
+Accepted: Branched from cursor/v2-10-ledger-crash-recovery-dcfd, then
+  a normal merge of PR #49 head cursor/v2-09-position-manager-7d86
+  @ 2229844f8baad6c3a09209d770ee96434a850c4c. packages/control
+  command log + engine handler + gateway /v2/control routes.
+  Flatten/kill go through PositionManager + risk.check_flatten.
+  KILL_SWITCH file + python -m runtime flatten work with Redis
+  down. DhanBroker never constructed. requirements/* unchanged.
+  Later: normal merge of updated V2-10 tip (atomic fills / lot veto).
+Rejected: Live/Dhan path. Gateway applying entries. Rebase / force-push.
+UNKNOWN: retarget to main after #45, #49, #58 merge.
 ```
 
 ## As of now (2026-09-27 IST) — V2-19 llm-advisor service (PAPER)
