@@ -109,7 +109,11 @@ def test_reg04c_snapshot_lists_every_ledger_open_position() -> None:
 
 def test_ingest_from_memory_bus() -> None:
     bus = MemoryBus()
-    hub = GatewayHub(bus, clock=_Clock(TS))
+    # MemoryBus stamps Event.timestamp with live IST. ingest() refuses
+    # available_ts > hub.now() (no look-ahead), so a hub frozen at TS
+    # (10:01 IST on 2026-09-28) fails for the rest of that calendar day.
+    later = datetime.now(IST) + timedelta(hours=1)
+    hub = GatewayHub(bus, clock=_Clock(later.isoformat()))
     bus.publish(EventType.POSITION_UPDATE, _pos("ps_bus"), source="desk")
     assert any(p["position_id"] == "ps_bus" for p in hub.positions())
 
