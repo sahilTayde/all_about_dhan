@@ -15,7 +15,7 @@ from __future__ import annotations
 import asyncio
 import json
 from collections.abc import Awaitable, Callable, Mapping, Sequence
-from typing import Any
+from typing import Any, Optional, Union
 from urllib.parse import urlencode
 
 from dhan_client.annexure import FeedRequestCode
@@ -34,9 +34,9 @@ from dhan_client.types import FeedInstrument, FeedMode, JsonDict
 
 log = get_logger(__name__)
 
-OnPacket = Callable[[JsonDict], Awaitable[None] | None]
+OnPacket = Callable[[JsonDict], Optional[Awaitable[None]]]
 # Receives every websocket message (bytes or text) untouched; the caller owns decoding.
-OnFrame = Callable[[bytes | str], Awaitable[None] | None]
+OnFrame = Callable[[Union[bytes, str]], Optional[Awaitable[None]]]
 
 _SUBSCRIBE_CODE = {
     FeedMode.TICKER: FeedRequestCode.SUBSCRIBE_TICKER,
