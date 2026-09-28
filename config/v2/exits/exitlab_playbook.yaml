@@ -24,9 +24,9 @@ recommended:
   partials: null
   notes:
     lots: "Do not compare rupee totals across entry sets (legacy 25 lots, v2_boss 2, random 1)."
-    sweep_winner: "noise_2.2 chosen on random live days <= 2026-09-22 (choose net 215971.96, seeds 7/11/19, 142 tickets)."
-    oos_live_later: "sweep_winner_noise_2.2 on 136 random trades 2026-09-23..28: net 152135.16, bootstrap CI 98013.41-201492.30, DSR 8.39, n_variants=68."
-    oos_better: "On those same late days quote_persistence net 203934.82 and breakeven_move 183554.25 beat the sweep winner. V2 ExitPlan has no noise-band field, so this file maps time_stop_s=1500."
+    sweep_winner: "noise_1.6 chosen on random live days <= 2026-09-22 (choose net 31187.20, seeds 7/11/19, 142 tickets). Prior audit winner noise_2.2 is void (wrong-strike marks)."
+    oos_live_later: "sweep_winner_noise_1.6 on 136 random trades 2026-09-23..28: net -31338.61, bootstrap CI -60412.57 to 9083.41, DSR 0.000008, n_variants=68. NOT a promote."
+    oos_better: "No library plan has DSR>0.04 on random live after the strike/spread fix. V2 ExitPlan has no noise-band field; this file maps time_stop_s=1500 as a paper stub only."
     regime_router: "Chop -> time+stop; trend -> MFE trail; expiry -> tight fixed. Router used the day label in this run, not a live-at-entry classifier."
     square_off: "15:15 IST unless a plan explicitly tests the freeze window."
     promote: "NO_PROMOTE. enabled stays false."

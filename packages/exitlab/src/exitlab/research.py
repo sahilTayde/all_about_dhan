@@ -498,14 +498,20 @@ def run_research(
         except HistoryUnavailable as exc:
             _write_json(out / "history_skip.json", {"error": str(exc)})
 
-    # Drop any leftover entry whose fixed strike has no price at entry time.
+    # Drop entries whose fixed strike has no price on the first tick at/after entry.
+    # Legacy opened_ts often sits between tape rows; do not require an exact stamp.
     kept: list[Entry] = []
     for e in entries:
         ticks = ticks_cache.get(e.session) or []
-        tick = next((t for t in ticks if as_ist(t["available_ts"]) == as_ist(e.ts)), None)
+        tick = next((t for t in ticks if as_ist(t["available_ts"]) >= as_ist(e.ts)), None)
         if tick is None or strike_ltp(tick, side=e.side, strike=e.strike) is None:
             dropped_wrong_instrument.append(
-                {"entry_id": e.entry_id, "entry_set": e.entry_set, "session": e.session}
+                {
+                    "entry_id": e.entry_id,
+                    "entry_set": e.entry_set,
+                    "session": e.session,
+                    "reason": "no_fixed_strike_ltp_at_or_after_entry",
+                }
             )
             continue
         kept.append(e)

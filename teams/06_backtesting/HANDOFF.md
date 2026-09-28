@@ -1,5 +1,38 @@
 # Handoff log — Team 06 Backtesting
 
+## As of now (2026-09-28 IST) — Exit Lab strike/spread/DSR re-run (PAPER)
+
+```text
+From:     teams/06_backtesting
+To:       00 / 04 / 07 / 09 / founder
+Date:     2026-09-28
+Status:   PAPER / SHADOW / NO_PROMOTE
+Accepted: Review bugs 1-4. Command:
+  python -m exitlab research --data .local_data --out
+  /tmp/exitlab-fix --seed 7 --max-hist-days 24
+  --extra-seeds 11,19 --reuse-entries /tmp/exitlab-run/entries.json
+  (rebuilds random; keeps legacy/v2/hist). n_variants=68,
+  n_entries_live=419, n_entries_hist=48, n_trade_results=14944.
+  Missing-strike AFTER: random 1127/72703 ticks, 103/278 trades;
+  v2 110/14294, 17/60; legacy 204/15212, 17/81. BEFORE (old
+  fallback fired): random 640/40558 + 58/146; v2 110/17; legacy
+  204/17. V2 spread p50 ATM 0.20 / ITM100 0.35 / ITM200 0.55
+  (n=4698, 2026-09-28 10:00-11:00). stress spread_x2 3174.01 vs
+  base 4095.30 (delta -921). DSR worked example 0.3385 in [0,1].
+  Random hold_to_1515 -82477.86 n=277 WR 43.0% (CE -100747 /
+  PE +18269). OOS noise_1.6 -31338.61 DSR ~0. Playbook
+  enabled:false. REPORT.md rewritten.
+Rejected: Audit headlines (+288281 hold, +152135 OOS, DSR 8-17,
+  spread_x2==base). Promote. Enable playbook. Reprice missing
+  strike onto rolling ATM/ITM.
+UNKNOWN: Live-at-entry regime (router used the day label).
+  Full V2 plugin signals (selector is a 1m-direction proxy).
+DATA_INSUFFICIENT: 2026 history OOS; V2 book after 11:00 and
+  other days; news/event tags; ATR=0 on 16/17/18; 14 after-hours;
+  expiry_chop random n=3 LOW; 2-lot/25-lot partial addon not
+  re-run this pass.
+```
+
 ## As of now (2026-09-28 IST) — Exit Lab 11-item self-audit run (PAPER)
 
 ```text
