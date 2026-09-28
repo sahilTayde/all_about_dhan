@@ -64,7 +64,13 @@ def test_localhost_only(root, monkeypatch):
     assert local.get("/founder/controls", headers={"X-Forwarded-For": "1.2.3.4"}).status_code == 403
     for host in ("localhost:5173", "[::1]:8000", "127.0.0.1"):
         assert local.get("/founder/controls", headers={"Host": host}).status_code == 200, host
-    for host in ("evil.example", "evil.example:8000", "127.0.0.1.evil.example", ""):  # DNS rebinding
+    for host in (
+        "evil.example",
+        "evil.example:8000",
+        "127.0.0.1.evil.example",
+        "127.0.0.1:8000.evil.com",
+        "",
+    ):  # DNS rebinding / look-alike Host
         assert local.post("/founder/controls/stop", json={"reason": "x"}, headers={"Host": host}).status_code == 403, host
     assert TestClient(app, client=LOCAL).get("/founder/controls").status_code == 403  # Host "testserver"
     monkeypatch.setenv(fcr.REMOTE_ENV, "1")

@@ -4,9 +4,9 @@ Paper only. Browser never talks to Dhan or Redis. No founder control actions.
 Timestamps are IST (+05:30). No look-ahead: envelopes with available_ts in the
 future are refused. Legacy /ui/* and /ws/* stay as they are.
 
-Identity is the paper token only (JWT is V2-23). A client-supplied role is
-never trusted. Missing/unknown token = customer. Subscribe cannot change
-token or role.
+Auth (pre-VPS): Bearer header, first WS message, or Sec-WebSocket-Protocol.
+Never the URL query. Empty token + bind 127.0.0.1 = localhost-dev (Mac).
+JWT / 2FA stay V2-23. A client-supplied role is never trusted.
 """
 
 from __future__ import annotations
@@ -28,6 +28,17 @@ from fastapi import (
     Request,
     WebSocket,
     WebSocketDisconnect,
+)
+
+from api.gateway_auth import (
+    AuthIdentity,
+    CommandRateLimiter,
+    GatewayAuth,
+    audit_control,
+    check_host_origin,
+    identity_from_headers,
+    identity_from_token,
+    query_has_auth_attempt,
 )
 
 IST = timezone(timedelta(hours=5, minutes=30))
@@ -539,6 +550,51 @@ def _legacy_ui() -> dict[str, Any]:
 router = APIRouter()
 
 
+def _settings(request: Request) -> GatewayAuth:
+    return request.app.state.v2_auth  # type: ignore[no-any-return]
+
+
+def _http_identity(request: Request, *, control: bool = False) -> AuthIdentity | None:
+    settings = _settings(request)
+    reason = check_host_origin(
+        request.headers.get("host"), request.headers.get("origin"), settings
+    )
+    if reason:
+        raise HTTPException(
+            status_code=403,
+            detail={"ok": False, "code": reason.upper(), "orders": "REFUSED"},
+        )
+    if query_has_auth_attempt(request.url.query):
+        raise HTTPException(
+            status_code=401,
+            detail={"ok": False, "code": "QUERY_TOKEN_REFUSED", "orders": "REFUSED"},
+        )
+    ident = identity_from_headers(request.headers.get("authorization"), None, settings)
+    if settings.auth_required and ident is None:
+        raise HTTPException(
+            status_code=401,
+            detail={"ok": False, "code": "UNAUTHORIZED", "orders": "REFUSED"},
+        )
+    if control and request.method in {"POST", "PUT", "PATCH", "DELETE"}:
+        limiter: CommandRateLimiter = request.app.state.v2_limiter
+        key = request.client.host if request.client else "unknown"
+        if not limiter.allow(key):
+            audit_control(
+                result="rate_limited",
+                method=request.method,
+                path=request.url.path,
+            )
+            raise HTTPException(
+                status_code=429,
+                detail={"ok": False, "code": "RATE_LIMIT", "orders": "REFUSED"},
+            )
+    return ident
+
+
+def _role_for(ident: AuthIdentity | None, paper_token: str) -> str:
+    return ident.role if ident is not None else role_from_token(paper_token)
+
+
 @router.get("/v2/snapshot")
 def v2_snapshot(
     request: Request,
@@ -547,7 +603,8 @@ def v2_snapshot(
     token: str = Query(default=""),
 ) -> dict[str, Any]:
     del role  # never trusted; token only
-    who = role_from_token(token)
+    ident = _http_identity(request)
+    who = _role_for(ident, token)
     chans = [c.strip() for c in channels.split(",") if c.strip()]
     hub: GatewayHub = request.app.state.v2_hub
     body = hub.snapshot(chans, who)
@@ -564,7 +621,8 @@ def v2_trace(
     role: str = Query(default=""),
 ) -> dict[str, Any]:
     del role  # never trusted; token only
-    who = role_from_token(token)
+    ident = _http_identity(request)
+    who = _role_for(ident, token)
     if not acl_for(who)["trace"]:
         raise HTTPException(
             status_code=403,
@@ -615,8 +673,9 @@ def _trace_steps(row: dict[str, Any]) -> list[dict[str, Any]]:
 
 
 @router.get("/v2/control")
-def v2_control_surface() -> dict[str, Any]:
+def v2_control_surface(request: Request) -> dict[str, Any]:
     """V2-11 STUB: lists the founder-control route surface. Does not apply commands."""
+    _http_identity(request, control=True)
     return {
         "stub": True,
         "ticket": "V2-11",
@@ -630,8 +689,23 @@ def v2_control_surface() -> dict[str, Any]:
 
 
 @router.post("/v2/control/commands", response_model=None)
-def v2_control_command() -> dict[str, Any]:
+async def v2_control_command(request: Request) -> dict[str, Any]:
     """V2-11 STUB: never applies START/STOP/KILL/CUT_LOSS/…. Always 501."""
+    _http_identity(request, control=True)
+    kind: str | None = None
+    try:
+        payload = await request.json()
+        if isinstance(payload, dict):
+            raw = payload.get("kind")
+            kind = str(raw)[:32] if raw is not None else None
+    except Exception:  # noqa: BLE001 — stub; body is optional
+        kind = None
+    audit_control(
+        result="stub_refused",
+        kind=kind,
+        method=request.method,
+        path=request.url.path,
+    )
     body = {
         "stub": True,
         "ticket": "V2-11",
@@ -643,7 +717,6 @@ def v2_control_command() -> dict[str, Any]:
     if os.environ.get(CONTROL_FLAG) != "1":
         body["reason"] = f"{CONTROL_FLAG} is off"
     raise HTTPException(status_code=501, detail=body)
-    return body
 
 
 @router.websocket("/v2/ws")
@@ -653,12 +726,53 @@ async def v2_ws(
     token: str = "",
     channels: str = "",
 ) -> None:
-    del role  # never trusted; token only
-    await websocket.accept()
+    del role  # never trusted; paper query token is role-only in localhost-dev
+    settings: GatewayAuth = websocket.app.state.v2_auth
+    reason = check_host_origin(
+        websocket.headers.get("host"), websocket.headers.get("origin"), settings
+    )
+    if reason:
+        raise HTTPException(
+            status_code=403,
+            detail={"ok": False, "code": reason.upper(), "orders": "REFUSED"},
+        )
+    if query_has_auth_attempt(websocket.url.query):
+        raise HTTPException(
+            status_code=401,
+            detail={"ok": False, "code": "QUERY_TOKEN_REFUSED", "orders": "REFUSED"},
+        )
+    ident = identity_from_headers(
+        websocket.headers.get("authorization"),
+        websocket.headers.get("sec-websocket-protocol"),
+        settings,
+    )
+    first: dict[str, Any] | None = None
+    if settings.auth_required and ident is None:
+        await websocket.accept()
+        try:
+            raw_first = await asyncio.wait_for(websocket.receive_json(), timeout=5.0)
+        except Exception:  # noqa: BLE001 — handshake timeout or non-JSON
+            await websocket.close(code=4401)
+            return
+        if not isinstance(raw_first, dict):
+            await websocket.close(code=4401)
+            return
+        ident = identity_from_token(str(raw_first.get("token") or "") or None, settings)
+        if ident is None:
+            await websocket.send_json({"op": "error", "code": "UNAUTHORIZED"})
+            await websocket.close(code=4401)
+            return
+        first = {k: v for k, v in raw_first.items() if k != "token"}
+    elif ident is not None and ident.subprotocol:
+        await websocket.accept(subprotocol=ident.subprotocol)
+    else:
+        await websocket.accept()
     hub: GatewayHub = websocket.app.state.v2_hub
-    who = role_from_token(token)
+    who = _role_for(ident, token)
     client = hub.connect(role=who)
-    if channels.strip():
+    if first:
+        hub.handle_op(client, first)
+    elif channels.strip():
         hub.subscribe(client, [c.strip() for c in channels.split(",") if c.strip()])
     try:
         while True:

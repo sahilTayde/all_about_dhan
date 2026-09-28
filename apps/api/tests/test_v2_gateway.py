@@ -109,7 +109,7 @@ def test_reg04c_snapshot_lists_every_ledger_open_position() -> None:
 
 def test_ingest_from_memory_bus() -> None:
     bus = MemoryBus()
-    hub = GatewayHub(bus, clock=_Clock(TS))
+    hub = GatewayHub(bus)  # live clock: MemoryBus stamps available_ts as now
     bus.publish(EventType.POSITION_UPDATE, _pos("ps_bus"), source="desk")
     assert any(p["position_id"] == "ps_bus" for p in hub.positions())
 
@@ -147,7 +147,14 @@ def _app() -> tuple[TestClient, GatewayHub]:
     app = create_app()
     hub: GatewayHub = app.state.v2_hub
     hub.clock = _Clock(TS)
-    return TestClient(app), hub
+    return TestClient(app, base_url="http://127.0.0.1:8000"), hub
+
+
+def _ws(client: TestClient, path: str, **kwargs: Any) -> Any:
+    """TestClient WS defaults Host to testserver; V2 requires a real host:port."""
+    headers = dict(kwargs.pop("headers", None) or {})
+    headers.setdefault("Host", "127.0.0.1:8000")
+    return client.websocket_connect(path, headers=headers, **kwargs)
 
 
 def test_legacy_readonly_routes_still_work() -> None:
@@ -177,7 +184,7 @@ def test_customer_cannot_subscribe_founder_channels() -> None:
     assert body["denied"] == ["positions", "decisions", "health"]
     assert body["channels"] == {}
     assert body["positions"] == []
-    with c.websocket_connect("/v2/ws?token=customer") as ws:
+    with _ws(c, "/v2/ws?token=customer") as ws:
         ws.send_json(
             {
                 "op": "subscribe",
@@ -220,7 +227,7 @@ def test_ws_snapshot_then_ordered_deltas() -> None:
     assert deltas[0]["channel"] == "positions"
     assert deltas[0]["as_of"].endswith("+05:30")
     c, _hub = _app()
-    with c.websocket_connect("/v2/ws?token=founder") as ws:
+    with _ws(c, "/v2/ws?token=founder") as ws:
         ws.send_json({"op": "subscribe", "channels": ["positions"]})
         assert ws.receive_json()["op"] == "snapshot"
 
@@ -263,6 +270,9 @@ def test_control_routes_are_stub(monkeypatch: Any) -> None:
     monkeypatch.setenv(CONTROL_FLAG, "1")
     flagged = c.get("/v2/control").json()
     assert flagged["enabled"] is True and flagged["implemented"] is False
+    from api.gateway_auth import CommandRateLimiter
+
+    c.app.state.v2_limiter = CommandRateLimiter(per_s=100)
     refused = c.post("/v2/control/commands", json={"kind": "START", "args": {}})
     assert refused.status_code == 501
     assert refused.json()["detail"]["applied"] is False
@@ -369,7 +379,7 @@ def test_ws_subscribe_cannot_escalate_identity() -> None:
     """
     c, hub = _app()
     hub.ingest(_env("POSITION_UPDATE", _pos("ps_leak"), eid="2" * 32))
-    with c.websocket_connect("/v2/ws?token=customer") as ws:
+    with _ws(c, "/v2/ws?token=customer") as ws:
         ws.send_json(
             {
                 "op": "subscribe",
@@ -390,7 +400,7 @@ def test_ws_subscribe_cannot_escalate_identity() -> None:
         assert not any(m.get("op") == "snapshot" for m in msgs)
         assert not any(m.get("channel") in {"positions", "decisions"} for m in msgs)
 
-    with c.websocket_connect("/v2/ws?role=customer") as ws:
+    with _ws(c, "/v2/ws?role=customer") as ws:
         ws.send_json({"op": "subscribe", "role": "founder", "channels": ["positions"]})
         msgs = [ws.receive_json(), ws.receive_json()]
         assert any(m.get("code") == "IDENTITY_IMMUTABLE" for m in msgs)
@@ -406,7 +416,7 @@ def test_connect_role_query_is_not_trusted() -> None:
     ).json()
     assert body["role"] == "customer"
     assert "positions" in body["denied"]
-    with c.websocket_connect("/v2/ws?role=founder") as ws:
+    with _ws(c, "/v2/ws?role=founder") as ws:
         ws.send_json({"op": "subscribe", "channels": ["positions"]})
         err = ws.receive_json()
         assert err.get("code") == "FORBIDDEN_CHANNEL"
@@ -506,7 +516,7 @@ def test_customer_received_channels_and_fields_are_in_allow_list(
     assert "rsi" not in fields
 
     seen_channels: set[str] = set()
-    with c.websocket_connect("/v2/ws?token=customer") as ws:
+    with _ws(c, "/v2/ws?token=customer") as ws:
         ws.send_json(
             {
                 "op": "subscribe",
