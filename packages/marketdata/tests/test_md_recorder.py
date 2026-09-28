@@ -128,7 +128,11 @@ def test_reconnects_after_drop_and_resubscribes(tmp_path: Path) -> None:
     statuses = [r["payload"]["status"] for r in s.rows("feed_status")]
     assert statuses[:3] == ["UP", "DOWN", "UP"]
     second = [r for _, r in s.server.requests if r.get("RequestCode") == 21][-1]
-    assert second["InstrumentCount"] == 8
+    assert second["InstrumentCount"] == 7  # future + 6 options; index is ticker (15)
+    assert any(
+        r.get("RequestCode") == 15 and 13 in {int(i["SecurityId"]) for i in r["InstrumentList"]}
+        for _, r in s.server.requests
+    )
     after = {
         r["payload"]["instrument_id"]
         for r in s.rows("depth_quotes")

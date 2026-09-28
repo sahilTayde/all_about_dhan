@@ -15,6 +15,15 @@ from .api import (
     StrategyMeta,
 )
 from .feature_view_stub import FeatureView
+from .forward import (
+    ForwardReport,
+    FwdBars,
+    SpecRefused,
+    bar_state,
+    evaluate_session,
+    load_spec,
+    verify_lock,
+)
 from .params_hash import (
     ROUND11_DEFAULTS_SHA256,
     compute_params_hash,
@@ -50,6 +59,8 @@ __all__ = [
     "ExitPlan",
     "ExitRequest",
     "FeatureView",
+    "ForwardReport",
+    "FwdBars",
     "HealthAlert",
     "LoadedStrategy",
     "PositionUpdate",
@@ -57,6 +68,7 @@ __all__ = [
     "SessionContext",
     "SessionRuntime",
     "Signal",
+    "SpecRefused",
     "Strategy",
     "StrategyMeta",
     "StrategyRuntimeError",
@@ -64,11 +76,13 @@ __all__ = [
     "StrikeChoice",
     "StrikeQuote",
     "StrikeRouter",
+    "bar_state",
     "basket_for",
     "basket_loaded_event",
     "compute_params_hash",
     "config_hash",
     "disable_strategy",
+    "evaluate_session",
     "exit_plan_hash",
     "inherit_exit_defaults",
     "load_basket",
@@ -76,8 +90,10 @@ __all__ = [
     "load_exit_defaults",
     "load_registry",
     "load_router_rules",
+    "load_spec",
     "load_strategy",
     "resolve_exit_plan",
     "rule_version",
     "strategy_call_budget",
+    "verify_lock",
 ]

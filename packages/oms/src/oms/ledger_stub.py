@@ -1,9 +1,10 @@
-"""In-memory ledger stub until V2-10. Paper fills always get a charges row (or PENDING)."""
+"""In-memory ledger adapter. Same plan/snapshot API as SqliteLedgerStore for paper tests."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
+from decimal import Decimal
 from typing import Any
 
 from contracts.instruments import India
@@ -11,9 +12,10 @@ from ledger.charges import (  # type: ignore[import-untyped, unused-ignore]
     exchange_for,
     order_charges,
 )
-from risk_engine.engine import IST
+from risk_engine.engine import IST  # type: ignore[import-untyped, unused-ignore]
 
 _INDIA = India()
+_PLAN_IMMUTABLE = frozenset({"decision_id", "signal_id", "mode", "action", "created_at"})
 
 
 def _fill_lot_size(instrument_id: str) -> int | None:
@@ -33,7 +35,7 @@ class ChargeRow:
     qty: int
     price: float
     exchange: str | None
-    components: dict[str, float]
+    components: dict[str, Decimal]
     charges_status: str  # FINAL | PENDING
     fill_model: str
     slippage_source: str
@@ -41,7 +43,7 @@ class ChargeRow:
 
 @dataclass
 class MemoryLedger:
-    """V2-10 comes later. Enough for router/risk/fill tests. No disk writes."""
+    """Paper/test double of V2-10: plans, session_halts, and snapshot veto fields. No disk."""
 
     orders: dict[str, dict[str, Any]] = field(default_factory=dict)
     fills: list[dict[str, Any]] = field(default_factory=list)
@@ -50,11 +52,54 @@ class MemoryLedger:
     closed: list[dict[str, Any]] = field(default_factory=list)
     decisions: list[dict[str, Any]] = field(default_factory=list)
     protective: dict[str, str] = field(default_factory=dict)  # position_key -> stop order_id
+    entry_plans: dict[str, dict[str, Any]] = field(default_factory=dict)
     session_halts: list[dict[str, Any]] = field(default_factory=list)
     rates: dict[str, Any] | None = None
     recon_ok: bool = True
     last_loss_exit_at: datetime | None = None
     realized_pnl_today: float = 0.0
+
+    def get_plan(self, plan_id: str) -> dict[str, Any] | None:
+        return self.entry_plans.get(plan_id)
+
+    def upsert_plan(self, row: dict[str, Any]) -> dict[str, Any]:
+        pid = str(row["plan_id"])
+        if pid in self.entry_plans:
+            held = self.entry_plans[pid]
+            created = held.get("created_at")
+            for key, value in row.items():
+                if key in _PLAN_IMMUTABLE and key in held:
+                    continue
+                held[key] = value
+            if created is not None:
+                held["created_at"] = created
+        else:
+            self.entry_plans[pid] = dict(row)
+        return self.entry_plans[pid]
+
+    def pending_plans(self) -> list[dict[str, Any]]:
+        return [p for p in self.entry_plans.values() if p.get("status") in ("PENDING", "WORKING")]
+
+    def get_position(self, key: str) -> dict[str, Any] | None:
+        return self.positions.get(key)
+
+    def get_protective(self, key: str) -> str | None:
+        got = self.protective.get(key)
+        return str(got) if got else None
+
+    def clear_protective(self, key: str) -> None:
+        self.protective.pop(key, None)
+
+    def mark_order_status(
+        self, client_order_id: str, status: str, *, cancel_reason: str | None = None
+    ) -> None:
+        row = self.orders.get(client_order_id)
+        if row is None:
+            return
+        row["state"] = status
+        row["status"] = status
+        if cancel_reason is not None:
+            row["cancel_reason"] = cancel_reason
 
     def get_order(self, client_order_id: str) -> dict[str, Any] | None:
         return self.orders.get(client_order_id)
@@ -92,7 +137,7 @@ class MemoryLedger:
         if lot is not None and int(qty) % lot != 0:
             raise ValueError(f"fill qty {qty} is not a multiple of lot size {lot}")
         status = "PENDING"
-        components: dict[str, float] = {}
+        components: dict[str, Decimal] = {}
         exchange: str | None = None
         if self.rates is not None:
             exchange = exchange_for(symbol or instrument_id, self.rates)

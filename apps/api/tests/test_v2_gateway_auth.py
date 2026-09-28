@@ -24,7 +24,7 @@ from api.gateway_auth import (
     tokens_match,
 )
 from api.main import create_app
-from api.v2_gateway import MUTATING_CONTROL_METHODS, GatewayHub, _http_identity
+from api.v2_gateway import MUTATING_CONTROL_METHODS, GatewayHub, _rate_limit_command
 from fastapi.testclient import TestClient
 from starlette.testclient import WebSocketDenialResponse
 from starlette.websockets import WebSocketDisconnect
@@ -71,7 +71,7 @@ def test_unauth_rejected(monkeypatch: Any) -> None:
     assert customer.status_code == 200
     assert customer.json()["role"] == "customer"
     assert "positions" in customer.json()["denied"]
-    control = c.post("/v2/control/commands", json={"kind": "KILL"})
+    control = c.post("/v2/control/commands", json={"kind": "KILL", "reason": "x"})
     assert control.status_code == 401
 
 
@@ -182,16 +182,15 @@ def test_mutating_control_commands_are_rate_limited(
     for _ in range(3):
         surface = c.get("/v2/control")
         assert surface.status_code == 200
-        assert surface.json()["stub"] is True
-    first = c.post("/v2/control/commands", json={"kind": "KILL"})
-    assert first.status_code == 501
-    assert first.json()["detail"]["applied"] is False
-    second = c.post("/v2/control/commands", json={"kind": "START"})
+        assert surface.json()["stub"] is False
+    first = c.post("/v2/control/commands", json={"kind": "KILL", "reason": "x"})
+    assert first.status_code == 422
+    second = c.post("/v2/control/commands", json={"kind": "START", "reason": "go"})
     assert second.status_code == 429
     assert second.json()["detail"]["code"] == "RATE_LIMIT"
     after = c.get("/v2/control")
     assert after.status_code == 200
-    assert after.json()["stub"] is True
+    assert after.json()["stub"] is False
 
     def _req(method: str) -> Request:
         async def receive() -> dict[str, object]:
@@ -217,13 +216,13 @@ def test_mutating_control_commands_are_rate_limited(
 
     for method in MUTATING_CONTROL_METHODS - {"POST"}:
         with pytest.raises(HTTPException) as exc:
-            _http_identity(_req(method), control=True)
+            _rate_limit_command(_req(method))
         assert exc.value.status_code == 429
         assert exc.value.detail["code"] == "RATE_LIMIT"
 
     text = caplog.text
     assert "control_command" in text
-    assert "stub_refused" in text
+    assert "confirm_required" in text
     assert "rate_limited" in text
     assert "KILL" in text
     assert FOUNDER not in text

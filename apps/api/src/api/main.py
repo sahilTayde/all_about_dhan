@@ -4,10 +4,10 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 from contextlib import asynccontextmanager
-from typing import Any
+from typing import Any, Optional
 
-from events.bus import MemoryBus
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
@@ -27,9 +27,22 @@ from api.health_alerts import router as health_router
 from api.models import TookTradeBody, TookTradeRecord
 from api.premium_bind import bind_premiums_onto_desk
 from api.store import SignalStore
-from api.v2_gateway import attach_gateway
-from api.v2_gateway import router as v2_router
 from api.ws import router as ws_router
+
+log = logging.getLogger(__name__)
+
+try:
+    from events.bus import MemoryBus
+
+    from api.v2_gateway import attach_gateway
+    from api.v2_gateway import router as v2_router
+
+    V2_GATEWAY_AVAILABLE = True
+except ImportError:
+    MemoryBus = None
+    attach_gateway = None
+    v2_router = None
+    V2_GATEWAY_AVAILABLE = False
 
 
 @asynccontextmanager
@@ -57,7 +70,13 @@ def create_app() -> FastAPI:
     assert_bind_allowed(effective_bind_host(auth.bind_host), auth.configured)
     app.state.v2_auth = auth
     app.state.v2_limiter = CommandRateLimiter(per_s=auth.control_rate_per_s)
-    attach_gateway(app, MemoryBus())
+    if V2_GATEWAY_AVAILABLE:
+        attach_gateway(app, MemoryBus())
+    else:
+        log.warning(
+            "v2 routes disabled: events/v2_gateway unavailable "
+            "(legacy Python 3.9 venv is expected; /paper/* stays up)"
+        )
 
     app.add_middleware(
         CORSMiddleware,
@@ -283,7 +302,7 @@ def create_app() -> FastAPI:
         )
 
     @app.get("/paper/history")
-    def paper_history(day: str | None = None) -> dict[str, Any]:
+    def paper_history(day: Optional[str] = None) -> dict[str, Any]:  # noqa: UP045 — FastAPI evals params on 3.9
         """Closed paper trades for one IST day (board + model log + ledger). Read-only."""
         return ui_feed.day_history(day=day, budget_s=2.0)
 
@@ -340,7 +359,8 @@ def create_app() -> FastAPI:
     app.include_router(ws_router)
     app.include_router(health_router)
     app.include_router(founder_controls_router)
-    app.include_router(v2_router)
+    if V2_GATEWAY_AVAILABLE:
+        app.include_router(v2_router)
     return app
 
 

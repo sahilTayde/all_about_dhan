@@ -13,7 +13,6 @@ enum integer. Both are accepted here and sent through. VERIFY FROM DOCS.
 from __future__ import annotations
 
 from dhan_client import endpoints
-from dhan_client.rate_limit import MinIntervalGate
 from dhan_client.rest import RestClient
 from dhan_client.types import HistoricalDailyBody, HistoricalIntradayBody, JsonDict, RollingOptionBody
 
@@ -29,19 +28,11 @@ def _require(body: dict, *keys: str) -> None:
 class HistoricalClient:
     def __init__(self, rest: RestClient) -> None:
         self._rest = rest
-        # Official intro: Data APIs 5 requests / second (charts/historical + intraday).
-        self._gate = MinIntervalGate(1.0 / endpoints.RATE_LIMIT_DATA_PER_SEC)
-
-    def _wait(self) -> None:
-        if self._rest.settings.dry_run:
-            return
-        self._gate.wait()
 
     def daily(self, body: HistoricalDailyBody) -> JsonDict:
         payload = dict(body)
         _require(payload, "securityId", "exchangeSegment", "instrument", "fromDate", "toDate")
         payload["securityId"] = str(payload["securityId"])
-        self._wait()
         return self._rest.request(
             "POST",
             endpoints.CHARTS_HISTORICAL,
@@ -69,7 +60,6 @@ class HistoricalClient:
             raise ValueError("interval must be 1, 5, 15, 25, or 60")
         # Official sample JSON uses a string; table says integer. Send string like the sample.
         payload["interval"] = str(interval_n)
-        self._wait()
         return self._rest.request(
             "POST",
             endpoints.CHARTS_INTRADAY,
@@ -113,7 +103,6 @@ class HistoricalClient:
             raise ValueError("expiryFlag must be WEEK or MONTH")
         if payload["drvOptionType"] not in ("CALL", "PUT"):
             raise ValueError("drvOptionType must be CALL or PUT")
-        self._wait()
         return self._rest.request(
             "POST",
             endpoints.CHARTS_ROLLING_OPTION,

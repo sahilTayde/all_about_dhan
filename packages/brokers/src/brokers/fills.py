@@ -9,10 +9,10 @@ from pathlib import Path
 from typing import Any, Protocol
 
 import yaml  # type: ignore[import-untyped]
-from risk_engine import IST, RiskDecision
+from risk_engine import IST, RiskDecision, TradeIntent
 
-from brokers.orders import Order, OrderRefused
-from brokers.paper import PaperBroker
+from brokers.orders import Order, OrderRefused, OrderState
+from brokers.paper import PaperBroker, _lots_from_qty
 
 TICK = 0.05
 IMPACT_AT_25 = 0.05
@@ -329,10 +329,162 @@ class ClockedPaperBroker(PaperBroker):
         return order
 
     def remember(self, client_order_id: str, **fields: Any) -> None:
+        allowed = set(FillOrder.__dataclass_fields__)
+        extra = {k: v for k, v in fields.items() if k in allowed}
         meta = self._order_meta.get(client_order_id)
         if meta is None:
-            return
-        self._order_meta[client_order_id] = FillOrder(**{**meta.__dict__, **fields})
+            order = self.orders.get(client_order_id)
+            if order is None and not extra:
+                return
+            now = self.clock.now()
+            intent = getattr(order, "intent", None) if order is not None else None
+
+            def _field(name: str, default: Any = None) -> Any:
+                if extra.get(name) is not None:
+                    return extra[name]
+                if intent is not None:
+                    return getattr(intent, name, default)
+                return default
+
+            meta = FillOrder(
+                client_order_id=client_order_id,
+                side=str(_field("side", "BUY")),
+                order_type=str(_field("order_type", "LIMIT")),
+                available_ts=extra.get("available_ts") or now,
+                decision_ts=extra.get("decision_ts") or now,
+                lots=int(_field("lots") or 1),
+                lot_size=int(_field("lot_size") or 1),
+                instrument_id=str(_field("instrument_id") or ""),
+                price=_field("price"),
+                trigger_price=_field("trigger_price"),
+                moneyness=str(extra.get("moneyness") or "ITM100"),
+                tick_size=float(extra.get("tick_size") or self.tick_size),
+                latency_ms=int(extra.get("latency_ms") or self.latency_ms),
+            )
+        self._order_meta[client_order_id] = FillOrder(**{**meta.__dict__, **extra})
+
+    def restore_working_order(
+        self,
+        row: dict[str, Any],
+        *,
+        plan: dict[str, Any] | None = None,
+        now: datetime | None = None,
+    ) -> Order:
+        """Rehydrate a persisted paper order with price + fill meta. Never place/submit."""
+        oid = str(row["client_order_id"])
+        held = self.orders.get(oid)
+        stamp = now if now is not None else self.clock.now()
+        extras = self._restore_meta_fields(row, plan or {}, stamp)
+        if held is not None:
+            if oid not in self._order_meta:
+                self.remember(oid, **extras)
+            return held
+        price = row.get("price")
+        if price is None:
+            price = (plan or {}).get("limit_price")
+        kind = str(row.get("order_type") or "LIMIT")
+        trigger = row.get("trigger_price") if kind in ("SL", "SL-M") else None
+        symbol = str(row.get("symbol") or row.get("instrument_id") or (plan or {}).get("instrument_id") or "")
+        inst = str(row.get("instrument_id") or (plan or {}).get("instrument_id") or "")
+        lots = int(row.get("lots") or (plan or {}).get("lots") or 0)
+        lot_size = int(row.get("lot_size") or (plan or {}).get("lot_size") or 0)
+        qty = int(row.get("qty") or 0)
+        if (lots <= 0 or lot_size <= 0) and qty > 0:
+            lots, lot_size = _lots_from_qty(qty, symbol or inst)
+        if lots <= 0:
+            lots = 1
+        if lot_size <= 0:
+            lot_size = 65
+        px = float(price) if price is not None else None
+        trig = float(trigger) if trigger is not None else None
+        stop = row.get("stop_loss")
+        if stop is None and kind not in ("SL", "SL-M"):
+            stop = row.get("trigger_price")
+        intent = TradeIntent(
+            symbol=symbol or inst,
+            side=str(row.get("side") or "BUY"),
+            lots=lots,
+            lot_size=lot_size,
+            order_type=kind,
+            price=px,
+            trigger_price=trig,
+            decision_price=px,
+            purpose=str(row.get("purpose") or "ENTRY"),
+            exit_reason=row.get("exit_reason"),
+            instrument_id=inst,
+            client_order_id=oid,
+            stop_loss=float(stop) if stop is not None else None,
+        )
+        order = Order(
+            intent=intent,
+            broker="paper",
+            mode="paper",
+            on_transition=self._emit_transition,
+            on_fill=self._emit_fill,
+        )
+        raw_state = str(row.get("status") or row.get("state") or "SUBMITTED")
+        try:
+            order.state = OrderState.SUBMITTED if raw_state == "NEW" else OrderState(raw_state)
+        except ValueError:
+            order.state = OrderState.SUBMITTED
+        order.filled_qty = int(row.get("filled_qty") or 0)
+        if row.get("avg_fill_price") is not None:
+            order.avg_fill_price = float(row["avg_fill_price"])
+        order.price = px
+        order.trigger_price = trig
+        self.orders[oid] = order
+        self.remember(oid, **extras)
+        return order
+
+    def _restore_meta_fields(
+        self, row: dict[str, Any], plan: dict[str, Any], stamp: datetime
+    ) -> dict[str, Any]:
+        sent = plan.get("sent_at")
+        if isinstance(sent, str) and sent:
+            sent = datetime.fromisoformat(sent)
+        if not isinstance(sent, datetime):
+            created = row.get("created_at")
+            if isinstance(created, str) and created:
+                sent = datetime.fromisoformat(created)
+            elif isinstance(created, datetime):
+                sent = created
+            else:
+                sent = stamp
+        if sent.tzinfo is None:
+            sent = sent.replace(tzinfo=IST)
+        price = row.get("price")
+        if price is None:
+            price = plan.get("limit_price")
+        kind = str(row.get("order_type") or "LIMIT")
+        trigger = row.get("trigger_price") if kind in ("SL", "SL-M") else None
+        moneyness = "ITM100"
+        dec = plan.get("decision")
+        shadow = getattr(dec, "shadow", None) if dec is not None else None
+        if isinstance(shadow, dict) and shadow.get("chosen"):
+            moneyness = str(shadow["chosen"])
+        elif isinstance(plan.get("moneyness"), str):
+            moneyness = str(plan["moneyness"])
+        out: dict[str, Any] = {
+            "side": str(row.get("side") or "BUY"),
+            "order_type": kind,
+            "available_ts": sent,
+            "decision_ts": sent,
+            "instrument_id": str(row.get("instrument_id") or plan.get("instrument_id") or ""),
+            "moneyness": moneyness,
+            "tick_size": self.tick_size,
+            "latency_ms": self.latency_ms,
+        }
+        lots = int(row.get("lots") or plan.get("lots") or 0)
+        lot_size = int(row.get("lot_size") or plan.get("lot_size") or 0)
+        if lots > 0:
+            out["lots"] = lots
+        if lot_size > 0:
+            out["lot_size"] = lot_size
+        if price is not None:
+            out["price"] = float(price)
+        if trigger is not None:
+            out["trigger_price"] = float(trigger)
+        return out
 
     def modify_order(self, order_id: str, qty: int) -> Order:  # type: ignore[override]
         """In-place quantity modify (Dhan supports qty modify). Same client_order_id."""

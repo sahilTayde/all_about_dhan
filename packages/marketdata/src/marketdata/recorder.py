@@ -21,8 +21,10 @@ from typing import Any
 
 from dhan_client.config import Settings
 from dhan_client.decode import DECODER_VERIFIED
+from dhan_client.endpoints import OPTION_CHAIN
 from dhan_client.errors import CredentialsError
 from dhan_client.feed import MarketFeedCollector
+from dhan_client.rate_limit import default_limiter, is_rate_limit_error, rate_limit_hits
 from dhan_client.types import FeedMode
 
 from marketdata import logsafe
@@ -43,7 +45,7 @@ from marketdata.instruments import (
 from marketdata.oi_cadence import OiCadenceTracker
 from marketdata.quotes import snapshot
 from marketdata.strikes import Change, StrikeSet
-from marketdata.tape import TapeWriter
+from marketdata.tape import TapeWriter, tape_drop_count
 
 log = logging.getLogger(__name__)
 
@@ -58,6 +60,8 @@ PLAIN_STREAMS = ("raw_frames", "ingest_errors", "subscriptions")
 # Live-feed disconnect codes for unusable credentials or no data plan (annexure 806-810).
 AUTH_DISCONNECT_CODES = frozenset({806, 807, 808, 809, 810})
 IST_EPOCH_SHIFT = 19800
+# IDX_I freshness: ticker (15) / quote (17) arrive as index/ticker/quote, never FULL.
+_INDEX_FRESH = frozenset({"index", "ticker", "quote", "full"})
 
 
 def _b64(raw: bytes) -> str:
@@ -100,7 +104,13 @@ class MarketDataRecorder:
         self.universe = universe
         self.clock: Clock = clock or LiveClock()
         self.tape = {
-            name: TapeWriter(config.tape_root, name, background=True)
+            name: TapeWriter(
+                config.tape_root,
+                name,
+                background=True,
+                queue_max=config.tape_queue_max,
+                put_timeout_s=config.tape_queue_put_timeout_s,
+            )
             for name in [s for s, _ in ENVELOPE_STREAMS.values()] + list(PLAIN_STREAMS)
         }
         self.depth = DepthTracker(config.depth_throttle_s, config.depth_heartbeat_s)
@@ -124,10 +134,12 @@ class MarketDataRecorder:
         self._subscribed_s: dict[str, float] = {}
         self._last_spot_s = float("-inf")
         self._last_spot_poll_s = float("-inf")
+        self._index_tick_seen = False
         self._spot_poll: asyncio.Task[None] | None = None
         self._ltt_shift: int | None = None
         self._implausible_logged_s = float("-inf")
         self._open_dt: datetime | None = None
+        self._last_index_s: dict[str, float] = {}
 
     # ---- lifecycle -------------------------------------------------------------------
 
@@ -198,6 +210,7 @@ class MarketDataRecorder:
             self.settings,
             [i.feed for i in first.subscribe],
             mode=FeedMode.FULL,
+            index_mode=FeedMode(self.config.index_feed_mode),
             reconnect=True,
             max_backoff_seconds=self.config.max_backoff_s,
         )
@@ -361,8 +374,12 @@ class MarketDataRecorder:
         assert self._open_dt is not None
         if not self._connected or now < self._open_dt:
             return
-        for iid in self.strikes.subscribed:
-            age = self.depth.age_s(iid, now_s)
+        for iid, inst in self.strikes.subscribed.items():
+            if inst.kind == "INDEX":
+                last = self._last_index_s.get(iid)
+                age = None if last is None else now_s - last
+            else:
+                age = self.depth.age_s(iid, now_s)
             if age is None:  # nothing received yet: count from subscription / reconnect
                 waited = now_s - max(self._subscribed_s.get(iid, now_s), self._up_since_s)
                 stale = waited > self.config.stale_after_s
@@ -379,11 +396,13 @@ class MarketDataRecorder:
         assert self._open_dt is not None
         assert self.universe is not None
         if (
-            self.source is None
+            self._index_tick_seen
+            or self.source is None
             or not self._connected
             or now < self._open_dt
             or now_s - self._last_spot_s < self.config.spot_fallback_after_s
             or now_s - self._last_spot_poll_s < self.config.spot_poll_s
+            or default_limiter().remaining_s(OPTION_CHAIN) > 0
             or (self._spot_poll is not None and not self._spot_poll.done())
         ):
             return
@@ -393,11 +412,18 @@ class MarketDataRecorder:
     async def _poll_spot(self) -> None:
         assert self.source is not None
         assert self.universe is not None
+        if self._index_tick_seen:
+            return
         u = self.universe
         try:
             chain = await asyncio.to_thread(self.source.option_chain, int(u.index.security_id), "IDX_I", u.expiry)
             spot = float(chain.get("last_price") or 0.0)
         except Exception as exc:
+            if is_rate_limit_error(exc):
+                lim = default_limiter()
+                if lim.remaining_s(OPTION_CHAIN) <= 0:
+                    lim.note_rate_limit(OPTION_CHAIN)
+                return
             log.warning("spot fallback via option chain failed: %s", type(exc).__name__)
             return
         if spot > 0:
@@ -411,7 +437,7 @@ class MarketDataRecorder:
         assert self.strikes is not None
         log.info(
             "%s connected=%s frames=%d packets=%d rows depth=%d quotes=%d oi=%d errors=%d "
-            "spot=%.2f atm=%s subscribed=%d stale=%d",
+            "spot=%.2f atm=%s subscribed=%d stale=%d tape_drops=%d rest_429s=%d",
             now.strftime("%H:%M"),
             self._connected,
             self.stats.frames,
@@ -424,6 +450,8 @@ class MarketDataRecorder:
             self.strikes.atm,
             len(self.strikes.subscribed),
             len(self._stale),
+            tape_drop_count(),
+            rate_limit_hits(),
         )
 
     # ---- feed input ------------------------------------------------------------------
@@ -501,6 +529,8 @@ class MarketDataRecorder:
         now_s = now.timestamp()
         raw_b64 = None if DECODER_VERIFIED else _b64(packet.raw)
         ltp = fields.get("ltp")
+        if inst.kind == "INDEX" and kind in _INDEX_FRESH and ltp is not None:
+            self._last_index_s[iid] = now_s
         if kind == "full":
             ltt = self._ltt(fields.get("last_trade_time_epoch"), now_s)
             self._depth(iid, quote_from_full(fields), now, raw_b64, ltt)
@@ -510,7 +540,7 @@ class MarketDataRecorder:
             if inst.kind != "INDEX":
                 self.oi.observe(iid, int(fields["oi"]), now_s, "feed_oi")
         elif inst.kind == "INDEX" and ltp is not None:
-            self._depth(iid, quote_from_ltp(ltp), now, raw_b64, None)
+            self._depth(iid, quote_from_ltp(ltp), now, raw_b64, self._ltt(fields.get("last_trade_time_epoch"), now_s))
         if inst.kind == "INDEX" and ltp and math.isfinite(ltp):
             await self._on_spot(float(ltp), now, now_s, from_feed=True)
 
@@ -545,6 +575,7 @@ class MarketDataRecorder:
         self.spot = spot
         if from_feed:
             self._last_spot_s = now_s
+            self._index_tick_seen = True
         await self._apply(self.strikes.update(spot, now_s), now, "recentre")
 
     async def _apply(self, change: Change, now: datetime, reason: str) -> None:
@@ -558,6 +589,7 @@ class MarketDataRecorder:
             self.depth.drop(inst.instrument_id)
             self.oi.drop(inst.instrument_id)
             self._stale.discard(inst.instrument_id)
+            self._last_index_s.pop(inst.instrument_id, None)
         try:
             if change.subscribe:
                 await self.collector.subscribe([i.feed for i in change.subscribe])
@@ -613,7 +645,18 @@ class MarketDataRecorder:
         self._write(stem, env, now)
 
     def _status(self, now: datetime, status: str, **extra: Any) -> None:
-        self._emit("FEED_STATUS", {"status": status, "since": iso(now), **extra}, now, iso(now))
+        self._emit(
+            "FEED_STATUS",
+            {
+                "status": status,
+                "since": iso(now),
+                **extra,
+                "tape_drops": tape_drop_count(),
+                "rest_429s": rate_limit_hits(),
+            },
+            now,
+            iso(now),
+        )
 
     def _error(self, reason: str, now: datetime, **extra: Any) -> None:
         self.stats.ingest_errors += 1

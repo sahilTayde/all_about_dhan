@@ -5,6 +5,9 @@
   then ``fsync``ed. A kill loses at most the unflushed buffer, never earlier lines.
 - With ``background=True`` the write and fsync run on one shared writer thread, so a slow
   disk never stalls the event loop (fsync can take hundreds of ms on a busy disk).
+- The writer queue is bounded. A full queue applies a short put-timeout (backpressure) and
+  then drops the flush; ``tape_drop_count()`` is the running total. ``close()`` waits out
+  the queue so a clean stop does not drop the last buffer.
 - On first open of a day file, a partial last line (or a NUL tail left by a power cut) is
   cut back to the last newline, however far back it is. What was cut is reported so it
   lands in ``ingest_errors``; the file is emptied only if it holds no newline at all.
@@ -30,6 +33,8 @@ log = logging.getLogger(__name__)
 
 _FLUSH_BYTES = 256 * 1024
 _SCAN_CHUNK = 64 * 1024
+DEFAULT_QUEUE_MAX = 256
+DEFAULT_PUT_TIMEOUT_S = 0.05
 
 
 def _nulls(value: Any) -> Any:
@@ -52,16 +57,39 @@ def _write_all(fd: int, data: bytes) -> None:
 class _Flusher:
     """One daemon thread that appends and fsyncs for every background TapeWriter, in order.
 
-    ponytail: unbounded queue; at ~200 KB/s of rows even a 60 s disk stall holds ~12 MB.
+    Bounded queue: a slow disk applies ``put_timeout_s`` of backpressure, then drops.
+    ``close()`` submits with ``wait=True`` and ``drain()`` so a clean stop flushes all.
     """
 
-    def __init__(self) -> None:
-        self._jobs: queue.Queue[tuple[int, bytes, bool]] = queue.Queue()
+    def __init__(
+        self,
+        maxsize: int = DEFAULT_QUEUE_MAX,
+        put_timeout_s: float = DEFAULT_PUT_TIMEOUT_S,
+    ) -> None:
+        if maxsize < 1:
+            raise ValueError("tape queue maxsize must be >= 1")
+        self.maxsize = maxsize
+        self.put_timeout_s = put_timeout_s
+        self._jobs: queue.Queue[tuple[int, bytes, bool]] = queue.Queue(maxsize=maxsize)
+        self.dropped = 0
+        self._drop_lock = threading.Lock()
         self._thread = threading.Thread(target=self._run, name="tape-flusher", daemon=True)
         self._thread.start()
 
-    def submit(self, fd: int, data: bytes, fsync: bool) -> None:
-        self._jobs.put((fd, data, fsync))
+    def submit(self, fd: int, data: bytes, fsync: bool, *, wait: bool = False) -> bool:
+        item = (fd, data, fsync)
+        try:
+            if wait:
+                self._jobs.put(item)
+            else:
+                self._jobs.put(item, timeout=self.put_timeout_s)
+            return True
+        except queue.Full:
+            with self._drop_lock:
+                self.dropped += 1
+                n = self.dropped
+            log.warning("tape queue full (max=%d); drop #%d (%d bytes)", self.maxsize, n, len(data))
+            return False
 
     def drain(self) -> None:
         self._jobs.join()
@@ -96,11 +124,38 @@ _flusher: _Flusher | None = None
 _flusher_lock = threading.Lock()
 
 
-def _get_flusher() -> _Flusher:
+def tape_drop_count() -> int:
+    """Flushes dropped after backpressure. 0 until a background writer is created."""
+    flusher = _flusher
+    return 0 if flusher is None else flusher.dropped
+
+
+def reset_tape_flusher(
+    *,
+    maxsize: int = DEFAULT_QUEUE_MAX,
+    put_timeout_s: float = DEFAULT_PUT_TIMEOUT_S,
+) -> None:
+    """Replace the shared flusher. Tests only; production never calls this."""
+    global _flusher
+    with _flusher_lock:
+        old = _flusher
+        if old is not None:
+            old.drain()
+        _flusher = _Flusher(maxsize=maxsize, put_timeout_s=put_timeout_s)
+
+
+def _get_flusher(
+    *,
+    maxsize: int | None = None,
+    put_timeout_s: float | None = None,
+) -> _Flusher:
     global _flusher
     with _flusher_lock:
         if _flusher is None:
-            _flusher = _Flusher()
+            _flusher = _Flusher(
+                maxsize=maxsize if maxsize is not None else DEFAULT_QUEUE_MAX,
+                put_timeout_s=put_timeout_s if put_timeout_s is not None else DEFAULT_PUT_TIMEOUT_S,
+            )
         return _flusher
 
 
@@ -139,7 +194,15 @@ def repair_tail(path: Path) -> dict[str, Any] | None:
 
 
 class TapeWriter:
-    def __init__(self, root: Path | str, stream: str, *, background: bool = False) -> None:
+    def __init__(
+        self,
+        root: Path | str,
+        stream: str,
+        *,
+        background: bool = False,
+        queue_max: int | None = None,
+        put_timeout_s: float | None = None,
+    ) -> None:
         self.root = Path(root)
         self.stream = stream
         self.background = background
@@ -150,6 +213,8 @@ class TapeWriter:
         self._buf: list[bytes] = []
         self._size = 0
         self._dirty = False
+        self._queue_max = queue_max
+        self._put_timeout_s = put_timeout_s
 
     def open(self, ts: datetime) -> dict[str, Any] | None:
         """Open (and repair) the file for ``ts``'s IST day. Returns a repair record, if any."""
@@ -179,7 +244,7 @@ class TapeWriter:
             self.flush(fsync=False)
         return repaired
 
-    def flush(self, fsync: bool = True) -> None:
+    def flush(self, fsync: bool = True, *, wait: bool = False) -> None:
         if self._fd is None:
             return
         data = b"".join(self._buf)
@@ -191,7 +256,9 @@ class TapeWriter:
         if not data and not sync:
             return
         if self.background:
-            _get_flusher().submit(self._fd, data, sync)
+            _get_flusher(maxsize=self._queue_max, put_timeout_s=self._put_timeout_s).submit(
+                self._fd, data, sync, wait=wait
+            )
             return
         if data:
             _write_all(self._fd, data)
@@ -200,7 +267,7 @@ class TapeWriter:
 
     def close(self) -> None:
         if self._fd is not None:
-            self.flush()
+            self.flush(wait=True)
             if self.background:
                 _get_flusher().drain()
             os.close(self._fd)

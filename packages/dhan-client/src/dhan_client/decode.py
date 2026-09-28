@@ -44,7 +44,7 @@ Each level = 20 bytes with bid and ask fields interleaved:
 - Bytes 12-15: Bid Price (float32)
 - Bytes 16-19: Ask Price (float32)
 
-Note: This is the 5-level depth feed (code 8). The 20-level depth feed 
+Note: This is the 5-level depth feed (code 8). The 20-level depth feed
 (codes 41/51) uses a different structure (12-byte header, 16-byte levels).
 
 Documented facts used here
@@ -54,7 +54,8 @@ Documented facts used here
 - Ticker (code 2): float32 LTP, uint32 LTT epoch
 - Prev close (code 6): float32 prev close, uint32 prev OI
 - Quote (code 4), OI (code 5), Full (code 8), disconnect (code 50): offsets per docs
-- Index (code 1) and market status (code 7): named in annexure only — payload UNKNOWN
+- Index (code 1): annexure-named; payload matches ticker (float32 LTP, int32 LTT) when >= 8 bytes
+- Market status (code 7): named in annexure only — payload UNKNOWN
 
 decoder_verified: Stays False until one real captured frame is verified against this layout
 """
@@ -153,7 +154,9 @@ def _decode_full_packet(payload: bytes) -> dict[str, Any]:
     """
     min_size = 154  # 54 body + 100 depth
     if len(payload) < min_size:
-        raise DecodeError(f"full payload too short: need {min_size} bytes, got {len(payload)}")
+        raise DecodeError(
+            f"full payload too short: need {min_size} bytes, got {len(payload)}"
+        )
 
     fields: dict[str, Any] = {}
 
@@ -275,7 +278,11 @@ def decode_packet(header: FeedHeader, payload: bytes) -> DecodedPacket:
             fields["day_high"] = _f32(payload, 34)
             fields["day_low"] = _f32(payload, 38)
         return DecodedPacket(
-            header=header, kind="quote", fields=fields, raw_payload=payload, notes=tuple(notes)
+            header=header,
+            kind="quote",
+            fields=fields,
+            raw_payload=payload,
+            notes=tuple(notes),
         )
 
     if code == FeedResponseCode.FULL:
@@ -298,13 +305,17 @@ def decode_packet(header: FeedHeader, payload: bytes) -> DecodedPacket:
             raise DecodeError(f"failed to decode full packet: {e}") from e
 
     if code == FeedResponseCode.INDEX:
-        fields = {}
+        if len(payload) < 4:
+            raise DecodeError("index payload shorter than 4 bytes")
+        # Same body as ticker (official SDK process_ticker: LTP f32 + LTT i32). IDX_I
+        # subscribed with request 15/17 arrives as response 1, not FULL (8).
+        fields = {"ltp": _f32(payload, 0)}
+        if len(payload) >= 8:
+            fields["last_trade_time_epoch"] = _i32(payload, 4)
         notes.append(
-            "Index packet layout is annexure-named only on the feed page. "
-            "First float32 as LTP is VERIFY, not a documented field table."
+            "Index packet (response 1) is annexure-named; LTP+LTT match the ticker body. "
+            "IDX_I has no FULL/depth ticks."
         )
-        if len(payload) >= 4:
-            fields["ltp"] = _f32(payload, 0)
         return DecodedPacket(
             header=header,
             kind="index",
@@ -330,7 +341,7 @@ def decode_packet(header: FeedHeader, payload: bytes) -> DecodedPacket:
 
 def decode_frame(buf: bytes) -> list[DecodedPacket]:
     """Decode one WebSocket binary frame into zero or more packets.
-    
+
     Bad packets are logged and skipped; the function never raises on individual packet errors.
     """
     if not buf:
