@@ -99,7 +99,7 @@ arm_dual_tape_when_open() {
 }
 
 find_node() {
-  local dir bin newest cand
+  local dir bin newest cand ver newest_ver
   if command -v node >/dev/null 2>&1; then
     bin="$(command -v node)"
     NODE_DIR="$(cd "$(dirname "$bin")" && pwd)"
@@ -126,13 +126,19 @@ find_node() {
     done
   fi
   newest=""
+  newest_ver=""
   for cand in "$HOME"/.nvm/versions/node/*/bin; do
     if [[ -x "$cand/node" ]]; then
-      newest="$cand"
+      ver="${cand%/bin}"
+      ver="${ver##*/}"
+      ver="${ver#v}"
+      newest_ver="${newest_ver}${ver}"$'\n'
     fi
   done
-  if [[ -n "$newest" ]]; then
-    newest="$(printf '%s\n' "$HOME"/.nvm/versions/node/*/bin | sort -V | tail -1)"
+  # bash 3.2 + BSD sort: no GNU -V. Numeric dotted compare on stripped vX.Y.Z.
+  if [[ -n "$newest_ver" ]]; then
+    newest_ver="$(printf '%s' "$newest_ver" | sort -t. -k1,1n -k2,2n -k3,3n | tail -1)"
+    newest="$HOME/.nvm/versions/node/v${newest_ver}/bin"
     if [[ -x "$newest/node" ]]; then
       NODE_DIR="$newest"
       export PATH="$NODE_DIR:$PATH"

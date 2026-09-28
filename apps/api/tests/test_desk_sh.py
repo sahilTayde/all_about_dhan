@@ -144,6 +144,47 @@ def test_c_find_node_path_then_anaconda_then_homebrew_then_nvm(tmp_path: Path) -
     assert "v16.0.0" not in proc.stdout
 
 
+def test_c_find_node_nvm_newest_without_gnu_sort_v(tmp_path: Path) -> None:
+    home = tmp_path / "home"
+    shim = tmp_path / "shim"
+    shim.mkdir()
+    home.mkdir()
+    _write_exec(
+        shim / "sort",
+        textwrap.dedent(
+            """\
+            #!/bin/sh
+            for a in "$@"; do
+              if [ "$a" = "-V" ]; then
+                echo "sort: invalid option -- V" >&2
+                exit 2
+              fi
+            done
+            exec /usr/bin/sort "$@"
+            """
+        ),
+    )
+    for ver in ("v18.20.4", "v20.9.0", "v20.11.1"):
+        d = home / ".nvm" / "versions" / "node" / ver / "bin"
+        d.mkdir(parents=True)
+        _write_exec(d / "node", "#!/bin/sh\nexit 0\n")
+    proc = _source(
+        tmp_path,
+        "find_node && echo NODE_DIR=$NODE_DIR",
+        env={
+            "HOME": str(home),
+            "PATH": f"{shim}:/usr/bin:/bin",
+            "AAD_SKIP_SYSTEM_NODE_DIRS": "1",
+        },
+    )
+    blob = proc.stdout + proc.stderr
+    assert proc.returncode == 0, blob
+    assert "v20.11.1" in proc.stdout
+    assert "v18.20.4" not in proc.stdout
+    assert "v20.9.0" not in proc.stdout
+    assert "invalid option" not in blob
+
+
 def test_c_find_node_errors_when_missing(tmp_path: Path) -> None:
     home = tmp_path / "empty_home"
     home.mkdir()
