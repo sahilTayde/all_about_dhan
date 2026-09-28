@@ -241,7 +241,7 @@ def replay_trade(
         net_inr=round(state.realized_gross - state.realized_charges, 2),
         plan_id=plan.plan_id,
         data_source=data_source,
-        extra={"legs": state.legs, "fill_model": model.name},
+        extra={"legs": state.legs, "fill_model": model.name, "moneyness": entry.moneyness},
     )
 
 

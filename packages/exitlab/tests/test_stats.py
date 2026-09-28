@@ -42,7 +42,40 @@ def test_max_drawdown_and_ci() -> None:
     assert ci[0] <= ci[1]
     sr = sharpe_ratio(nets)
     dsr = deflated_sharpe(sr, len(nets), n_trials=40)
-    assert dsr is None or isinstance(dsr, float)
+    assert dsr is None or (0.0 <= dsr <= 1.0)
+
+
+def test_dsr_is_probability_worked_example() -> None:
+    """Bailey and Lopez de Prado (2014) eq. 8-11. DSR = Phi((SR - SR*)/se).
+
+    Worked: SR=0.15, n=100, N=20 trials, skew=0, kurtosis=3.
+    SR* = se * [(1-euler) invPhi(1-1/N) + euler invPhi(1-1/(N e))].
+    """
+    import math
+
+    from exitlab.stats import _inv_norm, _norm_cdf
+
+    sr, n, n_trials = 0.15, 100, 20
+    got = deflated_sharpe(sr, n, n_trials, skew=0.0, kurt=3.0)
+    assert got is not None
+    assert 0.0 <= got <= 1.0
+    euler = 0.5772156649015329
+    e_max_z = (1.0 - euler) * _inv_norm(1.0 - 1.0 / n_trials) + euler * _inv_norm(
+        1.0 - 1.0 / (n_trials * math.e)
+    )
+    se = math.sqrt((1.0 + ((3.0 - 1.0) / 4.0) * sr * sr) / (n - 1))
+    sr_star = e_max_z * se
+    z = (sr - sr_star) / se
+    expected = _norm_cdf(z)
+    # Independent Φ via erf
+    erf_phi = 0.5 * (1.0 + math.erf(z / math.sqrt(2.0)))
+    assert abs(expected - erf_phi) < 1e-15
+    assert abs(got - erf_phi) < 1e-12
+    assert 0.05 < got < 0.95
+    huge = deflated_sharpe(10.0, 10, 100)
+    tiny = deflated_sharpe(-2.0, 10, 100)
+    assert huge is not None and tiny is not None
+    assert 0.0 <= tiny <= huge <= 1.0
 
 
 def test_summarize_counts_skips() -> None:

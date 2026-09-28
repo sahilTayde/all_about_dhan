@@ -34,11 +34,12 @@ from exitlab.stats import Summary, summarize
 from exitlab.tapes import (
     dual_tape_days,
     load_dual_tape_session,
-    premium_quote,
+    measure_v2_spreads,
+    spread_pts_for,
+    strike_ltp,
     ticks_to_index_bars,
-    wing_ltp,
 )
-from exitlab.types import Bar, Entry, Quote, TradeResult  # Quote used in stress mutate
+from exitlab.types import Bar, Entry, Quote, TradeResult
 
 TRAIN_UNTIL = "2026-05-31"
 TEST_SINCE = "2026-06-01"
@@ -60,9 +61,9 @@ def measure_live_tapes(data: Path) -> dict[str, Any]:
     sessions: list[dict[str, Any]] = []
     tod: dict[str, list[float]] = defaultdict(list)
     recover: list[dict[str, Any]] = []
-    spreads: list[float] = []
     n_ticks = 0
     freeze_hits = 0
+    v2_spreads = measure_v2_spreads(data)
     for path in days:
         ticks = load_dual_tape_session(path)
         n_ticks += len(ticks)
@@ -131,7 +132,8 @@ def measure_live_tapes(data: Path) -> dict[str, Any]:
             "rate": (n_ok / n_rec) if n_rec else None,
             "note": ("ATM CE path on live dual-tape. Not a trade. 40 prints after a print."),
         },
-        "v2_spread_sample": spreads,
+        "v2_spread_sample": (v2_spreads.get("by_rule") or []),
+        "v2_spreads": v2_spreads,
     }
 
 
@@ -275,30 +277,51 @@ def _category_coverage(results: list[TradeResult]) -> dict[str, Any]:
     return {"mapped": rows, "not_a_replayed_plan": skipped}
 
 
-def _series_for_live(
-    entry: Entry, ticks: list[dict[str, Any]]
-) -> tuple[list[Quote], list[Bar], list[Bar]]:
-    quotes: list[Quote] = []
+def count_missing_strike(entry: Entry, ticks: list[dict[str, Any]]) -> dict[str, int | bool]:
+    after = 0
+    missing = 0
     for t in ticks:
         if as_ist(t["available_ts"]) < as_ist(entry.ts):
             continue
-        ltp = wing_ltp(t, side=entry.side, strike=entry.strike)
+        after += 1
+        if strike_ltp(t, side=entry.side, strike=entry.strike) is None:
+            missing += 1
+    return {
+        "ticks_after_entry": after,
+        "ticks_missing_strike": missing,
+        "hit": missing > 0,
+    }
+
+
+def _series_for_live(
+    entry: Entry,
+    ticks: list[dict[str, Any]],
+    *,
+    spread_table: dict[str, float] | None = None,
+) -> tuple[list[Quote], list[Bar], list[Bar]]:
+    """Quotes for the entry's fixed strike only. Missing strike = no mark."""
+    quotes: list[Quote] = []
+    spread = spread_pts_for(entry.moneyness, spread_table)
+    for t in ticks:
+        if as_ist(t["available_ts"]) < as_ist(entry.ts):
+            continue
+        ltp = strike_ltp(t, side=entry.side, strike=entry.strike)
         if ltp is None:
-            q = premium_quote(
-                t, side=entry.side, moneyness="ITM" if entry.moneyness.startswith("ITM") else "ATM"
-            )
-        else:
-            q = Quote(
+            continue
+        quotes.append(
+            Quote(
                 available_ts=t["available_ts"],
                 bid=None,
                 ask=None,
                 ltp=ltp,
                 index=t.get("index"),
+                iv=t.get("atm_ce_iv") if entry.side == "CE" else t.get("atm_pe_iv"),
                 strike=entry.strike,
                 side=entry.side,
+                spread=spread,
                 source="legacy_dual_tape",
             )
-        quotes.append(q)
+        )
     return quotes, [], ticks_to_index_bars(ticks)
 
 
@@ -333,13 +356,29 @@ def run_research(
             default_mae = float(row["mae_p80"])
             break
 
+    spread_table = (live_measure.get("v2_spreads") or {}).get("spread_pts_p50") or {}
+
     entries: list[Entry] = []
     legacy_meta: list[dict[str, Any]] = []
+    dropped_wrong_instrument: list[dict[str, Any]] = []
     if reuse_entries is not None and reuse_entries.is_file():
         loaded = json.loads(reuse_entries.read_text(encoding="utf-8"))
-        entries = [entry_from_dict(x) for x in loaded if x.get("entry_set") != "random_hist"]
+        # Never reuse random: old files priced ITM200 off the rolling ITM.
+        entries = [
+            entry_from_dict(x)
+            for x in loaded
+            if x.get("entry_set") not in {"random_hist", "random"}
+        ]
         hist_from_file = [entry_from_dict(x) for x in loaded if x.get("entry_set") == "random_hist"]
-        legacy_meta.append({"reused": str(reuse_entries), "n": len(entries)})
+        legacy_meta.append(
+            {
+                "reused": str(reuse_entries),
+                "n_non_random": len(entries),
+                "dropped_random_from_reuse": sum(
+                    1 for x in loaded if x.get("entry_set") == "random"
+                ),
+            }
+        )
     else:
         hist_from_file = []
         for path in dual_tape_days(data):
@@ -375,7 +414,28 @@ def run_research(
     ticks_cache: dict[str, list[dict[str, Any]]] = {}
     for path in dual_tape_days(data):
         ticks_cache[path.stem] = load_dual_tape_session(path)
+    # Always rebuild random (fixed-strike LTP). Reused files only keep legacy/v2.
     have_ids = {e.entry_id for e in entries}
+    for path in dual_tape_days(data):
+        session = path.stem
+        if is_weekend(session):
+            continue
+        ticks = ticks_cache.get(session) or []
+        if not ticks:
+            continue
+        scen = (labels_by_day.get(session) or {}).get("scenario") or "unknown"
+        expiry = next((t.get("expiry") for t in ticks if t.get("expiry")), None)
+        for e in random_entries(
+            ticks,
+            session=session,
+            scenario=scen,
+            seed=seed,
+            n=18,
+            expiry=str(expiry) if expiry else None,
+        ):
+            if e.entry_id not in have_ids:
+                entries.append(e)
+                have_ids.add(e.entry_id)
     for extra in extra_seeds:
         if extra == seed:
             continue
@@ -438,8 +498,24 @@ def run_research(
         except HistoryUnavailable as exc:
             _write_json(out / "history_skip.json", {"error": str(exc)})
 
+    # Drop any leftover entry whose fixed strike has no price at entry time.
+    kept: list[Entry] = []
+    for e in entries:
+        ticks = ticks_cache.get(e.session) or []
+        tick = next((t for t in ticks if as_ist(t["available_ts"]) == as_ist(e.ts)), None)
+        if tick is None or strike_ltp(tick, side=e.side, strike=e.strike) is None:
+            dropped_wrong_instrument.append(
+                {"entry_id": e.entry_id, "entry_set": e.entry_set, "session": e.session}
+            )
+            continue
+        kept.append(e)
+    entries = kept
+
+    missing_before_after = _missing_strike_report(entries, ticks_cache)
+
     _write_json(out / "entries.json", [asdict(e) for e in entries + hist_entries])
     _write_json(out / "legacy_replay_meta.json", legacy_meta)
+    _write_json(out / "dropped_wrong_instrument.json", dropped_wrong_instrument)
 
     plans = library()
     sweeps = sweep_specs()
@@ -458,9 +534,12 @@ def run_research(
             "index_gap_pct": None,
         }
 
+    def _slip(entry: Entry) -> SlippageModel:
+        return SlippageModel(spread_table=spread_table, moneyness=entry.moneyness)
+
     for entry in entries:
         ticks = ticks_cache.get(entry.session) or []
-        quotes, bars, index_bars = _series_for_live(entry, ticks)
+        quotes, bars, index_bars = _series_for_live(entry, ticks, spread_table=spread_table)
         for plan in plans.values():
             results.append(
                 replay_trade(
@@ -469,6 +548,7 @@ def run_research(
                     quotes=quotes,
                     bars=bars,
                     index_bars=index_bars,
+                    slippage=_slip(entry),
                     cost_rates=rates,
                     ctx_extra=ctx_for(entry),
                     data_source="legacy_dual_tape",
@@ -487,13 +567,14 @@ def run_research(
         nets = 0.0
         for entry in choose_entries:
             ticks = ticks_cache.get(entry.session) or []
-            quotes, bars, index_bars = _series_for_live(entry, ticks)
+            quotes, bars, index_bars = _series_for_live(entry, ticks, spread_table=spread_table)
             tr = replay_trade(
                 entry,
                 plan,
                 quotes=quotes,
                 bars=bars,
                 index_bars=index_bars,
+                slippage=_slip(entry),
                 cost_rates=rates,
                 ctx_extra=ctx_for(entry),
                 data_source="legacy_dual_tape",
@@ -507,7 +588,7 @@ def run_research(
         best = build_plan(next(s for s in sweeps if s.plan_id == best_id))
         for entry in report_entries:
             ticks = ticks_cache.get(entry.session) or []
-            quotes, bars, index_bars = _series_for_live(entry, ticks)
+            quotes, bars, index_bars = _series_for_live(entry, ticks, spread_table=spread_table)
             oos_rows.append(
                 replay_trade(
                     entry,
@@ -515,6 +596,7 @@ def run_research(
                     quotes=quotes,
                     bars=bars,
                     index_bars=index_bars,
+                    slippage=_slip(entry),
                     cost_rates=rates,
                     ctx_extra=ctx_for(entry),
                     data_source="legacy_dual_tape",
@@ -551,6 +633,7 @@ def run_research(
                         quotes=quotes,
                         bars=bars,
                         index_bars=index_bars,
+                        slippage=_slip(entry),
                         cost_rates=rates,
                         ctx_extra=ctx_for(entry),
                         data_source=split_src,
@@ -558,7 +641,10 @@ def run_research(
                     )
                 )
 
-    stress = _stress(entries, ticks_cache, plans["regime_router"], rates, seed, ctx_for)
+    stress = _stress(
+        entries, ticks_cache, plans["regime_router"], rates, seed, ctx_for, spread_table
+    )
+    hold_sanity = _hold_sanity(results)
 
     summaries: list[Summary] = []
     grouped: dict[tuple[str, str, str, str], list[TradeResult]] = defaultdict(list)
@@ -612,11 +698,78 @@ def run_research(
         "category_coverage": _category_coverage(results),
         "extra_seeds": list(extra_seeds),
         "n_low_confidence_cells": sum(1 for s in summaries if s.low_confidence),
+        "missing_strike": missing_before_after,
+        "dropped_wrong_instrument_n": len(dropped_wrong_instrument),
+        "v2_spreads": live_measure.get("v2_spreads"),
+        "hold_sanity": hold_sanity,
     }
     _write_json(out / "tables.json", tables)
     _write_json(out / "trades.json", [asdict(r) for r in results])
     _write_json(out / "oos_sweep.json", [asdict(r) for r in oos_rows])
+    _write_json(out / "hold_sanity.json", hold_sanity)
     return tables
+
+
+def _missing_strike_report(
+    entries: list[Entry], ticks_cache: dict[str, list[dict[str, Any]]]
+) -> dict[str, Any]:
+    by_set: dict[str, dict[str, int]] = {}
+    for e in entries:
+        row = count_missing_strike(e, ticks_cache.get(e.session) or [])
+        slot = by_set.setdefault(
+            e.entry_set,
+            {"n_entries": 0, "ticks_after_entry": 0, "ticks_missing_strike": 0, "trades_hit": 0},
+        )
+        slot["n_entries"] += 1
+        slot["ticks_after_entry"] += int(row["ticks_after_entry"])
+        slot["ticks_missing_strike"] += int(row["ticks_missing_strike"])
+        if row["hit"]:
+            slot["trades_hit"] += 1
+    return {
+        "after_fix": by_set,
+        "note": (
+            "after_fix: ticks with no LTP on the entry's fixed strike (skipped, not marked). "
+            "before_fix is counted separately on the old entries file."
+        ),
+    }
+
+
+def _hold_sanity(results: list[TradeResult]) -> dict[str, Any]:
+    rows = [
+        r
+        for r in results
+        if r.plan_id == "hold_to_1515" and r.entry_set == "random" and r.skipped is None
+    ]
+    if not rows:
+        return {"n": 0, "note": "no random hold_to_1515 trades"}
+
+    def _pack(xs: list[TradeResult]) -> dict[str, Any]:
+        nets = [r.net_inr for r in xs]
+        wins = sum(1 for n in nets if n > 0)
+        return {
+            "n": len(xs),
+            "net_inr": round(sum(nets), 2),
+            "avg_net": round(sum(nets) / len(nets), 2) if nets else None,
+            "win_rate": (wins / len(xs)) if xs else None,
+        }
+
+    by_side: dict[str, list[TradeResult]] = defaultdict(list)
+    by_day: dict[str, list[TradeResult]] = defaultdict(list)
+    by_money: dict[str, list[TradeResult]] = defaultdict(list)
+    by_side_day: dict[str, list[TradeResult]] = defaultdict(list)
+    for r in rows:
+        by_side[r.side].append(r)
+        by_day[r.session].append(r)
+        money = str((r.extra or {}).get("moneyness") or "unknown")
+        by_money[money].append(r)
+        by_side_day[f"{r.session}|{r.side}"].append(r)
+    return {
+        "all": _pack(rows),
+        "by_side": {k: _pack(v) for k, v in sorted(by_side.items())},
+        "by_day": {k: _pack(v) for k, v in sorted(by_day.items())},
+        "by_moneyness": {k: _pack(v) for k, v in sorted(by_money.items())},
+        "by_day_side": {k: _pack(v) for k, v in sorted(by_side_day.items())},
+    }
 
 
 def _drop_gap(quotes: list[Quote], start: datetime, width_s: float) -> list[Quote]:
@@ -673,6 +826,7 @@ def _stress(
     rates: dict[str, Any],
     seed: int,
     ctx_for: Any,
+    spread_table: dict[str, float] | None = None,
 ) -> dict[str, Any]:
     sample = [e for e in entries if e.entry_set == "random"][:80]
     if not sample:
@@ -692,7 +846,9 @@ def _stress(
     ) -> None:
         rows = []
         for e in subset:
-            q, b, i = _series_for_live(e, ticks_cache.get(e.session) or [])
+            q, b, i = _series_for_live(
+                e, ticks_cache.get(e.session) or [], spread_table=spread_table
+            )
             if quotes_fn is not None:
                 q = quotes_fn(e, q)
             ctx = dict(ctx_for(e))
@@ -716,9 +872,17 @@ def _stress(
             )
         cases[name] = rows
 
-    _run("base", sample, model=SlippageModel())
-    _run("spread_x2", sample, model=SlippageModel(spread_mult=2.0, slip_mult=1.0))
-    _run("slip_x2", sample, model=SlippageModel(slip_mult=2.0))
+    _run("base", sample, model=SlippageModel(spread_table=spread_table))
+    _run(
+        "spread_x2",
+        sample,
+        model=SlippageModel(spread_table=spread_table, spread_mult=2.0, slip_mult=1.0),
+    )
+    _run(
+        "slip_x2",
+        sample,
+        model=SlippageModel(spread_table=spread_table, slip_frac=0.004, slip_mult=2.0),
+    )
     _run(
         "gap_1s_synthetic",
         sample[:40],

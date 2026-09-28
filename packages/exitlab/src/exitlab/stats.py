@@ -52,33 +52,44 @@ def max_drawdown(nets: Sequence[float]) -> float:
 
 
 def sharpe_ratio(nets: Sequence[float]) -> float | None:
+    """Per-period Sharpe: mean / sample std of trade nets. Not a t-stat."""
     if len(nets) < 2:
         return None
     mu = sum(nets) / len(nets)
     var = sum((x - mu) ** 2 for x in nets) / (len(nets) - 1)
     if var <= 1e-18:
         return None
-    return mu / math.sqrt(var) * math.sqrt(len(nets))
+    return mu / math.sqrt(var)
+
+
+def _norm_cdf(z: float) -> float:
+    return 0.5 * (1.0 + math.erf(z / math.sqrt(2.0)))
 
 
 def deflated_sharpe(
     sr: float | None, n: int, n_trials: int, skew: float = 0.0, kurt: float = 3.0
 ) -> float | None:
-    """Bailey / Lopez de Prado deflated Sharpe (approx). n_trials = variants tested."""
+    """Bailey / Lopez de Prado DSR: Phi((SR_hat - SR_star) / se_SR) in [0, 1].
+
+    `sr` is the per-period Sharpe (mean/std of the trade nets).
+    `n_trials` is the number of variants tested (multiple-testing correction).
+    SR_star = se_SR * [(1-euler) invPhi(1-1/N) + euler invPhi(1-1/(N e))].
+    """
     if sr is None or n < 2 or n_trials < 1:
         return None
-    # Expected max SR under n_trials tests (Bailey / Lopez de Prado DSR).
-    euler = 0.5772156649
-    if n_trials == 1:
-        e_max = 0.0
-    else:
-        e_max = ((1.0 - euler) * _inv_norm(1.0 - 1.0 / n_trials)) + euler * _inv_norm(
-            1.0 - 1.0 / (n_trials * math.e)
-        )
     se = math.sqrt((1.0 - skew * sr + ((kurt - 1.0) / 4.0) * sr * sr) / (n - 1))
     if se <= 1e-18:
         return None
-    return (sr - e_max) / se
+    euler = 0.5772156649015329
+    if n_trials == 1:
+        e_max_z = 0.0
+    else:
+        e_max_z = ((1.0 - euler) * _inv_norm(1.0 - 1.0 / n_trials)) + euler * _inv_norm(
+            1.0 - 1.0 / (n_trials * math.e)
+        )
+    sr_star = e_max_z * se
+    z = (sr - sr_star) / se
+    return min(1.0, max(0.0, _norm_cdf(z)))
 
 
 def _inv_norm(p: float) -> float:

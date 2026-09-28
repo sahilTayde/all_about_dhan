@@ -1,14 +1,16 @@
-"""Buyer enters at ask, exits at bid. Stated slippage when the tape has no book."""
+"""Buyer enters at ask, exits at bid. Measured V2 spread when the tape has no book."""
 
 from __future__ import annotations
 
 from exitlab.clock import ReplayClock
+from exitlab.tapes import spread_pts_for
 from exitlab.types import Bar, Quote
 
-# When bid/ask are missing (1m history), apply this fraction of LTP/close each way.
-# Measured later from V2 tape spreads; override via SlippageModel.
-DEFAULT_SLIP_FRAC = 0.004  # 0.40% of premium each way if no book
+# Fallback if V2 measure has not been loaded. Overridden by measured table.
+DEFAULT_SPREAD_PTS = {"ATM": 0.20, "ITM100": 0.35, "ITM200": 0.55, "ITM": 0.35}
 DEFAULT_MIN_SPREAD = 0.05
+# Extra fractional slip on top of the measured book/half-spread. Off unless a stress sets it.
+DEFAULT_SLIP_FRAC = 0.0
 
 
 class SlippageModel:
@@ -21,25 +23,37 @@ class SlippageModel:
         min_spread: float = DEFAULT_MIN_SPREAD,
         spread_mult: float = 1.0,
         slip_mult: float = 1.0,
+        spread_table: dict[str, float] | None = None,
+        moneyness: str = "ATM",
     ) -> None:
         self.name = name
         self.slip_frac = float(slip_frac) * float(slip_mult)
         self.min_spread = float(min_spread)
         self.spread_mult = float(spread_mult)
+        self.spread_table = dict(spread_table or DEFAULT_SPREAD_PTS)
+        self.moneyness = moneyness
 
     def entry_px(self, quote: Quote | None, bar: Bar | None, clock: ReplayClock) -> float:
         px = self._book_px(quote, clock, want="ask")
         if px is not None:
             return px
         mid = self._mid(quote, bar, clock)
-        return _tick(mid * (1.0 + self.slip_frac))
+        return _tick(mid + self._half_spread(quote, mid))
 
     def exit_px(self, quote: Quote | None, bar: Bar | None, clock: ReplayClock) -> float:
         px = self._book_px(quote, clock, want="bid")
         if px is not None:
             return max(self.min_spread, px)
         mid = self._mid(quote, bar, clock)
-        return _tick(max(self.min_spread, mid * (1.0 - self.slip_frac)))
+        return _tick(max(self.min_spread, mid - self._half_spread(quote, mid)))
+
+    def _half_spread(self, quote: Quote | None, mid: float) -> float:
+        if quote is not None and quote.spread is not None and quote.spread > 0:
+            half = (float(quote.spread) * self.spread_mult) / 2.0
+        else:
+            half = (spread_pts_for(self.moneyness, self.spread_table) * self.spread_mult) / 2.0
+        extra = abs(mid) * self.slip_frac
+        return half + extra
 
     def _book_px(self, quote: Quote | None, clock: ReplayClock, *, want: str) -> float | None:
         if quote is None:
@@ -84,6 +98,6 @@ def mark_long(quote: Quote | None, bar: Bar | None, clock: ReplayClock) -> float
         if quote.ltp is not None and quote.ltp > 0:
             return float(quote.ltp)
     if bar is not None:
-        clock.visible(bar.available_ts, label="mark")
+        clock.visible(bar.available_ts, label="bar")
         return float(bar.close)
     return None

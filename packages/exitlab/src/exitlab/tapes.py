@@ -108,6 +108,112 @@ def load_dual_tape_session(path: Path, *, underlying: str = "NIFTY") -> list[dic
     return out
 
 
+def strike_ltp(tick: dict[str, Any], *, side: str, strike: float) -> float | None:
+    """LTP of this exact strike only. Never the rolling ATM/ITM contract."""
+    hit = wing_ltp(tick, side=side, strike=strike)
+    if hit is not None:
+        return hit
+    side_u = side.upper()
+    if side_u == "CE":
+        if _same_strike(tick.get("atm_strike"), strike):
+            return _f(tick.get("atm_ce"))
+        if _same_strike(tick.get("itm_ce_strike"), strike):
+            return _f(tick.get("itm_ce"))
+    else:
+        if _same_strike(tick.get("atm_strike"), strike):
+            return _f(tick.get("atm_pe"))
+        if _same_strike(tick.get("itm_pe_strike"), strike):
+            return _f(tick.get("itm_pe"))
+    return None
+
+
+def _same_strike(raw: Any, strike: float) -> bool:
+    try:
+        return raw is not None and abs(float(raw) - float(strike)) < 1e-6
+    except (TypeError, ValueError):
+        return False
+
+
+def measure_v2_spreads(data: Path) -> dict[str, Any]:
+    """Bid/ask spread by moneyness and TOD from V2 quote_snapshots. No fabrication."""
+    root = data / "tape" / "v2"
+    if not root.is_dir():
+        return {"ok": False, "n": 0, "note": "no tape/v2"}
+    by_rule: dict[str, list[float]] = {}
+    by_cell: dict[str, list[float]] = {}
+    n = 0
+    days: list[str] = []
+    for path in sorted(root.glob("*/quote_snapshots.jsonl")):
+        days.append(path.parent.name)
+        for row in iter_jsonl(path):
+            raw_payload = row.get("payload")
+            payload: dict[str, Any] = raw_payload if isinstance(raw_payload, dict) else {}
+            bid, ask = _f(payload.get("bid")), _f(payload.get("ask"))
+            if bid is None or ask is None or ask <= bid:
+                continue
+            spread = ask - bid
+            rule = str(payload.get("rule") or "UNKNOWN")
+            avail = _parse_ts(row.get("available_ts") or row.get("event_ts"))
+            if avail is None:
+                continue
+            tod = f"{avail.hour:02d}:{0 if avail.minute < 30 else 30:02d}"
+            by_rule.setdefault(rule, []).append(spread)
+            by_cell.setdefault(f"{rule}|{tod}", []).append(spread)
+            n += 1
+
+    def _pct(xs: list[float], p: float) -> float | None:
+        if not xs:
+            return None
+        xs = sorted(xs)
+        return xs[min(len(xs) - 1, int(p * (len(xs) - 1)))]
+
+    table: dict[str, float] = {}
+    rule_rows = []
+    for rule, xs in sorted(by_rule.items()):
+        p50 = _pct(xs, 0.50)
+        if p50 is not None:
+            table[rule] = float(p50)
+        rule_rows.append(
+            {
+                "rule": rule,
+                "n": len(xs),
+                "p50": p50,
+                "p80": _pct(xs, 0.80),
+                "mean": (sum(xs) / len(xs)) if xs else None,
+            }
+        )
+    cell_rows = []
+    for key, xs in sorted(by_cell.items()):
+        rule, tod = key.split("|", 1)
+        cell_rows.append(
+            {"rule": rule, "tod": tod, "n": len(xs), "p50": _pct(xs, 0.50), "p80": _pct(xs, 0.80)}
+        )
+    return {
+        "ok": n > 0,
+        "n": n,
+        "days": days,
+        "by_rule": rule_rows,
+        "by_rule_tod": cell_rows,
+        "spread_pts_p50": table,
+        "note": (
+            "V2 quote_snapshots bid/ask. Dual-tape JSONL has no book. "
+            "Use spread_pts_p50 as the no-book half-spread source (full spread, split in half)."
+        ),
+    }
+
+
+def spread_pts_for(moneyness: str, table: dict[str, float] | None = None) -> float:
+    tab = table or {}
+    key = moneyness.upper()
+    if key in tab:
+        return float(tab[key])
+    if key.startswith("ITM200"):
+        return float(tab.get("ITM200") or 0.55)
+    if key.startswith("ITM"):
+        return float(tab.get("ITM100") or tab.get("ITM") or 0.35)
+    return float(tab.get("ATM") or 0.20)
+
+
 def premium_quote(tick: dict[str, Any], *, side: str, moneyness: str) -> Quote:
     side_u = side.upper()
     if moneyness.upper() == "ITM200" or moneyness.upper() == "ITM":

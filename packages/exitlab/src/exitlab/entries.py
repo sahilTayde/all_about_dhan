@@ -11,8 +11,8 @@ from typing import Any
 
 from exitlab.clock import IST, as_ist
 from exitlab.fills import SlippageModel
-from exitlab.tapes import premium_quote, wing_ltp
-from exitlab.types import Bar, Entry
+from exitlab.tapes import spread_pts_for, strike_ltp
+from exitlab.types import Bar, Entry, Quote
 
 LOT_SIZE = 65
 NO_NEW_BEFORE = time(9, 50)
@@ -81,28 +81,30 @@ def random_entries(
         atm = float(tick["atm_strike"])
         if kind == "ATM":
             strike = atm
-            ltp = tick["atm_ce"] if side == "CE" else tick["atm_pe"]
             iv = tick.get("atm_ce_iv") if side == "CE" else tick.get("atm_pe_iv")
         else:
             pts = 100.0 if kind == "ITM100" else 200.0
             strike = atm - pts if side == "CE" else atm + pts
-            ltp = wing_ltp(tick, side=side, strike=strike)
-            if ltp is None:
-                ltp = tick["itm_ce"] if side == "CE" else tick["itm_pe"]
-                raw_strike = (
-                    tick.get("itm_ce_strike") if side == "CE" else tick.get("itm_pe_strike")
-                )
-                if ltp is None or raw_strike is None:
-                    continue
-                strike = float(raw_strike)
             iv = tick.get("itm_ce_iv") if side == "CE" else tick.get("itm_pe_iv")
+        ltp = strike_ltp(tick, side=side, strike=strike)
         if ltp is None or ltp <= 0:
             continue
-        model = SlippageModel()
-        q = premium_quote(tick, side=side, moneyness="ITM" if kind != "ATM" else "ATM")
         clock_ts = tick["available_ts"]
         from exitlab.clock import ReplayClock
 
+        model = SlippageModel(moneyness=kind)
+        q = Quote(
+            available_ts=clock_ts,
+            bid=None,
+            ask=None,
+            ltp=ltp,
+            index=tick.get("index"),
+            iv=iv,
+            strike=float(strike),
+            side=side,
+            spread=spread_pts_for(kind),
+            source="legacy_dual_tape",
+        )
         px = model.entry_px(q, None, ReplayClock(clock_ts))
         out.append(
             Entry(
@@ -130,7 +132,7 @@ def random_entries(
                         if tick.get("atm_ce") and tick.get("atm_pe")
                         else None
                     ),
-                    "spread": (q.ask - q.bid) if q.ask and q.bid else None,
+                    "spread": q.spread,
                     "too_close_to_square": as_ist(clock_ts).time() >= time(14, 30)
                     and bool(scenario.startswith("expiry")),
                 },
@@ -176,7 +178,7 @@ def history_random_entries(
         from exitlab.clock import ReplayClock
         from exitlab.fills import SlippageModel
 
-        px = SlippageModel().entry_px(None, bar, ReplayClock(bar.available_ts))
+        px = SlippageModel(moneyness=kind).entry_px(None, bar, ReplayClock(bar.available_ts))
         out.append(
             Entry(
                 entry_id=f"hist-{session}-{seed}-{len(out)}",
@@ -324,8 +326,21 @@ def v2_selector_entries(
             continue
         from exitlab.clock import ReplayClock
 
-        q = premium_quote(tick, side=side, moneyness="ITM")
-        px = SlippageModel().entry_px(q, None, ReplayClock(avail))
+        fixed = strike_ltp(tick, side=side, strike=float(strike))
+        if fixed is None:
+            continue
+        q = Quote(
+            available_ts=avail,
+            bid=None,
+            ask=None,
+            ltp=fixed,
+            index=tick.get("index"),
+            strike=float(strike),
+            side=side,
+            spread=spread_pts_for("ITM100"),
+            source="legacy_dual_tape",
+        )
+        px = SlippageModel(moneyness="ITM100").entry_px(q, None, ReplayClock(avail))
         lots = max(1, int(dec.lots or 2))
         out.append(
             Entry(
