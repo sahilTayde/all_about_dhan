@@ -28,29 +28,26 @@ from typing import Any, Literal, Optional
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, ConfigDict, Field
 
+from api.gateway_auth import is_loopback_host, parse_host_header
+
 REMOTE_ENV = "AAD_FOUNDER_CONTROLS_REMOTE"
 LOCAL_HOSTS = frozenset({"127.0.0.1", "::1", "localhost"})
-LOCAL_HOST_HEADERS = frozenset({"127.0.0.1", "localhost", "[::1]"})
 TOKEN_TTL_S = 120
 KNOWN_INDICES = ("NIFTY", "BANKNIFTY", "SENSEX")
 _ID = r"^[A-Za-z0-9_.:-]{1,64}$"
 _HHMM = r"^([01]\d|2[0-3]):[0-5]\d$"
 
 
-def _host_name(header: Optional[str]) -> str:
-    """Host header without the port: ``127.0.0.1:8000`` -> ``127.0.0.1``, ``[::1]:8000`` -> ``[::1]``."""
-    h = str(header or "").strip().lower()
-    if h.startswith("["):
-        return h[: h.find("]") + 1] if "]" in h else h
-    return h.split(":")[0]
-
-
 def local_only(request: Request) -> None:
     if os.environ.get(REMOTE_ENV) == "1":
         return
     host = request.client.host if request.client else None
-    if host not in LOCAL_HOSTS or _host_name(request.headers.get("host")) not in LOCAL_HOST_HEADERS or (
-        "x-forwarded-for" in request.headers
+    parsed = parse_host_header(request.headers.get("host"))
+    if (
+        host not in LOCAL_HOSTS
+        or parsed is None
+        or not is_loopback_host(parsed.host)
+        or ("x-forwarded-for" in request.headers)
     ):
         raise HTTPException(403, f"founder controls are localhost-only (set {REMOTE_ENV}=1 behind your own auth)")
 

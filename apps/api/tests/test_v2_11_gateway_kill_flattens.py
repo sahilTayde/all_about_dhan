@@ -12,7 +12,7 @@ from fastapi.testclient import TestClient
 from oms import Account, Veto
 
 LOCAL = ("127.0.0.1", 12345)
-BASE = "http://127.0.0.1"
+BASE = "http://127.0.0.1:8000"
 INST = "NSE_FNO:NIFTY:2026-09-29:24400:CE"
 SIG = "sg_http_kill_20260928_1001_0"
 

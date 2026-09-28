@@ -97,7 +97,7 @@ def test_a_v2_routes_still_mount_when_events_installed() -> None:
 
     assert attach_gateway is not None
     assert V2_GATEWAY_AVAILABLE is True
-    client = TestClient(create_app())
+    client = TestClient(create_app(), base_url="http://127.0.0.1:8000")
     body = client.get("/v2/snapshot").json()
     assert body["v2"] is True
     assert body["orders"] == "REFUSED"

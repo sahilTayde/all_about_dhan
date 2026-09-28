@@ -1,5 +1,22 @@
 # Handoff log — Team 07 Coding
 
+## As of now (2026-09-28 IST) — merge main 91593d6 (#66) into V2-gateway-auth (PAPER)
+
+```text
+From:     teams/07_coding
+To:       founder / 00 / 09
+Date:     2026-09-28
+Status:   PAPER / V2-13 auth ∪ V2-11 real controls / NO_PROMOTE
+Accepted: Normal-merge origin/main 91593d6. Keep BOTH:
+  #67 Bearer/WS auth, query-credential refuse, bind fail-closed,
+  mutating 1/s rate limit. Main V2-11 real submit (not stub 501),
+  localhost-or-founder authorize_control, V2_GATEWAY_AVAILABLE
+  so py3.9 /paper/* stays up. desk.sh still uvicorn 127.0.0.1:8000.
+Rejected: Rebase / force-push. Dropping auth or real V2-11 apply.
+  GATE_ENFORCE=1.
+UNKNOWN: none
+```
+
 ## As of now (2026-09-28 IST) — merge main 6d4e645 (#64) into V2-recorder (PAPER)
 
 ```text

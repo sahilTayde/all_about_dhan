@@ -2,19 +2,25 @@
 
 from __future__ import annotations
 
+from api.gateway_auth import CommandRateLimiter
 from api.main import create_app
 from fastapi.testclient import TestClient
 
 LOCAL = ("127.0.0.1", 12345)
-BASE = "http://127.0.0.1"
+REMOTE = ("203.0.113.10", 9)
+BASE = "http://127.0.0.1:8000"
 
 
 def _local() -> TestClient:
-    return TestClient(create_app(), client=LOCAL, base_url=BASE)
+    app = create_app()
+    app.state.v2_limiter = CommandRateLimiter(per_s=100)
+    return TestClient(app, client=LOCAL, base_url=BASE)
 
 
 def _remote() -> TestClient:
-    return TestClient(create_app())
+    app = create_app()
+    app.state.v2_limiter = CommandRateLimiter(per_s=100)
+    return TestClient(app, client=REMOTE, base_url=BASE)
 
 
 def test_v2_11_routes_localhost_unless_auth() -> None:
