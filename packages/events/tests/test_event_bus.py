@@ -15,6 +15,8 @@ def test_plan_event_types_exist():
                  "ORDER_SUBMITTED", "ORDER_FILLED", "POSITION_UPDATE", "POSITION_CLOSED", "ENTRY_VETOED",
                  "HEALTH_ALERT", "FOUNDER_COMMAND"):
         assert EventType(name).value == name
+    for name in ("DECISION", "ADVICE"):
+        assert EventType(name).value == name
 
 
 def test_event_json_round_trip_and_validation():
