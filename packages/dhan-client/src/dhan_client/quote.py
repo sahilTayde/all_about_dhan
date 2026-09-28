@@ -13,7 +13,6 @@ from __future__ import annotations
 from typing import Sequence
 
 from dhan_client import endpoints
-from dhan_client.rate_limit import MinIntervalGate
 from dhan_client.rest import RestClient
 from dhan_client.types import JsonDict, QuoteBody, SecurityId
 
@@ -41,16 +40,8 @@ def _normalize_quote_body(securities: QuoteBody) -> dict[str, list[int]]:
 class QuoteClient:
     def __init__(self, rest: RestClient) -> None:
         self._rest = rest
-        # Official intro: Quote APIs 1 request / second.
-        self._gate = MinIntervalGate(1.0 / endpoints.RATE_LIMIT_QUOTE_PER_SEC)
-
-    def _wait(self) -> None:
-        if self._rest.settings.dry_run:
-            return
-        self._gate.wait()
 
     def ltp(self, securities: QuoteBody) -> JsonDict:
-        self._wait()
         return self._rest.request(
             "POST",
             endpoints.MARKETFEED_LTP,
@@ -58,7 +49,6 @@ class QuoteClient:
         )
 
     def ohlc(self, securities: QuoteBody) -> JsonDict:
-        self._wait()
         return self._rest.request(
             "POST",
             endpoints.MARKETFEED_OHLC,
@@ -66,7 +56,6 @@ class QuoteClient:
         )
 
     def quote(self, securities: QuoteBody) -> JsonDict:
-        self._wait()
         return self._rest.request(
             "POST",
             endpoints.MARKETFEED_QUOTE,

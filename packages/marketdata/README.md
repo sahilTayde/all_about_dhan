@@ -101,8 +101,11 @@ restart a partial last line or NUL tail is cut back to the last newline and repo
 
 Known unknowns (kept verifiable through `raw_frames.jsonl`): whether the feed's LTT epoch is
 UTC or IST-shifted (decided once per run from the first trade and logged). Index packets
-(response 1) decode as ticker LTP+LTT. If no index tick arrives for 20 s, spot for
-re-centring comes from the option chain every 30 s.
+(response 1) decode as ticker LTP+LTT. If no index tick has arrived yet, spot for
+re-centring may come from the option chain at most once every 60 s. After the first
+index tick the chain is never used for spot. HTTP 429 / Dhan 805 back off
+exponentially (60 s, cap 15 min) in `dhan-client`; `rest_429s` is on the status line
+and `FEED_STATUS`.
 
 ## Tests
 

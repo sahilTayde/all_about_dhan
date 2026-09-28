@@ -24,6 +24,7 @@ from typing import Any, Protocol
 from dhan_client.config import Settings, load_settings, repo_root
 from dhan_client.errors import CredentialsError
 from dhan_client.feed import MarketFeedCollector
+from dhan_client.rate_limit import rate_limit_hits
 from dhan_client.types import FeedMode
 
 from marketdata import logsafe
@@ -394,7 +395,13 @@ class LiveMarketData:
     def _status(self, now: datetime, status: str, **extra: Any) -> None:
         self._emit(
             "FEED_STATUS",
-            {"status": status, "since": iso(now), **extra, "tape_drops": tape_drop_count()},
+            {
+                "status": status,
+                "since": iso(now),
+                **extra,
+                "tape_drops": tape_drop_count(),
+                "rest_429s": rate_limit_hits(),
+            },
             now,
             iso(now),
         )

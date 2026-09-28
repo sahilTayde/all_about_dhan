@@ -21,8 +21,10 @@ from typing import Any
 
 from dhan_client.config import Settings
 from dhan_client.decode import DECODER_VERIFIED
+from dhan_client.endpoints import OPTION_CHAIN
 from dhan_client.errors import CredentialsError
 from dhan_client.feed import MarketFeedCollector
+from dhan_client.rate_limit import default_limiter, is_rate_limit_error, rate_limit_hits
 from dhan_client.types import FeedMode
 
 from marketdata import logsafe
@@ -132,6 +134,7 @@ class MarketDataRecorder:
         self._subscribed_s: dict[str, float] = {}
         self._last_spot_s = float("-inf")
         self._last_spot_poll_s = float("-inf")
+        self._index_tick_seen = False
         self._spot_poll: asyncio.Task[None] | None = None
         self._ltt_shift: int | None = None
         self._implausible_logged_s = float("-inf")
@@ -393,11 +396,13 @@ class MarketDataRecorder:
         assert self._open_dt is not None
         assert self.universe is not None
         if (
-            self.source is None
+            self._index_tick_seen
+            or self.source is None
             or not self._connected
             or now < self._open_dt
             or now_s - self._last_spot_s < self.config.spot_fallback_after_s
             or now_s - self._last_spot_poll_s < self.config.spot_poll_s
+            or default_limiter().remaining_s(OPTION_CHAIN) > 0
             or (self._spot_poll is not None and not self._spot_poll.done())
         ):
             return
@@ -407,11 +412,18 @@ class MarketDataRecorder:
     async def _poll_spot(self) -> None:
         assert self.source is not None
         assert self.universe is not None
+        if self._index_tick_seen:
+            return
         u = self.universe
         try:
             chain = await asyncio.to_thread(self.source.option_chain, int(u.index.security_id), "IDX_I", u.expiry)
             spot = float(chain.get("last_price") or 0.0)
         except Exception as exc:
+            if is_rate_limit_error(exc):
+                lim = default_limiter()
+                if lim.remaining_s(OPTION_CHAIN) <= 0:
+                    lim.note_rate_limit(OPTION_CHAIN)
+                return
             log.warning("spot fallback via option chain failed: %s", type(exc).__name__)
             return
         if spot > 0:
@@ -425,7 +437,7 @@ class MarketDataRecorder:
         assert self.strikes is not None
         log.info(
             "%s connected=%s frames=%d packets=%d rows depth=%d quotes=%d oi=%d errors=%d "
-            "spot=%.2f atm=%s subscribed=%d stale=%d tape_drops=%d",
+            "spot=%.2f atm=%s subscribed=%d stale=%d tape_drops=%d rest_429s=%d",
             now.strftime("%H:%M"),
             self._connected,
             self.stats.frames,
@@ -439,6 +451,7 @@ class MarketDataRecorder:
             len(self.strikes.subscribed),
             len(self._stale),
             tape_drop_count(),
+            rate_limit_hits(),
         )
 
     # ---- feed input ------------------------------------------------------------------
@@ -562,6 +575,7 @@ class MarketDataRecorder:
         self.spot = spot
         if from_feed:
             self._last_spot_s = now_s
+            self._index_tick_seen = True
         await self._apply(self.strikes.update(spot, now_s), now, "recentre")
 
     async def _apply(self, change: Change, now: datetime, reason: str) -> None:
@@ -633,7 +647,13 @@ class MarketDataRecorder:
     def _status(self, now: datetime, status: str, **extra: Any) -> None:
         self._emit(
             "FEED_STATUS",
-            {"status": status, "since": iso(now), **extra, "tape_drops": tape_drop_count()},
+            {
+                "status": status,
+                "since": iso(now),
+                **extra,
+                "tape_drops": tape_drop_count(),
+                "rest_429s": rate_limit_hits(),
+            },
             now,
             iso(now),
         )

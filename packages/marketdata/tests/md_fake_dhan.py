@@ -518,6 +518,7 @@ async def run_session(
     market_kw: dict[str, Any] | None = None,
     config_kw: dict[str, Any] | None = None,
     source: StubSource | None = None,
+    universe: Universe | None = None,
     hook: Hook | None = None,
     step: float = 0.05,
     wait_connect: bool = True,
@@ -526,13 +527,13 @@ async def run_session(
     server on a fake clock from ``start`` until ``end`` or until it stops by itself."""
     async with FakeDhanServer() as server:
         clock = FakeClock(start)
-        universe = make_universe()
+        built = universe if universe is not None else make_universe()
         config = RecorderConfig(tape_root=tmp / "tape", **(config_kw or {}))
         recorder = MarketDataRecorder(
             config,
             settings_for(server.url, tmp),
             source=source,
-            universe=None if source else universe,
+            universe=built if source is None or universe is not None else None,
             clock=clock,
         )
         task = asyncio.create_task(recorder.run())
@@ -541,7 +542,7 @@ async def run_session(
             await until(lambda: bool(server.subscribed) or task.done(), timeout=15)
         # never advance the clock while the recorder is busy outside it (e.g. loading instruments)
         await until(lambda: clock.sleeping() or task.done(), timeout=15)
-        market = Market(universe, spot, **(market_kw or {}))
+        market = Market(built, spot, **(market_kw or {}))
         t = start
         while not task.done() and t < end:
             t += timedelta(seconds=step)
