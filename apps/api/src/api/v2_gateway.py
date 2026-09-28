@@ -796,13 +796,19 @@ def v2_control_command(
     kind = canonical_kind(body.kind)
     if kind not in KINDS:
         audit_control(
-            result="unknown_kind", kind=kind, method=request.method, path=request.url.path
+            result="unknown_kind",
+            kind=kind,
+            method=request.method,
+            path=request.url.path,
         )
         raise HTTPException(422, f"unknown kind {kind!r}")
     err = validate_args(kind, body.args)
     if err:
         audit_control(
-            result="invalid_args", kind=kind, method=request.method, path=request.url.path
+            result="invalid_args",
+            kind=kind,
+            method=request.method,
+            path=request.url.path,
         )
         raise HTTPException(422, err)
     if kind in CONFIRM_KINDS:
