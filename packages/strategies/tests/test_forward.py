@@ -39,8 +39,10 @@ from strategies.forward.spec import (
 ATM = "NSE_FNO:NIFTY:2026-09-29:24500:CE"
 ITM100 = "NSE_FNO:NIFTY:2026-09-29:24400:CE"
 ITM200 = "NSE_FNO:NIFTY:2026-09-29:24300:CE"
+INDEX = "NSE_IDX:NIFTY"
 SESSION = "2026-09-28"
 PLUGIN = "strategies.plugins.test_cross"
+SESSION_MINUTES = 375  # 09:15-15:30 IST regular session
 
 
 def _ts(hour: int, minute: int, second: int = 0) -> str:
@@ -71,16 +73,40 @@ def _row(
     )
 
 
+def _session_fill_lines() -> list[str]:
+    """Two-sided depth on every regular-session minute for the spec strikes."""
+    start = datetime(2026, 9, 28, 9, 15, tzinfo=IST)
+    defaults = {
+        ATM: (100.0, 99.80, 100.20, "ATM"),
+        ITM100: (150.0, 149.70, 150.30, "ITM100"),
+        ITM200: (200.0, 199.65, 200.35, "ITM200"),
+    }
+    special = {
+        (10, 0): {
+            ATM: (100.0, 99.80, 100.20),
+            ITM100: (150.0, 149.70, 150.30),
+            ITM200: (200.0, 199.65, 200.35),
+        },
+        (10, 15): {
+            ATM: (110.0, 109.80, 110.20),
+            ITM100: (155.0, 154.70, 155.30),
+            ITM200: (198.0, 197.65, 198.35),
+        },
+        (15, 15): {ATM: (108.0, 107.80, 108.20)},
+    }
+    lines: list[str] = []
+    for i in range(SESSION_MINUTES):
+        ts = start + timedelta(minutes=i)
+        overlay = special.get((ts.hour, ts.minute), {})
+        for inst, (ltp, bid, ask, bucket) in defaults.items():
+            if inst in overlay:
+                ltp, bid, ask = overlay[inst]
+            lines.append(_row(inst, ts.hour, ts.minute, ltp, bid, ask, bucket))
+    return lines
+
+
 def _synth_tape(path: Path, *, extra: list[str] | None = None, thin: bool = False) -> Path:
-    lines = [
-        _row(ATM, 10, 0, 100.0, 99.80, 100.20, "ATM"),
-        _row(ITM100, 10, 0, 150.0, 149.70, 150.30, "ITM100"),
-        _row(ITM200, 10, 0, 200.0, 199.65, 200.35, "ITM200"),
-        _row(ATM, 10, 15, 110.0, 109.80, 110.20, "ATM"),
-        _row(ITM100, 10, 15, 155.0, 154.70, 155.30, "ITM100"),
-        _row(ITM200, 10, 15, 198.0, 197.65, 198.35, "ITM200"),
-        _row(ATM, 15, 15, 108.0, 107.80, 108.20, "ATM"),
-    ]
+    lines = _session_fill_lines()
     if extra:
         lines.extend(extra)
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
@@ -309,8 +335,12 @@ def test_random_cut_causality_no_lookahead(tmp_path: Path) -> None:
         cut_path = tmp_path / f"cut-{cut.minute}.jsonl"
         cut_path.write_text("\n".join(kept) + "\n", encoding="utf-8")
         cut_rep, _ = evaluate_session(spec, cut_path, SESSION, lock=lock)
-        assert cut_rep.legs["chosen"]["gross_inr"] == full_rep.legs["chosen"]["gross_inr"]
-        assert cut_rep.legs["entry:CHASE"]["gross_inr"] == full_rep.legs["entry:CHASE"]["gross_inr"]
+        if cut_rep.state != DATA_INSUFFICIENT:
+            assert cut_rep.legs["chosen"]["gross_inr"] == full_rep.legs["chosen"]["gross_inr"]
+            assert (
+                cut_rep.legs["entry:CHASE"]["gross_inr"]
+                == full_rep.legs["entry:CHASE"]["gross_inr"]
+            )
         assert 1.5 not in {
             last_quote(
                 load_tape_quotes(cut_path), ATM, datetime(2026, 9, 28, 10, 0, tzinfo=IST)
@@ -318,3 +348,86 @@ def test_random_cut_causality_no_lookahead(tmp_path: Path) -> None:
         }
     late = last_quote(load_tape_quotes(full), ATM, datetime(2026, 9, 28, 10, 0, tzinfo=IST))
     assert late is not None and late.ask == 100.20
+
+
+def test_one_deep_quote_empty_session_coverage_is_one_over_calendar_minutes(
+    tmp_path: Path,
+) -> None:
+    """Issue 1: denominator is all 09:15-15:30 minutes, not observed minutes only."""
+    tape = tmp_path / "one.jsonl"
+    tape.write_text(_row(ATM, 10, 0, 100.0, 99.80, 100.20, "ATM") + "\n", encoding="utf-8")
+    spec_path = _write_spec(tmp_path / "s.yaml")
+    _write_lock(tmp_path / "prereg.lock", spec_path)
+    spec = load_spec(spec_path)
+    lock = load_lock(tmp_path / "prereg.lock")
+    report, trades = evaluate_session(spec, tape, SESSION, lock=lock)
+    assert abs(report.depth_coverage - 1 / SESSION_MINUTES) < 1e-12
+    assert 0.002 < report.depth_coverage < 0.004
+    assert report.state == DATA_INSUFFICIENT
+    assert trades == []
+    held, _ = evaluate_session(spec, tape, SESSION, lock=lock, prior_nets=[12.0], prior_gross=12.0)
+    assert held.state == DATA_INSUFFICIENT
+    assert held.n == 1
+
+
+def test_coverage_uses_spec_instruments_not_tape_index_or_ltp_only(tmp_path: Path) -> None:
+    """Issue 2: index quotes and LTP-only ATM must not raise coverage."""
+    start = datetime(2026, 9, 28, 9, 15, tzinfo=IST)
+    lines: list[str] = []
+    for i in range(SESSION_MINUTES):
+        ts = (start + timedelta(minutes=i)).isoformat()
+        lines.append(
+            json.dumps(
+                {
+                    "instrument_id": INDEX,
+                    "ltp": 24500.0,
+                    "bid": 24499.9,
+                    "ask": 24500.1,
+                    "bucket": "INDEX",
+                    "exchange_ts": ts,
+                }
+            )
+        )
+        lines.append(
+            json.dumps(
+                {
+                    "instrument_id": ATM,
+                    "ltp": 100.0,
+                    "bid": None,
+                    "ask": None,
+                    "bucket": "ATM",
+                    "exchange_ts": ts,
+                }
+            )
+        )
+    lines.append(_row(ATM, 10, 0, 100.0, 99.80, 100.20, "ATM"))
+    tape = tmp_path / "index.jsonl"
+    tape.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    spec_path = _write_spec(tmp_path / "s.yaml")
+    _write_lock(tmp_path / "prereg.lock", spec_path)
+    spec = load_spec(spec_path)
+    report, _ = evaluate_session(spec, tape, SESSION, lock=load_lock(tmp_path / "prereg.lock"))
+    assert abs(report.depth_coverage - 1 / SESSION_MINUTES) < 1e-12
+    assert report.state == DATA_INSUFFICIENT
+    assert report.n == 0
+
+
+def test_late_exchange_ts_sorted_not_crash_and_counted(tmp_path: Path) -> None:
+    """Issue 3: late file rows are sorted; older-than-watermark rows are dropped."""
+    lines = [
+        _row(ATM, 10, 0, 100.0, 99.80, 100.20, "ATM"),
+        _row(ATM, 10, 15, 110.0, 109.80, 110.20, "ATM"),
+        _row(ATM, 10, 5, 105.0, 104.80, 105.20, "ATM"),
+        _row(ATM, 9, 0, 90.0, 89.80, 90.20, "ATM"),
+    ]
+    tape = tmp_path / "late.jsonl"
+    tape.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    spec_path = _write_spec(tmp_path / "s.yaml")
+    _write_lock(tmp_path / "prereg.lock", spec_path)
+    spec = load_spec(spec_path)
+    report, _ = evaluate_session(spec, tape, SESSION, lock=load_lock(tmp_path / "prereg.lock"))
+    assert report.events_reordered >= 1
+    assert report.events_late_dropped >= 1
+    assert report.kernel_envelopes > 0
+    q_in = last_quote(load_tape_quotes(tape), ATM, datetime.fromisoformat(_ts(10, 0)))
+    assert q_in is not None and q_in.ask == 100.20
