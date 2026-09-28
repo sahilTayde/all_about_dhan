@@ -11,7 +11,7 @@ from datetime import datetime
 from decimal import ROUND_HALF_UP, Decimal
 from enum import Enum
 from pathlib import Path
-from typing import Any, Protocol, Self
+from typing import Any, Protocol
 
 from ledger.charges import UNDERLYING_EXCHANGE, exchange_for, load_rates, order_charges
 from ledger.migrate import (
@@ -327,7 +327,7 @@ class SqliteTransaction:
     def __init__(self, store: SqliteLedgerStore) -> None:
         self.store = store
 
-    def __enter__(self) -> Self:
+    def __enter__(self) -> SqliteTransaction:  # noqa: PYI034
         if self.store._in_txn:
             raise RuntimeError("nested transaction")
         self.store._in_txn = True
@@ -806,17 +806,14 @@ class SqliteLedgerStore:
             if exchange is None:
                 raise ValueError(f"unmapped underlying for {symbol or instrument_id!r}")
             try:
-                components = {
-                    k: money(v)
-                    for k, v in order_charges(side, qty, _charges_api_price(px), rates, exchange=exchange).items()
-                }
+                components = {k: money(v) for k, v in order_charges(side, qty, px, rates, exchange=exchange).items()}
                 status = "FINAL"
             except (ValueError, KeyError, TypeError):
                 status = "PENDING"
                 components = {}
         elif rates is not None:
             try:
-                components = {k: money(v) for k, v in order_charges(side, qty, _charges_api_price(px), rates).items()}
+                components = {k: money(v) for k, v in order_charges(side, qty, px, rates).items()}
                 status = "FINAL"
             except (ValueError, KeyError, TypeError):
                 status = "PENDING"
@@ -1002,7 +999,7 @@ class SqliteLedgerStore:
             ch = {
                 k: money(v)
                 for k, v in order_charges(
-                    fill["side"], int(fill["qty"]), _charges_api_price(money(fill["price"])), rates, exchange=ex
+                    fill["side"], int(fill["qty"]), money(fill["price"]), rates, exchange=ex
                 ).items()
             }
             if ch["total"] == 0:

@@ -1,5 +1,23 @@
 # Handoff log — Team 07 Coding
 
+## As of now (2026-09-28 IST) — merge main 045ce0e (#65) into V2-OMS-risk (PAPER)
+
+```text
+From:     teams/07_coding
+To:       founder / 00 / 09
+Date:     2026-09-28
+Status:   PAPER / V2-OMS-risk ∪ V2-08b ∪ V2-11 / NO_PROMOTE / no live orders
+Accepted: Normal-merge origin/main 045ce0e (#61 #55 #59 #60 #65). Keep BOTH:
+  founder veto first on submit, then _catastrophic_price(risk, qty).
+  exit() uses store-agnostic _live_position; missing row skips resize
+  (snapshot flatten never raises). Live row uses #64 Veto (FLAT/SUB_LOT),
+  not raise. cancel() + _reject_exit stay. Ledger keeps planner helpers
+  + Decimal order_charges. Gateway clock pin stays unpinned.
+Rejected: Rebase / force-push. Dropping founder veto, risk-qty stop,
+  or raising on a missing store row.
+UNKNOWN: none
+```
+
 ## As of now (2026-09-28 IST) — merge main c723001 (#59) into V2-16 (PAPER)
 
 ```text
