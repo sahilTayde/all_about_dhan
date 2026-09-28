@@ -92,3 +92,40 @@ cp .env.example .env
 ```
 
 YouTube catalog work needs `YOUTUBE_API_KEY`. Live Dhan **quotes** need `DHAN_*` in `.env`; **orders stay refused** in code. Empty `DHAN_*` → fixtures.
+
+---
+
+## Mac session night (paper only)
+
+From the repo root on the Mac. **No live orders.** The legacy desk uses `.venv` (may be Python 3.9). The v2 recorder uses `.venv-v2` (3.11+) and never writes into `.venv`.
+
+```bash
+cd ~/Documents/all_about_dhan
+
+# 1. Token — put DHAN_CLIENT_ID and DHAN_ACCESS_TOKEN in repo-root .env
+#    Never commit .env. Never print the token.
+#    cp .env.example .env   # first time only
+
+# 2. One-time (or whenever main gains recorder packages): isolated v2 venv
+./scripts/mac_setup_v2.sh
+
+# 3. Website (API :8000 + Vite :5173). Capture off.
+./scripts/desk.sh website
+
+# 4. Dual-tape at the cash open (Mon–Fri 09:30 IST)
+./scripts/desk.sh watch-open
+
+# 5. V2 recorder (caffeinate on macOS; screen v2-recorder; auto-stops 15:30 IST)
+./scripts/desk.sh recorder-start
+
+# 6. Checks
+./scripts/desk.sh status
+./scripts/desk.sh recorder-status
+# Desk:    http://127.0.0.1:5173/desk
+# Founder: http://127.0.0.1:5173/pm
+
+# 7. After 15:40 IST — stop capture + recorder, keep website, honesty + nightly
+./scripts/desk.sh close
+```
+
+Same-morning shortcut: `./scripts/desk.sh morning` (runs `preflight`, then API + website + arms `watch-open`). `./scripts/desk.sh preflight` is also callable on its own. Details: [`SESSION_PREP_ML.md`](teams/06_backtesting/docs/SESSION_PREP_ML.md).

@@ -1,18 +1,27 @@
 #!/usr/bin/env bash
 # Founder one-command day. PAPER only. No live orders. NO_PROMOTE.
 #
-#   ./scripts/desk.sh morning     # start API + website + dual-tape (09:00 IST)
-#   ./scripts/desk.sh close       # after 15:30: stop capture, keep website, honesty + nightly
-#   ./scripts/desk.sh website     # API + website only (no data capture)
-#   ./scripts/desk.sh status      # pids / URLs / where to read reports
-#   ./scripts/desk.sh watch-open  # wait until 09:30 IST Mon–Fri, then dual-tape
+#   ./scripts/desk.sh preflight        # versions, imports, node, token file (no token printed)
+#   ./scripts/desk.sh morning          # preflight + API + website + dual-tape (09:00 IST)
+#   ./scripts/desk.sh website          # preflight + API + website only (no data capture)
+#   ./scripts/desk.sh watch-open       # wait until 09:30 IST Mon–Fri, then dual-tape
+#   ./scripts/desk.sh recorder-start   # v2 marketdata --record-only in .venv-v2 (screen v2-recorder)
+#   ./scripts/desk.sh recorder-stop    # stop v2 recorder; leave tapes intact
+#   ./scripts/desk.sh recorder-status  # process + last line of today's IST recorder.log
+#   ./scripts/desk.sh close            # after 15:30: stop capture + v2 recorder, keep website, honesty + nightly
+#   ./scripts/desk.sh status           # pids / URLs / where to read reports
 #
 set -euo pipefail
-ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT="${AAD_ROOT:-$(cd "$_SCRIPT_DIR/.." && pwd)}"
 cd "$ROOT"
-PY="$ROOT/.venv/bin/python"
+PY="${AAD_PY:-$ROOT/.venv/bin/python}"
+V2_PY="${AAD_V2_PY:-$ROOT/.venv-v2/bin/python}"
 VITE="$ROOT/apps/web/node_modules/.bin/vite"
-RECON="$ROOT/data/recon"
+RECON="${AAD_RECON:-$ROOT/data/recon}"
+TAPE_V2="${AAD_TAPE_V2:-$ROOT/data/tape/v2}"
+RECORDER_SCREEN="v2-recorder"
+NODE_DIR="${NODE_DIR:-}"
 mkdir -p "$RECON"
 CMD="${1:-status}"
 
@@ -54,12 +63,34 @@ rotate_log() {  # size-based, keep 7: the live log must not fill the disk
   mv -f "$log" "$log.1"
 }
 
+health_supervise_available() {
+  "$PY" -c "import health.supervise" >/dev/null 2>&1
+}
+
+dual_tape_child_cmd() {
+  # Same args whether or not health.supervise wraps them.
+  printf "%s" "'$PY' -u -m trading_agents_india dual-tape --live-chain --paper-train --paper-scalp --tick-seconds 2 --max-ticks 0"
+}
+
+dual_tape_launch_inner() {
+  # Command that runs inside the dual-tape-live-2s screen (after cd ROOT).
+  local child
+  child="$(dual_tape_child_cmd)"
+  if health_supervise_available; then
+    printf "%s" "'$PY' -u -m health.supervise -- $child >> '$RECON/dual_tape_live_2s.log' 2>&1"
+  else
+    echo "WARNING: health.supervise is not importable with $PY; starting dual-tape without supervisor" >&2
+    printf "%s" "$child >> '$RECON/dual_tape_live_2s.log' 2>&1"
+  fi
+}
+
 start_dual_tape() {
   rm -f "$RECON/paper_dual_tape_STOPPED.flag"
   screen -S dual-tape-live-2s -X quit 2>/dev/null || true
   rotate_log "$RECON/dual_tape_live_2s.log"
-  # health.supervise restarts a crashed loop and kills+restarts a hung one (stale engine heartbeat).
-  screen -dmS dual-tape-live-2s zsh -lc "cd '$ROOT' && '$PY' -u -m health.supervise -- '$PY' -u -m trading_agents_india dual-tape --live-chain --paper-train --paper-scalp --tick-seconds 2 --max-ticks 0 >> '$RECON/dual_tape_live_2s.log' 2>&1"
+  local inner
+  inner="$(dual_tape_launch_inner)"
+  screen -dmS dual-tape-live-2s zsh -lc "cd '$ROOT' && $inner"
 }
 
 arm_dual_tape_when_open() {
@@ -67,16 +98,220 @@ arm_dual_tape_when_open() {
   screen -dmS dual-tape-watch-open zsh -lc "cd '$ROOT' && ./scripts/desk.sh watch-open >> '$RECON/dual_tape_watch_open.log' 2>&1"
 }
 
+find_node() {
+  local dir bin newest cand
+  if command -v node >/dev/null 2>&1; then
+    bin="$(command -v node)"
+    NODE_DIR="$(cd "$(dirname "$bin")" && pwd)"
+    export PATH="$NODE_DIR:$PATH"
+    echo "node: $NODE_DIR/node"
+    return 0
+  fi
+  for dir in "$HOME/Documents/anaconda3/bin" /opt/homebrew/bin /usr/local/bin; do
+    if [[ -x "$dir/node" ]]; then
+      NODE_DIR="$dir"
+      export PATH="$NODE_DIR:$PATH"
+      echo "node: $NODE_DIR/node"
+      return 0
+    fi
+  done
+  newest=""
+  for cand in "$HOME"/.nvm/versions/node/*/bin; do
+    if [[ -x "$cand/node" ]]; then
+      newest="$cand"
+    fi
+  done
+  if [[ -n "$newest" ]]; then
+    newest="$(printf '%s\n' "$HOME"/.nvm/versions/node/*/bin | sort -V | tail -1)"
+    if [[ -x "$newest/node" ]]; then
+      NODE_DIR="$newest"
+      export PATH="$NODE_DIR:$PATH"
+      echo "node: $NODE_DIR/node"
+      return 0
+    fi
+  fi
+  echo "ERROR: node not found. Looked in PATH, $HOME/Documents/anaconda3/bin, /opt/homebrew/bin, /usr/local/bin, newest $HOME/.nvm/versions/node/*/bin" >&2
+  return 1
+}
+
+start_web() {
+  if lsof -tiTCP:5173 -sTCP:LISTEN >/dev/null 2>&1; then
+    return 0
+  fi
+  if [[ -z "$NODE_DIR" ]]; then
+    find_node
+  fi
+  screen -S web-dev -X quit 2>/dev/null || true
+  screen -dmS web-dev zsh -lc "export PATH='$NODE_DIR':\$PATH; cd '$ROOT/apps/web' && '$VITE' --host 127.0.0.1 --port 5173 >> '$RECON/web-dev.log' 2>&1"
+}
+
+start_api() {
+  if lsof -tiTCP:8000 -sTCP:LISTEN >/dev/null 2>&1; then
+    return 0
+  fi
+  screen -S api-server -X quit 2>/dev/null || true
+  screen -dmS api-server zsh -lc "cd '$ROOT' && PYTHONPATH=apps/api/src '$PY' -m uvicorn api.main:app --app-dir apps/api/src --host 127.0.0.1 --port 8000 >> '$RECON/api-server.log' 2>&1"
+}
+
 ensure_api_web() {
-  if ! lsof -tiTCP:8000 -sTCP:LISTEN >/dev/null 2>&1; then
-    screen -S api-server -X quit 2>/dev/null || true
-    screen -dmS api-server zsh -lc "cd '$ROOT' && PYTHONPATH=apps/api/src '$PY' -m uvicorn api.main:app --app-dir apps/api/src --host 127.0.0.1 --port 8000 >> '$RECON/api-server.log' 2>&1"
-  fi
-  if ! lsof -tiTCP:5173 -sTCP:LISTEN >/dev/null 2>&1; then
-    screen -S web-dev -X quit 2>/dev/null || true
-    screen -dmS web-dev zsh -lc "cd '$ROOT/apps/web' && '$VITE' --host 127.0.0.1 --port 5173 >> '$RECON/web-dev.log' 2>&1"
-  fi
+  start_api
+  start_web
   sleep 4
+}
+
+ist_date() {
+  if [[ -x "$PY" ]]; then
+    "$PY" -c "from datetime import datetime; from zoneinfo import ZoneInfo; print(datetime.now(ZoneInfo('Asia/Kolkata')).date())" 2>/dev/null && return 0
+  fi
+  TZ=Asia/Kolkata date +%F
+}
+
+recorder_pids() {
+  pgrep -f '[Pp]ython.*-m marketdata --record-only' 2>/dev/null || true
+}
+
+recorder_screen_up() {
+  screen -ls 2>/dev/null | grep -qE '[.]v2-recorder[[:space:]]'
+}
+
+recorder_is_running() {
+  recorder_screen_up || [[ -n "$(recorder_pids)" ]]
+}
+
+recorder_start() {
+  if recorder_is_running; then
+    echo "ERROR: v2 recorder already running (screen $RECORDER_SCREEN). Refusing a second copy." >&2
+    return 1
+  fi
+  if [[ ! -x "$V2_PY" ]]; then
+    echo "ERROR: $V2_PY missing. Run ./scripts/mac_setup_v2.sh (does not touch .venv)." >&2
+    return 1
+  fi
+  local wrap=""
+  if [[ "$(uname -s)" == "Darwin" ]] && command -v caffeinate >/dev/null 2>&1; then
+    wrap="caffeinate -dimsu "
+  fi
+  screen -dmS "$RECORDER_SCREEN" zsh -lc "cd '$ROOT' && ${wrap}'$V2_PY' -u -m marketdata --record-only"
+  echo "v2 recorder STARTED (PAPER, record-only). screen=$RECORDER_SCREEN"
+}
+
+recorder_stop() {
+  local pids
+  pids="$(recorder_pids)"
+  if [[ -n "$pids" ]]; then
+    echo "Stopping v2 recorder: $pids"
+    # shellcheck disable=SC2086
+    kill $pids 2>/dev/null || true
+    local i
+    for i in 1 2 3 4 5 6 7 8 9 10; do
+      pids="$(recorder_pids)"
+      [[ -z "$pids" ]] && break
+      sleep 1
+    done
+    pids="$(recorder_pids)"
+    if [[ -n "$pids" ]]; then
+      # shellcheck disable=SC2086
+      kill -9 $pids 2>/dev/null || true
+    fi
+  fi
+  screen -S "$RECORDER_SCREEN" -X quit 2>/dev/null || true
+  echo "v2 recorder STOPPED (tapes left intact under data/tape/v2/)"
+}
+
+recorder_status() {
+  local pids day log last
+  pids="$(recorder_pids)"
+  echo "v2 recorder process: ${pids:-STOPPED}"
+  if recorder_screen_up; then
+    echo "v2 recorder screen: $RECORDER_SCREEN UP"
+  else
+    echo "v2 recorder screen: $RECORDER_SCREEN DOWN"
+  fi
+  day="$(ist_date)"
+  log="$TAPE_V2/$day/recorder.log"
+  echo "v2 recorder log: $log"
+  if [[ -f "$log" ]]; then
+    last="$(tail -1 "$log" || true)"
+    echo "v2 recorder last line: $last"
+  else
+    echo "v2 recorder last line: (no log yet for IST $day)"
+  fi
+}
+
+token_file_present() {
+  # Presence only. Never print values.
+  local envf="$ROOT/.env"
+  [[ -f "$envf" ]]
+}
+
+token_keys_set() {
+  local envf="$ROOT/.env"
+  [[ -f "$envf" ]] || return 1
+  grep -qE '^[[:space:]]*DHAN_CLIENT_ID=.' "$envf" && grep -qE '^[[:space:]]*DHAN_ACCESS_TOKEN=.' "$envf"
+}
+
+preflight() {
+  local rc=0
+  echo "=== desk.sh preflight ==="
+  if [[ -x "$PY" ]]; then
+    echo "legacy python: $PY ($("$PY" -V 2>&1))"
+  else
+    echo "ERROR: legacy .venv python missing at $PY (legacy desk cannot start)" >&2
+    rc=1
+  fi
+  if [[ -x "$V2_PY" ]]; then
+    echo "v2 python: $V2_PY ($("$V2_PY" -V 2>&1))"
+  else
+    echo "WARNING: v2 python missing at $V2_PY — run ./scripts/mac_setup_v2.sh (does not stop the legacy desk)"
+  fi
+
+  if [[ -x "$PY" ]]; then
+    if ! "$PY" -c "import fastapi, desk_ml, trading_agents_india" >/dev/null 2>&1; then
+      echo "ERROR: legacy imports failed (fastapi / desk_ml / trading_agents_india)" >&2
+      rc=1
+    else
+      echo "legacy imports: ok (fastapi, desk_ml, trading_agents_india)"
+    fi
+    if ! PYTHONPATH="$ROOT/apps/api/src${PYTHONPATH:+:$PYTHONPATH}" \
+      "$PY" -c "from api.main import create_app; create_app()" >/dev/null 2>&1; then
+      echo "ERROR: api.main create_app() failed in legacy venv" >&2
+      rc=1
+    else
+      echo "legacy api.main: ok"
+    fi
+  fi
+
+  if [[ -x "$V2_PY" ]]; then
+    if ! "$V2_PY" -c "import dhan_client, marketdata" >/dev/null 2>&1; then
+      echo "WARNING: v2 imports failed in .venv-v2 (dhan_client / marketdata) — recorder will not start"
+    else
+      echo "v2 imports: ok (dhan_client, marketdata)"
+    fi
+  fi
+
+  if find_node; then
+    echo "node path: $NODE_DIR"
+  else
+    echo "ERROR: node is required for the website (port 5173)" >&2
+    rc=1
+  fi
+
+  if token_file_present; then
+    if token_keys_set; then
+      echo "Dhan token file: .env present (DHAN_CLIENT_ID / DHAN_ACCESS_TOKEN keys set; values not printed)"
+    else
+      echo "WARNING: Dhan token file .env present but DHAN_CLIENT_ID / DHAN_ACCESS_TOKEN empty or missing (fixtures only)"
+    fi
+  else
+    echo "WARNING: Dhan token file .env missing (fixtures only; does not stop the legacy desk)"
+  fi
+
+  if [[ "$rc" -ne 0 ]]; then
+    echo "preflight FAILED (legacy desk would not start)" >&2
+    return "$rc"
+  fi
+  echo "preflight OK (legacy desk can start)"
+  return 0
 }
 
 write_status() {
@@ -127,8 +362,16 @@ print(",".join(reversed(days)))
 PY
 }
 
+if [[ "${DESK_SH_SOURCED:-0}" == "1" ]]; then
+  return 0
+fi
+
 case "$CMD" in
+  preflight)
+    preflight
+    ;;
   morning|start)
+    preflight
     # Cold start for 09:00 IST. Kills stale listeners, then brings the full paper desk up.
     pkill -f 'trading_agents_india dual-tape' 2>/dev/null || true
     kill_port 8000
@@ -142,8 +385,8 @@ case "$CMD" in
     PYTHONPATH="$ROOT/packages/desk-intel/src${PYTHONPATH:+:$PYTHONPATH}" \
       "$PY" -m jobs pre-market --offline >> "$RECON/pre_market.log" 2>&1 || true
     "$PY" -m desk_ml fix-first >> "$RECON/fix_first.log" 2>&1 || true
-    screen -dmS api-server zsh -lc "cd '$ROOT' && PYTHONPATH=apps/api/src '$PY' -m uvicorn api.main:app --app-dir apps/api/src --host 127.0.0.1 --port 8000 >> '$RECON/api-server.log' 2>&1"
-    screen -dmS web-dev zsh -lc "cd '$ROOT/apps/web' && '$VITE' --host 127.0.0.1 --port 5173 >> '$RECON/web-dev.log' 2>&1"
+    start_api
+    start_web
     arm_dual_tape_when_open
     sleep 2
     write_status
@@ -154,6 +397,7 @@ case "$CMD" in
   close|night|nightly)
     echo "CLOSE: stop data capture, keep website, honesty exam + nightly."
     stop_dual_tape
+    recorder_stop
     ensure_api_web
     DAYS="$(exam_days)"
     echo "Nightly first so exam can read session_kind. Then honesty exam."
@@ -176,10 +420,20 @@ EOF
     cat "$RECON/close_status.txt"
     ;;
   website)
+    preflight
     stop_dual_tape
     ensure_api_web
     write_status " website-only"
     echo "Website ON. Capture OFF. http://127.0.0.1:5173/desk"
+    ;;
+  recorder-start)
+    recorder_start
+    ;;
+  recorder-stop)
+    recorder_stop
+    ;;
+  recorder-status)
+    recorder_status
     ;;
   status)
     write_status
@@ -187,6 +441,7 @@ EOF
     echo "API  : $(lsof -tiTCP:8000 -sTCP:LISTEN 2>/dev/null | head -1 || echo DOWN)  http://127.0.0.1:8000/health"
     echo "WEB  : $(lsof -tiTCP:5173 -sTCP:LISTEN 2>/dev/null | head -1 || echo DOWN)  http://127.0.0.1:5173/desk"
     echo "TAPE : $(pgrep -f 'trading_agents_india dual-tape' | head -1 || echo STOPPED)"
+    recorder_status
     echo "Honesty: http://127.0.0.1:5173/pm  and  data/recon/sod_exam_report.json"
     echo "Nightly: data/recon/\$(IST-date).json  and  teams/02_phd_math/docs/handoffs/NIGHTLY_*.md"
     if [[ -f "$RECON/close_status.txt" ]]; then
@@ -260,7 +515,7 @@ PY
     exec "$0" close
     ;;
   *)
-    echo "usage: $0 morning|close|website|status|watch-open|watch-close" >&2
+    echo "usage: $0 morning|close|website|status|watch-open|watch-close|preflight|recorder-start|recorder-stop|recorder-status" >&2
     exit 2
     ;;
 esac

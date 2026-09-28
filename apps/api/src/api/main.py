@@ -4,10 +4,10 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 from contextlib import asynccontextmanager
 from typing import Any
 
-from events.bus import MemoryBus
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
@@ -21,9 +21,22 @@ from api.health_alerts import router as health_router
 from api.models import TookTradeBody, TookTradeRecord
 from api.premium_bind import bind_premiums_onto_desk
 from api.store import SignalStore
-from api.v2_gateway import attach_gateway
-from api.v2_gateway import router as v2_router
 from api.ws import router as ws_router
+
+log = logging.getLogger(__name__)
+
+try:
+    from events.bus import MemoryBus
+
+    from api.v2_gateway import attach_gateway
+    from api.v2_gateway import router as v2_router
+
+    V2_GATEWAY_AVAILABLE = True
+except ImportError:
+    MemoryBus = None
+    attach_gateway = None
+    v2_router = None
+    V2_GATEWAY_AVAILABLE = False
 
 
 @asynccontextmanager
@@ -47,7 +60,13 @@ def create_app() -> FastAPI:
     app.state.settings = settings
     app.state.store = SignalStore()
     app.state.live_paper = None
-    attach_gateway(app, MemoryBus())
+    if V2_GATEWAY_AVAILABLE:
+        attach_gateway(app, MemoryBus())
+    else:
+        log.warning(
+            "v2 routes disabled: events/v2_gateway unavailable "
+            "(legacy Python 3.9 venv is expected; /paper/* stays up)"
+        )
 
     app.add_middleware(
         CORSMiddleware,
@@ -330,7 +349,8 @@ def create_app() -> FastAPI:
     app.include_router(ws_router)
     app.include_router(health_router)
     app.include_router(founder_controls_router)
-    app.include_router(v2_router)
+    if V2_GATEWAY_AVAILABLE:
+        app.include_router(v2_router)
     return app
 
 
