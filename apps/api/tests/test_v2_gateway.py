@@ -7,8 +7,6 @@ from typing import Any
 
 from api.main import create_app
 from api.v2_gateway import (
-    CONTROL_FLAG,
-    CONTROL_KINDS,
     IST,
     GatewayHub,
     WsClient,
@@ -252,22 +250,23 @@ def test_ws_resync_after_planted_gap() -> None:
     assert ids == {"ps_1", "ps_2", "ps_3"}
 
 
-def test_control_routes_are_stub(monkeypatch: Any) -> None:
+def test_control_routes_are_wired_not_stub() -> None:
     c, _hub = _app()
-    surface = c.get("/v2/control").json()
-    assert (
-        surface["stub"] is True
-        and surface["ticket"] == "V2-11"
-        and surface["implemented"] is False
+    assert c.get("/v2/control").status_code == 403
+    surface = c.get("/v2/control", params={"token": "founder"}).json()
+    assert surface["stub"] is False and surface["implemented"] is True
+    assert surface["ticket"] == "V2-11"
+    assert "KILL" in surface["kinds"]
+    refused = c.post("/v2/control/commands", json={"kind": "START", "reason": "x"})
+    assert refused.status_code == 403
+    ok = c.post(
+        "/v2/control/commands",
+        params={"token": "founder"},
+        json={"kind": "START", "reason": "go", "command_id": "gw-start"},
     )
-    assert surface["kinds"] == list(CONTROL_KINDS)
-    assert c.post("/v2/control/commands", json={"kind": "KILL"}).status_code == 501
-    monkeypatch.setenv(CONTROL_FLAG, "1")
-    flagged = c.get("/v2/control").json()
-    assert flagged["enabled"] is True and flagged["implemented"] is False
-    refused = c.post("/v2/control/commands", json={"kind": "START", "args": {}})
-    assert refused.status_code == 501
-    assert refused.json()["detail"]["applied"] is False
+    assert ok.status_code == 200
+    assert ok.json()["applied"] is True
+    assert ok.json()["status"] == "applied"
 
 
 def test_v2_trace_route_strike_choice() -> None:
