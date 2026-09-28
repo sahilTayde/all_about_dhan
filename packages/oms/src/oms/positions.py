@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from dataclasses import replace
 from datetime import datetime, timedelta
 from typing import Any
@@ -20,9 +21,12 @@ from oms.exits import (
     STALE_MAX_AGE_S,
     ExitRequest,
     as_ist,
+    assert_exit_reason,
     choose_time_stop,
     evaluate,
+    freeze_fill_levels,
     instrument_lot_size,
+    option_side,
     plan_as_json,
     plan_from_mapping,
     quote_is_stale,
@@ -32,6 +36,7 @@ from oms.ledger_stub import MemoryLedger
 from oms.router import OrderRouter, symbol_from_instrument
 
 _INDIA = India()
+_LOG = logging.getLogger(__name__)
 
 
 def _expiry_of(instrument_id: str) -> datetime | None:
@@ -66,11 +71,26 @@ class PositionManager:
         self.alerts: list[dict[str, Any]] = []
         self._pending: dict[str, ExitRequest] = {}
         self._plans: dict[str, ExitPlan] = {}
+        self._fill_ctx: dict[str, dict[str, float]] = {}
         self.router.positions = self
 
     def remember_plan(self, client_order_id: str, plan: ExitPlan) -> None:
         plan_from_mapping(plan_as_json(plan))  # refuse a plan without catastrophic
         self._plans[client_order_id] = plan
+
+    def remember_fill_context(
+        self,
+        client_order_id: str,
+        *,
+        entry_underlying: float | None = None,
+        atr14: float | None = None,
+    ) -> None:
+        ctx: dict[str, float] = {}
+        if entry_underlying is not None:
+            ctx["entry_underlying"] = float(entry_underlying)
+        if atr14 is not None:
+            ctx["atr14"] = float(atr14)
+        self._fill_ctx[client_order_id] = ctx
 
     def on_fill(
         self,
@@ -106,7 +126,15 @@ class PositionManager:
             row["account_id"] = account_id or row.get("account_id") or "founder"
             row["strategy_id"] = strategy_id or row.get("strategy_id") or ""
             row["orig_qty"] = int(row["net_qty"])
-            row["stop_price"] = float(plan.catastrophic.level.price)
+            ctx = self._fill_ctx.get(client_order_id) or self._fill_ctx.get(entry_order_id or "")
+            freeze_fill_levels(
+                row,
+                plan,
+                price,
+                int(row["net_qty"]),
+                entry_underlying=(ctx or {}).get("entry_underlying"),
+                atr14=(ctx or {}).get("atr14"),
+            )
             row["position_id"] = row.get("position_id") or client_order_id
             row["entry_order_id"] = row.get("entry_order_id") or client_order_id
             row["last_good_quote"] = price
@@ -139,7 +167,8 @@ class PositionManager:
         for pos in list(self.store.open_positions()):
             ids = (pos.get("instrument_id"), pos.get("position_id"), pos.get("symbol"))
             quote_kinds = ("TICK", "DEPTH_QUOTE", "QUOTE_SNAPSHOT", "BAR_CLOSED")
-            if target and target not in ids and kind in quote_kinds:
+            skip_other = target and target not in ids and kind in quote_kinds
+            if skip_other and not (kind == "BAR_CLOSED" and _same_underlying(target, pos)):
                 continue
             if "exit_plan" not in pos:
                 raw = pos.get("exit_plan_json")
@@ -154,6 +183,7 @@ class PositionManager:
                 )
             ):
                 continue
+            own_opp, boss_opp = _flip_flags(kind, payload, pos)
             req = evaluate(
                 pos,
                 self.clock.now(),
@@ -167,6 +197,10 @@ class PositionManager:
                 founder_kind=founder,
                 strategy_exit=strategy_exit,
                 quote_max_age_s=self.quote_max_age_s,
+                event_kind=kind,
+                underlying=_underlying_px(kind, payload, pos),
+                own_opposite=own_opp,
+                boss_opposite=boss_opp,
             )
             if req is None:
                 pending = self._pending.get(_key(pos))
@@ -176,7 +210,35 @@ class PositionManager:
                     req = pending
             if req is None:
                 continue
-            applied = self._apply(pos, req)
+            try:
+                assert_exit_reason(req, pos["exit_plan"])
+            except RuntimeError as exc:
+                _LOG.critical("REG-18a: %s; flattening anyway", exc)
+                self._alert(
+                    "REG_18A_MISMATCH",
+                    _key(pos),
+                    str(exc),
+                    severity="CRITICAL",
+                )
+            try:
+                applied = self._apply(pos, req)
+            except Exception as exc:
+                _LOG.critical("exit apply failed; failsafe flatten: %s", exc)
+                self._alert("EXIT_APPLY_FAILED", _key(pos), str(exc), severity="CRITICAL")
+                inst = str(pos.get("instrument_id") or "")
+                qty = whole_lots_qty(int(pos.get("net_qty") or 0), instrument_lot_size(inst))
+                if qty <= 0:
+                    continue
+                applied = self._apply(
+                    pos,
+                    ExitRequest(
+                        "FAILSAFE_MTM",
+                        "mark",
+                        qty,
+                        stale_quote=True,
+                        price_hint=pos.get("last_good_quote"),
+                    ),
+                )
             if applied is not None:
                 fired.append(applied)
         self.assert_stop_invariant()
@@ -485,6 +547,63 @@ class PositionManager:
             },
             source="oms",
         )
+
+
+def _same_underlying(target: str, pos: dict[str, Any]) -> bool:
+    inst = str(pos.get("instrument_id") or "")
+    try:
+        pos_sym = str(_INDIA.parse_instrument_id(inst).get("symbol") or "")
+        tgt_sym = str(_INDIA.parse_instrument_id(target).get("symbol") or "")
+    except ValueError:
+        return False
+    return bool(pos_sym and pos_sym == tgt_sym)
+
+
+def _underlying_px(kind: str, payload: dict[str, Any], pos: dict[str, Any]) -> float | None:
+    for key in ("spot", "underlying_ltp", "underlying_close"):
+        raw = payload.get(key)
+        if isinstance(raw, (int, float)) and raw == raw:
+            return float(raw)
+    raw_under = payload.get("underlying")
+    if isinstance(raw_under, (int, float)) and raw_under == raw_under:
+        return float(raw_under)
+    inst = str(payload.get("instrument_id") or "")
+    if kind == "BAR_CLOSED" and inst and _same_underlying(inst, pos) and "FNO" not in inst:
+        close = payload.get("c", payload.get("close"))
+        if close is not None:
+            return float(close)
+    held = pos.get("entry_underlying")
+    return float(held) if held is not None else None
+
+
+def _flip_flags(kind: str, payload: dict[str, Any], pos: dict[str, Any]) -> tuple[bool, bool]:
+    own = payload.get("own_opposite") is True
+    boss = payload.get("boss_opposite") is True
+    side = option_side(str(pos.get("instrument_id") or ""))
+    other = str(payload.get("side") or "")
+    if other not in {"CE", "PE"}:
+        inst = str(payload.get("instrument_id") or "")
+        if inst:
+            try:
+                other = option_side(inst)
+            except ValueError:
+                other = ""
+    opposite = bool(other and other != side)
+    if kind == "SIGNAL" and opposite:
+        strat = str(payload.get("strategy_id") or "")
+        if strat and strat == str(pos.get("strategy_id") or ""):
+            own = True
+    if (
+        kind in {"DECISION", "BOSS_DECISION"}
+        and opposite
+        and str(payload.get("decision") or "ENTER") == "ENTER"
+    ):
+        under = str(payload.get("underlying") or "")
+        inst = str(pos.get("instrument_id") or "")
+        pos_under = str(_INDIA.parse_instrument_id(inst).get("symbol") or "")
+        if not under or under == pos_under:
+            boss = True
+    return own, boss
 
 
 def held_position(row: dict[str, Any]) -> Position:
