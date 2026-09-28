@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
+from decimal import Decimal
 from typing import Any
 
 from contracts.instruments import India
@@ -33,7 +34,7 @@ class ChargeRow:
     qty: int
     price: float
     exchange: str | None
-    components: dict[str, float]
+    components: dict[str, Decimal]
     charges_status: str  # FINAL | PENDING
     fill_model: str
     slippage_source: str
@@ -92,7 +93,7 @@ class MemoryLedger:
         if lot is not None and int(qty) % lot != 0:
             raise ValueError(f"fill qty {qty} is not a multiple of lot size {lot}")
         status = "PENDING"
-        components: dict[str, float] = {}
+        components: dict[str, Decimal] = {}
         exchange: str | None = None
         if self.rates is not None:
             exchange = exchange_for(symbol or instrument_id, self.rates)

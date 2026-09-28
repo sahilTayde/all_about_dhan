@@ -120,8 +120,9 @@ def test_flatten_never_exceeds_net_qty(tmp_path: object) -> None:
     assert alerts == ["HEALTH_ALERT"]
 
     spy.place_calls = 0
-    with pytest.raises(ValueError, match="whole lot"):
-        router.exit({**pos, "net_qty": 10}, "FLATTEN")
+    rejected = router.exit({**pos, "net_qty": 10}, "FLATTEN")
+    assert isinstance(rejected, Veto)
+    assert rejected.reason_code == "SUB_LOT"
     assert spy.place_calls == 0
 
 
@@ -152,7 +153,7 @@ def test_exit_flat_is_noop_rejected(tmp_path: object, caplog: pytest.LogCaptureF
 def test_exit_sub_lot_remainder_whole_lots_only(
     tmp_path: object, caplog: pytest.LogCaptureFixture
 ) -> None:
-    """Sub-lot remainder: sell whole lots only; smaller than one lot is rejected, never a partial-lot order."""
+    """Sub-lot remainder: sell whole lots only; under one lot is rejected."""
     import logging
 
     clock = SimClock(NOW)

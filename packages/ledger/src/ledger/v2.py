@@ -44,11 +44,6 @@ def money_sql(value: Any) -> str:
     return format(money(value), "f")
 
 
-def _charges_api_price(px: Decimal) -> float:
-    """charges.order_charges still types price as float; it re-Decimals immediately."""
-    return float(money_sql(px))
-
-
 def lot_size_for_symbol(symbol_or_id: str) -> int:
     text = (symbol_or_id or "").upper()
     for name, size in _LOT_SIZES:
@@ -464,17 +459,14 @@ class SqliteLedgerStore:
             if exchange is None:
                 raise ValueError(f"unmapped underlying for {symbol or instrument_id!r}")
             try:
-                components = {
-                    k: money(v)
-                    for k, v in order_charges(side, qty, _charges_api_price(px), rates, exchange=exchange).items()
-                }
+                components = {k: money(v) for k, v in order_charges(side, qty, px, rates, exchange=exchange).items()}
                 status = "FINAL"
             except (ValueError, KeyError, TypeError):
                 status = "PENDING"
                 components = {}
         elif rates is not None:
             try:
-                components = {k: money(v) for k, v in order_charges(side, qty, _charges_api_price(px), rates).items()}
+                components = {k: money(v) for k, v in order_charges(side, qty, px, rates).items()}
                 status = "FINAL"
             except (ValueError, KeyError, TypeError):
                 status = "PENDING"
@@ -660,7 +652,7 @@ class SqliteLedgerStore:
             ch = {
                 k: money(v)
                 for k, v in order_charges(
-                    fill["side"], int(fill["qty"]), _charges_api_price(money(fill["price"])), rates, exchange=ex
+                    fill["side"], int(fill["qty"]), money(fill["price"]), rates, exchange=ex
                 ).items()
             }
             if ch["total"] == 0:

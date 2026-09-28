@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 from decimal import ROUND_HALF_UP, Decimal
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Self, overload
 
 import yaml
 
@@ -25,6 +25,104 @@ UNDERLYING_EXCHANGE = "underlying_exchange"
 _PAISE = Decimal("0.01")
 
 
+def _as_decimal(value: Any) -> Decimal:
+    if isinstance(value, Decimal):
+        return value
+    if isinstance(value, bool):
+        raise TypeError("bool is not a money value")
+    if isinstance(value, (int, float, str)):
+        return Decimal(str(value))
+    raise TypeError(f"cannot coerce {type(value)!r} to Decimal")
+
+
+class Paisa(Decimal):
+    """Paise Decimal that still mixes with float callers (desk-ml.costs)."""
+
+    def __new__(cls, value: Any) -> Self:
+        return Decimal.__new__(cls, _as_decimal(value))
+
+    def _other(self, other: Any) -> Decimal | None:
+        try:
+            return _as_decimal(other)
+        except TypeError:
+            return None
+
+    def __eq__(self, other: object) -> bool:
+        coerced = self._other(other)
+        if coerced is None:
+            return NotImplemented
+        return Decimal.__eq__(Decimal(self), coerced)
+
+    def __ne__(self, other: object) -> bool:
+        eq = self.__eq__(other)
+        if eq is NotImplemented:
+            return NotImplemented
+        return not eq
+
+    def __lt__(self, other: Any) -> bool:
+        coerced = self._other(other)
+        if coerced is None:
+            return NotImplemented
+        return Decimal.__lt__(Decimal(self), coerced)
+
+    def __le__(self, other: Any) -> bool:
+        coerced = self._other(other)
+        if coerced is None:
+            return NotImplemented
+        return Decimal.__le__(Decimal(self), coerced)
+
+    def __gt__(self, other: Any) -> bool:
+        coerced = self._other(other)
+        if coerced is None:
+            return NotImplemented
+        return Decimal.__gt__(Decimal(self), coerced)
+
+    def __ge__(self, other: Any) -> bool:
+        coerced = self._other(other)
+        if coerced is None:
+            return NotImplemented
+        return Decimal.__ge__(Decimal(self), coerced)
+
+    def __add__(self, other: Any) -> Paisa:
+        coerced = self._other(other)
+        if coerced is None:
+            return NotImplemented
+        return Paisa(Decimal(self) + coerced)
+
+    def __radd__(self, other: Any) -> Paisa:
+        return self.__add__(other)
+
+    def __sub__(self, other: Any) -> Paisa:
+        coerced = self._other(other)
+        if coerced is None:
+            return NotImplemented
+        return Paisa(Decimal(self) - coerced)
+
+    def __rsub__(self, other: Any) -> Paisa:
+        coerced = self._other(other)
+        if coerced is None:
+            return NotImplemented
+        return Paisa(coerced - Decimal(self))
+
+    def __abs__(self) -> Paisa:
+        return Paisa(abs(Decimal(self)))
+
+    def __neg__(self) -> Paisa:
+        return Paisa(-Decimal(self))
+
+    @overload
+    def __round__(self, ndigits: None = None) -> int: ...
+
+    @overload
+    def __round__(self, ndigits: int) -> Paisa: ...
+
+    def __round__(self, ndigits: int | None = None) -> int | Paisa:
+        if ndigits is None:
+            return int(Decimal(self).quantize(Decimal(1), rounding=ROUND_HALF_UP))
+        step = Decimal(1).scaleb(-int(ndigits))
+        return Paisa(Decimal(self).quantize(step, rounding=ROUND_HALF_UP))
+
+
 def load_rates(path: Path = DEFAULT_CHARGES_PATH, *, by_exchange: bool = False) -> dict[str, Any]:
     """Flat rates by default. `by_exchange=True` also loads the per-exchange transaction charge
     and the underlying -> exchange map (SENSEX at the BSE rate); legacy callers never ask for it."""
@@ -42,7 +140,7 @@ def load_rates(path: Path = DEFAULT_CHARGES_PATH, *, by_exchange: bool = False) 
     return rates
 
 
-def exchange_for(symbol_or_underlying: str, rates: dict[str, Any]) -> Optional[str]:
+def exchange_for(symbol_or_underlying: str, rates: dict[str, Any]) -> str | None:
     """'SENSEX 82000 CE' or 'SENSEX' -> 'BSE'. None when the rates are flat (legacy)."""
     table = rates.get(UNDERLYING_EXCHANGE)
     if not table:
@@ -55,7 +153,7 @@ def exchange_for(symbol_or_underlying: str, rates: dict[str, Any]) -> Optional[s
 
 
 def _d(x: Any) -> Decimal:
-    return Decimal(str(x))
+    return _as_decimal(x)
 
 
 def _inr(x: Decimal) -> Decimal:
@@ -65,17 +163,19 @@ def _inr(x: Decimal) -> Decimal:
 def order_charges(
     side: str,
     qty: int,
-    price: float,
+    price: Decimal | float | str,
     rates: dict[str, Any],
     *,
     include_brokerage: bool = True,
-    exchange: Optional[str] = None,
-) -> dict[str, float]:
+    exchange: str | None = None,
+) -> dict[str, Decimal]:
     """Charges for one executed order (or one fill of it).
 
     Each component is rounded to paise like a contract note line; GST is on the rounded
     brokerage + exchange + SEBI. Pass include_brokerage=False for the 2nd+ fill of one order.
     `exchange` (NSE/BSE) picks the per-exchange transaction charge from `load_rates(by_exchange=True)`.
+    Price may be Decimal; every returned line is Decimal (Paisa) quantized to paise except
+    turnover, which stays exact.
     """
     side = side.upper()
     if side not in ("BUY", "SELL"):
@@ -93,12 +193,12 @@ def order_charges(
     gst = _inr((brokerage + exchange_fee + sebi) * _d(rates["gst_frac"]))
     total = brokerage + exchange_fee + sebi + stt + stamp + gst
     return {
-        "turnover": float(turnover),
-        "brokerage": float(brokerage),
-        "stt": float(stt),
-        "exchange": float(exchange_fee),
-        "sebi": float(sebi),
-        "stamp": float(stamp),
-        "gst": float(gst),
-        "total": float(total),
+        "turnover": Paisa(turnover),
+        "brokerage": Paisa(brokerage),
+        "stt": Paisa(stt),
+        "exchange": Paisa(exchange_fee),
+        "sebi": Paisa(sebi),
+        "stamp": Paisa(stamp),
+        "gst": Paisa(gst),
+        "total": Paisa(total),
     }

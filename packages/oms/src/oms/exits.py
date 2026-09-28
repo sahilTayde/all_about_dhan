@@ -93,14 +93,21 @@ def option_side(instrument_id: str) -> str:
 def house_stop_premium(entry: float, qty: int, max_loss: float = HOUSE_MAX_LOSS_INR) -> float:
     """Premium stop so qty * (entry - stop) <= max_loss (round 11 house stop).
 
-    The trigger snaps UP onto the 0.05 premium grid (protective for a long).
+    The trigger snaps UP onto the 0.05 premium grid (protective for a long),
+    then clamps to [one tick, entry]: never below 0, never above entry.
+    Tiny or negative risk caps therefore cannot produce a stop above the fill.
     """
     if qty <= 0:
         raise ValueError("qty must be positive")
-    raw = float(entry) - float(max_loss) / int(qty)
+    entry_f = float(entry)
+    loss = max(0.0, float(max_loss))
+    raw = entry_f - loss / int(qty)
     ticks = ceil(raw / PREMIUM_TICK - 1e-12)
     snapped = round(ticks * PREMIUM_TICK, 2)
-    return max(PREMIUM_TICK, snapped)
+    floor = PREMIUM_TICK  # one tick; also never below 0
+    if entry_f < floor:
+        return max(0.0, min(entry_f, snapped))
+    return min(entry_f, max(floor, snapped))
 
 
 def resolve_catastrophic_premium(plan: ExitPlan, fill_price: float, qty: int) -> float:

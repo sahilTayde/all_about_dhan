@@ -28,6 +28,8 @@ _LOG = logging.getLogger(__name__)
 _LOT_SIZE_MISMATCH = "LOT_SIZE_MISMATCH"
 _QTY_NOT_WHOLE_LOT = "QTY_NOT_WHOLE_LOT"
 _ODD_LOT_FLATTEN = "ODD_LOT_FLATTEN"
+_FLAT_EXIT = "FLAT"
+_SUB_LOT_EXIT = "SUB_LOT"
 
 
 class PaperDeskBroker(Protocol):
@@ -721,7 +723,11 @@ class OrderRouter:
         if order.is_open:
             self.broker._fill(order, float(hint), self.clock.now())
 
-    def exit(self, position: dict[str, Any], reason: str) -> Order:
+    def _reject_exit(self, code: str, detail: str, *, reason: str) -> Veto:
+        _LOG.info("exit rejected %s reason=%s detail=%s", code, reason, detail)
+        return Veto("", code, detail)
+
+    def exit(self, position: dict[str, Any], reason: str) -> Order | Veto:
         """REG-03: always `exit_intent` from the held instrument and whole-lot qty."""
         inst = str(position.get("instrument_id") or "")
         lot = lot_size_for(inst)
@@ -741,8 +747,19 @@ class OrderRouter:
                 },
                 source="oms",
             )
-        if qty <= 0 or qty > raw_net:
-            raise ValueError(f"exit qty {raw_net} has no whole lot <= net (lot {lot})")
+        if raw_net == 0 or qty <= 0:
+            code = _FLAT_EXIT if raw_net == 0 else _SUB_LOT_EXIT
+            return self._reject_exit(
+                code,
+                f"exit {reason}: net_qty {raw_net} has no whole lot to close (lot {lot})",
+                reason=reason,
+            )
+        if qty > raw_net:
+            return self._reject_exit(
+                _SUB_LOT_EXIT,
+                f"exit {reason}: whole-lot qty {qty} exceeds net {raw_net} (lot {lot})",
+                reason=reason,
+            )
         key = inst or str(position.get("symbol") or "")
         live = self.store.positions.get(key)
         live_net = int(live["net_qty"]) if live is not None else qty
@@ -758,8 +775,18 @@ class OrderRouter:
             for order in reversed(list(self.broker.orders.values())):
                 if (order.intent.exit_reason or "") == _STOP_RESIZE_FAILED:
                     return order
-            raise ValueError("exit qty must be a whole lot")
+            return self._reject_exit(
+                _FLAT_EXIT,
+                f"exit {reason}: position is flat after protective resize (lot {lot})",
+                reason=reason,
+            )
         qty = min(qty, whole_lots_qty(live_net_after, lot))
+        if qty <= 0:
+            return self._reject_exit(
+                _SUB_LOT_EXIT,
+                f"exit {reason}: live net {live_net_after} is smaller than one lot {lot}",
+                reason=reason,
+            )
         acc = str(position.get("account_id") or "founder")
         parent = str(position.get("entry_order_id") or position.get("position_id") or "x")
         self._exit_seq += 1
