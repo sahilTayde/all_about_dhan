@@ -1,7 +1,8 @@
 """python -m runtime <command> — paper only.
 
 Commands: engine, health, llm-advisor, reset-breaker, deploy, backup, restore, job,
-flatten (out-of-band paper flatten), and bench-legacy (V2-17 frozen replay).
+flatten (out-of-band paper flatten), bench-legacy (V2-17), and forward-eval
+(V2-20a; off by default).
 """
 
 from __future__ import annotations
@@ -59,12 +60,13 @@ def _idle(state_dir: Path, name: str) -> None:
 
 
 _USAGE = """usage: python -m runtime {engine|health|llm-advisor|reset-breaker|
-  deploy|backup|restore|job|flatten|bench-legacy} ...
+  deploy|backup|restore|job|flatten|bench-legacy|forward-eval} ...
   engine|health|llm-advisor [--once] [--state-dir DIR] [--now ISO] [--mode replay|paper]
   reset-breaker <service> [--state-dir DIR] [--now ISO]
   flatten [--account founder] [--state-dir DIR] [--now ISO]
   job <name> [--state-dir DIR]
   bench-legacy --day YYYY-MM-DD --tape PATH [--out DIR] [--deadline SECONDS]
+  forward-eval --session YYYY-MM-DD [--tape PATH] [--out DIR] [--config PATH]
   deploy <sha> | backup | restore --snapshot PATH
 """
 
@@ -78,6 +80,10 @@ def main(argv: list[str] | None = None) -> int:
         from runtime.bench_legacy import main as bench_legacy_main
 
         return bench_legacy_main(raw[1:])
+    if raw[0].replace("_", "-") == "forward-eval":
+        from runtime.forward_eval import main as forward_eval_main
+
+        return forward_eval_main(raw[1:])
 
     p = argparse.ArgumentParser(description="V2 runtime (paper only; no broker orders)")
     p.add_argument("command")
