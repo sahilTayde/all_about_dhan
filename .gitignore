@@ -31,6 +31,8 @@ data/shadow/
 # V2 market-data tapes (depth, quotes, OI cadence, raw frames) and the scrip-master cache
 data/tape/
 data/cache/
+# V2 runtime state (engine_status.json, *.ready, health_status.json)
+data/state/
 
 # Live-rewritten founder board (open in Cursor / browser; do not commit ticks)
 teams/00_orchestrator/canvases/*

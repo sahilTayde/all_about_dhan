@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Build an isolated .venv-v2 for the V2 marketdata recorder.
+# Build an isolated .venv-v2 for the V2 paper stack (recorder + runtime).
 # Idempotent. Never touches the legacy Mac .venv (Python 3.9).
-# PAPER only. No live orders.
+# PAPER only. No live orders. DhanBroker is never constructed here.
 #
 #   ./scripts/mac_setup_v2.sh
 #
@@ -72,13 +72,52 @@ fi
 
 echo "mac_setup_v2: v2 python is $($VENV/bin/python -V 2>&1)"
 
-if [[ -n "$UV" ]]; then
-  "$UV" pip install --python "$VENV/bin/python" -e "$ROOT/packages/dhan-client" -e "$ROOT/packages/marketdata"
-else
-  "$VENV/bin/python" -m pip install -U pip
-  "$VENV/bin/python" -m pip install -e "$ROOT/packages/dhan-client" -e "$ROOT/packages/marketdata"
-fi
+# Third-party deps the V2 packages import. Local packages are then installed
+# --no-deps so names like events/desk never resolve from PyPI (same as CI).
+# Skip the legacy stack (boss / analysts / paper_scalp). Those stay in .venv.
+V2_THIRD=(jsonschema referencing rfc3339-validator PyYAML prometheus-client)
+# Recorder + runtime engine/health/gateway (+ packages those import).
+V2_PKGS=(
+  dhan-client
+  contracts
+  events
+  marketdata
+  risk-engine
+  ledger
+  health
+  indicators
+  brokers
+  strategies
+  runtime
+  oms
+)
 
-"$VENV/bin/python" -c "import dhan_client, marketdata; print('mac_setup_v2: imports ok', dhan_client.__name__, marketdata.__name__)"
+install_third() {
+  echo "mac_setup_v2: third-party ${V2_THIRD[*]}"
+  if [[ -n "$UV" ]]; then
+    "$UV" pip install --python "$VENV/bin/python" "${V2_THIRD[@]}"
+  else
+    "$VENV/bin/python" -m pip install -U pip
+    "$VENV/bin/python" -m pip install "${V2_THIRD[@]}"
+  fi
+}
+
+install_local() {
+  local args=() p
+  for p in "${V2_PKGS[@]}"; do
+    args+=(-e "$ROOT/packages/$p")
+  done
+  echo "mac_setup_v2: editable ${V2_PKGS[*]} (--no-deps)"
+  if [[ -n "$UV" ]]; then
+    "$UV" pip install --python "$VENV/bin/python" --no-deps "${args[@]}"
+  else
+    "$VENV/bin/python" -m pip install --no-deps "${args[@]}"
+  fi
+}
+
+install_third
+install_local
+
+"$VENV/bin/python" -c "import dhan_client, marketdata, contracts, events, runtime; print('mac_setup_v2: imports ok', dhan_client.__name__, marketdata.__name__, runtime.__name__)"
 echo "mac_setup_v2: done. Legacy .venv was not modified."
-echo "Next: ./scripts/desk.sh recorder-start"
+echo "Next: ./scripts/desk.sh v2-start   # or recorder-start for the tape only"

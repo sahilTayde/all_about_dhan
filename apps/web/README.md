@@ -24,7 +24,7 @@ UX standard: [`docs/CUSTOMER_PORTAL_UX.md`](../../docs/CUSTOMER_PORTAL_UX.md). A
 
 ## How to run
 
-**Founder (whole desk, one command):** from repo root `./scripts/desk.sh morning`. After close `./scripts/desk.sh close` (website stays; capture + v2 recorder stop; honesty + nightly). `desk.sh` finds `node` on PATH, then `~/Documents/anaconda3/bin`, Homebrew, `/usr/local/bin`, or newest `~/.nvm`. Review: http://127.0.0.1:5173/desk and http://127.0.0.1:5173/pm. Details: [`SESSION_PREP_ML.md`](../../teams/06_backtesting/docs/SESSION_PREP_ML.md).
+**Founder (both stacks, one command):** from repo root `./scripts/desk.sh start-all` (legacy website + watch-open + V2 paper stack). After close `./scripts/desk.sh stop-all` (website stays; capture + ALL V2 stop; honesty + nightly). `desk.sh` finds `node` on PATH, then `~/Documents/anaconda3/bin`, Homebrew, `/usr/local/bin`, or newest `~/.nvm`. Review: http://127.0.0.1:5173/desk and http://127.0.0.1:5173/pm. Details: [`SESSION_PREP_ML.md`](../../teams/06_backtesting/docs/SESSION_PREP_ML.md).
 
 Needs **Node 18+** (`node -v`). If you only have conda and `node` is missing:
 
