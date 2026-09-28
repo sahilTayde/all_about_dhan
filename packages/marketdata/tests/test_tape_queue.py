@@ -10,11 +10,12 @@ import time
 from pathlib import Path
 
 import pytest
+from md_fake_dhan import ist, make_universe, read_rows, settings_for
+
 from marketdata.config import RecorderConfig
 from marketdata.recorder import MarketDataRecorder
 from marketdata.strikes import StrikeSet
 from marketdata.tape import TapeWriter, reset_tape_flusher, tape_drop_count
-from md_fake_dhan import ist, make_universe, read_rows, settings_for
 
 
 def _rows(path: Path) -> list[dict[str, object]]:

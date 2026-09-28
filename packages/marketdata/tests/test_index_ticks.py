@@ -6,8 +6,6 @@ import asyncio
 from datetime import datetime
 from pathlib import Path
 
-from marketdata.frames import decode_frame_checked
-from marketdata.recorder import MarketDataRecorder
 from md_fake_dhan import (
     FakeDhanServer,
     StubSource,
@@ -18,6 +16,9 @@ from md_fake_dhan import (
     run_session,
     ticker_packet,
 )
+
+from marketdata.frames import decode_frame_checked
+from marketdata.recorder import MarketDataRecorder
 
 
 def test_index_subscribed_in_ticker_not_full(tmp_path: Path) -> None:
