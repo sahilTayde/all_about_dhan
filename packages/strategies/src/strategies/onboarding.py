@@ -85,6 +85,8 @@ def check_registry(
         try:
             instance = load_strategy(sid, rows)
         except StrategyRuntimeError as exc:
+            if "PENDING_LAB" in str(exc) and entry.stage == "shadow":
+                continue
             errors.append(f"{sid}: load failed: {exc}")
             continue
         for item in check_entry(entry, instance, collected):

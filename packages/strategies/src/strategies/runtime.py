@@ -89,8 +89,20 @@ def load_strategy(
         )
     if meta.params_hash != entry.params_hash:
         raise StrategyRuntimeError(
-            f"Strategy {strategy_id} params_hash mismatch: "
+            f"Strategy {strategy_id} params hash differs from the preregistered one: "
             f"meta={meta.params_hash}, registry={entry.params_hash}"
+        )
+    status = str(getattr(instance, "prereg_status", "") or "")
+    if status == "PENDING_LAB":
+        raise StrategyRuntimeError(
+            f"PENDING_LAB: {strategy_id} refuses to load until a lab coefficient hash is recorded"
+        )
+    recorded = getattr(instance, "prereg_lab_hash", None)
+    got = getattr(instance, "lab_coeff_hash", None)
+    if recorded and got != recorded:
+        raise StrategyRuntimeError(
+            f"Strategy {strategy_id} params hash differs from the preregistered one: "
+            f"got={got}, preregistered={recorded}"
         )
     if available_features is not None:
         missing = set(meta.features) - available_features

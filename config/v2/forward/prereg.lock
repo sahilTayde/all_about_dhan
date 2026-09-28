@@ -1,4 +1,19 @@
-# V2-20a preregistration lock. sha256(canonical spec + plugin source + coefficients).
-# Empty until V2-20b registers shadow specs. Cumulative trials start at the Round 8 book.
+# V2-20b: sha256(canonical spec + plugin source + coefficients).
+# Specs are prereg_status PENDING_LAB — empty coefficients, no invented lab fits.
 cumulative_trials: 4621
-specs: {}
+specs:
+  R8-E1-COIL-SIDE:
+    sha256: fc3eb7fcaa451c68006183c868ce73bf32c0966420a1dd949bf3ed34d82e0c9b
+    exit_sha256: 6e3c0540e570598f
+    registered_at: '2026-09-28T00:00:00+05:30'
+    prereg_status: PENDING_LAB
+  R8-E2-P5-HV:
+    sha256: cd8941f29456d617a51f233b19c72a094e69af0481623b71f2bd5e3d592ac42c
+    exit_sha256: 83c9ee0d3e6b490d
+    registered_at: '2026-09-28T00:00:00+05:30'
+    prereg_status: PENDING_LAB
+  R8-E3-HV-GATE:
+    sha256: 4d2163c7706f3069ace64a6523161e565facc37bf75a2491021d8d7cd3316f0b
+    exit_sha256: 83c9ee0d3e6b490d
+    registered_at: '2026-09-28T00:00:00+05:30'
+    prereg_status: PENDING_LAB
