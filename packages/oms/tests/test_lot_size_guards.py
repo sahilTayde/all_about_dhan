@@ -107,7 +107,9 @@ def test_flatten_never_exceeds_net_qty(tmp_path: object) -> None:
         "account_id": "founder",
         "avg_price": 151.40,
         "entry_order_id": "x",
+        "symbol": "NIFTY 24400 CE",
     }
+    router.store.positions[INST] = dict(pos)
     alerts: list[str] = []
     router.bus.subscribe(["HEALTH_ALERT"], lambda e: alerts.append(e.event_type))
     order = router.exit(pos, "FLATTEN")

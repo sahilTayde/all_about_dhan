@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime, time, timedelta
 from pathlib import Path
 from typing import Any, Protocol
@@ -114,6 +114,10 @@ class Quote:
     ask: float | None
     ltp: float | None
     instrument_id: str = ""
+
+
+class ModifyUnsupported(Exception):
+    """In-place quantity modify is not available; caller may cancel-then-replace."""
 
 
 @dataclass
@@ -329,6 +333,22 @@ class ClockedPaperBroker(PaperBroker):
         if meta is None:
             return
         self._order_meta[client_order_id] = FillOrder(**{**meta.__dict__, **fields})
+
+    def modify_order(self, order_id: str, qty: int) -> Order:  # type: ignore[override]
+        """In-place quantity modify (Dhan supports qty modify). Same client_order_id."""
+        order = self.orders.get(order_id)
+        if order is None or not order.is_open:
+            raise OrderRefused(f"{order_id}: cannot modify a missing or closed order")
+        lot = int(order.intent.lot_size or 1)
+        new_qty = int(qty)
+        if new_qty <= 0 or lot <= 0 or new_qty % lot != 0:
+            raise OrderRefused(f"{order_id}: qty {new_qty} is not a whole-lot multiple of {lot}")
+        if order.filled_qty > new_qty:
+            raise OrderRefused(f"{order_id}: filled {order.filled_qty} exceeds new qty {new_qty}")
+        new_lots = new_qty // lot
+        order.intent = replace(order.intent, lots=new_lots)
+        self.remember(order_id, lots=new_lots)
+        return order
 
     def on_depth(self, quote: Quote) -> None:
         now = self.clock.now()
