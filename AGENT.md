@@ -1,5 +1,52 @@
 # AGENT.md — orchestrator for all_about_dhan
 
+## Mac operations boundary
+
+Applies only when this agent is running **on the founder's Mac** (local Cursor / Grok during market hours). Cloud agents working on PRs may edit V2.
+
+This Mac may start/stop/restart paper services **and** tune the **old (legacy) engine**. It must **never** change V2. Single list: [`scripts/mac/protected_paths.txt`](scripts/mac/protected_paths.txt).
+
+**ALLOWED**
+
+- `./scripts/desk.sh <morning|status|close|...>`
+- start / stop / restart the recorder (`python -m marketdata --record-only`) and other existing services
+- read logs and data files; edit `.env` for the Dhan token
+- `git checkout main && git pull`; create venvs and `pip install -e` existing packages
+- back up sqlite to `~/dhan_backups`
+- **Edit** the legacy engine and its knobs:
+  - `packages/desk-ml/**` (`paper_scalp.py`, `picker.py`, overlay, lots, costs, regime, llm_analyst, …)
+  - `packages/analysts/**`, `packages/desk/**` (`paper.py`, `executor.py`)
+  - `packages/trading_agents_india/**` (Monday dual-tape)
+  - `packages/backtest/**`
+  - `config/analysts.yaml`, `config/paper_costs.yaml`, `config/regime.yaml`, `config/llm_analyst.yaml`, `config/event_path.yaml`, `config/shadow/**`, `config/charges.yaml`, `config/risk_limits.yaml`, `config/risk_limits_replay.yaml`
+  - `teams/04_quant/docs/candidates/**` (STRAT-001–014, MIX-*), `teams/04_quant/docs/MIX_CATALOG.md`
+  - `notebooks/**`, `output/**`, `scratch/**`
+
+Legacy tuning stays **uncommitted** or on `legacy-tuning/<date>`. Do not push it to `main`.
+
+**FORBIDDEN (V2)**
+
+Never edit, move, delete, reformat, or refactor a path in `scripts/mac/protected_paths.txt` (`packages/runtime`, `packages/boss`, `packages/contracts`, `packages/events`, `packages/oms`, `packages/strategies`, `packages/indicators`, `packages/health`, `packages/control`, `packages/dhan-client`, `packages/marketdata`, `config/v2/**`, `deploy/docker/**`, V2 docs, `scripts/ci/**`, `requirements/**`, `tests/regression/**`, gateway v2 files, this guard).
+
+Never `git reset --hard`, `git clean`, or `git checkout --` on a protected path. Never force-push. Never push to `main` / `master`.
+
+**NEVER**
+
+- never use `git commit --no-verify` or `git push --no-verify`
+- never run `git config --unset core.hooksPath` or edit/remove the hooks or `protected_paths.txt` (only the owner may undo the guard, by typing it himself)
+- never `git stash drop` / `git restore` / `git checkout` away someone else's uncommitted changes in protected paths
+- never delete or rewrite branches other than `legacy-tuning/*`
+
+If a service fails and the fix needs a **V2** change: **stop**. Capture the exact error / log lines and the command. Tell the owner. Do not patch V2.
+
+If a legacy tune seems to need a V2 file change: **stop** and tell the owner.
+
+If `git pull` fails because of local edits: report it. Do not discard protected files.
+
+Optional local guard (this checkout only; CI / cloud agents are unaffected): `./scripts/mac/install_guard.sh`. Only the owner may undo it, by typing `git config --unset core.hooksPath` himself.
+
+---
+
 **Read this file first.** Morning / frontier review: open [`docs/MASTER_REQUIREMENTS.md`](docs/MASTER_REQUIREMENTS.md) (the score) and [`teams/00_orchestrator/docs/REVIEW_BRIEF_FOR_FRONTIER_MODEL.md`](teams/00_orchestrator/docs/REVIEW_BRIEF_FOR_FRONTIER_MODEL.md) (what not to trust). File names: [`docs/FILE_CREATION.md`](docs/FILE_CREATION.md). Then [`docs/INDEX.md`](docs/INDEX.md) and jump to **one** team folder. Do not scan the whole tree. **Do not restart npm until asked.**
 
 ---

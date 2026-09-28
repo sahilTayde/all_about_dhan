@@ -1,0 +1,29 @@
+#!/bin/sh
+# Installed only via scripts/mac/install_guard.sh (core.hooksPath).
+# CI and cloud agents do not set that path, so this never runs there.
+# Refuse any push to main/master and any force (non-fast-forward) push.
+# Pushing a legacy-tuning/* branch is allowed.
+set -eu
+
+zeros=0000000000000000000000000000000000000000
+
+while IFS=' ' read -r local_ref local_sha remote_ref remote_sha; do
+  [ -n "${remote_ref:-}" ] || continue
+  branch=${remote_ref#refs/heads/}
+  case $branch in
+    main|master)
+      printf '%s\n' "Refused: never push to $branch from this Mac." \
+        "Legacy tuning stays on legacy-tuning/<date> or uncommitted." \
+        "V2 changes happen in cloud agents via PRs."
+      exit 1
+      ;;
+  esac
+  if [ "$local_sha" != "$zeros" ] && [ "$remote_sha" != "$zeros" ]; then
+    if ! git merge-base --is-ancestor "$remote_sha" "$local_sha"; then
+      printf '%s\n' "Refused: force-push (non-fast-forward) is not allowed from this Mac." \
+        "remote $remote_ref is not an ancestor of $local_ref."
+      exit 1
+    fi
+  fi
+done
+exit 0
