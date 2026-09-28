@@ -109,7 +109,8 @@ def test_reg04c_snapshot_lists_every_ledger_open_position() -> None:
 
 def test_ingest_from_memory_bus() -> None:
     bus = MemoryBus()
-    hub = GatewayHub(bus, clock=_Clock(TS))
+    # MemoryBus stamps wall-clock IST; hub must not treat that as lookahead.
+    hub = GatewayHub(bus, clock=_Clock("2099-12-31T15:30:00+05:30"))
     bus.publish(EventType.POSITION_UPDATE, _pos("ps_bus"), source="desk")
     assert any(p["position_id"] == "ps_bus" for p in hub.positions())
 
