@@ -1,5 +1,24 @@
 # Handoff log — Team 07 Coding
 
+## As of now (2026-09-27 IST) — V2-19 llm-advisor service (PAPER)
+
+```text
+From:     teams/07_coding
+To:       founder / 00 / 09
+Date:     2026-09-27
+Status:   PAPER / V2-19 / NO_PROMOTE / no live orders
+Accepted: Wiring python -m runtime llm-advisor over desk_ml.llm_analyst.
+  Consumes DECISION (boss:decisions), publishes ADVICE. Replay uses
+  RecordedProvider/mock. Queue-decoupled so a hung provider cannot
+  change, delay, or veto an engine decision. EventType DECISION+ADVICE.
+Rejected: Putting the advisor on the engine handler list. Live OpenAI
+  in CI/replay. DhanBroker. Rebase / force-push / relock.
+UNKNOWN: Redis stream name mapping (prefix+DECISION vs boss:decisions)
+  until compose wires a topic map.
+```
+
+---
+
 ## As of now (2026-09-27 IST) — V2-10 fix round (atomic / idempotent / P&L / qty / Decimal)
 
 ```text
