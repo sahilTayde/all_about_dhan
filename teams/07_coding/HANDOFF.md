@@ -1,5 +1,21 @@
 # Handoff log — Team 07 Coding
 
+## As of now (2026-09-28 IST) — merge main 879a94b (V2-09b) into V2-08b (PAPER)
+
+```text
+From:     teams/07_coding
+To:       founder / 00 / 09
+Date:     2026-09-28
+Status:   PAPER / V2-08b + V2-09 + V2-09b union / NO_PROMOTE / no live orders
+Accepted: Normal-merge origin/main 879a94b (#54). Keep BOTH:
+  V2-09b house_stop_premium / load_exit_defaults / REG-18
+  and V2-08b planner/chase exports. Risk before broker.
+Rejected: Dropping either side. Rebase / force-push.
+UNKNOWN: none
+```
+
+---
+
 ## As of now (2026-09-28 IST) — SL-M prefers ExitPlan stop_price (PAPER)
 
 ```text
@@ -54,6 +70,23 @@ UNKNOWN: Redis stream name mapping (prefix+DECISION vs boss:decisions)
 
 ---
 
+## As of now (2026-09-27 IST) — V2-09b founder KILL flatten (NO_PROMOTE)
+
+```text
+From:     teams/07_coding
+To:       00 / 09
+Date:     2026-09-27
+Status:   V2-09b PAPER fix / NO_PROMOTE
+Accepted: Founder FOUNDER_COMMAND kind=KILL now emits
+  KILL_SWITCH / plan_field=kill_switch. REG-18a mismatch
+  logs CRITICAL and still flattens. house_stop_premium
+  snaps UP onto the 0.05 grid.
+Rejected: Raising out of on_market on a REG-18a mismatch.
+UNKNOWN: none
+```
+
+---
+
 ## As of now (2026-09-28 IST) — V2-08b verifier fix round (PAPER)
 
 ```text
@@ -69,6 +102,28 @@ Accepted: Decimal tick snap (ask 151.23 → 151.35). Persist veto.
   Merged #45 7c09f84 LOT_SIZE_MISMATCH + qty % lot guard.
 Rejected: Stretch as a stop source. cwd-relative config.
 UNKNOWN: none
+```
+
+---
+
+## As of now (2026-09-27 IST) — V2-09b exit primitives (NO_PROMOTE)
+
+```text
+From:     teams/07_coding
+To:       00 / 09
+Date:     2026-09-27
+Status:   V2-09b PAPER exit primitives on V2-09 / NO_PROMOTE
+Accepted: StructuralStop, AtrStop (fixed at fill), GracePeriod,
+  SignalFlipExit (own_opposite, boss_opposite on bar close).
+  defaults.yaml loader freezes values + file hash into
+  defaults_from. REG-18a-e. Grep: no CANCEL_AGAINST /
+  CANCEL_ADVERSE / CANCEL_STALL / COVER_LONG_UNWIND in
+  packages/oms or packages/strategies. Inherit = ₹30k
+  house stop + native invalidation; no native level
+  refuses. V2-09 stop qty == net invariant kept.
+Rejected: Live/Dhan. Intraday exit retune. Loosening REG-02
+  resize/flatten. STRAT-015+.
+UNKNOWN: V2-10 durable rehydrate of frozen atr_stop_level.
 ```
 
 ---

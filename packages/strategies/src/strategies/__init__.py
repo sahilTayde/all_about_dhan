@@ -20,6 +20,7 @@ from .params_hash import (
     compute_params_hash,
     config_hash,
     exit_plan_hash,
+    inherit_exit_defaults,
     load_exit_defaults,
     resolve_exit_plan,
 )
@@ -69,6 +70,7 @@ __all__ = [
     "config_hash",
     "disable_strategy",
     "exit_plan_hash",
+    "inherit_exit_defaults",
     "load_basket",
     "load_basket_strategies",
     "load_exit_defaults",
