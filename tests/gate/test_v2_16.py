@@ -67,6 +67,7 @@ def test_gate_wired_as_required_ci_checks() -> None:
         assert f"\n  {job}:" in CI, job
     assert "\n  perf:" in CI and "\n  gate:" in CI
     assert "\n  no-lookahead:" in CI
+    assert "\n  legacy-py39:" in CI
     assert "needs:" in CI
     assert "--ci-conclusions" in CI
     assert "xfail_strict=true" in CI
@@ -75,7 +76,7 @@ def test_gate_wired_as_required_ci_checks() -> None:
     assert "git push" not in CI
     required = required_ci_jobs(CI)
     assert "gate" not in required
-    for job in (*EXISTING, "perf", "no-lookahead"):
+    for job in (*EXISTING, "perf", "no-lookahead", "legacy-py39"):
         assert job in required, job
 
 

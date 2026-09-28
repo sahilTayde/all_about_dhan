@@ -1,5 +1,22 @@
 # Handoff log — Team 07 Coding
 
+## As of now (2026-09-28 IST) — P0 CPython 3.9 legacy import (PAPER)
+
+```text
+From:     teams/07_coding
+To:       founder / 00 / 09
+Date:     2026-09-28
+Status:   PAPER / Mac CPython 3.9 import / NO_PROMOTE
+Accepted: dhan_client.feed OnPacket/OnFrame use typing.Optional/Union so
+  PEP 604 | is not evaluated at alias assignment on 3.9. Walked api.main,
+  jobs, trading_agents_india dual-tape, health.supervise, python -m jobs
+  post-market --help — no other 3.9 language breaks. CI job legacy-py39
+  installs the Mac legacy set and checks import + token-free /health and
+  /paper/founder-book.
+Rejected: Rewriting postponed annotations. Behaviour changes. GATE_ENFORCE=1.
+UNKNOWN: none
+```
+
 ## As of now (2026-09-28 IST) — merge main 91593d6 (#66) into V2-gateway-auth (PAPER)
 
 ```text
