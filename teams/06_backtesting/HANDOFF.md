@@ -1,5 +1,29 @@
 # Handoff log — Team 06 Backtesting
 
+## As of now (2026-09-28 IST) — Exit Lab harness + playbook (PAPER)
+
+```text
+From:     teams/06_backtesting
+To:       00 / 04 / 07 / 09 / founder
+Date:     2026-09-28
+Status:   PAPER / SHADOW / NO_PROMOTE
+Accepted: New packages/exitlab harness (ask-in / bid-out, ledger.charges,
+  no look-ahead). Three entry sets: frozen legacy replay, V2 boss-selector
+  proxy (1m index direction + real holds), random ATM/ITM. Baselines
+  hold-to-15:15, fixed stop/target, V2 default, legacy overlay (constants
+  copied, paper_scalp.py not edited). Opt-in
+  config/v2/exits/exitlab_playbook.yaml enabled:false. Report at
+  docs/research/exit_lab/REPORT.md. Data stays in .local_data/ (gitignored).
+Rejected: Copying live paper_scalp overlay as the answer. Changing
+  config/v2/exits/defaults.yaml. Enabling the playbook. Live Dhan.
+  Fabricated cells when a session has no bars.
+UNKNOWN: Full V2 strategy-plugin signals on these tapes (selector is a
+  documented 1m-direction proxy). News/event-day tags (no news feed in
+  the attached sample). 2026-08-04 option week is thin.
+DATA_INSUFFICIENT: Several live tape days start after the cash open
+  (14 after-hours, 17 from 12:13, 21 from 10:43, 28 from 10:09).
+```
+
 ## As of now (2026-09-28 IST) — retarget V2-20b #66 onto main fc5eba7 (PAPER)
 
 ```text

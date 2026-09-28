@@ -4,6 +4,7 @@ from oms.exits import (
     ExitRequest,
     house_stop_premium,
     load_exit_defaults,
+    load_exitlab_playbook,
     plan_from_mapping,
 )
 from oms.ledger_stub import ChargeRow, MemoryLedger
@@ -25,6 +26,7 @@ __all__ = [
     "load_cost_rates",
     "load_entry_config",
     "load_exit_defaults",
+    "load_exitlab_playbook",
     "lot_size_for",
     "plan_from_mapping",
     "policy_params_hash",

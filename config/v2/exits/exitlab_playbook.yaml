@@ -1,0 +1,27 @@
+# Opt-in Exit Lab playbook. OFF by default.
+# Live / V2 defaults stay in config/v2/exits/defaults.yaml (unchanged).
+# Both this file's `enabled: true` AND oms.exits.load_exitlab_playbook(enabled=True)
+# are required before any mapping is returned.
+#
+# Parameters below are the paper/replay recommendation from
+# docs/research/exit_lab/REPORT.md (OOS + live-tape later split). Not a promote.
+
+enabled: false
+name: exitlab_recommended
+source: docs/research/exit_lab/REPORT.md
+paper_only: true
+
+recommended:
+  flat_by_ist: "15:15"
+  catastrophic:
+    max_loss_inr: 8000
+  time_stop_s: 1500
+  unless_profit_pts: 8
+  grace_s: 90
+  # Trail / target stay off until the OOS table supports them (see REPORT).
+  target_premium: null
+  trail: null
+  partials: null
+  notes:
+    regime_router: "Use noise-band / time+stop in chop; MFE trail on trend; tighter on expiry."
+    square_off: "15:15 IST unless a plan explicitly tests the freeze window."
