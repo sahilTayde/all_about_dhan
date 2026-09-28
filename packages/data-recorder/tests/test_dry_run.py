@@ -3,6 +3,7 @@
 import asyncio
 import json
 import tempfile
+from datetime import datetime
 from pathlib import Path
 
 from data_recorder.config import RecorderConfig
@@ -127,6 +128,20 @@ def test_option_chain_schema_with_oi_iv_greeks():
         assert "vega" in record, "Vega field missing!"
 
         print(f"✅ CRITICAL checks passed: OI={record['open_interest']}, IV={record['iv']}")
+
+
+def test_dry_run_at_minute_59(monkeypatch):
+    """CI at :59 UTC used to raise ValueError: minute must be in 0..59."""
+
+    class FrozenDateTime(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return datetime(2026, 9, 28, 0, 59, 45, tzinfo=tz)
+
+    monkeypatch.setattr("data_recorder.index_recorder.datetime", FrozenDateTime)
+    monkeypatch.setattr("data_recorder.futures_recorder.datetime", FrozenDateTime)
+    monkeypatch.setattr("data_recorder.heavyweight_recorder.datetime", FrozenDateTime)
+    test_dry_run_end_to_end()
 
 
 if __name__ == "__main__":

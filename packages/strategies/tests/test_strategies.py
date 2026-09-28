@@ -10,7 +10,7 @@ from datetime import date
 from pathlib import Path
 
 import pytest
-from contracts.payloads import CatastrophicStop, ExitPlan, Level, TimeStop
+from contracts.payloads import CatastrophicStop, ExitPlan, Level, StructuralStop, TimeStop
 
 from strategies.api import Bar, EntryPolicy, SessionContext, StrategyMeta
 from strategies.onboarding import check_registry
@@ -21,6 +21,7 @@ from strategies.params_hash import (
     compute_params_hash,
     config_hash,
     exit_plan_hash,
+    inherit_exit_defaults,
     load_exit_defaults,
     resolve_exit_plan,
 )
@@ -154,13 +155,41 @@ class TestExitDefaults:
         assert defaults["catastrophic"]["max_loss"] == 30000
         assert defaults["structural"]["enabled"] is True
         assert defaults["atr"] is None
-        plan = resolve_exit_plan({}, defaults=defaults, defaults_sha256=digest)
+        native = Level(kind="underlying", price=24400.0)
+        plan = resolve_exit_plan(
+            {"structural": StructuralStop(level=native)},
+            defaults=defaults,
+            defaults_sha256=digest,
+        )
+        assert plan.catastrophic.level.kind == "max_loss_inr"
         assert plan.catastrophic.level.price == 30000.0
+        assert plan.structural is not None
+        assert plan.structural.level.price == 24400.0
+        assert plan.atr is None
+        assert plan.grace is None
+        assert plan.signal_flip is None
         assert plan.defaults_from == f"exit_defaults@{digest}"
 
     def test_reg18d_refuses_plan_without_catastrophic(self) -> None:
         with pytest.raises(ExitPlanLoadError, match="REG-18d"):
             resolve_exit_plan({})
+
+    def test_strategy_without_native_invalidation_refuses_to_inherit(self) -> None:
+        defaults, digest = load_exit_defaults(FIXTURE_DEFAULTS)
+        with pytest.raises(ExitPlanLoadError, match="native invalidation"):
+            resolve_exit_plan({}, defaults=defaults, defaults_sha256=digest)
+        with pytest.raises(ExitPlanLoadError, match="native invalidation"):
+            inherit_exit_defaults(native_invalidation=None)  # type: ignore[arg-type]
+
+    def test_inherit_exit_defaults_freezes_hash(self) -> None:
+        plan = inherit_exit_defaults(
+            native_invalidation=Level(kind="underlying", price=24400.0),
+            path=FIXTURE_DEFAULTS,
+        )
+        assert plan.defaults_from == f"exit_defaults@{ROUND11_DEFAULTS_SHA256}"
+        assert plan.catastrophic.level.kind == "max_loss_inr"
+        assert plan.structural is not None
+        assert plan.atr is None
 
 
 class TestRegistry:

@@ -14,6 +14,7 @@ from risk_engine.engine import (
     RiskDecision,
     RiskEngine,
     TradeIntent,
+    is_reduce_only_sell,
     load_limits,
 )
 
@@ -140,7 +141,21 @@ class V2RiskEngine:
         self, intent: TradeIntent, action: str = "EXIT", now: Any = None
     ) -> RiskDecision:
         self.limits.get()  # refresh; ignore failure — last-good or inner degraded path
-        return self.inner.check_exit(intent, action, now)
+        decision = self.inner.check_exit(intent, action, now)
+        if decision.approved or decision.reason_code == "MODE_NOT_ENABLED":
+            return decision
+        ledger = getattr(self.inner, "ledger", None)
+        if is_reduce_only_sell(intent, ledger):
+            ts = now if now is not None else decision.ts
+            return RiskDecision(
+                True,
+                intent.client_order_id,
+                action,
+                "OK_REDUCE_ONLY",
+                "reduce-only SELL <= net cannot be vetoed",
+                ts,
+            )
+        return decision
 
     def check_flatten(self, now: Any = None) -> RiskDecision:
         self.limits.get()
