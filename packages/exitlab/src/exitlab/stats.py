@@ -33,6 +33,7 @@ class Summary:
     net_ci_hi: float | None
     n_variants_tested: int
     data_source: str
+    low_confidence: bool = False
 
 
 def _closed(rows: Sequence[TradeResult]) -> list[TradeResult]:
@@ -186,6 +187,7 @@ def summarize(
         net_ci_hi=None if ci is None else round(ci[1], 2),
         n_variants_tested=n_variants,
         data_source=data_source,
+        low_confidence=len(closed) < 30,
     )
 
 

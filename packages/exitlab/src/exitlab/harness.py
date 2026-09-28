@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import random
 from collections.abc import Iterable, Sequence
 from datetime import datetime
 from typing import Any
@@ -49,14 +50,16 @@ def replay_trade(
     seed: int = 0,
 ) -> TradeResult:
     """Replay one entry. Bars are only visible after available_ts. Quotes by available_ts."""
-    _ = seed, reject_prob
     model = slippage or SlippageModel()
     rates = cost_rates if cost_rates is not None else load_cost_rates()
     clock = ReplayClock(entry.ts)
+    rng = random.Random(seed ^ (hash(entry.entry_id) & 0xFFFF))
+    if reject_prob > 0.0 and rng.random() < reject_prob:
+        return _empty(entry, plan.plan_id, data_source, skipped="REJECT")
     qty = entry.qty
     if partial_fill_frac < 1.0:
-        qty = max(entry.lot_size, int(entry.lot_size * int(entry.lots * partial_fill_frac)))
-        qty = (qty // entry.lot_size) * entry.lot_size
+        filled_lots = int(entry.lots * partial_fill_frac)
+        qty = filled_lots * entry.lot_size
     if qty <= 0:
         return _empty(entry, plan.plan_id, data_source, skipped="REJECT")
     state = OpenState(
@@ -93,10 +96,13 @@ def replay_trade(
 
     for ts, kind, obj in events:
         clock.advance_to(ts)
+        quote_gap_s = 0.0
         if kind == "q":
             q = obj  # type: ignore[assignment]
             assert isinstance(q, Quote)
             clock.visible(q.available_ts, label="quote")
+            if state.last_quote_ts is not None:
+                quote_gap_s = (as_ist(q.available_ts) - as_ist(state.last_quote_ts)).total_seconds()
             last_quote = q
             state.last_quote_ts = q.available_ts
             state.last_bid, state.last_ask, state.last_ltp = q.bid, q.ask, q.ltp
@@ -125,17 +131,45 @@ def replay_trade(
             idx = ib.close
             clock.visible(ib.available_ts, label="index_bar")
         _update_excursions(state, mark, idx, clock.now)
+        idx_signed = 0.0
+        if idx is not None and entry.index_at_entry is not None:
+            idx_signed = float(idx) - float(entry.index_at_entry)
+            if entry.side == "PE":
+                idx_signed = -idx_signed
+        vis_index = [b for b in index_bars if as_ist(b.available_ts) <= clock.now]
+        closes = [float(b.close) for b in vis_index]
+        vwap = (ctx_extra or {}).get("vwap")
+        if vwap is None and vis_index:
+            vwap = sum(float(b.close) for b in vis_index) / len(vis_index)
+        slope = None
+        if len(closes) >= 3:
+            slope = (closes[-1] - closes[-3]) / 2.0
         ctx = {
             "mark": mark,
             "index": idx,
+            "index_signed": idx_signed,
+            "index_closes": closes[-8:],
+            "index_slope": slope,
+            "index_gap_pct": (ctx_extra or {}).get("index_gap_pct"),
+            "day_pnl": (ctx_extra or {}).get("day_pnl", 0.0),
             "iv": state.last_iv,
             "atr": (ctx_extra or {}).get("atr"),
             "tod_mae": (ctx_extra or {}).get("tod_mae"),
             "chop": (ctx_extra or {}).get("chop", False),
             "regime": (ctx_extra or {}).get("regime") or entry.scenario,
-            "vwap": (ctx_extra or {}).get("vwap"),
+            "vwap": vwap,
+            "quote_gap_s": quote_gap_s,
         }
         reason = plan.decide(state, clock, ctx)
+        if (
+            last_bar is not None
+            and kind == "b"
+            and state.stop_premium is not None
+            and state.target_premium is not None
+            and last_bar.low <= state.stop_premium
+            and last_bar.high >= state.target_premium
+        ):
+            reason = "SAME_BAR_STOP"
         if not reason:
             continue
         if reason == "PARTIAL":

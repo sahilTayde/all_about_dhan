@@ -25,6 +25,12 @@ def test_library_has_baselines_and_own_ideas() -> None:
         "theta_budget",
         "regime_router",
         "asymmetric_ce_pe",
+        "quote_persistence",
+        "tod_two_speed",
+        "elasticity_die",
+        "expiry_cliff",
+        "index_stop",
+        "implied_move",
     ):
         assert name in ids
     assert len(sweep_specs()) >= 20

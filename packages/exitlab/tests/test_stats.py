@@ -60,3 +60,4 @@ def test_summarize_counts_skips() -> None:
     assert s.n_trades == 2
     assert s.net_inr == 6.0
     assert s.win_rate == 0.5
+    assert s.low_confidence is True

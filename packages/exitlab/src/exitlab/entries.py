@@ -19,6 +19,32 @@ NO_NEW_BEFORE = time(9, 50)
 NO_NEW_AFTER = time(14, 45)
 
 
+def entry_from_dict(raw: dict[str, Any]) -> Entry:
+    ts = raw["ts"]
+    if isinstance(ts, str):
+        ts = datetime.fromisoformat(ts)
+    extra = dict(raw.get("extra") or {})
+    return Entry(
+        entry_id=str(raw["entry_id"]),
+        ts=ts,
+        side=str(raw["side"]),
+        strike=float(raw["strike"]),
+        entry_price=float(raw["entry_price"]),
+        lots=int(raw["lots"]),
+        lot_size=int(raw.get("lot_size") or LOT_SIZE),
+        entry_set=str(raw["entry_set"]),
+        session=str(raw["session"]),
+        index_at_entry=raw.get("index_at_entry"),
+        iv_at_entry=raw.get("iv_at_entry"),
+        atm_strike=raw.get("atm_strike"),
+        expiry=raw.get("expiry"),
+        moneyness=str(raw.get("moneyness") or "ATM"),
+        scenario=str(raw.get("scenario") or "unknown"),
+        seed=raw.get("seed"),
+        extra=extra,
+    )
+
+
 def _snap_to_50(px: float) -> float:
     return round(px / 50.0) * 50.0
 
@@ -96,7 +122,18 @@ def random_entries(
                 moneyness=kind,
                 scenario=scenario,
                 seed=seed,
-                extra={"regime_at_entry": scenario},
+                extra={
+                    "regime_at_entry": scenario,
+                    "expiry_day": bool(scenario.startswith("expiry")),
+                    "straddle": (
+                        (tick.get("atm_ce") or 0) + (tick.get("atm_pe") or 0)
+                        if tick.get("atm_ce") and tick.get("atm_pe")
+                        else None
+                    ),
+                    "spread": (q.ask - q.bid) if q.ask and q.bid else None,
+                    "too_close_to_square": as_ist(clock_ts).time() >= time(14, 30)
+                    and bool(scenario.startswith("expiry")),
+                },
             )
         )
     return out

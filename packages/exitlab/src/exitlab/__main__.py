@@ -30,6 +30,10 @@ def main(argv: list[str] | None = None) -> int:
     p_r.add_argument("--out", type=Path, required=True)
     p_r.add_argument("--seed", type=int, default=7)
     p_r.add_argument("--max-hist-days", type=int, default=40)
+    p_r.add_argument("--extra-seeds", default="11,19")
+    p_r.add_argument("--reuse-entries", type=Path, default=None)
+
+    sub.add_parser("prove-lookahead", help="Honest clock passes; injected future read raises")
 
     p_p = sub.add_parser("playbook", help="Show opt-in playbook (OFF unless enabled)")
     p_p.add_argument("--path", type=Path, default=PLAYBOOK_RELATIVE)
@@ -55,8 +59,14 @@ def main(argv: list[str] | None = None) -> int:
             print(f"wrote {args.out / 'measure_history.json'} ok={payload.get('ok', True)}")
         return 0
     if args.cmd == "research":
+        extra = tuple(int(x) for x in str(args.extra_seeds).split(",") if x.strip())
         tables = run_research(
-            data=args.data, out=args.out, seed=args.seed, max_hist_days=args.max_hist_days
+            data=args.data,
+            out=args.out,
+            seed=args.seed,
+            max_hist_days=args.max_hist_days,
+            extra_seeds=extra,
+            reuse_entries=args.reuse_entries,
         )
         print(
             json.dumps(
@@ -86,6 +96,21 @@ def main(argv: list[str] | None = None) -> int:
             )
         )
         return 0
+    if args.cmd == "prove-lookahead":
+        from datetime import datetime
+
+        from exitlab.clock import IST, LookAheadError, ReplayClock
+
+        clock = ReplayClock(datetime(2026, 9, 17, 10, 5, tzinfo=IST))
+        clock.visible(datetime(2026, 9, 17, 10, 5, tzinfo=IST), label="honest")
+        print("HONEST_OK")
+        try:
+            clock.visible(datetime(2026, 9, 17, 15, 20, tzinfo=IST), label="injected_future")
+        except LookAheadError as exc:
+            print(f"INJECT_RAISED {exc}")
+            return 0
+        print("INJECT_DID_NOT_RAISE")
+        return 1
     if args.cmd == "list-plans":
         print(
             json.dumps(

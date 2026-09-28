@@ -86,6 +86,13 @@ def test_replay_does_not_exit_on_future_crash() -> None:
     assert abs(out.exit_price - 181.0) < 1e-9
 
 
+def test_deliberate_future_read_raises() -> None:
+    """Inject a future stamp. The clock must fail (this is the FAIL case)."""
+    clock = ReplayClock(_ts(10, 5))
+    with pytest.raises(LookAheadError, match="look-ahead"):
+        clock.visible(_ts(15, 20), label="injected_future")
+
+
 def test_1m_bar_not_visible_until_close() -> None:
     clock = ReplayClock(_ts(10, 5, 30))
     bar = Bar(

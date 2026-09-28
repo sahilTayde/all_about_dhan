@@ -472,6 +472,9 @@ def plan_stale_and_flat(max_age_s: float = 90.0) -> ExitPlanFn:
         mark = ctx["mark"]
         if state.stop_premium is None:
             _init_stop_target(state, 0.30, 0.40)
+        gap = ctx.get("quote_gap_s")
+        if gap is not None and float(gap) > max_age_s:
+            return "STALE_FEED"
         return (
             flatten_eod(clock.now, V2_FLAT)
             or stale_feed(state, clock.now, max_age_s)
@@ -496,6 +499,266 @@ def plan_asymmetric_ce_pe() -> ExitPlanFn:
     return ExitPlanFn(PlanSpec("asymmetric_ce_pe", family="own"), _fn)
 
 
+def plan_implied_move() -> ExitPlanFn:
+    """Stop/target from ATM straddle (implied move) known at entry."""
+
+    def _fn(state: OpenState, clock: ReplayClock, ctx: dict[str, Any]) -> str:
+        if state.stop_premium is None:
+            stradd = float(state.entry.extra.get("straddle") or 0.0)
+            idx = state.entry.index_at_entry or 1.0
+            frac = min(0.45, max(0.12, (stradd / idx) * 8.0)) if stradd > 0 else 0.22
+            _init_stop_target(state, frac, min(0.55, frac * 1.6))
+        mark = ctx["mark"]
+        return flatten_eod(clock.now, V2_FLAT) or hard_stop(state, mark) or target_hit(state, mark)
+
+    return ExitPlanFn(PlanSpec("implied_move", family="pretrade"), _fn)
+
+
+def plan_index_stop(pts: float = 25.0) -> ExitPlanFn:
+    def _fn(state: OpenState, clock: ReplayClock, ctx: dict[str, Any]) -> str:
+        mark = ctx["mark"]
+        if state.stop_premium is None:
+            _init_stop_target(state, 0.30, 0.45)
+        idx0 = state.entry.index_at_entry
+        idx = ctx.get("index")
+        if idx0 is not None and idx is not None:
+            signed = float(idx) - float(idx0)
+            if state.entry.side == "PE":
+                signed = -signed
+            if signed <= -pts:
+                return "INDEX_STOP"
+        return flatten_eod(clock.now, V2_FLAT) or hard_stop(state, mark)
+
+    return ExitPlanFn(PlanSpec("index_stop", {"pts": pts}, "stop"), _fn)
+
+
+def plan_structure_stop() -> ExitPlanFn:
+    """Index swing: exit if last closed index bar breaks the prior 5-bar extreme."""
+
+    def _fn(state: OpenState, clock: ReplayClock, ctx: dict[str, Any]) -> str:
+        mark = ctx["mark"]
+        if state.stop_premium is None:
+            _init_stop_target(state, 0.28, 0.40)
+        ibars = ctx.get("index_closes") or []
+        if len(ibars) >= 6:
+            prior = ibars[-6:-1]
+            last = ibars[-1]
+            if state.entry.side == "CE" and last < min(prior):
+                return "STRUCTURE_STOP"
+            if state.entry.side == "PE" and last > max(prior):
+                return "STRUCTURE_STOP"
+        return flatten_eod(clock.now, V2_FLAT) or hard_stop(state, mark)
+
+    return ExitPlanFn(PlanSpec("structure_stop", family="stop"), _fn)
+
+
+def plan_chandelier(atr_k: float = 2.0) -> ExitPlanFn:
+    def _fn(state: OpenState, clock: ReplayClock, ctx: dict[str, Any]) -> str:
+        mark = ctx["mark"]
+        chandelier_trail(state, mark, atr_k, ctx.get("atr"))
+        if state.stop_premium is None:
+            state.stop_premium = state.entry.entry_price * 0.78
+        return flatten_eod(clock.now, V2_FLAT) or hard_stop(state, mark)
+
+    return ExitPlanFn(PlanSpec("chandelier", {"atr_k": atr_k}, "trail"), _fn)
+
+
+def plan_step_trail(step: float = 5.0, activate: float = 8.0) -> ExitPlanFn:
+    def _fn(state: OpenState, clock: ReplayClock, ctx: dict[str, Any]) -> str:
+        mark = ctx["mark"]
+        run = state.mfe - state.entry.entry_price
+        if run >= activate:
+            steps = int(run // step)
+            proposed = state.entry.entry_price + max(0, steps - 1) * step
+            state.trail_stop = max(state.trail_stop or 0.0, proposed)
+        if state.stop_premium is None:
+            _init_stop_target(state, 0.22, 0.50)
+        return flatten_eod(clock.now, V2_FLAT) or hard_stop(state, mark) or target_hit(state, mark)
+
+    return ExitPlanFn(PlanSpec("step_trail", {"step": step, "activate": activate}, "trail"), _fn)
+
+
+def plan_index_trail(give_pts: float = 18.0) -> ExitPlanFn:
+    def _fn(state: OpenState, clock: ReplayClock, ctx: dict[str, Any]) -> str:
+        mark = ctx["mark"]
+        giveback = state.mfe_index - (ctx.get("index_signed") or 0.0)
+        if state.mfe_index >= 20.0 and giveback >= give_pts:
+            return "INDEX_TRAIL"
+        if state.stop_premium is None:
+            _init_stop_target(state, 0.24, 0.45)
+        return flatten_eod(clock.now, V2_FLAT) or hard_stop(state, mark)
+
+    return ExitPlanFn(PlanSpec("index_trail", {"give_pts": give_pts}, "trail"), _fn)
+
+
+def plan_target_extend() -> ExitPlanFn:
+    def _fn(state: OpenState, clock: ReplayClock, ctx: dict[str, Any]) -> str:
+        if state.stop_premium is None:
+            _init_stop_target(state, 0.22, 0.35)
+        mark = ctx["mark"]
+        tgt = state.target_premium or state.entry.entry_price
+        if state.mfe >= state.entry.entry_price + 0.7 * (tgt - state.entry.entry_price):
+            state.target_premium = state.entry.entry_price + 1.5 * (tgt - state.entry.entry_price)
+        return flatten_eod(clock.now, V2_FLAT) or hard_stop(state, mark) or target_hit(state, mark)
+
+    return ExitPlanFn(PlanSpec("target_extend", family="target"), _fn)
+
+
+def plan_reversal() -> ExitPlanFn:
+    def _fn(state: OpenState, clock: ReplayClock, ctx: dict[str, Any]) -> str:
+        mark = ctx["mark"]
+        slope = ctx.get("index_slope")
+        if slope is not None and _age_s(state, clock.now) >= 180:
+            if state.entry.side == "CE" and float(slope) < -0.4:
+                return "REVERSAL"
+            if state.entry.side == "PE" and float(slope) > 0.4:
+                return "REVERSAL"
+        if state.stop_premium is None:
+            _init_stop_target(state, 0.25, 0.40)
+        return flatten_eod(clock.now, V2_FLAT) or hard_stop(state, mark)
+
+    return ExitPlanFn(PlanSpec("reversal", family="signal"), _fn)
+
+
+def plan_momentum_fade() -> ExitPlanFn:
+    def _fn(state: OpenState, clock: ReplayClock, ctx: dict[str, Any]) -> str:
+        mark = ctx["mark"]
+        faded = index_vwap_loss(state, ctx.get("index"), ctx.get("vwap"), state.entry.side)
+        if faded and _age_s(state, clock.now) >= 240:
+            return faded
+        slope = ctx.get("index_slope")
+        if slope is not None and _age_s(state, clock.now) >= 240:
+            if state.entry.side == "CE" and float(slope) < -0.25:
+                return "MOMENTUM_FADE"
+            if state.entry.side == "PE" and float(slope) > 0.25:
+                return "MOMENTUM_FADE"
+        if state.stop_premium is None:
+            _init_stop_target(state, 0.24, 0.40)
+        return flatten_eod(clock.now, V2_FLAT) or hard_stop(state, mark)
+
+    return ExitPlanFn(PlanSpec("momentum_fade", family="signal"), _fn)
+
+
+def plan_iv_spike(up_frac: float = 0.20) -> ExitPlanFn:
+    def _fn(state: OpenState, clock: ReplayClock, ctx: dict[str, Any]) -> str:
+        mark = ctx["mark"]
+        iv0 = state.entry.iv_at_entry
+        iv = ctx.get("iv")
+        spiked = bool(iv0 and iv and iv0 > 0 and float(iv) >= float(iv0) * (1.0 + up_frac))
+        if spiked and mark < state.entry.entry_price:
+            return "IV_SPIKE"
+        if state.stop_premium is None:
+            _init_stop_target(state, 0.25, 0.40)
+        return flatten_eod(clock.now, V2_FLAT) or hard_stop(state, mark) or target_hit(state, mark)
+
+    return ExitPlanFn(PlanSpec("iv_spike", {"up_frac": up_frac}, "vol"), _fn)
+
+
+def plan_expiry_cliff() -> ExitPlanFn:
+    def _fn(state: OpenState, clock: ReplayClock, ctx: dict[str, Any]) -> str:
+        mark = ctx["mark"]
+        exp = bool(state.entry.extra.get("expiry_day") or "expiry" in state.entry.scenario)
+        late = exp and as_ist(clock.now).time() >= time(14, 30)
+        if late and mark <= state.entry.entry_price + 2.0:
+            return "EXPIRY_CLIFF"
+        if state.stop_premium is None:
+            _init_stop_target(state, 0.18, 0.28)
+        return flatten_eod(clock.now, V2_FLAT) or hard_stop(state, mark) or target_hit(state, mark)
+
+    return ExitPlanFn(PlanSpec("expiry_cliff", family="expiry"), _fn)
+
+
+def plan_lunch() -> ExitPlanFn:
+    def _fn(state: OpenState, clock: ReplayClock, ctx: dict[str, Any]) -> str:
+        mark = ctx["mark"]
+        er = kaufman_er(state.premium_prints, 12)
+        hit = lunch_chop(state, clock.now, er)
+        if hit:
+            return hit
+        if state.stop_premium is None:
+            _init_stop_target(state, 0.22, 0.40)
+        return flatten_eod(clock.now, V2_FLAT) or hard_stop(state, mark)
+
+    return ExitPlanFn(PlanSpec("lunch_chop", family="session"), _fn)
+
+
+def plan_gap_against(pct: float = 0.003) -> ExitPlanFn:
+    def _fn(state: OpenState, clock: ReplayClock, ctx: dict[str, Any]) -> str:
+        mark = ctx["mark"]
+        gap = ctx.get("index_gap_pct")
+        if gap is not None:
+            signed = float(gap)
+            if state.entry.side == "PE":
+                signed = -signed
+            if signed <= -pct:
+                return "GAP_AGAINST"
+        if state.stop_premium is None:
+            _init_stop_target(state, 0.25, 0.40)
+        return flatten_eod(clock.now, V2_FLAT) or hard_stop(state, mark)
+
+    return ExitPlanFn(PlanSpec("gap_against", {"pct": pct}, "gap"), _fn)
+
+
+def plan_day_loss(max_inr: float = 8000.0) -> ExitPlanFn:
+    def _fn(state: OpenState, clock: ReplayClock, ctx: dict[str, Any]) -> str:
+        mark = ctx["mark"]
+        day = float(ctx.get("day_pnl") or 0.0)
+        open_mtm = (mark - state.entry.entry_price) * state.remaining_qty
+        if day + open_mtm <= -max_inr:
+            return "DAY_LOSS"
+        if state.stop_premium is None:
+            _init_stop_target(state, 0.30, 0.40)
+        return flatten_eod(clock.now, V2_FLAT) or hard_stop(state, mark)
+
+    return ExitPlanFn(PlanSpec("day_loss", {"max_inr": max_inr}, "risk"), _fn)
+
+
+def plan_quote_persistence(need: int = 3) -> ExitPlanFn:
+    """Own idea A (not in the brief list): trail only after N upticks in a row."""
+
+    def _fn(state: OpenState, clock: ReplayClock, ctx: dict[str, Any]) -> str:
+        mark = ctx["mark"]
+        prints = state.premium_prints
+        if len(prints) >= need + 1:
+            streak = all(prints[-i] > prints[-i - 1] for i in range(1, need + 1))
+            if streak:
+                state.trail_stop = max(state.trail_stop or 0.0, prints[-need] - 1.0)
+        if state.stop_premium is None:
+            _init_stop_target(state, 0.20, 0.45)
+        return flatten_eod(clock.now, V2_FLAT) or hard_stop(state, mark) or target_hit(state, mark)
+
+    return ExitPlanFn(PlanSpec("quote_persistence", {"need": need}, "own_new"), _fn)
+
+
+def plan_tod_two_speed() -> ExitPlanFn:
+    """Own idea B: morning uses wide TOD-MAE stop; after 12:00 time-stop first."""
+
+    def _fn(state: OpenState, clock: ReplayClock, ctx: dict[str, Any]) -> str:
+        morning = as_ist(clock.now).time() < time(12, 0)
+        if morning:
+            return plan_noise_band(2.0, 0.50).decide(state, clock, ctx)
+        return plan_time_and_stop(12 * 60, 0.18).decide(state, clock, ctx)
+
+    return ExitPlanFn(PlanSpec("tod_two_speed", family="own_new"), _fn)
+
+
+def plan_elasticity_die(min_age_s: float = 8 * 60) -> ExitPlanFn:
+    """Own idea C: exit when |dPremium|/|dIndex| collapses while the ticket is green."""
+
+    def _fn(state: OpenState, clock: ReplayClock, ctx: dict[str, Any]) -> str:
+        mark = ctx["mark"]
+        if _age_s(state, clock.now) >= min_age_s and mark > state.entry.entry_price:
+            d_idx = abs(float(ctx.get("index_signed") or 0.0))
+            d_px = abs(mark - state.entry.entry_price)
+            if d_idx >= 8.0 and d_px / d_idx < 0.05:
+                return "ELASTICITY_DIE"
+        if state.stop_premium is None:
+            _init_stop_target(state, 0.22, 0.40)
+        return flatten_eod(clock.now, V2_FLAT) or hard_stop(state, mark) or target_hit(state, mark)
+
+    return ExitPlanFn(PlanSpec("elasticity_die", {"min_age_s": min_age_s}, "own_new"), _fn)
+
+
 def library() -> dict[str, ExitPlanFn]:
     plans = [
         plan_hold_to_1515(),
@@ -513,6 +776,23 @@ def library() -> dict[str, ExitPlanFn]:
         plan_iv_crush(),
         plan_stale_and_flat(),
         plan_asymmetric_ce_pe(),
+        plan_implied_move(),
+        plan_index_stop(),
+        plan_structure_stop(),
+        plan_chandelier(),
+        plan_step_trail(),
+        plan_index_trail(),
+        plan_target_extend(),
+        plan_reversal(),
+        plan_momentum_fade(),
+        plan_iv_spike(),
+        plan_expiry_cliff(),
+        plan_lunch(),
+        plan_gap_against(),
+        plan_day_loss(),
+        plan_quote_persistence(),
+        plan_tod_two_speed(),
+        plan_elasticity_die(),
     ]
     return {p.plan_id: p for p in plans}
 

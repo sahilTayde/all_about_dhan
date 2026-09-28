@@ -13,6 +13,7 @@ from typing import Any
 from exitlab.clock import as_ist
 from exitlab.costs import load_cost_rates
 from exitlab.entries import (
+    entry_from_dict,
     history_random_entries,
     legacy_entries_from_replay,
     random_entries,
@@ -37,7 +38,7 @@ from exitlab.tapes import (
     ticks_to_index_bars,
     wing_ltp,
 )
-from exitlab.types import Bar, Entry, Quote, TradeResult
+from exitlab.types import Bar, Entry, Quote, TradeResult  # Quote used in stress mutate
 
 TRAIN_UNTIL = "2026-05-31"
 TEST_SINCE = "2026-06-01"
@@ -198,6 +199,82 @@ def _count(xs: list[str]) -> dict[str, int]:
     return out
 
 
+# Brief exit categories → library plan that replays them.
+CATEGORY_TO_PLAN: dict[str, str] = {
+    "pretrade_implied_move_straddle": "implied_move",
+    "pretrade_atr_stop": "atr_stop",
+    "pretrade_premium_vs_index_stop": "index_stop",
+    "pretrade_time_budget": "time_and_stop",
+    "pretrade_mae_budget": "noise_band",
+    "pretrade_skip_wide_spread_iv_near_square": "implied_move",
+    "after_hard_stop_premium": "fixed_stop_target",
+    "after_hard_stop_index_pts": "index_stop",
+    "after_hard_stop_atr": "atr_stop",
+    "after_structure_swing": "structure_stop",
+    "after_vol_adjusted_noise": "noise_band",
+    "after_time_stop": "time_and_stop",
+    "after_no_progress": "legacy_overlay",
+    "after_stall": "legacy_overlay",
+    "after_breakeven": "breakeven_move",
+    "after_trail_chandelier": "chandelier",
+    "after_trail_mfe": "mfe_trail",
+    "after_trail_step": "step_trail",
+    "after_trail_index": "index_trail",
+    "after_scale_out": "scale_out",
+    "after_target_extend": "target_extend",
+    "after_reversal": "reversal",
+    "after_momentum_fade_vwap_slope": "momentum_fade",
+    "after_iv_crush": "iv_crush",
+    "after_iv_spike": "iv_spike",
+    "after_theta_bleed": "theta_budget",
+    "after_expiry_cliff": "expiry_cliff",
+    "after_lunch_chop": "lunch_chop",
+    "after_gap": "gap_against",
+    "after_stale_feed": "stale_and_flat",
+    "after_1515_freeze": "hold_to_1515",
+    "after_max_loss_trade": "v2_default",
+    "after_max_loss_day": "day_loss",
+    "own_quote_persistence": "quote_persistence",
+    "own_tod_two_speed": "tod_two_speed",
+    "own_elasticity_die": "elasticity_die",
+}
+
+
+def _category_coverage(results: list[TradeResult]) -> dict[str, Any]:
+    by_plan: dict[str, int] = {}
+    for r in results:
+        by_plan[r.plan_id] = by_plan.get(r.plan_id, 0) + 1
+    rows = []
+    for cat, plan_id in CATEGORY_TO_PLAN.items():
+        rows.append(
+            {
+                "category": cat,
+                "plan_id": plan_id,
+                "n_replayed": by_plan.get(plan_id, 0),
+                "replayed": by_plan.get(plan_id, 0) > 0,
+            }
+        )
+    skipped = [
+        {
+            "category": "pretrade_har_realised_vol",
+            "reason": "No HAR estimator in-repo; used ATR + implied straddle instead.",
+        },
+        {
+            "category": "pretrade_position_size_from_stop",
+            "reason": "Live/legacy lots are given (25 / 2 / 1). Not resized in this run.",
+        },
+        {
+            "category": "after_reentry_after_stop",
+            "reason": "Re-entry is an entry rule. Not generated as a new ticket in this run.",
+        },
+        {
+            "category": "after_order_not_filled",
+            "reason": "Entries are already filled tickets. Rejects run only in stress.reject_p15.",
+        },
+    ]
+    return {"mapped": rows, "not_a_replayed_plan": skipped}
+
+
 def _series_for_live(
     entry: Entry, ticks: list[dict[str, Any]]
 ) -> tuple[list[Quote], list[Bar], list[Bar]]:
@@ -233,7 +310,13 @@ def _series_for_hist(
 
 
 def run_research(
-    *, data: Path, out: Path, seed: int = 7, max_hist_days: int = 40
+    *,
+    data: Path,
+    out: Path,
+    seed: int = 7,
+    max_hist_days: int = 40,
+    extra_seeds: tuple[int, ...] = (11, 19),
+    reuse_entries: Path | None = None,
 ) -> dict[str, Any]:
     out.mkdir(parents=True, exist_ok=True)
     rates = load_cost_rates()
@@ -252,69 +335,108 @@ def run_research(
 
     entries: list[Entry] = []
     legacy_meta: list[dict[str, Any]] = []
-    for path in dual_tape_days(data):
-        session = path.stem
-        if is_weekend(session):
-            continue
-        ticks = load_dual_tape_session(path)
-        if not ticks:
-            continue
-        scen = (labels_by_day.get(session) or {}).get("scenario") or "unknown"
-        expiry = next((t.get("expiry") for t in ticks if t.get("expiry")), None)
-        rnd = random_entries(
-            ticks,
-            session=session,
-            scenario=scen,
-            seed=seed,
-            n=18,
-            expiry=str(expiry) if expiry else None,
-        )
-        entries.extend(rnd)
-        try:
-            v2 = v2_selector_entries(
-                ticks, session=session, scenario=scen, expiry=str(expiry) if expiry else None
+    if reuse_entries is not None and reuse_entries.is_file():
+        loaded = json.loads(reuse_entries.read_text(encoding="utf-8"))
+        entries = [entry_from_dict(x) for x in loaded if x.get("entry_set") != "random_hist"]
+        hist_from_file = [entry_from_dict(x) for x in loaded if x.get("entry_set") == "random_hist"]
+        legacy_meta.append({"reused": str(reuse_entries), "n": len(entries)})
+    else:
+        hist_from_file = []
+        for path in dual_tape_days(data):
+            session = path.stem
+            if is_weekend(session):
+                continue
+            ticks = load_dual_tape_session(path)
+            if not ticks:
+                continue
+            scen = (labels_by_day.get(session) or {}).get("scenario") or "unknown"
+            expiry = next((t.get("expiry") for t in ticks if t.get("expiry")), None)
+            rnd = random_entries(
+                ticks,
+                session=session,
+                scenario=scen,
+                seed=seed,
+                n=18,
+                expiry=str(expiry) if expiry else None,
             )
-            entries.extend(v2)
-        except Exception as exc:
-            legacy_meta.append({"session": session, "v2_error": str(exc)})
-        leg, meta = legacy_entries_from_replay(path, session=session, scenario=scen)
-        entries.extend(leg)
-        legacy_meta.append(meta)
+            entries.extend(rnd)
+            try:
+                v2 = v2_selector_entries(
+                    ticks, session=session, scenario=scen, expiry=str(expiry) if expiry else None
+                )
+                entries.extend(v2)
+            except Exception as exc:
+                legacy_meta.append({"session": session, "v2_error": str(exc)})
+            leg, meta = legacy_entries_from_replay(path, session=session, scenario=scen)
+            entries.extend(leg)
+            legacy_meta.append(meta)
+
+    # Extra random seeds (brief: many seeds). Separate from the sweep-choose seed.
+    ticks_cache: dict[str, list[dict[str, Any]]] = {}
+    for path in dual_tape_days(data):
+        ticks_cache[path.stem] = load_dual_tape_session(path)
+    have_ids = {e.entry_id for e in entries}
+    for extra in extra_seeds:
+        if extra == seed:
+            continue
+        for path in dual_tape_days(data):
+            session = path.stem
+            if is_weekend(session):
+                continue
+            ticks = ticks_cache.get(session) or []
+            if not ticks:
+                continue
+            scen = (labels_by_day.get(session) or {}).get("scenario") or "unknown"
+            expiry = next((t.get("expiry") for t in ticks if t.get("expiry")), None)
+            for e in random_entries(
+                ticks,
+                session=session,
+                scenario=scen,
+                seed=extra,
+                n=8,
+                expiry=str(expiry) if expiry else None,
+            ):
+                if e.entry_id not in have_ids:
+                    entries.append(e)
+                    have_ids.add(e.entry_id)
 
     # History random entries on a time-ordered subset of sessions.
-    hist_entries: list[Entry] = []
-    try:
-        index = load_index_1m(data / "index_NIFTY.parquet", since="2025-10-01", until="2026-08-10")
-        by_day = group_index_by_session(index)
-        hist_labels = {row["session"]: row for row in hist_measure.get("labels") or []}
-        weeks = sorted(data.glob("NIFTY_*.parquet"))
-        n_hist_days = 0
-        for wp in weeks:
-            opt = load_option_week(wp)
-            expiry = wp.stem.replace("NIFTY_", "")
-            days = sorted({as_ist(b.ts).date().isoformat() for b in opt})
-            for day in days:
-                if is_weekend(day):
-                    continue
+    hist_entries: list[Entry] = list(hist_from_file)
+    if not hist_entries:
+        try:
+            index = load_index_1m(
+                data / "index_NIFTY.parquet", since="2025-10-01", until="2026-08-10"
+            )
+            by_day = group_index_by_session(index)
+            hist_labels = {row["session"]: row for row in hist_measure.get("labels") or []}
+            weeks = sorted(data.glob("NIFTY_*.parquet"))
+            n_hist_days = 0
+            for wp in weeks:
+                opt = load_option_week(wp)
+                expiry = wp.stem.replace("NIFTY_", "")
+                days = sorted({as_ist(b.ts).date().isoformat() for b in opt})
+                for day in days:
+                    if is_weekend(day):
+                        continue
+                    if n_hist_days >= max_hist_days:
+                        break
+                    scen = (hist_labels.get(day) or {}).get("scenario") or "unknown"
+                    hist_entries.extend(
+                        history_random_entries(
+                            by_day.get(day) or [],
+                            [b for b in opt if as_ist(b.ts).date().isoformat() == day],
+                            session=day,
+                            scenario=scen,
+                            seed=seed + n_hist_days,
+                            n=8,
+                            expiry=expiry,
+                        )
+                    )
+                    n_hist_days += 1
                 if n_hist_days >= max_hist_days:
                     break
-                scen = (hist_labels.get(day) or {}).get("scenario") or "unknown"
-                hist_entries.extend(
-                    history_random_entries(
-                        by_day.get(day) or [],
-                        [b for b in opt if as_ist(b.ts).date().isoformat() == day],
-                        session=day,
-                        scenario=scen,
-                        seed=seed + n_hist_days,
-                        n=8,
-                        expiry=expiry,
-                    )
-                )
-                n_hist_days += 1
-            if n_hist_days >= max_hist_days:
-                break
-    except HistoryUnavailable as exc:
-        _write_json(out / "history_skip.json", {"error": str(exc)})
+        except HistoryUnavailable as exc:
+            _write_json(out / "history_skip.json", {"error": str(exc)})
 
     _write_json(out / "entries.json", [asdict(e) for e in entries + hist_entries])
     _write_json(out / "legacy_replay_meta.json", legacy_meta)
@@ -324,10 +446,6 @@ def run_research(
     n_variants = len(plans) + len(sweeps)
     results: list[TradeResult] = []
 
-    ticks_cache: dict[str, list[dict[str, Any]]] = {}
-    for path in dual_tape_days(data):
-        ticks_cache[path.stem] = load_dual_tape_session(path)
-
     def ctx_for(entry: Entry) -> dict[str, Any]:
         bucket = _tod_bucket(entry.ts)
         mae = (tod_mae.get(bucket) or {}).get("mae_p80") or default_mae
@@ -336,6 +454,8 @@ def run_research(
             "chop": "chop" in entry.scenario,
             "regime": entry.scenario,
             "atr": 12.0,
+            "day_pnl": 0.0,
+            "index_gap_pct": None,
         }
 
     for entry in entries:
@@ -414,13 +534,7 @@ def run_research(
     except HistoryUnavailable:
         hist_index = None
     if hist_index is not None and hist_entries:
-        core = [
-            plans["hold_to_1515"],
-            plans["fixed_stop_target"],
-            plans["v2_default"],
-            plans["legacy_overlay"],
-            plans["regime_router"],
-        ]
+        core = list(plans.values())
         by_day_opt: dict[str, list[Bar]] = defaultdict(list)
         for bars in hist_opt_cache.values():
             for b in bars:
@@ -495,11 +609,61 @@ def run_research(
         "stress": stress,
         "legacy_meta": legacy_meta,
         "tod_mae": tod_mae,
+        "category_coverage": _category_coverage(results),
+        "extra_seeds": list(extra_seeds),
+        "n_low_confidence_cells": sum(1 for s in summaries if s.low_confidence),
     }
     _write_json(out / "tables.json", tables)
     _write_json(out / "trades.json", [asdict(r) for r in results])
     _write_json(out / "oos_sweep.json", [asdict(r) for r in oos_rows])
     return tables
+
+
+def _drop_gap(quotes: list[Quote], start: datetime, width_s: float) -> list[Quote]:
+    return [
+        q
+        for q in quotes
+        if not (0 <= (as_ist(q.available_ts) - as_ist(start)).total_seconds() <= width_s)
+    ]
+
+
+def _mutate_quotes(
+    quotes: list[Quote],
+    *,
+    iv_mult: float | None = None,
+    prem_mult: float | None = None,
+    index_gap_pct: float | None = None,
+) -> list[Quote]:
+    out: list[Quote] = []
+    for q in quotes:
+        bid = q.bid
+        ask = q.ask
+        ltp = q.ltp
+        if prem_mult is not None:
+            bid = None if bid is None else bid * prem_mult
+            ask = None if ask is None else ask * prem_mult
+            ltp = None if ltp is None else ltp * prem_mult
+        idx = q.index
+        if index_gap_pct is not None and idx is not None:
+            idx = idx * (1.0 + index_gap_pct)
+        iv = q.iv
+        if iv_mult is not None and iv is not None:
+            iv = iv * iv_mult
+        out.append(
+            Quote(
+                available_ts=q.available_ts,
+                bid=bid,
+                ask=ask,
+                ltp=ltp,
+                index=idx,
+                iv=iv,
+                strike=q.strike,
+                side=q.side,
+                spread=q.spread,
+                source=q.source + "_synthetic",
+            )
+        )
+    return out
 
 
 def _stress(
@@ -514,15 +678,26 @@ def _stress(
     if not sample:
         return {"note": "DATA_INSUFFICIENT: no random live entries for stress"}
     cases: dict[str, list[TradeResult]] = {}
-    models = {
-        "base": SlippageModel(),
-        "spread_x2": SlippageModel(spread_mult=2.0, slip_mult=2.0),
-        "slip_x2": SlippageModel(slip_mult=2.0),
-    }
-    for name, model in models.items():
+
+    def _run(
+        name: str,
+        subset: list[Entry],
+        *,
+        model: SlippageModel | None = None,
+        reject_prob: float = 0.0,
+        partial_fill_frac: float = 1.0,
+        quotes_fn: Any = None,
+        extra_ctx: dict[str, Any] | None = None,
+        data_source: str = "stress",
+    ) -> None:
         rows = []
-        for e in sample:
+        for e in subset:
             q, b, i = _series_for_live(e, ticks_cache.get(e.session) or [])
+            if quotes_fn is not None:
+                q = quotes_fn(e, q)
+            ctx = dict(ctx_for(e))
+            if extra_ctx:
+                ctx.update(extra_ctx)
             rows.append(
                 replay_trade(
                     e,
@@ -532,57 +707,83 @@ def _stress(
                     index_bars=i,
                     slippage=model,
                     cost_rates=rates,
-                    ctx_extra=ctx_for(e),
-                    data_source="stress",
+                    ctx_extra=ctx,
+                    data_source=data_source,
+                    reject_prob=reject_prob,
+                    partial_fill_frac=partial_fill_frac,
                     seed=seed,
                 )
             )
         cases[name] = rows
-    # synthetic feed gap: drop quotes in a 30s window mid-trade (labelled synthetic)
-    gap_rows = []
-    for e in sample[:40]:
-        ticks = ticks_cache.get(e.session) or []
-        quotes, bars, index_bars = _series_for_live(e, ticks)
-        mid = e.ts
-        quotes = [
-            q
-            for q in quotes
-            if abs((as_ist(q.available_ts) - as_ist(mid)).total_seconds() - 600) > 30
-        ]
-        gap_rows.append(
-            replay_trade(
-                e,
-                plan,
-                quotes=quotes,
-                bars=bars,
-                index_bars=index_bars,
-                cost_rates=rates,
-                ctx_extra=ctx_for(e),
-                data_source="stress_gap30s_synthetic",
-                seed=seed,
-            )
-        )
-    cases["gap_30s_synthetic"] = gap_rows
-    # MC resample trade nets
-    base_nets = [r.net_inr for r in cases["base"]]
+
+    _run("base", sample, model=SlippageModel())
+    _run("spread_x2", sample, model=SlippageModel(spread_mult=2.0, slip_mult=1.0))
+    _run("slip_x2", sample, model=SlippageModel(slip_mult=2.0))
+    _run(
+        "gap_1s_synthetic",
+        sample[:40],
+        quotes_fn=lambda e, qs: _drop_gap(qs, e.ts, 1.0),
+        data_source="stress_gap1s_synthetic",
+    )
+    _run(
+        "gap_2s_synthetic",
+        sample[:40],
+        quotes_fn=lambda e, qs: _drop_gap(qs, e.ts, 2.0),
+        data_source="stress_gap2s_synthetic",
+    )
+    _run(
+        "gap_30s_synthetic",
+        sample[:40],
+        quotes_fn=lambda e, qs: _drop_gap(qs, e.ts, 30.0),
+        data_source="stress_gap30s_synthetic",
+    )
+    _run("partial_fill_half", sample[:40], partial_fill_frac=0.5)
+    _run("reject_p15", sample[:40], reject_prob=0.15)
+    _run(
+        "index_gap_1pct_synthetic",
+        sample[:40],
+        quotes_fn=lambda e, qs: _mutate_quotes(qs, prem_mult=0.85, index_gap_pct=-0.01),
+        extra_ctx={"index_gap_pct": -0.01},
+        data_source="stress_gap1pct_synthetic",
+    )
+    _run(
+        "iv_crush_20_synthetic",
+        sample[:40],
+        quotes_fn=lambda e, qs: _mutate_quotes(qs, iv_mult=0.80, prem_mult=0.88),
+        data_source="stress_ivcrush20_synthetic",
+    )
+
+    base_nets = [r.net_inr for r in cases["base"] if r.skipped is None]
     rng = random.Random(seed)
-    mc = []
+    mc: list[float] = []
     if base_nets:
         for _ in range(200):
             mc.append(sum(base_nets[rng.randrange(len(base_nets))] for _ in base_nets))
         mc.sort()
+
+    def _pack(rows: list[TradeResult]) -> dict[str, Any]:
+        closed = [r for r in rows if r.skipped is None]
+        return {
+            "n": len(rows),
+            "n_closed": len(closed),
+            "n_skipped": sum(1 for r in rows if r.skipped),
+            "net_inr": round(sum(r.net_inr for r in closed), 2),
+            "reasons": _count([r.exit_reason for r in rows]),
+        }
+
     return {
         "n_sample": len(sample),
         "plan_id": plan.plan_id,
-        "nets": {k: round(sum(r.net_inr for r in v), 2) for k, v in cases.items()},
+        "cases": {k: _pack(v) for k, v in cases.items()},
+        "nets": {k: _pack(v)["net_inr"] for k, v in cases.items()},
         "mc_resample_net": {
             "n": 200,
             "p05": mc[int(0.05 * len(mc))] if mc else None,
             "p50": mc[len(mc) // 2] if mc else None,
             "p95": mc[int(0.95 * (len(mc) - 1))] if mc else None,
         },
-        "note": (
-            "gap_30s is synthetic (quotes dropped). "
-            "IV crush 20% and 1% open gap are labelled synthetic in REPORT."
+        "label": (
+            "gap_1s/2s/30s, 1% index gap, and IV crush 20% are SYNTHETIC "
+            "(quotes mutated or dropped). partial_fill_half and reject_p15 use harness flags."
         ),
     }
