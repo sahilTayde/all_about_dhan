@@ -217,3 +217,27 @@ def test_record_fill_uses_explicit_txn_not_autocommit(tmp_path: Path) -> None:
         store.record_fill("aadtxn00000000000000000001", 65, 100, ts=NOW, side="BUY", symbol=SYM, instrument_id=INST)
     assert store.conn.execute("SELECT COUNT(*) FROM fills").fetchone()[0] == 0
     store.close()
+
+
+def test_entry_plans_round_trip_on_sqlite_store(tmp_path: Path) -> None:
+    store = _store(tmp_path)
+    row = store.upsert_plan(
+        {
+            "plan_id": "plan-1",
+            "account_id": "founder",
+            "decision_id": "dec-1",
+            "signal_id": "sig-1",
+            "mode": "chase",
+            "action": "CHASE",
+            "status": "PENDING",
+            "limit_price": 151.35,
+            "instrument_id": INST,
+        }
+    )
+    assert row["plan_id"] == "plan-1"
+    assert store.get_plan("plan-1")["status"] == "PENDING"
+    assert len(store.pending_plans()) == 1
+    store.upsert_plan({**row, "status": "WORKING", "client_order_id": "aad1"})
+    assert store.pending_plans()[0]["client_order_id"] == "aad1"
+    assert store.entry_plans["plan-1"]["instrument_id"] == INST
+    store.close()

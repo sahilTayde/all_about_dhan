@@ -6,10 +6,28 @@ From the repo root. PAPER. No live orders.
 
 | When | Command | What it does |
 |------|---------|----------------|
-| **Morning** (before / at 09:00 IST) | `./scripts/desk.sh morning` | Pre-market drill + API `:8000` + website `:5173` + dual-tape capture. Then open `/pm`, pick index, **START TRADE**. |
-| **During session** | `./scripts/desk.sh status` | Pids and URLs. Do not restart unless something is DOWN. |
-| **After close** (15:40 IST) | `./scripts/desk.sh close` | Stops data capture. **Keeps the website on.** Runs honesty exam + nightly recon + docs auditor. |
-| Website only (review, no tape) | `./scripts/desk.sh website` | API + Vite. Capture off. |
+| **Token** (before open) | Edit repo-root `.env` (`DHAN_CLIENT_ID`, `DHAN_ACCESS_TOKEN`) | Never commit. Never print the token. Empty keys → fixtures only. |
+| **One-time v2 venv** | `./scripts/mac_setup_v2.sh` | Builds `.venv-v2` (3.11+). **Does not touch** `.venv`. |
+| **Website** | `./scripts/desk.sh website` | Runs `preflight`, then API `:8000` + Vite `:5173`. Capture off. |
+| **Open** (Mon–Fri 09:30 IST) | `./scripts/desk.sh watch-open` | Dual-tape (2s). If `health.supervise` is missing in `.venv`, starts dual-tape directly. |
+| **V2 recorder** | `./scripts/desk.sh recorder-start` | `caffeinate -dimsu` on macOS; `.venv-v2/bin/python -m marketdata --record-only` in screen `v2-recorder`. Refuses a second copy. Failure only warns — it does not stop the legacy desk. |
+| **Checks** | `./scripts/desk.sh status` and `./scripts/desk.sh recorder-status` | Pids, URLs, last line of `data/tape/v2/<IST-date>/recorder.log`. |
+| **After close** (15:40 IST) | `./scripts/desk.sh close` | Stops dual-tape **and** the v2 recorder if still up (tapes left intact). **Keeps the website on.** Honesty + nightly. |
+| **Morning shortcut** | `./scripts/desk.sh morning` | `preflight` + pre-market drill + API + website + arms `watch-open`. Then open `/pm`, pick index, **START TRADE**. |
+
+**Session-night command list** (copy-paste, repo root, PAPER only):
+
+```bash
+# token: edit .env locally — never print it
+./scripts/mac_setup_v2.sh          # first time / after pull if .venv-v2 missing
+./scripts/desk.sh website
+./scripts/desk.sh watch-open
+./scripts/desk.sh recorder-start
+./scripts/desk.sh status
+./scripts/desk.sh recorder-status
+# after 15:40 IST
+./scripts/desk.sh close
+```
 
 **Morning review URLs**
 
