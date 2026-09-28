@@ -434,7 +434,10 @@ class OrderRouter:
             "entry_order_id": (row or {}).get("signal_id")
             or live.get("entry_order_id")
             or parent.client_order_id,
-            "stop_price": parent.intent.stop_loss or live.get("stop_price") or 0.05,
+            # ExitPlan catastrophic (V2-09) wins for the resting SL-M. Entry
+            # intent.stop_loss stays the V2-08b risk-config floor (never stretch)
+            # and is only the fallback when no position stop_price exists.
+            "stop_price": live.get("stop_price") or parent.intent.stop_loss or 0.05,
             "lot_size": parent.intent.lot_size,
         }
         self.sync_protective_stop(ctx, remaining)

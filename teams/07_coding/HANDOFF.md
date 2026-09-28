@@ -1,5 +1,22 @@
 # Handoff log — Team 07 Coding
 
+## As of now (2026-09-28 IST) — SL-M prefers ExitPlan stop_price (PAPER)
+
+```text
+From:     teams/07_coding
+To:       founder / 00 / 09
+Date:     2026-09-28
+Status:   PAPER / V2-08b + V2-09 union fix / NO_PROMOTE / no live orders
+Accepted: _place_protective_stop uses live.stop_price (ExitPlan
+  catastrophic) before entry intent.stop_loss (risk max_loss floor).
+  Risk still check_entry's with the V2-08b floor; stretch still never
+  sets the entry stop. V2-09 SL-M at 140 still fills on a 139 print.
+Rejected: Using stretch.catastrophic_price as the entry stop again.
+UNKNOWN: none
+```
+
+---
+
 ## As of now (2026-09-28 IST) — merge main f2c0795 (V2-09) into V2-08b (PAPER)
 
 ```text
