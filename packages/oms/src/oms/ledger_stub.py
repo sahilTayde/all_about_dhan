@@ -6,11 +6,24 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from typing import Any
 
+from contracts.instruments import India
 from ledger.charges import (  # type: ignore[import-untyped, unused-ignore]
     exchange_for,
     order_charges,
 )
 from risk_engine.engine import IST
+
+_INDIA = India()
+
+
+def _fill_lot_size(instrument_id: str) -> int | None:
+    if not instrument_id:
+        return None
+    try:
+        symbol = str(_INDIA.parse_instrument_id(instrument_id).get("symbol") or "")
+        return _INDIA.lot_size(symbol)
+    except ValueError:
+        return None
 
 
 @dataclass
@@ -34,10 +47,14 @@ class MemoryLedger:
     fills: list[dict[str, Any]] = field(default_factory=list)
     charges: list[ChargeRow] = field(default_factory=list)
     positions: dict[str, dict[str, Any]] = field(default_factory=dict)
+    closed: list[dict[str, Any]] = field(default_factory=list)
     decisions: list[dict[str, Any]] = field(default_factory=list)
     protective: dict[str, str] = field(default_factory=dict)  # position_key -> stop order_id
+    session_halts: list[dict[str, Any]] = field(default_factory=list)
     rates: dict[str, Any] | None = None
     recon_ok: bool = True
+    last_loss_exit_at: datetime | None = None
+    realized_pnl_today: float = 0.0
 
     def get_order(self, client_order_id: str) -> dict[str, Any] | None:
         return self.orders.get(client_order_id)
@@ -67,8 +84,13 @@ class MemoryLedger:
         side: str = "BUY",
         symbol: str = "",
         instrument_id: str = "",
+        account_id: str = "",
+        strategy_id: str = "",
     ) -> ChargeRow:
         stamp = ts or datetime.now(IST)
+        lot = _fill_lot_size(instrument_id)
+        if lot is not None and int(qty) % lot != 0:
+            raise ValueError(f"fill qty {qty} is not a multiple of lot size {lot}")
         status = "PENDING"
         components: dict[str, float] = {}
         exchange: str | None = None
@@ -98,15 +120,49 @@ class MemoryLedger:
             }
         )
         self.charges.append(row)
+        key = instrument_id or symbol
+        prev = self.positions.get(key)
         if side == "BUY":
-            key = instrument_id or symbol
-            self.positions[key] = {
-                "instrument_id": instrument_id,
-                "symbol": symbol,
-                "net_qty": qty,
-                "avg_price": price,
-                "entry_order_id": client_order_id,
-            }
+            if prev is not None and int(prev.get("net_qty") or 0) > 0:
+                old_qty = int(prev["net_qty"])
+                nq = old_qty + qty
+                prev["avg_price"] = (float(prev["avg_price"]) * old_qty + price * qty) / nq
+                prev["net_qty"] = nq
+                prev["updated_at"] = stamp
+                prev["orig_qty"] = nq
+            else:
+                self.positions[key] = {
+                    "instrument_id": instrument_id,
+                    "symbol": symbol,
+                    "net_qty": qty,
+                    "avg_price": price,
+                    "entry_order_id": client_order_id,
+                    "account_id": account_id,
+                    "strategy_id": strategy_id,
+                    "opened_at": stamp,
+                    "updated_at": stamp,
+                    "fill_ts": stamp,
+                    "position_id": client_order_id,
+                    "realized_pnl": 0.0,
+                    "orig_qty": qty,
+                    "partials_done": 0,
+                }
+        elif prev is not None:
+            closed_qty = min(qty, int(prev.get("net_qty") or 0))
+            pnl = (price - float(prev.get("avg_price") or 0)) * closed_qty
+            prev["realized_pnl"] = float(prev.get("realized_pnl") or 0) + pnl
+            prev["net_qty"] = int(prev.get("net_qty") or 0) - closed_qty
+            prev["updated_at"] = stamp
+            prev["last_exit_price"] = price
+            prev["last_exit_qty"] = closed_qty
+            prev["last_exit_ts"] = stamp
+            self.realized_pnl_today += pnl
+            if pnl < 0:
+                self.last_loss_exit_at = stamp
+            if int(prev["net_qty"]) == 0:
+                self.closed.append(dict(prev))
+                del self.positions[key]
+                self.protective.pop(key, None)
         return row
 
     def set_protective(self, position_key: str, stop_order_id: str) -> None:
@@ -133,8 +189,8 @@ class MemoryLedger:
                     fps.append((ts, str(d["fingerprint"])))
         return {
             "open_positions": len(self.open_positions()),
-            "realized_pnl_today": 0.0,
-            "last_loss_exit_at": None,
+            "realized_pnl_today": float(self.realized_pnl_today),
+            "last_loss_exit_at": self.last_loss_exit_at,
             "recent_fingerprints": fps,
             "used_client_order_ids": used,
             "recon_ok": self.recon_ok,
