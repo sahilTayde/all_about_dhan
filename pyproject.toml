@@ -19,9 +19,11 @@ members = [
     "packages/health",
     "packages/ledger",
     "packages/oms",
+    "packages/control",
     "packages/risk-engine",
     "packages/trading_agents_india",
     "packages/warehouse",
+    "packages/premarket",
     "apps/api",
 ]
 
