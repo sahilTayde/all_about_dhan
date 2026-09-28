@@ -6,6 +6,7 @@ import argparse
 import hashlib
 import json
 import math
+import os
 import re
 import sys
 import tempfile
@@ -720,6 +721,26 @@ def evaluate(
     return Verdict(verdict=verdict, checks=checks)
 
 
+def enforce_enabled() -> bool:
+    """Hard-fail on BLOCK only when GATE_ENFORCE=1. Default is advisory (exit 0)."""
+    return os.environ.get("GATE_ENFORCE", "").strip() == "1"
+
+
+def _publish_verdict(payload: dict[str, Any], json_out: str | None) -> None:
+    body = json.dumps(payload, sort_keys=True)
+    print(body)
+    if json_out:
+        Path(json_out).write_text(body + "\n", encoding="utf-8")
+    summary = os.environ.get("GITHUB_STEP_SUMMARY")
+    if summary:
+        with Path(summary).open("a", encoding="utf-8") as handle:
+            handle.write(f"```json\n{body}\n```\n")
+
+
+def _exit_for_block() -> int:
+    return 1 if enforce_enabled() else 0
+
+
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(description="V2-16 merge gate (verdict only; never merges)")
     p.add_argument("--only")
@@ -729,11 +750,12 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--fault-rows")
     p.add_argument("--compose-report")
     p.add_argument("--lookahead-report")
+    p.add_argument("--json-out")
     p.add_argument("--merge", action="store_true")
     p.add_argument("--push", action="store_true")
     args = p.parse_args(list(sys.argv[1:] if argv is None else argv))
     if args.merge or args.push:
-        print(json.dumps({"verdict": "BLOCK", "reason": "gate never merges or pushes"}))
+        _publish_verdict({"verdict": "BLOCK", "reason": "gate never merges or pushes"}, args.json_out)
         return 2
 
     def _run() -> int:
@@ -746,14 +768,21 @@ def main(argv: list[str] | None = None) -> int:
             compose_report=args.compose_report,
             lookahead_report=args.lookahead_report,
         )
-        print(json.dumps(result.to_json(), sort_keys=True))
-        return 0 if result.verdict == "PASS" else 1
+        payload = result.to_json()
+        payload["enforce"] = enforce_enabled()
+        _publish_verdict(payload, args.json_out)
+        if result.verdict == "PASS":
+            return 0
+        return _exit_for_block()
 
     try:
         return run_with_deadline(_run, float(JOBS.get("merge-gate", 600)), job="merge-gate")
     except JobTimeout as exc:
-        print(json.dumps({"verdict": "BLOCK", "status": "ERROR", "detail": str(exc)}))
-        return 1
+        _publish_verdict(
+            {"verdict": "BLOCK", "status": "ERROR", "detail": str(exc), "enforce": enforce_enabled()},
+            args.json_out,
+        )
+        return _exit_for_block()
 
 
 if __name__ == "__main__":

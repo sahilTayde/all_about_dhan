@@ -7,6 +7,7 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
 from gate.merge_gate import (
     ALL3_BASELINE,
     FAULTS,
@@ -311,3 +312,64 @@ def test_default_evaluate_never_passes_on_absent_evidence() -> None:
     assert result.verdict == "BLOCK"
     assert _check(result, "ci_conclusions").status == "MISSING"
     assert _check(result, "redis_compose").status == "MISSING"
+
+
+def test_advisory_block_exits_zero_and_reports_block(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.delenv("GATE_ENFORCE", raising=False)
+    rc = main(["--only", "ci_conclusions", "--root", str(ROOT)])
+    out = json.loads(capsys.readouterr().out)
+    assert rc == 0
+    assert out["verdict"] == "BLOCK"
+    assert out["enforce"] is False
+
+
+def test_enforce_block_exits_one(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
+    monkeypatch.setenv("GATE_ENFORCE", "1")
+    rc = main(["--only", "ci_conclusions", "--root", str(ROOT)])
+    out = json.loads(capsys.readouterr().out)
+    assert rc == 1
+    assert out["verdict"] == "BLOCK"
+    assert out["enforce"] is True
+
+
+def test_merge_push_still_exit_two_in_both_modes(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("GATE_ENFORCE", raising=False)
+    assert main(["--merge"]) == 2
+    monkeypatch.setenv("GATE_ENFORCE", "1")
+    assert main(["--push"]) == 2
+
+
+def test_malformed_or_missing_inputs_never_pass_in_either_mode(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    for enforce in (None, "1"):
+        if enforce is None:
+            monkeypatch.delenv("GATE_ENFORCE", raising=False)
+        else:
+            monkeypatch.setenv("GATE_ENFORCE", enforce)
+        capsys.readouterr()
+        missing_rc = main(["--only", "ci_conclusions", "--root", str(ROOT)])
+        missing = json.loads(capsys.readouterr().out)
+        assert missing["verdict"] == "BLOCK"
+        assert missing_rc == (1 if enforce == "1" else 0)
+        bad_rc = main(["--ci-conclusions", "{not-json", "--only", "ci_conclusions", "--root", str(ROOT)])
+        bad = json.loads(capsys.readouterr().out)
+        assert bad["verdict"] == "BLOCK"
+        assert bad_rc == (1 if enforce == "1" else 0)
+
+
+def test_writes_json_out_and_step_summary(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    dest = tmp_path / "gate-verdict.json"
+    summary = tmp_path / "summary.md"
+    monkeypatch.delenv("GATE_ENFORCE", raising=False)
+    monkeypatch.setenv("GITHUB_STEP_SUMMARY", str(summary))
+    rc = main(["--only", "ci_conclusions", "--root", str(ROOT), "--json-out", str(dest)])
+    assert rc == 0
+    printed = json.loads(capsys.readouterr().out)
+    assert printed["verdict"] == "BLOCK"
+    assert json.loads(dest.read_text(encoding="utf-8"))["verdict"] == "BLOCK"
+    assert '"verdict": "BLOCK"' in summary.read_text(encoding="utf-8")

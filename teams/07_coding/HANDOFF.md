@@ -1,5 +1,32 @@
 # Handoff log — Team 07 Coding
 
+## As of now (2026-09-28 IST) — V2-16 advisory mode (do not paint CI red)
+
+```text
+From:     teams/07_coding
+To:       founder / 00 / 09
+Date:     2026-09-28
+Status:   PAPER / V2-16 / NO_PROMOTE / advisory BLOCK (exit 0)
+Accepted: Verdict step always writes the full gate JSON to
+  GITHUB_STEP_SUMMARY and --json-out (CI artifact). Default
+  advisory: BLOCK exits 0. GATE_ENFORCE=1 BLOCKs with exit 1.
+  --merge / --push still exit 2 in both modes. Evaluator
+  unchanged: missing/stub never PASS.
+Rejected: Making gate a required hard-fail check today.
+  Adding REG-01/07/08/11/18 or the 12 fault nodeids now.
+  Rebase / force-push / merge of this PR.
+UNKNOWN: none
+BEFORE GATE_ENFORCE=1 and before making `gate` a required
+check, these three evidence items must exist (do not add
+the tests in this round):
+  1. junit passed outcomes covering REG-01, REG-07, REG-08,
+     REG-11, REG-18
+  2. fault-rows.json with 12 named pytest nodeids (one per
+     §6.2 fault row)
+  3. a real redis_compose report with redis=true and empty
+     hour_diffs / day_diffs (not the JSON hop)
+```
+
 ## As of now (2026-09-28 IST) — V2-16 fix round (fail-closed evidence)
 
 ```text

@@ -330,7 +330,7 @@ jobs:
       - name: Honest empty fault-row list
         if: always()
         run: printf '%s\n' '{"rows":{}}' > fault-rows.json
-      - name: Merge gate verdict (fail-closed; never merges)
+      - name: Merge gate verdict (advisory unless GATE_ENFORCE=1; never merges)
         if: always()
         run: |
           python -m pytest -q -p no:cacheprovider --allow-hosts=127.0.0.1,localhost \
@@ -339,4 +339,11 @@ jobs:
           python scripts/gate/merge_gate.py \
             --ci-conclusions ci-conclusions.json \
             --pytest-results pytest-regression.xml \
-            --fault-rows fault-rows.json
+            --fault-rows fault-rows.json \
+            --json-out gate-verdict.json
+      - name: Upload gate verdict
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.0
+        with:
+          name: gate-verdict
+          path: gate-verdict.json
