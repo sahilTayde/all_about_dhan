@@ -302,6 +302,25 @@ def test_house_stop_premium_snaps_up_to_tick_grid() -> None:
     assert 65 * (500.0 - px) <= 30000.0 + 1e-9
 
 
+def test_house_stop_premium_tiny_caps_clamped() -> None:
+    """Tiny / nonsensical risk caps: >= one tick, never below 0, never above entry."""
+    tick = 0.05
+    cases = (
+        (100.0, 65, 1.0),  # ₹1 cap on one NIFTY lot
+        (100.03, 65, 0.0),  # zero cap, off-grid entry (snap-up must not pass entry)
+        (100.0, 65, -500.0),  # negative cap
+        (0.10, 65, 30_000.0),  # house cap vs tiny premium
+        (0.03, 65, 1.0),  # entry below one tick
+    )
+    for entry, qty, cap in cases:
+        px = house_stop_premium(entry, qty, cap)
+        assert px >= 0.0
+        assert px <= entry + 1e-12
+        if entry >= tick:
+            assert px >= tick - 1e-12
+        assert abs(round(px / tick) * tick - px) < 1e-9 or px == pytest.approx(entry)
+
+
 def test_evaluate_founder_kill_names_kill_switch() -> None:
     plan = make_exit_plan()
     req = evaluate(

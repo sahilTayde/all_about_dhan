@@ -85,7 +85,9 @@ invariants in `desk_ml.testing.sim.check`.
   at most 5 restarts per incident) and kills and restarts a hung one. Exit 0 and exit 2 (dual-tape's
   "market closed": weekend, before 09:30 IST, after 15:29 IST) end supervision cleanly. One incident
   = one alert when it starts, one more if it gives up. Default heartbeat/alert paths are absolute
-  from the repo root. `scripts/desk.sh morning` starts dual-tape under it at 09:30 (`watch-open`);
+  from the repo root. `scripts/desk.sh morning` starts dual-tape under it at 09:30 (`watch-open`).
+  If `health.supervise` is not importable in the legacy `.venv` (Python 3.9 Mac), `desk.sh`
+  starts the same dual-tape command without the supervisor and logs a warning.
   `deploy/` has a launchd plist and a systemd service + timer that start it Mon–Fri 09:30 IST and
   never respawn a supervisor that gave up.
 - Booked open tickets are carried across cycles and managed at their booked strike; forced exits

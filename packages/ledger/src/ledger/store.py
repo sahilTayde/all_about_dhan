@@ -13,7 +13,7 @@ import json
 import sqlite3
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any, Optional, Union
+from typing import Any, Union
 
 from ledger.charges import DEFAULT_CHARGES_PATH, exchange_for, load_rates, order_charges
 
@@ -38,7 +38,8 @@ CANCEL_REASONS = frozenset(
     }
 )
 
-Ts = Union[None, str, datetime]
+# Runtime alias: `str | datetime | None` is a TypeError on CPython 3.9 (PEP 604).
+Ts = Union[None, str, datetime]  # noqa: UP007
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS orders (
@@ -188,9 +189,9 @@ def iso_ist(ts: Ts = None) -> str:
 class Ledger:
     def __init__(
         self,
-        path: Union[str, Path] = DEFAULT_LEDGER_PATH,
+        path: str | Path = DEFAULT_LEDGER_PATH,
         *,
-        rates: Optional[dict[str, float]] = None,
+        rates: dict[str, float] | None = None,
         charges_path: Path = DEFAULT_CHARGES_PATH,
     ) -> None:
         if str(path) != ":memory:":
@@ -203,7 +204,7 @@ class Ledger:
     def close(self) -> None:
         self.conn.close()
 
-    def _one(self, sql: str, args: tuple = ()) -> Optional[sqlite3.Row]:
+    def _one(self, sql: str, args: tuple = ()) -> sqlite3.Row | None:
         return self.conn.execute(sql, args).fetchone()
 
     def _all(self, sql: str, args: tuple = ()) -> list[dict[str, Any]]:
@@ -212,7 +213,7 @@ class Ledger:
     # ---------------------------------------------------------------- orders
 
     def record_order(
-        self, row: dict[str, Any], from_state: Optional[str], to_state: str, reason: str = "", ts: Ts = None
+        self, row: dict[str, Any], from_state: str | None, to_state: str, reason: str = "", ts: Ts = None
     ) -> None:
         """Upsert the order row and append one order_events line for this transition."""
         if row.get("exit_reason") and row["exit_reason"] not in EXIT_REASONS:
@@ -351,20 +352,20 @@ class Ledger:
                     client_order_id,
                     stamp,
                     stamp[:10],
-                    ch["turnover"],
-                    ch["brokerage"],
-                    ch["stt"],
-                    ch["exchange"],
-                    ch["sebi"],
-                    ch["stamp"],
-                    ch["gst"],
-                    ch["total"],
+                    float(ch["turnover"]),
+                    float(ch["brokerage"]),
+                    float(ch["stt"]),
+                    float(ch["exchange"]),
+                    float(ch["sebi"]),
+                    float(ch["stamp"]),
+                    float(ch["gst"]),
+                    float(ch["total"]),
                 ),
             )
             self.conn.execute(
                 "UPDATE trades SET charges = ROUND(charges + ?, 2), net_pnl = ROUND(gross_pnl - (charges + ?), 2) "
                 "WHERE trade_id = ?",
-                (ch["total"], ch["total"], charge_trade),
+                (float(ch["total"]), float(ch["total"]), charge_trade),
             )
         return charge_trade
 
@@ -390,7 +391,7 @@ class Ledger:
         )
         return trade_id
 
-    def _add_leg(self, leg: str, trade_id: str, qty: int, price: float, slip: Optional[float]) -> None:
+    def _add_leg(self, leg: str, trade_id: str, qty: int, price: float, slip: float | None) -> None:
         ss, sq = (slip * qty, qty) if slip is not None else (0.0, 0)
         self.conn.execute(
             f"UPDATE trades SET {leg}_qty = {leg}_qty + :q, {leg}_value = {leg}_value + :q * :p, "
@@ -407,12 +408,12 @@ class Ledger:
     def open_positions(self) -> list[dict[str, Any]]:
         return self._all("SELECT * FROM positions WHERE net_qty != 0 ORDER BY symbol")
 
-    def trades(self, day: Optional[str] = None) -> list[dict[str, Any]]:
+    def trades(self, day: str | None = None) -> list[dict[str, Any]]:
         if day:
             return self._all("SELECT * FROM trades WHERE day = ? ORDER BY entry_time", (day,))
         return self._all("SELECT * FROM trades ORDER BY entry_time")
 
-    def trade(self, trade_id: str) -> Optional[dict[str, Any]]:
+    def trade(self, trade_id: str) -> dict[str, Any] | None:
         row = self._one("SELECT * FROM trades WHERE trade_id = ?", (trade_id,))
         return dict(row) if row else None
 

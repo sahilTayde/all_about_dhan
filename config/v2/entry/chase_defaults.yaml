@@ -1,0 +1,7 @@
+# K20 chase defaults (founder 2026-09-27). Versioned and hashed.
+# Recalibrate once after 5 sessions of V2-D2 depth; never change intraday.
+version: "1.0.0"
+source: "K20 placeholder: p90 half-spread + 1 tick pending 5 depth sessions"
+max_chase_ticks: 2   # 2 * ₹0.05 = ₹0.10
+chase_timeout_s: 2.0
+tick_size: 0.05
