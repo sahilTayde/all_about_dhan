@@ -5,18 +5,22 @@ from __future__ import annotations
 from datetime import timedelta
 from pathlib import Path
 
+import pytest
 import yaml
 from brokers.fills import Quote
 from contracts.clock import SimClock
-from helpers import INST, NOW, SIG, REPO, make_decision, make_router
-
+from helpers import INST, NOW, REPO, SIG, make_decision, make_router
+from ledger.v2 import SqliteLedgerStore
 from oms import Account, CardPolicy
 from oms.planner import OrderPlanner, load_entry_config
 
 BAR_CLOSE = NOW - timedelta(seconds=1)
 
 
-def test_reg_04_restart_rebuilds_pending_plans_without_duplicates(tmp_path: Path) -> None:
+@pytest.mark.parametrize("store_kind", ["memory", "sqlite"])
+def test_reg_04_restart_rebuilds_pending_plans_without_duplicates(
+    tmp_path: Path, store_kind: str
+) -> None:
     entry = yaml.safe_load((REPO / "config/v2/entry_location.yaml").read_text())
     chase = yaml.safe_load((REPO / "config/v2/entry/chase_defaults.yaml").read_text())
     entry["pullback_limit"] = {"enabled": True, "limit_timeout_s": 30.0}
@@ -26,7 +30,11 @@ def test_reg_04_restart_rebuilds_pending_plans_without_duplicates(tmp_path: Path
     cpath.write_text(yaml.safe_dump(chase))
     cfg = load_entry_config(epath, cpath)
     clock = SimClock(NOW)
-    store = make_router(tmp_path, clock).store
+    store = (
+        SqliteLedgerStore(tmp_path / "aad.sqlite", migrate_schema=True)
+        if store_kind == "sqlite"
+        else make_router(tmp_path, clock).store
+    )
     first = OrderPlanner(
         clock=clock,
         router=make_router(tmp_path, clock, store=store),

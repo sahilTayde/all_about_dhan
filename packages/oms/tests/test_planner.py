@@ -19,6 +19,7 @@ from oms import Account, CardPolicy, MemoryLedger, policy_params_hash
 from oms.planner import (
     CHASE_LOOKAHEAD_S,
     OrderPlanner,
+    Side,
     entry_config_hash,
     load_entry_config,
     marketable_limit,
@@ -376,6 +377,83 @@ def test_planner_uses_sqlite_ledger_entry_plans(tmp_path: Path) -> None:
     revived = OrderPlanner(clock=clock, router=planner.router, config=planner.config, store=store)
     revived.rebuild()
     assert pid in revived._live
+
+
+def test_sqlite_process_restart_rebuild_then_timeout_no_duplicate(tmp_path: Path) -> None:
+    """Close the sqlite file, reopen a new store+planner, rebuild, drive to TIMEOUT."""
+    from ledger.v2 import SqliteLedgerStore
+
+    db = tmp_path / "aad.sqlite"
+    clock = SimClock(NOW)
+    store = SqliteLedgerStore(db, migrate_schema=True)
+    planner = _planner(tmp_path, clock, store=store)
+    planner.on_decision(
+        make_decision(), account=Account("founder"), signal_id=SIG, bar_close_ts=BAR_CLOSE
+    )
+    planner.on_quote(_quote(clock, ask=151.20))
+    pid = next(iter(store.entry_plans))
+    assert store.get_plan(pid)["status"] == "WORKING"
+    assert len(planner.router.broker.orders) == 1
+    store.close()
+
+    clock2 = SimClock(clock.now())
+    store2 = SqliteLedgerStore(db)
+    revived = OrderPlanner(
+        clock=clock2,
+        router=make_router(tmp_path, clock2, store=store2),
+        config=planner.config,
+        store=store2,
+    )
+    revived.rebuild()
+    live = revived._live[pid]
+    assert isinstance(live["policy"], CardPolicy)
+    assert live["policy"].chase_timeout_s == 2.0
+    assert isinstance(live["bar_close_ts"], type(BAR_CLOSE))
+    assert live["bar_close_ts"].tzinfo is not None
+    clock2.advance_by(timedelta(seconds=2))
+    revived.on_clock()
+    assert store2.get_plan(pid)["status"] == "MISSED_CHASE"
+    assert len(store2.entry_plans) == 1
+    assert revived.router.broker.orders == {}
+    store2.close()
+
+
+def test_memory_upsert_plan_keeps_created_at_and_identity() -> None:
+    store = MemoryLedger()
+    created = NOW
+    store.upsert_plan(
+        {
+            "plan_id": "mem-1",
+            "decision_id": "dec-orig",
+            "signal_id": "sig-orig",
+            "mode": "chase",
+            "action": "CHASE",
+            "status": "PENDING",
+            "created_at": created,
+            "side": Side.BUY,
+        }
+    )
+    store.upsert_plan(
+        {
+            "plan_id": "mem-1",
+            "decision_id": "dec-hacked",
+            "signal_id": "sig-hacked",
+            "mode": "wait_consolidation",
+            "action": "WAIT",
+            "created_at": created + timedelta(hours=1),
+            "status": "WORKING",
+            "client_order_id": "aad1",
+        }
+    )
+    got = store.get_plan("mem-1")
+    assert got is not None
+    assert got["created_at"] is created
+    assert got["decision_id"] == "dec-orig"
+    assert got["signal_id"] == "sig-orig"
+    assert got["mode"] == "chase"
+    assert got["action"] == "CHASE"
+    assert got["status"] == "WORKING"
+    assert got["client_order_id"] == "aad1"
 
 
 def test_stretch_has_no_catastrophic_price(tmp_path: Path) -> None:

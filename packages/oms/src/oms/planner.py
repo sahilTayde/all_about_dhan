@@ -4,14 +4,16 @@ from __future__ import annotations
 
 import hashlib
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, fields
 from datetime import datetime, timedelta
 from decimal import ROUND_CEILING, Decimal
+from enum import StrEnum
 from pathlib import Path
 from typing import Any, Protocol
 
-import yaml  # type: ignore[import-untyped]
+import yaml  # type: ignore[import-untyped, unused-ignore]
 from brokers.fills import TICK, Quote  # type: ignore[import-untyped, unused-ignore]
+from contracts.clock import IST
 from contracts.ids import order_id
 from contracts.payloads import Decision, EntryPlan, EntryPlanResult
 from events.bus import MemoryBus
@@ -28,6 +30,7 @@ class PlanStore(Protocol):
     def upsert_plan(self, row: dict[str, Any]) -> dict[str, Any]: ...
 
     def pending_plans(self) -> list[dict[str, Any]]: ...
+
 
 CHASE_LOOKAHEAD_S = 5.0
 SHADOW_ACTIONS = ("LIMIT:fvg", "WAIT")
@@ -51,6 +54,13 @@ def _v2_yaml(*parts: str) -> Path:
 
 ENTRY_YAML = _v2_yaml("entry_location.yaml")
 CHASE_YAML = _v2_yaml("entry", "chase_defaults.yaml")
+
+
+class Side(StrEnum):
+    """BUY/SELL tag persisted on a plan extras bag. Restored as this type, not a string."""
+
+    BUY = "BUY"
+    SELL = "SELL"
 
 
 @dataclass(frozen=True)
@@ -90,6 +100,43 @@ def policy_params_hash(policy: CardPolicy, chase_hash: str) -> str:
 def plan_id(account_id: str, decision_id: str, signal_id: str) -> str:
     digest = hashlib.sha256(f"{account_id}|{decision_id}|{signal_id}".encode()).hexdigest()[:20]
     return f"ep_{digest}"
+
+
+def _as_aware(value: Any) -> Any:
+    if isinstance(value, datetime):
+        return value if value.tzinfo is not None else value.replace(tzinfo=IST)
+    if isinstance(value, str) and value:
+        dt = datetime.fromisoformat(value)
+        return dt if dt.tzinfo is not None else dt.replace(tzinfo=IST)
+    return value
+
+
+def _hydrate_plan(row: dict[str, Any]) -> dict[str, Any]:
+    """Rebuild CardPolicy / Decision / Account and tz-aware timestamps after sqlite restore."""
+    out = dict(row)
+    pol = out.get("policy")
+    if isinstance(pol, dict):
+        policy_kw = {k: v for k, v in pol.items() if k != "__class__"}
+        zones = policy_kw.get("zones")
+        if isinstance(zones, list):
+            policy_kw["zones"] = tuple(zones)
+        allowed = {item.name for item in fields(CardPolicy)}
+        out["policy"] = CardPolicy(**{k: v for k, v in policy_kw.items() if k in allowed})
+    dec = out.get("decision")
+    if isinstance(dec, dict):
+        decision_kw = {k: v for k, v in dec.items() if k != "__class__"}
+        allowed = {item.name for item in fields(Decision)}
+        out["decision"] = Decision(**{k: v for k, v in decision_kw.items() if k in allowed})
+    acc = out.get("account")
+    if isinstance(acc, dict):
+        out["account"] = Account(str(acc.get("account_id") or "founder"))
+    side = out.get("side")
+    if isinstance(side, str) and side in {item.value for item in Side}:
+        out["side"] = Side(side)
+    for key in ("bar_close_ts", "created_at", "expires_at", "sent_at", "shadow_until"):
+        if out.get(key) is not None:
+            out[key] = _as_aware(out[key])
+    return out
 
 
 def _as_map(raw: object) -> dict[str, Any]:
@@ -384,7 +431,7 @@ class OrderPlanner:
             pid = str(row["plan_id"])
             if pid in self._live:
                 continue
-            restored = dict(row)
+            restored = _hydrate_plan(dict(row))
             restored.setdefault("quotes", [])
             restored.setdefault("bars_seen", 0)
             self._live[pid] = restored
@@ -587,6 +634,7 @@ __all__ = [
     "CardPolicy",
     "EntryLocationConfig",
     "OrderPlanner",
+    "Side",
     "entry_config_hash",
     "file_sha256",
     "load_entry_config",

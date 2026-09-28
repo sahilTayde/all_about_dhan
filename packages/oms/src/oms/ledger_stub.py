@@ -14,6 +14,7 @@ from ledger.charges import (  # type: ignore[import-untyped, unused-ignore]
 from risk_engine.engine import IST  # type: ignore[import-untyped, unused-ignore]
 
 _INDIA = India()
+_PLAN_IMMUTABLE = frozenset({"decision_id", "signal_id", "mode", "action", "created_at"})
 
 
 def _fill_lot_size(instrument_id: str) -> int | None:
@@ -63,7 +64,14 @@ class MemoryLedger:
     def upsert_plan(self, row: dict[str, Any]) -> dict[str, Any]:
         pid = str(row["plan_id"])
         if pid in self.entry_plans:
-            self.entry_plans[pid].update(row)
+            held = self.entry_plans[pid]
+            created = held.get("created_at")
+            for key, value in row.items():
+                if key in _PLAN_IMMUTABLE and key in held:
+                    continue
+                held[key] = value
+            if created is not None:
+                held["created_at"] = created
         else:
             self.entry_plans[pid] = dict(row)
         return self.entry_plans[pid]

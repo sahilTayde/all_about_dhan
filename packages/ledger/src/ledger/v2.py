@@ -4,9 +4,12 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import sqlite3
+from dataclasses import fields, is_dataclass
 from datetime import datetime
 from decimal import ROUND_HALF_UP, Decimal
+from enum import Enum
 from pathlib import Path
 from typing import Any, Protocol, Self
 
@@ -70,19 +73,137 @@ _PLAN_COLS = frozenset(
         "payload_json",
     }
 )
+_PLAN_IMMUTABLE = frozenset({"decision_id", "signal_id", "mode", "action", "created_at"})
+_PLAN_PRICE_COLS = frozenset({"zone_price", "limit_price"})
+_PLAN_ATR_COLS = frozenset({"entry_distance_atr", "signal_candle_atr"})
+_PLAN_DT_COLS = frozenset({"created_at", "expires_at", "bar_close_ts", "sent_at", "shadow_until", "updated_at"})
 
 
-def _plan_json_default(value: Any) -> Any:
+def _iso_text(value: Any) -> str | None:
+    if value is None:
+        return None
     if isinstance(value, datetime):
-        return value.isoformat()
+        dt = value if value.tzinfo is not None else value.replace(tzinfo=IST)
+        return dt.isoformat()
+    return str(value)
+
+
+def _atr_sql(value: Any) -> str | None:
+    """Full-precision ATR. Never go through money_sql (paise quantize)."""
+    if value is None:
+        return None
     if isinstance(value, Decimal):
         return format(value, "f")
+    return format(Decimal(str(value)), "f")
+
+
+_PLAN_TYPE_CACHE: dict[str, type[Any]] | None = None
+
+
+def _known_plan_types() -> dict[str, type[Any]]:
+    global _PLAN_TYPE_CACHE
+    if _PLAN_TYPE_CACHE is not None:
+        return _PLAN_TYPE_CACHE
+    found: dict[str, type[Any]] = {}
+    try:
+        from contracts.payloads import Decision, EntryPlanResult
+
+        found["Decision"] = Decision
+        found["EntryPlanResult"] = EntryPlanResult
+    except ImportError:
+        pass
+    try:
+        from oms.planner import CardPolicy, Side  # type: ignore[import-untyped]
+
+        found["CardPolicy"] = CardPolicy
+        found["Side"] = Side
+    except ImportError:
+        pass
+    try:
+        from oms.router import Account  # type: ignore[import-untyped]
+
+        found["Account"] = Account
+    except ImportError:
+        pass
+    _PLAN_TYPE_CACHE = found
+    return found
+
+
+def _encode_plan_value(value: Any) -> Any:
+    if isinstance(value, Enum):
+        return {"__enum__": type(value).__name__, "value": value.value}
+    if value is None or isinstance(value, bool | int | float | str):
+        return value
+    if isinstance(value, datetime):
+        dt = value if value.tzinfo is not None else value.replace(tzinfo=IST)
+        return {"__dt__": dt.isoformat()}
+    if isinstance(value, Decimal):
+        return {"__dec__": format(value, "f")}
+    if is_dataclass(value) and not isinstance(value, type):
+        blob: dict[str, Any] = {"__class__": type(value).__name__}
+        for item in fields(value):
+            blob[item.name] = _encode_plan_value(getattr(value, item.name))
+        return blob
+    if isinstance(value, dict):
+        return {str(k): _encode_plan_value(v) for k, v in value.items()}
+    if isinstance(value, list | tuple):
+        return [_encode_plan_value(v) for v in value]
     if hasattr(value, "__dict__") and not isinstance(value, type):
-        return {
-            "__class__": type(value).__name__,
-            **{k: v for k, v in vars(value).items() if not k.startswith("_")},
-        }
+        blob = {"__class__": type(value).__name__}
+        for key, item in vars(value).items():
+            if not key.startswith("_"):
+                blob[key] = _encode_plan_value(item)
+        return blob
     return str(value)
+
+
+def _construct_plan_type(cls: type[Any], payload: dict[str, Any]) -> Any:
+    if isinstance(cls, type) and issubclass(cls, Enum):
+        raw = payload.get("value", payload.get("name"))
+        try:
+            return cls(raw)
+        except (TypeError, ValueError):
+            return cls[str(raw)]
+    if is_dataclass(cls):
+        allowed = {item.name for item in fields(cls)}
+        kw = {k: v for k, v in payload.items() if k in allowed}
+        if cls.__name__ == "CardPolicy" and isinstance(kw.get("zones"), list):
+            kw["zones"] = tuple(kw["zones"])
+        return cls(**kw)
+    return payload
+
+
+def _decode_plan_value(value: Any) -> Any:
+    if isinstance(value, dict):
+        if "__dt__" in value:
+            dt = datetime.fromisoformat(str(value["__dt__"]))
+            return dt if dt.tzinfo is not None else dt.replace(tzinfo=IST)
+        if "__dec__" in value:
+            return Decimal(str(value["__dec__"]))
+        if "__enum__" in value:
+            cls = _known_plan_types().get(str(value["__enum__"]))
+            if cls is not None:
+                return _construct_plan_type(cls, value)
+            return value.get("value")
+        if "__class__" in value:
+            inner = {k: _decode_plan_value(v) for k, v in value.items() if k != "__class__"}
+            cls = _known_plan_types().get(str(value["__class__"]))
+            if cls is not None:
+                return _construct_plan_type(cls, inner)
+            return inner
+        return {str(k): _decode_plan_value(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_decode_plan_value(v) for v in value]
+    return value
+
+
+def _aware_from_text(value: Any) -> Any:
+    if value is None or value == "":
+        return None
+    if isinstance(value, datetime):
+        return value if value.tzinfo is not None else value.replace(tzinfo=IST)
+    dt = datetime.fromisoformat(str(value))
+    return dt if dt.tzinfo is not None else dt.replace(tzinfo=IST)
 
 
 def _row_to_plan(row: sqlite3.Row) -> dict[str, Any]:
@@ -91,8 +212,66 @@ def _row_to_plan(row: sqlite3.Row) -> dict[str, Any]:
     if blob:
         extra = json.loads(blob)
         if isinstance(extra, dict):
-            out.update(extra)
+            out.update(_decode_plan_value(extra))
+    for key in _PLAN_DT_COLS:
+        if key in out and out[key] is not None and not isinstance(out[key], datetime):
+            try:
+                out[key] = _aware_from_text(out[key])
+            except ValueError:
+                pass
+    for key in _PLAN_PRICE_COLS | _PLAN_ATR_COLS:
+        if key in out and out[key] is not None and not isinstance(out[key], Decimal):
+            try:
+                out[key] = Decimal(str(out[key]))
+            except (ValueError, ArithmeticError):
+                pass
     return out
+
+
+def _plan_payload(row: dict[str, Any]) -> dict[str, Any]:
+    extras = {k: v for k, v in row.items() if k not in _PLAN_COLS}
+    for key in _PLAN_PRICE_COLS | _PLAN_ATR_COLS | _PLAN_DT_COLS:
+        if row.get(key) is not None:
+            extras[key] = row[key]
+    extras.pop("payload_json", None)
+    for key in _PLAN_IMMUTABLE:
+        extras.pop(key, None)
+    return {k: _encode_plan_value(v) for k, v in extras.items()}
+
+
+def _connect_sqlite(path: Path | str) -> sqlite3.Connection:
+    """Open for reads even when the file is chmod 444 or file:...mode=ro. Never ALTER."""
+    raw = str(path)
+    if raw == ":memory:":
+        conn = sqlite3.connect(":memory:", isolation_level=None)
+        conn.row_factory = sqlite3.Row
+        conn.execute("PRAGMA journal_mode=WAL")
+        conn.execute("PRAGMA synchronous=FULL")
+        return conn
+    if raw.startswith("file:"):
+        conn = sqlite3.connect(raw, isolation_level=None, uri=True)
+        conn.row_factory = sqlite3.Row
+        if "mode=ro" not in raw:
+            _try_wal(conn)
+        return conn
+    disk = Path(raw)
+    if disk.exists() and not os.access(disk, os.W_OK):
+        uri = f"file:{disk.resolve().as_posix()}?mode=ro"
+        conn = sqlite3.connect(uri, isolation_level=None, uri=True)
+        conn.row_factory = sqlite3.Row
+        return conn
+    conn = sqlite3.connect(str(disk), isolation_level=None)
+    conn.row_factory = sqlite3.Row
+    _try_wal(conn)
+    return conn
+
+
+def _try_wal(conn: sqlite3.Connection) -> None:
+    try:
+        conn.execute("PRAGMA journal_mode=WAL")
+        conn.execute("PRAGMA synchronous=FULL")
+    except sqlite3.OperationalError:
+        return
 
 
 def lot_size_for_symbol(symbol_or_id: str) -> int:
@@ -183,51 +362,40 @@ class SqliteLedgerStore:
         role: str = "engine",
         feed_status: str = "UP",
     ) -> None:
-        self.path = Path(path) if str(path) != ":memory:" else Path(":memory:")
+        raw = str(path)
+        uri = raw.startswith("file:")
+        if uri:
+            no_qs = raw.split("?", 1)[0].removeprefix("file:")
+            self.path = Path(no_qs)
+        elif raw == ":memory:":
+            self.path = Path(":memory:")
+        else:
+            self.path = Path(path)
         self.role = role
         self.feed_status = feed_status
         self._in_txn = False
         self._seq = 0
         self._crash_after: str | None = None
-        if is_legacy_path(path) and not allow_legacy:
+        check_path = self.path if uri else path
+        if is_legacy_path(check_path) and not allow_legacy:
             raise LegacyPathError(f"v2 store refuses legacy path {path} unless allow_legacy=True")
-        if migrate_schema:
-            migrate(path, allow_legacy=allow_legacy)
-        if str(path) != ":memory:":
+        if migrate_schema and not uri:
+            migrate(self.path if raw != ":memory:" else path, allow_legacy=allow_legacy)
+        if raw != ":memory:" and not uri:
             Path(path).parent.mkdir(parents=True, exist_ok=True)
         # isolation_level=None: explicit BEGIN IMMEDIATE / COMMIT (no implicit txn)
-        self.conn = sqlite3.connect(str(path), isolation_level=None)
-        self.conn.row_factory = sqlite3.Row
-        self.conn.execute("PRAGMA journal_mode=WAL")
-        self.conn.execute("PRAGMA synchronous=FULL")
+        # Schema writes (ALTER / DROP+CREATE TRIGGER) happen only in migrate.py.
+        self.conn = _connect_sqlite(path)
         self.schema_version = check_schema(self.conn)
         if self.schema_version > CODE_SCHEMA_VERSION:
             raise SchemaTooNew(f"{self.schema_version} > {CODE_SCHEMA_VERSION}")
         self.rates = rates
-        self._legacy = Ledger(path, rates=rates if rates is not None else load_rates())
+        # Bind legacy helpers to this connection. Never open the same file again
+        # (Ledger() would CREATE TABLE/TRIGGER and fail on a read-only path).
+        self._legacy = Ledger(":memory:", rates=rates if rates is not None else load_rates())
         self._legacy.conn.close()
         self._legacy.conn = self.conn
         self._legacy.rates = rates if rates is not None else self._legacy.rates
-        self._install_charges_pending_trigger()
-        self._ensure_entry_plan_payload()
-
-    def _install_charges_pending_trigger(self) -> None:
-        """Allow PENDING -> FINAL in place. Trigger replacement, not a table DROP."""
-        if not self._has_column("charges", "charges_status"):
-            return
-        self.conn.execute("DROP TRIGGER IF EXISTS charges_no_update")
-        self.conn.execute(
-            "CREATE TRIGGER charges_no_update BEFORE UPDATE ON charges BEGIN "
-            "SELECT CASE WHEN OLD.charges_status = 'PENDING' THEN NULL "
-            "ELSE RAISE(ABORT, 'ledger is append-only') END; END"
-        )
-
-    def _ensure_entry_plan_payload(self) -> None:
-        """Additive extras bag so V2-08b planner rows survive restart without a new migration."""
-        if not self._has_table("entry_plans"):
-            return
-        if not self._has_column("entry_plans", "payload_json"):
-            self.conn.execute("ALTER TABLE entry_plans ADD COLUMN payload_json TEXT")
 
     def close(self) -> None:
         self.conn.close()
@@ -359,22 +527,19 @@ class SqliteLedgerStore:
     def upsert_plan(self, row: dict[str, Any]) -> dict[str, Any]:
         if not self._has_table("entry_plans"):
             raise RuntimeError("entry_plans table missing; run ledger migrate")
-        self._ensure_entry_plan_payload()
+        if not self._has_column("entry_plans", "payload_json"):
+            raise RuntimeError("entry_plans.payload_json missing; run ledger migrate")
         pid = str(row["plan_id"])
         created = row.get("created_at")
-        created_s = created.isoformat() if isinstance(created, datetime) else (created or iso_ist())
-        extras = {k: v for k, v in row.items() if k not in _PLAN_COLS}
+        created_s = _iso_text(created) if created is not None else iso_ist()
+        extras = _plan_payload(row)
         self.conn.execute(
             "INSERT INTO entry_plans (plan_id, account_id, decision_id, signal_id, mode, action, "
             "shadow_action, zone, zone_price, entry_distance_atr, signal_candle_atr, limit_price, "
             "expires_at, status, client_order_id, created_at, payload_json) "
             "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) "
             "ON CONFLICT(plan_id) DO UPDATE SET "
-            "account_id=excluded.account_id, decision_id=excluded.decision_id, "
-            "signal_id=excluded.signal_id, mode=excluded.mode, action=excluded.action, "
-            "shadow_action=excluded.shadow_action, zone=excluded.zone, "
-            "zone_price=excluded.zone_price, entry_distance_atr=excluded.entry_distance_atr, "
-            "signal_candle_atr=excluded.signal_candle_atr, limit_price=excluded.limit_price, "
+            "zone_price=excluded.zone_price, limit_price=excluded.limit_price, "
             "expires_at=excluded.expires_at, status=excluded.status, "
             "client_order_id=excluded.client_order_id, payload_json=excluded.payload_json",
             (
@@ -387,18 +552,14 @@ class SqliteLedgerStore:
                 row.get("shadow_action"),
                 row.get("zone"),
                 None if row.get("zone_price") is None else money_sql(row.get("zone_price")),
-                None
-                if row.get("entry_distance_atr") is None
-                else money_sql(row.get("entry_distance_atr")),
-                None
-                if row.get("signal_candle_atr") is None
-                else money_sql(row.get("signal_candle_atr")),
+                None if row.get("entry_distance_atr") is None else _atr_sql(row.get("entry_distance_atr")),
+                None if row.get("signal_candle_atr") is None else _atr_sql(row.get("signal_candle_atr")),
                 None if row.get("limit_price") is None else money_sql(row.get("limit_price")),
-                row.get("expires_at"),
+                _iso_text(row.get("expires_at")),
                 str(row.get("status") or "PENDING"),
                 row.get("client_order_id"),
                 created_s,
-                json.dumps(extras, default=_plan_json_default, sort_keys=True),
+                json.dumps(extras, sort_keys=True),
             ),
         )
         if not self._in_txn:
@@ -408,9 +569,7 @@ class SqliteLedgerStore:
     def pending_plans(self) -> list[dict[str, Any]]:
         if not self._has_table("entry_plans"):
             return []
-        rows = self.conn.execute(
-            "SELECT * FROM entry_plans WHERE status IN ('PENDING', 'WORKING')"
-        ).fetchall()
+        rows = self.conn.execute("SELECT * FROM entry_plans WHERE status IN ('PENDING', 'WORKING')").fetchall()
         return [_row_to_plan(r) for r in rows]
 
     @property
