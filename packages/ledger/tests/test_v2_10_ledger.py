@@ -262,3 +262,9 @@ def test_legacy_frozen_script_still_passes() -> None:
         check=False,
     )
     assert proc.returncode == 0, proc.stdout + proc.stderr
+
+
+def test_duplicate_test_module_basename_from_pr58_renamed() -> None:
+    """PR #58 shipped test_v2_10_round_fixes.py in two packages; pytest rootdir importmode collides."""
+    hits = sorted(REPO.glob("packages/*/tests/test_v2_10_round_fixes.py"))
+    assert len(hits) <= 1, f"duplicate pytest module basename: {hits}"

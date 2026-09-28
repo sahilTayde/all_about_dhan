@@ -1,5 +1,6 @@
 """Charges calculator against a hand-computed NIFTY option round trip."""
 
+from decimal import Decimal
 from pathlib import Path
 
 import pytest
@@ -53,3 +54,45 @@ def test_second_fill_of_same_order_has_no_brokerage():
 def test_bad_side_raises():
     with pytest.raises(ValueError):
         order_charges("HOLD", 65, 100.0, RATES)
+
+
+# Previous float fixture values from test_hand_computed_round_trip (paise-rounded).
+_PREVIOUS_BUY = {
+    "turnover": 6500.0,
+    "brokerage": 20.0,
+    "stt": 0.0,
+    "exchange": 2.28,
+    "sebi": 0.01,
+    "stamp": 0.2,
+    "gst": 4.01,
+    "total": 26.5,
+}
+_PREVIOUS_SELL = {
+    "turnover": 8450.0,
+    "brokerage": 20.0,
+    "stt": 12.68,
+    "exchange": 2.96,
+    "sebi": 0.01,
+    "stamp": 0.0,
+    "gst": 4.13,
+    "total": 39.78,
+}
+
+
+def test_charges_return_decimal_equals_fixture_paisa() -> None:
+    """order_charges returns Decimal end to end; paisa-equal to the previous float fixtures."""
+    paise = Decimal("0.01")
+    buy = order_charges("BUY", 65, 100.0, RATES)
+    sell = order_charges("SELL", 65, 130.0, RATES)
+    assert buy.keys() == _PREVIOUS_BUY.keys()
+    assert sell.keys() == _PREVIOUS_SELL.keys()
+    for key, prev in _PREVIOUS_BUY.items():
+        assert isinstance(buy[key], Decimal), f"{key} must be Decimal, got {type(buy[key])}"
+        assert Decimal(str(buy[key])).quantize(paise) == Decimal(str(prev)).quantize(paise)
+    for key, prev in _PREVIOUS_SELL.items():
+        assert isinstance(sell[key], Decimal), f"{key} must be Decimal, got {type(sell[key])}"
+        assert Decimal(str(sell[key])).quantize(paise) == Decimal(str(prev)).quantize(paise)
+    # Decimal price in, Decimal out (no float round-trip).
+    priced = order_charges("BUY", 65, Decimal("100.00"), RATES)
+    assert all(isinstance(v, Decimal) for v in priced.values())
+    assert priced["total"].quantize(paise) == Decimal("26.50")
