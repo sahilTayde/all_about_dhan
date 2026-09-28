@@ -120,6 +120,65 @@ def test_flatten_never_exceeds_net_qty(tmp_path: object) -> None:
     assert alerts == ["HEALTH_ALERT"]
 
     spy.place_calls = 0
-    with pytest.raises(ValueError, match="whole lot"):
-        router.exit({**pos, "net_qty": 10}, "FLATTEN")
+    rejected = router.exit({**pos, "net_qty": 10}, "FLATTEN")
+    assert isinstance(rejected, Veto)
+    assert rejected.reason_code == "SUB_LOT"
     assert spy.place_calls == 0
+
+
+def test_exit_flat_is_noop_rejected(tmp_path: object, caplog: pytest.LogCaptureFixture) -> None:
+    """Flat book: exit() is a no-op with an explicit rejected result, never ValueError."""
+    import logging
+
+    clock = SimClock(NOW)
+    spy = SpyBroker(clock=clock)
+    router = make_router(tmp_path, clock, broker=spy)  # type: ignore[arg-type]
+    pos = {
+        "instrument_id": INST,
+        "net_qty": 0,
+        "account_id": "founder",
+        "avg_price": 151.40,
+        "entry_order_id": "x",
+        "symbol": "NIFTY 24400 CE",
+    }
+    caplog.set_level(logging.INFO)
+    out = router.exit(pos, "FLATTEN")
+    assert isinstance(out, Veto)
+    assert out.reason_code == "FLAT"
+    assert spy.place_calls == 0
+    assert "FLAT" in caplog.text
+    assert "flat" in caplog.text.lower()
+
+
+def test_exit_sub_lot_remainder_whole_lots_only(
+    tmp_path: object, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Sub-lot remainder: sell whole lots only; under one lot is rejected."""
+    import logging
+
+    clock = SimClock(NOW)
+    spy = SpyBroker(clock=clock)
+    router = make_router(tmp_path, clock, broker=spy)  # type: ignore[arg-type]
+    pos = {
+        "instrument_id": INST,
+        "net_qty": 70,
+        "account_id": "founder",
+        "avg_price": 151.40,
+        "entry_order_id": "x",
+        "symbol": "NIFTY 24400 CE",
+    }
+    router.store.positions[INST] = dict(pos)
+    caplog.set_level(logging.INFO)
+    order = router.exit(pos, "FLATTEN")
+    assert not isinstance(order, Veto)
+    assert spy.place_calls == 1
+    assert int(spy.last_intent.qty) == NIFTY_LOT
+    assert int(spy.last_intent.qty) % NIFTY_LOT == 0
+    assert int(order.intent.qty) == NIFTY_LOT
+
+    spy.place_calls = 0
+    out = router.exit({**pos, "net_qty": 10}, "FLATTEN")
+    assert isinstance(out, Veto)
+    assert out.reason_code == "SUB_LOT"
+    assert spy.place_calls == 0
+    assert "SUB_LOT" in caplog.text or "lot" in caplog.text.lower()

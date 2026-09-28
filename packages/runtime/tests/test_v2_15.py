@@ -176,7 +176,8 @@ def test_run_with_deadline_times_out_without_partial(tmp_path: Path) -> None:
 
 
 def test_job_registry_matches_ticket() -> None:
-    assert set(JOBS) == {"replay", "forward-eval", "etl", "bench-legacy", "pre-market", "backup"}
+    assert {"replay", "forward-eval", "etl", "bench-legacy", "pre-market", "backup"} <= set(JOBS)
+    assert {"merge-gate", "perf"} <= set(JOBS)
     assert all(s > 0 for s in JOBS.values())
 
 

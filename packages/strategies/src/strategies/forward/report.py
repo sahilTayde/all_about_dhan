@@ -24,6 +24,8 @@ class ForwardReport:
     legs: dict[str, dict[str, float]] = field(default_factory=dict)
     kernel_envelopes: int = 0
     kernel_hash: str = ""
+    events_reordered: int = 0
+    events_late_dropped: int = 0
     skipped: bool = False
     reason: str = ""
 

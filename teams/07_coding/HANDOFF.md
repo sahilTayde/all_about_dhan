@@ -1,5 +1,153 @@
 # Handoff log — Team 07 Coding
 
+## As of now (2026-09-28 IST) — merge main 6d4e645 (#64) into V2-recorder (PAPER)
+
+```text
+From:     teams/07_coding
+To:       founder / 00 / 09
+Date:     2026-09-28
+Status:   PAPER / V2-recorder ∪ gateway ingest / NO_PROMOTE / no live orders
+Accepted: Normal-merge origin/main 6d4e645. Keep BOTH imports:
+  uuid (main command_id) + dataclasses.replace (#63 v=1 bus stamp).
+  #63 stamps available_ts from hub clock so MemoryBus is not lookahead.
+  test_ingest_from_memory_bus stays unpinned GatewayHub(bus).
+Rejected: Rebase / force-push. Dropping either import.
+UNKNOWN: none
+```
+
+## As of now (2026-09-28 IST) — merge main 045ce0e (#65) into V2-OMS-risk (PAPER)
+
+```text
+From:     teams/07_coding
+To:       founder / 00 / 09
+Date:     2026-09-28
+Status:   PAPER / V2-OMS-risk ∪ V2-08b ∪ V2-11 / NO_PROMOTE / no live orders
+Accepted: Normal-merge origin/main 045ce0e (#61 #55 #59 #60 #65). Keep BOTH:
+  founder veto first on submit, then _catastrophic_price(risk, qty).
+  exit() uses store-agnostic _live_position; missing row skips resize
+  (snapshot flatten never raises). Live row uses #64 Veto (FLAT/SUB_LOT),
+  not raise. cancel() + _reject_exit stay. Ledger keeps planner helpers
+  + Decimal order_charges. Gateway clock pin stays unpinned.
+Rejected: Rebase / force-push. Dropping founder veto, risk-qty stop,
+  or raising on a missing store row.
+UNKNOWN: none
+```
+
+## As of now (2026-09-28 IST) — merge main c723001 (#59) into V2-16 (PAPER)
+
+```text
+From:     teams/07_coding
+To:       founder / 00 / 09
+Date:     2026-09-28
+Status:   PAPER / V2-16 / NO_PROMOTE / advisory BLOCK (exit 0)
+Accepted: Normal-merge origin/main c723001 (incl #61 #55 #59).
+  Gate stays advisory. GATE_ENFORCE is not set.
+Rejected: Rebase / force-push. GATE_ENFORCE=1.
+UNKNOWN: none
+```
+
+## As of now (2026-09-28 IST) — V2-16 advisory mode (do not paint CI red)
+
+```text
+From:     teams/07_coding
+To:       founder / 00 / 09
+Date:     2026-09-28
+Status:   PAPER / V2-16 / NO_PROMOTE / advisory BLOCK (exit 0)
+Accepted: Verdict step always writes the full gate JSON.
+  Default advisory: BLOCK exits 0. GATE_ENFORCE=1 BLOCKs with exit 1.
+  --merge / --push still exit 2. Missing/stub never PASS.
+Rejected: GATE_ENFORCE=1. Making gate a required check today.
+UNKNOWN: none
+```
+
+## As of now (2026-09-28 IST) — merge main 0d7951c (#61+#62) into V2-08b (PAPER)
+
+```text
+From:     teams/07_coding
+To:       founder / 00 / 09
+Date:     2026-09-28
+Status:   PAPER / V2-08b + V2-11 union / NO_PROMOTE / no live orders
+Accepted: Normal-merge origin/main 0d7951c. Keep BOTH:
+  V2-11 _founder_entry_veto first on submit, then V2-08b
+  _catastrophic_price(risk, qty). exit() uses store-agnostic
+  _live_position; missing row skips resize (snapshot flatten
+  never raises). Live sqlite/memory row still resizes.
+Rejected: Rebase / force-push. Dropping founder veto or risk-qty stop.
+UNKNOWN: none
+```
+
+## As of now (2026-09-28 IST) — merge main 78013e4 (V2-10) into V2-08b (PAPER)
+
+```text
+From:     teams/07_coding
+To:       founder / 00 / 09
+Date:     2026-09-28
+Status:   PAPER / V2-08b + V2-10 union / NO_PROMOTE / no live orders
+Accepted: Normal-merge origin/main 78013e4 (#58). Keep BOTH:
+  V2-10 SqliteLedgerStore / crash recovery / FEED_STALE /
+  HALT_UNREADABLE / STRATEGY_DAILY_LOSS / reduce-only
+  and V2-08b planner/chase. MemoryLedger is the in-memory
+  adapter (not superseded): entry_plans + snapshot veto
+  fields. Planner PlanStore API also writes the real
+  ledger entry_plans table. Risk before broker. Never MARKET.
+Rejected: Two durable ledgers. Rebase / force-push.
+UNKNOWN: none
+```
+
+## As of now (2026-09-28 IST) — V2-11 + main 78013e4 (PAPER)
+
+```text
+From:     teams/07_coding
+To:       founder / 00 / 09
+Date:     2026-09-28
+Status:   PAPER / V2-11 / NO_PROMOTE / no live orders
+Accepted: Normal merge of origin/main 78013e4. Kept #54 BAR_CLOSED
+  same-underlying + #61 targeted FOUNDER_COMMAND skip. Kept #58
+  FEED_STALE / HALT_UNREADABLE / STRATEGY_DAILY_LOSS / reduce-only
+  and #61 FOUNDER_LOTS_CAP. Runtime keeps flatten and llm-advisor.
+Rejected: Rebase / force-push. Dropping any veto.
+UNKNOWN: none for this merge.
+```
+
+## As of now (2026-09-28 IST) — V2-11 fix round (PR #61 verifier)
+
+```text
+From:     teams/07_coding
+To:       founder / 00 / 09
+Date:     2026-09-28
+Status:   PAPER / V2-11 / NO_PROMOTE / no live orders
+Accepted: Normal merge of PR #49 head 65fea643 (lot-size guards).
+  OrderRouter.submit consults CommandBook: PAUSE/STOP/INDEX/
+  BASKET_REMOVE veto entries; SET_LOTS caps lots (ceiling from
+  config/risk_limits.yaml paper max_lots_per_trade=25).
+  KILL cancels working ENTRY orders and flattens via the wired
+  paper manager. Command log JSONL under data/ledger (same tree
+  as the ledger); resent command_id after restart is a no-op.
+  attach_gateway uses AAD_STATE_DIR or cwd (not mkdtemp on the
+  real api). Founder token is a label, not auth.
+Rejected: Rebase / force-push. DhanBroker. requirements/* edits.
+UNKNOWN: retarget to main after #45, #49, #58 merge.
+```
+
+## As of now (2026-09-27 IST) — V2-11 founder controls v2 (PAPER)
+
+```text
+From:     teams/07_coding
+To:       founder / 00 / 09
+Date:     2026-09-27
+Status:   PAPER / V2-11 / NO_PROMOTE / no live orders
+Accepted: Branched from cursor/v2-10-ledger-crash-recovery-dcfd, then
+  a normal merge of PR #49 head cursor/v2-09-position-manager-7d86
+  @ 2229844f8baad6c3a09209d770ee96434a850c4c. packages/control
+  command log + engine handler + gateway /v2/control routes.
+  Flatten/kill go through PositionManager + risk.check_flatten.
+  KILL_SWITCH file + python -m runtime flatten work with Redis
+  down. DhanBroker never constructed. requirements/* unchanged.
+  Later: normal merge of updated V2-10 tip (atomic fills / lot veto).
+Rejected: Live/Dhan path. Gateway applying entries. Rebase / force-push.
+UNKNOWN: retarget to main after #45, #49, #58 merge.
+```
+
 ## As of now (2026-09-27 IST) — V2-19 llm-advisor service (PAPER)
 
 ```text

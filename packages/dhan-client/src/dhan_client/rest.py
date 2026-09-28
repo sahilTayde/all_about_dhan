@@ -7,13 +7,19 @@ both; VERIFY FROM DOCS if a call fails with DH-905.
 
 from __future__ import annotations
 
-from typing import Any, Mapping, Optional
+from collections.abc import Mapping
+from typing import Any
 
 import httpx
 
 from dhan_client.config import Settings
 from dhan_client.errors import DhanApiError
 from dhan_client.logging_util import get_logger, redact_mapping, redact_url
+from dhan_client.rate_limit import (
+    EndpointRateLimiter,
+    default_limiter,
+    is_rate_limit_error,
+)
 
 log = get_logger(__name__)
 
@@ -33,10 +39,17 @@ def dry_run_envelope(method: str, path: str, body: Any = None) -> dict[str, Any]
 
 
 class RestClient:
-    def __init__(self, settings: Settings, *, timeout: float = 180.0) -> None:
+    def __init__(
+        self,
+        settings: Settings,
+        *,
+        timeout: float = 180.0,
+        limiter: EndpointRateLimiter | None = None,
+    ) -> None:
         self.settings = settings
         self._timeout = timeout
-        self._http: Optional[httpx.Client] = None
+        self._http: httpx.Client | None = None
+        self._limiter = limiter if limiter is not None else default_limiter()
 
     def close(self) -> None:
         if self._http is not None:
@@ -69,14 +82,15 @@ class RestClient:
         path: str,
         *,
         json_body: Any = None,
-        extra_headers: Optional[Mapping[str, str]] = None,
-        params: Optional[Mapping[str, str]] = None,
+        extra_headers: Mapping[str, str] | None = None,
+        params: Mapping[str, str] | None = None,
     ) -> dict[str, Any]:
         path = path if path.startswith("/") else f"/{path}"
         if self.settings.dry_run:
             log.info("dry-run REST %s %s", method.upper(), path)
             return dry_run_envelope(method.upper(), path, json_body)
 
+        self._limiter.acquire(path)
         url = f"{self.settings.api_base.rstrip('/')}{path}"
         headers = self._headers()
         if extra_headers:
@@ -94,7 +108,14 @@ class RestClient:
         except httpx.HTTPError as exc:
             raise DhanApiError(f"network error calling {path}") from exc
 
-        return self._parse_response(path, response)
+        try:
+            parsed = self._parse_response(path, response)
+        except DhanApiError as exc:
+            if is_rate_limit_error(exc):
+                self._limiter.note_rate_limit(path)
+            raise
+        self._limiter.note_success(path)
+        return parsed
 
     def get_public(self, url: str) -> httpx.Response:
         """Unauthenticated GET (scrip-master CSVs on images.dhan.co)."""
@@ -120,10 +141,18 @@ class RestClient:
         error_type = error_code = None
         message = f"HTTP {response.status_code} from {path}"
         if isinstance(payload, dict):
-            # Documented error shape: errorType, errorCode, errorMessage
+            # Documented error shape: errorType, errorCode, errorMessage.
+            # Live 429 also arrives as {'805': 'Too many requests. ...'}.
             error_type = payload.get("errorType")
             error_code = payload.get("errorCode")
             err_msg = payload.get("errorMessage")
+            if error_code is None:
+                for key, value in payload.items():
+                    if str(key) in {"805", "429"}:
+                        error_code = str(key)
+                        if err_msg is None:
+                            err_msg = value
+                        break
             if err_msg:
                 message = str(err_msg)
             else:

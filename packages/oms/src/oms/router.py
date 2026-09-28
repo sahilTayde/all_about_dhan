@@ -5,18 +5,35 @@ from __future__ import annotations
 import logging
 from collections.abc import Callable
 from dataclasses import dataclass, replace
+from decimal import ROUND_CEILING, Decimal
 from typing import Any, Protocol, cast
 
-from brokers.factory import LiveBrokerDisabled, make_broker
-from brokers.fills import ClockedPaperBroker, ModifyUnsupported, Quote
-from brokers.orders import Order, OrderRefused, OrderState, Position, exit_intent
+from brokers.factory import (  # type: ignore[import-untyped, unused-ignore]
+    LiveBrokerDisabled,
+    make_broker,
+)
+from brokers.fills import (  # type: ignore[import-untyped, unused-ignore]
+    ClockedPaperBroker,
+    ModifyUnsupported,
+    Quote,
+)
+from brokers.orders import (  # type: ignore[import-untyped, unused-ignore]
+    Order,
+    OrderRefused,
+    OrderState,
+    Position,
+    exit_intent,
+)
 from contracts.ids import order_id
 from contracts.instruments import India
 from contracts.payloads import Decision, EntryPlan, ExitPlan
 from events.bus import MemoryBus
 from ledger.charges import load_rates  # type: ignore[import-untyped, unused-ignore]
-from risk_engine import RiskDecision, TradeIntent
-from risk_engine.last_good import LastGood, V2RiskEngine
+from risk_engine import RiskDecision, TradeIntent  # type: ignore[import-untyped, unused-ignore]
+from risk_engine.last_good import (  # type: ignore[import-untyped, unused-ignore]
+    LastGood,
+    V2RiskEngine,
+)
 
 from oms.exits import whole_lots_qty
 from oms.ledger_stub import MemoryLedger
@@ -28,6 +45,8 @@ _LOG = logging.getLogger(__name__)
 _LOT_SIZE_MISMATCH = "LOT_SIZE_MISMATCH"
 _QTY_NOT_WHOLE_LOT = "QTY_NOT_WHOLE_LOT"
 _ODD_LOT_FLATTEN = "ODD_LOT_FLATTEN"
+_FLAT_EXIT = "FLAT"
+_SUB_LOT_EXIT = "SUB_LOT"
 
 
 class PaperDeskBroker(Protocol):
@@ -53,7 +72,6 @@ class PaperDeskBroker(Protocol):
     def on_depth(self, quote: Quote) -> None: ...
 
     def _fill(self, order: Order, px: float, ts: Any) -> None: ...
-
 
 def is_paper_desk_broker(broker: object) -> bool:
     """True only for a paper desk broker. Live-like name or mode is never paper."""
@@ -116,9 +134,11 @@ class OrderRouter:
         store: MemoryLedger | None = None,
         bus: MemoryBus | None = None,
         rates: LastGood | None = None,
+        controls: Any | None = None,
     ) -> None:
         self.clock = clock
         self.risk = risk
+        self.controls = controls
         raw: object = broker if broker is not None else make_broker(mode="paper", clock=clock)
         self.broker = require_paper_broker(raw)
         self.store = store if store is not None else MemoryLedger()
@@ -135,6 +155,34 @@ class OrderRouter:
             return
         got = self.rates.get()
         self.store.rates = got
+
+    def _founder_entry_veto(
+        self,
+        oid: str,
+        instrument_id: str,
+        lots: int,
+        plan: EntryPlan,
+        decision: Decision,
+    ) -> Veto | None:
+        """PAUSE / STOP / INDEX / BASKET_REMOVE / SET_LOTS / KILL consult the CommandBook."""
+        ctl = self.controls
+        if ctl is None:
+            return None
+        now = self.clock.now()
+        und = ""
+        if instrument_id:
+            und = underlying_from_instrument(instrument_id)
+        elif getattr(decision, "underlying", None):
+            und = str(decision.underlying)
+        sid = str(getattr(plan, "signal_id", "") or "")
+        why = ctl.allows_entry(now, underlying=und, strategy_id=sid)
+        if why:
+            return self._veto(oid, why, why)
+        book = ctl.book()
+        cap = book.state_at(now.timestamp()).lots
+        if cap is not None and lots > int(cap):
+            return self._veto(oid, "FOUNDER_LOTS_CAP", f"{lots} lots exceeds SET_LOTS ({cap})")
+        return None
 
     def _intent(
         self,
@@ -197,7 +245,10 @@ class OrderRouter:
         lot_size = lot_size_for(instrument_id)
         if decision.lot_size is not None and int(decision.lot_size) != lot_size:
             return self._lot_mismatch_veto(oid, int(decision.lot_size), lot_size, "decision")
-        stop = _catastrophic_price(plan, decision)
+        blocked = self._founder_entry_veto(oid, instrument_id, lots, plan, decision)
+        if blocked is not None:
+            return blocked
+        stop = _catastrophic_price(plan, decision, risk=self.risk, qty=max(0, lots * lot_size))
         intent = self._intent(
             client_order_id=oid,
             instrument_id=instrument_id,
@@ -232,8 +283,13 @@ class OrderRouter:
                     "account_id": account.account_id,
                     "signal_id": plan.signal_id,
                     "instrument_id": instrument_id,
+                    "symbol": symbol_from_instrument(instrument_id),
                     "lots": lots,
                     "lot_size": lot_size,
+                    "side": "BUY",
+                    "order_type": "LIMIT",
+                    "price": plan.limit_price,
+                    "decision_price": plan.limit_price,
                     "purpose": "ENTRY",
                     "needs_lookup": False,
                     "stop_loss": stop,
@@ -245,6 +301,7 @@ class OrderRouter:
         placed = self._place_entry(intent, rd, oid)
         if isinstance(placed, Veto):
             return placed
+        self._mark_submitted(oid)
         self.broker.remember(
             oid,
             available_ts=self.clock.now(),
@@ -298,7 +355,9 @@ class OrderRouter:
             stop_loss=(
                 float(existing["stop_loss"])
                 if existing.get("stop_loss") is not None
-                else _catastrophic_price(plan, decision)
+                else _catastrophic_price(
+                    plan, decision, risk=self.risk, qty=max(0, lots * lot_size)
+                )
             ),
             purpose="ENTRY",
             side="BUY",
@@ -311,6 +370,7 @@ class OrderRouter:
             raise
         if isinstance(placed, Veto):
             return placed
+        self._mark_submitted(oid)
         self.broker.remember(
             oid,
             available_ts=self.clock.now(),
@@ -351,6 +411,42 @@ class OrderRouter:
             if row is not None:
                 row["needs_lookup"] = True
             raise
+
+    def _mark_submitted(self, oid: str) -> None:
+        marker = getattr(self.store, "mark_order_status", None)
+        if callable(marker):
+            marker(oid, OrderState.SUBMITTED.value)
+
+    def _live_position(self, key: str) -> dict[str, Any] | None:
+        getter = getattr(self.store, "get_position", None)
+        if callable(getter):
+            got = getter(key)
+            return got if isinstance(got, dict) else None
+        positions = getattr(self.store, "positions", None)
+        if isinstance(positions, dict):
+            row = positions.get(key)
+            return row if isinstance(row, dict) else None
+        return None
+
+    def _protective_id(self, key: str) -> str | None:
+        getter = getattr(self.store, "get_protective", None)
+        if callable(getter):
+            got = getter(key)
+            return str(got) if got else None
+        prot = getattr(self.store, "protective", None)
+        if isinstance(prot, dict):
+            got = prot.get(key)
+            return str(got) if got else None
+        return None
+
+    def _clear_protective(self, key: str) -> None:
+        clearer = getattr(self.store, "clear_protective", None)
+        if callable(clearer):
+            clearer(key)
+            return
+        prot = getattr(self.store, "protective", None)
+        if isinstance(prot, dict):
+            prot.pop(key, None)
 
     def _veto(self, oid: str, code: str, reason: str) -> Veto:
         self.bus.publish(
@@ -406,7 +502,7 @@ class OrderRouter:
 
     def _place_protective_stop(self, parent: Order) -> None:
         key = parent.intent.instrument_id or parent.intent.symbol
-        live = self.store.positions.get(key) or {}
+        live = self._live_position(key) or {}
         remaining = int(live.get("net_qty") or (parent.intent.lots * parent.intent.lot_size))
         row = self.store.get_order(parent.client_order_id)
         ctx = {
@@ -416,14 +512,17 @@ class OrderRouter:
             "entry_order_id": (row or {}).get("signal_id")
             or live.get("entry_order_id")
             or parent.client_order_id,
-            "stop_price": parent.intent.stop_loss or live.get("stop_price") or 0.05,
+            # ExitPlan catastrophic (V2-09) wins for the resting SL-M. Entry
+            # intent.stop_loss stays the V2-08b risk-config floor (never stretch)
+            # and is only the fallback when no position stop_price exists.
+            "stop_price": live.get("stop_price") or parent.intent.stop_loss or 0.05,
             "lot_size": parent.intent.lot_size,
         }
         self.sync_protective_stop(ctx, remaining)
 
     def _sync_stop_after_sell(self, order: Order, account_id: str) -> None:
         key = order.intent.instrument_id or order.intent.symbol
-        live = self.store.positions.get(key)
+        live = self._live_position(key)
         remaining = int(live["net_qty"]) if live else 0
         ctx = (
             dict(live)
@@ -521,14 +620,14 @@ class OrderRouter:
             return
         lot = lot_size_for(inst) if inst else int(position.get("lot_size") or 1)
         remaining = whole_lots_qty(max(0, int(remaining_qty)), lot)
-        live = self.store.positions.get(key)
+        live = self._live_position(key)
         live_net = int(live["net_qty"]) if live is not None else remaining
         remaining = min(remaining, whole_lots_qty(max(0, live_net), lot))
         open_stops = [o for o in self._open_stop_orders(key) if o.client_order_id != keep]
         if remaining <= 0:
             for order in open_stops:
                 self._cancel_stop(order, reason="POSITION_FLAT")
-            self.store.protective.pop(key, None)
+            self._clear_protective(key)
             return
         if len(open_stops) == 1:
             cur = open_stops[0]
@@ -602,7 +701,7 @@ class OrderRouter:
         trigger: float,
         inst: str,
     ) -> bool:
-        live = self.store.positions.get(key)
+        live = self._live_position(key)
         live_net = int(live["net_qty"]) if live is not None else remaining
         place_qty = min(remaining, whole_lots_qty(max(0, live_net), lot))
         if place_qty <= 0 or place_qty > live_net:
@@ -642,7 +741,7 @@ class OrderRouter:
             return rd
         if rd.reason_code == "MODE_NOT_ENABLED":
             return rd
-        live = self.store.positions.get(intent.instrument_id or intent.symbol)
+        live = self._live_position(intent.instrument_id or intent.symbol)
         net = int(live["net_qty"]) if live is not None else 0
         if intent.side == "SELL" and intent.purpose == "EXIT" and 0 < intent.qty <= net:
             return RiskDecision(
@@ -657,7 +756,7 @@ class OrderRouter:
 
     def _failsafe_flatten_naked(self, position: dict[str, Any], key: str) -> None:
         """CRITICAL alert + paper market flatten so the book is never open without a stop."""
-        live = self.store.positions.get(key)
+        live = self._live_position(key)
         inst = str((live or position).get("instrument_id") or key)
         lot = lot_size_for(inst) if inst else int(position.get("lot_size") or 1)
         flatten_qty = whole_lots_qty(int((live or position).get("net_qty") or 0), lot)
@@ -678,7 +777,7 @@ class OrderRouter:
             )
         for order in list(self._open_stop_orders(key)):
             self._cancel_stop(order, reason=_STOP_RESIZE_FAILED)
-        self.store.protective.pop(key, None)
+        self._clear_protective(key)
         if flatten_qty <= 0:
             return
         acc = str((live or position).get("account_id") or "founder")
@@ -721,7 +820,21 @@ class OrderRouter:
         if order.is_open:
             self.broker._fill(order, float(hint), self.clock.now())
 
-    def exit(self, position: dict[str, Any], reason: str) -> Order:
+    def _reject_exit(self, code: str, detail: str, *, reason: str) -> Veto:
+        _LOG.info("exit rejected %s reason=%s detail=%s", code, reason, detail)
+        return Veto("", code, detail)
+
+    def cancel(self, client_order_id: str, reason: str = "TIMEOUT_UNFILLED") -> Order | None:
+        """Cancel an open paper order (chase / limit timeout). Never a live path."""
+        order = self.broker.orders.get(client_order_id)
+        if order is None:
+            return None
+        if not getattr(order, "is_open", False):
+            return order
+        rd = RiskDecision(True, client_order_id, "CANCEL", "OK", reason, self.clock.now())
+        return self.broker.cancel_order(order, rd, reason)
+
+    def exit(self, position: dict[str, Any], reason: str) -> Order | Veto:
         """REG-03: always `exit_intent` from the held instrument and whole-lot qty."""
         inst = str(position.get("instrument_id") or "")
         lot = lot_size_for(inst)
@@ -741,25 +854,49 @@ class OrderRouter:
                 },
                 source="oms",
             )
-        if qty <= 0 or qty > raw_net:
-            raise ValueError(f"exit qty {raw_net} has no whole lot <= net (lot {lot})")
+        if raw_net == 0 or qty <= 0:
+            code = _FLAT_EXIT if raw_net == 0 else _SUB_LOT_EXIT
+            return self._reject_exit(
+                code,
+                f"exit {reason}: net_qty {raw_net} has no whole lot to close (lot {lot})",
+                reason=reason,
+            )
+        if qty > raw_net:
+            return self._reject_exit(
+                _SUB_LOT_EXIT,
+                f"exit {reason}: whole-lot qty {qty} exceeds net {raw_net} (lot {lot})",
+                reason=reason,
+            )
         key = inst or str(position.get("symbol") or "")
-        live = self.store.positions.get(key)
-        live_net = int(live["net_qty"]) if live is not None else qty
-        remaining = max(0, live_net - qty)
-        # Resize before a partial leaves the book. Flatten keeps the stop until the
-        # exit fill lands so a CLOCK-only time stop is never naked; after-fill sync
-        # cancels at net_qty == 0.
-        if remaining > 0:
-            self.sync_protective_stop(live or position, remaining)
-        live_after = self.store.positions.get(key)
-        live_net_after = int(live_after["net_qty"]) if live_after is not None else 0
-        if live_net_after <= 0:
-            for order in reversed(list(self.broker.orders.values())):
-                if (order.intent.exit_reason or "") == _STOP_RESIZE_FAILED:
-                    return order
-            raise ValueError("exit qty must be a whole lot")
-        qty = min(qty, whole_lots_qty(live_net_after, lot))
+        live = self._live_position(key)
+        # Snapshot flatten (CLI / lot-guard tests) has no store row — send whole lots.
+        # A live book row still resizes the protective stop before a partial leave.
+        if live is not None:
+            live_net = int(live["net_qty"])
+            remaining = max(0, live_net - qty)
+            # Resize before a partial leaves the book. Flatten keeps the stop until the
+            # exit fill lands so a CLOCK-only time stop is never naked; after-fill sync
+            # cancels at net_qty == 0.
+            if remaining > 0:
+                self.sync_protective_stop(live, remaining)
+            live_after = self._live_position(key)
+            live_net_after = int(live_after["net_qty"]) if live_after is not None else 0
+            if live_net_after <= 0:
+                for order in reversed(list(self.broker.orders.values())):
+                    if (order.intent.exit_reason or "") == _STOP_RESIZE_FAILED:
+                        return order
+                return self._reject_exit(
+                    _FLAT_EXIT,
+                    f"exit {reason}: position is flat after protective resize (lot {lot})",
+                    reason=reason,
+                )
+            qty = min(qty, whole_lots_qty(live_net_after, lot))
+            if qty <= 0:
+                return self._reject_exit(
+                    _SUB_LOT_EXIT,
+                    f"exit {reason}: live net {live_net_after} is smaller than one lot {lot}",
+                    reason=reason,
+                )
         acc = str(position.get("account_id") or "founder")
         parent = str(position.get("entry_order_id") or position.get("position_id") or "x")
         self._exit_seq += 1
@@ -789,7 +926,7 @@ class OrderRouter:
 
     def tighten_stop(self, position_key: str, new_trigger: float) -> None:
         """Trail: move the resting protective stop only toward safety (higher for a long)."""
-        oid = self.store.protective.get(position_key)
+        oid = self._protective_id(position_key)
         if not oid:
             return
         order = self.broker.orders.get(oid)
@@ -802,21 +939,57 @@ class OrderRouter:
         self.broker.remember(oid, trigger_price=new_trigger)
 
     def cancel_protective(self, position_key: str) -> None:
-        live = self.store.positions.get(position_key) or {"instrument_id": position_key}
+        live = self._live_position(position_key) or {"instrument_id": position_key}
         self.sync_protective_stop(live, 0)
 
 
-def _catastrophic_price(plan: EntryPlan, decision: Decision) -> float | None:
-    stretch = plan.stretch or {}
-    raw = stretch.get("catastrophic_price")
-    if raw is not None:
-        return float(raw)
-    loc = decision.entry_location or {}
-    if "catastrophic_price" in loc:
-        return float(loc["catastrophic_price"])
-    if decision.limit_price:
-        return max(0.05, float(decision.limit_price) - 1.0)
-    return max(0.05, plan.limit_price - 1.0)
+def _max_loss_rupees(risk: Any) -> float:
+    """Paper house stop from risk_limits.yaml (₹30k on paper). Stretch is not a source."""
+    cfg: dict[str, Any] | None = None
+    limits = getattr(risk, "limits", None)
+    getter = getattr(limits, "get", None)
+    if callable(getter):
+        got = getter()
+        if isinstance(got, dict):
+            cfg = got
+    if cfg is None:
+        return 30000.0
+    mode = str(cfg.get("mode") or "paper")
+    block = (cfg.get("modes") or {}).get(mode) or {}
+    try:
+        return abs(float(block.get("max_loss_per_trade") or 30000))
+    except (TypeError, ValueError):
+        return 30000.0
+
+
+def _stop_from_max_loss(entry: float, qty: int, max_loss: float) -> float:
+    """BUY stop at or below entry so worst-case rupees ≤ max_loss, on the 0.05 grid."""
+    tick = Decimal(str(0.05))
+    entry_d = Decimal(str(entry)) if entry > 0 else tick
+    if qty <= 0:
+        return float(tick)
+    pts = Decimal(str(max_loss)) / Decimal(qty)
+    raw = entry_d - pts
+    if raw < tick:
+        return float(tick)
+    units = (raw / tick).to_integral_value(rounding=ROUND_CEILING)
+    stop = units * tick
+    if stop >= entry_d:
+        stop = entry_d - tick
+    return float(max(tick, stop))
+
+
+def _catastrophic_price(
+    plan: EntryPlan,
+    decision: Decision,
+    *,
+    risk: Any | None = None,
+    qty: int = 0,
+) -> float:
+    """Catastrophic stop from the risk config, never from stretch."""
+    entry = float(plan.limit_price or 0) or float(decision.limit_price or 0) or 0.05
+    max_loss = _max_loss_rupees(risk) if risk is not None else 30000.0
+    return _stop_from_max_loss(entry, qty, max_loss)
 
 
 def _moneyness(decision: Decision) -> str:

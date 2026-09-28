@@ -1,5 +1,40 @@
 # Handoff log — Team 06 Backtesting
 
+## As of now (2026-09-28 IST) — retarget V2-20b #66 onto main fc5eba7 (PAPER)
+
+```text
+From:     teams/06_backtesting
+To:       00 / 07 / 09 / founder
+Date:     2026-09-28
+Status:   PAPER / SHADOW / NO_PROMOTE
+Accepted: Retarget #66 base to main. Normal-merge origin/main fc5eba7
+  (#61 #55 #59 #60 #65 #64 #63). CI lint/types union: keep main
+  control+gateway paths AND V2-20b r8_e1/e2/e3 + lab_lock.
+  GATE_ENFORCE not set.
+Rejected: Rebase / force-push. GATE_ENFORCE=1.
+UNKNOWN: none
+```
+
+## As of now (2026-09-28 IST) — V2-20a fix-round: coverage + late tape (PAPER)
+
+```text
+From:     teams/06_backtesting
+To:       00 / 04 / 09 / founder
+Date:     2026-09-28
+Status:   PAPER / SHADOW / NO_PROMOTE
+Accepted: Depth coverage denominator is all calendar session minutes
+  (India.session_hours; 375 on a regular 09:15-15:30 day). Coverage is
+  two-sided bid+ask on the spec's chosen strike and priced alternatives
+  only. Index / LTP-only quotes do not raise it. DATA_INSUFFICIENT does
+  not increment n. Tape events are stable-sorted by (exchange_ts, file
+  seq) before the kernel; events older than the watermark are dropped
+  and counted on the report.
+Rejected: Changing Engine/SimClock. Enabling the nightly job.
+UNKNOWN: Muhurat hours until India.session_hours publishes them.
+```
+
+---
+
 ## As of now (2026-09-28 IST) — V2-20a forward-test harness (PAPER)
 
 ```text

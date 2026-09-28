@@ -37,10 +37,13 @@ from strategies.forward.spec import (
 )
 
 ATM = "NSE_FNO:NIFTY:2026-09-29:24500:CE"
+ATM_NEW = "NSE_FNO:NIFTY:2026-09-29:24600:CE"
 ITM100 = "NSE_FNO:NIFTY:2026-09-29:24400:CE"
 ITM200 = "NSE_FNO:NIFTY:2026-09-29:24300:CE"
+INDEX = "NSE_IDX:NIFTY"
 SESSION = "2026-09-28"
 PLUGIN = "strategies.plugins.test_cross"
+SESSION_MINUTES = 375  # 09:15-15:30 IST regular session
 
 
 def _ts(hour: int, minute: int, second: int = 0) -> str:
@@ -71,16 +74,40 @@ def _row(
     )
 
 
+def _session_fill_lines() -> list[str]:
+    """Two-sided depth on every regular-session minute for the spec strikes."""
+    start = datetime(2026, 9, 28, 9, 15, tzinfo=IST)
+    defaults = {
+        ATM: (100.0, 99.80, 100.20, "ATM"),
+        ITM100: (150.0, 149.70, 150.30, "ITM100"),
+        ITM200: (200.0, 199.65, 200.35, "ITM200"),
+    }
+    special = {
+        (10, 0): {
+            ATM: (100.0, 99.80, 100.20),
+            ITM100: (150.0, 149.70, 150.30),
+            ITM200: (200.0, 199.65, 200.35),
+        },
+        (10, 15): {
+            ATM: (110.0, 109.80, 110.20),
+            ITM100: (155.0, 154.70, 155.30),
+            ITM200: (198.0, 197.65, 198.35),
+        },
+        (15, 15): {ATM: (108.0, 107.80, 108.20)},
+    }
+    lines: list[str] = []
+    for i in range(SESSION_MINUTES):
+        ts = start + timedelta(minutes=i)
+        overlay = special.get((ts.hour, ts.minute), {})
+        for inst, (ltp, bid, ask, bucket) in defaults.items():
+            if inst in overlay:
+                ltp, bid, ask = overlay[inst]
+            lines.append(_row(inst, ts.hour, ts.minute, ltp, bid, ask, bucket))
+    return lines
+
+
 def _synth_tape(path: Path, *, extra: list[str] | None = None, thin: bool = False) -> Path:
-    lines = [
-        _row(ATM, 10, 0, 100.0, 99.80, 100.20, "ATM"),
-        _row(ITM100, 10, 0, 150.0, 149.70, 150.30, "ITM100"),
-        _row(ITM200, 10, 0, 200.0, 199.65, 200.35, "ITM200"),
-        _row(ATM, 10, 15, 110.0, 109.80, 110.20, "ATM"),
-        _row(ITM100, 10, 15, 155.0, 154.70, 155.30, "ITM100"),
-        _row(ITM200, 10, 15, 198.0, 197.65, 198.35, "ITM200"),
-        _row(ATM, 15, 15, 108.0, 107.80, 108.20, "ATM"),
-    ]
+    lines = _session_fill_lines()
     if extra:
         lines.extend(extra)
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
@@ -309,8 +336,12 @@ def test_random_cut_causality_no_lookahead(tmp_path: Path) -> None:
         cut_path = tmp_path / f"cut-{cut.minute}.jsonl"
         cut_path.write_text("\n".join(kept) + "\n", encoding="utf-8")
         cut_rep, _ = evaluate_session(spec, cut_path, SESSION, lock=lock)
-        assert cut_rep.legs["chosen"]["gross_inr"] == full_rep.legs["chosen"]["gross_inr"]
-        assert cut_rep.legs["entry:CHASE"]["gross_inr"] == full_rep.legs["entry:CHASE"]["gross_inr"]
+        if cut_rep.state != DATA_INSUFFICIENT:
+            assert cut_rep.legs["chosen"]["gross_inr"] == full_rep.legs["chosen"]["gross_inr"]
+            assert (
+                cut_rep.legs["entry:CHASE"]["gross_inr"]
+                == full_rep.legs["entry:CHASE"]["gross_inr"]
+            )
         assert 1.5 not in {
             last_quote(
                 load_tape_quotes(cut_path), ATM, datetime(2026, 9, 28, 10, 0, tzinfo=IST)
@@ -318,3 +349,233 @@ def test_random_cut_causality_no_lookahead(tmp_path: Path) -> None:
         }
     late = last_quote(load_tape_quotes(full), ATM, datetime(2026, 9, 28, 10, 0, tzinfo=IST))
     assert late is not None and late.ask == 100.20
+
+
+def test_one_deep_quote_empty_session_coverage_is_one_over_calendar_minutes(
+    tmp_path: Path,
+) -> None:
+    """Issue 1: denominator is all 09:15-15:30 minutes, not observed minutes only."""
+    tape = tmp_path / "one.jsonl"
+    tape.write_text(_row(ATM, 9, 15, 100.0, 99.80, 100.20, "ATM") + "\n", encoding="utf-8")
+    spec_path = _write_spec(tmp_path / "s.yaml")
+    _write_lock(tmp_path / "prereg.lock", spec_path)
+    spec = load_spec(spec_path)
+    lock = load_lock(tmp_path / "prereg.lock")
+    report, trades = evaluate_session(spec, tape, SESSION, lock=lock)
+    assert abs(report.depth_coverage - 1 / SESSION_MINUTES) < 1e-12
+    assert 0.002 < report.depth_coverage < 0.004
+    assert report.state == DATA_INSUFFICIENT
+    assert trades == []
+    held, _ = evaluate_session(spec, tape, SESSION, lock=lock, prior_nets=[12.0], prior_gross=12.0)
+    assert held.state == DATA_INSUFFICIENT
+    assert held.n == 1
+
+
+def test_coverage_uses_spec_instruments_not_tape_index_or_ltp_only(tmp_path: Path) -> None:
+    """Issue 2: index quotes and LTP-only ATM must not raise coverage."""
+    start = datetime(2026, 9, 28, 9, 15, tzinfo=IST)
+    lines: list[str] = []
+    for i in range(SESSION_MINUTES):
+        ts = (start + timedelta(minutes=i)).isoformat()
+        lines.append(
+            json.dumps(
+                {
+                    "instrument_id": INDEX,
+                    "ltp": 24500.0,
+                    "bid": 24499.9,
+                    "ask": 24500.1,
+                    "bucket": "INDEX",
+                    "exchange_ts": ts,
+                }
+            )
+        )
+        lines.append(
+            json.dumps(
+                {
+                    "instrument_id": ATM,
+                    "ltp": 100.0,
+                    "bid": None,
+                    "ask": None,
+                    "bucket": "ATM",
+                    "exchange_ts": ts,
+                }
+            )
+        )
+    lines.append(_row(ATM, 9, 15, 100.0, 99.80, 100.20, "ATM"))
+    tape = tmp_path / "index.jsonl"
+    tape.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    spec_path = _write_spec(tmp_path / "s.yaml")
+    _write_lock(tmp_path / "prereg.lock", spec_path)
+    spec = load_spec(spec_path)
+    report, _ = evaluate_session(spec, tape, SESSION, lock=load_lock(tmp_path / "prereg.lock"))
+    assert abs(report.depth_coverage - 1 / SESSION_MINUTES) < 1e-12
+    assert report.state == DATA_INSUFFICIENT
+    assert report.n == 0
+
+
+def test_late_exchange_ts_sorted_not_crash_and_counted(tmp_path: Path) -> None:
+    """Issue 3: late file rows are sorted; older-than-watermark rows are dropped."""
+    lines = [
+        _row(ATM, 10, 0, 100.0, 99.80, 100.20, "ATM"),
+        _row(ATM, 10, 15, 110.0, 109.80, 110.20, "ATM"),
+        _row(ATM, 10, 5, 105.0, 104.80, 105.20, "ATM"),
+        _row(ATM, 9, 0, 90.0, 89.80, 90.20, "ATM"),
+    ]
+    tape = tmp_path / "late.jsonl"
+    tape.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    spec_path = _write_spec(tmp_path / "s.yaml")
+    _write_lock(tmp_path / "prereg.lock", spec_path)
+    spec = load_spec(spec_path)
+    report, _ = evaluate_session(spec, tape, SESSION, lock=load_lock(tmp_path / "prereg.lock"))
+    assert report.events_reordered >= 1
+    assert report.events_late_dropped >= 1
+    assert report.kernel_envelopes > 0
+    q_in = last_quote(load_tape_quotes(tape), ATM, datetime.fromisoformat(_ts(10, 0)))
+    assert q_in is not None and q_in.ask == 100.20
+
+
+def _fill_minutes(
+    insts: dict[str, tuple[float, float, float, str]],
+    *,
+    start_hh: int = 9,
+    start_mm: int = 15,
+    n: int = SESSION_MINUTES,
+) -> list[str]:
+    start = datetime(2026, 9, 28, start_hh, start_mm, tzinfo=IST)
+    lines: list[str] = []
+    for i in range(n):
+        ts = start + timedelta(minutes=i)
+        for inst, (ltp, bid, ask, bucket) in insts.items():
+            lines.append(_row(inst, ts.hour, ts.minute, ltp, bid, ask, bucket))
+    return lines
+
+
+def _restrike_body() -> dict[object, object]:
+    body = _spec_body()
+    morning = dict(body["signals"][0])  # type: ignore[arg-type]
+    morning.update(
+        {
+            "signal_id": "sg_am",
+            "decision_ts": _ts(10, 0),
+            "exit_ts": _ts(10, 15),
+            "instrument_id": ATM,
+            "alternatives": {"ATM": ATM, "ITM100": ITM100, "ITM200": ITM200},
+        }
+    )
+    afternoon = dict(morning)
+    afternoon.update(
+        {
+            "signal_id": "sg_pm",
+            "decision_ts": _ts(14, 0),
+            "exit_ts": _ts(14, 15),
+            "instrument_id": ATM_NEW,
+            "alternatives": {"ATM": ATM_NEW, "ITM100": ITM100, "ITM200": ITM200},
+        }
+    )
+    body["signals"] = [morning, afternoon]
+    return body
+
+
+def test_dropped_preopen_quote_cannot_change_leg_pnl(tmp_path: Path) -> None:
+    """Dropped ts < watermark quotes must not price a 09:15 trade."""
+    insts = {
+        ATM: (100.0, 99.80, 100.20, "ATM"),
+        ITM100: (150.0, 149.70, 150.30, "ITM100"),
+        ITM200: (200.0, 199.65, 200.35, "ITM200"),
+    }
+    # Session quotes start 09:16: no in-session print at the 09:15 decision.
+    in_order = _fill_minutes(insts, start_hh=9, start_mm=16, n=SESSION_MINUTES - 1)
+    clean = tmp_path / "inorder.jsonl"
+    clean.write_text("\n".join(in_order) + "\n", encoding="utf-8")
+    dirty = tmp_path / "dropped.jsonl"
+    dirty.write_text(
+        _row(ATM, 9, 0, 50.0, 49.0, 51.0, "ATM") + "\n" + "\n".join(in_order) + "\n",
+        encoding="utf-8",
+    )
+    body = _spec_body()
+    body["signals"][0]["decision_ts"] = _ts(9, 15)  # type: ignore[index]
+    body["signals"][0]["exit_ts"] = _ts(10, 15)  # type: ignore[index]
+    spec_path = _write_spec(tmp_path / "s.yaml", body)
+    _write_lock(tmp_path / "prereg.lock", spec_path)
+    spec = load_spec(spec_path)
+    lock = load_lock(tmp_path / "prereg.lock")
+    clean_rep, _ = evaluate_session(spec, clean, SESSION, lock=lock)
+    dirty_rep, _ = evaluate_session(spec, dirty, SESSION, lock=lock)
+    assert dirty_rep.events_late_dropped >= 1
+    assert clean_rep.legs == dirty_rep.legs
+    assert "chosen" not in clean_rep.legs
+    assert "chosen" not in dirty_rep.legs
+
+
+def test_restrike_old_strike_only_is_data_insufficient(tmp_path: Path) -> None:
+    """Morning 24500 / afternoon 24600: only the old strike quoted -> DATA_INSUFFICIENT."""
+    insts = {ATM: (100.0, 99.80, 100.20, "ATM")}
+    tape = tmp_path / "old.jsonl"
+    tape.write_text("\n".join(_fill_minutes(insts)) + "\n", encoding="utf-8")
+    spec_path = _write_spec(tmp_path / "s.yaml", _restrike_body())
+    _write_lock(tmp_path / "prereg.lock", spec_path)
+    spec = load_spec(spec_path)
+    report, _ = evaluate_session(spec, tape, SESSION, lock=load_lock(tmp_path / "prereg.lock"))
+    assert report.state == DATA_INSUFFICIENT
+    assert report.n == 0
+    assert report.depth_coverage < 0.95
+
+
+def test_restrike_swapped_tape_is_not_covered(tmp_path: Path) -> None:
+    """24600 in the morning and 24500 in the afternoon does not cover the schedule."""
+    start = datetime(2026, 9, 28, 9, 15, tzinfo=IST)
+    switch = datetime(2026, 9, 28, 14, 0, tzinfo=IST)
+    lines: list[str] = []
+    for i in range(SESSION_MINUTES):
+        ts = start + timedelta(minutes=i)
+        inst = ATM_NEW if ts < switch else ATM
+        bucket = "ATM"
+        lines.append(_row(inst, ts.hour, ts.minute, 100.0, 99.80, 100.20, bucket))
+    tape = tmp_path / "swap.jsonl"
+    tape.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    spec_path = _write_spec(tmp_path / "s.yaml", _restrike_body())
+    _write_lock(tmp_path / "prereg.lock", spec_path)
+    spec = load_spec(spec_path)
+    report, _ = evaluate_session(spec, tape, SESSION, lock=load_lock(tmp_path / "prereg.lock"))
+    assert report.depth_coverage < 0.95
+    assert report.state == DATA_INSUFFICIENT
+    assert report.n == 0
+
+
+def test_random_cut_before_exit_with_coverage_fires_pnl(tmp_path: Path) -> None:
+    """Cut before exit_ts, still >=95% calendar coverage, so P&L asserts run."""
+    body = _spec_body()
+    body["signals"][0]["exit_ts"] = _ts(15, 20)  # type: ignore[index]
+    spec_path = _write_spec(tmp_path / "s.yaml", body)
+    _write_lock(tmp_path / "prereg.lock", spec_path)
+    spec = load_spec(spec_path)
+    lock = load_lock(tmp_path / "prereg.lock")
+    poison = _row(ATM, 15, 20, 1.0, 0.5, 1.5, "ATM")
+    full = _synth_tape(tmp_path / "full.jsonl", extra=[poison])
+    full_rep, _ = evaluate_session(spec, full, SESSION, lock=lock)
+    assert full_rep.state != DATA_INSUFFICIENT
+    assert "chosen" in full_rep.legs
+    rng = random.Random(7)
+    fired = 0
+    for _ in range(6):
+        cut = datetime(2026, 9, 28, 15, 11, tzinfo=IST) + timedelta(minutes=rng.randint(0, 8))
+        assert cut < datetime(2026, 9, 28, 15, 20, tzinfo=IST)
+        kept = [
+            ln
+            for ln in full.read_text(encoding="utf-8").splitlines()
+            if ln and datetime.fromisoformat(json.loads(ln)["exchange_ts"]) <= cut
+        ]
+        cut_path = tmp_path / f"pre-exit-{cut.minute}.jsonl"
+        cut_path.write_text("\n".join(kept) + "\n", encoding="utf-8")
+        cut_rep, _ = evaluate_session(spec, cut_path, SESSION, lock=lock)
+        assert cut_rep.depth_coverage >= 0.95, cut
+        assert cut_rep.state != DATA_INSUFFICIENT
+        assert "chosen" in cut_rep.legs
+        q_in = last_quote(load_tape_quotes(cut_path), ATM, datetime.fromisoformat(_ts(10, 0)))
+        q_out = last_quote(load_tape_quotes(cut_path), ATM, datetime.fromisoformat(_ts(15, 20)))
+        assert q_in is not None and q_out is not None and q_out.ask != 1.5
+        exp_gross, _ = _net(q_in.ask + 0.10, q_out.bid)  # type: ignore[operator]
+        assert abs(cut_rep.legs["chosen"]["gross_inr"] - exp_gross) < 1e-9
+        assert cut_rep.legs["chosen"]["gross_inr"] != full_rep.legs["chosen"]["gross_inr"]
+        fired += 1
+    assert fired == 6

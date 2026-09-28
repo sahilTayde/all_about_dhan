@@ -22,6 +22,8 @@ JOBS: dict[str, int] = {
     "bench-legacy": 600,
     "pre-market": 900,
     "backup": 300,
+    "merge-gate": 600,
+    "perf": 600,
 }
 
 

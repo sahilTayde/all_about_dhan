@@ -1,9 +1,10 @@
-"""REG-03a/b/c: forced close exits the held instrument and qty after spot moves 3 strikes."""
+"""REG-03: forced close exits the held instrument (V2-09 book + brokers.exit_intent)."""
 
 from __future__ import annotations
 
 from datetime import datetime, timedelta
 
+from brokers import Position, exit_intent
 from brokers.factory import make_broker
 from brokers.fills import Quote
 from contracts.clock import SimClock
@@ -21,6 +22,16 @@ from oms.positions import exit_from_held
 from risk_engine import IST
 
 MOVED = "NSE_FNO:NIFTY:2026-09-29:24550:CE"  # +3 NIFTY strikes
+
+
+def test_reg_03b_exit_intent_from_held_position() -> None:
+    held = Position("NIFTY 24400 CE", 65, 112.5, "43210")
+    intent = exit_intent(held, exit_reason="EOD")
+    assert intent.instrument_id == "43210"
+    assert intent.symbol == "NIFTY 24400 CE"
+    assert intent.lots == 65
+    assert intent.purpose == "EXIT"
+    assert intent.side == "SELL"
 
 
 def _open(tmp_path, clock):
@@ -43,7 +54,6 @@ def _open(tmp_path, clock):
             instrument_id=INST,
         )
     )
-    # spot (quotes) move three strikes away; book must stay on the held contract
     clock.advance_by(timedelta(seconds=5))
     pm.on_market(
         envelope(
@@ -85,11 +95,7 @@ def test_reg_03b_founder_exits_held_instrument(tmp_path) -> None:
     clock = SimClock(NOW)
     pm, pos = _open(tmp_path, clock)
     clock.advance_by(timedelta(minutes=2))
-    pm.on_market(
-        envelope(
-            "FOUNDER_COMMAND", clock.now(), {"kind": "CUT_LOSS", "instrument_id": INST}
-        )
-    )
+    pm.on_market(envelope("FOUNDER_COMMAND", clock.now(), {"kind": "CUT_LOSS", "instrument_id": INST}))
     _assert_held(pm, pos, "FOUNDER_COMMAND")
 
 
