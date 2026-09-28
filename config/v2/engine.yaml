@@ -37,3 +37,16 @@ regime:
   mode: shadow
 
 paper_stages: ["paper", "live_eligible"]
+
+# V2-20a: nightly forward harness. Off until the founder turns it on.
+forward_eval:
+  enabled: false
+
+# REG-10 defaults (mirrored in runtime.jobs.JOBS). Seconds.
+jobs:
+  replay: 600
+  forward-eval: 1800
+  etl: 1800
+  bench-legacy: 600
+  pre-market: 900
+  backup: 300

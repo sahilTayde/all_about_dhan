@@ -121,8 +121,8 @@ jobs:
         with:
           python-version: "3.13"
       - run: python -m pip install ruff
-      - run: python -m ruff check packages/runtime
-      - run: python -m ruff format --check packages/runtime
+      - run: python -m ruff check packages/runtime packages/strategies/src/strategies/forward
+      - run: python -m ruff format --check packages/runtime packages/strategies/src/strategies/forward
 
   types:
     runs-on: ubuntu-24.04
@@ -138,6 +138,9 @@ jobs:
       - run: python -m pip install mypy
       - name: mypy --strict on new packages
         run: python -m mypy --strict packages/runtime
+      - name: mypy --strict on strategies.forward
+        run: python -m mypy --strict src/strategies/forward
+        working-directory: packages/strategies
 
   integration:
     runs-on: ubuntu-24.04
