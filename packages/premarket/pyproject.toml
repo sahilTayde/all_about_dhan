@@ -3,29 +3,26 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "aad-warehouse"
-version = "0.1.0"
-description = "Append-only SQLite warehouse for paper desk events. Never writes transcripts.sqlite. No live orders."
+name = "premarket"
+version = "0.1.0+aad"
+description = "V2-18 pre-market PRE_MARKET_SUMMARY, event-day holds, HAR inputs. Paper only."
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.11"
 dependencies = []
 
 [project.optional-dependencies]
 dev = ["pytest>=8"]
 
-[project.scripts]
-aad-warehouse = "warehouse.__main__:main"
-
 [tool.setuptools.packages.find]
 where = ["src"]
 
 [tool.setuptools.package-data]
-warehouse = ["py.typed"]
+premarket = ["py.typed"]
 
 [tool.mypy]
 python_version = "3.11"
 strict = true
-files = ["src/warehouse/etl.py"]
+files = ["src"]
 
 [tool.ruff]
 line-length = 120

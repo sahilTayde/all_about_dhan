@@ -121,8 +121,20 @@ jobs:
         with:
           python-version: "3.13"
       - run: python -m pip install ruff
-      - run: python -m ruff check packages/runtime packages/strategies/src/strategies/forward
-      - run: python -m ruff format --check packages/runtime packages/strategies/src/strategies/forward
+      - run: >-
+          python -m ruff check packages/runtime
+          packages/strategies/src/strategies/forward
+          packages/warehouse/src/warehouse/etl.py
+          packages/warehouse/src/warehouse/calendar.py
+          packages/warehouse/src/warehouse/__init__.py
+          packages/premarket
+      - run: >-
+          python -m ruff format --check packages/runtime
+          packages/strategies/src/strategies/forward
+          packages/warehouse/src/warehouse/etl.py
+          packages/warehouse/src/warehouse/calendar.py
+          packages/warehouse/src/warehouse/__init__.py
+          packages/premarket
 
   types:
     runs-on: ubuntu-24.04
@@ -137,7 +149,11 @@ jobs:
       - run: bash scripts/ci/install.sh
       - run: python -m pip install mypy
       - name: mypy --strict on new packages
-        run: python -m mypy --strict packages/runtime
+        run: >-
+          python -m mypy --strict packages/runtime
+          packages/warehouse/src/warehouse/etl.py
+          packages/warehouse/src/warehouse/calendar.py
+          packages/premarket/src
       - name: mypy --strict on strategies.forward
         run: python -m mypy --strict src/strategies/forward
         working-directory: packages/strategies
