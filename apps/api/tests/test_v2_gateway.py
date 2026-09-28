@@ -106,8 +106,10 @@ def test_reg04c_snapshot_lists_every_ledger_open_position() -> None:
 
 
 def test_ingest_from_memory_bus() -> None:
+    # MemoryBus stamps timestamp=now (IST). A frozen hub clock of TS (10:01 IST on
+    # 2026-09-28) treats later wall-clock events as look-ahead and drops them.
     bus = MemoryBus()
-    hub = GatewayHub(bus, clock=_Clock(TS))
+    hub = GatewayHub(bus)
     bus.publish(EventType.POSITION_UPDATE, _pos("ps_bus"), source="desk")
     assert any(p["position_id"] == "ps_bus" for p in hub.positions())
 
