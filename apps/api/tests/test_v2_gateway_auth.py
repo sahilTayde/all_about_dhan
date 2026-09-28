@@ -1,4 +1,4 @@
-"""V2 gateway auth: unauth rejected, bad host, WS auth, control rate limit, legacy unchanged."""
+"""V2 gateway auth: unauth rejected, bad host, WS auth, mutating control rate limit, legacy unchanged."""
 
 from __future__ import annotations
 
@@ -13,7 +13,9 @@ from api.gateway_auth import (
     TOKEN_FILE_ENV,
     CommandRateLimiter,
     assert_bind_allowed,
+    bind_host_from_argv,
     check_host_origin,
+    effective_bind_host,
     identity_from_headers,
     load_gateway_auth,
     parse_host_header,
@@ -22,7 +24,7 @@ from api.gateway_auth import (
     tokens_match,
 )
 from api.main import create_app
-from api.v2_gateway import GatewayHub
+from api.v2_gateway import MUTATING_CONTROL_METHODS, GatewayHub, _http_identity
 from fastapi.testclient import TestClient
 from starlette.testclient import WebSocketDenialResponse
 from starlette.websockets import WebSocketDisconnect
@@ -167,15 +169,58 @@ def test_ws_auth(monkeypatch: Any) -> None:
             ws.receive_json()
 
 
-def test_control_rate_limit(caplog: pytest.LogCaptureFixture) -> None:
+def test_mutating_control_commands_are_rate_limited(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Mutating control commands are rate-limited (1/s). GET is intentionally not."""
+    from fastapi import HTTPException
+    from starlette.requests import Request
+
     caplog.set_level(logging.INFO, logger="api.v2.control")
     c, _hub = _app()
+    assert MUTATING_CONTROL_METHODS == frozenset({"POST", "PUT", "PATCH", "DELETE"})
+    for _ in range(3):
+        surface = c.get("/v2/control")
+        assert surface.status_code == 200
+        assert surface.json()["stub"] is True
     first = c.post("/v2/control/commands", json={"kind": "KILL"})
     assert first.status_code == 501
     assert first.json()["detail"]["applied"] is False
     second = c.post("/v2/control/commands", json={"kind": "START"})
     assert second.status_code == 429
     assert second.json()["detail"]["code"] == "RATE_LIMIT"
+    after = c.get("/v2/control")
+    assert after.status_code == 200
+    assert after.json()["stub"] is True
+
+    def _req(method: str) -> Request:
+        async def receive() -> dict[str, object]:
+            return {"type": "http.request", "body": b"", "more_body": False}
+
+        return Request(
+            {
+                "type": "http",
+                "asgi": {"spec_version": "2.3", "version": "3.0"},
+                "http_version": "1.1",
+                "method": method,
+                "scheme": "http",
+                "path": "/v2/control/commands",
+                "raw_path": b"/v2/control/commands",
+                "query_string": b"",
+                "headers": [(b"host", b"127.0.0.1:8000")],
+                "client": LOCAL,
+                "server": ("127.0.0.1", 8000),
+                "app": c.app,
+            },
+            receive,
+        )
+
+    for method in MUTATING_CONTROL_METHODS - {"POST"}:
+        with pytest.raises(HTTPException) as exc:
+            _http_identity(_req(method), control=True)
+        assert exc.value.status_code == 429
+        assert exc.value.detail["code"] == "RATE_LIMIT"
+
     text = caplog.text
     assert "control_command" in text
     assert "stub_refused" in text
@@ -228,6 +273,26 @@ def test_bind_env_refuses_create_app(monkeypatch: Any) -> None:
     monkeypatch.setenv(TOKEN_ENV, FOUNDER)
     app = create_app()
     assert app.state.v2_auth.configured is True
+
+
+def test_uvicorn_cli_host_refuses_public_without_token(monkeypatch: Any) -> None:
+    """``uvicorn --host 0.0.0.0`` fails closed unless a gateway token is set."""
+    monkeypatch.delenv(TOKEN_ENV, raising=False)
+    monkeypatch.delenv(TOKEN_FILE_ENV, raising=False)
+    monkeypatch.delenv(BIND_ENV, raising=False)
+    assert bind_host_from_argv(["uvicorn", "api.main:app", "--host", "0.0.0.0"]) == (
+        "0.0.0.0"
+    )
+    assert bind_host_from_argv(["uvicorn", "api.main:app", "--host=::"]) == "::"
+    assert bind_host_from_argv(["pytest", "apps/api/tests"]) is None
+    assert effective_bind_host("127.0.0.1", ["uvicorn", "--host", "0.0.0.0"]) == (
+        "0.0.0.0"
+    )
+    monkeypatch.setattr(
+        "api.gateway_auth.bind_host_from_argv", lambda argv=None: "0.0.0.0"
+    )
+    with pytest.raises(ValueError, match="refusing bind"):
+        create_app()
 
 
 def test_token_file_and_constant_time(tmp_path: Path, monkeypatch: Any) -> None:

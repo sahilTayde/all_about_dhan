@@ -6,7 +6,9 @@ Paper only. JWT / 2FA stay V2-23. No secrets in logs. Legacy /paper/* and
 Token sources (names only): AAD_GATEWAY_TOKEN, AAD_GATEWAY_TOKEN_FILE,
 AAD_GATEWAY_CUSTOMER_TOKEN, AAD_GATEWAY_CUSTOMER_TOKEN_FILE.
 Empty + bind 127.0.0.1 = localhost-dev (Mac, no token). Query string is
-never an auth channel.
+never an auth channel. Mutating control commands are rate-limited (1/s).
+``uvicorn --host`` is read at create_app time so ``0.0.0.0`` fails closed
+without a token.
 """
 
 from __future__ import annotations
@@ -15,6 +17,7 @@ import hmac
 import logging
 import os
 import re
+import sys
 import threading
 import time
 from collections.abc import Callable
@@ -188,6 +191,25 @@ def load_gateway_auth() -> GatewayAuth:
     )
 
 
+def bind_host_from_argv(argv: list[str] | None = None) -> str | None:
+    """Return ``uvicorn --host`` / ``--host=`` from argv, else None. Not ``-h``."""
+    args = list(sys.argv if argv is None else argv)
+    for i, item in enumerate(args):
+        if item == "--host" and i + 1 < len(args):
+            return args[i + 1]
+        if item.startswith("--host="):
+            return item.split("=", 1)[1]
+    return None
+
+
+def effective_bind_host(env_bind: str, argv: list[str] | None = None) -> str:
+    """CLI ``--host`` wins over ``AAD_GATEWAY_BIND`` so uvicorn cannot bypass."""
+    cli = bind_host_from_argv(argv)
+    if cli is not None and cli.strip():
+        return cli.strip()
+    return env_bind
+
+
 def assert_bind_allowed(host: str, auth_configured: bool) -> None:
     """Refuse 0.0.0.0 / non-loopback unless a gateway token is configured."""
     name = (host or "").strip().lower()
@@ -317,7 +339,7 @@ def check_host_origin(
 
 
 class CommandRateLimiter:
-    """In-memory command bucket. Architecture §5.6: commands 1/s until Redis."""
+    """Mutating control commands are rate-limited (1/s). GET is not. Redis later."""
 
     def __init__(
         self,
@@ -373,7 +395,9 @@ __all__ = [
     "assert_bind_allowed",
     "audit_control",
     "bearer_from_authorization",
+    "bind_host_from_argv",
     "check_host_origin",
+    "effective_bind_host",
     "identity_from_headers",
     "identity_from_token",
     "is_loopback_bind",

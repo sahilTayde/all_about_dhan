@@ -13,13 +13,16 @@ from api.gateway_auth import (
     BIND_ENV,
     DEFAULT_BIND,
     assert_bind_allowed,
+    effective_bind_host,
     load_gateway_auth,
 )
 
 
 def main() -> None:
     auth = load_gateway_auth()
-    host = os.environ.get(BIND_ENV, DEFAULT_BIND).strip() or DEFAULT_BIND
+    host = effective_bind_host(
+        os.environ.get(BIND_ENV, DEFAULT_BIND).strip() or DEFAULT_BIND
+    )
     assert_bind_allowed(host, auth.configured)
     port = int(os.environ.get("AAD_GATEWAY_PORT", "8000"))
     uvicorn.run("api.main:app", host=host, port=port, reload=False)

@@ -17,7 +17,12 @@ from api.config import load_api_settings
 from api.desk_merge import merge_live_paper_into_desk, overlay_customer_sod_ticket
 from api.founder_controls import router as founder_controls_router
 from api.founder_status import build_founder_status
-from api.gateway_auth import CommandRateLimiter, assert_bind_allowed, load_gateway_auth
+from api.gateway_auth import (
+    CommandRateLimiter,
+    assert_bind_allowed,
+    effective_bind_host,
+    load_gateway_auth,
+)
 from api.health_alerts import router as health_router
 from api.models import TookTradeBody, TookTradeRecord
 from api.premium_bind import bind_premiums_onto_desk
@@ -49,7 +54,7 @@ def create_app() -> FastAPI:
     app.state.store = SignalStore()
     app.state.live_paper = None
     auth = load_gateway_auth()
-    assert_bind_allowed(auth.bind_host, auth.configured)
+    assert_bind_allowed(effective_bind_host(auth.bind_host), auth.configured)
     app.state.v2_auth = auth
     app.state.v2_limiter = CommandRateLimiter(per_s=auth.control_rate_per_s)
     attach_gateway(app, MemoryBus())

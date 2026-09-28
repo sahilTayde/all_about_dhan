@@ -7,6 +7,7 @@ future are refused. Legacy /ui/* and /ws/* stay as they are.
 Auth (pre-VPS): Bearer header, first WS message, or Sec-WebSocket-Protocol.
 Never the URL query. Empty token + bind 127.0.0.1 = localhost-dev (Mac).
 JWT / 2FA stay V2-23. A client-supplied role is never trusted.
+Mutating control commands are rate-limited (1/s). GET /v2/control is not.
 """
 
 from __future__ import annotations
@@ -43,6 +44,7 @@ from api.gateway_auth import (
 
 IST = timezone(timedelta(hours=5, minutes=30))
 CONTROL_FLAG = "AAD_V2_CONTROL_ROUTES"
+MUTATING_CONTROL_METHODS = frozenset({"POST", "PUT", "PATCH", "DELETE"})
 # V2-11 STUB — surface only. Do not apply START/STOP/KILL/… here.
 CONTROL_KINDS = (
     "START",
@@ -575,7 +577,7 @@ def _http_identity(request: Request, *, control: bool = False) -> AuthIdentity |
             status_code=401,
             detail={"ok": False, "code": "UNAUTHORIZED", "orders": "REFUSED"},
         )
-    if control and request.method in {"POST", "PUT", "PATCH", "DELETE"}:
+    if control and request.method in MUTATING_CONTROL_METHODS:
         limiter: CommandRateLimiter = request.app.state.v2_limiter
         key = request.client.host if request.client else "unknown"
         if not limiter.allow(key):
@@ -674,7 +676,7 @@ def _trace_steps(row: dict[str, Any]) -> list[dict[str, Any]]:
 
 @router.get("/v2/control")
 def v2_control_surface(request: Request) -> dict[str, Any]:
-    """V2-11 STUB: lists the founder-control route surface. Does not apply commands."""
+    """V2-11 STUB: lists the founder-control route surface. GET is not rate-limited."""
     _http_identity(request, control=True)
     return {
         "stub": True,
@@ -690,7 +692,10 @@ def v2_control_surface(request: Request) -> dict[str, Any]:
 
 @router.post("/v2/control/commands", response_model=None)
 async def v2_control_command(request: Request) -> dict[str, Any]:
-    """V2-11 STUB: never applies START/STOP/KILL/CUT_LOSS/…. Always 501."""
+    """V2-11 STUB: never applies START/STOP/KILL/CUT_LOSS/…. Always 501.
+
+    Mutating control commands are rate-limited (1/s).
+    """
     _http_identity(request, control=True)
     kind: str | None = None
     try:
@@ -808,6 +813,7 @@ __all__ = [
     "FOUNDER_CHANNELS",
     "FOUNDER_LEGACY_KEYS",
     "IST",
+    "MUTATING_CONTROL_METHODS",
     "ROLE_ACL",
     "GatewayHub",
     "WsClient",
