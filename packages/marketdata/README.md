@@ -70,9 +70,11 @@ until 09:20 IST, then the last cached instrument set (same or later expiry) is u
 credentials fail at once with a one-line message.
 
 Instruments: the index, the nearest future, and ATM / ITM100 / ITM200 on both sides
-(CE ITM = strikes below spot, PE ITM = strikes above), subscribed in FULL mode. When spot moves
-more than half a strike step (+ hysteresis) the set re-centres: new strikes are subscribed on
-the open socket; strikes that left keep streaming for 10 minutes, then are unsubscribed.
+(CE ITM = strikes below spot, PE ITM = strikes above). Options and the future stay on FULL
+(request 21). The index is ticker (15) or quote (17) — IDX_I sends no ticks on FULL.
+When spot moves more than half a strike step (+ hysteresis) the set re-centres: new strikes
+are subscribed on the open socket; strikes that left keep streaming for 10 minutes, then are
+unsubscribed.
 
 Tapes: `data/tape/v2/YYYY-MM-DD/` (IST date; gitignored). Every row of the first four files is
 an Envelope v2 (`timestamp`/`available_ts` = when written, `event_ts` = when the data arrived)
@@ -90,14 +92,17 @@ whose `payload` matches the V2-01 schema vendored in `src/marketdata/schemas/`.
 | `coverage_summary.json` | Written at stop: per instrument, % of subscribed market minutes with depth and the gap list (M1 gate ≥ 95%). |
 | `recorder.log` | The run log. |
 
-Crash safety: rows are appended in whole lines and fsynced every second on a background
-thread. A kill loses at most the last second; on restart a partial last line or NUL tail is
-cut back to the last newline and reported in `ingest_errors`. Restarting mid-day appends.
+Crash safety: rows are appended in whole lines and fsynced every second on a bounded
+background queue (short backpressure, then drop; `tape_drops` on the status line and
+`FEED_STATUS`). A kill loses at most the last second; a clean stop drains the queue. On
+restart a partial last line or NUL tail is cut back to the last newline and reported in
+`ingest_errors`. Restarting mid-day appends. Line shape is unchanged for V2-03 readers;
+`tape_drops` is additive on `FEED_STATUS` only.
 
-Known unknowns (kept verifiable through `raw_frames.jsonl`): the INDEX packet layout
-(LTP read from the first float, as V2-D1 does) and whether the feed's LTT epoch is UTC or
-IST-shifted (decided once per run from the first trade and logged). If no index tick arrives
-for 20 s, spot for re-centring comes from the option chain every 30 s.
+Known unknowns (kept verifiable through `raw_frames.jsonl`): whether the feed's LTT epoch is
+UTC or IST-shifted (decided once per run from the first trade and logged). Index packets
+(response 1) decode as ticker LTP+LTT. If no index tick arrives for 20 s, spot for
+re-centring comes from the option chain every 30 s.
 
 ## Tests
 

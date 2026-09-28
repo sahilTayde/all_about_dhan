@@ -93,6 +93,28 @@ def index_packet(sid: int, ltp: float, ltt_epoch: int = 0) -> bytes:
     return _header(1, 8 + len(payload), SEG_BYTE["IDX_I"], sid) + payload
 
 
+def ticker_packet(sid: int, seg: int, ltp: float, ltt_epoch: int = 0) -> bytes:
+    payload = struct.pack("<fI", ltp, ltt_epoch)
+    return _header(2, 8 + len(payload), seg, sid) + payload
+
+
+def quote_packet(sid: int, seg: int, ltp: float, ltt_epoch: int = 0) -> bytes:
+    payload = (
+        struct.pack("<f", ltp)
+        + struct.pack("<h", 10)
+        + struct.pack("<i", ltt_epoch)
+        + struct.pack("<f", ltp)
+        + struct.pack("<i", 0)
+        + struct.pack("<i", 0)
+        + struct.pack("<i", 0)
+        + struct.pack("<f", ltp)
+        + struct.pack("<f", ltp)
+        + struct.pack("<f", ltp)
+        + struct.pack("<f", ltp)
+    )
+    return _header(4, 8 + len(payload), seg, sid) + payload
+
+
 def oi_packet(sid: int, seg: int, oi: int) -> bytes:
     payload = struct.pack("<i", oi)
     return _header(5, 8 + len(payload), seg, sid) + payload
@@ -209,7 +231,7 @@ def settings_for(url: str, repo: Path) -> Settings:
 
 
 class FakeDhanServer:
-    """Speaks the feed's shape: JSON subscribe (21) / unsubscribe (22) / disconnect (12) in,
+    """Speaks the feed's shape: JSON subscribe (15/17/21) / unsubscribe (16/18/22) / disconnect (12) in,
     binary packets out. ``reject_status`` makes the handshake fail with that HTTP status."""
 
     def __init__(self) -> None:
@@ -254,9 +276,9 @@ class FakeDhanServer:
                 code = data.get("RequestCode")
                 for item in data.get("InstrumentList", []):
                     key = (SEG_BYTE[item["ExchangeSegment"]], int(item["SecurityId"]))
-                    if code == 21:
+                    if code in (15, 17, 21):
                         self.subscribed[key] = item["ExchangeSegment"]
-                    elif code == 22:
+                    elif code in (16, 18, 22):
                         self.subscribed.pop(key, None)
                 if code == 12:
                     await ws.close()

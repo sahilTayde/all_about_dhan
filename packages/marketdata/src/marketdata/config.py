@@ -31,3 +31,8 @@ class RecorderConfig:
     max_backoff_s: float = 30.0
     # Consecutive websocket handshakes rejected with HTTP 401/403 before giving up.
     max_auth_failures: int = 3
+    # Background tape flusher: short put-timeout, then drop. close() waits the queue out.
+    tape_queue_max: int = 256
+    tape_queue_put_timeout_s: float = 0.05
+    # IDX_I: ticker (15) or quote (17). FULL (21) sends no index ticks on the live feed.
+    index_feed_mode: str = "ticker"
