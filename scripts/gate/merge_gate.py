@@ -10,6 +10,7 @@ import re
 import sys
 import tempfile
 import time
+import xml.etree.ElementTree as ET
 from collections.abc import Callable
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timedelta
@@ -81,6 +82,10 @@ EXIT_KEYS = (
 )
 ITEM_RE = re.compile(r"^\|\s*\*?\*?(C\d+|A\d+|REG-\d{2})\*?\*?\s*\|")
 REG_RE = re.compile(r"(?:REG-|test_reg_)(\d{2})")
+CI_JOB_RE = re.compile(r"^  ([a-z][a-z0-9-]*):")
+STUB_SOURCES = frozenset({"stub", "grep", "json_hop", "self-test", "plant", "fixture_only", "memory_bus"})
+SUCCESS = frozenset({"success"})
+InputKind = Literal["absent", "stub", "error", "ok"]
 
 
 @dataclass
@@ -282,7 +287,27 @@ def parse_plan_regs(text: str) -> set[str]:
     return {f"REG-{n}" for n in re.findall(r"REG-(\d{2})", _section(text, "## 3. Legacy bug carry-over", "## 4."))}
 
 
+def parse_ci_jobs(text: str) -> list[str]:
+    jobs: list[str] = []
+    in_jobs = False
+    for line in text.splitlines():
+        if line.startswith("jobs:"):
+            in_jobs = True
+            continue
+        if not in_jobs:
+            continue
+        match = CI_JOB_RE.match(line)
+        if match:
+            jobs.append(match.group(1))
+    return jobs
+
+
+def required_ci_jobs(text: str) -> list[str]:
+    return [name for name in parse_ci_jobs(text) if name != "gate"]
+
+
 def collect_reg_tests(root: Path) -> dict[str, list[str]]:
+    """Grep-only index. Never sufficient for a PASS."""
     found: dict[str, list[str]] = {f"REG-{i:02d}": [] for i in range(1, 19)}
     for path in (*root.glob("tests/**/*.py"), *root.glob("packages/*/tests/**/*.py")):
         body = path.read_text(encoding="utf-8")
@@ -291,6 +316,94 @@ def collect_reg_tests(root: Path) -> dict[str, list[str]]:
             if key in found:
                 found[key].append(str(path.relative_to(root)))
     return found
+
+
+def _is_stub_payload(data: dict[str, Any]) -> bool:
+    if data.get("stub") is True:
+        return True
+    kind = str(data.get("kind", data.get("source", ""))).lower()
+    return kind in STUB_SOURCES
+
+
+def _junit_to_results(path: Path) -> dict[str, Any]:
+    tree = ET.parse(path)
+    tests: list[dict[str, str]] = []
+    for case in tree.iter("testcase"):
+        nodeid = f"{case.get('classname', '')}::{case.get('name', '')}"
+        if case.find("failure") is not None or case.find("error") is not None:
+            outcome = "failed"
+        elif case.find("skipped") is not None:
+            outcome = "skipped"
+        else:
+            outcome = "passed"
+        tests.append({"nodeid": nodeid, "outcome": outcome})
+    return {"tests": tests}
+
+
+def _load_mapping(value: str | Path | dict[str, Any] | None) -> tuple[InputKind, dict[str, Any]]:
+    if value is None:
+        return "absent", {}
+    if isinstance(value, dict):
+        data: Any = value
+    else:
+        text = str(value).strip()
+        if text.startswith("{"):
+            try:
+                data = json.loads(text)
+            except json.JSONDecodeError as exc:
+                return "error", {"detail": str(exc)}
+        else:
+            path = Path(text)
+            if not path.is_file():
+                return "absent", {}
+            try:
+                data = (
+                    _junit_to_results(path) if path.suffix == ".xml" else json.loads(path.read_text(encoding="utf-8"))
+                )
+            except (OSError, json.JSONDecodeError, ET.ParseError) as exc:
+                return "error", {"detail": f"{type(exc).__name__}: {exc}"}
+    if not isinstance(data, dict):
+        return "error", {"detail": "not an object"}
+    if _is_stub_payload(data):
+        return "stub", data
+    return "ok", data
+
+
+def parse_sha_manifest(path: Path) -> dict[str, str] | Check:
+    expected: dict[str, str] = {}
+    for line in path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        parts = line.split(None, 1)
+        if len(parts) != 2:
+            return Check("lock", "UNKNOWN", f"bad line {line!r}")
+        expected[parts[1]] = parts[0]
+    return expected
+
+
+def _pytest_passed_regs(data: dict[str, Any]) -> set[str] | None:
+    tests = data.get("tests")
+    if not isinstance(tests, list):
+        if "files" in data or "ids" in data:
+            return None
+        return set()
+    if not tests and ("files" in data or "ids" in data):
+        return None
+    covered: set[str] = set()
+    saw_outcome = False
+    for row in tests:
+        if not isinstance(row, dict) or "outcome" not in row:
+            continue
+        saw_outcome = True
+        if str(row["outcome"]).lower() != "passed":
+            continue
+        blob = f"{row.get('nodeid', '')} {row.get('file', '')} {row.get('classname', '')}"
+        for n in set(REG_RE.findall(blob)):
+            covered.add(f"REG-{n}")
+    if not saw_outcome:
+        return None
+    return covered
 
 
 def frozen_check(root: Path) -> Check:
@@ -324,13 +437,6 @@ def _p99(xs: list[float]) -> float:
     return ys[min(len(ys) - 1, max(0, math.ceil(0.99 * len(ys)) - 1))]
 
 
-def _ok(name: str, fn: Callable[[], Check]) -> Check:
-    try:
-        return fn()
-    except Exception as exc:  # noqa: BLE001
-        return Check(name, "ERROR", f"{type(exc).__name__}: {exc}")
-
-
 def check_invariants_selftest() -> Check:
     missed = [n for n in INVARIANTS if n not in check_invariants(plant_violation(n, clean_book()))]
     if missed or check_invariants(clean_book()):
@@ -338,19 +444,140 @@ def check_invariants_selftest() -> Check:
     return Check("invariants", "PASS", str(len(INVARIANTS)))
 
 
-def check_faults() -> Check:
-    if check_invariants(clean_book()) or "ledger_eq_broker" not in check_invariants(
-        plant_violation("ledger_eq_broker", clean_book())
-    ):
-        return Check("faults", "FAIL", "self-test")
-    return Check("faults", "PASS", ",".join(FAULTS))
+def check_ci_conclusions(required: list[str], kind: InputKind, data: dict[str, Any]) -> Check:
+    if kind == "absent":
+        return Check("ci_conclusions", "MISSING", "file absent")
+    if kind == "stub":
+        return Check("ci_conclusions", "MISSING", "stub")
+    if kind == "error":
+        return Check("ci_conclusions", "ERROR", str(data.get("detail", "invalid")))
+    if not required:
+        return Check("ci_conclusions", "MISSING", "ci.yml jobs absent")
+    missing = [name for name in required if name not in data]
+    if missing:
+        return Check("ci_conclusions", "MISSING", f"missing jobs: {missing}")
+    bad = [name for name in required if str(data[name]).lower() not in SUCCESS]
+    if bad:
+        return Check("ci_conclusions", "FAIL", f"not success: { {n: data[n] for n in bad} }")
+    return Check("ci_conclusions", "PASS", ",".join(required))
 
 
-def check_dry_run() -> Check:
-    hour, day = dry_run_diffs(hour_only=True), dry_run_diffs(hour_only=False)
-    if hour or day:
-        return Check("dry_run", "FAIL", f"1x={hour} 10x={day}")
-    return Check("dry_run", "PASS", "1x hour + 10x day zero diffs")
+def check_named_job(name: str, required: list[str], kind: InputKind, data: dict[str, Any]) -> Check:
+    if kind == "absent":
+        return Check(name, "MISSING", "ci conclusions absent")
+    if kind == "stub":
+        return Check(name, "MISSING", "stub")
+    if kind == "error":
+        return Check(name, "ERROR", str(data.get("detail", "invalid")))
+    if name not in required:
+        return Check(name, "MISSING", "job not in ci.yml")
+    if name not in data:
+        return Check(name, "MISSING", "job missing")
+    if str(data[name]).lower() not in SUCCESS:
+        return Check(name, "FAIL", str(data[name]))
+    return Check(name, "PASS", str(data[name]))
+
+
+def check_lock(root: Path) -> Check:
+    manifest = root / "config" / "requirements_lock.sha256"
+    files = sorted(p for p in root.glob("requirements/*.txt") if p.is_file())
+    if not manifest.is_file():
+        return Check("lock", "MISSING", "manifest absent")
+    parsed = parse_sha_manifest(manifest)
+    if isinstance(parsed, Check):
+        return parsed
+    if not parsed:
+        return Check("lock", "MISSING", "empty manifest")
+    changed: list[str] = []
+    for path in files:
+        rel = str(path.relative_to(root)).replace("\\", "/")
+        digest = hashlib.sha256(path.read_bytes()).hexdigest()
+        if rel not in parsed:
+            changed.append(f"unlisted {rel}")
+        elif parsed[rel] != digest:
+            changed.append(rel)
+    for rel in parsed:
+        if not (root / rel).is_file():
+            changed.append(f"missing {rel}")
+    if changed:
+        return Check("lock", "FAIL", f"changed {changed}")
+    return Check("lock", "PASS", f"{len(parsed)} files")
+
+
+def _real_fault_proof(proof: Any, faults_job_ok: bool) -> bool:
+    if not isinstance(proof, dict) or not faults_job_ok:
+        return False
+    source = str(proof.get("source", "")).lower()
+    if source in STUB_SOURCES or source not in {"pytest", "ci"}:
+        return False
+    return bool(str(proof.get("nodeid", "")).strip())
+
+
+def check_fault_matrix(kind: InputKind, data: dict[str, Any], ci: dict[str, Any] | None) -> list[Check]:
+    if kind == "absent":
+        return [Check("faults", "MISSING", "fault-rows absent")]
+    if kind == "stub":
+        return [Check("faults", "MISSING", "stub")]
+    if kind == "error":
+        return [Check("faults", "ERROR", str(data.get("detail", "invalid")))]
+    rows_raw = data.get("rows", data)
+    if not isinstance(rows_raw, dict):
+        return [Check("faults", "MISSING", "stub")]
+    faults_ok = ci is not None and str(ci.get("faults", "")).lower() in SUCCESS
+    rows: list[Check] = []
+    for name in FAULTS:
+        if _real_fault_proof(rows_raw.get(name), faults_ok):
+            rows.append(Check(f"faults.{name}", "PASS", "exercised"))
+        else:
+            rows.append(Check(f"faults.{name}", "MISSING", "not exercised"))
+    if any(item.status in BLOCKING for item in rows):
+        return [Check("faults", "MISSING", "rows not exercised"), *rows]
+    return [Check("faults", "PASS", ",".join(FAULTS)), *rows]
+
+
+def check_lookahead(
+    required: list[str],
+    ci_kind: InputKind,
+    ci_data: dict[str, Any],
+    report_kind: InputKind,
+    report: dict[str, Any],
+) -> Check:
+    if report_kind == "stub":
+        return Check("no-lookahead", "MISSING", "stub")
+    if report_kind == "error":
+        return Check("no-lookahead", "ERROR", str(report.get("detail", "invalid")))
+    if ci_kind == "ok" and str(ci_data.get("no-lookahead", "")).lower() in SUCCESS:
+        return Check("no-lookahead", "PASS", "ci")
+    if "no-lookahead" in required:
+        if ci_kind == "absent":
+            return Check("no-lookahead", "MISSING", "ci conclusions absent")
+        if ci_kind == "stub":
+            return Check("no-lookahead", "MISSING", "stub")
+        if "no-lookahead" not in ci_data:
+            return Check("no-lookahead", "MISSING", "job missing")
+        return Check("no-lookahead", "FAIL", str(ci_data.get("no-lookahead")))
+    if report_kind == "ok" and str(report.get("status", "")).lower() == "passed":
+        return Check("no-lookahead", "PASS", "report")
+    return Check("no-lookahead", "MISSING", "not run")
+
+
+def check_compose(kind: InputKind, data: dict[str, Any]) -> Check:
+    if kind == "absent":
+        return Check("redis_compose", "MISSING", "compose report absent; JSON hop is not Redis")
+    if kind == "stub":
+        return Check("redis_compose", "MISSING", "stub; JSON hop is not Redis compose")
+    if kind == "error":
+        return Check("redis_compose", "ERROR", str(data.get("detail", "invalid")))
+    kind_name = str(data.get("kind", "")).lower()
+    if kind_name in STUB_SOURCES or data.get("redis") is not True:
+        return Check("redis_compose", "MISSING", "not a redis compose report")
+    if kind_name != "redis_compose":
+        return Check("redis_compose", "MISSING", "not a redis compose report")
+    hour = data.get("hour_diffs")
+    day = data.get("day_diffs")
+    if hour == [] and day == []:
+        return Check("redis_compose", "PASS", "1x hour + 10x day")
+    return Check("redis_compose", "FAIL", f"1x={hour} 10x={day}")
 
 
 def check_perf() -> Check:
@@ -392,13 +619,25 @@ def check_perf() -> Check:
     return Check("perf", "PASS", json.dumps(measured, sort_keys=True))
 
 
-def check_reg_collect(root: Path) -> Check:
+def check_reg_collect(root: Path, kind: InputKind, data: dict[str, Any], ci: dict[str, Any] | None) -> Check:
     required = parse_plan_regs((root / "docs/architecture/V2_BUILD_PLAN.md").read_text(encoding="utf-8"))
-    if required != {f"REG-{i:02d}" for i in range(1, 19)}:
+    need = {f"REG-{i:02d}" for i in range(1, 19)}
+    if required != need:
         return Check("reg_collect", "FAIL", f"{sorted(required)}")
-    missing = sorted(k for k, v in collect_reg_tests(root).items() if not v)
+    if ci is not None and "regression" in ci and str(ci["regression"]).lower() not in SUCCESS:
+        return Check("reg_collect", "FAIL", f"regression job {ci['regression']}")
+    if kind == "absent":
+        return Check("reg_collect", "MISSING", "pytest results absent; grep-only is not evidence")
+    if kind == "stub":
+        return Check("reg_collect", "MISSING", "stub")
+    if kind == "error":
+        return Check("reg_collect", "ERROR", str(data.get("detail", "invalid")))
+    covered = _pytest_passed_regs(data)
+    if covered is None:
+        return Check("reg_collect", "MISSING", "grep-only or no outcomes")
+    missing = sorted(need - covered)
     if missing:
-        return Check("reg_collect", "MISSING", f"no test: {missing}")
+        return Check("reg_collect", "MISSING", f"no passed test: {missing}")
     return Check("reg_collect", "PASS", "REG-01..18")
 
 
@@ -427,20 +666,54 @@ def check_reg10b() -> Check:
     return Check("REG-10b", "PASS", str(sorted(JOBS)))
 
 
-def evaluate(*, only: str | None = None, root: Path | None = None) -> Verdict:
+def _run_check(name: str, fn: Callable[[], Check | list[Check]]) -> list[Check]:
+    try:
+        got = fn()
+    except Exception as exc:  # noqa: BLE001
+        return [Check(name, "ERROR", f"{type(exc).__name__}: {exc}")]
+    return got if isinstance(got, list) else [got]
+
+
+def evaluate(
+    *,
+    only: str | None = None,
+    root: Path | None = None,
+    ci_conclusions: str | Path | dict[str, Any] | None = None,
+    pytest_results: str | Path | dict[str, Any] | None = None,
+    fault_rows: str | Path | dict[str, Any] | None = None,
+    compose_report: str | Path | dict[str, Any] | None = None,
+    lookahead_report: str | Path | dict[str, Any] | None = None,
+) -> Verdict:
     repo = root or REPO
-    runners: list[tuple[str, Callable[[], Check]]] = [
+    ci_kind, ci_data = _load_mapping(ci_conclusions)
+    py_kind, py_data = _load_mapping(pytest_results)
+    fr_kind, fr_data = _load_mapping(fault_rows)
+    co_kind, co_data = _load_mapping(compose_report)
+    la_kind, la_data = _load_mapping(lookahead_report)
+    ci_yml = repo / ".github/workflows/ci.yml"
+    jobs = required_ci_jobs(ci_yml.read_text(encoding="utf-8") if ci_yml.is_file() else "")
+    ci_dict = ci_data if ci_kind == "ok" else None
+    runners: list[tuple[str, Callable[[], Check | list[Check]]]] = [
+        ("ci_conclusions", lambda: check_ci_conclusions(jobs, ci_kind, ci_data)),
+        ("lock", lambda: check_lock(repo)),
+        ("golden-replay", lambda: check_named_job("golden-replay", jobs, ci_kind, ci_data)),
+        ("determinism", lambda: check_named_job("determinism", jobs, ci_kind, ci_data)),
+        ("reg_collect", lambda: check_reg_collect(repo, py_kind, py_data, ci_dict)),
+        ("faults", lambda: check_fault_matrix(fr_kind, fr_data, ci_dict)),
+        ("no-lookahead", lambda: check_lookahead(jobs, ci_kind, ci_data, la_kind, la_data)),
+        ("redis_compose", lambda: check_compose(co_kind, co_data)),
         ("invariants", check_invariants_selftest),
-        ("faults", check_faults),
-        ("dry_run", check_dry_run),
         ("perf", check_perf),
-        ("reg_collect", lambda: check_reg_collect(repo)),
         ("TRACE-01", lambda: check_trace01(repo)),
         ("REG-13c", check_reg13c),
         ("REG-10b", check_reg10b),
         ("frozen_legacy", lambda: frozen_check(repo)),
     ]
-    checks = [_ok(n, fn) for n, fn in runners if not only or only == n or only in n]
+    checks: list[Check] = []
+    for name, fn in runners:
+        if only and only != name and only not in name:
+            continue
+        checks.extend(_run_check(name, fn))
     if not checks:
         checks = [Check(only or "gate", "MISSING", "no checks ran")]
     verdict: Literal["PASS", "BLOCK"] = "BLOCK" if any(c.status in BLOCKING for c in checks) else "PASS"
@@ -451,6 +724,11 @@ def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(description="V2-16 merge gate (verdict only; never merges)")
     p.add_argument("--only")
     p.add_argument("--root")
+    p.add_argument("--ci-conclusions")
+    p.add_argument("--pytest-results")
+    p.add_argument("--fault-rows")
+    p.add_argument("--compose-report")
+    p.add_argument("--lookahead-report")
     p.add_argument("--merge", action="store_true")
     p.add_argument("--push", action="store_true")
     args = p.parse_args(list(sys.argv[1:] if argv is None else argv))
@@ -459,7 +737,15 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     def _run() -> int:
-        result = evaluate(only=args.only, root=Path(args.root) if args.root else None)
+        result = evaluate(
+            only=args.only,
+            root=Path(args.root) if args.root else None,
+            ci_conclusions=args.ci_conclusions,
+            pytest_results=args.pytest_results,
+            fault_rows=args.fault_rows,
+            compose_report=args.compose_report,
+            lookahead_report=args.lookahead_report,
+        )
         print(json.dumps(result.to_json(), sort_keys=True))
         return 0 if result.verdict == "PASS" else 1
 

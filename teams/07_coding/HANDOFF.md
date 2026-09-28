@@ -1,5 +1,33 @@
 # Handoff log — Team 07 Coding
 
+## As of now (2026-09-28 IST) — V2-16 fix round (fail-closed evidence)
+
+```text
+From:     teams/07_coding
+To:       founder / 00 / 09
+Date:     2026-09-28
+Status:   PAPER / V2-16 / NO_PROMOTE / BLOCK until evidence is real
+Accepted: Gate never PASSes on absent or stubbed evidence.
+  CI conclusions are a required input (every ci.yml job except
+  gate). Missing file, missing job, or any result other than
+  success = BLOCK. Workflow gate needs: those jobs and writes
+  conclusions in-repo (no GitHub client, no tokens).
+  requirements/*.txt sha256 lock (config/requirements_lock.sha256).
+  golden-replay + determinism consumed from that conclusions file.
+  reg_collect uses pytest outcomes or is MISSING (grep-only is
+  not evidence). Fault matrix: 12 rows MISSING unless a per-row
+  pass list + faults job success prove they ran. no-lookahead
+  CI job runs the #25 cut test + V2-03 random-cut.
+Rejected: PASS from JSON-hop dry run. Auto-merge. git push from
+  the gate. DhanBroker. subprocess / GitHub client / tokens in
+  the gate. Rebase / force-push / merge of this PR tonight.
+UNKNOWN: none for these inputs — they are present or MISSING.
+OPEN: Redis compose dry-run on a recorded tape. CI cannot run
+  real compose+Redis here, so redis_compose is MISSING (never
+  PASS from the in-process JSON hop). That stays a known open
+  item; it blocks the gate until a real compose report exists.
+```
+
 ## As of now (2026-09-27 IST) — V2-16 merge gate (PAPER)
 
 ```text
