@@ -8,7 +8,7 @@ import sqlite3
 from datetime import datetime
 from decimal import ROUND_HALF_UP, Decimal
 from pathlib import Path
-from typing import Any, Protocol, Self
+from typing import Any, Protocol
 
 from ledger.charges import UNDERLYING_EXCHANGE, exchange_for, load_rates, order_charges
 from ledger.migrate import (
@@ -97,7 +97,7 @@ class SqliteTransaction:
     def __init__(self, store: SqliteLedgerStore) -> None:
         self.store = store
 
-    def __enter__(self) -> Self:
+    def __enter__(self) -> SqliteTransaction:  # noqa: PYI034
         if self.store._in_txn:
             raise RuntimeError("nested transaction")
         self.store._in_txn = True

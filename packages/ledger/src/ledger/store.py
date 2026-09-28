@@ -13,7 +13,7 @@ import json
 import sqlite3
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Union
 
 from ledger.charges import DEFAULT_CHARGES_PATH, exchange_for, load_rates, order_charges
 
@@ -38,7 +38,8 @@ CANCEL_REASONS = frozenset(
     }
 )
 
-Ts = str | datetime | None
+# Runtime alias: `str | datetime | None` is a TypeError on CPython 3.9 (PEP 604).
+Ts = Union[None, str, datetime]  # noqa: UP007
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS orders (

@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 from decimal import ROUND_HALF_UP, Decimal
 from pathlib import Path
-from typing import Any, Self, overload
+from typing import Any, overload
 
 import yaml
 
@@ -38,7 +38,8 @@ def _as_decimal(value: Any) -> Decimal:
 class Paisa(Decimal):
     """Paise Decimal that still mixes with float callers (desk-ml.costs)."""
 
-    def __new__(cls, value: Any) -> Self:
+    # typing.Self is 3.11+; Mac desk is CPython 3.9 and lazy-imports this module.
+    def __new__(cls, value: Any) -> Paisa:  # noqa: PYI034
         return Decimal.__new__(cls, _as_decimal(value))
 
     def _other(self, other: Any) -> Decimal | None:
