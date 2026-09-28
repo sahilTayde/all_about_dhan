@@ -2,6 +2,11 @@
 
 from __future__ import annotations
 
+import json
+import os
+import signal
+import subprocess
+import sys
 import time
 from datetime import timedelta
 from decimal import Decimal
@@ -410,12 +415,207 @@ def test_sqlite_process_restart_rebuild_then_timeout_no_duplicate(tmp_path: Path
     assert live["policy"].chase_timeout_s == 2.0
     assert isinstance(live["bar_close_ts"], type(BAR_CLOSE))
     assert live["bar_close_ts"].tzinfo is not None
+    oid = live["client_order_id"]
+    assert oid in revived.router.broker.orders
     clock2.advance_by(timedelta(seconds=2))
     revived.on_clock()
     assert store2.get_plan(pid)["status"] == "MISSED_CHASE"
     assert len(store2.entry_plans) == 1
-    assert revived.router.broker.orders == {}
+    assert revived.router.broker.orders[oid].state.value == "CANCELLED"
     store2.close()
+
+
+def test_sqlite_chase_fill_places_protective_stop(tmp_path: Path) -> None:
+    """A: same-process sqlite chase send then fill reaches FILLED with a stop."""
+    from ledger.v2 import SqliteLedgerStore
+
+    clock = SimClock(NOW)
+    store = SqliteLedgerStore(tmp_path / "aad.sqlite", migrate_schema=True)
+    planner = _planner(tmp_path, clock, store=store)
+    planner.on_decision(
+        make_decision(), account=Account("founder"), signal_id=SIG, bar_close_ts=BAR_CLOSE
+    )
+    planner.on_quote(_quote(clock, ask=151.20))
+    pid = next(iter(store.entry_plans))
+    assert store.get_plan(pid)["status"] == "WORKING"
+    oid = store.get_plan(pid)["client_order_id"]
+    assert store.get_order(oid) is not None
+    assert float(store.get_order(oid)["price"]) == marketable_limit(151.20, 2)
+    clock.advance_by(timedelta(milliseconds=250))
+    planner.on_quote(_quote(clock, ask=151.20))
+    assert store.get_plan(pid)["status"] == "FILLED"
+    assert store.get_position(INST) is not None
+    assert int(store.get_position(INST)["net_qty"]) == 130
+    assert store.has_protective(INST)
+    stop_ids = [
+        o.client_order_id
+        for o in planner.router.broker.orders.values()
+        if o.intent.purpose == "EXIT" and (o.intent.exit_reason or "") == "STOP_HIT"
+    ]
+    assert len(stop_ids) == 1
+    store.close()
+
+
+_RESTART_WORKER = r"""
+import json, os, signal, sys
+from datetime import datetime, timedelta
+from pathlib import Path
+
+import yaml
+from brokers.fills import Quote
+from contracts.clock import IST, SimClock
+from contracts.payloads import Decision
+from events.bus import MemoryBus
+from ledger.v2 import SqliteLedgerStore
+from oms import Account, OrderPlanner
+from oms.planner import load_entry_config
+from oms.router import OrderRouter
+from risk_engine import V2RiskEngine
+
+NOW = datetime(2026, 9, 28, 10, 1, tzinfo=IST)
+INST = "NSE_FNO:NIFTY:2026-09-29:24400:CE"
+SIG = "sg_test_nifty_20260928_1001_0"
+BAR_CLOSE = NOW - timedelta(seconds=1)
+REPO = Path(os.environ["AAD_REPO"])
+
+
+def _risk(path: Path) -> Path:
+    cfg = yaml.safe_load((REPO / "config" / "risk_limits.yaml").read_text())
+    cfg["kill_switch_file"] = str(path / "KILL_SWITCH")
+    out = path / "risk_limits.yaml"
+    out.write_text(yaml.safe_dump(cfg))
+    return out
+
+
+def _cfg(path: Path):
+    entry = yaml.safe_load((REPO / "config/v2/entry_location.yaml").read_text())
+    chase = yaml.safe_load((REPO / "config/v2/entry/chase_defaults.yaml").read_text())
+    epath = path / "entry_location.yaml"
+    cpath = path / "chase_defaults.yaml"
+    epath.write_text(yaml.safe_dump(entry))
+    cpath.write_text(yaml.safe_dump(chase))
+    return load_entry_config(epath, cpath)
+
+
+def _planner(db: Path, clock: SimClock, *, migrate: bool) -> OrderPlanner:
+    store = SqliteLedgerStore(db, migrate_schema=migrate)
+    bus = MemoryBus()
+    risk = V2RiskEngine(ledger=store, config_path=_risk(db.parent), bus=bus)
+    router = OrderRouter(clock=clock, risk=risk, store=store, bus=bus)
+    return OrderPlanner(clock=clock, router=router, config=_cfg(db.parent), store=store)
+
+
+def _decision() -> Decision:
+    return Decision(
+        decision_id="dc_1",
+        underlying="NIFTY",
+        decision="ENTER",
+        signal_ids=[SIG],
+        instrument_id=INST,
+        lots=2,
+        lot_size=65,
+        limit_price=151.40,
+        shadow={"chosen": "ITM100"},
+    )
+
+
+def phase_a() -> None:
+    db = Path(os.environ["AAD_DB"])
+    clock = SimClock(NOW)
+    planner = _planner(db, clock, migrate=True)
+    planner.on_decision(
+        _decision(), account=Account("founder"), signal_id=SIG, bar_close_ts=BAR_CLOSE
+    )
+    q = Quote(available_ts=clock.now(), bid=151.00, ask=151.20, ltp=151.10, instrument_id=INST)
+    planner.on_quote(q)
+    pid = next(iter(planner.store.entry_plans))
+    row = planner.store.get_plan(pid)
+    assert row["status"] == "WORKING"
+    Path(os.environ["AAD_MARKER"]).write_text(
+        json.dumps({"pid": pid, "oid": row["client_order_id"], "limit": float(row["limit_price"])})
+    )
+    planner.store.close()
+    os.kill(os.getpid(), signal.SIGKILL)
+
+
+def phase_b() -> None:
+    marker = json.loads(Path(os.environ["AAD_MARKER"]).read_text())
+    db = Path(os.environ["AAD_DB"])
+    clock = SimClock(NOW + timedelta(milliseconds=250))
+    planner = _planner(db, clock, migrate=False)
+    submits = {"n": 0}
+    orig = planner.router.submit
+
+    def _count(*a, **k):
+        submits["n"] += 1
+        return orig(*a, **k)
+
+    planner.router.submit = _count
+    planner.rebuild()
+    q = Quote(available_ts=clock.now(), bid=151.00, ask=151.20, ltp=151.10, instrument_id=INST)
+    planner.on_quote(q)
+    row = planner.store.get_plan(marker["pid"])
+    entry_ids = [
+        o.client_order_id
+        for o in planner.router.broker.orders.values()
+        if o.intent.purpose == "ENTRY"
+    ]
+    Path(os.environ["AAD_RESULT"]).write_text(
+        json.dumps(
+            {
+                "status": row["status"],
+                "oid": marker["oid"],
+                "entry_ids": entry_ids,
+                "submit_count": submits["n"],
+                "has_protective": bool(planner.store.has_protective(INST)),
+                "order_ids": list(planner.router.broker.orders),
+            }
+        )
+    )
+    planner.store.close()
+
+
+if __name__ == "__main__":
+    {"A": phase_a, "B": phase_b}[os.environ["AAD_PHASE"]]()
+"""
+
+
+def test_sqlite_sigkill_restart_fill_one_order_no_resubmit(tmp_path: Path) -> None:
+    """B: two real processes; SIGKILL then rebuild+quotes -> FILLED, one oid, zero submit."""
+    db = tmp_path / "aad.sqlite"
+    marker = tmp_path / "ready.json"
+    result = tmp_path / "result.json"
+    script = tmp_path / "restart_worker.py"
+    script.write_text(_RESTART_WORKER)
+    env = {
+        **os.environ,
+        "AAD_DB": str(db),
+        "AAD_MARKER": str(marker),
+        "AAD_RESULT": str(result),
+        "AAD_REPO": str(REPO),
+        "AAD_PHASE": "A",
+        "PYTHONUNBUFFERED": "1",
+    }
+    proc = subprocess.Popen([sys.executable, str(script)], env=env)
+    deadline = time.time() + 30
+    while not marker.exists() and time.time() < deadline:
+        if proc.poll() is not None:
+            break
+        time.sleep(0.05)
+    assert marker.exists(), f"process A died before WORKING: {proc.poll()}"
+    if proc.poll() is None:
+        proc.send_signal(signal.SIGKILL)
+        proc.wait(timeout=10)
+    env["AAD_PHASE"] = "B"
+    done = subprocess.run(
+        [sys.executable, str(script)], env=env, check=False, capture_output=True, text=True
+    )
+    assert done.returncode == 0, done.stdout + done.stderr
+    data = json.loads(result.read_text())
+    assert data["status"] == "FILLED"
+    assert data["entry_ids"] == [data["oid"]]
+    assert data["submit_count"] == 0
+    assert data["has_protective"] is True
 
 
 def test_memory_upsert_plan_keeps_created_at_and_identity() -> None:

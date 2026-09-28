@@ -435,6 +435,54 @@ class OrderPlanner:
             restored.setdefault("quotes", [])
             restored.setdefault("bars_seen", 0)
             self._live[pid] = restored
+            if restored.get("status") == "WORKING":
+                self._reconcile_working(restored)
+
+    def _reconcile_working(self, row: dict[str, Any]) -> None:
+        """Match a WORKING plan to the persisted order. Never router.submit."""
+        oid = row.get("client_order_id")
+        if not oid:
+            return
+        oid = str(oid)
+        stored = None
+        getter = getattr(self.store, "get_order", None)
+        if callable(getter):
+            stored = getter(oid)
+        broker = self.router.broker
+        held = broker.orders.get(oid)
+        restore = getattr(broker, "restore_working_order", None)
+        if held is None and stored is not None and callable(restore):
+            held = restore(stored, plan=row, now=self.clock.now())
+        elif held is not None and oid not in getattr(broker, "_order_meta", {}):
+            if callable(restore) and stored is not None:
+                held = restore(stored, plan=row, now=self.clock.now())
+            else:
+                remember = getattr(broker, "remember", None)
+                if callable(remember):
+                    remember(oid)
+        state = None
+        fill_px = None
+        if held is not None:
+            state = getattr(held.state, "value", held.state)
+            fill_px = held.avg_fill_price
+        elif isinstance(stored, dict):
+            state = stored.get("status") or stored.get("state")
+            fill_px = stored.get("avg_fill_price")
+        if state == "FILLED":
+            self._mark_plan_filled(row, fill_px)
+            if held is not None:
+                key = held.intent.instrument_id or held.intent.symbol
+                has_prot = getattr(self.store, "has_protective", None)
+                if callable(has_prot) and not has_prot(key):
+                    self.router._place_protective_stop(held)
+            return
+        if row.get("mode") == "chase":
+            sent = row.get("sent_at")
+            policy = row.get("policy")
+            timeout = float(getattr(policy, "chase_timeout_s", 0) or 0)
+            due = sent is not None and timeout > 0
+            if due and self.clock.now() >= sent + timedelta(seconds=timeout):
+                self._timeout_chase(row)
 
     def _send(self, row: dict[str, Any], quote: Quote) -> None:
         policy: CardPolicy = row["policy"]
@@ -555,6 +603,26 @@ class OrderPlanner:
             return 0.0
         return round(float(mark) - chase_px, 4)
 
+    def _mark_plan_filled(self, row: dict[str, Any], fill_price: Any) -> None:
+        if row.get("status") == "FILLED":
+            return
+        waited = 0.0
+        if row.get("sent_at") is not None:
+            waited = (self.clock.now() - row["sent_at"]).total_seconds()
+        result = EntryPlanResult(
+            plan_id=row["plan_id"],
+            status="FILLED",
+            fill_price=fill_price,
+            filled_at=self.clock.now().isoformat(),
+            waited_s=waited,
+            giveback_5m_pts=None,
+            giveback_5m_atr=None,
+        )
+        row["status"] = "FILLED"
+        row["result"] = result
+        self.store.upsert_plan(self._persistable(row))
+        self.bus.publish("ENTRY_PLAN_RESULT", result.__dict__, source="oms")
+
     def _collect_fills(self) -> None:
         for row in self._live.values():
             oid = row.get("client_order_id")
@@ -565,22 +633,7 @@ class OrderPlanner:
                 continue
             state = getattr(order.state, "value", order.state)
             if state == "FILLED":
-                waited = 0.0
-                if row.get("sent_at") is not None:
-                    waited = (self.clock.now() - row["sent_at"]).total_seconds()
-                result = EntryPlanResult(
-                    plan_id=row["plan_id"],
-                    status="FILLED",
-                    fill_price=order.avg_fill_price,
-                    filled_at=self.clock.now().isoformat(),
-                    waited_s=waited,
-                    giveback_5m_pts=None,
-                    giveback_5m_atr=None,
-                )
-                row["status"] = "FILLED"
-                row["result"] = result
-                self.store.upsert_plan(self._persistable(row))
-                self.bus.publish("ENTRY_PLAN_RESULT", result.__dict__, source="oms")
+                self._mark_plan_filled(row, order.avg_fill_price)
 
     def _prune_live(self) -> None:
         for pid, row in list(self._live.items()):

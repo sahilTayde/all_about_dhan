@@ -483,20 +483,80 @@ class SqliteLedgerStore:
 
     def open_positions(self) -> list[dict[str, Any]]:
         if self._has_table("positions_v2"):
-            rows = self.positions_v2()
-            return [
-                {
-                    "symbol": r["instrument_id"],
-                    "instrument_id": r["instrument_id"],
-                    "net_qty": r["net_qty"],
-                    "avg_price": r["avg_price"],
-                    "account_id": r["account_id"],
-                    "strategy_id": r["strategy_id"],
-                    "exit_plan_json": r["exit_plan_json"],
-                }
-                for r in rows
-            ]
+            return [p for r in self.positions_v2() if (p := self._position_from_v2(r)) is not None]
         return self._legacy.open_positions()
+
+    def _exit_plan_map(self, raw: Any) -> dict[str, Any]:
+        if not raw:
+            return {}
+        if isinstance(raw, dict):
+            return dict(raw)
+        try:
+            got = json.loads(str(raw))
+        except (json.JSONDecodeError, TypeError, ValueError):
+            return {}
+        return dict(got) if isinstance(got, dict) else {}
+
+    def _position_from_v2(self, row: Any) -> dict[str, Any]:
+        plan = self._exit_plan_map(row["exit_plan_json"])
+        inst = str(row["instrument_id"])
+        return {
+            "symbol": inst,
+            "instrument_id": inst,
+            "net_qty": int(row["net_qty"]),
+            "avg_price": row["avg_price"],
+            "account_id": row["account_id"],
+            "strategy_id": row["strategy_id"],
+            "exit_plan_json": row["exit_plan_json"],
+            "stop_price": plan.get("stop_price"),
+            "entry_order_id": plan.get("entry_order_id"),
+            "protective_stop_id": plan.get("protective_stop_id"),
+        }
+
+    def get_position(self, key: str) -> dict[str, Any] | None:
+        """Store-agnostic open-position read. Matches MemoryLedger.get_position."""
+        if not key:
+            return None
+        if self._has_table("positions_v2"):
+            row = self.conn.execute(
+                "SELECT * FROM positions_v2 WHERE net_qty != 0 AND (instrument_id=? OR instrument_id LIKE ?) LIMIT 1",
+                (key, f"%{key}%"),
+            ).fetchone()
+            return self._position_from_v2(row) if row is not None else None
+        for pos in self._legacy.open_positions():
+            if pos.get("instrument_id") == key or pos.get("symbol") == key:
+                return pos
+        return None
+
+    def get_protective(self, key: str) -> str | None:
+        if not key:
+            return None
+        row = self.conn.execute(
+            "SELECT exit_plan_json FROM positions_v2 WHERE instrument_id=? OR instrument_id LIKE ?",
+            (key, f"%{key}%"),
+        ).fetchone()
+        if row is None or not row[0]:
+            return None
+        got = self._exit_plan_map(row[0]).get("protective_stop_id")
+        return str(got) if got else None
+
+    def clear_protective(self, key: str) -> None:
+        row = self.conn.execute(
+            "SELECT * FROM positions_v2 WHERE instrument_id=? OR instrument_id LIKE ?",
+            (key, f"%{key}%"),
+        ).fetchone()
+        if row is None:
+            return
+        plan = self._exit_plan_map(row["exit_plan_json"])
+        if "protective_stop_id" not in plan:
+            return
+        plan.pop("protective_stop_id", None)
+        self.conn.execute(
+            "UPDATE positions_v2 SET exit_plan_json=?, updated_at=? WHERE account_id=? AND instrument_id=?",
+            (json.dumps(plan), iso_ist(), row["account_id"], row["instrument_id"]),
+        )
+        if not self._in_txn:
+            self.conn.commit()
 
     def open_orders(self) -> list[dict[str, Any]]:
         marks = ", ".join("?" * len(OPEN_ORDER_STATES))

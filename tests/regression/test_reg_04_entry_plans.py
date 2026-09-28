@@ -52,6 +52,7 @@ def test_reg_04_restart_rebuilds_pending_plans_without_duplicates(
     first.on_quote(Quote(clock.now(), 151.00, 151.20, 151.10, INST))
     assert len(store.entry_plans) == 1
     assert len(first.router.broker.orders) == 1
+    first_oid = next(iter(first.router.broker.orders))
     pid = next(iter(store.entry_plans))
     status = store.entry_plans[pid]["status"]
     assert status == "WORKING"
@@ -64,6 +65,14 @@ def test_reg_04_restart_rebuilds_pending_plans_without_duplicates(
         config=cfg,
         store=store,
     )
+    submits = {"n": 0}
+    orig = revived.router.submit
+
+    def _count(*a, **k):  # type: ignore[no-untyped-def]
+        submits["n"] += 1
+        return orig(*a, **k)
+
+    revived.router.submit = _count  # type: ignore[method-assign]
     revived.rebuild()
     revived.on_decision(
         make_decision(),
@@ -76,5 +85,5 @@ def test_reg_04_restart_rebuilds_pending_plans_without_duplicates(
     revived.on_quote(Quote(clock2.now(), 151.00, 151.20, 151.10, INST))
     assert len(store.entry_plans) == 1
     assert list(store.entry_plans) == [pid]
-    # WORKING plan is not resent onto the new broker
-    assert revived.router.broker.orders == {}
+    assert submits["n"] == 0
+    assert list(revived.router.broker.orders) == [first_oid]

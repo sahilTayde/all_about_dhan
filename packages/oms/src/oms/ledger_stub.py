@@ -79,6 +79,27 @@ class MemoryLedger:
     def pending_plans(self) -> list[dict[str, Any]]:
         return [p for p in self.entry_plans.values() if p.get("status") in ("PENDING", "WORKING")]
 
+    def get_position(self, key: str) -> dict[str, Any] | None:
+        return self.positions.get(key)
+
+    def get_protective(self, key: str) -> str | None:
+        got = self.protective.get(key)
+        return str(got) if got else None
+
+    def clear_protective(self, key: str) -> None:
+        self.protective.pop(key, None)
+
+    def mark_order_status(
+        self, client_order_id: str, status: str, *, cancel_reason: str | None = None
+    ) -> None:
+        row = self.orders.get(client_order_id)
+        if row is None:
+            return
+        row["state"] = status
+        row["status"] = status
+        if cancel_reason is not None:
+            row["cancel_reason"] = cancel_reason
+
     def get_order(self, client_order_id: str) -> dict[str, Any] | None:
         return self.orders.get(client_order_id)
 
