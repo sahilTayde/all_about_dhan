@@ -104,6 +104,27 @@ class Paisa(Decimal):
             return NotImplemented
         return Paisa(coerced - Decimal(self))
 
+    def __mul__(self, other: Any) -> Paisa:
+        coerced = self._other(other)
+        if coerced is None:
+            return NotImplemented
+        return Paisa(Decimal(self) * coerced)
+
+    def __rmul__(self, other: Any) -> Paisa:
+        return self.__mul__(other)
+
+    def __truediv__(self, other: Any) -> Paisa:
+        coerced = self._other(other)
+        if coerced is None:
+            return NotImplemented
+        return Paisa(Decimal(self) / coerced)
+
+    def __rtruediv__(self, other: Any) -> Paisa:
+        coerced = self._other(other)
+        if coerced is None:
+            return NotImplemented
+        return Paisa(coerced / Decimal(self))
+
     def __abs__(self) -> Paisa:
         return Paisa(abs(Decimal(self)))
 
