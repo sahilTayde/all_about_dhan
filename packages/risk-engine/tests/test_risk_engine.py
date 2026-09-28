@@ -198,6 +198,54 @@ def test_exits_allowed_under_kill_switch_and_after_cutoff(tmp_path):
     assert code(eng.check_exit(intent(), now=late)) == "INVALID_INTENT"  # EXIT needs purpose EXIT
 
 
+def test_check_exit_allows_reduce_only_sell_under_kill(tmp_path):
+    inst = "NSE_FNO:NIFTY:2026-09-29:24400:CE"
+
+    class Book:
+        def __init__(self) -> None:
+            self.positions = {
+                inst: {"net_qty": 130, "instrument_id": inst, "symbol": "NIFTY 24400 CE"}
+            }
+
+        def risk_snapshot(self, now, secs):
+            return {
+                "open_positions": 1,
+                "realized_pnl_today": 0.0,
+                "last_loss_exit_at": None,
+                "recent_fingerprints": [],
+                "used_client_order_ids": set(),
+                "recon_ok": True,
+            }
+
+        def record_decision(self, row):
+            pass
+
+    book = Book()
+    eng = make_engine(tmp_path, ledger=book, kill_switch=True)
+    reduce = TradeIntent(
+        symbol="NIFTY 24400 CE",
+        side="SELL",
+        lots=2,
+        lot_size=65,
+        purpose="EXIT",
+        exit_reason="STOP_HIT",
+        instrument_id=inst,
+    )
+    assert eng.check_exit(reduce, now=NOW).approved
+    assert code(eng.check_entry(intent(lots=1, stop=90.0), NOW, RiskState())) == "KILL_SWITCH"
+    too_big = TradeIntent(
+        symbol="NIFTY 24400 CE",
+        side="SELL",
+        lots=3,
+        lot_size=65,
+        purpose="EXIT",
+        exit_reason="STOP_HIT",
+        instrument_id=inst,
+    )
+    denied = eng.check_exit(too_big, now=NOW)
+    assert not denied.approved and code(denied) == "INVALID_INTENT"
+
+
 def test_state_reloads_from_ledger_after_restart(tmp_path):
     rates = load_rates(REPO / "config" / "charges.yaml")
     path = tmp_path / "ledger.sqlite"
