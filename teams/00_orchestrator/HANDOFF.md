@@ -2,6 +2,39 @@
 
 **Agents:** read **only the newest block**. Do not ingest this whole log. New files: [`docs/FILE_CREATION.md`](../../docs/FILE_CREATION.md). Append here — do not create `HANDOFF_TOMORROW.md` or extra `CONTINUE_*`.
 
+## As of now (2026-09-27 IST) — V2-10 fix round (atomic fill / idempotency / P&L / qty / Decimal)
+
+```text
+From:     teams/00_orchestrator
+To:       founder / 07 / 09
+Date:     2026-09-27
+Status:   PAPER / V2-10 / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+Accepted: PR #58 fix round. One BEGIN IMMEDIATE around
+  fill+charges+trade+positions_v2+order. Unique fill
+  identity. Closing fill writes gross/charges/net once.
+  qty = lots*65 stored as contracts. Decimal paise in
+  the v2 path. Named tests after each verifier fail.
+  Merged V2-08 7c09f84 (lot_size mismatch veto).
+Rejected: Rebase / force-push / merge of this PR. Live orders.
+  Touching frozen legacy or requirements/*.
+UNKNOWN: GitHub CI on the new head.
+```
+
+## As of now (2026-09-27 IST) — V2-10 ledger v2 + crash recovery (PAPER)
+
+```text
+From:     teams/00_orchestrator
+To:       founder / 07 / 09
+Date:     2026-09-27
+Status:   PAPER / V2-10 / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+Accepted: V2-10 on a branch off V2-08 (#45). Draft PR base =
+  cursor/v2-08-order-router-fills-1553 (retarget main after #45).
+Rejected: Live orders. Touching frozen legacy files.
+UNKNOWN: #45 merge timing.
+```
+
 ## As of now (2026-09-24 IST) — sleep close; tape STOPPED (NO_PROMOTE)
 
 ```text
