@@ -1,0 +1,19 @@
+# Research round 10: no entry-location rule (founder addendum 6).
+# Boss records stretch only. Desk chases. Optional modes stay off.
+source: "research round 10: no entry-location rule found (founder addendum 6)"
+boss_stretch: record_only
+default_entry_policy: chase
+chase_defaults: config/v2/entry/chase_defaults.yaml
+pullback_limit:
+  enabled: false
+  limit_timeout_s: null
+wait_consolidation:
+  enabled: false
+  consol_max_atr: null
+  wait_max_bars: null
+zones:
+  - fvg
+  - candle_50
+fvg:
+  fill_rule: full
+  max_age_bars: 60

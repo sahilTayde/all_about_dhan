@@ -21,3 +21,12 @@ where = ["src"]
 
 [tool.setuptools.package-data]
 warehouse = ["py.typed"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+files = ["src/warehouse/etl.py"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"

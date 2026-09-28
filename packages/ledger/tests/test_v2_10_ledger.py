@@ -246,6 +246,30 @@ def test_positions_v2_round_trip(tmp_path: Path) -> None:
     store.upsert_position_v2("founder", "NSE_FNO:NIFTY:2026-09-29:24400:CE", 65, 100.0, strategy_id="TEST")
     rows = store.positions_v2()
     assert rows[0]["net_qty"] == 65 and rows[0]["strategy_id"] == "TEST"
+    inst = "NSE_FNO:NIFTY:2026-09-29:24400:CE"
+    got = store.get_position(inst)
+    assert got is not None and int(got["net_qty"]) == 65
+    store.close()
+
+
+def test_insert_order_persists_price_for_rebuild(tmp_path: Path) -> None:
+    store = SqliteLedgerStore(tmp_path / "aad.sqlite", migrate_schema=True)
+    store.insert_order(
+        {
+            "client_order_id": "aad-entry-1",
+            "instrument_id": "NSE_FNO:NIFTY:2026-09-29:24400:CE",
+            "side": "BUY",
+            "lots": 2,
+            "lot_size": 65,
+            "order_type": "LIMIT",
+            "price": 151.30,
+            "purpose": "ENTRY",
+            "state": "SUBMITTED",
+        }
+    )
+    row = store.get_order("aad-entry-1")
+    assert row is not None
+    assert float(row["price"]) == 151.30
     store.close()
 
 

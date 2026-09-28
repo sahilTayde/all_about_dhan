@@ -1,0 +1,4 @@
+# V2-20a preregistration lock. sha256(canonical spec + plugin source + coefficients).
+# Empty until V2-20b registers shadow specs. Cumulative trials start at the Round 8 book.
+cumulative_trials: 4621
+specs: {}

@@ -103,6 +103,7 @@ class Signal:
     exit_plan: ExitPlan
     reasons: tuple[str, ...]
     features: dict[str, float]
+    entry_location: dict[str, Any] | None = None
 
 
 @dataclass(frozen=True)
