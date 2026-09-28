@@ -10,11 +10,12 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
-from datetime import date, datetime, time, timedelta, timezone
+from datetime import date, datetime, time
 from pathlib import Path
 from typing import Any
 
-IST = timezone(timedelta(hours=5, minutes=30))
+from warehouse.calendar import IST, NonTradingDay, resolve_trading_day
+
 OPEN = time(9, 15)
 SCHEMA = "pre-market-v2-18"
 
@@ -57,7 +58,7 @@ def atr14(bars: list[dict[str, Any]]) -> float | None:
 
 
 def publish(
-    session: date,
+    session: date | None,
     *,
     now: datetime,
     prior_bars: list[dict[str, Any]],
@@ -65,6 +66,7 @@ def publish(
     event_days: dict[str, str],
     dest: Path,
 ) -> dict[str, Any]:
+    session = resolve_trading_day(session, now)
     now_ist = _as_ist(now)
     if now_ist.time() >= OPEN:
         raise ValueError("pre-market must run before 09:15 IST")
@@ -117,7 +119,7 @@ def publish(
 
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(description="V2-18 pre-market publish (paper; no network)")
-    p.add_argument("--session", required=True)
+    p.add_argument("--session", default=None, help="optional YYYY-MM-DD (else derived from --now)")
     p.add_argument("--now", required=True, help="tz-aware ISO timestamp")
     p.add_argument("--out", required=True, type=Path)
     p.add_argument("--prior", required=True, type=Path, help="JSON list of prior daily bars")
@@ -127,14 +129,18 @@ def main(argv: list[str] | None = None) -> int:
     bars = json.loads(args.prior.read_text(encoding="utf-8"))
     events = json.loads(args.events.read_text(encoding="utf-8")) if args.events else {}
     inter = json.loads(args.intermarket.read_text(encoding="utf-8")) if args.intermarket else {}
-    env = publish(
-        date.fromisoformat(args.session),
-        now=datetime.fromisoformat(args.now),
-        prior_bars=bars,
-        intermarket=inter,
-        event_days=events,
-        dest=args.out,
-    )
+    try:
+        env = publish(
+            date.fromisoformat(args.session) if args.session else None,
+            now=datetime.fromisoformat(args.now),
+            prior_bars=bars,
+            intermarket=inter,
+            event_days=events,
+            dest=args.out,
+        )
+    except NonTradingDay as exc:
+        print(json.dumps({"error": "non-trading-day", "detail": str(exc)}, sort_keys=True))
+        return 2
     print(
         json.dumps({"event_id": env["event_id"], "available_ts": env["available_ts"], "holds": env["payload"]["holds"]})
     )
