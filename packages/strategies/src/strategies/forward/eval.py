@@ -16,7 +16,8 @@ from contracts.ids import event_id
 from contracts.instruments import India
 from events.bus import MemoryBus
 from ledger.charges import load_rates, order_charges
-from marketdata.sources import SourceEvent, TapeSource
+from marketdata.sources import SourceEvent
+from marketdata.types import Tick
 from runtime.kernel import Engine
 from runtime.sources import EnvelopeSource
 from runtime.store import InMemoryLedgerStore
@@ -53,7 +54,7 @@ def _parse_ts(raw: str) -> datetime:
     return dt.astimezone(IST)
 
 
-def load_tape_quotes(path: Path) -> list[TapeQuote]:
+def parse_tape_quotes(path: Path) -> list[tuple[int, TapeQuote]]:
     """Read bid/ask/ltp from the same JSONL TapeSource consumes. Extra keys survive."""
     staged: list[tuple[int, TapeQuote]] = []
     text = path.read_text(encoding="utf-8")
@@ -87,6 +88,11 @@ def load_tape_quotes(path: Path) -> list[TapeQuote]:
             )
         )
         seq += 1
+    return staged
+
+
+def load_tape_quotes(path: Path) -> list[TapeQuote]:
+    staged = parse_tape_quotes(path)
     staged.sort(key=lambda item: (item[1].available_ts, item[0]))
     return [q for _seq, q in staged]
 
@@ -112,7 +118,7 @@ def session_minute_count(session: datetime) -> int:
 
 
 def spec_priced_instruments(spec: ForwardSpec) -> set[str]:
-    """Chosen strike plus each strike-router alternative the spec actually prices."""
+    """Day-union of chosen + alternatives. Coverage uses instruments_at_minute."""
     out: set[str] = set()
     for sig in spec.signals:
         chosen = sig.get("instrument_id")
@@ -124,6 +130,89 @@ def spec_priced_instruments(spec: ForwardSpec) -> set[str]:
                 if isinstance(inst, str) and inst:
                     out.add(inst)
     return out
+
+
+def _signal_end(sig: dict[str, Any]) -> datetime:
+    times = [_parse_ts(str(sig["decision_ts"]))]
+    if sig.get("exit_ts"):
+        times.append(_parse_ts(str(sig["exit_ts"])))
+    if sig.get("exit_ts_round11"):
+        times.append(_parse_ts(str(sig["exit_ts_round11"])))
+    return max(times)
+
+
+def instruments_at_minute(spec: ForwardSpec, minute_ts: datetime) -> set[str]:
+    """Strikes the spec prices at this minute: ATM schedule, plus active alts."""
+    required: set[str] = set()
+    signals = sorted(spec.signals, key=lambda s: _parse_ts(str(s["decision_ts"])))
+    scheduled: dict[str, Any] | None = None
+    for sig in signals:
+        if _parse_ts(str(sig["decision_ts"])) <= minute_ts:
+            scheduled = sig
+        else:
+            break
+    if scheduled is None and signals:
+        scheduled = signals[0]
+    if scheduled is not None:
+        chosen = scheduled.get("instrument_id")
+        if isinstance(chosen, str) and chosen:
+            required.add(chosen)
+        alts = scheduled.get("alternatives") or {}
+        if isinstance(alts, dict) and isinstance(alts.get("ATM"), str):
+            required.add(str(alts["ATM"]))
+    for sig in signals:
+        start = _parse_ts(str(sig["decision_ts"]))
+        end = _signal_end(sig)
+        if start <= minute_ts < end:
+            chosen = sig.get("instrument_id")
+            if isinstance(chosen, str) and chosen:
+                required.add(chosen)
+            alts = sig.get("alternatives") or {}
+            if isinstance(alts, dict):
+                for inst in alts.values():
+                    if isinstance(inst, str) and inst:
+                        required.add(inst)
+    return required
+
+
+def _quote_to_event(q: TapeQuote) -> SourceEvent:
+    tick = Tick(
+        instrument_id=q.instrument_id,
+        ltp=q.ltp,
+        ltq=1,
+        volume=1,
+        oi=100,
+        exchange_ts=q.available_ts.isoformat(),
+    )
+    return SourceEvent(event_type="TICK", payload=tick, available_ts=q.available_ts)
+
+
+def accept_tape(
+    path: Path, watermark: datetime
+) -> tuple[list[TapeQuote], list[SourceEvent], int, int]:
+    """One ordered/accepted stream for the kernel and for pricing."""
+    staged = parse_tape_quotes(path)
+    rows = [(seq, q.available_ts, q) for seq, q in staged]
+    reordered = 0
+    seen: datetime | None = None
+    for _seq, ts, _q in rows:
+        if seen is not None and ts < seen:
+            reordered += 1
+        if seen is None or ts > seen:
+            seen = ts
+    ordered = sorted(rows, key=lambda item: (item[1], item[0]))
+    kept: list[TapeQuote] = []
+    dropped = 0
+    mark = watermark
+    for _seq, ts, q in ordered:
+        if ts < mark:
+            dropped += 1
+            continue
+        kept.append(q)
+        if ts > mark:
+            mark = ts
+    events = [_quote_to_event(q) for q in kept]
+    return kept, events, reordered, dropped
 
 
 def _envelope_from_tick(event: SourceEvent, index: int) -> Envelope:
@@ -153,47 +242,9 @@ def _envelope_from_tick(event: SourceEvent, index: int) -> Envelope:
     )
 
 
-def _tape_ticks(path: Path) -> list[tuple[int, datetime, SourceEvent]]:
-    source = TapeSource(path)
-    rows: list[tuple[int, datetime, SourceEvent]] = []
-    seq = 0
-    for event in source.events():
-        if event.event_type != "TICK":
-            continue
-        rows.append((seq, event.available_ts, event))
-        seq += 1
-    return rows
-
-
-def order_tape_events(
-    rows: list[tuple[int, datetime, SourceEvent]], watermark: datetime
-) -> tuple[list[SourceEvent], int, int]:
-    """Stable-sort by (exchange_ts, file seq). Drop events older than the watermark."""
-    reordered = 0
-    seen: datetime | None = None
-    for _seq, ts, _ev in rows:
-        if seen is not None and ts < seen:
-            reordered += 1
-        if seen is None or ts > seen:
-            seen = ts
-    ordered = sorted(rows, key=lambda item: (item[1], item[0]))
-    kept: list[SourceEvent] = []
-    dropped = 0
-    mark = watermark
-    for _seq, ts, ev in ordered:
-        if ts < mark:
-            dropped += 1
-            continue
-        kept.append(ev)
-        if ts > mark:
-            mark = ts
-    return kept, reordered, dropped
-
-
 def envelopes_from_tape(path: Path, clock: SimClock) -> list[Envelope]:
-    """TapeSource → kernel envelopes (one code path with Engine)."""
-    start = clock.now()
-    events, reordered, dropped = order_tape_events(_tape_ticks(path), start)
+    """Accepted tape rows → kernel envelopes (one code path with Engine)."""
+    _quotes, events, reordered, dropped = accept_tape(path, clock.now())
     if reordered or dropped:
         log.info(
             "forward-eval tape reorder: reordered=%s late_dropped=%s kept=%s",
@@ -204,9 +255,18 @@ def envelopes_from_tape(path: Path, clock: SimClock) -> list[Envelope]:
     return [_envelope_from_tick(event, index) for index, event in enumerate(events)]
 
 
+def run_engine(events: list[SourceEvent], start: datetime) -> tuple[int, str]:
+    envs = [_envelope_from_tick(event, index) for index, event in enumerate(events)]
+    if not envs:
+        return 0, ""
+    summary = Engine(
+        EnvelopeSource(envs), SimClock(start), MemoryBus(), [], InMemoryLedgerStore()
+    ).run()
+    return summary.envelope_count, summary.output_hash
+
+
 def run_kernel(path: Path, start: datetime) -> tuple[int, str, int, int]:
-    rows = _tape_ticks(path)
-    events, reordered, dropped = order_tape_events(rows, start)
+    _quotes, events, reordered, dropped = accept_tape(path, start)
     if reordered or dropped:
         log.info(
             "forward-eval tape reorder: reordered=%s late_dropped=%s kept=%s",
@@ -214,40 +274,37 @@ def run_kernel(path: Path, start: datetime) -> tuple[int, str, int, int]:
             dropped,
             len(events),
         )
-    envs = [_envelope_from_tick(event, index) for index, event in enumerate(events)]
-    if not envs:
-        return 0, "", reordered, dropped
-    summary = Engine(
-        EnvelopeSource(envs), SimClock(start), MemoryBus(), [], InMemoryLedgerStore()
-    ).run()
-    return summary.envelope_count, summary.output_hash, reordered, dropped
+    env_count, env_hash = run_engine(events, start)
+    return env_count, env_hash, reordered, dropped
 
 
 def last_quote(quotes: list[TapeQuote], instrument_id: str, asof: datetime) -> TapeQuote | None:
+    # quotes are (available_ts, file-seq) ordered; last visible print wins ties.
     visible = [q for q in quotes if q.instrument_id == instrument_id and q.available_ts <= asof]
-    if not visible:
-        return None
-    return max(visible, key=lambda q: q.available_ts)
+    return visible[-1] if visible else None
 
 
-def depth_coverage(quotes: list[TapeQuote], instruments: set[str], session: datetime) -> float:
-    """Share of calendar session minutes with two-sided depth on a spec strike."""
+def depth_coverage(quotes: list[TapeQuote], spec: ForwardSpec, session: datetime) -> float:
+    """Share of calendar minutes whose time-local spec strikes have bid+ask."""
     start, end = session_bounds(session)
     n_minutes = max(int((end - start).total_seconds() // 60), 0)
-    if n_minutes == 0 or not instruments:
+    if n_minutes == 0:
         return 0.0
-    covered: set[int] = set()
+    have: set[tuple[str, int]] = set()
     for q in quotes:
-        if q.instrument_id not in instruments:
-            continue
         if q.bid is None or q.ask is None:
             continue
         if not (start <= q.available_ts < end):
             continue
         minute = int((q.available_ts - start).total_seconds() // 60)
         if 0 <= minute < n_minutes:
-            covered.add(minute)
-    return len(covered) / n_minutes
+            have.add((q.instrument_id, minute))
+    covered = 0
+    for minute in range(n_minutes):
+        needed = instruments_at_minute(spec, start + timedelta(minutes=minute))
+        if needed and all((inst, minute) in have for inst in needed):
+            covered += 1
+    return covered / n_minutes
 
 
 def _qty(signal: dict[str, Any]) -> int:
@@ -324,11 +381,17 @@ def evaluate_session(
         digest = verify_lock(spec, lock)
     else:
         digest = compute_lock_digest(spec.raw, plugin_source(spec.plugin), spec.coefficients)
-    quotes = load_tape_quotes(tape)
     start, _end = session_bounds(_parse_ts(session + "T09:15:00+05:30"))
-    env_count, env_hash, reordered, dropped = run_kernel(tape, start)
-    instruments = spec_priced_instruments(spec)
-    coverage = depth_coverage(quotes, instruments, start)
+    quotes, events, reordered, dropped = accept_tape(tape, start)
+    if reordered or dropped:
+        log.info(
+            "forward-eval tape reorder: reordered=%s late_dropped=%s kept=%s",
+            reordered,
+            dropped,
+            len(events),
+        )
+    env_count, env_hash = run_engine(events, start)
+    coverage = depth_coverage(quotes, spec, start)
     bars = FwdBars.from_mapping(spec.bars)
     trades: list[dict[str, Any]] = []
     legs: dict[str, dict[str, float]] = {}
