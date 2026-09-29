@@ -1,5 +1,36 @@
 # Handoff log — Team 06 Backtesting
 
+## As of now (2026-09-29 IST) — Exit Lab round 3 pattern mining (PAPER)
+
+```text
+From:     teams/06_backtesting
+To:       00 / 04 / 07 / 09 / founder
+Date:     2026-09-29
+Status:   PAPER / SHADOW / NO_PROMOTE
+Accepted: Round-2 contract (fixed strike, holes, half-spread,
+  DSR in [0,1]). Command:
+  python -m exitlab round3 --data .local_data --out
+  /tmp/exitlab-r3 --seed 7 --reuse-entries
+  /tmp/exitlab-fix/entries.json
+  n_variants=605, n_hist=226 (33160 min), n_live=419
+  (64462 min), n_folds=10 (38 hist sessions; 12-fold
+  grid DATA_INSUFFICIENT). Oracle +4962559.88.
+  Best holdout pat_0_trail -93172.37 capture -0.019
+  DSR 0.0003 CI crosses 0. hold_to_1515 -1343070.41.
+  passing=[]. lookahead mismatches=0; labels change 40/40.
+  spread_x2 -44945 vs base -35866. Playbook enabled:false.
+  ROUND3.md + /tmp/exitlab-r3/*.json.
+Rejected: Promote. Enable playbook. Edit V2 defaults.
+  Clock-only lift as an edge. Peak models (never fire).
+  time_edge / pat_1 / atr_opt (repeat CANCEL_AGAINST
+  30/32, 24/32, 23/32).
+UNKNOWN: Live-at-entry regime (day first-30, not a
+  classifier at ticket time). V2 book size/staleness
+  on dual-tape.
+DATA_INSUFFICIENT: 12 WF folds; hist 1-lot ladders;
+  LightGBM/sklearn (hand CART/boost used).
+```
+
 ## As of now (2026-09-28 IST) — Exit Lab strike/spread/DSR re-run (PAPER)
 
 ```text
