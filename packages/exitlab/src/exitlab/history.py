@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from collections import defaultdict
+from collections.abc import Iterator
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -158,3 +160,122 @@ def _opt_float(raw: Any) -> float | None:
         return float(raw)
     except (TypeError, ValueError):
         return None
+
+
+def last3d_dir(data: Path) -> Path | None:
+    """Prefer `.local_data/last3d/`, else parquet sitting next to `--data`."""
+    for cand in (data / "last3d", data):
+        idx = cand / "index_last3d.parquet"
+        parts = list(cand.glob("opt1m_last3d_part*.parquet"))
+        if idx.is_file() and parts:
+            return cand
+    return None
+
+
+def load_last3d_index(path: Path) -> dict[str, list[Bar]]:
+    """1m NIFTY index grouped by `trading_day`. Small enough to keep in RAM."""
+    pq = _require_pyarrow()
+    table = pq.read_table(path)
+    names = set(table.column_names)
+    if "timestamp" not in names or "close" not in names:
+        raise HistoryUnavailable(f"{path}: need timestamp+close, got {sorted(names)}")
+    ts = table.column("timestamp").to_pylist()
+    o = table.column("open").to_pylist() if "open" in names else None
+    h = table.column("high").to_pylist() if "high" in names else None
+    lo = table.column("low").to_pylist() if "low" in names else None
+    c = table.column("close").to_pylist()
+    vol = table.column("volume").to_pylist() if "volume" in names else None
+    days = table.column("trading_day").to_pylist() if "trading_day" in names else None
+    by: dict[str, list[Bar]] = defaultdict(list)
+    for i, raw_ts in enumerate(ts):
+        stamp = _as_bar_ts(raw_ts)
+        if stamp is None or not _session_minute(stamp):
+            continue
+        day = str(days[i]) if days is not None else stamp.date().isoformat()
+        close = float(c[i])
+        open_px = float(o[i]) if o is not None else close
+        high_px = float(h[i]) if h is not None else close
+        low_px = float(lo[i]) if lo is not None else close
+        by[day].append(
+            Bar(
+                ts=stamp,
+                available_ts=stamp,
+                open=open_px,
+                high=high_px,
+                low=low_px,
+                close=close,
+                volume=_opt_float(vol[i]) if vol is not None else None,
+                index_open=open_px,
+                index_high=high_px,
+                index_low=low_px,
+                index_close=close,
+            )
+        )
+    for day in by:
+        by[day].sort(key=lambda b: b.available_ts)
+    return dict(by)
+
+
+def iter_last3d_days(data: Path) -> Iterator[tuple[str, list[Bar], list[Bar], str]]:
+    """Yield `(session, opt_bars, index_bars, expiry)` one day at a time.
+
+    Option last-3d files have no `open` column — `Bar.open` is the close.
+    Parts are disjoint by day; each part is scanned once and discarded.
+    """
+    root = last3d_dir(data)
+    if root is None:
+        raise HistoryUnavailable(f"{data}: no last3d index + opt1m_last3d_part*.parquet")
+    by_idx = load_last3d_index(root / "index_last3d.parquet")
+    pq = _require_pyarrow()
+    for path in sorted(root.glob("opt1m_last3d_part*.parquet")):
+        table = pq.read_table(path)
+        names = set(table.column_names)
+        need = {"timestamp", "high", "low", "close", "strike", "option_type"}
+        if not need.issubset(names):
+            raise HistoryUnavailable(f"{path}: missing {sorted(need - names)}")
+        ts = table.column("timestamp").to_pylist()
+        h = table.column("high").to_pylist()
+        lo = table.column("low").to_pylist()
+        c = table.column("close").to_pylist()
+        vol = table.column("volume").to_pylist() if "volume" in names else None
+        oi = table.column("open_interest").to_pylist() if "open_interest" in names else None
+        strike = table.column("strike").to_pylist()
+        side = table.column("option_type").to_pylist()
+        day_col = table.column("trading_day").to_pylist() if "trading_day" in names else None
+        exp_col = table.column("expiry").to_pylist() if "expiry" in names else None
+        n = table.num_rows
+        del table
+        by_day: dict[str, list[int]] = defaultdict(list)
+        for i in range(n):
+            if day_col is not None:
+                day = str(day_col[i])
+            else:
+                stamp = _as_bar_ts(ts[i])
+                if stamp is None:
+                    continue
+                day = stamp.date().isoformat()
+            by_day[day].append(i)
+        for day, idxs in by_day.items():
+            expiry = str(exp_col[idxs[0]]) if exp_col is not None else day
+            bars: list[Bar] = []
+            for i in idxs:
+                stamp = _as_bar_ts(ts[i])
+                if stamp is None or not _session_minute(stamp):
+                    continue
+                close = float(c[i])
+                bars.append(
+                    Bar(
+                        ts=stamp,
+                        available_ts=stamp,
+                        open=close,
+                        high=float(h[i]),
+                        low=float(lo[i]),
+                        close=close,
+                        volume=_opt_float(vol[i]) if vol is not None else None,
+                        oi=_opt_float(oi[i]) if oi is not None else None,
+                        strike=float(strike[i]),
+                        side=str(side[i]).upper(),
+                    )
+                )
+            bars.sort(key=lambda b: (b.available_ts, b.strike or 0.0, b.side or ""))
+            yield day, bars, by_idx.get(day) or [], expiry

@@ -132,9 +132,13 @@ def main(argv: list[str] | None = None) -> int:
                     "n_variants_tested": tables.get("n_variants_tested"),
                     "n_hist_entries": tables.get("n_hist_entries"),
                     "n_live_entries": tables.get("n_live_entries"),
+                    "n_live_by_set": tables.get("n_live_by_set"),
+                    "n_hist_weeks": tables.get("n_hist_weeks"),
                     "n_folds": tables.get("n_folds"),
                     "passing": tables.get("passing"),
+                    "passing_by_set": tables.get("passing_by_set"),
                     "lookahead_pass": (tables.get("lookahead_test") or {}).get("pass"),
+                    "lookahead_n": (tables.get("lookahead_test") or {}).get("n"),
                 },
                 indent=2,
             )

@@ -256,3 +256,82 @@ def predict_boost(trees: list[Node], row: list[float | None]) -> float:
     for t in trees:
         s += 0.15 * predict_tree(t, row)
     return max(0.0, min(1.0, s))
+
+
+def percentile(xs: Sequence[float], q: float) -> float:
+    """q in [0, 100]. Linear between order stats. Empty → 0."""
+    ys = sorted(float(x) for x in xs)
+    if not ys:
+        return 0.0
+    if q <= 0:
+        return ys[0]
+    if q >= 100:
+        return ys[-1]
+    pos = (q / 100.0) * (len(ys) - 1)
+    lo = int(pos)
+    hi = min(len(ys) - 1, lo + 1)
+    frac = pos - lo
+    return ys[lo] * (1.0 - frac) + ys[hi] * frac
+
+
+def auc(ys: Sequence[int], scores: Sequence[float]) -> float | None:
+    """ROC AUC via average ranks. None if one class is missing."""
+    pairs = [(float(score), int(y)) for score, y in zip(scores, ys, strict=False)]
+    if len(pairs) < 2:
+        return None
+    pairs.sort(key=lambda t: t[0])
+    n_pos = sum(y for _, y in pairs)
+    n_neg = len(pairs) - n_pos
+    if n_pos == 0 or n_neg == 0:
+        return None
+    ranks = [0.0] * len(pairs)
+    i = 0
+    n = len(pairs)
+    while i < n:
+        j = i + 1
+        while j < n and pairs[j][0] == pairs[i][0]:
+            j += 1
+        avg = (i + 1 + j) / 2.0
+        for k in range(i, j):
+            ranks[k] = avg
+        i = j
+    sum_pos = sum(ranks[k] for k, (_, y) in enumerate(pairs) if y == 1)
+    return (sum_pos - n_pos * (n_pos + 1) / 2.0) / (n_pos * n_neg)
+
+
+def calibration_table(
+    ys: Sequence[int], scores: Sequence[float], *, n_bins: int = 10
+) -> list[dict[str, Any]]:
+    pairs = sorted(
+        ((float(score), int(y)) for score, y in zip(scores, ys, strict=False)),
+        key=lambda t: t[0],
+    )
+    n = len(pairs)
+    if n < n_bins:
+        return []
+    out: list[dict[str, Any]] = []
+    for b in range(n_bins):
+        lo = b * n // n_bins
+        hi = (b + 1) * n // n_bins
+        chunk = pairs[lo:hi]
+        if not chunk:
+            continue
+        mean_p = sum(s for s, _ in chunk) / len(chunk)
+        mean_y = sum(y for _, y in chunk) / len(chunk)
+        out.append(
+            {
+                "bin": b,
+                "n": len(chunk),
+                "mean_pred": round(mean_p, 4),
+                "mean_label": round(mean_y, 4),
+            }
+        )
+    return out
+
+
+def predict_kind(kind: str, model: Any, row: list[float | None]) -> float:
+    if kind == "tree":
+        return predict_tree(model, row)
+    if kind == "boost":
+        return predict_boost(model, row)
+    return predict_logit(model, row)

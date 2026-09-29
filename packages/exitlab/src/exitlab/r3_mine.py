@@ -3,11 +3,15 @@
 from __future__ import annotations
 
 import math
+import random
 from collections import defaultdict
+from dataclasses import replace
 from typing import Any
 
 from exitlab.r3_core import FeatRow
 from exitlab.r3_ml import fit_logit, fit_tree, tree_rules
+
+CLOCK_FEATS = frozenset({"tod_min", "mins_to_1515", "age_min"})
 
 FEAT_NAMES = [
     "ret_since_entry",
@@ -282,3 +286,32 @@ def fit_simple_models(rows: list[FeatRow], *, which: str = "15") -> dict[str, An
         "logit": logit,
         "names": names,
     }
+
+
+def is_clock_spec(spec: str) -> bool:
+    """True when every named feature is a clock / time-of-day column."""
+    names = [part.split(":")[0] for part in spec.split("+") if part]
+    return bool(names) and all(name in CLOCK_FEATS for name in names)
+
+
+def permute_labels_within_day(rows: list[FeatRow], *, seed: int) -> list[FeatRow]:
+    """Shuffle GOOD_EXIT labels inside each session. Features stay put."""
+    rng = random.Random(seed)
+    by: dict[str, list[FeatRow]] = defaultdict(list)
+    for row in rows:
+        by[row.session].append(row)
+    out: list[FeatRow] = []
+    for grp in by.values():
+        labs = [(r.label_5, r.label_15, r.label_30, r.label_eod) for r in grp]
+        rng.shuffle(labs)
+        for row, lab in zip(grp, labs, strict=False):
+            out.append(
+                replace(
+                    row,
+                    label_5=lab[0],
+                    label_15=lab[1],
+                    label_30=lab[2],
+                    label_eod=lab[3],
+                )
+            )
+    return out

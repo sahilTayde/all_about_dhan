@@ -208,3 +208,16 @@ def as_row(s: Summary) -> dict[str, object]:
 
 def group_key(r: TradeResult, *, by_scenario: bool) -> tuple[str, str, str]:
     return (r.plan_id, r.entry_set, r.scenario if by_scenario else "ALL")
+
+
+def one_lot_nets(rows: Sequence[TradeResult]) -> list[float]:
+    """₹ per lot. 25-lot MIX tickets no longer dominate the book."""
+    return [r.net_inr / max(int(r.lots), 1) for r in rows if r.skipped is None]
+
+
+def pts_per_trade(rows: Sequence[TradeResult]) -> list[float]:
+    return [
+        float(r.exit_price) - r.entry_price
+        for r in rows
+        if r.skipped is None and r.exit_price is not None
+    ]

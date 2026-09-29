@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
+from datetime import datetime, time
 from typing import Any
 
-from exitlab.clock import ReplayClock, as_ist, in_feed_freeze
+from exitlab.clock import IST, ReplayClock, as_ist, in_feed_freeze
 from exitlab.plans import (
     V2_FLAT,
     ExitPlanFn,
@@ -65,10 +66,13 @@ def plan_pattern(
         )
         if can_partial:
             return "PARTIAL"
+        if hit and trail_give > 0:
+            # ARM on the pattern; do not exit the same minute as the pair rule.
+            armed = max(state.seen_high, mark) - trail_give
+            state.trail_stop = max(state.trail_stop or 0.0, armed)
+            return flatten_eod(clock.now, V2_FLAT) or hard_stop(state, mark)
         if hit:
             return "PATTERN"
-        if trail_give > 0 and state.seen_high > state.entry.entry_price + 2.0:
-            state.trail_stop = max(state.trail_stop or 0.0, state.seen_high - trail_give)
         return flatten_eod(clock.now, V2_FLAT) or hard_stop(state, mark)
 
     params: dict[str, Any] = {f"c{i}": f"{n}:{d}:{t}" for i, (n, d, t) in enumerate(checks[:3])}
@@ -190,35 +194,41 @@ def plan_shape_exit(
     return ExitPlanFn(PlanSpec("shape_exit", {"need": need, "k": len(centers)}, "r3_shape"), _fn)
 
 
-def plan_peak_model(kind: str, thresh: float, model: Any, names: list[str]) -> ExitPlanFn:
+def plan_peak_model(
+    kind: str, thresh: float, model: Any, names: list[str], *, tag: str = ""
+) -> ExitPlanFn:
     def _row(feat: dict[str, float | None]) -> list[float | None]:
         return [feat.get(n) for n in names]
 
     def _fn(state: OpenState, clock: ReplayClock, ctx: dict[str, Any]) -> str:
         feat = _feat(ctx)
         row = _row(feat)
-        p = 0.0
-        if kind == "tree":
-            from exitlab.r3_ml import predict_tree
+        from exitlab.r3_ml import predict_kind
 
-            p = predict_tree(model, row)
-        elif kind == "logit":
-            from exitlab.r3_ml import predict_logit
-
-            p = predict_logit(model, row)
-        elif kind == "boost":
-            from exitlab.r3_ml import predict_boost
-
-            p = predict_boost(model, row)
-        elif kind == "hazard":
-            from exitlab.r3_ml import predict_logit
-
-            p = predict_logit(model, row)
+        p = predict_kind(kind if kind != "hazard" else "logit", model, row)
         if p >= thresh:
             return "PEAK_MODEL"
         return flatten_eod(clock.now, V2_FLAT)
 
-    return ExitPlanFn(PlanSpec(f"peak_{kind}", {"thresh": thresh}, "r3_model"), _fn)
+    pid = f"peak_{kind}_{tag}" if tag else f"peak_{kind}"
+    return ExitPlanFn(PlanSpec(pid, {"thresh": thresh, "kind": kind}, "r3_model"), _fn)
+
+
+def plan_clock_profit(t_before: float) -> ExitPlanFn:
+    """Exit T minutes before 15:15 if in profit, else sit to 15:15."""
+
+    def _fn(state: OpenState, clock: ReplayClock, ctx: dict[str, Any]) -> str:
+        mark = ctx["mark"]
+        now = as_ist(clock.now)
+        square = datetime.combine(now.date(), time(15, 15), tzinfo=IST)
+        mins_left = (square - now).total_seconds() / 60.0
+        if mins_left <= t_before and mark > state.entry.entry_price:
+            return "CLOCK_PROFIT"
+        return flatten_eod(clock.now, V2_FLAT)
+
+    return ExitPlanFn(
+        PlanSpec(f"clock_profit_{int(t_before)}", {"t_before": t_before}, "r3_clock"), _fn
+    )
 
 
 def plan_atr_stop(mult: float = 1.2) -> ExitPlanFn:
