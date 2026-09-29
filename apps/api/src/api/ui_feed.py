@@ -28,6 +28,9 @@ REPO = Path(__file__).resolve().parents[4]
 IST = timezone(timedelta(hours=5, minutes=30))
 MARKET_OPEN, MARKET_CLOSE = time(9, 15), time(15, 30)
 MAX_SPOT_GAP_S = 180
+# Dual-tape / V2 minute writers are ~60s. 60s used to paint a healthy session SLOW.
+MARKET_DATA_FRESH_S = 120
+MARKET_DATA_STALE_S = 300
 TRADE_KEYS = ("closed_trades", "open_trades", "tickets", "closed_trades_sample")
 MODEL_LOG = "ml_paper_model_logs.jsonl"
 TRADE_EVENTS = {"OPEN", "CLOSE", "TRAIL_STOP", "TARGET_LOCK_SHIFT", "CANCEL_ELIGIBLE"}
@@ -551,6 +554,69 @@ def tape_last(board: dict[str, Any]) -> Optional[str]:
     return lasts[-1] if lasts else board.get("as_of_ist")
 
 
+def _file_mtime_ts(path: Path) -> Optional[int]:
+    try:
+        return int(path.stat().st_mtime)
+    except OSError:
+        return None
+
+
+def session_tape_age(root: Path, board: dict[str, Any], now: datetime) -> tuple[Optional[int], str]:
+    """Age of *today's* IST session tape. Never falls back to yesterday's file.
+
+    Prefer V2 recorder files for the IST date; else dual-tape / premium_tape mtime;
+    else the board's last tick, but only when that tick is from today's session.
+    """
+    day = now.astimezone(IST).date().isoformat()
+    v2_dir = root / "data" / "tape" / "v2" / day
+    if v2_dir.is_dir():
+        best: Optional[int] = None
+        for name in (
+            "depth_quotes.jsonl",
+            "quote_snapshots.jsonl",
+            "oi_cadence.jsonl",
+            "feed_status.jsonl",
+            "ticks.jsonl",
+            "recorder.log",
+        ):
+            ts = _file_mtime_ts(v2_dir / name)
+            if ts is not None and (best is None or ts > best):
+                best = ts
+        if best is not None:
+            return int(now.timestamp() - best), "v2 recorder"
+        # Today's folder exists but is empty — do not use yesterday.
+        return None, "v2 recorder"
+
+    dual = root / "data" / "recon" / "paper_watch" / "DUAL-TAPE" / f"{day}.jsonl"
+    ts = _file_mtime_ts(dual)
+    if ts is not None:
+        return int(now.timestamp() - ts), "dual-tape"
+
+    prem_dir = root / "data" / "recon" / "premium_tape"
+    if prem_dir.is_dir():
+        best = None
+        try:
+            matches = list(prem_dir.glob(f"*_{day}.json"))
+        except OSError:
+            matches = []
+        for path in matches:
+            mts = _file_mtime_ts(path)
+            if mts is not None and (best is None or mts > best):
+                best = mts
+        if best is not None:
+            return int(now.timestamp() - best), "premium_tape"
+
+    last = tape_last(board)
+    last_ts = ts_of(last)
+    if last_ts is not None:
+        last_day = datetime.fromtimestamp(last_ts, IST).date().isoformat()
+        if last_day != day:
+            return None, "board tape"
+        age = _age(now, last)
+        return age, "board tape"
+    return None, "board tape"
+
+
 def _news_times(blob: Any, out: list[int], depth: int = 0) -> None:
     if depth > 6:
         return
@@ -603,19 +669,18 @@ def health_rows(root: Path, board: dict[str, Any], fstatus: dict[str, Any], hsta
     else:
         rows.append(_row("broker", "Broker (paper)", "green", "paper broker · orders refused · no live connection"))
 
-    last = tape_last(board)
-    age = _age(now, last)
+    age, src = session_tape_age(root, board, now)
     recorder = checks.get("recorder") or {}
     if recorder and not recorder.get("ok", True):
         rows.append(_row("data", "Market data", "red", recorder.get("message") or "recorder stale", age))
     elif not market:
-        rows.append(_row("data", "Market data", "grey", f"market closed · last tape tick {_fmt_age(age)}", age))
-    elif age is None or age > 300:
-        rows.append(_row("data", "Market data", "red", f"stale · last tape tick {_fmt_age(age)}", age))
-    elif age > 60:
-        rows.append(_row("data", "Market data", "amber", f"slow · last tape tick {_fmt_age(age)}", age))
+        rows.append(_row("data", "Market data", "grey", f"market closed · last {src} {_fmt_age(age)}", age))
+    elif age is None or age > MARKET_DATA_STALE_S:
+        rows.append(_row("data", "Market data", "red", f"stale · last {src} {_fmt_age(age)}", age))
+    elif age > MARKET_DATA_FRESH_S:
+        rows.append(_row("data", "Market data", "amber", f"slow · last {src} {_fmt_age(age)}", age))
     else:
-        rows.append(_row("data", "Market data", "green", f"fresh · last tape tick {_fmt_age(age)}", age))
+        rows.append(_row("data", "Market data", "green", f"fresh · last {src} {_fmt_age(age)}", age))
 
     veto = hstatus.get("latest_entry_veto") or {}
     if halt:
