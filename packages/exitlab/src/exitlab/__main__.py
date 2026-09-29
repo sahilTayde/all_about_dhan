@@ -13,6 +13,7 @@ from exitlab.playbook import (
     playbook_enabled,
     playbook_to_exit_plan_mapping,
 )
+from exitlab.r3_run import run_round3
 from exitlab.research import measure_history, measure_live_tapes, run_research
 
 
@@ -40,6 +41,12 @@ def main(argv: list[str] | None = None) -> int:
     p_p.add_argument("--env-flag", default="")
 
     sub.add_parser("list-plans", help="Named plans and sweep count")
+
+    p3 = sub.add_parser("round3", help="Pattern mine + walk-forward (paper only)")
+    p3.add_argument("--data", type=Path, required=True)
+    p3.add_argument("--out", type=Path, required=True)
+    p3.add_argument("--seed", type=int, default=7)
+    p3.add_argument("--reuse-entries", type=Path, default=None)
 
     args = ap.parse_args(argv)
     if args.cmd == "measure":
@@ -111,6 +118,28 @@ def main(argv: list[str] | None = None) -> int:
             return 0
         print("INJECT_DID_NOT_RAISE")
         return 1
+    if args.cmd == "round3":
+        tables = run_round3(
+            data=args.data,
+            out=args.out,
+            seed=args.seed,
+            reuse_entries=args.reuse_entries,
+        )
+        print(
+            json.dumps(
+                {
+                    "out": str(args.out),
+                    "n_variants_tested": tables.get("n_variants_tested"),
+                    "n_hist_entries": tables.get("n_hist_entries"),
+                    "n_live_entries": tables.get("n_live_entries"),
+                    "n_folds": tables.get("n_folds"),
+                    "passing": tables.get("passing"),
+                    "lookahead_pass": (tables.get("lookahead_test") or {}).get("pass"),
+                },
+                indent=2,
+            )
+        )
+        return 0
     if args.cmd == "list-plans":
         print(
             json.dumps(
