@@ -1,5 +1,38 @@
 # Handoff log — Team 06 Backtesting
 
+## As of now (2026-09-29 IST) — Exit Lab round 3b fixes (PAPER)
+
+```text
+From:     teams/06_backtesting
+To:       00 / 04 / 07 / 09 / founder
+Date:     2026-09-29
+Status:   PAPER / SHADOW / NO_PROMOTE
+Accepted: All 9 3b fixes. Command:
+  python -m exitlab round3 --data .local_data --out
+  /tmp/exitlab-r3b --seed 7 --reuse-entries
+  /tmp/exitlab-fix/entries.json
+  n_variants=654, n_hist=3546 (750079 min, last3d,
+  444 sessions / 149 weeks), n_live=419
+  (random 278 / v2_boss 60 / legacy 81), n_folds=12.
+  Rank on 1-lot. Oracle random +597499.50 1-lot.
+  Best random peak_hazard_p10 +58242.81 pts +4.34
+  capture 0.097 DSR 0.043 CI_lo -16545. hold random
+  1-lot -82565.42. Legacy as-traded hold -1263981
+  vs 1-lot -50559. Peak models fire (logit p10 12%,
+  AUC 0.549). Trails change 412/202/405 exits.
+  Lookahead 5000/5000 mismatches=0. Label-perm lift
+  1.212→1.023 (clock named). passing=[].
+  Playbook enabled:false. ROUND3.md +
+  /tmp/exitlab-r3b/*.json.
+Rejected: Promote. Enable playbook. Edit V2 defaults.
+  Clock-profit T=45 / peak_hazard as an edge.
+  time_edge / atr_opt / shape_exit (78%/55%/80% of
+  1-lot gain from legacy 180s overlap).
+UNKNOWN: Live-at-entry regime. V2 book size on tape.
+DATA_INSUFFICIENT: hist normal (last3d is expiry-week
+  only); 4/154 expiries with no WF week; LightGBM.
+```
+
 ## As of now (2026-09-29 IST) — Exit Lab round 3 pattern mining (PAPER)
 
 ```text
