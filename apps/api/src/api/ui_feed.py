@@ -554,14 +554,14 @@ def tape_last(board: dict[str, Any]) -> Optional[str]:
     return lasts[-1] if lasts else board.get("as_of_ist")
 
 
-def _file_mtime_ts(path: Path) -> Optional[int]:
+def _file_mtime_ts(path: Path) -> int | None:
     try:
         return int(path.stat().st_mtime)
     except OSError:
         return None
 
 
-def session_tape_age(root: Path, board: dict[str, Any], now: datetime) -> tuple[Optional[int], str]:
+def session_tape_age(root: Path, board: dict[str, Any], now: datetime) -> tuple[int | None, str]:
     """Age of *today's* IST session tape. Never falls back to yesterday's file.
 
     Prefer V2 recorder files for the IST date; else dual-tape / premium_tape mtime;
@@ -570,7 +570,7 @@ def session_tape_age(root: Path, board: dict[str, Any], now: datetime) -> tuple[
     day = now.astimezone(IST).date().isoformat()
     v2_dir = root / "data" / "tape" / "v2" / day
     if v2_dir.is_dir():
-        best: Optional[int] = None
+        best: int | None = None
         for name in (
             "depth_quotes.jsonl",
             "quote_snapshots.jsonl",

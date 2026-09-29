@@ -5,9 +5,10 @@ from __future__ import annotations
 import json
 import os
 import socket
+from collections.abc import Callable
 from datetime import datetime, time, timedelta, timezone
 from pathlib import Path
-from typing import Any, Callable, Optional
+from typing import Any
 
 _REPO_ROOT = Path(__file__).resolve().parents[4]
 _RECON = _REPO_ROOT / "data" / "recon"
@@ -76,7 +77,7 @@ def _in_market_hours(now: datetime) -> bool:
     return now.weekday() < 5 and _MARKET_OPEN <= now.time() <= _MARKET_CLOSE
 
 
-def _loop_epoch(hb: dict[str, Any]) -> Optional[float]:
+def _loop_epoch(hb: dict[str, Any]) -> float | None:
     raw = hb.get("last_loop_epoch")
     if isinstance(raw, (int, float)) and not isinstance(raw, bool):
         return float(raw)

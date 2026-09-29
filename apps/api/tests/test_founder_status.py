@@ -16,7 +16,9 @@ _THU_1600 = datetime(2026, 1, 15, 16, 0, tzinfo=_IST)
 
 
 def test_scrub_drops_token_keys() -> None:
-    out = _scrub({"access_token": "SECRET", "ok": True, "nested": {"dhan_access_token": "x"}})
+    out = _scrub(
+        {"access_token": "SECRET", "ok": True, "nested": {"dhan_access_token": "x"}}
+    )
     assert "access_token" not in out
     assert out["ok"] is True
     assert "dhan_access_token" not in out["nested"]
@@ -42,7 +44,11 @@ def _dead(_pid: object) -> bool:
 
 
 def test_paper_loop_up_from_fresh_dual_tape_heartbeat() -> None:
-    hb = {"pid": 4242, "last_loop_epoch": _THU_1030.timestamp() - 12, "consecutive_failures": 0}
+    hb = {
+        "pid": 4242,
+        "last_loop_epoch": _THU_1030.timestamp() - 12,
+        "consecutive_failures": 0,
+    }
     alive, pid, detail = paper_loop_from_heartbeat(hb, now=_THU_1030, pid_alive=_alive)
     assert alive is True
     assert pid == 4242
@@ -54,7 +60,9 @@ def test_paper_loop_down_on_empty_or_invalid_heartbeat() -> None:
     alive, pid, detail = paper_loop_from_heartbeat({}, now=_THU_1030, pid_alive=_alive)
     assert alive is False and pid is None and "no dual-tape heartbeat" in detail
 
-    alive, pid, detail = paper_loop_from_heartbeat({"pid": 1}, now=_THU_1030, pid_alive=_alive)
+    alive, pid, detail = paper_loop_from_heartbeat(
+        {"pid": 1}, now=_THU_1030, pid_alive=_alive
+    )
     assert alive is False and "missing last_loop" in detail
 
     # last_loop present but pid missing — default os.kill check rejects pid None
@@ -114,16 +122,22 @@ def test_empty_heartbeat_file_is_not_up(tmp_path) -> None:
 
     path = tmp_path / "engine_heartbeat.json"
     path.write_text("", encoding="utf-8")
-    alive, pid, detail = paper_loop_from_heartbeat(_load_json(path), now=_THU_1030, pid_alive=_alive)
+    alive, pid, detail = paper_loop_from_heartbeat(
+        _load_json(path), now=_THU_1030, pid_alive=_alive
+    )
     assert alive is False and pid is None
     assert "no dual-tape heartbeat" in detail
 
     path.write_text("{not json", encoding="utf-8")
-    alive, _, detail = paper_loop_from_heartbeat(_load_json(path), now=_THU_1030, pid_alive=_alive)
+    alive, _, detail = paper_loop_from_heartbeat(
+        _load_json(path), now=_THU_1030, pid_alive=_alive
+    )
     assert alive is False and "no dual-tape heartbeat" in detail
 
 
-def test_build_founder_status_paper_up_from_heartbeat_file(tmp_path, monkeypatch) -> None:
+def test_build_founder_status_paper_up_from_heartbeat_file(
+    tmp_path, monkeypatch
+) -> None:
     from api import founder_status as fs
 
     hb_path = tmp_path / "engine_heartbeat.json"
