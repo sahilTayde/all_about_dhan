@@ -2,7 +2,7 @@
 # Founder one-command day. PAPER only. No live orders. NO_PROMOTE.
 #
 #   ./scripts/desk.sh preflight        # versions, imports (incl. desk.paper / risk_engine), node, token file
-# PYTHONPATH: packages/*/src is exported for every legacy start (morning / watch-open / dual-tape).
+# PYTHONPATH: allowlisted legacy packages/*/src only (desk, risk-engine, brokers, health).
 # Mac: just ./scripts/desk.sh morning  or  ./scripts/desk.sh watch-open  — no manual export.
 #   ./scripts/desk.sh morning          # preflight + API + website + dual-tape (09:00 IST)
 #   ./scripts/desk.sh website          # preflight + API + website only (no data capture)
@@ -27,13 +27,16 @@ NODE_DIR="${NODE_DIR:-}"
 mkdir -p "$RECON"
 CMD="${1:-status}"
 
-# Legacy .venv (py3.9) does not pip-install packages/{desk,risk-engine,brokers,...}.
-# Dual-tape paper book imports those from packages/*/src. Same PYTHONPATH as the
-# 2026-09-29 live workaround: export PYTHONPATH="$(ls -d $PWD/packages/*/src | tr '\n' ':')"
-# A glob loop (not ls|tr) stays correct on bash 3.2 / BSD when a package dir is missing.
+# Legacy .venv is CPython 3.9.6 and does not pip-install desk / risk-engine / brokers / health.
+# Dual-tape paper book needs those four on PYTHONPATH (health.supervise wraps the loop).
+# Do NOT dump every packages/*/src: v2-only trees (contracts, events, runtime, oms,
+# control, boss, marketdata, data-recorder, …) use PEP 604 unions (str | T) and raise
+# TypeError on 3.9 when imported. That aborted preflight create_app() after PR #70.
+# A named loop (not ls|tr) stays correct on bash 3.2 / BSD when a package dir is missing.
 legacy_src_path() {
-  local d acc=""
-  for d in "$ROOT"/packages/*/src; do
+  local name d acc=""
+  for name in desk risk-engine brokers health; do
+    d="$ROOT/packages/$name/src"
     [[ -d "$d" ]] || continue
     acc="${acc:+$acc:}$d"
   done
@@ -193,7 +196,7 @@ start_api() {
     return 0
   fi
   screen -S api-server -X quit 2>/dev/null || true
-  # Keep packages/*/src (desk / risk_engine) and prepend the API app dir.
+  # Keep allowlisted packages (desk / risk_engine / brokers / health) and prepend the API app dir.
   screen -dmS api-server zsh -lc "cd '$ROOT' && PYTHONPATH='apps/api/src${PYTHONPATH:+:$PYTHONPATH}' '$PY' -m uvicorn api.main:app --app-dir apps/api/src --host 127.0.0.1 --port 8000 >> '$RECON/api-server.log' 2>&1"
 }
 

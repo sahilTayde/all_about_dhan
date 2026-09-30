@@ -290,11 +290,35 @@ def test_e_recorder_status_last_log_line(tmp_path: Path) -> None:
 
 
 def test_legacy_pythonpath_includes_desk_and_risk_engine(tmp_path: Path) -> None:
-    proc = _source(tmp_path, 'ensure_legacy_pythonpath; echo "$PYTHONPATH"')
+    # Isolate from a leftover full packages/*/src PYTHONPATH (the PR #70 workaround).
+    proc = _source(
+        tmp_path,
+        'echo "SRC=$(legacy_src_path)"; ensure_legacy_pythonpath; echo "PP=$PYTHONPATH"',
+        env={"PYTHONPATH": ""},
+    )
     assert proc.returncode == 0, proc.stdout + proc.stderr
-    assert "packages/desk/src" in proc.stdout
-    assert "packages/risk-engine/src" in proc.stdout
-    assert "packages/brokers/src" in proc.stdout
+    src_line = next(line for line in proc.stdout.splitlines() if line.startswith("SRC="))
+    pp_line = next(line for line in proc.stdout.splitlines() if line.startswith("PP="))
+    for required in (
+        "packages/desk/src",
+        "packages/risk-engine/src",
+        "packages/brokers/src",
+        "packages/health/src",
+    ):
+        assert required in src_line
+        assert required in pp_line
+    for v2_only in (
+        "packages/contracts/src",
+        "packages/events/src",
+        "packages/runtime/src",
+        "packages/oms/src",
+        "packages/control/src",
+        "packages/boss/src",
+        "packages/marketdata/src",
+        "packages/data-recorder/src",
+    ):
+        assert v2_only not in src_line, v2_only
+        assert v2_only not in pp_line, v2_only
 
 
 def test_start_paths_keep_packages_on_pythonpath() -> None:

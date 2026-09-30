@@ -22,7 +22,7 @@ class Block:
     def find_spec(self, fullname, path=None, target=None):
         root = fullname.split(".", 1)[0]
         if root in {"events", "contracts"} or fullname == "api.v2_gateway":
-            raise ImportError("blocked " + fullname)
+            raise RAISE_EXC("blocked " + fullname)
         return None
 
 sys.meta_path.insert(0, Block())
@@ -34,11 +34,11 @@ from fastapi.testclient import TestClient
 """
 
 
-def _run_blocked(snippet: str) -> subprocess.CompletedProcess[str]:
+def _run_blocked(snippet: str, exc: str = "ImportError") -> subprocess.CompletedProcess[str]:
     env = os.environ.copy()
     env["PYTHONPATH"] = str(API_SRC) + os.pathsep + env.get("PYTHONPATH", "")
     return subprocess.run(
-        [sys.executable, "-c", _BLOCK_IMPORT + snippet],
+        [sys.executable, "-c", _BLOCK_IMPORT.replace("RAISE_EXC", exc) + snippet],
         cwd=REPO,
         env=env,
         capture_output=True,
@@ -58,6 +58,21 @@ print("import_ok")
     )
     assert proc.returncode == 0, proc.stdout + proc.stderr
     assert "import_ok" in proc.stdout
+
+
+def test_a_legacy_api_imports_when_v2_gateway_raises_typeerror() -> None:
+    """Mac 3.9: contracts PEP 604 unions raise TypeError, not ImportError."""
+    proc = _run_blocked(
+        """
+assert V2_GATEWAY_AVAILABLE is False
+app = create_app()
+assert not any(getattr(r, "path", "").startswith("/v2") for r in app.routes)
+print("typeerror_ok")
+""",
+        exc="TypeError",
+    )
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+    assert "typeerror_ok" in proc.stdout
 
 
 def test_a_founder_book_identical_without_v2() -> None:
