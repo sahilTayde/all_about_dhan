@@ -1,5 +1,189 @@
 # Handoff log — Team 06 Backtesting
 
+## As of now (2026-09-29 IST) — Exit Lab round 3b fixes (PAPER)
+
+```text
+From:     teams/06_backtesting
+To:       00 / 04 / 07 / 09 / founder
+Date:     2026-09-29
+Status:   PAPER / SHADOW / NO_PROMOTE
+Accepted: All 9 3b fixes. Command:
+  python -m exitlab round3 --data .local_data --out
+  /tmp/exitlab-r3b --seed 7 --reuse-entries
+  /tmp/exitlab-fix/entries.json
+  n_variants=654, n_hist=3546 (750079 min, last3d,
+  444 sessions / 149 weeks), n_live=419
+  (random 278 / v2_boss 60 / legacy 81), n_folds=12.
+  Rank on 1-lot. Oracle random +597499.50 1-lot.
+  Best random peak_hazard_p10 +58242.81 pts +4.34
+  capture 0.097 DSR 0.043 CI_lo -16545. hold random
+  1-lot -82565.42. Legacy as-traded hold -1263981
+  vs 1-lot -50559. Peak models fire (logit p10 12%,
+  AUC 0.549). Trails change 412/202/405 exits.
+  Lookahead 5000/5000 mismatches=0. Label-perm lift
+  1.212→1.023 (clock named). passing=[].
+  Playbook enabled:false. ROUND3.md +
+  /tmp/exitlab-r3b/*.json.
+Rejected: Promote. Enable playbook. Edit V2 defaults.
+  Clock-profit T=45 / peak_hazard as an edge.
+  time_edge / atr_opt / shape_exit (78%/55%/80% of
+  1-lot gain from legacy 180s overlap).
+UNKNOWN: Live-at-entry regime. V2 book size on tape.
+DATA_INSUFFICIENT: hist normal (last3d is expiry-week
+  only); 4/154 expiries with no WF week; LightGBM.
+```
+
+## As of now (2026-09-29 IST) — Exit Lab round 3 pattern mining (PAPER)
+
+```text
+From:     teams/06_backtesting
+To:       00 / 04 / 07 / 09 / founder
+Date:     2026-09-29
+Status:   PAPER / SHADOW / NO_PROMOTE
+Accepted: Round-2 contract (fixed strike, holes, half-spread,
+  DSR in [0,1]). Command:
+  python -m exitlab round3 --data .local_data --out
+  /tmp/exitlab-r3 --seed 7 --reuse-entries
+  /tmp/exitlab-fix/entries.json
+  n_variants=605, n_hist=226 (33160 min), n_live=419
+  (64462 min), n_folds=10 (38 hist sessions; 12-fold
+  grid DATA_INSUFFICIENT). Oracle +4962559.88.
+  Best holdout pat_0_trail -93172.37 capture -0.019
+  DSR 0.0003 CI crosses 0. hold_to_1515 -1343070.41.
+  passing=[]. lookahead mismatches=0; labels change 40/40.
+  spread_x2 -44945 vs base -35866. Playbook enabled:false.
+  ROUND3.md + /tmp/exitlab-r3/*.json.
+Rejected: Promote. Enable playbook. Edit V2 defaults.
+  Clock-only lift as an edge. Peak models (never fire).
+  time_edge / pat_1 / atr_opt (repeat CANCEL_AGAINST
+  30/32, 24/32, 23/32).
+UNKNOWN: Live-at-entry regime (day first-30, not a
+  classifier at ticket time). V2 book size/staleness
+  on dual-tape.
+DATA_INSUFFICIENT: 12 WF folds; hist 1-lot ladders;
+  LightGBM/sklearn (hand CART/boost used).
+```
+
+## As of now (2026-09-28 IST) — Exit Lab strike/spread/DSR re-run (PAPER)
+
+```text
+From:     teams/06_backtesting
+To:       00 / 04 / 07 / 09 / founder
+Date:     2026-09-28
+Status:   PAPER / SHADOW / NO_PROMOTE
+Accepted: Review bugs 1-4. Command:
+  python -m exitlab research --data .local_data --out
+  /tmp/exitlab-fix --seed 7 --max-hist-days 24
+  --extra-seeds 11,19 --reuse-entries /tmp/exitlab-run/entries.json
+  (rebuilds random; keeps legacy/v2/hist). n_variants=68,
+  n_entries_live=419, n_entries_hist=48, n_trade_results=14944.
+  Missing-strike AFTER: random 1127/72703 ticks, 103/278 trades;
+  v2 110/14294, 17/60; legacy 204/15212, 17/81. BEFORE (old
+  fallback fired): random 640/40558 + 58/146; v2 110/17; legacy
+  204/17. V2 spread p50 ATM 0.20 / ITM100 0.35 / ITM200 0.55
+  (n=4698, 2026-09-28 10:00-11:00). stress spread_x2 3174.01 vs
+  base 4095.30 (delta -921). DSR worked example 0.3385 in [0,1].
+  Random hold_to_1515 -82477.86 n=277 WR 43.0% (CE -100747 /
+  PE +18269). OOS noise_1.6 -31338.61 DSR ~0. Playbook
+  enabled:false. REPORT.md rewritten.
+Rejected: Audit headlines (+288281 hold, +152135 OOS, DSR 8-17,
+  spread_x2==base). Promote. Enable playbook. Reprice missing
+  strike onto rolling ATM/ITM.
+UNKNOWN: Live-at-entry regime (router used the day label).
+  Full V2 plugin signals (selector is a 1m-direction proxy).
+DATA_INSUFFICIENT: 2026 history OOS; V2 book after 11:00 and
+  other days; news/event tags; ATR=0 on 16/17/18; 14 after-hours;
+  expiry_chop random n=3 LOW; 2-lot/25-lot partial addon not
+  re-run this pass.
+```
+
+## As of now (2026-09-28 IST) — Exit Lab 11-item self-audit run (PAPER)
+
+```text
+From:     teams/06_backtesting
+To:       00 / 04 / 07 / 09 / founder
+Date:     2026-09-28
+Status:   PAPER / SHADOW / NO_PROMOTE
+Accepted: Audit research /tmp/exitlab-audit (command:
+  python -m exitlab research --data .local_data --out
+  /tmp/exitlab-audit --seed 7 --max-hist-days 24
+  --extra-seeds 11,19 --reuse-entries /tmp/exitlab-run/entries.json).
+  n_variants=68, n_entries_live=419, n_entries_hist=48,
+  n_trade_results=14944. Every library plan x random 278 /
+  legacy 81 / v2_boss 60 / random_hist 48. Random seeds 7
+  (146), 11 (66), 19 (66). Category coverage: 36 mapped
+  categories replayed (467 trades each); 4 skipped (HAR,
+  size-from-stop, re-entry, unfilled — reasons in REPORT).
+  OOS: choose session<=2026-09-22 (142), report 23-28 Sep
+  (136), winner noise_2.2 net 152135.16 CI 98013.41-201492.30
+  DSR 8.39 (68-variant correction). Stress tabled including
+  spread_x2 / slip_x2 / gaps / reject_p15 / 1pct gap / IV
+  crush / 1-lot REJECT half-fill + 2-lot and 25-lot addon.
+  Lookahead HONEST_OK + INJECT_RAISED. Cost hand-work MATCH
+  True (55.85). Desk own 81 fills -151497.43; cancelled
+  entries SKIP_SUM 3450. Three own ideas replayed
+  (quote_persistence / tod_two_speed / elasticity_die).
+  Edges 6 passed. Suite HEAD 1784 passed / 9 skipped;
+  BASE inferred 1752; ruff+mypy green. Playbook
+  enabled:false. defaults.yaml unchanged vs origin/main.
+Rejected: Promote. Enable playbook. Edit paper_scalp.py /
+  defaults.yaml / live V2 defaults. Rank n<30 cells.
+UNKNOWN: Live-at-entry regime (router used the day label).
+  Full V2 plugin signals (selector is a 1m-direction proxy).
+DATA_INSUFFICIENT: 2026 history OOS (entries only
+  2025-10-06..14); v2_spread_sample empty so spread_x2==base;
+  news/event tags; ATR=0 on 16/17/18; 14 after-hours;
+  expiry_chop random n=3 LOW; IV-crush trigger on the real
+  tape (synthetic stress only).
+```
+
+## As of now (2026-09-28 IST) — Exit Lab REPORT filled from replay (PAPER)
+
+```text
+From:     teams/06_backtesting
+To:       00 / 04 / 07 / 09 / founder
+Date:     2026-09-28
+Status:   PAPER / SHADOW / NO_PROMOTE
+Accepted: REPORT.md tables copied from /tmp/exitlab-run (seed 7,
+  --max-hist-days 24). n_variants=51, n_entries_live=287,
+  n_entries_hist=48, n_trade_results=4545. Desk own 81 fills
+  net -151497.43 (CANCEL_AGAINST 32 / -312387, COVER_LONG_UNWIND
+  22 / -218234, TARGET 6 / +261506). Sweep winner noise_1.6
+  OOS 72 random later-day trades +86908.92 (CI 47742-130826,
+  DSR 5.07). Playbook still enabled:false.
+Rejected: Promote. Enable playbook. Fabricate V2 spread or 2026
+  history OOS. Compare 25-lot desk rupees to 1-lot random.
+UNKNOWN: Live-at-entry regime (router used the day label).
+  Full V2 plugin signals (selector is a 1m-direction proxy).
+DATA_INSUFFICIENT: 2026 history OOS (entries only 2025-10-06..14);
+  v2_spread_sample empty; news/event tags; ATR=0 on 16/17/18;
+  14 after-hours; expiry_chop random n=1; IV-crush trigger.
+```
+
+## As of now (2026-09-28 IST) — Exit Lab harness + playbook (PAPER)
+
+```text
+From:     teams/06_backtesting
+To:       00 / 04 / 07 / 09 / founder
+Date:     2026-09-28
+Status:   PAPER / SHADOW / NO_PROMOTE
+Accepted: New packages/exitlab harness (ask-in / bid-out, ledger.charges,
+  no look-ahead). Three entry sets: frozen legacy replay, V2 boss-selector
+  proxy (1m index direction + real holds), random ATM/ITM. Baselines
+  hold-to-15:15, fixed stop/target, V2 default, legacy overlay (constants
+  copied, paper_scalp.py not edited). Opt-in
+  config/v2/exits/exitlab_playbook.yaml enabled:false. Report at
+  docs/research/exit_lab/REPORT.md. Data stays in .local_data/ (gitignored).
+Rejected: Copying live paper_scalp overlay as the answer. Changing
+  config/v2/exits/defaults.yaml. Enabling the playbook. Live Dhan.
+  Fabricated cells when a session has no bars.
+UNKNOWN: Full V2 strategy-plugin signals on these tapes (selector is a
+  documented 1m-direction proxy). News/event-day tags (no news feed in
+  the attached sample). 2026-08-04 option week is thin.
+DATA_INSUFFICIENT: Several live tape days start after the cash open
+  (14 after-hours, 17 from 12:13, 21 from 10:43, 28 from 10:09).
+```
+
 ## As of now (2026-09-28 IST) — retarget V2-20b #66 onto main fc5eba7 (PAPER)
 
 ```text

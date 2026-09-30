@@ -24,6 +24,7 @@ members = [
     "packages/trading_agents_india",
     "packages/warehouse",
     "packages/premarket",
+    "packages/exitlab",
     "apps/api",
 ]
 

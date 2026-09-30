@@ -128,6 +128,7 @@ jobs:
           packages/warehouse/src/warehouse/calendar.py
           packages/warehouse/src/warehouse/__init__.py
           packages/premarket
+          packages/exitlab
           packages/strategies/src/strategies/forward
           packages/strategies/src/strategies/plugins/lab_lock.py
           packages/strategies/src/strategies/plugins/r8_e1_coil_side.py
@@ -140,6 +141,7 @@ jobs:
           packages/warehouse/src/warehouse/calendar.py
           packages/warehouse/src/warehouse/__init__.py
           packages/premarket
+          packages/exitlab
           packages/strategies/src/strategies/forward
           packages/strategies/src/strategies/plugins/lab_lock.py
           packages/strategies/src/strategies/plugins/r8_e1_coil_side.py
@@ -164,6 +166,7 @@ jobs:
           packages/warehouse/src/warehouse/etl.py
           packages/warehouse/src/warehouse/calendar.py
           packages/premarket/src
+          packages/exitlab/src
       - name: mypy --strict on strategies.forward and V2-20b plugins
         run: >-
           python -m mypy --strict src/strategies/forward

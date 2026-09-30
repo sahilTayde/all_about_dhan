@@ -1,0 +1,32 @@
+# Opt-in Exit Lab playbook. OFF by default.
+# Live / V2 defaults stay in config/v2/exits/defaults.yaml (unchanged).
+# Both this file's `enabled: true` AND oms.exits.load_exitlab_playbook(enabled=True)
+# are required before any mapping is returned.
+#
+# Parameters below are the paper/replay recommendation from
+# docs/research/exit_lab/REPORT.md (OOS + live-tape later split). Not a promote.
+
+enabled: false
+name: exitlab_recommended
+source: docs/research/exit_lab/REPORT.md
+paper_only: true
+
+recommended:
+  flat_by_ist: "15:15"
+  catastrophic:
+    max_loss_inr: 8000
+  time_stop_s: 1500
+  unless_profit_pts: 8
+  grace_s: 90
+  # Trail / target stay off until the OOS table supports them (see REPORT).
+  target_premium: null
+  trail: null
+  partials: null
+  notes:
+    lots: "Do not compare rupee totals across entry sets (legacy 25 lots, v2_boss 2, random 1)."
+    sweep_winner: "noise_1.6 chosen on random live days <= 2026-09-22 (choose net 31187.20, seeds 7/11/19, 142 tickets). Prior audit winner noise_2.2 is void (wrong-strike marks)."
+    oos_live_later: "sweep_winner_noise_1.6 on 136 random trades 2026-09-23..28: net -31338.61, bootstrap CI -60412.57 to 9083.41, DSR 0.000008, n_variants=68. NOT a promote."
+    oos_better: "No library plan has DSR>0.04 on random live after the strike/spread fix. V2 ExitPlan has no noise-band field; this file maps time_stop_s=1500 as a paper stub only."
+    regime_router: "Chop -> time+stop; trend -> MFE trail; expiry -> tight fixed. Router used the day label in this run, not a live-at-entry classifier."
+    square_off: "15:15 IST unless a plan explicitly tests the freeze window."
+    promote: "NO_PROMOTE. enabled stays false."
