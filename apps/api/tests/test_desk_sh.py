@@ -295,6 +295,18 @@ def test_legacy_pythonpath_includes_desk_and_risk_engine(tmp_path: Path) -> None
     assert "packages/desk/src" in proc.stdout
     assert "packages/risk-engine/src" in proc.stdout
     assert "packages/brokers/src" in proc.stdout
+    assert "packages/health/src" in proc.stdout
+    for v2_only in (
+        "packages/contracts/src",
+        "packages/events/src",
+        "packages/runtime/src",
+        "packages/oms/src",
+        "packages/control/src",
+        "packages/boss/src",
+        "packages/marketdata/src",
+        "packages/data-recorder/src",
+    ):
+        assert v2_only not in proc.stdout, v2_only
 
 
 def test_start_paths_keep_packages_on_pythonpath() -> None:
