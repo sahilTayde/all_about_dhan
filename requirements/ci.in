@@ -11,3 +11,10 @@ pytest-socket>=0.7
 setuptools>=68
 wheel>=0.42
 hypothesis>=6
+# marketdata tests: JSON Schema validation with an active RFC 3339 date-time checker
+jsonschema>=4
+rfc3339-validator>=0.1.4
+# events Redis bus tests (hash-pinned CI); pulls redis as a transitive dep
+fakeredis>=2.26
+# V2-14 health metrics endpoint
+prometheus-client>=0.20

@@ -13,13 +13,17 @@ members = [
     "packages/desk-intel",
     "packages/desk-ml",
     "packages/dhan-client",
+    "packages/marketdata",
     "packages/docs-auditor",
     "packages/events",
     "packages/health",
     "packages/ledger",
+    "packages/oms",
+    "packages/control",
     "packages/risk-engine",
     "packages/trading_agents_india",
     "packages/warehouse",
+    "packages/premarket",
     "apps/api",
 ]
 

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 from contextlib import asynccontextmanager
 from typing import Any, Optional
 
@@ -11,16 +12,40 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 
+from api import ui_feed
 from api.config import load_api_settings
 from api.desk_merge import merge_live_paper_into_desk, overlay_customer_sod_ticket
 from api.founder_controls import router as founder_controls_router
 from api.founder_status import build_founder_status
-from api import ui_feed
+from api.gateway_auth import (
+    CommandRateLimiter,
+    assert_bind_allowed,
+    effective_bind_host,
+    load_gateway_auth,
+)
 from api.health_alerts import router as health_router
 from api.models import TookTradeBody, TookTradeRecord
 from api.premium_bind import bind_premiums_onto_desk
 from api.store import SignalStore
 from api.ws import router as ws_router
+
+log = logging.getLogger(__name__)
+
+try:
+    from events.bus import MemoryBus
+
+    from api.v2_gateway import attach_gateway
+    from api.v2_gateway import router as v2_router
+
+    V2_GATEWAY_AVAILABLE = True
+except (ImportError, TypeError, SyntaxError):
+    # ImportError: events/contracts not installed (CI 3.9 job, clean venv).
+    # TypeError: PEP 604 unions (str | datetime) in contracts on CPython 3.9.
+    # SyntaxError: other 3.10+ syntax if a v2 module is on the path.
+    MemoryBus = None
+    attach_gateway = None
+    v2_router = None
+    V2_GATEWAY_AVAILABLE = False
 
 
 @asynccontextmanager
@@ -44,6 +69,17 @@ def create_app() -> FastAPI:
     app.state.settings = settings
     app.state.store = SignalStore()
     app.state.live_paper = None
+    auth = load_gateway_auth()
+    assert_bind_allowed(effective_bind_host(auth.bind_host), auth.configured)
+    app.state.v2_auth = auth
+    app.state.v2_limiter = CommandRateLimiter(per_s=auth.control_rate_per_s)
+    if V2_GATEWAY_AVAILABLE:
+        attach_gateway(app, MemoryBus())
+    else:
+        log.warning(
+            "v2 routes disabled: events/v2_gateway unavailable "
+            "(legacy Python 3.9 venv is expected; /paper/* stays up)"
+        )
 
     app.add_middleware(
         CORSMiddleware,
@@ -111,12 +147,18 @@ def create_app() -> FastAPI:
     def _desk(*, bind_premium: bool = True) -> dict[str, Any]:
         store: SignalStore = app.state.store
         live = getattr(app.state, "live_paper", None)
-        merged = overlay_customer_sod_ticket(merge_live_paper_into_desk(store.paper_desk(), live))
+        merged = overlay_customer_sod_ticket(
+            merge_live_paper_into_desk(store.paper_desk(), live)
+        )
         # When live WS already bound premiums, skip duplicate chain calls.
         live_has_premium = False
         if live and isinstance(live, dict):
             for row in (live.get("underlyings") or {}).values():
-                if isinstance(row, dict) and row.get("entry") not in (None, "", "DATA_INSUFFICIENT"):
+                if isinstance(row, dict) and row.get("entry") not in (
+                    None,
+                    "",
+                    "DATA_INSUFFICIENT",
+                ):
                     live_has_premium = True
                     break
         if bind_premium and not live_has_premium and not settings.dhan.dry_run:
@@ -239,8 +281,14 @@ def create_app() -> FastAPI:
             last = None
             idle = 0
             while not await request.is_disconnected():
-                snap = await asyncio.to_thread(ui_feed.build_snapshot, budget_s=ui_feed.SNAPSHOT_BUDGET_S)
-                body = json.dumps({k: v for k, v in snap.items() if k != "as_of"}, default=str, separators=(",", ":"))
+                snap = await asyncio.to_thread(
+                    ui_feed.build_snapshot, budget_s=ui_feed.SNAPSHOT_BUDGET_S
+                )
+                body = json.dumps(
+                    {k: v for k, v in snap.items() if k != "as_of"},
+                    default=str,
+                    separators=(",", ":"),
+                )
                 if body != last:
                     last, idle = body, 0
                     yield f"data: {json.dumps(snap, default=str, separators=(',', ':'))}\n\n"
@@ -257,7 +305,7 @@ def create_app() -> FastAPI:
         )
 
     @app.get("/paper/history")
-    def paper_history(day: Optional[str] = None) -> dict[str, Any]:
+    def paper_history(day: Optional[str] = None) -> dict[str, Any]:  # noqa: UP045 — FastAPI evals params on 3.9
         """Closed paper trades for one IST day (board + model log + ledger). Read-only."""
         return ui_feed.day_history(day=day, budget_s=2.0)
 
@@ -272,7 +320,12 @@ def create_app() -> FastAPI:
         import json
         from pathlib import Path
 
-        path = Path(__file__).resolve().parents[4] / "data" / "recon" / "itm_scalp_backtest.json"
+        path = (
+            Path(__file__).resolve().parents[4]
+            / "data"
+            / "recon"
+            / "itm_scalp_backtest.json"
+        )
         if not path.is_file():
             return {
                 "ok": False,
@@ -298,8 +351,7 @@ def create_app() -> FastAPI:
             return {
                 "ok": False,
                 "reason": (
-                    "DATA_INSUFFICIENT: run "
-                    "python -m backtest_engine.run_itm_champions"
+                    "DATA_INSUFFICIENT: run python -m backtest_engine.run_itm_champions"
                 ),
                 "orders": "refused",
                 "promotion": "NO_PROMOTE",
@@ -310,6 +362,8 @@ def create_app() -> FastAPI:
     app.include_router(ws_router)
     app.include_router(health_router)
     app.include_router(founder_controls_router)
+    if V2_GATEWAY_AVAILABLE:
+        app.include_router(v2_router)
     return app
 
 

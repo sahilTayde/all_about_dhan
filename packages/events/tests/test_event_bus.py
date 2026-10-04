@@ -13,7 +13,9 @@ from events import Event, EventAuditLog, EventType, MemoryBus, RedisStreamsBus, 
 def test_plan_event_types_exist():
     for name in ("PRE_MARKET_SUMMARY", "REQUEST_VOTES", "ANALYST_VOTE", "ENTRY_APPROVED", "EXIT_APPROVED",
                  "ORDER_SUBMITTED", "ORDER_FILLED", "POSITION_UPDATE", "POSITION_CLOSED", "ENTRY_VETOED",
-                 "HEALTH_ALERT", "FOUNDER_COMMAND"):
+                 "HEALTH_ALERT", "FOUNDER_COMMAND", "ENTRY_PLAN", "ENTRY_PLAN_RESULT"):
+        assert EventType(name).value == name
+    for name in ("DECISION", "ADVICE"):
         assert EventType(name).value == name
 
 
@@ -131,13 +133,11 @@ def test_publish_latency_budget(tmp_path):
 
 
 def _redis_or_skip():
-    redis = pytest.importorskip("redis")
-    client = redis.Redis.from_url("redis://localhost:6379/15", socket_connect_timeout=0.3)
     try:
-        client.ping()
-    except Exception:
-        pytest.skip("no Redis server on localhost:6379")
-    return client
+        import fakeredis
+        return fakeredis.FakeStrictRedis(decode_responses=False)
+    except ImportError:
+        pytest.skip("fakeredis not installed")
 
 
 def test_redis_streams_round_trip_and_founder_first():

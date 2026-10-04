@@ -13,7 +13,7 @@ import json
 import sqlite3
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any, Optional, Union
+from typing import Any, Union
 
 from ledger.charges import DEFAULT_CHARGES_PATH, exchange_for, load_rates, order_charges
 
@@ -34,10 +34,12 @@ CANCEL_REASONS = frozenset(
         "FOUNDER_COMMAND",
         "BROKER_CANCELLED",
         "EOD",
+        "STALE_ON_RESTART",
     }
 )
 
-Ts = Union[None, str, datetime]
+# Runtime alias: `str | datetime | None` is a TypeError on CPython 3.9 (PEP 604).
+Ts = Union[None, str, datetime]  # noqa: UP007
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS orders (
@@ -187,9 +189,9 @@ def iso_ist(ts: Ts = None) -> str:
 class Ledger:
     def __init__(
         self,
-        path: Union[str, Path] = DEFAULT_LEDGER_PATH,
+        path: str | Path = DEFAULT_LEDGER_PATH,
         *,
-        rates: Optional[dict[str, float]] = None,
+        rates: dict[str, float] | None = None,
         charges_path: Path = DEFAULT_CHARGES_PATH,
     ) -> None:
         if str(path) != ":memory:":
@@ -202,7 +204,7 @@ class Ledger:
     def close(self) -> None:
         self.conn.close()
 
-    def _one(self, sql: str, args: tuple = ()) -> Optional[sqlite3.Row]:
+    def _one(self, sql: str, args: tuple = ()) -> sqlite3.Row | None:
         return self.conn.execute(sql, args).fetchone()
 
     def _all(self, sql: str, args: tuple = ()) -> list[dict[str, Any]]:
@@ -210,7 +212,9 @@ class Ledger:
 
     # ---------------------------------------------------------------- orders
 
-    def record_order(self, row: dict[str, Any], from_state: Optional[str], to_state: str, reason: str = "", ts: Ts = None) -> None:
+    def record_order(
+        self, row: dict[str, Any], from_state: str | None, to_state: str, reason: str = "", ts: Ts = None
+    ) -> None:
         """Upsert the order row and append one order_events line for this transition."""
         if row.get("exit_reason") and row["exit_reason"] not in EXIT_REASONS:
             raise ValueError(f"unknown exit_reason {row['exit_reason']!r}")
@@ -218,9 +222,24 @@ class Ledger:
             raise ValueError(f"CANCELLED needs a cancel_reason in {sorted(CANCEL_REASONS)}")
         stamp = iso_ist(ts)
         cols = (
-            "client_order_id", "broker_order_id", "trade_id", "broker", "mode", "symbol", "instrument_id",
-            "side", "qty", "order_type", "price", "trigger_price", "decision_price", "purpose",
-            "filled_qty", "avg_fill_price", "exit_reason", "cancel_reason",
+            "client_order_id",
+            "broker_order_id",
+            "trade_id",
+            "broker",
+            "mode",
+            "symbol",
+            "instrument_id",
+            "side",
+            "qty",
+            "order_type",
+            "price",
+            "trigger_price",
+            "decision_price",
+            "purpose",
+            "filled_qty",
+            "avg_fill_price",
+            "exit_reason",
+            "cancel_reason",
         )
         values = [row.get(c) for c in cols]
         mutable = ("broker_order_id", "price", "trigger_price", "filled_qty", "avg_fill_price", "cancel_reason")
@@ -229,8 +248,7 @@ class Ledger:
                 f"INSERT INTO orders ({', '.join(cols)}, status, created_at, updated_at) "
                 f"VALUES ({', '.join('?' * len(cols))}, ?, ?, ?) "
                 "ON CONFLICT(client_order_id) DO UPDATE SET status = excluded.status, "
-                "updated_at = excluded.updated_at, "
-                + ", ".join(f"{c} = excluded.{c}" for c in mutable),
+                "updated_at = excluded.updated_at, " + ", ".join(f"{c} = excluded.{c}" for c in mutable),
                 (*values, to_state, stamp, stamp),
             )
             self.conn.execute(
@@ -243,9 +261,14 @@ class Ledger:
                     "entry_client_order_id, day, cancel_reason) VALUES (?, ?, ?, ?, 'CANCELLED', ?, ?, ?, ?, ?)",
                     (
                         row.get("trade_id") or f"T-{row['client_order_id']}",
-                        row["symbol"], row.get("instrument_id"),
+                        row["symbol"],
+                        row.get("instrument_id"),
                         "LONG" if row["side"] == "BUY" else "SHORT",
-                        row.get("mode"), row.get("broker"), row["client_order_id"], stamp[:10], row["cancel_reason"],
+                        row.get("mode"),
+                        row.get("broker"),
+                        row["client_order_id"],
+                        stamp[:10],
+                        row["cancel_reason"],
                     ),
                 )
 
@@ -271,8 +294,14 @@ class Ledger:
         signed = qty if o["side"] == "BUY" else -qty
         with self.conn:
             first = self._one("SELECT 1 FROM fills WHERE client_order_id = ? LIMIT 1", (client_order_id,)) is None
-            ch = order_charges(o["side"], qty, price, self.rates, include_brokerage=first,
-                               exchange=exchange_for(o["symbol"], self.rates))
+            ch = order_charges(
+                o["side"],
+                qty,
+                price,
+                self.rates,
+                include_brokerage=first,
+                exchange=exchange_for(o["symbol"], self.rates),
+            )
             pos = self._one("SELECT * FROM positions WHERE symbol = ?", (o["symbol"],))
             net = pos["net_qty"] if pos else 0
             avg = pos["avg_price"] if pos else 0.0
@@ -319,14 +348,24 @@ class Ledger:
                 "INSERT INTO charges (trade_id, client_order_id, ts, day, turnover, brokerage, stt, exchange, sebi, "
                 "stamp, gst, total) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (
-                    charge_trade, client_order_id, stamp, stamp[:10], ch["turnover"], ch["brokerage"], ch["stt"],
-                    ch["exchange"], ch["sebi"], ch["stamp"], ch["gst"], ch["total"],
+                    charge_trade,
+                    client_order_id,
+                    stamp,
+                    stamp[:10],
+                    float(ch["turnover"]),
+                    float(ch["brokerage"]),
+                    float(ch["stt"]),
+                    float(ch["exchange"]),
+                    float(ch["sebi"]),
+                    float(ch["stamp"]),
+                    float(ch["gst"]),
+                    float(ch["total"]),
                 ),
             )
             self.conn.execute(
                 "UPDATE trades SET charges = ROUND(charges + ?, 2), net_pnl = ROUND(gross_pnl - (charges + ?), 2) "
                 "WHERE trade_id = ?",
-                (ch["total"], ch["total"], charge_trade),
+                (float(ch["total"]), float(ch["total"]), charge_trade),
             )
         return charge_trade
 
@@ -340,13 +379,19 @@ class Ledger:
             "INSERT INTO trades (trade_id, symbol, instrument_id, direction, status, mode, broker, "
             "entry_client_order_id, entry_time) VALUES (?, ?, ?, ?, 'OPEN', ?, ?, ?, ?)",
             (
-                trade_id, o["symbol"], o["instrument_id"], "LONG" if o["side"] == "BUY" else "SHORT",
-                o["mode"], o["broker"], o["client_order_id"], stamp,
+                trade_id,
+                o["symbol"],
+                o["instrument_id"],
+                "LONG" if o["side"] == "BUY" else "SHORT",
+                o["mode"],
+                o["broker"],
+                o["client_order_id"],
+                stamp,
             ),
         )
         return trade_id
 
-    def _add_leg(self, leg: str, trade_id: str, qty: int, price: float, slip: Optional[float]) -> None:
+    def _add_leg(self, leg: str, trade_id: str, qty: int, price: float, slip: float | None) -> None:
         ss, sq = (slip * qty, qty) if slip is not None else (0.0, 0)
         self.conn.execute(
             f"UPDATE trades SET {leg}_qty = {leg}_qty + :q, {leg}_value = {leg}_value + :q * :p, "
@@ -363,12 +408,12 @@ class Ledger:
     def open_positions(self) -> list[dict[str, Any]]:
         return self._all("SELECT * FROM positions WHERE net_qty != 0 ORDER BY symbol")
 
-    def trades(self, day: Optional[str] = None) -> list[dict[str, Any]]:
+    def trades(self, day: str | None = None) -> list[dict[str, Any]]:
         if day:
             return self._all("SELECT * FROM trades WHERE day = ? ORDER BY entry_time", (day,))
         return self._all("SELECT * FROM trades ORDER BY entry_time")
 
-    def trade(self, trade_id: str) -> Optional[dict[str, Any]]:
+    def trade(self, trade_id: str) -> dict[str, Any] | None:
         row = self._one("SELECT * FROM trades WHERE trade_id = ?", (trade_id,))
         return dict(row) if row else None
 
@@ -388,9 +433,16 @@ class Ledger:
                 "INSERT INTO risk_decisions (ts, day, client_order_id, fingerprint, action, approved, reason_code, "
                 "reason, critical, intent_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (
-                    stamp, stamp[:10], decision["client_order_id"], decision.get("fingerprint"), decision["action"],
-                    int(bool(decision["approved"])), decision["reason_code"], decision.get("reason"),
-                    int(bool(decision.get("critical"))), json.dumps(decision.get("intent"), default=str),
+                    stamp,
+                    stamp[:10],
+                    decision["client_order_id"],
+                    decision.get("fingerprint"),
+                    decision["action"],
+                    int(bool(decision["approved"])),
+                    decision["reason_code"],
+                    decision.get("reason"),
+                    int(bool(decision.get("critical"))),
+                    json.dumps(decision.get("intent"), default=str),
                 ),
             )
 
@@ -432,4 +484,7 @@ class Ledger:
                 )
             },
             "recon_ok": True if recon is None else bool(recon["ok"]),
+            "feed_status": getattr(self, "feed_status", "UP"),
+            "strategy_pnl": {},
+            "halt_unreadable": False,
         }

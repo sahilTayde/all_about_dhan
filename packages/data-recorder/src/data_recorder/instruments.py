@@ -58,13 +58,13 @@ def _is_last_week_of_month(date: datetime) -> bool:
     return date.day > last_day - 7
 
 
-def _current_and_next_month_expiry() -> tuple[str, str]:
+def _current_and_next_month_expiry(*, as_of: Optional[datetime] = None) -> tuple[str, str]:
     """Get current and next month expiry dates (YYYY-MM-DD).
     
     Returns (current_month_expiry, next_month_expiry) for rollover handling.
     NSE futures expire on the last Thursday of the month.
     """
-    today = datetime.now(IST)
+    today = as_of or datetime.now(IST)
     
     # Find last Thursday of current month
     current_month_last = (today.replace(day=28) + timedelta(days=4)).replace(day=1) - timedelta(days=1)
@@ -82,8 +82,10 @@ def _current_and_next_month_expiry() -> tuple[str, str]:
     return current_thursday.strftime("%Y-%m-%d"), next_thursday.strftime("%Y-%m-%d")
 
 
-def parse_instruments(csv_text: str) -> dict[str, Any]:
+def parse_instruments(csv_text: str, *, as_of: Optional[datetime] = None) -> dict[str, Any]:
     """Parse scrip master CSV and extract indices, futures, heavyweights.
+
+    as_of pins current/next-month expiry selection (tests). Live callers omit it.
     
     Returns:
         {
@@ -111,8 +113,8 @@ def parse_instruments(csv_text: str) -> dict[str, Any]:
         "LT", "AXISBANK", "ASIANPAINT", "MARUTI", "HCLTECH",
     }
     
-    current_expiry, next_expiry = _current_and_next_month_expiry()
-    today = datetime.now(IST)
+    today = as_of or datetime.now(IST)
+    current_expiry, next_expiry = _current_and_next_month_expiry(as_of=today)
     in_rollover = _is_last_week_of_month(today)
     
     for row in reader:

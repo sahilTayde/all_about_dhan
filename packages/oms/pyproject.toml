@@ -1,0 +1,46 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "oms"
+version = "0.1.0+aad"
+description = "V2 order router (paper only). Risk before broker; realistic fills."
+readme = "README.md"
+requires-python = ">=3.11"
+# contracts (2.0.0) and events (0.1.0) are imported from V2-01/V2-02 but are
+# not +aad-pinned, so they stay off this list (desk in-repo pin check).
+dependencies = [
+    "brokers==0.1.0+aad",
+    "risk-engine==0.1.0+aad",
+    "ledger==0.1.0+aad",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "mypy>=1.0.0", "ruff>=0.1.0"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "SIM", "RUF"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+
+[[tool.mypy.overrides]]
+module = ["brokers.*", "risk_engine.*", "events.*", "ledger.*", "yaml"]
+ignore_missing_imports = true
+
+[tool.uv.sources]
+brokers = { workspace = true }
+risk-engine = { workspace = true }
+ledger = { workspace = true }

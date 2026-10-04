@@ -1,0 +1,28 @@
+# V2 Strategy Registry (YAML fallback until the registry module lands).
+# TEST-CROSS is shadow-only and must never sit in a real basket.
+
+strategies:
+  - strategy_id: "TEST-CROSS"
+    module_path: "strategies.plugins.test_cross"
+    version: "1.0.0"
+    params_hash: "b82f3dd90643d8e4"
+    stage: "shadow"
+    legacy_logic_from: []
+  - strategy_id: "R8-E1-COIL-SIDE"
+    module_path: "strategies.plugins.r8_e1_coil_side"
+    version: "1.0.0"
+    params_hash: "4b251caa6cd06675"
+    stage: "shadow"
+    legacy_logic_from: []
+  - strategy_id: "R8-E2-P5-HV"
+    module_path: "strategies.plugins.r8_e2_p5_hv"
+    version: "1.0.0"
+    params_hash: "119cacc954c10618"
+    stage: "shadow"
+    legacy_logic_from: []
+  - strategy_id: "R8-E3-HV-GATE"
+    module_path: "strategies.plugins.r8_e3_hv_gate"
+    version: "1.0.0"
+    params_hash: "f42fdeb51869e0f0"
+    stage: "shadow"
+    legacy_logic_from: []

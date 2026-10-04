@@ -10,7 +10,9 @@ Child pages add tighter caps. This repo **does not place orders**.
 | **Quote APIs** | 1 | Unlimited | Unlimited | Unlimited | `/marketfeed/ltp`, `/ohlc`, `/quote` gated **1 s**. Max **1000** instruments / request. |
 | **Non Trading APIs** | 20 | Unlimited | Unlimited | Unlimited | `GET /profile`, `GET /instrument/{segment}`. |
 
-**Option chain (tighter than Data APIs):** [option-chain](https://dhanhq.co/docs/v2/option-chain/) — **one unique request every 3 seconds** (expiry list **and** chain share the budget). OI updates slowly. Desk default full-chain poll is **3 minutes** (`workspace.yaml`).
+**Option chain (tighter than Data APIs):** [option-chain](https://dhanhq.co/docs/v2/option-chain/) — **one unique request every 3 seconds** (expiry list **and** chain share the budget). OI updates slowly. Desk default full-chain poll is **3 minutes** (`workspace.yaml`). The V2 recorder falls back to the chain for spot at most once / 60 s, and never after an index tick has arrived.
+
+**429 / Dhan 805:** live body `{'805': 'Too many requests. Further requests may result in the user being blocked.'}`. `RestClient` does not retry immediately. `EndpointRateLimiter` backs off 60 s, then 120 s, … capped at 15 min, per documented bucket. The count is `rest_429s` on recorder `FEED_STATUS`.
 
 **Live Market Feed:** [live-market-feed](https://dhanhq.co/docs/v2/live-market-feed/) — up to **5000** instruments / connection, **100** / subscribe message, **5** connections / user, ping **10 s**, stale disconnect **40 s**.
 

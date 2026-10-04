@@ -4,6 +4,8 @@ Private workspace for a DhanHQ-only **index-options signal** company. First book
 
 **No live orders.** Paper and research only. Gate is **not** `RESEARCH_READY_FOR_PROGRAMMING`. Do not treat dashboard P/L as a real book.
 
+**Mac operations boundary:** on the founder's Mac, agents may start/stop services and tune the **legacy** engine. They must not edit V2. Paths: [`scripts/mac/protected_paths.txt`](scripts/mac/protected_paths.txt), [`AGENT.md`](AGENT.md) (top), [`.cursor/rules/mac-ops-boundary.mdc`](.cursor/rules/mac-ops-boundary.mdc).
+
 ---
 
 ## How to read this repo
@@ -90,3 +92,44 @@ cp .env.example .env
 ```
 
 YouTube catalog work needs `YOUTUBE_API_KEY`. Live Dhan **quotes** need `DHAN_*` in `.env`; **orders stay refused** in code. Empty `DHAN_*` → fixtures.
+
+---
+
+## Mac session night (paper only)
+
+From the repo root on the Mac. **No live orders.** The legacy desk uses `.venv` (may be Python 3.9). V2 recorder + optional shadow use `.venv-v2` (3.11+) and never write into `.venv`. A missing recorder or shadow never blocks the legacy desk. Legacy dual-tape still owns the live paper book.
+
+```bash
+cd ~/Documents/all_about_dhan
+
+# 1. Token — put DHAN_CLIENT_ID and DHAN_ACCESS_TOKEN in repo-root .env
+#    Never commit .env. Never print the token.
+#    cp .env.example .env   # first time only
+
+# 2. One-time (or whenever main gains recorder packages): isolated v2 venv
+./scripts/mac_setup_v2.sh
+
+# 3. Website (API :8000 + Vite :5173). Capture off.
+./scripts/desk.sh website
+
+# 4. Dual-tape at the cash open (Mon–Fri 09:30 IST)
+./scripts/desk.sh watch-open
+
+# 5. V2 recorder (caffeinate on macOS; screen v2-recorder; auto-stops 15:30 IST)
+./scripts/desk.sh recorder-start
+
+# 5b. Optional V2 shadow (paper log-only; screen v2-shadow; does not replace legacy)
+./scripts/desk.sh shadow-start
+
+# 6. Checks
+./scripts/desk.sh status
+./scripts/desk.sh recorder-status
+./scripts/desk.sh shadow-status
+# Desk:    http://127.0.0.1:5173/desk
+# Founder: http://127.0.0.1:5173/pm
+
+# 7. After 15:40 IST — stop capture + recorder + shadow, keep website, honesty + nightly
+./scripts/desk.sh close
+```
+
+Same-morning shortcut: `./scripts/desk.sh morning` (runs `preflight`, then API + website + arms `watch-open`). `./scripts/desk.sh preflight` is also callable on its own. Details: [`SESSION_PREP_ML.md`](teams/06_backtesting/docs/SESSION_PREP_ML.md).

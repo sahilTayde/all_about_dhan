@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Optional
 
@@ -147,8 +147,7 @@ class IndexRecorder:
         base_time = datetime.now()
 
         for minute in range(2):
-            timestamp = base_time.replace(second=0, microsecond=0)
-            timestamp = timestamp.replace(minute=base_time.minute + minute)
+            timestamp = base_time.replace(second=0, microsecond=0) + timedelta(minutes=minute)
 
             for i, symbol in enumerate(self.symbols):
                 base_price = 19800.0 + i * 100.0

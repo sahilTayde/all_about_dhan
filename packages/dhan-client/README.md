@@ -69,8 +69,8 @@ Missing Data API plan → `DH-902` / `806`. Do not invent REST fields.
 | `dhan_client.rest` | Generic GET/POST helper + dry-run envelope |
 | `dhan_client.quote` | `POST /marketfeed/ltp`, `/ohlc`, `/quote` |
 | `dhan_client.historical` | `POST /charts/historical`, `/charts/intraday` |
-| `dhan_client.option_chain` | `POST /optionchain`, `/optionchain/expirylist` (live calls gated 3s) |
-| `dhan_client.rate_limit` | `MinIntervalGate` — option-chain 1 unique / 3 s |
+| `dhan_client.option_chain` | `POST /optionchain`, `/optionchain/expirylist` (live calls gated in REST) |
+| `dhan_client.rate_limit` | Per-endpoint limiter: documented intervals + 429/805 backoff (60 s, cap 15 min) |
 | `dhan_client.instruments` | Public scrip-master CSV URLs + `GET /instrument/{segment}` |
 | `dhan_client.feed` | WS connect, subscribe (≤100/msg), reconnect |
 | `dhan_client.decode` | Binary header + ticker; quote/full placeholder |

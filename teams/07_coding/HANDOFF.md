@@ -1,5 +1,536 @@
 # Handoff log — Team 07 Coding
 
+## As of now (2026-10-04 IST) — V2-26 Mac start hole (PAPER)
+
+```text
+From:     teams/07_coding
+To:       founder / 00 / 09
+Date:     2026-10-04
+Status:   PAPER / V2-26 fix / NO_PROMOTE
+Accepted: Lazy runtime.recovery so kernel/shadow.runner
+  import without brokers. desk.sh proves
+  import shadow.runner and python -m shadow,
+  then fail-closed if the follower dies.
+  .venv-v2 still has no brokers/ledger/risk-engine.
+Rejected: Installing brokers into .venv-v2.
+  Widening legacy .venv. Live orders.
+  Playbook enable. Replacing dual-tape.
+UNKNOWN: Session-night compare still missing.
+```
+
+## As of now (2026-10-04 IST) — V2-26 shadow launcher (PAPER)
+
+```text
+From:     teams/07_coding
+To:       founder / 00 / 09
+Date:     2026-10-04
+Status:   PAPER / V2-26 / NO_PROMOTE
+Accepted: packages/shadow + desk.sh hooks +
+  .venv-v2 install of contracts/events/runtime/shadow.
+  Kernel + TapeSource only. No DhanBroker.
+  No oms.router. No desk.paper write.
+Rejected: Live modes. Morning auto-start.
+  Copying legacy CANCEL/COVER exits.
+  Installing into .venv.
+UNKNOWN: Live recorder tail on a session
+  night (human). Feed-down is fail-closed.
+```
+
+## As of now (2026-09-28 IST) — P0 CPython 3.9 legacy import (PAPER)
+
+```text
+From:     teams/07_coding
+To:       founder / 00 / 09
+Date:     2026-09-28
+Status:   PAPER / Mac CPython 3.9 import / NO_PROMOTE
+Accepted: dhan_client.feed OnPacket/OnFrame use typing.Optional/Union so
+  PEP 604 | is not evaluated at alias assignment on 3.9. Walked api.main,
+  jobs, trading_agents_india dual-tape, health.supervise, python -m jobs
+  post-market --help — no other 3.9 language breaks. CI job legacy-py39
+  installs the Mac legacy set and checks import + token-free /health and
+  /paper/founder-book.
+Rejected: Rewriting postponed annotations. Behaviour changes. GATE_ENFORCE=1.
+UNKNOWN: none
+```
+
+## As of now (2026-09-28 IST) — merge main 91593d6 (#66) into V2-gateway-auth (PAPER)
+
+```text
+From:     teams/07_coding
+To:       founder / 00 / 09
+Date:     2026-09-28
+Status:   PAPER / V2-13 auth ∪ V2-11 real controls / NO_PROMOTE
+Accepted: Normal-merge origin/main 91593d6. Keep BOTH:
+  #67 Bearer/WS auth, query-credential refuse, bind fail-closed,
+  mutating 1/s rate limit. Main V2-11 real submit (not stub 501),
+  localhost-or-founder authorize_control, V2_GATEWAY_AVAILABLE
+  so py3.9 /paper/* stays up. desk.sh still uvicorn 127.0.0.1:8000.
+Rejected: Rebase / force-push. Dropping auth or real V2-11 apply.
+  GATE_ENFORCE=1.
+UNKNOWN: none
+```
+
+## As of now (2026-09-28 IST) — merge main 6d4e645 (#64) into V2-recorder (PAPER)
+
+```text
+From:     teams/07_coding
+To:       founder / 00 / 09
+Date:     2026-09-28
+Status:   PAPER / V2-recorder ∪ gateway ingest / NO_PROMOTE / no live orders
+Accepted: Normal-merge origin/main 6d4e645. Keep BOTH imports:
+  uuid (main command_id) + dataclasses.replace (#63 v=1 bus stamp).
+  #63 stamps available_ts from hub clock so MemoryBus is not lookahead.
+  test_ingest_from_memory_bus stays unpinned GatewayHub(bus).
+Rejected: Rebase / force-push. Dropping either import.
+UNKNOWN: none
+```
+
+## As of now (2026-09-28 IST) — merge main 045ce0e (#65) into V2-OMS-risk (PAPER)
+
+```text
+From:     teams/07_coding
+To:       founder / 00 / 09
+Date:     2026-09-28
+Status:   PAPER / V2-OMS-risk ∪ V2-08b ∪ V2-11 / NO_PROMOTE / no live orders
+Accepted: Normal-merge origin/main 045ce0e (#61 #55 #59 #60 #65). Keep BOTH:
+  founder veto first on submit, then _catastrophic_price(risk, qty).
+  exit() uses store-agnostic _live_position; missing row skips resize
+  (snapshot flatten never raises). Live row uses #64 Veto (FLAT/SUB_LOT),
+  not raise. cancel() + _reject_exit stay. Ledger keeps planner helpers
+  + Decimal order_charges. Gateway clock pin stays unpinned.
+Rejected: Rebase / force-push. Dropping founder veto, risk-qty stop,
+  or raising on a missing store row.
+UNKNOWN: none
+```
+
+## As of now (2026-09-28 IST) — merge main c723001 (#59) into V2-16 (PAPER)
+
+```text
+From:     teams/07_coding
+To:       founder / 00 / 09
+Date:     2026-09-28
+Status:   PAPER / V2-16 / NO_PROMOTE / advisory BLOCK (exit 0)
+Accepted: Normal-merge origin/main c723001 (incl #61 #55 #59).
+  Gate stays advisory. GATE_ENFORCE is not set.
+Rejected: Rebase / force-push. GATE_ENFORCE=1.
+UNKNOWN: none
+```
+
+## As of now (2026-09-28 IST) — V2-16 advisory mode (do not paint CI red)
+
+```text
+From:     teams/07_coding
+To:       founder / 00 / 09
+Date:     2026-09-28
+Status:   PAPER / V2-16 / NO_PROMOTE / advisory BLOCK (exit 0)
+Accepted: Verdict step always writes the full gate JSON.
+  Default advisory: BLOCK exits 0. GATE_ENFORCE=1 BLOCKs with exit 1.
+  --merge / --push still exit 2. Missing/stub never PASS.
+Rejected: GATE_ENFORCE=1. Making gate a required check today.
+UNKNOWN: none
+```
+
+## As of now (2026-09-28 IST) — merge main 0d7951c (#61+#62) into V2-08b (PAPER)
+
+```text
+From:     teams/07_coding
+To:       founder / 00 / 09
+Date:     2026-09-28
+Status:   PAPER / V2-08b + V2-11 union / NO_PROMOTE / no live orders
+Accepted: Normal-merge origin/main 0d7951c. Keep BOTH:
+  V2-11 _founder_entry_veto first on submit, then V2-08b
+  _catastrophic_price(risk, qty). exit() uses store-agnostic
+  _live_position; missing row skips resize (snapshot flatten
+  never raises). Live sqlite/memory row still resizes.
+Rejected: Rebase / force-push. Dropping founder veto or risk-qty stop.
+UNKNOWN: none
+```
+
+## As of now (2026-09-28 IST) — merge main 78013e4 (V2-10) into V2-08b (PAPER)
+
+```text
+From:     teams/07_coding
+To:       founder / 00 / 09
+Date:     2026-09-28
+Status:   PAPER / V2-08b + V2-10 union / NO_PROMOTE / no live orders
+Accepted: Normal-merge origin/main 78013e4 (#58). Keep BOTH:
+  V2-10 SqliteLedgerStore / crash recovery / FEED_STALE /
+  HALT_UNREADABLE / STRATEGY_DAILY_LOSS / reduce-only
+  and V2-08b planner/chase. MemoryLedger is the in-memory
+  adapter (not superseded): entry_plans + snapshot veto
+  fields. Planner PlanStore API also writes the real
+  ledger entry_plans table. Risk before broker. Never MARKET.
+Rejected: Two durable ledgers. Rebase / force-push.
+UNKNOWN: none
+```
+
+## As of now (2026-09-28 IST) — V2-11 + main 78013e4 (PAPER)
+
+```text
+From:     teams/07_coding
+To:       founder / 00 / 09
+Date:     2026-09-28
+Status:   PAPER / V2-11 / NO_PROMOTE / no live orders
+Accepted: Normal merge of origin/main 78013e4. Kept #54 BAR_CLOSED
+  same-underlying + #61 targeted FOUNDER_COMMAND skip. Kept #58
+  FEED_STALE / HALT_UNREADABLE / STRATEGY_DAILY_LOSS / reduce-only
+  and #61 FOUNDER_LOTS_CAP. Runtime keeps flatten and llm-advisor.
+Rejected: Rebase / force-push. Dropping any veto.
+UNKNOWN: none for this merge.
+```
+
+## As of now (2026-09-28 IST) — V2-11 fix round (PR #61 verifier)
+
+```text
+From:     teams/07_coding
+To:       founder / 00 / 09
+Date:     2026-09-28
+Status:   PAPER / V2-11 / NO_PROMOTE / no live orders
+Accepted: Normal merge of PR #49 head 65fea643 (lot-size guards).
+  OrderRouter.submit consults CommandBook: PAUSE/STOP/INDEX/
+  BASKET_REMOVE veto entries; SET_LOTS caps lots (ceiling from
+  config/risk_limits.yaml paper max_lots_per_trade=25).
+  KILL cancels working ENTRY orders and flattens via the wired
+  paper manager. Command log JSONL under data/ledger (same tree
+  as the ledger); resent command_id after restart is a no-op.
+  attach_gateway uses AAD_STATE_DIR or cwd (not mkdtemp on the
+  real api). Founder token is a label, not auth.
+Rejected: Rebase / force-push. DhanBroker. requirements/* edits.
+UNKNOWN: retarget to main after #45, #49, #58 merge.
+```
+
+## As of now (2026-09-27 IST) — V2-11 founder controls v2 (PAPER)
+
+```text
+From:     teams/07_coding
+To:       founder / 00 / 09
+Date:     2026-09-27
+Status:   PAPER / V2-11 / NO_PROMOTE / no live orders
+Accepted: Branched from cursor/v2-10-ledger-crash-recovery-dcfd, then
+  a normal merge of PR #49 head cursor/v2-09-position-manager-7d86
+  @ 2229844f8baad6c3a09209d770ee96434a850c4c. packages/control
+  command log + engine handler + gateway /v2/control routes.
+  Flatten/kill go through PositionManager + risk.check_flatten.
+  KILL_SWITCH file + python -m runtime flatten work with Redis
+  down. DhanBroker never constructed. requirements/* unchanged.
+  Later: normal merge of updated V2-10 tip (atomic fills / lot veto).
+Rejected: Live/Dhan path. Gateway applying entries. Rebase / force-push.
+UNKNOWN: retarget to main after #45, #49, #58 merge.
+```
+
+## As of now (2026-09-27 IST) — V2-19 llm-advisor service (PAPER)
+
+```text
+From:     teams/07_coding
+To:       founder / 00 / 09
+Date:     2026-09-27
+Status:   PAPER / V2-19 / NO_PROMOTE / no live orders
+Accepted: Wiring python -m runtime llm-advisor over desk_ml.llm_analyst.
+  Consumes DECISION (boss:decisions), publishes ADVICE. Replay uses
+  RecordedProvider/mock. Queue-decoupled so a hung provider cannot
+  change, delay, or veto an engine decision. EventType DECISION+ADVICE.
+Rejected: Putting the advisor on the engine handler list. Live OpenAI
+  in CI/replay. DhanBroker. Rebase / force-push / relock.
+UNKNOWN: Redis stream name mapping (prefix+DECISION vs boss:decisions)
+  until compose wires a topic map.
+```
+
+---
+
+## As of now (2026-09-27 IST) — V2-09b founder KILL flatten (NO_PROMOTE)
+
+```text
+From:     teams/07_coding
+To:       00 / 09
+Date:     2026-09-27
+Status:   V2-09b PAPER fix / NO_PROMOTE
+Accepted: Founder FOUNDER_COMMAND kind=KILL now emits
+  KILL_SWITCH / plan_field=kill_switch. REG-18a mismatch
+  logs CRITICAL and still flattens. house_stop_premium
+  snaps UP onto the 0.05 grid.
+Rejected: Raising out of on_market on a REG-18a mismatch.
+UNKNOWN: none
+```
+
+---
+
+## As of now (2026-09-27 IST) — V2-09b exit primitives (NO_PROMOTE)
+
+```text
+From:     teams/07_coding
+To:       00 / 09
+Date:     2026-09-27
+Status:   V2-09b PAPER exit primitives on V2-09 / NO_PROMOTE
+Accepted: StructuralStop, AtrStop (fixed at fill), GracePeriod,
+  SignalFlipExit (own_opposite, boss_opposite on bar close).
+  defaults.yaml loader freezes values + file hash into
+  defaults_from. REG-18a-e. Grep: no CANCEL_AGAINST /
+  CANCEL_ADVERSE / CANCEL_STALL / COVER_LONG_UNWIND in
+  packages/oms or packages/strategies. Inherit = ₹30k
+  house stop + native invalidation; no native level
+  refuses. V2-09 stop qty == net invariant kept.
+Rejected: Live/Dhan. Intraday exit retune. Loosening REG-02
+  resize/flatten. STRAT-015+.
+UNKNOWN: V2-10 durable rehydrate of frozen atr_stop_level.
+```
+
+---
+
+## As of now (2026-09-27 IST) — V2-10 fix round (atomic / idempotent / P&L / qty / Decimal)
+
+```text
+From:     teams/07_coding
+To:       founder / 00 / 09
+Date:     2026-09-27
+Status:   PAPER / V2-10 / NO_PROMOTE / no live orders
+Accepted: record_fill owns one BEGIN IMMEDIATE; raise
+  after INSERT INTO fills rolls back; replay = 1 fill.
+  UNIQUE(client_order_id, fill_seq) + fill_id.
+  record_fill twice is a no-op. recover() twice does
+  not rebook halt. recharge_pending UPDATEs PENDING
+  in place. Close writes gross 650 / charges once /
+  CLOSED / net_qty 0. insert_order no longer does
+  qty*lot_size. rebuild lots=1 lot_size=65. Decimal
+  money()/money_sql() on the v2 path. Merged V2-08
+  7c09f84 (lot_size mismatch veto) with a normal merge.
+Rejected: Rebase / force-push / merge of this PR.
+  DhanBroker. Editing Mac-ops merge files. Relock.
+UNKNOWN: GitHub CI on the new head.
+```
+
+---
+
+## As of now (2026-09-27 IST) — V2-08 lot-size exchange-only (PAPER)
+
+```text
+From:     teams/07_coding
+To:       00 / 09
+Date:     2026-09-27
+Status:   V2-08 PAPER router / NO_PROMOTE
+Accepted: Exchange lot_size always from lot_size_for(instrument_id).
+  decision.lot_size or stored lot_size that differs is LOT_SIZE_MISMATCH
+  veto; nothing reaches the broker. Send-time guard: qty>0 and
+  qty % exchange lot == 0. Flatten closes only whole lots <= net_qty
+  and alerts ODD_LOT_FLATTEN when net is not a multiple.
+Rejected: Using decision.lot_size as the send qty. Rounding leftover
+  units UP past net_qty.
+UNKNOWN: none
+```
+
+## As of now (2026-09-27 IST) — V2-10 ledger v2 + crash recovery (PAPER)
+
+```text
+From:     teams/07_coding
+To:       founder / 00 / 09
+Date:     2026-09-27
+Status:   PAPER / V2-10 / NO_PROMOTE / no live orders
+Accepted: Branched from cursor/v2-08-order-router-fills-1553 (already
+  contained origin/main 90455a6). Additive migrations 001_core +
+  002_v2_core (session_halts, ingest_errors, positions_v2, checkpoint,
+  outbox). SqliteLedgerStore implements LedgerStore. Recovery sequence
+  of §3.5. Paper broker rebuild_from_ledger. FEED_STALE +
+  STRATEGY_DAILY_LOSS + HALT_UNREADABLE. REG-02b/04a (real SIGKILL),
+  04b, 05e, 06b, 16c, 17a-d. Legacy Ledger() never auto-migrates;
+  DEFAULT_LEDGER_PATH refused unless allow_legacy. requirements/*
+  byte-identical. install.sh unchanged (ledger already on the list).
+Rejected: Auto-migrate of the Monday sqlite path. DhanBroker.
+  Rebase / force-push / relock.
+UNKNOWN: whether a later V2-08 merge commit lands before this PR
+  is retargeted to main after #45.
+```
+
+---
+
+## As of now (2026-09-27 IST) — V2-04 onto main 971bf81 / V2-15 (PAPER)
+
+```text
+From:     teams/07_coding
+To:       founder / 00 / 09
+Date:     2026-09-27
+Status:   PAPER / V2-04 / NO_PROMOTE / no live orders
+Accepted: Merged origin/main 971bf81 (PR #51 V2-15) with a
+  normal merge. Kept V2-15 __main__ dispatcher, JOBS,
+  publish_atomic, services, test_v2_15, pyproject 2.15.0.
+  Added kernel/config/store/sources additively. engine
+  --once still writes ENGINE_STATUS READY then runs the
+  kernel on an empty tape. JobTimeout is the timeout
+  class; DeadlineExceeded is an alias. requirements/*
+  byte-identical to main. install.sh unchanged.
+Rejected: Replacing the V2-15 dispatcher. Second jobs
+  module. Rebase / force-push / relock.
+UNKNOWN: none
+```
+
+---
+
+## As of now (2026-09-27 IST) — V2-04 kernel onto current main (PAPER)
+
+```text
+From:     teams/07_coding
+To:       founder / 00 / 09
+Date:     2026-09-27
+Status:   PAPER / V2-04 / NO_PROMOTE / no live orders
+Accepted: Merged origin/main (a756e70) into PR #38 with a
+  normal merge. One packages/runtime: keep V2-17 bench_legacy
+  and python -m runtime bench-legacy; add kernel, jobs,
+  wiring, store. Config loader is runtime.config (not
+  contracts): contracts owns envelope/schema/clock/ids;
+  last-good YAML is runtime config. Deleted duplicate
+  ListSource; reuse marketdata.sources.ListSource via
+  envelopes_from_list_source. __main__ left as main's
+  minimal dispatcher (V2-15 adds commands additively).
+  requirements/* byte-identical to main. install.sh is
+  main's list (runtime already once). events import
+  resolves (in-repo sibling; pyproject deps stay empty
+  so check_local_names / PyPI 'events' cannot collide).
+Rejected: Second runtime package. contracts.config home.
+  sys.exit inside run_with_deadline (library raises
+  DeadlineExceeded / JobTimeout; CLI exits 1). Rebase
+  or force-push. Relock of requirements/.
+UNKNOWN: V2-15 (#51) jobs.py will merge onto this
+  run_with_deadline + JobTimeout alias.
+```
+
+---
+
+## As of now (2026-09-27 IST) — V2-15 merged main a756e70 (#36/#44/#42/#48) (NO_PROMOTE)
+
+```text
+From:     teams/07_coding
+To:       00 / 09 / founder
+Date:     2026-09-27
+Status:   PAPER V2-15 / NO_PROMOTE
+Accepted: Merged origin/main a756e70 (V2-17 #36, V2-14 #44, #42, #48).
+  Keep this branch __main__/__init__/pyproject (one runtime package,
+  combined dispatcher). Took main bench_legacy.py, test_bench_legacy.py,
+  check_frozen_legacy.py, config/legacy_frozen.sha256, and the real
+  frozen-legacy CI job (one job). requirements/* byte-identical to main
+  (prometheus-client from #44). install.sh already = main list + runtime.
+  python -m runtime health reads the breaker file and writes
+  health_status.json; it does not import health.v2_* or start /metrics.
+  python -m health is the legacy PR-004 monitor. V2-14 MetricsEndpoint
+  is opt-in in the health package. One compose health process. Mac:
+  scripts/desk.sh unchanged.
+Rejected: Second frozen-legacy job. Starting a second health HTTP
+  server from runtime. Live-orders compose. Touching legacy engine
+  or data/.
+UNKNOWN: Dhan token refresh for unattended VPS (VERIFY).
+```
+
+---
+
+## As of now (2026-09-27 IST) — V2-15 + main merge + #36 runtime compat (NO_PROMOTE)
+
+```text
+From:     teams/07_coding
+To:       00 / 09 / founder
+Date:     2026-09-27
+Status:   PAPER V2-15 / NO_PROMOTE
+Accepted: Merged origin/main (6e5e582 V2-02). requirements/* byte-identical
+  to main. install.sh = main list + runtime (once). One packages/runtime
+  pyproject; python -m runtime dispatches engine/health/reset-breaker/job
+  and bench-legacy. Keep/take list executed after #36 landed (see newer
+  block).
+Rejected: Duplicating a placeholder frozen-legacy job. Live-orders
+  compose. Touching legacy engine or data/.
+UNKNOWN: (resolved) #36 has merged.
+```
+
+---
+
+## As of now (2026-09-27 IST) — V2-15 compose / deploy / breaker (NO_PROMOTE)
+
+```text
+From:     teams/07_coding
+To:       00 / 09 / founder
+Date:     2026-09-27
+Status:   PAPER V2-15 / NO_PROMOTE
+Accepted: Dockerfile (non-root, read-only root), compose replay (no creds),
+  compose.vps, Caddyfile, aad.service, deploy/backup/restore, restart
+  breaker + reset-breaker, job timeouts, §5.3 CI jobs, founder-guide V2
+  note. Stub engine writes ENGINE_STATUS READY (V2-04 kernel not here).
+  V2-14 breaker_open is a Protocol (BreakerView); this ticket owns the file.
+Rejected: Live-orders compose profile. Copying V2-14 health files.
+  Touching legacy engine, desk.sh behaviour, data/, config/v2/exits.
+UNKNOWN: Dhan token refresh for unattended VPS (VERIFY). Docker-in-CI
+  image build needs the runner's docker socket.
+```
+
+---
+
+## As of now (2026-09-27 IST) — V2-09 paper position manager (NO_PROMOTE)
+
+```text
+From:     teams/07_coding
+To:       00 / 09
+Date:     2026-09-27
+Status:   V2-09 PAPER positions on V2-08 router / NO_PROMOTE
+Accepted: Exit loop from the held position + ExitPlan
+  (catastrophic, time stops, EOD, target/partial/trail,
+  founder, kill, strategy, failsafe MTM). IST clock.
+  REG-02a after envelopes, REG-03a-c, REG-05d, REG-15a-d.
+  In-place modify_order(order_id, qty) for protective SL-M
+  so stop qty == net. Cancel-then-replace only if modify
+  unsupported. Bounded idempotent replace retry; CRITICAL
+  STOP_RESIZE_FAILED + paper market flatten if still failing.
+  check_exit always allows reduce-only SELL <= net (kill
+  included). Never restore a stop larger than live net.
+Rejected: Durable ledger/rehydrate (V2-10). Structural /
+  ATR / grace / flip / defaults.yaml (V2-09b). Live/Dhan.
+  Cancel-then-naked-place without retry/flatten.
+UNKNOWN: V2-10 halt row / restart rehydrate.
+```
+
+---
+
+## As of now (2026-09-27 IST) — V2-13 token-only ROLE_ACL (PAPER)
+
+```text
+From:     teams/07_coding
+To:       founder / 00 / 09
+Date:     2026-09-27
+Status:   PAPER / V2-13 / NO_PROMOTE / no live orders
+Accepted: One ROLE_ACL per role, enforced on WS snapshot, WS
+  deltas, GET /v2/snapshot, GET /v2/trace. Identity is the
+  paper token only (founder iff token=founder). Missing or
+  unknown token = customer. Client-supplied role is never
+  trusted. Subscribe role/token fields yield IDENTITY_IMMUTABLE
+  and do not change the connection. Customers get only
+  CUSTOMER_TALK public signal fields; no legacy board /
+  founder / founder_book / account overlay. /v2/trace is
+  founder-only (403 otherwise). Control POST stays 501.
+Rejected: JWT (V2-23). Trusting query/body role. Customer
+  overlay of desk JSON. Changing 501 control or loopback.
+UNKNOWN: Founder UI behind VITE_V2_FEED=1 now sends the
+  paper token=founder label (not a secret; JWT still V2-23).
+```
+
+---
+
+## As of now (2026-09-27 IST) — V2-13 gateway websocket + UI rewire (PAPER)
+
+```text
+From:     teams/07_coding
+To:       founder / 00 / 09
+Date:     2026-09-27
+Status:   PAPER / V2-13 / NO_PROMOTE / no live orders
+Accepted: GET /v2/snapshot + WS /v2/ws (subscribe, snapshot,
+  ordered seq deltas, resync). Role-scoped channels: customer
+  token cannot take founder channels. REG-04c snapshot lists
+  every ledger-open position. Decision trace from correlation
+  id includes strike_choice + alternatives. Desk/Founder use
+  v2 feed only when VITE_V2_FEED=1. Legacy /ui/* /ws/* stay.
+  V2-11 control routes are a marked stub (501, no actions).
+Rejected: Implementing founder control actions (V2-11). JWT
+  auth (V2-23). Touching legacy engine / marketdata / dhan-
+  client / runtime / strategies / data/ / exits defaults.
+UNKNOWN: Ledger positions until V2-10 exists are
+  in-memory on the hub. Playwright --v2 (PR #15 widths)
+  passed on the fixture feed after SSE fallback.
+```
+
+---
+
 ## As of now (2026-09-22 IST) — freeze spill cols + 2s tick (NO_PROMOTE)
 
 ```text

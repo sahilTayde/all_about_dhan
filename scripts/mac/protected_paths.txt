@@ -1,0 +1,59 @@
+# V2 protected paths (glob patterns). Mac hooks refuse a commit if any
+# staged path (add / edit / delete / rename) matches a line here.
+# Derived from docs/architecture (PR #27) plus merged V2 PRs
+# #31 #33 #36 #37 #38 #39 #40 #42 #44 #47 #48 #51 and in-flight
+# #41 #43 #45 #49 #50.
+# ** = this directory and every file under it. Lines starting with # are comments.
+
+# Engine / contracts / bus / boss (V2-02, V2-04, V2-07, V2-17)
+packages/runtime/**
+packages/shadow/**
+packages/boss/**
+packages/contracts/**
+packages/events/**
+
+# Order router, exits/stops, strategy runtime (V2-06, V2-06b, V2-08, V2-09)
+packages/oms/**
+packages/strategies/**
+# V2 wraps on reused packages (in-flight #45 #49; not the whole brokers/risk tree)
+packages/brokers/src/brokers/factory.py
+packages/brokers/src/brokers/fills.py
+packages/risk-engine/src/risk_engine/last_good.py
+
+# Features + health + founder control (V2-05, V2-05b, V2-14; control from architecture)
+packages/indicators/**
+packages/health/**
+packages/control/**
+
+# Shared by the Monday legacy run (pip install -e) — import only, never edit
+packages/dhan-client/**
+packages/marketdata/**
+
+# Gateway v2 (V2-13)
+apps/api/src/api/v2_gateway.py
+apps/api/tests/test_v2_gateway.py
+apps/web/src/lib/v2Feed.js
+apps/web/src/lib/v2*
+
+# V2 config + frozen-legacy manifest (V2-17)
+config/v2/**
+config/legacy_frozen.sha256
+
+# Deploy image / compose (V2-15)
+deploy/docker/**
+
+# V2 docs
+docs/architecture/**
+docs/founder/FOUNDER_COMMENTS_LOG.md
+
+# CI, lock files, V2 regression tests
+scripts/ci/**
+requirements/**
+.github/workflows/**
+tests/regression/**
+pyproject.toml
+
+# This guard
+.cursor/rules/mac-ops-boundary.mdc
+scripts/mac/**
+AGENT.md

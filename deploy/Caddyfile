@@ -1,0 +1,5 @@
+# Paper VPS: TLS terminator. Gateway stays on loopback (compose binds 127.0.0.1:8000).
+# Founder console is Tailscale/WireGuard only until V2-13 auth.
+:443 {
+	reverse_proxy 127.0.0.1:8000
+}

@@ -1,0 +1,31 @@
+# Round 8 E3 HV-GATE. stage: shadow overlay. Never blocks. Never emits an entry.
+spec_id: R8-E3-HV-GATE
+strategy_id: R8-E3-HV-GATE
+plugin: strategies.plugins.r8_e3_hv_gate
+version: "1.0.0"
+stage: shadow
+prereg_status: PENDING_LAB
+start_session: "2026-09-28"
+cost_model: depth
+coefficients: {}
+missing_lab:
+  - recorded sha256 of the E2/E3 HAR forecast code (Round 8 §6 step 1)
+params:
+  role: overlay_flag_only
+  skip_tercile: 1
+  har_source: preopen
+  never_block: true
+  exit_plan:
+    catastrophic:
+      max_loss: 30000
+    time_stops: []
+    flat_by_ist: "15:15"
+bars:
+  n_kill: 30
+  n_promising: 60
+  n_pass: 120
+  t_crit: 2.13
+placebos:
+  - side_flip
+  - random_minute
+signals: []

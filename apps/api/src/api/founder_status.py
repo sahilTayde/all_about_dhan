@@ -5,7 +5,8 @@ from __future__ import annotations
 import json
 import os
 import socket
-from datetime import datetime, timezone
+from collections.abc import Callable
+from datetime import datetime, time, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
@@ -14,6 +15,12 @@ _RECON = _REPO_ROOT / "data" / "recon"
 _STATUS = _RECON / "paper_ops_monitor_status.json"
 _PIDS = _RECON / "paper_ops_pids.json"
 _STOP = _RECON / "paper_ops_STOPPED.flag"
+_ENGINE_HB = _RECON / "engine_heartbeat.json"
+_IST = timezone(timedelta(hours=5, minutes=30))
+_MARKET_OPEN, _MARKET_CLOSE = time(9, 15), time(15, 30)
+# Dual-tape writes last_loop_epoch at the top of each cycle (~2s). 120s matches
+# health.monitor.ENGINE_STALE_SECONDS so a live book is not DOWN during a long cycle.
+PAPER_HEARTBEAT_STALE_S = 120
 _ML_DASH = _RECON / "ml_paper_dashboard.json"
 _ML_MOCK = _REPO_ROOT / "apps" / "web" / "public" / "mock" / "ml_paper_dashboard.json"
 
@@ -65,6 +72,53 @@ def _pid_alive(pid: Any) -> bool:
         return False
 
 
+def _in_market_hours(now: datetime) -> bool:
+    now = now.astimezone(_IST) if now.tzinfo else now.replace(tzinfo=_IST)
+    return now.weekday() < 5 and _MARKET_OPEN <= now.time() <= _MARKET_CLOSE
+
+
+def _loop_epoch(hb: dict[str, Any]) -> float | None:
+    raw = hb.get("last_loop_epoch")
+    if isinstance(raw, (int, float)) and not isinstance(raw, bool):
+        return float(raw)
+    iso = hb.get("last_loop_ist")
+    if not iso:
+        return None
+    try:
+        dt = datetime.fromisoformat(str(iso).replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=_IST)
+    return dt.timestamp()
+
+
+def paper_loop_from_heartbeat(
+    hb: dict[str, Any],
+    *,
+    now: datetime,
+    pid_alive: Callable[[Any], bool] = _pid_alive,
+    stale_s: int = PAPER_HEARTBEAT_STALE_S,
+) -> tuple[bool, Any, str]:
+    """Paper book inside dual-tape: live pid + recent last_loop_epoch.
+
+    Empty / unreadable heartbeat, dead pid, or stale last_loop during market hours
+    are not UP. After hours a live pid still counts (close leaves a stale stamp).
+    """
+    if not isinstance(hb, dict) or not hb:
+        return False, None, "no dual-tape heartbeat"
+    pid = hb.get("pid")
+    if not pid_alive(pid):
+        return False, None, "dual-tape heartbeat pid not running"
+    epoch = _loop_epoch(hb)
+    if epoch is None:
+        return False, None, "dual-tape heartbeat missing last_loop"
+    age = now.timestamp() - epoch
+    if _in_market_hours(now) and age > stale_s:
+        return False, pid, f"dual-tape heartbeat stale ({int(age)}s)"
+    return True, pid, f"dual-tape heartbeat pid={pid} last_loop {int(max(age, 0))}s ago"
+
+
 def _load_json(path: Path) -> dict[str, Any]:
     if not path.is_file():
         return {}
@@ -105,7 +159,20 @@ def build_founder_status() -> dict[str, Any]:
     paper_pid = pids.get("paper_market_hours") or status.get("paper_pid")
     mon_pid = pids.get("ops_monitor") or status.get("monitor_pid")
     analysis_pid = pids.get("analysis_loop") or status.get("analysis_pid")
-    paper_alive = _pid_alive(paper_pid)
+    hb = _load_json(_ENGINE_HB)
+    hb_now = datetime.now(_IST)
+    hb_alive, hb_pid, hb_detail = paper_loop_from_heartbeat(hb, now=hb_now)
+    legacy_alive = _pid_alive(paper_pid)
+    paper_alive = legacy_alive or hb_alive
+    paper_show_pid = paper_pid if legacy_alive else (hb_pid if hb_alive else None)
+    if stopped:
+        paper_detail = "STOPPED flag"
+    elif legacy_alive:
+        paper_detail = "running"
+    elif hb_alive:
+        paper_detail = hb_detail
+    else:
+        paper_detail = "not running"
     mon_alive = _pid_alive(mon_pid)
     analysis_alive = _pid_alive(analysis_pid)
     api_up = _port_up(8000)
@@ -119,9 +186,9 @@ def build_founder_status() -> dict[str, Any]:
             "name": "Paper market-hours",
             "task": "REST --live-chain every ~90s: option chain + INDEX 1m → MIX paper tickets. No orders.",
             "alive": paper_alive,
-            "pid": paper_pid if paper_alive else None,
+            "pid": paper_show_pid if paper_alive else None,
             "tone": _tone(up=paper_alive, wanted=not stopped, stopped=stopped),
-            "detail": "STOPPED flag" if stopped else ("running" if paper_alive else "not running"),
+            "detail": paper_detail,
         },
         {
             "id": "ops-monitor",

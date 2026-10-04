@@ -1,0 +1,20 @@
+# V2 India market fill defaults. No secrets. Paper only.
+# FC-MEAS half-spread fallback (points per side). Decision K15.
+# ITM time-of-day add-on reuses ATM increments — VERIFY with V2-D2 depth.
+fcmeas_pts_per_side:
+  ATM:
+    before_12: 0.20
+    from_12: 0.25
+    after_15: 0.30
+  ITM100:
+    before_12: 0.30
+    from_12: 0.35
+    after_15: 0.40
+  ITM200:
+    before_12: 0.35
+    from_12: 0.40
+    after_15: 0.45
+flat_sensitivity_pts_per_side: 0.20
+tick_size: 0.05
+depth_impact_pts_at_25_lots: 0.05
+latency_ms: 0
