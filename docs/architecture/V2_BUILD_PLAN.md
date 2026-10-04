@@ -649,6 +649,7 @@ M1 does **not** mean a strategy is profitable, and it does not enable live order
 - **V2-23** Gateway auth (JWT, founder 2FA), role-scoped channels, rate limits, the customer `signals:public` channel
   with customer-safe copy (`CUSTOMER_TALK.md`).
 - **V2-24** Secret store (SOPS + age or Vault) and encrypted per-customer broker credentials.
+  Package: `packages/secretstore` (`aad-age/v1` in-process; `/etc/aad/aad.env` fallback; Vault/1Password stubs).
 - **V2-25** Dhan shadow-mode order test harness (submit far off-market and cancel at once; PR-002's original
   acceptance test). Runs only with the founder's explicit approval and credentials on the founder's machine.
 

@@ -2,6 +2,24 @@
 
 **Agents:** read **only the newest block**. Do not ingest this whole log. New files: [`docs/FILE_CREATION.md`](../../docs/FILE_CREATION.md). Append here — do not create `HANDOFF_TOMORROW.md` or extra `CONTINUE_*`.
 
+## As of now (2026-10-04 IST) — V2-24 secret store (PAPER)
+
+```text
+From:     teams/00_orchestrator
+To:       founder / 07 / 09
+Date:     2026-10-04
+Status:   PAPER / V2-24 / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+Accepted: packages/secretstore aad-age/v1 envelopes.
+  Decrypt in-process only. Missing/wrong key refuse.
+  /etc/aad/aad.env founder fallback off by default.
+  Vault/1Password Protocol stubs fail closed.
+  AccountDirectory Protocol (V2-22 not required).
+Rejected: Real tokens in git. Live Dhan session.
+  New STRAT. Wiring exec/OMS to credentials.
+UNKNOWN: Real age-CLI / sops interop on an ops box.
+```
+
 ## As of now (2026-10-04 IST) — V2-26 Mac start hole (PAPER)
 
 ```text

@@ -37,6 +37,14 @@ Catalogs and transcripts under `data/` are gitignored. Do not commit dumps that 
 
 ---
 
+## V2 secret store (V2-24)
+
+- Encrypted per-account broker envelopes: `packages/secretstore`. Decrypt only in-process.
+- Identity file (`AAD_AGE_IDENTITY_FILE`) and `AAD_SECRETS_DIR` stay **outside git**.
+- Documented founder fallback: `/etc/aad/aad.env` when `AAD_SECRETS_ALLOW_ENV_FALLBACK=1`.
+- Vault / 1Password Connect adapters exist as interfaces and fail closed until configured.
+- Tests use fake age keys and fake ciphertext generated at runtime. Never commit a real identity.
+
 ## Agents
 
 - Do not print env values, `.env` contents, or files under `secrets/`.
