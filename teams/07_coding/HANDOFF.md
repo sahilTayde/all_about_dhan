@@ -1,5 +1,23 @@
 # Handoff log — Team 07 Coding
 
+## As of now (2026-10-04 IST) — V2-22 accounts layer (PAPER)
+
+```text
+From:     teams/07_coding
+To:       founder / 00 / 09
+Date:     2026-10-04
+Status:   PAPER / V2-22 / NO_PROMOTE
+Accepted: packages/accounts + config/v2/accounts.yaml.
+  IsolatedBook per account_id. Signal/exec
+  handler sets disjoint. runtime signal /
+  exec CLI paper stubs. No DhanBroker.
+  CI install + ruff/mypy on the package.
+Rejected: Live orders. Shared paper book.
+  Encrypted customer creds (V2-24).
+UNKNOWN: Wiring IsolatedBook into oms/ledger
+  stores on a later M2 ticket.
+```
+
 ## As of now (2026-10-04 IST) — V2-21 Postgres LedgerStore (PAPER)
 
 ```text

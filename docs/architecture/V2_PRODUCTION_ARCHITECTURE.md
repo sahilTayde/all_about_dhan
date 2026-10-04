@@ -151,6 +151,7 @@ packages/
       kernel.py (Engine) wiring.py services.py __main__.py recovery.py
   shadow/src/shadow/           NEW   optional paper-only launcher beside legacy (V2-26)
       safety.py journal.py runner.py __main__.py  (data/shadow/v2/; no live broker)
+  accounts/src/accounts/       NEW   V2-22 fail-closed paper/shadow account model + isolation + signal/exec split
   secretstore/src/secretstore/ NEW   V2-24 SOPS/age-shaped per-account broker envelopes
       crypto.py store.py accounts.py  (decrypt in-process only; /etc/aad/aad.env fallback)
   warehouse/                   REUSE+EXTEND  DuckDB ETL (adapts PR #19's etl.py)

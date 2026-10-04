@@ -2,6 +2,25 @@
 
 **Agents:** read **only the newest block**. Do not ingest this whole log. New files: [`docs/FILE_CREATION.md`](../../docs/FILE_CREATION.md). Append here — do not create `HANDOFF_TOMORROW.md` or extra `CONTINUE_*`.
 
+## As of now (2026-10-04 IST) — V2-22 accounts layer (PAPER)
+
+```text
+From:     teams/00_orchestrator
+To:       founder / 07 / 09
+Date:     2026-10-04
+Status:   PAPER / V2-22 / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+Accepted: Fail-closed paper/shadow accounts
+  (founder + v2-shadow). Isolation tests:
+  A cannot read, affect, or be sized by B.
+  runtime signal shared; runtime exec
+  --account binds one ledger/pos stream.
+Rejected: Live broker. Customer credentials.
+  Postgres RLS (V2-21). JWT (V2-23).
+  STRAT-015+. Legacy engine redesign.
+UNKNOWN: First real customer account.
+```
+
 ## As of now (2026-10-04 IST) — V2-27 paper/shadow basket (PAPER)
 
 ```text
