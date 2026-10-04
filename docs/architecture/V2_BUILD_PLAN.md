@@ -148,6 +148,18 @@ run in parallel. `REG-nn` ids refer to section 3; each ticket ships the regressi
   and lines before and after still load.
 - Depends on: V2-01.
 
+**V2-26 Shadow launcher + fail-closed safety** (`packages/shadow`, `scripts/desk.sh` shadow-*, ~400 lines)
+- Optional paper-only process beside the legacy dual-tape desk. Tails `data/tape/v2/YYYY-MM-DD` (recorded or live
+  recorder output) into the V2 kernel and writes isolated `data/shadow/v2/` decision + P&L journals for a daily
+  compare. Legacy keeps the live paper book every session night. Live / limited-live / Dhan modes refuse. Missing
+  tape fails closed (no invented ticks). `shadow-start` / `shadow-status` / `shadow-stop` never block `morning` or
+  dual-tape. Exits are `SHADOW_FLAT` only — legacy `CANCEL` / `COVER_LONG_UNWIND` stay the comparison baseline.
+- Acceptance: unit tests refuse live modes and shared write paths (`data/recon`, `data/ledger`, legacy
+  `data/shadow/*.jsonl`); dry-run demo writes one isolated paper open/flat; desk.sh refuses a second copy and close
+  stops shadow with a warning if it fails; ruff + mypy `--strict`; `scripts/ci/scan_repo.py` clean; Mac steps
+  (`.venv-v2` vs `.venv`) in `README.md` and `SESSION_PREP_ML.md`.
+- Depends on: V2-01, V2-03, V2-04.
+
 **V2-04 Engine kernel, config loader, job deadlines** (`packages/runtime/kernel.py`, `wiring.py`, `jobs.py`,
 `packages/runtime/config.py`, ~450 lines)
 - `Engine(source, clock, bus, handlers, store, mode)`, one transaction per input, checkpoint, rehydrate mode (router

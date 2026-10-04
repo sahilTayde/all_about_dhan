@@ -97,7 +97,7 @@ YouTube catalog work needs `YOUTUBE_API_KEY`. Live Dhan **quotes** need `DHAN_*`
 
 ## Mac session night (paper only)
 
-From the repo root on the Mac. **No live orders.** The legacy desk uses `.venv` (may be Python 3.9). The v2 recorder uses `.venv-v2` (3.11+) and never writes into `.venv`. A missing recorder never blocks the legacy desk.
+From the repo root on the Mac. **No live orders.** The legacy desk uses `.venv` (may be Python 3.9). V2 recorder + optional shadow use `.venv-v2` (3.11+) and never write into `.venv`. A missing recorder or shadow never blocks the legacy desk. Legacy dual-tape still owns the live paper book.
 
 ```bash
 cd ~/Documents/all_about_dhan
@@ -118,13 +118,17 @@ cd ~/Documents/all_about_dhan
 # 5. V2 recorder (caffeinate on macOS; screen v2-recorder; auto-stops 15:30 IST)
 ./scripts/desk.sh recorder-start
 
+# 5b. Optional V2 shadow (paper log-only; screen v2-shadow; does not replace legacy)
+./scripts/desk.sh shadow-start
+
 # 6. Checks
 ./scripts/desk.sh status
 ./scripts/desk.sh recorder-status
+./scripts/desk.sh shadow-status
 # Desk:    http://127.0.0.1:5173/desk
 # Founder: http://127.0.0.1:5173/pm
 
-# 7. After 15:40 IST — stop capture + recorder, keep website, honesty + nightly
+# 7. After 15:40 IST — stop capture + recorder + shadow, keep website, honesty + nightly
 ./scripts/desk.sh close
 ```
 

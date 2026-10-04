@@ -1,8 +1,13 @@
 """Tests for instrument lookup and caching."""
 
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from data_recorder.instruments import parse_instruments
+
+IST = timezone(timedelta(hours=5, minutes=30))
+# Pin before Sep-2026 last-Thursday expiry so the excerpt's 42100 row stays current.
+FIXTURE_AS_OF = datetime(2026, 9, 10, 12, 0, tzinfo=IST)
 
 
 def test_parse_instruments_from_fixture():
@@ -10,7 +15,7 @@ def test_parse_instruments_from_fixture():
     fixture_path = Path(__file__).parent / "fixtures" / "scrip_master_excerpt.csv"
     csv_text = fixture_path.read_text()
     
-    result = parse_instruments(csv_text)
+    result = parse_instruments(csv_text, as_of=FIXTURE_AS_OF)
     
     # Check indices
     assert "NIFTY" in result["indices"]

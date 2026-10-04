@@ -10,7 +10,10 @@
 #   ./scripts/desk.sh recorder-start   # v2 marketdata --record-only in .venv-v2 (screen v2-recorder)
 #   ./scripts/desk.sh recorder-stop    # stop v2 recorder; leave tapes intact
 #   ./scripts/desk.sh recorder-status  # process + last line of today's IST recorder.log
-#   ./scripts/desk.sh close            # after 15:30: stop capture + v2 recorder, keep website, honesty + nightly
+#   ./scripts/desk.sh shadow-start     # optional V2 paper shadow (log-only; never blocks legacy)
+#   ./scripts/desk.sh shadow-stop      # stop V2 shadow; leave data/shadow/v2 journals
+#   ./scripts/desk.sh shadow-status    # process + last status.json
+#   ./scripts/desk.sh close            # after 15:30: stop capture + v2 recorder + shadow, keep website, honesty + nightly
 #   ./scripts/desk.sh status           # pids / URLs / where to read reports
 #
 set -euo pipefail
@@ -22,7 +25,9 @@ V2_PY="${AAD_V2_PY:-$ROOT/.venv-v2/bin/python}"
 VITE="$ROOT/apps/web/node_modules/.bin/vite"
 RECON="${AAD_RECON:-$ROOT/data/recon}"
 TAPE_V2="${AAD_TAPE_V2:-$ROOT/data/tape/v2}"
+SHADOW_DIR="${AAD_SHADOW:-$ROOT/data/shadow/v2}"
 RECORDER_SCREEN="v2-recorder"
+SHADOW_SCREEN="v2-shadow"
 NODE_DIR="${NODE_DIR:-}"
 mkdir -p "$RECON"
 CMD="${1:-status}"
@@ -285,6 +290,116 @@ recorder_status() {
   fi
 }
 
+shadow_pids() {
+  pgrep -f '[Pp]ython.*-m shadow (run|follow)' 2>/dev/null || true
+}
+
+shadow_screen_up() {
+  screen -ls 2>/dev/null | grep -qE '[.]v2-shadow[[:space:]]'
+}
+
+shadow_is_running() {
+  shadow_screen_up || [[ -n "$(shadow_pids)" ]]
+}
+
+shadow_prove_follower() {
+  # import shadow is not enough: runtime/__init__ used to pull brokers via recovery.
+  local err
+  if ! err="$("$V2_PY" -c "import shadow.runner" 2>&1)"; then
+    echo "ERROR: import shadow.runner failed in .venv-v2 — shadow will not start (legacy desk still runs)" >&2
+    printf '%s\n' "$err" | tail -8 >&2
+    return 1
+  fi
+  if ! err="$("$V2_PY" -m shadow -h 2>&1)"; then
+    echo "ERROR: python -m shadow failed in .venv-v2 — shadow will not start (legacy desk still runs)" >&2
+    printf '%s\n' "$err" | tail -8 >&2
+    return 1
+  fi
+}
+
+shadow_start() {
+  if shadow_is_running; then
+    echo "ERROR: v2 shadow already running (screen $SHADOW_SCREEN). Refusing a second copy." >&2
+    return 1
+  fi
+  if [[ ! -x "$V2_PY" ]]; then
+    echo "ERROR: $V2_PY missing. Run ./scripts/mac_setup_v2.sh (does not touch .venv)." >&2
+    return 1
+  fi
+  shadow_prove_follower || return 1
+  mkdir -p "$SHADOW_DIR"
+  rm -f "$SHADOW_DIR/STOPPED.flag"
+  local wrap="" day i
+  day="$(ist_date)"
+  if [[ "$(uname -s)" == "Darwin" ]] && command -v caffeinate >/dev/null 2>&1; then
+    wrap="caffeinate -dimsu "
+  fi
+  # Follow today's recorder tape read-only. Missing tape fails closed (no invented ticks).
+  screen -dmS "$SHADOW_SCREEN" zsh -lc "cd '$ROOT' && ${wrap}'$V2_PY' -u -m shadow follow --state-dir '$SHADOW_DIR' --tape '$TAPE_V2/$day' --day '$day' --stop-flag '$SHADOW_DIR/STOPPED.flag' >> '$SHADOW_DIR/shadow.log' 2>&1"
+  for i in 1 2 3 4 5 6; do
+    if shadow_is_running; then
+      echo "v2 shadow STARTED (PAPER, log-only, account=v2-shadow). screen=$SHADOW_SCREEN"
+      echo "v2 shadow does not own the live paper book. Legacy dual-tape still does."
+      return 0
+    fi
+    sleep 0.5
+  done
+  echo "ERROR: v2 shadow follower died after start (fail closed). Last log:" >&2
+  if [[ -f "$SHADOW_DIR/shadow.log" ]]; then
+    tail -20 "$SHADOW_DIR/shadow.log" >&2 || true
+  else
+    echo "(no $SHADOW_DIR/shadow.log)" >&2
+  fi
+  screen -S "$SHADOW_SCREEN" -X quit >/dev/null 2>&1 || true
+  return 1
+}
+
+shadow_stop() {
+  local pids
+  mkdir -p "$SHADOW_DIR"
+  touch "$SHADOW_DIR/STOPPED.flag"
+  pids="$(shadow_pids)"
+  if [[ -n "$pids" ]]; then
+    echo "Stopping v2 shadow: $pids"
+    # shellcheck disable=SC2086
+    kill $pids 2>/dev/null || true
+    local i
+    for i in 1 2 3 4 5 6 7 8 9 10; do
+      pids="$(shadow_pids)"
+      [[ -z "$pids" ]] && break
+      sleep 1
+    done
+    pids="$(shadow_pids)"
+    if [[ -n "$pids" ]]; then
+      # shellcheck disable=SC2086
+      kill -9 $pids 2>/dev/null || true
+    fi
+  fi
+  screen -S "$SHADOW_SCREEN" -X quit >/dev/null 2>&1 || true
+  echo "v2 shadow STOPPED (journals left intact under $SHADOW_DIR)"
+}
+
+shadow_status() {
+  local pids day status last
+  pids="$(shadow_pids)"
+  echo "v2 shadow process: ${pids:-STOPPED}"
+  if shadow_screen_up; then
+    echo "v2 shadow screen: $SHADOW_SCREEN UP"
+  else
+    echo "v2 shadow screen: $SHADOW_SCREEN DOWN"
+  fi
+  day="$(ist_date)"
+  status="$SHADOW_DIR/$day/status.json"
+  echo "v2 shadow status: $status"
+  if [[ -f "$status" ]]; then
+    last="$(tail -1 "$status" || true)"
+    echo "v2 shadow last status: $last"
+  else
+    echo "v2 shadow last status: (no status yet for IST $day)"
+  fi
+  echo "v2 shadow log: $SHADOW_DIR/shadow.log"
+}
+
 token_file_present() {
   # Presence only. Never print values.
   local envf="$ROOT/.env"
@@ -345,6 +460,11 @@ preflight() {
       echo "WARNING: v2 imports failed in .venv-v2 (dhan_client / marketdata) — recorder will not start (legacy desk still starts)"
     else
       echo "v2 imports: ok (dhan_client, marketdata)"
+    fi
+    if ! "$V2_PY" -c "import shadow.runner" >/dev/null 2>&1; then
+      echo "WARNING: shadow.runner import failed in .venv-v2 — shadow-start will not run (legacy desk still starts)"
+    else
+      echo "v2 imports: ok (shadow.runner)"
     fi
   fi
 
@@ -459,6 +579,7 @@ case "$CMD" in
     echo "CLOSE: stop data capture, keep website, honesty exam + nightly."
     stop_dual_tape
     recorder_stop || echo "WARNING: v2 recorder stop failed (legacy close continues)" >&2
+    shadow_stop || echo "WARNING: v2 shadow stop failed (legacy close continues)" >&2
     ensure_api_web
     DAYS="$(exam_days)"
     echo "Nightly first so exam can read session_kind. Then honesty exam."
@@ -496,6 +617,15 @@ EOF
   recorder-status)
     recorder_status
     ;;
+  shadow-start)
+    shadow_start || echo "WARNING: v2 shadow-start failed (legacy desk is unchanged)" >&2
+    ;;
+  shadow-stop)
+    shadow_stop || echo "WARNING: v2 shadow-stop failed (legacy desk is unchanged)" >&2
+    ;;
+  shadow-status)
+    shadow_status
+    ;;
   status)
     write_status
     echo "=== desk status ==="
@@ -503,6 +633,7 @@ EOF
     echo "WEB  : $(lsof -tiTCP:5173 -sTCP:LISTEN 2>/dev/null | head -1 || echo DOWN)  http://127.0.0.1:5173/desk"
     echo "TAPE : $(pgrep -f 'trading_agents_india dual-tape' | head -1 || echo STOPPED)"
     recorder_status
+    shadow_status
     echo "Honesty: http://127.0.0.1:5173/pm  and  data/recon/sod_exam_report.json"
     echo "Nightly: data/recon/\$(IST-date).json  and  teams/02_phd_math/docs/handoffs/NIGHTLY_*.md"
     if [[ -f "$RECON/close_status.txt" ]]; then
@@ -576,7 +707,7 @@ PY
     exec "$0" close
     ;;
   *)
-    echo "usage: $0 morning|close|website|status|watch-open|watch-close|preflight|recorder-start|recorder-stop|recorder-status" >&2
+    echo "usage: $0 morning|close|website|status|watch-open|watch-close|preflight|recorder-start|recorder-stop|recorder-status|shadow-start|shadow-stop|shadow-status" >&2
     exit 2
     ;;
 esac

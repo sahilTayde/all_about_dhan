@@ -1,0 +1,40 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "shadow"
+version = "0.1.0+aad"
+description = "V2 shadow launcher: paper-only decision/P&L log beside the legacy desk. No live orders."
+readme = "README.md"
+requires-python = ">=3.11"
+# Sibling in-repo packages (contracts, events, marketdata, runtime) are installed
+# by scripts/ci/install.sh with --no-deps. Do not list bare PyPI names here.
+dependencies = []
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "mypy>=1.0.0", "ruff>=0.1.0"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+shadow = ["py.typed"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "SIM", "RUF"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+
+[[tool.mypy.overrides]]
+module = ["marketdata.*", "runtime.*", "events.*", "contracts.*"]
+ignore_missing_imports = true

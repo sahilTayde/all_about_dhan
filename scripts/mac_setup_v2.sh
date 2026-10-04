@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Build an isolated .venv-v2 for the V2 marketdata recorder.
+# Build an isolated .venv-v2 for the V2 recorder + optional shadow launcher.
 # Idempotent. Never touches the legacy Mac .venv (Python 3.9).
 # PAPER only. No live orders.
 #
@@ -72,13 +72,31 @@ fi
 
 echo "mac_setup_v2: v2 python is $($VENV/bin/python -V 2>&1)"
 
+# Recorder: dhan-client + marketdata (their third-party deps).
+# Shadow: contracts / events / runtime / shadow with --no-deps so local
+# names never resolve from PyPI (same rule as scripts/ci/install.sh).
 if [[ -n "$UV" ]]; then
-  "$UV" pip install --python "$VENV/bin/python" -e "$ROOT/packages/dhan-client" -e "$ROOT/packages/marketdata"
+  "$UV" pip install --python "$VENV/bin/python" \
+    -e "$ROOT/packages/dhan-client" \
+    -e "$ROOT/packages/marketdata"
+  "$UV" pip install --python "$VENV/bin/python" --no-deps \
+    -e "$ROOT/packages/contracts" \
+    -e "$ROOT/packages/events" \
+    -e "$ROOT/packages/runtime" \
+    -e "$ROOT/packages/shadow"
 else
   "$VENV/bin/python" -m pip install -U pip
-  "$VENV/bin/python" -m pip install -e "$ROOT/packages/dhan-client" -e "$ROOT/packages/marketdata"
+  "$VENV/bin/python" -m pip install \
+    -e "$ROOT/packages/dhan-client" \
+    -e "$ROOT/packages/marketdata"
+  "$VENV/bin/python" -m pip install --no-deps \
+    -e "$ROOT/packages/contracts" \
+    -e "$ROOT/packages/events" \
+    -e "$ROOT/packages/runtime" \
+    -e "$ROOT/packages/shadow"
 fi
 
-"$VENV/bin/python" -c "import dhan_client, marketdata; print('mac_setup_v2: imports ok', dhan_client.__name__, marketdata.__name__)"
+"$VENV/bin/python" -c "import dhan_client, marketdata, shadow; print('mac_setup_v2: imports ok', dhan_client.__name__, marketdata.__name__, shadow.__name__)"
 echo "mac_setup_v2: done. Legacy .venv was not modified."
 echo "Next: ./scripts/desk.sh recorder-start"
+echo "Optional: ./scripts/desk.sh shadow-start  (paper log-only; never blocks the legacy desk)"

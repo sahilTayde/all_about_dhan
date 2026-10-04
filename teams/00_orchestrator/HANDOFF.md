@@ -2,6 +2,46 @@
 
 **Agents:** read **only the newest block**. Do not ingest this whole log. New files: [`docs/FILE_CREATION.md`](../../docs/FILE_CREATION.md). Append here — do not create `HANDOFF_TOMORROW.md` or extra `CONTINUE_*`.
 
+## As of now (2026-10-04 IST) — V2-26 Mac start hole (PAPER)
+
+```text
+From:     teams/00_orchestrator
+To:       founder / 07 / 09
+Date:     2026-10-04
+Status:   PAPER / V2-26 fix / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+Accepted: VERIFY FAIL on #72. Kernel import no
+  longer loads brokers via recovery.
+  shadow-start proves runner + python -m shadow
+  and fails closed if the follower dies.
+Rejected: Brokers in .venv-v2. Live book change.
+  Playbook. Merge before session-night compare.
+UNKNOWN: One Mac session-night compare.
+```
+
+## As of now (2026-10-04 IST) — V2-26 shadow launcher (PAPER)
+
+```text
+From:     teams/00_orchestrator
+To:       founder / 07 / 09
+Date:     2026-10-04
+Status:   PAPER / V2-26 / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+Accepted: Optional V2 shadow beside legacy dual-tape.
+  Isolated data/shadow/v2 journals. desk.sh
+  shadow-start|status|stop never block morning.
+  Fail closed on live mode / missing tape /
+  shared write paths. Legacy keeps the live
+  paper book. SHADOW_FLAT only — no CANCEL /
+  COVER_LONG_UNWIND copy.
+Rejected: Live orders. Replacing dual-tape.
+  Shared broker with the live paper path.
+  Auto-start on morning. STRAT-015+.
+UNKNOWN: One real session-night side-by-side
+  on the Mac (human). DATA_INSUFFICIENT until
+  a recorded tape day exists.
+```
+
 ## As of now (2026-09-27 IST) — V2-10 fix round (atomic fill / idempotency / P&L / qty / Decimal)
 
 ```text

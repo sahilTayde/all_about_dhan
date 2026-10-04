@@ -2,6 +2,8 @@
 
 Paper replay writes one JSON object per line to `data/shadow/<YYYY-MM-DD>.jsonl`. The directory is created at runtime and gitignored. Nothing in this file is an order.
 
+V2 shadow launcher (optional, paper only) writes a **separate** book under `data/shadow/v2/YYYY-MM-DD/` (`decisions.jsonl`, `pnl.jsonl`, `compare.json`). It does not replace this legacy file and does not own the live paper book. See `packages/shadow/README.md`.
+
 Default is on. Set `SHADOW_LOG=0` or `engine.shadow_log = False` to skip the write. A crash inside the shadow code is logged and the paper engine continues with the same ticket.
 
 One row per index per IST minute (the first decision of that minute). Later ticks in the minute still update the order-flow snapshot window; they do not add another row.
