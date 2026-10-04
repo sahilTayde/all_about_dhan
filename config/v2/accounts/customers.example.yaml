@@ -1,0 +1,32 @@
+# Optional C5-01 customer overlay. Paper only. No secrets. No live broker.
+# Copy to customers.yaml (gitignored) and export AAD_CUSTOMERS=/path/to/customers.yaml
+# only when config/v2/accounts.yaml does not already list these ids.
+# Cap: 5 customer books for this launch. Status disabled until:
+#   python -m accounts enable --config "$AAD_CUSTOMERS" --account customer-01
+
+accounts:
+  - account_id: customer-01
+    kind: customer
+    broker: paper
+    status: disabled
+    risk_budget_inr: 1000
+  - account_id: customer-02
+    kind: customer
+    broker: paper
+    status: disabled
+    risk_budget_inr: 1000
+  - account_id: customer-03
+    kind: customer
+    broker: paper
+    status: disabled
+    risk_budget_inr: 1000
+  - account_id: customer-04
+    kind: customer
+    broker: paper
+    status: disabled
+    risk_budget_inr: 1000
+  - account_id: customer-05
+    kind: customer
+    broker: paper
+    status: disabled
+    risk_budget_inr: 1000

@@ -1,4 +1,19 @@
-# V2-22 paper/shadow accounts. Fail closed. No live broker. No secrets.
+# C5-01 paper/shadow account directory. Fail closed. No live broker. No secrets.
+# Founder book is buying-only paper (~₹1–2L product capital; risk_budget_inr is the
+# isolated paper stop budget). Customers are disabled templates until enabled.
+#
+# Enable one customer paper book:
+#   python -m accounts enable --account customer-01
+# Disable:
+#   python -m accounts disable --account customer-01
+# List:
+#   python -m accounts list
+#
+# Optional overlay: copy config/v2/accounts/customers.example.yaml to a private
+# customers.yaml (gitignored) and set AAD_CUSTOMERS to that path. Do not duplicate
+# ids already listed here. Merged customer count is capped at 5 for this launch.
+# Live broker names (dhan, live, limited_live) refuse the whole file.
+
 default_account: founder
 accounts:
   - account_id: founder
@@ -11,3 +26,28 @@ accounts:
     broker: shadow
     status: active
     risk_budget_inr: 30000
+  - account_id: customer-01
+    kind: customer
+    broker: paper
+    status: disabled
+    risk_budget_inr: 1000
+  - account_id: customer-02
+    kind: customer
+    broker: paper
+    status: disabled
+    risk_budget_inr: 1000
+  - account_id: customer-03
+    kind: customer
+    broker: paper
+    status: disabled
+    risk_budget_inr: 1000
+  - account_id: customer-04
+    kind: customer
+    broker: paper
+    status: disabled
+    risk_budget_inr: 1000
+  - account_id: customer-05
+    kind: customer
+    broker: paper
+    status: disabled
+    risk_budget_inr: 1000

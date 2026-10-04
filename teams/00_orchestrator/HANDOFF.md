@@ -2,6 +2,50 @@
 
 **Agents:** read **only the newest block**. Do not ingest this whole log. New files: [`docs/FILE_CREATION.md`](../../docs/FILE_CREATION.md). Append here — do not create `HANDOFF_TOMORROW.md` or extra `CONTINUE_*`.
 
+## As of now (2026-10-04 IST) — C5-01 5 customer paper accounts (PAPER)
+
+```text
+From:     teams/00_orchestrator
+To:       founder / 07 / 09 / 05
+Date:     2026-10-04
+Status:   PAPER / C5-01 / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+Accepted: Founder cut: serve 5 customers only.
+  Directory lists customer-01..customer-05
+  (disabled paper). Cap 5. N=5 isolation.
+  Enable/disable still fail-closed. Live
+  refused. C10-01 10-customer size rejected.
+Rejected: Live Dhan. 6th customer. Raising
+  the cap. signals:public. STRAT-015+.
+UNKNOWN: When founder enables the first
+  customer paper book on the Mac.
+DATA_INSUFFICIENT: Real 5-book paper session.
+```
+
+## As of now (2026-10-04 IST) — C10-01 10 customer paper accounts (PAPER)
+
+```text
+From:     teams/00_orchestrator
+To:       founder / 07 / 09 / 05
+Date:     2026-10-04
+Status:   PAPER / C10-01 / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+Accepted: V2-22 isolation kept. Directory now
+  lists customer-01..customer-10 (disabled paper,
+  tiny risk_budget). CLI list/enable/disable.
+  Cap 10 customers. N=10 isolation tests.
+  Live broker names refused. 01 SOURCE_FACT
+  unused. 02/03 no new math. 04 no STRAT-015+.
+  05 signals:public later. 06 no score change.
+  09 auditor after this HANDOFF.
+Rejected: Live Dhan / live broker. Customer
+  credentials. signals:public on this cut.
+  Raising the customer cap. STRAT-015+.
+UNKNOWN: When founder enables the first
+  customer paper book on the Mac.
+DATA_INSUFFICIENT: Real 10-book paper session.
+```
+
 ## As of now (2026-10-04 IST) — V2-25 off-market shadow order harness (PAPER)
 
 ```text

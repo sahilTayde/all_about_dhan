@@ -1,4 +1,4 @@
-"""python -m accounts — list / show / bind paper accounts. No live broker."""
+"""python -m accounts — list / show / enable / disable paper accounts. No live broker."""
 
 from __future__ import annotations
 
@@ -8,14 +8,26 @@ import sys
 from pathlib import Path
 
 from accounts.errors import AccountClosed, AccountSafetyError
-from accounts.registry import AccountRegistry, default_config_path
+from accounts.model import Account
+from accounts.registry import MAX_CUSTOMER_ACCOUNTS, AccountRegistry, default_config_path, set_account_status
+from accounts.safety import assert_paper_only
 from accounts.split import run_role_once
+
+
+def _account_payload(acc: Account) -> dict[str, object]:
+    return {
+        "account_id": acc.account_id,
+        "kind": acc.kind,
+        "broker": acc.broker,
+        "status": acc.status,
+        "risk_budget_inr": acc.risk_budget_inr,
+    }
 
 
 def main(argv: list[str] | None = None) -> int:
     raw = list(sys.argv[1:] if argv is None else argv)
-    p = argparse.ArgumentParser(description="V2-22 accounts (paper/shadow only; no live broker)")
-    p.add_argument("command", choices=("list", "show", "signal", "exec"))
+    p = argparse.ArgumentParser(description="C5-01 accounts (paper/shadow only; no live broker)")
+    p.add_argument("command", choices=("list", "show", "enable", "disable", "signal", "exec"))
     p.add_argument("--account", default=None)
     p.add_argument("--config", default=None)
     p.add_argument("--state-dir", default=None)
@@ -23,6 +35,7 @@ def main(argv: list[str] | None = None) -> int:
     args = p.parse_args(raw)
     cfg = Path(args.config) if args.config else default_config_path()
     try:
+        assert_paper_only(args.mode)
         if args.command == "list":
             registry = AccountRegistry.load(cfg)
             print(
@@ -30,16 +43,9 @@ def main(argv: list[str] | None = None) -> int:
                     {
                         "ok": True,
                         "default_account": registry.default_account,
-                        "accounts": [
-                            {
-                                "account_id": acc.account_id,
-                                "kind": acc.kind,
-                                "broker": acc.broker,
-                                "status": acc.status,
-                                "risk_budget_inr": acc.risk_budget_inr,
-                            }
-                            for acc in registry.all()
-                        ],
+                        "accounts": [_account_payload(acc) for acc in registry.all()],
+                        "customer_ids": list(registry.customer_ids()),
+                        "customer_cap": MAX_CUSTOMER_ACCOUNTS,
                         "live_broker": False,
                     },
                     sort_keys=True,
@@ -53,11 +59,27 @@ def main(argv: list[str] | None = None) -> int:
                 json.dumps(
                     {
                         "ok": True,
-                        "account_id": acc.account_id,
-                        "kind": acc.kind,
-                        "broker": acc.broker,
-                        "status": acc.status,
-                        "risk_budget_inr": acc.risk_budget_inr,
+                        **_account_payload(acc),
+                        "live_broker": False,
+                    },
+                    sort_keys=True,
+                )
+            )
+            return 0
+        if args.command in {"enable", "disable"}:
+            if not args.account:
+                raise AccountClosed("ACCOUNT_ID_REQUIRED")
+            acc = set_account_status(
+                args.account,
+                "active" if args.command == "enable" else "disabled",
+                path=cfg,
+                mode=args.mode,
+            )
+            print(
+                json.dumps(
+                    {
+                        "ok": True,
+                        **_account_payload(acc),
                         "live_broker": False,
                     },
                     sort_keys=True,

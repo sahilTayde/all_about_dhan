@@ -7,6 +7,8 @@ secrets/
 # Local workspace overlay (may contain secrets if someone puts keys there)
 config/workspace.local.yaml
 config/local.yaml
+# Private C5-01 customer overlay (copy of customers.example.yaml). No secrets.
+config/v2/accounts/customers.yaml
 
 # Data payloads (catalogs, transcripts); keep folder placeholders
 data/youtube/**
