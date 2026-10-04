@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 # Founder one-command day. PAPER only. No live orders. NO_PROMOTE.
 #
-#   ./scripts/desk.sh preflight        # versions, imports, node, token file (no token printed)
+#   ./scripts/desk.sh preflight        # versions, imports (incl. desk.paper / risk_engine), node, token file
+# PYTHONPATH: allowlisted legacy packages/*/src only (desk, risk-engine, brokers, health).
+# Mac: just ./scripts/desk.sh morning  or  ./scripts/desk.sh watch-open  — no manual export.
 #   ./scripts/desk.sh morning          # preflight + API + website + dual-tape (09:00 IST)
 #   ./scripts/desk.sh website          # preflight + API + website only (no data capture)
 #   ./scripts/desk.sh watch-open       # wait until 09:30 IST Mon–Fri, then dual-tape
@@ -24,6 +26,33 @@ RECORDER_SCREEN="v2-recorder"
 NODE_DIR="${NODE_DIR:-}"
 mkdir -p "$RECON"
 CMD="${1:-status}"
+
+# Legacy .venv is CPython 3.9.6 and does not pip-install desk / risk-engine / brokers / health.
+# Dual-tape paper book needs those four on PYTHONPATH (health.supervise wraps the loop).
+# Do NOT dump every packages/*/src: v2-only trees (contracts, events, runtime, oms,
+# control, boss, marketdata, data-recorder, …) use PEP 604 unions (str | T) and raise
+# TypeError on 3.9 when imported. That aborted preflight create_app() after PR #70.
+# A named loop (not ls|tr) stays correct on bash 3.2 / BSD when a package dir is missing.
+legacy_src_path() {
+  local name d acc=""
+  for name in desk risk-engine brokers health; do
+    d="$ROOT/packages/$name/src"
+    [[ -d "$d" ]] || continue
+    acc="${acc:+$acc:}$d"
+  done
+  printf '%s' "$acc"
+}
+
+ensure_legacy_pythonpath() {
+  local extra
+  extra="$(legacy_src_path)"
+  if [[ -n "$extra" ]]; then
+    case ":${PYTHONPATH:-}:" in
+      *":$ROOT/packages/desk/src:"*) ;;
+      *) export PYTHONPATH="${extra}${PYTHONPATH:+:$PYTHONPATH}" ;;
+    esac
+  fi
+}
 
 kill_port() {
   local port="$1"
@@ -90,7 +119,8 @@ start_dual_tape() {
   rotate_log "$RECON/dual_tape_live_2s.log"
   local inner
   inner="$(dual_tape_launch_inner)"
-  screen -dmS dual-tape-live-2s zsh -lc "cd '$ROOT' && $inner"
+  # Bake PYTHONPATH into the login zsh so a Mac .zprofile cannot drop packages/*/src.
+  screen -dmS dual-tape-live-2s zsh -lc "cd '$ROOT' && export PYTHONPATH='$PYTHONPATH' && $inner"
 }
 
 arm_dual_tape_when_open() {
@@ -166,7 +196,8 @@ start_api() {
     return 0
   fi
   screen -S api-server -X quit 2>/dev/null || true
-  screen -dmS api-server zsh -lc "cd '$ROOT' && PYTHONPATH=apps/api/src '$PY' -m uvicorn api.main:app --app-dir apps/api/src --host 127.0.0.1 --port 8000 >> '$RECON/api-server.log' 2>&1"
+  # Keep allowlisted packages (desk / risk_engine / brokers / health) and prepend the API app dir.
+  screen -dmS api-server zsh -lc "cd '$ROOT' && PYTHONPATH='apps/api/src${PYTHONPATH:+:$PYTHONPATH}' '$PY' -m uvicorn api.main:app --app-dir apps/api/src --host 127.0.0.1 --port 8000 >> '$RECON/api-server.log' 2>&1"
 }
 
 ensure_api_web() {
@@ -288,6 +319,18 @@ preflight() {
     else
       echo "legacy imports: ok (fastapi, desk_ml, trading_agents_india)"
     fi
+    # Same env dual-tape uses. Fail before open if desk.paper / risk_engine cannot import.
+    local _imp _mod _err
+    for _mod in desk.paper risk_engine; do
+      _err="$("$PY" -c "import ${_mod}" 2>&1)" && _imp=0 || _imp=$?
+      if [[ "$_imp" -ne 0 ]]; then
+        echo "ERROR: cannot import ${_mod} with $PY (PYTHONPATH=${PYTHONPATH:-empty})" >&2
+        echo "$_err" | head -5 >&2
+        rc=1
+      else
+        echo "legacy import ${_mod}: ok"
+      fi
+    done
     if ! PYTHONPATH="$ROOT/apps/api/src${PYTHONPATH:+:$PYTHONPATH}" \
       "$PY" -c "from api.main import create_app; create_app()" >/dev/null 2>&1; then
       echo "ERROR: api.main create_app() failed in legacy venv" >&2
@@ -377,6 +420,8 @@ while len(days) < 5:
 print(",".join(reversed(days)))
 PY
 }
+
+ensure_legacy_pythonpath
 
 if [[ "${DESK_SH_SOURCED:-0}" == "1" ]]; then
   return 0

@@ -113,6 +113,77 @@ def test_history_merges_board_and_model_log_across_days(tmp_path) -> None:
     assert funded["equity_inr"] == 550540.0
 
 
+def test_session_tape_age_prefers_today_v2_over_yesterday_board(tmp_path) -> None:
+    from datetime import datetime
+
+    from api.ui_feed import IST, MARKET_DATA_FRESH_S, health_rows, session_tape_age
+
+    now = datetime(2026, 1, 15, 11, 0, tzinfo=IST)
+    # Yesterday's board tick must not become "stale 18h" when today's V2 file exists.
+    board = {"steps": {"NIFTY": {"span_ist": {"last": "2026-01-14T16:00:00+05:30"}}}}
+    v2 = tmp_path / "data" / "tape" / "v2" / "2026-01-15"
+    v2.mkdir(parents=True)
+    tick = v2 / "depth_quotes.jsonl"
+    tick.write_text("{}\n", encoding="utf-8")
+    tick.touch()
+    import os
+
+    os.utime(tick, (now.timestamp() - 20, now.timestamp() - 20))
+    age, src = session_tape_age(tmp_path, board, now)
+    assert src == "v2 recorder"
+    assert age is not None and age <= 25
+    rows = health_rows(tmp_path, board, {"agents": [{"id": "paper-loop", "alive": True}]}, {}, now)
+    data = next(r for r in rows if r["id"] == "data")
+    assert data["tone"] == "green"
+    assert "v2 recorder" in data["detail"]
+    assert MARKET_DATA_FRESH_S == 120
+
+
+def test_session_tape_90s_board_tick_is_green_not_slow(tmp_path) -> None:
+    from datetime import datetime
+
+    from api.ui_feed import IST, health_rows
+
+    now = datetime(2026, 1, 15, 11, 0, tzinfo=IST)
+    board = {"steps": {"NIFTY": {"span_ist": {"last": "2026-01-15T10:58:30+05:30"}}}}  # 90s
+    rows = health_rows(tmp_path, board, {"agents": [{"id": "paper-loop", "alive": True}]}, {}, now)
+    data = next(r for r in rows if r["id"] == "data")
+    assert data["tone"] == "green"
+    assert "fresh" in data["detail"]
+
+
+def test_session_tape_ignores_yesterday_when_today_v2_dir_empty(tmp_path) -> None:
+    from datetime import datetime
+
+    from api.ui_feed import IST, session_tape_age
+
+    now = datetime(2026, 1, 15, 11, 0, tzinfo=IST)
+    (tmp_path / "data" / "tape" / "v2" / "2026-01-15").mkdir(parents=True)
+    yesterday = tmp_path / "data" / "tape" / "v2" / "2026-01-14"
+    yesterday.mkdir(parents=True)
+    (yesterday / "depth_quotes.jsonl").write_text("{}\n", encoding="utf-8")
+    board = {"steps": {"NIFTY": {"span_ist": {"last": "2026-01-14T16:00:00+05:30"}}}}
+    age, src = session_tape_age(tmp_path, board, now)
+    assert src == "v2 recorder"
+    assert age is None
+
+
+def test_session_tape_falls_back_to_today_dual_tape(tmp_path) -> None:
+    from datetime import datetime
+    import os
+
+    from api.ui_feed import IST, session_tape_age
+
+    now = datetime(2026, 1, 15, 11, 0, tzinfo=IST)
+    dual = tmp_path / "data" / "recon" / "paper_watch" / "DUAL-TAPE" / "2026-01-15.jsonl"
+    dual.parent.mkdir(parents=True)
+    dual.write_text("{}\n", encoding="utf-8")
+    os.utime(dual, (now.timestamp() - 40, now.timestamp() - 40))
+    age, src = session_tape_age(tmp_path, {}, now)
+    assert src == "dual-tape"
+    assert age is not None and 35 <= age <= 45
+
+
 def test_stale_tape_in_market_hours_is_red_and_alerts(tmp_path) -> None:
     from datetime import datetime
 

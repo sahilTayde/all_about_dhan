@@ -289,6 +289,94 @@ def test_e_recorder_status_last_log_line(tmp_path: Path) -> None:
     assert "STOPPED" in proc.stdout
 
 
+def test_legacy_pythonpath_includes_desk_and_risk_engine(tmp_path: Path) -> None:
+    # Isolate from a leftover full packages/*/src PYTHONPATH (the PR #70 workaround).
+    proc = _source(
+        tmp_path,
+        'echo "SRC=$(legacy_src_path)"; ensure_legacy_pythonpath; echo "PP=$PYTHONPATH"',
+        env={"PYTHONPATH": ""},
+    )
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+    src_line = next(line for line in proc.stdout.splitlines() if line.startswith("SRC="))
+    pp_line = next(line for line in proc.stdout.splitlines() if line.startswith("PP="))
+    for required in (
+        "packages/desk/src",
+        "packages/risk-engine/src",
+        "packages/brokers/src",
+        "packages/health/src",
+    ):
+        assert required in src_line
+        assert required in pp_line
+    for v2_only in (
+        "packages/contracts/src",
+        "packages/events/src",
+        "packages/runtime/src",
+        "packages/oms/src",
+        "packages/control/src",
+        "packages/boss/src",
+        "packages/marketdata/src",
+        "packages/data-recorder/src",
+    ):
+        assert v2_only not in src_line, v2_only
+        assert v2_only not in pp_line, v2_only
+
+
+def test_start_paths_keep_packages_on_pythonpath() -> None:
+    text = DESK.read_text(encoding="utf-8")
+    assert "ensure_legacy_pythonpath" in text
+    assert "legacy_src_path" in text
+    api = text.split("start_api()", 1)[1].split("ensure_api_web()", 1)[0]
+    assert "apps/api/src" in api
+    assert "PYTHONPATH" in api
+    # Must not wipe packages/*/src the way `PYTHONPATH=apps/api/src` alone did.
+    assert "PYTHONPATH=apps/api/src '" not in text
+    dt = text.split("start_dual_tape()", 1)[1].split("arm_dual_tape_when_open()", 1)[0]
+    assert "export PYTHONPATH=" in dt
+    assert "desk.paper" in text and "risk_engine" in text
+
+
+def test_f_preflight_fails_when_desk_paper_missing(tmp_path: Path) -> None:
+    home = tmp_path / "home"
+    path_dir = tmp_path / "nodebin"
+    path_dir.mkdir()
+    home.mkdir()
+    _write_exec(path_dir / "node", "#!/bin/sh\nexit 0\n")
+    fake_py = tmp_path / "legacy.py"
+    _write_exec(
+        fake_py,
+        textwrap.dedent(
+            """\
+            #!/usr/bin/env python3
+            import sys
+            if len(sys.argv) >= 2 and sys.argv[1] == "-V":
+                print("Python 3.9.6")
+                raise SystemExit(0)
+            code = sys.argv[2] if len(sys.argv) >= 3 and sys.argv[1] == "-c" else ""
+            if "desk.paper" in code or "risk_engine" in code:
+                mod = "risk_engine" if "risk_engine" in code else "desk.paper"
+                print("ModuleNotFoundError: No module named '%s'" % (mod.split(".", 1)[0]), file=sys.stderr)
+                raise SystemExit(1)
+            raise SystemExit(0)
+            """
+        ),
+    )
+    proc = _source(
+        tmp_path,
+        "preflight",
+        env={
+            "HOME": str(home),
+            "PATH": f"{path_dir}:/usr/bin:/bin",
+            "AAD_PY": str(fake_py),
+            "AAD_V2_PY": str(tmp_path / "no-v2"),
+        },
+    )
+    blob = proc.stdout + proc.stderr
+    assert proc.returncode != 0
+    assert "cannot import desk.paper" in blob
+    assert "No module named 'desk'" in blob or "No module named 'risk_engine'" in blob
+    assert "preflight FAILED" in blob
+
+
 def test_f_preflight_fails_only_on_legacy_blockers(tmp_path: Path) -> None:
     home = tmp_path / "home"
     path_dir = tmp_path / "nodebin"

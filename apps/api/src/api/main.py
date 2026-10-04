@@ -38,7 +38,10 @@ try:
     from api.v2_gateway import router as v2_router
 
     V2_GATEWAY_AVAILABLE = True
-except ImportError:
+except (ImportError, TypeError, SyntaxError):
+    # ImportError: events/contracts not installed (CI 3.9 job, clean venv).
+    # TypeError: PEP 604 unions (str | datetime) in contracts on CPython 3.9.
+    # SyntaxError: other 3.10+ syntax if a v2 module is on the path.
     MemoryBus = None
     attach_gateway = None
     v2_router = None
