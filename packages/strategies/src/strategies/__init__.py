@@ -15,15 +15,6 @@ from .api import (
     StrategyMeta,
 )
 from .feature_view_stub import FeatureView
-from .forward import (
-    ForwardReport,
-    FwdBars,
-    SpecRefused,
-    bar_state,
-    evaluate_session,
-    load_spec,
-    verify_lock,
-)
 from .params_hash import (
     ROUND11_DEFAULTS_SHA256,
     compute_params_hash,
@@ -33,7 +24,15 @@ from .params_hash import (
     load_exit_defaults,
     resolve_exit_plan,
 )
-from .registry import Basket, BasketEntry, RegistryEntry, basket_for, load_basket, load_registry
+from .registry import (
+    Basket,
+    BasketEntry,
+    RegistryEntry,
+    basket_for,
+    load_basket,
+    load_registry,
+    make_basket,
+)
 from .runtime import (
     HealthAlert,
     LoadedStrategy,
@@ -47,6 +46,26 @@ from .runtime import (
     strategy_call_budget,
 )
 from .strikes import DatedQuote, StrikeRouter, load_router_rules, rule_version
+
+_FORWARD = {
+    "ForwardReport",
+    "FwdBars",
+    "SpecRefused",
+    "bar_state",
+    "evaluate_session",
+    "load_spec",
+    "verify_lock",
+}
+
+
+def __getattr__(name: str) -> object:
+    """Lazy-load the forward harness so paper/shadow import does not pull brokers."""
+    if name in _FORWARD:
+        from . import forward as _forward
+
+        return getattr(_forward, name)
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
 
 __all__ = [
     "ROUND11_DEFAULTS_SHA256",
@@ -92,6 +111,7 @@ __all__ = [
     "load_router_rules",
     "load_spec",
     "load_strategy",
+    "make_basket",
     "resolve_exit_plan",
     "rule_version",
     "strategy_call_budget",
