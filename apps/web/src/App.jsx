@@ -130,10 +130,14 @@ function CustomerBook({ view }) {
         <ul className="customer-book__list">
           {rows.map((row) => (
             <li key={row.id || `${row.underlying}-${row.timeIst}`}>
-              <span className="num">{row.timeIst || row.time || "—"}</span>
-              <span>{row.underlying}</span>
-              <span>{row.side ? String(row.side).replace("BUY_", "") : "—"}</span>
-              <span className="num">{formatSlot(row.strike)}</span>
+              <div>
+                <strong>
+                  {row.underlying} {row.side ? String(row.side).replace("BUY_", "") : ""}
+                </strong>
+                <span className="muted">
+                  {row.timeIst || row.time || "—"} · {formatSlot(row.strike)}
+                </span>
+              </div>
               <span>{row.displayed_status || row.status || "—"}</span>
             </li>
           ))}

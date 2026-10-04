@@ -4485,17 +4485,23 @@ tr.is-click:hover {
 }
 
 .customer-book__list li {
-  display: grid;
-  grid-template-columns: 3.2rem 1fr auto auto auto;
-  gap: 0.45rem;
-  align-items: center;
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.75rem;
   min-width: 0;
-  font-size: 0.82rem;
+  font-size: 0.86rem;
 }
 
-.customer-book__list .num {
-  font-family: var(--mono);
-  font-variant-numeric: tabular-nums;
+.customer-book__list li div {
+  display: grid;
+  gap: 0.12rem;
+  min-width: 0;
+}
+
+.customer-book__list strong {
+  font-weight: 650;
+  letter-spacing: 0.02em;
 }
 
 .status-pill--hold,
@@ -4509,11 +4515,4 @@ tr.is-click:hover {
   color: var(--inprogress);
   border-color: #355888;
   background: #122033;
-}
-
-@media (max-width: 420px) {
-  .customer-book__list li {
-    grid-template-columns: 3rem 1fr auto;
-    grid-template-rows: auto auto;
-  }
 }
