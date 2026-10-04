@@ -12,10 +12,29 @@ Accepted: Postgres LedgerStore + STATE_DSN config +
   dual-engine CI (sqlite always; postgres when DSN set).
   Default remains SQLite-WAL. No live broker.
   Merged origin/main: hygiene #35 deletes kept;
-  V2-27 paper/shadow basket kept.
+  V2-27 basket + V2-23 auth foundation kept.
 Rejected: Day-1 Postgres default. Live orders.
   Rewriting V2-10 SqliteLedgerStore. Warehouse DuckDB retarget.
 UNKNOWN: Founder-box Postgres cutover after a real paper session.
+```
+
+## As of now (2026-10-04 IST) — V2-23 auth foundation (PAPER)
+
+```text
+From:     teams/07_coding
+To:       founder / 00 / 09
+Date:     2026-10-04
+Status:   PAPER / V2-23 stubs / NO_PROMOTE / no live orders
+Accepted: packages/auth fail-closed HS256 JWT + founder TOTP.
+  Control refuses customer / refresh / missing 2FA when
+  `auth` is present. Gateway verifies Bearer JWT, 2FA for
+  /v2/control, role channels, REST 10/s + WS 5/s + cmd 1/s.
+  Customer = signals:public + CUSTOMER_TALK fields.
+  Env names only in .env.example. No secrets in git.
+Rejected: pyjwt dependency (stdlib HMAC until V2-24).
+  Password login / SSO. Trusting query tokens.
+  Live orders. Legacy /paper/* gating.
+UNKNOWN: V2-22 account rows. V2-24 secret store.
 ```
 
 ## As of now (2026-10-04 IST) — V2-27 paper/shadow basket (PAPER)

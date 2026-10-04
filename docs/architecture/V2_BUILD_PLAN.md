@@ -664,7 +664,10 @@ M1 does **not** mean a strategy is profitable, and it does not enable live order
 - **V2-21** Postgres `LedgerStore` + export/cutover tool + dual-engine CI (section 3.2).
 - **V2-22** Accounts, per-account isolation, and the signal/exec split (sections 2.15, 5.6), with isolation tests.
 - **V2-23** Gateway auth (JWT, founder 2FA), role-scoped channels, rate limits, the customer `signals:public` channel
-  with customer-safe copy (`CUSTOMER_TALK.md`).
+  with customer-safe copy (`CUSTOMER_TALK.md`). **Stubs landed (2026-10-04):** fail-closed stdlib HS256 JWT + founder
+  TOTP in `packages/auth`, wired into control and the gateway. Empty `AAD_JWT_SECRET` / TOTP seed denies. Refresh JWT
+  cannot subscribe or command. Customer stays on `signals:public`. Rates: REST 10/s, WS subscribe 5/s, commands 1/s.
+  `pyjwt` + login UI wait for V2-24 (secret store). Paper localhost-dev (empty keys + bind 127.0.0.1) unchanged.
 - **V2-24** Secret store (SOPS + age or Vault) and encrypted per-customer broker credentials.
 - **V2-25** Dhan shadow-mode order test harness (submit far off-market and cancel at once; PR-002's original
   acceptance test). Runs only with the founder's explicit approval and credentials on the founder's machine.
