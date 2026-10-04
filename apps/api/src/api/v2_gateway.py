@@ -752,7 +752,11 @@ def v2_auth_login(request: Request, body: LoginBody) -> dict[str, Any]:
         )
     local = _paper_local(request, settings)
     if role == "customer":
-        allow = paper_customer_allowlist() if paper_customer_allowlist is not None else frozenset()
+        allow = (
+            paper_customer_allowlist()
+            if paper_customer_allowlist is not None
+            else frozenset()
+        )
         if allow and sub not in allow:
             raise HTTPException(
                 status_code=403,
@@ -761,7 +765,11 @@ def v2_auth_login(request: Request, body: LoginBody) -> dict[str, Any]:
         if not allow and not local:
             raise HTTPException(
                 status_code=403,
-                detail={"ok": False, "code": "CUSTOMER_LOGIN_DISABLED", "orders": "REFUSED"},
+                detail={
+                    "ok": False,
+                    "code": "CUSTOMER_LOGIN_DISABLED",
+                    "orders": "REFUSED",
+                },
             )
     totp = str(body.totp or "").strip()
     want_tfa = False
@@ -803,7 +811,9 @@ def v2_auth_refresh(request: Request, body: RefreshBody) -> dict[str, Any]:
             detail={"ok": False, "code": "JWT_SECRET_MISSING", "orders": "REFUSED"},
         )
     try:
-        pair = refresh_session(body.refresh, now=_now_ts(request), secret=settings.jwt_secret)
+        pair = refresh_session(
+            body.refresh, now=_now_ts(request), secret=settings.jwt_secret
+        )
     except AuthClosed as exc:
         raise HTTPException(
             status_code=401,

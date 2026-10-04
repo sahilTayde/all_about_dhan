@@ -64,8 +64,7 @@ def test_refresh_and_expired_denied(monkeypatch: Any) -> None:
     assert denied.json()["detail"]["code"] == "REFRESH_FORBIDDEN"
     rotated = c.post("/v2/auth/refresh", json={"refresh": minted["refresh"]})
     assert rotated.status_code == 200
-    assert verify_access_ok := rotated.json()["access"]
-    assert verify_access_ok
+    assert rotated.json()["access"]
     stale = issue_refresh(JWT, role="customer", sub="c2", now=NOW - 8 * 24 * 3600)
     expired = c.post("/v2/auth/refresh", json={"refresh": stale})
     assert expired.status_code == 401

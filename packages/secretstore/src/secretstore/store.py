@@ -193,6 +193,8 @@ class FileSecretStore:
 
     def hmac_secret(self, name: str) -> str:
         """Decrypt a named HMAC. Fail closed. Never used on the JWT verify hot path."""
+        if not isinstance(self.backend, DiskBlobBackend):
+            raise SecretClosed("adapter_not_configured", "hmac requires disk backend")
         aid = _safe_account_id(name)
         path = self.backend.root / "system" / f"{aid}.sops.json"
         try:
