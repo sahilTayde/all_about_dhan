@@ -480,6 +480,18 @@ run in parallel. `REG-nn` ids refer to section 3; each ticket ships the regressi
   on every plugin; each spec runs through V2-20a on the synthetic day; no plugin leaves `shadow`.
 - Depends on: V2-20a, V2-18; the lab's frozen hashes (Round 8 §6 step 1).
 
+**V2-21 Postgres LedgerStore + export/cutover + dual-engine CI** (`packages/ledger`, `config/v2/store.yaml`, ~450 lines)
+- `STATE_DSN` / `config/v2/store.yaml`; default remains SQLite-WAL (architecture §3.2). `PostgresLedgerStore`
+  implements the `LedgerStore` surface used by dual-engine tests (transaction, checkpoint, outbox,
+  `positions_v2`, health ping). Shared DDL stays in `NNN_name.sql` (SQL subset); append-only triggers live in
+  `NNN_name.pg.sql`. `python -m ledger migrate|ping|export --to postgres` (row-by-row copy with counts and a
+  per-table checksum). Migrations fail-closed: no `schema_version` bump on error; refuse a newer schema;
+  refuse `engine: postgres` without `STATE_DSN`. Expand/contract only (no `DROP`/`RENAME` column).
+- Acceptance: sqlite protocol tests always run; the same checkpoint/outbox/`positions_v2` suite runs on
+  Postgres when `STATE_DSN` is set (CI `ledger-pg` job); export refuses overwrite and matches checksums;
+  ping is `SELECT 1`; no live broker; credentials never in git.
+- Depends on: V2-10.
+
 ### Parallelism at a glance
 
 ```

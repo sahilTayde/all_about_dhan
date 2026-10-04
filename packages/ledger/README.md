@@ -22,3 +22,16 @@ led.daily_pnl("2026-09-28")          # {'n_trades', 'gross_pnl', 'charges', 'net
 ```
 
 Tests (from repo root): `PYTHONPATH=packages/ledger/src python -m pytest packages/ledger -q`
+
+## V2-21 Postgres (M2, paper only)
+
+Default engine stays SQLite-WAL (`config/v2/store.yaml`). Postgres is the customer-milestone store
+(architecture §3.2): same `LedgerStore` methods, fail-closed migrations, health ping, and
+`python -m ledger export --to postgres --from data/state/aad.sqlite`.
+
+- Set `STATE_DSN=postgresql://...` (never commit it). Rollback = flip `STATE_DSN` back; the
+  SQLite file is untouched.
+- Shared DDL: `packages/ledger/migrations/NNN_name.sql`. Append-only triggers for Postgres:
+  `NNN_name.pg.sql`. A failed migration does not record `schema_version`.
+- Dual-engine CI: sqlite tests always run; postgres tests run when `STATE_DSN` is set.
+- Optional extra: `pip install -e packages/ledger[postgres]` (`psycopg`). No live broker.
