@@ -1,0 +1,30 @@
+# Founder-approved paper/shadow basket (V2-27).
+# Fallback when no dated config/v2/baskets/YYYY-MM-DD.yaml exists.
+# Paper/shadow only. Never live. TEST-CROSS is forbidden here (V2-06).
+# R8 plugins stay PENDING_LAB until a lab hash is recorded — shadow journals
+# must log that abstain, not a silent HOLD.
+
+kind: approved_paper_shadow
+market: IN_INDEX_OPT
+stage_allowed:
+  - shadow
+  - paper
+entries:
+  - strategy_id: R8-E1-COIL-SIDE
+    underlyings:
+      - NIFTY
+    weight: 1.0
+    max_lots: 10
+    stage: shadow
+  - strategy_id: R8-E2-P5-HV
+    underlyings:
+      - NIFTY
+    weight: 1.0
+    max_lots: 10
+    stage: shadow
+  - strategy_id: R8-E3-HV-GATE
+    underlyings:
+      - NIFTY
+    weight: 1.0
+    max_lots: 10
+    stage: shadow

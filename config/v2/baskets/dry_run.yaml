@@ -1,0 +1,15 @@
+# Dry-run-only basket (V2-27). TEST-CROSS may live here and nowhere else.
+# Never used by shadow-start / follow. Never a real session basket.
+
+kind: dry_run
+market: IN_INDEX_OPT
+stage_allowed:
+  - shadow
+  - paper
+entries:
+  - strategy_id: TEST-CROSS
+    underlyings:
+      - NIFTY
+    weight: 1.0
+    max_lots: 10
+    stage: shadow

@@ -26,6 +26,7 @@ VITE="$ROOT/apps/web/node_modules/.bin/vite"
 RECON="${AAD_RECON:-$ROOT/data/recon}"
 TAPE_V2="${AAD_TAPE_V2:-$ROOT/data/tape/v2}"
 SHADOW_DIR="${AAD_SHADOW:-$ROOT/data/shadow/v2}"
+SHADOW_BASKET="${AAD_SHADOW_BASKET:-$ROOT/config/v2/baskets/approved_paper_shadow.yaml}"
 RECORDER_SCREEN="v2-recorder"
 SHADOW_SCREEN="v2-shadow"
 NODE_DIR="${NODE_DIR:-}"
@@ -327,6 +328,11 @@ shadow_start() {
     return 1
   fi
   shadow_prove_follower || return 1
+  if [[ ! -f "$SHADOW_BASKET" ]]; then
+    echo "WARNING: founder-approved paper/shadow basket missing ($SHADOW_BASKET). V2 shadow will fail closed (NO_BASKET). Dual-tape is unchanged." >&2
+  else
+    echo "v2 shadow basket: $SHADOW_BASKET (paper/shadow only; does not replace dual-tape)"
+  fi
   mkdir -p "$SHADOW_DIR"
   rm -f "$SHADOW_DIR/STOPPED.flag"
   local wrap="" day i
