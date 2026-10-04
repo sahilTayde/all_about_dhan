@@ -37,6 +37,13 @@ Catalogs and transcripts under `data/` are gitignored. Do not commit dumps that 
 
 ---
 
+## V2 gateway (JWT / founder 2FA)
+
+- Names only: `AAD_JWT_SECRET`, `AAD_JWT_SECRET_FILE`, `AAD_FOUNDER_TOTP_SECRET`, `AAD_FOUNDER_TOTP_SECRET_FILE`.
+- Empty signing key or TOTP seed **fails closed** (cannot issue or verify). Do not invent a default secret.
+- Never put JWT values, TOTP seeds, or bearer tokens in git, chat, or logs. Gateway audit lines record result codes only.
+- Query-string credentials are refused. Secret store and encrypted broker creds are V2-24.
+
 ## Agents
 
 - Do not print env values, `.env` contents, or files under `secrets/`.
