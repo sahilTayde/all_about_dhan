@@ -1,5 +1,26 @@
 # Handoff log — Team 07 Coding
 
+## As of now (2026-10-04 IST) — C5-03 customer portal MVP (PAPER)
+
+```text
+From:     teams/07_coding
+To:       founder / 00 / 05 / 09
+Date:     2026-10-04
+Status:   PAPER / C5-03 / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+Accepted: Customer `/` (alias `/customer`) 5-second
+  layout from CUSTOMER_PORTAL_UX.md: CALL/PUT/HOLD
+  hero, one ticket, risk strip, today book.
+  Badge PAPER/SHADOW/MOCK only — LIVE refused.
+  Feed: V2 signals:public + customer JWT, else MOCK.
+  Five paper seats. No order buttons. No win rate.
+  No PM/RAG/counsel LLM/charts on `/`.
+  Restack onto main dc94a05 (C5-04).
+Rejected: Live orders. Founder token on customer
+  feed. Indicator soup. Win-rate strip.
+UNKNOWN: Real signals:public stream on founder box.
+```
+
 ## As of now (2026-10-04 IST) — C5-04 founder ops for 5 paper customers
 
 ```text

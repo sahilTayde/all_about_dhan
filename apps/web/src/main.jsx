@@ -22,8 +22,11 @@ function Page() {
   const path = usePathname();
   if (path === "/pm" || path.startsWith("/pm/")) return <FounderPm />;
   if (path === "/cleanup" || path.startsWith("/cleanup/")) return <CleanupCanvas />;
-  if (path === "/customer" || path.startsWith("/customer/")) return <CustomerApp />;
-  if (path === "/" || path === "") window.history.replaceState({}, "", "/desk");
+  if (path === "/desk" || path.startsWith("/desk/")) return <InternalDesk />;
+  // `/` is the paper customer portal (C5-03). `/customer` stays as an alias.
+  if (path === "/customer" || path.startsWith("/customer/") || path === "/" || path === "") {
+    return <CustomerApp />;
+  }
   return <InternalDesk />;
 }
 

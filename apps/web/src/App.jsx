@@ -1,219 +1,210 @@
 import { useEffect, useState } from "react";
-import { apiMode, fetchPaperDesk } from "./lib/signalApi.js";
-import { subscribePaperSignals } from "./lib/liveSignals.js";
-import { customerStatus, isWaitingStatus } from "./lib/status.js";
-import { Header } from "./components/Header.jsx";
-import { AppNav } from "./components/AppNav.jsx";
+import { fetchCustomerDesk } from "./lib/customerFeed.js";
+import { formatSlot, formatWhen, selectCustomerView } from "./lib/customerPortal.js";
 import { UnderlyingPicker } from "./components/UnderlyingPicker.jsx";
-import { MarketSentiment } from "./components/MarketSentiment.jsx";
-import { CasPanel } from "./components/CasPanel.jsx";
-import { SignalCard } from "./components/SignalCard.jsx";
-import { IndexChart } from "./components/IndexChart.jsx";
-import { TookTrade } from "./components/TookTrade.jsx";
-import { SystemOutcome } from "./components/SystemOutcome.jsx";
-import { TodaysBook } from "./components/TodaysBook.jsx";
 import { Disclaimer } from "./components/Disclaimer.jsx";
 import { LegendDialog } from "./components/LegendDialog.jsx";
 
-const EMPTY_FILL = { lots: "", spot: "", pnl: "" };
+function ModeBadge({ mode, feed }) {
+  return (
+    <span
+      className={`mode-badge mode-badge--${String(mode || "mock").toLowerCase()}`}
+      data-mode-badge={mode}
+      data-feed={feed}
+      title="Book mode. Never LIVE. Paper / shadow / mock only."
+    >
+      {mode}
+    </span>
+  );
+}
+
+function Chrome({ mode, feed, onInfo }) {
+  return (
+    <header className="cp-chrome">
+      <div>
+        <p className="cp-chrome__brand">all_about_dhan</p>
+        <p className="cp-chrome__sub">Five paper seats · you decide · orders refused</p>
+      </div>
+      <div className="cp-chrome__tools">
+        <ModeBadge mode={mode} feed={feed} />
+        {onInfo ? (
+          <button
+            type="button"
+            className="info-btn"
+            aria-label="Open status legend"
+            aria-haspopup="dialog"
+            onClick={onInfo}
+          >
+            i
+          </button>
+        ) : null}
+      </div>
+    </header>
+  );
+}
+
+function CustomerHero({ view }) {
+  return (
+    <section
+      className={`customer-hero customer-hero--${view.tone} customer-hero--${view.market.toLowerCase()}`}
+      data-testid="customer-hero"
+      aria-labelledby="customer-hero-heading"
+    >
+      <div className="customer-hero__meta">
+        <p className="customer-hero__kicker">{view.underlying}</p>
+        <span className={`status-pill status-pill--${view.status.toLowerCase().replace(/[^a-z0-9]+/g, "")}`}>
+          {view.status}
+        </span>
+      </div>
+      <h1 id="customer-hero-heading" className="customer-hero__market">
+        {view.market}
+      </h1>
+      <p className="customer-hero__why">{view.why}</p>
+    </section>
+  );
+}
+
+function TicketCard({ view }) {
+  if (view.waiting || !view.ticket) {
+    return (
+      <section className="customer-ticket customer-ticket--empty" data-testid="customer-ticket">
+        <p className="customer-ticket__kicker">Ticket</p>
+        <p className="customer-ticket__empty-title">No suggested ticket</p>
+        <p className="muted">HOLD until the desk issues a paper lean. Not a fill.</p>
+      </section>
+    );
+  }
+  const t = view.ticket;
+  const slots = [
+    ["Strike", t.strike],
+    ["Entry", t.entry],
+    ["Stop", t.stop],
+    ["Target", t.target],
+  ];
+  return (
+    <section className="customer-ticket" data-testid="customer-ticket">
+      <p className="customer-ticket__kicker">One ticket · {view.underlying}</p>
+      <dl className="customer-ticket__grid">
+        {slots.map(([label, value]) => (
+          <div key={label}>
+            <dt>{label}</dt>
+            <dd>{formatSlot(value)}</dd>
+          </div>
+        ))}
+      </dl>
+      <p className="customer-ticket__qty">
+        {t.lots === "" || t.lots == null ? "—" : t.lots} lot
+        {Number(t.lots) === 1 ? "" : "s"} · {t.expiry} · {formatWhen(t.time)}
+      </p>
+    </section>
+  );
+}
+
+function RiskStrip({ view }) {
+  return (
+    <section className="risk-strip" data-testid="risk-strip" aria-label="Risk">
+      <p className="risk-strip__line">
+        <span>Invalid if</span> {view.invalidIf}
+      </p>
+      <p className={`risk-strip__stale ${view.stale ? "is-stale" : ""}`} data-stale={view.staleText}>
+        {view.staleText}
+        {view.asOf ? ` · ${formatWhen(view.asOf)}` : ""}
+      </p>
+    </section>
+  );
+}
+
+function CustomerBook({ view }) {
+  const rows = view.bookRows;
+  return (
+    <section className="customer-book" data-testid="customer-book" aria-labelledby="customer-book-heading">
+      <div className="customer-book__head">
+        <h2 id="customer-book-heading">Today</h2>
+        <ModeBadge mode={view.bookMode} feed={view.feed} />
+      </div>
+      {rows.length === 0 ? (
+        <p className="customer-book__empty" data-testid="book-empty">
+          No paper tickets today.
+        </p>
+      ) : (
+        <ul className="customer-book__list">
+          {rows.map((row) => (
+            <li key={row.id || `${row.underlying}-${row.timeIst}`}>
+              <span className="num">{row.timeIst || row.time || "—"}</span>
+              <span>{row.underlying}</span>
+              <span>{row.side ? String(row.side).replace("BUY_", "") : "—"}</span>
+              <span className="num">{formatSlot(row.strike)}</span>
+              <span>{row.displayed_status || row.status || "—"}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
 
 export default function App() {
   const [desk, setDesk] = useState(null);
   const [error, setError] = useState(null);
   const [underlying, setUnderlying] = useState("NIFTY");
-  const [tookTrade, setTookTrade] = useState(null);
-  const [userFill, setUserFill] = useState(EMPTY_FILL);
   const [legendOpen, setLegendOpen] = useState(false);
-  const [livePaper, setLivePaper] = useState(null);
 
   useEffect(() => {
-    return subscribePaperSignals(setLivePaper);
-  }, []);
-
-  useEffect(() => {
-    let cancelled = false;
-    fetchPaperDesk()
+    const ac = new AbortController();
+    fetchCustomerDesk(ac.signal)
       .then((data) => {
-        if (cancelled) return;
         setDesk(data);
-        const first = data.underlyings?.[0] || "NIFTY";
-        setUnderlying(first);
+        setUnderlying(data.underlyings?.[0] || "NIFTY");
       })
       .catch((err) => {
-        if (!cancelled) setError(err.message || String(err));
+        if (err?.name === "AbortError") return;
+        setError(err.message || String(err));
       });
-    return () => {
-      cancelled = true;
-    };
+    return () => ac.abort();
   }, []);
-
-  function handleUnderlying(next) {
-    setUnderlying(next);
-    setTookTrade(null);
-    setUserFill(EMPTY_FILL);
-  }
-
-  function handleFill(key, value) {
-    setUserFill((prev) => ({ ...prev, [key]: value }));
-  }
-
-  const mockSignal = desk?.signals?.[underlying];
-  const live = livePaper?.underlyings?.[underlying];
-  const livePremiumOk =
-    live &&
-    live.strike != null &&
-    live.strike !== "" &&
-    Number.isFinite(Number(live.entry)) &&
-    Number.isFinite(Number(live.stop)) &&
-    !["DATA_INSUFFICIENT", "DI", "UNKNOWN", ""].includes(String(live.entry).toUpperCase());
-  // Desk SOD ticket wins. WS lean without premium must not revive mock 24850 PE.
-  const signal = livePremiumOk && mockSignal
-    ? {
-        ...mockSignal,
-        side: live.side,
-        strike: live.strike,
-        entry: live.entry,
-        stop: live.stop,
-        target: live.target,
-        underlying_spot:
-          live.underlying_spot ?? live.spot ?? live.ticket?.underlying_spot ?? "",
-        spot: live.underlying_spot ?? live.spot ?? live.ticket?.underlying_spot ?? "",
-        lots: live.lots ?? live.ticket?.lots ?? mockSignal.lots,
-        staged: {
-          state: live.state,
-          headline: live.headline,
-          note: live.note,
-        },
-        customer: { headline: live.headline, note: live.note },
-        lifecycle: mockSignal.lifecycle || {},
-        ticket: live.ticket || mockSignal.ticket,
-        confidence: live.confidence,
-        chart: mockSignal.chart,
-        confidenceDetail: mockSignal.confidenceDetail,
-        top_veto_reasons:
-          live.top_veto_reasons ||
-          mockSignal.top_veto_reasons ||
-          live.vetoes ||
-          mockSignal.vetoes,
-        vetoes: live.vetoes || mockSignal.vetoes,
-      }
-    : mockSignal;
-  const sourceLabel = live
-    ? "LIVE PAPER"
-    : apiMode() === "remote"
-      ? "API"
-      : desk?.meta?.source === "fixture" || desk?.meta?.placeholder
-        ? "FIXTURE"
-        : "MOCK";
-  const status = customerStatus(signal);
-  const waiting = isWaitingStatus(status);
-  const confidence =
-    waiting
-      ? {
-          score_pct: null,
-          band: "none",
-          label: "Waiting for next signal",
-          eligible: [],
-          why_bullets: [],
-          fairness:
-            "Agreement score only when a lean is active. Not a win rate.",
-        }
-      : signal?.confidence ||
-        live?.confidence || {
-          score_pct: 0,
-          band: "none",
-          label: "No active lean",
-          eligible: [],
-          why: "Connect live paper or wait for a lean.",
-          fairness:
-            "Agreement score only. Not a win rate. Not a fill promise. You decide.",
-        };
-  const ticket = waiting ? null : signal?.ticket || live?.ticket || null;
 
   if (error) {
     return (
-      <div className="shell">
-        <AppNav current="/customer" />
-        <Header sourceLabel="ERROR" />
+      <div className="shell shell--customer customer-portal">
+        <Chrome mode="MOCK" feed="mock" />
         <p className="error-banner">{error}</p>
         <Disclaimer />
       </div>
     );
   }
 
-  if (!desk || !signal) {
+  if (!desk) {
     return (
-      <div className="shell">
-        <AppNav current="/customer" />
-        <Header sourceLabel={sourceLabel} />
-        <p className="muted">Loading desk…</p>
+      <div className="shell shell--customer customer-portal" data-testid="customer-portal">
+        <Chrome mode="…" feed="loading" />
+        <p className="cp-loading muted">Loading ticket…</p>
       </div>
     );
   }
 
-  const sentiment = desk.sentiment?.byUnderlying?.[underlying] || {};
-  const chart = signal.chart || desk.charts?.[underlying] || null;
+  const view = selectCustomerView(desk, underlying);
+  const mockTape = view.feed !== "signals:public";
 
   return (
-    <div className="shell shell--customer">
-      <AppNav current="/customer" />
-      <Header
-        sourceLabel={sourceLabel}
-        onInfo={() => setLegendOpen(true)}
-        title="Customer"
-        sub="One suggested ticket · MOCK / PAPER · not advice · orders refused"
-      />
+    <div className="shell shell--customer customer-portal" data-testid="customer-portal">
+      <Chrome mode={view.mode} feed={view.feed} onInfo={() => setLegendOpen(true)} />
 
-      <UnderlyingPicker
-        underlyings={desk.underlyings}
-        value={underlying}
-        onChange={handleUnderlying}
-      />
+      {view.stale ? (
+        <p className="stale-banner" role="status">
+          Payload is stale. Do not treat this as a fresh ticket.
+        </p>
+      ) : null}
+      {mockTape ? (
+        <p className="mock-banner" data-testid="mock-banner">
+          MOCK tape — no live signal stream. Not a fill.
+        </p>
+      ) : null}
 
-      <SignalCard
-        signal={signal}
-        confidence={confidence}
-        ticket={ticket}
-        deskMeta={desk?.meta}
-      />
-
-      <IndexChart chart={chart} signal={signal} status={status} />
-
-      {!waiting && (
-        <div className="desk-split">
-          <TookTrade
-            value={tookTrade}
-            onChange={setTookTrade}
-            fill={userFill}
-            onFillChange={handleFill}
-          />
-          <SystemOutcome
-            tookTrade={tookTrade}
-            outcome={signal.systemOutcome}
-            lifecycle={signal.lifecycle}
-            userFill={userFill}
-          />
-        </div>
-      )}
-
-      <TodaysBook
-        book={desk.todaysBook}
-        fixtureBook={desk.meta?.paper_live || desk.meta?.customer_ticket ? null : desk.fixtureBook}
-      />
-
-      <details className="desk-context">
-        <summary>Desk context (sentiment · close auction) — not the ticket</summary>
-        <MarketSentiment
-          windows={desk.sentiment?.windows}
-          values={sentiment}
-          source={desk.sentiment?.source || desk.meta?.source}
-        />
-        <CasPanel cas={desk.cas} underlying={underlying} />
-      </details>
-
-      <p className="as-of muted">
-        As of {desk.meta?.asOf ?? "—"} · {desk.meta?.note}
-      </p>
+      <UnderlyingPicker underlyings={view.underlyings} value={underlying} onChange={setUnderlying} />
+      <CustomerHero view={view} />
+      <TicketCard view={view} />
+      <RiskStrip view={view} />
+      <CustomerBook view={view} />
 
       <Disclaimer />
       <LegendDialog open={legendOpen} onClose={() => setLegendOpen(false)} />

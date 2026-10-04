@@ -8,6 +8,7 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
+    "test:customer": "node scripts/customer_portal_unit.mjs && node scripts/customer_portal_test.mjs",
     "ui:snapshots": "node scripts/ui_snapshots/run.mjs"
   },
   "engines": {
