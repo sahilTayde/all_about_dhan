@@ -2,6 +2,23 @@
 
 **Agents:** read **only the newest block**. Do not ingest this whole log. New files: [`docs/FILE_CREATION.md`](../../docs/FILE_CREATION.md). Append here — do not create `HANDOFF_TOMORROW.md` or extra `CONTINUE_*`.
 
+## As of now (2026-10-04) — Round 9 research sprint (PAPER / NO_PROMOTE)
+
+```text
+From:     teams/00_orchestrator
+To:       founder / 01 / 04 / 06 / 09
+Date:     2026-10-04
+Status:   HYPOTHESIS / PAPER / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+Accepted: Docs-only sprint. SUMMARY + ROUND9. Playbook off.
+  V2 defaults untouched. Oct 10 = four non-clock cells,
+  CI_lo>0 on random 1-lot. H18/S07/H22/H19 stay burned.
+Rejected: Enable playbook. Edit live defaults. Promote
+  peak_hazard / clock-profit / time_edge. Invent harvest P/L.
+UNKNOWN: last3d tapes not on this box. HOLDOUT_SPEC file
+  not in tree (contract restated from PR #69 + FWD-BAR).
+```
+
 ## As of now (2026-09-27 IST) — V2-10 fix round (atomic fill / idempotency / P&L / qty / Decimal)
 
 ```text

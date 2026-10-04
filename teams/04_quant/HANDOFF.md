@@ -1,5 +1,21 @@
 # Handoff log — Team 04 Quant
 
+## As of now (2026-10-04) — Round 9 entry/ML next tests (NO_PROMOTE)
+
+```text
+MIX / STRAT: none new. KEEP_ALL 001–014. No STRAT-015+.
+Origin: PROJECT-DERIVED. HYPOTHESIS.
+Entry hypothesis: E1 COIL-SIDE / E2 P5-HV / E3 HV-GATE
+  stay FWD-only. H18/S07/H22/H19 burned.
+Confirm-or-kill: 5m ST/MACD still confirm-or-kill.
+Hold / veto: ML-001/002 overlay only; no CE/PE from cluster.
+Feasibility: Oct 10 exits are non-clock X1–X4, not overlay
+  retune.
+Backtest request: 06 Exit Lab Sat 10 Oct; FWD-BAR for E1/E2.
+Customer copy allowed: none.
+UNKNOWN: last3d tapes; HOLDOUT_SPEC file missing on disk.
+```
+
 ## As of now (2026-09-20 IST) — analyst room packets, SOD fill not router (NO_PROMOTE)
 
 ```text

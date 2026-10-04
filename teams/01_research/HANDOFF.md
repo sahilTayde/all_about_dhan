@@ -1,5 +1,24 @@
 # Handoff log — Team 01 Research
 
+## As of now (2026-10-04) — Round 9 remine (PAPER / NO_PROMOTE)
+
+```text
+From:     teams/01_research
+To:       00 / 04 / 06 / 09 / founder
+Date:     2026-10-04
+Status:   HYPOTHESIS remine / UNVALIDATED / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+Accepted: Re-rank PR #69 top-20 with clock columns removed.
+  Paper-day 2026-09-25 ticket drain labeled from the
+  committed dashboard. SSRN P01/P02 stay kill-tests.
+Rejected: New STRAT-015+. Re-opening H18/S07/H22/H19.
+  Claiming a path edge (label-perm already ≤ 1.05).
+UNKNOWN: last3d parquets; primary harvest-ID tables.
+Artifacts:
+  docs/research/SUMMARY.md
+  docs/research/ROUND9_IMPROVEMENT_SPRINT.md
+```
+
 ## As of now (2026-09-15) — founder DISCARDED unreadable titles
 
 ```text

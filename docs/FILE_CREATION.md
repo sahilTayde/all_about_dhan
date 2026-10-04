@@ -23,6 +23,7 @@
 | SOURCE_FACT packet | `teams/01_research/docs/handoffs/<videoId>.md` | New verified transcript extract. Packets (`OPTIONS_INDEX_PACKET.md` etc.) stay the rollups. |
 | Backtest evidence | `teams/06_backtesting/docs/BACKTEST_<TOPIC>.md` | After a real run. **One** file per topic; overwrite/append. Do not stack `BACKTEST_*_YYYY-MM-DD.md` copies. |
 | `ROUND<N>_<TOPIC>.md` | `docs/research/` | Founder-requested lab-round design / adversarial review (HYPOTHESIS layer). **One** file per round; edit in place. Results stay in the lab output folder, not here. |
+| `SUMMARY.md` | `docs/research/` | Founder-requested sprint index (Now / Why / Next). **One** file; edit in place. Body stays in the ROUND file. |
 | Review evidence | `teams/09_review/docs/` named charter files | Five-pass / KEEP_ALL / auditor. No `*_NOTES_YYYY-MM-DD.md` dumps. |
 | `AUDIT_LATEST.md` | `teams/00_orchestrator/docs/` | Auditor writes this. Humans do not hand-author a second audit file. |
 | `NIGHTLY_YYYY-MM-DD.md` | `teams/02_phd_math/docs/handoffs/` | **`desk_intel nightly` only.** Agents do not hand-author extras. Keep the latest; do not stack unused days. |

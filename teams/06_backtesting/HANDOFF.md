@@ -1,5 +1,21 @@
 # Handoff log — Team 06 Backtesting
 
+## As of now (2026-10-04) — Round 9 Exit Lab card (PAPER / NO_PROMOTE)
+
+```text
+From:     teams/06_backtesting
+To:       00 / 04 / 09 / founder
+Date:     2026-10-04
+Status:   HYPOTHESIS / PAPER / NO_PROMOTE
+Accepted: Oct 10 card X1 MOM-HH / X2 MOM10-5 / X3 OTHER-WING /
+  X4 HAZARD-NOCLOCK. Pass = CI_lo>0 random 1-lot + DSR≥0.9
+  + ≥8/12 folds + overlap share<0.30 + ×2 + label-perm.
+  DSR N keeps 654. Playbook off. Defaults untouched.
+Rejected: Clock / time_edge / atr_opt / shape_exit / T=45.
+  Mixing as-traded lots. Promoting peak_hazard_p10.
+UNKNOWN: tapes not attached on this box.
+```
+
 ## As of now (2026-09-28 IST) — retarget V2-20b #66 onto main fc5eba7 (PAPER)
 
 ```text
