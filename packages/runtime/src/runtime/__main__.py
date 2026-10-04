@@ -1,8 +1,8 @@
 """python -m runtime <command> — paper only.
 
 Commands: engine, health, llm-advisor, reset-breaker, deploy, backup, restore, job,
-flatten (out-of-band paper flatten), bench-legacy (V2-17), and forward-eval
-(V2-20a; off by default).
+flatten (out-of-band paper flatten), bench-legacy (V2-17), forward-eval
+(V2-20a; off by default), and V2-22 signal / exec --account.
 """
 
 from __future__ import annotations
@@ -60,10 +60,12 @@ def _idle(state_dir: Path, name: str) -> None:
 
 
 _USAGE = """usage: python -m runtime {engine|health|llm-advisor|reset-breaker|
-  deploy|backup|restore|job|flatten|bench-legacy|forward-eval} ...
+  deploy|backup|restore|job|flatten|bench-legacy|forward-eval|signal|exec} ...
   engine|health|llm-advisor [--once] [--state-dir DIR] [--now ISO] [--mode replay|paper]
   reset-breaker <service> [--state-dir DIR] [--now ISO]
   flatten [--account founder] [--state-dir DIR] [--now ISO]
+  signal [--once] [--state-dir DIR] [--mode replay|paper]
+  exec --account <id> [--once] [--state-dir DIR] [--mode replay|paper]
   job <name> [--state-dir DIR]
   bench-legacy --day YYYY-MM-DD --tape PATH [--out DIR] [--deadline SECONDS]
   forward-eval --session YYYY-MM-DD [--tape PATH] [--out DIR] [--config PATH]
@@ -171,6 +173,23 @@ def main(argv: list[str] | None = None) -> int:
         digest = restore_state(snap_path, state)
         print(json.dumps({"ok": True, "output_hash": digest}))
         return 0
+
+    if cmd in {"signal", "exec"}:
+        from accounts.errors import AccountClosed, AccountSafetyError
+        from accounts.split import run_role_once
+
+        try:
+            result = run_role_once(
+                role=cmd,
+                account_id=None if cmd == "signal" else (args.account or args.target or "founder"),
+                state_dir=state,
+                mode=args.mode,
+            )
+        except (AccountSafetyError, AccountClosed) as exc:
+            print(json.dumps({"ok": False, "reason": str(exc), "orders": "REFUSED"}), file=sys.stderr)
+            return 2
+        print(json.dumps(result))
+        return 0 if result.get("ok") else 1
 
     if cmd == "flatten":
         from runtime.flatten_cli import flatten_cli

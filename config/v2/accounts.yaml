@@ -1,0 +1,13 @@
+# V2-22 paper/shadow accounts. Fail closed. No live broker. No secrets.
+default_account: founder
+accounts:
+  - account_id: founder
+    kind: founder
+    broker: paper
+    status: active
+    risk_budget_inr: 30000
+  - account_id: v2-shadow
+    kind: founder
+    broker: shadow
+    status: active
+    risk_budget_inr: 30000
