@@ -15,8 +15,16 @@ from pathlib import Path
 
 from contracts.clock import IST
 
+from shadow.basket import KIND_AUTO, KIND_DRY_RUN
 from shadow.journal import ShadowJournal
-from shadow.runner import compare_day, follow_tape, ist_day, run_once, tape_paths, write_fixture_tape
+from shadow.runner import (
+    compare_day,
+    follow_tape,
+    ist_day,
+    run_once,
+    tape_paths,
+    write_cross_tape,
+)
 from shadow.safety import ShadowSafetyError, assert_paper_only
 
 
@@ -54,6 +62,12 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--poll-s", type=float, default=1.0)
     p.add_argument("--max-idle-polls", type=int, default=None)
     p.add_argument("--demo-fills", action="store_true", help="Dry-run only. Refused on follow.")
+    p.add_argument(
+        "--basket-kind",
+        default=None,
+        help="auto (dated then approved), approved, or dry_run",
+    )
+    p.add_argument("--basket", default=None, help="Optional paper/shadow basket YAML")
     args = p.parse_args(raw)
 
     try:
@@ -66,20 +80,44 @@ def main(argv: list[str] | None = None) -> int:
     day = args.day or ist_day()
     cmd = args.command
 
+    basket_path = Path(args.basket) if args.basket else None
+    basket_kind = args.basket_kind or (KIND_DRY_RUN if cmd == "dry-run" else KIND_AUTO)
+
     if cmd == "dry-run":
         fixture = state / "_dry_run" / "ticks.jsonl"
-        write_fixture_tape(fixture)
-        result = run_once(tape=fixture, state_dir=state, mode=mode, day=day, demo_fills=True)
+        write_cross_tape(fixture)
+        try:
+            result = run_once(
+                tape=fixture,
+                state_dir=state,
+                mode=mode,
+                day=day,
+                demo_fills=False,
+                basket_kind=basket_kind,
+                basket_path=basket_path,
+            )
+        except ShadowSafetyError as exc:
+            print(str(exc), file=sys.stderr)
+            return 2
+        reasons = []
+        if result.session_basket is not None:
+            reasons.append(result.session_basket.refuse_reason() or "ENTER")
         _print(
             {
                 "ok": True,
                 "command": "dry-run",
                 "day": result.day,
                 "decisions": result.decisions,
+                "holds": result.holds,
                 "opens": result.opens,
                 "flats": result.flats,
                 "closed_reason": result.closed_reason,
                 "output_hash": result.output_hash,
+                "basket_hash": result.session_basket.basket.basket_hash if result.session_basket else None,
+                "basket_kind": result.session_basket.kind if result.session_basket else None,
+                "defaults_from": result.session_basket.defaults_from if result.session_basket else None,
+                "abstain": result.session_basket.refuse_reason() if result.session_basket else None,
+                "proof": "ENTER" if result.opens else (reasons[0] if reasons else result.closed_reason),
                 "orders": "REFUSED",
             }
         )
@@ -90,7 +128,19 @@ def main(argv: list[str] | None = None) -> int:
         if args.demo_fills:
             print("V2 shadow fail-closed: --demo-fills is dry-run only", file=sys.stderr)
             return 2
-        result = run_once(tape=tape, state_dir=state, mode=mode, day=day, demo_fills=False)
+        try:
+            result = run_once(
+                tape=tape,
+                state_dir=state,
+                mode=mode,
+                day=day,
+                demo_fills=False,
+                basket_kind=basket_kind,
+                basket_path=basket_path,
+            )
+        except ShadowSafetyError as exc:
+            print(str(exc), file=sys.stderr)
+            return 2
         _print(
             {
                 "ok": result.closed_reason is None,
@@ -98,8 +148,11 @@ def main(argv: list[str] | None = None) -> int:
                 "day": result.day,
                 "decisions": result.decisions,
                 "holds": result.holds,
+                "opens": result.opens,
                 "envelopes": result.envelopes,
                 "closed_reason": result.closed_reason,
+                "basket_hash": result.session_basket.basket.basket_hash if result.session_basket else None,
+                "abstain": result.session_basket.refuse_reason() if result.session_basket else None,
                 "tape": str(tape),
                 "paths": [str(path) for path in tape_paths(tape)],
                 "orders": "REFUSED",
@@ -113,15 +166,21 @@ def main(argv: list[str] | None = None) -> int:
             return 2
         tape = _tape(args.tape, day)
         stop = Path(args.stop_flag) if args.stop_flag else state / "STOPPED.flag"
-        result = follow_tape(
-            tape=tape,
-            state_dir=state,
-            stop_flag=stop,
-            mode=mode,
-            day=day,
-            poll_s=args.poll_s,
-            max_idle_polls=args.max_idle_polls,
-        )
+        try:
+            result = follow_tape(
+                tape=tape,
+                state_dir=state,
+                stop_flag=stop,
+                mode=mode,
+                day=day,
+                poll_s=args.poll_s,
+                max_idle_polls=args.max_idle_polls,
+                basket_kind=basket_kind,
+                basket_path=basket_path,
+            )
+        except ShadowSafetyError as exc:
+            print(str(exc), file=sys.stderr)
+            return 2
         _print(
             {
                 "ok": True,

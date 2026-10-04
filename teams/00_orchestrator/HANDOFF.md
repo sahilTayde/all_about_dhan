@@ -21,6 +21,26 @@ Rejected: Live broker. Customer credentials.
 UNKNOWN: First real customer account.
 ```
 
+## As of now (2026-10-04 IST) — V2-27 paper/shadow basket (PAPER)
+
+```text
+From:     teams/00_orchestrator
+To:       founder / 07 / 09
+Date:     2026-10-04
+Status:   PAPER / V2-27 / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+Accepted: V2 shadow journals use a founder-approved
+  paper/shadow basket + registry + exit defaults.
+  Dry-run shows ENTER. Approved basket shows
+  explicit PENDING_LAB. Fail closed on missing
+  basket / live stage. Dual-tape unchanged.
+Rejected: Live orders. Improving the old engine.
+  TEST-CROSS in the approved basket.
+  Legacy CANCEL/COVER. STRAT-015+.
+UNKNOWN: One Mac session-night with a dated
+  basket that can emit besides PENDING_LAB.
+```
+
 ## As of now (2026-10-04 IST) — V2-26 Mac start hole (PAPER)
 
 ```text

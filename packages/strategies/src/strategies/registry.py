@@ -190,6 +190,13 @@ def _entry_from_mapping(item: dict[str, Any]) -> BasketEntry:
     )
 
 
+def make_basket(
+    session: str, market: str, entries: tuple[BasketEntry, ...], *, source: str
+) -> Basket:
+    """Public constructor used by V2-27 shadow (approved / dry-run fallbacks)."""
+    return _basket(session, market, entries, source=source)
+
+
 def _basket(session: str, market: str, entries: tuple[BasketEntry, ...], *, source: str) -> Basket:
     payload = {
         "session": session,
