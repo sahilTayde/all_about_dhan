@@ -646,6 +646,9 @@ M1 does **not** mean a strategy is profitable, and it does not enable live order
 **Scope:** M1 plus these tickets (sized the same way, specified after M1):
 - **V2-21** Postgres `LedgerStore` + export/cutover tool + dual-engine CI (section 3.2).
 - **V2-22** Accounts, per-account isolation, and the signal/exec split (sections 2.15, 5.6), with isolation tests.
+  Landed as `packages/accounts` + `config/v2/accounts.yaml` (paper `founder`, shadow `v2-shadow`).
+  `python -m runtime signal` is shared; `python -m runtime exec --account` binds one book.
+  Fail closed: live broker, unknown/disabled account, cross-account read/write/size. No live Dhan.
 - **V2-23** Gateway auth (JWT, founder 2FA), role-scoped channels, rate limits, the customer `signals:public` channel
   with customer-safe copy (`CUSTOMER_TALK.md`).
 - **V2-24** Secret store (SOPS + age or Vault) and encrypted per-customer broker credentials.

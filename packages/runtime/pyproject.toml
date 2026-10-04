@@ -37,5 +37,5 @@ warn_unused_configs = true
 disallow_untyped_defs = true
 
 [[tool.mypy.overrides]]
-module = ["strategies.*", "yaml"]
+module = ["strategies.*", "yaml", "accounts.*"]
 ignore_missing_imports = true
