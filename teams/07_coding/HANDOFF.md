@@ -1,5 +1,24 @@
 # Handoff log — Team 07 Coding
 
+## As of now (2026-10-04 IST) — V2-25 off-market shadow order harness (PAPER)
+
+```text
+From:     teams/07_coding
+To:       founder / 00 / 09
+Date:     2026-10-04
+Status:   PAPER / V2-25 / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+Accepted: packages/harness fail-closed gates +
+  MockOrderBroker submit+cancel. dhan_live imported
+  only after --transport dhan. CI install/lint/mypy
+  include harness. No DhanBroker. No oms.router.
+  Merged main d26297f (#79 V2-24) without enabling live.
+Rejected: Default live client. Mode live/limited_live.
+  Dual-tape edits. Exit playbook promote.
+UNKNOWN: Real Dhan ACK+CANCEL latency on the
+  founder machine (human).
+```
+
 ## As of now (2026-10-04 IST) — V2-22 accounts layer (PAPER)
 
 ```text

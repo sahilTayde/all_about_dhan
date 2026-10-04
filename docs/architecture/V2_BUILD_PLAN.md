@@ -673,8 +673,9 @@ M1 does **not** mean a strategy is profitable, and it does not enable live order
   `pyjwt` + login UI wait for V2-24 (secret store). Paper localhost-dev (empty keys + bind 127.0.0.1) unchanged.
 - **V2-24** Secret store (SOPS + age or Vault) and encrypted per-customer broker credentials.
   Package: `packages/secretstore` (`aad-age/v1` in-process; `/etc/aad/aad.env` fallback; Vault/1Password stubs).
-- **V2-25** Dhan shadow-mode order test harness (submit far off-market and cancel at once; PR-002's original
-  acceptance test). Runs only with the founder's explicit approval and credentials on the founder's machine.
+- **V2-25** Dhan shadow-mode order test harness (`packages/harness`; submit far off-market and cancel at
+  once; PR-002's original acceptance test). Runs only with the founder's explicit approval and credentials
+  on the founder's machine. Default OFF. CI uses mocks only.
 
 **Exit criteria:**
 1. M1 criteria hold for 20 more sessions on Postgres, with the REG suite green on both store engines.
