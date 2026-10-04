@@ -40,6 +40,7 @@ def test_runtime_help_lists_bench_legacy_and_engine() -> None:
     assert proc.returncode == 0
     assert "bench-legacy" in proc.stdout and "engine" in proc.stdout
     assert "reset-breaker" in proc.stdout and "job" in proc.stdout
+    assert "signal" in proc.stdout and "exec" in proc.stdout
 
 
 def test_engine_replay_writes_ready_no_creds(tmp_path: Path) -> None:

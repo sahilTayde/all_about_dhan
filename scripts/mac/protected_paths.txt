@@ -8,6 +8,7 @@
 # Engine / contracts / bus / boss (V2-02, V2-04, V2-07, V2-17)
 packages/runtime/**
 packages/shadow/**
+packages/accounts/**
 packages/boss/**
 packages/contracts/**
 packages/events/**

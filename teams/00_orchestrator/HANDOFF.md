@@ -15,14 +15,32 @@ Accepted: Isolated packages/harness. Default OFF.
   mode shadow|harness. Mock submit+cancel in CI.
   Live transport is explicit --transport dhan only.
   Off-market BUY LIMIT cap ₹1.05. MARKET refused.
-  Merged main 5d10946 (#74 V2-27) without touching
-  basket files.
+  Merged main 964c66e (#75 V2-22) without enabling live.
 Rejected: Enabling DhanBroker / live_brokers.
   Using ALL_ABOUT_DHAN_LIVE_CONFIRM as the flag.
   Wiring into oms.router or dual-tape.
   Marketable orders. STRAT-015+.
 UNKNOWN: Founder-machine --transport dhan run
   (human). DATA_INSUFFICIENT until that happens.
+```
+
+## As of now (2026-10-04 IST) — V2-22 accounts layer (PAPER)
+
+```text
+From:     teams/00_orchestrator
+To:       founder / 07 / 09
+Date:     2026-10-04
+Status:   PAPER / V2-22 / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+Accepted: Fail-closed paper/shadow accounts
+  (founder + v2-shadow). Isolation tests:
+  A cannot read, affect, or be sized by B.
+  runtime signal shared; runtime exec
+  --account binds one ledger/pos stream.
+Rejected: Live broker. Customer credentials.
+  Postgres RLS (V2-21). JWT (V2-23).
+  STRAT-015+. Legacy engine redesign.
+UNKNOWN: First real customer account.
 ```
 
 ## As of now (2026-10-04 IST) — V2-27 paper/shadow basket (PAPER)
