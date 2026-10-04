@@ -19,6 +19,29 @@ Rejected: Live mode badge. Order buttons.
 UNKNOWN: Founder-box V2 public stream contents.
 ```
 
+## As of now (2026-10-04) — invent/replay Dhan+NSE option cost fixture (PAPER)
+
+```text
+From:     teams/00_orchestrator
+To:       06 / 07 / 09 / founder
+Date:     2026-10-04
+Status:   PAPER / RESEARCH COST MODEL / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+Accepted: 01/compare: Dhan ₹20/order; NSE/FA/73061 txn
+  0.000355299; IPFT 0.000000001 in GST base; SEBI
+  0.000001; stamp 0.00003 buy; STT 0.0015 sell.
+  invent-3/4 call groww_round_trip_charges — update
+  fixture so SURVIVE does not understate exchange.
+  qty=65 px=100: ₹62.61 vs old ₹62.53.
+  Restack onto origin/main 4efa383 (C5-03).
+Rejected: Inventing a NIFTY clearing fee. Claiming
+  contract-note authority. STRAT-015+. Live orders.
+  Renaming groww_round_trip_charges (callers stay).
+  Changing V2 NSE map 0.0003553 (txn+IPFT combined).
+UNKNOWN / DATA_INSUFFICIENT: contract-note rounding
+  on a live Dhan note; BSE IPFT (not invented).
+```
+
 ## As of now (2026-10-04 IST) — C5-01 5 customer paper accounts (PAPER)
 
 ```text

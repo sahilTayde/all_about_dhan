@@ -16,6 +16,7 @@ RATE_KEYS = (
     "brokerage_per_order_inr",
     "stt_sell_premium_frac",
     "exchange_txn_frac",
+    "ipft_frac",
     "sebi_fee_frac",
     "stamp_duty_buy_frac",
     "gst_frac",
@@ -194,31 +195,37 @@ def order_charges(
     """Charges for one executed order (or one fill of it).
 
     Each component is rounded to paise like a contract note line; GST is on the rounded
-    brokerage + exchange + SEBI. Pass include_brokerage=False for the 2nd+ fill of one order.
-    `exchange` (NSE/BSE) picks the per-exchange transaction charge from `load_rates(by_exchange=True)`.
+    brokerage + exchange + SEBI + IPFT (Dhan GST base). Pass include_brokerage=False for the
+    2nd+ fill of one order. `exchange` (NSE/BSE) picks the per-exchange transaction charge
+    from `load_rates(by_exchange=True)`. NSE/BSE map rates already include NSE IPFT in the
+    txn line (do not add ipft_frac again). Flat callers use exchange_txn_frac + ipft_frac.
     Price may be Decimal; every returned line is Decimal (Paisa) quantized to paise except
-    turnover, which stays exact.
+    turnover, which stays exact. Clearing fee stays omitted (UNCLEAR / not listed by Dhan).
     """
     side = side.upper()
     if side not in ("BUY", "SELL"):
         raise ValueError(f"side must be BUY or SELL, got {side!r}")
     if exchange is None:
         txn_frac = rates["exchange_txn_frac"]
+        ipft_frac = rates.get("ipft_frac", 0.0)
     else:
         txn_frac = rates[BY_EXCHANGE][exchange.upper()]
+        ipft_frac = 0.0  # NSE map is txn+IPFT combined; BSE IPFT not invented
     turnover = _d(qty) * _d(price)
     brokerage = _inr(_d(rates["brokerage_per_order_inr"])) if include_brokerage else Decimal("0.00")
     exchange_fee = _inr(turnover * _d(txn_frac))
+    ipft = _inr(turnover * _d(ipft_frac))
     sebi = _inr(turnover * _d(rates["sebi_fee_frac"]))
     stt = _inr(turnover * _d(rates["stt_sell_premium_frac"])) if side == "SELL" else Decimal("0.00")
     stamp = _inr(turnover * _d(rates["stamp_duty_buy_frac"])) if side == "BUY" else Decimal("0.00")
-    gst = _inr((brokerage + exchange_fee + sebi) * _d(rates["gst_frac"]))
-    total = brokerage + exchange_fee + sebi + stt + stamp + gst
+    gst = _inr((brokerage + exchange_fee + sebi + ipft) * _d(rates["gst_frac"]))
+    total = brokerage + exchange_fee + sebi + stt + stamp + gst + ipft
     return {
         "turnover": Paisa(turnover),
         "brokerage": Paisa(brokerage),
         "stt": Paisa(stt),
         "exchange": Paisa(exchange_fee),
+        "ipft": Paisa(ipft),
         "sebi": Paisa(sebi),
         "stamp": Paisa(stamp),
         "gst": Paisa(gst),

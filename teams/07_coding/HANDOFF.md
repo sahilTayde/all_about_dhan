@@ -41,6 +41,22 @@ UNKNOWN: Long-running exec loop (current runtime
   signal/exec are --once paper stubs).
 ```
 
+## As of now (2026-10-04) — Dhan/NSE paper charges fixture (PAPER)
+
+```text
+From:     teams/07_coding
+To:       00 / 06 / 09
+Date:     2026-10-04
+Status:   PAPER / NO_PROMOTE
+Accepted: config/charges.yaml + groww_costs + ledger
+  flat path: txn 0.000355299, ipft_frac 0.000000001,
+  GST includes IPFT. Per-exchange NSE 0.0003553 stays
+  combined so V2 REG-12 does not double-count IPFT.
+Rejected: New SQL charges.ipft column. Live orders.
+  Invented clearing fee. Contract-note claim.
+UNKNOWN: Dhan contract-note paise vs this paper model.
+```
+
 ## As of now (2026-10-04 IST) — C5-01 5 customer paper accounts (PAPER)
 
 ```text

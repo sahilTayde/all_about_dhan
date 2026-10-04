@@ -51,10 +51,10 @@ def test_round_trip_trade_net_after_charges_and_slippage(led):
     assert t["entry_slippage"] == 0.5    # paid 100 vs decided 99.5
     assert t["exit_slippage"] == -0.5    # got 130 vs decided 130.5
     assert t["gross_pnl"] == 1950.0
-    assert t["charges"] == 66.28         # see test_charges.test_hand_computed_round_trip
-    assert t["net_pnl"] == 1883.72
+    assert t["charges"] == 66.37         # see test_charges.test_hand_computed_round_trip
+    assert t["net_pnl"] == 1883.63
     assert led.open_positions() == []
-    assert led.daily_pnl(DAY) == {"day": DAY, "n_trades": 1, "gross_pnl": 1950.0, "charges": 66.28, "net_pnl": 1883.72}
+    assert led.daily_pnl(DAY) == {"day": DAY, "n_trades": 1, "gross_pnl": 1950.0, "charges": 66.37, "net_pnl": 1883.63}
 
 
 def test_partial_fills_charge_brokerage_once_per_order(led):

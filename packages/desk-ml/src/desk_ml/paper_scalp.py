@@ -4053,6 +4053,7 @@ def _close(engine: BookEngine, pos: OpenPaper, *, ltp: float, ts: int, reason: s
             "gst_inr": charges["gst_inr"],
             "stt_inr": charges["stt_inr"],
             "exchange_inr": charges.get("exchange_inr"),
+            "ipft_inr": charges.get("ipft_inr"),
             "sebi_inr": charges.get("sebi_inr"),
             "stamp_inr": charges.get("stamp_inr"),
             "charges_inr": charges["charges_inr"],

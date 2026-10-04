@@ -20,7 +20,16 @@ settings.load_profile(os.environ.get("HYPOTHESIS_PROFILE", "ci"))
 
 CFG = costs.load_config()
 FLAT_CFG = {**CFG, "exchange_fees": "nse_flat"}
-LINES = ("brokerage_inr", "gst_inr", "stt_inr", "exchange_inr", "sebi_inr", "stamp_inr", "charges_inr")
+LINES = (
+    "brokerage_inr",
+    "gst_inr",
+    "stt_inr",
+    "exchange_inr",
+    "ipft_inr",
+    "sebi_inr",
+    "stamp_inr",
+    "charges_inr",
+)
 unds = st.sampled_from(["NIFTY", "BANKNIFTY", "SENSEX"])
 qtys = st.integers(min_value=1, max_value=50_000)
 prices = st.integers(min_value=1, max_value=100_000).map(lambda n: round(n * 0.05, 2))  # on-tick premiums
@@ -49,8 +58,8 @@ def test_sensex_pays_less_exchange_fee_than_nifty(qty, buy, sell):
     nf = costs.realistic_charges("NIFTY", qty, buy, sell, CFG)
     assert sx["exchange"] == "BSE" and nf["exchange"] == "NSE"
     assert sx["exchange_inr"] <= nf["exchange_inr"]
-    assert {k: v for k, v in sx.items() if k not in ("exchange_inr", "gst_inr", "charges_inr", "exchange")} == \
-        {k: v for k, v in nf.items() if k not in ("exchange_inr", "gst_inr", "charges_inr", "exchange")}
+    skip = ("exchange_inr", "ipft_inr", "gst_inr", "charges_inr", "exchange")
+    assert {k: v for k, v in sx.items() if k not in skip} == {k: v for k, v in nf.items() if k not in skip}
 
 
 @given(unds, qtys, prices, prices)
@@ -66,7 +75,7 @@ def test_realistic_nse_flat_matches_legacy_within_documented_paise(und, qty, buy
     """D6: legacy rounds round-trip components; the ledger rounds per order. <= 1 paisa per line."""
     real = costs.realistic_charges(und, qty, buy, sell, FLAT_CFG)
     legacy = groww_round_trip_charges(exit_premium=sell, entry_premium=buy, qty=qty, filled=True)
-    for k in ("exchange_inr", "sebi_inr", "gst_inr"):
+    for k in ("exchange_inr", "ipft_inr", "sebi_inr", "gst_inr"):
         assert abs(real[k] - legacy[k]) <= 0.0201  # two orders, each off by at most half a paisa per line
     assert abs(real["charges_inr"] - legacy["charges_inr"]) <= 0.06
 

@@ -1,5 +1,20 @@
 # Handoff log — Team 09 Review
 
+## As of now (2026-10-04) — paper cost fixture not a five-pass
+
+```text
+From:     teams/09_review
+To:       00 / 06 / 07
+Date:     2026-10-04
+Status:   NOTES_ONLY / NO_PROMOTE
+Accepted: Rate swap is documented Dhan/NSE (FA/73061),
+  not invented. Clearing stays UNCLEAR. Status is
+  DHAN_NSE_SOURCED_NOT_CONTRACT_NOTE. Not a five-pass.
+  Not RESEARCH_READY_FOR_PROGRAMMING.
+Rejected: Treating ₹62.61 as contract-note authority.
+UNKNOWN: live Dhan note rounding.
+```
+
 ## As of now (2026-09-10) — API book is NOTES_ONLY
 
 ```text

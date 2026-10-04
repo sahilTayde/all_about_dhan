@@ -1,5 +1,22 @@
 # Handoff log — Team 06 Backtesting
 
+## As of now (2026-10-04) — invent/replay cost fixture NSE/FA/73061 (PAPER)
+
+```text
+From:     teams/06_backtesting
+To:       00 / 07 / 09
+Date:     2026-10-04
+Status:   PAPER / NO_PROMOTE
+Accepted: groww_round_trip_charges now uses NSE equity-
+  options txn 0.000355299 + IPFT 0.000000001; GST on
+  brokerage+txn+SEBI+IPFT. Invent-3/4 SURVIVE hurdle
+  (charges_inr(qty=65)/65 + 2*half-spread) will rise
+  with the fixture. Clearing still omitted.
+Rejected: Hardcoded old 0.0003503 / ₹62.53 hurdles.
+  Live trading. Win-rate claims.
+UNKNOWN: sealed ATM half-spread days (unchanged).
+```
+
 ## As of now (2026-09-28 IST) — retarget V2-20b #66 onto main fc5eba7 (PAPER)
 
 ```text

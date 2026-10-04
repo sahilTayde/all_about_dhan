@@ -27,7 +27,7 @@ settings.load_profile(os.environ.get("HYPOTHESIS_PROFILE", "ci"))
 CHARGES = Path(__file__).resolve().parents[3] / "config" / "charges.yaml"
 RATES = load_rates(CHARGES, by_exchange=True)
 FLAT = load_rates(CHARGES)
-LINES = ("brokerage", "stt", "exchange", "sebi", "stamp", "gst")
+LINES = ("brokerage", "stt", "exchange", "ipft", "sebi", "stamp", "gst")
 
 sides = st.sampled_from(["BUY", "SELL"])
 qtys = st.integers(min_value=0, max_value=50_000)
@@ -69,7 +69,9 @@ def test_exchange_and_sebi_lines_are_rate_times_turnover_to_the_paisa(side, qty,
     ch = order_charges(side, qty, price, r, exchange=exchange)
     turnover = Decimal(qty) * Decimal(str(price))
     frac = r["exchange_txn_frac"] if exchange is None else r["exchange_txn_frac_by_exchange"][exchange]
+    ipft_frac = r["ipft_frac"] if exchange is None else 0.0
     assert Decimal(str(ch["exchange"])) == paise(turnover * Decimal(str(frac)))
+    assert Decimal(str(ch["ipft"])) == paise(turnover * Decimal(str(ipft_frac)))
     assert Decimal(str(ch["sebi"])) == paise(turnover * Decimal(str(r["sebi_fee_frac"])))
 
 
@@ -77,7 +79,7 @@ def test_exchange_and_sebi_lines_are_rate_times_turnover_to_the_paisa(side, qty,
 def test_gst_is_18_percent_of_rounded_brokerage_exchange_sebi(side, qty, price, exchange, first):
     r = rates_for(exchange)
     ch = order_charges(side, qty, price, r, include_brokerage=first, exchange=exchange)
-    base = sum(Decimal(str(ch[k])) for k in ("brokerage", "exchange", "sebi"))
+    base = sum(Decimal(str(ch[k])) for k in ("brokerage", "exchange", "sebi", "ipft"))
     assert Decimal(str(ch["gst"])) == paise(base * Decimal(str(r["gst_frac"])))
 
 
@@ -110,10 +112,11 @@ def test_bse_never_above_nse_and_flat_rate_is_the_legacy_one(side, qty, price):
 
 
 def test_rates_and_exchange_map_pinned():
-    assert FLAT["exchange_txn_frac"] == 0.0003503  # legacy: unchanged by PR-B
+    assert FLAT["exchange_txn_frac"] == 0.000355299  # NSE/FA/73061 txn; IPFT is ipft_frac
+    assert FLAT["ipft_frac"] == 0.000000001
     assert RATES["exchange_txn_frac_by_exchange"] == {"NSE": 0.0003553, "BSE": 0.000325}
     assert set(FLAT) == {"brokerage_per_order_inr", "stt_sell_premium_frac", "exchange_txn_frac",
-                         "sebi_fee_frac", "stamp_duty_buy_frac", "gst_frac"}
+                         "ipft_frac", "sebi_fee_frac", "stamp_duty_buy_frac", "gst_frac"}
     assert exchange_for("SENSEX 82000 CE", RATES) == "BSE" == exchange_for("BANKEX", RATES)
     assert exchange_for("NIFTY-CE", RATES) == "NSE" == exchange_for("BANKNIFTY 55000 PE", RATES)
     assert exchange_for("SENSEX 82000 CE", FLAT) is None
@@ -140,4 +143,4 @@ def test_ledger_charges_sensex_at_bse_only_with_per_exchange_rates():
         per_ex.close()
     expected = sum(order_charges(s, 500, p, RATES, exchange="BSE")["total"] for s, p in (("BUY", 400.0), ("SELL", 410.0)))
     assert t_bse["charges"] == round(expected, 2)
-    assert t_bse["charges"] < t_flat["charges"]  # BSE 0.0325% < legacy flat 0.03503%
+    assert t_bse["charges"] < t_flat["charges"]  # BSE 0.0325% < NSE flat 0.0355299% + IPFT

@@ -19,10 +19,10 @@ from desk_ml.founder_session import save_founder_book
 FIXTURE = Path(__file__).resolve().parent / "fixtures" / "synthetic_session_nifty.json"
 REPO = Path(__file__).resolve().parents[3]
 LOTS = {"NIFTY": 65, "SENSEX": 20, "BANKNIFTY": 30}
-# canonical(board) on origin/main 0375e94 (before PR-B), same inputs. Legacy must never move these.
+# canonical(board) after Dhan/NSE FA/73061 paper rates (txn 0.000355299 + IPFT). Charges-only move.
 LEGACY_SHA = {
-    "fixture": "64bf3cd9d22c3368a21b93d4a2edf67328afc8811d6dadf5b065e676eeb90add",
-    "nifty_sensex": "ee4bb0e0f8a28378e4b7a091014d3d96ec491e60d7f25e1ecd2fec2b90c9bc7c",
+    "fixture": "002966884f2a25cece9c15fd7de0f032d7635ad688a7b499a184d60087f042f9",
+    "nifty_sensex": "b18383da257b091c9794a5918ba37038c6f3b54cdbc7ddace0e290eed785c77c",
 }
 REALISTIC_KEYS = {"cost_model", "decision_entry", "decision_exit", "slippage_inr", "quote_src", "quote_age_s",
                   "exit_pending_since_ts"}
@@ -73,7 +73,7 @@ def test_legacy_replay_is_byte_identical_to_pre_build(tmp_path, name, how):
     assert not any(REALISTIC_KEYS & set(r) for r in board["closed_trades"]), "legacy rows gained keys"
     assert board["cost_model"] == ps.groww_cost_meta()
     if name == "fixture":
-        assert (len(filled(board)), net(filled(board))) == (12, 69364.32)  # spec §1 synthetic parity
+        assert (len(filled(board)), net(filled(board))) == (12, 69309.1)  # same 12 trades; higher NSE txn/IPFT
 
 
 def test_default_is_legacy_and_env_or_kwarg_switches(monkeypatch):
@@ -299,7 +299,7 @@ def test_bse_fee_for_sensex_and_nse_march_2026_rate_for_nifty():
     assert (sx["exchange"], nf["exchange"], flat["exchange"]) == ("BSE", "NSE", "NSE_FLAT")
     assert sx["exchange_inr"] == 2 * 65.0  # 0.0325% x 2,00,000 per leg
     assert nf["exchange_inr"] == 2 * 71.06  # 0.03553% x 2,00,000 per leg
-    assert flat["exchange_inr"] == 2 * 70.06  # legacy 0.03503%
+    assert flat["exchange_inr"] == 2 * 71.06  # NSE txn 0.0355299% × 2,00,000/leg (paise)
     assert sx["brokerage_inr"] == 40.0 and sx["stt_inr"] == 300.0 and sx["stamp_inr"] == 6.0
 
 

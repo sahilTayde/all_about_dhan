@@ -12,8 +12,10 @@ Persistent, append-only trade ledger plus an Indian index-option charges calcula
 - Append-only: SQLite triggers abort any DELETE (and any UPDATE on fills, events, charges,
   decisions, recon runs).
 - Charges: `config/charges.yaml`, the same rates as the paper desk's
-  `desk_ml/groww_costs.py` (₹20/order, STT 0.15% sell, exchange 0.03503%, SEBI 0.0001%,
-  stamp 0.003% buy, GST 18%). Brokerage is charged once per order, not per partial fill.
+  `desk_ml/groww_costs.py` (₹20/order, STT 0.15% sell, NSE txn 0.0355299%, IPFT
+  0.0000001%, SEBI 0.0001%, stamp 0.003% buy, GST 18% on brokerage+txn+SEBI+IPFT).
+  Brokerage is charged once per order, not per partial fill. Paper model; not
+  contract-note authority. Clearing omitted (UNCLEAR).
 
 ```python
 from ledger import Ledger
