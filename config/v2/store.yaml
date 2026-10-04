@@ -1,0 +1,6 @@
+# V2-21 durable store. Paper only. Default is SQLite-WAL (architecture §3.2).
+# Flip to postgres + STATE_DSN after close; rollback = flip STATE_DSN back.
+engine: sqlite
+sqlite_path: data/state/aad.sqlite
+# Empty in git. Set STATE_DSN at runtime. Never commit credentials.
+dsn: ""
