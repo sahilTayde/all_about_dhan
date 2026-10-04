@@ -649,8 +649,9 @@ M1 does **not** mean a strategy is profitable, and it does not enable live order
 - **V2-23** Gateway auth (JWT, founder 2FA), role-scoped channels, rate limits, the customer `signals:public` channel
   with customer-safe copy (`CUSTOMER_TALK.md`).
 - **V2-24** Secret store (SOPS + age or Vault) and encrypted per-customer broker credentials.
-- **V2-25** Dhan shadow-mode order test harness (submit far off-market and cancel at once; PR-002's original
-  acceptance test). Runs only with the founder's explicit approval and credentials on the founder's machine.
+- **V2-25** Dhan shadow-mode order test harness (`packages/harness`; submit far off-market and cancel at
+  once; PR-002's original acceptance test). Runs only with the founder's explicit approval and credentials
+  on the founder's machine. Default OFF. CI uses mocks only.
 
 **Exit criteria:**
 1. M1 criteria hold for 20 more sessions on Postgres, with the REG suite green on both store engines.

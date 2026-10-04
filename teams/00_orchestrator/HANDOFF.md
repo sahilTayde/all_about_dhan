@@ -2,6 +2,27 @@
 
 **Agents:** read **only the newest block**. Do not ingest this whole log. New files: [`docs/FILE_CREATION.md`](../../docs/FILE_CREATION.md). Append here — do not create `HANDOFF_TOMORROW.md` or extra `CONTINUE_*`.
 
+## As of now (2026-10-04 IST) — V2-25 off-market shadow order harness (PAPER)
+
+```text
+From:     teams/00_orchestrator
+To:       founder / 07 / 09
+Date:     2026-10-04
+Status:   PAPER / V2-25 / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+Accepted: Isolated packages/harness. Default OFF.
+  Gates: founder approval phrase + credentials +
+  mode shadow|harness. Mock submit+cancel in CI.
+  Live transport is explicit --transport dhan only.
+  Off-market BUY LIMIT cap ₹1.05. MARKET refused.
+Rejected: Enabling DhanBroker / live_brokers.
+  Using ALL_ABOUT_DHAN_LIVE_CONFIRM as the flag.
+  Wiring into oms.router or dual-tape.
+  Marketable orders. STRAT-015+.
+UNKNOWN: Founder-machine --transport dhan run
+  (human). DATA_INSUFFICIENT until that happens.
+```
+
 ## As of now (2026-10-04 IST) — V2-26 Mac start hole (PAPER)
 
 ```text
