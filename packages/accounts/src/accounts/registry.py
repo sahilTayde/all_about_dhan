@@ -22,7 +22,7 @@ def default_config_path() -> Path:
 
 def _load_yaml(path: Path) -> dict[str, Any]:
     try:
-        import yaml
+        import yaml  # type: ignore[import-untyped]
     except ImportError as exc:  # pragma: no cover - CI lock always has PyYAML
         raise AccountClosed("YAML_UNAVAILABLE") from exc
     if not path.is_file():

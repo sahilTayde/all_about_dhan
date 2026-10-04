@@ -24,7 +24,7 @@ def assert_paper_only(mode: str) -> str:
 def refuse_broker_name(name: str) -> str:
     cleaned = (name or "").strip().lower()
     if cleaned in LIVE_BROKERS or cleaned in LIVE_MODES:
-        raise AccountSafetyError(f"V2 accounts fail-closed: broker {name!r} is not paper")
+        raise AccountSafetyError(f"V2 accounts fail-closed: broker {name!r} is live and cannot start")
     if cleaned not in BROKERS:
         raise AccountSafetyError(f"V2 accounts fail-closed: broker {name!r} is not paper|shadow")
     return cleaned

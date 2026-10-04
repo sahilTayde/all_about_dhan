@@ -82,8 +82,14 @@ class IsolatedBook:
             "net_qty": 0,
             "premium_inr": 0,
         }
-        pos["net_qty"] = int(pos["net_qty"]) + qty
-        pos["premium_inr"] = int(pos["premium_inr"]) + premium_inr
+        net = pos["net_qty"]
+        prem = pos["premium_inr"]
+        if not isinstance(net, int) or isinstance(net, bool):
+            raise AccountClosed("POSITION_CORRUPT")
+        if not isinstance(prem, int) or isinstance(prem, bool):
+            raise AccountClosed("POSITION_CORRUPT")
+        pos["net_qty"] = net + qty
+        pos["premium_inr"] = prem + premium_inr
         self.positions[key] = pos
         self.spent_inr += premium_inr
         self.append_row(
@@ -107,7 +113,7 @@ class IsolatedBook:
         if not signal_id:
             raise AccountClosed("SIGNAL_ID_REQUIRED")
         oid = order_id(self.account.account_id, signal_id, "entry")
-        row = {
+        row: dict[str, object] = {
             "account_id": self.account.account_id,
             "signal_id": signal_id,
             "client_order_id": oid,
