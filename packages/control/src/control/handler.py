@@ -28,6 +28,15 @@ from control.store import CommandStore, MemoryCommandStore
 KILL_NAME = "KILL_SWITCH"
 
 
+def _refuse_auth(raw: dict[str, Any]) -> str | None:
+    """V2-23: JWT/2FA payload on a command fails closed. Paper rows have no `auth`."""
+    try:
+        from control.authz import refuse_if_auth_present
+    except ImportError:
+        return "unauthorized" if "auth" in raw else None
+    return refuse_if_auth_present(raw)
+
+
 def _iso(now: datetime) -> str:
     return now.astimezone(IST).isoformat(timespec="seconds")
 
@@ -96,6 +105,9 @@ class ControlHandler:
         if err:
             ack = self._ack(raw, "rejected", err)
             return ack
+        auth_why = _refuse_auth(raw)
+        if auth_why:
+            return self._ack(raw, "rejected", auth_why)
         available = aware_ist(str(raw.get("available_ts") or _iso(self.clock.now())))
         if available > self.clock.now().astimezone(IST):
             ack = self._ack(raw, "pending", "available_ts in the future")

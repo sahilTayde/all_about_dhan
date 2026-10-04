@@ -1,5 +1,24 @@
 # Handoff log — Team 07 Coding
 
+## As of now (2026-10-04 IST) — V2-23 auth foundation (PAPER)
+
+```text
+From:     teams/07_coding
+To:       founder / 00 / 09
+Date:     2026-10-04
+Status:   PAPER / V2-23 stubs / NO_PROMOTE / no live orders
+Accepted: packages/auth fail-closed HS256 JWT + founder TOTP.
+  Control refuses customer / refresh / missing 2FA when
+  `auth` is present. Gateway verifies Bearer JWT, 2FA for
+  /v2/control, role channels, REST 10/s + WS 5/s + cmd 1/s.
+  Customer = signals:public + CUSTOMER_TALK fields.
+  Env names only in .env.example. No secrets in git.
+Rejected: pyjwt dependency (stdlib HMAC until V2-24).
+  Password login / SSO. Trusting query tokens.
+  Live orders. Legacy /paper/* gating.
+UNKNOWN: V2-22 account rows. V2-24 secret store.
+```
+
 ## As of now (2026-10-04 IST) — V2-26 Mac start hole (PAPER)
 
 ```text

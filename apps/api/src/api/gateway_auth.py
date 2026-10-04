@@ -1,10 +1,12 @@
-"""V2 gateway auth (pre-VPS): bearer / WS token, Host/Origin, bind, rate limit.
+"""V2 gateway auth: bearer / WS token, Host/Origin, bind, rate limit, JWT names.
 
-Paper only. JWT / 2FA stay V2-23. No secrets in logs. Legacy /paper/* and
-/founder/* are not gated here.
+Paper only. JWT / founder 2FA verify lives in ``packages/auth`` (V2-23).
+No secrets in logs. Legacy /paper/* and /founder/* are not gated here.
 
 Token sources (names only): AAD_GATEWAY_TOKEN, AAD_GATEWAY_TOKEN_FILE,
-AAD_GATEWAY_CUSTOMER_TOKEN, AAD_GATEWAY_CUSTOMER_TOKEN_FILE.
+AAD_GATEWAY_CUSTOMER_TOKEN, AAD_GATEWAY_CUSTOMER_TOKEN_FILE,
+AAD_JWT_SECRET, AAD_JWT_SECRET_FILE, AAD_FOUNDER_TOTP_SECRET,
+AAD_FOUNDER_TOTP_SECRET_FILE.
 Empty + bind 127.0.0.1 = localhost-dev (Mac, no token). Query string is
 never an auth channel. Mutating control commands are rate-limited (1/s).
 ``uvicorn --host`` is read at create_app time so ``0.0.0.0`` fails closed
@@ -29,6 +31,10 @@ TOKEN_ENV = "AAD_GATEWAY_TOKEN"
 TOKEN_FILE_ENV = "AAD_GATEWAY_TOKEN_FILE"
 CUSTOMER_TOKEN_ENV = "AAD_GATEWAY_CUSTOMER_TOKEN"
 CUSTOMER_TOKEN_FILE_ENV = "AAD_GATEWAY_CUSTOMER_TOKEN_FILE"
+JWT_ENV = "AAD_JWT_SECRET"
+JWT_FILE_ENV = "AAD_JWT_SECRET_FILE"
+TOTP_ENV = "AAD_FOUNDER_TOTP_SECRET"
+TOTP_FILE_ENV = "AAD_FOUNDER_TOTP_SECRET_FILE"
 BIND_ENV = "AAD_GATEWAY_BIND"
 HOSTS_ENV = "AAD_GATEWAY_HOSTS"
 ORIGINS_ENV = "AAD_GATEWAY_ORIGINS"
@@ -66,10 +72,16 @@ class GatewayAuth:
     extra_hosts: frozenset[str]
     extra_origins: frozenset[str]
     control_rate_per_s: float
+    jwt_secret: str = ""
+    totp_secret: str = ""
 
     @property
     def configured(self) -> bool:
-        return bool(self.founder_token or self.customer_token)
+        return bool(self.founder_token or self.customer_token or self.jwt_secret)
+
+    @property
+    def jwt_required(self) -> bool:
+        return bool(self.jwt_secret)
 
     @property
     def localhost_dev(self) -> bool:
@@ -188,6 +200,8 @@ def load_gateway_auth() -> GatewayAuth:
         extra_hosts=extra_hosts,
         extra_origins=extra_origins,
         control_rate_per_s=rate,
+        jwt_secret=_read_secret(JWT_ENV, JWT_FILE_ENV),
+        totp_secret=_read_secret(TOTP_ENV, TOTP_FILE_ENV),
     )
 
 
@@ -386,8 +400,12 @@ __all__ = [
     "CUSTOMER_TOKEN_ENV",
     "CUSTOMER_TOKEN_FILE_ENV",
     "DEFAULT_BIND",
+    "JWT_ENV",
+    "JWT_FILE_ENV",
     "TOKEN_ENV",
     "TOKEN_FILE_ENV",
+    "TOTP_ENV",
+    "TOTP_FILE_ENV",
     "AuthIdentity",
     "CommandRateLimiter",
     "GatewayAuth",
