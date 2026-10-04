@@ -124,6 +124,7 @@ jobs:
       - run: >-
           python -m ruff check packages/runtime packages/control packages/shadow packages/accounts
           packages/auth
+          packages/secretstore
           apps/api/src/api/v2_gateway.py
           apps/api/src/api/gateway_auth.py
           packages/warehouse/src/warehouse/etl.py
@@ -138,6 +139,7 @@ jobs:
       - run: >-
           python -m ruff format --check packages/runtime packages/control packages/shadow packages/accounts
           packages/auth
+          packages/secretstore
           apps/api/src/api/v2_gateway.py
           apps/api/src/api/gateway_auth.py
           packages/warehouse/src/warehouse/etl.py
@@ -166,6 +168,7 @@ jobs:
         run: >-
           python -m mypy --strict packages/runtime packages/control/src packages/shadow/src packages/accounts/src
           packages/auth/src
+          packages/secretstore/src
           packages/warehouse/src/warehouse/etl.py
           packages/warehouse/src/warehouse/calendar.py
           packages/premarket/src
@@ -193,6 +196,7 @@ jobs:
         run: >-
           python -m pytest -q -p no:cacheprovider --allow-hosts=127.0.0.1,localhost
           packages/runtime/tests packages/events/tests packages/shadow/tests
+          packages/secretstore/tests
 
   regression:
     runs-on: ubuntu-24.04

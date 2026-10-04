@@ -75,6 +75,22 @@ UNKNOWN: Session-night tape with closed 1m
   bars and non-PENDING_LAB plugins.
 ```
 
+## As of now (2026-10-04 IST) — V2-24 secret store (PAPER)
+
+```text
+From:     teams/07_coding
+To:       founder / 00 / 09
+Date:     2026-10-04
+Status:   PAPER / V2-24 / NO_PROMOTE
+Accepted: packages/secretstore + install.sh/CI
+  mypy --strict. Fake age keys in tmp only.
+  FileSecretStore + DiskBlobBackend.
+  AccountStub / MemoryAccounts Protocol.
+Rejected: cryptography lock pin. Live Dhan.
+  Committing identity files. Env fallback on.
+UNKNOWN: age CLI bit-compat with aad-age/v1.
+```
+
 ## As of now (2026-10-04 IST) — V2-26 Mac start hole (PAPER)
 
 ```text

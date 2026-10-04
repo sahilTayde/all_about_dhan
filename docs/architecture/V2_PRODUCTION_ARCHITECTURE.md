@@ -152,6 +152,8 @@ packages/
   shadow/src/shadow/           NEW   optional paper-only launcher beside legacy (V2-26)
       safety.py journal.py runner.py __main__.py  (data/shadow/v2/; no live broker)
   accounts/src/accounts/       NEW   V2-22 fail-closed paper/shadow account model + isolation + signal/exec split
+  secretstore/src/secretstore/ NEW   V2-24 SOPS/age-shaped per-account broker envelopes
+      crypto.py store.py accounts.py  (decrypt in-process only; /etc/aad/aad.env fallback)
   warehouse/                   REUSE+EXTEND  DuckDB ETL (adapts PR #19's etl.py)
   desk-ml/                     FROZEN legacy engine; regime/ and llm_analyst/ reused by import
   desk/  analysts/legacy.py    FROZEN legacy wrappers (desk/paper.py helpers reused)
@@ -1224,11 +1226,14 @@ and renames on success).
   `config/v2/markets/india.yaml` (sessions, half-spread table, lot source = instrument master), registry and baskets,
   plus the existing `risk_limits.yaml`, `charges.yaml`, `regime.yaml`, `llm_analyst.yaml`. `ENGINE_STATUS` publishes a
   `config_hash`, so every trade is tied to the config that made it.
-- **Secrets** (never in the repo; the repo is public): now, `/etc/aad/aad.env` (mode 600, owner `aad`) and
-  `/etc/aad/secrets/*` files mounted as Docker secrets. Names only in `.env.example`. Dhan token refresh runs as a
-  scheduled job that writes the secret file and signals `marketdata` to reload. Later (customer milestone), move to a
-  real secret store (SOPS + age in a private ops repo, or HashiCorp Vault / 1Password Connect), and keep per-customer
-  broker tokens encrypted at rest with a key held outside the database.
+- **Secrets** (never in the repo; the repo is public): `packages/secretstore` loads encrypted
+  per-account `aad-age/v1` blobs (X25519 + ChaCha20-Poly1305; SOPS/age-shaped) and decrypts only
+  in-process when a named account needs a broker session. The identity file lives outside git
+  (`AAD_AGE_IDENTITY_FILE`). `/etc/aad/aad.env` (mode 600, owner `aad`) and `/etc/aad/secrets/*`
+  remain the documented founder fallback (`AAD_SECRETS_ALLOW_ENV_FALLBACK=1`; off by default).
+  Names only in `.env.example`. Vault and 1Password Connect are Protocol adapters and fail closed
+  until configured. Dhan token refresh still writes the secret file and signals `marketdata` to
+  reload. Missing or wrong identity, or a missing/invalid envelope, refuses the session.
 - **Guards:** the secret scan from PR #16 (`scripts/ci/scan_repo.py`) runs in CI; logs pass through the existing
   redaction (`dhan_client.logging_util.redact_url`, `llm_analyst.context.scrub`); envelopes never contain credentials.
 

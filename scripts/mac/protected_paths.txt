@@ -9,6 +9,7 @@
 packages/runtime/**
 packages/shadow/**
 packages/accounts/**
+packages/secretstore/**
 packages/boss/**
 packages/contracts/**
 packages/events/**
