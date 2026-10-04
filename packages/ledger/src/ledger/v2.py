@@ -400,6 +400,12 @@ class SqliteLedgerStore:
     def close(self) -> None:
         self.conn.close()
 
+    def health_ping(self) -> dict[str, Any]:
+        row = self.conn.execute("SELECT 1").fetchone()
+        if row is None or int(row[0]) != 1:
+            raise RuntimeError("sqlite health ping failed")
+        return {"ok": True, "engine": "sqlite", "schema_version": self.schema_version}
+
     def transaction(self) -> SqliteTransaction:
         return SqliteTransaction(self)
 

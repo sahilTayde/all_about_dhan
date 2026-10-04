@@ -1,5 +1,21 @@
 # Handoff log — Team 07 Coding
 
+## As of now (2026-10-04 IST) — V2-21 Postgres LedgerStore (PAPER)
+
+```text
+From:     teams/07_coding
+To:       founder / 00 / 09
+Date:     2026-10-04
+Status:   PAPER / V2-21 / NO_PROMOTE
+Accepted: Postgres LedgerStore + STATE_DSN config +
+  fail-closed migrations + export/cutover checksums +
+  dual-engine CI (sqlite always; postgres when DSN set).
+  Default remains SQLite-WAL. No live broker.
+Rejected: Day-1 Postgres default. Live orders.
+  Rewriting V2-10 SqliteLedgerStore. Warehouse DuckDB retarget.
+UNKNOWN: Founder-box Postgres cutover after a real paper session.
+```
+
 ## As of now (2026-10-04 IST) — V2-26 Mac start hole (PAPER)
 
 ```text
