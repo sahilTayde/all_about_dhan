@@ -556,9 +556,7 @@ def _lookahead_suite(
             shuffled,
             i,
             entry=e,
-            day_index=_day_index_upto(
-                sess_idx.get(e.session) or [], shuffled[i - 1].available_ts
-            ),
+            day_index=_day_index_upto(sess_idx.get(e.session) or [], shuffled[i - 1].available_ts),
             regime=regime_of.get(e.session) or "unknown",
             expiry=_expiry(e.session),
         )
@@ -1202,11 +1200,7 @@ def run_round3(
     )
     ids_w = {e.entry_id for e in live_by_set[worst_set]}
     worst = sorted(
-        [
-            r
-            for r in by_plan_trades.get(best_pid, [])
-            if r.skipped is None and r.entry_id in ids_w
-        ],
+        [r for r in by_plan_trades.get(best_pid, []) if r.skipped is None and r.entry_id in ids_w],
         key=lambda r: r.net_inr / max(r.lots, 1),
     )[:30]
     worst_out = []
@@ -1272,9 +1266,9 @@ def run_round3(
         hs = half_spread_pts(e.moneyness)
         cut = max(2, len(mins) // 3)
         labs_a = labels_for(mins, half_spread=hs)["15"][cut:]
-        labs_b = labels_for(
-            shift_minutes(mins, seed=seed + 99 + label_n), half_spread=hs
-        )["15"][cut:]
+        labs_b = labels_for(shift_minutes(mins, seed=seed + 99 + label_n), half_spread=hs)["15"][
+            cut:
+        ]
         label_n += 1
         if labs_a != labs_b:
             label_changed += 1

@@ -21,7 +21,7 @@ class HistoryUnavailable(RuntimeError):
 
 def _require_pyarrow() -> Any:
     try:
-        import pyarrow.parquet as pq  # type: ignore[import-untyped]
+        import pyarrow.parquet as pq  # type: ignore[import-not-found,import-untyped,unused-ignore]
     except ImportError as exc:
         raise HistoryUnavailable(
             "pyarrow is required for --history parquet. Tests use synthetic bars."
