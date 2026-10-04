@@ -1,5 +1,23 @@
 # Handoff log — Team 07 Coding
 
+## As of now (2026-10-04 IST) — V2-26 shadow launcher (PAPER)
+
+```text
+From:     teams/07_coding
+To:       founder / 00 / 09
+Date:     2026-10-04
+Status:   PAPER / V2-26 / NO_PROMOTE
+Accepted: packages/shadow + desk.sh hooks +
+  .venv-v2 install of contracts/events/runtime/shadow.
+  Kernel + TapeSource only. No DhanBroker.
+  No oms.router. No desk.paper write.
+Rejected: Live modes. Morning auto-start.
+  Copying legacy CANCEL/COVER exits.
+  Installing into .venv.
+UNKNOWN: Live recorder tail on a session
+  night (human). Feed-down is fail-closed.
+```
+
 ## As of now (2026-09-28 IST) — P0 CPython 3.9 legacy import (PAPER)
 
 ```text

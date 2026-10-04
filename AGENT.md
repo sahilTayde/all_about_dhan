@@ -26,7 +26,7 @@ Legacy tuning stays **uncommitted** or on `legacy-tuning/<date>`. Do not push it
 
 **FORBIDDEN (V2)**
 
-Never edit, move, delete, reformat, or refactor a path in `scripts/mac/protected_paths.txt` (`packages/runtime`, `packages/boss`, `packages/contracts`, `packages/events`, `packages/oms`, `packages/strategies`, `packages/indicators`, `packages/health`, `packages/control`, `packages/dhan-client`, `packages/marketdata`, `config/v2/**`, `deploy/docker/**`, V2 docs, `scripts/ci/**`, `requirements/**`, `tests/regression/**`, gateway v2 files, this guard).
+Never edit, move, delete, reformat, or refactor a path in `scripts/mac/protected_paths.txt` (`packages/runtime`, `packages/shadow`, `packages/boss`, `packages/contracts`, `packages/events`, `packages/oms`, `packages/strategies`, `packages/indicators`, `packages/health`, `packages/control`, `packages/dhan-client`, `packages/marketdata`, `config/v2/**`, `deploy/docker/**`, V2 docs, `scripts/ci/**`, `requirements/**`, `tests/regression/**`, gateway v2 files, this guard).
 
 Never `git reset --hard`, `git clean`, or `git checkout --` on a protected path. Never force-push. Never push to `main` / `master`.
 
