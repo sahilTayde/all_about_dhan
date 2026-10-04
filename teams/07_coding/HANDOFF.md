@@ -12,11 +12,29 @@ Accepted: packages/harness fail-closed gates +
   MockOrderBroker submit+cancel. dhan_live imported
   only after --transport dhan. CI install/lint/mypy
   include harness. No DhanBroker. No oms.router.
-  Merged main f23b787 (#78 V2-23) without enabling live.
+  Merged main 14c739f (#76 V2-21) without enabling live.
 Rejected: Default live client. Mode live/limited_live.
   Dual-tape edits. Exit playbook promote.
 UNKNOWN: Real Dhan ACK+CANCEL latency on the
   founder machine (human).
+```
+
+## As of now (2026-10-04 IST) — V2-21 Postgres LedgerStore (PAPER)
+
+```text
+From:     teams/07_coding
+To:       founder / 00 / 09
+Date:     2026-10-04
+Status:   PAPER / V2-21 / NO_PROMOTE
+Accepted: Postgres LedgerStore + STATE_DSN config +
+  fail-closed migrations + export/cutover checksums +
+  dual-engine CI (sqlite always; postgres when DSN set).
+  Default remains SQLite-WAL. No live broker.
+  Merged origin/main: hygiene #35 deletes kept;
+  V2-27 basket + V2-23 auth foundation kept.
+Rejected: Day-1 Postgres default. Live orders.
+  Rewriting V2-10 SqliteLedgerStore. Warehouse DuckDB retarget.
+UNKNOWN: Founder-box Postgres cutover after a real paper session.
 ```
 
 ## As of now (2026-10-04 IST) — V2-23 auth foundation (PAPER)

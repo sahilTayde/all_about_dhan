@@ -5,13 +5,14 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "ledger"
 version = "0.1.0+aad"
-description = "Append-only SQLite paper ledger and Indian index-option charges. No live orders."
+description = "Append-only paper ledger (SQLite-WAL default, Postgres V2-21). No live orders."
 readme = "README.md"
 requires-python = ">=3.9"
 dependencies = ["PyYAML>=6"]
 
 [project.optional-dependencies]
 dev = ["pytest>=8", "hypothesis>=6"]
+postgres = ["psycopg[binary]>=3.2"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
@@ -22,7 +23,7 @@ ledger = ["py.typed"]
 [tool.mypy]
 python_version = "3.11"
 strict = true
-files = ["src/ledger/migrate.py", "src/ledger/v2.py", "src/ledger/__main__.py"]
+files = ["src/ledger/migrate.py", "src/ledger/v2.py", "src/ledger/__main__.py", "src/ledger/postgres.py", "src/ledger/export.py"]
 
 [tool.ruff]
 line-length = 120

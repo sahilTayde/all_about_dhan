@@ -38,8 +38,21 @@ def is_legacy_path(path: Path | str) -> bool:
 
 
 def list_migration_files() -> list[Path]:
+    """Shared `NNN_name.sql` only. Dialect files are `NNN_name.pg.sql` / `.sqlite.sql`."""
     files = sorted(migrations_dir().glob("*.sql"))
-    return [f for f in files if re.match(r"^\d{3}_", f.name)]
+    return [f for f in files if re.fullmatch(r"\d{3}_[a-z0-9_]+\.sql", f.name)]
+
+
+def list_dialect_files(engine: str) -> list[Path]:
+    """Per-engine append-only triggers (`NNN_name.pg.sql`)."""
+    suffix = "pg" if engine in {"pg", "postgres", "postgresql"} else engine
+    files = sorted(migrations_dir().glob(f"*.{suffix}.sql"))
+    return [f for f in files if re.fullmatch(rf"\d{{3}}_[a-z0-9_]+\.{suffix}\.sql", f.name)]
+
+
+def version_of(path: Path) -> int:
+    m = re.match(r"^(\d{3})_", path.name)
+    return int(m.group(1)) if m else 0
 
 
 def current_version(conn: sqlite3.Connection) -> int:
@@ -89,9 +102,7 @@ def _record_version(conn: sqlite3.Connection, version: int) -> None:
     )
 
 
-def _version_of(path: Path) -> int:
-    m = re.match(r"^(\d{3})_", path.name)
-    return int(m.group(1)) if m else 0
+_version_of = version_of
 
 
 def _install_v3_triggers(conn: sqlite3.Connection) -> None:
@@ -127,8 +138,14 @@ def migrate(
     *,
     allow_legacy: bool = False,
     files: Iterable[Path] | None = None,
+    dsn: str | None = None,
 ) -> int:
     """Apply pending numbered SQL files. Returns the resulting schema_version."""
+    target = dsn if dsn is not None else str(path)
+    if str(target).startswith(("postgres://", "postgresql://")):
+        from ledger.postgres import migrate_postgres
+
+        return migrate_postgres(str(target))
     db = Path(path)
     if is_legacy_path(db) and not allow_legacy:
         raise LegacyPathError(f"refusing to migrate legacy DB {db}; pass allow_legacy=True to invoke explicitly")
@@ -141,18 +158,18 @@ def migrate(
         conn.execute("PRAGMA synchronous=FULL")
         check_schema(conn)
         applied = current_version(conn)
-        pending = [f for f in (files if files is not None else list_migration_files()) if _version_of(f) > applied]
+        pending = [f for f in (files if files is not None else list_migration_files()) if version_of(f) > applied]
         for f in pending:
             _apply_sql(conn, f.read_text(encoding="utf-8"))
-            _record_version(conn, _version_of(f))
-            if _version_of(f) >= 2:
+            _record_version(conn, version_of(f))
+            if version_of(f) >= 2:
                 conn.execute(
                     "CREATE TRIGGER IF NOT EXISTS outbox_no_update BEFORE UPDATE ON outbox "
                     "BEGIN SELECT CASE WHEN NEW.event_id != OLD.event_id OR NEW.stream != OLD.stream "
                     "OR NEW.envelope_json != OLD.envelope_json OR NEW.created_at != OLD.created_at "
                     "OR NEW.seq != OLD.seq THEN RAISE(ABORT, 'ledger is append-only') END; END"
                 )
-            if _version_of(f) >= 3:
+            if version_of(f) >= 3:
                 _install_v3_triggers(conn)
             conn.commit()
         ver = current_version(conn)
