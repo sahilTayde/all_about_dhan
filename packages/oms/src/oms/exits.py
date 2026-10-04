@@ -68,6 +68,7 @@ TICK_KINDS = frozenset({"TICK", "DEPTH_QUOTE", "QUOTE_SNAPSHOT"})
 HOUSE_MAX_LOSS_INR = 30000.0
 PREMIUM_TICK = 0.05
 DEFAULTS_RELATIVE = Path("config/v2/exits/defaults.yaml")
+EXITLAB_PLAYBOOK_RELATIVE = Path("config/v2/exits/exitlab_playbook.yaml")
 _INDIA = India()
 
 
@@ -153,6 +154,34 @@ def freeze_fill_levels(
             float(atr.k),
             float(atr_val),
         )
+
+
+def load_exitlab_playbook(
+    path: Path | None = None,
+    *,
+    enabled: bool = False,
+) -> dict[str, Any] | None:
+    """Opt-in Exit Lab playbook. Returns None unless `enabled` is True.
+
+    Default callers pass nothing; live/V2 defaults are unchanged. The YAML
+    itself also has `enabled: false`. Both must be on before a mapping is
+    returned. Paper/replay only.
+    """
+    if not enabled:
+        return None
+    target = path if path is not None else EXITLAB_PLAYBOOK_RELATIVE
+    if not target.is_file():
+        raise ExitPlanLoadError(f"exitlab playbook missing: {target}")
+    import yaml
+
+    loaded = yaml.safe_load(target.read_text(encoding="utf-8"))
+    if not isinstance(loaded, dict):
+        raise ExitPlanLoadError("exitlab playbook YAML must be a mapping")
+    if not loaded.get("enabled"):
+        return None
+    from exitlab.playbook import playbook_to_exit_plan_mapping
+
+    return playbook_to_exit_plan_mapping(loaded)
 
 
 def load_exit_defaults(path: Path | None = None) -> tuple[dict[str, Any], str]:

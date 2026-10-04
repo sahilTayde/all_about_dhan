@@ -85,6 +85,9 @@ data/**/audio/*.m4a
 # Purchased / founder book PDFs — notes only in git (copyright)
 teams/01_research/**/*.pdf
 
+# Local research payloads (live tapes, option 1m samples). Never commit.
+.local_data/
+
 # Scratch / agent dumps — never commit
 today_gemini*
 yesterday_gemini*
