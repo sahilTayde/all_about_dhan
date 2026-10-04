@@ -15,12 +15,34 @@ Accepted: Isolated packages/harness. Default OFF.
   mode shadow|harness. Mock submit+cancel in CI.
   Live transport is explicit --transport dhan only.
   Off-market BUY LIMIT cap ₹1.05. MARKET refused.
+  Merged main 5d10946 (#74 V2-27) without touching
+  basket files.
 Rejected: Enabling DhanBroker / live_brokers.
   Using ALL_ABOUT_DHAN_LIVE_CONFIRM as the flag.
   Wiring into oms.router or dual-tape.
   Marketable orders. STRAT-015+.
 UNKNOWN: Founder-machine --transport dhan run
   (human). DATA_INSUFFICIENT until that happens.
+```
+
+## As of now (2026-10-04 IST) — V2-27 paper/shadow basket (PAPER)
+
+```text
+From:     teams/00_orchestrator
+To:       founder / 07 / 09
+Date:     2026-10-04
+Status:   PAPER / V2-27 / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+Accepted: V2 shadow journals use a founder-approved
+  paper/shadow basket + registry + exit defaults.
+  Dry-run shows ENTER. Approved basket shows
+  explicit PENDING_LAB. Fail closed on missing
+  basket / live stage. Dual-tape unchanged.
+Rejected: Live orders. Improving the old engine.
+  TEST-CROSS in the approved basket.
+  Legacy CANCEL/COVER. STRAT-015+.
+UNKNOWN: One Mac session-night with a dated
+  basket that can emit besides PENDING_LAB.
 ```
 
 ## As of now (2026-10-04 IST) — V2-26 Mac start hole (PAPER)

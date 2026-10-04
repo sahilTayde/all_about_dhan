@@ -2,7 +2,7 @@
 
 Paper replay writes one JSON object per line to `data/shadow/<YYYY-MM-DD>.jsonl`. The directory is created at runtime and gitignored. Nothing in this file is an order.
 
-V2 shadow launcher (optional, paper only) writes a **separate** book under `data/shadow/v2/YYYY-MM-DD/` (`decisions.jsonl`, `pnl.jsonl`, `compare.json`). It does not replace this legacy file and does not own the live paper book. See `packages/shadow/README.md`.
+V2 shadow launcher (optional, paper only) writes a **separate** book under `data/shadow/v2/YYYY-MM-DD/` (`decisions.jsonl`, `pnl.jsonl`, `compare.json`). It loads the founder-approved paper/shadow basket (`config/v2/baskets/approved_paper_shadow.yaml` or a dated file) plus `config/v2/exits/defaults.yaml`. Rows are `ENTER` or an explicit V2 abstain (`PENDING_LAB`, `NO_BASKET`, `NO_CLOSED_BAR`, …) — not HOLD-only. It does not replace this legacy file and does not own the live paper book. See `packages/shadow/README.md`.
 
 Default is on. Set `SHADOW_LOG=0` or `engine.shadow_log = False` to skip the write. A crash inside the shadow code is logged and the paper engine continues with the same ticket.
 
