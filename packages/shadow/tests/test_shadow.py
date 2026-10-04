@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import subprocess
 import sys
 from pathlib import Path
 
@@ -174,6 +175,28 @@ def test_sources_never_import_live_or_legacy_engine() -> None:
         assert "from desk.paper" not in text, path
         assert "from oms.router" not in text, path
         assert "COVER_LONG_UNWIND" not in text, path
+
+
+def test_runner_import_does_not_need_brokers() -> None:
+    script = r"""
+import sys
+
+class _BlockBrokers:
+    def find_spec(self, fullname, path=None, target=None):
+        if fullname == "brokers" or fullname.startswith("brokers."):
+            raise ModuleNotFoundError("No module named 'brokers'")
+        return None
+
+sys.meta_path.insert(0, _BlockBrokers())
+import shadow.runner
+assert shadow.runner.follow_tape is not None
+assert "runtime.recovery" not in sys.modules
+assert "brokers" not in sys.modules
+print("ok")
+"""
+    proc = subprocess.run([sys.executable, "-c", script], check=False, capture_output=True, text=True)
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+    assert "ok" in proc.stdout
 
 
 def test_importing_shadow_does_not_load_live_modules() -> None:

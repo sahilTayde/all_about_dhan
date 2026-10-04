@@ -1,5 +1,23 @@
 # Handoff log — Team 07 Coding
 
+## As of now (2026-10-04 IST) — V2-26 Mac start hole (PAPER)
+
+```text
+From:     teams/07_coding
+To:       founder / 00 / 09
+Date:     2026-10-04
+Status:   PAPER / V2-26 fix / NO_PROMOTE
+Accepted: Lazy runtime.recovery so kernel/shadow.runner
+  import without brokers. desk.sh proves
+  import shadow.runner and python -m shadow,
+  then fail-closed if the follower dies.
+  .venv-v2 still has no brokers/ledger/risk-engine.
+Rejected: Installing brokers into .venv-v2.
+  Widening legacy .venv. Live orders.
+  Playbook enable. Replacing dual-tape.
+UNKNOWN: Session-night compare still missing.
+```
+
 ## As of now (2026-10-04 IST) — V2-26 shadow launcher (PAPER)
 
 ```text

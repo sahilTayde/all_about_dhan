@@ -302,6 +302,21 @@ shadow_is_running() {
   shadow_screen_up || [[ -n "$(shadow_pids)" ]]
 }
 
+shadow_prove_follower() {
+  # import shadow is not enough: runtime/__init__ used to pull brokers via recovery.
+  local err
+  if ! err="$("$V2_PY" -c "import shadow.runner" 2>&1)"; then
+    echo "ERROR: import shadow.runner failed in .venv-v2 — shadow will not start (legacy desk still runs)" >&2
+    printf '%s\n' "$err" | tail -8 >&2
+    return 1
+  fi
+  if ! err="$("$V2_PY" -m shadow -h 2>&1)"; then
+    echo "ERROR: python -m shadow failed in .venv-v2 — shadow will not start (legacy desk still runs)" >&2
+    printf '%s\n' "$err" | tail -8 >&2
+    return 1
+  fi
+}
+
 shadow_start() {
   if shadow_is_running; then
     echo "ERROR: v2 shadow already running (screen $SHADOW_SCREEN). Refusing a second copy." >&2
@@ -311,21 +326,32 @@ shadow_start() {
     echo "ERROR: $V2_PY missing. Run ./scripts/mac_setup_v2.sh (does not touch .venv)." >&2
     return 1
   fi
-  if ! "$V2_PY" -c "import shadow" >/dev/null 2>&1; then
-    echo "ERROR: shadow import failed in .venv-v2 — shadow will not start (legacy desk still runs)" >&2
-    return 1
-  fi
+  shadow_prove_follower || return 1
   mkdir -p "$SHADOW_DIR"
   rm -f "$SHADOW_DIR/STOPPED.flag"
-  local wrap="" day
+  local wrap="" day i
   day="$(ist_date)"
   if [[ "$(uname -s)" == "Darwin" ]] && command -v caffeinate >/dev/null 2>&1; then
     wrap="caffeinate -dimsu "
   fi
   # Follow today's recorder tape read-only. Missing tape fails closed (no invented ticks).
   screen -dmS "$SHADOW_SCREEN" zsh -lc "cd '$ROOT' && ${wrap}'$V2_PY' -u -m shadow follow --state-dir '$SHADOW_DIR' --tape '$TAPE_V2/$day' --day '$day' --stop-flag '$SHADOW_DIR/STOPPED.flag' >> '$SHADOW_DIR/shadow.log' 2>&1"
-  echo "v2 shadow STARTED (PAPER, log-only, account=v2-shadow). screen=$SHADOW_SCREEN"
-  echo "v2 shadow does not own the live paper book. Legacy dual-tape still does."
+  for i in 1 2 3 4 5 6; do
+    if shadow_is_running; then
+      echo "v2 shadow STARTED (PAPER, log-only, account=v2-shadow). screen=$SHADOW_SCREEN"
+      echo "v2 shadow does not own the live paper book. Legacy dual-tape still does."
+      return 0
+    fi
+    sleep 0.5
+  done
+  echo "ERROR: v2 shadow follower died after start (fail closed). Last log:" >&2
+  if [[ -f "$SHADOW_DIR/shadow.log" ]]; then
+    tail -20 "$SHADOW_DIR/shadow.log" >&2 || true
+  else
+    echo "(no $SHADOW_DIR/shadow.log)" >&2
+  fi
+  screen -S "$SHADOW_SCREEN" -X quit >/dev/null 2>&1 || true
+  return 1
 }
 
 shadow_stop() {
@@ -435,10 +461,10 @@ preflight() {
     else
       echo "v2 imports: ok (dhan_client, marketdata)"
     fi
-    if ! "$V2_PY" -c "import shadow" >/dev/null 2>&1; then
-      echo "WARNING: shadow import failed in .venv-v2 — shadow-start will not run (legacy desk still starts)"
+    if ! "$V2_PY" -c "import shadow.runner" >/dev/null 2>&1; then
+      echo "WARNING: shadow.runner import failed in .venv-v2 — shadow-start will not run (legacy desk still starts)"
     else
-      echo "v2 imports: ok (shadow)"
+      echo "v2 imports: ok (shadow.runner)"
     fi
   fi
 

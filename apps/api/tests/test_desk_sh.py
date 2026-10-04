@@ -211,6 +211,9 @@ def test_d_mac_setup_v2_never_touches_legacy_venv() -> None:
     assert "packages/shadow" in text
     assert "packages/runtime" in text
     assert "packages/contracts" in text
+    assert "packages/brokers" not in text
+    assert "packages/ledger" not in text
+    assert "packages/risk-engine" not in text
     assert "does not touch .venv" in text or "legacy .venv" in text.lower()
 
 
@@ -287,6 +290,118 @@ def test_e_shadow_start_refuses_second_copy(tmp_path: Path) -> None:
     assert "Refusing a second copy" in proc.stderr
 
 
+def test_e_shadow_start_requires_runner_not_just_shadow(tmp_path: Path) -> None:
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    _write_exec(bin_dir / "pgrep", "#!/bin/sh\nexit 1\n")
+    _write_exec(bin_dir / "screen", "#!/bin/sh\nexit 0\n")
+    v2 = tmp_path / "venv-v2" / "bin"
+    v2.mkdir(parents=True)
+    _write_exec(
+        v2 / "python",
+        textwrap.dedent(
+            """\
+            #!/bin/sh
+            if [ "$1" = "-c" ]; then
+              case "$2" in
+                *shadow.runner*)
+                  echo "ModuleNotFoundError: No module named 'brokers'" >&2
+                  exit 1
+                  ;;
+                *import*shadow*)
+                  exit 0
+                  ;;
+              esac
+            fi
+            if [ "$1" = "-m" ] && [ "$2" = "shadow" ]; then
+              exit 0
+            fi
+            exit 0
+            """
+        ),
+    )
+    proc = _source(
+        tmp_path,
+        "shadow_start",
+        env={
+            "PATH": f"{bin_dir}:/usr/bin:/bin",
+            "AAD_V2_PY": str(v2 / "python"),
+            "AAD_SHADOW": str(tmp_path / "shadow-v2"),
+        },
+    )
+    assert proc.returncode != 0
+    assert "import shadow.runner failed" in proc.stderr
+    assert "STARTED" not in proc.stdout
+
+
+def test_e_shadow_start_requires_python_m_shadow(tmp_path: Path) -> None:
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    _write_exec(bin_dir / "pgrep", "#!/bin/sh\nexit 1\n")
+    _write_exec(bin_dir / "screen", "#!/bin/sh\nexit 0\n")
+    v2 = tmp_path / "venv-v2" / "bin"
+    v2.mkdir(parents=True)
+    _write_exec(
+        v2 / "python",
+        textwrap.dedent(
+            """\
+            #!/bin/sh
+            if [ "$1" = "-c" ]; then
+              exit 0
+            fi
+            if [ "$1" = "-m" ] && [ "$2" = "shadow" ]; then
+              echo "ModuleNotFoundError: No module named 'brokers'" >&2
+              exit 1
+            fi
+            exit 0
+            """
+        ),
+    )
+    proc = _source(
+        tmp_path,
+        "shadow_start",
+        env={
+            "PATH": f"{bin_dir}:/usr/bin:/bin",
+            "AAD_V2_PY": str(v2 / "python"),
+            "AAD_SHADOW": str(tmp_path / "shadow-v2"),
+        },
+    )
+    assert proc.returncode != 0
+    assert "python -m shadow failed" in proc.stderr
+    assert "STARTED" not in proc.stdout
+
+
+def test_e_shadow_start_fails_closed_if_follower_dies(tmp_path: Path) -> None:
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    _write_exec(bin_dir / "pgrep", "#!/bin/sh\nexit 1\n")
+    _write_exec(bin_dir / "screen", "#!/bin/sh\nexit 0\n")
+    v2 = tmp_path / "venv-v2" / "bin"
+    v2.mkdir(parents=True)
+    _write_exec(
+        v2 / "python",
+        textwrap.dedent(
+            """\
+            #!/bin/sh
+            exit 0
+            """
+        ),
+    )
+    proc = _source(
+        tmp_path,
+        "shadow_start",
+        env={
+            "PATH": f"{bin_dir}:/usr/bin:/bin",
+            "AAD_V2_PY": str(v2 / "python"),
+            "AAD_SHADOW": str(tmp_path / "shadow-v2"),
+        },
+    )
+    assert proc.returncode != 0
+    assert "follower died after start" in proc.stderr
+    assert "fail closed" in proc.stderr
+    assert "STARTED" not in proc.stdout
+
+
 def test_e_shadow_start_missing_venv_does_not_touch_legacy(tmp_path: Path) -> None:
     proc = _source(
         tmp_path,
@@ -341,7 +456,9 @@ def test_legacy_pythonpath_includes_desk_and_risk_engine(tmp_path: Path) -> None
         env={"PYTHONPATH": ""},
     )
     assert proc.returncode == 0, proc.stdout + proc.stderr
-    src_line = next(line for line in proc.stdout.splitlines() if line.startswith("SRC="))
+    src_line = next(
+        line for line in proc.stdout.splitlines() if line.startswith("SRC=")
+    )
     pp_line = next(line for line in proc.stdout.splitlines() if line.startswith("PP="))
     for required in (
         "packages/desk/src",
