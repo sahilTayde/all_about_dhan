@@ -11,9 +11,31 @@ Accepted: Postgres LedgerStore + STATE_DSN config +
   fail-closed migrations + export/cutover checksums +
   dual-engine CI (sqlite always; postgres when DSN set).
   Default remains SQLite-WAL. No live broker.
+  Merged origin/main: hygiene #35 deletes kept;
+  V2-27 paper/shadow basket kept.
 Rejected: Day-1 Postgres default. Live orders.
   Rewriting V2-10 SqliteLedgerStore. Warehouse DuckDB retarget.
 UNKNOWN: Founder-box Postgres cutover after a real paper session.
+```
+
+## As of now (2026-10-04 IST) — V2-27 paper/shadow basket (PAPER)
+
+```text
+From:     teams/07_coding
+To:       founder / 00 / 09
+Date:     2026-10-04
+Status:   PAPER / V2-27 / NO_PROMOTE
+Accepted: Shadow loads registry + exits/defaults.yaml +
+  approved_paper_shadow.yaml (dated YAML wins).
+  Dry-run TEST-CROSS ENTER. Approved R8 rows
+  log PENDING_LAB. SHADOW_FLAT only.
+  Mac: ls basket then shadow-start; dual-tape stays.
+Rejected: Live / live_eligible basket stages.
+  TEST-CROSS in the real basket. Legacy
+  CANCEL/COVER. Replacing dual-tape.
+  STRAT-015+. Playbook enable.
+UNKNOWN: Session-night tape with closed 1m
+  bars and non-PENDING_LAB plugins.
 ```
 
 ## As of now (2026-10-04 IST) — V2-26 Mac start hole (PAPER)

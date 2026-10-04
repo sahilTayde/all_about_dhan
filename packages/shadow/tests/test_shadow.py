@@ -73,13 +73,16 @@ def test_fixture_tape_hold_only(tmp_path: Path) -> None:
     result = run_once(tape=tape, state_dir=tmp_path / "state", mode="paper", day="2026-10-04")
     assert result.closed_reason is None
     assert result.envelopes == 3
-    assert result.decisions == 3
-    assert result.holds == 3
+    assert result.decisions >= 1
     assert result.opens == 0
     rows = list(ShadowJournal(tmp_path / "state").iter_jsonl(tmp_path / "state" / "2026-10-04" / "decisions.jsonl"))
+    assert rows
     assert all(row["action"] == "HOLD" for row in rows)
     assert all(row["account_id"] == "v2-shadow" for row in rows)
     assert all(row["schema"] == SCHEMA for row in rows)
+    reasons = {row["reason"] for row in rows}
+    assert "NO_SIGNAL_PLUGIN" not in reasons
+    assert reasons & {"PENDING_LAB", "NO_CLOSED_BAR", "PLUGIN_ABSTAIN", "STRATEGY_REFUSED"}
 
 
 def test_demo_fills_isolated_pnl(tmp_path: Path) -> None:
@@ -123,7 +126,7 @@ def test_follow_then_stop(tmp_path: Path) -> None:
         sleep=lambda _s: stop.write_text("1\n", encoding="utf-8"),
         max_idle_polls=3,
     )
-    assert result.decisions == 3
+    assert result.decisions >= 1
     assert result.opens == 0
 
 
@@ -133,7 +136,7 @@ def test_compare_read_only_legacy(tmp_path: Path) -> None:
     legacy = tmp_path / "legacy.jsonl"
     legacy.write_text('{"schema":"shadow-v1","index":"NIFTY"}\n', encoding="utf-8")
     body = compare_day(state_dir=tmp_path / "state", day="2026-10-04", legacy_path=legacy)
-    assert body["v2"]["decisions"] == 3
+    assert body["v2"]["decisions"] >= 1
     assert body["legacy"]["rows"] == 1
     assert body["orders"] == "REFUSED"
     assert body["promote"] is False
@@ -151,6 +154,9 @@ def test_cli_dry_run(tmp_path: Path) -> None:
     rc = main(["dry-run", "--state-dir", str(tmp_path), "--day", "2026-10-04", "--mode", "paper"])
     assert rc == 0
     assert (tmp_path / "2026-10-04" / "pnl.jsonl").is_file()
+    rows = list(ShadowJournal(tmp_path).iter_jsonl(tmp_path / "2026-10-04" / "decisions.jsonl"))
+    assert any(row["action"] == "ENTER" for row in rows)
+    assert all(row["reason"] != "NO_SIGNAL_PLUGIN" for row in rows)
 
 
 def test_cli_demo_fills_refused_on_run(tmp_path: Path) -> None:
