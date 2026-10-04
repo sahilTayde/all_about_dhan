@@ -1,5 +1,23 @@
 # Handoff log — Team 07 Coding
 
+## As of now (2026-10-04 IST) — C5-01 5 customer paper accounts (PAPER)
+
+```text
+From:     teams/07_coding
+To:       founder / 00 / 09 / 05
+Date:     2026-10-04
+Status:   PAPER / C5-01 / NO_PROMOTE
+Accepted: Founder cut 10→5. Templates
+  customer-01..customer-05 disabled.
+  Registry cap 5. Isolation fail-closed
+  across the 5 ids. Enable/disable refuse
+  live. customer-06 unknown / 6th refused.
+Rejected: Live broker. Shared book.
+  Auto-enable. 6th customer. signals:public.
+UNKNOWN: Wiring IsolatedBook into oms/ledger
+  for five concurrent exec processes.
+```
+
 ## As of now (2026-10-04 IST) — C10-01 10 customer paper accounts (PAPER)
 
 ```text

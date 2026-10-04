@@ -26,7 +26,7 @@ def _account_payload(acc: Account) -> dict[str, object]:
 
 def main(argv: list[str] | None = None) -> int:
     raw = list(sys.argv[1:] if argv is None else argv)
-    p = argparse.ArgumentParser(description="C10-01 accounts (paper/shadow only; no live broker)")
+    p = argparse.ArgumentParser(description="C5-01 accounts (paper/shadow only; no live broker)")
     p.add_argument("command", choices=("list", "show", "enable", "disable", "signal", "exec"))
     p.add_argument("--account", default=None)
     p.add_argument("--config", default=None)

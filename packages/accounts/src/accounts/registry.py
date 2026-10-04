@@ -11,11 +11,11 @@ from accounts.model import STATUSES, Account
 from accounts.safety import assert_active, assert_paper_only, refuse_broker_name
 
 _REPO_ROOT = Path(__file__).resolve().parents[4]
-MAX_CUSTOMER_ACCOUNTS = 10
+MAX_CUSTOMER_ACCOUNTS = 5
 PAPER_LAUNCH_CUSTOMER_IDS = tuple(f"customer-{i:02d}" for i in range(1, MAX_CUSTOMER_ACCOUNTS + 1))
 CUSTOMER_TEMPLATE_BUDGET_INR = 1000
 _WRITE_HEADER = (
-    "# V2 C10-01 paper/shadow accounts. Fail closed. No live broker. No secrets.\n"
+    "# V2 C5-01 paper/shadow accounts. Fail closed. No live broker. No secrets.\n"
     "# Enable: python -m accounts enable --account customer-01\n"
     "# Disable: python -m accounts disable --account customer-01\n"
 )

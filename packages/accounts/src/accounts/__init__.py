@@ -1,4 +1,4 @@
-"""V2-22 / C10-01 accounts layer. Paper/shadow only. Fail closed. No live broker."""
+"""V2-22 / C5-01 accounts layer. Paper/shadow only. Fail closed. No live broker."""
 
 from accounts.errors import AccountClosed, AccountIsolationError, AccountSafetyError
 from accounts.isolation import IsolatedBook, bind_book, ledger_partition, position_key, position_stream

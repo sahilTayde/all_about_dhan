@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "accounts"
 version = "0.1.0+aad"
-description = "V2-22 / C10-01 fail-closed paper/shadow accounts, 10-customer isolation, and signal/exec split. No live broker."
+description = "V2-22 / C5-01 fail-closed paper/shadow accounts, 5-customer isolation, and signal/exec split. No live broker."
 readme = "README.md"
 requires-python = ">=3.11"
 # Sibling in-repo packages (contracts) are installed by scripts/ci/install.sh

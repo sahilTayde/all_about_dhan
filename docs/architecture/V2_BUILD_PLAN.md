@@ -664,11 +664,11 @@ M1 does **not** mean a strategy is profitable, and it does not enable live order
 - **V2-21** Postgres `LedgerStore` + export/cutover tool + dual-engine CI (section 3.2).
 - **V2-22** Accounts, per-account isolation, and the signal/exec split (sections 2.15, 5.6), with isolation tests.
   Landed as `packages/accounts` + `config/v2/accounts.yaml` (paper `founder`, shadow `v2-shadow`).
-  **C10-01 (paper launch cut):** directory also lists disabled `customer-01`…`customer-10`
-  (`python -m accounts list|enable|disable`). Customer count capped at 10. Optional overlay
-  `config/v2/accounts/customers.example.yaml` via `AAD_CUSTOMERS`. Isolation tests cover N=10
+  **C5-01 (paper launch cut):** directory also lists disabled `customer-01`…`customer-05`
+  (`python -m accounts list|enable|disable`). Customer count capped at 5. Optional overlay
+  `config/v2/accounts/customers.example.yaml` via `AAD_CUSTOMERS`. Isolation tests cover N=5
   books. `python -m runtime signal` is shared; `python -m runtime exec --account` binds one book.
-  Fail closed: live broker, unknown/disabled account, cross-account read/write/size, 11th customer.
+  Fail closed: live broker, unknown/disabled account, cross-account read/write/size, 6th customer.
   No live Dhan. Customers still do not get `signals:public` here.
 - **V2-23** Gateway auth (JWT, founder 2FA), role-scoped channels, rate limits, the customer `signals:public` channel
   with customer-safe copy (`CUSTOMER_TALK.md`). **Stubs landed (2026-10-04):** fail-closed stdlib HS256 JWT + founder
