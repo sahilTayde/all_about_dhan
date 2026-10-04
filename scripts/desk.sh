@@ -13,6 +13,11 @@
 #   ./scripts/desk.sh shadow-start     # optional V2 paper shadow (log-only; never blocks legacy)
 #   ./scripts/desk.sh shadow-stop      # stop V2 shadow; leave data/shadow/v2 journals
 #   ./scripts/desk.sh shadow-status    # process + last status.json
+#   ./scripts/desk.sh c5-start         # shared runtime signal once + <=5 customer execs (paper only)
+#   ./scripts/desk.sh c5-status        # last C5 launch + ready files (no re-plan)
+#   ./scripts/desk.sh c5-stop          # mark C5 stopped; leave paper ledgers
+#   ./scripts/desk.sh c5-backup        # tarball of data/c5 paper state
+#   ./scripts/desk.sh c5-restore       # restore dry-run (needs --snapshot)
 #   ./scripts/desk.sh close            # after 15:30: stop capture + v2 recorder + shadow, keep website, honesty + nightly
 #   ./scripts/desk.sh status           # pids / URLs / where to read reports
 #
@@ -632,6 +637,10 @@ EOF
   shadow-status)
     shadow_status
     ;;
+  c5-start|c5-status|c5-stop|c5-backup|c5-restore|c5-plan)
+    shift
+    "$ROOT/scripts/c5_ops.sh" "${CMD#c5-}" "$@"
+    ;;
   status)
     write_status
     echo "=== desk status ==="
@@ -713,7 +722,7 @@ PY
     exec "$0" close
     ;;
   *)
-    echo "usage: $0 morning|close|website|status|watch-open|watch-close|preflight|recorder-start|recorder-stop|recorder-status|shadow-start|shadow-stop|shadow-status" >&2
+    echo "usage: $0 morning|close|website|status|watch-open|watch-close|preflight|recorder-start|recorder-stop|recorder-status|shadow-start|shadow-stop|shadow-status|c5-start|c5-status|c5-stop|c5-backup|c5-restore" >&2
     exit 2
     ;;
 esac

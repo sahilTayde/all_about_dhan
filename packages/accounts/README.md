@@ -15,6 +15,14 @@ python -m accounts disable --account customer-01
 python -m accounts show --account customer-01
 python -m runtime signal --once --state-dir /tmp/v2-signal
 python -m runtime exec --account founder --once --state-dir /tmp/v2-exec
+
+# C5-04 founder ops (paper/shadow only; never live)
+./scripts/desk.sh c5-start --dry-run
+./scripts/desk.sh c5-start             # one shared signal + <=5 customer execs
+./scripts/desk.sh c5-status
+./scripts/desk.sh c5-backup
+./scripts/desk.sh c5-restore --dry-run --snapshot data/c5-backups/c5-paper.tgz
+./scripts/desk.sh c5-stop
 ```
 
 Enable writes `status: active` on that row in `config/v2/accounts.yaml` (or `--config`). `--mode live` / broker `dhan` is refused. A disabled customer still appears on `list` and fails `require_active` / `runtime exec`.
@@ -25,5 +33,7 @@ Enable writes `status: active` on that row in `config/v2/accounts.yaml` (or `--c
 | `config/v2/accounts/customers.example.yaml` | Optional overlay template. Copy to gitignored `customers.yaml` and set `AAD_CUSTOMERS` only if the main file does not already list those ids |
 | `ledger:<account_id>` | Per-account ledger partition |
 | `pos:<account_id>` | Per-account position stream |
+| `data/c5/signal` | Shared C5 `runtime signal` state (not the legacy book) |
+| `data/c5/exec/<id>` | Per-account C5 `runtime exec` state |
 
-Fail closed: unknown / disabled / halted account, live broker name, missing config, more than 5 customer rows, or a cross-account read/write/size.
+Fail closed: unknown / disabled / halted account, live broker name, missing config, more than 5 customer rows, a cross-account read/write/size, **C5 live mode**, **>5 active customer execs**, missing `data/c5` state dirs, or a C5 state path under `data/recon` / `data/shadow` / `paper_watch`. Founder + `v2-shadow` execs are opt-in (`--with-founder` / `--with-shadow`) and do not count toward the 5-customer cap. Night checklist: root `README.md` § 5-customer paper night.

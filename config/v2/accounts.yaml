@@ -8,6 +8,7 @@
 #   python -m accounts disable --account customer-01
 # List:
 #   python -m accounts list
+# Paper night (C5-04): ./scripts/desk.sh c5-start  (active customers only; cap 5)
 #
 # Optional overlay: copy config/v2/accounts/customers.example.yaml to a private
 # customers.yaml (gitignored) and set AAD_CUSTOMERS to that path. Do not duplicate

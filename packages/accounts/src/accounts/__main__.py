@@ -26,7 +26,13 @@ def _account_payload(acc: Account) -> dict[str, object]:
 
 def main(argv: list[str] | None = None) -> int:
     raw = list(sys.argv[1:] if argv is None else argv)
-    p = argparse.ArgumentParser(description="C5-01 accounts (paper/shadow only; no live broker)")
+    if raw and raw[0] not in {"-h", "--help"}:
+        head = raw[0].replace("_", "-")
+        if head.startswith("c5"):
+            from accounts.c5 import cli
+
+            return cli(raw)
+    p = argparse.ArgumentParser(description="C5-01/C5-04 accounts (paper/shadow only; no live broker)")
     p.add_argument("command", choices=("list", "show", "enable", "disable", "signal", "exec"))
     p.add_argument("--account", default=None)
     p.add_argument("--config", default=None)
