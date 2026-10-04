@@ -11,7 +11,7 @@ From the repo root. PAPER. No live orders.
 | **Website** | `./scripts/desk.sh website` | Runs `preflight`, then API `:8000` + Vite `:5173`. Capture off. |
 | **Open** (Mon–Fri 09:30 IST) | `./scripts/desk.sh watch-open` | Dual-tape (2s). If `health.supervise` is missing in `.venv`, starts dual-tape directly. |
 | **V2 recorder** | `./scripts/desk.sh recorder-start` | `caffeinate -dimsu` on macOS; `.venv-v2/bin/python -m marketdata --record-only` in screen `v2-recorder`. Refuses a second copy. Failure only warns — it does not stop the legacy desk. |
-| **V2 shadow** (optional) | `./scripts/desk.sh shadow-start` | `.venv-v2/bin/python -m shadow follow` in screen `v2-shadow`. Reads today's tape **only**. Logs decisions/P&L under `data/shadow/v2/`. Never owns the live paper book. Failure only warns — legacy keeps running. |
+| **V2 shadow** (optional) | Confirm `config/v2/baskets/approved_paper_shadow.yaml` (or a dated `config/v2/baskets/YYYY-MM-DD.yaml`), then `./scripts/desk.sh shadow-start` | `.venv-v2/bin/python -m shadow follow` in screen `v2-shadow`. Reads today's tape **only**. Loads the founder-approved paper/shadow basket + `config/v2/exits/defaults.yaml`. Logs `ENTER` or an explicit V2 abstain under `data/shadow/v2/`. Never owns the live paper book. Does **not** replace dual-tape. Failure only warns — legacy keeps running. |
 | **Checks** | `./scripts/desk.sh status` and `./scripts/desk.sh recorder-status` / `shadow-status` | Pids, URLs, last line of `data/tape/v2/<IST-date>/recorder.log`, last `data/shadow/v2/<IST-date>/status.json`. |
 | **After close** (15:40 IST) | `./scripts/desk.sh close` | Stops dual-tape **and** the v2 recorder/shadow if still up (tapes + shadow journals left intact). **Keeps the website on.** Honesty + nightly. |
 | **Morning shortcut** | `./scripts/desk.sh morning` | `preflight` + pre-market drill + API + website + arms `watch-open`. Then open `/pm`, pick index, **START TRADE**. |
@@ -24,7 +24,9 @@ From the repo root. PAPER. No live orders.
 ./scripts/desk.sh website
 ./scripts/desk.sh watch-open
 ./scripts/desk.sh recorder-start
-./scripts/desk.sh shadow-start          # optional; paper log-only
+ls config/v2/baskets/approved_paper_shadow.yaml   # paper/shadow basket; not dual-tape
+./scripts/desk.sh shadow-start          # optional; paper log-only; does not replace dual-tape
+.venv-v2/bin/python -m shadow dry-run   # ENTER or explicit V2 abstain
 ./scripts/desk.sh status
 ./scripts/desk.sh recorder-status
 ./scripts/desk.sh shadow-status

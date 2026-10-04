@@ -160,6 +160,11 @@ run in parallel. `REG-nn` ids refer to section 3; each ticket ships the regressi
   (`.venv-v2` vs `.venv`) in `README.md` and `SESSION_PREP_ML.md`.
 - Depends on: V2-01, V2-03, V2-04.
 
+**V2-27 Founder-approved paper/shadow basket in V2 shadow** (`packages/shadow`, `config/v2/baskets/`, ~400 lines)
+- Wire `config/v2/strategies/registry.yaml` + `config/v2/exits/defaults.yaml` into the V2-26 launcher so journals are not HOLD/`NO_SIGNAL_PLUGIN` only. Dated `config/v2/baskets/YYYY-MM-DD.yaml` (or K6 JSON) wins; otherwise `approved_paper_shadow.yaml`. `TEST-CROSS` is dry-run only. Live / `live_eligible` stages refuse. Missing basket, registry, or exit defaults fail closed (no invented trades). Closed 1m bars evaluate enabled plugins; `ENTER` writes isolated `SHADOW_OPEN` / `SHADOW_FLAT` (never legacy `CANCEL` / `COVER_LONG_UNWIND`). Disabled R8 rows log `PENDING_LAB` (or another explicit V2 abstain). Dual-tape stays the live paper book.
+- Acceptance: dry-run shows `ENTER` (TEST-CROSS fixture) **or** an explicit V2 abstain; unit tests refuse live stages, `TEST-CROSS` in the approved basket, and missing basket/exits; `SHADOW_FLAT` only; ruff + mypy `--strict`; Mac steps in `packages/shadow/README.md` and `SESSION_PREP_ML.md` start basket + `shadow-start` without replacing dual-tape.
+- Depends on: V2-26, V2-06.
+
 **V2-04 Engine kernel, config loader, job deadlines** (`packages/runtime/kernel.py`, `wiring.py`, `jobs.py`,
 `packages/runtime/config.py`, ~450 lines)
 - `Engine(source, clock, bus, handlers, store, mode)`, one transaction per input, checkpoint, rehydrate mode (router

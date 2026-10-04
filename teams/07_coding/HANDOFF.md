@@ -19,6 +19,26 @@ Rejected: pyjwt dependency (stdlib HMAC until V2-24).
 UNKNOWN: V2-22 account rows. V2-24 secret store.
 ```
 
+## As of now (2026-10-04 IST) — V2-27 paper/shadow basket (PAPER)
+
+```text
+From:     teams/07_coding
+To:       founder / 00 / 09
+Date:     2026-10-04
+Status:   PAPER / V2-27 / NO_PROMOTE
+Accepted: Shadow loads registry + exits/defaults.yaml +
+  approved_paper_shadow.yaml (dated YAML wins).
+  Dry-run TEST-CROSS ENTER. Approved R8 rows
+  log PENDING_LAB. SHADOW_FLAT only.
+  Mac: ls basket then shadow-start; dual-tape stays.
+Rejected: Live / live_eligible basket stages.
+  TEST-CROSS in the real basket. Legacy
+  CANCEL/COVER. Replacing dual-tape.
+  STRAT-015+. Playbook enable.
+UNKNOWN: Session-night tape with closed 1m
+  bars and non-PENDING_LAB plugins.
+```
+
 ## As of now (2026-10-04 IST) — V2-26 Mac start hole (PAPER)
 
 ```text
