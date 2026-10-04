@@ -15,7 +15,7 @@ Accepted: Isolated packages/harness. Default OFF.
   mode shadow|harness. Mock submit+cancel in CI.
   Live transport is explicit --transport dhan only.
   Off-market BUY LIMIT cap ₹1.05. MARKET refused.
-  Merged main 964c66e (#75 V2-22) without enabling live.
+  Merged main d26297f (#79 V2-24) without enabling live.
 Rejected: Enabling DhanBroker / live_brokers.
   Using ALL_ABOUT_DHAN_LIVE_CONFIRM as the flag.
   Wiring into oms.router or dual-tape.
@@ -61,6 +61,24 @@ Rejected: Live orders. Improving the old engine.
   Legacy CANCEL/COVER. STRAT-015+.
 UNKNOWN: One Mac session-night with a dated
   basket that can emit besides PENDING_LAB.
+```
+
+## As of now (2026-10-04 IST) — V2-24 secret store (PAPER)
+
+```text
+From:     teams/00_orchestrator
+To:       founder / 07 / 09
+Date:     2026-10-04
+Status:   PAPER / V2-24 / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+Accepted: packages/secretstore aad-age/v1 envelopes.
+  Decrypt in-process only. Missing/wrong key refuse.
+  /etc/aad/aad.env founder fallback off by default.
+  Vault/1Password Protocol stubs fail closed.
+  AccountDirectory Protocol (V2-22 not required).
+Rejected: Real tokens in git. Live Dhan session.
+  New STRAT. Wiring exec/OMS to credentials.
+UNKNOWN: Real age-CLI / sops interop on an ops box.
 ```
 
 ## As of now (2026-10-04 IST) — V2-26 Mac start hole (PAPER)
