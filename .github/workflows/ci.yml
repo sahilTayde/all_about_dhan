@@ -123,7 +123,9 @@ jobs:
       - run: python -m pip install ruff
       - run: >-
           python -m ruff check packages/runtime packages/control packages/shadow packages/accounts
+          packages/auth
           apps/api/src/api/v2_gateway.py
+          apps/api/src/api/gateway_auth.py
           packages/warehouse/src/warehouse/etl.py
           packages/warehouse/src/warehouse/calendar.py
           packages/warehouse/src/warehouse/__init__.py
@@ -135,7 +137,9 @@ jobs:
           packages/strategies/src/strategies/plugins/r8_e3_hv_gate.py
       - run: >-
           python -m ruff format --check packages/runtime packages/control packages/shadow packages/accounts
+          packages/auth
           apps/api/src/api/v2_gateway.py
+          apps/api/src/api/gateway_auth.py
           packages/warehouse/src/warehouse/etl.py
           packages/warehouse/src/warehouse/calendar.py
           packages/warehouse/src/warehouse/__init__.py
@@ -161,6 +165,7 @@ jobs:
       - name: mypy --strict on new packages
         run: >-
           python -m mypy --strict packages/runtime packages/control/src packages/shadow/src packages/accounts/src
+          packages/auth/src
           packages/warehouse/src/warehouse/etl.py
           packages/warehouse/src/warehouse/calendar.py
           packages/premarket/src

@@ -4,15 +4,16 @@ Paper only. Browser never talks to Dhan or Redis. Control actions never place
 an entry. Timestamps are IST (+05:30). No look-ahead: envelopes with
 available_ts in the future are refused. Legacy /ui/* and /ws/* stay as they are.
 
-Auth (pre-VPS): Bearer header, first WS message, or Sec-WebSocket-Protocol.
-Never a real credential on the URL query. Empty gateway token + bind
-127.0.0.1 = localhost-dev (Mac). JWT / 2FA stay V2-23. A client-supplied
-role is never trusted. Mutating control commands are rate-limited (1/s).
-GET /v2/control is not. Missing/unknown gateway token = customer.
-Subscribe cannot change token or role. Control routes are localhost-only
-unless the founder token is present (V2-13 auth on). The paper `founder`
-query token is a role label, not gateway auth, and must be replaced
-before any non-localhost deploy.
+Auth: Bearer header, first WS message, or Sec-WebSocket-Protocol.
+Never a real credential on the URL query. Empty gateway token + empty
+JWT secret + bind 127.0.0.1 = localhost-dev (Mac). V2-23 JWT / founder
+2FA (packages/auth) fail closed when AAD_JWT_SECRET is set. A client-
+supplied role is never trusted. Mutating control commands are rate-
+limited (1/s). JWT mode also caps REST 10/s and WS subscribe 5/s.
+GET /v2/control is not command-rate-limited. Missing/unknown shared
+token = customer. Subscribe cannot change token or role. Control routes
+are localhost-only unless the founder token or a founder JWT+2FA is
+present. The paper `founder` query token is a role label, not a secret.
 """
 
 from __future__ import annotations
@@ -44,11 +45,22 @@ from api.gateway_auth import (
     CommandRateLimiter,
     GatewayAuth,
     audit_control,
+    bearer_from_authorization,
     check_host_origin,
     identity_from_headers,
     identity_from_token,
     query_has_auth_attempt,
+    tokens_from_protocol,
 )
+
+try:
+    from auth import AuthRateLimiter, looks_like_jwt, verify_access
+    from control.authz import authorize_command as jwt_authorize_command
+except (ImportError, TypeError, SyntaxError):  # pragma: no cover - legacy 3.9 venv
+    AuthRateLimiter = None  # type: ignore[misc, assignment]
+    looks_like_jwt = None  # type: ignore[assignment]
+    verify_access = None  # type: ignore[assignment]
+    jwt_authorize_command = None  # type: ignore[assignment]
 
 IST = timezone(timedelta(hours=5, minutes=30))
 CONTROL_FLAG = "AAD_V2_CONTROL_ROUTES"
@@ -572,6 +584,54 @@ def _settings(request: Request) -> GatewayAuth:
     return request.app.state.v2_auth  # type: ignore[no-any-return]
 
 
+def _now_ts(request: Request) -> float:
+    hub: GatewayHub = request.app.state.v2_hub
+    return hub.clock.now().timestamp()
+
+
+def _jwt_decision(token: str | None, settings: GatewayAuth, now: float) -> Any:
+    if verify_access is None or looks_like_jwt is None or not settings.jwt_secret:
+        return None
+    if not looks_like_jwt(token):
+        return None
+    return verify_access(token, settings.jwt_secret, now)
+
+
+def _attach_jwt(
+    request: Request, ident: AuthIdentity | None, settings: GatewayAuth
+) -> AuthIdentity | None:
+    request.state.v2_auth_decision = None
+    bearer = bearer_from_authorization(request.headers.get("authorization"))
+    decision = _jwt_decision(bearer, settings, _now_ts(request))
+    if decision is None:
+        return ident
+    if not decision.ok:
+        raise HTTPException(
+            status_code=401,
+            detail={
+                "ok": False,
+                "code": str(decision.reason).upper(),
+                "orders": "REFUSED",
+            },
+        )
+    request.state.v2_auth_decision = decision
+    return AuthIdentity(role=decision.role, source="jwt")
+
+
+def _rate_limit_rest(request: Request) -> None:
+    settings = _settings(request)
+    limiter = getattr(request.app.state, "v2_auth_rates", None)
+    if not settings.jwt_required or limiter is None:
+        return
+    key = request.client.host if request.client else "unknown"
+    if limiter.allow(f"rest:{key}", "rest"):
+        return
+    raise HTTPException(
+        status_code=429,
+        detail={"ok": False, "code": "RATE_LIMIT", "orders": "REFUSED"},
+    )
+
+
 def _http_identity(request: Request, *, control: bool = False) -> AuthIdentity | None:
     settings = _settings(request)
     reason = check_host_origin(
@@ -588,12 +648,14 @@ def _http_identity(request: Request, *, control: bool = False) -> AuthIdentity |
             detail={"ok": False, "code": "QUERY_TOKEN_REFUSED", "orders": "REFUSED"},
         )
     ident = identity_from_headers(request.headers.get("authorization"), None, settings)
+    ident = _attach_jwt(request, ident, settings)
     if settings.auth_required and ident is None:
         raise HTTPException(
             status_code=401,
             detail={"ok": False, "code": "UNAUTHORIZED", "orders": "REFUSED"},
         )
-    _ = control  # rate-limit is apply-only; see _rate_limit_command
+    if not control:
+        _rate_limit_rest(request)
     return ident
 
 
@@ -703,7 +765,16 @@ def _host_name(header: str | None) -> str:
 
 
 def authorize_control(request: Request, token: str | None) -> None:
-    """Founder token (V2-13 auth on) or localhost. Customer tokens never pass."""
+    """Founder JWT+2FA, founder paper token, or localhost. Customer never passes."""
+    decision = getattr(request.state, "v2_auth_decision", None)
+    if decision is not None and jwt_authorize_command is not None:
+        why = jwt_authorize_command(decision, required=True)
+        if why:
+            raise HTTPException(
+                403,
+                {"ok": False, "code": why.upper(), "orders": "REFUSED"},
+            )
+        return
     raw = (token or "").strip()
     if raw and role_from_token(raw) != "founder":
         raise HTTPException(403, "founder controls are founder-only")
@@ -915,6 +986,28 @@ async def v2_ws(
         websocket.headers.get("sec-websocket-protocol"),
         settings,
     )
+    jwt_now = websocket.app.state.v2_hub.clock.now().timestamp()
+    bearer = bearer_from_authorization(websocket.headers.get("authorization"))
+    if bearer is None:
+        for _offered, cand in tokens_from_protocol(
+            websocket.headers.get("sec-websocket-protocol")
+        ):
+            bearer = cand
+            break
+    decision = _jwt_decision(bearer, settings, jwt_now)
+    if decision is not None:
+        if not decision.ok:
+            await websocket.accept()
+            await websocket.send_json(
+                {"op": "error", "code": str(decision.reason).upper()}
+            )
+            await websocket.close(code=4401)
+            return
+        ident = AuthIdentity(
+            role=decision.role,
+            source="jwt",
+            subprotocol=getattr(ident, "subprotocol", None) if ident else None,
+        )
     first: dict[str, Any] | None = None
     if settings.auth_required and ident is None:
         await websocket.accept()
@@ -926,7 +1019,18 @@ async def v2_ws(
         if not isinstance(raw_first, dict):
             await websocket.close(code=4401)
             return
-        ident = identity_from_token(str(raw_first.get("token") or "") or None, settings)
+        first_token = str(raw_first.get("token") or "") or None
+        decision = _jwt_decision(first_token, settings, jwt_now)
+        if decision is not None:
+            if not decision.ok:
+                await websocket.send_json(
+                    {"op": "error", "code": str(decision.reason).upper()}
+                )
+                await websocket.close(code=4401)
+                return
+            ident = AuthIdentity(role=decision.role, source="jwt")
+        else:
+            ident = identity_from_token(first_token, settings)
         if ident is None:
             await websocket.send_json({"op": "error", "code": "UNAUTHORIZED"})
             await websocket.close(code=4401)
@@ -955,6 +1059,19 @@ async def v2_ws(
             except TimeoutError:
                 continue
             if isinstance(body, dict):
+                if (
+                    body.get("op") == "subscribe"
+                    and settings.jwt_required
+                    and getattr(websocket.app.state, "v2_auth_rates", None) is not None
+                ):
+                    key = websocket.client.host if websocket.client else "unknown"
+                    if not websocket.app.state.v2_auth_rates.allow(
+                        f"ws:{key}", "ws_subscribe"
+                    ):
+                        await websocket.send_json(
+                            {"op": "error", "code": "RATE_LIMIT", "orders": "REFUSED"}
+                        )
+                        continue
                 hub.handle_op(client, body)
     except WebSocketDisconnect:
         pass
@@ -1036,6 +1153,11 @@ def attach_gateway(app: Any, bus: EventBus | None = None) -> GatewayHub:
             bus.subscribe(["FOUNDER_COMMAND"], _on_cmd, priority=0)
     if getattr(app.state, "v2_tokens", None) is None:
         app.state.v2_tokens = ConfirmTokens()
+    if (
+        getattr(app.state, "v2_auth_rates", None) is None
+        and AuthRateLimiter is not None
+    ):
+        app.state.v2_auth_rates = AuthRateLimiter()
     return hub
 
 
