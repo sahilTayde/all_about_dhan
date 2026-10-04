@@ -176,6 +176,43 @@ class FileSecretStore:
             raise SecretClosed("invalid_envelope")
         return credential_from_dict(payload, account_id=aid)
 
+    def put_hmac_secret(self, name: str, value: str, recipient: AgeRecipient) -> Path:
+        """Seal a named HMAC (JWT signing key). Not a broker credential. Disk only."""
+        if not isinstance(self.backend, DiskBlobBackend):
+            raise SecretClosed("adapter_not_configured", "put requires disk backend")
+        aid = _safe_account_id(name)
+        secret = str(value or "").strip()
+        if not secret:
+            raise SecretClosed("invalid_envelope", "empty hmac")
+        payload = {"kind": "hmac", "name": aid, "value": secret}
+        blob = seal(recipient, json.dumps(payload, separators=(",", ":")).encode("utf-8"), account_id=f"sys.{aid}")
+        path = self.backend.root / "system" / f"{aid}.sops.json"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(blob)
+        return path
+
+    def hmac_secret(self, name: str) -> str:
+        """Decrypt a named HMAC. Fail closed. Never used on the JWT verify hot path."""
+        aid = _safe_account_id(name)
+        path = self.backend.root / "system" / f"{aid}.sops.json"
+        try:
+            blob = path.read_bytes()
+        except OSError as exc:
+            raise SecretClosed("missing_envelope") from exc
+        if self.identity is None:
+            raise SecretClosed("missing_identity")
+        plain = open_envelope(self.identity, blob, account_id=f"sys.{aid}")
+        try:
+            payload = json.loads(plain.decode("utf-8"))
+        except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+            raise SecretClosed("invalid_envelope") from exc
+        if not isinstance(payload, dict) or payload.get("kind") != "hmac" or payload.get("name") != aid:
+            raise SecretClosed("invalid_envelope", "hmac payload")
+        value = payload.get("value")
+        if not isinstance(value, str) or not value.strip():
+            raise SecretClosed("invalid_envelope", "empty hmac")
+        return value.strip()
+
     def _fallback(self, account_id: str) -> BrokerCredential:
         if not self.allow_env_fallback or account_id != self.founder_account_id:
             raise SecretClosed("missing_envelope" if not self.allow_env_fallback else "fallback_disabled")

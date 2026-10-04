@@ -39,10 +39,11 @@ Catalogs and transcripts under `data/` are gitignored. Do not commit dumps that 
 
 ## V2 gateway (JWT / founder 2FA)
 
-- Names only: `AAD_JWT_SECRET`, `AAD_JWT_SECRET_FILE`, `AAD_FOUNDER_TOTP_SECRET`, `AAD_FOUNDER_TOTP_SECRET_FILE`.
+- Names only: `AAD_JWT_SECRET`, `AAD_JWT_SECRET_FILE`, `AAD_JWT_SECRET_STORE_ID`, `AAD_FOUNDER_TOTP_SECRET`, `AAD_FOUNDER_TOTP_SECRET_FILE`, `AAD_PAPER_CUSTOMERS`.
 - Empty signing key or TOTP seed **fails closed** (cannot issue or verify). Do not invent a default secret.
+- C5-02 paper portal: max 5 customer ids + founder. Customer claims stay `signals:public`. Verify is in-process HMAC (no secretstore on the hot path).
 - Never put JWT values, TOTP seeds, or bearer tokens in git, chat, or logs. Gateway audit lines record result codes only.
-- Query-string credentials are refused. Secret store and encrypted broker creds are V2-24.
+- Query-string credentials are refused. Secret store HMAC `system/jwt.sops.json` is optional for issue/login only.
 
 ## V2 secret store (V2-24)
 

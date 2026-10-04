@@ -49,17 +49,24 @@ from api.gateway_auth import (
     check_host_origin,
     identity_from_headers,
     identity_from_token,
+    is_loopback_bind,
     query_has_auth_attempt,
     tokens_from_protocol,
 )
 
 try:
-    from auth import AuthRateLimiter, looks_like_jwt, verify_access
+    from auth import AuthClosed, AuthRateLimiter, looks_like_jwt, verify_access
+    from auth.login import login as issue_login
+    from auth.login import paper_customer_allowlist, refresh_session
     from control.authz import authorize_command as jwt_authorize_command
 except (ImportError, TypeError, SyntaxError):  # pragma: no cover - legacy 3.9 venv
+    AuthClosed = None  # type: ignore[misc, assignment]
     AuthRateLimiter = None  # type: ignore[misc, assignment]
     looks_like_jwt = None  # type: ignore[assignment]
     verify_access = None  # type: ignore[assignment]
+    issue_login = None  # type: ignore[assignment]
+    paper_customer_allowlist = None  # type: ignore[assignment]
+    refresh_session = None  # type: ignore[assignment]
     jwt_authorize_command = None  # type: ignore[assignment]
 
 IST = timezone(timedelta(hours=5, minutes=30))
@@ -678,6 +685,131 @@ def _rate_limit_command(request: Request) -> None:
 
 def _role_for(ident: AuthIdentity | None, paper_token: str) -> str:
     return ident.role if ident is not None else role_from_token(paper_token)
+
+
+class LoginBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    role: str = Field(..., min_length=1, max_length=16)
+    sub: str = Field(..., min_length=1, max_length=64)
+    totp: str | None = Field(None, max_length=16)
+
+
+class RefreshBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    refresh: str = Field(..., min_length=1, max_length=4096)
+
+
+def _login_guard(request: Request) -> GatewayAuth:
+    settings = _settings(request)
+    reason = check_host_origin(
+        request.headers.get("host"), request.headers.get("origin"), settings
+    )
+    if reason:
+        raise HTTPException(
+            status_code=403,
+            detail={"ok": False, "code": reason.upper(), "orders": "REFUSED"},
+        )
+    if query_has_auth_attempt(request.url.query):
+        raise HTTPException(
+            status_code=401,
+            detail={"ok": False, "code": "QUERY_TOKEN_REFUSED", "orders": "REFUSED"},
+        )
+    limiter = getattr(request.app.state, "v2_auth_rates", None)
+    key = request.client.host if request.client else "unknown"
+    if limiter is not None and not limiter.allow(f"rest:{key}", "rest"):
+        raise HTTPException(
+            status_code=429,
+            detail={"ok": False, "code": "RATE_LIMIT", "orders": "REFUSED"},
+        )
+    return settings
+
+
+def _paper_local(request: Request, settings: GatewayAuth) -> bool:
+    host = request.client.host if request.client else ""
+    return is_loopback_bind(settings.bind_host) and host in LOCAL_HOSTS
+
+
+@router.post("/v2/auth/login")
+def v2_auth_login(request: Request, body: LoginBody) -> dict[str, Any]:
+    """Issue access+refresh. Fail closed if the signing key is missing. Paper only."""
+    settings = _login_guard(request)
+    if issue_login is None or AuthClosed is None:
+        raise HTTPException(
+            status_code=401,
+            detail={"ok": False, "code": "JWT_SECRET_MISSING", "orders": "REFUSED"},
+        )
+    if not settings.jwt_secret:
+        raise HTTPException(
+            status_code=401,
+            detail={"ok": False, "code": "JWT_SECRET_MISSING", "orders": "REFUSED"},
+        )
+    role = body.role.strip()
+    sub = body.sub.strip()
+    if role not in {"founder", "customer"}:
+        raise HTTPException(
+            status_code=422,
+            detail={"ok": False, "code": "BAD_IDENTITY", "orders": "REFUSED"},
+        )
+    local = _paper_local(request, settings)
+    if role == "customer":
+        allow = paper_customer_allowlist() if paper_customer_allowlist is not None else frozenset()
+        if allow and sub not in allow:
+            raise HTTPException(
+                status_code=403,
+                detail={"ok": False, "code": "UNKNOWN_CUSTOMER", "orders": "REFUSED"},
+            )
+        if not allow and not local:
+            raise HTTPException(
+                status_code=403,
+                detail={"ok": False, "code": "CUSTOMER_LOGIN_DISABLED", "orders": "REFUSED"},
+            )
+    totp = str(body.totp or "").strip()
+    want_tfa = False
+    if role == "founder":
+        if not local:
+            if not settings.totp_secret or not totp:
+                raise HTTPException(
+                    status_code=403,
+                    detail={"ok": False, "code": "TFA_REQUIRED", "orders": "REFUSED"},
+                )
+            want_tfa = True
+        elif totp:
+            want_tfa = True
+    try:
+        pair = issue_login(
+            role=role,
+            sub=sub,
+            now=_now_ts(request),
+            totp=totp,
+            secret=settings.jwt_secret,
+            totp_secret=settings.totp_secret,
+            tfa=want_tfa,
+        )
+    except AuthClosed as exc:
+        raise HTTPException(
+            status_code=401,
+            detail={"ok": False, "code": str(exc).upper(), "orders": "REFUSED"},
+        ) from exc
+    return pair.as_public_dict()
+
+
+@router.post("/v2/auth/refresh")
+def v2_auth_refresh(request: Request, body: RefreshBody) -> dict[str, Any]:
+    """Rotate access from a refresh JWT. Refresh cannot subscribe or command."""
+    settings = _login_guard(request)
+    if refresh_session is None or AuthClosed is None or not settings.jwt_secret:
+        raise HTTPException(
+            status_code=401,
+            detail={"ok": False, "code": "JWT_SECRET_MISSING", "orders": "REFUSED"},
+        )
+    try:
+        pair = refresh_session(body.refresh, now=_now_ts(request), secret=settings.jwt_secret)
+    except AuthClosed as exc:
+        raise HTTPException(
+            status_code=401,
+            detail={"ok": False, "code": str(exc).upper(), "orders": "REFUSED"},
+        ) from exc
+    return pair.as_public_dict()
 
 
 @router.get("/v2/snapshot")

@@ -200,6 +200,18 @@ def test_env_fallback_invalid_refuses(tmp_path: Path) -> None:
         store.credentials_for_session("founder")
 
 
+def test_hmac_jwt_secret_roundtrip_and_missing(tmp_path: Path) -> None:
+    ident = generate_identity()
+    store = _store(tmp_path, ident, "founder")
+    hmac_val = "paper-test-hmac-not-a-production-key"
+    path = store.put_hmac_secret("jwt", hmac_val, ident.recipient())
+    assert hmac_val not in path.read_text(encoding="utf-8")
+    assert store.hmac_secret("jwt") == hmac_val
+    missing = _store(tmp_path, ident, "founder")
+    with pytest.raises(SecretClosed, match="missing_envelope"):
+        missing.hmac_secret("totp")
+
+
 def test_vault_and_onepassword_stubs_refuse() -> None:
     with pytest.raises(SecretClosed, match="adapter_not_configured"):
         VaultAdapter().get("acct-paper")
