@@ -300,6 +300,7 @@ def realistic_charges(underlying: str, qty: Optional[int], buy_px: float, sell_p
         "gst_inr": total["gst"],
         "stt_inr": total["stt"],
         "exchange_inr": total["exchange"],
+        "ipft_inr": total.get("ipft", 0.0),
         "sebi_inr": total["sebi"],
         "stamp_inr": total["stamp"],
         "charges_inr": total["total"],

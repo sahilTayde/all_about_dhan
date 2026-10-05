@@ -1,7 +1,7 @@
 """Founder emergency controls (roadmap step 14) replayed on the synthetic NIFTY session.
 
 Every command applies from its own timestamp, entries fail closed and founder exits are never
-refused. Baseline (no commands): 12 trades / +69,364.32 (docs: reliability spec §1).
+refused. Baseline (no commands): 12 trades / +69,309.10 (Dhan/NSE FA/73061 paper rates).
 """
 
 import json
@@ -92,7 +92,7 @@ def assert_unchanged_before(rows, baseline, ts):
 
 
 def test_no_commands_is_exact(fx, tmp_path, baseline):
-    assert len(baseline) == 12 and round(sum(r["realized_pnl_inr"] for r in baseline), 2) == 69364.32
+    assert len(baseline) == 12 and round(sum(r["realized_pnl_inr"] for r in baseline), 2) == 69309.1
     board = replay(fx, tmp_path)  # no log file under root
     assert board["closed_trades"] == baseline and "founder_controls" not in board
     assert replay(fx, tmp_path, [])["closed_trades"] == baseline

@@ -16,7 +16,7 @@ SYNTHETIC_FIXTURE = REPO_ROOT / "packages/desk-ml/tests/fixtures/synthetic_sessi
 def test_synthetic_session_parity() -> None:
     """Frozen benchmark on synthetic NIFTY session reproduces parity fixture trades.
 
-    Expected: 12 trades / net +69,364.32 (NIFTY only, seed 23, flag off, synthetic_session_nifty fixture).
+    Expected: 12 trades / net +69,309.10 (NIFTY only, seed 23, flag off, synthetic_session_nifty fixture).
     """
     with tempfile.TemporaryDirectory() as tmp:
         out_dir = Path(tmp)
@@ -48,9 +48,9 @@ def test_synthetic_session_parity() -> None:
         assert summary_path.exists(), "summary.json not written"
         summary = json.loads(summary_path.read_text())
 
-        # Frozen baseline: NIFTY 12 trades / net +69,364.32 (synthetic_session_nifty golden)
+        # Frozen baseline: NIFTY 12 trades / net +69,309.10 (Dhan/NSE FA/73061 paper rates)
         assert summary["n_trades"] == 12, f"Expected 12 trades, got {summary['n_trades']}"
-        assert abs(summary["net_pnl_inr"] - 69364.32) < 0.01, f"Expected net +69,364.32, got {summary['net_pnl_inr']}"
+        assert abs(summary["net_pnl_inr"] - 69309.10) < 0.01, f"Expected net +69,309.10, got {summary['net_pnl_inr']}"
 
         # Check CSV exists and has the right number of rows
         csv_path = out_dir / "trades.csv"
@@ -88,7 +88,7 @@ def test_python_m_runtime_bench_legacy() -> None:
         assert result.returncode == 0, f"python -m runtime bench-legacy failed:\n{result.stderr}"
         summary = json.loads((out_dir / "summary.json").read_text())
         assert summary["n_trades"] == 12, f"Expected 12 trades, got {summary['n_trades']}"
-        assert abs(summary["net_pnl_inr"] - 69364.32) < 0.01, f"Expected net +69,364.32, got {summary['net_pnl_inr']}"
+        assert abs(summary["net_pnl_inr"] - 69309.10) < 0.01, f"Expected net +69,309.10, got {summary['net_pnl_inr']}"
 
 
 def test_no_writes_to_data_folder() -> None:
@@ -188,7 +188,7 @@ def test_manifest_tamper_detection() -> None:
         assert result.returncode == 1, f"Expected failure, got code {result.returncode}"
         assert "MISMATCH" in result.stderr, f"Expected MISMATCH error, got:\n{result.stderr}"
         assert "costs.py" in result.stderr, "Expected costs.py to be flagged"
-        assert "12 / +69,364.32" in result.stderr, f"Expected committed-golden baseline, got:\n{result.stderr}"
+        assert "12 / +69,309.10" in result.stderr, f"Expected committed-golden baseline, got:\n{result.stderr}"
         assert "63 / -96,190.79" not in result.stderr
 
     finally:
@@ -229,6 +229,6 @@ def test_frozen_check_failure_cites_tape_baseline() -> None:
         )
         assert result.returncode == 1
         assert "63 / -96,190.79" in result.stderr, f"Expected tape baseline, got:\n{result.stderr}"
-        assert "12 / +69,364.32" not in result.stderr
+        assert "12 / +69,309.10" not in result.stderr
     finally:
         test_file.write_bytes(backup)

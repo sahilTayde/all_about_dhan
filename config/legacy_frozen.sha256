@@ -1,7 +1,8 @@
 # Frozen legacy benchmark manifest (V2-17)
 # Any change to these files fails the frozen-legacy CI check.
-# The legacy replay must stay byte-identical: synthetic_session_nifty 12/+69,364.32
-33373a81e7dda387e773769b2547fc527fcc26d5e486cba03adf4053c07440bd  packages/desk-ml/src/desk_ml/costs.py
+# The legacy replay must stay byte-identical: synthetic_session_nifty 12/+69,309.10
+# (Dhan/NSE FA/73061 paper rates; was 12/+69,364.32 on the old 0.0003503 fixture)
+976dc228ddad0034f07a02c247ef533e87662134c6df32313162fb9e6bc0a8fe  packages/desk-ml/src/desk_ml/costs.py
 2bff62eec1052318795f86dc74e78b7550a7b75de0f51ac81d22f661cc1f6abe  packages/desk-ml/src/desk_ml/event_parity.py
 41f0a9e25cea3b2d03d1a746a2d3b7c4907d4620be09d3a23fe3d9f30da4bbd9  packages/desk-ml/src/desk_ml/event_path.py
 8d750c1ab0734fc0a4e428c618757419c909ed63842e9c6ae775e573d7671a11  packages/desk-ml/src/desk_ml/features.py
@@ -12,7 +13,7 @@ f4bde8cc5d9370cfe7f5fc4d19f2cf821f892f9f92e0a8bb13e92b42964d432c  packages/desk-
 0fcc650c907655ff558c8683cb9acde7b138878a624c3d1f543e3fa3ccb1f570  packages/desk-ml/src/desk_ml/founder_commands/log.py
 8f9c601397936341b7514155fcf7697f37a92dfd7a0f976b5838e6444e17b2f1  packages/desk-ml/src/desk_ml/founder_session.py
 f83231fbfafe57ebe3e7e19c690c5f5b1d2b1db3993d2d70a677a40b8c72416d  packages/desk-ml/src/desk_ml/greeks_ml.py
-aa2387b83b581ca4afe1a706ddadac13eb98c95fcfbd35d06579a67d2b47bd00  packages/desk-ml/src/desk_ml/groww_costs.py
+907ee2c1e1ae293a620aa619cd49687458bd4057667cd4aa769f6cf45d6c752f  packages/desk-ml/src/desk_ml/groww_costs.py
 23413e69ea5aebcbea8e6d3f11f032f53fee7f8507c0e7f3d60a154a8d31df68  packages/desk-ml/src/desk_ml/inventory.py
 0c3da193a337c4fcbe3f56afc8450d058d8be47277fd4d20e5f7f77b1b8030d3  packages/desk-ml/src/desk_ml/llm_review.py
 bf5c0b86bac3c6eeaab24ae490c9bed04a46a50b61a968ec288f8a8799fd6ed5  packages/desk-ml/src/desk_ml/live_cycle.py
@@ -22,7 +23,7 @@ f0b844d531ee00bea3b47fd5e207edb2bd493f7d0dd6b3a9fc8fefa2ee6c8a89  packages/desk-
 c7b6f5fff183087add5328a501e2f87ad9eea8204296cb655943b0d52acfcd4d  packages/desk-ml/src/desk_ml/overrides.py
 97f3695ac0763eaf3bd27087394e51047e8c732f8f44e613b745f14e6257182f  packages/desk-ml/src/desk_ml/paper_guard.py
 001e173a419008f7487daea4dd30afbae3953fde673588e309bd343c14e772d5  packages/desk-ml/src/desk_ml/paper_lots.py
-213adcc4fd98fe9eaa858b23e4d675c82fc7952f6de26553d30d657c82dd15ab  packages/desk-ml/src/desk_ml/paper_scalp.py
+ebc39809f340350fb3f0c91e5b94656f817894a13725d3c8bbd79801c16b8c43  packages/desk-ml/src/desk_ml/paper_scalp.py
 c6e243b0688a85950219736e27b3965571ca33cace3fc190c89d95af010502f7  packages/desk-ml/src/desk_ml/persist.py
 e54e94d0e5115f5020347f8963f86cf21de2777b71810562493f54623854541b  packages/desk-ml/src/desk_ml/picker.py
 76443290d662d36ce0fe8d04b01dd1ca9e2cb331f38b0dc2662b9fe31bde8b6e  packages/desk-ml/src/desk_ml/regime/__init__.py
