@@ -193,6 +193,14 @@ def load_gateway_auth() -> GatewayAuth:
     if rate <= 0:
         rate = 1.0
     bind = os.environ.get(BIND_ENV, DEFAULT_BIND).strip() or DEFAULT_BIND
+    jwt_secret = _read_secret(JWT_ENV, JWT_FILE_ENV)
+    if not jwt_secret:
+        try:
+            from auth.keys import load_jwt_secret
+
+            jwt_secret = load_jwt_secret()
+        except (ImportError, TypeError, SyntaxError):
+            jwt_secret = ""
     return GatewayAuth(
         founder_token=_read_secret(TOKEN_ENV, TOKEN_FILE_ENV),
         customer_token=_read_secret(CUSTOMER_TOKEN_ENV, CUSTOMER_TOKEN_FILE_ENV),
@@ -200,7 +208,7 @@ def load_gateway_auth() -> GatewayAuth:
         extra_hosts=extra_hosts,
         extra_origins=extra_origins,
         control_rate_per_s=rate,
-        jwt_secret=_read_secret(JWT_ENV, JWT_FILE_ENV),
+        jwt_secret=jwt_secret,
         totp_secret=_read_secret(TOTP_ENV, TOTP_FILE_ENV),
     )
 

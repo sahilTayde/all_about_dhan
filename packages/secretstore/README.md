@@ -24,5 +24,8 @@ opens a Dhan session, never places an order, and never writes a real token into 
 Identity files use the fake-looking `AGE-TEST-KEY-1` prefix. Never commit them.
 The public repo scan (`scripts/ci/scan_repo.py`) must stay clean.
 
+Optional C5-02 JWT HMAC: `system/jwt.sops.json` via `put_hmac_secret` / `hmac_secret`.
+Issue/login may read it. Token verify does not.
+
 V2-22 / V2-23 may land in parallel. This package talks to them through
 `AccountDirectory` / `AccountRef` Protocols only.
