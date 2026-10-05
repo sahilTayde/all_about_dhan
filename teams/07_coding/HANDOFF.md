@@ -21,6 +21,27 @@ Rejected: Live orders. Founder token on customer
 UNKNOWN: Real signals:public stream on founder box.
 ```
 
+## As of now (2026-10-04 IST) — C5-02 auth wire (PAPER)
+
+```text
+From:     teams/07_coding
+To:       founder / 00 / 09
+Date:     2026-10-04
+Status:   PAPER / C5-02 / NO_PROMOTE / no live orders
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+Accepted: issue_pair + python -m auth login/refresh.
+  Customer claims = signals:public only (aud stays aad-v2).
+  5 paper customers + founder. Empty AAD_JWT_SECRET denies.
+  Key from env / file / secretstore system/jwt.sops.json.
+  Verify stays in-process HMAC (no store I/O).
+  Gateway POST /v2/auth/login and /v2/auth/refresh.
+  Founder control still needs TOTP. Rate caps hold.
+  Restacked on C5-04 #81 (dc94a05) + C5-01 isolation.
+Rejected: 10-customer sizing. Live brokers. Password SSO.
+  pyjwt. Marketing site. Trusting query tokens.
+UNKNOWN: Host-side TOTP seed + HMAC placement (human).
+```
+
 ## As of now (2026-10-04 IST) — C5-04 founder ops for 5 paper customers
 
 ```text

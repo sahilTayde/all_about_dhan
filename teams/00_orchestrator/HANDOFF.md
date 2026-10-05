@@ -19,6 +19,39 @@ Rejected: Live mode badge. Order buttons.
 UNKNOWN: Founder-box V2 public stream contents.
 ```
 
+## As of now (2026-10-04 IST) — C5-02 auth wire (PAPER)
+
+```text
+From:     teams/00_orchestrator
+To:       founder / 07 / 09
+Date:     2026-10-04
+Status:   PAPER / C5-02 / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+Accepted: 5-customer paper portal JWT wire on V2-23/V2-24.
+  Customer = signals:public. Founder 2FA for control.
+  Login CLI + optional HTTP. Fail-closed empty secret.
+  Low-latency verify (HMAC in-process).
+  Restacked on C5-04 #81 (dc94a05) + C5-01 isolation.
+Rejected: Live orders. 10-customer cap. Enabling brokers.
+UNKNOWN: Operator HMAC + TOTP on the paper host.
+```
+
+## As of now (2026-10-04 IST) — C5-04 founder ops for 5 paper customers
+
+```text
+From:     teams/00_orchestrator
+To:       founder / 07 / 09
+Date:     2026-10-04
+Status:   PAPER / C5-04 / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+Accepted: desk.sh c5-start|status|stop|backup|restore.
+  One shared runtime signal + <=5 customer execs.
+  Fail closed: live mode, >5 customers,
+  disabled/live broker, missing state dir.
+Rejected: Live broker. Auto-enable 6th customer.
+UNKNOWN: Long-running exec loop (runtime --once stubs).
+```
+
 ## As of now (2026-10-04 IST) — C5-01 5 customer paper accounts (PAPER)
 
 ```text
