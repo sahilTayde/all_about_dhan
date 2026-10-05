@@ -15,7 +15,8 @@ Accepted: Customer /v2/snapshot skips founder overlay
   Portal tries compact signals first.
   Bench: snapshot 8.26→2.18 ms; /signals 3.47→1.70 ms.
   Isolation: JWT c1 → customer-01 only.
-  Restack onto origin/main 87b4b32 (#84 costs).
+  Restack onto origin/main c5741da (#86 TOTP).
+  Costs untouched (#84 already on main).
 Rejected: VPS / load balancer / multi-region.
   Live broker. New tokens. Cost fixture edits.
   RAG / warehouse / Exit Lab.
