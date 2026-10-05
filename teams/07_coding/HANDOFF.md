@@ -1,5 +1,27 @@
 # Handoff log — Team 07 Coding
 
+## As of now (2026-10-05 IST) — C5-05 customer paper latency (PAPER)
+
+```text
+From:     teams/07_coding
+To:       founder / 00 / 05 / 09
+Date:     2026-10-05
+Status:   PAPER / C5-05 / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+Accepted: Customer /v2/snapshot skips founder overlay
+  (_legacy_ui / port probes / history). HOT_KEEP=48.
+  Compact GET /v2/customer/signals|account|journal.
+  /signals stamp-cache + 200ms desk memo.
+  Portal tries compact signals first.
+  Bench: snapshot 8.26→2.18 ms; /signals 3.47→1.70 ms.
+  Isolation: JWT c1 → customer-01 only.
+  Restack onto origin/main 87b4b32 (#84 costs).
+Rejected: VPS / load balancer / multi-region.
+  Live broker. New tokens. Cost fixture edits.
+  RAG / warehouse / Exit Lab.
+UNKNOWN: Host-box recon log size during a live paper day.
+```
+
 ## As of now (2026-10-05) — C5-06 Mac Dhan TOTP auto-mint (PAPER)
 
 ```text

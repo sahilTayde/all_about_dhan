@@ -1,5 +1,20 @@
 # Handoff log — Team 05 Analysis
 
+## As of now (2026-10-05 IST) — C5-05 customer `/` fetch path (PAPER)
+
+```text
+From:     teams/05_analysis
+To:       00 / 07 / founder
+Date:     2026-10-05
+Status:   PAPER UI / C5-05 / NO_PROMOTE
+Accepted: `/` still CALL/PUT/HOLD + why + Invalid if.
+  Feed prefers /v2/customer/signals then
+  /v2/snapshot signals:public then MOCK.
+  CUSTOMER_TALK fields only. No indicator soup.
+Rejected: New talk copy. Win rate. LIVE badge.
+UNKNOWN: Live 3m chain + cited news until stream.
+```
+
 ## As of now (2026-10-04 IST) — C5-03 customer `/` talk surface (PAPER)
 
 ```text
