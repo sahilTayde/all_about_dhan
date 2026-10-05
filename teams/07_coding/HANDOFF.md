@@ -1,5 +1,25 @@
 # Handoff log — Team 07 Coding
 
+## As of now (2026-10-04 IST) — C5-04 founder ops for 5 paper customers
+
+```text
+From:     teams/07_coding
+To:       founder / 00 / 09
+Date:     2026-10-04
+Status:   PAPER / C5-04 / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+Accepted: desk.sh c5-start|status|stop|backup|restore.
+  Restacked on C5-01 058282b. One shared
+  runtime signal + <=5 customer execs.
+  Fail closed: live mode, >5 customers,
+  disabled/live broker, missing state dir,
+  legacy data/recon and data/shadow paths.
+Rejected: Live broker. Stealing legacy dual-tape
+  founder book. Auto-enable 6th customer.
+UNKNOWN: Long-running exec loop (current runtime
+  signal/exec are --once paper stubs).
+```
+
 ## As of now (2026-10-04 IST) — C5-01 5 customer paper accounts (PAPER)
 
 ```text

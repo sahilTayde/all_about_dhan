@@ -133,3 +133,42 @@ cd ~/Documents/all_about_dhan
 ```
 
 Same-morning shortcut: `./scripts/desk.sh morning` (runs `preflight`, then API + website + arms `watch-open`). `./scripts/desk.sh preflight` is also callable on its own. Details: [`SESSION_PREP_ML.md`](teams/06_backtesting/docs/SESSION_PREP_ML.md).
+
+---
+
+## 5-customer paper night checklist (C5-04)
+
+Paper/shadow only. **Never live.** Shared `runtime signal` starts once. Each enabled `kind: customer` row gets its own `runtime exec --account`. Cap is **5 customer execs**. Founder and `v2-shadow` stay off unless you pass flags. C5 state lives under `data/c5/` and must not reuse legacy dual-tape (`data/recon/paper_watch`) or shadow (`data/shadow`) book paths.
+
+```bash
+# 0. Isolated V2 python (does not touch legacy .venv)
+./scripts/mac_setup_v2.sh
+
+# 1. Enable up to 5 paper customers (C5-01 templates already in accounts.yaml)
+#    python -m accounts enable --account customer-01
+#    Disabled rows are skipped. Never broker: dhan / live. No tokens in yaml.
+
+# 2. Create paper state dirs (fail-closed if missing)
+mkdir -p data/c5/signal
+# one dir per enabled customer id, plus founder / v2-shadow if you will pass flags:
+# mkdir -p data/c5/exec/cust-01 data/c5/exec/founder data/c5/exec/v2-shadow
+
+# 3. Dry-run the plan (must print live_broker=false)
+./scripts/desk.sh c5-start --dry-run
+# optional: --with-founder --with-shadow
+
+# 4. Start shared signal + customer execs (paper --once stubs)
+./scripts/desk.sh c5-start
+
+# 5. Checks
+./scripts/desk.sh c5-status
+# Backup the paper state dirs (no secrets; no legacy books)
+./scripts/desk.sh c5-backup
+# Restore smoke: list + verify tarball, do not write
+./scripts/desk.sh c5-restore --dry-run --snapshot data/c5-backups/c5-paper.tgz
+
+# 6. Stop C5 (ledgers kept). Does not stop legacy dual-tape.
+./scripts/desk.sh c5-stop
+```
+
+If `c5-start` refuses: too many active customers (>5), an account is disabled/halted when you asked for it, broker is live, or a state dir is missing / points at a legacy book. Details: [`packages/accounts/README.md`](packages/accounts/README.md).

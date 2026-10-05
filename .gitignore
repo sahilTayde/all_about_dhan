@@ -30,6 +30,9 @@ data/health/
 data/llm_analyst/
 # Shadow decision logs. The engine creates data/shadow/ at runtime. Do not commit rows.
 data/shadow/
+# C5-04 paper customer books (never commit ledgers / backups)
+data/c5/
+data/c5-backups/
 # V2 market-data tapes (depth, quotes, OI cadence, raw frames) and the scrip-master cache
 data/tape/
 data/cache/
