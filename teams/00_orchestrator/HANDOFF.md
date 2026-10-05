@@ -13,7 +13,7 @@ Gate:     not RESEARCH_READY_FOR_PROGRAMMING
 Accepted: Default `/` is customer portal for 5
   paper seats. Desk stays `/desk`. PM stays `/pm`.
   Auth: customer JWT / signals:public only.
-  Restack onto main 058282b (C5-01).
+  Restack onto main dc94a05 (C5-04).
 Rejected: Live mode badge. Order buttons.
   Rebuilding npm stack.
 UNKNOWN: Founder-box V2 public stream contents.
