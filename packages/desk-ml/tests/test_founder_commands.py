@@ -1,7 +1,7 @@
 """Founder emergency controls (roadmap step 14) replayed on the synthetic NIFTY session.
 
 Every command applies from its own timestamp, entries fail closed and founder exits are never
-refused. Baseline (no commands): 12 trades / +69,364.32 (docs: reliability spec §1).
+refused. Baseline (no commands): 12 trades / +69,309.10 (Dhan/NSE FA/73061 paper rates).
 """
 
 import json

@@ -188,7 +188,7 @@ def test_manifest_tamper_detection() -> None:
         assert result.returncode == 1, f"Expected failure, got code {result.returncode}"
         assert "MISMATCH" in result.stderr, f"Expected MISMATCH error, got:\n{result.stderr}"
         assert "costs.py" in result.stderr, "Expected costs.py to be flagged"
-        assert "12 / +69,364.32" in result.stderr, f"Expected committed-golden baseline, got:\n{result.stderr}"
+        assert "12 / +69,309.10" in result.stderr, f"Expected committed-golden baseline, got:\n{result.stderr}"
         assert "63 / -96,190.79" not in result.stderr
 
     finally:
@@ -229,6 +229,6 @@ def test_frozen_check_failure_cites_tape_baseline() -> None:
         )
         assert result.returncode == 1
         assert "63 / -96,190.79" in result.stderr, f"Expected tape baseline, got:\n{result.stderr}"
-        assert "12 / +69,364.32" not in result.stderr
+        assert "12 / +69,309.10" not in result.stderr
     finally:
         test_file.write_bytes(backup)

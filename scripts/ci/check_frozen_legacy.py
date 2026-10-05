@@ -4,14 +4,14 @@
 Exit 0 if all files match the manifest, 1 otherwise.
 
 Optional argv[1] is the input being checked so the failure message cites the
-right baseline: committed golden 12 / +69,364.32, tape 63 / -96,190.79.
+right baseline: committed golden 12 / +69,309.10, tape 63 / -96,190.79.
 """
 
 import hashlib
 import sys
 from pathlib import Path
 
-COMMITTED_GOLDEN = "12 / +69,364.32"
+COMMITTED_GOLDEN = "12 / +69,309.10"
 TAPE_BASELINE = "63 / -96,190.79"
 
 
