@@ -1,5 +1,21 @@
 # Handoff log — Team 05 Analysis
 
+## As of now (2026-10-04 IST) — C5-03 customer `/` talk surface (PAPER)
+
+```text
+From:     teams/05_analysis
+To:       00 / 07 / founder
+Date:     2026-10-04
+Status:   PAPER UI / C5-03 / NO_PROMOTE
+Accepted: `/` speaks CALL/PUT/HOLD + one why line +
+  Invalid if. CUSTOMER_TALK fields only when V2
+  signals:public is present. MOCK labeled otherwise.
+  Five paper seats. No win rate on the book.
+Rejected: Sentiment/CAS/indicator soup on `/`.
+  Dealer counsel LLM. PM canvas.
+UNKNOWN: Live 3m chain + cited news until stream.
+```
+
 ## As of now (2026-09-21 IST) — discarded tickets named on Desk (NO_PROMOTE)
 
 ```text

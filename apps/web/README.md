@@ -4,9 +4,9 @@ Thin **Vite + React** UI for all_about_dhan. One site, three dashboards:
 
 | Route | Who | Job |
 |-------|-----|-----|
-| [`/desk`](http://localhost:5173/desk) (`/` redirects here) | Desk | Alert bar · Current trade (entry, LTP, stop, T1/T2, trailing, P&L, elapsed, MFE/MAE) + paper target/stop override · Account (all recorded days; add funds / min capital) · Current market · Founder controls (compact) · Decision trace · Trade history (day picker, filters, columns) · Why days spilled |
+| [`/`](http://localhost:5173/) (`/customer` alias) | Customer (5 paper seats) | C5-03: CALL / PUT / HOLD hero · one ticket · risk strip · today book labeled PAPER / SHADOW / MOCK. No live orders. No win rate. |
+| [`/desk`](http://localhost:5173/desk) | Desk | Alert bar · Current trade (entry, LTP, stop, T1/T2, trailing, P&L, elapsed, MFE/MAE) + paper target/stop override · Account (all recorded days; add funds / min capital) · Current market · Founder controls (compact) · Decision trace · Trade history (day picker, filters, columns) · Why days spilled |
 | [`/pm`](http://localhost:5173/pm) | Founder | KPIs · System health (red/amber/green) + issues + next action · Account · START/STOP trade desk · Founder controls (start/stop, pause, blocked windows, lots, per-index, capital, cut loss, go for T2, kill switch + re-arm, command history) · Charts: cumulative P&L, daily/weekly/monthly P&L + win %, trades per day, per-model win % + trend, loss by stage · Now open · Decision trace · Compare fills · Honesty exam · Discarded · Roster (DEMO) |
-| [`/customer`](http://localhost:5173/customer) | Customer | One suggested ticket (FIXTURE preview). No indicator soup. |
 
 Every panel shows `—` (or a greyed decision-trace step) when the data does not exist yet; nothing is invented. Panels still fed by static `public/mock` demo JSON (roster, STRAT lights, indicator pills) carry a **DEMO · mock** badge.
 

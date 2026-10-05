@@ -1,15 +1,20 @@
 const LINKS = [
+  { href: "/", label: "Customer", hint: "CALL / PUT / HOLD" },
   { href: "/desk", label: "Desk", hint: "Signals & book" },
   { href: "/pm", label: "Founder", hint: "Money & models" },
-  { href: "/customer", label: "Customer", hint: "Ticket preview · fixture" },
 ];
+
+function isActive(path, href) {
+  if (href === "/") return path === "/" || path === "" || path === "/customer" || path.startsWith("/customer/");
+  return path === href || path.startsWith(`${href}/`);
+}
 
 export function AppNav({ current }) {
   const path = current || (typeof window !== "undefined" ? window.location.pathname : "/");
   return (
     <nav className="app-nav" aria-label="Dashboards">
       {LINKS.map((l) => {
-        const active = path === l.href || path.startsWith(`${l.href}/`);
+        const active = isActive(path, l.href);
         return (
           <a key={l.href} href={l.href} className={active ? "app-nav__link is-active" : "app-nav__link"}>
             <strong>{l.label}</strong>

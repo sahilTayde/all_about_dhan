@@ -4182,3 +4182,337 @@ tr.is-click:hover {
 .fc-status-badge.is-applied { color: var(--yes); }
 .fc-status-badge.is-rejected { color: var(--no); }
 .founder-controls--compact .fc-grid { grid-template-columns: repeat(auto-fit, minmax(min(13rem, 100%), 1fr)); }
+
+/* C5-03 customer `/` — phone-first paper portal. No charts. No PM. */
+.customer-portal {
+  max-width: 28.5rem;
+  gap: 0.7rem;
+  padding-top: 1.1rem;
+}
+
+.customer-portal .index-tabs .chip {
+  min-height: 2.75rem;
+  flex: 1 1 0;
+  justify-content: center;
+  font-weight: 650;
+}
+
+.customer-portal .index-tabs .chip-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.4rem;
+}
+
+.cp-chrome {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 0.75rem;
+}
+
+.cp-chrome__brand {
+  margin: 0;
+  font-size: 0.68rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.cp-chrome__sub {
+  margin: 0.2rem 0 0;
+  color: var(--ink-soft);
+  font-size: 0.82rem;
+}
+
+.cp-chrome__tools {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  flex-shrink: 0;
+}
+
+.mode-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.7rem;
+  padding: 0.22rem 0.62rem;
+  border-radius: 999px;
+  border: 1px solid var(--line-strong);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  background: var(--surface-2);
+}
+
+.mode-badge--paper {
+  color: #8fd4b2;
+  border-color: #2d5a45;
+  background: #10241c;
+}
+
+.mode-badge--shadow {
+  color: #9cb6d8;
+  border-color: #35506e;
+  background: #121c2a;
+}
+
+.mode-badge--mock {
+  color: #d4b896;
+  border-color: #6b5720;
+  background: #241c10;
+}
+
+.mock-banner,
+.stale-banner {
+  margin: 0;
+  padding: 0.55rem 0.75rem;
+  border-radius: 10px;
+  font-size: 0.82rem;
+}
+
+.mock-banner {
+  background: #241c10;
+  border: 1px solid #6b5720;
+  color: #e6d3b0;
+}
+
+.stale-banner {
+  background: #2a1518;
+  border: 1px solid #6a323a;
+  color: #f0c8cc;
+}
+
+.cp-loading {
+  margin: 2.5rem 0;
+  text-align: center;
+}
+
+.customer-hero {
+  position: relative;
+  overflow: hidden;
+  padding: 1.15rem 1.1rem 1.2rem;
+  border-radius: 16px;
+  border: 1px solid var(--line);
+  background: linear-gradient(180deg, #1a2230 0%, var(--surface) 70%);
+  box-shadow: var(--shadow);
+}
+
+.customer-hero::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto auto 0;
+  width: 100%;
+  height: 3px;
+  background: #8a93a0;
+}
+
+.customer-hero--call::before {
+  background: #6fbf97;
+}
+
+.customer-hero--put::before {
+  background: #d48990;
+}
+
+.customer-hero--hold::before,
+.customer-hero--amber::before {
+  background: #c9a227;
+}
+
+.customer-hero--green {
+  border-color: #2a5a45;
+}
+
+.customer-hero--blue {
+  border-color: #355888;
+}
+
+.customer-hero--amber {
+  border-color: #6b5720;
+}
+
+.customer-hero--red {
+  border-color: #6a323a;
+}
+
+.customer-hero--grey {
+  border-color: #3a424c;
+}
+
+.customer-hero__meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.customer-hero__kicker {
+  margin: 0;
+  font-size: 0.78rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+
+.customer-hero__market {
+  margin: 0.45rem 0 0.35rem;
+  font-size: clamp(3.4rem, 18vw, 5.2rem);
+  line-height: 0.88;
+  letter-spacing: -0.04em;
+  font-weight: 750;
+}
+
+.customer-hero--call .customer-hero__market {
+  color: #7dcea0;
+}
+
+.customer-hero--put .customer-hero__market {
+  color: #e8a0a8;
+}
+
+.customer-hero--hold .customer-hero__market {
+  color: #d4b896;
+}
+
+.customer-hero__why {
+  margin: 0.35rem 0 0;
+  color: var(--ink-soft);
+  font-size: 0.95rem;
+  line-height: 1.45;
+}
+
+.customer-ticket,
+.customer-book,
+.risk-strip {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 0.95rem 1rem 1rem;
+  box-shadow: var(--shadow);
+}
+
+.customer-ticket__kicker,
+.customer-book h2,
+.risk-strip__line span {
+  margin: 0;
+  font-size: 0.66rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+
+.customer-ticket__empty-title {
+  margin: 0.45rem 0 0.25rem;
+  font-size: 1.15rem;
+  font-weight: 650;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--ink);
+}
+
+.customer-ticket__grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.85rem 0.75rem;
+  margin: 0.75rem 0 0;
+}
+
+.customer-ticket__grid dt {
+  font-size: 0.68rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+
+.customer-ticket__grid dd {
+  margin: 0.2rem 0 0;
+  font-family: var(--mono);
+  font-size: 1.35rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+.customer-ticket__qty {
+  margin: 0.85rem 0 0;
+  color: var(--ink-soft);
+  font-size: 0.86rem;
+}
+
+.risk-strip {
+  display: grid;
+  gap: 0.35rem;
+  background: #1c1912;
+  border-color: #4a4030;
+}
+
+.risk-strip__line {
+  margin: 0;
+  font-size: 0.95rem;
+  line-height: 1.4;
+}
+
+.risk-strip__stale {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--ink-soft);
+}
+
+.risk-strip__stale.is-stale {
+  color: #e6b0b6;
+}
+
+.customer-book__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.customer-book__empty {
+  margin: 0.55rem 0 0;
+  color: var(--ink-soft);
+}
+
+.customer-book__list {
+  list-style: none;
+  margin: 0.65rem 0 0;
+  padding: 0;
+  display: grid;
+  gap: 0.45rem;
+}
+
+.customer-book__list li {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.75rem;
+  min-width: 0;
+  font-size: 0.86rem;
+}
+
+.customer-book__list li div {
+  display: grid;
+  gap: 0.12rem;
+  min-width: 0;
+}
+
+.customer-book__list strong {
+  font-weight: 650;
+  letter-spacing: 0.02em;
+}
+
+.status-pill--hold,
+.status-pill--dealerkilled {
+  color: #d4b896;
+  border-color: #6b5720;
+  background: #241c10;
+}
+
+.status-pill--open {
+  color: var(--inprogress);
+  border-color: #355888;
+  background: #122033;
+}

@@ -29,11 +29,11 @@ const OUT = resolve(arg("out", resolve(HERE, "out")));
 const WIDTHS = arg("widths", "390,1280,1440,1920").split(",").map(Number);
 const FEATURES = !args.includes("--no-features");
 const V2 = args.includes("--v2");
-const READY = ".grid, table.desk-history, .signal-layout, .cleanup-desk, .shell";
+const READY = ".grid, table.desk-history, .signal-layout, .customer-portal, .cleanup-desk, .shell";
 const PAGES = [
   { name: "desk", path: "/desk", tradeTable: true },
   { name: "founder", path: "/pm", tradeTable: true },
-  { name: "customer", path: "/customer" },
+  { name: "customer", path: "/" },
   { name: "cleanup", path: "/cleanup" },
 ];
 

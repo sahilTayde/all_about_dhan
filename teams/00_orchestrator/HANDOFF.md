@@ -2,6 +2,23 @@
 
 **Agents:** read **only the newest block**. Do not ingest this whole log. New files: [`docs/FILE_CREATION.md`](../../docs/FILE_CREATION.md). Append here — do not create `HANDOFF_TOMORROW.md` or extra `CONTINUE_*`.
 
+## As of now (2026-10-04 IST) — C5-03 customer portal MVP (PAPER)
+
+```text
+From:     teams/00_orchestrator
+To:       founder / 05 / 07 / 09
+Date:     2026-10-04
+Status:   PAPER / C5-03 / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+Accepted: Default `/` is customer portal for 5
+  paper seats. Desk stays `/desk`. PM stays `/pm`.
+  Auth: customer JWT / signals:public only.
+  Restack onto main dc94a05 (C5-04).
+Rejected: Live mode badge. Order buttons.
+  Rebuilding npm stack.
+UNKNOWN: Founder-box V2 public stream contents.
+```
+
 ## As of now (2026-10-04 IST) — C5-01 5 customer paper accounts (PAPER)
 
 ```text
