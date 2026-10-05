@@ -184,6 +184,7 @@ export function deskFromV2Public(snap) {
         note: whyLine(payload),
       },
       lifecycle: payload.lifecycle && typeof payload.lifecycle === "object" ? payload.lifecycle : {},
+      chart: payload.chart && typeof payload.chart === "object" ? payload.chart : null,
     };
   }
   const list = underlyings.length ? underlyings : ["NIFTY", "BANKNIFTY", "SENSEX"];
@@ -256,6 +257,12 @@ export function selectCustomerView(desk, underlying, now = Date.now()) {
           time: signal.timeIst || signal.ticket?.timeIst || desk?.asOf || "—",
         },
     bookRows: Array.isArray(desk?.book?.rows) ? desk.book.rows : [],
+    bookRow:
+      (Array.isArray(desk?.book?.rows) ? desk.book.rows : []).find(
+        (row) => String(row.underlying || "").toUpperCase() === und,
+      ) || (Array.isArray(desk?.book?.rows) ? desk.book.rows[0] : null) || null,
+    chart: signal.chart && typeof signal.chart === "object" ? signal.chart : null,
+    lifecycle: signal.lifecycle && typeof signal.lifecycle === "object" ? signal.lifecycle : {},
     underlyings: desk?.underlyings || [und],
     note: desk?.note || "",
   };
@@ -331,6 +338,12 @@ export function oneTicketFixture() {
           entry: 120,
           stop: 90,
           target: 180,
+          unit: "OPTION_PREMIUM",
+          path_marks: [
+            { t: 1, v: 120, label: "entry" },
+            { t: 2, v: 126 },
+            { t: 3, v: 124, label: "last-known" },
+          ],
         },
       ],
     },
@@ -347,6 +360,61 @@ export function formatSlot(value) {
   const n = Number(value);
   if (Number.isFinite(n)) return n.toLocaleString("en-IN");
   return raw;
+}
+
+/** Closed ACHIEVED fixture — last-known journal marks only. */
+export function closedTicketFixture() {
+  return deskFromMock({
+    meta: {
+      source: "mock",
+      label: "MOCK",
+      placeholder: true,
+      asOf: "2026-10-04T13:42:00+05:30",
+      note: "Closed customer fixture. Not a fill.",
+    },
+    underlyings: ["BANKNIFTY"],
+    signals: {
+      BANKNIFTY: {
+        underlying: "BANKNIFTY",
+        side: "BUY_PE",
+        strike: 51000,
+        entry: 140,
+        stop: 110,
+        target: 200,
+        expiry: "2026-10-07",
+        lots: 1,
+        timeIst: "11:05",
+        invalid_if: "Paper path already closed.",
+        customer: { headline: "Target hit", note: "Paper target printed. Not a live fill." },
+        staged: { state: "IN-PROGRESS" },
+        lifecycle: { outcome: "ACHIEVED", shadowPaper: { mtmPts: 60 } },
+      },
+    },
+    todaysBook: {
+      label: "PAPER",
+      source: "paper",
+      rows: [
+        {
+          id: "paper-bn-pe-1",
+          timeIst: "13:42",
+          underlying: "BANKNIFTY",
+          side: "BUY_PE",
+          strike: 51000,
+          status: "ACHIEVED",
+          result: "WIN",
+          path: "PAPER",
+          entry: 140,
+          last_mark: 200,
+          unit: "OPTION_PREMIUM",
+          path_marks: [
+            { t: 1, v: 140, label: "entry" },
+            { t: 2, v: 168 },
+            { t: 3, v: 200, label: "exit" },
+          ],
+        },
+      ],
+    },
+  });
 }
 
 export function formatWhen(value) {

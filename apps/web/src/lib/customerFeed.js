@@ -37,6 +37,19 @@ function snapshotUrl() {
   return `${base}/v2/snapshot?${qs}`;
 }
 
+function journalUrl() {
+  const qs = authQuery();
+  const base = API_BASE || "";
+  const q = qs.toString();
+  return `${base}/v2/customer/journal${q ? `?${q}` : ""}`;
+}
+
+export function isCustomerJournal(body) {
+  if (!body || typeof body !== "object") return false;
+  if (body.role && body.role !== "customer") return false;
+  return Array.isArray(body.items) || body.tape_last !== undefined || body.ok === true;
+}
+
 const V2_BUDGET_MS = 450;
 
 async function tryOne(url, signal, budgetMs) {
@@ -82,4 +95,28 @@ export async function fetchCustomerDesk(signal) {
   const v2 = await trySignalsPublic(signal);
   if (v2) return v2;
   return loadMock(signal);
+}
+
+/** After first paint. Compact journal tail only — no live price invent. */
+export async function fetchCustomerJournal(signal) {
+  const ac = new AbortController();
+  const timer = setTimeout(() => ac.abort(), V2_BUDGET_MS);
+  const onAbort = () => ac.abort();
+  signal?.addEventListener("abort", onAbort);
+  try {
+    const res = await fetch(journalUrl(), {
+      headers: customerHeaders(),
+      cache: "no-store",
+      signal: ac.signal,
+    });
+    if (!res.ok) return null;
+    const body = await res.json();
+    if (!isCustomerJournal(body)) return null;
+    return body;
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+    signal?.removeEventListener("abort", onAbort);
+  }
 }
