@@ -30,7 +30,7 @@ const state = { which: "empty" };
 
 function fixtureApi(req, res, next) {
   const url = new URL(req.url, "http://fixture");
-  if (url.pathname === "/v2/snapshot") {
+  if (url.pathname === "/v2/snapshot" || url.pathname === "/v2/customer/signals") {
     res.statusCode = 404;
     return res.end("no signals:public");
   }
