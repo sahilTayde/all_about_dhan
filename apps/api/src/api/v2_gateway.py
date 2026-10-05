@@ -887,7 +887,9 @@ def _customer_sub(request: Request) -> str | None:
 
 
 @router.get("/v2/customer/signals")
-def v2_customer_signals(request: Request, token: str = Query(default="")) -> dict[str, Any]:
+def v2_customer_signals(
+    request: Request, token: str = Query(default="")
+) -> dict[str, Any]:
     """C5-05: compact signals:public tail. No founder overlay."""
     _require_customer(request, token)
     from api.c5_hot import list_signals
@@ -896,7 +898,9 @@ def v2_customer_signals(request: Request, token: str = Query(default="")) -> dic
 
 
 @router.get("/v2/customer/account")
-def v2_customer_account(request: Request, token: str = Query(default="")) -> dict[str, Any]:
+def v2_customer_account(
+    request: Request, token: str = Query(default="")
+) -> dict[str, Any]:
     """C5-05: this paper seat only. Isolation fail-closed."""
     _require_customer(request, token)
     from api.c5_hot import account_status
@@ -905,7 +909,9 @@ def v2_customer_account(request: Request, token: str = Query(default="")) -> dic
 
 
 @router.get("/v2/customer/journal")
-def v2_customer_journal(request: Request, token: str = Query(default="")) -> dict[str, Any]:
+def v2_customer_journal(
+    request: Request, token: str = Query(default="")
+) -> dict[str, Any]:
     """C5-05: last public envelopes + last tape line. No full-file scan."""
     _require_customer(request, token)
     from api.c5_hot import journal_tail
