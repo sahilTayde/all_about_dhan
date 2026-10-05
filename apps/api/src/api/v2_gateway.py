@@ -21,6 +21,8 @@ from __future__ import annotations
 import asyncio
 import os
 import queue
+import threading
+import time
 import uuid
 from dataclasses import dataclass, field, replace
 from datetime import datetime, timedelta, timezone
@@ -127,6 +129,11 @@ _HTTP_BASE_KEYS = frozenset(
         "v2",
     }
 )
+# Last N envelopes per channel. Five paper seats do not need the full day.
+HOT_KEEP = 48
+_LEGACY_TTL_S = 0.4
+_legacy_lock = threading.Lock()
+_legacy_cache: tuple[float, dict[str, Any]] | None = None
 FOUNDER_LEGACY_KEYS = frozenset(
     {
         "board",
@@ -348,7 +355,7 @@ class GatewayHub:
         n = self.seq.get(ch, 0) + 1
         self.seq[ch] = n
         body = env.to_json()
-        self.hot.setdefault(ch, []).append(body)
+        self._append_hot(ch, body)
         if ch == "positions":
             self._apply_position(env)
         self._index_trace(env)
@@ -414,8 +421,15 @@ class GatewayHub:
         n = self.seq.get(ch, 0) + 1
         self.seq[ch] = n
         safe = {**body, "payload": customer_safe(env.payload)}
-        self.hot.setdefault(ch, []).append(safe)
+        self._append_hot(ch, safe)
         self._fanout(ch, n, safe)
+
+    def _append_hot(self, channel: str, body: dict[str, Any]) -> None:
+        bucket = self.hot.setdefault(channel, [])
+        bucket.append(body)
+        extra = len(bucket) - HOT_KEEP
+        if extra > 0:
+            del bucket[:extra]
 
     def positions(self) -> list[dict[str, Any]]:
         """REG-04c: every ledger-open position, plus hot overlays."""
@@ -575,13 +589,27 @@ def envelope_from_parts(
 
 
 def _legacy_ui() -> dict[str, Any]:
-    """Read-only desk snapshot so /v2/snapshot can drive Desk/Founder. Never writes."""
-    from api import ui_feed
+    """Read-only desk snapshot so /v2/snapshot can drive Desk/Founder. Never writes.
 
-    try:
-        return ui_feed.build_snapshot(budget_s=ui_feed.SNAPSHOT_BUDGET_S)
-    except Exception:  # noqa: BLE001 — UI overlay is advisory; v2 channels must still load
-        return {}
+    Cached briefly: founder polls share one build. Customers never call this.
+    """
+    global _legacy_cache
+    now = time.monotonic()
+    hit = _legacy_cache
+    if hit is not None and now - hit[0] < _LEGACY_TTL_S:
+        return hit[1]
+    with _legacy_lock:
+        hit = _legacy_cache
+        if hit is not None and time.monotonic() - hit[0] < _LEGACY_TTL_S:
+            return hit[1]
+        from api import ui_feed
+
+        try:
+            ui = ui_feed.build_snapshot(budget_s=ui_feed.SNAPSHOT_BUDGET_S)
+        except Exception:  # noqa: BLE001 — UI overlay is advisory; v2 channels must still load
+            ui = {}
+        _legacy_cache = (time.monotonic(), ui if isinstance(ui, dict) else {})
+        return _legacy_cache[1]
 
 
 router = APIRouter()
@@ -835,8 +863,54 @@ def v2_snapshot(
     chans = [c.strip() for c in channels.split(",") if c.strip()]
     hub: GatewayHub = request.app.state.v2_hub
     body = hub.snapshot(chans, who)
-    apply_legacy_overlay(who, body, _legacy_ui())
+    # Customers never need the founder desk overlay (board/account/port probes).
+    if who != "customer":
+        apply_legacy_overlay(who, body, _legacy_ui())
     return project_snapshot(who, body)
+
+
+def _require_customer(request: Request, token: str) -> AuthIdentity | None:
+    ident = _http_identity(request)
+    who = _role_for(ident, token)
+    if who != "customer":
+        raise HTTPException(
+            status_code=403,
+            detail={"ok": False, "code": "CUSTOMER_ONLY", "orders": "REFUSED"},
+        )
+    return ident
+
+
+def _customer_sub(request: Request) -> str | None:
+    decision = getattr(request.state, "v2_auth_decision", None)
+    sub = getattr(decision, "sub", None) if decision is not None else None
+    return str(sub).strip() if sub else None
+
+
+@router.get("/v2/customer/signals")
+def v2_customer_signals(request: Request, token: str = Query(default="")) -> dict[str, Any]:
+    """C5-05: compact signals:public tail. No founder overlay."""
+    _require_customer(request, token)
+    from api.c5_hot import list_signals
+
+    return list_signals(request.app.state.v2_hub)
+
+
+@router.get("/v2/customer/account")
+def v2_customer_account(request: Request, token: str = Query(default="")) -> dict[str, Any]:
+    """C5-05: this paper seat only. Isolation fail-closed."""
+    _require_customer(request, token)
+    from api.c5_hot import account_status
+
+    return account_status(_customer_sub(request))
+
+
+@router.get("/v2/customer/journal")
+def v2_customer_journal(request: Request, token: str = Query(default="")) -> dict[str, Any]:
+    """C5-05: last public envelopes + last tape line. No full-file scan."""
+    _require_customer(request, token)
+    from api.c5_hot import journal_tail
+
+    return journal_tail(request.app.state.v2_hub)
 
 
 @router.get("/v2/trace")
@@ -1310,6 +1384,7 @@ __all__ = [
     "CUSTOMER_SIGNAL_FIELDS",
     "FOUNDER_CHANNELS",
     "FOUNDER_LEGACY_KEYS",
+    "HOT_KEEP",
     "IST",
     "MUTATING_CONTROL_METHODS",
     "ROLE_ACL",
