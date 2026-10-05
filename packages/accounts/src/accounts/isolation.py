@@ -113,6 +113,7 @@ class IsolatedBook:
         if not signal_id:
             raise AccountClosed("SIGNAL_ID_REQUIRED")
         oid = order_id(self.account.account_id, signal_id, "entry")
+        stamp = self.account.slot_fields()
         row: dict[str, object] = {
             "account_id": self.account.account_id,
             "signal_id": signal_id,
@@ -120,6 +121,12 @@ class IsolatedBook:
             "partition": self.partition,
             "stream": oms_stream(self.account.account_id),
             "broker": self.account.broker,
+            "portal_sub": stamp["portal_sub"],
+            "slot": stamp["slot"],
+            "journal_tag": stamp["journal_tag"],
+            "strategy_id": stamp["strategy_id"],
+            "basket": stamp["basket"],
+            "slot_armed": stamp["slot_armed"],
         }
         self.append_row(row)
         return dict(row)

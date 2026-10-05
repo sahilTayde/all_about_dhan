@@ -28,6 +28,12 @@ class RoleBinding:
     produces: frozenset[str]
     broker: str | None = None
     partition: str | None = None
+    portal_sub: str | None = None
+    slot: str | None = None
+    journal_tag: str | None = None
+    strategy_id: str | None = None
+    basket: str | None = None
+    slot_armed: bool = False
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -38,6 +44,12 @@ class RoleBinding:
             "produces": sorted(self.produces),
             "broker": self.broker,
             "partition": self.partition,
+            "portal_sub": self.portal_sub,
+            "slot": self.slot,
+            "journal_tag": self.journal_tag,
+            "strategy_id": self.strategy_id,
+            "basket": self.basket,
+            "slot_armed": self.slot_armed,
             "live_broker": False,
             "orders": "REFUSED" if self.role == "signal" else "PAPER",
         }
@@ -76,6 +88,12 @@ def bind_exec(account: Account) -> tuple[RoleBinding, IsolatedBook]:
             produces=frozenset({oms_stream(account.account_id), position_stream(account.account_id)}),
             broker=account.broker,
             partition=book.partition,
+            portal_sub=account.portal_sub or None,
+            slot=account.slot or None,
+            journal_tag=account.journal_tag or None,
+            strategy_id=account.strategy_id or None,
+            basket=account.basket or None,
+            slot_armed=account.slot_armed,
         ),
         book,
     )

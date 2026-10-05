@@ -1,8 +1,9 @@
-# Optional C5-01 customer overlay. Paper only. No secrets. No live broker.
+# Optional C5-01 / C5-07 customer overlay. Paper only. No secrets. No live broker.
 # Copy to customers.yaml (gitignored) and export AAD_CUSTOMERS=/path/to/customers.yaml
 # only when config/v2/accounts.yaml does not already list these ids.
 # Cap: 5 customer books for this launch. Status disabled until:
 #   python -m accounts enable --config "$AAD_CUSTOMERS" --account customer-01
+# strategy_id / basket stay unset (slot_armed=false) until desk lead assigns.
 
 accounts:
   - account_id: customer-01
@@ -10,23 +11,38 @@ accounts:
     broker: paper
     status: disabled
     risk_budget_inr: 1000
+    portal_sub: c1
+    slot: CONTROL
+    journal_tag: SLOT-CONTROL
   - account_id: customer-02
     kind: customer
     broker: paper
     status: disabled
     risk_budget_inr: 1000
+    portal_sub: c2
+    slot: CANDLE_GEOM
+    journal_tag: SLOT-CANDLE_GEOM
   - account_id: customer-03
     kind: customer
     broker: paper
     status: disabled
     risk_budget_inr: 1000
+    portal_sub: c3
+    slot: LOCATION
+    journal_tag: SLOT-LOCATION
   - account_id: customer-04
     kind: customer
     broker: paper
     status: disabled
     risk_budget_inr: 1000
+    portal_sub: c4
+    slot: SKLEARN
+    journal_tag: SLOT-SKLEARN
   - account_id: customer-05
     kind: customer
     broker: paper
     status: disabled
     risk_budget_inr: 1000
+    portal_sub: c5
+    slot: HYBRID_OR_ROUTER
+    journal_tag: SLOT-HYBRID_OR_ROUTER

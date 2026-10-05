@@ -127,6 +127,12 @@ class C5Process:
     broker: str | None
     state_dir: Path
     argv: tuple[str, ...]
+    portal_sub: str | None = None
+    slot: str | None = None
+    journal_tag: str | None = None
+    strategy_id: str | None = None
+    basket: str | None = None
+    slot_armed: bool = False
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -136,6 +142,12 @@ class C5Process:
             "broker": self.broker,
             "state_dir": str(self.state_dir),
             "argv": list(self.argv),
+            "portal_sub": self.portal_sub,
+            "slot": self.slot,
+            "journal_tag": self.journal_tag,
+            "strategy_id": self.strategy_id,
+            "basket": self.basket,
+            "slot_armed": self.slot_armed,
             "live_broker": False,
         }
 
@@ -180,6 +192,12 @@ def _bind_exec_proc(account: Account, state_root: Path, mode: str, python: str, 
         broker=account.broker,
         state_dir=state,
         argv=_argv(python, "exec", state, mode, account.account_id),
+        portal_sub=account.portal_sub or None,
+        slot=account.slot or None,
+        journal_tag=account.journal_tag or None,
+        strategy_id=account.strategy_id or None,
+        basket=account.basket or None,
+        slot_armed=account.slot_armed,
     )
 
 
@@ -328,6 +346,12 @@ def status_launch(state_root: Path, *, repo: Path | None = None) -> dict[str, An
                     "kind": row.get("kind"),
                     "ready": (ed / f"exec-{aid}.ready").is_file() if aid else False,
                     "state_dir": str(ed),
+                    "portal_sub": row.get("portal_sub"),
+                    "slot": row.get("slot"),
+                    "journal_tag": row.get("journal_tag"),
+                    "strategy_id": row.get("strategy_id"),
+                    "basket": row.get("basket"),
+                    "slot_armed": bool(row.get("slot_armed")),
                 }
             )
     return {

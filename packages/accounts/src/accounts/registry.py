@@ -9,15 +9,17 @@ from typing import Any
 from accounts.errors import AccountClosed, AccountSafetyError
 from accounts.model import STATUSES, Account
 from accounts.safety import assert_active, assert_paper_only, refuse_broker_name
+from accounts.slots import assert_unique_slot_fields
 
 _REPO_ROOT = Path(__file__).resolve().parents[4]
 MAX_CUSTOMER_ACCOUNTS = 5
 PAPER_LAUNCH_CUSTOMER_IDS = tuple(f"customer-{i:02d}" for i in range(1, MAX_CUSTOMER_ACCOUNTS + 1))
 CUSTOMER_TEMPLATE_BUDGET_INR = 1000
 _WRITE_HEADER = (
-    "# V2 C5-01 paper/shadow accounts. Fail closed. No live broker. No secrets.\n"
-    "# Enable: python -m accounts enable --account customer-01\n"
+    "# V2 C5-01/C5-07 paper/shadow accounts. Fail closed. No live broker. No secrets.\n"
+    "# Enable one book: python -m accounts enable --account customer-01\n"
     "# Disable: python -m accounts disable --account customer-01\n"
+    "# Slots stay unarmed until desk lead sets strategy_id or basket on that row.\n"
 )
 
 
@@ -165,6 +167,7 @@ def set_account_status(
     else:
         accounts = [Account.from_mapping(row) for row in preview]
     assert_customer_cap(accounts)
+    assert_unique_slot_fields(accounts)
     if not default:
         raise AccountSafetyError("V2 accounts fail-closed: default_account is required")
     write_accounts_yaml(dest, default, preview)
@@ -184,6 +187,7 @@ class AccountRegistry:
                 raise AccountSafetyError(f"V2 accounts fail-closed: duplicate account_id {acc.account_id!r}")
             seen[acc.account_id] = acc
         assert_customer_cap(accounts)
+        assert_unique_slot_fields(accounts)
         if default_account not in seen:
             raise AccountSafetyError(
                 f"V2 accounts fail-closed: default_account {default_account!r} is not in the registry"
@@ -219,6 +223,15 @@ class AccountRegistry:
 
     def customer_ids(self) -> tuple[str, ...]:
         return tuple(acc.account_id for acc in self._accounts.values() if acc.kind == "customer")
+
+    def account_id_for_portal_sub(self, sub: str) -> str:
+        from accounts.slots import account_id_for_portal_sub
+
+        return account_id_for_portal_sub(sub, self)
+
+    def portal_map(self) -> dict[str, str]:
+        mapped = {acc.portal_sub: acc.account_id for acc in self._accounts.values() if acc.portal_sub}
+        return mapped
 
     def all(self) -> tuple[Account, ...]:
         return tuple(self._accounts[i] for i in self._accounts)

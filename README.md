@@ -147,9 +147,12 @@ Paper/shadow only. **Never live.** Shared `runtime signal` starts once. Each ena
 # 0. Isolated V2 python (does not touch legacy .venv)
 ./scripts/mac_setup_v2.sh
 
-# 1. Enable up to 5 paper customers (C5-01 templates already in accounts.yaml)
+# 1. Enable ONE paper customer after desk lead assigns that row (C5-07)
+#    python -m accounts list          # five slots, all disabled, slot_armed=false
+#    # desk lead sets strategy_id or basket on customer-01 only, then:
 #    python -m accounts enable --account customer-01
 #    Disabled rows are skipped. Never broker: dhan / live. No tokens in yaml.
+#    Do not enable all five on the first night.
 
 # 2. Create paper state dirs (fail-closed if missing)
 mkdir -p data/c5/signal

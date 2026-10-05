@@ -21,6 +21,7 @@ def _account_payload(acc: Account) -> dict[str, object]:
         "broker": acc.broker,
         "status": acc.status,
         "risk_budget_inr": acc.risk_budget_inr,
+        **acc.slot_fields(),
     }
 
 
@@ -52,6 +53,7 @@ def main(argv: list[str] | None = None) -> int:
                         "accounts": [_account_payload(acc) for acc in registry.all()],
                         "customer_ids": list(registry.customer_ids()),
                         "customer_cap": MAX_CUSTOMER_ACCOUNTS,
+                        "portal_map": registry.portal_map(),
                         "live_broker": False,
                     },
                     sort_keys=True,
