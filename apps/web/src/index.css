@@ -4191,7 +4191,7 @@ tr.is-click:hover {
 
 /* C5-03/C5-08 customer `/` — phone-first paper portal + trade journey. */
 .customer-portal {
-  max-width: 36rem;
+  max-width: 40rem;
   gap: 0.7rem;
   padding-top: 1.1rem;
 }

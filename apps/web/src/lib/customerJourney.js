@@ -131,7 +131,16 @@ export function journeyChips(view, path, journal) {
   if (stamp?.asOf) {
     chips.push({ id: "tape", label: stamp.when ? `tape ${stamp.when}` : "last known tape", tone: "grey" });
   }
-  return chips;
+  const seen = new Set();
+  return chips.filter((chip) => {
+    const key = `${chip.id}:${String(chip.label).toUpperCase()}`;
+    if (seen.has(key)) return false;
+    if (chip.id === "market" && String(chip.label).toUpperCase() === String(view?.status || "").toUpperCase()) {
+      return false;
+    }
+    seen.add(key);
+    return true;
+  });
 }
 
 export function sparklineGeometry(points, { width = 320, height = 96, pad = 12 } = {}) {

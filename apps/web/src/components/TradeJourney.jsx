@@ -19,8 +19,8 @@ function Sparkline({ spark, path, motion }) {
       >
         <defs>
           <linearGradient id="journey-fill" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="rgba(91, 156, 255, 0.38)" />
-            <stop offset="100%" stopColor="rgba(91, 156, 255, 0.02)" />
+            <stop offset="0%" stopColor="rgba(91, 156, 255, 0.55)" />
+            <stop offset="100%" stopColor="rgba(91, 156, 255, 0.04)" />
           </linearGradient>
         </defs>
         <path className="journey-spark__area" d={spark.area} fill="url(#journey-fill)" />
