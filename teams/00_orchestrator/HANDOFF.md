@@ -15,6 +15,7 @@ Accepted: 00 ticket = cut lag on 5-customer paper
   surface unchanged (CALL/PUT/HOLD). Measured
   drop on /v2/snapshot customer and /signals.
   Compact account + journal tail. No VPS.
+  Restack onto origin/main 87b4b32 (#84 costs).
 Rejected: Scale-out, LB, live orders, tokens,
   cost-math edits, RAG, warehouse, Exit Lab.
 UNKNOWN: Production recon file size on founder box.
