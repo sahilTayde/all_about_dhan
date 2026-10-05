@@ -51,6 +51,9 @@ INSTRUMENT_SEGMENT = "/instrument/{exchange_segment}"
 # https://dhanhq.co/docs/v2/authentication/
 PROFILE = "/profile"
 RENEW_TOKEN = "/RenewToken"  # VERIFY HTTP method + response body (docs curl omits -X)
+# TOTP generate (AUTH_BASE, not API_BASE). Official query: dhanClientId, pin, totp.
+# POST https://auth.dhan.co/app/generateAccessToken?...
+GENERATE_ACCESS_TOKEN = "/app/generateAccessToken"
 
 # Rate limits from https://dhanhq.co/docs/v2/ (Introduction) and child pages.
 RATE_LIMIT_QUOTE_PER_SEC = 1

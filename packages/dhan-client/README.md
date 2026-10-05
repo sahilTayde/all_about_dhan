@@ -30,6 +30,7 @@ source .venv/bin/activate
 pip install -e packages/dhan-client
 
 python -m dhan_client status
+python -m dhan_client mint-token --check   # C5-06: vault names only; no HTTP
 python -m dhan_client --dry-run quote
 python -m dhan_client --dry-run historical
 python -m dhan_client --dry-run option-chain
@@ -74,7 +75,8 @@ Missing Data API plan → `DH-902` / `806`. Do not invent REST fields.
 | `dhan_client.instruments` | Public scrip-master CSV URLs + `GET /instrument/{segment}` |
 | `dhan_client.feed` | WS connect, subscribe (≤100/msg), reconnect |
 | `dhan_client.decode` | Binary header + ticker; quote/full placeholder |
-| `dhan_client.refresh` | **Not implemented** — VERIFY FROM DOCS |
+| `dhan_client.refresh` | **RenewToken not implemented** (not the daily path) |
+| `dhan_client.totp_mint` | Paper Mac TOTP `generateAccessToken` → repo-root `.env` `DHAN_ACCESS_TOKEN` |
 | `dhan_client.execution` | SafeMode: `place_order` always raises |
 | `dhan_client.client` | Facade `DhanClient` |
 
@@ -99,6 +101,7 @@ python -m dhan_client --live feed           # Live Market Feed WS
 | Scrip-master CSV on `images.dhan.co` | no (docs show a public URL) | Large file; dry-run skips download |
 | `GET /v2/profile` | yes | Not wrapped yet — easy add in `rest.py` |
 | Token refresh (`/v2/RenewToken`) | yes | **Unwired.** Can invalidate the current token. VERIFY method + response body |
+| TOTP mint (`auth.dhan.co/app/generateAccessToken`) | PIN + TOTP secret | Paper Mac: `python -m dhan_client mint-token` / `scripts/mint_dhan_token.sh`. Writes `.env` `DHAN_ACCESS_TOKEN`. `--check` is network-free. Never logs the URL. |
 | Orders | — | **Refused** in `execution.py` |
 
 NIFTY / BANKNIFTY / SENSEX **security IDs** are not hardcoded. Look them up in the instrument CSV (`IDX_I` / `OPTIDX`). Official option-chain example uses `UnderlyingScrip: 13` without naming the index.

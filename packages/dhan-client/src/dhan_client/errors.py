@@ -36,3 +36,7 @@ class SafeModeError(DhanClientError):
 
 class NotImplementedInSkeleton(DhanClientError):
     """Documented capability left unwired until VERIFY FROM DOCS."""
+
+
+class MintError(DhanClientError):
+    """TOTP access-token mint failed. Message is a code; never includes secrets."""
