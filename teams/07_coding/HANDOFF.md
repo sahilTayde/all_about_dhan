@@ -1,5 +1,25 @@
 # Handoff log — Team 07 Coding
 
+## As of now (2026-10-05 IST) — C5-08 customer trade journey (PAPER)
+
+```text
+From:     teams/07_coding
+To:       founder / 00 / 05 / 09
+Date:     2026-10-05
+Status:   PAPER / C5-08 / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+Accepted: Visual SIGNAL→ENTRY→HOLD→EXIT rail,
+  status chips, SVG spark from last-known
+  journal/demo. Compact /v2/customer/signals
+  first paint; journal after paint (450ms).
+  Five paper seats. Restack onto origin/main
+  ebd87ae (#88).
+Rejected: Live broker. Fake LTP. Order buttons.
+  VPS/LB. Chart library on `/`.
+UNKNOWN: Host-box journal tape marks on a
+  live paper day.
+```
+
 ## As of now (2026-10-10 IST) — C5-07 five paper slots (PAPER)
 
 ```text
