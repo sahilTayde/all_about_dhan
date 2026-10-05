@@ -1,6 +1,6 @@
 /**
- * Customer `/` loader. Tries V2 `signals:public` with a customer claim,
- * then falls back to the safe mock feed (labeled MOCK).
+ * Customer `/` loader. Tries compact `/v2/customer/signals`, then
+ * `/v2/snapshot?channels=signals:public`, then the safe mock feed (MOCK).
  *
  * Never: Dhan, founder token, founder channels, LLM.
  * Auth: Bearer VITE_CUSTOMER_JWT or localhost paper label `token=customer`.
@@ -15,24 +15,37 @@ function customerHeaders() {
   return { Authorization: `Bearer ${jwt}` };
 }
 
-function snapshotUrl() {
+function authQuery() {
   const jwt = String(import.meta.env.VITE_CUSTOMER_JWT || "").trim();
-  const qs = new URLSearchParams({ channels: CUSTOMER_CHANNEL });
+  const qs = new URLSearchParams();
   // packages/auth: customer role only. Never token=founder.
   if (!jwt) qs.set("token", "customer");
+  return qs;
+}
+
+function compactSignalsUrl() {
+  const qs = authQuery();
+  const base = API_BASE || "";
+  const q = qs.toString();
+  return `${base}/v2/customer/signals${q ? `?${q}` : ""}`;
+}
+
+function snapshotUrl() {
+  const qs = authQuery();
+  qs.set("channels", CUSTOMER_CHANNEL);
   const base = API_BASE || "";
   return `${base}/v2/snapshot?${qs}`;
 }
 
 const V2_BUDGET_MS = 450;
 
-async function trySignalsPublic(signal) {
+async function tryOne(url, signal, budgetMs) {
   const ac = new AbortController();
-  const timer = setTimeout(() => ac.abort(), V2_BUDGET_MS);
+  const timer = setTimeout(() => ac.abort(), budgetMs);
   const onAbort = () => ac.abort();
   signal?.addEventListener("abort", onAbort);
   try {
-    const res = await fetch(snapshotUrl(), {
+    const res = await fetch(url, {
       headers: customerHeaders(),
       cache: "no-store",
       signal: ac.signal,
@@ -47,6 +60,14 @@ async function trySignalsPublic(signal) {
     clearTimeout(timer);
     signal?.removeEventListener("abort", onAbort);
   }
+}
+
+async function trySignalsPublic(signal) {
+  // Compact tail first (C5-05). Fall back to /v2/snapshot, then mock.
+  return (
+    (await tryOne(compactSignalsUrl(), signal, V2_BUDGET_MS)) ||
+    (await tryOne(snapshotUrl(), signal, V2_BUDGET_MS))
+  );
 }
 
 async function loadMock(signal) {

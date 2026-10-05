@@ -5,6 +5,8 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import threading
+import time
 from contextlib import asynccontextmanager
 from typing import Any, Optional
 
@@ -144,9 +146,21 @@ def create_app() -> FastAPI:
 
         return save_human_override(body if isinstance(body, dict) else {})
 
+    _desk_lock = threading.Lock()
+    _desk_memo: tuple[float, int, dict[str, Any]] | None = None
+    _DESK_TTL_S = 0.2
+
     def _desk(*, bind_premium: bool = True) -> dict[str, Any]:
+        nonlocal _desk_memo
         store: SignalStore = app.state.store
         live = getattr(app.state, "live_paper", None)
+        live_id = id(live)
+        now = time.monotonic()
+        if bind_premium:
+            with _desk_lock:
+                hit = _desk_memo
+                if hit is not None and now - hit[0] < _DESK_TTL_S and hit[1] == live_id:
+                    return hit[2]
         merged = overlay_customer_sod_ticket(
             merge_live_paper_into_desk(store.paper_desk(), live)
         )
@@ -173,6 +187,9 @@ def create_app() -> FastAPI:
             )
             meta.setdefault("premium_bind", "DATA_INSUFFICIENT")
             merged["meta"] = meta
+        if bind_premium:
+            with _desk_lock:
+                _desk_memo = (time.monotonic(), live_id, merged)
         return merged
 
     @app.get("/paper/signal")

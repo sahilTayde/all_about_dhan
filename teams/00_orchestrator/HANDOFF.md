@@ -2,6 +2,26 @@
 
 **Agents:** read **only the newest block**. Do not ingest this whole log. New files: [`docs/FILE_CREATION.md`](../../docs/FILE_CREATION.md). Append here — do not create `HANDOFF_TOMORROW.md` or extra `CONTINUE_*`.
 
+## As of now (2026-10-05 IST) — C5-05 customer paper latency (PAPER)
+
+```text
+From:     teams/00_orchestrator
+To:       founder / 07 / 05 / 09
+Date:     2026-10-05
+Status:   PAPER / C5-05 / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+Accepted: 00 ticket = cut lag on 5-customer paper
+  portal/API only. 07 owns the path. 05 talk
+  surface unchanged (CALL/PUT/HOLD). Measured
+  drop on /v2/snapshot customer and /signals.
+  Compact account + journal tail. No VPS.
+  Restack onto origin/main c5741da (#86 TOTP).
+  Costs untouched (#84 already on main).
+Rejected: Scale-out, LB, live orders, tokens,
+  cost-math edits, RAG, warehouse, Exit Lab.
+UNKNOWN: Production recon file size on founder box.
+```
+
 ## As of now (2026-10-05) — C5-06 Mac Dhan TOTP auto-mint (PAPER)
 
 ```text

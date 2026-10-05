@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 from copy import deepcopy
 from pathlib import Path
 from typing import Any, Optional
@@ -60,12 +59,10 @@ def _hold_customer_row(name: str, base: dict[str, Any], reason: str) -> dict[str
 
 
 def _load_ml_board() -> dict[str, Any]:
-    if not _ML_BOARD.is_file():
-        return {}
-    try:
-        blob = json.loads(_ML_BOARD.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        return {}
+    """Stamp-cached. Callers must not mutate the returned board."""
+    from api.ui_feed import read_json
+
+    blob = read_json(_ML_BOARD)
     return blob if isinstance(blob, dict) else {}
 
 
@@ -208,13 +205,10 @@ def _reason_list(*sources: Any, limit: int = 3) -> list[str]:
 
 def _load_latest_vetoes() -> dict[str, list[str]]:
     """Small recon snapshot — avoid scanning 47MB paper_ledger on each GET."""
+    from api.ui_feed import read_json
+
     for path in (_LATEST_SIGNALS, _MONITOR_STATUS):
-        if not path.is_file():
-            continue
-        try:
-            blob = json.loads(path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
-            continue
+        blob = read_json(path)
         if not isinstance(blob, dict):
             continue
         by_und = blob.get("top_veto_reasons") or blob.get("vetoes_by_underlying")
