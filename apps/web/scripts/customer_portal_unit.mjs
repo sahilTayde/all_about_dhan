@@ -3,6 +3,7 @@
 import assert from "node:assert/strict";
 import {
   badgeIsAllowed,
+  closedTicketFixture,
   deskFromV2Public,
   displayMode,
   emptyDeskFixture,
@@ -63,5 +64,11 @@ assert.equal(fromV2.feed, "signals:public");
 assert.equal(fromV2.mode, "PAPER");
 assert.equal(fromV2.market, "CALL");
 assert.ok(!fromV2.denied || true);
+
+const closed = selectCustomerView(closedTicketFixture(), "BANKNIFTY");
+assert.equal(closed.status, "ACHIEVED");
+assert.equal(closed.market, "PUT");
+assert.equal(closed.bookRow.last_mark, 200);
+assert.equal(Array.isArray(closed.bookRow.path_marks), true);
 
 console.log("PASS customer_portal_unit empty HOLD + one CALL + no LIVE badge");
