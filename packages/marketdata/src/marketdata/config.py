@@ -9,7 +9,10 @@ from pathlib import Path
 @dataclass(frozen=True)
 class RecorderConfig:
     tape_root: Path
+    # Single-name field kept for existing constructors. Prefer ``underlyings``.
     underlying: str = "NIFTY"
+    # Empty means ``(underlying,)``. The CLI default is NIFTY,SENSEX.
+    underlyings: tuple[str, ...] = ()
     # Resolved instruments are cached here; used if Dhan is unreachable at startup.
     cache_dir: Path | None = None
     startup_attempts: int = 5
@@ -38,3 +41,7 @@ class RecorderConfig:
     tape_queue_put_timeout_s: float = 0.05
     # IDX_I: ticker (15) or quote (17). FULL (21) sends no index ticks on the live feed.
     index_feed_mode: str = "ticker"
+
+    def resolved_underlyings(self) -> tuple[str, ...]:
+        """Names the recorder loads. Tests that omit ``underlyings`` stay NIFTY-only."""
+        return self.underlyings if self.underlyings else (self.underlying,)

@@ -14,10 +14,12 @@ from dhan_client.errors import DhanApiError
 from md_fake_dhan import (
     DAY,
     EXPIRY,
+    SENSEX_EXPIRY,
     StubSource,
     full_packet,
     index_packet,
     ist,
+    make_sensex_universe,
     make_universe,
     oi_packet,
     option_chain,
@@ -26,14 +28,17 @@ from md_fake_dhan import (
 )
 
 from marketdata.clock import IST
+from marketdata.config import RecorderConfig
 from marketdata.coverage import summarize
 from marketdata.frames import decode_frame_checked
 from marketdata.instruments import (
+    DEFAULT_RECORDER_UNDERLYINGS,
     StartupError,
     build_universe,
     load_cached_universe,
     load_universe,
     parse_scrip_master,
+    parse_underlyings,
     save_universe,
 )
 from marketdata.strikes import StrikeSet
@@ -81,6 +86,50 @@ def test_detailed_csv_columns_and_sensex_segment() -> None:
     assert (opt.exchange_segment, opt.instrument_id) == ("BSE_FNO", "BSE_FNO:SENSEX:2026-10-01:81200:PE")
     assert u.future is not None
     assert u.future.exchange_segment == "BSE_FNO"
+
+
+def test_parse_underlyings_and_config_default() -> None:
+    assert DEFAULT_RECORDER_UNDERLYINGS == ("NIFTY", "SENSEX")
+    assert parse_underlyings("NIFTY") == ("NIFTY",)
+    assert parse_underlyings("NIFTY,SENSEX") == ("NIFTY", "SENSEX")
+    assert parse_underlyings("nifty", " sensex ") == ("NIFTY", "SENSEX")
+    assert parse_underlyings("NIFTY,NIFTY,SENSEX") == ("NIFTY", "SENSEX")
+    with pytest.raises(ValueError, match="unknown underlying"):
+        parse_underlyings("BANKEX")
+    with pytest.raises(ValueError, match="at least one"):
+        parse_underlyings(" , ")
+    cfg = RecorderConfig(tape_root=Path("/tmp"))
+    assert cfg.resolved_underlyings() == ("NIFTY",)
+    assert RecorderConfig(tape_root=Path("/tmp"), underlyings=("NIFTY", "SENSEX")).resolved_underlyings() == (
+        "NIFTY",
+        "SENSEX",
+    )
+
+
+def test_load_sensex_from_stub_is_bse_weekly() -> None:
+    u = load_universe(StubSource(), "SENSEX", DAY, sleep=lambda _s: None)
+    assert u.expiry == SENSEX_EXPIRY
+    assert u.strike_step == 100
+    assert (u.index.security_id, u.index.instrument_id) == ("51", "BSE_IDX:SENSEX")
+    assert u.future is not None
+    assert u.future.exchange_segment == "BSE_FNO"
+    assert u.future.instrument_id.startswith("BSE_FNO:SENSEX:")
+
+
+def test_sensex_strike_set_mirrors_nifty_wings() -> None:
+    s = StrikeSet(make_sensex_universe())
+    first = s.update(81234.5, 0.0)
+    ids = [i.instrument_id for i in first.subscribe]
+    assert ids[:2] == ["BSE_IDX:SENSEX", "BSE_FNO:SENSEX:2026-10-29"]
+    assert s.current == {
+        f"BSE_FNO:SENSEX:{SENSEX_EXPIRY}:81200:CE": ("ATM", "CE"),
+        f"BSE_FNO:SENSEX:{SENSEX_EXPIRY}:81100:CE": ("ITM100", "CE"),
+        f"BSE_FNO:SENSEX:{SENSEX_EXPIRY}:81000:CE": ("ITM200", "CE"),
+        f"BSE_FNO:SENSEX:{SENSEX_EXPIRY}:81200:PE": ("ATM", "PE"),
+        f"BSE_FNO:SENSEX:{SENSEX_EXPIRY}:81300:PE": ("ITM100", "PE"),
+        f"BSE_FNO:SENSEX:{SENSEX_EXPIRY}:81400:PE": ("ITM200", "PE"),
+    }
+    assert len(s.subscribed) == 8
 
 
 def test_chain_security_ids_win_over_csv() -> None:
