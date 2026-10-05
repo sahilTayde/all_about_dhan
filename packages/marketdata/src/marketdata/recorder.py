@@ -86,6 +86,18 @@ class Stats:
     late_packets: int = 0
 
 
+@dataclass
+class _Book:
+    """One underlying's universe + traded-strike set. Spot is per book so a NIFTY
+    tick cannot re-centre SENSEX (or the reverse)."""
+
+    universe: Universe
+    strikes: StrikeSet
+    spot: float
+    last_spot_s: float = float("-inf")
+    index_tick_seen: bool = False
+
+
 class MarketDataRecorder:
     def __init__(
         self,
@@ -102,6 +114,7 @@ class MarketDataRecorder:
         self.settings = settings
         self.source = source
         self.universe = universe
+        self.books: list[_Book] = []
         self.clock: Clock = clock or LiveClock()
         self.tape = {
             name: TapeWriter(
@@ -173,16 +186,17 @@ class MarketDataRecorder:
         day = session_day(now)
         open_dt, close_dt = market_open(day), market_close(day)
         self._open_dt = open_dt
-        if self.universe is None:
-            self.universe = await self._load_universe(day, open_dt)
+        if not self.books:
             if self.universe is None:
-                return self.exit_code
-            self.spot = self.universe.spot
+                universes = await self._load_universes(day, open_dt)
+                if universes is None:
+                    return self.exit_code
+            else:
+                universes = [self.universe]
+            self._install_books(universes)
         universe = self.universe
-        self.strikes = StrikeSet(
-            universe, retention_s=self.config.retention_s, max_instruments=self.config.max_instruments
-        )
-        self._by_security = {(i.exchange_segment, i.security_id): i for i in universe.all_instruments()}
+        assert universe is not None
+        assert self.books
 
         connect_at = open_dt - timedelta(seconds=self.config.connect_early_s)
         if self.clock.now() < connect_at:
@@ -204,23 +218,27 @@ class MarketDataRecorder:
             if repaired:
                 log.warning("repaired %s: removed %d bytes", writer.path, repaired["removed_bytes"])
                 self._error(repaired["reason"], start, **{k: v for k, v in repaired.items() if k != "reason"})
-        first = self.strikes.update(self.spot, start.timestamp())
-        self._log_change(first, start, "start")
+        first_subscribe: list[Instrument] = []
+        for book in self.books:
+            book.last_spot_s = start.timestamp()
+            change = book.strikes.update(book.spot, start.timestamp())
+            self._log_change(change, start, "start", book)
+            first_subscribe.extend(change.subscribe)
         self.collector = MarketFeedCollector(
             self.settings,
-            [i.feed for i in first.subscribe],
+            [i.feed for i in first_subscribe],
             mode=FeedMode.FULL,
             index_mode=FeedMode(self.config.index_feed_mode),
             reconnect=True,
             max_backoff_seconds=self.config.max_backoff_s,
         )
         log.info(
-            "recording %s expiry=%s spot=%.2f atm=%s instruments=%d into %s",
-            universe.underlying,
-            universe.expiry,
-            self.spot,
-            self.strikes.atm,
-            len(first.subscribe),
+            "recording %s into %s",
+            "; ".join(
+                f"{b.universe.underlying} expiry={b.universe.expiry} spot={b.spot:.2f} "
+                f"atm={b.strikes.atm} n={len(b.strikes.subscribed)}"
+                for b in self.books
+            ),
             self.config.tape_root / day.isoformat(),
         )
         feed = asyncio.create_task(self.collector.run(on_frame=self._on_frame))
@@ -246,7 +264,44 @@ class MarketDataRecorder:
             )
         return self.exit_code
 
-    async def _load_universe(self, day: date, open_dt: datetime) -> Universe | None:
+    def _install_books(self, universes: list[Universe]) -> None:
+        self.books = [
+            _Book(
+                universe=u,
+                strikes=StrikeSet(
+                    u, retention_s=self.config.retention_s, max_instruments=self.config.max_instruments
+                ),
+                spot=u.spot,
+            )
+            for u in universes
+        ]
+        self.universe = self.books[0].universe
+        self.strikes = self.books[0].strikes
+        self.spot = self.books[0].spot
+        self._by_security = {
+            (i.exchange_segment, i.security_id): i for book in self.books for i in book.universe.all_instruments()
+        }
+
+    def _book_for_iid(self, instrument_id: str) -> _Book | None:
+        for book in self.books:
+            if instrument_id in book.strikes.subscribed or instrument_id in book.strikes.current:
+                return book
+            if instrument_id == book.universe.index.instrument_id:
+                return book
+            if book.universe.future and instrument_id == book.universe.future.instrument_id:
+                return book
+        return None
+
+    async def _load_universes(self, day: date, open_dt: datetime) -> list[Universe] | None:
+        out: list[Universe] = []
+        for name in self.config.resolved_underlyings():
+            universe = await self._load_one_universe(name, day, open_dt)
+            if universe is None:
+                return None
+            out.append(universe)
+        return out
+
+    async def _load_one_universe(self, name: str, day: date, open_dt: datetime) -> Universe | None:
         assert self.source is not None
         cache = self.config.cache_dir
         deadline = max(open_dt + timedelta(minutes=5), self.clock.now() + timedelta(minutes=2))
@@ -255,7 +310,7 @@ class MarketDataRecorder:
                 universe = await asyncio.to_thread(
                     load_universe,
                     self.source,
-                    self.config.underlying,
+                    name,
                     day,
                     attempts=self.config.startup_attempts,
                     sleep=self._retry_sleep,
@@ -268,7 +323,7 @@ class MarketDataRecorder:
                 if self.stop_reason is not None:
                     return None
                 if self.clock.now() >= deadline:
-                    cached = load_cached_universe(cache, self.config.underlying, day) if cache else None
+                    cached = load_cached_universe(cache, name, day) if cache else None
                     if cached is None:
                         raise
                     log.error("instrument load failed (%s); using cached instruments %s", exc, cached[1])
@@ -309,16 +364,17 @@ class MarketDataRecorder:
 
     async def _tick(self, now: datetime, now_s: float, last_s: float) -> None:
         assert self.collector is not None
-        assert self.strikes is not None
+        assert self.books
         self._watch_connection(now)
         for payload in self.depth.tick(now_s, heartbeat=self._connected):
             self._emit("DEPTH_QUOTE", payload, now, payload["exchange_ts"])
 
         interval = self.config.quote_interval_s
         if math.floor(now_s / interval) > math.floor(last_s / interval):
-            for iid, (rule, side) in self.strikes.current.items():
-                row = snapshot(iid, rule, side, self.depth.books.get(iid), now_s, self.config.stale_after_s)
-                self._emit("QUOTE_SNAPSHOT", row, now, iso(now))
+            for book in self.books:
+                for iid, (rule, side) in book.strikes.current.items():
+                    row = snapshot(iid, rule, side, self.depth.books.get(iid), now_s, self.config.stale_after_s)
+                    self._emit("QUOTE_SNAPSHOT", row, now, iso(now))
 
         window = self.config.oi_window_s
         if math.floor(now_s / window) > math.floor(last_s / window):
@@ -329,7 +385,8 @@ class MarketDataRecorder:
 
         if math.floor(now_s) > math.floor(last_s):
             self._watch_staleness(now, now_s)
-            await self._apply(self.strikes.update(self.spot, now_s), now, "retention")
+            for book in self.books:
+                await self._apply(book.strikes.update(book.spot, now_s), now, "retention", book)
             self._maybe_poll_spot(now, now_s)
             for writer in self.tape.values():
                 writer.flush()
@@ -370,11 +427,12 @@ class MarketDataRecorder:
                     )
 
     def _watch_staleness(self, now: datetime, now_s: float) -> None:
-        assert self.strikes is not None
+        assert self.books
         assert self._open_dt is not None
         if not self._connected or now < self._open_dt:
             return
-        for iid, inst in self.strikes.subscribed.items():
+        subscribed = {iid: inst for book in self.books for iid, inst in book.strikes.subscribed.items()}
+        for iid, inst in subscribed.items():
             if inst.kind == "INDEX":
                 last = self._last_index_s.get(iid)
                 age = None if last is None else now_s - last
@@ -394,27 +452,28 @@ class MarketDataRecorder:
 
     def _maybe_poll_spot(self, now: datetime, now_s: float) -> None:
         assert self._open_dt is not None
-        assert self.universe is not None
+        need = [b for b in self.books if not b.index_tick_seen]
         if (
-            self._index_tick_seen
+            not need
             or self.source is None
             or not self._connected
             or now < self._open_dt
-            or now_s - self._last_spot_s < self.config.spot_fallback_after_s
             or now_s - self._last_spot_poll_s < self.config.spot_poll_s
             or default_limiter().remaining_s(OPTION_CHAIN) > 0
             or (self._spot_poll is not None and not self._spot_poll.done())
         ):
             return
-        self._last_spot_poll_s = now_s
-        self._spot_poll = asyncio.create_task(self._poll_spot())
-
-    async def _poll_spot(self) -> None:
-        assert self.source is not None
-        assert self.universe is not None
-        if self._index_tick_seen:
+        book = min(need, key=lambda b: b.last_spot_s)
+        if now_s - book.last_spot_s < self.config.spot_fallback_after_s:
             return
-        u = self.universe
+        self._last_spot_poll_s = now_s
+        self._spot_poll = asyncio.create_task(self._poll_spot(book))
+
+    async def _poll_spot(self, book: _Book) -> None:
+        assert self.source is not None
+        if book.index_tick_seen:
+            return
+        u = book.universe
         try:
             chain = await asyncio.to_thread(self.source.option_chain, int(u.index.security_id), "IDX_I", u.expiry)
             spot = float(chain.get("last_price") or 0.0)
@@ -428,16 +487,20 @@ class MarketDataRecorder:
             return
         if spot > 0:
             log.info(
-                "no index tick for %.0fs; spot %.2f from the option chain", self.config.spot_fallback_after_s, spot
+                "no %s index tick for %.0fs; spot %.2f from the option chain",
+                u.underlying,
+                self.config.spot_fallback_after_s,
+                spot,
             )
             now = self.clock.now()
-            await self._on_spot(spot, now, now.timestamp(), from_feed=False)
+            await self._on_spot(book, spot, now, now.timestamp(), from_feed=False)
 
     def _log_status(self, now: datetime) -> None:
-        assert self.strikes is not None
+        spots = " ".join(f"{b.universe.underlying}={b.spot:.2f}/{b.strikes.atm}" for b in self.books)
+        subscribed = sum(len(b.strikes.subscribed) for b in self.books)
         log.info(
             "%s connected=%s frames=%d packets=%d rows depth=%d quotes=%d oi=%d errors=%d "
-            "spot=%.2f atm=%s subscribed=%d stale=%d tape_drops=%d rest_429s=%d",
+            "spot %s subscribed=%d stale=%d tape_drops=%d rest_429s=%d",
             now.strftime("%H:%M"),
             self._connected,
             self.stats.frames,
@@ -446,9 +509,8 @@ class MarketDataRecorder:
             self.tape["quote_snapshots"].rows,
             self.tape["oi_cadence"].rows,
             self.stats.ingest_errors,
-            self.spot,
-            self.strikes.atm,
-            len(self.strikes.subscribed),
+            spots,
+            subscribed,
             len(self._stale),
             tape_drop_count(),
             rate_limit_hits(),
@@ -497,8 +559,7 @@ class MarketDataRecorder:
                 )
 
     async def _on_packet(self, packet: Packet, now: datetime) -> None:
-        assert self.strikes is not None
-        assert self.universe is not None
+        assert self.books
         decoded, header = packet.decoded, packet.decoded.header
         kind, fields = decoded.kind, decoded.fields
         if kind == "disconnect":
@@ -522,7 +583,8 @@ class MarketDataRecorder:
                 self._error("packet for an unknown security id", now, segment=key[0], security_id=key[1])
             return
         iid = inst.instrument_id
-        if iid not in self.strikes.subscribed:
+        book = self._book_for_iid(iid)
+        if book is None or iid not in book.strikes.subscribed:
             self.stats.late_packets += 1
             return
         self.stats.packets += 1
@@ -542,7 +604,7 @@ class MarketDataRecorder:
         elif inst.kind == "INDEX" and ltp is not None:
             self._depth(iid, quote_from_ltp(ltp), now, raw_b64, self._ltt(fields.get("last_trade_time_epoch"), now_s))
         if inst.kind == "INDEX" and ltp and math.isfinite(ltp):
-            await self._on_spot(float(ltp), now, now_s, from_feed=True)
+            await self._on_spot(book, float(ltp), now, now_s, from_feed=True)
 
     def _depth(self, iid: str, quote: dict[str, Any], now: datetime, raw_b64: str | None, ltt: str | None) -> None:
         payload = self.depth.update(iid, quote, now.timestamp(), iso(now), raw_b64, ltt)
@@ -564,27 +626,35 @@ class MarketDataRecorder:
                 return None
         return iso(datetime.fromtimestamp(epoch - self._ltt_shift, IST))
 
-    async def _on_spot(self, spot: float, now: datetime, now_s: float, *, from_feed: bool) -> None:
-        assert self.strikes is not None
-        assert self.universe is not None
-        if abs(spot / self.universe.spot - 1.0) > 0.15:
+    async def _on_spot(self, book: _Book, spot: float, now: datetime, now_s: float, *, from_feed: bool) -> None:
+        if abs(spot / book.universe.spot - 1.0) > 0.15:
             if now_s - self._implausible_logged_s >= 60:
                 self._implausible_logged_s = now_s
-                self._error("implausible index price ignored", now, spot=spot, reference=self.universe.spot)
+                self._error(
+                    "implausible index price ignored",
+                    now,
+                    underlying=book.universe.underlying,
+                    spot=spot,
+                    reference=book.universe.spot,
+                )
             return
-        self.spot = spot
+        book.spot = spot
+        if book is self.books[0]:
+            self.spot = spot
         if from_feed:
+            book.last_spot_s = now_s
+            book.index_tick_seen = True
             self._last_spot_s = now_s
             self._index_tick_seen = True
-        await self._apply(self.strikes.update(spot, now_s), now, "recentre")
+        await self._apply(book.strikes.update(spot, now_s), now, "recentre", book)
 
-    async def _apply(self, change: Change, now: datetime, reason: str) -> None:
+    async def _apply(self, change: Change, now: datetime, reason: str, book: _Book) -> None:
         if not change.subscribe and not change.unsubscribe:
             return
         assert self.collector is not None
         if change.recentred:
-            log.info("re-centred on spot %.2f: ATM %s", self.spot, change.atm)
-        self._log_change(change, now, reason)
+            log.info("re-centred %s on spot %.2f: ATM %s", book.universe.underlying, book.spot, change.atm)
+        self._log_change(change, now, reason, book)
         for inst in change.unsubscribe:
             self.depth.drop(inst.instrument_id)
             self.oi.drop(inst.instrument_id)
@@ -599,13 +669,12 @@ class MarketDataRecorder:
             # The collector already holds the new set and resubscribes it on reconnect.
             log.warning("live subscription update failed (%s); applied on reconnect", type(exc).__name__)
 
-    def _log_change(self, change: Change, now: datetime, reason: str) -> None:
-        assert self.strikes is not None
+    def _log_change(self, change: Change, now: datetime, reason: str, book: _Book) -> None:
         for inst in change.subscribe:
             self._subscribed_s[inst.instrument_id] = now.timestamp()
         for action, items in (("subscribe", change.subscribe), ("unsubscribe", change.unsubscribe)):
             for inst in items:
-                rule = self.strikes.rule_for(inst.instrument_id)
+                rule = book.strikes.rule_for(inst.instrument_id)
                 self._write(
                     "subscriptions",
                     {
@@ -616,7 +685,7 @@ class MarketDataRecorder:
                         "security_id": inst.security_id,
                         "exchange_segment": inst.exchange_segment,
                         "rule": rule[0] if rule else inst.kind,
-                        "spot": self.spot,
+                        "spot": book.spot,
                         "atm": change.atm,
                     },
                     now,

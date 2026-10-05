@@ -36,6 +36,8 @@ TEST_CLIENT_ID = "CLIENTID-SENTINEL-4242"
 TEST_TOKEN = "TOKEN-SENTINEL-eyJhbGciOiJIUzUxMiJ9.xyz"
 DAY = date(2026, 9, 28)
 EXPIRY = "2026-09-29"
+SENSEX_EXPIRY = "2026-10-01"
+SENSEX_SPOT = 81234.5
 
 
 def ist(hh: int, mm: int, ss: float = 0.0, day: date = DAY) -> datetime:
@@ -144,6 +146,10 @@ def option_sid(strike: int, side: str, expiry: str = EXPIRY) -> int:
     return base + (strike - 22_000) // 50 * 2 + (0 if side == "CE" else 1)
 
 
+def sensex_option_sid(strike: int, side: str) -> int:
+    return 800_000 + (strike - 80_000) // 100 * 2 + (0 if side == "CE" else 1)
+
+
 def scrip_master_csv() -> str:
     rows = [
         CSV_HEADER,
@@ -156,7 +162,15 @@ def scrip_master_csv() -> str:
         "NSE,D,35099,FUTIDX,0,NIFTY-Nov2026-FUT,65,NIFTY NOV FUT,2026-11-24 14:30:00,-0.01000,XX,0.1000,M,FUT,NA,NIFTY",
         "NSE,D,35002,FUTIDX,0,FINNIFTY-Oct2026-FUT,65,FINNIFTY OCT FUT,2026-10-27 14:30:00,-0.01000,XX,0.1000,"
         "M,FUT,NA,FINNIFTY",
+        "BSE,D,844700,FUTIDX,0,SENSEX-Oct2026-FUT,20,SENSEX OCT FUT,2026-10-29 14:30:00,-0.01000,XX,0.0500,M,FUT,NA,SENSEX",
     ]
+    for strike in range(80_000, 83_001, 100):
+        for side in ("CE", "PE"):
+            sid = sensex_option_sid(strike, side)
+            rows.append(
+                f"BSE,D,{sid},OPTIDX,0,SENSEX-{SENSEX_EXPIRY}-{strike}-{side},20,SENSEX {strike} {side},"
+                f"{SENSEX_EXPIRY} 14:30:00,{strike}.00000,{side},0.0500,W,OP,NA,SENSEX"
+            )
     for expiry in (EXPIRY, "2026-10-06"):
         for strike in range(22_000, 27_001, 50):
             for side in ("CE", "PE"):
@@ -204,18 +218,41 @@ class StubSource:
 
     def expiry_list(self, underlying_scrip: int, underlying_seg: str) -> list[str]:
         self._maybe_fail("expiry_list")
+        if (underlying_scrip, underlying_seg) == (51, "IDX_I"):
+            return ["2026-09-24", SENSEX_EXPIRY, "2026-10-08"]
         assert (underlying_scrip, underlying_seg) == (13, "IDX_I")
         return ["2026-09-22", EXPIRY, "2026-10-06", "2026-10-27"]
 
     def option_chain(self, underlying_scrip: int, underlying_seg: str, expiry: str) -> dict[str, Any]:
         self._maybe_fail("option_chain")
+        if (underlying_scrip, underlying_seg) == (51, "IDX_I"):
+            assert expiry == SENSEX_EXPIRY
+            return sensex_option_chain()
         assert (underlying_scrip, underlying_seg, expiry) == (13, "IDX_I", EXPIRY)
         return option_chain(self.spot)
+
+
+def sensex_option_chain(spot: float = SENSEX_SPOT) -> dict[str, Any]:
+    oc = {
+        f"{strike}.000000": {
+            "ce": {"security_id": sensex_option_sid(strike, "CE"), "last_price": 1.0, "oi": 1},
+            "pe": {"security_id": sensex_option_sid(strike, "PE"), "last_price": 1.0, "oi": 1},
+        }
+        for strike in range(80_000, 83_001, 100)
+    }
+    return {"last_price": spot, "oc": oc}
 
 
 def make_universe(spot: float = 24512.35) -> Universe:
     text = scrip_master_csv()
     return build_universe(text, parse_scrip_master(text, "NIFTY"), option_chain(spot), "NIFTY", DAY, EXPIRY)
+
+
+def make_sensex_universe(spot: float = SENSEX_SPOT) -> Universe:
+    text = scrip_master_csv()
+    return build_universe(
+        text, parse_scrip_master(text, "SENSEX"), sensex_option_chain(spot), "SENSEX", DAY, SENSEX_EXPIRY
+    )
 
 
 def settings_for(url: str, repo: Path) -> Settings:

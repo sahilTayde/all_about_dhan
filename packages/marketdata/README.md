@@ -1,6 +1,6 @@
 # marketdata — V2-D2 depth, quote-snapshot and OI-cadence recorder
 
-Records the Dhan live feed for one index (NIFTY by default) during the NSE session:
+Records the Dhan live feed for NIFTY and SENSEX (default) during the session:
 5-level depth at ≤ 1 s, bid/ask snapshots every 5 s, and how often OI actually changes.
 **Record only.** It reads REST market-data endpoints and the websocket feed; it has no order
 code path. It runs standalone, without the engine.
@@ -33,6 +33,16 @@ source .venv/bin/activate
 python -m marketdata --record-only
 ```
 
+After merge + Mac `git pull`, that default command is the start line. It loads both indexes in one process (nearest weekly expiry, ATM / ITM100 / ITM200 CE+PE, plus each index and nearest future). Same as:
+
+```bash
+python -m marketdata --record-only --underlying NIFTY,SENSEX
+# or
+python -m marketdata --record-only --underlying NIFTY --underlying SENSEX
+```
+
+NIFTY-only (old default): `--underlying NIFTY`. `subscriptions.jsonl` should show `NSE_IDX:NIFTY` / `NSE_FNO:NIFTY:…` and `BSE_IDX:SENSEX` / `BSE_FNO:SENSEX:…`. Not a full-chain firehose.
+
 - Start it any time before the open. It loads instruments at once (so a bad token or network
   problem shows up immediately), then waits and connects at **09:13 IST**. It stops by itself
   at **15:30 IST**. Started after 15:30 or on a weekend, it waits for the next weekday session.
@@ -42,7 +52,7 @@ python -m marketdata --record-only
 - Dhan allows 5 feed connections per user. Other feed consumers (the legacy data recorder,
   `apps/api` live proxy) count towards that; if Dhan closes the feed with code 805 the
   recorder logs it and reconnects.
-- Options: `--underlying NIFTY|BANKNIFTY|SENSEX`, `--tape-root PATH`.
+- Options: `--underlying NIFTY|BANKNIFTY|SENSEX` (repeatable or comma-separated; default `NIFTY,SENSEX`), `--tape-root PATH`.
   `python -m marketdata --coverage YYYY-MM-DD` recomputes the coverage summary.
 
 The live service (V2-12) is a **separate** entry point so Monday's `--record-only` CLI stays the same:

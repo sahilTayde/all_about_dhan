@@ -1,8 +1,11 @@
 """Market data recorder CLI (V2-D2). Record only; places no orders.
 
-    python -m marketdata --record-only [--underlying NIFTY] [--tape-root PATH]
+    python -m marketdata --record-only
+    python -m marketdata --record-only --underlying NIFTY --underlying SENSEX
+    python -m marketdata --record-only --underlying NIFTY,SENSEX
     python -m marketdata --coverage YYYY-MM-DD [--tape-root PATH]
 
+Default underlyings are NIFTY and SENSEX (nearest weekly ATM / ITM wings, not a full chain).
 Credentials: DHAN_CLIENT_ID and DHAN_ACCESS_TOKEN from the environment or the repo ``.env``.
 Exit codes: 0 clean stop (15:30 IST or Ctrl-C/SIGTERM), 1 unexpected error,
 2 credentials or startup failure.
@@ -28,7 +31,12 @@ from marketdata import logsafe
 from marketdata.clock import LiveClock, session_day
 from marketdata.config import RecorderConfig
 from marketdata.coverage import write_summary
-from marketdata.instruments import UNDERLYINGS, DhanInstrumentSource, StartupError
+from marketdata.instruments import (
+    DEFAULT_RECORDER_UNDERLYINGS,
+    DhanInstrumentSource,
+    StartupError,
+    parse_underlyings,
+)
 from marketdata.recorder import MarketDataRecorder
 
 log = logging.getLogger("marketdata")
@@ -73,10 +81,20 @@ async def run_recorder(recorder: MarketDataRecorder) -> int:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="python -m marketdata", description=__doc__.splitlines()[0])
     parser.add_argument("--record-only", action="store_true", help="record depth, quotes and OI cadence")
-    parser.add_argument("--underlying", default="NIFTY", choices=sorted(UNDERLYINGS))
+    parser.add_argument(
+        "--underlying",
+        action="append",
+        dest="underlyings",
+        metavar="NAME",
+        help="Index to record (repeatable or comma-separated). Default: NIFTY,SENSEX",
+    )
     parser.add_argument("--tape-root", type=Path, default=None, help="default: <repo>/data/tape/v2")
     parser.add_argument("--coverage", metavar="YYYY-MM-DD", help="recompute coverage_summary.json for a day")
     args = parser.parse_args(argv)
+    try:
+        names = parse_underlyings(*args.underlyings) if args.underlyings else DEFAULT_RECORDER_UNDERLYINGS
+    except ValueError as exc:
+        parser.error(str(exc))
 
     root = repo_root()
     tape_root: Path = args.tape_root or root / "data" / "tape" / "v2"
@@ -92,12 +110,12 @@ def main(argv: list[str] | None = None) -> int:
     day = session_day(LiveClock().now())
     listener = setup_logging(tape_root / day.isoformat() / "recorder.log")
     try:
-        return _record(args.underlying, root, tape_root, day)
+        return _record(names, root, tape_root, day)
     finally:
         listener.stop()
 
 
-def _record(underlying: str, root: Path, tape_root: Path, day: date) -> int:
+def _record(underlyings: tuple[str, ...], root: Path, tape_root: Path, day: date) -> int:
     try:
         settings = load_settings(dry_run=False)
     except CredentialsError:
@@ -108,9 +126,14 @@ def _record(underlying: str, root: Path, tape_root: Path, day: date) -> int:
         return 2
     cache_dir = root / "data" / "cache" / "marketdata"
     source = DhanInstrumentSource(settings, cache_dir, day=day)
-    config = RecorderConfig(tape_root=tape_root, underlying=underlying, cache_dir=cache_dir)
+    config = RecorderConfig(
+        tape_root=tape_root,
+        underlying=underlyings[0],
+        underlyings=underlyings,
+        cache_dir=cache_dir,
+    )
     recorder = MarketDataRecorder(config, settings, source=source)
-    log.info("marketdata recorder: %s, session %s, tapes under %s", underlying, day, tape_root)
+    log.info("marketdata recorder: %s, session %s, tapes under %s", ",".join(underlyings), day, tape_root)
     try:
         return asyncio.run(run_recorder(recorder))
     except (StartupError, CredentialsError) as exc:

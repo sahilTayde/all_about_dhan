@@ -31,7 +31,7 @@ from md_fake_dhan import (
 from marketdata import __main__ as cli
 from marketdata.clock import session_day
 from marketdata.config import RecorderConfig
-from marketdata.instruments import StartupError
+from marketdata.instruments import DEFAULT_RECORDER_UNDERLYINGS, StartupError
 from marketdata.recorder import MarketDataRecorder
 
 
@@ -247,6 +247,68 @@ def test_bad_credentials_at_startup_fail_immediately(tmp_path: Path) -> None:
         asyncio.run(run_session(tmp_path, ist(9, 0), ist(9, 30), source=source, wait_connect=False))
     assert not info.value.retryable
     assert source.calls.count("expiry_list") == 1
+
+
+def test_cli_default_and_repeatable_underlyings(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    seen: dict[str, object] = {}
+
+    def fake_record(underlyings: tuple[str, ...], root: Path, tape_root: Path, day: object) -> int:
+        seen["underlyings"] = underlyings
+        seen["tape_root"] = tape_root
+        return 0
+
+    monkeypatch.setattr(cli, "_record", fake_record)
+    monkeypatch.setattr(cli, "setup_logging", lambda _p: type("L", (), {"stop": lambda self: None})())
+    assert cli.main(["--record-only", "--tape-root", str(tmp_path / "tape")]) == 0
+    assert seen["underlyings"] == DEFAULT_RECORDER_UNDERLYINGS == ("NIFTY", "SENSEX")
+    assert cli.main(["--record-only", "--underlying", "NIFTY", "--tape-root", str(tmp_path / "tape")]) == 0
+    assert seen["underlyings"] == ("NIFTY",)
+    assert cli.main(["--record-only", "--underlying", "NIFTY,SENSEX", "--tape-root", str(tmp_path / "tape")]) == 0
+    assert seen["underlyings"] == ("NIFTY", "SENSEX")
+    assert (
+        cli.main(
+            [
+                "--record-only",
+                "--underlying",
+                "NIFTY",
+                "--underlying",
+                "SENSEX",
+                "--tape-root",
+                str(tmp_path / "tape"),
+            ]
+        )
+        == 0
+    )
+    assert seen["underlyings"] == ("NIFTY", "SENSEX")
+
+
+def test_recorder_subscribes_nifty_and_sensex_weekly_wings(tmp_path: Path) -> None:
+    s = asyncio.run(
+        run_session(
+            tmp_path,
+            ist(10, 0),
+            ist(10, 0, 8),
+            source=StubSource(),
+            config_kw={"underlyings": ("NIFTY", "SENSEX")},
+        )
+    )
+    assert s.exit_code == 0
+    rows = [r for r in s.rows("subscriptions") if r["action"] == "subscribe"]
+    ids = {r["instrument_id"] for r in rows}
+    assert "NSE_IDX:NIFTY" in ids
+    assert "NSE_FNO:NIFTY:2026-09-29" in ids
+    assert "BSE_IDX:SENSEX" in ids
+    assert any(i.startswith("BSE_FNO:SENSEX:") and i.count(":") == 2 for i in ids)
+    nifty_opts = {i for i in ids if i.startswith("NSE_FNO:NIFTY:") and i.count(":") == 4}
+    sensex_opts = {i for i in ids if i.startswith("BSE_FNO:SENSEX:") and i.count(":") == 4}
+    assert len(nifty_opts) == 6
+    assert len(sensex_opts) == 6
+    assert any(i.endswith(":CE") for i in nifty_opts) and any(i.endswith(":PE") for i in nifty_opts)
+    assert any(i.endswith(":CE") for i in sensex_opts) and any(i.endswith(":PE") for i in sensex_opts)
+    assert all(i.startswith("BSE_FNO:SENSEX:2026-10-01:") for i in sensex_opts)
+    assert len(ids) <= 20
+    segs = {r["exchange_segment"] for r in rows}
+    assert {"IDX_I", "NSE_FNO", "BSE_FNO"} <= segs
 
 
 def test_cli_exit_code_2_on_startup_failure(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

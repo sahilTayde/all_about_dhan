@@ -43,6 +43,27 @@ UNDERLYINGS: dict[str, tuple[str, str]] = {
     "BANKNIFTY": ("NSE", "NSE_FNO"),
     "SENSEX": ("BSE", "BSE_FNO"),
 }
+# ``python -m marketdata --record-only`` with no --underlying.
+DEFAULT_RECORDER_UNDERLYINGS: tuple[str, ...] = ("NIFTY", "SENSEX")
+
+
+def parse_underlyings(*parts: str) -> tuple[str, ...]:
+    """Split comma-separated / repeated names. Order preserved; duplicates dropped."""
+    names: list[str] = []
+    for part in parts:
+        for raw in part.split(","):
+            name = raw.strip().upper()
+            if not name:
+                continue
+            if name not in UNDERLYINGS:
+                raise ValueError(
+                    f"unknown underlying {name!r}; choose from {', '.join(sorted(UNDERLYINGS))}"
+                )
+            if name not in names:
+                names.append(name)
+    if not names:
+        raise ValueError("at least one underlying is required")
+    return tuple(names)
 _INDEX_ALIASES: dict[str, frozenset[str]] = {
     "NIFTY": frozenset({"NIFTY", "NIFTY 50", "NIFTY50"}),
     "BANKNIFTY": frozenset({"BANKNIFTY", "NIFTY BANK", "NIFTYBANK", "BANK NIFTY"}),
