@@ -680,6 +680,14 @@ M1 does **not** mean a strategy is profitable, and it does not enable live order
 - **V2-25** Dhan shadow-mode order test harness (`packages/harness`; submit far off-market and cancel at
   once; PR-002's original acceptance test). Runs only with the founder's explicit approval and credentials
   on the founder's machine. Default OFF. CI uses mocks only.
+- **C5-06 (paper Mac TOTP mint):** `python -m dhan_client mint-token` /
+  `scripts/mint_dhan_token.sh` posts official
+  `https://auth.dhan.co/app/generateAccessToken` (query `dhanClientId`, `pin`,
+  `totp`) and writes `DHAN_ACCESS_TOKEN` to repo-root `.env` (same path
+  `desk.sh` already reads). `--check` is network-free. Opt-in hook
+  `desk.sh mint-token` before a pre-10:22 CT start — **not** wired into
+  `morning`. No partner auth. `RenewToken` is not the primary path. No live
+  orders. Proof: `packages/dhan-client/tests/test_totp_mint.py`.
 
 **Exit criteria:**
 1. M1 criteria hold for 20 more sessions on Postgres, with the REG suite green on both store engines.

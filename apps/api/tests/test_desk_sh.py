@@ -418,6 +418,18 @@ def test_e_morning_does_not_start_shadow() -> None:
     morning = text.split("morning|start)", 1)[1].split("close|night|nightly)", 1)[0]
     assert "shadow_start" not in morning
     assert "recorder_start" not in morning
+    assert "mint-token" not in morning
+    assert "mint_dhan" not in morning
+
+
+def test_c5_06_mint_token_hook_exists_and_is_not_morning() -> None:
+    text = DESK.read_text(encoding="utf-8")
+    assert "mint-token)" in text
+    assert "scripts/mint_dhan_token.sh" in text
+    assert "pre-10:22 CT" in text
+    wrapper = REPO / "scripts" / "mint_dhan_token.sh"
+    assert wrapper.is_file()
+    assert wrapper.stat().st_mode & 0o111
 
 
 def test_e_recorder_status_last_log_line(tmp_path: Path) -> None:

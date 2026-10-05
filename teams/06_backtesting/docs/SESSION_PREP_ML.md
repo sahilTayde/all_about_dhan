@@ -6,7 +6,7 @@ From the repo root. PAPER. No live orders.
 
 | When | Command | What it does |
 |------|---------|----------------|
-| **Token** (before open) | Edit repo-root `.env` (`DHAN_CLIENT_ID`, `DHAN_ACCESS_TOKEN`) | Never commit. Never print the token. Empty keys → fixtures only. |
+| **Token** (before open) | Repo-root `.env` `DHAN_CLIENT_ID` / `DHAN_ACCESS_TOKEN`. Optional C5-06 mint: `./scripts/mint_dhan_token.sh --check` then `./scripts/desk.sh mint-token` (TOTP; [SECURITY.md](../../../docs/SECURITY.md)). `morning` does not mint. | Never commit. Never print the token. Empty keys → fixtures only. |
 | **One-time v2 venv** | `./scripts/mac_setup_v2.sh` | Builds `.venv-v2` (3.11+). **Does not touch** `.venv`. |
 | **Website** | `./scripts/desk.sh website` | Runs `preflight`, then API `:8000` + Vite `:5173`. Capture off. |
 | **Open** (Mon–Fri 09:30 IST) | `./scripts/desk.sh watch-open` | Dual-tape (2s). If `health.supervise` is missing in `.venv`, starts dual-tape directly. |

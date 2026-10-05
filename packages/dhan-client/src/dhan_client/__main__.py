@@ -17,10 +17,12 @@ from dhan_client.config import (
     ENV_ACCESS_TOKEN,
     ENV_CLIENT_ID,
     ENV_CLIENT_SECRET,
+    ENV_PIN,
     ENV_REFRESH_TOKEN,
+    ENV_TOTP_SECRET,
     load_settings,
 )
-from dhan_client.errors import SafeModeError
+from dhan_client.errors import MintError, SafeModeError
 from dhan_client.paper_probe import run_paper_probe
 from dhan_client.futidx import contracts_as_dicts, parse_futidx_csv
 from dhan_client.types import FeedInstrument, FeedMode
@@ -169,6 +171,49 @@ def cmd_futidx(dry_run: Optional[bool]) -> int:
         return 0 if contracts else 1
 
 
+def cmd_mint_token(*, check: bool) -> int:
+    """C5-06: mint 24h accessToken. --check / --dry-run = no HTTP."""
+    from dhan_client.totp_mint import check_mint, run_mint
+
+    if check:
+        report = check_mint()
+        _print(
+            {
+                "check": True,
+                "network": False,
+                "ready": report.ready,
+                "env_path": report.env_path,
+                "token_key": report.token_key,
+                "env_set": {
+                    ENV_CLIENT_ID: report.client_id_set,
+                    ENV_PIN: report.pin_set,
+                    ENV_TOTP_SECRET: report.totp_secret_set,
+                },
+                "totp_secret_valid": report.totp_secret_valid,
+                "missing_names": list(report.missing_names),
+                "orders": "REFUSED",
+            }
+        )
+        return 0 if report.ready else 2
+    try:
+        result = run_mint()
+    except MintError as exc:
+        _print({"ok": False, "error": str(exc), "orders": "REFUSED"})
+        return 2
+    _print(
+        {
+            "ok": True,
+            "wrote": result.wrote,
+            "token_set": result.token_set,
+            "expiry_time": result.expiry_time,
+            "env_path": result.env_path,
+            "token_key": result.token_key,
+            "orders": "REFUSED",
+        }
+    )
+    return 0
+
+
 def cmd_execution(dry_run: Optional[bool]) -> int:
     with DhanClient(dry_run=dry_run) as client:
         try:
@@ -206,6 +251,15 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser("profile", help="GET /profile — prints keys only, never token values.")
     sub.add_parser("paper-probe", help="Live Data API paper probe (NIFTY/BN/SENSEX yaml scrips). No orders. Writes data/recon/PAPER_PROBE_*.json")
     sub.add_parser("futidx", help="Resolve nearest NIFTY/BANKNIFTY/SENSEX FUTIDX IDs from public CSV.")
+    mint_p = sub.add_parser(
+        "mint-token",
+        help="C5-06 paper: TOTP generateAccessToken → repo-root .env DHAN_ACCESS_TOKEN.",
+    )
+    mint_p.add_argument(
+        "--check",
+        action="store_true",
+        help="Validate vault env/Keychain names only. No HTTP. No .env write.",
+    )
     return parser
 
 
@@ -218,6 +272,9 @@ def main(argv: Optional[list[str]] = None) -> int:
         dry_run = True
     else:
         dry_run = None
+
+    if args.command == "mint-token":
+        return cmd_mint_token(check=bool(args.check or args.dry_run))
 
     commands = {
         "status": cmd_status,

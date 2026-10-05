@@ -4,6 +4,10 @@
 #   ./scripts/desk.sh preflight        # versions, imports (incl. desk.paper / risk_engine), node, token file
 # PYTHONPATH: allowlisted legacy packages/*/src only (desk, risk-engine, brokers, health).
 # Mac: just ./scripts/desk.sh morning  or  ./scripts/desk.sh watch-open  — no manual export.
+#   ./scripts/desk.sh mint-token       # C5-06 optional TOTP mint → .env DHAN_ACCESS_TOKEN
+# C5-06 hook (OFF tonight): before a pre-10:22 CT desk start, Sahil may run
+#   ./scripts/mint_dhan_token.sh --check   then   ./scripts/desk.sh mint-token
+# morning does NOT mint. Paper only. Never prints PIN / TOTP / accessToken.
 #   ./scripts/desk.sh morning          # preflight + API + website + dual-tape (09:00 IST)
 #   ./scripts/desk.sh website          # preflight + API + website only (no data capture)
 #   ./scripts/desk.sh watch-open       # wait until 09:30 IST Mon–Fri, then dual-tape
@@ -562,6 +566,10 @@ case "$CMD" in
   preflight)
     preflight
     ;;
+  mint-token)
+    shift
+    exec "$ROOT/scripts/mint_dhan_token.sh" "$@"
+    ;;
   morning|start)
     preflight
     # Cold start for 09:00 IST. Kills stale listeners, then brings the full paper desk up.
@@ -722,7 +730,7 @@ PY
     exec "$0" close
     ;;
   *)
-    echo "usage: $0 morning|close|website|status|watch-open|watch-close|preflight|recorder-start|recorder-stop|recorder-status|shadow-start|shadow-stop|shadow-status|c5-start|c5-status|c5-stop|c5-backup|c5-restore" >&2
+    echo "usage: $0 morning|close|website|status|watch-open|watch-close|preflight|recorder-start|recorder-stop|recorder-status|shadow-start|shadow-stop|shadow-status|c5-start|c5-status|c5-stop|c5-backup|c5-restore|mint-token" >&2
     exit 2
     ;;
 esac

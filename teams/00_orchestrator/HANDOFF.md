@@ -2,6 +2,30 @@
 
 **Agents:** read **only the newest block**. Do not ingest this whole log. New files: [`docs/FILE_CREATION.md`](../../docs/FILE_CREATION.md). Append here — do not create `HANDOFF_TOMORROW.md` or extra `CONTINUE_*`.
 
+## As of now (2026-10-05) — C5-06 Mac Dhan TOTP auto-mint (PAPER)
+
+```text
+From:     teams/00_orchestrator
+To:       founder / 03 / 07 / 09
+Date:     2026-10-05
+Status:   PAPER / C5-06 / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+Accepted: 03 SOURCE_FACT generateAccessToken query
+  (dhanClientId, pin, totp) on auth.dhan.co.
+  Desk token path = repo-root .env DHAN_ACCESS_TOKEN
+  (desk.sh token_keys_set). Stdlib RFC 6238 TOTP
+  (pyotp not in lock). --check is network-free.
+  Opt-in desk.sh mint-token before 10:22 CT.
+  07 mocked HTTP tests. 09 auditor after this block.
+Rejected: Partner auth. RenewToken as primary.
+  Overwrite token without PIN+TOTP secret.
+  Force-enable inside desk.sh morning tonight.
+  Live orders. Logging the request URL. STRAT-015+.
+UNKNOWN / DATA_INSUFFICIENT: whether a new mint
+  invalidates a still-valid web token; Keychain
+  prompt UX on first Mac run.
+```
+
 ## As of now (2026-10-04 IST) — C5-03 customer portal MVP (PAPER)
 
 ```text

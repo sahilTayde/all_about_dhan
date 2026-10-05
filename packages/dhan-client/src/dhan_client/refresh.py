@@ -13,8 +13,11 @@ What the docs *do* show
   from Dhan Web."
 - Docs: expired tokens cannot be renewed.
 - TOTP generate: ``POST https://auth.dhan.co/app/generateAccessToken`` with
-  query ``dhanClientId``, ``pin``, ``totp`` — **not implemented** (PIN/TOTP
-  must never be logged or committed).
+  query ``dhanClientId``, ``pin``, ``totp`` — paper Mac mint in
+  ``dhan_client.totp_mint`` / ``scripts/mint_dhan_token.sh``. PIN/TOTP must
+  never be logged or committed. **Not** the partner consent flow.
+- ``RenewToken`` is **not** the primary daily path (expired tokens cannot
+  renew; official curl method/body still VERIFY). Do not call it from mint.
 - Individual OAuth: ``app_id`` / ``app_secret`` headers (12-month key/secret),
   three-step consent flow. **not implemented**.
 

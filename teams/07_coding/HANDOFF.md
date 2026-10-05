@@ -1,5 +1,25 @@
 # Handoff log — Team 07 Coding
 
+## As of now (2026-10-05) — C5-06 Mac Dhan TOTP auto-mint (PAPER)
+
+```text
+From:     teams/07_coding
+To:       founder / 00 / 03 / 09
+Date:     2026-10-05
+Status:   PAPER / C5-06 / NO_PROMOTE / no live orders
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+Accepted: dhan_client.totp_mint + scripts/mint_dhan_token.sh
+  + desk.sh mint-token hook. Writes only
+  DHAN_ACCESS_TOKEN in repo-root .env.
+  Env then Keychain (account all_about_dhan).
+  --check / --dry-run = no HTTP. Mocked unit tests.
+  03 official path only. Docs in SECURITY.md.
+Rejected: Partner flow. RenewToken primary.
+  Morning auto-mint tonight. Printing PIN/TOTP/URL.
+  Live orders.
+UNKNOWN: First-run macOS Keychain dialog.
+```
+
 ## As of now (2026-10-04 IST) — C5-03 customer portal MVP (PAPER)
 
 ```text

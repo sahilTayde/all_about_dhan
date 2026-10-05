@@ -18,6 +18,38 @@ Copy [`.env.example`](../.env.example) → `.env` and fill values locally. Examp
 - Access tokens expire; follow Dhan's current refresh/expiry docs in Phase 1. Do not hardcode a token in `packages/dhan-client`.
 - Broker is Dhan / DhanHQ **only**. No other broker credentials in this repo.
 
+### C5-06 — daily TOTP mint (paper Mac)
+
+Official generate (do not invent): `POST https://auth.dhan.co/app/generateAccessToken?dhanClientId=&pin=&totp=` → `accessToken`, `expiryTime` (~24h). SEBI: no permanent token. Partner consent and `RenewToken`-as-primary are out of scope.
+
+**Token file the desk already reads:** repo-root `.env` key `DHAN_ACCESS_TOKEN` (same check as `scripts/desk.sh` `token_keys_set`). The mint script only writes that key.
+
+**One-time (Sahil, on web.dhan.co):**
+
+1. Log in at https://web.dhan.co
+2. Enable TOTP / authenticator for DhanHQ API access (Dhan's current profile → Access DhanHQ APIs / 2FA screen). Copy the TOTP *secret* once — not a screenshot into chat.
+3. Confirm the Dhan PIN used for `generateAccessToken` (account PIN, not a bank PIN).
+4. `DHAN_CLIENT_ID` is the existing client id already used for paper data.
+
+**Store secrets on the Mac (Keychain preferred):**
+
+```bash
+security add-generic-password -U -a all_about_dhan -s DHAN_CLIENT_ID -w
+security add-generic-password -U -a all_about_dhan -s DHAN_PIN -w
+security add-generic-password -U -a all_about_dhan -s DHAN_TOTP_SECRET -w
+```
+
+Or export the same names in the shell / gitignored `.env`. Never commit PIN or the TOTP secret.
+
+**Mint (opt-in; not wired into `desk.sh morning` tonight):**
+
+```bash
+./scripts/mint_dhan_token.sh --check    # names present? no HTTP
+./scripts/desk.sh mint-token            # or ./scripts/mint_dhan_token.sh
+```
+
+Hook note: run `--check` then mint before a pre-10:22 CT desk start. `desk.sh morning` does **not** call it. Never logs the request URL (PIN/TOTP are query params). Refuses to overwrite `DHAN_ACCESS_TOKEN` if vault material is missing.
+
 ---
 
 ## YouTube

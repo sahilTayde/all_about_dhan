@@ -102,8 +102,11 @@ From the repo root on the Mac. **No live orders.** The legacy desk uses `.venv` 
 ```bash
 cd ~/Documents/all_about_dhan
 
-# 1. Token — put DHAN_CLIENT_ID and DHAN_ACCESS_TOKEN in repo-root .env
-#    Never commit .env. Never print the token.
+# 1. Token — DHAN_CLIENT_ID + DHAN_ACCESS_TOKEN in repo-root .env
+#    Optional daily mint (Mac TOTP, after one-time web.dhan.co setup):
+#      ./scripts/mint_dhan_token.sh --check
+#      ./scripts/desk.sh mint-token
+#    morning does not mint. Never commit .env. Never print the token.
 #    cp .env.example .env   # first time only
 
 # 2. One-time (or whenever main gains recorder packages): isolated v2 venv

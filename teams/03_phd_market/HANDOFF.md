@@ -1,5 +1,25 @@
 # Handoff log — Team 03 PhD market
 
+## As of now (2026-10-05) — C5-06 generateAccessToken mint (PAPER)
+
+```text
+Market question: how does the Mac paper desk mint
+  a fresh 24h Dhan accessToken without web.dhan.co?
+Rule / clock / source: SOURCE_FACT
+  teams/03_phd_market/docs/DHAN_API_END_TO_END.md
+  + https://dhanhq.co/docs/v2/authentication/
+  POST https://auth.dhan.co/app/generateAccessToken
+  ?dhanClientId=&pin=&totp=
+  → accessToken, expiryTime (~24h). SEBI: no
+  permanent token. Expired token cannot RenewToken.
+Impact: 07 wired paper mint only. Query secrets
+  must never be logged. Partner consent unused.
+Customer action: PAPER only. NO_PROMOTE.
+Backtest tag for 06: none.
+UNKNOWN / DATA_INSUFFICIENT: whether mint
+  invalidates a still-valid web JWT.
+```
+
 ## As of now (2026-09-17) — paper stop 15:15; CAS expiry-only (NO_PROMOTE)
 
 ```text
