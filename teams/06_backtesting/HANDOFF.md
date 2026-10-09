@@ -1,5 +1,20 @@
 # Handoff log — Team 06 Backtesting
 
+## As of now (2026-10-09 IST) — frozen roster paper rules (PAPER)
+
+```text
+From:     teams/06_backtesting
+To:       00 / 07 / 09
+Date:     2026-10-09
+Status:   PAPER / NO_PROMOTE
+Accepted: R01/R02 replay matches roster signal math.
+  Entry t+1, H20 TIME, non-overlapping per rule×und.
+  groww_round_trip_charges #84 on every close.
+  pytest packages/desk-ml/tests/test_research_rules.py
+Rejected: Promote. Live orders. Cost-fixture edits.
+UNKNOWN: today's live hit rate (not scored).
+```
+
 ## As of now (2026-10-04) — invent/replay cost fixture NSE/FA/73061 (PAPER)
 
 ```text
