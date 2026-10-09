@@ -1,5 +1,22 @@
 # Handoff log — Team 07 Coding
 
+## As of now (2026-10-09 IST) — research-rule paper tickets on /desk (PAPER)
+
+```text
+From:     teams/07_coding
+To:       00 / 05 / 09
+Date:     2026-10-09
+Status:   PAPER / NO_PROMOTE
+Accepted: dual-tape --paper-scalp merges R01/R02
+  rows onto ml_paper_dashboard.json after run_cycle.
+  book_id = roster rule_id. execution=refused.
+  :5173 /paper/ml-books shows them as paper trades.
+Rejected: V2 recorder edits. Broker path.
+  Changing frozen paper_scalp / live_cycle.
+UNKNOWN: whether a live SOD open hides the
+  research ticket as current (sort by last_updated).
+```
+
 ## As of now (2026-10-05 IST) — C5-05 customer paper latency (PAPER)
 
 ```text

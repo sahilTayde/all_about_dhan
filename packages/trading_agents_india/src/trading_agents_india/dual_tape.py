@@ -1040,6 +1040,13 @@ def run_dual_tape_loop(
                             source="dual-tape",
                             replay_kw={"deny_model_signals": True, "nifty_cover_closed_1m": True},
                         )
+                        try:
+                            from desk_ml.research_rules import attach_to_board, publish_board
+
+                            board = attach_to_board(board, root=settings.repo_root)
+                            publish_board(board, root=settings.repo_root)
+                        except Exception:  # noqa: BLE001 — SOD board already written; rules are paper-only
+                            pass
                         last_full_board = board
                         last_paths["ml_paper_dashboard"] = str(
                             settings.repo_root / "data" / "recon" / "ml_paper_dashboard.json"
@@ -1064,6 +1071,7 @@ def run_dual_tape_loop(
                                 "Live mock REST poll default 2s. Dashboard JSON/MD rewrite every 2s "
                                 "from last tick. WS not enabled (no greeks on feed parse)."
                             ),
+                            "research_rules": (board.get("research_rules") or {}),
                         }
                     except Exception as exc:  # noqa: BLE001 — recorded + alerted by run_cycle
                         heartbeat_board = {
