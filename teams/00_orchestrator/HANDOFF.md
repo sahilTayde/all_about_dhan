@@ -2,6 +2,25 @@
 
 **Agents:** read **only the newest block**. Do not ingest this whole log. New files: [`docs/FILE_CREATION.md`](../../docs/FILE_CREATION.md). Append here — do not create `HANDOFF_TOMORROW.md` or extra `CONTINUE_*`.
 
+## As of now (2026-10-09 IST) — R01_B3A_VOL paper sibling (PAPER)
+
+```text
+From:     teams/00_orchestrator
+To:       founder / 06 / 09
+Date:     2026-10-09
+Status:   PAPER / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+Accepted: R01_B3A_VOL = R01 PDIV + rv30(t) >= cut.
+  Population std of log idx returns in [t-30, t];
+  <20 obs → no signal. Cuts frozen:
+  NIFTY 0.00021620371 / SENSEX 0.00021971343.
+  R01 unchanged alongside. Same t+1 / H20 / qty / #84.
+  No recorder / frozen-legacy edits. No restart today
+  (Monday session start).
+Rejected: Live orders. Tuning the cut. STRAT-015+.
+UNKNOWN: Monday live mid vs LTP if Dhan omits book.
+```
+
 ## As of now (2026-10-09 IST) — frozen roster paper rules on dual-tape (PAPER)
 
 ```text

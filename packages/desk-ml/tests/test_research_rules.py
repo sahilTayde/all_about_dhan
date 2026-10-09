@@ -1,9 +1,10 @@
-"""Frozen R01 PDIV + R02 MOM paper rules. No broker. Cost fixture #84."""
+"""Frozen R01 PDIV + R01_B3A_VOL + R02 MOM paper rules. No broker. Cost fixture #84."""
 
 from __future__ import annotations
 
 import inspect
 import json
+import math
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -168,6 +169,8 @@ def test_replay_fills_t_plus_1_holds_20_and_uses_cost_fixture(tmp_path: Path) ->
     assert pdiv[0]["entry_min"] == "10:11"
     assert pdiv[0]["exit_min"] == "10:31"
     assert pdiv[0]["qty"] == 650
+    b3a = [t for t in out["closed"] if t["rule_id"] == rr.R01_B3A and t["underlying"] == "NIFTY"]
+    assert b3a == []  # same tape, rv30 below frozen cut — R01 unchanged, B3A gated off
 
     sx = [t for t in out["closed"] if t["underlying"] == "SENSEX"]
     assert sx
@@ -235,7 +238,107 @@ def test_one_open_per_rule_non_overlapping() -> None:
             "hhmm": hhmm,
             "wings": {"25000": {"ce": 100.0, "pe": 100.0}},
         }
-    opens, closed = rr.replay_underlying(bars, underlying="NIFTY", day=DAY, rules=[rr.FROZEN_RULES[1]])
+    mom_rule = next(r for r in rr.FROZEN_RULES if r["rule_id"] == rr.R02)
+    opens, closed = rr.replay_underlying(bars, underlying="NIFTY", day=DAY, rules=[mom_rule])
     taken = opens + closed
     assert len(taken) == 1
     assert taken[0]["sig_min"] == "10:00"
+
+
+def _bar(idx: float, ce: float = 100.0, pe: float = 100.0, atm: float = 25000.0, hhmm: str = "10:00") -> dict:
+    return {
+        "idx": idx,
+        "ce": ce,
+        "pe": pe,
+        "atm": atm,
+        "hhmm": hhmm,
+        "ts": int(datetime.fromisoformat(_ts(hhmm)).timestamp()),
+        "wings": {"25000": {"ce": ce, "pe": pe}},
+    }
+
+
+def _pdiv_bars(*, idx_by_min: dict[str, float], t: str = "10:10") -> dict[str, dict]:
+    """PDIV CE at t: last 5 index minutes flat-enough, CE +10% vs PE."""
+    bars: dict[str, dict] = {}
+    for hhmm, idx in idx_by_min.items():
+        ce, pe = 100.0, 100.0
+        if hhmm == t:
+            ce = 110.0
+        if hhmm == rr.mplus(t, 1):
+            ce = 111.0
+        if hhmm == rr.mplus(t, 21):
+            ce = 105.0
+        bars[hhmm] = _bar(idx, ce=ce, pe=pe, hhmm=hhmm)
+    return bars
+
+
+def test_rv30_none_when_fewer_than_20_observations() -> None:
+    bars = {hhmm: _bar(25000.0, hhmm=hhmm) for hhmm in _minutes("10:00", 19)}
+    assert rr.rv30(bars, "10:18") is None
+    bars20 = {hhmm: _bar(25000.0, hhmm=hhmm) for hhmm in _minutes("10:00", 20)}
+    assert rr.rv30(bars20, "10:19") == 0.0
+
+
+def test_vol_gate_on_off_at_frozen_cut() -> None:
+    cut_n = rr.VOL_CUT["NIFTY"]
+    cut_s = rr.VOL_CUT["SENSEX"]
+    assert cut_n == 0.00021620371
+    assert cut_s == 0.00021971343
+    assert rr.vol_gate_ok(cut_n, cut_n) is True
+    assert rr.vol_gate_ok(cut_n + 1e-12, cut_n) is True
+    assert rr.vol_gate_ok(cut_n - 1e-12, cut_n) is False
+    assert rr.vol_gate_ok(None, cut_n) is False
+    assert rr.vol_gate_ok(cut_s, cut_s) is True
+    assert rr.vol_gate_ok(cut_s - 1e-15, cut_s) is False
+
+
+def test_r01_b3a_vol_gate_at_cut_and_r01_still_fires() -> None:
+    t = "10:10"
+    mins = _minutes("09:30", 62)
+    cut = rr.VOL_CUT["NIFTY"]
+    # 31 observed minutes in [t-30, t] → 30 log returns. Two opposite jumps, rest 0.
+    # pop std = x * sqrt(2/30); x = cut * sqrt(15).
+    x = cut * (15.0 ** 0.5)
+    ratio = math.exp(x)
+    idx: dict[str, float] = {hhmm: 25000.0 for hhmm in mins}
+    idx["09:40"] = 25000.0
+    idx["09:41"] = 25000.0 * ratio
+    idx["09:42"] = 25000.0  # down by the same log return
+    bars = _pdiv_bars(idx_by_min=idx, t=t)
+    rv = rr.rv30(bars, t)
+    assert rv is not None
+    assert abs(rv - cut) / cut < 1e-9
+    pdiv = next(r for r in rr.FROZEN_RULES if r["rule_id"] == rr.R01)
+    b3a = next(r for r in rr.FROZEN_RULES if r["rule_id"] == rr.R01_B3A)
+    assert rr.signal(pdiv, bars, t, underlying="NIFTY") == "CE"
+    assert rr.signal(b3a, bars, t, underlying="NIFTY") == "CE"
+
+    # One tick below the cut: same PDIV, B3A off.
+    x_lo = (cut * 0.99) * (15.0 ** 0.5)
+    idx_lo = {hhmm: 25000.0 for hhmm in mins}
+    idx_lo["09:41"] = 25000.0 * math.exp(x_lo)
+    idx_lo["09:42"] = 25000.0
+    bars_lo = _pdiv_bars(idx_by_min=idx_lo, t=t)
+    rv_lo = rr.rv30(bars_lo, t)
+    assert rv_lo is not None and rv_lo < cut
+    assert rr.signal(pdiv, bars_lo, t, underlying="NIFTY") == "CE"
+    assert rr.signal(b3a, bars_lo, t, underlying="NIFTY") is None
+
+    opens, closed = rr.replay_underlying(bars_lo, underlying="NIFTY", day=DAY)
+    books = {row["rule_id"] for row in opens + closed}
+    assert rr.R01 in books
+    assert rr.R01_B3A not in books
+
+
+def test_r01_b3a_no_signal_when_rv30_undefined() -> None:
+    t = "10:10"
+    # Only 15 observed minutes in the lookback window.
+    sparse = {rr.mplus(t, -j): 25000.0 for j in (0, 1, 2, 3, 4, 5, 8, 10, 12, 14, 16, 18, 20, 22, 24)}
+    extra = {hhmm: 25000.0 for hhmm in _minutes("10:11", 21)}
+    bars = _pdiv_bars(idx_by_min={**sparse, **extra}, t=t)
+    assert len([m for m in bars if "10:" in m or m <= t]) >= 1
+    assert rr.rv30(bars, t) is None
+    b3a = next(r for r in rr.FROZEN_RULES if r["rule_id"] == rr.R01_B3A)
+    pdiv = next(r for r in rr.FROZEN_RULES if r["rule_id"] == rr.R01)
+    assert rr.signal(pdiv, bars, t, underlying="NIFTY") == "CE"
+    assert rr.signal(b3a, bars, t, underlying="NIFTY") is None
