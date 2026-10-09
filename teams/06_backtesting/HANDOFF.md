@@ -1,5 +1,20 @@
 # Handoff log — Team 06 Backtesting
 
+## As of now (2026-10-09 IST) — R01_B3A_VOL rv30 gate (PAPER)
+
+```text
+From:     teams/06_backtesting
+To:       00 / 09
+Date:     2026-10-09
+Status:   PAPER / NO_PROMOTE
+Accepted: rv30 = pop std of observed 1m log idx
+  returns in [t-30, t] (scenarios.py). Gate >= cut.
+  Tests: on/off at cut; <20 obs no signal; R01 still
+  fires when B3A is gated off.
+Rejected: Promote. Cost-fixture edits. Live orders.
+UNKNOWN: Monday hit rate (not scored).
+```
+
 ## As of now (2026-10-09 IST) — frozen roster paper rules (PAPER)
 
 ```text

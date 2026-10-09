@@ -1,6 +1,6 @@
 """Frozen roster paper rules on the dual-tape loop. Log-only. No broker.
 
-R01 PDIV_5|ALL|H20 and R02 MOM_3_0.0005|ALL|H20 from the 2026-10-09 roster.
+R01 PDIV_5|ALL|H20, R01_B3A_VOL (R01 + rv30 >= cut), R02 MOM_3_0.0005|ALL|H20.
 Signal on minute t; fill = ATM premium in minute t+1; hold 20 min; TIME exit.
 One open per rule per underlying. Execution stays refused.
 
@@ -25,8 +25,14 @@ IST = timezone(timedelta(hours=5, minutes=30))
 FLAG_ENV = "PAPER_RESEARCH_RULES"
 
 R01 = "R01_PDIV_5_ALL_H20"
+R01_B3A = "R01_B3A_VOL"
 R02 = "R02_MOM_3_0.0005_ALL_H20"
-RULE_IDS = (R01, R02)
+RULE_IDS = (R01, R01_B3A, R02)
+
+# Frozen 2026-10-09 medians (scenarios.py VOL_CUT). Population rv30 gate.
+VOL_CUT = {"NIFTY": 0.00021620371, "SENSEX": 0.00021971343}
+RV30_LOOKBACK = 30
+RV30_MIN_OBS = 20
 
 FROZEN_RULES: tuple[dict[str, Any], ...] = (
     {
@@ -36,6 +42,15 @@ FROZEN_RULES: tuple[dict[str, Any], ...] = (
         "params": {"k": 5, "flat_thr": 0.0005, "dv_thr": 0.1},
         "regime_filter": "ALL",
         "hold_min": 20,
+    },
+    {
+        "rule_id": R01_B3A,
+        "source_config": "PDIV_5|ALL|H20|B3A_VOL",
+        "family": "PDIV",
+        "params": {"k": 5, "flat_thr": 0.0005, "dv_thr": 0.1},
+        "regime_filter": "ALL",
+        "hold_min": 20,
+        "vol_gate": True,
     },
     {
         "rule_id": R02,
@@ -150,7 +165,38 @@ def mom_side(*, idx_t: float, idx_k: float, thr: float) -> Optional[str]:
     return None
 
 
-def signal(rule: dict[str, Any], bars: dict[str, dict[str, Any]], t: str) -> Optional[str]:
+def rv30(bars: dict[str, dict[str, Any]], t: str) -> Optional[float]:
+    """Population std of 1-minute log index returns on observed minutes in [t-30, t].
+
+    Same formula as research scenarios.py. Needs >= 20 observed index prints; else None.
+    """
+    vals: list[float] = []
+    for j in range(RV30_LOOKBACK, -1, -1):
+        bar = bars.get(mplus(t, -j))
+        if not bar:
+            continue
+        idx = _num(bar.get("idx"))
+        if idx is None:
+            continue
+        vals.append(idx)
+    if len(vals) < RV30_MIN_OBS:
+        return None
+    rets = [math.log(vals[i] / vals[i - 1]) for i in range(1, len(vals))]
+    mean = sum(rets) / len(rets)
+    return math.sqrt(sum((x - mean) ** 2 for x in rets) / len(rets))
+
+
+def vol_gate_ok(rv: Optional[float], cut: Optional[float]) -> bool:
+    return rv is not None and cut is not None and rv >= float(cut)
+
+
+def signal(
+    rule: dict[str, Any],
+    bars: dict[str, dict[str, Any]],
+    t: str,
+    *,
+    underlying: Optional[str] = None,
+) -> Optional[str]:
     params = rule["params"]
     k = int(params["k"])
     past = mplus(t, -k)
@@ -163,13 +209,14 @@ def signal(rule: dict[str, Any], bars: dict[str, dict[str, Any]], t: str) -> Opt
     if idx_t is None or idx_k is None:
         return None
     family = rule["family"]
+    side: Optional[str] = None
     if family == "MOM":
-        return mom_side(idx_t=idx_t, idx_k=idx_k, thr=float(params["thr"]))
-    if family == "PDIV":
+        side = mom_side(idx_t=idx_t, idx_k=idx_k, thr=float(params["thr"]))
+    elif family == "PDIV":
         atm = _num(now.get("atm"))
         if atm is None:
             return None
-        return pdiv_side(
+        side = pdiv_side(
             idx_t=idx_t,
             idx_k=idx_k,
             ce_t=strike_premium(now, "CE", atm) or 0.0,
@@ -179,7 +226,13 @@ def signal(rule: dict[str, Any], bars: dict[str, dict[str, Any]], t: str) -> Opt
             flat_thr=float(params["flat_thr"]),
             dv_thr=float(params["dv_thr"]),
         )
-    return None
+    if not side:
+        return None
+    if rule.get("vol_gate"):
+        cut = VOL_CUT.get(str(underlying or "").upper())
+        if not vol_gate_ok(rv30(bars, t), cut):
+            return None
+    return side
 
 
 def _hhmm_ok(hhmm: str, start: tuple[int, int], end: tuple[int, int]) -> bool:
@@ -398,7 +451,7 @@ def replay_underlying(
         for t in minutes:
             if t <= busy or not allowed(minutes, t):
                 continue
-            side = signal(rule, bars, t)
+            side = signal(rule, bars, t, underlying=underlying)
             if not side:
                 continue
             atm = _num(bars[t].get("atm"))
