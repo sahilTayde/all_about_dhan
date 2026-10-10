@@ -137,6 +137,12 @@ jobs:
           packages/strategies/src/strategies/plugins/r8_e1_coil_side.py
           packages/strategies/src/strategies/plugins/r8_e2_p5_hv.py
           packages/strategies/src/strategies/plugins/r8_e3_hv_gate.py
+          packages/strategies/src/strategies/plugins/research_common.py
+          packages/strategies/src/strategies/plugins/r01_pdiv_5_all_h20.py
+          packages/strategies/src/strategies/plugins/r01_b3a_vol.py
+          packages/strategies/src/strategies/plugins/b8b_b3a_ex_choppy.py
+          packages/strategies/src/strategies/plugins/r07_mom3_trend.py
+          packages/strategies/src/strategies/plugins/b8a_r07_no_pre1030.py
       - run: >-
           python -m ruff format --check packages/runtime packages/control packages/shadow packages/harness
           packages/accounts
@@ -153,6 +159,12 @@ jobs:
           packages/strategies/src/strategies/plugins/r8_e1_coil_side.py
           packages/strategies/src/strategies/plugins/r8_e2_p5_hv.py
           packages/strategies/src/strategies/plugins/r8_e3_hv_gate.py
+          packages/strategies/src/strategies/plugins/research_common.py
+          packages/strategies/src/strategies/plugins/r01_pdiv_5_all_h20.py
+          packages/strategies/src/strategies/plugins/r01_b3a_vol.py
+          packages/strategies/src/strategies/plugins/b8b_b3a_ex_choppy.py
+          packages/strategies/src/strategies/plugins/r07_mom3_trend.py
+          packages/strategies/src/strategies/plugins/b8a_r07_no_pre1030.py
 
   types:
     runs-on: ubuntu-24.04
@@ -182,6 +194,12 @@ jobs:
           src/strategies/plugins/r8_e1_coil_side.py
           src/strategies/plugins/r8_e2_p5_hv.py
           src/strategies/plugins/r8_e3_hv_gate.py
+          src/strategies/plugins/research_common.py
+          src/strategies/plugins/r01_pdiv_5_all_h20.py
+          src/strategies/plugins/r01_b3a_vol.py
+          src/strategies/plugins/b8b_b3a_ex_choppy.py
+          src/strategies/plugins/r07_mom3_trend.py
+          src/strategies/plugins/b8a_r07_no_pre1030.py
         working-directory: packages/strategies
 
   integration:

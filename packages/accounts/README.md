@@ -8,13 +8,13 @@ This launch cut lists **5 customer paper books** (`customer-01` … `customer-05
 
 **C5-07 slots:** each launch book has one placeholder slot + `journal_tag`. `strategy_id` and `basket` stay **unset** (`slot_armed: false`) until desk lead assigns a real registry id or paper/shadow basket name. Slot labels are journal tags, not claimed edge.
 
-| portal JWT `sub` | `account_id` | `slot` | `journal_tag` |
-|---|---|---|---|
-| `c1` | `customer-01` | CONTROL | `SLOT-CONTROL` |
-| `c2` | `customer-02` | CANDLE_GEOM | `SLOT-CANDLE_GEOM` |
-| `c3` | `customer-03` | LOCATION | `SLOT-LOCATION` |
-| `c4` | `customer-04` | SKLEARN | `SLOT-SKLEARN` |
-| `c5` | `customer-05` | HYBRID_OR_ROUTER | `SLOT-HYBRID_OR_ROUTER` |
+| portal JWT `sub` | `account_id` | `slot` | `journal_tag` | registry `strategy_id` (unset until desk lead writes it) |
+|---|---|---|---|---|
+| `c1` | `customer-01` | CONTROL | `SLOT-CONTROL` | `R01_PDIV_5_ALL_H20` |
+| `c2` | `customer-02` | CANDLE_GEOM | `SLOT-CANDLE_GEOM` | `R01_B3A_VOL` |
+| `c3` | `customer-03` | LOCATION | `SLOT-LOCATION` | `B8B_B3A_EX_CHOPPY` |
+| `c4` | `customer-04` | SKLEARN | `SLOT-SKLEARN` | `R07_MOM3_TREND` |
+| `c5` | `customer-05` | HYBRID_OR_ROUTER | `SLOT-HYBRID_OR_ROUTER` | `B8A_R07_NO_PRE1030` |
 
 Portal seats are C5-02 JWT `sub` values (`AAD_PAPER_CUSTOMERS=c1,c2,c3,c4,c5`). They were not bound to paper books before this ticket. `python -m accounts list` prints `portal_map`. `runtime exec --account` now reads `slot` / `journal_tag` / `strategy_id` / `basket` from the account row.
 

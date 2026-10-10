@@ -41,5 +41,5 @@ module = "strategies.strikes"
 disable_error_code = ["no-any-return"]
 
 [[tool.mypy.overrides]]
-module = ["runtime.*", "brokers.*", "ledger.*", "events.*", "marketdata.*"]
+module = ["runtime.*", "brokers.*", "ledger.*", "events.*", "marketdata.*", "desk_ml.*"]
 ignore_missing_imports = true

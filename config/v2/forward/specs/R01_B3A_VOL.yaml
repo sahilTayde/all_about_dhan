@@ -1,0 +1,29 @@
+# C5 paper research slot c2. R01 + rv30 gate. Live refused.
+spec_id: R01_B3A_VOL
+strategy_id: R01_B3A_VOL
+plugin: strategies.plugins.r01_b3a_vol
+version: "1.0.0"
+stage: paper
+start_session: "2026-10-09"
+cost_model: depth
+coefficients: {}
+params:
+  family: PDIV
+  k: 5
+  flat_thr: 0.0005
+  dv_thr: 0.1
+  vol_gate: true
+  hold_min: 20
+  window: ["09:30", "14:50"]
+  qty:
+    NIFTY: 650
+    SENSEX: 200
+  lots: 10
+  exit_plan:
+    catastrophic:
+      max_loss: 30000
+    time_stops:
+      - after_s: 1200
+        when: always
+    flat_by_ist: "15:15"
+signals: []

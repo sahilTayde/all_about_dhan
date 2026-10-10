@@ -2,6 +2,30 @@
 
 **Agents:** read **only the newest block**. Do not ingest this whole log. New files: [`docs/FILE_CREATION.md`](../../docs/FILE_CREATION.md). Append here — do not create `HANDOFF_TOMORROW.md` or extra `CONTINUE_*`.
 
+## As of now (2026-10-10 IST) — C5 paper research slots registered (PAPER)
+
+```text
+From:     teams/00_orchestrator
+To:       founder / 07 / 05 / 04 / 09
+Date:     2026-10-10
+Status:   PAPER / C5 research slots / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+Accepted: Register R01_PDIV_5_ALL_H20,
+  R01_B3A_VOL, B8B_B3A_EX_CHOPPY,
+  R07_MOM3_TREND, B8A_R07_NO_PRE1030
+  in config/v2/strategies/registry.yaml.
+  R01/B3A call desk_ml.research_rules.
+  R07/B8a/B8b ported from frozen lab
+  specs (no tune). Qty 650 NIFTY /
+  10 lots SENSEX. Accounts stay
+  disabled / unarmed.
+Rejected: Enable customer-01..05.
+  Live stage. Legacy engine edits.
+  STRAT-015+. Tuning stops/holds.
+UNKNOWN: Forward tape after 2026-10-12
+  for B8 POST-HOC pass bar.
+```
+
 ## As of now (2026-10-05 IST) — C5-08 lively customer journey (PAPER)
 
 ```text
