@@ -1,5 +1,27 @@
 # Handoff log — Team 07 Coding
 
+## As of now (2026-10-10 IST) — V2 recorder OTM wings (PAPER / DATA)
+
+```text
+From:     teams/07_coding
+To:       founder / 00 / 03 / 06 / 09
+Date:     2026-10-10
+Status:   PAPER / DATA / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+Accepted: StrikeSet now also records OTM100 and
+  OTM200 (CE above ATM, PE below ATM) on NIFTY
+  and SENSEX. Same quote_snapshot row; rule
+  enum gains OTM100/OTM200. ATM/ITM fields
+  unchanged. Steady count 12 / underlying,
+  24 for NIFTY+SENSEX (44 for 10 min after
+  dual recentre). Inside Dhan 100/subscribe
+  and 5000/socket.
+Rejected: Router trading OTM. New snapshot
+  columns. Legacy engine. Orders. STRAT-015+.
+UNKNOWN: Live Dhan book for the extra four
+  wings on a Monday session (fixtures only).
+```
+
 ## As of now (2026-10-05 IST) — C5-08 customer trade journey (PAPER)
 
 ```text

@@ -46,7 +46,7 @@ class QuoteSnapshot:
     """QUOTE_SNAPSHOT payload (md:quotes): bid/ask snapshot every 5s."""
 
     instrument_id: str
-    rule: str  # "ATM" | "ITM100" | "ITM200"
+    rule: str  # "ATM" | "ITM100" | "ITM200" | "OTM100" | "OTM200"
     side: str  # "CE" | "PE"
     bid: float | None
     ask: float | None

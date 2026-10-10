@@ -5,7 +5,7 @@
   "required": ["instrument_id", "rule", "side", "bid", "ask", "mid", "spread", "ltp", "ltt", "oi", "depth_age_ms", "stale"],
   "properties": {
     "instrument_id": {"type": "string"},
-    "rule": {"type": "string", "enum": ["ATM", "ITM100", "ITM200"]},
+    "rule": {"type": "string", "enum": ["ATM", "ITM100", "ITM200", "OTM100", "OTM200"]},
     "side": {"type": "string", "enum": ["CE", "PE"]},
     "bid": {"type": ["number", "null"]},
     "ask": {"type": ["number", "null"]},

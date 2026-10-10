@@ -41,7 +41,14 @@ from marketdata.instruments import (
     parse_underlyings,
     save_universe,
 )
-from marketdata.strikes import StrikeSet
+from marketdata.schemas import load_schema
+from marketdata.strikes import (
+    DHAN_FEED_LIMITS,
+    OPTION_WINGS,
+    RULES,
+    STEADY_INSTRUMENTS,
+    StrikeSet,
+)
 from marketdata.tape import TapeWriter, repair_tail
 
 # ---- instruments -------------------------------------------------------------------------
@@ -125,11 +132,80 @@ def test_sensex_strike_set_mirrors_nifty_wings() -> None:
         f"BSE_FNO:SENSEX:{SENSEX_EXPIRY}:81200:CE": ("ATM", "CE"),
         f"BSE_FNO:SENSEX:{SENSEX_EXPIRY}:81100:CE": ("ITM100", "CE"),
         f"BSE_FNO:SENSEX:{SENSEX_EXPIRY}:81000:CE": ("ITM200", "CE"),
+        f"BSE_FNO:SENSEX:{SENSEX_EXPIRY}:81300:CE": ("OTM100", "CE"),
+        f"BSE_FNO:SENSEX:{SENSEX_EXPIRY}:81400:CE": ("OTM200", "CE"),
         f"BSE_FNO:SENSEX:{SENSEX_EXPIRY}:81200:PE": ("ATM", "PE"),
         f"BSE_FNO:SENSEX:{SENSEX_EXPIRY}:81300:PE": ("ITM100", "PE"),
         f"BSE_FNO:SENSEX:{SENSEX_EXPIRY}:81400:PE": ("ITM200", "PE"),
+        f"BSE_FNO:SENSEX:{SENSEX_EXPIRY}:81100:PE": ("OTM100", "PE"),
+        f"BSE_FNO:SENSEX:{SENSEX_EXPIRY}:81000:PE": ("OTM200", "PE"),
     }
-    assert len(s.subscribed) == 8
+    assert len(s.subscribed) == STEADY_INSTRUMENTS
+
+
+def test_otm_wings_on_nifty_and_sensex() -> None:
+    """Two OTM listed strikes each side: CE above ATM, PE below ATM. ATM/ITM stay."""
+    assert [name for name, _off in RULES] == ["ATM", "ITM100", "ITM200", "OTM100", "OTM200"]
+    assert OPTION_WINGS == 10
+    assert STEADY_INSTRUMENTS == 12
+    dual = 2 * STEADY_INSTRUMENTS
+    assert dual == 24
+    assert dual <= DHAN_FEED_LIMITS["ids_per_subscribe"]
+    assert dual <= DHAN_FEED_LIMITS["instruments_per_socket"]
+    # worst case: both books recentre and keep the old 10 option wings for 10 minutes
+    assert 2 * (STEADY_INSTRUMENTS + OPTION_WINGS) <= DHAN_FEED_LIMITS["ids_per_subscribe"]
+
+    nifty = StrikeSet(make_universe())
+    nifty.update(24512.35, 0.0)
+    sensex = StrikeSet(make_sensex_universe())
+    sensex.update(81234.5, 0.0)
+    expected = {
+        "NIFTY": {
+            ("OTM100", "CE"): 24600,
+            ("OTM200", "CE"): 24700,
+            ("OTM100", "PE"): 24400,
+            ("OTM200", "PE"): 24300,
+            ("ATM", "CE"): 24500,
+            ("ITM100", "CE"): 24400,
+            ("ITM200", "CE"): 24300,
+        },
+        "SENSEX": {
+            ("OTM100", "CE"): 81300,
+            ("OTM200", "CE"): 81400,
+            ("OTM100", "PE"): 81100,
+            ("OTM200", "PE"): 81000,
+            ("ATM", "CE"): 81200,
+            ("ITM100", "CE"): 81100,
+            ("ITM200", "CE"): 81000,
+        },
+    }
+    for book, name in ((nifty, "NIFTY"), (sensex, "SENSEX")):
+        by_rule = {label: iid for iid, label in book.current.items()}
+        assert {label[0] for label in by_rule} == {"ATM", "ITM100", "ITM200", "OTM100", "OTM200"}
+        for label, strike in expected[name].items():
+            iid = next(i for i, lab in book.current.items() if lab == label)
+            assert iid.split(":")[-2:] == [str(strike), label[1]]
+        assert len(book.current) == OPTION_WINGS
+        assert len(book.subscribed) == STEADY_INSTRUMENTS
+
+
+def test_quote_snapshot_schema_keeps_existing_fields() -> None:
+    schema = load_schema("quote_snapshot")
+    assert schema["required"] == [
+        "instrument_id",
+        "rule",
+        "side",
+        "bid",
+        "ask",
+        "mid",
+        "spread",
+        "ltp",
+        "ltt",
+        "oi",
+        "depth_age_ms",
+        "stale",
+    ]
+    assert schema["properties"]["rule"]["enum"] == ["ATM", "ITM100", "ITM200", "OTM100", "OTM200"]
 
 
 def test_chain_security_ids_win_over_csv() -> None:
@@ -185,9 +261,13 @@ def test_itm_direction_and_recentre_with_retention() -> None:
         "NSE_FNO:NIFTY:2026-09-29:24500:CE": ("ATM", "CE"),
         "NSE_FNO:NIFTY:2026-09-29:24400:CE": ("ITM100", "CE"),
         "NSE_FNO:NIFTY:2026-09-29:24300:CE": ("ITM200", "CE"),
+        "NSE_FNO:NIFTY:2026-09-29:24600:CE": ("OTM100", "CE"),
+        "NSE_FNO:NIFTY:2026-09-29:24700:CE": ("OTM200", "CE"),
         "NSE_FNO:NIFTY:2026-09-29:24500:PE": ("ATM", "PE"),
         "NSE_FNO:NIFTY:2026-09-29:24600:PE": ("ITM100", "PE"),
         "NSE_FNO:NIFTY:2026-09-29:24700:PE": ("ITM200", "PE"),
+        "NSE_FNO:NIFTY:2026-09-29:24400:PE": ("OTM100", "PE"),
+        "NSE_FNO:NIFTY:2026-09-29:24300:PE": ("OTM200", "PE"),
     }
     assert not s.update(24534.0, 10.0).subscribe  # inside hysteresis (|24534-24500| <= 35)
     moved = s.update(24560.0, 20.0)
@@ -197,14 +277,18 @@ def test_itm_direction_and_recentre_with_retention() -> None:
         "NSE_FNO:NIFTY:2026-09-29:24550:CE",
         "NSE_FNO:NIFTY:2026-09-29:24450:CE",
         "NSE_FNO:NIFTY:2026-09-29:24350:CE",
+        "NSE_FNO:NIFTY:2026-09-29:24650:CE",
+        "NSE_FNO:NIFTY:2026-09-29:24750:CE",
         "NSE_FNO:NIFTY:2026-09-29:24550:PE",
         "NSE_FNO:NIFTY:2026-09-29:24650:PE",
         "NSE_FNO:NIFTY:2026-09-29:24750:PE",
+        "NSE_FNO:NIFTY:2026-09-29:24450:PE",
+        "NSE_FNO:NIFTY:2026-09-29:24350:PE",
     }
     assert not s.update(24560.0, 619.0).unsubscribe
     dropped = s.update(24560.0, 620.0).unsubscribe
-    assert len(dropped) == 6
-    assert len(s.subscribed) == 8
+    assert len(dropped) == OPTION_WINGS
+    assert len(s.subscribed) == STEADY_INSTRUMENTS
 
 
 def test_open_positions_are_never_dropped_and_cap_holds() -> None:

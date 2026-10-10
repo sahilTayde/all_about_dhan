@@ -1,8 +1,18 @@
-"""Traded-strike set: ATM, ITM100, ITM200 on CE and PE, plus index and future.
+"""Traded-strike set: ATM, ITM100, ITM200, OTM100, OTM200 on CE and PE, plus index and future.
+
+ITM wings sit in the money (CE below ATM, PE above ATM). OTM wings are the
+mirror: two listed strikes on each side, CE above ATM and PE below ATM, using
+the same 100 / 200 point offsets. The ``rule`` field on the existing snapshot
+row identifies the wing (no new columns).
 
 Re-centred when spot moves more than half a strike step (plus hysteresis) away from the
 current ATM. Strikes that leave the set keep streaming for ``retention_s`` (10 minutes);
 instruments with an open position are never dropped.
+
+Steady-state count per underlying: index + future + 10 option wings = 12.
+Default NIFTY + SENSEX = 24. After a recentre, old option wings stay up to 10
+minutes, so a dual-underlying book can briefly hold 44. Dhan allows 5,000 ids
+per socket and 100 ids per subscribe JSON (see ``DHAN_FEED_LIMITS``).
 """
 
 from __future__ import annotations
@@ -12,8 +22,19 @@ from dataclasses import dataclass, field
 
 from marketdata.instruments import Instrument, Universe
 
-# (rule, points in the money)
-RULES: tuple[tuple[str, int], ...] = (("ATM", 0), ("ITM100", 100), ("ITM200", 200))
+# (rule, ITM points). Negative = OTM: CE = ATM − offset (above), PE = ATM + offset (below).
+RULES: tuple[tuple[str, int], ...] = (
+    ("ATM", 0),
+    ("ITM100", 100),
+    ("ITM200", 200),
+    ("OTM100", -100),
+    ("OTM200", -200),
+)
+# 2 sides × 5 rules. Index + future make the per-underlying steady set 12.
+OPTION_WINGS = 2 * len(RULES)
+STEADY_INSTRUMENTS = 1 + 1 + OPTION_WINGS  # index + future + 10 options
+# Dhan live-feed connection caps (SOURCE_FACT: teams/03_phd_market/docs/DHAN_API_END_TO_END.md).
+DHAN_FEED_LIMITS = {"sockets": 5, "instruments_per_socket": 5000, "ids_per_subscribe": 100}
 
 
 @dataclass

@@ -95,6 +95,31 @@ def test_quote_snapshot_payload() -> None:
     assert quote.mid == 151.225
 
 
+def test_quote_snapshot_schema_accepts_otm_and_keeps_atm_itm() -> None:
+    from contracts.validation import load_quote_snapshot
+
+    base = {
+        "instrument_id": "NSE_FNO:NIFTY:2026-09-29:24600:CE",
+        "side": "CE",
+        "bid": 40.1,
+        "ask": 40.3,
+        "mid": 40.2,
+        "spread": 0.2,
+        "ltp": 40.15,
+        "ltt": "2026-09-28T10:01:04.910+05:30",
+        "oi": 100,
+        "depth_age_ms": 200,
+        "stale": False,
+    }
+    for rule in ("ATM", "ITM100", "ITM200", "OTM100", "OTM200"):
+        loaded = load_quote_snapshot({**base, "rule": rule})
+        assert loaded.rule == rule
+    from jsonschema import ValidationError
+
+    with pytest.raises(ValidationError):
+        load_quote_snapshot({**base, "rule": "OTM300"})
+
+
 def test_oi_cadence_payload() -> None:
     """Test OI_CADENCE payload (md:oi_cadence)."""
     oi_cad = OiCadence(

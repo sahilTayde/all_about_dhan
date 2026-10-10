@@ -89,7 +89,7 @@ def mixed_session(tmp_path_factory: pytest.TempPathFactory) -> Session:
 def test_acceptance_1_depth_row_per_instrument_at_least_once_per_second(mixed_session: Session) -> None:
     rows = by_instrument(mixed_session.rows("depth_quotes"))
     subscribed = {r["instrument_id"] for r in mixed_session.rows("subscriptions") if r["action"] == "subscribe"}
-    assert len(subscribed) == 8
+    assert len(subscribed) == 12
     assert set(rows) == subscribed
     for iid, items in rows.items():
         times = [ts(r["timestamp"]) for r in items]
@@ -113,9 +113,13 @@ def test_acceptance_2_quote_snapshot_every_5s_within_half_a_second(mixed_session
         "NSE_FNO:NIFTY:2026-09-29:24500:CE",
         "NSE_FNO:NIFTY:2026-09-29:24400:CE",
         "NSE_FNO:NIFTY:2026-09-29:24300:CE",
+        "NSE_FNO:NIFTY:2026-09-29:24600:CE",
+        "NSE_FNO:NIFTY:2026-09-29:24700:CE",
         "NSE_FNO:NIFTY:2026-09-29:24500:PE",
         "NSE_FNO:NIFTY:2026-09-29:24600:PE",
         "NSE_FNO:NIFTY:2026-09-29:24700:PE",
+        "NSE_FNO:NIFTY:2026-09-29:24400:PE",
+        "NSE_FNO:NIFTY:2026-09-29:24300:PE",
     }
     for iid, items in rows.items():
         times = [ts(r["timestamp"]) for r in items]
@@ -147,13 +151,24 @@ def test_acceptance_3_recentring_subscribes_new_strikes_and_keeps_old_for_10_min
     assert atms[-1] == 24800
     assert set(range(24550, 24801, 50)) <= set(atms)
 
-    # the strike set follows ATM: final current set is ATM 24800 / CE ITM below / PE ITM above
+    # the strike set follows ATM: ATM 24800 / CE ITM below + OTM above / PE ITM above + OTM below
     strikes = s.recorder.strikes
     assert strikes is not None
     final = set(strikes.current)
     assert final == {
         f"NSE_FNO:NIFTY:2026-09-29:{k}:{side}"
-        for k, side in [(24800, "CE"), (24700, "CE"), (24600, "CE"), (24800, "PE"), (24900, "PE"), (25000, "PE")]
+        for k, side in [
+            (24800, "CE"),
+            (24700, "CE"),
+            (24600, "CE"),
+            (24900, "CE"),
+            (25000, "CE"),
+            (24800, "PE"),
+            (24900, "PE"),
+            (25000, "PE"),
+            (24700, "PE"),
+            (24600, "PE"),
+        ]
     }
     # dynamic subscribe on the open socket, and depth rows for the new strikes
     sent = set(s.server.sids(21))
@@ -328,7 +343,7 @@ def test_acceptance_6_bad_frame_logged_to_ingest_errors_and_recording_continues(
     assert nan_rows[0]["ltp"] is None
     # recording continued: every instrument has rows carrying data received after the burst
     after = {r["payload"]["instrument_id"] for r in depth if ts(r["payload"]["exchange_ts"]) > ist(10, 0, 20)}
-    assert len(after) == 8
+    assert len(after) == 12
 
 
 def test_acceptance_7_refuses_to_start_without_credentials(tmp_path: Path) -> None:
