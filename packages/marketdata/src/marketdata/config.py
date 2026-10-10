@@ -41,6 +41,9 @@ class RecorderConfig:
     tape_queue_put_timeout_s: float = 0.05
     # IDX_I: ticker (15) or quote (17). FULL (21) sends no index ticks on the live feed.
     index_feed_mode: str = "ticker"
+    # Current-month NIFTY/SENSEX futures + 10 NIFTY cash names on stream md:research.
+    # CLI default is on. Session tests that omit this stay off so existing counts hold.
+    research: bool = True
 
     def resolved_underlyings(self) -> tuple[str, ...]:
         """Names the recorder loads. Tests that omit ``underlyings`` stay NIFTY-only."""

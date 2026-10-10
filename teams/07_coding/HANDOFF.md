@@ -1,5 +1,29 @@
 # Handoff log — Team 07 Coding
 
+## As of now (2026-10-10 IST) — V2 recorder research overlay + snapshot volume (PAPER)
+
+```text
+From:     teams/07_coding
+To:       00 / 05 / 09 / founder
+Date:     2026-10-10
+Status:   PAPER / record-only / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+Accepted: PR #89 multi-underlying + PR #93 OTM
+  wings (rebased). Current-month NIFTY/SENSEX
+  FUTIDX + 10 NSE_EQ names on md:research.
+  Ids from scrip master; never hardcoded.
+  Optional QUOTE_SNAPSHOT.volume from code-8
+  FULL (u32 after ATP). Unique subscribe 34
+  (24 books + 10 cash); 54 after recentre.
+  Dhan caps 100/subscribe 5000/socket. One
+  socket. Coverage skips reason=research.
+Rejected: Changing DEPTH_QUOTE / QUOTE_SNAPSHOT
+  required fields. Hardcoded security ids.
+  Second websocket. Legacy / orders. STRAT-015+.
+UNKNOWN: Live Monday book for the 10 cash names
+  and extra FULL volume vs fixture 50000.
+```
+
 ## As of now (2026-10-10 IST) — V2 recorder OTM wings (PAPER / DATA)
 
 ```text

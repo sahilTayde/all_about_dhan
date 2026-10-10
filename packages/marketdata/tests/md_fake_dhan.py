@@ -28,9 +28,10 @@ from marketdata.clock import IST
 from marketdata.config import RecorderConfig
 from marketdata.instruments import Universe, build_universe, parse_scrip_master
 from marketdata.recorder import MarketDataRecorder
+from marketdata.research import NIFTY_HEAVYWEIGHTS
 from marketdata.schemas import load_schema
 
-SEG_BYTE = {"IDX_I": 0, "NSE_FNO": 2, "BSE_FNO": 8}
+SEG_BYTE = {"IDX_I": 0, "NSE_EQ": 1, "NSE_FNO": 2, "BSE_FNO": 8}
 IST_SHIFT = 19800
 TEST_CLIENT_ID = "CLIENTID-SENTINEL-4242"
 TEST_TOKEN = "TOKEN-SENTINEL-eyJhbGciOiJIUzUxMiJ9.xyz"
@@ -38,6 +39,8 @@ DAY = date(2026, 9, 28)
 EXPIRY = "2026-09-29"
 SENSEX_EXPIRY = "2026-10-01"
 SENSEX_SPOT = 81234.5
+# Fixture-only cash ids (not production Dhan ids). Resolver must read these from the CSV.
+HEAVYWEIGHT_SIDS = {name: str(9001 + i) for i, name in enumerate(NIFTY_HEAVYWEIGHTS)}
 
 
 def ist(hh: int, mm: int, ss: float = 0.0, day: date = DAY) -> datetime:
@@ -164,6 +167,8 @@ def scrip_master_csv() -> str:
         "M,FUT,NA,FINNIFTY",
         "BSE,D,844700,FUTIDX,0,SENSEX-Oct2026-FUT,20,SENSEX OCT FUT,2026-10-29 14:30:00,-0.01000,XX,0.0500,M,FUT,NA,SENSEX",
     ]
+    for name, sid in HEAVYWEIGHT_SIDS.items():
+        rows.append(f"NSE,E,{sid},EQUITY,0,{name},1,{name},,0.00000,XX,0.0500,NA,ES,EQ,{name}")
     for strike in range(80_000, 83_001, 100):
         for side in ("CE", "PE"):
             sid = sensex_option_sid(strike, side)
@@ -440,6 +445,7 @@ class Market:
         silent: dict[int, list[tuple[datetime, datetime]]] | None = None,
         oi: Callable[[int, datetime], int] | None = None,
         max_per_frame: int = 6,
+        extra: list[Any] | None = None,
     ) -> None:
         self.universe = universe
         self.spot = spot
@@ -449,6 +455,8 @@ class Market:
         self.oi = oi or (lambda _sid, t: 1_000_000 + 1000 * (int(t.timestamp()) // 20 % 1000))
         self.max_per_frame = max_per_frame
         self._by_sid = {int(i.security_id): i for i in universe.all_instruments()}
+        for inst in extra or []:
+            self._by_sid.setdefault(int(inst.security_id), inst)
         self._last: datetime | None = None
         self.packets = 0
 
@@ -457,6 +465,8 @@ class Market:
         s = self.spot(t)
         if inst.kind == "FUTURE":
             mid = s + 80.0
+        elif inst.kind == "EQUITY":
+            mid = 1000.0 + (sid % 100) + (s % 7)
         else:
             assert inst.strike is not None
             intrinsic = max(0.0, s - inst.strike) if inst.option_type == "CE" else max(0.0, inst.strike - s)
@@ -565,7 +575,9 @@ async def run_session(
     async with FakeDhanServer() as server:
         clock = FakeClock(start)
         built = universe if universe is not None else make_universe()
-        config = RecorderConfig(tape_root=tmp / "tape", **(config_kw or {}))
+        cfg = dict(config_kw or {})
+        cfg.setdefault("research", False)
+        config = RecorderConfig(tape_root=tmp / "tape", **cfg)
         recorder = MarketDataRecorder(
             config,
             settings_for(server.url, tmp),
@@ -579,7 +591,10 @@ async def run_session(
             await until(lambda: bool(server.subscribed) or task.done(), timeout=15)
         # never advance the clock while the recorder is busy outside it (e.g. loading instruments)
         await until(lambda: clock.sleeping() or task.done(), timeout=15)
-        market = Market(built, spot, **(market_kw or {}))
+        extra = list(recorder.research.values()) if recorder.research else []
+        for book in recorder.books:
+            extra.extend(book.universe.all_instruments())
+        market = Market(built, spot, extra=extra, **(market_kw or {}))
         t = start
         while not task.done() and t < end:
             t += timedelta(seconds=step)

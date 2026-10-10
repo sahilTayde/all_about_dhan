@@ -57,6 +57,7 @@ class QuoteSnapshot:
     oi: int | None
     depth_age_ms: int | None
     stale: bool = False
+    volume: int | None = None  # code-8 FULL traded volume; optional for old tapes
 
 
 @dataclass(frozen=True)

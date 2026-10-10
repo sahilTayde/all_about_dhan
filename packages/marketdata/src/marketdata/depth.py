@@ -62,6 +62,8 @@ class Book:
     ltt: str | None
     emitted_s: float = float("-inf")
     pending: bool = False
+    # Traded volume from the code-8 FULL body (u32 after ATP). Not part of DEPTH_QUOTE.
+    volume: int | None = None
 
 
 class DepthTracker:
@@ -89,15 +91,18 @@ class DepthTracker:
         exchange_ts: str,
         raw_b64: str | None = None,
         ltt: str | None = None,
+        volume: int | None = None,
     ) -> dict[str, Any] | None:
         """Record a packet; return a DEPTH_QUOTE payload if it must be written now."""
         book = self.books.get(iid)
         if book is None:
-            book = self.books[iid] = Book(quote, exchange_ts, now_s, raw_b64, ltt)
+            book = self.books[iid] = Book(quote, exchange_ts, now_s, raw_b64, ltt, volume=volume)
             return self._emit(iid, book, now_s, repeat=False)
         changed = quote != book.quote
         book.quote, book.exchange_ts, book.data_s = quote, exchange_ts, now_s
         book.raw_b64, book.ltt = raw_b64, ltt or book.ltt
+        if volume is not None:
+            book.volume = volume
         if not changed:
             return None
         if now_s - book.emitted_s >= self.throttle_s:

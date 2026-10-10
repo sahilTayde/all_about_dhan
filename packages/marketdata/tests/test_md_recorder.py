@@ -75,6 +75,7 @@ def test_every_row_validates_against_schema_with_format_checker(tmp_path: Path) 
         "OTM200",
     }
     assert all(r["payload"]["instrument_id"].count(":") == 4 for r in s.rows("quote_snapshots"))
+    assert all(r["payload"].get("volume") == 50_000 for r in s.rows("quote_snapshots"))
     ids = {r["payload"]["instrument_id"] for r in s.rows("depth_quotes")}
     assert {"NSE_IDX:NIFTY", "NSE_FNO:NIFTY:2026-09-29"} <= ids
 

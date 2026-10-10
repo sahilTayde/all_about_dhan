@@ -33,7 +33,7 @@ source .venv/bin/activate
 python -m marketdata --record-only
 ```
 
-After merge + Mac `git pull`, that default command is the start line. It loads both indexes in one process (nearest weekly expiry, ATM / ITM100 / ITM200 / OTM100 / OTM200 CE+PE, plus each index and nearest future). Same as:
+After merge + Mac `git pull`, that default command is the start line. It loads both indexes in one process (nearest weekly expiry, ATM / ITM100 / ITM200 / OTM100 / OTM200 CE+PE, plus each index and nearest future) and a research overlay (current-month NIFTY/SENSEX futures + 10 NIFTY cash names on stream `md:research`). Same as:
 
 ```bash
 python -m marketdata --record-only --underlying NIFTY,SENSEX
@@ -88,6 +88,28 @@ allows 5,000 ids per socket and 100 ids per subscribe JSON; 24 (and 44) sit insi
 The existing `rule` field on the snapshot row names the wing — ATM / ITM* readers keep
 working; they ignore OTM* if they filter. Options and the future stay on FULL
 (request 21). The index is ticker (15) or quote (17) — IDX_I sends no ticks on FULL.
+
+Research overlay (same process, same socket, stream `md:research`): current-month NIFTY and
+SENSEX futures (LTP, volume, OI, bid/ask) and these 10 NSE_EQ cash names (LTP, volume, bid/ask):
+HDFCBANK, RELIANCE, ICICIBANK, INFY, BHARTIARTL, TCS, LT, ITC, AXISBANK, KOTAKBANK.
+Security ids are resolved from the scrip master at startup (never hardcoded). Shared futures
+already on a strike book are not subscribed twice; they are also written on `md:research`
+so volume is available without changing `DEPTH_QUOTE` / `QUOTE_SNAPSHOT`.
+
+### Instrument count (Dhan feed caps)
+
+SOURCE_FACT: **5 sockets / user**, **5,000 ids / socket**, **100 ids / subscribe JSON**.
+One socket, one process.
+
+| Set | Steady unique ids | After recentre (10 min retention) |
+|---|---|---|
+| One strike book | **12** (index + future + 10 wings) | 22 |
+| Default NIFTY + SENSEX books | **24** | 44 |
+| Research overlay (named) | **12** (2 futures + 10 cash) | 12 |
+| Default unique (futures already on the books) | **34** | 54 |
+| Worst case (current-month futures not the book's nearest) | **36** | 56 |
+
+34 / 36 / 54 / 56 all sit inside the 100-id subscribe JSON and the 5,000-id socket cap.
 When spot moves more than half a strike step (+ hysteresis) the set re-centres: new strikes
 are subscribed on the open socket; strikes that left keep streaming for 10 minutes, then are
 unsubscribed.
@@ -99,8 +121,9 @@ whose `payload` matches the V2-01 schema vendored in `src/marketdata/schemas/`.
 | File | Contents |
 |---|---|
 | `depth_quotes.jsonl` | `DEPTH_QUOTE` per instrument: on change (≤ 1 per 250 ms) and a heartbeat (`repeat: true`) so there is a row at least once per second. `exchange_ts` = receive time of the packet the data came from, so a heartbeat shows the data age. `raw_b64` = the packet bytes while the FULL decoder is unverified. |
-| `quote_snapshots.jsonl` | `QUOTE_SNAPSHOT` for the ten traded strikes on every 5 s boundary: bid, ask, mid, spread, LTP, LTT, OI, `depth_age_ms`, `stale` (no packet for > 5 s). `rule` is ATM / ITM100 / ITM200 / OTM100 / OTM200. |
+| `quote_snapshots.jsonl` | `QUOTE_SNAPSHOT` for the ten traded strikes on every 5 s boundary: bid, ask, mid, spread, LTP, LTT, OI, `depth_age_ms`, `stale` (no packet for > 5 s), optional `volume` (code-8 FULL traded quantity after ATP). `rule` is ATM / ITM100 / ITM200 / OTM100 / OTM200. Old rows without `volume` stay valid. |
 | `oi_cadence.jsonl` | `OI_CADENCE` per option/future for each minute window: changes, median and p90 seconds between changes, last change time. |
+| `research_quotes.jsonl` | `RESEARCH_QUOTE` on stream `md:research`: current-month futures + 10 cash names. Same depth fields as `DEPTH_QUOTE` plus `volume` and `kind`. Existing `md:depth` / `md:quotes` readers ignore this file. |
 | `feed_status.jsonl` | `FEED_STATUS`: UP/DOWN (with gap), STALE/FRESH per instrument, disconnect codes. |
 | `raw_frames.jsonl` | Every websocket frame, base64, while `DECODER_VERIFIED` is false. |
 | `ingest_errors.jsonl` | Every bad frame or packet (reason, offset, sha256, bytes), text frames, unknown ids, and any tail repaired after a crash. |

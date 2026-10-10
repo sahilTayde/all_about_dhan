@@ -41,6 +41,8 @@ from marketdata.instruments import (
     parse_underlyings,
     save_universe,
 )
+from marketdata.depth import DepthTracker
+from marketdata.quotes import snapshot
 from marketdata.schemas import load_schema
 from marketdata.strikes import (
     DHAN_FEED_LIMITS,
@@ -206,6 +208,8 @@ def test_quote_snapshot_schema_keeps_existing_fields() -> None:
         "stale",
     ]
     assert schema["properties"]["rule"]["enum"] == ["ATM", "ITM100", "ITM200", "OTM100", "OTM200"]
+    assert "volume" in schema["properties"]
+    assert "volume" not in schema["required"]
 
 
 def test_chain_security_ids_win_over_csv() -> None:
@@ -427,3 +431,40 @@ def test_background_flush_never_blocks_on_a_slow_disk(tmp_path: Path, monkeypatc
         w.close()
     for i in range(7):
         assert [r["second"] for r in _rows(tmp_path / "2026-09-28" / f"s{i}.jsonl")] == [0, 1, 2]
+
+
+def test_quote_snapshot_carries_optional_full_packet_volume() -> None:
+    """Code-8 FULL volume (u32 after ATP) is optional on QUOTE_SNAPSHOT; old rows still validate."""
+    from jsonschema import Draft7Validator
+
+    from md_fake_dhan import format_checker
+
+    depth = DepthTracker()
+    quote = {"bid": 80.0, "bid_qty": 10, "ask": 80.1, "ask_qty": 12, "ltp": 80.05, "oi": 100, "levels": {"bid": [], "ask": []}}
+    depth.update("NSE_FNO:NIFTY:2026-09-29:24500:CE", quote, 1_000.0, "2026-09-28T10:00:00+05:30", volume=50_000)
+    row = snapshot("NSE_FNO:NIFTY:2026-09-29:24500:CE", "ATM", "CE", depth.books["NSE_FNO:NIFTY:2026-09-29:24500:CE"], 1_000.0)
+    assert row["volume"] == 50_000
+    required = [
+        "instrument_id",
+        "rule",
+        "side",
+        "bid",
+        "ask",
+        "mid",
+        "spread",
+        "ltp",
+        "ltt",
+        "oi",
+        "depth_age_ms",
+        "stale",
+    ]
+    assert [k for k in row if k != "volume"] == required
+    schema = load_schema("quote_snapshot")
+    assert "volume" not in schema["required"]
+    assert schema["required"] == required
+    validator = Draft7Validator(schema, format_checker=format_checker())
+    validator.validate(row)
+    old = {k: v for k, v in row.items() if k != "volume"}
+    validator.validate(old)  # pre-volume tapes stay valid
+    depth_schema = load_schema("depth_quote")
+    assert "volume" not in depth_schema["properties"]

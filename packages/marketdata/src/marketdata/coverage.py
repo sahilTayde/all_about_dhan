@@ -57,6 +57,8 @@ def summarize(day_dir: Path, day: date) -> dict[str, Any]:
     subscribed: dict[str, set[int]] = defaultdict(set)
     since: dict[str, int] = {}
     for row in _rows(day_dir / "subscriptions.jsonl", bad):
+        if row.get("reason") == "research":
+            continue
         iid, m = row["instrument_id"], max(0, _minute(row["ts"], open_dt))
         if row["action"] == "subscribe":
             since.setdefault(iid, m)
