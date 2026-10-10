@@ -93,6 +93,23 @@ def test_quote_snapshot_payload() -> None:
     )
     assert quote.rule == "ITM100"
     assert quote.mid == 151.225
+    assert quote.volume is None
+    with_vol = QuoteSnapshot(
+        instrument_id="NSE_FNO:NIFTY:2026-09-29:24400:CE",
+        rule="ITM100",
+        side="CE",
+        bid=151.10,
+        ask=151.35,
+        mid=151.225,
+        spread=0.25,
+        ltp=151.20,
+        ltt="2026-09-28T10:01:04.910+05:30",
+        oi=4412350,
+        depth_age_ms=310,
+        stale=False,
+        volume=50_000,
+    )
+    assert with_vol.volume == 50_000
 
 
 def test_quote_snapshot_schema_accepts_otm_and_keeps_atm_itm() -> None:

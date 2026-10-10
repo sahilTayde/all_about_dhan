@@ -90,7 +90,7 @@ class Instrument:
     instrument_id: str
     security_id: str
     exchange_segment: str
-    kind: str  # INDEX | FUTURE | OPTION
+    kind: str  # INDEX | FUTURE | OPTION | EQUITY
     expiry: str | None = None
     strike: int | None = None
     option_type: str | None = None

@@ -44,6 +44,17 @@ from marketdata.instruments import (
 )
 from marketdata.oi_cadence import OiCadenceTracker
 from marketdata.quotes import snapshot
+from marketdata.research import (
+    RESEARCH_EVENT,
+    RESEARCH_STREAM,
+    RESEARCH_TAPE,
+    ResearchSet,
+    after_recentre_count,
+    default_unique_subscribe_count,
+    dhan_feed_caps,
+    load_research_set,
+    within_dhan_caps,
+)
 from marketdata.strikes import Change, StrikeSet
 from marketdata.tape import TapeWriter, tape_drop_count
 
@@ -55,6 +66,7 @@ ENVELOPE_STREAMS = {
     "QUOTE_SNAPSHOT": ("quote_snapshots", "md:quotes"),
     "OI_CADENCE": ("oi_cadence", "md:oi_cadence"),
     "FEED_STATUS": ("feed_status", "md:status"),
+    RESEARCH_EVENT: (RESEARCH_TAPE, RESEARCH_STREAM),
 }
 PLAIN_STREAMS = ("raw_frames", "ingest_errors", "subscriptions")
 # Live-feed disconnect codes for unusable credentials or no data plan (annexure 806-810).
@@ -153,6 +165,9 @@ class MarketDataRecorder:
         self._implausible_logged_s = float("-inf")
         self._open_dt: datetime | None = None
         self._last_index_s: dict[str, float] = {}
+        self.research: dict[str, Instrument] = {}
+        self._research_only: dict[str, Instrument] = {}
+        self._volume: dict[str, int | None] = {}
 
     # ---- lifecycle -------------------------------------------------------------------
 
@@ -194,6 +209,11 @@ class MarketDataRecorder:
             else:
                 universes = [self.universe]
             self._install_books(universes)
+        if self.config.research and self.source is not None and not self.research:
+            overlay = await self._load_research(day)
+            if overlay is None:
+                return self.exit_code
+            self._install_research(overlay)
         universe = self.universe
         assert universe is not None
         assert self.books
@@ -224,6 +244,24 @@ class MarketDataRecorder:
             change = book.strikes.update(book.spot, start.timestamp())
             self._log_change(change, start, "start", book)
             first_subscribe.extend(change.subscribe)
+        first_subscribe.extend(self._research_subscribe(start))
+        n_unique = len({(i.exchange_segment, i.security_id) for i in first_subscribe})
+        caps = dhan_feed_caps()
+        log.info(
+            "subscribe %d unique instruments (books + research); Dhan caps "
+            "%d/subscribe-json %d/socket %d sockets; default unique %d after-recentre %d",
+            n_unique,
+            caps["ids_per_subscribe_json"],
+            caps["ids_per_socket"],
+            caps["sockets_per_user"],
+            default_unique_subscribe_count(),
+            after_recentre_count(),
+        )
+        if not within_dhan_caps(n_unique):
+            raise StartupError(
+                f"subscribe set is {n_unique} instruments; Dhan allows "
+                f"{caps['ids_per_subscribe_json']} per subscribe JSON on one socket"
+            )
         self.collector = MarketFeedCollector(
             self.settings,
             [i.feed for i in first_subscribe],
@@ -281,6 +319,52 @@ class MarketDataRecorder:
         self._by_security = {
             (i.exchange_segment, i.security_id): i for book in self.books for i in book.universe.all_instruments()
         }
+
+    def _install_research(self, overlay: ResearchSet) -> None:
+        """Map research instruments. Shared futures keep the book's instrument_id."""
+        for inst in overlay.all_instruments():
+            key = (inst.exchange_segment, inst.security_id)
+            existing = self._by_security.get(key)
+            if existing is not None:
+                self.research[existing.instrument_id] = existing
+                continue
+            self._by_security[key] = inst
+            self.research[inst.instrument_id] = inst
+            self._research_only[inst.instrument_id] = inst
+
+    def _research_subscribe(self, now: datetime) -> list[Instrument]:
+        items = list(self._research_only.values())
+        if not items:
+            return []
+        now_s = now.timestamp()
+        for inst in items:
+            self._subscribed_s[inst.instrument_id] = now_s
+            self._write(
+                "subscriptions",
+                {
+                    "ts": iso(now),
+                    "action": "subscribe",
+                    "reason": "research",
+                    "instrument_id": inst.instrument_id,
+                    "security_id": inst.security_id,
+                    "exchange_segment": inst.exchange_segment,
+                    "rule": inst.kind,
+                    "spot": 0.0,
+                    "atm": None,
+                },
+                now,
+            )
+        return items
+
+    async def _load_research(self, day: date) -> ResearchSet | None:
+        assert self.source is not None
+        try:
+            csv_text = await asyncio.to_thread(self.source.scrip_master_csv)
+            return load_research_set(csv_text, day)
+        except _StoppedError:
+            return None
+        except StartupError:
+            raise
 
     def _book_for_iid(self, instrument_id: str) -> _Book | None:
         for book in self.books:
@@ -367,7 +451,7 @@ class MarketDataRecorder:
         assert self.books
         self._watch_connection(now)
         for payload in self.depth.tick(now_s, heartbeat=self._connected):
-            self._emit("DEPTH_QUOTE", payload, now, payload["exchange_ts"])
+            self._route_depth(payload, now)
 
         interval = self.config.quote_interval_s
         if math.floor(now_s / interval) > math.floor(last_s / interval):
@@ -432,6 +516,7 @@ class MarketDataRecorder:
         if not self._connected or now < self._open_dt:
             return
         subscribed = {iid: inst for book in self.books for iid, inst in book.strikes.subscribed.items()}
+        subscribed.update(self._research_only)
         for iid, inst in subscribed.items():
             if inst.kind == "INDEX":
                 last = self._last_index_s.get(iid)
@@ -497,9 +582,9 @@ class MarketDataRecorder:
 
     def _log_status(self, now: datetime) -> None:
         spots = " ".join(f"{b.universe.underlying}={b.spot:.2f}/{b.strikes.atm}" for b in self.books)
-        subscribed = sum(len(b.strikes.subscribed) for b in self.books)
+        subscribed = sum(len(b.strikes.subscribed) for b in self.books) + len(self._research_only)
         log.info(
-            "%s connected=%s frames=%d packets=%d rows depth=%d quotes=%d oi=%d errors=%d "
+            "%s connected=%s frames=%d packets=%d rows depth=%d quotes=%d oi=%d research=%d errors=%d "
             "spot %s subscribed=%d stale=%d tape_drops=%d rest_429s=%d",
             now.strftime("%H:%M"),
             self._connected,
@@ -508,6 +593,7 @@ class MarketDataRecorder:
             self.tape["depth_quotes"].rows,
             self.tape["quote_snapshots"].rows,
             self.tape["oi_cadence"].rows,
+            self.tape[RESEARCH_TAPE].rows,
             self.stats.ingest_errors,
             spots,
             subscribed,
@@ -584,7 +670,9 @@ class MarketDataRecorder:
             return
         iid = inst.instrument_id
         book = self._book_for_iid(iid)
-        if book is None or iid not in book.strikes.subscribed:
+        in_book = book is not None and iid in book.strikes.subscribed
+        in_research = iid in self.research
+        if not in_book and not in_research:
             self.stats.late_packets += 1
             return
         self.stats.packets += 1
@@ -594,22 +682,42 @@ class MarketDataRecorder:
         if inst.kind == "INDEX" and kind in _INDEX_FRESH and ltp is not None:
             self._last_index_s[iid] = now_s
         if kind == "full":
+            vol = fields.get("volume")
+            if vol is not None:
+                self._volume[iid] = int(vol)
             ltt = self._ltt(fields.get("last_trade_time_epoch"), now_s)
             self._depth(iid, quote_from_full(fields), now, raw_b64, ltt)
-            if inst.kind != "INDEX" and fields.get("oi") is not None:
+            if in_book and inst.kind != "INDEX" and fields.get("oi") is not None:
                 self.oi.observe(iid, int(fields["oi"]), now_s, "full")
         elif kind == "oi":
-            if inst.kind != "INDEX":
+            if in_book and inst.kind != "INDEX":
                 self.oi.observe(iid, int(fields["oi"]), now_s, "feed_oi")
         elif inst.kind == "INDEX" and ltp is not None:
             self._depth(iid, quote_from_ltp(ltp), now, raw_b64, self._ltt(fields.get("last_trade_time_epoch"), now_s))
-        if inst.kind == "INDEX" and ltp and math.isfinite(ltp):
+        if in_book and inst.kind == "INDEX" and ltp and math.isfinite(ltp):
             await self._on_spot(book, float(ltp), now, now_s, from_feed=True)
 
     def _depth(self, iid: str, quote: dict[str, Any], now: datetime, raw_b64: str | None, ltt: str | None) -> None:
-        payload = self.depth.update(iid, quote, now.timestamp(), iso(now), raw_b64, ltt)
+        payload = self.depth.update(
+            iid, quote, now.timestamp(), iso(now), raw_b64, ltt, volume=self._volume.get(iid)
+        )
         if payload is not None:
+            self._route_depth(payload, now)
+
+    def _route_depth(self, payload: dict[str, Any], now: datetime) -> None:
+        iid = payload["instrument_id"]
+        research_only = iid in self._research_only
+        if not research_only:
             self._emit("DEPTH_QUOTE", payload, now, payload["exchange_ts"])
+        if research_only or iid in self.research:
+            self._emit_research(payload, now)
+
+    def _emit_research(self, payload: dict[str, Any], now: datetime) -> None:
+        iid = payload["instrument_id"]
+        inst = self.research.get(iid)
+        kind = inst.kind if inst is not None else "UNKNOWN"
+        row = {**payload, "volume": self._volume.get(iid), "kind": kind}
+        self._emit(RESEARCH_EVENT, row, now, payload["exchange_ts"])
 
     def _ltt(self, epoch: Any, now_s: float) -> str | None:
         """Last trade time. Whether Dhan's epoch is UTC or IST-shifted is decided once from

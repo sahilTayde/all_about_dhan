@@ -31,4 +31,6 @@ def snapshot(
         "oi": quote.get("oi"),
         "depth_age_ms": age_ms,
         "stale": age_ms is None or age_ms > stale_after_s * 1000,
+        # Optional: code-8 FULL traded volume (u32 after ATP). Absent on old tapes.
+        "volume": book.volume if book else None,
     }

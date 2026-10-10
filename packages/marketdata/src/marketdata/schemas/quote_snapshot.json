@@ -15,6 +15,7 @@
     "ltt": {"type": ["string", "null"], "format": "date-time"},
     "oi": {"type": ["integer", "null"]},
     "depth_age_ms": {"type": ["integer", "null"]},
-    "stale": {"type": "boolean"}
+    "stale": {"type": "boolean"},
+    "volume": {"type": ["integer", "null"]}
   }
 }
