@@ -1,5 +1,32 @@
 # Handoff log — Team 07 Coding
 
+## As of now (2026-10-10 IST) — C5-07 five paper slots (PAPER)
+
+```text
+From:     teams/07_coding
+To:       founder / 00 / 05 / 09
+Date:     2026-10-10
+Status:   PAPER / C5-07 / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+Accepted: customer-01..05 stay disabled. portal
+  c1..c5 map 1:1 to those books. Distinct slots
+  CONTROL / CANDLE_GEOM / LOCATION / SKLEARN /
+  HYBRID_OR_ROUTER. journal_tag SLOT-* on exec
+  binding + decision rows. strategy_id/basket
+  unset (slot_armed=false) until desk lead
+  assigns. Exec newly reads those account
+  keys. Market ops: enable one book at a time
+  (packages/accounts/README.md). Rebased onto
+  main 5e7a465. Ruff format fix on slots.py.
+Rejected: Auto-enable five books. Invented
+  edge / STRAT-015+ / TEST-CROSS on customer
+  rows. Live broker. Changing JWT sub c1..c5.
+  Binding v2-shadow global basket per customer.
+UNKNOWN: Desk-lead assignment of a real
+  registry id or dated basket. Night-card
+  renderer (tag is stamped; no card UI here).
+```
+
 ## As of now (2026-10-09 IST) — research-rule paper tickets on /desk (PAPER)
 
 ```text

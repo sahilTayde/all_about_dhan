@@ -216,7 +216,7 @@ def ist_iso(now: datetime | None = None) -> str:
 
 
 def parse_ist(raw: str) -> datetime:
-    dt = datetime.fromisoformat(str(raw).replace("Z", "+00:00"))
+    dt = datetime.fromisoformat(str(raw).replace("Z", "+00:00"))  # noqa: FURB162  3.11 rejects Z
     if dt.tzinfo is None:
         raise ValueError("timestamp must be timezone-aware IST")
     return dt.astimezone(IST)

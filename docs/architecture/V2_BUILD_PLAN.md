@@ -670,6 +670,12 @@ M1 does **not** mean a strategy is profitable, and it does not enable live order
   books. `python -m runtime signal` is shared; `python -m runtime exec --account` binds one book.
   Fail closed: live broker, unknown/disabled account, cross-account read/write/size, 6th customer.
   No live Dhan. Customers still do not get `signals:public` here.
+  **C5-07 (paper slots):** each `customer-01`…`05` row carries `portal_sub` (`c1`…`c5`),
+  placeholder `slot` (CONTROL / CANDLE_GEOM / LOCATION / SKLEARN / HYBRID_OR_ROUTER),
+  and `journal_tag` (`SLOT-*`). `strategy_id` and `basket` stay empty so
+  `slot_armed` is false until desk lead assigns. `runtime exec --account` and
+  `c5-start` stamp those fields on the exec binding and decision rows. Accounts
+  stay disabled. No invented edge. No live broker.
 - **V2-23** Gateway auth (JWT, founder 2FA), role-scoped channels, rate limits, the customer `signals:public` channel
   with customer-safe copy (`CUSTOMER_TALK.md`). **Stubs landed (2026-10-04):** fail-closed stdlib HS256 JWT + founder
   TOTP in `packages/auth`, wired into control and the gateway. Empty `AAD_JWT_SECRET` / TOTP seed denies. Refresh JWT

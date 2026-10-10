@@ -6,6 +6,14 @@ import re
 from dataclasses import dataclass
 
 from accounts.errors import AccountSafetyError
+from accounts.slots import (
+    normalize_basket,
+    normalize_journal_tag,
+    normalize_portal_sub,
+    normalize_slot,
+    normalize_strategy_id,
+    slot_payload,
+)
 
 KINDS = frozenset({"founder", "customer"})
 BROKERS = frozenset({"paper", "shadow"})
@@ -27,6 +35,11 @@ class Account:
     broker: str
     status: str
     risk_budget_inr: int = 30000
+    portal_sub: str = ""
+    slot: str = ""
+    journal_tag: str = ""
+    strategy_id: str = ""
+    basket: str = ""
 
     def __post_init__(self) -> None:
         aid = self.account_id.strip()
@@ -50,9 +63,22 @@ class Account:
             or self.risk_budget_inr <= 0
         ):
             raise AccountSafetyError("V2 accounts fail-closed: risk_budget_inr must be a positive int")
+        slot = normalize_slot(self.slot)
         object.__setattr__(self, "kind", kind)
         object.__setattr__(self, "broker", broker)
         object.__setattr__(self, "status", status)
+        object.__setattr__(self, "portal_sub", normalize_portal_sub(self.portal_sub))
+        object.__setattr__(self, "slot", slot)
+        object.__setattr__(self, "journal_tag", normalize_journal_tag(self.journal_tag, slot=slot))
+        object.__setattr__(self, "strategy_id", normalize_strategy_id(self.strategy_id))
+        object.__setattr__(self, "basket", normalize_basket(self.basket))
+
+    @property
+    def slot_armed(self) -> bool:
+        return bool(self.strategy_id or self.basket)
+
+    def slot_fields(self) -> dict[str, object]:
+        return slot_payload(self)
 
     @classmethod
     def from_mapping(cls, raw: object) -> Account:
@@ -67,4 +93,9 @@ class Account:
             broker=str(raw.get("broker") or ""),
             status=str(raw.get("status") or ""),
             risk_budget_inr=int(budget) if isinstance(budget, int) else 0,
+            portal_sub=str(raw.get("portal_sub") or ""),
+            slot=str(raw.get("slot") or ""),
+            journal_tag=str(raw.get("journal_tag") or ""),
+            strategy_id=str(raw.get("strategy_id") or ""),
+            basket=str(raw.get("basket") or ""),
         )

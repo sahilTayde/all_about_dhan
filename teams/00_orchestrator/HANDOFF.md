@@ -2,6 +2,26 @@
 
 **Agents:** read **only the newest block**. Do not ingest this whole log. New files: [`docs/FILE_CREATION.md`](../../docs/FILE_CREATION.md). Append here — do not create `HANDOFF_TOMORROW.md` or extra `CONTINUE_*`.
 
+## As of now (2026-10-10 IST) — C5-07 five paper slots (PAPER)
+
+```text
+From:     teams/00_orchestrator
+To:       founder / 07 / 05 / 09
+Date:     2026-10-10
+Status:   PAPER / C5-07 / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+Accepted: Wire c1..c5 → customer-01..05 slots.
+  Placeholder labels only. Knobs unset.
+  Accounts stay disabled. Exec reads
+  strategy_id/basket/slot/journal_tag.
+  Enable one book after desk lead assigns.
+  Rebased onto main 5e7a465. Lint format fix.
+Rejected: Auto-trade five books tonight.
+  Fake edge. Live broker. STRAT-015+.
+UNKNOWN: Which real registry id / basket
+  desk lead will pin on each slot.
+```
+
 ## As of now (2026-10-09 IST) — R01_B3A_VOL paper sibling (PAPER)
 
 ```text
