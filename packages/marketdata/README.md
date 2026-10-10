@@ -33,7 +33,7 @@ source .venv/bin/activate
 python -m marketdata --record-only
 ```
 
-After merge + Mac `git pull`, that default command is the start line. It loads both indexes in one process (nearest weekly expiry, ATM / ITM100 / ITM200 CE+PE, plus each index and nearest future). Same as:
+After merge + Mac `git pull`, that default command is the start line. It loads both indexes in one process (nearest weekly expiry, ATM / ITM100 / ITM200 / OTM100 / OTM200 CE+PE, plus each index and nearest future). Same as:
 
 ```bash
 python -m marketdata --record-only --underlying NIFTY,SENSEX
@@ -79,8 +79,14 @@ security ids from `/optionchain`, and the nearest index future. Network failures
 until 09:20 IST, then the last cached instrument set (same or later expiry) is used; bad
 credentials fail at once with a one-line message.
 
-Instruments: the index, the nearest future, and ATM / ITM100 / ITM200 on both sides
-(CE ITM = strikes below spot, PE ITM = strikes above). Options and the future stay on FULL
+Instruments: the index, the nearest future, and ATM / ITM100 / ITM200 / OTM100 / OTM200
+on both sides (CE ITM = strikes below ATM, PE ITM = strikes above; CE OTM = strikes above
+ATM, PE OTM = strikes below). That is **12 instruments per underlying** (10 option wings +
+index + future) and **24** for the default NIFTY + SENSEX book. After a recentre the old
+10 option wings stay subscribed for 10 minutes, so both books can briefly hold 44. Dhan
+allows 5,000 ids per socket and 100 ids per subscribe JSON; 24 (and 44) sit inside both.
+The existing `rule` field on the snapshot row names the wing — ATM / ITM* readers keep
+working; they ignore OTM* if they filter. Options and the future stay on FULL
 (request 21). The index is ticker (15) or quote (17) — IDX_I sends no ticks on FULL.
 When spot moves more than half a strike step (+ hysteresis) the set re-centres: new strikes
 are subscribed on the open socket; strikes that left keep streaming for 10 minutes, then are
@@ -93,7 +99,7 @@ whose `payload` matches the V2-01 schema vendored in `src/marketdata/schemas/`.
 | File | Contents |
 |---|---|
 | `depth_quotes.jsonl` | `DEPTH_QUOTE` per instrument: on change (≤ 1 per 250 ms) and a heartbeat (`repeat: true`) so there is a row at least once per second. `exchange_ts` = receive time of the packet the data came from, so a heartbeat shows the data age. `raw_b64` = the packet bytes while the FULL decoder is unverified. |
-| `quote_snapshots.jsonl` | `QUOTE_SNAPSHOT` for the six traded strikes on every 5 s boundary: bid, ask, mid, spread, LTP, LTT, OI, `depth_age_ms`, `stale` (no packet for > 5 s). |
+| `quote_snapshots.jsonl` | `QUOTE_SNAPSHOT` for the ten traded strikes on every 5 s boundary: bid, ask, mid, spread, LTP, LTT, OI, `depth_age_ms`, `stale` (no packet for > 5 s). `rule` is ATM / ITM100 / ITM200 / OTM100 / OTM200. |
 | `oi_cadence.jsonl` | `OI_CADENCE` per option/future for each minute window: changes, median and p90 seconds between changes, last change time. |
 | `feed_status.jsonl` | `FEED_STATUS`: UP/DOWN (with gap), STALE/FRESH per instrument, disconnect codes. |
 | `raw_frames.jsonl` | Every websocket frame, base64, while `DECODER_VERIFIED` is false. |

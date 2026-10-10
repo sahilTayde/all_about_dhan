@@ -211,13 +211,13 @@ def test_disconnect_down_up_resubscribe_and_reg02c(tmp_path: Path) -> None:
             await server.send(index_packet(13, 24512.35))
         if t == ist(10, 0, 20):
             await server.drop_clients()
-            await until(lambda: server.connections >= 2 and len(server.subscribed) == 8, timeout=10)
+            await until(lambda: server.connections >= 2 and len(server.subscribed) == 12, timeout=10)
 
     _live, server, _pub, statuses = asyncio.run(_run_live(tmp_path, ist(10, 0), ist(10, 0, 40), hook=hook))
     seq = [s["status"] for s in statuses if s["status"] in ("UP", "DOWN")]
     assert seq[:3] == ["UP", "DOWN", "UP"]
     assert server.connections >= 2
-    assert any(r.get("RequestCode") == 21 and r.get("InstrumentCount") == 7 for _, r in server.requests)
+    assert any(r.get("RequestCode") == 21 and r.get("InstrumentCount") == 11 for _, r in server.requests)
     assert any(r.get("RequestCode") == 15 and r.get("InstrumentCount") == 1 for _, r in server.requests)
     # REG-02c: reconnect publishes DOWN then UP on on_feed_status (engine stop re-check).
     rechecks = [i for i in range(1, len(seq)) if seq[i - 1] == "DOWN" and seq[i] == "UP"]
@@ -430,7 +430,7 @@ def test_reg02c_one_up_per_down_up_no_heartbeat_dup(tmp_path: Path) -> None:
             await server.send(index_packet(13, 24512.35))
         if t == ist(10, 0, 25):
             await server.drop_clients()
-            await until(lambda: server.connections >= 2 and len(server.subscribed) == 8, timeout=10)
+            await until(lambda: server.connections >= 2 and len(server.subscribed) == 12, timeout=10)
 
     _live, server, _pub, statuses = asyncio.run(_run_live(tmp_path, ist(10, 0), ist(10, 0, 45), hook=hook))
     seq = [s["status"] for s in statuses if s["status"] in ("UP", "DOWN")]
@@ -523,7 +523,7 @@ def test_stale_then_down_gap_publishes_no_clean_bar(tmp_path: Path) -> None:
             await server.send(_full(t, 100.0))
         if t == ist(10, 0, 12):
             await server.drop_clients()
-            await until(lambda: server.connections >= 2 and len(server.subscribed) == 8, timeout=10)
+            await until(lambda: server.connections >= 2 and len(server.subscribed) == 12, timeout=10)
         if t >= ist(10, 0, 20) and t.microsecond == 0 and t.second % 2 == 0:
             await server.send(index_packet(13, 24512.35))
         if t == ist(10, 1, 0):

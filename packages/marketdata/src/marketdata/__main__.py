@@ -5,7 +5,7 @@
     python -m marketdata --record-only --underlying NIFTY,SENSEX
     python -m marketdata --coverage YYYY-MM-DD [--tape-root PATH]
 
-Default underlyings are NIFTY and SENSEX (nearest weekly ATM / ITM wings, not a full chain).
+Default underlyings are NIFTY and SENSEX (nearest weekly ATM / ITM / OTM wings, not a full chain).
 Credentials: DHAN_CLIENT_ID and DHAN_ACCESS_TOKEN from the environment or the repo ``.env``.
 Exit codes: 0 clean stop (15:30 IST or Ctrl-C/SIGTERM), 1 unexpected error,
 2 credentials or startup failure.

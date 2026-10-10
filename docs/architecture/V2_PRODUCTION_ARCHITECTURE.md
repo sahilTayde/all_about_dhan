@@ -197,11 +197,13 @@ config/
     (`option_chain_recorder._poll_interval = 180`), the Dhan QUOTE packet has no bid/ask
     (`dhan_client.decode`, QUOTE fields), and the FULL packet with 5-level depth is a placeholder decoder that
     reads only LTP. A 2-5 minute stop cannot be tested without real bid/ask at second resolution.
-  - **Traded strikes set.** For each basket underlying and the nearest weekly expiry: ATM, ITM100 and ITM200 on both
-    CE and PE (6 option instruments per underlying), plus the index and current future. Re-centred when spot crosses
-    a strike step; the old strikes keep streaming for 10 minutes so open positions and shadow alternatives stay priced.
-    Instruments with an open position are always subscribed. That is about 24 instruments for NIFTY + SENSEX, far
-    inside Dhan's 5,000 per connection.
+  - **Traded strikes set.** For each basket underlying and the nearest weekly expiry: ATM, ITM100, ITM200, OTM100
+    and OTM200 on both CE and PE (10 option instruments per underlying: CE ITM below ATM / CE OTM above ATM,
+    PE ITM above ATM / PE OTM below ATM), plus the index and current future. The snapshot `rule` field names the
+    wing; ATM / ITM* readers stay valid. Re-centred when spot crosses a strike step; the old strikes keep streaming
+    for 10 minutes so open positions and shadow alternatives stay priced. Instruments with an open position are
+    always subscribed. Steady state is **12 per underlying**, **24** for NIFTY + SENSEX (44 for 10 minutes after
+    both books recentre). Far inside Dhan's 5,000 ids per connection and 100 ids per subscribe JSON.
   - **Depth at ≤ 1 s.** Subscribe FULL mode for the traded strikes. Publish `DEPTH_QUOTE` (5 levels, bid/ask price and
     quantity) on every change, throttled to at most one per instrument per 250 ms, and at least once per second
     (a heartbeat repeat when nothing changed, flagged `repeat: true`) so "no change" and "no data" can be told apart.
@@ -214,8 +216,8 @@ config/
     from chain snapshots) and publishes `OI_CADENCE` every minute: updates in the last minute, median and p90 seconds
     between changes, and the last change time. The warehouse keeps a daily `oi_cadence` table. This answers the
     Round 8 VERIFY on whether an OI signal lagged to the last snapshot is stale.
-  - **Budget.** About 24 instruments × 1 row/s × 22,500 s ≈ 540k depth rows a day (~150 MB raw JSONL, ~20-30 MB
-    gzipped), plus ~110k quote snapshots.
+  - **Budget.** 24 subscribed instruments × 1 row/s × 22,500 s ≈ 540k depth rows a day (~150 MB raw JSONL, ~20-30 MB
+    gzipped), plus 10 option wings × 2 underlyings × 4,500 snapshot intervals ≈ 90k quote snapshots.
   - **Runs early and on its own.** `python -m runtime marketdata --record-only` runs the depth, quote and OI-cadence
     recorders and the tape writer without the engine, so capture can start before the rest of M1 exists. Recorded
     data cannot be backfilled.

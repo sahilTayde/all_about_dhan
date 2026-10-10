@@ -95,7 +95,7 @@ run in parallel. `REG-nn` ids refer to section 3; each ticket ships the regressi
 
 **V2-D2 Depth, quote-snapshot and OI-cadence recorder** (`packages/marketdata/{depth,quotes,oi_cadence,tape}.py`,
 `python -m runtime marketdata --record-only`, ~450 lines)
-- Traded-strike set per basket underlying: ATM, ITM100, ITM200 on CE and PE (nearest weekly), plus index and future;
+- Traded-strike set per basket underlying: ATM, ITM100, ITM200, OTM100, OTM200 on CE and PE (nearest weekly), plus index and future (12 instruments / underlying, 24 for NIFTY+SENSEX);
   re-centred on spot moves, old strikes kept 10 minutes, open positions always kept. FULL-mode subscription;
   `DEPTH_QUOTE` at ≤ 1 s (throttled to 250 ms, 1 s heartbeat repeat); `QUOTE_SNAPSHOT` with bid/ask every 5 s;
   `OI_CADENCE` every minute; `TapeWriter` to `data/tape/v2/YYYY-MM-DD/`, raw frames base64 until V2-D1 is verified;
