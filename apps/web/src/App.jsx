@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
-import { fetchCustomerDesk } from "./lib/customerFeed.js";
+import { fetchCustomerDesk, fetchCustomerJournal } from "./lib/customerFeed.js";
 import { formatSlot, formatWhen, selectCustomerView } from "./lib/customerPortal.js";
+import { TradeJourney } from "./components/TradeJourney.jsx";
 import { UnderlyingPicker } from "./components/UnderlyingPicker.jsx";
 import { Disclaimer } from "./components/Disclaimer.jsx";
 import { LegendDialog } from "./components/LegendDialog.jsx";
@@ -46,7 +47,7 @@ function Chrome({ mode, feed, onInfo }) {
 function CustomerHero({ view }) {
   return (
     <section
-      className={`customer-hero customer-hero--${view.tone} customer-hero--${view.market.toLowerCase()}`}
+      className={`customer-hero customer-hero--${view.tone} customer-hero--${view.market.toLowerCase()} customer-hero--alive`}
       data-testid="customer-hero"
       aria-labelledby="customer-hero-heading"
     >
@@ -149,6 +150,7 @@ function CustomerBook({ view }) {
 
 export default function App() {
   const [desk, setDesk] = useState(null);
+  const [journal, setJournal] = useState(null);
   const [error, setError] = useState(null);
   const [underlying, setUnderlying] = useState("NIFTY");
   const [legendOpen, setLegendOpen] = useState(false);
@@ -166,6 +168,15 @@ export default function App() {
       });
     return () => ac.abort();
   }, []);
+
+  useEffect(() => {
+    if (!desk) return undefined;
+    const ac = new AbortController();
+    fetchCustomerJournal(ac.signal).then((body) => {
+      if (body) setJournal(body);
+    });
+    return () => ac.abort();
+  }, [desk]);
 
   if (error) {
     return (
@@ -206,6 +217,7 @@ export default function App() {
 
       <UnderlyingPicker underlyings={view.underlyings} value={underlying} onChange={setUnderlying} />
       <CustomerHero view={view} />
+      <TradeJourney view={view} journal={journal} />
       <TicketCard view={view} />
       <RiskStrip view={view} />
       <CustomerBook view={view} />

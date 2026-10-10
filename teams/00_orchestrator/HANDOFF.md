@@ -2,6 +2,27 @@
 
 **Agents:** read **only the newest block**. Do not ingest this whole log. New files: [`docs/FILE_CREATION.md`](../../docs/FILE_CREATION.md). Append here — do not create `HANDOFF_TOMORROW.md` or extra `CONTINUE_*`.
 
+## As of now (2026-10-05 IST) — C5-08 lively customer journey (PAPER)
+
+```text
+From:     teams/00_orchestrator
+To:       founder / 05 / 07 / 09
+Date:     2026-10-05
+Status:   PAPER / C5-08 / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+Accepted: Customer `/` trade journey (signal →
+  entry → hold → exit) + last-known spark +
+  chips. Compact /v2/customer reads from #85.
+  Five paper seats. Motion respects
+  prefers-reduced-motion.
+  Restack onto origin/main ebd87ae (#88).
+Rejected: Live LTP invent. Dhan from browser.
+  Order buttons. VPS/LB. lightweight-charts
+  on customer `/`.
+UNKNOWN: Founder-box paper journal marks
+  during a live paper day.
+```
+
 ## As of now (2026-10-10 IST) — C5-07 five paper slots (PAPER)
 
 ```text

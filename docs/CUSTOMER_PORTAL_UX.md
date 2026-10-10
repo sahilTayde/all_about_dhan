@@ -27,6 +27,7 @@ No indicator soup. No fake win rate. No dead ticket left live.
 | Zone | Content |
 |------|---------|
 | Hero | Current index + CALL / PUT / HOLD + status color |
+| Trade journey | Visual SIGNAL → ENTRY → HOLD → EXIT rail, status chips, last-known paper/demo sparkline (no live LTP). Motion off when `prefers-reduced-motion`. |
 | Ticket card | Strike, entry, stop, target, quantity note, expiry/time |
 | Dealer note | Plain English: trend + 3m chain + cited news |
 | Risk strip | “Invalid if...” + stale timer |
@@ -35,7 +36,7 @@ No indicator soup. No fake win rate. No dead ticket left live.
 | Book | Today only, clearly MOCK/PAPER/SHADOW until real |
 | Help | `(i)` legend, short |
 
-Desktop may show extra panels. Mobile shows only hero, ticket, risk, and one book summary first.
+Desktop may show extra panels. Mobile shows hero, journey, ticket, risk, and one book summary first.
 
 ---
 
@@ -61,6 +62,7 @@ Use high contrast, large numbers, and touch-friendly buttons. Avoid tiny dense t
 - Lazy-load charts and research panels.
 - Show stale data banner if payload age exceeds the state TTL.
 - Keep customer payload small: no raw chain, no full indicator arrays.
+- Journey sparkline uses paper/demo bars or last-known journal marks only. Do not invent live prices in the browser.
 
 ---
 

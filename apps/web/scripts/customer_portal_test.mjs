@@ -34,6 +34,10 @@ function fixtureApi(req, res, next) {
     res.statusCode = 404;
     return res.end("no signals:public");
   }
+  if (url.pathname === "/v2/customer/journal") {
+    res.statusCode = 404;
+    return res.end("no journal");
+  }
   if (url.pathname === "/mock/signal.json") {
     res.setHeader("content-type", "application/json");
     return res.end(JSON.stringify(state.which === "empty" ? emptyRaw : ticketRaw));
@@ -83,6 +87,9 @@ async function main() {
           if (!hero.includes("HOLD")) fails.push("empty hero missing HOLD");
           if (badge !== "MOCK") fails.push(`empty badge ${badge}`);
           if (!emptyBook) fails.push("empty book missing");
+          const journey = await page.locator("[data-testid=trade-journey]").getAttribute("data-phase");
+          if (journey !== "SIGNAL") fails.push(`empty journey ${journey}`);
+          if ((await page.locator("[data-testid=journey-rail]").count()) === 0) fails.push("empty missing journey rail");
           if (badge.toUpperCase() === "LIVE") fails.push("empty showed LIVE");
           if ((await page.locator("button", { hasText: /buy|sell|order/i }).count()) > 0) {
             fails.push("empty has order button");
@@ -103,6 +110,13 @@ async function main() {
           if (!risk.toLowerCase().includes("invalid")) fails.push("risk strip missing");
           if (!["MOCK", "PAPER", "SHADOW"].includes(badge)) fails.push(`bad badge ${badge}`);
           if (badge.toUpperCase() === "LIVE") fails.push("ticket showed LIVE");
+          const journey = await page.locator("[data-testid=trade-journey]").getAttribute("data-phase");
+          if (journey !== "HOLD") fails.push(`ticket journey ${journey}`);
+          const spark = await page.locator("[data-testid=journey-spark]").innerText();
+          if (!spark.toLowerCase().includes("last known")) fails.push("ticket spark missing last-known");
+          if (spark.toLowerCase().includes("live price") && !spark.toLowerCase().includes("not a live")) {
+            fails.push("ticket spark claimed live price");
+          }
         },
       ],
     ]) {
@@ -112,10 +126,25 @@ async function main() {
       await page.waitForSelector("[data-testid=customer-hero]", { timeout: 15000 });
       await check(page);
       await shot(page, `c5-03-${name}-390.png`);
+      await shot(page, `c5-08-${name}-390.png`);
       await page.setViewportSize({ width: 1280, height: 800 });
       await shot(page, `c5-03-${name}-1280.png`);
+      await shot(page, `c5-08-${name}-1280.png`);
       await page.close();
     }
+    const still = await browser.newPage({
+      viewport: { width: 390, height: 844 },
+      reducedMotion: "reduce",
+    });
+    state.which = "ticket";
+    await still.goto(`${base}/`, { waitUntil: "load" });
+    await still.waitForSelector("[data-testid=trade-journey]", { timeout: 15000 });
+    const stillClass = await still.locator("[data-testid=trade-journey]").getAttribute("class");
+    if (!String(stillClass).includes("trade-journey--still")) {
+      fails.push(`reduced-motion class ${stillClass}`);
+    }
+    await shot(still, "c5-08-reduced-motion-390.png");
+    await still.close();
   } finally {
     await browser.close();
     try {
@@ -124,8 +153,11 @@ async function main() {
       /* preview already down */
     }
   }
-  const log = resolve(ART, "c5-03-portal-tests.txt");
-  writeFileSync(log, fails.length ? `FAIL\n${fails.join("\n")}\n` : "PASS empty HOLD + one CALL ticket\n");
+  const log = resolve(ART, "c5-08-portal-tests.txt");
+  writeFileSync(
+    log,
+    fails.length ? `FAIL\n${fails.join("\n")}\n` : "PASS empty SIGNAL + CALL HOLD journey + reduced motion\n",
+  );
   if (fails.length) {
     console.error(fails.join("\n"));
     process.exit(1);

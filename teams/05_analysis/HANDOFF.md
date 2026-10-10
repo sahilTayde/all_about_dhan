@@ -1,5 +1,22 @@
 # Handoff log — Team 05 Analysis
 
+## As of now (2026-10-05 IST) — C5-08 customer journey talk (PAPER)
+
+```text
+From:     teams/05_analysis
+To:       00 / 07 / founder
+Date:     2026-10-05
+Status:   PAPER UI / C5-08 / NO_PROMOTE
+Accepted: `/` still CALL/PUT/HOLD + why + Invalid
+  if. Journey rail is status only (WATCH/EARLY
+  = SIGNAL, CONFIRMED = ENTRY, IN-PROGRESS =
+  HOLD path, closed = EXIT). Spark = last-known
+  paper/demo or journal marks. No indicator soup.
+Rejected: Win rate. LIVE badge. Invented live
+  prices. Sentiment/CAS on `/`.
+UNKNOWN: Live 3m chain + cited news until stream.
+```
+
 ## As of now (2026-10-05 IST) — C5-05 customer `/` fetch path (PAPER)
 
 ```text
