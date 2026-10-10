@@ -1,0 +1,28 @@
+# C5 paper research slot c5. R07 after 10:30 only. Live refused.
+spec_id: B8A_R07_NO_PRE1030
+strategy_id: B8A_R07_NO_PRE1030
+plugin: strategies.plugins.b8a_r07_no_pre1030
+version: "1.0.0"
+stage: paper
+start_session: "2026-10-09"
+cost_model: depth
+coefficients: {}
+params:
+  family: MOM
+  k: 3
+  thr: 0.0005
+  min_er: 0.35
+  hold_min: 20
+  window: ["10:30", "14:50"]
+  qty:
+    NIFTY: 650
+    SENSEX: 200
+  lots: 10
+  exit_plan:
+    catastrophic:
+      max_loss: 30000
+    time_stops:
+      - after_s: 1200
+        when: always
+    flat_by_ist: "15:15"
+signals: []

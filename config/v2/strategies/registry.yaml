@@ -26,3 +26,35 @@ strategies:
     params_hash: "f42fdeb51869e0f0"
     stage: "shadow"
     legacy_logic_from: []
+  # C5 paper research slots (c1..c5). Option buying only. Live refused.
+  # Desk lead may set strategy_id on customer-01..05; accounts stay disabled here.
+  - strategy_id: "R01_PDIV_5_ALL_H20"
+    module_path: "strategies.plugins.r01_pdiv_5_all_h20"
+    version: "1.0.0"
+    params_hash: "3e889e4dd35e2560"
+    stage: "paper"
+    legacy_logic_from: []
+  - strategy_id: "R01_B3A_VOL"
+    module_path: "strategies.plugins.r01_b3a_vol"
+    version: "1.0.0"
+    params_hash: "2acd8775b67fb748"
+    stage: "paper"
+    legacy_logic_from: []
+  - strategy_id: "B8B_B3A_EX_CHOPPY"
+    module_path: "strategies.plugins.b8b_b3a_ex_choppy"
+    version: "1.0.0"
+    params_hash: "2dd8818ff2d5d76c"
+    stage: "paper"
+    legacy_logic_from: []
+  - strategy_id: "R07_MOM3_TREND"
+    module_path: "strategies.plugins.r07_mom3_trend"
+    version: "1.0.0"
+    params_hash: "3b2e4d7b33895ef0"
+    stage: "paper"
+    legacy_logic_from: []
+  - strategy_id: "B8A_R07_NO_PRE1030"
+    module_path: "strategies.plugins.b8a_r07_no_pre1030"
+    version: "1.0.0"
+    params_hash: "bfb8937b2f640e59"
+    stage: "paper"
+    legacy_logic_from: []

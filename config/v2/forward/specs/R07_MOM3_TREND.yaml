@@ -1,0 +1,28 @@
+# C5 paper research slot c4. MOM_3 0.0005 + ER30>=0.35. Live refused.
+spec_id: R07_MOM3_TREND
+strategy_id: R07_MOM3_TREND
+plugin: strategies.plugins.r07_mom3_trend
+version: "1.0.0"
+stage: paper
+start_session: "2026-10-09"
+cost_model: depth
+coefficients: {}
+params:
+  family: MOM
+  k: 3
+  thr: 0.0005
+  min_er: 0.35
+  hold_min: 20
+  window: ["09:30", "14:50"]
+  qty:
+    NIFTY: 650
+    SENSEX: 200
+  lots: 10
+  exit_plan:
+    catastrophic:
+      max_loss: 30000
+    time_stops:
+      - after_s: 1200
+        when: always
+    flat_by_ist: "15:15"
+signals: []
