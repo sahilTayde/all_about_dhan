@@ -114,10 +114,7 @@ class StrikeSet:
         step = self.universe.strike_step
         for k in range(-n, n + 1):
             strike = atm + k * step
-            if k == 0:
-                rule = "OPEN_ATM"
-            else:
-                rule = f"OPEN_{'P' if k > 0 else 'M'}{abs(k)}"
+            rule = "OPEN_ATM" if k == 0 else f"OPEN_{'P' if k > 0 else 'M'}{abs(k)}"
             for side in ("CE", "PE"):
                 inst = self.universe.options.get((strike, side))
                 if inst is not None:

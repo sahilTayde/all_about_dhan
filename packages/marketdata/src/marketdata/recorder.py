@@ -44,6 +44,7 @@ from marketdata.instruments import (
     save_universe,
 )
 from marketdata.oi_cadence import OiCadenceTracker
+from marketdata.pins import HeldPinReader
 from marketdata.quotes import snapshot
 from marketdata.research import (
     RESEARCH_EVENT,
@@ -56,9 +57,8 @@ from marketdata.research import (
     load_research_set,
     within_dhan_caps,
 )
-from marketdata.pins import HeldPinReader
-from marketdata.strikes import Change, StrikeSet
 from marketdata.status import write_status
+from marketdata.strikes import Change, StrikeSet
 from marketdata.tape import TapeWriter, tape_drop_count
 
 log = logging.getLogger(__name__)

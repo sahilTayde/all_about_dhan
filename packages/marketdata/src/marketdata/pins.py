@@ -269,7 +269,4 @@ class HeldPinReader:
 
 
 def _is_closed_trade(row: dict[str, Any]) -> bool:
-    closed = row.get("closed_ts")
-    if closed in (None, "", 0, "0"):
-        return False
-    return True
+    return row.get("closed_ts") not in (None, "", 0, "0")
