@@ -3,7 +3,9 @@ import {
   closedStateLabel,
   pathInfo,
   plainWhy,
+  strikeOf,
   ticketState,
+  tickEdge,
   tradeNow,
 } from "../src/lib/paperBoard.js";
 import { strategyName } from "../src/lib/tradePipeline.js";
@@ -69,6 +71,12 @@ assert.equal(winOnly.stopPct, null);
 const lossOnly = pathInfo({ entry: 138, exit: 132.7, closed_ist: "2026-10-09T13:15:00+05:30" });
 assert.equal(lossOnly.entryPct, 1);
 assert.equal(lossOnly.pct, 0);
+assert.equal(tickEdge(0), "start");
+assert.equal(tickEdge(1), "end");
+assert.equal(tickEdge(0.5), "mid");
+assert.equal(strikeOf(stopHit), 23300);
+assert.equal(strikeOf({ strike: 24850 }), 24850);
+assert.equal(strikeOf({ entry: 138 }), null);
 
 assert.equal(closedStateLabel({ exit_reason: "TARGET", target_hit: true, exit: 180 }), "Closed: target hit");
 assert.equal(closedStateLabel({ exit_reason: "TIME", exit: 170 }), "Closed: time exit");

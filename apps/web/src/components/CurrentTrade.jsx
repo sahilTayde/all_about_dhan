@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { fmtElapsed, inr, moneyClass, pathInfo, plainWhy, px, ticketState, tradeNow } from "../lib/paperBoard.js";
+import { fmtElapsed, inr, moneyClass, pathInfo, plainWhy, px, strikeOf, ticketState, tickEdge, tradeNow } from "../lib/paperBoard.js";
 import { strategyName } from "../lib/tradePipeline.js";
 
 function clamp01(n) {
@@ -9,8 +9,9 @@ function clamp01(n) {
 
 function Tick({ pct, label, value }) {
   if (pct == null || value == null || Number.isNaN(Number(value))) return null;
+  const edge = tickEdge(pct);
   return (
-    <span className="fx-path__tick" style={{ left: `${clamp01(pct) * 100}%` }}>
+    <span className={`fx-path__tick fx-path__tick--${edge}`} style={{ left: `${clamp01(pct) * 100}%` }}>
       {label} {px(value)}
     </span>
   );
@@ -144,7 +145,7 @@ function LastTicket({ t, clock }) {
   return (
     <>
       <dl className="kv-grid kv-grid--3 last-ticket">
-        <Cell label="Last ticket" value={`${t.underlying} ${t.side} ${t.atm_strike ?? ""}`} />
+        <Cell label="Last ticket" value={`${t.underlying} ${t.side} ${strikeOf(t) ?? ""}`.trim()} />
         <Cell label="State" value={<span className={`state-pill state-pill--${s.key}`}>{s.label}</span>} />
         <Cell label="Reason" value={ticketState(t, { clock }).label} />
         <Cell label="Entry → exit" value={`${px(t.entry)} → ${px(t.exit)}`} />
@@ -189,13 +190,13 @@ export function CurrentTrade({ t, last, clock, hold, indexNow, children, title =
           <div className="current-trade__title">
             <span className={`side-mini side-mini--${String(t.side).toLowerCase()}`}>BUY {t.side}</span>
             <strong>
-              {t.underlying} {t.atm_strike ?? ""}
+              {t.underlying} {strikeOf(t) ?? ""}
             </strong>
             {strategyName(t) ? <span className="muted">{strategyName(t)}</span> : null}
           </div>
           <dl className="kv-grid">
             <Cell label="Signal" value={t.side ? `BUY ${t.side}` : null} />
-            <Cell label="Strike" value={t.atm_strike} />
+            <Cell label="Strike" value={strikeOf(t)} />
             <Cell label="Entry" value={n.entry != null ? px(n.entry) : null} />
             <Cell label={n.closed ? "Exit" : "LTP"} value={n.ltp != null ? px(n.ltp) : null} tone={moneyClass(n.pts)} />
             <Cell label="Stop" value={n.stop != null ? px(n.stop) : null} />

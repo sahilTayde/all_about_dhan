@@ -53,6 +53,22 @@ export function px(n) {
   return Number(n).toFixed(2);
 }
 
+/** Recorded strike only. Empty when the fill never stored one. */
+export function strikeOf(t) {
+  const v = t?.atm_strike ?? t?.strike;
+  if (v == null || v === "") return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : String(v);
+}
+
+/** Pin end ticks inside the bar so "entry 138.00" is not clipped. */
+export function tickEdge(pct) {
+  if (pct == null || Number.isNaN(Number(pct))) return "mid";
+  if (pct <= 0.08) return "start";
+  if (pct >= 0.92) return "end";
+  return "mid";
+}
+
 function numOrNull(v) {
   if (v == null || v === "") return null;
   const n = Number(v);

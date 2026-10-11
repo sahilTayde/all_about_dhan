@@ -1,5 +1,23 @@
 # Handoff log — Team 07 Coding
 
+## As of now (2026-10-11 IST) — gauge labels stay inside the bar (PAPER)
+
+```text
+From:     teams/07_coding
+To:       founder / 00 / 05 / 09
+Date:     2026-10-11
+Status:   PAPER / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+Accepted: End ticks align inside the
+  bar (start / end). Strike shows from
+  atm_strike or strike when the fill
+  stored one.
+Rejected: Clipped "entry 13". Invented
+  strike on pooled rows. Live broker.
+UNKNOWN: Pooled CSV still has no
+  strike column.
+```
+
 ## As of now (2026-10-11 IST) — real pooled fills on the card (PAPER)
 
 ```text

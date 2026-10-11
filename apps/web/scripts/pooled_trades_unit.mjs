@@ -10,7 +10,7 @@ import {
   cardTrades,
   parsePooledCsv,
 } from "../src/lib/pooledTrades.js";
-import { pathInfo, ticketState } from "../src/lib/paperBoard.js";
+import { pathInfo, strikeOf, ticketState } from "../src/lib/paperBoard.js";
 import { strategyName } from "../src/lib/tradePipeline.js";
 
 const csv = readFileSync(
@@ -36,6 +36,7 @@ assert.equal(strategyName(win), "Premium divergence");
 assert.equal(ticketState(win).label, "Closed: time exit");
 assert.equal(win.atm_strike, undefined);
 assert.equal(win.spot_at_entry, undefined);
+assert.equal(strikeOf(win), null);
 
 assert.equal(loss.entry, 138);
 assert.equal(loss.exit, 132.7);
