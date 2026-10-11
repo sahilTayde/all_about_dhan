@@ -16,7 +16,7 @@ from desk_ml.reliability import append_line, read_jsonl
 IST = timezone(timedelta(hours=5, minutes=30))
 JOURNAL_REL = Path("data") / "recon" / "decision_journal"
 
-STAGES = ("analyst", "desk", "overlay", "boss", "imm", "in_trade", "exit", "llm_pick", "llm_exit")
+STAGES = ("analyst", "desk", "overlay", "boss", "imm", "in_trade", "exit", "llm_pick", "llm_exit", "llm_explain")
 DECISIONS = ("pass", "skip", "fill", "exit")
 
 ACTOR_PLAIN = {
@@ -163,7 +163,7 @@ def make_row(
 
 
 def _clean_inputs(fields: Mapping[str, Any]) -> dict[str, Any]:
-    keep = ("day_type", "phase", "vix", "premium", "sl", "target", "side")
+    keep = ("day_type", "phase", "vix", "premium", "sl", "target", "side", "market_type", "explanation")
     out: dict[str, Any] = {}
     for key in keep:
         val = fields.get(key)

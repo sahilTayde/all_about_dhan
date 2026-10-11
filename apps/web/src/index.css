@@ -306,6 +306,10 @@ a {
   overflow: hidden;
 }
 
+.current-trade.panel {
+  overflow: visible;
+}
+
 .panel__head {
   display: flex;
   justify-content: space-between;
@@ -2272,7 +2276,8 @@ a {
 }
 
 .fx-range__entry,
-.fx-range__now {
+.fx-range__now,
+.fx-range__exit {
   position: absolute;
   top: -0.18rem;
   width: 0.18rem;
@@ -2285,7 +2290,8 @@ a {
   background: var(--ink-soft);
 }
 
-.fx-range__now {
+.fx-range__now,
+.fx-range__exit {
   width: 0.72rem;
   height: 0.72rem;
   top: -0.08rem;
@@ -2296,14 +2302,31 @@ a {
 }
 
 .fx-path__ticks {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: space-between;
-  gap: 0.2rem 0.75rem;
-  margin-top: 0.25rem;
+  position: relative;
+  height: 1.35rem;
+  margin-top: 0.35rem;
+  padding: 0 0.15rem;
   font-size: 0.72rem;
   color: var(--ink-soft);
   font-variant-numeric: tabular-nums;
+}
+
+.fx-path__tick {
+  position: absolute;
+  top: 0;
+  white-space: nowrap;
+}
+
+.fx-path__tick--start {
+  transform: none;
+}
+
+.fx-path__tick--mid {
+  transform: translateX(-50%);
+}
+
+.fx-path__tick--end {
+  transform: none;
 }
 
 .fx-bin__grid {
@@ -2739,8 +2762,8 @@ a {
 .fx-path {
   min-width: 0;
   max-width: 100%;
-  overflow: hidden;
-  padding: 0.45rem 0.7rem 0.1rem;
+  overflow: visible;
+  padding: 0.45rem 0.95rem 0.15rem;
 }
 
 .current-signal__name {
@@ -3650,6 +3673,16 @@ tr.is-click:hover {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.current-trade__explain {
+  margin: 0.35rem 0 0;
+  white-space: normal;
+  line-height: 1.45;
+}
+
+.llm-shadow {
+  margin-bottom: 0.85rem;
 }
 
 /* account */

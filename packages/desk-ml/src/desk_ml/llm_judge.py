@@ -13,6 +13,7 @@ import hashlib
 import json
 import logging
 import os
+import re
 import threading
 import time
 import urllib.error
@@ -38,8 +39,39 @@ DI = "DATA_INSUFFICIENT"
 
 PICK_DECISIONS = ("TAKE", "SKIP")
 EXIT_ACTIONS = ("HOLD", "TRAIL", "EXIT")
+EXPLAIN_MARKET_TYPES = (
+    "trend up",
+    "trend down",
+    "chop",
+    "tight range",
+    "expiry pin",
+    "high-VIX",
+)
+MARKET_TYPE_ALIASES = {
+    "trend_up": "trend up",
+    "trend-up": "trend up",
+    "uptrend": "trend up",
+    "trend_down": "trend down",
+    "trend-down": "trend down",
+    "downtrend": "trend down",
+    "choppy": "chop",
+    "sideways": "chop",
+    "tight_range": "tight range",
+    "tight-range": "tight range",
+    "range": "tight range",
+    "expiry": "expiry pin",
+    "expiry_pin": "expiry pin",
+    "pin": "expiry pin",
+    "high_vix": "high-VIX",
+    "high-vix": "high-VIX",
+    "highvix": "high-VIX",
+}
 ACCOUNTS_REL = Path("config") / "v2" / "accounts.yaml"
 SHADOW_MARKERS = ("shadow", "research_rule", "exit_variants")
+R3_REL = Path("research") / "lab" / "2026-10-11_llm_judge" / "R3_PREREG"
+R4_REL = Path("research") / "lab" / "2026-10-11_llm_judge" / "R4_SLOT"
+R4_PROMPT_DEFAULT = Path("research") / "lab" / "2026-10-11_llm_debrief" / "R4" / "prompt.txt"
+R4_SHA_PREFIX_DEFAULT = "d31a9c85"
 
 DEFAULTS: dict[str, Any] = {
     "shadow": True,
@@ -49,6 +81,8 @@ DEFAULTS: dict[str, Any] = {
     "cache_size": 256,
     "max_output_tokens": 200,
     "price_usd_per_1m_tokens": {"input": 0.15, "output": 0.60},
+    "r4_prompt_path": str(R4_PROMPT_DEFAULT),
+    "r4_sha256_prefix": R4_SHA_PREFIX_DEFAULT,
 }
 
 PICK_SYSTEM = (
@@ -67,6 +101,33 @@ EXIT_SYSTEM = (
     "The live paper book ignores you. DATA_INSUFFICIENT means unknown — do not invent. "
     f"Reply with exactly one JSON object: {{\"action\":\"HOLD|TRAIL|EXIT\",\"reason\":"
     f"\"short string\"}}. Prompt {PROMPT_VERSION}. No prose outside the JSON."
+)
+EXPLAIN_BANNED = (
+    "wing",
+    "tape",
+    "index path",
+    "flattened",
+    "short-cover",
+    "itm_100",
+    "why_now",
+    "overlay",
+    "mix-",
+    "pe bin",
+    "ce bin",
+)
+EXPLAIN_SYSTEM = (
+    "You are a PAPER-ONLY explainer for an Indian index-options desk. A paper-slot "
+    "trade already filled. Write exactly 2 sentences in plain trader English a founder "
+    "can read, plus one market-type label. Sentence 1: what was bought and why. "
+    "Sentence 2: what happened to the premium and why the ticket closed. "
+    "You have no order authority. Do not say TAKE, SKIP, HOLD, TRAIL, or EXIT. "
+    "Do not veto, size, or cancel. Do not invent prints, OI, VIX, or news. "
+    "Do not use jargon: wing, tape, index path, flattened, bin, overlay, short-cover, "
+    "ITM, MIX, dump, last-3. DATA_INSUFFICIENT means unknown. "
+    f"Allowed market_type values exactly: {' | '.join(EXPLAIN_MARKET_TYPES)}. "
+    'Reply with exactly one JSON object: {"explanation":"exactly 2 sentences",'
+    '"market_type":"trend up|trend down|chop|tight range|expiry pin|high-VIX"}. '
+    "No prose outside the JSON. No internal codes."
 )
 
 CompleteFn = Callable[..., Any]
@@ -116,22 +177,31 @@ def load_config(
                 price = loaded.get("price_usd_per_1m_tokens")
                 if isinstance(price, dict):
                     cfg["price_usd_per_1m_tokens"].update(price)
+                if loaded.get("r4_prompt_path"):
+                    cfg["r4_prompt_path"] = str(loaded["r4_prompt_path"]).strip()
+                if loaded.get("r4_sha256_prefix"):
+                    cfg["r4_sha256_prefix"] = str(loaded["r4_sha256_prefix"]).strip().lower()
         except Exception:  # noqa: BLE001 — missing yaml must not stop paper
             pass
     if "LLM_JUDGE_SHADOW" in env:
         cfg["shadow"] = _truthy(env.get("LLM_JUDGE_SHADOW"), True)
+    if env.get("LLM_R4_PROMPT_PATH"):
+        cfg["r4_prompt_path"] = str(env["LLM_R4_PROMPT_PATH"]).strip()
+    if env.get("LLM_R4_SHA256_PREFIX"):
+        cfg["r4_sha256_prefix"] = str(env["LLM_R4_SHA256_PREFIX"]).strip().lower()
     cfg["trade"] = False
     cfg["timeout_s"] = min(10.0, max(0.2, float(cfg["timeout_s"])))
     return cfg
 
 
-def paper_slot_ids(root: Optional[Path] = None) -> frozenset[str]:
+def paper_slot_ids(root: Optional[Path] = None, *, allow_code_root: bool = True) -> frozenset[str]:
     """Active ``strategy_id`` values from accounts.yaml. No fallback roster."""
     seen: set[str] = set()
     candidates: list[Path] = []
     if root is not None:
         candidates.append(Path(root) / ACCOUNTS_REL)
-    candidates.append(code_root() / ACCOUNTS_REL)
+    if allow_code_root or root is None:
+        candidates.append(code_root() / ACCOUNTS_REL)
     path = next((p for p in candidates if p.is_file()), None)
     if path is None:
         return frozenset()
@@ -195,6 +265,59 @@ def parse_exit(text: Any) -> dict[str, Any]:
     if not reason:
         raise ValueError("empty reason")
     return {"action": action, "reason": reason}
+
+
+def plain_market_type(raw: Any) -> Optional[str]:
+    """Map a label to the founder-facing words. Unknown → None (never invent)."""
+    if raw is None or raw == "":
+        return None
+    s = str(raw).strip()
+    if s in EXPLAIN_MARKET_TYPES:
+        return s
+    low = s.lower()
+    for label in EXPLAIN_MARKET_TYPES:
+        if low == label.lower():
+            return label
+    key = low.replace(" ", "_")
+    if key in MARKET_TYPE_ALIASES:
+        return MARKET_TYPE_ALIASES[key]
+    compact = low.replace(" ", "").replace("_", "").replace("-", "")
+    for alias, label in MARKET_TYPE_ALIASES.items():
+        if alias.replace("_", "").replace("-", "") == compact:
+            return label
+    return None
+
+
+def _sentence_count(text: str) -> int:
+    parts = [p.strip() for p in re.split(r"[.!?]+", text) if p.strip()]
+    return len(parts)
+
+
+def parse_explain(text: Any) -> dict[str, Any]:
+    obj = _parse_object(text)
+    extra = set(obj) - {"explanation", "market_type"}
+    missing = {"explanation", "market_type"} - set(obj)
+    if extra or missing:
+        raise ValueError(f"explain keys {sorted(obj)} != schema")
+    if "decision" in obj or "action" in obj:
+        raise ValueError("explain must not carry a veto")
+    explanation = str(obj["explanation"] or "").strip()
+    explanation = " ".join(explanation.split())
+    if not explanation:
+        raise ValueError("empty explanation")
+    if len(explanation) > 600:
+        explanation = explanation[:600].rsplit(" ", 1)[0].strip()
+    n = _sentence_count(explanation)
+    if n != 2:
+        raise ValueError(f"explanation sentences {n} not 2")
+    low = explanation.lower()
+    for word in EXPLAIN_BANNED:
+        if word in low:
+            raise ValueError(f"explanation jargon {word!r}")
+    market = plain_market_type(obj["market_type"])
+    if market is None:
+        raise ValueError(f"market_type {obj['market_type']!r}")
+    return {"explanation": explanation, "market_type": market, "reason": explanation}
 
 
 def _parse_object(text: Any) -> dict[str, Any]:
@@ -516,6 +639,8 @@ def build_exit_snapshot(
 
 
 def _journal_decision(job: str, verdict: Mapping[str, Any]) -> tuple[str, str]:
+    if job == "EXPLAIN":
+        return "pass", "llm_explain"
     if job == "PICK":
         return ("pass" if verdict.get("decision") == "TAKE" else "skip", "llm_pick")
     action = str(verdict.get("action") or "")
@@ -529,6 +654,55 @@ def _cost_usd(cfg: Mapping[str, Any], tokens_in: int, tokens_out: int) -> float:
     return (tokens_in * float(price.get("input", 0.15)) + tokens_out * float(price.get("output", 0.60))) / 1_000_000
 
 
+def _response_schema(system: str) -> dict[str, Any]:
+    if "explanation" in system and "market_type" in system:
+        return {
+            "type": "object",
+            "additionalProperties": False,
+            "required": ["explanation", "market_type"],
+            "properties": {
+                "explanation": {"type": "string"},
+                "market_type": {"type": "string", "enum": list(EXPLAIN_MARKET_TYPES)},
+            },
+        }
+    if "TAKE|SKIP" in system:
+        return {
+            "type": "object",
+            "additionalProperties": False,
+            "required": ["decision", "confidence", "reason"],
+            "properties": {
+                "decision": {"type": "string", "enum": list(PICK_DECISIONS)},
+                "confidence": {"type": "number"},
+                "reason": {"type": "string"},
+            },
+        }
+    return {
+        "type": "object",
+        "additionalProperties": False,
+        "required": ["action", "reason"],
+        "properties": {
+            "action": {"type": "string", "enum": list(EXIT_ACTIONS)},
+            "reason": {"type": "string"},
+        },
+    }
+
+
+def system_for_job(job: str, *, pick_system: Optional[str] = None) -> str:
+    if job == "EXPLAIN":
+        return EXPLAIN_SYSTEM
+    if job == "PICK":
+        return pick_system or PICK_SYSTEM
+    return EXIT_SYSTEM
+
+
+def parse_job(job: str, text: Any) -> dict[str, Any]:
+    if job == "EXPLAIN":
+        return parse_explain(text)
+    if job == "PICK":
+        return parse_pick(text)
+    return parse_exit(text)
+
+
 def call_openai(
     *,
     system: str,
@@ -540,23 +714,7 @@ def call_openai(
     key = openai_key(environ)
     if not key:
         raise RuntimeError("NO_OPENAI_API_KEY")
-    schema = {
-        "type": "object",
-        "additionalProperties": False,
-        "required": ["decision", "confidence", "reason"] if "TAKE|SKIP" in system else ["action", "reason"],
-        "properties": (
-            {
-                "decision": {"type": "string", "enum": list(PICK_DECISIONS)},
-                "confidence": {"type": "number"},
-                "reason": {"type": "string"},
-            }
-            if "TAKE|SKIP" in system
-            else {
-                "action": {"type": "string", "enum": list(EXIT_ACTIONS)},
-                "reason": {"type": "string"},
-            }
-        ),
-    }
+    schema = _response_schema(system)
     body = {
         "model": str(cfg.get("model") or "gpt-4o-mini"),
         "temperature": 0,
@@ -612,6 +770,7 @@ class LlmJudge:
         self._cache: OrderedDict[str, dict[str, Any]] = OrderedDict()
         self._seen_signals: set[str] = set()
         self._seen_exits: set[str] = set()
+        self._seen_explains: set[str] = set()
         self.calls = 0
         self.cache_hits = 0
         self.skipped = 0
@@ -659,6 +818,8 @@ class LlmJudge:
                     self._seen_signals.add(str(key))
                 elif row.get("job") == "EXIT":
                     self._seen_exits.add(str(key))
+                elif row.get("job") == "EXPLAIN":
+                    self._seen_explains.add(str(key))
 
     def _remember(self, key: str, verdict: Mapping[str, Any]) -> None:
         self._cache[key] = dict(verdict)
@@ -682,11 +843,16 @@ class LlmJudge:
             if job == "EXIT" and dedupe_key in self._seen_exits:
                 self.skipped += 1
                 return {"status": "skipped_dup_minute", "cached": False, "context_hash": h, "job": job}
+            if job == "EXPLAIN" and dedupe_key in self._seen_explains:
+                self.skipped += 1
+                return {"status": "skipped_dup_trade", "cached": False, "context_hash": h, "job": job}
             hit = self._cache.get(h)
             if hit is not None:
                 self.cache_hits += 1
                 if job == "PICK":
                     self._seen_signals.add(dedupe_key)
+                elif job == "EXPLAIN":
+                    self._seen_explains.add(dedupe_key)
                 else:
                     self._seen_exits.add(dedupe_key)
                 return {**hit, "status": "ok", "cached": True, "context_hash": h, "job": job, "cost_usd": 0.0}
@@ -699,12 +865,12 @@ class LlmJudge:
                 "job": job,
                 "reason": "OPENAI_API_KEY missing",
             }
-        system = PICK_SYSTEM if job == "PICK" else EXIT_SYSTEM
+        system = system_for_job(job, pick_system=self.cfg.get("pick_system"))
         user = "SNAPSHOT_JSON:\n" + dumps(snapshot)
         t0 = time.perf_counter()
         try:
             reply = self._invoke(system, user)
-            verdict = parse_pick(reply["text"]) if job == "PICK" else parse_exit(reply["text"])
+            verdict = parse_job(job, reply["text"])
             status = "ok"
             error = None
         except Exception as exc:  # noqa: BLE001 — fail-soft; paper loop keeps the ticket
@@ -721,6 +887,8 @@ class LlmJudge:
                 self._remember(h, verdict)
                 if job == "PICK":
                     self._seen_signals.add(dedupe_key)
+                elif job == "EXPLAIN":
+                    self._seen_explains.add(dedupe_key)
                 else:
                     self._seen_exits.add(dedupe_key)
             else:
@@ -1225,7 +1393,25 @@ def attach_and_log(
 
     if _board_fingerprint(board) != before:
         raise RuntimeError("llm_judge mutated paper-slot decisions")
-    out = {**worker.stats(), "wrote": wrote}
+    explain_stats: dict[str, Any] = {"scheduled": 0, "trade": False, "veto": False}
+    try:
+        from desk_ml.llm_explain import schedule_explains
+
+        explain_stats = schedule_explains(
+            board,
+            root=root,
+            snaps=snaps,
+            prev_snaps=prev_snaps,
+            now=stamp,
+            complete_fn=complete_fn,
+            environ=environ,
+            write=write,
+        )
+    except Exception:  # noqa: BLE001 — explainer never owns the fill
+        log.info("llm_explain schedule failed", exc_info=True)
+    if _board_fingerprint(board) != before:
+        raise RuntimeError("llm_judge mutated paper-slot decisions")
+    out = {**worker.stats(), "wrote": wrote, "explains_scheduled": int(explain_stats.get("scheduled") or 0), "veto": False}
     if owned:
         worker.close()
     return out

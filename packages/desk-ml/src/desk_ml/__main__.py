@@ -134,6 +134,12 @@ def build_parser() -> argparse.ArgumentParser:
     )
     ff.add_argument("--since", default="2026-09-17", help="IST YYYY-MM-DD inclusive")
     ff.add_argument("--no-persist", action="store_true")
+    sh = sub.add_parser(
+        "llm-shadow-compare",
+        help="Daily take/skip shadow compare (R3 / R4 / logit / random). 1.5x Dhan costs. NO_PROMOTE.",
+    )
+    sh.add_argument("--day", default="", help="IST YYYY-MM-DD (default: today IST)")
+    sh.add_argument("--no-persist", action="store_true")
     ex = sub.add_parser(
         "sod-exam",
         help="06 honesty exam: lookahead slice + fill contract + why-spill. write=false. NO_PROMOTE.",
@@ -354,6 +360,17 @@ def main(argv: Optional[list[str]] = None) -> int:
         public["improve_next"] = report.get("improve_next")
         _print(public)
         return 0 if report.get("ok") else 2
+    if args.cmd == "llm-shadow-compare":
+        from desk_ml.llm_shadow_compare import run_day
+
+        day = str(args.day).strip() or None
+        if not day:
+            from datetime import datetime, timedelta, timezone
+
+            day = datetime.now(timezone(timedelta(hours=5, minutes=30))).date().isoformat()
+        report = run_day(day, root=root, persist=not bool(args.no_persist))
+        _print(report)
+        return 0 if report.get("trade") is False else 2
     if args.cmd == "sod-exam":
         days = [d.strip() for d in str(args.days).split(",") if d.strip()]
         names = tuple(u.strip().upper() for u in str(args.underlyings).split(",") if u.strip())

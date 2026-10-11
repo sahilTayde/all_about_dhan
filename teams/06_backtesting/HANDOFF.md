@@ -1,5 +1,44 @@
 # Handoff log — Team 06 Backtesting
 
+## As of now (2026-10-11 IST) — R4 prompt path, not empty slot (PAPER)
+
+```text
+From:     teams/06_backtesting
+To:       00 / 07 / 09
+Date:     2026-10-11
+Status:   PAPER / NO_PROMOTE
+Accepted: R4 arm reads config path
+  (debrief/R4/prompt.txt). Expected
+  sha256 prefix d31a9c85. Missing
+  file is MISSING_PROMPT. Hash miss
+  is LOCK_MISMATCH. Nightly still
+  fail-soft. No fill change.
+Rejected: Silent SLOT_EMPTY. Writing
+  a guessed R4 prompt. Look-ahead.
+UNKNOWN: Frozen d31a9c85 text not
+  in git; drop on the box path.
+```
+
+## As of now (2026-10-11 IST) — take/skip shadow compare R3/logit/random (PAPER)
+
+```text
+From:     teams/06_backtesting
+To:       00 / 07 / 09
+Date:     2026-10-11
+Status:   PAPER / NO_PROMOTE
+Accepted: Daily score on same pick fields.
+  R3 frozen prompt + lock hash.
+  R4 loaded from config path. Logistic trains only
+  on dates < scored day. Random skip
+  same count, 2000 draws. 1.5x Dhan
+  costs. JSON + cumulative vs random.
+  No fill change. NO_PROMOTE.
+Rejected: Look-ahead fit. Live orders.
+  Promoting R3. Writing R4 prompt.
+UNKNOWN: Live-key R3 vs random after
+  a real paper week.
+```
+
 ## As of now (2026-10-11 IST) — LLM shadow judge PICK/EXIT (PAPER)
 
 ```text

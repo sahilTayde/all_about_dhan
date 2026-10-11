@@ -1,5 +1,134 @@
 # Handoff log — Team 07 Coding
 
+## As of now (2026-10-11 IST) — gauge labels stay inside the bar (PAPER)
+
+```text
+From:     teams/07_coding
+To:       founder / 00 / 05 / 09
+Date:     2026-10-11
+Status:   PAPER / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+Accepted: End ticks pin inside the bar
+  (start left / end right + padding).
+  Strike shows from atm_strike or
+  strike when the fill stored one.
+Rejected: Clipped "entry 13". Invented
+  strike on pooled rows. Live broker.
+UNKNOWN: Pooled CSV still has no
+  strike column.
+```
+
+## As of now (2026-10-11 IST) — real pooled fills on the card (PAPER)
+
+```text
+From:     teams/07_coding
+To:       founder / 00 / 05 / 09
+Date:     2026-10-11
+Status:   PAPER / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+Accepted: Cards from pooled_trades_1x.csv
+  rows only. Win 2026-10-01 PE 127.25→
+  134.35 net ₹4360 qty 650. Loss
+  2026-10-09 CE 138.00→132.70 sized at
+  current 10-lot slot. Gauge marks sit
+  on the recorded price. No strike
+  invented. Dates stay on the source
+  row.
+Rejected: Relabeling Sep-25 167.30/
+  157.26 / 23128 onto Oct 9. Invented
+  strike. Exit tick mid-bar when exit
+  equals stop. Live broker.
+UNKNOWN: ATM strike not in the pooled
+  CSV. Dual-tape still absent here.
+```
+
+## As of now (2026-10-11 IST) — Analyst reason stays the explanation (PAPER)
+
+```text
+From:     teams/07_coding
+To:       founder / 00 / 05 / 09
+Date:     2026-10-11
+Status:   PAPER / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+Accepted: engineCode matches token codes
+  only. Prose with the word stop stays
+  the Analyst reason. Empty Rule hidden.
+  History notes/reason use plainWhy and
+  Closed: stop hit / target hit / time
+  exit. No MIX on the books table.
+Rejected: Substring STOP → Stop hit.
+  Raw justification / CANCEL codes on
+  founder books. Live broker.
+UNKNOWN: Oct 2026 dual-tape still not
+  in this checkout.
+```
+
+## As of now (2026-10-11 IST) — founder trade card plain words (PAPER)
+
+```text
+From:     teams/07_coding
+To:       founder / 00 / 05 / 09
+Date:     2026-10-11
+Status:   PAPER / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+Accepted: Trade card hides MIX codes; shows
+  slot name. Closed pill is Closed: stop
+  hit / target hit / time exit. Why line
+  is plain English. Closed card shows
+  exit, net ₹ after charges, MFE/MAE,
+  exit mark on the gauge. Empty fields
+  hidden. Explainer prompt is 2 sentences,
+  no wing/tape/flattened jargon.
+Rejected: CLOSED (CANCEL). MIX-DEFAULT-BUY
+  on the card. Sep-25 25-lot qty. Jargon
+  why_now. Live broker.
+UNKNOWN: Oct 2026 dual-tape not in this
+  checkout; screenshots use 10-lot C5
+  slot config dated 2026-10-09.
+```
+
+## As of now (2026-10-11 IST) — R4 prompt path + loud missing (PAPER)
+
+```text
+From:     teams/07_coding
+To:       founder / 00 / 06 / 09
+Date:     2026-10-11
+Status:   PAPER / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+Accepted: R4 loads r4_prompt_path from
+  config/llm_judge.yaml (default
+  research/lab/2026-10-11_llm_debrief/R4/prompt.txt).
+  Expected sha prefix d31a9c85.
+  Missing → MISSING_PROMPT with drop path.
+  Wrong hash → LOCK_MISMATCH.
+  Founder panel shows that status.
+  DROP_HERE documents the box file.
+Rejected: Silent SLOT_EMPTY. Inventing
+  the frozen prompt. Live broker.
+UNKNOWN: Box file not in this checkout.
+```
+
+## As of now (2026-10-11 IST) — LLM explainer + take/skip shadow panel (PAPER)
+
+```text
+From:     teams/07_coding
+To:       founder / 00 / 06 / 09
+Date:     2026-10-11
+Status:   PAPER / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+Accepted: Async explainer on paper-slot
+  trades (1-3 sentences + market type).
+  Journal stage llm_explain. Trade card
+  and pipeline Analyst show plain words.
+  Daily R3/R4/logit/random shadow JSON
+  + founder research panel vs random.
+  trade false. No accounts.yaml / size /
+  exit edits. Missing OPENAI key skips.
+Rejected: Veto. Fast-path block. Live
+  broker. R4 prompt (slot empty).
+UNKNOWN: Live OpenAI wording quality.
+```
+
 ## As of now (2026-10-11 IST) — LLM judge slots from accounts.yaml (PAPER)
 
 ```text

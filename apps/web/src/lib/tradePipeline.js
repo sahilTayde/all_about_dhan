@@ -2,7 +2,7 @@
  * Live trade pipeline from recorded fills, skips, and /paper/trace.
  * Never invent a stage. Missing = waiting. MIX-* never shown.
  */
-import { PAPER_SLOTS } from "./strategyBoard.js";
+import { PAPER_SLOTS, canonicalSlotId } from "./strategyBoard.js";
 import { formatIst, plainText } from "./plainWords.js";
 
 export const PIPE_LANES = Object.freeze(["NIFTY", "SENSEX"]);
@@ -35,10 +35,11 @@ const SLOT_NAME = Object.fromEntries(PAPER_SLOTS.map((s) => [s.id, s.name]));
 
 export function strategyName(t) {
   if (!t) return "";
-  for (const id of [t.strategy_id, t.slot, t.journal_tag, t.book_id]) {
-    if (id && SLOT_NAME[id]) return SLOT_NAME[id];
+  for (const id of [t.strategy_id, t.slot, t.journal_tag, t.book_id, t.rule]) {
+    const sid = canonicalSlotId(id);
+    if (sid && SLOT_NAME[sid]) return SLOT_NAME[sid];
   }
-  const raw = t.strategy_id || t.book_id || "";
+  const raw = canonicalSlotId(t.strategy_id || t.book_id || "");
   if (!raw || /^MIX-/i.test(String(raw))) return "";
   return String(raw);
 }
@@ -174,10 +175,15 @@ export function engineCode(raw) {
   const s = String(raw || "").trim();
   if (!s) return null;
   const u = s.toUpperCase();
-  for (const key of Object.keys(EXIT_PLAIN)) {
-    if (u === key || u.includes(key)) return key;
+  if (EXIT_PLAIN[u]) return u;
+  // Token-like codes only. Never match STOP inside "dropped to the stop".
+  if (/^[A-Z][A-Z0-9_]+$/.test(u)) {
+    for (const key of Object.keys(EXIT_PLAIN)) {
+      if (u.includes(key)) return key;
+    }
+    return u;
   }
-  return /^[A-Z][A-Z0-9_]+$/.test(s) ? s : null;
+  return null;
 }
 
 function cleanWhy(raw, fallback) {
@@ -198,7 +204,7 @@ function cleanRule(raw) {
   if (code && RULE_PLAIN[code]) return RULE_PLAIN[code];
   if (/coil/i.test(s)) return "skip coil market";
   if (/^[A-Z][A-Z0-9_]+$/.test(s)) return s.replaceAll("_", " ").toLowerCase();
-  return s;
+  return null;
 }
 
 function cleanInputs(fields) {
@@ -248,6 +254,7 @@ export function skipWhoWhy(row) {
 
 const JOURNAL_STAGE = Object.freeze({
   analyst: "analyst",
+  llm_explain: "analyst",
   desk: "desk",
   overlay: "overlay",
   boss: "boss",
@@ -256,6 +263,36 @@ const JOURNAL_STAGE = Object.freeze({
   live: "live",
   exit: "exit",
 });
+
+const MARKET_PLAIN = Object.freeze({
+  "trend up": "trend up",
+  "trend down": "trend down",
+  chop: "chop",
+  "tight range": "tight range",
+  "expiry pin": "expiry pin",
+  "high-VIX": "high-VIX",
+  TREND_UP: "trend up",
+  TREND_DOWN: "trend down",
+  CHOP: "chop",
+  CHOPPY: "chop",
+  TIGHT_RANGE: "tight range",
+  EXPIRY_PIN: "expiry pin",
+  HIGH_VIX: "high-VIX",
+});
+
+export function plainMarketType(raw) {
+  if (raw == null || raw === "") return "";
+  const s = String(raw).trim();
+  if (MARKET_PLAIN[s]) return MARKET_PLAIN[s];
+  const key = s.toLowerCase().replace(/[\s_]+/g, "-");
+  if (key === "trend-up" || key === "uptrend") return "trend up";
+  if (key === "trend-down" || key === "downtrend") return "trend down";
+  if (key === "tight-range" || key === "range") return "tight range";
+  if (key === "expiry-pin" || key === "expiry") return "expiry pin";
+  if (key === "high-vix" || key === "highvix") return "high-VIX";
+  if (key === "chop" || key === "choppy" || key === "sideways") return "chop";
+  return "";
+}
 
 export function fromJournal(rows) {
   const out = {};
@@ -332,9 +369,13 @@ function inferFromTrade(t) {
   const name = strategyName(t);
   const stages = {
     analyst: done("analyst", {
-      why: name ? `${name} spoke` : "Analyst recorded",
+      why: t.llm_explanation || (name ? `${name} spoke` : "Analyst recorded"),
       at: openAt,
-      inputs: cleanInputs({ side: t.side }),
+      inputs: cleanInputs({
+        side: t.side,
+        market_type: plainMarketType(t.market_type),
+        explanation: t.llm_explanation,
+      }),
     }),
     desk: done("desk", {
       why: `${t.side} ${t.atm_strike ?? ""}`.trim(),

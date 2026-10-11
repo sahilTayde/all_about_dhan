@@ -53,6 +53,22 @@ export function px(n) {
   return Number(n).toFixed(2);
 }
 
+/** Recorded strike only. Empty when the fill never stored one. */
+export function strikeOf(t) {
+  const v = t?.atm_strike ?? t?.strike;
+  if (v == null || v === "") return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : String(v);
+}
+
+/** Pin end ticks inside the bar so "entry 138.00" is not clipped. */
+export function tickEdge(pct) {
+  if (pct == null || Number.isNaN(Number(pct))) return "mid";
+  if (pct <= 0.08) return "start";
+  if (pct >= 0.92) return "end";
+  return "mid";
+}
+
 function numOrNull(v) {
   if (v == null || v === "") return null;
   const n = Number(v);
@@ -150,6 +166,63 @@ export function shortWhy(text) {
   return bit.length > 220 ? `${bit.slice(0, 217)}…` : bit;
 }
 
+const WHY_NOW_PLAIN = Object.freeze({
+  "pe: dump / pe bin / pe short-cover": "The index was falling, so the desk bought a put.",
+  "pe: dump / pe bin / pe short-cover (ce still allowed when ce strength prints)": "The index was falling, so the desk bought a put.",
+  "ce: rally / ce bin / ce short-cover": "The index was rising, so the desk bought a call.",
+  "ce: dump / pe bin / pe short-cover": "The index was falling, so the desk bought a put.",
+});
+
+function foldWhy(text) {
+  return String(text || "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
+}
+
+/** Founder-facing one-liner. Never dump bin / short-cover / MIX codes. */
+export function plainWhy(t) {
+  if (!t) return "";
+  const dedicated = String(t.why_plain || t.customer_why || "").trim();
+  if (dedicated) return dedicated;
+  const raw = t.justification || t.why || t.customer_note || "";
+  const extracted = shortWhy(raw);
+  if (!extracted || extracted === "—") return "";
+  const mapped = WHY_NOW_PLAIN[foldWhy(extracted)];
+  if (mapped) return mapped;
+  const side = String(t.side || "").toUpperCase();
+  if (/dump|pe bin|short-cover|itm_bin/i.test(extracted)) {
+    return side === "CE"
+      ? "The index was rising, so the desk bought a call."
+      : "The index was falling, so the desk bought a put.";
+  }
+  const scrubbed = String(extracted)
+    .replace(/MIX-[A-Z0-9_-]+/gi, "")
+    .replace(/\b(ITM_100|why_now|last-3|short-cover|PE bin|CE bin)\b/gi, "")
+    .replace(/\s{2,}/g, " ")
+    .replace(/^[,;:.\s]+|[,;:.\s]+$/g, "")
+    .trim();
+  if (!scrubbed || /dump|bin=|impulse_note|overlay=/i.test(scrubbed)) {
+    if (side === "CE") return "The index was rising, so the desk bought a call.";
+    if (side === "PE") return "The index was falling, so the desk bought a put.";
+    return "";
+  }
+  return scrubbed.length > 160 ? `${scrubbed.slice(0, 157)}…` : scrubbed;
+}
+
+/** Closed ticket pill: Closed: stop hit / target hit / time exit. No CANCEL codes. */
+export function closedStateLabel(t) {
+  const reason = String(t?.exit_reason || "");
+  const step = Number(t?.target_step || 0);
+  if (reason === "TARGET2" || (t?.target_hit && step >= 2)) return "Closed: target hit";
+  if (t?.target_hit === true || reason === "TARGET") return "Closed: target hit";
+  if (reason.includes("TRAIL") || reason === "STOP" || t?.sl_hit) return "Closed: stop hit";
+  if (reason === "TIME" || reason.startsWith("FLATTEN") || reason === "COVER_LONG_UNWIND") return "Closed: time exit";
+  if (reason.startsWith("CANCEL") || String(t?.status || "").includes("CANCEL")) return "Closed: time exit";
+  if (t?.exit != null || t?.closed_ist) return "Closed: time exit";
+  return "";
+}
+
 function fillKey(t) {
   return [
     t.opened_ts || t.opened_ist || "",
@@ -179,42 +252,53 @@ export function uniqueFills(rows) {
   return [...map.values()];
 }
 
+function finitePx(v) {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+}
+
+/** Place every mark on the recorded price scale. Exit at stop sits on the stop, not mid-bar. */
 export function pathInfo(t) {
-  const last = Number(t.last_ltp ?? t.exit ?? t.entry ?? t.limit_price);
-  const stop = Number(t.trail_stop ?? t.stop);
-  const hardStop = Number(t.stop);
-  const target = Number(t.target2 && t.target_step >= 1 ? t.target2 : t.target);
-  const entry = Number(t.entry ?? t.limit_price);
-  const span = target - stop;
-  const pctAlong =
-    Number.isFinite(span) && span !== 0 && Number.isFinite(last) ? (last - stop) / span : null;
-  const toTarget = Number.isFinite(last) && Number.isFinite(target) ? target - last : null;
-  const slRoom = Number.isFinite(last) && Number.isFinite(stop) ? last - stop : null;
-  const vsEntry = Number.isFinite(last) && Number.isFinite(entry) ? last - entry : null;
-  const remainingToTarget = Number.isFinite(toTarget) ? Math.abs(toTarget) : null;
-  const riskToStop = Number.isFinite(slRoom) ? Math.abs(slRoom) : null;
-  const range = Number.isFinite(span) ? Math.abs(span) : null;
-  const remainingPctOfRange =
-    range && range > 0 && remainingToTarget != null ? remainingToTarget / range : null;
-  const riskPctOfRange = range && range > 0 && riskToStop != null ? riskToStop / range : null;
-  const entryPct =
-    Number.isFinite(span) && span !== 0 && Number.isFinite(entry) ? (entry - stop) / span : null;
+  const closed = Boolean(t?.exit != null || t?.closed_ist);
+  const last = finitePx((closed ? t.exit : t.last_ltp) ?? t.exit ?? t.entry ?? t.limit_price);
+  const stop = finitePx(t.trail_stop ?? t.stop);
+  const hardStop = finitePx(t.stop);
+  const target = finitePx(t.target2 && t.target_step >= 1 ? t.target2 : t.target);
+  const entry = finitePx(t.entry ?? t.limit_price);
+  const marks = [stop, entry, last, target].filter((n) => n != null);
+  const lo = marks.length ? Math.min(...marks) : null;
+  const hi = marks.length ? Math.max(...marks) : null;
+  const span = lo != null && hi != null ? hi - lo : null;
+  const at = (px) => (px == null || span == null ? null : span === 0 ? 0.5 : (px - lo) / span);
+  const toTarget = last != null && target != null ? target - last : null;
+  const slRoom = last != null && stop != null ? last - stop : null;
+  const vsEntry = last != null && entry != null ? last - entry : null;
+  const remainingToTarget = toTarget != null ? Math.abs(toTarget) : null;
+  const riskToStop = slRoom != null ? Math.abs(slRoom) : null;
+  const range = span != null ? Math.abs(span) : null;
   return {
     last,
     stop,
     hardStop,
     target,
     entry,
-    pct: pctAlong,
+    lo,
+    hi,
+    pct: at(last),
+    stopPct: at(stop),
+    targetPct: at(target),
     toTarget,
     slRoom,
     vsEntry,
     remainingToTarget,
     riskToStop,
-    remainingPctOfRange,
-    riskPctOfRange,
-    entryPct,
+    remainingPctOfRange:
+      range && range > 0 && remainingToTarget != null ? remainingToTarget / range : null,
+    riskPctOfRange: range && range > 0 && riskToStop != null ? riskToStop / range : null,
+    entryPct: at(entry),
     trailing: t.trail_stop != null && Number(t.trail_stop) !== Number(t.stop),
+    closed,
+    markLabel: closed ? "exit" : "now",
   };
 }
 
@@ -588,16 +672,12 @@ export function ticketState(t, { clock = null } = {}) {
     if (t.filled === false) return { key: "progress", label: "IN PROGRESS · working limit" };
     return { key: "progress", label: "IN PROGRESS" };
   }
-  const out = outcomeLabel(t);
-  if (out.includes("TARGET")) return { key: "target", label: out };
-  if (out.includes("STOP LOSS")) return { key: "stopped", label: `STOPPED · ${out.replace("STOP LOSS ", "SL ")}` };
+  const label = closedStateLabel(t);
   const net = Number(t.realized_pnl_inr);
-  if (t.filled !== false && t.exit != null && Number.isFinite(net) && net !== 0) {
-    // Filled, then closed by an overlay cancel / time / unwind: a real result, not a dead ticket.
-    const kind = out === "CANCELLED" ? "cancel" : out.toLowerCase();
-    return { key: net > 0 ? "closed-up" : "closed-down", label: `CLOSED (${kind})` };
-  }
-  return { key: "dead", label: `DEAD · ${out}` };
+  const key = label.includes("target") ? "target" : label.includes("stop") ? "stopped" : Number.isFinite(net) && net > 0 ? "closed-up" : "closed-down";
+  if (label) return { key, label };
+  const out = outcomeLabel(t);
+  return { key: "dead", label: out };
 }
 
 /** Why no ticket is open: desk risk halt, founder STOP on every index, else the latest skip reason. */
@@ -630,9 +710,8 @@ export function regimeSpot(regimes, und) {
 }
 
 function oneLineWhy(text) {
-  const raw = shortWhy(text);
-  if (!raw || raw === "—") return "—";
-  const line = raw.replace(/MIX-[A-Z0-9_-]+/gi, "").replace(/\s{2,}/g, " ").trim();
+  const line = plainWhy({ justification: text });
+  if (!line) return "—";
   return line.length > 140 ? `${line.slice(0, 137)}…` : line;
 }
 
@@ -726,26 +805,33 @@ export function runningTradeView(t, { nowMs = Date.now(), spotNow } = {}) {
 /** Current-trade numbers. Anything the record does not carry stays null (rendered "—"). */
 export function tradeNow(t, { nowMs = Date.now() } = {}) {
   const entry = num(t.entry ?? t.limit_price);
-  const ltp = num(t.last_ltp);
+  const closed = !isOpenRow(t) && (t?.exit != null || t?.closed_ist);
+  const mark = closed ? num(t.exit) : num(t.last_ltp);
   const qty = num(t.qty) ?? (num(t.lots) != null && num(t.lot_size) != null ? num(t.lots) * num(t.lot_size) : null);
   const step = Number(t.target_step || 0);
   const trailing = Number(t.trail_step || 0) > 0 || t.trail_stop != null ? num(t.trail_stop ?? t.stop) : null;
-  const pts = entry != null && ltp != null ? ltp - entry : null;
+  const pts = entry != null && mark != null ? mark - entry : null;
   const opened = num(t.opened_ts);
+  const closedMs = t?.closed_ist ? Date.parse(t.closed_ist) : num(t.closed_ts) != null ? num(t.closed_ts) * 1000 : null;
+  const high = num(t.seen_high) ?? (closed && mark != null && entry != null ? Math.max(entry, mark) : null);
+  const low = num(t.seen_low) ?? (closed && mark != null && entry != null ? Math.min(entry, mark) : null);
+  const net = num(t.realized_pnl_inr);
+  const gross = pts != null && qty != null ? pts * qty : num(t.gross_pnl_inr);
   return {
     entry,
-    ltp,
+    ltp: mark,
     qty,
     stop: num(t.path_stop ?? t.stop),
     trailing,
     t1: step >= 1 ? "hit" : num(t.target),
     t2: num(t.target2) ?? (step >= 1 ? num(t.target) : null),
     pts,
-    inr: pts != null && qty != null ? pts * qty : null,
-    elapsedMs: opened != null ? nowMs - opened * 1000 : null,
-    // Excursions from entry: MFE is never below 0, MAE never above 0.
-    mfe: entry != null && num(t.seen_high) != null ? Math.max(0, num(t.seen_high) - entry) : null,
-    mae: entry != null && num(t.seen_low) != null ? Math.min(0, num(t.seen_low) - entry) : null,
+    inr: closed && net != null ? net : gross,
+    netInr: net,
+    closed: Boolean(closed),
+    elapsedMs: opened != null ? (Number.isFinite(closedMs) ? closedMs - opened * 1000 : nowMs - opened * 1000) : null,
+    mfe: entry != null && high != null ? Math.max(0, high - entry) : null,
+    mae: entry != null && low != null ? Math.min(0, low - entry) : null,
   };
 }
 

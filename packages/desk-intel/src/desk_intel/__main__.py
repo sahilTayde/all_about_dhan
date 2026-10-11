@@ -281,6 +281,18 @@ def cmd_nightly(args: argparse.Namespace) -> int:
         events=events,
     )
     _attach_fix_first(payload, persist=not args.no_save)
+    try:
+        from desk_ml.llm_shadow_compare import run_nightly as run_llm_shadow
+
+        payload["llm_shadow_compare"] = run_llm_shadow(cfg.repo_root, persist=not args.no_save)
+    except Exception as exc:  # noqa: BLE001 — shadow score must not block auditor
+        payload["llm_shadow_compare"] = {
+            "ok": False,
+            "error": type(exc).__name__,
+            "promote": False,
+            "trade": False,
+            "shadow": True,
+        }
     # Standing Docs Auditor — every nightly / post-market (cadence: daily).
     audit = attach_docs_audit(cfg.repo_root, write=True)
     payload["docs_audit"] = {

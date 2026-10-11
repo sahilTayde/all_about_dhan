@@ -13,6 +13,7 @@ import { FounderRoster } from "./components/FounderRoster.jsx";
 import { Header, OfflineBanner } from "./components/Header.jsx";
 import { HealthPanel } from "./components/HealthPanel.jsx";
 import { MarketPanel } from "./components/MarketPanel.jsx";
+import { LlmShadowPanel } from "./components/LlmShadowPanel.jsx";
 import { TradeHistory } from "./components/TradeHistory.jsx";
 import { ActionBar } from "./desk/components/ActionBar.jsx";
 import { HealthStrip } from "./desk/components/HealthStrip.jsx";
@@ -176,7 +177,13 @@ export function FounderPm() {
           <header className="widget__head">
             <h2>Open now</h2>
           </header>
-          <CurrentTrade t={current} last={d.uniqueClosed[0]} clock={clock} hold={current ? null : holdReason(board, snap?.founder_book, snap?.risk_halt, offline)} title="Now open" />
+          <CurrentTrade
+            t={current || d.uniqueClosed[0] || null}
+            last={current ? d.uniqueClosed[0] : d.uniqueClosed[1]}
+            clock={clock}
+            hold={current ? null : holdReason(board, snap?.founder_book, snap?.risk_halt, offline)}
+            title={current ? "Now open" : d.uniqueClosed[0] ? "Last trade" : "Now open"}
+          />
           <TradeHistory
             indexing={indexing}
             rows={[...(d.uniqueOpen || []), ...d.uniqueClosed]}
@@ -192,6 +199,7 @@ export function FounderPm() {
           <header className="widget__head">
             <h2>Research feed</h2>
           </header>
+          <LlmShadowPanel compare={snap?.llm_shadow_compare} />
           <ul className="suggest-list">
             {paperCards.map((c) => (
               <li key={c.id}>

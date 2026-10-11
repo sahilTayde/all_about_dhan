@@ -802,6 +802,41 @@ def _health_files(root: Path) -> tuple[dict[str, Any], list[dict[str, Any]]]:
     return status, alerts
 
 
+def _plain_market_type(raw: Any) -> Optional[str]:
+    try:
+        from desk_ml.llm_judge import plain_market_type
+
+        return plain_market_type(raw)
+    except Exception:  # noqa: BLE001 — UI must still load
+        return str(raw).strip() if raw else None
+
+
+def stamp_explains(board: dict[str, Any], journal: list[dict[str, Any]]) -> dict[str, Any]:
+    """Copy explainer words onto trade cards. Does not change fill fields."""
+    by_id: dict[str, dict[str, Any]] = {}
+    for row in journal:
+        if row.get("stage") != "llm_explain":
+            continue
+        tid = str(row.get("trade_id") or row.get("candidate_id") or "")
+        if tid:
+            by_id[tid] = row
+    for key in ("open_trades", "closed_trades"):
+        rows = board.get(key) or []
+        for trade in rows:
+            if not isinstance(trade, dict):
+                continue
+            row = by_id.get(str(trade.get("trade_id") or ""))
+            if not row:
+                continue
+            explanation = str(row.get("reason") or (row.get("inputs") or {}).get("explanation") or "").strip()
+            market = _plain_market_type((row.get("inputs") or {}).get("market_type"))
+            if explanation:
+                trade["llm_explanation"] = explanation
+            if market:
+                trade["market_type"] = market
+    return board
+
+
 def trim_board(board: dict[str, Any]) -> dict[str, Any]:
     out = {k: board[k] for k in BOARD_KEYS if k in board}
     out["steps"] = {u: {"span_ist": (s or {}).get("span_ist")} for u, s in (board.get("steps") or {}).items()}
@@ -874,12 +909,20 @@ def build_snapshot(root: Path = REPO, *, now: Optional[datetime] = None, fstatus
     exam = read_json(exam_path if exam_path.is_file() else root / "apps" / "web" / "public" / "mock" / "sod_exam_report.json")
     trimmed = trim_board(board)
     journal = decision_journal_rows(root, day=str(board.get("session_ist_date") or now.date().isoformat()))
+    stamp_explains(trimmed, journal)
     trimmed["decision_journal"] = journal
+    try:
+        from desk_ml.llm_shadow_compare import load_founder_view
+
+        shadow_compare = load_founder_view(root)
+    except Exception:  # noqa: BLE001 — panel is advisory
+        shadow_compare = {"ok": False, "status": "NO_DATA", "promote": False, "trade": False}
     return {
         "ok": bool(board),
         "as_of": now.isoformat(timespec="seconds"),
         "board": trimmed,
         "decision_journal": journal,
+        "llm_shadow_compare": shadow_compare,
         "exam": exam,
         "tape_last_ist": tape_last(board),
         "founder": {k: fstatus.get(k) for k in ("ok", "mode", "issues", "next_action", "agents", "services", "started_at_ist")},

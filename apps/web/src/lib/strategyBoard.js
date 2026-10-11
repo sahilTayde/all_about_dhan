@@ -23,6 +23,17 @@ export const PAPER_SLOT_IDS = Object.freeze(PAPER_SLOTS.map((s) => s.id));
 
 const SLOT_NAME = Object.fromEntries(PAPER_SLOTS.map((s) => [s.id, s.name]));
 
+/** Roster / pooled-tape aliases → C5 slot id. */
+export const SLOT_ALIASES = Object.freeze({
+  "R07_MOM_3_0.0005_TREND_H20": "R07_MOM3_TREND",
+  "R07_MOM_3_0.0005_TREND": "R07_MOM3_TREND",
+});
+
+export function canonicalSlotId(raw) {
+  const s = String(raw || "").trim();
+  return SLOT_ALIASES[s] || s;
+}
+
 export const SORT_KEYS = Object.freeze(["net", "trades", "win", "dd", "name"]);
 
 function num(v) {

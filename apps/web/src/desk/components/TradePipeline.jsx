@@ -72,18 +72,24 @@ function StageDetail({ pick, onClose }) {
         </button>
       </header>
       <dl className="kv-grid kv-grid--3">
-        <div className="kv">
-          <dt>Reason</dt>
-          <dd title={pick.code || undefined}>{pick.why || "waiting"}</dd>
-        </div>
-        <div className="kv">
-          <dt>Who</dt>
-          <dd>{pick.who || (pick.state === "waiting" ? "waiting" : pick.label)}</dd>
-        </div>
-        <div className="kv">
-          <dt>Rule</dt>
-          <dd title={pick.code || undefined}>{pick.rule || "waiting"}</dd>
-        </div>
+        {pick.why && pick.why !== "waiting" ? (
+          <div className="kv">
+            <dt>Reason</dt>
+            <dd title={pick.code || undefined}>{pick.why}</dd>
+          </div>
+        ) : null}
+        {pick.who ? (
+          <div className="kv">
+            <dt>Who</dt>
+            <dd>{pick.who}</dd>
+          </div>
+        ) : null}
+        {pick.rule && pick.rule !== "waiting" ? (
+          <div className="kv">
+            <dt>Rule</dt>
+            <dd title={pick.code || undefined}>{pick.rule}</dd>
+          </div>
+        ) : null}
       </dl>
       {inputs.length ? (
         <dl className="kv-grid kv-grid--2">

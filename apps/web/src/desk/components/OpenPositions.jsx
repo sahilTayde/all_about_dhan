@@ -119,6 +119,12 @@ function PositionCard({ t, clock, nowMs, spotNow, selected, onSelect }) {
           <PremiumSpark points={marks.points} lines={lines} label={`${t.underlying} premium`} width={280} height={72} />
         </div>
         <p className="run-card__why">Why: {v.why}</p>
+        {t.llm_explanation || t.market_type ? (
+          <p className="desk-sub current-trade__explain" data-testid="trade-explain">
+            {t.market_type ? <strong>{t.market_type}. </strong> : null}
+            {t.llm_explanation || ""}
+          </p>
+        ) : null}
       </button>
     </li>
   );
@@ -138,20 +144,28 @@ export function OpenPositions({ rows, clock, hold, last, onSelect, selectedId, r
           <p className="current-trade__big">{hold ? "On hold" : "No open paper fill"}</p>
           <p className="muted">{hold || "Empty book. The next CE/PE lands here when the board writes it."}</p>
           {last ? (
-            <dl className="kv-grid kv-grid--3 last-ticket">
-              <div className="kv">
-                <dt>Last ticket</dt>
-                <dd>{`${last.underlying} ${last.side} ${last.atm_strike ?? ""}`}</dd>
-              </div>
-              <div className="kv">
-                <dt>Net ₹</dt>
-                <dd className={moneyClass(last.realized_pnl_inr)}>{inr(last.realized_pnl_inr)}</dd>
-              </div>
-              <div className="kv">
-                <dt>Out</dt>
-                <dd>{clockOf(last.closed_ist) === "—" ? outcomeLabel(last) : clockOf(last.closed_ist)}</dd>
-              </div>
-            </dl>
+            <>
+              <dl className="kv-grid kv-grid--3 last-ticket">
+                <div className="kv">
+                  <dt>Last ticket</dt>
+                  <dd>{`${last.underlying} ${last.side} ${last.atm_strike ?? ""}`}</dd>
+                </div>
+                <div className="kv">
+                  <dt>Net ₹</dt>
+                  <dd className={moneyClass(last.realized_pnl_inr)}>{inr(last.realized_pnl_inr)}</dd>
+                </div>
+                <div className="kv">
+                  <dt>Out</dt>
+                  <dd>{clockOf(last.closed_ist) === "—" ? outcomeLabel(last) : clockOf(last.closed_ist)}</dd>
+                </div>
+              </dl>
+              {last.llm_explanation || last.market_type ? (
+                <p className="desk-sub current-trade__explain" data-testid="trade-explain">
+                  {last.market_type ? <strong>{last.market_type}. </strong> : null}
+                  {last.llm_explanation || ""}
+                </p>
+              ) : null}
+            </>
           ) : null}
         </div>
       </section>
