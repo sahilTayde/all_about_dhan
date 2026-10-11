@@ -38,18 +38,7 @@ DI = "DATA_INSUFFICIENT"
 
 PICK_DECISIONS = ("TAKE", "SKIP")
 EXIT_ACTIONS = ("HOLD", "TRAIL", "EXIT")
-PAPER_SLOT_IDS = frozenset(
-    {
-        "R01_PDIV_5_ALL_H20",
-        "R01_B3A_VOL",
-        "R02_MOM_3_0.0005_ALL_H20",
-        "B8B_B3A_EX_CHOPPY",
-        "R07_MOM3_TREND",
-        "B8A_R07_NO_PRE1030",
-        "MIX-DEFAULT-BUY",
-        "Desk default",
-    }
-)
+ACCOUNTS_REL = Path("config") / "v2" / "accounts.yaml"
 SHADOW_MARKERS = ("shadow", "research_rule", "exit_variants")
 
 DEFAULTS: dict[str, Any] = {
@@ -134,6 +123,36 @@ def load_config(
     cfg["trade"] = False
     cfg["timeout_s"] = min(10.0, max(0.2, float(cfg["timeout_s"])))
     return cfg
+
+
+def paper_slot_ids(root: Optional[Path] = None) -> frozenset[str]:
+    """Active ``strategy_id`` values from accounts.yaml. No fallback roster."""
+    seen: set[str] = set()
+    candidates: list[Path] = []
+    if root is not None:
+        candidates.append(Path(root) / ACCOUNTS_REL)
+    candidates.append(code_root() / ACCOUNTS_REL)
+    path = next((p for p in candidates if p.is_file()), None)
+    if path is None:
+        return frozenset()
+    try:
+        import yaml  # type: ignore[import-untyped]
+
+        blob = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    except Exception:  # noqa: BLE001 — missing yaml must not stop paper
+        return frozenset()
+    rows = blob.get("accounts") if isinstance(blob, Mapping) else None
+    if not isinstance(rows, list):
+        return frozenset()
+    for row in rows:
+        if not isinstance(row, Mapping):
+            continue
+        if str(row.get("status") or "").strip().lower() != "active":
+            continue
+        sid = str(row.get("strategy_id") or "").strip()
+        if sid:
+            seen.add(sid)
+    return frozenset(seen)
 
 
 def openai_key(environ: Optional[Mapping[str, str]] = None) -> str:
@@ -820,16 +839,12 @@ def _fired_this_minute(row: Mapping[str, Any], hhmm: str) -> bool:
     return bool(row.get("opened_this_tick"))
 
 
-def _source_for(row: Mapping[str, Any], setup: str) -> str:
-    if row.get("research_rule") or row.get("shadow") or any(row.get(k) for k in SHADOW_MARKERS if k != "shadow"):
-        if setup in PAPER_SLOT_IDS or row.get("research_rule"):
-            return "paper_slot"
-        return "shadow_rule"
-    if setup in PAPER_SLOT_IDS or row.get("research_rule"):
+def _source_for(row: Mapping[str, Any], setup: str, slots: frozenset[str]) -> str:
+    if setup in slots:
         return "paper_slot"
-    if row.get("shadow"):
+    if row.get("research_rule") or row.get("shadow") or any(row.get(k) for k in SHADOW_MARKERS):
         return "shadow_rule"
-    return "paper_slot"
+    return "shadow_rule"
 
 
 def collect_pick_events(
@@ -856,6 +871,7 @@ def collect_pick_events(
         seen.add(key)
         events.append(dict(event))
 
+    slots = paper_slot_ids(root)
     try:
         from desk_ml.research_rules import FROZEN_RULES, load_atm_minutes, signal
 
@@ -868,14 +884,15 @@ def collect_pick_events(
                 side = signal(rule, bars, minute, underlying=und)
                 if not side:
                     continue
+                rule_id = str(rule["rule_id"])
                 atm = _num((bars[minute] or {}).get("atm"))
                 add(
                     {
-                        "setup": rule["rule_id"],
+                        "setup": rule_id,
                         "underlying": und,
                         "side": side,
                         "strike": atm,
-                        "source": "paper_slot",
+                        "source": "paper_slot" if rule_id in slots else "shadow_rule",
                         "hhmm": minute,
                     }
                 )
@@ -894,7 +911,7 @@ def collect_pick_events(
                 "underlying": str(row.get("underlying") or "").upper(),
                 "side": row.get("side"),
                 "strike": row.get("atm_strike") or row.get("strike"),
-                "source": _source_for(row, setup),
+                "source": _source_for(row, setup, slots),
                 "hhmm": hhmm,
                 "trade_id": row.get("trade_id"),
             }
@@ -914,14 +931,17 @@ def collect_pick_events(
         shadow_fired = shadow.get("action") in {"TICKET", "ENTER"}
         if not fired and not shadow_fired:
             continue
+        setup = str(desk.get("product_book") or picker.get("book_id") or shadow.get("strategy_id") or "")
+        if setup not in slots and not shadow_fired:
+            continue
         side = picker.get("side") or shadow.get("side") or desk.get("side")
         add(
             {
-                "setup": str(desk.get("product_book") or picker.get("book_id") or "MIX-DEFAULT-BUY"),
+                "setup": setup or "shadow",
                 "underlying": str(und).upper(),
                 "side": side,
                 "strike": step.get("strike") or (step.get("itm_bin") or {}).get("strike"),
-                "source": "shadow_rule" if shadow_fired and not fired else "paper_slot",
+                "source": "paper_slot" if setup in slots else "shadow_rule",
                 "hhmm": hhmm,
             }
         )

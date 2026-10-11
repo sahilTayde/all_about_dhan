@@ -1,5 +1,22 @@
 # Handoff log — Team 07 Coding
 
+## As of now (2026-10-11 IST) — LLM judge slots from accounts.yaml (PAPER)
+
+```text
+From:     teams/07_coding
+To:       founder / 00 / 06 / 09
+Date:     2026-10-11
+Status:   PAPER / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+Accepted: Judge paper-slot set = active
+  strategy_id in config/v2/accounts.yaml.
+  No hardcoded slot ids. Shadow rules
+  still get PICK. Test equals yaml set.
+Rejected: Hardcoded roster. Live broker.
+  Changing paper fills.
+UNKNOWN: Disabled slot mid-session.
+```
+
 ## As of now (2026-10-11 IST) — LLM shadow judge on dual-tape (PAPER)
 
 ```text
