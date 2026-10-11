@@ -25,16 +25,17 @@ def test_parse_instruments_from_fixture():
     assert "SENSEX" in result["indices"]
     assert result["indices"]["SENSEX"] == 51
     
-    # Check futures (current month: 2026-09-24)
-    assert "NIFTYFUT" in result["futures"]
+    # Nearest unexpired as of the pinned date — not "whatever month the wall clock is".
+    assert result["current_expiry"] == "2026-09-24"
     assert result["futures"]["NIFTYFUT"]["security_id"] == 42100
     assert result["futures"]["NIFTYFUT"]["expiry"] == "2026-09-24"
-    
-    assert "BANKNIFTYFUT" in result["futures"]
     assert result["futures"]["BANKNIFTYFUT"]["security_id"] == 42101
-    
-    assert "SENSEXFUT" in result["futures"]
     assert result["futures"]["SENSEXFUT"]["security_id"] == 42102
+
+    october = parse_instruments(csv_text, as_of=datetime(2026, 10, 11, 12, 0, tzinfo=IST))
+    assert october["current_expiry"] == "2026-10-29"
+    assert october["futures"]["NIFTYFUT"]["security_id"] == 42200
+    assert october["futures"]["NIFTYFUT"]["expiry"] == "2026-10-29"
     
     # Check heavyweights (all 15)
     expected_heavyweights = {

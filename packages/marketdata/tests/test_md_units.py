@@ -227,8 +227,28 @@ def test_startup_errors_are_loud_and_classified() -> None:
         load_universe(_Src(csv="<html>blocked</html>"), "NIFTY", DAY, sleep=lambda _s: None)
     delays: list[float] = []
     flaky = StubSource(fail={"option_chain": [DhanApiError("network"), DhanApiError("x", status_code=502)]})
-    assert load_universe(flaky, "NIFTY", DAY, sleep=delays.append).expiry == EXPIRY
+    assert load_universe(flaky, "NIFTY", DAY, sleep=delays.append, rng=lambda: 0.5).expiry == EXPIRY
     assert delays == [2.0, 4.0]
+
+
+def test_429_retries_use_exponential_backoff_plus_jitter() -> None:
+    delays: list[float] = []
+    flaky = StubSource(fail={"scrip_master_csv": [DhanApiError("slow", status_code=429), DhanApiError("slow", status_code=429)]})
+    load_universe(flaky, "NIFTY", DAY, sleep=delays.append, rng=lambda: 1.0)
+    assert delays == [2.4, 4.8]
+
+
+def test_401_does_not_retry() -> None:
+    calls = {"n": 0}
+
+    class Once(StubSource):
+        def expiry_list(self, underlying_scrip: int, underlying_seg: str):  # type: ignore[no-untyped-def]
+            calls["n"] += 1
+            raise DhanApiError("Invalid token", status_code=401, error_code="DH-901")
+
+    with pytest.raises(StartupError, match="DHAN_ACCESS_TOKEN"):
+        load_universe(Once(), "NIFTY", DAY, sleep=lambda _s: None)
+    assert calls["n"] == 1
 
 
 class _Src(StubSource):

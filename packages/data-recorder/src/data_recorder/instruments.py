@@ -51,6 +51,16 @@ def _parse_csv_row(row: dict[str, str]) -> dict[str, Any]:
     }
 
 
+def _parse_expiry_day(raw: str) -> Optional[datetime]:
+    text = (raw or "").strip()[:10]
+    if len(text) < 10:
+        return None
+    try:
+        return datetime.strptime(text, "%Y-%m-%d").replace(tzinfo=IST)
+    except ValueError:
+        return None
+
+
 def _is_last_week_of_month(date: datetime) -> bool:
     """Check if date is in the last 7 days of the month (rollover period)."""
     next_month = date.replace(day=28) + timedelta(days=4)
@@ -58,28 +68,22 @@ def _is_last_week_of_month(date: datetime) -> bool:
     return date.day > last_day - 7
 
 
-def _current_and_next_month_expiry(*, as_of: Optional[datetime] = None) -> tuple[str, str]:
-    """Get current and next month expiry dates (YYYY-MM-DD).
-    
-    Returns (current_month_expiry, next_month_expiry) for rollover handling.
-    NSE futures expire on the last Thursday of the month.
-    """
-    today = as_of or datetime.now(IST)
-    
-    # Find last Thursday of current month
-    current_month_last = (today.replace(day=28) + timedelta(days=4)).replace(day=1) - timedelta(days=1)
-    current_thursday = current_month_last
-    while current_thursday.weekday() != 3:  # 3 = Thursday
-        current_thursday -= timedelta(days=1)
-    
-    # Find last Thursday of next month
-    next_month_first = (today.replace(day=28) + timedelta(days=4)).replace(day=1)
-    next_month_last = (next_month_first.replace(day=28) + timedelta(days=4)).replace(day=1) - timedelta(days=1)
-    next_thursday = next_month_last
-    while next_thursday.weekday() != 3:
-        next_thursday -= timedelta(days=1)
-    
-    return current_thursday.strftime("%Y-%m-%d"), next_thursday.strftime("%Y-%m-%d")
+def _upcoming_expiries(rows: list[dict[str, Any]], *, as_of: datetime) -> list[str]:
+    """Distinct unexpired FUTIDX dates, nearest first. Independent of last-Thursday calendar."""
+    seen: set[str] = set()
+    upcoming: list[tuple[datetime, str]] = []
+    as_of_day = as_of.date()
+    for row in rows:
+        parsed = _parse_expiry_day(str(row.get("expiry") or ""))
+        if parsed is None or parsed.date() < as_of_day:
+            continue
+        key = parsed.strftime("%Y-%m-%d")
+        if key in seen:
+            continue
+        seen.add(key)
+        upcoming.append((parsed, key))
+    upcoming.sort(key=lambda item: item[0])
+    return [key for _when, key in upcoming]
 
 
 def parse_instruments(csv_text: str, *, as_of: Optional[datetime] = None) -> dict[str, Any]:
@@ -114,36 +118,48 @@ def parse_instruments(csv_text: str, *, as_of: Optional[datetime] = None) -> dic
     }
     
     today = as_of or datetime.now(IST)
-    current_expiry, next_expiry = _current_and_next_month_expiry(as_of=today)
-    in_rollover = _is_last_week_of_month(today)
-    
+    parsed_rows: list[dict[str, Any]] = []
     for row in reader:
         try:
             parsed = _parse_csv_row(row)
-            if not parsed["security_id"]:
-                continue
-            
+        except Exception as e:
+            log.debug("Skipping row: %s", e)
+            continue
+        if not parsed["security_id"]:
+            continue
+        parsed_rows.append(parsed)
+
+    fut_rows = [
+        p
+        for p in parsed_rows
+        if p["instrument_type"] == "FUTIDX" and p["segment"] == "NSE_FNO"
+    ]
+    upcoming = _upcoming_expiries(fut_rows, as_of=today)
+    current_expiry = upcoming[0] if upcoming else ""
+    next_expiry = upcoming[1] if len(upcoming) > 1 else ""
+    in_rollover = _is_last_week_of_month(today)
+
+    for parsed in parsed_rows:
+        try:
             symbol = parsed["symbol"]
             segment = parsed["segment"]
             instrument_type = parsed["instrument_type"]
-            
-            # Index futures (FUTIDX)
+
+            # Index futures: nearest unexpired contract (plus next during rollover week).
             if instrument_type == "FUTIDX" and segment == "NSE_FNO":
                 underlying = parsed["trading_symbol"].replace("FUT", "").strip()
                 if underlying in future_underlyings:
-                    expiry = parsed["expiry"]
-                    
-                    # Record current month contract
-                    if expiry == current_expiry:
+                    expiry = parsed["expiry"][:10] if parsed["expiry"] else ""
+
+                    if current_expiry and expiry == current_expiry:
                         key = f"{underlying}FUT"
                         futures[key] = {
                             "security_id": parsed["security_id"],
                             "expiry": expiry,
                             "underlying": underlying,
                         }
-                    
-                    # During rollover week, also record next month
-                    if in_rollover and expiry == next_expiry:
+
+                    if in_rollover and next_expiry and expiry == next_expiry:
                         key = f"{underlying}FUT_NEXT"
                         futures[key] = {
                             "security_id": parsed["security_id"],

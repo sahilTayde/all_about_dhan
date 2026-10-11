@@ -29,7 +29,9 @@ from dhan_client.errors import DhanApiError
 from dhan_client.futidx import parse_futidx_csv
 from dhan_client.instruments import InstrumentClient
 from dhan_client.option_chain import OptionChainClient
+from dhan_client.rate_limit import next_backoff
 from dhan_client.rest import RestClient
+from dhan_client.token_info import is_auth_error
 from dhan_client.types import FeedInstrument
 
 log = logging.getLogger(__name__)
@@ -348,13 +350,19 @@ def _describe(exc: DhanApiError) -> str:
     return ", ".join(parts)
 
 
-def _call(what: str, fn: Callable[[], T], attempts: int, sleep: Callable[[float], None]) -> T:
+def _call(
+    what: str,
+    fn: Callable[[], T],
+    attempts: int,
+    sleep: Callable[[float], None],
+    rng: Callable[[], float] | None = None,
+) -> T:
     delay = 2.0
     for attempt in range(1, attempts + 1):
         try:
             return fn()
         except DhanApiError as exc:
-            if exc.status_code in (401, 403) or exc.error_code in _AUTH_CODES:
+            if is_auth_error(exc) or exc.error_code in _AUTH_CODES:
                 raise StartupError(
                     f"Dhan rejected the credentials while fetching {what} ({_describe(exc)}). "
                     "Check DHAN_CLIENT_ID and DHAN_ACCESS_TOKEN in the environment or .env; "
@@ -369,9 +377,9 @@ def _call(what: str, fn: Callable[[], T], attempts: int, sleep: Callable[[float]
                     "check the network connection",
                     retryable=True,
                 ) from exc
-            log.warning("%s failed (%s); retry %d/%d in %.0fs", what, _describe(exc), attempt, attempts, delay)
-            sleep(delay)
-            delay = min(delay * 2, 30.0)
+            wait, delay = next_backoff(delay, cap=30.0, rng=rng)
+            log.warning("%s failed (%s); retry %d/%d in %.1fs", what, _describe(exc), attempt, attempts, wait)
+            sleep(wait)
     raise AssertionError("unreachable")
 
 
@@ -382,15 +390,16 @@ def load_universe(
     *,
     attempts: int = 5,
     sleep: Callable[[float], None] = time.sleep,
+    rng: Callable[[], float] | None = None,
 ) -> Universe:
     """Fetch and resolve everything the recorder needs. Raises StartupError with a clear message."""
-    csv_text = _call("the scrip master CSV", source.scrip_master_csv, attempts, sleep)
+    csv_text = _call("the scrip master CSV", source.scrip_master_csv, attempts, sleep, rng)
     if "," not in csv_text.partition("\n")[0]:
         raise StartupError("the scrip master download is not a CSV (empty or unexpected content)")
     sm = parse_scrip_master(csv_text, underlying)
     index_sid = _index_id(sm, underlying)
     seg = "IDX_I"
-    expiries = _call("the option expiry list", lambda: source.expiry_list(int(index_sid), seg), attempts, sleep)
+    expiries = _call("the option expiry list", lambda: source.expiry_list(int(index_sid), seg), attempts, sleep, rng)
     upcoming = sorted(e for e in (_expiry(x) for x in expiries) if e and e >= day.isoformat())
     if upcoming:
         expiry = upcoming[0]
@@ -401,7 +410,11 @@ def load_universe(
         expiry = listed[0]
         log.warning("expiry list API returned nothing usable; nearest CSV expiry %s", expiry)
     chain = _call(
-        f"the option chain ({expiry})", lambda: source.option_chain(int(index_sid), seg, expiry), attempts, sleep
+        f"the option chain ({expiry})",
+        lambda: source.option_chain(int(index_sid), seg, expiry),
+        attempts,
+        sleep,
+        rng,
     )
     universe = build_universe(csv_text, sm, chain, underlying, day, expiry)
     log.info(

@@ -9,9 +9,11 @@ import signal
 import sys
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
 from dhan_client.client import DhanClient
+from dhan_client.rate_limit import next_backoff
+from dhan_client.token_info import auth_failure_message, is_auth_error, log_jwt_exp
 
 from data_recorder.config import RecorderConfig, load_config
 from data_recorder.futures_recorder import FuturesRecorder
@@ -26,6 +28,10 @@ logging.basicConfig(
     level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s"
 )
 log = logging.getLogger("data_recorder.runner")
+
+
+class AuthFailed(RuntimeError):
+    """401/403 — do not retry. Message never includes the token."""
 
 
 class DataRecorderRunner:
@@ -47,6 +53,7 @@ class DataRecorderRunner:
         self.client = DhanClient(dry_run=config.dry_run)
         self.recorders: list[Any] = []
         self._shutdown = False
+        self._exit_code = 0
         self._error_count = 0
         self._max_errors = 10  # After 10 consecutive errors, write DATA_STALE
         self._setup_signal_handlers()
@@ -92,6 +99,8 @@ class DataRecorderRunner:
             self.config.dry_run,
             self.config.output_dir,
         )
+        if not self.config.dry_run:
+            log_jwt_exp(self.client.settings.credentials.access_token, logger=log)
 
         # Load instruments with daily cache
         cache_dir = self.config.output_dir / ".instrument_cache"
@@ -185,18 +194,26 @@ class DataRecorderRunner:
         )
 
         async def run_with_retry(coro, name: str) -> None:
-            """Run recorder with exponential backoff on failures."""
+            """Run recorder. 401/403 exits; 429 uses exponential backoff + jitter."""
             max_backoff = 300  # 5 minutes max
-            backoff = 1
-            
+            backoff = 1.0
+
             while not self._shutdown:
                 try:
                     await coro
                     # Reset error count on success
                     self._error_count = 0
-                    backoff = 1
-                    
+                    backoff = 1.0
+
+                except AuthFailed:
+                    raise
                 except Exception as e:
+                    if is_auth_error(e):
+                        msg = auth_failure_message(f"running {name}", e)
+                        log.error("%s", msg)
+                        self._shutdown = True
+                        self._exit_code = 2
+                        raise AuthFailed(msg) from e
                     self._error_count += 1
                     log.error(
                         "%s failed (error %d/%d): %s",
@@ -205,18 +222,17 @@ class DataRecorderRunner:
                         self._max_errors,
                         e,
                     )
-                    
+
                     if self._error_count >= self._max_errors:
                         log.error(
                             "%s: Too many consecutive errors. Writing DATA_STALE to heartbeat.",
                             name,
                         )
                         # Don't crash, just mark as stale and retry
-                    
-                    # Exponential backoff
-                    await asyncio.sleep(backoff)
-                    backoff = min(backoff * 2, max_backoff)
-                    log.info("%s: Retrying after %ds backoff...", name, backoff)
+
+                    wait, backoff = next_backoff(backoff, cap=max_backoff)
+                    log.info("%s: Retrying after %.1fs backoff...", name, wait)
+                    await asyncio.sleep(wait)
 
         # Run all recorders + heartbeat concurrently with retry logic
         tasks = [
@@ -258,13 +274,17 @@ class DataRecorderRunner:
             self.client.close()
             log.info("Data recorder stopped")
 
-    def start(self) -> None:
-        """Start the recorder (blocking)."""
+    def start(self) -> int:
+        """Start the recorder (blocking). Returns 2 on auth failure."""
         try:
             asyncio.run(self.run_async())
         except KeyboardInterrupt:
             log.info("Interrupted by user")
-            sys.exit(0)
+            return 0
+        except AuthFailed as exc:
+            log.error("%s", exc)
+            return 2
+        return self._exit_code
 
 
 def main() -> None:
@@ -279,7 +299,7 @@ def main() -> None:
     args = parser.parse_args()
 
     runner = DataRecorderRunner(dry_run=args.dry_run, verbose=args.verbose)
-    runner.start()
+    sys.exit(runner.start())
 
 
 if __name__ == "__main__":

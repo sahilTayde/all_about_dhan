@@ -9,6 +9,7 @@ call waits exponentially (60 s, cap 15 min) — never retry immediately.
 from __future__ import annotations
 
 import logging
+import random
 import threading
 import time
 from collections.abc import Callable
@@ -19,8 +20,34 @@ log = logging.getLogger(__name__)
 
 RATE_LIMIT_429_BACKOFF_START_S = 60.0
 RATE_LIMIT_429_BACKOFF_CAP_S = 900.0  # 15 min
+JITTER_RATIO = 0.2
 
 _RATE_CODES = frozenset({"429", "805"})
+
+
+def jittered_delay(
+    base: float,
+    *,
+    jitter: float = JITTER_RATIO,
+    rng: Callable[[], float] | None = None,
+) -> float:
+    """Apply symmetric jitter to a backoff step. ``rng`` is uniform [0, 1]; 0.5 => no jitter."""
+    unit = rng() if rng is not None else random.random()
+    unit = min(1.0, max(0.0, float(unit)))
+    scale = 1.0 + float(jitter) * (2.0 * unit - 1.0)
+    return max(0.0, float(base) * scale)
+
+
+def next_backoff(
+    delay: float,
+    *,
+    cap: float = 30.0,
+    jitter: float = JITTER_RATIO,
+    rng: Callable[[], float] | None = None,
+) -> tuple[float, float]:
+    """Return ``(sleep_for, next_base)``: jittered sleep, then double the base (capped)."""
+    wait = jittered_delay(delay, jitter=jitter, rng=rng)
+    return wait, min(float(delay) * 2.0, float(cap))
 
 
 def bucket_for(path: str) -> str:
@@ -213,6 +240,7 @@ def rate_limit_hits() -> int:
 
 
 __all__ = [
+    "JITTER_RATIO",
     "RATE_LIMIT_429_BACKOFF_CAP_S",
     "RATE_LIMIT_429_BACKOFF_START_S",
     "EndpointRateLimiter",
@@ -220,7 +248,9 @@ __all__ = [
     "bucket_for",
     "default_limiter",
     "is_rate_limit_error",
+    "jittered_delay",
     "min_interval_s",
+    "next_backoff",
     "rate_limit_hits",
     "reset_default_limiter",
 ]

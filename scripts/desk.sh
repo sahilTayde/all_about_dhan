@@ -13,7 +13,7 @@
 #   ./scripts/desk.sh watch-open       # wait until 09:30 IST Mon–Fri, then dual-tape
 #   ./scripts/desk.sh recorder-start   # v2 marketdata --record-only in .venv-v2 (screen v2-recorder)
 #   ./scripts/desk.sh recorder-stop    # stop v2 recorder; leave tapes intact
-#   ./scripts/desk.sh recorder-status  # process + last line of today's IST recorder.log
+#   ./scripts/desk.sh recorder-status  # process + last line + HEALTHY only if a frame arrived in 60s
 #   ./scripts/desk.sh shadow-start     # optional V2 paper shadow (log-only; never blocks legacy)
 #   ./scripts/desk.sh shadow-stop      # stop V2 shadow; leave data/shadow/v2 journals
 #   ./scripts/desk.sh shadow-status    # process + last status.json
@@ -281,7 +281,7 @@ recorder_stop() {
 }
 
 recorder_status() {
-  local pids day log last
+  local pids day log last now last_unix age verdict
   pids="$(recorder_pids)"
   echo "v2 recorder process: ${pids:-STOPPED}"
   if recorder_screen_up; then
@@ -298,6 +298,24 @@ recorder_status() {
   else
     echo "v2 recorder last line: (no log yet for IST $day)"
   fi
+  now="${AAD_NOW_UNIX:-$(date +%s)}"
+  last_unix=""
+  if [[ -f "$TAPE_V2/$day/recorder_status.json" ]]; then
+    last_unix="$(sed -n 's/.*"last_frame_unix"[[:space:]]*:[[:space:]]*\([0-9.]*\).*/\1/p' "$TAPE_V2/$day/recorder_status.json" | head -1)"
+  fi
+  if [[ -z "$last_unix" ]]; then
+    verdict="UNHEALTHY (no frames recorded)"
+  else
+    age=$(( now - ${last_unix%.*} ))
+    if (( age > 60 )); then
+      verdict="UNHEALTHY (no frames in ${age}s)"
+    elif [[ -z "$pids" ]]; then
+      verdict="UNHEALTHY (process STOPPED)"
+    else
+      verdict="HEALTHY (last frame ${age}s ago)"
+    fi
+  fi
+  echo "v2 recorder health: $verdict"
 }
 
 shadow_pids() {
