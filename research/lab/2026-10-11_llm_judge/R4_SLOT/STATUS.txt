@@ -3,9 +3,9 @@ R4 take/skip prompt slot.
 The frozen prompt is not in git. Load it from config:
 
   r4_prompt_path: research/lab/2026-10-11_llm_debrief/R4/prompt.txt
-  r4_sha256_prefix: d31a9c85
+  r4_sha256_prefix: cd147c1a
 
-Drop the box file (sha256 prefix d31a9c85) at that path.
+Drop the box file (sha256 prefix cd147c1a of R4/prompt.txt) at that path.
 See research/lab/2026-10-11_llm_debrief/R4/DROP_HERE.txt.
 
 Missing file → MISSING_PROMPT. Wrong hash → LOCK_MISMATCH.

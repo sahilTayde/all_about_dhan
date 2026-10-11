@@ -7,7 +7,7 @@ assert.equal(empty.trade, false);
 assert.equal(empty.promote, false);
 assert.equal(empty.r4Status, "MISSING_PROMPT");
 assert.match(empty.r4Path, /llm_debrief/);
-assert.equal(empty.r4Prefix, "d31a9c85");
+assert.equal(empty.r4Prefix, "cd147c1a");
 
 const view = shadowCompareView({
   ok: true,
@@ -19,7 +19,7 @@ const view = shadowCompareView({
   r4: {
     status: "MISSING_PROMPT",
     drop_path: "research/lab/2026-10-11_llm_debrief/R4/prompt.txt",
-    expected_sha256_prefix: "d31a9c85",
+    expected_sha256_prefix: "cd147c1a",
     note: "Drop the frozen R4 prompt at research/lab/2026-10-11_llm_debrief/R4/prompt.txt.",
   },
 });

@@ -4,7 +4,8 @@
 # The OpenAI key is read from OPENAI_API_KEY at call time. Missing key → skip, no exception.
 # Never put a key here.
 #
-# R4 take/skip prompt is not in git. Drop the frozen file (sha256 prefix d31a9c85)
+# R4 take/skip prompt is not in git. Drop the frozen file (sha256 prefix cd147c1a
+# of R4/prompt.txt; d31a9c85 was PREREG_R4.md)
 # from the box path research/lab/2026-10-11_llm_debrief/ at r4_prompt_path.
 # Missing file → MISSING_PROMPT (loud). Wrong hash → LOCK_MISMATCH. Never SLOT_EMPTY.
 # Override with LLM_R4_PROMPT_PATH / LLM_R4_SHA256_PREFIX.
@@ -18,4 +19,4 @@ price_usd_per_1m_tokens:
   input: 0.15
   output: 0.60
 r4_prompt_path: research/lab/2026-10-11_llm_debrief/R4/prompt.txt
-r4_sha256_prefix: d31a9c85
+r4_sha256_prefix: cd147c1a

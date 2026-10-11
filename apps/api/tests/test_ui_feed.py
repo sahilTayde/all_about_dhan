@@ -394,5 +394,5 @@ def test_snapshot_stamps_explainer_and_shadow_panel(tmp_path) -> None:
     assert snap["llm_shadow_compare"]["r3_net"] == 200.0
     assert snap["llm_shadow_compare"]["trade"] is False
     assert snap["llm_shadow_compare"]["r4"]["status"] == "MISSING_PROMPT"
-    assert "d31a9c85" in str(snap["llm_shadow_compare"]["r4"].get("expected_sha256_prefix"))
+    assert "cd147c1a" in str(snap["llm_shadow_compare"]["r4"].get("expected_sha256_prefix"))
     assert "TREND_UP" not in json.dumps(snap["board"]["open_trades"])

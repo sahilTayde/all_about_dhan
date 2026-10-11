@@ -1,7 +1,8 @@
 R4 take/skip prompt drop.
 
 Research froze this prompt on the box at
-research/lab/2026-10-11_llm_debrief/ (sha256 prefix d31a9c85).
+research/lab/2026-10-11_llm_debrief/ (sha256 prefix cd147c1a of R4/prompt.txt;
+d31a9c85 was PREREG_R4.md).
 The file is not in git.
 
 Drop prompt.txt in this folder:
@@ -9,7 +10,7 @@ Drop prompt.txt in this folder:
 
 Config key: config/llm_judge.yaml r4_prompt_path
 Override:   LLM_R4_PROMPT_PATH
-Expected:   r4_sha256_prefix d31a9c85 (LLM_R4_SHA256_PREFIX)
+Expected:   r4_sha256_prefix cd147c1a (LLM_R4_SHA256_PREFIX)
 
 Missing file → status MISSING_PROMPT (loud, not silent).
 Wrong hash  → status LOCK_MISMATCH.

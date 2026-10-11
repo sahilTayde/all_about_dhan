@@ -1,5 +1,21 @@
 # Handoff log — Team 07 Coding
 
+## As of now (2026-10-11 IST) — R4 prompt hash is prompt.txt (PAPER)
+
+```text
+From:     teams/07_coding
+To:       founder / 00 / 06 / 09
+Date:     2026-10-11
+Status:   PAPER / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+Accepted: Expected sha prefix cd147c1a
+  (R4/prompt.txt). Panel + JS fallback
+  use that lock.
+Rejected: d31a9c85 as the prompt hash
+  (that was PREREG_R4.md).
+UNKNOWN: Box file not in this checkout.
+```
+
 ## As of now (2026-10-11 IST) — gauge labels stay inside the bar (PAPER)
 
 ```text
@@ -98,7 +114,7 @@ Gate:     not RESEARCH_READY_FOR_PROGRAMMING
 Accepted: R4 loads r4_prompt_path from
   config/llm_judge.yaml (default
   research/lab/2026-10-11_llm_debrief/R4/prompt.txt).
-  Expected sha prefix d31a9c85.
+  Expected sha prefix cd147c1a.
   Missing → MISSING_PROMPT with drop path.
   Wrong hash → LOCK_MISMATCH.
   Founder panel shows that status.
