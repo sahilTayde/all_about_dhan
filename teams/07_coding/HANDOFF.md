@@ -1,5 +1,27 @@
 # Handoff log — Team 07 Coding
 
+## As of now (2026-10-11 IST) — C5 slots armed + 10-lot paper size (PAPER)
+
+```text
+From:     teams/07_coding
+To:       founder / 00 / 09
+Date:     2026-10-11
+Status:   PAPER / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+Accepted: customer-01..05 committed active
+  with R01_PDIV / R01_B3A / B8B / R07 /
+  B8A. Every slot 10 lots (NIFTY qty
+  650, SENSEX 200). 15% premium stop.
+  risk_budget_inr + daily_loss_cap_inr
+  30000 so 10 lots is not blocked.
+  c5-start --dry-run prints qty.NIFTY.
+Rejected: Live broker. Invented lot sizes
+  (India adapter: NIFTY 65 / SENSEX 20).
+  Auto-enabling live. STRAT-015+.
+UNKNOWN: Real option premium at open;
+  planning premium is ref_premium_inr 200.
+```
+
 ## As of now (2026-10-11 IST) — V2 venv PyYAML for accounts list (PAPER)
 
 ```text

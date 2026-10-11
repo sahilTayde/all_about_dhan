@@ -16,6 +16,7 @@ from accounts.registry import PAPER_LAUNCH_CUSTOMER_IDS, AccountRegistry, defaul
 from accounts.slots import (
     ACCOUNT_TO_SLOT,
     LAUNCH_SLOT_PLAN,
+    LAUNCH_SLOT_STRATEGIES,
     PAPER_SLOT_LABELS,
     PORTAL_TO_ACCOUNT,
     account_id_for_portal_sub,
@@ -62,21 +63,24 @@ def _founder_row() -> dict[str, object]:
     }
 
 
-def test_committed_config_has_five_distinct_unarmed_slots() -> None:
+def test_committed_config_has_five_distinct_armed_slots() -> None:
     registry = AccountRegistry.load(default_config_path())
     assert registry.portal_map() == PORTAL_TO_ACCOUNT
     seen_slots: set[str] = set()
     seen_tags: set[str] = set()
     for account_id, portal_sub, slot in LAUNCH_SLOT_PLAN:
-        acc = registry.get(account_id)
-        assert acc.status == "disabled"
+        acc = registry.require_active(account_id)
+        assert acc.status == "active"
         assert acc.broker == "paper"
         assert acc.portal_sub == portal_sub
         assert acc.slot == slot
         assert acc.journal_tag == f"SLOT-{slot}"
-        assert acc.strategy_id == ""
+        assert acc.strategy_id == LAUNCH_SLOT_STRATEGIES[account_id]
         assert acc.basket == ""
-        assert acc.slot_armed is False
+        assert acc.slot_armed is True
+        assert acc.lots == 10
+        assert acc.premium_stop_pct == 0.15
+        assert acc.risk_budget_inr == 30000
         seen_slots.add(acc.slot)
         seen_tags.add(acc.journal_tag)
         assert registry.account_id_for_portal_sub(portal_sub) == account_id
@@ -279,9 +283,11 @@ def test_cli_list_includes_portal_map_and_unarmed_slots() -> None:
     by_id = {row["account_id"]: row for row in body["accounts"]}
     for account_id in PAPER_LAUNCH_CUSTOMER_IDS:
         row = by_id[account_id]
-        assert row["status"] == "disabled"
+        assert row["status"] == "active"
         assert row["slot"] == ACCOUNT_TO_SLOT[account_id]
         assert row["journal_tag"] == f"SLOT-{ACCOUNT_TO_SLOT[account_id]}"
-        assert row["slot_armed"] is False
-        assert row["strategy_id"] is None
+        assert row["slot_armed"] is True
+        assert row["strategy_id"] == LAUNCH_SLOT_STRATEGIES[account_id]
         assert row["basket"] is None
+        assert row["lots"] == 10
+        assert row["qty"]["NIFTY"] == 650

@@ -21,6 +21,7 @@ from accounts.registry import (
     set_account_status,
 )
 from accounts.safety import assert_no_live_modules, assert_paper_only, refuse_broker_name
+from accounts.sizing import planned_paper_size
 from accounts.split import EXEC_HANDLERS, SIGNAL_HANDLERS, bind_exec, bind_signal, run_role_once
 
 REPO = Path(__file__).resolve().parents[3]
@@ -69,10 +70,12 @@ def test_committed_config_is_paper_only() -> None:
         acc = registry.get(aid)
         assert acc.kind == "customer"
         assert acc.broker == "paper"
-        assert acc.status == "disabled"
-        assert acc.risk_budget_inr == 1000
-        with pytest.raises(AccountClosed, match="ACCOUNT_DISABLED"):
-            registry.require_active(aid)
+        assert acc.status == "active"
+        assert acc.risk_budget_inr == 30000
+        assert acc.lots == 10
+        assert acc.premium_stop_pct == 0.15
+        assert acc.daily_loss_cap_inr == 30000
+        assert registry.require_active(aid).account_id == aid
     with pytest.raises(AccountClosed, match="UNKNOWN_ACCOUNT"):
         registry.get("customer-06")
 
@@ -154,6 +157,42 @@ def test_a_cannot_read_affect_or_be_sized_by_b() -> None:
     assert book_b.size_lots("acct-b", 1_000) == 10
     with pytest.raises(AccountClosed, match="BUDGET"):
         book_a.apply_fill("acct-a", "NSE_FNO:NIFTY:2026-10-06:24500:CE", 1, 9_000)
+
+
+def test_configured_ten_lots_need_raised_budget() -> None:
+    tight = Account(
+        account_id="customer-01",
+        kind="customer",
+        broker="paper",
+        status="active",
+        risk_budget_inr=1000,
+        lots=10,
+        premium_stop_pct=0.15,
+        ref_premium_inr=200,
+        daily_loss_cap_inr=1000,
+    )
+    with pytest.raises(AccountSafetyError, match="cannot fund 10 NIFTY lots"):
+        planned_paper_size(tight)
+    funded = Account(
+        account_id="customer-01",
+        kind="customer",
+        broker="paper",
+        status="active",
+        risk_budget_inr=30000,
+        lots=10,
+        premium_stop_pct=0.15,
+        ref_premium_inr=200,
+        daily_loss_cap_inr=30000,
+    )
+    plan = planned_paper_size(funded)
+    assert plan["qty"]["NIFTY"] == 650
+    assert plan["qty"]["SENSEX"] == 200
+    assert plan["lots"] == 10
+    assert plan["live_broker"] is False
+    book = IsolatedBook(account=funded)
+    assert book.size_lots("customer-01", 1_950) == 10
+    with pytest.raises(AccountClosed, match="BUDGET"):
+        IsolatedBook(account=tight).size_lots("customer-01", 1_950)
 
 
 def test_five_customer_books_cannot_cross_read_positions_or_size() -> None:
@@ -289,8 +328,17 @@ def test_run_role_once_writes_ready(tmp_path: Path) -> None:
     assert (tmp_path / "ex" / "exec-founder.ready").is_file()
     with pytest.raises(AccountSafetyError, match="live"):
         run_role_once(role="exec", account_id="founder", mode="live")
-    with pytest.raises(AccountClosed, match="ACCOUNT_DISABLED"):
-        run_role_once(role="exec", account_id="customer-01", config_path=default_config_path(), mode="paper")
+    cust = run_role_once(
+        role="exec",
+        account_id="customer-01",
+        state_dir=tmp_path / "ex-c1",
+        config_path=default_config_path(),
+        mode="paper",
+    )
+    assert cust["ok"] is True and cust["account_id"] == "customer-01"
+    assert cust["slot_armed"] is True
+    with pytest.raises(AccountSafetyError, match="live"):
+        run_role_once(role="exec", account_id="customer-01", mode="live")
 
 
 def test_cli_list_enable_disable_and_live_mode(tmp_path: Path) -> None:

@@ -7,7 +7,7 @@ field. These optional account keys are the mapping it now reads:
   HYBRID_OR_ROUTER). Not a registry plugin and not claimed edge.
 - ``journal_tag``: night-card compare key (``SLOT-<slot>`` when omitted).
 - ``portal_sub``: portal JWT seat ``c1``..``c5`` (C5-02 allowlist).
-- ``strategy_id`` / ``basket``: unset until desk lead assigns. Empty = knobs
+- ``strategy_id`` / ``basket``: committed on customer-01..05. Empty = knobs
   off (``slot_armed`` is false). No invented trades.
 """
 
@@ -37,6 +37,13 @@ LAUNCH_SLOT_PLAN: tuple[tuple[str, str, str], ...] = (
     ("customer-05", "c5", "HYBRID_OR_ROUTER"),
 )
 ACCOUNT_TO_SLOT = {account: slot for account, _sub, slot in LAUNCH_SLOT_PLAN}
+LAUNCH_SLOT_STRATEGIES = {
+    "customer-01": "R01_PDIV_5_ALL_H20",
+    "customer-02": "R01_B3A_VOL",
+    "customer-03": "B8B_B3A_EX_CHOPPY",
+    "customer-04": "R07_MOM3_TREND",
+    "customer-05": "B8A_R07_NO_PRE1030",
+}
 
 _PORTAL_RE = re.compile(r"^c[1-5]$")
 _TAG_RE = re.compile(r"^[A-Z][A-Z0-9_-]{0,63}$")

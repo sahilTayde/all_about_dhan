@@ -288,13 +288,22 @@ def test_er30_matches_roster_formula() -> None:
     assert er30({"10:00": {"idx": 1.0}}, "10:00") is None
 
 
-def test_accounts_stay_disabled_and_unarmed() -> None:
+def test_accounts_are_active_armed_paper_slots() -> None:
     path = ROOT / "config" / "v2" / "accounts.yaml"
     body = yaml.safe_load(path.read_text(encoding="utf-8"))
+    wanted = {
+        "customer-01": "R01_PDIV_5_ALL_H20",
+        "customer-02": "R01_B3A_VOL",
+        "customer-03": "B8B_B3A_EX_CHOPPY",
+        "customer-04": "R07_MOM3_TREND",
+        "customer-05": "B8A_R07_NO_PRE1030",
+    }
     customers = [row for row in body["accounts"] if str(row["account_id"]).startswith("customer-")]
     assert [row["account_id"] for row in customers] == [f"customer-0{i}" for i in range(1, 6)]
     for row in customers:
-        assert row["status"] == "disabled"
-        assert not row.get("strategy_id")
+        assert row["status"] == "active"
+        assert row["strategy_id"] == wanted[str(row["account_id"])]
         assert not row.get("basket")
         assert row["broker"] == "paper"
+        assert row["lots"] == 10
+        assert row.get("live_broker") in (None, False)

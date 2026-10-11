@@ -14,12 +14,12 @@ from accounts.slots import assert_unique_slot_fields
 _REPO_ROOT = Path(__file__).resolve().parents[4]
 MAX_CUSTOMER_ACCOUNTS = 5
 PAPER_LAUNCH_CUSTOMER_IDS = tuple(f"customer-{i:02d}" for i in range(1, MAX_CUSTOMER_ACCOUNTS + 1))
-CUSTOMER_TEMPLATE_BUDGET_INR = 1000
+CUSTOMER_TEMPLATE_BUDGET_INR = 30000
 _WRITE_HEADER = (
     "# V2 C5-01/C5-07 paper/shadow accounts. Fail closed. No live broker. No secrets.\n"
     "# Enable one book: python -m accounts enable --account customer-01\n"
     "# Disable: python -m accounts disable --account customer-01\n"
-    "# Slots stay unarmed until desk lead sets strategy_id or basket on that row.\n"
+    "# Customer slots: 10 lots, 15% premium stop, daily_loss_cap_inr. Paper only.\n"
 )
 
 

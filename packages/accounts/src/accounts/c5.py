@@ -20,6 +20,7 @@ from accounts.errors import AccountClosed, AccountSafetyError
 from accounts.model import Account
 from accounts.registry import MAX_CUSTOMER_ACCOUNTS, AccountRegistry, default_config_path
 from accounts.safety import assert_active, assert_paper_only, refuse_broker_name
+from accounts.sizing import planned_paper_size
 
 MAX_CUSTOMER_EXECS = MAX_CUSTOMER_ACCOUNTS
 OPS_NAME = "ops.json"
@@ -133,9 +134,10 @@ class C5Process:
     strategy_id: str | None = None
     basket: str | None = None
     slot_armed: bool = False
+    sizing: dict[str, Any] | None = None
 
     def as_dict(self) -> dict[str, Any]:
-        return {
+        body: dict[str, Any] = {
             "role": self.role,
             "account_id": self.account_id,
             "kind": self.kind,
@@ -150,6 +152,19 @@ class C5Process:
             "slot_armed": self.slot_armed,
             "live_broker": False,
         }
+        if self.sizing is not None:
+            body.update(
+                {
+                    "lots": self.sizing.get("lots"),
+                    "qty": self.sizing.get("qty"),
+                    "lot_size": self.sizing.get("lot_size"),
+                    "premium_stop_pct": self.sizing.get("premium_stop_pct"),
+                    "daily_loss_cap_inr": self.sizing.get("daily_loss_cap_inr"),
+                    "risk_budget_inr": self.sizing.get("risk_budget_inr"),
+                    "sizing": self.sizing,
+                }
+            )
+        return body
 
 
 @dataclass(frozen=True)
@@ -185,6 +200,7 @@ def _bind_exec_proc(account: Account, state_root: Path, mode: str, python: str, 
     refuse_broker_name(account.broker)
     assert_active(account)
     state = require_state_dir(exec_state_dir(state_root, account.account_id), repo=repo)
+    sizing = planned_paper_size(account) if account.kind == "customer" and account.lots > 0 else None
     return C5Process(
         role="exec",
         account_id=account.account_id,
@@ -198,6 +214,7 @@ def _bind_exec_proc(account: Account, state_root: Path, mode: str, python: str, 
         strategy_id=account.strategy_id or None,
         basket=account.basket or None,
         slot_armed=account.slot_armed,
+        sizing=sizing,
     )
 
 

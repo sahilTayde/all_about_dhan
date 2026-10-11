@@ -14,6 +14,7 @@ from accounts.safety import assert_paper_only, refuse_broker_name
 from accounts.slots import (
     ACCOUNT_TO_SLOT,
     LAUNCH_SLOT_PLAN,
+    LAUNCH_SLOT_STRATEGIES,
     PAPER_SLOT_LABELS,
     PORTAL_TO_ACCOUNT,
     account_id_for_portal_sub,
@@ -27,6 +28,7 @@ __all__ = [
     "ACCOUNT_TO_SLOT",
     "EXEC_HANDLERS",
     "LAUNCH_SLOT_PLAN",
+    "LAUNCH_SLOT_STRATEGIES",
     "MAX_CUSTOMER_ACCOUNTS",
     "PAPER_LAUNCH_CUSTOMER_IDS",
     "PAPER_SLOT_LABELS",

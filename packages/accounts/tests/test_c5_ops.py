@@ -235,3 +235,25 @@ def test_cli_and_shell_refuse_live_and_over_cap(tmp_path: Path) -> None:
     desk_live = _run_sh(DESK, ["c5-start", "--mode", "LIVE"], env)
     assert desk_live.returncode == 2
     assert "live" in desk_live.stderr.lower()
+
+
+def test_c5_start_dry_run_nifty_qty_650(tmp_path: Path) -> None:
+    from accounts.registry import PAPER_LAUNCH_CUSTOMER_IDS, default_config_path
+
+    root = _tree(tmp_path / "c5", list(PAPER_LAUNCH_CUSTOMER_IDS))
+    plan = plan_launch(config_path=default_config_path(), state_root=root, mode="paper")
+    body = start_launch(plan, dry_run=True)
+    assert body["ok"] is True and body["dry_run"] is True
+    assert body["live_broker"] is False
+    assert body["customer_count"] == 5
+    assert body["execs"]
+    for row in body["execs"]:
+        assert row["broker"] == "paper"
+        assert row["live_broker"] is False
+        assert row["lots"] == 10
+        assert row["qty"]["NIFTY"] == 650
+        assert row["qty"]["SENSEX"] == 200
+        assert row["lot_size"]["NIFTY"] == 65
+        assert row["premium_stop_pct"] == 0.15
+        assert row["daily_loss_cap_inr"] == 30000
+        assert row["slot_armed"] is True
