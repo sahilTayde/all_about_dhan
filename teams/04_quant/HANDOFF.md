@@ -1,5 +1,27 @@
 # Handoff log — Team 04 Quant
 
+## As of now (2026-10-11 IST) — RB1-BOX-1M-CPR V2 plugin (SHADOW / NO_PROMOTE)
+
+```text
+MIX / STRAT: none new. KEEP_ALL 001–014.
+  New V2 id RB1-BOX-1M-CPR (not STRAT-015+).
+Origin: PROJECT-DERIVED. HYPOTHESIS / WATCH.
+Entry hypothesis: 1m pivot-width box break
+  (W=0.003×day open), CPR WITH, bsz 0.5–1,
+  ATM weekly CE/PE buy, next 1m ask.
+Confirm-or-kill: close back inside box;
+  trail 20 pts / 0.35 giveback; flat 15:15.
+Hold / veto: desk 15% premium and ₹30k
+  daily cap logged only (not in research).
+Feasibility: shadow only; no paper slot;
+  no live; one-at-a-time; max 3 / day.
+Backtest request: 06 tape parity vs
+  rangebox_watch.py after 2026-10-12
+  before any stage change.
+Customer copy allowed: none.
+UNKNOWN: V2 real-fill vs research p=.17.
+```
+
 ## As of now (2026-09-20 IST) — analyst room packets, SOD fill not router (NO_PROMOTE)
 
 ```text
