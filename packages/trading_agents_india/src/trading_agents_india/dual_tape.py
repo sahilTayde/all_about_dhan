@@ -1031,8 +1031,10 @@ def run_dual_tape_loop(
                     heartbeat_board = {"error": "persist_failed", "detail": str(exc)[:240]}
                 if paper_scalp and persisted:
                     try:
+                        from desk_ml.decision_journal import install_engine_hooks
                         from desk_ml.live_cycle import run_cycle
 
+                        install_engine_hooks()
                         # One live cycle: control inputs -> replay -> booked-trade guard -> board ->
                         # heartbeat. A failure is recorded and alerted there, and the board says so.
                         board = run_cycle(

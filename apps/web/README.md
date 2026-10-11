@@ -5,7 +5,7 @@ Thin **Vite + React** UI for all_about_dhan. One site, three dashboards:
 | Route | Who | Job |
 |-------|-----|-----|
 | [`/`](http://localhost:5173/) (`/customer` alias) | Customer (5 paper seats) | C5-03: CALL / PUT / HOLD hero · one ticket · risk strip · today book labeled PAPER / SHADOW / MOCK. No live orders. No win rate. |
-| [`/desk`](http://localhost:5173/desk) | Desk | Alert bar · Current trade (entry, LTP, stop, T1/T2, trailing, P&L, elapsed, MFE/MAE) + paper target/stop override · Account (all recorded days; add funds / min capital) · Current market · Founder controls (compact) · Decision trace · Trade history (day picker, filters, columns) · Why days spilled |
+| [`/desk`](http://localhost:5173/desk) | Desk | Today (≥1280 2-col): left ₹ net + open fills (live premium + mini-chart) + today’s tape; right market context + health. [`/desk/strategies`](http://localhost:5173/desk/strategies): five registry paper slots (readable names, id subtitle) + shadow cards. Click a fill for the premium drawer. Debug dump behind **Advanced**. No order path. |
 | [`/pm`](http://localhost:5173/pm) | Founder | KPIs · System health (red/amber/green) + issues + next action · Account · START/STOP trade desk · Founder controls (start/stop, pause, blocked windows, lots, per-index, capital, cut loss, go for T2, kill switch + re-arm, command history) · Charts: cumulative P&L, daily/weekly/monthly P&L + win %, trades per day, per-model win % + trend, loss by stage · Now open · Decision trace · Compare fills · Honesty exam · Discarded · Roster (DEMO) |
 
 Every panel shows `—` (or a greyed decision-trace step) when the data does not exist yet; nothing is invented. Panels still fed by static `public/mock` demo JSON (roster, STRAT lights, indicator pills) carry a **DEMO · mock** badge.
@@ -14,7 +14,7 @@ Every panel shows `—` (or a greyed decision-trace step) when the data does not
 
 **Data flow.** Desk and Founder open one server-sent-events stream, `GET /ui/stream`, which pushes the whole read-only snapshot (`apps/api/src/api/ui_feed.py`) only when it changes. If the stream drops they fall back to one batched `GET /ui/snapshot` every 2 s; if the API is down they show the static mock board with a CRITICAL "Website lost the API" alert. Past days (`/paper/history?day=`) and the decision trace (`/paper/trace?trade_id=`) are fetched on click. The alert bar can play a sound and raise a browser notification for CRITICAL / EMERGENCY alerts after you press **Enable alarm**.
 
-**Size.** Each page is its own chunk. Desk loads about 66 KB gzip of JS + 11 KB CSS; the chart library (lightweight-charts, 52 KB gzip) loads only on Founder and Customer.
+**Size.** Each page is its own chunk. Desk Today stays off the chart library until a trade drawer opens. Founder and the premium drawer lazy-load lightweight-charts.
 
 **Not investment advice.** PAPER / MOCK. Orders refused. Owned by team 07_coding.
 
@@ -47,6 +47,8 @@ Open [http://localhost:5173/desk](http://localhost:5173/desk) (desk), [http://lo
 | `npm run dev` | Vite dev server on port 5173 |
 | `npm run build` | Production bundle → `dist/` |
 | `npm run preview` | Serve the production bundle locally |
+| `npm run test:units` | Customer + desk view-model asserts (no browser) |
+| `npm run test:customer` | Units + Playwright customer empty/ticket |
 | `npm run ui:snapshots` | Playwright layout check on a synthetic fixture (see below) |
 
 Copy `.env.example` to `.env` only if you want a remote API later. With `VITE_API_URL` empty, the pages reach the API through the Vite proxy (`/ui`, `/paper`, `/founder`, `/health`).
@@ -63,7 +65,7 @@ Builds the app, serves the production bundle with `vite preview`, and answers ev
 - the page scrolls sideways, or any element is cut off at the viewport edge;
 - the trade table's P/L / Status columns are not visible at 1280 px or wider;
 - `NaN` / `undefined` shows on screen, or the page throws;
-- a Desk / Founder panel is missing (alert bar, health rows, 7 trace steps, charts, account, current-trade fields, disabled next-PR controls);
+- a Desk / Founder panel is missing (Today P&L, health strip, open book, tape, five strategy cards, or Founder charts / 7 trace steps);
 - a pushed update takes 200 ms or more to reach the DOM, or the no-ticket state does not read ON HOLD.
 
 It prints first-contentful-paint and data-ready times per page. `--root <dir> --no-features` runs the layout checks against another checkout (used for the before/after gallery).
@@ -136,7 +138,9 @@ Later: set `VITE_API_URL` (for example `http://127.0.0.1:8000`). The loader will
 | Path | Role |
 |------|------|
 | `src/App.jsx` | Customer `/customer` |
-| `src/InternalDesk.jsx` | Desk `/desk` live book |
+| `src/InternalDesk.jsx` | Desk `/desk` re-export |
+| `src/desk/DeskApp.jsx` | Desk shell · Today / Strategies · Advanced · drawer |
+| `src/lib/strategyBoard.js` | Paper-slot cards from the live board (no invented P/L) |
 | `src/FounderPm.jsx` | Founder `/pm` money board |
 | `src/components/AppNav.jsx` | Customer / Desk / Founder switch |
 | `src/lib/signalApi.js` | Mock vs `VITE_API_URL` loader |

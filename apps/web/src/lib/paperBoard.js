@@ -1,4 +1,4 @@
-const API_URL = import.meta.env.VITE_API_URL;
+const API_URL = import.meta.env?.VITE_API_URL;
 export const UNIQUE_BOOKS = ["MIX-DEFAULT-BUY", "MIX-ML-LOGIT", "MIX-ML-LOGIT-XR", "MIX-ML-GREEKS"];
 /** FOUNDER LOCK: /paper/ml-books poll. Do not raise until founder names another interval. */
 export const BOARD_POLL_MS = 2000;
@@ -51,6 +51,40 @@ export function inr(n, { signed = true, digits = 0 } = {}) {
 export function px(n) {
   if (n == null || n === "" || Number.isNaN(Number(n))) return "—";
   return Number(n).toFixed(2);
+}
+
+function numOrNull(v) {
+  if (v == null || v === "") return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+}
+
+/** How far live premium has travelled from entry toward target (and vs stop). Recorded marks only. */
+export function pathProgress(entry, ltp, stop, target) {
+  const e = numOrNull(entry);
+  const p = numOrNull(ltp);
+  const s = numOrNull(stop);
+  const t = numOrNull(target);
+  if (e == null || p == null || s == null || t == null || t === s) return null;
+  const lo = Math.min(s, t);
+  const hi = Math.max(s, t);
+  const span = hi - lo || 1;
+  const pos = Math.max(0, Math.min(1, (p - lo) / span));
+  const toward = t - e;
+  const covered = toward ? Math.max(-1, Math.min(1.5, (p - e) / toward)) : 0;
+  return {
+    pos,
+    coveredPct: Math.round(covered * 1000) / 10,
+    toTargetPct: toward ? Math.round(((p - e) / toward) * 1000) / 10 : null,
+    toStopPct: e !== s ? Math.round(((p - e) / (s - e)) * 1000) / 10 : null,
+  };
+}
+
+export function pnlPct(entry, ltp) {
+  const e = numOrNull(entry);
+  const p = numOrNull(ltp);
+  if (e == null || p == null || e === 0) return null;
+  return Math.round(((p - e) / e) * 1000) / 10;
 }
 
 export function clock(ist) {
@@ -587,6 +621,106 @@ export function fmtElapsed(ms) {
   const m = Math.floor((s % 3600) / 60);
   const pad = (n) => String(n).padStart(2, "0");
   return h ? `${h}h ${pad(m)}m` : `${m}m ${pad(s % 60)}s`;
+}
+
+export function regimeSpot(regimes, und) {
+  const r = regimes?.[String(und || "").toUpperCase()];
+  if (!r || typeof r !== "object") return null;
+  return num(r.itm_bin?.index ?? r.spot ?? r.px ?? (r.last3_closes || []).at(-1));
+}
+
+function oneLineWhy(text) {
+  const raw = shortWhy(text);
+  if (!raw || raw === "—") return "—";
+  const line = raw.replace(/MIX-[A-Z0-9_-]+/gi, "").replace(/\s{2,}/g, " ").trim();
+  return line.length > 140 ? `${line.slice(0, 137)}…` : line;
+}
+
+function expiryLabel(raw) {
+  if (!raw) return null;
+  const m = String(raw).match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!m) return String(raw);
+  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  return `${Number(m[3])} ${months[Number(m[2]) - 1]}`;
+}
+
+/** Dhan F&O ₹20/order + NSE statutory, same as desk_ml.groww_costs. Open trades estimate the exit at LTP. */
+export function estRoundTripCharges(entry, exitPx, qty) {
+  const buy = num(entry);
+  const sell = num(exitPx) ?? buy;
+  const units = num(qty);
+  if (buy == null || buy <= 0 || sell == null || sell <= 0) return null;
+  const brokerage = 40;
+  if (units == null || units <= 0) {
+    const gst = Math.round(brokerage * 0.18 * 100) / 100;
+    return Math.round((brokerage + gst) * 100) / 100;
+  }
+  const buyTurn = buy * units;
+  const sellTurn = sell * units;
+  const both = buyTurn + sellTurn;
+  const exchange = Math.round(both * 0.000355299 * 100) / 100;
+  const ipft = Math.round(both * 0.000000001 * 100) / 100;
+  const sebi = Math.round(both * 0.000001 * 100) / 100;
+  const stamp = Math.round(buyTurn * 0.00003 * 100) / 100;
+  const gst = Math.round((brokerage + exchange + sebi + ipft) * 0.18 * 100) / 100;
+  const stt = Math.round(sellTurn * 0.0015 * 100) / 100;
+  return Math.round((brokerage + gst + stt + exchange + sebi + stamp + ipft) * 100) / 100;
+}
+
+function clamp(n, lo, hi) {
+  return Math.max(lo, Math.min(hi, n));
+}
+
+/** Running-trade card numbers. Missing record fields stay null (rendered "—"). */
+export function runningTradeView(t, { nowMs = Date.now(), spotNow } = {}) {
+  const n = tradeNow(t, { nowMs });
+  const target = typeof n.t1 === "number" ? n.t1 : num(t.target);
+  const stop = n.stop;
+  const entry = n.entry;
+  const ltp = n.ltp;
+  const qty = n.qty;
+  const riskPts = entry != null && stop != null ? entry - stop : null;
+  const riskInr = riskPts != null && qty != null ? riskPts * qty : null;
+  const slPct = entry && stop != null ? ((stop - entry) / entry) * 100 : null;
+  const tgtPct = entry && target != null ? ((target - entry) / entry) * 100 : null;
+  // Covered is signed vs entry→target and clamped so a pullback is negative, not 167%.
+  const coveredRaw =
+    entry != null && target != null && target !== entry && ltp != null ? ((ltp - entry) / (target - entry)) * 100 : null;
+  // Room left to the stop, as ₹ and as % of the original entry−stop cushion (0% = on/through stop).
+  const roomPts = ltp != null && stop != null ? ltp - stop : null;
+  const roomPctRaw =
+    entry != null && stop != null && entry !== stop && ltp != null ? ((ltp - stop) / (entry - stop)) * 100 : null;
+  const peakInr = n.mfe != null && qty != null ? n.mfe * qty : null;
+  const spotIn = num(t.spot_at_entry ?? t.idx_at_open);
+  const spotOut = num(spotNow ?? t.last_index_spot ?? t.spot_now);
+  const span = stop != null && target != null && target !== stop ? target - stop : null;
+  const mark = (v) => (span && v != null ? clamp((v - stop) / span, 0, 1) : null);
+  const estCharges = estRoundTripCharges(entry, ltp, qty);
+  const coveredPct = coveredRaw == null ? null : Math.round(clamp(coveredRaw, -100, 100) * 10) / 10;
+  const roomToStopPct = roomPctRaw == null ? null : Math.round(clamp(roomPctRaw, 0, 100) * 10) / 10;
+  return {
+    ...n,
+    target,
+    riskPts,
+    riskInr,
+    slPct: slPct == null ? null : Math.round(slPct * 10) / 10,
+    tgtPct: tgtPct == null ? null : Math.round(tgtPct * 10) / 10,
+    coveredPct,
+    roomToStopPct,
+    roomToStopInr: roomPts != null && qty != null ? roomPts * qty : null,
+    toStopPct: roomToStopPct,
+    estCharges,
+    netInr: n.inr != null && estCharges != null ? n.inr - estCharges : n.inr,
+    peakInr,
+    peakPct: entry && n.mfe != null ? Math.round((n.mfe / entry) * 1000) / 10 : null,
+    pnlPct: pnlPct(entry, ltp),
+    spotIn,
+    spotNow: spotOut,
+    expiry: expiryLabel(t.expiry || t.expiry_ist),
+    lots: num(t.lots),
+    why: oneLineWhy(t.justification || t.why || t.customer_note),
+    path: { sl: mark(stop), entry: mark(entry), now: mark(ltp), target: mark(target) },
+  };
 }
 
 /** Current-trade numbers. Anything the record does not carry stays null (rendered "—"). */

@@ -1,15 +1,27 @@
-// Synthetic paper board for UI snapshots. Invented numbers on a fake past session.
-// Not market data, not a replay, not a fill. Safe for a public repo.
+// Snapshot fixture. Closed-book rows stay invented for layout checks.
+// Open tickets rewind the latest recorded paper board (2026-09-25 dual-tape;
+// Oct 2026 tape is DATA_INSUFFICIENT in this checkout). Not a live fill.
 
-const DAY = "2026-01-15";
+const DAY = "2026-09-25";
 const IST_OFFSET = "+05:30";
 const BASE_TS = Date.parse(`${DAY}T09:30:00${IST_OFFSET}`) / 1000;
+// Recorded MIX-DEFAULT-BUY NIFTY PE still open at 15:11 IST (closed 15:12:12).
+const NIFTY_OPEN_TS = 1_790_329_127;
+const SENSEX_OPEN_TS = 1_790_329_200;
+const TAPE_LAST_TS = 1_790_329_304;
 
 function ist(ts) {
   const d = new Date((ts + 5.5 * 3600) * 1000);
   return `${d.toISOString().slice(0, 19)}${IST_OFFSET}`;
 }
 
+const PAPER_SLOTS = [
+  "R01_PDIV_5_ALL_H20",
+  "R01_B3A_VOL",
+  "B8B_B3A_EX_CHOPPY",
+  "R07_MOM3_TREND",
+  "B8A_R07_NO_PRE1030",
+];
 const EXITS = ["STOP", "TARGET", "CANCEL_AGAINST", "COVER_LONG_UNWIND", "TIME", "STOP", "CANCEL_NO_PROGRESS"];
 const LONG_WHY =
   "SYNTH buy {side} ITM strike {strike} (ITM_100); bin={side} regime=TREND last3=none; impulse_note=pause_wait_continuation; " +
@@ -37,6 +49,7 @@ function trade(i) {
   const target = +(entry * 1.06).toFixed(2);
   return {
     book_id: "MIX-DEFAULT-BUY",
+    strategy_id: PAPER_SLOTS[i % PAPER_SLOTS.length],
     model_names: ["MIX-SYNTH-A", "MIX-SYNTH-B"],
     underlying: und,
     side,
@@ -77,16 +90,22 @@ function trade(i) {
 }
 
 const closed = Array.from({ length: 15 }, (_, i) => trade(i)).reverse();
-const tapeLastTs = BASE_TS + 15 * 1380 + 300;
-const openEntry = 140.5;
+const niftyOpenTs = NIFTY_OPEN_TS;
+const sensexOpenTs = SENSEX_OPEN_TS;
+const tapeLastTs = TAPE_LAST_TS;
+const openEntry = 167.3;
+const NIFTY_SPOT = 23128.1;
+const SENSEX_SPOT = 73881.44;
 const open = [
   {
     ...trade(15),
     trade_id: "synth-open-NIFTY-PE",
+    book_id: "MIX-DEFAULT-BUY",
     underlying: "NIFTY",
     side: "PE",
-    atm_strike: 20350,
-    justification: "SYNTH buy PE ITM strike 20350 (ITM_100); why_now=PE: synthetic open ticket for the layout check; PAPER only. NO_PROMOTE.",
+    atm_strike: 23300,
+    justification:
+      "NIFTY buy PE ITM strike 23300.0 (ITM_100); bin=PE regime=TREND/DOWN last3=none; impulse_note=pause_wait_continuation; path stop 157.262 → target 177.3; why_now=PE: dump / PE bin / PE short-cover (CE still allowed when CE strength prints); PAPER only. NO_PROMOTE.",
     status: "OPEN",
     exit: null,
     exit_reason: null,
@@ -96,21 +115,73 @@ const open = [
     realized_pnl_inr: null,
     entry: openEntry,
     limit_price: openEntry,
-    last_ltp: 138.2,
-    stop: 132.07,
-    target: 148.93,
-    qty: 250,
-    lots: 5,
-    lot_size: 50,
-    seen_high: 143.1,
-    seen_low: 136.4,
+    last_ltp: 161.55,
+    stop: 157.262,
+    target: 177.3,
+    qty: 650,
+    lots: 10,
+    lot_size: 65,
+    strategy_id: PAPER_SLOTS[0],
+    expiry: null,
+    seen_high: 167.3,
+    seen_low: 161.55,
+    premium_path: [
+      { t: niftyOpenTs, v: openEntry, label: "entry" },
+      { t: tapeLastTs - 4, v: 161.55, label: "ltp" },
+    ],
     trail_step: 0,
-    idx_at_open: 20260.4,
-    spot_at_entry: 20260.4,
+    idx_at_open: NIFTY_SPOT,
+    spot_at_entry: NIFTY_SPOT,
+    last_index_spot: NIFTY_SPOT,
+    opened_ts: niftyOpenTs,
+    opened_ist: ist(niftyOpenTs),
     closed_ts: null,
     closed_ist: null,
     last_updated_ts: tapeLastTs - 4,
     last_updated_ist: ist(tapeLastTs - 4),
+  },
+  {
+    ...trade(16),
+    trade_id: "synth-open-SENSEX-CE",
+    book_id: "MIX-DEFAULT-BUY",
+    underlying: "SENSEX",
+    side: "PE",
+    atm_strike: 74200,
+    justification:
+      "SENSEX buy PE ITM strike 74200 (ITM_100); bin=PE regime=TREND/UP last3=none; why_now=PE: premium up / CE premium down / CE sell volume; PAPER only. NO_PROMOTE.",
+    status: "OPEN",
+    exit: null,
+    exit_reason: null,
+    target_hit: false,
+    result: null,
+    realized_pnl: null,
+    realized_pnl_inr: null,
+    entry: 465.25,
+    limit_price: 465.25,
+    last_ltp: 465.25,
+    stop: 437.335,
+    target: 493.165,
+    qty: 200,
+    lots: 10,
+    lot_size: 20,
+    strategy_id: PAPER_SLOTS[3],
+    expiry: null,
+    seen_high: 465.25,
+    seen_low: 465.25,
+    premium_path: [
+      { t: sensexOpenTs, v: 465.25, label: "entry" },
+      { t: tapeLastTs - 8, v: 465.25, label: "ltp" },
+    ],
+    trail_step: 0,
+    idx_at_open: SENSEX_SPOT,
+    spot_at_entry: SENSEX_SPOT,
+    last_index_spot: SENSEX_SPOT,
+    opened_ts: sensexOpenTs,
+    opened_ist: ist(sensexOpenTs),
+    closed_ts: null,
+    closed_ist: null,
+    last_updated_ts: tapeLastTs - 8,
+    last_updated_ist: ist(tapeLastTs - 8),
   },
 ];
 
@@ -137,7 +208,7 @@ export const board = {
   live_session: true,
   session_ist_date: DAY,
   // Written long after the session (a replay): the page must show tape time, not this.
-  as_of_ist: "2026-02-01T04:04:00+05:30",
+  as_of_ist: "2026-09-26T04:04:00+05:30",
   starting_desk_inr: 500000,
   overall_pnl_inr: net,
   win_rate_net_pct: 20,
@@ -146,27 +217,199 @@ export const board = {
     NIFTY: { status: "REPLAY_OK", span_ist: { first: ist(BASE_TS), last: ist(tapeLastTs) } },
     BANKNIFTY: { status: "REPLAY_OK", span_ist: { first: ist(BASE_TS), last: ist(tapeLastTs - 60) } },
   },
-  last_index_regime: { NIFTY: regime(20999.95, "UP"), BANKNIFTY: regime(45999.9, "DOWN") },
+  last_index_regime: { NIFTY: regime(NIFTY_SPOT, "DOWN"), SENSEX: regime(SENSEX_SPOT, "UP") },
   capital_plan: { desk_capital_inr: 500000 },
   today: { net_pnl_inr: net, starting_desk_inr: 500000 },
   book_rank: [
-    { book_id: "MIX-DEFAULT-BUY", kind: "dealer", n_filled: 15, win_rate_net_pct: 20, sum_pnl_inr: net, sum_charges_inr: 1500 },
-    { book_id: "MIX-ML-LOGIT", kind: "ml", n_filled: 0, win_rate_net_pct: null, sum_pnl_inr: 0, sum_charges_inr: 0 },
+    { book_id: "MIX-DEFAULT-BUY", kind: "dealer", n_filled: 15, n_wins: 3, win_rate_net_pct: 20, sum_pnl_inr: net, sum_charges_inr: 1500 },
+    { book_id: "MIX-ML-LOGIT", kind: "ml", n_filled: 0, n_wins: 0, win_rate_net_pct: null, sum_pnl_inr: 0, sum_charges_inr: 0 },
+    { book_id: "MIX-ML-LOGIT-XR", kind: "ml", n_filled: 0, n_wins: 0, win_rate_net_pct: null, sum_pnl_inr: 0, sum_charges_inr: 0 },
+    { book_id: "MIX-ML-GREEKS", kind: "ml", n_filled: 0, n_wins: 0, win_rate_net_pct: null, sum_pnl_inr: 0, sum_charges_inr: 0 },
+    { book_id: "MIX-TV-EP-024", kind: "lab", n_filled: 0, n_wins: 0, win_rate_net_pct: null, sum_pnl_inr: 0, sum_charges_inr: 0 },
+    ...PAPER_SLOTS.map((id) => {
+      const fills = closed.filter((t) => t.strategy_id === id);
+      const wins = fills.filter((t) => t.realized_pnl_inr > 0).length;
+      const slotNet = fills.reduce((s, t) => s + t.realized_pnl_inr, 0);
+      return {
+        book_id: id,
+        kind: "PAPER",
+        n_filled: fills.length,
+        n_wins: wins,
+        win_rate_net_pct: fills.length ? Math.round((wins / fills.length) * 1000) / 10 : null,
+        random_win_pct: fills.length ? Math.max(8, Math.round((wins / fills.length) * 1000) / 10 - 6) : 22,
+        sum_pnl_inr: Math.round(slotNet * 100) / 100,
+        sum_charges_inr: Math.round(fills.reduce((s, t) => s + t.charges_inr, 0) * 100) / 100,
+      };
+    }),
   ],
   seen_not_taken: {
     skipped_latest: [
       // SENSEX is OFF in the founder book: the hold reason must not quote it.
-      { underlying: "SENSEX", side: "PE", reason: "NO_NEW_AFTER_1516", why: "No NEW after 15:16 IST (synthetic).", action: "SKIP", book_id: "MIX-DEFAULT-BUY" },
+      { underlying: "SENSEX", side: "PE", reason: "OVERLAY_COIL", why: "coil market", action: "SKIP", book_id: "MIX-DEFAULT-BUY", last_updated_ist: ist(BASE_TS + 720) },
       { underlying: "NIFTY", side: "CE", reason: "CANCEL_AGAINST", why: "Overlay cancelled the CE after the thesis broke (synthetic).", action: "CANCEL", book_id: "MIX-DEFAULT-BUY", last_updated_ist: ist(BASE_TS + 900) },
     ],
     cancelled: [],
   },
+  decision_journal: [
+    {
+      ts_ist: ist(niftyOpenTs),
+      underlying: "NIFTY",
+      candidate_id: "synth-open-NIFTY-PE",
+      trade_id: "synth-open-NIFTY-PE",
+      stage: "analyst",
+      actor: "Premium divergence",
+      decision: "pass",
+      reason: "Premium divergence spoke",
+      inputs: { side: "PE", day_type: "TREND", phase: "close" },
+    },
+    {
+      ts_ist: ist(niftyOpenTs),
+      underlying: "NIFTY",
+      candidate_id: "synth-open-NIFTY-PE",
+      trade_id: "synth-open-NIFTY-PE",
+      stage: "desk",
+      actor: "Desk",
+      decision: "pass",
+      reason: "PE ticket",
+      inputs: { side: "PE", premium: openEntry, sl: 157.262, target: 177.3 },
+    },
+    {
+      ts_ist: ist(niftyOpenTs),
+      underlying: "NIFTY",
+      candidate_id: "synth-open-NIFTY-PE",
+      trade_id: "synth-open-NIFTY-PE",
+      stage: "overlay",
+      actor: "Overlay",
+      decision: "pass",
+      reason: "Market TREND",
+      inputs: { day_type: "TREND" },
+    },
+    {
+      ts_ist: ist(niftyOpenTs),
+      underlying: "NIFTY",
+      candidate_id: "synth-open-NIFTY-PE",
+      trade_id: "synth-open-NIFTY-PE",
+      stage: "boss",
+      actor: "Boss picker",
+      decision: "pass",
+      reason: "Buy PE",
+      inputs: { side: "PE" },
+    },
+    {
+      ts_ist: ist(niftyOpenTs),
+      underlying: "NIFTY",
+      candidate_id: "synth-open-NIFTY-PE",
+      trade_id: "synth-open-NIFTY-PE",
+      stage: "imm",
+      actor: "Paper fill",
+      decision: "fill",
+      reason: "Paper fill",
+      inputs: { premium: openEntry },
+    },
+    {
+      ts_ist: ist(tapeLastTs - 4),
+      underlying: "NIFTY",
+      candidate_id: "synth-open-NIFTY-PE",
+      trade_id: "synth-open-NIFTY-PE",
+      stage: "in_trade",
+      actor: "Desk",
+      decision: "pass",
+      reason: "Trade in progress",
+      inputs: { premium: 161.55 },
+    },
+    {
+      ts_ist: ist(sensexOpenTs),
+      underlying: "SENSEX",
+      candidate_id: "synth-open-SENSEX-CE",
+      trade_id: "synth-open-SENSEX-CE",
+      stage: "analyst",
+      actor: "Momentum",
+      decision: "pass",
+      reason: "ITM PE bin spoke",
+      inputs: { side: "PE", day_type: "TREND" },
+    },
+    {
+      ts_ist: ist(sensexOpenTs),
+      underlying: "SENSEX",
+      candidate_id: "synth-open-SENSEX-CE",
+      trade_id: "synth-open-SENSEX-CE",
+      stage: "desk",
+      actor: "Desk",
+      decision: "pass",
+      reason: "PE ticket",
+      inputs: { side: "PE", premium: 465.25 },
+    },
+    {
+      ts_ist: ist(sensexOpenTs),
+      underlying: "SENSEX",
+      candidate_id: "synth-open-SENSEX-CE",
+      trade_id: "synth-open-SENSEX-CE",
+      stage: "overlay",
+      actor: "Overlay",
+      decision: "pass",
+      reason: "Market TREND",
+      inputs: { day_type: "TREND" },
+    },
+    {
+      ts_ist: ist(sensexOpenTs),
+      underlying: "SENSEX",
+      candidate_id: "synth-open-SENSEX-CE",
+      trade_id: "synth-open-SENSEX-CE",
+      stage: "boss",
+      actor: "Boss picker",
+      decision: "pass",
+      reason: "Buy PE",
+      inputs: { side: "PE" },
+    },
+    {
+      ts_ist: ist(sensexOpenTs),
+      underlying: "SENSEX",
+      candidate_id: "synth-open-SENSEX-CE",
+      trade_id: "synth-open-SENSEX-CE",
+      stage: "imm",
+      actor: "Paper fill",
+      decision: "fill",
+      reason: "Paper fill",
+      inputs: { premium: 465.25 },
+    },
+    {
+      ts_ist: ist(tapeLastTs - 8),
+      underlying: "SENSEX",
+      candidate_id: "synth-open-SENSEX-CE",
+      trade_id: "synth-open-SENSEX-CE",
+      stage: "in_trade",
+      actor: "Desk",
+      decision: "pass",
+      reason: "Trade in progress",
+      inputs: { premium: 465.25 },
+    },
+    {
+      ts_ist: ist(BASE_TS + 720),
+      underlying: "SENSEX",
+      candidate_id: "skip-SENSEX-coil",
+      stage: "overlay",
+      actor: "Overlay",
+      decision: "skip",
+      reason: "Skipped: coil market",
+      inputs: { day_type: "CHOP", side: "PE" },
+    },
+  ],
   model_signals: {
     latest: [
       { source: "synth-a", side: "CE", vs_picker: "MATCH", underlying: "NIFTY", ts: BASE_TS + 14 * 1380, desk_opened: true },
     ],
   },
-  closed_trades: closed,
+  closed_trades: [
+    ...closed,
+    {
+      ...closed[0],
+      trade_id: `${closed[0].trade_id}-shadow`,
+      shadow: true,
+      execution: "refused",
+      realized_pnl_inr: Math.round((closed[0].realized_pnl_inr || 0) * 0.4 * 100) / 100,
+      book_id: "MIX-DEFAULT-BUY",
+    },
+  ],
   open_trades: open,
   orders: "REFUSED",
   promote: false,
@@ -325,7 +568,7 @@ for (const t of todayRows) {
 export const days = [today, ...pastDays(14).map(summary)];
 const allNet = days.reduce((s, d) => s + d.net, 0);
 
-export function snapshot(nowIso = "2026-02-01T10:00:00+05:30") {
+export function snapshot(nowIso = "2026-09-26T10:00:00+05:30") {
   return {
     ok: true,
     as_of: nowIso,
@@ -367,6 +610,7 @@ export function snapshot(nowIso = "2026-02-01T10:00:00+05:30") {
       funds_editable: true,
       funds_note: "Founder commands: logged with who/why, applied by the engine from their timestamp. PAPER only.",
     },
+    decision_journal: board.decision_journal,
     orders: "REFUSED",
     promote: false,
   };
@@ -406,5 +650,6 @@ export function trace(tradeId) {
         ? { id: "fill", title: "Fill", status: "OK", decided: `filled @ ${t.entry}`, why: "open", fields: { opened: t.opened_ist }, source: "trade record" }
         : { id: "fill", title: "Fill", status: "OK", decided: `filled @ ${t.entry}`, why: t.exit_reason, fields: { opened: t.opened_ist, closed: t.closed_ist, exit: t.exit, "net ₹": t.realized_pnl_inr }, source: "trade record" },
     ],
+    journal: (board.decision_journal || []).filter((r) => r.candidate_id === tradeId || r.trade_id === tradeId),
   };
 }

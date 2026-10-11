@@ -4517,6 +4517,10 @@ tr.is-click:hover {
   gap: 0.75rem;
   min-width: 0;
   font-size: 0.86rem;
+  padding: 0.55rem 0.65rem;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface-2);
 }
 
 .customer-book__list li div {

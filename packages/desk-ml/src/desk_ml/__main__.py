@@ -13,6 +13,7 @@ from desk_ml.fit import fit_underlying, score_last
 from desk_ml.inventory import inventory_recon
 from desk_ml.mrr import MRR_WINDOWS, mrr_fit_underlying, score_mrr_last
 from desk_ml.overlay import score_session
+from desk_ml.decision_journal import install_engine_hooks
 from desk_ml.paper_scalp import replay_paper_scalp, run_fix_first_drill, run_loop
 from desk_ml.sod_exam import EXAM_DAYS_DEFAULT, run_sod_exam
 from desk_ml.persist import default_model_path, repo_root
@@ -220,6 +221,7 @@ def main(argv: Optional[list[str]] = None) -> int:
         _print(nudge_for_next_session(root=root, day=(str(args.day).strip() or None)))
         return 0
     if args.cmd == "paper-scalp":
+        install_engine_hooks()
         names = tuple(u.strip().upper() for u in str(args.underlyings).split(",") if u.strip())
         if getattr(args, "wipe_today", False):
             from desk_ml.paper_scalp import wipe_today_paper_book

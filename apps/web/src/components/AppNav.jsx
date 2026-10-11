@@ -1,6 +1,6 @@
 const LINKS = [
   { href: "/", label: "Customer", hint: "CALL / PUT / HOLD" },
-  { href: "/desk", label: "Desk", hint: "Signals & book" },
+  { href: "/desk", label: "Desk", hint: "Today & books" },
   { href: "/pm", label: "Founder", hint: "Money & models" },
 ];
 

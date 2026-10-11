@@ -1,5 +1,183 @@
 # Handoff log — Team 07 Coding
 
+## As of now (2026-10-11 IST) — journal hooks off the frozen file (PAPER)
+
+```text
+From:     teams/07_coding
+To:       founder / 00 / 09
+Date:     2026-10-11
+Status:   PAPER / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+Accepted: Decision journal stays. Hooks wrap
+  paper_scalp._close / step_decide from
+  decision_journal.install_engine_hooks
+  (CLI + dual-tape). write=False replay
+  writes nothing. Frozen paper_scalp.py
+  SHA restored.
+Rejected: Editing frozen paper_scalp.py.
+  Journal writes on offline golden replay.
+UNKNOWN: Live cycle itself is also frozen;
+  install is called by dual_tape / CLI.
+```
+
+## As of now (2026-10-11 IST) — running-trade review (gauge / room / tape) (PAPER)
+
+```text
+From:     teams/07_coding
+To:       founder / 00 / 05 / 09
+Date:     2026-10-11
+Status:   PAPER / C7 portals / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+Accepted: Path marks + tick labels sit on a
+  linear SL..target scale (Now left of
+  Entry when LTP < entry). Copy is
+  "Room to stop: ₹X (Y%)" with Y clamped
+  0–100, and "% of target covered"
+  signed and clamped −100..100.
+  Combined is net after est. Dhan+NSE
+  charges, with spacing. Lots are the
+  roster 10 × 65 NIFTY / 10 × 20 SENSEX.
+  Open tickets rewind the latest recorded
+  paper board (2026-09-25): NIFTY PE
+  23300 entry 167.3 / last 161.55, why
+  "PE: dump / PE bin / PE short-cover",
+  spot in = spot now 23128.10.
+Rejected: Invented Oct-2026 fills. Live
+  orders. Jan synth 20350 / 20999.95 vs
+  20260.40 spots. "% to stop" 167%.
+UNKNOWN: No Oct 2026 tape in this
+  checkout. 2026-09-25 n_open=0 and no
+  SENSEX fill (dealer HOLD). SENSEX card
+  uses the same-session ITM PE 74200
+  print 465.25 / spot 73881.44 / PE-bin
+  why — not a booked SENSEX fill.
+```
+
+## As of now (2026-10-11 IST) — running trade card + pipeline review (PAPER)
+
+```text
+From:     teams/07_coding
+To:       founder / 00 / 05 / 09
+Date:     2026-10-11
+Status:   PAPER / C7 portals / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+Accepted: Running-trade card on /desk, /pm
+  Overview, and customer `/` when both
+  NIFTY and SENSEX are open. What / when /
+  where / SL ₹+%+risk / target ₹+% /
+  SL→entry→now→target bar / % of target
+  covered / % to stop / unrealised ₹+% /
+  peak / one-line why / premium spark with
+  entry·SL·target lines. Pipeline clocks
+  are monotonic. Raw codes stay in
+  title= only (Exited: no progress,
+  Skipped: coil market). Earlier tickets
+  show closed P&L ₹.
+Rejected: Invented VIX / vs-random / ticks.
+  Live orders. MIX-* as titles.
+UNKNOWN: Live dual-tape may omit expiry or
+  spot-now; those slots read —.
+```
+
+## As of now (2026-10-11 IST) — paper decision journal (PAPER)
+
+```text
+From:     teams/07_coding
+To:       founder / 00 / 05 / 09
+Date:     2026-10-11
+Status:   PAPER / dual-tape journal / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+Accepted: Append-only JSONL
+  data/recon/decision_journal/YYYY-MM-DD.jsonl
+  one row per stage per candidate
+  (analyst, desk, overlay, boss, imm,
+  in_trade, exit). Actor is a plain
+  name. Decision pass|skip|fill|exit.
+  Inputs: day type, phase, VIX, premium,
+  SL, target when recorded. Exposed on
+  /ui/snapshot, /paper/trace, /paper/journal.
+  Pipeline board prefers these rows.
+Rejected: Invented prints. MIX-* as actor.
+  Live orders. Deleting journal lines.
+UNKNOWN: A tick with no spoken vote and
+  no skip writes nothing; UI stays waiting.
+```
+
+## As of now (2026-10-11 IST) — live trade pipeline board (PAPER)
+
+```text
+From:     teams/07_coding
+To:       founder / 00 / 05 / 09
+Date:     2026-10-11
+Status:   PAPER / C7 portals / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+Accepted: Trade pipeline is the centerpiece on
+  /desk Today and /pm Overview. NIFTY and
+  SENSEX lanes. Stages Analyst → Desk →
+  Overlay → Boss → IMM → In trade → Exit
+  from recorded fills, skips, and
+  /paper/trace. Missing stage = waiting.
+  Active glows. Done = check + timestamp.
+  Blocked = who + why in plain words
+  (Overlay skipped: coil market). Stage
+  click opens inputs / rule / reason.
+  Earlier tickets are a compact history.
+  MIX-* ids are stripped.
+Rejected: Invented stages, win rates, live
+  orders, MIX-* as labels, STRAT-015+.
+UNKNOWN: Live dual-tape may omit a stage;
+  UI shows waiting, never a guessed pass.
+```
+
+## As of now (2026-10-11 IST) — desk Today layout + registry slots (PAPER)
+
+```text
+From:     teams/07_coding
+To:       founder / 00 / 05 / 09
+Date:     2026-10-11
+Status:   PAPER / C7 portals / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+Accepted: Today at >=1280 is packed 2-col
+  (left: P&L + open + tape; right: market +
+  health). No .grid stretch gap. Leaderboard
+  is the 5 registry paper slots
+  (R01_PDIV_5_ALL_H20, R01_B3A_VOL,
+  B8B_B3A_EX_CHOPPY, R07_MOM3_TREND,
+  B8A_R07_NO_PRE1030) + shadow, readable
+  names, id as subtitle. Open row shows a
+  recorded premium spark only.
+Rejected: MIX-* as card titles. Invented
+  VIX / vs-random / premium ticks. Live
+  orders. STRAT-015+.
+UNKNOWN: Live India VIX on last_index_regime.
+```
+
+## As of now (2026-10-11 IST) — paper desk + customer portal redesign (PAPER)
+
+```text
+From:     teams/07_coding
+To:       founder / 00 / 05 / 09
+Date:     2026-10-11
+Status:   PAPER / C7 portals / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+Accepted: /desk Today = ₹ net after costs,
+  open fills, today’s tape, market context.
+  /desk/strategies = five paper books +
+  shadow cards from the live board. Drawer
+  marks entry/exit on recorded premium only.
+  Health strip for recorder/token/feed.
+  Advanced hides the old dump. Customer `/`
+  keeps CALL/PUT/HOLD + journey + no orders.
+  Existing /ui/snapshot · /paper/trace ·
+  /paper/history. Empty when a field is
+  missing. No invented VIX / vs-random.
+Rejected: Live order path. Fake P/L. Tailwind
+  rewrite of /pm. STRAT-015+. Auto-promote
+  TRADE/WATCH/DROP (badge is fill-state only).
+UNKNOWN: Whether a live India VIX print will
+  ever land on last_index_regime.
+```
+
 ## As of now (2026-10-10 IST) — V2 recorder research overlay + snapshot volume (PAPER)
 
 ```text

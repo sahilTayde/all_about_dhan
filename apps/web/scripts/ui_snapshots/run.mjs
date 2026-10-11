@@ -29,10 +29,11 @@ const OUT = resolve(arg("out", resolve(HERE, "out")));
 const WIDTHS = arg("widths", "390,1280,1440,1920").split(",").map(Number);
 const FEATURES = !args.includes("--no-features");
 const V2 = args.includes("--v2");
-const READY = ".grid, table.desk-history, .signal-layout, .customer-portal, .cleanup-desk, .shell";
+const READY = ".desk-today, .desk-board, .grid, table.desk-history, .signal-layout, .customer-portal, .cleanup-desk, .shell, .desk-shell";
 const PAGES = [
-  { name: "desk", path: "/desk", tradeTable: true },
-  { name: "founder", path: "/pm", tradeTable: true },
+  { name: "desk", path: "/desk" },
+  { name: "desk-board", path: "/desk/strategies" },
+  { name: "founder", path: "/pm" },
   { name: "customer", path: "/" },
   { name: "cleanup", path: "/cleanup" },
 ];
@@ -43,7 +44,7 @@ const clients = new Set();
 function currentSnap() {
   const s = structuredClone(snapshot());
   if (state.bumped) {
-    s.board.open_trades[0].last_ltp = 139.95;
+        s.board.open_trades[0].last_ltp = 162.4;
     s.board.open_trades[0].last_updated_ts += 2;
   }
   if (state.flat) {
@@ -123,6 +124,10 @@ function fixtureApi(req, res, next) {
     return undefined;
   }
   if (p === "/paper/trace" || p === "/v2/trace") return json(trace(url.searchParams.get("trade_id")));
+  if (p === "/paper/journal") {
+    const rows = (board.decision_journal || []).filter((r) => !url.searchParams.get("candidate_id") || r.candidate_id === url.searchParams.get("candidate_id") || r.trade_id === url.searchParams.get("candidate_id"));
+    return json({ ok: true, day: board.session_ist_date, n: rows.length, rows, orders: "REFUSED", promote: false });
+  }
   if (p === "/paper/history") return json(dayHistory(url.searchParams.get("day")));
   if (p === "/paper/ml-books" || p === "/mock/ml_paper_dashboard.json") return json(board);
   if (p === "/paper/sod-exam" || p === "/mock/sod_exam_report.json") return json(exam);
@@ -218,6 +223,22 @@ async function measure(page) {
         marketCards: count(".market-card"),
         founderControls: count(".founder-controls .fc-box"),
         historyRows: count(".founder-controls .fc-table tbody tr"),
+        healthStrip: count("[data-testid=health-strip]"),
+        dayPnl: count("[data-testid=day-pnl]"),
+        openPositions: count("[data-testid=open-positions]"),
+        timeline: count("[data-testid=trade-timeline]"),
+        premiumSpark: count("[data-testid=premium-spark]"),
+        strategyCards: count("[data-testid=strategy-card]"),
+        advancedToggle: count("[data-testid=advanced-toggle]"),
+        pipeline: count("[data-testid=trade-pipeline]"),
+        pipeLanes: count("[data-testid=pipe-lane]"),
+        pipeStages: count("[data-testid=pipe-stage]"),
+        pipeHistory: count("[data-testid=pipe-history]"),
+        sizeForm: count("[data-testid=size-form]"),
+        slotBadges: count(".slot-badge"),
+        vsRandom: [...document.querySelectorAll(".slot-stat")].filter((el) => /vs random/i.test(el.textContent || "")).length,
+        founderTabs: count("[data-testid^=founder-tab-]"),
+        dualPos: count("[data-testid=pos-card]"),
       },
     };
   });
@@ -226,8 +247,10 @@ async function measure(page) {
 function featureProblems(name, width, f) {
   if (!FEATURES) return [];
   const need = {
-    desk: { alertBar: 1, traceNodes: 7, currentFields: 13, accountRows: 6, marketCards: 1, founderControls: 7, historyRows: 3 },
-    founder: { alertBar: 1, ragRows: 7, traceNodes: 7, charts: 3, accountRows: 6, founderControls: 7, historyRows: 3 },
+    desk: { alertBar: 1, healthStrip: 1, dayPnl: 1, openPositions: 1, timeline: 1, marketCards: 1, advancedToggle: 1, currentFields: 1, premiumSpark: 1, pipeline: 1, pipeLanes: 2, pipeStages: 14, dualPos: 2 },
+    "desk-board": { strategyCards: 10, healthStrip: 1, advancedToggle: 1, slotBadges: 10, vsRandom: 5 },
+    founder: { alertBar: 1, healthStrip: 1, pipeline: 1, pipeLanes: 2, pipeStages: 14, advancedToggle: 1, founderTabs: 4 },
+    customer: { sizeForm: 1, dualPos: 2 },
   }[name];
   if (!need) return [];
   return Object.entries(need)
@@ -310,6 +333,67 @@ async function main() {
         results.push({ page: name, pass: Boolean(pass), detail });
         console.log(`${pass ? "PASS" : "FAIL"} ${name.padEnd(16)} ${detail}`);
       };
+      const ART_AFTER = "/opt/cursor/artifacts/after";
+      mkdirSync(ART_AFTER, { recursive: true });
+      const sectionShot = async (pg, sel, file, vw, vh) => {
+        const el = pg.locator(sel).first();
+        await el.waitFor({ timeout: 15000 });
+        await el.scrollIntoViewIfNeeded();
+        await pg.waitForTimeout(200);
+        const box = await el.boundingBox();
+        const x = Math.max(0, Math.floor(box.x));
+        const y = Math.max(0, Math.floor(box.y));
+        await pg.screenshot({
+          path: file,
+          fullPage: false,
+          clip: {
+            x,
+            y,
+            width: Math.max(1, Math.min(Math.ceil(box.width), vw - x)),
+            height: Math.max(1, Math.min(Math.ceil(box.height), vh - y)),
+          },
+        });
+      };
+      const crisp = await browser.newContext({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 2 });
+      await crisp.route("**/*", (route) => {
+        const host = new URL(route.request().url()).hostname;
+        return host === "127.0.0.1" || host === "localhost" ? route.continue() : route.abort();
+      });
+      const crispPage = await crisp.newPage();
+      await crispPage.goto(`${base}/desk`, { waitUntil: "load" });
+      await crispPage.waitForSelector("[data-testid=open-positions] [data-testid=pos-card]");
+      await crispPage.waitForTimeout(600);
+      await sectionShot(crispPage, "[data-testid=pos-card]", resolve(ART_AFTER, "running_trade_1440.png"), 1440, 900);
+      await sectionShot(crispPage, "[data-testid=open-positions]", resolve(ART_AFTER, "running_trade_dual_1440.png"), 1440, 900);
+      await sectionShot(crispPage, "[data-testid=desk-today]", resolve(ART_AFTER, "desk_today_1440.png"), 1440, 900);
+      await sectionShot(crispPage, "[data-testid=trade-pipeline]", resolve(ART_AFTER, "desk_pipeline_1440.png"), 1440, 900);
+      await crispPage.goto(`${base}/`, { waitUntil: "load" });
+      await crispPage.waitForSelector("[data-testid=customer-portal]");
+      await crispPage.waitForTimeout(600);
+      if ((await crispPage.locator("[data-testid=open-positions]").count()) > 0) {
+        await sectionShot(crispPage, "[data-testid=open-positions]", resolve(ART_AFTER, "customer_running_1440.png"), 1440, 900);
+      }
+      await sectionShot(crispPage, "[data-testid=customer-portal]", resolve(ART_AFTER, "customer_1440.png"), 1440, 900);
+      await crispPage.goto(`${base}/pm`, { waitUntil: "load" });
+      await crispPage.waitForSelector("[data-testid=open-positions]");
+      await crispPage.waitForTimeout(600);
+      await sectionShot(crispPage, "[data-testid=open-positions]", resolve(ART_AFTER, "founder_running_1440.png"), 1440, 900);
+      await sectionShot(crispPage, "[data-testid=founder-shell]", resolve(ART_AFTER, "founder_overview_1440.png"), 1440, 900);
+      await crispPage.close();
+      await crisp.close();
+      const phone = await browser.newContext({ viewport: { width: 390, height: 900 }, deviceScaleFactor: 2 });
+      await phone.route("**/*", (route) => {
+        const host = new URL(route.request().url()).hostname;
+        return host === "127.0.0.1" || host === "localhost" ? route.continue() : route.abort();
+      });
+      const p390 = await phone.newPage();
+      await p390.goto(`${base}/desk`, { waitUntil: "load" });
+      await p390.waitForSelector("[data-testid=open-positions] [data-testid=pos-card]");
+      await p390.waitForTimeout(400);
+      await sectionShot(p390, "[data-testid=open-positions]", resolve(ART_AFTER, "running_trade_390.png"), 390, 900);
+      await p390.close();
+      await phone.close();
+      check("running-shots", true, ART_AFTER);
       const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
       await ctx.grantPermissions(["notifications"]);
       // Count browser notifications (the alarm) without a real OS popup.
@@ -330,7 +414,64 @@ async function main() {
         if (u.includes("/paper/trace") || (V2 && u.includes("/v2/trace"))) traceHits.push(u);
       });
       await page.goto(`${base}/desk`, { waitUntil: "load" });
-      await page.waitForSelector(".grid .current-trade .kv");
+      await page.waitForSelector("[data-testid=trade-pipeline]");
+      const pipeText = await page.locator("[data-testid=trade-pipeline]").innerText();
+      check("pipeline-no-mix", !/MIX-/.test(pipeText), pipeText.slice(0, 240));
+      check("pipeline-lanes", (await page.locator("[data-testid=pipe-lane]").count()) === 2, "NIFTY and SENSEX lanes");
+      await page.locator("[data-testid=pipe-lane][data-und=NIFTY] [data-stage=live]").click();
+      await page.waitForSelector("[data-testid=pipe-detail]");
+      const liveDetail = await page.locator("[data-testid=pipe-detail]").innerText();
+      check("pipeline-detail", /In trade|Trade in progress|waiting/i.test(liveDetail) && !/MIX-/.test(liveDetail), liveDetail.slice(0, 200));
+      const skipRow = page.locator("[data-testid=pipe-hist]", { hasText: "coil market" });
+      await skipRow.click();
+      const skipDetail = await page.locator("[data-testid=pipe-detail]").innerText();
+      check("pipeline-skip", /Skipped: coil market/i.test(skipDetail) && !/Overlay: Overlay skipped/i.test(skipDetail) && !/MIX-/.test(skipDetail), skipDetail.slice(0, 200));
+      await page.screenshot({ path: resolve(OUT, "desk_1440_pipeline.png"), fullPage: false, clip: { x: 0, y: 0, width: 1440, height: 900 } });
+      await page.setViewportSize({ width: 390, height: 900 });
+      await page.waitForTimeout(250);
+      await page.screenshot({ path: resolve(OUT, "desk_390_pipeline.png"), fullPage: false, clip: { x: 0, y: 0, width: 390, height: 900 } });
+      await page.setViewportSize({ width: 1440, height: 900 });
+      await page.waitForSelector("[data-testid=desk-today] .current-trade .kv");
+      const layout = await page.evaluate(() => {
+        const today = document.querySelector("[data-testid=desk-today]");
+        const main = document.querySelector(".desk-today__main");
+        const side = document.querySelector(".desk-today__side");
+        const hero = document.querySelector("[data-testid=day-pnl]");
+        const open = document.querySelector("[data-testid=open-positions]");
+        const tape = document.querySelector("[data-testid=trade-timeline]");
+        const cols = getComputedStyle(today).gridTemplateColumns.split(/\s+/).filter(Boolean);
+        const gap = open.getBoundingClientRect().top - hero.getBoundingClientRect().bottom;
+        return {
+          colCount: cols.length,
+          tapeWidth: Math.round(tape.getBoundingClientRect().width),
+          mainWidth: Math.round(main.getBoundingClientRect().width),
+          gap: Math.round(gap),
+          healthInSide: Boolean(side.querySelector("[data-testid=health-strip]")),
+          marketInSide: Boolean(side.querySelector("[data-testid=market-context]")),
+          tapeInMain: main.contains(tape),
+        };
+      });
+      check(
+        "today-layout",
+        layout.colCount === 2 &&
+          layout.tapeInMain &&
+          layout.healthInSide &&
+          layout.marketInSide &&
+          layout.gap < 40 &&
+          layout.tapeWidth > layout.mainWidth * 0.85,
+        JSON.stringify(layout),
+      );
+      check("premium-spark", (await page.locator("[data-testid=open-positions] [data-testid=premium-spark]").count()) >= 1, "open-row premium spark");
+      const runText = await page.locator("[data-testid=open-positions]").innerText();
+      check(
+        "running-trade",
+        /Running trade/.test(runText) &&
+          /of target covered/.test(runText) &&
+          /Room to stop/.test(runText) &&
+          (await page.locator("[data-testid=run-path]").count()) >= 2 &&
+          !/CANCEL_NO_PROGRESS|OVERLAY_COIL/.test(runText),
+        runText.slice(0, 240),
+      );
 
       // Alarm: enabling it must sound + notify for the CRITICAL alert that is already showing.
       await page.locator(".alert-bar .chip-btn").click();
@@ -348,16 +489,15 @@ async function main() {
       const stored = await page.evaluate(() => JSON.parse(localStorage.getItem("desk.alerts.dismissed.v2") || "[]"));
       check("dismiss-episode", hidden && back && stored.length === 0, `hidden=${hidden} back-on-new-episode=${back} stale-dismissals=${stored.length}`);
 
-      // Row + trace screenshot, then push-to-DOM refresh time (fixture flips the open ticket's LTP).
-      await page.locator("table.desk-history tbody tr").nth(1).click();
-      await page.locator(".trace-node").nth(2).click();
+      // Open-position drawer + trace, then push-to-DOM refresh time (fixture flips the open ticket's LTP).
+      await page.locator("[data-testid=open-positions] .pos-card").first().click();
+      await page.waitForSelector("[data-testid=trade-drawer] .trace-node");
+      await page.locator("[data-testid=trade-drawer] .trace-node").nth(2).click();
       await page.waitForTimeout(400);
       await page.screenshot({ path: resolve(OUT, "desk_1440_row_and_trace.png"), fullPage: false, clip: { x: 0, y: 0, width: 1440, height: 900 } });
-      await page.locator("table.desk-history tbody tr").first().click(); // the open ticket
-      await page.waitForTimeout(300);
       const hitsBefore = traceHits.length;
       const refreshMs = await page.evaluate(async () => {
-        const dd = [...document.querySelectorAll(".current-trade .kv")].find((k) => k.querySelector("dt")?.textContent === "LTP")?.querySelector("dd");
+        const dd = [...document.querySelectorAll("[data-testid=open-positions] .kv")].find((k) => /^(LTP|Premium)$/.test(k.querySelector("dt")?.textContent || ""))?.querySelector("dd");
         const before = dd.textContent;
         const t0 = performance.now();
         const done = new Promise((r) => {
@@ -369,16 +509,60 @@ async function main() {
       check("refresh", refreshMs < 200, `push → DOM ${refreshMs} ms (target < 200 ms)`);
       await page.waitForTimeout(400);
       check("trace-refresh", traceHits.length > hitsBefore, `open-ticket trace refetched after its update (${traceHits.length - hitsBefore} request)`);
+      check("drawer", (await page.locator("[data-testid=trade-drawer]").count()) === 1, "trade drawer open");
+      await page.locator("[data-testid=trade-drawer] .icon-btn").click();
 
-      // Past day: model-log rows have no close time → Out reads "—", never "open".
+      // Leaderboard: five paper slots + a shadow card when the tape has one.
+      await page.locator("[data-testid=tab-strategies]").click();
+      await page.waitForSelector("[data-testid=desk-leaderboard]");
+      const slotCount = await page.locator("[data-testid=strategy-card]").count();
+      const shadowCount = await page.locator("[data-testid=strategy-card][data-book$='SHADOW']").count();
+      const titles = await page.locator("[data-testid=strategy-card] h3").allTextContents();
+      const ids = await page.locator("[data-testid=strategy-card] .slot-card__id").allTextContents();
+      const want = ["Premium divergence", "Premium divergence · high vol", "High-vol skip-chop", "Momentum", "Momentum after 10:30"];
+      await page.screenshot({ path: resolve(OUT, "desk_1440_leaderboard.png"), fullPage: true });
+      check("leaderboard-slots", slotCount === 10 && shadowCount === 5, `cards=${slotCount} shadow=${shadowCount}`);
+      check(
+        "leaderboard-names",
+        want.every((n) => titles.some((t) => t === n || t === `${n} · shadow`)) &&
+          titles.every((t) => !t.startsWith("MIX-")) &&
+          ids.includes("R01_PDIV_5_ALL_H20"),
+        `titles=${JSON.stringify([...new Set(titles)])} ids=${JSON.stringify([...new Set(ids)])}`,
+      );
+      await page.getByRole("button", { name: /Win %/ }).click();
+      check("leaderboard-sort", (await page.locator(".sort-bar .chip--active").innerText()).includes("Win"), "sorted by win %");
+      await page.locator(".desk-tabs [role=tab]", { hasText: "Today" }).click();
+
+      // Past day lives behind Advanced: model-log rows have no close time → Out reads "—", never "open".
+      await page.locator("[data-testid=advanced-toggle]").click();
+      await page.waitForSelector("table.desk-history");
       const pastDay = await page.locator(".filter-row select").first().locator("option").nth(1).getAttribute("value");
       await page.locator(".filter-row select").first().selectOption(pastDay);
       await page.waitForSelector("table.desk-history tbody tr td.col-end");
       const outs = await page.locator("table.desk-history tbody td.col-end").allTextContents();
-      await page.locator(".grid > section.panel").first().screenshot({ path: resolve(OUT, "desk_1440_past_day.png") });
+      await page.locator("[data-testid=advanced-panel]").screenshot({ path: resolve(OUT, "desk_1440_past_day.png") });
       check("past-day-out", outs.length > 0 && !outs.includes("open"), `${pastDay}: Out cells ${JSON.stringify([...new Set(outs)])}`);
+      await page.locator("[data-testid=advanced-toggle]").click();
+
+      // Founder: pipeline is the overview centerpiece; P&L-by-stage lives behind Advanced.
+      await page.goto(`${base}/pm`, { waitUntil: "load" });
+      await page.waitForSelector("[data-testid=trade-pipeline]");
+      const founderPipe = await page.locator("[data-testid=trade-pipeline]").innerText();
+      check("founder-pipeline", (await page.locator("[data-testid=pipe-lane]").count()) === 2 && !/MIX-/.test(founderPipe), founderPipe.slice(0, 200));
+      await page.screenshot({ path: resolve(OUT, "founder_1440_pipeline.png"), fullPage: false, clip: { x: 0, y: 0, width: 1440, height: 900 } });
+      await page.setViewportSize({ width: 390, height: 900 });
+      await page.waitForTimeout(250);
+      await page.screenshot({ path: resolve(OUT, "founder_390_pipeline.png"), fullPage: false, clip: { x: 0, y: 0, width: 390, height: 900 } });
+      await page.setViewportSize({ width: 1440, height: 900 });
+      await page.locator("[data-testid=advanced-toggle]").click();
+      await page.waitForSelector(".stage-total");
+      const [sum, net] = await page.locator(".stage-total b").allTextContents();
+      check("stage-sum", sum === net, `sum of bars ${sum} · book net ${net}`);
+      await page.locator(".founder-desk").screenshot({ path: resolve(OUT, "founder_1440_trade_desk.png") });
+      await page.locator(".grid > div").filter({ has: page.locator(".stage-bars") }).screenshot({ path: resolve(OUT, "founder_pnl_by_stage.png") });
 
       // No open ticket; founder has NIFTY on, SENSEX off, and SENSEX is first in the skip list.
+      await page.goto(`${base}/desk`, { waitUntil: "load" });
       await page.evaluate(() => fetch("/__fixture/flat"));
       await page.reload({ waitUntil: "load" });
       await page.waitForSelector(".current-trade__empty");
@@ -395,18 +579,13 @@ async function main() {
       check("last-ticket-390", cut.length === 0, `truncated last-ticket values at 390px: ${JSON.stringify(cut)}`);
       await page.setViewportSize({ width: 1440, height: 900 });
 
-      // Founder: P&L-by-stage bars add up to the book net; START/STOP fully inside its panel.
-      await page.goto(`${base}/pm`, { waitUntil: "load" });
-      await page.waitForSelector(".stage-total");
-      const [sum, net] = await page.locator(".stage-total b").allTextContents();
-      check("stage-sum", sum === net, `sum of bars ${sum} · book net ${net}`);
-      await page.locator(".founder-desk").screenshot({ path: resolve(OUT, "founder_1440_trade_desk.png") });
-      await page.locator(".grid > div").filter({ has: page.locator(".stage-bars") }).screenshot({ path: resolve(OUT, "founder_pnl_by_stage.png") });
-
       // History still indexing: every all-days / account / multi-day chart figure shows a label, no rupees.
       await page.evaluate(() => fetch("/__fixture/indexing"));
-      for (const [path, need] of [["/desk", 4], ["/pm", 9]]) {
+      for (const [path, need] of [["/desk", 1], ["/pm", 4]]) {
         await page.goto(`${base}${path}`, { waitUntil: "load" });
+        if (path === "/pm") {
+          await page.locator("[data-testid=advanced-toggle]").click();
+        }
         await page.waitForSelector(".needs-history", { timeout: 5000 }).catch(() => {}); // absent = FAIL below
         await page.waitForTimeout(400);
         const cells = await page.locator(".needs-history").allInnerTexts();
