@@ -153,6 +153,9 @@ function signalToOpen(und, signal) {
   const stop = Number(signal.stop);
   const target = Number(signal.target);
   if (![entry, stop, target].every(Number.isFinite)) return null;
+  const openedTs = Date.parse(signal.timeIst || signal.opened_ist || "") / 1000;
+  const opened = Number.isFinite(openedTs) ? openedTs : undefined;
+  const ltp = Number(signal.last_ltp ?? signal.mark ?? entry);
   return {
     trade_id: signal.id || `open-${und}`,
     underlying: und,
@@ -160,15 +163,28 @@ function signalToOpen(und, signal) {
     atm_strike: signal.strike,
     entry,
     limit_price: entry,
-    last_ltp: Number(signal.last_ltp ?? signal.mark ?? entry),
+    last_ltp: ltp,
     stop,
     target,
     lots: signal.lots ?? 10,
     lot_size: signal.lot_size ?? 50,
     qty: (signal.lots || 10) * (signal.lot_size || 50),
     status: "OPEN",
-    opened_ts: Date.parse(signal.timeIst || signal.opened_ist || "") / 1000 || undefined,
+    opened_ts: opened,
     opened_ist: signal.timeIst || signal.opened_ist,
+    premium_path:
+      opened && Number.isFinite(ltp)
+        ? [
+            { t: opened, v: entry, label: "entry" },
+            { t: opened + 180, v: ltp, label: "ltp" },
+          ]
+        : undefined,
+    expiry: signal.expiry || signal.ticket?.expiry,
+    justification: signal.customer?.note || signal.customer?.headline,
+    strategy_id: signal.strategy_id,
+    spot_at_entry: Number(signal.spot || signal.underlying_spot || signal.ticket?.underlying_spot) || null,
+    last_index_spot: Number(signal.spot || signal.underlying_spot) || null,
+    seen_high: Number(signal.seen_high) || null,
   };
 }
 

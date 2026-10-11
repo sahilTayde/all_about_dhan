@@ -234,6 +234,11 @@ async function measure(page) {
         pipeLanes: count("[data-testid=pipe-lane]"),
         pipeStages: count("[data-testid=pipe-stage]"),
         pipeHistory: count("[data-testid=pipe-history]"),
+        sizeForm: count("[data-testid=size-form]"),
+        slotBadges: count(".slot-badge"),
+        vsRandom: [...document.querySelectorAll(".slot-stat")].filter((el) => /vs random/i.test(el.textContent || "")).length,
+        founderTabs: count("[data-testid^=founder-tab-]"),
+        dualPos: count("[data-testid=pos-card]"),
       },
     };
   });
@@ -242,9 +247,10 @@ async function measure(page) {
 function featureProblems(name, width, f) {
   if (!FEATURES) return [];
   const need = {
-    desk: { alertBar: 1, healthStrip: 1, dayPnl: 1, openPositions: 1, timeline: 1, marketCards: 1, advancedToggle: 1, currentFields: 1, premiumSpark: 1, pipeline: 1, pipeLanes: 2, pipeStages: 14 },
-    "desk-board": { strategyCards: 10, healthStrip: 1, advancedToggle: 1 },
-    founder: { alertBar: 1, healthStrip: 1, pipeline: 1, pipeLanes: 2, pipeStages: 14, advancedToggle: 1 },
+    desk: { alertBar: 1, healthStrip: 1, dayPnl: 1, openPositions: 1, timeline: 1, marketCards: 1, advancedToggle: 1, currentFields: 1, premiumSpark: 1, pipeline: 1, pipeLanes: 2, pipeStages: 14, dualPos: 2 },
+    "desk-board": { strategyCards: 10, healthStrip: 1, advancedToggle: 1, slotBadges: 10, vsRandom: 5 },
+    founder: { alertBar: 1, healthStrip: 1, pipeline: 1, pipeLanes: 2, pipeStages: 14, advancedToggle: 1, founderTabs: 4 },
+    customer: { sizeForm: 1, dualPos: 2 },
   }[name];
   if (!need) return [];
   return Object.entries(need)
@@ -358,7 +364,7 @@ async function main() {
       const skipRow = page.locator("[data-testid=pipe-hist]", { hasText: "coil market" });
       await skipRow.click();
       const skipDetail = await page.locator("[data-testid=pipe-detail]").innerText();
-      check("pipeline-skip", /Overlay skipped: coil market/i.test(skipDetail) && !/MIX-/.test(skipDetail), skipDetail.slice(0, 200));
+      check("pipeline-skip", /Skipped: coil market/i.test(skipDetail) && !/Overlay: Overlay skipped/i.test(skipDetail) && !/MIX-/.test(skipDetail), skipDetail.slice(0, 200));
       await page.screenshot({ path: resolve(OUT, "desk_1440_pipeline.png"), fullPage: false, clip: { x: 0, y: 0, width: 1440, height: 900 } });
       await page.setViewportSize({ width: 390, height: 900 });
       await page.waitForTimeout(250);
@@ -395,6 +401,16 @@ async function main() {
         JSON.stringify(layout),
       );
       check("premium-spark", (await page.locator("[data-testid=open-positions] [data-testid=premium-spark]").count()) >= 1, "open-row premium spark");
+      const runText = await page.locator("[data-testid=open-positions]").innerText();
+      check(
+        "running-trade",
+        /Running trade/.test(runText) &&
+          /of target covered/.test(runText) &&
+          /to stop/.test(runText) &&
+          (await page.locator("[data-testid=run-path]").count()) >= 2 &&
+          !/CANCEL_NO_PROGRESS|OVERLAY_COIL/.test(runText),
+        runText.slice(0, 240),
+      );
 
       // Alarm: enabling it must sound + notify for the CRITICAL alert that is already showing.
       await page.locator(".alert-bar .chip-btn").click();

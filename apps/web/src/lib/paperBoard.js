@@ -623,6 +623,67 @@ export function fmtElapsed(ms) {
   return h ? `${h}h ${pad(m)}m` : `${m}m ${pad(s % 60)}s`;
 }
 
+export function regimeSpot(regimes, und) {
+  const r = regimes?.[String(und || "").toUpperCase()];
+  if (!r || typeof r !== "object") return null;
+  return num(r.itm_bin?.index ?? r.spot ?? r.px ?? (r.last3_closes || []).at(-1));
+}
+
+function oneLineWhy(text) {
+  const raw = shortWhy(text);
+  if (!raw || raw === "—") return "—";
+  const line = raw.replace(/MIX-[A-Z0-9_-]+/gi, "").replace(/\s{2,}/g, " ").trim();
+  return line.length > 140 ? `${line.slice(0, 137)}…` : line;
+}
+
+function expiryLabel(raw) {
+  if (!raw) return null;
+  const m = String(raw).match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!m) return String(raw);
+  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  return `${Number(m[3])} ${months[Number(m[2]) - 1]}`;
+}
+
+/** Running-trade card numbers. Missing record fields stay null (rendered "—"). */
+export function runningTradeView(t, { nowMs = Date.now(), spotNow } = {}) {
+  const n = tradeNow(t, { nowMs });
+  const target = typeof n.t1 === "number" ? n.t1 : num(t.target);
+  const stop = n.stop;
+  const entry = n.entry;
+  const ltp = n.ltp;
+  const qty = n.qty;
+  const riskPts = entry != null && stop != null ? entry - stop : null;
+  const riskInr = riskPts != null && qty != null ? riskPts * qty : null;
+  const slPct = entry && stop != null ? ((stop - entry) / entry) * 100 : null;
+  const tgtPct = entry && target != null ? ((target - entry) / entry) * 100 : null;
+  const coveredPct = entry != null && target != null && target !== entry && ltp != null ? ((ltp - entry) / (target - entry)) * 100 : null;
+  const toStopPct = entry != null && stop != null && entry !== stop && ltp != null ? ((ltp - stop) / (entry - stop)) * 100 : null;
+  const peakInr = n.mfe != null && qty != null ? n.mfe * qty : null;
+  const spotIn = num(t.spot_at_entry ?? t.idx_at_open);
+  const spotOut = num(spotNow ?? t.last_index_spot ?? t.spot_now);
+  const span = stop != null && target != null && target !== stop ? target - stop : null;
+  const mark = (v) => (span && v != null ? Math.max(0, Math.min(1, (v - stop) / span)) : null);
+  return {
+    ...n,
+    target,
+    riskPts,
+    riskInr,
+    slPct: slPct == null ? null : Math.round(slPct * 10) / 10,
+    tgtPct: tgtPct == null ? null : Math.round(tgtPct * 10) / 10,
+    coveredPct: coveredPct == null ? null : Math.round(coveredPct * 10) / 10,
+    toStopPct: toStopPct == null ? null : Math.round(toStopPct * 10) / 10,
+    peakInr,
+    peakPct: entry && n.mfe != null ? Math.round((n.mfe / entry) * 1000) / 10 : null,
+    pnlPct: pnlPct(entry, ltp),
+    spotIn,
+    spotNow: spotOut,
+    expiry: expiryLabel(t.expiry || t.expiry_ist),
+    lots: num(t.lots),
+    why: oneLineWhy(t.justification || t.why || t.customer_note),
+    path: { sl: mark(stop), entry: mark(entry), now: mark(ltp), target: mark(target) },
+  };
+}
+
 /** Current-trade numbers. Anything the record does not carry stays null (rendered "—"). */
 export function tradeNow(t, { nowMs = Date.now() } = {}) {
   const entry = num(t.entry ?? t.limit_price);

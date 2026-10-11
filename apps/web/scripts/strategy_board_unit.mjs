@@ -11,7 +11,7 @@ import {
   todayTimeline,
   winVsRandom,
 } from "../src/lib/strategyBoard.js";
-import { pathProgress, pnlPct } from "../src/lib/paperBoard.js";
+import { pathProgress, pnlPct, runningTradeView } from "../src/lib/paperBoard.js";
 
 assert.equal(PAPER_SLOT_IDS.length, 5);
 assert.equal(slotBadge({ nFilled: 2, net: 60, vsRandom: 8 }), "WATCH");
@@ -82,4 +82,31 @@ assert.ok(String(byName[0].name) <= String(byName[1].name));
 const tape = todayTimeline(board.open_trades, board.closed_trades, "2026-01-15");
 assert.ok(tape.length >= 3);
 
-console.log("PASS strategy_board_unit slots + shadow + empty + sort");
+const run = runningTradeView(
+  {
+    side: "CE",
+    atm_strike: 81200,
+    entry: 210.4,
+    last_ltp: 218.75,
+    stop: 198,
+    target: 232.5,
+    lots: 10,
+    lot_size: 20,
+    qty: 200,
+    seen_high: 220.1,
+    expiry: "2026-01-16",
+    spot_at_entry: 81140,
+    opened_ts: 1_768_000_000,
+    justification: "Momentum after 10:30, trending market.",
+  },
+  { nowMs: 1_768_000_000 * 1000 + 292_000, spotNow: 81180 },
+);
+assert.equal(run.expiry, "16 Jan");
+assert.equal(run.inr, (218.75 - 210.4) * 200);
+assert.equal(run.riskInr, (210.4 - 198) * 200);
+assert.ok(run.coveredPct > 0 && run.toStopPct > 100);
+assert.ok(run.peakInr > run.inr);
+assert.equal(run.spotNow, 81180);
+assert.match(run.why, /Momentum/);
+
+console.log("PASS strategy_board_unit slots + shadow + empty + sort + running trade");

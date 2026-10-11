@@ -108,6 +108,10 @@
       "lots": 10,
       "lot_size": 65,
       "last_ltp": 121.2,
+      "seen_high": 124.5,
+      "strategy_id": "R01_PDIV_5_ALL_H20",
+      "timeIst": "2026-09-06T13:40:00+05:30",
+      "opened_ist": "2026-09-06T13:40:00+05:30",
       "expiry": "2026-10-07",
       "customer": {
         "headline": "Put ticket live \u2014 you decide",
@@ -781,6 +785,10 @@
       "lots": 10,
       "lot_size": 20,
       "last_ltp": 218.75,
+      "seen_high": 220.1,
+      "strategy_id": "R07_MOM3_TREND",
+      "timeIst": "2026-09-06T13:52:00+05:30",
+      "opened_ist": "2026-09-06T13:52:00+05:30",
       "expiry": "2026-10-07",
       "customer": {
         "headline": "Call ticket live — you decide",
@@ -791,23 +799,23 @@
         "comment": "Mock: lean withdrawn after reversal. Not live P&L."
       },
       "lifecycle": {
-        "outcome": "INVALIDATED",
-        "priorStage": "EARLY",
-        "headline": "Lean withdrawn \u2014 tape reversed after EARLY",
-        "note": "Was EARLY CE. Impulse failed; do not still show CONFIRMED. Customer back from lunch: INVALIDATED. Mock only, not advice.",
-        "closedAt": "2026-09-01T12:18:00+05:30",
+        "outcome": null,
+        "priorStage": null,
+        "headline": "",
+        "note": "Still open. Dual NIFTY + SENSEX paper cards. Not a fill.",
+        "closedAt": "",
         "shadowPaper": {
-          "mtmPts": -28,
-          "comment": "You skipped. Platform still marked the failed EARLY path (mock). Not a fill, not advice."
+          "mtmPts": 8.35,
+          "comment": "You skipped. Platform tracked this path anyway (mock). Not a fill, not advice."
         }
       },
       "staged": {
-        "state": "VETOED",
+        "state": "IN-PROGRESS",
         "waiting": false,
         "waitLabel": "",
         "lean": "BUY_CE",
-        "headline": "Holding \u2014 big news / clock",
-        "note": "Demo WAITING with veto banner.",
+        "headline": "Paper call path open",
+        "note": "Customer surface uses honesty labels only. Tech detail behind (i).",
         "lights": [
           {
             "id": "supertrend",

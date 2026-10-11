@@ -38,6 +38,7 @@ export function TodayPage({ d, snap, clock, hold, indexing, onSelect, selectedId
           last={d?.uniqueClosed?.[0]}
           onSelect={onSelect}
           selectedId={selectedId}
+          regimes={d?.regimes}
         />
         <TradeTimeline rows={tape} onSelect={onSelect} selectedId={selectedId} />
         <Heatmap cards={buildStrategyCards(snap?.board, { uniqueClosed: d?.uniqueClosed, uniqueOpen: d?.uniqueOpen })} trades={d?.uniqueClosed} />

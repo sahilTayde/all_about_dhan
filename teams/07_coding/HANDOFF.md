@@ -1,5 +1,31 @@
 # Handoff log — Team 07 Coding
 
+## As of now (2026-10-11 IST) — running trade card + pipeline review (PAPER)
+
+```text
+From:     teams/07_coding
+To:       founder / 00 / 05 / 09
+Date:     2026-10-11
+Status:   PAPER / C7 portals / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+Accepted: Running-trade card on /desk, /pm
+  Overview, and customer `/` when both
+  NIFTY and SENSEX are open. What / when /
+  where / SL ₹+%+risk / target ₹+% /
+  SL→entry→now→target bar / % of target
+  covered / % to stop / unrealised ₹+% /
+  peak / one-line why / premium spark with
+  entry·SL·target lines. Pipeline clocks
+  are monotonic. Raw codes stay in
+  title= only (Exited: no progress,
+  Skipped: coil market). Earlier tickets
+  show closed P&L ₹.
+Rejected: Invented VIX / vs-random / ticks.
+  Live orders. MIX-* as titles.
+UNKNOWN: Live dual-tape may omit expiry or
+  spot-now; those slots read —.
+```
+
 ## As of now (2026-10-11 IST) — paper decision journal (PAPER)
 
 ```text

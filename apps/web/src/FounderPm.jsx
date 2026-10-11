@@ -17,6 +17,7 @@ import { TradeHistory } from "./components/TradeHistory.jsx";
 import { ActionBar } from "./desk/components/ActionBar.jsx";
 import { HealthStrip } from "./desk/components/HealthStrip.jsx";
 import { Heatmap } from "./desk/components/Heatmap.jsx";
+import { OpenPositions } from "./desk/components/OpenPositions.jsx";
 import { Skeleton } from "./desk/components/Skeleton.jsx";
 import { TradePipeline } from "./desk/components/TradePipeline.jsx";
 import "./desk/desk.css";
@@ -130,6 +131,14 @@ export function FounderPm() {
       ) : tab === "overview" ? (
         <div className="founder-overview">
           <TradePipeline board={board} open={d.uniqueOpen} closed={d.uniqueClosed} />
+          <OpenPositions
+            rows={d.uniqueOpen}
+            clock={clock}
+            last={d.uniqueClosed?.[0]}
+            onSelect={setPicked}
+            selectedId={traceRow?.trade_id}
+            regimes={d.regimes}
+          />
           <div className="fx-stats founder-kpis">
             <Stat label="Net today" value={inr(day?.net)} hint="after costs" tone={Number(day?.net) >= 0 ? "up" : "down"} />
             <Stat label="Net week" value={inr(week)} hint="last sessions" />

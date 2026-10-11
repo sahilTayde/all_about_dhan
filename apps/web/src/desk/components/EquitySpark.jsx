@@ -1,5 +1,7 @@
+const LINE_STROKE = { entry: "#8fb4d9", stop: "#e0a0a8", target: "#8fd4b2" };
+
 /** Tiny SVG premium path from recorded marks. Empty when fewer than two points. */
-export function PremiumSpark({ points, width = 140, height = 44, label = "Premium" }) {
+export function PremiumSpark({ points, lines = [], width = 140, height = 44, label = "Premium" }) {
   if (!points?.length || points.length < 2) {
     return (
       <div className="spark spark--empty" data-testid="premium-spark" aria-label={`${label} empty`}>
@@ -7,17 +9,17 @@ export function PremiumSpark({ points, width = 140, height = 44, label = "Premiu
       </div>
     );
   }
-  const ys = points.map((p) => p.value ?? p.v);
+  const ys = [...points.map((p) => p.value ?? p.v), ...lines.map((l) => l.value).filter((v) => Number.isFinite(v))];
   const min = Math.min(...ys);
   const max = Math.max(...ys);
   const span = max - min || 1;
+  const yOf = (v) => height - 3 - ((v - min) / span) * (height - 6);
   const step = (width - 4) / (points.length - 1);
   const pts = points
     .map((p, i) => {
       const yv = p.value ?? p.v;
       const x = 2 + i * step;
-      const y = height - 3 - ((yv - min) / span) * (height - 6);
-      return `${x.toFixed(1)},${y.toFixed(1)}`;
+      return `${x.toFixed(1)},${yOf(yv).toFixed(1)}`;
     })
     .join(" ");
   const first = points[0].value ?? points[0].v;
@@ -33,6 +35,20 @@ export function PremiumSpark({ points, width = 140, height = 44, label = "Premiu
       role="img"
       aria-label={`${label} spark`}
     >
+      {lines
+        .filter((l) => Number.isFinite(l.value))
+        .map((l) => (
+          <line
+            key={l.id || l.label}
+            x1="2"
+            x2={width - 2}
+            y1={yOf(l.value)}
+            y2={yOf(l.value)}
+            stroke={LINE_STROKE[l.id] || "#6a7686"}
+            strokeDasharray="3 3"
+            strokeWidth="1"
+          />
+        ))}
       <polyline fill="none" stroke="currentColor" strokeWidth="1.6" points={pts} />
     </svg>
   );
