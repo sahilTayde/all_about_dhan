@@ -63,6 +63,38 @@ function clockOf(ist) {
   return f.text === "—" ? null : f;
 }
 
+function clockMs(at) {
+  if (!at) return null;
+  if (Number.isFinite(at.ms)) return at.ms;
+  if (at.raw) {
+    const n = Date.parse(at.raw);
+    return Number.isFinite(n) ? n : null;
+  }
+  return null;
+}
+
+function laterClock(a, b) {
+  const am = clockMs(a);
+  const bm = clockMs(b);
+  if (am == null) return b || a || null;
+  if (bm == null) return a;
+  return bm >= am ? b : a;
+}
+
+/** Later station clocks never go backwards vs a previous recorded stage. */
+export function monotonicStages(stages) {
+  let floor = null;
+  return PIPE_STAGES.map((meta) => {
+    const s = stages?.[meta.id] || waiting(meta.id);
+    if (s.state !== "waiting" && s.at) {
+      const next = laterClock(floor, s.at);
+      if (clockMs(next) != null) floor = next;
+      return { ...s, at: next };
+    }
+    return s;
+  });
+}
+
 function waiting(id) {
   const meta = PIPE_STAGES.find((s) => s.id === id) || { id, label: id, hint: "" };
   return {
@@ -74,6 +106,7 @@ function waiting(id) {
     why: "waiting",
     at: null,
     rule: null,
+    code: null,
     inputs: {},
   };
 }
@@ -82,7 +115,7 @@ function metaWho(id) {
   return PIPE_STAGES.find((s) => s.id === id)?.label || id;
 }
 
-function done(id, { who, why, at, rule, inputs } = {}) {
+function done(id, { who, why, at, rule, inputs, code } = {}) {
   return {
     ...waiting(id),
     state: "done",
@@ -90,6 +123,7 @@ function done(id, { who, why, at, rule, inputs } = {}) {
     why: why || "Recorded",
     at: at || null,
     rule: rule || null,
+    code: code || null,
     inputs: inputs || {},
   };
 }
@@ -98,7 +132,7 @@ function active(id, extra) {
   return { ...done(id, extra), state: "active" };
 }
 
-function blocked(id, { who, why, at, rule, inputs } = {}) {
+function blocked(id, { who, why, at, rule, inputs, code } = {}) {
   return {
     ...waiting(id),
     state: "blocked",
@@ -106,6 +140,7 @@ function blocked(id, { who, why, at, rule, inputs } = {}) {
     why: why || "Skipped",
     at: at || null,
     rule: rule || null,
+    code: code || null,
     inputs: inputs || {},
   };
 }
@@ -115,17 +150,43 @@ const EXIT_PLAIN = Object.freeze({
   STOP: "Stop hit",
   TIME: "Time exit",
   CANCEL_AGAINST: "Thesis broke",
-  CANCEL_NO_PROGRESS: "No progress",
+  CANCEL_NO_PROGRESS: "Exited: no progress",
   COVER_LONG_UNWIND: "Long unwind",
-  OVERLAY_COIL: "coil market",
-  NO_NEW_AFTER_1516: "too late in the session",
+  OVERLAY_COIL: "Skipped: coil market",
+  NO_NEW_AFTER_1516: "Skipped: too late in the session",
+  PATH_KIND_HOLD: "Skipped: coil market",
+  SIDEWAYS_HOLD: "Skipped: coil market",
 });
+
+const RULE_PLAIN = Object.freeze({
+  OVERLAY_COIL: "skip coil market",
+  PATH_KIND_HOLD: "skip coil market",
+  SIDEWAYS_HOLD: "skip coil market",
+  CANCEL_NO_PROGRESS: "no progress",
+  CANCEL_AGAINST: "thesis broke",
+  NO_NEW_AFTER_1516: "too late in the session",
+  TARGET: "target hit",
+  STOP: "stop hit",
+  TIME: "time exit",
+});
+
+export function engineCode(raw) {
+  const s = String(raw || "").trim();
+  if (!s) return null;
+  const u = s.toUpperCase();
+  for (const key of Object.keys(EXIT_PLAIN)) {
+    if (u === key || u.includes(key)) return key;
+  }
+  return /^[A-Z][A-Z0-9_]+$/.test(s) ? s : null;
+}
 
 function cleanWhy(raw, fallback) {
   const s = scrubMix(raw);
   if (!s) return fallback;
-  const u = s.toUpperCase().replace(/[^A-Z0-9_]/g, "_");
-  if (EXIT_PLAIN[s] || EXIT_PLAIN[u]) return EXIT_PLAIN[s] || EXIT_PLAIN[u];
+  const code = engineCode(s);
+  if (code && EXIT_PLAIN[code]) return EXIT_PLAIN[code];
+  if (/coil/i.test(s)) return "Skipped: coil market";
+  if (/no progress/i.test(s)) return "Exited: no progress";
   if (/^[A-Z][A-Z0-9_]+$/.test(s)) return s.replaceAll("_", " ").toLowerCase();
   return plainText(s, fallback);
 }
@@ -133,7 +194,9 @@ function cleanWhy(raw, fallback) {
 function cleanRule(raw) {
   const s = scrubMix(raw);
   if (!s) return null;
-  if (EXIT_PLAIN[s] || EXIT_PLAIN[s.toUpperCase()]) return EXIT_PLAIN[s] || EXIT_PLAIN[s.toUpperCase()];
+  const code = engineCode(s);
+  if (code && RULE_PLAIN[code]) return RULE_PLAIN[code];
+  if (/coil/i.test(s)) return "skip coil market";
   if (/^[A-Z][A-Z0-9_]+$/.test(s)) return s.replaceAll("_", " ").toLowerCase();
   return s;
 }
@@ -170,12 +233,17 @@ export function skipWhoWhy(row) {
         : /analyst|model/i.test(blob)
           ? "Analyst"
           : "Overlay";
-  if (/coil|chop/i.test(blob)) return { who, why: "Overlay skipped: coil market" };
-  if (/NO_NEW_AFTER/i.test(blob)) return { who, why: "Overlay skipped: too late in the session" };
-  if (/CANCEL_AGAINST/i.test(blob)) return { who, why: "Overlay skipped: thesis broke" };
-  if (/CANCEL_NO_PROGRESS/i.test(blob)) return { who, why: "Overlay skipped: no progress" };
+  if (/coil|chop/i.test(blob)) return { who, why: "Skipped: coil market", code: "OVERLAY_COIL", rule: "skip coil market" };
+  if (/NO_NEW_AFTER/i.test(blob)) {
+    return { who, why: "Skipped: too late in the session", code: "NO_NEW_AFTER_1516", rule: "too late in the session" };
+  }
+  if (/CANCEL_AGAINST/i.test(blob)) return { who, why: "Skipped: thesis broke", code: "CANCEL_AGAINST", rule: "thesis broke" };
+  if (/CANCEL_NO_PROGRESS/i.test(blob)) {
+    return { who, why: "Exited: no progress", code: "CANCEL_NO_PROGRESS", rule: "no progress" };
+  }
   const why = cleanWhy(row?.why || row?.reason, "Skipped");
-  return { who, why: who === "Overlay" && !/^Overlay /i.test(why) ? `Overlay skipped: ${why}` : why };
+  const code = engineCode(row?.reason || row?.why);
+  return { who, why, code, rule: cleanRule(row?.reason) };
 }
 
 const JOURNAL_STAGE = Object.freeze({
@@ -196,9 +264,10 @@ export function fromJournal(rows) {
     if (!id) continue;
     const at = clockOf(row.ts_ist || row.ts);
     const who = row.actor || metaWho(id);
-    const why = row.reason || "waiting";
+    const why = cleanWhy(row.reason, "waiting");
+    const code = engineCode(row.reason);
     const inputs = cleanInputs(row.inputs || {});
-    const extra = { who, why, at, rule: row.reason, inputs };
+    const extra = { who, why, at, rule: cleanRule(row.reason), code, inputs };
     if (row.decision === "skip") out[id] = blocked(id, extra);
     else if (id === "live" && row.decision === "pass") out[id] = active(id, extra);
     else if (row.decision === "fill" || row.decision === "exit" || row.decision === "pass") out[id] = done(id, extra);
@@ -209,8 +278,7 @@ export function fromJournal(rows) {
 function journalForLane(rows, und, tradeId) {
   const mine = (rows || []).filter((r) => String(r.underlying || "").toUpperCase() === und);
   if (tradeId) {
-    const hit = mine.filter((r) => r.candidate_id === tradeId || r.trade_id === tradeId);
-    if (hit.length) return hit;
+    return mine.filter((r) => r.candidate_id === tradeId || r.trade_id === tradeId);
   }
   const ids = [...new Set(mine.map((r) => r.candidate_id).filter(Boolean))];
   const latest = ids[ids.length - 1];
@@ -229,10 +297,11 @@ function fromTrace(trace) {
       if (!out[id]) out[id] = waiting(id);
       continue;
     }
+    const code = engineCode(step.why || step.source || step.decided);
     if (/skip|veto|block|fail|hold/i.test(`${step.status} ${step.why} ${step.decided}`)) {
-      out[id] = blocked(id, { who: metaWho(id), why, at, rule: cleanRule(step.source || step.why), inputs });
+      out[id] = blocked(id, { who: metaWho(id), why, at, rule: cleanRule(step.source || step.why), code, inputs });
     } else {
-      out[id] = done(id, { who: metaWho(id), why, at, rule: cleanRule(step.source), inputs });
+      out[id] = done(id, { who: metaWho(id), why, at, rule: cleanRule(step.source), code, inputs });
     }
   }
   return out;
@@ -249,6 +318,8 @@ function mergeStages(base, extra) {
       at: stage.at || prev?.at || null,
       inputs: { ...(prev?.inputs || {}), ...(stage.inputs || {}) },
       why: stage.why && stage.why !== "Recorded" ? stage.why : prev?.why || stage.why,
+      code: stage.code || prev?.code || null,
+      rule: stage.rule || prev?.rule || null,
     };
   }
   return out;
@@ -280,18 +351,23 @@ function inferFromTrade(t) {
     imm: done("imm", { why: "Paper fill", at: openAt, inputs: cleanInputs({ entry: t.entry }) }),
     live:
       t.exit == null && !t.closed_ist
-        ? active("live", { why: "Trade in progress", at: clockOf(t.last_updated_ist) || openAt })
+        ? active("live", { why: "Trade in progress", at: laterClock(openAt, clockOf(t.last_updated_ist)) })
         : done("live", { why: "Was in trade", at: openAt }),
     exit:
       t.exit != null || t.closed_ist
-        ? done("exit", { why: cleanWhy(t.exit_reason, "Closed"), at: closeAt, inputs: cleanInputs({ exit: t.exit }) })
+        ? done("exit", {
+            why: cleanWhy(t.exit_reason, "Closed"),
+            at: closeAt,
+            code: engineCode(t.exit_reason),
+            inputs: cleanInputs({ exit: t.exit }),
+          })
         : waiting("exit"),
   };
   return stages;
 }
 
 function inferFromSkip(row) {
-  const { who, why } = skipWhoWhy(row);
+  const { who, why, code, rule } = skipWhoWhy(row);
   const at = clockOf(row.last_updated_ist || row.ts_ist || row.opened_ist);
   const blockedId = who === "Boss" ? "boss" : who === "Desk" ? "desk" : who === "Analyst" ? "analyst" : "overlay";
   const stages = Object.fromEntries(PIPE_STAGES.map((s) => [s.id, waiting(s.id)]));
@@ -301,14 +377,15 @@ function inferFromSkip(row) {
     who,
     why,
     at,
-    rule: cleanRule(row.reason),
+    rule: rule || cleanRule(row.reason),
+    code: code || engineCode(row.reason),
     inputs: cleanInputs({ side: row.side, market: row.market_kind || row.regime }),
   });
   return stages;
 }
 
 function finish(und, kind, title, trade, stages) {
-  const list = PIPE_STAGES.map((s) => stages[s.id] || waiting(s.id));
+  const list = monotonicStages(stages);
   return {
     underlying: und,
     kind,
@@ -330,7 +407,12 @@ export function buildLane(underlying, { open = [], closed = [], skips = [], trac
   const jStages = fromJournal(jRows);
   if (live) {
     const stages = mergeStages(mergeStages(inferFromTrade(live), fromTrace(traces[live.trade_id])), jStages);
-    stages.live = jStages.live || active("live", { why: "Trade in progress", at: clockOf(live.last_updated_ist) || clockOf(live.opened_ist) });
+    stages.live =
+      jStages.live ||
+      active("live", {
+        why: "Trade in progress",
+        at: laterClock(clockOf(live.opened_ist), clockOf(live.last_updated_ist)),
+      });
     stages.exit = jStages.exit || waiting("exit");
     return finish(und, "live", `${und} ${live.side} ${live.atm_strike ?? ""}`.trim(), live, stages);
   }
@@ -353,9 +435,9 @@ export function stagesForRecord(row, traces = {}) {
   if (!row) return PIPE_STAGES.map((s) => waiting(s.id));
   if (row.exit != null || row.closed_ist || row.opened_ist) {
     const stages = mergeStages(inferFromTrade(row), fromTrace(traces[row.trade_id]));
-    return PIPE_STAGES.map((s) => stages[s.id] || waiting(s.id));
+    return monotonicStages(stages);
   }
-  return PIPE_STAGES.map((s) => inferFromSkip(row)[s.id] || waiting(s.id));
+  return monotonicStages(inferFromSkip(row));
 }
 
 function dayOf(t) {
@@ -373,18 +455,22 @@ export function pipelineHistory(closed, skips, sessionDay, liveIds = new Set()) 
       name: strategyName(t),
       state: "done",
       why: cleanWhy(t.exit_reason, "Closed"),
+      code: engineCode(t.exit_reason),
+      pnl: Number.isFinite(Number(t.realized_pnl_inr)) ? Number(t.realized_pnl_inr) : null,
       at: clockOf(t.closed_ist || t.opened_ist),
       record: t,
     }));
   const skipped = (skips || []).map((s, i) => {
-    const { who, why } = skipWhoWhy(s);
+    const { why, code } = skipWhoWhy(s);
     return {
       id: s.id || s.trade_id || `skip-${s.underlying}-${i}`,
       underlying: s.underlying,
       label: `${s.underlying} ${s.side || ""}`.trim(),
       name: strategyName(s),
       state: "blocked",
-      why: `${who} · ${why}`,
+      why,
+      code,
+      pnl: null,
       at: clockOf(s.last_updated_ist || s.ts_ist),
       record: s,
     };

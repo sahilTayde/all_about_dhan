@@ -19,10 +19,12 @@ assert.deepEqual(
 
 const coil = skipWhoWhy({ reason: "OVERLAY_COIL", why: "coil market", action: "SKIP" });
 assert.equal(coil.who, "Overlay");
-assert.equal(coil.why, "Overlay skipped: coil market");
+assert.equal(coil.why, "Skipped: coil market");
+assert.equal(coil.rule, "skip coil market");
+assert.equal(coil.code, "OVERLAY_COIL");
 
 const late = skipWhoWhy({ reason: "NO_NEW_AFTER_1516", why: "No NEW after 15:16 IST" });
-assert.equal(late.why, "Overlay skipped: too late in the session");
+assert.equal(late.why, "Skipped: too late in the session");
 
 assert.equal(strategyName({ strategy_id: "R01_PDIV_5_ALL_H20", book_id: "MIX-DEFAULT-BUY" }), "Premium divergence");
 assert.equal(strategyName({ book_id: "MIX-DEFAULT-BUY" }), "");
@@ -69,7 +71,9 @@ assert.equal(skipped.kind, "skipped");
 const overlay = skipped.stages.find((s) => s.id === "overlay");
 assert.equal(overlay.state, "blocked");
 assert.equal(overlay.who, "Overlay");
-assert.equal(overlay.why, "Overlay skipped: coil market");
+assert.equal(overlay.why, "Skipped: coil market");
+assert.equal(overlay.rule, "skip coil market");
+assert.equal(overlay.code, "OVERLAY_COIL");
 assert.equal(skipped.stages.find((s) => s.id === "imm").state, "waiting");
 assert.ok(!leakMix(JSON.stringify(skipped)));
 
@@ -106,7 +110,8 @@ const model = buildPipelines(
         opened_ist: "2026-01-15T09:40:00+05:30",
         closed_ist: "2026-01-15T09:48:00+05:30",
         exit: 118,
-        exit_reason: "TARGET",
+        exit_reason: "CANCEL_NO_PROGRESS",
+        realized_pnl_inr: -1840.5,
       },
     ],
   },
@@ -114,10 +119,30 @@ const model = buildPipelines(
 assert.equal(model.lanes.length, 2);
 assert.equal(model.lanes[0].kind, "live");
 assert.equal(model.lanes[1].kind, "skipped");
-assert.ok(model.history.some((h) => h.state === "blocked" && /coil market/.test(h.why)));
-assert.ok(model.history.some((h) => h.state === "done" && h.name === "Momentum"));
+assert.ok(model.history.some((h) => h.state === "blocked" && h.why === "Skipped: coil market"));
+assert.ok(model.history.some((h) => h.state === "done" && h.why === "Exited: no progress" && h.pnl === -1840.5 && h.code === "CANCEL_NO_PROGRESS"));
 assert.ok(!leakMix(pipelineText(model)));
 assert.ok(!/MIX-/.test(pipelineText(model)));
+assert.ok(!/CANCEL_NO_PROGRESS|OVERLAY_COIL/.test(pipelineText(model)));
+assert.ok(!/Overlay: Overlay skipped/.test(pipelineText(model)));
+
+const inverted = buildLane("SENSEX", {
+  open: [
+    {
+      trade_id: "t-sx",
+      underlying: "SENSEX",
+      side: "CE",
+      atm_strike: 81200,
+      opened_ist: "2026-01-15T15:38:00+05:30",
+      last_updated_ist: "2026-01-15T15:19:00+05:30",
+      entry: 210.4,
+    },
+  ],
+});
+const immAt = inverted.stages.find((s) => s.id === "imm").at;
+const liveAt = inverted.stages.find((s) => s.id === "live").at;
+assert.ok(immAt?.ms != null && liveAt?.ms != null);
+assert.ok(liveAt.ms >= immAt.ms, `live ${liveAt.text} must not precede IMM ${immAt.text}`);
 
 const journal = [
   {

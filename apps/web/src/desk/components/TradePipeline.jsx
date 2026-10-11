@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { fetchTrace } from "../../lib/feed.js";
+import { inr, moneyClass } from "../../lib/paperBoard.js";
 import { PIPE_STAGES, buildPipelines, stagesForRecord } from "../../lib/tradePipeline.js";
 
 const ICONS = {
@@ -24,7 +25,7 @@ function StageIcon({ id }) {
 
 function stageLine(stage) {
   if (stage.state === "waiting") return "waiting";
-  if (stage.state === "blocked") return `${stage.who}: ${stage.why}`;
+  if (stage.state === "blocked") return stage.why;
   if (stage.at?.text) return stage.at.text;
   return stage.why;
 }
@@ -46,7 +47,9 @@ function StageButton({ stage, on, onPick }) {
       </span>
       <strong>{stage.label}</strong>
       <em>{stage.hint}</em>
-      <span className="pipe-stage__why">{stageLine(stage)}</span>
+      <span className="pipe-stage__why" title={stage.code || undefined}>
+        {stageLine(stage)}
+      </span>
     </button>
   );
 }
@@ -71,7 +74,7 @@ function StageDetail({ pick, onClose }) {
       <dl className="kv-grid kv-grid--3">
         <div className="kv">
           <dt>Reason</dt>
-          <dd>{pick.why || "waiting"}</dd>
+          <dd title={pick.code || undefined}>{pick.why || "waiting"}</dd>
         </div>
         <div className="kv">
           <dt>Who</dt>
@@ -79,7 +82,7 @@ function StageDetail({ pick, onClose }) {
         </div>
         <div className="kv">
           <dt>Rule</dt>
-          <dd>{pick.rule || "waiting"}</dd>
+          <dd title={pick.code || undefined}>{pick.rule || "waiting"}</dd>
         </div>
       </dl>
       {inputs.length ? (
@@ -213,7 +216,14 @@ export function TradePipeline({ board, open, closed }) {
                 >
                   <strong>{row.label}</strong>
                   {row.name ? <span className="muted small">{row.name}</span> : null}
-                  <span>{row.why}</span>
+                  <span title={row.code || undefined}>{row.why}</span>
+                  {row.pnl != null ? (
+                    <span className={moneyClass(row.pnl)} data-testid="pipe-hist-pnl">
+                      {inr(row.pnl)}
+                    </span>
+                  ) : (
+                    <span className="muted small">—</span>
+                  )}
                   <span className="muted small">{row.at?.text || "waiting"}</span>
                 </button>
               </li>

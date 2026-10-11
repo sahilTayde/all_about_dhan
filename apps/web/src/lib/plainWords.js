@@ -64,7 +64,7 @@ export function plainText(value, fallback) {
 
 /** IST clock with a CT tooltip. Never invent a time. */
 export function formatIst(ist, { seconds = false } = {}) {
-  if (!ist) return { text: "—", title: undefined };
+  if (!ist) return { text: "—", title: undefined, ms: null, raw: null };
   const raw = String(ist);
   const m = raw.match(/T(\d{2}:\d{2})(?::(\d{2}))?/);
   const hhmm = m ? (seconds && m[2] ? `${m[1]}:${m[2]}` : m[1]) : raw;
@@ -78,7 +78,7 @@ export function formatIst(ist, { seconds = false } = {}) {
       hour12: false,
     }).format(ms);
   }
-  return { text: `${hhmm} IST`, title: ct ? `CT ${ct}` : undefined };
+  return { text: `${hhmm} IST`, title: ct ? `CT ${ct}` : undefined, ms: Number.isFinite(ms) ? ms : null, raw };
 }
 
 export function replayAlerts(alerts, replay) {

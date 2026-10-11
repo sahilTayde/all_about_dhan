@@ -85,7 +85,9 @@ function trade(i) {
 }
 
 const closed = Array.from({ length: 15 }, (_, i) => trade(i)).reverse();
-const tapeLastTs = BASE_TS + 15 * 1380 + 300;
+const niftyOpenTs = BASE_TS + 15 * 1380;
+const sensexOpenTs = BASE_TS + 16 * 1380;
+const tapeLastTs = sensexOpenTs + 300;
 const openEntry = 140.5;
 const open = [
   {
@@ -111,12 +113,13 @@ const open = [
     lots: 5,
     lot_size: 50,
     strategy_id: PAPER_SLOTS[0],
+    expiry: "2026-01-15",
     seen_high: 143.1,
     seen_low: 136.4,
     premium_path: [
-      { t: BASE_TS + 15 * 1380, v: openEntry, label: "entry" },
-      { t: BASE_TS + 15 * 1380 + 90, v: 143.1, label: "high" },
-      { t: BASE_TS + 15 * 1380 + 180, v: 136.4, label: "low" },
+      { t: niftyOpenTs, v: openEntry, label: "entry" },
+      { t: niftyOpenTs + 90, v: 143.1, label: "high" },
+      { t: niftyOpenTs + 180, v: 136.4, label: "low" },
       { t: tapeLastTs - 4, v: 138.2, label: "ltp" },
     ],
     trail_step: 0,
@@ -150,12 +153,13 @@ const open = [
     lots: 10,
     lot_size: 20,
     strategy_id: PAPER_SLOTS[3],
+    expiry: "2026-01-16",
     seen_high: 220.1,
     seen_low: 207.4,
     premium_path: [
-      { t: BASE_TS + 16 * 1380, v: 210.4, label: "entry" },
-      { t: BASE_TS + 16 * 1380 + 80, v: 220.1, label: "high" },
-      { t: BASE_TS + 16 * 1380 + 160, v: 207.4, label: "low" },
+      { t: sensexOpenTs, v: 210.4, label: "entry" },
+      { t: sensexOpenTs + 80, v: 220.1, label: "high" },
+      { t: sensexOpenTs + 160, v: 207.4, label: "low" },
       { t: tapeLastTs - 8, v: 218.75, label: "ltp" },
     ],
     trail_step: 0,
@@ -235,7 +239,7 @@ export const board = {
   },
   decision_journal: [
     {
-      ts_ist: ist(BASE_TS + 15 * 1380),
+      ts_ist: ist(niftyOpenTs),
       underlying: "NIFTY",
       candidate_id: "synth-open-NIFTY-PE",
       trade_id: "synth-open-NIFTY-PE",
@@ -246,7 +250,7 @@ export const board = {
       inputs: { side: "PE", day_type: "TREND", phase: "close" },
     },
     {
-      ts_ist: ist(BASE_TS + 15 * 1380),
+      ts_ist: ist(niftyOpenTs),
       underlying: "NIFTY",
       candidate_id: "synth-open-NIFTY-PE",
       trade_id: "synth-open-NIFTY-PE",
@@ -257,7 +261,7 @@ export const board = {
       inputs: { side: "PE", premium: openEntry, sl: 132.07, target: 148.93 },
     },
     {
-      ts_ist: ist(BASE_TS + 15 * 1380),
+      ts_ist: ist(niftyOpenTs),
       underlying: "NIFTY",
       candidate_id: "synth-open-NIFTY-PE",
       trade_id: "synth-open-NIFTY-PE",
@@ -268,7 +272,7 @@ export const board = {
       inputs: { day_type: "TREND" },
     },
     {
-      ts_ist: ist(BASE_TS + 15 * 1380),
+      ts_ist: ist(niftyOpenTs),
       underlying: "NIFTY",
       candidate_id: "synth-open-NIFTY-PE",
       trade_id: "synth-open-NIFTY-PE",
@@ -279,7 +283,7 @@ export const board = {
       inputs: { side: "PE" },
     },
     {
-      ts_ist: ist(BASE_TS + 15 * 1380),
+      ts_ist: ist(niftyOpenTs),
       underlying: "NIFTY",
       candidate_id: "synth-open-NIFTY-PE",
       trade_id: "synth-open-NIFTY-PE",
@@ -301,13 +305,79 @@ export const board = {
       inputs: { premium: 138.2 },
     },
     {
+      ts_ist: ist(sensexOpenTs),
+      underlying: "SENSEX",
+      candidate_id: "synth-open-SENSEX-CE",
+      trade_id: "synth-open-SENSEX-CE",
+      stage: "analyst",
+      actor: "Momentum",
+      decision: "pass",
+      reason: "Momentum spoke",
+      inputs: { side: "CE", day_type: "TREND" },
+    },
+    {
+      ts_ist: ist(sensexOpenTs),
+      underlying: "SENSEX",
+      candidate_id: "synth-open-SENSEX-CE",
+      trade_id: "synth-open-SENSEX-CE",
+      stage: "desk",
+      actor: "Desk",
+      decision: "pass",
+      reason: "CE ticket",
+      inputs: { side: "CE", premium: 210.4 },
+    },
+    {
+      ts_ist: ist(sensexOpenTs),
+      underlying: "SENSEX",
+      candidate_id: "synth-open-SENSEX-CE",
+      trade_id: "synth-open-SENSEX-CE",
+      stage: "overlay",
+      actor: "Overlay",
+      decision: "pass",
+      reason: "Market TREND",
+      inputs: { day_type: "TREND" },
+    },
+    {
+      ts_ist: ist(sensexOpenTs),
+      underlying: "SENSEX",
+      candidate_id: "synth-open-SENSEX-CE",
+      trade_id: "synth-open-SENSEX-CE",
+      stage: "boss",
+      actor: "Boss picker",
+      decision: "pass",
+      reason: "Buy CE",
+      inputs: { side: "CE" },
+    },
+    {
+      ts_ist: ist(sensexOpenTs),
+      underlying: "SENSEX",
+      candidate_id: "synth-open-SENSEX-CE",
+      trade_id: "synth-open-SENSEX-CE",
+      stage: "imm",
+      actor: "Paper fill",
+      decision: "fill",
+      reason: "Paper fill",
+      inputs: { premium: 210.4 },
+    },
+    {
+      ts_ist: ist(tapeLastTs - 8),
+      underlying: "SENSEX",
+      candidate_id: "synth-open-SENSEX-CE",
+      trade_id: "synth-open-SENSEX-CE",
+      stage: "in_trade",
+      actor: "Desk",
+      decision: "pass",
+      reason: "Trade in progress",
+      inputs: { premium: 218.75 },
+    },
+    {
       ts_ist: ist(BASE_TS + 720),
       underlying: "SENSEX",
       candidate_id: "skip-SENSEX-coil",
       stage: "overlay",
       actor: "Overlay",
       decision: "skip",
-      reason: "Overlay skipped: coil market",
+      reason: "Skipped: coil market",
       inputs: { day_type: "CHOP", side: "PE" },
     },
   ],

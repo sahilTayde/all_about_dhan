@@ -106,7 +106,7 @@ def test_coil_overlay_skip() -> None:
     )
     overlay = next(r for r in rows if r["stage"] == "overlay")
     assert overlay["decision"] == "skip"
-    assert overlay["reason"] == "Overlay skipped: coil market"
+    assert overlay["reason"] == "Skipped: coil market"
 
 
 def test_record_engine_step_writes_jsonl(tmp_path: Path) -> None:
