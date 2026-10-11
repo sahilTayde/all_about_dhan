@@ -40,7 +40,7 @@ def optional_customers_path() -> Path | None:
 def _yaml() -> Any:
     try:
         import yaml  # type: ignore[import-untyped]
-    except ImportError as exc:  # pragma: no cover - CI lock always has PyYAML
+    except ImportError as exc:  # pragma: no cover - v2 lock / CI lock always has PyYAML
         raise AccountClosed("YAML_UNAVAILABLE") from exc
     return yaml
 

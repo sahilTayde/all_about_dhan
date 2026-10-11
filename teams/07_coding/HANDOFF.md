@@ -1,5 +1,26 @@
 # Handoff log — Team 07 Coding
 
+## As of now (2026-10-11 IST) — V2 venv PyYAML for accounts list (PAPER)
+
+```text
+From:     teams/07_coding
+To:       founder / 00 / 09
+Date:     2026-10-11
+Status:   PAPER / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+Accepted: .venv-v2 now installs hash-pinned
+  PyYAML from requirements/v2.txt.
+  accounts pyproject declares PyYAML>=6.
+  mac_setup_v2.sh + hygiene check run
+  `python -m accounts list` in a clean
+  V2 venv so YAML_UNAVAILABLE cannot hide.
+Rejected: Pulling accounts deps from PyPI
+  (still --no-deps). Brokers in .venv-v2.
+  Live orders. Changing CI lock pins.
+UNKNOWN: Existing Mac .venv-v2 still needs
+  a re-run of ./scripts/mac_setup_v2.sh.
+```
+
 ## As of now (2026-10-11 IST) — journal hooks off the frozen file (PAPER)
 
 ```text

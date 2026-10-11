@@ -73,12 +73,15 @@ fi
 echo "mac_setup_v2: v2 python is $($VENV/bin/python -V 2>&1)"
 
 # Recorder: dhan-client + marketdata (their third-party deps).
+# V2 extras: hash-pinned requirements/v2.txt (PyYAML for accounts list / c5-start).
 # Shadow + accounts: contracts / events / runtime / shadow / accounts with
 # --no-deps so local names never resolve from PyPI (same rule as scripts/ci/install.sh).
 if [[ -n "$UV" ]]; then
   "$UV" pip install --python "$VENV/bin/python" \
     -e "$ROOT/packages/dhan-client" \
     -e "$ROOT/packages/marketdata"
+  "$UV" pip install --python "$VENV/bin/python" \
+    -r "$ROOT/requirements/v2.txt"
   "$UV" pip install --python "$VENV/bin/python" --no-deps \
     -e "$ROOT/packages/contracts" \
     -e "$ROOT/packages/events" \
@@ -90,6 +93,8 @@ else
   "$VENV/bin/python" -m pip install \
     -e "$ROOT/packages/dhan-client" \
     -e "$ROOT/packages/marketdata"
+  "$VENV/bin/python" -m pip install --require-hashes \
+    -r "$ROOT/requirements/v2.txt"
   "$VENV/bin/python" -m pip install --no-deps \
     -e "$ROOT/packages/contracts" \
     -e "$ROOT/packages/events" \
@@ -98,7 +103,11 @@ else
     -e "$ROOT/packages/accounts"
 fi
 
-"$VENV/bin/python" -c "import dhan_client, marketdata, shadow, accounts; print('mac_setup_v2: imports ok', dhan_client.__name__, marketdata.__name__, shadow.__name__, accounts.__name__)"
+"$VENV/bin/python" -c "import dhan_client, marketdata, shadow, accounts, yaml; print('mac_setup_v2: imports ok', dhan_client.__name__, marketdata.__name__, shadow.__name__, accounts.__name__, yaml.__name__)"
+if ! "$VENV/bin/python" -m accounts list >/dev/null; then
+  echo "ERROR: python -m accounts list failed in .venv-v2 (PyYAML / accounts.yaml)" >&2
+  exit 1
+fi
 echo "mac_setup_v2: done. Legacy .venv was not modified."
 echo "Next: ./scripts/desk.sh recorder-start"
 echo "Optional: ./scripts/desk.sh shadow-start  (paper log-only; never blocks the legacy desk)"

@@ -211,6 +211,8 @@ def test_d_mac_setup_v2_never_touches_legacy_venv() -> None:
     assert "packages/shadow" in text
     assert "packages/runtime" in text
     assert "packages/contracts" in text
+    assert "requirements/v2.txt" in text
+    assert "PyYAML" in text or "accounts list" in text
     assert "packages/brokers" not in text
     assert "packages/ledger" not in text
     assert "packages/risk-engine" not in text
