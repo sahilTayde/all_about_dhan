@@ -2,10 +2,11 @@
 
 Arms, same signals and fields, 1.5× Dhan costs:
 - R3: frozen prompt under research/lab/2026-10-11_llm_judge/R3_PREREG
-- R4: empty slot until a prompt is preregistered
+- R4: prompt path from config (default research/lab/2026-10-11_llm_debrief/R4/prompt.txt)
 - logistic: trained only on dates strictly before the scored day
 - random skip of the same count, 2000 draws
 
+Missing R4 file is MISSING_PROMPT. Wrong hash is LOCK_MISMATCH. Never silent.
 Not a promote. trade: false.
 """
 
@@ -25,7 +26,9 @@ from desk_ml.llm_judge import (
     IST,
     PICK_DECISIONS,
     R3_REL,
+    R4_PROMPT_DEFAULT,
     R4_REL,
+    R4_SHA_PREFIX_DEFAULT,
     LlmJudge,
     CompleteFn,
     _num,
@@ -107,12 +110,83 @@ def load_r3_prompt(root: Optional[Path] = None) -> dict[str, Any]:
     return {**check, "prompt": _read(folder / "prompt.txt").strip()}
 
 
-def r4_status(root: Optional[Path] = None) -> dict[str, Any]:
-    folder = r4_dir(root)
-    prompt_path = folder / "prompt.txt"
-    if prompt_path.is_file() and prompt_path.read_text(encoding="utf-8").strip():
-        return {"status": "ok", "slot": "R4", "prompt": prompt_path.read_text(encoding="utf-8").strip()}
-    return {"status": "SLOT_EMPTY", "slot": "R4", "prompt": None, "note": "R4 has no frozen prompt yet."}
+def r4_prompt_path(
+    root: Optional[Path] = None,
+    *,
+    cfg: Optional[Mapping[str, Any]] = None,
+    environ: Optional[Mapping[str, str]] = None,
+) -> Path:
+    """Resolve the R4 prompt file. Config/env first, then the documented drop path."""
+    base = Path(root) if root is not None else code_root()
+    blob = dict(cfg) if cfg is not None else load_config(base, environ)
+    raw = str(blob.get("r4_prompt_path") or R4_PROMPT_DEFAULT).strip()
+    path = Path(raw)
+    if not path.is_absolute():
+        path = base / path
+    return path
+
+
+def r4_status(
+    root: Optional[Path] = None,
+    *,
+    cfg: Optional[Mapping[str, Any]] = None,
+    environ: Optional[Mapping[str, str]] = None,
+) -> dict[str, Any]:
+    """Load R4 from the configured path. Missing or wrong hash is loud, never SLOT_EMPTY."""
+    base = Path(root) if root is not None else code_root()
+    blob = dict(cfg) if cfg is not None else load_config(base, environ)
+    path = r4_prompt_path(base, cfg=blob, environ=environ)
+    expected = str(blob.get("r4_sha256_prefix") or R4_SHA_PREFIX_DEFAULT).strip().lower()
+    fallback = r4_dir(base) / "prompt.txt"
+    chosen = path if path.is_file() else (fallback if fallback.is_file() else path)
+    note_drop = (
+        f"Drop the frozen R4 prompt (sha256 prefix {expected}) at {path}. "
+        "Copy from the box path research/lab/2026-10-11_llm_debrief/."
+    )
+    missing = {
+        "status": "MISSING_PROMPT",
+        "slot": "R4",
+        "prompt": None,
+        "path": str(path),
+        "drop_path": str(path),
+        "expected_sha256_prefix": expected,
+        "note": note_drop,
+        "ok": False,
+    }
+    if not chosen.is_file():
+        return missing
+    try:
+        text = chosen.read_text(encoding="utf-8")
+    except OSError as exc:
+        return {**missing, "status": "MISSING_PROMPT", "error": str(exc)[:160]}
+    if not text.strip():
+        return {**missing, "note": f"R4 prompt at {chosen} is empty. {note_drop}"}
+    digest = hashlib.sha256(text.encode("utf-8")).hexdigest()
+    if expected and not digest.startswith(expected):
+        return {
+            "status": "LOCK_MISMATCH",
+            "slot": "R4",
+            "prompt": None,
+            "path": str(chosen),
+            "drop_path": str(path),
+            "sha256": digest,
+            "expected_sha256_prefix": expected,
+            "ok": False,
+            "note": (
+                f"R4 prompt sha256 {digest[:8]}… does not start with {expected}. "
+                f"Replace the file at {chosen}."
+            ),
+        }
+    return {
+        "status": "ok",
+        "slot": "R4",
+        "prompt": text.strip(),
+        "path": str(chosen),
+        "drop_path": str(path),
+        "sha256": digest,
+        "expected_sha256_prefix": expected,
+        "ok": True,
+    }
 
 
 def compare_path(root: Path, day: str) -> Path:
@@ -609,7 +683,15 @@ def run_day(
     elif scored and not r3.get("ok"):
         r3_decisions = ["TAKE"] * len(scored)
     r4_decisions: list[str] = []
-    r4_meta: dict[str, Any] = {"status": r4.get("status"), "prompt_version": "R4", "note": r4.get("note")}
+    r4_meta: dict[str, Any] = {
+        "status": r4.get("status"),
+        "prompt_version": "R4",
+        "note": r4.get("note"),
+        "path": r4.get("path") or r4.get("drop_path"),
+        "drop_path": r4.get("drop_path") or r4.get("path"),
+        "expected_sha256_prefix": r4.get("expected_sha256_prefix") or R4_SHA_PREFIX_DEFAULT,
+        "ok": bool(r4.get("ok")),
+    }
     if r4.get("status") == "ok" and r4.get("prompt") and scored:
         r4_decisions, extra = _llm_decisions(
             scored, prompt=str(r4["prompt"]), root=root, complete_fn=complete_fn, environ=environ
@@ -694,7 +776,21 @@ def run_day(
     return out
 
 
+def _r4_public(r4: Mapping[str, Any]) -> dict[str, Any]:
+    return {
+        "status": r4.get("status") or "MISSING_PROMPT",
+        "slot": "R4",
+        "ok": bool(r4.get("ok")),
+        "path": r4.get("path") or r4.get("drop_path"),
+        "drop_path": r4.get("drop_path") or r4.get("path"),
+        "expected_sha256_prefix": r4.get("expected_sha256_prefix") or R4_SHA_PREFIX_DEFAULT,
+        "sha256": (str(r4.get("sha256") or "")[:8] or None),
+        "note": r4.get("note"),
+    }
+
+
 def load_founder_view(root: Path) -> dict[str, Any]:
+    r4 = _r4_public(r4_status(root))
     path = cumulative_path(root)
     if not path.is_file():
         return {
@@ -706,6 +802,7 @@ def load_founder_view(root: Path) -> dict[str, Any]:
             "r3_minus_random": None,
             "n_days": 0,
             "days": [],
+            "r4": r4,
             "orders": "REFUSED",
             "promote": False,
             "shadow": True,
@@ -725,6 +822,7 @@ def load_founder_view(root: Path) -> dict[str, Any]:
         "r3_minus_random": blob.get("r3_minus_random"),
         "n_days": blob.get("n_days") or len(blob.get("days") or []),
         "days": blob.get("days") or [],
+        "r4": r4,
         "orders": "REFUSED",
         "promote": False,
         "shadow": True,

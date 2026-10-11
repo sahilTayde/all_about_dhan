@@ -177,7 +177,13 @@ export function FounderPm() {
           <header className="widget__head">
             <h2>Open now</h2>
           </header>
-          <CurrentTrade t={current} last={d.uniqueClosed[0]} clock={clock} hold={current ? null : holdReason(board, snap?.founder_book, snap?.risk_halt, offline)} title="Now open" />
+          <CurrentTrade
+            t={current || d.uniqueClosed[0] || null}
+            last={current ? d.uniqueClosed[0] : d.uniqueClosed[1]}
+            clock={clock}
+            hold={current ? null : holdReason(board, snap?.founder_book, snap?.risk_halt, offline)}
+            title={current ? "Now open" : d.uniqueClosed[0] ? "Last trade" : "Now open"}
+          />
           <TradeHistory
             indexing={indexing}
             rows={[...(d.uniqueOpen || []), ...d.uniqueClosed]}

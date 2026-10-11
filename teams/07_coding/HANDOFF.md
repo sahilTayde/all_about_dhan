@@ -1,5 +1,26 @@
 # Handoff log — Team 07 Coding
 
+## As of now (2026-10-11 IST) — R4 prompt path + loud missing (PAPER)
+
+```text
+From:     teams/07_coding
+To:       founder / 00 / 06 / 09
+Date:     2026-10-11
+Status:   PAPER / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+Accepted: R4 loads r4_prompt_path from
+  config/llm_judge.yaml (default
+  research/lab/2026-10-11_llm_debrief/R4/prompt.txt).
+  Expected sha prefix d31a9c85.
+  Missing → MISSING_PROMPT with drop path.
+  Wrong hash → LOCK_MISMATCH.
+  Founder panel shows that status.
+  DROP_HERE documents the box file.
+Rejected: Silent SLOT_EMPTY. Inventing
+  the frozen prompt. Live broker.
+UNKNOWN: Box file not in this checkout.
+```
+
 ## As of now (2026-10-11 IST) — LLM explainer + take/skip shadow panel (PAPER)
 
 ```text

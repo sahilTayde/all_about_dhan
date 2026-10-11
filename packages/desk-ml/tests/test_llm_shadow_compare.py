@@ -16,6 +16,7 @@ from desk_ml.llm_shadow_compare import (
     load_founder_view,
     net_at_1_5x,
     r3_sha256,
+    r4_status,
     random_skip_nets,
     run_day,
     verify_r3_lock,
@@ -164,7 +165,41 @@ def test_random_skip_uses_2000_draws() -> None:
     assert out["p05_net_inr"] <= out["mean_net_inr"] <= out["p95_net_inr"]
 
 
-def test_run_day_is_shadow_only_and_r4_empty(tmp_path: Path) -> None:
+def test_r4_missing_prompt_is_loud(tmp_path: Path) -> None:
+    out = r4_status(tmp_path)
+    assert out["status"] == "MISSING_PROMPT"
+    assert out["ok"] is False
+    assert out["prompt"] is None
+    assert "llm_debrief" in str(out["drop_path"])
+    assert out["expected_sha256_prefix"] == "d31a9c85"
+    assert "SLOT_EMPTY" not in json.dumps(out)
+
+
+def test_r4_lock_mismatch(tmp_path: Path) -> None:
+    path = tmp_path / "research" / "lab" / "2026-10-11_llm_debrief" / "R4" / "prompt.txt"
+    path.parent.mkdir(parents=True)
+    path.write_text("not the frozen r4 prompt\n", encoding="utf-8")
+    out = r4_status(tmp_path)
+    assert out["status"] == "LOCK_MISMATCH"
+    assert out["ok"] is False
+    assert out["prompt"] is None
+    assert not str(out["sha256"]).startswith("d31a9c85")
+    assert out["expected_sha256_prefix"] == "d31a9c85"
+
+
+def test_r4_ok_when_prefix_matches(tmp_path: Path) -> None:
+    path = tmp_path / "custom_r4.txt"
+    body = "frozen r4 take/skip prompt\n"
+    path.write_text(body, encoding="utf-8")
+    digest = hashlib.sha256(body.encode("utf-8")).hexdigest()
+    out = r4_status(tmp_path, cfg={"r4_prompt_path": str(path), "r4_sha256_prefix": digest[:8]})
+    assert out["status"] == "ok"
+    assert out["ok"] is True
+    assert out["prompt"] == body.strip()
+    assert out["sha256"] == digest
+
+
+def test_run_day_is_shadow_only_and_r4_missing(tmp_path: Path) -> None:
     src = code_root() / "research" / "lab" / "2026-10-11_llm_judge"
     dest = tmp_path / "research" / "lab" / "2026-10-11_llm_judge"
     dest.mkdir(parents=True)
@@ -199,7 +234,9 @@ def test_run_day_is_shadow_only_and_r4_empty(tmp_path: Path) -> None:
     assert out["promote"] is False
     assert out["cost_mult"] == 1.5
     assert out["arms"]["r3"]["lock_ok"] is True
-    assert out["arms"]["r4"]["status"] == "SLOT_EMPTY"
+    assert out["arms"]["r4"]["status"] == "MISSING_PROMPT"
+    assert "llm_debrief" in str(out["arms"]["r4"].get("drop_path") or "")
+    assert out["arms"]["r4"].get("expected_sha256_prefix") == "d31a9c85"
     assert out["arms"]["logit"]["lookahead"] is False
     assert all(d < "2026-10-10" for d in (out["arms"]["logit"].get("train_days") or []))
     assert out["arms"]["random"]["draws"] == 2000
@@ -207,5 +244,7 @@ def test_run_day_is_shadow_only_and_r4_empty(tmp_path: Path) -> None:
     view = load_founder_view(tmp_path)
     assert view["trade"] is False
     assert view["n_days"] == 1
+    assert view["r4"]["status"] == "MISSING_PROMPT"
+    assert "d31a9c85" in str(view["r4"].get("expected_sha256_prefix"))
     assert _board_fingerprint(board) == before
     assert board["open_trades"][0]["entry"] == 99.0

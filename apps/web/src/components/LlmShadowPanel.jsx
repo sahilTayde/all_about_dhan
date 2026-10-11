@@ -28,11 +28,26 @@ export function LlmShadowPanel({ compare }) {
             </div>
           </dl>
           <p className="muted small">
-            {v.nDays} scored day{v.nDays === 1 ? "" : "s"}. Logistic trains on earlier dates only. R4 slot is empty
-            until a new prompt is frozen. Not a promote.
+            {v.nDays} scored day{v.nDays === 1 ? "" : "s"}. Logistic trains on earlier dates only. Not a promote.
           </p>
         </>
       )}
+      <p className="muted small" data-testid="r4-status">
+        {r4Line(v)}
+      </p>
     </section>
+  );
+}
+
+function r4Line(v) {
+  if (v.r4Status === "ok") {
+    return `R4 prompt loaded from ${v.r4Path}. Shadow only.`;
+  }
+  if (v.r4Status === "LOCK_MISMATCH") {
+    return v.r4Note || `R4 prompt hash does not match prefix ${v.r4Prefix}. Replace the file at ${v.r4Path}.`;
+  }
+  return (
+    v.r4Note ||
+    `R4 prompt missing. Drop the frozen file (sha256 prefix ${v.r4Prefix}) at ${v.r4Path}.`
   );
 }

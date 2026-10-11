@@ -5,6 +5,9 @@ const empty = shadowCompareView(null);
 assert.equal(empty.ok, false);
 assert.equal(empty.trade, false);
 assert.equal(empty.promote, false);
+assert.equal(empty.r4Status, "MISSING_PROMPT");
+assert.match(empty.r4Path, /llm_debrief/);
+assert.equal(empty.r4Prefix, "d31a9c85");
 
 const view = shadowCompareView({
   ok: true,
@@ -13,7 +16,15 @@ const view = shadowCompareView({
   r3_minus_random: 800,
   n_days: 2,
   days: [{ day: "2026-10-09" }, { day: "2026-10-10" }],
+  r4: {
+    status: "MISSING_PROMPT",
+    drop_path: "research/lab/2026-10-11_llm_debrief/R4/prompt.txt",
+    expected_sha256_prefix: "d31a9c85",
+    note: "Drop the frozen R4 prompt at research/lab/2026-10-11_llm_debrief/R4/prompt.txt.",
+  },
 });
+assert.equal(view.r4Status, "MISSING_PROMPT");
+assert.match(view.r4Path, /llm_debrief/);
 assert.equal(view.ok, true);
 assert.equal(view.r3Net, 1200);
 assert.equal(view.randomMean, 400);

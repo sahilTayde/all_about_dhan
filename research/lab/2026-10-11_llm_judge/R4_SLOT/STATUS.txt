@@ -1,6 +1,12 @@
 R4 take/skip prompt slot.
 
-Empty until a new prompt is preregistered and hashed beside R3.
-The daily shadow compare logs status=SLOT_EMPTY for this arm.
+The frozen prompt is not in git. Load it from config:
 
-Paper / shadow only. No veto. NO_PROMOTE.
+  r4_prompt_path: research/lab/2026-10-11_llm_debrief/R4/prompt.txt
+  r4_sha256_prefix: d31a9c85
+
+Drop the box file (sha256 prefix d31a9c85) at that path.
+See research/lab/2026-10-11_llm_debrief/R4/DROP_HERE.txt.
+
+Missing file → MISSING_PROMPT. Wrong hash → LOCK_MISMATCH.
+Never SLOT_EMPTY. Paper / shadow only. No veto. NO_PROMOTE.

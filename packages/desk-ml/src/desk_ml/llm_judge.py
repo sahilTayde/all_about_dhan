@@ -70,6 +70,8 @@ ACCOUNTS_REL = Path("config") / "v2" / "accounts.yaml"
 SHADOW_MARKERS = ("shadow", "research_rule", "exit_variants")
 R3_REL = Path("research") / "lab" / "2026-10-11_llm_judge" / "R3_PREREG"
 R4_REL = Path("research") / "lab" / "2026-10-11_llm_judge" / "R4_SLOT"
+R4_PROMPT_DEFAULT = Path("research") / "lab" / "2026-10-11_llm_debrief" / "R4" / "prompt.txt"
+R4_SHA_PREFIX_DEFAULT = "d31a9c85"
 
 DEFAULTS: dict[str, Any] = {
     "shadow": True,
@@ -79,6 +81,8 @@ DEFAULTS: dict[str, Any] = {
     "cache_size": 256,
     "max_output_tokens": 200,
     "price_usd_per_1m_tokens": {"input": 0.15, "output": 0.60},
+    "r4_prompt_path": str(R4_PROMPT_DEFAULT),
+    "r4_sha256_prefix": R4_SHA_PREFIX_DEFAULT,
 }
 
 PICK_SYSTEM = (
@@ -157,10 +161,18 @@ def load_config(
                 price = loaded.get("price_usd_per_1m_tokens")
                 if isinstance(price, dict):
                     cfg["price_usd_per_1m_tokens"].update(price)
+                if loaded.get("r4_prompt_path"):
+                    cfg["r4_prompt_path"] = str(loaded["r4_prompt_path"]).strip()
+                if loaded.get("r4_sha256_prefix"):
+                    cfg["r4_sha256_prefix"] = str(loaded["r4_sha256_prefix"]).strip().lower()
         except Exception:  # noqa: BLE001 — missing yaml must not stop paper
             pass
     if "LLM_JUDGE_SHADOW" in env:
         cfg["shadow"] = _truthy(env.get("LLM_JUDGE_SHADOW"), True)
+    if env.get("LLM_R4_PROMPT_PATH"):
+        cfg["r4_prompt_path"] = str(env["LLM_R4_PROMPT_PATH"]).strip()
+    if env.get("LLM_R4_SHA256_PREFIX"):
+        cfg["r4_sha256_prefix"] = str(env["LLM_R4_SHA256_PREFIX"]).strip().lower()
     cfg["trade"] = False
     cfg["timeout_s"] = min(10.0, max(0.2, float(cfg["timeout_s"])))
     return cfg

@@ -104,17 +104,30 @@ function Cell({ label, value, tone, title }) {
   );
 }
 
+function ExplainLine({ t }) {
+  if (!t?.llm_explanation && !t?.market_type) return null;
+  return (
+    <p className="desk-sub current-trade__explain" data-testid="trade-explain">
+      {t.market_type ? <strong>{t.market_type}. </strong> : null}
+      {t.llm_explanation || ""}
+    </p>
+  );
+}
+
 function LastTicket({ t, clock }) {
   const s = ticketState(t, { clock });
   return (
-    <dl className="kv-grid kv-grid--3 last-ticket">
-      <Cell label="Last ticket" value={`${t.underlying} ${t.side} ${t.atm_strike ?? ""}`} />
-      <Cell label="State" value={<span className={`state-pill state-pill--${s.key}`}>{s.label}</span>} />
-      <Cell label="Reason" value={t.exit_reason || t.status || "—"} />
-      <Cell label="Entry → exit" value={`${px(t.entry)} → ${px(t.exit)}`} />
-      <Cell label="Net ₹" value={inr(t.realized_pnl_inr)} tone={moneyClass(t.realized_pnl_inr)} />
-      <Cell label="Closed" value={String(t.closed_ist || "").slice(11, 19) || "—"} />
-    </dl>
+    <>
+      <dl className="kv-grid kv-grid--3 last-ticket">
+        <Cell label="Last ticket" value={`${t.underlying} ${t.side} ${t.atm_strike ?? ""}`} />
+        <Cell label="State" value={<span className={`state-pill state-pill--${s.key}`}>{s.label}</span>} />
+        <Cell label="Reason" value={t.exit_reason || t.status || "—"} />
+        <Cell label="Entry → exit" value={`${px(t.entry)} → ${px(t.exit)}`} />
+        <Cell label="Net ₹" value={inr(t.realized_pnl_inr)} tone={moneyClass(t.realized_pnl_inr)} />
+        <Cell label="Closed" value={String(t.closed_ist || "").slice(11, 19) || "—"} />
+      </dl>
+      <ExplainLine t={t} />
+    </>
   );
 }
 
@@ -175,12 +188,7 @@ export function CurrentTrade({ t, last, clock, hold, indexNow, children, title =
           </dl>
           <TicketPath t={t} />
           <p className="desk-sub current-trade__why">Why: {shortWhy(t.justification)}</p>
-          {t.llm_explanation || t.market_type ? (
-            <p className="desk-sub current-trade__explain" data-testid="trade-explain">
-              {t.market_type ? <strong>{t.market_type}. </strong> : null}
-              {t.llm_explanation || ""}
-            </p>
-          ) : null}
+          <ExplainLine t={t} />
           {children}
         </>
       )}
