@@ -33,7 +33,7 @@ const READY = ".desk-today, .desk-board, .grid, table.desk-history, .signal-layo
 const PAGES = [
   { name: "desk", path: "/desk" },
   { name: "desk-board", path: "/desk/strategies" },
-  { name: "founder", path: "/pm", tradeTable: true },
+  { name: "founder", path: "/pm" },
   { name: "customer", path: "/" },
   { name: "cleanup", path: "/cleanup" },
 ];
@@ -416,7 +416,7 @@ async function main() {
       await page.screenshot({ path: resolve(OUT, "desk_1440_row_and_trace.png"), fullPage: false, clip: { x: 0, y: 0, width: 1440, height: 900 } });
       const hitsBefore = traceHits.length;
       const refreshMs = await page.evaluate(async () => {
-        const dd = [...document.querySelectorAll(".current-trade .kv")].find((k) => k.querySelector("dt")?.textContent === "LTP")?.querySelector("dd");
+        const dd = [...document.querySelectorAll("[data-testid=open-positions] .kv")].find((k) => /^(LTP|Premium)$/.test(k.querySelector("dt")?.textContent || ""))?.querySelector("dd");
         const before = dd.textContent;
         const t0 = performance.now();
         const done = new Promise((r) => {
