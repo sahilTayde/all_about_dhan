@@ -247,6 +247,15 @@
   gap: 0.4rem;
 }
 
+.run-card .kv-grid {
+  grid-template-columns: repeat(auto-fill, minmax(7.2rem, 1fr));
+}
+
+.run-card .kv dd {
+  overflow: visible;
+  text-overflow: unset;
+}
+
 .run-card__what,
 .run-card__when,
 .run-card__why {

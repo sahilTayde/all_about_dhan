@@ -266,7 +266,16 @@ export default function App() {
       {tabs.length > 1 ? <UnderlyingPicker underlyings={tabs} value={underlying} onChange={setUnderlying} /> : null}
       <CustomerHero view={view} openCount={opens.length} />
       {opens.length >= 2 ? (
-        <OpenPositions rows={opens} onSelect={setPicked} selectedId={picked?.trade_id} />
+        <OpenPositions
+          rows={opens}
+          clock={
+            Number.isFinite(Date.parse(desk.asOf || ""))
+              ? { replay: true, ms: Date.parse(desk.asOf), ist: desk.asOf }
+              : undefined
+          }
+          onSelect={setPicked}
+          selectedId={picked?.trade_id}
+        />
       ) : (
         <TradeJourney view={view} journal={journal} />
       )}

@@ -87,13 +87,11 @@ function PositionCard({ t, clock, nowMs, spotNow, selected, onSelect }) {
             <Cell label="Premium" value={px(v.ltp)} tone={moneyClass(v.pts)} />
             <Cell label="Spot in" value={px(v.spotIn)} />
             <Cell label="Spot now" value={px(v.spotNow)} />
-            <Cell
-              label="Stop"
-              value={`${px(v.stop)}${v.slPct != null ? ` · ${signedPct(v.slPct)}` : ""}`}
-              title={v.riskInr != null ? `${inr(v.riskInr, { signed: false })} risk` : undefined}
-            />
+            <Cell label="Stop" value={px(v.stop)} />
+            <Cell label="SL %" value={signedPct(v.slPct)} tone={moneyClass(v.slPct)} />
             <Cell label="SL risk" value={inr(v.riskInr, { signed: false })} title="(entry − stop) × qty" />
-            <Cell label="Target" value={`${px(v.target)}${v.tgtPct != null ? ` · ${signedPct(v.tgtPct)}` : ""}`} />
+            <Cell label="Target" value={px(v.target)} />
+            <Cell label="Target %" value={signedPct(v.tgtPct)} tone={moneyClass(v.tgtPct)} />
             <Cell label="Unrealised" value={inr(v.inr)} tone={moneyClass(v.inr)} title="(LTP − entry) × qty" />
             <Cell label="P&L %" value={v.pnlPct == null ? "—" : signedPct(v.pnlPct)} tone={moneyClass(v.pnlPct)} />
             <Cell label="Peak" value={inr(v.peakInr)} tone={moneyClass(v.peakInr)} title="Best premium since entry × qty" />
