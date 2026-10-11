@@ -178,3 +178,40 @@ def test_spof_S2_persist_failure_skips_the_paper_cycle_but_keeps_looping(tmp_pat
     )
     assert len(result.ticks) == 2
     assert result.ticks[0]["paper_scalp_board"]["error"] == "persist_failed"
+
+
+def test_llm_judge_is_shadow_only_on_paper_scalp(tmp_path: Path, monkeypatch) -> None:
+    seen: list[dict] = []
+
+    def fake_attach(board, **_kw):
+        seen.append({"n_open": len(board.get("open_trades") or []), "entry": (board.get("open_trades") or [{}])[0].get("entry")})
+        return {"shadow": True, "trade": False, "wrote": 1, "cost_usd": 0.001, "calls": 1, "orders": "REFUSED"}
+
+    monkeypatch.setattr("desk_ml.decision_journal.install_engine_hooks", lambda: True)
+    monkeypatch.setattr(
+        "desk_ml.live_cycle.run_cycle",
+        lambda *_a, **_k: {
+            "session_ist_date": "2026-10-09",
+            "open_trades": [{"trade_id": "t1", "entry": 100.0, "status": "OPEN_PAPER", "side": "CE"}],
+            "closed_trades": [],
+        },
+    )
+    monkeypatch.setattr("desk_ml.research_rules.attach_to_board", lambda board, root=None: board)
+    monkeypatch.setattr("desk_ml.research_rules.publish_board", lambda board, root=None: None)
+    monkeypatch.setattr("desk_ml.shadow_exits.attach_and_log", lambda *_a, **_k: [])
+    monkeypatch.setattr("desk_ml.llm_judge.attach_and_log", fake_attach)
+    monkeypatch.setattr("desk_ml.llm_judge.get_judge", lambda *_a, **_k: None)
+
+    result = run_dual_tape_loop(
+        underlyings=["NIFTY"],
+        max_ticks=1,
+        simulate=True,
+        persist=True,
+        paper_scalp=True,
+        settings=_settings(tmp_path),
+        write_run_flag_on_start=False,
+    )
+    assert result.ticks[0]["execution"] == "refused"
+    assert result.ticks[0]["llm"] is False
+    assert seen == [{"n_open": 1, "entry": 100.0}]
+    assert result.ticks[0]["paper_scalp_board"]["llm_judge"]["trade"] is False

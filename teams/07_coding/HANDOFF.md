@@ -1,5 +1,21 @@
 # Handoff log — Team 07 Coding
 
+## As of now (2026-10-11 IST) — LLM shadow judge on dual-tape (PAPER)
+
+```text
+From:     teams/07_coding
+To:       founder / 00 / 06 / 09
+Date:     2026-10-11
+Status:   PAPER / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+Accepted: dual-tape --paper-scalp calls
+  desk_ml.llm_judge after research rules.
+  Config llm_judge.shadow true, trade false.
+  Missing OPENAI_API_KEY skips. No fill change.
+Rejected: Live broker. Fast-path block. trade true.
+UNKNOWN: Real OpenAI latency on the Mac box.
+```
+
 ## As of now (2026-10-11 IST) — C5 slots armed + 10-lot paper size (PAPER)
 
 ```text

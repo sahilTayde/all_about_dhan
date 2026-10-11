@@ -1,0 +1,14 @@
+# LLM shadow judge on the dual-tape loop. Paper / shadow only.
+# shadow: true  — log PICK/EXIT verdicts to the decision journal + data/shadow/<day>.jsonl
+# trade: false  — hard lock. The judge never changes a paper-slot or shadow-rule fill.
+# The OpenAI key is read from OPENAI_API_KEY at call time. Missing key → skip, no exception.
+# Never put a key here.
+shadow: true
+trade: false
+timeout_s: 3
+model: gpt-4o-mini
+cache_size: 256
+max_output_tokens: 200
+price_usd_per_1m_tokens:
+  input: 0.15
+  output: 0.60

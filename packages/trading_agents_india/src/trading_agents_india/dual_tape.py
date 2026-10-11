@@ -1055,6 +1055,19 @@ def run_dual_tape_loop(
                                 )
                             except Exception:  # noqa: BLE001,S110 — log-only; never blocks the tape
                                 pass
+                            try:
+                                from desk_ml.llm_judge import attach_and_log as llm_judge_attach
+                                from desk_ml.llm_judge import get_judge
+
+                                judge_stats = llm_judge_attach(
+                                    board,
+                                    root=settings.repo_root,
+                                    snaps=snaps,
+                                    judge=get_judge(settings.repo_root),
+                                )
+                                board = {**board, "llm_judge": judge_stats}
+                            except Exception:  # noqa: BLE001,S110 — shadow judge never owns the fill
+                                pass
                             publish_board(board, root=settings.repo_root)
                         except Exception:  # noqa: BLE001 — SOD board already written; rules are paper-only
                             pass
@@ -1083,6 +1096,7 @@ def run_dual_tape_loop(
                                 "from last tick. WS not enabled (no greeks on feed parse)."
                             ),
                             "research_rules": (board.get("research_rules") or {}),
+                            "llm_judge": (board.get("llm_judge") or {}),
                         }
                     except Exception as exc:  # noqa: BLE001 — recorded + alerted by run_cycle
                         heartbeat_board = {
