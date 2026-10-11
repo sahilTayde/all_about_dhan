@@ -254,10 +254,19 @@ class ShadowRun:
             view = self.feature_factory.next_view() if self.feature_factory is not None else MapFeatureView()
             self.apply_decision(decide_bar(self.session_basket, bar, view, ltp=bar.close), bar.available_ts)
 
-    def flatten_open(self, ts: str, price: float | None, reason: str = "SHADOW_FLAT") -> None:
+    def flatten_open(
+        self,
+        ts: str,
+        price: float | None,
+        reason: str = "SHADOW_FLAT",
+        *,
+        stale: bool = False,
+    ) -> None:
         if not self.book.lots:
             return
+        used_last = price is None
         mark = price if price is not None else self.book.lots[-1].entry
+        flag = "STALE" if (stale or used_last) else None
         for lot, pnl in self.book.flatten(mark):
             self.journal.log_pnl(
                 day=self.day,
@@ -268,6 +277,7 @@ class ShadowRun:
                 price=mark,
                 realized=pnl,
                 reason=reason,
+                quote_flag=flag,
             )
             self.flats += 1
 

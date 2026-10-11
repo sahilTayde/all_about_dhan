@@ -27,6 +27,11 @@ class RecorderConfig:
     stale_after_s: float = 5.0
     retention_s: float = 600.0
     max_instruments: int = 100
+    # Session-open ATM ± N listed strikes, both CE and PE, in addition to the moving ATM set.
+    open_ladder_n: int = 5
+    # Repo root used to read paper-book / decision-journal / shadow / ledger pins.
+    # None (tests) means no pin scan; the CLI passes the repo root.
+    pin_root: Path | None = None
     connect_early_s: float = 120.0
     # Re-centre from the option-chain spot only while no index tick has arrived.
     # After the first index tick, the chain is never used for spot.

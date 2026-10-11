@@ -100,15 +100,16 @@ def test_instrument_counts_sit_inside_dhan_caps() -> None:
     assert options_per_book() == 10
     assert steady_book_count() == 12
     assert research_named_count() == 12
-    # Default unique: 24 book ids + 10 stocks (both current-month futures already on the books)
-    assert default_unique_subscribe_count() == 34
-    assert after_recentre_count() == 54
+    # Default unique: 48 book ids (moving ATM + open ±5 ladder) + 10 stocks
+    assert default_unique_subscribe_count(open_ladder_n=0) == 34
+    assert default_unique_subscribe_count() == 58
+    assert after_recentre_count() == 78
     # Worst case: current-month futures are extra ids (not the book's nearest)
-    assert default_unique_subscribe_count(extra_futures=2) == 36
-    assert after_recentre_count(extra_futures=2) == 56
+    assert default_unique_subscribe_count(extra_futures=2) == 60
+    assert after_recentre_count(extra_futures=2) == 80
     caps = dhan_feed_caps()
     assert caps == {"sockets_per_user": 5, "ids_per_socket": 5000, "ids_per_subscribe_json": 100}
-    for n in (34, 36, 54, 56):
+    for n in (34, 58, 60, 78, 80):
         assert within_dhan_caps(n)
     assert not within_dhan_caps(101)
     snapshot = load_schema("quote_snapshot")
@@ -136,9 +137,9 @@ def test_recorder_research_stream_has_volume_and_leaves_book_tapes_alone(tmp_pat
     assert research_ids == {f"NSE_EQ:{n}" for n in NIFTY_HEAVYWEIGHTS}
     assert "NSE_FNO:NIFTY:2026-09-29" in ids
     assert any(i.startswith("BSE_FNO:SENSEX:") and i.count(":") == 2 for i in ids)
-    assert len(ids) == 34  # 24 book + 10 cash; futures already on the books
+    assert len(ids) == 58  # 48 book (ATM + open ladder) + 10 cash; futures already on the books
     unique_keys = {(r["exchange_segment"], r["security_id"]) for r in subs}
-    assert len(unique_keys) == 34
+    assert len(unique_keys) == 58
     assert {"IDX_I", "NSE_FNO", "BSE_FNO", "NSE_EQ"} <= {r["exchange_segment"] for r in subs}
 
     depth = s.rows("depth_quotes")
@@ -188,5 +189,5 @@ def test_research_off_keeps_legacy_subscribe_count(tmp_path) -> None:  # type: i
         )
     )
     ids = {r["instrument_id"] for r in s.rows("subscriptions") if r["action"] == "subscribe"}
-    assert len(ids) == 24
+    assert len(ids) == 48
     assert s.rows("research_quotes") == []

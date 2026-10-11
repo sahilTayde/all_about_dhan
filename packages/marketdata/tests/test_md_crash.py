@@ -106,7 +106,13 @@ def test_kill9_mid_write_then_restart(tmp_path: Path) -> None:
     after = check_files(day)
     for name, data in before.items():
         assert after[name].startswith(data), f"{name}: rows before the kill changed"
-        assert len(after[name]) > len(data) or name in {"ingest_errors.jsonl", "oi_cadence.jsonl"}
+        # quote_snapshots only emit on a 5 s boundary; the open ladder fills depth
+        # twice as fast, so a +200-row wait can finish before the next snapshot.
+        assert len(after[name]) > len(data) or name in {
+            "ingest_errors.jsonl",
+            "oi_cadence.jsonl",
+            "quote_snapshots.jsonl",
+        }
     repairs = [json.loads(line) for line in after["ingest_errors.jsonl"].splitlines()]
     repair = [r for r in repairs if r["reason"] == "unterminated tail removed on open"]
     assert len(repair) == 1

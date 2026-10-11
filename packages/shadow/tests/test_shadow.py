@@ -11,6 +11,7 @@ import pytest
 
 from shadow.journal import SCHEMA, ShadowJournal
 from shadow.runner import (
+    ShadowRun,
     compare_day,
     follow_tape,
     load_tape_envelopes,
@@ -103,6 +104,17 @@ def test_demo_fills_isolated_pnl(tmp_path: Path) -> None:
     assert "CANCEL" not in kinds
     assert "COVER_LONG_UNWIND" not in kinds
     assert pnl[-1]["realized_pts"] == 25.0
+
+
+def test_flatten_without_fresh_quote_flags_stale(tmp_path: Path) -> None:
+    journal = ShadowJournal(tmp_path / "state")
+    shadow = ShadowRun(journal=journal, day="2026-10-04", mode="paper")
+    shadow.book.open_lot("NSE_FNO:NIFTY:2026-09-29:24500:CE", 1, 100.0, "2026-10-04T10:00:00+05:30")
+    shadow.flatten_open("2026-10-04T11:00:00+05:30", None, reason="SHADOW_FLAT")
+    rows = list(journal.iter_jsonl(journal.files("2026-10-04").pnl))
+    assert rows[-1]["kind"] == "SHADOW_FLAT"
+    assert rows[-1]["quote_flag"] == "STALE"
+    assert rows[-1]["price"] == 100.0
 
 
 def test_same_tape_same_hash(tmp_path: Path) -> None:

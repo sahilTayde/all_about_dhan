@@ -44,6 +44,7 @@ from marketdata.instruments import (
     save_universe,
 )
 from marketdata.oi_cadence import OiCadenceTracker
+from marketdata.pins import HeldPinReader
 from marketdata.quotes import snapshot
 from marketdata.research import (
     RESEARCH_EVENT,
@@ -56,8 +57,8 @@ from marketdata.research import (
     load_research_set,
     within_dhan_caps,
 )
-from marketdata.strikes import Change, StrikeSet
 from marketdata.status import write_status
+from marketdata.strikes import Change, StrikeSet
 from marketdata.tape import TapeWriter, tape_drop_count
 
 log = logging.getLogger(__name__)
@@ -172,6 +173,8 @@ class MarketDataRecorder:
         self._volume: dict[str, int | None] = {}
         self._last_frame_at: datetime | None = None
         self._status_written_s = float("-inf")
+        self._held_pins: HeldPinReader | None = None
+        self._coverage_alerted: set[str] = set()
 
     # ---- lifecycle -------------------------------------------------------------------
 
@@ -213,7 +216,7 @@ class MarketDataRecorder:
                     return self.exit_code
             else:
                 universes = [self.universe]
-            self._install_books(universes)
+            self._install_books(universes, day)
         if self.config.research and self.source is not None and not self.research:
             overlay = await self._load_research(day)
             if overlay is None:
@@ -307,12 +310,25 @@ class MarketDataRecorder:
             )
         return self.exit_code
 
-    def _install_books(self, universes: list[Universe]) -> None:
+    def _install_books(self, universes: list[Universe], day: date | None = None) -> None:
+        pins: HeldPinReader | None = None
+        if self.config.pin_root is not None:
+            pins = HeldPinReader(
+                self.config.pin_root,
+                day or session_day(self.clock.now()),
+                universes,
+            )
+        self._held_pins = pins
+        open_positions = pins if pins is not None else (lambda: set())
         self.books = [
             _Book(
                 universe=u,
                 strikes=StrikeSet(
-                    u, retention_s=self.config.retention_s, max_instruments=self.config.max_instruments
+                    u,
+                    retention_s=self.config.retention_s,
+                    max_instruments=self.config.max_instruments,
+                    open_positions=open_positions,
+                    open_ladder_n=self.config.open_ladder_n,
                 ),
                 spot=u.spot,
             )
@@ -522,6 +538,7 @@ class MarketDataRecorder:
             return
         subscribed = {iid: inst for book in self.books for iid, inst in book.strikes.subscribed.items()}
         subscribed.update(self._research_only)
+        held = self._held_pins() if self._held_pins is not None else set()
         for iid, inst in subscribed.items():
             if inst.kind == "INDEX":
                 last = self._last_index_s.get(iid)
@@ -535,10 +552,32 @@ class MarketDataRecorder:
                 stale = age > self.config.stale_after_s
             if stale and iid not in self._stale:
                 self._stale.add(iid)
-                self._status(now, "STALE", instrument_id=iid, gap_s=None if age is None else round(age, 3))
+                gap = None if age is None else round(age, 3)
+                self._status(now, "STALE", instrument_id=iid, gap_s=gap)
+                if iid in held:
+                    self._coverage_alert(now, iid, gap if gap is not None else waited)
             elif not stale and iid in self._stale:
                 self._stale.discard(iid)
+                self._coverage_alerted.discard(iid)
                 self._status(now, "FRESH", instrument_id=iid)
+
+    def _coverage_alert(self, now: datetime, instrument_id: str, gap_s: float) -> None:
+        if instrument_id in self._coverage_alerted:
+            return
+        self._coverage_alerted.add(instrument_id)
+        log.warning(
+            "coverage alert: held %s has no quote for >%.0fs (gap=%.1fs)",
+            instrument_id,
+            self.config.stale_after_s,
+            gap_s,
+        )
+        self._status(
+            now,
+            "COVERAGE_ALERT",
+            instrument_id=instrument_id,
+            gap_s=round(gap_s, 3),
+            held=True,
+        )
 
     def _maybe_poll_spot(self, now: datetime, now_s: float) -> None:
         assert self._open_dt is not None
@@ -778,11 +817,11 @@ class MarketDataRecorder:
         await self._apply(book.strikes.update(spot, now_s), now, "recentre", book)
 
     async def _apply(self, change: Change, now: datetime, reason: str, book: _Book) -> None:
+        if change.recentred:
+            log.info("re-centred %s on spot %.2f: ATM %s", book.universe.underlying, book.spot, change.atm)
         if not change.subscribe and not change.unsubscribe:
             return
         assert self.collector is not None
-        if change.recentred:
-            log.info("re-centred %s on spot %.2f: ATM %s", book.universe.underlying, book.spot, change.atm)
         self._log_change(change, now, reason, book)
         for inst in change.unsubscribe:
             self.depth.drop(inst.instrument_id)

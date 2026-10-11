@@ -5,8 +5,10 @@
     python -m marketdata --record-only --underlying NIFTY,SENSEX
     python -m marketdata --coverage YYYY-MM-DD [--tape-root PATH]
 
-Default underlyings are NIFTY and SENSEX (nearest weekly ATM / ITM / OTM wings, not a full chain),
-plus current-month index futures and 10 NIFTY cash names on stream ``md:research``.
+Default underlyings are NIFTY and SENSEX (nearest weekly ATM / ITM / OTM wings plus a
+session-open ±5 strike ladder, not a full chain). Open paper/shadow contracts stay
+subscribed until they exit. Plus current-month index futures and 10 NIFTY cash names
+on stream ``md:research``.
 Credentials: DHAN_CLIENT_ID and DHAN_ACCESS_TOKEN from the environment or the repo ``.env``.
 Exit codes: 0 clean stop (15:30 IST or Ctrl-C/SIGTERM), 1 unexpected error,
 2 credentials or startup failure.
@@ -143,6 +145,7 @@ def _record(underlyings: tuple[str, ...], root: Path, tape_root: Path, day: date
         underlying=underlyings[0],
         underlyings=underlyings,
         cache_dir=cache_dir,
+        pin_root=root,
     )
     recorder = MarketDataRecorder(config, settings, source=source)
     log.info("marketdata recorder: %s, session %s, tapes under %s", ",".join(underlyings), day, tape_root)

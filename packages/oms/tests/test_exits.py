@@ -185,6 +185,21 @@ def test_eod_flat_zero_ticks_after_1500(tmp_path):
     assert not pm.open_book()
 
 
+def test_stale_last_quote_exit_is_flagged_stale(tmp_path):
+    """EOD flatten after a quote gap must not book the last print as a live fill."""
+    clock = SimClock(NOW)
+    pm = make_manager(tmp_path, clock, broker=make_broker(clock=clock))
+    _enter(pm, clock, make_exit_plan(flat_by_ist="15:15"))
+    clock.advance_to(datetime(2026, 9, 28, 15, 15, 0, tzinfo=IST))
+    fired = pm.on_market(envelope("CLOCK", clock.now(), {"minute": "15:15"}))
+    assert fired and fired[0].reason == "FLATTEN_EOD"
+    assert fired[0].stale_quote is True
+    closed = pm.store.closed[-1]
+    assert closed["quote_flag"] == "STALE"
+    assert any(a["reason_code"] == "STALE_QUOTE" for a in pm.alerts)
+    assert not pm.open_book()
+
+
 def test_partial_then_trail_moves_resting_stop(tmp_path):
     plan = make_exit_plan(
         partials=(Partial(at=Level(kind="premium", price=155.0), fraction=0.5),),

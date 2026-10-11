@@ -89,7 +89,7 @@ def test_clean_stop_at_1530_ist(tmp_path: Path) -> None:
     assert all(ts(r["timestamp"]) <= ist(15, 30) for r in s.rows("feed_status"))
     summary = json.loads((s.day_dir / "coverage_summary.json").read_text())
     assert summary["day"] == "2026-09-28"
-    assert len(summary["instruments"]) == 12
+    assert len(summary["instruments"]) == 24
 
 
 def test_started_before_open_waits_and_connects_at_0913(tmp_path: Path) -> None:
@@ -127,7 +127,7 @@ def test_reconnects_after_drop_and_resubscribes(tmp_path: Path) -> None:
     async def hook(t: datetime, server: FakeDhanServer, _rec: MarketDataRecorder) -> None:
         if t == ist(10, 0, 20):
             await server.drop_clients()
-            await until(lambda: server.connections >= 2 and len(server.subscribed) == 12, timeout=10)
+            await until(lambda: server.connections >= 2 and len(server.subscribed) == 24, timeout=10)
 
     s = asyncio.run(run_session(tmp_path, ist(10, 0), ist(10, 0, 40), source=StubSource(), hook=hook))
     assert s.recorder.collector is not None
@@ -135,7 +135,7 @@ def test_reconnects_after_drop_and_resubscribes(tmp_path: Path) -> None:
     statuses = [r["payload"]["status"] for r in s.rows("feed_status")]
     assert statuses[:3] == ["UP", "DOWN", "UP"]
     second = [r for _, r in s.server.requests if r.get("RequestCode") == 21][-1]
-    assert second["InstrumentCount"] == 11  # future + 10 options; index is ticker (15)
+    assert second["InstrumentCount"] == 23  # future + 22 open-ladder/ATM options; index is ticker (15)
     assert any(
         r.get("RequestCode") == 15 and 13 in {int(i["SecurityId"]) for i in r["InstrumentList"]}
         for _, r in s.server.requests
@@ -145,7 +145,7 @@ def test_reconnects_after_drop_and_resubscribes(tmp_path: Path) -> None:
         for r in s.rows("depth_quotes")
         if ts(r["payload"]["exchange_ts"]) > ist(10, 0, 25)
     }
-    assert len(after) == 12
+    assert len(after) == 24
 
 
 def test_reconnect_uses_backoff(tmp_path: Path) -> None:
@@ -319,12 +319,14 @@ def test_recorder_subscribes_nifty_and_sensex_weekly_wings(tmp_path: Path) -> No
     assert any(i.startswith("BSE_FNO:SENSEX:") and i.count(":") == 2 for i in ids)
     nifty_opts = {i for i in ids if i.startswith("NSE_FNO:NIFTY:") and i.count(":") == 4}
     sensex_opts = {i for i in ids if i.startswith("BSE_FNO:SENSEX:") and i.count(":") == 4}
-    assert len(nifty_opts) == 10
-    assert len(sensex_opts) == 10
+    assert len(nifty_opts) == 22
+    assert len(sensex_opts) == 22
     assert any(i.endswith(":CE") for i in nifty_opts) and any(i.endswith(":PE") for i in nifty_opts)
     assert any(i.endswith(":CE") for i in sensex_opts) and any(i.endswith(":PE") for i in sensex_opts)
     assert all(i.startswith("BSE_FNO:SENSEX:2026-10-01:") for i in sensex_opts)
-    assert len(ids) == 24
+    assert {i.split(":")[-2] for i in nifty_opts} == {str(k) for k in range(24250, 24751, 50)}
+    assert {i.split(":")[-2] for i in sensex_opts} == {str(k) for k in range(80700, 81701, 100)}
+    assert len(ids) == 48
     segs = {r["exchange_segment"] for r in rows}
     assert {"IDX_I", "NSE_FNO", "BSE_FNO"} <= segs
 

@@ -46,10 +46,13 @@ from marketdata.quotes import snapshot
 from marketdata.schemas import load_schema
 from marketdata.strikes import (
     DHAN_FEED_LIMITS,
+    OPEN_LADDER_N,
     OPTION_WINGS,
     RULES,
     STEADY_INSTRUMENTS,
     StrikeSet,
+    open_ladder_extra,
+    open_ladder_option_count,
 )
 from marketdata.tape import TapeWriter, repair_tail
 
@@ -156,6 +159,10 @@ def test_otm_wings_on_nifty_and_sensex() -> None:
     assert dual <= DHAN_FEED_LIMITS["instruments_per_socket"]
     # worst case: both books recentre and keep the old 10 option wings for 10 minutes
     assert 2 * (STEADY_INSTRUMENTS + OPTION_WINGS) <= DHAN_FEED_LIMITS["ids_per_subscribe"]
+    assert open_ladder_option_count() == 22
+    assert open_ladder_extra() == 12
+    # open ladder + moving set + retained old wings + research cash still under 100
+    assert 2 * (STEADY_INSTRUMENTS + open_ladder_extra() + OPTION_WINGS) + 10 <= DHAN_FEED_LIMITS["ids_per_subscribe"]
 
     nifty = StrikeSet(make_universe())
     nifty.update(24512.35, 0.0)
@@ -313,6 +320,25 @@ def test_itm_direction_and_recentre_with_retention() -> None:
     dropped = s.update(24560.0, 620.0).unsubscribe
     assert len(dropped) == OPTION_WINGS
     assert len(s.subscribed) == STEADY_INSTRUMENTS
+
+
+def test_open_ladder_stays_when_atm_walks_away() -> None:
+    s = StrikeSet(make_universe(), retention_s=600, open_ladder_n=OPEN_LADDER_N)
+    first = s.update(24512.35, 0.0)
+    assert s.session_open_atm == 24500
+    ladder = {
+        f"NSE_FNO:NIFTY:2026-09-29:{k}:{side}"
+        for k in range(24250, 24751, 50)
+        for side in ("CE", "PE")
+    }
+    assert set(s.open_ladder) == ladder
+    assert ladder <= set(s.subscribed)
+    assert {i.instrument_id for i in first.subscribe} >= ladder
+    s.update(24812.0, 20.0)
+    s.update(24812.0, 700.0)
+    assert ladder <= set(s.subscribed)
+    assert not (ladder & {i.instrument_id for i in s.update(24812.0, 800.0).unsubscribe})
+    assert len(s.subscribed) <= DHAN_FEED_LIMITS["ids_per_subscribe"]
 
 
 def test_open_positions_are_never_dropped_and_cap_holds() -> None:

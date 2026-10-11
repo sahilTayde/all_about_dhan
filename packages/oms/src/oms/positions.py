@@ -371,6 +371,8 @@ class PositionManager:
         if stale and req.reason not in STALE_EXEMPT and req.reason not in SEND_ON_CLOCK:
             self._pending[key] = req
             return None
+        if stale:
+            req = replace(req, stale_quote=True)
         self._pending.pop(key, None)
         if req.reason == "TRAIL_STOP" and req.new_stop is not None:
             self.router.tighten_stop(key, req.new_stop)
@@ -405,10 +407,13 @@ class PositionManager:
         # Same-step flatten fill: drop the SL-M first so on_depth cannot oversell.
         if flatten_now and will_fill:
             self.router.sync_protective_stop(pos, 0)
+        used_last_good = False
         if req.reason == "TIME_EXIT":
             if time_due:
-                self._try_fill_exit(order, work, req, force_hint=False)
+                used_last_good = stale
+                self._try_fill_exit(order, work, req, force_hint=stale)
         elif req.reason in STALE_EXEMPT:
+            used_last_good = stale
             self._try_fill_exit(order, work, req, force_hint=True)
         elif not stale:
             self._try_fill_exit(order, work, req, force_hint=False)
@@ -417,9 +422,24 @@ class PositionManager:
         elif req.reason == "PARTIAL" and key in self.store.positions:
             self.store.positions[key]["exit_in_flight"] = False
             self.store.positions[key]["partials_done"] = int(pos.get("partials_done") or 0) + 1
-        if req.stale_quote or (stale and req.reason in STALE_EXEMPT):
-            self._alert("STALE_QUOTE", key, req.reason)
+        if req.stale_quote or used_last_good:
+            self._flag_stale_exit(pos, work, key, req.reason)
         return req
+
+    def _flag_stale_exit(
+        self, pos: dict[str, Any], work: dict[str, Any], key: str, reason: str
+    ) -> None:
+        """Never book a last-quote exit as if it were a live print."""
+        pos["quote_flag"] = "STALE"
+        work["quote_flag"] = "STALE"
+        live = self.store.positions.get(key)
+        if live is not None:
+            live["quote_flag"] = "STALE"
+        if self.store.closed:
+            last = self.store.closed[-1]
+            if str(last.get("instrument_id") or "") == str(pos.get("instrument_id") or ""):
+                last["quote_flag"] = "STALE"
+        self._alert("STALE_QUOTE", key, reason)
 
     def _try_fill_exit(
         self, order: Any, pos: dict[str, Any], req: ExitRequest, *, force_hint: bool
@@ -548,6 +568,7 @@ class PositionManager:
                 "net_inr": payload.net_inr,
                 "held_s": payload.held_s,
                 "trade_id": payload.trade_id,
+                "quote_flag": pos.get("quote_flag"),
             },
             source="oms",
         )
