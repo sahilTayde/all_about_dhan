@@ -150,8 +150,11 @@ export const board = {
   capital_plan: { desk_capital_inr: 500000 },
   today: { net_pnl_inr: net, starting_desk_inr: 500000 },
   book_rank: [
-    { book_id: "MIX-DEFAULT-BUY", kind: "dealer", n_filled: 15, win_rate_net_pct: 20, sum_pnl_inr: net, sum_charges_inr: 1500 },
-    { book_id: "MIX-ML-LOGIT", kind: "ml", n_filled: 0, win_rate_net_pct: null, sum_pnl_inr: 0, sum_charges_inr: 0 },
+    { book_id: "MIX-DEFAULT-BUY", kind: "dealer", n_filled: 15, n_wins: 3, win_rate_net_pct: 20, sum_pnl_inr: net, sum_charges_inr: 1500 },
+    { book_id: "MIX-ML-LOGIT", kind: "ml", n_filled: 0, n_wins: 0, win_rate_net_pct: null, sum_pnl_inr: 0, sum_charges_inr: 0 },
+    { book_id: "MIX-ML-LOGIT-XR", kind: "ml", n_filled: 0, n_wins: 0, win_rate_net_pct: null, sum_pnl_inr: 0, sum_charges_inr: 0 },
+    { book_id: "MIX-ML-GREEKS", kind: "ml", n_filled: 0, n_wins: 0, win_rate_net_pct: null, sum_pnl_inr: 0, sum_charges_inr: 0 },
+    { book_id: "MIX-TV-EP-024", kind: "lab", n_filled: 0, n_wins: 0, win_rate_net_pct: null, sum_pnl_inr: 0, sum_charges_inr: 0 },
   ],
   seen_not_taken: {
     skipped_latest: [
@@ -166,7 +169,17 @@ export const board = {
       { source: "synth-a", side: "CE", vs_picker: "MATCH", underlying: "NIFTY", ts: BASE_TS + 14 * 1380, desk_opened: true },
     ],
   },
-  closed_trades: closed,
+  closed_trades: [
+    ...closed,
+    {
+      ...closed[0],
+      trade_id: `${closed[0].trade_id}-shadow`,
+      shadow: true,
+      execution: "refused",
+      realized_pnl_inr: Math.round((closed[0].realized_pnl_inr || 0) * 0.4 * 100) / 100,
+      book_id: "MIX-DEFAULT-BUY",
+    },
+  ],
   open_trades: open,
   orders: "REFUSED",
   promote: false,

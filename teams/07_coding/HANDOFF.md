@@ -1,5 +1,31 @@
 # Handoff log — Team 07 Coding
 
+## As of now (2026-10-11 IST) — paper desk + customer portal redesign (PAPER)
+
+```text
+From:     teams/07_coding
+To:       founder / 00 / 05 / 09
+Date:     2026-10-11
+Status:   PAPER / C7 portals / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+Accepted: /desk Today = ₹ net after costs,
+  open fills, today’s tape, market context.
+  /desk/strategies = five paper books +
+  shadow cards from the live board. Drawer
+  marks entry/exit on recorded premium only.
+  Health strip for recorder/token/feed.
+  Advanced hides the old dump. Customer `/`
+  keeps CALL/PUT/HOLD + journey + no orders.
+  Existing /ui/snapshot · /paper/trace ·
+  /paper/history. Empty when a field is
+  missing. No invented VIX / vs-random.
+Rejected: Live order path. Fake P/L. Tailwind
+  rewrite of /pm. STRAT-015+. Auto-promote
+  TRADE/WATCH/DROP (badge is fill-state only).
+UNKNOWN: Whether a live India VIX print will
+  ever land on last_index_regime.
+```
+
 ## As of now (2026-10-10 IST) — V2 recorder research overlay + snapshot volume (PAPER)
 
 ```text

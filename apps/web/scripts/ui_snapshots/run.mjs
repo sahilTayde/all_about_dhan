@@ -29,9 +29,10 @@ const OUT = resolve(arg("out", resolve(HERE, "out")));
 const WIDTHS = arg("widths", "390,1280,1440,1920").split(",").map(Number);
 const FEATURES = !args.includes("--no-features");
 const V2 = args.includes("--v2");
-const READY = ".grid, table.desk-history, .signal-layout, .customer-portal, .cleanup-desk, .shell";
+const READY = ".desk-today, .desk-board, .grid, table.desk-history, .signal-layout, .customer-portal, .cleanup-desk, .shell, .desk-shell";
 const PAGES = [
-  { name: "desk", path: "/desk", tradeTable: true },
+  { name: "desk", path: "/desk" },
+  { name: "desk-board", path: "/desk/strategies" },
   { name: "founder", path: "/pm", tradeTable: true },
   { name: "customer", path: "/" },
   { name: "cleanup", path: "/cleanup" },
@@ -218,6 +219,12 @@ async function measure(page) {
         marketCards: count(".market-card"),
         founderControls: count(".founder-controls .fc-box"),
         historyRows: count(".founder-controls .fc-table tbody tr"),
+        healthStrip: count("[data-testid=health-strip]"),
+        dayPnl: count("[data-testid=day-pnl]"),
+        openPositions: count("[data-testid=open-positions]"),
+        timeline: count("[data-testid=trade-timeline]"),
+        strategyCards: count("[data-testid=strategy-card]"),
+        advancedToggle: count("[data-testid=advanced-toggle]"),
       },
     };
   });
@@ -226,7 +233,8 @@ async function measure(page) {
 function featureProblems(name, width, f) {
   if (!FEATURES) return [];
   const need = {
-    desk: { alertBar: 1, traceNodes: 7, currentFields: 13, accountRows: 6, marketCards: 1, founderControls: 7, historyRows: 3 },
+    desk: { alertBar: 1, healthStrip: 1, dayPnl: 1, openPositions: 1, timeline: 1, marketCards: 1, advancedToggle: 1, currentFields: 1 },
+    "desk-board": { strategyCards: 5, healthStrip: 1, advancedToggle: 1 },
     founder: { alertBar: 1, ragRows: 7, traceNodes: 7, charts: 3, accountRows: 6, founderControls: 7, historyRows: 3 },
   }[name];
   if (!need) return [];
@@ -330,7 +338,7 @@ async function main() {
         if (u.includes("/paper/trace") || (V2 && u.includes("/v2/trace"))) traceHits.push(u);
       });
       await page.goto(`${base}/desk`, { waitUntil: "load" });
-      await page.waitForSelector(".grid .current-trade .kv");
+      await page.waitForSelector("[data-testid=desk-today] .current-trade .kv");
 
       // Alarm: enabling it must sound + notify for the CRITICAL alert that is already showing.
       await page.locator(".alert-bar .chip-btn").click();
@@ -348,13 +356,12 @@ async function main() {
       const stored = await page.evaluate(() => JSON.parse(localStorage.getItem("desk.alerts.dismissed.v2") || "[]"));
       check("dismiss-episode", hidden && back && stored.length === 0, `hidden=${hidden} back-on-new-episode=${back} stale-dismissals=${stored.length}`);
 
-      // Row + trace screenshot, then push-to-DOM refresh time (fixture flips the open ticket's LTP).
-      await page.locator("table.desk-history tbody tr").nth(1).click();
-      await page.locator(".trace-node").nth(2).click();
+      // Open-position drawer + trace, then push-to-DOM refresh time (fixture flips the open ticket's LTP).
+      await page.locator("[data-testid=open-positions] .pos-card").first().click();
+      await page.waitForSelector("[data-testid=trade-drawer] .trace-node");
+      await page.locator("[data-testid=trade-drawer] .trace-node").nth(2).click();
       await page.waitForTimeout(400);
       await page.screenshot({ path: resolve(OUT, "desk_1440_row_and_trace.png"), fullPage: false, clip: { x: 0, y: 0, width: 1440, height: 900 } });
-      await page.locator("table.desk-history tbody tr").first().click(); // the open ticket
-      await page.waitForTimeout(300);
       const hitsBefore = traceHits.length;
       const refreshMs = await page.evaluate(async () => {
         const dd = [...document.querySelectorAll(".current-trade .kv")].find((k) => k.querySelector("dt")?.textContent === "LTP")?.querySelector("dd");
@@ -369,14 +376,30 @@ async function main() {
       check("refresh", refreshMs < 200, `push → DOM ${refreshMs} ms (target < 200 ms)`);
       await page.waitForTimeout(400);
       check("trace-refresh", traceHits.length > hitsBefore, `open-ticket trace refetched after its update (${traceHits.length - hitsBefore} request)`);
+      check("drawer", (await page.locator("[data-testid=trade-drawer]").count()) === 1, "trade drawer open");
+      await page.locator("[data-testid=trade-drawer] .icon-btn").click();
 
-      // Past day: model-log rows have no close time → Out reads "—", never "open".
+      // Leaderboard: five paper slots + a shadow card when the tape has one.
+      await page.locator("[data-testid=tab-strategies]").click();
+      await page.waitForSelector("[data-testid=desk-leaderboard]");
+      const slotCount = await page.locator("[data-testid=strategy-card]").count();
+      const shadowCount = await page.locator("[data-testid=strategy-card][data-book$='SHADOW']").count();
+      await page.screenshot({ path: resolve(OUT, "desk_1440_leaderboard.png"), fullPage: true });
+      check("leaderboard-slots", slotCount >= 5 && shadowCount >= 1, `cards=${slotCount} shadow=${shadowCount}`);
+      await page.getByRole("button", { name: /Win %/ }).click();
+      check("leaderboard-sort", (await page.locator(".sort-bar .chip--active").innerText()).includes("Win"), "sorted by win %");
+      await page.locator(".desk-tabs [role=tab]", { hasText: "Today" }).click();
+
+      // Past day lives behind Advanced: model-log rows have no close time → Out reads "—", never "open".
+      await page.locator("[data-testid=advanced-toggle]").click();
+      await page.waitForSelector("table.desk-history");
       const pastDay = await page.locator(".filter-row select").first().locator("option").nth(1).getAttribute("value");
       await page.locator(".filter-row select").first().selectOption(pastDay);
       await page.waitForSelector("table.desk-history tbody tr td.col-end");
       const outs = await page.locator("table.desk-history tbody td.col-end").allTextContents();
-      await page.locator(".grid > section.panel").first().screenshot({ path: resolve(OUT, "desk_1440_past_day.png") });
+      await page.locator("[data-testid=advanced-panel]").screenshot({ path: resolve(OUT, "desk_1440_past_day.png") });
       check("past-day-out", outs.length > 0 && !outs.includes("open"), `${pastDay}: Out cells ${JSON.stringify([...new Set(outs)])}`);
+      await page.locator("[data-testid=advanced-toggle]").click();
 
       // No open ticket; founder has NIFTY on, SENSEX off, and SENSEX is first in the skip list.
       await page.evaluate(() => fetch("/__fixture/flat"));
@@ -405,7 +428,7 @@ async function main() {
 
       // History still indexing: every all-days / account / multi-day chart figure shows a label, no rupees.
       await page.evaluate(() => fetch("/__fixture/indexing"));
-      for (const [path, need] of [["/desk", 4], ["/pm", 9]]) {
+      for (const [path, need] of [["/desk", 1], ["/pm", 9]]) {
         await page.goto(`${base}${path}`, { waitUntil: "load" });
         await page.waitForSelector(".needs-history", { timeout: 5000 }).catch(() => {}); // absent = FAIL below
         await page.waitForTimeout(400);

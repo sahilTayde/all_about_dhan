@@ -24,7 +24,7 @@ function Chrome({ mode, feed, onInfo }) {
     <header className="cp-chrome">
       <div>
         <p className="cp-chrome__brand">all_about_dhan</p>
-        <p className="cp-chrome__sub">Five paper seats · you decide · orders refused</p>
+        <p className="cp-chrome__sub">Paper seats · you decide · orders refused</p>
       </div>
       <div className="cp-chrome__tools">
         <ModeBadge mode={mode} feed={feed} />
@@ -120,7 +120,7 @@ function CustomerBook({ view }) {
   return (
     <section className="customer-book" data-testid="customer-book" aria-labelledby="customer-book-heading">
       <div className="customer-book__head">
-        <h2 id="customer-book-heading">Today</h2>
+        <h2 id="customer-book-heading">Today’s book</h2>
         <ModeBadge mode={view.bookMode} feed={view.feed} />
       </div>
       {rows.length === 0 ? (
