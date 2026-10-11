@@ -1044,6 +1044,15 @@ def run_dual_tape_loop(
                             from desk_ml.research_rules import attach_to_board, publish_board
 
                             board = attach_to_board(board, root=settings.repo_root)
+                            try:
+                                from desk_ml.shadow_exits import attach_and_log
+
+                                attach_and_log(
+                                    (board.get("closed_trades") or []),
+                                    root=settings.repo_root,
+                                )
+                            except Exception:  # noqa: BLE001,S110 — log-only; never blocks the tape
+                                pass
                             publish_board(board, root=settings.repo_root)
                         except Exception:  # noqa: BLE001 — SOD board already written; rules are paper-only
                             pass

@@ -1,0 +1,28 @@
+# Log-only alternative exits next to the frozen 20-minute TIME hold.
+# trade: false — never attach these as paper tickets / never place an order.
+# shadow_log: true — write per-trade outcomes to data/shadow/<YYYY-MM-DD>.jsonl
+#               when SHADOW_LOG is on (default). Set shadow_log: false or
+#               SHADOW_EXIT_VARIANTS=0 to silence.
+trade: false
+shadow_log: true
+hold_min_default: 20
+variants:
+  - id: R13_T10
+    kind: target
+    pct: 0.10
+  - id: R21_T10
+    kind: target
+    pct: 0.10
+  - id: R17_TR30
+    kind: trail
+    pct: 0.30
+  - id: R23_T30
+    kind: target
+    pct: 0.30
+  - id: R09_TR30
+    kind: trail
+    pct: 0.30
+  - id: DEAD3_7
+    kind: dead
+    pct: 0.03
+    after_min: 7
