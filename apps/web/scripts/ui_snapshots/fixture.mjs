@@ -1,9 +1,14 @@
-// Synthetic paper board for UI snapshots. Invented numbers on a fake past session.
-// Not market data, not a replay, not a fill. Safe for a public repo.
+// Snapshot fixture. Closed-book rows stay invented for layout checks.
+// Open tickets rewind the latest recorded paper board (2026-09-25 dual-tape;
+// Oct 2026 tape is DATA_INSUFFICIENT in this checkout). Not a live fill.
 
-const DAY = "2026-01-15";
+const DAY = "2026-09-25";
 const IST_OFFSET = "+05:30";
 const BASE_TS = Date.parse(`${DAY}T09:30:00${IST_OFFSET}`) / 1000;
+// Recorded MIX-DEFAULT-BUY NIFTY PE still open at 15:11 IST (closed 15:12:12).
+const NIFTY_OPEN_TS = 1_790_329_127;
+const SENSEX_OPEN_TS = 1_790_329_200;
+const TAPE_LAST_TS = 1_790_329_304;
 
 function ist(ts) {
   const d = new Date((ts + 5.5 * 3600) * 1000);
@@ -85,18 +90,22 @@ function trade(i) {
 }
 
 const closed = Array.from({ length: 15 }, (_, i) => trade(i)).reverse();
-const niftyOpenTs = BASE_TS + 15 * 1380;
-const sensexOpenTs = BASE_TS + 16 * 1380;
-const tapeLastTs = sensexOpenTs + 300;
-const openEntry = 140.5;
+const niftyOpenTs = NIFTY_OPEN_TS;
+const sensexOpenTs = SENSEX_OPEN_TS;
+const tapeLastTs = TAPE_LAST_TS;
+const openEntry = 167.3;
+const NIFTY_SPOT = 23128.1;
+const SENSEX_SPOT = 73881.44;
 const open = [
   {
     ...trade(15),
     trade_id: "synth-open-NIFTY-PE",
+    book_id: "MIX-DEFAULT-BUY",
     underlying: "NIFTY",
     side: "PE",
-    atm_strike: 20350,
-    justification: "SYNTH buy PE ITM strike 20350 (ITM_100); why_now=PE: synthetic open ticket for the layout check; PAPER only. NO_PROMOTE.",
+    atm_strike: 23300,
+    justification:
+      "NIFTY buy PE ITM strike 23300.0 (ITM_100); bin=PE regime=TREND/DOWN last3=none; impulse_note=pause_wait_continuation; path stop 157.262 → target 177.3; why_now=PE: dump / PE bin / PE short-cover (CE still allowed when CE strength prints); PAPER only. NO_PROMOTE.",
     status: "OPEN",
     exit: null,
     exit_reason: null,
@@ -106,25 +115,26 @@ const open = [
     realized_pnl_inr: null,
     entry: openEntry,
     limit_price: openEntry,
-    last_ltp: 138.2,
-    stop: 132.07,
-    target: 148.93,
-    qty: 250,
-    lots: 5,
-    lot_size: 50,
+    last_ltp: 161.55,
+    stop: 157.262,
+    target: 177.3,
+    qty: 650,
+    lots: 10,
+    lot_size: 65,
     strategy_id: PAPER_SLOTS[0],
-    expiry: "2026-01-15",
-    seen_high: 143.1,
-    seen_low: 136.4,
+    expiry: null,
+    seen_high: 167.3,
+    seen_low: 161.55,
     premium_path: [
       { t: niftyOpenTs, v: openEntry, label: "entry" },
-      { t: niftyOpenTs + 90, v: 143.1, label: "high" },
-      { t: niftyOpenTs + 180, v: 136.4, label: "low" },
-      { t: tapeLastTs - 4, v: 138.2, label: "ltp" },
+      { t: tapeLastTs - 4, v: 161.55, label: "ltp" },
     ],
     trail_step: 0,
-    idx_at_open: 20260.4,
-    spot_at_entry: 20260.4,
+    idx_at_open: NIFTY_SPOT,
+    spot_at_entry: NIFTY_SPOT,
+    last_index_spot: NIFTY_SPOT,
+    opened_ts: niftyOpenTs,
+    opened_ist: ist(niftyOpenTs),
     closed_ts: null,
     closed_ist: null,
     last_updated_ts: tapeLastTs - 4,
@@ -133,10 +143,12 @@ const open = [
   {
     ...trade(16),
     trade_id: "synth-open-SENSEX-CE",
+    book_id: "MIX-DEFAULT-BUY",
     underlying: "SENSEX",
-    side: "CE",
-    atm_strike: 81200,
-    justification: "SYNTH buy CE ITM strike 81200; why_now=CE: second open for dual layout; PAPER only.",
+    side: "PE",
+    atm_strike: 74200,
+    justification:
+      "SENSEX buy PE ITM strike 74200 (ITM_100); bin=PE regime=TREND/UP last3=none; why_now=PE: premium up / CE premium down / CE sell volume; PAPER only. NO_PROMOTE.",
     status: "OPEN",
     exit: null,
     exit_reason: null,
@@ -144,27 +156,28 @@ const open = [
     result: null,
     realized_pnl: null,
     realized_pnl_inr: null,
-    entry: 210.4,
-    limit_price: 210.4,
-    last_ltp: 218.75,
-    stop: 198.0,
-    target: 232.5,
+    entry: 465.25,
+    limit_price: 465.25,
+    last_ltp: 465.25,
+    stop: 437.335,
+    target: 493.165,
     qty: 200,
     lots: 10,
     lot_size: 20,
     strategy_id: PAPER_SLOTS[3],
-    expiry: "2026-01-16",
-    seen_high: 220.1,
-    seen_low: 207.4,
+    expiry: null,
+    seen_high: 465.25,
+    seen_low: 465.25,
     premium_path: [
-      { t: sensexOpenTs, v: 210.4, label: "entry" },
-      { t: sensexOpenTs + 80, v: 220.1, label: "high" },
-      { t: sensexOpenTs + 160, v: 207.4, label: "low" },
-      { t: tapeLastTs - 8, v: 218.75, label: "ltp" },
+      { t: sensexOpenTs, v: 465.25, label: "entry" },
+      { t: tapeLastTs - 8, v: 465.25, label: "ltp" },
     ],
     trail_step: 0,
-    idx_at_open: 81140,
-    spot_at_entry: 81140,
+    idx_at_open: SENSEX_SPOT,
+    spot_at_entry: SENSEX_SPOT,
+    last_index_spot: SENSEX_SPOT,
+    opened_ts: sensexOpenTs,
+    opened_ist: ist(sensexOpenTs),
     closed_ts: null,
     closed_ist: null,
     last_updated_ts: tapeLastTs - 8,
@@ -195,7 +208,7 @@ export const board = {
   live_session: true,
   session_ist_date: DAY,
   // Written long after the session (a replay): the page must show tape time, not this.
-  as_of_ist: "2026-02-01T04:04:00+05:30",
+  as_of_ist: "2026-09-26T04:04:00+05:30",
   starting_desk_inr: 500000,
   overall_pnl_inr: net,
   win_rate_net_pct: 20,
@@ -204,7 +217,7 @@ export const board = {
     NIFTY: { status: "REPLAY_OK", span_ist: { first: ist(BASE_TS), last: ist(tapeLastTs) } },
     BANKNIFTY: { status: "REPLAY_OK", span_ist: { first: ist(BASE_TS), last: ist(tapeLastTs - 60) } },
   },
-  last_index_regime: { NIFTY: regime(20999.95, "UP"), SENSEX: regime(81140, "UP") },
+  last_index_regime: { NIFTY: regime(NIFTY_SPOT, "DOWN"), SENSEX: regime(SENSEX_SPOT, "UP") },
   capital_plan: { desk_capital_inr: 500000 },
   today: { net_pnl_inr: net, starting_desk_inr: 500000 },
   book_rank: [
@@ -258,7 +271,7 @@ export const board = {
       actor: "Desk",
       decision: "pass",
       reason: "PE ticket",
-      inputs: { side: "PE", premium: openEntry, sl: 132.07, target: 148.93 },
+      inputs: { side: "PE", premium: openEntry, sl: 157.262, target: 177.3 },
     },
     {
       ts_ist: ist(niftyOpenTs),
@@ -302,7 +315,7 @@ export const board = {
       actor: "Desk",
       decision: "pass",
       reason: "Trade in progress",
-      inputs: { premium: 138.2 },
+      inputs: { premium: 161.55 },
     },
     {
       ts_ist: ist(sensexOpenTs),
@@ -312,8 +325,8 @@ export const board = {
       stage: "analyst",
       actor: "Momentum",
       decision: "pass",
-      reason: "Momentum spoke",
-      inputs: { side: "CE", day_type: "TREND" },
+      reason: "ITM PE bin spoke",
+      inputs: { side: "PE", day_type: "TREND" },
     },
     {
       ts_ist: ist(sensexOpenTs),
@@ -323,8 +336,8 @@ export const board = {
       stage: "desk",
       actor: "Desk",
       decision: "pass",
-      reason: "CE ticket",
-      inputs: { side: "CE", premium: 210.4 },
+      reason: "PE ticket",
+      inputs: { side: "PE", premium: 465.25 },
     },
     {
       ts_ist: ist(sensexOpenTs),
@@ -345,8 +358,8 @@ export const board = {
       stage: "boss",
       actor: "Boss picker",
       decision: "pass",
-      reason: "Buy CE",
-      inputs: { side: "CE" },
+      reason: "Buy PE",
+      inputs: { side: "PE" },
     },
     {
       ts_ist: ist(sensexOpenTs),
@@ -357,7 +370,7 @@ export const board = {
       actor: "Paper fill",
       decision: "fill",
       reason: "Paper fill",
-      inputs: { premium: 210.4 },
+      inputs: { premium: 465.25 },
     },
     {
       ts_ist: ist(tapeLastTs - 8),
@@ -368,7 +381,7 @@ export const board = {
       actor: "Desk",
       decision: "pass",
       reason: "Trade in progress",
-      inputs: { premium: 218.75 },
+      inputs: { premium: 465.25 },
     },
     {
       ts_ist: ist(BASE_TS + 720),
@@ -555,7 +568,7 @@ for (const t of todayRows) {
 export const days = [today, ...pastDays(14).map(summary)];
 const allNet = days.reduce((s, d) => s + d.net, 0);
 
-export function snapshot(nowIso = "2026-02-01T10:00:00+05:30") {
+export function snapshot(nowIso = "2026-09-26T10:00:00+05:30") {
   return {
     ok: true,
     as_of: nowIso,

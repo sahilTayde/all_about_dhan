@@ -644,6 +644,33 @@ function expiryLabel(raw) {
   return `${Number(m[3])} ${months[Number(m[2]) - 1]}`;
 }
 
+/** Dhan F&O ₹20/order + NSE statutory, same as desk_ml.groww_costs. Open trades estimate the exit at LTP. */
+export function estRoundTripCharges(entry, exitPx, qty) {
+  const buy = num(entry);
+  const sell = num(exitPx) ?? buy;
+  const units = num(qty);
+  if (buy == null || buy <= 0 || sell == null || sell <= 0) return null;
+  const brokerage = 40;
+  if (units == null || units <= 0) {
+    const gst = Math.round(brokerage * 0.18 * 100) / 100;
+    return Math.round((brokerage + gst) * 100) / 100;
+  }
+  const buyTurn = buy * units;
+  const sellTurn = sell * units;
+  const both = buyTurn + sellTurn;
+  const exchange = Math.round(both * 0.000355299 * 100) / 100;
+  const ipft = Math.round(both * 0.000000001 * 100) / 100;
+  const sebi = Math.round(both * 0.000001 * 100) / 100;
+  const stamp = Math.round(buyTurn * 0.00003 * 100) / 100;
+  const gst = Math.round((brokerage + exchange + sebi + ipft) * 0.18 * 100) / 100;
+  const stt = Math.round(sellTurn * 0.0015 * 100) / 100;
+  return Math.round((brokerage + gst + stt + exchange + sebi + stamp + ipft) * 100) / 100;
+}
+
+function clamp(n, lo, hi) {
+  return Math.max(lo, Math.min(hi, n));
+}
+
 /** Running-trade card numbers. Missing record fields stay null (rendered "—"). */
 export function runningTradeView(t, { nowMs = Date.now(), spotNow } = {}) {
   const n = tradeNow(t, { nowMs });
@@ -656,13 +683,21 @@ export function runningTradeView(t, { nowMs = Date.now(), spotNow } = {}) {
   const riskInr = riskPts != null && qty != null ? riskPts * qty : null;
   const slPct = entry && stop != null ? ((stop - entry) / entry) * 100 : null;
   const tgtPct = entry && target != null ? ((target - entry) / entry) * 100 : null;
-  const coveredPct = entry != null && target != null && target !== entry && ltp != null ? ((ltp - entry) / (target - entry)) * 100 : null;
-  const toStopPct = entry != null && stop != null && entry !== stop && ltp != null ? ((ltp - stop) / (entry - stop)) * 100 : null;
+  // Covered is signed vs entry→target and clamped so a pullback is negative, not 167%.
+  const coveredRaw =
+    entry != null && target != null && target !== entry && ltp != null ? ((ltp - entry) / (target - entry)) * 100 : null;
+  // Room left to the stop, as ₹ and as % of the original entry−stop cushion (0% = on/through stop).
+  const roomPts = ltp != null && stop != null ? ltp - stop : null;
+  const roomPctRaw =
+    entry != null && stop != null && entry !== stop && ltp != null ? ((ltp - stop) / (entry - stop)) * 100 : null;
   const peakInr = n.mfe != null && qty != null ? n.mfe * qty : null;
   const spotIn = num(t.spot_at_entry ?? t.idx_at_open);
   const spotOut = num(spotNow ?? t.last_index_spot ?? t.spot_now);
   const span = stop != null && target != null && target !== stop ? target - stop : null;
-  const mark = (v) => (span && v != null ? Math.max(0, Math.min(1, (v - stop) / span)) : null);
+  const mark = (v) => (span && v != null ? clamp((v - stop) / span, 0, 1) : null);
+  const estCharges = estRoundTripCharges(entry, ltp, qty);
+  const coveredPct = coveredRaw == null ? null : Math.round(clamp(coveredRaw, -100, 100) * 10) / 10;
+  const roomToStopPct = roomPctRaw == null ? null : Math.round(clamp(roomPctRaw, 0, 100) * 10) / 10;
   return {
     ...n,
     target,
@@ -670,8 +705,12 @@ export function runningTradeView(t, { nowMs = Date.now(), spotNow } = {}) {
     riskInr,
     slPct: slPct == null ? null : Math.round(slPct * 10) / 10,
     tgtPct: tgtPct == null ? null : Math.round(tgtPct * 10) / 10,
-    coveredPct: coveredPct == null ? null : Math.round(coveredPct * 10) / 10,
-    toStopPct: toStopPct == null ? null : Math.round(toStopPct * 10) / 10,
+    coveredPct,
+    roomToStopPct,
+    roomToStopInr: roomPts != null && qty != null ? roomPts * qty : null,
+    toStopPct: roomToStopPct,
+    estCharges,
+    netInr: n.inr != null && estCharges != null ? n.inr - estCharges : n.inr,
     peakInr,
     peakPct: entry && n.mfe != null ? Math.round((n.mfe / entry) * 1000) / 10 : null,
     pnlPct: pnlPct(entry, ltp),

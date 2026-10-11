@@ -28,6 +28,12 @@ function PathBar({ path, stop, entry, ltp, target }) {
     );
   }
   const left = (v) => `${Math.max(0, Math.min(100, (v ?? 0) * 100))}%`;
+  const ticks = [
+    { key: "sl", at: path.sl, text: `SL ${px(stop)}` },
+    { key: "entry", at: path.entry, text: `Entry ${px(entry)}` },
+    { key: "now", at: path.now, text: `Now ${px(ltp)}` },
+    { key: "target", at: path.target, text: `Target ${px(target)}` },
+  ].filter((t) => t.at != null);
   return (
     <div className="run-path" data-testid="run-path">
       <div className="run-path__track" aria-hidden="true">
@@ -36,10 +42,11 @@ function PathBar({ path, stop, entry, ltp, target }) {
         <em className="run-path__mark run-path__mark--now" style={{ left: left(path.now) }} title="Now" />
       </div>
       <div className="run-path__ticks">
-        <span>SL {px(stop)}</span>
-        <span>Entry {px(entry)}</span>
-        <span>Now {px(ltp)}</span>
-        <span>Target {px(target)}</span>
+        {ticks.map((t) => (
+          <span key={t.key} className={`run-path__tick run-path__tick--${t.key}`} style={{ left: left(t.at) }}>
+            {t.text}
+          </span>
+        ))}
       </div>
     </div>
   );
@@ -100,7 +107,13 @@ function PositionCard({ t, clock, nowMs, spotNow, selected, onSelect }) {
             <PathBar path={v.path} stop={v.stop} entry={v.entry} ltp={v.ltp} target={v.target} />
             <p className="run-card__cover">
               <span>{v.coveredPct == null ? "—" : `${signedPct(v.coveredPct)} of target covered`}</span>
-              <span>{v.toStopPct == null ? "—" : `${pct(v.toStopPct)} to stop`}</span>
+              <span>
+                {v.roomToStopInr == null
+                  ? "—"
+                  : `Room to stop: ${inr(v.roomToStopInr, { signed: false })}${
+                      v.roomToStopPct == null ? "" : ` (${pct(v.roomToStopPct)})`
+                    }`}
+              </span>
             </p>
           </div>
           <PremiumSpark points={marks.points} lines={lines} label={`${t.underlying} premium`} width={280} height={72} />
@@ -148,11 +161,13 @@ export function OpenPositions({ rows, clock, hold, last, onSelect, selectedId, r
   const totals = list.reduce(
     (acc, t) => {
       const n = runningTradeView(t, { nowMs, spotNow: regimeSpot(regimes, t.underlying) });
-      if (n.inr != null) acc.inr += n.inr;
+      if (n.inr != null) acc.gross += n.inr;
+      if (n.estCharges != null) acc.charges += n.estCharges;
+      if (n.netInr != null) acc.net += n.netInr;
       acc.n += 1;
       return acc;
     },
-    { inr: 0, n: 0 },
+    { gross: 0, charges: 0, net: 0, n: 0 },
   );
   return (
     <section className="widget open-positions" data-testid="open-positions">
@@ -176,8 +191,8 @@ export function OpenPositions({ rows, clock, hold, last, onSelect, selectedId, r
       {list.length > 1 ? (
         <div className="pos-total" data-testid="pos-total">
           <span>Combined</span>
-          <strong className={moneyClass(totals.inr)}>{inr(totals.inr)}</strong>
-          <span className="muted small">{totals.n} opens · before charges</span>
+          <strong className={moneyClass(totals.net)}>{inr(totals.net)}</strong>
+          <span className="muted small">{totals.n} opens · after est. charges</span>
         </div>
       ) : null}
     </section>

@@ -2,7 +2,7 @@
   "meta": {
     "source": "mock",
     "placeholder": true,
-    "asOf": "2026-09-06T18:30:00+05:30",
+    "asOf": "2026-09-25T15:11:44+05:30",
     "note": "UI MOCK / FIXTURE paper desk. Customer ticket Entry/SL/Target = option premium or DATA_INSUFFICIENT \u2014 never INDEX levels. Chart overlays keep index entrySpot/stopSpot/targetSpot. fixtureBook is demo-only; todaysBook is PAPER-only. No live strategy. No Dhan from browser. Not a fill. Not advice. Confidence \u2260 win rate. Veto banner: top_veto_reasons / meta.veto_banner when WAITING.",
     "label": "MOCK",
     "waiting_demo": "Set any signal.side to HOLD to show WAITING FOR NEXT SIGNAL empty window.",
@@ -101,30 +101,30 @@
       "id": "mock-nifty-001",
       "underlying": "NIFTY",
       "side": "BUY_PE",
-      "strike": 24850,
-      "entry": 118.4,
-      "stop": 108,
-      "target": 142,
+      "strike": 23300,
+      "entry": 167.3,
+      "stop": 157.262,
+      "target": 177.3,
       "lots": 10,
       "lot_size": 65,
-      "last_ltp": 121.2,
-      "seen_high": 124.5,
+      "last_ltp": 161.55,
+      "seen_high": 167.3,
       "strategy_id": "R01_PDIV_5_ALL_H20",
-      "timeIst": "2026-09-06T13:40:00+05:30",
-      "opened_ist": "2026-09-06T13:40:00+05:30",
+      "timeIst": "2026-09-25T15:08:47+05:30",
+      "opened_ist": "2026-09-25T15:08:47+05:30",
       "expiry": "2026-10-07",
       "customer": {
         "headline": "Put ticket live \u2014 you decide",
-        "note": "Momentum after 10:30, trending market. Strike and premium are bound on this paper ticket."
+        "note": "PE: dump / PE bin / PE short-cover"
       },
       "ticket": {
         "unit": "OPTION_PREMIUM",
         "levels_ready": false,
         "levels_note": "DATA_INSUFFICIENT: option premium LTP unbound. Index path on chart only (entrySpot/stopSpot/targetSpot). Not a fill. LIVE paper must not invent premium from index.",
-        "index_entry": 24840,
+        "index_entry": 23128.1,
         "index_stop": 24895,
         "index_target": 24755,
-        "underlying_spot": 24840
+        "underlying_spot": 23128.1
       },
       "confidence": {
         "score_pct": 55,
@@ -420,13 +420,13 @@
         "overlays": {
           "signalAt": 1756699980,
           "signalPrice": 24873.25,
-          "entrySpot": 24840,
+          "entrySpot": 23128.1,
           "stopSpot": 24895,
           "targetSpot": 24755
         }
       },
-      "spot": 24840,
-      "underlying_spot": 24840,
+      "spot": 23128.1,
+      "underlying_spot": 23128.1,
       "top_veto_reasons": []
     },
     "BANKNIFTY": {
@@ -777,22 +777,22 @@
     "SENSEX": {
       "id": "mock-sensex-001",
       "underlying": "SENSEX",
-      "side": "BUY_CE",
-      "strike": 81200,
-      "entry": 210.4,
-      "stop": 198,
-      "target": 232.5,
+      "side": "BUY_PE",
+      "strike": 74200,
+      "entry": 465.25,
+      "stop": 437.335,
+      "target": 493.165,
       "lots": 10,
       "lot_size": 20,
-      "last_ltp": 218.75,
-      "seen_high": 220.1,
+      "last_ltp": 465.25,
+      "seen_high": 465.25,
       "strategy_id": "R07_MOM3_TREND",
-      "timeIst": "2026-09-06T13:52:00+05:30",
-      "opened_ist": "2026-09-06T13:52:00+05:30",
+      "timeIst": "2026-09-25T15:10:00+05:30",
+      "opened_ist": "2026-09-25T15:10:00+05:30",
       "expiry": "2026-10-07",
       "customer": {
-        "headline": "Call ticket live — you decide",
-        "note": "Momentum after 10:30, trending market."
+        "headline": "Put ticket live — you decide",
+        "note": "PE: premium up / CE premium down / CE sell volume"
       },
       "systemOutcome": {
         "mtmPts": -28,
@@ -1094,13 +1094,13 @@
         "unit": "OPTION_PREMIUM",
         "levels_ready": false,
         "levels_note": "DATA_INSUFFICIENT: option premium LTP unbound. Index path on chart only (entrySpot/stopSpot/targetSpot). Not a fill. LIVE paper must not invent premium from index.",
-        "index_entry": 81120,
+        "index_entry": 73881.44,
         "index_stop": 80940,
         "index_target": 81480,
-        "underlying_spot": 81120
+        "underlying_spot": 73881.44
       },
-      "spot": 81120,
-      "underlying_spot": 81120,
+      "spot": 73881.44,
+      "underlying_spot": 73881.44,
       "top_veto_reasons": [
         "BIG_NEWS: hold customer ticket \u2014 not alpha",
         "cited_news: Fixture GLOBAL risk-off headline (demo)",

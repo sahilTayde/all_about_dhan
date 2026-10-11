@@ -1,5 +1,38 @@
 # Handoff log — Team 07 Coding
 
+## As of now (2026-10-11 IST) — running-trade review (gauge / room / tape) (PAPER)
+
+```text
+From:     teams/07_coding
+To:       founder / 00 / 05 / 09
+Date:     2026-10-11
+Status:   PAPER / C7 portals / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+Accepted: Path marks + tick labels sit on a
+  linear SL..target scale (Now left of
+  Entry when LTP < entry). Copy is
+  "Room to stop: ₹X (Y%)" with Y clamped
+  0–100, and "% of target covered"
+  signed and clamped −100..100.
+  Combined is net after est. Dhan+NSE
+  charges, with spacing. Lots are the
+  roster 10 × 65 NIFTY / 10 × 20 SENSEX.
+  Open tickets rewind the latest recorded
+  paper board (2026-09-25): NIFTY PE
+  23300 entry 167.3 / last 161.55, why
+  "PE: dump / PE bin / PE short-cover",
+  spot in = spot now 23128.10.
+Rejected: Invented Oct-2026 fills. Live
+  orders. Jan synth 20350 / 20999.95 vs
+  20260.40 spots. "% to stop" 167%.
+UNKNOWN: No Oct 2026 tape in this
+  checkout. 2026-09-25 n_open=0 and no
+  SENSEX fill (dealer HOLD). SENSEX card
+  uses the same-session ITM PE 74200
+  print 465.25 / spot 73881.44 / PE-bin
+  why — not a booked SENSEX fill.
+```
+
 ## As of now (2026-10-11 IST) — running trade card + pipeline review (PAPER)
 
 ```text

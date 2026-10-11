@@ -311,15 +311,49 @@
 .run-path__mark--entry { background: #8fb4d9; }
 .run-path__mark--now { background: #f2d27a; width: 0.3rem; margin-left: -0.15rem; }
 
-.run-path__ticks,
+.run-path__ticks {
+  position: relative;
+  min-height: 2.15rem;
+  font-size: 0.68rem;
+  color: var(--ink-soft);
+  font-variant-numeric: tabular-nums;
+}
+
+.run-path__tick {
+  position: absolute;
+  top: 0;
+  transform: translateX(-50%);
+  white-space: nowrap;
+}
+
+.run-path__tick--sl { transform: none; }
+.run-path__tick--target { transform: translateX(-100%); }
+.run-path__tick--now { top: 1.05rem; }
+
 .run-card__cover {
   display: flex;
   justify-content: space-between;
-  gap: 0.4rem;
+  gap: 0.55rem 1rem;
   flex-wrap: wrap;
   font-size: 0.68rem;
   color: var(--ink-soft);
   font-variant-numeric: tabular-nums;
+}
+
+.pos-total {
+  display: flex;
+  align-items: baseline;
+  gap: 0.45rem 0.75rem;
+  flex-wrap: wrap;
+  margin-top: 0.7rem;
+  padding: 0.5rem 0.1rem 0;
+  border-top: 1px solid var(--line);
+  font-variant-numeric: tabular-nums;
+}
+
+.pos-total strong {
+  font-size: 1.08rem;
+  letter-spacing: 0.01em;
 }
 
 @media (min-width: 720px) {

@@ -44,7 +44,7 @@ const clients = new Set();
 function currentSnap() {
   const s = structuredClone(snapshot());
   if (state.bumped) {
-    s.board.open_trades[0].last_ltp = 139.95;
+        s.board.open_trades[0].last_ltp = 162.4;
     s.board.open_trades[0].last_updated_ts += 2;
   }
   if (state.flat) {
@@ -467,7 +467,7 @@ async function main() {
         "running-trade",
         /Running trade/.test(runText) &&
           /of target covered/.test(runText) &&
-          /to stop/.test(runText) &&
+          /Room to stop/.test(runText) &&
           (await page.locator("[data-testid=run-path]").count()) >= 2 &&
           !/CANCEL_NO_PROGRESS|OVERLAY_COIL/.test(runText),
         runText.slice(0, 240),

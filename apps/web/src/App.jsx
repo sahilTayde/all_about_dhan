@@ -167,8 +167,8 @@ function signalToOpen(und, signal) {
     stop,
     target,
     lots: signal.lots ?? 10,
-    lot_size: signal.lot_size ?? 50,
-    qty: (signal.lots || 10) * (signal.lot_size || 50),
+    lot_size: signal.lot_size ?? (und === "SENSEX" ? 20 : 65),
+    qty: (signal.lots || 10) * (signal.lot_size || (und === "SENSEX" ? 20 : 65)),
     status: "OPEN",
     opened_ts: opened,
     opened_ist: signal.timeIst || signal.opened_ist,
@@ -273,6 +273,9 @@ export default function App() {
               ? { replay: true, ms: Date.parse(desk.asOf), ist: desk.asOf }
               : undefined
           }
+          regimes={Object.fromEntries(
+            opens.map((t) => [t.underlying, { itm_bin: { index: t.last_index_spot || t.spot_at_entry } }]),
+          )}
           onSelect={setPicked}
           selectedId={picked?.trade_id}
         />

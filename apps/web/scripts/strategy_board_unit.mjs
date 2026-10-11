@@ -11,7 +11,7 @@ import {
   todayTimeline,
   winVsRandom,
 } from "../src/lib/strategyBoard.js";
-import { pathProgress, pnlPct, runningTradeView } from "../src/lib/paperBoard.js";
+import { estRoundTripCharges, pathProgress, pnlPct, runningTradeView } from "../src/lib/paperBoard.js";
 
 assert.equal(PAPER_SLOT_IDS.length, 5);
 assert.equal(slotBadge({ nFilled: 2, net: 60, vsRandom: 8 }), "WATCH");
@@ -104,9 +104,36 @@ const run = runningTradeView(
 assert.equal(run.expiry, "16 Jan");
 assert.equal(run.inr, (218.75 - 210.4) * 200);
 assert.equal(run.riskInr, (210.4 - 198) * 200);
-assert.ok(run.coveredPct > 0 && run.toStopPct > 100);
+assert.ok(run.coveredPct > 0 && run.coveredPct <= 100);
+assert.equal(run.roomToStopPct, 100);
+assert.ok(run.roomToStopInr > (210.4 - 198) * 200);
+assert.ok(run.estCharges > 0);
+assert.equal(run.netInr, run.inr - run.estCharges);
 assert.ok(run.peakInr > run.inr);
 assert.equal(run.spotNow, 81180);
 assert.match(run.why, /Momentum/);
+
+const pullback = runningTradeView(
+  {
+    side: "PE",
+    atm_strike: 23300,
+    entry: 167.3,
+    last_ltp: 161.55,
+    stop: 157.262,
+    target: 177.3,
+    lots: 10,
+    lot_size: 65,
+    qty: 650,
+    spot_at_entry: 23128.1,
+    opened_ts: 1_790_329_127,
+    justification: "why_now=PE: dump / PE bin / PE short-cover",
+  },
+  { nowMs: 1_790_329_300 * 1000, spotNow: 23128.1 },
+);
+assert.ok(pullback.path.now < pullback.path.entry, "now sits left of entry on SL..target");
+assert.ok(pullback.coveredPct < 0 && pullback.coveredPct >= -100);
+assert.ok(pullback.roomToStopPct > 0 && pullback.roomToStopPct < 100);
+assert.equal(pullback.spotIn, pullback.spotNow);
+assert.equal(estRoundTripCharges(167.3, 161.55, 650) > 0, true);
 
 console.log("PASS strategy_board_unit slots + shadow + empty + sort + running trade");
