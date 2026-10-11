@@ -145,6 +145,7 @@ jobs:
           packages/strategies/src/strategies/plugins/b8b_b3a_ex_choppy.py
           packages/strategies/src/strategies/plugins/r07_mom3_trend.py
           packages/strategies/src/strategies/plugins/b8a_r07_no_pre1030.py
+          packages/strategies/src/strategies/plugins/rb1_box_1m_cpr.py
       - run: >-
           python -m ruff format --check packages/runtime packages/control packages/shadow packages/harness
           packages/accounts
@@ -167,6 +168,7 @@ jobs:
           packages/strategies/src/strategies/plugins/b8b_b3a_ex_choppy.py
           packages/strategies/src/strategies/plugins/r07_mom3_trend.py
           packages/strategies/src/strategies/plugins/b8a_r07_no_pre1030.py
+          packages/strategies/src/strategies/plugins/rb1_box_1m_cpr.py
 
   types:
     runs-on: ubuntu-24.04
@@ -202,6 +204,7 @@ jobs:
           src/strategies/plugins/b8b_b3a_ex_choppy.py
           src/strategies/plugins/r07_mom3_trend.py
           src/strategies/plugins/b8a_r07_no_pre1030.py
+          src/strategies/plugins/rb1_box_1m_cpr.py
         working-directory: packages/strategies
 
   integration:

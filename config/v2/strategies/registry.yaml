@@ -58,3 +58,10 @@ strategies:
     params_hash: "bfb8937b2f640e59"
     stage: "paper"
     legacy_logic_from: []
+  # RB1 range-box (research WATCH). Shadow only. Not a paper slot. Never live.
+  - strategy_id: "RB1-BOX-1M-CPR"
+    module_path: "strategies.plugins.rb1_box_1m_cpr"
+    version: "1.0.0"
+    params_hash: "d0cebf4b9f61b228"
+    stage: "shadow"
+    legacy_logic_from: []

@@ -2,6 +2,31 @@
 
 **Agents:** read **only the newest block**. Do not ingest this whole log. New files: [`docs/FILE_CREATION.md`](../../docs/FILE_CREATION.md). Append here — do not create `HANDOFF_TOMORROW.md` or extra `CONTINUE_*`.
 
+## As of now (2026-10-11 IST) — RB1-BOX-1M-CPR shadow registry (PAPER / NO_PROMOTE)
+
+```text
+From:     teams/00_orchestrator
+To:       founder / 07 / 04 / 06 / 09
+Date:     2026-10-11
+Status:   PAPER / shadow registry / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+Accepted: Add RB1-BOX-1M-CPR to
+  config/v2/strategies/registry.yaml
+  stage=shadow. Port detect.det /
+  breaks_day / trades.exit_idx.
+  Frozen PARAMS. Option buy only.
+  Log desk 15% premium stop and
+  ₹30k daily cap when they would
+  fire. Look-ahead unit test.
+Rejected: Paper slot / accounts.yaml
+  change. Live stage. STRAT-015+.
+  Approved-basket assignment.
+UNKNOWN: V2 tape parity vs
+  rangebox_watch.py daily CSV
+  after 2026-10-12 (acceptance
+  before any stage flip).
+```
+
 ## As of now (2026-10-10 IST) — C5 paper research slots registered (PAPER)
 
 ```text
