@@ -4101,12 +4101,6 @@ def _close(engine: BookEngine, pos: OpenPaper, *, ltp: float, ts: int, reason: s
     )
     if rc is not None:
         engine.closed[-1].update(rc["extra"])
-    try:
-        from desk_ml.decision_journal import record_close
-
-        record_close(engine, engine.closed[-1])
-    except Exception:
-        pass
     if inr is not None:
         engine.equity[pos.book_id] = engine.book_equity(pos.book_id) + inr
     engine.opens.pop((pos.book_id, pos.underlying), None)
@@ -5774,12 +5768,6 @@ def step_decide(engine: BookEngine, s: TickStep, votes: Sequence[Any], *, open_f
     exam["observer_clock"] = OBSERVER_CLOCK
     engine.last_step["exam"] = exam
     engine.last_step_by_und[und] = dict(engine.last_step)
-    try:
-        from desk_ml.decision_journal import record_engine_step
-
-        record_engine_step(engine)
-    except Exception:
-        pass
     engine.exam_events.append(
         compact_exam_event(engine.last_step, opened=bool(opened_this_tick and sod), quote_src=quote_src)
     )

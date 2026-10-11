@@ -1,5 +1,25 @@
 # Handoff log — Team 07 Coding
 
+## As of now (2026-10-11 IST) — journal hooks off the frozen file (PAPER)
+
+```text
+From:     teams/07_coding
+To:       founder / 00 / 09
+Date:     2026-10-11
+Status:   PAPER / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+Accepted: Decision journal stays. Hooks wrap
+  paper_scalp._close / step_decide from
+  decision_journal.install_engine_hooks
+  (CLI + dual-tape). write=False replay
+  writes nothing. Frozen paper_scalp.py
+  SHA restored.
+Rejected: Editing frozen paper_scalp.py.
+  Journal writes on offline golden replay.
+UNKNOWN: Live cycle itself is also frozen;
+  install is called by dual_tape / CLI.
+```
+
 ## As of now (2026-10-11 IST) — running-trade review (gauge / room / tape) (PAPER)
 
 ```text

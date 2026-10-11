@@ -429,6 +429,14 @@ def row_from_close(closed: Mapping[str, Any]) -> Optional[dict[str, Any]]:
     )
 
 
+def journal_enabled(engine: Any) -> bool:
+    """write=False offline replay stays silent. Direct unit calls (no ctx) still write."""
+    ctx = getattr(engine, "ctx", None)
+    if ctx is None:
+        return True
+    return bool(getattr(ctx, "write", False))
+
+
 def record_engine_step(engine: Any) -> list[dict[str, Any]]:
     root = getattr(engine, "root", None)
     step = getattr(engine, "last_step", None) or {}
@@ -446,3 +454,38 @@ def record_close(engine: Any, closed: Mapping[str, Any]) -> Optional[dict[str, A
         return row
     DecisionJournal(Path(root)).append(row)
     return row
+
+
+def install_engine_hooks() -> bool:
+    """Wrap paper_scalp close/step without editing the frozen file. Idempotent."""
+    from desk_ml import paper_scalp as ps
+
+    if getattr(ps._close, "_decision_journal", False):
+        return False
+
+    orig_close = ps._close
+    orig_step = ps.step_decide
+
+    def _close(engine: Any, pos: Any, *args: Any, **kwargs: Any) -> Any:
+        out = orig_close(engine, pos, *args, **kwargs)
+        if journal_enabled(engine) and getattr(engine, "closed", None):
+            try:
+                record_close(engine, engine.closed[-1])
+            except Exception:
+                pass
+        return out
+
+    def step_decide(engine: Any, s: Any, votes: Any, *args: Any, **kwargs: Any) -> Any:
+        out = orig_step(engine, s, votes, *args, **kwargs)
+        if journal_enabled(engine):
+            try:
+                record_engine_step(engine)
+            except Exception:
+                pass
+        return out
+
+    _close._decision_journal = True  # type: ignore[attr-defined]
+    step_decide._decision_journal = True  # type: ignore[attr-defined]
+    ps._close = _close
+    ps.step_decide = step_decide
+    return True

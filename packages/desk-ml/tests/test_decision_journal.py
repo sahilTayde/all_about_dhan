@@ -9,6 +9,8 @@ from pathlib import Path
 from desk_ml.decision_journal import (
     DecisionJournal,
     candidate_id,
+    install_engine_hooks,
+    journal_enabled,
     journal_path,
     load_rows,
     make_row,
@@ -123,6 +125,22 @@ def test_record_engine_step_writes_jsonl(tmp_path: Path) -> None:
     loaded = load_rows(tmp_path, day="2026-01-15")
     assert {r["stage"] for r in loaded} == {"analyst", "desk", "overlay", "boss", "imm", "in_trade"}
     assert candidate_id(underlying="NIFTY", side="PE", ts=TS, trade_id="t-n") == "t-n"
+
+
+def test_write_false_ctx_disables_journal() -> None:
+    class Ctx:
+        write = False
+
+    class Eng:
+        ctx = Ctx()
+
+    assert journal_enabled(Eng()) is False
+    assert journal_enabled(type("Bare", (), {})()) is True
+
+
+def test_install_engine_hooks_is_idempotent() -> None:
+    assert install_engine_hooks() in {True, False}
+    assert install_engine_hooks() is False
 
 
 def test_close_row_is_exit() -> None:
