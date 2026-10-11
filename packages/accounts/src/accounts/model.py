@@ -35,6 +35,10 @@ class Account:
     broker: str
     status: str
     risk_budget_inr: int = 30000
+    lots: int = 0
+    premium_stop_pct: float = 0.15
+    ref_premium_inr: int = 200
+    daily_loss_cap_inr: int = 0
     portal_sub: str = ""
     slot: str = ""
     journal_tag: str = ""
@@ -63,6 +67,25 @@ class Account:
             or self.risk_budget_inr <= 0
         ):
             raise AccountSafetyError("V2 accounts fail-closed: risk_budget_inr must be a positive int")
+        if not isinstance(self.lots, int) or isinstance(self.lots, bool) or self.lots < 0:
+            raise AccountSafetyError("V2 accounts fail-closed: lots must be a non-negative int")
+        if not isinstance(self.premium_stop_pct, (int, float)) or isinstance(self.premium_stop_pct, bool):
+            raise AccountSafetyError("V2 accounts fail-closed: premium_stop_pct must be a number")
+        if not 0 < float(self.premium_stop_pct) <= 1:
+            raise AccountSafetyError("V2 accounts fail-closed: premium_stop_pct must be in (0, 1]")
+        if (
+            not isinstance(self.ref_premium_inr, int)
+            or isinstance(self.ref_premium_inr, bool)
+            or self.ref_premium_inr <= 0
+        ):
+            raise AccountSafetyError("V2 accounts fail-closed: ref_premium_inr must be a positive int")
+        if (
+            not isinstance(self.daily_loss_cap_inr, int)
+            or isinstance(self.daily_loss_cap_inr, bool)
+            or self.daily_loss_cap_inr < 0
+        ):
+            raise AccountSafetyError("V2 accounts fail-closed: daily_loss_cap_inr must be a non-negative int")
+        object.__setattr__(self, "premium_stop_pct", float(self.premium_stop_pct))
         slot = normalize_slot(self.slot)
         object.__setattr__(self, "kind", kind)
         object.__setattr__(self, "broker", broker)
@@ -80,6 +103,18 @@ class Account:
     def slot_fields(self) -> dict[str, object]:
         return slot_payload(self)
 
+    def sizing_fields(self) -> dict[str, object]:
+        from accounts.sizing import planned_paper_size
+
+        if self.kind != "customer" or self.lots <= 0:
+            return {
+                "lots": self.lots or None,
+                "premium_stop_pct": self.premium_stop_pct,
+                "ref_premium_inr": self.ref_premium_inr,
+                "daily_loss_cap_inr": self.daily_loss_cap_inr or self.risk_budget_inr,
+            }
+        return planned_paper_size(self)
+
     @classmethod
     def from_mapping(cls, raw: object) -> Account:
         if not isinstance(raw, dict):
@@ -87,12 +122,27 @@ class Account:
         budget = raw.get("risk_budget_inr", 30000)
         if isinstance(budget, float) and budget.is_integer():
             budget = int(budget)
+        lots = raw.get("lots", 0)
+        if isinstance(lots, float) and lots.is_integer():
+            lots = int(lots)
+        ref_prem = raw.get("ref_premium_inr", 200)
+        if isinstance(ref_prem, float) and ref_prem.is_integer():
+            ref_prem = int(ref_prem)
+        daily_cap = raw.get("daily_loss_cap_inr", 0)
+        if isinstance(daily_cap, float) and daily_cap.is_integer():
+            daily_cap = int(daily_cap)
+        stop_pct = raw.get("premium_stop_pct", 0.15)
+        stop_ok = isinstance(stop_pct, (int, float)) and not isinstance(stop_pct, bool)
         return cls(
             account_id=str(raw.get("account_id") or ""),
             kind=str(raw.get("kind") or ""),
             broker=str(raw.get("broker") or ""),
             status=str(raw.get("status") or ""),
             risk_budget_inr=int(budget) if isinstance(budget, int) else 0,
+            lots=int(lots) if isinstance(lots, int) else -1,
+            premium_stop_pct=float(stop_pct) if stop_ok else 0.0,
+            ref_premium_inr=int(ref_prem) if isinstance(ref_prem, int) else 0,
+            daily_loss_cap_inr=int(daily_cap) if isinstance(daily_cap, int) else -1,
             portal_sub=str(raw.get("portal_sub") or ""),
             slot=str(raw.get("slot") or ""),
             journal_tag=str(raw.get("journal_tag") or ""),

@@ -22,6 +22,7 @@ def _account_payload(acc: Account) -> dict[str, object]:
         "status": acc.status,
         "risk_budget_inr": acc.risk_budget_inr,
         **acc.slot_fields(),
+        **acc.sizing_fields(),
     }
 
 

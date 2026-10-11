@@ -1,3 +1,4 @@
 # Byte-identical lock for requirements/*.txt (V2-16 merge gate).
 # A mismatch or a missing file BLOCKs the gate.
 337d8f8018ec6e1205b3a43361368f3bc228da8895386f56d176bedb51504680  requirements/ci.txt
+938f81c10935fb7e3f569e71ac6e944983a111007437200f316d50cdcef8f694  requirements/v2.txt

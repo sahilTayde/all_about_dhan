@@ -33,6 +33,8 @@ jobs:
         run: python scripts/ci/scan_repo.py --self-test && python scripts/ci/scan_repo.py
       - name: Install (hash-pinned third party, local packages --no-deps) + local-name guard
         run: bash scripts/ci/install.sh
+      - name: V2 venv recipe loads accounts.yaml (PyYAML in .venv-v2 spec)
+        run: bash scripts/ci/check_v2_venv_accounts.sh
       - name: Fixtures are generated, not hand-edited
         run: python -m desk_ml.testing.canonical
 

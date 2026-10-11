@@ -1,0 +1,5 @@
+# Third-party extras for the Mac/VPS .venv-v2 (scripts/mac_setup_v2.sh).
+# Local V2 packages stay --no-deps so names never resolve from PyPI.
+# dhan-client / marketdata still install their own deps.
+# Pin matches requirements/ci.in. No live broker packages.
+PyYAML>=6

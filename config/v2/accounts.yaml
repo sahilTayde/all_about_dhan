@@ -1,27 +1,26 @@
 # C5-01 / C5-07 paper/shadow account directory. Fail closed. No live broker. No secrets.
 # Founder book is buying-only paper (~₹1–2L product capital; risk_budget_inr is the
-# isolated paper stop budget). Customers are disabled templates until enabled.
+# isolated paper stop budget). Customer slots are armed paper books (status active).
 #
 # Portal JWT seats (C5-02 AAD_PAPER_CUSTOMERS=c1,c2,c3,c4,c5) map 1:1:
-#   c1 → customer-01 CONTROL
-#   c2 → customer-02 CANDLE_GEOM
-#   c3 → customer-03 LOCATION
-#   c4 → customer-04 SKLEARN
-#   c5 → customer-05 HYBRID_OR_ROUTER
-# strategy_id / basket stay unset (slot_armed=false). Desk lead assigns one
-# registry id or paper/shadow basket name before ops enables that row.
+#   c1 → customer-01 CONTROL  R01_PDIV_5_ALL_H20
+#   c2 → customer-02 CANDLE_GEOM  R01_B3A_VOL
+#   c3 → customer-03 LOCATION  B8B_B3A_EX_CHOPPY
+#   c4 → customer-04 SKLEARN  R07_MOM3_TREND
+#   c5 → customer-05 HYBRID_OR_ROUTER  B8A_R07_NO_PRE1030
 # Slot labels are journal tags, not claimed edge and not STRAT-015+.
 #
-# Enable ONE customer paper book (Market ops):
-#   1. Desk lead sets strategy_id or basket on that row only.
-#   2. python -m accounts enable --account customer-01
-#   3. mkdir -p data/c5/exec/customer-01 data/c5/signal
-#   4. ./scripts/desk.sh c5-start --dry-run
-# Disable:
-#   python -m accounts disable --account customer-01
-# List (shows portal_map + journal_tag):
-#   python -m accounts list
-# Paper night (C5-04): ./scripts/desk.sh c5-start  (active customers only; cap 5)
+# Paper sizing (every customer slot): 10 lots.
+#   NIFTY qty = 10 × India lot 65 = 650
+#   SENSEX qty = 10 × India lot 20 = 200
+# Stop is 15% of a planning premium (ref_premium_inr). risk_budget_inr must
+# cover that 10-lot stop so IsolatedBook.size_lots is not blocked.
+# daily_loss_cap_inr is the per-slot paper halt. live_broker is always false.
+#
+# List: python -m accounts list
+# Paper night (C5-04): ./scripts/desk.sh c5-start --dry-run
+#                      ./scripts/desk.sh c5-start
+# Disable: python -m accounts disable --account customer-01
 #
 # Optional overlay: copy config/v2/accounts/customers.example.yaml to a private
 # customers.yaml (gitignored) and set AAD_CUSTOMERS to that path. Do not duplicate
@@ -43,40 +42,65 @@ accounts:
   - account_id: customer-01
     kind: customer
     broker: paper
-    status: disabled
-    risk_budget_inr: 1000
+    status: active
+    risk_budget_inr: 30000
+    lots: 10
+    premium_stop_pct: 0.15
+    ref_premium_inr: 200
+    daily_loss_cap_inr: 30000
     portal_sub: c1
     slot: CONTROL
     journal_tag: SLOT-CONTROL
+    strategy_id: R01_PDIV_5_ALL_H20
   - account_id: customer-02
     kind: customer
     broker: paper
-    status: disabled
-    risk_budget_inr: 1000
+    status: active
+    risk_budget_inr: 30000
+    lots: 10
+    premium_stop_pct: 0.15
+    ref_premium_inr: 200
+    daily_loss_cap_inr: 30000
     portal_sub: c2
     slot: CANDLE_GEOM
     journal_tag: SLOT-CANDLE_GEOM
+    strategy_id: R01_B3A_VOL
   - account_id: customer-03
     kind: customer
     broker: paper
-    status: disabled
-    risk_budget_inr: 1000
+    status: active
+    risk_budget_inr: 30000
+    lots: 10
+    premium_stop_pct: 0.15
+    ref_premium_inr: 200
+    daily_loss_cap_inr: 30000
     portal_sub: c3
     slot: LOCATION
     journal_tag: SLOT-LOCATION
+    strategy_id: B8B_B3A_EX_CHOPPY
   - account_id: customer-04
     kind: customer
     broker: paper
-    status: disabled
-    risk_budget_inr: 1000
+    status: active
+    risk_budget_inr: 30000
+    lots: 10
+    premium_stop_pct: 0.15
+    ref_premium_inr: 200
+    daily_loss_cap_inr: 30000
     portal_sub: c4
     slot: SKLEARN
     journal_tag: SLOT-SKLEARN
+    strategy_id: R07_MOM3_TREND
   - account_id: customer-05
     kind: customer
     broker: paper
-    status: disabled
-    risk_budget_inr: 1000
+    status: active
+    risk_budget_inr: 30000
+    lots: 10
+    premium_stop_pct: 0.15
+    ref_premium_inr: 200
+    daily_loss_cap_inr: 30000
     portal_sub: c5
     slot: HYBRID_OR_ROUTER
     journal_tag: SLOT-HYBRID_OR_ROUTER
+    strategy_id: B8A_R07_NO_PRE1030

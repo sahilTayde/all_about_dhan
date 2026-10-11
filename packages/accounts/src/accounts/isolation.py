@@ -67,7 +67,17 @@ class IsolatedBook:
         self._own(account_id, "size")
         if not isinstance(stop_inr_per_lot, int) or isinstance(stop_inr_per_lot, bool) or stop_inr_per_lot <= 0:
             raise AccountClosed("STOP_INR_INVALID")
-        return self.remaining_budget_inr // stop_inr_per_lot
+        from accounts.sizing import daily_loss_cap_inr
+
+        if self.spent_inr >= daily_loss_cap_inr(self.account):
+            raise AccountClosed("DAILY_LOSS_CAP")
+        affordable = self.remaining_budget_inr // stop_inr_per_lot
+        wanted = self.account.lots
+        if wanted > 0:
+            if affordable < wanted:
+                raise AccountClosed("BUDGET")
+            return wanted
+        return affordable
 
     def apply_fill(self, account_id: str, instrument_id: str, qty: int, premium_inr: int) -> dict[str, object]:
         self._own(account_id, "affect")
