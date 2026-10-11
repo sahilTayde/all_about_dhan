@@ -2,7 +2,7 @@
  * Live trade pipeline from recorded fills, skips, and /paper/trace.
  * Never invent a stage. Missing = waiting. MIX-* never shown.
  */
-import { PAPER_SLOTS } from "./strategyBoard.js";
+import { PAPER_SLOTS, canonicalSlotId } from "./strategyBoard.js";
 import { formatIst, plainText } from "./plainWords.js";
 
 export const PIPE_LANES = Object.freeze(["NIFTY", "SENSEX"]);
@@ -35,10 +35,11 @@ const SLOT_NAME = Object.fromEntries(PAPER_SLOTS.map((s) => [s.id, s.name]));
 
 export function strategyName(t) {
   if (!t) return "";
-  for (const id of [t.strategy_id, t.slot, t.journal_tag, t.book_id]) {
-    if (id && SLOT_NAME[id]) return SLOT_NAME[id];
+  for (const id of [t.strategy_id, t.slot, t.journal_tag, t.book_id, t.rule]) {
+    const sid = canonicalSlotId(id);
+    if (sid && SLOT_NAME[sid]) return SLOT_NAME[sid];
   }
-  const raw = t.strategy_id || t.book_id || "";
+  const raw = canonicalSlotId(t.strategy_id || t.book_id || "");
   if (!raw || /^MIX-/i.test(String(raw))) return "";
   return String(raw);
 }

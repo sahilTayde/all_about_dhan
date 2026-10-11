@@ -1,5 +1,29 @@
 # Handoff log — Team 07 Coding
 
+## As of now (2026-10-11 IST) — real pooled fills on the card (PAPER)
+
+```text
+From:     teams/07_coding
+To:       founder / 00 / 05 / 09
+Date:     2026-10-11
+Status:   PAPER / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+Accepted: Cards from pooled_trades_1x.csv
+  rows only. Win 2026-10-01 PE 127.25→
+  134.35 net ₹4360 qty 650. Loss
+  2026-10-09 CE 138.00→132.70 sized at
+  current 10-lot slot. Gauge marks sit
+  on the recorded price. No strike
+  invented. Dates stay on the source
+  row.
+Rejected: Relabeling Sep-25 167.30/
+  157.26 / 23128 onto Oct 9. Invented
+  strike. Exit tick mid-bar when exit
+  equals stop. Live broker.
+UNKNOWN: ATM strike not in the pooled
+  CSV. Dual-tape still absent here.
+```
+
 ## As of now (2026-10-11 IST) — Analyst reason stays the explanation (PAPER)
 
 ```text

@@ -7,25 +7,45 @@ function clamp01(n) {
   return Math.max(0, Math.min(1, n));
 }
 
+function Tick({ pct, label, value }) {
+  if (pct == null || value == null || Number.isNaN(Number(value))) return null;
+  return (
+    <span className="fx-path__tick" style={{ left: `${clamp01(pct) * 100}%` }}>
+      {label} {px(value)}
+    </span>
+  );
+}
+
 function TicketPath({ t }) {
   const p = pathInfo(t);
   const mark = p.markLabel || "now";
+  const exitOnStop =
+    p.closed && p.stop != null && p.last != null && Math.abs(p.last - p.stop) < 1e-9;
+  if (p.entry == null && p.last == null && p.stop == null && p.target == null) return null;
   return (
     <div className="fx-path">
       <div className="fx-range" aria-hidden="true">
         <i className="fx-range__fill" />
-        <b className="fx-range__entry" style={{ left: `${clamp01(p.entryPct) * 100}%` }} title="Entry" />
-        <em className={p.closed ? "fx-range__exit" : "fx-range__now"} style={{ left: `${clamp01(p.pct) * 100}%` }} title={p.closed ? "Exit" : "Now"} />
+        {p.entryPct != null ? (
+          <b className="fx-range__entry" style={{ left: `${clamp01(p.entryPct) * 100}%` }} title="Entry" />
+        ) : null}
+        {p.pct != null ? (
+          <em
+            className={p.closed ? "fx-range__exit" : "fx-range__now"}
+            style={{ left: `${clamp01(p.pct) * 100}%` }}
+            title={p.closed ? "Exit" : "Now"}
+          />
+        ) : null}
       </div>
       <div className="fx-path__ticks">
-        {Number.isFinite(p.stop) ? (
-          <span>
-            {p.trailing ? "Trail SL" : "Stop"} {px(p.stop)}
-          </span>
+        {exitOnStop ? (
+          <Tick pct={p.stopPct} label="stop / exit" value={p.stop} />
+        ) : p.stop != null ? (
+          <Tick pct={p.stopPct} label={p.trailing ? "Trail SL" : "Stop"} value={p.stop} />
         ) : null}
-        {Number.isFinite(p.entry) ? <span>entry {px(p.entry)}</span> : null}
-        {Number.isFinite(p.last) ? <span>{mark} {px(p.last)}</span> : null}
-        {Number.isFinite(p.target) ? <span>target {px(p.target)}</span> : null}
+        <Tick pct={p.entryPct} label="entry" value={p.entry} />
+        {exitOnStop ? null : <Tick pct={p.pct} label={mark} value={p.last} />}
+        <Tick pct={p.targetPct} label="target" value={p.target} />
       </div>
     </div>
   );

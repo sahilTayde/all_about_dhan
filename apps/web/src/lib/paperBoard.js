@@ -236,42 +236,50 @@ export function uniqueFills(rows) {
   return [...map.values()];
 }
 
+function finitePx(v) {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+}
+
+/** Place every mark on the recorded price scale. Exit at stop sits on the stop, not mid-bar. */
 export function pathInfo(t) {
   const closed = Boolean(t?.exit != null || t?.closed_ist);
-  const last = Number((closed ? t.exit : t.last_ltp) ?? t.exit ?? t.entry ?? t.limit_price);
-  const stop = Number(t.trail_stop ?? t.stop);
-  const hardStop = Number(t.stop);
-  const target = Number(t.target2 && t.target_step >= 1 ? t.target2 : t.target);
-  const entry = Number(t.entry ?? t.limit_price);
-  const span = target - stop;
-  const pctAlong =
-    Number.isFinite(span) && span !== 0 && Number.isFinite(last) ? (last - stop) / span : null;
-  const toTarget = Number.isFinite(last) && Number.isFinite(target) ? target - last : null;
-  const slRoom = Number.isFinite(last) && Number.isFinite(stop) ? last - stop : null;
-  const vsEntry = Number.isFinite(last) && Number.isFinite(entry) ? last - entry : null;
-  const remainingToTarget = Number.isFinite(toTarget) ? Math.abs(toTarget) : null;
-  const riskToStop = Number.isFinite(slRoom) ? Math.abs(slRoom) : null;
-  const range = Number.isFinite(span) ? Math.abs(span) : null;
-  const remainingPctOfRange =
-    range && range > 0 && remainingToTarget != null ? remainingToTarget / range : null;
-  const riskPctOfRange = range && range > 0 && riskToStop != null ? riskToStop / range : null;
-  const entryPct =
-    Number.isFinite(span) && span !== 0 && Number.isFinite(entry) ? (entry - stop) / span : null;
+  const last = finitePx((closed ? t.exit : t.last_ltp) ?? t.exit ?? t.entry ?? t.limit_price);
+  const stop = finitePx(t.trail_stop ?? t.stop);
+  const hardStop = finitePx(t.stop);
+  const target = finitePx(t.target2 && t.target_step >= 1 ? t.target2 : t.target);
+  const entry = finitePx(t.entry ?? t.limit_price);
+  const marks = [stop, entry, last, target].filter((n) => n != null);
+  const lo = marks.length ? Math.min(...marks) : null;
+  const hi = marks.length ? Math.max(...marks) : null;
+  const span = lo != null && hi != null ? hi - lo : null;
+  const at = (px) => (px == null || span == null ? null : span === 0 ? 0.5 : (px - lo) / span);
+  const toTarget = last != null && target != null ? target - last : null;
+  const slRoom = last != null && stop != null ? last - stop : null;
+  const vsEntry = last != null && entry != null ? last - entry : null;
+  const remainingToTarget = toTarget != null ? Math.abs(toTarget) : null;
+  const riskToStop = slRoom != null ? Math.abs(slRoom) : null;
+  const range = span != null ? Math.abs(span) : null;
   return {
     last,
     stop,
     hardStop,
     target,
     entry,
-    pct: pctAlong,
+    lo,
+    hi,
+    pct: at(last),
+    stopPct: at(stop),
+    targetPct: at(target),
     toTarget,
     slRoom,
     vsEntry,
     remainingToTarget,
     riskToStop,
-    remainingPctOfRange,
-    riskPctOfRange,
-    entryPct,
+    remainingPctOfRange:
+      range && range > 0 && remainingToTarget != null ? remainingToTarget / range : null,
+    riskPctOfRange: range && range > 0 && riskToStop != null ? riskToStop / range : null,
+    entryPct: at(entry),
     trailing: t.trail_stop != null && Number(t.trail_stop) !== Number(t.stop),
     closed,
     markLabel: closed ? "exit" : "now",

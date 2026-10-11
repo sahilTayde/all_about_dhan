@@ -57,6 +57,18 @@ const path = pathInfo(stopHit);
 assert.equal(path.closed, true);
 assert.equal(path.markLabel, "exit");
 assert.equal(path.last, 157.26);
+assert.equal(path.pct, 0);
+assert.equal(path.stopPct, 0);
+assert.ok(path.entryPct > 0.4 && path.entryPct < 0.6);
+
+const winOnly = pathInfo({ entry: 127.25, exit: 134.35, closed_ist: "2026-10-01T10:21:00+05:30" });
+assert.equal(winOnly.entryPct, 0);
+assert.equal(winOnly.pct, 1);
+assert.equal(winOnly.stopPct, null);
+
+const lossOnly = pathInfo({ entry: 138, exit: 132.7, closed_ist: "2026-10-09T13:15:00+05:30" });
+assert.equal(lossOnly.entryPct, 1);
+assert.equal(lossOnly.pct, 0);
 
 assert.equal(closedStateLabel({ exit_reason: "TARGET", target_hit: true, exit: 180 }), "Closed: target hit");
 assert.equal(closedStateLabel({ exit_reason: "TIME", exit: 170 }), "Closed: time exit");

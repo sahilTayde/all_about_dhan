@@ -30,6 +30,7 @@ assert.equal(late.why, "Skipped: too late in the session");
 
 assert.equal(strategyName({ strategy_id: "R01_PDIV_5_ALL_H20", book_id: "MIX-DEFAULT-BUY" }), "Premium divergence");
 assert.equal(strategyName({ book_id: "MIX-DEFAULT-BUY" }), "");
+assert.equal(strategyName({ strategy_id: "R07_MOM_3_0.0005_TREND_H20" }), "Momentum");
 
 const live = buildLane("NIFTY", {
   open: [
