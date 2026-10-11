@@ -458,6 +458,61 @@ def test_e_recorder_status_last_log_line(tmp_path: Path) -> None:
     assert proc.returncode == 0, proc.stdout + proc.stderr
     assert "SUMMARY coverage ok" in proc.stdout
     assert "STOPPED" in proc.stdout
+    assert "UNHEALTHY (no frames recorded)" in proc.stdout
+
+
+def test_e_recorder_status_stale_frames_are_not_healthy(tmp_path: Path) -> None:
+    day_dir = tmp_path / "tape" / "2099-01-02"
+    day_dir.mkdir(parents=True)
+    (day_dir / "recorder.log").write_text("frames=12 connected=True\n", encoding="utf-8")
+    (day_dir / "recorder_status.json").write_text(
+        '{"last_frame_unix": 1000000.0, "frames": 12, "connected": true}\n',
+        encoding="utf-8",
+    )
+    fake_py = tmp_path / "ist.py"
+    _write_exec(fake_py, "#!/usr/bin/env python3\nprint('2099-01-02')\n")
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    _write_exec(bin_dir / "pgrep", "#!/bin/sh\necho 4242\n")
+    _write_exec(bin_dir / "screen", "#!/bin/sh\nexit 1\n")
+    proc = _source(
+        tmp_path,
+        "recorder_status",
+        env={
+            "AAD_PY": str(fake_py),
+            "AAD_NOW_UNIX": "1000090",
+            "PATH": f"{bin_dir}:/usr/bin:/bin",
+        },
+    )
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+    assert "UNHEALTHY (no frames in 90s)" in proc.stdout
+    assert "v2 recorder health: HEALTHY" not in proc.stdout
+
+
+def test_e_recorder_status_recent_frame_healthy_when_process_up(tmp_path: Path) -> None:
+    day_dir = tmp_path / "tape" / "2099-01-02"
+    day_dir.mkdir(parents=True)
+    (day_dir / "recorder_status.json").write_text(
+        '{"last_frame_unix": 1000000.0, "frames": 4, "connected": true}\n',
+        encoding="utf-8",
+    )
+    fake_py = tmp_path / "ist.py"
+    _write_exec(fake_py, "#!/usr/bin/env python3\nprint('2099-01-02')\n")
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    _write_exec(bin_dir / "pgrep", "#!/bin/sh\necho 4242\n")
+    _write_exec(bin_dir / "screen", "#!/bin/sh\nexit 1\n")
+    proc = _source(
+        tmp_path,
+        "recorder_status",
+        env={
+            "AAD_PY": str(fake_py),
+            "AAD_NOW_UNIX": "1000010",
+            "PATH": f"{bin_dir}:/usr/bin:/bin",
+        },
+    )
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+    assert "HEALTHY (last frame 10s ago)" in proc.stdout
 
 
 def test_legacy_pythonpath_includes_desk_and_risk_engine(tmp_path: Path) -> None:

@@ -170,6 +170,17 @@ def test_reconnect_uses_backoff(tmp_path: Path) -> None:
     assert 1.9 <= attempts[2] - attempts[1] < 3.0
 
 
+def test_session_writes_last_frame_status(tmp_path: Path) -> None:
+    s = asyncio.run(run_session(tmp_path, ist(10, 0), ist(10, 0, 8), source=StubSource()))
+    assert s.exit_code == 0
+    day = session_day(ist(10, 0)).isoformat()
+    path = tmp_path / "tape" / day / "recorder_status.json"
+    assert path.is_file()
+    row = json.loads(path.read_text(encoding="utf-8"))
+    assert row["frames"] >= 1
+    assert row["last_frame_unix"]
+
+
 def test_websocket_auth_rejection_stops_with_exit_2(tmp_path: Path) -> None:
     async def scenario() -> tuple[int, MarketDataRecorder]:
         async with FakeDhanServer() as server:

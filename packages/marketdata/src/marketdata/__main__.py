@@ -39,6 +39,7 @@ from marketdata.instruments import (
     parse_underlyings,
 )
 from marketdata.recorder import MarketDataRecorder
+from marketdata.status import assess_health
 
 log = logging.getLogger("marketdata")
 
@@ -91,6 +92,11 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("--tape-root", type=Path, default=None, help="default: <repo>/data/tape/v2")
     parser.add_argument("--coverage", metavar="YYYY-MM-DD", help="recompute coverage_summary.json for a day")
+    parser.add_argument(
+        "--health",
+        action="store_true",
+        help="print HEALTHY/UNHEALTHY for today's tape (exit 1 if no frame in 60s)",
+    )
     args = parser.parse_args(argv)
     try:
         names = parse_underlyings(*args.underlyings) if args.underlyings else DEFAULT_RECORDER_UNDERLYINGS
@@ -99,6 +105,11 @@ def main(argv: list[str] | None = None) -> int:
 
     root = repo_root()
     tape_root: Path = args.tape_root or root / "data" / "tape" / "v2"
+    if args.health:
+        day = session_day(LiveClock().now())
+        report = assess_health(tape_root / day.isoformat())
+        print(f"v2 recorder health: {report['line']}")
+        return 0 if report["healthy"] else 1
     if args.coverage:
         day = date.fromisoformat(args.coverage)
         path = write_summary(tape_root / day.isoformat(), day)

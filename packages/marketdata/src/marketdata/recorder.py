@@ -25,6 +25,7 @@ from dhan_client.endpoints import OPTION_CHAIN
 from dhan_client.errors import CredentialsError
 from dhan_client.feed import MarketFeedCollector
 from dhan_client.rate_limit import default_limiter, is_rate_limit_error, rate_limit_hits
+from dhan_client.token_info import log_jwt_exp
 from dhan_client.types import FeedMode
 
 from marketdata import logsafe
@@ -56,6 +57,7 @@ from marketdata.research import (
     within_dhan_caps,
 )
 from marketdata.strikes import Change, StrikeSet
+from marketdata.status import write_status
 from marketdata.tape import TapeWriter, tape_drop_count
 
 log = logging.getLogger(__name__)
@@ -168,6 +170,8 @@ class MarketDataRecorder:
         self.research: dict[str, Instrument] = {}
         self._research_only: dict[str, Instrument] = {}
         self._volume: dict[str, int | None] = {}
+        self._last_frame_at: datetime | None = None
+        self._status_written_s = float("-inf")
 
     # ---- lifecycle -------------------------------------------------------------------
 
@@ -197,6 +201,7 @@ class MarketDataRecorder:
             raise CredentialsError("live recording needs DHAN_CLIENT_ID and DHAN_ACCESS_TOKEN")
         creds = self.settings.credentials
         logsafe.install([creds.client_id, creds.access_token])
+        log_jwt_exp(creds.access_token, logger=log, now=self.clock.now())
         now = self.clock.now()
         day = session_day(now)
         open_dt, close_dt = market_open(day), market_close(day)
@@ -604,9 +609,25 @@ class MarketDataRecorder:
 
     # ---- feed input ------------------------------------------------------------------
 
+    def _note_frame(self, now: datetime) -> None:
+        self._last_frame_at = now
+        now_s = now.timestamp()
+        if now_s - self._status_written_s < 1.0:
+            return
+        self._status_written_s = now_s
+        day = session_day(now)
+        write_status(
+            self.config.tape_root / day.isoformat(),
+            last_frame_ts=iso(now),
+            last_frame_unix=now_s,
+            frames=self.stats.frames,
+            connected=self._connected,
+        )
+
     async def _on_frame(self, raw: bytes | str) -> None:
         now = self.clock.now()
         self.stats.frames += 1
+        self._note_frame(now)
         if isinstance(raw, str):
             self._error("text frame (feed responses are binary)", now, text=raw[:1000])
             return

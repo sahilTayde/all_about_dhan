@@ -434,6 +434,42 @@ def _trade_row(
     return row
 
 
+def _premium_path(
+    bars: dict[str, dict[str, Any]],
+    *,
+    side: str,
+    strike: float,
+    entry_min: str,
+    exit_min: str,
+) -> list[tuple[str, float]]:
+    out: list[tuple[str, float]] = []
+    for hhmm in bars:
+        if hhmm < entry_min or hhmm > exit_min:
+            continue
+        px = strike_premium(bars[hhmm], side, strike)
+        if px is not None:
+            out.append((hhmm, float(px)))
+    return out
+
+
+def _with_exit_variants(
+    row: dict[str, Any],
+    bars: dict[str, dict[str, Any]],
+    *,
+    side: str,
+    strike: float,
+    entry: float,
+    entry_min: str,
+    exit_min: str,
+    hold: int,
+) -> dict[str, Any]:
+    from desk_ml.shadow_exits import simulate_all
+
+    path = _premium_path(bars, side=side, strike=strike, entry_min=entry_min, exit_min=exit_min)
+    row["exit_variants"] = simulate_all(path, entry=entry, hold_min=hold)
+    return row
+
+
 def replay_underlying(
     bars: dict[str, dict[str, Any]],
     *,
@@ -471,21 +507,30 @@ def replay_underlying(
                 if mark is None:
                     continue
                 closed.append(
-                    _trade_row(
-                        rule=rule,
-                        underlying=underlying,
+                    _with_exit_variants(
+                        _trade_row(
+                            rule=rule,
+                            underlying=underlying,
+                            side=side,
+                            strike=atm,
+                            sig_min=t,
+                            entry_min=entry_min,
+                            exit_min=exit_min,
+                            entry=entry,
+                            mark=mark,
+                            day=day,
+                            entry_bar=entry_bar,
+                            mark_bar=mark_bar,
+                            closed=True,
+                            reason="TIME",
+                        ),
+                        bars,
                         side=side,
                         strike=atm,
-                        sig_min=t,
+                        entry=entry,
                         entry_min=entry_min,
                         exit_min=exit_min,
-                        entry=entry,
-                        mark=mark,
-                        day=day,
-                        entry_bar=entry_bar,
-                        mark_bar=mark_bar,
-                        closed=True,
-                        reason="TIME",
+                        hold=hold,
                     )
                 )
                 busy = exit_min
@@ -495,21 +540,30 @@ def replay_underlying(
                 if mark is None:
                     mark = entry
                 opens.append(
-                    _trade_row(
-                        rule=rule,
-                        underlying=underlying,
+                    _with_exit_variants(
+                        _trade_row(
+                            rule=rule,
+                            underlying=underlying,
+                            side=side,
+                            strike=atm,
+                            sig_min=t,
+                            entry_min=entry_min,
+                            exit_min=exit_min,
+                            entry=entry,
+                            mark=mark,
+                            day=day,
+                            entry_bar=entry_bar,
+                            mark_bar=mark_bar,
+                            closed=False,
+                            reason=None,
+                        ),
+                        bars,
                         side=side,
                         strike=atm,
-                        sig_min=t,
-                        entry_min=entry_min,
-                        exit_min=exit_min,
                         entry=entry,
-                        mark=mark,
-                        day=day,
-                        entry_bar=entry_bar,
-                        mark_bar=mark_bar,
-                        closed=False,
-                        reason=None,
+                        entry_min=entry_min,
+                        exit_min=min(exit_min, last_hhmm),
+                        hold=hold,
                     )
                 )
                 busy = exit_min
@@ -599,6 +653,12 @@ def attach_to_board(
         journal.parent.mkdir(parents=True, exist_ok=True)
         journal.write_text(json.dumps(result, indent=2, default=str) + "\n", encoding="utf-8")
     except OSError:
+        pass
+    try:
+        from desk_ml.shadow_exits import attach_and_log
+
+        attach_and_log(result.get("closed") or [], root=base, environ=environ)
+    except Exception:  # noqa: BLE001 — shadow log must not block the board
         pass
     return out
 
