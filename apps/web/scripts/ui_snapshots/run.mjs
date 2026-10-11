@@ -463,23 +463,6 @@ async function main() {
       check("past-day-out", outs.length > 0 && !outs.includes("open"), `${pastDay}: Out cells ${JSON.stringify([...new Set(outs)])}`);
       await page.locator("[data-testid=advanced-toggle]").click();
 
-      // No open ticket; founder has NIFTY on, SENSEX off, and SENSEX is first in the skip list.
-      await page.evaluate(() => fetch("/__fixture/flat"));
-      await page.reload({ waitUntil: "load" });
-      await page.waitForSelector(".current-trade__empty");
-      const hold = (await page.locator(".current-trade .state-pill").first().textContent()).trim();
-      const why = (await page.locator(".current-trade__empty .muted").first().textContent()).trim();
-      await page.locator(".current-trade").screenshot({ path: resolve(OUT, "desk_1440_on_hold.png") });
-      check("on-hold", hold === "ON HOLD" && why.includes("NIFTY") && !why.includes("SENSEX"), `pill "${hold}" · ${why}`);
-      await page.setViewportSize({ width: 390, height: 900 });
-      await page.waitForTimeout(300);
-      const cut = await page.evaluate(() =>
-        [...document.querySelectorAll(".last-ticket dd")].filter((dd) => dd.scrollWidth > dd.clientWidth + 1).map((dd) => dd.textContent),
-      );
-      await page.locator(".current-trade").screenshot({ path: resolve(OUT, "desk_390_on_hold.png") });
-      check("last-ticket-390", cut.length === 0, `truncated last-ticket values at 390px: ${JSON.stringify(cut)}`);
-      await page.setViewportSize({ width: 1440, height: 900 });
-
       // Founder: pipeline is the overview centerpiece; P&L-by-stage lives behind Advanced.
       await page.goto(`${base}/pm`, { waitUntil: "load" });
       await page.waitForSelector("[data-testid=trade-pipeline]");
@@ -497,9 +480,27 @@ async function main() {
       await page.locator(".founder-desk").screenshot({ path: resolve(OUT, "founder_1440_trade_desk.png") });
       await page.locator(".grid > div").filter({ has: page.locator(".stage-bars") }).screenshot({ path: resolve(OUT, "founder_pnl_by_stage.png") });
 
+      // No open ticket; founder has NIFTY on, SENSEX off, and SENSEX is first in the skip list.
+      await page.goto(`${base}/desk`, { waitUntil: "load" });
+      await page.evaluate(() => fetch("/__fixture/flat"));
+      await page.reload({ waitUntil: "load" });
+      await page.waitForSelector(".current-trade__empty");
+      const hold = (await page.locator(".current-trade .state-pill").first().textContent()).trim();
+      const why = (await page.locator(".current-trade__empty .muted").first().textContent()).trim();
+      await page.locator(".current-trade").screenshot({ path: resolve(OUT, "desk_1440_on_hold.png") });
+      check("on-hold", hold === "ON HOLD" && why.includes("NIFTY") && !why.includes("SENSEX"), `pill "${hold}" · ${why}`);
+      await page.setViewportSize({ width: 390, height: 900 });
+      await page.waitForTimeout(300);
+      const cut = await page.evaluate(() =>
+        [...document.querySelectorAll(".last-ticket dd")].filter((dd) => dd.scrollWidth > dd.clientWidth + 1).map((dd) => dd.textContent),
+      );
+      await page.locator(".current-trade").screenshot({ path: resolve(OUT, "desk_390_on_hold.png") });
+      check("last-ticket-390", cut.length === 0, `truncated last-ticket values at 390px: ${JSON.stringify(cut)}`);
+      await page.setViewportSize({ width: 1440, height: 900 });
+
       // History still indexing: every all-days / account / multi-day chart figure shows a label, no rupees.
       await page.evaluate(() => fetch("/__fixture/indexing"));
-      for (const [path, need] of [["/desk", 1], ["/pm", 5]]) {
+      for (const [path, need] of [["/desk", 1], ["/pm", 4]]) {
         await page.goto(`${base}${path}`, { waitUntil: "load" });
         if (path === "/pm") {
           await page.locator("[data-testid=advanced-toggle]").click();
