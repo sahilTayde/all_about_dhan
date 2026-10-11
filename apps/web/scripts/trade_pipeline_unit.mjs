@@ -4,6 +4,7 @@ import {
   PIPE_STAGES,
   buildLane,
   buildPipelines,
+  engineCode,
   fromJournal,
   leakMix,
   pipelineText,
@@ -176,6 +177,14 @@ const wired = buildLane("NIFTY", {
 assert.equal(wired.stages.find((s) => s.id === "overlay").why, "Market TREND");
 assert.ok(!leakMix(JSON.stringify(wired)));
 
+assert.equal(engineCode("STOP"), "STOP");
+assert.equal(engineCode("CANCEL_AGAINST"), "CANCEL_AGAINST");
+assert.equal(engineCode("EXIT_STOP"), "STOP");
+assert.equal(
+  engineCode("The desk bought the NIFTY 23300 put because the index was falling. Premium then dropped to the stop, so the ticket closed."),
+  null,
+);
+
 assert.equal(plainMarketType("TREND_UP"), "trend up");
 assert.equal(plainMarketType("high-VIX"), "high-VIX");
 assert.equal(plainMarketType("MOON"), "");
@@ -210,5 +219,43 @@ assert.equal(analyst.state, "done");
 assert.match(analyst.why, /index was rising/);
 assert.equal(analyst.inputs.market_type, "trend up");
 assert.ok(!/TREND_UP|llm_explain|MIX-/.test(JSON.stringify(explained)));
+
+const stopExplain =
+  "The desk bought the NIFTY 23300 put because the index was falling. Premium then dropped to the stop, so the ticket closed.";
+const explainedClosed = buildLane("NIFTY", {
+  closed: [
+    {
+      trade_id: "t-stop",
+      underlying: "NIFTY",
+      side: "PE",
+      atm_strike: 23300,
+      strategy_id: "R01_PDIV_5_ALL_H20",
+      opened_ist: "2026-10-09T10:20:00+05:30",
+      closed_ist: "2026-10-09T10:28:00+05:30",
+      exit: 157.26,
+      exit_reason: "STOP",
+      llm_explanation: stopExplain,
+      market_type: "trend down",
+    },
+  ],
+  journal: [
+    {
+      ts_ist: "2026-10-09T10:20:00+05:30",
+      underlying: "NIFTY",
+      candidate_id: "t-stop",
+      trade_id: "t-stop",
+      stage: "llm_explain",
+      actor: "LLM judge",
+      decision: "pass",
+      reason: stopExplain,
+      inputs: { market_type: "trend down", side: "PE", explanation: stopExplain },
+    },
+  ],
+});
+const analystClosed = explainedClosed.stages.find((s) => s.id === "analyst");
+assert.match(analystClosed.why, /index was falling/);
+assert.ok(!/Stop hit/i.test(analystClosed.why));
+assert.ok(!analystClosed.rule);
+assert.equal(explainedClosed.stages.find((s) => s.id === "exit").why, "Stop hit");
 
 console.log("trade_pipeline_unit: ok");

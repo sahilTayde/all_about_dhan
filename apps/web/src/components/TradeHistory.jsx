@@ -1,6 +1,7 @@
 import { Fragment, useEffect, useMemo, useState } from "react";
 import { fetchDay } from "../lib/feed.js";
-import { inr, isOpenRow, moneyClass, outcomeLabel, px, ticketState, uniqueFills } from "../lib/paperBoard.js";
+import { closedStateLabel, inr, isOpenRow, moneyClass, plainWhy, px, ticketState, uniqueFills } from "../lib/paperBoard.js";
+import { strategyName } from "../lib/tradePipeline.js";
 
 const COLS_KEY = "desk.tradeHistory.columns.v3";
 const STATE_WORD = { progress: "IN PROGRESS", stale: "STALE", target: "TARGET HIT", stopped: "STOPPED", closed: "CLOSED", dead: "DEAD" };
@@ -49,11 +50,12 @@ function shortClock(ist, withDate) {
 }
 
 function modelsFor(t) {
-  const names = [...(t.model_names || [])];
+  const names = [...(t.model_names || [])].filter((n) => n && !/^MIX-/i.test(n));
   if (!names.length) {
-    for (const b of t.books || []) if (b && b !== "MIX-DEFAULT-BUY") names.push(b);
+    const name = strategyName(t);
+    if (name) names.push(name);
   }
-  return names.length ? names.join(", ") : t.book_id || "—";
+  return names.length ? names.join(", ") : "";
 }
 
 function slippage(t) {
@@ -64,11 +66,14 @@ function slippage(t) {
 }
 
 function noteFor(t) {
-  return t.justification || t.exit_reason || t.status || "—";
+  return t.llm_explanation || plainWhy(t) || "";
 }
 
 function reasonFor(t) {
-  return t.exit_reason || t.cancel_reason || (t.exit == null ? "—" : t.status) || "—";
+  const label = closedStateLabel(t);
+  if (label) return label;
+  if (isOpenRow(t)) return ticketState(t).label;
+  return "";
 }
 
 function Field({ label, value, onChange, options, render, disabledOptions = [] }) {
@@ -110,22 +115,24 @@ function RowDetail({ t }) {
     ["Lots × size", `${t.lots ?? "—"} × ${t.lot_size ?? "—"}`],
     ["Investment", inr(t.notional_inr, { signed: false })],
     ["Spot source", t.spot_at_entry == null ? "not recorded" : t.spot_at_entry_src || "trade record"],
-    ["Exit / cancel reason", `${reasonFor(t)} · ${outcomeLabel(t)}`],
-    ["Ticket", t.trade_id || "—"],
+    ["Exit reason", reasonFor(t)],
+    ["Ticket", t.trade_id || ""],
     ["Models", modelsFor(t)],
     ["Record source", t.source || "board"],
   ];
   return (
     <div className="trade-detail">
       <dl>
-        {items.map(([k, v]) => (
-          <div key={k}>
-            <dt>{k}</dt>
-            <dd>{v}</dd>
-          </div>
-        ))}
+        {items
+          .filter(([, v]) => v != null && v !== "" && v !== "—")
+          .map(([k, v]) => (
+            <div key={k}>
+              <dt>{k}</dt>
+              <dd>{v}</dd>
+            </div>
+          ))}
       </dl>
-      <p className="trade-detail__note">{noteFor(t)}</p>
+      {noteFor(t) ? <p className="trade-detail__note">{noteFor(t)}</p> : null}
     </div>
   );
 }
@@ -256,10 +263,10 @@ export function TradeHistory({ rows, days, liveDay, clock, fillRooms, onOpen, on
         return slippage(t) ?? "—";
       case "status": {
         const s = ticketState(t, { clock });
-        return <span className={`state-pill state-pill--${s.key}`} title={s.label}>{s.key.startsWith("closed") ? s.label : STATE_WORD[s.key] || s.label}</span>;
+        return <span className={`state-pill state-pill--${s.key}`} title={s.label}>{s.label}</span>;
       }
       case "reason":
-        return <span title={outcomeLabel(t)}>{reasonFor(t)}</span>;
+        return reasonFor(t) ? <span title={reasonFor(t)}>{reasonFor(t)}</span> : null;
       case "sl":
         return px(t.stop);
       case "target":
@@ -271,7 +278,7 @@ export function TradeHistory({ rows, days, liveDay, clock, fillRooms, onOpen, on
       case "investment":
         return inr(t.notional_inr, { signed: false });
       case "book":
-        return t.book_id || "—";
+        return strategyName(t) || "";
       case "ticket":
         return t.trade_id || "—";
       case "models":

@@ -1,5 +1,26 @@
 # Handoff log — Team 07 Coding
 
+## As of now (2026-10-11 IST) — Analyst reason stays the explanation (PAPER)
+
+```text
+From:     teams/07_coding
+To:       founder / 00 / 05 / 09
+Date:     2026-10-11
+Status:   PAPER / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+Accepted: engineCode matches token codes
+  only. Prose with the word stop stays
+  the Analyst reason. Empty Rule hidden.
+  History notes/reason use plainWhy and
+  Closed: stop hit / target hit / time
+  exit. No MIX on the books table.
+Rejected: Substring STOP → Stop hit.
+  Raw justification / CANCEL codes on
+  founder books. Live broker.
+UNKNOWN: Oct 2026 dual-tape still not
+  in this checkout.
+```
+
 ## As of now (2026-10-11 IST) — founder trade card plain words (PAPER)
 
 ```text

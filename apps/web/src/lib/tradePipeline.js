@@ -174,10 +174,15 @@ export function engineCode(raw) {
   const s = String(raw || "").trim();
   if (!s) return null;
   const u = s.toUpperCase();
-  for (const key of Object.keys(EXIT_PLAIN)) {
-    if (u === key || u.includes(key)) return key;
+  if (EXIT_PLAIN[u]) return u;
+  // Token-like codes only. Never match STOP inside "dropped to the stop".
+  if (/^[A-Z][A-Z0-9_]+$/.test(u)) {
+    for (const key of Object.keys(EXIT_PLAIN)) {
+      if (u.includes(key)) return key;
+    }
+    return u;
   }
-  return /^[A-Z][A-Z0-9_]+$/.test(s) ? s : null;
+  return null;
 }
 
 function cleanWhy(raw, fallback) {
@@ -198,7 +203,7 @@ function cleanRule(raw) {
   if (code && RULE_PLAIN[code]) return RULE_PLAIN[code];
   if (/coil/i.test(s)) return "skip coil market";
   if (/^[A-Z][A-Z0-9_]+$/.test(s)) return s.replaceAll("_", " ").toLowerCase();
-  return s;
+  return null;
 }
 
 function cleanInputs(fields) {
