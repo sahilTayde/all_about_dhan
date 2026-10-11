@@ -10,8 +10,14 @@ function clamp01(n) {
 function Tick({ pct, label, value }) {
   if (pct == null || value == null || Number.isNaN(Number(value))) return null;
   const edge = tickEdge(pct);
+  const style =
+    edge === "start"
+      ? { left: 0 }
+      : edge === "end"
+        ? { left: "auto", right: 0 }
+        : { left: `${clamp01(pct) * 100}%` };
   return (
-    <span className={`fx-path__tick fx-path__tick--${edge}`} style={{ left: `${clamp01(pct) * 100}%` }}>
+    <span className={`fx-path__tick fx-path__tick--${edge}`} style={style}>
       {label} {px(value)}
     </span>
   );

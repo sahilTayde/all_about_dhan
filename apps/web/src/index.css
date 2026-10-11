@@ -306,6 +306,10 @@ a {
   overflow: hidden;
 }
 
+.current-trade.panel {
+  overflow: visible;
+}
+
 .panel__head {
   display: flex;
   justify-content: space-between;
@@ -2301,6 +2305,7 @@ a {
   position: relative;
   height: 1.35rem;
   margin-top: 0.35rem;
+  padding: 0 0.15rem;
   font-size: 0.72rem;
   color: var(--ink-soft);
   font-variant-numeric: tabular-nums;
@@ -2321,7 +2326,7 @@ a {
 }
 
 .fx-path__tick--end {
-  transform: translateX(-100%);
+  transform: none;
 }
 
 .fx-bin__grid {
@@ -2758,7 +2763,7 @@ a {
   min-width: 0;
   max-width: 100%;
   overflow: visible;
-  padding: 0.45rem 0.7rem 0.1rem;
+  padding: 0.45rem 0.95rem 0.15rem;
 }
 
 .current-signal__name {

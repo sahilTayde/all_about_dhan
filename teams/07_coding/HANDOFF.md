@@ -8,10 +8,10 @@ To:       founder / 00 / 05 / 09
 Date:     2026-10-11
 Status:   PAPER / NO_PROMOTE
 Gate:     not RESEARCH_READY_FOR_PROGRAMMING
-Accepted: End ticks align inside the
-  bar (start / end). Strike shows from
-  atm_strike or strike when the fill
-  stored one.
+Accepted: End ticks pin inside the bar
+  (start left / end right + padding).
+  Strike shows from atm_strike or
+  strike when the fill stored one.
 Rejected: Clipped "entry 13". Invented
   strike on pooled rows. Live broker.
 UNKNOWN: Pooled CSV still has no
