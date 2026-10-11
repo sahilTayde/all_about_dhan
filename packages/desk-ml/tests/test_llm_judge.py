@@ -20,12 +20,14 @@ from desk_ml.llm_judge import (
     build_pick_snapshot,
     collect_pick_events,
     load_config,
+    paper_slot_ids,
     parse_exit,
     parse_pick,
     reset_judge,
     score,
     summarize_candles,
 )
+from desk_ml.persist import code_root
 
 IST = timezone(timedelta(hours=5, minutes=30))
 DAY = "2026-10-09"
@@ -219,9 +221,9 @@ def test_attach_logs_journal_and_shadow_without_changing_board(tmp_path: Path) -
                 "last_ltp": 121.0,
                 "status": "OPEN_PAPER",
                 "phase": "IN_TRADE",
-                "sig_min": "10:00",
-                "entry_min": "10:01",
-                "opened_ist": f"{DAY}T10:01:00+05:30",
+                "sig_min": "10:31",
+                "entry_min": "10:32",
+                "opened_ist": f"{DAY}T10:31:00+05:30",
                 "filled": True,
             }
         ],
@@ -295,12 +297,75 @@ def test_snapshot_marks_missing_as_data_insufficient() -> None:
     assert summarize_candles({})["note"] == "DATA_INSUFFICIENT"
 
 
+def _active_account_slots(path: Path) -> set[str]:
+    import yaml  # type: ignore[import-untyped]
+
+    blob = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    return {
+        str(row["strategy_id"]).strip()
+        for row in (blob.get("accounts") or [])
+        if isinstance(row, dict)
+        and str(row.get("status") or "").strip().lower() == "active"
+        and str(row.get("strategy_id") or "").strip()
+    }
+
+
+def test_paper_slot_ids_match_active_accounts_yaml() -> None:
+    path = code_root() / "config" / "v2" / "accounts.yaml"
+    expected = _active_account_slots(path)
+    assert expected
+    assert paper_slot_ids(code_root()) == expected
+    src = SRC.read_text(encoding="utf-8")
+    for sid in expected:
+        assert sid not in src
+
+
+def test_paper_slot_ids_skip_inactive_accounts(tmp_path: Path) -> None:
+    cfg = tmp_path / "config" / "v2"
+    cfg.mkdir(parents=True)
+    (cfg / "accounts.yaml").write_text(
+        "accounts:\n"
+        "  - account_id: customer-01\n    status: active\n    strategy_id: LIVE_SLOT\n"
+        "  - account_id: customer-02\n    status: disabled\n    strategy_id: PARKED_SLOT\n"
+        "  - account_id: founder\n    status: active\n",
+        encoding="utf-8",
+    )
+    assert paper_slot_ids(tmp_path) == frozenset({"LIVE_SLOT"})
+
+
 def test_collect_pick_events_from_research_rule(tmp_path: Path) -> None:
     _pdiv_tape(tmp_path)
     events = collect_pick_events({"session_ist_date": DAY, "open_trades": [], "closed_trades": []}, root=tmp_path, day=DAY, hhmm="10:00")
+    slots = paper_slot_ids(tmp_path)
     setups = {e["setup"] for e in events}
-    assert "R01_PDIV_5_ALL_H20" in setups
-    assert any(e["side"] == "CE" and e["source"] == "paper_slot" for e in events)
+    assert setups & slots
+    assert any(e["side"] == "CE" and e["source"] == "paper_slot" and e["setup"] in slots for e in events)
+
+
+def test_shadow_rule_still_gets_a_pick(tmp_path: Path) -> None:
+    events = collect_pick_events(
+        {
+            "session_ist_date": DAY,
+            "open_trades": [
+                {
+                    "trade_id": "sh-1",
+                    "book_id": "R02_MOM_3_0.0005_ALL_H20",
+                    "research_rule": True,
+                    "shadow": True,
+                    "underlying": "NIFTY",
+                    "side": "PE",
+                    "atm_strike": 25000,
+                    "sig_min": "10:00",
+                }
+            ],
+            "closed_trades": [],
+        },
+        root=tmp_path,
+        day=DAY,
+        hhmm="10:00",
+    )
+    assert any(e["setup"] == "R02_MOM_3_0.0005_ALL_H20" and e["source"] == "shadow_rule" for e in events)
+    assert "R02_MOM_3_0.0005_ALL_H20" not in paper_slot_ids(tmp_path)
 
 
 def test_module_stays_off_the_order_path() -> None:
