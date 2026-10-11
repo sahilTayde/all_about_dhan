@@ -66,9 +66,15 @@ async function main() {
     build: { outDir, emptyOutDir: true },
   };
   await build(common);
+  const plugin = {
+    name: "fixture-api",
+    configurePreviewServer(server) {
+      server.middlewares.use(fixtureApi);
+    },
+  };
   const server = await preview({
     ...common,
-    plugins: [{ name: "fixture-api", configurePreviewServer: (s) => s.middlewares.use(fixtureApi) }],
+    plugins: [plugin],
     preview: { host: "127.0.0.1", port: 5203, strictPort: false, proxy: {} },
   });
   const base = server.resolvedUrls.local[0].replace(/\/$/, "");

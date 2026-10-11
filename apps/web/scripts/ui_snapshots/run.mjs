@@ -333,6 +333,67 @@ async function main() {
         results.push({ page: name, pass: Boolean(pass), detail });
         console.log(`${pass ? "PASS" : "FAIL"} ${name.padEnd(16)} ${detail}`);
       };
+      const ART_AFTER = "/opt/cursor/artifacts/after";
+      mkdirSync(ART_AFTER, { recursive: true });
+      const sectionShot = async (pg, sel, file, vw, vh) => {
+        const el = pg.locator(sel).first();
+        await el.waitFor({ timeout: 15000 });
+        await el.scrollIntoViewIfNeeded();
+        await pg.waitForTimeout(200);
+        const box = await el.boundingBox();
+        const x = Math.max(0, Math.floor(box.x));
+        const y = Math.max(0, Math.floor(box.y));
+        await pg.screenshot({
+          path: file,
+          fullPage: false,
+          clip: {
+            x,
+            y,
+            width: Math.max(1, Math.min(Math.ceil(box.width), vw - x)),
+            height: Math.max(1, Math.min(Math.ceil(box.height), vh - y)),
+          },
+        });
+      };
+      const crisp = await browser.newContext({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 2 });
+      await crisp.route("**/*", (route) => {
+        const host = new URL(route.request().url()).hostname;
+        return host === "127.0.0.1" || host === "localhost" ? route.continue() : route.abort();
+      });
+      const crispPage = await crisp.newPage();
+      await crispPage.goto(`${base}/desk`, { waitUntil: "load" });
+      await crispPage.waitForSelector("[data-testid=open-positions] [data-testid=pos-card]");
+      await crispPage.waitForTimeout(600);
+      await sectionShot(crispPage, "[data-testid=pos-card]", resolve(ART_AFTER, "running_trade_1440.png"), 1440, 900);
+      await sectionShot(crispPage, "[data-testid=open-positions]", resolve(ART_AFTER, "running_trade_dual_1440.png"), 1440, 900);
+      await sectionShot(crispPage, "[data-testid=desk-today]", resolve(ART_AFTER, "desk_today_1440.png"), 1440, 900);
+      await sectionShot(crispPage, "[data-testid=trade-pipeline]", resolve(ART_AFTER, "desk_pipeline_1440.png"), 1440, 900);
+      await crispPage.goto(`${base}/`, { waitUntil: "load" });
+      await crispPage.waitForSelector("[data-testid=customer-portal]");
+      await crispPage.waitForTimeout(600);
+      if ((await crispPage.locator("[data-testid=open-positions]").count()) > 0) {
+        await sectionShot(crispPage, "[data-testid=open-positions]", resolve(ART_AFTER, "customer_running_1440.png"), 1440, 900);
+      }
+      await sectionShot(crispPage, "[data-testid=customer-portal]", resolve(ART_AFTER, "customer_1440.png"), 1440, 900);
+      await crispPage.goto(`${base}/pm`, { waitUntil: "load" });
+      await crispPage.waitForSelector("[data-testid=open-positions]");
+      await crispPage.waitForTimeout(600);
+      await sectionShot(crispPage, "[data-testid=open-positions]", resolve(ART_AFTER, "founder_running_1440.png"), 1440, 900);
+      await sectionShot(crispPage, "[data-testid=founder-shell]", resolve(ART_AFTER, "founder_overview_1440.png"), 1440, 900);
+      await crispPage.close();
+      await crisp.close();
+      const phone = await browser.newContext({ viewport: { width: 390, height: 900 }, deviceScaleFactor: 2 });
+      await phone.route("**/*", (route) => {
+        const host = new URL(route.request().url()).hostname;
+        return host === "127.0.0.1" || host === "localhost" ? route.continue() : route.abort();
+      });
+      const p390 = await phone.newPage();
+      await p390.goto(`${base}/desk`, { waitUntil: "load" });
+      await p390.waitForSelector("[data-testid=open-positions] [data-testid=pos-card]");
+      await p390.waitForTimeout(400);
+      await sectionShot(p390, "[data-testid=open-positions]", resolve(ART_AFTER, "running_trade_390.png"), 390, 900);
+      await p390.close();
+      await phone.close();
+      check("running-shots", true, ART_AFTER);
       const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
       await ctx.grantPermissions(["notifications"]);
       // Count browser notifications (the alarm) without a real OS popup.
