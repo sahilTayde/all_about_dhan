@@ -70,11 +70,16 @@ def test_committed_config_is_paper_only() -> None:
         acc = registry.get(aid)
         assert acc.kind == "customer"
         assert acc.broker == "paper"
-        assert acc.status == "active"
         assert acc.risk_budget_inr == 30000
         assert acc.lots == 10
         assert acc.premium_stop_pct == 0.15
         assert acc.daily_loss_cap_inr == 30000
+        if aid == "customer-04":
+            assert acc.status == "disabled"
+            with pytest.raises(AccountClosed, match="ACCOUNT_DISABLED"):
+                registry.require_active(aid)
+            continue
+        assert acc.status == "active"
         assert registry.require_active(aid).account_id == aid
     with pytest.raises(AccountClosed, match="UNKNOWN_ACCOUNT"):
         registry.get("customer-06")

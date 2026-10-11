@@ -4,7 +4,7 @@ Fail-closed paper/shadow account model. `account_id` isolates ledger partition, 
 
 **Paper only. No live broker. No Dhan credentials. No customer live execution.**
 
-This launch cut lists **5 customer paper books** (`customer-01` … `customer-05`). They are **active**, armed with a registry `strategy_id`, and size **10 lots** (NIFTY qty 650 / SENSEX qty 200). Isolation stays fail-closed: account A cannot read, write, or size account B. Unknown ids fail closed. Live broker names refuse the whole directory. Customer count is **capped at 5**.
+This launch cut lists **5 customer paper books** (`customer-01` … `customer-05`). Four are **active** (`customer-01`/`02`/`03`/`05`). `customer-04` (`R07_MOM3_TREND`) is `status: disabled` (desk lead 2026-10-11; still scored in shadow). Active books are armed with a registry `strategy_id` and size **10 lots** (NIFTY qty 650 / SENSEX qty 200). Isolation stays fail-closed: account A cannot read, write, or size account B. Unknown ids fail closed. Live broker names refuse the whole directory. Customer count is **capped at 5**.
 
 **C5-07 slots:** each launch book has one slot + `journal_tag` + assigned `strategy_id` (`slot_armed: true`). Slot labels are journal tags, not claimed edge.
 
@@ -39,11 +39,11 @@ python -m runtime exec --account founder --once --state-dir /tmp/v2-exec
 
 Enable / disable still write `status` on that row in `config/v2/accounts.yaml` (or `--config`). `--mode live` / broker `dhan` is refused. A disabled customer still appears on `list` and fails `require_active` / `runtime exec`.
 
-## Market ops — committed 5-slot paper night
+## Market ops — committed 4-active-slot paper night
 
-Committed `config/v2/accounts.yaml` arms all five books (`status: active`, `slot_armed: true`) at **10 lots**, 15% premium stop, `daily_loss_cap_inr: 30000`. `c5-start --dry-run` prints `qty.NIFTY = 650`. Never `--mode live`.
+Committed `config/v2/accounts.yaml` arms four books (`status: active`, `slot_armed: true`) at **10 lots**, 15% premium stop, `daily_loss_cap_inr: 30000`. `customer-04` stays listed and `slot_armed` but `status: disabled`. `c5-start --dry-run` prints `qty.NIFTY = 650` for the four active execs. Never `--mode live`.
 
-1. `python -m accounts list` — five customers `status: active`, `lots: 10`, `qty.NIFTY: 650`.
+1. `python -m accounts list` — four customers `status: active`, `customer-04` `status: disabled`, `lots: 10`, `qty.NIFTY: 650`.
 2. `mkdir -p data/c5/signal data/c5/exec/customer-0{1,2,3,4,5}`
 3. `./scripts/desk.sh c5-start --dry-run` — `live_broker: false`, each exec `qty.NIFTY == 650`.
 4. Start paper night only after the dry-run looks right.
@@ -52,7 +52,7 @@ Global V2 shadow still uses `config/v2/baskets/approved_paper_shadow.yaml` on `v
 
 | Path | Owner |
 |------|--------|
-| `config/v2/accounts.yaml` | Paper `founder`, shadow `v2-shadow`, active `customer-01`…`customer-05` with C5-07 slots + 10-lot paper sizing |
+| `config/v2/accounts.yaml` | Paper `founder`, shadow `v2-shadow`, four active customer books (`01`/`02`/`03`/`05`) + disabled `customer-04`, C5-07 slots + 10-lot paper sizing |
 | `config/v2/accounts/customers.example.yaml` | Optional overlay template. Copy to gitignored `customers.yaml` and set `AAD_CUSTOMERS` only if the main file does not already list those ids |
 | `ledger:<account_id>` | Per-account ledger partition |
 | `pos:<account_id>` | Per-account position stream |

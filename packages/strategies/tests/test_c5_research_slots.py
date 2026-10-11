@@ -301,7 +301,10 @@ def test_accounts_are_active_armed_paper_slots() -> None:
     customers = [row for row in body["accounts"] if str(row["account_id"]).startswith("customer-")]
     assert [row["account_id"] for row in customers] == [f"customer-0{i}" for i in range(1, 6)]
     for row in customers:
-        assert row["status"] == "active"
+        if str(row["account_id"]) == "customer-04":
+            assert row["status"] == "disabled"
+        else:
+            assert row["status"] == "active"
         assert row["strategy_id"] == wanted[str(row["account_id"])]
         assert not row.get("basket")
         assert row["broker"] == "paper"

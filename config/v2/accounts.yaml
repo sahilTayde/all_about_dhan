@@ -1,12 +1,13 @@
 # C5-01 / C5-07 paper/shadow account directory. Fail closed. No live broker. No secrets.
 # Founder book is buying-only paper (~₹1–2L product capital; risk_budget_inr is the
-# isolated paper stop budget). Customer slots are armed paper books (status active).
+# isolated paper stop budget). Four customer slots are armed paper books
+# (status active). customer-04 (R07_MOM3_TREND) is status disabled.
 #
 # Portal JWT seats (C5-02 AAD_PAPER_CUSTOMERS=c1,c2,c3,c4,c5) map 1:1:
 #   c1 → customer-01 CONTROL  R01_PDIV_5_ALL_H20
 #   c2 → customer-02 CANDLE_GEOM  R01_B3A_VOL
 #   c3 → customer-03 LOCATION  B8B_B3A_EX_CHOPPY
-#   c4 → customer-04 SKLEARN  R07_MOM3_TREND
+#   c4 → customer-04 SKLEARN  R07_MOM3_TREND  (disabled; still scored in shadow)
 #   c5 → customer-05 HYBRID_OR_ROUTER  B8A_R07_NO_PRE1030
 # Slot labels are journal tags, not claimed edge and not STRAT-015+.
 #
@@ -81,7 +82,8 @@ accounts:
   - account_id: customer-04
     kind: customer
     broker: paper
-    status: active
+    # disabled 2026-10-11 by desk lead, -27.9L modelled 2025-26 and failed holdout; still scored in shadow.
+    status: disabled
     risk_budget_inr: 30000
     lots: 10
     premium_stop_pct: 0.15
