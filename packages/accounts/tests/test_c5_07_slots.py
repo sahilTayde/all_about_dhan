@@ -1,4 +1,4 @@
-"""C5-07: five paper books to five slots. Portal c1-c5. Knobs unset. No live."""
+"""C5-07: five paper books to five slots (four active). Portal c1-c5. No live."""
 
 from __future__ import annotations
 
@@ -63,14 +63,21 @@ def _founder_row() -> dict[str, object]:
     }
 
 
-def test_committed_config_has_five_distinct_armed_slots() -> None:
+def test_committed_config_has_four_active_armed_slots() -> None:
     registry = AccountRegistry.load(default_config_path())
     assert registry.portal_map() == PORTAL_TO_ACCOUNT
+    parked = registry.get("customer-04")
+    assert parked.status == "disabled"
+    assert parked.slot == "SKLEARN"
+    assert parked.journal_tag == "SLOT-SKLEARN"
+    assert parked.strategy_id == LAUNCH_SLOT_STRATEGIES["customer-04"]
+    assert parked.slot_armed is True
+    with pytest.raises(AccountClosed, match="ACCOUNT_DISABLED"):
+        registry.require_active("customer-04")
     seen_slots: set[str] = set()
     seen_tags: set[str] = set()
     for account_id, portal_sub, slot in LAUNCH_SLOT_PLAN:
-        acc = registry.require_active(account_id)
-        assert acc.status == "active"
+        acc = registry.get(account_id)
         assert acc.broker == "paper"
         assert acc.portal_sub == portal_sub
         assert acc.slot == slot
@@ -81,11 +88,15 @@ def test_committed_config_has_five_distinct_armed_slots() -> None:
         assert acc.lots == 10
         assert acc.premium_stop_pct == 0.15
         assert acc.risk_budget_inr == 30000
-        seen_slots.add(acc.slot)
-        seen_tags.add(acc.journal_tag)
         assert registry.account_id_for_portal_sub(portal_sub) == account_id
-    assert seen_slots == set(PAPER_SLOT_LABELS)
-    assert len(seen_tags) == 5
+        if account_id == "customer-04":
+            continue
+        live = registry.require_active(account_id)
+        assert live.status == "active"
+        seen_slots.add(live.slot)
+        seen_tags.add(live.journal_tag)
+    assert seen_slots == set(PAPER_SLOT_LABELS) - {"SKLEARN"}
+    assert len(seen_tags) == 4
     founder = registry.require_active("founder")
     shadow = registry.require_active("v2-shadow")
     assert founder.slot_armed is False and founder.slot == ""
@@ -283,7 +294,10 @@ def test_cli_list_includes_portal_map_and_unarmed_slots() -> None:
     by_id = {row["account_id"]: row for row in body["accounts"]}
     for account_id in PAPER_LAUNCH_CUSTOMER_IDS:
         row = by_id[account_id]
-        assert row["status"] == "active"
+        if account_id == "customer-04":
+            assert row["status"] == "disabled"
+        else:
+            assert row["status"] == "active"
         assert row["slot"] == ACCOUNT_TO_SLOT[account_id]
         assert row["journal_tag"] == f"SLOT-{ACCOUNT_TO_SLOT[account_id]}"
         assert row["slot_armed"] is True
