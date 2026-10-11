@@ -71,7 +71,7 @@ SHADOW_MARKERS = ("shadow", "research_rule", "exit_variants")
 R3_REL = Path("research") / "lab" / "2026-10-11_llm_judge" / "R3_PREREG"
 R4_REL = Path("research") / "lab" / "2026-10-11_llm_judge" / "R4_SLOT"
 R4_PROMPT_DEFAULT = Path("research") / "lab" / "2026-10-11_llm_debrief" / "R4" / "prompt.txt"
-R4_SHA_PREFIX_DEFAULT = "d31a9c85"
+R4_SHA_PREFIX_DEFAULT = "cd147c1a"
 
 DEFAULTS: dict[str, Any] = {
     "shadow": True,

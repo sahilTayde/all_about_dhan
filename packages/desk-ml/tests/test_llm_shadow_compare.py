@@ -171,7 +171,7 @@ def test_r4_missing_prompt_is_loud(tmp_path: Path) -> None:
     assert out["ok"] is False
     assert out["prompt"] is None
     assert "llm_debrief" in str(out["drop_path"])
-    assert out["expected_sha256_prefix"] == "d31a9c85"
+    assert out["expected_sha256_prefix"] == "cd147c1a"
     assert "SLOT_EMPTY" not in json.dumps(out)
 
 
@@ -183,8 +183,8 @@ def test_r4_lock_mismatch(tmp_path: Path) -> None:
     assert out["status"] == "LOCK_MISMATCH"
     assert out["ok"] is False
     assert out["prompt"] is None
-    assert not str(out["sha256"]).startswith("d31a9c85")
-    assert out["expected_sha256_prefix"] == "d31a9c85"
+    assert not str(out["sha256"]).startswith("cd147c1a")
+    assert out["expected_sha256_prefix"] == "cd147c1a"
 
 
 def test_r4_ok_when_prefix_matches(tmp_path: Path) -> None:
@@ -236,7 +236,7 @@ def test_run_day_is_shadow_only_and_r4_missing(tmp_path: Path) -> None:
     assert out["arms"]["r3"]["lock_ok"] is True
     assert out["arms"]["r4"]["status"] == "MISSING_PROMPT"
     assert "llm_debrief" in str(out["arms"]["r4"].get("drop_path") or "")
-    assert out["arms"]["r4"].get("expected_sha256_prefix") == "d31a9c85"
+    assert out["arms"]["r4"].get("expected_sha256_prefix") == "cd147c1a"
     assert out["arms"]["logit"]["lookahead"] is False
     assert all(d < "2026-10-10" for d in (out["arms"]["logit"].get("train_days") or []))
     assert out["arms"]["random"]["draws"] == 2000
@@ -245,6 +245,6 @@ def test_run_day_is_shadow_only_and_r4_missing(tmp_path: Path) -> None:
     assert view["trade"] is False
     assert view["n_days"] == 1
     assert view["r4"]["status"] == "MISSING_PROMPT"
-    assert "d31a9c85" in str(view["r4"].get("expected_sha256_prefix"))
+    assert "cd147c1a" in str(view["r4"].get("expected_sha256_prefix"))
     assert _board_fingerprint(board) == before
     assert board["open_trades"][0]["entry"] == 99.0

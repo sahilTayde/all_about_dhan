@@ -18,7 +18,7 @@ export function shadowCompareView(raw) {
     r4Status: r4.status || "MISSING_PROMPT",
     r4Note: r4.note || "",
     r4Path: r4.drop_path || r4.path || "research/lab/2026-10-11_llm_debrief/R4/prompt.txt",
-    r4Prefix: r4.expected_sha256_prefix || "d31a9c85",
+    r4Prefix: r4.expected_sha256_prefix || "cd147c1a",
     promote: false,
     trade: false,
   };

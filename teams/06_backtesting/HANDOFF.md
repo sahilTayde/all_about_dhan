@@ -1,5 +1,20 @@
 # Handoff log — Team 06 Backtesting
 
+## As of now (2026-10-11 IST) — R4 prompt hash is prompt.txt (PAPER)
+
+```text
+From:     teams/06_backtesting
+To:       00 / 07 / 09
+Date:     2026-10-11
+Status:   PAPER / NO_PROMOTE
+Accepted: r4_sha256_prefix is cd147c1a
+  (sha of R4/prompt.txt).
+Rejected: Keeping d31a9c85 as the
+  prompt lock (that was PREREG_R4.md).
+UNKNOWN: Frozen cd147c1a text not
+  in git; drop on the box path.
+```
+
 ## As of now (2026-10-11 IST) — R4 prompt path, not empty slot (PAPER)
 
 ```text
@@ -9,13 +24,13 @@ Date:     2026-10-11
 Status:   PAPER / NO_PROMOTE
 Accepted: R4 arm reads config path
   (debrief/R4/prompt.txt). Expected
-  sha256 prefix d31a9c85. Missing
+  sha256 prefix cd147c1a. Missing
   file is MISSING_PROMPT. Hash miss
   is LOCK_MISMATCH. Nightly still
   fail-soft. No fill change.
 Rejected: Silent SLOT_EMPTY. Writing
   a guessed R4 prompt. Look-ahead.
-UNKNOWN: Frozen d31a9c85 text not
+UNKNOWN: Frozen cd147c1a text not
   in git; drop on the box path.
 ```
 
