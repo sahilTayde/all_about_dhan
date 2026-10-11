@@ -309,3 +309,37 @@ def test_history_complete_flag_and_non_blocking_warmer(tmp_path) -> None:
     assert done["history_complete"] is True
     assert [(d["day"], d["net"]) for d in done["days"]] == [("2026-01-14", -460.0)]
     assert done["account"]["net_inr"] == -460.0
+
+
+def test_decision_journal_on_snapshot_and_trace(tmp_path) -> None:
+    from desk_ml.decision_journal import DecisionJournal, make_row
+
+    ts = 1768452300  # 2026-01-15 10:15 IST-ish; day comes from ts_ist
+    board = {"session_ist_date": DAY, "closed_trades": [_board_trade("t-n", "MIX-DEFAULT-BUY", 10.0, f"{DAY}T10:00:00+05:30")]}
+    (tmp_path / "data" / "recon").mkdir(parents=True)
+    (tmp_path / "data" / "recon" / "ml_paper_dashboard.json").write_text(json.dumps(board), encoding="utf-8")
+    journal = DecisionJournal(tmp_path)
+    journal.append(
+        make_row(
+            ts=f"{DAY}T10:00:00+05:30",
+            underlying="NIFTY",
+            candidate_id="t-n",
+            stage="overlay",
+            actor="Overlay",
+            decision="pass",
+            reason="Market TREND",
+            inputs={"day_type": "TREND", "vix": 12.4, "premium": 100, "sl": 94, "target": 106},
+            trade_id="t-n",
+        )
+    )
+    from api.ui_feed import build_snapshot, decision_journal, trade_trace
+
+    snap = build_snapshot(tmp_path, fstatus={})
+    assert snap["decision_journal"]
+    assert snap["board"]["decision_journal"][0]["stage"] == "overlay"
+    assert "MIX-" not in json.dumps(snap["decision_journal"])
+    blob = decision_journal(tmp_path, day=DAY)
+    assert blob["n"] == 1 and blob["orders"] == "REFUSED"
+    trace = trade_trace(tmp_path, "t-n")
+    assert trace["journal"][0]["candidate_id"] == "t-n"
+    assert trace["journal"][0]["inputs"]["day_type"] == "TREND"

@@ -4,6 +4,7 @@ import {
   PIPE_STAGES,
   buildLane,
   buildPipelines,
+  fromJournal,
   leakMix,
   pipelineText,
   skipWhoWhy,
@@ -117,5 +118,36 @@ assert.ok(model.history.some((h) => h.state === "blocked" && /coil market/.test(
 assert.ok(model.history.some((h) => h.state === "done" && h.name === "Momentum"));
 assert.ok(!leakMix(pipelineText(model)));
 assert.ok(!/MIX-/.test(pipelineText(model)));
+
+const journal = [
+  {
+    ts_ist: "2026-01-15T10:00:00+05:30",
+    underlying: "NIFTY",
+    candidate_id: "t-n",
+    stage: "overlay",
+    actor: "Overlay",
+    decision: "pass",
+    reason: "Market TREND",
+    inputs: { day_type: "TREND", vix: 12.4, premium: 140.5, sl: 132, target: 149 },
+  },
+  {
+    ts_ist: "2026-01-15T10:00:00+05:30",
+    underlying: "NIFTY",
+    candidate_id: "t-n",
+    stage: "in_trade",
+    actor: "Desk",
+    decision: "pass",
+    reason: "Trade in progress",
+  },
+];
+const fromJ = fromJournal(journal);
+assert.equal(fromJ.overlay.state, "done");
+assert.equal(fromJ.live.state, "active");
+const wired = buildLane("NIFTY", {
+  open: [{ trade_id: "t-n", underlying: "NIFTY", side: "PE", opened_ist: "2026-01-15T10:00:00+05:30" }],
+  journal,
+});
+assert.equal(wired.stages.find((s) => s.id === "overlay").why, "Market TREND");
+assert.ok(!leakMix(JSON.stringify(wired)));
 
 console.log("trade_pipeline_unit: ok");

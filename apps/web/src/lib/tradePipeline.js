@@ -110,10 +110,32 @@ function blocked(id, { who, why, at, rule, inputs } = {}) {
   };
 }
 
+const EXIT_PLAIN = Object.freeze({
+  TARGET: "Target hit",
+  STOP: "Stop hit",
+  TIME: "Time exit",
+  CANCEL_AGAINST: "Thesis broke",
+  CANCEL_NO_PROGRESS: "No progress",
+  COVER_LONG_UNWIND: "Long unwind",
+  OVERLAY_COIL: "coil market",
+  NO_NEW_AFTER_1516: "too late in the session",
+});
+
 function cleanWhy(raw, fallback) {
   const s = scrubMix(raw);
   if (!s) return fallback;
+  const u = s.toUpperCase().replace(/[^A-Z0-9_]/g, "_");
+  if (EXIT_PLAIN[s] || EXIT_PLAIN[u]) return EXIT_PLAIN[s] || EXIT_PLAIN[u];
+  if (/^[A-Z][A-Z0-9_]+$/.test(s)) return s.replaceAll("_", " ").toLowerCase();
   return plainText(s, fallback);
+}
+
+function cleanRule(raw) {
+  const s = scrubMix(raw);
+  if (!s) return null;
+  if (EXIT_PLAIN[s] || EXIT_PLAIN[s.toUpperCase()]) return EXIT_PLAIN[s] || EXIT_PLAIN[s.toUpperCase()];
+  if (/^[A-Z][A-Z0-9_]+$/.test(s)) return s.replaceAll("_", " ").toLowerCase();
+  return s;
 }
 
 function cleanInputs(fields) {
@@ -156,6 +178,45 @@ export function skipWhoWhy(row) {
   return { who, why: who === "Overlay" && !/^Overlay /i.test(why) ? `Overlay skipped: ${why}` : why };
 }
 
+const JOURNAL_STAGE = Object.freeze({
+  analyst: "analyst",
+  desk: "desk",
+  overlay: "overlay",
+  boss: "boss",
+  imm: "imm",
+  in_trade: "live",
+  live: "live",
+  exit: "exit",
+});
+
+export function fromJournal(rows) {
+  const out = {};
+  for (const row of rows || []) {
+    const id = JOURNAL_STAGE[row.stage];
+    if (!id) continue;
+    const at = clockOf(row.ts_ist || row.ts);
+    const who = row.actor || metaWho(id);
+    const why = row.reason || "waiting";
+    const inputs = cleanInputs(row.inputs || {});
+    const extra = { who, why, at, rule: row.reason, inputs };
+    if (row.decision === "skip") out[id] = blocked(id, extra);
+    else if (id === "live" && row.decision === "pass") out[id] = active(id, extra);
+    else if (row.decision === "fill" || row.decision === "exit" || row.decision === "pass") out[id] = done(id, extra);
+  }
+  return out;
+}
+
+function journalForLane(rows, und, tradeId) {
+  const mine = (rows || []).filter((r) => String(r.underlying || "").toUpperCase() === und);
+  if (tradeId) {
+    const hit = mine.filter((r) => r.candidate_id === tradeId || r.trade_id === tradeId);
+    if (hit.length) return hit;
+  }
+  const ids = [...new Set(mine.map((r) => r.candidate_id).filter(Boolean))];
+  const latest = ids[ids.length - 1];
+  return latest ? mine.filter((r) => r.candidate_id === latest) : mine;
+}
+
 function fromTrace(trace) {
   const out = {};
   for (const step of trace?.steps || []) {
@@ -169,9 +230,9 @@ function fromTrace(trace) {
       continue;
     }
     if (/skip|veto|block|fail|hold/i.test(`${step.status} ${step.why} ${step.decided}`)) {
-      out[id] = blocked(id, { who: metaWho(id), why, at, rule: scrubMix(step.source), inputs });
+      out[id] = blocked(id, { who: metaWho(id), why, at, rule: cleanRule(step.source || step.why), inputs });
     } else {
-      out[id] = done(id, { who: metaWho(id), why, at, rule: scrubMix(step.source), inputs });
+      out[id] = done(id, { who: metaWho(id), why, at, rule: cleanRule(step.source), inputs });
     }
   }
   return out;
@@ -240,7 +301,7 @@ function inferFromSkip(row) {
     who,
     why,
     at,
-    rule: scrubMix(row.reason),
+    rule: cleanRule(row.reason),
     inputs: cleanInputs({ side: row.side, market: row.market_kind || row.regime }),
   });
   return stages;
@@ -260,23 +321,30 @@ function finish(und, kind, title, trade, stages) {
   };
 }
 
-export function buildLane(underlying, { open = [], closed = [], skips = [], traces = {} } = {}) {
+export function buildLane(underlying, { open = [], closed = [], skips = [], traces = {}, journal = [] } = {}) {
   const und = String(underlying || "").toUpperCase();
   const live = (open || []).find((t) => String(t.underlying).toUpperCase() === und) || null;
   const lastClosed = (closed || []).find((t) => String(t.underlying).toUpperCase() === und) || null;
   const skip = (skips || []).find((s) => String(s.underlying).toUpperCase() === und) || null;
+  const jRows = journalForLane(journal, und, live?.trade_id || lastClosed?.trade_id);
+  const jStages = fromJournal(jRows);
   if (live) {
-    const stages = mergeStages(inferFromTrade(live), fromTrace(traces[live.trade_id]));
-    stages.live = active("live", { why: "Trade in progress", at: clockOf(live.last_updated_ist) || clockOf(live.opened_ist) });
-    stages.exit = waiting("exit");
+    const stages = mergeStages(mergeStages(inferFromTrade(live), fromTrace(traces[live.trade_id])), jStages);
+    stages.live = jStages.live || active("live", { why: "Trade in progress", at: clockOf(live.last_updated_ist) || clockOf(live.opened_ist) });
+    stages.exit = jStages.exit || waiting("exit");
     return finish(und, "live", `${und} ${live.side} ${live.atm_strike ?? ""}`.trim(), live, stages);
   }
   if (skip) {
-    return finish(und, "skipped", `${und} skipped`, skip, inferFromSkip(skip));
+    return finish(und, "skipped", `${und} skipped`, skip, mergeStages(inferFromSkip(skip), jStages));
   }
   if (lastClosed) {
-    const stages = mergeStages(inferFromTrade(lastClosed), fromTrace(traces[lastClosed.trade_id]));
+    const stages = mergeStages(mergeStages(inferFromTrade(lastClosed), fromTrace(traces[lastClosed.trade_id])), jStages);
     return finish(und, "closed", `${und} ${lastClosed.side} closed`, lastClosed, stages);
+  }
+  if (Object.keys(jStages).length) {
+    const blockedRow = Object.values(jStages).find((s) => s.state === "blocked");
+    const kind = blockedRow ? "skipped" : "empty";
+    return finish(und, kind, blockedRow ? `${und} skipped` : `${und} · waiting`, null, jStages);
   }
   return finish(und, "empty", `${und} · waiting`, null, Object.fromEntries(PIPE_STAGES.map((s) => [s.id, waiting(s.id)])));
 }
@@ -324,12 +392,13 @@ export function pipelineHistory(closed, skips, sessionDay, liveIds = new Set()) 
   return [...skipped, ...fills].slice(0, 12);
 }
 
-export function buildPipelines(board, { uniqueOpen = [], uniqueClosed = [], traces = {} } = {}) {
+export function buildPipelines(board, { uniqueOpen = [], uniqueClosed = [], traces = {}, journal } = {}) {
   const skips = board?.seen_not_taken?.skipped_latest || board?.skipped || [];
   const sessionDay = board?.session_ist_date;
   const liveIds = new Set((uniqueOpen || []).map((t) => t.trade_id).filter(Boolean));
+  const rows = journal || board?.decision_journal || [];
   return {
-    lanes: PIPE_LANES.map((und) => buildLane(und, { open: uniqueOpen, closed: uniqueClosed, skips, traces })),
+    lanes: PIPE_LANES.map((und) => buildLane(und, { open: uniqueOpen, closed: uniqueClosed, skips, traces, journal: rows })),
     history: pipelineHistory(uniqueClosed, skips, sessionDay, liveIds),
   };
 }

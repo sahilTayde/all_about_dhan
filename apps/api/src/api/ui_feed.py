@@ -5,6 +5,8 @@ Sources, all read-only (this module never writes a file and never calls a broker
 - dual tape ``data/recon/paper_watch/DUAL-TAPE/<day>.jsonl`` for the index spot at entry;
 - model log ``data/recon/ml_paper_model_logs.jsonl`` (+ ``archive/*.pre_slate``): OPEN / CLOSE /
   TRAIL_STOP / TARGET_LOCK_SHIFT per trade, so history survives the daily board reset;
+- decision journal ``data/recon/decision_journal/YYYY-MM-DD.jsonl``: one append-only row per
+  pipeline stage per candidate (analyst → exit). Paper only. Missing stage = waiting;
 - ledger ``data/ledger/ledger.sqlite`` (opened ``mode=ro``) when the event path has written one;
 - health monitor ``data/health/status.json`` + ``alerts.jsonl`` and paper-ops status files.
 
@@ -816,6 +818,40 @@ def trim_board(board: dict[str, Any]) -> dict[str, Any]:
 SNAPSHOT_BUDGET_S = 0.25
 
 
+def decision_journal_rows(
+    root: Path = REPO,
+    *,
+    day: Optional[str] = None,
+    candidate_id: Optional[str] = None,
+    underlying: Optional[str] = None,
+) -> list[dict[str, Any]]:
+    """Today's append-only paper decision journal. Empty list when the file is missing."""
+    try:
+        from desk_ml.decision_journal import load_rows
+    except ImportError:
+        return []
+    return load_rows(root, day=day, candidate_id=candidate_id, underlying=underlying)
+
+
+def decision_journal(
+    root: Path = REPO,
+    *,
+    day: Optional[str] = None,
+    candidate_id: Optional[str] = None,
+) -> dict[str, Any]:
+    board = load_board(root) or {}
+    pick = day or board.get("session_ist_date")
+    rows = decision_journal_rows(root, day=pick, candidate_id=candidate_id)
+    return {
+        "ok": True,
+        "day": pick,
+        "n": len(rows),
+        "rows": rows,
+        "orders": "REFUSED",
+        "promote": False,
+    }
+
+
 def build_snapshot(root: Path = REPO, *, now: Optional[datetime] = None, fstatus: Optional[dict[str, Any]] = None,
                    budget_s: Optional[float] = None) -> dict[str, Any]:
     """``budget_s`` caps log/tape indexing per call; the API passes SNAPSHOT_BUDGET_S, tests pass None (read all)."""
@@ -836,10 +872,14 @@ def build_snapshot(root: Path = REPO, *, now: Optional[datetime] = None, fstatus
     health = health_rows(root, board, fstatus, hstatus, now, halt)
     exam_path = root / "data" / "recon" / "sod_exam_report.json"
     exam = read_json(exam_path if exam_path.is_file() else root / "apps" / "web" / "public" / "mock" / "sod_exam_report.json")
+    trimmed = trim_board(board)
+    journal = decision_journal_rows(root, day=str(board.get("session_ist_date") or now.date().isoformat()))
+    trimmed["decision_journal"] = journal
     return {
         "ok": bool(board),
         "as_of": now.isoformat(timespec="seconds"),
-        "board": trim_board(board),
+        "board": trimmed,
+        "decision_journal": journal,
         "exam": exam,
         "tape_last_ist": tape_last(board),
         "founder": {k: fstatus.get(k) for k in ("ok", "mode", "issues", "next_action", "agents", "services", "started_at_ist")},
@@ -967,4 +1007,13 @@ def trade_trace(root: Path = REPO, trade_id: str = "", budget_s: Optional[float]
               "trade record + model log"),
     ]
     closed = t.get("exit") is not None or bool(t.get("closed_ist"))
-    return {"ok": True, "trade_id": trade_id, "underlying": und, "side": t.get("side"), "closed": closed, "steps": steps}
+    journal = decision_journal_rows(root, candidate_id=trade_id, underlying=und)
+    return {
+        "ok": True,
+        "trade_id": trade_id,
+        "underlying": und,
+        "side": t.get("side"),
+        "closed": closed,
+        "steps": steps,
+        "journal": journal,
+    }

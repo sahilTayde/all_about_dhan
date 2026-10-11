@@ -331,6 +331,11 @@ def create_app() -> FastAPI:
         """Decision trace Data → Analysts → Boss → Risk → Desk → Broker → Fill for one trade."""
         return ui_feed.trade_trace(trade_id=trade_id, budget_s=1.0)
 
+    @app.get("/paper/journal")
+    def paper_journal(day: Optional[str] = None, candidate_id: Optional[str] = None) -> dict[str, Any]:
+        """Append-only paper decision journal (one row per stage per candidate). Read-only."""
+        return ui_feed.decision_journal(day=day, candidate_id=candidate_id)
+
     @app.get("/paper/backtests/itm-scalp")
     def paper_itm_scalp_backtest() -> dict[str, Any]:
         """Last MIX-ITM-OPT-SCALP paper backtest JSON (recon). Not a promote."""

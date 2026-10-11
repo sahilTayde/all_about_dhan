@@ -124,6 +124,10 @@ function fixtureApi(req, res, next) {
     return undefined;
   }
   if (p === "/paper/trace" || p === "/v2/trace") return json(trace(url.searchParams.get("trade_id")));
+  if (p === "/paper/journal") {
+    const rows = (board.decision_journal || []).filter((r) => !url.searchParams.get("candidate_id") || r.candidate_id === url.searchParams.get("candidate_id") || r.trade_id === url.searchParams.get("candidate_id"));
+    return json({ ok: true, day: board.session_ist_date, n: rows.length, rows, orders: "REFUSED", promote: false });
+  }
   if (p === "/paper/history") return json(dayHistory(url.searchParams.get("day")));
   if (p === "/paper/ml-books" || p === "/mock/ml_paper_dashboard.json") return json(board);
   if (p === "/paper/sod-exam" || p === "/mock/sod_exam_report.json") return json(exam);

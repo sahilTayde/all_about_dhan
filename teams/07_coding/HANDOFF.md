@@ -1,5 +1,29 @@
 # Handoff log — Team 07 Coding
 
+## As of now (2026-10-11 IST) — paper decision journal (PAPER)
+
+```text
+From:     teams/07_coding
+To:       founder / 00 / 05 / 09
+Date:     2026-10-11
+Status:   PAPER / dual-tape journal / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+Accepted: Append-only JSONL
+  data/recon/decision_journal/YYYY-MM-DD.jsonl
+  one row per stage per candidate
+  (analyst, desk, overlay, boss, imm,
+  in_trade, exit). Actor is a plain
+  name. Decision pass|skip|fill|exit.
+  Inputs: day type, phase, VIX, premium,
+  SL, target when recorded. Exposed on
+  /ui/snapshot, /paper/trace, /paper/journal.
+  Pipeline board prefers these rows.
+Rejected: Invented prints. MIX-* as actor.
+  Live orders. Deleting journal lines.
+UNKNOWN: A tick with no spoken vote and
+  no skip writes nothing; UI stays waiting.
+```
+
 ## As of now (2026-10-11 IST) — live trade pipeline board (PAPER)
 
 ```text
