@@ -248,6 +248,7 @@ export function skipWhoWhy(row) {
 
 const JOURNAL_STAGE = Object.freeze({
   analyst: "analyst",
+  llm_explain: "analyst",
   desk: "desk",
   overlay: "overlay",
   boss: "boss",
@@ -256,6 +257,36 @@ const JOURNAL_STAGE = Object.freeze({
   live: "live",
   exit: "exit",
 });
+
+const MARKET_PLAIN = Object.freeze({
+  "trend up": "trend up",
+  "trend down": "trend down",
+  chop: "chop",
+  "tight range": "tight range",
+  "expiry pin": "expiry pin",
+  "high-VIX": "high-VIX",
+  TREND_UP: "trend up",
+  TREND_DOWN: "trend down",
+  CHOP: "chop",
+  CHOPPY: "chop",
+  TIGHT_RANGE: "tight range",
+  EXPIRY_PIN: "expiry pin",
+  HIGH_VIX: "high-VIX",
+});
+
+export function plainMarketType(raw) {
+  if (raw == null || raw === "") return "";
+  const s = String(raw).trim();
+  if (MARKET_PLAIN[s]) return MARKET_PLAIN[s];
+  const key = s.toLowerCase().replace(/[\s_]+/g, "-");
+  if (key === "trend-up" || key === "uptrend") return "trend up";
+  if (key === "trend-down" || key === "downtrend") return "trend down";
+  if (key === "tight-range" || key === "range") return "tight range";
+  if (key === "expiry-pin" || key === "expiry") return "expiry pin";
+  if (key === "high-vix" || key === "highvix") return "high-VIX";
+  if (key === "chop" || key === "choppy" || key === "sideways") return "chop";
+  return "";
+}
 
 export function fromJournal(rows) {
   const out = {};
@@ -332,9 +363,13 @@ function inferFromTrade(t) {
   const name = strategyName(t);
   const stages = {
     analyst: done("analyst", {
-      why: name ? `${name} spoke` : "Analyst recorded",
+      why: t.llm_explanation || (name ? `${name} spoke` : "Analyst recorded"),
       at: openAt,
-      inputs: cleanInputs({ side: t.side }),
+      inputs: cleanInputs({
+        side: t.side,
+        market_type: plainMarketType(t.market_type),
+        explanation: t.llm_explanation,
+      }),
     }),
     desk: done("desk", {
       why: `${t.side} ${t.atm_strike ?? ""}`.trim(),

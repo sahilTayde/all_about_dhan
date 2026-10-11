@@ -1,0 +1,14 @@
+{
+  "name": "llm_judge_r3_pick",
+  "strict": true,
+  "schema": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": ["decision", "confidence", "reason"],
+    "properties": {
+      "decision": {"type": "string", "enum": ["TAKE", "SKIP"]},
+      "confidence": {"type": "number"},
+      "reason": {"type": "string"}
+    }
+  }
+}

@@ -175,6 +175,12 @@ export function CurrentTrade({ t, last, clock, hold, indexNow, children, title =
           </dl>
           <TicketPath t={t} />
           <p className="desk-sub current-trade__why">Why: {shortWhy(t.justification)}</p>
+          {t.llm_explanation || t.market_type ? (
+            <p className="desk-sub current-trade__explain" data-testid="trade-explain">
+              {t.market_type ? <strong>{t.market_type}. </strong> : null}
+              {t.llm_explanation || ""}
+            </p>
+          ) : null}
           {children}
         </>
       )}

@@ -3652,6 +3652,16 @@ tr.is-click:hover {
   white-space: nowrap;
 }
 
+.current-trade__explain {
+  margin: 0.35rem 0 0;
+  white-space: normal;
+  line-height: 1.45;
+}
+
+.llm-shadow {
+  margin-bottom: 0.85rem;
+}
+
 /* account */
 .index-chips {
   display: flex;

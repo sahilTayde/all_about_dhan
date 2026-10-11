@@ -1065,7 +1065,7 @@ def run_dual_tape_loop(
                                     snaps=snaps,
                                     judge=get_judge(settings.repo_root),
                                 )
-                                board = {**board, "llm_judge": judge_stats}
+                                board = {**board, "llm_judge": {**judge_stats, "trade": False, "veto": False}}
                             except Exception:  # noqa: BLE001,S110 — shadow judge never owns the fill
                                 pass
                             publish_board(board, root=settings.repo_root)

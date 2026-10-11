@@ -1,0 +1,36 @@
+{
+  "snapshot_fields": [
+    "v",
+    "job",
+    "day",
+    "hhmm",
+    "setup",
+    "side",
+    "strike",
+    "source",
+    "market",
+    "orders",
+    "promote"
+  ],
+  "market_fields": [
+    "underlying",
+    "index",
+    "vwap",
+    "index_vs_vwap",
+    "pdh",
+    "pdl",
+    "opening_range",
+    "candles_1m_15",
+    "atm_ce",
+    "atm_pe",
+    "oi_change",
+    "vix",
+    "futures_basis",
+    "heavyweights",
+    "market_type",
+    "phase",
+    "morning_context",
+    "atm_strike"
+  ],
+  "note": "Same fields as desk_ml.llm_judge.build_pick_snapshot / build_market_snapshot. Frozen for R3. Paper / shadow only."
+}

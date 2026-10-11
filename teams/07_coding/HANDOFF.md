@@ -1,5 +1,26 @@
 # Handoff log — Team 07 Coding
 
+## As of now (2026-10-11 IST) — LLM explainer + take/skip shadow panel (PAPER)
+
+```text
+From:     teams/07_coding
+To:       founder / 00 / 06 / 09
+Date:     2026-10-11
+Status:   PAPER / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+Accepted: Async explainer on paper-slot
+  trades (1-3 sentences + market type).
+  Journal stage llm_explain. Trade card
+  and pipeline Analyst show plain words.
+  Daily R3/R4/logit/random shadow JSON
+  + founder research panel vs random.
+  trade false. No accounts.yaml / size /
+  exit edits. Missing OPENAI key skips.
+Rejected: Veto. Fast-path block. Live
+  broker. R4 prompt (slot empty).
+UNKNOWN: Live OpenAI wording quality.
+```
+
 ## As of now (2026-10-11 IST) — LLM judge slots from accounts.yaml (PAPER)
 
 ```text

@@ -7,6 +7,7 @@ import {
   fromJournal,
   leakMix,
   pipelineText,
+  plainMarketType,
   skipWhoWhy,
   strategyName,
 } from "../src/lib/tradePipeline.js";
@@ -174,5 +175,40 @@ const wired = buildLane("NIFTY", {
 });
 assert.equal(wired.stages.find((s) => s.id === "overlay").why, "Market TREND");
 assert.ok(!leakMix(JSON.stringify(wired)));
+
+assert.equal(plainMarketType("TREND_UP"), "trend up");
+assert.equal(plainMarketType("high-VIX"), "high-VIX");
+assert.equal(plainMarketType("MOON"), "");
+
+const explained = buildLane("NIFTY", {
+  open: [
+    {
+      trade_id: "t-n",
+      underlying: "NIFTY",
+      side: "CE",
+      opened_ist: "2026-01-15T10:00:00+05:30",
+      llm_explanation: "Call premium is following a rising index. The open range is holding.",
+      market_type: "trend up",
+    },
+  ],
+  journal: [
+    {
+      ts_ist: "2026-01-15T10:00:00+05:30",
+      underlying: "NIFTY",
+      candidate_id: "t-n",
+      trade_id: "t-n",
+      stage: "llm_explain",
+      actor: "LLM judge",
+      decision: "pass",
+      reason: "Call premium is following a rising index. The open range is holding.",
+      inputs: { market_type: "trend up", side: "CE" },
+    },
+  ],
+});
+const analyst = explained.stages.find((s) => s.id === "analyst");
+assert.equal(analyst.state, "done");
+assert.match(analyst.why, /rising index/);
+assert.equal(analyst.inputs.market_type, "trend up");
+assert.ok(!/TREND_UP|llm_explain|MIX-/.test(JSON.stringify(explained)));
 
 console.log("trade_pipeline_unit: ok");

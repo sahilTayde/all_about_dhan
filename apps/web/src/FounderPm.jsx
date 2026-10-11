@@ -13,6 +13,7 @@ import { FounderRoster } from "./components/FounderRoster.jsx";
 import { Header, OfflineBanner } from "./components/Header.jsx";
 import { HealthPanel } from "./components/HealthPanel.jsx";
 import { MarketPanel } from "./components/MarketPanel.jsx";
+import { LlmShadowPanel } from "./components/LlmShadowPanel.jsx";
 import { TradeHistory } from "./components/TradeHistory.jsx";
 import { ActionBar } from "./desk/components/ActionBar.jsx";
 import { HealthStrip } from "./desk/components/HealthStrip.jsx";
@@ -192,6 +193,7 @@ export function FounderPm() {
           <header className="widget__head">
             <h2>Research feed</h2>
           </header>
+          <LlmShadowPanel compare={snap?.llm_shadow_compare} />
           <ul className="suggest-list">
             {paperCards.map((c) => (
               <li key={c.id}>

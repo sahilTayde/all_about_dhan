@@ -343,3 +343,54 @@ def test_decision_journal_on_snapshot_and_trace(tmp_path) -> None:
     trace = trade_trace(tmp_path, "t-n")
     assert trace["journal"][0]["candidate_id"] == "t-n"
     assert trace["journal"][0]["inputs"]["day_type"] == "TREND"
+
+
+def test_snapshot_stamps_explainer_and_shadow_panel(tmp_path) -> None:
+    from desk_ml.decision_journal import DecisionJournal, make_row
+    from desk_ml.llm_shadow_compare import COMPARE_REL
+
+    board = {"session_ist_date": DAY, "open_trades": [_board_trade("t-n", "MIX-DEFAULT-BUY", 10.0, f"{DAY}T10:00:00+05:30")]}
+    (tmp_path / "data" / "recon").mkdir(parents=True)
+    (tmp_path / "data" / "recon" / "ml_paper_dashboard.json").write_text(json.dumps(board), encoding="utf-8")
+    journal = DecisionJournal(tmp_path)
+    journal.append(
+        make_row(
+            ts=f"{DAY}T10:00:00+05:30",
+            underlying="NIFTY",
+            candidate_id="t-n",
+            stage="llm_explain",
+            actor="LLM judge",
+            decision="pass",
+            reason="Call premium is following a rising index.",
+            inputs={"market_type": "trend up", "side": "CE", "explanation": "Call premium is following a rising index."},
+            trade_id="t-n",
+        )
+    )
+    cum = tmp_path / "data" / "recon" / "llm_shadow_compare"
+    cum.mkdir(parents=True)
+    (tmp_path / COMPARE_REL / "cumulative.json").write_text(
+        json.dumps(
+            {
+                "schema": "llm-shadow-compare-v1",
+                "r3_net": 200.0,
+                "random_mean": 50.0,
+                "r3_minus_random": 150.0,
+                "n_days": 1,
+                "days": [{"day": DAY, "r3_net": 200.0, "random_mean": 50.0}],
+                "trade": False,
+                "promote": False,
+            }
+        ),
+        encoding="utf-8",
+    )
+    from api.ui_feed import build_snapshot
+
+    snap = build_snapshot(tmp_path, fstatus={})
+    live = snap["board"]["open_trades"][0]
+    assert live["llm_explanation"] == "Call premium is following a rising index."
+    assert live["market_type"] == "trend up"
+    assert live["entry"] == 100.0
+    assert live["realized_pnl_inr"] == 10.0
+    assert snap["llm_shadow_compare"]["r3_net"] == 200.0
+    assert snap["llm_shadow_compare"]["trade"] is False
+    assert "TREND_UP" not in json.dumps(snap["board"]["open_trades"])

@@ -1,0 +1,17 @@
+{
+  "id": "R3",
+  "prereg_status": "FROZEN",
+  "registered_at": "2026-10-11T00:00:00+05:30",
+  "sha256": "e1e4d5cc75be1400e51257211c834d35989890a356d52018c4ce4a10249b2776",
+  "files": [
+    "prompt.txt",
+    "schema.json",
+    "fields.json"
+  ],
+  "cost_mult": 1.5,
+  "random_draws": 2000,
+  "trade": false,
+  "shadow": true,
+  "promote": false,
+  "note": "Frozen R3 take/skip prompt. Hash is sha256 of name+bytes of prompt.txt, schema.json, fields.json. Do not edit without a new id."
+}
