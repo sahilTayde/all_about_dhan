@@ -17,13 +17,14 @@ export function StrategyCard({ card, onOpen }) {
       className={`slot-card slot-card--${String(card.badge).toLowerCase()}${card.shadow ? " slot-card--shadow" : ""}`}
       data-testid="strategy-card"
       data-book={card.id}
+      data-name={card.name}
       data-badge={card.badge}
     >
       <header>
         <div>
           <p className="slot-card__kind">{card.shadow ? "Shadow" : card.kind}</p>
-          <h3>{card.bookId}</h3>
-          <p className="muted small">{card.label}</p>
+          <h3>{card.name}</h3>
+          <p className="slot-card__id">{card.bookId}</p>
         </div>
         <span className={`slot-badge slot-badge--${String(card.badge).toLowerCase()}`}>{card.badge}</span>
       </header>

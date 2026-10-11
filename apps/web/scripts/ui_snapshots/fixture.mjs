@@ -10,6 +10,13 @@ function ist(ts) {
   return `${d.toISOString().slice(0, 19)}${IST_OFFSET}`;
 }
 
+const PAPER_SLOTS = [
+  "R01_PDIV_5_ALL_H20",
+  "R01_B3A_VOL",
+  "B8B_B3A_EX_CHOPPY",
+  "R07_MOM3_TREND",
+  "B8A_R07_NO_PRE1030",
+];
 const EXITS = ["STOP", "TARGET", "CANCEL_AGAINST", "COVER_LONG_UNWIND", "TIME", "STOP", "CANCEL_NO_PROGRESS"];
 const LONG_WHY =
   "SYNTH buy {side} ITM strike {strike} (ITM_100); bin={side} regime=TREND last3=none; impulse_note=pause_wait_continuation; " +
@@ -37,6 +44,7 @@ function trade(i) {
   const target = +(entry * 1.06).toFixed(2);
   return {
     book_id: "MIX-DEFAULT-BUY",
+    strategy_id: PAPER_SLOTS[i % PAPER_SLOTS.length],
     model_names: ["MIX-SYNTH-A", "MIX-SYNTH-B"],
     underlying: und,
     side,
@@ -102,8 +110,15 @@ const open = [
     qty: 250,
     lots: 5,
     lot_size: 50,
+    strategy_id: PAPER_SLOTS[0],
     seen_high: 143.1,
     seen_low: 136.4,
+    premium_path: [
+      { t: BASE_TS + 15 * 1380, v: openEntry, label: "entry" },
+      { t: BASE_TS + 15 * 1380 + 90, v: 143.1, label: "high" },
+      { t: BASE_TS + 15 * 1380 + 180, v: 136.4, label: "low" },
+      { t: tapeLastTs - 4, v: 138.2, label: "ltp" },
+    ],
     trail_step: 0,
     idx_at_open: 20260.4,
     spot_at_entry: 20260.4,
@@ -155,6 +170,20 @@ export const board = {
     { book_id: "MIX-ML-LOGIT-XR", kind: "ml", n_filled: 0, n_wins: 0, win_rate_net_pct: null, sum_pnl_inr: 0, sum_charges_inr: 0 },
     { book_id: "MIX-ML-GREEKS", kind: "ml", n_filled: 0, n_wins: 0, win_rate_net_pct: null, sum_pnl_inr: 0, sum_charges_inr: 0 },
     { book_id: "MIX-TV-EP-024", kind: "lab", n_filled: 0, n_wins: 0, win_rate_net_pct: null, sum_pnl_inr: 0, sum_charges_inr: 0 },
+    ...PAPER_SLOTS.map((id) => {
+      const fills = closed.filter((t) => t.strategy_id === id);
+      const wins = fills.filter((t) => t.realized_pnl_inr > 0).length;
+      const slotNet = fills.reduce((s, t) => s + t.realized_pnl_inr, 0);
+      return {
+        book_id: id,
+        kind: "PAPER",
+        n_filled: fills.length,
+        n_wins: wins,
+        win_rate_net_pct: fills.length ? Math.round((wins / fills.length) * 1000) / 10 : null,
+        sum_pnl_inr: Math.round(slotNet * 100) / 100,
+        sum_charges_inr: Math.round(fills.reduce((s, t) => s + t.charges_inr, 0) * 100) / 100,
+      };
+    }),
   ],
   seen_not_taken: {
     skipped_latest: [

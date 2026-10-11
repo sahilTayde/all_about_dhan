@@ -30,14 +30,14 @@ export function MarketContext({ regimes }) {
   });
   if (rows.every((r) => r.empty) && !Object.keys(map).length) {
     return (
-      <section className="market-context" data-testid="market-context">
+      <section className="panel market-context" data-testid="market-context">
         <h2>Market</h2>
         <p className="empty-state">No tape regime on the board.</p>
       </section>
     );
   }
   return (
-    <section className="market-context" data-testid="market-context">
+    <section className="panel market-context" data-testid="market-context">
       <h2>Market</h2>
       <div className="market-context__grid">
         {rows.map((r) =>

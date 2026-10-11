@@ -1,3 +1,43 @@
+/** Tiny SVG premium path from recorded marks. Empty when fewer than two points. */
+export function PremiumSpark({ points, width = 140, height = 44, label = "Premium" }) {
+  if (!points?.length || points.length < 2) {
+    return (
+      <div className="spark spark--empty" data-testid="premium-spark" aria-label={`${label} empty`}>
+        No premium path
+      </div>
+    );
+  }
+  const ys = points.map((p) => p.value ?? p.v);
+  const min = Math.min(...ys);
+  const max = Math.max(...ys);
+  const span = max - min || 1;
+  const step = (width - 4) / (points.length - 1);
+  const pts = points
+    .map((p, i) => {
+      const yv = p.value ?? p.v;
+      const x = 2 + i * step;
+      const y = height - 3 - ((yv - min) / span) * (height - 6);
+      return `${x.toFixed(1)},${y.toFixed(1)}`;
+    })
+    .join(" ");
+  const first = points[0].value ?? points[0].v;
+  const last = points[points.length - 1].value ?? points[points.length - 1].v;
+  const tone = last > first ? "up" : last < first ? "down" : "flat";
+  return (
+    <svg
+      className={`spark spark--${tone}`}
+      data-testid="premium-spark"
+      viewBox={`0 0 ${width} ${height}`}
+      width={width}
+      height={height}
+      role="img"
+      aria-label={`${label} spark`}
+    >
+      <polyline fill="none" stroke="currentColor" strokeWidth="1.6" points={pts} />
+    </svg>
+  );
+}
+
 /** Tiny SVG equity spark. Empty when the book has no closed fills. */
 export function EquitySpark({ curve, width = 160, height = 36, label = "Equity" }) {
   if (!curve?.length) {

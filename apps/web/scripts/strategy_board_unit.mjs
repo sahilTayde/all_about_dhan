@@ -37,33 +37,40 @@ const avg = avgWinLoss([
 assert.equal(avg.avgWin, 75);
 assert.equal(avg.avgLoss, -30);
 
+const SLOT = "R01_PDIV_5_ALL_H20";
 const board = {
   session_ist_date: "2026-01-15",
   book_rank: [
-    { book_id: "MIX-DEFAULT-BUY", kind: "DESK", n_filled: 2, n_wins: 1, sum_pnl_inr: 60, win_rate_net_pct: 50 },
+    { book_id: SLOT, kind: "PAPER", n_filled: 2, n_wins: 1, sum_pnl_inr: 60, win_rate_net_pct: 50 },
   ],
   closed_trades: [
-    { book_id: "MIX-DEFAULT-BUY", trade_id: "a", realized_pnl_inr: 100, closed_ts: 10, closed_ist: "2026-01-15T10:00:00+05:30", opened_ist: "2026-01-15T09:40:00+05:30" },
-    { book_id: "MIX-DEFAULT-BUY", trade_id: "b", realized_pnl_inr: -40, closed_ts: 20, closed_ist: "2026-01-15T11:00:00+05:30", opened_ist: "2026-01-15T10:40:00+05:30" },
-    { book_id: "MIX-DEFAULT-BUY", trade_id: "c", realized_pnl_inr: 12, closed_ts: 30, closed_ist: "2026-01-15T12:00:00+05:30", opened_ist: "2026-01-15T11:40:00+05:30", shadow: true },
+    { strategy_id: SLOT, book_id: "MIX-DEFAULT-BUY", trade_id: "a", realized_pnl_inr: 100, closed_ts: 10, closed_ist: "2026-01-15T10:00:00+05:30", opened_ist: "2026-01-15T09:40:00+05:30" },
+    { strategy_id: SLOT, book_id: "MIX-DEFAULT-BUY", trade_id: "b", realized_pnl_inr: -40, closed_ts: 20, closed_ist: "2026-01-15T11:00:00+05:30", opened_ist: "2026-01-15T10:40:00+05:30" },
+    { strategy_id: SLOT, book_id: "MIX-DEFAULT-BUY", trade_id: "c", realized_pnl_inr: 12, closed_ts: 30, closed_ist: "2026-01-15T12:00:00+05:30", opened_ist: "2026-01-15T11:40:00+05:30", shadow: true },
   ],
-  open_trades: [{ book_id: "MIX-DEFAULT-BUY", trade_id: "open", status: "OPEN" }],
+  open_trades: [{ strategy_id: SLOT, book_id: "MIX-DEFAULT-BUY", trade_id: "open", status: "OPEN" }],
 };
 const cards = buildStrategyCards(board, { uniqueClosed: board.closed_trades, uniqueOpen: board.open_trades });
-assert.ok(cards.length >= 6);
-const desk = cards.find((c) => c.id === "MIX-DEFAULT-BUY");
-const shadow = cards.find((c) => c.id === "MIX-DEFAULT-BUY·SHADOW");
+assert.equal(cards.length, 10);
+assert.equal(PAPER_SLOT_IDS[0], SLOT);
+const desk = cards.find((c) => c.id === SLOT);
+const shadow = cards.find((c) => c.id === `${SLOT}·SHADOW`);
+assert.equal(desk.name, "Premium divergence");
+assert.equal(desk.bookId, SLOT);
 assert.equal(desk.badge, "TRADE");
 assert.equal(desk.nFilled, 2);
 assert.equal(shadow.shadow, true);
+assert.equal(shadow.name, "Premium divergence · shadow");
 assert.equal(shadow.badge, "WATCH");
 assert.equal(shadow.nFilled, 1);
-const empty = cards.find((c) => c.id === "MIX-ML-LOGIT");
+const empty = cards.find((c) => c.id === "R07_MOM3_TREND");
+assert.equal(empty.name, "Momentum");
 assert.equal(empty.badge, "DROP");
 assert.equal(empty.winPct, null);
+assert.ok(cards.every((c) => !String(c.name).startsWith("MIX-")));
 
 const byName = sortStrategyCards(cards, "name", "asc");
-assert.ok(String(byName[0].bookId) <= String(byName[1].bookId));
+assert.ok(String(byName[0].name) <= String(byName[1].name));
 const tape = todayTimeline(board.open_trades, board.closed_trades, "2026-01-15");
 assert.ok(tape.length >= 3);
 

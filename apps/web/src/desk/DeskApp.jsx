@@ -7,7 +7,6 @@ import { IstMarketClock } from "../components/IstMarketClock.jsx";
 import { boardClock, boardSource, derivePaperBoard, holdReason } from "../lib/paperBoard.js";
 import { useDeskFeed } from "../lib/v2Feed.js";
 import { AdvancedPanel } from "./components/AdvancedPanel.jsx";
-import { HealthStrip } from "./components/HealthStrip.jsx";
 import { TradeDrawer } from "./components/TradeDrawer.jsx";
 import { LeaderboardPage } from "./pages/LeaderboardPage.jsx";
 import { TodayPage } from "./pages/TodayPage.jsx";
@@ -86,7 +85,6 @@ export function DeskApp() {
         </p>
         <IstMarketClock />
       </div>
-      <HealthStrip rows={snap?.health} conn={conn} onAdvanced={toggleAdvanced} />
       <div className="desk-tabs" role="tablist" aria-label="Desk pages">
         <button type="button" role="tab" aria-selected={tab === "today"} className={tab === "today" ? "is-on" : ""} onClick={() => onNav("today")}>
           Today
@@ -117,9 +115,19 @@ export function DeskApp() {
       {!d ? (
         <p className="muted">Loading desk…</p>
       ) : tab === "strategies" ? (
-        <LeaderboardPage board={board} d={d} onOpenCard={setPicked} />
+        <LeaderboardPage board={board} d={d} health={snap?.health} conn={conn} onOpenCard={setPicked} />
       ) : (
-        <TodayPage d={d} snap={snap} clock={clock} hold={hold} indexing={indexing} onSelect={setPicked} selectedId={picked?.trade_id} />
+        <TodayPage
+          d={d}
+          snap={snap}
+          clock={clock}
+          hold={hold}
+          indexing={indexing}
+          health={snap?.health}
+          conn={conn}
+          onSelect={setPicked}
+          selectedId={picked?.trade_id}
+        />
       )}
 
       {advanced && d ? (

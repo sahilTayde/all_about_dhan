@@ -223,6 +223,7 @@ async function measure(page) {
         dayPnl: count("[data-testid=day-pnl]"),
         openPositions: count("[data-testid=open-positions]"),
         timeline: count("[data-testid=trade-timeline]"),
+        premiumSpark: count("[data-testid=premium-spark]"),
         strategyCards: count("[data-testid=strategy-card]"),
         advancedToggle: count("[data-testid=advanced-toggle]"),
       },
@@ -233,8 +234,8 @@ async function measure(page) {
 function featureProblems(name, width, f) {
   if (!FEATURES) return [];
   const need = {
-    desk: { alertBar: 1, healthStrip: 1, dayPnl: 1, openPositions: 1, timeline: 1, marketCards: 1, advancedToggle: 1, currentFields: 1 },
-    "desk-board": { strategyCards: 5, healthStrip: 1, advancedToggle: 1 },
+    desk: { alertBar: 1, healthStrip: 1, dayPnl: 1, openPositions: 1, timeline: 1, marketCards: 1, advancedToggle: 1, currentFields: 1, premiumSpark: 1 },
+    "desk-board": { strategyCards: 10, healthStrip: 1, advancedToggle: 1 },
     founder: { alertBar: 1, ragRows: 7, traceNodes: 7, charts: 3, accountRows: 6, founderControls: 7, historyRows: 3 },
   }[name];
   if (!need) return [];
@@ -339,6 +340,36 @@ async function main() {
       });
       await page.goto(`${base}/desk`, { waitUntil: "load" });
       await page.waitForSelector("[data-testid=desk-today] .current-trade .kv");
+      const layout = await page.evaluate(() => {
+        const today = document.querySelector("[data-testid=desk-today]");
+        const main = document.querySelector(".desk-today__main");
+        const side = document.querySelector(".desk-today__side");
+        const hero = document.querySelector("[data-testid=day-pnl]");
+        const open = document.querySelector("[data-testid=open-positions]");
+        const tape = document.querySelector("[data-testid=trade-timeline]");
+        const cols = getComputedStyle(today).gridTemplateColumns.split(/\s+/).filter(Boolean);
+        const gap = open.getBoundingClientRect().top - hero.getBoundingClientRect().bottom;
+        return {
+          colCount: cols.length,
+          tapeWidth: Math.round(tape.getBoundingClientRect().width),
+          mainWidth: Math.round(main.getBoundingClientRect().width),
+          gap: Math.round(gap),
+          healthInSide: Boolean(side.querySelector("[data-testid=health-strip]")),
+          marketInSide: Boolean(side.querySelector("[data-testid=market-context]")),
+          tapeInMain: main.contains(tape),
+        };
+      });
+      check(
+        "today-layout",
+        layout.colCount === 2 &&
+          layout.tapeInMain &&
+          layout.healthInSide &&
+          layout.marketInSide &&
+          layout.gap < 40 &&
+          layout.tapeWidth > layout.mainWidth * 0.85,
+        JSON.stringify(layout),
+      );
+      check("premium-spark", (await page.locator("[data-testid=open-positions] [data-testid=premium-spark]").count()) >= 1, "open-row premium spark");
 
       // Alarm: enabling it must sound + notify for the CRITICAL alert that is already showing.
       await page.locator(".alert-bar .chip-btn").click();
@@ -384,8 +415,18 @@ async function main() {
       await page.waitForSelector("[data-testid=desk-leaderboard]");
       const slotCount = await page.locator("[data-testid=strategy-card]").count();
       const shadowCount = await page.locator("[data-testid=strategy-card][data-book$='SHADOW']").count();
+      const titles = await page.locator("[data-testid=strategy-card] h3").allTextContents();
+      const ids = await page.locator("[data-testid=strategy-card] .slot-card__id").allTextContents();
+      const want = ["Premium divergence", "Premium divergence · high vol", "High-vol skip-chop", "Momentum", "Momentum after 10:30"];
       await page.screenshot({ path: resolve(OUT, "desk_1440_leaderboard.png"), fullPage: true });
-      check("leaderboard-slots", slotCount >= 5 && shadowCount >= 1, `cards=${slotCount} shadow=${shadowCount}`);
+      check("leaderboard-slots", slotCount === 10 && shadowCount === 5, `cards=${slotCount} shadow=${shadowCount}`);
+      check(
+        "leaderboard-names",
+        want.every((n) => titles.some((t) => t === n || t === `${n} · shadow`)) &&
+          titles.every((t) => !t.startsWith("MIX-")) &&
+          ids.includes("R01_PDIV_5_ALL_H20"),
+        `titles=${JSON.stringify([...new Set(titles)])} ids=${JSON.stringify([...new Set(ids)])}`,
+      );
       await page.getByRole("button", { name: /Win %/ }).click();
       check("leaderboard-sort", (await page.locator(".sort-bar .chip--active").innerText()).includes("Win"), "sorted by win %");
       await page.locator(".desk-tabs [role=tab]", { hasText: "Today" }).click();

@@ -1,4 +1,6 @@
 import { clock as clockOf, fmtElapsed, inr, moneyClass, outcomeLabel, px, ticketState, tradeNow } from "../../lib/paperBoard.js";
+import { premiumMarks } from "../../lib/tradeMarks.js";
+import { PremiumSpark } from "./EquitySpark.jsx";
 
 function Cell({ label, value, tone, title }) {
   return (
@@ -70,14 +72,17 @@ export function OpenPositions({ rows, clock, hold, last, onSelect, selectedId })
                   </strong>
                   <span className={`state-pill state-pill--${s.key}`}>{s.label}</span>
                 </header>
-                <dl className="kv-grid">
-                  <Cell label="Premium" value={px(n.ltp)} tone={moneyClass(n.pts)} />
-                  <Cell label="LTP" value={px(n.ltp)} tone={moneyClass(n.pts)} />
-                  <Cell label="Entry" value={px(n.entry)} />
-                  <Cell label="P&L ₹" value={inr(n.inr)} tone={moneyClass(n.inr)} title="(LTP − entry) × qty, before charges" />
-                  <Cell label="Pts" value={pts(n.pts)} tone={moneyClass(n.pts)} />
-                  <Cell label="Time" value={fmtElapsed(n.elapsedMs)} />
-                </dl>
+                <div className="pos-card__body">
+                  <dl className="kv-grid">
+                    <Cell label="Premium" value={px(n.ltp)} tone={moneyClass(n.pts)} />
+                    <Cell label="LTP" value={px(n.ltp)} tone={moneyClass(n.pts)} />
+                    <Cell label="Entry" value={px(n.entry)} />
+                    <Cell label="P&L ₹" value={inr(n.inr)} tone={moneyClass(n.inr)} title="(LTP − entry) × qty, before charges" />
+                    <Cell label="Pts" value={pts(n.pts)} tone={moneyClass(n.pts)} />
+                    <Cell label="Time" value={fmtElapsed(n.elapsedMs)} />
+                  </dl>
+                  <PremiumSpark points={premiumMarks(t).points} label={`${t.underlying} premium`} width={168} height={52} />
+                </div>
               </button>
             </li>
           );

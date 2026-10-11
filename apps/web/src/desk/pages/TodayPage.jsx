@@ -1,17 +1,18 @@
 import { DayPnlHero } from "../components/DayPnlHero.jsx";
+import { HealthStrip } from "../components/HealthStrip.jsx";
 import { MarketContext } from "../components/MarketContext.jsx";
 import { OpenPositions } from "../components/OpenPositions.jsx";
 import { TradeTimeline } from "../components/TradeTimeline.jsx";
 import { todayTimeline } from "../../lib/strategyBoard.js";
 
-export function TodayPage({ d, snap, clock, hold, indexing, onSelect, selectedId }) {
+export function TodayPage({ d, snap, clock, hold, indexing, onSelect, selectedId, health, conn }) {
   const sessionDay = snap?.board?.session_ist_date || clock?.ist?.slice(0, 10);
   const today = (snap?.days || []).find((x) => x.day === sessionDay);
   const net = today?.net ?? d?.headlineNet ?? d?.today?.net_pnl_inr ?? null;
   const tape = todayTimeline(d?.uniqueOpen, d?.uniqueClosed, sessionDay);
   return (
-    <div className="desk-today grid" data-testid="desk-today">
-      <div className="span-8">
+    <div className="desk-today" data-testid="desk-today">
+      <div className="desk-today__main">
         <DayPnlHero
           net={net}
           charges={today?.charges ?? d?.charges}
@@ -35,9 +36,10 @@ export function TodayPage({ d, snap, clock, hold, indexing, onSelect, selectedId
         />
         <TradeTimeline rows={tape} onSelect={onSelect} selectedId={selectedId} />
       </div>
-      <div className="span-4 stack">
+      <aside className="desk-today__side">
         <MarketContext regimes={d?.regimes} />
-      </div>
+        <HealthStrip rows={health} conn={conn} />
+      </aside>
     </div>
   );
 }

@@ -1,14 +1,20 @@
 import { useMemo, useState } from "react";
+import { HealthStrip } from "../components/HealthStrip.jsx";
 import { StrategyCard } from "../components/StrategyCard.jsx";
-import { SORT_KEYS, buildStrategyCards, sortStrategyCards } from "../../lib/strategyBoard.js";
+import { SORT_KEYS, buildStrategyCards, matchesSlot, sortStrategyCards } from "../../lib/strategyBoard.js";
 
 const LABELS = { net: "Net ₹", trades: "Trades", win: "Win %", dd: "Max DD", name: "Name" };
 
-export function LeaderboardPage({ board, d, onOpenCard }) {
+export function LeaderboardPage({ board, d, health, conn, onOpenCard }) {
   const [sort, setSort] = useState("net");
   const [dir, setDir] = useState("desc");
   const cards = useMemo(
-    () => sortStrategyCards(buildStrategyCards(board, { uniqueClosed: d?.closed, uniqueOpen: d?.open }), sort, dir),
+    () =>
+      sortStrategyCards(
+        buildStrategyCards(board, { uniqueClosed: d?.uniqueClosed, uniqueOpen: d?.uniqueOpen }),
+        sort,
+        dir,
+      ),
     [board, d, sort, dir],
   );
 
@@ -25,7 +31,7 @@ export function LeaderboardPage({ board, d, onOpenCard }) {
       <header className="desk-board__head">
         <div>
           <h2>Paper books</h2>
-          <p className="muted">Five slots + shadow variants when the tape has them. Sortable. NO_PROMOTE.</p>
+          <p className="muted">Five registry slots + shadow. Readable names; id is the subtitle. NO_PROMOTE.</p>
         </div>
         <div className="sort-bar" role="group" aria-label="Sort books">
           {SORT_KEYS.map((key) => (
@@ -42,6 +48,7 @@ export function LeaderboardPage({ board, d, onOpenCard }) {
           ))}
         </div>
       </header>
+      <HealthStrip rows={health} conn={conn} />
       {!cards.length ? (
         <p className="empty-state" data-testid="leaderboard-empty">
           No paper books on the board.
@@ -55,10 +62,9 @@ export function LeaderboardPage({ board, d, onOpenCard }) {
               onOpen={
                 onOpenCard
                   ? () => {
-                      const latest = [...(d?.open || []), ...(d?.closed || [])].find((t) => {
-                        const books = t.books?.length ? t.books : [t.book_id];
-                        return books.includes(card.bookId) && Boolean(t.shadow) === card.shadow;
-                      });
+                      const latest = [...(d?.uniqueOpen || []), ...(d?.uniqueClosed || [])].find((t) =>
+                        matchesSlot(t, card.bookId, card.shadow),
+                      );
                       if (latest) onOpenCard(latest);
                     }
                   : undefined

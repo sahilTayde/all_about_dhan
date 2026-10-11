@@ -1,5 +1,28 @@
 # Handoff log — Team 07 Coding
 
+## As of now (2026-10-11 IST) — desk Today layout + registry slots (PAPER)
+
+```text
+From:     teams/07_coding
+To:       founder / 00 / 05 / 09
+Date:     2026-10-11
+Status:   PAPER / C7 portals / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+Accepted: Today at >=1280 is packed 2-col
+  (left: P&L + open + tape; right: market +
+  health). No .grid stretch gap. Leaderboard
+  is the 5 registry paper slots
+  (R01_PDIV_5_ALL_H20, R01_B3A_VOL,
+  B8B_B3A_EX_CHOPPY, R07_MOM3_TREND,
+  B8A_R07_NO_PRE1030) + shadow, readable
+  names, id as subtitle. Open row shows a
+  recorded premium spark only.
+Rejected: MIX-* as card titles. Invented
+  VIX / vs-random / premium ticks. Live
+  orders. STRAT-015+.
+UNKNOWN: Live India VIX on last_index_regime.
+```
+
 ## As of now (2026-10-11 IST) — paper desk + customer portal redesign (PAPER)
 
 ```text

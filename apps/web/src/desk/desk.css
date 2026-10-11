@@ -1,8 +1,44 @@
 /* Trader-first desk. Dark tokens live on :root in index.css. */
 
 .desk-shell {
-  max-width: 1180px;
+  max-width: min(1400px, 100%);
   gap: 0.7rem;
+}
+
+/* Packed 2-col Today. Do not use .grid — its stretch + height:100% opened a gap under the hero. */
+.desk-today {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.75rem;
+  align-items: start;
+}
+
+.desk-today__main,
+.desk-today__side {
+  display: grid;
+  gap: 0.75rem;
+  align-content: start;
+  align-items: start;
+  min-width: 0;
+}
+
+.desk-today__main > .panel,
+.desk-today__main > .day-pnl,
+.desk-today__side > .panel,
+.desk-today__side > .health-strip {
+  height: auto;
+  width: 100%;
+}
+
+.desk-today__side .health-strip {
+  border-radius: 14px;
+  flex-wrap: wrap;
+}
+
+@media (min-width: 1280px) {
+  .desk-today {
+    grid-template-columns: minmax(0, 1.75fr) minmax(17.5rem, 0.85fr);
+  }
 }
 
 .health-strip {
@@ -149,6 +185,25 @@
   border-color: var(--inprogress);
 }
 
+.pos-card__body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.55rem 0.8rem;
+  align-items: center;
+}
+
+.pos-card__body .spark {
+  justify-self: stretch;
+  width: 100%;
+  min-height: 52px;
+}
+
+@media (min-width: 720px) {
+  .pos-card__body {
+    grid-template-columns: minmax(0, 1fr) minmax(9.5rem, 11.5rem);
+  }
+}
+
 .tape-row {
   display: grid;
   grid-template-columns: 3.4rem auto minmax(0, 1fr) auto auto;
@@ -178,6 +233,10 @@
   gap: 1rem;
   align-items: flex-end;
   flex-wrap: wrap;
+  margin-bottom: 0.75rem;
+}
+
+.desk-board > .health-strip {
   margin-bottom: 0.75rem;
 }
 
@@ -219,6 +278,16 @@
   letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--ink-soft);
+}
+
+.slot-card__id {
+  margin: 0;
+  font-size: 0.72rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--ink-soft);
+  overflow-wrap: anywhere;
 }
 
 .slot-card__net {
