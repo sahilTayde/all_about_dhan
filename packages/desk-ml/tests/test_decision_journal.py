@@ -11,6 +11,7 @@ from desk_ml.decision_journal import (
     candidate_id,
     install_engine_hooks,
     journal_enabled,
+    uninstall_engine_hooks,
     journal_path,
     load_rows,
     make_row,
@@ -128,19 +129,24 @@ def test_record_engine_step_writes_jsonl(tmp_path: Path) -> None:
 
 
 def test_write_false_ctx_disables_journal() -> None:
-    class Ctx:
-        write = False
+    class Off:
+        ctx = type("C", (), {"write": False})()
 
-    class Eng:
-        ctx = Ctx()
+    class On:
+        ctx = type("C", (), {"write": True})()
 
-    assert journal_enabled(Eng()) is False
-    assert journal_enabled(type("Bare", (), {})()) is True
+    assert journal_enabled(Off()) is False
+    assert journal_enabled(type("Bare", (), {})()) is False
+    assert journal_enabled(On()) is True
 
 
 def test_install_engine_hooks_is_idempotent() -> None:
-    assert install_engine_hooks() in {True, False}
-    assert install_engine_hooks() is False
+    uninstall_engine_hooks()
+    try:
+        assert install_engine_hooks() is True
+        assert install_engine_hooks() is False
+    finally:
+        uninstall_engine_hooks()
 
 
 def test_close_row_is_exit() -> None:

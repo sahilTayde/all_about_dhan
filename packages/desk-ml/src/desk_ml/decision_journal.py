@@ -430,10 +430,10 @@ def row_from_close(closed: Mapping[str, Any]) -> Optional[dict[str, Any]]:
 
 
 def journal_enabled(engine: Any) -> bool:
-    """write=False offline replay stays silent. Direct unit calls (no ctx) still write."""
+    """Hooks write only when the replay ctx asked for writes. Missing ctx = silent."""
     ctx = getattr(engine, "ctx", None)
     if ctx is None:
-        return True
+        return False
     return bool(getattr(ctx, "write", False))
 
 
@@ -456,6 +456,9 @@ def record_close(engine: Any, closed: Mapping[str, Any]) -> Optional[dict[str, A
     return row
 
 
+_HOOK_ORIG: dict[str, Any] = {"close": None, "step": None}
+
+
 def install_engine_hooks() -> bool:
     """Wrap paper_scalp close/step without editing the frozen file. Idempotent."""
     from desk_ml import paper_scalp as ps
@@ -465,6 +468,8 @@ def install_engine_hooks() -> bool:
 
     orig_close = ps._close
     orig_step = ps.step_decide
+    _HOOK_ORIG["close"] = orig_close
+    _HOOK_ORIG["step"] = orig_step
 
     def _close(engine: Any, pos: Any, *args: Any, **kwargs: Any) -> Any:
         out = orig_close(engine, pos, *args, **kwargs)
@@ -488,4 +493,19 @@ def install_engine_hooks() -> bool:
     step_decide._decision_journal = True  # type: ignore[attr-defined]
     ps._close = _close
     ps.step_decide = step_decide
+    return True
+
+
+def uninstall_engine_hooks() -> bool:
+    """Restore paper_scalp close/step. For tests that must not leak wraps."""
+    from desk_ml import paper_scalp as ps
+
+    orig_close = _HOOK_ORIG["close"]
+    orig_step = _HOOK_ORIG["step"]
+    if orig_close is None or orig_step is None:
+        return False
+    ps._close = orig_close
+    ps.step_decide = orig_step
+    _HOOK_ORIG["close"] = None
+    _HOOK_ORIG["step"] = None
     return True
