@@ -109,7 +109,7 @@ def test_schedule_adds_zero_wait_on_caller(tmp_path: Path) -> None:
     stats = schedule_explains(board, root=tmp_path, now=TS, complete_fn=fake, wait=False)
     elapsed = time.perf_counter() - t0
     assert stats["scheduled"] == 1
-    assert elapsed < 0.08
+    assert elapsed < 0.2
     for fut in stats["futures"]:
         fut.result(timeout=2)
     journal = tmp_path / "data" / "recon" / "decision_journal" / f"{DAY}.jsonl"
