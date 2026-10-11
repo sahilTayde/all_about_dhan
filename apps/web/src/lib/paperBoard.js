@@ -1,4 +1,4 @@
-const API_URL = import.meta.env.VITE_API_URL;
+const API_URL = import.meta.env?.VITE_API_URL;
 export const UNIQUE_BOOKS = ["MIX-DEFAULT-BUY", "MIX-ML-LOGIT", "MIX-ML-LOGIT-XR", "MIX-ML-GREEKS"];
 /** FOUNDER LOCK: /paper/ml-books poll. Do not raise until founder names another interval. */
 export const BOARD_POLL_MS = 2000;
@@ -51,6 +51,40 @@ export function inr(n, { signed = true, digits = 0 } = {}) {
 export function px(n) {
   if (n == null || n === "" || Number.isNaN(Number(n))) return "—";
   return Number(n).toFixed(2);
+}
+
+function numOrNull(v) {
+  if (v == null || v === "") return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+}
+
+/** How far live premium has travelled from entry toward target (and vs stop). Recorded marks only. */
+export function pathProgress(entry, ltp, stop, target) {
+  const e = numOrNull(entry);
+  const p = numOrNull(ltp);
+  const s = numOrNull(stop);
+  const t = numOrNull(target);
+  if (e == null || p == null || s == null || t == null || t === s) return null;
+  const lo = Math.min(s, t);
+  const hi = Math.max(s, t);
+  const span = hi - lo || 1;
+  const pos = Math.max(0, Math.min(1, (p - lo) / span));
+  const toward = t - e;
+  const covered = toward ? Math.max(-1, Math.min(1.5, (p - e) / toward)) : 0;
+  return {
+    pos,
+    coveredPct: Math.round(covered * 1000) / 10,
+    toTargetPct: toward ? Math.round(((p - e) / toward) * 1000) / 10 : null,
+    toStopPct: e !== s ? Math.round(((p - e) / (s - e)) * 1000) / 10 : null,
+  };
+}
+
+export function pnlPct(entry, ltp) {
+  const e = numOrNull(entry);
+  const p = numOrNull(ltp);
+  if (e == null || p == null || e === 0) return null;
+  return Math.round(((p - e) / e) * 1000) / 10;
 }
 
 export function clock(ist) {

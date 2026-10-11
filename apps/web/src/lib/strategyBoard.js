@@ -94,23 +94,30 @@ export function avgWinLoss(trades) {
 }
 
 /**
- * TRADE = open paper fill on this book.
- * WATCH = closed fills or a shadow book (observe, do not promote).
- * DROP = no fills on the record.
+ * TRADE only when the book is thick, profitable after costs, and beats random.
+ * Never TRADE on a losing or thin book. N is shown next to the badge.
  */
-export function slotBadge({ nFilled, openCount, shadow }) {
-  if (openCount > 0) return "TRADE";
-  if (shadow) return "WATCH";
-  if ((nFilled || 0) > 0) return "WATCH";
-  return "DROP";
+export function slotBadge({ nFilled, net, vsRandom }) {
+  const n = nFilled || 0;
+  const money = num(net);
+  if (n >= 30 && money != null && money < 0) return "DROP";
+  if (n >= 30 && money != null && money > 0 && vsRandom != null && vsRandom > 0) return "TRADE";
+  return "WATCH";
 }
 
 /** Recorded random baseline only. Never a 50% coin-flip stand-in. */
-export function winVsRandom(rank) {
-  const wr = num(rank?.win_rate_net_pct ?? rank?.win_rate_pct);
-  const rnd = num(rank?.random_win_pct ?? rank?.win_vs_random_pct ?? rank?.random_wr_pct);
-  if (wr == null || rnd == null) return null;
-  return wr - rnd;
+export function randomBaseline(rank, scoreboard, bookId) {
+  return (
+    num(rank?.random_win_pct ?? rank?.win_vs_random_pct ?? rank?.random_wr_pct) ??
+    num(scoreboard?.[bookId]?.random_win_pct ?? scoreboard?.[bookId]?.win_pct)
+  );
+}
+
+export function winVsRandom(rank, scoreboard, bookId, wr) {
+  const win = wr ?? num(rank?.win_rate_net_pct ?? rank?.win_rate_pct);
+  const rnd = randomBaseline(rank, scoreboard, bookId);
+  if (win == null || rnd == null) return null;
+  return win - rnd;
 }
 
 function bookTrades(rows, bookId, shadow) {
@@ -120,7 +127,19 @@ function bookTrades(rows, bookId, shadow) {
   });
 }
 
-function cardFrom({ bookId, name, rank, closed, open, shadow, sessionDay }) {
+export const SHADOW_RULES = Object.freeze(["DEAD3_7", "R19 quiet", "expiry pin", "skip-coil", "IN_PHASE_ONLY"]);
+
+function lastDots(trades) {
+  return [...(trades || [])]
+    .sort((a, b) => tradeTs(a) - tradeTs(b))
+    .slice(-5)
+    .map((t) => {
+      const pnl = num(t.realized_pnl_inr);
+      return pnl == null ? "flat" : pnl > 0 ? "up" : "down";
+    });
+}
+
+function cardFrom({ bookId, name, rank, closed, open, shadow, sessionDay, scoreboard }) {
   const fills = bookTrades(closed, bookId, shadow);
   const opens = bookTrades(open, bookId, shadow);
   const curve = equityCurve(fills);
@@ -130,6 +149,9 @@ function cardFrom({ bookId, name, rank, closed, open, shadow, sessionDay }) {
   const net = num(rank?.sum_pnl_inr) ?? fills.reduce((s, t) => s + (num(t.realized_pnl_inr) || 0), 0);
   const wr = nFilled ? Math.round(((wins || 0) / nFilled) * 1000) / 10 : num(rank?.win_rate_net_pct);
   const todayFills = sessionDay ? fills.filter((t) => sessionDate(t.closed_ist || t.opened_ist) === sessionDay) : fills;
+  const vsRandom = shadow ? null : winVsRandom(rank, scoreboard, bookId, wr);
+  const randomWin = randomBaseline(rank, scoreboard, bookId);
+  const payoff = avg.avgWin != null && avg.avgLoss ? Math.abs(avg.avgWin / avg.avgLoss) : null;
   return {
     id: shadow ? `${bookId}·SHADOW` : bookId,
     bookId,
@@ -137,23 +159,28 @@ function cardFrom({ bookId, name, rank, closed, open, shadow, sessionDay }) {
     label: name || SLOT_NAME[bookId] || bookId,
     kind: shadow ? "SHADOW" : rank?.kind || "PAPER",
     shadow: Boolean(shadow),
+    rules: shadow ? SHADOW_RULES : [],
     nFilled,
     nOpen: opens.length,
     nToday: todayFills.length,
     winPct: nFilled ? wr : null,
-    vsRandom: shadow ? null : winVsRandom(rank),
+    randomWin,
+    vsRandom,
     avgWin: avg.avgWin,
     avgLoss: avg.avgLoss,
+    payoff,
     net: nFilled || opens.length ? net : null,
     maxDd: maxDrawdown(curve),
     curve,
-    badge: slotBadge({ nFilled, openCount: opens.length, shadow }),
+    dots: lastDots(fills),
+    badge: slotBadge({ nFilled, net, vsRandom }),
     rank,
   };
 }
 
 export function buildStrategyCards(board, { uniqueClosed = [], uniqueOpen = [] } = {}) {
   const rankBy = new Map((board?.book_rank || []).map((r) => [r.book_id, r]));
+  const scoreboard = board?.shadow_scoreboard || board?.random_scoreboard || {};
   const sessionDay = board?.session_ist_date || sessionDate(board?.as_of_ist);
   const cards = [];
   for (const slot of PAPER_SLOTS) {
@@ -166,6 +193,7 @@ export function buildStrategyCards(board, { uniqueClosed = [], uniqueOpen = [] }
         open: uniqueOpen,
         shadow: false,
         sessionDay,
+        scoreboard,
       }),
     );
     cards.push(
@@ -177,6 +205,7 @@ export function buildStrategyCards(board, { uniqueClosed = [], uniqueOpen = [] }
         open: uniqueOpen,
         shadow: true,
         sessionDay,
+        scoreboard,
       }),
     );
   }

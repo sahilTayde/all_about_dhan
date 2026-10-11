@@ -14,8 +14,16 @@ import { Header, OfflineBanner } from "./components/Header.jsx";
 import { HealthPanel } from "./components/HealthPanel.jsx";
 import { MarketPanel } from "./components/MarketPanel.jsx";
 import { TradeHistory } from "./components/TradeHistory.jsx";
+import { ActionBar } from "./desk/components/ActionBar.jsx";
+import { HealthStrip } from "./desk/components/HealthStrip.jsx";
+import { Heatmap } from "./desk/components/Heatmap.jsx";
+import { Skeleton } from "./desk/components/Skeleton.jsx";
+import { TradePipeline } from "./desk/components/TradePipeline.jsx";
+import "./desk/desk.css";
 import { useDeskFeed } from "./lib/v2Feed.js";
 import { boardClock, boardSource, derivePaperBoard, fetchFounderLab, holdReason, inr, pct } from "./lib/paperBoard.js";
+import { replayAlerts } from "./lib/plainWords.js";
+import { buildStrategyCards } from "./lib/strategyBoard.js";
 
 function Stat({ label, value, hint, tone, className = "" }) {
   return (
@@ -27,10 +35,19 @@ function Stat({ label, value, hint, tone, className = "" }) {
   );
 }
 
+const TABS = [
+  { id: "overview", label: "Overview" },
+  { id: "books", label: "Books" },
+  { id: "research", label: "Research" },
+  { id: "ops", label: "Ops" },
+  { id: "advanced", label: "Advanced" },
+];
+
 export function FounderPm() {
   const { snap, conn, latencyMs } = useDeskFeed();
   const [lab, setLab] = useState(null);
   const [picked, setPicked] = useState(null);
+  const [tab, setTab] = useState("overview");
 
   useEffect(() => {
     const ac = new AbortController();
@@ -51,64 +68,147 @@ export function FounderPm() {
   const current = d?.current;
   const fresh = picked && [...(d?.uniqueOpen || []), ...(d?.uniqueClosed || [])].find((t) => t.trade_id === picked.trade_id);
   const traceRow = fresh || picked || current || d?.uniqueClosed?.[0];
+  const cards = useMemo(
+    () => buildStrategyCards(board, { uniqueClosed: d?.uniqueClosed, uniqueOpen: d?.uniqueOpen }),
+    [board, d],
+  );
+  const paperCards = cards.filter((c) => !c.shadow);
+  const best = [...paperCards].sort((a, b) => (b.net || 0) - (a.net || 0))[0];
+  const worst = [...paperCards].sort((a, b) => (a.net || 0) - (b.net || 0))[0];
+  const week = days.slice(0, 5).reduce((s, x) => s + (x.net || 0), 0);
+  const month = days.reduce((s, x) => s + (x.net || 0), 0);
+  const vs = best?.vsRandom;
+  const alerts = replayAlerts(snap?.alerts, clock.replay);
 
   return (
-    <div className="shell shell--founder">
-      <AppNav current="/pm" />
-      <Header
-        title="Founder"
-        kicker="Train · compare · do not promote"
-        sub="Money, health, models and how each paper fill was decided. PAPER only."
-        sourceLabel={source}
-      />
-      <div className="desk-refresh">
-        <p className="desk-sub" title={clock.writtenIst ? `Board written ${clock.writtenIst}` : undefined}>
-          Tape as of {clock.label}
-          {offline ? " · static mock (API offline)" : clock.replay ? " · replay of a past session" : ""} · {conn === "live" ? "live push" : conn}
-          {latencyMs != null ? ` · update ${latencyMs} ms` : ""} · orders refused · NO_PROMOTE
-        </p>
-        <div className="fx-health">
-          <span className={`cleanup-pill ${paper?.alive ? "done" : "pending"}`} title="Paper market-hours loop (PID)">
-            paper loop {paper ? (paper.alive ? "ON" : "OFF") : "unknown"}
-          </span>
-          <span className="cleanup-pill pending">book: {source}</span>
+    <div className="shell shell--founder founder-shell" data-testid="founder-shell">
+      <div className="desk-sticky">
+        <AppNav current="/pm" />
+        <Header
+          title="Founder"
+          kicker="Train · compare"
+          sub="Money, health, and books. Paper only."
+          sourceLabel={source}
+        />
+        <HealthStrip rows={snap?.health} conn={conn} replay={clock.replay} />
+        <div className="desk-refresh">
+          <p className="desk-sub">
+            Tape as of {clock.label}
+            {offline ? " · waiting for the live desk" : clock.replay ? " · replay of a past session" : ""} · {conn === "live" ? "live push" : conn}
+            {latencyMs != null ? ` · update ${latencyMs} ms` : ""}
+          </p>
         </div>
+        <div className="desk-tabs" role="tablist" aria-label="Founder pages">
+          {TABS.map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              role="tab"
+              aria-selected={tab === t.id}
+              className={tab === t.id ? "is-on" : ""}
+              data-testid={t.id === "advanced" ? "advanced-toggle" : `founder-tab-${t.id}`}
+              onClick={() => setTab(t.id)}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+        <ActionBar
+          onRefresh={() => window.location.reload()}
+          onCsv={() => {}}
+          onToggleAlerts={() => document.querySelector(".alert-bar .chip-btn")?.click()}
+          onPause={() => {}}
+          onExit={() => {}}
+          onReview={() => {}}
+        />
       </div>
       {offline ? <OfflineBanner /> : null}
-      <AlertBar alerts={snap?.alerts} conn={conn} />
+      <AlertBar alerts={alerts} conn={conn} />
 
       {!d ? (
-        <p className="muted">Loading founder book…</p>
-      ) : (
-        <div className="grid">
-          <div className="fx-stats founder-kpis span-12">
-            <Stat label="Trades today" value={String(day?.n ?? d.uniqueClosed.length)} hint={liveDay || "—"} />
-            <Stat label="Win rate today" value={pct(day?.n ? (day.wins / day.n) * 100 : d.uniqueWr)} hint="net ₹ > 0 after charges" />
-            <Stat label="Profit today" value={inr(d.todayDay?.profit)} hint="winning fills" tone="up" />
-            <Stat label="Loss today" value={inr(d.todayDay?.loss)} hint="losing fills" tone="down" />
-            <Stat label="Net today" value={inr(day?.net)} hint={day ? `charges ${inr(day.charges, { signed: false })}` : "no fills"} tone={Number(day?.net) >= 0 ? "up" : "down"} />
+        <Skeleton lines={6} />
+      ) : tab === "overview" ? (
+        <div className="founder-overview">
+          <TradePipeline board={board} open={d.uniqueOpen} closed={d.uniqueClosed} />
+          <div className="fx-stats founder-kpis">
+            <Stat label="Net today" value={inr(day?.net)} hint="after costs" tone={Number(day?.net) >= 0 ? "up" : "down"} />
+            <Stat label="Net week" value={inr(week)} hint="last sessions" />
             <Stat
-              label="Net all days"
-              value={indexing ? "Indexing history…" : inr(snap?.account?.net_inr)}
-              hint={indexing ? "model log still loading" : snap?.account?.n_days ? `${snap.account.n_days} recorded days` : "API offline"}
-              tone={indexing ? "" : Number(snap?.account?.net_inr) >= 0 ? "up" : "down"}
+              label="Net month"
+              value={indexing ? "Indexing history…" : inr(month)}
+              hint={indexing ? "model log still loading" : `${days.length} days`}
               className={indexing ? "needs-history" : ""}
             />
+            <Stat label="Win vs random" value={vs == null ? "pending" : `${vs > 0 ? "+" : ""}${Number(vs).toFixed(1)} pt`} hint="shadow scoreboard" />
+            <Stat label="Best / worst" value={`${best?.name || "—"} / ${worst?.name || "—"}`} hint={inr(best?.net)} />
+            <Stat label="Max DD" value={best?.maxDd == null ? "—" : inr(-Math.max(...paperCards.map((c) => c.maxDd || 0)))} tone="down" />
           </div>
-
-          <div className="span-4">
-            <HealthPanel rows={snap?.health} founder={snap?.founder} conn={conn} />
-          </div>
-          <div className="span-4">
-            <AccountPanel account={snap?.account} today={day} founderBook={snap?.founder_book} indexing={indexing} />
-          </div>
-          <div className="span-4 stack">
+          <Heatmap cards={cards} trades={d.uniqueClosed} />
+          <section className="widget">
+            <header className="widget__head">
+              <h2>Promote / demote</h2>
+              <span className="muted small">Read-only from badge rules</span>
+            </header>
+            <ul className="suggest-list">
+              {paperCards.map((c) => (
+                <li key={c.id}>
+                  <strong>{c.name}</strong>
+                  <span className={`slot-badge slot-badge--${String(c.badge).toLowerCase()}`}>
+                    {c.badge} n={c.nFilled || 0}
+                  </span>
+                  <span className="muted small">{c.badge === "TRADE" ? "Keep watching the thick book." : c.badge === "DROP" ? "Losing at n≥30." : "Thin or close — watch."}</span>
+                </li>
+              ))}
+            </ul>
+          </section>
+        </div>
+      ) : tab === "books" ? (
+        <section className="widget panel-scroll" data-testid="founder-books">
+          <header className="widget__head">
+            <h2>Open now</h2>
+          </header>
+          <CurrentTrade t={current} last={d.uniqueClosed[0]} clock={clock} hold={current ? null : holdReason(board, snap?.founder_book, snap?.risk_halt, offline)} title="Now open" />
+          <TradeHistory
+            indexing={indexing}
+            rows={[...(d.uniqueOpen || []), ...d.uniqueClosed]}
+            days={days}
+            liveDay={board?.session_ist_date}
+            clock={clock}
+            onSelect={setPicked}
+            selectedId={traceRow?.trade_id}
+          />
+        </section>
+      ) : tab === "research" ? (
+        <section className="widget panel-scroll" data-testid="research-feed">
+          <header className="widget__head">
+            <h2>Research feed</h2>
+          </header>
+          <ul className="suggest-list">
+            {paperCards.map((c) => (
+              <li key={c.id}>
+                <strong>{c.name}</strong>
+                <span className={`slot-badge slot-badge--${String(c.badge).toLowerCase()}`}>{c.badge}</span>
+                <span className="muted small">n={c.nFilled || 0} · {c.vsRandom == null ? "vs random pending" : `${c.vsRandom > 0 ? "+" : ""}${Number(c.vsRandom).toFixed(1)} pt`}</span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : tab === "ops" ? (
+        <div className="founder-ops">
+          <HealthPanel rows={snap?.health} founder={snap?.founder} conn={conn} />
+          <AccountPanel account={snap?.account} today={day} founderBook={snap?.founder_book} indexing={indexing} />
+          <p className="muted small">
+            Paper loop {paper ? (paper.alive ? "ON" : "OFF") : "unknown"} · token and tape sit in the health list.
+          </p>
+        </div>
+      ) : (
+        <div className="grid founder-advanced" data-testid="advanced-panel">
+          <div className="span-12">
             <FounderBookPicker />
           </div>
           <div className="span-12">
             <FounderControls />
           </div>
-
           <div className="span-6">
             <CumulativeChart days={days} todayTrades={d.uniqueClosed} indexing={indexing} />
           </div>
@@ -121,38 +221,19 @@ export function FounderPm() {
           <div className="span-8">
             <ModelScores days={days} indexing={indexing} />
           </div>
-
           <div className="span-4">
             <LossByStage days={days} exam={snap?.exam} indexing={indexing} />
-          </div>
-          <div className="span-5">
-            <CurrentTrade t={current} last={d.uniqueClosed[0]} clock={clock} hold={current ? null : holdReason(board, snap?.founder_book, snap?.risk_halt, offline)} title="Now open" />
           </div>
           <div className="span-3">
             <MarketPanel regimes={d.regimes} />
           </div>
-
           <div className="span-12">
             <DecisionTrace
               refreshKey={traceRow?.last_updated_ts}
               tradeId={traceRow?.trade_id}
-              label={traceRow ? `${traceRow.underlying} ${traceRow.side} ${traceRow.atm_strike ?? ""} · ${String(traceRow.opened_ist || "").slice(11, 19)}` : null}
+              label={traceRow ? `${traceRow.underlying} ${traceRow.side} ${traceRow.atm_strike ?? ""}` : null}
             />
           </div>
-
-          <section className="panel span-12">
-            <h2>Compare fills</h2>
-            <TradeHistory
-              indexing={indexing}
-              rows={[...(d.uniqueOpen || []), ...d.uniqueClosed]}
-              days={days}
-              liveDay={board?.session_ist_date}
-              clock={clock}
-              onSelect={setPicked}
-              selectedId={traceRow?.trade_id}
-            />
-          </section>
-
           <div className="span-12">
             <FounderHonestyExam exam={snap?.exam} />
           </div>
@@ -164,12 +245,6 @@ export function FounderPm() {
           </div>
         </div>
       )}
-      <footer className="page-foot muted small">
-        <span>Last update applied in {latencyMs ?? "—"} ms · one push stream, no per-panel polling.</span>
-        <a href="https://www.tradingview.com/" target="_blank" rel="noreferrer">
-          Charts by TradingView Lightweight Charts
-        </a>
-      </footer>
     </div>
   );
 }

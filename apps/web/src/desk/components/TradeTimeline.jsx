@@ -4,17 +4,17 @@ import { clock, inr, moneyClass, outcomeLabel, px } from "../../lib/paperBoard.j
 export function TradeTimeline({ rows, onSelect, selectedId }) {
   const list = rows || [];
   return (
-    <section className="panel trade-timeline" data-testid="trade-timeline">
-      <div className="panel__head">
+    <section className="widget trade-timeline" data-testid="trade-timeline">
+      <header className="widget__head">
         <h2>Today’s tape</h2>
         <span className="muted small">{list.length ? `${list.length} prints` : "empty"}</span>
-      </div>
+      </header>
       {!list.length ? (
         <p className="empty-state" data-testid="timeline-empty">
           No paper tickets today.
         </p>
       ) : (
-        <ol className="tape">
+        <ol className="tape panel-scroll">
           {list.map((t) => {
             const open = !t.closed_ist && t.exit == null;
             const pnl = t.realized_pnl_inr;

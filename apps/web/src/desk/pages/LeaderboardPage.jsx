@@ -31,7 +31,7 @@ export function LeaderboardPage({ board, d, health, conn, onOpenCard }) {
       <header className="desk-board__head">
         <div>
           <h2>Paper books</h2>
-          <p className="muted">Five registry slots + shadow. Readable names; id is the subtitle. NO_PROMOTE.</p>
+          <p className="muted">Five registry slots + shadow. Readable names; id is the subtitle.</p>
         </div>
         <div className="sort-bar" role="group" aria-label="Sort books">
           {SORT_KEYS.map((key) => (

@@ -1,5 +1,31 @@
 # Handoff log — Team 07 Coding
 
+## As of now (2026-10-11 IST) — live trade pipeline board (PAPER)
+
+```text
+From:     teams/07_coding
+To:       founder / 00 / 05 / 09
+Date:     2026-10-11
+Status:   PAPER / C7 portals / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+Accepted: Trade pipeline is the centerpiece on
+  /desk Today and /pm Overview. NIFTY and
+  SENSEX lanes. Stages Analyst → Desk →
+  Overlay → Boss → IMM → In trade → Exit
+  from recorded fills, skips, and
+  /paper/trace. Missing stage = waiting.
+  Active glows. Done = check + timestamp.
+  Blocked = who + why in plain words
+  (Overlay skipped: coil market). Stage
+  click opens inputs / rule / reason.
+  Earlier tickets are a compact history.
+  MIX-* ids are stripped.
+Rejected: Invented stages, win rates, live
+  orders, MIX-* as labels, STRAT-015+.
+UNKNOWN: Live dual-tape may omit a stage;
+  UI shows waiting, never a guessed pass.
+```
+
 ## As of now (2026-10-11 IST) — desk Today layout + registry slots (PAPER)
 
 ```text

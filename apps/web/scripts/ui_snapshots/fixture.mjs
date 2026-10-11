@@ -127,6 +127,45 @@ const open = [
     last_updated_ts: tapeLastTs - 4,
     last_updated_ist: ist(tapeLastTs - 4),
   },
+  {
+    ...trade(16),
+    trade_id: "synth-open-SENSEX-CE",
+    underlying: "SENSEX",
+    side: "CE",
+    atm_strike: 81200,
+    justification: "SYNTH buy CE ITM strike 81200; why_now=CE: second open for dual layout; PAPER only.",
+    status: "OPEN",
+    exit: null,
+    exit_reason: null,
+    target_hit: false,
+    result: null,
+    realized_pnl: null,
+    realized_pnl_inr: null,
+    entry: 210.4,
+    limit_price: 210.4,
+    last_ltp: 218.75,
+    stop: 198.0,
+    target: 232.5,
+    qty: 200,
+    lots: 10,
+    lot_size: 20,
+    strategy_id: PAPER_SLOTS[3],
+    seen_high: 220.1,
+    seen_low: 207.4,
+    premium_path: [
+      { t: BASE_TS + 16 * 1380, v: 210.4, label: "entry" },
+      { t: BASE_TS + 16 * 1380 + 80, v: 220.1, label: "high" },
+      { t: BASE_TS + 16 * 1380 + 160, v: 207.4, label: "low" },
+      { t: tapeLastTs - 8, v: 218.75, label: "ltp" },
+    ],
+    trail_step: 0,
+    idx_at_open: 81140,
+    spot_at_entry: 81140,
+    closed_ts: null,
+    closed_ist: null,
+    last_updated_ts: tapeLastTs - 8,
+    last_updated_ist: ist(tapeLastTs - 8),
+  },
 ];
 
 const net = closed.reduce((s, t) => s + t.realized_pnl_inr, 0);
@@ -161,7 +200,7 @@ export const board = {
     NIFTY: { status: "REPLAY_OK", span_ist: { first: ist(BASE_TS), last: ist(tapeLastTs) } },
     BANKNIFTY: { status: "REPLAY_OK", span_ist: { first: ist(BASE_TS), last: ist(tapeLastTs - 60) } },
   },
-  last_index_regime: { NIFTY: regime(20999.95, "UP"), BANKNIFTY: regime(45999.9, "DOWN") },
+  last_index_regime: { NIFTY: regime(20999.95, "UP"), SENSEX: regime(81140, "UP") },
   capital_plan: { desk_capital_inr: 500000 },
   today: { net_pnl_inr: net, starting_desk_inr: 500000 },
   book_rank: [
@@ -180,6 +219,7 @@ export const board = {
         n_filled: fills.length,
         n_wins: wins,
         win_rate_net_pct: fills.length ? Math.round((wins / fills.length) * 1000) / 10 : null,
+        random_win_pct: fills.length ? Math.max(8, Math.round((wins / fills.length) * 1000) / 10 - 6) : 22,
         sum_pnl_inr: Math.round(slotNet * 100) / 100,
         sum_charges_inr: Math.round(fills.reduce((s, t) => s + t.charges_inr, 0) * 100) / 100,
       };
@@ -188,7 +228,7 @@ export const board = {
   seen_not_taken: {
     skipped_latest: [
       // SENSEX is OFF in the founder book: the hold reason must not quote it.
-      { underlying: "SENSEX", side: "PE", reason: "NO_NEW_AFTER_1516", why: "No NEW after 15:16 IST (synthetic).", action: "SKIP", book_id: "MIX-DEFAULT-BUY" },
+      { underlying: "SENSEX", side: "PE", reason: "OVERLAY_COIL", why: "coil market", action: "SKIP", book_id: "MIX-DEFAULT-BUY", last_updated_ist: ist(BASE_TS + 720) },
       { underlying: "NIFTY", side: "CE", reason: "CANCEL_AGAINST", why: "Overlay cancelled the CE after the thesis broke (synthetic).", action: "CANCEL", book_id: "MIX-DEFAULT-BUY", last_updated_ist: ist(BASE_TS + 900) },
     ],
     cancelled: [],

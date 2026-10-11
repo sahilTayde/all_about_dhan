@@ -1,6 +1,6 @@
 import { px } from "../../lib/paperBoard.js";
 
-const WANT = ["NIFTY", "SENSEX", "BANKNIFTY"];
+const WANT = ["NIFTY", "SENSEX"];
 
 function tag(r) {
   const regime = String(r?.regime || "").toUpperCase();
@@ -30,15 +30,19 @@ export function MarketContext({ regimes }) {
   });
   if (rows.every((r) => r.empty) && !Object.keys(map).length) {
     return (
-      <section className="panel market-context" data-testid="market-context">
-        <h2>Market</h2>
+      <section className="widget market-context" data-testid="market-context">
+        <header className="widget__head">
+          <h2>Market</h2>
+        </header>
         <p className="empty-state">No tape regime on the board.</p>
       </section>
     );
   }
   return (
-    <section className="panel market-context" data-testid="market-context">
-      <h2>Market</h2>
+    <section className="widget market-context" data-testid="market-context">
+      <header className="widget__head">
+        <h2>Market</h2>
+      </header>
       <div className="market-context__grid">
         {rows.map((r) =>
           r.empty ? (

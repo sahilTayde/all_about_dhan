@@ -226,6 +226,10 @@ async function measure(page) {
         premiumSpark: count("[data-testid=premium-spark]"),
         strategyCards: count("[data-testid=strategy-card]"),
         advancedToggle: count("[data-testid=advanced-toggle]"),
+        pipeline: count("[data-testid=trade-pipeline]"),
+        pipeLanes: count("[data-testid=pipe-lane]"),
+        pipeStages: count("[data-testid=pipe-stage]"),
+        pipeHistory: count("[data-testid=pipe-history]"),
       },
     };
   });
@@ -234,9 +238,9 @@ async function measure(page) {
 function featureProblems(name, width, f) {
   if (!FEATURES) return [];
   const need = {
-    desk: { alertBar: 1, healthStrip: 1, dayPnl: 1, openPositions: 1, timeline: 1, marketCards: 1, advancedToggle: 1, currentFields: 1, premiumSpark: 1 },
+    desk: { alertBar: 1, healthStrip: 1, dayPnl: 1, openPositions: 1, timeline: 1, marketCards: 1, advancedToggle: 1, currentFields: 1, premiumSpark: 1, pipeline: 1, pipeLanes: 2, pipeStages: 14 },
     "desk-board": { strategyCards: 10, healthStrip: 1, advancedToggle: 1 },
-    founder: { alertBar: 1, ragRows: 7, traceNodes: 7, charts: 3, accountRows: 6, founderControls: 7, historyRows: 3 },
+    founder: { alertBar: 1, healthStrip: 1, pipeline: 1, pipeLanes: 2, pipeStages: 14, advancedToggle: 1 },
   }[name];
   if (!need) return [];
   return Object.entries(need)
@@ -339,6 +343,23 @@ async function main() {
         if (u.includes("/paper/trace") || (V2 && u.includes("/v2/trace"))) traceHits.push(u);
       });
       await page.goto(`${base}/desk`, { waitUntil: "load" });
+      await page.waitForSelector("[data-testid=trade-pipeline]");
+      const pipeText = await page.locator("[data-testid=trade-pipeline]").innerText();
+      check("pipeline-no-mix", !/MIX-/.test(pipeText), pipeText.slice(0, 240));
+      check("pipeline-lanes", (await page.locator("[data-testid=pipe-lane]").count()) === 2, "NIFTY and SENSEX lanes");
+      await page.locator("[data-testid=pipe-lane][data-und=NIFTY] [data-stage=live]").click();
+      await page.waitForSelector("[data-testid=pipe-detail]");
+      const liveDetail = await page.locator("[data-testid=pipe-detail]").innerText();
+      check("pipeline-detail", /In trade|Trade in progress|waiting/i.test(liveDetail) && !/MIX-/.test(liveDetail), liveDetail.slice(0, 200));
+      const skipRow = page.locator("[data-testid=pipe-hist]", { hasText: "coil market" });
+      await skipRow.click();
+      const skipDetail = await page.locator("[data-testid=pipe-detail]").innerText();
+      check("pipeline-skip", /Overlay skipped: coil market/i.test(skipDetail) && !/MIX-/.test(skipDetail), skipDetail.slice(0, 200));
+      await page.screenshot({ path: resolve(OUT, "desk_1440_pipeline.png"), fullPage: false, clip: { x: 0, y: 0, width: 1440, height: 900 } });
+      await page.setViewportSize({ width: 390, height: 900 });
+      await page.waitForTimeout(250);
+      await page.screenshot({ path: resolve(OUT, "desk_390_pipeline.png"), fullPage: false, clip: { x: 0, y: 0, width: 390, height: 900 } });
+      await page.setViewportSize({ width: 1440, height: 900 });
       await page.waitForSelector("[data-testid=desk-today] .current-trade .kv");
       const layout = await page.evaluate(() => {
         const today = document.querySelector("[data-testid=desk-today]");
@@ -459,8 +480,17 @@ async function main() {
       check("last-ticket-390", cut.length === 0, `truncated last-ticket values at 390px: ${JSON.stringify(cut)}`);
       await page.setViewportSize({ width: 1440, height: 900 });
 
-      // Founder: P&L-by-stage bars add up to the book net; START/STOP fully inside its panel.
+      // Founder: pipeline is the overview centerpiece; P&L-by-stage lives behind Advanced.
       await page.goto(`${base}/pm`, { waitUntil: "load" });
+      await page.waitForSelector("[data-testid=trade-pipeline]");
+      const founderPipe = await page.locator("[data-testid=trade-pipeline]").innerText();
+      check("founder-pipeline", (await page.locator("[data-testid=pipe-lane]").count()) === 2 && !/MIX-/.test(founderPipe), founderPipe.slice(0, 200));
+      await page.screenshot({ path: resolve(OUT, "founder_1440_pipeline.png"), fullPage: false, clip: { x: 0, y: 0, width: 1440, height: 900 } });
+      await page.setViewportSize({ width: 390, height: 900 });
+      await page.waitForTimeout(250);
+      await page.screenshot({ path: resolve(OUT, "founder_390_pipeline.png"), fullPage: false, clip: { x: 0, y: 0, width: 390, height: 900 } });
+      await page.setViewportSize({ width: 1440, height: 900 });
+      await page.locator("[data-testid=advanced-toggle]").click();
       await page.waitForSelector(".stage-total");
       const [sum, net] = await page.locator(".stage-total b").allTextContents();
       check("stage-sum", sum === net, `sum of bars ${sum} · book net ${net}`);
@@ -469,8 +499,11 @@ async function main() {
 
       // History still indexing: every all-days / account / multi-day chart figure shows a label, no rupees.
       await page.evaluate(() => fetch("/__fixture/indexing"));
-      for (const [path, need] of [["/desk", 1], ["/pm", 9]]) {
+      for (const [path, need] of [["/desk", 1], ["/pm", 5]]) {
         await page.goto(`${base}${path}`, { waitUntil: "load" });
+        if (path === "/pm") {
+          await page.locator("[data-testid=advanced-toggle]").click();
+        }
         await page.waitForSelector(".needs-history", { timeout: 5000 }).catch(() => {}); // absent = FAIL below
         await page.waitForTimeout(400);
         const cells = await page.locator(".needs-history").allInnerTexts();

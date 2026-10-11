@@ -15,7 +15,6 @@
   },
   "underlyings": [
     "NIFTY",
-    "BANKNIFTY",
     "SENSEX"
   ],
   "sentiment": {
@@ -103,13 +102,16 @@
       "underlying": "NIFTY",
       "side": "BUY_PE",
       "strike": 24850,
-      "entry": "DATA_INSUFFICIENT",
-      "stop": "DATA_INSUFFICIENT",
-      "target": "DATA_INSUFFICIENT",
-      "expiry": "placeholder",
+      "entry": 118.4,
+      "stop": 108,
+      "target": 142,
+      "lots": 10,
+      "lot_size": 65,
+      "last_ltp": 121.2,
+      "expiry": "2026-10-07",
       "customer": {
         "headline": "Put ticket live \u2014 you decide",
-        "note": "Strike shown. Premium Entry/SL/Target DATA_INSUFFICIENT until option LTP binds. Underlying index path on the chart. Not a fill. Not advice. Orders refused."
+        "note": "Momentum after 10:30, trending market. Strike and premium are bound on this paper ticket."
       },
       "ticket": {
         "unit": "OPTION_PREMIUM",
@@ -771,15 +773,18 @@
     "SENSEX": {
       "id": "mock-sensex-001",
       "underlying": "SENSEX",
-      "side": "HOLD",
-      "strike": 81000,
-      "entry": "DATA_INSUFFICIENT",
-      "stop": "DATA_INSUFFICIENT",
-      "target": "DATA_INSUFFICIENT",
-      "expiry": "placeholder",
+      "side": "BUY_CE",
+      "strike": 81200,
+      "entry": 210.4,
+      "stop": 198,
+      "target": 232.5,
+      "lots": 10,
+      "lot_size": 20,
+      "last_ltp": 218.75,
+      "expiry": "2026-10-07",
       "customer": {
-        "headline": "Lean withdrawn \u2014 tape reversed",
-        "note": "Was an early call lean. Impulse failed. Lunch-return label is INVALIDATED, not an open ticket. Mock only, not advice."
+        "headline": "Call ticket live — you decide",
+        "note": "Momentum after 10:30, trending market."
       },
       "systemOutcome": {
         "mtmPts": -28,

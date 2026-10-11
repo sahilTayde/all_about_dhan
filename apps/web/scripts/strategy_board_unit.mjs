@@ -11,12 +11,14 @@ import {
   todayTimeline,
   winVsRandom,
 } from "../src/lib/strategyBoard.js";
+import { pathProgress, pnlPct } from "../src/lib/paperBoard.js";
 
 assert.equal(PAPER_SLOT_IDS.length, 5);
-assert.equal(slotBadge({ nFilled: 2, openCount: 1, shadow: false }), "TRADE");
-assert.equal(slotBadge({ nFilled: 4, openCount: 0, shadow: false }), "WATCH");
-assert.equal(slotBadge({ nFilled: 0, openCount: 0, shadow: true }), "WATCH");
-assert.equal(slotBadge({ nFilled: 0, openCount: 0, shadow: false }), "DROP");
+assert.equal(slotBadge({ nFilled: 2, net: 60, vsRandom: 8 }), "WATCH");
+assert.equal(slotBadge({ nFilled: 30, net: 100, vsRandom: 8 }), "TRADE");
+assert.equal(slotBadge({ nFilled: 30, net: -40, vsRandom: 2 }), "DROP");
+assert.equal(slotBadge({ nFilled: 30, net: 100, vsRandom: null }), "WATCH");
+assert.equal(slotBadge({ nFilled: 0 }), "WATCH");
 assert.equal(winVsRandom({ win_rate_net_pct: 40, random_win_pct: 32 }), 8);
 assert.equal(winVsRandom({ win_rate_net_pct: 40 }), null);
 
@@ -37,11 +39,16 @@ const avg = avgWinLoss([
 assert.equal(avg.avgWin, 75);
 assert.equal(avg.avgLoss, -30);
 
+const prog = pathProgress(140, 145, 132, 150);
+assert.ok(prog && prog.coveredPct > 0);
+assert.equal(pnlPct(100, 110), 10);
+
 const SLOT = "R01_PDIV_5_ALL_H20";
 const board = {
   session_ist_date: "2026-01-15",
+  shadow_scoreboard: { [SLOT]: { random_win_pct: 30 } },
   book_rank: [
-    { book_id: SLOT, kind: "PAPER", n_filled: 2, n_wins: 1, sum_pnl_inr: 60, win_rate_net_pct: 50 },
+    { book_id: SLOT, kind: "PAPER", n_filled: 2, n_wins: 1, sum_pnl_inr: 60, win_rate_net_pct: 50, random_win_pct: 30 },
   ],
   closed_trades: [
     { strategy_id: SLOT, book_id: "MIX-DEFAULT-BUY", trade_id: "a", realized_pnl_inr: 100, closed_ts: 10, closed_ist: "2026-01-15T10:00:00+05:30", opened_ist: "2026-01-15T09:40:00+05:30" },
@@ -57,15 +64,16 @@ const desk = cards.find((c) => c.id === SLOT);
 const shadow = cards.find((c) => c.id === `${SLOT}·SHADOW`);
 assert.equal(desk.name, "Premium divergence");
 assert.equal(desk.bookId, SLOT);
-assert.equal(desk.badge, "TRADE");
+assert.equal(desk.badge, "WATCH");
 assert.equal(desk.nFilled, 2);
+assert.ok(desk.vsRandom != null);
 assert.equal(shadow.shadow, true);
 assert.equal(shadow.name, "Premium divergence · shadow");
 assert.equal(shadow.badge, "WATCH");
 assert.equal(shadow.nFilled, 1);
 const empty = cards.find((c) => c.id === "R07_MOM3_TREND");
 assert.equal(empty.name, "Momentum");
-assert.equal(empty.badge, "DROP");
+assert.equal(empty.badge, "WATCH");
 assert.equal(empty.winPct, null);
 assert.ok(cards.every((c) => !String(c.name).startsWith("MIX-")));
 

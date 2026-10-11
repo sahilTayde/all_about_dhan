@@ -89,8 +89,8 @@ export function isStale(asOf, now = Date.now(), ttlMs = STALE_TTL_MS) {
 }
 
 export function staleLabel(asOf, now = Date.now(), { placeholder = false } = {}) {
-  if (placeholder) return "static fixture";
-  if (!asOf) return "DATA_INSUFFICIENT";
+  if (placeholder) return "Waiting for live price";
+  if (!asOf) return "Waiting for live price";
   if (isStale(asOf, now)) return "stale";
   return "fresh";
 }
@@ -116,7 +116,7 @@ export function whyLine(signal) {
   const note = signal?.customer?.note || signal?.note || "";
   if (note) return String(note);
   const parts = [signal?.trend, signal?.chain_3m, citeNews(signal)].filter(Boolean);
-  return parts.length ? parts.join(" · ") : "DATA_INSUFFICIENT";
+  return parts.length ? parts.join(" · ") : "Waiting for live price";
 }
 
 function bookFrom(raw, fallbackMode) {
@@ -134,7 +134,7 @@ export function deskFromMock(raw) {
   const underlyings =
     Array.isArray(raw?.underlyings) && raw.underlyings.length
       ? raw.underlyings
-      : ["NIFTY", "BANKNIFTY", "SENSEX"];
+      : ["NIFTY", "SENSEX"];
   return {
     feed: "mock",
     mode,
@@ -187,7 +187,7 @@ export function deskFromV2Public(snap) {
       chart: payload.chart && typeof payload.chart === "object" ? payload.chart : null,
     };
   }
-  const list = underlyings.length ? underlyings : ["NIFTY", "BANKNIFTY", "SENSEX"];
+  const list = underlyings.length ? underlyings : ["NIFTY", "SENSEX"];
   if (!underlyings.length) {
     for (const und of list) {
       signals[und] = { underlying: und, side: "HOLD" };
@@ -239,7 +239,7 @@ export function selectCustomerView(desk, underlying, now = Date.now()) {
     invalidIf:
       signal.invalid_if ||
       signal.customer?.invalid_if ||
-      (waiting ? "No ticket to invalidate." : "DATA_INSUFFICIENT"),
+      (waiting ? "No ticket to invalidate." : "Waiting for live price"),
     outcome: ["ACHIEVED", "STOPPED", "INVALIDATED", "EXPIRED", "DEALER_KILLED"].includes(outcome)
       ? outcome
       : status === "DEALER_KILLED"
@@ -351,11 +351,11 @@ export function oneTicketFixture() {
 }
 
 export function formatSlot(value) {
-  if (value === "" || value == null) return "DATA_INSUFFICIENT";
+  if (value === "" || value == null) return "Waiting for live price";
   const raw = String(value).trim();
   const upper = raw.toUpperCase();
   if (upper === "DATA_INSUFFICIENT" || upper === "DI" || upper === "UNKNOWN") {
-    return "DATA_INSUFFICIENT";
+    return "Waiting for live price";
   }
   const n = Number(value);
   if (Number.isFinite(n)) return n.toLocaleString("en-IN");
