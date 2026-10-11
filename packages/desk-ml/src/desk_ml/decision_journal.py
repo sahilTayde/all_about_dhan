@@ -16,7 +16,7 @@ from desk_ml.reliability import append_line, read_jsonl
 IST = timezone(timedelta(hours=5, minutes=30))
 JOURNAL_REL = Path("data") / "recon" / "decision_journal"
 
-STAGES = ("analyst", "desk", "overlay", "boss", "imm", "in_trade", "exit")
+STAGES = ("analyst", "desk", "overlay", "boss", "imm", "in_trade", "exit", "llm_pick", "llm_exit")
 DECISIONS = ("pass", "skip", "fill", "exit")
 
 ACTOR_PLAIN = {
@@ -42,6 +42,9 @@ ACTOR_PLAIN = {
     "overlay": "Overlay",
     "desk": "Desk",
     "imm": "Paper fill",
+    "LLM judge": "LLM judge",
+    "llm_judge": "LLM judge",
+    "llm-judge": "LLM judge",
 }
 
 REASON_PLAIN = {

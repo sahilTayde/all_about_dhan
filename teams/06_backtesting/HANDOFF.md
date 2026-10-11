@@ -1,5 +1,23 @@
 # Handoff log — Team 06 Backtesting
 
+## As of now (2026-10-11 IST) — LLM shadow judge PICK/EXIT (PAPER)
+
+```text
+From:     teams/06_backtesting
+To:       00 / 07 / 09
+Date:     2026-10-11
+Status:   PAPER / NO_PROMOTE
+Accepted: Dual-tape logs LLM PICK TAKE|SKIP and
+  EXIT HOLD|TRAIL|EXIT. Actor LLM judge.
+  Schema llm-judge-v1 in data/shadow/<day>.jsonl.
+  Score: LLM-filtered P/L vs plain vs random skip.
+  trade: false hard lock. 3s timeout. Cache.
+  1 call/signal, 1/min/trade. Mocked tests.
+Rejected: Changing paper-slot fills. Live orders.
+  Blocking LLM on the fast path.
+UNKNOWN: Live key cost; no promote from mock.
+```
+
 ## As of now (2026-10-09 IST) — R01_B3A_VOL rv30 gate (PAPER)
 
 ```text
