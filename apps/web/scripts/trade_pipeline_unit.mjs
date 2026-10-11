@@ -187,7 +187,7 @@ const explained = buildLane("NIFTY", {
       underlying: "NIFTY",
       side: "CE",
       opened_ist: "2026-01-15T10:00:00+05:30",
-      llm_explanation: "Call premium is following a rising index. The open range is holding.",
+      llm_explanation: "The desk bought the NIFTY call because the index was rising. Premium held the open range.",
       market_type: "trend up",
     },
   ],
@@ -200,14 +200,14 @@ const explained = buildLane("NIFTY", {
       stage: "llm_explain",
       actor: "LLM judge",
       decision: "pass",
-      reason: "Call premium is following a rising index. The open range is holding.",
+      reason: "The desk bought the NIFTY call because the index was rising. Premium held the open range.",
       inputs: { market_type: "trend up", side: "CE" },
     },
   ],
 });
 const analyst = explained.stages.find((s) => s.id === "analyst");
 assert.equal(analyst.state, "done");
-assert.match(analyst.why, /rising index/);
+assert.match(analyst.why, /index was rising/);
 assert.equal(analyst.inputs.market_type, "trend up");
 assert.ok(!/TREND_UP|llm_explain|MIX-/.test(JSON.stringify(explained)));
 

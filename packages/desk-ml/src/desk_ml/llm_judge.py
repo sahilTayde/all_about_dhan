@@ -102,14 +102,30 @@ EXIT_SYSTEM = (
     f"Reply with exactly one JSON object: {{\"action\":\"HOLD|TRAIL|EXIT\",\"reason\":"
     f"\"short string\"}}. Prompt {PROMPT_VERSION}. No prose outside the JSON."
 )
+EXPLAIN_BANNED = (
+    "wing",
+    "tape",
+    "index path",
+    "flattened",
+    "short-cover",
+    "itm_100",
+    "why_now",
+    "overlay",
+    "mix-",
+    "pe bin",
+    "ce bin",
+)
 EXPLAIN_SYSTEM = (
     "You are a PAPER-ONLY explainer for an Indian index-options desk. A paper-slot "
-    "trade already filled. Write 1-3 plain English sentences a founder can read, and "
-    "one market-type label. You have no order authority. Do not say TAKE, SKIP, HOLD, "
-    "TRAIL, EXIT, BUY, or SELL. Do not veto, size, or cancel. Do not invent prints, "
-    "OI, VIX, or news. DATA_INSUFFICIENT means unknown. "
+    "trade already filled. Write exactly 2 sentences in plain trader English a founder "
+    "can read, plus one market-type label. Sentence 1: what was bought and why. "
+    "Sentence 2: what happened to the premium and why the ticket closed. "
+    "You have no order authority. Do not say TAKE, SKIP, HOLD, TRAIL, or EXIT. "
+    "Do not veto, size, or cancel. Do not invent prints, OI, VIX, or news. "
+    "Do not use jargon: wing, tape, index path, flattened, bin, overlay, short-cover, "
+    "ITM, MIX, dump, last-3. DATA_INSUFFICIENT means unknown. "
     f"Allowed market_type values exactly: {' | '.join(EXPLAIN_MARKET_TYPES)}. "
-    'Reply with exactly one JSON object: {"explanation":"1-3 sentences",'
+    'Reply with exactly one JSON object: {"explanation":"exactly 2 sentences",'
     '"market_type":"trend up|trend down|chop|tight range|expiry pin|high-VIX"}. '
     "No prose outside the JSON. No internal codes."
 )
@@ -292,8 +308,12 @@ def parse_explain(text: Any) -> dict[str, Any]:
     if len(explanation) > 600:
         explanation = explanation[:600].rsplit(" ", 1)[0].strip()
     n = _sentence_count(explanation)
-    if n < 1 or n > 3:
-        raise ValueError(f"explanation sentences {n} not in 1-3")
+    if n != 2:
+        raise ValueError(f"explanation sentences {n} not 2")
+    low = explanation.lower()
+    for word in EXPLAIN_BANNED:
+        if word in low:
+            raise ValueError(f"explanation jargon {word!r}")
     market = plain_market_type(obj["market_type"])
     if market is None:
         raise ValueError(f"market_type {obj['market_type']!r}")

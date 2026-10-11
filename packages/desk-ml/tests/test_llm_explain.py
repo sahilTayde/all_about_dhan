@@ -21,7 +21,7 @@ from desk_ml.llm_judge import (
 IST = timezone(timedelta(hours=5, minutes=30))
 DAY = "2026-10-10"
 TS = datetime(2026, 10, 10, 10, 31, tzinfo=IST)
-EXPLAIN_OK = '{"explanation":"Call premium is following a rising index. The open range is holding.","market_type":"trend up"}'
+EXPLAIN_OK = '{"explanation":"The desk bought the NIFTY 25000 call because the index was rising. Premium held the open range.","market_type":"trend up"}'
 
 
 class FakeLLM:
@@ -70,15 +70,19 @@ def _trade(**kw) -> dict:
 def test_parse_explain_is_strict_and_plain() -> None:
     out = parse_explain(EXPLAIN_OK)
     assert out["market_type"] == "trend up"
-    assert "Call premium" in out["explanation"]
+    assert "NIFTY 25000 call" in out["explanation"]
     assert out["reason"] == out["explanation"]
-    assert parse_explain('{"explanation":"Chop all morning.","market_type":"CHOP"}')["market_type"] == "chop"
+    assert parse_explain('{"explanation":"The index chopped all morning. Premium stayed in a small range.","market_type":"CHOP"}')["market_type"] == "chop"
     with pytest.raises(ValueError):
         parse_explain('{"explanation":"x","market_type":"trend up","decision":"SKIP"}')
     with pytest.raises(ValueError):
         parse_explain('{"explanation":"One. Two. Three. Four.","market_type":"trend up"}')
     with pytest.raises(ValueError):
         parse_explain('{"explanation":"ok","market_type":"MOON"}')
+    with pytest.raises(ValueError):
+        parse_explain('{"explanation":"Only one sentence.","market_type":"trend up"}')
+    with pytest.raises(ValueError):
+        parse_explain('{"explanation":"The wing sat against the tape. It was flattened.","market_type":"chop"}')
 
 
 def test_plain_market_type_hides_codes() -> None:
@@ -116,7 +120,7 @@ def test_schedule_adds_zero_wait_on_caller(tmp_path: Path) -> None:
     assert journal.is_file()
     rows = [json.loads(line) for line in journal.read_text(encoding="utf-8").splitlines()]
     assert any(r["stage"] == "llm_explain" and r["actor"] == "LLM judge" for r in rows)
-    assert any("rising index" in r["reason"] for r in rows)
+    assert any("index was rising" in r["reason"] for r in rows)
     assert any((r.get("inputs") or {}).get("market_type") == "trend up" for r in rows)
     assert all("TREND_UP" not in json.dumps(r) for r in rows)
     reset_explain_pool()

@@ -1,5 +1,29 @@
 # Handoff log — Team 07 Coding
 
+## As of now (2026-10-11 IST) — founder trade card plain words (PAPER)
+
+```text
+From:     teams/07_coding
+To:       founder / 00 / 05 / 09
+Date:     2026-10-11
+Status:   PAPER / NO_PROMOTE
+Gate:     not RESEARCH_READY_FOR_PROGRAMMING
+Accepted: Trade card hides MIX codes; shows
+  slot name. Closed pill is Closed: stop
+  hit / target hit / time exit. Why line
+  is plain English. Closed card shows
+  exit, net ₹ after charges, MFE/MAE,
+  exit mark on the gauge. Empty fields
+  hidden. Explainer prompt is 2 sentences,
+  no wing/tape/flattened jargon.
+Rejected: CLOSED (CANCEL). MIX-DEFAULT-BUY
+  on the card. Sep-25 25-lot qty. Jargon
+  why_now. Live broker.
+UNKNOWN: Oct 2026 dual-tape not in this
+  checkout; screenshots use 10-lot C5
+  slot config dated 2026-10-09.
+```
+
 ## As of now (2026-10-11 IST) — R4 prompt path + loud missing (PAPER)
 
 ```text

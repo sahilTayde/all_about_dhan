@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { fmtElapsed, inr, moneyClass, pathInfo, px, shortWhy, ticketState, tradeNow } from "../lib/paperBoard.js";
+import { fmtElapsed, inr, moneyClass, pathInfo, plainWhy, px, ticketState, tradeNow } from "../lib/paperBoard.js";
+import { strategyName } from "../lib/tradePipeline.js";
 
 function clamp01(n) {
   if (n == null || Number.isNaN(n)) return 0;
@@ -8,20 +9,23 @@ function clamp01(n) {
 
 function TicketPath({ t }) {
   const p = pathInfo(t);
+  const mark = p.markLabel || "now";
   return (
     <div className="fx-path">
       <div className="fx-range" aria-hidden="true">
         <i className="fx-range__fill" />
         <b className="fx-range__entry" style={{ left: `${clamp01(p.entryPct) * 100}%` }} title="Entry" />
-        <em className="fx-range__now" style={{ left: `${clamp01(p.pct) * 100}%` }} title="Now" />
+        <em className={p.closed ? "fx-range__exit" : "fx-range__now"} style={{ left: `${clamp01(p.pct) * 100}%` }} title={p.closed ? "Exit" : "Now"} />
       </div>
       <div className="fx-path__ticks">
-        <span>
-          {p.trailing ? "Trail SL" : "Stop"} {px(p.stop)}
-        </span>
-        <span>entry {px(p.entry)}</span>
-        <span>now {px(p.last)}</span>
-        <span>target {px(p.target)}</span>
+        {Number.isFinite(p.stop) ? (
+          <span>
+            {p.trailing ? "Trail SL" : "Stop"} {px(p.stop)}
+          </span>
+        ) : null}
+        {Number.isFinite(p.entry) ? <span>entry {px(p.entry)}</span> : null}
+        {Number.isFinite(p.last) ? <span>{mark} {px(p.last)}</span> : null}
+        {Number.isFinite(p.target) ? <span>target {px(p.target)}</span> : null}
       </div>
     </div>
   );
@@ -96,6 +100,7 @@ export function HumanManage({ current, busy, onCancel, onSetLevels }) {
 }
 
 function Cell({ label, value, tone, title }) {
+  if (value == null || value === "" || value === "—") return null;
   return (
     <div className="kv" title={title}>
       <dt>{label}</dt>
@@ -121,7 +126,7 @@ function LastTicket({ t, clock }) {
       <dl className="kv-grid kv-grid--3 last-ticket">
         <Cell label="Last ticket" value={`${t.underlying} ${t.side} ${t.atm_strike ?? ""}`} />
         <Cell label="State" value={<span className={`state-pill state-pill--${s.key}`}>{s.label}</span>} />
-        <Cell label="Reason" value={t.exit_reason || t.status || "—"} />
+        <Cell label="Reason" value={ticketState(t, { clock }).label} />
         <Cell label="Entry → exit" value={`${px(t.entry)} → ${px(t.exit)}`} />
         <Cell label="Net ₹" value={inr(t.realized_pnl_inr)} tone={moneyClass(t.realized_pnl_inr)} />
         <Cell label="Closed" value={String(t.closed_ist || "").slice(11, 19) || "—"} />
@@ -156,7 +161,7 @@ export function CurrentTrade({ t, last, clock, hold, indexNow, children, title =
       {!t ? (
         <div className="current-trade__empty">
           <p className="current-trade__big">{hold ? "On hold" : "Waiting for next signal"}</p>
-          <p className="muted">{hold ? `Why: ${hold}` : "No open MIX-DEFAULT-BUY ticket. The next CE/PE lands here the moment the board writes it."}</p>
+          <p className="muted">{hold ? `Why: ${hold}` : "No open paper ticket. The next call or put lands here the moment the board writes it."}</p>
           {last ? <LastTicket t={last} clock={clock} /> : null}
         </div>
       ) : (
@@ -164,30 +169,35 @@ export function CurrentTrade({ t, last, clock, hold, indexNow, children, title =
           <div className="current-trade__title">
             <span className={`side-mini side-mini--${String(t.side).toLowerCase()}`}>BUY {t.side}</span>
             <strong>
-              {t.underlying} {t.atm_strike ?? "—"}
+              {t.underlying} {t.atm_strike ?? ""}
             </strong>
-            <span className="muted">{(t.books || [t.book_id]).filter(Boolean).join(" · ")}</span>
+            {strategyName(t) ? <span className="muted">{strategyName(t)}</span> : null}
           </div>
           <dl className="kv-grid">
-            <Cell label="Signal" value={`BUY ${t.side}`} title={t.book_id || undefined} />
-            <Cell label="Strike" value={t.atm_strike ?? "—"} />
-            <Cell label="Entry" value={px(n.entry)} />
-            <Cell label="LTP" value={px(n.ltp)} tone={moneyClass(n.pts)} />
-            <Cell label="Stop" value={px(n.stop)} />
-            <Cell label="T1" value={n.t1 === "hit" ? "hit" : px(n.t1)} />
-            <Cell label="T2" value={px(n.t2)} />
-            <Cell label="Trailing SL" value={px(n.trailing)} />
-            <Cell label="P&L pts" value={pts(n.pts)} tone={moneyClass(n.pts)} />
-            <Cell label="P&L ₹ gross" value={inr(n.inr)} tone={moneyClass(n.inr)} title="(LTP − entry) × qty, before charges" />
-            <Cell label="Elapsed" value={fmtElapsed(n.elapsedMs)} title={clock?.replay ? "Against the tape clock (replay)" : "Since entry"} />
-            <Cell label="MFE" value={pts(n.mfe)} tone={moneyClass(n.mfe)} title="Best premium seen since entry − entry" />
-            <Cell label="MAE" value={pts(n.mae)} tone={moneyClass(n.mae)} title="Worst premium seen since entry − entry" />
-            <Cell label="Spot @ entry" value={px(t.spot_at_entry)} />
-            <Cell label="Index now" value={px(indexNow)} />
-            <Cell label="Qty" value={n.qty ?? "—"} />
+            <Cell label="Signal" value={t.side ? `BUY ${t.side}` : null} />
+            <Cell label="Strike" value={t.atm_strike} />
+            <Cell label="Entry" value={n.entry != null ? px(n.entry) : null} />
+            <Cell label={n.closed ? "Exit" : "LTP"} value={n.ltp != null ? px(n.ltp) : null} tone={moneyClass(n.pts)} />
+            <Cell label="Stop" value={n.stop != null ? px(n.stop) : null} />
+            <Cell label="T1" value={n.t1 === "hit" ? "hit" : n.t1 != null ? px(n.t1) : null} />
+            <Cell label="T2" value={n.t2 != null ? px(n.t2) : null} />
+            <Cell label="Trailing SL" value={n.trailing != null ? px(n.trailing) : null} />
+            <Cell label="P&L pts" value={n.pts != null ? pts(n.pts) : null} tone={moneyClass(n.pts)} />
+            <Cell
+              label={n.closed ? "P&L ₹ after charges" : "P&L ₹ gross"}
+              value={inr(n.closed ? n.netInr ?? n.inr : n.inr)}
+              tone={moneyClass(n.closed ? n.netInr ?? n.inr : n.inr)}
+              title={n.closed ? "Net after Dhan/NSE charges" : "(LTP − entry) × qty, before charges"}
+            />
+            <Cell label="Elapsed" value={n.elapsedMs != null ? fmtElapsed(n.elapsedMs) : null} title={clock?.replay ? "Against the session clock (replay)" : "Since entry"} />
+            <Cell label="MFE" value={n.mfe != null ? pts(n.mfe) : null} tone={moneyClass(n.mfe)} title="Best premium seen since entry − entry" />
+            <Cell label="MAE" value={n.mae != null ? pts(n.mae) : null} tone={moneyClass(n.mae)} title="Worst premium seen since entry − entry" />
+            <Cell label="Spot @ entry" value={t.spot_at_entry != null ? px(t.spot_at_entry) : null} />
+            <Cell label="Index now" value={indexNow != null ? px(indexNow) : null} />
+            <Cell label="Qty" value={n.qty} />
           </dl>
           <TicketPath t={t} />
-          <p className="desk-sub current-trade__why">Why: {shortWhy(t.justification)}</p>
+          {plainWhy(t) ? <p className="desk-sub current-trade__why">Why: {plainWhy(t)}</p> : null}
           <ExplainLine t={t} />
           {children}
         </>

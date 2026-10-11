@@ -2272,7 +2272,8 @@ a {
 }
 
 .fx-range__entry,
-.fx-range__now {
+.fx-range__now,
+.fx-range__exit {
   position: absolute;
   top: -0.18rem;
   width: 0.18rem;
@@ -2285,7 +2286,8 @@ a {
   background: var(--ink-soft);
 }
 
-.fx-range__now {
+.fx-range__now,
+.fx-range__exit {
   width: 0.72rem;
   height: 0.72rem;
   top: -0.08rem;
