@@ -7,12 +7,15 @@ row identifies the wing (no new columns).
 
 Re-centred when spot moves more than half a strike step (plus hysteresis) away from the
 current ATM. Strikes that leave the set keep streaming for ``retention_s`` (10 minutes);
-instruments with an open position are never dropped.
+instruments with an open position are never dropped. When ``open_ladder_n`` is set
+(recorder default 5), the session-open ATM ± N listed strikes stay subscribed
+for the whole session on both CE and PE, in addition to the moving ATM set.
 
-Steady-state count per underlying: index + future + 10 option wings = 12.
-Default NIFTY + SENSEX = 24. After a recentre, old option wings stay up to 10
-minutes, so a dual-underlying book can briefly hold 44. Dhan allows 5,000 ids
-per socket and 100 ids per subscribe JSON (see ``DHAN_FEED_LIMITS``).
+Steady-state moving set per underlying: index + future + 10 option wings = 12.
+With the open ladder: 12 extra unique options (22 option ids, 10 already in the
+moving set) → 24 per book. Default NIFTY + SENSEX = 48. After a recentre, old
+option wings that are not on the open ladder stay up to 10 minutes. Dhan allows
+5,000 ids per socket and 100 ids per subscribe JSON (see ``DHAN_FEED_LIMITS``).
 """
 
 from __future__ import annotations
@@ -33,8 +36,23 @@ RULES: tuple[tuple[str, int], ...] = (
 # 2 sides × 5 rules. Index + future make the per-underlying steady set 12.
 OPTION_WINGS = 2 * len(RULES)
 STEADY_INSTRUMENTS = 1 + 1 + OPTION_WINGS  # index + future + 10 options
+# Listed strikes each side of the session-open ATM (recorder default).
+OPEN_LADDER_N = 5
 # Dhan live-feed connection caps (SOURCE_FACT: teams/03_phd_market/docs/DHAN_API_END_TO_END.md).
+# Same numbers as dhan_client.endpoints FEED_MAX_* (5000 / socket, 100 / subscribe JSON, 5 sockets).
 DHAN_FEED_LIMITS = {"sockets": 5, "instruments_per_socket": 5000, "ids_per_subscribe": 100}
+
+
+def open_ladder_option_count(n: int = OPEN_LADDER_N) -> int:
+    """CE+PE for the open ATM and ``n`` listed strikes each side."""
+    if n <= 0:
+        return 0
+    return (2 * n + 1) * 2
+
+
+def open_ladder_extra(n: int = OPEN_LADDER_N) -> int:
+    """Unique options beyond the moving ATM/ITM/OTM wings."""
+    return max(0, open_ladder_option_count(n) - OPTION_WINGS)
 
 
 @dataclass
@@ -58,14 +76,18 @@ class StrikeSet:
         max_instruments: int = 100,
         hysteresis: float = 0.2,
         open_positions: Callable[[], set[str]] = _no_positions,
+        open_ladder_n: int = 0,
     ) -> None:
         self.universe = universe
         self.retention_s = retention_s
         self.max_instruments = max_instruments
         self.hysteresis = hysteresis
         self.open_positions = open_positions
+        self.open_ladder_n = open_ladder_n
         self.atm: int | None = None
+        self.session_open_atm: int | None = None
         self.current: dict[str, tuple[str, str]] = {}
+        self.open_ladder: dict[str, tuple[str, str]] = {}
         self.retained: dict[str, float] = {}
         self.subscribed: dict[str, Instrument] = {}
         self._strikes = sorted({k[0] for k in universe.options})
@@ -83,8 +105,32 @@ class StrikeSet:
                     out[inst.instrument_id] = (rule, side)
         return out
 
+    def ladder_targets(self, atm: int) -> dict[str, tuple[str, str]]:
+        """Session-open ATM ± N listed strikes, both sides. Empty when ``open_ladder_n`` is 0."""
+        out: dict[str, tuple[str, str]] = {}
+        n = self.open_ladder_n
+        if n <= 0:
+            return out
+        step = self.universe.strike_step
+        for k in range(-n, n + 1):
+            strike = atm + k * step
+            if k == 0:
+                rule = "OPEN_ATM"
+            else:
+                rule = f"OPEN_{'P' if k > 0 else 'M'}{abs(k)}"
+            for side in ("CE", "PE"):
+                inst = self.universe.options.get((strike, side))
+                if inst is not None:
+                    out[inst.instrument_id] = (rule, side)
+        return out
+
     def rule_for(self, instrument_id: str) -> tuple[str, str] | None:
-        return self.current.get(instrument_id)
+        return self.current.get(instrument_id) or self.open_ladder.get(instrument_id)
+
+    def _pinned(self) -> set[str]:
+        keep = self.open_positions()
+        keep.update(self.open_ladder)
+        return keep
 
     def update(self, spot: float, now_s: float) -> Change:
         change = Change(atm=self.atm)
@@ -98,8 +144,11 @@ class StrikeSet:
             atm = self.nearest_strike(spot)
             if atm != self.atm:
                 new = self.targets(atm)
+                if self.session_open_atm is None:
+                    self.session_open_atm = atm
+                    self.open_ladder = self.ladder_targets(atm)
                 for iid in self.current:
-                    if iid not in new:
+                    if iid not in new and iid not in self.open_ladder:
                         self.retained[iid] = now_s + self.retention_s
                 for iid in new:
                     self.retained.pop(iid, None)
@@ -108,7 +157,8 @@ class StrikeSet:
                 self.current, self.atm = new, atm
                 change.atm = atm
 
-        keep = self.open_positions()
+        keep = self._pinned()
+        want += list(self.open_ladder)
         want += [iid for iid in keep if iid in self._by_id]
         pending = [iid for iid in dict.fromkeys(want) if iid not in self.subscribed]
         for iid, expires in sorted(self.retained.items(), key=lambda kv: kv[1]):

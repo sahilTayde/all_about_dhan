@@ -79,12 +79,16 @@ security ids from `/optionchain`, and the nearest index future. Network failures
 until 09:20 IST, then the last cached instrument set (same or later expiry) is used; bad
 credentials fail at once with a one-line message.
 
-Instruments: the index, the nearest future, and ATM / ITM100 / ITM200 / OTM100 / OTM200
-on both sides (CE ITM = strikes below ATM, PE ITM = strikes above; CE OTM = strikes above
-ATM, PE OTM = strikes below). That is **12 instruments per underlying** (10 option wings +
-index + future) and **24** for the default NIFTY + SENSEX book. After a recentre the old
-10 option wings stay subscribed for 10 minutes, so both books can briefly hold 44. Dhan
-allows 5,000 ids per socket and 100 ids per subscribe JSON; 24 (and 44) sit inside both.
+Instruments: the index, the nearest future, the moving ATM / ITM100 / ITM200 / OTM100 /
+OTM200 wings on both sides, **plus** a fixed ±5 listed-strike ladder around the
+session-open ATM (NIFTY and SENSEX). Any contract still held by a paper slot or
+shadow scorer stays subscribed until that position exits. That is **24 instruments
+per underlying** at the open (12 moving + 12 extra open-ladder options) and **48**
+for the default NIFTY + SENSEX book, plus 10 research cash names (58 unique). After
+a recentre the old option wings that are not on the open ladder stay subscribed for
+10 minutes. Dhan allows 5,000 ids per socket and 100 ids per subscribe JSON; 58
+(and a far-recentre worst case under 100) sit inside both. Held contracts with no
+quote for >5 s log a `COVERAGE_ALERT`.
 The existing `rule` field on the snapshot row names the wing — ATM / ITM* readers keep
 working; they ignore OTM* if they filter. Options and the future stay on FULL
 (request 21). The index is ticker (15) or quote (17) — IDX_I sends no ticks on FULL.

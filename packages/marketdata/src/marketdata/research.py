@@ -15,7 +15,13 @@ from datetime import date
 from dhan_client.futidx import FutIdxContract, parse_all_futidx_csv
 
 from marketdata.instruments import UNDERLYINGS, Instrument, StartupError
-from marketdata.strikes import DHAN_FEED_LIMITS, OPTION_WINGS, STEADY_INSTRUMENTS
+from marketdata.strikes import (
+    DHAN_FEED_LIMITS,
+    OPEN_LADDER_N,
+    OPTION_WINGS,
+    STEADY_INSTRUMENTS,
+    open_ladder_extra,
+)
 
 log = logging.getLogger(__name__)
 
@@ -75,19 +81,27 @@ def research_named_count() -> int:
     return len(RESEARCH_FUTURE_UNDERLYINGS) + len(NIFTY_HEAVYWEIGHTS)
 
 
-def default_unique_subscribe_count(*, extra_futures: int = 0, books: int = 2) -> int:
+def default_unique_subscribe_count(
+    *, extra_futures: int = 0, books: int = 2, open_ladder_n: int = OPEN_LADDER_N
+) -> int:
     """Unique feed ids for the default NIFTY+SENSEX CLI plus the research overlay.
 
     Current-month futures that already sit on a strike book do not add a subscribe
     slot (``extra_futures=0``). After a monthly expiry the fallback front-month
-    contract is the same nearest future the book already has.
+    contract is the same nearest future the book already has. The session-open
+    ±N ladder adds the option ids that are not already in the moving ATM set.
     """
-    return books * steady_book_count() + len(NIFTY_HEAVYWEIGHTS) + extra_futures
+    extra = books * open_ladder_extra(open_ladder_n)
+    return books * steady_book_count() + extra + len(NIFTY_HEAVYWEIGHTS) + extra_futures
 
 
-def after_recentre_count(*, extra_futures: int = 0, books: int = 2) -> int:
+def after_recentre_count(
+    *, extra_futures: int = 0, books: int = 2, open_ladder_n: int = OPEN_LADDER_N
+) -> int:
     """Steady unique ids plus retained wings (10 min) on every book."""
-    return default_unique_subscribe_count(extra_futures=extra_futures, books=books) + books * options_per_book()
+    return default_unique_subscribe_count(
+        extra_futures=extra_futures, books=books, open_ladder_n=open_ladder_n
+    ) + books * options_per_book()
 
 
 def within_dhan_caps(n: int) -> bool:

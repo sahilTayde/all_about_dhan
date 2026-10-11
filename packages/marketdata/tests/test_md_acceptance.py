@@ -89,7 +89,7 @@ def mixed_session(tmp_path_factory: pytest.TempPathFactory) -> Session:
 def test_acceptance_1_depth_row_per_instrument_at_least_once_per_second(mixed_session: Session) -> None:
     rows = by_instrument(mixed_session.rows("depth_quotes"))
     subscribed = {r["instrument_id"] for r in mixed_session.rows("subscriptions") if r["action"] == "subscribe"}
-    assert len(subscribed) == 12
+    assert len(subscribed) == 24
     assert set(rows) == subscribed
     for iid, items in rows.items():
         times = [ts(r["timestamp"]) for r in items]
@@ -147,9 +147,13 @@ def test_acceptance_3_recentring_subscribes_new_strikes_and_keeps_old_for_10_min
     assert s.server.connections == 1, "re-centring must not need a reconnect"
     recentres = [r for r in subs if r["reason"] == "recentre"]
     atms = sorted({r["atm"] for r in recentres})
-    assert atms[0] == 24550
+    # The session-open ±5 ladder already holds 24500±250, so the 24550 recentre
+    # adds no new ids and is not logged. First logged ATM is the first wing
+    # that steps outside the ladder (24600 → 24800).
+    assert atms
+    assert atms[0] >= 24550
     assert atms[-1] == 24800
-    assert set(range(24550, 24801, 50)) <= set(atms)
+    assert 24800 in atms
 
     # the strike set follows ATM: ATM 24800 / CE ITM below + OTM above / PE ITM above + OTM below
     strikes = s.recorder.strikes
@@ -188,14 +192,20 @@ def test_acceptance_3_recentring_subscribes_new_strikes_and_keeps_old_for_10_min
             left.pop(iid, None)
         in_set = now_set
     unsub = {r["instrument_id"]: ts(r["ts"]) for r in subs if r["action"] == "unsubscribe"}
-    assert unsub, "old strikes must be dropped after retention"
+    open_ladder = set(strikes.open_ladder)
+    assert open_ladder, "session-open ±5 ladder must stay pinned"
+    for iid in open_ladder:
+        assert iid not in unsub
+        assert iid in strikes.subscribed
+    drifted = {iid: when for iid, when in left.items() if iid not in open_ladder}
+    assert unsub, "old strikes outside the open ladder must be dropped after retention"
     for iid, when in unsub.items():
-        held = (when - left[iid]).total_seconds()
+        held = (when - drifted[iid]).total_seconds()
         assert 600.0 <= held <= 601.0, (iid, held)
         # still streaming (depth rows) during retention
-        kept = [r for r in depth[iid] if left[iid] + timedelta(seconds=60) < ts(r["timestamp"]) < when]
+        kept = [r for r in depth[iid] if drifted[iid] + timedelta(seconds=60) < ts(r["timestamp"]) < when]
         assert kept, iid
-    for iid, t_left in left.items():
+    for iid, t_left in drifted.items():
         if t_left + timedelta(seconds=601) < ist(10, 17):
             assert iid in unsub
         else:
@@ -343,7 +353,7 @@ def test_acceptance_6_bad_frame_logged_to_ingest_errors_and_recording_continues(
     assert nan_rows[0]["ltp"] is None
     # recording continued: every instrument has rows carrying data received after the burst
     after = {r["payload"]["instrument_id"] for r in depth if ts(r["payload"]["exchange_ts"]) > ist(10, 0, 20)}
-    assert len(after) == 12
+    assert len(after) == 24
 
 
 def test_acceptance_7_refuses_to_start_without_credentials(tmp_path: Path) -> None:

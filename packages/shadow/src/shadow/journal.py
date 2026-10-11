@@ -98,6 +98,7 @@ class ShadowJournal:
         price: float | None,
         realized: float,
         reason: str,
+        quote_flag: str | None = None,
     ) -> dict[str, Any]:
         row: dict[str, Any] = {
             "schema": SCHEMA,
@@ -112,6 +113,8 @@ class ShadowJournal:
             "reason": reason,
             "orders": "REFUSED",
         }
+        if quote_flag:
+            row["quote_flag"] = quote_flag
         self.append(self.files(day).pnl, row)
         return row
 
