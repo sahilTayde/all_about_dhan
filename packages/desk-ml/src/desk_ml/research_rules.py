@@ -321,6 +321,106 @@ def load_atm_minutes(root: Path, underlying: str, day: str) -> dict[str, dict[st
     return dict(sorted(by_min.items()))
 
 
+V2_TAPE_DIR = ("data", "tape", "v2")
+V2_INDEX_ID = {"NIFTY": "NSE_IDX:NIFTY", "SENSEX": "BSE_IDX:SENSEX"}
+V2_FNO_PREFIX = {"NIFTY": "NSE_FNO:NIFTY:", "SENSEX": "BSE_FNO:SENSEX:"}
+
+
+def _v2_lines(path: Path, needle: bytes) -> Iterable[dict[str, Any]]:
+    """Stream a V2 recorder jsonl, decoding only lines that contain `needle` (files run to ~1 GB)."""
+    if not path.is_file():
+        return
+    with path.open("rb") as fh:
+        for raw in fh:
+            if needle not in raw:
+                continue
+            try:
+                blob = json.loads(raw)
+            except (json.JSONDecodeError, UnicodeDecodeError):
+                continue
+            if isinstance(blob, dict) and isinstance(blob.get("payload"), dict):
+                yield blob
+
+
+def load_v2_minutes(root: Path, underlying: str, day: str) -> dict[str, dict[str, Any]]:
+    """Minute bars from the V2 recorder (data/tape/v2/<day>/): index = last NSE/BSE_IDX print of the
+    minute (depth_quotes); option quotes = last non-null QUOTE_SNAPSHOT per strike/side of the minute
+    (bid/ask/ltp). ATM = the snapshot rule ATM strike. Same bar shape as load_atm_minutes, plus
+    source="v2". Read-only."""
+    und = underlying.upper()
+    folder = Path(root).joinpath(*V2_TAPE_DIR, day)
+    idx_by_min: dict[str, tuple[int, float]] = {}
+    for blob in _v2_lines(folder / "depth_quotes.jsonl", V2_INDEX_ID[und].encode()):
+        pay = blob["payload"]
+        if pay.get("instrument_id") != V2_INDEX_ID[und]:
+            continue
+        ltp = _num(pay.get("ltp"))
+        ts = parse_ts(pay.get("exchange_ts") or blob.get("timestamp"))
+        if ltp is None or ts is None:
+            continue
+        hhmm = datetime.fromtimestamp(ts, IST).strftime("%H:%M")
+        if hhmm not in idx_by_min or ts >= idx_by_min[hhmm][0]:
+            idx_by_min[hhmm] = (ts, ltp)
+    prefix = V2_FNO_PREFIX[und]
+    quotes: dict[str, dict[float, dict[str, Any]]] = {}
+    atm_by_min: dict[str, float] = {}
+    ts_by_min: dict[str, int] = {}
+    for blob in _v2_lines(folder / "quote_snapshots.jsonl", prefix.encode()):
+        pay = blob["payload"]
+        iid = str(pay.get("instrument_id") or "")
+        if not iid.startswith(prefix):
+            continue
+        parts = iid.split(":")
+        try:
+            strike = float(parts[3])
+            side = parts[4].upper()
+        except (IndexError, ValueError):
+            continue
+        bid, ask, ltp = _num(pay.get("bid")), _num(pay.get("ask")), _num(pay.get("ltp"))
+        if bid is None and ask is None and ltp is None:
+            continue
+        ts = parse_ts(blob.get("timestamp"))
+        if ts is None:
+            continue
+        hhmm = datetime.fromtimestamp(ts, IST).strftime("%H:%M")
+        cell = quotes.setdefault(hhmm, {}).setdefault(strike, {})
+        key = side.lower()
+        cell[key] = mid_or_ltp(bid, ask, ltp)
+        cell[f"{key}_bid"] = bid
+        cell[f"{key}_ask"] = ask
+        cell[f"{key}_ltp"] = ltp
+        if pay.get("rule") == "ATM":
+            atm_by_min[hhmm] = strike
+        ts_by_min[hhmm] = max(ts, ts_by_min.get(hhmm, 0))
+    out: dict[str, dict[str, Any]] = {}
+    for hhmm in sorted(quotes):
+        atm = atm_by_min.get(hhmm)
+        idx = idx_by_min.get(hhmm)
+        if atm is None or idx is None:
+            continue
+        cell = quotes[hhmm].get(atm) or {}
+        if cell.get("ce") is None or cell.get("pe") is None:
+            continue
+        wings = {(str(int(k)) if k == int(k) else str(k)): v for k, v in quotes[hhmm].items()}
+        ts = ts_by_min[hhmm]
+        out[hhmm] = {"idx": idx[1], "ce": cell["ce"], "pe": cell["pe"], "atm": atm, "ts": int(ts),
+                     "hhmm": hhmm, "ist": datetime.fromtimestamp(ts, IST).isoformat(timespec="seconds"),
+                     "wings": wings, "source": "v2"}
+    return out
+
+
+def load_minutes_filled(root: Path, underlying: str, day: str) -> dict[str, dict[str, Any]]:
+    """DUAL-TAPE minutes first; every minute the dual-tape jsonl lacks is filled from the V2 recorder
+    (bar["source"] == "v2_fill"). Dual-tape bars are never overwritten."""
+    bars = load_atm_minutes(root, underlying, day)
+    for hhmm, bar in bars.items():
+        bar.setdefault("source", "dual_tape")
+    for hhmm, bar in load_v2_minutes(root, underlying, day).items():
+        if hhmm not in bars:
+            bars[hhmm] = {**bar, "source": "v2_fill"}
+    return dict(sorted(bars.items()))
+
+
 def _ist_ts(day: str, hhmm: str, bar: Optional[dict[str, Any]] = None) -> int:
     if bar is not None and bar.get("ts"):
         return int(bar["ts"])
@@ -400,6 +500,9 @@ def _trade_row(
         "stop": None,
         "target": None,
         "atm_strike": float(strike),
+        "held_strike": float(strike),
+        "entry_price_source": str(entry_bar.get("source") or "dual_tape"),
+        "exit_price_source": (str(mark_bar.get("source") or "dual_tape") if mark_bar else None),
         "strike_source": "ATM_SIGNAL_MINUTE",
         "exit_reason": reason if closed else None,
         "sl_hit": False,
@@ -667,6 +770,7 @@ def replay(
     *,
     underlyings: Iterable[str] = UNDERLYINGS,
     rules: Optional[Sequence[dict[str, Any]]] = None,
+    fill_v2: Optional[bool] = None,
 ) -> dict[str, Any]:
     live_rules = [r for r in FROZEN_RULES if r["rule_id"] in LIVE_RULE_IDS] if rules is None else list(rules)
     entry_before: dict[str, str] = {}
@@ -677,7 +781,10 @@ def replay(
                 live_rules.append(r)  # pre-park history only
                 entry_before[r["rule_id"]] = pf
     shadow_rules = [r for r in FROZEN_RULES if r["rule_id"] in SHADOW_RULE_IDS] if rules is None else []
-    bars_by = {und: load_atm_minutes(Path(root), und, day) for und in underlyings}
+    if fill_v2 is None:  # off on the live board by default: the V2 files are ~1 GB per day
+        fill_v2 = os.environ.get("DESK_RR_V2_FILL", "").strip() in {"1", "true", "yes", "on"}
+    loader = load_minutes_filled if fill_v2 else load_atm_minutes
+    bars_by = {und: loader(Path(root), und, day) for und in underlyings}
     skip: set = set()
     blocked: list[dict[str, Any]] = []
     for _ in range(10):  # D6: re-run without blocked signals until the blocked set is stable
@@ -712,6 +819,7 @@ def replay(
         "underlyings": list(underlyings),
         "qty": dict(QTY),
         "lots": LOTS,
+        "v2_fill": bool(fill_v2),
         "pricing": "ask-in / bid-out (mid fallback flagged), costs 1.5x #84",
         "open": opens,
         "closed": closed,
