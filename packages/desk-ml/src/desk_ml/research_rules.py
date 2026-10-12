@@ -436,8 +436,9 @@ def _ist_iso(ts: int) -> str:
 COST_MULT = 1.5  # spec PREREG_PRIMARY: 1.5x the #84 fixture
 
 
-def _cost_row(*, entry: float, exit_px: float, qty: int, filled: bool) -> dict[str, Any]:
+def _cost_row(*, entry: float, exit_px: float, qty: int, filled: bool, underlying: Optional[str] = None) -> dict[str, Any]:
     raw = groww_round_trip_charges(
+        underlying=underlying,
         exit_premium=float(exit_px),
         entry_premium=float(entry),
         qty=int(qty),
@@ -488,7 +489,7 @@ def _trade_row(
     opened_ts = _ist_ts(day, entry_min, entry_bar)
     closed_ts = _ist_ts(day, exit_min, mark_bar) if closed else None
     last_ts = closed_ts if closed else _ist_ts(day, mark_bar["hhmm"] if mark_bar else entry_min, mark_bar or entry_bar)
-    charges = _cost_row(entry=entry, exit_px=mark, qty=qty, filled=True) if closed else None
+    charges = _cost_row(entry=entry, exit_px=mark, qty=qty, filled=True, underlying=underlying) if closed else None
     points = float(mark) - float(entry)
     gross = pnl_inr(points=points, lot_size=lot_size, lots=lots) if closed else None
     inr = net_pnl_inr(gross_inr=gross, charges_inr=float(charges["charges_inr"])) if closed and charges else None
