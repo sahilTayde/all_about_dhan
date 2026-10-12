@@ -2,6 +2,7 @@
 # in research shadow scoring (research/lab/shadow). Read by desk_ml.research_rules (desk trades) and checked
 # against config/v2/accounts.yaml slots by tests.
 # 2026-10-12 desk lead: bottom-5 NIFTY in both the partial-day and the full-day 2026-10-12 replay.
+# 2026-10-12 desk lead (Sahil OK): R01 and R01_B3A_VOL lost on real option prices (hf_opt1m), before and after costs.
 # B6a, R15, R19, R21 stay shadow-only, unchanged (they were never desk slots).
 rules_off:
   - id: B2b
@@ -10,3 +11,7 @@ rules_off:
     match: ["R02_MOM_3_0.0005_ALL_H20", "R02"]
   - id: R20
     match: ["R20"]
+  - id: R01
+    match: ["R01_PDIV_5_ALL_H20", "R01"]
+  - id: R01_B3A_VOL
+    match: ["R01_B3A_VOL"]
