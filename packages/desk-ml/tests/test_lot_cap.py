@@ -43,3 +43,20 @@ def test_commit_open_applies_cap() -> None:
     except Exception:
         pass
     assert e.opens[("MIX-DEFAULT-BUY", "NIFTY")].qty == 650
+
+
+def test_total_open_qty_per_underlying_across_books() -> None:
+    class E:
+        def __init__(self):
+            self.opens = {}; self.root = None; self.skips = []
+        def bump_regime_book(self, *a, **k):
+            pass
+        def mark_skip(self, *a, **k):
+            self.skips.append(a)
+    e = E()
+    first = _pos("NIFTY", 65, 10, book="R01"); first.index_regime = None
+    e.opens[("R01", "NIFTY")] = first
+    second = _pos("NIFTY", 65, 10, book="R01_B3A_VOL"); second.index_regime = None
+    ps._commit_open(e, second)
+    assert ("R01_B3A_VOL", "NIFTY") not in e.opens and e.skips
+    assert sum(o.qty for o in e.opens.values()) == 650

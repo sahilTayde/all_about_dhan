@@ -873,6 +873,13 @@ def _desk_pass(opens, closed, day: str, rule_order, risk_cfg):
             d = dict(r); d["dup_of"] = owner.get(key) or held.get("trade_id"); d["guard"] = DUP_SAME_CONTRACT
             dups.append(d)
             continue
+        # 2026-10-12: hard 10-lot cap on TOTAL open qty per underlying across rules (NIFTY 650, SENSEX 200).
+        und = str(r.get("underlying") or "").upper()
+        held_qty = sum(int(k.get("qty") or QTY.get(und, 0)) for k, k_open in taken
+                       if str(k.get("underlying") or "").upper() == und and _holds_at(k, k_open, t))
+        if held_qty + int(r.get("qty") or QTY.get(und, 0)) > QTY.get(und, 10**9):
+            b = dict(r); b["guard"] = desk_risk.RISK_CAP_QTY; blocked.append(b)
+            continue
         if not pre:
             why = desk_risk.check(taken, r, risk_cfg)
             if why:

@@ -161,3 +161,6 @@ def stale_open_block(tick_ts: Optional[float], now_ts: float, environ: Optional[
     if tick_ts is None or float(now_ts) - float(tick_ts) > max_s:
         return RISK_STALE_PRICES
     return None
+
+RISK_CAP_QTY = "RISK_CAP_QTY"  # total open qty per underlying above the 10-lot cap
+RISK_STATUSES = RISK_STATUSES + (RISK_CAP_QTY,)

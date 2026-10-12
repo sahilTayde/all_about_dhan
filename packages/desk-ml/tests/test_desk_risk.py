@@ -73,7 +73,7 @@ def test_desk_pass_order_guard_then_dedup_then_gate() -> None:
     o, c, blocked, dups, taken = rr._desk_pass([], [ce, pe, dup, ce2, ce3], DAY, [rr.R01, rr.R01_B3A, rr.R02], cfg)
     assert [r["trade_id"] for r in c] == [ce["trade_id"], ce2["trade_id"]]
     assert {b["trade_id"]: b["guard"] for b in blocked} == {pe["trade_id"]: "BLOCKED_OPPOSITE_SIDE",
-                                                          ce3["trade_id"]: "RISK_CAP_OPEN"}
+                                                          ce3["trade_id"]: "RISK_CAP_QTY"}  # NIFTY already 10 lots (qty cap checked before max_open)
     assert [d["trade_id"] for d in dups] == [dup["trade_id"]]
 
 

@@ -4871,6 +4871,20 @@ def enforce_lot_cap(pos: OpenPaper) -> OpenPaper:
 def _commit_open(engine: BookEngine, pos: OpenPaper) -> None:
     """Desk half of `_try_open`: book the ticket planned by `_plan_open`."""
     pos = enforce_lot_cap(pos)
+    # cap TOTAL open qty per underlying across books (two books on one contract = 20 lots on 2026-10-12)
+    und = str(pos.underlying).upper()
+    cap = HARD_MAX_QTY.get(und)
+    if cap is not None:
+        held = sum(int(o.qty or (o.lots or 0) * (o.lot_size or 0)) for (b, u), o in engine.opens.items()
+                   if str(u).upper() == und and b != pos.book_id)
+        lot = int(pos.lot_size or 0)
+        room = max(cap - held, 0)
+        if lot > 0 and int(pos.lots) * lot > room:
+            pos.lots = room // lot
+            pos.qty = pos.lots * lot
+        if not pos.lots:
+            engine.mark_skip(pos.book_id, pos.underlying, "RISK_CAP_QTY", ts=pos.opened_ts, seen_side=pos.side)
+            return
     engine.opens[(pos.book_id, pos.underlying)] = pos
     engine.bump_regime_book(pos.book_id, pos.index_regime, f"OPEN_{pos.side}")
     if engine.root is not None:

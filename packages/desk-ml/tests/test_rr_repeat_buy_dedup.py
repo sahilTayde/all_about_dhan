@@ -46,6 +46,33 @@ def test_open_position_blocks_repeat_and_after_exit_is_allowed() -> None:
     assert [r["trade_id"] for r in opens] == ["a"] and not closed and dups[0]["trade_id"] == "b"
     later = [_row("a", R01, "NIFTY", "PE", 22350.0, "12:56", "13:16"),
              _row("b", B3A, "NIFTY", "PE", 22350.0, "13:17", "13:37"),
-             _row("c", B3A, "NIFTY", "PE", 22400.0, "13:00", "13:20")]  # other strike: not a duplicate
-    _o, closed, _b, dups, _t = _run(later)
-    assert {r["trade_id"] for r in closed} == {"a", "b", "c"} and not dups
+             _row("c", B3A, "NIFTY", "PE", 22400.0, "13:00", "13:20")]  # other strike: not a dup, but qty cap
+    _o, closed, blocked, dups, _t = _run(later)
+    assert {r["trade_id"] for r in closed} == {"a", "b"} and not dups
+    assert [(x["trade_id"], x["guard"]) for x in blocked] == [("c", "RISK_CAP_QTY")]
+
+
+def test_same_second_both_rules_one_tick_atomic() -> None:
+    # 11:59:12 NIFTY 22350 PE and 12:33:48 SENSEX 72000 CE: R01 and R01_B3A_VOL in the same second -> 10 lots, not 20
+    rows = [_row("b", B3A, "NIFTY", "PE", 22350.0, "11:59", "12:19"), _row("a", R01, "NIFTY", "PE", 22350.0, "11:59", "12:19"),
+            _row("d", B3A, "SENSEX", "CE", 72000.0, "12:33", "12:53"), _row("c", R01, "SENSEX", "CE", 72000.0, "12:33", "12:53")]
+    for r in rows:
+        r["qty"] = 650 if r["underlying"] == "NIFTY" else 200
+    _o, closed, _b, dups, _t = _run(rows)
+    assert {r["trade_id"] for r in closed} == {"a", "c"}  # rule rank wins regardless of input order
+    held = {}
+    for r in closed:
+        held[r["underlying"]] = held.get(r["underlying"], 0) + r["qty"]
+    assert held == {"NIFTY": 650, "SENSEX": 200}
+
+
+def test_total_open_qty_cap_per_underlying_across_rules() -> None:
+    from desk_ml import desk_risk
+    rows = [_row("a", R01, "NIFTY", "PE", 22350.0, "11:59", "12:19"),
+            _row("b", B3A, "NIFTY", "PE", 22300.0, "11:59", "12:19"),   # other strike, same index: over 650
+            _row("c", B3A, "NIFTY", "PE", 22300.0, "12:20", "12:40")]   # after a closed: allowed
+    for r in rows:
+        r["qty"] = 650
+    _o, closed, blocked, _d, _t = _run(rows)
+    assert [r["trade_id"] for r in closed] == ["a", "c"]
+    assert blocked[0]["trade_id"] == "b" and blocked[0]["guard"] == desk_risk.RISK_CAP_QTY
