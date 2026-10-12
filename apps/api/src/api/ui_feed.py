@@ -494,16 +494,45 @@ def _scored(t: dict[str, Any]) -> bool:
     return t.get("filled") is not False and t.get("realized_pnl_inr") is not None
 
 
+# 2026-10-12: the old MIX-DEFAULT-BUY book is off the desk (DESK_OLD_BOOK_OFF). From this day its rows
+# are reported separately (shadow / old book), never in the desk's day P&L.
+OLD_BOOK_ID = "MIX-DEFAULT-BUY"
+OLD_BOOK_OFF_FROM = "2026-10-12"
+
+
+def desk_traded(t: dict[str, Any]) -> bool:
+    """True only for rows the desk actually traded: not shadow, desk_status TRADED (or absent), and not
+    an old-book row from OLD_BOOK_OFF_FROM on."""
+    if t.get("shadow") is True:
+        return False
+    status = t.get("desk_status")
+    if status is not None and str(status) != "TRADED":
+        return False
+    if str(t.get("book_id") or "") == OLD_BOOK_ID and str(t.get("day") or "") >= OLD_BOOK_OFF_FROM:
+        return False
+    return True
+
+
 def day_summaries(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Per IST day: unique fills (book clones counted once) plus per-book and per-exit-reason splits."""
+    """Per IST day: unique desk fills (book clones counted once) plus per-book and per-exit-reason splits.
+    `net`/`n`/`wins` count desk-traded rows only; shadow, refused and old-book rows go in `shadow`."""
     days: dict[str, dict[str, Any]] = {}
     seen: set[tuple] = set()
     for t in rows:
         if not t.get("day") or not _scored(t):
             continue
         d = days.setdefault(t["day"], {"day": t["day"], "n": 0, "wins": 0, "gross": 0.0, "charges": 0.0,
-                                        "net": 0.0, "by_book": {}, "by_reason": {}})
+                                        "net": 0.0, "by_book": {}, "by_reason": {},
+                                        "shadow": {"n": 0, "net": 0.0, "by_book": {}}})
         net = float(t.get("realized_pnl_inr") or 0)
+        if not desk_traded(t):
+            sh = d["shadow"]
+            sh["n"] += 1
+            sh["net"] = round(sh["net"] + net, 2)
+            b = sh["by_book"].setdefault(str(t.get("book_id") or t.get("rule_id") or "UNKNOWN"), {"n": 0, "net": 0.0})
+            b["n"] += 1
+            b["net"] = round(b["net"] + net, 2)
+            continue
         book = d["by_book"].setdefault(str(t.get("book_id") or "UNKNOWN"), {"n": 0, "wins": 0, "net": 0.0})
         book["n"] += 1
         book["wins"] += net > 0
@@ -909,6 +938,15 @@ def decision_journal(
     }
 
 
+def _today_split(days: list[dict[str, Any]], day: str) -> dict[str, Any]:
+    d = next((x for x in days if x.get("day") == day), None) or {}
+    sh = d.get("shadow") or {}
+    return {"day": day, "desk_net_inr": d.get("net", 0.0), "desk_trades": d.get("n", 0),
+            "shadow_net_inr": sh.get("net", 0.0), "shadow_trades": sh.get("n", 0),
+            "shadow_by_book": sh.get("by_book", {}),
+            "note": "desk_net_inr counts only traded desk rows; shadow/refused/old-book rows are not desk P&L"}
+
+
 def build_snapshot(root: Path = REPO, *, now: Optional[datetime] = None, fstatus: Optional[dict[str, Any]] = None,
                    budget_s: Optional[float] = None) -> dict[str, Any]:
     """``budget_s`` caps log/tape indexing per call; the API passes SNAPSHOT_BUDGET_S, tests pass None (read all)."""
@@ -953,6 +991,8 @@ def build_snapshot(root: Path = REPO, *, now: Optional[datetime] = None, fstatus
         "alerts": alert_list(board, health, hstatus, halerts, fstatus, now, halt),
         "risk_halt": halt,
         "days": days,
+        # desk-only Today P&L (traded rows); shadow/refused/old-book rows separately
+        "today": _today_split(days, str(board.get("session_ist_date") or now.date().isoformat())),
         "history_complete": history_complete,
         "account": account(board, days, root),
         "orders": "REFUSED",
