@@ -157,3 +157,42 @@ def test_trade_row_defaults_traded_not_shadow() -> None:
                         entry_min="12:33", exit_min="12:53", entry=85.9, mark=79.8, day=DAY,
                         entry_bar={}, mark_bar={"hhmm": "12:53"}, closed=True, reason="TIME")
     assert row["desk_status"] == "TRADED" and row["shadow"] is False and row["status"] == "CLOSED"
+
+
+def _g(rid, und, side, ent, ext, spec=None, tid=None):
+    return {"rule_id": rid, "underlying": und, "side": side, "entry_min": ent, "exit_min": ext,
+            "spec_exit_min": spec or ext, "sig_min": rr.mplus(ent, -1), "trade_id": tid or f"{rid}-{side}-{ent}",
+            "atm_strike": 22400.0}
+
+
+def test_guard_blocks_opposite_side_on_same_index_1257() -> None:
+    # live 2026-10-12: B3A NIFTY CE 12:38, spec exit 12:58, booked EXIT_SHIFTED at 12:57;
+    # R01 NIFTY PE entered 12:57 while the CE was still held.
+    ce = _g(rr.R01_B3A, "NIFTY", "CE", "12:38", "12:57", "12:58")
+    pe = _g(rr.R01, "NIFTY", "PE", "12:57", "13:17")
+    o, c, blocked = rr._same_direction_guard([], [ce, pe], "2026-10-12")
+    assert [x["trade_id"] for x in c] == [ce["trade_id"]]
+    assert [x["trade_id"] for x in blocked] == [pe["trade_id"]] and blocked[0]["guard"] == "BLOCKED_OPPOSITE_SIDE"
+
+
+def test_guard_open_or_overdue_position_blocks_and_after_spec_exit_allows() -> None:
+    ce = _g(rr.R01_B3A, "NIFTY", "CE", "12:38", "12:58")
+    assert rr._same_direction_guard([ce], [_g(rr.R01, "SENSEX", "PE", "13:30", "13:50")], "2026-10-12")[2]
+    after = _g(rr.R01, "NIFTY", "PE", "12:59", "13:19")
+    o, c, b = rr._same_direction_guard([], [ce, after], "2026-10-12")
+    assert not b and len(c) == 2
+
+
+def test_same_rule_never_enters_on_its_own_exit_minute() -> None:
+    mins = [rr.mplus("09:00", i) for i in range(0, 300)]
+    bars = {m: {"hhmm": m, "atm": 22400.0, "idx": 22400.0, "ce": 100.0, "pe": 100.0,
+                "wings": {"22400": {"ce_bid": 99.0, "ce_ask": 100.0, "pe_bid": 99.0, "pe_ask": 100.0}}} for m in mins}
+    rule = dict(rr.FROZEN_RULES[0])
+    orig = rr.signal
+    try:
+        rr.signal = lambda *a, **k: "CE"  # fires every minute
+        o, c = rr.replay_underlying(bars, underlying="NIFTY", day=DAY, rules=[rule])
+    finally:
+        rr.signal = orig
+    for a, b in zip(c, c[1:]):
+        assert b["entry_min"] > max(a["exit_min"], a["spec_exit_min"])

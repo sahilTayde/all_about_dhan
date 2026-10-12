@@ -761,8 +761,18 @@ def guard_from(day: str) -> str:
     return GUARD_FROM_IST.get(day, "00:00")
 
 
+def _holds_at(k: dict[str, Any], k_open: bool, t: str) -> bool:
+    """True if desk position `k` is (or may still be) held at minute `t`: from its entry through
+    max(exit_min, spec_exit_min) inclusive; open (or overdue) positions hold until closed."""
+    ks = str(k.get("entry_min") or "")
+    if k_open:
+        return ks <= t
+    ke = max(str(k.get("exit_min") or "99:99"), str(k.get("spec_exit_min") or ""))
+    return ks <= t <= ke
+
+
 def _same_direction_guard(opens, closed, day: str = ""):
-    """Never hold NIFTY and SENSEX on opposite sides at once (earlier entry wins). Trades entered before
+    """Never hold CE and PE at once on any index (NIFTY+SENSEX, or both sides of one index); earlier entry wins. Trades entered before
     the guard went live are kept with real P&L. Blocked trades are listed, not traded."""
     rows = [(r, True) for r in opens] + [(r, False) for r in closed]
     rows.sort(key=lambda x: (str(x[0].get("entry_min") or ""), str(x[0].get("sig_min") or "")))
@@ -775,11 +785,12 @@ def _same_direction_guard(opens, closed, day: str = ""):
             continue
         clash = False
         for k, k_open in kept:
-            if k.get("underlying") == r.get("underlying") or k.get("side") == r.get("side"):
+            # 2026-10-12 fix: same index counts too (CE and PE on NIFTY at once was allowed), and a
+            # position is held through max(booked exit, spec exit) inclusive: an EXIT_SHIFTED exit can
+            # be booked at a minute earlier than when the exit was actually decided live.
+            if k.get("side") == r.get("side"):
                 continue
-            ks = str(k.get("entry_min") or "")
-            ke = "99:99" if k_open else str(k.get("exit_min") or "99:99")
-            if ks <= t < ke:
+            if _holds_at(k, k_open, t):
                 clash = True
                 break
         if clash:
