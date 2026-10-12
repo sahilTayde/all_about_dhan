@@ -5,7 +5,6 @@
  */
 
 export const RULES = Object.freeze({
-  maxTradesPerDay: 3,
   maxOpen: 2,
   maxLosersPerDay: 2,
   dayLossInr: -25000,
@@ -29,6 +28,10 @@ export const DESK_STATUS = Object.freeze({
   SHADOW_PARKED: { text: "shadow only", tone: "muted" },
   BLOCKED_OPPOSITE_SIDE: { text: "blocked: opposite side", tone: "warn" },
   DUP_SAME_CONTRACT: { text: "duplicate, not counted", tone: "muted" },
+  RISK_BLOCKED: { text: "blocked: risk limit", tone: "bad" },
+  RISK_DAY_STOP: { text: "blocked: risk limit", tone: "bad" },
+  RISK_CAP_OPEN: { text: "blocked: risk limit", tone: "bad" },
+  RISK_CAP_TRADES: { text: "blocked: risk limit", tone: "bad" },
 });
 export function deskStatusOf(t, fallback = "TRADED") {
   const s = String(t?.desk_status || t?.guard || "").toUpperCase();
@@ -43,6 +46,7 @@ export function researchLists(board) {
   const parked = rr.shadow_parked || {};
   return {
     blocked: Array.isArray(rr.guard_blocked) ? rr.guard_blocked : [],
+    riskBlocked: Array.isArray(rr.risk_blocked) ? rr.risk_blocked : [],
     dups: Array.isArray(rr.dup_same_contract) ? rr.dup_same_contract : [],
     parked: [...(parked.open || []), ...(parked.closed || [])],
     parkedIds: parked.rule_ids || [],
@@ -196,7 +200,7 @@ export function deskDay(snap) {
 export function statusLight(dd, conn, offline) {
   if (offline || conn === "offline") return { tone: "red", text: "No live data: the API is not answering" };
   // halt state comes only from the engine (optional board.risk); never computed from rows here
-  if (dd.risk?.halted_reason) return { tone: "red", text: `Day stopped: ${dd.risk.halted_reason}` };
+  if (dd.risk?.halted_reason) return { tone: "red", text: haltText(dd.risk.halted_reason) };
   if (dd.open.length) return { tone: "green", text: `${dd.open.length} trade${dd.open.length > 1 ? "s" : ""} open` };
   if (conn === "polling") return { tone: "amber", text: "Live push dropped: updating every 2 s" };
   return { tone: "amber", text: "Flat: waiting for a signal" };
@@ -299,5 +303,31 @@ export function periodNets(snap) {
     totalTrades: days.reduce((s, d) => s + (num(d.n) || 0), 0),
     capital: num(snap?.account?.equity_inr),
     start: num(snap?.account?.starting_capital_inr),
+  };
+}
+
+export const HALT_TEXT = Object.freeze({
+  RISK_DAY_STOP: "day stopped: loss limit",
+  RISK_CAP_OPEN: "max open trades reached",
+  RISK_CAP_TRADES: "trade cap reached",
+});
+export const haltText = (r) => (r ? HALT_TEXT[String(r).toUpperCase()] || String(r).replace(/_/g, " ").toLowerCase() : null);
+
+/** Engine risk state (board.risk, optional). Every field may be missing. */
+export function riskView(risk) {
+  if (!risk || typeof risk !== "object") return null;
+  const n = (k) => num(risk[k]);
+  return {
+    trades: n("trades_today"),
+    maxTrades: n("max_trades"),
+    open: n("open_now"),
+    maxOpen: n("max_open"),
+    losers: n("losers_today"),
+    dayNet: n("day_net_inr"),
+    dayStop: risk.day_stop_hit === true,
+    groupNet: n("rr_group_net_inr"),
+    groupStop: risk.rr_group_stop_hit === true,
+    halted: risk.halted_reason || null,
+    haltedText: haltText(risk.halted_reason),
   };
 }

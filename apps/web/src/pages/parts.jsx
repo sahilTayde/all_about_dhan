@@ -41,7 +41,7 @@ export function TradeTable({ rows, kind = "desk", onPick, picked, fallback }) {
                 <td><b>{t.underlying}</b> <span className="num">{strikeOf(t) ?? "—"}</span> <Side side={t.side} /></td>
                 <td><Strat id={t.book_id || t.rule_id} /></td>
                 {blocked ? (
-                  <td className="muted">{t.dup_of ? `same contract as ${t.dup_of}` : "desk already held the other index on the opposite side"}</td>
+                  <td className="muted">{t.dup_of ? `same contract as ${t.dup_of}` : /^RISK/.test(String(t.desk_status || t.guard || fallback || "")) ? `risk limit: ${({ RISK_DAY_STOP: "day stopped: loss limit", RISK_CAP_OPEN: "max open trades reached", RISK_CAP_TRADES: "trade cap reached" })[String(t.desk_status || t.guard || "").toUpperCase()] || "limit reached"}` : "desk already held the other index on the opposite side"}</td>
                 ) : (
                   <>
                     <td className="r num">{num(t.entry) ?? "—"}</td>

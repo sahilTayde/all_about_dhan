@@ -3,7 +3,7 @@ import { randomBaseline } from "../lib/strategyBoard.js";
 
 export function StrategiesPage({ snap, dd }) {
   const L = dd.lists;
-  const rows = [...dd.open, ...dd.closed, ...L.parked, ...L.blocked, ...L.dups];
+  const rows = [...dd.open, ...dd.closed, ...L.parked, ...L.blocked, ...L.dups, ...L.riskBlocked];
   const ids = [...new Set([...STRATEGIES.map((s) => s.id), ...rows.map((r) => r.book_id).filter(Boolean)])].filter((id) => rows.some((r) => r.book_id === id) || L.parkedIds.includes(id));
   const rank = snap?.board?.book_rank || [];
   const scored = ids.map((id) => {
@@ -20,7 +20,7 @@ export function StrategiesPage({ snap, dd }) {
         const ch = traded.reduce((s, r) => s + (num(r.charges_inr) || 0), 0);
         const wins = traded.filter((r) => (num(r.realized_pnl_inr) || 0) > 0).length;
         const shadow = mine.filter((r) => L.parked.includes(r)).length;
-        const blocked = mine.filter((r) => L.blocked.includes(r) || L.dups.includes(r)).length;
+        const blocked = mine.filter((r) => L.blocked.includes(r) || L.dups.includes(r) || L.riskBlocked.includes(r)).length;
         const r = rank.find((x) => x.book_id === id);
         const rnd = randomBaseline(r, snap?.board?.scoreboard, id);
         const wr = traded.length ? (wins / traded.length) * 100 : null;

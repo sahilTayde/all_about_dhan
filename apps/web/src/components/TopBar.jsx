@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { NAV_LINKS } from "./AppNav.jsx";
-import { RULES, clockPair, healthDots, inr, tone } from "../lib/deskModel.js";
+import { RULES, clockPair, healthDots, inr, riskView, tone } from "../lib/deskModel.js";
 
 function useNow() {
   const [now, setNow] = useState(() => new Date());
@@ -26,10 +26,8 @@ function marketState(d) {
 export function TopBar({ path, light, dd, snap, conn }) {
   const now = useNow();
   const ms = marketState(now);
-  const risk = dd?.risk || null;
-  const rn = (k) => (risk && risk[k] != null && Number.isFinite(Number(risk[k])) ? Number(risk[k]) : null);
-  const lossNow = rn("day_loss_inr") ?? rn("net_inr");
-  const used = lossNow == null ? 0 : Math.min(100, Math.max(0, Math.round((Math.min(0, lossNow) / (rn("day_loss_limit_inr") ?? RULES.dayLossInr)) * 100)));
+  const rv = riskView(dd?.risk);
+  const used = rv?.dayNet == null ? 0 : Math.min(100, Math.max(0, Math.round((Math.min(0, rv.dayNet) / RULES.dayLossInr) * 100)));
   const dots = snap ? healthDots(snap, conn) : [];
   const active = (href) => (href === "/" ? path === "/" : href === "/desk" ? path === "/desk" : path === href || path.startsWith(`${href}/`));
   return (
@@ -56,10 +54,10 @@ export function TopBar({ path, light, dd, snap, conn }) {
             <em>{dd.total.n ?? "—"} trades · {dd.total.wins ?? "—"} won · after charges · updated {clockPair(snap?.board?.as_of_ist)}</em>
           </div>
           <div className="tb__meter" data-testid="day-loss-meter" title="Day-stop state from the engine (board.risk)">
-            {risk ? (
+            {rv ? (
               <>
-                <span>Day stop {inr(rn("day_loss_limit_inr") ?? RULES.dayLossInr)}{rn("losers") != null ? ` · losers ${rn("losers")}/${rn("max_losers") ?? RULES.maxLosersPerDay}` : ""}{rn("trades") != null ? ` · trades ${rn("trades")}` : ""}{risk.halted_reason ? ` · stopped: ${risk.halted_reason}` : ""}</span>
-                <div className="meter"><i className={risk.halted_reason || used >= 100 ? "is-red" : used >= 60 ? "is-amber" : "is-green"} style={{ width: `${risk.halted_reason ? 100 : used}%` }} /></div>
+                <span>{rv.halted ? <b className="is-down">{rv.haltedText}</b> : "Day stop on"} · day {inr(rv.dayNet)} / {inr(RULES.dayLossInr)} · losers {rv.losers ?? "—"}/{RULES.maxLosersPerDay} · open {rv.open ?? "—"}/{rv.maxOpen ?? "—"} · trades {rv.trades ?? "—"}{rv.maxTrades == null ? " (no cap)" : `/${rv.maxTrades}`}</span>
+                <div className="meter"><i className={rv.dayStop || used >= 100 ? "is-red" : used >= 60 ? "is-amber" : "is-green"} style={{ width: `${rv.dayStop ? 100 : used}%` }} /></div>
               </>
             ) : (
               <span className="muted">Day-stop limit not enforced yet today</span>

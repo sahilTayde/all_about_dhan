@@ -6,6 +6,10 @@ const WHY = {
   TRADED: "Desk took it on paper.",
   SHADOW_PARKED: "Strategy is parked: tracked, not traded, not in P&L.",
   BLOCKED_OPPOSITE_SIDE: "Skipped: the desk already held the other index on the opposite side.",
+  RISK_BLOCKED: "Skipped: a desk risk limit was hit (max open, day stop or trade cap).",
+  RISK_DAY_STOP: "Skipped: day stopped, loss limit.",
+  RISK_CAP_OPEN: "Skipped: max open trades reached.",
+  RISK_CAP_TRADES: "Skipped: trade cap reached.",
   DUP_SAME_CONTRACT: "Same contract and minute as another strategy's trade; counted once.",
 };
 
@@ -28,7 +32,7 @@ function Card({ r, fb }) {
         {taken || s === "SHADOW_PARKED" ? <div><dt>Result</dt><dd className={`num ${tone(pnl)}`}>{pnl == null ? (r.closed_ts ? "—" : "open") : inr(pnl)}</dd></div> : null}
       </dl>
       <p className="sig__why"><b>Why:</b> {signalWhy(r)}</p>
-      <p className="sig__why">{r.dup_of ? `${WHY[s]} (duplicate of ${r.dup_of})` : WHY[s]}{r.exit_reason && s !== "BLOCKED_OPPOSITE_SIDE" ? <> · <Reason code={r.exit_reason} /></> : null}</p>
+      <p className="sig__why">{r.dup_of ? `${WHY[s] || ""} (duplicate of ${r.dup_of})` : WHY[s]}{r.exit_reason && s !== "BLOCKED_OPPOSITE_SIDE" ? <> · <Reason code={r.exit_reason} /></> : null}</p>
     </article>
   );
 }
@@ -40,6 +44,7 @@ export function SignalsPage({ snap, dd }) {
     { id: "TRADED", label: "Traded" },
     { id: "SHADOW_PARKED", label: "Shadow only" },
     { id: "BLOCKED_OPPOSITE_SIDE", label: "Blocked" },
+    { id: "RISK", label: "Risk limit" },
     { id: "DUP_SAME_CONTRACT", label: "Duplicate" },
   ];
   const rows = [
@@ -47,10 +52,12 @@ export function SignalsPage({ snap, dd }) {
     ...L.parked.map((r) => ({ r, fb: "SHADOW_PARKED" })),
     ...L.blocked.map((r) => ({ r, fb: "BLOCKED_OPPOSITE_SIDE" })),
     ...L.dups.map((r) => ({ r, fb: "DUP_SAME_CONTRACT" })),
+    ...L.riskBlocked.map((r) => ({ r, fb: "RISK_BLOCKED" })),
   ].sort((a, b) => String(b.r.sig_min || b.r.entry_min || "").localeCompare(String(a.r.sig_min || a.r.entry_min || "")));
   const [f, setF] = useState("all");
-  const shown = rows.filter((x) => f === "all" || deskStatusOf(x.r, x.fb) === f);
-  const count = (id) => rows.filter((x) => deskStatusOf(x.r, x.fb) === id).length;
+  const isRisk = (x) => /^RISK/.test(deskStatusOf(x.r, x.fb));
+  const shown = rows.filter((x) => f === "all" || (f === "RISK" ? isRisk(x) : deskStatusOf(x.r, x.fb) === f));
+  const count = (id) => rows.filter((x) => (id === "RISK" ? isRisk(x) : deskStatusOf(x.r, x.fb) === id)).length;
   const journal = (snap?.board?.decision_journal || []).filter((j) => j.stage === "boss").slice(0, 12);
   return (
     <div className="page" data-testid="signals-page">

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { PnlChart } from "../components/PnlChart.jsx";
 import { PremiumChart } from "../components/PremiumChart.jsx";
-import { CHARGES_LABEL, RULES, periodNets, signalWhy, agedAlerts, exitRule, feedAges, inr, minsUntil, num, pctOf, pctText, strikeOf, tone } from "../lib/deskModel.js";
+import { CHARGES_LABEL, RULES, riskView, periodNets, signalWhy, agedAlerts, exitRule, feedAges, inr, minsUntil, num, pctOf, pctText, strikeOf, tone } from "../lib/deskModel.js";
 import { useLtpTape } from "../lib/ltpTape.js";
 import { AlertList, FeedAges, Reason, Side, Strat, TradeTable } from "./parts.jsx";
 
@@ -66,6 +66,18 @@ function IndexCard({ und, dd, onPick, picked }) {
   );
 }
 
+function RiskKpi({ dd }) {
+  const rv = riskView(dd.risk);
+  if (!rv) return <div><span>Open now</span><b className="num">{dd.open.length}</b><em>{dd.total.n ?? "—"} trades today · limit not enforced yet today</em></div>;
+  return (
+    <div className={rv.halted ? "kpi--halt" : ""} data-testid="risk-kpi">
+      <span>Open now · risk</span>
+      <b className="num">{rv.open ?? "—"} / {rv.maxOpen ?? "—"}</b>
+      <em>trades {rv.trades ?? "—"}{rv.maxTrades == null ? " (no cap)" : ` / ${rv.maxTrades}`} · losers {rv.losers ?? "—"} · R01 group {inr(rv.groupNet)}{rv.groupStop ? " (stopped)" : ""}{rv.halted ? ` · ${rv.haltedText}` : ""}</em>
+    </div>
+  );
+}
+
 function Kpis({ snap, dd }) {
   const p = periodNets(snap);
   return (
@@ -74,7 +86,7 @@ function Kpis({ snap, dd }) {
       <div><span>Today</span><b className={`num ${tone(dd.total.net)}`}>{inr(dd.total.net)}</b><em>{dd.total.n ?? "—"} trades · after charges</em></div>
       <div><span>Last 5 days</span><b className={`num ${tone(p.week)}`}>{inr(p.week)}</b><em>{p.weekTrades} trades</em></div>
       <div><span>All time</span><b className={`num ${tone(p.total)}`}>{inr(p.total)}</b><em>{p.totalTrades} trades · {CHARGES_LABEL}</em></div>
-      <div><span>Open now</span><b className="num">{dd.open.length} / {RULES.maxOpen}</b><em>{dd.total.n ?? "—"} trades today</em></div>
+      <RiskKpi dd={dd} />
     </div>
   );
 }
@@ -117,11 +129,13 @@ export function LivePage({ snap, dd, conn }) {
         <TradeTable rows={sorted} kind="desk" onPick={setPicked} picked={trade?.trade_id} />
       </section>
       <details className="panel details" data-testid="details">
-        <summary>Details: shadow, blocked, duplicates, warnings, data age</summary>
+        <summary>Details: shadow, blocked, risk-blocked, duplicates, warnings, data age</summary>
         <h3>Shadow only (not counted){L.parkedNote ? <em className="muted"> · {L.parkedNote}</em> : null}</h3>
         <TradeTable rows={L.parked} kind="shadow" fallback="SHADOW_PARKED" />
         <h3>Blocked signals</h3>
         <TradeTable rows={L.blocked} kind="blocked" fallback="BLOCKED_OPPOSITE_SIDE" />
+        <h3>Blocked by risk limit (not traded)</h3>
+        <TradeTable rows={L.riskBlocked} kind="blocked" fallback="RISK_BLOCKED" />
         <h3>Duplicates (same contract, not counted)</h3>
         <TradeTable rows={L.dups} kind="blocked" fallback="DUP_SAME_CONTRACT" />
         <h3>Warnings and engine alerts</h3>
