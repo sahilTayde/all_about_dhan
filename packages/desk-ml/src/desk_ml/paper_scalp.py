@@ -4835,8 +4835,34 @@ def _plan_open(
     return pos
 
 
+# Sahil 2026-10-12: hard 10-lot cap in code, for every book and any stored params (NIFTY 650, SENSEX 200).
+HARD_MAX_LOTS = 10
+HARD_MAX_QTY = {"NIFTY": 650, "SENSEX": 200}
+
+
+def enforce_lot_cap(pos: OpenPaper) -> OpenPaper:
+    """Clamp a planned ticket to HARD_MAX_LOTS lots and HARD_MAX_QTY[underlying] qty. Never sizes up."""
+    lot = int(pos.lot_size or 0)
+    lots = min(int(pos.lots or 0), HARD_MAX_LOTS)
+    cap_qty = HARD_MAX_QTY.get(str(pos.underlying).upper())
+    if cap_qty is not None and lot > 0:
+        lots = min(lots, cap_qty // lot)
+    if lots == pos.lots and (pos.qty is None or lot <= 0 or pos.qty <= lots * lot):
+        return pos
+    old_lots = max(int(pos.lots or 1), 1)
+    pos.lots = lots
+    if lot > 0:
+        pos.qty = lots * lot
+    elif pos.qty is not None:
+        pos.qty = min(int(pos.qty), cap_qty) if cap_qty is not None else pos.qty
+    if pos.notional_inr is not None:
+        pos.notional_inr = round(float(pos.notional_inr) * lots / old_lots, 2)
+    return pos
+
+
 def _commit_open(engine: BookEngine, pos: OpenPaper) -> None:
     """Desk half of `_try_open`: book the ticket planned by `_plan_open`."""
+    pos = enforce_lot_cap(pos)
     engine.opens[(pos.book_id, pos.underlying)] = pos
     engine.bump_regime_book(pos.book_id, pos.index_regime, f"OPEN_{pos.side}")
     if engine.root is not None:
