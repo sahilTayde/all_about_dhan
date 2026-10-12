@@ -188,14 +188,15 @@ export function deskDay(snap) {
     losers,
     guardBlocked: researchLists(board).blocked,
     lists: researchLists(board),
+    risk: board?.risk && typeof board.risk === "object" ? board.risk : null,
   };
 }
 
 /** Desk status light from the limits. */
 export function statusLight(dd, conn, offline) {
   if (offline || conn === "offline") return { tone: "red", text: "No live data: the API is not answering" };
-  if ((dd.total.net ?? 0) <= RULES.dayLossInr) return { tone: "red", text: "Past the day-stop loss limit" };
-  if (dd.losers >= RULES.maxLosersPerDay) return { tone: "red", text: "Day-stop rule: 2 losing trades" };
+  // halt state comes only from the engine (optional board.risk); never computed from rows here
+  if (dd.risk?.halted_reason) return { tone: "red", text: `Day stopped: ${dd.risk.halted_reason}` };
   if (dd.open.length) return { tone: "green", text: `${dd.open.length} trade${dd.open.length > 1 ? "s" : ""} open` };
   if (conn === "polling") return { tone: "amber", text: "Live push dropped: updating every 2 s" };
   return { tone: "amber", text: "Flat: waiting for a signal" };

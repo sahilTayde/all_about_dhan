@@ -74,7 +74,7 @@ function Kpis({ snap, dd }) {
       <div><span>Today</span><b className={`num ${tone(dd.total.net)}`}>{inr(dd.total.net)}</b><em>{dd.total.n ?? "—"} trades · after charges</em></div>
       <div><span>Last 5 days</span><b className={`num ${tone(p.week)}`}>{inr(p.week)}</b><em>{p.weekTrades} trades</em></div>
       <div><span>All time</span><b className={`num ${tone(p.total)}`}>{inr(p.total)}</b><em>{p.totalTrades} trades · {CHARGES_LABEL}</em></div>
-      <div><span>Open now</span><b className="num">{dd.open.length} / {RULES.maxOpen}</b><em>trades today {dd.live.trades} / {RULES.maxTradesPerDay}</em></div>
+      <div><span>Open now</span><b className="num">{dd.open.length} / {RULES.maxOpen}</b><em>{dd.total.n ?? "—"} trades today</em></div>
     </div>
   );
 }
@@ -109,7 +109,7 @@ export function LivePage({ snap, dd, conn }) {
           <div className="book"><span>Research book</span><b className={`num ${tone(dd.research.net)}`}>{inr(dd.research.net)}</b><em>{dd.research.trades} trades · charges {inr(dd.research.charges, { signed: false })}</em></div>
           <div className="book"><span>Old MIX book</span><b className={`num ${tone(dd.mix.net)}`}>{inr(dd.mix.net)}</b><em>{dd.mix.trades} trades · charges {inr(dd.mix.charges, { signed: false })}</em></div>
           <div className="book book--total"><span>Desk today</span><b className={`num ${tone(dd.total.net)}`}>{inr(dd.total.net)}</b><em>charges {inr(dd.total.charges, { signed: false })} ({CHARGES_LABEL})</em></div>
-          <p className="fine">Rules: max {RULES.maxTradesPerDay} trades a day, max {RULES.maxOpen} open, day stops after {RULES.maxLosersPerDay} losers or {inr(RULES.dayLossInr)} ({inr(RULES.dayLossInrR01)} for R01 / B3a). Never opposite sides across NIFTY and SENSEX.</p>
+          <p className="fine">Rules: max {RULES.maxOpen} open, no daily trade cap on paper, day stops after {RULES.maxLosersPerDay} losers or {inr(RULES.dayLossInr)} ({inr(RULES.dayLossInrR01)} for R01 / B3a), once the engine enforces it. Never opposite sides across NIFTY and SENSEX.</p>
         </section>
       </div>
       <section className="panel">
