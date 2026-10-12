@@ -22,6 +22,7 @@ log = logging.getLogger(__name__)
 PAPER_BOOKED_REL = Path("data") / "recon" / "paper_booked"
 DECISION_JOURNAL_REL = Path("data") / "recon" / "decision_journal"
 SHADOW_V2_REL = Path("data") / "shadow" / "v2"
+RESEARCH_RULES_REL = Path("data") / "recon" / "research_rules"
 LEDGER_REL = Path("data") / "ledger" / "ledger.sqlite"
 
 _OPEN_JOURNAL_STAGES = frozenset({"imm", "in_trade"})
@@ -119,6 +120,7 @@ class HeldPinReader:
             self.root / SHADOW_V2_REL / day / "decisions.jsonl",
             self.root / SHADOW_V2_REL / day / "pnl.jsonl",
             self.root / LEDGER_REL,
+            self.root / RESEARCH_RULES_REL / f"{day}.json",
         ]
 
     def __call__(self) -> set[str]:
@@ -143,6 +145,7 @@ class HeldPinReader:
         ids.update(self._from_decision_journal())
         ids.update(self._from_shadow())
         ids.update(self._from_ledger())
+        ids.update(self._from_research_rules())
         if self._known:
             return {iid for iid in ids if iid in self._known}
         return ids
@@ -239,6 +242,23 @@ class HeldPinReader:
             elif kind in {"SHADOW_FLAT", "FLAT", "EXIT"}:
                 held.discard(iid)
         return held
+
+    def _from_research_rules(self) -> set[str]:
+        """Desk (open) and shadow (shadow_parked.open) research-rule positions from the board journal."""
+        blob = _json_obj(self.root / RESEARCH_RULES_REL / f"{self.day.isoformat()}.json")
+        rows = list(blob.get("open") or [])
+        sp = blob.get("shadow_parked") if isinstance(blob.get("shadow_parked"), dict) else {}
+        rows += list(sp.get("open") or [])
+        ids: set[str] = set()
+        for row in rows:
+            if not isinstance(row, dict) or _is_closed_trade(row):
+                continue
+            r = dict(row)
+            r.setdefault("strike", row.get("held_strike") or row.get("atm_strike"))
+            iid = self.resolve(r)
+            if iid:
+                ids.add(iid)
+        return ids
 
     def _from_ledger(self) -> set[str]:
         path = self.root / LEDGER_REL

@@ -192,3 +192,29 @@ def test_recorder_keeps_held_quote_and_alerts_coverage_gap(tmp_path: Path) -> No
     assert float(alerts[0]["gap_s"]) > 5.0
     depth = [r for r in s.rows("depth_quotes") if r["payload"]["instrument_id"] == HELD]
     assert depth
+
+
+def test_held_strike_keeps_quote_snapshots_after_index_moves_away() -> None:
+    """2026-10-12 snapshot gap: the moving near-ATM set dropped a strike still held; it stayed subscribed but
+    got no QUOTE_SNAPSHOT. Held contracts are now in the snapshot set (rule HELD) until the trade closes."""
+    held = {HELD}
+    s = StrikeSet(make_universe(), retention_s=1.0, open_positions=lambda: set(held), near_atm_n=4)
+    s.update(24512.35, 0.0)
+    s.update(25200.0, 2.0)
+    s.update(25200.0, 20.0)
+    assert HELD not in s.current and HELD in s.subscribed
+    assert s.snapshot_targets()[HELD][0] == "HELD"
+    held.clear()  # trade closed
+    assert HELD not in s.snapshot_targets()
+
+
+def test_research_rules_desk_and_shadow_opens_are_pinned(tmp_path: Path) -> None:
+    j = tmp_path / "data" / "recon" / "research_rules"
+    j.mkdir(parents=True)
+    (j / f"{DAY_S}.json").write_text(json.dumps({
+        "open": [{"underlying": "NIFTY", "side": "PE", "atm_strike": 24300, "held_strike": 24300}],
+        "closed": [{"underlying": "NIFTY", "side": "CE", "atm_strike": 24400, "closed_ts": 5}],
+        "shadow_parked": {"open": [{"underlying": "NIFTY", "side": "CE", "atm_strike": 24600}], "closed": []}}))
+    got = HeldPinReader(tmp_path, DAY, [make_universe()])()
+    assert f"NSE_FNO:NIFTY:{EXPIRY}:24300:PE" in got and f"NSE_FNO:NIFTY:{EXPIRY}:24600:CE" in got
+    assert f"NSE_FNO:NIFTY:{EXPIRY}:24400:CE" not in got

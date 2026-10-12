@@ -133,6 +133,18 @@ class StrikeSet:
                     out[inst.instrument_id] = (rule, side)
         return out
 
+    def snapshot_targets(self) -> dict[str, tuple[str, str]]:
+        """2026-10-12: QUOTE_SNAPSHOT set = moving ATM set + every held contract (desk and shadow opens,
+        rule "HELD") until the trade closes. Before this, a held strike the ATM moved away from stayed
+        subscribed but got no snapshot, so exits had no recorded quote."""
+        out = dict(self.current)
+        for iid in self.open_positions():
+            inst = self._by_id.get(iid)
+            if iid not in out and inst is not None and iid in self.subscribed:
+                side = iid.rsplit(":", 1)[-1].upper()
+                out[iid] = ("HELD", side if side in ("CE", "PE") else str(getattr(inst, "kind", "")))
+        return out
+
     def rule_for(self, instrument_id: str) -> tuple[str, str] | None:
         return self.current.get(instrument_id) or self.open_ladder.get(instrument_id)
 

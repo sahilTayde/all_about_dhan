@@ -5,7 +5,7 @@
   "required": ["instrument_id", "rule", "side", "bid", "ask", "mid", "spread", "ltp", "ltt", "oi", "depth_age_ms", "stale"],
   "properties": {
     "instrument_id": {"type": "string"},
-    "rule": {"type": "string", "enum": ["ATM", "ITM100", "ITM200", "OTM100", "OTM200", "NEAR_P1", "NEAR_P2", "NEAR_P3", "NEAR_P4", "NEAR_P5", "NEAR_P6", "NEAR_P7", "NEAR_P8", "NEAR_P9", "NEAR_P10", "NEAR_M1", "NEAR_M2", "NEAR_M3", "NEAR_M4", "NEAR_M5", "NEAR_M6", "NEAR_M7", "NEAR_M8", "NEAR_M9", "NEAR_M10"]},
+    "rule": {"type": "string", "enum": ["ATM", "ITM100", "ITM200", "OTM100", "OTM200", "HELD", "NEAR_P1", "NEAR_P2", "NEAR_P3", "NEAR_P4", "NEAR_P5", "NEAR_P6", "NEAR_P7", "NEAR_P8", "NEAR_P9", "NEAR_P10", "NEAR_M1", "NEAR_M2", "NEAR_M3", "NEAR_M4", "NEAR_M5", "NEAR_M6", "NEAR_M7", "NEAR_M8", "NEAR_M9", "NEAR_M10"]},
     "side": {"type": "string", "enum": ["CE", "PE"]},
     "bid": {"type": ["number", "null"]},
     "ask": {"type": ["number", "null"]},

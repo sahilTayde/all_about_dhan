@@ -478,7 +478,7 @@ class MarketDataRecorder:
         interval = self.config.quote_interval_s
         if math.floor(now_s / interval) > math.floor(last_s / interval):
             for book in self.books:
-                for iid, (rule, side) in book.strikes.current.items():
+                for iid, (rule, side) in book.strikes.snapshot_targets().items():
                     row = snapshot(iid, rule, side, self.depth.books.get(iid), now_s, self.config.stale_after_s)
                     self._emit("QUOTE_SNAPSHOT", row, now, iso(now))
 
