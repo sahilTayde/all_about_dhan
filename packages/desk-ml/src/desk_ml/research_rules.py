@@ -346,7 +346,7 @@ def _v2_lines(path: Path, needle: bytes, start: int = 0, stats: Optional[dict] =
             pos += len(raw)
             if stats is not None:
                 stats["end"] = pos
-            if needle not in raw:
+            if not any(n in raw for n in (needle if isinstance(needle, tuple) else (needle,))):
                 continue
             try:
                 blob = json.loads(raw)
@@ -377,9 +377,28 @@ def load_v2_minutes(root: Path, underlying: str, day: str) -> dict[str, dict[str
         _V2_STATE[key] = st
     idx_by_min, quotes, atm_by_min, ts_by_min = st["idx"], st["quotes"], st["atm"], st["ts"]
     stats: dict = {}
-    for blob in _v2_lines(dq, V2_INDEX_ID[und].encode(), st["off_dq"], stats):
+    depth = st.setdefault("depth", {})  # hhmm -> strike -> side -> (ts, bid_levels, ask_levels)
+    fno = V2_FNO_PREFIX[und]
+    for blob in _v2_lines(dq, (V2_INDEX_ID[und].encode(), fno.encode()), st["off_dq"], stats):
         pay = blob["payload"]
-        if pay.get("instrument_id") != V2_INDEX_ID[und]:
+        iid = str(pay.get("instrument_id") or "")
+        if iid.startswith(fno):  # option book levels for depth-walk fills (fix 8)
+            lv = pay.get("levels") if isinstance(pay.get("levels"), dict) else {}
+            parts = iid.split(":")
+            if len(parts) >= 5 and (lv.get("bid") or lv.get("ask")):
+                try:
+                    k_strike, k_side = float(parts[3]), parts[4].lower()
+                except ValueError:
+                    continue
+                dts = parse_ts(pay.get("exchange_ts") or blob.get("timestamp"))
+                if dts is None:
+                    continue
+                dm = datetime.fromtimestamp(dts, IST).strftime("%H:%M")
+                cur = depth.setdefault(dm, {}).setdefault(k_strike, {}).get(k_side)
+                if cur is None or dts >= cur[0]:
+                    depth[dm][k_strike][k_side] = (dts, lv.get("bid") or [], lv.get("ask") or [])
+            continue
+        if iid != V2_INDEX_ID[und]:
             continue
         ltp = _num(pay.get("ltp"))
         ts = parse_ts(pay.get("exchange_ts") or blob.get("timestamp"))
@@ -429,6 +448,11 @@ def load_v2_minutes(root: Path, underlying: str, day: str) -> dict[str, dict[str
         if cell.get("ce") is None or cell.get("pe") is None:
             continue
         wings = {(str(int(k)) if k == int(k) else str(k)): dict(v) for k, v in quotes[hhmm].items()}
+        for k_strike, sides in (depth.get(hhmm) or {}).items():
+            cell_w = wings.setdefault(str(int(k_strike)) if k_strike == int(k_strike) else str(k_strike), {})
+            for k_side, (_dts, bids, asks) in sides.items():
+                cell_w[f"{k_side}_bid_levels"] = bids
+                cell_w[f"{k_side}_ask_levels"] = asks
         ts = ts_by_min[hhmm]
         out[hhmm] = {"idx": idx[1], "ce": cell["ce"], "pe": cell["pe"], "atm": atm, "ts": int(ts),
                      "hhmm": hhmm, "ist": datetime.fromtimestamp(ts, IST).isoformat(timespec="seconds"),
@@ -676,9 +700,46 @@ def _bar_near(bars: dict[str, dict[str, Any]], hhmm: str, *, back: bool, tol: in
     return None
 
 
-def strike_quote(bar: dict[str, Any], side: str, strike: float, kind: str) -> tuple[Optional[float], Optional[str]]:
-    """D2: ask for entries, bid for exits. Falls back to mid/LTP (flagged) only if the book side is missing."""
+def walk_book(levels: Any, qty: int) -> tuple[Optional[float], Optional[str]]:
+    """2026-10-12 fix 8: average fill price for `qty` walking recorded book levels [[price, qty], ...] in
+    the order given (best first). Depth short of qty: the rest fills at the last level, flagged DEPTH_SHORT.
+    Returns (vwap, flag); flag DEPTH_WALK when more than the top level was used."""
+    rows = []
+    for lv in levels or []:
+        try:
+            px, q = float(lv[0]), int(lv[1])
+        except (TypeError, ValueError, IndexError):
+            continue
+        if px > 0 and q > 0:
+            rows.append((px, q))
+    if not rows or qty <= 0:
+        return None, None
+    left, cost, used = int(qty), 0.0, 0
+    for px, q in rows:
+        take = min(left, q)
+        cost += take * px
+        left -= take
+        used += 1
+        if left == 0:
+            break
+    flag = None
+    if left > 0:
+        cost += left * rows[-1][0]
+        flag = "DEPTH_SHORT"
+    elif used > 1:
+        flag = "DEPTH_WALK"
+    return round(cost / qty, 4), flag
+
+
+def strike_quote(bar: dict[str, Any], side: str, strike: float, kind: str,
+                 qty: Optional[int] = None) -> tuple[Optional[float], Optional[str]]:
+    """D2: ask for entries, bid for exits. With `qty` and recorded levels (V2 depth), the fill walks the
+    book for the order qty (fix 8). Falls back to mid/LTP (flagged) only if the book side is missing."""
     cell = _wing_cell(bar.get("wings") or {}, strike)
+    if qty:
+        lv_px, lv_flag = walk_book(cell.get(f"{side.lower()}_{kind}_levels"), int(qty))
+        if lv_px is not None:
+            return lv_px, lv_flag
     key = f"{side.lower()}_{kind}"
     px = _num(cell.get(key))
     if px is not None and px > 0:
@@ -691,7 +752,7 @@ def _hm(x: str) -> int:
     return int(x[:2]) * 60 + int(x[3:])
 
 
-def _pick_exit(bars, minutes, *, side, strike, spec_exit, entry_min, last_hhmm, now_hhmm=None):
+def _pick_exit(bars, minutes, *, side, strike, spec_exit, entry_min, last_hhmm, now_hhmm=None, qty=None):
     """D3: exit at the spec minute if priced; else the priced minute nearest it within +-EXIT_TOL_MIN
     (tie -> earlier); else the last priced minute at/before it. Never later than spec+tol.
     Decided as soon as the tape has a minute past the exit (no later minute can be nearer) or the
@@ -700,7 +761,7 @@ def _pick_exit(bars, minutes, *, side, strike, spec_exit, entry_min, last_hhmm, 
     if clock < spec_exit:
         return None
     if spec_exit in bars:
-        px, flag = strike_quote(bars[spec_exit], side, strike, "bid")
+        px, flag = strike_quote(bars[spec_exit], side, strike, "bid", qty=qty)
         if px is not None:
             return spec_exit, px, flag
     # 2026-10-12 fix: the old rule waited for the tape to reach spec+2. The DUAL-TAPE writes every
@@ -709,20 +770,20 @@ def _pick_exit(bars, minutes, *, side, strike, spec_exit, entry_min, last_hhmm, 
     cands = []
     for m in minutes:
         if entry_min < m and lo <= m <= hi:
-            px, flag = strike_quote(bars[m], side, strike, "bid")
+            px, flag = strike_quote(bars[m], side, strike, "bid", qty=qty)
             if px is not None:
                 cands.append((abs(_hm(m) - _hm(spec_exit)), m, px, flag))
     if cands:
         _, m, px, flag = min(cands)
         return m, px, ",".join(f for f in (flag, "EXIT_SHIFTED") if f)
     for m in reversed([m for m in minutes if entry_min < m <= spec_exit]):
-        px, flag = strike_quote(bars[m], side, strike, "bid")
+        px, flag = strike_quote(bars[m], side, strike, "bid", qty=qty)
         if px is not None:
             return m, px, ",".join(f for f in (flag, "EXIT_EARLY_NO_QUOTE") if f)
     # no quote for the held strike anywhere in (entry, spec]: first priced minute after it, else
     # the entry price itself (flat, flagged). Never left open.
     for m in [m for m in minutes if m > spec_exit]:
-        px, flag = strike_quote(bars[m], side, strike, "bid")
+        px, flag = strike_quote(bars[m], side, strike, "bid", qty=qty)
         if px is not None:
             return m, px, ",".join(f for f in (flag, "EXIT_LATE_NO_QUOTE") if f)
     return entry_min, None, "EXIT_NO_QUOTE_AT_ENTRY_PX"
@@ -764,12 +825,13 @@ def replay_underlying(
             if entry_bar is None:
                 continue
             entry_min = entry_bar["hhmm"]
-            entry, entry_flag = strike_quote(entry_bar, side, atm, "ask")
+            entry, entry_flag = strike_quote(entry_bar, side, atm, "ask", qty=QTY.get(underlying.upper()))
             if entry is None:
                 continue
             spec_exit = mplus(entry_min, hold)
             pick = _pick_exit(bars, minutes, side=side, strike=atm, spec_exit=spec_exit,
-                              entry_min=entry_min, last_hhmm=last_hhmm, now_hhmm=now_hhmm)
+                              entry_min=entry_min, last_hhmm=last_hhmm, now_hhmm=now_hhmm,
+                              qty=QTY.get(underlying.upper()))
             flags = [f for f in (entry_flag,) if f]
             if pick is not None:
                 exit_min, mark, exit_flag = pick
@@ -788,7 +850,7 @@ def replay_underlying(
                 busy = max(exit_min, spec_exit)
             elif last_hhmm >= entry_min:
                 mark_bar = bars.get(last_hhmm)
-                mark = strike_quote(mark_bar, side, atm, "bid")[0] if mark_bar else None
+                mark = strike_quote(mark_bar, side, atm, "bid", qty=QTY.get(underlying.upper()))[0] if mark_bar else None
                 if mark is None:
                     mark = entry
                 row = _trade_row(rule=rule, underlying=underlying, side=side, strike=atm, sig_min=t,
