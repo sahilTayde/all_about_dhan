@@ -128,3 +128,36 @@ def live_entry_block(root: Path, day: Optional[str] = None, environ: Optional[di
         return None
     risk = blob.get("risk") if isinstance(blob, dict) else None
     return (risk or {}).get("halted_reason") if isinstance(risk, dict) else None
+
+
+# 2026-10-12: stale-price guard. When the desk's latest price is more than STALE_PRICE_MAX_S behind the
+# wall clock, no new opens on any desk path, and the board/risk carry an alert. Exits still run.
+RISK_STALE_PRICES = "RISK_STALE_PRICES"
+STALE_PRICE_MAX_S = 60
+RISK_STATUSES = RISK_STATUSES + (RISK_STALE_PRICES,)
+
+
+def price_staleness(last_ts_by_und: dict[str, Optional[float]], now_ts: float,
+                    max_s: float = STALE_PRICE_MAX_S) -> dict[str, Any]:
+    """{'lag_s': {und: s}, 'max_lag_s', 'stale': bool, 'alert': str|None}. Missing ts counts as stale."""
+    lag = {u: (None if ts is None else round(float(now_ts) - float(ts), 1)) for u, ts in last_ts_by_und.items()}
+    vals = [v for v in lag.values() if v is not None]
+    worst = max(vals) if vals else None
+    stale = (worst is None and bool(lag)) or (worst is not None and worst > max_s)
+    alert = None
+    if stale:
+        who = ", ".join(f"{u} {'no price' if v is None else f'{v:.0f}s'}" for u, v in lag.items()
+                        if v is None or v > max_s)
+        alert = f"STALE PRICES: desk prices more than {max_s:.0f}s behind ({who}). New opens blocked."
+    return {"lag_s": lag, "max_lag_s": worst, "max_allowed_s": max_s, "stale": bool(stale), "alert": alert}
+
+
+def stale_open_block(tick_ts: Optional[float], now_ts: float, environ: Optional[dict[str, str]] = None,
+                     max_s: float = STALE_PRICE_MAX_S) -> Optional[str]:
+    """Live only (DESK_RISK_GATE_LIVE=1): RISK_STALE_PRICES when the tick being traded on is > max_s old."""
+    env = os.environ if environ is None else environ
+    if str(env.get("DESK_RISK_GATE_LIVE", "")).strip() not in {"1", "true", "yes", "on"}:
+        return None
+    if tick_ts is None or float(now_ts) - float(tick_ts) > max_s:
+        return RISK_STALE_PRICES
+    return None

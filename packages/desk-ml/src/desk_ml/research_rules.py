@@ -873,6 +873,7 @@ def replay(
     rules: Optional[Sequence[dict[str, Any]]] = None,
     fill_v2: Optional[bool] = None,
     now_hhmm: Optional[str] = None,
+    now_ts: Optional[float] = None,
 ) -> dict[str, Any]:
     live_rules = [r for r in FROZEN_RULES if r["rule_id"] in LIVE_RULE_IDS] if rules is None else list(rules)
     entry_before: dict[str, str] = {}
@@ -923,7 +924,7 @@ def replay(
     for b in risk_rows:
         _mark([b], b["guard"], shadow=True)
     _mark(dup_shadow, DUP_SAME_CONTRACT, shadow=True)
-    return {
+    out = {
         "risk": desk_risk.state(taken, risk_cfg),
         "risk_blocked": risk_rows,
         "guard_blocked": guard_rows,
@@ -945,6 +946,9 @@ def replay(
         "orders": "REFUSED",
         "promote": False,
     }
+    if now_ts is not None:
+        apply_stale_guard(out, bars_by, now_ts)
+    return out
 
 
 def _strip_research(rows: Iterable[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -967,7 +971,9 @@ def attach_to_board(
     try:
         now = datetime.now(IST)
         # live day: the wall clock closes an H20 trade at its exit even if the tape is behind
-        result = replay(base, day, now_hhmm=now.strftime("%H:%M") if now.date().isoformat() == day else None)
+        live = now.date().isoformat() == day
+        result = replay(base, day, now_hhmm=now.strftime("%H:%M") if live else None,
+                        now_ts=now.timestamp() if live else None)
     except Exception as exc:  # noqa: BLE001 — SOD board must still publish
         out["research_rules"] = {
             "enabled": True,
@@ -1001,6 +1007,17 @@ def attach_to_board(
         "risk_blocked": result.get("risk_blocked") or [],
     }
     out["risk"] = result.get("risk")  # board.risk: halt state from the same gate (desk_risk.state)
+    stale = result.get("price_staleness")
+    if stale:
+        out["price_staleness"] = stale
+        out["research_rules"]["price_staleness"] = stale
+        if stale.get("stale"):
+            risk = dict(out.get("risk") or {})
+            risk["stale_prices"] = True
+            risk["halted_reason"] = risk.get("halted_reason") or desk_risk_stale()
+            out["risk"] = risk
+            out["alerts"] = list(out.get("alerts") or []) + [{"level": "WARN", "code": "STALE_PRICES",
+                                                               "text": stale["alert"]}]
     try:
         journal = base / "data" / "recon" / "research_rules" / f"{day}.json"
         journal.parent.mkdir(parents=True, exist_ok=True)
@@ -1014,6 +1031,37 @@ def attach_to_board(
     except Exception:  # noqa: BLE001 — shadow log must not block the board
         pass
     return out
+
+
+def desk_risk_stale() -> str:
+    from desk_ml.desk_risk import RISK_STALE_PRICES
+
+    return RISK_STALE_PRICES
+
+
+def apply_stale_guard(result: dict[str, Any], bars_by: dict[str, dict[str, Any]], now_ts: Optional[float]) -> None:
+    """Live only: staleness of the latest bar per index vs the wall clock. When stale, desk OPEN rows that
+    entered at/after the newest priced minute (decided on stale data) move to risk_blocked RISK_STALE_PRICES."""
+    from desk_ml import desk_risk
+
+    if now_ts is None:
+        return
+    last = {u: (max((b.get("ts") or 0) for b in bars.values()) or None) if bars else None for u, bars in bars_by.items()}
+    st = desk_risk.price_staleness(last, now_ts)
+    result["price_staleness"] = st
+    if not st["stale"]:
+        return
+    keep, moved = [], []
+    for r in result.get("open") or []:
+        bars = bars_by.get(r.get("underlying")) or {}
+        newest = max(bars) if bars else ""
+        if str(r.get("entry_min") or "") >= newest:
+            b = dict(r); b["guard"] = desk_risk.RISK_STALE_PRICES; _mark([b], desk_risk.RISK_STALE_PRICES, shadow=True)
+            moved.append(b)
+        else:
+            keep.append(r)
+    result["open"] = keep
+    result["risk_blocked"] = list(result.get("risk_blocked") or []) + moved
 
 
 def publish_board(board: dict[str, Any], *, root: Path) -> None:

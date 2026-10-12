@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import os
+import time
 from collections import Counter
 from contextvars import ContextVar
 from dataclasses import asdict, dataclass, field
@@ -4169,6 +4170,13 @@ def _try_open(
     from desk_ml.desk_risk import live_entry_block
 
     if live_entry_block(repo_root()) is not None:
+        return
+    # 2026-10-12 stale-price guard: never open on a price more than 60s behind the wall clock (live only).
+    from desk_ml.desk_risk import stale_open_block
+
+    stale = stale_open_block(getattr(tick, "ts", None), time.time())
+    if stale is not None:
+        engine.mark_skip(book_id, underlying, stale, ts=tick.ts, seen_side=side)
         return
     pos = _plan_open(
         engine,
