@@ -1,8 +1,10 @@
 import json
+from pathlib import Path
 
 from api.ui_feed import attach_entry_spots
 
 DAY = "2026-01-15"
+HEALTH_STRIP = Path(__file__).resolve().parents[2] / "web" / "src" / "desk" / "components" / "HealthStrip.jsx"
 
 
 def _row(hms: str, nifty: float, bank: float) -> str:
@@ -166,6 +168,81 @@ def test_session_tape_ignores_yesterday_when_today_v2_dir_empty(tmp_path) -> Non
     age, src = session_tape_age(tmp_path, board, now)
     assert src == "v2 recorder"
     assert age is None
+
+
+def test_health_strip_labels_paper_loop_and_v2_recorder() -> None:
+    text = HEALTH_STRIP.read_text(encoding="utf-8")
+    assert '{ id: "paper", label: "Paper loop"' in text
+    assert '{ id: "recorder", label: "Recorder"' in text
+    assert 'label: "Recorder", aliases: ["paper"' not in text
+
+
+def _touch_v2(tmp_path, now, name: str, age_s: int):
+    import os
+
+    from api.ui_feed import IST
+
+    day = now.astimezone(IST).date().isoformat()
+    v2 = tmp_path / "data" / "tape" / "v2" / day
+    v2.mkdir(parents=True, exist_ok=True)
+    path = v2 / name
+    path.write_text("{}\n", encoding="utf-8")
+    os.utime(path, (now.timestamp() - age_s, now.timestamp() - age_s))
+    return path
+
+
+def test_recorder_row_green_when_v2_tape_under_60s_even_if_paper_down(tmp_path) -> None:
+    from datetime import datetime
+
+    from api.ui_feed import IST, health_rows
+
+    now = datetime(2026, 1, 15, 11, 0, tzinfo=IST)
+    _touch_v2(tmp_path, now, "depth_quotes.jsonl", 20)
+    rows = health_rows(tmp_path, {}, {"agents": [{"id": "paper-loop", "alive": False}]}, {}, now)
+    by_id = {r["id"]: r for r in rows}
+    assert by_id["paper"]["tone"] == "red"
+    assert by_id["paper"]["name"] == "Paper loop"
+    assert by_id["recorder"]["tone"] == "green"
+    assert by_id["recorder"]["name"] == "Recorder"
+    assert "v2 tape" in by_id["recorder"]["detail"]
+
+
+def test_recorder_row_amber_under_300s_red_otherwise_grey_when_closed(tmp_path) -> None:
+    from datetime import datetime
+
+    from api.ui_feed import IST, health_rows
+
+    now = datetime(2026, 1, 15, 11, 0, tzinfo=IST)
+    fstatus = {"agents": [{"id": "paper-loop", "alive": True}]}
+    _touch_v2(tmp_path, now, "recorder_status.json", 90)
+    rows = health_rows(tmp_path, {}, fstatus, {}, now)
+    rec = next(r for r in rows if r["id"] == "recorder")
+    assert rec["tone"] == "amber"
+
+    _touch_v2(tmp_path, now, "recorder_status.json", 400)
+    rows = health_rows(tmp_path, {}, fstatus, {}, now)
+    rec = next(r for r in rows if r["id"] == "recorder")
+    assert rec["tone"] == "red"
+
+    closed = datetime(2026, 1, 15, 16, 0, tzinfo=IST)
+    rows = health_rows(tmp_path, {}, fstatus, {}, closed)
+    rec = next(r for r in rows if r["id"] == "recorder")
+    assert rec["tone"] == "grey"
+
+
+def test_recorder_row_uses_newest_mtime_under_v2_day(tmp_path) -> None:
+    from datetime import datetime
+
+    from api.ui_feed import IST, health_rows, session_tape_age
+
+    now = datetime(2026, 1, 15, 11, 0, tzinfo=IST)
+    _touch_v2(tmp_path, now, "depth_quotes.jsonl", 400)
+    _touch_v2(tmp_path, now, "recorder_status.json", 15)
+    age, src = session_tape_age(tmp_path, {}, now)
+    assert src == "v2 recorder"
+    assert age is not None and age <= 20
+    rec = next(r for r in health_rows(tmp_path, {}, {}, {}, now) if r["id"] == "recorder")
+    assert rec["tone"] == "green"
 
 
 def test_session_tape_falls_back_to_today_dual_tape(tmp_path) -> None:

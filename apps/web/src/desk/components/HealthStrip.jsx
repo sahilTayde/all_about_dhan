@@ -1,5 +1,6 @@
 const CORE = [
-  { id: "paper", label: "Recorder", aliases: ["paper", "heartbeat"] },
+  { id: "paper", label: "Paper loop", aliases: ["paper", "heartbeat"] },
+  { id: "recorder", label: "Recorder", aliases: ["recorder"] },
   { id: "broker", label: "Token", aliases: ["broker"] },
   { id: "data", label: "Feed", aliases: ["data"] },
 ];
