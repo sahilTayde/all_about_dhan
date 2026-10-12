@@ -50,9 +50,10 @@ from desk_ml.paper_lots import (
 )
 
 DESK_CAPITAL_INR = 570000.0  # prior ₹70k + founder +₹5L (2026-09-18). PAPER.
-PAPER_MIN_LOTS = 20
-PAPER_TARGET_LOTS = 25
-PAPER_MAX_LOTS = 30
+# Sahil 2026-10-12: hard cap 10 lots (NIFTY 650 / SENSEX 200).
+PAPER_MIN_LOTS = 10
+PAPER_TARGET_LOTS = 10
+PAPER_MAX_LOTS = 10
 DASHBOARD_HEARTBEAT_SECONDS = 2
 TICK_NE_DASHBOARD_REASON = (
     "Live mock: dual-tape REST poll default 2s (clamp ≥2). "
@@ -4161,6 +4162,9 @@ def _try_open(
     strike: Optional[float] = None,
     strike_source: str = "ROUND_INDEX_HYPOTHESIS",
 ) -> None:
+    # Sahil 2026-10-12: old default book runs in background only (Research shadow), never on the main desk.
+    if book_id == "MIX-DEFAULT-BUY" and os.environ.get("DESK_OLD_BOOK_OFF", "").strip() in {"1", "true", "yes", "on"}:
+        return
     pos = _plan_open(
         engine,
         book_id=book_id,
@@ -5910,6 +5914,9 @@ def load_paper_params(root: Path) -> dict[str, Any]:
     except (TypeError, ValueError):
         max_lots = 0
     out["paper_max_lots"] = max(max_lots, int(PAPER_MAX_LOTS), int(out["paper_target_lots"]))
+    # Sahil 2026-10-12: hard clamp so stored params (25/20/30) can never size above 10 lots.
+    for _k in ("paper_min_lots", "paper_target_lots", "paper_max_lots"):
+        out[_k] = min(int(out[_k]), int(PAPER_MAX_LOTS))
     out["production_params_written"] = False
     return out
 
@@ -6361,9 +6368,9 @@ def _replay_paper_scalp(
         regime_flip_min=float(params.get("regime_flip_min") or REGIME_FLIP_MIN),
         regime_range_atr_max=float(params.get("regime_range_atr_max") or REGIME_RANGE_ATR_MAX),
         paper_add_lot=bool(params.get("paper_add_lot", False)),
-        paper_min_lots=int(params.get("paper_min_lots") or PAPER_MIN_LOTS),
-        paper_target_lots=int(params.get("paper_target_lots") or PAPER_TARGET_LOTS),
-        paper_max_lots=int(params.get("paper_max_lots") or PAPER_MAX_LOTS),
+        paper_min_lots=min(int(params.get("paper_min_lots") or PAPER_MIN_LOTS), PAPER_MAX_LOTS),
+        paper_target_lots=min(int(params.get("paper_target_lots") or PAPER_TARGET_LOTS), PAPER_MAX_LOTS),
+        paper_max_lots=min(int(params.get("paper_max_lots") or PAPER_MAX_LOTS), PAPER_MAX_LOTS),
         max_target_r=float(params.get("max_target_r") or MAX_TARGET_R),
         skip_bn_unless_last3=(
             bool(skip_bn_unless_last3)

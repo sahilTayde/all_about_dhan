@@ -444,6 +444,28 @@ def history_rows(root: Path = REPO, board: Optional[dict[str, Any]] = None,
         if t.get("trade_id"):
             rows[str(t["trade_id"])] = {**t, "source": "board"}
     owned = {_day(t) for t in rows.values()} - {None}
+    # 2026-10-12: booked-trade files (data/recon/paper_booked/<day>.jsonl) are the per-day record of
+    # closed paper trades. Read them for every day; board rows win on the same trade_id.
+    booked_days: set[str] = set()
+    for path in sorted((root / "data" / "recon" / "paper_booked").glob("*.jsonl")):
+        last: dict[str, dict[str, Any]] = {}
+        try:
+            lines = path.read_text(encoding="utf-8").splitlines()
+        except OSError:
+            continue
+        for line in lines:
+            try:
+                rec = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if isinstance(rec, dict) and rec.get("trade_id") and str(rec.get("status") or "").startswith("CLOSED"):
+                last[str(rec["trade_id"])] = rec
+        for tid, rec in last.items():
+            if tid not in rows:
+                rows[tid] = {**rec, "day": path.stem, "source": "paper_booked"}
+        if last:
+            booked_days.add(path.stem)
+    owned |= booked_days
     ledger_rows = _ledger_query(root, "SELECT * FROM trades WHERE status = 'CLOSED'")
     for r in ledger_rows:
         tid = str(r.get("trade_id") or "")

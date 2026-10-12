@@ -25,7 +25,7 @@ target_fill: resting_limit
 # An exit is never booked on a quote older than this. The exit waits for the first fresh print
 # of the held strike (reason kept); at stale_exit_hard_flatten_ist it closes at the last good
 # print as FLATTEN_STALE_QUOTE. null turns the guard off.
-exit_quote_max_age_s: 90
+exit_quote_max_age_s: 60
 stale_exit_hard_flatten_ist: "15:20"
 
 # trade_through: a working buy limit fills only when a print after placement trades at least one
