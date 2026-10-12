@@ -1,54 +1,91 @@
-import { RULES, exitRule, flagsOf, fmtAge, hhmm, inr, num, reasonInfo, strategyName, strikeOf, tone } from "../lib/deskModel.js";
+import { signalWhy, DESK_STATUS, deskStatusOf, exitRule, flagsOf, fmtAge, hhmm, inr, num, pctOf, pctText, reasonInfo, strategyName, strikeOf, tone } from "../lib/deskModel.js";
 
 export function Reason({ code }) {
   const r = reasonInfo(code);
-  return <span className={`reason reason--${r.tone}`} title={code || ""}>{r.text}</span>;
+  return <span className={`tag tag--${r.tone}`} title={code || ""}>{r.text}</span>;
 }
 
-export function TradeLine({ t }) {
-  const flags = flagsOf(t);
-  return (
-    <li className="trade-line">
-      <span className="trade-line__time">{hhmm(t.opened_ist) || "—"}–{hhmm(t.closed_ist) || "…"}</span>
-      <strong>{t.underlying} {strikeOf(t) ?? ""} {t.side}</strong>
-      <span className="muted small">{strategyName(t.book_id)}</span>
-      <span>{num(t.entry) ?? "—"} → {num(t.exit) ?? num(t.last_ltp) ?? "—"}</span>
-      <Reason code={t.exit_reason} />
-      {flags.map((f) => <Reason key={f} code={f} />)}
-      <strong className={tone(t.realized_pnl_inr)}>{inr(t.realized_pnl_inr)}</strong>
-    </li>
-  );
+export function StatusTag({ row, fallback }) {
+  const s = deskStatusOf(row, fallback);
+  return <span className={`tag tag--${DESK_STATUS[s].tone}`} title={s}>{DESK_STATUS[s].text}</span>;
 }
 
-export function DayLossGauge({ net, limit = RULES.dayLossInr, losers = 0 }) {
-  const loss = Math.min(0, num(net) || 0);
-  const used = Math.min(100, Math.round((loss / limit) * 100));
-  const level = used >= 100 ? "red" : used >= 60 ? "amber" : "green";
+export const Strat = ({ id }) => <span className="strat" title={id || ""}>{strategyName(id)}</span>;
+
+export function Side({ side }) {
+  const s = String(side || "").toUpperCase();
+  return <span className={`side side--${s === "CE" ? "ce" : s === "PE" ? "pe" : "na"}`}>{s || "—"}</span>;
+}
+
+/** Trade table. `kind`: desk | shadow | blocked (blocked rows never show an exit price or P&L). */
+export function TradeTable({ rows, kind = "desk", onPick, picked, fallback }) {
+  if (!rows?.length) return <div className="empty">{kind === "blocked" ? "No blocked signals." : kind === "shadow" ? "No shadow trades." : "No trades yet today."}</div>;
+  const blocked = kind === "blocked";
   return (
-    <div className="dlgauge" data-testid="day-loss-dlgauge">
-      <div className="dlgauge__label">
-        <span>Day loss used</span>
-        <strong>{inr(loss)} of {inr(limit)}</strong>
-      </div>
-      <div className="dlgauge__bar"><i className={`dlgauge__fill dlgauge__fill--${level}`} style={{ width: `${used}%` }} /></div>
-      <p className="muted small">Live strategies only (R01). {used}% used · losing trades {losers} of {RULES.maxLosersPerDay} · R01 / B3a slots stop at {inr(RULES.dayLossInrR01)}</p>
+    <div className="tbl-wrap">
+      <table className="tbl">
+        <thead>
+          <tr>
+            <th>Time</th><th>Contract</th><th>Strategy</th>
+            {blocked ? <th>Why</th> : <><th className="r">Buy</th><th className="r">Exit</th><th className="r">P&amp;L</th><th className="r">%</th><th>Exit reason</th></>}
+            {blocked ? null : <th>Why taken</th>}<th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((t) => {
+            const pnl = num(t.realized_pnl_inr);
+            const px = num(t.exit) ?? num(t.last_ltp);
+            return (
+              <tr key={`${t.trade_id}|${t.desk_status || ""}`} className={picked === t.trade_id ? "is-picked" : ""} onClick={onPick ? () => onPick(t.trade_id) : undefined}>
+                <td className="num muted">{t.entry_min || hhmm(t.opened_ist) || "—"}{t.closed_ist || t.exit_min ? `–${hhmm(t.closed_ist) || t.exit_min}` : ""}</td>
+                <td><b>{t.underlying}</b> <span className="num">{strikeOf(t) ?? "—"}</span> <Side side={t.side} /></td>
+                <td><Strat id={t.book_id || t.rule_id} /></td>
+                {blocked ? (
+                  <td className="muted">{t.dup_of ? `same contract as ${t.dup_of}` : "desk already held the other index on the opposite side"}</td>
+                ) : (
+                  <>
+                    <td className="r num">{num(t.entry) ?? "—"}</td>
+                    <td className="r num">{px ?? "—"}</td>
+                    <td className={`r num ${tone(pnl)}`}>{inr(pnl)}</td>
+                    <td className={`r num ${tone(pnl)}`}>{pctText(pctOf(t.entry, px))}</td>
+                    <td>{t.exit_reason ? <Reason code={t.exit_reason} /> : <span className="muted">{exitRule(t).text}</span>} {flagsOf(t).map((f) => <Reason key={f} code={f} />)}</td>
+                  </>
+                )}
+                {blocked ? null : <td className="muted why">{signalWhy(t)}</td>}
+                <td><StatusTag row={t} fallback={fallback} /></td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
     </div>
   );
 }
 
 export function AlertList({ alerts }) {
-  if (!alerts?.length) return <p className="muted">No alerts.</p>;
+  if (!alerts?.length) return <div className="empty">No alerts.</div>;
   return (
-    <ul className="alert-list">
+    <ul className="alerts">
       {alerts.map((a) => (
-        <li key={`${a.id}|${a.ts || ""}`} className={`alert-row alert-row--${String(a.severity || "").toLowerCase()}`}>
-          <strong>{a.severity}</strong> <span>{a.title}</span>
-          <span className="muted small">{fmtAge(a.age)}{a.age != null && a.age > 86400 ? " · old" : ""}</span>
-          <p className="small">{a.detail}</p>
+        <li key={`${a.id}|${a.ts || ""}`} className={`alert alert--${String(a.severity || "").toLowerCase()}`}>
+          <b>{a.severity}</b> <span>{a.title}</span> <em className="muted">{fmtAge(a.age)}{a.age != null && a.age > 86400 ? " · old" : ""}</em>
+          <p>{a.detail}</p>
         </li>
       ))}
     </ul>
   );
 }
 
-export { exitRule };
+export function FeedAges({ rows }) {
+  return (
+    <ul className="feeds">
+      {rows.map((r) => (
+        <li key={r.name} className={r.stale ? "is-stale" : ""}>
+          <span>{r.name}</span>
+          <span className="num">{r.sec == null ? "—" : fmtAge(r.sec)}</span>
+          {r.stale ? <span className="tag tag--warn">stale &gt; 5 min</span> : null}
+        </li>
+      ))}
+    </ul>
+  );
+}

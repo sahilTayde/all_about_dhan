@@ -26,7 +26,7 @@ function Page() {
     return <InternalDesk />;
   }
   if (under(path, "/pm")) return <FounderPm />;
-  if (["/desk", "/desk/history", "/desk/strategies", "/ops"].includes(path)) return <InternalDesk />;
+  if (["/desk", "/desk/signals", "/desk/history", "/desk/strategies", "/ops"].includes(path)) return <InternalDesk />;
   if (path === "/" || under(path, "/customer")) return <CustomerApp />;
   return <NotFound />;
 }

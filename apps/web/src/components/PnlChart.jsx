@@ -30,10 +30,10 @@ export function PnlChart({ trades, height = 260, title = "Running P&L today (aft
     });
     const series = chart.addBaselineSeries({
       baseValue: { type: "price", price: 0 },
-      topLineColor: "#3ecf8e",
-      bottomLineColor: "#ff6b6b",
-      topFillColor1: "rgba(62,207,142,.25)",
-      bottomFillColor2: "rgba(255,107,107,.25)",
+      topLineColor: "#26c281",
+      bottomLineColor: "#f0524f",
+      topFillColor1: "rgba(38,194,129,.25)",
+      bottomFillColor2: "rgba(240,82,79,.25)",
       lineWidth: 2,
     });
     const pts = new Map();
@@ -56,7 +56,7 @@ export function PnlChart({ trades, height = 260, title = "Running P&L today (aft
         markers.push({ time: snap.time, position: "belowBar", color: "#5aa9ff", shape: "arrowUp", text: `in ${label}` });
       }
       const win = Number(t.realized_pnl_inr) >= 0;
-      markers.push({ time: Number(t.closed_ts) + IST_OFFSET, position: win ? "aboveBar" : "belowBar", color: win ? "#3ecf8e" : "#ff6b6b", shape: "circle", text: "out" });
+      markers.push({ time: Number(t.closed_ts) + IST_OFFSET, position: win ? "aboveBar" : "belowBar", color: win ? "#26c281" : "#f0524f", shape: "circle", text: "out" });
     }
     const seen = new Set();
     series.setMarkers(markers.sort((a, b) => a.time - b.time).filter((m) => { const k = `${m.time}|${m.text}`; if (seen.has(k)) return false; seen.add(k); return true; }));
@@ -67,9 +67,9 @@ export function PnlChart({ trades, height = 260, title = "Running P&L today (aft
   }, [JSON.stringify(rows.map((t) => [t.trade_id, t.closed_ts, t.realized_pnl_inr])), height]);
 
   return (
-    <section className="card" data-testid="pnl-chart">
-      <header className="card__head"><h2>{title}</h2><span className="muted small">blue ▲ = entry · dot = exit</span></header>
-      {rows.length ? <div ref={ref} className="pnl-chart" /> : <p className="muted">No closed trades yet today.</p>}
+    <section className="panel" data-testid="pnl-chart">
+      <header className="panel__head"><h2>{title}</h2><span className="muted small">blue ▲ = entry · dot = exit</span></header>
+      {rows.length ? <div ref={ref} className="pnl-chart" /> : <div className="empty">No closed trades yet today.</div>}
     </section>
   );
 }

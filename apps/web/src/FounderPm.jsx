@@ -1,13 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
 import { AccountPanel } from "./components/AccountPanel.jsx";
-import { AppNav } from "./components/AppNav.jsx";
+import { TopBar } from "./components/TopBar.jsx";
 import { CumulativeChart, ModelScores, PeriodChart, TradesPerDay } from "./components/FounderCharts.jsx";
 import { FounderHonestyExam } from "./components/FounderHonestyExam.jsx";
 import { FounderRoster } from "./components/FounderRoster.jsx";
 import { OfflineBanner } from "./components/Header.jsx";
 import { LlmShadowPanel } from "./components/LlmShadowPanel.jsx";
 import "./desk/desk.css";
-import "./desk/redesign.css";
+import "./desk/pro.css";
 import { deskDay, inr, statusLight, strategyName, tone } from "./lib/deskModel.js";
 import { fetchFounderLab } from "./lib/paperBoard.js";
 import { useDeskFeed } from "./lib/v2Feed.js";
@@ -35,9 +35,10 @@ export function FounderPm() {
   const light = snap ? statusLight(dd, conn, Boolean(snap?.offline)) : { tone: "amber", text: "Connecting…" };
 
   return (
-    <div className="shell rd-shell" data-testid="founder-shell">
-      <AppNav current="/pm" light={light} />
-      <header className="rd-head">
+    <div className="term" data-testid="founder-shell">
+      <TopBar path="/pm" light={light} dd={snap ? dd : null} snap={snap} conn={conn} />
+      <main className="term__main page">
+      <header className="pg-head">
         <div>
           <h1>Money &amp; research</h1>
           <p className="muted">Where the money went, and what the research says. Paper only.</p>
@@ -51,11 +52,11 @@ export function FounderPm() {
       {snap?.offline ? <OfflineBanner /> : null}
       {!snap ? <p className="muted">Loading…</p> : tab === "money" ? (
         <div className="money">
-          <section className="card">
-            <p className="money__line">Today <strong className={tone(dd.total.net)}>{inr(dd.total.net)}</strong> · last 5 days <strong className={tone(week)}>{inr(week)}</strong> · all time <strong className={tone(snap?.account?.net_inr)}>{inr(snap?.account?.net_inr)}</strong>{indexing ? " (still reading the log)" : ""}</p>
+          <section className="panel">
+            <p className="money__line">Capital now <strong className="num">{inr(snap?.account?.equity_inr, { signed: false })}</strong> (start {inr(snap?.account?.starting_capital_inr, { signed: false })} + net) · Today <strong className={tone(dd.total.net)}>{inr(dd.total.net)}</strong> · last 5 days <strong className={tone(week)}>{inr(week)}</strong> · all time <strong className={tone(snap?.account?.net_inr)}>{inr(snap?.account?.net_inr)}</strong>{indexing ? " (still reading the log)" : ""}</p>
             <ul className="day-list">
               {Object.entries(today?.by_book || {}).map(([id, b]) => (
-                <li key={id}><span>{strategyName(id)}</span><span className="muted">{b.n} trades · {b.wins} won</span><strong className={tone(b.net)}>{inr(b.net)}</strong></li>
+                <li key={id}><span title={id}>{strategyName(id)}</span><span className="muted">{b.n} trades · {b.wins} won</span><strong className={tone(b.net)}>{inr(b.net)}</strong></li>
               ))}
             </ul>
           </section>
@@ -74,6 +75,7 @@ export function FounderPm() {
           <FounderRoster catalog={lab?.catalog} confirmKill={lab?.confirm_kill} />
         </div>
       )}
+      </main>
     </div>
   );
 }

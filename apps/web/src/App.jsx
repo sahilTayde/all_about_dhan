@@ -3,7 +3,7 @@ import { fetchCustomerDesk } from "./lib/customerFeed.js";
 import { formatWhen, marketView, selectCustomerView, ticketStatus } from "./lib/customerPortal.js";
 import { indexTabs, plainText } from "./lib/plainWords.js";
 import { AppNav } from "./components/AppNav.jsx";
-import "./desk/redesign.css";
+import "./desk/pro.css";
 import { SizeForm } from "./desk/components/SizeForm.jsx";
 import { UnderlyingPicker } from "./components/UnderlyingPicker.jsx";
 import { Disclaimer } from "./components/Disclaimer.jsx";
