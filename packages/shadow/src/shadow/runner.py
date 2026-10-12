@@ -303,6 +303,62 @@ def run_envelopes(shadow: ShadowRun, envelopes: Sequence[Envelope]) -> RunSummar
     return summary
 
 
+class TapeTail:
+    """Incremental tape reader: each poll parses only bytes appended since the last poll.
+
+    The old follow loop re-read and re-parsed the whole day directory (GBs of depth/raw
+    frames) every second and logged one warning per non-tick line, so poll cost grew
+    with the tape all day. Here cost is O(new bytes); bad lines are counted, not logged.
+    """
+
+    def __init__(self, tape: Path) -> None:
+        self.tape = tape
+        self.offsets: dict[Path, int] = {}
+        self.bad_lines: dict[str, int] = {}
+
+    def poll(self) -> list[Tick]:
+        from marketdata.sources import _tick_from_obj
+
+        new: list[Tick] = []
+        for path in tape_paths(self.tape):
+            if path.name.endswith(".gz"):
+                if path not in self.offsets:
+                    self.offsets[path] = -1
+                    new.extend(ticks_from_tape(path))
+                continue
+            start = self.offsets.get(path, 0)
+            try:
+                size = path.stat().st_size
+            except OSError:
+                continue
+            if size < start:  # truncated/rotated: start over
+                start = 0
+            if size == start:
+                continue
+            with path.open("rb") as fh:
+                fh.seek(start)
+                chunk = fh.read(size - start)
+            cut = chunk.rfind(b"\n")
+            if cut < 0:
+                continue  # partial line still being written
+            self.offsets[path] = start + cut + 1
+            for raw in chunk[: cut + 1].splitlines():
+                line = raw.strip()
+                if not line:
+                    continue
+                try:
+                    obj = json.loads(line)
+                    if not isinstance(obj, dict):
+                        raise ValueError("row is not a JSON object")
+                    tick = _tick_from_obj(obj)
+                    if tick.exchange_ts:
+                        new.append(tick)
+                except (ValueError, KeyError, TypeError):
+                    self.bad_lines[path.name] = self.bad_lines.get(path.name, 0) + 1
+        new.sort(key=lambda tick: tick.exchange_ts or "")
+        return new
+
+
 def load_tape_envelopes(tape: Path) -> list[Envelope]:
     ticks: list[Tick] = []
     for path in tape_paths(tape):
@@ -439,17 +495,19 @@ def follow_tape(
         return shadow
     seen = 0
     idle = 0
+    tail = TapeTail(tape)
     while not stop_flag.is_file():
         try:
-            envelopes = load_tape_envelopes(tape)
+            fresh = tail.poll()
         except OSError:
-            envelopes = []
-        if len(envelopes) > seen:
-            run_envelopes(shadow, envelopes[seen:])
-            seen = len(envelopes)
+            fresh = []
+        envelopes = envelopes_from_ticks(fresh) if fresh else []
+        if envelopes:
+            run_envelopes(shadow, envelopes)
+            seen += len(envelopes)
             idle = 0
         else:
-            if not envelopes:
+            if not seen:
                 shadow.closed_reason = "FEED_DOWN"
             idle += 1
             if max_idle_polls is not None and idle >= max_idle_polls:
