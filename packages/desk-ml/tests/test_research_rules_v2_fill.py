@@ -129,3 +129,31 @@ def test_same_contract_same_minute_is_one_position() -> None:
     o, c, d = rr._dedupe_same_contract([], closed, [rr.R01, rr.R01_B3A])
     assert [x["trade_id"] for x in c] == [f"RR-{rr.R01}-11:59", f"RR-{rr.R01}-12:33", f"RR-{rr.R01_B3A}-12:38"]
     assert len(d) == 1 and d[0]["guard"] == "DUP_SAME_CONTRACT" and d[0]["dup_of"] == f"RR-{rr.R01}-11:59"
+
+
+def test_board_carries_status_lists_and_desk_rows_are_not_shadow(tmp_path: Path, monkeypatch) -> None:
+    t = {"rule_id": rr.R01, "underlying": "NIFTY", "side": "PE", "atm_strike": 22350.0, "entry_min": "11:59",
+         "trade_id": "A", "shadow": False, "desk_status": rr.TRADED, "research_rule": True, "book_id": rr.R01}
+    fake = {"open": [], "closed": [dict(t)], "rule_ids": [rr.R01], "per_underlying": {}, "qty": dict(rr.QTY),
+            "guard_blocked": rr._mark([dict(t, trade_id="B")], rr.BLOCKED_OPPOSITE_SIDE, shadow=True),
+            "shadow_parked": {"rule_ids": [rr.R02], "open": [], "note": "x",
+                              "closed": rr._mark([dict(t, trade_id="C", rule_id=rr.R02)], rr.SHADOW_PARKED, shadow=True)},
+            "dup_same_contract": rr._mark([dict(t, trade_id="D", rule_id=rr.R01_B3A, dup_of="A")], rr.DUP_SAME_CONTRACT, shadow=True)}
+    monkeypatch.setattr(rr, "replay", lambda *a, **k: fake)
+    import desk_ml.shadow_exits as se
+    monkeypatch.setattr(se, "attach_and_log", lambda *a, **k: None)
+    out = rr.attach_to_board({"session_ist_date": DAY, "open_trades": [], "closed_trades": []},
+                             root=tmp_path, environ={rr.FLAG_ENV: "1"})
+    meta = out["research_rules"]
+    assert [r["desk_status"] for r in meta["guard_blocked"]] == ["BLOCKED_OPPOSITE_SIDE"]
+    assert [r["desk_status"] for r in meta["shadow_parked"]["closed"]] == ["SHADOW_PARKED"]
+    assert [r["desk_status"] for r in meta["dup_same_contract"]] == ["DUP_SAME_CONTRACT"]
+    assert all(r["shadow"] for r in meta["guard_blocked"] + meta["dup_same_contract"])
+    assert [(r["trade_id"], r["desk_status"], r["shadow"]) for r in out["closed_trades"]] == [("A", "TRADED", False)]
+
+
+def test_trade_row_defaults_traded_not_shadow() -> None:
+    row = rr._trade_row(rule=rr.FROZEN_RULES[0], underlying="NIFTY", side="CE", strike=22400.0, sig_min="12:32",
+                        entry_min="12:33", exit_min="12:53", entry=85.9, mark=79.8, day=DAY,
+                        entry_bar={}, mark_bar={"hhmm": "12:53"}, closed=True, reason="TIME")
+    assert row["desk_status"] == "TRADED" and row["shadow"] is False and row["status"] == "CLOSED"

@@ -451,6 +451,19 @@ def _cost_row(*, entry: float, exit_px: float, qty: int, filled: bool) -> dict[s
     return out
 
 
+TRADED = "TRADED"
+SHADOW_PARKED = "SHADOW_PARKED"
+BLOCKED_OPPOSITE_SIDE = "BLOCKED_OPPOSITE_SIDE"
+DESK_STATUSES = (TRADED, SHADOW_PARKED, BLOCKED_OPPOSITE_SIDE, "DUP_SAME_CONTRACT")
+
+
+def _mark(rows, status: str, *, shadow: bool):
+    for r in rows:
+        r["desk_status"] = status
+        r["shadow"] = shadow
+    return rows
+
+
 def _trade_row(
     *,
     rule: dict[str, Any],
@@ -534,7 +547,8 @@ def _trade_row(
         "won": won,
         "result": ("SUCCESS" if won else "LOSS") if closed else None,
         "justification": f"{rule['source_config']} ATM paper fill. TIME exit. NO_PROMOTE.",
-        "shadow": True,
+        "shadow": False,  # desk trade; shadow lists set True (see _mark)
+        "desk_status": TRADED,
         "execution": "refused",
         "orders": "REFUSED",
         "promote": False,
@@ -845,6 +859,10 @@ def replay(
     uniq = {}
     for b in blocked:
         uniq[(b["rule_id"], b["underlying"], b["sig_min"])] = b
+    _mark(opens, TRADED, shadow=False); _mark(closed, TRADED, shadow=False)
+    _mark(shadow_open, SHADOW_PARKED, shadow=True); _mark(shadow_closed, SHADOW_PARKED, shadow=True)
+    _mark(list(uniq.values()), BLOCKED_OPPOSITE_SIDE, shadow=True)
+    _mark(dup_shadow, DUP_SAME_CONTRACT, shadow=True)
     return {
         "guard_blocked": list(uniq.values()),
         "dup_same_contract": dup_shadow,
@@ -914,6 +932,10 @@ def attach_to_board(
         "orders": "REFUSED",
         "promote": False,
         "cost_fixture": "groww_round_trip_charges#84x1.5",
+        # not traded, not in desk P&L; each row carries desk_status + shadow=True
+        "guard_blocked": result.get("guard_blocked") or [],
+        "shadow_parked": result.get("shadow_parked") or {},
+        "dup_same_contract": result.get("dup_same_contract") or [],
     }
     try:
         journal = base / "data" / "recon" / "research_rules" / f"{day}.json"
