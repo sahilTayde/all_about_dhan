@@ -329,6 +329,7 @@ class MarketDataRecorder:
                     max_instruments=self.config.max_instruments,
                     open_positions=open_positions,
                     open_ladder_n=self.config.open_ladder_n,
+                    near_atm_n=self.config.near_atm_n,
                 ),
                 spot=u.spot,
             )

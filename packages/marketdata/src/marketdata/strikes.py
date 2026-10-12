@@ -77,6 +77,7 @@ class StrikeSet:
         hysteresis: float = 0.2,
         open_positions: Callable[[], set[str]] = _no_positions,
         open_ladder_n: int = 0,
+        near_atm_n: int = 0,
     ) -> None:
         self.universe = universe
         self.retention_s = retention_s
@@ -84,6 +85,9 @@ class StrikeSet:
         self.hysteresis = hysteresis
         self.open_positions = open_positions
         self.open_ladder_n = open_ladder_n
+        # 2026-10-12: every listed strike (NIFTY 50-pt, SENSEX 100-pt) within +-near_atm_n steps of the
+        # moving ATM, both sides (rules NEAR_P<k>/NEAR_M<k>). The named ATM/ITM/OTM rules win on overlap.
+        self.near_atm_n = near_atm_n
         self.atm: int | None = None
         self.session_open_atm: int | None = None
         self.current: dict[str, tuple[str, str]] = {}
@@ -98,6 +102,14 @@ class StrikeSet:
 
     def targets(self, atm: int) -> dict[str, tuple[str, str]]:
         out: dict[str, tuple[str, str]] = {}
+        step = self.universe.strike_step
+        for k in range(-self.near_atm_n, self.near_atm_n + 1):
+            if k == 0:
+                continue
+            for side in ("CE", "PE"):
+                inst = self.universe.options.get((atm + k * step, side))
+                if inst is not None:
+                    out[inst.instrument_id] = (f"NEAR_{'P' if k > 0 else 'M'}{abs(k)}", side)
         for rule, itm in RULES:
             for side, strike in (("CE", atm - itm), ("PE", atm + itm)):
                 inst = self.universe.options.get((strike, side))

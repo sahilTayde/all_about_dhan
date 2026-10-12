@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import os
 import json
 import logging
 import logging.handlers
@@ -146,6 +147,7 @@ def _record(underlyings: tuple[str, ...], root: Path, tape_root: Path, day: date
         underlyings=underlyings,
         cache_dir=cache_dir,
         pin_root=root,
+        near_atm_n=int(os.environ.get("MD_NEAR_ATM_N", "4")),  # every 50-pt NIFTY strike within +-200
     )
     recorder = MarketDataRecorder(config, settings, source=source)
     log.info("marketdata recorder: %s, session %s, tapes under %s", ",".join(underlyings), day, tape_root)
