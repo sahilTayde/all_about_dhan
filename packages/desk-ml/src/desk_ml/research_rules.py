@@ -605,6 +605,24 @@ SHADOW_RULE_IDS = (R02,)
 PARK_FROM_IST = {R02: {"2026-10-12": "11:50"}}  # other days: parked from the open
 
 
+DESK_RULES_OFF_PATH = Path(__file__).resolve().parents[4] / "config" / "desk_rules_off.yaml"
+
+
+def desk_rules_off(path: Optional[Path] = None) -> set[str]:
+    """Rule ids switched off from desk slots/promotion (config/desk_rules_off.yaml). Shadow scoring keeps them."""
+    p = Path(path) if path is not None else DESK_RULES_OFF_PATH
+    if not p.is_file():
+        return set()
+    import yaml
+
+    blob = yaml.safe_load(p.read_text(encoding="utf-8")) or {}
+    out: set[str] = set()
+    for item in blob.get("rules_off") or []:
+        out.add(str(item.get("id")))
+        out.update(str(m) for m in item.get("match") or [])
+    return out
+
+
 def _park_from(rule_id: str, day: str) -> Optional[str]:
     days = PARK_FROM_IST.get(rule_id)
     if days is None:
@@ -884,6 +902,11 @@ def replay(
                 live_rules.append(r)  # pre-park history only
                 entry_before[r["rule_id"]] = pf
     shadow_rules = [r for r in FROZEN_RULES if r["rule_id"] in SHADOW_RULE_IDS] if rules is None else []
+    if rules is None:  # config/desk_rules_off.yaml: never a desk trade from the day after it was set
+        off = desk_rules_off()
+        moved = [r for r in live_rules if r["rule_id"] in off and r["rule_id"] not in entry_before]
+        live_rules = [r for r in live_rules if r not in moved]
+        shadow_rules += [r for r in moved if r not in shadow_rules]
     if fill_v2 is None:  # off on the live board by default: the V2 files are ~1 GB per day
         fill_v2 = os.environ.get("DESK_RR_V2_FILL", "").strip() in {"1", "true", "yes", "on"}
     loader = load_minutes_filled if fill_v2 else load_atm_minutes
