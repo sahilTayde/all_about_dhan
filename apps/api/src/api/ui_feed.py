@@ -33,6 +33,9 @@ MAX_SPOT_GAP_S = 180
 # Dual-tape / V2 minute writers are ~60s. 60s used to paint a healthy session SLOW.
 MARKET_DATA_FRESH_S = 120
 MARKET_DATA_STALE_S = 300
+# V2 recorder tile: newest mtime under data/tape/v2/<IST day>/.
+RECORDER_FRESH_S = 60
+RECORDER_STALE_S = 300
 TRADE_KEYS = ("closed_trades", "open_trades", "tickets", "closed_trades_sample")
 MODEL_LOG = "ml_paper_model_logs.jsonl"
 TRADE_EVENTS = {"OPEN", "CLOSE", "TRAIL_STOP", "TARGET_LOCK_SHIFT", "CANCEL_ELIGIBLE"}
@@ -563,6 +566,21 @@ def _file_mtime_ts(path: Path) -> int | None:
         return None
 
 
+def _newest_mtime_under(folder: Path) -> int | None:
+    """Newest file mtime (unix seconds) directly under ``folder``. Ignores hidden names."""
+    best: int | None = None
+    try:
+        for path in folder.iterdir():
+            if not path.is_file() or path.name.startswith("."):
+                continue
+            ts = _file_mtime_ts(path)
+            if ts is not None and (best is None or ts > best):
+                best = ts
+    except OSError:
+        return best
+    return best
+
+
 def session_tape_age(root: Path, board: dict[str, Any], now: datetime) -> tuple[int | None, str]:
     """Age of *today's* IST session tape. Never falls back to yesterday's file.
 
@@ -572,18 +590,7 @@ def session_tape_age(root: Path, board: dict[str, Any], now: datetime) -> tuple[
     day = now.astimezone(IST).date().isoformat()
     v2_dir = root / "data" / "tape" / "v2" / day
     if v2_dir.is_dir():
-        best: int | None = None
-        for name in (
-            "depth_quotes.jsonl",
-            "quote_snapshots.jsonl",
-            "oi_cadence.jsonl",
-            "feed_status.jsonl",
-            "ticks.jsonl",
-            "recorder.log",
-        ):
-            ts = _file_mtime_ts(v2_dir / name)
-            if ts is not None and (best is None or ts > best):
-                best = ts
+        best = _newest_mtime_under(v2_dir)
         if best is not None:
             return int(now.timestamp() - best), "v2 recorder"
         # Today's folder exists but is empty — do not use yesterday.
@@ -665,13 +672,26 @@ def health_rows(root: Path, board: dict[str, Any], fstatus: dict[str, Any], hsta
         rows.append(_row("paper", "Paper loop", "red" if market else "grey",
                          f"not running{'' if market else ' (market closed)'}"))
 
+    age, src = session_tape_age(root, board, now)
+    rec_age = age if src == "v2 recorder" else None
+    if not market:
+        rows.append(_row("recorder", "Recorder", "grey",
+                         f"market closed · last v2 tape {_fmt_age(rec_age)}", rec_age))
+    elif rec_age is not None and rec_age < RECORDER_FRESH_S:
+        rows.append(_row("recorder", "Recorder", "green",
+                         f"fresh · last v2 tape {_fmt_age(rec_age)}", rec_age))
+    elif rec_age is not None and rec_age < RECORDER_STALE_S:
+        rows.append(_row("recorder", "Recorder", "amber",
+                         f"slow · last v2 tape {_fmt_age(rec_age)}", rec_age))
+    else:
+        rows.append(_row("recorder", "Recorder", "red",
+                         f"stale · last v2 tape {_fmt_age(rec_age)}", rec_age))
+
     recon = checks.get("reconciliation") or {}
     if recon and not recon.get("ok", True):
         rows.append(_row("broker", "Broker (paper)", "red", recon.get("message") or "reconciliation mismatch"))
     else:
         rows.append(_row("broker", "Broker (paper)", "green", "paper broker · orders refused · no live connection"))
-
-    age, src = session_tape_age(root, board, now)
     recorder = checks.get("recorder") or {}
     if recorder and not recorder.get("ok", True):
         rows.append(_row("data", "Market data", "red", recorder.get("message") or "recorder stale", age))

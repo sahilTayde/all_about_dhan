@@ -233,7 +233,12 @@ recorder_pids() {
 }
 
 recorder_screen_up() {
-  screen -ls 2>/dev/null | grep -qE '[.]v2-recorder[[:space:]]'
+  # Apple / old GNU `screen -ls` exits 1 even when a session exists. With
+  # pipefail that made this report DOWN while v2-recorder was up. Match the
+  # session name with or without a pid / hostname suffix.
+  local listing
+  listing="$(screen -ls 2>/dev/null || true)"
+  printf '%s\n' "$listing" | grep -qE '(^|[[:space:].])'"$RECORDER_SCREEN"'([[:space:].]|$)'
 }
 
 recorder_is_running() {
