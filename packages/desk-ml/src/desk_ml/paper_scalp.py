@@ -4165,6 +4165,11 @@ def _try_open(
     # Sahil 2026-10-12: old default book runs in background only (Research shadow), never on the main desk.
     if book_id == "MIX-DEFAULT-BUY" and os.environ.get("DESK_OLD_BOOK_OFF", "").strip() in {"1", "true", "yes", "on"}:
         return
+    # Shared desk risk gate (config/desk_risk.yaml): live loop only (DESK_RISK_GATE_LIVE=1 via desk.sh).
+    from desk_ml.desk_risk import live_entry_block
+
+    if live_entry_block(repo_root()) is not None:
+        return
     pos = _plan_open(
         engine,
         book_id=book_id,

@@ -454,7 +454,8 @@ def _cost_row(*, entry: float, exit_px: float, qty: int, filled: bool) -> dict[s
 TRADED = "TRADED"
 SHADOW_PARKED = "SHADOW_PARKED"
 BLOCKED_OPPOSITE_SIDE = "BLOCKED_OPPOSITE_SIDE"
-DESK_STATUSES = (TRADED, SHADOW_PARKED, BLOCKED_OPPOSITE_SIDE, "DUP_SAME_CONTRACT")
+DESK_STATUSES = (TRADED, SHADOW_PARKED, BLOCKED_OPPOSITE_SIDE, "DUP_SAME_CONTRACT",
+                 "RISK_CAP_TRADES", "RISK_CAP_OPEN", "RISK_DAY_STOP")
 
 
 def _mark(rows, status: str, *, shadow: bool):
@@ -823,6 +824,41 @@ def _dedupe_same_contract(opens, closed, rule_order):
     return keep_o, keep_c, dups
 
 
+def _desk_pass(opens, closed, day: str, rule_order, risk_cfg):
+    """One pass over desk candidates in strict entry-minute order (then rule rank):
+    1) opposite-side guard (any index), 2) same-contract dedup, 3) desk risk gate (desk_risk.py).
+    Trades entered before guard_from(day) are history: kept, but they count in the gate's state.
+    Returns opens, closed, blocked (guard+risk, rule not busy), dups, taken[(row, is_open)]."""
+    from desk_ml import desk_risk
+
+    rank = {rid: i for i, rid in enumerate(rule_order)}
+    rows = [(r, True) for r in opens] + [(r, False) for r in closed]
+    rows.sort(key=lambda x: (str(x[0].get("entry_min") or ""), rank.get(x[0].get("rule_id"), 99),
+                             str(x[0].get("sig_min") or "")))
+    taken: list = []
+    blocked: list = []
+    dups: list = []
+    owner: dict = {}
+    for r, is_open in rows:
+        t = str(r.get("entry_min") or "")
+        pre = t < guard_from(day or str(r.get("day") or ""))
+        key = (r.get("underlying"), r.get("side"), float(r.get("atm_strike") or 0), t)
+        if not pre and any(k.get("side") != r.get("side") and _holds_at(k, k_open, t) for k, k_open in taken):
+            b = dict(r); b["guard"] = BLOCKED_OPPOSITE_SIDE; blocked.append(b)
+            continue
+        if key in owner:
+            d = dict(r); d["dup_of"] = owner[key]; d["guard"] = DUP_SAME_CONTRACT; dups.append(d)
+            continue
+        if not pre:
+            why = desk_risk.check(taken, r, risk_cfg)
+            if why:
+                b = dict(r); b["guard"] = why; blocked.append(b)
+                continue
+        owner[key] = r.get("trade_id")
+        taken.append((r, is_open))
+    return [r for r, o in taken if o], [r for r, o in taken if not o], blocked, dups, taken
+
+
 def replay(
     root: Path,
     day: str,
@@ -845,6 +881,9 @@ def replay(
         fill_v2 = os.environ.get("DESK_RR_V2_FILL", "").strip() in {"1", "true", "yes", "on"}
     loader = load_minutes_filled if fill_v2 else load_atm_minutes
     bars_by = {und: loader(Path(root), und, day) for und in underlyings}
+    from desk_ml import desk_risk
+
+    risk_cfg = desk_risk.load_config()
     skip: set = set()
     blocked: list[dict[str, Any]] = []
     for _ in range(10):  # D6: re-run without blocked signals until the blocked set is stable
@@ -853,13 +892,13 @@ def replay(
             o, c = replay_underlying(bars, underlying=und, day=day, rules=live_rules, skip=skip,
                                     entry_before=entry_before, now_hhmm=now_hhmm)
             opens.extend(o); closed.extend(c)
-        opens, closed, new_blocked = _same_direction_guard(opens, closed, day)
+        opens, closed, new_blocked, dup_shadow, taken = _desk_pass(
+            opens, closed, day, [r["rule_id"] for r in live_rules], risk_cfg)
         blocked.extend(new_blocked)
         add = {(b["rule_id"], b["underlying"], b["sig_min"]) for b in new_blocked}
         if not add - skip:
             break
         skip |= add
-    opens, closed, dup_shadow = _dedupe_same_contract(opens, closed, [r["rule_id"] for r in live_rules])
     shadow_open, shadow_closed = [], []
     for und, bars in bars_by.items():
         o, c = replay_underlying(bars, underlying=und, day=day, rules=shadow_rules, now_hhmm=now_hhmm)
@@ -872,10 +911,16 @@ def replay(
         uniq[(b["rule_id"], b["underlying"], b["sig_min"])] = b
     _mark(opens, TRADED, shadow=False); _mark(closed, TRADED, shadow=False)
     _mark(shadow_open, SHADOW_PARKED, shadow=True); _mark(shadow_closed, SHADOW_PARKED, shadow=True)
-    _mark(list(uniq.values()), BLOCKED_OPPOSITE_SIDE, shadow=True)
+    guard_rows = [b for b in uniq.values() if b.get("guard") == BLOCKED_OPPOSITE_SIDE]
+    risk_rows = [b for b in uniq.values() if b.get("guard") in desk_risk.RISK_STATUSES]
+    _mark(guard_rows, BLOCKED_OPPOSITE_SIDE, shadow=True)
+    for b in risk_rows:
+        _mark([b], b["guard"], shadow=True)
     _mark(dup_shadow, DUP_SAME_CONTRACT, shadow=True)
     return {
-        "guard_blocked": list(uniq.values()),
+        "risk": desk_risk.state(taken, risk_cfg),
+        "risk_blocked": risk_rows,
+        "guard_blocked": guard_rows,
         "dup_same_contract": dup_shadow,
         "shadow_parked": {"rule_ids": [r["rule_id"] for r in shadow_rules], "open": shadow_open,
                           "closed": shadow_closed, "note": "PARKED rules: computed, not traded, not in desk P&L"},
@@ -947,7 +992,9 @@ def attach_to_board(
         "guard_blocked": result.get("guard_blocked") or [],
         "shadow_parked": result.get("shadow_parked") or {},
         "dup_same_contract": result.get("dup_same_contract") or [],
+        "risk_blocked": result.get("risk_blocked") or [],
     }
+    out["risk"] = result.get("risk")  # board.risk: halt state from the same gate (desk_risk.state)
     try:
         journal = base / "data" / "recon" / "research_rules" / f"{day}.json"
         journal.parent.mkdir(parents=True, exist_ok=True)

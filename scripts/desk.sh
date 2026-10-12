@@ -125,7 +125,7 @@ health_supervise_available() {
 
 dual_tape_child_cmd() {
   # Same args whether or not health.supervise wraps them.
-  printf "%s" "env DESK_OLD_BOOK_OFF=1 '$PY' -u -m trading_agents_india dual-tape --live-chain --paper-train --paper-scalp --tick-seconds 2 --max-ticks 0"
+  printf "%s" "env DESK_OLD_BOOK_OFF=1 DESK_RISK_GATE_LIVE=1 '$PY' -u -m trading_agents_india dual-tape --live-chain --paper-train --paper-scalp --tick-seconds 2 --max-ticks 0"
 }
 
 dual_tape_launch_inner() {

@@ -1,0 +1,11 @@
+# Desk risk gate (paper). Read by packages/desk-ml/src/desk_ml/desk_risk.py for every desk entry path
+# (research_rules desk trades; paper_scalp _try_open when DESK_RISK_GATE_LIVE=1).
+# Order at each entry minute, strict minute order: opposite-side guard -> same-contract dedup -> this gate.
+# Blocked entries are shadow (desk_status RISK_*), never in desk P&L. Rupees after charges.
+max_trades_per_day: null      # Sahil 2026-10-12: no daily trade-count cap on paper (null = off)
+max_open: 2                   # RISK_CAP_OPEN
+day_stop_losers: 2            # RISK_DAY_STOP after this many losing closed desk trades
+day_stop_net_inr: -25000      # RISK_DAY_STOP when closed desk net <= this
+group_stop:                   # RISK_DAY_STOP for entries of these rules when their combined closed net <= net_inr
+  rule_ids: [R01_PDIV_5_ALL_H20, R01_B3A_VOL]
+  net_inr: -15000
