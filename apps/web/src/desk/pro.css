@@ -185,3 +185,5 @@ body { background: var(--bg); color: var(--tx); font-family: var(--f); }
 @media (max-width: 600px) { .pos__grid { grid-template-columns: 1fr 1fr; } .term__main { padding: var(--g2); } .tb__nav a { padding: 6px 8px; } }
 
 .kpis > div.kpi--halt { border-color: var(--down); background: linear-gradient(0deg, var(--down-bg), var(--down-bg)), var(--s1); }
+.sigtbl td.arrow { width: 18px; color: var(--tx2); }
+.sigtbl tr.sub td { background: var(--s2); font-size: 12px; border-bottom-color: transparent; }

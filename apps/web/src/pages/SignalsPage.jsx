@@ -1,78 +1,110 @@
-import { useState } from "react";
-import { signalWhy, DESK_STATUS, deskStatusOf, hhmm, inr, num, strikeOf, tone } from "../lib/deskModel.js";
-import { Reason, Side, Strat } from "./parts.jsx";
+import { Fragment, useState } from "react";
+import { deskStatusOf, exitRule, hhmm, inr, num, strategyName, strikeOf, tone } from "../lib/deskModel.js";
+import { Side, TradeTable } from "./parts.jsx";
 
-const WHY = {
-  TRADED: "Desk took it on paper.",
-  SHADOW_PARKED: "Strategy is parked: tracked, not traded, not in P&L.",
-  BLOCKED_OPPOSITE_SIDE: "Skipped: the desk already held the other index on the opposite side.",
-  RISK_BLOCKED: "Skipped: a desk risk limit was hit (max open, day stop or trade cap).",
-  RISK_DAY_STOP: "Skipped: day stopped, loss limit.",
-  RISK_CAP_OPEN: "Skipped: max open trades reached.",
-  RISK_CAP_TRADES: "Skipped: trade cap reached.",
-  DUP_SAME_CONTRACT: "Same contract and minute as another strategy's trade; counted once.",
+/** Plain status for one fire. Only desk_status / guard values the backend writes (research_rules.py, desk_risk.py). */
+const BLOCK_WHY = {
+  BLOCKED_OPPOSITE_SIDE: "opposite side",
+  RISK_CAP_QTY: "10-lot cap",
+  DUP_SAME_CONTRACT: "duplicate",
+  RISK_DAY_STOP: "risk limit: day stop",
+  RISK_CAP_OPEN: "risk limit: max open",
+  RISK_CAP_TRADES: "risk limit: trade cap",
+  RISK_STALE_PRICES: "risk limit: stale prices",
+  RISK_BLOCKED: "risk limit",
+  SHADOW_PARKED: "shadow only",
 };
 
-function Card({ r, fb }) {
-  const s = deskStatusOf(r, fb);
-  const taken = s === "TRADED";
-  const ce = String(r.side).toUpperCase() === "CE";
-  const pnl = num(r.realized_pnl_inr);
+function fireStatus(r, fb) {
+  const code = String(r.desk_status || r.guard || fb || "TRADED").toUpperCase();
+  if (code === "TRADED") return { taken: true, text: "taken", code };
+  return { taken: false, text: `blocked: ${BLOCK_WHY[code] || code.replace(/_/g, " ").toLowerCase()}`, code };
+}
+
+const timeOf = (r) => r.sig_min || r.entry_min || hhmm(r.opened_ist) || "";
+
+/** One row per strategy + index; repeat fires update the row with the latest values. */
+export function groupByStrategy(fires) {
+  const map = new Map();
+  for (const f of fires) {
+    const r = f.r;
+    const key = `${r.book_id || r.rule_id || "—"}|${r.underlying || "—"}`;
+    const g = map.get(key) || { key, id: r.book_id || r.rule_id, und: r.underlying, fires: [] };
+    g.fires.push(f);
+    map.set(key, g);
+  }
+  return [...map.values()].map((g) => {
+    g.fires.sort((a, b) => timeOf(b.r).localeCompare(timeOf(a.r)));
+    g.latest = g.fires[0];
+    return g;
+  }).sort((a, b) => timeOf(b.latest.r).localeCompare(timeOf(a.latest.r)));
+}
+
+function Cells({ r, fb }) {
+  const st = fireStatus(r, fb);
+  const rule = exitRule(r);
   return (
-    <article className={`sig sig--${s.toLowerCase()} ${ce ? "sig--ce" : "sig--pe"}`} data-testid="signal-card">
-      <header>
-        <span className="sig__dir">{ce ? "▲ Buy Call" : "▼ Buy Put"}</span>
-        <span className={`tag tag--${DESK_STATUS[s].tone}`}>{DESK_STATUS[s].text}</span>
-      </header>
-      <div className="sig__sym"><b>{r.underlying}</b> <span className="num">{strikeOf(r) ?? "—"}</span> <Side side={r.side} /></div>
-      <dl className="sig__kv">
-        <div><dt>Time</dt><dd className="num">{r.sig_min || r.entry_min || hhmm(r.opened_ist) || "—"} IST</dd></div>
-        <div><dt>Strategy</dt><dd><Strat id={r.book_id || r.rule_id} /></dd></div>
-        <div><dt>Confidence</dt><dd className="num">{num(r.confidence) ?? num(r.score) ?? "—"}</dd></div>
-        {taken || s === "SHADOW_PARKED" ? <div><dt>Result</dt><dd className={`num ${tone(pnl)}`}>{pnl == null ? (r.closed_ts ? "—" : "open") : inr(pnl)}</dd></div> : null}
-      </dl>
-      <p className="sig__why"><b>Why:</b> {signalWhy(r)}</p>
-      <p className="sig__why">{r.dup_of ? `${WHY[s] || ""} (duplicate of ${r.dup_of})` : WHY[s]}{r.exit_reason && s !== "BLOCKED_OPPOSITE_SIDE" ? <> · <Reason code={r.exit_reason} /></> : null}</p>
-    </article>
+    <>
+      <td><Side side={r.side} /></td>
+      <td className="r num">{strikeOf(r) ?? "—"}</td>
+      <td className="r num">{num(r.spot_at_entry) ?? "—"}</td>
+      <td className="r num">{num(r.entry) ?? "—"}</td>
+      <td className="num small">{num(r.stop) != null ? num(r.stop) : rule.kind === "time" ? `time exit ${rule.at || "20 min"}` : "—"}</td>
+      <td><span className={`tag tag--${st.taken ? "ok" : st.code === "SHADOW_PARKED" ? "muted" : "warn"}`} title={st.code}>{st.text}</span>{st.taken && num(r.realized_pnl_inr) != null ? <b className={`num small ${tone(r.realized_pnl_inr)}`}> {inr(r.realized_pnl_inr)}</b> : null}</td>
+      <td className="num">{timeOf(r) || "—"}</td>
+    </>
   );
 }
 
-export function SignalsPage({ snap, dd }) {
+export function SignalsPage({ dd }) {
   const L = dd.lists;
-  const groups = [
-    { id: "all", label: "All" },
-    { id: "TRADED", label: "Traded" },
-    { id: "SHADOW_PARKED", label: "Shadow only" },
-    { id: "BLOCKED_OPPOSITE_SIDE", label: "Blocked" },
-    { id: "RISK", label: "Risk limit" },
-    { id: "DUP_SAME_CONTRACT", label: "Duplicate" },
-  ];
-  const rows = [
+  const fires = [
     ...[...dd.open, ...dd.closed].filter((t) => t.research_rule || t.desk_status).map((r) => ({ r, fb: "TRADED" })),
     ...L.parked.map((r) => ({ r, fb: "SHADOW_PARKED" })),
     ...L.blocked.map((r) => ({ r, fb: "BLOCKED_OPPOSITE_SIDE" })),
     ...L.dups.map((r) => ({ r, fb: "DUP_SAME_CONTRACT" })),
     ...L.riskBlocked.map((r) => ({ r, fb: "RISK_BLOCKED" })),
-  ].sort((a, b) => String(b.r.sig_min || b.r.entry_min || "").localeCompare(String(a.r.sig_min || a.r.entry_min || "")));
-  const [f, setF] = useState("all");
-  const isRisk = (x) => /^RISK/.test(deskStatusOf(x.r, x.fb));
-  const shown = rows.filter((x) => f === "all" || (f === "RISK" ? isRisk(x) : deskStatusOf(x.r, x.fb) === f));
-  const count = (id) => rows.filter((x) => (id === "RISK" ? isRisk(x) : deskStatusOf(x.r, x.fb) === id)).length;
-  const journal = (snap?.board?.decision_journal || []).filter((j) => j.stage === "boss").slice(0, 12);
+  ];
+  const groups = groupByStrategy(fires);
+  const [open, setOpen] = useState({});
   return (
     <div className="page" data-testid="signals-page">
-      <div className="seg seg--lg">
-        {groups.map((g) => <button key={g.id} type="button" className={f === g.id ? "is-on" : ""} onClick={() => setF(g.id)}>{g.label} <span className="num muted">{g.id === "all" ? rows.length : count(g.id)}</span></button>)}
-      </div>
-      {shown.length ? <div className="sig-grid">{shown.map((x) => <Card key={`${x.r.trade_id}|${x.fb}`} r={x.r} fb={x.fb} />)}</div> : <div className="panel empty">No research signals today{L.blocked.length + L.parked.length + L.dups.length === 0 ? " (the shadow / blocked lists arrive after the backend restart)" : ""}.</div>}
+      <section className="panel">
+        <header className="panel__head"><h2>Signals by strategy</h2><span className="muted">one row per strategy and index · latest fire shown · click ▸ for every fire today</span></header>
+        {groups.length ? (
+          <div className="tbl-wrap">
+            <table className="tbl sigtbl" data-testid="signals-by-strategy">
+              <thead><tr><th /><th>Strategy</th><th>Index</th><th>Side</th><th className="r">Strike</th><th className="r">Spot</th><th className="r">Entry</th><th>Stop / exit rule</th><th>Status</th><th>Latest</th><th className="r">Fires today</th></tr></thead>
+              <tbody>
+                {groups.map((g) => (
+                  <Fragment key={g.key}>
+                    <tr onClick={() => setOpen((o) => ({ ...o, [g.key]: !o[g.key] }))}>
+                      <td className="arrow">{open[g.key] ? "▾" : "▸"}</td>
+                      <td title={g.id}><b>{strategyName(g.id)}</b></td>
+                      <td><b>{g.und}</b></td>
+                      <Cells r={g.latest.r} fb={g.latest.fb} />
+                      <td className="r num"><b>{g.fires.length}</b></td>
+                    </tr>
+                    {open[g.key] ? g.fires.map((f, i) => (
+                      <tr key={`${g.key}|${f.r.trade_id}|${i}`} className="sub">
+                        <td /><td className="muted small">fire {g.fires.length - i}</td><td />
+                        <Cells r={f.r} fb={f.fb} />
+                        <td />
+                      </tr>
+                    )) : null}
+                  </Fragment>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : <div className="empty">No research signals yet today.</div>}
+      </section>
       <details className="panel details">
-        <summary>Details: old MIX desk decisions (boss stage, latest {journal.length})</summary>
-        <ul className="jrnl">
-          {journal.map((j, i) => (
-            <li key={i}><span className="num muted">{String(j.ts_ist || "").slice(11, 16)}</span> <b>{j.underlying}</b> <Side side={j.inputs?.side} /> <span className={`tag tag--${j.decision === "pass" ? "ok" : "muted"}`}>{j.decision === "pass" ? "picked" : "skipped"}</span> <span className="muted">{j.reason}</span></li>
-          ))}
-        </ul>
+        <summary>Details: full raw list of every fire ({fires.length})</summary>
+        <TradeTable rows={fires.map((f) => f.r)} kind="desk" />
       </details>
     </div>
   );
 }
+
+export { deskStatusOf };
