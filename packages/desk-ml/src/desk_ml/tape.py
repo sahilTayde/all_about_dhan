@@ -369,7 +369,19 @@ def dual_tape_dir(root: Optional[Path] = None) -> Path:
     return (root or repo_root()) / "data" / "recon" / "paper_watch" / "DUAL-TAPE"
 
 
+def is_carried_over(snap: dict[str, Any]) -> bool:
+    """2026-10-12: a dual-tape snap whose index is carried (carry_prev) or whose premium/chain came from
+    filler (premium unavailable), is not a fresh price."""
+    from trading_agents_india.dual_tape import carried_over_sources
+
+    return bool(carried_over_sources(index_source=snap.get("index_source"),
+                                     premium_source=snap.get("premium_source"),
+                                     chain_source=snap.get("chain_source")))
+
+
 def _snap_ltps(snap: dict[str, Any]) -> Optional[tuple[float, float, float]]:
+    if is_carried_over(snap):
+        return None  # flagged upstream (data_gaps CARRIED_OVER); never a fresh paper tick
     try:
         idx = float(snap["index_ltp"])
     except (KeyError, TypeError, ValueError):

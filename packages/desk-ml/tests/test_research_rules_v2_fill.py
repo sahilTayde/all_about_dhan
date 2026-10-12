@@ -70,7 +70,8 @@ def test_no_v2_folder_is_plain_dual_tape(tmp_path: Path) -> None:
     assert rr.load_v2_minutes(tmp_path, "NIFTY", DAY) == {}
 
 
-def test_replay_fill_flag_and_held_strike(tmp_path: Path) -> None:
+def test_replay_fill_flag_and_held_strike(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setenv("DESK_RR_SOURCE", "legacy")  # legacy path; V2-primary default is tested in test_rr_v2_primary.py
     _write_dual(tmp_path, ["10:30", "10:31"])
     _write_v2(tmp_path, ["10:32"])
     off = rr.replay(tmp_path, DAY, underlyings=("NIFTY",), fill_v2=False)

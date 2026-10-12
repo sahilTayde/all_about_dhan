@@ -250,6 +250,10 @@ def allowed(minutes: list[str], t: str) -> bool:
 
 
 def _bar_from_snap(snap: dict[str, Any], as_of: Any) -> Optional[dict[str, Any]]:
+    from desk_ml.tape import is_carried_over
+
+    if is_carried_over(snap):
+        return None  # carried-over / filler print (e.g. 2026-10-12 10:31-11:02 NIFTY): never a fresh bar
     idx = _num(snap.get("index_ltp"))
     ce = mid_or_ltp(snap.get("atm_ce_bid"), snap.get("atm_ce_ask"), snap.get("atm_ce_ltp"))
     pe = mid_or_ltp(snap.get("atm_pe_bid"), snap.get("atm_pe_ask"), snap.get("atm_pe_ltp"))
@@ -326,12 +330,22 @@ V2_INDEX_ID = {"NIFTY": "NSE_IDX:NIFTY", "SENSEX": "BSE_IDX:SENSEX"}
 V2_FNO_PREFIX = {"NIFTY": "NSE_FNO:NIFTY:", "SENSEX": "BSE_FNO:SENSEX:"}
 
 
-def _v2_lines(path: Path, needle: bytes) -> Iterable[dict[str, Any]]:
-    """Stream a V2 recorder jsonl, decoding only lines that contain `needle` (files run to ~1 GB)."""
+def _v2_lines(path: Path, needle: bytes, start: int = 0, stats: Optional[dict] = None) -> Iterable[dict[str, Any]]:
+    """Stream a V2 recorder jsonl from byte `start`, decoding only lines that contain `needle` (files run to
+    ~2 GB). Stops at the last complete line; `stats["end"]` = offset after it (for incremental reads)."""
+    if stats is not None:
+        stats["end"] = start
     if not path.is_file():
         return
     with path.open("rb") as fh:
+        fh.seek(start)
+        pos = start
         for raw in fh:
+            if not raw.endswith(b"\n"):
+                break  # recorder mid-write: read it next time
+            pos += len(raw)
+            if stats is not None:
+                stats["end"] = pos
             if needle not in raw:
                 continue
             try:
@@ -342,15 +356,28 @@ def _v2_lines(path: Path, needle: bytes) -> Iterable[dict[str, Any]]:
                 yield blob
 
 
+# Incremental V2 state per (root, underlying, day): live calls read only the bytes appended since the
+# last call, so V2-primary pricing does not rescan ~2 GB every loop cycle (that would add lag).
+_V2_STATE: dict[tuple[str, str, str], dict[str, Any]] = {}
+
+
 def load_v2_minutes(root: Path, underlying: str, day: str) -> dict[str, dict[str, Any]]:
     """Minute bars from the V2 recorder (data/tape/v2/<day>/): index = last NSE/BSE_IDX print of the
     minute (depth_quotes); option quotes = last non-null QUOTE_SNAPSHOT per strike/side of the minute
     (bid/ask/ltp). ATM = the snapshot rule ATM strike. Same bar shape as load_atm_minutes, plus
-    source="v2". Read-only."""
+    source="v2". Read-only. Incremental across calls (files only grow)."""
     und = underlying.upper()
     folder = Path(root).joinpath(*V2_TAPE_DIR, day)
-    idx_by_min: dict[str, tuple[int, float]] = {}
-    for blob in _v2_lines(folder / "depth_quotes.jsonl", V2_INDEX_ID[und].encode()):
+    key = (str(Path(root).resolve()), und, day)
+    st = _V2_STATE.get(key)
+    dq, qs = folder / "depth_quotes.jsonl", folder / "quote_snapshots.jsonl"
+    sizes = (dq.stat().st_size if dq.is_file() else 0, qs.stat().st_size if qs.is_file() else 0)
+    if st is None or sizes[0] < st["off_dq"] or sizes[1] < st["off_qs"]:  # new or truncated: start over
+        st = {"off_dq": 0, "off_qs": 0, "idx": {}, "quotes": {}, "atm": {}, "ts": {}}
+        _V2_STATE[key] = st
+    idx_by_min, quotes, atm_by_min, ts_by_min = st["idx"], st["quotes"], st["atm"], st["ts"]
+    stats: dict = {}
+    for blob in _v2_lines(dq, V2_INDEX_ID[und].encode(), st["off_dq"], stats):
         pay = blob["payload"]
         if pay.get("instrument_id") != V2_INDEX_ID[und]:
             continue
@@ -361,11 +388,10 @@ def load_v2_minutes(root: Path, underlying: str, day: str) -> dict[str, dict[str
         hhmm = datetime.fromtimestamp(ts, IST).strftime("%H:%M")
         if hhmm not in idx_by_min or ts >= idx_by_min[hhmm][0]:
             idx_by_min[hhmm] = (ts, ltp)
+    st["off_dq"] = stats.get("end", st["off_dq"])
     prefix = V2_FNO_PREFIX[und]
-    quotes: dict[str, dict[float, dict[str, Any]]] = {}
-    atm_by_min: dict[str, float] = {}
-    ts_by_min: dict[str, int] = {}
-    for blob in _v2_lines(folder / "quote_snapshots.jsonl", prefix.encode()):
+    stats = {}
+    for blob in _v2_lines(qs, prefix.encode(), st["off_qs"], stats):
         pay = blob["payload"]
         iid = str(pay.get("instrument_id") or "")
         if not iid.startswith(prefix):
@@ -384,14 +410,15 @@ def load_v2_minutes(root: Path, underlying: str, day: str) -> dict[str, dict[str
             continue
         hhmm = datetime.fromtimestamp(ts, IST).strftime("%H:%M")
         cell = quotes.setdefault(hhmm, {}).setdefault(strike, {})
-        key = side.lower()
-        cell[key] = mid_or_ltp(bid, ask, ltp)
-        cell[f"{key}_bid"] = bid
-        cell[f"{key}_ask"] = ask
-        cell[f"{key}_ltp"] = ltp
+        k = side.lower()
+        cell[k] = mid_or_ltp(bid, ask, ltp)
+        cell[f"{k}_bid"] = bid
+        cell[f"{k}_ask"] = ask
+        cell[f"{k}_ltp"] = ltp
         if pay.get("rule") == "ATM":
             atm_by_min[hhmm] = strike
         ts_by_min[hhmm] = max(ts, ts_by_min.get(hhmm, 0))
+    st["off_qs"] = stats.get("end", st["off_qs"])
     out: dict[str, dict[str, Any]] = {}
     for hhmm in sorted(quotes):
         atm = atm_by_min.get(hhmm)
@@ -401,12 +428,22 @@ def load_v2_minutes(root: Path, underlying: str, day: str) -> dict[str, dict[str
         cell = quotes[hhmm].get(atm) or {}
         if cell.get("ce") is None or cell.get("pe") is None:
             continue
-        wings = {(str(int(k)) if k == int(k) else str(k)): v for k, v in quotes[hhmm].items()}
+        wings = {(str(int(k)) if k == int(k) else str(k)): dict(v) for k, v in quotes[hhmm].items()}
         ts = ts_by_min[hhmm]
         out[hhmm] = {"idx": idx[1], "ce": cell["ce"], "pe": cell["pe"], "atm": atm, "ts": int(ts),
                      "hhmm": hhmm, "ist": datetime.fromtimestamp(ts, IST).isoformat(timespec="seconds"),
                      "wings": wings, "source": "v2"}
     return out
+
+
+def load_minutes_v2_primary(root: Path, underlying: str, day: str) -> dict[str, dict[str, Any]]:
+    """2026-10-12: V2 recorder is the PRIMARY price/signal source; the legacy DUAL-TAPE only fills minutes
+    V2 lacks (bar["source"] == "dual_tape_fallback"). Carried-over legacy snaps are already dropped."""
+    bars = {m: dict(b) for m, b in load_v2_minutes(root, underlying, day).items()}
+    for hhmm, bar in load_atm_minutes(root, underlying, day).items():
+        if hhmm not in bars:
+            bars[hhmm] = {**bar, "source": "dual_tape_fallback"}
+    return dict(sorted(bars.items()))
 
 
 def load_minutes_filled(root: Path, underlying: str, day: str) -> dict[str, dict[str, Any]]:
@@ -915,9 +952,15 @@ def replay(
         moved = [r for r in live_rules if r["rule_id"] in off and r["rule_id"] not in entry_before]
         live_rules = [r for r in live_rules if r not in moved]
         shadow_rules += [r for r in moved if r not in shadow_rules]
-    if fill_v2 is None:  # off on the live board by default: the V2 files are ~1 GB per day
+    # 2026-10-12: V2 primary (incremental reads), legacy DUAL-TAPE fallback. DESK_RR_SOURCE=legacy reverts.
+    source = os.environ.get("DESK_RR_SOURCE", "v2").strip().lower()
+    if fill_v2 is None:
         fill_v2 = os.environ.get("DESK_RR_V2_FILL", "").strip() in {"1", "true", "yes", "on"}
-    loader = load_minutes_filled if fill_v2 else load_atm_minutes
+    if source == "legacy":
+        loader = load_minutes_filled if fill_v2 else load_atm_minutes
+    else:
+        loader = load_minutes_v2_primary
+        fill_v2 = True
     bars_by = {und: loader(Path(root), und, day) for und in underlyings}
     from desk_ml import desk_risk
 
@@ -969,6 +1012,7 @@ def replay(
         "qty": dict(QTY),
         "lots": LOTS,
         "v2_fill": bool(fill_v2),
+        "price_source": "legacy" if source == "legacy" else "v2_primary+dual_tape_fallback",
         "pricing": "ask-in / bid-out (mid fallback flagged), costs 1.5x #84",
         "open": opens,
         "closed": closed,
