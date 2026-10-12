@@ -201,7 +201,7 @@ def signal(
     k = int(params["k"])
     past = mplus(t, -k)
     now = bars.get(t)
-    then = bars.get(past)
+    then = _bar_near(bars, past, back=True)
     if not now or not then:
         return None
     idx_t = _num(now.get("idx"))
@@ -333,13 +333,22 @@ def _ist_iso(ts: int) -> str:
     return datetime.fromtimestamp(int(ts), IST).isoformat(timespec="seconds")
 
 
+COST_MULT = 1.5  # spec PREREG_PRIMARY: 1.5x the #84 fixture
+
+
 def _cost_row(*, entry: float, exit_px: float, qty: int, filled: bool) -> dict[str, Any]:
-    return groww_round_trip_charges(
+    raw = groww_round_trip_charges(
         exit_premium=float(exit_px),
         entry_premium=float(entry),
         qty=int(qty),
         filled=bool(filled),
     )
+    out = dict(raw)
+    for key, val in raw.items():
+        if key.endswith("_inr") and isinstance(val, (int, float)):
+            out[key] = round(float(val) * COST_MULT, 2)
+    out["cost_mult"] = COST_MULT
+    return out
 
 
 def _trade_row(
@@ -426,7 +435,7 @@ def _trade_row(
         "execution": "refused",
         "orders": "REFUSED",
         "promote": False,
-        "cost_fixture": "groww_round_trip_charges#84",
+        "cost_fixture": "groww_round_trip_charges#84x1.5",
     }
     if charges:
         row["n_executed_orders"] = charges["n_executed_orders"]
@@ -470,13 +479,84 @@ def _with_exit_variants(
     return row
 
 
+GAP_TOL_MIN = 1        # D1: entry / look-back may use the nearest priced minute within 1 min
+EXIT_TOL_MIN = 2       # D3: exit at the priced minute nearest the spec exit within +-2 min
+LIVE_RULE_IDS = (R01, R01_B3A)   # D5: R02 PARKED -> shadow only
+SHADOW_RULE_IDS = (R02,)
+# R02 trades the desk already took before parking stay on the desk (history is never erased).
+PARK_FROM_IST = {R02: {"2026-10-12": "11:50"}}  # other days: parked from the open
+
+
+def _park_from(rule_id: str, day: str) -> Optional[str]:
+    days = PARK_FROM_IST.get(rule_id)
+    if days is None:
+        return None
+    return days.get(day, "00:00")
+
+
+def _bar_near(bars: dict[str, dict[str, Any]], hhmm: str, *, back: bool, tol: int = GAP_TOL_MIN) -> Optional[dict[str, Any]]:
+    for n in range(0, tol + 1):
+        bar = bars.get(mplus(hhmm, -n if back else n))
+        if bar is not None:
+            return bar
+    return None
+
+
+def strike_quote(bar: dict[str, Any], side: str, strike: float, kind: str) -> tuple[Optional[float], Optional[str]]:
+    """D2: ask for entries, bid for exits. Falls back to mid/LTP (flagged) only if the book side is missing."""
+    cell = _wing_cell(bar.get("wings") or {}, strike)
+    key = f"{side.lower()}_{kind}"
+    px = _num(cell.get(key))
+    if px is not None and px > 0:
+        return px, None
+    mid = strike_premium(bar, side, strike)
+    return (mid, f"{kind.upper()}_MISSING_MID") if mid is not None else (None, None)
+
+
+def _hm(x: str) -> int:
+    return int(x[:2]) * 60 + int(x[3:])
+
+
+def _pick_exit(bars, minutes, *, side, strike, spec_exit, entry_min, last_hhmm):
+    """D3: exit at the spec minute if priced; else the priced minute nearest it within +-EXIT_TOL_MIN
+    (tie -> earlier); else the last priced minute at/before it. Never later than spec+tol.
+    Returns (minute, bid, flag) or None while undecided."""
+    if last_hhmm < spec_exit:
+        return None
+    if spec_exit in bars:
+        px, flag = strike_quote(bars[spec_exit], side, strike, "bid")
+        if px is not None:
+            return spec_exit, px, flag
+    if last_hhmm < mplus(spec_exit, EXIT_TOL_MIN):
+        return None  # a nearer minute inside the window may still arrive
+    lo, hi = mplus(spec_exit, -EXIT_TOL_MIN), mplus(spec_exit, EXIT_TOL_MIN)
+    cands = []
+    for m in minutes:
+        if entry_min < m and lo <= m <= hi:
+            px, flag = strike_quote(bars[m], side, strike, "bid")
+            if px is not None:
+                cands.append((abs(_hm(m) - _hm(spec_exit)), m, px, flag))
+    if cands:
+        _, m, px, flag = min(cands)
+        return m, px, ",".join(f for f in (flag, "EXIT_SHIFTED") if f)
+    for m in reversed([m for m in minutes if entry_min < m <= spec_exit]):
+        px, flag = strike_quote(bars[m], side, strike, "bid")
+        if px is not None:
+            return m, px, ",".join(f for f in (flag, "EXIT_EARLY_NO_QUOTE") if f)
+    return None
+
+
 def replay_underlying(
     bars: dict[str, dict[str, Any]],
     *,
     underlying: str,
     day: str,
     rules: Sequence[dict[str, Any]] = FROZEN_RULES,
+    skip: Optional[set] = None,
+    entry_before: Optional[dict[str, str]] = None,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    skip = skip or set()
+    entry_before = entry_before or {}
     minutes = list(bars)
     opens: list[dict[str, Any]] = []
     closed: list[dict[str, Any]] = []
@@ -490,87 +570,51 @@ def replay_underlying(
             side = signal(rule, bars, t, underlying=underlying)
             if not side:
                 continue
+            if entry_before.get(rule["rule_id"]) is not None and mplus(t, 1) >= entry_before[rule["rule_id"]]:
+                continue  # parked from here on: not a desk trade
+            if (rule["rule_id"], underlying, t) in skip:
+                continue  # D6: guard-blocked signal -> not traded, rule not busy
             atm = _num(bars[t].get("atm"))
             if atm is None:
                 continue
-            entry_min = mplus(t, 1)
-            exit_min = mplus(entry_min, hold)
-            entry_bar = bars.get(entry_min)
+            entry_bar = _bar_near(bars, mplus(t, 1), back=False)
             if entry_bar is None:
                 continue
-            entry = strike_premium(entry_bar, side, atm)
+            entry_min = entry_bar["hhmm"]
+            entry, entry_flag = strike_quote(entry_bar, side, atm, "ask")
             if entry is None:
                 continue
-            # 2026-10-12: if the exact exit minute is missing (feed gap), close on the first
-            # later minute that has a price for this strike, instead of leaving it open forever.
-            late = [m for m in minutes if m >= exit_min and strike_premium(bars[m], side, atm) is not None]
-            if last_hhmm >= exit_min and late:
-                exit_min = late[0]
+            spec_exit = mplus(entry_min, hold)
+            pick = _pick_exit(bars, minutes, side=side, strike=atm, spec_exit=spec_exit,
+                              entry_min=entry_min, last_hhmm=last_hhmm)
+            flags = [f for f in (entry_flag,) if f]
+            if pick is not None:
+                exit_min, mark, exit_flag = pick
+                if exit_flag:
+                    flags.append(exit_flag)
                 mark_bar = bars[exit_min]
-                mark = strike_premium(mark_bar, side, atm)
-                closed.append(
-                    _with_exit_variants(
-                        _trade_row(
-                            rule=rule,
-                            underlying=underlying,
-                            side=side,
-                            strike=atm,
-                            sig_min=t,
-                            entry_min=entry_min,
-                            exit_min=exit_min,
-                            entry=entry,
-                            mark=mark,
-                            day=day,
-                            entry_bar=entry_bar,
-                            mark_bar=mark_bar,
-                            closed=True,
-                            reason="TIME",
-                        ),
-                        bars,
-                        side=side,
-                        strike=atm,
-                        entry=entry,
-                        entry_min=entry_min,
-                        exit_min=exit_min,
-                        hold=hold,
-                    )
-                )
-                busy = exit_min
+                row = _trade_row(rule=rule, underlying=underlying, side=side, strike=atm, sig_min=t,
+                                 entry_min=entry_min, exit_min=exit_min, entry=entry, mark=mark, day=day,
+                                 entry_bar=entry_bar, mark_bar=mark_bar, closed=True, reason="TIME")
+                row["spec_exit_min"] = spec_exit
+                row["price_flags"] = flags
+                closed.append(_with_exit_variants(row, bars, side=side, strike=atm, entry=entry,
+                                                  entry_min=entry_min, exit_min=exit_min, hold=hold))
+                busy = max(exit_min, spec_exit)
             elif last_hhmm >= entry_min:
                 mark_bar = bars.get(last_hhmm)
-                mark = strike_premium(mark_bar, side, atm) if mark_bar else entry
+                mark = strike_quote(mark_bar, side, atm, "bid")[0] if mark_bar else None
                 if mark is None:
                     mark = entry
-                opens.append(
-                    _with_exit_variants(
-                        _trade_row(
-                            rule=rule,
-                            underlying=underlying,
-                            side=side,
-                            strike=atm,
-                            sig_min=t,
-                            entry_min=entry_min,
-                            exit_min=exit_min,
-                            entry=entry,
-                            mark=mark,
-                            day=day,
-                            entry_bar=entry_bar,
-                            mark_bar=mark_bar,
-                            closed=False,
-                            reason=None,
-                        ),
-                        bars,
-                        side=side,
-                        strike=atm,
-                        entry=entry,
-                        entry_min=entry_min,
-                        exit_min=min(exit_min, last_hhmm),
-                        hold=hold,
-                    )
-                )
-                busy = exit_min
+                row = _trade_row(rule=rule, underlying=underlying, side=side, strike=atm, sig_min=t,
+                                 entry_min=entry_min, exit_min=spec_exit, entry=entry, mark=mark, day=day,
+                                 entry_bar=entry_bar, mark_bar=mark_bar, closed=False, reason=None)
+                row["spec_exit_min"] = spec_exit
+                row["price_flags"] = flags
+                opens.append(_with_exit_variants(row, bars, side=side, strike=atm, entry=entry,
+                                                 entry_min=entry_min, exit_min=min(spec_exit, last_hhmm), hold=hold))
+                busy = mplus(spec_exit, EXIT_TOL_MIN)
     return opens, closed
-
 
 
 # Guard go-live per IST day (HH:MM). Trades entered before it are history and are never erased.
@@ -590,24 +634,23 @@ def guard_from(day: str) -> str:
 
 
 def _same_direction_guard(opens, closed, day: str = ""):
-    """Sahil 2026-10-12: NIFTY and SENSEX move together. Drop any trade opened while another
-    underlying holds the opposite side (earlier signal wins). Blocked trades are listed, not traded."""
+    """Never hold NIFTY and SENSEX on opposite sides at once (earlier entry wins). Trades entered before
+    the guard went live are kept with real P&L. Blocked trades are listed, not traded."""
     rows = [(r, True) for r in opens] + [(r, False) for r in closed]
-    rows.sort(key=lambda x: str(x[0].get("signal_min") or x[0].get("sig_min") or x[0].get("entry_min") or ""))
+    rows.sort(key=lambda x: (str(x[0].get("entry_min") or ""), str(x[0].get("sig_min") or "")))
     kept = []
     blocked = []
     for r, is_open in rows:
         t = str(r.get("entry_min") or "")
         if t < guard_from(day or str(r.get("day") or "")):
-            kept.append((r, is_open))  # already happened before the guard existed: keep with real P&L
+            kept.append((r, is_open))
             continue
         clash = False
-        for k, _ in kept:
+        for k, k_open in kept:
             if k.get("underlying") == r.get("underlying") or k.get("side") == r.get("side"):
                 continue
-            ks, ke = str(k.get("entry_min") or ""), str(k.get("exit_min") or "99:99")
-            if not k.get("status") == "CLOSED":
-                ke = "99:99" if not k.get("exit_min") else ke
+            ks = str(k.get("entry_min") or "")
+            ke = "99:99" if k_open else str(k.get("exit_min") or "99:99")
             if ks <= t < ke:
                 clash = True
                 break
@@ -617,31 +660,59 @@ def _same_direction_guard(opens, closed, day: str = ""):
             kept.append((r, is_open))
     return [r for r, o in kept if o], [r for r, o in kept if not o], blocked
 
+
 def replay(
     root: Path,
     day: str,
     *,
     underlyings: Iterable[str] = UNDERLYINGS,
-    rules: Sequence[dict[str, Any]] = FROZEN_RULES,
+    rules: Optional[Sequence[dict[str, Any]]] = None,
 ) -> dict[str, Any]:
-    opens: list[dict[str, Any]] = []
-    closed: list[dict[str, Any]] = []
-    per: dict[str, Any] = {}
-    for und in underlyings:
-        bars = load_atm_minutes(Path(root), und, day)
-        u_open, u_closed = replay_underlying(bars, underlying=und, day=day, rules=rules)
-        opens.extend(u_open)
-        closed.extend(u_closed)
-        per[und] = {"n_minutes": len(bars), "n_open": len(u_open), "n_closed": len(u_closed)}
-    opens, closed, blocked = _same_direction_guard(opens, closed, day)
+    live_rules = [r for r in FROZEN_RULES if r["rule_id"] in LIVE_RULE_IDS] if rules is None else list(rules)
+    entry_before: dict[str, str] = {}
+    if rules is None:
+        for r in FROZEN_RULES:
+            pf = _park_from(r["rule_id"], day)
+            if r["rule_id"] in SHADOW_RULE_IDS and pf and pf > "00:00":
+                live_rules.append(r)  # pre-park history only
+                entry_before[r["rule_id"]] = pf
+    shadow_rules = [r for r in FROZEN_RULES if r["rule_id"] in SHADOW_RULE_IDS] if rules is None else []
+    bars_by = {und: load_atm_minutes(Path(root), und, day) for und in underlyings}
+    skip: set = set()
+    blocked: list[dict[str, Any]] = []
+    for _ in range(10):  # D6: re-run without blocked signals until the blocked set is stable
+        opens, closed = [], []
+        for und, bars in bars_by.items():
+            o, c = replay_underlying(bars, underlying=und, day=day, rules=live_rules, skip=skip,
+                                    entry_before=entry_before)
+            opens.extend(o); closed.extend(c)
+        opens, closed, new_blocked = _same_direction_guard(opens, closed, day)
+        blocked.extend(new_blocked)
+        add = {(b["rule_id"], b["underlying"], b["sig_min"]) for b in new_blocked}
+        if not add - skip:
+            break
+        skip |= add
+    shadow_open, shadow_closed = [], []
+    for und, bars in bars_by.items():
+        o, c = replay_underlying(bars, underlying=und, day=day, rules=shadow_rules)
+        shadow_open.extend(o); shadow_closed.extend(c)
+    per = {und: {"n_minutes": len(bars_by[und]),
+                 "n_open": sum(1 for r in opens if r["underlying"] == und),
+                 "n_closed": sum(1 for r in closed if r["underlying"] == und)} for und in bars_by}
+    uniq = {}
+    for b in blocked:
+        uniq[(b["rule_id"], b["underlying"], b["sig_min"])] = b
     return {
-        "guard_blocked": blocked,
+        "guard_blocked": list(uniq.values()),
+        "shadow_parked": {"rule_ids": [r["rule_id"] for r in shadow_rules], "open": shadow_open,
+                          "closed": shadow_closed, "note": "PARKED rules: computed, not traded, not in desk P&L"},
         "enabled": True,
         "flag": FLAG_ENV,
-        "rule_ids": [r["rule_id"] for r in rules],
+        "rule_ids": [r["rule_id"] for r in live_rules],
         "underlyings": list(underlyings),
         "qty": dict(QTY),
         "lots": LOTS,
+        "pricing": "ask-in / bid-out (mid fallback flagged), costs 1.5x #84",
         "open": opens,
         "closed": closed,
         "per_underlying": per,
@@ -695,7 +766,7 @@ def attach_to_board(
         "execution": "refused",
         "orders": "REFUSED",
         "promote": False,
-        "cost_fixture": "groww_round_trip_charges#84",
+        "cost_fixture": "groww_round_trip_charges#84x1.5",
     }
     try:
         journal = base / "data" / "recon" / "research_rules" / f"{day}.json"
