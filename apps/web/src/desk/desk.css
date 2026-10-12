@@ -872,3 +872,351 @@
   }
   .pipe-legend { display: none; }
 }
+
+/* Action bar + shared dark buttons (desk + customer SizeForm).
+   Without these, .btn falls back to the browser's white chrome on --bg. */
+.action-bar,
+.btn-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem;
+  min-width: 0;
+}
+
+.action-bar {
+  margin: 0.15rem 0 0.1rem;
+}
+
+.btn {
+  appearance: none;
+  -webkit-appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  margin: 0;
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  color: var(--ink);
+  border-radius: 999px;
+  padding: 0.38rem 0.85rem;
+  font: inherit;
+  font-size: 0.78rem;
+  letter-spacing: 0.02em;
+  line-height: 1.2;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.btn svg {
+  flex-shrink: 0;
+  color: currentColor;
+}
+
+.btn:hover {
+  border-color: var(--line-strong);
+  background: #222c38;
+  color: var(--ink);
+}
+
+.btn:focus-visible {
+  outline: none;
+  border-color: var(--inprogress);
+  box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px rgba(91, 156, 255, 0.55);
+}
+
+.btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.btn--ghost {
+  background: var(--bg-2);
+  border-color: var(--line);
+  color: var(--ink);
+}
+
+.btn--ghost:hover {
+  background: var(--surface-2);
+  border-color: var(--line-strong);
+}
+
+.btn--secondary {
+  background: var(--surface);
+  border-color: var(--line-strong);
+  color: var(--ink);
+}
+
+.btn--secondary:hover {
+  background: var(--surface-2);
+  border-color: #4a5d73;
+}
+
+.btn--primary {
+  background: #152033;
+  border-color: var(--inprogress);
+  color: #cfe3ff;
+}
+
+.btn--primary:hover,
+.btn--primary:focus-visible {
+  background: #1c2c44;
+  border-color: #7eb6ff;
+  color: #e8f1ff;
+}
+
+.btn--danger {
+  background: #241016;
+  border-color: #6a323a;
+  color: #f0c8cc;
+}
+
+.btn--danger:hover,
+.btn--danger:focus-visible {
+  background: #3a1c22;
+  border-color: var(--no);
+  color: #ffd5d8;
+}
+
+.confirm-root {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+}
+
+.confirm-card {
+  position: relative;
+  z-index: 1;
+  width: min(26rem, 100%);
+  padding: 1.1rem 1.15rem 1.15rem;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: var(--shadow);
+}
+
+.confirm-card h3 {
+  margin: 0 0 0.4rem;
+  font-size: 1.05rem;
+  letter-spacing: -0.02em;
+  text-transform: none;
+  color: var(--ink);
+}
+
+.size-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.55rem 0.75rem;
+  margin: 0.7rem 0 0;
+}
+
+.stepper {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.stepper .btn {
+  min-width: 2rem;
+  padding: 0.28rem 0.55rem;
+}
+
+.stepper strong {
+  min-width: 1.4rem;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.desk-sticky {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: grid;
+  gap: 0.55rem;
+  padding-bottom: 0.45rem;
+  background: var(--bg);
+}
+
+.replay-pill {
+  flex-shrink: 0;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  border: 1px solid #6b5720;
+  color: #d4b896;
+  background: #241c10;
+  border-radius: 999px;
+  padding: 0.12rem 0.5rem;
+}
+
+.health-strip--ok {
+  border-color: #2d5a45;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.current-trade__empty {
+  padding: 0.15rem 0 0.2rem;
+}
+
+.customer-ticket--empty {
+  opacity: 0.96;
+}
+
+.day-pnl--glow {
+  box-shadow: var(--shadow), 0 0 28px rgba(91, 156, 255, 0.08);
+}
+
+.panel-scroll {
+  max-height: 22rem;
+  overflow: auto;
+  scrollbar-width: thin;
+}
+
+.skeleton {
+  display: grid;
+  gap: 0.55rem;
+  padding: 0.4rem 0;
+}
+
+.skeleton i {
+  display: block;
+  height: 0.85rem;
+  border-radius: 6px;
+  background: linear-gradient(90deg, var(--surface) 0%, var(--surface-2) 50%, var(--surface) 100%);
+}
+
+.heatmap {
+  display: grid;
+  grid-template-columns: minmax(6.4rem, 1.15fr) repeat(4, minmax(0, 1fr));
+  gap: 0.35rem;
+  align-items: stretch;
+  margin-top: 0.35rem;
+}
+
+.heatmap__row {
+  display: contents;
+}
+
+.heatmap__corner,
+.heatmap__colh,
+.heatmap__rowh,
+.heatmap__cell {
+  min-width: 0;
+  padding: 0.4rem 0.45rem;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  color: var(--ink);
+  font-size: 0.72rem;
+}
+
+.heatmap__corner {
+  border-color: transparent;
+  background: transparent;
+}
+
+.heatmap__colh,
+.heatmap__rowh {
+  color: var(--ink-soft);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-size: 0.62rem;
+}
+
+.heatmap__cell {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.heatmap__cell--empty {
+  color: var(--ink-soft);
+  background: var(--bg-2);
+}
+
+.heatmap__cell--up {
+  background: #10241c;
+  border-color: #2d5a45;
+}
+
+.heatmap__cell--down {
+  background: #241016;
+  border-color: #6a323a;
+}
+
+.heatmap__cell--flat {
+  color: var(--ink-soft);
+}
+
+.dot-streak {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.22rem;
+  margin: 0.4rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.dot-streak__el {
+  width: 0.48rem;
+  height: 0.48rem;
+  border-radius: 50%;
+  background: var(--expired);
+}
+
+.dot-streak__el--up { background: var(--yes); }
+.dot-streak__el--down { background: var(--no); }
+.dot-streak__el--flat { background: var(--ink-soft); }
+
+.gauge {
+  display: grid;
+  justify-items: center;
+  gap: 0.1rem;
+  color: var(--ink);
+  font-size: 0.72rem;
+}
+
+.gauge svg {
+  display: block;
+}
+
+.gauge__track {
+  fill: none;
+  stroke: var(--surface-2);
+  stroke-width: 6;
+}
+
+.gauge__arc {
+  fill: none;
+  stroke: var(--yes);
+  stroke-width: 6;
+  stroke-linecap: round;
+}
+
+.gauge--down .gauge__arc { stroke: var(--no); }
+.gauge--empty { color: var(--ink-soft); }
+
+.journey-spark__area {
+  fill: url(#journey-fill);
+}
+
+.journey-spark__dot {
+  fill: var(--ink);
+}
