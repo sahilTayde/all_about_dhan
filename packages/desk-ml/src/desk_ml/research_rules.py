@@ -620,18 +620,20 @@ def _hm(x: str) -> int:
     return int(x[:2]) * 60 + int(x[3:])
 
 
-def _pick_exit(bars, minutes, *, side, strike, spec_exit, entry_min, last_hhmm):
+def _pick_exit(bars, minutes, *, side, strike, spec_exit, entry_min, last_hhmm, now_hhmm=None):
     """D3: exit at the spec minute if priced; else the priced minute nearest it within +-EXIT_TOL_MIN
     (tie -> earlier); else the last priced minute at/before it. Never later than spec+tol.
-    Returns (minute, bid, flag) or None while undecided."""
-    if last_hhmm < spec_exit:
+    Decided as soon as the tape has a minute past the exit (no later minute can be nearer) or the
+    wall clock (`now_hhmm`, live only) reaches the exit. Returns (minute, bid, flag) or None."""
+    clock = max(last_hhmm, now_hhmm) if now_hhmm else last_hhmm
+    if clock < spec_exit:
         return None
     if spec_exit in bars:
         px, flag = strike_quote(bars[spec_exit], side, strike, "bid")
         if px is not None:
             return spec_exit, px, flag
-    if last_hhmm < mplus(spec_exit, EXIT_TOL_MIN):
-        return None  # a nearer minute inside the window may still arrive
+    # 2026-10-12 fix: the old rule waited for the tape to reach spec+2. The DUAL-TAPE writes every
+    # ~1-3 min and can stall, so H20 trades sat OPEN past their exit (R01 NIFTY 11:57 -> 12:19).
     lo, hi = mplus(spec_exit, -EXIT_TOL_MIN), mplus(spec_exit, EXIT_TOL_MIN)
     cands = []
     for m in minutes:
@@ -646,7 +648,13 @@ def _pick_exit(bars, minutes, *, side, strike, spec_exit, entry_min, last_hhmm):
         px, flag = strike_quote(bars[m], side, strike, "bid")
         if px is not None:
             return m, px, ",".join(f for f in (flag, "EXIT_EARLY_NO_QUOTE") if f)
-    return None
+    # no quote for the held strike anywhere in (entry, spec]: first priced minute after it, else
+    # the entry price itself (flat, flagged). Never left open.
+    for m in [m for m in minutes if m > spec_exit]:
+        px, flag = strike_quote(bars[m], side, strike, "bid")
+        if px is not None:
+            return m, px, ",".join(f for f in (flag, "EXIT_LATE_NO_QUOTE") if f)
+    return entry_min, None, "EXIT_NO_QUOTE_AT_ENTRY_PX"
 
 
 def replay_underlying(
@@ -657,6 +665,7 @@ def replay_underlying(
     rules: Sequence[dict[str, Any]] = FROZEN_RULES,
     skip: Optional[set] = None,
     entry_before: Optional[dict[str, str]] = None,
+    now_hhmm: Optional[str] = None,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     skip = skip or set()
     entry_before = entry_before or {}
@@ -689,10 +698,12 @@ def replay_underlying(
                 continue
             spec_exit = mplus(entry_min, hold)
             pick = _pick_exit(bars, minutes, side=side, strike=atm, spec_exit=spec_exit,
-                              entry_min=entry_min, last_hhmm=last_hhmm)
+                              entry_min=entry_min, last_hhmm=last_hhmm, now_hhmm=now_hhmm)
             flags = [f for f in (entry_flag,) if f]
             if pick is not None:
                 exit_min, mark, exit_flag = pick
+                if mark is None:
+                    mark = entry
                 if exit_flag:
                     flags.append(exit_flag)
                 mark_bar = bars[exit_min]
@@ -771,6 +782,7 @@ def replay(
     underlyings: Iterable[str] = UNDERLYINGS,
     rules: Optional[Sequence[dict[str, Any]]] = None,
     fill_v2: Optional[bool] = None,
+    now_hhmm: Optional[str] = None,
 ) -> dict[str, Any]:
     live_rules = [r for r in FROZEN_RULES if r["rule_id"] in LIVE_RULE_IDS] if rules is None else list(rules)
     entry_before: dict[str, str] = {}
@@ -791,7 +803,7 @@ def replay(
         opens, closed = [], []
         for und, bars in bars_by.items():
             o, c = replay_underlying(bars, underlying=und, day=day, rules=live_rules, skip=skip,
-                                    entry_before=entry_before)
+                                    entry_before=entry_before, now_hhmm=now_hhmm)
             opens.extend(o); closed.extend(c)
         opens, closed, new_blocked = _same_direction_guard(opens, closed, day)
         blocked.extend(new_blocked)
@@ -801,7 +813,7 @@ def replay(
         skip |= add
     shadow_open, shadow_closed = [], []
     for und, bars in bars_by.items():
-        o, c = replay_underlying(bars, underlying=und, day=day, rules=shadow_rules)
+        o, c = replay_underlying(bars, underlying=und, day=day, rules=shadow_rules, now_hhmm=now_hhmm)
         shadow_open.extend(o); shadow_closed.extend(c)
     per = {und: {"n_minutes": len(bars_by[und]),
                  "n_open": sum(1 for r in opens if r["underlying"] == und),
@@ -848,7 +860,9 @@ def attach_to_board(
     base = Path(root) if root is not None else repo_root()
     day = str(out.get("session_ist_date") or datetime.now(IST).date().isoformat())
     try:
-        result = replay(base, day)
+        now = datetime.now(IST)
+        # live day: the wall clock closes an H20 trade at its exit even if the tape is behind
+        result = replay(base, day, now_hhmm=now.strftime("%H:%M") if now.date().isoformat() == day else None)
     except Exception as exc:  # noqa: BLE001 — SOD board must still publish
         out["research_rules"] = {
             "enabled": True,

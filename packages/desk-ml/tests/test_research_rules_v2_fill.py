@@ -83,3 +83,38 @@ def test_replay_fill_flag_and_held_strike(tmp_path: Path) -> None:
                         closed=True, reason="TIME")
     assert row["held_strike"] == 25000.0
     assert row["entry_price_source"] == "v2_fill" and row["exit_price_source"] == "dual_tape"
+
+
+def _pe_bars(minutes: list[str], strike: float = 22350.0) -> dict:
+    out = {}
+    for i, m in enumerate(minutes):
+        out[m] = {"hhmm": m, "atm": strike, "idx": 22350.0, "ce": 90.0, "pe": 80.0 + i,
+                  "wings": {str(int(strike)): {"pe_bid": 80.0 + i, "pe_ask": 80.5 + i}}}
+    return out
+
+
+def test_h20_exit_not_left_open_when_spec_minute_missing() -> None:
+    # 2026-10-12 live: spec exit 12:19 not on the tape, tape at 12:20 -> old rule waited for 12:21.
+    bars = _pe_bars(["12:15", "12:17", "12:18", "12:20"])
+    pick = rr._pick_exit(bars, list(bars), side="PE", strike=22350.0, spec_exit="12:19",
+                         entry_min="11:59", last_hhmm="12:20")
+    assert pick == ("12:18", 82.0, "EXIT_SHIFTED")  # tie 12:18/12:20 -> earlier
+
+
+def test_h20_exit_by_wall_clock_when_tape_stalls() -> None:
+    bars = _pe_bars(["12:15", "12:17"])
+    assert rr._pick_exit(bars, list(bars), side="PE", strike=22350.0, spec_exit="12:19",
+                         entry_min="11:59", last_hhmm="12:17") is None  # replay: not yet
+    pick = rr._pick_exit(bars, list(bars), side="PE", strike=22350.0, spec_exit="12:19",
+                         entry_min="11:59", last_hhmm="12:17", now_hhmm="12:19")
+    assert pick == ("12:17", 81.0, "EXIT_SHIFTED")
+    far = rr._pick_exit(bars, list(bars), side="PE", strike=22350.0, spec_exit="12:30",
+                        entry_min="11:59", last_hhmm="12:17", now_hhmm="12:31")
+    assert far == ("12:17", 81.0, "EXIT_EARLY_NO_QUOTE")
+
+
+def test_h20_exit_never_open_without_any_strike_quote() -> None:
+    bars = _pe_bars(["12:15", "12:17"], strike=22400.0)  # held 22350 never quoted
+    pick = rr._pick_exit(bars, list(bars), side="PE", strike=22350.0, spec_exit="12:19",
+                         entry_min="11:59", last_hhmm="12:17", now_hhmm="12:20")
+    assert pick == ("11:59", None, "EXIT_NO_QUOTE_AT_ENTRY_PX")
