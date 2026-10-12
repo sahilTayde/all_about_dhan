@@ -46,7 +46,7 @@ ROUTES = [
     ("pause", "PAUSE", {"minutes": 15}),
     ("blocked-windows", "BLOCK_WINDOWS", {"windows": [{"start": "09:15", "end": "09:30"}, {"start": "14:45", "end": "15:30"}]}),
     ("go-t2", "GO_T2", {"trade_id": "paper-MIX-DEFAULT-BUY-NIFTY-1-CE"}),
-    ("lots", "SET_LOTS", {"lots": 20}),
+    ("lots", "SET_LOTS", {"lots": 10}),
     ("index", "INDEX", {"underlying": "FINNIFTY", "enabled": False}),
     ("min-capital", "MIN_CAPITAL", {"amount_inr": 300000}),
     ("add-funds", "ADD_FUNDS", {"amount_inr": 50000}),
@@ -124,10 +124,10 @@ def test_resent_command_id_is_idempotent(client, root):
 
 
 def test_lots_must_stay_within_risk_limits(client, root):
-    ok = client.post("/founder/controls/lots", json={"reason": "size", "lots": 25})
+    ok = client.post("/founder/controls/lots", json={"reason": "size", "lots": 10})
     assert ok.status_code == 200
-    over = client.post("/founder/controls/lots", json={"reason": "size", "lots": 26})
-    assert over.status_code == 409 and over.json()["detail"]["status_reason"].startswith("LOTS_OVER_LIMIT: at most 25")
+    over = client.post("/founder/controls/lots", json={"reason": "size", "lots": 11})
+    assert over.status_code == 409 and over.json()["detail"]["status_reason"].startswith("LOTS_OVER_LIMIT: at most 10")
     assert client.post("/founder/controls/lots", json={"reason": "clear", "lots": None}).status_code == 200
     (root / "config" / "risk_limits.yaml").write_text("mode: [broken", encoding="utf-8")
     broken = client.post("/founder/controls/lots", json={"reason": "size", "lots": 5})
@@ -189,7 +189,7 @@ def test_history_shows_pending_applied_and_rejected(client, root):
     assert body["open_trades"][0]["trade_id"] == "t1" and "extra" not in body["open_trades"][0]
     assert body["state"]["paused_until_ist"] and body["state"]["running"] is False  # START, STOP, PAUSE 15
     assert body["state"]["entries_blocked_reason"] == "FOUNDER_STOPPED"
-    assert body["limits"]["max_lots"] == 25 and body["paper_only"] and body["orders"] == "REFUSED"
+    assert body["limits"]["max_lots"] == 10 and body["paper_only"] and body["orders"] == "REFUSED"
 
 
 def test_history_uses_the_first_seen_anchor(client, root):
