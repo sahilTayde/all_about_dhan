@@ -45,7 +45,8 @@ def test_commit_open_applies_cap() -> None:
     assert e.opens[("MIX-DEFAULT-BUY", "NIFTY")].qty == 650
 
 
-def test_total_open_qty_per_underlying_across_books() -> None:
+def test_total_open_qty_per_underlying_across_books(monkeypatch) -> None:
+    monkeypatch.setenv("DESK_RISK_GATE_LIVE", "1")
     class E:
         def __init__(self):
             self.opens = {}; self.root = None; self.skips = []

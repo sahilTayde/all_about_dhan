@@ -4874,7 +4874,10 @@ def _commit_open(engine: BookEngine, pos: OpenPaper) -> None:
     # cap TOTAL open qty per underlying across books (two books on one contract = 20 lots on 2026-10-12)
     und = str(pos.underlying).upper()
     cap = HARD_MAX_QTY.get(und)
-    if cap is not None:
+    # live desk only (DESK_RISK_GATE_LIVE=1 via desk.sh), like the other desk gates: the frozen legacy
+    # multi-book replays stay byte-identical. The per-ticket 10-lot clamp above always applies.
+    live = os.environ.get("DESK_RISK_GATE_LIVE", "").strip() in {"1", "true", "yes", "on"}
+    if cap is not None and live:
         held = sum(int(o.qty or (o.lots or 0) * (o.lot_size or 0)) for (b, u), o in engine.opens.items()
                    if str(u).upper() == und and b != pos.book_id)
         lot = int(pos.lot_size or 0)
