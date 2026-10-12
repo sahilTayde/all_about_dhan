@@ -179,6 +179,7 @@ export function deskDay(snap) {
   // desk P&L counts traded rows only (desk_status TRADED, shadow false); old rows have no desk_status
   const isLive = (t) => deskStatusOf(t) === "TRADED" && t.shadow !== true || (!t.desk_status && isResearch(t) && /^R01/.test(String(t.book_id)));
   const live = group(isLive);
+  const deskToday = group((t) => isResearch(t) && isLive(t)); // fallback Today: desk-traded research rows only
   const losers = closed.filter((t) => isLive(t) && (num(t.realized_pnl_inr) || 0) < 0).length;
   return {
     day,
@@ -187,7 +188,7 @@ export function deskDay(snap) {
     research,
     live,
     mix,
-    total: dayRow ? { net: num(dayRow.net), charges: num(dayRow.charges), n: dayRow.n, wins: dayRow.wins, fromFeed: true } : { net: research.net + mix.net, charges: research.charges + mix.charges, n: closed.length, wins: research.wins + mix.wins, fromFeed: false },
+    total: dayRow ? { net: num(dayRow.net), charges: num(dayRow.charges), n: dayRow.n, wins: dayRow.wins, fromFeed: true } : { net: deskToday.net, charges: deskToday.charges, n: deskToday.trades - deskToday.open, wins: deskToday.wins, fromFeed: false } /* desk-traded rows only, same as feed days[].net; mix/shadow never in Today */,
     byBook: dayRow?.by_book || null,
     losers,
     guardBlocked: researchLists(board).blocked,
