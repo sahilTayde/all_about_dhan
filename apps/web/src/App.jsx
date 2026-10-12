@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
-import { fetchCustomerDesk, fetchCustomerJournal } from "./lib/customerFeed.js";
+import { fetchCustomerDesk } from "./lib/customerFeed.js";
 import { formatWhen, marketView, selectCustomerView, ticketStatus } from "./lib/customerPortal.js";
 import { indexTabs, plainText } from "./lib/plainWords.js";
-import { OpenPositions } from "./desk/components/OpenPositions.jsx";
+import { AppNav } from "./components/AppNav.jsx";
+import "./desk/redesign.css";
 import { SizeForm } from "./desk/components/SizeForm.jsx";
-import { TradeJourney } from "./components/TradeJourney.jsx";
 import { UnderlyingPicker } from "./components/UnderlyingPicker.jsx";
 import { Disclaimer } from "./components/Disclaimer.jsx";
 import { LegendDialog } from "./components/LegendDialog.jsx";
@@ -144,57 +144,12 @@ function CustomerBook({ view }) {
   );
 }
 
-function signalToOpen(und, signal) {
-  if (!signal) return null;
-  const market = marketView(signal.side);
-  const status = ticketStatus(signal);
-  if (market === "HOLD" || status === "HOLD" || status === "DEALER_KILLED") return null;
-  const entry = Number(signal.entry);
-  const stop = Number(signal.stop);
-  const target = Number(signal.target);
-  if (![entry, stop, target].every(Number.isFinite)) return null;
-  const openedTs = Date.parse(signal.timeIst || signal.opened_ist || "") / 1000;
-  const opened = Number.isFinite(openedTs) ? openedTs : undefined;
-  const ltp = Number(signal.last_ltp ?? signal.mark ?? entry);
-  return {
-    trade_id: signal.id || `open-${und}`,
-    underlying: und,
-    side: market === "CALL" ? "CE" : "PE",
-    atm_strike: signal.strike,
-    entry,
-    limit_price: entry,
-    last_ltp: ltp,
-    stop,
-    target,
-    lots: signal.lots ?? 10,
-    lot_size: signal.lot_size ?? (und === "SENSEX" ? 20 : 65),
-    qty: (signal.lots || 10) * (signal.lot_size || (und === "SENSEX" ? 20 : 65)),
-    status: "OPEN",
-    opened_ts: opened,
-    opened_ist: signal.timeIst || signal.opened_ist,
-    premium_path:
-      opened && Number.isFinite(ltp)
-        ? [
-            { t: opened, v: entry, label: "entry" },
-            { t: opened + 180, v: ltp, label: "ltp" },
-          ]
-        : undefined,
-    expiry: signal.expiry || signal.ticket?.expiry,
-    justification: signal.customer?.note || signal.customer?.headline,
-    strategy_id: signal.strategy_id,
-    spot_at_entry: Number(signal.spot || signal.underlying_spot || signal.ticket?.underlying_spot) || null,
-    last_index_spot: Number(signal.spot || signal.underlying_spot) || null,
-    seen_high: Number(signal.seen_high) || null,
-  };
-}
 
 export default function App() {
   const [desk, setDesk] = useState(null);
-  const [journal, setJournal] = useState(null);
   const [error, setError] = useState(null);
   const [underlying, setUnderlying] = useState("NIFTY");
   const [legendOpen, setLegendOpen] = useState(false);
-  const [picked, setPicked] = useState(null);
 
   useEffect(() => {
     const ac = new AbortController();
@@ -211,20 +166,8 @@ export default function App() {
     return () => ac.abort();
   }, []);
 
-  useEffect(() => {
-    if (!desk) return undefined;
-    const ac = new AbortController();
-    fetchCustomerJournal(ac.signal).then((body) => {
-      if (body) setJournal(body);
-    });
-    return () => ac.abort();
-  }, [desk]);
 
   const tabs = useMemo(() => indexTabs(desk?.underlyings), [desk]);
-  const opens = useMemo(() => {
-    if (!desk?.signals) return [];
-    return tabs.map((und) => signalToOpen(und, desk.signals[und])).filter(Boolean);
-  }, [desk, tabs]);
 
   if (error) {
     return (
@@ -247,40 +190,34 @@ export default function App() {
 
   const view = selectCustomerView(desk, underlying);
   const mockTape = view.feed !== "signals:public";
+  const asOfDay = String(desk.asOf || "").slice(0, 10);
+  const todayIst = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" }).format(new Date());
+  const old = mockTape || (asOfDay && asOfDay < todayIst);
 
   return (
     <div className="shell shell--customer customer-portal" data-testid="customer-portal">
-      <Chrome mode={view.mode} feed={view.feed} onInfo={() => setLegendOpen(true)} />
-
-      {view.stale ? (
-        <p className="stale-banner" role="status">
-          Payload is stale. Do not treat this as a fresh ticket.
-        </p>
-      ) : null}
+      <AppNav current="/" />
       {mockTape ? (
-        <p className="mock-banner" data-testid="mock-banner">
-          Paper tape — no live order stream.
-        </p>
+        <section className="sample-banner" role="alert" data-testid="mock-banner">
+          <strong>NO LIVE SIGNAL</strong>
+          <span>The live signal feed is not answering. Below is an old sample{asOfDay ? ` from ${asOfDay}` : ""}, not a trade in progress. Do not act on it.</span>
+        </section>
+      ) : (
+        <Chrome mode={view.mode} feed={view.feed} onInfo={() => setLegendOpen(true)} />
+      )}
+      {!mockTape && view.stale ? (
+        <p className="stale-banner" role="status">This signal is stale. Do not treat it as fresh.</p>
       ) : null}
 
       {tabs.length > 1 ? <UnderlyingPicker underlyings={tabs} value={underlying} onChange={setUnderlying} /> : null}
-      <CustomerHero view={view} openCount={opens.length} />
-      {opens.length >= 2 ? (
-        <OpenPositions
-          rows={opens}
-          clock={
-            Number.isFinite(Date.parse(desk.asOf || ""))
-              ? { replay: true, ms: Date.parse(desk.asOf), ist: desk.asOf }
-              : undefined
-          }
-          regimes={Object.fromEntries(
-            opens.map((t) => [t.underlying, { itm_bin: { index: t.last_index_spot || t.spot_at_entry } }]),
-          )}
-          onSelect={setPicked}
-          selectedId={picked?.trade_id}
-        />
+      {old ? (
+        <section className="customer-hero customer-hero--old" data-testid="customer-hero">
+          <div className="customer-hero__meta"><p className="customer-hero__kicker">{view.underlying}</p><span className="status-pill">OLD SAMPLE</span></div>
+          <h1 className="customer-hero__market">{view.market}</h1>
+          <p className="customer-hero__why">Sample signal{asOfDay ? ` from ${asOfDay}` : ""}. Not live, not in progress.</p>
+        </section>
       ) : (
-        <TradeJourney view={view} journal={journal} />
+        <CustomerHero view={view} openCount={1} />
       )}
       <TicketCard view={view} />
       <RiskStrip view={view} />

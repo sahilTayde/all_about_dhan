@@ -52,6 +52,7 @@ export function IstMarketClock() {
   const ss = totalSec % 60;
   const clock = `${p.hour}:${p.minute}:${p.second}`;
   const date = `${p.day} ${p.month} ${p.year}`;
+  const nb = partsFromIst(new Date(now.getTime() + remainMs));
 
   return (
     <div className="ist-clock" aria-live="polite">
@@ -65,7 +66,7 @@ export function IstMarketClock() {
         <strong className="ist-clock__digits ist-clock__digits--count">
           {pad(mm)}:{pad(ss)}
         </strong>
-        <span className="ist-clock__date">to next 09:15 / 09:20… boundary</span>
+        <span className="ist-clock__date">{`until the ${nb.hour}:${nb.minute} IST bar`}</span>
       </div>
     </div>
   );
