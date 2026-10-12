@@ -846,8 +846,14 @@ def _desk_pass(opens, closed, day: str, rule_order, risk_cfg):
         if not pre and any(k.get("side") != r.get("side") and _holds_at(k, k_open, t) for k, k_open in taken):
             b = dict(r); b["guard"] = BLOCKED_OPPOSITE_SIDE; blocked.append(b)
             continue
-        if key in owner:
-            d = dict(r); d["dup_of"] = owner[key]; d["guard"] = DUP_SAME_CONTRACT; dups.append(d)
+        # 2026-10-12 fix: same contract already HELD (not only same entry minute) is a repeat buy.
+        # Live 12:33/12:38 IST: R01_PDIV and R01_B3A both bought NIFTY 22400 CE while one was open.
+        held = next((k for k, k_open in taken
+                     if (k.get("underlying"), k.get("side"), float(k.get("atm_strike") or 0)) == key[:3]
+                     and _holds_at(k, k_open, t)), None)
+        if key in owner or held is not None:
+            d = dict(r); d["dup_of"] = owner.get(key) or held.get("trade_id"); d["guard"] = DUP_SAME_CONTRACT
+            dups.append(d)
             continue
         if not pre:
             why = desk_risk.check(taken, r, risk_cfg)
