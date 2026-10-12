@@ -775,6 +775,29 @@ def _same_direction_guard(opens, closed, day: str = ""):
     return [r for r, o in kept if o], [r for r, o in kept if not o], blocked
 
 
+DUP_SAME_CONTRACT = "DUP_SAME_CONTRACT"
+
+
+def _dedupe_same_contract(opens, closed, rule_order):
+    """One desk position per contract (underlying, side, held strike) per entry minute across rule
+    slots. The first slot in `rule_order` keeps it; the others are tagged DUP_SAME_CONTRACT and
+    returned as shadow (computed, not traded, not in desk P&L)."""
+    rank = {rid: i for i, rid in enumerate(rule_order)}
+    rows = [(r, True) for r in opens] + [(r, False) for r in closed]
+    rows.sort(key=lambda x: (rank.get(x[0]["rule_id"], 99), x[0]["rule_id"]))
+    owner: dict = {}
+    keep_o, keep_c, dups = [], [], []
+    for r, is_open in rows:
+        key = (r["underlying"], r["side"], float(r["atm_strike"]), r["entry_min"])
+        if key in owner:
+            d = dict(r); d["dup_of"] = owner[key]; d["guard"] = DUP_SAME_CONTRACT
+            dups.append(d)
+            continue
+        owner[key] = r["trade_id"]
+        (keep_o if is_open else keep_c).append(r)
+    return keep_o, keep_c, dups
+
+
 def replay(
     root: Path,
     day: str,
@@ -811,6 +834,7 @@ def replay(
         if not add - skip:
             break
         skip |= add
+    opens, closed, dup_shadow = _dedupe_same_contract(opens, closed, [r["rule_id"] for r in live_rules])
     shadow_open, shadow_closed = [], []
     for und, bars in bars_by.items():
         o, c = replay_underlying(bars, underlying=und, day=day, rules=shadow_rules, now_hhmm=now_hhmm)
@@ -823,6 +847,7 @@ def replay(
         uniq[(b["rule_id"], b["underlying"], b["sig_min"])] = b
     return {
         "guard_blocked": list(uniq.values()),
+        "dup_same_contract": dup_shadow,
         "shadow_parked": {"rule_ids": [r["rule_id"] for r in shadow_rules], "open": shadow_open,
                           "closed": shadow_closed, "note": "PARKED rules: computed, not traded, not in desk P&L"},
         "enabled": True,

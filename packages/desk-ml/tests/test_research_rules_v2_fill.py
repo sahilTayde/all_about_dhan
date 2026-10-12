@@ -118,3 +118,14 @@ def test_h20_exit_never_open_without_any_strike_quote() -> None:
     pick = rr._pick_exit(bars, list(bars), side="PE", strike=22350.0, spec_exit="12:19",
                          entry_min="11:59", last_hhmm="12:17", now_hhmm="12:20")
     assert pick == ("11:59", None, "EXIT_NO_QUOTE_AT_ENTRY_PX")
+
+
+def test_same_contract_same_minute_is_one_position() -> None:
+    def row(rid, entry_min, strike=22400.0, side="CE"):
+        return {"rule_id": rid, "underlying": "NIFTY", "side": side, "atm_strike": strike,
+                "entry_min": entry_min, "trade_id": f"RR-{rid}-{entry_min}"}
+    closed = [row(rr.R01_B3A, "11:59", 22350.0, "PE"), row(rr.R01, "11:59", 22350.0, "PE"),
+              row(rr.R01, "12:33"), row(rr.R01_B3A, "12:38")]
+    o, c, d = rr._dedupe_same_contract([], closed, [rr.R01, rr.R01_B3A])
+    assert [x["trade_id"] for x in c] == [f"RR-{rr.R01}-11:59", f"RR-{rr.R01}-12:33", f"RR-{rr.R01_B3A}-12:38"]
+    assert len(d) == 1 and d[0]["guard"] == "DUP_SAME_CONTRACT" and d[0]["dup_of"] == f"RR-{rr.R01}-11:59"
