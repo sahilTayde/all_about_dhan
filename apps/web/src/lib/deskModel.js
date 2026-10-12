@@ -17,7 +17,7 @@ export const RULES = Object.freeze({
 export const STRATEGIES = Object.freeze([
   { id: "R01_PDIV_5_ALL_H20", name: "Price-divergence buy" },
   { id: "R01_B3A_VOL", name: "Divergence + volume" },
-  { id: "R02_MOM_3_0.0005_ALL_H20", name: "Momentum (parked)" },
+  { id: "R02_MOM_3_0.0005_ALL_H20", name: "Momentum" },
   { id: "B2", name: "B2" },
   { id: "MIX-DEFAULT-BUY", name: "Old MIX book" },
 ]);
@@ -330,5 +330,49 @@ export function riskView(risk) {
     groupStop: risk.rr_group_stop_hit === true,
     halted: risk.halted_reason || null,
     haltedText: haltText(risk.halted_reason),
+  };
+}
+
+/** Park times the backend uses (research_rules.py PARK_FROM_IST); fires at/after it are shadow. */
+const PARK_FROM = { "R02_MOM_3_0.0005_ALL_H20": { "2026-10-12": "11:50" } };
+
+/**
+ * Status for a desk row: the backend desk_status when present; otherwise (feed before the restart)
+ * the same rules the backend applies: a fire after the park time is shadow; a second strategy on the
+ * same contract (underlying + side + strike + entry time) is a duplicate, counted once.
+ */
+export function classifyDeskRows(rows, day) {
+  const seen = new Map();
+  return [...rows]
+    .sort((a, b) => (num(a.opened_ts) || 0) - (num(b.opened_ts) || 0))
+    .map((r) => {
+      if (r.desk_status) return { r, code: String(r.desk_status).toUpperCase(), basis: "desk_status" };
+      const park = PARK_FROM[r.book_id]?.[day];
+      const t = r.entry_min || hhmm(r.opened_ist);
+      if (park && t && t >= park) return { r, code: "SHADOW_PARKED", basis: `entry ${t} after park ${park}` };
+      const key = [r.underlying, r.side, strikeOf(r), r.opened_ts].join("|");
+      if (seen.has(key)) return { r: { ...r, dup_of: seen.get(key) }, code: "DUP_SAME_CONTRACT", basis: `same contract and time as ${seen.get(key)}` };
+      seen.set(key, r.trade_id);
+      return { r, code: "TRADED", basis: "no desk_status (feed before restart)" };
+    });
+}
+
+/** Today's research desk total: TRADED rows only, closed, after charges. */
+export function researchToday(dd) {
+  const rows = [...dd.open, ...dd.closed].filter((t) => t.research_rule || t.desk_status);
+  const cls = classifyDeskRows(rows, dd.day);
+  const traded = cls.filter((c) => c.code === "TRADED");
+  const closed = traded.filter((c) => c.r.closed_ts != null || /CLOSED/.test(String(c.r.status)));
+  const sum = (list, k) => list.reduce((x, c) => x + (num(c.r[k]) || 0), 0);
+  const notCounted = cls.filter((c) => c.code !== "TRADED");
+  return {
+    cls,
+    n: traded.length,
+    open: traded.length - closed.length,
+    wins: closed.filter((c) => (num(c.r.realized_pnl_inr) || 0) > 0).length,
+    net: sum(closed, "realized_pnl_inr"),
+    charges: sum(closed, "charges_inr"),
+    notCounted: notCounted.length,
+    notCountedNet: sum(notCounted.filter((c) => c.r.closed_ts != null), "realized_pnl_inr"),
   };
 }

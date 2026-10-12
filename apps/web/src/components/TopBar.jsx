@@ -23,7 +23,8 @@ function marketState(d) {
 }
 
 /** Terminal top bar: brand, pages, IST clock, market state, status light, desk today, day-loss meter, health dots. */
-export function TopBar({ path, light, dd, snap, conn }) {
+export function TopBar({ path, light, dd, snap, conn, today = null, hideMeter = false }) {
+  const T = today || { label: "Desk today (all books)", net: dd?.total?.net, n: dd?.total?.n, wins: dd?.total?.wins };
   const now = useNow();
   const ms = marketState(now);
   const rv = riskView(dd?.risk);
@@ -49,11 +50,11 @@ export function TopBar({ path, light, dd, snap, conn }) {
         <div className="tb__row tb__row--stats">
           <span className={`light light--${light.tone}`} data-testid="status-light"><i />{light.text}</span>
           <div className="tb__stat" data-testid="desk-today">
-            <span>Desk today</span>
-            <strong className={`num ${tone(dd.total.net)}`}>{inr(dd.total.net)}</strong>
-            <em>{dd.total.n ?? "—"} trades · {dd.total.wins ?? "—"} won · after charges · updated {clockPair(snap?.board?.as_of_ist)}</em>
+            <span>{T.label}</span>
+            <strong className={`num ${tone(T.net)}`}>{inr(T.net)}</strong>
+            <em>{T.n ?? "—"} trades · {T.wins ?? "—"} won · after charges · updated {clockPair(snap?.board?.as_of_ist)}</em>
           </div>
-          <div className="tb__meter" data-testid="day-loss-meter" title="Day-stop state from the engine (board.risk)">
+          {hideMeter ? null : <div className="tb__meter" data-testid="day-loss-meter" title="Day-stop state from the engine (board.risk)">
             {rv ? (
               <>
                 <span>{rv.halted ? <b className="is-down">{rv.haltedText}</b> : "Day stop on"} · day {inr(rv.dayNet)} / {inr(RULES.dayLossInr)} · losers {rv.losers ?? "—"}/{RULES.maxLosersPerDay} · open {rv.open ?? "—"}/{rv.maxOpen ?? "—"} · trades {rv.trades ?? "—"}{rv.maxTrades == null ? " (no cap)" : `/${rv.maxTrades}`}</span>
@@ -62,7 +63,7 @@ export function TopBar({ path, light, dd, snap, conn }) {
             ) : (
               <span className="muted">Day-stop limit not enforced yet today</span>
             )}
-          </div>
+          </div>}
           <div className="tb__dots">
             {dots.map((d) => <span key={d.id} className={`hdot hdot--${d.tone}`} title={`${d.label}: ${d.detail}`}><i />{d.label}</span>)}
           </div>
