@@ -501,11 +501,13 @@ def replay_underlying(
             entry = strike_premium(entry_bar, side, atm)
             if entry is None:
                 continue
-            if last_hhmm >= exit_min and exit_min in bars:
+            # 2026-10-12: if the exact exit minute is missing (feed gap), close on the first
+            # later minute that has a price for this strike, instead of leaving it open forever.
+            late = [m for m in minutes if m >= exit_min and strike_premium(bars[m], side, atm) is not None]
+            if last_hhmm >= exit_min and late:
+                exit_min = late[0]
                 mark_bar = bars[exit_min]
                 mark = strike_premium(mark_bar, side, atm)
-                if mark is None:
-                    continue
                 closed.append(
                     _with_exit_variants(
                         _trade_row(
@@ -570,6 +572,51 @@ def replay_underlying(
     return opens, closed
 
 
+
+# Guard go-live per IST day (HH:MM). Trades entered before it are history and are never erased.
+# Days not listed: guard applies from the open. Override with DESK_GUARD_FROM_IST="YYYY-MM-DD HH:MM" or "HH:MM".
+GUARD_FROM_IST = {"2026-10-12": "11:19"}
+
+
+def guard_from(day: str) -> str:
+    raw = os.environ.get("DESK_GUARD_FROM_IST", "").strip()
+    if raw:
+        parts = raw.split()
+        if len(parts) == 2 and parts[0] == day:
+            return parts[1]
+        if len(parts) == 1:
+            return parts[0]
+    return GUARD_FROM_IST.get(day, "00:00")
+
+
+def _same_direction_guard(opens, closed, day: str = ""):
+    """Sahil 2026-10-12: NIFTY and SENSEX move together. Drop any trade opened while another
+    underlying holds the opposite side (earlier signal wins). Blocked trades are listed, not traded."""
+    rows = [(r, True) for r in opens] + [(r, False) for r in closed]
+    rows.sort(key=lambda x: str(x[0].get("signal_min") or x[0].get("sig_min") or x[0].get("entry_min") or ""))
+    kept = []
+    blocked = []
+    for r, is_open in rows:
+        t = str(r.get("entry_min") or "")
+        if t < guard_from(day or str(r.get("day") or "")):
+            kept.append((r, is_open))  # already happened before the guard existed: keep with real P&L
+            continue
+        clash = False
+        for k, _ in kept:
+            if k.get("underlying") == r.get("underlying") or k.get("side") == r.get("side"):
+                continue
+            ks, ke = str(k.get("entry_min") or ""), str(k.get("exit_min") or "99:99")
+            if not k.get("status") == "CLOSED":
+                ke = "99:99" if not k.get("exit_min") else ke
+            if ks <= t < ke:
+                clash = True
+                break
+        if clash:
+            b = dict(r); b["guard"] = "BLOCKED_OPPOSITE_SIDE"; blocked.append(b)
+        else:
+            kept.append((r, is_open))
+    return [r for r, o in kept if o], [r for r, o in kept if not o], blocked
+
 def replay(
     root: Path,
     day: str,
@@ -586,7 +633,9 @@ def replay(
         opens.extend(u_open)
         closed.extend(u_closed)
         per[und] = {"n_minutes": len(bars), "n_open": len(u_open), "n_closed": len(u_closed)}
+    opens, closed, blocked = _same_direction_guard(opens, closed, day)
     return {
+        "guard_blocked": blocked,
         "enabled": True,
         "flag": FLAG_ENV,
         "rule_ids": [r["rule_id"] for r in rules],

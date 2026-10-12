@@ -91,10 +91,22 @@ stop_dual_tape() {
     fi
     sleep 2
   done
-  pkill -f 'trading_agents_india dual-tape' 2>/dev/null || true
+  kill_dual_tape_tree
+  rm -f "$RECON/paper_dual_tape_RUNNING.flag"
+}
+
+kill_dual_tape_tree() {
+  # 2026-10-12: screen quit leaves health.supervise + its child alive -> duplicate loops.
+  # Kill the supervisor first (so it cannot respawn), then the dual-tape children, then the screens.
   screen -S dual-tape-live-5s -X quit 2>/dev/null || true
   screen -S dual-tape-live-2s -X quit 2>/dev/null || true
-  rm -f "$RECON/paper_dual_tape_RUNNING.flag"
+  pkill -f 'health.supervise -- .*trading_agents_india dual-tape' 2>/dev/null || true
+  pkill -f 'trading_agents_india dual-tape' 2>/dev/null || true
+  for _ in 1 2 3 4 5; do
+    pgrep -f 'trading_agents_india dual-tape' >/dev/null 2>&1 || return 0
+    sleep 1
+  done
+  pkill -9 -f 'trading_agents_india dual-tape' 2>/dev/null || true
 }
 
 rotate_log() {  # size-based, keep 7: the live log must not fill the disk
@@ -113,7 +125,7 @@ health_supervise_available() {
 
 dual_tape_child_cmd() {
   # Same args whether or not health.supervise wraps them.
-  printf "%s" "'$PY' -u -m trading_agents_india dual-tape --live-chain --paper-train --paper-scalp --tick-seconds 2 --max-ticks 0"
+  printf "%s" "env DESK_OLD_BOOK_OFF=1 '$PY' -u -m trading_agents_india dual-tape --live-chain --paper-train --paper-scalp --tick-seconds 2 --max-ticks 0"
 }
 
 dual_tape_launch_inner() {
@@ -130,12 +142,12 @@ dual_tape_launch_inner() {
 
 start_dual_tape() {
   rm -f "$RECON/paper_dual_tape_STOPPED.flag"
-  screen -S dual-tape-live-2s -X quit 2>/dev/null || true
+  kill_dual_tape_tree
   rotate_log "$RECON/dual_tape_live_2s.log"
   local inner
   inner="$(dual_tape_launch_inner)"
   # Bake PYTHONPATH into the login zsh so a Mac .zprofile cannot drop packages/*/src.
-  screen -dmS dual-tape-live-2s zsh -lc "cd '$ROOT' && export PYTHONPATH='$PYTHONPATH' && $inner"
+  screen -dmS dual-tape-live-2s zsh -lc "cd '$ROOT' && set -a && . ./.env && set +a && export PYTHONPATH='$PYTHONPATH' && $inner"
 }
 
 arm_dual_tape_when_open() {
