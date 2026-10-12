@@ -339,7 +339,7 @@ const PARK_FROM = { "R02_MOM_3_0.0005_ALL_H20": { "2026-10-12": "11:50" } };
 /**
  * Status for a desk row: the backend desk_status when present; otherwise (feed before the restart)
  * the same rules the backend applies: a fire after the park time is shadow; a second strategy on the
- * same contract (underlying + side + strike + entry time) is a duplicate, counted once.
+ * same contract (underlying + side + strike + entry time) was a real repeat-buy position and counts.
  */
 export function classifyDeskRows(rows, day) {
   const seen = new Map();
@@ -351,7 +351,8 @@ export function classifyDeskRows(rows, day) {
       const t = r.entry_min || hhmm(r.opened_ist);
       if (park && t && t >= park) return { r, code: "SHADOW_PARKED", basis: `entry ${t} after park ${park}` };
       const key = [r.underlying, r.side, strikeOf(r), r.opened_ts].join("|");
-      if (seen.has(key)) return { r: { ...r, dup_of: seen.get(key) }, code: "DUP_SAME_CONTRACT", basis: `same contract and time as ${seen.get(key)}` };
+      // no desk_status: a same-contract copy was a real held position (repeat-buy bug, since fixed) and counts
+      if (seen.has(key)) return { r: { ...r, repeat_of: seen.get(key) }, code: "TRADED", repeatBug: true, basis: `same contract and time as ${seen.get(key)}` };
       seen.set(key, r.trade_id);
       return { r, code: "TRADED", basis: "no desk_status (feed before restart)" };
     });

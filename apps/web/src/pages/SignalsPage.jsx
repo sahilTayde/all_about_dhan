@@ -17,7 +17,7 @@ const BLOCK_WHY = {
 
 function fireStatus(r, fb) {
   const code = String(fb || r.desk_status || r.guard || "TRADED").toUpperCase();
-  if (code === "TRADED") return { taken: true, text: "taken", code };
+  if (code === "TRADED") return { taken: true, text: r.repeat_of ? "taken: repeat-buy bug (fixed)" : "taken", code };
   return { taken: false, text: `blocked: ${BLOCK_WHY[code] || code.replace(/_/g, " ").toLowerCase()}`, code };
 }
 
@@ -59,6 +59,7 @@ function Cells({ r, fb }) {
 export function SignalsPage({ dd }) {
   const L = dd.lists;
   const rt = researchToday(dd);
+  const mix = [...dd.open, ...dd.closed].filter((t) => !(t.research_rule || t.desk_status));
   const fires = [
     ...rt.cls.map((c) => ({ r: c.r, fb: c.code })),
     ...L.parked.map((r) => ({ r, fb: "SHADOW_PARKED" })),
@@ -73,8 +74,7 @@ export function SignalsPage({ dd }) {
       <div className="kpis" data-testid="signals-summary">
         <div><span>Research desk today</span><b className={`num ${tone(rt.net)}`}>{inr(rt.net)}</b><em>traded rows only · after {inr(rt.charges, { signed: false })} charges · {dd.day || "—"}</em></div>
         <div><span>Trades counted</span><b className="num">{rt.n}</b><em>{rt.wins} won{rt.open ? ` · ${rt.open} open` : ""}</em></div>
-        <div><span>Fires today</span><b className="num">{fires.length}</b><em>{rt.n} traded + {fires.length - rt.n} not counted (shadow / blocked / duplicate{rt.notCountedNet ? `, ${inr(rt.notCountedNet)}` : ""})</em></div>
-        <div><span>Old MIX book</span><b className={`num ${tone(dd.mix.net)}`}>{inr(dd.mix.net)}</b><em>{dd.mix.trades} trades · not in this page</em></div>
+        <div><span>Fires today</span><b className="num">{fires.length}</b><em>{rt.n} traded{rt.cls.some((c) => c.repeatBug) ? ` (incl. ${rt.cls.filter((c) => c.repeatBug).length} repeat-buy)` : ""} + {fires.length - rt.n} not counted{rt.notCountedNet ? ` (${inr(rt.notCountedNet)})` : ""}</em></div>
       </div>
       <section className="panel">
         <header className="panel__head"><h2>Signals by strategy</h2><span className="muted">one row per strategy and index · latest fire shown · click ▸ for every fire today</span></header>
@@ -109,6 +109,10 @@ export function SignalsPage({ dd }) {
       <details className="panel details">
         <summary>Details: full raw list of every fire ({fires.length}: {rt.n} counted, {fires.length - rt.n} not counted)</summary>
         <TradeTable rows={fires.map((f) => ({ ...f.r, desk_status: f.fb }))} kind="desk" />
+      </details>
+      <details className="panel details" data-testid="mix-details">
+        <summary>Details: old MIX, shadow only ({mix.length}, {inr(mix.reduce((x, t) => x + (num(t.realized_pnl_inr) || 0), 0))}, not in the desk total)</summary>
+        <TradeTable rows={mix.map((t) => ({ ...t, desk_status: "SHADOW_PARKED" }))} kind="shadow" />
       </details>
     </div>
   );
