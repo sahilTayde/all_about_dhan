@@ -1,6 +1,6 @@
 import { AppNav } from "../components/AppNav.jsx";
 import "../desk/desk.css";
-import "../desk/redesign.css";
+import "../desk/pro.css";
 
 export function NotFound() {
   return (

@@ -16,16 +16,56 @@ export const RULES = Object.freeze({
 });
 
 export const STRATEGIES = Object.freeze([
-  { id: "R01_PDIV_5_ALL_H20", name: "Premium divergence", state: "LIVE" },
-  { id: "R01_B3A_VOL", name: "Premium divergence · high vol", state: "LIVE" },
-  { id: "R02_MOM_3_0.0005_ALL_H20", name: "Momentum", state: "SHADOW", note: "parked from 11:50 IST" },
-  { id: "B2", name: "B2", state: "SHADOW" },
-  { id: "MIX-DEFAULT-BUY", name: "Old MIX book", state: "OFF" },
+  { id: "R01_PDIV_5_ALL_H20", name: "Price-divergence buy" },
+  { id: "R01_B3A_VOL", name: "Divergence + volume" },
+  { id: "R02_MOM_3_0.0005_ALL_H20", name: "Momentum (parked)" },
+  { id: "B2", name: "B2" },
+  { id: "MIX-DEFAULT-BUY", name: "Old MIX book" },
 ]);
+
+/** desk_status (research_rules.py) in plain words. Rows without it (before the restart) count as traded. */
+export const DESK_STATUS = Object.freeze({
+  TRADED: { text: "traded", tone: "ok" },
+  SHADOW_PARKED: { text: "shadow only", tone: "muted" },
+  BLOCKED_OPPOSITE_SIDE: { text: "blocked: opposite side", tone: "warn" },
+  DUP_SAME_CONTRACT: { text: "duplicate, not counted", tone: "muted" },
+});
+export function deskStatusOf(t, fallback = "TRADED") {
+  const s = String(t?.desk_status || t?.guard || "").toUpperCase();
+  return DESK_STATUS[s] ? s : fallback;
+}
+export const deskStatusText = (t, fb) => DESK_STATUS[deskStatusOf(t, fb)].text;
+export const isOpenRow = (t) => (t?.status ? /OPEN/.test(String(t.status)) : t?.closed_ts == null);
+
+/** Lists the backend puts beside the desk trades (all optional). */
+export function researchLists(board) {
+  const rr = board?.research_rules || {};
+  const parked = rr.shadow_parked || {};
+  return {
+    blocked: Array.isArray(rr.guard_blocked) ? rr.guard_blocked : [],
+    dups: Array.isArray(rr.dup_same_contract) ? rr.dup_same_contract : [],
+    parked: [...(parked.open || []), ...(parked.closed || [])],
+    parkedIds: parked.rule_ids || [],
+    parkedNote: parked.note || null,
+  };
+}
+
+/** Minutes left until an IST HH:MM today (negative once passed). */
+export function minsUntil(hm, now = new Date()) {
+  const m = String(hm || "").match(/^(\d{2}):(\d{2})$/);
+  if (!m) return null;
+  const ist = new Date(now.getTime() + (330 + now.getTimezoneOffset()) * 60000);
+  return (Number(m[1]) * 60 + Number(m[2])) - (ist.getHours() * 60 + ist.getMinutes() + ist.getSeconds() / 60);
+}
+
+export function pctOf(entry, now) {
+  const e = num(entry), n = num(now);
+  return e && n != null ? ((n - e) / e) * 100 : null;
+}
+export const pctText = (p) => (p == null ? "—" : `${p >= 0 ? "+" : "−"}${Math.abs(p).toFixed(1)}%`);
 
 const STRAT_BY_ID = Object.fromEntries(STRATEGIES.map((s) => [s.id, s]));
 export const strategyName = (id) => STRAT_BY_ID[id]?.name || id || "—";
-export const strategyState = (id) => STRAT_BY_ID[id]?.state || (String(id || "").startsWith("MIX") ? "OFF" : "SHADOW");
 
 /** Exit reasons and price flags in plain words, with a colour tone. */
 const REASONS = {
@@ -132,7 +172,8 @@ export function deskDay(snap) {
   };
   const research = group(isResearch);
   const mix = group((t) => !isResearch(t));
-  const isLive = (t) => strategyState(t.book_id) === "LIVE";
+  // desk P&L counts traded rows only (desk_status TRADED, shadow false); old rows have no desk_status
+  const isLive = (t) => deskStatusOf(t) === "TRADED" && t.shadow !== true || (!t.desk_status && isResearch(t) && /^R01/.test(String(t.book_id)));
   const live = group(isLive);
   const losers = closed.filter((t) => isLive(t) && (num(t.realized_pnl_inr) || 0) < 0).length;
   return {
@@ -142,18 +183,19 @@ export function deskDay(snap) {
     research,
     live,
     mix,
-    total: dayRow ? { net: num(dayRow.net), charges: num(dayRow.charges), n: dayRow.n, fromFeed: true } : { net: research.net + mix.net, charges: research.charges + mix.charges, n: closed.length, fromFeed: false },
+    total: dayRow ? { net: num(dayRow.net), charges: num(dayRow.charges), n: dayRow.n, wins: dayRow.wins, fromFeed: true } : { net: research.net + mix.net, charges: research.charges + mix.charges, n: closed.length, wins: research.wins + mix.wins, fromFeed: false },
     byBook: dayRow?.by_book || null,
     losers,
-    guardBlocked: board?.research_rules?.guard_blocked || board?.guard_blocked || [],
+    guardBlocked: researchLists(board).blocked,
+    lists: researchLists(board),
   };
 }
 
 /** Desk status light from the limits. */
 export function statusLight(dd, conn, offline) {
   if (offline || conn === "offline") return { tone: "red", text: "No live data: the API is not answering" };
-  if (dd.live.net <= RULES.dayLossInr) return { tone: "red", text: "Day stopped: loss limit reached" };
-  if (dd.losers >= RULES.maxLosersPerDay) return { tone: "red", text: "Day stopped: 2 losing trades" };
+  if ((dd.total.net ?? 0) <= RULES.dayLossInr) return { tone: "red", text: "Past the day-stop loss limit" };
+  if (dd.losers >= RULES.maxLosersPerDay) return { tone: "red", text: "Day-stop rule: 2 losing trades" };
   if (dd.open.length) return { tone: "green", text: `${dd.open.length} trade${dd.open.length > 1 ? "s" : ""} open` };
   if (conn === "polling") return { tone: "amber", text: "Live push dropped: updating every 2 s" };
   return { tone: "amber", text: "Flat: waiting for a signal" };
@@ -193,4 +235,68 @@ export function tradeCsv(rows) {
   a.href = URL.createObjectURL(blob);
   a.download = "paper-trades.csv";
   a.click();
+}
+
+export const CHARGES_LABEL = "Dhan rates ×1.5";
+
+/** Three health dots: market data, paper loop, website data fresh (age of board.as_of_ist). */
+export function healthDots(snap, conn) {
+  const h = snap?.health || [];
+  const pick = (id) => h.find((x) => x.id === id);
+  const md = pick("data"), loop = pick("paper");
+  const boardAge = ageSec(snap?.board?.as_of_ist);
+  const toneOf = (x) => (!x ? "grey" : x.tone === "green" ? "green" : x.tone === "red" ? "red" : "amber");
+  return [
+    { id: "data", label: "Market data", tone: toneOf(md), detail: md?.detail || "—" },
+    { id: "loop", label: "Paper loop", tone: toneOf(loop), detail: loop?.detail || "—" },
+    { id: "web", label: "Website data", tone: conn === "offline" || snap?.offline ? "red" : boardAge == null ? "grey" : boardAge > 300 ? "amber" : "green", detail: boardAge == null ? "—" : `updated ${fmtAge(boardAge)}` },
+  ];
+}
+
+/** Age of each feed we can see; stale = older than 5 min. */
+export function feedAges(snap) {
+  const rows = [
+    { name: "Desk board", iso: snap?.board?.as_of_ist },
+    { name: "Market tape", iso: snap?.tape_last_ist },
+  ];
+  for (const h of snap?.health || []) rows.push({ name: h.name, sec: h.age_s, detail: h.detail });
+  return rows.map((r) => {
+    const sec = r.sec != null ? Number(r.sec) : ageSec(r.iso);
+    return { ...r, sec, stale: sec != null && sec > 300 };
+  });
+}
+
+export function clockPair(iso) {
+  const t = Date.parse(iso || "");
+  if (!Number.isFinite(t)) return "—";
+  const f = (tz) => new Intl.DateTimeFormat("en-GB", { timeZone: tz, hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date(t));
+  return `${f("Asia/Kolkata")} IST / ${f("America/Chicago")} CT`;
+}
+
+const FAMILY_WHY = {
+  PDIV: "Option premium moved against the index (price divergence)",
+  MOM: "Index kept moving one way (momentum)",
+};
+/** Why the desk took it, in plain words, from family + market_type (+ B3A volume filter). */
+export function signalWhy(t) {
+  const fam = String(t?.family || "").toUpperCase();
+  const base = FAMILY_WHY[fam] || (/MIX/.test(String(t?.book_id || "")) ? "Old MIX desk pick (reason not sent per trade)" : null);
+  if (!base) return "—";
+  const vol = /B3A/.test(String(t?.source_config || t?.book_id || "")) ? ", with high volume" : "";
+  const mkt = t?.market_type ? `; market ${t.market_type}` : "";
+  return `${base}${vol}${mkt}. Bought ${String(t?.side).toUpperCase() === "CE" ? "a call" : "a put"}.`;
+}
+
+/** Profit for today / last 5 sessions / all time from feed days + account. */
+export function periodNets(snap) {
+  const days = snap?.days || [];
+  const sorted = [...days].sort((a, b) => b.day.localeCompare(a.day));
+  return {
+    week: sorted.slice(0, 5).reduce((s, d) => s + (num(d.net) || 0), 0),
+    weekTrades: sorted.slice(0, 5).reduce((s, d) => s + (num(d.n) || 0), 0),
+    total: num(snap?.account?.net_inr),
+    totalTrades: days.reduce((s, d) => s + (num(d.n) || 0), 0),
+    capital: num(snap?.account?.equity_inr),
+    start: num(snap?.account?.starting_capital_inr),
+  };
 }
