@@ -125,7 +125,7 @@ health_supervise_available() {
 
 dual_tape_child_cmd() {
   # Same args whether or not health.supervise wraps them.
-  printf "%s" "env DESK_OLD_BOOK_OFF=1 DESK_RISK_GATE_LIVE=1 '$PY' -u -m trading_agents_india dual-tape --live-chain --paper-train --paper-scalp --tick-seconds 2 --max-ticks 0"
+  printf "%s" "env DESK_OLD_BOOK_OFF=1 DESK_RISK_GATE_LIVE=1 MARKET_READ_LOG=${MARKET_READ_LOG:-0} '$PY' -u -m trading_agents_india dual-tape --live-chain --paper-train --paper-scalp --tick-seconds 2 --max-ticks 0"
 }
 
 dual_tape_launch_inner() {
@@ -290,6 +290,24 @@ recorder_stop() {
   fi
   screen -S "$RECORDER_SCREEN" -X quit >/dev/null 2>&1 || true
   echo "v2 recorder STOPPED (tapes left intact under $TAPE_V2)"
+}
+
+# Cross-market recorder (VIX, BANKNIFTY, FINNIFTY, heavyweights, MCX crude/gold): its own process
+# and websocket, record-only, tapes under data/tape/cross. A crash here never touches the desk loop.
+cross_start() {
+  if screen -ls 2>/dev/null | grep -qE '[.]cross-recorder[[:space:]]'; then
+    echo "ERROR: cross recorder already running (screen cross-recorder)" >&2; return 1
+  fi
+  [[ -x "$V2_PY" ]] || { echo "ERROR: $V2_PY missing" >&2; return 1; }
+  mkdir -p "$ROOT/data/tape/cross"
+  screen -dmS cross-recorder zsh -lc "cd '$ROOT' && '$V2_PY' -u -m marketdata.cross_market --record-only >> '$ROOT/data/tape/cross/cross_recorder.log' 2>&1"
+  echo "cross recorder STARTED (record-only). log=$ROOT/data/tape/cross/cross_recorder.log"
+}
+
+cross_stop() {
+  pkill -f '[Pp]ython.*-m marketdata.cross_market' 2>/dev/null || true
+  screen -S cross-recorder -X quit >/dev/null 2>&1 || true
+  echo "cross recorder STOPPED (tapes left intact)"
 }
 
 recorder_status() {
@@ -666,6 +684,12 @@ EOF
   recorder-status)
     recorder_status
     ;;
+  cross-start)
+    cross_start
+    ;;
+  cross-stop)
+    cross_stop
+    ;;
   shadow-start)
     shadow_start || echo "WARNING: v2 shadow-start failed (legacy desk is unchanged)" >&2
     ;;
@@ -760,7 +784,7 @@ PY
     exec "$0" close
     ;;
   *)
-    echo "usage: $0 morning|close|website|status|watch-open|watch-close|preflight|recorder-start|recorder-stop|recorder-status|shadow-start|shadow-stop|shadow-status|c5-start|c5-status|c5-stop|c5-backup|c5-restore|mint-token" >&2
+    echo "usage: $0 morning|close|website|status|watch-open|watch-close|preflight|recorder-start|recorder-stop|recorder-status|cross-start|cross-stop|shadow-start|shadow-stop|shadow-status|c5-start|c5-status|c5-stop|c5-backup|c5-restore|mint-token" >&2
     exit 2
     ;;
 esac

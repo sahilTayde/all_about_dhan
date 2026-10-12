@@ -1052,6 +1052,13 @@ def run_dual_tape_loop(
                     _alert_once(settings.repo_root, "capture", f"persist_failed:{type(exc).__name__}",
                                 f"dual-tape persist failed ({type(exc).__name__}: {exc}); paper cycle skipped")
                     heartbeat_board = {"error": "persist_failed", "detail": str(exc)[:240]}
+                if persisted and os.environ.get("MARKET_READ_LOG") == "1":
+                    try:  # log-only market read (desk_ml.market_read); never gates or places a trade
+                        from desk_ml.market_read import log_pass
+
+                        log_pass(settings.repo_root, snaps)
+                    except Exception:  # noqa: BLE001,S110 — must never crash or stall the tape loop
+                        pass
                 if paper_scalp and persisted:
                     try:
                         from desk_ml.decision_journal import install_engine_hooks

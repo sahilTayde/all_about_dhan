@@ -1,0 +1,23 @@
+# source: https://www.nseindia.com/api/holiday-master?type=trading (keys FO and CM, identical); see holidays_2026.source.md
+# status: listed = on the NSE list as fetched; unconfirmed = on the list but session details (Muhurat trading timing) await NSE's circular; re-check around 2026-10-25
+date,weekday,description,segment,status
+2026-01-15,Thursday,Municipal Corporation Election - Maharashtra,FO;CM,listed
+2026-01-26,Monday,Republic Day,FO;CM,listed
+2026-02-15,Sunday,Mahashivratri,FO;CM,listed
+2026-03-03,Tuesday,Holi,FO;CM,listed
+2026-03-21,Saturday,Id-Ul-Fitr (Ramadan Eid),FO;CM,listed
+2026-03-26,Thursday,Shri Ram Navami,FO;CM,listed
+2026-03-31,Tuesday,Shri Mahavir Jayanti,FO;CM,listed
+2026-04-03,Friday,Good Friday,FO;CM,listed
+2026-04-14,Tuesday,Dr. Baba Saheb Ambedkar Jayanti,FO;CM,listed
+2026-05-01,Friday,Maharashtra Day,FO;CM,listed
+2026-05-28,Thursday,Bakri Id,FO;CM,listed
+2026-06-26,Friday,Muharram,FO;CM,listed
+2026-08-15,Saturday,Independence Day,FO;CM,listed
+2026-09-14,Monday,Ganesh Chaturthi,FO;CM,listed
+2026-10-02,Friday,Mahatma Gandhi Jayanti,FO;CM,listed
+2026-10-20,Tuesday,Dussehra,FO;CM,listed
+2026-11-08,Sunday,Diwali Laxmi Pujan*,FO;CM,unconfirmed
+2026-11-10,Tuesday,Diwali-Balipratipada,FO;CM,listed
+2026-11-24,Tuesday,Prakash Gurpurb Sri Guru Nanak Dev,FO;CM,listed
+2026-12-25,Friday,Christmas,FO;CM,listed
