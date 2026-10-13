@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { backgroundView, fetchBackgroundTest, istDay } from "../lib/backgroundTest.js";
+import { HISTORY_FAILED, backgroundView, fetchBackgroundTest, istDay } from "../lib/backgroundTest.js";
 import { API_BASE } from "../lib/feed.js";
 import { inr, num, tone } from "../lib/deskModel.js";
 import { Levels } from "../pages/parts.jsx";
@@ -31,6 +31,7 @@ export function BackgroundTestBox() {
       ) : (
         <>
           <p className="fine">These are test signals checked against real prices. Nothing here was traded and none of it is in the desk total.{v.asOf ? ` Updated ${v.asOf.slice(11, 16)} IST.` : ""}</p>
+          <p className="fine warn" data-testid="bg-warning"><b>⚠ 1 day only · without top 3 = {v.withoutTop3 == null ? "—" : inr(v.withoutTop3)}</b>{v.top?.length ? ` (top 3: ${v.top.join(", ")})` : ""} · these strategies failed history tests: {HISTORY_FAILED.strategies.join(", ")} <em className="muted">(source: {HISTORY_FAILED.source})</em></p>
           {v.failed ? (
             <label className="fine"><input type="checkbox" checked={showFail} onChange={(e) => setShowFail(e.target.checked)} /> show {v.failed} that failed the check</label>
           ) : null}
@@ -48,7 +49,7 @@ export function BackgroundTestBox() {
                       <td className="r num">{num(t.strike) ?? "—"}</td>
                       <td>{dash(t.signal_ist)}</td>
                       <td className="r num">{px(t.entry_px)}</td>
-                      <td className="r num">{t.status === "OPEN" ? "open" : px(t.exit_px)}</td>
+                      <td className="r num">{t.status === "OPEN" ? <span className="tag tag--muted" title="P&L marked to last price">marked, not closed</span> : px(t.exit_px)}</td>
                       <td><Levels t={t} timeKey="planned_exit_ist" /></td>
                       <td className={`r num ${net === null ? "" : tone(net)}`}>{net === null || t.status === "OPEN" ? "—" : inr(net)}</td>
                       <td>{t.verified === "PASS" ? <span className="tag tag--ok">pass</span> : t.verified === "FAIL" ? <span className="tag tag--bad">fail</span> : "—"}</td>
