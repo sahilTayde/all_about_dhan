@@ -8,7 +8,7 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "test:units": "node scripts/customer_portal_unit.mjs && node scripts/customer_journey_unit.mjs && node scripts/strategy_board_unit.mjs && node scripts/trade_marks_unit.mjs && node scripts/trade_pipeline_unit.mjs && node scripts/llm_shadow_unit.mjs && node scripts/paper_board_unit.mjs && node scripts/pooled_trades_unit.mjs && node scripts/desk_today_unit.mjs",
+    "test:units": "node scripts/customer_portal_unit.mjs && node scripts/customer_journey_unit.mjs && node scripts/strategy_board_unit.mjs && node scripts/trade_marks_unit.mjs && node scripts/trade_pipeline_unit.mjs && node scripts/llm_shadow_unit.mjs && node scripts/paper_board_unit.mjs && node scripts/pooled_trades_unit.mjs && node scripts/desk_today_unit.mjs && node scripts/background_test_unit.mjs",
     "test:customer": "npm run test:units && node scripts/customer_portal_test.mjs",
     "ui:snapshots": "node scripts/ui_snapshots/run.mjs"
   },

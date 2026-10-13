@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { BackgroundTestBox } from "../components/BackgroundTestBox.jsx";
 import { PnlChart } from "../components/PnlChart.jsx";
 import { PremiumChart } from "../components/PremiumChart.jsx";
 import { CHARGES_LABEL, RULES, riskView, periodNets, signalWhy, agedAlerts, exitRule, feedAges, inr, minsUntil, num, pctOf, pctText, strikeOf, tone } from "../lib/deskModel.js";
@@ -144,6 +145,7 @@ export function LivePage({ snap, dd, conn }) {
         <FeedAges rows={feedAges(snap)} />
         <p className="fine">Feed: {conn}</p>
       </details>
+      <BackgroundTestBox />
     </div>
   );
 }

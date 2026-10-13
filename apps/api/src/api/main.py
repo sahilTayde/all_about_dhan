@@ -15,6 +15,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 
 from api import ui_feed
+from api.background_test import router as background_test_router
 from api.config import load_api_settings
 from api.desk_merge import merge_live_paper_into_desk, overlay_customer_sod_ticket
 from api.founder_controls import router as founder_controls_router
@@ -384,6 +385,7 @@ def create_app() -> FastAPI:
     app.include_router(ws_router)
     app.include_router(health_router)
     app.include_router(founder_controls_router)
+    app.include_router(background_test_router)  # read-only research box; never desk P&L
     if V2_GATEWAY_AVAILABLE:
         app.include_router(v2_router)
     return app
