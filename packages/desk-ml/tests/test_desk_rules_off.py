@@ -13,9 +13,10 @@ REPO = Path(__file__).resolve().parents[3]
 
 def test_config_lists_exactly_the_three() -> None:
     blob = yaml.safe_load((REPO / "config" / "desk_rules_off.yaml").read_text())
-    assert [i["id"] for i in blob["rules_off"]] == ["B2b", "R02", "R20", "R01", "R01_B3A_VOL"]
+    assert [i["id"] for i in blob["rules_off"]] == ["B2b", "R02", "R20", "R01_B3A_VOL"]
     off = rr.desk_rules_off()
-    assert {"B2b", "R20", rr.R02, rr.R01, rr.R01_B3A} <= off
+    assert {"B2b", "R20", rr.R02, rr.R01_B3A} <= off
+    assert rr.R01 not in off  # 2026-10-13 Sahil: R01 back on paper
     assert not {"B6a", "R15", "R19", "R21"} & off
 
 
@@ -34,9 +35,8 @@ def test_replay_never_trades_r02_on_a_new_day(tmp_path, monkeypatch) -> None:
     assert rr.R02 in res["shadow_parked"]["rule_ids"]
 
 
-def test_replay_never_trades_r01_or_b3a_on_a_new_day(tmp_path) -> None:
+def test_replay_r01_on_b3a_off_on_a_new_day(tmp_path) -> None:
     res = rr.replay(tmp_path, "2026-10-13")
-    assert rr.R01 not in res["rule_ids"]
+    assert rr.R01 in res["rule_ids"]  # 2026-10-13 Sahil: R01 back on paper
     assert rr.R01_B3A not in res["rule_ids"]
-    # still scored every day in the background (shadow)
-    assert {rr.R01, rr.R01_B3A} <= set(res["shadow_parked"]["rule_ids"])
+    assert rr.R01_B3A in set(res["shadow_parked"]["rule_ids"])
