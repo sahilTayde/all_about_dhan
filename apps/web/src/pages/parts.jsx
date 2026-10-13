@@ -1,4 +1,4 @@
-import { signalWhy, DESK_STATUS, deskStatusOf, exitRule, flagsOf, fmtAge, hhmm, inr, num, pctOf, pctText, reasonInfo, strategyName, strikeOf, tone } from "../lib/deskModel.js";
+import { levelsOf, signalWhy, DESK_STATUS, deskStatusOf, exitRule, flagsOf, fmtAge, hhmm, inr, num, pctOf, pctText, reasonInfo, strategyName, strikeOf, tone } from "../lib/deskModel.js";
 
 export function Reason({ code }) {
   const r = reasonInfo(code);
@@ -27,7 +27,7 @@ export function TradeTable({ rows, kind = "desk", onPick, picked, fallback }) {
         <thead>
           <tr>
             <th>Time</th><th>Contract</th><th>Strategy</th>
-            {blocked ? <th>Why</th> : <><th className="r">Buy</th><th className="r">Exit</th><th className="r">P&amp;L</th><th className="r">%</th><th>Exit reason</th></>}
+            {blocked ? <th>Why</th> : <><th className="r">Buy</th><th className="r">Exit</th><th className="r">P&amp;L</th><th className="r">%</th><th>Stop / Target</th><th>Exit reason</th></>}
             {blocked ? null : <th>Why taken</th>}<th>Status</th>
           </tr>
         </thead>
@@ -48,7 +48,8 @@ export function TradeTable({ rows, kind = "desk", onPick, picked, fallback }) {
                     <td className="r num">{px ?? "—"}</td>
                     <td className={`r num ${tone(pnl)}`}>{inr(pnl)}</td>
                     <td className={`r num ${tone(pnl)}`}>{pctText(pctOf(t.entry, px))}</td>
-                    <td>{t.exit_reason ? <Reason code={t.exit_reason} /> : <span className="muted">{exitRule(t).text}</span>} {flagsOf(t).map((f) => <Reason key={f} code={f} />)}</td>
+                    <td><Levels t={t} /></td>
+                    <td>{t.exit_reason ? <Reason code={t.exit_reason} /> : <span className="muted">{exitRule(t).text}</span>} {flagsOf(t).map((f, i) => <Reason key={`${f}|${i}`} code={f} />)}</td>
                   </>
                 )}
                 {blocked ? null : <td className="muted why">{signalWhy(t)}</td>}
@@ -87,5 +88,18 @@ export function FeedAges({ rows }) {
         </li>
       ))}
     </ul>
+  );
+}
+
+/** Stop / Target / Time exit from the desk feed only; '—' when the desk sends nothing. */
+export function Levels({ t, timeKey = "spec_exit_min", timeLabel = "Time exit" }) {
+  const L = levelsOf(t);
+  const time = t?.[timeKey] ? (hhmm(t[timeKey]) || String(t[timeKey])) : null;
+  return (
+    <span className="levels small">
+      <span>Stop <b className="num">{L.stop != null ? `₹${L.stop}` : "—"}</b>{L.stopPct != null ? <em className="muted"> {pctText(L.stopPct)}</em> : null}</span>
+      {" · "}<span>Target <b className="num">{L.target != null ? `₹${L.target}` : "—"}</b>{L.targetPct != null ? <em className="muted"> {pctText(L.targetPct)}</em> : null}</span>
+      {time ? <>{" · "}<span>{timeLabel} <b className="num">{time}</b></span></> : null}
+    </span>
   );
 }

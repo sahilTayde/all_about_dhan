@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { backgroundView, fetchBackgroundTest, istDay } from "../lib/backgroundTest.js";
 import { API_BASE } from "../lib/feed.js";
 import { inr, num, tone } from "../lib/deskModel.js";
+import { Levels } from "../pages/parts.jsx";
 
 const dash = (v) => (v === null || v === undefined || v === "" ? "—" : v);
 const px = (v) => (typeof v === "number" && Number.isFinite(v) ? v.toFixed(2) : "—");
@@ -35,9 +36,9 @@ export function BackgroundTestBox() {
           ) : null}
           <div className="tbl-wrap">
             <table className="tbl">
-              <thead><tr><th>Strategy</th><th>CE/PE</th><th className="r">Strike</th><th>Signal</th><th className="r">Entry ₹</th><th className="r">Exit ₹</th><th className="r">Net ₹ @1.5x</th><th>Verified</th></tr></thead>
+              <thead><tr><th>Strategy</th><th>CE/PE</th><th className="r">Strike</th><th>Signal</th><th className="r">Entry ₹</th><th className="r">Exit ₹</th><th>Stop / Target / exit</th><th className="r">Net ₹ @1.5x</th><th>Verified</th></tr></thead>
               <tbody>
-                {v.rows.length === 0 ? <tr><td colSpan={8} className="muted">—</td></tr> : v.rows.map((t, i) => {
+                {v.rows.length === 0 ? <tr><td colSpan={9} className="muted">—</td></tr> : v.rows.map((t, i) => {
                   const dup = t.duplicate_of;
                   const net = typeof t.net_inr_1_5x === "number" ? t.net_inr_1_5x : null;
                   return (
@@ -48,6 +49,7 @@ export function BackgroundTestBox() {
                       <td>{dash(t.signal_ist)}</td>
                       <td className="r num">{px(t.entry_px)}</td>
                       <td className="r num">{t.status === "OPEN" ? "open" : px(t.exit_px)}</td>
+                      <td><Levels t={t} timeKey="exit_ist" timeLabel="Exited" /></td>
                       <td className={`r num ${net === null ? "" : tone(net)}`}>{net === null || t.status === "OPEN" ? "—" : inr(net)}</td>
                       <td>{t.verified === "PASS" ? <span className="tag tag--ok">pass</span> : t.verified === "FAIL" ? <span className="tag tag--bad">fail</span> : "—"}</td>
                     </tr>

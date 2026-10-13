@@ -1,6 +1,6 @@
 import { Fragment, useState } from "react";
 import { deskStatusOf, exitRule, hhmm, inr, num, researchToday, strategyName, strikeOf, tone } from "../lib/deskModel.js";
-import { Side, TradeTable } from "./parts.jsx";
+import { Side, TradeTable, Levels } from "./parts.jsx";
 
 /** Plain status for one fire. Only desk_status / guard values the backend writes (research_rules.py, desk_risk.py). */
 const BLOCK_WHY = {
@@ -49,7 +49,7 @@ function Cells({ r, fb }) {
       <td className="r num">{strikeOf(r) ?? "—"}</td>
       <td className="r num">{num(r.spot_at_entry) ?? "—"}</td>
       <td className="r num">{num(r.entry) ?? "—"}</td>
-      <td className="num small">{num(r.stop) != null ? num(r.stop) : rule.kind === "time" ? `time exit ${rule.at || "20 min"}` : "—"}</td>
+      <td><Levels t={r} /></td>
       <td><span className={`tag tag--${st.taken ? "ok" : st.code === "SHADOW_PARKED" ? "muted" : "warn"}`} title={st.code}>{st.text}</span>{st.taken && num(r.realized_pnl_inr) != null ? <b className={`num small ${tone(r.realized_pnl_inr)}`}> {inr(r.realized_pnl_inr)}</b> : null}</td>
       <td className="num">{timeOf(r) || "—"}</td>
     </>
@@ -81,7 +81,7 @@ export function SignalsPage({ dd }) {
         {groups.length ? (
           <div className="tbl-wrap">
             <table className="tbl sigtbl" data-testid="signals-by-strategy">
-              <thead><tr><th /><th>Strategy</th><th>Index</th><th>Side</th><th className="r">Strike</th><th className="r">Spot</th><th className="r">Entry</th><th>Stop / exit rule</th><th>Status</th><th>Latest</th><th className="r">Fires today</th></tr></thead>
+              <thead><tr><th /><th>Strategy</th><th>Index</th><th>Side</th><th className="r">Strike</th><th className="r">Spot</th><th className="r">Entry</th><th>Stop / Target / exit</th><th>Status</th><th>Latest</th><th className="r">Fires today</th></tr></thead>
               <tbody>
                 {groups.map((g) => (
                   <Fragment key={g.key}>
