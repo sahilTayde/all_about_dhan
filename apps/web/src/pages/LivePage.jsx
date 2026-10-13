@@ -4,7 +4,7 @@ import { PnlChart } from "../components/PnlChart.jsx";
 import { PremiumChart } from "../components/PremiumChart.jsx";
 import { CHARGES_LABEL, RULES, riskView, periodNets, signalWhy, agedAlerts, exitRule, feedAges, inr, minsUntil, num, pctOf, pctText, strikeOf, tone } from "../lib/deskModel.js";
 import { useLtpTape } from "../lib/ltpTape.js";
-import { AlertList, FeedAges, Reason, Side, Strat, TradeTable } from "./parts.jsx";
+import { AlertList, FeedAges, Levels, Reason, Side, Strat, TradeTable } from "./parts.jsx";
 
 function useTick(ms = 1000) {
   const [, set] = useState(0);
@@ -41,7 +41,7 @@ function Position({ t, onPick, picked }) {
         <div><span>P&amp;L</span><b className={`num big ${tone(pnl)}`}>{inr(pnl)}</b></div>
         <div><span>%</span><b className={`num ${tone(pnl)}`}>{pctText(pctOf(t.entry, ltp))}</b></div>
       </div>
-      <div className="pos__levels"><span>Stop <b className="num">{num(t.stop) ?? "—"}</b></span><span>Target <b className="num">{num(t.target) ?? "—"}</b></span><span>Rule <b>{exitRule(t).kind === "time" ? "time exit 20 min" : exitRule(t).text}</b></span></div>
+      <div className="pos__levels"><Levels t={t} /><span>Rule <b>{exitRule(t).kind === "time" ? "time exit 20 min" : exitRule(t).text}</b></span></div>
       <div className="pos__foot"><Countdown t={t} /><Strat id={t.book_id} /></div>
       <p className="pos__why"><b>Why:</b> {signalWhy(t)}</p>
     </button>

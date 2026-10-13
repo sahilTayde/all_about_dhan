@@ -377,3 +377,16 @@ export function researchToday(dd) {
     notCountedNet: sum(notCounted.filter((c) => c.r.closed_ts != null), "realized_pnl_inr"),
   };
 }
+
+/**
+ * Stop / target / time exit exactly as the desk sends them. Never computed.
+ * Feed fields: stop, target (paper_scalp / ui_feed board rows), spec_exit_min (time-exit rows),
+ * background test: stop_px / target_px / exit_ist (only when present).
+ */
+export function levelsOf(t) {
+  const entry = num(t?.entry ?? t?.entry_px);
+  const stop = num(t?.stop ?? t?.stop_px);
+  const target = num(t?.target ?? t?.target_px);
+  const timeExit = hhmm(t?.spec_exit_min) || (typeof t?.spec_exit_min === "string" ? t.spec_exit_min : null);
+  return { entry, stop, target, stopPct: pctOf(entry, stop), targetPct: pctOf(entry, target), timeExit };
+}
