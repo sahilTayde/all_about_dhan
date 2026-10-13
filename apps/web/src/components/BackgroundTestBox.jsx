@@ -49,7 +49,7 @@ export function BackgroundTestBox() {
                       <td>{dash(t.signal_ist)}</td>
                       <td className="r num">{px(t.entry_px)}</td>
                       <td className="r num">{t.status === "OPEN" ? "open" : px(t.exit_px)}</td>
-                      <td><Levels t={t} timeKey="exit_ist" timeLabel="Exited" /></td>
+                      <td><Levels t={t} timeKey="planned_exit_ist" /></td>
                       <td className={`r num ${net === null ? "" : tone(net)}`}>{net === null || t.status === "OPEN" ? "—" : inr(net)}</td>
                       <td>{t.verified === "PASS" ? <span className="tag tag--ok">pass</span> : t.verified === "FAIL" ? <span className="tag tag--bad">fail</span> : "—"}</td>
                     </tr>
