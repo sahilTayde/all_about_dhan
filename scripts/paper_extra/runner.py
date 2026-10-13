@@ -57,7 +57,8 @@ def nifty_expiry(rows) -> str:
 SM_ROWS = None
 EXP = None
 CUTOFF_TS = 2 ** 40
-EXTRA_STRIKES = set()  # strikes of open rows / Q01 contract, always refreshed
+EXTRA_STRIKES = set()
+Q01_STATE = {"armed": None, "status": "not checked yet"}  # read by the desk: armed False -> no Q01 priority window  # strikes of open rows / Q01 contract, always refreshed
 
 
 def fetch() -> str:
@@ -167,7 +168,7 @@ def rows_from(score_rows: list) -> list:
 def write(rows: list, note: str) -> None:
     OUT.parent.mkdir(parents=True, exist_ok=True)
     blob = {"day": DAY, "orders": "REFUSED", "paper_only": True, "as_of_ist": datetime.now(IST).isoformat(timespec="seconds"),
-            "note": note, "strategies": sorted(set(STRATS.values())) + ["Q01_ITM100"], "rows": rows}
+            "note": note, "strategies": sorted(set(STRATS.values())) + ["Q01_ITM100"], "q01": dict(Q01_STATE), "rows": rows}
     tmp = OUT.with_suffix(".tmp"); tmp.write_text(json.dumps(blob, indent=1)); os.replace(tmp, OUT)
 
 
@@ -211,8 +212,10 @@ def q01_cycle(now_m: int) -> tuple:
         return [], None, "Q01 off before " + Q01_FROM
     vix = json.loads(VIX_HIST.read_text()) + [[d, c] for d, c in write_vix_daily().items()]
     vf = q01.vix_filter(vix, DAY)
+    Q01_STATE.update(armed=None, status="VIX check failed")
     if vf.get("status") != "OK" or vf.get("v1_date") != prev_trading_day(DAY):
         return [], None, f"Q01 DATA_MISSING: VIX close for {prev_trading_day(DAY)} not available (last {vf.get('v1_date')})"
+    Q01_STATE.update(armed=bool(vf["armed"]), status=f"VIX pct {vf['pct']} chg {vf['chg']} (close {vf['v1_date']})")
     if not vf["armed"]:
         return [], None, f"Q01 NO_SIGNAL (VIX pct {vf['pct']}, chg {vf['chg']})"
     op, osrc = q01.official_open(REPO / "data" / "tape" / "v2" / DAY)

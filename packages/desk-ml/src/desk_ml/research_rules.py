@@ -942,7 +942,27 @@ def _dedupe_same_contract(opens, closed, rule_order):
     return keep_o, keep_c, dups
 
 
-def _desk_pass(opens, closed, day: str, rule_order, risk_cfg):
+Q01_RULE_ID = "Q01_ITM100"
+Q01_FROM_DAY = "2026-10-14"
+Q01_WINDOW = ("09:55", "10:21")
+BLOCKED_Q01_WINDOW = "BLOCKED_Q01_WINDOW"
+Q01_SKIPPED_CAP = "Q01_SKIPPED_CAP"
+
+
+def q01_priority_window(root: Path, day: str) -> Optional[tuple]:
+    """2026-10-13 Sahil: Q01 has priority. On Q01 days, no other NIFTY entry 09:55-10:21 IST. Armed state comes from the
+    paper_extra runner (pre-open VIX filter); unknown -> block anyway (fail safe). Known NOT armed -> no window."""
+    if day < Q01_FROM_DAY:
+        return None
+    try:
+        blob = json.loads((Path(root) / PAPER_EXTRA_REL / f"{day}.json").read_text(encoding="utf-8"))
+        armed = (blob.get("q01") or {}).get("armed") if blob.get("day") == day else None
+    except (OSError, ValueError):
+        armed = None
+    return None if armed is False else Q01_WINDOW
+
+
+def _desk_pass(opens, closed, day: str, rule_order, risk_cfg, q01_window: Optional[tuple] = None):
     """One pass over desk candidates in strict entry-minute order (then rule rank):
     1) opposite-side guard (any index), 2) same-contract dedup, 3) desk risk gate (desk_risk.py).
     Trades entered before guard_from(day) are history: kept, but they count in the gate's state.
@@ -960,6 +980,11 @@ def _desk_pass(opens, closed, day: str, rule_order, risk_cfg):
     for r, is_open in rows:
         t = str(r.get("entry_min") or "")
         pre = t < guard_from(day or str(r.get("day") or ""))
+        # Q01 priority: other NIFTY entries inside the window are blocked (open positions are never force-closed).
+        if (q01_window and str(r.get("underlying") or "").upper() == "NIFTY" and r.get("rule_id") != Q01_RULE_ID
+                and q01_window[0] <= t <= q01_window[1]):
+            b = dict(r); b["guard"] = BLOCKED_Q01_WINDOW; blocked.append(b)
+            continue
         key = (r.get("underlying"), r.get("side"), float(r.get("atm_strike") or 0), t)
         if not pre and any(k.get("side") != r.get("side") and _holds_at(k, k_open, t) for k, k_open in taken):
             b = dict(r); b["guard"] = BLOCKED_OPPOSITE_SIDE; blocked.append(b)
@@ -978,7 +1003,7 @@ def _desk_pass(opens, closed, day: str, rule_order, risk_cfg):
         held_qty = sum(int(k.get("qty") or QTY.get(und, 0)) for k, k_open in taken
                        if str(k.get("underlying") or "").upper() == und and _holds_at(k, k_open, t))
         if held_qty + int(r.get("qty") or QTY.get(und, 0)) > QTY.get(und, 10**9):
-            b = dict(r); b["guard"] = desk_risk.RISK_CAP_QTY; blocked.append(b)
+            b = dict(r); b["guard"] = Q01_SKIPPED_CAP if r.get("rule_id") == Q01_RULE_ID else desk_risk.RISK_CAP_QTY; blocked.append(b)
             continue
         if not pre:
             why = desk_risk.check(taken, r, risk_cfg)
@@ -1121,7 +1146,8 @@ def replay(
             opens, ho = split_on_from(opens, onf); closed, hc = split_on_from(closed, onf)
             on_from_hist = (ho, hc)
         opens, closed, new_blocked, dup_shadow, taken = _desk_pass(
-            opens, closed, day, [r["rule_id"] for r in live_rules], risk_cfg)
+            opens, closed, day, [r["rule_id"] for r in live_rules], risk_cfg,
+            q01_window=q01_priority_window(Path(root), day) if rules is None else None)
         blocked.extend(new_blocked)
         add = {(b["rule_id"], b["underlying"], b["sig_min"]) for b in new_blocked}
         if not add - skip:
@@ -1141,9 +1167,10 @@ def replay(
         uniq[(b["rule_id"], b["underlying"], b["sig_min"])] = b
     _mark(opens, TRADED, shadow=False); _mark(closed, TRADED, shadow=False)
     _mark(shadow_open, SHADOW_PARKED, shadow=True); _mark(shadow_closed, SHADOW_PARKED, shadow=True)
-    guard_rows = [b for b in uniq.values() if b.get("guard") == BLOCKED_OPPOSITE_SIDE]
+    guard_rows = [b for b in uniq.values() if b.get("guard") in (BLOCKED_OPPOSITE_SIDE, BLOCKED_Q01_WINDOW, Q01_SKIPPED_CAP)]
     risk_rows = [b for b in uniq.values() if b.get("guard") in desk_risk.RISK_STATUSES]
-    _mark(guard_rows, BLOCKED_OPPOSITE_SIDE, shadow=True)
+    for b in guard_rows:
+        _mark([b], b["guard"], shadow=True)
     for b in risk_rows:
         _mark([b], b["guard"], shadow=True)
     _mark(dup_shadow, DUP_SAME_CONTRACT, shadow=True)
