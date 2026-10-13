@@ -990,6 +990,81 @@ def _desk_pass(opens, closed, day: str, rule_order, risk_cfg):
     return [r for r, o in taken if o], [r for r, o in taken if not o], blocked, dups, taken
 
 
+
+# ---- 2026-10-13: mid-day switch-on + paper_extra (lab strategies run by scripts/paper_extra) ----
+DESK_RULES_ON_FROM_PATH = Path(__file__).resolve().parents[4] / "config" / "desk_rules_on_from.yaml"
+PAPER_EXTRA_REL = Path("data") / "recon" / "paper_extra"
+
+
+def rules_on_from(day: str, path: Optional[Path] = None) -> dict[str, str]:
+    """{rule_id or prefix*: 'HH:MM'} for `day`: desk trades only from that IST minute; earlier = shadow."""
+    p = Path(path) if path is not None else DESK_RULES_ON_FROM_PATH
+    if not p.is_file():
+        return {}
+    import yaml
+
+    blob = yaml.safe_load(p.read_text(encoding="utf-8")) or {}
+    return {str(k): str(v) for k, v in ((blob.get("on_from") or {}).get(day) or {}).items()}
+
+
+def on_from_for(rule_id: str, table: dict[str, str]) -> Optional[str]:
+    if rule_id in table:
+        return table[rule_id]
+    for k, v in table.items():
+        if k.endswith("*") and rule_id.startswith(k[:-1]):
+            return v
+    return None
+
+
+def split_on_from(rows, table: dict[str, str]):
+    """(desk rows, history rows): a row whose entry_min is before its rule's on-from minute is history."""
+    keep, hist = [], []
+    for r in rows:
+        f = on_from_for(str(r.get("rule_id") or ""), table)
+        (hist if f and str(r.get("entry_min") or "") < f else keep).append(r)
+    return keep, hist
+
+
+def paper_extra_rows(root: Path, day: str, skip: Optional[set] = None) -> tuple[list, list]:
+    """Rows written by scripts/paper_extra/runner.py (lab rule signals on real 1m option bars), shaped like
+    desk research-rule rows. Missing/bad file -> no rows. Never a broker."""
+    p = Path(root) / PAPER_EXTRA_REL / f"{day}.json"
+    try:
+        blob = json.loads(p.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return [], []
+    if blob.get("day") != day or blob.get("orders") != "REFUSED":
+        return [], []
+    skip = skip or set()
+    opens, closed = [], []
+    for x in blob.get("rows") or []:
+        try:
+            rid = str(x["rule_id"]); und = str(x.get("underlying") or "NIFTY")
+            if (rid, und, x["signal_time"]) in skip:
+                continue
+            is_closed = x["status"] == "CLOSED"
+            mark = float(x["exit_px"] if is_closed else x["mark_px"])
+            row = _trade_row(
+                rule={"rule_id": rid, "source_config": f"paper_extra:{x['strategy']}", "family": "PAPER_EXTRA"},
+                underlying=und, side=str(x["side"]), strike=float(x["strike"]), sig_min=str(x["signal_time"]),
+                entry_min=str(x["entry_time"]), exit_min=str(x["exit_time"] if is_closed else x.get("mark_time") or x["entry_time"]),
+                entry=float(x["entry_px"]), mark=mark, day=day,
+                entry_bar={"source": x.get("entry_src") or "dhan_api_1m"},
+                mark_bar={"hhmm": str(x["exit_time"] if is_closed else x.get("mark_time") or x["entry_time"]),
+                          "source": x.get("exit_src") or x.get("entry_src") or "dhan_api_1m"},
+                closed=is_closed, reason=x.get("exit_reason") or None)
+        except (KeyError, TypeError, ValueError):
+            continue
+        row["strategy_name"] = str(x["strategy"])
+        row["stop_px"] = x.get("stop_px"); row["target_px"] = x.get("target_px")
+        row["stop"] = x.get("stop_px"); row["target"] = x.get("target_px")
+        row["exit_rule"] = x.get("exit_rule"); row["exit_time"] = x.get("exit_time")
+        row["spec_exit_min"] = x.get("exit_time") if not is_closed and x.get("exit_reason") == "TIME" else None
+        row["justification"] = f"paper_extra {x['strategy']}: lab rule signal, ATM, entry next-minute open. {x.get('exit_rule') or ''} NO_PROMOTE."
+        (closed if is_closed else opens).append(row)
+    return opens, closed
+
+
 def replay(
     root: Path,
     day: str,
@@ -1029,12 +1104,19 @@ def replay(
     risk_cfg = desk_risk.load_config()
     skip: set = set()
     blocked: list[dict[str, Any]] = []
+    on_from_hist = None
     for _ in range(10):  # D6: re-run without blocked signals until the blocked set is stable
         opens, closed = [], []
         for und, bars in bars_by.items():
             o, c = replay_underlying(bars, underlying=und, day=day, rules=live_rules, skip=skip,
                                     entry_before=entry_before, now_hhmm=now_hhmm)
             opens.extend(o); closed.extend(c)
+        if rules is None:  # 2026-10-13: paper_extra lab strategies go through the same desk guards
+            xo, xc = paper_extra_rows(Path(root), day, skip)
+            opens.extend(xo); closed.extend(xc)
+            onf = rules_on_from(day)
+            opens, ho = split_on_from(opens, onf); closed, hc = split_on_from(closed, onf)
+            on_from_hist = (ho, hc)
         opens, closed, new_blocked, dup_shadow, taken = _desk_pass(
             opens, closed, day, [r["rule_id"] for r in live_rules], risk_cfg)
         blocked.extend(new_blocked)
@@ -1043,6 +1125,8 @@ def replay(
             break
         skip |= add
     shadow_open, shadow_closed = [], []
+    if rules is None and on_from_hist is not None:  # before switch-on: history, shadow only
+        shadow_open.extend(on_from_hist[0]); shadow_closed.extend(on_from_hist[1])
     for und, bars in bars_by.items():
         o, c = replay_underlying(bars, underlying=und, day=day, rules=shadow_rules, now_hhmm=now_hhmm)
         shadow_open.extend(o); shadow_closed.extend(c)

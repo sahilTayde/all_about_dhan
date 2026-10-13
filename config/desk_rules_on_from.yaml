@@ -1,0 +1,7 @@
+# Rules switched ON mid-day book desk trades only from this IST minute (entry_min >= hhmm).
+# Earlier signals that day are history: shadow only, not in desk P&L, not counted by the risk gate.
+# 2026-10-13: Sahil switched R01 back on at ~11:46 IST (commit db4ed24). paper_extra (PX_*) strategies start at runner go-live.
+on_from:
+  "2026-10-13":
+    R01_PDIV_5_ALL_H20: "11:46"
+    PX_*: "23:59"   # set to the runner go-live minute once the replay check passes
