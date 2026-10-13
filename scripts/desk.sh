@@ -630,9 +630,10 @@ case "$CMD" in
     screen -S dual-tape-live-2s -X quit 2>/dev/null || true
     screen -wipe >/dev/null 2>&1 || true
     rm -f "$RECON/paper_dual_tape_STOPPED.flag"
-    PYTHONPATH="$ROOT/packages/desk-intel/src${PYTHONPATH:+:$PYTHONPATH}" \
-      "$PY" -m jobs pre-market --offline >> "$RECON/pre_market.log" 2>&1 || true
-    "$PY" -m desk_ml fix-first >> "$RECON/fix_first.log" 2>&1 || true
+    # 2026-10-13: the two slow steps (can take >10 min) run in their own screen so they can never block
+    # the API / website / dual-tape start. Their logs are unchanged.
+    screen -S desk-slow -X quit 2>/dev/null || true
+    screen -dmS desk-slow zsh -lc "cd '$ROOT' && PYTHONPATH='$ROOT/packages/desk-intel/src${PYTHONPATH:+:$PYTHONPATH}' '$PY' -m jobs pre-market --offline >> '$RECON/pre_market.log' 2>&1; '$PY' -m desk_ml fix-first >> '$RECON/fix_first.log' 2>&1"
     start_api
     start_web
     arm_dual_tape_when_open
@@ -641,6 +642,10 @@ case "$CMD" in
     echo "MORNING UP. Desk http://127.0.0.1:5173/desk  Founder http://127.0.0.1:5173/pm"
     echo "On /pm: pick index then START TRADE. PAPER. No live orders."
     screen -ls || true
+    ;;
+  autostart)
+    # Unattended weekday start (launchd). Paper only; never mints a token, never places an order.
+    exec "$ROOT/scripts/desk_autostart.sh"
     ;;
   close|night|nightly)
     echo "CLOSE: stop data capture, keep website, honesty exam + nightly."

@@ -69,3 +69,12 @@ def test_on_from_moves_earlier_rows_to_history():
     keep, hist = rr.split_on_from([{"rule_id": "PX_B2", "entry_min": "09:16"}, {"rule_id": "PX_B2", "entry_min": "12:10"}],
                                   {"PX_*": "12:06"})
     assert [r["entry_min"] for r in keep] == ["12:10"] and [r["entry_min"] for r in hist] == ["09:16"]
+
+
+def test_q01_row_passes_index_stop_and_planned_exit(tmp_path):
+    r = dict(_row("Q01_ITM100", "NIFTY", "PE", "10:00", "10:01"), stop_px=None, target_px=None, index_stop=22624.04,
+             planned_exit_ist="10:21", stop_target_basis="Stop is an index level", exit_reason_std="OPEN")
+    opens, _ = _px(tmp_path, [r])
+    o = opens[0]
+    assert o["index_stop"] == 22624.04 and o["spec_exit_min"] == "10:21" and o["planned_exit_ist"] == "10:21"
+    assert o["stop"] is None and o["qty"] == 650 and o["orders"] == "REFUSED"

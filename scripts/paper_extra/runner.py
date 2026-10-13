@@ -10,14 +10,14 @@ import csv, json, os, shutil, subprocess, sys, time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-DAY = "2026-10-13"
+IST = timezone(timedelta(hours=5, minutes=30))
+DAY = os.environ.get("PX_DAY") or datetime.now(IST).strftime("%Y-%m-%d")
 REPO = Path(__file__).resolve().parents[2]
 RT = Path.home() / "paper_extra_rt"
 VENV = Path.home() / "paper_extra_venv" / "bin" / "python"
 BF = REPO / "data" / "backfill" / DAY
 LIVE_RUN = REPO / "data" / "paper_extra" / DAY / "run"
 OUT = REPO / "data" / "recon" / "paper_extra" / f"{DAY}.json"
-IST = timezone(timedelta(hours=5, minutes=30))
 STRATS = {  # score_pass strategy name -> desk rule id (T2 = the scored variant)
     "B2": "PX_B2", "R07": "PX_R07", "EP-010": "PX_EP010", "EP-018": "PX_EP018",
     "I1_ORB:ORB_A:T2": "PX_ORB_A", "I4_VWAP:VWAP_CONT:T2": "PX_VWAP_CONT", "I9_ENGULF:ENG_5:T2": "PX_ENG_5",
@@ -34,20 +34,52 @@ XR = {"STOP": "STOP", "TARGET": "TARGET", "TIME": "TIME", "EXIT": "RULE_EXIT", "
 # STOP/TARGET/SIGNAL/REVERSE exits = next-minute OPEN, never the touch-minute close. test_exit_fill.py checks every cycle.
 
 
-def latest_bf_run() -> Path:
+def latest_bf_run():
+    if not BF.is_dir():
+        return None
     runs = [p for p in BF.iterdir() if p.is_dir() and (p / "IDX_NIFTY.json").is_file()]
-    return max(runs, key=lambda p: (p / "IDX_NIFTY.json").stat().st_mtime)
+    return max(runs, key=lambda p: (p / "IDX_NIFTY.json").stat().st_mtime) if runs else None
+
+
+def scrip_master() -> Path:
+    d = REPO / "data" / "cache" / "marketdata"
+    p = d / f"scrip_master_{DAY}.csv"
+    return p if p.is_file() else sorted(d.glob("scrip_master_*.csv"))[-1]
+
+
+def nifty_expiry(rows) -> str:
+    """Nearest NIFTY weekly option expiry on/after DAY (scrip master)."""
+    exps = sorted({r["SEM_EXPIRY_DATE"][:10] for r in rows if r["SEM_EXM_EXCH_ID"] == "NSE" and r["SEM_INSTRUMENT_NAME"] == "OPTIDX"
+                   and r["SEM_TRADING_SYMBOL"].startswith("NIFTY-") and r["SEM_EXPIRY_DATE"][:10] >= DAY})
+    return exps[0]
+
+
+SM_ROWS = None
+EXP = None
+CUTOFF_TS = 2 ** 40
+EXTRA_STRIKES = set()  # strikes of open rows / Q01 contract, always refreshed
 
 
 def fetch() -> str:
     """Refresh LIVE_RUN: copy latest backfill run, then re-fetch indices + NIFTY ATM±200 options (read-only)."""
+    global SM_ROWS, EXP
     src = latest_bf_run()
-    if LIVE_RUN.exists():
-        shutil.rmtree(LIVE_RUN)
-    shutil.copytree(src, LIVE_RUN)
+    first = not LIVE_RUN.exists()
+    if first:
+        if src is not None:
+            shutil.copytree(src, LIVE_RUN)
+        else:
+            LIVE_RUN.mkdir(parents=True)
     from dhan_client.client import DhanClient
-    to = datetime.now(IST).strftime("%Y-%m-%d %H:%M:%S")
-    sm = list(csv.DictReader(open(REPO / "data" / "cache" / "marketdata" / f"scrip_master_{DAY}.csv")))
+    global CUTOFF_TS
+    nowdt = datetime.now(IST)
+    to = nowdt.strftime("%Y-%m-%d %H:%M:%S")
+    CUTOFF_TS = int(nowdt.replace(second=0, microsecond=0).timestamp())
+    if SM_ROWS is None:
+        SM_ROWS = list(csv.DictReader(open(scrip_master())))
+        EXP = nifty_expiry(SM_ROWS)
+    sm = SM_ROWS
+    band = 300 if first else 200
     n = 0
     with DhanClient(dry_run=False) as c:
         def get(sid, seg, inst, name, frm, oi=False):
@@ -58,31 +90,54 @@ def fetch() -> str:
             for _ in range(2):
                 try:
                     r = c.historical.intraday(body)
+                    if isinstance(r, dict) and r.get("timestamp"):  # drop the minute still forming (complete bars only)
+                        keep = [i for i, t in enumerate(r["timestamp"]) if int(t) < CUTOFF_TS]
+                        r = {k: ([v[i] for i in keep] if isinstance(v, list) and len(v) == len(r["timestamp"]) else v) for k, v in r.items()}
                     (LIVE_RUN / f"{name}.json").write_text(json.dumps(r)); n += 1; time.sleep(0.35); return r
                 except Exception:
                     time.sleep(1.5)
             return None
         r = get(13, "IDX_I", "INDEX", "IDX_NIFTY", "2026-08-20 09:15:00")
         get(51, "IDX_I", "INDEX", "IDX_SENSEX", "2026-08-20 09:15:00")
+        if first or not (LIVE_RUN / "IDX_INDIAVIX.json").is_file():
+            get(21, "IDX_I", "INDEX", "IDX_INDIAVIX", "2026-10-01 09:15:00")
         if not r or not r.get("close"):
             return f"from {src.name}, fetch FAILED (using backfill only)"
         atm = round(float(r["close"][-1]) / 50) * 50
         for row in sm:
             if (row["SEM_EXM_EXCH_ID"] == "NSE" and row["SEM_INSTRUMENT_NAME"] == "OPTIDX" and row["SEM_TRADING_SYMBOL"].startswith("NIFTY-")
-                    and row["SEM_EXPIRY_DATE"].startswith(DAY)):
+                    and row["SEM_EXPIRY_DATE"].startswith(EXP)):
                 k = float(row["SEM_STRIKE_PRICE"])
-                if abs(k - atm) <= 200:
-                    get(row["SEM_SMST_SECURITY_ID"], "NSE_FNO", "OPTIDX", f"NIFTY_{DAY}_{int(k)}_{row['SEM_OPTION_TYPE']}", f"{DAY} 09:15:00", True)
-    return f"from {src.name}, fetched {n} series to {to[11:16]} IST"
+                if abs(k - atm) <= band or int(k) in EXTRA_STRIKES:
+                    get(row["SEM_SMST_SECURITY_ID"], "NSE_FNO", "OPTIDX", f"NIFTY_{EXP}_{int(k)}_{row['SEM_OPTION_TYPE']}", f"{DAY} 09:15:00", True)
+    return f"from {src.name if src else 'fresh'}, exp {EXP}, fetched {n} series to {to[11:16]} IST"
+
+
+def write_vix_daily() -> dict:
+    """Prior-day India VIX closes after the lab history (last 1m close of each day, Dhan IDX_I sid 21) -> work/vix_daily.json."""
+    out = {}
+    try:
+        j = json.loads((LIVE_RUN / "IDX_INDIAVIX.json").read_text())
+        for t, c in zip(j["timestamp"], j["close"]):
+            d = datetime.fromtimestamp(int(t), IST).strftime("%Y-%m-%d")
+            if "2026-10-09" < d < DAY:
+                out[d] = float(c)
+    except (OSError, ValueError, KeyError):
+        pass
+    if out:
+        (RT / "live" / "work" / "vix_daily.json").write_text(json.dumps(out))
+    return out
 
 
 def score() -> list:
     live = RT / "live"
+    cut = datetime.fromtimestamp(CUTOFF_TS, IST) if CUTOFF_TS < 2 ** 40 else None
+    env = dict(os.environ, PX_DAY=DAY, PX_EXP=EXP or DAY, PX_CUTOFF_M=str(cut.hour * 60 + cut.minute) if cut else "")
     tape = REPO / "data" / "tape" / "v2" / DAY
-    subprocess.run([str(VENV), "build_day.py", str(LIVE_RUN), str(tape), "work"], cwd=live, check=True, capture_output=True, timeout=120)
-    p = subprocess.run([str(VENV), "score_pass.py"], cwd=live, check=True, capture_output=True, timeout=180, text=True)
+    subprocess.run([str(VENV), "build_day.py", str(LIVE_RUN), str(tape), "work"], cwd=live, check=True, capture_output=True, timeout=120, env=env)
+    p = subprocess.run([str(VENV), "score_pass.py"], cwd=live, check=True, capture_output=True, timeout=180, text=True, env=env)
     t = subprocess.run([str(VENV), str(REPO / "scripts" / "paper_extra" / "test_exit_fill.py"), str(live / "score_latest.csv")],
-                       capture_output=True, text=True, timeout=60, env=dict(os.environ, PX_RUN=str(LIVE_RUN)))
+                       capture_output=True, text=True, timeout=60, env=dict(env, PX_RUN=str(LIVE_RUN)))
     if t.returncode != 0:  # fail closed: keep last good file, book nothing new
         raise RuntimeError("FILL_RULE_FAIL " + t.stdout.strip()[:300])
     return list(csv.DictReader(open(live / "score_latest.csv"))), p.stdout.strip().splitlines()[-1]
@@ -112,8 +167,117 @@ def rows_from(score_rows: list) -> list:
 def write(rows: list, note: str) -> None:
     OUT.parent.mkdir(parents=True, exist_ok=True)
     blob = {"day": DAY, "orders": "REFUSED", "paper_only": True, "as_of_ist": datetime.now(IST).isoformat(timespec="seconds"),
-            "note": note, "strategies": sorted(set(STRATS.values())), "rows": rows}
+            "note": note, "strategies": sorted(set(STRATS.values())) + ["Q01_ITM100"], "rows": rows}
     tmp = OUT.with_suffix(".tmp"); tmp.write_text(json.dumps(blob, indent=1)); os.replace(tmp, OUT)
+
+
+# ---------------- Q01 ITM100 v1.1 (desk paper, from 2026-10-14) + Q01_T15 (shadow / background box only) ----------------
+Q01_FROM = "2026-10-14"
+VIX_HIST = REPO / "packages" / "desk-ml" / "tests" / "fixtures" / "q01" / "vix_daily_hist.json"
+BG_DIR = REPO / "data" / "research" / "background_test"
+
+
+def _bars(name: str) -> dict:
+    try:
+        j = json.loads((LIVE_RUN / f"{name}.json").read_text())
+    except (OSError, ValueError):
+        return {}
+    out = {}
+    for i, t in enumerate(j.get("timestamp") or []):
+        dt = datetime.fromtimestamp(int(t), IST)
+        if dt.strftime("%Y-%m-%d") == DAY:
+            out[dt.hour * 60 + dt.minute] = (float(j["open"][i]), float(j["close"][i]))
+    return out
+
+
+def prev_trading_day(day: str) -> str:
+    """Previous NSE session (weekends + NSE holiday list in the lab lib)."""
+    hol = set()
+    for f in (RT / "dhan" / "research" / "lab" / "lib").glob("nse_holidays_20*.csv"):
+        for line in f.read_text().splitlines():
+            if line[:2] == "20":
+                hol.add(line[:10])
+    d = datetime.fromisoformat(day).date() - timedelta(days=1)
+    while d.weekday() >= 5 or d.isoformat() in hol:
+        d -= timedelta(days=1)
+    return d.isoformat()
+
+
+def q01_cycle(now_m: int) -> tuple:
+    """Returns (desk_rows, t15_bg_row or None, status text). now_m = last COMPLETE IST minute."""
+    sys.path.insert(0, str(REPO / "packages" / "desk-ml" / "src"))
+    from desk_ml import q01
+    if DAY < Q01_FROM:
+        return [], None, "Q01 off before " + Q01_FROM
+    vix = json.loads(VIX_HIST.read_text()) + [[d, c] for d, c in write_vix_daily().items()]
+    vf = q01.vix_filter(vix, DAY)
+    if vf.get("status") != "OK" or vf.get("v1_date") != prev_trading_day(DAY):
+        return [], None, f"Q01 DATA_MISSING: VIX close for {prev_trading_day(DAY)} not available (last {vf.get('v1_date')})"
+    if not vf["armed"]:
+        return [], None, f"Q01 NO_SIGNAL (VIX pct {vf['pct']}, chg {vf['chg']})"
+    op, osrc = q01.official_open(REPO / "data" / "tape" / "v2" / DAY)
+    if op is None:
+        return [], None, f"Q01 DATA_MISSING {osrc}"
+    idx = {m: c for m, (o, c) in _bars("IDX_NIFTY").items()}
+    if now_m < q01.SIG_M or q01.SIG_M not in idx:
+        return [], None, f"Q01 armed (pct {vf['pct']}, chg {vf['chg']}), open {op} {osrc}; waiting for 10:00 close"
+    s10 = idx[q01.SIG_M]
+    ss = q01.side_strike(op, s10)
+    if ss is None:
+        return [], None, "Q01 NO_TRADE mv=0"
+    sg, side, K = ss
+    EXTRA_STRIKES.add(K)
+    opt = _bars(f"NIFTY_{EXP}_{K}_{side}")
+    rows, bg = [], None
+    for variant in ("PLAIN", "T15"):
+        r = q01.simulate(sg=sg, s10=s10, idx=idx, opt=opt, variant=variant, now_m=now_m)
+        if r["status"] not in ("OPEN", "CLOSED"):
+            continue
+        closed = r["status"] == "CLOSED"
+        row = {"rule_id": "Q01_ITM100" if variant == "PLAIN" else "Q01_T15", "strategy": "Q01_ITM100_v1.1" if variant == "PLAIN" else "Q01_T15",
+               "underlying": "NIFTY", "side": side, "strike": float(K), "signal_time": "10:00", "entry_time": r["entry_min"],
+               "exit_time": r.get("exit_min") if closed else None, "exit_reason": r.get("exit_reason") if closed else None,
+               "entry_px": r["entry_px"], "exit_px": r.get("exit_px"), "status": r["status"],
+               "mark_time": r.get("mark_min"), "mark_px": r.get("mark_px"), "entry_src": "dhan_api_1m", "exit_src": "dhan_api_1m",
+               "stop_px": None, "target_px": r["target_px"], "index_stop": r["index_stop"], "stop_dist_idx": r["stop_dist_idx"],
+               "stop_target_basis": f"Stop is an index level: NIFTY 1-min close {'<=' if sg > 0 else '>='} {r['index_stop']} (S10 {s10} -/+ 0.3xE/0.54)."
+               + (f" Target = entry + 1.5R = {r['target_px']} on 1-min option close." if variant == "T15" else " No target (v1.1)."),
+               "planned_exit_ist": r["planned_exit"], "exit_reason_std": (r.get("exit_reason") if closed else "OPEN"),
+               "exit_rule": "Q01 v1.1: index stop on 1-min closes, else 10:21 time exit" if variant == "PLAIN" else "Q01_T15 shadow: index stop, target E+1.5R, 10:21 cap",
+               "official_open": op, "open_src": osrc, "vix_pct": vf["pct"], "vix_chg": vf["chg"], "S10": s10}
+        if variant == "PLAIN":
+            rows.append(row)
+        else:
+            bg = row
+    return rows, bg, f"Q01 {side} {K} " + ", ".join(f"{r['rule_id']}:{r['status']}" for r in rows + ([bg] if bg else []))
+
+
+def write_bg_t15(bg) -> None:
+    """Q01_T15 is shadow only: background test box, never desk rows. Merges into the day's background file."""
+    if bg is None:
+        return
+    p = BG_DIR / f"{DAY}.json"
+    try:
+        body = json.loads(p.read_text())
+    except (OSError, ValueError):
+        body = {"source": "background-test", "label": "Background test (not traded)", "paper_only": True, "in_desk_pnl": False,
+                "day": DAY, "summary": {}, "trades": []}
+    body["trades"] = [t for t in body.get("trades") or [] if t.get("strategy") != "Q01_T15"]
+    t = {"source": "paper_extra_shadow", "paper_only": True, "traded": False, "day": DAY, "strategy": "Q01_T15", "side": bg["side"],
+         "strike": int(bg["strike"]), "signal_ist": "10:00", "entry_ist": bg["entry_time"], "exit_ist": bg["exit_time"],
+         "exit_reason": bg["exit_reason"], "exit_reason_std": bg["exit_reason_std"], "entry_px": bg["entry_px"], "exit_px": bg["exit_px"],
+         "qty": 650, "net_inr_1_5x": None, "status": bg["status"], "stop_px": None, "target_px": bg["target_px"],
+         "index_stop": bg["index_stop"], "stop_target_basis": bg["stop_target_basis"], "planned_exit_ist": bg["planned_exit_ist"],
+         "verified": "SHADOW", "count_in_total": False}
+    if bg["status"] == "CLOSED":
+        sys.path.insert(0, str(REPO / "packages" / "desk-ml" / "src"))
+        from desk_ml import research_rules as rr
+        c = rr._cost_row(entry=bg["entry_px"], exit_px=bg["exit_px"], qty=650, filled=True, underlying="NIFTY")
+        t["net_inr_1_5x"] = round((bg["exit_px"] - bg["entry_px"]) * 650 - float(c["charges_inr"]), 2)
+    body["trades"].append(t)
+    body["as_of_ist"] = datetime.now(IST).isoformat(timespec="seconds")
+    BG_DIR.mkdir(parents=True, exist_ok=True)
+    tmp = p.with_suffix(".tmp"); tmp.write_text(json.dumps(body, indent=1)); os.replace(tmp, p)
 
 
 def log_risk() -> str:
@@ -138,13 +302,28 @@ def once() -> str:
     f = fetch()
     sr, line = score()
     rows = rows_from(sr)
-    write(rows, f"{f}; {line}")
+    for r in rows:
+        if r["status"] == "OPEN":
+            EXTRA_STRIKES.add(int(r["strike"]))
+    now = datetime.now(IST) - timedelta(minutes=1)
+    try:
+        qrows, bg, qtxt = q01_cycle(now.hour * 60 + now.minute)
+        write_bg_t15(bg)
+    except Exception as e:  # Q01 must not stop the PX strategies
+        qrows, qtxt = [], f"Q01 ERROR {type(e).__name__}: {e}"
+    rows += qrows
+    write(rows, f"{f}; {line}; {qtxt}")
+    line = f"{line}; {qtxt}"
     return f"{datetime.now(IST):%H:%M:%S} IST {f}; {line}; px rows {len(rows)}; {log_risk()}"
 
 
 if __name__ == "__main__":
     mode = sys.argv[1] if len(sys.argv) > 1 else "once"
     if mode == "loop":
+        start = datetime.now(IST).replace(hour=9, minute=16, second=5, microsecond=0)
+        if datetime.now(IST) < start:  # first complete 1m bar is 09:15
+            print(f"{datetime.now(IST):%H:%M:%S} IST waiting for 09:16:05 IST (day {DAY})", flush=True)
+            time.sleep((start - datetime.now(IST)).total_seconds())
         while datetime.now(IST).strftime("%H:%M") < "15:31":
             t = time.time()
             try:

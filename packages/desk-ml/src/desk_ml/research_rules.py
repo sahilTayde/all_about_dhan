@@ -1059,7 +1059,10 @@ def paper_extra_rows(root: Path, day: str, skip: Optional[set] = None) -> tuple[
         row["stop_px"] = x.get("stop_px"); row["target_px"] = x.get("target_px")
         row["stop"] = x.get("stop_px"); row["target"] = x.get("target_px")
         row["exit_rule"] = x.get("exit_rule"); row["exit_time"] = x.get("exit_time")
-        row["spec_exit_min"] = x.get("exit_time") if not is_closed and x.get("exit_reason") == "TIME" else None
+        row["spec_exit_min"] = x.get("planned_exit_ist") or (x.get("exit_time") if not is_closed and x.get("exit_reason") == "TIME" else None)
+        for k in ("index_stop", "stop_target_basis", "planned_exit_ist", "exit_reason_std", "official_open", "open_src"):
+            if x.get(k) is not None:
+                row[k] = x[k]
         row["justification"] = f"paper_extra {x['strategy']}: lab rule signal, ATM, entry next-minute open. {x.get('exit_rule') or ''} NO_PROMOTE."
         (closed if is_closed else opens).append(row)
     return opens, closed

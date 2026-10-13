@@ -4,7 +4,7 @@ data path redirected in memory to work/base_1m_aug.parquet; 300-minute day gate 
 as in live3). Qty = lib.lots real (NIFTY 13-Oct 65 x 10 = 650). Costs = lib.costs.net_at dated (day=2026-10-13), 1x & 1.5x. No price invented:
 missing bar -> DATA_MISSING. Trade whose exit minute is not reached yet -> OPEN."""
 import sys,os,re,types,json,traceback,datetime as dt,numpy as np,pandas as pd; sys.dont_write_bytecode=True
-HERE=os.path.dirname(os.path.abspath(__file__)); W=HERE+"/work"; LAB="/Users/sahiltayde/paper_extra_rt/dhan/research/lab"; DAY="2026-10-13"; sys.path[:0]=[LAB+"/lib",LAB]
+HERE=os.path.dirname(os.path.abspath(__file__)); W=HERE+"/work"; LAB="/Users/sahiltayde/paper_extra_rt/dhan/research/lab"; DAY=os.environ.get("PX_DAY","2026-10-13"); EXP=os.environ.get("PX_EXP",DAY); sys.path[:0]=[LAB+"/lib",LAB]
 import costs as CO, lots as LO
 QTY=LO.qty("NIFTY",DAY,10)
 _rp=pd.read_parquet
@@ -26,7 +26,7 @@ def load_mod(name,path,subs=()):
     try: exec(compile(src,path,"exec"),m.__dict__)
     finally: os.chdir(cwd)
     return m
-OPT=_rp(W+"/opt1m_2026-10-13.parquet"); OPT=OPT[(OPT.symbol=="NIFTY")&(OPT.expiry==DAY)]
+OPT=_rp(W+f"/opt1m_{DAY}.parquet"); OPT=OPT[(OPT.symbol=="NIFTY")&(OPT.expiry==EXP)]
 OB={(int(k),o):g.set_index("m") for (k,o),g in OPT.groupby(["strike","option_type"])}
 BA=_rp(W+"/base_1m_aug.parquet"); TD=BA[BA.day==DAY].set_index("m"); LASTM=int(TD.index.max())
 def hm(m): return None if m is None else f"{int(m)//60:02d}:{int(m)%60:02d}"
@@ -57,7 +57,7 @@ def none(strat,why): ROWS.append(dict(strategy=strat,signalled="N",status=why))
 def fam(name,fn):
     try: fn()
     except Exception as e: ERR[name]=f"{type(e).__name__}: {e}"; traceback.print_exc()
-TODAY_GATE=[("len(g)>=300]","(len(g)>=300 or d==\"2026-10-13\")]")]
+TODAY_GATE=[("len(g)>=300]",f"(len(g)>=300 or d==\"{DAY}\")]")]
 # ---------- PRIM (stress.py + combos CC2/R07) ----------
 def prim():
     sys.path[:0]=[LAB+"/2026-10-11_stress",LAB+"/2026-10-11_range_boxes",LAB+"/2026-10-11_bigmove_re"]
@@ -90,7 +90,7 @@ def prim():
 # ---------- EP ports ----------
 def eps():
     sys.path[:0]=[LAB+"/2026-10-11_tv_ep23"]
-    EP=load_mod("engine",LAB+"/2026-10-11_tv_ep23/engine.py",[('M = M[M.groupby("day").m.transform("size") >= 300]','M = M[(M.groupby("day").m.transform("size") >= 300) | (M.day == "2026-10-13")]')])
+    EP=load_mod("engine",LAB+"/2026-10-11_tv_ep23/engine.py",[('M = M[M.groupby("day").m.transform("size") >= 300]',f'M = M[(M.groupby("day").m.transform("size") >= 300) | (M.day == "{DAY}")]')])
     EPP=load_mod("ports",LAB+"/2026-10-11_tv_ep23/ports.py")
     TR=pd.read_csv(LAB+"/2026-10-11_tv_ep23/test_results.csv")
     for t in TR.itertuples():
@@ -107,7 +107,7 @@ def eps():
         if not n: none(t.ep,"NO_SIGNAL")
 # ---------- candle ideas ----------
 def candles():
-    C=load_mod("common",LAB+"/2026-10-12_realprice/v2_candle/common.py",[("if not np.isfinite(A) or A <= 0 or len(g) < 300: continue","if not np.isfinite(A) or A <= 0 or (len(g) < 300 and d != \"2026-10-13\"): continue")])
+    C=load_mod("common",LAB+"/2026-10-12_realprice/v2_candle/common.py",[("if not np.isfinite(A) or A <= 0 or len(g) < 300: continue",f"if not np.isfinite(A) or A <= 0 or (len(g) < 300 and d != \"{DAY}\"): continue")])
     C.RULES=json.load(open(LAB+"/2026-10-12_realprice/v2_candle/MINED_RULES.json"))["rules"]
     G=C.load(); CX=C.context(G); assert DAY in CX,"no context for today"; g=G[DAY]; X=CX[DAY]; m=g.m.values
     for v in C.VARS+sorted(C.RULES):

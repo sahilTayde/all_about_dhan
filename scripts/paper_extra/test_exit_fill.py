@@ -5,7 +5,7 @@ import sys,glob,os,json,pandas as pd
 F=sys.argv[1]; RUN=os.environ.get("PX_RUN",os.path.expanduser("~/Documents/all_about_dhan/data/paper_extra/2026-10-13/run"))
 mm=lambda s:int(s[:2])*60+int(s[3:5])
 def ob(K,o):
-    j=json.load(open(f"{RUN}/NIFTY_2026-10-13_{K}_{o}.json")); t=pd.to_datetime(j["timestamp"],unit="s",utc=True).tz_convert("Asia/Kolkata")
+    j=json.load(open(f"{RUN}/NIFTY_{os.environ.get('PX_EXP','2026-10-13')}_{K}_{o}.json")); t=pd.to_datetime(j["timestamp"],unit="s",utc=True).tz_convert("Asia/Kolkata")
     return pd.Series(j["open"],index=t.hour*60+t.minute)
 S=pd.read_csv(F); S=S[S.status=="CLOSED"]; bad=[]
 for r in S.itertuples():
