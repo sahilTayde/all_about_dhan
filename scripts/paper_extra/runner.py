@@ -283,6 +283,90 @@ def write_bg_t15(bg) -> None:
     tmp = p.with_suffix(".tmp"); tmp.write_text(json.dumps(body, indent=1)); os.replace(tmp, p)
 
 
+# ---------------- Premium-stop BACKGROUND SHADOWS (from 2026-10-14): EP009_P, B2_P, VWAPCONT_PE_P ----------------
+# Specs sealed in research/lab/2026-10-13_premium_stops/SHADOW_*.md. Same contract as Q01_T15: never desk rows, never in desk P&L,
+# written only to the background test box with count_in_total False. Computed by pshadow_live.py in a background process on a
+# snapshot of the completed-minute work files, so it can never slow or break the desk cycle (result lags at most one cycle).
+PS_FROM = "2026-10-14"
+PS_NAMES = {"EP009_P": "SHADOW_EP009_P", "B2_P": "SHADOW_B2_P", "VWAPCONT_PE_P": "SHADOW_VWAPCONT_PE_P"}
+PS_SPEC = {"EP009_P": "SHADOW_EP009_P.md b09d74bf", "B2_P": "SHADOW_B2_P.md 1006e2ac", "VWAPCONT_PE_P": "SHADOW_VWAPCONT_PE_P.md daf44776"}
+PS_DIR = RT / "live" / "work_ps"
+PS_PROC = None
+PS_T0 = 0.0
+PS_STD = {"STOP": "STOP", "TARGET": "TARGET", "TIME": "TIME"}
+
+
+def ps_bg_trades(js: dict) -> list:
+    """pshadow_latest.json rows -> background-box trade dicts (never desk rows)."""
+    out = []
+    for r in js.get("rows") or []:
+        name = r["name"]; st = r.get("status"); closed = st == "CLOSED"
+        hm = lambda m: None if m is None else f"{int(m) // 60:02d}:{int(m) % 60:02d}"
+        t = {"source": "paper_extra_shadow", "paper_only": True, "traded": False, "day": js.get("day", DAY), "strategy": PS_NAMES[name],
+             "research_strat": r.get("research_strat"), "side": r.get("side"), "strike": r.get("strike"), "signal_ist": r.get("signal_ist"),
+             "entry_ist": hm(r.get("em")), "exit_ist": hm(r.get("fill_m")) if closed else None, "exit_signal_ist": hm(r.get("xm")),
+             "exit_reason": r.get("kind") if closed else None, "exit_reason_std": PS_STD.get(r.get("kind"), r.get("kind")) if closed else (st or "OPEN"),
+             "entry_px": r.get("en"), "exit_px": r.get("ex") if closed else None, "mark_ist": hm(r.get("mark_m")), "mark_px": r.get("mark_px"),
+             "qty": 650, "net_inr_1_5x": None, "status": st, "stop_px": r.get("stop_px"), "target_px": r.get("target_px"),
+             "stop_target_basis": f"Premium levels on 1-min option CLOSES, stop checked first: stop = entry x (1-{r['S']}), target = entry + {r['k']} x {r['S']} x entry; "
+                                  "fill = next minute OPEN - 0.05; else TIME at the cap.",
+             "planned_exit_ist": hm(r.get("capm")), "note": r.get("note"), "data_through_ist": js.get("data_through"),
+             "spec": PS_SPEC[name], "verified": "SHADOW", "count_in_total": False}
+        if closed:
+            sys.path.insert(0, str(REPO / "packages" / "desk-ml" / "src"))
+            from desk_ml import research_rules as rr
+            c = rr._cost_row(entry=t["entry_px"], exit_px=t["exit_px"], qty=650, filled=True, underlying="NIFTY")
+            t["net_inr_1_5x"] = round((t["exit_px"] - t["entry_px"]) * 650 - float(c["charges_inr"]), 2)
+        out.append(t)
+    return out
+
+
+def write_bg_pshadow(js: dict) -> None:
+    p = BG_DIR / f"{DAY}.json"
+    try:
+        body = json.loads(p.read_text())
+    except (OSError, ValueError):
+        body = {"source": "background-test", "label": "Background test (not traded)", "paper_only": True, "in_desk_pnl": False,
+                "day": DAY, "summary": {}, "trades": []}
+    keep = set(PS_NAMES.values())
+    body["trades"] = [t for t in body.get("trades") or [] if t.get("strategy") not in keep] + ps_bg_trades(js)
+    body["pshadow"] = {"data_through_ist": js.get("data_through"), "errors": js.get("errors"), "skipped": js.get("skipped"), "count_in_total": False}
+    body["as_of_ist"] = datetime.now(IST).isoformat(timespec="seconds")
+    BG_DIR.mkdir(parents=True, exist_ok=True)
+    tmp = p.with_suffix(".tmp"); tmp.write_text(json.dumps(body, indent=1)); os.replace(tmp, p)
+
+
+def pshadow_cycle() -> str:
+    """Harvest the last background result (bg box + pin strikes), then launch the next one on a fresh snapshot."""
+    global PS_PROC, PS_T0
+    if DAY < PS_FROM:
+        return "pshadow off before " + PS_FROM
+    if PS_PROC is not None and PS_PROC.poll() is None:
+        if time.time() - PS_T0 < 240:
+            return "pshadow running"
+        PS_PROC.kill(); PS_PROC.wait()
+    txt = "pshadow started"
+    res = PS_DIR / "pshadow_latest.json"
+    if res.is_file():
+        js = json.loads(res.read_text())
+        if js.get("day") == DAY:
+            for k in js.get("need_strikes") or []:
+                EXTRA_STRIKES.add(int(k))
+            write_bg_pshadow(js)
+            txt = f"pshadow thru {js.get('data_through')}: " + (", ".join(f"{r['name']}:{r.get('status')}" for r in js["rows"]) or "no signal") \
+                + (f" ERR {js['errors']}" if js.get("errors") else "")
+    work = RT / "live" / "work"
+    PS_DIR.mkdir(parents=True, exist_ok=True)
+    for f in ("base_1m_aug.parquet", f"opt1m_{DAY}.parquet", "vix_daily.json"):
+        if (work / f).is_file():
+            shutil.copy2(work / f, PS_DIR / f)
+    env = dict(os.environ, PX_DAY=DAY, PX_EXP=EXP or DAY)
+    PS_PROC = subprocess.Popen([str(VENV), str(REPO / "scripts" / "paper_extra" / "pshadow_live.py"), str(PS_DIR)], cwd=RT / "live", env=env,
+                               stdout=open(PS_DIR / "pshadow.log", "a"), stderr=subprocess.STDOUT)
+    PS_T0 = time.time()
+    return txt
+
+
 def log_risk() -> str:
     """Per-minute desk exposure from the desk's own journal (all desk rules, not just PX): open lots + premium at risk."""
     try:
@@ -315,8 +399,12 @@ def once() -> str:
     except Exception as e:  # Q01 must not stop the PX strategies
         qrows, qtxt = [], f"Q01 ERROR {type(e).__name__}: {e}"
     rows += qrows
-    write(rows, f"{f}; {line}; {qtxt}")
-    line = f"{line}; {qtxt}"
+    try:  # background shadows only: never desk rows, never stop the desk path
+        ptxt = pshadow_cycle()
+    except Exception as e:
+        ptxt = f"pshadow ERROR {type(e).__name__}: {e}"
+    write(rows, f"{f}; {line}; {qtxt}; {ptxt}")
+    line = f"{line}; {qtxt}; {ptxt}"
     return f"{datetime.now(IST):%H:%M:%S} IST {f}; {line}; px rows {len(rows)}; {log_risk()}"
 
 

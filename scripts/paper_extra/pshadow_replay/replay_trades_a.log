@@ -1,0 +1,6 @@
+/workspace/pshadow/replay_trades_a.py:5: DtypeWarning: Columns (14: reason) have mixed types. Specify dtype option on import or set low_memory=False.
+  T=pd.read_csv("/workspace/dhan/research/lab/2026-10-13_premium_stops/trades_a.csv")
+EP009_P research rows 443
+B2_P research rows 62
+VWAPCONT_PE_P research rows 1406
+checked 1156 mismatches 0
