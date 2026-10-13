@@ -28,7 +28,10 @@ EXIT_RULE = {
     "PX_EP010": "TV EP-010 port: own exit signal or stop", "PX_EP018": "TV EP-018 port: own exit signal or stop",
 }
 BASIS = "NONE_IN_PREMIUM: rule exits on NIFTY index levels, time, or its own exit signal; no option-premium stop/target"
-XR = {"STOP": "STOP", "TARGET": "TARGET", "TIME": "TIME", "EXIT": "RULE_EXIT", "EOD": "TIME", "open": "OPEN", "": None}
+XR = {"STOP": "STOP", "TARGET": "TARGET", "TIME": "TIME", "EXIT": "RULE_EXIT", "SIGNAL": "RULE_EXIT", "REVERSE": "RULE_EXIT",
+      "EOD": "TIME", "open": "OPEN", "": None}
+# 2026-10-13 fix (box fix_ep): score_pass entries = next-minute open after the signal (EP-018 was same-minute open = look-ahead);
+# STOP/TARGET/SIGNAL/REVERSE exits = next-minute OPEN, never the touch-minute close. test_exit_fill.py checks every cycle.
 
 
 def latest_bf_run() -> Path:
@@ -78,6 +81,10 @@ def score() -> list:
     tape = REPO / "data" / "tape" / "v2" / DAY
     subprocess.run([str(VENV), "build_day.py", str(LIVE_RUN), str(tape), "work"], cwd=live, check=True, capture_output=True, timeout=120)
     p = subprocess.run([str(VENV), "score_pass.py"], cwd=live, check=True, capture_output=True, timeout=180, text=True)
+    t = subprocess.run([str(VENV), str(REPO / "scripts" / "paper_extra" / "test_exit_fill.py"), str(live / "score_latest.csv")],
+                       capture_output=True, text=True, timeout=60, env=dict(os.environ, PX_RUN=str(LIVE_RUN)))
+    if t.returncode != 0:  # fail closed: keep last good file, book nothing new
+        raise RuntimeError("FILL_RULE_FAIL " + t.stdout.strip()[:300])
     return list(csv.DictReader(open(live / "score_latest.csv"))), p.stdout.strip().splitlines()[-1]
 
 

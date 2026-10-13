@@ -1,0 +1,12 @@
+box score_after through 11:59 | mac 12:10
+B2                         box 1 mac 1 signals MATCH exits MATCH
+R07                        box 2 mac 2 signals MATCH exits MATCH
+EP-010                     box 2 mac 2 signals MATCH exits MATCH
+EP-018                     box 2 mac 2 signals MATCH exits MATCH
+I1_ORB:ORB_A:T2            box 1 mac 1 signals MATCH exits MATCH
+I4_VWAP:VWAP_CONT:T2       box 2 mac 2 signals MATCH exits MATCH
+I9_ENGULF:ENG_5:T2         box 1 mac 1 signals MATCH exits MATCH
+I10_INSIDEBAR:IB_5:T2      box 2 mac 2 signals MATCH exits MATCH
+I10_INSIDEBAR:IB_15:T2     box 1 mac 1 signals MATCH exits MATCH
+I11_MINED:MINE_PE:T2       box 1 mac 1 signals MATCH exits MATCH
+ALL MATCH
