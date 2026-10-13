@@ -94,20 +94,27 @@ export function FeedAges({ rows }) {
 /** Plain words for exit_reason_std (closed rows). */
 export const EXIT_STD = { STOP: "stop hit", TARGET: "target hit", TIME: "time exit", RULE_EXIT: "rule exit", OPEN: "open" };
 /** stop_target_basis as plain words: text is shown as sent, CODE_LIKE becomes "code like". */
-const basisText = (b) => (b == null || b === "" ? null : /^[A-Z0-9_]+$/.test(String(b)) ? String(b).toLowerCase().replace(/_/g, " ") : String(b));
+const BASIS_SHORT = { NONE_IN_PREMIUM: "no price stop · exits on index level / time / own signal" };
+/** Short plain words for stop_target_basis ("CODE: long text" or "CODE"); full text goes in the tooltip. */
+const basisText = (b) => {
+  if (b == null || b === "") return null;
+  const m = String(b).match(/^([A-Z0-9_]+)(?::\s*(.*))?$/s);
+  if (!m) return String(b).length > 60 ? `${String(b).slice(0, 57)}…` : String(b);
+  return BASIS_SHORT[m[1]] || m[1].toLowerCase().replace(/_/g, " ");
+};
 const tm = (v) => (v ? hhmm(v) || String(v) : null);
 
 /** Stop / Target / planned exit from the desk feed only. Nothing is computed; every field optional. */
 export function Levels({ t, timeKey = "spec_exit_min", timeLabel = "Exit: time" }) {
   const L = levelsOf(t);
-  const planned = tm(t?.planned_exit_ist) || tm(t?.[timeKey]);
+  const planned = tm(t?.planned_exit_ist) || tm(t?.exit_time) || tm(t?.[timeKey]) || tm(t?.spec_exit_min);
   const basis = basisText(t?.stop_target_basis);
   const std = t?.exit_reason_std ? EXIT_STD[String(t.exit_reason_std).toUpperCase()] || basisText(t.exit_reason_std) : null;
   const parts = [];
   if (L.stop != null) parts.push(<span key="s">Stop <b className="num">₹{L.stop}</b>{L.stopPct != null ? <em className="muted"> {pctText(L.stopPct)}</em> : null}</span>);
   if (L.target != null) parts.push(<span key="t">Target <b className="num">₹{L.target}</b>{L.targetPct != null ? <em className="muted"> {pctText(L.targetPct)}</em> : null}</span>);
   if (planned) parts.push(<span key="p">{timeLabel} <b className="num">{planned}</b></span>);
-  if (L.stop == null && L.target == null) parts.push(<span key="b" className="muted">{basis || (planned ? "no price stop (exits on time)" : "no stop/target sent")}</span>);
+  if (L.stop == null && L.target == null) parts.push(<span key="b" className="muted" title={t?.stop_target_basis ? String(t.stop_target_basis) : undefined}>{basis || (planned ? "no price stop (exits on time)" : "no stop/target sent")}</span>);
   if (std) parts.push(<span key="r">→ <b>{std}</b></span>);
   return <span className="levels small">{parts.flatMap((x, i) => (i ? [" · ", x] : [x]))}</span>;
 }
