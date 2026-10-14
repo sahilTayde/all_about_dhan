@@ -9,8 +9,3 @@ day_stop_net_inr: -25000      # RISK_DAY_STOP when closed desk net <= this
 group_stop:                   # RISK_DAY_STOP for entries of these rules when their combined closed net <= net_inr
   rule_ids: [R01_PDIV_5_ALL_H20, R01_B3A_VOL]
   net_inr: -15000
-# Sahil 2026-10-14 ~12:40 IST (1:1 "dont do that, keep trading"): day stops OFF for PAPER from 12:45 IST on
-# 2026-10-14 and every later day. Entries before 12:45 on 2026-10-14 keep the old stop (no retroactive bookings).
-# max_open, 10-lot cap, opposite-side and same-contract guards stay on.
-day_stop_off_from:
-  "2026-10-14": "12:45"
