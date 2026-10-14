@@ -60,7 +60,26 @@ def _realized(taken: Iterable[tuple[dict[str, Any], bool]], t: Optional[str]) ->
     return [k for k, o in taken if not o and (t is None or _end(k) < t)]
 
 
-def _stop_reason(done: list[dict[str, Any]], rule_id: Optional[str], cfg: dict[str, Any]) -> Optional[str]:
+def day_stop_off(cfg: dict[str, Any], t: Optional[str]) -> bool:
+    """Sahil 2026-10-14: day stops (losers / net / group) OFF for paper from an IST minute onward.
+    cfg["day_stop_off_from"] = {"YYYY-MM-DD": "HH:MM"}; later days are fully off. Entries before the
+    switch minute keep the old stop, so a full-day replay never books trades that were blocked live."""
+    tbl = cfg.get("day_stop_off_from") or {}
+    day = cfg.get("_day")
+    if not tbl or not day:
+        return False
+    keys = [k for k in tbl if str(k) <= str(day)]
+    if not keys:
+        return False
+    k = max(keys, key=str)
+    if str(k) < str(day):
+        return True
+    return t is None or str(t) >= str(tbl[k])
+
+
+def _stop_reason(done: list[dict[str, Any]], rule_id: Optional[str], cfg: dict[str, Any], t: Optional[str] = None) -> Optional[str]:
+    if day_stop_off(cfg, t):
+        return None
     losers = sum(1 for k in done if _net(k) < 0)
     if cfg.get("day_stop_losers") is not None and losers >= int(cfg["day_stop_losers"]):
         return RISK_DAY_STOP
@@ -77,7 +96,7 @@ def _stop_reason(done: list[dict[str, Any]], rule_id: Optional[str], cfg: dict[s
 def check(taken: list[tuple[dict[str, Any], bool]], r: dict[str, Any], cfg: dict[str, Any]) -> Optional[str]:
     """None = entry allowed; else the RISK_* status. `taken` = desk positions (row, is_open) so far."""
     t = str(r.get("entry_min") or "")
-    stop = _stop_reason(_realized(taken, t), r.get("rule_id"), cfg)
+    stop = _stop_reason(_realized(taken, t), r.get("rule_id"), cfg, t)
     if stop:
         return stop
     cap = cfg.get("max_trades_per_day")
@@ -110,7 +129,7 @@ def state(taken: list[tuple[dict[str, Any], bool]], cfg: dict[str, Any]) -> dict
         "rr_group_net_inr": grp_net,
         "rr_group_stop_hit": bool(grp_hit),
         "halted_reason": halted,
-        "config": {k: cfg.get(k) for k in ("max_trades_per_day", "max_open", "day_stop_losers", "day_stop_net_inr", "group_stop")},
+        "config": {k: cfg.get(k) for k in ("max_trades_per_day", "max_open", "day_stop_losers", "day_stop_net_inr", "group_stop", "day_stop_off_from")},
     }
 
 

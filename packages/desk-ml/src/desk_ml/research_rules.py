@@ -1130,6 +1130,7 @@ def replay(
     from desk_ml import desk_risk
 
     risk_cfg = desk_risk.load_config()
+    risk_cfg["_day"] = day  # day_stop_off_from lookup
     skip: set = set()
     blocked: list[dict[str, Any]] = []
     on_from_hist = None
