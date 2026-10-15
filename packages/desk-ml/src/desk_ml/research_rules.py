@@ -752,6 +752,29 @@ def _hm(x: str) -> int:
     return int(x[:2]) * 60 + int(x[3:])
 
 
+# Sahil 2026-10-14 22:19 CT: no time exits. Fixed premium stop and target on the held option's bid;
+# only the 15:14 IST safety close remains. Stop checked before target in the same minute.
+PRICE_EXITS = True
+PREMIUM_STOP_PCT = 0.30
+PREMIUM_TARGET_PCT = 0.60
+EOD_EXIT = "15:14"
+
+
+def _price_exit(bars, minutes, *, side, strike, entry, entry_min, spec_exit, qty=None):
+    stop, tgt = entry * (1 - PREMIUM_STOP_PCT), entry * (1 + PREMIUM_TARGET_PCT)
+    for m in minutes:
+        if m <= entry_min or m > spec_exit:
+            continue
+        px, flag = strike_quote(bars[m], side, strike, "bid", qty=qty)
+        if px is None:
+            continue
+        if px <= stop:
+            return m, px, ",".join(f for f in (flag, "STOP") if f)
+        if px >= tgt:
+            return m, px, ",".join(f for f in (flag, "TARGET") if f)
+    return None
+
+
 def _pick_exit(bars, minutes, *, side, strike, spec_exit, entry_min, last_hhmm, now_hhmm=None, qty=None):
     """D3: exit at the spec minute if priced; else the priced minute nearest it within +-EXIT_TOL_MIN
     (tie -> earlier); else the last priced minute at/before it. Never later than spec+tol.
@@ -828,8 +851,11 @@ def replay_underlying(
             entry, entry_flag = strike_quote(entry_bar, side, atm, "ask", qty=QTY.get(underlying.upper()))
             if entry is None:
                 continue
-            spec_exit = mplus(entry_min, hold)
-            pick = _pick_exit(bars, minutes, side=side, strike=atm, spec_exit=spec_exit,
+            spec_exit = EOD_EXIT if PRICE_EXITS else mplus(entry_min, hold)
+            pick = _price_exit(bars, minutes, side=side, strike=atm, entry=entry, entry_min=entry_min,
+                               spec_exit=spec_exit, qty=QTY.get(underlying.upper())) if PRICE_EXITS else None
+            if pick is None:
+                pick = _pick_exit(bars, minutes, side=side, strike=atm, spec_exit=spec_exit,
                               entry_min=entry_min, last_hhmm=last_hhmm, now_hhmm=now_hhmm,
                               qty=QTY.get(underlying.upper()))
             flags = [f for f in (entry_flag,) if f]
@@ -842,7 +868,8 @@ def replay_underlying(
                 mark_bar = bars[exit_min]
                 row = _trade_row(rule=rule, underlying=underlying, side=side, strike=atm, sig_min=t,
                                  entry_min=entry_min, exit_min=exit_min, entry=entry, mark=mark, day=day,
-                                 entry_bar=entry_bar, mark_bar=mark_bar, closed=True, reason="TIME")
+                                 entry_bar=entry_bar, mark_bar=mark_bar, closed=True,
+                                 reason=(exit_flag or "").split(",")[-1] if (exit_flag or "").endswith(("STOP", "TARGET")) else ("FLATTEN_EOD" if PRICE_EXITS else "TIME"))
                 row["spec_exit_min"] = spec_exit
                 row["price_flags"] = flags
                 closed.append(_with_exit_variants(row, bars, side=side, strike=atm, entry=entry,
