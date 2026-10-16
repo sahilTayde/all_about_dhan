@@ -45,9 +45,12 @@ export function PremiumChart({ trade, prints, height = 380 }) {
     s.setMarkers(markers.filter((m) => valid.has(m.time)).sort((a, b) => a.time - b.time));
     const rule = exitRule(trade);
     const exitTs = rule.kind === "time" ? hmToTs(trade, rule.at) : null;
-    if (exitTs && trade.closed_ts == null) {
-      // whitespace point so the time axis reaches the planned exit minute
-      s.update({ time: Math.floor(exitTs / 60) * 60 + IST });
+    const exitTime = exitTs ? Math.floor(exitTs / 60) * 60 + IST : null;
+    const lastTime = candles.length ? candles[candles.length - 1].time + IST : null;
+    // whitespace point so the time axis reaches the planned exit minute; only if it is
+    // after the last candle (a late exit is in the past and update() throws on older times)
+    if (exitTime && trade.closed_ts == null && (lastTime == null || exitTime > lastTime)) {
+      s.update({ time: exitTime });
     }
     chart.timeScale().fitContent();
     const ro = new ResizeObserver(() => chart.applyOptions({ width: ref.current?.clientWidth || 600 }));
