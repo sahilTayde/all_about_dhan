@@ -71,6 +71,61 @@ def _start_load(now_m: int) -> None:
                 START["carried"].add(k)
     except (OSError, ValueError, KeyError, TypeError):
         pass
+# 2026-10-19 (Sahil 1:1 01:46 CT "max 2 open trades"): the paper-extra book holds at most CAP_MAX open trades at a time, NIFTY + SENSEX
+# together. A new entry while CAP_MAX are open -> SKIPPED_CAP (never booked, kept in "not_booked" like SKIPPED_CHASE). Applies only to entries
+# at/after cap_from_m (pinned in cap_start.json the first time this version runs today) so trades already booked are never re-judged.
+# Decisions are sticky for the day: once admitted or skipped, a signal keeps that decision across cycles and restarts.
+CAP_MAX = 2
+CAP_FILE = REPO / "data" / "paper_extra" / DAY / "cap_start.json"
+CAP = {"from_m": None, "admit": set(), "skip": set()}
+
+
+def _cap_load(now_m: int) -> None:
+    try:
+        CAP["from_m"] = int(json.loads(CAP_FILE.read_text())["cap_from_m"])
+    except (OSError, ValueError, KeyError, TypeError):
+        CAP["from_m"] = now_m + 1
+        CAP_FILE.parent.mkdir(parents=True, exist_ok=True); CAP_FILE.write_text(json.dumps({"cap_from_m": CAP["from_m"], "cap_max": CAP_MAX}))
+    try:
+        j = json.loads(OUT.read_text())
+        for r in j.get("rows") or []:
+            CAP["admit"].add((r.get("rule_id"), r.get("underlying") or "NIFTY", r.get("signal_time")))
+        for r in j.get("not_booked") or []:
+            if r.get("status") == "SKIPPED_CAP":
+                CAP["skip"].add((r.get("rule_id"), r.get("underlying") or "NIFTY", r.get("signal_time")))
+    except (OSError, ValueError, KeyError, TypeError):
+        pass
+
+
+def _m(s) -> int:
+    return int(s[:2]) * 60 + int(s[3:5]) if s and len(str(s)) >= 5 else None
+
+
+def cap_and_price(rows: list, now_m: int) -> list:
+    """apply_price_exits in entry order with the open-trade cap. A slot frees only when a trade's exit minute is before the new entry minute."""
+    out = [None] * len(rows)
+    order = sorted(range(len(rows)), key=lambda i: (_m(rows[i].get("entry_time")) or 10 ** 6, rows[i].get("signal_time") or ""))
+    done = []
+    for i in order:
+        r = rows[i]; k = (r["rule_id"], r.get("underlying") or "NIFTY", r.get("signal_time")); em = _m(r.get("entry_time"))
+        if r.get("status") in ("OPEN", "CLOSED") and em is not None and CAP["from_m"] is not None and k not in CAP["admit"] \
+                and k not in START["frozen"] and k not in START["carried"] and em >= CAP["from_m"] \
+                and not (START["m"] is not None and em < START["m"]):   # pre-start rows become PRE_START (never booked), not capped
+            n_open = sum(1 for d in done if d.get("status") in ("OPEN", "CLOSED") and _m(d.get("entry_time")) is not None
+                         and _m(d["entry_time"]) <= em and (d["status"] == "OPEN" or (_m(d.get("exit_time")) or 10 ** 6) >= em))
+            if k in CAP["skip"] or n_open >= CAP_MAX:
+                CAP["skip"].add(k)
+                r.update(status="SKIPPED_CAP", exit_reason_std="SKIPPED_CAP", exit_time=None, exit_px=None, exit_reason=None,
+                         why=r.get("why") or WHY.get(r["rule_id"], r.get("strategy")),
+                         note=f"cap: {CAP_MAX} trades already open in the paper-extra book at {r['entry_time']} IST; not booked")
+                out[i] = r; done.append(r); continue
+        x = apply_price_exits(r, now_m)
+        if x.get("status") in ("OPEN", "CLOSED") and em is not None and CAP["from_m"] is not None and em >= CAP["from_m"]:
+            CAP["admit"].add(k)
+        out[i] = x; done.append(x)
+    return out
+
+
 WHY = {"PX_B2": "B2: prior day wide range closed near an extreme -> fade at 09:16", "PX_R07": "R07: 30-min efficiency >=0.4 and 3-min move >=0.05%",
        "PX_EP010": "EP-010: TV port entry signal (5m)", "PX_EP018": "EP-018: 2-pt box break on close (60m)", "PX_ORB_A": "ORB_A: opening-range break",
        "PX_VWAP_CONT": "VWAP_CONT: VWAP continuation", "PX_ENG_5": "ENG_5: 5m engulfing", "PX_IB_5": "IB_5: 5m inside-bar break",
@@ -387,7 +442,7 @@ def rows_all(score_by_u: dict) -> list:
 
 def write(rows: list, note: str) -> None:
     # 2026-10-19 live fix: the desk loop (dual-tape process) books every non-CLOSED row in "rows" as open with the research_rules code it
-    # loaded at start, so SKIPPED_CHASE / PRE_START rows go to "not_booked", never to "rows". Live marks keep HH:MM in mark_time.
+    # loaded at start, so SKIPPED_CHASE / SKIPPED_CAP / PRE_START rows go to "not_booked", never to "rows". Live marks keep HH:MM in mark_time.
     keep = [r for r in rows if r.get("status") in ("OPEN", "CLOSED")]
     not_booked = [r for r in rows if r.get("status") not in ("OPEN", "CLOSED")]
     rows = keep
@@ -633,8 +688,8 @@ def once() -> str:
     f = fetch()
     sr, line = score()
     now_m = (datetime.now(IST) - timedelta(minutes=1)).hour * 60 + (datetime.now(IST) - timedelta(minutes=1)).minute
-    rows = [apply_price_exits(r, now_m) for r in rows_all(sr)]
-    rows = [r for r in rows if r["status"] in ("OPEN", "CLOSED", "SKIPPED_CHASE", "PRE_START")]   # PRE_START kept visible in OUT, never booked
+    rows = cap_and_price(rows_all(sr), now_m)
+    rows = [r for r in rows if r["status"] in ("OPEN", "CLOSED", "SKIPPED_CHASE", "SKIPPED_CAP", "PRE_START")]   # PRE_START kept visible in OUT, never booked
     _live_save()
     for r in rows:
         if r["status"] == "OPEN":
@@ -662,7 +717,7 @@ if __name__ == "__main__":
         if datetime.now(IST) < start:  # first complete 1m bar is 09:15
             print(f"{datetime.now(IST):%H:%M:%S} IST waiting for 09:16:05 IST (day {DAY})", flush=True)
             time.sleep((start - datetime.now(IST)).total_seconds())
-        _live_load(); _n = datetime.now(IST) - timedelta(minutes=1); _start_load(_n.hour * 60 + _n.minute)
+        _live_load(); _n = datetime.now(IST) - timedelta(minutes=1); _start_load(_n.hour * 60 + _n.minute); _cap_load(_n.hour * 60 + _n.minute)
         while datetime.now(IST).strftime("%H:%M") < "15:31":
             t = time.time()
             try:
