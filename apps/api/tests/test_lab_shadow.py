@@ -118,3 +118,38 @@ def test_comparison_inputs_pass_through_unchanged():
     assert rows[0]["reason"] == "F2 on R01_PDIV_5_ALL_H20 hit=1 (vs base)" and rows[0]["side"] is None and rows[0]["strike"] is None
     assert rows[2]["entry"] is None and rows[2]["situation"] == "trend"
     assert "cmp_kind" not in rows[0]  # the API never guesses the kind; display only
+
+
+REAL_V1 = Path(__file__).parent / "fixtures" / "lab_shadow_real_v1" / "events_2026-10-19.csv"  # real lines, old format
+REAL_V2 = Path(__file__).parent / "fixtures" / "lab_shadow_real_v2" / "events_2026-10-19.csv"  # real lines, new format
+
+
+def _serve(tmp_path, monkeypatch, src):
+    (tmp_path / "2026-10-19").mkdir()
+    shutil.copy(src, tmp_path / "2026-10-19" / "events.csv")
+    monkeypatch.setattr(lab_shadow, "DATA_DIR", tmp_path)
+    return TestClient(create_app()).get("/research/lab-shadow", params={"day": "2026-10-19"}).json()
+
+
+def test_real_v1_file_old_format(tmp_path, monkeypatch):
+    body = _serve(tmp_path, monkeypatch, REAL_V1)
+    assert body["ok"] is True and body["format"] == "v1" and body["missing_columns"] == []
+    assert len(body["rows"]) == 7 and all("trade_id" not in r and "cmp_kind" not in r for r in body["rows"])
+
+
+def test_real_v2_file_new_format(tmp_path, monkeypatch):
+    body = _serve(tmp_path, monkeypatch, REAL_V2)
+    assert body["ok"] is True and body["format"] == "v2" and body["missing_columns"] == []
+    rows = body["rows"]
+    assert len(rows) == 10
+    assert rows[0]["trade_id"] == "NIFTY_CE_23100_10:25_R01_PDIV_5_ALL_H20" and rows[0]["cmp_kind"] == "none"
+    assert rows[1]["trade_id"] == "NIFTY_CE_23100_10:25_B3a_PDIV5_VOLHIGH"  # id ends in the rule name
+    assert rows[2]["trade_id"] == "NIFTY_CE__09:52_MIX_ALONE" and rows[2]["strike"] is None
+    f2 = rows[3]
+    assert (f2["strategy"], f2["cmp_kind"], f2["trade_id"]) == ("F2_UNWIND", "base", "NIFTY_CE_23100_10:25_R01_PDIV_5_ALL_H20")
+    assert f2["side"] is None and f2["rand15"] == -9629.69  # overlay carries its base's id; base net in rand15
+
+
+def test_v2_only_one_new_column_stays_v1():
+    rows, missing, fmt = lab_shadow.parse_csv_fmt(REAL_HEADER + ",trade_id\n" + REAL_LINE + ",X_1\n")
+    assert fmt == "v1" and missing == [] and rows[0]["trade_id"] == "X_1" and "cmp_kind" not in rows[0]

@@ -25,8 +25,13 @@ const fin = (v) => (typeof v === "number" && Number.isFinite(v) ? v : null);
 export const CELL_SRCS = ["twoday", "llm", "rangebox", "pinfade", "r07fear", "bigmove_cc", "harvest", "rb1utbot"];
 export const KIND_ORDER = ["random", "vs base", "vs random exit", "vs base/random"];
 export const isLabCell = (r) => CELL_SRCS.includes(String(r?.src || "").trim().toLowerCase()) || /^\S+ cell \S+ fired\b/i.test(String(r?.reason || ""));
+/** v2 feed: the lab's own cmp_kind wins. "none" = no comparison; unknown values are not guessed. */
+export const CMP_KIND = { random_entry: "random", random_exit: "vs random exit", base: "vs base", base_or_random: "vs base/random", none: null };
 export function compareKind(r) {
   if (fin(r?.rand15) === null) return null;
+  const ck = r.cmp_kind == null ? "" : String(r.cmp_kind).trim().toLowerCase();
+  if (ck) return Object.prototype.hasOwnProperty.call(CMP_KIND, ck) ? CMP_KIND[ck] : null;
+  // fallback guess, only for v1 files / rows whose cmp_kind is empty
   const reason = String(r.reason || "");
   if (/vs random exit/i.test(reason)) return "vs random exit";
   if (/\(vs base/i.test(reason)) return "vs base";
@@ -53,6 +58,41 @@ export function clock(v) {
   return m ? `${m[1].padStart(2, "0")}:${m[2]}` : null;
 }
 
+/** An exit overlay (or router arm) re-prices a base trade: it is its own row, never merged into the base or another name. */
+export function isOverlay(r) {
+  return /exit[- _]?overlay/i.test(String(r?.family || "")) || /^ROUTER:/i.test(String(r?.strategy || "").trim())
+    || ["base", "random_exit", "base_or_random"].includes(String(r?.cmp_kind || "").trim().toLowerCase());
+}
+
+/** v2 trade_id "NIFTY_CE_23100_10:25_R01_PDIV_5_ALL_H20" -> { contract: "NIFTY|CE|23100|10:25" (null if a part is empty), rule }. */
+export function parseTradeId(id) {
+  const parts = String(id ?? "").trim().split("_");
+  if (parts.length < 5) return null;
+  const [und, side, strike, entry] = parts;
+  const ok = [und, side, strike, entry].every((p) => p !== "") && clock(entry);
+  return { contract: ok ? [und, side, String(Number(strike)), clock(entry)].map((p) => p.toUpperCase()).join("|") : null, rule: parts.slice(4).join("_") || null };
+}
+
+/**
+ * Which rows are the same trade.
+ * - Base rows (not overlays): same contract = same trade. v2: the contract comes from trade_id minus its rule suffix
+ *   (R01 and B3a have different trade_ids because the id ends in the rule name, but they are the same option trade);
+ *   if a part of the id is empty (MIX_ALONE has no strike) only the exact trade_id matches. v1: und/side/strike/entry.
+ *   Same name again -> the newer row replaces the older one ("exit censored" then final); another name -> "also:".
+ * - Overlay rows: (strategy, trade_id) in v2, (strategy, und/side/strike/entry) in v1 — so a newer overlay row replaces
+ *   its older copy, but an overlay is never merged into its base strategy or into another overlay.
+ */
+export function mergeKey(r) {
+  const id = r?.trade_id == null ? "" : String(r.trade_id).trim();
+  if (isOverlay(r)) {
+    const k = id || tradeKey(r);
+    return k ? `ov|${String(r.strategy || "").trim()}|${k}` : null;
+  }
+  if (id) return `c|${parseTradeId(id)?.contract || `id:${id}`}`;
+  const k = tradeKey(r);
+  return k ? `c|${k}` : null;
+}
+
 /** Same trade = same index, side, strike and entry time (bare or full form). null when any part is missing (never merged then). */
 export function tradeKey(r) {
   const parts = [r?.und, r?.side, r?.strike == null || r.strike === "" ? null : Number(r.strike), clock(r?.entry) || r?.entry];
@@ -72,7 +112,7 @@ export function labShadowView(body) {
   const trades = [];
   let relisted = 0; let aliased = 0;
   for (const r of raw) {
-    const k = tradeKey(r);
+    const k = mergeKey(r);
     const prev = k ? byKey.get(k) : null;
     if (!prev) {
       const t = { ...r, also: [] };
@@ -82,7 +122,7 @@ export function labShadowView(body) {
     }
     if (prev.strategy === r.strategy) { // same name re-listed (e.g. "exit censored" then final): keep the newer row, count once
       relisted += 1;
-      Object.assign(prev, { ...r, also: prev.also, _i: prev._i });
+      if ((clock(r.seen_ist) || "") >= (clock(prev.seen_ist) || "")) Object.assign(prev, { ...r, also: prev.also, _i: prev._i });
       continue;
     }
     aliased += 1;
@@ -94,7 +134,11 @@ export function labShadowView(body) {
   }
   trades.sort((a, b) => (clock(a.seen_ist) || "99:99").localeCompare(clock(b.seen_ist) || "99:99") || a._i - b._i);
 
-  for (const t of trades) t.cmp = comparison(t);
+  for (const t of trades) {
+    t.cmp = comparison(t);
+    t.overlay = isOverlay(t);
+    t.baseRule = t.overlay ? parseTradeId(t.trade_id)?.rule || null : null; // which base trade the overlay re-prices (v2)
+  }
   const groups = [];
   for (const st of [...STATUS_ORDER, "OTHER"]) {
     const mine = trades.filter((t) => (STATUS_ORDER.includes(t.status) ? t.status : "OTHER") === st);
@@ -127,6 +171,6 @@ export function labShadowView(body) {
     ok: true, status: "OK", trades, groups, feedStarts, firstSeen, sources: srcs,
     lastSeen: raw.map((t) => clock(t.seen_ist)).filter(Boolean).sort().pop() || null,
     updated: clock(body.file_updated_ist), missingColumns: Array.isArray(body.missing_columns) ? body.missing_columns : [],
-    merged: raw.length - trades.length, aliased, relisted,
+    merged: raw.length - trades.length, aliased, relisted, format: body.format === "v2" ? "v2" : "v1",
   };
 }

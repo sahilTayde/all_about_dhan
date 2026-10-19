@@ -29,6 +29,9 @@ MAX_BYTES = 5 * 1024 * 1024  # a day's lab feed is a few KB; refuse anything abs
 COLUMNS = ("seen_ist", "lag_min", "strategy", "family", "status", "und", "side", "strike", "sig", "entry",
            "exit", "ask_in", "bid_out", "net15", "rand15", "data_gap", "situation", "reason", "src")
 NUMERIC = ("lag_min", "strike", "ask_in", "bid_out", "net15", "rand15")
+# v2 feed (from 2026-10-19 evening): trade_id = und_side_strike_entry_rule of the BASE trade (overlay rows carry their
+# base's id) and cmp_kind = random_entry / random_exit / base / base_or_random / none. Optional: v1 files lack them.
+OPTIONAL = ("trade_id", "cmp_kind")
 
 router = APIRouter()
 
@@ -56,6 +59,11 @@ def _txt(v: Optional[str]) -> Optional[str]:
 
 
 def parse_csv(text: str) -> tuple[list[dict[str, Any]], list[str]]:
+    rows, missing, _fmt = parse_csv_fmt(text)
+    return rows, missing
+
+
+def parse_csv_fmt(text: str) -> tuple[list[dict[str, Any]], list[str], str]:
     """Rows (known columns only; '' -> None; numbers parsed) and the list of expected columns the file lacks.
     Lines starting with '#' are comments (used to mark test fixtures)."""
     lines = [ln for ln in text.splitlines() if ln.strip() and not ln.lstrip().startswith("#")]
@@ -63,18 +71,22 @@ def parse_csv(text: str) -> tuple[list[dict[str, Any]], list[str]]:
     header = [h.strip() for h in (reader.fieldnames or [])]
     reader.fieldnames = header
     missing = [c for c in COLUMNS if c not in header]
+    fmt = "v2" if all(c in header for c in OPTIONAL) else "v1"
+    wanted = COLUMNS + tuple(c for c in OPTIONAL if c in header)
     rows: list[dict[str, Any]] = []
     for raw in reader:
         row: dict[str, Any] = {}
-        for c in COLUMNS:
+        for c in wanted:
             v = raw.get(c)
             row[c] = _num(v) if c in NUMERIC else _txt(v)
         if row["status"]:
             row["status"] = row["status"].upper()
         if row["side"]:
             row["side"] = row["side"].upper()
+        if row.get("cmp_kind"):
+            row["cmp_kind"] = row["cmp_kind"].lower()
         rows.append(row)
-    return rows, missing
+    return rows, missing, fmt
 
 
 def load_day(day: str, data_dir: Optional[Path] = None) -> dict[str, Any]:
@@ -87,7 +99,7 @@ def load_day(day: str, data_dir: Optional[Path] = None) -> dict[str, Any]:
         st = path.stat()
         if st.st_size > MAX_BYTES:
             return {"ok": False, "status": "BAD_FILE", "day": day}
-        rows, missing = parse_csv(path.read_text(encoding="utf-8-sig"))
+        rows, missing, fmt = parse_csv_fmt(path.read_text(encoding="utf-8-sig"))
     except (OSError, UnicodeDecodeError, csv.Error):
         return {"ok": False, "status": "BAD_FILE", "day": day}
     updated = datetime.fromtimestamp(st.st_mtime, IST).strftime("%Y-%m-%dT%H:%M:%S+05:30")
@@ -95,7 +107,7 @@ def load_day(day: str, data_dir: Optional[Path] = None) -> dict[str, Any]:
         "ok": True, "status": "OK", "day": day, "source": "lab-shadow",
         "label": "Lab shadow — not desk paper, ~20 min delayed",
         "paper_only": True, "in_desk_pnl": False, "in_paper_extra": False,
-        "file_updated_ist": updated, "missing_columns": missing, "rows": rows,
+        "file_updated_ist": updated, "missing_columns": missing, "format": fmt, "rows": rows,
     }
 
 

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { readFileSync, readdirSync } from "node:fs";
-import { clock, compareKind, comparison, hasGap, isLabCell, labShadowView, tradeKey } from "../src/lib/labShadow.js";
+import { clock, compareKind, comparison, hasGap, isLabCell, isOverlay, labShadowView, mergeKey, parseTradeId, tradeKey } from "../src/lib/labShadow.js";
 
 // TEST FIXTURE rows (made up, src=TEST_FIXTURE) — same shape the API returns for events.csv; bare HH:MM like the real feed
 const r = (strategy, status, und, side, strike, entry, net15, x = {}) => ({
@@ -108,6 +108,71 @@ assert.equal(tradeKey(r("A", "PRIMARY", "NIFTY", "PE", 25000, null, 1)), null); 
   assert.deepEqual(f2.cmp.map((c) => [c.kind, c.sum, c.delta]), [["vs base", -9629.69, 7777.52]]);
   assert.ok(!v.groups.some((g) => g.strategies.some((s) => s.cmp.some((c) => c.kind === "random" && s.strategy === "F2_UNWIND"))));
   assert.equal(v.trades.find((t) => t.strategy === "G5_UNWIND").cmp.kind, "vs base");
+}
+// ---- real lines from both box feeds (old v1 and new v2 with trade_id / cmp_kind), parsed the way the API does ----
+function parseFeed(file) { // minimal CSV for the test: quotes, '#' comment lines, '' -> null, numbers like the API
+  const NUM = ["lag_min", "strike", "ask_in", "bid_out", "net15", "rand15"];
+  const lines = readFileSync(new URL(file, import.meta.url), "utf8").split(/\r?\n/).filter((l) => l.trim() && !l.startsWith("#"));
+  const cells = (l) => { const out = []; let cur = "", q = false; for (const ch of l) { if (ch === '"') q = !q; else if (ch === "," && !q) { out.push(cur); cur = ""; } else cur += ch; } out.push(cur); return out; };
+  const head = cells(lines[0]);
+  const rows = lines.slice(1).map((l) => Object.fromEntries(cells(l).map((v, i) => [head[i], v === "" ? null : NUM.includes(head[i]) ? Number(v) : head[i] === "cmp_kind" ? v.toLowerCase() : v])));
+  return { ok: true, rows, format: head.includes("trade_id") && head.includes("cmp_kind") ? "v2" : "v1" };
+}
+const strat = (v, name) => v.groups.flatMap((g) => g.strategies).find((s) => s.strategy === name);
+{ // v2 (new format)
+  const body = parseFeed("../../api/tests/fixtures/lab_shadow_real_v2/events_2026-10-19.csv");
+  assert.equal(body.format, "v2"); assert.equal(body.rows.length, 10);
+  assert.deepEqual(parseTradeId("NIFTY_CE_23100_10:25_R01_PDIV_5_ALL_H20"), { contract: "NIFTY|CE|23100|10:25", rule: "R01_PDIV_5_ALL_H20" });
+  assert.deepEqual(parseTradeId("NIFTY_CE__09:52_MIX_ALONE"), { contract: null, rule: "MIX_ALONE" }); // no strike: exact id only
+  const v = labShadowView(body);
+  assert.equal(v.format, "v2"); assert.equal(v.trades.length, 8); assert.equal(v.aliased, 1); assert.equal(v.relisted, 1);
+  // R01 and B3a: different trade_ids (rule suffix) but the same option trade -> shown once with "also:"
+  const r01 = strat(v, "R01_PDIV_5_ALL_H20");
+  assert.deepEqual(r01.also, ["B3a_PDIV5_VOLHIGH"]); assert.equal(r01.trades, 2);
+  assert.equal(r01.net15, -11044.51); // 13:51 trade: "exit censored" +3,932.23 replaced by the final −1,414.82 (same trade_id)
+  assert.ok(!strat(v, "B3a_PDIV5_VOLHIGH"));
+  // overlays carry the base's trade_id but are never merged into the base or each other
+  const f2 = strat(v, "F2_UNWIND"), g5 = strat(v, "G5_UNWIND");
+  assert.equal(f2.trades, 3); assert.equal(g5.trades, 2);
+  assert.equal(f2.net15, -11792.24);
+  assert.deepEqual(f2.cmp.map((c) => [c.kind, c.sum, c.k, c.delta]), [["vs base", -15227.33, 3, 3435.09]]); // from cmp_kind=base
+  assert.deepEqual(g5.cmp.map((c) => [c.kind, c.sum, c.delta]), [["vs base", -5697.46, 0]]);
+  assert.deepEqual(r01.cmp, []); assert.deepEqual(strat(v, "MIX_ALONE").cmp, []); // cmp_kind none
+  const ovRows = v.trades.filter((t) => t.overlay);
+  assert.deepEqual(ovRows.map((t) => t.baseRule).sort(), ["MIX_ALONE", "R01_PDIV_5_ALL_H20", "R01_PDIV_5_ALL_H20", "R01_PDIV_5_ALL_H20", "R01_PDIV_5_ALL_H20"]);
+  const g5row = body.rows.find((r) => r.strategy === "G5_UNWIND"), r01row = body.rows[0];
+  assert.equal(g5row.trade_id, r01row.trade_id); assert.notEqual(mergeKey(g5row), mergeKey(r01row));
+  assert.equal(mergeKey(body.rows[1]), mergeKey(r01row)); // B3a -> same contract key as R01
+}
+{ // v1 (old format): same real trades, reason-text fallback
+  const body = parseFeed("../../api/tests/fixtures/lab_shadow_real_v1/events_2026-10-19.csv");
+  assert.equal(body.format, "v1"); assert.equal(body.rows.length, 7);
+  const v = labShadowView(body);
+  assert.equal(v.format, "v1"); assert.equal(v.trades.length, 5); assert.equal(v.aliased, 1); assert.equal(v.relisted, 1);
+  const r01 = strat(v, "R01_PDIV_5_ALL_H20");
+  assert.deepEqual(r01.also, ["B3a_PDIV5_VOLHIGH"]); assert.equal(r01.net15, -11044.51);
+  assert.deepEqual(strat(v, "F2_UNWIND").cmp.map((c) => [c.kind, c.sum, c.delta]), [["vs base", -9629.69, 7777.52]]); // guessed from "(vs base)"
+  assert.deepEqual(strat(v, "G5_UNWIND").cmp.map((c) => c.kind), ["vs base"]);
+  assert.ok(v.trades.every((t) => t.baseRule === null)); // v1 has no trade_id
+}
+{ // cmp_kind beats the reason-text guess; empty cmp_kind falls back per row; none / unknown -> —
+  const x = { strategy: "QT:QT_P15", family: "exit-overlay", net15: 900, rand15: 300, reason: "QT_P15 on R01 (vs base)", src: "quicktarget" };
+  assert.equal(compareKind({ ...x, cmp_kind: "random_entry" }), "random");
+  assert.equal(compareKind({ ...x, cmp_kind: "random_exit" }), "vs random exit");
+  assert.equal(compareKind({ ...x, cmp_kind: "base" }), "vs base");
+  assert.equal(compareKind({ ...x, cmp_kind: "base_or_random" }), "vs base/random");
+  assert.equal(compareKind({ ...x, cmp_kind: "none" }), null);
+  assert.equal(compareKind({ ...x, cmp_kind: "something_new" }), null);
+  assert.equal(compareKind({ ...x, cmp_kind: null }), "vs base"); assert.equal(compareKind({ ...x, cmp_kind: "" }), "vs base"); // fallback
+  assert.equal(compareKind({ ...x, cmp_kind: "base", rand15: null }), null);
+  assert.equal(comparison({ ...x, cmp_kind: "random_entry" }).delta, null); // overlay delta only for vs base
+  // random_entry rows never add into a vs-base sum (and vice versa)
+  const rows = [{ ...x, strategy: "S", family: "trend", cmp_kind: "random_entry", trade_id: "NIFTY_CE_1_09:30_S", status: "WATCH", seen_ist: "09:40" },
+    { ...x, strategy: "S", family: "trend", cmp_kind: "base", trade_id: "NIFTY_CE_2_09:31_S", status: "WATCH", seen_ist: "09:41", rand15: -5000 }];
+  const s = labShadowView({ ok: true, rows, format: "v2" }).groups[0].strategies[0];
+  assert.deepEqual(s.cmp.map((c) => [c.kind, c.sum]), [["random", 300], ["vs base", -5000]]);
+  assert.ok(isOverlay({ family: "trend", cmp_kind: "base" })); assert.ok(isOverlay({ strategy: "ROUTER:R07FEAR", family: "trend" }));
+  assert.ok(!isOverlay({ family: "trend", cmp_kind: "none" }));
 }
 // isolation: no desk total / paper-extra module reads the lab shadow feed
 const totals = ["src/lib/deskModel.js", "src/components/TopBar.jsx", "src/components/PnlChart.jsx", "src/pages/HistoryPage.jsx",

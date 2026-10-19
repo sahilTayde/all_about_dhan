@@ -81,7 +81,7 @@ export function LabShadowPanel() {
                     {v.trades.map((t, i) => (
                       <tr key={i} title={[t.situation, t.reason].filter(Boolean).join(" — ")}>
                         <td>{dash(clock(t.seen_ist))}</td>
-                        <td>{dash(t.strategy)}{t.also.length ? <em className="muted"> · also: {t.also.join(", ")}</em> : null}{hasGap(t) ? <> <Gap title={`data gap: ${t.data_gap}`} /></> : null}</td>
+                        <td>{dash(t.strategy)}{t.also.length ? <em className="muted"> · also: {t.also.join(", ")}</em> : null}{t.baseRule ? <em className="muted"> · on {t.baseRule}</em> : null}{hasGap(t) ? <> <Gap title={`data gap: ${t.data_gap}`} /></> : null}</td>
                         <td>{dash(t.und)}</td><td>{dash(t.side)}</td><td className="r num">{num(t.strike) ?? "—"}</td>
                         <td><Leg time={t.entry} price={t.ask_in} /></td>
                         <td>{t.exit || num(t.bid_out) != null ? <Leg time={t.exit} price={t.bid_out} /> : num(t.net15) == null ? <span className="tag tag--muted">not closed yet</span> : "—"}</td>
