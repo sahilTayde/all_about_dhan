@@ -701,6 +701,138 @@ def pshadow_cycle() -> str:
     return txt
 
 
+# ---------------- regime tags + narrow-open shadow (2026-10-19, Sahil 1:1 02:29 CT). LOGGING ONLY ----------------
+# Runs after admission/exits are final for the cycle; adds only the keys "regime" and "shadow_narrow_open" to each row and appends
+# shadow_narrow_open_<day>.jsonl. Never changes status, prices, LIVE, CAP, PREM or START. Every step is wrapped: a failure logs, never stops.
+try:
+    import regime_tags as RG
+except Exception as _e:   # a broken tag module must never stop the runner
+    RG = None; _RG_ERR = f"{type(_e).__name__}: {_e}"
+REG_MEMO = {}            # row key -> regime dict (frozen once complete: no missing fields)
+REG_CTX = {}             # underlying -> (file mtime tuple, context)
+SHADOW_FILE = OUT.parent / f"shadow_narrow_open_{DAY}.jsonl"
+SHADOW_DONE = set()
+
+
+def _vix_series() -> list:
+    """Same read-only VIX sources as Q01: lab fixture history + prior-day closes in today's IDX_INDIAVIX.json (no file is written)."""
+    out = []
+    try:
+        out += [[d, float(c)] for d, c in json.loads(VIX_HIST.read_text())]
+    except (OSError, ValueError, TypeError):
+        pass
+    try:
+        j = json.loads((LIVE_RUN / "IDX_INDIAVIX.json").read_text()); last = {}
+        for t, c in zip(j["timestamp"], j["close"]):
+            d = datetime.fromtimestamp(int(t), IST).strftime("%Y-%m-%d")
+            if d < DAY:
+                last[d] = float(c)
+        have = {d for d, _ in out}; out += [[d, c] for d, c in sorted(last.items()) if d not in have]
+    except (OSError, ValueError, KeyError, TypeError):
+        pass
+    return out
+
+
+def _regime_ctx(u: str) -> dict:
+    f = LIVE_RUN / f"IDX_{u}.json"; fv = LIVE_RUN / "IDX_INDIAVIX.json"
+    key = tuple(x.stat().st_mtime if x.exists() else None for x in (f, fv, VIX_HIST))
+    if u in REG_CTX and REG_CTX[u][0] == key:
+        return REG_CTX[u][1]
+    try:
+        bars = RG.days_from_dhan(json.loads(f.read_text()))
+    except (OSError, ValueError):
+        bars = {}
+    exp = (EXP if u == "NIFTY" else EXPS.get(u))
+    try:
+        pexp = prev_trading_day(DAY)
+    except Exception:
+        pexp = None
+    ctx = RG.day_context(bars, DAY, _vix_series(), (exp == DAY) if exp else None, pexp)
+    if not bars:
+        ctx["missing"]["index"] = f"IDX_{u}.json missing or unreadable"
+    REG_CTX[u] = (key, ctx)
+    return ctx
+
+
+def tag_rows(rows: list) -> str:
+    if RG is None:
+        return f"regime OFF ({_RG_ERR})"
+    n = bad = 0
+    for r in rows:
+        try:
+            k = (r.get("rule_id"), r.get("underlying") or "NIFTY", r.get("signal_time"))
+            reg = REG_MEMO.get(k)
+            if reg is None:
+                sm = _m(r.get("signal_time"))
+                reg = RG.tag_safe(_regime_ctx(r.get("underlying") or "NIFTY"), sm, r.get("side")) if sm is not None else \
+                    {"version": RG.VERSION, "error": "no signal_time"}
+                if not reg.get("missing") and not reg.get("error"):
+                    REG_MEMO[k] = reg
+            r["regime"] = reg; r["shadow_narrow_open"] = RG.narrow_shadow(reg); n += 1
+            bad += bool(reg.get("error"))
+        except Exception as e:   # never stop the cycle
+            r["regime"] = {"version": RG.VERSION, "error": f"{type(e).__name__}: {e}"}; bad += 1
+    return f"regime tagged {n}" + (f" ({bad} errors)" if bad else "")
+
+
+def _net(e, x, q, u):
+    try:
+        if str(RT / "dhan" / "research" / "lab" / "lib") not in sys.path:
+            sys.path.insert(0, str(RT / "dhan" / "research" / "lab" / "lib"))
+        import costs
+        return round(costs.net_at(float(e), float(x), int(q), u, DAY)[3], 2)
+    except Exception:
+        return None
+
+
+def shadow_log(rows: list) -> str:
+    """One line per booked trade when it closes: actual vs skip vs half size under the narrow-open rule (shadow only)."""
+    if not SHADOW_DONE and SHADOW_FILE.exists():
+        try:
+            for line in SHADOW_FILE.read_text().splitlines():
+                SHADOW_DONE.add(tuple(json.loads(line)["key"]))
+        except (OSError, ValueError, KeyError, TypeError):
+            pass
+    n = 0
+    for r in rows:
+        try:
+            if r.get("status") != "CLOSED" or r.get("exit_px") is None:
+                continue
+            k = (r["rule_id"], r.get("underlying") or "NIFTY", r["signal_time"])
+            if k in SHADOW_DONE:
+                continue
+            q = int(r["qty"]); h = q // 2; e, x = float(r["entry_px"]), float(r["exit_px"]); u = r.get("underlying") or "NIFTY"
+            sh = r.get("shadow_narrow_open") or {}
+            if not sh:
+                continue
+            act = dict(qty=q, gross_inr=round((x - e) * q, 2), net_inr_1_5x=_net(e, x, q, u))
+            half = dict(qty=h, gross_inr=round((x - e) * h, 2), net_inr_1_5x=_net(e, x, h, u))
+            rec = dict(day=DAY, key=list(k), entry_time=r.get("entry_time"), exit_time=r.get("exit_time"), entry_px=e, exit_px=x,
+                       exit_reason=r.get("exit_reason"), regime=r.get("regime"), shadow=sh, actual=act,
+                       under_skip=dict(qty=0, gross_inr=0.0, net_inr_1_5x=0.0), under_half=half,
+                       if_rule_applied=(dict(qty=0, gross_inr=0.0, net_inr_1_5x=0.0) if sh.get("would_skip") else act),
+                       if_half_applied=(half if sh.get("would_halve") else act), logged_ist=datetime.now(IST).isoformat(timespec="seconds"))
+            with open(SHADOW_FILE, "a") as f:
+                f.write(json.dumps(rec) + "\n")
+            SHADOW_DONE.add(k); n += 1
+        except Exception:
+            continue
+    return f"shadow_narrow_open +{n}"
+
+
+def _regime_counts(blob: dict) -> dict:
+    out = {}
+    for grp, rows in (("booked", blob.get("rows") or []), ("not_booked", blob.get("not_booked") or [])):
+        c = {"cell": {}, "or15": {}, "gap_bucket": {}, "expiry_day": {}}
+        for r in rows:
+            g = r.get("regime") or {}
+            for f in c:
+                v = str(g.get(f)); c[f][v] = c[f].get(v, 0) + 1
+        c["narrow_would_skip"] = sum(1 for r in rows if (r.get("shadow_narrow_open") or {}).get("would_skip"))
+        out[grp] = c
+    return out
+
+
 def log_risk() -> str:
     """Per-minute desk exposure from the desk's own journal (all desk rules, not just PX): open lots + premium at risk."""
     try:
@@ -714,9 +846,13 @@ def log_risk() -> str:
     # Every PX trade the paper-extra book still holds OPEN, including ones carried over a restart and ones
     # the desk's cap replay put in risk_blocked/guard_blocked/dup_same_contract (paper-extra trades every signal).
     try:
-        pb = [r for r in (json.loads(OUT.read_text()).get("rows") or []) if r.get("status") == "OPEN"]
+        _blob = json.loads(OUT.read_text()); pb = [r for r in (_blob.get("rows") or []) if r.get("status") == "OPEN"]
     except (OSError, ValueError):
-        pb = []
+        _blob, pb = {}, []
+    try:
+        _rc = _regime_counts(_blob)
+    except Exception as e:   # logging only
+        _rc = {"error": f"{type(e).__name__}: {e}"}
     pb_lots = {u: sum(int(r.get("qty") or 0) // LOT[u] for r in pb if r.get("underlying") == u) for u in ("NIFTY", "SENSEX")}
     pb_prem = round(sum(float(r.get("entry_px") or 0) * int(r.get("qty") or 0) for r in pb), 2)
     admitted = {(r.get("rule_id"), r.get("underlying") or ("SENSEX" if "-SENSEX-" in str(r.get("trade_id")) else "NIFTY"), r.get("entry_min")) for r in op}
@@ -728,7 +864,7 @@ def log_risk() -> str:
            "book_open_trades": len(pb), "book_open_lots": pb_lots, "book_premium_at_risk_inr": pb_prem,
            "book_open": [(r.get("rule_id"), r.get("underlying"), r.get("side"), r.get("strike"), r.get("entry_time"), r.get("stop_px"))
                          for r in pb],
-           "book_open_not_desk_admitted": outside}
+           "book_open_not_desk_admitted": outside, "regime_counts": _rc}
     with open(OUT.parent / f"risk_minutes_{DAY}.jsonl", "a") as f:
         f.write(json.dumps(rec) + "\n")
     return (f"open {len(op)} lots {lots} prem_at_risk {prem} net {rk.get('day_net_inr')} halt {rk.get('halted_reason')}; "
@@ -756,8 +892,16 @@ def once() -> str:
         ptxt = pshadow_cycle()
     except Exception as e:
         ptxt = f"pshadow ERROR {type(e).__name__}: {e}"
+    try:   # logging only, after every admission/exit decision of this cycle
+        rtxt = tag_rows(rows)
+    except Exception as e:
+        rtxt = f"regime ERROR {type(e).__name__}: {e}"
     write(rows, f"{f}; {line}; {qtxt}; {ptxt}"); LAST_ROWS.update(rows=rows, note=f"{f}; {line}; {qtxt}; {ptxt}")
-    line = f"{line}; {qtxt}; {ptxt}"
+    try:
+        rtxt += "; " + shadow_log(rows)
+    except Exception as e:
+        rtxt += f"; shadow ERROR {type(e).__name__}: {e}"
+    line = f"{line}; {qtxt}; {ptxt}; {rtxt}"
     return f"{datetime.now(IST):%H:%M:%S} IST {f}; {line}; px rows {len(rows)}; {log_risk()}"
 
 
