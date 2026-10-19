@@ -15,3 +15,19 @@ rules_off:
     match: ["R01_PDIV_5_ALL_H20", "R01"]
   - id: R01_B3A_VOL
     match: ["R01_B3A_VOL"]
+# 2026-10-19 (Sahil OK in 1:1, 16:17 CT): SHADOW ONLY from the Wed 2026-10-21 IST session. These paper_extra rules lost money
+# after the measured spread under both exit sets (SPREAD_RULE_TABLE, prereg 21510e5b). They keep generating signals and are
+# logged/scored as shadow, but book nothing on the desk and use no slot or premium cap. EP010, VWAP_CONT, Q01, B2, IB_5 unchanged.
+shadow_only:
+  - id: PX_ENG_5
+    from: "2026-10-21"
+  - id: PX_EP018
+    from: "2026-10-21"
+  - id: PX_IB_15
+    from: "2026-10-21"
+  - id: PX_MINE_PE
+    from: "2026-10-21"
+  - id: PX_ORB_A
+    from: "2026-10-21"
+  - id: PX_R07
+    from: "2026-10-21"

@@ -6,6 +6,7 @@ import ast, json, os, sys, tempfile, importlib, pathlib, copy
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 os.environ["PX_DAY"] = "2026-10-21"
 R = importlib.import_module("runner")
+R._shadow_only = lambda: set()   # cap2 fixture predates the 2026-10-21 shadow-only list (test_shadow_only.py covers that)
 d = pathlib.Path(tempfile.mkdtemp()); R.LIVE.clear(); R.LIVE_FILE = d / "live_exits.json"; R.OUT = d / "out.json"; R.CAP_FILE = d / "cap_start.json"
 R.EXP = "2026-10-27"; R.EXPS = {"NIFTY": "2026-10-27", "SENSEX": "2026-10-22"}
 fails = []

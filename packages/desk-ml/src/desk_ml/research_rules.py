@@ -685,6 +685,35 @@ def desk_rules_off(path: Optional[Path] = None) -> set[str]:
     return out
 
 
+def desk_shadow_only(day: str, path: Optional[Path] = None) -> set[str]:
+    """Rule ids that are SHADOW ONLY on `day` (config/desk_rules_off.yaml `shadow_only`, each with an IST `from` day).
+    They keep generating signals and are scored as shadow, but book nothing and use no slot / premium cap."""
+    p = Path(path) if path is not None else DESK_RULES_OFF_PATH
+    if not p.is_file():
+        return set()
+    import yaml
+
+    blob = yaml.safe_load(p.read_text(encoding="utf-8")) or {}
+    out: set[str] = set()
+    for item in blob.get("shadow_only") or []:
+        if str(day) >= str(item.get("from") or "9999-99-99"):
+            out.add(str(item.get("id")))
+            out.update(str(m) for m in item.get("match") or [])
+    return out
+
+
+def split_shadow_only(rows, ids: set):
+    """(desk rows, shadow rows) for the shadow_only list."""
+    keep, sh = [], []
+    for r in rows:
+        if str(r.get("rule_id") or "") in ids:
+            r["shadow_reason"] = "SHADOW_ONLY (config/desk_rules_off.yaml shadow_only)"
+            sh.append(r)
+        else:
+            keep.append(r)
+    return keep, sh
+
+
 def _park_from(rule_id: str, day: str) -> Optional[str]:
     days = PARK_FROM_IST.get(rule_id)
     if days is None:
@@ -1177,6 +1206,10 @@ def replay(
             opens.extend(xo); closed.extend(xc)
             onf = rules_on_from(day)
             opens, ho = split_on_from(opens, onf); closed, hc = split_on_from(closed, onf)
+            sho = desk_shadow_only(day)   # 2026-10-21: shadow-only rules never reach the desk guards (no slot, no cap, no P&L)
+            if sho:
+                opens, so = split_shadow_only(opens, sho); closed, sc = split_shadow_only(closed, sho)
+                ho = ho + so; hc = hc + sc
             on_from_hist = (ho, hc)
         opens, closed, new_blocked, dup_shadow, taken = _desk_pass(
             opens, closed, day, [r["rule_id"] for r in live_rules], risk_cfg,

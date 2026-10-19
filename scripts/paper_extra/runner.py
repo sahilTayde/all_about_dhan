@@ -144,14 +144,23 @@ def _open_at(done: list, em: int) -> list:
             and _m(d["entry_time"]) <= em and (d["status"] == "OPEN" or (_m(d.get("exit_time")) or 10 ** 6) >= em)]
 
 
+def _shadow_only() -> set:
+    """config/desk_rules_off.yaml shadow_only ids for DAY (desk_ml.research_rules.desk_shadow_only)."""
+    from desk_ml import research_rules as rr
+    return rr.desk_shadow_only(DAY)
+
+
 def cap_and_price(rows: list, now_m: int) -> list:
     """apply_price_exits in entry order. Checks, in order: restart guard (PRE_START), anti-chase (SKIPPED_CHASE), cap2 (SKIPPED_CAP),
     premium limit (SKIPPED_PREMIUM). Skipped rows hold no slot and no premium. A slot/premium frees only when the exit minute is before the entry."""
     out = [None] * len(rows)
     order = sorted(range(len(rows)), key=lambda i: (_m(rows[i].get("entry_time")) or 10 ** 6, rows[i].get("signal_time") or ""))
     done = []
+    sho = _shadow_only()
     for i in order:
         r = rows[i]; k = (r["rule_id"], r.get("underlying") or "NIFTY", r.get("signal_time")); em = _m(r.get("entry_time"))
+        if r["rule_id"] in sho:   # 2026-10-21 SHADOW ONLY: still priced/scored, but never takes a cap2 slot or premium (desk books nothing)
+            x = apply_price_exits(r, now_m); x["shadow_only"] = True; out[i] = x; continue
         new = r.get("status") in ("OPEN", "CLOSED") and em is not None and k not in CAP["admit"] and _pre_status(r) is None
         if new and CAP["from_m"] is not None and em >= CAP["from_m"]:
             if k in CAP["skip"] or len(_open_at(done, em)) >= CAP_MAX:
