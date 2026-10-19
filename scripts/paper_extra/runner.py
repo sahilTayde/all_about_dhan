@@ -312,6 +312,11 @@ def guard_tick() -> int:
     now_m = (datetime.now(IST) - timedelta(minutes=1)); nm = now_m.hour * 60 + now_m.minute
     rows = [apply_price_exits(dict(r), nm) if r.get("rule_id", "").startswith("PX_") and r["status"] in ("OPEN", "CLOSED") else r
             for r in LAST_ROWS["rows"]]
+    try:   # display only: refresh exit_status with the new marks (never read back by any decision)
+        if SO is not None:
+            overlay_status(rows, nm)
+    except Exception:
+        pass
     _live_save(); write(rows, LAST_ROWS["note"] + f"; live_guard {datetime.now(IST):%H:%M:%S}")
     return nclosed
 
@@ -871,6 +876,168 @@ def log_risk() -> str:
             f"book open {len(pb)} lots {pb_lots} prem_at_risk {pb_prem}")
 
 
+# ---------------- exit-status labels + shadow overlays (2026-10-19, Sahil "your decision" 02:58 CT). DISPLAY / LOGGING ONLY ----------------
+# Runs after admission/exits are final for the cycle (and in each live-guard tick, before write). Adds only the keys "exit_status" (OPEN PX rows)
+# and "shadow_overlays" (all booked PX rows), writes data/paper_extra/<day>/live_exits_status.json and appends shadow_overlays_<day>.jsonl.
+# Never changes status, prices, LIVE, CAP, PREM or START; never read back by any decision. Every step is wrapped: a failure logs, never stops.
+try:
+    import shadow_overlays as SO
+except Exception as _e:   # a broken overlay module must never stop the runner
+    SO = None; _SO_ERR = f"{type(_e).__name__}: {_e}"
+SO_FILE = OUT.parent / f"shadow_overlays_{DAY}.jsonl"
+SO_STATUS_FILE = REPO / "data" / "paper_extra" / DAY / "live_exits_status.json"
+SO_DONE = set()
+SO_IDX = {}              # underlying -> (file mtime, {minute_index: (o, h, l, c)} for DAY)
+
+
+def _so_idx(u: str) -> dict:
+    f = LIVE_RUN / f"IDX_{u}.json"
+    try:
+        key = f.stat().st_mtime
+    except OSError:
+        return {}
+    if u in SO_IDX and SO_IDX[u][0] == key:
+        return SO_IDX[u][1]
+    out = {}
+    try:
+        j = json.loads(f.read_text())
+        for i, t in enumerate(j.get("timestamp") or []):
+            try:
+                dt = datetime.fromtimestamp(int(t), IST); k = dt.hour * 60 + dt.minute - 555
+                if dt.strftime("%Y-%m-%d") == DAY and 0 <= k < 376:
+                    out[k] = (float(j["open"][i]), float(j["high"][i]), float(j["low"][i]), float(j["close"][i]))
+            except (KeyError, IndexError, TypeError, ValueError):
+                continue
+    except (OSError, ValueError):
+        out = {}
+    SO_IDX[u] = (key, out)
+    return out
+
+
+def _so_key(r):
+    return (r["rule_id"], r.get("underlying") or "NIFTY", r["signal_time"])
+
+
+def _so_status(r: dict, now_m: int) -> dict:
+    u = r.get("underlying") or "NIFTY"; sg = 1 if r["side"] == "CE" else -1; em = _m(r["entry_time"]); p0 = float(r["entry_px"])
+    ob = _opt_bars(u, r["strike"], r["side"]); ms = sorted(m for m in ob if em <= m <= now_m)
+    px = r.get("mark_px"); mt = _m(r.get("mark_time")) if r.get("mark_time") else None
+    if px is None:
+        px, mt = (ob[ms[-1]][1], ms[-1]) if ms else (p0, em)
+    mt = mt if mt is not None else now_m
+    lt = LIVE.get(_so_key(r))
+    peak = max([ob[m][1] for m in ms if m <= mt] + [p0, float(px)] + ([float(lt.hw)] if lt is not None and lt.last_bid is not None else []))
+    p3 = ob[mt - 3][1] if (mt - 3) >= em - 1 and (mt - 3) in ob else None
+    st = SO.status(p0, float(px), peak, p3, sg, _so_idx(u), mt - 555, _m(r["signal_time"]) - 555, held_min=mt - em)
+    armed = peak >= p0 * (1 + PRICE_EXIT["stop"])
+    st.update(price_now=float(px), price_time=_hm(mt), price_src=r.get("price_src"), entry_px=p0, stop_px=r.get("stop_px"), target_px=r.get("target_px"),
+              trail_armed=armed, trail_px=round(max(p0, peak * (1 - PRICE_EXIT["stop"])), 2) if armed else None,
+              trail_rule=r.get("trail") or "BE at +30%, then high-water x 0.70", updated_ist=datetime.now(IST).isoformat(timespec="seconds"))
+    return st
+
+
+def overlay_status(rows: list, now_m: int) -> int:
+    """exit_status on OPEN PX rows (display only) + sidecar file. Returns rows labelled."""
+    n = 0; side = []
+    for r in rows:
+        if not str(r.get("rule_id", "")).startswith("PX_"):
+            continue
+        if r.get("status") != "OPEN":
+            r.pop("exit_status", None); continue
+        try:
+            r["exit_status"] = _so_status(r, now_m); n += 1
+        except Exception as e:
+            r["exit_status"] = {"version": getattr(SO, "VERSION", None), "label": None, "error": f"{type(e).__name__}: {e}", "display_only": True}
+        side.append(dict(key=list(_so_key(r)), exit_status=r["exit_status"]))
+    try:
+        SO_STATUS_FILE.parent.mkdir(parents=True, exist_ok=True); tmp = SO_STATUS_FILE.with_suffix(".tmp")
+        tmp.write_text(json.dumps(side)); os.replace(tmp, SO_STATUS_FILE)
+    except OSError:
+        pass
+    return n
+
+
+def overlay_rows(rows: list, now_m: int) -> str:
+    if SO is None:
+        return f"overlays OFF ({_SO_ERR})"
+    bad = 0; dr_in = []; info = {}
+    booked = [r for r in rows if str(r.get("rule_id", "")).startswith("PX_") and r.get("status") in ("OPEN", "CLOSED")]
+    for r in booked:
+        try:
+            u = r.get("underlying") or "NIFTY"; sg = 1 if r["side"] == "CE" else -1; em = _m(r["entry_time"]); sm = _m(r["signal_time"])
+            p0 = float(r["entry_px"]); ob = _opt_bars(u, r["strike"], r["side"]); idx = _so_idx(u); exp = EXP if u == "NIFTY" else EXPS.get(u)
+            tgt, tw, m30, eff = SO.ts_target(idx, sm, em, (exp == DAY) if exp else False)
+            paths = {k: SO.path_1m(ob, em, p0, now_m, t) for k, t in (("base60_1m", 0.60), ("t50", 0.50), ("ts", tgt))} if em in ob else {}
+            gb = None; xm = _m(r.get("exit_time")) if r.get("status") == "CLOSED" else None
+            if xm is not None and r.get("exit_px") is not None:
+                pk = max([ob[m][1] for m in ob if em <= m < xm] + [p0]); net = _net(p0, float(r["exit_px"]), int(r["qty"]), u)
+                gb = bool(pk >= p0 * 1.15 and (net if net is not None else (float(r["exit_px"]) - p0)) < 0)
+            ok, s10, vs = SO.dr_ok(idx, sm, sg)
+            dr_in.append(dict(key=_so_key(r), entry_m=em, sig_m=sm, exit_m=xm, giveback=bool(gb), ok=ok, ok_s10=s10, ok_side=vs))
+            info[_so_key(r)] = dict(ts_target=tgt, ts_reasons=tw, morning_move_bps=m30, morning_eff=eff, giveback=gb,
+                                    paths={k: {kk: (round(vv, 2) if kk == "hw" else vv) for kk, vv in v.items()} for k, v in paths.items()})
+        except Exception as e:
+            info[_so_key(r)] = {"error": f"{type(e).__name__}: {e}"}; bad += 1
+    try:
+        fl = SO.dr_flags(dr_in)
+    except Exception as e:
+        fl = {}; bad += 1
+    for r in booked:
+        k = _so_key(r); d = dict(info.get(k) or {}); d["dr"] = fl.get(k); d["version"] = SO.VERSION; d["shadow_only"] = True
+        r["shadow_overlays"] = d
+    try:
+        nl = overlay_status(rows, now_m)
+    except Exception as e:
+        nl = 0; bad += 1
+    return f"overlays {len(booked)} status {nl}" + (f" ({bad} errors)" if bad else "")
+
+
+def _leg(p0, x, q, u):
+    return dict(exit_px=x, gross_inr=round((float(x) - p0) * q, 2), net_inr_1_5x=_net(p0, float(x), q, u)) if x is not None else None
+
+
+def overlay_log(rows: list, now_m: int) -> str:
+    """One line per booked PX trade once it AND its three 1m shadow paths are closed (or after 15:18 IST)."""
+    if SO is None:
+        return "shadow_overlays OFF"
+    if not SO_DONE and SO_FILE.exists():
+        try:
+            for line in SO_FILE.read_text().splitlines():
+                SO_DONE.add(tuple(json.loads(line)["key"]))
+        except (OSError, ValueError, KeyError, TypeError):
+            pass
+    n = 0
+    for r in rows:
+        try:
+            if not str(r.get("rule_id", "")).startswith("PX_") or r.get("status") != "CLOSED" or r.get("exit_px") is None:
+                continue
+            k = _so_key(r)
+            if k in SO_DONE:
+                continue
+            so = r.get("shadow_overlays") or {}; P = so.get("paths") or {}
+            if so.get("error") or (any((P.get(x) or {}).get("status") != "CLOSED" for x in ("base60_1m", "t50", "ts")) and now_m < 918):
+                continue
+            u = r.get("underlying") or "NIFTY"; p0 = float(r["entry_px"]); q = int(r["qty"])
+            act = _leg(p0, r["exit_px"], q, u); act.update(exit_time=r.get("exit_time"), why=r.get("exit_reason"))
+            legs = {}
+            for x in ("base60_1m", "t50", "ts"):
+                v = P.get(x) or {}
+                legs[x] = _leg(p0, v.get("exit_px"), q, u) if v.get("status") == "CLOSED" else None
+                if legs[x]:
+                    legs[x].update(exit_time=_hm(v["exit_m"]), why=v.get("why"))
+            dr = so.get("dr") or {}
+            rec = dict(day=DAY, key=list(k), entry_time=r.get("entry_time"), entry_px=p0, qty=q, actual=act, **legs, ts_target=so.get("ts_target"),
+                       ts_reasons=so.get("ts_reasons"), giveback=so.get("giveback"), dr=dr,
+                       if_dr_applied=(dict(exit_px=None, gross_inr=0.0, net_inr_1_5x=0.0) if dr.get("would_skip") else act),
+                       version=so.get("version"), shadow_only=True, logged_ist=datetime.now(IST).isoformat(timespec="seconds"))
+            with open(SO_FILE, "a") as f:
+                f.write(json.dumps(rec) + "\n")
+            SO_DONE.add(k); n += 1
+        except Exception:
+            continue
+    return f"shadow_overlays +{n}"
+
+
 def once() -> str:
     f = fetch()
     sr, line = score()
@@ -896,11 +1063,19 @@ def once() -> str:
         rtxt = tag_rows(rows)
     except Exception as e:
         rtxt = f"regime ERROR {type(e).__name__}: {e}"
+    try:   # display/logging only, after every admission/exit decision of this cycle
+        rtxt += "; " + overlay_rows(rows, now_m)
+    except Exception as e:
+        rtxt += f"; overlays ERROR {type(e).__name__}: {e}"
     write(rows, f"{f}; {line}; {qtxt}; {ptxt}"); LAST_ROWS.update(rows=rows, note=f"{f}; {line}; {qtxt}; {ptxt}")
     try:
         rtxt += "; " + shadow_log(rows)
     except Exception as e:
         rtxt += f"; shadow ERROR {type(e).__name__}: {e}"
+    try:
+        rtxt += "; " + overlay_log(rows, now_m)
+    except Exception as e:
+        rtxt += f"; overlay log ERROR {type(e).__name__}: {e}"
     line = f"{line}; {qtxt}; {ptxt}; {rtxt}"
     return f"{datetime.now(IST):%H:%M:%S} IST {f}; {line}; px rows {len(rows)}; {log_risk()}"
 
