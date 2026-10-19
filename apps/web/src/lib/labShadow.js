@@ -10,16 +10,18 @@ export async function fetchLabShadow(base, day, signal) {
 export const STATUS_ORDER = ["PRIMARY", "WATCH", "PARKED"];
 const RANK = { PRIMARY: 0, WATCH: 1, PARKED: 2 };
 const fin = (v) => (typeof v === "number" && Number.isFinite(v) ? v : null);
+/** Non-empty data_gap = the lab's prices had a hole for this trade. */
+export const hasGap = (r) => r?.data_gap != null && String(r.data_gap).trim() !== "";
 
-/** "HH:MM" from "2026-10-19 09:51", "2026-10-19T09:51:00+05:30" or "09:51"; null if none. */
+/** "HH:MM" from bare "10:45" / "9:05" (the real feed), "2026-10-19 09:51" or "2026-10-19T09:51:00+05:30"; null if none. */
 export function clock(v) {
   const m = String(v ?? "").match(/(?:^|[ T])(\d{1,2}):(\d{2})/);
   return m ? `${m[1].padStart(2, "0")}:${m[2]}` : null;
 }
 
-/** Same trade = same index, side, strike and entry time. null when any part is missing (never merged then). */
+/** Same trade = same index, side, strike and entry time (bare or full form). null when any part is missing (never merged then). */
 export function tradeKey(r) {
-  const parts = [r?.und, r?.side, r?.strike, r?.entry];
+  const parts = [r?.und, r?.side, r?.strike == null || r.strike === "" ? null : Number(r.strike), clock(r?.entry) || r?.entry];
   if (parts.some((p) => p === null || p === undefined || p === "")) return null;
   return parts.map((p) => String(p).trim().toUpperCase()).join("|");
 }
@@ -62,10 +64,13 @@ export function labShadowView(body) {
     const per = new Map();
     for (const t of mine) {
       const name = t.strategy || "—";
-      const g = per.get(name) || { strategy: name, family: t.family || null, trades: 0, withNet: 0, net15: null, also: new Set() };
+      const g = per.get(name) || { strategy: name, family: t.family || null, trades: 0, withNet: 0, net15: null, withRand: 0, rand15: null, dataGaps: 0, also: new Set() };
       g.trades += 1;
       const n = fin(t.net15);
       if (n !== null) { g.withNet += 1; g.net15 = Math.round(((g.net15 ?? 0) + n) * 100) / 100; }
+      const rd = fin(t.rand15); // random-entry baseline: summed only where the lab gave one, never filled in
+      if (rd !== null) { g.withRand += 1; g.rand15 = Math.round(((g.rand15 ?? 0) + rd) * 100) / 100; }
+      if (hasGap(t)) g.dataGaps += 1;
       t.also.forEach((a) => g.also.add(a));
       per.set(name, g);
     }

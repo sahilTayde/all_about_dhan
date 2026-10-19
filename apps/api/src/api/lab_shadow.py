@@ -24,9 +24,11 @@ DAY_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 IST = timezone(timedelta(hours=5, minutes=30))
 MAX_BYTES = 5 * 1024 * 1024  # a day's lab feed is a few KB; refuse anything absurd
 
+# seen_ist / sig / entry / exit are bare IST "HH:MM" in the real feed (full "YYYY-MM-DD HH:MM" also accepted);
+# kept as text. rand15 = random-entry baseline (net ₹ at 1.5x), never filled in when empty.
 COLUMNS = ("seen_ist", "lag_min", "strategy", "family", "status", "und", "side", "strike", "sig", "entry",
-           "exit", "ask_in", "bid_out", "net15", "reason", "src")
-NUMERIC = ("lag_min", "strike", "ask_in", "bid_out", "net15")
+           "exit", "ask_in", "bid_out", "net15", "rand15", "data_gap", "situation", "reason", "src")
+NUMERIC = ("lag_min", "strike", "ask_in", "bid_out", "net15", "rand15")
 
 router = APIRouter()
 
