@@ -28,8 +28,188 @@ EXIT_RULE = {
     "PX_EP010": "TV EP-010 port: own exit signal or stop", "PX_EP018": "TV EP-018 port: own exit signal or stop",
 }
 BASIS = "NONE_IN_PREMIUM: rule exits on NIFTY index levels, time, or its own exit signal; no option-premium stop/target"
+# 2026-10-18 SENSEX support (box; paper only). Same PX rules, run per underlying; desk guard (opposite side across NIFTY+SENSEX,
+# same contract, 10-lot cap, risk) is unchanged in desk_ml.research_rules._desk_pass. Q01/Q01_T15/pshadow stay NIFTY-only (sealed NIFTY specs).
+UNDS = ("NIFTY", "SENSEX")
+QTY = {"NIFTY": 650, "SENSEX": 200}   # 10 lots each (NIFTY 65, SENSEX 20)
+LOT = {"NIFTY": 65, "SENSEX": 20}
+OPT_SPEC = {"NIFTY": ("NSE", "NIFTY-", "NSE_FNO", 50), "SENSEX": ("BSE", "SENSEX-", "BSE_FNO", 100)}   # exch, symbol prefix, API segment, grid
+BAND = {"NIFTY": (300, 200), "SENSEX": (1000, 700)}   # first / later fetch band in index points (SENSEX ~3.3x NIFTY)
 XR = {"STOP": "STOP", "TARGET": "TARGET", "TIME": "TIME", "EXIT": "RULE_EXIT", "SIGNAL": "RULE_EXIT", "REVERSE": "RULE_EXIT",
       "EOD": "TIME", "open": "OPEN", "": None}
+# 2026-10-19 PRICE EXITS (Sahil, Oct 18 23:54 CT via Opposition): every PX row gets a premium stop AND target AND trail; no timers.
+# Replay: desk/verify/2026-10-19_price_exits_all/REPORT.md. Close-based trigger on 1m option closes (live: depth bid, see live_guard),
+# fill = next minute OPEN; stop wins if both in one minute; trail = break-even at +STOP, then high-water x (1-STOP); 15:15 IST safety close.
+PRICE_EXIT = {"stop": 0.30, "target": 0.60, "trail": True, "antichase_rise": 0.12, "safety_m": 915, "live_poll_s": 3.0}   # re-entry OFF (Sahil, Oct 19)
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import live_pricer as LP   # noqa: E402
+LIVE = {}            # (rule_id, underlying, signal_time) -> LP.LiveTrade
+LIVE_FILE = REPO / "data" / "paper_extra" / DAY / "live_exits.json"
+TAIL = LP.DepthTail(REPO / "data" / "tape" / "v2" / DAY / "depth_quotes.jsonl", start_at_end=True)   # never replay old tape quotes (2026-10-19 deploy bug)
+LAST_ROWS = {"rows": None, "note": ""}
+# REVIEW FIX (2026-10-19): restart-safe. START_FILE pins the first minute this runner (new version) ran today. Signals whose entry minute is
+# before it are never back-filled from past bars (status PRE_START, never booked). Rows already in OUT from an earlier process are carried:
+# CLOSED rows are frozen exactly as booked; OPEN rows get the new exits evaluated only from START_M onward (no retro exit).
+START_FILE = REPO / "data" / "paper_extra" / DAY / "runner_start.json"
+START = {"m": None, "frozen": {}, "carried": set()}
+
+
+def _start_load(now_m: int) -> None:
+    try:
+        START["m"] = int(json.loads(START_FILE.read_text())["start_m"])
+    except (OSError, ValueError, KeyError, TypeError):
+        START["m"] = now_m + 1   # first start today: only signals entering after this minute are new
+        START_FILE.parent.mkdir(parents=True, exist_ok=True); START_FILE.write_text(json.dumps({"start_m": START["m"]}))
+    try:
+        for r in json.loads(OUT.read_text()).get("rows") or []:
+            if not str(r.get("rule_id", "")).startswith("PX_"):
+                continue
+            k = (r["rule_id"], r.get("underlying") or "NIFTY", r["signal_time"])
+            if r.get("status") == "CLOSED" and r.get("price_src") is None and r.get("exit_src") != "v2_depth_bid":
+                START["frozen"][k] = r          # closed by the old version: keep as booked
+            elif r.get("status") in ("OPEN", "CLOSED"):
+                START["carried"].add(k)
+    except (OSError, ValueError, KeyError, TypeError):
+        pass
+WHY = {"PX_B2": "B2: prior day wide range closed near an extreme -> fade at 09:16", "PX_R07": "R07: 30-min efficiency >=0.4 and 3-min move >=0.05%",
+       "PX_EP010": "EP-010: TV port entry signal (5m)", "PX_EP018": "EP-018: 2-pt box break on close (60m)", "PX_ORB_A": "ORB_A: opening-range break",
+       "PX_VWAP_CONT": "VWAP_CONT: VWAP continuation", "PX_ENG_5": "ENG_5: 5m engulfing", "PX_IB_5": "IB_5: 5m inside-bar break",
+       "PX_IB_15": "IB_15: 15m inside-bar break", "PX_MINE_PE": "MINE_PE: mined PE context rule"}
+
+
+def _opt_bars(u: str, K: int, side: str) -> dict:
+    return _bars(f"{u}_{EXPS.get(u) if u != 'NIFTY' else EXP}_{int(K)}_{side}") if EXPS.get(u) or u == "NIFTY" else {}
+
+
+def price_exit_path(ob: dict, em: int, p0: float, now_m: int, from_m: int = None) -> dict:
+    """Premium stop/target/trail from entry minute em (filled at its open). ob = {minute: (open, close)}. Pure; no look-ahead."""
+    S, T = PRICE_EXIT["stop"], PRICE_EXIT["target"]; stop = p0 * (1 - S); tgt = p0 * (1 + T); hw = p0
+    for m in range(em, min(now_m, PRICE_EXIT["safety_m"]) + 1):
+        if m not in ob:
+            continue
+        c = ob[m][1]; hw = max(hw, c)
+        if from_m is not None and m < from_m:   # carried row: build trail state from history, but never exit before the restart
+            if PRICE_EXIT["trail"] and hw >= p0 * (1 + S):
+                stop = max(stop, p0, hw * (1 - S))
+            continue
+        if PRICE_EXIT["trail"] and hw >= p0 * (1 + S):
+            stop = max(stop, p0, hw * (1 - S))
+        why = "STOP" if c <= stop and stop < p0 else "TRAIL" if c <= stop else "TARGET" if c >= tgt else None
+        if why:
+            fill = next(((m2, ob[m2][0]) for m2 in (m + 1, m + 2, m + 3) if m2 in ob), None)
+            if fill is None and now_m >= m + 3:   # no bar in the next 3 minutes: book at the trigger close (same as the replay harness)
+                fill = (m, c)
+            if fill is None or fill[0] > now_m:
+                return dict(status="OPEN", stop_px=round(stop, 2), target_px=round(tgt, 2), pending_exit=why)
+            return dict(status="CLOSED", exit_m=fill[0], exit_px=fill[1], why=why, stop_px=round(stop, 2), target_px=round(tgt, 2))
+    sf = PRICE_EXIT["safety_m"]
+    if now_m > sf:
+        nx = next(((m2, ob[m2][0]) for m2 in (sf + 1, sf + 2, sf + 3) if m2 in ob), None)
+        if nx is None and now_m >= sf + 3:   # no bar after 15:15: last complete close at/before 15:15
+            prev = [m2 for m2 in ob if em <= m2 <= sf]
+            nx = (max(prev), ob[max(prev)][1]) if prev else None
+        if nx is not None:
+            return dict(status="CLOSED", exit_m=nx[0], exit_px=nx[1], why="SAFETY_1515", stop_px=round(stop, 2), target_px=round(tgt, 2))
+    return dict(status="OPEN", stop_px=round(stop, 2), target_px=round(tgt, 2))
+
+
+def _live_load():
+    try:
+        for d in json.loads(LIVE_FILE.read_text()):
+            if "not_before" not in d or not d.get("not_before"):   # written by the pre-fix build (11:30 IST Oct 19): may hold backdated exits; ignore
+                continue
+            t = LP.LiveTrade.from_json(d); LIVE[t.key] = t
+    except (OSError, ValueError, KeyError):
+        pass
+
+
+def _live_save():
+    LIVE_FILE.parent.mkdir(parents=True, exist_ok=True)
+    tmp = LIVE_FILE.with_suffix(".tmp"); tmp.write_text(json.dumps([t.to_json() for t in LIVE.values()])); os.replace(tmp, LIVE_FILE)
+
+
+def _hm(m: int) -> str:
+    return f"{m // 60:02d}:{m % 60:02d}"
+
+
+def apply_price_exits(row: dict, now_m: int, now_iso: str = None) -> dict:
+    """Replace the lab exit (index/time/own signal) with premium stop/target/trail.
+    Order: (1) anti-chase skip (premium close up > 12% over the 2 minutes before entry -> SKIPPED_CHASE, never booked);
+    (2) a live (V2 depth bid) exit already taken wins; (3) live feed fresh -> stay OPEN, marked at the live bid;
+    (4) live stale/absent -> 1-minute-close rule (fill next minute open) = fallback. Adds 'why'."""
+    hm2m = lambda s: int(s[:2]) * 60 + int(s[3:5])
+    now_iso = now_iso or datetime.now(IST).isoformat(timespec="seconds")
+    row["why"] = row.get("why") or WHY.get(row["rule_id"], row.get("strategy"))
+    row["planned_exit_ist"] = None; row["safety_close_ist"] = "15:15"; row["trail"] = "BE at +30%, then high-water x 0.70"
+    row["exit_rule"] = "Premium stop 30% / target 60% / trail (BE at +30%, then HW x 0.70); 15:15 safety close; no timer"
+    row["stop_target_basis"] = "PREMIUM: live V2 depth BID every 3 s (fallback: 1-min option close, fill next minute open); stop wins ties"
+    u = row["underlying"]; ob = _opt_bars(u, row["strike"], row["side"])
+    em = hm2m(row["entry_time"]); sm = em - 1; p0 = float(row["entry_px"])
+    key0 = (row["rule_id"], u, row["signal_time"]); from_m = None
+    if START["m"] is not None:
+        if key0 in START["frozen"]:
+            return dict(START["frozen"][key0])
+        if em < START["m"]:
+            if key0 not in START["carried"]:
+                row.update(status="PRE_START", exit_reason_std="PRE_START", note="entry before runner start; not back-filled, not booked"); return row
+            from_m = START["m"]
+    if from_m is None and sm in ob and sm - 2 in ob and ob[sm - 2][1] > 0 and ob[sm][1] / ob[sm - 2][1] - 1 > PRICE_EXIT["antichase_rise"]:
+        row.update(status="SKIPPED_CHASE", exit_reason_std="SKIPPED_CHASE", exit_time=None, exit_px=None, exit_reason=None,
+                   note=f"anti-chase: premium +{ob[sm][1] / ob[sm - 2][1] - 1:.0%} in the 2 min before entry; not booked")
+        return row
+    S, T = PRICE_EXIT["stop"], PRICE_EXIT["target"]
+    row["stop_px"] = round(p0 * (1 - S), 2); row["target_px"] = round(p0 * (1 + T), 2)
+    key = (row["rule_id"], u, row["signal_time"]); lt = LIVE.get(key)
+    if lt is not None and lt.closed:
+        c = lt.closed
+        row.update(status="CLOSED", exit_time=c["exit_ts"][11:16], exit_px=c["exit_px"], exit_reason=c["why"], exit_reason_std=c["why"],
+                   exit_src="v2_depth_bid", stop_px=round(lt.stop, 2), price_src="v2_depth")
+        return row
+    if em not in ob:
+        row["stop_target_basis"] = "PRICE_EXIT_UNPRICED: no option bar at entry; levels from entry price"
+    r = price_exit_path(ob, em, p0, now_m, from_m) if em in ob else dict(status="OPEN", stop_px=row["stop_px"], target_px=row["target_px"])
+    live_ok = lt is not None and not lt.stale(now_iso)
+    if r["status"] == "CLOSED" and not live_ok:
+        row.update(status="CLOSED", exit_time=_hm(r["exit_m"]), exit_px=r["exit_px"], exit_reason=r["why"], exit_reason_std=r["why"],
+                   stop_px=r["stop_px"], price_src="1m_fallback")
+        if lt is not None:
+            lt.closed = dict(exit_px=r["exit_px"], exit_ts=f"{DAY}T{_hm(r['exit_m'])}:00+05:30", why=r["why"])
+        return row
+    if lt is None:   # register for live pricing; seed the high-water from completed 1m closes so trail state matches
+        hw = max([ob[m][1] for m in ob if em <= m <= now_m] + [p0])
+        exp = EXP if u == "NIFTY" else EXPS.get(u)
+        nb = max(now_m + 1, em)   # live quotes count only from the first minute after this cycle's data (never before entry/restart)
+        lt = LIVE[key] = LP.LiveTrade(key, LP.iid_of(u, exp, row["strike"], row["side"]), p0, S, T, hw, not_before=f"{DAY}T{_hm(nb)}:00")
+    row.update(status="OPEN", exit_time=None, exit_px=None, exit_reason=None, exit_reason_std="OPEN", stop_px=round(lt.stop, 2))
+    if live_ok:
+        row.update(mark_px=lt.last_bid, mark_time=lt.last_ts[11:16], mark_ts=lt.last_ts, price_src="v2_depth")   # desk parses HH:MM only
+    else:   # lab exit may already be CLOSED in the score row: mark from our own last complete 1m close (never leave mark_px empty)
+        ms = [m for m in ob if em <= m <= now_m]
+        if ms:
+            row.update(mark_px=ob[max(ms)][1], mark_time=_hm(max(ms)))
+        elif row.get("mark_px") is None:
+            row.update(mark_px=p0, mark_time=row["entry_time"])
+        row["price_src"] = "1m_fallback"
+    return row
+
+
+def guard_tick() -> int:
+    """Every ~3 s between cycles: feed new V2 depth quotes to open live trades; rewrite OUT if any closed or marks moved."""
+    open_lt = {t.iid: t for t in LIVE.values() if t.closed is None}
+    if not open_lt or LAST_ROWS["rows"] is None:
+        TAIL.read(set()); return 0
+    nclosed = 0
+    for iid, bid, ts in TAIL.read(set(open_lt)):
+        t = open_lt.get(iid)
+        if t is not None and t.closed is None and t.on_quote(bid, ts):
+            nclosed += 1
+    now_m = (datetime.now(IST) - timedelta(minutes=1)); nm = now_m.hour * 60 + now_m.minute
+    rows = [apply_price_exits(dict(r), nm) if r.get("rule_id", "").startswith("PX_") and r["status"] in ("OPEN", "CLOSED") else r
+            for r in LAST_ROWS["rows"]]
+    _live_save(); write(rows, LAST_ROWS["note"] + f"; live_guard {datetime.now(IST):%H:%M:%S}")
+    return nclosed
+
+
 # 2026-10-13 fix (box fix_ep): score_pass entries = next-minute open after the signal (EP-018 was same-minute open = look-ahead);
 # STOP/TARGET/SIGNAL/REVERSE exits = next-minute OPEN, never the touch-minute close. test_exit_fill.py checks every cycle.
 
@@ -47,17 +227,24 @@ def scrip_master() -> Path:
     return p if p.is_file() else sorted(d.glob("scrip_master_*.csv"))[-1]
 
 
-def nifty_expiry(rows) -> str:
-    """Nearest NIFTY weekly option expiry on/after DAY (scrip master)."""
-    exps = sorted({r["SEM_EXPIRY_DATE"][:10] for r in rows if r["SEM_EXM_EXCH_ID"] == "NSE" and r["SEM_INSTRUMENT_NAME"] == "OPTIDX"
-                   and r["SEM_TRADING_SYMBOL"].startswith("NIFTY-") and r["SEM_EXPIRY_DATE"][:10] >= DAY})
+def opt_expiry(rows, u: str = "NIFTY") -> str:
+    """Nearest weekly option expiry of underlying u on/after DAY (scrip master)."""
+    ex, pre = OPT_SPEC[u][:2]
+    exps = sorted({r["SEM_EXPIRY_DATE"][:10] for r in rows if r["SEM_EXM_EXCH_ID"] == ex and r["SEM_INSTRUMENT_NAME"] == "OPTIDX"
+                   and r["SEM_TRADING_SYMBOL"].startswith(pre) and r["SEM_EXPIRY_DATE"][:10] >= DAY})
     return exps[0]
 
 
+def nifty_expiry(rows) -> str:
+    return opt_expiry(rows, "NIFTY")
+
+
 SM_ROWS = None
-EXP = None
+EXP = None   # NIFTY expiry (Q01 / pshadow use it)
+EXPS = {}    # {underlying: expiry}
 CUTOFF_TS = 2 ** 40
-EXTRA_STRIKES = set()
+EXTRA_STRIKES = set()   # NIFTY strikes to keep fetching (open rows, Q01, pshadow)
+EXTRA_STRIKES_U = {"NIFTY": EXTRA_STRIKES, "SENSEX": set()}
 Q01_STATE = {"armed": None, "status": "not checked yet"}  # read by the desk: armed False -> no Q01 priority window  # strikes of open rows / Q01 contract, always refreshed
 
 
@@ -79,8 +266,12 @@ def fetch() -> str:
     if SM_ROWS is None:
         SM_ROWS = list(csv.DictReader(open(scrip_master())))
         EXP = nifty_expiry(SM_ROWS)
+        EXPS["NIFTY"] = EXP
+        try:   # a SENSEX scrip-master problem must never stop the NIFTY fetch
+            EXPS["SENSEX"] = opt_expiry(SM_ROWS, "SENSEX")
+        except (IndexError, KeyError):
+            EXPS["SENSEX"] = None
     sm = SM_ROWS
-    band = 300 if first else 200
     n = 0
     with DhanClient(dry_run=False) as c:
         def get(sid, seg, inst, name, frm, oi=False):
@@ -99,19 +290,26 @@ def fetch() -> str:
                     time.sleep(1.5)
             return None
         r = get(13, "IDX_I", "INDEX", "IDX_NIFTY", "2026-08-20 09:15:00")
-        get(51, "IDX_I", "INDEX", "IDX_SENSEX", "2026-08-20 09:15:00")
+        rs = get(51, "IDX_I", "INDEX", "IDX_SENSEX", "2026-08-20 09:15:00")
         if first or not (LIVE_RUN / "IDX_INDIAVIX.json").is_file():
             get(21, "IDX_I", "INDEX", "IDX_INDIAVIX", "2026-10-01 09:15:00")
         if not r or not r.get("close"):
             return f"from {src.name}, fetch FAILED (using backfill only)"
-        atm = round(float(r["close"][-1]) / 50) * 50
-        for row in sm:
-            if (row["SEM_EXM_EXCH_ID"] == "NSE" and row["SEM_INSTRUMENT_NAME"] == "OPTIDX" and row["SEM_TRADING_SYMBOL"].startswith("NIFTY-")
-                    and row["SEM_EXPIRY_DATE"].startswith(EXP)):
-                k = float(row["SEM_STRIKE_PRICE"])
-                if abs(k - atm) <= band or int(k) in EXTRA_STRIKES:
-                    get(row["SEM_SMST_SECURITY_ID"], "NSE_FNO", "OPTIDX", f"NIFTY_{EXP}_{int(k)}_{row['SEM_OPTION_TYPE']}", f"{DAY} 09:15:00", True)
-    return f"from {src.name if src else 'fresh'}, exp {EXP}, fetched {n} series to {to[11:16]} IST"
+        sx_note = ""
+        for u, ri in (("NIFTY", r), ("SENSEX", rs)):
+            if not ri or not ri.get("close"):
+                sx_note = " SENSEX index fetch FAILED"; continue
+            ex, pre, seg, grid = OPT_SPEC[u]; band = BAND[u][0 if first else 1]; xu = EXPS.get(u)
+            if not xu:
+                sx_note += f" {u} expiry not in scrip master"; continue
+            atm = round(float(ri["close"][-1]) / grid) * grid
+            for row in sm:
+                if (row["SEM_EXM_EXCH_ID"] == ex and row["SEM_INSTRUMENT_NAME"] == "OPTIDX" and row["SEM_TRADING_SYMBOL"].startswith(pre)
+                        and row["SEM_EXPIRY_DATE"].startswith(xu)):
+                    k = float(row["SEM_STRIKE_PRICE"])
+                    if abs(k - atm) <= band or int(k) in EXTRA_STRIKES_U[u]:
+                        get(row["SEM_SMST_SECURITY_ID"], seg, "OPTIDX", f"{u}_{xu}_{int(k)}_{row['SEM_OPTION_TYPE']}", f"{DAY} 09:15:00", True)
+    return f"from {src.name if src else 'fresh'}, exp {EXP} sensex exp {EXPS.get('SENSEX')}, fetched {n} series to {to[11:16]} IST{sx_note}"
 
 
 def write_vix_daily() -> dict:
@@ -133,18 +331,33 @@ def write_vix_daily() -> dict:
 def score() -> list:
     live = RT / "live"
     cut = datetime.fromtimestamp(CUTOFF_TS, IST) if CUTOFF_TS < 2 ** 40 else None
-    env = dict(os.environ, PX_DAY=DAY, PX_EXP=EXP or DAY, PX_CUTOFF_M=str(cut.hour * 60 + cut.minute) if cut else "")
+    env = dict(os.environ, PX_DAY=DAY, PX_EXP=EXP or DAY, PX_EXP_SENSEX=EXPS.get("SENSEX") or "",
+               PX_CUTOFF_M=str(cut.hour * 60 + cut.minute) if cut else "")
     tape = REPO / "data" / "tape" / "v2" / DAY
     subprocess.run([str(VENV), "build_day.py", str(LIVE_RUN), str(tape), "work"], cwd=live, check=True, capture_output=True, timeout=120, env=env)
-    p = subprocess.run([str(VENV), "score_pass.py"], cwd=live, check=True, capture_output=True, timeout=180, text=True, env=env)
-    t = subprocess.run([str(VENV), str(REPO / "scripts" / "paper_extra" / "test_exit_fill.py"), str(live / "score_latest.csv")],
-                       capture_output=True, text=True, timeout=60, env=dict(env, PX_RUN=str(LIVE_RUN)))
-    if t.returncode != 0:  # fail closed: keep last good file, book nothing new
-        raise RuntimeError("FILL_RULE_FAIL " + t.stdout.strip()[:300])
-    return list(csv.DictReader(open(live / "score_latest.csv"))), p.stdout.strip().splitlines()[-1]
+    out, lines = {}, []
+    for u in UNDS:
+        eu = dict(env, PX_UNDERLYING=u, PX_EXP=(EXP if u == "NIFTY" else EXPS.get(u)) or DAY)
+        f = live / ("score_latest.csv" if u == "NIFTY" else f"score_latest_{u}.csv")
+        if u != "NIFTY" and not EXPS.get(u):
+            out[u] = None; lines.append(f"{u} skipped (no expiry)"); continue
+        if u != "NIFTY" and f.exists():
+            f.unlink()   # never re-book a stale SENSEX file if this cycle fails
+        try:
+            p = subprocess.run([str(VENV), "score_pass.py"], cwd=live, check=True, capture_output=True, timeout=180, text=True, env=eu)
+            t = subprocess.run([str(VENV), str(REPO / "scripts" / "paper_extra" / "test_exit_fill.py"), str(f)],
+                               capture_output=True, text=True, timeout=60, env=dict(eu, PX_RUN=str(LIVE_RUN)))
+            if t.returncode != 0:  # fail closed: keep last good file, book nothing new
+                raise RuntimeError("FILL_RULE_FAIL " + t.stdout.strip()[:300])
+        except Exception:
+            if u == "NIFTY":
+                raise   # NIFTY behaviour unchanged: a NIFTY failure fails the cycle
+            out[u] = None; lines.append(f"{u} score FAILED (no SENSEX rows this cycle)"); continue
+        out[u] = list(csv.DictReader(open(f))); lines.append(p.stdout.strip().splitlines()[-1])
+    return out, "; ".join(lines)
 
 
-def rows_from(score_rows: list) -> list:
+def rows_from(score_rows: list, u: str = "NIFTY") -> list:
     out = []
     for r in score_rows:
         rid = STRATS.get(r["strategy"])
@@ -152,7 +365,7 @@ def rows_from(score_rows: list) -> list:
             continue
         st = r["status"]
         out.append({
-            "rule_id": rid, "strategy": r["strategy"], "underlying": "NIFTY", "side": r["side"], "strike": float(r["strike"]),
+            "rule_id": rid, "strategy": r["strategy"], "underlying": u, "qty": QTY[u], "side": r["side"], "strike": float(r["strike"]),
             "signal_time": r["signal_time"], "entry_time": r["entry_time"], "exit_time": r["exit_time"] if st == "CLOSED" else None,
             "exit_reason": r["exit_reason"] if st == "CLOSED" else None, "entry_px": float(r["entry_px"]),
             "exit_px": float(r["exit_px"]) if st == "CLOSED" else None, "status": st,
@@ -165,10 +378,22 @@ def rows_from(score_rows: list) -> list:
     return [x for x in out if x["status"] == "CLOSED" or x["mark_px"] is not None]
 
 
+def rows_all(score_by_u: dict) -> list:
+    rows = []
+    for u in UNDS:
+        rows += rows_from(score_by_u.get(u) or [], u)
+    return rows
+
+
 def write(rows: list, note: str) -> None:
+    # 2026-10-19 live fix: the desk loop (dual-tape process) books every non-CLOSED row in "rows" as open with the research_rules code it
+    # loaded at start, so SKIPPED_CHASE / PRE_START rows go to "not_booked", never to "rows". Live marks keep HH:MM in mark_time.
+    keep = [r for r in rows if r.get("status") in ("OPEN", "CLOSED")]
+    not_booked = [r for r in rows if r.get("status") not in ("OPEN", "CLOSED")]
+    rows = keep
     OUT.parent.mkdir(parents=True, exist_ok=True)
     blob = {"day": DAY, "orders": "REFUSED", "paper_only": True, "as_of_ist": datetime.now(IST).isoformat(timespec="seconds"),
-            "note": note, "strategies": sorted(set(STRATS.values())) + ["Q01_ITM100"], "q01": dict(Q01_STATE), "rows": rows}
+            "note": note, "strategies": sorted(set(STRATS.values())) + ["Q01_ITM100"], "underlyings": list(UNDS), "qty": QTY, "q01": dict(Q01_STATE), "rows": rows, "not_booked": not_booked}
     tmp = OUT.with_suffix(".tmp"); tmp.write_text(json.dumps(blob, indent=1)); os.replace(tmp, OUT)
 
 
@@ -229,6 +454,7 @@ def q01_cycle(now_m: int) -> tuple:
     if ss is None:
         return [], None, "Q01 NO_TRADE mv=0"
     sg, side, K = ss
+    u = "NIFTY"   # Q01 v1.1 is a sealed NIFTY spec (NIFTY VIX filter, NIFTY open/S10); not run on SENSEX
     EXTRA_STRIKES.add(K)
     opt = _bars(f"NIFTY_{EXP}_{K}_{side}")
     rows, bg = [], None
@@ -238,7 +464,7 @@ def q01_cycle(now_m: int) -> tuple:
             continue
         closed = r["status"] == "CLOSED"
         row = {"rule_id": "Q01_ITM100" if variant == "PLAIN" else "Q01_T15", "strategy": "Q01_ITM100_v1.1" if variant == "PLAIN" else "Q01_T15",
-               "underlying": "NIFTY", "side": side, "strike": float(K), "signal_time": "10:00", "entry_time": r["entry_min"],
+               "underlying": u, "qty": QTY[u], "side": side, "strike": float(K), "signal_time": "10:00", "entry_time": r["entry_min"],
                "exit_time": r.get("exit_min") if closed else None, "exit_reason": r.get("exit_reason") if closed else None,
                "entry_px": r["entry_px"], "exit_px": r.get("exit_px"), "status": r["status"],
                "mark_time": r.get("mark_min"), "mark_px": r.get("mark_px"), "entry_src": "dhan_api_1m", "exit_src": "dhan_api_1m",
@@ -269,14 +495,15 @@ def write_bg_t15(bg) -> None:
     t = {"source": "paper_extra_shadow", "paper_only": True, "traded": False, "day": DAY, "strategy": "Q01_T15", "side": bg["side"],
          "strike": int(bg["strike"]), "signal_ist": "10:00", "entry_ist": bg["entry_time"], "exit_ist": bg["exit_time"],
          "exit_reason": bg["exit_reason"], "exit_reason_std": bg["exit_reason_std"], "entry_px": bg["entry_px"], "exit_px": bg["exit_px"],
-         "qty": 650, "net_inr_1_5x": None, "status": bg["status"], "stop_px": None, "target_px": bg["target_px"],
+         "underlying": bg.get("underlying", "NIFTY"), "qty": QTY[bg.get("underlying", "NIFTY")], "net_inr_1_5x": None, "status": bg["status"], "stop_px": None, "target_px": bg["target_px"],
          "index_stop": bg["index_stop"], "stop_target_basis": bg["stop_target_basis"], "planned_exit_ist": bg["planned_exit_ist"],
          "verified": "SHADOW", "count_in_total": False}
     if bg["status"] == "CLOSED":
         sys.path.insert(0, str(REPO / "packages" / "desk-ml" / "src"))
         from desk_ml import research_rules as rr
-        c = rr._cost_row(entry=bg["entry_px"], exit_px=bg["exit_px"], qty=650, filled=True, underlying="NIFTY")
-        t["net_inr_1_5x"] = round((bg["exit_px"] - bg["entry_px"]) * 650 - float(c["charges_inr"]), 2)
+        u = t["underlying"]
+        c = rr._cost_row(entry=bg["entry_px"], exit_px=bg["exit_px"], qty=QTY[u], filled=True, underlying=u)
+        t["net_inr_1_5x"] = round((bg["exit_px"] - bg["entry_px"]) * QTY[u] - float(c["charges_inr"]), 2)
     body["trades"].append(t)
     body["as_of_ist"] = datetime.now(IST).isoformat(timespec="seconds")
     BG_DIR.mkdir(parents=True, exist_ok=True)
@@ -307,7 +534,7 @@ def ps_bg_trades(js: dict) -> list:
              "entry_ist": hm(r.get("em")), "exit_ist": hm(r.get("fill_m")) if closed else None, "exit_signal_ist": hm(r.get("xm")),
              "exit_reason": r.get("kind") if closed else None, "exit_reason_std": PS_STD.get(r.get("kind"), r.get("kind")) if closed else (st or "OPEN"),
              "entry_px": r.get("en"), "exit_px": r.get("ex") if closed else None, "mark_ist": hm(r.get("mark_m")), "mark_px": r.get("mark_px"),
-             "qty": 650, "net_inr_1_5x": None, "status": st, "stop_px": r.get("stop_px"), "target_px": r.get("target_px"),
+             "underlying": r.get("underlying", "NIFTY"), "qty": QTY[r.get("underlying", "NIFTY")], "net_inr_1_5x": None, "status": st, "stop_px": r.get("stop_px"), "target_px": r.get("target_px"),
              "stop_target_basis": f"Premium levels on 1-min option CLOSES, stop checked first: stop = entry x (1-{r['S']}), target = entry + {r['k']} x {r['S']} x entry; "
                                   "fill = next minute OPEN - 0.05; else TIME at the cap.",
              "planned_exit_ist": hm(r.get("capm")), "note": r.get("note"), "data_through_ist": js.get("data_through"),
@@ -315,8 +542,9 @@ def ps_bg_trades(js: dict) -> list:
         if closed:
             sys.path.insert(0, str(REPO / "packages" / "desk-ml" / "src"))
             from desk_ml import research_rules as rr
-            c = rr._cost_row(entry=t["entry_px"], exit_px=t["exit_px"], qty=650, filled=True, underlying="NIFTY")
-            t["net_inr_1_5x"] = round((t["exit_px"] - t["entry_px"]) * 650 - float(c["charges_inr"]), 2)
+            u = t["underlying"]   # pshadow specs are NIFTY-only today; this keeps qty/charges tied to the row's index
+            c = rr._cost_row(entry=t["entry_px"], exit_px=t["exit_px"], qty=QTY[u], filled=True, underlying=u)
+            t["net_inr_1_5x"] = round((t["exit_px"] - t["entry_px"]) * QTY[u] - float(c["charges_inr"]), 2)
         out.append(t)
     return out
 
@@ -377,21 +605,40 @@ def log_risk() -> str:
     lots = {u: sum(int(r.get("lots") or 0) for r in op if r.get("underlying") == u) for u in ("NIFTY", "SENSEX")}
     prem = round(sum(float(r.get("entry") or 0) * int(r.get("qty") or 0) for r in op), 2)
     rk = j.get("risk") or {}
+    # Every PX trade the paper-extra book still holds OPEN, including ones carried over a restart and ones
+    # the desk's cap replay put in risk_blocked/guard_blocked/dup_same_contract (paper-extra trades every signal).
+    try:
+        pb = [r for r in (json.loads(OUT.read_text()).get("rows") or []) if r.get("status") == "OPEN"]
+    except (OSError, ValueError):
+        pb = []
+    pb_lots = {u: sum(int(r.get("qty") or 0) // LOT[u] for r in pb if r.get("underlying") == u) for u in ("NIFTY", "SENSEX")}
+    pb_prem = round(sum(float(r.get("entry_px") or 0) * int(r.get("qty") or 0) for r in pb), 2)
+    admitted = {(r.get("rule_id"), r.get("underlying") or ("SENSEX" if "-SENSEX-" in str(r.get("trade_id")) else "NIFTY"), r.get("entry_min")) for r in op}
+    outside = [(r.get("rule_id"), r.get("underlying"), r.get("entry_time")) for r in pb
+               if (r.get("rule_id"), r.get("underlying"), r.get("entry_time")) not in admitted]
     rec = {"ist": datetime.now(IST).isoformat(timespec="seconds"), "open_trades": len(op), "open_lots": lots,
            "premium_at_risk_inr": prem, "day_net_inr": rk.get("day_net_inr"), "halted_reason": rk.get("halted_reason"),
-           "open": [(r.get("rule_id"), r.get("side"), r.get("entry_min")) for r in op]}
+           "open": [(r.get("rule_id"), r.get("side"), r.get("entry_min")) for r in op],
+           "book_open_trades": len(pb), "book_open_lots": pb_lots, "book_premium_at_risk_inr": pb_prem,
+           "book_open": [(r.get("rule_id"), r.get("underlying"), r.get("side"), r.get("strike"), r.get("entry_time"), r.get("stop_px"))
+                         for r in pb],
+           "book_open_not_desk_admitted": outside}
     with open(OUT.parent / f"risk_minutes_{DAY}.jsonl", "a") as f:
         f.write(json.dumps(rec) + "\n")
-    return f"open {len(op)} lots {lots} prem_at_risk {prem} net {rk.get('day_net_inr')} halt {rk.get('halted_reason')}"
+    return (f"open {len(op)} lots {lots} prem_at_risk {prem} net {rk.get('day_net_inr')} halt {rk.get('halted_reason')}; "
+            f"book open {len(pb)} lots {pb_lots} prem_at_risk {pb_prem}")
 
 
 def once() -> str:
     f = fetch()
     sr, line = score()
-    rows = rows_from(sr)
+    now_m = (datetime.now(IST) - timedelta(minutes=1)).hour * 60 + (datetime.now(IST) - timedelta(minutes=1)).minute
+    rows = [apply_price_exits(r, now_m) for r in rows_all(sr)]
+    rows = [r for r in rows if r["status"] in ("OPEN", "CLOSED", "SKIPPED_CHASE", "PRE_START")]   # PRE_START kept visible in OUT, never booked
+    _live_save()
     for r in rows:
         if r["status"] == "OPEN":
-            EXTRA_STRIKES.add(int(r["strike"]))
+            EXTRA_STRIKES_U[r["underlying"]].add(int(r["strike"]))
     now = datetime.now(IST) - timedelta(minutes=1)
     try:
         qrows, bg, qtxt = q01_cycle(now.hour * 60 + now.minute)
@@ -403,7 +650,7 @@ def once() -> str:
         ptxt = pshadow_cycle()
     except Exception as e:
         ptxt = f"pshadow ERROR {type(e).__name__}: {e}"
-    write(rows, f"{f}; {line}; {qtxt}; {ptxt}")
+    write(rows, f"{f}; {line}; {qtxt}; {ptxt}"); LAST_ROWS.update(rows=rows, note=f"{f}; {line}; {qtxt}; {ptxt}")
     line = f"{line}; {qtxt}; {ptxt}"
     return f"{datetime.now(IST):%H:%M:%S} IST {f}; {line}; px rows {len(rows)}; {log_risk()}"
 
@@ -415,12 +662,20 @@ if __name__ == "__main__":
         if datetime.now(IST) < start:  # first complete 1m bar is 09:15
             print(f"{datetime.now(IST):%H:%M:%S} IST waiting for 09:16:05 IST (day {DAY})", flush=True)
             time.sleep((start - datetime.now(IST)).total_seconds())
+        _live_load(); _n = datetime.now(IST) - timedelta(minutes=1); _start_load(_n.hour * 60 + _n.minute)
         while datetime.now(IST).strftime("%H:%M") < "15:31":
             t = time.time()
             try:
                 print(once(), flush=True)
             except Exception as e:  # keep last good file; desk keeps running
                 print(f"{datetime.now(IST):%H:%M:%S} IST CYCLE_ERROR {type(e).__name__}: {e}", flush=True)
-            time.sleep(max(5, 60 - (time.time() - t)))
+            while time.time() - t < max(5, 60 - PRICE_EXIT["live_poll_s"]):   # live depth guard every ~3 s until the next cycle
+                try:
+                    n = guard_tick()
+                    if n:
+                        print(f"{datetime.now(IST):%H:%M:%S} IST live_guard closed {n}", flush=True)
+                except Exception as e:  # live guard must never stop the cycle; 1m fallback still applies
+                    print(f"{datetime.now(IST):%H:%M:%S} IST LIVE_GUARD_ERROR {type(e).__name__}: {e}", flush=True)
+                time.sleep(PRICE_EXIT["live_poll_s"])
     else:
-        print(once())
+        _live_load(); _n = datetime.now(IST) - timedelta(minutes=1); _start_load(_n.hour * 60 + _n.minute); print(once())

@@ -128,6 +128,13 @@ export const strikeOf = (t) => num(t?.held_strike) ?? num(t?.atm_strike);
 /** Exit rule text: research H20 slots exit on time, MIX uses stop/target. */
 export function exitRule(t) {
   const source = String(t?.source_config || t?.book_id || "");
+  // 2026-10-19: PAPER_EXTRA (PX_*) rows have no timer: show premium stop/target/trail from the runner, never a fake 20-min countdown.
+  const px = /^PX_/.test(String(t?.rule_id || t?.book_id || "")) || /PAPER_EXTRA/i.test(source);
+  if (px) {
+    const st = num(t?.stop_px ?? t?.stop), tg = num(t?.target_px ?? t?.target);
+    if (st == null && tg == null) return { kind: "none", text: "Stop/target not sent (PRICE_EXIT missing)" };
+    return { kind: "levels", text: `Stop ${st ?? "—"} · Target ${tg ?? "—"} · Trail: ${t?.trail || "BE at +30%, then high-water × 0.70"} · 15:15 safety close`, at: null };
+  }
   const h20 = isResearch(t) || /H20/.test(source);
   if (h20) {
     const entry = t?.entry_min || hhmm(t?.opened_ist);
@@ -285,6 +292,7 @@ const FAMILY_WHY = {
 };
 /** Why the desk took it, in plain words, from family + market_type (+ B3A volume filter). */
 export function signalWhy(t) {
+  if (t?.why) return `${t.why}. Bought ${String(t?.side).toUpperCase() === "CE" ? "a call" : "a put"}.`;   // 2026-10-19: per-trade reason from paper_extra
   const fam = String(t?.family || "").toUpperCase();
   const base = FAMILY_WHY[fam] || (/MIX/.test(String(t?.book_id || "")) ? "Old MIX desk pick (reason not sent per trade)" : null);
   if (!base) return "—";

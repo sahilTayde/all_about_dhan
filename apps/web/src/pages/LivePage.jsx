@@ -41,7 +41,7 @@ function Position({ t, onPick, picked }) {
         <div><span>P&amp;L</span><b className={`num big ${tone(pnl)}`}>{inr(pnl)}</b></div>
         <div><span>%</span><b className={`num ${tone(pnl)}`}>{pctText(pctOf(t.entry, ltp))}</b></div>
       </div>
-      <div className="pos__levels"><Levels t={t} /><span>Rule <b>{exitRule(t).kind === "time" ? "time exit 20 min" : exitRule(t).text}</b></span></div>
+      <div className="pos__levels"><Levels t={t} /><span>Rule <b>{exitRule(t).kind === "time" ? `time exit ${RULES.holdMin} min` : exitRule(t).text}</b></span></div>
       <div className="pos__foot"><Countdown t={t} /><Strat id={t.book_id} /></div>
       <p className="pos__why"><b>Why:</b> {signalWhy(t)}</p>
     </button>
