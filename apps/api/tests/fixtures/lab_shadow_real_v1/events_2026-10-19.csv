@@ -1,0 +1,9 @@
+# TEST FIXTURE - REAL lines copied verbatim from the research box lab feed 2026-10-19, OLD (v1, 19-column) format; a subset, not the full day
+seen_ist,lag_min,strategy,family,status,und,side,strike,sig,entry,exit,ask_in,bid_out,net15,rand15,data_gap,situation,reason,src
+10:45,21,R01_PDIV_5_ALL_H20,trend,PRIMARY,NIFTY,CE,23100,10:24,10:25,10:45,55.65,41.1,-9629.69,,,,"slot rule R01_PDIV_5_ALL_H20 signal 10:24, exit time",trades
+10:45,21,B3a_PDIV5_VOLHIGH,trend,PRIMARY,NIFTY,CE,23100,10:24,10:25,10:45,55.65,41.1,-9629.69,,,,"slot rule B3a_PDIV5_VOLHIGH signal 10:24, exit time",trades
+13:05,193,MIX_ALONE,trend,PARKED,NIFTY,CE,,09:52,09:52,09:54,152.65,138.6,-9529.87,,,,legacy MIX-DEFAULT-BUY ticket,mixalone
+13:05,160,F2_UNWIND,exit-overlay,WATCH,NIFTY,,,10:25,10:25,10:32,55.65,,-1852.17,-9629.69,,,F2 on R01_PDIV_5_ALL_H20 hit=1 (vs base),f2unwind
+13:05,161,G5_UNWIND,exit-overlay,WATCH,NIFTY,CE,23100,10:24,10:24,,,,-9629.69,-9629.69,,,G5 skip=0 on R01_PDIV_5_ALL_H20 (vs base),g5unwind
+14:04,14,R01_PDIV_5_ALL_H20,trend,PRIMARY,NIFTY,CE,22850,13:50,13:51,14:04,48.7,55.05,3932.23,,,,"slot rule R01_PDIV_5_ALL_H20 signal 13:50, exit censored",trades
+14:11,21,R01_PDIV_5_ALL_H20,trend,PRIMARY,NIFTY,CE,22850,13:50,13:51,14:11,48.7,46.8,-1414.82,,,,"slot rule R01_PDIV_5_ALL_H20 signal 13:50, exit time",trades

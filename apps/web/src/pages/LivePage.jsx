@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { BackgroundTestBox } from "../components/BackgroundTestBox.jsx";
+import { LabShadowPanel } from "../components/LabShadowPanel.jsx";
 import { PnlChart } from "../components/PnlChart.jsx";
 import { PremiumChart } from "../components/PremiumChart.jsx";
 import { LabelBadge, PxExitsPanel, usePxExits } from "../components/PxExitsPanel.jsx";
@@ -153,6 +154,7 @@ export function LivePage({ snap, dd, conn }) {
       </details>
       <PxExitsPanel body={pxBody} />
       <BackgroundTestBox />
+      <LabShadowPanel />
     </div>
   );
 }
