@@ -22,12 +22,18 @@ class LiveTrade:
         self.safety = safety_hhmmss
         self.last_bid = None; self.last_ts = None
         self.closed = None   # dict(exit_px, exit_ts, why)
+        self.stop_floor = None   # 2026-10-19 Sahil manual lock (e.g. +15%); stop never below this
+        self.trail_gap = None    # 2026-10-19 Sahil: trail this fraction under the bid high-water (0.15 => stop = hw x 0.85)
 
     @property
     def stop(self) -> float:
         s = self.entry * (1 - self.S)
         if self.hw >= self.entry * (1 + self.S):
             s = max(s, self.entry, self.hw * (1 - self.S))
+        if self.stop_floor:
+            s = max(s, float(self.stop_floor))
+        if self.trail_gap:
+            s = max(s, self.hw * (1 - float(self.trail_gap)))
         return s
 
     @property
@@ -58,11 +64,13 @@ class LiveTrade:
 
     def to_json(self):
         return dict(not_before=self.not_before, key=list(self.key), iid=self.iid, entry=self.entry, S=self.S, T=self.T, hw=self.hw, last_bid=self.last_bid,
-                    last_ts=self.last_ts, closed=self.closed)
+                    last_ts=self.last_ts, closed=self.closed, stop_floor=self.stop_floor, trail_gap=self.trail_gap)
 
     @classmethod
     def from_json(cls, d):
         t = cls(tuple(d["key"]), d["iid"], d["entry"], d["S"], d["T"], d["hw"], not_before=d.get("not_before")); t.last_bid, t.last_ts, t.closed = d["last_bid"], d["last_ts"], d["closed"]
+        t.stop_floor = d.get("stop_floor")
+        t.trail_gap = d.get("trail_gap")
         return t
 
 
