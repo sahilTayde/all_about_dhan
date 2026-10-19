@@ -50,7 +50,7 @@ from desk_ml.paper_lots import (
     size_lots,
 )
 
-DESK_CAPITAL_INR = 570000.0  # prior ₹70k + founder +₹5L (2026-09-18). PAPER.
+DESK_CAPITAL_INR = 1000000.0  # ₹10L paper account (Sahil 1:1 2026-10-19 02:18 CT; was ₹5.7L). PAPER.
 # Sahil 2026-10-12: hard cap 10 lots (NIFTY 650 / SENSEX 200).
 PAPER_MIN_LOTS = 10
 PAPER_TARGET_LOTS = 10
