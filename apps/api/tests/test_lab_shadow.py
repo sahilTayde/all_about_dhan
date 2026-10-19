@@ -98,3 +98,23 @@ def test_full_datetime_form_still_accepted():
     line = REAL_LINE.replace("10:45,21,", "2026-10-19 10:45,21,", 1)
     rows, _ = lab_shadow.parse_csv(REAL_HEADER + "\n" + line)
     assert rows[0]["seen_ist"] == "2026-10-19 10:45" and rows[0]["net15"] == -9629.69
+
+
+def test_comparison_inputs_pass_through_unchanged():
+    """The web labels rand15 by reason / strategy / src / family, so the API must hand those over verbatim."""
+    lines = [  # F2 line is verbatim from the real 2026-10-19 feed; the rest follow live_runner.py's row shapes
+        "13:05,160,F2_UNWIND,exit-overlay,WATCH,NIFTY,,,10:25,10:25,10:32,55.65,,-1852.17,-9629.69,,,F2 on R01_PDIV_5_ALL_H20 hit=1 (vs base),f2unwind",
+        "13:05,20,QT:QT_P15,exit-overlay,PARKED,NIFTY,CE,23100,10:25,10:25,10:45,55.65,,900,300,,,QT_P15 on R01_PDIV_5_ALL_H20 (vs random exit),quicktarget",
+        "13:05,20,ROUTER:F2,exit-overlay,WATCH,NIFTY,CE,,,,,,,70,10,,trend,router arm F2 in trend,parked_router",
+        "13:05,20,B2,breakout,WATCH,NIFTY,CE,,11:31,11:31,11:52,80,90,700,-250,,,twoday cell B2_c3 fired 11:31,twoday",
+        "13:05,20,GBV:GB30,exit-overlay,WATCH,NIFTY,CE,23100,11:09,11:09,11:29,72.65,60,1200,150,,,giveback GB30 on R01_PDIV_5_ALL_H20,gbv",
+    ]
+    rows, missing = lab_shadow.parse_csv(REAL_HEADER + "\n" + "\n".join(lines))
+    assert missing == [] and len(rows) == 5
+    assert [(r["strategy"], r["family"], r["src"], r["rand15"]) for r in rows] == [
+        ("F2_UNWIND", "exit-overlay", "f2unwind", -9629.69), ("QT:QT_P15", "exit-overlay", "quicktarget", 300.0),
+        ("ROUTER:F2", "exit-overlay", "parked_router", 10.0), ("B2", "breakout", "twoday", -250.0),
+        ("GBV:GB30", "exit-overlay", "gbv", 150.0)]
+    assert rows[0]["reason"] == "F2 on R01_PDIV_5_ALL_H20 hit=1 (vs base)" and rows[0]["side"] is None and rows[0]["strike"] is None
+    assert rows[2]["entry"] is None and rows[2]["situation"] == "trend"
+    assert "cmp_kind" not in rows[0]  # the API never guesses the kind; display only

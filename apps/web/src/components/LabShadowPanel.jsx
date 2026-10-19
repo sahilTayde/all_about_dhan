@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { istDay } from "../lib/backgroundTest.js";
 import { API_BASE } from "../lib/feed.js";
 import { clock, fetchLabShadow, hasGap, labShadowView } from "../lib/labShadow.js";
+
+const CmpRow = ({ c }) => (!c ? "—" : <>{c.kind}: <Net v={c.value} />{c.delta !== null ? <> · overlay <Net v={c.delta} /></> : null}</>);
 import { inr, num, tone } from "../lib/deskModel.js";
 
 const dash = (v) => (v === null || v === undefined || v === "" ? "—" : v);
@@ -51,7 +53,7 @@ export function LabShadowPanel() {
               <h4><span className={`tag ${STATUS_TAG[g.status]}`}>{STATUS_WORDS[g.status]}</span></h4>
               <div className="tbl-wrap">
                 <table className="tbl">
-                  <thead><tr><th>Strategy</th><th>Family</th><th className="r">Trades</th><th className="r">Net ₹ @1.5x (lab)</th><th className="r" title="Same strategy with random entries — the baseline to beat">random</th></tr></thead>
+                  <thead><tr><th>Strategy</th><th>Family</th><th className="r">Trades</th><th className="r">Net ₹ @1.5x (lab)</th><th title="What the lab compares this strategy with: random = random entries; vs base = the base trade without the overlay; vs random exit; vs base/random">Compared with</th></tr></thead>
                   <tbody>
                     {g.strategies.map((s) => (
                       <tr key={s.strategy}>
@@ -59,7 +61,9 @@ export function LabShadowPanel() {
                         <td>{dash(s.family)}</td>
                         <td className="r num">{s.trades}</td>
                         <td className="r num">{s.net15 === null ? "—" : <Net v={s.net15} />}{s.net15 !== null && s.withNet < s.trades ? <em className="muted"> ({s.trades - s.withNet} open)</em> : null}</td>
-                        <td className="r num" data-testid="lab-shadow-random">{s.rand15 === null ? "—" : <Net v={s.rand15} />}{s.rand15 !== null && s.withRand < s.trades ? <em className="muted"> ({s.withRand} of {s.trades})</em> : null}</td>
+                        <td className="num" data-testid="lab-shadow-compare">{s.cmp.length === 0 ? "—" : s.cmp.map((c, j) => (
+                          <div key={c.kind}>{c.kind}: <Net v={c.sum} />{c.kind === "vs base" && c.delta !== null ? <> · overlay <Net v={c.delta} /></> : null}{c.k < s.trades ? <em className="muted"> ({c.k} of {s.trades})</em> : null}</div>
+                        ))}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -69,10 +73,10 @@ export function LabShadowPanel() {
           ))}
           {v.trades.length ? (
             <details className="details">
-              <summary>All {v.trades.length} lab trades{v.merged ? ` (${v.merged} listed under two names, shown once)` : ""}</summary>
+              <summary>All {v.trades.length} lab trades{v.aliased || v.updated ? ` (${[v.aliased ? `${v.aliased} also listed under another name` : "", v.updated ? `${v.updated} updated by a later row` : ""].filter(Boolean).join(", ")}; each shown once)` : ""}</summary>
               <div className="tbl-wrap">
                 <table className="tbl" data-testid="lab-shadow-rows">
-                  <thead><tr><th>Time</th><th>Strategy</th><th>Index</th><th>CE/PE</th><th className="r">Strike</th><th>Entry</th><th>Exit</th><th className="r">Net ₹ @1.5x</th></tr></thead>
+                  <thead><tr><th>Time</th><th>Strategy</th><th>Index</th><th>CE/PE</th><th className="r">Strike</th><th>Entry</th><th>Exit</th><th className="r">Net ₹ @1.5x</th><th>Compared with</th></tr></thead>
                   <tbody>
                     {v.trades.map((t, i) => (
                       <tr key={i} title={[t.situation, t.reason].filter(Boolean).join(" — ")}>
@@ -82,6 +86,7 @@ export function LabShadowPanel() {
                         <td><Leg time={t.entry} price={t.ask_in} /></td>
                         <td>{t.exit || num(t.bid_out) != null ? <Leg time={t.exit} price={t.bid_out} /> : num(t.net15) == null ? <span className="tag tag--muted">not closed yet</span> : "—"}</td>
                         <td className="r num"><Net v={t.net15} /></td>
+                        <td className="num"><CmpRow c={t.cmp} /></td>
                       </tr>
                     ))}
                   </tbody>
@@ -89,7 +94,7 @@ export function LabShadowPanel() {
               </div>
             </details>
           ) : null}
-          <p className="fine muted">Time = when the lab row was seen (IST). Entry / exit = time @ option price. “random” = the same strategy with random entries (the baseline to beat), — when the lab didn’t send one. ⚠ data gap = the lab’s prices had a hole. Hover a row for the lab's reason.{v.sources.length ? ` Source: ${v.sources.join(", ")}.` : ""}</p>
+          <p className="fine muted">Time = when the lab row was seen (IST). Entry / exit = time @ option price. “Compared with”: random = same strategy with random entries; vs base = the base trade without the overlay (overlay = what it added); vs random exit = same entry, random exit; vs base/random = the router’s base or random. Each kind is summed separately; — = no comparison sent. ⚠ data gap = the lab’s prices had a hole. Hover a row for the lab's reason.{v.sources.length ? ` Source: ${v.sources.join(", ")}.` : ""}</p>
         </>
       )}
     </details>
