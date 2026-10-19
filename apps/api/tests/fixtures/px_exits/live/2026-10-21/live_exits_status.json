@@ -1,0 +1,72 @@
+[
+ {
+  "key": [
+   "PX_ORB_A",
+   "SENSEX",
+   "11:51"
+  ],
+  "exit_status": {
+   "version": "shadow_overlays v1 (lab/2026-10-19_giveback_forensics frozen)",
+   "label": "REVERSING",
+   "reasons": [
+    "gave back >=40% of a >=15% peak"
+   ],
+   "gain_now_pct": 12.61,
+   "peak_gain_pct": 23.78,
+   "peak_px": 785.6,
+   "index_vs_entry_bps": 28.7,
+   "slope3_bps": -0.0,
+   "slope10_bps": -5.2,
+   "premium_3min_pct": -0.89,
+   "vwap_side": "WITH",
+   "vwap": 74331.49,
+   "index": 73969.28,
+   "minutes_held": 76,
+   "display_only": true,
+   "price_now": 714.7,
+   "price_time": "13:08",
+   "price_src": "v2_depth",
+   "entry_px": 634.65,
+   "stop_px": 444.25,
+   "target_px": 1015.44,
+   "trail_armed": false,
+   "trail_px": null,
+   "trail_rule": "BE at +30%, then high-water x 0.70",
+   "updated_ist": "2026-10-21T13:40:17+05:30"
+  }
+ },
+ {
+  "key": [
+   "PX_ENG_5",
+   "SENSEX",
+   "13:04"
+  ],
+  "exit_status": {
+   "version": "shadow_overlays v1 (lab/2026-10-19_giveback_forensics frozen)",
+   "label": "HEALTHY",
+   "reasons": [],
+   "gain_now_pct": -2.88,
+   "peak_gain_pct": 1.7,
+   "peak_px": 577.4,
+   "index_vs_entry_bps": 0.0,
+   "slope3_bps": 0.0,
+   "slope10_bps": 5.2,
+   "premium_3min_pct": 0.04,
+   "vwap_side": "AGAINST",
+   "vwap": 74331.49,
+   "index": 73969.28,
+   "minutes_held": 3,
+   "display_only": true,
+   "price_now": 551.4,
+   "price_time": "13:08",
+   "price_src": "v2_depth",
+   "entry_px": 567.75,
+   "stop_px": 397.42,
+   "target_px": 908.4,
+   "trail_armed": false,
+   "trail_px": null,
+   "trail_rule": "BE at +30%, then high-water x 0.70",
+   "updated_ist": "2026-10-21T13:40:17+05:30"
+  }
+ }
+]

@@ -27,6 +27,7 @@ from api.gateway_auth import (
     load_gateway_auth,
 )
 from api.health_alerts import router as health_router
+from api.px_exits import router as px_exits_router
 from api.models import TookTradeBody, TookTradeRecord
 from api.premium_bind import bind_premiums_onto_desk
 from api.store import SignalStore
@@ -386,6 +387,7 @@ def create_app() -> FastAPI:
     app.include_router(health_router)
     app.include_router(founder_controls_router)
     app.include_router(background_test_router)  # read-only research box; never desk P&L
+    app.include_router(px_exits_router)  # read-only PX exit labels + shadow exits; never desk / paper-extra totals
     if V2_GATEWAY_AVAILABLE:
         app.include_router(v2_router)
     return app

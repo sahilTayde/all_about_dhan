@@ -1,0 +1,56 @@
+[
+ {
+  "not_before": "2026-10-21T11:54:00",
+  "key": [
+   "PX_ORB_A",
+   "SENSEX",
+   "11:51"
+  ],
+  "iid": "BSE_FNO:SENSEX:2026-10-22:74500:PE",
+  "entry": 634.65,
+  "S": 0.3,
+  "T": 0.6,
+  "hw": 893.2,
+  "last_bid": 820.8,
+  "last_ts": "2026-10-21T13:40:15.706+05:30",
+  "closed": null,
+  "stop_floor": 729.85,
+  "trail_gap": 0.15
+ },
+ {
+  "not_before": "2026-10-21T13:07:00",
+  "key": [
+   "PX_ENG_5",
+   "SENSEX",
+   "13:04"
+  ],
+  "iid": "BSE_FNO:SENSEX:2026-10-22:73700:CE",
+  "entry": 567.75,
+  "S": 0.3,
+  "T": 0.6,
+  "hw": 577.4,
+  "last_bid": 551.4,
+  "last_ts": "2026-10-21T13:40:15.480+05:30",
+  "closed": null,
+  "stop_floor": null,
+  "trail_gap": null
+ },
+ {
+  "not_before": "2026-10-21T13:01:00",
+  "key": [
+   "PX_IB_15",
+   "NIFTY",
+   "12:59"
+  ],
+  "iid": "NSE_FNO:NIFTY:2026-10-21:22900:PE",
+  "entry": 43.7,
+  "S": 0.3,
+  "T": 0.6,
+  "hw": 47.3,
+  "last_bid": 46.1,
+  "last_ts": "2026-10-21T13:40:15.163+05:30",
+  "closed": null,
+  "stop_floor": null,
+  "trail_gap": null
+ }
+]

@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import { BackgroundTestBox } from "../components/BackgroundTestBox.jsx";
 import { PnlChart } from "../components/PnlChart.jsx";
 import { PremiumChart } from "../components/PremiumChart.jsx";
+import { LabelBadge, PxExitsPanel, usePxExits } from "../components/PxExitsPanel.jsx";
+import { boardKey, pxExitsView, statusCard } from "../lib/pxExits.js";
 import { CHARGES_LABEL, RULES, riskView, periodNets, signalWhy, agedAlerts, exitRule, feedAges, inr, minsUntil, num, pctOf, pctText, strikeOf, tone } from "../lib/deskModel.js";
 import { useLtpTape } from "../lib/ltpTape.js";
 import { AlertList, FeedAges, Levels, Reason, Side, Strat, TradeTable } from "./parts.jsx";
@@ -14,8 +16,8 @@ function useTick(ms = 1000) {
   }, [ms]);
 }
 
-function Countdown({ t }) {
-  const rule = exitRule(t);
+function Countdown({ t, px }) {
+  const rule = exitRule(t, px?.live);
   if (rule.kind !== "time") return <span className="muted">{rule.text}</span>;
   const left = minsUntil(rule.at);
   if (left == null) return <span className="muted">{rule.text}</span>;
@@ -24,7 +26,9 @@ function Countdown({ t }) {
   return <span className="cd">Exits at {rule.at} IST · <b className="num">{String(mm).padStart(2, "0")}:{String(ss).padStart(2, "0")}</b> left</span>;
 }
 
-function Position({ t, onPick, picked }) {
+function Position({ t, onPick, picked, px }) {
+  // px = this trade's row from /research/px-exits (exit label + live stop). Display only.
+  const card = px ? statusCard(px) : null;
   const ltp = num(t.last_ltp);
   const qty = num(t.qty) || RULES.qty[t.underlying];
   const pnl = num(t.unrealized_pnl_inr) ?? (ltp != null && num(t.entry) != null && qty ? (ltp - t.entry) * qty : null);
@@ -33,7 +37,7 @@ function Position({ t, onPick, picked }) {
     <button type="button" className={`pos ${late ? "pos--late" : ""} ${picked ? "is-picked" : ""}`} onClick={() => onPick(t.trade_id)}>
       <div className="pos__head">
         <span className="pos__sym"><b className="num">{strikeOf(t) ?? "—"}</b> <Side side={t.side} /></span>
-        <span className="muted">{num(t.lots) ?? RULES.lots} lots · {qty ?? "—"} qty</span>
+        <span className="muted">{card ? <><LabelBadge card={card} small /> </> : null}{num(t.lots) ?? RULES.lots} lots · {qty ?? "—"} qty</span>
       </div>
       <div className="pos__grid">
         <div><span>Bought</span><b className="num">{num(t.entry) ?? "—"}</b></div>
@@ -41,14 +45,14 @@ function Position({ t, onPick, picked }) {
         <div><span>P&amp;L</span><b className={`num big ${tone(pnl)}`}>{inr(pnl)}</b></div>
         <div><span>%</span><b className={`num ${tone(pnl)}`}>{pctText(pctOf(t.entry, ltp))}</b></div>
       </div>
-      <div className="pos__levels"><Levels t={t} /><span>Rule <b>{exitRule(t).kind === "time" ? `time exit ${RULES.holdMin} min` : exitRule(t).text}</b></span></div>
-      <div className="pos__foot"><Countdown t={t} /><Strat id={t.book_id} /></div>
+      <div className="pos__levels"><Levels t={t} /><span>Rule <b>{exitRule(t, px?.live).kind === "time" ? `time exit ${RULES.holdMin} min` : exitRule(t, px?.live).text}</b></span></div>
+      <div className="pos__foot"><Countdown t={t} px={px} /><Strat id={t.book_id} /></div>
       <p className="pos__why"><b>Why:</b> {signalWhy(t)}</p>
     </button>
   );
 }
 
-function IndexCard({ und, dd, onPick, picked }) {
+function IndexCard({ und, dd, onPick, picked, pxByKey }) {
   const open = dd.open.filter((t) => t.underlying === und);
   const last = dd.closed.filter((t) => t.underlying === und).sort((a, b) => (b.closed_ts || 0) - (a.closed_ts || 0))[0];
   const blocked = dd.lists.blocked.filter((t) => t.underlying === und);
@@ -56,7 +60,7 @@ function IndexCard({ und, dd, onPick, picked }) {
   return (
     <section className={`panel idx ${late ? "idx--late" : ""}`} data-testid={`side-${und}`}>
       <header className="panel__head"><h2>{und}</h2><span className="muted">{open.length ? `${open.length} open` : "flat"}</span></header>
-      {open.length ? open.map((t) => <Position key={t.trade_id} t={t} onPick={onPick} picked={picked === t.trade_id} />) : <div className="flat">No open position</div>}
+      {open.length ? open.map((t) => <Position key={t.trade_id} t={t} onPick={onPick} picked={picked === t.trade_id} px={pxByKey?.[boardKey(t)]} />) : <div className="flat">No open position</div>}
       {blocked.length ? <p className="note"><span className="tag tag--warn">blocked: opposite side</span> {blocked.length} signal{blocked.length > 1 ? "s" : ""} skipped today</p> : null}
       {last ? (
         <button type="button" className="lastline" onClick={() => onPick(last.trade_id)}>
@@ -100,12 +104,14 @@ export function LivePage({ snap, dd, conn }) {
   const sorted = [...dd.closed].sort((a, b) => (b.closed_ts || 0) - (a.closed_ts || 0));
   const trade = all.find((t) => t.trade_id === picked) || dd.open[0] || sorted[0] || null;
   const L = dd.lists;
+  const pxBody = usePxExits();
+  const pxByKey = useMemo(() => pxExitsView(pxBody).byKey || {}, [pxBody]);
   return (
     <div className="page live" data-testid="live-page">
       <Kpis snap={snap} dd={dd} />
       <div className="grid-2">
-        <IndexCard und="NIFTY" dd={dd} onPick={setPicked} picked={trade?.trade_id} />
-        <IndexCard und="SENSEX" dd={dd} onPick={setPicked} picked={trade?.trade_id} />
+        <IndexCard und="NIFTY" dd={dd} onPick={setPicked} picked={trade?.trade_id} pxByKey={pxByKey} />
+        <IndexCard und="SENSEX" dd={dd} onPick={setPicked} picked={trade?.trade_id} pxByKey={pxByKey} />
       </div>
       <section className="panel">
         <header className="panel__head"><h2>Chart</h2>
@@ -145,6 +151,7 @@ export function LivePage({ snap, dd, conn }) {
         <FeedAges rows={feedAges(snap)} />
         <p className="fine">Feed: {conn}</p>
       </details>
+      <PxExitsPanel body={pxBody} />
       <BackgroundTestBox />
     </div>
   );
