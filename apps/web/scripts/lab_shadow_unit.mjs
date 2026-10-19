@@ -22,7 +22,7 @@ assert.equal(tradeKey(r("A", "PRIMARY", "NIFTY", "PE", 25000, null, 1)), null); 
     r("B2", "PRIMARY", "SENSEX", "CE", 82000, "10:31", 2675.25, { seen_ist: "10:51" }),
     r("MOM_5", "PARKED", "NIFTY", "PE", 24900, "11:01", -4380, { seen_ist: "11:21" }),
   ] });
-  assert.equal(v.trades.length, 5); assert.equal(v.merged, 1); assert.equal(v.aliased, 1); assert.equal(v.updated, 0);
+  assert.equal(v.trades.length, 5); assert.equal(v.merged, 1); assert.equal(v.aliased, 1); assert.equal(v.relisted, 0);
   const r01 = v.trades.find((t) => t.strategy === "R01");
   assert.deepEqual(r01.also, ["B3a"]); assert.ok(!v.trades.some((t) => t.strategy === "B3a"));
   assert.deepEqual(v.groups.map((g) => g.status), ["PRIMARY", "WATCH", "PARKED"]);
@@ -39,7 +39,7 @@ assert.equal(tradeKey(r("A", "PRIMARY", "NIFTY", "PE", 25000, null, 1)), null); 
     r("R01", "PRIMARY", "NIFTY", "PE", 25000, "09:17", 500, { seen_ist: "09:46" }),
   ] });
   assert.equal(v.trades.length, 1); assert.equal(v.trades[0].net15, 500); assert.equal(v.feedStarts, null);
-  assert.equal(v.updated, 1); assert.equal(v.aliased, 0);
+  assert.equal(v.relisted, 1); assert.equal(v.aliased, 0);
   assert.equal(v.groups[0].strategies[0].trades, 1);
 }
 { // the real 2026-10-19 feed line, verbatim, parsed the way the API does (bare HH:MM, empty rand15/data_gap/situation)
@@ -57,6 +57,7 @@ assert.equal(tradeKey(r("A", "PRIMARY", "NIFTY", "PE", 25000, null, 1)), null); 
   assert.equal(v.trades.length, 2); assert.deepEqual(v.trades.map((t) => clock(t.seen_ist)), ["10:45", "11:07"]); // sorted, mixed forms
   assert.deepEqual(v.trades[0].also, ["B3a_PDIV5_VOLHIGH"]);
   assert.equal(v.feedStarts, "10:45");
+  assert.equal(labShadowView({ ok: true, rows: [row], file_updated_ist: "2026-10-19T14:27:20+05:30" }).updated, "14:27"); // file time, not a count
   const g = v.groups[0].strategies[0];
   assert.equal(g.strategy, "R01_PDIV_5_ALL_H20"); assert.equal(g.trades, 2); assert.equal(g.net15, -2469.29);
   assert.deepEqual(g.cmp, []); assert.equal(g.dataGaps, 1); // slot-rule trade rows have no comparison kind -> —

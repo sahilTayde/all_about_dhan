@@ -70,7 +70,7 @@ export function labShadowView(body) {
   const raw = body.rows.filter((r) => r && typeof r === "object").map((r, i) => ({ ...r, _i: i }));
   const byKey = new Map();
   const trades = [];
-  let updated = 0; let aliased = 0;
+  let relisted = 0; let aliased = 0;
   for (const r of raw) {
     const k = tradeKey(r);
     const prev = k ? byKey.get(k) : null;
@@ -81,7 +81,7 @@ export function labShadowView(body) {
       continue;
     }
     if (prev.strategy === r.strategy) { // same name re-listed (e.g. "exit censored" then final): keep the newer row, count once
-      updated += 1;
+      relisted += 1;
       Object.assign(prev, { ...r, also: prev.also, _i: prev._i });
       continue;
     }
@@ -127,6 +127,6 @@ export function labShadowView(body) {
     ok: true, status: "OK", trades, groups, feedStarts, firstSeen, sources: srcs,
     lastSeen: raw.map((t) => clock(t.seen_ist)).filter(Boolean).sort().pop() || null,
     updated: clock(body.file_updated_ist), missingColumns: Array.isArray(body.missing_columns) ? body.missing_columns : [],
-    merged: raw.length - trades.length, aliased, updated,
+    merged: raw.length - trades.length, aliased, relisted,
   };
 }

@@ -73,7 +73,7 @@ export function LabShadowPanel() {
           ))}
           {v.trades.length ? (
             <details className="details">
-              <summary>All {v.trades.length} lab trades{v.aliased || v.updated ? ` (${[v.aliased ? `${v.aliased} also listed under another name` : "", v.updated ? `${v.updated} updated by a later row` : ""].filter(Boolean).join(", ")}; each shown once)` : ""}</summary>
+              <summary>All {v.trades.length} lab trades{v.aliased || v.relisted ? ` (${[v.aliased ? `${v.aliased} also listed under another name` : "", v.relisted ? `${v.relisted} updated by a later row` : ""].filter(Boolean).join(", ")}; each shown once)` : ""}</summary>
               <div className="tbl-wrap">
                 <table className="tbl" data-testid="lab-shadow-rows">
                   <thead><tr><th>Time</th><th>Strategy</th><th>Index</th><th>CE/PE</th><th className="r">Strike</th><th>Entry</th><th>Exit</th><th className="r">Net ₹ @1.5x</th><th>Compared with</th></tr></thead>
