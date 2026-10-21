@@ -33,7 +33,7 @@ st = SO.status(100, 112, 120, 110, 1, idx, 100, 50, held_min=40)
 ok(st["gain_now_pct"] == 12.0 and st["peak_gain_pct"] == 20.0 and st["minutes_held"] == 40 and st["vwap_side"] == "WITH" and st["display_only"] is True, f"1n fields {st}")
 ok(SO.status(100, 90, 95, None, 1, {}, 100, 50)["label"] == "HEALTHY", "1o empty index -> no crash")
 # ---- 2 path_1m == runner.price_exit_path at 60%
-tmp = pathlib.Path(tempfile.mkdtemp()); os.environ["PX_DAY"] = "2026-10-01"
+tmp = pathlib.Path(tempfile.mkdtemp()); __import__("atexit").register(__import__("shutil").rmtree, tmp, True); os.environ["PX_DAY"] = "2026-10-01"
 for m in ("runner", "live_pricer", "regime_tags"): sys.modules.pop(m, None)
 R = importlib.import_module("runner")
 rng = random.Random(7); diff = 0

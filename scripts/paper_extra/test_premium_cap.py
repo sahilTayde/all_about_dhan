@@ -4,7 +4,7 @@ import ast, json, os, sys, tempfile, importlib, pathlib, copy
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 os.environ["PX_DAY"] = "2026-10-21"
 R = importlib.import_module("runner")
-d = pathlib.Path(tempfile.mkdtemp()); R.LIVE.clear(); R.LIVE_FILE = d / "live_exits.json"; R.OUT = d / "out.json"
+d = pathlib.Path(tempfile.mkdtemp()); R.LIVE.clear(); R.LIVE_FILE = d / "live_exits.json"; R.OUT = d / "out.json"; R.ENTRY_FILE = d / "entry_fill.json"; R.ENTRY.clear()
 R.CAP_FILE = d / "cap_start.json"; R.PREM_FILE = d / "premium_cap_start.json"; R.START_FILE = d / "runner_start.json"
 R.EXP = "2026-10-27"; R.EXPS = {"NIFTY": "2026-10-27", "SENSEX": "2026-10-22"}
 fails = []
@@ -20,10 +20,11 @@ def bars(p0, target_at=None, chase_at=None):
 def add(u, K, side, p0, **kw): B[(u, K, side)] = bars(p0, **kw)
 R._opt_bars = lambda u, K, side: B.get((u, int(K), side), {})
 def row(rid, u, K, side, sig, ent, px):
+    # 2026-10-21 entry-at-ask: px is the BOOKED entry. No V2 tape in the test -> booked = 1m open + half spread, so feed open = px - half.
     return dict(rule_id=rid, strategy=rid, underlying=u, qty=R.QTY[u], side=side, strike=float(K), signal_time=sig, entry_time=ent,
-                entry_px=px, exit_px=None, exit_time=None, exit_reason=None, status="OPEN")
+                entry_px=round(px - R.HALF_SPREAD[u], 4) if R.ENTRY_ASK_ON else px, exit_px=None, exit_time=None, exit_reason=None, status="OPEN")
 def fresh(cap_from=600, prem_from=600):
-    R.LIVE.clear(); R.START.update(m=None, frozen={}, carried=set()); R.CAP.update(from_m=cap_from, admit=set(), skip=set()); R.PREM.update(from_m=prem_from, skip=set())
+    R.ENTRY.clear(); R.LIVE.clear(); R.START.update(m=None, frozen={}, carried=set()); R.CAP.update(from_m=cap_from, admit=set(), skip=set()); R.PREM.update(from_m=prem_from, skip=set())
 def run(rows, now=745): return {r["rule_id"]: r for r in R.cap_and_price([copy.deepcopy(x) for x in rows], now)}
 # 1: open 5.59L (NIFTY 860 x 650) + new 3.60L (SENSEX 1800 x 200) = 9.19L > 9L -> SKIPPED_PREMIUM (scaled 2.8L + 1.8L case)
 add("NIFTY", 25000, "PE", 860.0); add("SENSEX", 80000, "CE", 1800.0)
@@ -99,7 +100,7 @@ if src:
     oo, cc = RR.paper_extra_rows(t, "2026-10-21"); ok(len(oo) == 1 and not cc and "PX_B" not in json.dumps(oo), "9b desk never books SKIPPED_PREMIUM")
 tree = ast.parse(open(R.__file__).read()); fn = next(n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == "log_risk")
 t2 = pathlib.Path(tempfile.mkdtemp()); (t2 / "data/recon/research_rules").mkdir(parents=True); (t2 / "data/recon/research_rules/2026-10-21.json").write_text(json.dumps({"open": [], "risk": {}}))
-g = dict(json=json, datetime=R.datetime, IST=R.IST, REPO=t2, DAY="2026-10-21", OUT=R.OUT, LOT=R.LOT); exec(compile(ast.Module(body=[fn], type_ignores=[]), "r", "exec"), g)
+g = dict(json=json, datetime=R.datetime, IST=R.IST, REPO=t2, DAY="2026-10-21", OUT=R.OUT, LOT=R.LOT, _w=R._w); exec(compile(ast.Module(body=[fn], type_ignores=[]), "r", "exec"), g)
 g["log_risk"](); rec = json.loads((R.OUT.parent / "risk_minutes_2026-10-21.jsonl").read_text().splitlines()[-1])
 ok(rec["book_open_trades"] == 1 and rec["book_premium_at_risk_inr"] == 559000.0, f"9c risk book {rec['book_open_trades']} {rec['book_premium_at_risk_inr']}")
 print("test_premium_cap:", "ALL PASS" if not fails else f"FAIL {fails}"); sys.exit(1 if fails else 0)

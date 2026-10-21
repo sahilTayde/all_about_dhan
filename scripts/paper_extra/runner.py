@@ -6,18 +6,42 @@ logic) in ~/paper_extra_rt with ~/paper_extra_venv; (3) write data/recon/paper_e
 (desk_ml.research_rules.paper_extra_rows) books these rows through the same opposite-side / same-contract / 10-lot / risk gate.
 Desk trades only from the PX_* on-from minute in config/desk_rules_on_from.yaml. No orders: orders=REFUSED.
 Usage: runner.py once|loop|replay-check"""
-import csv, json, os, shutil, subprocess, sys, time
+import csv, json, os, shutil, subprocess, sys, tempfile, time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 IST = timezone(timedelta(hours=5, minutes=30))
 DAY = os.environ.get("PX_DAY") or datetime.now(IST).strftime("%Y-%m-%d")
 REPO = Path(__file__).resolve().parents[2]
+# 2026-10-21 (Opposition review #2): every file this runner WRITES lives under STATE (default REPO/data). Env PX_STATE_DIR moves it.
+# Under a test (PX_TEST=1, a test_*.py script, or pytest) STATE defaults to a fresh temp folder, and _w() refuses any write into REPO/data,
+# so a test run can never overwrite a live day's saved decisions. Reads (backfill, tape) stay on REPO/data.
+REAL_DATA = (REPO / "data").resolve()
+REAL_RT = (Path.home() / "paper_extra_rt").resolve()   # live runtime dir (vix_daily.json, pshadow work dir)
+TEST_MODE = (os.environ.get("PX_TEST") == "1" or Path(sys.argv[0] if sys.argv else "").name.startswith("test_")
+             or "pytest" in sys.modules)
+if TEST_MODE:   # 2026-10-21 v3: one temp root per test process; later tempfile.mkdtemp() calls land inside it; removed at exit
+    import atexit
+    TEST_ROOT = tempfile.mkdtemp(prefix="px_test_"); tempfile.tempdir = TEST_ROOT
+    atexit.register(shutil.rmtree, TEST_ROOT, True)
+STATE = Path(os.environ["PX_STATE_DIR"]) if os.environ.get("PX_STATE_DIR") else (
+    Path(tempfile.mkdtemp(prefix="px_state_")) if TEST_MODE else REPO / "data")
+
+
+def _w(p):
+    """Write guard: in test mode a path inside the real data folder is refused (raises). Returns the path."""
+    if TEST_MODE:
+        rp = Path(p).resolve()
+        if any(rp == g or g in rp.parents for g in (REAL_DATA, REAL_RT)):
+            raise RuntimeError(f"test-mode write into real data path refused: {rp}")
+    return p
+
+
 RT = Path.home() / "paper_extra_rt"
 VENV = Path.home() / "paper_extra_venv" / "bin" / "python"
 BF = REPO / "data" / "backfill" / DAY
-LIVE_RUN = REPO / "data" / "paper_extra" / DAY / "run"
-OUT = REPO / "data" / "recon" / "paper_extra" / f"{DAY}.json"
+LIVE_RUN = STATE / "paper_extra" / DAY / "run"
+OUT = STATE / "recon" / "paper_extra" / f"{DAY}.json"
 STRATS = {  # score_pass strategy name -> desk rule id (T2 = the scored variant)
     "B2": "PX_B2", "R07": "PX_R07", "EP-010": "PX_EP010", "EP-018": "PX_EP018",
     "I1_ORB:ORB_A:T2": "PX_ORB_A", "I4_VWAP:VWAP_CONT:T2": "PX_VWAP_CONT", "I9_ENGULF:ENG_5:T2": "PX_ENG_5",
@@ -44,13 +68,13 @@ PRICE_EXIT = {"stop": 0.30, "target": 0.60, "trail": True, "antichase_rise": 0.1
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import live_pricer as LP   # noqa: E402
 LIVE = {}            # (rule_id, underlying, signal_time) -> LP.LiveTrade
-LIVE_FILE = REPO / "data" / "paper_extra" / DAY / "live_exits.json"
+LIVE_FILE = STATE / "paper_extra" / DAY / "live_exits.json"
 TAIL = LP.DepthTail(REPO / "data" / "tape" / "v2" / DAY / "depth_quotes.jsonl", start_at_end=True)   # never replay old tape quotes (2026-10-19 deploy bug)
 LAST_ROWS = {"rows": None, "note": ""}
 # REVIEW FIX (2026-10-19): restart-safe. START_FILE pins the first minute this runner (new version) ran today. Signals whose entry minute is
 # before it are never back-filled from past bars (status PRE_START, never booked). Rows already in OUT from an earlier process are carried:
 # CLOSED rows are frozen exactly as booked; OPEN rows get the new exits evaluated only from START_M onward (no retro exit).
-START_FILE = REPO / "data" / "paper_extra" / DAY / "runner_start.json"
+START_FILE = STATE / "paper_extra" / DAY / "runner_start.json"
 START = {"m": None, "frozen": {}, "carried": set()}
 
 
@@ -59,7 +83,7 @@ def _start_load(now_m: int) -> None:
         START["m"] = int(json.loads(START_FILE.read_text())["start_m"])
     except (OSError, ValueError, KeyError, TypeError):
         START["m"] = now_m + 1   # first start today: only signals entering after this minute are new
-        START_FILE.parent.mkdir(parents=True, exist_ok=True); START_FILE.write_text(json.dumps({"start_m": START["m"]}))
+        _w(START_FILE).parent.mkdir(parents=True, exist_ok=True); _w(START_FILE).write_text(json.dumps({"start_m": START["m"]}))
     try:
         for r in json.loads(OUT.read_text()).get("rows") or []:
             if not str(r.get("rule_id", "")).startswith("PX_"):
@@ -80,9 +104,9 @@ CAP_MAX = 2
 # new trade must be <= PREMIUM_CAP_INR, else SKIPPED_PREMIUM (never booked, holds no slot, kept in "not_booked"). Checked after cap2.
 # Applies to entries at/after prem_from_m (premium_cap_start.json); decisions sticky for the day like cap2.
 PREMIUM_CAP_INR = 900000   # 90% of the 10L paper account (Sahil 1:1 02:18 CT "make account a 10 lakh account")
-PREM_FILE = REPO / "data" / "paper_extra" / DAY / "premium_cap_start.json"
+PREM_FILE = STATE / "paper_extra" / DAY / "premium_cap_start.json"
 PREM = {"from_m": None, "skip": set()}
-CAP_FILE = REPO / "data" / "paper_extra" / DAY / "cap_start.json"
+CAP_FILE = STATE / "paper_extra" / DAY / "cap_start.json"
 CAP = {"from_m": None, "admit": set(), "skip": set()}
 
 
@@ -91,7 +115,7 @@ def _cap_load(now_m: int) -> None:
         CAP["from_m"] = int(json.loads(CAP_FILE.read_text())["cap_from_m"])
     except (OSError, ValueError, KeyError, TypeError):
         CAP["from_m"] = now_m + 1
-        CAP_FILE.parent.mkdir(parents=True, exist_ok=True); CAP_FILE.write_text(json.dumps({"cap_from_m": CAP["from_m"], "cap_max": CAP_MAX}))
+        _w(CAP_FILE).parent.mkdir(parents=True, exist_ok=True); _w(CAP_FILE).write_text(json.dumps({"cap_from_m": CAP["from_m"], "cap_max": CAP_MAX}))
     try:
         j = json.loads(OUT.read_text())
         for r in j.get("rows") or []:
@@ -108,14 +132,51 @@ def _prem_load(now_m: int) -> None:
         PREM["from_m"] = int(json.loads(PREM_FILE.read_text())["prem_from_m"])
     except (OSError, ValueError, KeyError, TypeError):
         PREM["from_m"] = now_m + 1
-        PREM_FILE.parent.mkdir(parents=True, exist_ok=True)
-        PREM_FILE.write_text(json.dumps({"prem_from_m": PREM["from_m"], "premium_cap_inr": PREMIUM_CAP_INR}))
+        _w(PREM_FILE).parent.mkdir(parents=True, exist_ok=True)
+        _w(PREM_FILE).write_text(json.dumps({"prem_from_m": PREM["from_m"], "premium_cap_inr": PREMIUM_CAP_INR}))
     try:
         for r in json.loads(OUT.read_text()).get("not_booked") or []:
             if r.get("status") == "SKIPPED_PREMIUM":
                 PREM["skip"].add((r.get("rule_id"), r.get("underlying") or "NIFTY", r.get("signal_time")))
     except (OSError, ValueError, KeyError, TypeError):
         pass
+
+
+# 2026-10-21 (Opposition two-week audit #7): same-contract guard. Oct 16: ENG_5 and IB_5 both bought NIFTY 23100 CE at 11:25 (20 lots on one
+# contract). A new entry on a contract (underlying + strike + side; one expiry per underlying per day) that the book already holds at its entry
+# minute (same-minute exit still counts as held, as in _open_at) -> SKIPPED_DUP_CONTRACT (never booked, holds no slot or premium, in "not_booked").
+# Checked after shadow_only and BEFORE cap2 / premium. Applies only to entries at/after dup_from_m (pinned in dup_guard_start.json the first time
+# this version runs today), so trades already booked are never re-judged; decisions are sticky for the day. Env PX_DUP_GUARD=off disables it.
+DUP_ON = os.environ.get("PX_DUP_GUARD", "on").strip().lower() != "off"
+DUP_FILE = STATE / "paper_extra" / DAY / "dup_guard_start.json"
+DUP = {"from_m": None, "skip": set()}
+
+
+def _dup_load(now_m: int) -> None:
+    try:
+        DUP["from_m"] = int(json.loads(DUP_FILE.read_text())["dup_from_m"])
+    except (OSError, ValueError, KeyError, TypeError):
+        DUP["from_m"] = now_m + 1
+        _w(DUP_FILE).parent.mkdir(parents=True, exist_ok=True)
+        _w(DUP_FILE).write_text(json.dumps({"dup_from_m": DUP["from_m"]}))
+    try:
+        for r in json.loads(OUT.read_text()).get("not_booked") or []:
+            if r.get("status") == "SKIPPED_DUP_CONTRACT":
+                DUP["skip"].add((r.get("rule_id"), r.get("underlying") or "NIFTY", r.get("signal_time")))
+    except (OSError, ValueError, KeyError, TypeError):
+        pass
+
+
+def _same_contract(done: list, r: dict, em: int):
+    """First held book trade on the same contract (underlying, strike, side) at minute em, else None."""
+    if not DUP_ON:
+        return None
+    u = r.get("underlying") or "NIFTY"
+    for d in _open_at(done, em):
+        if ((d.get("underlying") or "NIFTY") == u and d.get("side") == r.get("side")
+                and abs(float(d.get("strike") or 0) - float(r.get("strike") or 0)) < 1e-6):
+            return d
+    return None
 
 
 def _m(s) -> int:
@@ -151,7 +212,7 @@ def _shadow_only() -> set:
 
 
 def cap_and_price(rows: list, now_m: int) -> list:
-    """apply_price_exits in entry order. Checks, in order: restart guard (PRE_START), anti-chase (SKIPPED_CHASE), cap2 (SKIPPED_CAP),
+    """apply_price_exits in entry order. Checks, in order: restart guard (PRE_START), anti-chase (SKIPPED_CHASE), same contract (SKIPPED_DUP_CONTRACT), cap2 (SKIPPED_CAP),
     premium limit (SKIPPED_PREMIUM). Skipped rows hold no slot and no premium. A slot/premium frees only when the exit minute is before the entry."""
     out = [None] * len(rows)
     order = sorted(range(len(rows)), key=lambda i: (_m(rows[i].get("entry_time")) or 10 ** 6, rows[i].get("signal_time") or ""))
@@ -162,6 +223,15 @@ def cap_and_price(rows: list, now_m: int) -> list:
         if r["rule_id"] in sho:   # 2026-10-21 SHADOW ONLY: still priced/scored, but never takes a cap2 slot or premium (desk books nothing)
             x = apply_price_exits(r, now_m); x["shadow_only"] = True; out[i] = x; continue
         new = r.get("status") in ("OPEN", "CLOSED") and em is not None and k not in CAP["admit"] and _pre_status(r) is None
+        if new and DUP["from_m"] is not None and em >= DUP["from_m"] and k not in CAP["skip"] and k not in PREM["skip"]:
+            hit = _same_contract(done, r, em) if k not in DUP["skip"] else None
+            if k in DUP["skip"] or hit is not None:
+                DUP["skip"].add(k)
+                r.update(status="SKIPPED_DUP_CONTRACT", exit_reason_std="SKIPPED_DUP_CONTRACT", exit_time=None, exit_px=None, exit_reason=None,
+                         why=r.get("why") or WHY.get(r["rule_id"], r.get("strategy")),
+                         note=(f"same contract: book already holds {hit.get('rule_id')} {hit.get('underlying')} {int(float(hit.get('strike') or 0))} "
+                               f"{hit.get('side')} at {r['entry_time']} IST; not booked") if hit is not None else "same contract (sticky decision); not booked")
+                out[i] = r; done.append(r); continue
         if new and CAP["from_m"] is not None and em >= CAP["from_m"]:
             if k in CAP["skip"] or len(_open_at(done, em)) >= CAP_MAX:
                 CAP["skip"].add(k)
@@ -171,7 +241,7 @@ def cap_and_price(rows: list, now_m: int) -> list:
                 out[i] = r; done.append(r); continue
         if new and PREM["from_m"] is not None and em >= PREM["from_m"]:
             held = sum(float(d.get("entry_px") or 0) * int(d.get("qty") or 0) for d in _open_at(done, em))
-            add = float(r.get("entry_px") or 0) * int(r.get("qty") or 0)
+            add = _booked_entry(r, em, now_m) * int(r.get("qty") or 0)   # the price it would be booked at (ask / open + half spread)
             if k in PREM["skip"] or held + add > PREMIUM_CAP_INR + 1e-6:
                 PREM["skip"].add(k)
                 r.update(status="SKIPPED_PREMIUM", exit_reason_std="SKIPPED_PREMIUM", exit_time=None, exit_px=None, exit_reason=None,
@@ -180,7 +250,8 @@ def cap_and_price(rows: list, now_m: int) -> list:
                 out[i] = r; done.append(r); continue
         x = apply_price_exits(r, now_m)
         if x.get("status") in ("OPEN", "CLOSED") and em is not None and (
-                (CAP["from_m"] is not None and em >= CAP["from_m"]) or (PREM["from_m"] is not None and em >= PREM["from_m"])):
+                (CAP["from_m"] is not None and em >= CAP["from_m"]) or (PREM["from_m"] is not None and em >= PREM["from_m"])
+                or (DUP["from_m"] is not None and em >= DUP["from_m"])):
             CAP["admit"].add(k)
         out[i] = x; done.append(x)
     return out
@@ -239,8 +310,111 @@ def _live_load():
 
 
 def _live_save():
-    LIVE_FILE.parent.mkdir(parents=True, exist_ok=True)
-    tmp = LIVE_FILE.with_suffix(".tmp"); tmp.write_text(json.dumps([t.to_json() for t in LIVE.values()])); os.replace(tmp, LIVE_FILE)
+    _w(LIVE_FILE).parent.mkdir(parents=True, exist_ok=True)
+    tmp = _w(LIVE_FILE.with_suffix(".tmp")); tmp.write_text(json.dumps([t.to_json() for t in LIVE.values()])); os.replace(tmp, LIVE_FILE)
+
+
+# 2026-10-21 (Opposition audit, Oct 12 worse-side follow-up): ENTRY AT THE ASK. Until now entry_px = the 1-minute bar OPEN (last-trade based,
+# score_pass_mac.py:46-48), so every booked entry was flattered by about half the bid/ask spread. New entries are booked at the live V2 depth
+# ASK: the first quote of that contract inside the entry minute's first ENTRY_ASK_FRESH_S seconds (ask > 0). If there is none (feed gap,
+# stale, old tape), book the 1-minute open + HALF_SPREAD[u], half the measured round-trip spread per unit (NIFTY 647/650, SENSEX 1131/200).
+# entry_src says which one: "v2_ask" or "1m_open+half_spread"; the raw 1m open stays in entry_px_1m_open. Decisions are sticky for the day
+# (ENTRY_FILE) once the ask is found or the entry minute is 2+ minutes old. Rows carried over a restart / frozen keep their booked entry.
+# Env PX_ENTRY_ASK=off restores the old behaviour.
+ENTRY_ASK_ON = os.environ.get("PX_ENTRY_ASK", "on").strip().lower() != "off"
+ENTRY_ASK_FRESH_S = 15
+ENTRY_ASK_MAX_LAG_S = 2.0   # recorder time - exchange time, seconds
+HALF_SPREAD = {"NIFTY": round(647 / 650 / 2, 4), "SENSEX": round(1131 / 200 / 2, 4)}   # 0.4977 / 2.8275 premium points
+ENTRY_FILE = STATE / "paper_extra" / DAY / "entry_fill.json"
+ENTRY = {}   # "rule|und|signal_time" -> {"entry_px", "entry_src", "entry_px_1m_open", "ask_ts"}
+
+
+class AskBook:
+    """Incremental reader of the V2 depth file from the START (own byte offset): first FRESH ask per (iid, entry minute).
+    2026-10-21 (Opposition review #4): a quote qualifies only if it is not a recorder re-send (payload.repeat is not true), it carries an
+    exchange_ts, that exchange time is inside seconds 0..ENTRY_ASK_FRESH_S-1 of the minute it is keyed to, and the recorder got it within
+    ENTRY_ASK_MAX_LAG_S of the exchange time. A frozen feed (only repeats, or old exchange times) yields no ask -> fallback."""
+    def __init__(self, path):
+        self.path = str(path); self.off = 0; self.first = {}
+
+    @staticmethod
+    def qualify(j):
+        """(iid, minute, ask, exchange_ts) for a usable fresh ask frame, else None."""
+        p = j.get("payload") or {}
+        a = p.get("ask"); iid = p.get("instrument_id"); ets = p.get("exchange_ts")
+        if not iid or p.get("repeat") is True or not ets or a is None:
+            return None
+        try:
+            a = float(a); te = datetime.fromisoformat(str(ets)); tr = datetime.fromisoformat(str(j.get("timestamp") or ets))
+        except (TypeError, ValueError):
+            return None
+        lag = (tr - te).total_seconds()
+        if a <= 0 or te.second >= ENTRY_ASK_FRESH_S or not (-1.0 <= lag <= ENTRY_ASK_MAX_LAG_S):
+            return None
+        return iid, te.hour * 60 + te.minute, a, str(ets)
+
+    def scan(self):
+        if not os.path.exists(self.path):
+            return
+        with open(self.path, "rb") as f:
+            f.seek(self.off); buf = f.read()
+        end = buf.rfind(b"\n")
+        if end < 0:
+            return
+        self.off += end + 1
+        for line in buf[:end].split(b"\n"):
+            if b'"ask"' not in line or b"_FNO:" not in line or b'"repeat":true' in line or b'"repeat": true' in line:
+                continue
+            try:
+                q = self.qualify(json.loads(line))
+            except ValueError:
+                continue
+            if q is not None and (q[0], q[1]) not in self.first:
+                self.first[(q[0], q[1])] = (q[2], q[3])
+
+    def ask(self, iid, m):
+        return self.first.get((iid, m))
+
+
+ASKS = AskBook(REPO / "data" / "tape" / "v2" / DAY / "depth_quotes.jsonl")
+
+
+def _entry_load() -> None:
+    try:
+        ENTRY.update(json.loads(ENTRY_FILE.read_text()))
+    except (OSError, ValueError, TypeError):
+        pass
+
+
+def _entry_fill(row: dict, u: str, em: int, now_m: int) -> dict:
+    """Entry price for a NEW row: live ask if fresh, else 1m open + half spread. Pure apart from the sticky cache."""
+    k = f"{row['rule_id']}|{u}|{row.get('signal_time')}"
+    c = ENTRY.get(k)
+    if c is not None and (c.get("entry_src") == "v2_ask" or now_m >= em + 2):
+        return c   # final: an ask was found, or the entry minute is 2+ minutes old
+    p_open = float(row["entry_px"]); exp = EXP if u == "NIFTY" else EXPS.get(u)
+    hit = ASKS.ask(LP.iid_of(u, exp, row["strike"], row["side"]), em)
+    if hit is not None:
+        d = dict(entry_px=round(hit[0], 2), entry_src="v2_ask", entry_px_1m_open=p_open, ask_ts=hit[1])
+    elif c is not None:
+        return c   # cached fallback, still no ask
+    else:
+        d = dict(entry_px=round(p_open + HALF_SPREAD[u], 2), entry_src="1m_open+half_spread", entry_px_1m_open=p_open, ask_ts=None)
+    # 2026-10-21 v3 (Opposition review V2 #B): persist at once, fallback included, so a restart inside the 2-minute window reloads open + half
+    # spread instead of the raw open. A late ask may still replace a cached fallback while now_m < em + 2; the row's and the live pricer's stop/target then follow the ask (v4).
+    ENTRY[k] = d
+    try:
+        _w(ENTRY_FILE).parent.mkdir(parents=True, exist_ok=True); _w(ENTRY_FILE).write_text(json.dumps(ENTRY))
+    except OSError:
+        pass
+    return d
+
+
+def _booked_entry(r: dict, em: int, now_m: int) -> float:
+    """Entry price a new row would be booked at (for the premium limit, before apply_price_exits runs)."""
+    if not ENTRY_ASK_ON or "entry_px_1m_open" in r:
+        return float(r.get("entry_px") or 0)
+    return float(_entry_fill(r, r.get("underlying") or "NIFTY", em, now_m)["entry_px"])
 
 
 def _hm(m: int) -> str:
@@ -268,6 +442,10 @@ def apply_price_exits(row: dict, now_m: int, now_iso: str = None) -> dict:
             if key0 not in START["carried"]:
                 row.update(status="PRE_START", exit_reason_std="PRE_START", note="entry before runner start; not back-filled, not booked"); return row
             from_m = START["m"]
+    if ENTRY_ASK_ON and "entry_px_1m_open" not in row:
+        ck = f"{row['rule_id']}|{u}|{row.get('signal_time')}"
+        if from_m is None or ck in ENTRY:   # new row, or a row carried over a restart that already had its entry decided (keep it)
+            f = _entry_fill(row, u, em, now_m); row.update(f); p0 = float(f["entry_px"])
     if from_m is None and sm in ob and sm - 2 in ob and ob[sm - 2][1] > 0 and ob[sm][1] / ob[sm - 2][1] - 1 > PRICE_EXIT["antichase_rise"]:
         row.update(status="SKIPPED_CHASE", exit_reason_std="SKIPPED_CHASE", exit_time=None, exit_px=None, exit_reason=None,
                    note=f"anti-chase: premium +{ob[sm][1] / ob[sm - 2][1] - 1:.0%} in the 2 min before entry; not booked")
@@ -283,6 +461,12 @@ def apply_price_exits(row: dict, now_m: int, now_iso: str = None) -> dict:
     if em not in ob:
         row["stop_target_basis"] = "PRICE_EXIT_UNPRICED: no option bar at entry; levels from entry price"
     r = price_exit_path(ob, em, p0, now_m, from_m) if em in ob else dict(status="OPEN", stop_px=row["stop_px"], target_px=row["target_px"])
+    if lt is not None and lt.closed is None and abs(lt.entry - p0) > 1e-9:
+        # 2026-10-21 v4 (Opposition review V3 #E): a late ask replaced the fallback entry -> rebuild the live trade around the booked entry so
+        # live stop / target / trail use the same price as P&L. Quote history (high-water, last bid, not_before, manual locks) is kept.
+        nl = LP.LiveTrade(key, lt.iid, p0, S, T, max(lt.hw, p0), safety_hhmmss=lt.safety, not_before=lt.not_before)
+        nl.last_bid, nl.last_ts, nl.stop_floor, nl.trail_gap = lt.last_bid, lt.last_ts, lt.stop_floor, lt.trail_gap
+        lt = LIVE[key] = nl
     live_ok = lt is not None and not lt.stale(now_iso)
     if r["status"] == "CLOSED" and not live_ok:
         row.update(status="CLOSED", exit_time=_hm(r["exit_m"]), exit_px=r["exit_px"], exit_reason=r["why"], exit_reason_std=r["why"],
@@ -310,14 +494,20 @@ def apply_price_exits(row: dict, now_m: int, now_iso: str = None) -> dict:
 
 def guard_tick() -> int:
     """Every ~3 s between cycles: feed new V2 depth quotes to open live trades; rewrite OUT if any closed or marks moved."""
-    open_lt = {t.iid: t for t in LIVE.values() if t.closed is None}
+    # 2026-10-21 v3: iid -> ALL open trades on that contract. Before, {iid: t} kept only the last-registered trade per contract, so a second
+    # trade on the same contract (Oct 21 shadow MINE_PE on SENSEX 74900 PE, registered 09:48) blinded the first (EP010, same contract) until
+    # MINE_PE closed at 10:08:00.951; EP010 then closed at the first bid it saw, 821.1 (10:08:03.184), not at 771.5 (10:05:39.265).
+    open_lt = {}
+    for t in LIVE.values():
+        if t.closed is None:
+            open_lt.setdefault(t.iid, []).append(t)
     if not open_lt or LAST_ROWS["rows"] is None:
         TAIL.read(set()); return 0
     nclosed = 0
     for iid, bid, ts in TAIL.read(set(open_lt)):
-        t = open_lt.get(iid)
-        if t is not None and t.closed is None and t.on_quote(bid, ts):
-            nclosed += 1
+        for t in open_lt.get(iid, ()):
+            if t.closed is None and t.on_quote(bid, ts):
+                nclosed += 1
     now_m = (datetime.now(IST) - timedelta(minutes=1)); nm = now_m.hour * 60 + now_m.minute
     rows = [apply_price_exits(dict(r), nm) if r.get("rule_id", "").startswith("PX_") and r["status"] in ("OPEN", "CLOSED") else r
             for r in LAST_ROWS["rows"]]
@@ -377,7 +567,7 @@ def fetch() -> str:
         if src is not None:
             shutil.copytree(src, LIVE_RUN)
         else:
-            LIVE_RUN.mkdir(parents=True)
+            _w(LIVE_RUN).mkdir(parents=True)
     from dhan_client.client import DhanClient
     global CUTOFF_TS
     nowdt = datetime.now(IST)
@@ -405,7 +595,7 @@ def fetch() -> str:
                     if isinstance(r, dict) and r.get("timestamp"):  # drop the minute still forming (complete bars only)
                         keep = [i for i, t in enumerate(r["timestamp"]) if int(t) < CUTOFF_TS]
                         r = {k: ([v[i] for i in keep] if isinstance(v, list) and len(v) == len(r["timestamp"]) else v) for k, v in r.items()}
-                    (LIVE_RUN / f"{name}.json").write_text(json.dumps(r)); n += 1; time.sleep(0.35); return r
+                    _w(LIVE_RUN / f"{name}.json").write_text(json.dumps(r)); n += 1; time.sleep(0.35); return r
                 except Exception:
                     time.sleep(1.5)
             return None
@@ -444,7 +634,7 @@ def write_vix_daily() -> dict:
     except (OSError, ValueError, KeyError):
         pass
     if out:
-        (RT / "live" / "work" / "vix_daily.json").write_text(json.dumps(out))
+        _w(RT / "live" / "work" / "vix_daily.json").write_text(json.dumps(out))
     return out
 
 
@@ -511,16 +701,16 @@ def write(rows: list, note: str) -> None:
     keep = [r for r in rows if r.get("status") in ("OPEN", "CLOSED")]
     not_booked = [r for r in rows if r.get("status") not in ("OPEN", "CLOSED")]
     rows = keep
-    OUT.parent.mkdir(parents=True, exist_ok=True)
+    _w(OUT).parent.mkdir(parents=True, exist_ok=True)
     blob = {"day": DAY, "orders": "REFUSED", "paper_only": True, "as_of_ist": datetime.now(IST).isoformat(timespec="seconds"),
             "note": note, "strategies": sorted(set(STRATS.values())) + ["Q01_ITM100"], "underlyings": list(UNDS), "qty": QTY, "q01": dict(Q01_STATE), "rows": rows, "not_booked": not_booked}
-    tmp = OUT.with_suffix(".tmp"); tmp.write_text(json.dumps(blob, indent=1)); os.replace(tmp, OUT)
+    tmp = _w(OUT.with_suffix(".tmp")); tmp.write_text(json.dumps(blob, indent=1)); os.replace(tmp, OUT)
 
 
 # ---------------- Q01 ITM100 v1.1 (desk paper, from 2026-10-14) + Q01_T15 (shadow / background box only) ----------------
 Q01_FROM = "2026-10-14"
 VIX_HIST = REPO / "packages" / "desk-ml" / "tests" / "fixtures" / "q01" / "vix_daily_hist.json"
-BG_DIR = REPO / "data" / "research" / "background_test"
+BG_DIR = STATE / "research" / "background_test"
 
 
 def _bars(name: str) -> dict:
@@ -626,8 +816,8 @@ def write_bg_t15(bg) -> None:
         t["net_inr_1_5x"] = round((bg["exit_px"] - bg["entry_px"]) * QTY[u] - float(c["charges_inr"]), 2)
     body["trades"].append(t)
     body["as_of_ist"] = datetime.now(IST).isoformat(timespec="seconds")
-    BG_DIR.mkdir(parents=True, exist_ok=True)
-    tmp = p.with_suffix(".tmp"); tmp.write_text(json.dumps(body, indent=1)); os.replace(tmp, p)
+    _w(BG_DIR).mkdir(parents=True, exist_ok=True)
+    tmp = _w(p.with_suffix(".tmp")); tmp.write_text(json.dumps(body, indent=1)); os.replace(tmp, p)
 
 
 # ---------------- Premium-stop BACKGROUND SHADOWS (from 2026-10-14): EP009_P, B2_P, VWAPCONT_PE_P ----------------
@@ -680,8 +870,8 @@ def write_bg_pshadow(js: dict) -> None:
     body["trades"] = [t for t in body.get("trades") or [] if t.get("strategy") not in keep] + ps_bg_trades(js)
     body["pshadow"] = {"data_through_ist": js.get("data_through"), "errors": js.get("errors"), "skipped": js.get("skipped"), "count_in_total": False}
     body["as_of_ist"] = datetime.now(IST).isoformat(timespec="seconds")
-    BG_DIR.mkdir(parents=True, exist_ok=True)
-    tmp = p.with_suffix(".tmp"); tmp.write_text(json.dumps(body, indent=1)); os.replace(tmp, p)
+    _w(BG_DIR).mkdir(parents=True, exist_ok=True)
+    tmp = _w(p.with_suffix(".tmp")); tmp.write_text(json.dumps(body, indent=1)); os.replace(tmp, p)
 
 
 def pshadow_cycle() -> str:
@@ -704,13 +894,13 @@ def pshadow_cycle() -> str:
             txt = f"pshadow thru {js.get('data_through')}: " + (", ".join(f"{r['name']}:{r.get('status')}" for r in js["rows"]) or "no signal") \
                 + (f" ERR {js['errors']}" if js.get("errors") else "")
     work = RT / "live" / "work"
-    PS_DIR.mkdir(parents=True, exist_ok=True)
+    _w(PS_DIR).mkdir(parents=True, exist_ok=True)
     for f in ("base_1m_aug.parquet", f"opt1m_{DAY}.parquet", "vix_daily.json"):
         if (work / f).is_file():
-            shutil.copy2(work / f, PS_DIR / f)
+            shutil.copy2(work / f, _w(PS_DIR / f))
     env = dict(os.environ, PX_DAY=DAY, PX_EXP=EXP or DAY)
     PS_PROC = subprocess.Popen([str(VENV), str(REPO / "scripts" / "paper_extra" / "pshadow_live.py"), str(PS_DIR)], cwd=RT / "live", env=env,
-                               stdout=open(PS_DIR / "pshadow.log", "a"), stderr=subprocess.STDOUT)
+                               stdout=open(_w(PS_DIR / "pshadow.log"), "a"), stderr=subprocess.STDOUT)
     PS_T0 = time.time()
     return txt
 
@@ -826,7 +1016,7 @@ def shadow_log(rows: list) -> str:
                        under_skip=dict(qty=0, gross_inr=0.0, net_inr_1_5x=0.0), under_half=half,
                        if_rule_applied=(dict(qty=0, gross_inr=0.0, net_inr_1_5x=0.0) if sh.get("would_skip") else act),
                        if_half_applied=(half if sh.get("would_halve") else act), logged_ist=datetime.now(IST).isoformat(timespec="seconds"))
-            with open(SHADOW_FILE, "a") as f:
+            with open(_w(SHADOW_FILE), "a") as f:
                 f.write(json.dumps(rec) + "\n")
             SHADOW_DONE.add(k); n += 1
         except Exception:
@@ -879,7 +1069,7 @@ def log_risk() -> str:
            "book_open": [(r.get("rule_id"), r.get("underlying"), r.get("side"), r.get("strike"), r.get("entry_time"), r.get("stop_px"))
                          for r in pb],
            "book_open_not_desk_admitted": outside, "regime_counts": _rc}
-    with open(OUT.parent / f"risk_minutes_{DAY}.jsonl", "a") as f:
+    with open(_w(OUT.parent / f"risk_minutes_{DAY}.jsonl"), "a") as f:
         f.write(json.dumps(rec) + "\n")
     return (f"open {len(op)} lots {lots} prem_at_risk {prem} net {rk.get('day_net_inr')} halt {rk.get('halted_reason')}; "
             f"book open {len(pb)} lots {pb_lots} prem_at_risk {pb_prem}")
@@ -894,7 +1084,7 @@ try:
 except Exception as _e:   # a broken overlay module must never stop the runner
     SO = None; _SO_ERR = f"{type(_e).__name__}: {_e}"
 SO_FILE = OUT.parent / f"shadow_overlays_{DAY}.jsonl"
-SO_STATUS_FILE = REPO / "data" / "paper_extra" / DAY / "live_exits_status.json"
+SO_STATUS_FILE = STATE / "paper_extra" / DAY / "live_exits_status.json"
 SO_DONE = set()
 SO_IDX = {}              # underlying -> (file mtime, {minute_index: (o, h, l, c)} for DAY)
 
@@ -959,7 +1149,7 @@ def overlay_status(rows: list, now_m: int) -> int:
             r["exit_status"] = {"version": getattr(SO, "VERSION", None), "label": None, "error": f"{type(e).__name__}: {e}", "display_only": True}
         side.append(dict(key=list(_so_key(r)), exit_status=r["exit_status"]))
     try:
-        SO_STATUS_FILE.parent.mkdir(parents=True, exist_ok=True); tmp = SO_STATUS_FILE.with_suffix(".tmp")
+        _w(SO_STATUS_FILE).parent.mkdir(parents=True, exist_ok=True); tmp = _w(SO_STATUS_FILE.with_suffix(".tmp"))
         tmp.write_text(json.dumps(side)); os.replace(tmp, SO_STATUS_FILE)
     except OSError:
         pass
@@ -1039,7 +1229,7 @@ def overlay_log(rows: list, now_m: int) -> str:
                        ts_reasons=so.get("ts_reasons"), giveback=so.get("giveback"), dr=dr,
                        if_dr_applied=(dict(exit_px=None, gross_inr=0.0, net_inr_1_5x=0.0) if dr.get("would_skip") else act),
                        version=so.get("version"), shadow_only=True, logged_ist=datetime.now(IST).isoformat(timespec="seconds"))
-            with open(SO_FILE, "a") as f:
+            with open(_w(SO_FILE), "a") as f:
                 f.write(json.dumps(rec) + "\n")
             SO_DONE.add(k); n += 1
         except Exception:
@@ -1051,8 +1241,13 @@ def once() -> str:
     f = fetch()
     sr, line = score()
     now_m = (datetime.now(IST) - timedelta(minutes=1)).hour * 60 + (datetime.now(IST) - timedelta(minutes=1)).minute
+    if ENTRY_ASK_ON:
+        try:
+            ASKS.scan()   # incremental; first call reads today's depth file from the start
+        except OSError:
+            pass
     rows = cap_and_price(rows_all(sr), now_m)
-    rows = [r for r in rows if r["status"] in ("OPEN", "CLOSED", "SKIPPED_CHASE", "SKIPPED_CAP", "SKIPPED_PREMIUM", "PRE_START")]   # PRE_START kept visible in OUT, never booked
+    rows = [r for r in rows if r["status"] in ("OPEN", "CLOSED", "SKIPPED_CHASE", "SKIPPED_CAP", "SKIPPED_PREMIUM", "PRE_START", "SKIPPED_DUP_CONTRACT")]   # PRE_START / dup skips kept visible in OUT, never booked
     _live_save()
     for r in rows:
         if r["status"] == "OPEN":
@@ -1096,7 +1291,7 @@ if __name__ == "__main__":
         if datetime.now(IST) < start:  # first complete 1m bar is 09:15
             print(f"{datetime.now(IST):%H:%M:%S} IST waiting for 09:16:05 IST (day {DAY})", flush=True)
             time.sleep((start - datetime.now(IST)).total_seconds())
-        _live_load(); _n = datetime.now(IST) - timedelta(minutes=1); _start_load(_n.hour * 60 + _n.minute); _cap_load(_n.hour * 60 + _n.minute); _prem_load(_n.hour * 60 + _n.minute)
+        _live_load(); _n = datetime.now(IST) - timedelta(minutes=1); _start_load(_n.hour * 60 + _n.minute); _cap_load(_n.hour * 60 + _n.minute); _prem_load(_n.hour * 60 + _n.minute); _dup_load(_n.hour * 60 + _n.minute); _entry_load()
         while datetime.now(IST).strftime("%H:%M") < "15:31":
             t = time.time()
             try:

@@ -3,7 +3,7 @@ import os, sys, tempfile, importlib, pathlib, copy
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 os.environ["PX_DAY"] = "2026-10-21"
 R = importlib.import_module("runner")
-d = pathlib.Path(tempfile.mkdtemp()); R.LIVE.clear(); R.LIVE_FILE = d / "live_exits.json"; R.OUT = d / "out.json"
+d = pathlib.Path(tempfile.mkdtemp()); R.LIVE.clear(); R.LIVE_FILE = d / "live_exits.json"; R.OUT = d / "out.json"; R.ENTRY_FILE = d / "entry_fill.json"; R.ENTRY.clear()
 R.CAP_FILE = d / "cap_start.json"; R.PREM_FILE = d / "premium_cap_start.json"; R.START_FILE = d / "runner_start.json"
 R.EXP = "2026-10-27"; R.EXPS = {"NIFTY": "2026-10-27", "SENSEX": "2026-10-22"}
 fails = []

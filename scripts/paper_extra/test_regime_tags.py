@@ -39,7 +39,7 @@ ok("error" in RG.tag_safe(None, 600, "CE"), "4b tag_safe never raises")
 # 5-8 runner integration
 os.environ["PX_DAY"] = "2026-10-01"
 R = importlib.import_module("runner")
-d = pathlib.Path(tempfile.mkdtemp()); R.LIVE_RUN = d / "run"; R.LIVE_RUN.mkdir(); R.OUT = d / "out.json"; R.SHADOW_FILE = d / "shadow.jsonl"; R.VIX_HIST = d / "no_vix.json"
+d = pathlib.Path(tempfile.mkdtemp()); R.LIVE_RUN = d / "run"; R.LIVE_RUN.mkdir(); R.OUT = d / "out.json"; R.ENTRY_FILE = d / "entry_fill.json"; R.ENTRY.clear(); R.SHADOW_FILE = d / "shadow.jsonl"; R.VIX_HIST = d / "no_vix.json"
 R.EXP = "2026-10-01"; R.EXPS = {"NIFTY": "2026-10-01", "SENSEX": "2026-10-02"}
 def dhan(by):
     ts, o, h, l, c = [], [], [], [], []

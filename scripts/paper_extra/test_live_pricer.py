@@ -19,7 +19,7 @@ t = LP.LiveTrade(("k",), "i", 100.0, .30, -.40); c = t.on_quote(60.0, T0 % 1); o
 t = lt(); ok(t.on_quote(None, T0 % 1) is None and t.on_quote(0, T0 % 2) is None and t.last_bid is None, "7 no bid ignored")
 t = lt(); c = t.on_quote(101.0, "2026-10-21T15:15:00+05:30"); ok(c and c["why"] == "SAFETY_1515", "8 safety close")
 t = lt(); t.on_quote(101.0, T0 % 1); ok(not t.stale(T0 % 9) and t.stale("2026-10-21T10:00:15+05:30"), "9 stale after 10 s"); ok(lt().stale(T0 % 1), "9b never quoted = stale")
-d = tempfile.mkdtemp(); f = os.path.join(d, "depth_quotes.jsonl")
+d = tempfile.mkdtemp(); __import__("atexit").register(__import__("shutil").rmtree, d, True); f = os.path.join(d, "depth_quotes.jsonl")
 q = lambda iid, bid, ask, ltp, s: json.dumps({"payload": {"instrument_id": iid, "bid": bid, "ask": ask, "ltp": ltp}, "timestamp": T0 % s}) + "\n"
 open(f, "w").write(q("A", 10, 12, 11, 1) + q("B", 5, 6, 5.5, 1) + '{"payload": {"instrument_id": "A", "bi')
 tl = LP.DepthTail(f); r1 = tl.read({"A"}); ok(r1 == [("A", 10, T0 % 1)], f"10a tail {r1}")
@@ -27,7 +27,7 @@ open(f, "a").write('d": 9}, "timestamp": "%s"}\n' % (T0 % 2)); r2 = tl.read({"A"
 # runner integration (module imported with a temp REPO-less day; globals patched)
 os.environ["PX_DAY"] = "2026-10-21"
 R = importlib.import_module("runner")
-R.LIVE.clear(); R.LIVE_FILE = __import__("pathlib").Path(d) / "live_exits.json"; R.EXP = "2026-10-27"; R.EXPS = {"NIFTY": "2026-10-27", "SENSEX": "2026-10-22"}
+R.LIVE.clear(); R.LIVE_FILE = __import__("pathlib").Path(d) / "live_exits.json"; R.ENTRY_FILE = __import__("pathlib").Path(d) / "entry_fill.json"; R.ENTRY.clear(); R.EXP = "2026-10-27"; R.EXPS = {"NIFTY": "2026-10-27", "SENSEX": "2026-10-22"}
 bars = {598: (95, 96), 599: (96, 100), 600: (100, 101), 601: (101, 90), 602: (90, 69), 603: (68, 66)}
 R._opt_bars = lambda u, K, s: bars
 row = lambda: {"rule_id": "PX_X", "strategy": "X", "underlying": "NIFTY", "qty": 650, "side": "PE", "strike": 23000.0, "signal_time": "09:59",

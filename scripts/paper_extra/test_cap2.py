@@ -7,7 +7,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 os.environ["PX_DAY"] = "2026-10-21"
 R = importlib.import_module("runner")
 R._shadow_only = lambda: set()   # cap2 fixture predates the 2026-10-21 shadow-only list (test_shadow_only.py covers that)
-d = pathlib.Path(tempfile.mkdtemp()); R.LIVE.clear(); R.LIVE_FILE = d / "live_exits.json"; R.OUT = d / "out.json"; R.CAP_FILE = d / "cap_start.json"
+d = pathlib.Path(tempfile.mkdtemp()); R.LIVE.clear(); R.LIVE_FILE = d / "live_exits.json"; R.OUT = d / "out.json"; R.ENTRY_FILE = d / "entry_fill.json"; R.ENTRY.clear(); R.CAP_FILE = d / "cap_start.json"
 R.EXP = "2026-10-27"; R.EXPS = {"NIFTY": "2026-10-27", "SENSEX": "2026-10-22"}
 fails = []
 def ok(c, msg):
@@ -67,12 +67,12 @@ if src:
 # risk_minutes book_* ignore SKIPPED_CAP
 tree = ast.parse(open(R.__file__).read()); fn = next(n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == "log_risk")
 t2 = pathlib.Path(tempfile.mkdtemp()); (t2 / "data/recon/research_rules").mkdir(parents=True); (t2 / "data/recon/research_rules/2026-10-21.json").write_text(json.dumps({"open": [], "risk": {}}))
-g = dict(json=json, datetime=R.datetime, IST=R.IST, REPO=t2, DAY="2026-10-21", OUT=R.OUT, LOT=R.LOT); exec(compile(ast.Module(body=[fn], type_ignores=[]), "r", "exec"), g)
+g = dict(json=json, datetime=R.datetime, IST=R.IST, REPO=t2, DAY="2026-10-21", OUT=R.OUT, LOT=R.LOT, _w=R._w); exec(compile(ast.Module(body=[fn], type_ignores=[]), "r", "exec"), g)
 g["log_risk"](); rec = json.loads((R.OUT.parent / "risk_minutes_2026-10-21.jsonl").read_text().splitlines()[-1])
 ok(rec["book_open_trades"] == 2 and all(x[0] != "PX_EP010" for x in rec["book_open"]), f"13 risk book {rec['book_open']}")
 # ---------- extra cases (Sahil "test thoroughly!") ----------
 def fresh(from_m=600):
-    R.LIVE.clear(); R.START.update(m=None, frozen={}, carried=set()); R.CAP.update(from_m=from_m, admit=set(), skip=set())
+    R.ENTRY.clear(); R.LIVE.clear(); R.START.update(m=None, frozen={}, carried=set()); R.CAP.update(from_m=from_m, admit=set(), skip=set())
 def addbars(u, K, side, p0, target_at=None):
     B[(u, K, side)] = bars(p0, target_at)
 def opens_at(rows, m):

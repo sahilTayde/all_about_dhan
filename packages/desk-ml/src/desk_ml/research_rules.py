@@ -1106,6 +1106,23 @@ def split_on_from(rows, table: dict[str, str]):
     return keep, hist
 
 
+# 2026-10-21 entry-at-ask (desk book): paper_extra rows were booked at the 1m open (about half a spread too good).
+# Rows from the fixed runner carry entry_px_1m_open + entry_src and are kept as-is. Older-format rows dated on/after
+# DESK_ENTRY_ASK_FROM get open + half spread, labelled. Earlier days are history and are not changed.
+DESK_HALF_SPREAD = {"NIFTY": 0.4977, "SENSEX": 2.8275}
+DESK_ENTRY_ASK_FROM = os.environ.get("DESK_ENTRY_ASK_FROM", "2026-10-22")
+
+
+def desk_entry_px(x: dict, und: str, day: str) -> tuple[float, str]:
+    """(booked entry, source label) for one paper_extra row in the desk book."""
+    px = float(x["entry_px"])
+    if "entry_px_1m_open" in x:
+        return px, str(x.get("entry_src") or "v2_ask")
+    if day >= DESK_ENTRY_ASK_FROM and und in DESK_HALF_SPREAD:
+        return round(px + DESK_HALF_SPREAD[und], 2), "1m_open+half_spread"
+    return px, str(x.get("entry_src") or "dhan_api_1m")
+
+
 def paper_extra_rows(root: Path, day: str, skip: Optional[set] = None) -> tuple[list, list]:
     """Rows written by scripts/paper_extra/runner.py (lab rule signals on real 1m option bars), shaped like
     desk research-rule rows. Missing/bad file -> no rows. Never a broker."""
@@ -1128,18 +1145,22 @@ def paper_extra_rows(root: Path, day: str, skip: Optional[set] = None) -> tuple[
                 continue
             is_closed = x["status"] == "CLOSED"
             mark = float(x["exit_px"] if is_closed else x["mark_px"])
+            entry_px, entry_src = desk_entry_px(x, und, day)
             row = _trade_row(
                 rule={"rule_id": rid, "source_config": f"paper_extra:{x['strategy']}", "family": "PAPER_EXTRA"},
                 underlying=und, side=str(x["side"]), strike=float(x["strike"]), sig_min=str(x["signal_time"]),
                 entry_min=str(x["entry_time"]), exit_min=str(x["exit_time"] if is_closed else x.get("mark_time") or x["entry_time"]),
-                entry=float(x["entry_px"]), mark=mark, day=day,
-                entry_bar={"source": x.get("entry_src") or "dhan_api_1m"},
+                entry=entry_px, mark=mark, day=day,
+                entry_bar={"source": entry_src},
                 mark_bar={"hhmm": str(x["exit_time"] if is_closed else x.get("mark_time") or x["entry_time"]),
                           "source": x.get("exit_src") or x.get("entry_src") or "dhan_api_1m"},
                 closed=is_closed, reason=x.get("exit_reason") or None)
         except (KeyError, TypeError, ValueError):
             continue
         row["strategy_name"] = str(x["strategy"])
+        row["entry_src"] = entry_src
+        if entry_px != float(x["entry_px"]) or "entry_px_1m_open" in x:
+            row["entry_px_1m_open"] = x.get("entry_px_1m_open", x["entry_px"])
         row["stop_px"] = x.get("stop_px"); row["target_px"] = x.get("target_px")
         row["stop"] = x.get("stop_px"); row["target"] = x.get("target_px")
         row["exit_rule"] = x.get("exit_rule"); row["exit_time"] = x.get("exit_time")

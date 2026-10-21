@@ -5,7 +5,7 @@ day = "2026-10-14"
 if not pathlib.Path(f"/workspace/sensex_px/rp/new/{day}").is_dir(): print("test_restart_guard: SKIP (box replay data not on this machine)"); sys.exit(0)
 os.environ["PX_DAY"] = day; R = importlib.import_module("runner"); D = pathlib.Path(f"/workspace/sensex_px/rp/new/{day}")
 R.LIVE_RUN = D / "run"; R.EXP = "2026-10-19"; R.EXPS = {"NIFTY": "2026-10-19", "SENSEX": "2026-10-15"}; R.DAY = day
-tmp = pathlib.Path(tempfile.mkdtemp()); R.LIVE_FILE = tmp / "l.json"; R.OUT = tmp / "out.json"; R.START_FILE = tmp / "s.json"
+tmp = pathlib.Path(tempfile.mkdtemp()); R.LIVE_FILE = tmp / "l.json"; R.OUT = tmp / "out.json"; R.START_FILE = tmp / "s.json"; R.ENTRY_FILE = tmp / "entry_fill.json"; R.ENTRY.clear()
 rows = R.rows_from(list(csv.DictReader(open(D / "v_NIFTY_base/score_latest.csv"))), "NIFTY")
 hm = lambda s: int(s[:2]) * 60 + int(s[3:5]); start = 12 * 60
 pre = [r for r in rows if hm(r["entry_time"]) < start]; post = [r for r in rows if hm(r["entry_time"]) >= start]
