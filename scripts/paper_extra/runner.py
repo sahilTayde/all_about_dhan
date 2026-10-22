@@ -167,6 +167,91 @@ def _dup_load(now_m: int) -> None:
         pass
 
 
+# 2026-10-22 WRONG-SIDE GUARD (Sahil 1:1 2026-10-21 22:57 CT "Yes, block wrong-side trades tonight"; spec = trendside prereg T1,
+# desk/verify/2026-10-22_wrongside). From 10:00 IST, at the signal minute sm (entry = sm+1 open) an index is FALLING if its 1m close at sm is
+# below the day open (09:15 bar open) AND below the running VWAP proxy (mean of (H+L+C)/3, 09:15..sm; the index has no volume); RISING is the
+# mirror. A CE entry while its own index is FALLING, or a PE while RISING -> BLOCKED_WRONG_SIDE (never booked, no slot/premium, in "not_booked";
+# the desk loop books only OPEN/CLOSED rows, so the desk book is gated too). Bars <= sm only (no lookahead). Checked after shadow_only and BEFORE
+# dup / cap2 / premium. Only entries at/after ws_from_m (wrong_side_start.json) are judged; already-booked trades and their exits are untouched.
+# Sticky for the day. Env PX_WRONG_SIDE=off disables it. Per-cycle trend read per index -> wrong_side.jsonl + runner.log.
+WS_ON = os.environ.get("PX_WRONG_SIDE", "on").strip().lower() != "off"
+WS_GATE_M = 600
+WS_FILE = STATE / "paper_extra" / DAY / "wrong_side_start.json"
+WS_LOG = STATE / "paper_extra" / DAY / "wrong_side.jsonl"
+WS = {"from_m": None, "skip": set()}
+
+
+def _ws_load(now_m: int) -> None:
+    try:
+        WS["from_m"] = int(json.loads(WS_FILE.read_text())["ws_from_m"])
+    except (OSError, ValueError, KeyError, TypeError):
+        WS["from_m"] = now_m + 1
+        _w(WS_FILE).parent.mkdir(parents=True, exist_ok=True)
+        _w(WS_FILE).write_text(json.dumps({"ws_from_m": WS["from_m"]}))
+    try:
+        for r in json.loads(OUT.read_text()).get("not_booked") or []:
+            if r.get("status") == "BLOCKED_WRONG_SIDE":
+                WS["skip"].add((r.get("rule_id"), r.get("underlying") or "NIFTY", r.get("signal_time")))
+    except (OSError, ValueError, KeyError, TypeError):
+        pass
+
+
+def _idx_ohlc(u: str) -> dict:
+    """{minute: (o, h, l, c)} for today's index bars (IDX_<u>.json in the live run dir)."""
+    try:
+        j = json.loads((LIVE_RUN / f"IDX_{u}.json").read_text())
+    except (OSError, ValueError):
+        return {}
+    out = {}
+    for i, t in enumerate(j.get("timestamp") or []):
+        dt = datetime.fromtimestamp(int(t), IST)
+        if dt.strftime("%Y-%m-%d") == DAY:
+            out[dt.hour * 60 + dt.minute] = (float(j["open"][i]), float(j["high"][i]), float(j["low"][i]), float(j["close"][i]))
+    return out
+
+
+def ws_trend(bars: dict, sm: int):
+    """(FALLING|RISING|NEUTRAL|NO_DATA, info) using bars with minute <= sm only."""
+    if 555 not in bars or sm not in bars:
+        return "NO_DATA", {}
+    o = bars[555][0]
+    tps = [(b[1] + b[2] + b[3]) / 3.0 for m, b in bars.items() if 555 <= m <= sm]
+    vw = sum(tps) / len(tps); c = bars[sm][3]
+    st = "FALLING" if (c < o and c < vw) else "RISING" if (c > o and c > vw) else "NEUTRAL"
+    return st, {"idx": round(c, 2), "day_open": round(o, 2), "vwap_proxy": round(vw, 2), "at": f"{sm // 60:02d}:{sm % 60:02d}"}
+
+
+def _wrong_side(r: dict, em: int, idx: dict = None):
+    """(blocked, state, info) for a new entry at minute em. Never blocks before 10:00 IST or with no index data."""
+    if not WS_ON:
+        return False, "OFF", {}
+    u = r.get("underlying") or "NIFTY"; sm = em - 1
+    st, info = ws_trend((idx or {}).get(u) if idx is not None else _idx_ohlc(u), sm)
+    if sm < WS_GATE_M:
+        return False, st, info
+    return (r.get("side") == "CE" and st == "FALLING") or (r.get("side") == "PE" and st == "RISING"), st, info
+
+
+def ws_status(now_m: int) -> str:
+    """Log the current trend read per index (this cycle's last closed minute). Logging only."""
+    if not WS_ON:
+        return "wrongside OFF"
+    parts, rec = [], {"as_of_ist": datetime.now(IST).isoformat(timespec="seconds"), "gate": "10:00", "from_m": WS["from_m"]}
+    for u in UNDS:
+        b = _idx_ohlc(u); sm = max((m for m in b if m <= now_m), default=None)
+        st, info = ws_trend(b, sm) if sm is not None else ("NO_DATA", {})
+        rec[u] = dict(state=st, **info)
+        parts.append(f"{u}={st}" + (f"({info['idx']}/open {info['day_open']}/vwap {info['vwap_proxy']})" if info else ""))
+    try:
+        _w(WS_LOG).parent.mkdir(parents=True, exist_ok=True)
+        with open(_w(WS_LOG), "a") as f:
+            f.write(json.dumps(rec) + "\n")
+    except OSError:
+        pass
+    blocked = len(WS["skip"])
+    return "wrongside " + " ".join(parts) + f" blocked {blocked}" + ("" if now_m >= WS_GATE_M else " (gate from 10:00)")
+
+
 def _same_contract(done: list, r: dict, em: int):
     """First held book trade on the same contract (underlying, strike, side) at minute em, else None."""
     if not DUP_ON:
@@ -223,6 +308,16 @@ def cap_and_price(rows: list, now_m: int) -> list:
         if r["rule_id"] in sho:   # 2026-10-21 SHADOW ONLY: still priced/scored, but never takes a cap2 slot or premium (desk books nothing)
             x = apply_price_exits(r, now_m); x["shadow_only"] = True; out[i] = x; continue
         new = r.get("status") in ("OPEN", "CLOSED") and em is not None and k not in CAP["admit"] and _pre_status(r) is None
+        if new and WS["from_m"] is not None and em >= WS["from_m"] and k not in DUP["skip"] and k not in CAP["skip"] and k not in PREM["skip"]:
+            hit, st, info = _wrong_side(r, em) if k not in WS["skip"] else (True, "STICKY", {})
+            if hit:
+                WS["skip"].add(k)
+                r.update(status="BLOCKED_WRONG_SIDE", exit_reason_std="BLOCKED_WRONG_SIDE", exit_time=None, exit_px=None, exit_reason=None,
+                         why=r.get("why") or WHY.get(r["rule_id"], r.get("strategy")), wrong_side=dict(state=st, **info),
+                         note=(f"wrong side: {r.get('side')} while {r.get('underlying') or 'NIFTY'} {st} at {info.get('at')} IST "
+                               f"(idx {info.get('idx')}, open {info.get('day_open')}, vwap {info.get('vwap_proxy')}); not booked") if info
+                         else "wrong side (sticky decision); not booked")
+                out[i] = r; done.append(r); continue
         if new and DUP["from_m"] is not None and em >= DUP["from_m"] and k not in CAP["skip"] and k not in PREM["skip"]:
             hit = _same_contract(done, r, em) if k not in DUP["skip"] else None
             if k in DUP["skip"] or hit is not None:
@@ -1247,7 +1342,11 @@ def once() -> str:
         except OSError:
             pass
     rows = cap_and_price(rows_all(sr), now_m)
-    rows = [r for r in rows if r["status"] in ("OPEN", "CLOSED", "SKIPPED_CHASE", "SKIPPED_CAP", "SKIPPED_PREMIUM", "PRE_START", "SKIPPED_DUP_CONTRACT")]   # PRE_START / dup skips kept visible in OUT, never booked
+    try:   # logging only
+        wtxt = ws_status(now_m)
+    except Exception as e:
+        wtxt = f"wrongside log ERROR {type(e).__name__}: {e}"
+    rows = [r for r in rows if r["status"] in ("OPEN", "CLOSED", "SKIPPED_CHASE", "SKIPPED_CAP", "SKIPPED_PREMIUM", "PRE_START", "SKIPPED_DUP_CONTRACT", "BLOCKED_WRONG_SIDE")]   # PRE_START / dup skips kept visible in OUT, never booked
     _live_save()
     for r in rows:
         if r["status"] == "OPEN":
@@ -1280,7 +1379,7 @@ def once() -> str:
         rtxt += "; " + overlay_log(rows, now_m)
     except Exception as e:
         rtxt += f"; overlay log ERROR {type(e).__name__}: {e}"
-    line = f"{line}; {qtxt}; {ptxt}; {rtxt}"
+    line = f"{line}; {qtxt}; {ptxt}; {rtxt}; {wtxt}"
     return f"{datetime.now(IST):%H:%M:%S} IST {f}; {line}; px rows {len(rows)}; {log_risk()}"
 
 
@@ -1291,7 +1390,7 @@ if __name__ == "__main__":
         if datetime.now(IST) < start:  # first complete 1m bar is 09:15
             print(f"{datetime.now(IST):%H:%M:%S} IST waiting for 09:16:05 IST (day {DAY})", flush=True)
             time.sleep((start - datetime.now(IST)).total_seconds())
-        _live_load(); _n = datetime.now(IST) - timedelta(minutes=1); _start_load(_n.hour * 60 + _n.minute); _cap_load(_n.hour * 60 + _n.minute); _prem_load(_n.hour * 60 + _n.minute); _dup_load(_n.hour * 60 + _n.minute); _entry_load()
+        _live_load(); _n = datetime.now(IST) - timedelta(minutes=1); _start_load(_n.hour * 60 + _n.minute); _cap_load(_n.hour * 60 + _n.minute); _prem_load(_n.hour * 60 + _n.minute); _dup_load(_n.hour * 60 + _n.minute); _ws_load(_n.hour * 60 + _n.minute); _entry_load()
         while datetime.now(IST).strftime("%H:%M") < "15:31":
             t = time.time()
             try:
