@@ -544,7 +544,8 @@ def apply_price_exits(row: dict, now_m: int, now_iso: str = None) -> dict:
     key = (row["rule_id"], u, row["signal_time"]); lt = LIVE.get(key)
     if lt is not None and lt.closed:
         c = lt.closed
-        row.update(status="CLOSED", exit_time=c["exit_ts"][11:16], exit_px=c["exit_px"], exit_reason=c["why"], exit_reason_std=c["why"],
+        # 2026-10-22: exit_ts keeps the exact quote time to the second (exit_time stays HH:MM; the desk parses HH:MM only)
+        row.update(status="CLOSED", exit_time=c["exit_ts"][11:16], exit_ts=c["exit_ts"], exit_px=c["exit_px"], exit_reason=c["why"], exit_reason_std=c["why"],
                    exit_src="v2_depth_bid", stop_px=round(lt.stop, 2), price_src="v2_depth")
         return row
     if em not in ob:
@@ -558,8 +559,8 @@ def apply_price_exits(row: dict, now_m: int, now_iso: str = None) -> dict:
         lt = LIVE[key] = nl
     live_ok = lt is not None and not lt.stale(now_iso)
     if r["status"] == "CLOSED" and not live_ok:
-        row.update(status="CLOSED", exit_time=_hm(r["exit_m"]), exit_px=r["exit_px"], exit_reason=r["why"], exit_reason_std=r["why"],
-                   stop_px=r["stop_px"], price_src="1m_fallback")
+        row.update(status="CLOSED", exit_time=_hm(r["exit_m"]), exit_ts=f"{DAY}T{_hm(r['exit_m'])}:00+05:30", exit_px=r["exit_px"],
+                   exit_reason=r["why"], exit_reason_std=r["why"], stop_px=r["stop_px"], price_src="1m_fallback")   # 1m fill = that minute's open
         if lt is not None:
             lt.closed = dict(exit_px=r["exit_px"], exit_ts=f"{DAY}T{_hm(r['exit_m'])}:00+05:30", why=r["why"])
         return row
@@ -568,7 +569,7 @@ def apply_price_exits(row: dict, now_m: int, now_iso: str = None) -> dict:
         exp = EXP if u == "NIFTY" else EXPS.get(u)
         nb = max(now_m + 1, em)   # live quotes count only from the first minute after this cycle's data (never before entry/restart)
         lt = LIVE[key] = LP.LiveTrade(key, LP.iid_of(u, exp, row["strike"], row["side"]), p0, S, T, hw, not_before=f"{DAY}T{_hm(nb)}:00")
-    row.update(status="OPEN", exit_time=None, exit_px=None, exit_reason=None, exit_reason_std="OPEN", stop_px=round(lt.stop, 2))
+    row.update(status="OPEN", exit_time=None, exit_ts=None, exit_px=None, exit_reason=None, exit_reason_std="OPEN", stop_px=round(lt.stop, 2))
     if live_ok:
         row.update(mark_px=lt.last_bid, mark_time=lt.last_ts[11:16], mark_ts=lt.last_ts, price_src="v2_depth")   # desk parses HH:MM only
     else:   # lab exit may already be CLOSED in the score row: mark from our own last complete 1m close (never leave mark_px empty)

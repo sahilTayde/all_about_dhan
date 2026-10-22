@@ -1166,7 +1166,7 @@ def paper_extra_rows(root: Path, day: str, skip: Optional[set] = None) -> tuple[
         row["exit_rule"] = x.get("exit_rule"); row["exit_time"] = x.get("exit_time")
         row["spec_exit_min"] = x.get("planned_exit_ist") or (x.get("exit_time") if not is_closed and x.get("exit_reason") == "TIME" else None)
         for k in ("index_stop", "stop_target_basis", "planned_exit_ist", "exit_reason_std", "official_open", "open_src",
-                  "why", "trail", "safety_close_ist", "price_src"):   # 2026-10-19 price exits: reason + levels for the website
+                  "why", "trail", "safety_close_ist", "price_src", "exit_ts"):   # exit_ts: exact exit time to the second (2026-10-22)   # 2026-10-19 price exits: reason + levels for the website
             if x.get(k) is not None:
                 row[k] = x[k]
         row["justification"] = (f"paper_extra {x['strategy']}: {x.get('why') or 'lab rule signal'}; entry next-minute open. "
