@@ -69,3 +69,34 @@ def test_other_days_are_not_hindsight_tagged(tmp_path) -> None:
     assert "hindsight_fill" not in row
     row = tag_hindsight({"trade_id": "x", "day": "2026-10-19", "entry_min": "09:47"})
     assert "hindsight_fill" not in row
+
+
+def test_day_history_lists_guard_blocked_counted_false_without_touching_totals(tmp_path) -> None:
+    """2026-10-22: guard-blocked signals appear in /paper/history under guard_blocked, counted=False, and
+    neither the trade list nor the day totals change."""
+    from api.ui_feed import day_history, day_summaries, history_rows
+
+    _setup(tmp_path)
+    recon = tmp_path / "data" / "recon"
+    path = recon / "research_rules" / "2026-10-19.json"
+    blob = json.loads(path.read_text())
+    before = day_history(tmp_path, day="2026-10-19")
+    net_before = {d["day"]: d["net"] for d in day_summaries(history_rows(tmp_path, {}, events={}))}
+    blob["guard_blocked"] = [_rr_row("RR-PX_IB_5-NIFTY-CE-1015", "2026-10-19", "10:15", 99999.0,
+                                     guard="BLOCKED_OPPOSITE_SIDE", desk_status="BLOCKED_OPPOSITE_SIDE", shadow=True)]
+    path.write_text(json.dumps(blob))
+    (recon / "paper_extra").mkdir(parents=True)
+    (recon / "paper_extra" / "2026-10-19.json").write_text(json.dumps({"rows": [], "not_booked": [
+        {"rule_id": "PX_IB_5", "underlying": "NIFTY", "side": "CE", "strike": 22850.0, "status": "BLOCKED_WRONG_SIDE",
+         "signal_time": "10:15"},
+        {"rule_id": "PX_EP018", "underlying": "NIFTY", "side": "PE", "status": "SKIPPED_CAP", "signal_time": "11:00"},
+    ]}))
+    after = day_history(tmp_path, day="2026-10-19")
+    assert after["trades"] == before["trades"]
+    net_after = {d["day"]: d["net"] for d in day_summaries(history_rows(tmp_path, {}, events={}))}
+    assert net_after == net_before
+    g = after["guard_blocked"]
+    assert after["guard_blocked_n"] == 2 == len(g)
+    assert all(r["counted"] is False for r in g)
+    assert {r["guard"] for r in g} == {"BLOCKED_OPPOSITE_SIDE", "BLOCKED_WRONG_SIDE"}
+    assert {r["source"] for r in g} == {"research_rules", "paper_extra"}

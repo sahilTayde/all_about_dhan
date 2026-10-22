@@ -1091,7 +1091,50 @@ def day_history(root: Path = REPO, day: Optional[str] = None, budget_s: Optional
     pick = day or (days[0] if days else None)
     trades = [r for r in rows if r.get("day") == pick]
     attach_entry_spots({"closed_trades": trades}, root / "data" / "recon" / "paper_watch" / "DUAL-TAPE", budget_s)
-    return {"day": pick, "days": days, "trades": trades, "complete": complete}
+    blocked = guard_blocked_rows(root, board, pick) if pick else []
+    # 2026-10-22: guard-blocked signals are listed for review only. They live in their own key, never in
+    # "trades", carry counted=False, and no P&L total reads them.
+    return {"day": pick, "days": days, "trades": trades, "complete": complete,
+            "guard_blocked": blocked, "guard_blocked_n": len(blocked)}
+
+
+_PX_GUARD_PREFIX = ("BLOCKED_",)
+
+
+def guard_blocked_rows(root: Path, board: dict[str, Any], day: str) -> list[dict[str, Any]]:
+    """Signals a desk guard refused on ``day`` (research_rules guard_blocked + paper_extra BLOCKED_* rows).
+
+    Read-only. Each row is tagged counted=False and source; rows are never added to trades or totals.
+    """
+    out: list[dict[str, Any]] = []
+    seen: set[tuple[str, str]] = set()
+
+    def add(rec: Any, source: str, status: Any = None) -> None:
+        if not isinstance(rec, dict):
+            return
+        tid = str(rec.get("trade_id") or rec.get("rule_id") or "")
+        when = str(rec.get("entry_min") or rec.get("signal_time") or rec.get("entry_time") or rec.get("opened_ist") or "")
+        key = (tid, when)
+        if key in seen:
+            return
+        seen.add(key)
+        out.append({**rec, "day": day, "counted": False, "source": source,
+                    "guard": rec.get("guard") or status or rec.get("status") or rec.get("desk_status")})
+
+    rr: dict[str, Any] = {}
+    if str(board.get("session_ist_date") or "") == day and isinstance(board.get("research_rules"), dict):
+        rr = board["research_rules"]
+    if not rr.get("guard_blocked"):
+        blob = read_json(root / "data" / "recon" / "research_rules" / f"{day}.json")
+        rr = blob if isinstance(blob, dict) else {}
+    for rec in rr.get("guard_blocked") or []:
+        add(rec, "research_rules")
+    px = read_json(root / "data" / "recon" / "paper_extra" / f"{day}.json")
+    if isinstance(px, dict):
+        for rec in px.get("not_booked") or []:
+            if isinstance(rec, dict) and str(rec.get("status") or "").startswith(_PX_GUARD_PREFIX):
+                add(rec, "paper_extra")
+    return out
 
 
 # ---------- decision trace ----------
