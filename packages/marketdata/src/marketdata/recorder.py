@@ -317,6 +317,9 @@ class MarketDataRecorder:
                 self.config.pin_root,
                 day or session_day(self.clock.now()),
                 universes,
+                extra=self.config.pin_extra,
+                cooldown_s=self.config.pin_cooldown_s,
+                now=lambda: self.clock.now().timestamp(),
             )
         self._held_pins = pins
         open_positions = pins if pins is not None else (lambda: set())
@@ -330,6 +333,7 @@ class MarketDataRecorder:
                     open_positions=open_positions,
                     open_ladder_n=self.config.open_ladder_n,
                     near_atm_n=self.config.near_atm_n,
+                    max_pinned=self.config.max_pinned if self.config.pin_extra else None,
                 ),
                 spot=u.spot,
             )

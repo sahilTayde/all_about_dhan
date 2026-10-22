@@ -36,6 +36,11 @@ class RecorderConfig:
     # Repo root used to read paper-book / decision-journal / shadow / ledger pins.
     # None (tests) means no pin scan; the CLI passes the repo root.
     pin_root: Path | None = None
+    # 2026-10-21 recentre-pin fix. pin_extra=False is the off switch (MD_PIN_EXTRA=0): no paper_extra /
+    # held_pins sources, no cooldown, no pin cap - exactly the pre-fix behaviour.
+    pin_extra: bool = True
+    pin_cooldown_s: float = 15 * 60.0
+    max_pinned: int = 40
     connect_early_s: float = 120.0
     # Re-centre from the option-chain spot only while no index tick has arrived.
     # After the first index tick, the chain is never used for spot.

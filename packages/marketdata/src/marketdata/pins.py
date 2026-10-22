@@ -11,7 +11,9 @@ import json
 import logging
 import sqlite3
 from collections.abc import Iterable
-from datetime import date
+import time
+from collections.abc import Callable
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
@@ -24,6 +26,15 @@ DECISION_JOURNAL_REL = Path("data") / "recon" / "decision_journal"
 SHADOW_V2_REL = Path("data") / "shadow" / "v2"
 RESEARCH_RULES_REL = Path("data") / "recon" / "research_rules"
 LEDGER_REL = Path("data") / "ledger" / "ledger.sqlite"
+# 2026-10-21 recentre-pin fix: paper_extra book (desk-counted and shadow rows) and a generic
+# held_pins journal that any watcher (lab shadow, re-entry, forward exits) appends to.
+PAPER_EXTRA_REL = Path("data") / "recon" / "paper_extra"
+HELD_PINS_REL = Path("data") / "recon" / "held_pins"
+# Minutes a contract stays pinned after its trade closes (re-entry / late fills). 0 = off.
+DEFAULT_COOLDOWN_S = 15 * 60.0
+# Hard cap on pins per underlying so the Dhan subscription budget is never breached.
+DEFAULT_MAX_PINNED = 40
+_OPEN_STATUSES = frozenset({"OPEN", "HELD", "IN_TRADE", "LIVE"})
 
 _OPEN_JOURNAL_STAGES = frozenset({"imm", "in_trade"})
 _CLOSED_JOURNAL_STAGES = frozenset({"exit"})
@@ -95,9 +106,20 @@ class HeldPinReader:
         root: Path,
         day: date,
         universes: Iterable[Universe] = (),
+        *,
+        extra: bool = True,
+        cooldown_s: float = DEFAULT_COOLDOWN_S,
+        now: Callable[[], float] = time.time,
     ) -> None:
         self.root = Path(root)
         self.day = day
+        # extra=False is the off switch: old sources only, no cooldown (pre-2026-10-21 behaviour).
+        self.extra = extra
+        self.cooldown_s = cooldown_s if extra else 0.0
+        self.now = now
+        # iid -> (priority, sort key). priority 0 = open trade, 1 = closed within cooldown.
+        self._recent: dict[str, float] = {}
+        self._open_since: dict[str, float] = {}
         self._expiry: dict[str, str] = {}
         self._known: set[str] = set()
         self._strike: dict[tuple[str, int, str], str] = {}
@@ -121,14 +143,36 @@ class HeldPinReader:
             self.root / SHADOW_V2_REL / day / "pnl.jsonl",
             self.root / LEDGER_REL,
             self.root / RESEARCH_RULES_REL / f"{day}.json",
-        ]
+        ] + (
+            [
+                self.root / PAPER_EXTRA_REL / f"{day}.json",
+                self.root / HELD_PINS_REL / f"{day}.jsonl",
+            ]
+            if self.extra
+            else []
+        )
 
     def __call__(self) -> set[str]:
+        return set(self.ranked())
+
+    def ranked(self) -> list[str]:
+        """Open contracts first (oldest open first), then contracts closed within the cooldown
+        (most recent close first). Callers cap this list; the order decides who survives a cap."""
         stamp = self._mtime_stamp()
         if stamp != self._mtimes:
+            self._recent = {}
+            self._open_since = {}
             self._cached = self._load()
             self._mtimes = stamp
-        return set(self._cached)
+        now_s = self.now()
+        open_ids = sorted(self._cached, key=lambda i: (self._open_since.get(i, 0.0), i))
+        recent = [
+            iid
+            for iid, closed_s in sorted(self._recent.items(), key=lambda kv: (-kv[1], kv[0]))
+            if iid not in self._cached and now_s - closed_s <= self.cooldown_s
+        ]
+        known = self._known
+        return [i for i in open_ids + recent if not known or i in known]
 
     def _mtime_stamp(self) -> tuple[tuple[str, float], ...]:
         out: list[tuple[str, float]] = []
@@ -146,6 +190,9 @@ class HeldPinReader:
         ids.update(self._from_shadow())
         ids.update(self._from_ledger())
         ids.update(self._from_research_rules())
+        if self.extra:
+            ids.update(self._from_paper_extra())
+            ids.update(self._from_held_pins())
         if self._known:
             return {iid for iid in ids if iid in self._known}
         return ids
@@ -250,6 +297,15 @@ class HeldPinReader:
         sp = blob.get("shadow_parked") if isinstance(blob.get("shadow_parked"), dict) else {}
         rows += list(sp.get("open") or [])
         ids: set[str] = set()
+        closed_rows = list(blob.get("closed") or []) + list(sp.get("closed") or [])
+        if self.extra:
+            for row in closed_rows:
+                if isinstance(row, dict):
+                    r = dict(row)
+                    r.setdefault("strike", row.get("held_strike") or row.get("atm_strike"))
+                    iid = self.resolve(r)
+                    if iid:
+                        self._closed(iid, row.get("closed_ts") or row.get("exit_time"))
         for row in rows:
             if not isinstance(row, dict) or _is_closed_trade(row):
                 continue
@@ -259,6 +315,72 @@ class HeldPinReader:
             if iid:
                 ids.add(iid)
         return ids
+
+    def _closed(self, iid: str, when: Any) -> None:
+        ts = self._ts(when)
+        if ts is not None and self.cooldown_s > 0:
+            self._recent[iid] = max(ts, self._recent.get(iid, 0.0))
+
+    def _opened(self, iid: str, when: Any) -> None:
+        ts = self._ts(when)
+        if ts is not None:
+            self._open_since[iid] = min(ts, self._open_since.get(iid, ts))
+
+    def _ts(self, value: Any) -> float | None:
+        """Epoch seconds from epoch, ISO 8601, or IST "HH:MM[:SS]" on the session day."""
+        if value is None or value == "":
+            return None
+        num = _num(value)
+        if num is not None:
+            return num / 1000.0 if num > 1e11 else num
+        raw = str(value).strip()
+        ist = timezone(timedelta(hours=5, minutes=30))
+        try:
+            if "T" in raw or "-" in raw[:10]:
+                dt = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+                return (dt if dt.tzinfo else dt.replace(tzinfo=ist)).timestamp()
+            parts = [int(float(p)) for p in raw.split(":")]
+            hh, mm, ss = (parts + [0, 0])[:3]
+            return datetime(self.day.year, self.day.month, self.day.day, hh, mm, ss, tzinfo=ist).timestamp()
+        except (ValueError, TypeError):
+            return None
+
+    def _from_paper_extra(self) -> set[str]:
+        """paper_extra book: desk-counted and shadow rows. Open = status OPEN or no exit_time."""
+        blob = _json_obj(self.root / PAPER_EXTRA_REL / f"{self.day.isoformat()}.json")
+        ids: set[str] = set()
+        for row in blob.get("rows") or []:
+            if not isinstance(row, dict) or row.get("entry_time") in (None, ""):
+                continue
+            iid = self.resolve(row)
+            if not iid:
+                continue
+            status = str(row.get("status") or "").upper()
+            if status in _OPEN_STATUSES or (not status and row.get("exit_time") in (None, "")):
+                ids.add(iid)
+                self._opened(iid, row.get("entry_time"))
+            elif row.get("exit_time") not in (None, ""):
+                self._closed(iid, row.get("exit_time"))
+        return ids
+
+    def _from_held_pins(self) -> set[str]:
+        """Generic journal, one JSON object per line: {"event": "open"|"close", "ts": ..., and
+        instrument_id or underlying/strike/side, "source": "..."}. Open/close are counted per
+        (source, trade_id) so two watchers on one contract both have to close it."""
+        live: dict[str, set[str]] = {}
+        for row in _jsonl(self.root / HELD_PINS_REL / f"{self.day.isoformat()}.jsonl"):
+            iid = self.resolve(row)
+            if not iid:
+                continue
+            key = f"{row.get('source') or ''}|{row.get('trade_id') or ''}"
+            event = str(row.get("event") or "").lower()
+            if event == "open":
+                live.setdefault(iid, set()).add(key)
+                self._opened(iid, row.get("ts"))
+            elif event == "close":
+                live.get(iid, set()).discard(key)
+                self._closed(iid, row.get("ts"))
+        return {iid for iid, keys in live.items() if keys}
 
     def _from_ledger(self) -> set[str]:
         path = self.root / LEDGER_REL

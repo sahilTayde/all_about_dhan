@@ -23,7 +23,11 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass, field
 
+import logging
+
 from marketdata.instruments import Instrument, Universe
+
+log = logging.getLogger(__name__)
 
 # (rule, ITM points). Negative = OTM: CE = ATM − offset (above), PE = ATM + offset (below).
 RULES: tuple[tuple[str, int], ...] = (
@@ -78,6 +82,7 @@ class StrikeSet:
         open_positions: Callable[[], set[str]] = _no_positions,
         open_ladder_n: int = 0,
         near_atm_n: int = 0,
+        max_pinned: int | None = None,
     ) -> None:
         self.universe = universe
         self.retention_s = retention_s
@@ -88,6 +93,9 @@ class StrikeSet:
         # 2026-10-12: every listed strike (NIFTY 50-pt, SENSEX 100-pt) within +-near_atm_n steps of the
         # moving ATM, both sides (rules NEAR_P<k>/NEAR_M<k>). The named ATM/ITM/OTM rules win on overlap.
         self.near_atm_n = near_atm_n
+        # 2026-10-21: cap on held/recent pins for this book (None = no cap, pre-fix behaviour).
+        self.max_pinned = max_pinned
+        self.pins_dropped: list[str] = []
         self.atm: int | None = None
         self.session_open_atm: int | None = None
         self.current: dict[str, tuple[str, str]] = {}
@@ -138,7 +146,7 @@ class StrikeSet:
         rule "HELD") until the trade closes. Before this, a held strike the ATM moved away from stayed
         subscribed but got no snapshot, so exits had no recorded quote."""
         out = dict(self.current)
-        for iid in self.open_positions():
+        for iid in self._held():
             inst = self._by_id.get(iid)
             if iid not in out and inst is not None and iid in self.subscribed:
                 side = iid.rsplit(":", 1)[-1].upper()
@@ -148,8 +156,23 @@ class StrikeSet:
     def rule_for(self, instrument_id: str) -> tuple[str, str] | None:
         return self.current.get(instrument_id) or self.open_ladder.get(instrument_id)
 
+    def _held(self) -> list[str]:
+        """Held/recent pins for this book, in priority order, capped at ``max_pinned``."""
+        ranked = getattr(self.open_positions, "ranked", None)
+        ids = list(ranked()) if callable(ranked) else sorted(self.open_positions())
+        mine = [i for i in ids if i in self._by_id]
+        if self.max_pinned is not None and len(mine) > self.max_pinned:
+            dropped = mine[self.max_pinned :]
+            if dropped != self.pins_dropped:
+                log.warning("pin cap %d reached: %d held contracts not pinned: %s", self.max_pinned, len(dropped), dropped)
+            self.pins_dropped = dropped
+            mine = mine[: self.max_pinned]
+        else:
+            self.pins_dropped = []
+        return mine
+
     def _pinned(self) -> set[str]:
-        keep = self.open_positions()
+        keep = set(self._held())
         keep.update(self.open_ladder)
         return keep
 
@@ -179,8 +202,18 @@ class StrikeSet:
                 change.atm = atm
 
         keep = self._pinned()
-        want += list(self.open_ladder)
-        want += [iid for iid in keep if iid in self._by_id]
+        held = [iid for iid in self._held() if iid in self._by_id]
+        # Held pins first so they win the last free slots under the subscription cap.
+        want = held + want + list(self.open_ladder)
+        if self.max_pinned is not None:
+            # A pin that ended (trade closed, cooldown over) and is outside the moving set and the
+            # ladder now gets the normal retention window instead of streaming for the rest of the day.
+            fixed = {self.universe.index.instrument_id}
+            if self.universe.future:
+                fixed.add(self.universe.future.instrument_id)
+            for iid in self.subscribed:
+                if iid not in self.current and iid not in keep and iid not in fixed and iid not in self.retained:
+                    self.retained[iid] = now_s + self.retention_s
         pending = [iid for iid in dict.fromkeys(want) if iid not in self.subscribed]
         for iid, expires in sorted(self.retained.items(), key=lambda kv: kv[1]):
             over_cap = len(self.subscribed) + len(pending) > self.max_instruments
