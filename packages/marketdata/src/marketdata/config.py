@@ -33,6 +33,9 @@ class RecorderConfig:
     near_atm_n: int = 0  # CLI (python -m marketdata) sets 4; tests that omit it keep existing counts
     # Dhan 20-level depth feed (separate socket, marketdata.depth20). Off until verified on a live frame.
     depth20: bool = False
+    # 2026-10-22: rows per instrument per side at most every depth20_throttle_s; ws base overridable for tests.
+    depth20_throttle_s: float = 1.0
+    depth20_ws_base: str = "wss://depth-api-feed.dhan.co/twentydepth"
     # Repo root used to read paper-book / decision-journal / shadow / ledger pins.
     # None (tests) means no pin scan; the CLI passes the repo root.
     pin_root: Path | None = None
