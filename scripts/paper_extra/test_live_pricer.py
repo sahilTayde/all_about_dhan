@@ -1,6 +1,6 @@
 """Tests for live_pricer + the runner's price-exit path (2026-10-19). Box/Mac, no network. Run: python3 test_live_pricer.py
 1 marks at the BID (never mid/ltp), 2 stop, 3 break-even trail, 4 high-water trail, 5 target, 6 stop wins over target, 7 bid None ignored,
-8 15:15 safety, 9 stale -> fallback flag, 10 DepthTail incremental read, 11 runner fallback closes on 1m bars when live is stale,
+8 no 15:15 time close, 9 stale -> fallback flag, 10 DepthTail incremental read, 11 runner fallback closes on 1m bars when live is stale,
 12 runner keeps OPEN and marks at live bid when live is fresh, 13 live exit wins, 14 anti-chase skip, 15 Oct 19 EP010 real tape."""
 import json, os, sys, tempfile, importlib
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -17,7 +17,7 @@ t = lt(); t.on_quote(150.0, T0 % 1); ok(abs(t.stop - 105.0) < 1e-9, "4a hw*0.7")
 t = lt(); c = t.on_quote(160.0, T0 % 1); ok(c and c["why"] == "TARGET", "5 target")
 t = LP.LiveTrade(("k",), "i", 100.0, .30, -.40); c = t.on_quote(60.0, T0 % 1); ok(c and c["why"] == "STOP", "6 stop wins when both")
 t = lt(); ok(t.on_quote(None, T0 % 1) is None and t.on_quote(0, T0 % 2) is None and t.last_bid is None, "7 no bid ignored")
-t = lt(); c = t.on_quote(101.0, "2026-10-21T15:15:00+05:30"); ok(c and c["why"] == "SAFETY_1515", "8 safety close")
+t = lt(); c = t.on_quote(101.0, "2026-10-21T15:15:00+05:30"); ok(c is None and t.closed is None, "8 no 15:15 time close (price-only exits, 2026-10-22)")
 t = lt(); t.on_quote(101.0, T0 % 1); ok(not t.stale(T0 % 9) and t.stale("2026-10-21T10:00:15+05:30"), "9 stale after 10 s"); ok(lt().stale(T0 % 1), "9b never quoted = stale")
 d = tempfile.mkdtemp(); __import__("atexit").register(__import__("shutil").rmtree, d, True); f = os.path.join(d, "depth_quotes.jsonl")
 q = lambda iid, bid, ask, ltp, s: json.dumps({"payload": {"instrument_id": iid, "bid": bid, "ask": ask, "ltp": ltp}, "timestamp": T0 % s}) + "\n"

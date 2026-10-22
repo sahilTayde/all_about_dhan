@@ -11,7 +11,7 @@ Exit status (per OPEN trade, each cycle and each live-guard tick):
   VWAP = running mean of the index typical price (H+L+C)/3 from 09:15 (TWAP proxy; the index has no volume).
   Slopes in bps of the index, signed so + = the trade's direction (CE up, PE down). Index minute = latest complete 1m bar <= now.
 Shadow overlays (never applied):
-  T50 : same stop 30% / trail (BE at +30%, then HW x 0.70) / 15:15, target 50%, on the 1m-close path (fill next minute open).
+  T50 : same stop 30% / trail (BE at +30%, then HW x 0.70), no time close, target 50%, on the 1m-close path (fill next minute open).
   TS  : target 50% if trend morning (09:15-09:44 move >= 20.7 bps AND efficiency >= 0.196, signal at/after 09:45) OR expiry day
         OR entry before 10:00 OR entry at/after 13:30 IST; else 60%. Same path rules.
   BASE60: the live rule (60%) on the same 1m-close path, so T50/TS compare like for like.
@@ -105,7 +105,7 @@ def path_1m(ob, em, p0, now_m, target, be_at=None):
     """same rules as runner.price_exit_path (from_m=None) with a different target; ob = {minute: (open, close)}.
     be_at (e.g. 0.10): once the 1m close reaches entry x (1 + be_at), the stop is at least entry (BE10 overlay)."""
     S = STOP; stop = p0 * (1 - S); tgt = p0 * (1 + target); hw = p0
-    for m in range(em, min(now_m, SAFE_M) + 1):
+    for m in range(em, now_m + 1):
         if m not in ob:
             continue
         c = ob[m][1]; hw = max(hw, c)
@@ -122,13 +122,6 @@ def path_1m(ob, em, p0, now_m, target, be_at=None):
             if fill is None or fill[0] > now_m:
                 return dict(status="OPEN", hw=hw)
             return dict(status="CLOSED", exit_m=fill[0], exit_px=fill[1], why=why, hw=hw)
-    if now_m > SAFE_M:
-        nx = next(((m2, ob[m2][0]) for m2 in (SAFE_M + 1, SAFE_M + 2, SAFE_M + 3) if m2 in ob), None)
-        if nx is None and now_m >= SAFE_M + 3:
-            prev = [m2 for m2 in ob if em <= m2 <= SAFE_M]
-            nx = (max(prev), ob[max(prev)][1]) if prev else None
-        if nx is not None:
-            return dict(status="CLOSED", exit_m=nx[0], exit_px=nx[1], why="SAFETY_1515", hw=hw)
     return dict(status="OPEN", hw=hw)
 
 

@@ -1,7 +1,8 @@
 """Live premium pricer for paper_extra OPEN rows (2026-10-19, Sahil option A). PAPER ONLY, read-only on the V2 tape.
 Marks every open row at the BID (exit side; mid/ltp never used to fire) from data/tape/v2/<day>/depth_quotes.jsonl, polled every ~3 s.
 Fires STOP / TRAIL / TARGET on the bid: stop = entry x (1-S); after the bid high-water reaches entry x (1+S) the stop moves to
-max(entry, hw x (1-S)); target = entry x (1+T); stop is checked before target. Fill = the triggering bid. 15:15 IST safety close at the bid.
+max(entry, hw x (1-S)); target = entry x (1+T); stop is checked before target. Fill = the triggering bid.
+2026-10-22: no time close (the old 15:15 SAFETY_1515 is removed); exits are price-only, the desk square-off closes what is left.
 A row whose last bid is older than STALE_S seconds is 'stale' and the runner falls back to the 1-minute-close rule."""
 import json, os
 from datetime import datetime
@@ -14,12 +15,12 @@ def iid_of(und: str, exp: str, strike, side: str) -> str:
 
 
 class LiveTrade:
-    def __init__(self, key, iid, entry, stop_frac, target_frac, hw=None, safety_hhmmss="15:15:00", not_before=None):
+    def __init__(self, key, iid, entry, stop_frac, target_frac, hw=None, safety_hhmmss=None, not_before=None):
         self.key, self.iid, self.entry = key, iid, float(entry)
         self.not_before = not_before   # ISO ts: quotes earlier than this (before entry / before restart) are ignored (2026-10-19 live bug)
         self.S, self.T = float(stop_frac), float(target_frac)
         self.hw = max(float(hw or entry), self.entry)
-        self.safety = safety_hhmmss
+        self.safety = None   # kept for old callers; never used (price-only exits, 2026-10-22)
         self.last_bid = None; self.last_ts = None
         self.closed = None   # dict(exit_px, exit_ts, why)
         self.stop_floor = None   # 2026-10-19 Sahil manual lock (e.g. +15%); stop never below this
@@ -47,8 +48,6 @@ class LiveTrade:
         if self.not_before and ts[:19] < self.not_before[:19]:
             return None
         self.last_bid, self.last_ts = float(bid), ts
-        if ts[11:19] >= self.safety:
-            self.closed = dict(exit_px=float(bid), exit_ts=ts, why="SAFETY_1515"); return self.closed
         st = self.stop   # level BEFORE this quote updates the high-water (no same-tick look-ahead)
         if bid <= st:
             self.closed = dict(exit_px=float(bid), exit_ts=ts, why="STOP" if st < self.entry - 1e-9 else "TRAIL"); return self.closed

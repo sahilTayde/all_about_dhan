@@ -63,8 +63,10 @@ XR = {"STOP": "STOP", "TARGET": "TARGET", "TIME": "TIME", "EXIT": "RULE_EXIT", "
       "EOD": "TIME", "open": "OPEN", "": None}
 # 2026-10-19 PRICE EXITS (Sahil, Oct 18 23:54 CT via Opposition): every PX row gets a premium stop AND target AND trail; no timers.
 # Replay: desk/verify/2026-10-19_price_exits_all/REPORT.md. Close-based trigger on 1m option closes (live: depth bid, see live_guard),
-# fill = next minute OPEN; stop wins if both in one minute; trail = break-even at +STOP, then high-water x (1-STOP); 15:15 IST safety close.
-PRICE_EXIT = {"stop": 0.30, "target": 0.60, "trail": True, "antichase_rise": 0.12, "safety_m": 915, "live_poll_s": 3.0}   # re-entry OFF (Sahil, Oct 19)
+# fill = next minute OPEN; stop wins if both in one minute; trail = break-even at +STOP, then high-water x (1-STOP).
+# 2026-10-22 (two-week review bug 1): exits are PRICE-ONLY. The old 15:15 IST SAFETY_1515 time close is gone; a row still open at the
+# end of the session stays OPEN (marked at the bid) and the desk's normal end-of-session square-off (FLATTEN_1516) closes the ticket.
+PRICE_EXIT = {"stop": 0.30, "target": 0.60, "trail": True, "antichase_rise": 0.12, "live_poll_s": 3.0}   # re-entry OFF (Sahil, Oct 19)
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import live_pricer as LP   # noqa: E402
 LIVE = {}            # (rule_id, underlying, signal_time) -> LP.LiveTrade
@@ -365,7 +367,7 @@ def _opt_bars(u: str, K: int, side: str) -> dict:
 def price_exit_path(ob: dict, em: int, p0: float, now_m: int, from_m: int = None) -> dict:
     """Premium stop/target/trail from entry minute em (filled at its open). ob = {minute: (open, close)}. Pure; no look-ahead."""
     S, T = PRICE_EXIT["stop"], PRICE_EXIT["target"]; stop = p0 * (1 - S); tgt = p0 * (1 + T); hw = p0
-    for m in range(em, min(now_m, PRICE_EXIT["safety_m"]) + 1):
+    for m in range(em, now_m + 1):
         if m not in ob:
             continue
         c = ob[m][1]; hw = max(hw, c)
@@ -383,14 +385,6 @@ def price_exit_path(ob: dict, em: int, p0: float, now_m: int, from_m: int = None
             if fill is None or fill[0] > now_m:
                 return dict(status="OPEN", stop_px=round(stop, 2), target_px=round(tgt, 2), pending_exit=why)
             return dict(status="CLOSED", exit_m=fill[0], exit_px=fill[1], why=why, stop_px=round(stop, 2), target_px=round(tgt, 2))
-    sf = PRICE_EXIT["safety_m"]
-    if now_m > sf:
-        nx = next(((m2, ob[m2][0]) for m2 in (sf + 1, sf + 2, sf + 3) if m2 in ob), None)
-        if nx is None and now_m >= sf + 3:   # no bar after 15:15: last complete close at/before 15:15
-            prev = [m2 for m2 in ob if em <= m2 <= sf]
-            nx = (max(prev), ob[max(prev)][1]) if prev else None
-        if nx is not None:
-            return dict(status="CLOSED", exit_m=nx[0], exit_px=nx[1], why="SAFETY_1515", stop_px=round(stop, 2), target_px=round(tgt, 2))
     return dict(status="OPEN", stop_px=round(stop, 2), target_px=round(tgt, 2))
 
 
@@ -524,8 +518,8 @@ def apply_price_exits(row: dict, now_m: int, now_iso: str = None) -> dict:
     hm2m = lambda s: int(s[:2]) * 60 + int(s[3:5])
     now_iso = now_iso or datetime.now(IST).isoformat(timespec="seconds")
     row["why"] = row.get("why") or WHY.get(row["rule_id"], row.get("strategy"))
-    row["planned_exit_ist"] = None; row["safety_close_ist"] = "15:15"; row["trail"] = "BE at +30%, then high-water x 0.70"
-    row["exit_rule"] = "Premium stop 30% / target 60% / trail (BE at +30%, then HW x 0.70); 15:15 safety close; no timer"
+    row["planned_exit_ist"] = None; row["safety_close_ist"] = None; row["trail"] = "BE at +30%, then high-water x 0.70"
+    row["exit_rule"] = "Premium stop 30% / target 60% / trail (BE at +30%, then HW x 0.70); price exits only, no time close; desk end-of-session square-off"
     row["stop_target_basis"] = "PREMIUM: live V2 depth BID every 3 s (fallback: 1-min option close, fill next minute open); stop wins ties"
     u = row["underlying"]; ob = _opt_bars(u, row["strike"], row["side"])
     em = hm2m(row["entry_time"]); sm = em - 1; p0 = float(row["entry_px"])
@@ -559,7 +553,7 @@ def apply_price_exits(row: dict, now_m: int, now_iso: str = None) -> dict:
     if lt is not None and lt.closed is None and abs(lt.entry - p0) > 1e-9:
         # 2026-10-21 v4 (Opposition review V3 #E): a late ask replaced the fallback entry -> rebuild the live trade around the booked entry so
         # live stop / target / trail use the same price as P&L. Quote history (high-water, last bid, not_before, manual locks) is kept.
-        nl = LP.LiveTrade(key, lt.iid, p0, S, T, max(lt.hw, p0), safety_hhmmss=lt.safety, not_before=lt.not_before)
+        nl = LP.LiveTrade(key, lt.iid, p0, S, T, max(lt.hw, p0), not_before=lt.not_before)
         nl.last_bid, nl.last_ts, nl.stop_floor, nl.trail_gap = lt.last_bid, lt.last_ts, lt.stop_floor, lt.trail_gap
         lt = LIVE[key] = nl
     live_ok = lt is not None and not lt.stale(now_iso)
