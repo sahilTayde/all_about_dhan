@@ -17,9 +17,13 @@ Shadow overlays (never applied):
   BASE60: the live rule (60%) on the same 1m-close path, so T50/TS compare like for like.
   DR  : after a giveback trade (1m-close peak >= +15%, closed at a loss after 1.5x charges) has EXITED today, a later entry is a
         'would skip' unless at its signal minute the 10-min index slope is with the trade (> 0) AND the index is on the trade's side of VWAP.
+  CHASE8 (2026-10-22, Sahil 'all pending items now'): would skip if the option premium rose > 8% on the signal candle
+        (signal-minute close / signal-minute open - 1 > 0.08). Would-have result = not traded (0) vs the actual trade.
+  BE10  (2026-10-22): same path as BASE60 but the stop moves to entry (break-even) once the 1m close reaches +10%.
 Every public function is wrapped by the runner; a failure yields {"error": ...}, never a raise into the desk path."""
 import math
-VERSION = "shadow_overlays v1 (lab/2026-10-19_giveback_forensics frozen)"
+VERSION = "shadow_overlays v2 (v1 lab/2026-10-19_giveback_forensics frozen + CHASE8/BE10 2026-10-22)"
+CHASE8_RISE, BE10_AT = 0.08, 0.10
 M0 = 555; SAFE_M = 915
 STOP, TARGET = 0.30, 0.60
 MED_M30, MED_EFF = 20.7, 0.196          # 2025 medians, frozen (PREREG.md)
@@ -97,8 +101,9 @@ def status(p0, px, peak, prem_3ago, sg, idx, k_now, k_sig, held_min=None):
 
 
 # ---------------- shadow targets / DR
-def path_1m(ob, em, p0, now_m, target):
-    """same rules as runner.price_exit_path (from_m=None) with a different target; ob = {minute: (open, close)}"""
+def path_1m(ob, em, p0, now_m, target, be_at=None):
+    """same rules as runner.price_exit_path (from_m=None) with a different target; ob = {minute: (open, close)}.
+    be_at (e.g. 0.10): once the 1m close reaches entry x (1 + be_at), the stop is at least entry (BE10 overlay)."""
     S = STOP; stop = p0 * (1 - S); tgt = p0 * (1 + target); hw = p0
     for m in range(em, min(now_m, SAFE_M) + 1):
         if m not in ob:
@@ -106,7 +111,10 @@ def path_1m(ob, em, p0, now_m, target):
         c = ob[m][1]; hw = max(hw, c)
         if hw >= p0 * (1 + S):
             stop = max(stop, p0, hw * (1 - S))
-        why = "STOP" if c <= stop and stop < p0 else "TRAIL" if c <= stop else "TARGET" if c >= tgt else None
+        elif be_at is not None and hw >= p0 * (1 + be_at):
+            stop = max(stop, p0)
+        why = ("STOP" if c <= stop and stop < p0 else ("BE" if hw < p0 * (1 + S) else "TRAIL") if c <= stop
+               else "TARGET" if c >= tgt else None)
         if why:
             fill = next(((m2, ob[m2][0]) for m2 in (m + 1, m + 2, m + 3) if m2 in ob), None)
             if fill is None and now_m >= m + 3:
@@ -150,3 +158,13 @@ def dr_flags(trades):
         if not skip and t.get("giveback") and t.get("exit_m") is not None:
             gbx.append(t["exit_m"])
     return out
+
+
+def chase8(ob, sig_m):
+    """CHASE8 shadow skip: premium up > 8% on the signal candle (open -> close of the signal minute). Pure."""
+    v = ob.get(sig_m)
+    if not v or not _fin(v[0]) or not _fin(v[1]) or v[0] <= 0:
+        return {"would_skip": None, "signal_candle_pct": None, "rule": "premium > +8% on the signal candle (no bar: unknown)"}
+    rise = v[1] / v[0] - 1
+    return {"would_skip": bool(round(rise, 9) > CHASE8_RISE), "signal_candle_pct": round(rise * 100, 2),
+            "rule": "premium > +8% on the signal candle"}

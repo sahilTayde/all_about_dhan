@@ -1262,13 +1262,16 @@ def overlay_rows(rows: list, now_m: int) -> str:
             p0 = float(r["entry_px"]); ob = _opt_bars(u, r["strike"], r["side"]); idx = _so_idx(u); exp = EXP if u == "NIFTY" else EXPS.get(u)
             tgt, tw, m30, eff = SO.ts_target(idx, sm, em, (exp == DAY) if exp else False)
             paths = {k: SO.path_1m(ob, em, p0, now_m, t) for k, t in (("base60_1m", 0.60), ("t50", 0.50), ("ts", tgt))} if em in ob else {}
+            if em in ob and hasattr(SO, "BE10_AT"):   # 2026-10-22 shadow only: break-even at +10%
+                paths["be10"] = SO.path_1m(ob, em, p0, now_m, 0.60, be_at=SO.BE10_AT)
+            c8 = SO.chase8(ob, sm) if hasattr(SO, "chase8") else None
             gb = None; xm = _m(r.get("exit_time")) if r.get("status") == "CLOSED" else None
             if xm is not None and r.get("exit_px") is not None:
                 pk = max([ob[m][1] for m in ob if em <= m < xm] + [p0]); net = _net(p0, float(r["exit_px"]), int(r["qty"]), u)
                 gb = bool(pk >= p0 * 1.15 and (net if net is not None else (float(r["exit_px"]) - p0)) < 0)
             ok, s10, vs = SO.dr_ok(idx, sm, sg)
             dr_in.append(dict(key=_so_key(r), entry_m=em, sig_m=sm, exit_m=xm, giveback=bool(gb), ok=ok, ok_s10=s10, ok_side=vs))
-            info[_so_key(r)] = dict(ts_target=tgt, ts_reasons=tw, morning_move_bps=m30, morning_eff=eff, giveback=gb,
+            info[_so_key(r)] = dict(chase8=c8, ts_target=tgt, ts_reasons=tw, morning_move_bps=m30, morning_eff=eff, giveback=gb,
                                     paths={k: {kk: (round(vv, 2) if kk == "hw" else vv) for kk, vv in v.items()} for k, v in paths.items()})
         except Exception as e:
             info[_so_key(r)] = {"error": f"{type(e).__name__}: {e}"}; bad += 1
@@ -1309,12 +1312,12 @@ def overlay_log(rows: list, now_m: int) -> str:
             if k in SO_DONE:
                 continue
             so = r.get("shadow_overlays") or {}; P = so.get("paths") or {}
-            if so.get("error") or (any((P.get(x) or {}).get("status") != "CLOSED" for x in ("base60_1m", "t50", "ts")) and now_m < 918):
+            if so.get("error") or (any((P.get(x) or {}).get("status") != "CLOSED" for x in ("base60_1m", "t50", "ts", "be10")) and now_m < 918):
                 continue
             u = r.get("underlying") or "NIFTY"; p0 = float(r["entry_px"]); q = int(r["qty"])
             act = _leg(p0, r["exit_px"], q, u); act.update(exit_time=r.get("exit_time"), why=r.get("exit_reason"))
             legs = {}
-            for x in ("base60_1m", "t50", "ts"):
+            for x in ("base60_1m", "t50", "ts", "be10"):
                 v = P.get(x) or {}
                 legs[x] = _leg(p0, v.get("exit_px"), q, u) if v.get("status") == "CLOSED" else None
                 if legs[x]:
@@ -1323,6 +1326,9 @@ def overlay_log(rows: list, now_m: int) -> str:
             rec = dict(day=DAY, key=list(k), entry_time=r.get("entry_time"), entry_px=p0, qty=q, actual=act, **legs, ts_target=so.get("ts_target"),
                        ts_reasons=so.get("ts_reasons"), giveback=so.get("giveback"), dr=dr,
                        if_dr_applied=(dict(exit_px=None, gross_inr=0.0, net_inr_1_5x=0.0) if dr.get("would_skip") else act),
+                       chase8=so.get("chase8"),
+                       if_chase8_applied=(dict(exit_px=None, gross_inr=0.0, net_inr_1_5x=0.0)
+                                          if (so.get("chase8") or {}).get("would_skip") else act),
                        version=so.get("version"), shadow_only=True, logged_ist=datetime.now(IST).isoformat(timespec="seconds"))
             with open(_w(SO_FILE), "a") as f:
                 f.write(json.dumps(rec) + "\n")
