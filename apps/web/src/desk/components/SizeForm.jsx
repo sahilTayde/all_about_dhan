@@ -8,7 +8,7 @@ const RISKS = [
 ];
 
 /** Compact paper size. Local only — not an order. */
-export function SizeForm({ lots: startLots = 10, entry, qtyPerLot = 50, deskInr = 500000 }) {
+export function SizeForm({ lots: startLots = 10, entry, qtyPerLot = 50, deskInr = 1000000 }) {
   const [lots, setLots] = useState(Number(startLots) || 10);
   const [risk, setRisk] = useState("one");
   const capital = useMemo(() => {

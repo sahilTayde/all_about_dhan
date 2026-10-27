@@ -107,7 +107,7 @@ def test_pdiv_and_mom_thresholds_are_frozen() -> None:
     assert rr.mom_side(idx_t=25010.0, idx_k=25000.0, thr=0.0005) is None
 
 
-def test_replay_fills_t_plus_1_holds_20_and_uses_cost_fixture(tmp_path: Path) -> None:
+def test_replay_fills_t_plus_1_holds_20_and_uses_cost_fixture(tmp_path: Path, pre_park_rule_set) -> None:
     # Warmup 09:30..09:59 (30 min). Signal window starts 10:00.
     # MOM: 10:00 vs 09:57 up 6bp → CE. PDIV: flat index, CE +10% vs PE.
     mins = _minutes("09:30", 62)  # 09:30 .. 10:31 (PDIV TIME exit)
@@ -155,20 +155,21 @@ def test_replay_fills_t_plus_1_holds_20_and_uses_cost_fixture(tmp_path: Path) ->
     assert mom[0]["qty"] == 650
     assert mom[0]["lots"] == 10
     assert mom[0]["execution"] == "refused"
-    expect = groww_round_trip_charges(exit_premium=108.0, entry_premium=102.0, qty=650, filled=True)
+    raw = groww_round_trip_charges(exit_premium=108.0, entry_premium=102.0, qty=650, filled=True)
+    expect = {k: round(v * rr.COST_MULT, 2) for k, v in raw.items() if k.endswith("_inr")}  # 1.5x desk costs (4766be0 D2)
     assert mom[0]["charges_inr"] == expect["charges_inr"]
     assert mom[0]["exchange_inr"] == expect["exchange_inr"]
-    assert mom[0]["brokerage_inr"] == 40.0
+    assert mom[0]["brokerage_inr"] == 60.0  # Rs 20 x 2 orders x 1.5
     gross = pnl_inr(points=6.0, lot_size=65, lots=10)
     assert mom[0]["gross_pnl_inr"] == gross
     assert mom[0]["realized_pnl_inr"] == net_pnl_inr(gross_inr=gross, charges_inr=expect["charges_inr"])
 
-    assert len(pdiv) == 1
-    assert pdiv[0]["side"] == "CE"
-    assert pdiv[0]["sig_min"] == "10:10"
-    assert pdiv[0]["entry_min"] == "10:11"
-    assert pdiv[0]["exit_min"] == "10:31"
-    assert pdiv[0]["qty"] == 650
+    # 2026-10-12 same-contract guard: R02 holds NIFTY 25000 CE 10:01-10:21, so PDIV's 10:10 CE buy of the
+    # same contract is a repeat buy (DUP_SAME_CONTRACT, shadow), not a second desk trade.
+    assert pdiv == []
+    dup = [t for t in out["dup_same_contract"] if t["rule_id"] == rr.R01 and t["underlying"] == "NIFTY"]
+    assert len(dup) == 1 and dup[0]["side"] == "CE" and dup[0]["sig_min"] == "10:10"
+    assert dup[0]["dup_of"] == mom[0]["trade_id"]
     b3a = [t for t in out["closed"] if t["rule_id"] == rr.R01_B3A and t["underlying"] == "NIFTY"]
     assert b3a == []  # same tape, rv30 below frozen cut — R01 unchanged, B3A gated off
 
@@ -185,7 +186,7 @@ def test_flag_off_does_not_attach(tmp_path: Path) -> None:
     assert out["closed_trades"] == [{"book_id": "MIX-DEFAULT-BUY"}]
 
 
-def test_attach_merges_onto_desk_board(tmp_path: Path) -> None:
+def test_attach_merges_onto_desk_board(tmp_path: Path, pre_park_rule_set) -> None:
     mins = _minutes("09:30", 52)
     rows = []
     for hhmm in mins:

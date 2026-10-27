@@ -29,9 +29,21 @@ class RecorderConfig:
     max_instruments: int = 100
     # Session-open ATM ± N listed strikes, both CE and PE, in addition to the moving ATM set.
     open_ladder_n: int = 5
+    # Every listed strike within +-N steps of the moving ATM (NIFTY 50-pt). 0 keeps the 100/200 wings only.
+    near_atm_n: int = 0  # CLI (python -m marketdata) sets 4; tests that omit it keep existing counts
+    # Dhan 20-level depth feed (separate socket, marketdata.depth20). Off until verified on a live frame.
+    depth20: bool = False
+    # 2026-10-22: rows per instrument per side at most every depth20_throttle_s; ws base overridable for tests.
+    depth20_throttle_s: float = 1.0
+    depth20_ws_base: str = "wss://depth-api-feed.dhan.co/twentydepth"
     # Repo root used to read paper-book / decision-journal / shadow / ledger pins.
     # None (tests) means no pin scan; the CLI passes the repo root.
     pin_root: Path | None = None
+    # 2026-10-21 recentre-pin fix. pin_extra=False is the off switch (MD_PIN_EXTRA=0): no paper_extra /
+    # held_pins sources, no cooldown, no pin cap - exactly the pre-fix behaviour.
+    pin_extra: bool = True
+    pin_cooldown_s: float = 15 * 60.0
+    max_pinned: int = 40
     connect_early_s: float = 120.0
     # Re-centre from the option-chain spot only while no index tick has arrived.
     # After the first index tick, the chain is never used for spot.

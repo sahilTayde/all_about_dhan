@@ -99,7 +99,7 @@ def test_config_defaults_off_for_trade_on_for_shadow_log() -> None:
     assert sx.trade_enabled(environ={sx.TRADE_ENV: "1"}) is True
 
 
-def test_replay_attaches_variants_and_logs_closed_once(tmp_path: Path) -> None:
+def test_replay_attaches_variants_and_logs_closed_once(tmp_path: Path, pre_park_rule_set) -> None:
     mins = _minutes("09:30", 52)
     rows = []
     for hhmm in mins:

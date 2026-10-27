@@ -39,6 +39,21 @@ RUN_FLAG_NAME = "paper_dual_tape_RUNNING.flag"
 LEGACY_STOP_FLAG = "paper_ops_STOPPED.flag"
 
 
+
+CARRIED_INDEX_SOURCES = frozenset({"carry_prev"})
+CARRIED_PREMIUM_SOURCES = frozenset({"unavailable", "carry_prev"})
+
+
+def carried_over_sources(*, index_source, premium_source, chain_source) -> list:
+    """Names of inputs in this snap that are carried-over or filler (empty list = fresh). Premiums are
+    filler only when the premium tape is unavailable AND the chain is a fixture/unavailable (no live LTP)."""
+    out = []
+    if str(index_source or "") in CARRIED_INDEX_SOURCES:
+        out.append(f"index={index_source}")
+    if str(premium_source or "") in CARRIED_PREMIUM_SOURCES and str(chain_source or "") in {"fixture", "unavailable"}:
+        out.append(f"premium={premium_source},chain={chain_source}")
+    return out
+
 def recon_dir(repo_root: Path) -> Path:
     path = repo_root / "data" / "recon"
     path.mkdir(parents=True, exist_ok=True)
@@ -433,6 +448,14 @@ def gather_underlying(
         pe_delta=pe_d,
         prev=prev,
     )
+    # 2026-10-12: 10:31-11:02 IST the NIFTY snaps carried the last index LTP with premium_source
+    # "unavailable" and chain_source "fixture" but were stamped stale=False with fresh as_of times.
+    # A carried-over / filler print is never fresh.
+    carried = carried_over_sources(index_source=("carry_prev" if bars_source_carry else bars.source),
+                                   premium_source=tape.source, chain_source=chain.source)
+    if carried:
+        stale = True
+        gaps.append("CARRIED_OVER: " + ",".join(carried) + " (not fresh; desk must not trade on it)")
     snap = UnderlyingSnap(
         underlying=und,
         as_of_ist=as_of,
@@ -1029,6 +1052,13 @@ def run_dual_tape_loop(
                     _alert_once(settings.repo_root, "capture", f"persist_failed:{type(exc).__name__}",
                                 f"dual-tape persist failed ({type(exc).__name__}: {exc}); paper cycle skipped")
                     heartbeat_board = {"error": "persist_failed", "detail": str(exc)[:240]}
+                if persisted and os.environ.get("MARKET_READ_LOG") == "1":
+                    try:  # log-only market read (desk_ml.market_read); never gates or places a trade
+                        from desk_ml.market_read import log_pass
+
+                        log_pass(settings.repo_root, snaps)
+                    except Exception:  # noqa: BLE001,S110 — must never crash or stall the tape loop
+                        pass
                 if paper_scalp and persisted:
                     try:
                         from desk_ml.decision_journal import install_engine_hooks

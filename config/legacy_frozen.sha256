@@ -1,8 +1,11 @@
 # Frozen legacy benchmark manifest (V2-17)
 # Any change to these files fails the frozen-legacy CI check.
-# The legacy replay must stay byte-identical: synthetic_session_nifty 12/+69,309.10
+# The legacy replay must stay byte-identical: synthetic_session_nifty 12/+27,383.80
+# (re-baselined 2026-10-27: founder 10-lot cap 4aa8778 was 12/+69,309.10 at 25 lots; costs/groww_costs/tape/paper_scalp
+#  hashes updated for 58a3e39 60s quote age, c281847 BSE rate, 205b6d8 carried-over prints; replay unchanged by those)
+# (2026-10-27 Claude: paper_scalp hash for exit fixes - stop moves reset seen_low, FLATTEN_1516 beats soft cancels; replay unchanged 12/+27,383.80)
 # (Dhan/NSE FA/73061 paper rates; was 12/+69,364.32 on the old 0.0003503 fixture)
-976dc228ddad0034f07a02c247ef533e87662134c6df32313162fb9e6bc0a8fe  packages/desk-ml/src/desk_ml/costs.py
+3ceed07e14390673b0410f334502b4c853d2e51d18db603f1c57bc66c28ac156  packages/desk-ml/src/desk_ml/costs.py
 2bff62eec1052318795f86dc74e78b7550a7b75de0f51ac81d22f661cc1f6abe  packages/desk-ml/src/desk_ml/event_parity.py
 41f0a9e25cea3b2d03d1a746a2d3b7c4907d4620be09d3a23fe3d9f30da4bbd9  packages/desk-ml/src/desk_ml/event_path.py
 8d750c1ab0734fc0a4e428c618757419c909ed63842e9c6ae775e573d7671a11  packages/desk-ml/src/desk_ml/features.py
@@ -13,7 +16,7 @@ f4bde8cc5d9370cfe7f5fc4d19f2cf821f892f9f92e0a8bb13e92b42964d432c  packages/desk-
 0fcc650c907655ff558c8683cb9acde7b138878a624c3d1f543e3fa3ccb1f570  packages/desk-ml/src/desk_ml/founder_commands/log.py
 8f9c601397936341b7514155fcf7697f37a92dfd7a0f976b5838e6444e17b2f1  packages/desk-ml/src/desk_ml/founder_session.py
 f83231fbfafe57ebe3e7e19c690c5f5b1d2b1db3993d2d70a677a40b8c72416d  packages/desk-ml/src/desk_ml/greeks_ml.py
-907ee2c1e1ae293a620aa619cd49687458bd4057667cd4aa769f6cf45d6c752f  packages/desk-ml/src/desk_ml/groww_costs.py
+bfaf7e1a87e32cc04f1ea2f9a7842085c1fe9a7d14d608c1e9f3979e5db0172c  packages/desk-ml/src/desk_ml/groww_costs.py
 23413e69ea5aebcbea8e6d3f11f032f53fee7f8507c0e7f3d60a154a8d31df68  packages/desk-ml/src/desk_ml/inventory.py
 0c3da193a337c4fcbe3f56afc8450d058d8be47277fd4d20e5f7f77b1b8030d3  packages/desk-ml/src/desk_ml/llm_review.py
 bf5c0b86bac3c6eeaab24ae490c9bed04a46a50b61a968ec288f8a8799fd6ed5  packages/desk-ml/src/desk_ml/live_cycle.py
@@ -23,7 +26,7 @@ f0b844d531ee00bea3b47fd5e207edb2bd493f7d0dd6b3a9fc8fefa2ee6c8a89  packages/desk-
 c7b6f5fff183087add5328a501e2f87ad9eea8204296cb655943b0d52acfcd4d  packages/desk-ml/src/desk_ml/overrides.py
 97f3695ac0763eaf3bd27087394e51047e8c732f8f44e613b745f14e6257182f  packages/desk-ml/src/desk_ml/paper_guard.py
 001e173a419008f7487daea4dd30afbae3953fde673588e309bd343c14e772d5  packages/desk-ml/src/desk_ml/paper_lots.py
-ebc39809f340350fb3f0c91e5b94656f817894a13725d3c8bbd79801c16b8c43  packages/desk-ml/src/desk_ml/paper_scalp.py
+54504840ccacf6288079e5b4a6fb92796dea9c64200a689d99bac120ccf731c0  packages/desk-ml/src/desk_ml/paper_scalp.py
 c6e243b0688a85950219736e27b3965571ca33cace3fc190c89d95af010502f7  packages/desk-ml/src/desk_ml/persist.py
 e54e94d0e5115f5020347f8963f86cf21de2777b71810562493f54623854541b  packages/desk-ml/src/desk_ml/picker.py
 76443290d662d36ce0fe8d04b01dd1ca9e2cb331f38b0dc2662b9fe31bde8b6e  packages/desk-ml/src/desk_ml/regime/__init__.py
@@ -37,6 +40,6 @@ f4e4afd784492e54b1d1102b31a75f7b1186763b77f8cf77f27e035ae6714895  packages/desk-
 b594cb4036ebd00cb742dbf8b6af8e5195016e26fdb045da86f08d35287c8235  packages/desk-ml/src/desk_ml/shadow_log.py
 127dde6d7ba8b210da5d9aea564e894abd14f928fcc6f62242ff3dc655db2e24  packages/desk-ml/src/desk_ml/shadow_volsize.py
 592a87287aa462d14d8435b0553d01649ef6637878a264478e35d00e8a8cc827  packages/desk-ml/src/desk_ml/sod_exam.py
-d6f0887ae09d5344993e0400cddeb62a9ce20b4dda8fe9e3a25cf72caa709236  packages/desk-ml/src/desk_ml/tape.py
+d40e4bdc410b9bee829982a921d2b12ab816f139b7917df77f25646d5ec05392  packages/desk-ml/src/desk_ml/tape.py
 e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  packages/desk-ml/src/desk_ml/testing/__init__.py
 92f60f92e4d04d6beb39ffc0021c59f2466723357f7289bed57153b502d14415  packages/desk-ml/src/desk_ml/testing/canonical.py

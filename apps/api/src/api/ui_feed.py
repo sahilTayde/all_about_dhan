@@ -430,39 +430,132 @@ def _day(t: dict[str, Any]) -> Optional[str]:
     return datetime.fromtimestamp(ts, IST).date().isoformat() if ts else None
 
 
+# 2026-10-19 (Sahil): Oct 19 IST trades entered before 09:47 IST were filled in hindsight while the
+# price-exit package was deployed mid-session. They stay in the files, tagged, but never count as desk P&L.
+HINDSIGHT_CUTOFFS: dict[str, tuple[str, str]] = {
+    "2026-10-19": ("09:47", "hindsight fill: entered before 09:47 IST while the price-exit package was "
+                            "deployed mid-session (restart replay), not a live fill; excluded from desk P&L"),
+}
+
+
+def _entry_hhmm(t: dict[str, Any]) -> Optional[str]:
+    m = t.get("entry_min")
+    if isinstance(m, str) and len(m) == 5 and m[2] == ":":
+        return m
+    ts = _opened_ts(t)
+    return datetime.fromtimestamp(ts, IST).strftime("%H:%M") if ts else None
+
+
+def tag_hindsight(t: dict[str, Any]) -> dict[str, Any]:
+    """Tag rows on a HINDSIGHT_CUTOFFS day that entered before the cutoff (rows already tagged keep theirs)."""
+    rule = HINDSIGHT_CUTOFFS.get(str(t.get("day") or ""))
+    hhmm = _entry_hhmm(t)
+    if rule and hhmm and hhmm < rule[0]:
+        t["hindsight_fill"] = True
+        t["count_in_desk"] = False
+        t.setdefault("exclude_reason", rule[1])
+    return t
+
+
+def excluded(t: dict[str, Any]) -> bool:
+    return t.get("hindsight_fill") is True or t.get("count_in_desk") is False
+
+
+def _row_key(day: Optional[str], tid: Any) -> tuple[Optional[str], str]:
+    """(IST day, trade_id) with a trailing "-<day>" stripped, so backfilled paper_booked ids
+    (RR-X-0915-2026-10-16) and research_rules ids (RR-X-0915) for the same trade match, while the same
+    bare id on two different days stays two trades."""
+    t = str(tid or "")
+    if day and t.endswith(f"-{day}"):
+        t = t[: -len(day) - 1]
+    return (day, t)
+
+
 def history_rows(root: Path = REPO, board: Optional[dict[str, Any]] = None,
                  events: Optional[dict[str, list[dict[str, Any]]]] = None) -> list[dict[str, Any]]:
     """Every closed paper trade we have a record of, one row per book, newest first.
 
+    Rows are keyed by (IST day, trade_id): research-rule ids repeat across days (RR-PX_B2-NIFTY-PE-0915).
     Source of truth per IST day, first match wins: the paper board for its own session day, then the
-    event-path ledger, then live-written model-log rows. A lower source never adds trades to a day a
-    higher one already covers, so a replay in the model log cannot inflate a day the board owns.
+    booked-trade files and the research-rules day files (data/recon/research_rules/<day>.json "closed",
+    past days only), then the event-path ledger, then live-written model-log rows. A lower source never
+    adds trades to a day a higher one already covers, so a replay in the model log cannot inflate a day the
+    board owns, and a trade in both paper_booked and research_rules counts once.
     """
     board = board if board is not None else load_board(root) or {}
-    rows: dict[str, dict[str, Any]] = {}
+    rows: dict[tuple[Optional[str], str], dict[str, Any]] = {}
     for t in board.get("closed_trades") or []:
         if t.get("trade_id"):
-            rows[str(t["trade_id"])] = {**t, "source": "board"}
-    owned = {_day(t) for t in rows.values()} - {None}
+            r = {**t, "source": "board"}
+            rows[_row_key(_day(r), t["trade_id"])] = r
+    board_days = {k[0] for k in rows} - {None}
+    owned = set(board_days)
+    # 2026-10-12: booked-trade files (data/recon/paper_booked/<day>.jsonl) are the per-day record of
+    # closed paper trades. Read them for every day; board rows win on the same (day, trade_id).
+    booked_days: set[str] = set()
+    for path in sorted((root / "data" / "recon" / "paper_booked").glob("*.jsonl")):
+        last: dict[str, dict[str, Any]] = {}
+        try:
+            lines = path.read_text(encoding="utf-8").splitlines()
+        except OSError:
+            continue
+        for line in lines:
+            try:
+                rec = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if isinstance(rec, dict) and rec.get("trade_id") and str(rec.get("status") or "").startswith("CLOSED"):
+                last[str(rec["trade_id"])] = rec
+        for tid, rec in last.items():
+            key = _row_key(path.stem, tid)
+            if key not in rows:
+                rows[key] = {**rec, "day": path.stem, "source": "paper_booked"}
+        if last:
+            booked_days.add(path.stem)
+    # 2026-10-19: research-rules day files keep each past day's desk trades on /desk after the board
+    # moves on to the next session. The board owns its own day.
+    rr_days: set[str] = set()
+    for path in sorted((root / "data" / "recon" / "research_rules").glob("*.json")):
+        day = path.stem
+        if day in board_days:
+            continue
+        blob = read_json(path)
+        closed = blob.get("closed") if isinstance(blob, dict) else None
+        if not isinstance(closed, list):
+            continue
+        for rec in closed:
+            if not (isinstance(rec, dict) and rec.get("trade_id") and str(rec.get("status") or "").startswith("CLOSED")):
+                continue
+            key = _row_key(day, rec["trade_id"])
+            if key not in rows:
+                rows[key] = {**rec, "day": day, "source": "research_rules"}
+            rr_days.add(day)
+    owned |= booked_days | rr_days
     ledger_rows = _ledger_query(root, "SELECT * FROM trades WHERE status = 'CLOSED'")
     for r in ledger_rows:
         tid = str(r.get("trade_id") or "")
-        if tid in rows:
-            rows[tid].setdefault("entry_slippage", r.get("entry_slippage"))
-            rows[tid].setdefault("exit_slippage", r.get("exit_slippage"))
-        elif tid and r.get("day") not in owned:
-            rows[tid] = _row_from_ledger(r)
+        if not tid:
+            continue
+        key = _row_key(r.get("day") or _day(_row_from_ledger(r)), tid)
+        if key in rows:
+            rows[key].setdefault("entry_slippage", r.get("entry_slippage"))
+            rows[key].setdefault("exit_slippage", r.get("exit_slippage"))
+        elif r.get("day") not in owned:
+            rows[key] = _row_from_ledger(r)
     owned |= {r.get("day") for r in ledger_rows if r.get("day")}
     for tid, evs in (events if events is not None else trade_events(root)[0]).items():
-        if tid in rows:
-            continue
         row = _row_from_log(tid, evs)
-        if row and _day(row) not in owned:
-            rows[tid] = row
+        if not row:
+            continue
+        key = _row_key(_day(row), tid)
+        if key in rows:
+            continue
+        if _day(row) not in owned:
+            rows[key] = row
     out = []
     for r in rows.values():
         r["day"] = _day(r)
-        out.append(r)
+        out.append(tag_hindsight(r))
     out.sort(key=lambda r: _opened_ts(r) or 0, reverse=True)
     return out
 
@@ -475,16 +568,54 @@ def _scored(t: dict[str, Any]) -> bool:
     return t.get("filled") is not False and t.get("realized_pnl_inr") is not None
 
 
+# 2026-10-12: the old MIX-DEFAULT-BUY book is off the desk (DESK_OLD_BOOK_OFF). From this day its rows
+# are reported separately (shadow / old book), never in the desk's day P&L.
+OLD_BOOK_ID = "MIX-DEFAULT-BUY"
+OLD_BOOK_OFF_FROM = "2026-10-12"
+
+
+def desk_traded(t: dict[str, Any]) -> bool:
+    """True only for rows the desk actually traded: not shadow, desk_status TRADED (or absent), and not
+    an old-book row from OLD_BOOK_OFF_FROM on."""
+    if t.get("shadow") is True or excluded(t):
+        return False
+    status = t.get("desk_status")
+    if status is not None and str(status) != "TRADED":
+        return False
+    if str(t.get("book_id") or "") == OLD_BOOK_ID and str(t.get("day") or "") >= OLD_BOOK_OFF_FROM:
+        return False
+    return True
+
+
 def day_summaries(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Per IST day: unique fills (book clones counted once) plus per-book and per-exit-reason splits."""
+    """Per IST day: unique desk fills (book clones counted once) plus per-book and per-exit-reason splits.
+    `net`/`n`/`wins` count desk-traded rows only; shadow, refused and old-book rows go in `shadow`."""
     days: dict[str, dict[str, Any]] = {}
     seen: set[tuple] = set()
     for t in rows:
         if not t.get("day") or not _scored(t):
             continue
         d = days.setdefault(t["day"], {"day": t["day"], "n": 0, "wins": 0, "gross": 0.0, "charges": 0.0,
-                                        "net": 0.0, "by_book": {}, "by_reason": {}})
+                                        "net": 0.0, "by_book": {}, "by_reason": {},
+                                        "shadow": {"n": 0, "net": 0.0, "by_book": {}},
+                                        "excluded": {"n": 0, "net": 0.0, "reasons": []}})
         net = float(t.get("realized_pnl_inr") or 0)
+        if excluded(t):
+            ex = d["excluded"]
+            ex["n"] += 1
+            ex["net"] = round(ex["net"] + net, 2)
+            why = str(t.get("exclude_reason") or "excluded")
+            if why not in ex["reasons"]:
+                ex["reasons"].append(why)
+            continue
+        if not desk_traded(t):
+            sh = d["shadow"]
+            sh["n"] += 1
+            sh["net"] = round(sh["net"] + net, 2)
+            b = sh["by_book"].setdefault(str(t.get("book_id") or t.get("rule_id") or "UNKNOWN"), {"n": 0, "net": 0.0})
+            b["n"] += 1
+            b["net"] = round(b["net"] + net, 2)
+            continue
         book = d["by_book"].setdefault(str(t.get("book_id") or "UNKNOWN"), {"n": 0, "wins": 0, "net": 0.0})
         book["n"] += 1
         book["wins"] += net > 0
@@ -907,6 +1038,18 @@ def decision_journal(
     }
 
 
+def _today_split(days: list[dict[str, Any]], day: str) -> dict[str, Any]:
+    d = next((x for x in days if x.get("day") == day), None) or {}
+    sh = d.get("shadow") or {}
+    return {"day": day, "desk_net_inr": d.get("net", 0.0), "desk_trades": d.get("n", 0),
+            "shadow_net_inr": sh.get("net", 0.0), "shadow_trades": sh.get("n", 0),
+            "shadow_by_book": sh.get("by_book", {}),
+            "excluded_net_inr": (d.get("excluded") or {}).get("net", 0.0),
+            "excluded_trades": (d.get("excluded") or {}).get("n", 0),
+            "excluded_reasons": (d.get("excluded") or {}).get("reasons", []),
+            "note": "desk_net_inr counts only traded desk rows; shadow/refused/old-book rows are not desk P&L"}
+
+
 def build_snapshot(root: Path = REPO, *, now: Optional[datetime] = None, fstatus: Optional[dict[str, Any]] = None,
                    budget_s: Optional[float] = None) -> dict[str, Any]:
     """``budget_s`` caps log/tape indexing per call; the API passes SNAPSHOT_BUDGET_S, tests pass None (read all)."""
@@ -951,6 +1094,8 @@ def build_snapshot(root: Path = REPO, *, now: Optional[datetime] = None, fstatus
         "alerts": alert_list(board, health, hstatus, halerts, fstatus, now, halt),
         "risk_halt": halt,
         "days": days,
+        # desk-only Today P&L (traded rows); shadow/refused/old-book rows separately
+        "today": _today_split(days, str(board.get("session_ist_date") or now.date().isoformat())),
         "history_complete": history_complete,
         "account": account(board, days, root),
         "orders": "REFUSED",
@@ -966,7 +1111,50 @@ def day_history(root: Path = REPO, day: Optional[str] = None, budget_s: Optional
     pick = day or (days[0] if days else None)
     trades = [r for r in rows if r.get("day") == pick]
     attach_entry_spots({"closed_trades": trades}, root / "data" / "recon" / "paper_watch" / "DUAL-TAPE", budget_s)
-    return {"day": pick, "days": days, "trades": trades, "complete": complete}
+    blocked = guard_blocked_rows(root, board, pick) if pick else []
+    # 2026-10-22: guard-blocked signals are listed for review only. They live in their own key, never in
+    # "trades", carry counted=False, and no P&L total reads them.
+    return {"day": pick, "days": days, "trades": trades, "complete": complete,
+            "guard_blocked": blocked, "guard_blocked_n": len(blocked)}
+
+
+_PX_GUARD_PREFIX = ("BLOCKED_",)
+
+
+def guard_blocked_rows(root: Path, board: dict[str, Any], day: str) -> list[dict[str, Any]]:
+    """Signals a desk guard refused on ``day`` (research_rules guard_blocked + paper_extra BLOCKED_* rows).
+
+    Read-only. Each row is tagged counted=False and source; rows are never added to trades or totals.
+    """
+    out: list[dict[str, Any]] = []
+    seen: set[tuple[str, str]] = set()
+
+    def add(rec: Any, source: str, status: Any = None) -> None:
+        if not isinstance(rec, dict):
+            return
+        tid = str(rec.get("trade_id") or rec.get("rule_id") or "")
+        when = str(rec.get("entry_min") or rec.get("signal_time") or rec.get("entry_time") or rec.get("opened_ist") or "")
+        key = (tid, when)
+        if key in seen:
+            return
+        seen.add(key)
+        out.append({**rec, "day": day, "counted": False, "source": source,
+                    "guard": rec.get("guard") or status or rec.get("status") or rec.get("desk_status")})
+
+    rr: dict[str, Any] = {}
+    if str(board.get("session_ist_date") or "") == day and isinstance(board.get("research_rules"), dict):
+        rr = board["research_rules"]
+    if not rr.get("guard_blocked"):
+        blob = read_json(root / "data" / "recon" / "research_rules" / f"{day}.json")
+        rr = blob if isinstance(blob, dict) else {}
+    for rec in rr.get("guard_blocked") or []:
+        add(rec, "research_rules")
+    px = read_json(root / "data" / "recon" / "paper_extra" / f"{day}.json")
+    if isinstance(px, dict):
+        for rec in px.get("not_booked") or []:
+            if isinstance(rec, dict) and str(rec.get("status") or "").startswith(_PX_GUARD_PREFIX):
+                add(rec, "paper_extra")
+    return out
 
 
 # ---------- decision trace ----------

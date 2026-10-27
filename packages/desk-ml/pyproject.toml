@@ -21,7 +21,7 @@ desk-ml = "desk_ml.__main__:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-desk_ml = ["py.typed"]
+desk_ml = ["py.typed", "nse_holidays_*.csv"]
 
 [tool.uv.sources]
 trading-agents-india = { workspace = true }

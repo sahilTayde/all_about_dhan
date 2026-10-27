@@ -23,6 +23,12 @@ def flatten_009(ts: int) -> bool:
     return minutes_ist(ts) >= 15 * 60 + 15
 
 
+def flatten_at(bars: list, i: int) -> bool:
+    """Flatten on/after 15:15 IST, or on the session's last bar (dead-band drop removes 15:00-15:30,
+    so a 15:15 bar may never exist; never carry a position overnight)."""
+    return flatten_009(bars[i].ts) or i + 1 >= len(bars) or session_date_ist(bars[i + 1].ts) != session_date_ist(bars[i].ts)
+
+
 def in_founder_dead_band(ts: int) -> bool:
     """Founder freeze: no tape 09:00–09:30 or 15:00–15:30 IST (pre-open + CAS)."""
     m = minutes_ist(ts)

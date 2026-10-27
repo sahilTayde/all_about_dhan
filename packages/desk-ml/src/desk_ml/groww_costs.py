@@ -31,6 +31,10 @@ EXCHANGE_TXN_OPTIONS_FRAC = 0.000355299
 # NSE/FA/73061 IPFT ₹0.01/crore/side; Dhan 0.0000001% of turnover.
 IPFT_OPTIONS_FRAC = 0.000000001
 SEBI_TURNOVER_FRAC = 0.000001
+# BSE (SENSEX/BANKEX options): Rs 3,250/crore premium per side (config/charges.yaml exchange_txn_frac_by_exchange.BSE,
+# BSE notice 20240927-37). BSE IPFT not sourced -> 0 (do not invent). config/paper_costs.yaml exchange_fees: per_exchange.
+BSE_EXCHANGE_TXN_OPTIONS_FRAC = 0.000325
+BSE_UNDERLYINGS = frozenset({"SENSEX", "BANKEX"})
 STAMP_OPTIONS_BUY_FRAC = 0.00003
 EXECUTED_ORDERS_ROUND_TRIP = 2
 COST_NAME = "GROWW_FO_20_PLUS_STATUTORY_OPTIONS"
@@ -91,7 +95,9 @@ def groww_round_trip_charges(
     qty: Optional[int],
     filled: bool,
     entry_premium: Optional[float] = None,
+    underlying: Optional[str] = None,
 ) -> dict[str, Any]:
+    """`underlying` SENSEX/BANKEX -> BSE exchange rate; anything else (or None, legacy callers) -> NSE."""
     if not filled:
         return _zero_charges(filled=False)
     units = int(qty) if qty is not None and int(qty) > 0 else 0
@@ -110,8 +116,9 @@ def groww_round_trip_charges(
     sell_turn = sell_px * units
     both = buy_turn + sell_turn
     brokerage = GROWW_BROKERAGE_PER_ORDER_INR * EXECUTED_ORDERS_ROUND_TRIP
-    exchange = round(both * EXCHANGE_TXN_OPTIONS_FRAC, 2)
-    ipft = round(both * IPFT_OPTIONS_FRAC, 2)
+    bse = str(underlying or "").upper() in BSE_UNDERLYINGS
+    exchange = round(both * (BSE_EXCHANGE_TXN_OPTIONS_FRAC if bse else EXCHANGE_TXN_OPTIONS_FRAC), 2)
+    ipft = 0.0 if bse else round(both * IPFT_OPTIONS_FRAC, 2)
     sebi = round(both * SEBI_TURNOVER_FRAC, 2)
     stamp = round(buy_turn * STAMP_OPTIONS_BUY_FRAC, 2)
     gst = round((brokerage + exchange + sebi + ipft) * GST_ON_BROKERAGE_FRAC, 2)

@@ -46,7 +46,7 @@ DEFAULTS: dict[str, Any] = {
     "use_recorded_spread": True,
     "tick_size": 0.05,
     "target_fill": "resting_limit",
-    "exit_quote_max_age_s": 90,
+    "exit_quote_max_age_s": 60,
     "stale_exit_hard_flatten_ist": "15:20",
     "limit_fill": "trade_through",
     "exchange_fees": "per_exchange",

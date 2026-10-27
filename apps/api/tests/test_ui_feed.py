@@ -4,7 +4,7 @@ from pathlib import Path
 from api.ui_feed import attach_entry_spots
 
 DAY = "2026-01-15"
-HEALTH_STRIP = Path(__file__).resolve().parents[2] / "web" / "src" / "desk" / "components" / "HealthStrip.jsx"
+DESK_MODEL = Path(__file__).resolve().parents[2] / "web" / "src" / "lib" / "deskModel.js"  # HealthStrip.jsx removed in the page redesign
 
 
 def _row(hms: str, nifty: float, bank: float) -> str:
@@ -102,7 +102,7 @@ def test_history_merges_board_and_model_log_across_days(tmp_path) -> None:
     days = day_summaries(rows)
     assert days[0]["n"] == 1 and days[0]["net"] == 1000.0
     assert days[0]["by_book"]["MIX-ML-LOGIT"]["n"] == 1
-    assert days[1] == {"day": "2026-01-14", "n": 1, "wins": 0, "gross": -400.0, "charges": 60.0, "net": -460.0,
+    assert days[1] == {"day": "2026-01-14", "shadow": {"n": 0, "net": 0.0, "by_book": {}}, "excluded": {"n": 0, "net": 0.0, "reasons": []}, "n": 1, "wins": 0, "gross": -400.0, "charges": 60.0, "net": -460.0,
                        "by_book": {"MIX-DEFAULT-BUY": {"n": 1, "wins": 0, "net": -460.0}},
                        "by_reason": {"STOP": {"n": 1, "gross": -400.0, "charges": 60.0, "net": -460.0}}}
     acct = account(board, days)
@@ -171,10 +171,12 @@ def test_session_tape_ignores_yesterday_when_today_v2_dir_empty(tmp_path) -> Non
 
 
 def test_health_strip_labels_paper_loop_and_v2_recorder() -> None:
-    text = HEALTH_STRIP.read_text(encoding="utf-8")
-    assert '{ id: "paper", label: "Paper loop"' in text
-    assert '{ id: "recorder", label: "Recorder"' in text
-    assert 'label: "Recorder", aliases: ["paper"' not in text
+    # #106 after the redesign: the paper heartbeat dot is "Paper loop" (never "Recorder"); the V2 Recorder
+    # health row reaches the Ops page through feedAges, which lists every snap.health row by name.
+    text = DESK_MODEL.read_text(encoding="utf-8")
+    assert 'loop = pick("paper")' in text and '{ id: "loop", label: "Paper loop"' in text
+    assert 'label: "Recorder"' not in text
+    assert "for (const h of snap?.health || []) rows.push({ name: h.name" in text
 
 
 def _touch_v2(tmp_path, now, name: str, age_s: int):

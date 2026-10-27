@@ -140,7 +140,9 @@ class MarketDataRecorder:
                 put_timeout_s=config.tape_queue_put_timeout_s,
             )
             for name in [s for s, _ in ENVELOPE_STREAMS.values()] + list(PLAIN_STREAMS)
+            + (["depth20"] if config.depth20 else [])
         }
+        self.depth20_feed: Any = None
         self.depth = DepthTracker(config.depth_throttle_s, config.depth_heartbeat_s)
         self.oi = OiCadenceTracker(config.oi_window_s)
         self.stats = Stats()
@@ -288,12 +290,17 @@ class MarketDataRecorder:
             self.config.tape_root / day.isoformat(),
         )
         feed = asyncio.create_task(self.collector.run(on_frame=self._on_frame))
+        d20_task = self._start_depth20()
         try:
             await self._clock_loop(feed, close_dt)
         finally:
             self.collector.stop()
             feed.cancel()
             await asyncio.gather(feed, return_exceptions=True)
+            if d20_task is not None:
+                self.depth20_feed.stop()
+                d20_task.cancel()
+                await asyncio.gather(d20_task, return_exceptions=True)
             if self._spot_poll is not None:
                 self._spot_poll.cancel()
             end = self.clock.now()
@@ -317,6 +324,9 @@ class MarketDataRecorder:
                 self.config.pin_root,
                 day or session_day(self.clock.now()),
                 universes,
+                extra=self.config.pin_extra,
+                cooldown_s=self.config.pin_cooldown_s,
+                now=lambda: self.clock.now().timestamp(),
             )
         self._held_pins = pins
         open_positions = pins if pins is not None else (lambda: set())
@@ -329,6 +339,8 @@ class MarketDataRecorder:
                     max_instruments=self.config.max_instruments,
                     open_positions=open_positions,
                     open_ladder_n=self.config.open_ladder_n,
+                    near_atm_n=self.config.near_atm_n,
+                    max_pinned=self.config.max_pinned if self.config.pin_extra else None,
                 ),
                 spot=u.spot,
             )
@@ -447,6 +459,39 @@ class MarketDataRecorder:
         except Exception:
             log.exception("coverage summary failed")
 
+    def _depth20_targets(self) -> list[tuple[str, str, str]]:
+        """Held contracts first, then each book's snapshot set (moving ATM + HELD). NSE-only filter in the feed."""
+        held = self._held_pins() if self._held_pins is not None else set()
+        out: list[tuple[str, str, str]] = []
+        for book in self.books:
+            for iid, inst in book.strikes.subscribed.items():
+                if iid in held:
+                    out.append((iid, inst.exchange_segment, inst.security_id))
+        for book in self.books:
+            for iid in book.strikes.snapshot_targets():
+                inst = book.strikes.subscribed.get(iid)
+                if inst is not None and inst.kind == "OPTION":
+                    out.append((iid, inst.exchange_segment, inst.security_id))
+        return out
+
+    def _start_depth20(self) -> "asyncio.Task[None] | None":
+        """2026-10-22: 20-level depth on its own socket, only when config.depth20 is True (default off)."""
+        if not self.config.depth20:
+            return None
+        from marketdata.depth20_feed import Depth20Feed, depth20_url
+
+        creds = self.settings.credentials
+        self.depth20_feed = Depth20Feed(
+            depth20_url(self.config.depth20_ws_base, creds.client_id, creds.access_token),
+            self._depth20_targets,
+            lambda row, now: self._write("depth20", row, now),
+            self.clock.now,
+            throttle_s=self.config.depth20_throttle_s,
+            max_backoff_s=self.config.max_backoff_s,
+        )
+        log.info("depth20 on: one extra socket, <=50 NSE contracts, tape depth20.jsonl")
+        return asyncio.create_task(self.depth20_feed.run())
+
     async def _clock_loop(self, feed: asyncio.Task[None], close_dt: datetime) -> None:
         last_s = self.clock.now().timestamp()
         while True:
@@ -477,7 +522,7 @@ class MarketDataRecorder:
         interval = self.config.quote_interval_s
         if math.floor(now_s / interval) > math.floor(last_s / interval):
             for book in self.books:
-                for iid, (rule, side) in book.strikes.current.items():
+                for iid, (rule, side) in book.strikes.snapshot_targets().items():
                     row = snapshot(iid, rule, side, self.depth.books.get(iid), now_s, self.config.stale_after_s)
                     self._emit("QUOTE_SNAPSHOT", row, now, iso(now))
 

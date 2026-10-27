@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import os
+import time
 from collections import Counter
 from contextvars import ContextVar
 from dataclasses import asdict, dataclass, field
@@ -49,10 +50,11 @@ from desk_ml.paper_lots import (
     size_lots,
 )
 
-DESK_CAPITAL_INR = 570000.0  # prior ₹70k + founder +₹5L (2026-09-18). PAPER.
-PAPER_MIN_LOTS = 20
-PAPER_TARGET_LOTS = 25
-PAPER_MAX_LOTS = 30
+DESK_CAPITAL_INR = 1000000.0  # ₹10L paper account (Sahil 1:1 2026-10-19 02:18 CT; was ₹5.7L). PAPER.
+# Sahil 2026-10-12: hard cap 10 lots (NIFTY 650 / SENSEX 200).
+PAPER_MIN_LOTS = 10
+PAPER_TARGET_LOTS = 10
+PAPER_MAX_LOTS = 10
 DASHBOARD_HEARTBEAT_SECONDS = 2
 TICK_NE_DASHBOARD_REASON = (
     "Live mock: dual-tape REST poll default 2s (clamp ≥2). "
@@ -2342,6 +2344,7 @@ def apply_filled_trail(
     pos.agent_status = "TRAIL_STOP"
     if moved:
         pos.trail_step += 1
+        pos.seen_low = px  # dips before the stop moved must not trip / price the new stop
         if engine.root is not None:
             append_model_log(
                 engine.root,
@@ -2421,6 +2424,7 @@ def apply_target_lock_shift(
     pos.target = round(float(nxt), 4)
     pos.target_step += 1
     pos.trail_step += 1
+    pos.seen_low = float(ltp)  # dips before the stop moved must not trip / price the new stop
     pos.agent_status = f"TARGET_STEP_{pos.target_step}"
     if engine.root is not None:
         append_model_log(
@@ -4161,6 +4165,21 @@ def _try_open(
     strike: Optional[float] = None,
     strike_source: str = "ROUND_INDEX_HYPOTHESIS",
 ) -> None:
+    # Sahil 2026-10-12: old default book runs in background only (Research shadow), never on the main desk.
+    if book_id == "MIX-DEFAULT-BUY" and os.environ.get("DESK_OLD_BOOK_OFF", "").strip() in {"1", "true", "yes", "on"}:
+        return
+    # Shared desk risk gate (config/desk_risk.yaml): live loop only (DESK_RISK_GATE_LIVE=1 via desk.sh).
+    from desk_ml.desk_risk import live_entry_block
+
+    if live_entry_block(engine.root) is not None:  # root resolved only when the live gate is on (replays never touch repo_root)
+        return
+    # 2026-10-12 stale-price guard: never open on a price more than 60s behind the wall clock (live only).
+    from desk_ml.desk_risk import stale_open_block
+
+    stale = stale_open_block(getattr(tick, "ts", None), time.time())
+    if stale is not None:
+        engine.mark_skip(book_id, underlying, stale, ts=tick.ts, seen_side=side)
+        return
     pos = _plan_open(
         engine,
         book_id=book_id,
@@ -4826,8 +4845,51 @@ def _plan_open(
     return pos
 
 
+# Sahil 2026-10-12: hard 10-lot cap in code, for every book and any stored params (NIFTY 650, SENSEX 200).
+HARD_MAX_LOTS = 10
+HARD_MAX_QTY = {"NIFTY": 650, "SENSEX": 200}
+
+
+def enforce_lot_cap(pos: OpenPaper) -> OpenPaper:
+    """Clamp a planned ticket to HARD_MAX_LOTS lots and HARD_MAX_QTY[underlying] qty. Never sizes up."""
+    lot = int(pos.lot_size or 0)
+    lots = min(int(pos.lots or 0), HARD_MAX_LOTS)
+    cap_qty = HARD_MAX_QTY.get(str(pos.underlying).upper())
+    if cap_qty is not None and lot > 0:
+        lots = min(lots, cap_qty // lot)
+    if lots == pos.lots and (pos.qty is None or lot <= 0 or pos.qty <= lots * lot):
+        return pos
+    old_lots = max(int(pos.lots or 1), 1)
+    pos.lots = lots
+    if lot > 0:
+        pos.qty = lots * lot
+    elif pos.qty is not None:
+        pos.qty = min(int(pos.qty), cap_qty) if cap_qty is not None else pos.qty
+    if pos.notional_inr is not None:
+        pos.notional_inr = round(float(pos.notional_inr) * lots / old_lots, 2)
+    return pos
+
+
 def _commit_open(engine: BookEngine, pos: OpenPaper) -> None:
     """Desk half of `_try_open`: book the ticket planned by `_plan_open`."""
+    pos = enforce_lot_cap(pos)
+    # cap TOTAL open qty per underlying across books (two books on one contract = 20 lots on 2026-10-12)
+    und = str(pos.underlying).upper()
+    cap = HARD_MAX_QTY.get(und)
+    # live desk only (DESK_RISK_GATE_LIVE=1 via desk.sh), like the other desk gates: the frozen legacy
+    # multi-book replays stay byte-identical. The per-ticket 10-lot clamp above always applies.
+    live = os.environ.get("DESK_RISK_GATE_LIVE", "").strip() in {"1", "true", "yes", "on"}
+    if cap is not None and live:
+        held = sum(int(o.qty or (o.lots or 0) * (o.lot_size or 0)) for (b, u), o in engine.opens.items()
+                   if str(u).upper() == und and b != pos.book_id)
+        lot = int(pos.lot_size or 0)
+        room = max(cap - held, 0)
+        if lot > 0 and int(pos.lots) * lot > room:
+            pos.lots = room // lot
+            pos.qty = pos.lots * lot
+        if not pos.lots:
+            engine.mark_skip(pos.book_id, pos.underlying, "RISK_CAP_QTY", ts=pos.opened_ts, seen_side=pos.side)
+            return
     engine.opens[(pos.book_id, pos.underlying)] = pos
     engine.bump_regime_book(pos.book_id, pos.index_regime, f"OPEN_{pos.side}")
     if engine.root is not None:
@@ -5208,6 +5270,8 @@ def mark_to_market(
             hold_trending_open_stall=bool(getattr(engine, "hold_trending_open_stall", False)),
         )
         roll = cancel_if_bin_rolled(pos, tick) if pos.filled else None
+        if pos.filled and minutes_ist(tick.ts) >= FLATTEN_MINUTES_IST and (not reason or is_soft_cancel_reason(reason)):
+            reason, roll = "FLATTEN_1516", None  # a soft trail-keep must not carry a ticket past square-off
         if reason == "TARGET":
             if apply_target_lock_shift(engine, pos, ltp=float(ltp), ts=tick.ts, **trail_kw):
                 continue
@@ -5910,6 +5974,9 @@ def load_paper_params(root: Path) -> dict[str, Any]:
     except (TypeError, ValueError):
         max_lots = 0
     out["paper_max_lots"] = max(max_lots, int(PAPER_MAX_LOTS), int(out["paper_target_lots"]))
+    # Sahil 2026-10-12: hard clamp so stored params (25/20/30) can never size above 10 lots.
+    for _k in ("paper_min_lots", "paper_target_lots", "paper_max_lots"):
+        out[_k] = min(int(out[_k]), int(PAPER_MAX_LOTS))
     out["production_params_written"] = False
     return out
 
@@ -6361,9 +6428,9 @@ def _replay_paper_scalp(
         regime_flip_min=float(params.get("regime_flip_min") or REGIME_FLIP_MIN),
         regime_range_atr_max=float(params.get("regime_range_atr_max") or REGIME_RANGE_ATR_MAX),
         paper_add_lot=bool(params.get("paper_add_lot", False)),
-        paper_min_lots=int(params.get("paper_min_lots") or PAPER_MIN_LOTS),
-        paper_target_lots=int(params.get("paper_target_lots") or PAPER_TARGET_LOTS),
-        paper_max_lots=int(params.get("paper_max_lots") or PAPER_MAX_LOTS),
+        paper_min_lots=min(int(params.get("paper_min_lots") or PAPER_MIN_LOTS), PAPER_MAX_LOTS),
+        paper_target_lots=min(int(params.get("paper_target_lots") or PAPER_TARGET_LOTS), PAPER_MAX_LOTS),
+        paper_max_lots=min(int(params.get("paper_max_lots") or PAPER_MAX_LOTS), PAPER_MAX_LOTS),
         max_target_r=float(params.get("max_target_r") or MAX_TARGET_R),
         skip_bn_unless_last3=(
             bool(skip_bn_unless_last3)

@@ -214,7 +214,7 @@ def test_quote_snapshot_schema_keeps_existing_fields() -> None:
         "depth_age_ms",
         "stale",
     ]
-    assert schema["properties"]["rule"]["enum"] == ["ATM", "ITM100", "ITM200", "OTM100", "OTM200"]
+    assert schema["properties"]["rule"]["enum"][:5] == ["ATM", "ITM100", "ITM200", "OTM100", "OTM200"]  # + NEAR_* (2026-10-12)
     assert "volume" in schema["properties"]
     assert "volume" not in schema["required"]
 

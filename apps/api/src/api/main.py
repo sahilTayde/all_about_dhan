@@ -15,6 +15,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 
 from api import ui_feed
+from api.background_test import router as background_test_router
 from api.config import load_api_settings
 from api.desk_merge import merge_live_paper_into_desk, overlay_customer_sod_ticket
 from api.founder_controls import router as founder_controls_router
@@ -26,6 +27,8 @@ from api.gateway_auth import (
     load_gateway_auth,
 )
 from api.health_alerts import router as health_router
+from api.px_exits import router as px_exits_router
+from api.lab_shadow import router as lab_shadow_router
 from api.models import TookTradeBody, TookTradeRecord
 from api.premium_bind import bind_premiums_onto_desk
 from api.store import SignalStore
@@ -384,6 +387,9 @@ def create_app() -> FastAPI:
     app.include_router(ws_router)
     app.include_router(health_router)
     app.include_router(founder_controls_router)
+    app.include_router(background_test_router)  # read-only research box; never desk P&L
+    app.include_router(px_exits_router)  # read-only PX exit labels + shadow exits; never desk / paper-extra totals
+    app.include_router(lab_shadow_router)  # read-only lab shadow feed; never desk paper / P&L / paper-extra
     if V2_GATEWAY_AVAILABLE:
         app.include_router(v2_router)
     return app

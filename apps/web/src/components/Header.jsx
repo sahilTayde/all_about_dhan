@@ -10,9 +10,9 @@ export function DemoBadge({ what = "Static demo data from public/mock — not wi
 export function OfflineBanner() {
   return (
     <div className="offline-banner" role="alert">
-      <strong>API OFFLINE · MOCK DATA</strong>
+      <strong>API OFFLINE · SAMPLE/OLD DATA</strong>
       <span>
-        Every number below is the static demo board from public/mock — not your paper trades. Start the API:{" "}
+        Every number below is an old saved copy of the paper board (public/mock), not live — do not trade on it. Start the API:{" "}
         <code>./scripts/desk.sh website</code>
       </span>
     </div>

@@ -1,27 +1,26 @@
-const LINKS = [
-  { href: "/", label: "Customer", hint: "CALL / PUT / HOLD" },
-  { href: "/desk", label: "Desk", hint: "Today & books" },
-  { href: "/pm", label: "Founder", hint: "Money & models" },
+export const NAV_LINKS = [
+  { href: "/desk", label: "Live" },
+  { href: "/desk/signals", label: "Signals" },
+  { href: "/desk/history", label: "Journal" },
+  { href: "/desk/strategies", label: "Strategies" },
+  { href: "/pm", label: "Money" },
+  { href: "/ops", label: "Ops" },
+  { href: "/", label: "Customer" },
 ];
 
-function isActive(path, href) {
-  if (href === "/") return path === "/" || path === "" || path === "/customer" || path.startsWith("/customer/");
-  return path === href || path.startsWith(`${href}/`);
-}
-
+/** Light nav for pages without the desk feed (customer page, 404). */
 export function AppNav({ current }) {
   const path = current || (typeof window !== "undefined" ? window.location.pathname : "/");
   return (
-    <nav className="app-nav" aria-label="Dashboards">
-      {LINKS.map((l) => {
-        const active = isActive(path, l.href);
-        return (
-          <a key={l.href} href={l.href} className={active ? "app-nav__link is-active" : "app-nav__link"}>
-            <strong>{l.label}</strong>
-            <span>{l.hint}</span>
-          </a>
-        );
-      })}
-    </nav>
+    <header className="tb">
+      <div className="tb__row">
+        <a className="tb__brand" href="/desk">all_about_dhan<span>paper desk</span></a>
+        <nav className="tb__nav" aria-label="Pages">
+          {NAV_LINKS.map((l) => (
+            <a key={l.href} href={l.href} className={path === l.href ? "is-on" : ""}>{l.label}</a>
+          ))}
+        </nav>
+      </div>
+    </header>
   );
 }

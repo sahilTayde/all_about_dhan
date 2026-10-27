@@ -1,10 +1,11 @@
 """Founder emergency controls (roadmap step 14) replayed on the synthetic NIFTY session.
 
 Every command applies from its own timestamp, entries fail closed and founder exits are never
-refused. Baseline (no commands): 12 trades / +69,309.10 (Dhan/NSE FA/73061 paper rates).
+refused. Baseline (no commands): 12 trades / +27,383.80 (Dhan/NSE FA/73061 paper rates, 10-lot cap).
 """
 
 import json
+import re
 from datetime import datetime
 from pathlib import Path
 
@@ -92,7 +93,7 @@ def assert_unchanged_before(rows, baseline, ts):
 
 
 def test_no_commands_is_exact(fx, tmp_path, baseline):
-    assert len(baseline) == 12 and round(sum(r["realized_pnl_inr"] for r in baseline), 2) == 69309.1
+    assert len(baseline) == 12 and round(sum(r["realized_pnl_inr"] for r in baseline), 2) == 27383.8
     board = replay(fx, tmp_path)  # no log file under root
     assert board["closed_trades"] == baseline and "founder_controls" not in board
     assert replay(fx, tmp_path, [])["closed_trades"] == baseline
@@ -170,30 +171,30 @@ def test_go_for_t2_holds_past_the_first_target(fx, tmp_path, baseline):
 
 
 def test_change_lots_for_next_trades(fx, tmp_path, baseline):
-    board = replay(fx, tmp_path, [cmd("SET_LOTS", "12:00", lots=10)])
+    board = replay(fx, tmp_path, [cmd("SET_LOTS", "12:00", lots=5)])
     rows = board["closed_trades"]
     assert_unchanged_before(rows, baseline, at("12:00"))
     later = [r for r in rows if r["filled"] and int(r["opened_ts"]) >= at("12:00")]
-    assert later and {r["lots"] for r in later} == {10}
-    assert {r["lots"] for r in rows if int(r["opened_ts"]) < at("12:00")} == {25}
+    assert later and {r["lots"] for r in later} == {5}
+    assert {r["lots"] for r in rows if int(r["opened_ts"]) < at("12:00")} == {ps.PAPER_MAX_LOTS}  # 10-lot cap (4aa8778)
 
 
 def _risk_limits(root, max_lots):
     src = (Path(__file__).resolve().parents[3] / "config" / "risk_limits.yaml").read_text(encoding="utf-8")
     (root / "config").mkdir(exist_ok=True)
     (root / "config" / "risk_limits.yaml").write_text(
-        src.replace("  paper:\n    max_lots_per_trade: 25", f"  paper:\n    max_lots_per_trade: {max_lots}"), encoding="utf-8"
+        re.sub(r"(  paper:\n    max_lots_per_trade: )\d+", rf"\g<1>{max_lots}", src), encoding="utf-8"
     )
 
 
 def test_lots_override_is_capped_by_the_risk_limits_in_the_engine(fx, tmp_path):
     """A hand-written row that bypasses the API still cannot exceed the risk limits' lots cap."""
-    _risk_limits(tmp_path, 22)
+    _risk_limits(tmp_path, 7)
     rows = replay(fx, tmp_path, [cmd("SET_LOTS", "09:00", lots=40)])["closed_trades"]
-    assert rows and {r["lots"] for r in rows if r["filled"]} == {22}
-    _risk_limits(tmp_path, 25)  # the repo's paper cap
+    assert rows and {r["lots"] for r in rows if r["filled"]} == {7}
+    _risk_limits(tmp_path, 25)  # a looser risk_limits cap; the engine's hard 10-lot cap (4aa8778) still binds
     rows = replay(fx, tmp_path, [cmd("SET_LOTS", "09:00", lots=40)])["closed_trades"]
-    assert {r["lots"] for r in rows if r["filled"]} == {25}
+    assert {r["lots"] for r in rows if r["filled"]} == {ps.PAPER_MAX_LOTS}
 
 
 def test_unreadable_risk_limits_let_a_lots_override_only_lower(fx, tmp_path):

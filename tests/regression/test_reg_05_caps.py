@@ -27,19 +27,19 @@ def test_reg_05a_cap_table(tmp_path: Path) -> None:
     clock = SimClock(NOW)
     store = MemoryLedger()
     risk = V2RiskEngine(ledger=store, config_path=write_risk_cfg(tmp_path))
-    # max lots 25
+    # max lots 10
     lots_over = risk.check_entry(
-        _intent(lots=26, price=100.0, stop=99.0), now=NOW, state=RiskState()
+        _intent(lots=11, price=100.0, stop=99.0), now=NOW, state=RiskState()
     )
     assert lots_over.reason_code == "MAX_LOTS"
-    # max loss per trade ₹30k: (100-50)*25*65 = 81,250
+    # max loss per trade ₹30k: (100-50)*10*65 = 32,500
     loss = risk.check_entry(
-        _intent(lots=25, price=100.0, stop=50.0), now=NOW, state=RiskState()
+        _intent(lots=10, price=100.0, stop=50.0), now=NOW, state=RiskState()
     )
     assert loss.reason_code == "MAX_LOSS_PER_TRADE"
-    # would-cross daily cap: realized -80k, ticket risk 15k → would exceed 90k
-    st = RiskState(realized_pnl_today=-80000.0)
-    d = risk.check_entry(_intent(lots=25, price=100.0, stop=90.0), now=NOW, state=st)
+    # would-cross daily cap: realized -85k, ticket risk 6.5k → would exceed 90k
+    st = RiskState(realized_pnl_today=-85000.0)
+    d = risk.check_entry(_intent(lots=10, price=100.0, stop=90.0), now=NOW, state=st)
     assert d.reason_code == "MAX_DAILY_LOSS"
     # max open positions 3
     st = RiskState(open_positions=3)

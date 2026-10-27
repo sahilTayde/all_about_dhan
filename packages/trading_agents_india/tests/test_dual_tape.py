@@ -215,3 +215,25 @@ def test_llm_judge_is_shadow_only_on_paper_scalp(tmp_path: Path, monkeypatch) ->
     assert result.ticks[0]["llm"] is False
     assert seen == [{"n_open": 1, "entry": 100.0}]
     assert result.ticks[0]["paper_scalp_board"]["llm_judge"]["trade"] is False
+
+
+def test_market_read_hook_is_flagged_and_cannot_crash_loop(tmp_path: Path, monkeypatch) -> None:
+    """MARKET_READ_LOG=1 calls desk_ml.market_read.log_pass once per persisted tick; a raising hook
+    never stops capture, and with the flag unset it is never called."""
+    import desk_ml.market_read as mr
+
+    calls: list[int] = []
+
+    def boom(root, snaps):
+        calls.append(len(snaps))
+        raise RuntimeError("market read broke")
+
+    monkeypatch.setattr(mr, "log_pass", boom)
+    kw = dict(underlyings=["NIFTY"], max_ticks=2, simulate=True, persist=True,
+              settings=_settings(tmp_path), write_run_flag_on_start=False, sleep_fn=lambda s: None)
+    monkeypatch.delenv("MARKET_READ_LOG", raising=False)
+    assert len(run_dual_tape_loop(**kw).ticks) == 2 and calls == []
+    monkeypatch.setenv("MARKET_READ_LOG", "1")
+    result = run_dual_tape_loop(**kw)
+    assert result.stopped_reason == "completed_max_ticks" and len(result.ticks) == 2
+    assert calls == [1, 1]

@@ -1,0 +1,21 @@
+# source: NSE circular NSE/FAOP/65588 (F&O, Circular Ref 161/2024) and NSE/CMTR/65587 (CM, Circular Ref 170/2024), both dated December 13, 2024; identical lists; see nse_holidays_2025.source.md
+# status: listed = on the circular; Muhurat trading (special evening session) was held on 2025-10-21 per the circular's footnote; it is still a trading holiday for the normal session
+date,weekday,description,segment,status
+2025-01-26,Sunday,Republic Day,FO;CM,listed
+2025-02-26,Wednesday,Mahashivratri,FO;CM,listed
+2025-03-14,Friday,Holi,FO;CM,listed
+2025-03-31,Monday,Id-Ul-Fitr (Ramadan Eid),FO;CM,listed
+2025-04-06,Sunday,Shri Ram Navami,FO;CM,listed
+2025-04-10,Thursday,Shri Mahavir Jayanti,FO;CM,listed
+2025-04-14,Monday,Dr. Baba Saheb Ambedkar Jayanti,FO;CM,listed
+2025-04-18,Friday,Good Friday,FO;CM,listed
+2025-05-01,Thursday,Maharashtra Day,FO;CM,listed
+2025-06-07,Saturday,Bakri Id,FO;CM,listed
+2025-07-06,Sunday,Muharram,FO;CM,listed
+2025-08-15,Friday,Independence Day,FO;CM,listed
+2025-08-27,Wednesday,Ganesh Chaturthi,FO;CM,listed
+2025-10-02,Thursday,Mahatma Gandhi Jayanti/Dussehra,FO;CM,listed
+2025-10-21,Tuesday,Diwali Laxmi Pujan*,FO;CM,listed
+2025-10-22,Wednesday,Diwali-Balipratipada,FO;CM,listed
+2025-11-05,Wednesday,Prakash Gurpurb Sri Guru Nanak Dev,FO;CM,listed
+2025-12-25,Thursday,Christmas,FO;CM,listed

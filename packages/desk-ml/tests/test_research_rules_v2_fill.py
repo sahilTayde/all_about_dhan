@@ -1,0 +1,199 @@
+"""V2-recorder gap fill for research_rules replay. Synthetic tapes only; never touches data/."""
+
+from __future__ import annotations
+
+import json
+from pathlib import Path
+
+from desk_ml import research_rules as rr
+
+DAY = "2026-10-09"
+
+
+def _ts(hhmm: str, sec: int = 50) -> str:
+    return f"{DAY}T{hhmm}:{sec:02d}+05:30"
+
+
+def _write_dual(root: Path, minutes: list[str]) -> None:
+    folder = root / "data" / "recon" / "paper_watch" / "DUAL-TAPE"
+    folder.mkdir(parents=True, exist_ok=True)
+    with (folder / f"{DAY}.jsonl").open("w", encoding="utf-8") as fh:
+        for m in minutes:
+            snap = {"underlying": "NIFTY", "as_of_ist": _ts(m), "index_ltp": 25000.0, "atm_strike": 25000.0,
+                    "atm_ce_ltp": 100.0, "atm_pe_ltp": 90.0,
+                    "wing_quotes": {"25000": {"ce": 100.0, "pe": 90.0, "ce_bid": 99.9, "ce_ask": 100.1}}}
+            fh.write(json.dumps({"as_of_ist": _ts(m), "underlyings": [snap]}) + "\n")
+
+
+def _write_v2(root: Path, minutes: list[str]) -> None:
+    folder = root / "data" / "tape" / "v2" / DAY
+    folder.mkdir(parents=True, exist_ok=True)
+    with (folder / "depth_quotes.jsonl").open("w", encoding="utf-8") as fh:
+        for m in minutes:
+            for sec, px in ((5, 25010.0), (55, 25020.0)):
+                fh.write(json.dumps({"payload": {"instrument_id": "NSE_IDX:NIFTY", "ltp": px,
+                                                 "exchange_ts": _ts(m, sec)}, "timestamp": _ts(m, sec)}) + "\n")
+            fh.write(json.dumps({"payload": {"instrument_id": "BSE_IDX:SENSEX", "ltp": 1.0,
+                                             "exchange_ts": _ts(m)}, "timestamp": _ts(m)}) + "\n")
+    with (folder / "quote_snapshots.jsonl").open("w", encoding="utf-8") as fh:
+        for m in minutes:
+            for strike, rule in ((25000, "ATM"), (25100, "OTM100")):
+                for side, bid, ask in (("CE", 120.0, 121.0), ("PE", 80.0, 81.0)):
+                    fh.write(json.dumps({"payload": {"instrument_id": f"NSE_FNO:NIFTY:2026-10-13:{strike}:{side}",
+                                                     "rule": rule, "side": side, "bid": bid, "ask": ask, "ltp": bid},
+                                         "timestamp": _ts(m, 30)}) + "\n")
+            # a null (stale) quote later in the minute must not wipe the good one
+            fh.write(json.dumps({"payload": {"instrument_id": "NSE_FNO:NIFTY:2026-10-13:25000:CE", "rule": "ATM",
+                                             "bid": None, "ask": None, "ltp": None}, "timestamp": _ts(m, 59)}) + "\n")
+
+
+def test_v2_fills_only_dual_tape_gaps(tmp_path: Path) -> None:
+    _write_dual(tmp_path, ["10:30", "10:31", "11:02"])
+    _write_v2(tmp_path, ["10:31", "10:32", "10:33", "11:01"])
+    bars = rr.load_minutes_filled(tmp_path, "NIFTY", DAY)
+    assert list(bars) == ["10:30", "10:31", "10:32", "10:33", "11:01", "11:02"]
+    assert bars["10:31"]["source"] == "dual_tape" and bars["10:31"]["ce"] == 100.0  # never overwritten
+    gap = bars["10:32"]
+    assert gap["source"] == "v2_fill"
+    assert gap["idx"] == 25020.0  # last index print of the minute
+    assert gap["atm"] == 25000.0
+    assert gap["ce"] == 120.5 and gap["pe"] == 80.5  # mid of the last non-null quote
+    assert gap["wings"]["25000"]["ce_ask"] == 121.0 and gap["wings"]["25000"]["ce_bid"] == 120.0
+    assert gap["wings"]["25100"]["pe_bid"] == 80.0
+    q, flag = rr.strike_quote(gap, "CE", 25000.0, "ask")
+    assert q == 121.0 and flag is None
+
+
+def test_no_v2_folder_is_plain_dual_tape(tmp_path: Path) -> None:
+    _write_dual(tmp_path, ["10:30", "10:32"])
+    assert list(rr.load_minutes_filled(tmp_path, "NIFTY", DAY)) == ["10:30", "10:32"]
+    assert rr.load_v2_minutes(tmp_path, "NIFTY", DAY) == {}
+
+
+def test_replay_fill_flag_and_held_strike(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setenv("DESK_RR_SOURCE", "legacy")  # legacy path; V2-primary default is tested in test_rr_v2_primary.py
+    _write_dual(tmp_path, ["10:30", "10:31"])
+    _write_v2(tmp_path, ["10:32"])
+    off = rr.replay(tmp_path, DAY, underlyings=("NIFTY",), fill_v2=False)
+    on = rr.replay(tmp_path, DAY, underlyings=("NIFTY",), fill_v2=True)
+    assert off["v2_fill"] is False and off["per_underlying"]["NIFTY"]["n_minutes"] == 2
+    assert on["v2_fill"] is True and on["per_underlying"]["NIFTY"]["n_minutes"] == 3
+    row = rr._trade_row(rule=rr.FROZEN_RULES[0], underlying="NIFTY", side="CE", strike=25000.0,
+                        sig_min="10:31", entry_min="10:32", exit_min="10:52", entry=121.0, mark=130.0,
+                        day=DAY, entry_bar={"source": "v2_fill"}, mark_bar={"hhmm": "10:52"},
+                        closed=True, reason="TIME")
+    assert row["held_strike"] == 25000.0
+    assert row["entry_price_source"] == "v2_fill" and row["exit_price_source"] == "dual_tape"
+
+
+def _pe_bars(minutes: list[str], strike: float = 22350.0) -> dict:
+    out = {}
+    for i, m in enumerate(minutes):
+        out[m] = {"hhmm": m, "atm": strike, "idx": 22350.0, "ce": 90.0, "pe": 80.0 + i,
+                  "wings": {str(int(strike)): {"pe_bid": 80.0 + i, "pe_ask": 80.5 + i}}}
+    return out
+
+
+def test_h20_exit_not_left_open_when_spec_minute_missing() -> None:
+    # 2026-10-12 live: spec exit 12:19 not on the tape, tape at 12:20 -> old rule waited for 12:21.
+    bars = _pe_bars(["12:15", "12:17", "12:18", "12:20"])
+    pick = rr._pick_exit(bars, list(bars), side="PE", strike=22350.0, spec_exit="12:19",
+                         entry_min="11:59", last_hhmm="12:20")
+    assert pick == ("12:18", 82.0, "EXIT_SHIFTED")  # tie 12:18/12:20 -> earlier
+
+
+def test_h20_exit_by_wall_clock_when_tape_stalls() -> None:
+    bars = _pe_bars(["12:15", "12:17"])
+    assert rr._pick_exit(bars, list(bars), side="PE", strike=22350.0, spec_exit="12:19",
+                         entry_min="11:59", last_hhmm="12:17") is None  # replay: not yet
+    pick = rr._pick_exit(bars, list(bars), side="PE", strike=22350.0, spec_exit="12:19",
+                         entry_min="11:59", last_hhmm="12:17", now_hhmm="12:19")
+    assert pick == ("12:17", 81.0, "EXIT_SHIFTED")
+    far = rr._pick_exit(bars, list(bars), side="PE", strike=22350.0, spec_exit="12:30",
+                        entry_min="11:59", last_hhmm="12:17", now_hhmm="12:31")
+    assert far == ("12:17", 81.0, "EXIT_EARLY_NO_QUOTE")
+
+
+def test_h20_exit_never_open_without_any_strike_quote() -> None:
+    bars = _pe_bars(["12:15", "12:17"], strike=22400.0)  # held 22350 never quoted
+    pick = rr._pick_exit(bars, list(bars), side="PE", strike=22350.0, spec_exit="12:19",
+                         entry_min="11:59", last_hhmm="12:17", now_hhmm="12:20")
+    assert pick == ("11:59", None, "EXIT_NO_QUOTE_AT_ENTRY_PX")
+
+
+def test_same_contract_same_minute_is_one_position() -> None:
+    def row(rid, entry_min, strike=22400.0, side="CE"):
+        return {"rule_id": rid, "underlying": "NIFTY", "side": side, "atm_strike": strike,
+                "entry_min": entry_min, "trade_id": f"RR-{rid}-{entry_min}"}
+    closed = [row(rr.R01_B3A, "11:59", 22350.0, "PE"), row(rr.R01, "11:59", 22350.0, "PE"),
+              row(rr.R01, "12:33"), row(rr.R01_B3A, "12:38")]
+    o, c, d = rr._dedupe_same_contract([], closed, [rr.R01, rr.R01_B3A])
+    assert [x["trade_id"] for x in c] == [f"RR-{rr.R01}-11:59", f"RR-{rr.R01}-12:33", f"RR-{rr.R01_B3A}-12:38"]
+    assert len(d) == 1 and d[0]["guard"] == "DUP_SAME_CONTRACT" and d[0]["dup_of"] == f"RR-{rr.R01}-11:59"
+
+
+def test_board_carries_status_lists_and_desk_rows_are_not_shadow(tmp_path: Path, monkeypatch) -> None:
+    t = {"rule_id": rr.R01, "underlying": "NIFTY", "side": "PE", "atm_strike": 22350.0, "entry_min": "11:59",
+         "trade_id": "A", "shadow": False, "desk_status": rr.TRADED, "research_rule": True, "book_id": rr.R01}
+    fake = {"open": [], "closed": [dict(t)], "rule_ids": [rr.R01], "per_underlying": {}, "qty": dict(rr.QTY),
+            "guard_blocked": rr._mark([dict(t, trade_id="B")], rr.BLOCKED_OPPOSITE_SIDE, shadow=True),
+            "shadow_parked": {"rule_ids": [rr.R02], "open": [], "note": "x",
+                              "closed": rr._mark([dict(t, trade_id="C", rule_id=rr.R02)], rr.SHADOW_PARKED, shadow=True)},
+            "dup_same_contract": rr._mark([dict(t, trade_id="D", rule_id=rr.R01_B3A, dup_of="A")], rr.DUP_SAME_CONTRACT, shadow=True)}
+    monkeypatch.setattr(rr, "replay", lambda *a, **k: fake)
+    import desk_ml.shadow_exits as se
+    monkeypatch.setattr(se, "attach_and_log", lambda *a, **k: None)
+    out = rr.attach_to_board({"session_ist_date": DAY, "open_trades": [], "closed_trades": []},
+                             root=tmp_path, environ={rr.FLAG_ENV: "1"})
+    meta = out["research_rules"]
+    assert [r["desk_status"] for r in meta["guard_blocked"]] == ["BLOCKED_OPPOSITE_SIDE"]
+    assert [r["desk_status"] for r in meta["shadow_parked"]["closed"]] == ["SHADOW_PARKED"]
+    assert [r["desk_status"] for r in meta["dup_same_contract"]] == ["DUP_SAME_CONTRACT"]
+    assert all(r["shadow"] for r in meta["guard_blocked"] + meta["dup_same_contract"])
+    assert [(r["trade_id"], r["desk_status"], r["shadow"]) for r in out["closed_trades"]] == [("A", "TRADED", False)]
+
+
+def test_trade_row_defaults_traded_not_shadow() -> None:
+    row = rr._trade_row(rule=rr.FROZEN_RULES[0], underlying="NIFTY", side="CE", strike=22400.0, sig_min="12:32",
+                        entry_min="12:33", exit_min="12:53", entry=85.9, mark=79.8, day=DAY,
+                        entry_bar={}, mark_bar={"hhmm": "12:53"}, closed=True, reason="TIME")
+    assert row["desk_status"] == "TRADED" and row["shadow"] is False and row["status"] == "CLOSED"
+
+
+def _g(rid, und, side, ent, ext, spec=None, tid=None):
+    return {"rule_id": rid, "underlying": und, "side": side, "entry_min": ent, "exit_min": ext,
+            "spec_exit_min": spec or ext, "sig_min": rr.mplus(ent, -1), "trade_id": tid or f"{rid}-{side}-{ent}",
+            "atm_strike": 22400.0}
+
+
+def test_guard_blocks_opposite_side_on_same_index_1257() -> None:
+    # live 2026-10-12: B3A NIFTY CE 12:38, spec exit 12:58, booked EXIT_SHIFTED at 12:57;
+    # R01 NIFTY PE entered 12:57 while the CE was still held.
+    ce = _g(rr.R01_B3A, "NIFTY", "CE", "12:38", "12:57", "12:58")
+    pe = _g(rr.R01, "NIFTY", "PE", "12:57", "13:17")
+    o, c, blocked = rr._same_direction_guard([], [ce, pe], "2026-10-12")
+    assert [x["trade_id"] for x in c] == [ce["trade_id"]]
+    assert [x["trade_id"] for x in blocked] == [pe["trade_id"]] and blocked[0]["guard"] == "BLOCKED_OPPOSITE_SIDE"
+
+
+def test_guard_open_or_overdue_position_blocks_and_after_spec_exit_allows() -> None:
+    ce = _g(rr.R01_B3A, "NIFTY", "CE", "12:38", "12:58")
+    assert rr._same_direction_guard([ce], [_g(rr.R01, "SENSEX", "PE", "13:30", "13:50")], "2026-10-12")[2]
+    after = _g(rr.R01, "NIFTY", "PE", "12:59", "13:19")
+    o, c, b = rr._same_direction_guard([], [ce, after], "2026-10-12")
+    assert not b and len(c) == 2
+
+
+def test_same_rule_never_enters_on_its_own_exit_minute() -> None:
+    mins = [rr.mplus("09:00", i) for i in range(0, 300)]
+    bars = {m: {"hhmm": m, "atm": 22400.0, "idx": 22400.0, "ce": 100.0, "pe": 100.0,
+                "wings": {"22400": {"ce_bid": 99.0, "ce_ask": 100.0, "pe_bid": 99.0, "pe_ask": 100.0}}} for m in mins}
+    rule = dict(rr.FROZEN_RULES[0])
+    orig = rr.signal
+    try:
+        rr.signal = lambda *a, **k: "CE"  # fires every minute
+        o, c = rr.replay_underlying(bars, underlying="NIFTY", day=DAY, rules=[rule])
+    finally:
+        rr.signal = orig
+    for a, b in zip(c, c[1:]):
+        assert b["entry_min"] > max(a["exit_min"], a["spec_exit_min"])

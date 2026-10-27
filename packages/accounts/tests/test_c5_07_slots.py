@@ -17,11 +17,13 @@ from accounts.slots import (
     ACCOUNT_TO_SLOT,
     LAUNCH_SLOT_PLAN,
     LAUNCH_SLOT_STRATEGIES,
-    PAPER_SLOT_LABELS,
     PORTAL_TO_ACCOUNT,
     account_id_for_portal_sub,
 )
 from accounts.split import bind_exec, run_role_once
+
+# customer-01/02 disabled 2026-10-12 (0756487: R01 rules failed real option prices); customer-04 parked earlier
+DISABLED_CUSTOMERS = {"customer-01", "customer-02", "customer-04"}
 
 REPO = Path(__file__).resolve().parents[3]
 
@@ -89,14 +91,14 @@ def test_committed_config_has_four_active_armed_slots() -> None:
         assert acc.premium_stop_pct == 0.15
         assert acc.risk_budget_inr == 30000
         assert registry.account_id_for_portal_sub(portal_sub) == account_id
-        if account_id == "customer-04":
+        if account_id in DISABLED_CUSTOMERS:
             continue
         live = registry.require_active(account_id)
         assert live.status == "active"
         seen_slots.add(live.slot)
         seen_tags.add(live.journal_tag)
-    assert seen_slots == set(PAPER_SLOT_LABELS) - {"SKLEARN"}
-    assert len(seen_tags) == 4
+    assert seen_slots == {slot for aid, _sub, slot in LAUNCH_SLOT_PLAN if aid not in DISABLED_CUSTOMERS}
+    assert len(seen_tags) == len(seen_slots) == 2
     founder = registry.require_active("founder")
     shadow = registry.require_active("v2-shadow")
     assert founder.slot_armed is False and founder.slot == ""
@@ -294,7 +296,7 @@ def test_cli_list_includes_portal_map_and_unarmed_slots() -> None:
     by_id = {row["account_id"]: row for row in body["accounts"]}
     for account_id in PAPER_LAUNCH_CUSTOMER_IDS:
         row = by_id[account_id]
-        if account_id == "customer-04":
+        if account_id in DISABLED_CUSTOMERS:
             assert row["status"] == "disabled"
         else:
             assert row["status"] == "active"

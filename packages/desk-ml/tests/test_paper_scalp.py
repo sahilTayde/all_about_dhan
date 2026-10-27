@@ -352,7 +352,8 @@ def test_allocate_desk_capital_skips_greeks_book() -> None:
     assert plan["desk_capital_inr"] == DESK_CAPITAL_INR
     assert plan["per_book"]["MIX-ML-GREEKS"] == 0.0
     active = [b for b in LIVE_BOOKS if b != "MIX-ML-GREEKS"]
-    assert sum(plan["per_book"][b] for b in active) == DESK_CAPITAL_INR
+    # the split is exact in paise; a float rupee sum of the Rs 10L split is 1000000.0000000001
+    assert sum(round(plan["per_book"][b] * 100) for b in active) == round(DESK_CAPITAL_INR * 100)
 
 
 def test_allocate_fill_books_not_eight_clones() -> None:
@@ -3698,3 +3699,18 @@ def test_r7_chop_bin_confirm_is_not_strength() -> None:
 
 
 
+
+
+def test_trail_move_resets_seen_low_so_old_dip_cannot_stop():
+    """Audit 2026-10-27: entry 100, dip 92, rally 140, trail lifts stop -> the 92 dip must not fire/price the new stop."""
+    from desk_ml.paper_scalp import _exit_reason, apply_filled_trail
+
+    ts = int(datetime(2026, 10, 21, 11, 0, tzinfo=IST).timestamp())
+    pos = OpenPaper(book_id="MIX-DEFAULT-BUY", underlying="NIFTY", side="CE", trade_id="seen-low", entry=100.0,
+                    stop=101.0, target=200.0, atm_strike=24800.0, opened_ts=ts - 1800, opened_bar=1,
+                    strike_source="ITM_100", limit_price=100.0, filled=True, index_regime="TREND")
+    pos.target_step = 1
+    pos.seen_low = 92.0
+    assert apply_filled_trail(BookEngine(), pos, ltp=140.0, ts=ts, reason="CANCEL_SIDEWAYS") is True
+    assert pos.stop > 101.0 and pos.seen_low == 140.0
+    assert _exit_reason(pos, 139.0, ts + 3, 2, side_low=139.0, atm_strike=24800.0) != "STOP"

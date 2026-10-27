@@ -140,6 +140,10 @@ class ShadowRun:
     builder: BarBuilder = field(default_factory=BarBuilder)
     feature_factory: DryRunCrossFeatures | None = None
     logged_session_hold: bool = False
+    # 2026-10-22: per-index bookkeeping. Before, NO_CLOSED_BAR / session abstain was logged once for
+    # "NIFTY" only, so a day where NIFTY decided but SENSEX had no closed bar showed SENSEX as NO_DATA.
+    decided_underlyings: set[str] = field(default_factory=set)
+    session_hold_underlyings: set[str] = field(default_factory=set)
 
     def _journal_extra(self, extra: dict[str, Any] | None = None) -> dict[str, Any]:
         row: dict[str, Any] = {}
@@ -179,6 +183,7 @@ class ShadowRun:
             extra=extra,
         )
         self.decisions += 1
+        self.decided_underlyings.add(str(decision.underlying or _underlying(decision.instrument_id)).upper())
         if decision.action == "HOLD":
             self.holds += 1
 
@@ -230,11 +235,13 @@ class ShadowRun:
             self.decisions += 1
             return
         if not self.session_basket.enabled_ids:
-            if not self.logged_session_hold:
+            key = underlying if instrument_id else "NIFTY"
+            if key not in self.session_hold_underlyings:
                 self.apply_decision(
                     session_abstain(self.session_basket, instrument_id=instrument_id or "NIFTY", ltp=ltp),
                     ts,
                 )
+                self.session_hold_underlyings.add(key)
                 self.logged_session_hold = True
             return
         tick = Tick(
@@ -303,6 +310,62 @@ def run_envelopes(shadow: ShadowRun, envelopes: Sequence[Envelope]) -> RunSummar
     return summary
 
 
+class TapeTail:
+    """Incremental tape reader: each poll parses only bytes appended since the last poll.
+
+    The old follow loop re-read and re-parsed the whole day directory (GBs of depth/raw
+    frames) every second and logged one warning per non-tick line, so poll cost grew
+    with the tape all day. Here cost is O(new bytes); bad lines are counted, not logged.
+    """
+
+    def __init__(self, tape: Path) -> None:
+        self.tape = tape
+        self.offsets: dict[Path, int] = {}
+        self.bad_lines: dict[str, int] = {}
+
+    def poll(self) -> list[Tick]:
+        from marketdata.sources import _tick_from_obj
+
+        new: list[Tick] = []
+        for path in tape_paths(self.tape):
+            if path.name.endswith(".gz"):
+                if path not in self.offsets:
+                    self.offsets[path] = -1
+                    new.extend(ticks_from_tape(path))
+                continue
+            start = self.offsets.get(path, 0)
+            try:
+                size = path.stat().st_size
+            except OSError:
+                continue
+            if size < start:  # truncated/rotated: start over
+                start = 0
+            if size == start:
+                continue
+            with path.open("rb") as fh:
+                fh.seek(start)
+                chunk = fh.read(size - start)
+            cut = chunk.rfind(b"\n")
+            if cut < 0:
+                continue  # partial line still being written
+            self.offsets[path] = start + cut + 1
+            for raw in chunk[: cut + 1].splitlines():
+                line = raw.strip()
+                if not line:
+                    continue
+                try:
+                    obj = json.loads(line)
+                    if not isinstance(obj, dict):
+                        raise ValueError("row is not a JSON object")
+                    tick = _tick_from_obj(obj)
+                    if tick.exchange_ts:
+                        new.append(tick)
+                except (ValueError, KeyError, TypeError):
+                    self.bad_lines[path.name] = self.bad_lines.get(path.name, 0) + 1
+        new.sort(key=lambda tick: tick.exchange_ts or "")
+        return new
+
+
 def load_tape_envelopes(tape: Path) -> list[Envelope]:
     ticks: list[Tick] = []
     for path in tape_paths(tape):
@@ -329,15 +392,26 @@ def _attach_basket(
         shadow.feature_factory = DryRunCrossFeatures()
 
 
+def _basket_underlyings(shadow: ShadowRun) -> list[str]:
+    names: set[str] = set()
+    if shadow.session_basket is not None:
+        for entry in shadow.session_basket.basket.entries:
+            names.update(str(u).upper() for u in entry.underlyings if str(u).strip())
+    return sorted(names) or ["NIFTY"]
+
+
 def _finish_decisions(shadow: ShadowRun) -> None:
-    if shadow.decisions > 0 or shadow.session_basket is None:
+    """One closing HOLD row per basket index that logged nothing (was: one NIFTY row, only if no decision at all)."""
+    if shadow.session_basket is None:
         return
-    instrument = "NIFTY"
     ts = datetime.now(IST).isoformat(timespec="seconds")
-    if shadow.session_basket.enabled_ids:
-        shadow.apply_decision(no_closed_bar(shadow.session_basket, instrument_id=instrument), ts)
-    else:
-        shadow.apply_decision(session_abstain(shadow.session_basket, instrument_id=instrument), ts)
+    for instrument in _basket_underlyings(shadow):
+        if instrument in shadow.decided_underlyings:
+            continue
+        if shadow.session_basket.enabled_ids:
+            shadow.apply_decision(no_closed_bar(shadow.session_basket, instrument_id=instrument), ts)
+        else:
+            shadow.apply_decision(session_abstain(shadow.session_basket, instrument_id=instrument), ts)
 
 
 def _status_fields(shadow: ShadowRun) -> dict[str, Any]:
@@ -439,17 +513,21 @@ def follow_tape(
         return shadow
     seen = 0
     idle = 0
+    tail = TapeTail(tape)
     while not stop_flag.is_file():
         try:
-            envelopes = load_tape_envelopes(tape)
+            fresh = tail.poll()
         except OSError:
-            envelopes = []
-        if len(envelopes) > seen:
-            run_envelopes(shadow, envelopes[seen:])
-            seen = len(envelopes)
+            fresh = []
+        envelopes = envelopes_from_ticks(fresh) if fresh else []
+        if envelopes:
+            if shadow.closed_reason == "FEED_DOWN":
+                shadow.closed_reason = None  # 2026-10-22: feed recovered; never leave a stale FEED_DOWN
+            run_envelopes(shadow, envelopes)
+            seen += len(envelopes)
             idle = 0
         else:
-            if not envelopes:
+            if not seen:
                 shadow.closed_reason = "FEED_DOWN"
             idle += 1
             if max_idle_polls is not None and idle >= max_idle_polls:

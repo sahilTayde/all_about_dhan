@@ -113,7 +113,7 @@ def test_instrument_counts_sit_inside_dhan_caps() -> None:
         assert within_dhan_caps(n)
     assert not within_dhan_caps(101)
     snapshot = load_schema("quote_snapshot")
-    assert snapshot["properties"]["rule"]["enum"] == ["ATM", "ITM100", "ITM200", "OTM100", "OTM200"]
+    assert snapshot["properties"]["rule"]["enum"][:5] == ["ATM", "ITM100", "ITM200", "OTM100", "OTM200"]  # + NEAR_* (2026-10-12)
     assert "volume" in snapshot["properties"]
     assert "volume" not in snapshot["required"]
     depth = load_schema("depth_quote")

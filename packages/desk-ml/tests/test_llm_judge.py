@@ -335,6 +335,11 @@ def test_paper_slot_ids_skip_inactive_accounts(tmp_path: Path) -> None:
 
 def test_collect_pick_events_from_research_rule(tmp_path: Path) -> None:
     _pdiv_tape(tmp_path)
+    # R01 slot is disabled in the committed accounts.yaml since 2026-10-12 (0756487); give the tape root its own active slot.
+    (tmp_path / "config" / "v2").mkdir(parents=True, exist_ok=True)
+    (tmp_path / "config" / "v2" / "accounts.yaml").write_text(
+        "accounts:\n  - account_id: customer-01\n    status: active\n    strategy_id: R01_PDIV_5_ALL_H20\n", encoding="utf-8"
+    )
     events = collect_pick_events({"session_ist_date": DAY, "open_trades": [], "closed_trades": []}, root=tmp_path, day=DAY, hhmm="10:00")
     slots = paper_slot_ids(tmp_path)
     setups = {e["setup"] for e in events}

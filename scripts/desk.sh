@@ -91,10 +91,22 @@ stop_dual_tape() {
     fi
     sleep 2
   done
-  pkill -f 'trading_agents_india dual-tape' 2>/dev/null || true
+  kill_dual_tape_tree
+  rm -f "$RECON/paper_dual_tape_RUNNING.flag"
+}
+
+kill_dual_tape_tree() {
+  # 2026-10-12: screen quit leaves health.supervise + its child alive -> duplicate loops.
+  # Kill the supervisor first (so it cannot respawn), then the dual-tape children, then the screens.
   screen -S dual-tape-live-5s -X quit 2>/dev/null || true
   screen -S dual-tape-live-2s -X quit 2>/dev/null || true
-  rm -f "$RECON/paper_dual_tape_RUNNING.flag"
+  pkill -f 'health.supervise -- .*trading_agents_india dual-tape' 2>/dev/null || true
+  pkill -f 'trading_agents_india dual-tape' 2>/dev/null || true
+  for _ in 1 2 3 4 5; do
+    pgrep -f 'trading_agents_india dual-tape' >/dev/null 2>&1 || return 0
+    sleep 1
+  done
+  pkill -9 -f 'trading_agents_india dual-tape' 2>/dev/null || true
 }
 
 rotate_log() {  # size-based, keep 7: the live log must not fill the disk
@@ -113,7 +125,7 @@ health_supervise_available() {
 
 dual_tape_child_cmd() {
   # Same args whether or not health.supervise wraps them.
-  printf "%s" "'$PY' -u -m trading_agents_india dual-tape --live-chain --paper-train --paper-scalp --tick-seconds 2 --max-ticks 0"
+  printf "%s" "env DESK_OLD_BOOK_OFF=1 DESK_RISK_GATE_LIVE=1 MARKET_READ_LOG=${MARKET_READ_LOG:-0} '$PY' -u -m trading_agents_india dual-tape --live-chain --paper-train --paper-scalp --tick-seconds 2 --max-ticks 0"
 }
 
 dual_tape_launch_inner() {
@@ -130,12 +142,12 @@ dual_tape_launch_inner() {
 
 start_dual_tape() {
   rm -f "$RECON/paper_dual_tape_STOPPED.flag"
-  screen -S dual-tape-live-2s -X quit 2>/dev/null || true
+  kill_dual_tape_tree
   rotate_log "$RECON/dual_tape_live_2s.log"
   local inner
   inner="$(dual_tape_launch_inner)"
   # Bake PYTHONPATH into the login zsh so a Mac .zprofile cannot drop packages/*/src.
-  screen -dmS dual-tape-live-2s zsh -lc "cd '$ROOT' && export PYTHONPATH='$PYTHONPATH' && $inner"
+  screen -dmS dual-tape-live-2s zsh -lc "cd '$ROOT' && set -a && . ./.env && set +a && export PYTHONPATH='$PYTHONPATH' && $inner"
 }
 
 arm_dual_tape_when_open() {
@@ -283,6 +295,25 @@ recorder_stop() {
   fi
   screen -S "$RECORDER_SCREEN" -X quit >/dev/null 2>&1 || true
   echo "v2 recorder STOPPED (tapes left intact under $TAPE_V2)"
+}
+
+# Cross-market recorder (VIX, BANKNIFTY, FINNIFTY, heavyweights, MCX crude/gold): its own process
+# and websocket, record-only, tapes under data/tape/cross. A crash here never touches the desk loop.
+cross_start() {
+  # pgrep too: screen -ls can miss live screens from a detached/other-TMPDIR shell (2026-10-27 a second copy started)
+  if screen -ls 2>/dev/null | grep -qE '[.]cross-recorder[[:space:]]' || pgrep -f '[Pp]ython.*-m marketdata.cross_market' >/dev/null 2>&1; then
+    echo "ERROR: cross recorder already running (screen cross-recorder)" >&2; return 1
+  fi
+  [[ -x "$V2_PY" ]] || { echo "ERROR: $V2_PY missing" >&2; return 1; }
+  mkdir -p "$ROOT/data/tape/cross"
+  screen -dmS cross-recorder zsh -lc "cd '$ROOT' && '$V2_PY' -u -m marketdata.cross_market --record-only >> '$ROOT/data/tape/cross/cross_recorder.log' 2>&1"
+  echo "cross recorder STARTED (record-only). log=$ROOT/data/tape/cross/cross_recorder.log"
+}
+
+cross_stop() {
+  pkill -f '[Pp]ython.*-m marketdata.cross_market' 2>/dev/null || true
+  screen -S cross-recorder -X quit >/dev/null 2>&1 || true
+  echo "cross recorder STOPPED (tapes left intact)"
 }
 
 recorder_status() {
@@ -605,9 +636,10 @@ case "$CMD" in
     screen -S dual-tape-live-2s -X quit 2>/dev/null || true
     screen -wipe >/dev/null 2>&1 || true
     rm -f "$RECON/paper_dual_tape_STOPPED.flag"
-    PYTHONPATH="$ROOT/packages/desk-intel/src${PYTHONPATH:+:$PYTHONPATH}" \
-      "$PY" -m jobs pre-market --offline >> "$RECON/pre_market.log" 2>&1 || true
-    "$PY" -m desk_ml fix-first >> "$RECON/fix_first.log" 2>&1 || true
+    # 2026-10-13: the two slow steps (can take >10 min) run in their own screen so they can never block
+    # the API / website / dual-tape start. Their logs are unchanged.
+    screen -S desk-slow -X quit 2>/dev/null || true
+    screen -dmS desk-slow zsh -lc "cd '$ROOT' && PYTHONPATH='$ROOT/packages/desk-intel/src${PYTHONPATH:+:$PYTHONPATH}' '$PY' -m jobs pre-market --offline >> '$RECON/pre_market.log' 2>&1; '$PY' -m desk_ml fix-first >> '$RECON/fix_first.log' 2>&1"
     start_api
     start_web
     arm_dual_tape_when_open
@@ -616,6 +648,10 @@ case "$CMD" in
     echo "MORNING UP. Desk http://127.0.0.1:5173/desk  Founder http://127.0.0.1:5173/pm"
     echo "On /pm: pick index then START TRADE. PAPER. No live orders."
     screen -ls || true
+    ;;
+  autostart)
+    # Unattended weekday start (launchd). Paper only; never mints a token, never places an order.
+    exec "$ROOT/scripts/desk_autostart.sh"
     ;;
   close|night|nightly)
     echo "CLOSE: stop data capture, keep website, honesty exam + nightly."
@@ -658,6 +694,12 @@ EOF
     ;;
   recorder-status)
     recorder_status
+    ;;
+  cross-start)
+    cross_start
+    ;;
+  cross-stop)
+    cross_stop
     ;;
   shadow-start)
     shadow_start || echo "WARNING: v2 shadow-start failed (legacy desk is unchanged)" >&2
@@ -753,7 +795,7 @@ PY
     exec "$0" close
     ;;
   *)
-    echo "usage: $0 morning|close|website|status|watch-open|watch-close|preflight|recorder-start|recorder-stop|recorder-status|shadow-start|shadow-stop|shadow-status|c5-start|c5-status|c5-stop|c5-backup|c5-restore|mint-token" >&2
+    echo "usage: $0 morning|close|website|status|watch-open|watch-close|preflight|recorder-start|recorder-stop|recorder-status|cross-start|cross-stop|shadow-start|shadow-stop|shadow-status|c5-start|c5-status|c5-stop|c5-backup|c5-restore|mint-token" >&2
     exit 2
     ;;
 esac

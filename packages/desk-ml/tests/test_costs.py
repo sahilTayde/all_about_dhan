@@ -21,8 +21,8 @@ REPO = Path(__file__).resolve().parents[3]
 LOTS = {"NIFTY": 65, "SENSEX": 20, "BANKNIFTY": 30}
 # canonical(board) after Dhan/NSE FA/73061 paper rates (txn 0.000355299 + IPFT). Charges-only move.
 LEGACY_SHA = {
-    "fixture": "002966884f2a25cece9c15fd7de0f032d7635ad688a7b499a184d60087f042f9",
-    "nifty_sensex": "b18383da257b091c9794a5918ba37038c6f3b54cdbc7ddace0e290eed785c77c",
+    "fixture": "4d80daedbd19df9caa6d415abd03debd7c2e8686efda76ab9641357e2662eb47",
+    "nifty_sensex": "bd512a17c7a2e9e4830cc0ab76a33d2906acad58e7aef204eec4247e43563f1f",
 }
 REALISTIC_KEYS = {"cost_model", "decision_entry", "decision_exit", "slippage_inr", "quote_src", "quote_age_s",
                   "exit_pending_since_ts"}
@@ -73,7 +73,7 @@ def test_legacy_replay_is_byte_identical_to_pre_build(tmp_path, name, how):
     assert not any(REALISTIC_KEYS & set(r) for r in board["closed_trades"]), "legacy rows gained keys"
     assert board["cost_model"] == ps.groww_cost_meta()
     if name == "fixture":
-        assert (len(filled(board)), net(filled(board))) == (12, 69309.1)  # same 12 trades; higher NSE txn/IPFT
+        assert (len(filled(board)), net(filled(board))) == (12, 27383.8)  # same 12 trades; 10-lot cap (4aa8778, was 69309.1 at 25 lots)
 
 
 def test_default_is_legacy_and_env_or_kwarg_switches(monkeypatch):

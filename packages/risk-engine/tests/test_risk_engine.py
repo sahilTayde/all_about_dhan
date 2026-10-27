@@ -31,8 +31,8 @@ def make_engine(tmp_path, ledger=None, **overrides):
     return RiskEngine(ledger=ledger, config_path=path)
 
 
-def intent(lots=25, price=100.0, stop=97.0, **kw):
-    # 25 lots x 65 = 1625 qty; risk (100-97)*1625 = ₹4,875 <= ₹5,000 paper max_loss_per_trade
+def intent(lots=10, price=100.0, stop=97.0, **kw):
+    # 10 lots x 65 = 650 qty; risk (100-97)*650 = ₹1,950, inside the paper limits
     return TradeIntent(symbol="NIFTY 25000 CE", side="BUY", lots=lots, lot_size=65,
                        decision_price=price, stop_loss=stop, **kw)
 
@@ -48,7 +48,7 @@ def test_paper_trade_within_limits_passes(engine):
 
 def test_max_lots_per_trade(engine):
     d = engine.check_entry(intent(lots=200, stop=99.99), NOW, RiskState())
-    assert not d.approved and code(d) == "MAX_LOTS" and "25" in d.reason
+    assert not d.approved and code(d) == "MAX_LOTS" and "10" in d.reason
 
 
 @pytest.mark.parametrize("mode", ["limited_live", "live"])
@@ -111,28 +111,28 @@ def test_max_daily_loss_already_hit_is_critical(engine):
     assert code(d) == "MAX_DAILY_LOSS" and d.critical
 
 
-def test_paper_limits_fit_a_6l_account_trading_25_lots():
+def test_paper_limits_fit_a_10l_account_trading_10_lots():
     paper = BASE_CFG["modes"]["paper"]
     assert BASE_CFG["modes"]["shadow"] == paper
-    assert paper == {"max_lots_per_trade": 25, "max_open_positions": 3,
+    assert paper == {"max_lots_per_trade": 10, "max_open_positions": 3,
                      "max_daily_loss": -90000, "max_loss_per_trade": -30000}
     assert BASE_CFG["modes"]["limited_live"]["max_loss_per_trade"] == -2000
     assert BASE_CFG["modes"]["live"]["max_loss_per_trade"] == -10000
 
 
-@pytest.mark.parametrize("stop,risk", [(141.4, 13975.0), (132.2, 28925.0)])
-def test_typical_25_lot_nifty_ticket_is_approved_in_paper(engine, stop, risk):
-    t = intent(lots=25, price=150.0, stop=stop)  # 25 x 65 = 1625 qty
+@pytest.mark.parametrize("stop,risk", [(141.4, 5590.0), (132.2, 11570.0)])
+def test_typical_10_lot_nifty_ticket_is_approved_in_paper(engine, stop, risk):
+    t = intent(lots=10, price=150.0, stop=stop)  # 10 x 65 = 650 qty
     assert t.worst_case_loss() == pytest.approx(risk)
     assert engine.check_entry(t, NOW, RiskState()).approved
 
 
 def test_max_loss_per_trade(engine):
-    big = intent(lots=25, price=150.0, stop=130.9)  # (150 - 130.9) x 1625 = ₹31,037.50
-    assert big.worst_case_loss() == pytest.approx(31037.5)
+    big = intent(lots=10, price=150.0, stop=102.0)  # (150 - 102) x 650 = ₹31,200
+    assert big.worst_case_loss() == pytest.approx(31200.0)
     d = engine.check_entry(big, NOW, RiskState())
     assert code(d) == "MAX_LOSS_PER_TRADE" and "30,000" in d.reason
-    # No stop on a long option: worst case is the whole premium (100 x 1625 = ₹1,62,500).
+    # No stop on a long option: worst case is the whole premium (100 x 650 = ₹65,000).
     assert code(engine.check_entry(intent(stop=None), NOW, RiskState())) == "MAX_LOSS_PER_TRADE"
 
 
