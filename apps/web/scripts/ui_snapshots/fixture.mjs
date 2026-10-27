@@ -580,6 +580,7 @@ export function snapshot(nowIso = "2026-09-26T10:00:00+05:30") {
     health: [
       { id: "api", name: "API", tone: "green", detail: "answering this request", age_s: 0 },
       { id: "paper", name: "Paper loop", tone: "red", detail: "not running", age_s: null },
+      { id: "recorder", name: "Recorder", tone: "green", detail: "fresh · last v2 tape 12s ago", age_s: 12 },
       { id: "broker", name: "Broker (paper)", tone: "green", detail: "paper broker · orders refused · no live connection" },
       { id: "data", name: "Market data", tone: "amber", detail: "slow · last tape tick 95s ago", age_s: 95 },
       { id: "risk", name: "Risk / halt", tone: "green", detail: "no halt, no vetoed entry today" },

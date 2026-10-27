@@ -237,6 +237,59 @@ def test_d_mac_setup_refuses_legacy_venv_path(tmp_path: Path) -> None:
     assert "Legacy .venv was not modified" not in proc.stdout or proc.returncode != 0
 
 
+def _screen_ls_script(body: str, exit_code: int = 1) -> str:
+    return f"#!/bin/sh\n{body}\nexit {exit_code}\n"
+
+
+def test_e_recorder_screen_up_when_ls_exits_1(tmp_path: Path) -> None:
+    """Apple / old GNU screen -ls exits 1 even when v2-recorder is listed."""
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    _write_exec(
+        bin_dir / "screen",
+        _screen_ls_script(
+            "echo 'There is a screen on:'\n"
+            "printf '\\t12345.v2-recorder\\t(Detached)\\n'\n"
+            "echo '1 Socket in /tmp/screens/S-user.'"
+        ),
+    )
+    proc = _source(
+        tmp_path,
+        'if recorder_screen_up; then echo SCREEN_UP; else echo SCREEN_DOWN; fi',
+        env={"PATH": f"{bin_dir}:/usr/bin:/bin"},
+    )
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+    assert "SCREEN_UP" in proc.stdout
+
+
+def test_e_recorder_screen_up_hostname_suffix_and_missing(tmp_path: Path) -> None:
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    _write_exec(
+        bin_dir / "screen",
+        _screen_ls_script("printf '\\t69420.v2-recorder.MacBook-Pro\\t(Detached)\\n'"),
+    )
+    proc = _source(
+        tmp_path,
+        'if recorder_screen_up; then echo SCREEN_UP; else echo SCREEN_DOWN; fi',
+        env={"PATH": f"{bin_dir}:/usr/bin:/bin"},
+    )
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+    assert "SCREEN_UP" in proc.stdout
+
+    _write_exec(
+        bin_dir / "screen",
+        _screen_ls_script("echo 'No Sockets found in /tmp/screens/S-user.'"),
+    )
+    proc = _source(
+        tmp_path,
+        'if recorder_screen_up; then echo SCREEN_UP; else echo SCREEN_DOWN; fi',
+        env={"PATH": f"{bin_dir}:/usr/bin:/bin"},
+    )
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+    assert "SCREEN_DOWN" in proc.stdout
+
+
 def test_e_recorder_start_refuses_second_copy(tmp_path: Path) -> None:
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir()
