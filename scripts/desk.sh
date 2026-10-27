@@ -295,7 +295,8 @@ recorder_stop() {
 # Cross-market recorder (VIX, BANKNIFTY, FINNIFTY, heavyweights, MCX crude/gold): its own process
 # and websocket, record-only, tapes under data/tape/cross. A crash here never touches the desk loop.
 cross_start() {
-  if screen -ls 2>/dev/null | grep -qE '[.]cross-recorder[[:space:]]'; then
+  # pgrep too: screen -ls can miss live screens from a detached/other-TMPDIR shell (2026-10-27 a second copy started)
+  if screen -ls 2>/dev/null | grep -qE '[.]cross-recorder[[:space:]]' || pgrep -f '[Pp]ython.*-m marketdata.cross_market' >/dev/null 2>&1; then
     echo "ERROR: cross recorder already running (screen cross-recorder)" >&2; return 1
   fi
   [[ -x "$V2_PY" ]] || { echo "ERROR: $V2_PY missing" >&2; return 1; }

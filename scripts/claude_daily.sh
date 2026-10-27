@@ -27,15 +27,24 @@ print(max(0, int((now.replace(hour=hh, minute=mm, second=0, microsecond=0) - now
 PY
 }
 
-later() {  # later HH:MM "cmd": detach so the scheduled Claude run can finish while we wait
-  local s; s="$(wait_s "$1")" || { echo "$(date) $DAY not a trading day: skip $2" >> "$LOG"; echo "not a trading day ($DAY)"; return 0; }
-  nohup bash -c "sleep $s; echo \"=== \$(date) $2\"; $2" >> "$LOG" 2>&1 &
-  echo "scheduled '$2' in ${s}s (at $1 IST, day $DAY). log=$LOG"
+later() {  # later NAME HH:MM "cmd": detach so the scheduled Claude run can finish while we wait
+  local q="data/recon/claude_daily_${DAY}.$1.pid" s
+  if [[ -f "$q" ]] && kill -0 "$(cat "$q")" 2>/dev/null; then  # Run now + cron the same day: one waiter only
+    echo "$1 already queued for $DAY (pid $(cat "$q")). log=$LOG"; return 0
+  fi
+  s="$(wait_s "$2")" || { echo "$(date) $DAY not a trading day: skip $1" >> "$LOG"; echo "not a trading day ($DAY)"; return 0; }
+  nohup bash -c "sleep $s; echo \"=== \$(date) $1\"; $3" >> "$LOG" 2>&1 &
+  echo $! > "$q"
+  echo "scheduled $1 in ${s}s (at $2 IST, day $DAY). log=$LOG"
 }
 
+# Restart for the new day (so the 09:08 pre-open is taped). Run late (after 08:25) it never stops a running
+# recorder mid-session: it only starts one that is down.
+MORNING='if [[ "$(TZ=Asia/Kolkata date +%H%M)" > 0830 ]]; then ./scripts/desk.sh recorder-start || true; ./scripts/desk.sh cross-start || true; else ./scripts/desk.sh recorder-stop; ./scripts/desk.sh recorder-start; ./scripts/desk.sh cross-stop; ./scripts/desk.sh cross-start; fi; sleep 90; ./scripts/desk.sh recorder-status'
+
 case "${1:-}" in
-  morning) later 08:25 "./scripts/desk.sh recorder-stop; ./scripts/desk.sh recorder-start; ./scripts/desk.sh cross-stop; ./scripts/desk.sh cross-start; sleep 90; ./scripts/desk.sh recorder-status" ;;
-  close)   later 15:31 "./scripts/desk.sh close" ;;
+  morning) later morning 08:25 "$MORNING" ;;
+  close)   later close 15:31 "./scripts/desk.sh close" ;;
   status)  tail -20 "$LOG" 2>/dev/null; ./scripts/desk.sh recorder-status 2>&1 | tail -4 ;;
   *) echo "usage: $0 morning|close|status" >&2; exit 1 ;;
 esac
