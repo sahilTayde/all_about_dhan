@@ -1206,7 +1206,7 @@ def replay(
                 live_rules.append(r)  # pre-park history only
                 entry_before[r["rule_id"]] = pf
     shadow_rules = [r for r in FROZEN_RULES if r["rule_id"] in SHADOW_RULE_IDS] if rules is None else []
-    if rules is None:  # config/desk_rules_off.yaml: never a desk trade from the day after it was set
+    if rules is None:  # config/desk_rules_off.yaml: no desk trade on any day, replays of past days included (no from-date)
         off = desk_rules_off()
         moved = [r for r in live_rules if r["rule_id"] in off and r["rule_id"] not in entry_before]
         live_rules = [r for r in live_rules if r not in moved]
