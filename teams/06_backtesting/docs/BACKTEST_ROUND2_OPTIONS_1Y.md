@@ -143,3 +143,14 @@ No parameter was set from them, but read the FIN1 holdout with that in mind.
 - `scripts/lab5y/opt1y_ml.py`: walk-forward logistic and gradient boosting (sklearn, py3.12 venv).
 - `scripts/lab5y/fade5y.py`: 5y index check of the fade.
 - **Rerun:** `opt1y_load.py OUT && opt1y_spread.py TAPECACHE OUT && opt1y_lab.py OUT oi vol exp f4 rob exit final`. Run `opt1y_ml.py OUT` before `opt1y_lab.py OUT ml`.
+
+## FIN1 forward shadow (from 2026-10-27, paper log only, never an order)
+
+- Script: `scripts/lab5y/fin1_shadow.py` (stdlib only; `selftest` included). Runs in `scripts/claude_daily.sh close`
+  after `desk.sh close`; one row per sym-day in `data/recon/fin1_shadow.jsonl` (gitignored). Fridays write
+  `data/recon/fin1_shadow_week.txt`; the Monday close task prints it.
+- Rule frozen: threshold 1.0042 (dev 70th pct of or_iv). Fills from the live tape: ask at 09:46:00, bid nearest 15:15:00.
+- The tape has no IV, so IV = Black-Scholes on the 09:45 mid, r=6.5%, T=(calendar days to expiry + 0.5)/365. On the
+  492 round-2 days this matched Dhan's IV decision on 96.1% (19 flips). Expiry-day IV differs most (SENSEX 22-Oct: ours 0.93 vs Dhan 0.65, both "skip").
+- Backfill from tape days with a full morning: 16, 21, 22 Oct: 4 signals, net Rs -7,512; straddle every day Rs -68,251.
+- Adopt rule: 40+ new trading days and random-days p < 0.05 outside Oct-2026. Otherwise retire.

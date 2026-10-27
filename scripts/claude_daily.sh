@@ -2,7 +2,8 @@
 # Daily recorder start / post-market close, run by Claude scheduled tasks (launchd is blocked by macOS
 # privacy for ~/Documents, see data/recon/autostart_launchd.log). PAPER, record-only. No orders.
 #   scripts/claude_daily.sh morning   # waits (detached) until 08:25 IST, then restarts v2 + cross recorders
-#   scripts/claude_daily.sh close     # waits (detached) until 15:31 IST, then ./scripts/desk.sh close
+#   scripts/claude_daily.sh close     # waits (detached) until 15:31 IST, then ./scripts/desk.sh close + FIN1 shadow log
+#                                     # (Fridays: weekly FIN1 report -> data/recon/fin1_shadow_week.txt, shown on Mondays)
 #   scripts/claude_daily.sh status    # today's log + recorder health
 # The wait is computed in IST, so the US DST change (Nov 1) cannot shift the IST time.
 set -u
@@ -42,9 +43,13 @@ later() {  # later NAME HH:MM "cmd": detach so the scheduled Claude run can fini
 # recorder mid-session: it only starts one that is down.
 MORNING='if [[ "$(TZ=Asia/Kolkata date +%H%M)" > 0830 ]]; then ./scripts/desk.sh recorder-start || true; ./scripts/desk.sh cross-start || true; else ./scripts/desk.sh recorder-stop; ./scripts/desk.sh recorder-start; ./scripts/desk.sh cross-stop; ./scripts/desk.sh cross-start; fi; sleep 90; ./scripts/desk.sh recorder-status'
 
+# FIN1 is shadow-only (paper log from the tape, never an order): scripts/lab5y/fin1_shadow.py
+CLOSE='./scripts/desk.sh close; .venv/bin/python scripts/lab5y/fin1_shadow.py day; if [[ "$(TZ=Asia/Kolkata date +%u)" == 5 ]]; then .venv/bin/python scripts/lab5y/fin1_shadow.py week 5 > data/recon/fin1_shadow_week.txt; fi'
+
 case "${1:-}" in
   morning) later morning 08:25 "$MORNING" ;;
-  close)   later close 15:31 "./scripts/desk.sh close" ;;
+  close)   [[ "$(TZ=Asia/Kolkata date +%u)" == 1 && -f data/recon/fin1_shadow_week.txt ]] && cat data/recon/fin1_shadow_week.txt
+           later close 15:31 "$CLOSE" ;;
   status)  tail -20 "$LOG" 2>/dev/null; ./scripts/desk.sh recorder-status 2>&1 | tail -4 ;;
   *) echo "usage: $0 morning|close|status" >&2; exit 1 ;;
 esac
