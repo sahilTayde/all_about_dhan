@@ -48,3 +48,17 @@ def founder_root(tmp_path_factory) -> Path:
     root = tmp_path_factory.mktemp("founder_all")
     save_founder_book(list(KNOWN), root=root, ts=0.0)
     return root
+
+
+@pytest.fixture
+def pre_park_rule_set(monkeypatch):
+    """Rule-engine mechanics tests: R01/B3a/R02 live, no config/desk_rules_off.yaml, 20-min timer exits.
+    The founder's later desk choices (R02 parked, R01/B3a off 2026-10-12, price-only exits 9bf34a1) are
+    covered by test_desk_rules_off.py / test_desk_shadow_only.py, not by these synthetic-tape tests."""
+    from desk_ml import research_rules as rr
+
+    monkeypatch.setattr(rr, "LIVE_RULE_IDS", (rr.R01, rr.R01_B3A, rr.R02))
+    monkeypatch.setattr(rr, "SHADOW_RULE_IDS", ())
+    monkeypatch.setattr(rr, "desk_rules_off", lambda path=None: set())
+    monkeypatch.setattr(rr, "PRICE_EXITS", False)
+    return rr

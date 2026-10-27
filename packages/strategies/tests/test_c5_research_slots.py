@@ -301,7 +301,7 @@ def test_accounts_are_active_armed_paper_slots() -> None:
     customers = [row for row in body["accounts"] if str(row["account_id"]).startswith("customer-")]
     assert [row["account_id"] for row in customers] == [f"customer-0{i}" for i in range(1, 6)]
     for row in customers:
-        if str(row["account_id"]) == "customer-04":
+        if str(row["account_id"]) in {"customer-01", "customer-02", "customer-04"}:  # 01/02 off 2026-10-12 (0756487)
             assert row["status"] == "disabled"
         else:
             assert row["status"] == "active"

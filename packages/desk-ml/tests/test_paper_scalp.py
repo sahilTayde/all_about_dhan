@@ -352,7 +352,8 @@ def test_allocate_desk_capital_skips_greeks_book() -> None:
     assert plan["desk_capital_inr"] == DESK_CAPITAL_INR
     assert plan["per_book"]["MIX-ML-GREEKS"] == 0.0
     active = [b for b in LIVE_BOOKS if b != "MIX-ML-GREEKS"]
-    assert sum(plan["per_book"][b] for b in active) == DESK_CAPITAL_INR
+    # the split is exact in paise; a float rupee sum of the Rs 10L split is 1000000.0000000001
+    assert sum(round(plan["per_book"][b] * 100) for b in active) == round(DESK_CAPITAL_INR * 100)
 
 
 def test_allocate_fill_books_not_eight_clones() -> None:

@@ -38,6 +38,7 @@ def test_finish_adds_sensex_when_nifty_decided(tmp_path: Path) -> None:
     shadow.decisions = 5
     session.basket.entries[0].underlyings  # noqa: B018 - entries exist
     import shadow.runner as R
+
     orig = R._basket_underlyings
     R._basket_underlyings = lambda _s: ["NIFTY", "SENSEX"]
     try:
@@ -62,13 +63,22 @@ def test_feed_down_cleared_when_ticks_arrive(tmp_path: Path) -> None:
             stop.write_text("1\n")
 
     result = follow_tape(
-        tape=tape, state_dir=tmp_path / "state", stop_flag=stop, mode="paper", day=DAY,
-        poll_s=0.0, sleep=sleep, repo=REPO,
+        tape=tape,
+        state_dir=tmp_path / "state",
+        stop_flag=stop,
+        mode="paper",
+        day=DAY,
+        poll_s=0.0,
+        sleep=sleep,
+        repo=REPO,
     )
     assert result.envelopes > 0
     assert result.closed_reason is None
-    status = json.loads((tmp_path / "state" / DAY / "status.json").read_text()) if (
-        tmp_path / "state" / DAY / "status.json").is_file() else None
+    status = (
+        json.loads((tmp_path / "state" / DAY / "status.json").read_text())
+        if (tmp_path / "state" / DAY / "status.json").is_file()
+        else None
+    )
     if status is not None:
         assert status.get("closed_reason") is None
 
@@ -76,7 +86,14 @@ def test_feed_down_cleared_when_ticks_arrive(tmp_path: Path) -> None:
 def test_feed_down_kept_when_no_ticks(tmp_path: Path) -> None:
     stop = tmp_path / "STOPPED.flag"
     result = follow_tape(
-        tape=tmp_path / "none.jsonl", state_dir=tmp_path / "state", stop_flag=stop, mode="paper", day=DAY,
-        poll_s=0.0, sleep=lambda _s: None, max_idle_polls=2, repo=REPO,
+        tape=tmp_path / "none.jsonl",
+        state_dir=tmp_path / "state",
+        stop_flag=stop,
+        mode="paper",
+        day=DAY,
+        poll_s=0.0,
+        sleep=lambda _s: None,
+        max_idle_polls=2,
+        repo=REPO,
     )
     assert result.closed_reason == "FEED_DOWN"

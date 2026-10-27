@@ -52,10 +52,12 @@ def test_not_closed_before_wall_clock_reaches_exit() -> None:
                          entry_min="14:29", last_hhmm="14:40", now_hhmm="14:48") is None
 
 
-def test_replay_underlying_closes_overdue_trade_with_wall_clock() -> None:
+def test_replay_underlying_closes_overdue_trade_with_wall_clock(monkeypatch) -> None:
     rule = {"rule_id": "T", "family": "X", "hold_min": 20, "source_config": "T"}
     bars = _bars(71800.0, "PE", "14:17", "14:36", 427.5)
     import desk_ml.research_rules as m
+
+    monkeypatch.setattr(m, "PRICE_EXITS", False)  # the hold-timer path (price-only exits since 9bf34a1 never set a 14:37 spec exit)
     orig_sig, orig_allowed = m.signal, m.allowed
     try:
         m.signal = lambda rule, bars, t, underlying: "PE" if t == "14:16" else None
