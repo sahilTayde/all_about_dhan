@@ -2344,6 +2344,7 @@ def apply_filled_trail(
     pos.agent_status = "TRAIL_STOP"
     if moved:
         pos.trail_step += 1
+        pos.seen_low = px  # dips before the stop moved must not trip / price the new stop
         if engine.root is not None:
             append_model_log(
                 engine.root,
@@ -2423,6 +2424,7 @@ def apply_target_lock_shift(
     pos.target = round(float(nxt), 4)
     pos.target_step += 1
     pos.trail_step += 1
+    pos.seen_low = float(ltp)  # dips before the stop moved must not trip / price the new stop
     pos.agent_status = f"TARGET_STEP_{pos.target_step}"
     if engine.root is not None:
         append_model_log(
@@ -5268,6 +5270,8 @@ def mark_to_market(
             hold_trending_open_stall=bool(getattr(engine, "hold_trending_open_stall", False)),
         )
         roll = cancel_if_bin_rolled(pos, tick) if pos.filled else None
+        if pos.filled and minutes_ist(tick.ts) >= FLATTEN_MINUTES_IST and (not reason or is_soft_cancel_reason(reason)):
+            reason, roll = "FLATTEN_1516", None  # a soft trail-keep must not carry a ticket past square-off
         if reason == "TARGET":
             if apply_target_lock_shift(engine, pos, ltp=float(ltp), ts=tick.ts, **trail_kw):
                 continue

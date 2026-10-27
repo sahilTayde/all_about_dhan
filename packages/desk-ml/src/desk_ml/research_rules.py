@@ -899,7 +899,8 @@ def replay_underlying(
                                  entry_min=entry_min, exit_min=exit_min, entry=entry, mark=mark, day=day,
                                  entry_bar=entry_bar, mark_bar=mark_bar, closed=True,
                                  reason=(exit_flag or "").split(",")[-1] if (exit_flag or "").endswith(("STOP", "TARGET")) else ("FLATTEN_EOD" if PRICE_EXITS else "TIME"))
-                row["spec_exit_min"] = spec_exit
+                # a price-exited trade is flat at exit_min (it must not hold a slot / block the other side till 15:14)
+                row["spec_exit_min"] = exit_min if PRICE_EXITS else spec_exit
                 row["price_flags"] = flags
                 closed.append(_with_exit_variants(row, bars, side=side, strike=atm, entry=entry,
                                                   entry_min=entry_min, exit_min=exit_min, hold=hold))

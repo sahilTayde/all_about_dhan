@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from typing import Optional, Sequence
 
-from backtest_engine.clocks import flatten_009, session_date_ist, skip_open_009
+from backtest_engine.clocks import flatten_at, session_date_ist, skip_open_009
 from backtest_engine.indicators import Bar, _wilder_atr
 from backtest_engine.levels import DEFAULT_ATR_MULT, DEFAULT_ATR_PERIOD, DEFAULT_RR
 from backtest_engine.simulate import Trade, _fill_open
@@ -46,7 +46,7 @@ def simulate_leans_sltp(
         lean = leans[i]
         session = session_date_ist(bar.ts)
 
-        if use_009 and flatten_009(bar.ts) and pos is not None:
+        if use_009 and flatten_at(bars, i) and pos is not None:
             trades.append(
                 _trade(
                     strategy_id,
@@ -117,7 +117,7 @@ def simulate_leans_sltp(
                 pos = None
             continue
 
-        if use_009 and skip_open_009(bar.ts):
+        if use_009 and (skip_open_009(bar.ts) or flatten_at(bars, i)):
             continue
         if session in veto_sessions:
             continue
@@ -165,15 +165,15 @@ def simulate_leans_sltp(
 def _hit_levels(
     pos: str, bar: Bar, stop_px: float, target_px: float
 ) -> Optional[tuple[str, float]]:
-    """Intrabar stop-first (conservative). Touch fill = level price."""
+    """Intrabar stop-first (conservative). Stop fills at the level, or at the open if the bar gapped through it."""
     if pos == "CE":
         if bar.low <= stop_px:
-            return "atr_stop", stop_px
+            return "atr_stop", min(bar.open, stop_px)
         if bar.high >= target_px:
             return "rr_target", target_px
     else:
         if bar.high >= stop_px:
-            return "atr_stop", stop_px
+            return "atr_stop", max(bar.open, stop_px)
         if bar.low <= target_px:
             return "rr_target", target_px
     return None
@@ -225,7 +225,7 @@ def simulate_st_flip_exit(
         lean = leans[i]
         st = st_line[i]
         session = session_date_ist(bar.ts)
-        if use_009 and flatten_009(bar.ts) and pos is not None:
+        if use_009 and flatten_at(bars, i) and pos is not None:
             trades.append(
                 _trade(
                     strategy_id,
@@ -279,7 +279,7 @@ def simulate_st_flip_exit(
                 continue
         if pos is not None:
             continue
-        if use_009 and skip_open_009(bar.ts):
+        if use_009 and (skip_open_009(bar.ts) or flatten_at(bars, i)):
             continue
         if lean not in ("CE", "PE") or st is None:
             continue

@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass
 from typing import Optional
 
-from backtest_engine.clocks import flatten_009, session_date_ist, skip_open_009
+from backtest_engine.clocks import flatten_at, session_date_ist, skip_open_009
 from backtest_engine.indicators import Bar
 
 
@@ -58,7 +58,7 @@ def simulate_leans(
         bar = bars[i]
         lean = leans[i]
         session = session_date_ist(bar.ts)
-        if use_009 and flatten_009(bar.ts) and pos is not None:
+        if use_009 and flatten_at(bars, i) and pos is not None:
             trades.append(
                 Trade(
                     strategy_id=strategy_id,
@@ -113,7 +113,7 @@ def simulate_leans(
                 )
                 pos = None
             continue
-        if use_009 and skip_open_009(bar.ts):
+        if use_009 and (skip_open_009(bar.ts) or flatten_at(bars, i)):
             continue
         if session in veto_sessions:
             continue
