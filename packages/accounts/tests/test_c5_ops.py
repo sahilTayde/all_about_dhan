@@ -245,10 +245,8 @@ def test_c5_start_dry_run_nifty_qty_650(tmp_path: Path) -> None:
     body = start_launch(plan, dry_run=True)
     assert body["ok"] is True and body["dry_run"] is True
     assert body["live_broker"] is False
-    assert body["customer_count"] == 4
+    assert body["customer_count"] == 2  # customer-01/02 disabled 2026-10-12 (0756487), customer-04 parked
     assert {row["account_id"] for row in body["execs"]} == {
-        "customer-01",
-        "customer-02",
         "customer-03",
         "customer-05",
     }

@@ -24,6 +24,9 @@ from accounts.safety import assert_no_live_modules, assert_paper_only, refuse_br
 from accounts.sizing import planned_paper_size
 from accounts.split import EXEC_HANDLERS, SIGNAL_HANDLERS, bind_exec, bind_signal, run_role_once
 
+# customer-01/02 disabled 2026-10-12 (0756487: R01 rules failed real option prices); customer-04 parked earlier
+DISABLED_CUSTOMERS = {"customer-01", "customer-02", "customer-04"}
+
 REPO = Path(__file__).resolve().parents[3]
 
 
@@ -74,7 +77,7 @@ def test_committed_config_is_paper_only() -> None:
         assert acc.lots == 10
         assert acc.premium_stop_pct == 0.15
         assert acc.daily_loss_cap_inr == 30000
-        if aid == "customer-04":
+        if aid in DISABLED_CUSTOMERS:
             assert acc.status == "disabled"
             with pytest.raises(AccountClosed, match="ACCOUNT_DISABLED"):
                 registry.require_active(aid)
@@ -335,15 +338,15 @@ def test_run_role_once_writes_ready(tmp_path: Path) -> None:
         run_role_once(role="exec", account_id="founder", mode="live")
     cust = run_role_once(
         role="exec",
-        account_id="customer-01",
+        account_id="customer-03",
         state_dir=tmp_path / "ex-c1",
         config_path=default_config_path(),
         mode="paper",
     )
-    assert cust["ok"] is True and cust["account_id"] == "customer-01"
+    assert cust["ok"] is True and cust["account_id"] == "customer-03"
     assert cust["slot_armed"] is True
     with pytest.raises(AccountSafetyError, match="live"):
-        run_role_once(role="exec", account_id="customer-01", mode="live")
+        run_role_once(role="exec", account_id="customer-03", mode="live")
 
 
 def test_cli_list_enable_disable_and_live_mode(tmp_path: Path) -> None:
