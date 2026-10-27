@@ -78,3 +78,29 @@ def test_q01_row_passes_index_stop_and_planned_exit(tmp_path):
     o = opens[0]
     assert o["index_stop"] == 22624.04 and o["spec_exit_min"] == "10:21" and o["planned_exit_ist"] == "10:21"
     assert o["stop"] is None and o["qty"] == 650 and o["orders"] == "REFUSED"
+
+
+def test_shadow_only_losses_feed_and_face_the_day_stop():
+    """Sahil 2026-10-27 (Oct 22 shape: losses were all shadow-only, the stop never saw them).
+    Two closed shadow losers -> later desk entry AND later shadow entry are RISK_DAY_STOP; shadow takes no slot."""
+    def r(rid, und, side, ent, ext, net, strike, open_=False):
+        return {"rule_id": rid, "underlying": und, "side": side, "entry_min": ent, "exit_min": ext, "spec_exit_min": ext,
+                "sig_min": rr.mplus(ent, -1), "trade_id": f"{rid}-{ent}", "atm_strike": strike, "qty": 20 if und == "SENSEX" else 650,
+                "realized_pnl_inr": None if open_ else net}
+    day = "2026-10-28"
+    sh = [(r("PX_EP018", "SENSEX", "PE", "09:40", "09:50", -9000.0, 73500.0), False),
+          (r("PX_EP018", "SENSEX", "PE", "10:00", "10:10", -8000.0, 73400.0), False),
+          (r("PX_IB_5", "SENSEX", "CE", "11:05", "11:30", -5000.0, 73600.0), False)]
+    desk = [r("PX_B2", "NIFTY", "CE", "11:00", "11:20", 100.0, 22500.0, open_=True)]
+    cfg = dict(CFG, _day=day)
+    kept = []
+    o, c, blocked, dups, taken = rr._desk_pass(desk, [], day, [], cfg, shadow_rows=sh, shadow_taken=kept)
+    assert not o and not taken
+    assert {(b["rule_id"], b["guard"], bool(b.get("shadow_only"))) for b in blocked} == {
+        ("PX_B2", desk_risk.RISK_DAY_STOP, False), ("PX_IB_5", desk_risk.RISK_DAY_STOP, True)}
+    assert [k["entry_min"] for k, _ in kept] == ["09:40", "10:00"]
+    st = desk_risk.state(taken, cfg, kept)
+    assert st["day_stop_hit"] and st["shadow_net_inr"] == -17000.0 and st["open_now"] == 0
+    # one shadow loser only: nothing stopped, shadow never uses the 2-open slots
+    o, c, blocked, _, taken = rr._desk_pass(desk, [], day, [], cfg, shadow_rows=sh[:1] + sh[2:], shadow_taken=[])
+    assert len(o) == 1 and not blocked

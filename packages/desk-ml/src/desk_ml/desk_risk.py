@@ -95,10 +95,12 @@ def _stop_reason(done: list[dict[str, Any]], rule_id: Optional[str], cfg: dict[s
     return None
 
 
-def check(taken: list[tuple[dict[str, Any], bool]], r: dict[str, Any], cfg: dict[str, Any]) -> Optional[str]:
-    """None = entry allowed; else the RISK_* status. `taken` = desk positions (row, is_open) so far."""
+def check(taken: list[tuple[dict[str, Any], bool]], r: dict[str, Any], cfg: dict[str, Any],
+          shadow: Iterable[tuple[dict[str, Any], bool]] = ()) -> Optional[str]:
+    """None = entry allowed; else the RISK_* status. `taken` = desk positions (row, is_open) so far.
+    `shadow` = shadow-only paper rows: their closed losses count toward the day stop (Sahil 2026-10-27), no slot."""
     t = str(r.get("entry_min") or "")
-    stop = _stop_reason(_realized(taken, t), r.get("rule_id"), cfg, t)
+    stop = _stop_reason(_realized(list(taken) + list(shadow), t), r.get("rule_id"), cfg, t)
     if stop:
         return stop
     cap = cfg.get("max_trades_per_day")
@@ -109,9 +111,11 @@ def check(taken: list[tuple[dict[str, Any], bool]], r: dict[str, Any], cfg: dict
     return None
 
 
-def state(taken: list[tuple[dict[str, Any], bool]], cfg: dict[str, Any]) -> dict[str, Any]:
-    """board.risk: the same counts the gate uses."""
-    done = _realized(taken, None)
+def state(taken: list[tuple[dict[str, Any], bool]], cfg: dict[str, Any],
+          shadow: Iterable[tuple[dict[str, Any], bool]] = ()) -> dict[str, Any]:
+    """board.risk: the same counts the gate uses (day stop includes shadow-only closed rows)."""
+    shadow = list(shadow)
+    done = _realized(list(taken) + shadow, None)
     ids = set((cfg.get("group_stop") or {}).get("rule_ids") or [])
     open_now = sum(1 for _, o in taken if o)
     stop = _stop_reason(done, None, cfg)
@@ -128,6 +132,7 @@ def state(taken: list[tuple[dict[str, Any], bool]], cfg: dict[str, Any]) -> dict
         "losers_today": sum(1 for k in done if _net(k) < 0),
         "day_net_inr": round(sum(_net(k) for k in done), 2),
         "day_stop_hit": stop is not None,
+        "shadow_net_inr": round(sum(_net(k) for k in _realized(shadow, None)), 2),
         "rr_group_net_inr": grp_net,
         "rr_group_stop_hit": bool(grp_hit),
         "halted_reason": halted,

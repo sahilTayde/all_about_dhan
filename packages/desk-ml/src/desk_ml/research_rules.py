@@ -1019,24 +1019,35 @@ def q01_priority_window(root: Path, day: str) -> Optional[tuple]:
     return None if armed is False else Q01_WINDOW
 
 
-def _desk_pass(opens, closed, day: str, rule_order, risk_cfg, q01_window: Optional[tuple] = None):
+def _desk_pass(opens, closed, day: str, rule_order, risk_cfg, q01_window: Optional[tuple] = None,
+               shadow_rows=(), shadow_taken: Optional[list] = None):
     """One pass over desk candidates in strict entry-minute order (then rule rank):
     1) opposite-side guard (any index), 2) same-contract dedup, 3) desk risk gate (desk_risk.py).
     Trades entered before guard_from(day) are history: kept, but they count in the gate's state.
+    shadow_rows [(row, is_open)] = shadow-only paper rows: they only face the day stop, their closed losses
+    count toward it, and kept ones are appended to `shadow_taken` (Sahil 2026-10-27).
     Returns opens, closed, blocked (guard+risk, rule not busy), dups, taken[(row, is_open)]."""
     from desk_ml import desk_risk
 
     rank = {rid: i for i, rid in enumerate(rule_order)}
-    rows = [(r, True) for r in opens] + [(r, False) for r in closed]
+    rows = [(r, True, False) for r in opens] + [(r, False, False) for r in closed] + [(r, o, True) for r, o in shadow_rows]
     rows.sort(key=lambda x: (str(x[0].get("entry_min") or ""), rank.get(x[0].get("rule_id"), 99),
                              str(x[0].get("sig_min") or "")))
+    sh_taken = shadow_taken if shadow_taken is not None else []
     taken: list = []
     blocked: list = []
     dups: list = []
     owner: dict = {}
-    for r, is_open in rows:
+    for r, is_open, is_shadow in rows:
         t = str(r.get("entry_min") or "")
         pre = t < guard_from(day or str(r.get("day") or ""))
+        if is_shadow:
+            why = None if pre else desk_risk.check(taken, r, {**risk_cfg, "max_open": None, "max_trades_per_day": None}, sh_taken)
+            if why:
+                b = dict(r); b["guard"] = why; b["shadow_only"] = True; blocked.append(b)
+            else:
+                sh_taken.append((r, is_open))
+            continue
         # Q01 priority: other NIFTY entries inside the window are blocked (open positions are never force-closed).
         if (q01_window and str(r.get("underlying") or "").upper() == "NIFTY" and r.get("rule_id") != Q01_RULE_ID
                 and q01_window[0] <= t <= q01_window[1]):
@@ -1063,7 +1074,7 @@ def _desk_pass(opens, closed, day: str, rule_order, risk_cfg, q01_window: Option
             b = dict(r); b["guard"] = Q01_SKIPPED_CAP if r.get("rule_id") == Q01_RULE_ID else desk_risk.RISK_CAP_QTY; blocked.append(b)
             continue
         if not pre:
-            why = desk_risk.check(taken, r, risk_cfg)
+            why = desk_risk.check(taken, r, risk_cfg, sh_taken)
             if why:
                 b = dict(r); b["guard"] = why; blocked.append(b)
                 continue
@@ -1219,6 +1230,7 @@ def replay(
     on_from_hist = None
     for _ in range(10):  # D6: re-run without blocked signals until the blocked set is stable
         opens, closed = [], []
+        sh_rows, sh_taken = [], []
         for und, bars in bars_by.items():
             o, c = replay_underlying(bars, underlying=und, day=day, rules=live_rules, skip=skip,
                                     entry_before=entry_before, now_hhmm=now_hhmm)
@@ -1228,14 +1240,16 @@ def replay(
             opens.extend(xo); closed.extend(xc)
             onf = rules_on_from(day)
             opens, ho = split_on_from(opens, onf); closed, hc = split_on_from(closed, onf)
-            sho = desk_shadow_only(day)   # 2026-10-21: shadow-only rules never reach the desk guards (no slot, no cap, no P&L)
+            sho = desk_shadow_only(day)   # 2026-10-21: shadow-only rules take no slot / cap / desk P&L; 2026-10-27: they do face (and feed) the day stop
             if sho:
                 opens, so = split_shadow_only(opens, sho); closed, sc = split_shadow_only(closed, sho)
                 ho = ho + so; hc = hc + sc
+                sh_rows = [(r, True) for r in so] + [(r, False) for r in sc]
             on_from_hist = (ho, hc)
         opens, closed, new_blocked, dup_shadow, taken = _desk_pass(
             opens, closed, day, [r["rule_id"] for r in live_rules], risk_cfg,
-            q01_window=q01_priority_window(Path(root), day) if rules is None else None)
+            q01_window=q01_priority_window(Path(root), day) if rules is None else None,
+            shadow_rows=sh_rows, shadow_taken=sh_taken)
         blocked.extend(new_blocked)
         add = {(b["rule_id"], b["underlying"], b["sig_min"]) for b in new_blocked}
         if not add - skip:
@@ -1243,7 +1257,9 @@ def replay(
         skip |= add
     shadow_open, shadow_closed = [], []
     if rules is None and on_from_hist is not None:  # before switch-on: history, shadow only
-        shadow_open.extend(on_from_hist[0]); shadow_closed.extend(on_from_hist[1])
+        stopped = {b.get("trade_id") for b in blocked if b.get("shadow_only")}  # day-stopped shadow rows live in risk_blocked
+        shadow_open.extend(r for r in on_from_hist[0] if r.get("trade_id") not in stopped)
+        shadow_closed.extend(r for r in on_from_hist[1] if r.get("trade_id") not in stopped)
     for und, bars in bars_by.items():
         o, c = replay_underlying(bars, underlying=und, day=day, rules=shadow_rules, now_hhmm=now_hhmm)
         shadow_open.extend(o); shadow_closed.extend(c)
@@ -1263,7 +1279,7 @@ def replay(
         _mark([b], b["guard"], shadow=True)
     _mark(dup_shadow, DUP_SAME_CONTRACT, shadow=True)
     out = {
-        "risk": desk_risk.state(taken, risk_cfg),
+        "risk": desk_risk.state(taken, risk_cfg, sh_taken),
         "risk_blocked": risk_rows,
         "guard_blocked": guard_rows,
         "dup_same_contract": dup_shadow,
