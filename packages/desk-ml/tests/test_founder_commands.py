@@ -5,6 +5,7 @@ refused. Baseline (no commands): 12 trades / +27,383.80 (Dhan/NSE FA/73061 paper
 """
 
 import json
+import re
 from datetime import datetime
 from pathlib import Path
 
@@ -182,7 +183,7 @@ def _risk_limits(root, max_lots):
     src = (Path(__file__).resolve().parents[3] / "config" / "risk_limits.yaml").read_text(encoding="utf-8")
     (root / "config").mkdir(exist_ok=True)
     (root / "config" / "risk_limits.yaml").write_text(
-        src.replace("  paper:\n    max_lots_per_trade: 25", f"  paper:\n    max_lots_per_trade: {max_lots}"), encoding="utf-8"
+        re.sub(r"(  paper:\n    max_lots_per_trade: )\d+", rf"\g<1>{max_lots}", src), encoding="utf-8"
     )
 
 
@@ -191,7 +192,7 @@ def test_lots_override_is_capped_by_the_risk_limits_in_the_engine(fx, tmp_path):
     _risk_limits(tmp_path, 7)
     rows = replay(fx, tmp_path, [cmd("SET_LOTS", "09:00", lots=40)])["closed_trades"]
     assert rows and {r["lots"] for r in rows if r["filled"]} == {7}
-    _risk_limits(tmp_path, 25)  # the repo's risk_limits paper cap; the engine's hard 10-lot cap (4aa8778) is lower
+    _risk_limits(tmp_path, 25)  # a looser risk_limits cap; the engine's hard 10-lot cap (4aa8778) still binds
     rows = replay(fx, tmp_path, [cmd("SET_LOTS", "09:00", lots=40)])["closed_trades"]
     assert {r["lots"] for r in rows if r["filled"]} == {ps.PAPER_MAX_LOTS}
 

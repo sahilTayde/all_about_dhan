@@ -524,25 +524,25 @@ def test_unsaved_halt_survives_a_restart_through_the_fallback_file(tmp_path, mon
 
 
 def test_strict_risk_file_books_a_typical_ticket_and_logs_a_veto(tmp_path):
-    """Paper cap is ₹30,000. A ₹13,000 ticket books. A ₹31,037.50 ticket is vetoed with the reason split out."""
+    """Paper cap is ₹30,000 and 10 lots. A ₹6,500 ticket books. A 10-lot ₹31,200 ticket is vetoed with the reason split out."""
     desk, bus, audit, led, _steps = make_desk(tmp_path, REPO / "config" / "risk_limits.yaml")
-    ok = ticket()  # (150-140) x 1300 = ₹13,000
+    ok = ticket(lots=10, qty=650)  # (150-140) x 650 = ₹6,500
     approve(bus, ok)
     assert (ok.book_id, "NIFTY") in desk.engine.opens
-    big = ticket(T0 + 5, side="PE", book_id="MIX-ML-LOGIT", stop=130.9, lots=25, qty=1625)
+    big = ticket(T0 + 5, side="PE", book_id="MIX-ML-LOGIT", stop=102.0, lots=10, qty=650)  # (150-102) x 650 = ₹31,200
     approve(bus, big)
     assert big.trade_id not in {p.trade_id for p in desk.engine.opens.values()}
     veto = audit.rows("ENTRY_VETOED")[-1]["payload"]
     assert veto["reason"] == RISK_VETO and veto["reason_code"] == "MAX_LOSS_PER_TRADE"
-    assert "30,000" in veto["reason_text"] and "31,037" in veto["reason_text"]
-    assert veto["ticket_risk_inr"] == pytest.approx(31037.5)
+    assert "30,000" in veto["reason_text"] and "31,200" in veto["reason_text"]
+    assert veto["ticket_risk_inr"] == pytest.approx(31200.0)
     assert "detail" not in veto
     assert desk.engine.skips[-1]["reason"] == RISK_VETO and desk.engine.skips[-1]["reason_text"] == veto["reason_text"]
     stored = led.conn.execute(
         "SELECT reason_code, intent_json FROM risk_decisions WHERE approved = 0"
     ).fetchone()
     assert stored[0] == "MAX_LOSS_PER_TRADE"
-    assert json.loads(stored[1])["ticket_risk_inr"] == pytest.approx(31037.5)
+    assert json.loads(stored[1])["ticket_risk_inr"] == pytest.approx(31200.0)
 
 
 def test_failsafe_price_uses_the_booked_strike_only():

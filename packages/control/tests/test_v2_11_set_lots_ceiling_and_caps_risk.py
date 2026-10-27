@@ -13,12 +13,12 @@ from control.kinds import LOTS_CAP, lots_ceiling
 
 
 def test_v2_11_set_lots_ceiling_and_caps_risk(tmp_path) -> None:
-    assert lots_ceiling() == 25
+    assert lots_ceiling() == 10
     clock = SimClock(NOW)
     router = make_router(tmp_path, clock)
     handler = make_handler(tmp_path, clock, manager=PositionManager(clock=clock, router=router))
 
-    high = submit(handler, "SET_LOTS", {"lots": 26}, actor="sahil", reason="too big", command_id="lots-hi")
+    high = submit(handler, "SET_LOTS", {"lots": 11}, actor="sahil", reason="too big", command_id="lots-hi")
     assert high["status"] == "rejected"
     assert "lots" in str(high.get("status_reason") or high.get("reject_reason"))
 

@@ -29,12 +29,12 @@ idempotency_seconds: 60           # same symbol + side + lots within 60 s = dupl
 # during go-live money management. limited_live and live are unchanged.
 modes:
   paper:
-    max_lots_per_trade: 25
+    max_lots_per_trade: 10
     max_open_positions: 3
     max_daily_loss: -90000
     max_loss_per_trade: -30000
   shadow:
-    max_lots_per_trade: 25
+    max_lots_per_trade: 10
     max_open_positions: 3
     max_daily_loss: -90000
     max_loss_per_trade: -30000

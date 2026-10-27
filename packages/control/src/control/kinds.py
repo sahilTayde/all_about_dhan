@@ -84,7 +84,7 @@ def canonical_kind(kind: str) -> str:
 
 
 def lots_ceiling(path: Path | None = None) -> int:
-    """Paper max_lots_per_trade from config/risk_limits.yaml (currently 25)."""
+    """Paper max_lots_per_trade from config/risk_limits.yaml (currently 10)."""
     src = path
     if src is None:
         env = os.environ.get("AAD_RISK_LIMITS")
