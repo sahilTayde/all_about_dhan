@@ -336,6 +336,8 @@ def test_cli_exit_code_2_on_startup_failure(tmp_path: Path, monkeypatch: pytest.
 
     settings = settings_for("ws://127.0.0.1:9", tmp_path)
     monkeypatch.setattr(cli, "load_settings", lambda **_kw: settings)
+    # pin the fixture day: on the wall clock the fake's expiries (last NIFTY 2026-10-27) run out
+    monkeypatch.setattr("marketdata.clock.LiveClock.now", lambda _self: ist(10, 0))
     stub = StubSource(fail={"option_chain": [DhanApiError("bad", status_code=400, error_code="DH-905")]})
     stub.close = lambda: None  # type: ignore[attr-defined]
     monkeypatch.setattr(cli, "DhanInstrumentSource", lambda *_a, **_kw: stub)
