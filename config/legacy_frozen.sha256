@@ -3,6 +3,7 @@
 # The legacy replay must stay byte-identical: synthetic_session_nifty 12/+27,383.80
 # (re-baselined 2026-10-27: founder 10-lot cap 4aa8778 was 12/+69,309.10 at 25 lots; costs/groww_costs/tape/paper_scalp
 #  hashes updated for 58a3e39 60s quote age, c281847 BSE rate, 205b6d8 carried-over prints; replay unchanged by those)
+# (2026-10-27 Claude: paper_scalp hash for exit fixes - stop moves reset seen_low, FLATTEN_1516 beats soft cancels; replay unchanged 12/+27,383.80)
 # (Dhan/NSE FA/73061 paper rates; was 12/+69,364.32 on the old 0.0003503 fixture)
 3ceed07e14390673b0410f334502b4c853d2e51d18db603f1c57bc66c28ac156  packages/desk-ml/src/desk_ml/costs.py
 2bff62eec1052318795f86dc74e78b7550a7b75de0f51ac81d22f661cc1f6abe  packages/desk-ml/src/desk_ml/event_parity.py
@@ -25,7 +26,7 @@ f0b844d531ee00bea3b47fd5e207edb2bd493f7d0dd6b3a9fc8fefa2ee6c8a89  packages/desk-
 c7b6f5fff183087add5328a501e2f87ad9eea8204296cb655943b0d52acfcd4d  packages/desk-ml/src/desk_ml/overrides.py
 97f3695ac0763eaf3bd27087394e51047e8c732f8f44e613b745f14e6257182f  packages/desk-ml/src/desk_ml/paper_guard.py
 001e173a419008f7487daea4dd30afbae3953fde673588e309bd343c14e772d5  packages/desk-ml/src/desk_ml/paper_lots.py
-bfe2f398ce7ac47c1634ab0f3f4753d288cec2e800382ade8a95e0724c7e24ce  packages/desk-ml/src/desk_ml/paper_scalp.py
+54504840ccacf6288079e5b4a6fb92796dea9c64200a689d99bac120ccf731c0  packages/desk-ml/src/desk_ml/paper_scalp.py
 c6e243b0688a85950219736e27b3965571ca33cace3fc190c89d95af010502f7  packages/desk-ml/src/desk_ml/persist.py
 e54e94d0e5115f5020347f8963f86cf21de2777b71810562493f54623854541b  packages/desk-ml/src/desk_ml/picker.py
 76443290d662d36ce0fe8d04b01dd1ca9e2cb331f38b0dc2662b9fe31bde8b6e  packages/desk-ml/src/desk_ml/regime/__init__.py
