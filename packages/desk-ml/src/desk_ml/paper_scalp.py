@@ -4169,7 +4169,7 @@ def _try_open(
     # Shared desk risk gate (config/desk_risk.yaml): live loop only (DESK_RISK_GATE_LIVE=1 via desk.sh).
     from desk_ml.desk_risk import live_entry_block
 
-    if live_entry_block(repo_root()) is not None:
+    if live_entry_block(engine.root) is not None:  # root resolved only when the live gate is on (replays never touch repo_root)
         return
     # 2026-10-12 stale-price guard: never open on a price more than 60s behind the wall clock (live only).
     from desk_ml.desk_risk import stale_open_block

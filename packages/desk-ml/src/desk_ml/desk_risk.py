@@ -133,13 +133,17 @@ def state(taken: list[tuple[dict[str, Any], bool]], cfg: dict[str, Any]) -> dict
     }
 
 
-def live_entry_block(root: Path, day: Optional[str] = None, environ: Optional[dict[str, str]] = None) -> Optional[str]:
+def live_entry_block(root: Optional[Path], day: Optional[str] = None, environ: Optional[dict[str, str]] = None) -> Optional[str]:
     """For non-research desk paths (paper_scalp _try_open): halted_reason from the published research
     journal's risk block. Only when DESK_RISK_GATE_LIVE=1 (set by scripts/desk.sh), so replays and
     golden tests are unaffected."""
     env = os.environ if environ is None else environ
     if str(env.get("DESK_RISK_GATE_LIVE", "")).strip() not in {"1", "true", "yes", "on"}:
         return None
+    if root is None:
+        from desk_ml.persist import repo_root
+
+        root = repo_root()
     day = day or datetime.now(_IST).date().isoformat()
     try:
         blob = json.loads((Path(root) / "data" / "recon" / "research_rules" / f"{day}.json").read_text(encoding="utf-8"))
