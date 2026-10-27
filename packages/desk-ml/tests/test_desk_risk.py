@@ -82,3 +82,16 @@ def test_live_entry_block_off_without_env(tmp_path) -> None:
     j = tmp_path / "data" / "recon" / "research_rules"; j.mkdir(parents=True)
     (j / f"{DAY}.json").write_text('{"risk": {"halted_reason": "RISK_DAY_STOP"}}')
     assert dr.live_entry_block(tmp_path, DAY, environ={"DESK_RISK_GATE_LIVE": "1"}) == "RISK_DAY_STOP"
+
+
+def test_day_stop_back_on_from_oct28_with_real_config() -> None:
+    """Sahil 2026-10-27: off Oct 15-27 (replays unchanged), ON again from Oct 28: 2 losers or net <= -25k halts entries."""
+    two_losers = [(_row(rr.R02, "NIFTY", "CE", "10:00", "10:20", -100.0), False),
+                  (_row(rr.R02, "NIFTY", "CE", "10:30", "10:50", -100.0), False)]
+    big_loss = [(_row(rr.R02, "SENSEX", "PE", "09:40", "09:55", -30000.0), False)]
+    nxt = _row(rr.R02, "NIFTY", "PE", "11:00", "11:20")
+    for day, want in (("2026-10-22", None), ("2026-10-27", None), ("2026-10-28", dr.RISK_DAY_STOP), ("2026-11-05", dr.RISK_DAY_STOP)):
+        cfg = {**dr.load_config(), "_day": day}
+        assert dr.check(two_losers, nxt, cfg) == want, day
+        assert dr.check(big_loss, nxt, cfg) == want, day
+    assert dr.check(two_losers[:1], nxt, {**dr.load_config(), "_day": "2026-10-28"}) is None  # one small loser: still trading

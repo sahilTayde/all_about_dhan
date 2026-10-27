@@ -10,5 +10,7 @@ group_stop:                   # RISK_DAY_STOP for entries of these rules when th
   rule_ids: [R01_PDIV_5_ALL_H20, R01_B3A_VOL]
   net_inr: -15000
 # Sahil 1:1 2026-10-14 22:18 CT: day stops unlimited for paper from Oct 15 IST (10 lots stays)
+# Sahil 2026-10-27: day stops back ON from Oct 28 IST (null = on). Oct 15-27 replays stay unchanged.
 day_stop_off_from:
   "2026-10-15": "00:00"
+  "2026-10-28": null

@@ -72,6 +72,8 @@ def day_stop_off(cfg: dict[str, Any], t: Optional[str]) -> bool:
     if not keys:
         return False
     k = max(keys, key=str)
+    if tbl[k] is None:  # "YYYY-MM-DD": null = stops back ON from that day (Sahil 2026-10-27)
+        return False
     if str(k) < str(day):
         return True
     return t is None or str(t) >= str(tbl[k])
