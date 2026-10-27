@@ -2,7 +2,7 @@
 + live recorder quote_snapshots converted to 1m bars (src_detail=live_tape, only for minutes the API lacks). Never invents prices.
 Usage: build_day.py <api_run_dir> <tape_dir> <outdir>"""
 import sys,json,glob,os,numpy as np,pandas as pd,datetime as dt
-RUN,TAPE,OUT=sys.argv[1:4]; IST=dt.timezone(dt.timedelta(hours=5,minutes=30)); DAY=os.environ.get("PX_DAY","2026-10-13"); EXP=os.environ.get("PX_EXP",DAY)
+RUN,TAPE,OUT=sys.argv[1:4]; IST=dt.timezone(dt.timedelta(hours=5,minutes=30)); DAY=os.environ.get("PX_DAY","2026-10-13"); EXP=os.environ.get("PX_EXP",DAY); EXP_S=os.environ.get("PX_EXP_SENSEX",""); OPT_SRC=os.environ.get("PX_OPT_SRC","dhan_api_1m")
 def ld(fp):
     j=json.load(open(fp)); df=pd.DataFrame({k:j[k] for k in ("open","high","low","close","timestamp")})
     for k in ("volume","open_interest"): df[k]=j.get(k,[0]*len(df))
@@ -25,7 +25,7 @@ LB.to_csv(os.path.join(OUT,"live_tape_1m.csv"),index=False)
 opts=[]
 for fp in [p for p in glob.glob(os.path.join(RUN,"*_*_*_*.json")) if not os.path.basename(p).startswith("IDX_")]:
     und,exp,K,ot=os.path.basename(fp)[:-5].split("_"); d=ld(fp); d=d[d.day==DAY]
-    d=d.assign(trading_day=DAY,symbol=und,strike=int(K),option_type=ot,expiry=exp,src_detail="dhan_api_1m"); opts.append(d)
+    d=d.assign(trading_day=DAY,symbol=und,strike=int(K),option_type=ot,expiry=exp,src_detail=OPT_SRC); opts.append(d)
 O=pd.concat(opts,ignore_index=True)
 if len(LB):
     LB["und"]=LB.iid.str.split(":").str[1]; LB["expiry"]=LB.iid.str.split(":").str[2]; LB["strike"]=LB.iid.str.split(":").str[3].astype(float).astype(int); LB["option_type"]=LB.iid.str.split(":").str[4]
@@ -61,9 +61,29 @@ hm=X.src.isin(["mac","hist"]); D=X[hm].groupby("day").agg(H=("high","max"),L=("l
 tr=np.maximum(D.H-D.L,np.maximum(abs(D.H-D.C.shift()),abs(D.L-D.C.shift()))); A=tr.ewm(alpha=1/14,adjust=False).mean().shift()
 nd=X.day>"2026-09-03"; X.loc[nd,"atr14"]=X.loc[nd,"day"].map(A)
 X.to_parquet(os.path.join(OUT,"base_1m_aug.parquet"),index=False)
+# --- 2026-10-18: SENSEX base (own index history only: Dhan 1m from 2026-08-20; no lab history before). Same columns the lab rules read.
+# Strike grid 100; ce_*/pe_* = ITM300 (a-300 CE / a+300 PE) = NIFTY's ITM100 x ~3.3. Weekly expiry Thursday (tapes: 10-15, 10-22).
+def nextthu(d):
+    x=dt.date.fromisoformat(d); return (x+dt.timedelta(days=(3-x.weekday())%7)).isoformat()
+SX=ld(os.path.join(RUN,"IDX_SENSEX.json")); SX=SX[(SX.m>=555)&(SX.m<=929)].copy(); SX["src_detail"]="dhan_api_1m"; SX["src"]="hist"; SX["expiry"]=SX.day.map(nextthu)
+if EXP_S: SX.loc[SX.day==DAY,"expiry"]=EXP_S
+SX["dte"]=[np.busday_count(a,b) for a,b in zip(SX.day,SX.expiry)]; SX["dte_cal"]=[(dt.date.fromisoformat(b)-dt.date.fromisoformat(a)).days for a,b in zip(SX.day,SX.expiry)]
+SX["tp"]=(SX.high+SX.low+SX.close)/3; SX["twap"]=SX.groupby("day").tp.transform(lambda s:s.expanding().mean())
+for c in ("ce_o","ce_h","ce_l","ce_c","pe_o","pe_h","pe_l","pe_c","kce_close","kpe_close","bnf","regime"): SX[c]=np.nan
+NS=O[(O.symbol=="SENSEX")&(O.expiry==(EXP_S or EXP))].set_index(["strike","option_type","m"])
+for i in SX.index[SX.day==DAY]:
+    m=SX.at[i,"m"]; a=int(round(SX.at[i,"close"]/100)*100); kc,kp=a-300,a+300; SX.at[i,"kce_close"]=kc; SX.at[i,"kpe_close"]=kp
+    for K,ot,p in ((kc,"CE","ce"),(kp,"PE","pe")):
+        if (K,ot,m) in NS.index:
+            r=NS.loc[(K,ot,m)]; r=r.iloc[0] if isinstance(r,pd.DataFrame) else r
+            for a_,b_ in (("o","open"),("h","high"),("l","low"),("c","close")): SX.at[i,f"{p}_{a_}"]=r[b_]
+SX=SX.drop(columns=["tp","tsx","timestamp","volume","open_interest"],errors="ignore").sort_values(["day","m"]).reset_index(drop=True)
+DS=SX.groupby("day").agg(H=("high","max"),L=("low","min"),C=("close","last"))
+trs=np.maximum(DS.H-DS.L,np.maximum(abs(DS.H-DS.C.shift()),abs(DS.L-DS.C.shift()))); AS=trs.ewm(alpha=1/14,adjust=False).mean().shift()
+SX["atr14"]=SX.day.map(AS); SX.to_parquet(os.path.join(OUT,"base_1m_aug_SENSEX.parquet"),index=False)
 # coverage report
 tm=set(I[t].m); exp=list(range(555,max(tm)+1)) if tm else []
 cov=dict(day=DAY,index_minutes=len(tm),index_first=min(tm) if tm else None,index_last=max(tm) if tm else None,index_missing=[m for m in exp if m not in tm],
  option_series=int(O.groupby(["symbol","strike","option_type"]).ngroups),option_rows_api=int((O.src_detail=="dhan_api_1m").sum()),option_rows_tape=int((O.src_detail=="live_tape").sum()),
- ce_o_missing_today=int(I[t].ce_o.isna().sum()),pe_o_missing_today=int(I[t].pe_o.isna().sum()),hist_days_added=sorted(set(I.day))[:1]+sorted(set(I.day))[-1:],n_days_added=int(I.day.nunique()))
+ ce_o_missing_today=int(I[t].ce_o.isna().sum()),pe_o_missing_today=int(I[t].pe_o.isna().sum()),sx_ce_o_missing_today=int(SX[SX.day==DAY].ce_o.isna().sum()),sx_pe_o_missing_today=int(SX[SX.day==DAY].pe_o.isna().sum()),sx_days=int(SX.day.nunique()),hist_days_added=sorted(set(I.day))[:1]+sorted(set(I.day))[-1:],n_days_added=int(I.day.nunique()))
 json.dump(cov,open(os.path.join(OUT,"coverage.json"),"w"),indent=1); print(json.dumps(cov))

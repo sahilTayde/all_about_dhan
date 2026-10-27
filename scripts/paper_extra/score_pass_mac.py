@@ -6,12 +6,19 @@ missing bar -> DATA_MISSING. Trade whose exit minute is not reached yet -> OPEN.
 import sys,os,re,types,json,traceback,datetime as dt,numpy as np,pandas as pd; sys.dont_write_bytecode=True
 HERE=os.path.dirname(os.path.abspath(__file__)); W=HERE+"/work"; LAB="/Users/sahiltayde/paper_extra_rt/dhan/research/lab"; DAY=os.environ.get("PX_DAY","2026-10-13"); EXP=os.environ.get("PX_EXP",DAY); sys.path[:0]=[LAB+"/lib",LAB]
 import costs as CO, lots as LO
-QTY=LO.qty("NIFTY",DAY,10)
+# 2026-10-18 SENSEX support (box, paper only). PX_UNDERLYING picks the index; NIFTY path is byte-for-byte the old arithmetic.
+UND=os.environ.get("PX_UNDERLYING","NIFTY"); assert UND in ("NIFTY","SENSEX"),UND
+QTY=LO.qty(UND,DAY,10)                       # NIFTY 65x10=650, SENSEX 20x10=200 (lots.py)
+STEP={"NIFTY":50,"SENSEX":100}[UND]          # strike grid
+ITM_OFF={"NIFTY":0,"SENSEX":int(os.environ.get("PX_ITM_SENSEX","300"))}[UND]   # NIFTY stays ATM (old spec); SENSEX ITM300 ~= 3.3 x NIFTY ITM100
+PXSCALE=1.0 if UND=="NIFTY" else float(os.environ.get("PX_SCALE_SENSEX","3.3"))   # absolute index-point constants x this
+BASEF="/base_1m_aug.parquet" if UND=="NIFTY" else "/base_1m_aug_SENSEX.parquet"
+SUF="" if UND=="NIFTY" else "_SENSEX"
 _rp=pd.read_parquet
 VIXX=json.load(open(W+"/vix_daily.json"))
 def rp(p,*a,**k):
     p=str(p)
-    if p.endswith("lab_round7b/base_1m.parquet"): p=W+"/base_1m_aug.parquet"
+    if p.endswith("lab_round7b/base_1m.parquet"): p=W+BASEF
     df=_rp(p,*a,**k)
     if p.endswith("global_daily.parquet"):
         df["date"]=df.date.astype(str).str[:10]; add=[d for d in VIXX if d not in set(df.date)]
@@ -26,9 +33,9 @@ def load_mod(name,path,subs=()):
     try: exec(compile(src,path,"exec"),m.__dict__)
     finally: os.chdir(cwd)
     return m
-OPT=_rp(W+f"/opt1m_{DAY}.parquet"); OPT=OPT[(OPT.symbol=="NIFTY")&(OPT.expiry==EXP)]
+OPT=_rp(W+f"/opt1m_{DAY}.parquet"); OPT=OPT[(OPT.symbol==UND)&(OPT.expiry==EXP)]
 OB={(int(k),o):g.set_index("m") for (k,o),g in OPT.groupby(["strike","option_type"])}
-BA=_rp(W+"/base_1m_aug.parquet"); TD=BA[BA.day==DAY].set_index("m"); LASTM=int(TD.index.max())
+BA=_rp(W+BASEF); TD=BA[BA.day==DAY].set_index("m"); LASTM=int(TD.index.max())
 def hm(m): return None if m is None else f"{int(m)//60:02d}:{int(m)%60:02d}"
 def opx(K,ot,m,col):
     g=OB.get((K,ot))
@@ -40,7 +47,7 @@ def price(strat,sg,sig_m,exit_m,mode="ATM",exit_col="close",why=""):
     # so the first fill we can honestly use is the OPEN of the next minute (same rule as fair entry). Never the touch-minute close.
     if why in ("STOP","TARGET") and exit_m is not None: exit_m=exit_m+1; exit_col="open"
     if sig_m not in TD.index: return dict(strategy=strat,signalled="Y",side=ot,status="DATA_MISSING",note=f"no index bar {hm(sig_m)}")
-    atm=int(round(TD.at[sig_m,"close"]/50)*50); K=atm-sg*100 if mode=="ITM100" else atm
+    atm=int(round(TD.at[sig_m,"close"]/STEP)*STEP); K=atm-sg*100 if mode=="ITM100" else atm-sg*ITM_OFF
     r=dict(strategy=strat,signalled="Y",side=ot,strike=K,signal_time=hm(sig_m),entry_time=hm(ent),exit_time=hm(exit_m),exit_reason=why)
     if ent>LASTM: r.update(status="PENDING_ENTRY"); return r
     p0,s0=opx(K,ot,ent,"open")
@@ -50,7 +57,7 @@ def price(strat,sg,sig_m,exit_m,mode="ATM",exit_col="close",why=""):
         last,_=opx(K,ot,LASTM,"close"); r.update(status="OPEN",mark_time=hm(LASTM),mark_px=last); return r
     px,s1=opx(K,ot,exit_m,exit_col)
     if px is None: r.update(status="DATA_MISSING",note=f"no {K}{ot} bar at {hm(exit_m)}"); return r
-    g,ch,n1,n15=CO.net_at(round(p0,2),round(max(px,.05),2),QTY,"NIFTY",DAY)
+    g,ch,n1,n15=CO.net_at(round(p0,2),round(max(px,.05),2),QTY,UND,DAY)
     r.update(exit_px=px,exit_src=s1,qty=QTY,pnl_1x=float(n1),pnl_1_5x=float(n15),status="CLOSED"); return r
 ROWS=[]; ERR={}
 def none(strat,why): ROWS.append(dict(strategy=strat,signalled="N",status=why))
@@ -90,8 +97,13 @@ def prim():
 # ---------- EP ports ----------
 def eps():
     sys.path[:0]=[LAB+"/2026-10-11_tv_ep23"]
-    EP=load_mod("engine",LAB+"/2026-10-11_tv_ep23/engine.py",[('M = M[M.groupby("day").m.transform("size") >= 300]',f'M = M[(M.groupby("day").m.transform("size") >= 300) | (M.day == "{DAY}")]')])
-    EPP=load_mod("ports",LAB+"/2026-10-11_tv_ep23/ports.py")
+    EP=load_mod("engine",LAB+"/2026-10-11_tv_ep23/engine.py",[('M = M[M.groupby("day").m.transform("size") >= 300]',f'M = M[(M.groupby("day").m.transform("size") >= 300) | (M.day == "{DAY}")]')]
+               +([] if UND=="NIFTY" else [("SLIP = 2.0; TICK = 0.05; QTY = 650",f"SLIP = 2.0 * {PXSCALE}; TICK = 0.05; QTY = {QTY}"),   # slip pts; lab net qty (only feeds the 2-loss/day gate)
+                   ("xx = PM.anchored(p0, sg, S0, X, m0, m1, model) - (TICK if stopped else 0)",
+                    f"xx = max(p0 + PM.DELTA * sg * (X - S0) - {PXSCALE} * (PM.flat_decay(m0, m1) if model == 'FLAT' else PM.house_decay(m0, m1)), 0.05) - (TICK if stopped else 0)")]))
+    EPP=load_mod("ports",LAB+"/2026-10-11_tv_ep23/ports.py",[] if UND=="NIFTY" else
+               [("lambda kk, sgn, f: (None, f + sgn * 100 * TICK)",f"lambda kk, sgn, f: (None, f + sgn * 100 * TICK * {PXSCALE})"),   # EP-010 target 5 pts
+                ("def EP018(B, point=2.0):",f"def EP018(B, point=2.0 * {PXSCALE}):")])                                         # EP-018 box 2 pts
     TR=pd.read_csv(LAB+"/2026-10-11_tv_ep23/test_results.csv")
     for t in TR.itertuples():
         B=EP.bars(int(t.tf)); T=EP.run(EPP.PORTS[t.ep](B),B); n=0
@@ -123,6 +135,9 @@ def candles():
         if not n: none(f"{C.IDEA(v)}:{v}","NO_SIGNAL")
 # ---------- R01 / R01_B3A_VOL (live3 spec) ----------
 def r01():
+    if UND!="NIFTY":   # R01 family is NIFTY-only (CUT calibrated on NIFTY) and off paper since Oct 12
+        for rule in ("R01","R01_B3A_VOL"): none(rule,"NOT_RUN_SENSEX")
+        return
     ix=TD.close; CUT=0.00021620371
     def cl(K,o,m): v,_=opx(K,o,m,"close"); return v
     def rv30(t):
@@ -153,7 +168,8 @@ for s in ["HV_P6_CE","HV_P6_BOTH"]+[f"HV_P{i}_T1_H20" for i in (1,2,3,5,6,7,8,9,
 for k,v in ERR.items(): ROWS.append(dict(strategy="FAMILY_"+k,signalled="",status="ERROR",note=v))
 R=pd.DataFrame(ROWS); stamp=dt.datetime.now(dt.timezone(dt.timedelta(hours=5.5))).strftime("%H%M")
 R.insert(0,"run_ist",stamp); R.insert(1,"data_through",hm(LASTM))
-R.to_csv(f"{HERE}/score_{stamp}IST.csv",index=False); R.to_csv(f"{HERE}/score_latest.csv",index=False)
+R.insert(2,"underlying",UND)
+R.to_csv(f"{HERE}/score_{stamp}IST{SUF}.csv",index=False); R.to_csv(f"{HERE}/score_latest{SUF}.csv",index=False)
 cl=R[R.status=="CLOSED"] if "status" in R else R
-print("run",stamp,"data through",hm(LASTM),"rows",len(R),"signalled",int((R.signalled=="Y").sum()),"closed",len(cl),
+print("run",stamp,UND,"data through",hm(LASTM),"rows",len(R),"signalled",int((R.signalled=="Y").sum()),"closed",len(cl),
       "errors",ERR)
