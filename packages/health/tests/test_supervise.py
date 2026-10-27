@@ -61,9 +61,11 @@ def test_hung_child_is_killed_and_restarted(tmp_path):
 
 def test_beating_child_is_not_killed(tmp_path):
     hb = tmp_path / "hb.json"
+    # atomic like live_cycle.beat: a plain open('w') lets the supervisor read an empty file mid-write
     code = (
-        "import json,time,sys; p=sys.argv[1]\n"
-        "for _ in range(15):\n    open(p,'w').write(json.dumps({'last_loop_epoch': time.time()})); time.sleep(0.1)\n"
+        "import json,os,time,sys; p=sys.argv[1]\n"
+        "for _ in range(15):\n"
+        "    open(p+'.tmp','w').write(json.dumps({'last_loop_epoch': time.time()})); os.replace(p+'.tmp',p); time.sleep(0.1)\n"
     )
     rc = supervise([sys.executable, "-c", code, str(hb)], heartbeat=hb, hang_seconds=1.0, max_restarts=0,
                    alerts=tmp_path / "a", **FAST)

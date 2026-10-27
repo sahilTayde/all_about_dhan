@@ -10,6 +10,7 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[3]
 DESK = REPO / "scripts" / "desk.sh"
+BASH = "/bin/bash"  # on Linux and macOS (/usr/bin/bash is Linux-only); absolute so PATH stubs never shadow it
 
 
 def _write_exec(path: Path, body: str) -> None:
@@ -29,7 +30,7 @@ def _source(
     merged["AAD_TAPE_V2"] = str(tmp / "tape")
     script = f"source '{DESK}'\n{snippet}\n"
     return subprocess.run(
-        ["/usr/bin/bash", "-c", script],
+        [BASH, "-c", script],
         cwd=REPO,
         env=merged,
         capture_output=True,
@@ -221,7 +222,7 @@ def test_d_mac_setup_v2_never_touches_legacy_venv() -> None:
 
 def test_d_mac_setup_refuses_legacy_venv_path(tmp_path: Path) -> None:
     proc = subprocess.run(
-        ["/usr/bin/bash", str(REPO / "scripts" / "mac_setup_v2.sh")],
+        [BASH, str(REPO / "scripts" / "mac_setup_v2.sh")],
         cwd=REPO,
         env={
             **os.environ,
@@ -707,7 +708,7 @@ def test_f_preflight_token_presence_does_not_print_token(tmp_path: Path) -> None
     recon.mkdir()
     script = f"source '{DESK}'\npreflight\n"
     proc = subprocess.run(
-        ["/usr/bin/bash", "-c", script],
+        [BASH, "-c", script],
         cwd=fake_root,
         env={
             **os.environ,
