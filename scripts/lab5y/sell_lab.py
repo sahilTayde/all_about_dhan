@@ -1,5 +1,5 @@
 """Round 4: defined-risk option SELLING on the round-2 panel (paper research; no orders).
-Run:  ~/paper_extra_venv/bin/python scripts/lab5y/sell_lab.py OUT [grid|selftest] [--holdout]   (run from scripts/lab5y)
+Run:  ~/paper_extra_venv/bin/python scripts/lab5y/sell_lab.py OUT [grid|e16e17|selftest] [--holdout]   (run from scripts/lab5y)
 Reuses opt1y_lab (panel, half-spreads, costs x1.5, 10 lots, dev < 2026-07-27, holdout once).
 
 Position = legs (side, strike offset in steps from ATM at bar i, sign -1 short / +1 long), entered at the open of bar i+1:
@@ -11,7 +11,7 @@ A leg with no quote has left the taped ATM+-3 window (Dhan rollingoption rejects
   low = intrinsic, high = intrinsic + the extrinsic (clipped at 0) of the nearest taped strike of that type.
 mode="cons" values shorts at high and longs at low (a rule must pass this); mode="opt" is the reverse.
 A short structure's buy-back value is then clamped to [0, widest wing], the hard max loss of an iron fly / condor."""
-import sys, numpy as np, pandas as pd
+import sys, glob, math, os, numpy as np, pandas as pd
 import opt1y_lab as L
 
 P, STEP, LOT, LOTS, M0, NB, FLAT = L.P, L.STEP, L.LOT, L.LOTS, L.M0, L.NB, L.FLAT
@@ -438,6 +438,108 @@ def study_e14():
     ok = R.groupby("exit").pass_bonf.all(); print("exit families passing for ALL entry types:", list(ok[ok].index))
 
 
+# ---------------------------------------------------------------- E16-E17 full option chain of T-1 (NSE/BSE bhavcopy, ext_fetch.py)
+EX_OF = {"NIFTY": "NSE", "SENSEX": "BSE"}
+_N = lambda x: 0.5 * (1 + math.erf(x / math.sqrt(2)))
+
+
+def _bs(F, K, T, v, cp):
+    """Black-76 price, r = 0 (forward F, vol v, years T)."""
+    d1 = (math.log(F / K) + v * v * T / 2) / (v * math.sqrt(T)); d2 = d1 - v * math.sqrt(T)
+    return F * _N(d1) - K * _N(d2) if cp == "CE" else K * _N(-d2) - F * _N(-d1)
+
+
+def _impv(px, F, K, T, cp):
+    """implied vol by bisection on 0.01..5; NaN when the price is outside the model's range."""
+    lo, hi = 0.01, 5.0
+    if not (_bs(F, K, T, lo, cp) < px < _bs(F, K, T, hi, cp)): return np.nan
+    for _ in range(60):
+        m = (lo + hi) / 2; lo, hi = (m, hi) if _bs(F, K, T, m, cp) < px else (lo, m)
+    return (lo + hi) / 2
+
+
+def chain_feats(C, exp, d1):
+    """C: one T-1 bhavcopy (one symbol) restricted to expiry `exp`; d1 = T-1 date. Returns (max pain strike, rr)."""
+    ce, pe = C[C.OptnTp == "CE"].set_index("StrkPric"), C[C.OptnTp == "PE"].set_index("StrkPric")
+    Ks = np.array(sorted(set(ce.index) | set(pe.index)), float)
+    oc, op = ce.OpnIntrst.reindex(Ks).fillna(0).values, pe.OpnIntrst.reindex(Ks).fillna(0).values
+    pain = [(oc * np.maximum(0, k - Ks)).sum() + (op * np.maximum(0, Ks - k)).sum() for k in Ks]
+    mp = Ks[int(np.argmin(pain))] if (oc + op).sum() > 0 else np.nan
+    F = float(C.UndrlygPric.iloc[0]); T = np.busday_count(d1, exp) / 252
+    both = [k for k in Ks if k in ce.index and k in pe.index and ce.ClsPric[k] > 0 and pe.ClsPric[k] > 0]
+    if not both or T <= 0: return mp, np.nan
+    ka = min(both, key=lambda k: abs(k - F)); sd = 1.25 * (ce.ClsPric[ka] + pe.ClsPric[ka])
+    kp, kc = Ks[np.argmin(abs(Ks - (F - sd)))], Ks[np.argmin(abs(Ks - (F + sd)))]
+    if kp not in pe.index or kc not in ce.index or pe.TtlTradgVol[kp] <= 0 or ce.TtlTradgVol[kc] <= 0: return mp, np.nan
+    return mp, _impv(pe.ClsPric[kp], F, kp, T, "PE") - _impv(ce.ClsPric[kc], F, kc, T, "CE")
+
+
+def chain_table():
+    """per panel sym-day T: features from the LAST bhavcopy dated before T, on the expiry the panel trades on T.
+    g = (max pain - spot at 09:45 close) / step; z = rr vs the prior 20 rr of that symbol (strictly prior)."""
+    files = {ex: sorted(glob.glob(f"{L.EXT}/bhav/{ex}_*.csv")) for ex in ("NSE", "BSE")}
+    fd = {ex: [os.path.basename(f)[4:14] for f in fs] for ex, fs in files.items()}; cache, rows = {}, []
+    for k in L.ALLK:
+        sym, day = k; ex = EX_OF[sym]; j = np.searchsorted(fd[ex], day) - 1
+        if j < 0: continue
+        f = files[ex][j]
+        if f not in cache: cache[f] = pd.read_csv(f)
+        X = cache[f]; C = X[X.XpryDt == P[k]["exp"]]
+        if not len(C): continue
+        mp, rr = chain_feats(C, P[k]["exp"], fd[ex][j])
+        rows.append(dict(sym=sym, day=day, key=k, d1=fd[ex][j], dte=P[k]["dte"], mp=mp, rr=rr, g=(mp - P[k]["spot"][30]) / STEP[sym]))
+    V = pd.DataFrame(rows).sort_values(["sym", "day"]); V["mo"] = V.day.map(L.month)
+    pr = V.groupby("sym").rr.transform(lambda x: x.shift(1).rolling(20).mean())
+    ps = V.groupby("sym").rr.transform(lambda x: x.shift(1).rolling(20).std())
+    V["z"] = (V.rr - pr) / ps; V["ag"], V["az"] = V.g.abs(), V.z.abs(); return V
+
+
+E16I = 30  # decide at the 09:45 close, fill 09:46 open (as R3)
+LONG = lambda sd: [(sd, 0, 1)]
+
+
+def e_cell(name, sel, legs_fn, ex, side_col=None, sign=1, pool_keys=None):
+    """sel: chosen rows (key, side from sign(side_col)*sign). p_vs_rand: same legs/exit/mode on random panel days of the
+    same symbol and month (random side if directional), 2000 draws."""
+    Ks = pool_keys if pool_keys is not None else L.KEYS; out = {}
+    for mode in ("cons", "opt"):
+        pool = {}  # critic 2026-10-28: the pool was cons-only and mixed symbols
+        for k in Ks:
+            for sd in (("CE", "PE") if side_col else ("CE",)):
+                r = struct(k, E16I, legs_fn(sd), mode=mode, **ex)
+                if r: pool.setdefault((k[0], L.month(k[1])), []).append(r["pnl"])
+        T = []
+        for r in sel.itertuples():
+            sd = ("CE" if sign * getattr(r, side_col) > 0 else "PE") if side_col else "CE"
+            x = struct(r.key, E16I, legs_fn(sd), mode=mode, **ex)
+            if x: T.append(dict(x, key=r.key, side=sd))
+        D = pd.DataFrame(T)
+        if not len(D): print(name, mode, "no trades"); continue
+        rg = np.random.default_rng(9); rnd = np.array([sum(rg.choice(pool[(sy, L.month(d))]) for sy, d in zip(D.sym, D.day)) for _ in range(2000)])
+        out[mode] = dict(summ(D), p_vs_rand=round((rnd >= D.pnl.sum()).mean(), 4), rand_avg=round(rnd.mean() / len(D)),
+                         why=D.why.value_counts().to_dict())
+        print(f"{name} [{mode}]:", out[mode], flush=True)
+        if mode == "cons": print("   by month (k):", (D.groupby(D.day.map(L.month)).pnl.sum() / 1000).round(0).to_dict(), flush=True)
+    return out
+
+
+def study_e16e17():
+    """E16 max pain / E17 smile skew from the T-1 full chain (rules frozen before results; 4 cells, Bonferroni 0.0125)."""
+    VA = chain_table(); V = VA[(VA.day >= L.HO) == L.HOLDOUT]
+    print(f"chain rows {len(V)} (mp {V.mp.notna().sum()}, rr {V.rr.notna().sum()}, z {V.z.notna().sum()}); "
+          f"g median {V.ag.median():.2f} steps; Spearman g vs 09:45->close move "
+          f"{V.g.corr(pd.Series([(P[k]['spot'][-1] - P[k]['spot'][30]) / STEP[k[0]] for k in V.key], V.index), method='spearman'):.3f}", flush=True)
+    d16 = dict(sstop=2.5); d16b = dict(sstop=2)
+    s, _ = L.wf_ext(VA.dropna(subset=["g"]), "ag"); s = s[s.ag > 0]
+    e_cell("E16a ATM toward max pain if |g| > WF q0.7", s, LONG, d16, side_col="g")
+    pin = V[(V.ag <= 1) & (V.dte <= 1)]; pk = [k for k in L.KEYS if P[k]["dte"] <= 1]
+    e_cell("E16b short straddle if |g| <= 1 and dte <= 1", pin, lambda sd: SSTRAD, d16b, pool_keys=pk)
+    s, _ = L.wf_ext(VA.dropna(subset=["z"]), "az")
+    e_cell("E17a ATM against skew (z>0 -> PE) if |z| > WF q0.7", s, LONG, d16, side_col="z", sign=-1)
+    s, _ = L.wf_ext(VA.dropna(subset=["z"]), "z")
+    e_cell("E17b long straddle if z > WF q0.7", s, lambda sd: LSTRAD, d16)
+
+
 def _syn(k, spot, st, a0, px0=50.0, px1=20.0, iv=15.0):
     """synthetic panel (strikes ATM +-3, flat prices) for selftests; returns the C dict."""
     C = {}
@@ -510,6 +612,21 @@ def study_selftest():
     sp1 = np.full(NB, 20000.0); sp1[100:] = 20050.0; _syn(kc, sp1, 50, 20000)
     S = e13_signals([ka, kb, kc]); assert len(S) == 1 and S.j[0] == 100 and abs(S.rise[0] - 3.0) < 1e-9 and S.key[0] == ka, S
     for kk in (k, kt, kn, ks, ka, kb, kc): del P[kk]
+    # ---- E16/E17 paths: implied vol round trip; max pain; skew from a synthetic chain (puts 30 vol, calls 20 vol)
+    for cp in ("CE", "PE"):
+        for v in (0.12, 0.2, 0.6): assert abs(_impv(_bs(20000, 20300, 3 / 252, v, cp), 20000, 20300, 3 / 252, cp) - v) < 1e-6
+    assert np.isnan(_impv(0.0, 20000, 20300, 3 / 252, "CE"))
+    Ks = np.arange(19000, 21001, 50.0); T3 = np.busday_count("1999-01-04", "1999-01-07") / 252
+    ch = pd.DataFrame([dict(StrkPric=K, OptnTp=cp, UndrlygPric=20000.0, TtlTradgVol=1, OpnIntrst=0,
+                            ClsPric=_bs(20000, K, T3, 0.3 if K < 20000 else 0.2, cp)) for K in Ks for cp in ("CE", "PE")])
+    ch.loc[(ch.StrkPric == 20500) & (ch.OptnTp == "CE"), "OpnIntrst"] = 1000  # all OI on 20500 CE and 19700 PE ->
+    ch.loc[(ch.StrkPric == 19700) & (ch.OptnTp == "PE"), "OpnIntrst"] = 1000  # holders' payout is 0 anywhere in between
+    ch.loc[(ch.StrkPric == 20000) & (ch.OptnTp == "CE"), "OpnIntrst"] = 1     # a tiny CE OI at 20000 -> min pain at <= 20000
+    mp, rr = chain_feats(ch, "1999-01-07", "1999-01-04")
+    assert mp == 19700 and abs(rr - 0.1) < 1e-3, (mp, rr)
+    sd = 1.25 * ch[ch.StrkPric == 20000].ClsPric.sum(); kp = Ks[np.argmin(abs(Ks - (20000 - sd)))]
+    ch.loc[(ch.StrkPric == kp) & (ch.OptnTp == "PE"), "TtlTradgVol"] = 0  # untraded wing strike -> no skew
+    assert np.isnan(chain_feats(ch, "1999-01-07", "1999-01-04")[1])
     print("sell_lab selftest OK")
 
 
