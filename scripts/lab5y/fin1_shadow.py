@@ -16,15 +16,24 @@ ask nearest 15:15:00. Dev +5.07L (257 trades, p 0.03) but holdout -53k (97): log
 
   .venv/bin/python scripts/lab5y/fin1_shadow.py day [YYYY-MM-DD]   # one day -> data/recon/fin1_shadow.jsonl
   .venv/bin/python scripts/lab5y/fin1_shadow.py week [N]           # report on the last N logged days (default 5)
+  .venv/bin/python scripts/lab5y/fin1_shadow.py forward [YYYY-MM-DD|all]  # read-only forward view: 1-sigma cone from 09:46 ATM IV
   .venv/bin/python scripts/lab5y/fin1_shadow.py selftest"""
-import json, math, random, sys
+import json, math, os, random, sys
 from datetime import date, datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
 ROOT = Path(__file__).resolve().parents[2]
-TAPE = ROOT / "data" / "tape" / "v2"
+TAPE = Path(os.environ.get("FIN1_TAPE", ROOT / "data" / "tape" / "v2"))
 LOG = ROOT / "data" / "recon" / "fin1_shadow.jsonl"
+FWD = ROOT / "data" / "recon" / "forward_view.jsonl"; FWD_SVG = ROOT / "data" / "recon" / "forward_view"
+MED_RVIV = 0.5434115813664702  # frozen: dev-period median of rest-of-day RV/IV (research E6)
+NMIN = 329  # minutes 09:46 -> 15:15
+
+
+def _left_min(day, exp):  # trading minutes from 09:46 on `day` to the 15:30 close on expiry `exp` (weekdays; ponytail: ignores holidays)
+    d0, d1 = date.fromisoformat(day).toordinal(), date.fromisoformat(exp).toordinal()
+    return 344 + 375 * sum(date.fromordinal(o).weekday() < 5 for o in range(d0 + 1, d1 + 1))
 THRESH = 1.0041598  # dev-period (before 2026-07-27) 70th pct of or_iv, the holdout threshold. Frozen.
 LOT = {"NIFTY": 65, "SENSEX": 20}; LOTS = 10; CM = 1.5
 TXN = {"NIFTY": 0.000355299, "SENSEX": 0.000325}
@@ -143,14 +152,14 @@ def day_rows(day, spot, q):
     return out
 
 
-def save(rows):
-    keep = [r for r in read_log() if (r["day"], r["sym"]) not in {(x["day"], x["sym"]) for x in rows}]
-    LOG.parent.mkdir(parents=True, exist_ok=True)
-    LOG.write_text("".join(json.dumps(r) + "\n" for r in sorted(keep + rows, key=lambda r: (r["day"], r["sym"]))))
+def save(rows, log=LOG):
+    keep = [r for r in read_log(log) if (r["day"], r["sym"]) not in {(x["day"], x["sym"]) for x in rows}]
+    log.parent.mkdir(parents=True, exist_ok=True)
+    log.write_text("".join(json.dumps(r) + "\n" for r in sorted(keep + rows, key=lambda r: (r["day"], r["sym"]))))
 
 
-def read_log():
-    return [json.loads(l) for l in LOG.read_text().splitlines() if l.strip()] if LOG.is_file() else []
+def read_log(log=LOG):
+    return [json.loads(l) for l in log.read_text().splitlines() if l.strip()] if log.is_file() else []
 
 
 def week(n=5, rows=None):
@@ -176,6 +185,97 @@ def week(n=5, rows=None):
     return "\n".join(lines)
 
 
+def _mm(m): return f"{9 + (46 + m) // 60:02d}:{(46 + m) % 60:02d}"  # minutes after 09:46 -> HH:MM
+
+
+def forward(day, spot, q):
+    """read-only forward view: 1-sigma cone to 15:15 from the 09:46 ATM IV; realized fields null before 15:15."""
+    out = []
+    for r in day_rows(day, spot, q):
+        o = dict(day=day, sym=r["sym"], status=r["status"], shadow_only=True)
+        sp = spot.get(r["sym"], {})
+        if r["status"] != "OK" or "09:46" not in sp: out.append(o); continue
+        S0, K = r["spot_0945"], r["strike"]; ivs = []  # spot at the decision (last 09:45 tick), quotes 09:46:00-09:46:59 only
+        for side in ("CE", "PE"):
+            x = _first(sorted(q[(r["sym"], K, side)]), "09:46:00")
+            if x is None or x[0] >= "09:47:00": break
+            T = ((date.fromisoformat(x[3]) - date.fromisoformat(day)).days + 0.5) / 365
+            ivs.append(implied_vol((x[1] + x[2]) / 2, S0, K, T, side))
+        iv = sum(ivs) / 2 if len(ivs) == 2 else float("nan")
+        if iv != iv: out.append(dict(o, status="IV_NAN")); continue
+        # IV is solved on calendar time T: the 09:46->15:15 share of the option's total variance is NMIN / trading minutes left
+        sig = S0 * iv / 100 * math.sqrt(T * NMIN / _left_min(day, x[3]))
+        o.update(S0=S0, K=K, iv=round(iv, 3), sig=round(sig, 3), ratio=r["ratio"], fin1_signal=r["signal"], s2_signal=r["s2_signal"],
+                 path=[sp[_mm(m)] if _mm(m) in sp else None for m in range(NMIN + 1)], move=None, z=None, broke1=None, broke2=None, rv_rest=None, y_ratio=None, y=None)
+        cl = [sp[_mm(m)] for m in range(NMIN + 1) if _mm(m) in sp]
+        if "15:15" in sp and len(cl) >= 320:  # gaps would annualise a multi-minute return as one minute
+            rv = rv_open(cl)
+            o.update(move=round(sp["15:15"] - S0, 2), z=round((sp["15:15"] - S0) / sig, 3), rv_rest=round(rv, 2), y_ratio=round(rv / iv, 4))
+            o.update(broke1=abs(o["z"]) > 1, broke2=abs(o["z"]) > 2, y=o["y_ratio"] > MED_RVIV)
+        out.append(o)
+    return out
+
+
+def _auc(scores, pos):
+    """Mann-Whitney AUC, ties averaged; nan if one class is empty."""
+    o = sorted(range(len(scores)), key=lambda i: scores[i]); rk = [0.0] * len(o); i = 0
+    while i < len(o):
+        j = i
+        while j + 1 < len(o) and scores[o[j + 1]] == scores[o[i]]: j += 1
+        for k in range(i, j + 1): rk[o[k]] = (i + j) / 2 + 1
+        i = j + 1
+    n1 = sum(pos); n0 = len(pos) - n1
+    return (sum(r for r, p in zip(rk, pos) if p) - n1 * (n1 + 1) / 2) / (n1 * n0) if n1 and n0 else float("nan")
+
+
+def _binom_p(k, n, p):  # exact two-sided: total prob of outcomes no likelier than k
+    pm = [math.comb(n, i) * p ** i * (1 - p) ** (n - i) for i in range(n + 1)]
+    return min(1.0, sum(x for x in pm if x <= pm[k] * (1 + 1e-9)))
+
+
+def calibration(rows):
+    R = [r for r in rows if r.get("z") is not None]; n = len(R)
+    if not n: return "Forward calibration: no sym-day with a 15:15 close yet"
+    k1, k2 = sum(r["broke1"] for r in R), sum(r["broke2"] for r in R); A = [r for r in R if r["ratio"] == r["ratio"]]
+    return (f"Forward calibration (n={n} sym-days, {len({r['day'] for r in R})} days): |move| > 1sigma in {k1}/{n} = {100 * k1 / n:.0f}% "
+            f"(~32% if IV were unbiased, binomial p={_binom_p(k1, n, 0.3173):.2f}; history says IV overstates the day: dev median RV/IV {MED_RVIV:.2f}); > 2sigma {k2}/{n} (~5%); "
+            f"or_iv AUC vs y = {_auc([r['ratio'] for r in A], [r['y'] for r in A]):.2f} ({sum(r['y'] for r in A)}/{sum(not r['y'] for r in A)} pos/neg)")
+
+
+def svg(rows):
+    """one self-contained SVG, one 600x260 panel per OK sym: spot path, +-1/2 sigma cone, 09:46 decision, 15:15 close."""
+    R = [r for r in rows if r["status"] == "OK" and "S0" in r]; o = [f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 {260 * max(1, len(R))}" font-family="sans-serif" font-size="11"><rect width="100%" height="100%" fill="#fff"/>']
+    for i, r in enumerate(R):
+        S0, sg, N = r["S0"], r["sig"], NMIN; hi = max([S0 + 2.2 * sg] + [p for p in r["path"] if p]); lo = min([S0 - 2.2 * sg] + [p for p in r["path"] if p])
+        X = lambda m: 50 + 530 * m / N; Y = lambda v: 40 + 190 * (hi - v) / (hi - lo)
+        band = lambda k: "M" + " L".join(f"{X(m):.1f},{Y(S0 + k * sg * math.sqrt(m / N)):.1f}" for m in range(0, N + 1, 7)) + " L" + " L".join(f"{X(m):.1f},{Y(S0 - k * sg * math.sqrt(m / N)):.1f}" for m in range(N - N % 7, -1, -7)) + " Z"
+        z = f" z={r['z']:+.2f}" if r["z"] is not None else " (open)"; ratio = f"{r['ratio']:.2f}" if r["ratio"] == r["ratio"] else "nan"
+        dec = f"FIN1 buy (ratio {ratio} > {THRESH:.2f})" if r["fin1_signal"] else f"S2 sell (ratio {ratio} <= {THRESH:.2f})" if r["s2_signal"] else f"no trade (ratio {ratio})"
+        pts = " L".join(f"{X(m):.1f},{Y(p):.1f}" for m, p in enumerate(r["path"]) if p)
+        o.append(f'<g transform="translate(0,{260 * i})"><text x="50" y="16" font-weight="bold">{r["day"]} {r["sym"]}  ratio {ratio}  1sigma {sg:.0f} pts ({100 * sg / S0:.2f}%){z}</text>'
+                 f'<path d="{band(2)}" fill="#cfe3f7" stroke="#6fa8dc" stroke-dasharray="3 3" class="band2"/><path d="{band(1)}" fill="#9cc4ee" stroke="#2f77c4" class="band1"/>'
+                 f'<line x1="50" x2="580" y1="{Y(S0):.1f}" y2="{Y(S0):.1f}" stroke="#999" stroke-dasharray="2 4"/><line x1="50" x2="50" y1="28" y2="232" stroke="#c0392b" stroke-width="1.5"/>'
+                 f'<text x="54" y="34" fill="#c0392b">09:46 {dec.replace("<", "&lt;")}</text><path d="M{pts}" fill="none" stroke="#111" stroke-width="1.6" class="path"/>')
+        if r["z"] is not None: o.append(f'<circle cx="580" cy="{Y(S0 + r["move"]):.1f}" r="4" fill="{"#c0392b" if r["broke1"] else "#27ae60"}"/><text x="578" y="248" text-anchor="end">15:15 close {S0 + r["move"]:.0f}</text>')
+        o.append(f'<text x="50" y="248">09:46</text><text x="4" y="{Y(hi):.0f}">{hi:.0f}</text><text x="4" y="{Y(lo):.0f}">{lo:.0f}</text></g>')
+    return "".join(o) + "</svg>"
+
+
+def run_forward(arg):
+    days = sorted(p.name for p in TAPE.iterdir() if (p / "quote_snapshots.jsonl").is_file()) if arg == "all" and TAPE.is_dir() else [arg]
+    for day in days:
+        if not (TAPE / day / "quote_snapshots.jsonl").is_file(): print(f"FWD {day}: no tape"); continue
+        rows = forward(day, *load(day)); save(rows, FWD)
+        FWD_SVG.mkdir(parents=True, exist_ok=True); (FWD_SVG / f"{day}.svg").write_text(svg(rows))
+        for r in rows:
+            if r["status"] != "OK" or "S0" not in r: print(f"FWD {day} {r['sym']}: {r['status']}"); continue
+            act = "FIN1 BUY" if r["fin1_signal"] else "S2 SELL" if r["s2_signal"] else "no signal"
+            print(f"FWD {day} {r['sym']}: S0 {r['S0']:.1f} ±1σ {r['sig']:.1f} ({100 * r['sig'] / r['S0']:.2f}%) ratio {r['ratio']:.2f} -> {act} | "
+                  + (f"close z={r['z']:+.2f} broke1={r['broke1']}" if r["z"] is not None else "close: not yet"))
+    print(calibration(read_log(FWD)))
+    if days and (FWD_SVG / f"{days[-1]}.svg").is_file(): print(f"SVG: {FWD_SVG}/{days[-1]}.svg")
+
+
 def selftest():
     assert abs(implied_vol(bs(22700, 22700, 5 / 365, 0.14, 0.065, "CE"), 22700, 22700, 5 / 365, "CE") - 14) < 1e-6
     assert implied_vol(0.01, 22700, 22000, 5 / 365, "CE") != implied_vol(0.01, 22700, 22000, 5 / 365, "CE")  # below intrinsic: nan
@@ -197,12 +297,29 @@ def selftest():
     exp2 = (100 - 142) * 650 - cost(142, 100, "NIFTY") + (100 - 72) * 650 - cost(72, 100, "NIFTY")
     assert m["s2_signal"] and m["s2_exit"] == "spot" and abs(m["s2_pnl_inr"] - round(exp2, 2)) < 0.01, m
     assert "S2 shadow" in week(5, [m])
+    # forward view: flat 22700 to 09:46, then +0.5 pt/min (z known); no 15:15 -> null realized fields
+    spf = {"NIFTY": dict({f"09:{m:02d}": 22700.0 for m in range(15, 46)}, **{_mm(m): 22700 + 0.5 * m for m in range(NMIN + 1)}), "SENSEX": {}}
+    qf = {("NIFTY", 22700.0, s): [("09:45:30", 99.0, 101.0, "2026-10-27"), ("09:46:01", 99.5, 101.5, "2026-10-27"), ("15:15:02", 100.0, 101.0, "2026-10-27")] for s in ("CE", "PE")}
+    f = forward("2026-10-22", spf, qf)[0]; iv = (implied_vol(100.5, 22700, 22700, 5.5 / 365, "CE") + implied_vol(100.5, 22700, 22700, 5.5 / 365, "PE")) / 2
+    assert _left_min("2026-10-22", "2026-10-27") == 344 + 3 * 375 and _left_min("2026-10-27", "2026-10-27") == 344  # Thu -> Tue: Fri, Mon, Tue
+    assert abs(f["iv"] - iv) < 1e-2 and abs(f["sig"] - 22700 * iv / 100 * math.sqrt(5.5 / 365 * 329 / 1469)) < 1e-2, f
+    assert f["move"] == 164.5 and abs(f["z"] - 164.5 / f["sig"]) < 1e-3 and f["broke1"] == (abs(f["z"]) > 1) and f["y"] is not None, f
+    nf = forward("2026-10-22", {"NIFTY": {k: v for k, v in spf["NIFTY"].items() if k != "15:15"}, "SENSEX": {}}, qf)[0]
+    assert nf["z"] is None and nf["move"] is None and nf["broke1"] is None and nf["y"] is None
+    late = {k: [x if x[0] != "09:46:01" else ("09:47:05",) + x[1:] for x in v] for k, v in qf.items()}  # first quote after 09:47
+    assert forward("2026-10-22", spf, late)[0]["status"] == "IV_NAN"
+    gap = {"NIFTY": {k: v for i, (k, v) in enumerate(spf["NIFTY"].items()) if i % 20 or k in ("09:45", "15:15")}, "SENSEX": {}}
+    assert forward("2026-10-22", gap, qf)[0]["z"] is None  # too many missing minutes: no realized fields
+    assert abs(_auc([0.1, 0.4, 0.4, 0.9], [0, 1, 0, 1]) - 0.875) < 1e-12 and _auc([1, 2], [1, 1]) != _auc([1, 2], [1, 1])
+    assert abs(_binom_p(5, 10, 0.5) - 1) < 1e-9 and abs(_binom_p(0, 10, 0.5) - 2 / 1024) < 1e-9
+    g = svg([f]); assert g.startswith("<svg") and 'class="band1"' in g and 'class="band2"' in g and "n=1 sym-days" in calibration([f])
     print("fin1_shadow selftest OK")
 
 
 if __name__ == "__main__":
     cmd = sys.argv[1] if len(sys.argv) > 1 else "day"
     if cmd == "selftest": selftest()
+    elif cmd == "forward": run_forward(sys.argv[2] if len(sys.argv) > 2 else datetime.now(ZoneInfo("Asia/Kolkata")).date().isoformat())
     elif cmd == "week": print(week(int(sys.argv[2]) if len(sys.argv) > 2 else 5))
     else:
         day = sys.argv[2] if len(sys.argv) > 2 else datetime.now(ZoneInfo("Asia/Kolkata")).date().isoformat()

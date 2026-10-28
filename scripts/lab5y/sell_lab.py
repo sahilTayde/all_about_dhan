@@ -25,7 +25,8 @@ def _nearext(k, side, K, j, col):
     if key not in _EXT:
         s = P[k]["spot"][j]; xs = [(abs(KK - K), a[j, col] - (max(0.0, s - KK) if side == "CE" else max(0.0, KK - s)))
                                    for (sd, KK), a in P[k]["C"].items() if sd == side and np.isfinite(a[j, col])]
-        _EXT[key] = max(0.0, min(xs)[1]) if xs else 0.0
+        # audit A2: a tie in distance (a data hole with taped strikes on both sides) takes the LARGER extrinsic
+        _EXT[key] = max(0.0, max(e for d, e in xs if d == min(xs)[0])) if xs else 0.0
     return _EXT[key]
 
 
@@ -113,7 +114,7 @@ def summ(D):
     t = g.mean() / (g.std(ddof=1) / np.sqrt(len(g))) if len(g) > 2 else np.nan
     b = np.random.default_rng(5).choice(g.values, (5000, len(g))).mean(1)
     return dict(n=len(D), win=round((D.pnl > 0).mean() * 100), avg=round(D.pnl.mean()), total=round(D.pnl.sum()),
-                worst=round(D.pnl.min()), maxdd=round((g.cumsum() - g.cumsum().cummax()).min()), t=round(t, 2),
+                worst=round(D.pnl.min()), maxdd=round((g.cumsum() - g.cumsum().cummax().clip(lower=0)).min()), t=round(t, 2),
                 p_boot=round((b <= 0).mean(), 4), mpos=f"{(mo > 0).sum()}/{len(mo)}",
                 NIFTY=round(D[D.sym == "NIFTY"].pnl.sum()), SENSEX=round(D[D.sym == "SENSEX"].pnl.sum()),
                 ret_ml=round(D.pnl.sum() / D.maxloss.mean() * 100, 1), forced=round(D.forced.mean() * 100, 1))
@@ -151,13 +152,14 @@ def orb_signals(k, fade=False):
     return []
 
 
-def rand_pool(keys, ex, n=12, seed=3):
-    """per day: n random (minute 31..165, side) entries with the same exits -> list of pnl per day key."""
+def rand_pool(keys, ex, n=12, seed=3, how="atm", mode="cons"):
+    """per day: n random (minute 31..165, side) entries with the same legs (e5_legs how), mode and exits -> pnl per day key
+    (audit A2: was always a long ATM option in cons, even for the itm1 / credit-spread / opt rules)."""
     rg = np.random.default_rng(seed); out = {}
     for k in keys:
         v = []
         for i, sd in zip(rg.integers(OR_END + 1, LAST + 1, n), rg.integers(0, 2, n)):
-            r = struct(k, int(i), [("CE" if sd == 0 else "PE", 0, 1)], dirn=1 if sd == 0 else -1, **ex)
+            r = struct(k, int(i), e5_legs("CE" if sd == 0 else "PE", how), dirn=1 if sd == 0 else -1, mode=mode, **ex)
             if r: v.append(r["pnl"])
         out[k] = v
     return out
@@ -180,7 +182,7 @@ def e5(fade, how="atm", mode="cons"):
             for i, sd in orb_signals(k, fade):
                 r = struct(k, i, e5_legs(sd, how), dirn=1 if sd == "CE" else -1, mode=mode, **ex)
                 if r: T.append(dict(r, key=k))
-        D = pd.DataFrame(T); rp = rand_pool(L.KEYS, ex); flat = np.concatenate([v for v in rp.values() if v])
+        D = pd.DataFrame(T); rp = rand_pool(L.KEYS, ex, how=how, mode=mode); flat = np.concatenate([v for v in rp.values() if v])
         rg = np.random.default_rng(9); tot = D.pnl.sum()
         rnd = np.array([sum(rg.choice(rp[k]) if rp[k] else 0 for k in D.key) for _ in range(2000)])
         r = dict(rule=("fade" if fade else "orb") + "_" + how + ("" if mode == "cons" else "_opt"), exit=xn, **summ(D), rand_avg=round(flat.mean()), p_vs_rand=round((rnd >= tot).mean(), 4),
@@ -436,6 +438,32 @@ def study_e14():
     R = pd.DataFrame(rows); pd.set_option("display.width", 250); print(f"E14 ({nc} cells, Bonferroni alpha {0.05 / nc:.4f})")
     print(R.to_string(index=False))
     ok = R.groupby("exit").pass_bonf.all(); print("exit families passing for ALL entry types:", list(ok[ok].index))
+
+
+# ---------------------------------------------------------------- E18 the E6 score as a tail-risk gate for S1 (registry E18)
+def e18_metrics(D):
+    """D: per-trade rows (day, pnl). CVaR5 = mean of the worst ceil(5%) trades; worst day / maxdd on per-day sums."""
+    x = np.sort(D.pnl.values); g = D.groupby("day").pnl.sum().sort_index(); c = g.cumsum()
+    return dict(cvar5=x[:max(1, math.ceil(0.05 * len(x)))].mean(), worst_day=g.min(), maxdd=(c - c.cummax().clip(lower=0)).min(),  # peak starts at 0
+                mean=x.mean(), total=x.sum(), n=len(x))
+
+
+def study_e18():
+    """frozen before results (side-session notes E18_freeze.md): skip S1 when the E6 walk-forward score > dev q0.8; tail
+    metrics vs 1000 random skips of the same count; adopt only if p(CVaR5) and p(maxdd) < 0.05 and mean >= no-skip mean,
+    on dev AND holdout (cons)."""
+    S = pd.read_pickle(f"{L.OUT}/e7_days.pkl"); c = S[S.day < L.HO].score.quantile(0.8)
+    for nm, G in (("DEV", S[S.day < L.HO]),) + ((("HOLDOUT", S[S.day >= L.HO]),) if L.HOLDOUT else ()):
+        for mode in ("cons", "opt"):
+            A = G.dropna(subset=[mode]).assign(pnl=lambda d: d[mode]); skip = A.score > c; k = int(skip.sum())
+            base, rule = e18_metrics(A), e18_metrics(A[~skip]); rng = np.random.default_rng(18)
+            pl = [e18_metrics(A.drop(A.index[rng.choice(len(A), k, replace=False)])) for _ in range(1000)]
+            p = {m: (sum(q[m] >= rule[m] for q in pl) + 1) / 1001 for m in ("cvar5", "worst_day", "maxdd", "mean")}
+            ok = p["cvar5"] < 0.05 and p["maxdd"] < 0.05 and rule["mean"] >= base["mean"]
+            print(f"{nm} {mode}: cut {c:.3f}, skip {k}/{len(A)} sym-days")
+            for lab, r in (("all", base), ("rule", rule), ("rand median", {m: np.median([q[m] for q in pl]) for m in rule})):
+                print(f"  {lab:12s} " + "  ".join(f"{m} {r[m]:,.0f}" for m in ("n", "cvar5", "worst_day", "maxdd", "mean", "total")))
+            print("  p_vs_rand " + "  ".join(f"{m} {v:.3f}" for m, v in p.items()) + f"  -> {'PASS' if ok else 'fail'}")
 
 
 # ---------------------------------------------------------------- E16-E17 full option chain of T-1 (NSE/BSE bhavcopy, ext_fetch.py)
@@ -753,6 +781,11 @@ def study_selftest():
         assert list(e20_signals("NIFTY", "SENSEX", d)) == want, (jump, list(e20_signals("NIFTY", "SENSEX", d)))
     assert e20_ex(50) == dict(sstop=1, flat=M0 + 66) and e20_ex(400)["flat"] == FLAT and e20_ex(344)["flat"] == min(FLAT, M0 + 360)
     for kk in (ka, kb, kc, kd, ks, ("NIFTY", d)): del P[kk]
+    # ---- E18 metrics: 21 trades on 11 days -> CVaR5 = mean of the worst ceil(1.05) = 2 trades; dd on day sums
+    D = pd.DataFrame(dict(day=[f"d{i // 2:02d}" for i in range(21)], pnl=[-100.0, -50.0] + [10.0] * 19))
+    m = e18_metrics(D)
+    assert m["cvar5"] == -75 and m["worst_day"] == -150 and m["maxdd"] == -150 and m["n"] == 21 and m["total"] == 40, m
+    D.loc[2:3, "pnl"] = -20.0; m = e18_metrics(D); assert m["maxdd"] == -190 and m["worst_day"] == -150, m  # d00 -150, d01 -40
     print("sell_lab selftest OK")
 
 

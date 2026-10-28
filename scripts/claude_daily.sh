@@ -37,7 +37,10 @@ later() {  # later NAME HH:MM "cmd": detach so the scheduled Claude run can fini
     echo "$1 already queued for $DAY (pid $(cat "$q")). log=$LOG"; return 0
   fi
   s="$(wait_s "$2")" || { echo "$(date) $DAY not a trading day: skip $1" >> "$LOG"; echo "not a trading day ($DAY)"; return 0; }
-  nohup bash -c "sleep $s; echo \"=== \$(date) $1\"; $3" >> "$LOG" 2>&1 &
+  # wall clock, not one long sleep: macOS sleep(1) stops counting while the Mac sleeps, so 08:25 fired at 09:30-12:14
+  # on 9 of 17 tape days (0-15/30 opening minutes). caffeinate -i keeps the Mac from idle-sleeping while we wait.
+  local t=$(( $(date +%s) + s ))
+  nohup caffeinate -i bash -c "until [ \$(date +%s) -ge $t ]; do sleep 20; done; echo \"=== \$(date) $1\"; $3" >> "$LOG" 2>&1 &
   echo $! > "$q"
   echo "scheduled $1 in ${s}s (at $2 IST, day $DAY). log=$LOG"
 }
@@ -70,6 +73,7 @@ case "${1:-}" in
              else echo "Tape: none for $DAY"; fi
              grep -h "^FIN1 $DAY" "$LOG" 2>/dev/null || echo "FIN1/S2: no row yet (the close step logs it at 15:31 IST)"
              "$PY" scripts/lab5y/fin1_shadow.py week 5 | grep "since start"
+             "$PY" scripts/lab5y/fin1_shadow.py forward "$DAY" | grep -E "^FWD|calibration" || echo "Forward view: no row"
              "$PY" -c "import json;r=json.load(open('data/recon/sod_exam_report.json'));d=[x for x in r['days'] if x['day']=='$DAY'];print('Paper desk honesty:',r.get('overall_honesty'),'| today:',(d[0].get('honesty') if d else 'no row'));[print(' ',s) for s in r.get('stories',[]) if s.startswith('$DAY')]" 2>/dev/null || echo "Paper desk honesty: no report"
              grep -h "heal:" "$LOG" 2>/dev/null | sed 's/^/Self-heal: /'
            } > "$R"; cat "$R" ;;
