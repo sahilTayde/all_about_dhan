@@ -35,7 +35,8 @@ HS = {}
 for (sym, d0), g in _S.groupby(["sym", "dte0"]):
     a = np.full((5, 6), np.nan)
     for r in g.itertuples(): a[r.tb, r.pb] = r.p75
-    a = pd.DataFrame(a).bfill().ffill().values; HS[(sym, d0)] = a
+    # fill gaps along time, then along premium (audit 2026-10-28: SENSEX non-expiry pb=0 was empty -> NaN fills)
+    a = pd.DataFrame(a).bfill().ffill().bfill(axis=1).ffill(axis=1).values; HS[(sym, d0)] = a
 HSCOL = os.environ.get("HSCOL", "p75")
 if HSCOL == "median":
     for (sym, d0), g in _S.groupby(["sym", "dte0"]):
