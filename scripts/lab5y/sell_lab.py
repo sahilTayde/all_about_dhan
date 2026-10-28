@@ -38,10 +38,18 @@ def _px(k, side, K, j, col, high):
     return intr + (_nearext(k, side, K, j, col) if high else 0.0), True
 
 
-def struct(k, i, legs, stop=None, tgt=None, sstop=None, flat=FLAT, mode="cons", dirn=0, s_tgt=None, s_stp=None):
+def _cost(b, s, sym, lots):
+    """L.cost is for LOTS lots; its 40/order brokerage (x1.18 GST x CM) is fixed, the rest scales with lots."""
+    fx = L.CM * 1.18 * 40; return fx + (L.cost(b, s, sym) - fx) * lots / LOTS
+
+
+def struct(k, i, legs, stop=None, tgt=None, sstop=None, flat=FLAT, mode="cons", dirn=0, s_tgt=None, s_stp=None, trail=None,
+           lots=LOTS):
     """legs: [(side, off, sign)]. stop: exit when buy-back value - credit >= stop * credit. tgt: exit when value <= (1-tgt) * credit.
     sstop: exit when |spot - entry spot| >= sstop * STEP. Directional (dirn=+1 up / -1 down): exit when the signed spot
-    move reaches +s_tgt steps or -s_stp steps. Returns dict or None."""
+    move reaches +s_tgt steps or -s_stp steps. trail (E14): m = |marked value|; a credit position exits when m >= its
+    lowest m since entry * (1+trail), a debit position when m <= its highest m * (1-trail). flat: exit at the open of
+    minute `flat` (time exit). Returns dict or None."""
     sym = k[0]; p = P[k]; d0 = p["d0"]; e = i + 1; xe = flat - M0
     if e >= xe: return None
     atm = p["atm"][i]; L_ = [(sd, atm + off * STEP[sym], sg) for sd, off, sg in legs]
@@ -55,7 +63,7 @@ def struct(k, i, legs, stop=None, tgt=None, sstop=None, flat=FLAT, mode="cons", 
     shorts = [K for sd, K, sg in L_ if sg < 0]; longs = [(sd, K) for sd, K, sg in L_ if sg > 0]
     W = max(abs(K - min(shorts, key=lambda s: abs(s - K))) for sd, K in longs) if shorts and longs else np.inf
     s0 = p["spot"][e]; hi = lambda sg: (sg < 0) == (mode == "cons")  # cons: shorts high, longs low
-    why = "time"; jx = xe; forced = False
+    why = "time"; jx = xe; forced = False; best = None
     for j in range(e, xe):
         val = 0.0
         for sd, K, sg in L_:
@@ -67,12 +75,15 @@ def struct(k, i, legs, stop=None, tgt=None, sstop=None, flat=FLAT, mode="cons", 
         mv = dirn * (p["spot"][j] - s0) / STEP[sym]
         if dirn and s_tgt is not None and mv >= s_tgt: why, jx = "s_tgt", j + 1; break
         if dirn and s_stp is not None and mv <= -s_stp: why, jx = "s_stp", j + 1; break
-    jx = min(jx, NB - 1); out = 0.0; costs = 0.0; q = LOT[sym] * LOTS
+        if trail is not None:
+            m = abs(val); best = m if best is None else (min(best, m) if credit > 0 else max(best, m))
+            if (m >= best * (1 + trail)) if credit > 0 else (m <= best * (1 - trail)): why, jx = "trail", j + 1; break
+    jx = min(jx, NB - 1); out = 0.0; costs = 0.0; q = LOT[sym] * lots
     for (sd, K, sg), x in zip(L_, ent):
         v, miss = _px(k, sd, K, jx, 0, hi(sg)); forced = forced or miss
         fill = v + L.hs(sym, d0, M0 + jx, max(v, 0.05)) if sg < 0 else max(v - L.hs(sym, d0, M0 + jx, max(v, 0.05)), 0.05)
         out += -sg * fill
-        costs += L.cost(fill, x, sym) if sg < 0 else L.cost(x, fill, sym)
+        costs += _cost(fill, x, sym, lots) if sg < 0 else _cost(x, fill, sym, lots)
     if forced and np.isfinite(W): out = min(max(out, 0.0), W)  # a bound was used: keep it inside the payoff's limits
     pnl = (credit - out) * q - costs
     if not np.isfinite(pnl): return None  # spot or quote missing at entry/exit
@@ -287,6 +298,156 @@ def study_e8():
               f"vs all {G.cons.sum():,.0f}")
 
 
+# ---------------------------------------------------------------- E12-E14 (registry; rules frozen before any result)
+def _iv(k, b):
+    """mean ATM CE/PE implied vol at bar b (ATM of that bar)."""
+    K = P[k]["atm"][b]; return np.nanmean([L._get(k, "CE", K, b, 5), L._get(k, "PE", K, b, 5)])
+
+
+def _vega(k, b):
+    """ATM straddle vega per lot per IV point at bar b: 2 * S * sqrt(T) * phi(0) / 100, T to 15:30 of expiry."""
+    p = P[k]; T = (p["dte"] + (930 - M0 - b) / 375) / 252; return 2 * p["spot"][b] * np.sqrt(T) * 0.3989 / 100 * LOT[k[0]]
+
+
+def _size(vN, vS):
+    """whole lots 1..10 each, closest vega match; ties -> more lots."""
+    return min((abs(a * vN - b * vS) / max(a * vN, b * vS), -(a + b), a, b) for a in range(1, 11) for b in range(1, 11))[2:]
+
+
+def _pboot(g, n=20000):
+    return round((np.random.default_rng(5).choice(g, (n, len(g))).mean(1) <= 0).mean(), 4)
+
+
+E12_I = 31  # decide at 09:46 close, fill 09:47 open (same as S1)
+
+
+def e12_table():
+    """per day with both panels: x = log(IV_S / IV_N); r = x minus the mean x of ALL PRIOR days with the same
+    (dte_N, dte_S) pair (>= 4 obs: NIFTY expires Tue, SENSEX Thu); z = r vs the prior 20 r. Strictly prior data."""
+    days = sorted({d for s, d in L.ALLK if ("NIFTY", d) in P and ("SENSEX", d) in P})
+    V = pd.DataFrame([dict(day=d, x=np.log(_iv(("SENSEX", d), E12_I) / _iv(("NIFTY", d), E12_I)),
+                           pair=(P[("NIFTY", d)]["dte"], P[("SENSEX", d)]["dte"]),
+                           vN=_vega(("NIFTY", d), E12_I), vS=_vega(("SENSEX", d), E12_I)) for d in days])
+    V["r"] = V.x - V.groupby("pair").x.transform(lambda x: x.shift(1).expanding(4).mean())
+    V = V.dropna(subset=["r"]).reset_index(drop=True); pr = V.r.shift(1).rolling(20)
+    V["z"] = (V.r - pr.mean()) / pr.std(); return V.dropna(subset=["z"])
+
+
+def e12_pair(d, short_s, nN, nS, mode="cons"):
+    """short the rich index's ATM straddle, long the cheap one's; both exit at the next open after the first close
+    where EITHER spot moved >= 2 steps from its entry spot, else 15:15."""
+    n, s = ("NIFTY", d), ("SENSEX", d); e = E12_I + 1; jx = FLAT - M0
+    for j in range(e, FLAT - M0):
+        if any(abs(P[k]["spot"][j] - P[k]["spot"][e]) >= 2 * STEP[k[0]] for k in (n, s)): jx = j + 1; break
+    rs = struct(s, E12_I, SSTRAD if short_s else LSTRAD, flat=M0 + jx, mode=mode, lots=nS)
+    rn = struct(n, E12_I, LSTRAD if short_s else SSTRAD, flat=M0 + jx, mode=mode, lots=nN)
+    if not (rn and rs): return None
+    rn["why"] = rs["why"] = "spot" if jx < FLAT - M0 else "time"; return rn, rs
+
+
+def study_e12():
+    V = e12_table(); V = V[(V.day >= L.HO) == L.HOLDOUT]
+    print(f"E12 eligible days {len(V)}, |z|>1.5 on {(V.z.abs() > 1.5).sum()} (z>1.5 {(V.z > 1.5).sum()})")
+    pool = {}
+    for r in V.itertuples():
+        nN, nS = _size(r.vN, r.vS); pool[r.day] = {ss: e12_pair(r.day, ss, nN, nS) for ss in (True, False)}
+    for mode in ("cons", "opt"):
+        T, legs = [], []
+        for r in V[V.z.abs() > 1.5].itertuples():
+            nN, nS = _size(r.vN, r.vS); x = e12_pair(r.day, r.z > 0, nN, nS, mode)
+            if not x: continue
+            rn, rs = x; legs += [rn, rs]
+            T.append(dict(sym="SENSEX" if r.z > 0 else "NIFTY", day=r.day, pnl=rn["pnl"] + rs["pnl"], forced=rn["forced"] or rs["forced"],
+                          maxloss=np.nan, why=rn["why"], held=rn["held"], nN=nN, nS=nS, z=round(r.z, 2), N=round(rn["pnl"]), S=round(rs["pnl"])))
+        D, Lg = pd.DataFrame(T), pd.DataFrame(legs)
+        if not len(D): print(mode, "no trades"); continue
+        rg = np.random.default_rng(9)  # placebo: random (eligible day of the same month, random direction), cons pool
+        cand = {}
+        for d, pv in pool.items(): cand.setdefault(L.month(d), []).extend(x[0]["pnl"] + x[1]["pnl"] for x in pv.values() if x)
+        rnd = np.array([sum(rg.choice(cand[L.month(d)]) for d in D.day) for _ in range(2000)])
+        print(f"E12 pair [{mode}] (sym = short side):", dict(summ(D), p_vs_rand=round((rnd >= D.pnl.sum()).mean(), 4), rand_avg=round(rnd.mean() / len(D))))
+        print(f"  legs [{mode}] short:", summ(Lg[Lg.credit > 0]), "\n  long:", summ(Lg[Lg.credit < 0]))
+        if mode == "cons": print(D[["day", "z", "sym", "nN", "nS", "N", "S", "pnl", "why", "held"]].round(0).to_string(index=False))
+
+
+def e13_signals(keys):
+    """first close in 31..285 (09:46-14:00) with |spot - spot at 09:45 close| >= 2 steps; rise = ATM IV there - at 09:45."""
+    out = []
+    for k in keys:
+        s = P[k]["spot"]; hit = np.nonzero(np.abs(s[31:286] - s[30]) >= 2 * STEP[k[0]])[0]
+        if len(hit): j = 31 + int(hit[0]); out.append(dict(key=k, sym=k[0], day=k[1], j=j, rise=_iv(k, j) - _iv(k, 30)))
+    S = pd.DataFrame(out); S["mo"] = S.day.map(L.month); return S.dropna(subset=["rise"])
+
+
+E13X = dict(sstop=2, stop=0.3)
+
+
+def study_e13():
+    A = e13_signals(L.ALLK); dev = A[A.day < L.HO]
+    if L.HOLDOUT: S = A[A.day >= L.HO].assign(X=dev.rise.median())
+    else: S = dev.assign(X=[dev[dev.mo < m].rise.median() if (dev.mo < m).any() else np.nan for m in dev.mo]).dropna(subset=["X"])
+    print(f"E13 shock days {len(S)}; X (IV pts) {S.X.min():.2f}..{S.X.max():.2f}; rise median {S.rise.median():.2f}")
+    rg = np.random.default_rng(3); rp = {}
+    for k in S.key:
+        rp[k] = [r["pnl"] for r in (struct(k, int(i), SSTRAD, **E13X) for i in rg.integers(31, 286, 12)) if r]
+    for nm, G in (("E13 shock+IV rise > X", S[S.rise > S.X]), ("E13 control: every shock", S)):
+        for mode in ("cons", "opt"):
+            T = [dict(r, key=k) for k, j in zip(G.key, G.j) for r in [struct(k, int(j), SSTRAD, mode=mode, **E13X)] if r]
+            D = pd.DataFrame(T); rgr = np.random.default_rng(9)
+            rnd = np.array([sum(rgr.choice(rp[k]) if rp[k] else 0 for k in D.key) for _ in range(2000)])
+            print(f"{nm} [{mode}]:", dict(summ(D), p_vs_rand=round((rnd >= D.pnl.sum()).mean(), 4), rand_avg=round(rnd.mean() / len(D)),
+                                          why=D.why.value_counts().to_dict()))
+
+
+E14X = {f"spot{s}": dict(sstop=s) for s in (1, 1.5, 2, 2.5)}
+E14X.update({f"time{h}": dict(hold=h) for h in (15, 30, 60, 120)})
+E14X.update({f"trail{int(x * 100)}": dict(trail=x, sstop=2.5) for x in (0.2, 0.3, 0.5)})
+E14E = {"long_atm": lambda sd: [(sd, 0, 1)], "short_strad": lambda sd: SSTRAD, "fade_cs": lambda sd: e5_legs(sd, "cs")}
+
+
+def e14_run(ent, lf, ex, mode):
+    out = {}
+    for k, i, sd in ent:
+        ex2 = dict(ex); h = ex2.pop("hold", None)
+        if h: ex2["flat"] = min(FLAT, M0 + i + 1 + h)
+        r = struct(k, i, lf(sd), mode=mode, **ex2)
+        if r: out[(k, i, sd)] = r
+    return out
+
+
+def study_e14():
+    """random entries (4 per sym-day, 09:20-14:00, random side); each exit vs holding to 15:15 on the SAME entries.
+    Evidence: per-day diff exit(cons) - hold(opt), so the off-tape bound can only favour the hold."""
+    rg = np.random.default_rng(21)
+    ent = [(k, int(i), "CE" if sd == 0 else "PE") for k in L.KEYS for i, sd in zip(rg.integers(5, 286, 4), rg.integers(0, 2, 4))]
+    rows = []; nc = len(E14E) * len(E14X)
+    for en, lf in E14E.items():
+        Bo, Bc = e14_run(ent, lf, {}, "opt"), e14_run(ent, lf, {}, "cons")
+        print(f"{en} hold to 15:15: cons {summ(pd.DataFrame(Bc.values()))}\n   opt {summ(pd.DataFrame(Bo.values()))}", flush=True)
+        for xn, ex in E14X.items():
+            C = e14_run(ent, lf, ex, "cons"); ks = [t for t in C if t in Bo and t in Bc]
+            D = pd.DataFrame([C[t] for t in ks]).assign(ds=[C[t]["pnl"] - Bo[t]["pnl"] for t in ks], dc=[C[t]["pnl"] - Bc[t]["pnl"] for t in ks])
+            g = D.groupby("day").ds.sum(); mo = D.groupby(D.day.map(L.month)).ds.sum(); s = summ(D)
+            rows.append(dict(entry=en, exit=xn, n=s["n"], total=s["total"], avg=s["avg"], p_boot=s["p_boot"], mpos=s["mpos"],
+                             diff_strict=round(D.ds.sum()), diff_avg=round(D.ds.mean()), t_diff=round(g.mean() / (g.std(ddof=1) / np.sqrt(len(g))), 2),
+                             p_diff=_pboot(g.values), mpos_diff=f"{(mo > 0).sum()}/{len(mo)}", diff_same_cons=round(D.dc.sum()),
+                             forced=s["forced"], pass_bonf=_pboot(g.values) < 0.05 / nc))
+            print(rows[-1], flush=True)
+    R = pd.DataFrame(rows); pd.set_option("display.width", 250); print(f"E14 ({nc} cells, Bonferroni alpha {0.05 / nc:.4f})")
+    print(R.to_string(index=False))
+    ok = R.groupby("exit").pass_bonf.all(); print("exit families passing for ALL entry types:", list(ok[ok].index))
+
+
+def _syn(k, spot, st, a0, px0=50.0, px1=20.0, iv=15.0):
+    """synthetic panel (strikes ATM +-3, flat prices) for selftests; returns the C dict."""
+    C = {}
+    for sd in ("CE", "PE"):
+        for off in range(-3, 4):
+            a = np.full((NB, 7), np.nan); a[:, :4] = px0 if off == 0 else px1
+            a[:, 5] = iv; C[(sd, a0 + off * st)] = a
+    P[k] = dict(spot=spot, atm=np.full(NB, float(a0)), C=C, exp=k[1], dte=0, d0=1); return C
+
+
 def study_selftest():
     """synthetic day: flat option prices except a 2-step spot jump at bar 100 -> spot exit at bar 101 open."""
     k = ("NIFTY", "1999-01-01"); spot = np.full(NB, 20000.0); spot[100:] = 20100.0
@@ -307,7 +468,49 @@ def study_selftest():
     C[("PE", 20000.0 - 150)] = np.full((NB, 7), np.nan); C[("PE", 20000.0 - 150)][:60, :4] = 5.0  # wing quoted only until bar 59
     rc, ro = struct(k, 31, ifly(3), mode="cons"), struct(k, 31, ifly(3), mode="opt")
     assert rc["forced"] and ro["forced"] and ro["pnl"] > rc["pnl"], (rc, ro)  # opt values the off-tape wing higher
-    del P[k]; print("sell_lab selftest OK")
+    # ---- E12-E14 paths
+    b1, s1 = 60.0, 20.0; fx = L.CM * 1.18 * 40
+    assert abs(_cost(b1, s1, "NIFTY", LOTS) - L.cost(b1, s1, "NIFTY")) < 1e-9  # lots == LOTS is L.cost
+    for n in (1, 5, 20):
+        assert abs(_cost(b1, s1, "NIFTY", n) - (fx + (L.cost(b1, s1, "NIFTY") - fx) * n / LOTS)) < 1e-9
+    assert abs((_cost(b1, s1, "NIFTY", 2 * LOTS) - fx) - 2 * (L.cost(b1, s1, "NIFTY") - fx)) < 1e-9
+    r5 = struct(k, 31, SSTRAD, sstop=2, lots=5)  # k still holds the spot-jump day (the ifly edits only touched the PE wing)
+    exp5 = (2 * e1 - x1 - x2) * 65 * 5 - _cost(x1, e1, "NIFTY", 5) - _cost(x2, e1, "NIFTY", 5)
+    assert r5["why"] == "spot" and abs(r5["pnl"] - exp5) < 1e-6, (r5, exp5)
+    # time exit via flat: exits at the open of bar 60
+    kt = ("NIFTY", "1999-01-02"); _syn(kt, np.full(NB, 20000.0), 50, 20000)
+    rt = struct(kt, 31, SSTRAD, flat=M0 + 60); assert rt["why"] == "time" and rt["held"] == 60 - 32, rt
+    # trail, credit position: straddle 100 -> 80 (low) -> 90 (+12.5%, no fire) -> 97 at bar 55 (>= 96) -> exit at bar 56
+    c = np.full(NB, 100.0); c[40:] = 80.0; c[50:] = 90.0
+    _syn(kt, np.full(NB, 20000.0), 50, 20000); [P[kt]["C"][(sd, 20000.0)].__setitem__((slice(None), slice(0, 4)), (c / 2)[:, None]) for sd in ("CE", "PE")]
+    rn = struct(kt, 31, SSTRAD, trail=0.2); assert rn["why"] == "time" and rn["held"] == FLAT - M0 - 32, rn  # 90 < 96: no trail
+    c[55:] = 97.0; [P[kt]["C"][(sd, 20000.0)].__setitem__((slice(None), slice(0, 4)), (c / 2)[:, None]) for sd in ("CE", "PE")]
+    rt = struct(kt, 31, SSTRAD, trail=0.2); assert rt["why"] == "trail" and rt["held"] == 56 - 32, rt
+    # trail, debit position (long ATM CE): 50 -> 100 (peak) -> 85 (no fire) -> 79 at bar 55 (<= 80) -> exit at bar 56
+    dp = np.full(NB, 50.0); dp[40:] = 100.0; dp[50:] = 85.0; _syn(kt, np.full(NB, 20000.0), 50, 20000)
+    P[kt]["C"][("CE", 20000.0)][:, :4] = dp[:, None]; LC = [("CE", 0, 1)]
+    rn = struct(kt, 31, LC, trail=0.2); assert rn["why"] == "time" and rn["held"] == FLAT - M0 - 32, rn
+    dp[55:] = 79.0; P[kt]["C"][("CE", 20000.0)][:, :4] = dp[:, None]; rt = struct(kt, 31, LC, trail=0.2); assert rt["why"] == "trail" and rt["held"] == 56 - 32, rt
+    # _size: vega-matched whole lots, ties -> more lots, within 1..10
+    assert _size(100, 250) == (10, 4) and _size(100, 100) == (10, 10)
+    for vN, vS in ((65, 20), (3, 400), (400, 3), (123, 77)): assert all(1 <= x <= 10 for x in _size(vN, vS))
+    # e12_pair: SENSEX (step 100) jumps 2 steps at bar 100, NIFTY flat -> both legs exit at bar 101 open
+    d = "1999-01-03"; kn, ks = ("NIFTY", d), ("SENSEX", d); sp = np.full(NB, 80000.0); sp[100:] = 80200.0
+    _syn(kn, np.full(NB, 20000.0), 50, 20000); _syn(ks, sp, 100, 80000, 150.0, 60.0)
+    for ss in (True, False):
+        rn, rs = e12_pair(d, ss, 3, 7)
+        assert rn["held"] == rs["held"] == 101 - 32 and rn["why"] == rs["why"] == "spot", (rn, rs)
+        assert (rs["credit"] > 0 and rn["credit"] < 0) if ss else (rs["credit"] < 0 and rn["credit"] > 0), (ss, rn, rs)
+    _syn(ks, np.full(NB, 80000.0), 100, 80000, 150.0, 60.0)  # no 2-step move on either: hold to 15:15
+    rn, rs = e12_pair(d, True, 3, 7); assert rn["held"] == rs["held"] == FLAT - M0 - 32, (rn, rs)
+    # e13_signals: 2 steps vs bar 30 at bar 100 -> j == 100, rise = IV(100) - IV(30); 1-step move and flat day give no row
+    ka, kb, kc = [("NIFTY", f"1999-02-0{i}") for i in (1, 2, 3)]
+    ivv = np.full(NB, 15.0); ivv[100:] = 18.0
+    _syn(ka, spot, 50, 20000, iv=ivv); _syn(kb, np.full(NB, 20000.0), 50, 20000)
+    sp1 = np.full(NB, 20000.0); sp1[100:] = 20050.0; _syn(kc, sp1, 50, 20000)
+    S = e13_signals([ka, kb, kc]); assert len(S) == 1 and S.j[0] == 100 and abs(S.rise[0] - 3.0) < 1e-9 and S.key[0] == ka, S
+    for kk in (k, kt, kn, ks, ka, kb, kc): del P[kk]
+    print("sell_lab selftest OK")
 
 
 if __name__ == "__main__":
