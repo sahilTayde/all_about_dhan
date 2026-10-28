@@ -154,3 +154,55 @@ No parameter was set from them, but read the FIN1 holdout with that in mind.
   492 round-2 days this matched Dhan's IV decision on 96.1% (19 flips). Expiry-day IV differs most (SENSEX 22-Oct: ours 0.93 vs Dhan 0.65, both "skip").
 - Backfill from tape days with a full morning: 16, 21, 22 Oct: 4 signals, net Rs -7,512; straddle every day Rs -68,251.
 - Adopt rule: 40+ new trading days and random-days p < 0.05 outside Oct-2026. Otherwise retire.
+
+## Round 3: new information sources (2026-10-28, dev + holdout, all null)
+
+**Question.** Does public data from outside the price feed, known before 09:15 IST, help an option buyer?
+Same panel, fills, costs (x1.5), placebos and dev/holdout split as round 2. One family: `opt1y_lab.py OUT ext [--holdout]`.
+
+**Sources (read-only, official, no keys; fetched by `scripts/lab5y/ext_fetch.py` into gitignored `data/cache/ext/`).**
+- **NSE participant-wise OI**, `nsearchives.nseindia.com/content/nsccl/fao_participant_oi_DDMMYYYY.csv`.
+  - 263 days were fetched (17 weekdays missing; these should be the exchange holidays).
+  - Features use the day-on-day change in FII positions. They come from the file of the previous NSE day, which is published after that day's close.
+  - `fii_fut`: index-futures net long ratio.
+  - `fii_opt`: index-option call net minus put net.
+- **FRED (St. Louis Fed).** Each feature is the last US date before the IST day.
+  - `SP500`: log return.
+  - `VIXCLS`: log change.
+  - `DEXINUS`: rupee change; positive means the rupee got stronger.
+- **Event days.**
+  - RBI MPC decision days (rbi.org.in; announced at 10:00 IST): 2025-12-05, 2026-02-06, 04-08, 06-05, 08-05, 10-07.
+  - FOMC (federalreserve.gov): the first NSE day after each decision day, because the decision lands around 23:30 to 00:30 IST.
+
+**Rules.** All 9 were named, with their sign fixed, before any result was seen.
+- **Direction:** buy ATM in the feature's direction from 09:46 to 15:15 on days where the feature's size is above the walk-forward 70th percentile.
+- **Volatility:** buy the ATM straddle from 09:46 to 15:15 on days where the feature is above the walk-forward 70th percentile.
+- **Events:** buy the straddle on every event day.
+
+| rule | dev n | dev net | dev p | holdout n | holdout net | holdout p |
+|---|---|---|---|---|---|---|
+| dir by FII futures change | 104 | -854k | 0.999 | 10 | +21k | 0.30 |
+| dir by FII options change | 96 | -166k | 0.64 | 52 | -93k | 0.64 |
+| dir by S&P 500 overnight | 90 | -234k | 0.61 | 22 | -36k | 0.52 |
+| dir by USD/INR | 144 | -431k | 0.74 | 20 | -98k | 0.74 |
+| straddle if VIX jumped | 100 | -790k | 0.90 | 36 | +141k | 0.037 |
+| straddle if big S&P move | 90 | -538k | 0.58 | 22 | +99k | 0.06 |
+| straddle if big INR move | 144 | -946k | 0.74 | 20 | -27k | 0.53 |
+| straddle on RBI days | 8 | -58k | 0.58 | 4 | -6k | 0.52 |
+| straddle on FOMC next days | 12 | -81k | 0.53 | 4 | -70k | 0.98 |
+| 10th, post-hoc: dir *against* FII futures | 104 | +452k | 0.038 | 10 | -29k | 0.56 |
+
+- The p-values compare against random entries (direction rules) or random days (straddle rules). With 10 variants, Bonferroni needs p < 0.005, and nothing comes close.
+- **FII contrarian.** After seeing dev, I added this rule because following FII did worse than a coin flip. It made +4.5L on dev, then lost on the holdout. It is rejected.
+- **VIX straddle.** Its holdout gain is the same Aug–Oct straddle effect that FIN1 showed. On dev it lost every month (0/8), so it is not a signal.
+- **RBI / FOMC.** Event days are already priced into IV: the straddle loses there as on other days. The samples are tiny (6 and 8 days).
+- **Rank checks (Spearman).**
+  - Against the 09:45-to-close move: |rho| ≤ 0.07 on dev for every source.
+  - Against realized/implied: |INR move| gives -0.22 on dev and +0.22 on holdout. The sign flips, so it is not stable.
+
+**Verdict.** None of these public daily sources gives an option buyer an edge after costs on this year: FII/DII positioning, US overnight returns, VIX, the rupee, and the RBI/FOMC calendar. FIN1 stays the only shadow rule.
+
+**Not yet tested (needs data we do not have):**
+- GIFT Nifty overnight, which needs a vendor history.
+- Intraday news or headlines with timestamps.
+- Order-book imbalance from depth, which needs more tape days. 13 days today; the recorder adds one per trading day.
