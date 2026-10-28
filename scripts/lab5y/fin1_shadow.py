@@ -9,6 +9,11 @@ The tape has no IV field: IV is Black-Scholes on the 09:45 mid, r=6.5%, T=(calen
 that convention gave the same trade/no-trade call as Dhan's IV on 96% of the 492 round-2 days (19 flips).
 Every day logs the straddle P&L whether or not FIN1 fires, so `week` can compare signal days to all days.
 
+S2 (round 4, shadow only, added 2026-10-28; BACKTEST_ROUND2_OPTIONS_1Y.md "Round 4"): the other side of the same
+signal. If ratio <= THRESH, SELL 10 lots ATM CE + PE at the bid of the first quote >= 09:47:00; buy back at the ask
+of the first quote >= the next minute once spot (minute last ltp) is 2 strike steps from the 09:47 spot, else at the
+ask nearest 15:15:00. Dev +5.07L (257 trades, p 0.03) but holdout -53k (97): logged to see which regime we are in.
+
   .venv/bin/python scripts/lab5y/fin1_shadow.py day [YYYY-MM-DD]   # one day -> data/recon/fin1_shadow.jsonl
   .venv/bin/python scripts/lab5y/fin1_shadow.py week [N]           # report on the last N logged days (default 5)
   .venv/bin/python scripts/lab5y/fin1_shadow.py selftest"""
@@ -79,6 +84,30 @@ def load(day):
     return spot, q
 
 
+def _first(xs, t):
+    return next((x for x in xs if x[0] >= t), None)
+
+
+def s2_trade(sym, sp, xs_ce, xs_pe):
+    """short straddle 09:47 -> 2-step spot move (next minute) or 15:15. Returns (pnl, why, exit_t) or None."""
+    e = {s: _first(xs, "09:47:00") for s, xs in (("CE", xs_ce), ("PE", xs_pe))}
+    if None in e.values() or "09:47" not in sp: return None
+    s0 = sp["09:47"]; t_exit, why = "15:15:00", "time"
+    for m in sorted(k for k in sp if "09:47" <= k < "15:15"):
+        if abs(sp[m] - s0) >= 2 * STEP[sym]:
+            h, mm = int(m[:2]), int(m[3:]) + 1; t_exit, why = f"{h + mm // 60:02d}:{mm % 60:02d}:00", "spot"; break
+    pnl = 0.0
+    for s, xs in (("CE", xs_ce), ("PE", xs_pe)):
+        if why == "time":
+            ex = [x for x in xs if "15:14:00" <= x[0] <= "15:16:00"]
+            x = min(ex, key=lambda x: abs(int(x[0][3:5]) * 60 + int(x[0][6:8]) - 900)) if ex else None
+        else:
+            x = _first(xs, t_exit)
+        if x is None: x = xs[-1]; why += "+forced"
+        pnl += (e[s][1] - x[2]) * LOT[sym] * LOTS - cost(x[2], e[s][1], sym)
+    return round(pnl, 2), why, t_exit
+
+
 def day_rows(day, spot, q):
     out = []
     for sym in LOT:
@@ -105,7 +134,10 @@ def day_rows(day, spot, q):
         iv = (legs["CE"]["iv"] + legs["PE"]["iv"]) / 2; rv = rv_open(have)
         pnl = sum((l["exit"] - l["entry"]) * LOT[sym] * LOTS - cost(l["entry"], l["exit"], sym) for l in legs.values())
         ratio = rv / iv if iv == iv else float("nan")
-        out.append(dict(row, status="OK", spot_0945=S, strike=K, rv_open=round(rv, 2), iv_atm=round(iv, 2),
+        s2 = s2_trade(sym, sp, sorted(q.get((sym, K, "CE"), [])), sorted(q.get((sym, K, "PE"), [])))
+        s2d = dict(s2_signal=bool(ratio <= THRESH), s2_short_pnl_inr=s2[0] if s2 else None, s2_exit=s2[1] if s2 else "NO_QUOTES",
+                   s2_pnl_inr=(s2[0] if s2 and ratio <= THRESH else 0.0))
+        out.append(dict(row, **s2d, status="OK", spot_0945=S, strike=K, rv_open=round(rv, 2), iv_atm=round(iv, 2),
                         ratio=round(ratio, 4), signal=bool(ratio > THRESH), straddle_pnl_inr=round(pnl, 2),
                         pnl_inr=round(pnl, 2) if ratio > THRESH else 0.0, legs=legs))
     return out
@@ -133,6 +165,10 @@ def week(n=5, rows=None):
         lines.append(f"FIN1 shadow, {title} ({len(R)} sym-days): {k} signals, net Rs {net:,.0f}, "
                      f"wins {sum(r['pnl_inr'] > 0 for r in sig)}/{k}; straddle every day Rs {sum(allp):,.0f}; "
                      f"random-days p={p:.3f}")
+        s2 = [r for r in R if r.get("s2_signal") and r.get("s2_short_pnl_inr") is not None]
+        if any("s2_signal" in r for r in R):
+            lines.append(f"S2 shadow (short straddle when RV/IV <= thresh), {title}: {len(s2)} signals, "
+                         f"net Rs {sum(r['s2_pnl_inr'] for r in s2):,.0f}, wins {sum(r['s2_pnl_inr'] > 0 for r in s2)}/{len(s2)}")
     for r in sorted(rows, key=lambda r: (r["day"], r["sym"]))[-2 * n:]:
         lines.append(f"  {r['day']} {r['sym']:6s} RV/IV {r['ratio']:.2f} {'SIGNAL' if r['signal'] else 'skip  '} "
                      f"straddle Rs {r['straddle_pnl_inr']:>9,.0f}{' (forced exit)' if any(l['forced'] for l in r['legs'].values()) else ''}")
@@ -153,6 +189,14 @@ def selftest():
     exp_pnl = (130 - 101.5) * 650 - cost(101.5, 130, "NIFTY") + (60 - 101.5) * 650 - cost(101.5, 60, "NIFTY")
     assert abs(n["straddle_pnl_inr"] - round(exp_pnl, 2)) < 0.01 and n["pnl_inr"] == (n["straddle_pnl_inr"] if n["signal"] else 0)
     assert "net Rs" in week(5, [n])
+    # S2: calm opening (ratio << thresh), spot jumps 2 steps at 10:00 -> buy back at the ask of the first quote >= 10:01
+    sp2 = {"NIFTY": dict({f"09:{m:02d}": 22700.0 for m in range(15, 60)}, **{"10:00": 22800.0}), "SENSEX": {}}
+    q2 = {("NIFTY", 22700.0, s): [("09:45:30", 99.0, 101.0, "2026-10-27"), ("09:47:00", 100.0, 102.0, "2026-10-27"),
+                                 ("10:01:00", 140.0 if s == "CE" else 70.0, 142.0 if s == "CE" else 72.0, "2026-10-27")] for s in ("CE", "PE")}
+    m = day_rows("2026-10-22", sp2, q2)[0]
+    exp2 = (100 - 142) * 650 - cost(142, 100, "NIFTY") + (100 - 72) * 650 - cost(72, 100, "NIFTY")
+    assert m["s2_signal"] and m["s2_exit"] == "spot" and abs(m["s2_pnl_inr"] - round(exp2, 2)) < 0.01, m
+    assert "S2 shadow" in week(5, [m])
     print("fin1_shadow selftest OK")
 
 
@@ -167,4 +211,5 @@ if __name__ == "__main__":
         rows = day_rows(day, *load(day)); save(rows)
         for r in rows:
             print(f"FIN1 {day} {r['sym']}: {r['status']}" + (f" RV/IV {r['ratio']:.2f} -> {'SIGNAL' if r['signal'] else 'no trade'}, "
-                  f"straddle Rs {r['straddle_pnl_inr']:,.0f}, FIN1 Rs {r['pnl_inr']:,.0f}" if r["status"] == "OK" else ""))
+                  f"straddle Rs {r['straddle_pnl_inr']:,.0f}, FIN1 Rs {r['pnl_inr']:,.0f}, S2 Rs {r['s2_pnl_inr']:,.0f} ({r['s2_exit']})"
+                  if r["status"] == "OK" else ""))
