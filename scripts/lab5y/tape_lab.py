@@ -146,7 +146,7 @@ def placebo(entries, pl, runs=1000):
 def stats(name, entries, pl=None, runs=1000):
     if not entries: return dict(name=name, n=0)
     v = np.array([e[1] for e in entries]); days = [e[0][1] for e in entries]
-    dd = np.min(np.cumsum(v) - np.maximum.accumulate(np.cumsum(v)))
+    dd = np.min(np.cumsum(v) - np.maximum.accumulate(np.maximum(np.cumsum(v), 0)))  # A2: peak starts at 0
     half = DAYS[len(DAYS) // 2]
     late = v[np.array([d >= half for d in days])]
     r = dict(name=name, n=len(v), win=round((v > 0).mean() * 100), avg=round(v.mean()), tot=round(v.sum()),

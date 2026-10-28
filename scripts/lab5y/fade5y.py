@@ -24,7 +24,7 @@ def run(D, hold=30, q=0.8, look=6):
         thr = tr.groupby("sym").r15.apply(lambda x: x.abs().quantile(q)).to_dict()
         for (sym, day), g in D[D.mo == mo].groupby(["sym", "day"]):
             if len(g) < 300: continue
-            m, o, r = g.m.values, g.open.values, g.r15.values; busy = -1; jf = int(np.searchsorted(m, 900))
+            m, o, r = g.m.values, g.open.values, g.r15.values; busy = -1; jf = int(np.searchsorted(m, 915))  # A2: flatten 15:15 (was 900 = 15:00)
             for i in range(15, len(m) - 1):
                 if m[i] < 560 or m[i] > 899 or i <= busy or not abs(r[i]) > thr[sym]: continue
                 j = min(i + 1 + hold, jf, len(m) - 1)
