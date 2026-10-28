@@ -16,7 +16,7 @@ under a new name; read "Lessons" first.
 - S2: sell the straddle on calm openings.
 - Adoption rule: 40+ logged days and p < 0.05 outside Oct-2026. Status: 3 days logged (16/21/22 Oct). FIN1 net -7.5k over 4 signals; S2 net -3.9k over 2.
 
-**Most promising candidates.** None proven. Experiments done: R0-R3, E1-E9; audit A1. Ranked by remaining hope:
+**Most promising candidates.** None proven. Experiments done: R0-R3, R3b, E1-E9; audit A1 (closed 2026-10-28). Ranked by remaining hope:
 1. FIN1 and S2, waiting on forward data.
 2. The fade credit spread (E5b), undecidable on the history and needs the wider tape.
 
@@ -73,3 +73,6 @@ Common setup unless noted:
 | E7 | Does S1 P&L follow the E6 score (quintiles, cuts from dev)? | 09:47 | 2-step spot | not monotone; calmest fifth +2.05L / +6k | 55/27 days per bucket | no | E8 |
 | E8 | Predict S1 win/lose directly (walk-forward logistic) | 09:47 | 2-step spot | AUC 0.605 / 0.445; the top half still loses on holdout | 192/124 days | no edge in timing the seller; stop optimizing these features | E9 |
 | E9 | Does 5-level order-book imbalance on ATM-near options (live tape, 1 s snapshots) predict the option mid 60 s / 300 s ahead beyond the spread? `scripts/lab5y/depth_lab.py` | imb5 > +0.6, buy at ask (frozen) | sell at bid after 60 / 300 s | IC small but real for NIFTY at 60 s (imb1 0.0074 t 4.5, micro 0.0076 t 4.4); SENSEX and 300 s about 0. Rule vs random: +0.15 NIFTY pts (p 0.01), +0.27 SENSEX pts (p 0.04) at 60 s, but net -Rs 100..119 per lot per trade in every cell (wins 33-39%) | 7 days, one regime (Oct-2026); overlapping 1 s samples (t uses days) | information yes, tradeable no; at most use it for entry timing (a fraction of the half-spread) | E10 |
+| R3b | Brent crude (FRED DCOILBRENTEU, US date before the Indian day) as a 5th outside source; sign fixed a priori: Brent up -> PE (India imports oil). Same R3 engine; also closes the A1 leftovers | 09:46 | 15:15 | dir by sign: dev -6.3L (p 0.90) / holdout -4.8L (p 0.999, worse than random); straddle on big |Brent| move: dev -6.3L (p 0.09) / -1.7L. Other R3 rows unchanged | 15:15 holds use the old engine (D1, 33-58% lost to the strike window); EIA publishes about a week late, so the last days reuse 20-Oct | reject | none |
+
+A1 leftovers closed 2026-10-28: (1) `opt1y_lab.pool()` cache key now includes HSCOL, the cost multiplier and a hash of the code, so stale placebo pools cannot be reused; (2) DEXINUS timing checked: `ext_table()` uses only US dates before the Indian day, and the noon-NY rate is fixed at about 21:30 IST the evening before (FRED publishes later, but the rupee trades live), so there is no look-ahead.
