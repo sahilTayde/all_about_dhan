@@ -25,7 +25,8 @@ def _nearext(k, side, K, j, col):
     if key not in _EXT:
         s = P[k]["spot"][j]; xs = [(abs(KK - K), a[j, col] - (max(0.0, s - KK) if side == "CE" else max(0.0, KK - s)))
                                    for (sd, KK), a in P[k]["C"].items() if sd == side and np.isfinite(a[j, col])]
-        _EXT[key] = max(0.0, min(xs)[1]) if xs else 0.0
+        # audit A2: a tie in distance (a data hole with taped strikes on both sides) takes the LARGER extrinsic
+        _EXT[key] = max(0.0, max(e for d, e in xs if d == min(xs)[0])) if xs else 0.0
     return _EXT[key]
 
 
@@ -113,7 +114,7 @@ def summ(D):
     t = g.mean() / (g.std(ddof=1) / np.sqrt(len(g))) if len(g) > 2 else np.nan
     b = np.random.default_rng(5).choice(g.values, (5000, len(g))).mean(1)
     return dict(n=len(D), win=round((D.pnl > 0).mean() * 100), avg=round(D.pnl.mean()), total=round(D.pnl.sum()),
-                worst=round(D.pnl.min()), maxdd=round((g.cumsum() - g.cumsum().cummax()).min()), t=round(t, 2),
+                worst=round(D.pnl.min()), maxdd=round((g.cumsum() - g.cumsum().cummax().clip(lower=0)).min()), t=round(t, 2),
                 p_boot=round((b <= 0).mean(), 4), mpos=f"{(mo > 0).sum()}/{len(mo)}",
                 NIFTY=round(D[D.sym == "NIFTY"].pnl.sum()), SENSEX=round(D[D.sym == "SENSEX"].pnl.sum()),
                 ret_ml=round(D.pnl.sum() / D.maxloss.mean() * 100, 1), forced=round(D.forced.mean() * 100, 1))
@@ -151,13 +152,14 @@ def orb_signals(k, fade=False):
     return []
 
 
-def rand_pool(keys, ex, n=12, seed=3):
-    """per day: n random (minute 31..165, side) entries with the same exits -> list of pnl per day key."""
+def rand_pool(keys, ex, n=12, seed=3, how="atm", mode="cons"):
+    """per day: n random (minute 31..165, side) entries with the same legs (e5_legs how), mode and exits -> pnl per day key
+    (audit A2: was always a long ATM option in cons, even for the itm1 / credit-spread / opt rules)."""
     rg = np.random.default_rng(seed); out = {}
     for k in keys:
         v = []
         for i, sd in zip(rg.integers(OR_END + 1, LAST + 1, n), rg.integers(0, 2, n)):
-            r = struct(k, int(i), [("CE" if sd == 0 else "PE", 0, 1)], dirn=1 if sd == 0 else -1, **ex)
+            r = struct(k, int(i), e5_legs("CE" if sd == 0 else "PE", how), dirn=1 if sd == 0 else -1, mode=mode, **ex)
             if r: v.append(r["pnl"])
         out[k] = v
     return out
@@ -180,7 +182,7 @@ def e5(fade, how="atm", mode="cons"):
             for i, sd in orb_signals(k, fade):
                 r = struct(k, i, e5_legs(sd, how), dirn=1 if sd == "CE" else -1, mode=mode, **ex)
                 if r: T.append(dict(r, key=k))
-        D = pd.DataFrame(T); rp = rand_pool(L.KEYS, ex); flat = np.concatenate([v for v in rp.values() if v])
+        D = pd.DataFrame(T); rp = rand_pool(L.KEYS, ex, how=how, mode=mode); flat = np.concatenate([v for v in rp.values() if v])
         rg = np.random.default_rng(9); tot = D.pnl.sum()
         rnd = np.array([sum(rg.choice(rp[k]) if rp[k] else 0 for k in D.key) for _ in range(2000)])
         r = dict(rule=("fade" if fade else "orb") + "_" + how + ("" if mode == "cons" else "_opt"), exit=xn, **summ(D), rand_avg=round(flat.mean()), p_vs_rand=round((rnd >= tot).mean(), 4),

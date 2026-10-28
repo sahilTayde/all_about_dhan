@@ -19,7 +19,7 @@ TXN = {"NIFTY": 0.000355299, "SENSEX": 0.000325}
 STEP = {"NIFTY": 50, "SENSEX": 100}
 HO = "2026-07-27"
 M0, NB = 555, 375            # 09:15, bars per day
-E_LO, E_HI, FLAT = 560, 899, 900  # decision minutes 09:20..14:59; flatten at 15:15 open
+E_LO, E_HI, FLAT = 560, 899, 915  # decision minutes 09:20..14:59; flatten at 15:15 open (audit A2: was 900 = 15:00)
 RNG = np.random.default_rng(11)
 NVAR = [0]                   # count of every variant evaluated (for Bonferroni)
 
@@ -168,7 +168,7 @@ def report(name, T, ex, itm=0, mom_h=15, wf_months=None, runs=1000, extra="", da
     """T: list of (k, i, side, pnl, forced)."""
     NVAR[0] += 1
     if not T: ROWS.append(dict(name=name, n=0)); print(name, "no trades"); return
-    v = np.array([t[3] for t in T]); cum = np.cumsum(v); dd = (cum - np.maximum.accumulate(cum)).min()
+    v = np.array([t[3] for t in T]); cum = np.cumsum(v); dd = (cum - np.maximum.accumulate(np.maximum(cum, 0))).min()  # A2: peak starts at 0
     if day_pool is None:
         pct, p, pday = placebo(T, ex, itm, runs)
     else:  # day-level rule: same number of random days from the same months, same entry minute and exit
