@@ -122,9 +122,10 @@ def trade(k, i, side, itm=0, hold=15, stop=None, tgt=None, trail=None, atr_k=Non
 
 # ---------------------------------------------------------------- placebo pools
 _POOL = {}
+_SRC = hashlib.md5(open(__file__, "rb").read()).hexdigest()[:8]
 def pool(ex, itm=0, keys=None):
     """outcome of every (sym-day, decision minute, side) for one exit config: dict k -> (NB,2) array (CE, PE)."""
-    key = (tuple(sorted(ex.items())), itm, HOLDOUT)
+    key = (tuple(sorted(ex.items())), itm, HOLDOUT, HSCOL, CM, _SRC)  # any code/spread/cost change -> new cache file
     if key in _POOL: return _POOL[key]
     fp = f"{OUT}/pool_{hashlib.md5(str(key).encode()).hexdigest()[:10]}.pkl"
     if os.path.exists(fp): _POOL[key] = pickle.load(open(fp, "rb")); return _POOL[key]
@@ -547,8 +548,8 @@ def fam_exit():
 EXT = os.environ.get("EXT", os.path.join(os.path.dirname(__file__), "../../data/cache/ext"))
 RBI = {"2025-12-05", "2026-02-06", "2026-04-08", "2026-06-05", "2026-08-05", "2026-10-07"}  # rbi.org.in, 10:00 IST
 FOMC = ["2025-10-29", "2025-12-10", "2026-01-28", "2026-03-18", "2026-04-29", "2026-06-17", "2026-07-29", "2026-09-16"]  # federalreserve.gov
-DIRC = ["fii_fut", "fii_opt", "spx", "inr"]  # sign fixed a priori: + -> CE
-VOLC = ["vix", "aspx", "ainr"]
+DIRC = ["fii_fut", "fii_opt", "spx", "inr", "oil"]  # sign fixed a priori: + -> CE (oil = -Brent: India imports oil)
+VOLC = ["vix", "aspx", "ainr", "aoil"]
 
 
 def ext_table():
@@ -562,14 +563,14 @@ def ext_table():
                       opt=((x["Option Index Call Long"] - x["Option Index Call Short"]) - (x["Option Index Put Long"] - x["Option Index Put Short"]))
                       / x[["Option Index Call Long", "Option Index Call Short", "Option Index Put Long", "Option Index Put Short"]].sum()))
     N = pd.DataFrame(R).set_index("d").sort_index().diff()
-    F = {s: pd.read_csv(f"{EXT}/{s}.csv", index_col=0, na_values=".").iloc[:, 0].dropna() for s in ("SP500", "VIXCLS", "DEXINUS")}
+    F = {s: pd.read_csv(f"{EXT}/{s}.csv", index_col=0, na_values=".").iloc[:, 0].dropna() for s in ("SP500", "VIXCLS", "DEXINUS", "DCOILBRENTEU")}
     F = {s: np.log(v).diff().dropna() for s, v in F.items()}
     days = sorted({k[1] for k in ALLK}); fomc1 = {next(d for d in days if d > f) for f in FOMC}; out = []
     for d in days:
         prev = lambda s: s[s.index < d].iloc[-1] if (s.index < d).any() else np.nan
         out.append(dict(day=d, fii_fut=prev(N.fut), fii_opt=prev(N.opt), spx=prev(F["SP500"]), vix=prev(F["VIXCLS"]),
-                        inr=-prev(F["DEXINUS"]), rbi=d in RBI, fomc=d in fomc1))
-    E = pd.DataFrame(out); E["aspx"], E["ainr"] = E.spx.abs(), E.inr.abs(); return E
+                        inr=-prev(F["DEXINUS"]), oil=-prev(F["DCOILBRENTEU"]), rbi=d in RBI, fomc=d in fomc1))
+    E = pd.DataFrame(out); E["aspx"], E["ainr"], E["aoil"] = E.spx.abs(), E.inr.abs(), E.oil.abs(); return E
 
 
 def wf_ext(V, col, q=0.7):
