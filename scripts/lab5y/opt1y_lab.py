@@ -8,7 +8,7 @@ after the ATM rolls. If the held contract leaves the +-3 window, the trade is fo
 Fills: decide at close of bar i; buy at open of bar i+1 + half-spread; time exits sell at open of the exit bar
 - half-spread; stop fills at min(stop, bar open); target fills at the target; stop+target in one bar = stop.
 Half-spread = 75th pct from the 13-day tape (spreads.csv) by sym x premium bucket x time bucket x expiry-day.
-Costs = config/charges.yaml x1.5, 10 lots (NIFTY 65, SENSEX 20 per lot). Flatten 15:15. Entries 09:20..14:59.
+Costs = config/charges.yaml x1.5, 10 lots (NIFTY 65, SENSEX 20 per lot). Flatten at the 15:15 open (FLAT = minute 915; audit A2: before 2026-10-28 it was 900 = 15:00). Entries 09:20..14:59.
 Dev = days < 2026-07-27 (walk-forward by month); HOLDOUT = 2026-07-27..2026-10-23, run only with --holdout."""
 import sys, os, pickle, hashlib, numpy as np, pandas as pd
 
