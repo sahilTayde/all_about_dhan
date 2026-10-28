@@ -5,7 +5,7 @@ Reuses opt1y_lab (panel, half-spreads, costs x1.5, 10 lots, dev < 2026-07-27, ho
 Position = legs (side, strike offset in steps from ATM at bar i, sign -1 short / +1 long), entered at the open of bar i+1:
 short legs sell at open - half-spread, long legs buy at open + half-spread. Every minute the position is marked at the
 1m close; exits (stop / target / spot move) are decided on that close and filled at the NEXT open with half-spreads;
-otherwise flat at 15:15 open. Intraday only (no overnight gap risk).
+otherwise flat at the 15:00 open (FLAT; "15:15" in older labels means 15:00). Intraday only (no overnight gap risk).
 A leg with no quote has left the taped ATM+-3 window (Dhan rollingoption rejects ATM+-4..10 for expiryCode=1, checked
 2026-10-28: 728/728 calls refused), so it is further from ATM than every taped strike. Its price is bounded:
   low = intrinsic, high = intrinsic + the extrinsic (clipped at 0) of the nearest taped strike of that type.
@@ -540,6 +540,99 @@ def study_e16e17():
     e_cell("E17b long straddle if z > WF q0.7", s, lambda sd: LSTRAD, d16)
 
 
+# ---------------------------------------------------------------- E19 overnight short straddle, E20 NIFTY<->SENSEX lead-lag
+def nights(keys):
+    """(a, b) = consecutive panel days of one sym with the same expiry (no expiry day crossed)."""
+    out = []
+    for sym in ("NIFTY", "SENSEX"):
+        ks = [k for k in L.ALLK if k[0] == sym]
+        out += [(a, b) for a, b in zip(ks, ks[1:]) if P[a]["exp"] == P[b]["exp"] and b in keys]
+    return out
+
+
+def overnight(a, b, x=5, mode="cons", i=364):
+    """sell ATM CE+PE (ATM of day a bar i) at day-a bar i+1 open - half-spread; buy back at day-b bar x open +
+    half-spread; a strike off day b's taped window is priced with _px bounds (cons: upper, opt: intrinsic)."""
+    sym = a[0]; K = P[a]["atm"][i]; q = LOT[sym] * LOTS; pnl = 0.0; forced = False; cr = 0.0
+    for sd in ("CE", "PE"):
+        c = P[a]["C"].get((sd, K))
+        if c is None or not np.isfinite(c[i + 1, 0]): return None
+        e = c[i + 1, 0] - L.hs(sym, P[a]["d0"], M0 + i + 1, c[i + 1, 0])
+        v, miss = _px(b, sd, K, x, 0, mode == "cons"); forced = forced or miss
+        f = v + L.hs(sym, P[b]["d0"], M0 + x, max(v, 0.05)); cr += e
+        pnl += (e - f) * q - _cost(f, e, sym, LOTS)
+    if not np.isfinite(pnl): return None
+    return dict(sym=sym, day=b[1], prev=a[1], dte=P[a]["dte"], gap=(pd.Timestamp(b[1]) - pd.Timestamp(a[1])).days,
+                credit=cr, pnl=pnl, forced=forced, maxloss=np.nan, why="night",
+                move=(P[b]["spot"][x] - P[a]["spot"][i + 1]) / STEP[sym])
+
+
+def study_e19():
+    N = nights(set(L.KEYS)); print(f"E19 nights {len(N)} (Bonferroni 3, alpha 0.0167)")
+    for nm, x, wk in (("E19a every night, exit 09:20", 5, False), ("E19b every night, exit 09:46", 31, False),
+                      ("E19c weekend/holiday nights, exit 09:20", 5, True)):
+        for mode in ("cons", "opt"):
+            D = pd.DataFrame([r for r in (overnight(a, b, x, mode) for a, b in N) if r])
+            if wk: D = D[D.gap >= 3]
+            print(f"{nm} [{mode}]:", summ(D), flush=True)
+            if mode == "cons" and x == 5 and not wk:
+                print("   by dte(a):", D.groupby("dte").pnl.agg(["size", "mean", "sum"]).round(0).to_dict("index"))
+                print("   |move| steps p50/p90:", np.percentile(D.move.abs(), [50, 90]).round(2), "forced%", round(D.forced.mean() * 100, 1))
+    I = pd.DataFrame([r for r in (struct(b, 4, SSTRAD) for a, b in N) if r])
+    print("context: intraday short straddle 09:20->15:00 on the same days [cons]:", summ(I))
+
+
+def study_e20():
+    days = sorted({d for s, d in L.KEYS if ("NIFTY", d) in P and ("SENSEX", d) in P}); R = {}
+    for d in days:
+        r = {s: np.diff(np.log(P[(s, d)]["spot"][:346])) for s in ("NIFTY", "SENSEX")}  # r[j] = bar j -> j+1, bars 0..345
+        for Ld, F in (("NIFTY", "SENSEX"), ("SENSEX", "NIFTY")):
+            x = r[Ld][:-6]; y1 = r[F][1:-5]; y5 = np.lib.stride_tricks.sliding_window_view(r[F][1:], 5).sum(1)[:len(x)]
+            for h, y in ((1, y1), (5, y5)):
+                ok = np.isfinite(x) & np.isfinite(y) & (x != 0)
+                if ok.sum() > 50: R.setdefault((Ld, F, h), []).append(np.corrcoef(x[ok], y[ok])[0, 1])
+    print(f"E20 days {len(days)}; per-day IC of leader 1m return vs lagger next 1 / 5 bars (Bonferroni 4: |t| > 2.8)")
+    for (Ld, F, h), v in R.items():
+        v = np.array(v); v = v[np.isfinite(v)]; t = v.mean() / (v.std(ddof=1) / np.sqrt(len(v)))
+        sdF = np.nanstd(np.concatenate([np.diff(np.log(P[(F, d)]["spot"][:346])) for d in days])) * np.sqrt(h)
+        S = np.nanmedian([P[(F, d)]["spot"][100] for d in days]); hsF = L.hs(F, 0, M0 + 120, 150) + L.hs(F, 0, M0 + 120, 150)
+        print(f"  {Ld}->{F} next {h}: IC {v.mean():+.4f} t {t:+.2f} n {len(v)} | 1-sd signal -> {abs(v.mean()) * sdF * S:.2f} idx pts "
+              f"x ATM delta 0.5 = {abs(v.mean()) * sdF * S * 0.5:.2f} option pts vs round-trip half-spreads {hsF:.2f}")
+
+
+E20I = (5, 330)  # decisions 09:20..14:45 so the 15-min time exit fits before FLAT
+
+
+def e20_ex(i): return dict(sstop=1, flat=min(FLAT, M0 + i + 1 + 15))
+
+
+def e20_signals(Ld, F, d):
+    """decision bar i: the leader's close-to-close move (i-1 -> i) is worth >= 0.5 lagger step -> buy the lagger's ATM
+    in that direction at the open of i+1."""
+    sl, sf = P[(Ld, d)]["spot"], P[(F, d)]["spot"]
+    for i in range(*E20I):
+        r = np.log(sl[i] / sl[i - 1])
+        if np.isfinite(r) and abs(r) * sf[i] >= 0.5 * STEP[F]: yield i, "CE" if r > 0 else "PE"
+
+
+def study_e20t():
+    days = sorted({d for s, d in L.KEYS if ("NIFTY", d) in P and ("SENSEX", d) in P}); rg = np.random.default_rng(20)
+    for Ld, F in (("NIFTY", "SENSEX"), ("SENSEX", "NIFTY")):
+        T, pool = [], {}
+        for d in days:
+            k = (F, d); busy = -1
+            pool[k] = {sd: [r["pnl"] for r in (struct(k, int(i), [(sd, 0, 1)], **e20_ex(int(i))) for i in rg.integers(*E20I, 12)) if r]
+                       for sd in ("CE", "PE")}
+            for i, sd in e20_signals(Ld, F, d):
+                if i <= busy: continue
+                r = struct(k, i, [(sd, 0, 1)], **e20_ex(i))
+                if r: T.append(dict(r, key=k, side=sd)); busy = i + 1 + r["held"]
+        D = pd.DataFrame(T); rgr = np.random.default_rng(9)
+        rnd = np.array([sum(rgr.choice(pool[k][sd]) if pool[k][sd] else 0 for k, sd in zip(D.key, D.side)) for _ in range(2000)])
+        print(f"E20 trade {Ld}->{F} buy ATM [cons]:", dict(summ(D), p_vs_rand=round((rnd >= D.pnl.sum()).mean(), 4),
+              rand_avg=round(rnd.mean() / len(D)), why=D.why.value_counts().to_dict(), held_med=D.held.median()), flush=True)
+
+
 def _syn(k, spot, st, a0, px0=50.0, px1=20.0, iv=15.0):
     """synthetic panel (strikes ATM +-3, flat prices) for selftests; returns the C dict."""
     C = {}
@@ -627,6 +720,39 @@ def study_selftest():
     sd = 1.25 * ch[ch.StrkPric == 20000].ClsPric.sum(); kp = Ks[np.argmin(abs(Ks - (20000 - sd)))]
     ch.loc[(ch.StrkPric == kp) & (ch.OptnTp == "PE"), "TtlTradgVol"] = 0  # untraded wing strike -> no skew
     assert np.isnan(chain_feats(ch, "1999-01-07", "1999-01-04")[1])
+    # ---- E19: overnight on day a (ATM 50 / wings 20) -> day b (ATM 60 / wings 25), same exp; x = 5, flat prices
+    ka, kb = ("NIFTY", "1999-03-01"), ("NIFTY", "1999-03-02"); flat = np.full(NB, 20000.0)
+    _syn(ka, flat, 50, 20000); _syn(kb, flat, 50, 20000, 60.0, 25.0)
+    P[ka]["exp"] = P[kb]["exp"] = "1999-03-04"; P[ka]["d0"] = 0  # d0 (expiry-day flag) differs: exit must use day b's spreads
+    hsa, hsb = (lambda v: L.hs("NIFTY", P[ka]["d0"], M0 + 365, v)), (lambda v: L.hs("NIFTY", P[kb]["d0"], M0 + 5, v))
+    e = 50 - hsa(50); f = 60 + hsb(60)
+    ov = overnight(ka, kb, 5)
+    assert not ov["forced"] and ov["day"] == kb[1] and ov["prev"] == ka[1], ov
+    assert abs(ov["pnl"] - 2 * ((e - f) * 650 - _cost(f, e, "NIFTY", LOTS))) < 1e-6, (ov, e, f)
+    # forced: day b's (PE, K) is off the tape; cons buys it back at intrinsic 0 + nearest extrinsic 25, opt at intrinsic 0
+    del P[kb]["C"][("PE", 20000.0)]; P[kb]["C"][("PE", 20050.0)][:, :4] = 75.0  # ITM neighbour: extrinsic 25 (flat 25 would clip to 0)
+    oc, oo = overnight(ka, kb, 5, "cons"), overnight(ka, kb, 5, "opt")
+    fc, fo = 25 + hsb(25), hsb(0.05)  # opt: v = 0 -> half-spread at max(v, 0.05)
+    xc = (e - f) * 650 - _cost(f, e, "NIFTY", LOTS) + (e - fc) * 650 - _cost(fc, e, "NIFTY", LOTS)
+    xo = (e - f) * 650 - _cost(f, e, "NIFTY", LOTS) + (e - fo) * 650 - _cost(fo, e, "NIFTY", LOTS)
+    assert oc["forced"] and oo["forced"] and oc["pnl"] < oo["pnl"], (oc, oo)
+    assert abs(oc["pnl"] - xc) < 1e-6 and abs(oo["pnl"] - xo) < 1e-6, (oc["pnl"], xc, oo["pnl"], xo)
+    # nights: ka->kb included; kc has a different exp (excluded); kd (same exp as kc) pairs with kc; b must be in keys
+    kc, kd = ("NIFTY", "1999-03-03"), ("NIFTY", "1999-03-04")
+    _syn(kc, flat, 50, 20000); _syn(kd, flat, 50, 20000); P[kc]["exp"] = "1999-03-11"; P[kd]["exp"] = "1999-03-11"
+    n0 = list(L.ALLK); L.ALLK.extend([ka, kb, kc, kd]); L.ALLK.sort(key=lambda k: (k[1], k[0]))
+    try:
+        mine = lambda keys: [p for p in nights(keys) if p[0][1].startswith("1999")]
+        assert mine({ka, kb, kc, kd}) == [(ka, kb), (kc, kd)], mine({ka, kb, kc, kd})  # (kb, kc) crosses expiry: dropped
+        assert mine({kb}) == [(ka, kb)] and mine({kc}) == [] and mine({kd}) == [(kc, kd)] and mine(set()) == []
+    finally: L.ALLK[:] = n0
+    # ---- E20: NIFTY leads (1999-03-05); SENSEX lagger spot 80000, step 100 -> signal needs |r| * 80000 >= 50, i.e. |r| >= 6.25e-4
+    d = "1999-03-05"; ks = ("SENSEX", d); _syn(ks, np.full(NB, 80000.0), 100, 80000)
+    for up, jump, want in ((1, 20020.0, [(50, "CE")]), (2, 20005.0, []), (3, 19980.0, [(50, "PE")]), (4, 20000.0, [])):
+        sn = np.full(NB, 20000.0); sn[50:] = jump; _syn(("NIFTY", d), sn, 50, 20000)
+        assert list(e20_signals("NIFTY", "SENSEX", d)) == want, (jump, list(e20_signals("NIFTY", "SENSEX", d)))
+    assert e20_ex(50) == dict(sstop=1, flat=M0 + 66) and e20_ex(400)["flat"] == FLAT and e20_ex(344)["flat"] == min(FLAT, M0 + 360)
+    for kk in (ka, kb, kc, kd, ks, ("NIFTY", d)): del P[kk]
     print("sell_lab selftest OK")
 
 

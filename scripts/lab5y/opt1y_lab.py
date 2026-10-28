@@ -8,7 +8,7 @@ after the ATM rolls. If the held contract leaves the +-3 window, the trade is fo
 Fills: decide at close of bar i; buy at open of bar i+1 + half-spread; time exits sell at open of the exit bar
 - half-spread; stop fills at min(stop, bar open); target fills at the target; stop+target in one bar = stop.
 Half-spread = 75th pct from the 13-day tape (spreads.csv) by sym x premium bucket x time bucket x expiry-day.
-Costs = config/charges.yaml x1.5, 10 lots (NIFTY 65, SENSEX 20 per lot). Flatten 15:15. Entries 09:20..14:59.
+Costs = config/charges.yaml x1.5, 10 lots (NIFTY 65, SENSEX 20 per lot). Flatten at the 15:00 open (FLAT = minute 900; older labels say "15:15", they mean 15:00). Entries 09:20..14:59.
 Dev = days < 2026-07-27 (walk-forward by month); HOLDOUT = 2026-07-27..2026-10-23, run only with --holdout."""
 import sys, os, pickle, hashlib, numpy as np, pandas as pd
 
@@ -19,7 +19,7 @@ TXN = {"NIFTY": 0.000355299, "SENSEX": 0.000325}
 STEP = {"NIFTY": 50, "SENSEX": 100}
 HO = "2026-07-27"
 M0, NB = 555, 375            # 09:15, bars per day
-E_LO, E_HI, FLAT = 560, 899, 900  # decision minutes 09:20..14:59; flatten at 15:15 open
+E_LO, E_HI, FLAT = 560, 899, 900  # decision minutes 09:20..14:59; flatten at the 15:00 open (labels "15:15" elsewhere mean this)
 RNG = np.random.default_rng(11)
 NVAR = [0]                   # count of every variant evaluated (for Bonferroni)
 
