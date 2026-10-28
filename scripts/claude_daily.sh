@@ -73,6 +73,7 @@ case "${1:-}" in
              else echo "Tape: none for $DAY"; fi
              grep -h "^FIN1 $DAY" "$LOG" 2>/dev/null || echo "FIN1/S2: no row yet (the close step logs it at 15:31 IST)"
              "$PY" scripts/lab5y/fin1_shadow.py week 5 | grep "since start"
+             "$PY" scripts/lab5y/fin1_shadow.py forward "$DAY" | grep -E "^FWD|calibration" || echo "Forward view: no row"
              "$PY" -c "import json;r=json.load(open('data/recon/sod_exam_report.json'));d=[x for x in r['days'] if x['day']=='$DAY'];print('Paper desk honesty:',r.get('overall_honesty'),'| today:',(d[0].get('honesty') if d else 'no row'));[print(' ',s) for s in r.get('stories',[]) if s.startswith('$DAY')]" 2>/dev/null || echo "Paper desk honesty: no report"
              grep -h "heal:" "$LOG" 2>/dev/null | sed 's/^/Self-heal: /'
            } > "$R"; cat "$R" ;;

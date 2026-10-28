@@ -438,6 +438,32 @@ def study_e14():
     ok = R.groupby("exit").pass_bonf.all(); print("exit families passing for ALL entry types:", list(ok[ok].index))
 
 
+# ---------------------------------------------------------------- E18 the E6 score as a tail-risk gate for S1 (registry E18)
+def e18_metrics(D):
+    """D: per-trade rows (day, pnl). CVaR5 = mean of the worst ceil(5%) trades; worst day / maxdd on per-day sums."""
+    x = np.sort(D.pnl.values); g = D.groupby("day").pnl.sum().sort_index(); c = g.cumsum()
+    return dict(cvar5=x[:max(1, math.ceil(0.05 * len(x)))].mean(), worst_day=g.min(), maxdd=(c - c.cummax().clip(lower=0)).min(),  # peak starts at 0
+                mean=x.mean(), total=x.sum(), n=len(x))
+
+
+def study_e18():
+    """frozen before results (side-session notes E18_freeze.md): skip S1 when the E6 walk-forward score > dev q0.8; tail
+    metrics vs 1000 random skips of the same count; adopt only if p(CVaR5) and p(maxdd) < 0.05 and mean >= no-skip mean,
+    on dev AND holdout (cons)."""
+    S = pd.read_pickle(f"{L.OUT}/e7_days.pkl"); c = S[S.day < L.HO].score.quantile(0.8)
+    for nm, G in (("DEV", S[S.day < L.HO]),) + ((("HOLDOUT", S[S.day >= L.HO]),) if L.HOLDOUT else ()):
+        for mode in ("cons", "opt"):
+            A = G.dropna(subset=[mode]).assign(pnl=lambda d: d[mode]); skip = A.score > c; k = int(skip.sum())
+            base, rule = e18_metrics(A), e18_metrics(A[~skip]); rng = np.random.default_rng(18)
+            pl = [e18_metrics(A.drop(A.index[rng.choice(len(A), k, replace=False)])) for _ in range(1000)]
+            p = {m: (sum(q[m] >= rule[m] for q in pl) + 1) / 1001 for m in ("cvar5", "worst_day", "maxdd", "mean")}
+            ok = p["cvar5"] < 0.05 and p["maxdd"] < 0.05 and rule["mean"] >= base["mean"]
+            print(f"{nm} {mode}: cut {c:.3f}, skip {k}/{len(A)} sym-days")
+            for lab, r in (("all", base), ("rule", rule), ("rand median", {m: np.median([q[m] for q in pl]) for m in rule})):
+                print(f"  {lab:12s} " + "  ".join(f"{m} {r[m]:,.0f}" for m in ("n", "cvar5", "worst_day", "maxdd", "mean", "total")))
+            print("  p_vs_rand " + "  ".join(f"{m} {v:.3f}" for m, v in p.items()) + f"  -> {'PASS' if ok else 'fail'}")
+
+
 # ---------------------------------------------------------------- E16-E17 full option chain of T-1 (NSE/BSE bhavcopy, ext_fetch.py)
 EX_OF = {"NIFTY": "NSE", "SENSEX": "BSE"}
 _N = lambda x: 0.5 * (1 + math.erf(x / math.sqrt(2)))
@@ -627,6 +653,11 @@ def study_selftest():
     sd = 1.25 * ch[ch.StrkPric == 20000].ClsPric.sum(); kp = Ks[np.argmin(abs(Ks - (20000 - sd)))]
     ch.loc[(ch.StrkPric == kp) & (ch.OptnTp == "PE"), "TtlTradgVol"] = 0  # untraded wing strike -> no skew
     assert np.isnan(chain_feats(ch, "1999-01-07", "1999-01-04")[1])
+    # ---- E18 metrics: 21 trades on 11 days -> CVaR5 = mean of the worst ceil(1.05) = 2 trades; dd on day sums
+    D = pd.DataFrame(dict(day=[f"d{i // 2:02d}" for i in range(21)], pnl=[-100.0, -50.0] + [10.0] * 19))
+    m = e18_metrics(D)
+    assert m["cvar5"] == -75 and m["worst_day"] == -150 and m["maxdd"] == -150 and m["n"] == 21 and m["total"] == 40, m
+    D.loc[2:3, "pnl"] = -20.0; m = e18_metrics(D); assert m["maxdd"] == -190 and m["worst_day"] == -150, m  # d00 -150, d01 -40
     print("sell_lab selftest OK")
 
 
