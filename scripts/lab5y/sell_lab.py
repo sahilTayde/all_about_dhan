@@ -5,7 +5,7 @@ Reuses opt1y_lab (panel, half-spreads, costs x1.5, 10 lots, dev < 2026-07-27, ho
 Position = legs (side, strike offset in steps from ATM at bar i, sign -1 short / +1 long), entered at the open of bar i+1:
 short legs sell at open - half-spread, long legs buy at open + half-spread. Every minute the position is marked at the
 1m close; exits (stop / target / spot move) are decided on that close and filled at the NEXT open with half-spreads;
-otherwise flat at the 15:00 open (FLAT; "15:15" in older labels means 15:00). Intraday only (no overnight gap risk).
+otherwise flat at the 15:15 open (FLAT = 915 since audit A2; rows before it used 15:00). Intraday only (no overnight gap risk).
 A leg with no quote has left the taped ATM+-3 window (Dhan rollingoption rejects ATM+-4..10 for expiryCode=1, checked
 2026-10-28: 728/728 calls refused), so it is further from ATM than every taped strike. Its price is bounded:
   low = intrinsic, high = intrinsic + the extrinsic (clipped at 0) of the nearest taped strike of that type.
@@ -607,7 +607,7 @@ def study_e19():
                 print("   by dte(a):", D.groupby("dte").pnl.agg(["size", "mean", "sum"]).round(0).to_dict("index"))
                 print("   |move| steps p50/p90:", np.percentile(D.move.abs(), [50, 90]).round(2), "forced%", round(D.forced.mean() * 100, 1))
     I = pd.DataFrame([r for r in (struct(b, 4, SSTRAD) for a, b in N) if r])
-    print("context: intraday short straddle 09:20->15:00 on the same days [cons]:", summ(I))
+    print("context: intraday short straddle 09:20->FLAT (15:15) on the same days [cons]:", summ(I))
 
 
 def study_e20():
