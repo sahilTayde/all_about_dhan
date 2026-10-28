@@ -542,6 +542,65 @@ def fam_exit():
         print("   random-entry avg/trade with this exit:", round(rnd))
 
 
+# ---------------------------------------------------------------- R3 new information sources (scripts/lab5y/ext_fetch.py)
+EXT = os.environ.get("EXT", os.path.join(os.path.dirname(__file__), "../../data/cache/ext"))
+RBI = {"2025-12-05", "2026-02-06", "2026-04-08", "2026-06-05", "2026-08-05", "2026-10-07"}  # rbi.org.in, 10:00 IST
+FOMC = ["2025-10-29", "2025-12-10", "2026-01-28", "2026-03-18", "2026-04-29", "2026-06-17", "2026-07-29", "2026-09-16"]  # federalreserve.gov
+DIRC = ["fii_fut", "fii_opt", "spx", "inr"]  # sign fixed a priori: + -> CE
+VOLC = ["vix", "aspx", "ainr"]
+
+
+def ext_table():
+    """per day T: values known before 09:15 IST. NSE participant OI as on the last 2 NSE days before T; FRED last 2 US dates < T."""
+    import glob
+    R = []
+    for f in sorted(glob.glob(f"{EXT}/nse_poi/*.csv")):
+        x = pd.read_csv(f, skiprows=1); x.columns = [c.strip() for c in x.columns]; x = x.set_index(x.columns[0]).loc["FII"].astype(float)
+        R.append(dict(d=os.path.basename(f)[:10],
+                      fut=(x["Future Index Long"] - x["Future Index Short"]) / (x["Future Index Long"] + x["Future Index Short"]),
+                      opt=((x["Option Index Call Long"] - x["Option Index Call Short"]) - (x["Option Index Put Long"] - x["Option Index Put Short"]))
+                      / x[["Option Index Call Long", "Option Index Call Short", "Option Index Put Long", "Option Index Put Short"]].sum()))
+    N = pd.DataFrame(R).set_index("d").sort_index().diff()
+    F = {s: pd.read_csv(f"{EXT}/{s}.csv", index_col=0, na_values=".").iloc[:, 0].dropna() for s in ("SP500", "VIXCLS", "DEXINUS")}
+    F = {s: np.log(v).diff().dropna() for s, v in F.items()}
+    days = sorted({k[1] for k in ALLK}); fomc1 = {next(d for d in days if d > f) for f in FOMC}; out = []
+    for d in days:
+        prev = lambda s: s[s.index < d].iloc[-1] if (s.index < d).any() else np.nan
+        out.append(dict(day=d, fii_fut=prev(N.fut), fii_opt=prev(N.opt), spx=prev(F["SP500"]), vix=prev(F["VIXCLS"]),
+                        inr=-prev(F["DEXINUS"]), rbi=d in RBI, fomc=d in fomc1))
+    E = pd.DataFrame(out); E["aspx"], E["ainr"] = E.spx.abs(), E.inr.abs(); return E
+
+
+def wf_ext(V, col, q=0.7):
+    """trade days with col > q-quantile over prior months (all dev months for the holdout)."""
+    out, ms = [], sorted(V[(V.day >= HO) == HOLDOUT].mo.unique())
+    for n, m in enumerate(ms):
+        tr = V[V.day < HO] if HOLDOUT else V[V.mo < m]
+        if not HOLDOUT and n == 0: continue
+        cur = V[V.mo == m]; out.append(cur[cur[col] > tr[col].quantile(q)])
+    return pd.concat(out), (ms if HOLDOUT else ms[1:])
+
+
+def fam_ext():
+    VA = vol_days().merge(ext_table(), on="day", how="left")
+    VA["rev_fii_fut"] = -VA.fii_fut  # added after dev showed fii_fut worse than a coin flip (post-hoc, 10th variant)
+    for c in DIRC + ["rev_fii_fut"]: VA["a_" + c] = VA[c].abs()
+    V = VA[(VA.day >= HO) == HOLDOUT]
+    print("coverage (non-null days):", V[DIRC + VOLC].notna().sum().to_dict(), "rbi", int(V.rbi.sum()), "fomc", int(V.fomc.sum()))
+    y_dir = np.log(V.close / V.S); y_vol = V.rvd / V.iv
+    print("Spearman with 09:45->close spot move:", V[DIRC].corrwith(y_dir, method="spearman").round(3).to_dict())
+    print("Spearman with realized/implied:", V[VOLC + ["a_fii_fut", "a_fii_opt"]].corrwith(y_vol, method="spearman").round(3).to_dict())
+    strad = dict(hold=None, legs=(("CE", 0), ("PE", 0))); DP = {t[0]: t[3] for t in run_rule(day_rule(V), strad)}; ex = dict(hold=None)
+    for c in DIRC + ["rev_fii_fut"]:  # ATM in the sign's direction 09:46->15:15 on days with a big |move|; p_day = same days, coin-flip side
+        d, ms = wf_ext(VA.dropna(subset=[c]), "a_" + c)
+        report(f"R3 dir ATM 09:46->15:15 by sign({c}) if |{c}| > WF q0.7", run_rule(day_rule(d, side_col=c), ex), ex, wf_months=ms)
+    for c in VOLC:
+        d, ms = wf_ext(VA.dropna(subset=[c]), c)
+        report(f"R3 straddle 09:46->15:15 if {c} > WF q0.7", run_rule(day_rule(d), strad), strad, wf_months=ms, day_pool=DP)
+    for c in ("rbi", "fomc"):
+        report(f"R3 straddle 09:46->15:15 on {c} days", run_rule(day_rule(V[V[c]]), strad), strad, day_pool=DP)
+
+
 # ---------------------------------------------------------------- pre-named finalists (frozen on dev; run with --holdout ONCE)
 def fam_final():
     strad = dict(hold=None, legs=(("CE", 0), ("PE", 0)))
@@ -561,7 +620,7 @@ def show():
     R.to_csv(f"{OUT}/rows_{'ho' if HOLDOUT else 'dev'}_{'_'.join(a for a in sys.argv[2:] if not a.startswith('-'))}.csv", index=False)
 
 
-FAM = {"oi": fam_oi, "vol": fam_vol, "exp": fam_exp, "f4": fam_f4, "ml": fam_ml, "rob": fam_rob, "exit": fam_exit, "final": fam_final}
+FAM = {"oi": fam_oi, "vol": fam_vol, "exp": fam_exp, "f4": fam_f4, "ml": fam_ml, "rob": fam_rob, "exit": fam_exit, "final": fam_final, "ext": fam_ext}
 if __name__ == "__main__":
     for f in [a for a in sys.argv[2:] if not a.startswith("-")]: FAM[f]()
     show()
