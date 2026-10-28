@@ -206,3 +206,48 @@ Same panel, fills, costs (x1.5), placebos and dev/holdout split as round 2. One 
 - GIFT Nifty overnight, which needs a vendor history.
 - Intraday news or headlines with timestamps.
 - Order-book imbalance from depth, which needs more tape days. 13 days today; the recorder adds one per trading day.
+
+## Round 4: defined-risk and intraday option SELLING (2026-10-28) + a correction to rounds 2/3
+
+**Correction first (it changes how to read round 2).**
+- **What happened.** The round-2 buyer engine (`opt1y_lab.trade`) exits a leg at its last close the moment the strike has no bar. Dhan's history has only ATM+-3.
+  - On trend days the held strike leaves the window, so ~50% of 15:15-hold trades exited early ("lost%" in the tables).
+  - Those are exactly the days a straddle buyer wins or a seller loses.
+- **Wider strikes are not available.**
+  - Dhan's docs say "up to ATM+-10 for index options near expiry".
+  - But `rollingoption` with `expiryCode=1` refused all 728 calls for ATM+-4..10 ("bad values for parameters"), checked 2026-10-28.
+- **The fix in `scripts/lab5y/sell_lab.py`.** A strike off the tape is further from ATM than every taped one, so its price is bounded:
+  - low = intrinsic;
+  - high = intrinsic + the smallest taped extrinsic of that type at that minute.
+  - Every rule is run conservative (shorts at high, longs at low) and optimistic. Only the conservative result counts.
+- **Result for anything held to 15:15: it cannot be decided on this data.**
+
+| dev, 09:46 -> 15:15 every day | conservative | optimistic |
+|---|---|---|
+| short ATM straddle | -27.9L | +34.9L |
+| long ATM straddle | -42.0L | +18.4L |
+| FIN1 (dev / holdout) | -2.55L / -75k | +4.93L / +4.88L |
+
+- **What this means.** "Options are priced above the realized move" (round 2) and FIN1's +1.30L holdout are **not proven**. The old numbers sit inside these ranges.
+- **Rules that need no bounds.** Exiting on a spot move of 2.5 strike steps or less keeps ATM legs on the tape; bounds were used on <5% of those trades. That is the design used below.
+
+**Grid on dev** (`sell_lab.py OUT grid`): short straddle, iron fly +-3, long straddle × 6 entry times × 8 exits (spot 1/1.5/2/2.5 steps, plus a credit stop or target).
+- **Long straddle (buyer):** loses in every cell, -2.1L to -21L. Buying ATM premium intraday with spot exits has no edge on real quotes.
+- **Iron fly +-3:** undecidable. The wings leave the tape on 98% of trades.
+- **Short straddle:** positive only in one smooth region, 09:46-10:30 entries with 1.5-2.5 step spot exits (+0.5L to +5.8L). It is negative at 09:20 and from 11:30.
+  - The edge comes from DTE 0-2 days and NIFTY.
+  - Profit comes from the days that reach 15:15; spot exits lose on average.
+- **Filter.** Skipping FIN1 days (opening RV/IV > 1.0042, the FIN1 threshold from round 2, not fitted here) improves it. On those skipped days the short straddle lost 1.64L.
+
+**Frozen finalists, holdout run once:**
+
+| rule (10 lots, costs x1.5, p75 half-spreads) | dev n | dev net | dev t / p | holdout n | holdout net | holdout months + |
+|---|---|---|---|---|---|---|
+| S1 short ATM straddle 09:47 -> 2-step spot exit or 15:15 | 320 | +3.43L | 1.16 / 0.13 | 124 | -1.77L | 2/4 |
+| S2 = S1 on days with opening RV/IV <= 1.0042 | 257 | +5.07L | 1.92 / 0.03 | 97 | -0.53L | 1/4 |
+
+- **Dev stress for S2.** It stays positive at costs x2 (+3.16L) or +0.5 point slippage per fill (+2.94L). With both it is +1.03L, p 0.35. S2's worst trade was -30k and its worst drawdown -2.2L.
+- **Verdict: no selling rule is proven.** The dev gain came from calm Dec-Jul. In Aug-Oct, when moves were large (FIN1's months), selling lost. FIN1 and S2 are two sides of one regime signal (opening RV vs IV), and neither side passes alone.
+- **Next.** Both are logged in forward shadow by `fin1_shadow.py` (S2 fields `s2_*`, weekly line "S2 shadow").
+  - The live tape is wider than Dhan's history: the moving ATM+-4, the open ATM+-5 ladder, and 10 minutes of retention.
+  - So 40+ forward days give a better test than any more history mining.

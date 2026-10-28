@@ -1,5 +1,5 @@
 """Round-2 loader: Dhan rolling expired-option 1m bars (pull_expired.py output) -> one long parquet.
-Rows: sym, side (CE/PE), off (-3..3), ts, day, m (minute of day IST), o h l c vol oi iv (0 -> NaN), spot, strike, exp.
+Rows: sym, side (CE/PE), off (-10..10), ts, day, m (minute of day IST), o h l c vol oi iv (0 -> NaN), spot, strike, exp.
 Expiry: nearest weekly per day, inferred from data = first day >= today whose 15:29 ATM straddle extrinsic is ~0.
 Run: ~/paper_extra_venv/bin/python scripts/lab5y/opt1y_load.py OUTDIR"""
 import sys, os, re, glob, json, numpy as np, pandas as pd
@@ -9,7 +9,7 @@ OUT = sys.argv[1] if len(sys.argv) > 1 else "."
 def load():
     rows = []
     for f in sorted(glob.glob(f"{ROOT}/data/cache/expired_opts/*/*.json")):
-        sym = f.split("/")[-2]; mt = re.match(r"ATM([+-]\d)?_(CALL|PUT)_", os.path.basename(f))
+        sym = f.split("/")[-2]; mt = re.match(r"ATM([+-]\d+)?_(CALL|PUT)_", os.path.basename(f))
         off = int(mt.group(1) or 0); side = "CE" if mt.group(2) == "CALL" else "PE"
         d = (json.load(open(f)).get("data") or {}).get(side.lower()) or {}
         if not d.get("timestamp"): continue
