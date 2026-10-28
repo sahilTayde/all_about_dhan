@@ -1,0 +1,75 @@
+# Strategy research registry and status (NIFTY / SENSEX index options, paper only)
+
+One file, append-only: every experiment gets a row, failures included. Detail tables live in
+`BACKTEST_ROUND2_OPTIONS_1Y.md` (rounds 2-4) and `BACKTEST_INDEX_5Y_PRICE_RULES.md` (round 0). Never re-test a row below
+under a new name; read "Lessons" first.
+
+## Research status (updated 2026-10-28)
+
+**Objective.** Find a rule with a reproducible edge after realistic costs, or prove there is none in the data we have.
+"Better" means the system can tell real opportunities from noise and stays out when it has no edge. Trading more is not the goal.
+
+**Live strategies.** None. No live orders. Paper and shadow only.
+
+**Forward shadow (running daily from the recorder tape).** These rows are not live results.
+- FIN1: buy the straddle on active openings.
+- S2: sell the straddle on calm openings.
+- Adoption rule: 40+ logged days and p < 0.05 outside Oct-2026. Status: 3 days logged (16/21/22 Oct). FIN1 net -7.5k over 4 signals; S2 net -3.9k over 2.
+
+**Most promising candidates.** None proven. Experiments done: R0-R3, E1-E9; audit A1. Ranked by remaining hope:
+1. FIN1 and S2, waiting on forward data.
+2. The fade credit spread (E5b), undecidable on the history and needs the wider tape.
+
+**Important discoveries.**
+- **D1.** Dhan expired-options history is ATM+-3 only. ATM+-4..10 was refused on 728/728 calls.
+  - On trend days the held strike vanishes, so anything held to 15:15 and any wing structure is undecidable on history.
+  - The round-2 buyer engine exited early there, which biased rounds 2-3 for 15:15 holds.
+- **D2.** How much the rest of the day moves (RV vs IV) IS predictable at 09:45.
+  - Opening RV/IV gives AUC 0.74 on dev and 0.86 on holdout.
+  - A walk-forward logistic model gives 0.70 / 0.87.
+  - But option P&L is not predictable: S1 win AUC was 0.445 on the holdout.
+  - Prices already include the predictable part of volatility. This explains why every timing rule failed out of sample.
+- **D3.** After 09:45, breakouts failed more than random in calm Dec-Jul (dev p_vs_rand 0.91-0.99). That did not hold in Aug-Oct.
+  - Pattern behaviour is regime-dependent.
+  - The regime-to-P&L link does not survive out of sample (D2).
+- **D4.** A random intraday ATM buy loses Rs 1.0-1.3k per trade (10 lots) to spread, costs and theta. Any buyer signal must clear that.
+
+**Blockers.**
+- Strike width of the history (D1). The live recorder tape is wider (moving ATM+-4, open ATM+-5 ladder, 10-minute retention) but has only 13 days so far.
+- The auto-mode classifier refuses to create scheduled tasks for the standalone self-heal and the weekly review.
+
+**Next prioritized experiments.** Reasons are in the E-rows.
+1. **E10: re-run E5b (fade credit spread) and the iron fly on forward tape days** once 20+ full days exist (about 2026-11-20). The live ladder gives the wings real quotes. It is the only open candidate the history cannot decide.
+2. **Judge FIN1 and S2 at 40 forward days** (about late Dec 2026).
+3. **E11 (cheap): use the E9 imbalance only to time FIN1/S2 entries inside a 2-minute window.** It could save part of the half-spread. Test it on forward days; do not make it a signal.
+- E9 is done: order-book imbalance carries information, but it is smaller than the spread.
+
+**Research infrastructure changes (2026-10-28).**
+- `scripts/lab5y/sell_lab.py`: multi-leg engine with bounds, spot exits, studies `grid e5 e5b e6 e7 e8 selftest`.
+- `fin1_shadow.py` logs S2.
+- `claude_daily.sh` gains `heal` (10-minute self-heal) and `report` (daily report and ping).
+
+## Experiment registry
+
+Common setup unless noted:
+- **Data:** Dhan rolling expired weekly options, 1m bars, 2025-10-27..2026-10-23, ATM+-3.
+- **Split:** dev before 2026-07-27, walk-forward by month; holdout 2026-07-27..10-23 run once per frozen rule.
+- **Fills and costs:** fill at the next 1m open plus a p75 half-spread from the tape; costs from config/charges.yaml x1.5; 10 lots (NIFTY 65, SENSEX 20).
+- **Code:** `scripts/lab5y/opt1y_lab.py` (R2-R3) and `scripts/lab5y/sell_lab.py` (R4+).
+
+| ID | Question / hypothesis | Entry | Exit | Result (dev / holdout) | Uncertainty and limits | Decision | Next |
+|---|---|---|---|---|---|---|---|
+| R0 | 5y index price rules (momentum, fade, ORB) on 1m spot | various | various | null vs random after costs | index only, no option prices | reject | options data (R2) |
+| R1 | 13 tape days, option rules | various | various | null | 13 days only | reject | 1y history (R2) |
+| R2-F | OI, vol, expiry, F4 structure, walk-forward ML (round 2) | various | old engine | null except FIN1 | old engine biased on 15:15 holds (D1) | reject; FIN1 to shadow | E1 |
+| R3 | NSE FII OI, FRED S&P/VIX/INR, RBI/FOMC days (10 variants) | 09:46 | 15:15 | all null; FII contrarian +4.5L dev, -29k holdout | 15:15 holds undecidable (D1) | reject | E2 |
+| E1 | Short straddle / iron fly / long straddle × 6 entries × 6 exits, held to 15:15 | 09:20-14:00 | time, stops, targets | short straddle -27.9L..+34.9L, long -42L..+18L (cons..opt) | bounds dominate | undecidable | spot-exit grid (E2) |
+| E2 | Same structures with spot exits <= 2.5 steps (bounds-free) | 09:20-14:00 | spot 1-2.5, credit stop/target | long straddle loses in every cell; short straddle + only at 09:46-10:30 | 48 cells, multiple testing | freeze S1/S2 | E3 |
+| E3 | S1 short straddle 09:47 with a 2-step spot exit; S2 = S1 when opening RV/IV <= 1.0042 | 09:47 | 2-step spot or 15:15 | after the A1 fix: S1 +3.33L p 0.14 / -2.23L; S2 +4.97L p 0.03 / -99k (before the fix: +5.07L / -53k) | dev = calm months | reject; S2 to shadow | E5, E6 |
+| E4 | FIN1 re-scored with bounds | 09:46 | 15:15 | dev -2.55L..+4.93L, holdout -75k..+4.88L | bounds dominate | undecidable; keep shadow | forward data |
+| E5 | E5a: buy ATM on the first close beyond the 09:15-09:45 range; E5b: fade a break that re-enters within 15 min (12 cells) | <= 12:00 | spot target 1/1.5/2, stop 0.5/1 | ORB worse than random (p_vs_rand 0.91-0.99) / about random; fade better than random by about 1k/trade but net about 0 / not significant | regime-specific | reject both as standalone | E5b variants, E6 |
+| E5b | Fade with ITM1 buy, or with a credit spread (short ATM + wing 2 steps out) | same | same | ITM1 worse in every cell; credit spread after the A1 fix: cons -6.4L..-17.2L, opt +1.2L..+5.6L | the wing leaves the tape on target moves | ITM1 reject; credit spread undecidable | E10 |
+| E6 | Can the rest-of-day RV/IV be predicted at 09:45? | - | - | or_iv AUC 0.74 / 0.86; logistic 0.70 / 0.87; outside data about 0.5 | the target is relative to the dev median | yes, volatility is predictable | E7 |
+| E7 | Does S1 P&L follow the E6 score (quintiles, cuts from dev)? | 09:47 | 2-step spot | not monotone; calmest fifth +2.05L / +6k | 55/27 days per bucket | no | E8 |
+| E8 | Predict S1 win/lose directly (walk-forward logistic) | 09:47 | 2-step spot | AUC 0.605 / 0.445; the top half still loses on holdout | 192/124 days | no edge in timing the seller; stop optimizing these features | E9 |
+| E9 | Does 5-level order-book imbalance on ATM-near options (live tape, 1 s snapshots) predict the option mid 60 s / 300 s ahead beyond the spread? `scripts/lab5y/depth_lab.py` | imb5 > +0.6, buy at ask (frozen) | sell at bid after 60 / 300 s | IC small but real for NIFTY at 60 s (imb1 0.0074 t 4.5, micro 0.0076 t 4.4); SENSEX and 300 s about 0. Rule vs random: +0.15 NIFTY pts (p 0.01), +0.27 SENSEX pts (p 0.04) at 60 s, but net -Rs 100..119 per lot per trade in every cell (wins 33-39%) | 7 days, one regime (Oct-2026); overlapping 1 s samples (t uses days) | information yes, tradeable no; at most use it for entry timing (a fraction of the half-spread) | E10 |

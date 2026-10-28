@@ -96,16 +96,16 @@ def s2_trade(sym, sp, xs_ce, xs_pe):
     for m in sorted(k for k in sp if "09:47" <= k < "15:15"):
         if abs(sp[m] - s0) >= 2 * STEP[sym]:
             h, mm = int(m[:2]), int(m[3:]) + 1; t_exit, why = f"{h + mm // 60:02d}:{mm % 60:02d}:00", "spot"; break
-    pnl = 0.0
-    for s, xs in (("CE", xs_ce), ("PE", xs_pe)):
+    pnl, forced = 0.0, False
+    for s, xs in (("CE", xs_ce), ("PE", xs_pe)):  # same exit method for both legs (audit 2026-10-28)
         if why == "time":
             ex = [x for x in xs if "15:14:00" <= x[0] <= "15:16:00"]
             x = min(ex, key=lambda x: abs(int(x[0][3:5]) * 60 + int(x[0][6:8]) - 900)) if ex else None
         else:
             x = _first(xs, t_exit)
-        if x is None: x = xs[-1]; why += "+forced"
+        if x is None: x = xs[-1]; forced = True
         pnl += (e[s][1] - x[2]) * LOT[sym] * LOTS - cost(x[2], e[s][1], sym)
-    return round(pnl, 2), why, t_exit
+    return round(pnl, 2), why + ("+forced" if forced else ""), t_exit
 
 
 def day_rows(day, spot, q):
