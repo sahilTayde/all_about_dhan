@@ -568,6 +568,66 @@ def study_e16e17():
     e_cell("E17b long straddle if z > WF q0.7", s, lambda sd: LSTRAD, d16)
 
 
+# ---------------------------------------------------------------- E22 NSE participant-wise OI (registry E22, frozen E22_freeze.md)
+def poi_z(files):
+    """files: [(date, path)] of fao_participant_oi CSVs (file D = positions at the close of D). f = FII index futures L-S,
+    c = Client (index calls L-S) - (index puts L-S); per file j: d = x(j) - x(j-1), z = d / std(the 20 d before j), ddof 1."""
+    R = []
+    for d, f in sorted(files):
+        x = pd.read_csv(f, skiprows=1); x.columns = [c.strip() for c in x.columns]
+        x = x.set_index(x[x.columns[0]].str.strip()).iloc[:, 1:].astype(float); a, c = x.loc["FII"], x.loc["Client"]
+        R.append(dict(d=d, f=a["Future Index Long"] - a["Future Index Short"],
+                      c=(c["Option Index Call Long"] - c["Option Index Call Short"]) - (c["Option Index Put Long"] - c["Option Index Put Short"])))
+    N = pd.DataFrame(R).set_index("d").diff(); return N / N.shift(1).rolling(20).std()  # NaN until 20 prior d
+
+
+def e22_feat(Z, day):
+    """features for day T from the last file dated strictly before T (its z already uses the file before it = T-2)."""
+    j = int(np.searchsorted(list(Z.index), day)) - 1
+    return (Z.index[j], Z.f.iloc[j], Z.c.iloc[j]) if j >= 0 else (None, np.nan, np.nan)
+
+
+def e22_table():
+    Z = poi_z([(os.path.basename(f)[:10], f) for f in glob.glob(f"{L.EXT}/nse_poi/*.csv")])
+    V = pd.DataFrame([dict(key=k, sym=k[0], day=k[1], **dict(zip(("d1", "zF", "zC"), e22_feat(Z, k[1])))) for k in L.ALLK])
+    assert (V.d1.dropna() < V.day[V.d1.notna()]).all(); V["mo"] = V.day.map(L.month); return V
+
+
+def e22_gate(name, A, keep):
+    """A: {mode: per-trade frame with key}; keep: key -> bool. Gated vs ungated; p_sub = share of 2000 random subsets of
+    the rule's own trades (same count, seed 22) with total >= the gated total."""
+    for mode, D in A.items():
+        m = D.key.map(keep).fillna(False).astype(bool).values; G = D[m]; tot = G.pnl.sum(); rg = np.random.default_rng(22)
+        sub = np.array([D.pnl.values[rg.choice(len(D), len(G), replace=False)].sum() for _ in range(2000)])
+        p = round((sub >= tot).mean(), 4); s = summ(G); u = summ(D)
+        ok = s.get("avg", -np.inf) > u["avg"] and p < 0.0125 and s.get("total", 0) > 0
+        print(f"{name} [{mode}] gated:", dict(s, p_sub=p, ungated_n=u["n"], ungated_avg=u["avg"], ungated_total=u["total"],
+                                              dev_gate="PASS" if ok else "fail"), flush=True)
+
+
+def study_e22():
+    """frozen 2026-10-29 before any result: (a) ATM with FII futures |zF| >= 1, (b) ATM against Client options |zC| >= 1,
+    (c) FIN1 only when |zF| >= 1, (d) S2 only when |zF| < 1. 4 cells, Bonferroni 0.0125; cons is the evidence mode."""
+    VA = e22_table(); V = VA[(VA.day >= L.HO) == L.HOLDOUT]
+    y = pd.Series([np.log(P[k]["spot"][-1] / P[k]["spot"][30]) for k in V.key], V.index)
+    print(f"E22 sym-days {len(V)}: zF non-null {V.zF.notna().sum()}, zC non-null {V.zC.notna().sum()}; |zF|>=1 {(V.zF.abs() >= 1).sum()} "
+          f"({V[V.zF.abs() >= 1].day.nunique()} days), |zC|>=1 {(V.zC.abs() >= 1).sum()} ({V[V.zC.abs() >= 1].day.nunique()} days); "
+          f"Spearman vs 09:45->close move: zF {V.zF.corr(y, method='spearman'):.3f}, zC {V.zC.corr(y, method='spearman'):.3f}", flush=True)
+    for nm, col, sg in (("E22a ATM with FII futures (zF>=1 CE, zF<=-1 PE)", "zF", 1), ("E22b ATM against Client options (zC>=1 PE, zC<=-1 CE)", "zC", -1)):
+        o = e_cell(nm, V[V[col].abs() >= 1], LONG, dict(sstop=2.5), side_col=col, sign=sg); c = o.get("cons", {})
+        print(f"   {nm} dev_gate:", "PASS" if c.get("total", 0) > 0 and c.get("p_boot", 1) < 0.0125 and c.get("p_vs_rand", 1) < 0.0125 else "fail", flush=True)
+    zF = dict(zip(VA.key, VA.zF)); big = {k: abs(z) >= 1 for k, z in zF.items()}; calm = {k: abs(z) < 1 for k, z in zF.items()}  # NaN -> dropped
+    W = L.vol_days(); W = W[(W.day >= L.HO) == L.HOLDOUT]; c, _ = L.wf_day(W, "or_iv", 0.7)  # FIN1 days as opt1y_lab fam_final
+    T = L.run_rule(L.day_rule(c), dict(hold=None, legs=(("CE", 0), ("PE", 0))))
+    A = {"opt1y_trade": pd.DataFrame([dict(key=k, sym=k[0], day=k[1], pnl=x, forced=lost, maxloss=np.nan) for k, i, sd, x, lost in T])}
+    for mode in ("cons", "opt"):
+        A[mode] = pd.DataFrame([dict(r, key=k) for k, *_ in T for r in [struct(k, 30, LSTRAD, mode=mode)] if r])
+    e22_gate("E22c FIN1 only if |zF|>=1", A, big)
+    s2 = [(r.sym, r.day) for r in W.itertuples() if r.or_iv <= 1.0042]  # S2 = S1 on calm openings (registry E3)
+    A = {mode: pd.DataFrame([dict(r, key=k) for k in s2 for r in [struct(k, 31, SSTRAD, sstop=2, mode=mode)] if r]) for mode in ("cons", "opt")}
+    e22_gate("E22d S2 only if |zF|<1", A, calm)
+
+
 # ---------------------------------------------------------------- E19 overnight short straddle, E20 NIFTY<->SENSEX lead-lag
 def nights(keys):
     """(a, b) = consecutive panel days of one sym with the same expiry (no expiry day crossed)."""
@@ -786,6 +846,25 @@ def study_selftest():
     m = e18_metrics(D)
     assert m["cvar5"] == -75 and m["worst_day"] == -150 and m["maxdd"] == -150 and m["n"] == 21 and m["total"] == 40, m
     D.loc[2:3, "pnl"] = -20.0; m = e18_metrics(D); assert m["maxdd"] == -190 and m["worst_day"] == -150, m  # d00 -150, d01 -40
+    # ---- E22: 25 synthetic files; FII futures net f(j) = j^2 -> d(j) = 2j - 1; Client net c(j) = j^3. Day T = file 23's date.
+    import tempfile
+    hdr = ("Client Type,Future Index Long,Future Index Short,Future Stock Long,Future Stock Short,Option Index Call Long,"
+           "Option Index Put Long,Option Index Call Short,Option Index Put Short,Option Stock Call Long,Option Stock Put Long,"
+           "Option Stock Call Short,Option Stock Put Short,Total Long Contracts,Total Short Contracts")
+    with tempfile.TemporaryDirectory() as td:
+        fs = []
+        for j in range(25):
+            f = j * j if j < 23 else 10 ** 9  # files dated >= T carry absurd values: they must not move the feature
+            row = lambda nm, fl, cl: f"{nm},{1000 + fl},1000,0,0,{1000 + cl},500,1000,500,0,0,0,0,0,0"
+            p = f"{td}/{j}.csv"; d = f"2000-01-{j + 1:02d}"; fs.append((d, p))
+            open(p, "w").write('"x",,\n' + hdr + "\n" + row("Client", 0, j ** 3 if j < 23 else -10 ** 9) + "\n" + row("DII", 0, 0) + "\n"
+                               + row("FII", f, 0) + "\n" + row("Pro", 0, 0) + "\n" + row("TOTAL", 0, 0) + "\n")
+        Z = poi_z(fs); T = "2000-01-24"; d1, zf, zc = e22_feat(Z, T)
+        dC = np.diff([j ** 3 for j in range(23)]).astype(float)
+        assert d1 == "2000-01-23" < T and abs(zf - 43 / (2 * np.sqrt(35))) < 1e-9, (d1, zf)  # 43 / std(3, 5, .., 41)
+        assert abs(zc - dC[21] / np.std(dC[1:21], ddof=1)) < 1e-9, zc
+        assert e22_feat(poi_z(fs[:23]), T)[1:] == (zf, zc)  # same value with every file >= T removed
+        assert np.isnan(e22_feat(Z, "2000-01-22")[1]) and np.isfinite(e22_feat(Z, "2000-01-23")[1])  # z needs 20 prior d: first at file 21
     print("sell_lab selftest OK")
 
 
