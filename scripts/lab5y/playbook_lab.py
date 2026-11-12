@@ -335,34 +335,60 @@ def _gex(k, i):
     return g
 
 
+def _row33(k, i, G, a, d, ivp):
+    """one E33 feature row at slot minute i. Look-ahead fixes (2026-11-13, found by the PR #127 session): (a) the 5m bar used is the LAST
+    CLOSED bar at or before minute i (bar b closes at minute 5b+4 <= i), not the bar containing i, which closes 4 min later; (b) the
+    60-min return is NaN before 10:15 (a negative index would wrap to the end of the day)."""
+    s = spot(k); st = STEP[k[0]]; p = P[k]; orh, orl = s[:16].max(), s[:16].min()  # OR 09:15-09:30
+    b = (i + 1) // 5 - 1; K = p["atm"][i]; j = i - 15; LAG = 3  # OI on Dhan is ~3 min delayed live: lag it
+    oc, op, oc0, op0 = (L._get(k, sd, K, t, 4) for sd, t in (("CE", i - LAG), ("PE", i - LAG), ("CE", j - LAG), ("PE", j - LAG)))
+    oiflow = ((op - op0) - (oc - oc0)) / (oc + op) if np.isfinite(oc + op + oc0 + op0) and oc + op > 0 else np.nan
+    tv = {}
+    for sd in ("CE", "PE"):  # tick rule: sign of the 1m close change x volume, same strike, last 15 bars
+        arr = p["C"].get((sd, K)); v = 0.0; tot = 0.0
+        if arr is not None:
+            cl, vol = arr[j:i + 1, 3], arr[j + 1:i + 1, 6]; dc = np.sign(np.diff(cl)); ok = np.isfinite(dc) & np.isfinite(vol)
+            v, tot = float((dc[ok] * vol[ok]).sum()), float(vol[ok].sum())
+        tv[sd] = (v, tot)
+    oflow = (tv["CE"][0] - tv["PE"][0]) / (tv["CE"][1] + tv["PE"][1]) if tv["CE"][1] + tv["PE"][1] > 0 else np.nan
+    x = G.iloc[b]; rng5 = max(x.h - x.l, 1e-9); shape = 1 if (x.c - x.l) / rng5 >= 0.7 and (x.c - x.o) / rng5 > 0.5 else -1 if (x.h - x.c) / rng5 >= 0.7 and (x.o - x.c) / rng5 > 0.5 else 0
+    lv = [a.PDH, a.PDL, orh, orl, _maxoi(k, i - 3)]; near = min(abs(s[i] / v - 1) for v in lv if np.isfinite(v))
+    gap = s[0] / d["c1"] - 1 if np.isfinite(d["c1"]) else np.nan
+    return dict(sym=k[0], day=k[1], i=i, slot=f"{(M0 + i) // 60:02d}{(M0 + i) % 60:02d}", ampm="AM" if i < 165 else "PM", bar5=b,
+                adx=x.adx, pdi=x.pdi, mdi=x.mdi, er=x.er, chop=x.chop, r60=(s[i] / s[i - 60] - 1) if i >= 60 else np.nan, r15=s[i] / s[i - 15] - 1, near_level=near,
+                gap=gap, rbi=k[1] in L.RBI, fomc=k[1] in L.FOMC, d0=p["d0"], dte=p["dte"], oiflow=oiflow, oflow=oflow, fvg=_fvg(G, b),
+                cshape=shape, bias=1 if a.TREND == "UP" else -1 if a.TREND == "DN" else 0, gex=_gex(k, i), iv=S._iv(k, i), rv30=_rv(s, i),
+                div15=S._iv(k, i) - S._iv(k, j), maxoi=_maxoi(k, i - 3), day_ret=s[i] / s[0] - 1, ivpct=ivp)
+
+
 def regime_feats():
     """raw E33 features per (sym, day, slot minute i), data up to minute i only."""
     fp = f"{PB}/e33_feats.pkl"
     if os.path.exists(fp): return pd.read_pickle(fp)
     t0 = time.time(); A = Z.labs()[0]; D = daytab(); rows = []; IVP = L.vol_days().set_index(["sym", "day"]).ivpct.to_dict()
     for k in KEYS:
-        s = spot(k); st = STEP[k[0]]; G = _bars5(k); a = A.loc[k]; d = D[k]; p = P[k]; orh, orl = s[:16].max(), s[:16].min()  # OR 09:15-09:30
-        for i in SLOTS33:
-            b = i // 5; K = p["atm"][i]; j = i - 15; LAG = 3  # OI on Dhan is ~3 min delayed live: lag it
-            oc, op, oc0, op0 = (L._get(k, sd, K, t, 4) for sd, t in (("CE", i - LAG), ("PE", i - LAG), ("CE", j - LAG), ("PE", j - LAG)))
-            oiflow = ((op - op0) - (oc - oc0)) / (oc + op) if np.isfinite(oc + op + oc0 + op0) and oc + op > 0 else np.nan
-            tv = {}
-            for sd in ("CE", "PE"):  # tick rule: sign of the 1m close change x volume, same strike, last 15 bars
-                arr = p["C"].get((sd, K)); v = 0.0; tot = 0.0
-                if arr is not None:
-                    cl, vol = arr[j:i + 1, 3], arr[j + 1:i + 1, 6]; dc = np.sign(np.diff(cl)); ok = np.isfinite(dc) & np.isfinite(vol)
-                    v, tot = float((dc[ok] * vol[ok]).sum()), float(vol[ok].sum())
-                tv[sd] = (v, tot)
-            oflow = (tv["CE"][0] - tv["PE"][0]) / (tv["CE"][1] + tv["PE"][1]) if tv["CE"][1] + tv["PE"][1] > 0 else np.nan
-            x = G.iloc[b]; rng5 = max(x.h - x.l, 1e-9); shape = 1 if (x.c - x.l) / rng5 >= 0.7 and (x.c - x.o) / rng5 > 0.5 else -1 if (x.h - x.c) / rng5 >= 0.7 and (x.o - x.c) / rng5 > 0.5 else 0
-            lv = [a.PDH, a.PDL, orh, orl, _maxoi(k, i - 3)]; near = min(abs(s[i] / v - 1) for v in lv if np.isfinite(v))
-            gap = s[0] / d["c1"] - 1 if np.isfinite(d["c1"]) else np.nan
-            rows.append(dict(sym=k[0], day=k[1], i=i, slot=f"{(M0 + i) // 60:02d}{(M0 + i) % 60:02d}", ampm="AM" if i < 165 else "PM",
-                             adx=x.adx, pdi=x.pdi, mdi=x.mdi, er=x.er, chop=x.chop, r60=s[i] / s[i - 60] - 1, r15=s[i] / s[i - 15] - 1, near_level=near,
-                             gap=gap, rbi=k[1] in L.RBI, fomc=k[1] in L.FOMC, d0=p["d0"], dte=p["dte"], oiflow=oiflow, oflow=oflow, fvg=_fvg(G, b),
-                             cshape=shape, bias=1 if a.TREND == "UP" else -1 if a.TREND == "DN" else 0, gex=_gex(k, i), iv=S._iv(k, i), rv30=_rv(s, i),
-                             div15=S._iv(k, i) - S._iv(k, j), maxoi=_maxoi(k, i - 3), day_ret=s[i] / s[0] - 1, ivpct=IVP.get(k, np.nan)))
+        G = _bars5(k); a = A.loc[k]; d = D[k]
+        for i in SLOTS33: rows.append(_row33(k, i, G, a, d, IVP.get(k, np.nan)))
     F = pd.DataFrame(rows); F["mo"] = F.day.map(L.month); F.to_pickle(fp); print(f"e33 feats {len(F)} rows {time.time() - t0:.0f}s"); return F
+
+
+def study_selftest33():
+    """look-ahead check: the E33 row at slot i must be identical after every minute > i (spot and every contract series) is scrambled."""
+    import copy
+    A = Z.labs()[0]; D = daytab(); rg = np.random.default_rng(7)
+    for k, i in ((KEYS[20], 45), (KEYS[21], 30), (KEYS[300], 135)):
+        orig = copy.deepcopy(P[k]); _SP.pop(k, None); G = _bars5(k); r0 = _row33(k, i, G, A.loc[k], D[k], 0.5)
+        assert 5 * r0["bar5"] + 4 <= i, (r0["bar5"], i)
+        P[k]["spot"][i + 1:] *= rg.uniform(0.9, 1.1, NB - i - 1)
+        for key, arr in P[k]["C"].items(): arr[i + 1:] *= rg.uniform(0.5, 1.5, (NB - i - 1, 1))
+        _SP.pop(k, None); S._EXT.clear(); G2 = _bars5(k); r1 = _row33(k, i, G2, A.loc[k], D[k], 0.5)
+        P[k] = orig; _SP.pop(k, None); S._EXT.clear()
+        for f in r0:
+            a, b = r0[f], r1[f]
+            same = (a == b) or (isinstance(a, float) and isinstance(b, float) and (np.isnan(a) and np.isnan(b) or abs(a - b) < 1e-9))
+            assert same, f"look-ahead in {f} at {k} slot {i}: {a} vs {b}"
+        assert (i < 60) == (not np.isfinite(r0["r60"])), (i, r0["r60"])
+    print("E33 look-ahead known answers OK (closed 5m bar, r60 guard; 3 sym-day slots, all fields unchanged after scrambling the future)")
 
 
 def study_feats33():
@@ -437,6 +463,7 @@ ACTS33N = ACTS33 + ["NONE"]; DESIGNS33 = [(k, thr) for k in (15, 30) for thr in 
 def states(F):
     F = F.copy(); ev = (F.rbi & (F.i == 30)) | F.fomc | ((F.d0 == 1) & (F.i >= 225)) | (F.gap.abs() > 0.005)
     tr = ((F.adx >= 25).astype(int) + (F.er >= 0.35).astype(int) + (F.chop <= 45).astype(int)) >= 2
+    tr = tr & np.isfinite(F.r60)  # before 10:15 the 60-min return is unavailable: no trend direction, fall through to LEVEL / CHOP
     F["regime"] = np.where(ev, "EVENT", np.where(tr, np.where(F.r60 > 0, "TREND_UP", "TREND_DN"), np.where(F.near_level <= 0.0015, "LEVEL", "CHOP")))
     v = np.sign(F.oiflow.fillna(0)) + np.sign(F.oflow.fillna(0)) + F.fvg + F.cshape + F.bias; F["votes"] = v
     F["conf"] = np.where(v >= 2, "BULL", np.where(v <= -2, "BEAR", "NEUT")); F["cell"] = F.regime + "|" + F.conf
