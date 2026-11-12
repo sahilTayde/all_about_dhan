@@ -77,62 +77,200 @@ def features():
     F = pd.concat(out, ignore_index=True); F.to_pickle(fp); return F
 
 
-# ---------------------------------------------------------------- actions (both sides) and their fixed exits
-def pair_legs(short_sym):
-    """placeholder: pairs are priced by two single-index structs (vega-matched lots) in outcomes(); see ACTIONS."""
-    return short_sym
+# ---------------------------------------------------------------- E32 frozen: slots, events, actions, exits
+import book_lab as B
+SLOTS = {30: "0945", 75: "1030", 135: "1130", 225: "1300", 285: "1400"}
+EVENTS = ["E1", "E2", "E3", "E4", "E5", "E6", "E7", "E8", "E9", "E10", "E11", "E12", "NONE"]
+ACTS = ["L_STRAD", "S_STRANGLE1", "L_DIR"]
+DESIGNS = [(k, thr) for k in (15, 30) for thr in (250, 500)]  # exactly 4; Bonferroni 4
+MIN_LEARN, OOS_FROM = 30, "2026-02"
+
+_DT = {}
+def daytab():
+    """per (sym, day): prev close c1, prev open o1, prev H/L, 20-day median daily range (prior days only)."""
+    if _DT: return _DT
+    D = B.daily()
+    for sym, g in D.groupby(level=0):
+        g = g.reset_index(level=0, drop=True); r = (g.h - g.l); med = r.shift(1).rolling(20).median()
+        for day in g.index:
+            if (sym, day) in P:
+                j = g.index.get_loc(day); pv = g.iloc[j - 1] if j > 0 else None
+                _DT[(sym, day)] = dict(c1=pv.c if pv is not None else np.nan, o1=pv.o if pv is not None else np.nan,
+                                       er1=abs(pv.c - pv.o) / (pv.h - pv.l) if pv is not None and pv.h > pv.l else np.nan, med20=med.loc[day])
+    return _DT
 
 
-ACTIONS = {  # name: (legs or 'PAIR', exit kw). Directional actions get dirn from the side; exits are the frozen few.
-    "L_CE": ([("CE", 0, 1)], dict(dirn=1, s_tgt=2, s_stp=1)), "L_PE": ([("PE", 0, 1)], dict(dirn=-1, s_tgt=2, s_stp=1)),
-    "L_CE_tight": ([("CE", 0, 1)], dict(dirn=1, s_tgt=1, s_stp=0.5)), "L_PE_tight": ([("PE", 0, 1)], dict(dirn=-1, s_tgt=1, s_stp=0.5)),
-    "S_STRAD": (S.SSTRAD, dict(sstop=2, stop=0.3)), "S_STRANGLE1": ([("CE", 1, -1), ("PE", -1, -1)], dict(sstop=1.5, stop=0.3)),
-    "L_STRAD": (S.LSTRAD, dict(sstop=2)), "CS_UP": ("CS", dict(dirn=1, s_stp=1)), "CS_DN": ("CS", dict(dirn=-1, s_stp=1)),
-}
-PAIRS = ["PAIR_LN_SS", "PAIR_LS_SN"]  # long NIFTY straddle + short SENSEX straddle (vega-matched whole lots), and the reverse
+def _rv(s, i, n=30):
+    r = np.diff(np.log(s[i - n:i + 1])); r = r[np.isfinite(r)]; return np.sqrt((r ** 2).mean() * 252 * 375) * 100 if len(r) else np.nan
 
 
-def _legs(name, k):
-    legs, kw = ACTIONS[name]
-    if legs == "CS": return S.e5_legs("CE" if kw["dirn"] > 0 else "PE", "cs"), kw
-    return legs, kw
+def _maxoi(k, i):
+    p = P[k]; st = STEP[k[0]]; Ks = p["atm"][i] + st * np.arange(-3, 4)
+    oi = [np.nansum([L._get(k, "CE", x, i, 4), L._get(k, "PE", x, i, 4)]) for x in Ks]; return Ks[int(np.argmax(oi))]
 
 
-def price_candle(k):
-    """all actions at every decision bar of one sym-day -> rows (b, action, pnl, held, forced, why)."""
-    out = []
-    for b in range(B_LO, B_HI + 1):
-        i = TF * b + TF - 1
-        for name in ACTIONS:
-            legs, kw = _legs(name, k); r = S.struct(k, i, legs, mode="cons", **kw)
-            if r: out.append((b, name, r["pnl"], r["held"], r["forced"], r["why"], r.get("credit", np.nan)))
-    return k, out
+_SP = {}
+def spot(k):
+    if k not in _SP: _SP[k] = pd.Series(P[k]["spot"]).ffill().bfill().values
+    return _SP[k]
 
 
-def outcomes():
-    fp = f"{PB}/outcomes.pkl"
+def event(k, i):
+    """the first true event at slot i (priority order), with the features behind it. Data up to minute i only."""
+    s = spot(k); d = daytab()[k]; sym, day = k; o = ("SENSEX" if sym == "NIFTY" else "NIFTY", day); st = STEP[sym]
+    gap = s[0] / d["c1"] - 1 if np.isfinite(d["c1"]) else np.nan; iv = S._iv(k, i); iv15 = S._iv(k, i - 15)
+    r30 = s[i] / s[i - 30] - 1; r15 = s[i] / s[i - 15] - 1; rv = _rv(s, i); orh, orl = s[:31].max(), s[:31].min()
+    ro = spot(o)[i] / spot(o)[i - 30] - 1 if o in P else np.nan
+    f = dict(gap=gap, div=iv - iv15, r30=r30, r15=r15, rv_iv=rv / iv if iv > 0 else np.nan, ro30=ro, rng=(s[:i + 1].max() - s[:i + 1].min()) / d["med20"] if d["med20"] > 0 else np.nan)
+    rev = np.isfinite(gap) and abs(gap) > 0.005 and np.sign(s[30] - s[0]) == -np.sign(gap); con = np.isfinite(gap) and abs(gap) > 0.005 and np.sign(s[30] - s[0]) == np.sign(gap)
+    ev = ("E1" if rev else "E2" if con else "E3" if f["div"] <= -1 else "E4" if (f["div"] >= 1.5 and abs(r15) < 0.002) else
+          "E5" if (s[i] > orh * 1.0015 or s[i] < orl * 0.9985) else "E6" if (i >= 135 and f["rng"] < 0.6) else
+          "E7" if (np.isfinite(ro) and abs(r30 - ro) > 0.003) else "E8" if (P[k]["d0"] and i >= 225 and abs(_maxoi(k, i) / s[i] - 1) < 0.003) else
+          "E9" if ((day in L.RBI and i == 30) or day in L.FOMC) else "E10" if f["rv_iv"] > 1.5 else "E11" if f["rv_iv"] < 0.5 else
+          "E12" if (d["er1"] > 0.6 and np.isfinite(gap) and np.sign(gap) == np.sign(d["c1"] - d["o1"]) and gap != 0) else "NONE")
+    return ev, f
+
+
+def cap(k, i): return float(min(2.5, 0.004 * spot(k)[i] / STEP[k[0]]))
+
+
+def act(k, i, name):
+    """one action at slot i, frozen exits: spot 0.4% (<= 2.5 steps), short premium 1.5x credit, else 15:15."""
+    c = cap(k, i); s = spot(k)
+    if name == "L_STRAD": return S.struct(k, i, S.LSTRAD, sstop=c, mode="cons")
+    if name == "S_STRANGLE1": return S.struct(k, i, [("CE", 1, -1), ("PE", -1, -1)], sstop=c, stop=0.5, mode="cons")
+    sd = "CE" if s[i] - s[i - 30] >= 0 else "PE"; return S.struct(k, i, [(sd, 0, 1)], dirn=1 if sd == "CE" else -1, s_stp=c, mode="cons")
+
+
+def table():
+    """one row per (sym, day, slot, action) with the event and the priced outcome; PAIR rows (sym=PAIR) under E7 only."""
+    fp = f"{PB}/e32_table.pkl"
     if os.path.exists(fp): return pd.read_pickle(fp)
-    t0 = time.time(); rows = []
-    with get_context("fork").Pool(max(1, os.cpu_count() - 1)) as pool:
-        for n, (k, out) in enumerate(pool.imap_unordered(price_candle, KEYS, chunksize=2)):
-            rows += [dict(sym=k[0], day=k[1], b=b, action=a, pnl=p, held=h, forced=f, why=w) for b, a, p, h, f, w, _ in out]
-            if n % 50 == 0: print(f"  {n}/{len(KEYS)} {time.time() - t0:.0f}s", flush=True)
-    O = pd.DataFrame(rows)
-    # pairs: vega-matched whole lots (sell_lab._size on the ATM straddle vega at the bar), priced from the two single-index straddles
-    V = {}
+    t0 = time.time(); rows = []; ev = {}
     for k in KEYS:
-        for b in range(B_LO, B_HI + 1): V[(k[0], k[1], b)] = S._vega(k, TF * b + TF - 1)
-    ss = O[O.action == "S_STRAD"].set_index(["sym", "day", "b"]); ls = O[O.action == "L_STRAD"].set_index(["sym", "day", "b"])
-    pr = []
-    for (sym, day, b), r in ls.iterrows():
-        if sym != "NIFTY" or ("SENSEX", day, b) not in ss.index or ("SENSEX", day, b) not in ls.index or ("NIFTY", day, b) not in ss.index: continue
-        vN, vS = V[("NIFTY", day, b)], V[("SENSEX", day, b)]
-        if not (np.isfinite(vN) and np.isfinite(vS)): continue
-        nN, nS = S._size(vN, vS)  # lots 1..10 each; pnl at 10 lots scales by n/10 (ponytail: brokerage share ignored, < Rs 50)
-        a = ls.loc[("NIFTY", day, b)]; c = ss.loc[("SENSEX", day, b)]; d = ss.loc[("NIFTY", day, b)]; e = ls.loc[("SENSEX", day, b)]
-        pr.append(dict(sym="PAIR", day=day, b=b, action="PAIR_LN_SS", pnl=a.pnl * nN / 10 + c.pnl * nS / 10, held=max(a.held, c.held), forced=a.forced or c.forced, why=a.why + "/" + c.why))
-        pr.append(dict(sym="PAIR", day=day, b=b, action="PAIR_LS_SN", pnl=e.pnl * nS / 10 + d.pnl * nN / 10, held=max(e.held, d.held), forced=e.forced or d.forced, why=e.why + "/" + d.why))
-    O = pd.concat([O, pd.DataFrame(pr)], ignore_index=True); O.to_pickle(fp); print(f"outcomes {len(O)} rows {time.time() - t0:.0f}s"); return O
+        for i in SLOTS:
+            e, f = event(k, i); ev[(k, i)] = (e, f)
+            for a in ACTS:
+                r = act(k, i, a)
+                if r: rows.append(dict(sym=k[0], day=k[1], i=i, slot=SLOTS[i], event=e, action=a, pnl=r["pnl"], held=r["held"], forced=r["forced"], why=r["why"], **f))
+    T = pd.DataFrame(rows); pr = []
+    for (k, i), (e, f) in ev.items():
+        if e != "E7" or k[0] != "NIFTY": continue
+        o = ("SENSEX", k[1]); 
+        if o not in P or not np.isfinite(f["ro30"]): continue
+        lead, lag = (k, o) if abs(f["r30"]) >= abs(f["ro30"]) else (o, k)
+        a, b = act(lag, i, "L_STRAD"), act(lead, i, "S_STRANGLE1"); vl, vs = S._vega(lag, i), S._vega(lead, i)
+        if a and b and np.isfinite(vl) and np.isfinite(vs):
+            nl, ns = S._size(vl, vs)
+            pr.append(dict(sym="PAIR", day=k[1], i=i, slot=SLOTS[i], event="E7", action="PAIR", pnl=a["pnl"] * nl / 10 + b["pnl"] * ns / 10, held=max(a["held"], b["held"]),
+                           forced=a["forced"] or b["forced"], why=a["why"] + "/" + b["why"], lag=lag[0], lots=f"{nl}/{ns}", **f))
+    T = pd.concat([T, pd.DataFrame(pr)], ignore_index=True); T["mo"] = T.day.map(L.month); T.to_pickle(fp)
+    print(f"E32 table {len(T)} rows {time.time() - t0:.0f}s"); return T
+
+
+# ---------------------------------------------------------------- stage 1: do the events predict the next 45 minutes at all?
+def study_atlas():
+    T = table(); E = T[T.action == "L_STRAD"][["sym", "day", "i", "event"]].drop_duplicates(); rows = []
+    for r in E.itertuples():
+        s = spot((r.sym, r.day)); j = min(r.i + 45, NB - 1); rows.append(dict(sym=r.sym, day=r.day, i=r.i, event=r.event, mv=(s[j] / s[r.i] - 1) * 1e4, up=s[j] > s[r.i]))
+    A = pd.DataFrame(rows); days = sorted(A.day.unique()); rg = np.random.default_rng(3); base_abs, base_up = A.mv.abs().mean(), A.up.mean()
+    out = []
+    for e, g in A.groupby("event"):
+        d_abs = g.mv.abs().mean() - base_abs; d_up = g.up.mean() - base_up; bs_abs, bs_up = [], []
+        gd = {d: x for d, x in g.groupby("day")}; ad = {d: x for d, x in A.groupby("day")}
+        for _ in range(2000):
+            pick = rg.choice(days, len(days)); G = pd.concat([gd[d] for d in pick if d in gd]) if any(d in gd for d in pick) else None
+            Aa = pd.concat([ad[d] for d in pick])
+            if G is None or not len(G): continue
+            bs_abs.append(G.mv.abs().mean() - Aa.mv.abs().mean()); bs_up.append(G.up.mean() - Aa.up.mean())
+        bs_abs, bs_up = np.array(bs_abs), np.array(bs_up)
+        out.append(dict(event=e, n=len(g), days=g.day.nunique(), abs_move_bp=round(g.mv.abs().mean(), 1), base_abs_bp=round(base_abs, 1), p_abs=round(2 * min((bs_abs <= 0).mean(), (bs_abs >= 0).mean()), 3),
+                        p_up=round(g.up.mean(), 3), base_up=round(base_up, 3), p_sign=round(2 * min((bs_up <= 0).mean(), (bs_up >= 0).mean()), 3), mean_move_bp=round(g.mv.mean(), 1)))
+    R = pd.DataFrame(out).set_index("event").reindex([e for e in EVENTS if e in set(A.event)]).reset_index(); pd.set_option("display.width", 250)
+    print("STAGE 1 (no selection): next-45-min move after each event vs the base rate of all slots; p = day-block bootstrap, two-sided")
+    print(R.to_string(index=False)); R.to_csv(f"{PB}/e32_atlas.csv", index=False); return R
+
+
+# ---------------------------------------------------------------- policy, benchmarks, verdict
+def _cells(Lr, k):
+    """shrunk EV per (event, action, slot) from learn rows; prior = pooled learn mean of the action, weight k; needs MIN_LEARN rows."""
+    mu = Lr.groupby("action").pnl.mean(); g = Lr.groupby(["event", "action", "slot"]).pnl.agg(["mean", "size"])
+    g = g[g["size"] >= MIN_LEARN]; return {idx: (r["size"] * r["mean"] + k * mu[idx[1]]) / (r["size"] + k) for idx, r in g.iterrows()}
+
+
+def simulate(T, choose, months):
+    """sequential: per sym-day, slots in order, one open position per index. choose(row_group) -> action or None.
+    row_group = the rows of that (sym, day, slot). Returns trades DataFrame."""
+    out = []
+    for (sym, day), g in T[T.mo.isin(months) & (T.sym != "PAIR")].groupby(["sym", "day"], sort=True):
+        busy = -1
+        for i, h in g.groupby("i", sort=True):
+            if i <= busy: continue
+            a = choose(h)
+            if a is None: continue
+            r = h[h.action == a]
+            if not len(r): continue
+            r = r.iloc[0]; out.append(dict(sym=sym, day=day, i=i, slot=r.slot, event=r.event, action=a, pnl=r.pnl, forced=r.forced, mo=r.mo)); busy = i + 1 + r.held
+    return pd.DataFrame(out)
+
+
+def study_policy():
+    T = table(); months = MONTHS; oos = [m for m in months if m >= OOS_FROM]; days_oos = sorted(T[T.mo.isin(oos)].day.unique())
+    pd.set_option("display.width", 250); res = []; rg = np.random.default_rng(11)
+    def daily(tr): return tr.groupby("day").pnl.sum().reindex(days_oos).fillna(0.0) if len(tr) else pd.Series(0.0, index=days_oos)
+    # benchmarks
+    b1 = simulate(T, lambda h: "S_STRANGLE1" if h.i.iloc[0] == 30 else None, oos)
+    b2 = []
+    for m in oos:
+        Lr = T[(T.mo < m) & (T.sym != "PAIR")]; best = {}
+        for sl, g in Lr.groupby("slot"): mu = g.groupby("action").pnl.mean(); best[sl] = mu.idxmax() if mu.max() > 0 else None
+        b2.append(simulate(T, lambda h, best=best: best.get(h.slot.iloc[0]), [m]))
+    b2 = pd.concat(b2) if any(len(x) for x in b2) else pd.DataFrame(columns=["day", "pnl", "mo"]); d1, d2 = daily(b1), daily(b2)
+    print(f"benchmark (i) always short strangle 09:45: OOS net {d1.sum():,.0f} on {len(b1)} trades; (ii) best unconditional action walk-forward: OOS net {d2.sum():,.0f} on {len(b2)} trades")
+    for k, thr in DESIGNS:
+        tr = []
+        for m in oos:
+            C = _cells(T[(T.mo < m) & (T.sym != "PAIR")], k)
+            def choose(h, C=C):
+                e, sl = h.event.iloc[0], h.slot.iloc[0]; best, ba = thr, None
+                for a in ACTS:
+                    v = C.get((e, a, sl))
+                    if v is not None and v > best: best, ba = v, a
+                return ba
+            tr.append(simulate(T, choose, [m]))
+        tr = pd.concat(tr) if any(len(x) for x in tr) else pd.DataFrame(columns=["day", "pnl", "mo", "forced", "event", "action"]); dp = daily(tr)
+        ex = dp - d2; mo = ex.groupby(pd.Series(ex.index, index=ex.index).map(L.month)).sum(); pm = dp.groupby(pd.Series(dp.index, index=dp.index).map(L.month)).sum()
+        bs = rg.choice(ex.values, (4000, len(ex))).mean(1); p = float((bs <= 0).mean())
+        # random policies: same monthly trade count, random (sym-day, slot, action) rows of that month
+        rnd = np.zeros(1000)
+        for m in oos:
+            n = int((tr.mo == m).sum()) if len(tr) else 0; pool = T[(T.mo == m) & (T.sym != "PAIR")].pnl.values
+            if n and len(pool): rnd += np.array([rg.choice(pool, n).sum() for _ in range(1000)])
+        pct = float((rnd < dp.sum()).mean()); forced = float(tr.forced.mean() * 100) if len(tr) else 0.0
+        verdict = ("INCONCLUSIVE" if forced > 10 else "PASS(CANDIDATE)" if (ex.sum() > 0 and p * 4 < 0.05 and (mo > 0).sum() >= 6 and pct >= 0.95 and dp.sum() > 50000) else "PARKED")
+        r = dict(k=k, thr=thr, trades=len(tr), oos_net=round(dp.sum()), excess_vs_bench2=round(ex.sum()), p_excess=round(p, 4), p_bonf4=round(min(1, 4 * p), 4), months_pos=f"{(pm > 0).sum()}/{len(oos)}",
+                 excess_months_pos=f"{(mo > 0).sum()}/{len(oos)}", beats_random_pct=round(pct * 100, 1), forced_pct=round(forced, 1), verdict=verdict,
+                 by_action=tr.groupby("action").pnl.agg(["size", "sum"]).round(0).to_dict("index") if len(tr) else {})
+        res.append(r); print(r, flush=True)
+    R = pd.DataFrame(res); R.to_csv(f"{PB}/e32_policy.csv", index=False)
+    # the playbook as learned on the whole year (display only): event x action mean, n, win
+    Pk = T[T.sym != "PAIR"].groupby(["event", "action"]).pnl.agg(n="size", mean="mean", win=lambda x: (x > 0).mean() * 100, total="sum").round(0)
+    print("\nPLAYBOOK on the whole year (in-sample, display only):"); print(Pk.unstack(1).to_string())
+    pr = T[T.sym == "PAIR"]; print(f"\nPAIR under E7 (reported separately): n {len(pr)}, mean {pr.pnl.mean() if len(pr) else 0:,.0f}, total {pr.pnl.sum() if len(pr) else 0:,.0f}, win {(pr.pnl > 0).mean() * 100 if len(pr) else 0:.0f}%, forced {pr.forced.mean() * 100 if len(pr) else 0:.0f}%")
+    print("\nevents per slot (sym-day counts):"); print(T[T.action == "L_STRAD"].groupby(["event", "slot"]).size().unstack(1).fillna(0).astype(int).to_string())
+    Pk.to_csv(f"{PB}/e32_playbook.csv"); return R
+
+
+def study_selftest():
+    """event priority on a synthetic day; simulator busy rule; shrinkage arithmetic."""
+    k = KEYS[0]; e, f = event(k, 30); assert e in EVENTS and isinstance(f["r30"], float)
+    T = pd.DataFrame([dict(sym="N", day="d", i=30, slot="0945", event="E1", action="L_STRAD", pnl=100.0, held=60, forced=False, why="t", mo="m"),
+                      dict(sym="N", day="d", i=75, slot="1030", event="E1", action="L_STRAD", pnl=100.0, held=5, forced=False, why="t", mo="m"),
+                      dict(sym="N", day="d", i=135, slot="1130", event="E1", action="L_STRAD", pnl=100.0, held=5, forced=False, why="t", mo="m")])
+    tr = simulate(T, lambda h: "L_STRAD", ["m"]); assert list(tr.i) == [30, 135], list(tr.i)  # 10:30 skipped: the 09:45 trade is open until 10:46
+    Lr = pd.DataFrame(dict(event=["E1"] * 40 + ["E2"] * 40, action="L_STRAD", slot="0945", pnl=[1000.0] * 40 + [-1000.0] * 40))
+    C = _cells(Lr, 40); assert abs(C[("E1", "L_STRAD", "0945")] - 500) < 1e-9 and abs(C[("E2", "L_STRAD", "0945")] + 500) < 1e-9  # pooled mean 0, weight 40 = half-way
+    assert cap(k, 30) <= 2.5; print("playbook_lab selftest OK")
 
 
 def study_candles(): C = candles(); print(C.shape); print(C.head(3).to_string())
