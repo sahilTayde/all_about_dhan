@@ -694,8 +694,6 @@ def study_selftest():
     print(f"sweep_lab selftest OK ({ok} checks; SPA noise p {p0:.2f}, signal p {p1:.3f})")
 
 
-if __name__ == "__main__":
-    for a in [a for a in sys.argv[2:] if not a.startswith("-")]: globals()["study_" + a]()
 
 
 # ---------------------------------------------------------------- forward tape (run ONCE on the frozen top 5; shadow fills)
@@ -773,11 +771,13 @@ def study_forward():
             if np.isfinite(s).sum() < 300 or not np.isfinite(s[:31]).all():
                 print(f"{day} {sym}: NO_DATA ({int(np.isfinite(s).sum())} spot minutes)"); continue
             c = _tape_ctx(sym, day, pd.Series(s).ffill().values, F); _CTX[(sym, day)] = c
+            fr = next((r for r in F.day_rows(day, spot, q) if r["sym"] == sym), {}); c["orv"] = fr.get("ratio", np.nan) if fr.get("status") == "OK" else np.nan
             for vid in ids:
                 fam, nm, struct, xn, gate = vid.split("|"); gn, col, gv = G[gate]
                 if col == "SYM" and gv != sym: continue
-                if col in ("DTE", "OPEN") or (col is not None and c["a"].get(col) != gv):
-                    rows.append(dict(day=day, sym=sym, id=vid, status="GATE_OFF" if col not in ("DTE", "OPEN") else "GATE_UNKNOWN")); continue
+                lab = dict(c["a"].to_dict(), SYM=sym, OPEN=("calm" if c["orv"] <= 1.0042 else "active") if np.isfinite(c["orv"]) else None, DTE=None)
+                if col is not None and lab.get(col) != gv:
+                    rows.append(dict(day=day, sym=sym, id=vid, status="GATE_OFF" if lab.get(col) is not None else "GATE_UNKNOWN")); continue
                 fn, lo, hi = sm[nm]
                 try: sig = fn((sym, day))
                 except Exception as e_: rows.append(dict(day=day, sym=sym, id=vid, status="SIG_ERR " + type(e_).__name__)); continue
@@ -790,3 +790,7 @@ def study_forward():
     R = pd.DataFrame(rows); pd.set_option("display.width", 250); print(R.to_string(index=False)); R.to_csv(f"{SW}/forward.csv", index=False)
     ok = R[R.status == "OK"] if "pnl" in R else R.iloc[0:0]
     print(f"forward: {len(ok)} trades, net Rs {ok.pnl.sum() if len(ok) else 0:,.0f} on {len(days)} tape days (cannot decide anything at this size)")
+
+
+if __name__ == "__main__":
+    for a in [a for a in sys.argv[2:] if not a.startswith("-")]: globals()["study_" + a]()
