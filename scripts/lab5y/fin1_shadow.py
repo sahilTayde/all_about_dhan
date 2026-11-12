@@ -34,6 +34,7 @@ DATA = Path(os.environ.get("FIN1_DATA", ROOT / "data"))  # history (ohlc json, e
 TAPE = Path(os.environ.get("FIN1_TAPE", ROOT / "data" / "tape" / "v2"))
 LOG = ROOT / "data" / "recon" / "fin1_shadow.jsonl"
 FWD = ROOT / "data" / "recon" / "forward_view.jsonl"; FWD_SVG = ROOT / "data" / "recon" / "forward_view"
+DIST = ROOT / "data" / "recon" / "candidate_dist.json"  # E26: 1y P&L distribution per candidate (casino_lab.py dist)
 MED_RVIV = 0.5434115813664702  # frozen: dev-period median of rest-of-day RV/IV (research E6)
 M0 = 555; NMIN = 329  # minutes 09:46 -> 15:15
 
@@ -338,6 +339,7 @@ def forward(day, spot, q):
         # IV is solved on calendar time T: the 09:46->15:15 share of the option's total variance is NMIN / trading minutes left
         sig = S0 * iv / 100 * math.sqrt(T * NMIN / _left_min(day, x[3]))
         o.update(S0=S0, K=K, iv=round(iv, 3), sig=round(sig, 3), ratio=r["ratio"], fin1_signal=r["signal"], s2_signal=r["s2_signal"],
+                 sc1_signal=r.get("sc1_signal"), b1_nr4=r.get("b1_nr4"),
                  path=[sp[_mm(m)] if _mm(m) in sp else None for m in range(NMIN + 1)], move=None, z=None, broke1=None, broke2=None, rv_rest=None, y_ratio=None, y=None)
         cl = [sp[_mm(m)] for m in range(NMIN + 1) if _mm(m) in sp]
         if "15:15" in sp and len(cl) >= 320:  # gaps would annualise a multi-minute return as one minute
@@ -393,6 +395,67 @@ def svg(rows):
     return "".join(o) + "</svg>"
 
 
+def candidates(r):
+    """E26: names of the candidate trades open on this sym-day at 09:46 (B1 = armed on an NR4 day; it triggers later)."""
+    c = (["FIN1"] if r.get("fin1_signal") else []) + (["S2"] if r.get("s2_signal") else []) + (["SC1"] if r.get("sc1_signal") else [])
+    if r.get("s2_signal") and r.get("sc1_signal") and r.get("sym") == "NIFTY": c.append("SGATE")
+    return c + (["B1"] if r.get("b1_nr4") else [])
+
+
+def dist_lines(r, dist=None):
+    """E26 decision chart, text form: each candidate's 1y P&L distribution (10 lots, cons engine) before entry. Not a forecast."""
+    if dist is None:
+        dist = json.loads(DIST.read_text()) if DIST.is_file() else {}
+    out = []
+    for n in candidates(r):
+        d = dist.get(n)
+        if not d: out.append(f"  DIST {n}: no history table (run casino_lab.py OUT dist)"); continue
+        warn = " [UNDECIDABLE on history: bounds]" if n == "FIN1" else " [forward-only]" if n in ("S2", "SC1", "SGATE") else ""
+        out.append(f"  DIST {n}{warn}: n {d['n']} mean {d['mean']:+,} p10 {d['p10']:+,} p50 {d['p50']:+,} p90 {d['p90']:+,} "
+                   f"P(win) {d['p_win']:.0%} | dev mean {d['dev_mean']:+,} holdout mean {d['ho_mean']:+,}")
+    return out
+
+
+LADDER = [0, 1, 2, 5, 10]  # lots per rung; rung 0 = log-only. Every strategy starts at rung 0 (frozen 2026-11-12).
+SHORT_GAMMA = {"SGATE"}
+
+
+def decide(row, state=None, dist=None):
+    """One sym-day at 09:46 -> list of decisions. row: forward-view fields (sym, status, s2_signal, sc1_signal, b1_nr4, spread_ok).
+    state: {"rung": {id: n}, "day_pnl": x, "week_pnl": x, "halted": bool, "recorder_ok": bool, "open_short_gamma": set of syms}.
+    dist: candidate_dist.json (p05 = dev 5th-pct single-trade loss at 10 lots). Order (Fable tree, E27-E30 all killed):
+    health -> loss limits -> SGATE (short straddle 09:47, 2-step spot or 15:15) -> B1 (NR4 stretch breakout, armed for 09:20-14:00).
+    Returns [{"id", "action": TRADE|LOG_ONLY|NO_TRADE|NO_DATA, "lots", "entry", "exit", "why"}]; LOG_ONLY never sends an order.
+    NO_DATA (no tape / failed health) is not a decision and is excluded from forward counts. day_pnl / week_pnl = realised + open
+    P&L at cons marks, re-checked every minute by the caller. `halted` is sticky: only the founder clears it. Every TRADE carries a
+    hard per-trade flatten at -L (Fable critic 2026-11-12)."""
+    st = dict(rung={}, day_pnl=0.0, week_pnl=0.0, halted=False, recorder_ok=True, open_short_gamma=set()); st.update(state or {})
+    dist = dist or {}; sym = row.get("sym")
+    cand = []
+    if row.get("s2_signal") and row.get("sc1_signal") and sym == "NIFTY":
+        cand.append(("SGATE", "09:47 sell ATM CE+PE", "spot 2 steps from entry, else 15:15"))
+    if row.get("b1_nr4"):
+        cand.append(("B1", "first 1m close beyond open +- stretch (09:20-14:00), buy ATM", "opposite trigger / 2.5 steps, else 15:15"))
+    if row.get("status") != "OK" or not row.get("spread_ok", True):
+        return [dict(id="-", action="NO_DATA", lots=0, entry="", exit="", why="no tape or data health failed (not counted)")]
+    if not cand: return [dict(id="-", action="NO_TRADE", lots=0, entry="", exit="", why="no candidate signal")]
+    stop = lambda n: abs(dist.get(n, {}).get("p05", 0)) * max(LADDER[st["rung"].get(n, 0)], 1) / 10
+    out = []
+    for n, en, ex in cand:
+        lots = LADDER[st["rung"].get(n, 0)]
+        if st["halted"]: why, act = "halted (fill mismatch kill switch)", "NO_TRADE"
+        elif st["day_pnl"] <= -2 * stop(n): why, act = "daily stop 2L hit", "NO_TRADE"
+        elif st["week_pnl"] <= -4 * stop(n): why, act = "weekly stop 4L hit", "NO_TRADE"
+        elif n in SHORT_GAMMA and sym in st["open_short_gamma"]: why, act = "one short-gamma per index", "NO_TRADE"
+        elif not st["recorder_ok"] or lots == 0: why, act = "log-only rung (needs >= 40 forward trades to promote)" if lots == 0 else "recorder down", "LOG_ONLY"
+        else: why, act = "rules pass", "TRADE"
+        out.append(dict(id=n, action=act, lots=lots if act == "TRADE" else 0, entry=en,
+                        exit=ex + (f"; hard flatten at -{stop(n):,.0f}" if act == "TRADE" else ""), why=why))
+    trades = [o for o in out if o["action"] == "TRADE"]
+    for o in trades[2:]: o.update(action="NO_TRADE", lots=0, why="max 2 open structures")
+    return out
+
+
 def run_forward(arg):
     days = sorted(p.name for p in TAPE.iterdir() if (p / "quote_snapshots.jsonl").is_file()) if arg == "all" and TAPE.is_dir() else [arg]
     for day in days:
@@ -404,11 +467,19 @@ def run_forward(arg):
             act = "FIN1 BUY" if r["fin1_signal"] else "S2 SELL" if r["s2_signal"] else "no signal"
             print(f"FWD {day} {r['sym']}: S0 {r['S0']:.1f} ±1σ {r['sig']:.1f} ({100 * r['sig'] / r['S0']:.2f}%) ratio {r['ratio']:.2f} -> {act} | "
                   + (f"close z={r['z']:+.2f} broke1={r['broke1']}" if r["z"] is not None else "close: not yet"))
+            for ln in dist_lines(r): print(ln)
+            dist = json.loads(DIST.read_text()) if DIST.is_file() else {}
+            for d in decide(r, None, dist): print(f"  DESK {d['id']}: {d['action']} lots {d['lots']} | {d['entry']} | exit {d['exit']} | {d['why']}")
     print(calibration(read_log(FWD)))
     if days and (FWD_SVG / f"{days[-1]}.svg").is_file(): print(f"SVG: {FWD_SVG}/{days[-1]}.svg")
 
 
 def selftest():
+    D = {"S2": dict(n=10, mean=100, p10=-5, p50=50, p90=300, p_win=0.6, dev_mean=120, ho_mean=-40)}
+    ls = dist_lines(dict(sym="NIFTY", fin1_signal=False, s2_signal=True, sc1_signal=True, b1_nr4=False), D)
+    assert candidates(dict(sym="NIFTY", s2_signal=True, sc1_signal=True)) == ["S2", "SC1", "SGATE"] and len(ls) == 3
+    assert ls[0] == "  DIST S2 [forward-only]: n 10 mean +100 p10 -5 p50 +50 p90 +300 P(win) 60% | dev mean +120 holdout mean -40", ls[0]
+    assert "no history table" in ls[1] and candidates(dict(sym="SENSEX", s2_signal=True, sc1_signal=True)) == ["S2", "SC1"]
     assert abs(implied_vol(bs(22700, 22700, 5 / 365, 0.14, 0.065, "CE"), 22700, 22700, 5 / 365, "CE") - 14) < 1e-6
     assert implied_vol(0.01, 22700, 22000, 5 / 365, "CE") != implied_vol(0.01, 22700, 22000, 5 / 365, "CE")  # below intrinsic: nan
     assert abs(rv_open([100 * math.exp(0.001 * i) for i in range(31)]) - math.sqrt(30 * 1e-6 * 252 * 375 / 30) * 100) < 1e-9
