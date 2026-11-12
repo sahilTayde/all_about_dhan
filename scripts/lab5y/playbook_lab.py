@@ -279,5 +279,137 @@ def study_outcomes():
     O = outcomes(); print(O.groupby("action").pnl.agg(["size", "mean", lambda x: (x > 0).mean()]).round(2).to_string())
 
 
+
+
+# ================================================================ E33: regime x confirmation raw features (frozen thresholds applied later)
+SLOTS33 = list(range(30, 316, 15))  # 09:45 .. 14:30 every 15 min
+
+
+def _bars5(k):
+    """5m bars of the day from the spot (o/h/l/c of minute closes) with ADX(14), ER(12), Choppiness(14) computed on the day's own bars
+    plus the previous day's bars as warm-up (continuous per sym, as book_lab.bars15)."""
+    sym, day = k; prev = [x for x in KEYS if x[0] == sym and x[1] < day]; ks = prev[-1:] + [k]; rows = []
+    for kk in ks:
+        f = spot(kk)
+        for b in range(NB // 5):
+            x = f[5 * b:5 * b + 5]; rows.append((kk[1], b, x[0], x.max(), x.min(), x[-1]))
+    G = pd.DataFrame(rows, columns=["day", "b", "o", "h", "l", "c"]); h, l, c = G.h.values, G.l.values, G.c.values; n = len(G)
+    pc = np.r_[c[0], c[:-1]]; tr = np.maximum.reduce([h - l, abs(h - pc), abs(l - pc)]); rma = lambda x, p: pd.Series(x).ewm(alpha=1 / p, adjust=False).mean().values
+    ph, pl = np.r_[h[0], h[:-1]], np.r_[l[0], l[:-1]]; um, dm = h - ph, pl - l
+    pdm = np.where((um > dm) & (um > 0), um, 0.0); mdm = np.where((dm > um) & (dm > 0), dm, 0.0); a14 = rma(tr, 14) + 1e-9
+    pdi, mdi = 100 * rma(pdm, 14) / a14, 100 * rma(mdm, 14) / a14; G["adx"] = rma(100 * abs(pdi - mdi) / (pdi + mdi + 1e-9), 14); G["pdi"], G["mdi"] = pdi, mdi
+    G["er"] = (abs(c - np.r_[[c[0]] * 12, c[:-12]]) / (pd.Series(abs(np.diff(c, prepend=c[0]))).rolling(12).sum().values + 1e-9))
+    hh, ll = pd.Series(h).rolling(14).max().values, pd.Series(l).rolling(14).min().values
+    G["chop"] = 100 * np.log10(pd.Series(tr).rolling(14).sum().values / np.maximum(hh - ll, 1e-9)) / np.log10(14)
+    return G[G.day == day].reset_index(drop=True)
+
+
+def _fvg(G, b, look=12):
+    """unfilled 3-candle fair value gap among bars <= b, within the last `look` bars, that price has retraced INTO at bar b:
+    +1 bullish (bar t-2 high < bar t low, close_b inside), -1 bearish, else 0. Latest gap wins."""
+    h, l, c = G.h.values, G.l.values, G.c.values; cb = c[b]
+    for t in range(b, max(2, b - look), -1):
+        if h[t - 2] < l[t]:  # bullish gap between h[t-2] and l[t]
+            if l[t + 1:b + 1].min() <= h[t - 2] if t + 1 <= b else False: continue  # filled since
+            if h[t - 2] <= cb <= l[t]: return 1
+        if l[t - 2] > h[t]:
+            if h[t + 1:b + 1].max() >= l[t - 2] if t + 1 <= b else False: continue
+            if h[t] <= cb <= l[t - 2]: return -1
+    return 0
+
+
+def _n01(x): return math.exp(-x * x / 2) / math.sqrt(2 * math.pi)
+
+
+def _gex(k, i):
+    """sign-only gamma exposure proxy over ATM+-3 at minute i: sum OI x gamma x S^2 x 0.01, calls +, puts - (dealer-short-call /
+    dealer-short-put convention of the vendor literature). Black-76 gamma from the strike's own IV, T to 15:30 of expiry in trading days."""
+    p = P[k]; s = spot(k)[i]; st = STEP[k[0]]; T = max((p["dte"] + (930 - M0 - i) / 375) / 252, 1e-6); g = 0.0
+    for off in range(-3, 4):
+        K = p["atm"][i] + off * st
+        for sd, sg in (("CE", 1), ("PE", -1)):
+            iv, oi = L._get(k, sd, K, i, 5), L._get(k, sd, K, i, 4)
+            if not (np.isfinite(iv) and np.isfinite(oi) and iv > 0): continue
+            v = iv / 100; d1 = (math.log(s / K) + 0.5 * v * v * T) / (v * math.sqrt(T)); gamma = _n01(d1) / (s * v * math.sqrt(T))
+            g += sg * oi * gamma * s * s * 0.01
+    return g
+
+
+def regime_feats():
+    """raw E33 features per (sym, day, slot minute i), data up to minute i only."""
+    fp = f"{PB}/e33_feats.pkl"
+    if os.path.exists(fp): return pd.read_pickle(fp)
+    t0 = time.time(); A = Z.labs()[0]; D = daytab(); rows = []
+    for k in KEYS:
+        s = spot(k); st = STEP[k[0]]; G = _bars5(k); a = A.loc[k]; d = D[k]; p = P[k]; orh, orl = s[:31].max(), s[:31].min()
+        for i in SLOTS33:
+            b = i // 5; K = p["atm"][i]; j = i - 15
+            oc, op, oc0, op0 = (L._get(k, sd, K, t, 4) for sd, t in (("CE", i), ("PE", i), ("CE", j), ("PE", j)))
+            oiflow = ((op - op0) - (oc - oc0)) / (oc + op) if np.isfinite(oc + op + oc0 + op0) and oc + op > 0 else np.nan
+            tv = {}
+            for sd in ("CE", "PE"):  # tick rule: sign of the 1m close change x volume, same strike, last 15 bars
+                arr = p["C"].get((sd, K)); v = 0.0; tot = 0.0
+                if arr is not None:
+                    cl, vol = arr[j:i + 1, 3], arr[j + 1:i + 1, 6]; dc = np.sign(np.diff(cl)); ok = np.isfinite(dc) & np.isfinite(vol)
+                    v, tot = float((dc[ok] * vol[ok]).sum()), float(vol[ok].sum())
+                tv[sd] = (v, tot)
+            oflow = (tv["CE"][0] - tv["PE"][0]) / (tv["CE"][1] + tv["PE"][1]) if tv["CE"][1] + tv["PE"][1] > 0 else np.nan
+            x = G.iloc[b]; rng5 = max(x.h - x.l, 1e-9); shape = 1 if (x.c - x.l) / rng5 >= 0.7 and (x.c - x.o) / rng5 > 0.5 else -1 if (x.h - x.c) / rng5 >= 0.7 and (x.o - x.c) / rng5 > 0.5 else 0
+            lv = [a.PDH, a.PDL, orh, orl, _maxoi(k, i)]; near = min(abs(s[i] / v - 1) for v in lv if np.isfinite(v))
+            gap = s[0] / d["c1"] - 1 if np.isfinite(d["c1"]) else np.nan
+            rows.append(dict(sym=k[0], day=k[1], i=i, slot=f"{(M0 + i) // 60:02d}{(M0 + i) % 60:02d}", ampm="AM" if i < 165 else "PM",
+                             adx=x.adx, pdi=x.pdi, mdi=x.mdi, er=x.er, chop=x.chop, r60=s[i] / s[i - 60] - 1, r15=s[i] / s[i - 15] - 1, near_level=near,
+                             gap=gap, rbi=k[1] in L.RBI, fomc=k[1] in L.FOMC, d0=p["d0"], dte=p["dte"], oiflow=oiflow, oflow=oflow, fvg=_fvg(G, b),
+                             cshape=shape, bias=1 if a.TREND == "UP" else -1 if a.TREND == "DN" else 0, gex=_gex(k, i), iv=S._iv(k, i), rv30=_rv(s, i),
+                             div15=S._iv(k, i) - S._iv(k, j), maxoi=_maxoi(k, i), day_ret=s[i] / s[0] - 1))
+    F = pd.DataFrame(rows); F["mo"] = F.day.map(L.month); F.to_pickle(fp); print(f"e33 feats {len(F)} rows {time.time() - t0:.0f}s"); return F
+
+
+def study_feats33():
+    F = regime_feats(); pd.set_option("display.width", 250)
+    print(F[["adx", "er", "chop", "near_level", "oiflow", "oflow", "fvg", "cshape", "gex", "div15"]].describe().round(3).to_string())
+    print("fvg counts", F.fvg.value_counts().to_dict(), "cshape", F.cshape.value_counts().to_dict(), "gex>0 share", (F.gex > 0).mean().round(3))
+
+
+
+# ---------------------------------------------------------------- E33 actions: naked CE/PE buy and sell, strangle, straddle; super-order exits
+X33 = dict(l_stop=0.30, l_tgt=0.60, l_trail=0.20, s_stop=0.5, s_tgt=0.5, cap=2.5)  # frozen in E33 rule 6 (critic may set the numbers)
+ACTS33 = ["L_CE", "L_PE", "S_CE", "S_PE", "S_STRANGLE1", "L_STRAD"]
+
+
+def act33(k, i, name, X=X33):
+    """Long single leg = opt1y_lab.trade (intrabar SL at min(trigger, next open) = a resting super-order SL; target at the target;
+    trailing SL below the running high; spot adverse cap in index points) -> normalised to the struct dict. Short single leg and
+    structures = sell_lab.struct (close-based triggers filled at the next open, cons bounds). D7 caveat for the long leg: a strike
+    leaving the window exits at its last close (forced=True), which forfeits further gains, never invents them."""
+    s = spot(k); st = STEP[k[0]]; c = min(X["cap"], 0.004 * s[i] / st)
+    if name in ("L_CE", "L_PE"):
+        sd = name[2:]; r = L.trade(k, i, sd, 0, hold=None, stop=X["l_stop"], tgt=X["l_tgt"], trail=X["l_trail"], idx_stop=c * st)
+        return None if r is None else dict(pnl=r[0], held=r[1], forced=r[2], why="trade")
+    if name in ("S_CE", "S_PE"): return S.struct(k, i, [(name[2:], 0, -1)], stop=X["s_stop"], tgt=X["s_tgt"], sstop=c, mode="cons")
+    if name == "S_STRANGLE1": return S.struct(k, i, [("CE", 1, -1), ("PE", -1, -1)], stop=X["s_stop"], tgt=X["s_tgt"], sstop=c, mode="cons")
+    return S.struct(k, i, S.LSTRAD, sstop=c, mode="cons")
+
+
+def _price33(k):
+    return k, [(i, a, r["pnl"], r["held"], r["forced"], r["why"]) for i in SLOTS33 for a in ACTS33 for r in [act33(k, i, a)] if r]
+
+
+def table33():
+    fp = f"{PB}/e33_table.pkl"
+    if os.path.exists(fp): return pd.read_pickle(fp)
+    t0 = time.time(); rows = []
+    with get_context("fork").Pool(max(1, os.cpu_count() - 1)) as pool:
+        for k, out in pool.imap_unordered(_price33, KEYS, chunksize=4):
+            rows += [dict(sym=k[0], day=k[1], i=i, action=a, pnl=p_, held=h, forced=f, why=w) for i, a, p_, h, f, w in out]
+    T = pd.DataFrame(rows).merge(regime_feats(), on=["sym", "day", "i"], how="left"); T.to_pickle(fp)
+    print(f"e33 table {len(T)} rows {time.time() - t0:.0f}s"); return T
+
+
+def study_table33():
+    T = table33(); pd.set_option("display.width", 250)
+    print(T.groupby("action").agg(n=("pnl", "size"), mean=("pnl", "mean"), win=("pnl", lambda x: (x > 0).mean() * 100), forced=("forced", "mean")).round(2).to_string())
+
+
 if __name__ == "__main__":
     for a in [a for a in sys.argv[2:] if not a.startswith("-")]: globals()["study_" + a]()
