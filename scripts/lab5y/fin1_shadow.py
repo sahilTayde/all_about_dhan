@@ -17,14 +17,17 @@ ask nearest 15:15:00. Dev +5.07L (257 trades, p 0.03) but holdout -53k (97): log
   .venv/bin/python scripts/lab5y/fin1_shadow.py day [YYYY-MM-DD]   # one day -> data/recon/fin1_shadow.jsonl
   .venv/bin/python scripts/lab5y/fin1_shadow.py week [N]           # report on the last N logged days (default 5)
   .venv/bin/python scripts/lab5y/fin1_shadow.py forward [YYYY-MM-DD|all]  # read-only forward view: 1-sigma cone from 09:46 ATM IV
-  .venv/bin/python scripts/lab5y/fin1_shadow.py leads             # one line per log-only lead (B1, SC1, S1 in a 20-day-range high, IVS)
+  .venv/bin/python scripts/lab5y/fin1_shadow.py leads             # one line per log-only lead (B1, SC1, S1 in a 20-day-range high, IVS, E33 cells + CONF)
   .venv/bin/python scripts/lab5y/fin1_shadow.py selftest
 
 Log-only forward leads (2026-10-29, registry B1 / SC1 / E21; never change FIN1/S2): B1 Crabel NR4 stretch breakout (book_lab.sig_b1
 + sell_lab.struct long, shadow fills), SC1 = S1 (the S2 legs without the RV/IV filter) after a contracting day (prior range < 0.7 x
 mean of the 20 before), E21 labels LOC20 / TREND (scen_lab.dfeat). Prior-day bars: 5y idx 1m json (book_lab.daily source), then the
 options-panel spot (expired_opts ATM CE spot, as the panel), then this log's own `bar` field for tape days.
-IVS (2026-11-13, registry E31 lead, log only): on expiry days with a calm opening, sell the OTM1 strangle after a 1-point ATM IV fall (`ivs_trade`)."""
+IVS (2026-11-13, registry E31 lead, log only): on expiry days with a calm opening, sell the OTM1 strangle after a 1-point ATM IV fall (`ivs_trade`).
+E33 (2026-11-13, registry E33, log only, rung 0): per 15-min slot 09:45..14:30 the REGIME (EVENT > TREND_UP/DN > LEVEL > CHOP) and the CONF votes of
+playbook_lab (`e33_state`), the realised next-45-min move, and shadow fills of the three lead cells (TREND_UP x BEAR/NEUT -> sell ATM CE; LEVEL x BEAR
+-> long ATM PE and sell ATM CE) with the frozen super-order-style exits. The tape has no OI/volume: those two votes are None, never invented."""
 import json, math, os, random, re, sys
 from datetime import date, datetime, timedelta
 from pathlib import Path
@@ -83,16 +86,26 @@ def rv_open(closes):
 def _hms(ts): return ts[11:19]  # "2026-10-22T09:45:12.3+05:30" -> "09:45:12" (tape timestamps are IST)
 
 
-def load(day):
-    d = TAPE / day; spot = {u: {} for u in IDX.values()}  # sym -> {"HH:MM": last ltp in that minute}
-    with open(d / "depth_quotes.jsonl", encoding="utf-8") as f:
+def _tape_spot(day):
+    spot = {u: {} for u in IDX.values()}  # sym -> {"HH:MM": last ltp in that minute}
+    with open(TAPE / day / "depth_quotes.jsonl", encoding="utf-8") as f:
         for ln in f:
             if "_IDX:" not in ln: continue
             try: e = json.loads(ln); p = e["payload"]
             except (ValueError, KeyError): continue
             u = IDX.get(p.get("instrument_id")); t = _hms(e.get("timestamp", ""))
             if u and p.get("ltp") and "09:15:00" <= t < "15:30:00": spot[u][t[:5]] = float(p["ltp"])
-    q = {}  # (sym, strike, side) -> [(hh:mm:ss, bid, ask)]
+    return spot
+
+
+def _prev_tape_spot(day):
+    """spot minutes of the latest taped day before `day` (E33 indicator warm-up), {} if none."""
+    prev = sorted(p.name for p in TAPE.iterdir() if p.name < day and (p / "depth_quotes.jsonl").is_file()) if TAPE.is_dir() else []
+    return _tape_spot(prev[-1]) if prev else {}
+
+
+def load(day):
+    d = TAPE / day; spot = _tape_spot(day); q = {}  # (sym, strike, side) -> [(hh:mm:ss, bid, ask)]
     with open(d / "quote_snapshots.jsonl", encoding="utf-8") as f:
         for ln in f:
             try: e = json.loads(ln); p = e["payload"]
@@ -264,17 +277,164 @@ def ivs_trade(sym, sp, q, days=0):
     return ("TRADE", round(pnl, 2), why + ("+forced" if forced else ""), _hm(e), t_exit, K)
 
 
+# ---------------------------------------------------------------- E33 state (registry E33, 2026-11-13; log only, rung 0; never read by FIN1/S2/B1/SC1)
+SLOTS33 = list(range(30, 316, 15))  # minute index from 09:15: 09:45 .. 14:30 every 15 min, as playbook_lab.SLOTS33
+RBI33 = {"2025-12-05", "2026-02-06", "2026-04-08", "2026-06-05", "2026-08-05", "2026-10-07"}  # opt1y_lab.RBI; ponytail: append the Dec-2026 MPC date when RBI publishes it
+FOMC33 = {"2025-10-29", "2025-12-10", "2026-01-28", "2026-03-18", "2026-04-29", "2026-06-17", "2026-07-29", "2026-09-16", "2026-10-28", "2026-12-09"}  # opt1y_lab.FOMC + the two published 2026 dates
+X33 = dict(l_stop=0.30, l_tgt=0.60, l_trail=0.10, s_stop=0.5, s_tgt=0.5, cap=2.5)  # E33 freeze rule 6 (trailing jump 10% of entry per the freeze note and the DESK brief; playbook_lab.X33 carries 0.20)
+E33_CELLS = {"S_CE": {"TREND_UP|BEAR", "TREND_UP|NEUT", "LEVEL|BEAR"}, "L_PE": {"LEVEL|BEAR"}}  # the three lead cells (registry E33 "Next")
+E33_NOTE = ("votes oiflow/oflow = None: the tape has no OI or volume per minute (3 of 5 votes only, BULL/BEAR still +-2); max-OI level not in near_level; "
+            "bars close AT the slot minute (playbook_lab's bar i//5 closes 4 min after it); r60 before 10:15 uses the 09:15 close")
+
+
+def _spot_path(sp):
+    """375 minute closes 09:15..15:29, forward- then back-filled as playbook_lab.spot; None if the tape has no spot."""
+    s = []; v = None
+    for i in range(375): v = sp.get(_hm(i), v); s.append(v)
+    f = next((x for x in s if x is not None), None)
+    return None if f is None else [f if x is None else x for x in s]
+
+
+def _bars5(s):
+    """closed 5m bars (o, h, l, c) of minute closes: bar k = minutes 5k+1..5k+5, so bar (i-1)//5 closes AT slot minute i and holds nothing later."""
+    return [(s[5 * k + 1], max(s[5 * k + 1:5 * k + 6]), min(s[5 * k + 1:5 * k + 6]), s[5 * k + 5]) for k in range(74)]
+
+
+def _rma(x, p):  # Wilder smoothing = pandas ewm(alpha=1/p, adjust=False): starts on the first value
+    out = []; y = None
+    for v in x: y = v if y is None else y + (v - y) / p; out.append(y)
+    return out
+
+
+def _ind5(bars):
+    """(ADX14, ER12, CHOP14) per bar, the formulas of playbook_lab._bars5 (ER/CHOP nan until 12/14 bars exist)."""
+    o, h, l, c = (list(z) for z in zip(*bars)); n = len(c); nan = float("nan")
+    pc, ph, pl = [c[0]] + c[:-1], [h[0]] + h[:-1], [l[0]] + l[:-1]
+    tr = [max(h[t] - l[t], abs(h[t] - pc[t]), abs(l[t] - pc[t])) for t in range(n)]
+    um, dm = [h[t] - ph[t] for t in range(n)], [pl[t] - l[t] for t in range(n)]
+    pdm = [u if u > d and u > 0 else 0.0 for u, d in zip(um, dm)]; mdm = [d if d > u and d > 0 else 0.0 for u, d in zip(um, dm)]
+    a14 = [x + 1e-9 for x in _rma(tr, 14)]; pdi = [100 * x / a for x, a in zip(_rma(pdm, 14), a14)]; mdi = [100 * x / a for x, a in zip(_rma(mdm, 14), a14)]
+    adx = _rma([100 * abs(p - m) / (p + m + 1e-9) for p, m in zip(pdi, mdi)], 14)
+    d1 = [0.0] + [abs(c[t] - c[t - 1]) for t in range(1, n)]
+    er = [abs(c[t] - c[max(t - 12, 0)]) / (sum(d1[t - 11:t + 1]) + 1e-9) if t >= 11 else nan for t in range(n)]
+    lg = lambda x: math.log10(x) if x > 0 else -math.inf  # numpy log10(0) = -inf: a flat (back-filled) stretch reads as CHOP <= 45, as in the lab
+    chop = [100 * lg(sum(tr[t - 13:t + 1]) / max(max(h[t - 13:t + 1]) - min(l[t - 13:t + 1]), 1e-9)) / math.log10(14) if t >= 13 else nan for t in range(n)]
+    return list(zip(adx, er, chop))
+
+
+def _fvg(G, b, look=12):
+    """playbook_lab._fvg: unfilled 3-candle fair value gap within the last `look` bars that bar b closed inside: +1 bullish, -1 bearish, else 0."""
+    cb = G[b][3]
+    for t in range(b, max(2, b - look), -1):
+        if G[t - 2][1] < G[t][2]:  # h[t-2] < l[t]: bullish gap
+            if t + 1 <= b and min(x[2] for x in G[t + 1:b + 1]) <= G[t - 2][1]: continue  # filled since
+            if G[t - 2][1] <= cb <= G[t][2]: return 1
+        if G[t - 2][2] > G[t][1]:  # l[t-2] > h[t]: bearish gap
+            if t + 1 <= b and max(x[1] for x in G[t + 1:b + 1]) >= G[t - 2][2]: continue
+            if G[t][1] <= cb <= G[t - 2][2]: return -1
+    return 0
+
+
+def _cshape(x):
+    o, h, l, c = x; rng = max(h - l, 1e-9)
+    return 1 if (c - l) / rng >= 0.7 and (c - o) / rng > 0.5 else -1 if (h - c) / rng >= 0.7 and (o - c) / rng > 0.5 else 0
+
+
+def _quotes_by_min(xs):
+    by = {}
+    for z in xs: by.setdefault(z[0][:5], []).append(z)
+    return by
+
+
+def _min_idx(t): return int(t[:2]) * 60 + int(t[3:5]) - M0  # "HH:MM[:SS]" -> minute index from 09:15
+
+
+def e33_short(sym, s, q, i, K, side="CE", X=X33):
+    """sell 10 lots of strike K at the bid of the first quote in minute i+1; marks = mid of the last quote at or before each minute's :59
+    (ivs_trade convention); exits at the first quote (ask) of the minute after: stop when mark - credit >= X[s_stop] x credit (1.5x),
+    target when mark <= (1 - X[s_tgt]) x credit, spot cap min(X[cap], 0.4%) steps (playbook_lab.act33), else nearest 15:15 (_exit_q)."""
+    e = i + 1; xs = sorted(q.get((sym, float(K), side), [])); en = _first(xs, _hm(e) + ":00")
+    if en is None or en[0] >= _hm(e + 1) + ":00": return None
+    credit = en[1]; s0 = s[e]; st = STEP[sym]; capv = min(X["cap"], 0.004 * s0 / st) * st; t_exit, why = "15:15:00", "time"
+    for j in range(e, 360):
+        m = _mid_at(xs, _hm(j) + ":59")
+        if m is not None and m - credit >= X["s_stop"] * credit: t_exit, why = _hm(j + 1) + ":00", "stop"; break
+        if m is not None and m <= (1 - X["s_tgt"]) * credit: t_exit, why = _hm(j + 1) + ":00", "tgt"; break
+        if abs(s[j] - s0) >= capv: t_exit, why = _hm(j + 1) + ":00", "spot"; break
+    x, forced = _exit_q(xs, "time" if why == "time" else "spot", t_exit)
+    return dict(action="S_" + side, strike=K, pnl=round((credit - x[2]) * LOT[sym] * LOTS - cost(x[2], credit, sym), 2), why=why + ("+forced" if forced else ""),
+                t_entry=en[0], t_exit=x[0], entry=credit, exit=x[2])
+
+
+def e33_long(sym, s, q, i, K, side="PE", X=X33):
+    """buy 10 lots of strike K at the ask of the first quote in minute i+1 (super-order style, playbook_lab.long_leg on tape quotes): SL at
+    X[l_stop] below entry, intrabar = the first bid at or below it (SL beats target in a minute); target +X[l_tgt] fills AT the target only when
+    a bid in the minute reaches it; trailing: the SL rises one jump (X[l_trail] x entry) per jump of the bid high; adverse spot cap
+    min(X[cap], 0.4%) steps -> bid of the first quote of the next minute; else nearest 15:15."""
+    e = i + 1; xs = sorted(q.get((sym, float(K), side), [])); en = _first(xs, _hm(e) + ":00")
+    if en is None or en[0] >= _hm(e + 1) + ":00": return None
+    enp = en[2]; by = _quotes_by_min([z for z in xs if z[0] >= en[0]]); J = X["l_trail"] * enp; sl0 = enp * (1 - X["l_stop"]); tp = enp * (1 + X["l_tgt"])
+    s0 = s[e]; st = STEP[sym]; dirn = 1 if side == "CE" else -1; capv = min(X["cap"], 0.004 * s0 / st) * st; sl, hi, x, why, t_exit = sl0, enp, None, "time", "15:15:00"
+    for j in range(e, 360):
+        qs = by.get(_hm(j), [])
+        hit = next((z for z in qs if z[1] <= sl), None)
+        if hit: x, why, t_exit = hit[1], "sl", hit[0]; break
+        hit = next((z for z in qs if z[1] >= tp), None)
+        if hit: x, why, t_exit = tp, "tgt", hit[0]; break
+        if qs: hi = max(hi, max(z[1] for z in qs)); sl = max(sl, sl0 + J * math.floor((hi - enp) / J))
+        if dirn * (s[j] - s0) <= -capv: why, t_exit = "cap", _hm(j + 1) + ":00"; break
+    forced = False
+    if x is None: z, forced = _exit_q(xs, "time" if why == "time" else "spot", t_exit); x, t_exit = z[1], z[0]
+    return dict(action="L_" + side, strike=K, pnl=round((x - enp) * LOT[sym] * LOTS - cost(enp, x, sym), 2), why=why + ("+forced" if forced else ""),
+                t_entry=en[0], t_exit=t_exit, entry=enp, exit=x)
+
+
+def e33_state(sym, sp, q, hist, day=None, prev=None):
+    """E33 REGIME x CONF per slot (playbook_lab.regime_feats / states on tape data up to the slot) and the three lead cells executed sequentially
+    per lead (one open position per index per lead, as run33). hist = prior-day bars (bias, PDH/PDL, gap); prev = the previous tape day's
+    spot minutes (ADX/ER/CHOP warm-up, as _bars5 uses the previous day); day = the tape date (RBI / FOMC / expiry-day EVENT). Fields that
+    the tape cannot supply are None and named in e33_note. Returns dict(e33_slots, e33_trades, e33_warm, e33_note) or dict(e33_status)."""
+    s = _spot_path(sp)
+    if s is None or len(sp) < 60: return dict(e33_status="NO_SPOT")
+    F = lead_feats(hist) if hist and not isinstance(hist, Exception) else None; H = hist[-1] if hist and not isinstance(hist, Exception) else None
+    bias = None if F is None else 1 if F["trend"] == "UP" else -1; c1 = H[3] if H and H[3] == H[3] else None
+    gap = s[0] / c1 - 1 if c1 else None; pdh, pdl = (H[4], H[5]) if H and H[4] == H[4] else (None, None)
+    G = _bars5(s); ps = _spot_path(prev) if prev else None; warm = _bars5(ps) if ps else []
+    ind = _ind5(warm + G)[len(warm):]; orh, orl = max(s[:16]), min(s[:16]); lv = [v for v in (pdh, pdl, orh, orl) if v]
+    exp = next((z[3] for z in q.get((sym, float(_atm(sym, s[30], q)), "CE"), [])), None); d0 = bool(day and exp == day); slots = []
+    for i in SLOTS33:
+        if _hm(i) not in sp: slots.append(dict(i=i, t=_hm(i), regime=None, conf=None)); continue  # no spot in the slot minute: no state
+        b = (i - 1) // 5; adx, er, chop = ind[b]; x = G[b]
+        ev = bool((day in RBI33 and i == 30) or day in FOMC33 or (d0 and i >= 225) or (gap is not None and abs(gap) > 0.005))
+        tr = (adx >= 25) + (er >= 0.35) + (chop <= 45) >= 2; r60 = s[i] / s[max(i - 60, 0)] - 1; near = min(abs(s[i] / v - 1) for v in lv)
+        regime = "EVENT" if ev else ("TREND_UP" if r60 > 0 else "TREND_DN") if tr else "LEVEL" if near <= 0.0015 else "CHOP"
+        fvg, csh = _fvg(G, b), _cshape(x); votes = fvg + csh + (bias or 0); conf = "BULL" if votes >= 2 else "BEAR" if votes <= -2 else "NEUT"
+        mv = round((s[i + 45] / s[i] - 1) * 1e4, 1) if _hm(i + 45) in sp else None
+        slots.append(dict(i=i, t=_hm(i), regime=regime, conf=conf, cell=f"{regime}|{conf}", votes=votes, oiflow=None, oflow=None, fvg=fvg, cshape=csh, bias=bias,
+                          adx=round(adx, 1), er=None if er != er else round(er, 3), chop=None if chop != chop else round(chop, 1), r60=round(r60 * 1e4, 1), near_bp=round(near * 1e4, 1), mv45_bp=mv))
+    trades = []
+    for lead, fn in (("S_CE", lambda i, K: e33_short(sym, s, q, i, K, "CE")), ("L_PE", lambda i, K: e33_long(sym, s, q, i, K, "PE"))):
+        busy = -1
+        for z in slots:
+            if z.get("cell") not in E33_CELLS[lead] or z["i"] <= busy: continue
+            r = fn(z["i"], _atm(sym, s[z["i"]], q)); trades.append(dict(lead=lead, slot=z["t"], cell=z["cell"], **(r or dict(status="NO_QUOTES"))))
+            if r: busy = _min_idx(r["t_exit"])
+    return dict(e33_slots=slots, e33_trades=trades, e33_warm=bool(warm), e33_note=E33_NOTE)
+
+
 def _safe_hist(sym, day):
     try: return prior_days(sym, day)
     except Exception as e: return e  # leads() re-raises it inside its own guard
 
 
-def leads(sym, sp, q, h):
-    """log-only fields: B1, SC1, LOC20/TREND labels and S1 (= s2_trade without the RV/IV filter). Never read by FIN1/S2."""
+def leads(sym, sp, q, h, day=None, prev=None):
+    """log-only fields: B1, SC1, LOC20/TREND labels, S1 (= s2_trade without the RV/IV filter) and the E33 state. Never read by FIN1/S2."""
     if isinstance(h, Exception): raise h
     F = lead_feats(h) if h else None; S = sp.get("09:45"); s1 = None
     if S: K = _atm(sym, S, q); s1 = s2_trade(sym, sp, sorted(q.get((sym, K, "CE"), [])), sorted(q.get((sym, K, "PE"), [])))
     o = dict(lead_hist="OK" if F else "NO_HIST", s1_pnl_inr=s1[0] if s1 else None, s1_exit=s1[1] if s1 else "NO_INPUT", bar=_bar(sp))
+    try: o.update(e33_state(sym, sp, q, h, day, prev))
+    except Exception as e: o["e33_status"] = "ERROR:" + type(e).__name__  # an E33 failure must never lose the B1/SC1/S1 fields
     if not F: return dict(o, b1_status="NO_HIST")
     sc1 = F["rr1"] < 0.7
     o.update(loc20=F["loc20"], trend=F["trend"], rr1=round(F["rr1"], 4), b1_nr4=F["nr4"], b1_stretch=round(F["stretch"], 2), sc1_signal=sc1,
@@ -283,11 +443,11 @@ def leads(sym, sp, q, h):
     return dict(o, b1_status=b[0], b1_pnl_inr=b[1] if b[0] == "TRADE" else 0.0, **(dict(b1_side=b[2], b1_exit=b[3], b1_entry_t=b[4]) if b[0] == "TRADE" else {}))
 
 
-def day_rows(day, spot, q, hist=None):
+def day_rows(day, spot, q, hist=None, prev=None):
     out = []
     for sym in LOT:
         sp = spot.get(sym, {})
-        try: ld = leads(sym, sp, q, (hist or {}).get(sym))
+        try: ld = leads(sym, sp, q, (hist or {}).get(sym), day, (prev or {}).get(sym))
         except Exception as e: ld = dict(lead_hist="ERROR:" + type(e).__name__)  # a leads/history failure must never lose the FIN1/S2 row
         row = dict(day=day, sym=sym, rule="FIN1", thresh=THRESH, shadow_only=True, **ld)
         mins = [f"09:{m:02d}" for m in range(15, 46)]
@@ -341,6 +501,11 @@ def leads_report(rows=None):
                             ("S1 in 20d-range HIGH", lambda r: r.get("loc20") == "HIGH" and r.get("s1_pnl_inr") is not None, "s1_loc20_high_pnl_inr", "s1_exit", lambda r: r.get("lead_hist") != "OK" or r.get("s1_pnl_inr") is None),
                             ("IVS strangle after IV fall", lambda r: r.get("ivs_status") == "TRADE", "ivs_pnl_inr", "ivs_exit", lambda r: r.get("status") != "OK" or r.get("ivs_status") in ("NO_QUOTES", "NO_MARK"))):
         T = [r for r in R if ok(r)]; parts.append(f"{nm}: n={len(T)} net Rs {sum(r[f] for r in T):,.0f} wins {sum(r[f] > 0 for r in T)} forced {sum('forced' in r.get(fx, '') for r in T)} (no inputs {sum(lack(r) for r in R)}/{len(R)})")
+    for lead, nm in (("S_CE", "E33 S_CE (TREND_UP x BEAR/NEUT, LEVEL x BEAR)"), ("L_PE", "E33 L_PE (LEVEL x BEAR)")):  # several trades per sym-day
+        T = [t for r in R for t in r.get("e33_trades", []) if t["lead"] == lead and "pnl" in t]; nq = sum(t.get("status") == "NO_QUOTES" for r in R for t in r.get("e33_trades", []) if t["lead"] == lead)
+        parts.append(f"{nm}: n={len(T)} net Rs {sum(t['pnl'] for t in T):,.0f} wins {sum(t['pnl'] > 0 for t in T)} forced {sum('forced' in t['why'] for t in T)} (no quotes {nq}; no state {sum('e33_slots' not in r for r in R)}/{len(R)})")
+    Z = [z for r in R for z in r.get("e33_slots", []) if z.get("conf") and z.get("mv45_bp") is not None]; pu = lambda c: [z["mv45_bp"] > 0 for z in Z if z["conf"] == c]
+    parts.append("E33 CONF forward check (3 of 5 votes): " + ", ".join(f"P(up45|{c}) {sum(pu(c)) / len(pu(c)):.3f} (n {len(pu(c))})" if pu(c) else f"{c} n 0" for c in ("BULL", "NEUT", "BEAR")) + " [1y lab: BULL 0.522, BEAR 0.442]")
     return "Leads (log only, " + f"{len({r['day'] for r in R})} days): " + " | ".join(parts)
 
 
@@ -579,6 +744,40 @@ def selftest():
     assert abs(_auc([0.1, 0.4, 0.4, 0.9], [0, 1, 0, 1]) - 0.875) < 1e-12 and _auc([1, 2], [1, 1]) != _auc([1, 2], [1, 1])
     assert abs(_binom_p(5, 10, 0.5) - 1) < 1e-9 and abs(_binom_p(0, 10, 0.5) - 2 / 1024) < 1e-9
     g = svg([f]); assert g.startswith("<svg") and 'class="band1"' in g and 'class="band2"' in g and "n=1 sym-days" in calibration([f])
+    # E33 known answers. (a) TREND_UP day: 09:15-10:15 chop, then +4/min to 10:41, a sharp down candle 10:41-10:45 -> at 10:45 TREND_UP (ER/CHOP votes),
+    # cshape -1 + bias +1 (prior closes rising) = NEUT -> sell ATM 22850 CE at the 10:46 bid 100; mid 151 at 11:00 (>= 1.5x credit) -> buy back at the 11:01 ask 157
+    assert n["e33_status"] == "NO_SPOT" and _min_idx("11:31:00") == 136 and _hm(136) == "11:31"
+    HT = [(22600 + 5 * k, 22650 + 5 * k, 22550 + 5 * k, 22600 + 5 * k, 22650 + 5 * k, 22550 + 5 * k) for k in range(21)]  # last close 22700 > its 20-SMA: bias +1
+    pat = [0, 2, -1, 1, -2]; sa = {}
+    for m in range(375):
+        v = 22700 + pat[m % 5] if m <= 60 else 22700 + 4 * (m - 60) if m <= 85 else {86: 22804, 87: 22790, 88: 22780, 89: 22770, 90: 22760}.get(m, 22760 + 2 * (m - 90))
+        sa[_hm(m)] = float(v)
+    qa = {("NIFTY", 22850.0, s): [("10:46:00", 100.0, 102.0, "2026-10-27"), ("11:00:30", 150.0, 152.0, "2026-10-27"), ("11:01:00", 155.0, 157.0, "2026-10-27")] for s in ("CE", "PE")}
+    A = e33_state("NIFTY", sa, qa, HT, "2026-10-22"); Z = {z["t"]: z for z in A["e33_slots"]}
+    assert not A["e33_warm"] and Z["09:45"]["cell"] == "LEVEL|NEUT" and Z["09:45"]["er"] is None and Z["09:45"]["chop"] is None, Z["09:45"]  # ER/CHOP need 12/14 bars
+    assert Z["10:30"]["cell"] == "TREND_UP|BULL" and Z["10:45"]["cell"] == "TREND_UP|NEUT" and Z["10:45"]["cshape"] == -1 and Z["10:45"]["fvg"] == 1 and Z["10:45"]["bias"] == 1, (Z["10:30"], Z["10:45"])  # the down candle retraces into the bullish gap of the rise: fvg +1
+    assert Z["10:45"]["er"] >= 0.35 and Z["10:45"]["chop"] <= 45 and Z["10:45"]["r60"] > 0 and Z["10:45"]["oiflow"] is None and Z["10:45"]["mv45_bp"] == round((sa["11:30"] / sa["10:45"] - 1) * 1e4, 1)
+    ta = A["e33_trades"]; exp_a = (100 - 157) * 650 - cost(157, 100, "NIFTY")
+    assert [(x["lead"], x["slot"], x["why"], x["t_exit"], x["strike"]) for x in ta] == [("S_CE", "10:45", "stop", "11:01:00", 22850)] and abs(ta[0]["pnl"] - round(exp_a, 2)) < 0.01, ta
+    assert e33_state("NIFTY", {k: v for k, v in sa.items() if k != "12:00"}, qa, HT, "2026-10-22")["e33_slots"][9]["regime"] is None  # no spot in the slot minute: no state
+    assert e33_state("NIFTY", sa, qa, HT, "2026-10-22", prev=sa)["e33_warm"] and e33_state("NIFTY", sa, qa, HT, "2026-10-28")["e33_slots"][0]["regime"] == "EVENT"  # FOMC day
+    # (b) LEVEL day: 5-minute pattern around 22700 (ADX 0, ER 0, CHOP 100) within 0.15% of PDH 22710 -> LEVEL|NEUT; the 10:56-11:00 bar closes at its low
+    # with bias -1 -> LEVEL|BEAR -> long ATM PE at the 11:01 ask 100 (target 160 filled when a bid reaches it) and sell ATM CE at the 11:01 bid 100 (mid 49 at 11:30 -> ask 49 at 11:31)
+    HL = [(22700, 22705, 22695, 22700, 22710, 22690)] * 21; sl_ = {_hm(m): 22700.0 + ([3, 0, -2, -6, -10][m - 101] if 101 <= m <= 105 else pat[m % 5]) for m in range(375)}
+    ql = {("NIFTY", 22700.0, "PE"): [("11:01:00", 99.0, 100.0, "2026-10-27"), ("11:20:00", 161.0, 163.0, "2026-10-27"), ("15:15:00", 120.0, 122.0, "2026-10-27")],
+          ("NIFTY", 22700.0, "CE"): [("11:01:00", 100.0, 102.0, "2026-10-27"), ("11:30:00", 48.0, 50.0, "2026-10-27"), ("11:31:00", 47.0, 49.0, "2026-10-27")]}
+    B = e33_state("NIFTY", sl_, ql, HL, "2026-10-22"); Zb = {z["t"]: z for z in B["e33_slots"]}
+    assert all(z["regime"] == "LEVEL" for z in B["e33_slots"] if z["i"] <= 105) and Zb["10:45"]["conf"] == "NEUT" and Zb["11:00"]["cell"] == "LEVEL|BEAR" and Zb["11:00"]["votes"] == -2, Zb["11:00"]
+    assert Zb["10:45"]["adx"] == 0 and Zb["10:45"]["er"] == 0 and Zb["10:45"]["chop"] == 100, Zb["10:45"]
+    tb = {x["lead"]: x for x in B["e33_trades"] if "pnl" in x}; assert len(tb) == 2 and [x["status"] for x in B["e33_trades"] if "pnl" not in x] == ["NO_QUOTES"], B["e33_trades"]  # 12:00 TREND_UP|NEUT (ER 1 after the candle) has no 12:01 quote
+    assert tb["L_PE"]["why"] == "tgt" and tb["L_PE"]["t_exit"] == "11:20:00" and abs(tb["L_PE"]["pnl"] - round((160 - 100) * 650 - cost(100, 160, "NIFTY"), 2)) < 0.01, tb["L_PE"]
+    assert tb["S_CE"]["why"] == "tgt" and tb["S_CE"]["t_exit"] == "11:31:00" and abs(tb["S_CE"]["pnl"] - round((100 - 49) * 650 - cost(49, 100, "NIFTY"), 2)) < 0.01, tb["S_CE"]
+    # long leg trailing: high bid 126 lifts the SL from 70 to 90 (one 10-point jump per jump of the high); the 11:07 bid 89 stops it out at 89 intrabar
+    qt = {("NIFTY", 22700.0, "PE"): [("11:01:00", 99.0, 100.0, "2026-10-27"), ("11:05:00", 126.0, 128.0, "2026-10-27"), ("11:06:10", 92.0, 94.0, "2026-10-27"), ("11:07:00", 89.0, 91.0, "2026-10-27")]}
+    lt = e33_long("NIFTY", _spot_path(sl_), qt, 105, 22700); assert lt["why"] == "sl" and lt["exit"] == 89.0 and lt["t_exit"] == "11:07:00" and abs(lt["pnl"] - round((89 - 100) * 650 - cost(100, 89, "NIFTY"), 2)) < 0.01, lt
+    assert e33_long("NIFTY", _spot_path(sl_), {k: v[:1] for k, v in qt.items()}, 105, 22700)["why"] == "time+forced"  # no later quote: last bid, forced
+    rep_ = leads_report([dict(day="2026-10-22", sym="NIFTY", **A), dict(day="2026-10-22", sym="SENSEX", **B)])
+    assert "E33 S_CE (TREND_UP x BEAR/NEUT, LEVEL x BEAR): n=2" in rep_ and "E33 L_PE (LEVEL x BEAR): n=1" in rep_ and "P(up45|BEAR)" in rep_, rep_
     print("fin1_shadow selftest OK")
 
 
@@ -592,8 +791,10 @@ if __name__ == "__main__":
         day = sys.argv[2] if len(sys.argv) > 2 else datetime.now(ZoneInfo("Asia/Kolkata")).date().isoformat()
         if not (TAPE / day / "quote_snapshots.jsonl").is_file():
             print(f"FIN1 {day}: no tape"); sys.exit(0)
-        rows = day_rows(day, *load(day), hist={s: _safe_hist(s, day) for s in LOT}); save(rows)
+        rows = day_rows(day, *load(day), hist={s: _safe_hist(s, day) for s in LOT}, prev=_prev_tape_spot(day)); save(rows)
         for r in rows:
             print(f"FIN1 {day} {r['sym']}: {r['status']}" + (f" RV/IV {r['ratio']:.2f} -> {'SIGNAL' if r['signal'] else 'no trade'}, "
                   f"straddle Rs {r['straddle_pnl_inr']:,.0f}, FIN1 Rs {r['pnl_inr']:,.0f}, S2 Rs {r['s2_pnl_inr']:,.0f} ({r['s2_exit']})"
                   if r["status"] == "OK" else ""))
+            if "e33_slots" in r: print(f"  E33 {r['sym']} (log only, warm-up {'yes' if r['e33_warm'] else 'no'}): " + " ".join(f"{z['t']}={z.get('cell', '-')}" for z in r["e33_slots"]) + "".join(
+                f"\n    {t['lead']} {t['slot']} {t['cell']}: " + (f"Rs {t['pnl']:,.0f} {t['why']} {t['t_entry'][:5]}->{t['t_exit'][:5]} K {t['strike']:.0f}" if "pnl" in t else t["status"]) for t in r["e33_trades"]))

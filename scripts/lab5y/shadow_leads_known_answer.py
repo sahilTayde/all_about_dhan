@@ -79,7 +79,7 @@ assert F.b1_trade("NIFTY", {k: v for k, v in sp.items() if k > "09:17"}, qs(ce),
 k = A.day(21); sp0, q0 = A.tape(k); day = A.DAYS[21]  # a flat day, spot 24000 all day
 h_on, h_off = bars([fl()] * 20 + [fl(**y)]), bars([fl()] * 19 + [fl(hc=104, lc=96), fl()])   # rr1 0.6 (SC1, NR4, HIGH) / 1.01 (day -2 narrower: no NR4, MID)
 base = F.day_rows(day, sp0, q0)[0]; on = F.day_rows(day, sp0, q0, hist={"NIFTY": h_on})[0]; off = F.day_rows(day, sp0, q0, hist={"NIFTY": h_off})[0]
-LEAD = ("lead_hist", "s1_", "b1_", "sc1_", "loc20", "trend", "rr1", "bar")
+LEAD = ("lead_hist", "s1_", "b1_", "sc1_", "loc20", "trend", "rr1", "bar", "e33_")
 core = lambda r: {a: b for a, b in r.items() if not a.startswith(LEAD)}
 dj = lambda r: __import__("json").dumps(core(r), sort_keys=True)  # NaN-safe compare
 assert dj(base) == dj(on) == dj(off), "FIN1/S2 fields must not depend on the leads"
