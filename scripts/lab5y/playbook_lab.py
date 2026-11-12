@@ -782,5 +782,81 @@ def study_e37():
     R = pd.DataFrame(rows); R.to_csv(f"{PB}/e37.csv", index=False); print(R.drop(columns=["why"]).to_string(index=False)); return R
 
 
+# ================================================================ E39: frozen candidates, LEARN (before HO) vs TEST (from HO), scored once
+def _dayboot_p(x, n=4000, seed=39):
+    """one-sided p that the mean of daily P&L x is <= 0 (day bootstrap)."""
+    x = np.asarray(x, float); return float((np.random.default_rng(seed).choice(x, (n, len(x))).mean(1) <= 0).mean()) if len(x) > 1 else np.nan
+
+
+def _cell_stats(name, T, learn_days, test_days, base=None, rg=None):
+    """T: DataFrame with day, sym, pnl (one row per trade). base: DataFrame of the unconditional same-structure trades on the same days
+    (day, pnl) for the same-count random-day placebo on TEST. Returns the frozen E39 row."""
+    Lr, Te = T[T.day.isin(learn_days)], T[T.day.isin(test_days)]; r = dict(cell=name, learn_n=len(Lr), test_n=len(Te))
+    if len(Lr): g = Lr.groupby("day").pnl.sum(); r.update(learn_total=round(g.sum()), learn_mean=round(Lr.pnl.mean()), learn_win=round((Lr.pnl > 0).mean() * 100, 1), learn_p=round(_dayboot_p(g.values), 4))
+    if len(Te):
+        g = Te.groupby("day").pnl.sum(); q = pd.to_datetime(Te.day).dt.to_period("Q").astype(str); qs = Te.groupby(q).pnl.sum()
+        r.update(test_total=round(g.sum()), test_mean=round(Te.pnl.mean()), test_win=round((Te.pnl > 0).mean() * 100, 1), test_p=round(_dayboot_p(g.values), 4), test_q_pos=f"{(qs > 0).sum()}/{len(qs)}")
+        if base is not None and len(base):
+            b = base[base.day.isin(test_days)]; rg = rg or np.random.default_rng(3); days = b.day.unique()
+            if len(days) >= len(g):
+                rnd = np.array([b[b.day.isin(rg.choice(days, len(g), replace=False))].pnl.sum() for _ in range(1000)]); r["p_vs_rand"] = round(float((rnd >= g.sum()).mean()), 3)
+    ok = r.get("learn_mean", -1) > 0 and r.get("learn_p", 1) < 0.05 and r.get("test_total", -1) > 0 and r.get("test_p", 1) < 0.005 and r.get("p_vs_rand", 1) < 0.05 and int(r.get("test_q_pos", "0/4").split("/")[0]) >= 3
+    r["verdict"] = "PASS" if ok else "FAIL"; return r
+
+
+def study_e39():
+    """registry E39: 10 frozen cells on the 5-year panel (OUT=lab5y_full, HO=2025-10-27, LAB_FULL=1). Smoke-testable on the 1y panel."""
+    import book_lab as B
+    HO = L.HO; days = sorted({k[1] for k in KEYS}); learn = [d for d in days if d < HO]; test = [d for d in days if d >= HO]
+    print(f"E39 panel {days[0]}..{days[-1]}: LEARN {len(learn)} days (< {HO}), TEST {len(test)} days"); rows = []; rg = np.random.default_rng(39)
+    V = L.vol_days().set_index(["sym", "day"]); D = B.prep()
+    # S1 / S2 / SGATE (short straddle 09:47, 2-step spot exit); S2 threshold = LEARN q0.7 of or_iv (frozen on LEARN only)
+    s1 = pd.DataFrame([dict(r, key=k) for k in KEYS for r in [S.struct(k, 31, S.SSTRAD, sstop=2, mode="cons")] if r]); s1["orv"] = [V.or_iv.get(k, np.nan) for k in s1.key]
+    thr = float(np.nanquantile([V.or_iv.get(k, np.nan) for k in KEYS if k[1] < HO], 0.7)); s1["rr1"] = [D.rr1.get(k, np.nan) if k in D.index else np.nan for k in s1.key]
+    rows.append(_cell_stats("S1 short straddle 09:47 spot2", s1, learn, test))
+    s2 = s1[s1.orv <= thr]; rows.append(_cell_stats(f"S2 = S1 if or_iv <= LEARN q0.7 ({thr:.4f})", s2, learn, test, base=s1, rg=rg))
+    sg = s2[(s2.rr1 < 0.7) & (s2.sym == "NIFTY")]; rows.append(_cell_stats("SGATE = S2 & prior range < 0.7x, NIFTY", sg, learn, test, base=s1[s1.sym == "NIFTY"], rg=rg))
+    # B1 Crabel NR4 (book_lab rule, long ATM, own caps)
+    b1 = []
+    for k in KEYS:
+        if k not in D.index: continue
+        for i, sd, ex in B.sig_b1(k, D.loc[k]):
+            r = S.struct(k, i, [(sd, 0, 1)], dirn=1 if sd == "CE" else -1, mode="cons", **ex)
+            if r: b1.append(dict(r, key=k)); break
+    b1 = pd.DataFrame(b1); rows.append(_cell_stats("B1 Crabel NR4 stretch breakout", b1, learn, test))
+    # E33-derived cells on this panel: LEVEL|BEAR -> S_CE (first qualifying slot per sym-day); regime-only policy learned on LEARN
+    T33 = table33(); F33 = states(regime_feats())[["sym", "day", "i", "cell", "regime"]]; T33 = T33.merge(F33, on=["sym", "day", "i"]); T33["mo"] = T33.day.map(L.month)
+    lb = T33[(T33.cell == "LEVEL|BEAR") & (T33.action == "S_CE")].sort_values("i").groupby(["sym", "day"]).head(1)
+    sce = T33[T33.action == "S_CE"].sort_values("i").groupby(["sym", "day"]).head(1)
+    rows.append(_cell_stats("E33 LEVEL|BEAR -> sell ATM CE (first slot)", lb, learn, test, base=sce, rg=rg))
+    Tr = T33.copy(); Tr["cell"] = Tr.regime; A = arrays33(Tr[Tr.day >= HO]); Lr = Tr[Tr.day < HO]; NONE = len(ACTS33N) - 1
+    g = Lr.groupby(["cell", "action"]).pnl.agg(["mean", "size"]); g = g[g["size"] >= MIN_LEARN]; ev = {idx: r["size"] * r["mean"] / (r["size"] + 15) for idx, r in g.iterrows()}
+    tbl = {c: (ACTS33N.index(max([(v, a) for (cc, a), v in ev.items() if cc == c and v > 500])[1]) if any(cc == c and v > 500 for (cc, a), v in ev.items()) else NONE) for c in REGIMES}
+    pol = run33(A, lambda mo: tbl, sorted({L.month(d) for d in test})); pol_learn = run33(arrays33(Lr), lambda mo: tbl, sorted({L.month(d) for d in learn}))
+    rows.append(_cell_stats(f"E33 regime-only policy (table {{{', '.join(f'{c}:{ACTS33N[a]}' for c, a in tbl.items())}}})", pd.concat([pol_learn, pol]), learn, test))
+    # E36 iv_dn -> short OTM1 strangle (first occurrence per sym-day, E33 exits)
+    R36 = e36_table(); occ = R36[R36.iv_dn].sort_values("i").groupby(["sym", "day"]).head(1); ivd = []
+    for r in occ.itertuples():
+        x = act33((r.sym, r.day), int(r.i), "S_STRANGLE1")
+        if x: ivd.append(dict(sym=r.sym, day=r.day, pnl=x["pnl"]))
+    strg = T33[T33.action == "S_STRANGLE1"].sort_values("i").groupby(["sym", "day"]).head(1)
+    rows.append(_cell_stats("E36 IV drop 1pt -> short OTM1 strangle (first)", pd.DataFrame(ivd), learn, test, base=strg, rg=rg))
+    # sweep cells: IVS (strangle after IV fall, expiry day, calm open) and GAP-go 0.2% at 09:45 ATM t1_s1 on GAP=FLAT days
+    import sweep_lab as W
+    G = W.gate_matrix(); gi = {g_[0]: n for n, g_ in enumerate(W.GATES)}
+    def sweep_cell(cell, gate_cols):
+        r = W.price_cell(cell); m = np.ones(len(r), bool)
+        for gc in gate_cols: m &= G[r["k"], gi[gc]]
+        return pd.DataFrame(dict(sym=[W.KEYS[x][0] for x in r["k"][m]], day=[W.KEYS[x][1] for x in r["k"][m]], pnl=r["pnl"][m]))
+    ivs = sweep_cell(("ND_STRANGLE1", "ivfall1.0", "STRANGLE1", "spot1.5_stop0.3"), ["DTE=0", "OPEN=calm"]); ivs_base = sweep_cell(("ND_STRANGLE1", "t0946", "STRANGLE1", "spot1.5_stop0.3"), [])
+    rows.append(_cell_stats("IVS: OTM1 strangle after 1-pt IV fall, expiry day, calm open", ivs, learn, test, base=ivs_base, rg=rg))
+    gap = sweep_cell(("GAP", "gap0.2_go_at30", "ATM", "t1_s1"), ["GAP=FLAT"]); gap_base = sweep_cell(("GAP", "gap0.2_go_at30", "ATM", "t1_s1"), [])
+    rows.append(_cell_stats("GAP-go 0.2% at 09:45, ATM, t1_s1, GAP=FLAT", gap, learn, test, base=gap_base, rg=rg))
+    # placebo cell: random short straddle days (same count as S2) - must FAIL
+    rows.append(_cell_stats("PLACEBO random S1 days (S2 count)", s1[s1.day.isin(rg.choice(s1.day.unique(), min(len(s2.day.unique()), s1.day.nunique()), replace=False))], learn, test))
+    R = pd.DataFrame(rows); pd.set_option("display.width", 300); print(R.to_string(index=False)); R.to_csv(f"{PB}/e39.csv", index=False)
+    print("Bonferroni 10: PASS needs learn_p < 0.05, test_p < 0.005, p_vs_rand < 0.05, >= 3/4 TEST quarters positive"); return R
+
+
 if __name__ == "__main__":
     for a in [a for a in sys.argv[2:] if not a.startswith("-")]: globals()["study_" + a]()
