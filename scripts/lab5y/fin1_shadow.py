@@ -17,18 +17,25 @@ ask nearest 15:15:00. Dev +5.07L (257 trades, p 0.03) but holdout -53k (97): log
   .venv/bin/python scripts/lab5y/fin1_shadow.py day [YYYY-MM-DD]   # one day -> data/recon/fin1_shadow.jsonl
   .venv/bin/python scripts/lab5y/fin1_shadow.py week [N]           # report on the last N logged days (default 5)
   .venv/bin/python scripts/lab5y/fin1_shadow.py forward [YYYY-MM-DD|all]  # read-only forward view: 1-sigma cone from 09:46 ATM IV
-  .venv/bin/python scripts/lab5y/fin1_shadow.py selftest"""
-import json, math, os, random, sys
-from datetime import date, datetime
+  .venv/bin/python scripts/lab5y/fin1_shadow.py leads             # one line per log-only lead (B1, SC1, S1 in a 20-day-range high)
+  .venv/bin/python scripts/lab5y/fin1_shadow.py selftest
+
+Log-only forward leads (2026-10-29, registry B1 / SC1 / E21; never change FIN1/S2): B1 Crabel NR4 stretch breakout (book_lab.sig_b1
++ sell_lab.struct long, shadow fills), SC1 = S1 (the S2 legs without the RV/IV filter) after a contracting day (prior range < 0.7 x
+mean of the 20 before), E21 labels LOC20 / TREND (scen_lab.dfeat). Prior-day bars: 5y idx 1m json (book_lab.daily source), then the
+options-panel spot (expired_opts ATM CE spot, as the panel), then this log's own `bar` field for tape days."""
+import json, math, os, random, re, sys
+from datetime import date, datetime, timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
 ROOT = Path(__file__).resolve().parents[2]
+DATA = Path(os.environ.get("FIN1_DATA", ROOT / "data"))  # history (ohlc json, expired_opts); the tape is TAPE
 TAPE = Path(os.environ.get("FIN1_TAPE", ROOT / "data" / "tape" / "v2"))
 LOG = ROOT / "data" / "recon" / "fin1_shadow.jsonl"
 FWD = ROOT / "data" / "recon" / "forward_view.jsonl"; FWD_SVG = ROOT / "data" / "recon" / "forward_view"
 MED_RVIV = 0.5434115813664702  # frozen: dev-period median of rest-of-day RV/IV (research E6)
-NMIN = 329  # minutes 09:46 -> 15:15
+M0 = 555; NMIN = 329  # minutes 09:46 -> 15:15
 
 
 def _left_min(day, exp):  # trading minutes from 09:46 on `day` to the 15:30 close on expiry `exp` (weekdays; ponytail: ignores holidays)
@@ -38,6 +45,7 @@ THRESH = 1.0041598  # dev-period (before 2026-07-27) 70th pct of or_iv, the hold
 LOT = {"NIFTY": 65, "SENSEX": 20}; LOTS = 10; CM = 1.5
 TXN = {"NIFTY": 0.000355299, "SENSEX": 0.000325}
 STEP = {"NIFTY": 50, "SENSEX": 100}
+SID = {"NIFTY": 13, "SENSEX": 51}; IST = ZoneInfo("Asia/Kolkata")
 IDX = {"NSE_IDX:NIFTY": "NIFTY", "BSE_IDX:SENSEX": "SENSEX"}
 
 
@@ -97,6 +105,21 @@ def _first(xs, t):
     return next((x for x in xs if x[0] >= t), None)
 
 
+def _atm(sym, S, q):
+    K = round(S / STEP[sym]) * STEP[sym]
+    taped = [k for (u, k, s) in q if u == sym and s == "CE" and (u, k, "PE") in q]  # recorder keeps ATM +-100/200 pts
+    return min(taped, key=lambda k: abs(k - S)) if (sym, K, "CE") not in q and taped else K
+
+
+def _exit_q(xs, why, t_exit):
+    """quote for a time exit (nearest 15:15:00 within 15:14-15:16) or a spot exit (first >= t_exit); last quote + forced if none."""
+    if why == "time":
+        ex = [x for x in xs if "15:14:00" <= x[0] <= "15:16:00"]
+        x = min(ex, key=lambda x: abs(int(x[0][3:5]) * 60 + int(x[0][6:8]) - 900)) if ex else None
+    else: x = _first(xs, t_exit)
+    return (x, False) if x else (xs[-1], True)
+
+
 def s2_trade(sym, sp, xs_ce, xs_pe):
     """short straddle 09:47 -> 2-step spot move (next minute) or 15:15. Returns (pnl, why, exit_t) or None."""
     e = {s: _first(xs, "09:47:00") for s, xs in (("CE", xs_ce), ("PE", xs_pe))}
@@ -107,27 +130,126 @@ def s2_trade(sym, sp, xs_ce, xs_pe):
             h, mm = int(m[:2]), int(m[3:]) + 1; t_exit, why = f"{h + mm // 60:02d}:{mm % 60:02d}:00", "spot"; break
     pnl, forced = 0.0, False
     for s, xs in (("CE", xs_ce), ("PE", xs_pe)):  # same exit method for both legs (audit 2026-10-28)
-        if why == "time":
-            ex = [x for x in xs if "15:14:00" <= x[0] <= "15:16:00"]
-            x = min(ex, key=lambda x: abs(int(x[0][3:5]) * 60 + int(x[0][6:8]) - 900)) if ex else None
-        else:
-            x = _first(xs, t_exit)
-        if x is None: x = xs[-1]; forced = True
+        x, f = _exit_q(xs, why, t_exit); forced = forced or f
         pnl += (e[s][1] - x[2]) * LOT[sym] * LOTS - cost(x[2], e[s][1], sym)
     return round(pnl, 2), why + ("+forced" if forced else ""), t_exit
 
 
-def day_rows(day, spot, q):
+def _hm(i): return f"{(M0 + i) // 60:02d}:{(M0 + i) % 60:02d}"  # bar i of the day (0 = 09:15) -> HH:MM
+
+
+def _bar(sp):
+    """(oc, hc, lc, c, H, L) of the day from spot minute closes (as the panel); None unless the open and >= 300 minutes are on tape."""
+    v = [sp[k] for k in sorted(sp)]
+    return [v[0], max(v), min(v), v[-1], max(v), min(v)] if len(v) >= 300 and min(sp) <= "09:16" else None
+
+
+def _hist_base(sym):
+    """prior days before the tape: 5y idx 1m json (book_lab.daily source: o/h/l/c of minute closes, H/L of highs/lows), then for later days
+    the options-panel spot (expired_opts ATM CE spot, what book_lab/scen_lab use as the panel days). day -> (oc, hc, lc, c, H, L)."""
+    if sym in _HB: return _HB[sym]
+    out = {}; g = {}
+    for f in sorted(DATA.glob(f"recon/ohlc/INDEX_IDX_I_{SID[sym]}_1_*.json"))[-2:]:
+        j = json.load(open(f))
+        for t, h, l, c in zip(j["timestamp"], j["high"], j["low"], j["close"]):
+            d = datetime.fromtimestamp(t, IST); m = d.hour * 60 + d.minute
+            if M0 <= m < M0 + 375: g.setdefault(d.strftime("%Y-%m-%d"), {})[m] = (h, l, c)
+    for day, b in g.items():
+        if len(b) >= 300: cl = [b[m][2] for m in sorted(b)]; out[day] = (cl[0], max(cl), min(cl), cl[-1], max(x[0] for x in b.values()), min(x[1] for x in b.values()))
+    g = {}; last = max(out, default="")
+    for f in sorted(DATA.glob(f"cache/expired_opts/{sym}/ATM_CALL_*.json"))[-3:]:
+        d = (json.load(open(f)).get("data") or {}).get("ce") or {}
+        for t, s in zip(d.get("timestamp", []), d.get("spot", [])):
+            dt = datetime.fromtimestamp(t, IST); m = dt.hour * 60 + dt.minute; day = dt.strftime("%Y-%m-%d")
+            if s and M0 <= m < M0 + 375 and day > last: g.setdefault(day, {})[m] = s
+    for day, b in g.items():
+        if len(b) >= 300: v = [b[m] for m in sorted(b)]; out[day] = (v[0], max(v), min(v), v[-1], max(v), min(v))  # <300 = partial day (opt1y_load drops it)
+    _HB[sym] = out; return out
+
+
+_HB = {}
+
+
+def prior_days(sym, before, log=None):
+    """bars of the trading days < `before`, oldest first. Tape days after the base come from this log's `bar` field; a tape day whose
+    bar is missing becomes a NaN row, and so does every weekday after the base that has no row and is not a holiday in
+    config/v2/calendar/nse_holidays_*.yaml. ponytail: those files only exist for years we listed; an unlisted holiday (or any 2027 day
+    until its file is added) counts as a missing day, i.e. conservative: the leads go NO_HIST for 21 days rather than span a hole."""
+    rows = dict(_hist_base(sym)); last = max(rows, default=""); nan = tuple([float("nan")] * 6)
+    for r in (read_log() if log is None else log):
+        if r["sym"] == sym and last < r["day"] < before: rows[r["day"]] = tuple(r.get("bar") or nan)
+    hol = {m for f in (ROOT / "config" / "v2" / "calendar").glob("nse_holidays_*.yaml") for m in re.findall(r"date:\s*(\d{4}-\d\d-\d\d)", f.read_text())}
+    if last:
+        d = date.fromisoformat(last) + timedelta(1)
+        while d.isoformat() < before:
+            if d.weekday() < 5 and d.isoformat() not in hol: rows.setdefault(d.isoformat(), nan)
+            d += timedelta(1)
+    return [rows[d] for d in sorted(rows) if d < before][-60:]
+
+
+def lead_feats(h):
+    """h = prior-day bars, last = yesterday. Same definitions as book_lab.daily (nr4, stretch, rr1) and scen_lab.dfeat (LOC20, TREND);
+    None if fewer than 21 days or a NaN in them."""
+    h = h[-21:]
+    if len(h) < 21 or any(x != x for r in h for x in r): return None
+    r = [x[1] - x[2] for x in h]; H20, L20, pc = max(x[4] for x in h[-20:]), min(x[5] for x in h[-20:]), h[-1][3]
+    loc = (pc - L20) / (H20 - L20) if H20 > L20 else None  # scen_lab: 0/0 -> NaN -> no label
+    return dict(nr4=bool(r[-1] <= min(r[-4:])), stretch=sum(min(x[1] - x[0], x[0] - x[2]) for x in h[-10:]) / 10, rr1=r[-1] / (sum(r[:-1]) / 20),
+                loc20=None if loc is None else "LOW" if loc <= 0.2 else "HIGH" if loc >= 0.8 else "MID", trend="UP" if pc > sum(x[3] for x in h[-20:]) / 20 else "DN")
+
+
+def b1_trade(sym, sp, q, stretch):
+    """B1: book_lab.sig_b1 (first minute close beyond open +- stretch, 09:20-14:00; stop = opposite trigger, 2.5-step cap both ways) executed as
+    sell_lab.struct long ATM with shadow fills: ask of the first quote >= the next minute, bid of the first quote >= the exit minute
+    (spot exit: minute after the breach, as S2) else nearest 15:15. Returns (status, pnl, side, why, t_entry, t_exit)."""
+    s = []; v = None
+    for i in range(375): v = sp.get(_hm(i), v); s.append(v)  # ffill, as the panel spot
+    o = next((x for x in s if x is not None), None)
+    if o is None or min(sp) > "09:16": return ("NO_SPOT",)  # the open must be the 09:15/09:16 close (book_lab._open: first finite, 2 NIFTY days lack 09:15), not a late first tick
+    x = next(((i, "CE" if s[i] >= o + stretch else "PE") for i in range(5, 286) if s[i] is not None and (s[i] >= o + stretch or s[i] <= o - stretch)), None)
+    if not x: return ("NO_CROSS",)
+    i, side = x; e = i + 1; dirn = 1 if side == "CE" else -1; stp = min(2.5, max(0.5, 2 * stretch / STEP[sym])); K = _atm(sym, s[i], q)
+    xs = sorted(q.get((sym, K, side), [])); en = _first(xs, _hm(e) + ":00")
+    if en is None or s[e] is None: return ("NO_QUOTES",)
+    t_exit, why = "15:15:00", "time"
+    for j in range(e, 360):
+        mv = dirn * (s[j] - s[e]) / STEP[sym]
+        if mv >= 2.5 or mv <= -stp: t_exit, why = _hm(j + 1) + ":00", "spot_tgt" if mv >= 2.5 else "spot_stop"; break
+    ex, forced = _exit_q(xs, why, t_exit)
+    return ("TRADE", round((ex[1] - en[2]) * LOT[sym] * LOTS - cost(en[2], ex[1], sym), 2), side, why + ("+forced" if forced else ""), en[0], t_exit)
+
+
+def _safe_hist(sym, day):
+    try: return prior_days(sym, day)
+    except Exception as e: return e  # leads() re-raises it inside its own guard
+
+
+def leads(sym, sp, q, h):
+    """log-only fields: B1, SC1, LOC20/TREND labels and S1 (= s2_trade without the RV/IV filter). Never read by FIN1/S2."""
+    if isinstance(h, Exception): raise h
+    F = lead_feats(h) if h else None; S = sp.get("09:45"); s1 = None
+    if S: K = _atm(sym, S, q); s1 = s2_trade(sym, sp, sorted(q.get((sym, K, "CE"), [])), sorted(q.get((sym, K, "PE"), [])))
+    o = dict(lead_hist="OK" if F else "NO_HIST", s1_pnl_inr=s1[0] if s1 else None, s1_exit=s1[1] if s1 else "NO_INPUT", bar=_bar(sp))
+    if not F: return dict(o, b1_status="NO_HIST")
+    sc1 = F["rr1"] < 0.7
+    o.update(loc20=F["loc20"], trend=F["trend"], rr1=round(F["rr1"], 4), b1_nr4=F["nr4"], b1_stretch=round(F["stretch"], 2), sc1_signal=sc1,
+             sc1_pnl_inr=s1[0] if s1 and sc1 else 0.0, s1_loc20_high_pnl_inr=s1[0] if s1 and F["loc20"] == "HIGH" else 0.0)
+    b = b1_trade(sym, sp, q, F["stretch"]) if F["nr4"] else ("NR4_NO",)
+    return dict(o, b1_status=b[0], b1_pnl_inr=b[1] if b[0] == "TRADE" else 0.0, **(dict(b1_side=b[2], b1_exit=b[3], b1_entry_t=b[4]) if b[0] == "TRADE" else {}))
+
+
+def day_rows(day, spot, q, hist=None):
     out = []
     for sym in LOT:
-        row = dict(day=day, sym=sym, rule="FIN1", thresh=THRESH, shadow_only=True)
-        mins = [f"09:{m:02d}" for m in range(15, 46)]; sp = spot.get(sym, {})
+        sp = spot.get(sym, {})
+        try: ld = leads(sym, sp, q, (hist or {}).get(sym))
+        except Exception as e: ld = dict(lead_hist="ERROR:" + type(e).__name__)  # a leads/history failure must never lose the FIN1/S2 row
+        row = dict(day=day, sym=sym, rule="FIN1", thresh=THRESH, shadow_only=True, **ld)
+        mins = [f"09:{m:02d}" for m in range(15, 46)]
         have = [sp[m] for m in mins if m in sp]
         if len(have) < 28 or "09:45" not in sp:  # need the opening half hour on tape
             out.append(dict(row, status="NO_DATA", spot_minutes=len(have))); continue
-        S = sp["09:45"]; K = round(S / STEP[sym]) * STEP[sym]; legs = {}
-        taped = [k for (u, k, s) in q if u == sym and s == "CE" and (u, k, "PE") in q]  # recorder keeps ATM +-100/200 pts
-        if (sym, K, "CE") not in q and taped: K = min(taped, key=lambda k: abs(k - S))
+        S = sp["09:45"]; K = _atm(sym, S, q); legs = {}
         for side in ("CE", "PE"):
             xs = sorted(q.get((sym, K, side), []))
             pre = [x for x in xs if x[0] < "09:46:00"]; en = [x for x in xs if x[0] >= "09:46:00"]
@@ -160,6 +282,16 @@ def save(rows, log=LOG):
 
 def read_log(log=LOG):
     return [json.loads(l) for l in log.read_text().splitlines() if l.strip()] if log.is_file() else []
+
+
+def leads_report(rows=None):
+    """one line: per lead n trades / total paper Rs / wins, and sym-days that lacked inputs (log only)."""
+    R = rows if rows is not None else read_log(); parts = []
+    for nm, ok, f, fx, lack in (("B1 NR4 stretch", lambda r: r.get("b1_status") == "TRADE", "b1_pnl_inr", "b1_exit", lambda r: r.get("b1_status") in (None, "NO_HIST", "NO_SPOT", "NO_QUOTES")),
+                            ("SC1 S1 after contracting day", lambda r: r.get("sc1_signal") and r.get("s1_pnl_inr") is not None, "sc1_pnl_inr", "s1_exit", lambda r: r.get("lead_hist") != "OK" or r.get("s1_pnl_inr") is None),
+                            ("S1 in 20d-range HIGH", lambda r: r.get("loc20") == "HIGH" and r.get("s1_pnl_inr") is not None, "s1_loc20_high_pnl_inr", "s1_exit", lambda r: r.get("lead_hist") != "OK" or r.get("s1_pnl_inr") is None)):
+        T = [r for r in R if ok(r)]; parts.append(f"{nm}: n={len(T)} net Rs {sum(r[f] for r in T):,.0f} wins {sum(r[f] > 0 for r in T)} forced {sum('forced' in r.get(fx, '') for r in T)} (no inputs {sum(lack(r) for r in R)}/{len(R)})")
+    return "Leads (log only, " + f"{len({r['day'] for r in R})} days): " + " | ".join(parts)
 
 
 def week(n=5, rows=None):
@@ -320,12 +452,13 @@ if __name__ == "__main__":
     cmd = sys.argv[1] if len(sys.argv) > 1 else "day"
     if cmd == "selftest": selftest()
     elif cmd == "forward": run_forward(sys.argv[2] if len(sys.argv) > 2 else datetime.now(ZoneInfo("Asia/Kolkata")).date().isoformat())
+    elif cmd == "leads": print(leads_report())
     elif cmd == "week": print(week(int(sys.argv[2]) if len(sys.argv) > 2 else 5))
     else:
         day = sys.argv[2] if len(sys.argv) > 2 else datetime.now(ZoneInfo("Asia/Kolkata")).date().isoformat()
         if not (TAPE / day / "quote_snapshots.jsonl").is_file():
             print(f"FIN1 {day}: no tape"); sys.exit(0)
-        rows = day_rows(day, *load(day)); save(rows)
+        rows = day_rows(day, *load(day), hist={s: _safe_hist(s, day) for s in LOT}); save(rows)
         for r in rows:
             print(f"FIN1 {day} {r['sym']}: {r['status']}" + (f" RV/IV {r['ratio']:.2f} -> {'SIGNAL' if r['signal'] else 'no trade'}, "
                   f"straddle Rs {r['straddle_pnl_inr']:,.0f}, FIN1 Rs {r['pnl_inr']:,.0f}, S2 Rs {r['s2_pnl_inr']:,.0f} ({r['s2_exit']})"
