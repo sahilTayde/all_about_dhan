@@ -124,3 +124,23 @@ on the new data. 5. Decline §16/§13 until a strategy exists.
 
 No further in-history experiment on the 2025-10-27..2026-10-23 panel unless it (a) uses data not yet used (new vendor, new field) or
 (b) tests a hypothesis not in the registry with a pre-registered single cell. Everything else is the forward tape.
+
+## 6. Data-capability matrix (directive §9.3–9.4; web research 2026-11-13, no purchase; every "?" must be confirmed in writing with a sample file before money changes hands)
+
+Requirement that would unblock §4.1 C (defined-risk selling), §3.1 D (liquidity states) and multi-day holds: **1-minute bars for the FULL chain (at least ATM±10) of NIFTY and SENSEX weeklies, with bid/ask (or a spread proxy), volume and OI, for ≥ 2 years**, plus 1-minute index futures with volume and India VIX history.
+
+| Source | Options history | Strikes | Bid/ask history | Volume / OI | Depth | Years | Cost | Verdict for us |
+|---|---|---|---|---|---|---|---|---|
+| Dhan (what we have) | 1-min expired weeklies: OHLC, IV, OI, volume, spot (`/expired-options`) | **ATM±3 only** (D1, 728/728 refusals beyond) | no (live only; 1-s depth on our recorder since Oct-2026) | yes | live 5-level only | ≤ 5 y per docs; we hold 1 y | in plan | sufficient for intraday ATM work; blocks wings, long holds |
+| NSE Data & Analytics (ex-DotEx) | official tick-by-tick trade AND order data (historical), EOD free | full chain | **yes** (TBT order book) | yes | full | long | institutional; trial up to 6 months for new trading clients per the data-sharing policy; no public rate card found | the only source that answers the spread question properly; ask for a quote and the TBT F&O trial terms |
+| TrueData | 1-min bars, tick history | full chain claimed | **"Historical Bid Ask" is a separate subscription** (library docs) | yes | ? | ? | tiers, not published | first vendor to ask: sample day of NIFTY weekly 1-min with bid/ask, ±10 strikes |
+| GlobalDataFeeds / Accelpix | aggregator; minute-level options packages mentioned in forums | ? | ? | ? | ? | ? | ? | ask only if TrueData/NSE fail |
+| MoneyTicks | 1-min OHLC + OI, NIFTY/BANKNIFTY/SENSEX, API with chain endpoint | full chain claimed | not mentioned | OI yes | no | 2023+ | paid API | candidate for wings without spread (would need our p75 spread model: weaker evidence class) |
+| optionsdata.shop / indianbroker.shop | 1-min (and 1-s) chains, OHLC/volume/OI, Parquet/CSV | full chain claimed | **explicitly none** | yes | no | 2020+ (NIFTY) | ₹7,249 for a 3-year NIFTY 1-min pack (listing) | cheapest way to widen strikes; evidence class = "premium backtest with modelled spread", not bid/ask-aware |
+| ICICI Breeze API | per-minute OHLC/V/OI for expired contracts claimed (forum, 2024) | ? | no | OI claimed | no | "10 y" claimed | free with account | unverified; a forum report also questions its quality |
+| Fyers API | expired F&O candles | ? | no | ? | no | ? | free with account | second free check for strike width |
+| AlgoTest / Opstra / StockMock simulators | chain replay from 2021, 1–5 min | full chain | no | yes (display) | no | 2021+ | subscription | not exportable as data; useful only to eyeball a replay |
+| India VIX | NSE publishes daily history free; no 1-min history found | — | — | — | — | long (daily) | free | add the daily series to `ext_fetch.py` (cheap; expected to duplicate ATM IV) |
+| Futures 1-min with volume | not in any free source found; vendors above | — | — | yes | — | ? | with the options pack | needed for VWAP/volume regimes on the underlying |
+
+Decision rule (frozen): buy nothing until a vendor returns a sample day that (a) covers ATM±10 at 1-min for a NIFTY weekly on an expiry day and a non-expiry day, (b) states whether bid/ask is real or absent, (c) matches our Dhan ATM±3 bars on the same day within the tick. Evidence class of any result on such data is labelled per §25.2 ("historical option-premium backtest" unless bid/ask is present).
