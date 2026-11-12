@@ -34,6 +34,7 @@ DATA = Path(os.environ.get("FIN1_DATA", ROOT / "data"))  # history (ohlc json, e
 TAPE = Path(os.environ.get("FIN1_TAPE", ROOT / "data" / "tape" / "v2"))
 LOG = ROOT / "data" / "recon" / "fin1_shadow.jsonl"
 FWD = ROOT / "data" / "recon" / "forward_view.jsonl"; FWD_SVG = ROOT / "data" / "recon" / "forward_view"
+DIST = ROOT / "data" / "recon" / "candidate_dist.json"  # E26: 1y P&L distribution per candidate (casino_lab.py dist)
 MED_RVIV = 0.5434115813664702  # frozen: dev-period median of rest-of-day RV/IV (research E6)
 M0 = 555; NMIN = 329  # minutes 09:46 -> 15:15
 
@@ -338,6 +339,7 @@ def forward(day, spot, q):
         # IV is solved on calendar time T: the 09:46->15:15 share of the option's total variance is NMIN / trading minutes left
         sig = S0 * iv / 100 * math.sqrt(T * NMIN / _left_min(day, x[3]))
         o.update(S0=S0, K=K, iv=round(iv, 3), sig=round(sig, 3), ratio=r["ratio"], fin1_signal=r["signal"], s2_signal=r["s2_signal"],
+                 sc1_signal=r.get("sc1_signal"), b1_nr4=r.get("b1_nr4"),
                  path=[sp[_mm(m)] if _mm(m) in sp else None for m in range(NMIN + 1)], move=None, z=None, broke1=None, broke2=None, rv_rest=None, y_ratio=None, y=None)
         cl = [sp[_mm(m)] for m in range(NMIN + 1) if _mm(m) in sp]
         if "15:15" in sp and len(cl) >= 320:  # gaps would annualise a multi-minute return as one minute
@@ -393,6 +395,27 @@ def svg(rows):
     return "".join(o) + "</svg>"
 
 
+def candidates(r):
+    """E26: names of the candidate trades open on this sym-day at 09:46 (B1 = armed on an NR4 day; it triggers later)."""
+    c = (["FIN1"] if r.get("fin1_signal") else []) + (["S2"] if r.get("s2_signal") else []) + (["SC1"] if r.get("sc1_signal") else [])
+    if r.get("s2_signal") and r.get("sc1_signal") and r.get("sym") == "NIFTY": c.append("SGATE")
+    return c + (["B1"] if r.get("b1_nr4") else [])
+
+
+def dist_lines(r, dist=None):
+    """E26 decision chart, text form: each candidate's 1y P&L distribution (10 lots, cons engine) before entry. Not a forecast."""
+    if dist is None:
+        dist = json.loads(DIST.read_text()) if DIST.is_file() else {}
+    out = []
+    for n in candidates(r):
+        d = dist.get(n)
+        if not d: out.append(f"  DIST {n}: no history table (run casino_lab.py OUT dist)"); continue
+        warn = " [UNDECIDABLE on history: bounds]" if n == "FIN1" else " [forward-only]" if n in ("S2", "SC1", "SGATE") else ""
+        out.append(f"  DIST {n}{warn}: n {d['n']} mean {d['mean']:+,} p10 {d['p10']:+,} p50 {d['p50']:+,} p90 {d['p90']:+,} "
+                   f"P(win) {d['p_win']:.0%} | dev mean {d['dev_mean']:+,} holdout mean {d['ho_mean']:+,}")
+    return out
+
+
 def run_forward(arg):
     days = sorted(p.name for p in TAPE.iterdir() if (p / "quote_snapshots.jsonl").is_file()) if arg == "all" and TAPE.is_dir() else [arg]
     for day in days:
@@ -404,11 +427,17 @@ def run_forward(arg):
             act = "FIN1 BUY" if r["fin1_signal"] else "S2 SELL" if r["s2_signal"] else "no signal"
             print(f"FWD {day} {r['sym']}: S0 {r['S0']:.1f} ±1σ {r['sig']:.1f} ({100 * r['sig'] / r['S0']:.2f}%) ratio {r['ratio']:.2f} -> {act} | "
                   + (f"close z={r['z']:+.2f} broke1={r['broke1']}" if r["z"] is not None else "close: not yet"))
+            for ln in dist_lines(r): print(ln)
     print(calibration(read_log(FWD)))
     if days and (FWD_SVG / f"{days[-1]}.svg").is_file(): print(f"SVG: {FWD_SVG}/{days[-1]}.svg")
 
 
 def selftest():
+    D = {"S2": dict(n=10, mean=100, p10=-5, p50=50, p90=300, p_win=0.6, dev_mean=120, ho_mean=-40)}
+    ls = dist_lines(dict(sym="NIFTY", fin1_signal=False, s2_signal=True, sc1_signal=True, b1_nr4=False), D)
+    assert candidates(dict(sym="NIFTY", s2_signal=True, sc1_signal=True)) == ["S2", "SC1", "SGATE"] and len(ls) == 3
+    assert ls[0] == "  DIST S2 [forward-only]: n 10 mean +100 p10 -5 p50 +50 p90 +300 P(win) 60% | dev mean +120 holdout mean -40", ls[0]
+    assert "no history table" in ls[1] and candidates(dict(sym="SENSEX", s2_signal=True, sc1_signal=True)) == ["S2", "SC1"]
     assert abs(implied_vol(bs(22700, 22700, 5 / 365, 0.14, 0.065, "CE"), 22700, 22700, 5 / 365, "CE") - 14) < 1e-6
     assert implied_vol(0.01, 22700, 22000, 5 / 365, "CE") != implied_vol(0.01, 22700, 22000, 5 / 365, "CE")  # below intrinsic: nan
     assert abs(rv_open([100 * math.exp(0.001 * i) for i in range(31)]) - math.sqrt(30 * 1e-6 * 252 * 375 / 30) * 100) < 1e-9
