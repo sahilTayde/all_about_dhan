@@ -619,5 +619,162 @@ def study_e34():
     R = pd.DataFrame(res); R.to_csv(f"{PB}/e34.csv", index=False); return R
 
 
+# ================================================================ E36: candle-sequence atlas (frozen; every closed 5m bar 09:45-14:30)
+B36 = list(range(5, 58)); H36 = (15, 30, 45); HALF = "2026-04-24"
+PAT_DIR = {"bull_body": 1, "bear_body": -1, "hammer": 1, "star": -1, "up3": 1, "dn3": -1, "engulf_bull": 1, "engulf_bear": -1, "inside_break_up": 1,
+           "inside_break_dn": -1, "hl3": 1, "lh3": -1, "new_hi": 1, "new_lo": -1, "or_break_up": 1, "or_break_dn": -1, "failed_up": -1, "failed_dn": 1,
+           "pdh_reject": -1, "pdl_reject": 1, "triple_top": -1, "triple_bot": 1, "twap_hi2": -1, "twap_lo2": 1,
+           "doji": 0, "outside": 0, "compress": 0, "iv_up_flat": 0, "iv_dn": 0, "oi_wall": 0, "prem_bleed": 0}
+
+
+def e36_rows(k):
+    """pattern flags at every closed 5m bar b (minute i = 5b+4) of one sym-day, data <= i only; forward moves for the atlas."""
+    s = spot(k); st = STEP[k[0]]; p = P[k]; a = Z.labs()[0].loc[k]; pdh, pdl = a.PDH, a.PDL
+    o = np.array([s[5 * b] for b in range(75)]); c = np.array([s[5 * b + 4] for b in range(75)])
+    h = np.array([s[5 * b:5 * b + 5].max() for b in range(75)]); l = np.array([s[5 * b:5 * b + 5].min() for b in range(75)])
+    rng = np.maximum(h - l, 1e-9); body = (c - o) / rng; uw = (h - np.maximum(c, o)) / rng; lw = (np.minimum(c, o) - l) / rng
+    orh, orl = s[:16].max(), s[:16].min(); out = []; broke_up = broke_dn = None
+    tw = np.cumsum(s) / np.arange(1, NB + 1); dev = s - tw
+    for b in B36:
+        i = 5 * b + 4; med_rng = np.median(rng[:b + 1]); shi, slo = h[:b].max(), l[:b].min()  # session high/low BEFORE this bar
+        f = dict(bull_body=body[b] > 0.6 and rng[b] > med_rng, bear_body=body[b] < -0.6 and rng[b] > med_rng, doji=abs(body[b]) < 0.1,
+                 hammer=lw[b] >= 0.6, star=uw[b] >= 0.6, up3=all(c[b - t] > o[b - t] for t in range(3)), dn3=all(c[b - t] < o[b - t] for t in range(3)),
+                 engulf_bull=c[b] > o[b] and c[b - 1] < o[b - 1] and c[b] > o[b - 1] and o[b] < c[b - 1],
+                 engulf_bear=c[b] < o[b] and c[b - 1] > o[b - 1] and c[b] < o[b - 1] and o[b] > c[b - 1],
+                 inside_break_up=h[b - 1] <= h[b - 2] and l[b - 1] >= l[b - 2] and c[b] > h[b - 1], inside_break_dn=h[b - 1] <= h[b - 2] and l[b - 1] >= l[b - 2] and c[b] < l[b - 1],
+                 outside=h[b] > h[b - 1] and l[b] < l[b - 1], hl3=l[b] > l[b - 1] > l[b - 2], lh3=h[b] < h[b - 1] < h[b - 2],
+                 new_hi=c[b] > shi, new_lo=c[b] < slo, or_break_up=False, or_break_dn=False, failed_up=False, failed_dn=False,
+                 pdh_reject=np.isfinite(pdh) and abs(h[b] / pdh - 1) < 0.001 and uw[b] >= 0.5 and c[b] < pdh,
+                 pdl_reject=np.isfinite(pdl) and abs(l[b] / pdl - 1) < 0.001 and lw[b] >= 0.5 and c[b] > pdl,
+                 triple_top=False, triple_bot=False, twap_hi2=False, twap_lo2=False, compress=False, iv_up_flat=False, iv_dn=False, oi_wall=False, prem_bleed=False)
+        if c[b] > orh and broke_up is None: f["or_break_up"] = True; broke_up = b
+        if c[b] < orl and broke_dn is None: f["or_break_dn"] = True; broke_dn = b
+        if broke_up is not None and 0 < b - broke_up <= 3 and orl <= c[b] <= orh: f["failed_up"] = True; broke_up = -99
+        if broke_dn is not None and 0 < b - broke_dn <= 3 and orl <= c[b] <= orh: f["failed_dn"] = True; broke_dn = -99
+        w = slice(max(0, b - 11), b + 1); hh = h[:b + 1].max(); ll = l[:b + 1].min()
+        if (h[w] >= hh * 0.9995).sum() >= 3 and c[b] <= hh and c[b] < o[b]: f["triple_top"] = True
+        if (l[w] <= ll * 1.0005).sum() >= 3 and c[b] >= ll and c[b] > o[b]: f["triple_bot"] = True
+        sd = dev[max(0, i - 60):i + 1].std()
+        if sd > 0: f["twap_hi2"] = dev[i] > 2 * sd; f["twap_lo2"] = dev[i] < -2 * sd
+        if b >= 18: f["compress"] = (h[b - 5:b + 1].max() - l[b - 5:b + 1].min()) < 0.5 * (h[b - 17:b - 5].max() - l[b - 17:b - 5].min())
+        iv0, iv3 = S._iv(k, i), S._iv(k, i - 15)
+        if np.isfinite(iv0) and np.isfinite(iv3):
+            f["iv_up_flat"] = iv0 - iv3 >= 1 and abs(s[i] / s[i - 15] - 1) < 0.002; f["iv_dn"] = iv0 - iv3 <= -1
+        Km = _maxoi(k, i - 3)
+        if abs(Km - s[i]) <= st:
+            side = np.sign(Km - s[i]); crosses = sum((side > 0 and h[b - t] >= Km) or (side < 0 and l[b - t] <= Km) for t in range(6))
+            f["oi_wall"] = crosses >= 3 and (c[b] < Km if side > 0 else c[b] > Km)
+        K0, K6 = p["atm"][i], p["atm"][i - 30]
+        st0 = L._get(k, "CE", K0, i, 3) + L._get(k, "PE", K0, i, 3); st6 = L._get(k, "CE", K6, i - 30, 3) + L._get(k, "PE", K6, i - 30, 3)
+        if np.isfinite(st0) and np.isfinite(st6) and st6 > 0: f["prem_bleed"] = st0 / st6 - 1 <= -0.10 and abs(s[i] / s[i - 30:i + 1].mean() - 1) < 0.001
+        mv = {f"mv{hz}": (s[min(i + hz, NB - 1)] / s[i] - 1) * 1e4 for hz in H36}
+        out.append(dict(sym=k[0], day=k[1], b=b, i=i, d0=p["d0"], **{n: bool(v) for n, v in f.items()}, **mv))
+    return out
+
+
+def e36_table():
+    fp = f"{PB}/e36_rows.pkl"
+    if os.path.exists(fp): return pd.read_pickle(fp)
+    t0 = time.time(); rows = []
+    for k in KEYS: rows += e36_rows(k)
+    R = pd.DataFrame(rows); R.to_pickle(fp); print(f"e36 rows {len(R)} {time.time() - t0:.0f}s"); return R
+
+
+def _bh(p):
+    p = np.asarray(p, float); n = len(p); o = np.argsort(p); q = np.empty(n); r = p[o] * n / (np.arange(n) + 1)
+    q[o] = np.minimum.accumulate(r[::-1])[::-1]; return np.minimum(q, 1)
+
+
+def _e36_price(args):
+    k, i, dirn = args; out = {}
+    if dirn: r = long_leg(k, i, "CE" if dirn > 0 else "PE"); out["long"] = r["pnl"] if r else np.nan
+    r = act33(k, i, "S_STRANGLE1"); out["strangle"] = r["pnl"] if r else np.nan
+    r = act33(k, i, "L_STRAD"); out["straddle"] = r["pnl"] if r else np.nan
+    return k, i, out
+
+
+def study_e36():
+    R = e36_table(); days = sorted(R.day.unique()); rg = np.random.default_rng(36); pats = list(PAT_DIR); rows = []
+    base_up = {hz: (R[f"mv{hz}"] > 0).mean() for hz in H36}; base_abs = {hz: R[f"mv{hz}"].abs().mean() for hz in H36}
+    G = {d: g for d, g in R.groupby("day")}
+    def boot(stat, n=2000):
+        return np.array([stat(pd.concat([G[d] for d in rg.choice(days, len(days))])) for _ in range(n)])
+    for pt in pats:
+        g = R[R[pt]]
+        if len(g) < 30: rows += [dict(pattern=pt, horizon=hz, n=len(g), verdict="TOO FEW") for hz in H36]; continue
+        for hz in H36:
+            m = f"mv{hz}"; d_up = (g[m] > 0).mean() - base_up[hz]; d_abs = g[m].abs().mean() - base_abs[hz]
+            bs = boot(lambda X, pt=pt, m=m: np.array([(X[X[pt]][m] > 0).mean() - (X[m] > 0).mean(), X[X[pt]][m].abs().mean() - X[m].abs().mean()]) if X[pt].any() else np.array([np.nan, np.nan]), 1000)
+            bs = bs[np.isfinite(bs).all(1)]; p_sign = 2 * min((bs[:, 0] <= 0).mean(), (bs[:, 0] >= 0).mean()); p_size = 2 * min((bs[:, 1] <= 0).mean(), (bs[:, 1] >= 0).mean())
+            h1, h2 = g[g.day < HALF], g[g.day >= HALF]; R1, R2 = R[R.day < HALF], R[R.day >= HALF]
+            d1 = (h1[m] > 0).mean() - (R1[m] > 0).mean() if len(h1) >= 10 else np.nan; d2 = (h2[m] > 0).mean() - (R2[m] > 0).mean() if len(h2) >= 10 else np.nan
+            rows.append(dict(pattern=pt, horizon=hz, n=len(g), days=g.day.nunique(), p_up=round((g[m] > 0).mean(), 3), base_up=round(base_up[hz], 3), d_up=round(d_up, 3), p_sign=round(p_sign, 4),
+                             mean_bp=round(g[m].mean(), 1), abs_bp=round(g[m].abs().mean(), 1), base_abs=round(base_abs[hz], 1), p_size=round(p_size, 4),
+                             d_up_h1=round(d1, 3) if d1 == d1 else np.nan, d_up_h2=round(d2, 3) if d2 == d2 else np.nan, expiry_p_up=round((g[g.d0 == 1][m] > 0).mean(), 3) if (g.d0 == 1).sum() >= 10 else np.nan,
+                             nonexp_p_up=round((g[g.d0 == 0][m] > 0).mean(), 3) if (g.d0 == 0).sum() >= 10 else np.nan))
+    T = pd.DataFrame(rows); ok = T.p_sign.notna(); T.loc[ok, "q_sign"] = _bh(T.loc[ok, "p_sign"]); T.loc[ok, "q_size"] = _bh(T.loc[ok, "p_size"])
+    def verdict(r):
+        if not np.isfinite(r.p_sign): return "TOO FEW"
+        sign = r.q_sign < 0.10 and np.isfinite(r.d_up_h1) and np.isfinite(r.d_up_h2) and np.sign(r.d_up_h1) == np.sign(r.d_up_h2) == np.sign(r.d_up) and abs(r.d_up_h1) > 0
+        size = r.q_size < 0.10
+        return "PREDICTS SIGN" + (" + SIZE" if size else "") if sign else "PREDICTS SIZE" if size else "NULL"
+    for c in ("p_sign", "q_sign", "q_size", "d_up_h1", "d_up_h2", "d_up"):
+        if c not in T: T[c] = np.nan
+    T["verdict"] = [verdict(r) for r in T.itertuples()]
+    pd.set_option("display.width", 300); pd.set_option("display.max_rows", 200); print(T.to_string(index=False)); T.to_csv(f"{PB}/e36_atlas.csv", index=False)
+    # economics (secondary): aligned long / strangle / straddle at the next open for every occurrence of patterns with n >= 30
+    need = sorted({(r.sym, r.day, int(r.i), PAT_DIR[pt]) for pt in pats for r in R[R[pt]].itertuples()} if True else [])
+    jobs = sorted({((sm, dy), i, d) for sm, dy, i, d in need}); t0 = time.time()
+    with get_context("fork").Pool(max(1, os.cpu_count() - 1)) as pool: pr = {(k, i, d): o for k, i, o in pool.imap_unordered(_e36_price, jobs, chunksize=50)}
+    print(f"priced {len(pr)} pattern occurrences {time.time() - t0:.0f}s"); eco = []
+    for pt in pats:
+        g = R[R[pt]]
+        if len(g) < 30: continue
+        d = PAT_DIR[pt]; vals = {a: np.array([pr[((r.sym, r.day), int(r.i), d)].get(a, np.nan) for r in g.itertuples()]) for a in ("long", "strangle", "straddle")}
+        row = dict(pattern=pt, n=len(g))
+        for a, v in vals.items():
+            v = v[np.isfinite(v)]
+            if not len(v): continue
+            gd = pd.DataFrame(dict(day=g.day.values[:len(v)] if len(v) == len(g) else g.day.values[np.isfinite(vals[a])], pnl=v)); dd = {dy: x.pnl.values for dy, x in gd.groupby("day")}; ds = list(dd)
+            bm = np.array([np.concatenate([dd[x] for x in rg.choice(ds, len(ds))]).mean() for _ in range(500)])
+            row[f"{a}_EV"] = round(v.mean()); row[f"{a}_win"] = round((v > 0).mean() * 100, 1); row[f"{a}_ci90"] = f"[{np.percentile(bm, 5):,.0f}, {np.percentile(bm, 95):,.0f}]"
+        eco.append(row)
+    E = pd.DataFrame(eco); print("\nECONOMICS (counterfactual, every occurrence, 10 lots, E33 exits; in-sample, no selection claim):"); print(E.to_string(index=False)); E.to_csv(f"{PB}/e36_econ.csv", index=False)
+    return T, E
+
+
+# ================================================================ E37: defined-risk selling inside the window (frozen)
+E37_STR = {"IFLY1": S.ifly(1), "ICON12": S.icon(1, 2)}; E37_ENT = {"0946": 31, "1130": 135}; E37_EX = {"spot1": dict(sstop=1, stop=0.5, tgt=0.5), "spot1.5": dict(sstop=1.5, stop=0.5, tgt=0.5)}
+
+
+def study_e37():
+    V = L.vol_days().set_index(["sym", "day"]); gates = {"ALL": lambda k: True, "calm": lambda k: V.or_iv.get(k, np.nan) <= 1.0042, "ivr_high": lambda k: V.ivpct.get(k, np.nan) > 0.67}
+    rg = np.random.default_rng(37); rows = []; pd.set_option("display.width", 300)
+    pools = {}
+    for sn, legs in E37_STR.items():
+        for xn, ex in E37_EX.items():
+            pool = {}
+            for k in KEYS:
+                v = [r["pnl"] for i in rg.integers(31, 286, 12) for r in [S.struct(k, int(i), legs, mode="cons", **ex)] if r]; pool[k] = np.array(v if v else [0.0])
+            pools[(sn, xn)] = pool
+    for sn, legs in E37_STR.items():
+        for en, i in E37_ENT.items():
+            T = pd.DataFrame([dict(r, key=k) for k in KEYS for r in [S.struct(k, i, legs, mode="cons", **{})] if False])  # placeholder to keep structure simple
+            for xn, ex in E37_EX.items():
+                D = pd.DataFrame([dict(S.struct(k, i, legs, mode="cons", **ex), key=k) for k in KEYS if S.struct(k, i, legs, mode="cons", **ex)])
+                for gn, gf in gates.items():
+                    d = D[[gf(k) for k in D.key]]
+                    if len(d) < 20: rows.append(dict(struct=sn, entry=en, exit=xn, gate=gn, n=len(d), verdict="TOO FEW")); continue
+                    g = d.groupby("day").pnl.sum(); bs = rg.choice(g.values, (4000, len(g))).mean(1); p = float((bs <= 0).mean())
+                    h1, h2 = d[d.day < HALF].pnl.sum(), d[d.day >= HALF].pnl.sum(); pl = pools[(sn, xn)]
+                    rnd = np.array([sum(rg.choice(pl[k]) for k in d.key) for _ in range(2000)]); pvr = float((rnd >= d.pnl.sum()).mean()); forced = d.forced.mean() * 100
+                    ok = p < 0.05 / 24 and h1 > 0 and h2 > 0 and pvr < 0.05 and forced <= 5
+                    rows.append(dict(struct=sn, entry=en, exit=xn, gate=gn, n=len(d), win=round((d.pnl > 0).mean() * 100, 1), total=round(d.pnl.sum()), avg=round(d.pnl.mean()), credit=round(d.credit.mean(), 1),
+                                     maxloss=round(d.maxloss.mean()), p_boot=round(p, 4), half1=round(h1), half2=round(h2), p_vs_rand=round(pvr, 3), rand_avg=round(rnd.mean() / len(d)), forced=round(forced, 1),
+                                     why=d.why.value_counts().to_dict(), verdict="PASS" if ok else "PARKED"))
+                    print(rows[-1], flush=True)
+    R = pd.DataFrame(rows); R.to_csv(f"{PB}/e37.csv", index=False); print(R.drop(columns=["why"]).to_string(index=False)); return R
+
+
 if __name__ == "__main__":
     for a in [a for a in sys.argv[2:] if not a.startswith("-")]: globals()["study_" + a]()
