@@ -1,5 +1,25 @@
 # Handoff log — Team 03 PhD market
 
+## As of now (2026-11-12) — DEXT web terminal mapped (PAPER, read only)
+
+```text
+Market question: can dext.dhan.co be the live chart + data surface
+  for E33 paper research, and where is the order path?
+Rule / clock / source: SOURCE_FACT
+  teams/03_phd_market/docs/DEXT_TERMINAL_MAP.md (UI read 2026-11-12
+  after close, founder's Chrome). Chain = OI/OI chg/volume/IV/greeks
+  per strike; Order Flow = 5m footprint delta (no 1m); Technicals =
+  daily 20-SMA; ADX/Choppiness on chart; no Order-Block / FVG indicator.
+Impact: the two E33 votes the tape scores as None (ATM OI flow,
+  tick-rule signed volume) are readable on DEXT. Workspace Auto Save
+  is ON: widgets opened were closed again, Default restored.
+Customer action: PAPER only. No order, alert, watchlist or workspace
+  created. Template recipe in the map; create "E33 desk" only on a yes.
+Backtest tag for 06: none.
+UNKNOWN / DATA_INSUFFICIENT: depth level count after hours; expiry
+  labels in chain/greeks widgets read one day before contract names.
+```
+
 ## As of now (2026-10-05) — C5-06 generateAccessToken mint (PAPER)
 
 ```text
