@@ -71,6 +71,25 @@ def describe_jwt_exp(token: str, *, now: datetime | None = None) -> str:
     return f"Dhan JWT exp={when.isoformat(timespec='seconds')} ({rel})"
 
 
+def expiry_warning(token: str, *, now: datetime | None = None, warn_days: float = 3.0) -> str:
+    """Morning/report line: OK / WARNING (expires within warn_days) / EXPIRED / MISSING. Never includes the token."""
+    if not token:
+        return "Dhan token MISSING: DHAN_ACCESS_TOKEN is not set; the recorder cannot start"
+    exp = jwt_exp_unix(token)
+    if exp is None:
+        return "Dhan token: expiry unknown (no JWT exp claim)"
+    when = datetime.fromtimestamp(exp, tz=IST)
+    clock = now if now is not None else datetime.now(IST)
+    clock = clock.replace(tzinfo=IST) if clock.tzinfo is None else clock.astimezone(IST)
+    days = (when - clock).total_seconds() / 86400
+    stamp = when.strftime("%Y-%m-%d %H:%M IST")
+    if days < 0:
+        return f"Dhan token EXPIRED at {stamp} ({-days:.1f} days ago): the recorder cannot start; refresh DHAN_ACCESS_TOKEN in .env"
+    if days <= warn_days:
+        return f"Dhan token WARNING: expires {stamp} (in {days:.1f} days); refresh DHAN_ACCESS_TOKEN in .env before then"
+    return f"Dhan token OK: expires {stamp} (in {days:.1f} days)"
+
+
 def log_jwt_exp(token: str, *, logger: logging.Logger | None = None, now: datetime | None = None) -> str:
     """Log the exp line. Returns the line so tests can assert without reading handlers."""
     line = describe_jwt_exp(token, now=now)

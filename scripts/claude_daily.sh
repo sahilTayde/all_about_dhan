@@ -4,6 +4,7 @@
 #   scripts/claude_daily.sh morning   # waits (detached) until 08:25 IST, then restarts v2 + cross recorders; also queues close
 #   scripts/claude_daily.sh close     # waits (detached) until 15:31 IST, then ./scripts/desk.sh close + FIN1 shadow log
 #                                     # (Fridays: weekly FIN1 report -> data/recon/fin1_shadow_week.txt, shown on Mondays)
+#   scripts/claude_daily.sh token     # Dhan token expiry: OK / WARNING (<= 3 days) / EXPIRED / MISSING (also printed by morning + report)
 #   scripts/claude_daily.sh status    # today's log + recorder health
 #   scripts/claude_daily.sh heal      # 09:00-15:25 IST on trading days: start the v2 / cross recorder only if it is down
 #                                     # (the morning waiter runs it every 10 min after the 08:25 start)
@@ -31,6 +32,19 @@ print(max(0, int((now.replace(hour=hh, minute=mm, second=0, microsecond=0) - now
 PY
 }
 
+token_line() {  # Dhan token expiry from the env or .env (value never printed). An expired token stopped the tape 10-30..11-12 silently.
+  PYTHONPATH="$ROOT/packages/dhan-client/src" "$PY" - "$ROOT/.env" <<'PY'
+import os, sys
+from dhan_client.token_info import expiry_warning
+tok = os.environ.get("DHAN_ACCESS_TOKEN", "")
+if not tok and os.path.exists(sys.argv[1]):
+    for l in open(sys.argv[1], encoding="utf-8"):
+        if l.startswith("DHAN_ACCESS_TOKEN="):
+            tok = l.split("=", 1)[1].strip().strip("'\"")
+print(expiry_warning(tok))
+PY
+}
+
 later() {  # later NAME HH:MM "cmd": detach so the scheduled Claude run can finish while we wait
   local q="data/recon/claude_daily_${DAY}.$1.pid" s
   if [[ -f "$q" ]] && kill -0 "$(cat "$q")" 2>/dev/null; then  # Run now + cron the same day: one waiter only
@@ -53,7 +67,9 @@ MORNING='if [[ "$(TZ=Asia/Kolkata date +%H%M)" > 0830 ]]; then ./scripts/desk.sh
 CLOSE='./scripts/desk.sh close; .venv/bin/python scripts/lab5y/fin1_shadow.py day; if [[ "$(TZ=Asia/Kolkata date +%u)" == 5 ]]; then .venv/bin/python scripts/lab5y/fin1_shadow.py week 5 > data/recon/fin1_shadow_week.txt; fi; ./scripts/claude_daily.sh report'
 
 case "${1:-}" in
-  morning) later morning 08:25 "$MORNING"; later close 15:31 "$CLOSE" ;;  # close too: the close task can stall on an approval prompt
+  morning) token_line | tee -a "$LOG"
+           later morning 08:25 "$MORNING"; later close 15:31 "$CLOSE" ;;  # close too: the close task can stall on an approval prompt
+  token)   token_line ;;
   close)   [[ "$(TZ=Asia/Kolkata date +%u)" == 1 && -f data/recon/fin1_shadow_week.txt ]] && cat data/recon/fin1_shadow_week.txt
            later close 15:31 "$CLOSE" ;;
   status)  tail -20 "$LOG" 2>/dev/null; ./scripts/desk.sh recorder-status 2>&1 | tail -4 ;;
@@ -67,6 +83,7 @@ case "${1:-}" in
            fi ;;
   report)  R="data/recon/daily_report_${DAY}.txt"; T="data/tape/v2/$DAY"
            { echo "Daily report $DAY (paper only, no orders)"
+             token_line
              if [[ -f "$T/recorder.log" ]]; then
                ist() { "$PY" -c "import sys;from datetime import datetime;from zoneinfo import ZoneInfo;print(datetime.strptime(sys.argv[1][:19],'%Y-%m-%d %H:%M:%S').astimezone(ZoneInfo('Asia/Kolkata')).strftime('%H:%M'))" "$1"; }
                echo "Tape: $(ist "$(head -1 "$T/recorder.log")")-$(ist "$(tail -1 "$T/recorder.log")") IST, depth $(du -h "$T/depth_quotes.jsonl" 2>/dev/null | cut -f1)"
@@ -78,5 +95,5 @@ case "${1:-}" in
              "$PY" -c "import json;r=json.load(open('data/recon/sod_exam_report.json'));d=[x for x in r['days'] if x['day']=='$DAY'];print('Paper desk honesty:',r.get('overall_honesty'),'| today:',(d[0].get('honesty') if d else 'no row'));[print(' ',s) for s in r.get('stories',[]) if s.startswith('$DAY')]" 2>/dev/null || echo "Paper desk honesty: no report"
              grep -h "heal:" "$LOG" 2>/dev/null | sed 's/^/Self-heal: /'
            } > "$R"; cat "$R" ;;
-  *) echo "usage: $0 morning|close|status|heal|report" >&2; exit 1 ;;
+  *) echo "usage: $0 morning|close|token|status|heal|report" >&2; exit 1 ;;
 esac
