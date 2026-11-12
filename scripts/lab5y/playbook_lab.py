@@ -548,5 +548,49 @@ def study_policy33():
     return R
 
 
+# ---------------------------------------------------------------- E34: confirmation layer net of drift (frozen; reuses E33 tables)
+def _policy_run(T, A, oos, k, thr, cells):
+    """E33 EB policy (prior 0, n >= 30) learned on T's `cell` column, executed by run33 on arrays A (whose cell labels must match T)."""
+    NONE = len(ACTS33N) - 1; tabs = {}
+    for m in oos:
+        g = T[T.mo < m].groupby(["cell", "action"]).pnl.agg(["mean", "size"]); g = g[g["size"] >= MIN_LEARN]
+        ev = {idx: r["size"] * r["mean"] / (r["size"] + k) for idx, r in g.iterrows()}; tbl = {}
+        for c in cells:
+            cand = [(v, a) for (cc, a), v in ev.items() if cc == c and v > thr]; tbl[c] = ACTS33N.index(max(cand)[1]) if cand else NONE
+        tabs[m] = tbl
+    return run33(A, lambda mo: tabs[mo], oos)
+
+
+def study_e34():
+    gate = pickle.load(open(f"{PB}/e33_gate.pkl", "rb")); acts = ACTS33 if gate["directional"] else ["S_STRANGLE1", "L_STRAD"]
+    T0 = table33(); F = states(regime_feats())[["sym", "day", "i", "cell", "regime", "conf"]]; T0 = T0.merge(F, on=["sym", "day", "i"]); T0["mo"] = T0.day.map(L.month); T0 = T0[T0.action.isin(acts)]
+    oos = [m for m in MONTHS if m >= OOS_FROM]; days_oos = sorted(T0[T0.mo.isin(oos)].day.unique()); rg = np.random.default_rng(34)
+    daily = lambda tr: tr.groupby("day").pnl.sum().reindex(days_oos).fillna(0.0) if len(tr) else pd.Series(0.0, index=days_oos)
+    def relabel(T, cellcol):
+        T = T.copy(); T["cell"] = cellcol; return T
+    # shuffled CONF labels per sym-day across its slots (regime and outcomes untouched); the same permutation for every action row of a slot
+    slots = F[["sym", "day", "i", "conf"]].drop_duplicates(); shuffles = []
+    for _ in range(200):
+        parts = []
+        for (sym, day), g in slots.groupby(["sym", "day"], sort=False): parts.append(g.assign(conf2=rg.permutation(g.conf.values)))
+        shuffles.append(pd.concat(parts)[["sym", "day", "i", "conf2"]])
+    res = []
+    for k, thr in DESIGNS33:
+        full = _policy_run(T0, arrays33(T0), oos, k, thr, CELLS); d_full = daily(full)
+        Tr = relabel(T0, T0.regime); reg = _policy_run(Tr, arrays33(Tr), oos, k, thr, REGIMES); d_reg = daily(reg)
+        fl = T0.conf.map({"BULL": "BEAR", "BEAR": "BULL", "NEUT": "NEUT"}); Tf = relabel(T0, T0.regime + "|" + fl); flip = _policy_run(Tf, arrays33(Tf), oos, k, thr, CELLS); d_flip = daily(flip)
+        sh = []
+        for S_ in shuffles:
+            Ts = T0.merge(S_, on=["sym", "day", "i"]); Ts = relabel(Ts, Ts.regime + "|" + Ts.conf2); sh.append(daily(_policy_run(Ts, arrays33(Ts), oos, k, thr, CELLS)).sum())
+        sh = np.array(sh); ex = d_full - d_reg; mo = ex.groupby(pd.Series(ex.index, index=ex.index).map(L.month)).sum()
+        bs = rg.choice(ex.values, (4000, len(ex))).mean(1); p = float((bs <= 0).mean()); pct = float((sh < d_full.sum()).mean())
+        ok = ex.sum() > 0 and 4 * p < 0.05 and (mo > 0).sum() >= 6 and pct >= 0.95 and d_flip.sum() < d_full.sum()
+        r = dict(k=k, thr=thr, full_oos=round(d_full.sum()), full_trades=len(full), regime_only_oos=round(d_reg.sum()), regime_trades=len(reg), excess=round(ex.sum()),
+                 p=round(p, 4), p_bonf4=round(min(1, 4 * p), 4), excess_months_pos=f"{(mo > 0).sum()}/9", shuffle_median=round(float(np.median(sh))), shuffle_p95=round(float(np.percentile(sh, 95))),
+                 beats_shuffles_pct=round(100 * pct, 1), flip_oos=round(d_flip.sum()), verdict="PASS" if ok else "LEAD ONLY")
+        res.append(r); print(r, flush=True)
+    R = pd.DataFrame(res); R.to_csv(f"{PB}/e34.csv", index=False); return R
+
+
 if __name__ == "__main__":
     for a in [a for a in sys.argv[2:] if not a.startswith("-")]: globals()["study_" + a]()
