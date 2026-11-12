@@ -690,7 +690,7 @@ def _e36_price(args):
     if dirn: r = long_leg(k, i, "CE" if dirn > 0 else "PE"); out["long"] = r["pnl"] if r else np.nan
     r = act33(k, i, "S_STRANGLE1"); out["strangle"] = r["pnl"] if r else np.nan
     r = act33(k, i, "L_STRAD"); out["straddle"] = r["pnl"] if r else np.nan
-    return k, i, out
+    return k, i, dirn, out
 
 
 def study_e36():
@@ -722,10 +722,16 @@ def study_e36():
         if c not in T: T[c] = np.nan
     T["verdict"] = [verdict(r) for r in T.itertuples()]
     pd.set_option("display.width", 300); pd.set_option("display.max_rows", 200); print(T.to_string(index=False)); T.to_csv(f"{PB}/e36_atlas.csv", index=False)
+    study_e36econ(R)
+    return T
+
+
+def study_e36econ(R=None):
+    R = e36_table() if R is None else R; rg = np.random.default_rng(36); pats = list(PAT_DIR)
     # economics (secondary): aligned long / strangle / straddle at the next open for every occurrence of patterns with n >= 30
     need = sorted({(r.sym, r.day, int(r.i), PAT_DIR[pt]) for pt in pats for r in R[R[pt]].itertuples()} if True else [])
     jobs = sorted({((sm, dy), i, d) for sm, dy, i, d in need}); t0 = time.time()
-    with get_context("fork").Pool(max(1, os.cpu_count() - 1)) as pool: pr = {(k, i, d): o for k, i, o in pool.imap_unordered(_e36_price, jobs, chunksize=50)}
+    with get_context("fork").Pool(max(1, os.cpu_count() - 1)) as pool: pr = {(k, i, d): o for k, i, d, o in pool.imap_unordered(_e36_price, jobs, chunksize=50)}
     print(f"priced {len(pr)} pattern occurrences {time.time() - t0:.0f}s"); eco = []
     for pt in pats:
         g = R[R[pt]]
@@ -740,7 +746,7 @@ def study_e36():
             row[f"{a}_EV"] = round(v.mean()); row[f"{a}_win"] = round((v > 0).mean() * 100, 1); row[f"{a}_ci90"] = f"[{np.percentile(bm, 5):,.0f}, {np.percentile(bm, 95):,.0f}]"
         eco.append(row)
     E = pd.DataFrame(eco); print("\nECONOMICS (counterfactual, every occurrence, 10 lots, E33 exits; in-sample, no selection claim):"); print(E.to_string(index=False)); E.to_csv(f"{PB}/e36_econ.csv", index=False)
-    return T, E
+    return E
 
 
 # ================================================================ E37: defined-risk selling inside the window (frozen)
