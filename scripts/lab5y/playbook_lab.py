@@ -339,12 +339,12 @@ def regime_feats():
     """raw E33 features per (sym, day, slot minute i), data up to minute i only."""
     fp = f"{PB}/e33_feats.pkl"
     if os.path.exists(fp): return pd.read_pickle(fp)
-    t0 = time.time(); A = Z.labs()[0]; D = daytab(); rows = []
+    t0 = time.time(); A = Z.labs()[0]; D = daytab(); rows = []; IVP = L.vol_days().set_index(["sym", "day"]).ivpct.to_dict()
     for k in KEYS:
-        s = spot(k); st = STEP[k[0]]; G = _bars5(k); a = A.loc[k]; d = D[k]; p = P[k]; orh, orl = s[:31].max(), s[:31].min()
+        s = spot(k); st = STEP[k[0]]; G = _bars5(k); a = A.loc[k]; d = D[k]; p = P[k]; orh, orl = s[:16].max(), s[:16].min()  # OR 09:15-09:30
         for i in SLOTS33:
-            b = i // 5; K = p["atm"][i]; j = i - 15
-            oc, op, oc0, op0 = (L._get(k, sd, K, t, 4) for sd, t in (("CE", i), ("PE", i), ("CE", j), ("PE", j)))
+            b = i // 5; K = p["atm"][i]; j = i - 15; LAG = 3  # OI on Dhan is ~3 min delayed live: lag it
+            oc, op, oc0, op0 = (L._get(k, sd, K, t, 4) for sd, t in (("CE", i - LAG), ("PE", i - LAG), ("CE", j - LAG), ("PE", j - LAG)))
             oiflow = ((op - op0) - (oc - oc0)) / (oc + op) if np.isfinite(oc + op + oc0 + op0) and oc + op > 0 else np.nan
             tv = {}
             for sd in ("CE", "PE"):  # tick rule: sign of the 1m close change x volume, same strike, last 15 bars
@@ -355,13 +355,13 @@ def regime_feats():
                 tv[sd] = (v, tot)
             oflow = (tv["CE"][0] - tv["PE"][0]) / (tv["CE"][1] + tv["PE"][1]) if tv["CE"][1] + tv["PE"][1] > 0 else np.nan
             x = G.iloc[b]; rng5 = max(x.h - x.l, 1e-9); shape = 1 if (x.c - x.l) / rng5 >= 0.7 and (x.c - x.o) / rng5 > 0.5 else -1 if (x.h - x.c) / rng5 >= 0.7 and (x.o - x.c) / rng5 > 0.5 else 0
-            lv = [a.PDH, a.PDL, orh, orl, _maxoi(k, i)]; near = min(abs(s[i] / v - 1) for v in lv if np.isfinite(v))
+            lv = [a.PDH, a.PDL, orh, orl, _maxoi(k, i - 3)]; near = min(abs(s[i] / v - 1) for v in lv if np.isfinite(v))
             gap = s[0] / d["c1"] - 1 if np.isfinite(d["c1"]) else np.nan
             rows.append(dict(sym=k[0], day=k[1], i=i, slot=f"{(M0 + i) // 60:02d}{(M0 + i) % 60:02d}", ampm="AM" if i < 165 else "PM",
                              adx=x.adx, pdi=x.pdi, mdi=x.mdi, er=x.er, chop=x.chop, r60=s[i] / s[i - 60] - 1, r15=s[i] / s[i - 15] - 1, near_level=near,
                              gap=gap, rbi=k[1] in L.RBI, fomc=k[1] in L.FOMC, d0=p["d0"], dte=p["dte"], oiflow=oiflow, oflow=oflow, fvg=_fvg(G, b),
                              cshape=shape, bias=1 if a.TREND == "UP" else -1 if a.TREND == "DN" else 0, gex=_gex(k, i), iv=S._iv(k, i), rv30=_rv(s, i),
-                             div15=S._iv(k, i) - S._iv(k, j), maxoi=_maxoi(k, i), day_ret=s[i] / s[0] - 1))
+                             div15=S._iv(k, i) - S._iv(k, j), maxoi=_maxoi(k, i - 3), day_ret=s[i] / s[0] - 1, ivpct=IVP.get(k, np.nan)))
     F = pd.DataFrame(rows); F["mo"] = F.day.map(L.month); F.to_pickle(fp); print(f"e33 feats {len(F)} rows {time.time() - t0:.0f}s"); return F
 
 
@@ -377,17 +377,35 @@ X33 = dict(l_stop=0.30, l_tgt=0.60, l_trail=0.20, s_stop=0.5, s_tgt=0.5, cap=2.5
 ACTS33 = ["L_CE", "L_PE", "S_CE", "S_PE", "S_STRANGLE1", "L_STRAD"]
 
 
+def long_leg(k, i, sd, X=X33):
+    """E33 rule 6, long single leg on 1-min bars: SL X[l_stop] of the entry premium, intrabar (fill = min(trigger, bar open) - half-spread);
+    target +X[l_tgt] fills AT the target only if the bar high >= target + 1 tick + half-spread (a resting limit got hit through);
+    trailing = fixed jump X[l_trail] x entry (SL rises one jump per jump of new high, Dhan super-trail semantics); spot adverse cap
+    (next open); else the 15:15 open; SL beats target in the same bar; strike leaves the window -> last close, forced (D7: forfeits gains)."""
+    sym = k[0]; p = P[k]; a, K = L.contract(k, i, sd, 0); e = i + 1; xe = FLAT - M0
+    if a is None or not np.isfinite(a[e, 0]): return None
+    d0 = p["d0"]; en = a[e, 0] + L.hs(sym, d0, M0 + e, a[e, 0]); J = X["l_trail"] * en; sl0 = en * (1 - X["l_stop"]); tp = en * (1 + X["l_tgt"])
+    s = spot(k); s0 = s[e]; dirn = 1 if sd == "CE" else -1; capv = min(X["cap"], 0.004 * s0 / STEP[sym]) * STEP[sym]
+    sl, hi, x, why, forced, j = sl0, en, None, None, False, e
+    for j in range(e, xe):
+        o, h, l, c = a[j, :4]
+        if not np.isfinite(o): x, forced, why = a[j - 1, 3], True, "window"; break
+        if l <= sl: x, why = min(sl, o), "sl"; break
+        if h >= tp + 0.05 + L.hs(sym, d0, M0 + j, tp): x, why = tp, "tgt"; break
+        hi = max(hi, h); sl = max(sl, sl0 + J * math.floor((hi - en) / J)) if J > 0 else sl
+        if dirn * (s[j] - s0) <= -capv and j + 1 < xe: j += 1; x, why = (a[j, 0] if np.isfinite(a[j, 0]) else c), "cap"; break
+    if x is None: j = xe; x, why = (a[j, 0] if np.isfinite(a[j, 0]) else a[j - 1, 3]), "time"
+    if why != "tgt": x = max(x - L.hs(sym, d0, M0 + min(j, NB - 1), x), 0.05)
+    return dict(pnl=(x - en) * LOT[sym] * L.LOTS - L.cost(en, x, sym), held=j - e, forced=forced, why=why, credit=-en)
+
+
 def act33(k, i, name, X=X33):
-    """Long single leg = opt1y_lab.trade (intrabar SL at min(trigger, next open) = a resting super-order SL; target at the target;
-    trailing SL below the running high; spot adverse cap in index points) -> normalised to the struct dict. Short single leg and
-    structures = sell_lab.struct (close-based triggers filled at the next open, cons bounds). D7 caveat for the long leg: a strike
-    leaving the window exits at its last close (forced=True), which forfeits further gains, never invents them."""
+    """long legs: long_leg (rule 6); short legs and structures: sell_lab.struct (close-based triggers filled at the NEXT open +- half-spread,
+    cons bounds). Strangle spot cap 2.0 steps so both legs stay inside the taped window."""
     s = spot(k); st = STEP[k[0]]; c = min(X["cap"], 0.004 * s[i] / st)
-    if name in ("L_CE", "L_PE"):
-        sd = name[2:]; r = L.trade(k, i, sd, 0, hold=None, stop=X["l_stop"], tgt=X["l_tgt"], trail=X["l_trail"], idx_stop=c * st)
-        return None if r is None else dict(pnl=r[0], held=r[1], forced=r[2], why="trade")
+    if name in ("L_CE", "L_PE"): return long_leg(k, i, name[2:], X)
     if name in ("S_CE", "S_PE"): return S.struct(k, i, [(name[2:], 0, -1)], stop=X["s_stop"], tgt=X["s_tgt"], sstop=c, mode="cons")
-    if name == "S_STRANGLE1": return S.struct(k, i, [("CE", 1, -1), ("PE", -1, -1)], stop=X["s_stop"], tgt=X["s_tgt"], sstop=c, mode="cons")
+    if name == "S_STRANGLE1": return S.struct(k, i, [("CE", 1, -1), ("PE", -1, -1)], stop=X["s_stop"], tgt=X["s_tgt"], sstop=min(c, 2.0), mode="cons")
     return S.struct(k, i, S.LSTRAD, sstop=c, mode="cons")
 
 
@@ -409,6 +427,125 @@ def table33():
 def study_table33():
     T = table33(); pd.set_option("display.width", 250)
     print(T.groupby("action").agg(n=("pnl", "size"), mean=("pnl", "mean"), win=("pnl", lambda x: (x > 0).mean() * 100), forced=("forced", "mean")).round(2).to_string())
+
+
+# ---------------------------------------------------------------- E33 states, gates, policy
+REGIMES = ["EVENT", "TREND_UP", "TREND_DN", "LEVEL", "CHOP"]; CONFS = ["BULL", "NEUT", "BEAR"]; CELLS = [f"{r}|{c}" for r in REGIMES for c in CONFS]
+ACTS33N = ACTS33 + ["NONE"]; DESIGNS33 = [(k, thr) for k in (15, 30) for thr in (250, 500)]
+
+
+def states(F):
+    F = F.copy(); ev = (F.rbi & (F.i == 30)) | F.fomc | ((F.d0 == 1) & (F.i >= 225)) | (F.gap.abs() > 0.005)
+    tr = ((F.adx >= 25).astype(int) + (F.er >= 0.35).astype(int) + (F.chop <= 45).astype(int)) >= 2
+    F["regime"] = np.where(ev, "EVENT", np.where(tr, np.where(F.r60 > 0, "TREND_UP", "TREND_DN"), np.where(F.near_level <= 0.0015, "LEVEL", "CHOP")))
+    v = np.sign(F.oiflow.fillna(0)) + np.sign(F.oflow.fillna(0)) + F.fvg + F.cshape + F.bias; F["votes"] = v
+    F["conf"] = np.where(v >= 2, "BULL", np.where(v <= -2, "BEAR", "NEUT")); F["cell"] = F.regime + "|" + F.conf
+    s_ = {k: spot(k) for k in KEYS}; F["mv45"] = [(s_[(a, b)][min(i + 45, NB - 1)] / s_[(a, b)][i] - 1) * 1e4 for a, b, i in zip(F.sym, F.day, F.i)]
+    return F
+
+
+def _dayboot(F, fn, n=2000, seed=5):
+    """day-block bootstrap (both indices of a day = one block) of statistic fn(frame) -> array."""
+    rg = np.random.default_rng(seed); days = sorted(F.day.unique()); G = {d: g for d, g in F.groupby("day")}; out = []
+    for _ in range(n):
+        pick = rg.choice(days, len(days)); out.append(fn(pd.concat([G[d] for d in pick])))
+    return np.array(out)
+
+
+def study_gates33():
+    """Q2: does CONF predict the sign of the next 45 min? Q1: does REGIME predict its size? Whole year (no fitted parameter), day-block."""
+    F = states(regime_feats()); F = F[np.isfinite(F.mv45)]; up = F.mv45 > 0
+    bull, bear = F[F.conf == "BULL"], F[F.conf == "BEAR"]; d_obs = (bull.mv45 > 0).mean() - (bear.mv45 > 0).mean()
+    bs = _dayboot(F, lambda G: (G[G.conf == "BULL"].mv45 > 0).mean() - (G[G.conf == "BEAR"].mv45 > 0).mean())
+    p2 = 2 * min((bs <= 0).mean(), (bs >= 0).mean()); base = up.mean()
+    print(f"Q2 (direction): P(up|BULL) {(bull.mv45 > 0).mean():.3f} (n {len(bull)}), P(up|BEAR) {(bear.mv45 > 0).mean():.3f} (n {len(bear)}), base {base:.3f}, "
+          f"diff {d_obs:+.3f}, day-block p {p2:.3f} -> {'CONF PREDICTS DIRECTION: directional actions stay' if p2 < 0.05 else 'NO: L_CE/L_PE/S_CE/S_PE REMOVED from the policy'}")
+    print("  mean signed move bp | BULL %.1f  NEUT %.1f  BEAR %.1f" % (bull.mv45.mean(), F[F.conf == "NEUT"].mv45.mean(), bear.mv45.mean()))
+    for v_, g in F.groupby("votes"): print(f"  votes {int(v_):+d}: n {len(g)} P(up) {(g.mv45 > 0).mean():.3f} mean {g.mv45.mean():+.1f} bp")
+    print("Q1 (size): |45-min move| bp by REGIME vs base %.1f" % F.mv45.abs().mean())
+    for r in REGIMES:
+        g = F[F.regime == r]
+        if not len(g): continue
+        bsr = _dayboot(F, lambda G, r=r: G[G.regime == r].mv45.abs().mean() - G.mv45.abs().mean(), n=1000)
+        print(f"  {r:9s} n {len(g):5d} |move| {g.mv45.abs().mean():5.1f} P(up) {(g.mv45 > 0).mean():.3f} p_size {2 * min((bsr <= 0).mean(), (bsr >= 0).mean()):.3f}")
+    print("cells (sym-day-slot counts):"); print(F.groupby(["regime", "conf"]).size().unstack(1).fillna(0).astype(int).to_string())
+    json_ = dict(q2_p=float(p2), directional=bool(p2 < 0.05)); pickle.dump(json_, open(f"{PB}/e33_gate.pkl", "wb")); return json_
+
+
+def arrays33(T):
+    """per sym-day: slots x actions pnl/held matrices and the cell per slot, for fast sequential policy runs."""
+    T = T.sort_values(["sym", "day", "i"]); A = {}
+    for (sym, day), g in T.groupby(["sym", "day"], sort=False):
+        pn = np.full((len(SLOTS33), len(ACTS33N)), np.nan); hd = np.zeros((len(SLOTS33), len(ACTS33N)), int); cell = [None] * len(SLOTS33); fc = np.zeros_like(pn, bool)
+        for r in g.itertuples():
+            si, ai = SLOTS33.index(r.i), ACTS33N.index(r.action); pn[si, ai] = r.pnl; hd[si, ai] = r.held; cell[si] = r.cell; fc[si, ai] = r.forced
+        pn[:, -1] = 0.0; A[(sym, day)] = (pn, hd, cell, fc, L.month(day))
+    return A
+
+
+def run33(A, table_for_month, months):
+    """sequential execution: at each slot when flat, action = table_for_month(mo)[cell] (index into ACTS33N) -> trades list."""
+    out = []
+    for (sym, day), (pn, hd, cell, fc, mo) in A.items():
+        if mo not in months: continue
+        tbl = table_for_month(mo); busy = -1
+        for si, i in enumerate(SLOTS33):
+            if i <= busy or cell[si] is None: continue
+            ai = tbl.get(cell[si], len(ACTS33N) - 1)
+            if ai == len(ACTS33N) - 1 or not np.isfinite(pn[si, ai]): continue
+            out.append((sym, day, i, cell[si], ACTS33N[ai], pn[si, ai], fc[si, ai], mo)); busy = i + 1 + hd[si, ai]
+    return pd.DataFrame(out, columns=["sym", "day", "i", "cell", "action", "pnl", "forced", "mo"])
+
+
+def study_policy33():
+    gate = pickle.load(open(f"{PB}/e33_gate.pkl", "rb")); acts = ACTS33 if gate["directional"] else ["S_STRANGLE1", "L_STRAD"]
+    print(f"Q2 gate: directional actions {'kept' if gate['directional'] else 'REMOVED'} (p {gate['q2_p']:.3f}); actions in play: {acts}")
+    T = table33(); F = states(regime_feats())[["sym", "day", "i", "cell"]]; T = T.merge(F, on=["sym", "day", "i"]); T["mo"] = T.day.map(L.month)
+    T = T[T.action.isin(acts)]; A = arrays33(T); oos = [m for m in MONTHS if m >= OOS_FROM]; days_oos = sorted(T[T.mo.isin(oos)].day.unique())
+    daily = lambda tr: tr.groupby("day").pnl.sum().reindex(days_oos).fillna(0.0) if len(tr) else pd.Series(0.0, index=days_oos)
+    NONE = len(ACTS33N) - 1; rg = np.random.default_rng(13); pd.set_option("display.width", 250)
+    # benchmarks
+    b1 = run33(A, lambda mo: {c: ACTS33N.index("S_STRANGLE1") for c in CELLS}, oos); b1 = b1[b1.i == 30]; d1 = daily(b1)
+    best_un = {}
+    for m in oos:
+        mu = T[T.mo < m].groupby("action").pnl.mean(); best_un[m] = ACTS33N.index(mu.idxmax()) if mu.max() > 0 else NONE
+    b2 = run33(A, lambda mo: {c: best_un[mo] for c in CELLS}, oos); d2 = daily(b2)
+    print(f"benchmark (i) always short strangle 09:45: OOS {d1.sum():,.0f} on {len(b1)}; (ii) best unconditional action walk-forward: OOS {d2.sum():,.0f} on {len(b2)} "
+          f"({ {m: ACTS33N[a] for m, a in best_un.items()} })")
+    # random state->action tables (null for the map itself)
+    rnd_tbls = [{c: int(rg.integers(0, len(ACTS33N))) for c in CELLS} for _ in range(1000)]
+    rnd = np.array([run33(A, lambda mo, t=t: t, oos).pnl.sum() for t in rnd_tbls]); print(f"random state->action tables: median OOS {np.median(rnd):,.0f}, 95th pct {np.percentile(rnd, 95):,.0f}")
+    res = []
+    for k, thr in DESIGNS33:
+        tabs = {}
+        for m in oos:
+            Lr = T[T.mo < m]; g = Lr.groupby(["cell", "action"]).pnl.agg(["mean", "size"]); g = g[g["size"] >= MIN_LEARN]
+            ev = {idx: r["size"] * r["mean"] / (r["size"] + k) for idx, r in g.iterrows()}  # prior 0: a cell earns its trade
+            tbl = {}
+            for c in CELLS:
+                cand = [(v, a) for (cc, a), v in ev.items() if cc == c and v > thr]
+                tbl[c] = ACTS33N.index(max(cand)[1]) if cand else NONE
+            tabs[m] = tbl
+        tr = run33(A, lambda mo: tabs[mo], oos); dp = daily(tr); ex = dp - d2
+        mo_ex = ex.groupby(pd.Series(ex.index, index=ex.index).map(L.month)).sum(); mo_p = dp.groupby(pd.Series(dp.index, index=dp.index).map(L.month)).sum()
+        bs = rg.choice(ex.values, (4000, len(ex))).mean(1); p = float((bs <= 0).mean()); pct = float((rnd < dp.sum()).mean()); forced = float(tr.forced.mean() * 100) if len(tr) else 0.0
+        verdict = "INCONCLUSIVE" if forced > 10 else "PASS(CANDIDATE)" if (ex.sum() > 0 and 4 * p < 0.05 and (mo_ex > 0).sum() >= 6 and pct >= 0.95 and dp.sum() > 50000) else "PARKED"
+        r = dict(k=k, thr=thr, trades=len(tr), oos_net=round(dp.sum()), win=round((tr.pnl > 0).mean() * 100, 1) if len(tr) else np.nan, excess_vs_bench=round(ex.sum()), p=round(p, 4), p_bonf4=round(min(1, 4 * p), 4),
+                 months_pos=f"{(mo_p > 0).sum()}/9", excess_months_pos=f"{(mo_ex > 0).sum()}/9", beats_random_tables_pct=round(100 * pct, 1), forced_pct=round(forced, 1), verdict=verdict,
+                 by_action=tr.groupby("action").pnl.agg(["size", "sum"]).round(0).to_dict("index") if len(tr) else {})
+        res.append(r); print(r, flush=True)
+    R = pd.DataFrame(res); R.to_csv(f"{PB}/e33_policy.csv", index=False)
+    # founder deliverable: per (cell, action) n, EV, P(profit), median, 90% CI (day-block), OOS mean
+    rows = []
+    for (c, a), g in T.groupby(["cell", "action"]):
+        bsm = _dayboot(g, lambda G: G.pnl.mean(), n=500, seed=1); o = g[g.mo >= OOS_FROM]
+        rows.append(dict(cell=c, action=a, n=len(g), EV=round(g.pnl.mean()), p_profit=round((g.pnl > 0).mean() * 100, 1), median=round(g.pnl.median()),
+                         ci90_lo=round(np.percentile(bsm, 5)), ci90_hi=round(np.percentile(bsm, 95)), oos_n=len(o), oos_EV=round(o.pnl.mean()) if len(o) else np.nan, forced_pct=round(g.forced.mean() * 100, 1)))
+    Cc = pd.DataFrame(rows); Cc.to_csv(f"{PB}/e33_cells.csv", index=False)
+    print("\nPLAYBOOK TABLE (whole year; EV per trade at 10 lots; 90% CI by day-block bootstrap):"); print(Cc.sort_values(["cell", "action"]).to_string(index=False))
+    print("\nsplits (mean P&L per trade): AM/PM, GEX sign, IV-rank tercile"); T["gexs"] = np.where(T.gex > 0, "GEX+", "GEX-"); T["ivr"] = pd.cut(T.ivpct, [-0.01, 0.33, 0.67, 1.01], labels=["IVlow", "IVmid", "IVhigh"])
+    for col in ("ampm", "gexs", "ivr"): print(T.groupby([col, "action"], observed=True).pnl.mean().round(0).unstack(1).to_string())
+    return R
 
 
 if __name__ == "__main__":
