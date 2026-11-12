@@ -11,6 +11,7 @@ from dhan_client.rate_limit import jittered_delay, next_backoff
 from dhan_client.token_info import (
     auth_failure_message,
     describe_jwt_exp,
+    expiry_warning,
     is_auth_error,
     jwt_exp_unix,
     log_jwt_exp,
@@ -40,6 +41,18 @@ def test_jwt_exp_unix_and_describe():
     logged = log_jwt_exp(token, now=now)
     assert token not in logged
     assert "eyJ" not in logged
+
+
+def test_expiry_warning_levels():
+    exp = int(datetime(2026, 10, 29, 10, 6, tzinfo=IST).timestamp())
+    token = _token(exp=exp)
+    ok = expiry_warning(token, now=datetime(2026, 10, 20, 8, 25, tzinfo=IST))
+    assert ok.startswith("Dhan token OK: expires 2026-10-29 10:06 IST") and token not in ok
+    assert "WARNING" in expiry_warning(token, now=datetime(2026, 10, 27, 8, 25, tzinfo=IST))
+    gone = expiry_warning(token, now=datetime(2026, 11, 12, 8, 25, tzinfo=IST))
+    assert gone.startswith("Dhan token EXPIRED at 2026-10-29 10:06 IST") and "eyJ" not in gone
+    assert "MISSING" in expiry_warning("")
+    assert "unknown" in expiry_warning("plain-token")
 
 
 def test_non_jwt_and_auth_errors():
