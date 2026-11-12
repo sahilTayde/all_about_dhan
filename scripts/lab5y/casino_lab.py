@@ -5,7 +5,7 @@ costs x1.5, p75 half-spread (E23: the engine spread is within the measured full-
 Streams (one per sym-day each): FIN1 long ATM straddle 09:46 on walk-forward or_iv > q0.7 days, held to 15:15;
 B1 Crabel NR4 stretch breakout (book_lab); SGATE = S1 on S2-calm AND SC1-contracting days, NIFTY only (failed holdout:
 forward-only, size 0 in the book); info only: S1, S2, SC1, S1 x LOC20-high."""
-import sys, os, json, numpy as np, pandas as pd
+import sys, os, json, math, numpy as np, pandas as pd
 import opt1y_lab as L
 import sell_lab as S
 import book_lab as B
@@ -176,7 +176,7 @@ def study_dist(path=None):
     for n in ("FIN1", "B1", "SGATE", "S1", "S2", "SC1", "S1xLOC20H"):
         x = T[n].pnl.values
         if not len(x): continue
-        out[n] = dict(n=int(len(x)), mean=round(float(x.mean())), p10=round(float(np.percentile(x, 10))), p50=round(float(np.median(x))),
+        out[n] = dict(n=int(len(x)), mean=round(float(x.mean())), p05=round(float(np.percentile(x[T[n].dev.values], 5))), p10=round(float(np.percentile(x, 10))), p50=round(float(np.median(x))),
                       p90=round(float(np.percentile(x, 90))), p_win=round(float((x > 0).mean()), 3),
                       dev_mean=round(float(T[n][T[n].dev].pnl.mean())), ho_mean=round(float(T[n][~T[n].dev].pnl.mean())) if (~T[n].dev).any() else None)
     out["_note"] = "1y history 2025-10-27..2026-10-23, cons engine, 10 lots, costs x1.5, p75 half-spread (E23-checked). Not a forecast."
@@ -193,9 +193,158 @@ def selftest():
     W = wf_pick(P, "a", burn=3); assert list(W.ex) == ["b", "b", "a", "a"] and W.pick.sum() == 10 and W.base.sum() == 20  # b led, then a overtook
     T = {"X": pd.DataFrame(dict(pnl=[1000.0, -500.0, 1500.0, 0.0], dev=True))}
     assert kelly_lots(T, "X", 1e5) == 10 and kelly_lots({"Y": pd.DataFrame(dict(pnl=[-1.0, -2.0], dev=True))}, "Y", 1e5) == 1
-    print("casino_lab selftest OK")
+    print("casino_lab selftest OK"); desk_selftest()
+
+
+# ---------------------------------------------------------------- E27-E30 (Fable catalogue review; frozen in the registry first)
+def metrics(t, rnd=None):
+    """win rate, payoff ratio and expectancy after costs (the founder's three numbers) + p_boot, halves, p_vs_rand.
+    rnd: per-trade lists of placebo P&Ls (same day, same legs/exit, random minute and side)."""
+    if not len(t): return dict(n=0)
+    x = t.pnl.values; w, l = x[x > 0], x[x <= 0]; g = t.groupby("day").pnl.sum()
+    b = np.random.default_rng(5).choice(g.values, (4000, len(g))).mean(1); ds = sorted(g.index); h = len(ds) // 2
+    o = dict(n=len(x), win=round((x > 0).mean() * 100, 1), avg_win=round(w.mean()) if len(w) else 0, avg_loss=round(l.mean()) if len(l) else 0,
+             payoff=round(w.mean() / -l.mean(), 2) if len(w) and len(l) and l.mean() < 0 else np.nan, exp=round(x.mean()), total=round(x.sum()),
+             p_boot=round((b <= 0).mean(), 4), half1=round(g[ds[:h]].sum()), half2=round(g[ds[h:]].sum()))
+    if rnd is not None:
+        rg = np.random.default_rng(9); R = [np.asarray(v) for v in rnd]
+        sims = np.array([sum(rg.choice(v) for v in R if len(v)) for _ in range(2000)]); o["p_vs_rand"] = round((sims >= x.sum()).mean(), 4)
+    return o
+
+
+def placebo(rows, legs_fn, lo, hi, n=20, seed=27):
+    """per real trade: n random (minute lo..hi, side) entries on the same day with the same legs builder and exit kwargs."""
+    rg = np.random.default_rng(seed); out = []
+    for r in rows.itertuples():
+        v = []
+        for i, sd in zip(rg.integers(lo, hi + 1, n), rg.integers(0, 2, n)):
+            side = "CE" if sd == 0 else "PE"; kw = dict(r.kw); kw["dirn"] = 1 if side == "CE" else -1
+            x = S.struct(r.key, int(i), legs_fn(side), mode="cons", **kw)
+            if x: v.append(x["pnl"])
+        out.append(v)
+    return out
+
+
+def _go(keys_sigs, legs_fn):
+    """keys_sigs: [(key, i, side, exit kwargs)] -> trades frame (one per sym-day, first signal)."""
+    T = []
+    for k, i, sd, kw in keys_sigs:
+        r = S.struct(k, i, legs_fn(sd), mode="cons", **kw)
+        if r: T.append(dict(r, key=k, side=sd, kw=kw))
+    t = pd.DataFrame(T)
+    if len(t): t["dev"] = t.day < HO
+    return t
+
+
+def e27():
+    sig = [(k, i, sd, dict(dirn=1 if sd == "CE" else -1, s_stp=1)) for k in L.ALLK for i, sd in S.orb_signals(k, fade=True)]
+    legs = lambda sd: S.e5_legs(sd, "cs"); return _go(sig, legs), legs, (S.OR_END + 1, S.LAST)
+
+
+def e29():
+    D = gates()[3]; sig = []
+    for k in L.ALLK:
+        if k not in D.index: continue
+        for i, sd, e in B.sig_b1(k, D.loc[k]): sig.append((k, i, sd, dict(dirn=1 if sd == "CE" else -1, **e)))
+    itm = lambda sd: [(sd, -1 if sd == "CE" else 1, 1)]; atm = lambda sd: [(sd, 0, 1)]
+    return _go(sig, itm), itm, (B.I_LO, B.I_HI), _go(sig, atm)
+
+
+def e30():
+    sig = [(k, 270, "CE", dict(sstop=1)) for k in L.ALLK if P_(k)["d0"]]
+    return _go(sig, lambda sd: S.ifly(2))
+
+
+def P_(k): return L.P[k]
+
+
+def _ncdf(x): return 0.5 * (1 + math.erf(x / math.sqrt(2)))
+
+
+def hedge_pnl(k, e, jx, every=15, band=0.15):
+    """E28(a): P&L of an index-print delta hedge (zero cost: the diagnostic ceiling) of a short ATM straddle held from bar e to
+    bar jx. Net option delta per unit = 1 - 2 N(d1) (Black-76 on spot, panel IV of the two legs). Re-hedge to zero when
+    |book delta| > band. ponytail: T = (dte + rest of today) / 365 with dte as given by the panel; delta near ATM is insensitive to it."""
+    p = L.P[k]; sym = k[0]; q = L.LOT[sym] * L.LOTS; K = p["atm"][e - 1]; h = 0.0; pnl = 0.0
+    js = list(range(e, jx, every)) + [jx]
+    for a, b in zip(js[:-1], js[1:]):
+        Sx = p["spot"][a]; iv = np.nanmean([p["C"][(sd, K)][a, 5] for sd in ("CE", "PE") if (sd, K) in p["C"]])
+        if np.isfinite(Sx) and np.isfinite(iv) and iv > 0:
+            T = (p["dte"] + max(930 - (M0 + a), 1) / 375) / 365; v = iv / 100
+            d1 = (math.log(Sx / K) + 0.5 * v * v * T) / (v * math.sqrt(T)); od = q * (1 - 2 * _ncdf(d1))
+            if abs(od + h) > band * q: h = -od
+        pnl += h * (p["spot"][min(b, L.NB - 1)] - Sx)
+    return pnl
+
+
+def e28():
+    Sc = pd.read_pickle(f"{OUT}/e7_days.pkl"); cut = Sc[Sc.day < HO].score.quantile(1 / 3)
+    keys = [(a, b) for a, b, s in zip(Sc.sym, Sc.day, Sc.score) if s <= cut and (a, b) in L.P]
+    T = []
+    for k in keys:
+        r = S.struct(k, 31, S.SSTRAD, sstop=3, mode="cons")
+        if r: T.append(dict(r, key=k, unhedged=r["pnl"], hedge=hedge_pnl(k, 32, 32 + r["held"])))
+    t = pd.DataFrame(T); t["dev"] = t.day < HO; t["pnl"] = t.unhedged + t.hedge; return t, cut
+
+
+def study_cand():
+    pd.set_option("display.width", 250); out = []
+    def show(name, t, rnd=None):
+        for smp, m in (("dev", t.dev), ("holdout(seen-again)", ~t.dev)):
+            r = None if rnd is None else [v for v, ok in zip(rnd, m) if ok]
+            out.append(dict(id=name, sample=smp, **metrics(t[m], r)))
+    t, lf, (lo, hi) = e27(); show("E27 fade credit spread in-window", t, placebo(t, lf, lo, hi))
+    t, lf, (lo, hi), ta = e29(); show("E29 B1-ITM", t, placebo(t, lf, lo, hi)); show("  B1-ATM reference (same signals)", ta)
+    t, cut = e28(); show("E28a hedged short straddle (index-print hedge, 0 cost)", t)
+    show("  E28 same days unhedged", t.assign(pnl=t.unhedged))
+    show("E30 expiry-day 13:45 iron fly +-2", e30())
+    R = pd.DataFrame(out); print(R.to_string(index=False)); R.to_csv(f"{OUT}/e27_e30.csv", index=False)
+    print(f"E28 gate: E6 walk-forward score <= dev q1/3 = {cut:.4f}")
+    return R
+
+
+# ---------------------------------------------------------------- autonomous desk (paper/shadow): deterministic daily decision
+from fin1_shadow import decide, LADDER  # noqa: E402  (stdlib; the shadow prints DESK lines)
+
+
+CHECKPOINTS = (40, 80, 120)  # promotion is tested ONLY at these forward trade counts, once each (no optional stopping)
+
+
+def promote(fwd, dev_mean, dev_maxdd, rung):
+    """ladder step from forward trades (P&L list at 10-lot scale, NO_DATA days excluded). Up one rung only when the count is a
+    checkpoint and: shrunk mean > 0, forward mean >= 50% of dev mean, p_boot < 0.10. To rung 0 if the rolling-30 mean < 0 or
+    drawdown > 1.5x dev max drawdown. -1 = RETIRED for good: shrunk mean <= 0 at the 80-trade checkpoint."""
+    x = np.asarray(fwd, float)
+    if len(x) == 80 and 0.5 * x.mean() <= 0: return -1
+    if len(x) >= 30 and x[-30:].mean() < 0: return 0
+    eq = np.cumsum(x) if len(x) else np.zeros(1)
+    if (np.maximum.accumulate(np.maximum(eq, 0)) - eq).max() > 1.5 * abs(dev_maxdd): return 0
+    if len(x) in CHECKPOINTS:
+        b = np.random.default_rng(5).choice(x, (4000, len(x))).mean(1)
+        if 0.5 * x.mean() > 0 and x.mean() >= 0.5 * dev_mean and (b <= 0).mean() < 0.10: return min(rung + 1, len(LADDER) - 1)
+    return rung
+
+
+def desk_selftest():
+    D = {"SGATE": dict(p05=-20000), "B1": dict(p05=-30000)}
+    r = dict(sym="NIFTY", status="OK", s2_signal=True, sc1_signal=True, b1_nr4=True)
+    a = decide(r, None, D); assert [(o["id"], o["action"], o["lots"]) for o in a] == [("SGATE", "LOG_ONLY", 0), ("B1", "LOG_ONLY", 0)]
+    a = decide(r, dict(rung={"SGATE": 2, "B1": 1}), D); assert [(o["action"], o["lots"]) for o in a] == [("TRADE", 2), ("TRADE", 1)]
+    a = decide(r, dict(rung={"SGATE": 2}, day_pnl=-8000), D)       # 2L at 2 lots = 2 x 20000 x 2/10 = 8000 -> stop
+    assert a[0]["action"] == "NO_TRADE" and a[0]["why"].startswith("daily stop")
+    assert decide(dict(r, sym="SENSEX", b1_nr4=False), None, D)[0]["action"] == "NO_TRADE"      # SGATE is NIFTY only
+    assert decide(dict(r, status="NO_DATA"), dict(rung={"SGATE": 4}), D)[0]["action"] == "NO_DATA"  # missing tape is not a decision
+    assert decide(r, dict(rung={"SGATE": 1}), D)[0]["exit"].endswith("hard flatten at -2,000")       # L = 20000 x 1/10
+    assert decide(r, dict(rung={"SGATE": 4}, open_short_gamma={"NIFTY"}), D)[0]["why"] == "one short-gamma per index"
+    assert decide(r, dict(rung={"SGATE": 4}, recorder_ok=False), D)[0]["action"] == "LOG_ONLY"
+    assert promote([1000.0] * 40, 1500.0, -50000, 0) == 1 and promote([1000.0] * 39, 1500.0, -50000, 0) == 0
+    assert promote([1000.0] * 41, 1500.0, -50000, 0) == 0          # between checkpoints: no test
+    assert promote([10.0, -20.0] * 40, 0.0, -1e9, 0) == -1          # shrunk mean <= 0 at 80 trades: retired
+    assert promote([500.0] * 40, 1500.0, -50000, 1) == 1          # forward mean < 50% of dev mean: no promotion
+    assert promote([100.0] * 10 + [-200.0] * 30, 0.0, -1e9, 3) == 0  # rolling-30 mean < 0: demote to log-only
+    print("desk selftest OK")
 
 
 if __name__ == "__main__":
     what = sys.argv[2] if len(sys.argv) > 2 else "selftest"
-    {"selftest": selftest, "book": study_book, "exits": study_exits, "dist": study_dist}[what]()
+    {"selftest": selftest, "book": study_book, "exits": study_exits, "dist": study_dist, "cand": study_cand, "desk": desk_selftest}[what]()
