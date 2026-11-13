@@ -46,14 +46,21 @@ if __name__ == "__main__":
         g = g.sort_values("day"); d = pd.to_datetime(g.day); tw = 1 if sym == "NIFTY" else 3
         wk = d.dt.to_period("W-SUN"); g = g.assign(wk=wk.values, wdn=d.dt.weekday.values)
         ex = g.set_index("day").ext_pct
-        if FULL:  # data-driven: at most one expiry per ISO week = the day with the smallest ATM straddle extrinsic at 15:29, accepted
-            # only if it is clearly below the sym's typical level (expiry ~0.0-0.25% vs 0.3-1.5% on other days); weeks without one
-            # (e.g. SENSEX before weekly expiries existed) get no expiry and roll to the next week's
+        if FULL:  # exchange weekday rule by era (known in advance), holiday -> the last trading day before it in that week. 2026-11-13
+            # (E39 look-ahead scan): the earlier data-driven pick (smallest 15:29 extrinsic per week) used the day's own close, i.e. after
+            # the fact, and one bad last-minute quote flipped it twice (NIFTY 2025-05-07 for 05-08, 2025-10-16 for 10-14); the data pick is
+            # kept as an audit only, and it agrees with this rule on every other week.
+            def tw_(day): return (3 if day < "2025-09-01" else 1) if sym == "NIFTY" else (4 if day < "2025-01-01" else 1 if day < "2025-09-01" else 3)
+            mon = (d - pd.to_timedelta(d.dt.weekday, unit="D")).dt.strftime("%Y-%m-%d").values
+            rd = [str((pd.Timestamp(m) + pd.Timedelta(days=tw_(m))).date()) for m in mon]  # the rule day of each row's week
+            g = g.assign(tw=[tw_(m) for m in mon], rd=rd)
+            e = g[(g.wdn <= g.tw) & (g.rd <= g.day.max())].groupby("wk").day.max().tolist()  # a week whose rule day is after the data: none (calendar below)
             gg = g.dropna(subset=["ext_pct"]); cut = 0.6 * gg.ext_pct.median()
-            e = gg.loc[gg.groupby("wk").ext_pct.idxmin()]; e = e[e.ext_pct < cut].day.tolist()
-        else: e = g[g.wdn <= tw].groupby("wk").day.max().tolist()
+            dd = gg.loc[gg.groupby("wk").ext_pct.idxmin()]; dd = dd[dd.ext_pct < cut].day.tolist()
+            print(sym, "audit: data-picked expiries that differ from the rule:", sorted(set(dd) ^ set(e))[:20])
+            tw = tw_(g.day.iloc[-1])
         print(sym, "days", len(g), "expiries", len(e), "ext% on expiry: max", round(ex[e].max(), 3),
-              "| min ext% other days", round(ex.drop(e).min(), 3), "| shifted:", [x for x in e if pd.Timestamp(x).weekday() != tw])
+              "| min ext% other days", round(ex.drop(e).min(), 3), "| holiday-shifted:", [x for x in e if FULL and pd.Timestamp(x).weekday() != g.set_index("day").tw.get(x, tw)])
         cal = lambda dd: str((pd.Timestamp(dd) + pd.offsets.Week(weekday=tw)).date())  # after the last data expiry
         nxt = [next((x for x in e if x >= dd), None) or cal(dd) for dd in g.day]
         X.loc[X.sym == sym, "exp"] = X.loc[X.sym == sym, "day"].map(dict(zip(g.day, nxt)))

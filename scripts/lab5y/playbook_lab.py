@@ -21,6 +21,9 @@ import scen_lab as Z
 
 P, STEP, M0, NB, FLAT, LOT = L.P, L.STEP, L.M0, L.NB, L.FLAT, L.LOT
 PB = f"{L.OUT}/playbook"; os.makedirs(PB, exist_ok=True)
+import hashlib  # cached tables keyed by the code that makes them (Fable B-1, 2026-11-13: e33/e36 pickles predating the RBI/FOMC fix were reused)
+SRC = hashlib.md5(b"".join(open(os.path.join(os.path.dirname(os.path.abspath(__file__)), f), "rb").read()
+                           for f in ("playbook_lab.py", "opt1y_lab.py", "sell_lab.py", "scen_lab.py"))).hexdigest()[:8]
 KEYS = list(L.ALLK); DAYS = sorted({k[1] for k in KEYS}); MONTHS = sorted({L.month(d) for d in DAYS})
 TF = 5; B_LO, B_HI = 1, 66          # decision at the close of 5m bar b (minutes 5b..5b+4): b=1 -> 09:24 close, b=66 -> 14:49
 EXT = os.environ.get("EXT", f"{L.OUT}/../ext"); L.EXT = EXT
@@ -36,7 +39,7 @@ def candles():
     fp = f"{PB}/candles.pkl"
     if os.path.exists(fp): return pd.read_pickle(fp)
     A = Z.labs()[0]; V = L.vol_days().set_index(["sym", "day"]); rows = []
-    days = sorted({k[1] for k in KEYS}); fomc1 = {next(d for d in days if d > f) for f in L.FOMC if any(d > f for d in days)}
+    days = sorted({k[1] for k in KEYS}); fomc1 = L.fomc_next(days)
     SP = {k: pd.Series(P[k]["spot"]).ffill().bfill().values for k in KEYS}
     for k in KEYS:
         s = SP[k]; o = ("SENSEX" if k[0] == "NIFTY" else "NIFTY", k[1]); so = SP.get(o); a = A.loc[k]
@@ -363,7 +366,7 @@ def _row33(k, i, G, a, d, ivp):
 
 def regime_feats():
     """raw E33 features per (sym, day, slot minute i), data up to minute i only."""
-    fp = f"{PB}/e33_feats.pkl"
+    fp = f"{PB}/e33_feats_{SRC}.pkl"
     if os.path.exists(fp): return pd.read_pickle(fp)
     t0 = time.time(); A = Z.labs()[0]; D = daytab(); rows = []; IVP = L.vol_days().set_index(["sym", "day"]).ivpct.to_dict()
     for k in KEYS:
@@ -409,7 +412,7 @@ def long_leg(k, i, sd, X=X33):
     trailing = fixed jump X[l_trail] x entry (SL rises one jump per jump of new high, Dhan super-trail semantics); spot adverse cap
     (next open); else the 15:15 open; SL beats target in the same bar; strike leaves the window -> last close, forced (D7: forfeits gains)."""
     sym = k[0]; p = P[k]; a, K = L.contract(k, i, sd, 0); e = i + 1; xe = FLAT - M0
-    if a is None or not np.isfinite(a[e, 0]): return None
+    if a is None or not np.isfinite(a[e, 0]) or L.stale(a, e): return None
     d0 = p["d0"]; en = a[e, 0] + L.hs(sym, d0, M0 + e, a[e, 0]); J = X["l_trail"] * en; sl0 = en * (1 - X["l_stop"]); tp = en * (1 + X["l_tgt"])
     s = spot(k); s0 = s[e]; dirn = 1 if sd == "CE" else -1; capv = min(X["cap"], 0.004 * s0 / STEP[sym]) * STEP[sym]
     sl, hi, x, why, forced, j = sl0, en, None, None, False, e
@@ -422,7 +425,8 @@ def long_leg(k, i, sd, X=X33):
         if dirn * (s[j] - s0) <= -capv and j + 1 < xe: j += 1; x, why = (a[j, 0] if np.isfinite(a[j, 0]) else c), "cap"; break
     if x is None: j = xe; x, why = (a[j, 0] if np.isfinite(a[j, 0]) else a[j - 1, 3]), "time"
     if why != "tgt": x = max(x - L.hs(sym, d0, M0 + min(j, NB - 1), x), 0.05)
-    return dict(pnl=(x - en) * LOT[sym] * L.LOTS - L.cost(en, x, sym), held=j - e, forced=forced, why=why, credit=-en)
+    kc = k if L.COSTS == "dated" else None
+    return dict(pnl=(x - en) * L.qty(sym, kc) - L.cost(en, x, sym, kc), held=j - e, forced=forced, why=why, credit=-en)
 
 
 def act33(k, i, name, X=X33):
@@ -440,7 +444,7 @@ def _price33(k):
 
 
 def table33():
-    fp = f"{PB}/e33_table.pkl"
+    fp = f"{PB}/e33_table_{SRC}.pkl"
     if os.path.exists(fp): return pd.read_pickle(fp)
     t0 = time.time(); rows = []
     with get_context("fork").Pool(max(1, os.cpu_count() - 1)) as pool:
@@ -673,7 +677,7 @@ def e36_rows(k):
 
 
 def e36_table():
-    fp = f"{PB}/e36_rows.pkl"
+    fp = f"{PB}/e36_rows_{SRC}.pkl"
     if os.path.exists(fp): return pd.read_pickle(fp)
     t0 = time.time(); rows = []
     for k in KEYS: rows += e36_rows(k)
@@ -856,6 +860,180 @@ def study_e39():
     rows.append(_cell_stats("PLACEBO random S1 days (S2 count)", s1[s1.day.isin(rg.choice(s1.day.unique(), min(len(s2.day.unique()), s1.day.nunique()), replace=False))], learn, test))
     R = pd.DataFrame(rows); pd.set_option("display.width", 300); print(R.to_string(index=False)); R.to_csv(f"{PB}/e39.csv", index=False)
     print("Bonferroni 10: PASS needs learn_p < 0.05, test_p < 0.005, p_vs_rand < 0.05, >= 3/4 TEST quarters positive"); return R
+
+
+# ================================================================ E40 / E41 decision inputs (frozen rules in the registry; no pricing here)
+def e41_pick(k, i=5):
+    """E41 inputs at the 09:20 close (minute 5): ATM strike K and, per side, the OTM strike within ATM+-10 whose close is nearest one third of
+    the same-side ATM close. None = skip the day (ATM or every candidate missing)."""
+    p = P[k]; K = p["atm"][i]; st = STEP[k[0]]; out = dict(K=float(K))
+    for sd, sg in (("CE", 1), ("PE", -1)):
+        a0 = L._get(k, sd, K, i, 3); best = None
+        if not (np.isfinite(a0) and a0 > 0): return None
+        for n in range(1, 11):
+            x = L._get(k, sd, K + sg * n * st, i, 3)
+            if np.isfinite(x) and (best is None or abs(x - a0 / 3) < best[0]): best = (abs(x - a0 / 3), float(K + sg * n * st))
+        if best is None: return None
+        out[sd] = best[1]
+    return out
+
+
+def e40_events(sym):
+    """E40 event list: for each scheduled MPC day T on the panel, (T-2 key, T-1 key) of the same sym; skipped when T-2 or T-1 is the
+    near-expiry day or the near expiry is before T (the panel holds the near weekly only). Calendar facts only (RBI list, expiry dates)."""
+    days = sorted(k[1] for k in KEYS if k[0] == sym); out = []
+    for T in sorted(L.RBI):
+        if T not in days: continue
+        j = days.index(T)
+        if j < 2: continue
+        k2, k1 = (sym, days[j - 2]), (sym, days[j - 1])
+        if P[k2]["d0"] or P[k1]["d0"] or P[k2]["exp"] < T: out.append((T, None, None)); continue
+        out.append((T, k2, k1))
+    return out
+
+
+def e40_wing(k, i=359):
+    """E40 inputs at the T-2 15:14 close (filled at the 15:15 open): ATM K, straddle EM = ATM CE + PE close, wing = min(round(3 EM / step), 10)."""
+    K = P[k]["atm"][i]; em = L._get(k, "CE", K, i, 3) + L._get(k, "PE", K, i, 3)
+    return dict(K=float(K), em=float(em), wing=int(min(round(3 * em / STEP[k[0]]), 10)) if np.isfinite(em) else -1)
+
+
+# ================================================================ E39-E41 look-ahead scan (registry rule: before any verdict)
+def _scr(keys_cut, rg):
+    """in place: for each (key, cut) scramble every minute > cut of spot, ATM index and every contract series; returns the undo list."""
+    undo = []
+    for k, c in keys_cut:
+        c0 = c + 1
+        if c0 >= NB: continue
+        p = P[k]; m = NB - c0; undo.append((k, p["spot"].copy(), p["atm"].copy(), {q: a.copy() for q, a in p["C"].items()}))
+        p["spot"][c0:] *= rg.uniform(0.9, 1.1, m); p["atm"][c0:] += STEP[k[0]] * rg.integers(-2, 3, m)
+        for a in p["C"].values(): a[c0:] *= rg.uniform(0.5, 1.5, (m, a.shape[1]))
+    return undo
+
+
+def _undo(undo):
+    for k, sp, at, C in undo:
+        P[k]["spot"][:], P[k]["atm"][:] = sp, at
+        for q, a in C.items(): P[k]["C"][q][:] = a
+
+
+def _clear():
+    _SP.clear(); S._EXT.clear(); _DT.clear(); Z._LAB.clear()
+    import sweep_lab as W; W._CTX.clear()
+
+
+def _same(a, b):
+    try:
+        if isinstance(a, (float, np.floating)) and isinstance(b, (float, np.floating)) and np.isnan(a) and np.isnan(b): return True
+        return bool(a == b) or abs(float(a) - float(b)) < 1e-9
+    except (TypeError, ValueError): return a == b
+
+
+def _diff(r0, r1, skip=()):
+    if r0 is None or r1 is None: return [] if r0 is r1 else ["<row>"]
+    return [f for f in r0 if f not in skip and not _same(r0[f], r1.get(f))]
+
+
+def _day_feats(sym, day, tmp):
+    """every day-level E39-E41 input of (sym, day), rebuilt from scratch (all caches off, vol_days / idx_daily caches in `tmp`)."""
+    import sweep_lab as W, book_lab as B
+    _clear(); L.OUT = tmp; Z.E21 = tmp
+    for f in os.listdir(tmp): os.remove(os.path.join(tmp, f))
+    k = (sym, day); V = L.vol_days().set_index(["sym", "day"]); D = B.prep(); A = Z.labs()[0]; dt = daytab()[k]; C = W.ctx()[k]
+    d = D.loc[k]; a = A.loc[k]
+    f0 = dict(nr4=bool(d.nr4), stretch=d.stretch, rr1=d.rr1, c1=d.c1, R1=d.R1, dt_c1=dt["c1"], dt_o1=dt["o1"], dt_er1=dt["er1"], dt_med20=dt["med20"],
+              PDH=a.PDH, PDL=a.PDL, TREND=a.TREND, GAP=a.GAP, DTE=a.DTE, PRNG=a.PRNG, hist=str(C["hist"]))
+    f30 = dict(or_iv=V.or_iv.get(k, np.nan), ivpct=V.ivpct.get(k, np.nan), ORW=a.ORW, OPEN=W.gate_matrix()[W.KEYS.index(k), [g[0] for g in W.GATES].index("OPEN=calm")],
+               gap_go=str(W.gap(k, 0.2, False, 30)))
+    ds = sorted(d_ for s_, d_ in P if s_ == sym); nk = (sym, ds[ds.index(day) + 1]) if ds.index(day) + 1 < len(ds) else None
+    plant = dict(B_c_today=D.loc[k].c, Z_nextPDH=A.loc[nk].PDH if nk else np.nan, W_close=float(C["f"][-1]), V_close=V.close.get(k, np.nan))
+    return f0, f30, dict(har=V.har.get(k, np.nan), rvd=V.rvd.get(k, np.nan)), plant  # [2]: whole-day/sample columns no cell uses; [3]: planted leaks  # last dict: known whole-day / whole-sample columns, NOT used by any cell
+
+
+def study_scan39():
+    """registry E39-E41 rule: scramble everything after each decision point and assert no E39-E41 input changed.
+    (1) day level: for sampled days, scramble the day after 09:15 (cut 0) or after 09:45 (cut 30) AND the next 25 panel days of both syms,
+        rebuild every day-level table from scratch, compare. (2) intraday: per sampled key, scramble the day after the decision minute only and
+        re-run the real feature function (E33 rows + regime/cell at every slot, E36 flags at every bar, B1 and IVS first signals, E41 picker,
+        E40 wing). (3) calendar: the 5-year loader infers expiry days from the 15:29 extrinsic (after the fact): check them against the
+        exchange weekday rules with holiday roll-back. Known answer first: a planted leak must be caught."""
+    import tempfile, sweep_lab as W, book_lab as B
+    rg = np.random.default_rng(39); tmp = tempfile.mkdtemp(prefix="scan39_"); out0 = L.OUT; e21 = Z.E21; bad = []
+    ix0 = Z.IDX; IX = pd.read_pickle(ix0); ixs = os.path.join(tempfile.mkdtemp(prefix="scan39ix_"), "idx1m.pkl")
+    def _ix(path): Z.IDX = L.IDX5Y = B.IDX5Y = path   # the 5y index minutes (scen_lab / vol_days / book_lab history days)
+    try:
+        days = sorted({k[1] for k in KEYS}); sd = [days[j] for j in rg.choice(range(30, len(days) - 30), int(os.environ.get("SCAN_DAYS", 10)), replace=False)]
+        nanday = [k[1] for k in KEYS if not np.isfinite(P[k]["spot"][:31]).all()][:1]; expday = [k[1] for k in KEYS if P[k]["d0"]][len(days) // 10:][:1]
+        print("day-level sample", sorted(sd + nanday + expday), flush=True); t0 = time.time()
+        for day in sorted(sd + nanday + expday):
+            j = days.index(day); later = days[j + 1:j + 26]
+            for sym in ("NIFTY", "SENSEX"):
+                if (sym, day) not in P: continue
+                r0 = _day_feats(sym, day, tmp)
+                for cut, which in ((0, 0), (30, 1)):
+                    X2 = IX.copy(); m = X2.day.isin(later) | ((X2.day == day) & (X2.m > M0 + cut)); pc = ["open", "high", "low", "close"]
+                    X2.loc[m, pc] = X2.loc[m, pc].values * rg.uniform(0.9, 1.1, (int(m.sum()), 1)); X2.to_pickle(ixs); _ix(ixs)
+                    U = _scr([((s, day), cut) for s in ("NIFTY", "SENSEX") if (s, day) in P] + [((s, d), -1) for d in later for s in ("NIFTY", "SENSEX") if (s, d) in P], rg)
+                    try: r1 = _day_feats(sym, day, tmp)
+                    finally: _undo(U); _ix(ix0)
+                    lk = _diff(r0[0], r1[0]) + (_diff(r0[1], r1[1]) if which else []); info = _diff(r0[2], r1[2]); pl = _diff(r0[3], r1[3])
+                    if len(pl) < 4: bad.append((sym, day, cut, "positive control not caught", sorted(set(r0[3]) - set(pl))))
+                    print(f"  {sym} {day} cut {cut}: {'LEAK ' + str(lk) if lk else 'clean'}; unused whole-day/sample columns changed: {info}; planted leaks caught {len(pl)}/4 ({time.time() - t0:.0f}s)", flush=True)
+                    if lk: bad.append((sym, day, cut, lk))
+        _clear(); L.OUT = out0; Z.E21 = e21
+        # (2) intraday, real functions, day context from the unscrambled panel
+        A = Z.labs()[0]; D = daytab(); IVP = L.vol_days().set_index(["sym", "day"]).ivpct.to_dict(); DB = B.prep()
+        ks = [KEYS[j] for j in rg.choice(len(KEYS), int(os.environ.get("SCAN_KEYS", 120)), replace=False)] + [k for k in KEYS if not np.isfinite(P[k]["spot"][:31]).all()][:3] + [k for k in KEYS if P[k]["d0"]][::60][:6]
+        def one(k, i, fn, skip=()):
+            r0 = fn(); U = _scr([(k, i)], rg); _SP.pop(k, None); S._EXT.clear()
+            try: r1 = fn()
+            finally: _undo(U); _SP.pop(k, None); S._EXT.clear()
+            lk = _diff(r0, r1, skip)
+            if lk: bad.append((k, i, fn.__name__ if hasattr(fn, "__name__") else "?", lk))
+            return lk
+        n = 0; n41 = 0
+        # known answer: a planted next-minute read must be caught by the same harness
+        nb = len(bad); assert one(ks[0], 100, lambda: dict(x=float(spot(ks[0])[101]))) == ["x"]; del bad[nb:]  # drop only the planted one
+        assert one(ks[0], 100, lambda: dict(x=float(spot(ks[0])[100]))) == []
+        for k in ks:
+            for i in SLOTS33:
+                def r33(k=k, i=i):
+                    r = _row33(k, i, _bars5(k), A.loc[k], D[k], IVP.get(k, np.nan)); F = states(pd.DataFrame([r]))
+                    return dict(r, regime=F.regime.iloc[0], cell=F.cell.iloc[0])
+                one(k, i, r33); n += 1
+            R = e36_rows(k)
+            for t, b in enumerate(B36):
+                one(k, 5 * b + 4, lambda k=k, t=t: {f: v for f, v in e36_rows(k)[t].items() if not f.startswith("mv")}); n += 1
+            if k in DB.index:
+                sb = B.sig_b1(k, DB.loc[k])
+                if sb: one(k, sb[0][0], lambda k=k: dict(sig=str(B.sig_b1(k, DB.loc[k])))); n += 1
+            iv = W.nd_iv(k, -1.0)
+            if iv: one(k, iv[0][0], lambda k=k: dict(sig=str(W.nd_iv(k, -1.0)))); n += 1
+            one(k, 5, lambda k=k: e41_pick(k)); one(k, 359, lambda k=k: e40_wing(k)); n += 2; n41 += e41_pick(k) is not None
+        print(f"intraday: {n} decision points on {len(ks)} sym-days (E41 pick defined on {n41}), leaks {len(bad)}", flush=True)
+        # (3) expiry calendar vs exchange weekday rules (holiday -> previous trading day)
+        def rule(sym, d):  # weekday of the weekly expiry in force on day d (Mon=0)
+            if sym == "NIFTY": return 3 if d < "2025-09-01" else 1
+            return 4 if d < "2025-01-01" else 1 if d < "2025-09-01" else 3
+        mism = []
+        for sym in ("NIFTY", "SENSEX"):
+            sd_ = sorted(k[1] for k in KEYS if k[0] == sym); S_ = set(sd_); exps = sorted({P[(sym, d)]["exp"] for d in sd_})
+            first = pd.Timestamp(sd_[0]); last = pd.Timestamp(sd_[-1])
+            for wk in pd.date_range(first - pd.Timedelta(days=first.weekday()), last, freq="7D"):
+                t = wk + pd.Timedelta(days=rule(sym, str(wk.date())))
+                while str(t.date()) not in S_ and t > wk: t -= pd.Timedelta(days=1)   # holiday: roll back inside the week
+                ts = str(t.date())
+                if ts not in S_ or str((wk + pd.Timedelta(days=6)).date()) > sd_[-1]: continue  # last, partial week: not checkable
+                got = [e for e in exps if str(wk.date()) <= e < str((wk + pd.Timedelta(days=7)).date())]
+                if got != [ts]: mism.append((sym, str(wk.date()), ts, got))
+            print(f"calendar {sym}: {len(exps)} inferred expiries, mismatches vs weekday rule {len([m for m in mism if m[0] == sym])}", flush=True)
+        for m in mism[:40]: print("   ", m)
+        bad += [("calendar",) + tuple(m) for m in mism]
+        pd.DataFrame(mism, columns=["sym", "week", "rule_day", "inferred"]).to_csv(f"{PB}/scan39_calendar.csv", index=False)
+    finally:
+        _clear(); L.OUT = out0; Z.E21 = e21; _ix(ix0)
+    for b in bad: print("LEAK", b)
+    print(f"scan39: {'NO look-ahead in any E39-E41 input' if not bad else str(len(bad)) + ' LEAKS'}"); return bad
 
 
 if __name__ == "__main__":
