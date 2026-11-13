@@ -869,5 +869,76 @@ def study_e39():
     print("Bonferroni 10: PASS needs learn_p < 0.05, test_p < 0.005, p_vs_rand < 0.05, >= 3/4 TEST quarters positive"); return R
 
 
+# ================================================================ E38: defined-risk cells on the +-5 Dhan panel (freeze note E38_wings_freeze.md)
+E38_EX = dict(sstop=2, stop=0.5)                       # iron condors: spot 2 steps, credit stop at value 1.5x credit (E37 convention, stop=0.5), else 15:15
+E38_IVS_EX = dict(sstop=1.5, stop=0.3)                 # IVS exits
+E38_STR = {"ICON24": S.icon(2, 4), "ICON35": S.icon(3, 5)}; E38_ENT = {"0946": 31, "1130": 135}
+E38_F = ["or_iv", "gap_iv", "prev_iv", "har_iv", "ivpct", "orw", "vix", "aspx", "ainr", "spx"]  # E6F minus dte and the FII features (no LEARN data)
+
+
+def _e6_scores():
+    """E6 logistic (sell_lab.study_e6 form) fit ONCE on LEARN days, y = rest-of-day RV/IV > LEARN median; -> {key: (score, tercile 0/1/2)}."""
+    from numpy.linalg import solve
+    V = S.e6_table().dropna(subset=["y_ratio"] + E38_F); V = V[V.day.isin({k[1] for k in KEYS})]
+    tr = V[V.day < L.HO]; med = tr.y_ratio.median(); mu, sd = tr[E38_F].mean(), tr[E38_F].std() + 1e-9
+    X = np.c_[np.ones(len(tr)), ((tr[E38_F] - mu) / sd).values]; y = (tr.y_ratio > med).astype(int).values; w = np.zeros(X.shape[1])
+    for _ in range(50):
+        pr = 1 / (1 + np.exp(-X @ w)); g = X.T @ (pr - y) + w; H = X.T @ (X * (pr * (1 - pr))[:, None]) + np.eye(len(w)); w -= solve(H, g)
+    sc = np.c_[np.ones(len(V)), ((V[E38_F] - mu) / sd).values] @ w; q1, q2 = np.quantile(sc[(V.day < L.HO).values], [1 / 3, 2 / 3])
+    print(f"E6 refit on {len(tr)} LEARN sym-days, AUC LEARN {S._auc(y, X @ w):.3f}, TEST {S._auc((V.y_ratio > med).astype(int).values[(V.day >= L.HO).values], sc[(V.day >= L.HO).values]):.3f}; tercile cuts {q1:.2f} {q2:.2f}")
+    return {(a, b): (s, int(s > q1) + int(s > q2)) for a, b, s in zip(V.sym, V.day, sc)}
+
+
+def _in(T, keys): return np.array([k in set(keys) for k in zip(T.sym, T.day)], bool)
+
+
+def _e38_rows(legs, at, ex, keys, rg=None):
+    """one struct per sym-day at bar `at` (int) or at a random bar per sym-day (rg given); -> DataFrame(sym, day, i, pnl, forced, why, credit)."""
+    out = []
+    for k in keys:
+        i = int(rg.integers(31, 286)) if rg is not None else at
+        r = S.struct(k, i, legs, mode="cons", **ex)
+        if r: out.append(dict(sym=k[0], day=k[1], i=i, pnl=r["pnl"], forced=r["forced"], why=r["why"], credit=r["credit"], maxloss=r["maxloss"]))
+    return pd.DataFrame(out, columns=["sym", "day", "i", "pnl", "forced", "why", "credit", "maxloss"])
+
+
+def study_e38():
+    """registry E38 on the Dhan +-5 panel (OFFMAX=5): 11 frozen cells, Bonferroni 12; scored once per cost mode (E39_TAG)."""
+    import sweep_lab as W
+    HO = L.HO; days = sorted({k[1] for k in KEYS}); learn = [d for d in days if d < HO]; test = [d for d in days if d >= HO]
+    print(f"E38 panel {days[0]}..{days[-1]}: LEARN {len(learn)} days, TEST {len(test)} days; COSTS={L.COSTS} guard={'off' if L.STALE_OK else 'on'}"); rows = []
+    E6 = _e6_scores(); lo = [k for k in KEYS if E6.get(k, (0, -1))[1] == 0]; hi = [k for k in KEYS if E6.get(k, (0, -1))[1] == 2]
+    print(f"E6 terciles: low {len(lo)} sym-days, high {len(hi)}, scored {len(E6)} of {len(KEYS)}")
+    V = L.vol_days().set_index(["sym", "day"]); rg = np.random.default_rng(38)
+    def stat(name, T, base):
+        r = _cell_stats(name, T, learn, test, base=base, rg=rg); r["forced"] = round(T.forced.mean() * 100, 1) if len(T) else np.nan
+        r["credit"] = round(T.credit.mean(), 1) if len(T) else np.nan; r["why"] = T.why.value_counts().to_dict() if len(T) else {}
+        ok = r.get("learn_total", -1) > 0 and r.get("test_total", -1) > 0 and r.get("test_p", 1) < 0.05 / 12 and r.get("p_vs_rand", 1) < 0.05 and int(r.get("test_q_pos", "0/4").split("/")[0]) >= 3
+        r["verdict"] = "PASS" if ok else "FAIL"; rows.append(r); print({k_: v for k_, v in r.items() if k_ != "why"}, flush=True); return r
+    for sn, legs in E38_STR.items():
+        rnd = _e38_rows(legs, None, E38_EX, KEYS, rg=np.random.default_rng(380))   # one random-entry trade per sym-day, same structure and exits
+        for en, at in E38_ENT.items():
+            T = _e38_rows(legs, at, E38_EX, KEYS); stat(f"{sn} {en} spot2 stop1.5x", T, rnd)
+            stat(f"{sn} {en} E6 low tercile", T[_in(T, lo)], rnd[_in(rnd, lo)])
+    # C9 IVS with wings (literal OTM2 wings: short +-1 / long +-2); sensitivity long +-3 (not a cell)
+    legs9 = S.icon(1, 2); legs9b = [("CE", 1, -1), ("PE", -1, -1), ("CE", 3, 1), ("PE", -3, 1)]
+    sig = {k: W.nd_iv(k, -1.0) for k in KEYS if P[k]["d0"] and V.or_iv.get(k, np.nan) <= 1.0042}; sig = {k: v[0][0] for k, v in sig.items() if v}
+    def ivs_rows(legs):
+        out = [dict(sym=k[0], day=k[1], i=i, **{c: r[c] for c in ("pnl", "forced", "why", "credit", "maxloss")}) for k, i in sig.items() for r in [S.struct(k, i, legs, mode="cons", **E38_IVS_EX)] if r]
+        return pd.DataFrame(out, columns=["sym", "day", "i", "pnl", "forced", "why", "credit", "maxloss"])
+    base9 = _e38_rows(legs9, None, E38_IVS_EX, list(sig), rg=np.random.default_rng(381))   # same days, random entry bar
+    T9 = ivs_rows(legs9); stat("C9 IVS wings: short+-1 long+-2, expiry, calm, IV fall", T9, base9)
+    naked = ivs_rows([("CE", 1, -1), ("PE", -1, -1)]); stat("ref: IVS naked strangle on the same signals (not a cell)", naked, base9)
+    stat("sens: IVS wings long+-3 (not a cell)", ivs_rows(legs9b), base9)
+    # C10-11 long ATM straddle to 15:15 on the highest predicted-size tercile
+    rndL = _e38_rows(S.LSTRAD, None, {}, KEYS, rg=np.random.default_rng(382))
+    for en, at in E38_ENT.items():
+        T = _e38_rows(S.LSTRAD, at, {}, KEYS); stat(f"LSTRAD {en} to 15:15 E6 high tercile", T[_in(T, hi)], rndL[_in(rndL, hi)])
+        stat(f"ref: LSTRAD {en} all days (not a cell)", T, rndL)
+    tag = os.environ.get("E39_TAG", ""); R = pd.DataFrame(rows); pd.set_option("display.width", 320); print(R.drop(columns=["why"]).to_string(index=False)); R.to_csv(f"{PB}/e38{tag}.csv", index=False)
+    if E39_TRADES is not None: pd.concat(E39_TRADES, ignore_index=True).to_csv(f"{PB}/e38_trades{tag}.csv", index=False)
+    print("Bonferroni 12: PASS needs LEARN total > 0, TEST total > 0, test_p < 0.00417, p_vs_rand < 0.05, >= 3 TEST quarters positive"); return R
+
+
 if __name__ == "__main__":
     for a in [a for a in sys.argv[2:] if not a.startswith("-")]: globals()["study_" + a]()
