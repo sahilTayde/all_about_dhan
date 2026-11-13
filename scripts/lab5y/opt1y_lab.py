@@ -123,7 +123,8 @@ def build():
     return P
 
 
-PK = f"{OUT}/panel.pkl"
+_OFF = os.environ.get("OFFMAX", "99"); PK = f"{OUT}/panel{'' if _OFF == '99' else '_off' + _OFF + 'h'}.pkl"  # E38/E42: one cached panel per strike window;
+# the trailing h = built by the 2026-11-13 hygiene build() above (the pre-hygiene panel_off3/5/10.pkl of E38/E39 are left untouched for reproduction)
 if not os.path.exists(PK): pickle.dump(build(), open(PK, "wb"))
 P = pickle.load(open(PK, "rb"))
 ALLK = sorted(P, key=lambda k: (k[1], k[0]))
