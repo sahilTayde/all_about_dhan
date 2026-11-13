@@ -14,8 +14,13 @@ Impact: no vote or combination beats 50% +-1.5 pts next 15m (EMA21,
   Strong facts: ATM delta 0.36/pt NIFTY, 0.24/pt SENSEX; PE loses 1.24x
   what CE gains on up bars; flat-bar bleed CE -0.43 / 5m; FVG refilled
   within 1h 66-76%; clock is the only regime that changes move size.
-Customer action: PAPER only. Per-chart indicator edits on E33 desk were
-  wiped by reload: need saved chart layouts (not yet created).
+Customer action: PAPER only. Four chart layouts saved (E33 index 5m,
+  E33 daily, E33 option 5m, E33 desk) on founder's yes; DEXT still reloads
+  "DEXT layout" onto every chart, so the E33 set is durable only inside
+  DEXT layout (founder decision). DEXT layout was autosaved while editing
+  (now SENSEX 1D, HalfTrend back, MA20 removed; set 1m by hand).
+  Sweep (dext_indicator_sweep.py): all lengths ~50%; chasing a 15-30m
+  move hits 46-48%, worst after 14:30.
 Backtest tag for 06: dext_indicator_study (null on direction).
 UNKNOWN / DATA_INSUFFICIENT: Depth level count live; whether DEXT
   chart layouts named per chart persist across reload.
