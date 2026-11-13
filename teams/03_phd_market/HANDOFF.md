@@ -1,5 +1,26 @@
 # Handoff log — Team 03 PhD market
 
+## As of now (2026-11-12, evening) — DEXT indicator study + E33 desk tune-up (PAPER)
+
+```text
+Market question: which DEXT indicators confirm an index-option entry,
+  how do CE / PE / index co-move candle by candle?
+Rule / clock / source: SOURCE_FACT + BACKTEST
+  DEXT_TERMINAL_MAP.md section 11; scripts/lab5y/dext_indicator_study.py
+  on data/cache/expired_opts (1y ATM 1m, NIFTY 229 d, SENSEX 248 d);
+  12 Nov read from DEXT. No FVG / order-block indicator exists on DEXT.
+Impact: no vote or combination beats 50% +-1.5 pts next 15m (EMA21,
+  VWAP, SuperTrend, ADX, CHOP, OI build-up, signed volume, FVG, PDH/PDL).
+  Strong facts: ATM delta 0.36/pt NIFTY, 0.24/pt SENSEX; PE loses 1.24x
+  what CE gains on up bars; flat-bar bleed CE -0.43 / 5m; FVG refilled
+  within 1h 66-76%; clock is the only regime that changes move size.
+Customer action: PAPER only. Per-chart indicator edits on E33 desk were
+  wiped by reload: need saved chart layouts (not yet created).
+Backtest tag for 06: dext_indicator_study (null on direction).
+UNKNOWN / DATA_INSUFFICIENT: Depth level count live; whether DEXT
+  chart layouts named per chart persist across reload.
+```
+
 ## As of now (2026-11-12) — DEXT web terminal mapped (PAPER, read only)
 
 ```text

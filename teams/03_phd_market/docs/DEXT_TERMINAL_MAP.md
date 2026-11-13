@@ -105,7 +105,8 @@ A different chart engine from the main Chart (its own symbol search with All/Equ
 
 **Saved on 2026-11-12 (founder's yes):** workspace dropdown → *+ Create* → name `E33 desk` → *Build Custom Setup*, Auto Save on. Seven widgets, in tab order: Chart ×4, Options Chain, Technicals, Order Flow. Verified by reloading the page twice: the workspace, every widget, each chart's symbol and the added indicators (ADX 14, CHOP 14, MA 20) came back. Nothing else was created (no order, alert or watchlist) and Default was not touched.
 
-**Caveats found while building:**
+**Caveats found while building (updated after the 2026-11-12 evening tune-up):**
+- **Per-chart indicator edits are not durable.** Adding ADX / CHOP / MA 20 / the Dhan OI panes to a chart widget survived one reload but was wiped by a later full reload: every chart came back with the shared "DEXT layout" set only. The workspace stores which widgets and symbols; the indicator set comes from the chart layout, which is a separate saved object shared with Default. To make the E33 sets stick, each chart needs its own saved chart layout (chart layout menu → *Make a copy* → name it → ⌘S). That is an extra account write and has not been done; see section 11.
 - A new Chart widget opens as a copy of the *current* chart state, so chart 2 inherited ADX + CHOP from chart 1. Harmless.
 - **Chart interval does not persist across reload for the index charts**: the chart set to 1 day came back at 5 minutes (indicators kept). After opening the workspace, set the 20-MA chart to **1 day** by hand (interval button → Days → 1 day), or just read the daily 20-SMA from the Technicals table, which needs no click.
 - Order Flow's second pane could not be given focus (its collapsed pane ignores clicks), so Order Flow is a **single pane on the ATM CE**; swap to the PE with the symbol search when needed.
@@ -163,3 +164,82 @@ E33 votes marked `None` in `fin1_shadow.py` because the tape has no OI or volume
 6. **Post-market** copy the hand log next to the tape for that day so the E33 vote scoring can be re-run with real OI/volume instead of `None`.
 
 Verify on the first live session: Depth level count (the *Ladder Watch* preset advertises a 200-level book), the expiry-label off-by-one, and whether the Order Flow footprint streams live for weekly options. Workspace Auto Save does persist chart symbols and indicators (verified by reload); it did not persist the 1-day interval.
+
+---
+
+## 11. Indicator study (2026-11-12 evening): what each tool does, what the data says, what to keep
+
+Paper research only. Two sources: the one-year ATM per-minute cache (`data/cache/expired_opts/{NIFTY,SENSEX}`: CE and PE OHLC, volume, OI, IV, spot; 229 NIFTY days and 248 SENSEX days, 2025-10-27 to 2026-10-27) run through `scripts/lab5y/dext_indicator_study.py`, and a candle-by-candle read of 12 Nov 2026 on DEXT (NIFTY 50 and the 17 NOV 25300 CE / PE). The 12 Nov recorder tape is empty (expired Dhan token), so that day is read from the terminal only.
+
+### 11.1 What the indicators on the founder's chart are
+
+| Indicator | What it computes | Lag | Use in a paper session |
+|---|---|---|---|
+| VPVR (Volume Profile Visible Range) | Volume at each price over the visible bars; POC and value area | none (recomputed) | Where most business was done; the POC is a level like PDH/PDL |
+| SuperTrend 10/3 | ATR(10) band ×3 around hl2; flips when close crosses the band | high | A trailing-stop line, not a signal |
+| Dhan HalfTrend 2/2 | Another ATR channel trend-flip line | high | Same job as SuperTrend; redundant |
+| VWAP hlc3 session | Session volume-weighted average price | medium | Mean of the day; above/below is the "bias" |
+| EMA 21 | Exponential mean of 21 closes | medium | Fast bias line |
+| Volume | Bar volume (index "volume" is synthetic) | none | Only meaningful on the option charts |
+| Dhan OI Profile | Open interest by strike drawn on the price axis | updates with OI feed | Max-OI strike = the level the E33 state wants |
+| Resistance / Support strike, Expected move, Max Pain | Dhan's chain-derived labels | updates with chain | Levels |
+| ADX 14 | Wilder trend strength from +DI/−DI | high (≈14 bars warm-up) | E33 regime tag |
+| Choppiness Index 14 | log of ATR sum over range; high = range-bound | high | E33 regime tag |
+| Dhan Open Interest / Change in OI | OI per candle and % change per candle on an option chart | none | The per-bar OI vote the tape lacks |
+
+ICT tools: there is no fair-value-gap, order-block, liquidity or session indicator in either chart engine (searched "ICT", "imbalance", "smart money", "order block", "fair value", "gap", "session", "high low"); the Premium list (44) is a paid third-party marketplace (Demand & Supply by GTF, Option Selling, …). FVGs are read from three candles by eye or drawn with the rectangle tool; PDH / PDL / opening range are drawn with horizontal lines; the chain's OI1 strike and Max Pain are the only automatic "levels".
+
+### 11.2 What one year of 5-minute bars says (NIFTY first, SENSEX in brackets)
+
+**Option vs index, same strike, no roll.** 5-minute correlation spot↔CE +0.56 (+0.41), spot↔PE −0.63 (−0.45), CE↔PE −0.91 (−0.89). ATM option moves **0.36 pts per index point** on NIFTY (0.24 on SENSEX, read from the tape, both sides). On an up bar the PE loses **1.24×** what the CE gains (SENSEX 1.41×); on a down bar the mirror. CE and PE move the **same** way in 10% (12%) of bars: that is an IV shift, not a spot move, and it does not predict the next 15 minutes. On flat bars (|spot| ≤ 3 pts) the CE bleeds −0.43 and the PE −0.21 per 5 minutes (SENSEX −0.76 / −1.47): roughly 30 NIFTY option points a day of theta and IV decay if nothing happens.
+
+**Direction votes, next-15-minute hit rate (50% = coin).** Close vs EMA21 49.6% (50.3), close vs session average 49.9% (51.1), SuperTrend 49.5% (49.9), candle colour 49.7% (48.6), close vs 20-bar mean 50.1% (50.6). All three trend lines agreeing: 49.5% (50.6); adding ADX > 20: 49.7% (50.6); adding CE signed volume agreeing: 48.9% (51.6); adding CE OI falling on an up bar: 49.8% (51.1). Tick-rule signed option volume alone: 49.9% / 49.5% (51.8 / 51.2). The OI build-up matrix (spot up/down × CE or PE OI up/down) gives −1.0 to +0.6 pts next 15 minutes on every cell against a −0.6 baseline. **No indicator or combination tested moves the next-15-minute coin flip by more than 1.5 points, on either index.** This matches the earlier five-year null result on price rules.
+
+**Regime.** ADX buckets 0-15 up to 35+ all give a next-30-minute absolute move of 25-26 NIFTY points (77-92 SENSEX) and 46-52% continuation of the EMA21 side. CHOP buckets the same. ADX and CHOP describe the last hour; they do not change what the next half hour does. Keep them only because the E33 state logs them.
+
+**Fair value gaps on 5-minute spot.** About 2,000 of each kind per year on NIFTY. Next 15 minutes continue in the gap direction 48% (bullish) / 51% (bearish); **the gap is refilled within an hour 69% / 66%** (SENSEX 76% / 69%). So an FVG is a place price tends to come back to, not a push in the gap direction. Use it as a pull-back target, not an entry trigger.
+
+**Levels.** First touch of PDH / PDL / opening-range high or low in the day: break-through within 15 minutes 48-52% on NIFTY (48-54% SENSEX). A level is where the fight happens, not who wins it.
+
+**Time of day.** Next-15-minute absolute move: 25.7 pts at 09:15-09:45, 20 at 09:45-10:30, 16-17 pts from 10:30 to 13:30, 21 pts after 14:30 (SENSEX 82 / 63 / 51-55 / 65). Flat-bar CE bleed is worst in the first half hour (−0.94 per 5 min on NIFTY). The clock is the strongest "regime" variable in the data.
+
+### 11.3 12 Nov 2026, candle by candle (DEXT, 5 minutes, NIFTY 50 vs 17 NOV 25300 CE / PE)
+
+| Time | NIFTY 50 close | VWAP | EMA21 | ADX | CHOP | 25300 CE | 25300 PE | CE OI | PE OI |
+|---|---|---|---|---|---|---|---|---|---|
+| 10:00 | 25,366 | 25,314 | 25,286 | 33 | 27 | 250 | – | ≈6.0 M | – |
+| 10:15 | 25,353 | 25,320 | 25,301 | 30 | 34 | 242 | – | | |
+| 10:30 | 25,340 | 25,322 | 25,310 | 27 | 56 | 231 | 170 | | ≈7.7 M |
+| 11:00 | 25,315 | 25,325 | 25,322 | 20 | 56 | 213 | 188 | rising | falling |
+| 11:30 | 25,289 | 25,321 | 25,309 | 21 | 48 | 198 | 192 | rising | |
+| 12:00 | 25,247 | 25,315 | 25,290 | 24 | 43 | 177 | 212 | rising | |
+| 13:00 | 25,260 | 25,300 | 25,258 | 28 | 57 | 174 | 211 | ≈9.9 M (peak) | ≈5.5 M |
+| 14:30 | 25,239 | 25,290 | 25,254 | 14 | 61 | 154 | 225 | 9.6 M | 5.4 M |
+| 15:15 | 25,275 | 25,285 | 25,259 | 13 | 51 | 176 | 187 | 7.1 M | 4.3 M |
+
+(Times are to the nearest hovered candle; OI from the Dhan Open Interest pane added for the read.)
+
+What the day shows, read against the one-year numbers:
+- **10:00 → 12:00, index −119 pts.** CE −73 (0.61 per point, more than the 0.36 average because the strike went from ITM to ATM), PE +42 from 10:30 (0.45 per point). ADX fell from 33 to 20 *during* the clean down-move and CHOP rose from 27 to 56: both regime tags said "trend weakening" while the biggest trend of the day was running. That is the lag in 11.2 in one picture.
+- **CE OI rose from ~6 M to ~9.9 M while the index fell, PE OI fell from ~7.7 M to ~5.5 M.** Calls were being written into the fall and puts booked; the chain's "Short Buildup" label on the CE side. In the one-year matrix that cell (spot down, CE OI up) gave +0.0 pts next 15 min, i.e. it describes what happened, not what comes next.
+- **12:00 → 14:30, index −8 pts.** CE −23, PE +13: with spot flat the straddle still re-priced, the CE losing the most (ATM theta plus falling IV); that is the flat-bar bleed in 11.2.
+- **14:30 → 15:15, index +36 pts.** CE +22 (0.6 per point), **PE −38 (1.07 per point)**: the put lost far more than the call gained as both OI series unwound into the close (CE 9.6 → 7.1 M, PE 5.4 → 4.3 M): short covering plus IV crush. The |PE|/CE asymmetry (1.24 average) was 1.7 on this move.
+- VWAP was above price from 11:00 to the close, EMA21 the same; the three trend lines agreed "down" all afternoon and the day closed on a 36-point rally. A trend-line vote would have been on the wrong side of the last move, which is what 49-50% hit rates look like in practice.
+
+### 11.4 Which indicators to keep, remove, add, and why
+
+Keep on the **index chart**: VWAP, EMA 21, one Dhan OI Profile, the Dhan level labels, ADX 14 and CHOP 14 (logged, not traded), hand-drawn PDH / PDL / opening range. Remove: Dhan HalfTrend (duplicates SuperTrend), the four duplicate OI Profile copies; SuperTrend can stay as a trailing line. MA 20 belongs on the daily chart only.
+
+Keep on the **CE and PE charts**: VWAP, EMA 21, Volume, one OI Profile, SuperTrend as the trailing stop. Add **Dhan Open Interest** and **Dhan Change in Open Interest** (per-candle OI and % change: the E33 ATM OI flow vote). Remove ADX and CHOP from the option charts (regime is an index property; on an option chart they measure IV as much as direction) and HalfTrend.
+
+These edits were made on 12 Nov and then lost on reload (section 7 caveat). They need saved chart layouts to stick: `E33 index 5m`, `E33 option 5m`, `E33 daily`.
+
+**Confirmation.** Nothing in the data earns the word. The honest reading of 11.2 is: use the index chart for the regime *label* the E33 state needs, the chain and the OI panes for *what is being written where* (levels and bleed), Order Flow for *fills*, and the clock for *how much the next bar can move*. If a confirmation rule is wanted, use the one combination that is at least not negative on both indices: three trend lines agree **and** the CE signed volume agrees (50% NIFTY, 52% SENSEX, +1.5 pts), and treat it as a tie-break, not an edge.
+
+### 11.5 Order flow, chart and depth during a paper trade
+
+- **Before entry (chart):** regime tag from ADX/CHOP, the level in play (PDH/PDL, OR, OI1 strike, VPVR POC), the time bucket (first 30 minutes: biggest moves and worst CE bleed).
+- **At entry (Order Flow + Depth):** the footprint shows which side is lifting the offer at the current price; a bar whose Delta sign agrees with the intended direction and a Depth book that is not stacked against it means the fill will be near the quote. A big opposing cluster at the next price is where the limit should sit. This is execution quality, which is the only place the one-year data lets DEXT add value.
+- **In the trade (option chart):** the Change-in-OI pane says whether the strike is being written (OI up while premium falls) or covered (OI down while premium rises); SuperTrend on the option is the trailing stop; the flat-bar bleed number sets the patience limit (NIFTY ATM: ~0.4 pts per 5 min doing nothing).
+- **Exit:** at the level that was the reason for entry, or when the clock bucket changes, not on an indicator flip.
+
