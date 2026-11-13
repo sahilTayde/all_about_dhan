@@ -87,20 +87,38 @@ def hs(sym, d0, m, p):
 
 
 # ---------------------------------------------------------------- panel
+IDX5Y = os.environ.get("IDX5Y", f"{OUT}/../idx1m.pkl")  # lab.py cache of data/recon 5y index 1m
 def build():
     X = pd.read_parquet(f"{OUT}/opt1y.parquet")
     X = X[(X.m >= M0) & (X.m < M0 + NB)]
-    P = {}
+    # 2026-11-13 data hygiene (Fable verification of the 5y ATM+-10 panel): (1) Dhan's SENSEX 2023-24 files carry rows of ANOTHER underlying
+    # (spot 20-34% off, own strikes, ~all zero volume): drop every row whose spot is > 1% from the index minute close (idx1m; the row median
+    # where idx1m has no minute). (2) spot = per-minute median of the kept rows (was: the last row written). (3) a (side, strike, minute)
+    # quoted twice with closes > 1% apart is unknowable: dropped (NaN), else the row nearest ATM wins. (4) ATM is carried forward only
+    # (was ffill().bfill(): a leading gap took a LATER strike).
+    try:
+        I = pd.read_pickle(IDX5Y); I = I[I.sym.isin(X.sym.unique())].drop_duplicates(["sym", "day", "m"], keep="last").set_index(["sym", "day", "m"]).close
+    except FileNotFoundError: I = None; print("build: no idx1m, spot reference = row median")
+    IK = set(I.index.droplevel(2)) if I is not None else set()
+    P = {}; drop = {}
     for (sym, day), g in X.groupby(["sym", "day"]):
-        i = (g.m.values - M0).astype(int)
-        spot = np.full(NB, np.nan); spot[i] = g.spot.values; spot = pd.Series(spot).ffill().values
+        ref = g.groupby("m").spot.transform("median")
+        if (sym, day) in IK: ref = g.m.map(I.loc[(sym, day)]).fillna(ref)
+        ok = (g.spot / ref - 1).abs() <= 0.01; n0 = len(g); g = g[ok]
+        g = g.assign(ao=g.off.abs()).sort_values("ao"); key = ["side", "strike", "m"]; cg = g.groupby(key).c
+        g = g[~(cg.transform("max") > cg.transform("min") * 1.01 + 0.05)].drop_duplicates(key, keep="first")
+        drop[(sym, day)] = (int(n0 - ok.sum()), int(ok.sum() - len(g)))
+        sp = g.groupby("m").spot.median(); i = (sp.index.values - M0).astype(int)
+        spot = np.full(NB, np.nan); spot[i] = sp.values; spot = pd.Series(spot).ffill().values
         a0 = g[(g.off == 0) & (g.side == "CE")]; atm = np.full(NB, np.nan); atm[a0.m.values - M0] = a0.strike.values
-        atm = pd.Series(atm).ffill().bfill().values
+        atm = pd.Series(atm).ffill().values
         C = {}
         for (side, K), h in g.groupby(["side", "strike"]):
             a = np.full((NB, 7), np.nan); a[h.m.values - M0] = h[["o", "h", "l", "c", "oi", "iv", "vol"]].values; C[(side, K)] = a
         P[(sym, day)] = dict(spot=spot, atm=atm, C=C, exp=g.exp.iloc[0], dte=int(np.busday_count(day, g.exp.iloc[0])),
                              d0=int(day == g.exp.iloc[0]))
+    D = pd.DataFrame([(k[0], k[1][:4], a, b) for k, (a, b) in drop.items()], columns=["sym", "yr", "other_underlying", "conflict"])
+    print("build: rows dropped per sym-year\n", D.groupby(["sym", "yr"])[["other_underlying", "conflict"]].sum().to_string(), flush=True)
     return P
 
 
@@ -367,12 +385,11 @@ def fam_oi():
 
 
 # ---------------------------------------------------------------- F2 volatility timing (buyers)
-IDX5Y = os.environ.get("IDX5Y", f"{OUT}/../idx1m.pkl")  # lab.py cache of data/recon 5y index 1m
 
 
 def vol_days(i0=30):
     """per sym-day features known at bar i0 (09:45) + HAR-RV forecast fitted on 5y index days before 2025-10-27."""
-    fp = f"{OUT}/voldays{'' if i0 == 30 else i0}.pkl"
+    fp = f"{OUT}/voldays{'' if i0 == 30 else i0}_{_SRC}.pkl"  # keyed by this file's hash (Fable B-1: stale caches survived code changes)
     if os.path.exists(fp): return pd.read_pickle(fp)
     D = pd.read_pickle(IDX5Y); D = D[D.sym.isin(["NIFTY", "SENSEX"]) & (D.day < "2025-10-27")]
     hist = D.groupby(["sym", "day"]).close.apply(lambda c: np.sqrt((np.diff(np.log(c.values)) ** 2).sum() * 252) * 100)
@@ -387,7 +404,8 @@ def vol_days(i0=30):
                          st=_get(k, "CE", K, i0, 3) + _get(k, "PE", K, i0, 3), S=s[i0], dirn=np.sign(s[i0] - s[0])))
     V = pd.DataFrame(rows).sort_values(["sym", "day"]); out = []
     for sym, g in V.groupby("sym"):
-        h = hist.loc[sym]; h = h[h > 0.5]; rv = pd.concat([h, g.set_index("day").rvd]).dropna(); lr = np.log(rv)
+        h = hist.loc[sym]; h = h[(h > 0.5) & ~h.index.isin(g.day)]  # 5y panel (E39): panel days override the index history (no duplicate days)
+        rv = pd.concat([h, g.set_index("day").rvd]).dropna(); lr = np.log(rv)
         X = pd.DataFrame({"d1": lr.shift(1), "w": lr.shift(1).rolling(5).mean(), "m": lr.shift(1).rolling(22).mean(), "y": lr}).dropna()
         tr = X[X.index < "2025-10-27"]; A = np.c_[np.ones(len(tr)), tr[["d1", "w", "m"]].values]
         b = np.linalg.lstsq(A, tr.y.values, rcond=None)[0]; print(sym, "HAR b", b.round(3), "n", len(tr))
@@ -585,8 +603,22 @@ def fam_exit():
 
 # ---------------------------------------------------------------- R3 new information sources (scripts/lab5y/ext_fetch.py)
 EXT = os.environ.get("EXT", os.path.join(os.path.dirname(__file__), "../../data/cache/ext"))
-RBI = {"2025-12-05", "2026-02-06", "2026-04-08", "2026-06-05", "2026-08-05", "2026-10-07"}  # rbi.org.in, 10:00 IST
-FOMC = ["2025-10-29", "2025-12-10", "2026-01-28", "2026-03-18", "2026-04-29", "2026-06-17", "2026-07-29", "2026-09-16"]  # federalreserve.gov
+# E39-E41 (2026-11-13, before any LEARN-year result): the 5-year panel needs the LEARN-year events too (before this the lists held our year
+# only, so E33's EVENT regime and E40 saw no RBI / FOMC day in 2021-2025). SCHEDULED MPC decision days only (rbi.org.in calendars and
+# reschedule notices: Feb-2022 moved to the 10th, Aug-2022 to the 5th); the unscheduled 2022-05-04 hike was announced intraday without
+# notice, so it is NOT a pre-known event and is left out on purpose. FOMC = statement day (federalreserve.gov, US date, ~23:30 IST).
+RBI_LEARN = {"2021-12-08", "2022-02-10", "2022-04-08", "2022-06-08", "2022-08-05", "2022-09-30", "2022-12-07", "2023-02-08", "2023-04-06",
+             "2023-06-08", "2023-08-10", "2023-10-06", "2023-12-08", "2024-02-08", "2024-04-05", "2024-06-07", "2024-08-08", "2024-10-09",
+             "2024-12-06", "2025-02-07", "2025-04-09", "2025-06-06", "2025-08-06", "2025-10-01"}
+FOMC_LEARN = ["2021-11-03", "2021-12-15", "2022-01-26", "2022-03-16", "2022-05-04", "2022-06-15", "2022-07-27", "2022-09-21", "2022-11-02",
+              "2022-12-14", "2023-02-01", "2023-03-22", "2023-05-03", "2023-06-14", "2023-07-26", "2023-09-20", "2023-11-01", "2023-12-13",
+              "2024-01-31", "2024-03-20", "2024-05-01", "2024-06-12", "2024-07-31", "2024-09-18", "2024-11-07", "2024-12-18", "2025-01-29",
+              "2025-03-19", "2025-05-07", "2025-06-18", "2025-07-30", "2025-09-17"]
+RBI = RBI_LEARN | {"2025-12-05", "2026-02-06", "2026-04-08", "2026-06-05", "2026-08-05", "2026-10-07"}  # rbi.org.in, 10:00 IST
+def fomc_next(days, F=None):
+    """first panel day after each FOMC statement day inside the panel (an FOMC before the first panel day maps to nothing, not to day 1)."""
+    return {next(d for d in days if d > f) for f in (FOMC if F is None else F) if days[0] <= f < days[-1]}
+FOMC = FOMC_LEARN + ["2025-10-29", "2025-12-10", "2026-01-28", "2026-03-18", "2026-04-29", "2026-06-17", "2026-07-29", "2026-09-16"]  # federalreserve.gov
 DIRC = ["fii_fut", "fii_opt", "spx", "inr", "oil"]  # sign fixed a priori: + -> CE (oil = -Brent: India imports oil)
 VOLC = ["vix", "aspx", "ainr", "aoil"]
 
@@ -604,7 +636,7 @@ def ext_table():
     N = pd.DataFrame(R).set_index("d").sort_index().diff()
     F = {s: pd.read_csv(f"{EXT}/{s}.csv", index_col=0, na_values=".").iloc[:, 0].dropna() for s in ("SP500", "VIXCLS", "DEXINUS", "DCOILBRENTEU")}
     F = {s: np.log(v).diff().dropna() for s, v in F.items()}
-    days = sorted({k[1] for k in ALLK}); fomc1 = {next(d for d in days if d > f) for f in FOMC}; out = []
+    days = sorted({k[1] for k in ALLK}); fomc1 = fomc_next(days); out = []
     for d in days:
         prev = lambda s: s[s.index < d].iloc[-1] if (s.index < d).any() else np.nan
         out.append(dict(day=d, fii_fut=prev(N.fut), fii_opt=prev(N.opt), spx=prev(F["SP500"]), vix=prev(F["VIXCLS"]),
