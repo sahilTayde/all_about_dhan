@@ -349,7 +349,8 @@ def vol_days(i0=30):
                          st=_get(k, "CE", K, i0, 3) + _get(k, "PE", K, i0, 3), S=s[i0], dirn=np.sign(s[i0] - s[0])))
     V = pd.DataFrame(rows).sort_values(["sym", "day"]); out = []
     for sym, g in V.groupby("sym"):
-        h = hist.loc[sym]; h = h[h > 0.5]; rv = pd.concat([h, g.set_index("day").rvd]).dropna(); lr = np.log(rv)
+        h = hist.loc[sym]; h = h[h > 0.5]; rv = pd.concat([h, g.set_index("day").rvd]).dropna()
+        rv = rv[~rv.index.duplicated(keep="last")].sort_index(); lr = np.log(rv)  # 5-year panel: panel days overlap the index history
         X = pd.DataFrame({"d1": lr.shift(1), "w": lr.shift(1).rolling(5).mean(), "m": lr.shift(1).rolling(22).mean(), "y": lr}).dropna()
         tr = X[X.index < "2025-10-27"]; A = np.c_[np.ones(len(tr)), tr[["d1", "w", "m"]].values]
         b = np.linalg.lstsq(A, tr.y.values, rcond=None)[0]; print(sym, "HAR b", b.round(3), "n", len(tr))
