@@ -17,7 +17,7 @@ HOLDOUT = "--holdout" in sys.argv
 LOT = {"NIFTY": 65, "SENSEX": 20}; LOTS = 10; CM = 1.5
 TXN = {"NIFTY": 0.000355299, "SENSEX": 0.000325}
 STEP = {"NIFTY": 50, "SENSEX": 100}
-HO = "2026-07-27"
+HO = os.environ.get("HO", "2026-07-27")  # E39: HO=2025-10-27 on the 5-year panel makes dev = 2021-2025 (LEARN) and --holdout = our year (TEST)
 M0, NB = 555, 375            # 09:15, bars per day
 E_LO, E_HI, FLAT = 560, 899, 915  # decision minutes 09:20..14:59; flatten at 15:15 open (audit A2: was 900 = 15:00)
 RNG = np.random.default_rng(11)
@@ -71,7 +71,7 @@ P = pickle.load(open(PK, "rb"))
 ALLK = sorted(P, key=lambda k: (k[1], k[0]))
 KEYS = [k for k in ALLK if (k[1] >= HO) == HOLDOUT]
 DAYS = sorted({k[1] for k in KEYS})
-def month(d): return "2025-11" if d < "2025-11-01" else d[:7]
+def month(d): return d[:7] if os.environ.get("LAB_FULL") else ("2025-11" if d < "2025-11-01" else d[:7])  # 1y panel: 10-27..10-31 join Nov
 MONTHS = sorted({month(d) for d in DAYS})
 
 

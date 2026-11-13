@@ -1,9 +1,10 @@
 """Read-only pull of Dhan expired/rolling index options (POST /charts/rollingoption), founder OK 2026-10-27.
-https://dhanhq.co/docs/v2/expired-options-data/ : 1m OHLC+OI+IV+spot, ATM-relative strikes, <=30 days/call,
+https://docs.dhanhq.co/api/v2/expired-options-data/get-expired-options-data : 1m OHLC+OI+IV+spot, ATM-relative strikes
+(index weeklies up to ATM+-10 on the Data API plan), <= 2 days/call since 2026-11 (was 30),
 Data API 5 req/s (enforced by dhan_client), 100k/day. No orders. Token from .env via dhan_client; never printed.
 
 Run with the v2 venv (dhan_client needs py3.11):
-  .venv-v2/bin/python scripts/lab5y/pull_expired.py --from 2025-10-27 --to 2026-10-27 [--test]
+  .venv-v2/bin/python scripts/lab5y/pull_expired.py --from 2025-10-27 --to 2026-10-27 [--strikes 10 --strikes-from 4] [--test]
 Output: data/cache/expired_opts/<SYM>/<ATM+k>_<CALL|PUT>_<from>.json (gitignored); existing files are skipped."""
 import argparse, json, sys, time
 from datetime import date, timedelta
@@ -17,10 +18,16 @@ UND = {"NIFTY": ("NSE_FNO", 13), "SENSEX": ("BSE_FNO", 51)}
 FIELDS = ["open", "high", "low", "close", "iv", "volume", "strike", "oi", "spot"]
 
 
-def windows(a: date, b: date, days: int = 30):
-    while a < b:
-        yield a, min(a + timedelta(days=days), b)
-        a += timedelta(days=days)
+def windows(a: date, b: date, days: int = 2):
+    """2026-11-13: Dhan now serves at most 2 calendar days per call (30-day calls return DH-905). Windows = pairs of consecutive
+    weekdays (Mon-Tue, Wed-Thu, Fri), fromDate..toDate inclusive, no window crosses a weekend."""
+    d = a
+    while d <= b:
+        if d.weekday() >= 5: d += timedelta(days=1); continue
+        e = d + timedelta(days=days - 1)
+        while e > d and (e.weekday() >= 5 or e > b): e -= timedelta(days=1)
+        yield d, e
+        d = e + timedelta(days=1)
 
 
 def main() -> int:
@@ -28,11 +35,13 @@ def main() -> int:
     ap.add_argument("--from", dest="a", required=True)
     ap.add_argument("--to", dest="b", required=True)
     ap.add_argument("--strikes", type=int, default=3)
+    ap.add_argument("--strikes-from", type=int, default=0, help="skip |k| below this (e.g. 4 when ATM+-3 already exists)")
+    ap.add_argument("--days", type=int, default=2)
     ap.add_argument("--test", action="store_true", help="one call (NIFTY ATM CALL, first window) and a summary")
     ns = ap.parse_args()
     cli = DhanClient(dry_run=False)
-    jobs = [(s, k, side, w) for s in UND for k in range(-ns.strikes, ns.strikes + 1)
-            for side in ("CALL", "PUT") for w in windows(date.fromisoformat(ns.a), date.fromisoformat(ns.b))]
+    jobs = [(s, k, side, w) for s in UND for k in range(-ns.strikes, ns.strikes + 1) if abs(k) >= ns.strikes_from
+            for side in ("CALL", "PUT") for w in windows(date.fromisoformat(ns.a), date.fromisoformat(ns.b), ns.days)]
     if ns.test:
         jobs = [j for j in jobs if j[0] == "NIFTY" and j[1] == 0 and j[2] == "CALL"][:1]
     done = err = 0
