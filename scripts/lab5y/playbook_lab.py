@@ -409,7 +409,7 @@ def long_leg(k, i, sd, X=X33):
     trailing = fixed jump X[l_trail] x entry (SL rises one jump per jump of new high, Dhan super-trail semantics); spot adverse cap
     (next open); else the 15:15 open; SL beats target in the same bar; strike leaves the window -> last close, forced (D7: forfeits gains)."""
     sym = k[0]; p = P[k]; a, K = L.contract(k, i, sd, 0); e = i + 1; xe = FLAT - M0
-    if a is None or not np.isfinite(a[e, 0]): return None
+    if a is None or not np.isfinite(a[e, 0]) or L.stale(a, e): return None
     d0 = p["d0"]; en = a[e, 0] + L.hs(sym, d0, M0 + e, a[e, 0]); J = X["l_trail"] * en; sl0 = en * (1 - X["l_stop"]); tp = en * (1 + X["l_tgt"])
     s = spot(k); s0 = s[e]; dirn = 1 if sd == "CE" else -1; capv = min(X["cap"], 0.004 * s0 / STEP[sym]) * STEP[sym]
     sl, hi, x, why, forced, j = sl0, en, None, None, False, e
@@ -422,7 +422,8 @@ def long_leg(k, i, sd, X=X33):
         if dirn * (s[j] - s0) <= -capv and j + 1 < xe: j += 1; x, why = (a[j, 0] if np.isfinite(a[j, 0]) else c), "cap"; break
     if x is None: j = xe; x, why = (a[j, 0] if np.isfinite(a[j, 0]) else a[j - 1, 3]), "time"
     if why != "tgt": x = max(x - L.hs(sym, d0, M0 + min(j, NB - 1), x), 0.05)
-    return dict(pnl=(x - en) * LOT[sym] * L.LOTS - L.cost(en, x, sym), held=j - e, forced=forced, why=why, credit=-en)
+    kc = k if L.COSTS == "dated" else None
+    return dict(pnl=(x - en) * L.qty(sym, kc) - L.cost(en, x, sym, kc), held=j - e, forced=forced, why=why, credit=-en)
 
 
 def act33(k, i, name, X=X33):

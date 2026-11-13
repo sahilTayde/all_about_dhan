@@ -18,7 +18,7 @@ What the harvest does give us:
 **Why.** Costs and theta still dominate (D2, D4). Every gain on offer is in how we measure, not in a new signal.
 
 **Next.** Before E39 is scored:
-1. Build the 5-year cost hygiene (adoption #2 below).
+1. ~~Build the 5-year cost hygiene (adoption #2 below).~~ Done, see §5.
 2. Run `honest_stats.lookahead_scan` on every E39-E41 feature function.
 
 ## 1. What we have / what we lack (our own terms, written before any search, i.e. before this PR)
@@ -203,7 +203,7 @@ Tags: (a) method, (b) strategy not yet in the registry, (c) terminology/structur
 | # | Repo / idea | Licence | Tag | What to adopt | Why it helps us | Effort | Risk | Test plan | Status |
 |---|---|---|---|---|---|---|---|---|---|
 | 1 | freqtrade lookahead-analysis | GPL-3.0 (idea only) | a/d | `honest_stats.lookahead` / `lookahead_scan`: scramble everything after the decision index; features must not change | The two E33 bugs (a 5m bar closing 4 min after the slot; the `s[i-60]` wrap) were found late, and the scramble test covered E33 only | S | Slow on big grids, so sample the slots | Known answers: the wrap leaks at exactly slots 0..59 of a 300-point series; a trailing mean is clean; a centred mean leaks at 299/300; a whole-day max, the next bar and an open 5m bar are caught. Run on every E39-E41 feature function before scoring | **built** |
-| 2 | nifty-options-lab hygiene | MIT | d | Date-versioned STT and charges, lot-size history, a holiday-expiry map, and no fill on an untraded bar | E39 runs 2021-2025 at today's lot sizes and STT (disclosed). STT on option sales went 0.05 → 0.0625 → 0.1 → 0.15%, and the NIFTY lot changed five times. Without this, the 5-year P&L is wrong | M | Wrong tables fail silently | Spot-check 5 dates per regime against the official circulars and the bhavcopy; known-answer cost per date | **next (before E39 scores)** |
+| 2 | nifty-options-lab hygiene | MIT | d | Date-versioned STT and charges, lot-size history, a holiday-expiry map, and no fill on an untraded bar | E39 runs 2021-2025 at today's lot sizes and STT (disclosed). STT on option sales went 0.05 → 0.0625 → 0.1 → 0.15%, and the NIFTY lot changed five times. Without this, the 5-year P&L is wrong | M | Wrong tables fail silently | Known answers at every cutover (`sell_lab.py OUT costs`, §5) | **built** (`COSTS=dated`, stale guard) |
 | 3 | PBO via CSCV (Bailey et al.; purgedcv / pypbo idea) | MIT / AGPL (re-implemented) | a | `honest_stats.pbo_cscv` | SPA asks whether ANY variant is real. PBO asks how often the in-sample best lands below the out-of-sample median. We lacked it | S | Needs a days × variants matrix (sweep_lab has X) | Known answers: A/B flip → 1.0; a constant +1 edge → 0.0; iid noise 0.37 (band 0.3-0.7); regime-flip grid 0.93. Then on the E31 matrix and on E39 | **built** |
 | 4 | day-trader-skill trader-risk | MIT | c/d | Every DESK gate PASS/BLOCK in `decide()["checks"]`, printed as a `checklist:` line | The founder sees why a trade was taken or blocked at every gate, not only the first reason | S | None (actions unchanged) | Parity: TRADE iff no BLOCK, and the first BLOCK equals `why` over 7 state cases; `casino_lab desk` (13 cases) still passes | **built** |
 | 5 | Pre-RBI short vol, T-2 close → T-1 close | MIT (source) | b | Registry **E40**: naked straddle and iron fly (wings min(3 EM, 10 strikes)) | The only harvested rule with a placebo and a replication. Not B9 (after the release), R3 (long on the day), E19 (no event), E32 (intraday) or E13 | M | Overnight gaps; ~30 events in 5y; wings may leave ATM±10 | Frozen rule (E40), cons engine at ATM±10, learn 2021-25 / test our year once, placebo on non-event nights, PBO + DSR beside it, then the forward tape at rung 0 | **frozen, waits on E39 data** |
@@ -233,3 +233,50 @@ Tags: (a) method, (b) strategy not yet in the registry, (c) terminology/structur
 - `scripts/lab5y/honest_stats.py`: `pbo_cscv`, `effective_n`, `stepm`, `lookahead`, `lookahead_scan`. numpy only, no data needed. Check: `python scripts/lab5y/honest_stats.py`.
 - `scripts/lab5y/fin1_shadow.py`: `decide()` returns `checks` (PASS/BLOCK per gate), printed in `forward`. Checks: `fin1_shadow.py selftest` (parity) and `casino_lab.py OUT desk` (unchanged 13 cases).
 - Registry: **E40** and **E41** pre-registered (frozen before any result), plus a 2026-11-13 infrastructure note with the rule that every E39-E41 score prints PBO and an effective-N DSR, and passes `lookahead_scan` first.
+
+## 5. Five-year cost hygiene (adoption #2, built 2026-11-13)
+
+**What changed.**
+- **`COSTS=dated`:** charges at the rates of the trade day, and whole lots at the size of the contract's expiry. Default `today` is unchanged.
+- **Untraded-bar guard:** a zero-volume bar is never filled on. `LAB_STALE=keep` reproduces the old behaviour.
+- **Expiry days:** already data-driven in `opt1y_load --full`, so no change was needed.
+
+**Sources** (public; numbers checked against at least two summaries where the circular itself could not be opened):
+- **STT on sale of options:**
+  - 0.05% → 0.0625% from 2023-04-01: Finance Act 2023 ([NSE circular FATAX56235](https://archives.nseindia.com/content/circulars/FATAX56235.pdf), [Upstox community](https://community.upstox.com/t/stt-on-sale-of-options-hiked-to-0-0625-6-250-on-a-turnover-of-1-crore/44)).
+  - → 0.1% from 2024-10-01: Finance (No. 2) Act 2024 ([MSEI circular 16075](https://msei.in/SX-Content/Circulars/2024/October/Circular-16075.pdf), [StudyCafe](https://studycafe.in/budget-2024-securities-transaction-tax-rates-revised-check-new-rates-330491.html)).
+  - → 0.15% from 2026-04-01: Budget 2026 ([ICICI Direct](https://www.icicidirect.com/ilearn/futures-and-options/articles/stt-changes-in-budget-2026-what-f-o-traders-should-know), [Groww](https://groww.in/blog/what-is-stt)).
+- **NSE options transaction charge:**
+  - 0.053% → 0.05% from 2023-04-01 ([Zerodha bulletin](https://zerodha.com/marketintel/bulletin/347967/revision-in-transaction-charges-and-stt-from-1st-april-2023), [NSE/FA/56129](https://nsearchives.nseindia.com/content/circulars/FA56129.pdf)).
+  - → Rs 35.03 per lakh from 2024-10-01 ([Zerodha bulletin](https://zerodha.com/marketintel/bulletin/391488/revision-in-transactions-charges-from-1st-october-2024), [Fyers](https://fyers.in/notice-board/revision-of-brokerage-mtf-interest-and-other-charges-effective-october-1-2024.html)).
+  - → Rs 3,552.99 per crore from 2026-03-01 ([NSE/FA/73061](https://nsearchives.nseindia.com/content/circulars/FA73061.pdf)).
+  - Unclear point: one source gives 0.0495% (slab top) instead of 0.05% for 2023-24. The difference is 1% of a 0.05% charge, so it is immaterial.
+- **BSE SENSEX options:** Rs 3,250 per crore from 2024-10-01 ([Angel One](https://www.angelone.in/news/market-updates/bse-updates-transaction-fees-for-sensex-bankex-options)). Before that it was slab-priced per member (Rs 500-3,750 per crore). We use the flat 3,250 throughout and mark it UNCLEAR; the effect is about Rs 2 per leg.
+- **NIFTY lot:**
+  - 75 → 50 from the Jul-2021 contracts ([NSE/FAOP/47854](https://archives.nseindia.com/content/circulars/FAOP47854.pdf)).
+  - → 25 for contracts expiring after 2024-04-26 ([Fyers notice](https://fyers.in/notice-board/revision-in-lot-size-for-index-derivative-contracts-from-26th-april-2024/)).
+  - → 75 from the 2024-12-26 weekly; the last old weekly was 2024-12-19 ([Zerodha bulletin](https://zerodha.com/marketintel/bulletin/393605/revision-in-lot-size-of-index-derivative-contracts-from-november-20-2024)).
+  - → 65 from the 2026-01-06 weekly ([Zerodha bulletin](https://zerodha.com/marketintel/bulletin/429705/revision-in-lot-size-of-index-derivative-contracts-from-december-30-2025), [Kotak Neo](https://www.kotakneo.com/bulletins/lot-size-changes-in-index-derivatives-effective-december-30-2025/)).
+- **SENSEX lot:** 10 → 20 from the 2025-01-10 weekly; the last old weekly was 2025-01-03 ([Fyers](https://fyers.in/notice-board/sebis-revised-lot-sizes-for-index-derivatives-effective-november-20-2024/), [Angel One](https://www.angelone.in/announcements/market/revision-in-market-lot-for-index-derivatives-contracts)).
+- **Constant over the window:** stamp 0.003% of buy, SEBI Rs 10 per crore, GST 18%, Dhan brokerage Rs 20 per order.
+- **Not modelled:** STT on exercise (0.125% of intrinsic), because every engine flattens at 15:15. E41's "let sub-Rs-5 shorts expire" rule must add it for ITM legs.
+
+**Effect on the 5-year panel** (costs and counts only; no P&L was looked at, so the E39 LEARN years stay unseen). This is the 09:47 ATM straddle round trip, charges ×1.5 excluding spread, in Rs:
+
+| sym | year | sym-days | refused (stale entry) | charges at today's rates | charges at the day's rates | units (dated) |
+|---|---|---|---|---|---|---|
+| NIFTY | 2021 | 45 | 0 | 603 | 489 | 650 |
+| NIFTY | 2022 | 247 | 0 | 649 | 523 | 650 |
+| NIFTY | 2023 | 245 | 0 | 483 | 404 | 650 |
+| NIFTY | 2024 | 245 | 0 | 688 | 567 | 650 |
+| NIFTY | 2025 | 247 | 0 | 639 | 546 | 675 |
+| NIFTY | 2026 | 201 | 0 | 739 | 697 | 650 |
+| SENSEX | 2023 | 154 | 18 | 485 | 354 | 200 |
+| SENSEX | 2024 | 245 | 0 | 696 | 509 | 200 |
+| SENSEX | 2025 | 247 | 0 | 650 | 539 | 200 |
+| SENSEX | 2026 | 201 | 0 | 710 | 668 | 200 |
+
+**Reading.**
+- Today's rates are 10-27% dearer than the real 2021-24 charges. So the frozen `today` convention is cautious for sellers, and it slightly flatters nothing.
+- The stale guard bites at SENSEX 2023 (the relaunch year) and in the wings (about 20% of ATM±10 bars), which is exactly where E38/E40 wings live.
+- **E39-E41 amendment, made before any result and tightening only:** the guard is ON. The verdict uses `today` as frozen, and a PASS also needs the same sign under `dated`.
