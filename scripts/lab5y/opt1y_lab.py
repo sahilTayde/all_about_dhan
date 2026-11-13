@@ -24,9 +24,48 @@ RNG = np.random.default_rng(11)
 NVAR = [0]                   # count of every variant evaluated (for Bonferroni)
 
 
-def cost(b, s, sym):
-    q = LOT[sym] * LOTS; bt, st = b * q, s * q; tx = TXN[sym] * (bt + st); se = 1e-6 * (bt + st)
-    return CM * (40 + tx + se + 0.18 * (40 + tx + se) + 0.00003 * bt + 0.0015 * st)
+# ---------------------------------------------------------------- 5-year cost hygiene (2026-11-13, REPO_HARVEST #2)
+# COSTS=today (default; every frozen row up to E39): every day at today's rates and lots, i.e. "what this rule would pay now".
+# COSTS=dated: the STT / exchange rates in force on the TRADE day and whole lots at the size in force for the contract's EXPIRY, with
+# the quantity kept nearest today's 10 lots (650 NIFTY / 200 SENSEX units) so exposure is comparable across 2021-2026.
+# Tables = (effective-from date, value); sources in teams/01_research/docs/REPO_HARVEST.md §5. Unchanged over 2021-10..2026-10 and
+# kept as constants: brokerage Rs 20/order (Dhan), stamp 0.003% of buy premium (since 2020-07-01), SEBI Rs 10/crore, GST 18%.
+COSTS = os.environ.get("COSTS", "today")
+STT_SELL = [("2016-06-01", 0.0005), ("2023-04-01", 0.000625), ("2024-10-01", 0.001), ("2026-04-01", 0.0015)]  # sale of option, on premium
+TXN_D = {"NIFTY": [("2021-01-01", 0.00053), ("2023-04-01", 0.0005), ("2024-10-01", 0.0003503), ("2026-03-01", 0.000355299)],
+         # ponytail: BSE SENSEX options were slab-priced per member before 2024-10-01 (Rs 500-3,750/crore); the flat 3,250 is used
+         # for every day (UNCLEAR before Oct-2024; +-0.005% of premium = about Rs 2 per leg at 10 lots: immaterial)
+         "SENSEX": [("2023-01-01", 0.000325)]}
+LOT_D = {"NIFTY": [("2021-07-01", 50), ("2024-04-26", 25), ("2024-12-20", 75), ("2025-12-31", 65)],   # by contract EXPIRY date
+         "SENSEX": [("2023-01-01", 10), ("2025-01-04", 20)]}
+def _at(tab, d): return [v for f, v in tab if f <= d][-1]
+
+
+def _dated(k):
+    if COSTS == "today": return False
+    assert COSTS == "dated" and k is not None, "COSTS=dated needs the sym-day key at every cost/qty call (no silent today rates)"
+    return True
+
+
+def qty(sym, k=None, lots=LOTS):
+    """units traded for `lots` of today's lot; dated: the same exposure in whole lots of the size in force at the contract's expiry."""
+    if not _dated(k): return LOT[sym] * lots
+    lt = _at(LOT_D[sym], str(P[k]["exp"])[:10]); return max(1, round(LOT[sym] * lots / lt)) * lt
+
+
+def cost(b, s, sym, k=None):
+    """round-trip charges x CM for one leg bought at b and sold at s (per unit), at LOTS lots (qty)."""
+    if _dated(k): q, tx_r, stt = qty(sym, k), _at(TXN_D[sym], k[1]), _at(STT_SELL, k[1])
+    else: q, tx_r, stt = LOT[sym] * LOTS, TXN[sym], 0.0015
+    bt, st = b * q, s * q; tx = tx_r * (bt + st); se = 1e-6 * (bt + st)
+    return CM * (40 + tx + se + 0.18 * (40 + tx + se) + 0.00003 * bt + stt * st)
+
+
+# untraded bars: a zero-volume 1m bar is a carry-forward print (O=H=L=C, the last trade) — 1% of ATM bars, ~20% at ATM+-10, 28% of
+# SENSEX 2023. Never FILL on one (entries refuse, exits are priced by the bound and flagged forced). LAB_STALE=keep restores the old
+# behaviour, which reproduces every row up to E39 exactly.
+STALE_OK = os.environ.get("LAB_STALE") == "keep"
+def stale(a, j): return (not STALE_OK) and a is not None and 0 <= j < len(a) and a[j, 6] == 0
 
 
 # ---------------------------------------------------------------- spreads
@@ -66,7 +105,7 @@ def build():
     return P
 
 
-PK = f"{OUT}/panel.pkl"
+_OFF = os.environ.get("OFFMAX", "99"); PK = f"{OUT}/panel{'' if _OFF == '99' else '_off' + _OFF}.pkl"  # E38: one cached panel per strike window
 if not os.path.exists(PK): pickle.dump(build(), open(PK, "wb"))
 P = pickle.load(open(PK, "rb"))
 ALLK = sorted(P, key=lambda k: (k[1], k[0]))
@@ -93,7 +132,7 @@ def trade(k, i, side, itm=0, hold=15, stop=None, tgt=None, trail=None, atr_k=Non
         return sum(r[0] for r in rs), max(r[1] for r in rs), any(r[2] for r in rs)
     sym = k[0]; p = P[k]; a, K = contract(k, i, side, itm)
     e = i + 1; xe = min(e + hold, flat - M0) if hold else flat - M0
-    if a is None or e >= xe or not np.isfinite(a[e, 0]): return None
+    if a is None or e >= xe or not np.isfinite(a[e, 0]) or stale(a, e): return None
     d0 = p["d0"]; en = a[e, 0] + hs(sym, d0, M0 + e, a[e, 0])
     sp = en * (1 - stop) if stop else None; tp = en * (1 + tgt) if tgt else None
     if atr_k:
@@ -118,7 +157,7 @@ def trade(k, i, side, itm=0, hold=15, stop=None, tgt=None, trail=None, atr_k=Non
         j = xe; x = a[j, 0] if j < NB and np.isfinite(a[j, 0]) else a[j - 1, 3]
         if not np.isfinite(x): return None
     x = max(x - hs(sym, d0, M0 + j, x), 0.05)
-    return (x - en) * LOT[sym] * LOTS - cost(en, x, sym), j - e, forced
+    return (x - en) * qty(sym, k) - cost(en, x, sym, k), j - e, forced
 
 
 # ---------------------------------------------------------------- placebo pools

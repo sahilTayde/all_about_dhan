@@ -30,18 +30,19 @@ def _nearext(k, side, K, j, col):
     return _EXT[key]
 
 
-def _px(k, side, K, j, col, high):
-    """quote, or a bound when the strike is off the taped window: high=True -> upper bound, else lower bound."""
+def _px(k, side, K, j, col, high, fill=False):
+    """quote, or a bound when the strike is off the taped window: high=True -> upper bound, else lower bound.
+    fill=True (an exit fill): a zero-volume carry-forward bar counts as missing (L.stale), so it is priced by the bound and forced."""
     a = P[k]["C"].get((side, K)); j = min(j, NB - 1); s = P[k]["spot"][j]
-    v = a[j, col] if a is not None else np.nan
+    v = a[j, col] if a is not None and not (fill and L.stale(a, j)) else np.nan
     if np.isfinite(v): return v, False
     intr = max(0.0, s - K) if side == "CE" else max(0.0, K - s)
     return intr + (_nearext(k, side, K, j, col) if high else 0.0), True
 
 
-def _cost(b, s, sym, lots):
-    """L.cost is for LOTS lots; its 40/order brokerage (x1.18 GST x CM) is fixed, the rest scales with lots."""
-    fx = L.CM * 1.18 * 40; return fx + (L.cost(b, s, sym) - fx) * lots / LOTS
+def _cost(b, s, sym, lots, k=None):
+    """L.cost is for LOTS lots; its 40/order brokerage (x1.18 GST x CM) is fixed, the rest scales with lots. k: sym-day (COSTS=dated)."""
+    fx = L.CM * 1.18 * 40; return fx + (L.cost(b, s, sym, k) - fx) * lots / LOTS
 
 
 def struct(k, i, legs, stop=None, tgt=None, sstop=None, flat=FLAT, mode="cons", dirn=0, s_tgt=None, s_stp=None, trail=None,
@@ -57,7 +58,7 @@ def struct(k, i, legs, stop=None, tgt=None, sstop=None, flat=FLAT, mode="cons", 
     ent = []
     for sd, K, sg in L_:
         a = p["C"].get((sd, K))
-        if a is None or not np.isfinite(a[e, 0]): return None
+        if a is None or not np.isfinite(a[e, 0]) or L.stale(a, e): return None  # no fill on an untraded bar
         o = a[e, 0]; h = L.hs(sym, d0, M0 + e, o); ent.append(o - h if sg < 0 else o + h)
     credit = sum(-sg * x for (sd, K, sg), x in zip(L_, ent))
     if credit <= 0 and all(sg < 0 for _, _, sg in L_): return None
@@ -79,12 +80,13 @@ def struct(k, i, legs, stop=None, tgt=None, sstop=None, flat=FLAT, mode="cons", 
         if trail is not None:
             m = abs(val); best = m if best is None else (min(best, m) if credit > 0 else max(best, m))
             if (m >= best * (1 + trail)) if credit > 0 else (m <= best * (1 - trail)): why, jx = "trail", j + 1; break
-    jx = min(jx, NB - 1); out = 0.0; costs = 0.0; q = LOT[sym] * lots
+    jx = min(jx, NB - 1); out = 0.0; costs = 0.0; q = L.qty(sym, k if L.COSTS == "dated" else None, lots)
     for (sd, K, sg), x in zip(L_, ent):
-        v, miss = _px(k, sd, K, jx, 0, hi(sg)); forced = forced or miss
+        v, miss = _px(k, sd, K, jx, 0, hi(sg), fill=True); forced = forced or miss
         fill = v + L.hs(sym, d0, M0 + jx, max(v, 0.05)) if sg < 0 else max(v - L.hs(sym, d0, M0 + jx, max(v, 0.05)), 0.05)
         out += -sg * fill
-        costs += _cost(fill, x, sym, lots) if sg < 0 else _cost(x, fill, sym, lots)
+        kc = k if L.COSTS == "dated" else None
+        costs += _cost(fill, x, sym, lots, kc) if sg < 0 else _cost(x, fill, sym, lots, kc)
     if forced and np.isfinite(W): out = min(max(out, 0.0), W)  # a bound was used: keep it inside the payoff's limits
     pnl = (credit - out) * q - costs
     if not np.isfinite(pnl): return None  # spot or quote missing at entry/exit
@@ -641,14 +643,14 @@ def nights(keys):
 def overnight(a, b, x=5, mode="cons", i=364):
     """sell ATM CE+PE (ATM of day a bar i) at day-a bar i+1 open - half-spread; buy back at day-b bar x open +
     half-spread; a strike off day b's taped window is priced with _px bounds (cons: upper, opt: intrinsic)."""
-    sym = a[0]; K = P[a]["atm"][i]; q = LOT[sym] * LOTS; pnl = 0.0; forced = False; cr = 0.0
+    sym = a[0]; K = P[a]["atm"][i]; kc = a if L.COSTS == "dated" else None; q = L.qty(sym, kc); pnl = 0.0; forced = False; cr = 0.0
     for sd in ("CE", "PE"):
         c = P[a]["C"].get((sd, K))
-        if c is None or not np.isfinite(c[i + 1, 0]): return None
+        if c is None or not np.isfinite(c[i + 1, 0]) or L.stale(c, i + 1): return None
         e = c[i + 1, 0] - L.hs(sym, P[a]["d0"], M0 + i + 1, c[i + 1, 0])
-        v, miss = _px(b, sd, K, x, 0, mode == "cons"); forced = forced or miss
+        v, miss = _px(b, sd, K, x, 0, mode == "cons", fill=True); forced = forced or miss
         f = v + L.hs(sym, P[b]["d0"], M0 + x, max(v, 0.05)); cr += e
-        pnl += (e - f) * q - _cost(f, e, sym, LOTS)
+        pnl += (e - f) * q - _cost(f, e, sym, LOTS, kc)
     if not np.isfinite(pnl): return None
     return dict(sym=sym, day=b[1], prev=a[1], dte=P[a]["dte"], gap=(pd.Timestamp(b[1]) - pd.Timestamp(a[1])).days,
                 credit=cr, pnl=pnl, forced=forced, maxloss=np.nan, why="night",
@@ -866,6 +868,65 @@ def study_selftest():
         assert e22_feat(poi_z(fs[:23]), T)[1:] == (zf, zc)  # same value with every file >= T removed
         assert np.isnan(e22_feat(Z, "2000-01-22")[1]) and np.isfinite(e22_feat(Z, "2000-01-23")[1])  # z needs 20 prior d: first at file 21
     print("sell_lab selftest OK")
+
+
+def study_costs():
+    """5-year cost hygiene known answers (REPO_HARVEST #2): dated STT / exchange rates by TRADE day, whole lots by contract EXPIRY,
+    no fill on a zero-volume carry-forward bar. Expected values are written out by hand from the circulars, not from the tables."""
+    raw = lambda q, tx, stt, b=100.0, s=120.0: L.CM * (40 + tx * (b + s) * q + 1e-6 * (b + s) * q + 0.18 * (40 + tx * (b + s) * q + 1e-6 * (b + s) * q)
+                                                        + 0.00003 * b * q + stt * s * q)
+    assert abs(L.cost(100, 120, "NIFTY") - raw(650, 0.000355299, 0.0015)) < 1e-9          # today mode == the frozen formula
+    fake = {("NIFTY", "2022-06-15"): "2022-06-16", ("NIFTY", "2024-06-12"): "2024-06-13", ("NIFTY", "2025-03-12"): "2025-03-13",
+            ("NIFTY", "2026-06-15"): "2026-06-16", ("SENSEX", "2024-06-14"): "2024-06-14", ("NIFTY", "2024-09-30"): "2024-10-03",
+            ("NIFTY", "2024-10-01"): "2024-10-03", ("NIFTY", "2024-12-18"): "2024-12-19", ("NIFTY", "2024-12-20"): "2024-12-26",
+            ("NIFTY", "2025-12-29"): "2025-12-30", ("NIFTY", "2026-01-01"): "2026-01-06", ("SENSEX", "2025-01-02"): "2025-01-03",
+            ("SENSEX", "2025-01-06"): "2025-01-10"}
+    saved = {k: P.get(k) for k in fake}; old = L.COSTS
+    try:
+        for k, e in fake.items(): P[k] = dict(exp=e)
+        L.COSTS = "dated"
+        # (key, units, exchange txn, STT on sale) from: NSE/FAOP/47854 (NIFTY 50 from Jul-2021), NSE/FAOP/61415 (25 after 2024-04-26),
+        # NSE Oct-2024 (75 from the 2024-12-26 weekly), NSE/FAOP/70616 (65 from the 2026-01-06 weekly), BSE (SENSEX 20 from 2025-01-10);
+        # STT Finance Act 2023 (0.0625% from 2023-04-01), Finance (No.2) Act 2024 (0.1% from 2024-10-01), Budget 2026 (0.15% from 2026-04-01);
+        # NSE txn 0.053% -> 0.05% (2023-04-01, NSE/FA/56129) -> 0.03503% (2024-10-01) -> Rs 3,552.99/crore (2026-03-01, NSE/FA/73061)
+        want = [(("NIFTY", "2022-06-15"), 650, 0.00053, 0.0005), (("NIFTY", "2024-06-12"), 650, 0.0005, 0.000625),
+                (("NIFTY", "2025-03-12"), 675, 0.0003503, 0.001), (("NIFTY", "2026-06-15"), 650, 0.000355299, 0.0015),
+                (("SENSEX", "2024-06-14"), 200, 0.000325, 0.000625), (("NIFTY", "2024-09-30"), 650, 0.0005, 0.000625),
+                (("NIFTY", "2024-10-01"), 650, 0.0003503, 0.001), (("NIFTY", "2024-12-18"), 650, 0.0003503, 0.001),
+                (("NIFTY", "2024-12-20"), 675, 0.0003503, 0.001), (("NIFTY", "2025-12-29"), 675, 0.0003503, 0.001),
+                (("NIFTY", "2026-01-01"), 650, 0.0003503, 0.001), (("SENSEX", "2025-01-02"), 200, 0.000325, 0.001),
+                (("SENSEX", "2025-01-06"), 200, 0.000325, 0.001)]
+        for k, q, tx, stt in want:
+            assert L.qty(k[0], k) == q, (k, L.qty(k[0], k), q)
+            assert abs(L.cost(100, 120, k[0], k) - raw(q, tx, stt)) < 1e-9, (k, L.cost(100, 120, k[0], k), raw(q, tx, stt))
+        assert L.cost(100, 120, "NIFTY", ("NIFTY", "2026-06-15")) == raw(650, 0.000355299, 0.0015)  # today's day: dated == today
+        try: L.cost(100, 120, "NIFTY"); raise SystemExit("dated mode accepted a call without the sym-day key")
+        except AssertionError: pass
+    finally:
+        L.COSTS = old
+        for k, v in saved.items():
+            if v is None: P.pop(k, None)
+            else: P[k] = v
+    # untraded bar: put a zero-volume carry-forward print on the entry bar of one leg -> no trade; LAB_STALE=keep would trade
+    k = next(k for k in L.KEYS if struct(k, 31, SSTRAD, sstop=2)); a = P[k]["C"][("CE", P[k]["atm"][31])]; v0 = a[32, 6]
+    try:
+        a[32, 6] = 0; assert struct(k, 31, SSTRAD, sstop=2) is None or L.STALE_OK
+    finally: a[32, 6] = v0
+    # impact, COSTS and COUNTS only (no P&L: E39 forbids looking at the LEARN years before its frozen cells are scored). Per year on
+    # every sym-day of this panel, the 09:47 ATM straddle entry (S1's legs): entries refused by the stale guard, and the charges of the
+    # two-leg round trip at the entry premia (same price both sides, so it is pure charges) under today vs dated rates.
+    rows = []
+    for k in L.ALLK:
+        p = P[k]; K = p["atm"][31]; legs = [p["C"].get((sd, K)) for sd in ("CE", "PE")]
+        if any(x is None or not np.isfinite(x[32, 0]) for x in legs): continue
+        st = any(x[32, 6] == 0 for x in legs); old = L.COSTS
+        c_t = sum(L.cost(x[32, 0], x[32, 0], k[0]) for x in legs); L.COSTS = "dated"
+        c_d = sum(L.cost(x[32, 0], x[32, 0], k[0], k) for x in legs); q_d = L.qty(k[0], k); L.COSTS = old
+        rows.append(dict(yr=k[1][:4], sym=k[0], stale=st, today=c_t, dated=c_d, units=q_d))
+    R = pd.DataFrame(rows); g = R.groupby(["sym", "yr"])
+    print(pd.DataFrame(dict(n=g.size(), stale_refused=g.stale.sum(), charges_today=g.today.mean().round(0),
+                            charges_dated=g.dated.mean().round(0), units_dated=g.units.median())).to_string())
+    print("sell_lab costs known answers OK (13 dated cases incl. every lot / STT / txn cutover, today == frozen formula, dated needs the key, stale entry refused)")
 
 
 if __name__ == "__main__":

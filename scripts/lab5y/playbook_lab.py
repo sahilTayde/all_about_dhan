@@ -409,7 +409,7 @@ def long_leg(k, i, sd, X=X33):
     trailing = fixed jump X[l_trail] x entry (SL rises one jump per jump of new high, Dhan super-trail semantics); spot adverse cap
     (next open); else the 15:15 open; SL beats target in the same bar; strike leaves the window -> last close, forced (D7: forfeits gains)."""
     sym = k[0]; p = P[k]; a, K = L.contract(k, i, sd, 0); e = i + 1; xe = FLAT - M0
-    if a is None or not np.isfinite(a[e, 0]): return None
+    if a is None or not np.isfinite(a[e, 0]) or L.stale(a, e): return None
     d0 = p["d0"]; en = a[e, 0] + L.hs(sym, d0, M0 + e, a[e, 0]); J = X["l_trail"] * en; sl0 = en * (1 - X["l_stop"]); tp = en * (1 + X["l_tgt"])
     s = spot(k); s0 = s[e]; dirn = 1 if sd == "CE" else -1; capv = min(X["cap"], 0.004 * s0 / STEP[sym]) * STEP[sym]
     sl, hi, x, why, forced, j = sl0, en, None, None, False, e
@@ -422,7 +422,8 @@ def long_leg(k, i, sd, X=X33):
         if dirn * (s[j] - s0) <= -capv and j + 1 < xe: j += 1; x, why = (a[j, 0] if np.isfinite(a[j, 0]) else c), "cap"; break
     if x is None: j = xe; x, why = (a[j, 0] if np.isfinite(a[j, 0]) else a[j - 1, 3]), "time"
     if why != "tgt": x = max(x - L.hs(sym, d0, M0 + min(j, NB - 1), x), 0.05)
-    return dict(pnl=(x - en) * LOT[sym] * L.LOTS - L.cost(en, x, sym), held=j - e, forced=forced, why=why, credit=-en)
+    kc = k if L.COSTS == "dated" else None
+    return dict(pnl=(x - en) * L.qty(sym, kc) - L.cost(en, x, sym, kc), held=j - e, forced=forced, why=why, credit=-en)
 
 
 def act33(k, i, name, X=X33):
@@ -439,8 +440,11 @@ def _price33(k):
     return k, [(i, a, r["pnl"], r["held"], r["forced"], r["why"]) for i in SLOTS33 for a in ACTS33 for r in [act33(k, i, a)] if r]
 
 
+CTAG = "" if (L.COSTS == "today" and L.STALE_OK) else f"_{L.COSTS}_guard"   # P&L caches are per cost/guard mode (E39b); "" = every frozen row
+
+
 def table33():
-    fp = f"{PB}/e33_table.pkl"
+    fp = f"{PB}/e33_table{CTAG}.pkl"
     if os.path.exists(fp): return pd.read_pickle(fp)
     t0 = time.time(); rows = []
     with get_context("fork").Pool(max(1, os.cpu_count() - 1)) as pool:
@@ -788,18 +792,23 @@ def _dayboot_p(x, n=4000, seed=39):
     x = np.asarray(x, float); return float((np.random.default_rng(seed).choice(x, (n, len(x))).mean(1) <= 0).mean()) if len(x) > 1 else np.nan
 
 
+E39_TRADES = [] if os.environ.get("E39_TAG") else None   # E39b: per-trade rows of every cell -> PB/e39_trades_<tag>.csv (re-score audit)
+
+
 def _cell_stats(name, T, learn_days, test_days, base=None, rg=None):
     """T: DataFrame with day, sym, pnl (one row per trade). base: DataFrame of the unconditional same-structure trades on the same days
     (day, pnl) for the same-count random-day placebo on TEST. Returns the frozen E39 row."""
     Lr, Te = T[T.day.isin(learn_days)], T[T.day.isin(test_days)]; r = dict(cell=name, learn_n=len(Lr), test_n=len(Te))
-    if len(Lr): g = Lr.groupby("day").pnl.sum(); r.update(learn_total=round(g.sum()), learn_mean=round(Lr.pnl.mean()), learn_win=round((Lr.pnl > 0).mean() * 100, 1), learn_p=round(_dayboot_p(g.values), 4))
+    mdd = lambda g: round(float((g.sort_index().cumsum() - g.sort_index().cumsum().cummax()).min()))  # max drawdown of the daily P&L path
+    if len(Lr): g = Lr.groupby("day").pnl.sum(); r.update(learn_total=round(g.sum()), learn_mean=round(Lr.pnl.mean()), learn_win=round((Lr.pnl > 0).mean() * 100, 1), learn_p=round(_dayboot_p(g.values), 4), learn_mdd=mdd(g))
     if len(Te):
         g = Te.groupby("day").pnl.sum(); q = pd.to_datetime(Te.day).dt.to_period("Q").astype(str); qs = Te.groupby(q).pnl.sum()
-        r.update(test_total=round(g.sum()), test_mean=round(Te.pnl.mean()), test_win=round((Te.pnl > 0).mean() * 100, 1), test_p=round(_dayboot_p(g.values), 4), test_q_pos=f"{(qs > 0).sum()}/{len(qs)}")
+        r.update(test_total=round(g.sum()), test_mean=round(Te.pnl.mean()), test_win=round((Te.pnl > 0).mean() * 100, 1), test_p=round(_dayboot_p(g.values), 4), test_q_pos=f"{(qs > 0).sum()}/{len(qs)}", test_mdd=mdd(g))
         if base is not None and len(base):
             b = base[base.day.isin(test_days)]; rg = rg or np.random.default_rng(3); days = b.day.unique()
             if len(days) >= len(g):
                 rnd = np.array([b[b.day.isin(rg.choice(days, len(g), replace=False))].pnl.sum() for _ in range(1000)]); r["p_vs_rand"] = round(float((rnd >= g.sum()).mean()), 3)
+    if E39_TRADES is not None: E39_TRADES.append(T.assign(cell=name).drop(columns=[c for c in T.columns if c in ("key",)]))
     ok = r.get("learn_mean", -1) > 0 and r.get("learn_p", 1) < 0.05 and r.get("test_total", -1) > 0 and r.get("test_p", 1) < 0.005 and r.get("p_vs_rand", 1) < 0.05 and int(r.get("test_q_pos", "0/4").split("/")[0]) >= 3
     r["verdict"] = "PASS" if ok else "FAIL"; return r
 
@@ -847,15 +856,88 @@ def study_e39():
     def sweep_cell(cell, gate_cols):
         r = W.price_cell(cell); m = np.ones(len(r), bool)
         for gc in gate_cols: m &= G[r["k"], gi[gc]]
-        return pd.DataFrame(dict(sym=[W.KEYS[x][0] for x in r["k"][m]], day=[W.KEYS[x][1] for x in r["k"][m]], pnl=r["pnl"][m]))
+        return pd.DataFrame(dict(sym=[W.KEYS[x][0] for x in r["k"][m]], day=[W.KEYS[x][1] for x in r["k"][m]], pnl=r["pnl"][m], i=r["i"][m], forced=r["forced"][m], why=r["why"][m]))
     ivs = sweep_cell(("ND_STRANGLE1", "ivfall1.0", "STRANGLE1", "spot1.5_stop0.3"), ["DTE=0", "OPEN=calm"]); ivs_base = sweep_cell(("ND_STRANGLE1", "t0946", "STRANGLE1", "spot1.5_stop0.3"), [])
     rows.append(_cell_stats("IVS: OTM1 strangle after 1-pt IV fall, expiry day, calm open", ivs, learn, test, base=ivs_base, rg=rg))
     gap = sweep_cell(("GAP", "gap0.2_go_at30", "ATM", "t1_s1"), ["GAP=FLAT"]); gap_base = sweep_cell(("GAP", "gap0.2_go_at30", "ATM", "t1_s1"), [])
     rows.append(_cell_stats("GAP-go 0.2% at 09:45, ATM, t1_s1, GAP=FLAT", gap, learn, test, base=gap_base, rg=rg))
     # placebo cell: random short straddle days (same count as S2) - must FAIL
     rows.append(_cell_stats("PLACEBO random S1 days (S2 count)", s1[s1.day.isin(rg.choice(s1.day.unique(), min(len(s2.day.unique()), s1.day.nunique()), replace=False))], learn, test))
-    R = pd.DataFrame(rows); pd.set_option("display.width", 300); print(R.to_string(index=False)); R.to_csv(f"{PB}/e39.csv", index=False)
+    tag = os.environ.get("E39_TAG", ""); R = pd.DataFrame(rows); pd.set_option("display.width", 300); print(R.to_string(index=False)); R.to_csv(f"{PB}/e39{tag}.csv", index=False)
+    if E39_TRADES is not None: pd.concat(E39_TRADES, ignore_index=True).to_csv(f"{PB}/e39_trades{tag}.csv", index=False)
+    print(f"COSTS={L.COSTS} LAB_STALE={'keep' if L.STALE_OK else 'guard'} tag={tag or '-'}")
     print("Bonferroni 10: PASS needs learn_p < 0.05, test_p < 0.005, p_vs_rand < 0.05, >= 3/4 TEST quarters positive"); return R
+
+
+# ================================================================ E38: defined-risk cells on the +-5 Dhan panel (freeze note E38_wings_freeze.md)
+E38_EX = dict(sstop=2, stop=0.5)                       # iron condors: spot 2 steps, credit stop at value 1.5x credit (E37 convention, stop=0.5), else 15:15
+E38_IVS_EX = dict(sstop=1.5, stop=0.3)                 # IVS exits
+E38_STR = {"ICON24": S.icon(2, 4), "ICON35": S.icon(3, 5)}; E38_ENT = {"0946": 31, "1130": 135}
+E38_F = ["or_iv", "gap_iv", "prev_iv", "har_iv", "ivpct", "orw", "vix", "aspx", "ainr", "spx"]  # E6F minus dte and the FII features (no LEARN data)
+
+
+def _e6_scores():
+    """E6 logistic (sell_lab.study_e6 form) fit ONCE on LEARN days, y = rest-of-day RV/IV > LEARN median; -> {key: (score, tercile 0/1/2)}."""
+    from numpy.linalg import solve
+    V = S.e6_table().dropna(subset=["y_ratio"] + E38_F); V = V[V.day.isin({k[1] for k in KEYS})]
+    tr = V[V.day < L.HO]; med = tr.y_ratio.median(); mu, sd = tr[E38_F].mean(), tr[E38_F].std() + 1e-9
+    X = np.c_[np.ones(len(tr)), ((tr[E38_F] - mu) / sd).values]; y = (tr.y_ratio > med).astype(int).values; w = np.zeros(X.shape[1])
+    for _ in range(50):
+        pr = 1 / (1 + np.exp(-X @ w)); g = X.T @ (pr - y) + w; H = X.T @ (X * (pr * (1 - pr))[:, None]) + np.eye(len(w)); w -= solve(H, g)
+    sc = np.c_[np.ones(len(V)), ((V[E38_F] - mu) / sd).values] @ w; q1, q2 = np.quantile(sc[(V.day < L.HO).values], [1 / 3, 2 / 3])
+    print(f"E6 refit on {len(tr)} LEARN sym-days, AUC LEARN {S._auc(y, X @ w):.3f}, TEST {S._auc((V.y_ratio > med).astype(int).values[(V.day >= L.HO).values], sc[(V.day >= L.HO).values]):.3f}; tercile cuts {q1:.2f} {q2:.2f}")
+    return {(a, b): (s, int(s > q1) + int(s > q2)) for a, b, s in zip(V.sym, V.day, sc)}
+
+
+def _in(T, keys): return np.array([k in set(keys) for k in zip(T.sym, T.day)], bool)
+
+
+def _e38_rows(legs, at, ex, keys, rg=None):
+    """one struct per sym-day at bar `at` (int) or at a random bar per sym-day (rg given); -> DataFrame(sym, day, i, pnl, forced, why, credit)."""
+    out = []
+    for k in keys:
+        i = int(rg.integers(31, 286)) if rg is not None else at
+        r = S.struct(k, i, legs, mode="cons", **ex)
+        if r: out.append(dict(sym=k[0], day=k[1], i=i, pnl=r["pnl"], forced=r["forced"], why=r["why"], credit=r["credit"], maxloss=r["maxloss"]))
+    return pd.DataFrame(out, columns=["sym", "day", "i", "pnl", "forced", "why", "credit", "maxloss"])
+
+
+def study_e38():
+    """registry E38 on the Dhan +-5 panel (OFFMAX=5): 11 frozen cells, Bonferroni 12; scored once per cost mode (E39_TAG)."""
+    import sweep_lab as W
+    HO = L.HO; days = sorted({k[1] for k in KEYS}); learn = [d for d in days if d < HO]; test = [d for d in days if d >= HO]
+    print(f"E38 panel {days[0]}..{days[-1]}: LEARN {len(learn)} days, TEST {len(test)} days; COSTS={L.COSTS} guard={'off' if L.STALE_OK else 'on'}"); rows = []
+    E6 = _e6_scores(); lo = [k for k in KEYS if E6.get(k, (0, -1))[1] == 0]; hi = [k for k in KEYS if E6.get(k, (0, -1))[1] == 2]
+    print(f"E6 terciles: low {len(lo)} sym-days, high {len(hi)}, scored {len(E6)} of {len(KEYS)}")
+    V = L.vol_days().set_index(["sym", "day"]); rg = np.random.default_rng(38)
+    def stat(name, T, base):
+        r = _cell_stats(name, T, learn, test, base=base, rg=rg); r["forced"] = round(T.forced.mean() * 100, 1) if len(T) else np.nan
+        r["credit"] = round(T.credit.mean(), 1) if len(T) else np.nan; r["why"] = T.why.value_counts().to_dict() if len(T) else {}
+        ok = r.get("learn_total", -1) > 0 and r.get("test_total", -1) > 0 and r.get("test_p", 1) < 0.05 / 12 and r.get("p_vs_rand", 1) < 0.05 and int(r.get("test_q_pos", "0/4").split("/")[0]) >= 3
+        r["verdict"] = "PASS" if ok else "FAIL"; rows.append(r); print({k_: v for k_, v in r.items() if k_ != "why"}, flush=True); return r
+    for sn, legs in E38_STR.items():
+        rnd = _e38_rows(legs, None, E38_EX, KEYS, rg=np.random.default_rng(380))   # one random-entry trade per sym-day, same structure and exits
+        for en, at in E38_ENT.items():
+            T = _e38_rows(legs, at, E38_EX, KEYS); stat(f"{sn} {en} spot2 stop1.5x", T, rnd)
+            stat(f"{sn} {en} E6 low tercile", T[_in(T, lo)], rnd[_in(rnd, lo)])
+    # C9 IVS with wings (literal OTM2 wings: short +-1 / long +-2); sensitivity long +-3 (not a cell)
+    legs9 = S.icon(1, 2); legs9b = [("CE", 1, -1), ("PE", -1, -1), ("CE", 3, 1), ("PE", -3, 1)]
+    sig = {k: W.nd_iv(k, -1.0) for k in KEYS if P[k]["d0"] and V.or_iv.get(k, np.nan) <= 1.0042}; sig = {k: v[0][0] for k, v in sig.items() if v}
+    def ivs_rows(legs):
+        out = [dict(sym=k[0], day=k[1], i=i, **{c: r[c] for c in ("pnl", "forced", "why", "credit", "maxloss")}) for k, i in sig.items() for r in [S.struct(k, i, legs, mode="cons", **E38_IVS_EX)] if r]
+        return pd.DataFrame(out, columns=["sym", "day", "i", "pnl", "forced", "why", "credit", "maxloss"])
+    base9 = _e38_rows(legs9, None, E38_IVS_EX, list(sig), rg=np.random.default_rng(381))   # same days, random entry bar
+    T9 = ivs_rows(legs9); stat("C9 IVS wings: short+-1 long+-2, expiry, calm, IV fall", T9, base9)
+    naked = ivs_rows([("CE", 1, -1), ("PE", -1, -1)]); stat("ref: IVS naked strangle on the same signals (not a cell)", naked, base9)
+    stat("sens: IVS wings long+-3 (not a cell)", ivs_rows(legs9b), base9)
+    # C10-11 long ATM straddle to 15:15 on the highest predicted-size tercile
+    rndL = _e38_rows(S.LSTRAD, None, {}, KEYS, rg=np.random.default_rng(382))
+    for en, at in E38_ENT.items():
+        T = _e38_rows(S.LSTRAD, at, {}, KEYS); stat(f"LSTRAD {en} to 15:15 E6 high tercile", T[_in(T, hi)], rndL[_in(rndL, hi)])
+        stat(f"ref: LSTRAD {en} all days (not a cell)", T, rndL)
+    tag = os.environ.get("E39_TAG", ""); R = pd.DataFrame(rows); pd.set_option("display.width", 320); print(R.drop(columns=["why"]).to_string(index=False)); R.to_csv(f"{PB}/e38{tag}.csv", index=False)
+    if E39_TRADES is not None: pd.concat(E39_TRADES, ignore_index=True).to_csv(f"{PB}/e38_trades{tag}.csv", index=False)
+    print("Bonferroni 12: PASS needs LEARN total > 0, TEST total > 0, test_p < 0.00417, p_vs_rand < 0.05, >= 3 TEST quarters positive"); return R
 
 
 if __name__ == "__main__":
