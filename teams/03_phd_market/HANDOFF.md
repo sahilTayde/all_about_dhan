@@ -13,8 +13,10 @@ Rule / clock / source: SOURCE_FACT
 Impact: the two E33 votes the tape scores as None (ATM OI flow,
   tick-rule signed volume) are readable on DEXT. Workspace Auto Save
   is ON: widgets opened were closed again, Default restored.
-Customer action: PAPER only. No order, alert, watchlist or workspace
-  created. Template recipe in the map; create "E33 desk" only on a yes.
+Customer action: PAPER only. No order, alert or watchlist created.
+  Founder said yes 2026-11-12: workspace "E33 desk" created (4 charts,
+  chain, technicals, order flow); Default untouched. Daily interval
+  does not persist on reload (set 1 day by hand; Technicals has 20-SMA).
 Backtest tag for 06: none.
 UNKNOWN / DATA_INSUFFICIENT: depth level count after hours; expiry
   labels in chain/greeks widgets read one day before contract names.

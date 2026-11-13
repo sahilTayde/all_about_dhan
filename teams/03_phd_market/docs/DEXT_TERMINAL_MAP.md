@@ -12,7 +12,7 @@ Screenshots from the exploration stay in the session scratchpad (never in the re
 
 ## 0. Two things to know before touching the account
 
-1. **Workspace "Auto Save" is ON by default.** The workspace dropdown (top-left, "Default") has *My Layouts (1): Default*, an **Auto Save** toggle, *Shared Layouts (0)*, *+ Create*, and nine Dhan preset layouts (*Dext Home, Watchlist Tracker, Trade on Charts, Expiry / Options Trader, Market Scanner, Scalper Trading, Ladder Watch, Portfolio Tracker, Strategy Builder*). With Auto Save on, **every widget you open or close is written to the account's saved workspace immediately.** During this exploration the extra widgets were opened in Default and then all closed again, and the chart was set back to SENSEX index 1-minute, so Default is as it was (one Chart widget). The research template must be a **separate** workspace made with *+ Create* so Default stays untouched. That creation is the one account write this task asked permission for; it was not done because the founder had not yet said yes.
+1. **Workspace "Auto Save" is ON by default.** The workspace dropdown (top-left, "Default") has *My Layouts (1): Default*, an **Auto Save** toggle, *Shared Layouts (0)*, *+ Create*, and nine Dhan preset layouts (*Dext Home, Watchlist Tracker, Trade on Charts, Expiry / Options Trader, Market Scanner, Scalper Trading, Ladder Watch, Portfolio Tracker, Strategy Builder*). With Auto Save on, **every widget you open or close is written to the account's saved workspace immediately.** During this exploration the extra widgets were opened in Default and then all closed again, and the chart was set back to SENSEX index 1-minute, so Default is as it was (one Chart widget). The research template must be a **separate** workspace made with *+ Create* so Default stays untouched. That creation was the one account write this task asked permission for; the founder said yes on 2026-11-12 and the `E33 desk` workspace now exists (section 7). *My Layouts* now lists **Default** and **E33 desk**.
 2. **One-click trading widgets exist.** *Option Scalper*, *Power Scalper*, *Floating Scalper* and the *Price Ladder* show green **Buy** / red **Sell** buttons with lot count next to every strike. A click there is an order, not a form. Do not open them during paper sessions. The watchlist and option chain also show small **B / S** buttons per row. The Chart's two coloured price boxes (red SELL, blue BUY, top-left of every chart) are order buttons too.
 
 ---
@@ -101,21 +101,29 @@ A different chart engine from the main Chart (its own symbol search with All/Equ
 
 ---
 
-## 7. The research template ("E33 desk") — exact recipe
+## 7. The research template ("E33 desk") — what was built
 
-Not yet saved (needs the founder's yes, then *+ Create* in the workspace dropdown, name `E33 desk`, Auto Save on). Build it like this, in order:
+**Saved on 2026-11-12 (founder's yes):** workspace dropdown → *+ Create* → name `E33 desk` → *Build Custom Setup*, Auto Save on. Seven widgets, in tab order: Chart ×4, Options Chain, Technicals, Order Flow. Verified by reloading the page twice: the workspace, every widget, each chart's symbol and the added indicators (ADX 14, CHOP 14, MA 20) came back. Nothing else was created (no order, alert or watchlist) and Default was not touched.
+
+**Caveats found while building:**
+- A new Chart widget opens as a copy of the *current* chart state, so chart 2 inherited ADX + CHOP from chart 1. Harmless.
+- **Chart interval does not persist across reload for the index charts**: the chart set to 1 day came back at 5 minutes (indicators kept). After opening the workspace, set the 20-MA chart to **1 day** by hand (interval button → Days → 1 day), or just read the daily 20-SMA from the Technicals table, which needs no click.
+- Order Flow's second pane could not be given focus (its collapsed pane ignores clicks), so Order Flow is a **single pane on the ATM CE**; swap to the PE with the symbol search when needed.
+- The chart's own "DEXT layout" was left **unsaved** on purpose (it is the founder's shared chart layout; saving it would push ADX/CHOP/MA onto the Default workspace chart too). The workspace stores the indicator set anyway.
+
+Recipe as built (re-create from this if the workspace is ever lost):
 
 | # | Widget | Instrument / setting | Why (E33 state) |
 |---|--------|----------------------|-----------------|
-| 1 | Chart (F8) | Index (NIFTY or SENSEX), **5 minutes**, candles. Indicators: `Average Directional Index` length 14; `Choppiness Index` 14; `Volume`; `Dhan OI Profile`; keep the founder's VWAP + Expected move + Support/Resistance strike labels. Draw PDH / PDL / opening-range lines with the horizontal-line tool. | ADX-14, chop, efficiency read off the 5-minute index bars; candle shape and fair-value gaps by eye on 5-minute. |
-| 2 | Chart (F8) | Same index, **1 day**, `Moving Average` length 20. | Prior-day 20-SMA bias vote (or read the Technicals table, row 20-SMA, 1 Day). |
-| 3 | Chart (F8) | ATM CE, nearest weekly, **5 minutes**, same indicator template as #1 (use *Save Indicator template* once, apply twice). | Option candle shape, premium vs spot. |
-| 4 | Chart (F8) | ATM PE, same. | |
-| 5 | Options Chain (Alt+O) | Same index, nearest weekly; columns Price, Volume, OI, OI Chg, OI Chg %, IV, Delta; Insights + Key Summary on. | ATM OI flow vote; max-OI strike level. |
-| 6 | Order Flow (Shift+O) | ATM CE on 5 minutes (second pane: ATM PE), Delta display. | Tick-rule signed volume vote. |
-| 7 | Technicals (Alt+T) | Index, SMA, 1 Day. | 20-SMA bias as a number. |
+| 1 | Chart (F8) | NIFTY 50 index, **5 minutes**, founder's DEXT-layout indicators (VPVR, SuperTrend, VWAP, EMA 21, Volume, OI Profile, HalfTrend) plus `Average Directional Index` 14 and `Choppiness Index` 14, and (inherited) `MA 20`. Draw PDH / PDL / opening-range lines by hand. | ADX-14, chop, efficiency on 5-minute index bars; candle shape and fair-value gaps by eye. |
+| 2 | Chart (F8) | NIFTY 50 index, same indicators; set **1 day** after opening (see caveat). | Prior-day 20-SMA bias vote (the MA 20 line). |
+| 3 | Chart (F8) | `NIFTY 17 NOV 25300 CALL`, **5 minutes**, same indicators. | Option candle shape, premium vs spot. |
+| 4 | Chart (F8) | `NIFTY 17 NOV 25300 PUT`, **5 minutes**, same. | |
+| 5 | Options Chain (Alt+O) | NIFTY, nearest weekly (label "16 Nov 2026" = 17 NOV contracts); default columns Price, Change, Change %, Buildup, Bid, Ask, Volume; add OI / OI Chg via the column chooser. | ATM OI flow vote; max-OI strike level. |
+| 6 | Technicals (Alt+T) | NIFTY, SMA, 1 Day. | 20-SMA bias as a number. |
+| 7 | Order Flow (Shift+O) | `NIFTY 17 NOV 25300 CALL`, 5 minutes, single pane, Delta display. | Tick-rule signed volume vote. |
 
-Arrangement: widgets open as tabs in one region; pop one out (the "Pop Out" icon on the region header) to float it, or use a Dhan preset (*Expiry / Options Trader*) as the starting grid and swap its panels. Dragging a tab onto the page did not split the region in this pass; the preset-grid route is the reliable one. Charts #1, #3, #4 side by side across the top, chain and order flow across the bottom, Technicals as a narrow tab. ATM strike changes during the day: re-run the symbol search on charts #3/#4 and the Order Flow pane (no auto-roll).
+Arrangement: all seven are tabs in one region (the "+" at the end of the tab strip adds more). Pop a widget out with the region's "Pop Out" icon to float it beside the others; dragging a tab onto the page does not split the region. ATM strike changes during the day: re-run the symbol search on charts #3/#4 and the Order Flow pane (no auto-roll). For SENSEX days, swap the symbols (SENSEX index, `SENSEX 19 NOV 81900 CALL/PUT`) in place; Auto Save keeps the change.
 
 ---
 
@@ -147,11 +155,11 @@ E33 votes marked `None` in `fin1_shadow.py` because the tape has no OI or volume
 
 ## 10. How Fable would use this during a paper session
 
-1. **09:00** open the `E33 desk` workspace (once it exists). Set charts #3/#4 and Order Flow to the strike nearest spot. Note PDH / PDL from the daily chart, read 20-SMA from Technicals.
+1. **09:00** open the `E33 desk` workspace. Set chart #2 to 1 day, and charts #3/#4 and Order Flow to the strike nearest spot. Note PDH / PDL from the daily chart, read 20-SMA from Technicals.
 2. **09:15–09:30** watch the opening range on chart #1; note ADX-14 and chop. Regime call is written down with the numbers, not just "trending".
 3. **Every 5 minutes** (bar close): log, by hand or by screenshot, ATM CE and PE **OI Chg** and **Volume** from the chain, and the bar **Delta** from Order Flow. These are the two votes the tape cannot score; the paper log gets a column each.
 4. **Levels:** max-OI strike from the chain's OI1 marker; expected-move and support/resistance labels already on the founder's chart.
 5. **Never** open the scalper widgets, click a B/S button, or create an alert with "Set an Order". If a ticket opens by accident, close it with its X; no Confirm.
 6. **Post-market** copy the hand log next to the tape for that day so the E33 vote scoring can be re-run with real OI/volume instead of `None`.
 
-Verify on the first live session: Depth level count, the expiry-label off-by-one, whether the Order Flow footprint streams live for weekly options, and whether workspace Auto Save also persists chart symbol changes (it did in this pass).
+Verify on the first live session: Depth level count (the *Ladder Watch* preset advertises a 200-level book), the expiry-label off-by-one, and whether the Order Flow footprint streams live for weekly options. Workspace Auto Save does persist chart symbols and indicators (verified by reload); it did not persist the 1-day interval.
