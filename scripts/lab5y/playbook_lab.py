@@ -23,7 +23,7 @@ P, STEP, M0, NB, FLAT, LOT = L.P, L.STEP, L.M0, L.NB, L.FLAT, L.LOT
 PB = f"{L.OUT}/playbook"; os.makedirs(PB, exist_ok=True)
 import hashlib  # cached tables keyed by the code that makes them (Fable B-1, 2026-11-13: e33/e36 pickles predating the RBI/FOMC fix were reused)
 SRC = hashlib.md5(b"".join(open(os.path.join(os.path.dirname(os.path.abspath(__file__)), f), "rb").read()
-                           for f in ("playbook_lab.py", "opt1y_lab.py", "sell_lab.py", "scen_lab.py"))).hexdigest()[:8]
+                           for f in ("playbook_lab.py", "opt1y_lab.py", "sell_lab.py", "scen_lab.py"))).hexdigest()[:8] + f"_{L.COSTS}{'_keep' if L.STALE_OK else ''}"  # priced caches depend on the cost mode and stale guard
 KEYS = list(L.ALLK); DAYS = sorted({k[1] for k in KEYS}); MONTHS = sorted({L.month(d) for d in DAYS})
 TF = 5; B_LO, B_HI = 1, 66          # decision at the close of 5m bar b (minutes 5b..5b+4): b=1 -> 09:24 close, b=66 -> 14:49
 EXT = os.environ.get("EXT", f"{L.OUT}/../ext"); L.EXT = EXT
