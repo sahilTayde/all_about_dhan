@@ -24,11 +24,14 @@ Log-only forward leads (2026-10-29, registry B1 / SC1 / E21; never change FIN1/S
 + sell_lab.struct long, shadow fills), SC1 = S1 (the S2 legs without the RV/IV filter) after a contracting day (prior range < 0.7 x
 mean of the 20 before), E21 labels LOC20 / TREND (scen_lab.dfeat). Prior-day bars: 5y idx 1m json (book_lab.daily source), then the
 options-panel spot (expired_opts ATM CE spot, as the panel), then this log's own `bar` field for tape days.
-IVS (2026-11-13, registry E31 lead, log only): on expiry days with a calm opening, sell the OTM1 strangle after a 1-point ATM IV fall (`ivs_trade`).
+IVS (2026-11-13, registry E31 lead -> E39 CANDIDATE, log only, rung 0): on expiry days with a calm opening, sell the OTM1 strangle after a 1-point ATM IV
+fall (`ivs_trade`). Each forward trade logs credit, exit reason, net P&L at 10 lots and, per leg at the entry and exit minutes, the modelled p75
+half-spread (`hs_model`, the engine's spreads.csv) beside the realised quoted half-spread. `ivs_gate` is the E39 desk standard before 1 lot, enforced
+in `decide` (IVS cannot leave rung 0 unless it returns eligible; kill flags are sticky like `halted`; `casino_lab.promote` stays the ladder).
 E33 (2026-11-13, registry E33, log only, rung 0): per 15-min slot 09:45..14:30 the REGIME (EVENT > TREND_UP/DN > LEVEL > CHOP) and the CONF votes of
 playbook_lab (`e33_state`), the realised next-45-min move, and shadow fills of the three lead cells (TREND_UP x BEAR/NEUT -> sell ATM CE; LEVEL x BEAR
 -> long ATM PE and sell ATM CE) with the frozen super-order-style exits. The tape has no OI/volume: those two votes are None, never invented."""
-import json, math, os, random, re, sys
+import bisect, json, math, os, random, re, sys
 from datetime import date, datetime, timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -238,6 +241,35 @@ def _mid_at(xs, t):  # mid of the last quote at or before t (HH:MM:SS), None if 
     xs = [x for x in xs if x[0] <= t]; return (xs[-1][1] + xs[-1][2]) / 2 if xs else None
 
 
+HS_TAB = None  # (sym, dte0) -> 5 time buckets x 6 premium buckets of p75 half-spread (opt1y_lab.HS), loaded lazily from the engine's spreads.csv
+PB, TB = (20, 50, 100, 200, 400), (570, 660, 840, 900)  # opt1y_lab premium / minute-of-day bucket edges
+
+
+def _hs_load(path=None):
+    """spreads.csv (opt1y_spread.py: sym,pb,tb,dte0,count,median,p75) -> HS_TAB with opt1y_lab's gap fill: along time, then along premium."""
+    import csv; path = path or DATA / "cache" / "lab1y" / "spreads.csv"; tab = {}
+    if not Path(path).is_file(): return tab
+    with open(path, newline="") as f:
+        for r in csv.DictReader(f): tab.setdefault((r["sym"], int(r["dte0"])), [[None] * 6 for _ in range(5)])[int(r["tb"])][int(r["pb"])] = float(r["p75"])
+    fill = lambda xs: [next((y for y in xs[i:] if y is not None), None) or next((y for y in reversed(xs[:i]) if y is not None), None) for i in range(len(xs))]
+    for k, a in tab.items():
+        cols = [fill([a[t][p] for t in range(5)]) for p in range(6)]  # bfill then ffill along time
+        tab[k] = [fill([cols[p][t] for p in range(6)]) for t in range(5)]  # then along premium
+    return tab
+
+
+def hs_model(sym, dte0, m, mid):
+    """the backtest engine's modelled p75 half-spread (option points) for a leg of premium `mid` at minute-of-day `m` (opt1y_lab.hs); None if no table."""
+    global HS_TAB
+    if HS_TAB is None: HS_TAB = _hs_load()
+    a = HS_TAB.get((sym, int(dte0)))
+    return a[bisect.bisect_right(TB, m)][bisect.bisect_right(PB, mid)] if a else None
+
+
+def _hs_fields(sym, x, hm):  # one leg at one quote x = (t, bid, ask, exp) in minute hm ("HH:MM"): realised and modelled half-spread
+    mid = (x[1] + x[2]) / 2; return dict(bid=x[1], ask=x[2], hs_real=round((x[2] - x[1]) / 2, 4), hs_model=hs_model(sym, 1, int(hm[:2]) * 60 + int(hm[3:5]), mid))
+
+
 def ivs_trade(sym, sp, q, days=0):
     """IVS lead (registry E31, frozen variant ND_STRANGLE1|ivfall1.0_dte0|STRANGLE1|spot1.5_stop0.3|OPEN=calm; the caller checks the expiry-day
     and calm-opening gates): first bar 10:01-14:00 where the ATM CE+PE IV (same strike) fell >= 1.0 IV point over 15 minutes -> SELL 10 lots
@@ -270,11 +302,12 @@ def ivs_trade(sym, sp, q, days=0):
         if None in marks: return ("NO_MARK",)
         if sum(marks) - credit >= 0.3 * credit: t_exit, why = _hm(j + 1) + ":00", "stop"; break
         if s[j] is not None and abs(s[j] - s[e]) >= 1.5 * st: t_exit, why = _hm(j + 1) + ":00", "spot"; break
-    pnl, forced = 0.0, False
+    pnl, forced, L = 0.0, False, {}
     for lg in legs:
         x, f = _exit_q(xs[lg], "time" if why == "time" else "spot", t_exit); forced = forced or f
         pnl += (ent[lg] - x[2]) * LOT[sym] * LOTS - cost(x[2], ent[lg], sym)
-    return ("TRADE", round(pnl, 2), why + ("+forced" if forced else ""), _hm(e), t_exit, K)
+        L[lg[0]] = dict(strike=lg[1], entry=_hs_fields(sym, _first(xs[lg], _hm(e) + ":00"), _hm(e)), exit=dict(_hs_fields(sym, x, x[0][:5]), t=x[0]))
+    return ("TRADE", round(pnl, 2), why + ("+forced" if forced else ""), _hm(e), t_exit, K, dict(credit=round(credit, 2), legs=L))
 
 
 # ---------------------------------------------------------------- E33 state (registry E33, 2026-11-13; log only, rung 0; never read by FIN1/S2/B1/SC1)
@@ -476,7 +509,7 @@ def day_rows(day, spot, q, hist=None, prev=None):
         exp = legs["CE"]["expiry"]  # IVS gates: expiry day AND calm opening (sweep_lab OPEN=calm: or_iv <= 1.0042)
         iv_s = ivs_trade(sym, sp, q) if exp == day and ratio <= 1.0042 else ("GATE_OFF",)
         s2d.update(ivs_status=iv_s[0], ivs_pnl_inr=iv_s[1] if iv_s[0] == "TRADE" else 0.0,
-                   **(dict(ivs_exit=iv_s[2], ivs_entry_t=iv_s[3], ivs_strike=iv_s[5]) if iv_s[0] == "TRADE" else {}))
+                   **(dict(ivs_exit=iv_s[2], ivs_entry_t=iv_s[3], ivs_exit_t=iv_s[4], ivs_strike=iv_s[5], ivs_credit=iv_s[6]["credit"], ivs_legs=iv_s[6]["legs"]) if iv_s[0] == "TRADE" else {}))
         out.append(dict(row, **s2d, status="OK", spot_0945=S, strike=K, rv_open=round(rv, 2), iv_atm=round(iv, 2),
                         ratio=round(ratio, 4), signal=bool(ratio > THRESH), straddle_pnl_inr=round(pnl, 2),
                         pnl_inr=round(pnl, 2) if ratio > THRESH else 0.0, legs=legs))
@@ -493,6 +526,55 @@ def read_log(log=LOG):
     return [json.loads(l) for l in log.read_text().splitlines() if l.strip()] if log.is_file() else []
 
 
+def ivs_trades(rows=None):
+    """the logged IVS forward trades, in day/sym order, as ivs_gate wants them (net P&L at 10 lots, credit in points, per-leg half-spreads)."""
+    R = sorted((r for r in (rows if rows is not None else read_log()) if r.get("ivs_status") == "TRADE" and "ivs_legs" in r), key=lambda r: (r["day"], r["sym"]))
+    return [dict(day=r["day"], sym=r["sym"], pnl=r["ivs_pnl_inr"], credit=r["ivs_credit"], exit=r.get("ivs_exit"), legs=r["ivs_legs"]) for r in R]
+
+
+IVS_STD = dict(n=40, mean=1500.0, p=0.10, maxdd=400000.0, loss_x_credit=2.0, slip_x=1.5, slip_run=10, loss_run=8, cum_after=25, sensex_x=2.0)  # E39 desk standard (frozen 2026-11-13)
+
+
+def ivs_gate(trades, killed=False, std=IVS_STD, draws=2000):
+    """E39 desk standard before 1 lot, pure. trades = ivs_trades(): [{day, sym, pnl (net Rs at 10 lots), credit (points), legs: {CE/PE: {entry: {bid, ask,
+    hs_real, hs_model}, exit: {...}}}}]. eligible only when n >= 40, mean >= +1,500/trade, day-bootstrap p < 0.10 (2000 draws, stdlib random),
+    max drawdown <= 4.0L, modelled p75 half-spread per leg >= realised median per leg, and no kill flag. Kill flags (sticky: the caller keeps
+    `killed` until the founder clears it, as `halted`): a single trade loss > 2x its credit (Rs); realised slippage > 1.5x modelled for 10 consecutive
+    trades (trade mean over legs and minutes); 8 consecutive losses; cumulative net < 0 after 25 trades. SENSEX is suspended (reported in metrics,
+    the NIFTY leg still eligible) when its realised half-spread relative to premium is > 2x NIFTY's. Legs without a modelled spread count as slippage inf."""
+    n = len(trades); P = [t["pnl"] for t in trades]; cum = eq = peak = 0.0; dd = 0.0; losses = run = slip = srun = 0; kills = []
+    hs = {"NIFTY": [], "SENSEX": []}; mod, real = [], []
+    for i, t in enumerate(trades):
+        eq += t["pnl"]; peak = max(peak, eq, 0.0); dd = max(dd, peak - eq)
+        if t["pnl"] < -std["loss_x_credit"] * t["credit"] * LOT[t["sym"]] * LOTS and "loss > 2x credit" not in kills: kills.append("loss > 2x credit")
+        run = run + 1 if t["pnl"] < 0 else 0
+        if run >= std["loss_run"] and f"{std['loss_run']} consecutive losses" not in kills: kills.append(f"{std['loss_run']} consecutive losses")
+        if i + 1 == std["cum_after"] and eq < 0: kills.append(f"net < 0 after {std['cum_after']} trades")
+        m, r = [], []
+        for lg in t["legs"].values():
+            for k in ("entry", "exit"):
+                h = lg[k]; r.append(h["hs_real"]); m.append(h["hs_model"] if h.get("hs_model") is not None else 0.0)
+                hs[t["sym"]].append(h["hs_real"] / ((h["bid"] + h["ask"]) / 2) if h["bid"] + h["ask"] > 0 else float("inf"))
+        mod += m; real += r
+        srun = srun + 1 if sum(r) > std["slip_x"] * sum(m) else 0
+        if srun >= std["slip_run"] and "slippage > 1.5x modelled" not in kills: kills.append(f"slippage > {std['slip_x']}x modelled for {std['slip_run']} trades")
+    med = lambda xs: sorted(xs)[len(xs) // 2] if xs else None
+    by_day = {}
+    for t in trades: by_day[t["day"]] = by_day.get(t["day"], 0.0) + t["pnl"]
+    D = list(by_day.values()); rnd = random.Random(5)
+    p = (sum(sum(rnd.choice(D) for _ in D) <= 0 for _ in range(draws)) + 1) / (draws + 1) if D else None
+    mean = sum(P) / n if n else None; mn, rn = hs["NIFTY"], hs["SENSEX"]
+    sensex = bool(mn and rn and med(rn) > std["sensex_x"] * med(mn))
+    M = dict(n=n, mean=round(mean, 2) if n else None, p_boot=round(p, 4) if D else None, maxdd=round(dd, 2), cum=round(eq, 2), hs_model_med=med(mod), hs_real_med=med(real),
+             kills=kills, sensex_suspended=sensex, sensex_rel_hs=med(rn), nifty_rel_hs=med(mn))
+    if killed: return dict(eligible=False, why="kill flag sticky until the founder clears it", metrics=M)
+    if kills: return dict(eligible=False, why="kill: " + "; ".join(kills), metrics=M)
+    fails = ([f"n {n} < {std['n']}"] if n < std["n"] else []) + ([f"mean {mean:,.0f} < {std['mean']:,.0f}"] if n and mean < std["mean"] else []) \
+        + ([f"p {p:.3f} >= {std['p']}"] if D and p >= std["p"] else []) + ([f"maxdd {dd:,.0f} > {std['maxdd']:,.0f}"] if dd > std["maxdd"] else []) \
+        + ([f"modelled hs {M['hs_model_med']} < realised median {M['hs_real_med']}"] if real and (M["hs_model_med"] is None or M["hs_model_med"] < M["hs_real_med"]) else [])
+    return dict(eligible=not fails, why="; ".join(fails) if fails else "E39 desk standard met (ladder decides the rung)", metrics=M)
+
+
 def leads_report(rows=None):
     """one line: per lead n trades / total paper Rs / wins, and sym-days that lacked inputs (log only)."""
     R = rows if rows is not None else read_log(); parts = []
@@ -504,6 +586,7 @@ def leads_report(rows=None):
     for lead, nm in (("S_CE", "E33 S_CE (TREND_UP x BEAR/NEUT, LEVEL x BEAR)"), ("L_PE", "E33 L_PE (LEVEL x BEAR)")):  # several trades per sym-day
         T = [t for r in R for t in r.get("e33_trades", []) if t["lead"] == lead and "pnl" in t]; nq = sum(t.get("status") == "NO_QUOTES" for r in R for t in r.get("e33_trades", []) if t["lead"] == lead)
         parts.append(f"{nm}: n={len(T)} net Rs {sum(t['pnl'] for t in T):,.0f} wins {sum(t['pnl'] > 0 for t in T)} forced {sum('forced' in t['why'] for t in T)} (no quotes {nq}; no state {sum('e33_slots' not in r for r in R)}/{len(R)})")
+    g = ivs_gate(ivs_trades(R)); parts.append(f"IVS desk gate: {'ELIGIBLE' if g['eligible'] else 'not eligible'} ({g['why']}; SENSEX {'suspended' if g['metrics']['sensex_suspended'] else 'ok'})")
     Z = [z for r in R for z in r.get("e33_slots", []) if z.get("conf") and z.get("mv45_bp") is not None]; pu = lambda c: [z["mv45_bp"] > 0 for z in Z if z["conf"] == c]
     parts.append("E33 CONF forward check (3 of 5 votes): " + ", ".join(f"P(up45|{c}) {sum(pu(c)) / len(pu(c)):.3f} (n {len(pu(c))})" if pu(c) else f"{c} n 0" for c in ("BULL", "NEUT", "BEAR")) + " [1y lab: BULL 0.522, BEAR 0.442]")
     return "Leads (log only, " + f"{len({r['day'] for r in R})} days): " + " | ".join(parts)
@@ -553,7 +636,7 @@ def forward(day, spot, q):
         # IV is solved on calendar time T: the 09:46->15:15 share of the option's total variance is NMIN / trading minutes left
         sig = S0 * iv / 100 * math.sqrt(T * NMIN / _left_min(day, x[3]))
         o.update(S0=S0, K=K, iv=round(iv, 3), sig=round(sig, 3), ratio=r["ratio"], fin1_signal=r["signal"], s2_signal=r["s2_signal"],
-                 sc1_signal=r.get("sc1_signal"), b1_nr4=r.get("b1_nr4"),
+                 sc1_signal=r.get("sc1_signal"), b1_nr4=r.get("b1_nr4"), ivs_armed=r.get("ivs_status") != "GATE_OFF",
                  path=[sp[_mm(m)] if _mm(m) in sp else None for m in range(NMIN + 1)], move=None, z=None, broke1=None, broke2=None, rv_rest=None, y_ratio=None, y=None)
         cl = [sp[_mm(m)] for m in range(NMIN + 1) if _mm(m) in sp]
         if "15:15" in sp and len(cl) >= 320:  # gaps would annualise a multi-minute return as one minute
@@ -631,25 +714,30 @@ def dist_lines(r, dist=None):
 
 
 LADDER = [0, 1, 2, 5, 10]  # lots per rung; rung 0 = log-only. Every strategy starts at rung 0 (frozen 2026-11-12).
-SHORT_GAMMA = {"SGATE"}
+SHORT_GAMMA = {"SGATE", "IVS"}
 
 
 def decide(row, state=None, dist=None):
     """One sym-day at 09:46 -> list of decisions. row: forward-view fields (sym, status, s2_signal, sc1_signal, b1_nr4, spread_ok).
-    state: {"rung": {id: n}, "day_pnl": x, "week_pnl": x, "halted": bool, "recorder_ok": bool, "open_short_gamma": set of syms}.
+    state: {"rung": {id: n}, "day_pnl": x, "week_pnl": x, "halted": bool, "recorder_ok": bool, "open_short_gamma": set of syms,
+    "ivs_trades": ivs_trades() list, "ivs_killed": bool (sticky, founder clears)}. IVS (expiry day, calm open; armed at 09:46, fires on the
+    first 1-pt IV fall) leaves rung 0 only when ivs_gate(ivs_trades, ivs_killed) is eligible, whatever rung the ladder gave it (E39 standard).
     dist: candidate_dist.json (p05 = dev 5th-pct single-trade loss at 10 lots). Order (Fable tree, E27-E30 all killed):
     health -> loss limits -> SGATE (short straddle 09:47, 2-step spot or 15:15) -> B1 (NR4 stretch breakout, armed for 09:20-14:00).
     Returns [{"id", "action": TRADE|LOG_ONLY|NO_TRADE|NO_DATA, "lots", "entry", "exit", "why"}]; LOG_ONLY never sends an order.
     NO_DATA (no tape / failed health) is not a decision and is excluded from forward counts. day_pnl / week_pnl = realised + open
     P&L at cons marks, re-checked every minute by the caller. `halted` is sticky: only the founder clears it. Every TRADE carries a
     hard per-trade flatten at -L (Fable critic 2026-11-12)."""
-    st = dict(rung={}, day_pnl=0.0, week_pnl=0.0, halted=False, recorder_ok=True, open_short_gamma=set()); st.update(state or {})
+    st = dict(rung={}, day_pnl=0.0, week_pnl=0.0, halted=False, recorder_ok=True, open_short_gamma=set(), ivs_trades=[], ivs_killed=False); st.update(state or {})
     dist = dist or {}; sym = row.get("sym")
     cand = []
     if row.get("s2_signal") and row.get("sc1_signal") and sym == "NIFTY":
         cand.append(("SGATE", "09:47 sell ATM CE+PE", "spot 2 steps from entry, else 15:15"))
     if row.get("b1_nr4"):
         cand.append(("B1", "first 1m close beyond open +- stretch (09:20-14:00), buy ATM", "opposite trigger / 2.5 steps, else 15:15"))
+    if row.get("ivs_armed"):
+        cand.append(("IVS", "first 1-pt ATM IV fall over 15 min (10:01-14:00), sell OTM1 CE + PE next minute", "spot 1.5 steps from entry / mark 1.3x credit, else 15:15"))
+    gate = ivs_gate(st["ivs_trades"], st["ivs_killed"]) if any(c[0] == "IVS" for c in cand) else None
     if row.get("status") != "OK" or not row.get("spread_ok", True):
         return [dict(id="-", action="NO_DATA", lots=0, entry="", exit="", why="no tape or data health failed (not counted)")]
     if not cand: return [dict(id="-", action="NO_TRADE", lots=0, entry="", exit="", why="no candidate signal")]
@@ -668,6 +756,8 @@ def decide(row, state=None, dist=None):
         elif st["day_pnl"] <= -2 * stop(n): why, act = "daily stop 2L hit", "NO_TRADE"
         elif st["week_pnl"] <= -4 * stop(n): why, act = "weekly stop 4L hit", "NO_TRADE"
         elif n in SHORT_GAMMA and sym in st["open_short_gamma"]: why, act = "one short-gamma per index", "NO_TRADE"
+        elif n == "IVS" and not gate["eligible"]: why, act, lots = "IVS desk standard: " + gate["why"], "LOG_ONLY", 0
+        elif n == "IVS" and sym == "SENSEX" and gate["metrics"]["sensex_suspended"]: why, act = "IVS SENSEX leg suspended (realised spread > 2x NIFTY)", "NO_TRADE"
         elif not st["recorder_ok"] or lots == 0: why, act = "log-only rung (needs >= 40 forward trades to promote)" if lots == 0 else "recorder down", "LOG_ONLY"
         else: why, act = "rules pass", "TRADE"
         out.append(dict(id=n, action=act, lots=lots if act == "TRADE" else 0, entry=en,
@@ -690,7 +780,7 @@ def run_forward(arg):
                   + (f"close z={r['z']:+.2f} broke1={r['broke1']}" if r["z"] is not None else "close: not yet"))
             for ln in dist_lines(r): print(ln)
             dist = json.loads(DIST.read_text()) if DIST.is_file() else {}
-            for d in decide(r, None, dist):
+            for d in decide(r, dict(ivs_trades=ivs_trades()), dist):
                 print(f"  DESK {d['id']}: {d['action']} lots {d['lots']} | {d['entry']} | exit {d['exit']} | {d['why']}")
                 if d.get("checks"): print("    checklist: " + "; ".join(d["checks"]))
     print(calibration(read_log(FWD)))
@@ -737,6 +827,58 @@ def selftest():
     flat = {k: [(t + ":00", px[t] - 0.5, px[t] + 0.5, "2026-10-27") for t in hms] for k in qi if k[1] == 22700.0}
     assert ivs_trade("NIFTY", spi, flat) == ("NO_SIGNAL",)  # premium decays with the clock at a constant 14% IV: theta is not an IV fall
     assert "IVS strangle" in leads_report([dict(day="2026-10-27", sym="NIFTY", status="OK", ivs_status="TRADE", ivs_pnl_inr=exp3, ivs_exit="spot")])
+    # IVS forward-log fields (E39 standard): credit 80 pts; realised half-spread 1.0 at every leg/minute; modelled p75 from a 3-row spreads.csv
+    # (NIFTY expiry day: 0.5 in the first time bucket, 1.5 in the fourth, premium 50-100; gaps filled along time (bfill, ffill) then premium, as opt1y_lab)
+    global HS_TAB; import csv, tempfile; _f = Path(tempfile.mkdtemp()) / "spreads.csv"
+    with open(_f, "w", newline="") as fh:
+        w = csv.writer(fh); w.writerow("sym,pb,tb,dte0,count,median,p75".split(","))
+        w.writerows([("NIFTY", 2, 0, 1, 9, 0.4, 0.5), ("NIFTY", 2, 3, 1, 9, 0.9, 1.5), ("SENSEX", 0, 0, 0, 9, 2.0, 3.0)])
+    HS_TAB = _hs_load(_f); assert HS_TAB[("NIFTY", 1)] == [[0.5] * 6] + [[1.5] * 6] * 4 and HS_TAB[("SENSEX", 0)] == [[3.0] * 6] * 5, HS_TAB
+    assert hs_model("NIFTY", 1, 569, 10) == 0.5 and hs_model("NIFTY", 1, 570, 10) == 1.5 and hs_model("SENSEX", 0, 900, 500) == 3.0 and hs_model("SENSEX", 1, 900, 500) is None
+    L = ivs_trade("NIFTY", spi, qi)[6]; assert L["credit"] == 80.0 and L["legs"]["CE"]["strike"] == 22750 and L["legs"]["PE"]["exit"]["t"] == "11:01:00", L
+    assert L["legs"]["CE"]["entry"] == dict(bid=40.0, ask=42.0, hs_real=1.0, hs_model=1.5) and L["legs"]["PE"]["exit"] == dict(bid=25.0, ask=27.0, hs_real=1.0, hs_model=1.5, t="11:01:00"), L
+    HS_TAB = _hs_load(Path("/nonexistent/spreads.csv")); assert HS_TAB == {} and hs_model("NIFTY", 1, 700, 60) is None  # no table: modelled = None (the gate counts it as slippage)
+    assert ivs_trade("NIFTY", spi, qi)[6]["legs"]["CE"]["entry"]["hs_model"] is None
+    # ivs_gate known answers. mk(): one trade; credit 40 pts = Rs 26,000 at 10 lots NIFTY; realised hs 0.8 vs modelled 1.0 per leg-minute
+    def mk(pnl, i=0, sym="NIFTY", credit=40.0, hr=0.8, hm=1.0, mid=20.0):
+        h = lambda: dict(bid=mid - hr, ask=mid + hr, hs_real=hr, hs_model=hm)
+        return dict(day=f"2027-01-{1 + i % 28:02d}", sym=sym, pnl=pnl, credit=credit, exit="spot", legs={s: dict(entry=h(), exit=h()) for s in ("CE", "PE")})
+    good = [mk(p, i) for i, p in enumerate([5000.0, -2000.0, 3000.0, -1000.0] * 10)]  # 40 trades, mean +1,250 -> fails the mean bar only
+    g = ivs_gate(good); assert not g["eligible"] and g["why"] == "mean 1,250 < 1,500" and g["metrics"]["kills"] == [] and g["metrics"]["maxdd"] == 2000.0, g
+    good = [mk(p, i) for i, p in enumerate([6000.0, -2000.0, 3000.0, -1000.0] * 10)]  # (a) pass: mean +1,500, p ~ 0, maxdd 2k, hs 1.0 >= 0.8
+    g = ivs_gate(good); assert g["eligible"] and g["metrics"]["n"] == 40 and g["metrics"]["mean"] == 1500.0 and g["metrics"]["p_boot"] < 0.1 and g["metrics"]["hs_model_med"] == 1.0 and g["metrics"]["hs_real_med"] == 0.8, g
+    assert not g["metrics"]["sensex_suspended"] and g["metrics"]["sensex_rel_hs"] is None
+    g = ivs_gate(good[:39]); assert not g["eligible"] and g["why"] == "n 39 < 40" and g["metrics"]["kills"] == [], g            # (b) count
+    g = ivs_gate(good, killed=True); assert not g["eligible"] and g["why"].startswith("kill flag sticky"), g                      # sticky
+    g = ivs_gate([mk(p, i, hr=1.1) for i, p in enumerate([6000.0, -2000.0, 3000.0, -1000.0] * 10)]); assert not g["eligible"] and g["why"] == "modelled hs 1.0 < realised median 1.1", g
+    g = ivs_gate([mk(3000.0, i) if i != 7 else mk(-52001.0, i) for i in range(40)]); assert g["why"] == "kill: loss > 2x credit", g   # (c) 2 x 26,000 + 1
+    assert ivs_gate([mk(3000.0, i) if i != 7 else mk(-52000.0, i) for i in range(40)])["metrics"]["kills"] == []                   # exactly 2x is not a kill
+    g = ivs_gate([mk(100.0, i, hr=1.6 if 5 <= i < 15 else 0.8) for i in range(40)]); assert g["why"] == "kill: slippage > 1.5x modelled for 10 trades", g
+    assert ivs_gate([mk(100.0, i, hr=1.6 if 5 <= i < 14 else 0.8) for i in range(40)])["metrics"]["kills"] == []                  # 9 in a row: no kill
+    g = ivs_gate([mk(-1.0 if 10 <= i < 18 else 5000.0, i) for i in range(40)]); assert g["why"] == "kill: 8 consecutive losses", g
+    assert ivs_gate([mk(-1.0 if 10 <= i < 17 else 5000.0, i) for i in range(40)])["metrics"]["kills"] == []
+    alt = lambda lo, i: mk((lo if i % 2 == 0 else 100.0) if i < 25 else 5000.0, i)  # 13 losses and 12 wins alternate before trade 25, then wins
+    g = ivs_gate([alt(-100.0, i) for i in range(40)]); assert g["why"] == "kill: net < 0 after 25 trades", g    # -1,300 + 1,200 = -100 at trade 25
+    assert ivs_gate([alt(-90.0, i) for i in range(40)])["metrics"]["kills"] == []                                 # -1,170 + 1,200 = +30 at trade 25
+    g = ivs_gate([mk(100.0, i, hm=None) for i in range(5)]); assert g["why"] == "kill: slippage > 1.5x modelled for 10 trades" or g["metrics"]["kills"] == [], g
+    assert ivs_gate([mk(100.0, i, hm=None) for i in range(10)])["metrics"]["kills"] == ["slippage > 1.5x modelled for 10 trades"]  # no model = infinite slippage
+    sx = good + [mk(p, i, sym="SENSEX", mid=60.0, hr=5.0, hm=6.0) for i, p in enumerate([6000.0, -2000.0, 3000.0, -1000.0] * 3)]  # SENSEX rel hs 0.083 > 2 x 0.04
+    g = ivs_gate(sx); assert g["eligible"] and g["metrics"]["sensex_suspended"] and abs(g["metrics"]["sensex_rel_hs"] - 5 / 60) < 1e-9 and g["metrics"]["nifty_rel_hs"] == 0.04, g
+    assert not ivs_gate(good + [mk(100.0, i, sym="SENSEX", mid=60.0, hr=4.8, hm=6.0) for i in range(12)])["metrics"]["sensex_suspended"]  # 0.08 = 2x exactly: not suspended
+    assert len(ivs_trades([dict(day="2027-01-01", sym="NIFTY", ivs_status="TRADE", ivs_pnl_inr=1.0, ivs_credit=40.0, ivs_legs=good[0]["legs"]), dict(day="2027-01-02", sym="NIFTY", ivs_status="NO_SIGNAL")])) == 1
+    assert "IVS desk gate: not eligible (n 0 < 40" in leads_report([])
+    g = ivs_gate([]); assert not g["eligible"] and g["metrics"]["p_boot"] is None and g["metrics"]["mean"] is None
+    # decide: IVS armed -> LOG_ONLY at rung 0; at rung 2 still LOG_ONLY unless the gate is eligible; SENSEX suspended -> NO_TRADE; sticky kill -> LOG_ONLY
+    rI = dict(sym="NIFTY", status="OK", ivs_armed=True); DI = {"IVS": dict(p05=-30000)}
+    assert decide(rI, None, DI)[0]["id"] == "IVS" and decide(rI, None, DI)[0]["action"] == "LOG_ONLY"
+    d = decide(rI, dict(rung={"IVS": 2}), DI)[0]; assert d["action"] == "LOG_ONLY" and d["lots"] == 0 and d["why"] == "IVS desk standard: n 0 < 40", d
+    d = decide(rI, dict(rung={"IVS": 2}, ivs_trades=good), DI)[0]; assert d["action"] == "TRADE" and d["lots"] == 2 and d["exit"].endswith("hard flatten at -6,000"), d
+    d = decide(rI, dict(rung={"IVS": 2}, ivs_trades=good, ivs_killed=True), DI)[0]; assert d["action"] == "LOG_ONLY" and "sticky" in d["why"], d
+    d = decide(dict(rI, sym="SENSEX"), dict(rung={"IVS": 2}, ivs_trades=sx), DI)[0]; assert d["action"] == "NO_TRADE" and "SENSEX leg suspended" in d["why"], d
+    assert decide(rI, dict(rung={"IVS": 2}, ivs_trades=sx), DI)[0]["action"] == "TRADE"  # the NIFTY leg stays eligible
+    assert decide(rI, dict(rung={"IVS": 2}, ivs_trades=good, open_short_gamma={"NIFTY"}), DI)[0]["why"] == "one short-gamma per index"
+    assert decide(dict(rI, ivs_armed=False), None, DI)[0]["action"] == "NO_TRADE"
+    HS_TAB = None
     # forward view: flat 22700 to 09:46, then +0.5 pt/min (z known); no 15:15 -> null realized fields
     spf = {"NIFTY": dict({f"09:{m:02d}": 22700.0 for m in range(15, 46)}, **{_mm(m): 22700 + 0.5 * m for m in range(NMIN + 1)}), "SENSEX": {}}
     qf = {("NIFTY", 22700.0, s): [("09:45:30", 99.0, 101.0, "2026-10-27"), ("09:46:01", 99.5, 101.5, "2026-10-27"), ("15:15:02", 100.0, 101.0, "2026-10-27")] for s in ("CE", "PE")}

@@ -91,6 +91,7 @@ IDX5Y = os.environ.get("IDX5Y", f"{OUT}/../idx1m.pkl")  # lab.py cache of data/r
 def build():
     X = pd.read_parquet(f"{OUT}/opt1y.parquet")
     X = X[(X.m >= M0) & (X.m < M0 + NB)]
+    offmax = int(os.environ.get("OFFMAX", "99")); X = X[X.off.abs() <= offmax]  # E39: OFFMAX=3 keeps the 5-year panel at the 1-year memory footprint
     # 2026-11-13 data hygiene (Fable verification of the 5y ATM+-10 panel): (1) Dhan's SENSEX 2023-24 files carry rows of ANOTHER underlying
     # (spot 20-34% off, own strikes, ~all zero volume): drop every row whose spot is > 1% from the index minute close (idx1m; the row median
     # where idx1m has no minute). (2) spot = per-minute median of the kept rows (was: the last row written). (3) a (side, strike, minute)
@@ -405,7 +406,8 @@ def vol_days(i0=30):
     V = pd.DataFrame(rows).sort_values(["sym", "day"]); out = []
     for sym, g in V.groupby("sym"):
         h = hist.loc[sym]; h = h[(h > 0.5) & ~h.index.isin(g.day)]  # 5y panel (E39): panel days override the index history (no duplicate days)
-        rv = pd.concat([h, g.set_index("day").rvd]).dropna(); lr = np.log(rv)
+        rv = pd.concat([h, g.set_index("day").rvd]).dropna()
+        rv = rv[~rv.index.duplicated(keep="last")].sort_index(); lr = np.log(rv)
         X = pd.DataFrame({"d1": lr.shift(1), "w": lr.shift(1).rolling(5).mean(), "m": lr.shift(1).rolling(22).mean(), "y": lr}).dropna()
         tr = X[X.index < "2025-10-27"]; A = np.c_[np.ones(len(tr)), tr[["d1", "w", "m"]].values]
         b = np.linalg.lstsq(A, tr.y.values, rcond=None)[0]; print(sym, "HAR b", b.round(3), "n", len(tr))
