@@ -657,6 +657,13 @@ def decide(row, state=None, dist=None):
     out = []
     for n, en, ex in cand:
         lots = LADDER[st["rung"].get(n, 0)]
+        # pre-trade checklist (REPO_HARVEST #4, day-trader-skill trader-risk idea): every gate PASS/BLOCK, in decision order. The
+        # action below is unchanged: it is the first BLOCK. Entries only: exits / flatten are never blocked by these gates.
+        ck = [("data health", True), ("kill switch", not st["halted"]), ("daily stop 2L", st["day_pnl"] > -2 * stop(n)),
+              ("weekly stop 4L", st["week_pnl"] > -4 * stop(n)),
+              ("one short-gamma per index", not (n in SHORT_GAMMA and sym in st["open_short_gamma"])),
+              ("recorder up", bool(st["recorder_ok"])), (f"ladder rung {st['rung'].get(n, 0)} ({lots} lots)", lots > 0)]
+        checks = [f"{g}: {'PASS' if ok else 'BLOCK'}" for g, ok in ck]
         if st["halted"]: why, act = "halted (fill mismatch kill switch)", "NO_TRADE"
         elif st["day_pnl"] <= -2 * stop(n): why, act = "daily stop 2L hit", "NO_TRADE"
         elif st["week_pnl"] <= -4 * stop(n): why, act = "weekly stop 4L hit", "NO_TRADE"
@@ -664,9 +671,9 @@ def decide(row, state=None, dist=None):
         elif not st["recorder_ok"] or lots == 0: why, act = "log-only rung (needs >= 40 forward trades to promote)" if lots == 0 else "recorder down", "LOG_ONLY"
         else: why, act = "rules pass", "TRADE"
         out.append(dict(id=n, action=act, lots=lots if act == "TRADE" else 0, entry=en,
-                        exit=ex + (f"; hard flatten at -{stop(n):,.0f}" if act == "TRADE" else ""), why=why))
+                        exit=ex + (f"; hard flatten at -{stop(n):,.0f}" if act == "TRADE" else ""), why=why, checks=checks))
     trades = [o for o in out if o["action"] == "TRADE"]
-    for o in trades[2:]: o.update(action="NO_TRADE", lots=0, why="max 2 open structures")
+    for o in trades[2:]: o.update(action="NO_TRADE", lots=0, why="max 2 open structures", checks=o["checks"] + ["max 2 open: BLOCK"])
     return out
 
 
@@ -683,7 +690,9 @@ def run_forward(arg):
                   + (f"close z={r['z']:+.2f} broke1={r['broke1']}" if r["z"] is not None else "close: not yet"))
             for ln in dist_lines(r): print(ln)
             dist = json.loads(DIST.read_text()) if DIST.is_file() else {}
-            for d in decide(r, None, dist): print(f"  DESK {d['id']}: {d['action']} lots {d['lots']} | {d['entry']} | exit {d['exit']} | {d['why']}")
+            for d in decide(r, None, dist):
+                print(f"  DESK {d['id']}: {d['action']} lots {d['lots']} | {d['entry']} | exit {d['exit']} | {d['why']}")
+                if d.get("checks"): print("    checklist: " + "; ".join(d["checks"]))
     print(calibration(read_log(FWD)))
     if days and (FWD_SVG / f"{days[-1]}.svg").is_file(): print(f"SVG: {FWD_SVG}/{days[-1]}.svg")
 
@@ -778,6 +787,16 @@ def selftest():
     assert e33_long("NIFTY", _spot_path(sl_), {k: v[:1] for k, v in qt.items()}, 105, 22700)["why"] == "time+forced"  # no later quote: last bid, forced
     rep_ = leads_report([dict(day="2026-10-22", sym="NIFTY", **A), dict(day="2026-10-22", sym="SENSEX", **B)])
     assert "E33 S_CE (TREND_UP x BEAR/NEUT, LEVEL x BEAR): n=2" in rep_ and "E33 L_PE (LEVEL x BEAR): n=1" in rep_ and "P(up45|BEAR)" in rep_, rep_
+    # DESK checklist parity: the action is TRADE iff no gate BLOCKs, and the first BLOCK names the same gate as `why`
+    Dk = {"SGATE": dict(p05=-20000), "B1": dict(p05=-30000)}; rk = dict(sym="NIFTY", status="OK", s2_signal=True, sc1_signal=True, b1_nr4=True)
+    gate = {"halted": "kill switch", "daily stop": "daily stop", "weekly stop": "weekly stop", "one short-gamma": "one short-gamma",
+            "log-only rung": "ladder rung", "recorder down": "recorder up"}
+    for stt in (None, dict(rung={"SGATE": 2, "B1": 1}), dict(rung={"SGATE": 2}, day_pnl=-8000), dict(rung={"SGATE": 2}, week_pnl=-17000),
+                dict(rung={"SGATE": 1}, halted=True), dict(rung={"SGATE": 4}, open_short_gamma={"NIFTY"}), dict(rung={"SGATE": 4, "B1": 1}, recorder_ok=False)):
+        for o in decide(rk, stt, Dk):
+            blocks = [c for c in o["checks"] if c.endswith("BLOCK")]
+            assert (o["action"] == "TRADE") == (not blocks), (stt, o)
+            if blocks: assert blocks[0].startswith(next(v for k_, v in gate.items() if o["why"].startswith(k_))), (o["why"], blocks)
     print("fin1_shadow selftest OK")
 
 
