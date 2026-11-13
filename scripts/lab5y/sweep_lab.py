@@ -461,7 +461,7 @@ def price_cell(cell):
 
 
 _SRC = hashlib.md5(b"".join(open(os.path.join(os.path.dirname(os.path.abspath(__file__)), f), "rb").read()
-                            for f in ("sell_lab.py", "opt1y_lab.py"))).hexdigest()[:8]
+                            for f in ("sell_lab.py", "opt1y_lab.py")) + f"{L.COSTS}/{L.STALE_OK}".encode()).hexdigest()[:8]  # + cost/guard mode
 
 
 def _cache(cell):

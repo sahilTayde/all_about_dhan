@@ -440,8 +440,11 @@ def _price33(k):
     return k, [(i, a, r["pnl"], r["held"], r["forced"], r["why"]) for i in SLOTS33 for a in ACTS33 for r in [act33(k, i, a)] if r]
 
 
+CTAG = "" if (L.COSTS == "today" and L.STALE_OK) else f"_{L.COSTS}_guard"   # P&L caches are per cost/guard mode (E39b); "" = every frozen row
+
+
 def table33():
-    fp = f"{PB}/e33_table.pkl"
+    fp = f"{PB}/e33_table{CTAG}.pkl"
     if os.path.exists(fp): return pd.read_pickle(fp)
     t0 = time.time(); rows = []
     with get_context("fork").Pool(max(1, os.cpu_count() - 1)) as pool:
@@ -789,18 +792,23 @@ def _dayboot_p(x, n=4000, seed=39):
     x = np.asarray(x, float); return float((np.random.default_rng(seed).choice(x, (n, len(x))).mean(1) <= 0).mean()) if len(x) > 1 else np.nan
 
 
+E39_TRADES = [] if os.environ.get("E39_TAG") else None   # E39b: per-trade rows of every cell -> PB/e39_trades_<tag>.csv (re-score audit)
+
+
 def _cell_stats(name, T, learn_days, test_days, base=None, rg=None):
     """T: DataFrame with day, sym, pnl (one row per trade). base: DataFrame of the unconditional same-structure trades on the same days
     (day, pnl) for the same-count random-day placebo on TEST. Returns the frozen E39 row."""
     Lr, Te = T[T.day.isin(learn_days)], T[T.day.isin(test_days)]; r = dict(cell=name, learn_n=len(Lr), test_n=len(Te))
-    if len(Lr): g = Lr.groupby("day").pnl.sum(); r.update(learn_total=round(g.sum()), learn_mean=round(Lr.pnl.mean()), learn_win=round((Lr.pnl > 0).mean() * 100, 1), learn_p=round(_dayboot_p(g.values), 4))
+    mdd = lambda g: round(float((g.sort_index().cumsum() - g.sort_index().cumsum().cummax()).min()))  # max drawdown of the daily P&L path
+    if len(Lr): g = Lr.groupby("day").pnl.sum(); r.update(learn_total=round(g.sum()), learn_mean=round(Lr.pnl.mean()), learn_win=round((Lr.pnl > 0).mean() * 100, 1), learn_p=round(_dayboot_p(g.values), 4), learn_mdd=mdd(g))
     if len(Te):
         g = Te.groupby("day").pnl.sum(); q = pd.to_datetime(Te.day).dt.to_period("Q").astype(str); qs = Te.groupby(q).pnl.sum()
-        r.update(test_total=round(g.sum()), test_mean=round(Te.pnl.mean()), test_win=round((Te.pnl > 0).mean() * 100, 1), test_p=round(_dayboot_p(g.values), 4), test_q_pos=f"{(qs > 0).sum()}/{len(qs)}")
+        r.update(test_total=round(g.sum()), test_mean=round(Te.pnl.mean()), test_win=round((Te.pnl > 0).mean() * 100, 1), test_p=round(_dayboot_p(g.values), 4), test_q_pos=f"{(qs > 0).sum()}/{len(qs)}", test_mdd=mdd(g))
         if base is not None and len(base):
             b = base[base.day.isin(test_days)]; rg = rg or np.random.default_rng(3); days = b.day.unique()
             if len(days) >= len(g):
                 rnd = np.array([b[b.day.isin(rg.choice(days, len(g), replace=False))].pnl.sum() for _ in range(1000)]); r["p_vs_rand"] = round(float((rnd >= g.sum()).mean()), 3)
+    if E39_TRADES is not None: E39_TRADES.append(T.assign(cell=name).drop(columns=[c for c in T.columns if c in ("key",)]))
     ok = r.get("learn_mean", -1) > 0 and r.get("learn_p", 1) < 0.05 and r.get("test_total", -1) > 0 and r.get("test_p", 1) < 0.005 and r.get("p_vs_rand", 1) < 0.05 and int(r.get("test_q_pos", "0/4").split("/")[0]) >= 3
     r["verdict"] = "PASS" if ok else "FAIL"; return r
 
@@ -848,14 +856,16 @@ def study_e39():
     def sweep_cell(cell, gate_cols):
         r = W.price_cell(cell); m = np.ones(len(r), bool)
         for gc in gate_cols: m &= G[r["k"], gi[gc]]
-        return pd.DataFrame(dict(sym=[W.KEYS[x][0] for x in r["k"][m]], day=[W.KEYS[x][1] for x in r["k"][m]], pnl=r["pnl"][m]))
+        return pd.DataFrame(dict(sym=[W.KEYS[x][0] for x in r["k"][m]], day=[W.KEYS[x][1] for x in r["k"][m]], pnl=r["pnl"][m], i=r["i"][m], forced=r["forced"][m], why=r["why"][m]))
     ivs = sweep_cell(("ND_STRANGLE1", "ivfall1.0", "STRANGLE1", "spot1.5_stop0.3"), ["DTE=0", "OPEN=calm"]); ivs_base = sweep_cell(("ND_STRANGLE1", "t0946", "STRANGLE1", "spot1.5_stop0.3"), [])
     rows.append(_cell_stats("IVS: OTM1 strangle after 1-pt IV fall, expiry day, calm open", ivs, learn, test, base=ivs_base, rg=rg))
     gap = sweep_cell(("GAP", "gap0.2_go_at30", "ATM", "t1_s1"), ["GAP=FLAT"]); gap_base = sweep_cell(("GAP", "gap0.2_go_at30", "ATM", "t1_s1"), [])
     rows.append(_cell_stats("GAP-go 0.2% at 09:45, ATM, t1_s1, GAP=FLAT", gap, learn, test, base=gap_base, rg=rg))
     # placebo cell: random short straddle days (same count as S2) - must FAIL
     rows.append(_cell_stats("PLACEBO random S1 days (S2 count)", s1[s1.day.isin(rg.choice(s1.day.unique(), min(len(s2.day.unique()), s1.day.nunique()), replace=False))], learn, test))
-    R = pd.DataFrame(rows); pd.set_option("display.width", 300); print(R.to_string(index=False)); R.to_csv(f"{PB}/e39.csv", index=False)
+    tag = os.environ.get("E39_TAG", ""); R = pd.DataFrame(rows); pd.set_option("display.width", 300); print(R.to_string(index=False)); R.to_csv(f"{PB}/e39{tag}.csv", index=False)
+    if E39_TRADES is not None: pd.concat(E39_TRADES, ignore_index=True).to_csv(f"{PB}/e39_trades{tag}.csv", index=False)
+    print(f"COSTS={L.COSTS} LAB_STALE={'keep' if L.STALE_OK else 'guard'} tag={tag or '-'}")
     print("Bonferroni 10: PASS needs learn_p < 0.05, test_p < 0.005, p_vs_rand < 0.05, >= 3/4 TEST quarters positive"); return R
 
 
