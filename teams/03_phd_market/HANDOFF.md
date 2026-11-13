@@ -1,5 +1,27 @@
 # Handoff log — Team 03 PhD market
 
+## As of now (2026-11-13, 11:12 IST) — live DEXT observation log (PAPER, read only)
+
+```text
+Market question: what does a live ITM CE/PE buyer see on the E33 desk,
+  and which charts / votes actually help?
+Rule / clock / source: SOURCE_FACT, DEXT_TERMINAL_MAP.md section 12
+  (09:41-11:12 IST, 16 five-minute rows, chain read by a page script).
+Impact: NIFTY gap -90, low 25,077.55, rally to OR high 25,209.85, then an
+  80-min box 25,188-25,230 (7 failed tests, 1 close above, reversed).
+  3 paper trades: D1 PE -3.1, D2 CE -8.5, D3 CE -10.35 = -21.95 pts;
+  5m-close stops saved ~46 pts vs holding. No-chase skip confirmed (-7.95).
+  Verifier (Fable 5.1): P1 bleed-after-gap SPLIT (measure straddle bleed,
+  not ADX); P2 OR-high lid WEAK (one day; keep no-chase reason);
+  P3 chain header PCR/IV stale CONFIRM (use strike-OI PCR 1.01-1.08).
+Customer action: PAPER only, nothing placed. CE/PE charts + Order Flow
+  now on 25150 CE / 25200 PE; NIFTY charts back on 1m.
+Backtest tag for 06: none (observation day; test the live-bleed gate).
+UNKNOWN / DATA_INSUFFICIENT: afternoon (stopped 11:12 by founder);
+  batch 2 (breakout-in-chop failures) not verified; whether the chain
+  refresh icon fixes the stale header.
+```
+
 ## As of now (2026-11-12, evening) — DEXT indicator study + E33 desk tune-up (PAPER)
 
 ```text

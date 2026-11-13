@@ -250,3 +250,86 @@ CE / PE premium co-movement by bar size (NIFTY, SENSEX in brackets): 1-minute co
 - **Exit:** at the level that was the reason for entry, or when the clock bucket changes, not on an indicator flip.
 - **Replay for practice:** Order Flow's *Replay* button says "Bar Replay is not available for this chart type" on the footprint; switch the Order Flow pane to the candle bar type first, then replay. The main Chart widget has no replay. A replay session is the right way to practise the 11.5 routine bar by bar on 1 / 5 / 15 / 30 minutes without an account write; it was not run in this pass (the chart-layout work used the time).
 
+
+---
+
+## 12. Live observation log 2026-11-13
+
+**Status:** `SOURCE_FACT` read live from DEXT (founder's Chrome, `E33 desk` workspace), 13 Nov 2026 from 09:41 IST. **Paper only: nothing was placed, no Buy/Sell/B/S/alert/scalper control was touched.** Every "trade" below is a paper decision written down at the time, with its outcome read later from the chart.
+
+**Setup changes made today (all reversible view settings):** chart 1 NIFTY 50 at 15 minutes, chart 2 NIFTY 50 at 5 minutes. At 09:44 spot was 25,181, so the option charts and Order Flow were moved off 25300 to the first ITM strikes: **CE chart → `NIFTY 17 NOV 25150 CALL`, PE chart → `NIFTY 17 NOV 25200 PUT`, Order Flow → `NIFTY 17 NOV 25150 CALL`** (5 minutes).
+
+**Levels for the day.** 12 Nov daily candle: O 25,213.50, **PDH 25,384.80, PDL 25,142.95**, PDC 25,299.35. Today 09:15 bar O 25,209.85 H 25,209.85 L 25,107.40 C 25,122.20 (gap −90, first bar −177). 09:20 bar made the day low 25,077.55, below PDL. **Opening range (09:15–09:30): 25,077.55 – 25,209.85.** Daily SMAs (Technicals): 5-SMA 25,123, 10-SMA 24,442, 20-SMA 23,634, so the prior-day 20-SMA bias vote is **bullish** all day. Dhan labels on the daily chart: expected move 24,736 / 25,622, support strike 25,000, resistance strike 25,500, max pain 25,150.
+
+**How the values were read.** Index O/H/L/C by hovering the 5-minute candle; ADX/CHOP from the legend; VWAP/EMA/SuperTrend from the right-axis labels (the price pane is too short for the legend to list them, so lines are identified by shape: black = session VWAP, resets at 09:15; smooth bright red = EMA 21; stepped line with Buy/Sell arrow = SuperTrend 10/3; blue/red dotted channel = HalfTrend). Chain numbers (option price, OI, OI change % vs previous day, PCR, max pain, OI1–OI3 strikes) read from the Options Chain DOM by a read-only page script. Order Flow bar Delta and cumulative delta read from the footprint labels. Caution: hovering over the OI-profile bars on the index chart opens a tooltip with **B / S buttons**; read with the cursor in the ADX pane instead.
+
+### 12a. Observation table (5-minute bars, NIFTY 50)
+
+| Time (bar) | O / H / L / C | VWAP | EMA21 | ADX 5m | CHOP 5m | SuperTrend | 25150 CE | 25200 PE | CE OI (vs prev day) | PE OI (vs prev day) | OF delta / cum Δ (25150 CE) | PCR | Max pain | Notes |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 09:35 | 25,155.10 / 25,196.45 / 25,149.45 / 25,172.90 | | | | | down | | | | | +677 K / −397 K | | | biggest CE buy bar of the morning, vol 10.35 M |
+| 09:40 | 25,172.60 / 25,186.55 / 25,153.90 / 25,185.60 | 25,143 | 25,213 | 22.2 | 29.2 | down 25,202 | 201.3 (09:47) | 159.0 (09:47) | 48.4 L (+763%) | 80.7 L (+122%) | +48 K / −350 K | 0.90 | 25,150 | rally 25,077 → 25,196 in 25 min |
+| 09:45 | 25,187.15 / 25,214.90 / 25,187.00 / 25,208.90 | 25,149 | 25,214 | 20.4 | 30.9 | **flips up** (≈25,159) | 198.0 (09:52) | 161.0 (09:52) | 42.1 L (+651%) | 94.7 L (+161%) | **−240 K** / −704 K | 0.90 | 25,150 | **OR high 25,209.85 poked by 5 pts, close back below**; 25200 CE OI 1.07 cr (OI4) |
+| 09:50 | 25,208.95 / 25,211.75 / 25,191.55 / 25,203.70 | 25,150 | 25,212 | 20.4 | 31.1 | up ≈25,164 | 198.3 (1m, 09:55) | 160.0 (1m, 09:55) | 42.4 L (+0.05%/min) | 99.5 L (**+1.54%/min**) | −106 K / −695 K | 0.90 | 25,150 | second bar rejected under OR high; 25200 PE OI climbing fast = put writers under price |
+| 09:55 | 25,203.70 / 25,229.40 / 25,199.35 / 25,200.05 | 25,155 | 25,212 | 19.2 | 31.9 | up ≈25,170 | 199.4 (10:00) | 158.8 (10:00) | 39.4 L (+603%) | 66.1 L (+315%) | −19 K / −714 K | 0.90 header, **1.007** from visible-strike OI | 25,150 | **third poke above OR high (25,229) closed back at 25,200**; at the poke 25200 CE OI fell 1.12 → 1.03 cr while 25200 PE OI rose 0.996 → 1.09 cr |
+| 10:00 | 25,197.85 / 25,216.90 / 25,188.00 / 25,205.05 | 25,157 | 25,212 | 17.9 | 33.2 | up ≈25,170 | 201.2 (10:05) | 153.4 (10:05) | 37.4 L (+568%) | 69.1 L (+334%) | **−309 K** / −979 K | 1.034 (OI) | 25,150 | fourth failed push at the OR-high zone; 25200 PE OI now OI3 (1.18 cr): put writing right under price; CE OI at 25150 falling (37.4 L from 48.4 L at 09:47) |
+| 10:05 | 25,204.10 / 25,223.10 / 25,202.35 / 25,211.00 | 25,160 | 25,211 | 16.7 | 33.2 | up ≈25,174 | 199.1 (10:10) | 155.5 (10:10) | 36.9 L (+559%) | 69.5 L (+336%) | +70 K / −952 K | 1.027 (OI) | 25,150 | fifth push into 25,215-25,230, close at EMA21; 25200 PE now OI2 (1.21 cr); ADX falling every bar (22 → 16.7) |
+| 10:10 | 25,211.00 / 25,213.80 / 25,188.90 / 25,202.95 | 25,162 | 25,210 | 15.9 | 34.9 | up ≈25,174 | 201.1 (10:15) | 150.7 (10:15) | 37.1 L (+561%) | 73.9 L (+363%) | −214 K / −1.06 M | 1.042 (OI) | 25,150 | 30-minute box 25,188–25,230 under the OR high; PE OI at 25150/25200 keeps rising every read (put writers), CE OI flat |
+| 10:15 | 25,203.40 / 25,216.95 / 25,186.80 / 25,187.70 | 25,164 | 25,209 | 15.0 | 36.9 | up ≈25,174 | 181.1 (10:20) | 166.8 (10:20) | 36.3 L (+548%) | 75.5 L (+374%) | **−370 K** / −1.54 M | 1.061 (OI) | 25,150 | sixth failure at 25,217; bar closes on its low at the box bottom; CE OF delta most negative of the day so far |
+| 10:20 | 25,187.65 / 25,205.45 / 25,177.60 / 25,202.20 | 25,165 | 25,208 | 14.4 | **51.5** | up ≈25,174 | 195.6 (10:25) | 155.2 (10:25) | 35.8 L (+538%) | 78.1 L (+390%) | +145 K / −1.38 M | 1.072 (OI) | 25,150 | dip to 25,177.6 bought back (no VWAP touch); CHOP jumps 37 → 51.5: regime now **chop** by both tags (ADX < 15, CHOP > 50) |
+| 10:25 | 25,201.95 / 25,207.95 / 25,187.35 / 25,194.60 | 25,166 | 25,206 | 13.8 | 38.5 | up ≈25,175 | 186.2 (10:30) | 160.7 (10:30) | 35.8 L (+538%) | 78.1 L (+390%) | −211 K / −1.60 M | 1.072 (OI) | 25,150 | box continues; 25150 CE + 25200 PE "straddle" 346.9 vs 359.3 at 09:47 with spot 16 pts lower |
+| 10:30 | 25,194.30 / ≈25,229.8 / 25,192.75 / ≈25,228 | 25,167 | 25,208 | 12.6 | 46.9 | up ≈25,174 | 210.5 (10:35) | 143.5 (10:34) | 34.7 L (+519%) | 76.0 L (+377%) | **+411 K** / −1.19 M | 1.081 (OI) | 25,150 | full-bodied bull bar to the box top (25,229.4); 25200 CE OI 1.16 → 1.12 cr (call writers covering) |
+| 10:35 | 25,228.75 / 25,229.75 / 25,202.35 / 25,207.70 | 25,168 | 25,209 | 12.6 | 49.3 | up ≈25,174 | 201.95 open of 10:40 | 145.3 (10:40) | 34.8 L (+521%) | 75.6 L (+374%) | −94 K / −1.28 M | 1.059 (OI) | 25,150 | **seventh failure at the box top**: the +411 K bar was fully reversed in one bar; 25200 CE OI back up 1.12 → 1.17 cr (writers returned) |
+| 10:40 | 25,207.10 / 25,229.55 / 25,207.10 / 25,229.45 | 25,171 | 25,213 | 12.4 | 50+ | up ≈25,190 | 204.6 (10:40) → 220.3 (10:47) | 145.3 → 134.2 | 34.3 L → 32.4 L | 75.4 L → 73.2 L | **−46 K** / −1.33 M | 1.06 | 25,150 | rally bar back to the box top on **negative** CE delta |
+| 10:45 | 25,229.40 / 25,245.40 / 25,228.75 / 25,242.40 | 25,173 | 25,216 | 12.1 | 52.7 | up ≈25,201 | 217.9 (10:50) | 135.7 (10:50) | 32.0 L (+470%) | 73.7 L (+363%) | +66 K / −1.26 M | 1.049 (OI) | 25,150 | **first 5m close above the 60-minute box** (8th test). 15m chart: ADX 18.1, CHOP 41.2. 25250 CE OI 75.3 L (+140%) = new writing one strike up |
+| 10:50 | 25,241.00 / 25,243.80 / 25,220.40 / 25,224.70 | 25,174 | 25,216 | 11.8 | **63.0** | up ≈25,201 | 206.4 (10:55); 25200 CE 178.8 | 144.0 | 31.7 L (+466%) | 73.9 L (+364%) | −92 K / −1.36 M | 1.060 (OI) | 25,150 | breakout bar fully reversed; back inside the box; CHOP 63 = deepest chop reading of the day |
+| 10:55 | 25,224.25 / 25,227.55 / 25,199.40 / 25,199.65 | 25,175 | 25,214 | 11.7 | 60+ | up | 197.4 (10:58) | 150.0 (10:58) | 31.8 L | 73.7 L | −139 K | | | |
+| 11:00 | 25,200.15 / 25,203.70 / 25,185.05 / 25,189.10 | 25,176 | 25,209 | 11.3 | 62.8 | up ≈25,154 (HalfTrend flips **down**) | 180.3 (11:05) | 163.2 (11:05) | 33.7 L | 76.1 L | −219 K | | | back at box bottom |
+| 11:05 | 25,189.35 / 25,192.05 / 25,167.65 / 25,188.80 | 25,176 | 25,204 | 11.9 | 57.0 | up ≈25,154 | 178.8 (11:10) | 160.4 (11:10) | **36.6 L (+552%)** | 81.0 L (+408%) | −123 K / −1.76 M | 1.025 (OI) | 25,150 | **VWAP touch** (low 25,167.65 vs VWAP 25,176) and close back at 25,188.8; on the touch 25150 CE went 180 → ≈172 → 178.8, 25200 PE 163 → ≈167 → 160.4. CE OI rising again (writers sell into the dip), 25200 PE OI 1.47 → 1.42 cr (put writers trim) |
+
+*(Observation stopped at 11:12 IST at the founder's request.)*
+
+### 12b. Paper decisions so far (nothing placed)
+
+| # | Time | Instrument @ entry | Why | Stop / target | +15 min | +30 min / exit | Opposite option |
+|---|---|---|---|---|---|---|---|
+| D0 (tempted, skipped) | 09:47 | 25150 CE @ 201.30 (spot 25,210.8) | break of OR high after a 27-min-old rally from 25,077 | — (no-chase rule) | CE 197.60 (−3.7), spot −3 | CE 193.35 (−7.95), spot −2.6 | PE 159.0 → 156.75 (−2.25): both legs lost |
+| D1 | 09:52 | 25200 PE @ 161.00 (spot 25,207.25) | failed OR-high break; CE delta −240 K; 25200 CE OI rising. Votes 4 yes / 3 no (VWAP side, SuperTrend flip up, daily 20-SMA against). Regime: ADX 20, CHOP 31 | 5m close > 25,215 / VWAP 25,149 | PE 148.40 (−12.6), spot +15 against | **closed at 30 min: PE 157.90 (−3.1)** with spot 11.5 pts *in favour* | CE 198.0 → 191.65 (−6.35) |
+| D2 | 10:35 | 25150 CE @ 210.45 (spot ≈25,228) | full bull bar to the box top, CE delta +411 K, CE OI covering; 7/7 votes yes, regime tag chop (ADX 12.6, CHOP 47) | 5m close < 25,208 / 25,255–25,260 | reversed in 90 s (CE 195.30) | **stopped at 10:40 open, CE 201.95 (−8.5)**; if held: +7.4 at 10:50, −30.15 at 11:05 | PE 143.50 → 145.30 (+1.8) |
+| D3 | 10:50 | 25200 CE @ 189.10 (first ITM; spot 25,242.65) | first 5m close above the 60-min box; delta weak (+66 K after −46 K); 25250 CE fresh writing | 5m close < 25,228 / 25,280 | — | **stopped at 10:55, CE 178.75 (−10.35)**; if held: −34.35 at 11:05 | 25250 PE 159.05 → 168.60 (+9.55) |
+| S1 (skipped) | 11:10 | 25150 CE ref 178.80 (spot 25,187.7) | VWAP touch (low 25,167.65) and bounce; skipped because regime is chop (ADX 11.9, CHOP 57) | — | not read (paused) | not read | PE 160.35 ref |
+
+Running paper result: D1 −3.1, D2 −8.5, D3 −10.35 = **−21.95 option points** on three trades; the two stops saved ≈ 46 points against holding to 11:05.
+
+### 12c. Pattern candidates and verifier verdicts (batch 1 sent 10:23; verdicts from the Fable 5.1 parent session received after the pause)
+
+1. **P1 — inside a stalled box a bought ITM option bleeds on both sides.** 25150 CE + 25200 PE fell ≈ 359 → 347 between 09:47 and 10:30 with spot within ±20; D1 lost with the index moving its way. Verdict: **SPLIT.** Mechanics confirmed: the extra bleed (≈1.6 pts per 5 min, 2.5× the one-year flat-bar average) comes from the post-gap IV crush (90-pt gap, ATM IV +7.8%), not from the box itself. The ADX gate is rejected (in the one-year data ADX below 20 does not change the next 30 minutes). Rule as reworded: after a gap open with high IV, measure the straddle bleed live (pts per 5 min) and buy only if spot can be expected to move at least bleed ÷ delta points per 15 min.
+2. **P2 — the opening-range high after a 25-minute gap-fill rally acted as a lid.** Seven 5m pokes above 25,209.85 failed to hold (09:45–10:35); the one close above (10:45) reversed next bar. Verdict: **WEAK.** One day only; a first touch of the OR high breaks within 15 min 52% of the time (coin), and footprint delta scored 49.9% in the one-year data. Keep it as a note ("OR high held with negative delta on 13 Nov"), not a rule. The part with support: the rally was 25+ min old at the OR high, and chasing a 15–30-min-old move hits 46–48%. *That* is the reason to skip.
+3. **P3 — the chain header PCR (0.90) and ATM IV (15.87) did not change for 30+ minutes;** PCR from summed strike OI moved 1.007 → 1.081. Verdict: **CONFIRM (operational).** The header is on a slow or stuck refresh: use PCR from summed strike OI, and check spot against the chart legend each time (the chain's spot row repeated 25,208.00 at 10:00 and 10:02). Next session: press the chain's refresh icon once and see whether the header catches up.
+4. Not yet sent: **breakout entries in chop (CHOP > 45, ADX < 15) failed twice within 5 minutes; the footprint delta on the break bar was weak or negative.**
+5. Logged as is (verifier): chain said "support building" (puts stacked under price) while the footprint said "calls being sold"; in the one-year OI matrix neither predicts the next 15 min, and sideways was the outcome.
+
+### 12d. What the indicator combinations did and did not confirm (09:41–11:12)
+
+- **ADX / CHOP (regime tags):** described the last hour correctly (trend 09:20–09:45, chop from 10:15), but every regime change showed up after the price had already changed. The verifier rejected "ADX < 20 = no trade" as a rule (no effect in one year of data); keep the tags as labels only.
+- **VWAP / EMA 21 / SuperTrend / HalfTrend:** SuperTrend flipped up at 09:45, right at the top of the move; it stayed "up" through the whole 80-min box and both failed breakouts. VWAP was the one line price reacted to (11:05 touch at 25,167.65, close back at 25,188.8). The trend lines never disagreed with the 20-SMA daily "bullish" bias, and that agreement gave no edge: D2 had 7/7 votes yes and lost.
+- **Footprint delta (25150 CE, 5m):** the sign matched the *next* bar's direction only loosely. The +411 K bar at 10:30 was reversed in one bar; the rally bar at 10:40 had −46 K. The one-year number (49.9%) held up today.
+- **Chain OI:** put writers stacked under price all morning (25200 PE 0.81 → 1.47 cr) while 25150 CE OI fell then rose again. The chain said "support"; the footprint said "calls sold"; the index went sideways. Neither confirmed a direction.
+- **Fair value gaps:** no clean 3-candle gap formed on 5m spot after 09:35 (bars overlapped all morning). None logged.
+- **Levels touched:** OR high 25,209.85 (seven tests, one close above, reversed); PDL 25,142.95 reclaimed at 09:30 and not revisited; VWAP once (11:05); max-OI strikes 25,000 (PE OI1) and 25,500 / 26,000 (CE) never approached; PDH 25,384.80 far away.
+- **What did confirm:** the no-chase rule (D0 −7.95 at 30 min), and fixed index stops on 5-minute closes (D2 and D3 lost 8.5 and 10.35 instead of about 30 and 34 if held to 11:05).
+
+### 12e. Which charts were used for which decision
+
+| Decision | Index 15m | Index 5m | Option 1m | Order Flow 5m | Chain | Technicals |
+|---|---|---|---|---|---|---|
+| Levels (PDH/PDL, OR) | daily candle (chart 1 at 1D for one read) | OR from the 09:15–09:25 bars | — | — | max pain, OI1–OI3 | 20-SMA bias |
+| D0 skip | — | rally age, OR high | — | — | CE/PE prices | — |
+| D1 PE | — | rejection bar, VWAP/EMA/ST, ADX/CHOP | per-minute OI change % (PE OI +1.54%/min) | delta −240 K / −106 K | 25200 CE OI, prices | bias (against) |
+| D2 CE | — | box-top bar, stop on 5m close | — | delta +411 K | CE OI covering | bias |
+| D3 CE | ADX 18 / CHOP 41 | first close above box, stop | — | delta −46 K / +66 K | 25250 CE writing, prices | bias |
+| S1 skip | — | VWAP touch | — | delta −123 K | CE writing again | — |
+
+The 15m chart was read once for regime; the 5m chart and the chain did almost all the work; the 1-minute option charts were used once, for per-bar OI change; Technicals only for the daily 20-SMA vote. **Practical note:** hovering the index chart over the OI-profile bars opens a tooltip with B / S buttons, so read with the cursor in the ADX pane.
+
+**End of session:** charts 1 and 2 set back to 1 minute. The CE/PE charts and Order Flow were left on 25150 CE / 25200 PE (the first ITM strikes today) rather than 25300.
