@@ -1036,5 +1036,162 @@ def study_scan39():
     print(f"scan39: {'NO look-ahead in any E39-E41 input' if not bad else str(len(bad)) + ' LEAKS'}"); return bad
 
 
+# ================================================================ E42: scenario-bucket atlas (frozen: registry row E42, side-session note
+# E42_atlas_freeze.md, committed before any cell was priced). 8 scenario variables x 8 strategies, LEARN < HO, TEST >= HO scored once.
+E42_BUDGET = {"2022-02-01", "2023-02-01", "2024-02-01", "2024-07-23", "2025-02-01", "2026-02-01"}  # Union Budget days (absent days do not count)
+E42_STRATS = ["SS", "SG", "IVS", "LS", "LD", "ORB", "GAPGO", "GAPFADE"]
+E42_FH_OK = {"LD", "IVS", "ORB"}                     # FH (10:15 close) is known only for decisions at i >= 60
+E42_SCEN = ["EXPIRY", "GAP", "TREND", "EVENT", "ORW", "IVR", "OPEN", "FH"]
+E42_MIN_N, E42_MIN_DAYS = 30, 20
+STR1 = [("CE", 1, -1), ("PE", -1, -1)]
+
+
+def _e42_key(k, D):
+    """one sym-day: every E42 strategy at its frozen entry (one trade per strategy) + the FH inputs at the 10:15 close (i=60)."""
+    import sweep_lab as W
+    out = []
+    def add(nm, i, r):
+        if r: out.append((nm, int(i), float(r["pnl"]), bool(r["forced"]), r["why"]))
+    add("SS", 31, S.struct(k, 31, S.SSTRAD, sstop=2, mode="cons"))
+    add("SG", 31, S.struct(k, 31, STR1, sstop=1.5, stop=0.3, mode="cons"))
+    for i, _, _ in W.nd_iv(k, -1.0)[:1]: add("IVS", i, S.struct(k, i, STR1, sstop=1.5, stop=0.3, mode="cons"))
+    add("LS", 30, S.struct(k, 30, S.LSTRAD, sstop=2.5, mode="cons"))
+    s = P[k]["spot"]
+    if np.isfinite(s[0]) and np.isfinite(s[60]) and s[60] != s[0]: add("LD", 60, long_leg(k, 60, "CE" if s[60] > s[0] else "PE"))
+    for i, sd in S.orb_signals(k, False)[:1]: add("ORB", i, S.struct(k, i, [(sd, 0, 1)], dirn=1 if sd == "CE" else -1, mode="cons", **S.E5X["t1.5_s1"]))
+    d = D.loc[k] if k in D.index else None
+    if d is not None and np.isfinite(d.c1):
+        f = pd.Series(s).ffill().bfill().values; gp = f[0] / d.c1 - 1   # sweep_lab.gap(k, 0.2, fade, 30), inlined (no ctx build)
+        if abs(gp) >= 0.002:
+            for nm, sd in (("GAPGO", "CE" if gp > 0 else "PE"), ("GAPFADE", "PE" if gp > 0 else "CE")):
+                add(nm, 30, S.struct(k, 30, [(sd, 0, 1)], dirn=1 if sd == "CE" else -1, mode="cons", **S.E5X["t1_s1"]))
+    try: r = _row33(k, 60, _bars5(k), Z.labs()[0].loc[k], daytab()[k], np.nan); fh = (r["adx"], r["er"], r["chop"], r["r60"])
+    except Exception: fh = (np.nan,) * 4
+    return k, out, fh
+
+
+def e42_fh(adx, er, chop, r60):
+    """FH label from the E33 2-of-3 vote at the 10:15 close; direction = sign of the 60-min return; CHOP otherwise (NA if the inputs are missing)."""
+    if not all(np.isfinite(x) for x in (adx, er, chop, r60)): return None
+    tr = int(adx >= 25) + int(er >= 0.35) + int(chop <= 45) >= 2
+    return ("TREND_UP" if r60 > 0 else "TREND_DN" if r60 < 0 else "CHOP") if tr else "CHOP"
+
+
+def e42_trades():
+    """per-trade frame with the scenario labels (cached by source hash; the labels use nothing after the decision minute)."""
+    fp = f"{PB}/e42_trades_{SRC}_{L.COSTS}.pkl"
+    if os.path.exists(fp): return pd.read_pickle(fp)
+    import book_lab as B
+    t0 = time.time(); D = B.prep(); A = Z.labs()[0]; V = L.vol_days().set_index(["sym", "day"]); days = sorted({k[1] for k in KEYS})
+    Z.labs(); daytab(); _E42["D"] = D  # build the shared day tables in the parent before forking (workers read them copy-on-write)
+    rows = []; FH = {}
+    with get_context("fork").Pool(max(1, os.cpu_count() - 1)) as pool:
+        for k, out, fh in pool.imap_unordered(_e42_worker, KEYS, chunksize=8):
+            FH[k] = e42_fh(*fh); rows += [dict(sym=k[0], day=k[1], strat=nm, i=i, pnl=p_, forced=f, why=w) for nm, i, p_, f, w in out]
+    T = pd.DataFrame(rows); thr = float(np.nanquantile([V.or_iv.get(k, np.nan) for k in KEYS if k[1] < L.HO], 0.7))
+    fomc1 = L.fomc_next(days); ev = {d for d in days if d in L.RBI or d in fomc1 or d in E42_BUDGET}
+    key = list(zip(T.sym, T.day))
+    T["EXPIRY"] = np.where([P[k]["d0"] for k in key], "0", "1+")
+    for c in ("GAP", "TREND", "ORW", "IVR"): T[c] = [A[c].get(k, None) if k in A.index else None for k in key]
+    T["EVENT"] = np.where(T.day.isin(ev), "EVENT", "NONE")
+    orv = np.array([V.or_iv.get(k, np.nan) for k in key]); T["OPEN"] = np.where(np.isfinite(orv), np.where(orv <= thr, "CALM", "ACTIVE"), None)
+    T["FH"] = [FH.get(k) if (st in E42_FH_OK and i >= 60) else None for k, st, i in zip(key, T.strat, T.i)]
+    rg = np.random.default_rng(42); coin = {d: ("RND_A" if rg.integers(0, 2) else "RND_B") for d in days}; T["PLACEBO"] = T.day.map(coin)
+    T.attrs["open_thr"] = thr; T.to_pickle(fp); print(f"e42 trades {len(T)} rows, OPEN thr (LEARN q0.7 or_iv) {thr:.4f}, {time.time() - t0:.0f}s", flush=True); return T
+
+
+_E42 = {}
+def _e42_worker(k): return _e42_key(k, _E42["D"])
+
+
+def _e42_pvr(cell, base, days, rg, n=1000):
+    """share of n draws of the same number of random trade-days from the strategy's own trades (on `days`) whose total >= the cell's total."""
+    c = cell[cell.day.isin(days)]; b = base[base.day.isin(days)]
+    if not len(c): return np.nan
+    g = c.groupby("day").pnl.sum(); bd = b.day.unique()
+    if len(bd) <= len(g): return np.nan
+    tot = g.sum(); rnd = np.array([b[b.day.isin(rg.choice(bd, len(g), replace=False))].pnl.sum() for _ in range(n)]); return float((rnd >= tot).mean())
+
+
+def _e42_cell(name, T, base, learn, test, half, alpha, rg):
+    """frozen E42 row for one cell. T: the cell's trades; base: the strategy's unconditional trades (placebo)."""
+    Lr, Te = T[T.day.isin(learn)], T[T.day.isin(test)]; r = dict(cell=name, learn_n=len(Lr), learn_days=Lr.day.nunique(), test_n=len(Te))
+    r["forced"] = round(T.forced.mean() * 100, 1) if len(T) else np.nan
+    if len(Lr):
+        g = Lr.groupby("day").pnl.sum(); h1, h2 = Lr[Lr.day < half], Lr[Lr.day >= half]
+        r.update(learn_total=round(g.sum()), learn_mean=round(Lr.pnl.mean()), learn_win=round((Lr.pnl > 0).mean() * 100, 1), learn_p=round(_dayboot_p(g.values), 5),
+                 h1_mean=round(h1.pnl.mean()) if len(h1) else np.nan, h2_mean=round(h2.pnl.mean()) if len(h2) else np.nan, pvr_learn=_e42_pvr(T, base, learn, rg))
+    if len(Te):
+        g = Te.groupby("day").pnl.sum(); q = pd.to_datetime(Te.day).dt.to_period("Q").astype(str); qs = Te.groupby(q).pnl.sum()
+        r.update(test_total=round(g.sum()), test_mean=round(Te.pnl.mean()), test_win=round((Te.pnl > 0).mean() * 100, 1), test_p=round(_dayboot_p(g.values), 4),
+                 test_q_pos=f"{(qs > 0).sum()}/{len(qs)}", pvr_test=_e42_pvr(T, base, test, rg))
+    testable = r["learn_n"] >= E42_MIN_N and r["learn_days"] >= E42_MIN_DAYS
+    core = (testable and r.get("learn_mean", -1) > 0 and r.get("learn_p", 1) < alpha and r.get("h1_mean", -1) > 0 and r.get("h2_mean", -1) > 0
+            and r.get("test_total", -1) > 0 and r.get("test_p", 1) < 0.05 and r.get("pvr_learn", 1) < 0.05 and r.get("pvr_test", 1) < 0.05)
+    r["verdict"] = "UNTESTABLE" if not testable else "PASS" if core and r["forced"] <= 5 else "INCONCLUSIVE" if core else "FAIL"; return r
+
+
+def e42_table(T, learn, test, scen=E42_SCEN, strats=E42_STRATS):
+    """the frozen atlas from a per-trade frame: (rows, N_cells, alpha). PLACEBO and ALL rows are reported, never counted."""
+    half = learn[len(learn) // 2]; rg = np.random.default_rng(42); rows = []
+    cells = [(st, c, b) for st in strats for c in scen for b in sorted(T[c].dropna().unique()) if not (c == "FH" and st not in E42_FH_OK)]
+    tl = T[T.day.isin(learn)]; n_cells = sum(len(g := tl[(tl.strat == st) & (tl[c] == b)]) >= E42_MIN_N and g.day.nunique() >= E42_MIN_DAYS for st, c, b in cells)
+    alpha = 0.05 / max(n_cells, 1)
+    for st in strats:
+        base = T[T.strat == st]; rows.append(dict(_e42_cell(f"{st} ALL", base, base, learn, test, half, alpha, rg), strat=st, scen="ALL", bucket="ALL", counted=False))
+        for c in scen + ["PLACEBO"]:
+            if c == "FH" and st not in E42_FH_OK: continue
+            for b in sorted(T[c].dropna().unique()):
+                r = _e42_cell(f"{st} {c}={b}", base[base[c] == b], base, learn, test, half, alpha, rg)
+                rows.append(dict(r, strat=st, scen=c, bucket=b, counted=c != "PLACEBO"))
+    return pd.DataFrame(rows), n_cells, alpha
+
+
+def study_e42():
+    """registry E42: run every cell on LEARN, score TEST once, one table. OUT=lab5y_full, HO=2025-10-27, LAB_FULL=1, COSTS=dated, OFFMAX=10."""
+    HO = L.HO; days = sorted({k[1] for k in KEYS}); learn = [d for d in days if d < HO]; test = [d for d in days if d >= HO]
+    print(f"E42 panel {days[0]}..{days[-1]}: LEARN {len(learn)} days (< {HO}; halves split at {learn[len(learn) // 2]}), TEST {len(test)} days, COSTS={L.COSTS}", flush=True)
+    T = e42_trades(); T.to_csv(f"{PB}/e42_trades.csv", index=False)
+    print("trades per strategy:", T.strat.value_counts().to_dict(), "| forced %:", T.groupby("strat").forced.mean().mul(100).round(1).to_dict())
+    print("LEARN days per bucket:", {c: T[T.day.isin(learn)].drop_duplicates(["day"] if c != "FH" else ["day", "strat"])[c].value_counts().to_dict() for c in E42_SCEN})
+    R, n_cells, alpha = e42_table(T, learn, test); R.to_csv(f"{PB}/e42_cells.csv", index=False)
+    pd.set_option("display.width", 400); pd.set_option("display.max_rows", 1000)
+    cols = ["cell", "learn_n", "learn_days", "learn_win", "learn_mean", "learn_p", "h1_mean", "h2_mean", "pvr_learn", "test_n", "test_win", "test_mean", "test_p", "test_q_pos", "pvr_test", "forced", "verdict"]
+    print(f"\nN_cells (testable) = {n_cells}; LEARN alpha = 0.05 / {n_cells} = {alpha:.6f}; TEST p < 0.05; p_vs_rand < 0.05 on both; forced <= 5%")
+    print(R[cols].to_string(index=False))
+    C = R[R.counted & (R.verdict != "UNTESTABLE")]
+    print(f"\nraw LEARN p < 0.05: {(C.learn_p < 0.05).sum()} of {len(C)} testable cells (null ~{0.05 * len(C):.1f}); LEARN mean > 0: {(C.learn_mean > 0).sum()}")
+    print("PASS:", R[R.verdict == "PASS"].cell.tolist() or "none", "| INCONCLUSIVE:", R[R.verdict == "INCONCLUSIVE"].cell.tolist() or "none")
+    pl = R[R.scen == "PLACEBO"]; print("PLACEBO control verdicts:", pl.verdict.value_counts().to_dict(), "(must contain no PASS)")
+    M = R[R.scen != "PLACEBO"].assign(txt=lambda x: x.learn_mean.map(lambda v: f"{v:+.0f}" if v == v else "-") + " p" + x.learn_p.map(lambda v: f"{v:.3f}" if v == v else "-") + " " + x.verdict.str[0])
+    print("\nMATRIX (LEARN per trade, LEARN p, verdict letter P/F/U/I):"); print(M.pivot_table(index=["scen", "bucket"], columns="strat", values="txt", aggfunc="first").reindex(columns=E42_STRATS).to_string())
+    return R
+
+
+def study_selftest42():
+    """known answers for the frozen E42 rule on synthetic trades: a planted edge in one cell passes, the same strategy's other cells and the random
+    label fail, an FH label before 10:15 is NA, a cell with < 30 LEARN trades is UNTESTABLE, forced > 5% turns a pass into INCONCLUSIVE."""
+    rg = np.random.default_rng(1); days = [str(d.date()) for d in pd.bdate_range("2021-11-01", periods=600)]; learn, test = days[:480], days[480:]
+    rows = []
+    for d in days:
+        for sym in ("NIFTY", "SENSEX"):
+            gap = rg.choice(["DN", "FLAT", "UP"]); lab = dict(EXPIRY=rg.choice(["0", "1+"]), GAP=gap, TREND=rg.choice(["UP", "DN"]), EVENT="NONE", ORW="NORMAL", IVR="MID", OPEN="CALM")
+            for st in E42_STRATS:
+                i = 60 if st == "LD" else 31; e = 4000 if (st == "SS" and gap == "UP") else 0
+                rows.append(dict(sym=sym, day=d, strat=st, i=i, pnl=rg.normal(e, 6000), forced=False, why="time", FH=("CHOP" if st in E42_FH_OK and i >= 60 else None),
+                                 PLACEBO="RND_A" if rg.integers(0, 2) else "RND_B", **lab))
+    T = pd.DataFrame(rows); R, n, alpha = e42_table(T, learn, test)
+    v = R.set_index("cell").verdict
+    assert v["SS GAP=UP"] == "PASS", R[R.cell == "SS GAP=UP"].to_dict("records")
+    assert v["SS GAP=DN"] == "FAIL" and v["SG GAP=UP"] == "FAIL" and (R[R.scen == "PLACEBO"].verdict == "PASS").sum() == 0
+    assert T[(T.strat == "SS")].FH.isna().all() and T[(T.strat == "LD")].FH.notna().all()
+    assert "SS FH=CHOP" not in v.index and alpha == 0.05 / n and n > 0
+    T2 = T[~((T.strat == "SG") & (T.GAP == "DN") & (T.day.isin(learn[40:])))]; R2, _, _ = e42_table(T2, learn, test); assert R2.set_index("cell").verdict["SG GAP=DN"] == "UNTESTABLE"
+    T3 = T.copy(); T3.loc[(T3.strat == "SS") & (T3.GAP == "UP") & (rg.random(len(T3)) < 0.1), "forced"] = True
+    R3, _, _ = e42_table(T3, learn, test); assert R3.set_index("cell").verdict["SS GAP=UP"] == "INCONCLUSIVE"
+    assert e42_fh(30, 0.4, 40, 0.01) == "TREND_UP" and e42_fh(30, 0.4, 40, -0.01) == "TREND_DN" and e42_fh(10, 0.1, 60, 0.01) == "CHOP" and e42_fh(np.nan, 0.4, 40, 0.01) is None
+    print(f"E42 selftest OK (planted SS x GAP=UP passes at alpha {alpha:.5f} over {n} cells; siblings, random label fail; FH NA before 10:15; UNTESTABLE; INCONCLUSIVE on forced)")
+
+
 if __name__ == "__main__":
     for a in [a for a in sys.argv[2:] if not a.startswith("-")]: globals()["study_" + a]()
