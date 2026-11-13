@@ -51,6 +51,7 @@ def hs(sym, d0, m, p):
 def build():
     X = pd.read_parquet(f"{OUT}/opt1y.parquet")
     X = X[(X.m >= M0) & (X.m < M0 + NB)]
+    offmax = int(os.environ.get("OFFMAX", "99")); X = X[X.off.abs() <= offmax]  # E39: OFFMAX=3 keeps the 5-year panel at the 1-year memory footprint
     P = {}
     for (sym, day), g in X.groupby(["sym", "day"]):
         i = (g.m.values - M0).astype(int)
