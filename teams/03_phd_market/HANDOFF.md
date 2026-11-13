@@ -1,5 +1,74 @@
 # Handoff log — Team 03 PhD market
 
+## As of now (2026-11-13, 11:12 IST) — live DEXT observation log (PAPER, read only)
+
+```text
+Market question: what does a live ITM CE/PE buyer see on the E33 desk,
+  and which charts / votes actually help?
+Rule / clock / source: SOURCE_FACT, DEXT_TERMINAL_MAP.md section 12
+  (09:41-11:12 IST, 16 five-minute rows, chain read by a page script).
+Impact: NIFTY gap -90, low 25,077.55, rally to OR high 25,209.85, then an
+  80-min box 25,188-25,230 (7 failed tests, 1 close above, reversed).
+  3 paper trades: D1 PE -3.1, D2 CE -8.5, D3 CE -10.35 = -21.95 pts;
+  5m-close stops saved ~46 pts vs holding. No-chase skip confirmed (-7.95).
+  Verifier (Fable 5.1): P1 bleed-after-gap SPLIT (measure straddle bleed,
+  not ADX); P2 OR-high lid WEAK (one day; keep no-chase reason);
+  P3 chain header PCR/IV stale CONFIRM (use strike-OI PCR 1.01-1.08).
+Customer action: PAPER only, nothing placed. CE/PE charts + Order Flow
+  now on 25150 CE / 25200 PE; NIFTY charts back on 1m.
+Backtest tag for 06: none (observation day; test the live-bleed gate).
+UNKNOWN / DATA_INSUFFICIENT: afternoon (stopped 11:12 by founder);
+  batch 2 (breakout-in-chop failures) not verified; whether the chain
+  refresh icon fixes the stale header.
+```
+
+## As of now (2026-11-12, evening) — DEXT indicator study + E33 desk tune-up (PAPER)
+
+```text
+Market question: which DEXT indicators confirm an index-option entry,
+  how do CE / PE / index co-move candle by candle?
+Rule / clock / source: SOURCE_FACT + BACKTEST
+  DEXT_TERMINAL_MAP.md section 11; scripts/lab5y/dext_indicator_study.py
+  on data/cache/expired_opts (1y ATM 1m, NIFTY 229 d, SENSEX 248 d);
+  12 Nov read from DEXT. No FVG / order-block indicator exists on DEXT.
+Impact: no vote or combination beats 50% +-1.5 pts next 15m (EMA21,
+  VWAP, SuperTrend, ADX, CHOP, OI build-up, signed volume, FVG, PDH/PDL).
+  Strong facts: ATM delta 0.36/pt NIFTY, 0.24/pt SENSEX; PE loses 1.24x
+  what CE gains on up bars; flat-bar bleed CE -0.43 / 5m; FVG refilled
+  within 1h 66-76%; clock is the only regime that changes move size.
+Customer action: PAPER only. Founder's second yes 13 Nov 09:33 IST:
+  DEXT layout (the only layout DEXT reloads) now carries ADX 14, CHOP 14,
+  Dhan Change in OI, Dhan Open Interest, on 1m; verified by reload on all
+  four E33 desk charts. Four extra E33 layouts are redundant (deletable).
+  Sweep (dext_indicator_sweep.py): all lengths ~50%; chasing a 15-30m
+  move hits 46-48%, worst after 14:30.
+Backtest tag for 06: dext_indicator_study (null on direction).
+UNKNOWN / DATA_INSUFFICIENT: Depth level count live; whether DEXT
+  chart layouts named per chart persist across reload.
+```
+
+## As of now (2026-11-12) — DEXT web terminal mapped (PAPER, read only)
+
+```text
+Market question: can dext.dhan.co be the live chart + data surface
+  for E33 paper research, and where is the order path?
+Rule / clock / source: SOURCE_FACT
+  teams/03_phd_market/docs/DEXT_TERMINAL_MAP.md (UI read 2026-11-12
+  after close, founder's Chrome). Chain = OI/OI chg/volume/IV/greeks
+  per strike; Order Flow = 5m footprint delta (no 1m); Technicals =
+  daily 20-SMA; ADX/Choppiness on chart; no Order-Block / FVG indicator.
+Impact: the two E33 votes the tape scores as None (ATM OI flow,
+  tick-rule signed volume) are readable on DEXT. Workspace Auto Save
+  is ON: widgets opened were closed again, Default restored.
+Customer action: PAPER only. No order, alert or watchlist created.
+  Founder said yes 2026-11-12: workspace "E33 desk" created (4 charts,
+  chain, technicals, order flow); Default untouched. Daily interval
+  does not persist on reload (set 1 day by hand; Technicals has 20-SMA).
+Backtest tag for 06: none.
+UNKNOWN / DATA_INSUFFICIENT: depth level count after hours; expiry
+  labels in chain/greeks widgets read one day before contract names.
+```
+
 ## As of now (2026-10-05) — C5-06 generateAccessToken mint (PAPER)
 
 ```text
