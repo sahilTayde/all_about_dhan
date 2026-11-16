@@ -26,6 +26,8 @@ SENSEX_OK = "2023-05-15"                     # SENSEX weekly relaunch; earlier S
 HALF = "2024-11-20"                          # LEARN halves split: SEBI one weekly expiry per exchange (critic 10)
 hm = lambda i: f"{(M0 + i) // 60:02d}:{(M0 + i) % 60:02d}"
 rnd = lambda x: np.round(np.asarray(x, float) / TICK) * TICK
+HSX = {"NIFTY": [(20, 0.05), (50, 0.10), (100, 0.20), (200, 0.38), (1e9, 0.80)], "SENSEX": [(20, 0.05), (50, 0.12), (100, 0.23), (200, 0.45), (1e9, 1.35)]}   # spreads_fine.csv p75 by premium (exits can leave the cheap bucket)
+def hsx(sym, p): return next(h for u, h in HSX[sym] if p <= u)
 
 
 def _events():
@@ -246,11 +248,11 @@ def selftest():
     b3 = _day(c, o); b3[:, 1] = b3[:, 3]; b3[:, 2] = b3[:, 3]; b3[105, 1] = 40.0
     tr = leg(b3, spot, "NIFTY", "2024-01-04", "2024-01-04", 31, 3.0); assert tr["why"] == "tgt" and tr["x"] == 12.0 and tr["en"] == 4.0 and tr["held"] == 74, tr
     assert abs(tr["pnl"] - ((12 - 4) * qty("NIFTY", "2024-01-04") - cost(4, 12, "NIFTY", "2024-01-04", "2024-01-04"))) < 1e-6 and qty("NIFTY", "2024-01-04") == 650 and qty("NIFTY", "2024-01-04", 1) == 50
-    b3[105, 6] = 100.0; tr = leg(b3, spot, "NIFTY", "2024-01-04", "2024-01-04", 31, 3.0); assert tr["why"] == "tgt_thin" and tr["thin"] and tr["x"] == 40 - HS, tr
+    b3[105, 6] = 100.0; tr = leg(b3, spot, "NIFTY", "2024-01-04", "2024-01-04", 31, 3.0); assert tr["why"] == "tgt_thin" and tr["thin"] and abs(tr["x"] - (40 - hsx("NIFTY", 40))) < 1e-9, tr   # exits above Rs 20 pay the 20-50 bucket half-spread
     b4 = _day(np.full(NB, 4.0), None); b4[:, 1] = 4.0; b4[:, 2] = 4.0; b4[50, 2] = 1.0; tr = leg(b4, spot, "NIFTY", "2024-01-04", "2024-01-04", 31, 3.0); assert tr["why"] == "sl" and abs(tr["x"] - (4.05 * 0.5 - HS)) <= TICK and tr["held"] == 19, tr   # en 4.05 (open + tick), SL at 50% intrabar, fill - HS, tick-rounded
     b5 = _day(np.full(NB, 4.0), None); b5[:, 1] = 4.0; b5[:, 2] = 4.0; tr = leg(b5, spot, "NIFTY", "2024-01-04", "2024-01-04", 31, 3.0); assert tr["why"] == "time" and tr["held"] == LAST - 31 and tr["x"] == 4.0 - HS, tr
     tr = leg(b5, spot, "NIFTY", "2024-01-04", "2024-01-04", 31, 3.0, tstop=30); assert tr["why"] == "tstop" and tr["held"] == 30, tr
-    assert abs(cost(4, 12, "NIFTY", "2024-01-04", "2024-01-04") - 1.5 * (40 + 0.0005 * (4 + 12) * 650 + 1e-6 * 16 * 650 + 0.18 * (40 + 0.0005 * 16 * 650 + 1e-6 * 16 * 650) + 0.00003 * 4 * 650 + 0.000625 * 12 * 650)) < 1e-9
+    assert abs(cost(4, 12, "NIFTY", "2024-01-04", "2024-01-04") - CM * (40 + 0.0005 * (4 + 12) * 650 + 1e-6 * 16 * 650 + 0.18 * (40 + 0.0005 * 16 * 650 + 1e-6 * 16 * 650) + 0.00003 * 4 * 650 + 0.000625 * 12 * 650)) < 1e-9
     assert len(GRID_A) == 16 and len(GRID_B) == 48 and len(GRID) == 64
     txt = replay(atlas(R, E)["spikes"], E, 1); assert "x10.0" in txt and "| 11:00 | 22850 |" in txt, txt[:400]
     print("hero_lab selftest OK (strict fill, volume-qualified spike, windows, 15:15 cap, zero flag, floor/pmax/OTM/traded guards, no-lookahead scramble, BS share, OI classes, implied vol, replay)")
@@ -430,7 +432,8 @@ def study_precursors():
 
 # ---------------------------------------------------------------- phase 3: cells (families and grids frozen in E43_hero_zero_freeze.md section 13)
 # costs = opt1y_lab COSTS=dated tables (copied: importing opt1y_lab loads a second 2.3 GB panel). Sources: teams/01_research/docs/REPO_HARVEST.md section 5.
-CM = 1.5; STT_SELL = [("2016-06-01", 0.0005), ("2023-04-01", 0.000625), ("2024-10-01", 0.001), ("2026-04-01", 0.0015)]
+CM = float(os.environ.get("CM", "1.0"))   # critic 2 (commit 2): gate at CM=1.0 (the dated tables as they are); CM=1.5 = opt1y_lab's stress multiplier, reported beside it
+STT_SELL = [("2016-06-01", 0.0005), ("2023-04-01", 0.000625), ("2024-10-01", 0.001), ("2026-04-01", 0.0015)]
 TXN_D = {"NIFTY": [("2021-01-01", 0.00053), ("2023-04-01", 0.0005), ("2024-10-01", 0.0003503), ("2026-03-01", 0.000355299)], "SENSEX": [("2023-01-01", 0.000325)]}
 LOT_D = {"NIFTY": [("2021-07-01", 50), ("2024-04-26", 25), ("2024-12-20", 75), ("2025-12-31", 65)], "SENSEX": [("2023-01-01", 10), ("2025-01-04", 20)]}
 _at = lambda tab, d: [v for f, v in tab if f <= d][-1]
@@ -458,19 +461,19 @@ def leg(a, spot, sym, day, exp, e, tgt_x, stop_x=0.5, tstop=None, trail=True, ca
     en = float(rnd(o[e] + HS + stress + chase * max(h[e] - l[e], 0))); tp = tgt_x * en; sl = sl0 = en * (1 - stop_x); hi = en
     q10, q1 = qty(sym, exp, LOTS), qty(sym, exp, 1); s0 = spot[e]; xe = min(LAST, e + tstop) if tstop else LAST; x = why = None; thin = forced = False
     for j in range(e + 1, xe):
-        if not np.isfinite(o[j]): x, why, forced = c[j - 1], "window", True; break
-        if l[j] <= sl: x, why = min(sl, o[j]) - HS - stress, "sl"; break
-        if h[j] >= tp + TICK + HS:
+        if not np.isfinite(o[j]): x, why, forced = c[j - 1] - hsx(sym, c[j - 1]) - stress, "window", True; break
+        if l[j] <= sl: x, why = min(sl, o[j]) - hsx(sym, min(sl, o[j])) - stress, "sl"; break
+        if h[j] >= tp + TICK + hsx(sym, tp):
             if vol[j] >= volx * q10: x, why = tp, "tgt"
-            else: x, why, thin = c[j] - HS - stress, "tgt_thin", True
+            else: x, why, thin = c[j] - hsx(sym, c[j]) - stress, "tgt_thin", True
             break
         hi = max(hi, h[j])
         if trail and hi >= 2 * en: sl = max(sl, 0.6 * hi)
         if cap and np.isfinite(spot[j]) and np.isfinite(s0) and -(spot[j] - s0) * (1 if a is not None else 1) >= 0 and False: pass
         if cap and np.isfinite(spot[j]) and np.isfinite(s0) and cap[0] * (spot[j] - s0) <= -cap[1] * STEP[sym] and j + 1 < xe and np.isfinite(o[j + 1]):
-            x, why = o[j + 1] - HS - stress, "cap"; j += 1; break
+            x, why = o[j + 1] - hsx(sym, o[j + 1]) - stress, "cap"; j += 1; break
     if x is None:
-        j = xe; x, why = (o[j] - HS - stress if np.isfinite(o[j]) else c[j - 1]), ("tstop" if tstop and xe < LAST else "time")
+        j = xe; x, why = (o[j] - hsx(sym, o[j]) - stress if np.isfinite(o[j]) else c[j - 1] - hsx(sym, c[j - 1]) - stress), ("tstop" if tstop and xe < LAST else "time")
     x = max(float(rnd(x)), TICK)
     return dict(en=en, x=x, why=why, held=j - e, thin=thin, forced=forced,
                 pnl=(x - en) * q10 - cost(en, x, sym, day, exp, LOTS), pnl1=(x - en) * q1 - cost(en, x, sym, day, exp, 1))
@@ -602,8 +605,8 @@ def study_cells():
     TEST is NOT touched here (study_test does that once, after commit 2)."""
     from honest_stats import pbo_cscv
     P, days = load_full(); E = load(learn=True, P=P); E = {k: v for k, v in E.items() if not v["sensex_pre"]}
-    R = pd.read_pickle(f"{OUT}/playbook/e43_candidates_learn.pkl"); R = R[~R.sensex_pre & R.ratio_60.notna()]
-    try: F = pd.read_pickle(f"{OUT}/playbook/e43_features_all.pkl"); assert len(F) == len(R)
+    R = pd.read_pickle(f"{OUT}/playbook/e43_candidates_learn.pkl"); R = R[~R.sensex_pre]          # critic (commit 2): no ratio_60 filter here, it reads the future
+    try: F = pd.read_pickle(f"{OUT}/playbook/e43_features_all.pkl"); assert len(F) == len(R) and (F.index == R.index).all()
     except Exception:
         R["spot0"] = [P[(s, d)]["spot"][t] for s, d, t in zip(R.sym, R.day, R.t)]; F = features(R, P, days); F.to_pickle(f"{OUT}/playbook/e43_features_all.pkl")
     print(f"phase 3 LEARN: {len(E)} expiry sym-days, {len(GRID)} configurations ({len(GRID_A)} A, {len(GRID_B)} B+C)", flush=True)
@@ -631,6 +634,7 @@ def study_cells():
             ms = [placebo_trades(T, cfg, E, rg, nm).mean() for _ in range(NPL)]
             PL[f"pl_{nm}"] = float(np.mean(np.array(ms) >= st["mean"])) if ms else np.nan
         S2 = trades(E, P, days, F, R, [cfg], stress=2 * TICK, chase_b=0.25); st.update(PL, stress_mean=S2.pnl.mean() if len(S2) else np.nan, stress_mean1=S2.pnl1.mean() if len(S2) else np.nan)
+        fr = next(r for r in rows if r["cell"].startswith(f["fam"])); st.update(loyo_mean=fr["mean"], loyo_p=fr["p"], pbo=fr["pbo"], cm=CM)
         cells.append(st); print(f"cell {f['cfg']}: n {st['n']} mean {st['mean']:,.0f} p {st['p']:.4f} win {st['win']:.2f} 1lot {st['mean1']:,.0f} p1 {st['p1']:.4f} placebo(day) {st['pl_day']:.3f} stress {st['stress_mean']:,.0f} top5 {st['top5_share']:.2f} thin {st['thin']:.2f} forced {st['forced']:.3f} drop3 {st['drop3']:,.0f}", flush=True)
     C = pd.DataFrame(cells); C.to_csv(f"{OUT}/playbook/e43_cells_learn.csv", index=False); print(f"\nwrote e43_cells_learn.csv ({len(C)} cells); alpha = 0.05 / {len(C)} = {0.05 / max(len(C), 1):.5f}")
 
@@ -649,8 +653,8 @@ def cross_table(E, P, R):
     straddle, the chain (OI, volume). All features use bars <= t (OI lagged OI_LAG)."""
     lab = R[R.t.apply(lambda t: any(a <= t <= b for a, b in WIN_X))].groupby(["sym", "day", "t", "side"]).agg(spk5=("ratio_60", lambda x: (x >= 5).any()), spk3=("ratio_60", lambda x: (x >= 3).any()), best=("ratio_60", "max"), n=("p0", "size")).reset_index()
     sp3 = {(r.sym, r.day, r.side): set() for r in lab.itertuples()}
-    for r in R[R.ratio_60 >= 3].itertuples():                       # minutes at which a cheap strike on (sym, day, side) had STARTED a >= 3x move: used for "spike in the prior 15 min"
-        if r.tmax_60 == r.tmax_60: sp3.setdefault((r.sym, r.day, r.side), set()).add(int(r.t))
+    for r in R[R.ratio_60 >= 3].itertuples():                       # the minute a >= 3x move COMPLETED (its max); "spiked in the prior 15 min" = that minute in [t-15, t) (critic: no look-ahead)
+        if r.tmax_60 == r.tmax_60: sp3.setdefault((r.sym, r.day, r.side), set()).add(int(r.t) + int(r.tmax_60))
     rows = []
     for r in lab.itertuples():
         v = E[(r.sym, r.day)]; oth = "SENSEX" if r.sym == "NIFTY" else "NIFTY"; vo = P.get((oth, r.day)); t = int(r.t); st = STEP[r.sym]; sgn = 1 if r.side == "CE" else -1; spot = v["spot"]
@@ -707,7 +711,8 @@ def study_cross():
             if y[te].sum() < 5: continue
             aucs.append(auc(x[te], y[te]))
         a = np.array(aucs); flip = a.mean() < 0.5
-        q = np.nanpercentile(x[ok], 20 if flip else 80); alarm = (x <= q) if flip else (x >= q)
+        rk = pd.Series(x).rank(pct=True, method="average").values            # rank threshold: discrete / binary features cannot alarm on everything (critic)
+        alarm = (rk <= 0.2) if flip else (rk >= 0.8)
         rec = y[ok & alarm].sum() / y[ok].sum(); fa = (alarm & ok & (y == 0)).sum() / (ok & (y == 0)).sum(); prec = y[ok & alarm].mean()
         rows.append(dict(feat=f, n=int(ok.sum()), auc_mean=a.mean(), auc_min=a.min(), auc_max=a.max(), direction="low" if flip else "high", catch_at_top20=rec, false_alarm=fa, precision=prec, base=y[ok].mean()))
     O = pd.DataFrame(rows).sort_values("auc_mean", ascending=False); print("\n-- per feature: LOYO AUC for 'spike within 60 min' (0.5 = nothing); catch = share of spike-slots in the top-20% alarm; false_alarm = share of non-spike slots alarmed\n" + O.round(3).to_string())
@@ -721,8 +726,8 @@ def study_cross():
         n = g[g.sym == "NIFTY"].tm.min(); s_ = g[g.sym == "SENSEX"].tm.min(); lead.append(n - s_)
     if lead: print("   NIFTY max minus SENSEX max on those days (minutes; negative = NIFTY first):", np.round(np.percentile(lead, [10, 50, 90]), 0), "n", len(lead))
     # exploratory P&L at the alarms of the best feature (LEARN only; not a frozen cell)
-    if len(O):
-        f = O.iloc[0].feat; flip = O.iloc[0].direction == "low"; q = np.nanpercentile(X[f].dropna(), 20 if flip else 80); A = X[(X[f] <= q) if flip else (X[f] >= q)]
+    for f in ("range30", O.iloc[0].feat) if len(O) else ():
+        flip = O.set_index("feat").loc[f, "direction"] == "low"; rk = X[f].rank(pct=True); A = X[(rk <= 0.2) if flip else (rk >= 0.8)]
         out = []
         for r in A.itertuples():
             v = E[(r.sym, r.day)]; pk = _pick(v, r.sym, r.side, int(r.t), 10)
@@ -747,8 +752,8 @@ def trades_D(E, X, thr, k, ts):
 
 def verdict(L, T, alpha, min_learn=(100, 60), min_test=40):
     """the frozen pass rule (sections 7, 12): LEARN mean > 0 p < alpha, both halves > 0, drop3 > 0, 1 lot > 0; TEST n >= 40, net > 0 p < 0.05, placebo(day) < 0.05, forced <= 5%, stress > 0, 1 lot > 0."""
-    if L["n"] < min_learn[0] or L["days"] < min_learn[1] or T["n"] < min_test: return "UNTESTABLE"
-    ok = (L["mean"] > 0 and L["p"] < alpha and L["h1"] > 0 and L["h2"] > 0 and L["drop3"] > 0 and L["mean1"] > 0
+    if L["n"] < min_learn[0] or L["days"] < min_learn[1] or T["n"] < min_test or T.get("days", 0) < 20: return "UNTESTABLE"
+    ok = (L["mean"] > 0 and L["p"] < alpha and L.get("loyo_mean", -1) > 0 and L.get("pbo", 1) < 0.5 and L["h1"] > 0 and L["h2"] > 0 and L["drop3"] > 0 and L["mean1"] > 0
           and T["mean"] > 0 and T["p"] < 0.05 and T["pl_day"] < 0.05 and T["forced"] <= 0.05 and T["stress_mean"] > 0 and T["mean1"] > 0)
     return "PASS" if ok else "FAIL"
 
@@ -757,7 +762,7 @@ def study_test():
     import json
     cells = json.load(open(f"{OUT}/playbook/e43_cells_frozen.json")); L = pd.read_csv(f"{OUT}/playbook/e43_cells_learn.csv").set_index("cell")
     P, days = load_full(); E = load(learn=False, P=P); assert all(k[1] >= HO for k in E); print(f"TEST expiry sym-days {len(E)} (read once, {HO}..)", flush=True)
-    R = candidates(E, pmax=max(PMAX)); R = R[R.ratio_60.notna()]; R["spot0"] = [P[(s, d)]["spot"][t] for s, d, t in zip(R.sym, R.day, R.t)]; F = features(R, P, days)
+    R = candidates(E, pmax=max(PMAX)); R["spot0"] = [P[(s, d)]["spot"][t] for s, d, t in zip(R.sym, R.day, R.t)]; F = features(R, P, days)
     rg = np.random.default_rng(99); rows = []; alpha = 0.05 / len(cells)
     for c in cells:
         cfg = c["cfg"]
