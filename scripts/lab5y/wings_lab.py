@@ -1,7 +1,7 @@
-"""Spot-fix re-score of the expiry-day strangles + E38w defined-risk wings (paper research; no orders, no broker calls).
-Frozen rules: registry rows E39 (spot fix, kill rule) and E38 (section E38w, frozen 2026-11-16 before any wing cell was priced).
+"""Spot-fix re-score of the expiry-day strangles + E43 defined-risk wings (paper research; no orders, no broker calls).
+Frozen rules: registry rows E39s (spot fix, kill rule) and E43 ( frozen 2026-11-16 before any wing cell was priced).
 Run (from scripts/lab5y):
-  LAB_FULL=1 HO=2025-10-27 COSTS=dated ~/paper_extra_venv/bin/python wings_lab.py OUT [selftest|spotcheck|base|e38]
+  LAB_FULL=1 HO=2025-10-27 COSTS=dated ~/paper_extra_venv/bin/python wings_lab.py OUT [selftest|spotcheck|base|e43]
 Books, expiry day only, OTM1 strangle (short CE ATM+1, short PE ATM-1), exits = spot 1.5 strikes / credit loss 30% / 15:15:
   XS  = every expiry day, decided at the 10:07 close, filled at the 10:08 open (fin1_shadow XS control)
   IVX = first 1-pt ATM-IV fall over 15 bars after 09:46 (the E42 cell IVS x EXPIRY=0)
@@ -64,7 +64,7 @@ def untraded_pct(base, cell):
 
 
 def verdict(b, c, untraded, alpha=ALPHA):
-    """frozen E38w rule. b / c = splits() of the naked book / the wing cell."""
+    """frozen E43 rule. b / c = splits() of the naked book / the wing cell."""
     if untraded > UNTRADED_MAX: return "INCONCLUSIVE"
     cut = all(c[s]["worst"] >= 0.5 * b[s]["worst"] and c[s]["maxdd"] >= 0.5 * b[s]["maxdd"] for s in ("LEARN", "ALL"))  # losses are negative
     ok = cut and c["LEARN"]["mean"] >= KILL and c["TEST"]["mean"] >= KILL and c["LEARN"]["p"] < alpha and c["TEST"]["p"] < 0.05
@@ -88,20 +88,20 @@ def study_base():
           "PARKED" if (iv < KILL).any() else "stays CANDIDATE (log only)")
 
 
-def study_e38():
-    """step 2 (E38w): XS and IVS with bought wings at OTM3 / OTM4. One run, 4 cells, Bonferroni 4."""
+def study_e43():
+    """step 2 (E43): XS and IVS with bought wings at OTM3 / OTM4. One run, 4 cells, Bonferroni 4."""
     os.makedirs(WD, exist_ok=True); E = entries(); rows = []
     for nm in ("XS", "IVS"):
         B = price(E[nm], STR1); b = splits(B)
         for s in ("LEARN", "TEST", "ALL"): rows.append(dict(cell=f"{nm} naked", split=s, **b[s], untraded=np.nan, verdict="base"))
         for w in WINGS:
-            C = price(E[nm], S.icon(1, w)); C.to_csv(f"{WD}/e38_{nm}_w{w}_{L.COSTS}.csv", index=False); c = splits(C); u = untraded_pct(B, C)
+            C = price(E[nm], S.icon(1, w)); C.to_csv(f"{WD}/e43_{nm}_w{w}_{L.COSTS}.csv", index=False); c = splits(C); u = untraded_pct(B, C)
             v = verdict(b, c, u); m = B.pnl.notna() & C.pnl.notna(); bm = splits(B[m])
             for s in ("LEARN", "TEST", "ALL"): rows.append(dict(cell=f"{nm} + OTM{w} wings", split=s, **c[s], untraded=round(u, 1), verdict=v))
             print(f"{nm} w{w}: untraded {u:.1f}% (no fill {int((C.pnl.isna() & B.pnl.notna()).sum())}, forced {int(C.forced.sum())}); matched naked on the cell's own days: "
                   f"worst {bm['ALL']['worst']}, maxdd {bm['ALL']['maxdd']}, mean {bm['ALL']['mean']}; wing cost/trade {c['ALL']['mean'] - bm['ALL']['mean']:+.0f}; "
                   f"mean net credit {C.credit.mean():.1f} vs naked {B.credit.mean():.1f} pts; exits {C[C.pnl.notna()].why.value_counts().to_dict()} vs naked {B[B.pnl.notna()].why.value_counts().to_dict()}", flush=True)
-    R = _show(rows); R.to_csv(f"{WD}/e38_{L.COSTS}.csv", index=False)
+    R = _show(rows); R.to_csv(f"{WD}/e43_{L.COSTS}.csv", index=False)
     print(f"PASS needs: untraded <= {UNTRADED_MAX}%, worst trade and maxdd each cut >= half vs the naked book (LEARN and ALL), mean >= {KILL:.0f}/trade on LEARN and TEST, "
           f"LEARN p < 0.05/{len(CELLS)} = {ALPHA}, TEST p < 0.05")
 
