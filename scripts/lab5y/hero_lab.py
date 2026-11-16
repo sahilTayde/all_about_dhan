@@ -246,5 +246,176 @@ def selftest():
     print("hero_lab selftest OK (strict fill, volume-qualified spike, windows, 15:15 cap, zero flag, floor/pmax/OTM/traded guards, no-lookahead scramble, BS share, OI classes, implied vol, replay)")
 
 
+
+# ---------------------------------------------------------------- phase 2: precursors (LEARN only; critic 4, 5, 11, 14)
+OI_LAG = int(os.environ.get("OI_LAG", "2"))     # oicad 2026-11-16: OI unchanged on 71% of traded bars, |dOI| tracks the PRIOR bar's volume (0.327 vs 0.305) -> 1 bar stale + 1
+NBOOT = int(os.environ.get("NBOOT", "40")); NPERM = int(os.environ.get("NPERM", "100")); STRIDE = int(os.environ.get("STRIDE", "3"))  # phase 2 cost knobs (slots every 15 min by default)     # bars of OI staleness measured by `oicad` + 1 (critic 5); set before phase 2 from the measurement
+FEATS = ["r15", "r60", "range30", "compress", "or_pos", "vs_pdh", "vs_pdl", "vs_pdc", "vs_wk", "vs_mo", "fh_er",
+         "d_iv15", "iv_rel", "doi15", "doi15_m", "cls", "cls_m", "vsurge", "pcr_d", "wall_steps", "oi_rank", "gam_conc", "sd_decay"]
+NUMF = [f for f in FEATS if f not in ("cls", "cls_m")]
+
+
+def _levels(P, sym, day, days):
+    """prior-day high/low/close, week open, month open from the FULL panel (all days), spot only."""
+    i = days.index(day); pc = P[(sym, days[i - 1])]["spot"] if i > 0 else None
+    wk = next((d for d in days[:i + 1][::-1] if pd.Timestamp(d).weekday() == 0 or d == days[0]), day)
+    wk = [d for d in days[:i + 1] if pd.Timestamp(d).isocalendar()[1] == pd.Timestamp(day).isocalendar()[1] and d[:4] == day[:4]][0]
+    mo = [d for d in days[:i + 1] if d[:7] == day[:7]][0]
+    return dict(pdh=np.nanmax(pc) if pc is not None else np.nan, pdl=np.nanmin(pc) if pc is not None else np.nan,
+                pdc=pc[LAST + 14] if pc is not None else np.nan, wk_open=P[(sym, wk)]["spot"][0], mo_open=P[(sym, mo)]["spot"][0])
+
+
+def load_full(path=None):
+    P = pickle.load(open(path or f"{OUT}/panel_off10h.pkl", "rb")); days = collections.defaultdict(list)
+    for (s, d) in P: days[s].append(d)
+    for s in days: days[s].sort()
+    return P, days
+
+
+def features(R, P, days, lag=OI_LAG):
+    """per candidate row, features from bars <= t only (OI from bars <= t - lag). Vectorised per sym-day group."""
+    F = {}; g = lambda a, i: a[i] if 0 <= i < NB else np.nan
+    for (sym, day), G in R.groupby(["sym", "day"]):
+        v = P[(sym, day)]; spot = v["spot"]; st = STEP[sym]; L = _levels(P, sym, day, days[sym]); C = v["C"]
+        orh, orl = np.nanmax(spot[:31]), np.nanmin(spot[:31])
+        atm = v["atm"]
+        for idx, r in G.iterrows():
+            t = int(r.t); a = C[(r.side, r.K)]; sgn = 1 if r.side == "CE" else -1; tl = t - lag
+            f = {}
+            f["r15"] = sgn * (spot[t] - g(spot, t - 15)) / st; f["r60"] = sgn * (spot[t] - g(spot, t - 60)) / st
+            w = spot[max(0, t - 30):t + 1]; f["range30"] = (np.nanmax(w) - np.nanmin(w)) / st; f["compress"] = f["range30"] / max((orh - orl) / st, 0.5)
+            f["or_pos"] = sgn * ((spot[t] - orl) / (orh - orl) - 0.5) if orh > orl else 0.0
+            f["vs_pdh"] = sgn * (spot[t] - L["pdh"]) / st; f["vs_pdl"] = sgn * (spot[t] - L["pdl"]) / st; f["vs_pdc"] = sgn * (spot[t] - L["pdc"]) / st
+            f["vs_wk"] = sgn * (spot[t] - L["wk_open"]) / st; f["vs_mo"] = sgn * (spot[t] - L["mo_open"]) / st
+            w60 = spot[max(0, t - 60):t + 1]; dd = np.abs(np.diff(w60)); f["fh_er"] = abs(w60[-1] - w60[0]) / dd.sum() if dd.sum() > 0 else 0.0
+            f["d_iv15"] = a[t, 5] - g(a[:, 5], t - 15); f["iv_rel"] = a[t, 5] / (C[("CE", atm[t])][t, 5] if (atm[t] == atm[t] and ("CE", atm[t]) in C) else np.nan)
+            f["doi15"] = (g(a[:, 4], tl) - g(a[:, 4], tl - 15)) / LOT[sym]; dp = a[t, 3] - g(a[:, 3], t - 15); f["cls"] = oi_class(dp, f["doi15"])
+            Km = r.K - 2 * sgn * r.dist * st if False else (spot[t] - sgn * r.dist * st); Km = round(Km / st) * st; m = C.get(("PE" if r.side == "CE" else "CE", Km))
+            f["doi15_m"] = (g(m[:, 4], tl) - g(m[:, 4], tl - 15)) / LOT[sym] if m is not None else np.nan
+            f["cls_m"] = oi_class(m[t, 3] - g(m[:, 3], t - 15), f["doi15_m"]) if m is not None else "NA"
+            v5 = np.nansum(a[max(0, t - 4):t + 1, 6]); vb = np.nansum(a[max(0, t - 34):max(0, t - 4), 6]) / 6; f["vsurge"] = v5 / vb if vb > 0 else np.nan
+            dce = dpe = 0.0; wall = np.nan; best = -1; oir = []
+            for (sd, K2), b in C.items():
+                if abs(K2 - spot[t]) > 5 * st or not np.isfinite(b[tl, 4]): continue
+                d = b[tl, 4] - g(b[:, 4], tl - 15)
+                if sd == "CE": dce += d if d == d else 0
+                else: dpe += d if d == d else 0
+                if sd == r.side and b[tl, 4] > best: best = b[tl, 4]; wall = sgn * (K2 - spot[t]) / st
+                if sd == r.side: oir.append(b[tl, 4])
+            f["pcr_d"] = sgn * (dpe - dce) / LOT[sym]; f["wall_steps"] = wall
+            f["oi_rank"] = float(np.mean(np.array(oir) <= g(a[:, 4], tl))) if oir else np.nan
+            gn = gt = 0.0
+            for (sd, K2), b in C.items():
+                if not (np.isfinite(b[t, 5]) and 1 < b[t, 5] < 200 and np.isfinite(b[tl, 4])): continue
+                T = T_min(t); vv = b[t, 5] / 100; d1 = (math.log(spot[t] / K2) + 0.5 * vv * vv * T) / (vv * math.sqrt(T)); gm = math.exp(-0.5 * d1 * d1) / (spot[t] * vv * math.sqrt(2 * math.pi * T))
+                x = gm * b[tl, 4]; gt += x; gn += x if abs(K2 - spot[t]) <= 2 * st else 0
+            f["gam_conc"] = gn / gt if gt > 0 else np.nan
+            ce, pe = C.get(("CE", atm[t])), C.get(("PE", atm[t])); a30 = atm[t - 30] if t >= 30 else np.nan
+            if ce is not None and pe is not None and a30 == a30 and ("CE", a30) in C and ("PE", a30) in C:
+                s_now = ce[t, 3] + pe[t, 3]; s_then = C[("CE", a30)][t - 30, 3] + C[("PE", a30)][t - 30, 3]
+                f["sd_decay"] = (s_now / s_then) / math.sqrt(T_min(t) / T_min(t - 30)) if s_then > 0 else np.nan
+            else: f["sd_decay"] = np.nan
+            F[idx] = f
+    return pd.DataFrame.from_dict(F, orient="index").reindex(R.index)
+
+
+def touch_prob(S, K, T, v, cp):
+    """reflection-principle probability that the spot touches the strike before expiry at the entry IV (driftless)."""
+    S, K, T, v = (np.asarray(x, float) for x in (S, K, T, v)); d = np.abs(np.log(K / S)) / (v * np.sqrt(T)); return 2 * (1 - _N(d))
+
+
+def _logit(X, y, l2=1e-3, it=50):
+    """IRLS logistic regression with a tiny ridge; X without intercept (added here); returns the weight vector."""
+    X = np.c_[np.ones(len(X)), X]; w = np.zeros(X.shape[1])
+    for _ in range(it):
+        p = 1 / (1 + np.exp(-X @ w)); W = p * (1 - p) + 1e-9
+        H = X.T @ (X * W[:, None]) + l2 * np.eye(X.shape[1]); gr = X.T @ (y - p) - l2 * w
+        step = np.linalg.solve(H, gr); w = w + step
+        if np.abs(step).max() < 1e-8: break
+    return w
+
+
+def auc(score, y):
+    r = pd.Series(score).rank().values; n1 = y.sum(); n0 = len(y) - n1
+    return (r[y == 1].sum() - n1 * (n1 + 1) / 2) / (n1 * n0) if n1 and n0 else np.nan
+
+
+def _z(X, mu=None, sd=None):
+    mu = X.mean(0) if mu is None else mu; sd = X.std(0) + 1e-9 if sd is None else sd; return (X - mu) / sd, mu, sd
+
+
+def precursors(R, F, labels=(("D10_5x_60", lambda R: (R.p0 <= 10) & (R.ratio_60 >= 5), lambda R: R.p0 <= 10), ("D20_3x_60", lambda R: R.ratio_60 >= 3, lambda R: R.p0 <= 20)),
+               nperm=None, seed=43):
+    """critic 4: per feature, AUC added over the pricing baseline (log price, steps OTM, minutes to 15:15, touch probability) in leave-one-year-out
+    rotations (2021-22 | 2023 | 2024 | 2025), day-block bootstrap CI of the mean dAUC, day-permutation null, BH-FDR across features x labels."""
+    rg = np.random.default_rng(seed); out = []; nperm = NPERM if nperm is None else nperm
+    S0 = R.spot0.values; tp = touch_prob(S0, R.K.values, T_min(R.t.values), np.where(np.isfinite(R.iv0), R.iv0, np.nanmedian(R.iv0)), R.side.values)
+    base = np.c_[np.log(R.p0.values), R.dist.values, (LAST - R.t.values) / 60.0, tp]
+    yrs = R.yr.replace({"2021": "2022"}).values; rot = sorted(set(yrs)); days = R.day.values
+    cat = {"cls": pd.get_dummies(F.cls).reindex(columns=["LONG_BUILD", "SHORT_BUILD", "SHORT_COVER", "LONG_UNWIND"], fill_value=0).values.astype(float),
+           "cls_m": pd.get_dummies(F.cls_m).reindex(columns=["LONG_BUILD", "SHORT_BUILD", "SHORT_COVER", "LONG_UNWIND"], fill_value=0).values.astype(float)}
+    def dauc(Xb, Xf, y, mask, perm=None):
+        """mean over rotations of AUC(base+feat) - AUC(base) on the held-out year; perm = permuted-by-day label vector."""
+        yy = y if perm is None else perm; ds = []
+        for h in rot:
+            tr = mask & (yrs != h); te = mask & (yrs == h)
+            if yy[tr].sum() < 20 or yy[te].sum() < 5 or (1 - yy[te]).sum() < 5: continue
+            zb, mu, sd = _z(Xb[tr]); wb = _logit(zb, yy[tr]); zf, mu2, sd2 = _z(Xf[tr]); wf = _logit(zf, yy[tr])
+            sb = np.c_[np.ones(te.sum()), _z(Xb[te], mu, sd)[0]] @ wb; sf = np.c_[np.ones(te.sum()), _z(Xf[te], mu2, sd2)[0]] @ wf
+            ds.append((auc(sf, yy[te]) - auc(sb, yy[te]), auc(sb, yy[te]), auc(sf, yy[te])))
+        return ds
+    for lname, lab, cond in labels:
+        y = lab(R).values.astype(float); m0 = cond(R).values & np.isfinite(R.ratio_60.values)
+        strata = pd.factorize(pd.Series(list(zip(pd.cut(R.p0, [0.99, 2, 5, 10, 20.01]).astype(str), pd.cut(R.dist, [0.99, 2, 4, 7, 10.5]).astype(str), (R.t + M0) // 60))))[0]
+        def permute(col, ok):
+            """null: the feature shuffled within (premium, distance, hour) strata; the baseline columns stay, so dAUC under the null is pure noise."""
+            c = col.copy()
+            for st_ in np.unique(strata[ok]):
+                idx = np.where(ok & (strata == st_))[0]; c[idx] = c[rg.permutation(idx)]
+            return c
+        for f in FEATS:
+            col = cat[f] if f in cat else F[f].values[:, None]
+            ok = m0 & np.isfinite(col).all(1) & np.isfinite(base).all(1)
+            if ok.sum() < 200 or y[ok].sum() < 20: out.append(dict(label=lname, feat=f, n=int(ok.sum()), note="too few")); continue
+            Xf = np.c_[base, col]; ds = dauc(base, Xf, y, ok)
+            if not ds: out.append(dict(label=lname, feat=f, n=int(ok.sum()), note="no rotation")); continue
+            d = np.array([x[0] for x in ds]); every = bool((d > 0).all())
+            # day-block bootstrap of the mean dAUC: resample days within each held-out year
+            B = []
+            for _ in range(NBOOT):
+                keep = np.isin(days, rg.choice(np.unique(days[ok]), size=len(np.unique(days[ok])), replace=True)); bb = dauc(base, Xf, y, ok & keep)
+                if bb: B.append(np.mean([x[0] for x in bb]))
+            lo, hi = (np.percentile(B, [2.5, 97.5]) if B else (np.nan, np.nan))
+            null = [np.mean([x[0] for x in dauc(base, np.c_[base, permute(col, ok)], y, ok)] or [np.nan]) for _ in range(nperm)]
+            pperm = float(np.mean(np.array(null) >= d.mean())) if null else np.nan
+            lift = np.nan
+            if f not in cat:
+                q = F[f].values[ok]; hi_q = q >= np.nanpercentile(q, 80); lift = y[ok][hi_q].mean() / max(y[ok].mean(), 1e-9)
+            out.append(dict(label=lname, feat=f, n=int(ok.sum()), pos=int(y[ok].sum()), base_auc=np.mean([x[1] for x in ds]), feat_auc=np.mean([x[2] for x in ds]), dauc=d.mean(), dauc_min=d.min(),
+                            every_rot=every, ci_lo=lo, ci_hi=hi, p_perm=pperm, lift_top20=lift))
+    O = pd.DataFrame(out)
+    if "p_perm" in O:
+        ok = O.p_perm.notna(); pv = O.loc[ok, "p_perm"].values; n = len(pv); order = np.argsort(pv); bh = np.empty(n); bh[order] = np.minimum.accumulate((pv[order] * n / np.arange(1, n + 1))[::-1])[::-1]
+        O.loc[ok, "q_bh"] = np.clip(bh, 0, 1); O["precursor"] = ok & O.every_rot.fillna(False) & (O.q_bh < 0.1) & (O.ci_lo > 0)
+    return O
+
+
+def study_precursors():
+    R = pd.read_pickle(f"{OUT}/playbook/e43_candidates_learn.pkl"); assert (R.day < HO).all(), "TEST rows in the LEARN candidates"
+    R = R[~R.sensex_pre & (R.ratio_60.notna()) & (((R.t - 5) // 5) % STRIDE == 0)].copy(); print(f"phase 2 on {len(R)} LEARN candidate strike-slots ({R.day.nunique()} days), OI_LAG={OI_LAG}", flush=True)
+    P, days = load_full(); R["spot0"] = [P[(s, d)]["spot"][t] for s, d, t in zip(R.sym, R.day, R.t)]
+    F = features(R, P, days); del P
+    # IV quality (critic 11): own BS IV vs Dhan IV by premium bucket
+    q = R.assign(iv_gap=(R.iv0 * 100 - R.iv_dhan).abs(), p_b=pd.cut(R.p0, [0.99, 2, 5, 10, 20.01]), ttc=pd.cut(LAST - R.t, [0, 60, 120, 240, 400]))
+    print("IV quality: |own BS IV - Dhan IV| (IV points) by premium bucket x minutes to 15:15\n" + q.groupby(["p_b", "ttc"], observed=True).iv_gap.agg(["count", "median", lambda x: np.mean(x > 5)]).round(2).to_string(), flush=True)
+    bad = (q.iv_gap > 5) & (q.iv_gap / q.iv_dhan.abs().clip(lower=1) > 0.2); F.loc[bad.values, ["d_iv15", "iv_rel"]] = np.nan; print(f"IV features dropped on {bad.mean():.3f} of rows (disagreement > 5 pts and > 20%)")
+    F.to_pickle(f"{OUT}/playbook/e43_features_learn.pkl")
+    for c in ("cls", "cls_m"):
+        print(f"\n-- lift by {c} (P(ratio_60 >= 3) and >= 5 by OI class, p0 <= 10):\n" + R[R.p0 <= 10].assign(k=F[c]).groupby("k").agg(n=("p0", "size"), P3=("ratio_60", lambda x: (x >= 3).mean()), P5=("ratio_60", lambda x: (x >= 5).mean()), mean_ratio=("ratio_60", "mean")).round(3).to_string())
+    O = precursors(R, F); pd.set_option("display.width", 250); print("\n== precursor scoring (leave-one-year-out dAUC over the pricing baseline; day-block CI; day-permutation p; BH q) ==")
+    print(O.round(4).to_string()); O.to_csv(f"{OUT}/playbook/e43_precursors.csv", index=False)
+    print("\nPRECURSORS (every rotation > 0, CI low > 0, q_bh < 0.1):", O[O.get("precursor", False) == True][["label", "feat", "dauc", "q_bh"]].to_string() if "precursor" in O else "none")
+
+
 if __name__ == "__main__":
-    {"atlas": study_atlas, "oicad": lambda: oi_cadence(load(learn=True)), "selftest": selftest}[sys.argv[1]]()
+    {"atlas": study_atlas, "precursors": study_precursors, "oicad": lambda: oi_cadence(load(learn=True)), "selftest": selftest}[sys.argv[1]]()
