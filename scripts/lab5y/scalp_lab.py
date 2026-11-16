@@ -4,7 +4,7 @@ Run (from scripts/lab5y):
 Reuses opt1y_lab (panel P, p75 half-spread table hs, dated charges x1.5, untraded-bar guard, 10 lots). Nothing here edits another lab.
 Units, always both: PREMIUM points (Rs per point = units traded, 650 NIFTY / 200 SENSEX at 10 lots today) and INDEX points
 (premium points / the option's measured delta)."""
-import sys, numpy as np, pandas as pd
+import sys, os, numpy as np, pandas as pd
 import opt1y_lab as L
 
 P, STEP, M0, NB = L.P, L.STEP, L.M0, L.NB
@@ -626,6 +626,35 @@ def study_e45():
     T = pd.DataFrame(rows); T.to_csv(f"{L.OUT}/scalp_e45.csv", index=False); pd.set_option("display.width", 400); pd.set_option("display.max_columns", 50)
     rd = {c: 0 for c in ("net10", "net5", "maxdd", "net_2x", "net_close", "plac_mean")}; rd.update({c: 3 for c in ("win", "p_tgt", "p_stop", "p_time", "p_plac", "rc_p")}); rd.update(per_day=2, loss_on_stop=2, pts_prem=2, pts_net=2, pts_idx=2, p=4, forced_pct=2)
     print(T.round(rd).to_string(index=False))
+
+
+# ================================================================ E46: sub-minute tick / depth tape (exploratory: every result is a LEAD)
+TAPE = os.environ.get("TAPE", os.path.join(os.path.dirname(os.path.abspath(__file__)), "../../data/tape/v2"))
+TAPEC = os.environ.get("TAPEC", os.path.join(L.OUT, "..", "tapetick"))
+TAPE_DAYS = ["2026-10-12", "2026-10-13", "2026-10-14", "2026-10-15", "2026-10-16", "2026-10-19", "2026-10-21", "2026-10-22", "2026-10-28", "2026-10-29", "2026-11-13"]
+
+
+def study_tapecache():
+    """depth_quotes.jsonl -> one parquet per day with EVERY non-repeat tick of every instrument (index, futures, options):
+    t = receipt time in ms since midnight IST (what the desk could know), xt = exchange time, best bid/ask + sizes, 5-level size sums,
+    second-level prices, ltp, oi. Read-only on the tape; no broker calls."""
+    import json
+    os.makedirs(TAPEC, exist_ok=True)
+    ms = lambda z: (int(z[11:13]) * 3600 + int(z[14:16]) * 60 + int(z[17:19])) * 1000 + (int(z[20:23]) if len(z) > 20 and z[19] == "." else 0)
+    for day in TAPE_DAYS:
+        out = f"{TAPEC}/{day}.parquet"
+        if os.path.exists(out): continue
+        rows = []
+        with open(f"{TAPE}/{day}/depth_quotes.jsonl") as f:
+            for ln in f:
+                if '"repeat":true' in ln: continue
+                try: e = json.loads(ln)
+                except Exception: continue
+                p = e["payload"]; lv = p.get("levels") or {}; b, a = lv.get("bid") or [], lv.get("ask") or []; xt = p.get("exchange_ts") or e["timestamp"]
+                rows.append((ms(e["timestamp"]), ms(xt), p["instrument_id"], p.get("bid"), p.get("ask"), p.get("bid_qty"), p.get("ask_qty"), p.get("ltp"), p.get("oi"),
+                             sum(q for _, q in b) if b else None, sum(q for _, q in a) if a else None, b[1][0] if len(b) > 1 else None, a[1][0] if len(a) > 1 else None))
+        df = pd.DataFrame(rows, columns="t xt iid bid ask bq aq ltp oi b5 a5 bid2 ask2".split()); df["iid"] = df.iid.astype("category")
+        df.to_parquet(out); print(day, len(df), df.iid.nunique(), flush=True)
 
 
 def study_selftest():
