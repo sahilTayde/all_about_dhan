@@ -484,5 +484,530 @@ def study_selftest():
     print(f"yt_lab selftest OK (COSTS={L.COSTS}): indicators, pivot picker, level exits, feature alignment, F44 / SC / OVW / OIX / GB signals, struct pricing, placebo twins, verdict rule")
 
 
+# ================================================================ E53 (YouTube wave 2): seven frozen cells, one per rule. Frozen text: side-session
+# note E53_youtube_freeze.md. Nothing above this line is changed by E53 (E51 runs as before). Run: yt_lab.py OUT selftest53|lookahead53|count53|gross53|e53|final53
+#   GS   09:30 sell one 1-1.5% OTM option on the side of the overnight move     PR   09:25 premium race: buy the ITM option that crosses a level first
+#   A220 break of the 14:20 five-minute bar, buy ATM                            PCR  11:00 change-in-OI PCR, buy an OTM option near its own VWAP
+#   OIC  09:30 OI-wall asymmetry, credit spread                                 ORS  30-minute opening range, sell the opposite ATM option
+#   BBH  first-hour Bollinger lower band + Heikin Ashi turn on the option's 1m chart (half out at 2R, runner at cost)
+CELLS53 = ["GS", "PR", "A220", "PCR", "OIC", "ORS", "BBH"]; ALPHA53 = 0.05 / len(CELLS53)
+WIN53 = dict(GS=(5, 105), GSm=(5, 105), PR=(5, 105), A220=(225, 334), PCR=(105, 284), OIC=(5, 105), ORS=(30, 344), BBH=(2, 61))   # placebo entry minutes
+EVENTS = L.RBI | {"2022-02-01", "2023-02-01", "2024-02-01", "2024-07-23", "2025-02-01", "2026-02-01", "2024-06-04"}   # RBI, Union Budget, election result
+LEAK53 = None              # lookahead53 positive controls: "bar" (A220 reads a bar 20 minutes ahead), "centre" (BBH band), "range" (ORS range = the day's last close)
+
+
+def _off(p, i, K, sym):
+    """K as a strike offset from the ATM of minute i (struct's leg format)."""
+    return int(round((K - p["atm"][i]) / STEP[sym]))
+
+
+def x_opt(a, i, up=None, dn=None, end=XL):
+    """exit-decision minute on one contract's 1m closes: the first j in (i, end) with close >= up or close <= dn; else end."""
+    for j in range(i + 1, end):
+        if (up is not None and a[j, 3] >= up) or (dn is not None and a[j, 3] <= dn): return j
+    return end
+
+
+# ---------------------------------------------------------------- GS
+def gs_pick(p, i, side):
+    """the strike of `side` 1.0-1.5% of spot out of the money whose close at i is in 0.122-0.170% of spot, nearest 0.146%; None if none."""
+    s = p["spot"][i]; sg = 1 if side == "CE" else -1
+    c = [(abs(a[i, 3] - 0.00146 * s), K) for (sd, K), a in p["C"].items() if sd == side and 0.01 * s <= sg * (K - s) <= 0.015 * s and 0.00122 * s <= a[i, 3] <= 0.0017 * s]
+    return min(c)[1] if c else None
+
+
+def x_gs(p, i, a): return x_opt(a, i, up=a[i + 1, 0] + 0.00073 * p["spot"][i])
+
+
+def sig_gs(ks, D=None, flip=False, i=14):
+    out = []
+    for d in (D or range(1, len(ks))):
+        if not d: continue
+        k, p = ks[d], P[ks[d]]; s0, s = P[ks[d - 1]]["spot"][359], p["spot"][i]
+        if not np.isfinite(s0 + s + p["atm"][i]) or s == s0: continue
+        side = "CE" if (s < s0) != flip else "PE"; K = gs_pick(p, i, side)
+        if K is None: continue
+        legs = [(side, _off(p, i, K, k[0]), -1)]
+        if _can(k, i, legs): out.append(dict(k=k, i=i, legs=legs, x=x_gs(p, i, p["C"][(side, K)])))
+    return out
+
+
+# ---------------------------------------------------------------- PR
+def pr_pick(p, i0=9, lv=0.00735):
+    """(level, {side: strike}): per side the strike with the highest close at i0 that is <= level (and >= 0.85 x level)."""
+    Lv = lv * p["spot"][i0]; out = {}
+    for sd in ("CE", "PE"):
+        c = [(a[i0, 3], K) for (s_, K), a in p["C"].items() if s_ == sd and 0.85 * Lv <= a[i0, 3] <= Lv]
+        if c: out[sd] = max(c)[1]
+    return Lv, out
+
+
+def sig_pr(ks, D=None, lv=0.00735, bracket=True, xt=29):
+    out = []
+    for d in (D or range(len(ks))):
+        k, p = ks[d], P[ks[d]]; Lv, c = pr_pick(p, 9, lv)
+        for j in range(10, 20):
+            hit = [sd for sd, K in c.items() if p["C"][(sd, K)][j, 3] > Lv]
+            if not hit: continue
+            if len(hit) == 1 and np.isfinite(p["atm"][j]):
+                sd = hit[0]; a = p["C"][(sd, c[sd])]; legs = [(sd, _off(p, j, c[sd], k[0]), 1)]
+                if _can(k, j, legs): out.append(dict(k=k, i=j, legs=legs, K=c[sd], x=x_opt(a, j, Lv * (1 + 40 / 180), Lv * (1 - 20 / 180), xt) if bracket else xt))
+            break   # the race is over at the first cross, traded or not
+    return out
+
+
+# ---------------------------------------------------------------- A220
+def x_a220(sp, i, dirn, stop, cap):
+    """exit-decision minute: a spot close at / through the stop, or the first 09:15-aligned 5m bar ending after i that closes against dirn; else cap."""
+    for j in range(i + 1, cap):
+        if dirn * (sp[j] - stop) <= 0 or (j % 5 == 4 and dirn * (sp[j] - sp[j - 4]) < 0): return j
+    return cap
+
+
+def sig_a220(ks, D=None, b0=305, hold=False, counter=False):
+    out = []
+    for d in (D or range(len(ks))):
+        k, p = ks[d], P[ks[d]]; sp = p["spot"]; w = sp[b0 + 20:b0 + 25] if LEAK53 == "bar" else sp[b0:b0 + 5]; H, Lo = w.max(), w.min(); cap = b0 + 37
+        for j in range(b0 + 5, b0 + 30):
+            dirn = 1 if sp[j] > H else -1 if sp[j] < Lo else 0
+            if not dirn: continue
+            legs = [("CE" if dirn > 0 else "PE", 0, 1)]; stop = Lo if dirn > 0 else H
+            if not (counter and dirn * (sp[b0 + 4] - sp[0]) >= 0) and _can(k, j, legs):
+                out.append(dict(k=k, i=j, legs=legs, x=XL if hold else x_a220(sp, j, dirn, stop, cap), dirn=dirn, ds=dirn * (sp[j] - stop), cap=cap - j))
+            break   # one break a day
+    return out
+
+
+# ---------------------------------------------------------------- PCR
+def pcr_val(p, pp, i, sym):
+    """change-in-OI PCR at minute i over B +- N strikes: B = the day's first ATM, N = business days to expiry clipped to 1..5; NaN unless both sums > 0."""
+    at = p["atm"][:i + 1]; at = at[np.isfinite(at)]
+    if not len(at): return np.nan
+    N = min(max(int(p["dte"]), 1), 5); D = [(doi(p, pp, "CE", at[0] + o * STEP[sym], i), doi(p, pp, "PE", at[0] + o * STEP[sym], i)) for o in range(-N, N + 1)]
+    D = [x for x in D if np.isfinite(x[0] + x[1])]; sc, sq = sum(x[0] for x in D), sum(x[1] for x in D)
+    return sq / sc if D and sc > 0 and sq > 0 else np.nan
+
+
+def pcr_strike(p, i, sym, side):
+    """the strike among OTM1..OTM6 of `side` (from the ATM at i) whose close at i is nearest 0.27% of spot."""
+    s = p["spot"][i]; sg = 1 if side == "CE" else -1; c = []
+    for n in range(1, 7):
+        a = p["C"].get((side, p["atm"][i] + sg * n * STEP[sym]))
+        if a is not None and np.isfinite(a[i, 3]): c.append((abs(a[i, 3] - 0.0027 * s), n))
+    return p["atm"][i] + sg * min(c)[1] * STEP[sym] if c else None
+
+
+def x_pcr(p, a, j): return x_opt(a, j, up=a[j, 3] + 0.0012 * p["spot"][j], dn=np.nanmin(a[:j + 1, 2]))
+
+
+def sig_pcr(ks, D=None, i0=105, hi=1.25, lo=0.75, plain=False):
+    out = []
+    for d in (D or range(1, len(ks))):
+        if not d: continue
+        k, p, pp = ks[d], P[ks[d]], P[ks[d - 1]]; sym = k[0]
+        if p["d0"] or str(pp["exp"]) != str(p["exp"]) or not np.isfinite(p["atm"][i0]): continue
+        v = pcr_val(p, pp, i0, sym); side = "CE" if v > hi else "PE" if v < lo else None; K = pcr_strike(p, i0, sym, side) if side else None
+        if K is None: continue
+        a = p["C"][(side, K)]; x = -1; n = 0
+        if plain:
+            legs = [(side, _off(p, i0, K, sym), 1)]
+            if _can(k, i0, legs): out.append(dict(k=k, i=i0, legs=legs, x=XL, K=K))
+            continue
+        vw = _vwap(a)
+        for j in range(i0, 285):
+            if j > x and n < 2 and a[j, 6] > 0 and abs(a[j, 3] / vw[j] - 1) <= 0.03 and np.isfinite(p["atm"][j]):
+                legs = [(side, _off(p, j, K, sym), 1)]
+                if _can(k, j, legs): x = x_pcr(p, a, j); n += 1; out.append(dict(k=k, i=j, legs=legs, x=x, K=K))
+    return out
+
+
+# ---------------------------------------------------------------- OIC
+def oic_pick(p, i, sym, thr=0.85):
+    """None, or dict(dirn, tgt, stop, legs): OI walls (>= thr x the side's largest OI) among CE ATM+1..+5 and PE ATM-1..-5 at minute i.
+    >= 2 put walls and exactly 1 call wall -> bullish put credit spread at the put wall nearest spot (long two strikes below); mirror."""
+    st = STEP[sym]; atm = p["atm"][i]; s = p["spot"][i]; C = p["C"]
+    oc = [_oi(C[("CE", atm + n * st)], i) if ("CE", atm + n * st) in C else np.nan for n in range(1, 6)]
+    op = [_oi(C[("PE", atm - n * st)], i) if ("PE", atm - n * st) in C else np.nan for n in range(1, 6)]
+    if not np.isfinite(sum(oc) + sum(op)): return None
+    wc = [n for n in range(1, 6) if oc[n - 1] >= thr * max(oc)]; wp = [n for n in range(1, 6) if op[n - 1] >= thr * max(op)]
+    if len(wp) >= 2 and len(wc) == 1 and atm + wc[0] * st - 0.004 * s > s:
+        return dict(dirn=1, tgt=atm + wc[0] * st - 0.004 * s, stop=atm - wp[0] * st, Ks=("PE", atm - wp[0] * st, atm - (wp[0] + 2) * st))
+    if len(wc) >= 2 and len(wp) == 1 and atm - wp[0] * st + 0.004 * s < s:
+        return dict(dirn=-1, tgt=atm - wp[0] * st + 0.004 * s, stop=atm + wc[0] * st, Ks=("CE", atm + wc[0] * st, atm + (wc[0] + 2) * st))
+    return None
+
+
+def x_oic(sp, i, dirn, stop, tgt):
+    """exit-decision minute: the first spot 5m close at / beyond the target or strictly through the stop."""
+    for j in range(i + 1, XL):
+        if j % 5 == 4 and (dirn * (sp[j] - tgt) >= 0 or dirn * (sp[j] - stop) < 0): return j
+    return XL
+
+
+def oic_legs(p, i, sym, Ks): return [(Ks[0], _off(p, i, Ks[1], sym), -1), (Ks[0], _off(p, i, Ks[2], sym), 1)]
+
+
+def sig_oic(ks, D=None, i=14):
+    out = []
+    for d in (D or range(len(ks))):
+        k, p = ks[d], P[ks[d]]; q = oic_pick(p, i, k[0]) if np.isfinite(p["atm"][i]) else None
+        if q and _can(k, i, oic_legs(p, i, k[0], q["Ks"])):
+            out.append(dict(k=k, i=i, legs=oic_legs(p, i, k[0], q["Ks"]), x=x_oic(p["spot"], i, q["dirn"], q["stop"], q["tgt"]), **q))
+    return out
+
+
+# ---------------------------------------------------------------- ORS
+def x_ors(p, a, i, dirn, edge):
+    """exit-decision minute of the short option a: its 1m close <= entry open - 0.065% of spot, or a spot 3m close through `edge` against dirn."""
+    tg = a[i + 1, 0] - 0.00065 * p["spot"][i]; sp = p["spot"]
+    for j in range(i + 1, XL):
+        if a[j, 3] <= tg or (j % 3 == 2 and dirn * (sp[j] - edge) < 0): return j
+    return XL
+
+
+def sig_ors(ks, D=None):
+    out = []
+    for d in (D or range(len(ks))):
+        k, p = ks[d], P[ks[d]]; sp = p["spot"]; RH, RL = (sp[-1], sp[-1]) if LEAK53 == "range" else (sp[:30].max(), sp[:30].min()); x = -1; done = set()
+        for j in range(32, 345, 3):
+            dirn = 1 if sp[j] > RH else -1 if sp[j] < RL else 0
+            if dirn and dirn not in done and j >= x:   # j == x: the stop bar of the first trade is the signal of the second
+                sd = "PE" if dirn > 0 else "CE"; legs = [(sd, 0, -1)]
+                if _can(k, j, legs):
+                    edge = RL if dirn > 0 else RH; x = x_ors(p, p["C"][(sd, p["atm"][j])], j, dirn, edge); done.add(dirn)
+                    out.append(dict(k=k, i=j, legs=legs, x=x, dirn=dirn, edge=edge))
+    return out
+
+
+# ---------------------------------------------------------------- BBH
+def ha_bb(a, warm=None, n=20, m=2.0):
+    """(H, w0): H[w0 + minute] = Heikin Ashi open, high, low, close and the lower Bollinger(n, m) of the HA close, built over the traded bars of
+    `warm` (the same contract's previous day, or None) followed by today's `a`; NaN on untraded bars and before n bars exist."""
+    A = a if warm is None else np.vstack([warm, a]); idx = np.flatnonzero(np.isfinite(A[:, :4]).all(1) & (A[:, 6] > 0)); H = np.full((len(A), 5), np.nan)
+    if len(idx):
+        o, h, l, c = A[idx, :4].T; hc = (o + h + l + c) / 4; ho = np.empty(len(idx)); ho[0] = (o[0] + c[0]) / 2
+        for t in range(1, len(idx)): ho[t] = (ho[t - 1] + hc[t - 1]) / 2
+        r = pd.Series(hc).rolling(n, center=LEAK53 == "centre")
+        H[idx] = np.c_[ho, np.maximum.reduce([h, ho, hc]), np.minimum.reduce([l, ho, hc]), hc, (r.mean() - m * r.std(ddof=0)).values]
+    return H, len(A) - len(a)
+
+
+def x_bbh(a, i, E_, R, full=False):
+    """(x1, x2) exit-decision minutes of the first half and of the runner; touch triggers on the real 1m low / high, the stop wins a tie.
+    Before the target (E + 2R) is touched a low <= E - R closes both; after it the runner's stop is E (cost); full=True: all out at the target."""
+    for j in range(i + 1, XL):
+        if a[j, 2] <= E_ - R: return j, j
+        if a[j, 1] >= E_ + 2 * R:
+            return (j, j) if full else (j, next((q for q in range(j + 1, XL) if a[q, 2] <= E_), XL))
+    return XL, XL
+
+
+def bbh_parts(x1, x2): return [(x1, L.LOTS // 2), (x2, L.LOTS - L.LOTS // 2)]
+
+
+def sig_bbh(ks, D=None, touch=True, full=False, hold=None):
+    out = []
+    for d in (D or range(len(ks))):
+        k, p = ks[d], P[ks[d]]; sym = k[0]; K0 = p["atm"][0]; HH = {}; pv = P[ks[d - 1]] if d and str(P[ks[d - 1]]["exp"]) == str(p["exp"]) else None
+        for sd in ("CE", "PE"):
+            a = p["C"].get((sd, K0)) if np.isfinite(K0) else None
+            if a is not None: HH[sd] = (a,) + ha_bb(a, pv["C"].get((sd, K0)) if pv else None)
+        if len(HH) < 2: continue
+        free = -1; n = 0
+        for s in range(1, 61):
+            sg = []
+            for sd, (a, h, w0) in HH.items():
+                g = w0 + s; red = lambda t: h[t, 3] < h[t, 0]
+                if g >= 3 and h[g, 3] > h[g, 0] and red(g - 1) and red(g - 2) and (not touch or any(h[t, 2] <= h[t, 4] for t in range(g - 3, g + 1))):
+                    buf = 0.00004 * p["spot"][s]; E_ = h[g, 1] + buf; r0 = s - 1
+                    while r0 > 0 and red(w0 + r0 - 1): r0 -= 1
+                    R = E_ - (np.nanmin(a[r0:s + 1, 2]) - buf)
+                    if 0 < R <= 0.00077 * p["spot"][s] and a[s + 1, 1] >= E_: sg.append((sd, a, E_, R))
+            i = s + 1
+            if len(sg) == 1 and n < 2 and i > free and np.isfinite(p["atm"][i]):
+                sd, a, E_, R = sg[0]; legs = [(sd, _off(p, i, K0, sym), 1)]
+                if _can(k, i, legs):
+                    x1, x2 = (min(i + hold, XL),) * 2 if hold else x_bbh(a, i, E_, R, full); free = x1; n += 1
+                    out.append(dict(k=k, i=i, legs=legs, x=x2, parts=bbh_parts(x1, x2), R=R, K=K0))
+    return out
+
+
+def all_signals53(ks, D=None):
+    return dict(GS=sig_gs(ks, D), GSm=sig_gs(ks, D, flip=True), PR=sig_pr(ks, D), A220=sig_a220(ks, D), PCR=sig_pcr(ks, D), OIC=sig_oic(ks, D), ORS=sig_ors(ks, D), BBH=sig_bbh(ks, D))
+
+
+# ---------------------------------------------------------------- E53 pricing, placebo, stats
+def price53(k, i, legs, parts):
+    """(pnl, forced, gross) of one trade whose lots leave in `parts` = [(exit-decision minute, lots)], each priced by struct."""
+    pnl = g = 0.0; forced = False
+    for x, lots in parts:
+        r = S.struct(k, i, legs, flat=M0 + x + 1, lots=lots)
+        if r is None: return None
+        pnl += r["pnl"]; forced |= r["forced"]; g += gross(k, i, legs, x) * lots / L.LOTS
+    return pnl, forced, g
+
+
+def plc53(cell, t, i2):
+    """the placebo twin of trade t at minute i2: (legs, parts) or None (see the freeze file, 'Placebo window' of each cell)."""
+    k = t["k"]; p = P[k]; sym = k[0]; sd = t["legs"][0][0]; one = lambda legs, x: (legs, [(x, L.LOTS)])
+    if not np.isfinite(p["atm"][i2]): return None
+    if cell in ("GS", "GSm"):
+        K = gs_pick(p, i2, sd); a = p["C"].get((sd, K)); return None if K is None or not np.isfinite(a[i2 + 1, 0]) else one([(sd, _off(p, i2, K, sym), -1)], x_gs(p, i2, a))
+    if cell == "A220": s = p["spot"][i2]; return one(t["legs"], x_a220(p["spot"], i2, t["dirn"], s - t["dirn"] * t["ds"], min(i2 + t["cap"], XL)))
+    if cell == "OIC": return one(oic_legs(p, i2, sym, t["Ks"]), x_oic(p["spot"], i2, t["dirn"], t["stop"], t["tgt"]))
+    if cell == "ORS": a = p["C"].get((sd, p["atm"][i2])); return None if a is None or not np.isfinite(a[i2 + 1, 0]) else one(t["legs"], x_ors(p, a, i2, t["dirn"], t["edge"]))
+    a = p["C"][(sd, t["K"])]; c = a[i2, 3]; legs = [(sd, _off(p, i2, t["K"], sym), 1)]   # PR, PCR, BBH: the same contract
+    if not np.isfinite(c): return None
+    if cell == "PR": return one(legs, x_opt(a, i2, c * (1 + 40 / 180), c * (1 - 20 / 180), min(i2 + 15, XL)))
+    if cell == "PCR": return one(legs, x_pcr(p, a, i2))
+    return legs, bbh_parts(*x_bbh(a, i2, c, t["R"]))
+
+
+def _work53(a):
+    cell, t = a; k, i = t["k"], t["i"]; parts = t.get("parts") or [(t["x"], L.LOTS)]; r = price53(k, i, t["legs"], parts)
+    if r is None: return None
+    rg = np.random.default_rng(zlib.crc32(repr((cell, k, i)).encode())); pl = []
+    for i2 in rg.integers(WIN53[cell][0], WIN53[cell][1] + 1, NPL):
+        q = plc53(cell, t, int(i2)); r2 = price53(k, int(i2), q[0], q[1]) if q else None; pl.append(r2[0] if r2 else np.nan)
+    return dict(cell=cell, sym=k[0], day=k[1], i=i, x=t["x"], side=t["legs"][0][0], off=t["legs"][0][1], pnl=r[0], forced=r[1], gross=r[2], pl=pl)
+
+
+def verdict53(r, dated=None):
+    """the frozen E53 rule (freeze file section 3): the E51 rule at alpha 0.05 / 7, plus placebo p < 0.05 on LEARN+TEST."""
+    if r["learn_n"] < 30 or r["test_n"] < 10: return "UNTESTABLE"
+    if r["forced_pct"] > 10: return "INCONCLUSIVE"
+    ok = (r["learn_mean"] > 0 and r["learn_p"] < 0.05 and r["test_total"] > 0 and r["test_p"] < ALPHA53 and int(str(r["test_q_pos"]).split("/")[0]) >= 3
+          and r["plac_p_test"] < 0.05 and r["plac_p_all"] < 0.05 and (dated is None or (dated["learn_mean"] > 0 and dated["test_mean"] > 0)))
+    return "PASS" if ok else "FAIL"
+
+
+def stats53(cell, T):
+    """E51's stats row plus: placebo p on LEARN, totals without the 10 best days, means without the fixed public event days."""
+    r = stats(cell, T)
+    if not len(T): return r
+    for nm, G in (("learn", T[T.day < HO]), ("test", T[T.day >= HO])):
+        if len(G):
+            dd = G.groupby("day").pnl.sum(); X = G[~G.day.isin(EVENTS)]
+            r.update({f"{nm}_ex10": round(dd.sum() - dd.nlargest(10).sum()), f"{nm}_mean_xev": round(X.pnl.mean()) if len(X) else np.nan})
+            if nm == "learn": r["plac_p_learn"] = round(plac_p(G), 3)
+    r["verdict"] = "CONTROL" if cell not in CELLS53 else verdict53(r) if r["verdict"] != "UNTESTABLE" else "UNTESTABLE"
+    return r
+
+
+def study_count53():
+    """signal counts only (no prices): LEARN / TEST per cell and index."""
+    for sym in ("NIFTY", "SENSEX"):
+        ks = keys(sym)
+        for c, v in all_signals53(ks).items(): print(sym, c, "LEARN", sum(t["k"][1] < HO for t in v), "TEST", sum(t["k"][1] >= HO for t in v), flush=True)
+
+
+def study_e53():
+    """the seven frozen cells + the GSm control, both indices pooled, LEARN and TEST in one pass (TEST is scored once: run this once per cost mode)."""
+    order = CELLS53 + ["GSm"]; sig = {c: [] for c in order}
+    for sym in ("NIFTY", "SENSEX"):
+        for c, v in all_signals53(keys(sym)).items(): sig[c] += v
+    rows, TT = [], []
+    with get_context("fork").Pool(8) as pool:
+        for c in order:
+            T = pd.DataFrame([r for r in pool.map(_work53, [(c, t) for t in sig[c]], chunksize=16) if r]); rows.append(stats53(c, T)); TT.append(T)
+            print(c, "signals", len(sig[c]), "priced", len(T), flush=True)
+    R = pd.DataFrame(rows); pd.set_option("display.width", 320); pd.set_option("display.max_columns", 50); print(R.to_string(index=False))
+    T = pd.concat(TT); T.drop(columns="pl").to_csv(f"{L.OUT}/yt_e53_trades_{L.COSTS}.csv", index=False); R.to_csv(f"{L.OUT}/yt_e53_{L.COSTS}.csv", index=False)
+    T = T.assign(part=np.where(T.day < HO, "LEARN", "TEST"), hour=9 + (T.i + 15) // 60)
+    print("by index and part (n, mean, total):"); print(T.groupby(["cell", "sym", "part"]).pnl.agg(["size", "mean", "sum"]).round(0).to_string())
+    print("by entry hour and part (n, mean, total):"); print(T.groupby(["cell", "part", "hour"]).pnl.agg(["size", "mean", "sum"]).round(0).to_string())
+    print(f"COSTS={L.COSTS}; alpha = 0.05 / {len(CELLS53)} = {ALPHA53:.5f}; GSm is a control row; the final verdict needs both cost modes: yt_lab.py OUT final53")
+
+
+def study_final53():
+    """join the COSTS=today and COSTS=dated rows; the verdict uses today's row plus the dated sign check."""
+    A, Dt = (pd.read_csv(f"{L.OUT}/yt_e53_{c}.csv").set_index("cell") for c in ("today", "dated")); out = []
+    cols = ["learn_n", "learn_mean", "learn_win", "learn_p", "test_n", "test_mean", "test_p", "test_q_pos", "plac_p_learn", "plac_p_test", "plac_p_all", "forced_pct", "worst",
+            "learn_ex10", "test_ex10", "learn_mean_xev", "test_mean_xev"]
+    for c in CELLS53 + ["GSm"]:
+        a, d = A.loc[c].to_dict(), Dt.loc[c].to_dict()
+        out.append(dict(cell=c, **{n: a.get(n, np.nan) for n in cols}, dated_learn_mean=d.get("learn_mean", np.nan), dated_test_mean=d.get("test_mean", np.nan),
+                        verdict=a["verdict"] if a["verdict"] != "PASS" else verdict53(a, d)))
+    pd.set_option("display.width", 320); pd.set_option("display.max_columns", 50); print(pd.DataFrame(out).to_string(index=False)); print(f"alpha = {ALPHA53:.5f}")
+
+
+def study_gross53():
+    """gross-expectancy maps of the four long-option families on LEARN only (freeze file section 4). Can only CLOSE a family."""
+    ks = {s: [k for k in keys(s) if k[1] < HO] for s in ("NIFTY", "SENSEX")}; pd.set_option("display.width", 250)
+    def pt(fam, name, fn):
+        R = [(r[2], r[0]) for s in ks for t in fn(ks[s]) for r in [price53(t["k"], t["i"], t["legs"], t.get("parts") or [(t["x"], L.LOTS)])] if r]
+        R = np.array([x for x in R if np.isfinite(x[0])]).reshape(-1, 2); n = len(R); g, h = (R[:, 0].mean(), (R[:, 0] - R[:, 1]).mean()) if n else (np.nan, np.nan)
+        print(fam, name, n, flush=True)
+        return dict(fam=fam, point=name, n=n, gross=round(g) if n else np.nan, hurdle=round(h) if n else np.nan, net=round(g - h) if n else np.nan, win_gross=round((R[:, 0] > 0).mean() * 100, 1) if n else np.nan, open=bool(n >= 30 and g > h))
+    rows = [pt("PR", "FROZEN 0.735% bracket 09:45", sig_pr)]
+    rows += [pt("PR", f"level {lv:.5f} no bracket exit {nm}", lambda K, lv=lv, xt=xt: sig_pr(K, None, lv, False, xt)) for lv in (0.005, 0.00735, 0.01) for nm, xt in (("09:45", 29), ("10:00", 44), ("15:15", XL))]
+    rows += [pt("A220", f"bar {nm} {'hold 15:15' if h else 'frozen exits'}", lambda K, b0=b0, h=h: sig_a220(K, None, b0, h)) for nm, b0 in (("14:00", 285), ("14:20", 305), ("14:40", 325)) for h in (False, True)]
+    rows += [pt("A220", "bar 14:20 frozen exits, counter-trend only", lambda K: sig_a220(K, None, 305, False, True))]
+    rows += [pt("PCR", "FROZEN 11:00 1.25/0.75 VWAP entry", sig_pcr)]
+    rows += [pt("PCR", f"read {nm} band {hi}/{lo} buy at read, hold 15:15", lambda K, i0=i0, hi=hi, lo=lo: sig_pcr(K, None, i0, hi, lo, True)) for nm, i0 in (("10:00", 45), ("11:00", 105), ("12:00", 165)) for hi, lo in ((1.25, 0.75), (1.5, 0.67))]
+    rows += [pt("BBH", f"touch {tc} exit {'all at 2R' if fu else 'half 2R + runner'}", lambda K, tc=tc, fu=fu: sig_bbh(K, None, tc, fu)) for tc in (True, False) for fu in (False, True)]
+    rows += [pt("BBH", "frozen signal, 15-minute hold", lambda K: sig_bbh(K, None, True, False, 15))]
+    R = pd.DataFrame(rows); print(R.to_string(index=False)); R.to_csv(f"{L.OUT}/yt_e53_gross_{L.COSTS}.csv", index=False)
+    for fam in ("PR", "A220", "PCR", "BBH"):
+        G = R[R.fam == fam]; print(f"family {fam}: {'OPEN' if G.open.any() else 'CLOSED'} ({int(G.open.sum())} of {len(G)} map points with n >= 30 have LEARN gross > hurdle)")
+
+
+# ---------------------------------------------------------------- E53 look-ahead scan
+def _la53(sym, samples, rg):
+    """for each (day index d, cut minute): scramble day d after the cut and the next two days, rebuild every E53 signal of day d, and list the
+    entries decided by the cut that changed and the exits decided by the cut that changed."""
+    ks = keys(sym); bad = []; seen = dict.fromkeys(CELLS53 + ["GSm"], 0)
+    def sigs(d): return {c: [(t["i"], tuple(t["legs"]), tuple(x for x, _ in t["parts"]) if "parts" in t else (t["x"],)) for t in v] for c, v in all_signals53(ks, [d]).items()}
+    for d, cut in samples:
+        s0 = sigs(d); undo = B._scr([(ks[d], cut)] + [(k, -1) for k in ks[d + 1:d + 3]], rg)
+        try: s1 = sigs(d)
+        finally: B._undo(undo)
+        for c in seen:
+            a, b = [t for t in s0[c] if t[0] <= cut], [t for t in s1[c] if t[0] <= cut]; seen[c] += len(a)
+            if [t[:2] for t in a] != [t[:2] for t in b]: bad.append((sym, ks[d][1], cut, c + " entry"))
+            elif any((x0 != x1) if x0 <= cut else (x1 <= cut) for t0, t1 in zip(a, b) for x0, x1 in zip(t0[2], t1[2])): bad.append((sym, ks[d][1], cut, c + " exit"))
+    return bad, seen
+
+
+def study_lookahead53(n_days=60, seed=53):
+    """scramble-after-the-decision scan on sampled (day, cut) pairs of both indices, then three planted leaks the same scan must catch
+    (A220 reading a bar 20 minutes ahead, a centred Bollinger window in BBH, an ORS range set to the day's last close)."""
+    global LEAK53
+    rg = np.random.default_rng(seed); bad = []; n = 0; S_ = {}; seen = {}
+    for sym in ("NIFTY", "SENSEX"):
+        ks = keys(sym); dd = rg.choice(range(30, len(ks) - 3), n_days, replace=False)
+        S_[sym] = [(int(d), int(c)) for d, c in zip(dd, rg.choice([14, 16, 20, 30, 45, 62, 110, 160, 240, 311, 316, 322, 335, 344], n_days))]
+        b, sn = _la53(sym, S_[sym], rg); bad += b; n += len(S_[sym]); seen = {c: seen.get(c, 0) + sn[c] for c in sn}
+    print(f"lookahead53: {n} (day, cut) samples, both indices, 7 cells + control: {len(bad)} changes; real entries checked per cell {seen}", bad[:10]); assert not bad, bad
+    for leak, want in (("bar", "A220 entry"), ("centre", "BBH entry"), ("range", "ORS entry")):
+        LEAK53 = leak
+        try: got = {b[3] for s in S_ for b in _la53(s, S_[s], rg)[0]}
+        finally: LEAK53 = None
+        print(f"planted leak '{leak}': caught as {sorted(got)}"); assert want in got, (leak, got)
+    print("lookahead53 OK (no entry or exit decided by the cut changed; the three planted leaks are caught)")
+
+
+# ---------------------------------------------------------------- E53 selftest (hand-computed known answers on synthetic days dated 2021-09)
+def study_selftest53():
+    ap = lambda a, b: abs(a - b) < 1e-6; flat = np.full(NB, 20000.0); syn = []; c100 = lambda sd, off, j: 100.0
+    def col(k, sd, off): return P[k]["C"][(sd, 20000.0 + off * 50)]
+    try:
+        # ---- GS. Yesterday 15:15 = 20000, today 09:30 = 19990 (lower -> sell a call). Calls: 20200 at 40, 20250 at 30, 20300 at 26. Distance band
+        # 1.0-1.5% of 19990 = 199.9..299.85 -> 20200 and 20250 only; premium band 24.39..33.98 -> 20250 (30). Stop = 30 + 0.073% x 19990 = 44.59.
+        kp = _syn("2021-09-01", flat, c100); px = lambda sd, off, j: {4: 40.0, 5: 30.0, 6: 26.0}.get(off, 100.0) if sd == "CE" else 100.0
+        k = _syn("2021-09-02", flat - 10, px); syn += [kp, k]; ks = [kp, k]
+        assert gs_pick(P[k], 14, "CE") == 20250.0 and gs_pick(P[k], 14, "PE") is None
+        T = sig_gs(ks); assert len(T) == 1 and T[0]["i"] == 14 and T[0]["legs"] == [("CE", 5, -1)] and T[0]["x"] == XL, T
+        col(k, "CE", 5)[100, :4] = 44.0; assert sig_gs(ks)[0]["x"] == XL
+        col(k, "CE", 5)[100, :4] = 45.0; assert sig_gs(ks)[0]["x"] == 100                                     # 45 >= 44.59: the stop
+        assert sig_gs(ks, flip=True) == []                                                                   # flipped side: no put in the band
+        col(k, "PE", -5)[:, :4] = 28.0; T = sig_gs(ks, flip=True); assert T[0]["legs"] == [("PE", -5, -1)]   # 19750 is 1.2% away at 28
+        q = plc53("GS", sig_gs(ks)[0], 50); assert q == ([("CE", 5, -1)], [(100, L.LOTS)]) and plc53("GS", sig_gs(ks)[0], 120)[1] == [(XL, L.LOTS)]
+        P[k]["spot"][14] = 20000.0; assert sig_gs(ks) == []; P[k]["spot"][14] = 19990.0                        # unchanged overnight: no trade
+        col(k, "CE", 5)[14, 3] = 35.0; assert sig_gs(ks) == []                                               # 35 > 33.98: outside the premium band
+        # ---- PR. Level = 0.735% x 20000 = 147. Calls: 19900 at 140 (candidate), 19850 at 150 (above the level), 19950 at 120 (< 0.85 x 147).
+        # Put 20100 at 130 (candidate). The call closes at 148 from minute 12 -> buy it. Stop 130.67, target 179.67, time exit minute 29.
+        px = lambda sd, off, j: ({-2: 140.0 if j < 12 else 148.0, -3: 150.0, -1: 120.0}.get(off, 10.0) if sd == "CE" else {2: 130.0}.get(off, 10.0))
+        k = _syn("2021-09-03", flat, px); syn.append(k); Lv, c = pr_pick(P[k]); assert ap(Lv, 147.0) and c == {"CE": 19900.0, "PE": 20100.0}
+        T = sig_pr([k]); assert len(T) == 1 and T[0]["i"] == 12 and T[0]["legs"] == [("CE", -2, 1)] and T[0]["x"] == 29 and T[0]["K"] == 19900.0, T
+        col(k, "CE", -2)[20, :4] = 180.0; assert sig_pr([k])[0]["x"] == 20                                    # 180 >= 179.67: target
+        col(k, "CE", -2)[15, :4] = 130.0; assert sig_pr([k])[0]["x"] == 15 and sig_pr([k], bracket=False, xt=44)[0]["x"] == 44   # 130 <= 130.67: stop
+        t = sig_pr([k])[0]; assert plc53("PR", t, 60) == ([("CE", -2, 1)], [(75, L.LOTS)])                    # twin at 148: no 131.6 / 180.9 touch in 15 minutes
+        col(k, "PE", 2)[12, :4] = 148.0; assert sig_pr([k]) == []                                             # both cross in the same minute: no trade
+        col(k, "PE", 2)[12, :4] = 130.0; col(k, "CE", -2)[10:20, :4] = 140.0; assert sig_pr([k]) == []        # nobody crosses by 09:35
+        # ---- A220. Bar 305..309 closes 20000 20010 20005 19995 20002 -> H 20010, L 19995. 20012 at minute 312 -> call, stop 19995 (17 away).
+        # Bar 315..319 opens 20020, closes 20018 (against) -> exit decision 319. A close of 19990 at 316 -> stop. No adverse bar -> cap 342.
+        sp = flat.copy(); sp[305:310] = [20000, 20010, 20005, 19995, 20002]; sp[310:312] = 20003; sp[312] = 20012; sp[313] = 20015; sp[314:316] = 20020
+        sp[316:320] = [20025, 20022, 20021, 20018]; sp[320:] = 20018
+        k = _syn("2021-09-04", sp, c100); syn.append(k); T = sig_a220([k])
+        assert len(T) == 1 and T[0]["i"] == 312 and T[0]["legs"] == [("CE", 0, 1)] and T[0]["x"] == 319 and ap(T[0]["ds"], 17) and T[0]["cap"] == 30, T
+        assert sig_a220([k], hold=True)[0]["x"] == XL and sig_a220([k], counter=True) == []                  # 09:15 -> 14:24 is up: a call is with the move
+        assert plc53("A220", T[0], 240) == ([("CE", 0, 1)], [(270, L.LOTS)])                                  # flat spot: no stop, no adverse bar, 30-minute cap
+        P[k]["spot"][316] = 19990.0; assert sig_a220([k])[0]["x"] == 316
+        P[k]["spot"][316:343] = 20025.0 + np.arange(27); assert sig_a220([k])[0]["x"] == 342
+        P[k]["spot"][312:] = 19990.0; T = sig_a220([k]); assert T[0]["legs"] == [("PE", 0, 1)] and T[0]["dirn"] == -1 and ap(T[0]["ds"], 20) and len(sig_a220([k], counter=True)) == 1
+        P[k]["spot"][310:] = 20003.0; assert sig_a220([k]) == []                                             # no break by 14:49
+        # ---- PCR. Yesterday's OI 1000 everywhere, dte 1 -> strikes 19950..20050. Today PE OI 2000, CE OI 1500: PCR = 3000 / 1500 = 2 -> call.
+        # Calls 100 - 15n: OTM3 (20150) = 55, nearest 0.27% x 20000 = 54. That call trades 50 (minutes 0-49), 60 (50-104), 56 from 105:
+        # VWAP(105) = (2500 + 3300 + 56) / 106 = 55.245 -> 1.4% away -> buy. Day low 50 = stop, target 56 + 24 = 80. 81 at minute 150 -> exit.
+        kp = _syn("2021-09-05", flat, c100, exp="2021-09-07"); oi = lambda sd, off, j: 2000.0 if sd == "PE" else 1500.0
+        px = lambda sd, off, j: ((50.0 if j < 50 else 60.0 if j < 105 else 56.0 if j < 150 else 81.0) if off == 3 else 100.0 - 15 * off) if sd == "CE" and off > 0 else 100.0
+        k = _syn("2021-09-06", flat, px, oi, exp="2021-09-07"); syn += [kp, k]; ks = [kp, k]
+        assert ap(pcr_val(P[k], P[kp], 105, "NIFTY"), 2.0) and pcr_strike(P[k], 104, "NIFTY", "CE") == 20150.0 and ap(_vwap(col(k, "CE", 3))[105], 5856 / 106)
+        T = sig_pcr(ks); assert len(T) == 1 and T[0]["i"] == 105 and T[0]["legs"] == [("CE", 3, 1)] and T[0]["x"] == 150 and T[0]["K"] == 20150.0, T
+        assert sig_pcr(ks, plain=True)[0]["x"] == XL and plc53("PCR", T[0], 200) == ([("CE", 3, 1)], [(XL, L.LOTS)])   # twin at 81: target 105 never, low 50 never
+        col(k, "CE", 3)[120, :4] = 50.0; assert [(t["i"], t["x"]) for t in sig_pcr(ks)] == [(105, 120), (121, 150)]   # 50 <= the day low 50: stop; 56 at 121 is again within 3% of VWAP (55.3): second and last entry
+        for q in P[k]["C"].values():
+            if np.isfinite(q[0, 4]) and q[0, 4] == 2000.0: q[:, 4] = 1600.0
+        assert ap(pcr_val(P[k], P[kp], 105, "NIFTY"), 1.2) and sig_pcr(ks) == []                              # 1800 / 1500 = 1.2: no-trade zone
+        for q in P[k]["C"].values():
+            if q[0, 4] == 1600.0: q[:, 4] = 900.0
+        assert np.isnan(pcr_val(P[k], P[kp], 105, "NIFTY")) and sig_pcr(ks) == []                             # put OI fell: sum of put changes <= 0 -> no read
+        for q in P[k]["C"].values():
+            if q[0, 4] == 900.0: q[:, 4] = 1300.0
+        T = sig_pcr(ks, plain=True); assert ap(pcr_val(P[k], P[kp], 105, "NIFTY"), 0.6) and T[0]["legs"][0][0] == "PE"   # 900 / 1500 = 0.6 -> put
+        P[k]["exp"] = "2021-09-08"; assert sig_pcr(ks) == []; P[k]["exp"] = "2021-09-07"; P[k]["d0"] = 1; assert sig_pcr(ks) == []   # new series / expiry day
+        # ---- OIC. Call OI: one wall at 20150 (1000 vs 100 100 200 300). Put OI: 19950 at 900 and 19900 at 1000 (two walls). Bullish: target
+        # 20150 - 0.4% x 20000 = 20070, stop under 19950, sell the 19950 put, buy the 19850 put. Spot 20075 from minute 22 -> 5m close 24.
+        oi = lambda sd, off, j: {("CE", 3): 1000.0, ("CE", 4): 200.0, ("CE", 5): 300.0, ("PE", -1): 900.0, ("PE", -2): 1000.0}.get((sd, off), 100.0)
+        sp = flat.copy(); sp[22:] = 20075.0; k = _syn("2021-09-09", sp, c100, oi); syn.append(k); q = oic_pick(P[k], 14, "NIFTY")
+        assert q["dirn"] == 1 and ap(q["tgt"], 20070) and q["stop"] == 19950.0 and q["Ks"] == ("PE", 19950.0, 19850.0)
+        T = sig_oic([k]); assert len(T) == 1 and T[0]["legs"] == [("PE", -1, -1), ("PE", -3, 1)] and T[0]["x"] == 24, T
+        assert plc53("OIC", T[0], 50) == ([("PE", -1, -1), ("PE", -3, 1)], [(54, L.LOTS)])
+        P[k]["spot"][20:] = 19950.0; assert sig_oic([k])[0]["x"] == XL; P[k]["spot"][20:] = 19949.0; assert sig_oic([k])[0]["x"] == 24   # at the wall: no stop; through it: stop
+        col(k, "PE", -1)[:, 4] = 800.0; assert oic_pick(P[k], 14, "NIFTY") is None                           # 800 < 0.85 x 1000: one put wall only
+        col(k, "PE", -1)[:, 4] = 900.0; P[k]["spot"][14] = 20100.0; assert oic_pick(P[k], 14, "NIFTY") is None   # target 20069.6 is below spot
+        oi2 = lambda sd, off, j: oi("PE" if sd == "CE" else "CE", -off, j); k = _syn("2021-09-10", flat, c100, oi2); syn.append(k); q = oic_pick(P[k], 14, "NIFTY")
+        assert q["dirn"] == -1 and ap(q["tgt"], 19930) and q["stop"] == 20050.0 and q["Ks"] == ("CE", 20050.0, 20150.0)   # mirror
+        # ---- ORS. Range of minutes 0..29 = 19990..20010. 3m close 20011 at minute 35 -> sell the ATM put; target = 100 - 0.065% x 20011 = 86.99:
+        # put at 86 from minute 50 -> exit 50. 3m close 19989 at 62 -> sell the ATM call (edge 20010); 3m close 20012 at 80 -> its stop.
+        sp = flat.copy(); sp[5] = 20010; sp[10] = 19990; sp[35:62] = 20011; sp[62:80] = 19989; sp[80:] = 20012
+        k = _syn("2021-09-11", sp, lambda sd, off, j: 86.0 if sd == "PE" and off == 0 and j >= 50 else 100.0); syn.append(k); T = sig_ors([k])
+        assert [(t["i"], t["legs"], t["x"], t["edge"]) for t in T] == [(35, [("PE", 0, -1)], 50, 19990.0), (62, [("CE", 0, -1)], 80, 20010.0)], T
+        assert plc53("ORS", T[1], 100) == ([("CE", 0, -1)], [(101, L.LOTS)])                                  # twin at 100: the 3m close 20012 at 101 is through the edge
+        col(k, "PE", 0)[:, :4] = 100.0; T = sig_ors([k]); assert [(t["i"], t["x"]) for t in T] == [(35, 62), (62, 80)]   # no target: the stop bar 62 is also the second signal
+        P[k]["spot"][30:] = 20000.0; assert sig_ors([k]) == []
+        # ---- BBH. Call 20000: flat 100 for 25 bars; bar 25 (100,100,96,96) HA close 98 open 100 red; bar 26 (96,96,92,92) HA close 94 open 99 red;
+        # bar 27 (92,102,92,102) HA close 97 open 96.5 green, HA high 102. Band at 26: mean 99.6, sd 1.3565 -> 96.887 >= HA low 92: touch.
+        # E = 102 + 0.8, SL = 92 - 0.8, R = 11.6 (<= 15.4), target 126. Bar 28 high 104 >= 102.8 -> decision 28. High 127 at 60 -> half out;
+        # low 102 at 90 -> the runner out at cost.
+        k = _syn("2021-09-12", flat, c100); syn.append(k); a = col(k, "CE", 0)
+        a[25, :4] = [100, 100, 96, 96]; a[26, :4] = [96, 96, 92, 92]; a[27, :4] = [92, 102, 92, 102]; a[28, :4] = [102, 104, 101, 103]; a[29:, :4] = 103.0; a[60, 1] = 127.0; a[90, 2] = 102.0
+        H, w0 = ha_bb(a); assert w0 == 0 and H[25, :4].tolist() == [100, 100, 96, 98] and H[26, :4].tolist() == [99, 99, 92, 94] and H[27, :4].tolist() == [96.5, 102, 92, 97]
+        assert abs(H[26, 4] - (99.6 - 2 * 1.84 ** 0.5)) < 1e-9 and np.isnan(H[18, 4]) and ap(H[19, 4], 100)
+        T = sig_bbh([k]); assert len(T) == 1 and T[0]["i"] == 28 and T[0]["legs"] == [("CE", 0, 1)] and T[0]["parts"] == [(60, 5), (90, 5)] and ap(T[0]["R"], 11.6) and T[0]["x"] == 90, T
+        assert sig_bbh([k], full=True)[0]["parts"] == [(60, 5), (60, 5)] and sig_bbh([k], hold=15)[0]["parts"] == [(43, 5), (43, 5)]
+        assert x_bbh(a, 28, 102.8, 11.6) == (60, 90) and plc53("BBH", T[0], 40) == ([("CE", 0, 1)], [(60, 5), (61, 5)])   # twin: E' 103, target 126.2 at 60, cost stop 103 at 61
+        a[90, 2] = 103.0; assert sig_bbh([k])[0]["parts"] == [(60, 5), (XL, 5)]                               # the runner is never back at 102.8: held to 15:15
+        a[40, 2] = 91.0; assert sig_bbh([k])[0]["parts"] == [(40, 5), (40, 5)]                                # 91 <= 91.2 before the target: all out
+        a[60, 2] = 91.0; a[40, 2] = 103.0; assert sig_bbh([k])[0]["parts"] == [(60, 5), (60, 5)]              # stop and target in one bar: the stop wins
+        a[28, 1] = 102.5; assert sig_bbh([k]) == []; a[28, 1] = 104.0                                         # bar 28 never trades 102.8: the order lapses
+        P[k]["C"][("PE", 20000.0)][:] = a; assert sig_bbh([k]) == []                                          # both options signal on the same bar: no trade
+        P[k]["C"][("PE", 20000.0)][:, :4] = 100.0; a[26, 2] = 80.0; assert sig_bbh([k]) == [] and len(sig_bbh([k], touch=False)) == 0   # SL 79.2, R 23.6 > 15.4: skip
+        # no touch: 25 bars alternating 120 / 80 (band about 99.65 - 2 x 19 = 62; HA open cycles 93.3 / 106.7), dip (100,100,96,96), (96,96,94,94), then
+        # (94,106,94,106): HA close 100 > HA open 98.67 green; every HA low of bars 24..27 (93.3, 96, 94, 94) is above the band. R = 106.8 - 93.2 = 13.6.
+        k = _syn("2021-09-17", flat, c100); syn.append(k); a = col(k, "CE", 0); a[:25, :4] = np.where(np.arange(25) % 2, 80.0, 120.0)[:, None]
+        a[25, :4] = [100, 100, 96, 96]; a[26, :4] = [96, 96, 94, 94]; a[27, :4] = [94, 106, 94, 106]; a[28, :4] = [106, 108, 105, 107]; a[29:, :4] = 107.0
+        T = sig_bbh([k], touch=False); assert sig_bbh([k]) == [] and len(T) == 1 and T[0]["i"] == 28 and ap(T[0]["R"], 13.6) and T[0]["parts"] == [(XL, 5), (XL, 5)], T
+        # warm-up: with yesterday's bars of the same contract the band exists from the first minute
+        kp = _syn("2021-09-13", flat, c100, exp="2021-09-15"); k = _syn("2021-09-14", flat, c100, exp="2021-09-15"); syn += [kp, k]
+        H, w0 = ha_bb(col(k, "CE", 0), col(kp, "CE", 0)); assert w0 == NB and ap(H[NB, 4], 100) and np.isnan(ha_bb(col(k, "CE", 0))[0][0, 4])
+        # ---- pricing in two halves: long CE 100 -> 110 from minute 100; 5 lots out at 120, 5 lots at 200, against the cost functions by hand
+        k = _syn("2021-09-16", flat, lambda sd, off, j: 100.0 if j < 100 else 110.0); syn.append(k); kc = k if L.COSTS == "dated" else None; q = L.qty("NIFTY", kc, 5)
+        h1 = L.hs("NIFTY", 0, M0 + 51, 100.0); want = sum((110 - L.hs("NIFTY", 0, M0 + x + 1, 110.0) - 100 - h1) * q - S._cost(100 + h1, 110 - L.hs("NIFTY", 0, M0 + x + 1, 110.0), "NIFTY", 5, kc) for x in (120, 200))
+        r = price53(k, 50, [("CE", 0, 1)], [(120, 5), (200, 5)]); assert ap(r[0], want) and not r[1] and r[2] == 10 * 650 and price53(k, 50, [("CE", 0, 1)], [(50, 10)]) is None
+        r1 = price53(k, 50, [("CE", 0, 1)], [(120, 10)]); r0 = S.struct(k, 50, [("CE", 0, 1)], flat=M0 + 121); assert ap(r1[0], r0["pnl"])
+        # ---- verdict rule (alpha 0.05 / 7) and the stats row
+        r = dict(learn_n=100, test_n=40, forced_pct=2.0, learn_mean=500, learn_p=0.01, test_total=9000, test_p=0.004, test_q_pos="4/5", plac_p_test=0.01, plac_p_all=0.01)
+        assert verdict53(r) == "PASS" and verdict53(dict(r, test_p=0.008)) == "FAIL" and verdict53(dict(r, plac_p_all=0.2)) == "FAIL" and verdict53(r, dict(learn_mean=1, test_mean=-1)) == "FAIL"
+        assert verdict53(dict(r, forced_pct=11)) == "INCONCLUSIVE" and verdict53(dict(r, learn_n=29)) == "UNTESTABLE" and abs(ALPHA53 - 0.05 / 7) < 1e-12 and verdict(dict(r, test_p=0.008)) == "PASS"
+        T = pd.DataFrame(dict(cell="X", day=["2024-06-04"] * 2 + ["2024-06-05"] * 38 + ["2026-10-20"] * 12, pnl=[1000.0] * 2 + [100.0] * 50, forced=False, gross=0.0, pl=[[0.0]] * 52))
+        r = stats53("GSm", T); assert r["verdict"] == "CONTROL" and r["learn_ex10"] == 0 and r["learn_mean_xev"] == 100 and r["plac_p_learn"] == 0.0 and r["learn_n"] == 40
+    finally:
+        for k in syn: P.pop(k, None)
+        S._EXT.clear()
+    print(f"yt_lab selftest53 OK (COSTS={L.COSTS}): GS / PR / A220 / PCR / OIC / ORS / BBH signals and exits, Heikin Ashi + band, placebo twins, half-lot pricing, verdict rule")
+
+
 if __name__ == "__main__":
     for a in [a for a in sys.argv[2:] if not a.startswith("-")]: globals()["study_" + a]()
