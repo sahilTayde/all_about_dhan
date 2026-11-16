@@ -1088,7 +1088,9 @@ def e50_c7(p, sym, j0=30, j1=165):
 def _c7_trade(S_, k, j, off, S, vw):
     with np.errstate(invalid="ignore"): up = np.flatnonzero(S[j + 1:] > vw[j + 1:])
     flat = min(M0 + j + 1 + int(up[0]) + 1, L.FLAT) if len(up) else L.FLAT
-    return S_.struct(k, j, [("CE", off, -1), ("PE", off, -1)], stop=0.3, flat=flat, mode="cons")
+    r = S_.struct(k, j, [("CE", off, -1), ("PE", off, -1)], stop=0.3, flat=flat, mode="cons")
+    if r and r["why"] == "time" and flat < L.FLAT: r["why"] = "vwap"   # review E50: struct labels every `flat` exit "time"
+    return r
 
 
 def study_lookahead50(n_days=40, seed=5):
@@ -1122,7 +1124,7 @@ def study_e50():
         offs = [(q["CE"][key], q["PE"][key]) for q in pk]
         v = np.array([(lambda r: r["pnl"] if r else np.nan)(S_.struct(k, I, [("CE", a, -1), ("PE", -b, -1)], sstop=1.5, stop=0.3, mode="cons")) if a and b else np.nan for k, (a, b) in zip(K_, offs)])
         m = np.isfinite(v) & np.isfinite(xs); d = v - xs; gd = pd.Series(d[m & lm]).groupby(days[m & lm]).sum(); legs = np.array([o for ab in offs for o in ab if o])
-        r = dict(cell=name, n_learn=int((m & lm).sum()), learn_mean=float(v[m & lm].mean()), xs_learn=float(xs[m & lm].mean()), diff_learn=float(d[m & lm].mean()), p=_bp(-gd.values) if False else _bp(gd.values),
+        r = dict(cell=name, n_learn=int((m & lm).sum()), learn_mean=float(v[m & lm].mean()), xs_learn=float(xs[m & lm].mean()), diff_learn=float(d[m & lm].mean()), p=_bp(gd.values),
                  diff_h1=float(d[m & lm & (days < half)].mean()), diff_h2=float(d[m & lm & (days >= half)].mean()), n_test=int((m & ~lm).sum()), test_mean=float(v[m & ~lm].mean()), xs_test=float(xs[m & ~lm].mean()),
                  diff_test=float(d[m & ~lm].mean()), worst=float(np.nanmin(v)), xs_worst=float(np.nanmin(xs[m])), win=float((v[m & lm] > 0).mean()), otm12_share=float((legs <= 2).mean()),
                  mean_off=float(legs.mean()), no_fill=int((~np.isfinite(v) & np.isfinite(xs)).sum()))
