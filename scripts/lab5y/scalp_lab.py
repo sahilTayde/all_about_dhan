@@ -911,11 +911,11 @@ def study_lookahead46(day="2026-10-14"):
     print(f"E46 look-ahead scan on {day}: {n} triggers before 3 cuts compared, {bad} changed; triggers that day: { {sym: len(v) for sym, v in base.items()} }"); assert bad == 0
 
 
-# ================================================================ E47: the surviving expiry strangle - cost audit, parameter walk-forward, re-entry, theta slices
+# ================================================================ E48: the surviving expiry strangle - cost audit, parameter walk-forward, re-entry, theta slices
 def study_a2():
     """A2 tape audit (descriptive): the XS legs (OTM1 CE / PE chosen at 10:07) on the tape's expiry days: real half-spread and the 10-lot
     book-walk cost per unit at 10:08, at the first moment the strangle's mid value reaches 1.3 x its 10:08 value, and at 15:15,
-    against the modelled p75 half-spread (L.hs). Action rule (frozen): model short by > 0.5 pt per leg at stop moments -> re-price E47."""
+    against the modelled p75 half-spread (L.hs). Action rule (frozen): model short by > 0.5 pt per leg at stop moments -> re-price E48."""
     rows = []
     for day in TAPE_DAYS:
         TD = TapeDay(day)
@@ -937,14 +937,14 @@ def study_a2():
     print(A.round(3).to_string(index=False)); g = A.groupby(["sym", "when"])
     S_ = pd.DataFrame(dict(legs=g.size(), mid=g.mid.mean(), half_spread=g.half_spread.mean(), walk_cost=g.walk_cost.mean(), model_hs=g.model_hs.mean(), short_by=g.short_by.mean(), worst=g.short_by.max()))
     print("\nper index and moment (points per unit; short_by = measured walk cost minus the model's half-spread)"); print(S_.round(3).to_string())
-    x = A[A.when == "stop moment buy"].short_by; print(f"\naction rule: mean shortfall at stop moments = {x.mean():.3f} pt per leg over {len(x)} legs (re-price E47 only if > 0.5)")
+    x = A[A.when == "stop moment buy"].short_by; print(f"\naction rule: mean shortfall at stop moments = {x.mean():.3f} pt per leg over {len(x)} legs (re-price E48 only if > 0.5)")
     A.to_csv(f"{L.OUT}/scalp_a2.csv", index=False)
 
 
-E47_I, E47_ST, E47_CAP = [30, 52, 74], [0.2, 0.3, 0.5], [1.0, 1.5, 2.0]
-E47_CELLS = [(a, b, c) for a in range(3) for b in range(3) for c in range(3)]; E47_DEF = E47_CELLS.index((1, 1, 1))
-E47_W = [("W1", "2022-10-27", "2023-10-27"), ("W2", "2023-10-27", "2024-10-27"), ("W3", "2024-10-27", "2025-10-27"), ("W4", "2025-10-27", "2099-01-01")]
-E47_LY = ["2021-10-27", "2022-10-27", "2023-10-27", "2024-10-27", "2025-10-27"]   # the 4 LEARN years (12-month blocks)
+E48_I, E48_ST, E48_CAP = [30, 52, 74], [0.2, 0.3, 0.5], [1.0, 1.5, 2.0]
+E48_CELLS = [(a, b, c) for a in range(3) for b in range(3) for c in range(3)]; E48_DEF = E48_CELLS.index((1, 1, 1))
+E48_W = [("W1", "2022-10-27", "2023-10-27"), ("W2", "2023-10-27", "2024-10-27"), ("W3", "2024-10-27", "2025-10-27"), ("W4", "2025-10-27", "2099-01-01")]
+E48_LY = ["2021-10-27", "2022-10-27", "2023-10-27", "2024-10-27", "2025-10-27"]   # the 4 LEARN years (12-month blocks)
 STR1, STR2 = [("CE", 1, -1), ("PE", -1, -1)], [("CE", 2, -1), ("PE", -2, -1)]
 
 
@@ -954,17 +954,17 @@ def _dd(x): c = np.cumsum(x); return float((c - np.maximum.accumulate(np.maximum
 
 
 def _nb(ci):
-    a, b, c = E47_CELLS[ci]; return [ci] + [E47_CELLS.index(t) for t in ((a - 1, b, c), (a + 1, b, c), (a, b - 1, c), (a, b + 1, c), (a, b, c - 1), (a, b, c + 1)) if t in E47_CELLS]
+    a, b, c = E48_CELLS[ci]; return [ci] + [E48_CELLS.index(t) for t in ((a - 1, b, c), (a + 1, b, c), (a, b - 1, c), (a, b + 1, c), (a, b, c - 1), (a, b, c + 1)) if t in E48_CELLS]
 
 
-def e47_choose(PN, train):
+def e48_choose(PN, train):
     """walk-forward choice (frozen): neighbourhood mean per trade on the training days; the default unless a challenger's neighbourhood
     beats the default's by more than 1 s.e. of the paired per-day difference; then the best such challenger."""
     with np.errstate(all="ignore"): NB = np.stack([np.nanmean(PN[_nb(ci)][:, train], 0) for ci in range(27)])
-    best, bm = E47_DEF, -np.inf
+    best, bm = E48_DEF, -np.inf
     for ci in range(27):
-        if ci == E47_DEF: continue
-        df = NB[ci] - NB[E47_DEF]; df = df[np.isfinite(df)]
+        if ci == E48_DEF: continue
+        df = NB[ci] - NB[E48_DEF]; df = df[np.isfinite(df)]
         if len(df) > 1 and df.mean() > df.std(ddof=1) / np.sqrt(len(df)) and np.nanmean(NB[ci]) > bm: best, bm = ci, np.nanmean(NB[ci])
     return best
 
@@ -972,43 +972,43 @@ def e47_choose(PN, train):
 def _passrow(name, T, plac=None):
     """frozen PASS inputs for a trade table T (day, pnl): LEARN / TEST stats by calendar date."""
     T = T[T.pnl.notna()]; Lr, Te = T[T.day < HO], T[T.day >= HO]; g = Lr.groupby("day").pnl.sum(); gt = Te.groupby("day").pnl.sum()
-    yrs = [Lr[(Lr.day >= a) & (Lr.day < b)].pnl.sum() for a, b in zip(E47_LY[:-1], E47_LY[1:])]
+    yrs = [Lr[(Lr.day >= a) & (Lr.day < b)].pnl.sum() for a, b in zip(E48_LY[:-1], E48_LY[1:])]
     r = dict(cell=name, learn_n=len(Lr), learn_mean=Lr.pnl.mean(), learn_total=Lr.pnl.sum(), learn_p=_bp(g.values), learn_yrs_pos=int(sum(y > 0 for y in yrs)), win=float((Lr.pnl > 0).mean()),
              less_top5=float(g.sum() - g.nlargest(5).sum()), worst=float(T.pnl.min()), learn_maxdd=_dd(g.values), test_n=len(Te), test_mean=Te.pnl.mean(), test_total=Te.pnl.sum(), test_p=_bp(gt.values))
     if plac is not None: r["plac_p95"] = float(np.percentile(plac, 95)); r["plac_mean"] = float(np.mean(plac))
     return r
 
 
-def study_e47():
+def study_e48():
     import sell_lab as S
     K_ = [k for k in L.ALLK if P[k]["d0"]]; days = np.array([k[1] for k in K_]); syms = np.array([k[0] for k in K_]); nk = len(K_); rg = np.random.default_rng(47)
     pr = lambda k, i, legs, **ex: S.struct(k, i, legs, mode="cons", **ex)
     # ---- A: the 27-cell grid
     PN = np.full((27, nk), np.nan); DEF = [None] * nk
-    for ci, (a, b, c) in enumerate(E47_CELLS):
+    for ci, (a, b, c) in enumerate(E48_CELLS):
         for j, k in enumerate(K_):
-            r = pr(k, E47_I[a], STR1, sstop=E47_CAP[c], stop=E47_ST[b])
+            r = pr(k, E48_I[a], STR1, sstop=E48_CAP[c], stop=E48_ST[b])
             if r: PN[ci, j] = r["pnl"]
-            if ci == E47_DEF: DEF[j] = r
+            if ci == E48_DEF: DEF[j] = r
     lm = days < HO; mean = lambda m: np.nanmean(PN[:, m], 1); mL, mT = mean(lm), mean(~lm)
-    lab = lambda ci: f"{['09:46', '10:08', '10:30'][E47_CELLS[ci][0]]} stop {int(E47_ST[E47_CELLS[ci][1]] * 100)}% cap {E47_CAP[E47_CELLS[ci][2]]}"
+    lab = lambda ci: f"{['09:46', '10:08', '10:30'][E48_CELLS[ci][0]]} stop {int(E48_ST[E48_CELLS[ci][1]] * 100)}% cap {E48_CAP[E48_CELLS[ci][2]]}"
     Sf = pd.DataFrame(dict(cell=[lab(ci) for ci in range(27)], learn_n=np.isfinite(PN[:, lm]).sum(1), learn_mean=mL, test_mean=mT, learn_rank=pd.Series(-mL).rank().values, test_rank=pd.Series(-mT).rank().values,
-                           worst=np.nanmin(PN, 1), neighbour=[ci in _nb(E47_DEF)[1:] for ci in range(27)]))
-    pd.set_option("display.width", 250); print("E47 surface: XS on 27 cells (Rs per trade, 10 lots)"); print(Sf.round(0).to_string(index=False))
+                           worst=np.nanmin(PN, 1), neighbour=[ci in _nb(E48_DEF)[1:] for ci in range(27)]))
+    pd.set_option("display.width", 250); print("E48 surface: XS on 27 cells (Rs per trade, 10 lots)"); print(Sf.round(0).to_string(index=False))
     pbo = HST.pbo_cscv(np.nan_to_num(PN[:, lm]).T[np.argsort(days[lm], kind="stable")], S=10, metric=lambda X: X.mean(0))["pbo"]
-    wm = np.flatnonzero(days >= E47_W[0][1]); chosen = {}; tuned = np.full(nk, np.nan)
-    for w, a, b in E47_W:
-        ci = e47_choose(PN, np.flatnonzero(days < a)); chosen[w] = ci; m = (days >= a) & (days < b); tuned[m] = PN[ci, m]
-    df = pd.DataFrame(dict(day=days[wm], d=np.nan_to_num(tuned[wm]) - np.nan_to_num(PN[E47_DEF, wm]), t=np.nan_to_num(tuned[wm]), x=np.nan_to_num(PN[E47_DEF, wm])))
-    wy = [df[(df.day >= a) & (df.day < b)].d.sum() for _, a, b in E47_W]; gd = df.groupby("day").sum(); pA = _bp(gd.d.values)
-    rankW = pd.Series(-np.nanmean(PN[:, wm], 1)).rank().values[E47_DEF]; nbrs = _nb(E47_DEF)[1:]
-    pos_both = int(((mL > 0) & (mT > 0)).sum()); nb_ok = all(mL[n] > 0.6 * mL[E47_DEF] and mT[n] > 0.6 * mT[E47_DEF] for n in nbrs); nb_neg = any(mL[n] < 0 and mT[n] < 0 for n in nbrs)
-    robust = pos_both >= 24 and nb_ok and pbo < 0.3; fragile = (Sf.learn_rank[E47_DEF] <= 3 and rankW > 14) or (mT > 0).sum() < 20 or nb_neg or pbo > 0.5
-    print(f"\nsurface: {pos_both}/27 cells positive on LEARN and TEST ({int((mT > 0).sum())}/27 on TEST); default LEARN rank {Sf.learn_rank[E47_DEF]:.0f}, TEST rank {Sf.test_rank[E47_DEF]:.0f}, W1-W4 rank {rankW:.0f}; "
+    wm = np.flatnonzero(days >= E48_W[0][1]); chosen = {}; tuned = np.full(nk, np.nan)
+    for w, a, b in E48_W:
+        ci = e48_choose(PN, np.flatnonzero(days < a)); chosen[w] = ci; m = (days >= a) & (days < b); tuned[m] = PN[ci, m]
+    df = pd.DataFrame(dict(day=days[wm], d=np.nan_to_num(tuned[wm]) - np.nan_to_num(PN[E48_DEF, wm]), t=np.nan_to_num(tuned[wm]), x=np.nan_to_num(PN[E48_DEF, wm])))
+    wy = [df[(df.day >= a) & (df.day < b)].d.sum() for _, a, b in E48_W]; gd = df.groupby("day").sum(); pA = _bp(gd.d.values)
+    rankW = pd.Series(-np.nanmean(PN[:, wm], 1)).rank().values[E48_DEF]; nbrs = _nb(E48_DEF)[1:]
+    pos_both = int(((mL > 0) & (mT > 0)).sum()); nb_ok = all(mL[n] > 0.6 * mL[E48_DEF] and mT[n] > 0.6 * mT[E48_DEF] for n in nbrs); nb_neg = any(mL[n] < 0 and mT[n] < 0 for n in nbrs)
+    robust = pos_both >= 24 and nb_ok and pbo < 0.3; fragile = (Sf.learn_rank[E48_DEF] <= 3 and rankW > 14) or (mT > 0).sum() < 20 or nb_neg or pbo > 0.5
+    print(f"\nsurface: {pos_both}/27 cells positive on LEARN and TEST ({int((mT > 0).sum())}/27 on TEST); default LEARN rank {Sf.learn_rank[E48_DEF]:.0f}, TEST rank {Sf.test_rank[E48_DEF]:.0f}, W1-W4 rank {rankW:.0f}; "
           f"neighbours all >= 60% of the default: {nb_ok}; PBO {pbo:.2f} -> {'ROBUST PLATEAU' if robust else 'FRAGILE' if fragile else 'neither (in between)'}")
     print("A re-tune: chosen per year", {w: lab(ci) for w, ci in chosen.items()}, f"| tuned - default: mean {df.d.mean():+,.0f}/expiry trade, per year {[round(v) for v in wy]}, p {pA:.4f}; "
           f"worst trade tuned {df.t.min():,.0f} vs default {df.x.min():,.0f}; maxdd tuned {_dd(gd.t.values):,.0f} vs default {_dd(gd.x.values):,.0f}")
-    rows = [_passrow("XS default (reference)", pd.DataFrame(dict(day=days, pnl=PN[E47_DEF])))]
+    rows = [_passrow("XS default (reference)", pd.DataFrame(dict(day=days, pnl=PN[E48_DEF])))]
     o2 = [pr(k, 52, STR2, sstop=1.5, stop=0.3) for k in K_]; rows.append(_passrow("OTM2 strangle, default settings (descriptive)", pd.DataFrame(dict(day=days, pnl=[r["pnl"] if r else np.nan for r in o2]))))
     # ---- RE: re-entry 30 minutes after a stop / cap exit before 13:00
     re = []
@@ -1021,7 +1021,7 @@ def study_e47():
         for r in RE[RE.day < HO].itertuples():
             cand = np.flatnonzero((syms == r.sym) & lm); x = pr(K_[rg.choice(cand)], r.i, STR1, sstop=1.5, stop=0.3); v.append(x["pnl"] if x else np.nan)
         pl.append(np.nanmean(v))
-    rows.append(_passrow("RE re-entry after a stop", RE, pl)); both = np.nan_to_num(PN[E47_DEF]).copy(); both[RE.j.values] += np.nan_to_num(RE.pnl.values)
+    rows.append(_passrow("RE re-entry after a stop", RE, pl)); both = np.nan_to_num(PN[E48_DEF]).copy(); both[RE.j.values] += np.nan_to_num(RE.pnl.values)
     rows.append(_passrow("XS + RE (descriptive)", pd.DataFrame(dict(day=days, pnl=both))))
     # ---- TS: four 60-minute theta slices per expiry day
     ts = [dict(j=j, day=k[1], sym=k[0], slot=f"{(M0 + i + 1) // 60}:08", pnl=(lambda r: r["pnl"] if r else np.nan)(pr(k, i, STR1, stop=0.3, flat=M0 + i + 1 + 60))) for j, k in enumerate(K_) for i in (112, 172, 232, 292)]
@@ -1036,9 +1036,9 @@ def study_e47():
     rows.append(_passrow("TS theta slices (4 x 60 min)", TS, pl))
     for sym in ("NIFTY", "SENSEX"): rows.append(_passrow(f"TS {sym} (descriptive)", TS[TS.sym == sym]))
     sl = TS[TS.pnl.notna()].assign(split=np.where(TS[TS.pnl.notna()].day < HO, "LEARN", "TEST")).groupby(["sym", "slot", "split"]).pnl.agg(["size", "mean", lambda x: (x > 0).mean()]).round(2)
-    y = TS[TS.day < HO].groupby("j").pnl.sum(); x = pd.Series(np.nan_to_num(PN[E47_DEF]))[y.index]; X = np.column_stack([np.ones(len(x)), x.values])
+    y = TS[TS.day < HO].groupby("j").pnl.sum(); x = pd.Series(np.nan_to_num(PN[E48_DEF]))[y.index]; X = np.column_stack([np.ones(len(x)), x.values])
     beta = np.linalg.lstsq(X, y.values, rcond=None)[0]; bi = rg.integers(0, len(y), (4000, len(y))); ints = np.array([np.linalg.lstsq(X[b], y.values[b], rcond=None)[0][0] for b in bi])
-    T_ = pd.DataFrame(rows); pd.set_option("display.max_columns", 30); print("\nE47 cells (Rs at 10 lots; TS per slice; p = one-sided bootstrap by calendar date)"); print(T_.round({c_: (4 if c_.endswith("_p") else 3 if c_ == "win" else 0) for c_ in T_.columns if c_ != "cell"}).to_string(index=False))
+    T_ = pd.DataFrame(rows); pd.set_option("display.max_columns", 30); print("\nE48 cells (Rs at 10 lots; TS per slice; p = one-sided bootstrap by calendar date)"); print(T_.round({c_: (4 if c_.endswith("_p") else 3 if c_ == "win" else 0) for c_ in T_.columns if c_ != "cell"}).to_string(index=False))
     print("\nTS per slot"); print(sl.to_string())
     print(f"\nTS net of XS (LEARN, per expiry day): slice-day P&L = {beta[0]:+,.0f} + {beta[1]:.2f} x XS P&L; intercept p {float((ints <= 0).mean()):.4f}; corr {np.corrcoef(x.values, y.values)[0, 1]:.2f}")
     # ---- Holm over the 3 primary tests
@@ -1051,7 +1051,7 @@ def study_e47():
     vT = ok("TS", "TS theta") and beta[0] > 0 and float((ints <= 0).mean()) < 0.05
     print(f"\nHolm-adjusted p: {{k: round(v, 4) for k, v in holm.items()}}".replace("{{", "{").replace("}}", "}") if False else f"\nHolm-adjusted p: { {k: round(v, 4) for k, v in holm.items()} }")
     print(f"VERDICTS: A re-tune {'PASS' if vA else 'FAIL (keep the default)'} | RE {'PASS' if ok('RE', 'RE ') else 'FAIL'} | TS {'PASS' if vT else 'FAIL'}")
-    T_.to_csv(f"{L.OUT}/scalp_e47.csv", index=False); Sf.to_csv(f"{L.OUT}/scalp_e47_surface.csv", index=False); TS.to_csv(f"{L.OUT}/scalp_e47_ts.csv", index=False); RE.to_csv(f"{L.OUT}/scalp_e47_re.csv", index=False)
+    T_.to_csv(f"{L.OUT}/scalp_e48.csv", index=False); Sf.to_csv(f"{L.OUT}/scalp_e48_surface.csv", index=False); TS.to_csv(f"{L.OUT}/scalp_e48_ts.csv", index=False); RE.to_csv(f"{L.OUT}/scalp_e48_re.csv", index=False)
 
 
 def study_selftest():
@@ -1112,12 +1112,12 @@ def study_selftest():
     assert not tsim(Gq, np.array([10]), 2.0, 2.0, 30, 650, tx, "passive")["filled"][0]
     Gq["ask"][30:59] = 100.0; Rq = tsim(Gq, np.array([10]), 2.0, 2.0, 100, 650, tx, "passive"); assert Rq["filled"][0] and Rq["pe"][0] == 100.0 and Rq["e"][0] == 30  # ask trades down to us
     Rs_ = tsim(Gd, np.array([10]), 1.5, 2.5, 100, 650, tx, short=True); assert Rs_["out"][0] == 0 and abs(Rs_["pts"][0] - 1.5) < 1e-6   # short: sold at the bid 100, buy-back limit 98.5 filled when ask <= 98.5
-    # E47 walk-forward chooser: stays on the default without a clear challenger; switches when a whole neighbourhood is better
-    rg7 = np.random.default_rng(7); PNs = rg7.normal(0, 1000, (27, 200)); assert e47_choose(PNs + 500, np.arange(200)) == E47_DEF or True
-    flat = np.tile(rg7.normal(0, 1000, 200), (27, 1)); assert e47_choose(flat, np.arange(200)) == E47_DEF          # identical cells: no challenger
-    hi = flat.copy(); c0 = E47_CELLS.index((0, 0, 0)); hi[_nb(c0)] += 3000; assert e47_choose(hi, np.arange(200)) == c0   # the corner neighbourhood is lifted
-    assert sorted(_nb(E47_DEF)) == sorted([E47_DEF] + [E47_CELLS.index(t) for t in ((0, 1, 1), (2, 1, 1), (1, 0, 1), (1, 2, 1), (1, 1, 0), (1, 1, 2))]) and len(_nb(c0)) == 4
-    print("scalp_lab selftest OK (E47: walk-forward chooser keeps the default / switches to a lifted neighbourhood; E46: two-level market walk, resting target, stop + latency, time-out, passive no-fill / queue / through, short mirror; E45: limit target at the limit, stop wins a tie, time exit, close convention, 5-lot charges, ITM gather == panel; hand-priced target / stop / time exits, charges == L.cost, half-spread == L.hs, no entry on an untraded bar, one position at a time, pool == panel)")
+    # E48 walk-forward chooser: stays on the default without a clear challenger; switches when a whole neighbourhood is better
+    rg7 = np.random.default_rng(7); PNs = rg7.normal(0, 1000, (27, 200)); assert e48_choose(PNs + 500, np.arange(200)) == E48_DEF or True
+    flat = np.tile(rg7.normal(0, 1000, 200), (27, 1)); assert e48_choose(flat, np.arange(200)) == E48_DEF          # identical cells: no challenger
+    hi = flat.copy(); c0 = E48_CELLS.index((0, 0, 0)); hi[_nb(c0)] += 3000; assert e48_choose(hi, np.arange(200)) == c0   # the corner neighbourhood is lifted
+    assert sorted(_nb(E48_DEF)) == sorted([E48_DEF] + [E48_CELLS.index(t) for t in ((0, 1, 1), (2, 1, 1), (1, 0, 1), (1, 2, 1), (1, 1, 0), (1, 1, 2))]) and len(_nb(c0)) == 4
+    print("scalp_lab selftest OK (E48: walk-forward chooser keeps the default / switches to a lifted neighbourhood; E46: two-level market walk, resting target, stop + latency, time-out, passive no-fill / queue / through, short mirror; E45: limit target at the limit, stop wins a tie, time exit, close convention, 5-lot charges, ITM gather == panel; hand-priced target / stop / time exits, charges == L.cost, half-spread == L.hs, no entry on an untraded bar, one position at a time, pool == panel)")
 
 
 if __name__ == "__main__":
