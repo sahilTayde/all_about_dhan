@@ -88,13 +88,23 @@ def hs(sym, d0, m, p):
 
 # ---------------------------------------------------------------- panel
 IDX5Y = os.environ.get("IDX5Y", f"{OUT}/../idx1m.pkl")  # lab.py cache of data/recon 5y index 1m
+def spot_series(g, ix=None):
+    """spot per minute (Series indexed by m) for one sym-day. 2026-11-16 spot fix: an option row carries the index value stamped at that
+    strike's LAST update, so an untraded strike repeats an old spot (SENSEX 2024-06-04 12:29: the raw row median is 71,539, the index is
+    70,271). Order: (1) the index 1m close `ix` (idx1m, the exchange minute close) wherever it has the minute; (2) else the median over
+    the rows that TRADED in the minute (vol > 0: a fresh stamp); (3) else the median over all rows (the pre-fix value)."""
+    sp = g.groupby("m").spot.median(); sp.update(g[g.vol > 0].groupby("m").spot.median())
+    if ix is None: return sp
+    ix = ix[(ix.index >= M0) & (ix.index < M0 + NB)].dropna(); return ix.combine_first(sp)
+
+
 def build():
     X = pd.read_parquet(f"{OUT}/opt1y.parquet")
     X = X[(X.m >= M0) & (X.m < M0 + NB)]
     offmax = int(os.environ.get("OFFMAX", "99")); X = X[X.off.abs() <= offmax]  # E39: OFFMAX=3 keeps the 5-year panel at the 1-year memory footprint
     # 2026-11-13 data hygiene (Fable verification of the 5y ATM+-10 panel): (1) Dhan's SENSEX 2023-24 files carry rows of ANOTHER underlying
     # (spot 20-34% off, own strikes, ~all zero volume): drop every row whose spot is > 1% from the index minute close (idx1m; the row median
-    # where idx1m has no minute). (2) spot = per-minute median of the kept rows (was: the last row written). (3) a (side, strike, minute)
+    # where idx1m has no minute). (2) spot = spot_series (index minute close, else the median of the rows; was: the last row written). (3) a (side, strike, minute)
     # quoted twice with closes > 1% apart is unknowable: dropped (NaN), else the row nearest ATM wins. (4) ATM is carried forward only
     # (was ffill().bfill(): a leading gap took a LATER strike).
     try:
@@ -109,7 +119,7 @@ def build():
         g = g.assign(ao=g.off.abs()).sort_values("ao"); key = ["side", "strike", "m"]; cg = g.groupby(key).c
         g = g[~(cg.transform("max") > cg.transform("min") * 1.01 + 0.05)].drop_duplicates(key, keep="first")
         drop[(sym, day)] = (int(n0 - ok.sum()), int(ok.sum() - len(g)))
-        sp = g.groupby("m").spot.median(); i = (sp.index.values - M0).astype(int)
+        sp = spot_series(g, I.loc[(sym, day)] if (sym, day) in IK else None); i = (sp.index.values - M0).astype(int)
         spot = np.full(NB, np.nan); spot[i] = sp.values; spot = pd.Series(spot).ffill().values
         a0 = g[(g.off == 0) & (g.side == "CE")]; atm = np.full(NB, np.nan); atm[a0.m.values - M0] = a0.strike.values
         atm = pd.Series(atm).ffill().values
@@ -123,8 +133,9 @@ def build():
     return P
 
 
-_OFF = os.environ.get("OFFMAX", "99"); PK = f"{OUT}/panel{'' if _OFF == '99' else '_off' + _OFF + 'h'}.pkl"  # E38/E42: one cached panel per strike window;
-# the trailing h = built by the 2026-11-13 hygiene build() above (the pre-hygiene panel_off3/5/10.pkl of E38/E39 are left untouched for reproduction)
+_OFF = os.environ.get("OFFMAX", "99"); PK = f"{OUT}/panel{'' if _OFF == '99' else '_off' + _OFF + 'h'}x.pkl"  # E38/E42: one cached panel per strike window;
+# the trailing h = built by the 2026-11-13 hygiene build() above (the pre-hygiene panel_off3/5/10.pkl of E38/E39 are left untouched for reproduction);
+# the trailing x = spot from the index minute file (spot_series, 2026-11-16); panel.pkl / panel_off*h.pkl (median spot) are left untouched
 if not os.path.exists(PK): pickle.dump(build(), open(PK, "wb"))
 P = pickle.load(open(PK, "rb"))
 ALLK = sorted(P, key=lambda k: (k[1], k[0]))
