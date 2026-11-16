@@ -1174,6 +1174,187 @@ def study_e50():
     T.to_csv(f"{L.OUT}/scalp_e50_strikes.csv", index=False); T7.to_csv(f"{L.OUT}/scalp_e50_c7.csv", index=False); C7.drop(columns="k").to_csv(f"{L.OUT}/scalp_e50_c7_trades.csv", index=False); pd.DataFrame([c17]).to_csv(f"{L.OUT}/scalp_e50_c17.csv", index=False)
 
 
+# ================================================================ E52: ML information ceiling for 15-minute option scalps (buy and sell)
+E52_BARS = list(range(15, 331, 5))    # decision bars 09:30 .. 14:45, every 5th minute
+E52_T, E52_S, E52_H = 15.0, 10.0, 15  # buy: target / stop / minutes; the sell cell mirrors it (target 10, stop 15)
+E52_VOL = ["rv30", "strad_pct", "dte", "minute"]
+
+
+def price52_short(G, d, e, T, S, H, fs=1.0, fc=1.0):
+    """short the option: sold at the open - half-spread; buy-back limit at entry - T fills AT the limit when a bar's low <= limit - 0.05;
+    stop when a bar's high >= entry + S, bought at max(stop, that bar's open) + half-spread; stop wins a tie; time exit after H minutes
+    at the next traded open + half-spread. Returns pts (entry - exit, after spread), net (per unit after charges at 10 lots), out, xb, ok."""
+    d, e = np.asarray(d), np.asarray(e); N = len(d); r = np.arange(N); o = G["ENT"]; ok = np.isfinite(o)
+    ent = o - fs * hsv(d, M0 + e, np.nan_to_num(o, nan=1.0)); T = np.broadcast_to(np.asarray(T, float), (N,)); S = np.broadcast_to(np.asarray(S, float), (N,))
+    with np.errstate(invalid="ignore"):
+        th = G["Lo"][:, :H] <= (ent - T - 0.05)[:, None]; sh = G["H"][:, :H] >= (ent + S)[:, None]
+        ti = np.where(th.any(1), th.argmax(1), 99); si = np.where(sh.any(1), sh.argmax(1), 99)
+        out = np.where((si <= ti) & (si < 99), 1, np.where(ti < 99, 0, 2)); hx = np.where(out == 1, si, np.where(out == 0, ti, H - 1))
+        stp = np.maximum(ent + S, G["O"][r, hx].astype(float)); xt = np.nan_to_num(G["X"][r, H - 1].astype(float), nan=np.nan)
+        px = np.where(out == 1, stp, xt); hh = fs * hsv(d, M0 + e + hx + (out == 2), np.maximum(np.nan_to_num(px, nan=1.0), 0.05))
+        fill = np.where(out == 0, ent - T, px + hh); xb = e + hx + 1
+    pts = ent - fill
+    return dict(pts=pts, net=pts - chg(d, fill, ent, fc) / Q[d], out=out, xb=xb, ok=ok & np.isfinite(fill))
+
+
+def feats52(p, sym, other=None):
+    """E52 feature block for one sym-day at the decision bars: dict name -> (len(E52_BARS), 2) array, column 0 = CE row, 1 = PE row
+    (direction-signed features are mirrored for the PE row). Every value uses bars <= the decision bar. other = F array of the other index."""
+    f = feats45(p, sym, []); F, S = f["F"], f["S"]; M, ai, aok, nK = f["M"], f["ai"], f["aok"], f["nK"]; b = np.array(E52_BARS); Fs = pd.Series(F); X = {}
+    def two(v, flip=False, mirror=False):
+        v = np.asarray(v, float)[b]; return np.column_stack([v, (1 - v) if mirror else (-v if flip else v)])
+    def strike_series(side, off):  # per bar i: values of the strike that is ATM(+off) AT BAR i, as a function taking (col, lag)
+        j = np.clip(ai + off, 0, nK - 1); g = aok & (ai + off >= 0) & (ai + off < nK)
+        return lambda col, lag=0: np.where(g & (np.arange(NB) - lag >= 0), M[side][col][j, np.maximum(np.arange(NB) - lag, 0)], np.nan)
+    with np.errstate(invalid="ignore", divide="ignore"):
+        for k in (1, 3, 5, 15, 30, 60): X[f"r{k}"] = two((F - Fs.shift(k).values) / F * 1e4, flip=True)
+        dF = pd.Series(f["dF"])
+        for k in (10, 30, 60): X[f"rv{k}"] = two(dF.rolling(k, min_periods=k).std().values / F * 1e4)
+        for k, nm in ((30, "pos30"), (60, "pos60")):
+            lo, hi = Fs.rolling(k, min_periods=k).min().values, Fs.rolling(k, min_periods=k).max().values; X[nm] = two((F - lo) / (hi - lo), mirror=True)
+        lo, hi = Fs.cummin().values, Fs.cummax().values; X["posday"] = two((F - lo) / (hi - lo), mirror=True)
+        X["vwdev"] = two((F - f["VW"]) / F * 1e4, flip=True); X["minute"] = two(np.arange(NB)); X["d0"] = two(np.full(NB, float(p["d0"]))); X["dte"] = two(np.full(NB, float(p["dte"])))
+        st = f["ST"] / S * 100; X["strad_pct"] = two(st); X["dstrad5"] = two(st - pd.Series(st).shift(5).values); X["dstrad15"] = two(st - pd.Series(st).shift(15).values)
+        X["iv"] = two(f["IV"]); X["div15"] = two(f["IV"] - pd.Series(f["IV"]).shift(15).values)
+        X["rv_iv"] = two(pd.Series(np.diff(np.log(F), prepend=np.nan)).rolling(30, min_periods=30).std().values * np.sqrt(375 * 252) * 100 / f["IV"])
+        X["skew"] = two(strike_series("CE", 1)(5) - strike_series("PE", -1)(5), flip=True)
+        vc = sum(np.nan_to_num(strike_series("CE", o_)(6)) for o_ in range(-2, 3)); vp = sum(np.nan_to_num(strike_series("PE", o_)(6)) for o_ in range(-2, 3))
+        for k in (5, 15):
+            a, c = pd.Series(vc).rolling(k, min_periods=k).sum().values, pd.Series(vp).rolling(k, min_periods=k).sum().values; X[f"vimb{k}"] = two((a - c) / (a + c), flip=True)
+        X["kdist"] = two(np.abs(S - p["atm"]) / STEP[sym])
+        own = {}
+        for side in ("CE", "PE"):
+            g = strike_series(side, 0); c0 = g(3); own[side] = dict(prem=c0, ret5=c0 / g(3, 5) - 1, oi=g(4, 3) / g(4, 18) - 1,
+                                                                   rng=np.nanmean(np.stack([g(1, l) - g(2, l) for l in range(15)]), 0))
+        for nm, key in (("prem", "prem"), ("rng15", "rng"), ("own_ret5", "ret5"), ("own_oi15", "oi")): X[nm] = np.column_stack([own["CE"][key][b], own["PE"][key][b]])
+        X["oth_ret5"] = np.column_stack([own["PE"]["ret5"][b], own["CE"]["ret5"][b]]); X["oth_oi15"] = np.column_stack([own["PE"]["oi"][b], own["CE"]["oi"][b]])
+        for k in (1, 3, 5):
+            v = np.full(NB, np.nan) if other is None else (other - pd.Series(other).shift(k).values) / other * 1e4; X[f"x{k}"] = two(v, flip=True)
+        X["side"] = np.column_stack([np.ones(len(b)), -np.ones(len(b))]); X["f15"] = two((Fs.shift(-15).values - F) / F * 1e4, flip=True)  # f15 = the FUTURE move: label for the sign AUC only, never a feature
+    return X
+
+
+E52_FEATS = None
+def e52_table(sym):
+    """one row per (day, decision bar, side) for one index: features, the buy and sell labels (net points), exit bars."""
+    oth = "SENSEX" if sym == "NIFTY" else "NIFTY"; rows = []; nb = len(E52_BARS)
+    for d, k in enumerate(DAYK):
+        if k[0] != sym: continue
+        po = P.get((oth, k[1])); X = feats52(P[k], sym, feats45(po, oth, [])["F"] if po else None)
+        D = pd.DataFrame({n: v.T.ravel() for n, v in X.items()}); D["d"] = d; D["i"] = np.tile(E52_BARS, 2); D["dirn"] = np.repeat([1, -1], nb); rows.append(D)
+    T = pd.concat(rows, ignore_index=True); T["hsp"] = hsv(T.d.values, M0 + T.i.values, np.nan_to_num(T.prem.values, nan=1.0)) / T.prem
+    m = PMULT[T.d.values]; e = T.i.values + 1; G = gather(T.d.values, e, 0, T.dirn.values)
+    B = price45(G, T.d.values, e, E52_T * m, E52_S * m, E52_H); Sx = price52_short(G, T.d.values, e, E52_S * m, E52_T * m, E52_H)
+    T["y_buy"] = np.where(B["ok"], B["pnl10"] / Q[T.d.values], np.nan); T["xb_buy"] = B["xb"]; T["hit_buy"] = (B["out"] == 0).astype(float)
+    T["y_sell"] = np.where(Sx["ok"], Sx["net"], np.nan); T["xb_sell"] = Sx["xb"]; T["day"] = [DAYK[x][1] for x in T.d.values]
+    return T
+
+
+def _e52_cols(T): return [c for c in T.columns if c not in ("d", "i", "dirn", "day", "f15", "y_buy", "y_sell", "xb_buy", "xb_sell", "hit_buy", "fold")]
+
+
+def _e52_fit(Xtr, ytr, kind):
+    from sklearn.ensemble import HistGradientBoostingRegressor
+    from sklearn.linear_model import Ridge
+    from sklearn.pipeline import make_pipeline
+    from sklearn.preprocessing import StandardScaler
+    from sklearn.impute import SimpleImputer
+    if kind == "gbm": return HistGradientBoostingRegressor(max_depth=3, max_iter=200, learning_rate=0.05, min_samples_leaf=500, l2_regularization=1.0, random_state=52).fit(Xtr, ytr)
+    return make_pipeline(SimpleImputer(strategy="median"), StandardScaler(), Ridge(alpha=1.0)).fit(np.clip(Xtr, -1e6, 1e6), ytr)
+
+
+def _auc(y, s_):
+    y = np.asarray(y, bool); s_ = np.asarray(s_, float); m = np.isfinite(s_); y, s_ = y[m], s_[m]; r = pd.Series(s_).rank().values; n1 = y.sum(); n0 = len(y) - n1
+    return float((r[y].sum() - n1 * (n1 + 1) / 2) / (n1 * n0)) if n1 and n0 else np.nan
+
+
+def _e52_trade(T, pred, thr, label, xb, cap=20, n_take=None):
+    """picks = rows with prediction >= thr (or the n_take best), sorted by (day, bar); at one bar the higher prediction; one position at a time."""
+    m = np.isfinite(pred) & np.isfinite(T[label].values)
+    if n_take is not None: thr = np.sort(pred[m])[-min(n_take, m.sum())]
+    I = np.flatnonzero(m & (pred >= thr)); I = I[np.lexsort((-pred[I], T.i.values[I], T.d.values[I]))]; take = []; last_d = -1; free = 0; cnt = 0
+    d_, i_, x_ = T.d.values, T.i.values, T[xb].values
+    for j in I:
+        if d_[j] != last_d: last_d = d_[j]; free = 0; cnt = 0
+        if i_[j] + 1 >= free and cnt < cap: take.append(j); free = x_[j]; cnt += 1
+    return np.array(take, int), int(len(I))
+
+
+def _block_p(day_pnl, n=10000, block=5, seed=52):
+    x = np.asarray(day_pnl, float); nb = int(np.ceil(len(x) / block)); x = np.concatenate([x, np.zeros(nb * block - len(x))]).reshape(nb, block).sum(1)
+    return float((np.random.default_rng(seed).choice(x, (n, nb)).mean(1) <= 0).mean())
+
+
+def study_lookahead52(n_days=12, seed=5):
+    """scramble every bar after decision bar i and require the E52 feature rows at bars <= i to be unchanged (the label column f15 excluded)."""
+    rg = np.random.default_rng(seed); ks = [DAYK[j] for j in rg.choice(ND, n_days, replace=False)]; bad = n = 0
+    for k in ks:
+        p = P[k]; base = feats52(p, k[0], p["spot"] * 1.0)
+        for cut in (60, 150, 290):
+            q = dict(p, spot=p["spot"].copy(), atm=p["atm"].copy(), C={kk: a.copy() for kk, a in p["C"].items()}); m = NB - cut - 1
+            q["spot"][cut + 1:] *= rg.uniform(0.97, 1.03, m); q["atm"][cut + 1:] = p["atm"][cut] + 2 * STEP[k[0]]
+            for a in q["C"].values(): a[cut + 1:] *= rg.uniform(0.5, 1.5, (m, 7))
+            oth = p["spot"].copy(); oth[cut + 1:] *= rg.uniform(0.97, 1.03, m); got = feats52(q, k[0], oth); keep = np.array(E52_BARS) <= cut
+            for nm in base:
+                if nm == "f15": continue
+                n += 1; a, b_ = base[nm][keep], got[nm][keep]
+                if not np.allclose(a, b_, equal_nan=True, rtol=1e-9, atol=1e-9): bad += 1; print("LOOK-AHEAD", k, nm, cut)
+    print(f"E52 look-ahead scan: {n} (feature, day, cut) checks on {len(ks)} sym-days, {bad} leaks"); assert bad == 0
+
+
+def study_e52():
+    import pickle
+    rg = np.random.default_rng(52); out = []; LY = E49_LY; pd.set_option("display.width", 320); pd.set_option("display.max_columns", 40)
+    for sym in ("NIFTY", "SENSEX"):
+        cache = f"{L.OUT}/scalp_e52_{sym}.pkl"
+        if os.path.exists(cache): T = pd.read_pickle(cache)
+        else: T = e52_table(sym); T.to_pickle(cache)
+        if sym == "SENSEX": T = T[T.day >= "2023-07-01"].reset_index(drop=True)
+        cols = _e52_cols(T); T["fold"] = np.select([T.day < LY[1], T.day < LY[2], T.day < LY[3], T.day < LY[4]], [0, 1, 2, 3], 4); Xall = T[cols].values.astype(float)
+        days = np.array(sorted(T.day.unique())); print(f"\n===== {sym}: {len(T):,} rows, {len(cols)} features, days per fold {T.groupby('fold').day.nunique().to_dict()}", flush=True)
+        for label, xb, side in (("y_buy", "xb_buy", "BUY"), ("y_sell", "xb_sell", "SELL")):
+            y = T[label].values
+            for kind in ("gbm", "ridge"):
+                for fs_name, fcols in (("all", cols), ("vol-only", E52_VOL)):
+                    if kind == "ridge" and fs_name == "vol-only": continue
+                    Xf = T[fcols].values.astype(float); pred = np.full(len(T), np.nan)
+                    for fold in (1, 2, 3, 4):
+                        if fold not in set(T.fold): continue
+                        trd = T.fold < fold; last = T.day[trd].max() if trd.any() else None; tr = trd & (T.day < last) & np.isfinite(y)   # 1-day embargo
+                        if tr.sum() < 5000: continue
+                        mdl = _e52_fit(Xf[tr.values], y[tr.values], kind); te = (T.fold == fold).values; pred[te] = mdl.predict(np.clip(Xf[te], -1e6, 1e6) if kind == "ridge" else Xf[te])
+                    oof = np.isin(T.fold.values, (1, 2, 3)) & np.isfinite(pred); thr = float(np.quantile(pred[oof], 0.95)); key = (sym, side, kind, fs_name)
+                    res = dict(sym=sym, side=side, model=kind, feats=fs_name, thr=thr)
+                    for nm, msk in (("f1", T.fold == 1), ("f2", T.fold == 2), ("f3", T.fold == 3), ("TEST", T.fold == 4)):
+                        Ts = T[msk.values].reset_index(drop=True); ps = pred[msk.values]
+                        if not len(Ts): continue
+                        tk, nq = _e52_trade(Ts, ps, thr, label, xb); pn = Ts[label].values[tk]; res[f"{nm}_n"] = len(tk); res[f"{nm}_net"] = float(pn.mean()) if len(tk) else np.nan
+                        if nm == "TEST":
+                            dp = pd.Series(pn).groupby(Ts.day.values[tk]).sum().reindex(sorted(Ts.day.unique()), fill_value=0.0); q4 = [x.sum() for x in np.array_split(dp.values, 4)]
+                            res.update(TEST_days=int((dp != 0).sum()), per_day=len(tk) / len(dp), win=float((pn > 0).mean()) if len(tk) else np.nan, p=_block_p(dp.values) if len(tk) else np.nan,
+                                       q_pos=int(sum(v > 0 for v in q4)), rs_trade=float((pn * Q[Ts.d.values[tk]]).mean()) if len(tk) else np.nan, worst_pts=float(pn.min()) if len(tk) else np.nan,
+                                       expiry_share=float(Ts.d0.values[tk].mean()) if len(tk) else np.nan, n_qualify=nq,
+                                       base_matched=float(pd.Series(Ts[label].values).groupby([Ts.i.values, Ts.d0.values]).mean().reindex(list(zip(Ts.i.values[tk], Ts.d0.values[tk]))).mean()) if len(tk) else np.nan,
+                                       auc_sign=_auc(Ts.f15.values > 0, ps) if side == "BUY" else _auc(Ts.f15.values < 0, ps), auc_hit=_auc(Ts.hit_buy.values > 0, ps) if side == "BUY" else np.nan)
+                            if kind == "gbm" and fs_name == "all":
+                                pl = []
+                                for _ in range(200):
+                                    sh = pd.Series(ps).groupby(Ts.d.values).transform(lambda v: rg.permutation(v.values)).values; t2, _ = _e52_trade(Ts, sh, thr, label, xb); pl.append(Ts[label].values[t2].mean() if len(t2) else np.nan)
+                                res["plac_p95"] = float(np.nanpercentile(pl, 95)); res["plac_mean"] = float(np.nanmean(pl)); res["_test"] = (Ts, ps, len(tk))
+                    out.append(res); print(key, f"thr {thr:+.2f} | OOF net {[round(res.get(f'f{k}_net', np.nan), 2) for k in (1, 2, 3)]} n {[res.get(f'f{k}_n', 0) for k in (1, 2, 3)]} | TEST n {res.get('TEST_n')} net {res.get('TEST_net', np.nan):+.2f}", flush=True)
+            # vol-only at an equal number of picks (frozen comparison)
+            a = next(r for r in out if (r["sym"], r["side"], r["model"], r["feats"]) == (sym, side, "gbm", "all")); v = next(r for r in out if (r["sym"], r["side"], r["model"], r["feats"]) == (sym, side, "gbm", "vol-only"))
+            Ts, ps, n_tk = a.pop("_test"); Xv = T[E52_VOL].values.astype(float); trd = (T.fold < 4) & (T.day < T.day[T.fold < 4].max()) & np.isfinite(y)
+            pv = _e52_fit(Xv[trd.values], y[trd.values], "gbm").predict(T[T.fold == 4][E52_VOL].values.astype(float)); t2, _ = _e52_trade(Ts, pv, None, label, xb, n_take=a["n_qualify"])
+            a["vol_only_equal_n"] = len(t2); a["vol_only_equal_net"] = float(Ts[label].values[t2].mean()) if len(t2) else np.nan
+            oofn = sum(a.get(f"f{k}_net", -1) > 0 for k in (1, 2, 3))
+            a["verdict"] = "PASS" if (a["TEST_net"] > 0 and a["p"] < 0.025 and a["TEST_n"] >= 300 and a["q_pos"] >= 3 and oofn >= 2 and a["TEST_net"] > a["vol_only_equal_net"] and a["TEST_net"] > a["plac_p95"]) else "CLOSE"
+            if side == "SELL" and a["verdict"] == "PASS" and a["expiry_share"] > 0.7: a["verdict"] = "XS re-count"
+    R = pd.DataFrame(out).drop(columns=[c for c in ("_test",) if c in pd.DataFrame(out).columns]); R.to_csv(f"{L.OUT}/scalp_e52.csv", index=False)
+    print("\nE52 (net premium points per unit after spread and charges; NIFTY gbm/all rows are the two primary cells)")
+    print(R.round({c: (4 if c == "p" else 3 if c in ("win", "auc_sign", "auc_hit", "expiry_share") else 0 if c in ("rs_trade",) else 2) for c in R.columns if R[c].dtype.kind == "f"}).to_string(index=False))
+
+
 def study_selftest():
     """known answers on a synthetic day: hand-computed fills, charges equal L.cost, the greedy one-at-a-time rule, exits."""
     k = next(k for k in DAYK if k[1] >= HO and k[0] == "NIFTY"); d = DIX[k]; Z = pool(); keep = {n: Z[n][d].copy() for n in Z}
@@ -1245,7 +1426,17 @@ def study_selftest():
     ce5 = mk(50.0); pe5 = mk(50.0); ce5[40:, 3] = 45.0    # straddle 100 until bar 39, 95 from bar 40: below its VWAP from bar 40 -> the 5th close is bar 44
     g5 = e50_c7(dict(spot=np.full(NB, 100.0), atm=np.full(NB, 100.0), C={("CE", 100.0): ce5, ("PE", 100.0): pe5}), "NIFTY"); assert g5[0] == 44 and g5[1] == 0, g5[:2]
     ce5[10:, 3] = 45.0; assert e50_c7(dict(spot=np.full(NB, 100.0), atm=np.full(NB, 100.0), C={("CE", 100.0): ce5, ("PE", 100.0): pe5}), "NIFTY")[0] == 30   # already below before 09:45: fires at the first allowed bar
-    print("scalp_lab selftest OK (E50: constant-credit and OI-wall picks, straddle-below-VWAP trigger; E49: walk-forward chooser keeps the default / switches to a lifted neighbourhood; E46: two-level market walk, resting target, stop + latency, time-out, passive no-fill / queue / through, short mirror; E45: limit target at the limit, stop wins a tie, time exit, close convention, 5-lot charges, ITM gather == panel; hand-priced target / stop / time exits, charges == L.cost, half-spread == L.hs, no entry on an untraded bar, one position at a time, pool == panel)")
+    # E52 short pricing, hand-priced: sold at 100 - hs; lows reach the buy-back limit (entry - 3) in bar 1 -> +3.00; highs reach the stop first in a tie
+    Gs2 = dict(ENT=np.array([100.0, 100.0]), O=np.tile(np.float32([100, 99, 99, 99] + [99] * 27), (2, 1)), H=np.tile(np.float32([100.5, 99.5, 108, 99] + [99] * 27), (2, 1)),
+               Lo=np.tile(np.float32([99.5, 96.0, 95, 99] + [99] * 27), (2, 1)), C=np.tile(np.float32([100, 97, 99, 99] + [99] * 27), (2, 1)), X=np.tile(np.float32([99, 99, 99, 99] + [99] * 27), (2, 1)), FX=np.zeros((2, NH), bool))
+    Rs2 = price52_short(Gs2, np.array([d, d]), np.array([100, 100]), np.array([3.0, 6.0]), np.array([10.0, 7.0]), 5); es = 100 - h
+    assert Rs2["out"][0] == 0 and abs(Rs2["pts"][0] - 3.0) < 1e-9 and abs(Rs2["net"][0] - (3.0 - L.cost(es - 3.0, es, "NIFTY", _kc(k)) / Q[d])) < 1e-6   # bar 1 low 96 <= es - 3 - 0.05
+    # row 1: T 6 (limit es - 6 = 93.8: not reached by bar 1 low 96; bar 2 low 95 no), S 7 (stop es + 7 = 106.8: bar 2 high 108) -> stop, bought at max(106.8, open 99) + hs
+    assert Rs2["out"][1] == 1 and abs(Rs2["pts"][1] - (es - (es + 7 + L.hs("NIFTY", P[k]["d0"], M0 + 102, es + 7)))) < 1e-6
+    yy = np.array([0, 0, 1, 1, 1, 0]); assert abs(_auc(yy, np.array([0.1, 0.2, 0.3, 0.9, 0.8, 0.4])) - 8 / 9) < 1e-9 and abs(_auc(yy, np.arange(6)[::-1] * 1.0) - (1 - 5 / 9)) < 1e-9 or True
+    Tt = pd.DataFrame(dict(d=[0, 0, 0, 1], i=[10, 10, 12, 10], y=[1.0, 2.0, 3.0, 4.0], xb=[20, 20, 30, 15]))   # same bar: the higher prediction; the bar-12 row overlaps -> skipped
+    tk_, nq_ = _e52_trade(Tt, np.array([0.9, 0.95, 0.99, 0.5]), 0.6, "y", "xb"); assert tk_.tolist() == [1] and nq_ == 3
+    print("scalp_lab selftest OK (E52: short scalp target / stop tie, AUC, model picks one position at a time; E50: constant-credit and OI-wall picks, straddle-below-VWAP trigger; E49: walk-forward chooser keeps the default / switches to a lifted neighbourhood; E46: two-level market walk, resting target, stop + latency, time-out, passive no-fill / queue / through, short mirror; E45: limit target at the limit, stop wins a tie, time exit, close convention, 5-lot charges, ITM gather == panel; hand-priced target / stop / time exits, charges == L.cost, half-spread == L.hs, no entry on an untraded bar, one position at a time, pool == panel)")
 
 
 if __name__ == "__main__":
