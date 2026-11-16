@@ -527,10 +527,29 @@ def day_rows(day, spot, q, hist=None, prev=None):
     return out
 
 
+RICH = {"ivs": 1.181, "xs": 1.190}  # E44: LEARN 2/3 quantile of rel_cred per book (wings_lab.study_e44)
+
+
+def rel_cred_tag(rows, pre):
+    """E44 tag, LOG ONLY (never read by decide or ivs_gate): rel_cred = this trade's credit in bp of the 09:45 spot / the median of the same
+    index's previous 8 logged trades of the book (>= 4, else None); rich = rel_cred > RICH[pre]. The backtest rule 'skip rich days' looked
+    good on 2021-25 and FAILED on 2025-26 (registry E44); the tag is kept so new expiries settle it. Earlier trades only; mutates and returns rows.
+    ponytail: credit here is the entry bids over the 09:45 spot (the lab used bar closes over the entry-minute spot); a ratio to its own history,
+    so the level difference cancels."""
+    hist = {}
+    for r in sorted(rows, key=lambda r: (r["day"], r["sym"])):
+        if r.get(f"{pre}_status") != "TRADE" or not r.get(f"{pre}_credit") or not r.get("spot_0945"): continue
+        c = r[f"{pre}_credit"] / r["spot_0945"] * 1e4; h = hist.setdefault(r["sym"], []); m = sorted(h[-8:])
+        rel = c / ((m[(len(m) - 1) // 2] + m[len(m) // 2]) / 2) if len(h) >= 4 else None
+        r[f"{pre}_rel_cred"] = round(rel, 3) if rel is not None else None; r[f"{pre}_rich"] = rel > RICH[pre] if rel is not None else None; h.append(c)
+    return rows
+
+
 def save(rows, log=LOG):
     keep = [r for r in read_log(log) if (r["day"], r["sym"]) not in {(x["day"], x["sym"]) for x in rows}]
-    log.parent.mkdir(parents=True, exist_ok=True)
-    log.write_text("".join(json.dumps(r) + "\n" for r in sorted(keep + rows, key=lambda r: (r["day"], r["sym"]))))
+    log.parent.mkdir(parents=True, exist_ok=True); allr = keep + rows
+    for pre in RICH: rel_cred_tag(allr, pre)
+    log.write_text("".join(json.dumps(r) + "\n" for r in sorted(allr, key=lambda r: (r["day"], r["sym"]))))
 
 
 def read_log(log=LOG):
@@ -598,6 +617,10 @@ def leads_report(rows=None):
     for lead, nm in (("S_CE", "E33 S_CE (TREND_UP x BEAR/NEUT, LEVEL x BEAR)"), ("L_PE", "E33 L_PE (LEVEL x BEAR)")):  # several trades per sym-day
         T = [t for r in R for t in r.get("e33_trades", []) if t["lead"] == lead and "pnl" in t]; nq = sum(t.get("status") == "NO_QUOTES" for r in R for t in r.get("e33_trades", []) if t["lead"] == lead)
         parts.append(f"{nm}: n={len(T)} net Rs {sum(t['pnl'] for t in T):,.0f} wins {sum(t['pnl'] > 0 for t in T)} forced {sum('forced' in t['why'] for t in T)} (no quotes {nq}; no state {sum('e33_slots' not in r for r in R)}/{len(R)})")
+    for pre in RICH:  # E44 rich-premium tag (log only): recomputed here so logs written before the tag existed are covered
+        T = [r for r in rel_cred_tag([dict(r) for r in R], pre) if r.get(f"{pre}_status") == "TRADE"]; f = f"{pre}_pnl_inr"
+        grp = lambda v: [r[f] for r in T if r.get(f"{pre}_rich") is v]
+        parts.append(f"{pre.upper()} rich-premium tag (E44): " + ", ".join(f"{nm} n={len(grp(v))} net Rs {sum(grp(v)):,.0f}" for nm, v in (("rich", True), ("not rich", False), ("untagged", None))))
     g = ivs_gate(ivs_trades(R)); parts.append(f"IVS desk gate: {'ELIGIBLE' if g['eligible'] else 'not eligible'} ({g['why']}; SENSEX {'suspended' if g['metrics']['sensex_suspended'] else 'ok'})")
     Z = [z for r in R for z in r.get("e33_slots", []) if z.get("conf") and z.get("mv45_bp") is not None]; pu = lambda c: [z["mv45_bp"] > 0 for z in Z if z["conf"] == c]
     parts.append("E33 CONF forward check (3 of 5 votes): " + ", ".join(f"P(up45|{c}) {sum(pu(c)) / len(pu(c)):.3f} (n {len(pu(c))})" if pu(c) else f"{c} n 0" for c in ("BULL", "NEUT", "BEAR")) + " [1y lab: BULL 0.522, BEAR 0.442]")
@@ -845,6 +868,14 @@ def selftest():
     assert ivs_trade("NIFTY", {}, xq, at=XS_BAR) == ("NO_SPOT",)
     assert "XS plain expiry" in leads_report([dict(day="2026-10-27", sym="NIFTY", status="OK", xs_status="TRADE", xs_pnl_inr=exp3, xs_exit="spot")])
     assert "IVS strangle" in leads_report([dict(day="2026-10-27", sym="NIFTY", status="OK", ivs_status="TRADE", ivs_pnl_inr=exp3, ivs_exit="spot")])
+    # E44 tag: credits 10,10,10,10 then 20 (rel 2.0 -> rich), 10 (median of the last 8 still 10 -> 1.0), other index untouched; first 4 untagged; never today's own credit
+    tg = [dict(day=f"2027-02-{d:02d}", sym="NIFTY", status="OK", xs_status="TRADE", xs_credit=c, spot_0945=10000.0, xs_pnl_inr=100.0, xs_exit="time") for d, c in enumerate([10, 10, 10, 10, 20, 10], 1)]
+    tg.append(dict(day="2027-02-05", sym="SENSEX", status="OK", xs_status="TRADE", xs_credit=99.0, spot_0945=10000.0, xs_pnl_inr=-50.0, xs_exit="spot"))
+    tg.append(dict(day="2027-02-07", sym="NIFTY", status="OK", xs_status="NO_QUOTES"))
+    rel_cred_tag(tg, "xs"); nf = [r for r in tg if r["sym"] == "NIFTY" and r["xs_status"] == "TRADE"]
+    assert [r["xs_rel_cred"] for r in nf] == [None] * 4 + [2.0, 1.0] and [r["xs_rich"] for r in nf] == [None] * 4 + [True, False], nf
+    assert tg[-2]["xs_rel_cred"] is None and "xs_rel_cred" not in tg[-1] and "ivs_rel_cred" not in rel_cred_tag(tg, "ivs")[0]
+    assert "XS rich-premium tag (E44): rich n=1 net Rs 100, not rich n=1 net Rs 100, untagged n=5 net Rs 350" in leads_report(tg)
     # IVS forward-log fields (E39 standard): credit 80 pts; realised half-spread 1.0 at every leg/minute; modelled p75 from a 3-row spreads.csv
     # (NIFTY expiry day: 0.5 in the first time bucket, 1.5 in the fourth, premium 50-100; gaps filled along time (bfill, ffill) then premium, as opt1y_lab)
     global HS_TAB; import csv, tempfile; _f = Path(tempfile.mkdtemp()) / "spreads.csv"
