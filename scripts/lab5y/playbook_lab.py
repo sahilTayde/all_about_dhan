@@ -898,6 +898,201 @@ def e40_wing(k, i=359):
     return dict(K=float(K), em=float(em), wing=int(min(round(3 * em / STEP[k[0]]), 10)) if np.isfinite(em) else -1)
 
 
+# ================================================================ E40 / E41 pricing and scoring (frozen rules in the registry; run once)
+def _fill_in(k, sd, K, sg, e):
+    """entry fill at bar e's open: short at open - p75 half-spread, long at open + half-spread; None on no quote or an untraded bar."""
+    a = P[k]["C"].get((sd, K))
+    if a is None or not np.isfinite(a[e, 0]) or L.stale(a, e): return None
+    o = a[e, 0]; h = L.hs(k[0], P[k]["d0"], M0 + e, o); return o - h if sg < 0 else o + h
+
+
+def _fill_out(k, sd, K, sg, j):
+    """exit fill at bar j's open, cons bounds off the tape (shorts high, longs low); returns (fill, forced)."""
+    v, miss = S._px(k, sd, K, j, 0, sg < 0, fill=True); h = L.hs(k[0], P[k]["d0"], M0 + j, max(v, 0.05))
+    return (v + h if sg < 0 else max(v - h, 0.05)), miss
+
+
+def e40_trade(k2, k1, fly, i=359):
+    """E40: sell the ATM CE+PE of T-2 (ATM at 15:14) at the T-2 15:15 open; fly: long wings at +-min(3 EM, 10 strikes). Exit at the T-1 15:15
+    open, or earlier on the 2x-credit stop (buy-back value >= 2 x credit, the E37 convention 'stop 0.5' = 1.5x): checked on the T-1 09:15
+    OPEN (an overnight gap fills there) and then on every T-1 minute close 09:15-15:14 (exit at the next open). cons mode throughout."""
+    sym = k2[0]; w = e40_wing(k2, i); K = w["K"]; st = STEP[sym]
+    if fly and w["wing"] < 1: return None
+    legs = [("CE", K, -1), ("PE", K, -1)] + ([("CE", K + w["wing"] * st, 1), ("PE", K - w["wing"] * st, 1)] if fly else [])
+    ent = [_fill_in(k2, sd, KK, sg, i + 1) for sd, KK, sg in legs]
+    if any(x is None for x in ent): return None
+    credit = sum(-sg * x for (_, _, sg), x in zip(legs, ent)); W = w["wing"] * st if fly else np.inf
+    if credit <= 0: return None
+    val = lambda j, col: min(max(sum(-sg * S._px(k1, sd, KK, j, col, sg < 0)[0] for sd, KK, sg in legs), 0.0), W)
+    xe = FLAT - M0; jx, why = xe, "time"
+    if val(0, 0) >= 2 * credit: jx, why = 0, "gap"
+    else:
+        for j in range(xe):
+            if val(j, 3) >= 2 * credit: jx, why = j + 1, "stop"; break
+    kc = k2 if L.COSTS == "dated" else None; q = L.qty(sym, kc); out = 0.0; costs = 0.0; forced = False
+    for (sd, KK, sg), x in zip(legs, ent):
+        f, miss = _fill_out(k1, sd, KK, sg, jx); forced |= miss; out += -sg * f
+        costs += S._cost(f, x, sym, L.LOTS, kc) if sg < 0 else S._cost(x, f, sym, L.LOTS, kc)
+    if forced and fly: out = min(max(out, 0.0), W)
+    pnl = (credit - out) * q - costs
+    return dict(sym=sym, day=k1[1], entry=k2[1], K=K, wing=w["wing"] if fly else 0, credit=credit, pnl=pnl, why=why, forced=forced) if np.isfinite(pnl) else None
+
+
+def e40_placebo_pairs(sym):
+    """every (T-2, T-1) pair of consecutive panel days of sym, neither an expiry day, same expiry, whose next panel day T is NOT an MPC day."""
+    ks = sorted(k for k in KEYS if k[0] == sym); out = []
+    for a, b, t in zip(ks, ks[1:], ks[2:]):
+        if not P[a]["d0"] and not P[b]["d0"] and P[a]["exp"] == P[b]["exp"] and t[1] not in L.RBI: out.append((a, b))
+    return out
+
+
+def _perm_p(x, pool, n=10000, seed=40):
+    """one-sided p that a random same-size draw from pool has a mean >= mean(x) (event vs placebo pairs)."""
+    pool = np.asarray(pool, float); rg = np.random.default_rng(seed)
+    return float((pool[rg.integers(len(pool), size=(n, len(x)))].mean(1) >= np.mean(x)).mean())
+
+
+def study_e40():
+    """registry E40, 2 cells (A naked straddle, B iron fly), NIFTY primary, SENSEX replication. Run on the 5-year panel only."""
+    import honest_stats as H, sweep_lab as W
+    HO = L.HO; rows = []; per = {}
+    for sym in ("NIFTY", "SENSEX"):
+        ev = e40_events(sym); sk = sum(1 for _, k2, _ in ev if k2 is None)
+        print(f"E40 {sym}: {len(ev)} MPC days on the panel, {sk} skipped by the expiry rule")
+        pp = e40_placebo_pairs(sym)
+        for nm, fly in (("A straddle", False), ("B iron fly", True)):
+            R = [dict(r, T=T) for T, k2, k1 in ev if k2 is not None for r in [e40_trade(k2, k1, fly)] if r]
+            nofill = sum(1 for _, k2, _ in ev if k2 is not None) - len(R)
+            D = pd.DataFrame(R); Lr, Te = D[D["T"] < HO], D[D["T"] >= HO]
+            PL = pd.DataFrame([r for a, b in pp if b[1] < HO for r in [e40_trade(a, b, fly)] if r])
+            r = dict(sym=sym, cell=nm, learn_n=len(Lr), nofill=nofill, learn_mean=round(Lr.pnl.mean()), learn_total=round(Lr.pnl.sum()),
+                     learn_win=round((Lr.pnl > 0).mean() * 100, 1), learn_p=round(_dayboot_p(Lr.pnl.values), 4),
+                     plac_n=len(PL), plac_mean=round(PL.pnl.mean()), diff_p=round(_perm_p(Lr.pnl.values, PL.pnl.values), 4),
+                     test_n=len(Te), test_pos=int((Te.pnl > 0).sum()), test_total=round(Te.pnl.sum()), stops=int((D.why != "time").sum()),
+                     forced_pct=round(D.forced.mean() * 100, 1), worst=round(D.pnl.min()))
+            ok = r["learn_mean"] > 0 and r["learn_p"] < 0.025 and r["diff_p"] < 0.025 and r["test_pos"] >= 4
+            r["verdict"] = "INCONCLUSIVE" if r["forced_pct"] > 10 else ("PASS" if ok else "FAIL") if sym == "NIFTY" else "replication"
+            rows.append(r); per[(sym, nm)] = D.set_index("T").pnl
+            print(D[["T", "entry", "K", "wing", "credit", "pnl", "why", "forced"]].round(1).to_string(index=False), flush=True)
+    R = pd.DataFrame(rows); pd.set_option("display.width", 300); print(R.to_string(index=False)); R.to_csv(f"{PB}/e40.csv", index=False)
+    M = pd.concat([per[("NIFTY", "A straddle")], per[("NIFTY", "B iron fly")]], axis=1).dropna(); M = M[M.index < HO]
+    if len(M) >= 8:
+        pb = H.pbo_cscv(M.values, S=4)["pbo"]; d = W.dsr_family(M.values.T, [0, 1], int(np.argmax(M.values.mean(0))), 2)
+        print(f"NIFTY LEARN, {len(M)} common events: PBO {pb:.2f} (2 variants, S=4), DSR {d[0]:.3f} (SR {d[1]:.3f} vs noise max {d[2]:.3f}, N=2)")
+    print("PASS (NIFTY, Bonferroni 2): LEARN mean > 0, event-bootstrap p < 0.025, beats the non-event placebo p < 0.025, TEST >= 4 positive events; forced > 10% = INCONCLUSIVE")
+    return R
+
+
+E41_SET0, E41_SET1 = 345, NB  # settlement = mean index over 15:00-15:29 (the exchange closing price is a last-30-minute average)
+
+
+def e41_trade(k, i=5):
+    """E41: at minute i's close pick (e41_pick), fill at bar i+1's open: buy 1 ATM CE + 1 ATM PE, sell 3 CE + 3 PE at the one-third-premium
+    strikes. Hold to the 15:15 open; a short whose 15:15 open is < Rs 5 is not bought back and settles at intrinsic on the closing average
+    (no buy order: charges on the sale only, plus both brokerage orders, cautious by Rs 24). Longs are sold at 15:15. No stop. cons."""
+    pk = e41_pick(k, i)
+    if not pk: return None
+    sym = k[0]; p = P[k]; K = pk["K"]; e = i + 1; xe = FLAT - M0
+    if e >= xe: return None
+    legs = [("CE", K, 1, 1), ("PE", K, 1, 1), ("CE", pk["CE"], -1, 3), ("PE", pk["PE"], -1, 3)]
+    ent = [_fill_in(k, sd, KK, sg, e) for sd, KK, sg, n in legs]
+    if any(x is None for x in ent): return None
+    kc = k if L.COSTS == "dated" else None; q = L.qty(sym, kc); sset = float(np.nanmean(p["spot"][E41_SET0:E41_SET1]))
+    pnl = 0.0; forced = False; settled = 0
+    for (sd, KK, sg, n), x in zip(legs, ent):
+        a = p["C"].get((sd, KK)); o = a[xe, 0] if a is not None and not L.stale(a, xe) else np.nan
+        if sg < 0 and np.isfinite(o) and o < 5:
+            intr = max(0.0, sset - KK) if sd == "CE" else max(0.0, KK - sset); settled += 1
+            pnl += (x - intr) * n * q - S._cost(0.0, x, sym, n * L.LOTS, kc); continue
+        f, miss = _fill_out(k, sd, KK, sg, xe); forced |= miss
+        pnl += (-sg) * (x - f) * n * q - (S._cost(f, x, sym, n * L.LOTS, kc) if sg < 0 else S._cost(x, f, sym, n * L.LOTS, kc))
+    return dict(sym=sym, day=k[1], i=i, K=K, KC=pk["CE"], KP=pk["PE"], pnl=pnl, forced=forced, settled=settled,
+                debit=ent[0] + ent[1] - 3 * (ent[2] + ent[3])) if np.isfinite(pnl) else None
+
+
+def study_e41():
+    """registry E41, 1 cell: expiry days, both indices pooled (by-index split printed). Placebo: same structure at a random minute 09:20-11:00."""
+    HO = L.HO; ks = [k for k in KEYS if P[k]["d0"]]; learn = [k for k in ks if k[1] < HO]; test = [k for k in ks if k[1] >= HO]
+    D = pd.DataFrame([r for k in ks for r in [e41_trade(k)] if r]); Lr, Te = D[D.day < HO], D[D.day >= HO]
+    print(f"E41 expiry days: LEARN {len(learn)} ({len(Lr)} traded), TEST {len(test)} ({len(Te)} traded); skipped = no 1/3 strike within ATM+-10 or an unfillable leg")
+    rg = np.random.default_rng(41); Rm = []  # the traded TEST sym-days, each entered at a random decision minute 5..105 (09:20-11:00)
+    for k in zip(Te.sym, Te.day):
+        v = [r["pnl"] for i in range(5, 106) for r in [e41_trade(k, i)] if r]
+        if v: Rm.append(np.array(v))
+    rnd = np.array([sum(v[rg.integers(len(v))] for v in Rm) for _ in range(2000)])
+    g = Te.groupby("day").pnl.sum(); qs = Te.groupby(pd.to_datetime(Te.day).dt.to_period("Q").astype(str)).pnl.sum()
+    r = dict(cell="E41 expiry 1x3 ratio 09:20 -> 15:15", learn_n=len(Lr), learn_mean=round(Lr.pnl.mean()), learn_total=round(Lr.pnl.sum()),
+             learn_win=round((Lr.pnl > 0).mean() * 100, 1), learn_p=round(_dayboot_p(Lr.groupby("day").pnl.sum().values), 4),
+             test_n=len(Te), test_mean=round(Te.pnl.mean()), test_total=round(Te.pnl.sum()), test_p=round(_dayboot_p(g.values), 4),
+             test_q_pos=f"{(qs > 0).sum()}/{len(qs)}", p_vs_rand=round(float((rnd >= g.sum()).mean()), 3),
+             forced_pct=round(D.forced.mean() * 100, 1), settled_legs=round(D.settled.mean(), 2), worst=round(D.pnl.min()), best=round(D.pnl.max()))
+    ok = r["learn_mean"] > 0 and r["learn_p"] < 0.05 and r["test_total"] > 0 and r["test_p"] < 0.05 and (qs > 0).sum() >= 3 and r["p_vs_rand"] < 0.05
+    r["verdict"] = "INCONCLUSIVE" if r["forced_pct"] > 10 else "PASS" if ok else "FAIL"
+    R = pd.DataFrame([r]); pd.set_option("display.width", 300); print(R.to_string(index=False)); R.to_csv(f"{PB}/e41.csv", index=False)
+    print("by index:", D.assign(part=np.where(D.day < HO, "LEARN", "TEST")).groupby(["sym", "part"]).pnl.agg(["size", "mean", "sum"]).round(0).to_dict("index"))
+    print("PASS: LEARN mean > 0 day-block p < 0.05, TEST net > 0 p < 0.05, >= 3 TEST quarters positive, p_vs_rand < 0.05; forced > 10% = INCONCLUSIVE")
+    return R
+
+
+def _syn10(k, px, exp, d0, spot=20000.0, st=50.0):
+    """synthetic sym-day with strikes ATM+-10, flat prices px(side, off) on every bar, traded (volume 1); returns P[k]."""
+    C = {}
+    for sd in ("CE", "PE"):
+        for off in range(-10, 11):
+            a = np.full((NB, 7), np.nan); a[:, :4] = px(sd, off if sd == "CE" else -off); a[:, 6] = 1.0; C[(sd, spot + off * st)] = a
+    P[k] = dict(spot=np.full(NB, spot), atm=np.full(NB, spot), C=C, exp=exp, dte=0 if d0 else 2, d0=d0); return P[k]
+
+
+def study_selftest4041():
+    """known answers for E40 / E41 pricing (hand-computed from the rules; cons; COSTS=today)."""
+    assert L.COSTS == "today"; q = L.qty("NIFTY"); hs = L.hs; c = lambda b, s, n=1: S._cost(b, s, "NIFTY", n * L.LOTS)
+    ka, kb, ke = ("NIFTY", "1999-05-03"), ("NIFTY", "1999-05-04"), ("NIFTY", "1999-05-06"); xe = FLAT - M0
+    try:
+        # ---- E40 A: T-2 ATM 50/50 (EM 100 -> wing min(round(300/50), 10) = 6), T-1 ATM 60/60: no stop, exit at the T-1 15:15 open
+        _syn10(ka, lambda sd, o: 50.0 if o == 0 else 20.0, "1999-05-06", 0); _syn10(kb, lambda sd, o: 60.0 if o == 0 else 25.0, "1999-05-06", 0)
+        assert e40_wing(ka) == dict(K=20000.0, em=100.0, wing=6)
+        e = 50 - hs("NIFTY", 0, M0 + 360, 50); f = 60 + hs("NIFTY", 0, M0 + xe, 60); r = e40_trade(ka, kb, False)
+        want = 2 * ((e - f) * q - c(f, e)); assert r["why"] == "time" and not r["forced"] and abs(r["pnl"] - want) < 1e-6, (r, want)
+        # ---- E40 B: wings at +-6 (20 in, 25 out) bought; same exit
+        wi = 20 + hs("NIFTY", 0, M0 + 360, 20); wo = max(25 - hs("NIFTY", 0, M0 + xe, 25), 0.05); r = e40_trade(ka, kb, True)
+        want = 2 * ((e - f) * q - c(f, e)) + 2 * ((wo - wi) * q - c(wi, wo)); assert r["wing"] == 6 and abs(r["pnl"] - want) < 1e-6, (r, want)
+        # ---- stop: the T-1 CE closes at 300 on bar 100 (value 360 >= 2 x credit) -> exit at the bar-101 open at 300
+        P[kb]["C"][("CE", 20000.0)][100:, :4] = 300.0; r = e40_trade(ka, kb, False)
+        f1 = 300 + hs("NIFTY", 0, M0 + 101, 300); f2 = 60 + hs("NIFTY", 0, M0 + 101, 60)
+        want = (e - f1) * q - c(f1, e) + (e - f2) * q - c(f2, e); assert r["why"] == "stop" and abs(r["pnl"] - want) < 1e-6, (r, want)
+        # ---- overnight gap: the T-1 09:15 OPEN already shows the stop -> fill at the bar-0 open
+        P[kb]["C"][("CE", 20000.0)][0, 0] = 300.0; r = e40_trade(ka, kb, False); assert r["why"] == "gap", r
+        # ---- fly loss is capped by the wing width (6 x 50 = 300 per unit) even on a 1000-point CE
+        P[kb]["C"][("CE", 20000.0)][:, :4] = 1000.0; P[kb]["C"][("CE", 20300.0)][:, :4] = 700.0; P[kb]["C"][("PE", 20000.0)][:, :4] = 25.0
+        r = e40_trade(ka, kb, True); h0 = lambda v: hs("NIFTY", 0, M0 + 0, v)  # gap exit at the bar-0 open: CE spread 300, PE spread 0
+        xs = [(1000 + h0(1000), e), (25 + h0(25), e)]; xl = [(wi, max(700 - h0(700), 0.05)), (wi, max(25 - h0(25), 0.05))]
+        want = sum((e_ - x) * q - c(x, e_) for x, e_ in xs) + sum((y - x) * q - c(x, y) for x, y in xl)
+        assert r["why"] == "gap" and abs(r["pnl"] - want) < 1e-6 and (r["credit"] - 300 - 0.5) * q - 4 * c(1000, 1000) < r["pnl"], (r, want)
+        # ---- untraded entry bar -> no trade
+        P[ka]["C"][("PE", 20000.0)][360, 6] = 0; assert e40_trade(ka, kb, False) is None; P[ka]["C"][("PE", 20000.0)][360, 6] = 1
+        # ---- E41: ATM 60, OTM premium 60 - 8n (n = 5 -> 20 = one third) -> shorts at 20250 CE / 19750 PE
+        _syn10(ke, lambda sd, o: 60.0 if o == 0 else max(60 - 8 * abs(o), 2.0) if o > 0 else 200.0, "1999-05-06", 1)
+        assert e41_pick(ke) == dict(K=20000.0, CE=20250.0, PE=19750.0), e41_pick(ke)
+        p = P[ke]; p["spot"][345:] = 20300.0  # settlement (15:00-15:29 mean) = 20300
+        p["C"][("CE", 20000.0)][360:, :4] = 300.0; p["C"][("PE", 20000.0)][360:, :4] = 1.0
+        p["C"][("CE", 20250.0)][360:, :4] = 3.0    # < Rs 5 at 15:15: NOT bought back, settles at intrinsic 50
+        p["C"][("PE", 19750.0)][360:, :4] = 10.0   # >= Rs 5: bought back at 10 + half-spread
+        en = lambda K, sd, sg: (lambda o: o - hs("NIFTY", 1, M0 + 6, o) if sg < 0 else o + hs("NIFTY", 1, M0 + 6, o))(p["C"][(sd, K)][6, 0])
+        lc, lp, sc, sp = en(20000.0, "CE", 1), en(20000.0, "PE", 1), en(20250.0, "CE", -1), en(19750.0, "PE", -1)
+        xc, xp = max(300 - hs("NIFTY", 1, M0 + xe, 300), 0.05), max(1 - hs("NIFTY", 1, M0 + xe, 1), 0.05); bp = 10 + hs("NIFTY", 1, M0 + xe, 10)
+        want = (xc - lc) * q - c(lc, xc) + (xp - lp) * q - c(lp, xp) + (sc - 50) * 3 * q - c(0.0, sc, 3) + (sp - bp) * 3 * q - c(bp, sp, 3)
+        r = e41_trade(ke); assert r["settled"] == 1 and not r["forced"] and abs(r["pnl"] - want) < 1e-6, (r, want)
+        # ---- E41 skip: no OTM CE quote within ATM+-10 at 09:20
+        for n in range(1, 11): p["C"][("CE", 20000.0 + 50 * n)][5, :4] = np.nan
+        assert e41_pick(ke) is None and e41_trade(ke) is None
+    finally:
+        for k in (ka, kb, ke): P.pop(k, None)
+        S._EXT.clear()
+    print("E40/E41 known answers OK (E40 straddle time exit, iron fly, 2x-credit stop at the next open, overnight gap at the 09:15 open, "
+          "wing cap, untraded entry refused; E41 one-third strike pick, sub-Rs-5 short settles at intrinsic on the 15:00-15:29 mean, "
+          "other short bought back, longs sold, skip without a strike)")
+
+
 # ================================================================ E39-E41 look-ahead scan (registry rule: before any verdict)
 def _scr(keys_cut, rg):
     """in place: for each (key, cut) scramble every minute > cut of spot, ATM index and every contract series; returns the undo list."""
