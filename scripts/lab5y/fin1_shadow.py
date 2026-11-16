@@ -18,6 +18,7 @@ ask nearest 15:15:00. Dev +5.07L (257 trades, p 0.03) but holdout -53k (97): log
   .venv/bin/python scripts/lab5y/fin1_shadow.py week [N]           # report on the last N logged days (default 5)
   .venv/bin/python scripts/lab5y/fin1_shadow.py forward [YYYY-MM-DD|all]  # read-only forward view: 1-sigma cone from 09:46 ATM IV
   .venv/bin/python scripts/lab5y/fin1_shadow.py leads             # one line per log-only lead (B1, SC1, S1 in a 20-day-range high, IVS, E33 cells + CONF)
+  .venv/bin/python scripts/lab5y/fin1_shadow.py stops             # E49: real stop fills of the XS / IVS shadow strangles against the plan (log only)
   .venv/bin/python scripts/lab5y/fin1_shadow.py selftest
 
 Log-only forward leads (2026-10-29, registry B1 / SC1 / E21; never change FIN1/S2): B1 Crabel NR4 stretch breakout (book_lab.sig_b1
@@ -303,17 +304,17 @@ def ivs_trade(sym, sp, q, days=0, at=None):
         x = _first(xs[lg], _hm(e) + ":00")
         if x is None or x[0] >= _hm(e + 1) + ":00" or s[e] is None: return ("NO_QUOTES",)
         ent[lg] = x[1]
-    credit = sum(ent.values()); t_exit, why = "15:15:00", "time"
+    credit = sum(ent.values()); t_exit, why = "15:15:00", "time"; trig = {}
     for j in range(e, 360):
         marks = [_mid_at(xs[lg], _hm(j) + ":59") for lg in legs]
         if None in marks: return ("NO_MARK",)
-        if sum(marks) - credit >= 0.3 * credit: t_exit, why = _hm(j + 1) + ":00", "stop"; break
+        if sum(marks) - credit >= 0.3 * credit: t_exit, why = _hm(j + 1) + ":00", "stop"; trig = dict(zip(legs, marks)); break
         if s[j] is not None and abs(s[j] - s[e]) >= 1.5 * st: t_exit, why = _hm(j + 1) + ":00", "spot"; break
     pnl, forced, L = 0.0, False, {}
     for lg in legs:
         x, f = _exit_q(xs[lg], "time" if why == "time" else "spot", t_exit); forced = forced or f
         pnl += (ent[lg] - x[2]) * LOT[sym] * LOTS - cost(x[2], ent[lg], sym)
-        L[lg[0]] = dict(strike=lg[1], entry=_hs_fields(sym, _first(xs[lg], _hm(e) + ":00"), _hm(e)), exit=dict(_hs_fields(sym, x, x[0][:5]), t=x[0]))
+        L[lg[0]] = dict(strike=lg[1], entry=_hs_fields(sym, _first(xs[lg], _hm(e) + ":00"), _hm(e)), exit=dict(_hs_fields(sym, x, x[0][:5]), t=x[0], **({"mark_trig": round(trig[lg], 4)} if trig else {})))
     return ("TRADE", round(pnl, 2), why + ("+forced" if forced else ""), _hm(e), t_exit, K, dict(credit=round(credit, 2), legs=L))
 
 
@@ -560,6 +561,30 @@ def ivs_trades(rows=None):
     """the logged IVS forward trades, in day/sym order, as ivs_gate wants them (net P&L at 10 lots, credit in points, per-leg half-spreads)."""
     R = sorted((r for r in (rows if rows is not None else read_log()) if r.get("ivs_status") == "TRADE" and "ivs_legs" in r), key=lambda r: (r["day"], r["sym"]))
     return [dict(day=r["day"], sym=r["sym"], pnl=r["ivs_pnl_inr"], credit=r["ivs_credit"], exit=r.get("ivs_exit"), legs=r["ivs_legs"]) for r in R]
+
+
+STOP_REF = dict(median=1.29, p90=2.1, p99=3.8, worst=14.3, need=20)  # registry E49 review: 536 backtest stops, loss / planned loss; gate = 20 expiry trades per index
+
+
+def stop_report(rows=None):
+    """E49 forward measurement (log only, zero lots, never read by `decide`): at every credit-stop exit of the XS and IVS shadow strangles,
+    how much worse than planned was the real buy-back? x_fill = (sum of the exit asks - credit) / (0.3 x credit): 1.0 = the plan.
+    x_mark = the same on the mids of the trigger minute (what the stop saw); x_fill - x_mark = what the fill cost after the trigger."""
+    R = rows if rows is not None else read_log(); out = []
+    for bk in ("xs", "ivs"):
+        for sym in LOT:
+            T = [r for r in R if r.get("sym") == sym and r.get(f"{bk}_status") == "TRADE" and f"{bk}_legs" in r]; X = []
+            for r in T:
+                if not str(r.get(f"{bk}_exit", "")).startswith("stop"): continue
+                c = r[f"{bk}_credit"]; L = r[f"{bk}_legs"].values(); x = (sum(l["exit"]["ask"] for l in L) - c) / (0.3 * c)
+                mk = [l["exit"].get("mark_trig") for l in L]; X.append((x, (sum(mk) - c) / (0.3 * c) if None not in mk else None, r["day"]))
+            ln = f"{bk.upper()} {sym}: {len(T)}/{STOP_REF['need']} expiry trades logged, {len(X)} stops"
+            if X:
+                xs_ = sorted(x[0] for x in X); w = max(X); mk = [x[1] for x in X if x[1] is not None]
+                ln += (f"; loss / plan median {xs_[len(xs_) // 2]:.2f} (backtest {STOP_REF['median']}), worst {w[0]:.2f} on {w[2]} (backtest p90 {STOP_REF['p90']}, p99 {STOP_REF['p99']}, worst {STOP_REF['worst']})"
+                       + (f"; at the trigger mark median {sorted(mk)[len(mk) // 2]:.2f}" if mk else ""))
+            out.append(ln + ("" if len(T) >= STOP_REF["need"] else " [not enough yet]"))
+    return "Stop fills (log only, zero lots): " + " | ".join(out)
 
 
 IVS_STD = dict(n=40, mean=1500.0, p=0.10, maxdd=400000.0, loss_x_credit=2.0, slip_x=1.5, slip_run=10, loss_run=8, cum_after=25, sensex_x=2.0)  # E39 desk standard (frozen 2026-11-13)
@@ -988,6 +1013,14 @@ def selftest():
             blocks = [c for c in o["checks"] if c.endswith("BLOCK")]
             assert (o["action"] == "TRADE") == (not blocks), (stt, o)
             if blocks: assert blocks[0].startswith(next(v for k_, v in gate.items() if o["why"].startswith(k_))), (o["why"], blocks)
+    # E49 stop-fill measurement: credit 80 (40 + 40); CE mid jumps to 70 at 10:30 (mark 70 + 40 = 110 >= 1.3 x 80 -> stop), bought back at the 10:31 asks 95 + 41 = 136
+    sq = {("NIFTY", 22750.0, "CE"): [("10:08:00", 40.0, 42.0, "2026-10-27"), ("10:30:30", 69.0, 71.0, "2026-10-27"), ("10:31:00", 93.0, 95.0, "2026-10-27")],
+          ("NIFTY", 22650.0, "PE"): [("10:08:00", 40.0, 42.0, "2026-10-27"), ("10:31:00", 39.0, 41.0, "2026-10-27")]}
+    st_ = ivs_trade("NIFTY", {k_: 22700.0 for k_ in spi}, sq, at=XS_BAR)
+    assert st_[0] == "TRADE" and st_[2] == "stop" and st_[4] == "10:31:00" and st_[6]["legs"]["CE"]["exit"]["mark_trig"] == 70.0 and st_[6]["legs"]["PE"]["exit"]["mark_trig"] == 41.0, st_
+    rep = stop_report([dict(day="2026-10-27", sym="NIFTY", xs_status="TRADE", xs_exit="stop", xs_credit=st_[6]["credit"], xs_legs=st_[6]["legs"])])
+    assert "XS NIFTY: 1/20 expiry trades logged, 1 stops; loss / plan median 2.33" in rep and "at the trigger mark median 1.29" in rep and "[not enough yet]" in rep, rep  # (136 - 80) / 24 = 2.33; (111 - 80) / 24 = 1.29
+    assert xt[2] == "spot" and "mark_trig" not in xt[6]["legs"]["CE"]["exit"]  # only a credit-stop exit carries the trigger mark
     print("fin1_shadow selftest OK")
 
 
@@ -996,6 +1029,7 @@ if __name__ == "__main__":
     if cmd == "selftest": selftest()
     elif cmd == "forward": run_forward(sys.argv[2] if len(sys.argv) > 2 else datetime.now(ZoneInfo("Asia/Kolkata")).date().isoformat())
     elif cmd == "leads": print(leads_report())
+    elif cmd == "stops": print(stop_report())
     elif cmd == "week": print(week(int(sys.argv[2]) if len(sys.argv) > 2 else 5))
     else:
         day = sys.argv[2] if len(sys.argv) > 2 else datetime.now(ZoneInfo("Asia/Kolkata")).date().isoformat()
