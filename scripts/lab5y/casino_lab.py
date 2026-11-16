@@ -265,7 +265,7 @@ def hedge_pnl(k, e, jx, every=15, band=0.15):
     """E28(a): P&L of an index-print delta hedge (zero cost: the diagnostic ceiling) of a short ATM straddle held from bar e to
     bar jx. Net option delta per unit = 1 - 2 N(d1) (Black-76 on spot, panel IV of the two legs). Re-hedge to zero when
     |book delta| > band. ponytail: T = (dte + rest of today) / 365 with dte as given by the panel; delta near ATM is insensitive to it."""
-    p = L.P[k]; sym = k[0]; q = L.LOT[sym] * L.LOTS; K = p["atm"][e - 1]; h = 0.0; pnl = 0.0
+    p = L.P[k]; sym = k[0]; q = L.qty(sym, k if L.COSTS == "dated" else None); K = p["atm"][e - 1]; h = 0.0; pnl = 0.0
     js = list(range(e, jx, every)) + [jx]
     for a, b in zip(js[:-1], js[1:]):
         Sx = p["spot"][a]; iv = np.nanmean([p["C"][(sd, K)][a, 5] for sd in ("CE", "PE") if (sd, K) in p["C"]])

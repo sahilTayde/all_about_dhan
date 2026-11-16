@@ -219,7 +219,7 @@ def finish(name, Dt, R):
 
 def run_b9():
     """short ATM straddle after RBI (10:15 decision, RBI day) and FOMC (09:46, first Indian day after)."""
-    days = sorted({k[1] for k in L.ALLK}); fomc1 = {next(d for d in days if d > f) for f in L.FOMC if any(d > f for d in days)}
+    days = sorted({k[1] for k in L.ALLK}); fomc1 = L.fomc_next(days)
     ev = [(k, 60) for k in L.KEYS if k[1] in L.RBI] + [(k, 31) for k in L.KEYS if k[1] in fomc1]
     T, R = [], []
     for k, i in ev:
@@ -278,7 +278,7 @@ def _long(sig, D, B=None):
 
 
 def strategies(D, B):
-    days = sorted({k[1] for k in L.ALLK}); fomc1 = {next(d for d in days if d > f) for f in L.FOMC if any(d > f for d in days)}
+    days = sorted({k[1] for k in L.ALLK}); fomc1 = L.fomc_next(days)
     ex5 = S.E5X["t1.5_s1"]; dr = lambda sd: 1 if sd == "CE" else -1
     def e5g(fade, how):
         return lambda k: [(i, S.e5_legs(sd, how), dict(dirn=dr(sd), **ex5)) for i, sd in S.orb_signals(k, fade)]
