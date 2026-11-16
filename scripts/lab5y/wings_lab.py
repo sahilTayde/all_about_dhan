@@ -1,7 +1,7 @@
 """Spot-fix re-score of the expiry-day strangles + E43 defined-risk wings (paper research; no orders, no broker calls).
 Frozen rules: registry rows E39s (spot fix, kill rule) and E43 ( frozen 2026-11-16 before any wing cell was priced).
 Run (from scripts/lab5y):
-  LAB_FULL=1 HO=2025-10-27 COSTS=dated ~/paper_extra_venv/bin/python wings_lab.py OUT [selftest|spotcheck|base|e43|e44]
+  LAB_FULL=1 HO=2025-10-27 COSTS=dated ~/paper_extra_venv/bin/python wings_lab.py OUT [selftest|spotcheck|base|e43|e47]
 Books, expiry day only, OTM1 strangle (short CE ATM+1, short PE ATM-1), exits = spot 1.5 strikes / credit loss 30% / 15:15:
   XS  = every expiry day, decided at the 10:07 close, filled at the 10:08 open (fin1_shadow XS control)
   IVX = first 1-pt ATM-IV fall over 15 bars after 09:46 (the E42 cell IVS x EXPIRY=0)
@@ -80,19 +80,19 @@ def skip_p(T, skip, n=4000, seed=44):
     return float((tot >= kept).mean())
 
 
-def study_e44():
-    """E44 (frozen): skip the expiry strangle when its credit is rich against the book's own last 8 trades (rel_cred > the LEARN 2/3 quantile)."""
+def study_e47():
+    """E47 (frozen): skip the expiry strangle when its credit is rich against the book's own last 8 trades (rel_cred > the LEARN 2/3 quantile)."""
     os.makedirs(WD, exist_ok=True); E = entries(); rows = []
     for nm in ("XS", "IVS"):
         T = frame(E[nm]); T = T[T.pnl.notna()].copy(); T["rel"] = rel_cred(T); lr = T.day < L.HO; thr = float(T.rel[lr].quantile(2 / 3)); T["skip"] = T.rel > thr
-        T.to_csv(f"{WD}/e44_{nm}_{L.COSTS}.csv", index=False)
+        T.to_csv(f"{WD}/e47_{nm}_{L.COSTS}.csv", index=False)
         for sp, m in (("LEARN", lr), ("TEST", ~lr)):
             G = T[m]; k, x = G[~G.skip], G[G.skip]
             rows.append(dict(book=nm, split=sp, thr=round(thr, 3), n=len(G), mean=round(G.pnl.mean()), maxdd=stats(G)["maxdd"], kept_n=len(k), kept_mean=round(k.pnl.mean()), kept_total=round(k.pnl.sum()),
                              kept_p=stats(k)["p"], kept_maxdd=stats(k)["maxdd"], kept_worst=stats(k)["worst"], skip_n=len(x), skip_mean=round(x.pnl.mean()) if len(x) else np.nan,
                              skip_win=round((x.pnl > 0).mean() * 100, 1) if len(x) else np.nan, p_skip=round(skip_p(G, G.skip), 4),
                              by_sym={s_: (int(g.skip.sum()), round(g.pnl[g.skip].mean()) if g.skip.any() else None, round(g.pnl[~g.skip].mean())) for s_, g in G.groupby("sym")}))
-    R = _show(rows); R.to_csv(f"{WD}/e44_{L.COSTS}.csv", index=False)
+    R = _show(rows); R.to_csv(f"{WD}/e47_{L.COSTS}.csv", index=False)
     for nm in ("XS", "IVS"):
         t = R[(R.book == nm) & (R.split == "TEST")].iloc[0]; ok = t.skip_mean < t.kept_mean and t.kept_total > t["mean"] * t.n and t.p_skip < 0.025 and t.kept_mean >= KILL
         print(f"{nm}: TEST skipped {t.skip_n} at {t.skip_mean:+.0f}/trade, kept {t.kept_n} at {t.kept_mean:+.0f}; random-skip p {t.p_skip} ->", "PASS" if ok else "FAIL")
@@ -218,7 +218,7 @@ def study_selftest():
     T = pd.DataFrame(dict(day=["2025-01-01", "2025-01-02", "2025-01-03", "2026-01-01"], pnl=[100.0, -300.0, 50.0, np.nan]))
     x = stats(T); assert (x["n"], x["total"], x["worst"], x["maxdd"], x["win"]) == (3, -150, -300, -300, 66.7), x
     assert splits(T, "2025-01-03")["LEARN"]["n"] == 2 and ALPHA == 0.0125
-    # ---- E44: entry features read nothing after the decision bar; rel_cred uses earlier trades only; random-skip placebo known answers
+    # ---- E47: entry features read nothing after the decision bar; rel_cred uses earlier trades only; random-skip placebo known answers
     kf = ("NIFTY", "2030-01-02"); spf = 20000.0 + np.cumsum(np.random.default_rng(1).normal(0, 5, NB)); Cf = S._syn(kf, spf, 50, 20000); f0 = feats(kf, XS_I, 19990.0)
     P[kf]["spot"] = spf.copy(); P[kf]["spot"][XS_I + 1:] += 500
     for a_ in Cf.values(): a_[XS_I + 1:, :] = 999.0
