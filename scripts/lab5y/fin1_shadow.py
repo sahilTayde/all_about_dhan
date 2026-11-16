@@ -28,6 +28,9 @@ IVS (2026-11-13, registry E31 lead -> E39 CANDIDATE, log only, rung 0): on expir
 fall (`ivs_trade`). Each forward trade logs credit, exit reason, net P&L at 10 lots and, per leg at the entry and exit minutes, the modelled p75
 half-spread (`hs_model`, the engine's spreads.csv) beside the realised quoted half-spread. `ivs_gate` is the E39 desk standard before 1 lot, enforced
 in `decide` (IVS cannot leave rung 0 unless it returns eligible; kill flags are sticky like `halted`; `casino_lab.promote` stays the ladder).
+EXS (2026-11-16, registry E42, log only, no rung, never in `decide`): the same OTM1 strangle and exits on every expiry day with NO IV-fall and NO
+calm-open gate, entered at the 10:08 open (`ivs_trade(at=53)`; 10:08 = the median IVS trigger on the 5-year LEARN years, where the IV gate fired on
+97% of expiry days). Logged as `exs_*` beside `ivs_*` so the forward log says whether the IV gate adds anything over the plain expiry strangle.
 E33 (2026-11-13, registry E33, log only, rung 0): per 15-min slot 09:45..14:30 the REGIME (EVENT > TREND_UP/DN > LEVEL > CHOP) and the CONF votes of
 playbook_lab (`e33_state`), the realised next-45-min move, and shadow fills of the three lead cells (TREND_UP x BEAR/NEUT -> sell ATM CE; LEVEL x BEAR
 -> long ATM PE and sell ATM CE) with the frozen super-order-style exits. The tape has no OI/volume: those two votes are None, never invented."""
@@ -270,18 +273,20 @@ def _hs_fields(sym, x, hm):  # one leg at one quote x = (t, bid, ask, exp) in mi
     mid = (x[1] + x[2]) / 2; return dict(bid=x[1], ask=x[2], hs_real=round((x[2] - x[1]) / 2, 4), hs_model=hs_model(sym, 1, int(hm[:2]) * 60 + int(hm[3:5]), mid))
 
 
-def ivs_trade(sym, sp, q, days=0):
+def ivs_trade(sym, sp, q, days=0, at=None):
     """IVS lead (registry E31, frozen variant ND_STRANGLE1|ivfall1.0_dte0|STRANGLE1|spot1.5_stop0.3|OPEN=calm; the caller checks the expiry-day
     and calm-opening gates): first bar 10:01-14:00 where the ATM CE+PE IV (same strike) fell >= 1.0 IV point over 15 minutes -> SELL 10 lots
     OTM1 CE + OTM1 PE at the bid of the first quote in the next minute; buy back at the ask of the first quote >= the minute after spot moves
     1.5 steps from the entry minute or the mid-marked loss reaches 30% of the credit, else nearest 15:15 (sweep_lab.tape_trade rules).
     IV per bar uses the calendar time left to the 15:30 expiry close: a T fixed for the day would read expiry-day theta as an IV fall.
-    ponytail: IV is this file's Black-Scholes on tape mids, not Dhan's IV column the sweep used; upgrade if they disagree."""
+    ponytail: IV is this file's Black-Scholes on tape mids, not Dhan's IV column the sweep used; upgrade if they disagree.
+    at = entry bar index (E42 EXS: 53 = 10:08): no IV scan, strike = ATM at the bar before; the legs, lots, exits and log fields are unchanged."""
     Tb = lambda b: max(days * 1440 + 930 - (M0 + b), 1) / 525600  # minutes to 15:30 on the expiry day, annualised on calendar minutes
     s = []; v = None
     for i in range(375): v = sp.get(_hm(i), v); s.append(v)
     st = STEP[sym]; hit = None
-    for i in range(46, 286):
+    if at is not None: hit = (at - 1, round(s[at - 1] / st) * st) if s[at - 1] is not None else None
+    for i in ([] if at is not None else range(46, 286)):
         if s[i] is None: continue
         K = round(s[i] / st) * st; ivs = []
         for b in (i, i - 15):
@@ -510,6 +515,9 @@ def day_rows(day, spot, q, hist=None, prev=None):
         iv_s = ivs_trade(sym, sp, q) if exp == day and ratio <= 1.0042 else ("GATE_OFF",)
         s2d.update(ivs_status=iv_s[0], ivs_pnl_inr=iv_s[1] if iv_s[0] == "TRADE" else 0.0,
                    **(dict(ivs_exit=iv_s[2], ivs_entry_t=iv_s[3], ivs_exit_t=iv_s[4], ivs_strike=iv_s[5], ivs_credit=iv_s[6]["credit"], ivs_legs=iv_s[6]["legs"]) if iv_s[0] == "TRADE" else {}))
+        ex_s = ivs_trade(sym, sp, q, at=53) if exp == day else ("GATE_OFF",)  # EXS (E42): plain expiry-day strangle at 10:08, no IV or calm gate
+        s2d.update(exs_status=ex_s[0], exs_pnl_inr=ex_s[1] if ex_s[0] == "TRADE" else 0.0,
+                   **(dict(exs_exit=ex_s[2], exs_entry_t=ex_s[3], exs_exit_t=ex_s[4], exs_strike=ex_s[5], exs_credit=ex_s[6]["credit"], exs_legs=ex_s[6]["legs"]) if ex_s[0] == "TRADE" else {}))
         out.append(dict(row, **s2d, status="OK", spot_0945=S, strike=K, rv_open=round(rv, 2), iv_atm=round(iv, 2),
                         ratio=round(ratio, 4), signal=bool(ratio > THRESH), straddle_pnl_inr=round(pnl, 2),
                         pnl_inr=round(pnl, 2) if ratio > THRESH else 0.0, legs=legs))
@@ -581,7 +589,8 @@ def leads_report(rows=None):
     for nm, ok, f, fx, lack in (("B1 NR4 stretch", lambda r: r.get("b1_status") == "TRADE", "b1_pnl_inr", "b1_exit", lambda r: r.get("b1_status") in (None, "NO_HIST", "NO_SPOT", "NO_QUOTES")),
                             ("SC1 S1 after contracting day", lambda r: r.get("sc1_signal") and r.get("s1_pnl_inr") is not None, "sc1_pnl_inr", "s1_exit", lambda r: r.get("lead_hist") != "OK" or r.get("s1_pnl_inr") is None),
                             ("S1 in 20d-range HIGH", lambda r: r.get("loc20") == "HIGH" and r.get("s1_pnl_inr") is not None, "s1_loc20_high_pnl_inr", "s1_exit", lambda r: r.get("lead_hist") != "OK" or r.get("s1_pnl_inr") is None),
-                            ("IVS strangle after IV fall", lambda r: r.get("ivs_status") == "TRADE", "ivs_pnl_inr", "ivs_exit", lambda r: r.get("status") != "OK" or r.get("ivs_status") in ("NO_QUOTES", "NO_MARK"))):
+                            ("IVS strangle after IV fall", lambda r: r.get("ivs_status") == "TRADE", "ivs_pnl_inr", "ivs_exit", lambda r: r.get("status") != "OK" or r.get("ivs_status") in ("NO_QUOTES", "NO_MARK")),
+                            ("EXS plain expiry strangle 10:08 (E42, no gate)", lambda r: r.get("exs_status") == "TRADE", "exs_pnl_inr", "exs_exit", lambda r: r.get("status") != "OK" or r.get("exs_status") in ("NO_QUOTES", "NO_MARK"))):
         T = [r for r in R if ok(r)]; parts.append(f"{nm}: n={len(T)} net Rs {sum(r[f] for r in T):,.0f} wins {sum(r[f] > 0 for r in T)} forced {sum('forced' in r.get(fx, '') for r in T)} (no inputs {sum(lack(r) for r in R)}/{len(R)})")
     for lead, nm in (("S_CE", "E33 S_CE (TREND_UP x BEAR/NEUT, LEVEL x BEAR)"), ("L_PE", "E33 L_PE (LEVEL x BEAR)")):  # several trades per sym-day
         T = [t for r in R for t in r.get("e33_trades", []) if t["lead"] == lead and "pnl" in t]; nq = sum(t.get("status") == "NO_QUOTES" for r in R for t in r.get("e33_trades", []) if t["lead"] == lead)
@@ -826,6 +835,12 @@ def selftest():
     hms = [f"{9 + (15 + m) // 60:02d}:{(15 + m) % 60:02d}" for m in range(31, 105)]; px = {t: bs(22700, 22700, T0(t), 0.14, 0.065, "CE") for t in hms}
     flat = {k: [(t + ":00", px[t] - 0.5, px[t] + 0.5, "2026-10-27") for t in hms] for k in qi if k[1] == 22700.0}
     assert ivs_trade("NIFTY", spi, flat) == ("NO_SIGNAL",)  # premium decays with the clock at a constant 14% IV: theta is not an IV fall
+    # EXS (E42): fixed 10:08 entry ignores the IV path (fires on `flat` too); same legs/exits as IVS; NO_QUOTES when the 10:08 minute has no quote
+    qx = flat | {("NIFTY", K, s): [("10:08:00", 40.0, 42.0, "2026-10-27"), ("11:01:00", hi - 2, hi, "2026-10-27")] for K, s, hi in ((22750.0, "CE", 62.0), (22650.0, "PE", 27.0))}
+    ex_t = ivs_trade("NIFTY", spi, qx, at=53)
+    assert ex_t[0] == "TRADE" and ex_t[2] == "spot" and ex_t[3] == "10:08" and ex_t[5] == 22700 and abs(ex_t[1] - round(exp3, 2)) < 0.01, ex_t
+    assert ivs_trade("NIFTY", spi, qi, at=53) == ("NO_QUOTES",) and n["exs_status"] == "GATE_OFF"
+    assert "EXS plain expiry" in leads_report([dict(day="2026-10-27", sym="NIFTY", status="OK", exs_status="TRADE", exs_pnl_inr=exp3, exs_exit="spot")])
     assert "IVS strangle" in leads_report([dict(day="2026-10-27", sym="NIFTY", status="OK", ivs_status="TRADE", ivs_pnl_inr=exp3, ivs_exit="spot")])
     # IVS forward-log fields (E39 standard): credit 80 pts; realised half-spread 1.0 at every leg/minute; modelled p75 from a 3-row spreads.csv
     # (NIFTY expiry day: 0.5 in the first time bucket, 1.5 in the fourth, premium 50-100; gaps filled along time (bfill, ffill) then premium, as opt1y_lab)
