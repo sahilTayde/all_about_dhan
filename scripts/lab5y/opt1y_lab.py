@@ -90,7 +90,7 @@ def hs(sym, d0, m, p):
 IDX5Y = os.environ.get("IDX5Y", f"{OUT}/../idx1m.pkl")  # lab.py cache of data/recon 5y index 1m
 def spot_series(g, ix=None):
     """spot per minute (Series indexed by m) for one sym-day. 2026-11-16 spot fix: an option row carries the index value stamped at that
-    strike's LAST update, so an untraded strike repeats an old spot (SENSEX 2024-06-04 12:29: 29 stale rows say 71,539, the index is
+    strike's LAST update, so an untraded strike repeats an old spot (SENSEX 2024-06-04 12:29: the raw row median is 71,539, the index is
     70,271). Order: (1) the index 1m close `ix` (idx1m, the exchange minute close) wherever it has the minute; (2) else the median over
     the rows that TRADED in the minute (vol > 0: a fresh stamp); (3) else the median over all rows (the pre-fix value)."""
     sp = g.groupby("m").spot.median(); sp.update(g[g.vol > 0].groupby("m").spot.median())

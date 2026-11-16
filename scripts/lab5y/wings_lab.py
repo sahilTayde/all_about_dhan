@@ -114,7 +114,7 @@ def study_spotcheck():
     I = I[(I.m >= M0) & (I.m < M0 + NB)]; I = I[[k in P for k in zip(I.sym, I.day)]]
     sp = np.array([P[(s, d)]["spot"][m - M0] for s, d, m in zip(I.sym, I.day, I.m)]); e = np.abs(sp - I.close.values)
     print(f"panel spot vs idx1m close on {len(I)} minutes: exact {np.mean(e < 0.011) * 100:.3f}%, > 5 pts {int((e > 5).sum())}, max {np.nanmax(e):.2f}")
-    k = ("SENSEX", "2024-06-04"); v = P[k]["spot"][749 - M0]; print("SENSEX 2024-06-04 12:29 panel spot", v, "(index close 70271.06; pre-fix median 71538.83)")
+    k = ("SENSEX", "2024-06-04"); v = P[k]["spot"][749 - M0]; print("SENSEX 2024-06-04 12:29 panel spot", v, "(index close 70271.06; raw row median 71538.83, median panel 70619.11)")
     rows = []
     for k in L.ALLK:
         p = P[k]
