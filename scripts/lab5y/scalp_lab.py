@@ -1054,6 +1054,124 @@ def study_e49():
     T_.to_csv(f"{L.OUT}/scalp_e49.csv", index=False); Sf.to_csv(f"{L.OUT}/scalp_e49_surface.csv", index=False); TS.to_csv(f"{L.OUT}/scalp_e49_ts.csv", index=False); RE.to_csv(f"{L.OUT}/scalp_e49_re.csv", index=False)
 
 
+# ================================================================ E50: four selling rules from popular Dhan-channel transcripts
+def e50_picks(p, sym, tgt=None, i=52):
+    """strike offsets (steps from ATM, CE side / PE side) at decision bar i, from data at or before bar i only.
+    C9: the strike among OTM1..6 whose bar-i close premium is nearest tgt x spot. C11: the largest open interest among OTM1..6."""
+    atm, st, out = p["atm"][i], STEP[sym], {}
+    for side, sg in (("CE", 1), ("PE", -1)):
+        pr, oi = {}, {}
+        for off in range(1, 7):
+            a = p["C"].get((side, atm + sg * off * st))
+            if a is None: continue
+            if np.isfinite(a[i, 3]): pr[off] = a[i, 3]
+            if np.isfinite(a[i, 4]): oi[off] = a[i, 4]
+        out[side] = dict(c9=min(pr, key=lambda o: abs(pr[o] - tgt * p["spot"][i])) if (pr and tgt) else None, c11=max(oi, key=oi.get) if oi else None, p1=pr.get(1))
+    return out
+
+
+def e50_c7(p, sym, j0=30, j1=165):
+    """C7 trigger: strike = ATM at the 09:30 close (bar 15); straddle = CE + PE closes; VWAP from 09:15 weighted by the two legs' volume;
+    first bar j in [j0, j1] that completes 5 consecutive closes below the VWAP. Returns (j, strike offset from ATM at j, S, VW) or None."""
+    K = p["atm"][15]; ce, pe = p["C"].get(("CE", K)), p["C"].get(("PE", K))
+    if ce is None or pe is None or not np.isfinite(K): return None
+    S = ce[:, 3] + pe[:, 3]; V = np.nan_to_num(ce[:, 6]) + np.nan_to_num(pe[:, 6]); ok = np.isfinite(S)
+    with np.errstate(invalid="ignore", divide="ignore"):
+        vw = np.cumsum(np.where(ok, S * V, 0)) / np.cumsum(np.where(ok, V, 0)); below = ok & (S < vw)
+    run = 0
+    for j in range(NB):
+        run = run + 1 if below[j] else 0
+        if run >= 5 and j0 <= j <= j1: return j, int(round((K - p["atm"][j]) / STEP[sym])), S, vw
+    return None
+
+
+def _c7_trade(S_, k, j, off, S, vw):
+    with np.errstate(invalid="ignore"): up = np.flatnonzero(S[j + 1:] > vw[j + 1:])
+    flat = min(M0 + j + 1 + int(up[0]) + 1, L.FLAT) if len(up) else L.FLAT
+    return S_.struct(k, j, [("CE", off, -1), ("PE", off, -1)], stop=0.3, flat=flat, mode="cons")
+
+
+def study_lookahead50(n_days=40, seed=5):
+    """scramble every bar after the decision bar and require the E50 picks / the C7 trigger to be unchanged."""
+    rg = np.random.default_rng(seed); ks = [L.ALLK[j] for j in rg.choice(len(L.ALLK), n_days, replace=False)]; bad = n = 0
+    for k in ks:
+        p = P[k]; b9 = e50_picks(p, k[0], 0.002); b7 = e50_c7(p, k[0])
+        for cut in ([52] + ([b7[0]] if b7 else [])):
+            q = dict(p, spot=p["spot"].copy(), atm=p["atm"].copy(), C={kk: a.copy() for kk, a in p["C"].items()}); m = NB - cut - 1
+            q["spot"][cut + 1:] *= rg.uniform(0.97, 1.03, m)
+            for a in q["C"].values(): a[cut + 1:] *= rg.uniform(0.5, 1.5, (m, 7))
+            n += 1
+            if cut == 52 and e50_picks(q, k[0], 0.002) != b9: bad += 1; print("LOOK-AHEAD picks", k)
+            if b7 and cut == b7[0]:
+                g = e50_c7(q, k[0])
+                if g is None or g[:2] != b7[:2]: bad += 1; print("LOOK-AHEAD C7", k)
+    print(f"E50 look-ahead scan: {n} checks on {len(ks)} sym-days, {bad} leaks"); assert bad == 0
+
+
+def study_e50():
+    import sell_lab as S_
+    rg = np.random.default_rng(50); K_ = [k for k in L.ALLK if P[k]["d0"]]; days = np.array([k[1] for k in K_]); syms = np.array([k[0] for k in K_]); lm = days < HO; I = 52
+    xs = np.array([(lambda r: r["pnl"] if r else np.nan)(S_.struct(k, I, STR1, sstop=1.5, stop=0.3, mode="cons")) for k in K_])
+    # C9 target per index: LEARN median of an OTM1 leg's 10:07 premium / spot
+    tgt = {}
+    for sym in ("NIFTY", "SENSEX"):
+        v = [pk[sd]["p1"] / P[k]["spot"][I] for k in K_ if k[0] == sym and k[1] < HO for pk in [e50_picks(P[k], sym)] for sd in ("CE", "PE") if pk[sd]["p1"]]
+        tgt[sym] = float(np.median(v))
+    pk = [e50_picks(P[k], k[0], tgt[k[0]]) for k in K_]; half = np.sort(days[lm])[lm.sum() // 2]; rows = []; pv = {}
+    def paired(name, key):
+        offs = [(q["CE"][key], q["PE"][key]) for q in pk]
+        v = np.array([(lambda r: r["pnl"] if r else np.nan)(S_.struct(k, I, [("CE", a, -1), ("PE", -b, -1)], sstop=1.5, stop=0.3, mode="cons")) if a and b else np.nan for k, (a, b) in zip(K_, offs)])
+        m = np.isfinite(v) & np.isfinite(xs); d = v - xs; gd = pd.Series(d[m & lm]).groupby(days[m & lm]).sum(); legs = np.array([o for ab in offs for o in ab if o])
+        r = dict(cell=name, n_learn=int((m & lm).sum()), learn_mean=float(v[m & lm].mean()), xs_learn=float(xs[m & lm].mean()), diff_learn=float(d[m & lm].mean()), p=_bp(-gd.values) if False else _bp(gd.values),
+                 diff_h1=float(d[m & lm & (days < half)].mean()), diff_h2=float(d[m & lm & (days >= half)].mean()), n_test=int((m & ~lm).sum()), test_mean=float(v[m & ~lm].mean()), xs_test=float(xs[m & ~lm].mean()),
+                 diff_test=float(d[m & ~lm].mean()), worst=float(np.nanmin(v)), xs_worst=float(np.nanmin(xs[m])), win=float((v[m & lm] > 0).mean()), otm12_share=float((legs <= 2).mean()),
+                 mean_off=float(legs.mean()), no_fill=int((~np.isfinite(v) & np.isfinite(xs)).sum()))
+        rows.append(r); pv[name[:3].strip()] = r["p"]; return r
+    paired("C9 constant-credit strikes", "c9"); paired("C11 OI-wall strikes", "c11")
+    # C17: skip XS when NIFTY and SENSEX disagree at 10:07
+    dirn = {k: np.sign(P[k]["spot"][I] - P[k]["spot"][0]) for k in L.ALLK}; ag = np.array([(dirn.get(("NIFTY", d)), dirn.get(("SENSEX", d))) for d in days], float)
+    el = np.isfinite(ag).all(1) & np.isfinite(xs); skip = el & (ag[:, 0] != ag[:, 1])
+    def gap(m): return float(xs[m & ~skip].mean() - xs[m & skip].mean()) if (m & skip).any() and (m & ~skip).any() else np.nan
+    mL = el & lm; obs = gap(mL); ix = np.flatnonzero(mL); ns = int((mL & skip).sum()); dr = []
+    for _ in range(2000):
+        sk = np.zeros(len(xs), bool); sk[rg.choice(ix, ns, replace=False)] = True; dr.append(xs[mL & ~sk].mean() - xs[mL & sk].mean())
+    p17 = float(((np.array(dr) >= obs).sum() + 1) / 2001); pv["C17"] = p17
+    c17 = dict(cell="C17 skip when the two indices disagree", eligible_learn=int(mL.sum()), skipped_learn=ns, kept_mean=float(xs[mL & ~skip].mean()), skipped_mean=float(xs[mL & skip].mean()), gap_learn=obs, p=p17,
+               gap_h1=gap(mL & (days < half)), gap_h2=gap(mL & (days >= half)), gap_nifty=gap(mL & (syms == "NIFTY")), gap_sensex=gap(mL & (syms == "SENSEX")),
+               eligible_test=int((el & ~lm).sum()), skipped_test=int((el & ~lm & skip).sum()), kept_test=float(xs[el & ~lm & ~skip].mean()), skipped_test_mean=float(xs[el & ~lm & skip].mean()), gap_test=gap(el & ~lm))
+    # C7: straddle below its own VWAP -> short it (non-expiry primary)
+    tr = []
+    for k in L.ALLK:
+        g = e50_c7(P[k], k[0])
+        if g:
+            r = _c7_trade(S_, k, *g); tr.append(dict(k=k, day=k[1], sym=k[0], d0=P[k]["d0"], j=g[0], off=g[1], pnl=r["pnl"] if r else np.nan, why=r["why"] if r else "nofill", held=r["held"] if r else -1))
+    C7 = pd.DataFrame(tr); ne = C7[(C7.d0 == 0)]; pl = []; Ln = ne[ne.day < HO]
+    for _ in range(100):
+        v = []
+        for r in Ln.itertuples():
+            p = P[r.k]; j = int(rg.integers(30, 166)); K = p["atm"][15]; ce, pe = p["C"][("CE", K)], p["C"][("PE", K)]; S = ce[:, 3] + pe[:, 3]; V = np.nan_to_num(ce[:, 6]) + np.nan_to_num(pe[:, 6]); ok = np.isfinite(S)
+            with np.errstate(invalid="ignore", divide="ignore"): vw = np.cumsum(np.where(ok, S * V, 0)) / np.cumsum(np.where(ok, V, 0))
+            x = _c7_trade(S_, r.k, j, int(round((K - p["atm"][j]) / STEP[r.sym])), S, vw); v.append(x["pnl"] if x else np.nan)
+        pl.append(np.nanmean(v))
+    R7 = [_passrow("C7 straddle below VWAP, NON-expiry (primary)", ne, pl), _passrow("C7 on expiry days (descriptive)", C7[C7.d0 == 1])]
+    for sym in ("NIFTY", "SENSEX"): R7.append(_passrow(f"C7 non-expiry {sym} (descriptive)", ne[ne.sym == sym]))
+    pv["C7"] = R7[0]["learn_p"]; o = sorted(pv, key=pv.get); holm = {}; run = 0.0
+    for r_, nm in enumerate(o): run = max(run, min(1.0, pv[nm] * (4 - r_))); holm[nm] = run
+    pd.set_option("display.width", 320); pd.set_option("display.max_columns", 40); T = pd.DataFrame(rows); T7 = pd.DataFrame(R7)
+    print(f"E50: XS reference LEARN {np.nanmean(xs[lm]):,.0f} / TEST {np.nanmean(xs[~lm]):,.0f} per trade; C9 target premium = {tgt['NIFTY'] * 1e4:.1f} bp of spot NIFTY, {tgt['SENSEX'] * 1e4:.1f} bp SENSEX")
+    print("\nstrike-choice cells (Rs per expiry trade at 10 lots; diff = cell minus XS on the same days)"); print(T.round({c: (4 if c == "p" else 3 if c in ("win", "otm12_share") else 2 if c == "mean_off" else 0) for c in T.columns if c != "cell"}).to_string(index=False))
+    print("\nC17"); print(pd.DataFrame([c17]).round({c: (4 if c == "p" else 0) for c in c17 if c != "cell"}).T.to_string(header=False))
+    print(f"\nC7 ({len(C7)} triggers; exits non-expiry: {ne[ne.pnl.notna()].why.value_counts().to_dict()}; median hold {ne[ne.pnl.notna()].held.median():.0f} min; median trigger bar {ne.j.median():.0f})")
+    print(T7.round({c: (4 if c.endswith("_p") else 3 if c == "win" else 0) for c in T7.columns if c != "cell"}).to_string(index=False))
+    v9 = rows[0]; v11 = rows[1]; c7 = R7[0]
+    okp = lambda r, nm: bool(r["diff_learn"] > 0 and holm[nm] < 0.05 and r["diff_h1"] > 0 and r["diff_h2"] > 0 and r["diff_test"] > 0 and r["worst"] >= r["xs_worst"])
+    ok17 = bool(obs > 0 and holm["C17"] < 0.05 and c17["gap_h1"] > 0 and c17["gap_h2"] > 0 and c17["gap_nifty"] > 0 and c17["gap_sensex"] > 0 and c17["gap_test"] > 0)
+    ok7 = bool(c7["learn_mean"] > 0 and holm["C7"] < 0.05 and c7["learn_yrs_pos"] >= 3 and c7["test_mean"] > 0 and c7["test_mean"] >= 0.5 * c7["learn_mean"] and c7["test_p"] < 0.10 and c7["less_top5"] > 0 and c7["worst"] >= -50000 and c7["learn_mean"] > c7["plac_p95"])
+    print(f"\nHolm-adjusted p: { {k: round(float(v), 4) for k, v in holm.items()} }")
+    print(f"VERDICTS: C9 {'PASS' if okp(v9, 'C9') else 'FAIL'}{' (no information: OTM1/2 on > 80% of legs)' if v9['otm12_share'] > 0.8 else ''} | C11 {'PASS' if okp(v11, 'C11') else 'FAIL'} | C17 {'PASS' if ok17 else 'FAIL'} | C7 {'PASS' if ok7 else 'FAIL'}")
+    T.to_csv(f"{L.OUT}/scalp_e50_strikes.csv", index=False); T7.to_csv(f"{L.OUT}/scalp_e50_c7.csv", index=False); C7.drop(columns="k").to_csv(f"{L.OUT}/scalp_e50_c7_trades.csv", index=False); pd.DataFrame([c17]).to_csv(f"{L.OUT}/scalp_e50_c17.csv", index=False)
+
+
 def study_selftest():
     """known answers on a synthetic day: hand-computed fills, charges equal L.cost, the greedy one-at-a-time rule, exits."""
     k = next(k for k in DAYK if k[1] >= HO and k[0] == "NIFTY"); d = DIX[k]; Z = pool(); keep = {n: Z[n][d].copy() for n in Z}
@@ -1117,7 +1235,15 @@ def study_selftest():
     flat = np.tile(rg7.normal(0, 1000, 200), (27, 1)); assert e49_choose(flat, np.arange(200)) == E49_DEF          # identical cells: no challenger
     hi = flat.copy(); c0 = E49_CELLS.index((0, 0, 0)); hi[_nb(c0)] += 3000; assert e49_choose(hi, np.arange(200)) == c0   # the corner neighbourhood is lifted
     assert sorted(_nb(E49_DEF)) == sorted([E49_DEF] + [E49_CELLS.index(t) for t in ((0, 1, 1), (2, 1, 1), (1, 0, 1), (1, 2, 1), (1, 1, 0), (1, 1, 2))]) and len(_nb(c0)) == 4
-    print("scalp_lab selftest OK (E49: walk-forward chooser keeps the default / switches to a lifted neighbourhood; E46: two-level market walk, resting target, stop + latency, time-out, passive no-fill / queue / through, short mirror; E45: limit target at the limit, stop wins a tie, time exit, close convention, 5-lot charges, ITM gather == panel; hand-priced target / stop / time exits, charges == L.cost, half-spread == L.hs, no entry on an untraded bar, one position at a time, pool == panel)")
+    # E50 known answers on a synthetic day: C9 picks the strike nearest the target premium, C11 the largest OI, C7 fires on the 5th close below the VWAP
+    mk = lambda c_, oi=0.0, v=1.0: np.column_stack([np.full(NB, c_), np.full(NB, c_), np.full(NB, c_), np.full(NB, float(c_)), np.full(NB, oi), np.full(NB, 15.0), np.full(NB, v)])
+    C5 = {("CE", 100.0 + 50 * o): mk(60.0 / (o + 1), oi=(900.0 if o == 3 else 100.0)) for o in range(0, 7)}; C5.update({("PE", 100.0 - 50 * o): mk(60.0 / (o + 1), oi=(900.0 if o == 5 else 100.0)) for o in range(0, 7)})
+    p5 = dict(spot=np.full(NB, 100.0), atm=np.full(NB, 100.0), C=C5); q5 = e50_picks(p5, "NIFTY", 0.16)   # target 16 points: OTM3 trades at 15, OTM2 at 20
+    assert q5["CE"]["c9"] == 3 and q5["PE"]["c9"] == 3 and q5["CE"]["c11"] == 3 and q5["PE"]["c11"] == 5 and q5["CE"]["p1"] == 30.0, q5
+    ce5 = mk(50.0); pe5 = mk(50.0); ce5[40:, 3] = 45.0    # straddle 100 until bar 39, 95 from bar 40: below its VWAP from bar 40 -> the 5th close is bar 44
+    g5 = e50_c7(dict(spot=np.full(NB, 100.0), atm=np.full(NB, 100.0), C={("CE", 100.0): ce5, ("PE", 100.0): pe5}), "NIFTY"); assert g5[0] == 44 and g5[1] == 0, g5[:2]
+    ce5[10:, 3] = 45.0; assert e50_c7(dict(spot=np.full(NB, 100.0), atm=np.full(NB, 100.0), C={("CE", 100.0): ce5, ("PE", 100.0): pe5}), "NIFTY")[0] == 30   # already below before 09:45: fires at the first allowed bar
+    print("scalp_lab selftest OK (E50: constant-credit and OI-wall picks, straddle-below-VWAP trigger; E49: walk-forward chooser keeps the default / switches to a lifted neighbourhood; E46: two-level market walk, resting target, stop + latency, time-out, passive no-fill / queue / through, short mirror; E45: limit target at the limit, stop wins a tie, time exit, close convention, 5-lot charges, ITM gather == panel; hand-priced target / stop / time exits, charges == L.cost, half-spread == L.hs, no entry on an untraded bar, one position at a time, pool == panel)")
 
 
 if __name__ == "__main__":
