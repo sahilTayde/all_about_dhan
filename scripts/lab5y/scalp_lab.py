@@ -861,7 +861,8 @@ def study_e46(days=None):
                 pl = (s // 9000)[:, None] * 9000 + rg.integers(0, 9000, (len(s), 5)); pl = np.clip(pl, 3000, NSLOT - 7000); pv = _valid(G, pl, c["cap"])
                 for lat in (0, 5, 10):
                     mv = sgn * (G["mid"][s + lat + H] - G["mid"][s + lat]); pm = sgn * np.where(pv, G["mid"][pl + lat + H] - G["mid"][pl + lat], np.nan)
-                    r[f"mid{lat * 100}"] = np.nansum(mv); r[f"plc{lat * 100}"] = np.nansum(np.nanmean(pm, 1)); r[f"nm{lat * 100}"] = int(np.isfinite(mv).sum())
+                    r[f"mid{lat * 100}"] = np.nansum(mv); pmm = np.nanmean(np.where(np.isfinite(pm), pm, np.nan), 1) if pm.size else np.array([])
+                    r[f"plc{lat * 100}"] = np.nansum(pmm); r[f"nm{lat * 100}"] = int(np.isfinite(mv).sum()); r[f"npl{lat * 100}"] = int(np.isfinite(pmm).sum())  # review H1: the placebo has its own count
                 T, S = (1.5, 2.5) if short else (2.0, 2.0)
                 for fm in (["queue", "through", "strict"] if entry == "passive" else ["queue"]):
                     for lots, q in ((10, c["q"]), (5, c["q"] // 2)):
@@ -870,14 +871,15 @@ def study_e46(days=None):
                         if (fm, lots) == ("queue", 10): r["tgt"] = int((R["out"] == 0).sum()); r["stp"] = int((R["out"] == 1).sum()); r["stoploss"] = float(np.nansum(R["pts"][R["out"] == 1]))
                 rows.append(r)
         print("sig", day, flush=True)
-    X = pd.DataFrame(rows).fillna(0.0); X.to_csv(f"{L.OUT}/scalp_e46_parts.csv", index=False)
-    D = X.groupby(["sym", "sig", "day"]).sum(numeric_only=True).reset_index(); D["ex"] = D.mid500 / D.nm500 - D.plc500 / D.nm500
+    X = pd.DataFrame(rows).fillna(0.0); X.to_csv(f"{L.OUT}/scalp_e46_parts{os.environ.get('TCAP', '')}.csv", index=False)
+    D = X.groupby(["sym", "sig", "day"]).sum(numeric_only=True).reset_index(); D["ex"] = D.mid500 / D.nm500 - D.plc500 / D.npl500.clip(lower=1); D["raw"] = D.mid500 / D.nm500
+    for l_ in (0, 1000): D[f"ex{l_}"] = D[f"mid{l_}"] / D[f"nm{l_}"] - D[f"plc{l_}"] / D[f"npl{l_}"].clip(lower=1)
     out = []
     for (sym, sig), g in D.groupby(["sym", "sig"]):
         d, h = g[g.day.isin(DISC)], g[g.day.isin(HOLD)]; x = d.ex.dropna().values; bm = x[rg.integers(0, len(x), (10000, len(x)))].mean(1) if len(x) else np.array([np.nan])
         q10 = TSYM[sym]["q"]; nt = lambda z, col: z[f"net_{col}"].sum() / max(z[f"fills_{col}"].sum(), 1)
-        lat = {l: (d[f"mid{l}"].sum() - d[f"plc{l}"].sum()) / max(d[f"nm{l}"].sum(), 1) for l in (0, 500, 1000)}
-        out.append(dict(sym=sym, sig=sig, entry=SIG46[sig][0], hold_s=SIG46[sig][1] // 10, trig_per_day=d.n.sum() / max(len(d), 1), days=len(x), mid_ex_0ms=lat[0], mid_ex_500=float(x.mean()) if len(x) else np.nan,
+        lat = {0: float(d.ex0.mean()), 1000: float(d.ex1000.mean())}  # review M2: day-means, like the 500 ms column
+        out.append(dict(sym=sym, sig=sig, entry=SIG46[sig][0], hold_s=SIG46[sig][1] // 10, trig_per_day=d.n.sum() / max(len(d), 1), days=len(x), raw_mid_500=float(d.raw.mean()), mid_ex_0ms=lat[0], mid_ex_500=float(x.mean()) if len(x) else np.nan,
                         mid_ex_1000=lat[1000], days_pos=int((x > 0).sum()), p=float((bm <= 0).mean()), fill_rate=d.fills_queue10.sum() / max(d.n.sum(), 1),
                         p_tgt=d.tgt.sum() / max(d.fills_queue10.sum(), 1), p_stop=d.stp.sum() / max(d.fills_queue10.sum(), 1), loss_on_stop=d.stoploss.sum() / max(d.stp.sum(), 1),
                         pts_spread=d.pts_queue10.sum() / max(d.fills_queue10.sum(), 1), net10=nt(d, "queue10"), net5=nt(d, "queue5"), rs10=nt(d, "queue10") * q10,
@@ -888,9 +890,9 @@ def study_e46(days=None):
     T["bh"] = passed; c1 = (T.mid_ex_500 > 0) & (T.days_pos >= 7) & T.bh; mid3 = (T.hold_days_pos == T.hold_days) & (T.hold_days == 3)
     flip = (T.entry == "passive") & (np.sign(T.net10) != np.sign(T.net_through))
     T["verdict"] = np.where(c1 & (T.net10 > 0) & mid3 & (T.hold_net10 > 0) & ~flip, "LEAD", np.where(c1 & mid3, "INFO-ONLY", "nothing"))
-    T.to_csv(f"{L.OUT}/scalp_e46.csv", index=False); pd.set_option("display.width", 400); pd.set_option("display.max_columns", 50)
+    T.to_csv(f"{L.OUT}/scalp_e46{os.environ.get('TCAP', '')}.csv", index=False); pd.set_option("display.width", 400); pd.set_option("display.max_columns", 50)
     print(f"\nE46 signals: discovery = {DISC[0]}..{DISC[-1]} (8 days), holdout = {HOLD}; premium points per unit; {len(T)} tests, BH FDR 0.20")
-    print(T.round(dict(trig_per_day=0, mid_ex_0ms=3, mid_ex_500=3, mid_ex_1000=3, p=4, fill_rate=3, p_tgt=3, p_stop=3, loss_on_stop=2, pts_spread=3, net10=3, net5=3, rs10=0, net_through=3, net_strict=3, hold_mid_ex=3, hold_net10=3)).to_string(index=False))
+    print(T.round(dict(trig_per_day=0, raw_mid_500=3, mid_ex_0ms=3, mid_ex_500=3, mid_ex_1000=3, p=4, fill_rate=3, p_tgt=3, p_stop=3, loss_on_stop=2, pts_spread=3, net10=3, net5=3, rs10=0, net_through=3, net_strict=3, hold_mid_ex=3, hold_net10=3)).to_string(index=False))
     nf = T[T.sym == "NIFTY"]; print(f"\nstop rule part 2: largest NIFTY discovery mid-to-mid excess at 500 ms = {nf.mid_ex_500.max():.3f} premium points (needs >= 0.40 to keep the speed thesis alive)")
 
 
