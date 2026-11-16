@@ -34,6 +34,7 @@
 | `book_reads/NOTE_*.md` + `CLUB_SEVEN_BOOKS.md` | `teams/01_research/docs/book_reads/` | Sibling notes + Research Boss club. Original notes only. **No PDF / chapter text.** |
 | `RESEARCH_BOSS_SKILL.md` | `teams/00_orchestrator/docs/` | Standing prompt 00 loads to invoke 01 Research Boss + 00 transition. Edit in place. |
 | `RESEARCH_BOSS_LOOP.md` | `teams/01_research/docs/` **and** `teams/00_orchestrator/docs/` | 01 = invent cycle. 00 = after 01: rag rebuild → `TOPIC_COVERAGE` → `RETUNE_PROPOSAL`. Edit in place. Do not add a third loop file. |
+| `REPO_HARVEST.md` | `teams/01_research/docs/` | GitHub / open-source repo harvest: ranked adoption table (licence, effort, risk, test plan). **One** file; edit in place. Repos are read-only data (never run, never cloned into the repo). |
 | `TOPIC_COVERAGE.md` | `teams/01_research/docs/` | Topic × book × KNOWN/PARTIAL/DI × desk hook. Edit in place. |
 | `QUANT_SELF_REVIEW_LOOP.md` | `teams/06_backtesting/docs/` | Nightly/paper self-review → `RETUNE_PROPOSAL` only. Edit in place. |
 | `BOOK_MODEL_TUNE.md` | `teams/06_backtesting/docs/` | Cache ML-001 + ML-002 book tune. **One** file; overwrite. Not a promote. |

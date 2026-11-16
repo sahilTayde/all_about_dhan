@@ -461,7 +461,7 @@ def price_cell(cell):
 
 
 _SRC = hashlib.md5(b"".join(open(os.path.join(os.path.dirname(os.path.abspath(__file__)), f), "rb").read()
-                            for f in ("sell_lab.py", "opt1y_lab.py")) + f"{L.COSTS}/{L.STALE_OK}".encode()).hexdigest()[:8]  # + cost/guard mode
+                            for f in ("sell_lab.py", "opt1y_lab.py"))).hexdigest()[:8] + f"_{L.COSTS}{'_keep' if L.STALE_OK else ''}"  # priced caches depend on the cost mode and stale guard
 
 
 def _cache(cell):
