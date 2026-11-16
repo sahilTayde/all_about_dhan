@@ -607,13 +607,15 @@ def study_cells():
     except Exception:
         R["spot0"] = [P[(s, d)]["spot"][t] for s, d, t in zip(R.sym, R.day, R.t)]; F = features(R, P, days); F.to_pickle(f"{OUT}/playbook/e43_features_all.pkl")
     print(f"phase 3 LEARN: {len(E)} expiry sym-days, {len(GRID)} configurations ({len(GRID_A)} A, {len(GRID_B)} B+C)", flush=True)
-    TR = trades(E, P, days, F, R); TR.to_pickle(f"{OUT}/playbook/e43_trades_learn.pkl"); print(f"trades {len(TR)}", flush=True)
+    try: TR = pd.read_pickle(f"{OUT}/playbook/e43_trades_learn.pkl"); assert os.environ.get("REPRICE") is None; print(f"trades {len(TR)} (cached e43_trades_learn.pkl; REPRICE=1 to re-run)", flush=True)
+    except Exception:
+        TR = trades(E, P, days, F, R); TR.to_pickle(f"{OUT}/playbook/e43_trades_learn.pkl"); print(f"trades {len(TR)}", flush=True)
     rows = []; final = []
     for fam in ("A", "B", "C"):
         G = [c for c in GRID if c["fam"] == fam]; T = TR[TR.fam == fam]
         if T.empty: print(f"family {fam}: no trades"); continue
         M = T.pivot_table(index="day", columns="cfg", values="pnl", aggfunc="sum").fillna(0.0)
-        pbo = pbo_cscv(M.values, S=8) if M.shape[1] >= 2 and M.shape[0] >= 16 else np.nan
+        pbo = pbo_cscv(M.values, S=8)["pbo"] if M.shape[1] >= 2 and M.shape[0] >= 16 else np.nan
         Lo, picks = loyo(T, G); st = cell_stats(Lo, f"{fam} LOYO"); st.update(pbo=pbo, configs=len(G), picks=str(picks)); rows.append(st)
         print(f"\n== family {fam}: {len(G)} configs, {len(T)} trades; LOYO n {st['n']} mean {st['mean']:,.0f} p {st['p']:.4f} | 1 lot mean {st['mean1']:,.0f} p {st['p1']:.4f} | PBO {pbo:.2f} | picks {picks}", flush=True)
         per = T.groupby("cfg").agg(n=("pnl", "size"), days=("day", "nunique"), mean=("pnl", "mean"), win=("pnl", lambda x: (x > 0).mean()), mean1=("pnl1", "mean")).sort_values("mean", ascending=False)
@@ -633,5 +635,144 @@ def study_cells():
     C = pd.DataFrame(cells); C.to_csv(f"{OUT}/playbook/e43_cells_learn.csv", index=False); print(f"\nwrote e43_cells_learn.csv ({len(C)} cells); alpha = 0.05 / {len(C)} = {0.05 / max(len(C), 1):.5f}")
 
 
+
+# ---------------------------------------------------------------- cross-instrument study (founder 2026-11-16: "relation between instruments that causes
+# the spikes; 11:00-12:30 and 13:00-15:10; catch 4 of 10"). LEARN only, exploratory (NOT one of the 12 frozen cells): any rule it suggests must be
+# frozen in a later commit before it sees TEST.
+WIN_X = [(105, 195), (225, 355)]          # 11:00-12:30 and 13:00-15:10 as minute indices from 09:15
+XF = ["oth_r15", "oth_r30", "oth_spk15", "own_spk15", "sd_exp15", "sd_exp30", "pcr_d", "wall_steps", "chain_vsurge", "range30", "compress", "r15", "r30", "oi_cover", "oi_build"]
+
+
+def cross_table(E, P, R):
+    """one row per (sym, day, slot t in the two windows, side): label = some cheap strike on this side reaches 5x (fillable) within 60 min of t
+    (from the candidate rows, max over strikes); features at t from THIS index, the OTHER index's spot and its own cheap-OTM state, the ATM
+    straddle, the chain (OI, volume). All features use bars <= t (OI lagged OI_LAG)."""
+    lab = R[R.t.apply(lambda t: any(a <= t <= b for a, b in WIN_X))].groupby(["sym", "day", "t", "side"]).agg(spk5=("ratio_60", lambda x: (x >= 5).any()), spk3=("ratio_60", lambda x: (x >= 3).any()), best=("ratio_60", "max"), n=("p0", "size")).reset_index()
+    sp3 = {(r.sym, r.day, r.side): set() for r in lab.itertuples()}
+    for r in R[R.ratio_60 >= 3].itertuples():                       # minutes at which a cheap strike on (sym, day, side) had STARTED a >= 3x move: used for "spike in the prior 15 min"
+        if r.tmax_60 == r.tmax_60: sp3.setdefault((r.sym, r.day, r.side), set()).add(int(r.t))
+    rows = []
+    for r in lab.itertuples():
+        v = E[(r.sym, r.day)]; oth = "SENSEX" if r.sym == "NIFTY" else "NIFTY"; vo = P.get((oth, r.day)); t = int(r.t); st = STEP[r.sym]; sgn = 1 if r.side == "CE" else -1; spot = v["spot"]
+        f = dict(sym=r.sym, day=r.day, t=t, side=r.side, spk5=bool(r.spk5), spk3=bool(r.spk3), best=r.best, yr=r.day[:4], win="A" if t < 200 else "B")
+        f["r15"] = sgn * (spot[t] - spot[t - 15]) / st; f["r30"] = sgn * (spot[t] - spot[t - 30]) / st
+        w = spot[t - 30:t + 1]; f["range30"] = (np.nanmax(w) - np.nanmin(w)) / st; orr = (np.nanmax(spot[:31]) - np.nanmin(spot[:31])) / st; f["compress"] = f["range30"] / max(orr, 0.5)
+        if vo is not None:
+            so = vo["spot"]; sto = STEP[oth]; f["oth_r15"] = sgn * (so[t] - so[t - 15]) / sto; f["oth_r30"] = sgn * (so[t] - so[t - 30]) / sto
+        else: f["oth_r15"] = f["oth_r30"] = np.nan
+        f["oth_spk15"] = float(any(x in sp3.get((oth, r.day, r.side), ()) for x in range(t - 15, t))) if vo is not None and vo["d0"] == 1 else np.nan   # other index expiring today and spiking already
+        f["own_spk15"] = float(any(x in sp3.get((r.sym, r.day, "PE" if r.side == "CE" else "CE"), ()) for x in range(t - 15, t)))                    # the OTHER side of this index spiked just before (reversal?)
+        atm = v["atm"]; C = v["C"]
+        def strad(i):
+            a = atm[i]
+            if a != a or ("CE", a) not in C or ("PE", a) not in C: return np.nan
+            return C[("CE", a)][i, 3] + C[("PE", a)][i, 3]
+        s0, s15, s30 = strad(t), strad(t - 15), strad(t - 30)
+        f["sd_exp15"] = (s0 / s15) / math.sqrt(T_min(t) / T_min(t - 15)) if s15 and s15 == s15 and s0 == s0 else np.nan
+        f["sd_exp30"] = (s0 / s30) / math.sqrt(T_min(t) / T_min(t - 30)) if s30 and s30 == s30 and s0 == s0 else np.nan
+        tl = t - OI_LAG; dce = dpe = 0.0; wall = np.nan; best = -1; v5 = v30 = 0.0; cover = build = 0
+        for (sd, K), b in C.items():
+            if abs(K - spot[t]) > 5 * st: continue
+            v5 += np.nansum(b[t - 4:t + 1, 6]); v30 += np.nansum(b[t - 34:t - 4, 6]) / 6
+            if not np.isfinite(b[tl, 4]) or not np.isfinite(b[tl - 15, 4]): continue
+            d = b[tl, 4] - b[tl - 15, 4]; dp = b[t, 3] - b[t - 15, 3]
+            if sd == "CE": dce += d
+            else: dpe += d
+            if sd == r.side and (K - spot[t]) * sgn > 0:
+                if dp > 0 and d < 0: cover += 1
+                if dp < 0 and d > 0: build += 1
+                if b[tl, 4] > best: best = b[tl, 4]; wall = sgn * (K - spot[t]) / st
+        f["pcr_d"] = sgn * (dpe - dce) / LOT[r.sym]; f["wall_steps"] = wall; f["chain_vsurge"] = v5 / v30 if v30 > 0 else np.nan; f["oi_cover"] = cover; f["oi_build"] = build
+        rows.append(f)
+    return pd.DataFrame(rows)
+
+
+def study_cross():
+    """prints: base rates per window; per feature the LOYO AUC (no baseline: the label is per slot, not per option), the catch-vs-false-alarm curve
+    (recall of spike-slots vs the alarm rate on non-spike slots at the top-q threshold), the NIFTY<->SENSEX spike co-occurrence and lead, and the
+    LEARN P&L of buying the nearest cheap strike (<= Rs 10, target 5x / stop 50% / 60 min) at the alarms of the best feature (exploratory)."""
+    P, days = load_full(); E = load(learn=True, P=P); E = {k: v for k, v in E.items() if not v["sensex_pre"]}
+    R = pd.read_pickle(f"{OUT}/playbook/e43_candidates_learn.pkl"); R = R[~R.sensex_pre & R.ratio_60.notna()]
+    X = cross_table(E, P, R); X.to_pickle(f"{OUT}/playbook/e43_cross_learn.pkl"); pd.set_option("display.width", 250)
+    print(f"\n== cross-instrument study (LEARN): {len(X)} (sym, day, slot, side) rows in 11:00-12:30 and 13:00-15:10")
+    print("base rate P(some cheap strike on this side reaches 5x within 60 min):\n" + X.groupby(["win", "sym"]).spk5.agg(["size", "mean"]).round(3).to_string())
+    print("per sym-day-side: P(at least one such slot in the day)", X.groupby(["sym", "day", "side"]).spk5.any().mean().round(3))
+    yrs = X.yr.replace({"2021": "2022"}); rows = []
+    for f in XF:
+        x = X[f].values; y = X.spk5.values.astype(float); ok = np.isfinite(x)
+        if ok.sum() < 500 or y[ok].sum() < 20: continue
+        aucs = []
+        for h in sorted(yrs.unique()):
+            te = ok & (yrs == h).values
+            if y[te].sum() < 5: continue
+            aucs.append(auc(x[te], y[te]))
+        a = np.array(aucs); flip = a.mean() < 0.5
+        q = np.nanpercentile(x[ok], 20 if flip else 80); alarm = (x <= q) if flip else (x >= q)
+        rec = y[ok & alarm].sum() / y[ok].sum(); fa = (alarm & ok & (y == 0)).sum() / (ok & (y == 0)).sum(); prec = y[ok & alarm].mean()
+        rows.append(dict(feat=f, n=int(ok.sum()), auc_mean=a.mean(), auc_min=a.min(), auc_max=a.max(), direction="low" if flip else "high", catch_at_top20=rec, false_alarm=fa, precision=prec, base=y[ok].mean()))
+    O = pd.DataFrame(rows).sort_values("auc_mean", ascending=False); print("\n-- per feature: LOYO AUC for 'spike within 60 min' (0.5 = nothing); catch = share of spike-slots in the top-20% alarm; false_alarm = share of non-spike slots alarmed\n" + O.round(3).to_string())
+    O.to_csv(f"{OUT}/playbook/e43_cross_learn.csv", index=False)
+    # NIFTY <-> SENSEX: co-occurrence and lead of >= 5x spikes on days when both expire (rare) and on all days via the OTHER index's 30-min move
+    S = R[R.ratio_60 >= 5].drop_duplicates(["sym", "day", "side", "K"])
+    both = S.groupby("day").sym.nunique(); print(f"\n-- days with a >= 5x spike on NIFTY: {S[S.sym == 'NIFTY'].day.nunique()}, on SENSEX: {S[S.sym == 'SENSEX'].day.nunique()}, same day both (both expiring that day): {(both == 2).sum()}")
+    lead = []
+    for d, g in S.groupby("day"):
+        if g.sym.nunique() < 2: continue
+        n = g[g.sym == "NIFTY"].tm.min(); s_ = g[g.sym == "SENSEX"].tm.min(); lead.append(n - s_)
+    if lead: print("   NIFTY max minus SENSEX max on those days (minutes; negative = NIFTY first):", np.round(np.percentile(lead, [10, 50, 90]), 0), "n", len(lead))
+    # exploratory P&L at the alarms of the best feature (LEARN only; not a frozen cell)
+    if len(O):
+        f = O.iloc[0].feat; flip = O.iloc[0].direction == "low"; q = np.nanpercentile(X[f].dropna(), 20 if flip else 80); A = X[(X[f] <= q) if flip else (X[f] >= q)]
+        out = []
+        for r in A.itertuples():
+            v = E[(r.sym, r.day)]; pk = _pick(v, r.sym, r.side, int(r.t), 10)
+            if pk is None: continue
+            tr = leg(pk[1], v["spot"], r.sym, r.day, v["exp"], int(r.t) + 1, 5.0, 0.5, 60)
+            if tr: out.append(dict(tr, day=r.day, sym=r.sym))
+        T = pd.DataFrame(out)
+        if len(T): print(f"\n-- exploratory: buy the nearest cheap strike (<= 10) at every '{f}' alarm (top 20%), target 5x, stop 50%, 60 min: n {len(T)} days {T.day.nunique()} win {(T.pnl > 0).mean():.2f} mean {T.pnl.mean():,.0f} (1 lot {T.pnl1.mean():,.0f}) p {dayboot_p(T):.3f} top5 share {T.pnl.nlargest(max(1, len(T) // 20)).sum() / T.pnl.sum() if T.pnl.sum() > 0 else float('nan'):.2f}")
+
+
+
+# ---------------------------------------------------------------- TEST, read once (commit 2 freezes OUT/playbook/e43_cells_frozen.json first)
+def trades_D(E, X, thr, k, ts):
+    """family D (frozen in commit 2 if LEARN-positive): first slot per sym-day-side whose nearest cheap strike (<= 10) has iv_rel <= thr; target k x, stop 50%, time stop ts."""
+    out = []
+    for (sym, day, side), g in X[(X.p0 <= 10) & (X.iv_rel <= thr)].sort_values("t").groupby(["sym", "day", "side"]):
+        r = g.iloc[0]; v = E[(sym, day)]; a = v["C"][(side, r.K)]
+        tr = leg(a, v["spot"], sym, day, v["exp"], int(r.t) + 1, float(k), 0.5, ts)
+        if tr: out.append(dict(tr, sym=sym, day=day, side=side, K=r.K, t=int(r.t), cfg=f"D iv_rel<={thr} k{k} ts{ts}", fam="D"))
+    return pd.DataFrame(out)
+
+
+def verdict(L, T, alpha, min_learn=(100, 60), min_test=40):
+    """the frozen pass rule (sections 7, 12): LEARN mean > 0 p < alpha, both halves > 0, drop3 > 0, 1 lot > 0; TEST n >= 40, net > 0 p < 0.05, placebo(day) < 0.05, forced <= 5%, stress > 0, 1 lot > 0."""
+    if L["n"] < min_learn[0] or L["days"] < min_learn[1] or T["n"] < min_test: return "UNTESTABLE"
+    ok = (L["mean"] > 0 and L["p"] < alpha and L["h1"] > 0 and L["h2"] > 0 and L["drop3"] > 0 and L["mean1"] > 0
+          and T["mean"] > 0 and T["p"] < 0.05 and T["pl_day"] < 0.05 and T["forced"] <= 0.05 and T["stress_mean"] > 0 and T["mean1"] > 0)
+    return "PASS" if ok else "FAIL"
+
+
+def study_test():
+    import json
+    cells = json.load(open(f"{OUT}/playbook/e43_cells_frozen.json")); L = pd.read_csv(f"{OUT}/playbook/e43_cells_learn.csv").set_index("cell")
+    P, days = load_full(); E = load(learn=False, P=P); assert all(k[1] >= HO for k in E); print(f"TEST expiry sym-days {len(E)} (read once, {HO}..)", flush=True)
+    R = candidates(E, pmax=max(PMAX)); R = R[R.ratio_60.notna()]; R["spot0"] = [P[(s, d)]["spot"][t] for s, d, t in zip(R.sym, R.day, R.t)]; F = features(R, P, days)
+    rg = np.random.default_rng(99); rows = []; alpha = 0.05 / len(cells)
+    for c in cells:
+        cfg = c["cfg"]
+        if c["fam"] == "D": T = trades_D(E, R.join(F), c["thr"], c["k"], c["ts"]); S2 = T.assign(pnl=T.pnl - 2 * TICK * T.sym.map(lambda s_: qty(s_, "2026-01-01")), pnl1=T.pnl1 - 2 * TICK * T.sym.map(lambda s_: qty(s_, "2026-01-01", 1))) if len(T) else T
+        else:
+            T = trades(E, P, days, F, R, [cfg]); S2 = trades(E, P, days, F, R, [cfg], stress=2 * TICK, chase_b=0.25)
+        st = cell_stats(T, c["name"]) if len(T) else dict(cell=c["name"], n=0, days=0, mean=np.nan, p=np.nan, mean1=np.nan, forced=np.nan, win=np.nan, top5_share=np.nan)
+        if len(T):
+            pc = dict(cfg) if c["fam"] != "D" else dict(fam="D", k=c["k"], ts=c["ts"], pmax=10)
+            ms = [placebo_trades(T, pc, E, rg, "day").mean() for _ in range(NPL)]; st["pl_day"] = float(np.mean(np.array(ms) >= st["mean"]))
+            st["stress_mean"] = S2.pnl.mean() if len(S2) else np.nan
+        st["verdict"] = verdict(L.loc[c["name"]].to_dict(), st, alpha) if c["name"] in L.index and len(T) else "UNTESTABLE"
+        rows.append(st); print(f"{c['name']}: TEST n {st['n']} days {st.get('days')} win {st.get('win', float('nan')):.2f} mean {st['mean']:,.0f} p {st.get('p', float('nan')):.4f} 1lot {st.get('mean1', float('nan')):,.0f} placebo(day) {st.get('pl_day', float('nan')):.3f} stress {st.get('stress_mean', float('nan')):,.0f} forced {st.get('forced', float('nan')):.3f} -> {st['verdict']}", flush=True)
+    C = pd.DataFrame(rows); C.to_csv(f"{OUT}/playbook/e43_cells_test.csv", index=False); print(f"\nalpha {alpha:.5f}; verdicts: {C.verdict.value_counts().to_dict()}")
+
+
 if __name__ == "__main__":
-    {"atlas": study_atlas, "precursors": study_precursors, "cells": study_cells, "oicad": lambda: oi_cadence(load(learn=True)), "selftest": selftest}[sys.argv[1]]()
+    {"atlas": study_atlas, "precursors": study_precursors, "cells": study_cells, "cross": study_cross, "test": study_test, "oicad": lambda: oi_cadence(load(learn=True)), "selftest": selftest}[sys.argv[1]]()
