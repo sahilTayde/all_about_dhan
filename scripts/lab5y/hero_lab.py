@@ -40,9 +40,9 @@ def _events():
         print("events: engine import failed,", type(e).__name__, e, "-> no event flag", flush=True); return set()
 
 
-def load(learn=True, path=None):
+def load(learn=True, path=None, P=None):
     """expiry sym-days only; learn=True keeps day < HO (TEST never enters memory in phase 1). Adds monthly, prev_close, weekday, event, sensex_pre."""
-    P = pickle.load(open(path or f"{OUT}/panel_off10h.pkl", "rb"))
+    own = P is None; P = P if P is not None else pickle.load(open(path or f"{OUT}/panel_off10h.pkl", "rb"))
     days = collections.defaultdict(list)
     for (s, d) in P: days[s].append(d)
     for s in days: days[s].sort()
@@ -55,7 +55,7 @@ def load(learn=True, path=None):
         i = days[s].index(d); pc = P[(s, days[s][i - 1])]["spot"] if i > 0 else None
         v["monthly"] = (s, d) in mon; v["prev_close"] = float(pc[LAST + 14]) if pc is not None and pc[LAST + 14] == pc[LAST + 14] else np.nan
         v["weekday"] = pd.Timestamp(d).day_name()[:3]; v["event"] = d in ev; v["sensex_pre"] = s == "SENSEX" and d < SENSEX_OK
-    del P
+    if own: del P
     return E
 
 
@@ -242,6 +242,16 @@ def selftest():
     assert oi_class(1, 1) == "LONG_BUILD" and oi_class(-1, 1) == "SHORT_BUILD" and oi_class(1, -1) == "SHORT_COVER" and oi_class(-1, -1) == "LONG_UNWIND" and oi_class(0, 5) == "FLAT" and oi_class(np.nan, 1) == "NA"
     iv = implied_vol([4.0], [22700.0], [22950.0], [T_min(30)], np.array(["CE"]))[0]; assert abs(bs(22700.0, 22950.0, T_min(30), iv, "CE") - 4.0) < 0.05, iv
     assert float(rnd(3.9749)) == 3.95 and float(rnd(0.07)) == 0.05 and HO == "2025-10-27" and LAST == 360 and SLOTS[-1] == 345
+    # phase 3 leg(): Rs 4 fill, target 3x -> 12.05 + tick + HS on a thick bar fills AT 12.00; on a thin bar at that bar close - HS; SL 50% intrabar; 15:15 open when nothing hits
+    b3 = _day(c, o); b3[:, 1] = b3[:, 3]; b3[:, 2] = b3[:, 3]; b3[105, 1] = 40.0
+    tr = leg(b3, spot, "NIFTY", "2024-01-04", "2024-01-04", 31, 3.0); assert tr["why"] == "tgt" and tr["x"] == 12.0 and tr["en"] == 4.0 and tr["held"] == 74, tr
+    assert abs(tr["pnl"] - ((12 - 4) * qty("NIFTY", "2024-01-04") - cost(4, 12, "NIFTY", "2024-01-04", "2024-01-04"))) < 1e-6 and qty("NIFTY", "2024-01-04") == 650 and qty("NIFTY", "2024-01-04", 1) == 50
+    b3[105, 6] = 100.0; tr = leg(b3, spot, "NIFTY", "2024-01-04", "2024-01-04", 31, 3.0); assert tr["why"] == "tgt_thin" and tr["thin"] and tr["x"] == 40 - HS, tr
+    b4 = _day(np.full(NB, 4.0), None); b4[:, 1] = 4.0; b4[:, 2] = 4.0; b4[50, 2] = 1.0; tr = leg(b4, spot, "NIFTY", "2024-01-04", "2024-01-04", 31, 3.0); assert tr["why"] == "sl" and abs(tr["x"] - (4.05 * 0.5 - HS)) <= TICK and tr["held"] == 19, tr   # en 4.05 (open + tick), SL at 50% intrabar, fill - HS, tick-rounded
+    b5 = _day(np.full(NB, 4.0), None); b5[:, 1] = 4.0; b5[:, 2] = 4.0; tr = leg(b5, spot, "NIFTY", "2024-01-04", "2024-01-04", 31, 3.0); assert tr["why"] == "time" and tr["held"] == LAST - 31 and tr["x"] == 4.0 - HS, tr
+    tr = leg(b5, spot, "NIFTY", "2024-01-04", "2024-01-04", 31, 3.0, tstop=30); assert tr["why"] == "tstop" and tr["held"] == 30, tr
+    assert abs(cost(4, 12, "NIFTY", "2024-01-04", "2024-01-04") - 1.5 * (40 + 0.0005 * (4 + 12) * 650 + 1e-6 * 16 * 650 + 0.18 * (40 + 0.0005 * 16 * 650 + 1e-6 * 16 * 650) + 0.00003 * 4 * 650 + 0.000625 * 12 * 650)) < 1e-9
+    assert len(GRID_A) == 16 and len(GRID_B) == 48 and len(GRID) == 64
     txt = replay(atlas(R, E)["spikes"], E, 1); assert "x10.0" in txt and "| 11:00 | 22850 |" in txt, txt[:400]
     print("hero_lab selftest OK (strict fill, volume-qualified spike, windows, 15:15 cap, zero flag, floor/pmax/OTM/traded guards, no-lookahead scramble, BS share, OI classes, implied vol, replay)")
 
@@ -249,7 +259,7 @@ def selftest():
 
 # ---------------------------------------------------------------- phase 2: precursors (LEARN only; critic 4, 5, 11, 14)
 OI_LAG = int(os.environ.get("OI_LAG", "2"))     # oicad 2026-11-16: OI unchanged on 71% of traded bars, |dOI| tracks the PRIOR bar's volume (0.327 vs 0.305) -> 1 bar stale + 1
-NBOOT = int(os.environ.get("NBOOT", "40")); NPERM = int(os.environ.get("NPERM", "100")); STRIDE = int(os.environ.get("STRIDE", "3"))  # phase 2 cost knobs (slots every 15 min by default)     # bars of OI staleness measured by `oicad` + 1 (critic 5); set before phase 2 from the measurement
+NPL = int(os.environ.get("NPL", "200")); NBOOT = int(os.environ.get("NBOOT", "40")); NPERM = int(os.environ.get("NPERM", "100")); STRIDE = int(os.environ.get("STRIDE", "3"))  # phase 2 cost knobs (slots every 15 min by default)     # bars of OI staleness measured by `oicad` + 1 (critic 5); set before phase 2 from the measurement
 FEATS = ["r15", "r60", "range30", "compress", "or_pos", "vs_pdh", "vs_pdl", "vs_pdc", "vs_wk", "vs_mo", "fh_er",
          "d_iv15", "iv_rel", "doi15", "doi15_m", "cls", "cls_m", "vsurge", "pcr_d", "wall_steps", "oi_rank", "gam_conc", "sd_decay"]
 NUMF = [f for f in FEATS if f not in ("cls", "cls_m")]
@@ -417,5 +427,211 @@ def study_precursors():
     print("\nPRECURSORS (every rotation > 0, CI low > 0, q_bh < 0.1):", O[O.get("precursor", False) == True][["label", "feat", "dauc", "q_bh"]].to_string() if "precursor" in O else "none")
 
 
+
+# ---------------------------------------------------------------- phase 3: cells (families and grids frozen in E43_hero_zero_freeze.md section 13)
+# costs = opt1y_lab COSTS=dated tables (copied: importing opt1y_lab loads a second 2.3 GB panel). Sources: teams/01_research/docs/REPO_HARVEST.md section 5.
+CM = 1.5; STT_SELL = [("2016-06-01", 0.0005), ("2023-04-01", 0.000625), ("2024-10-01", 0.001), ("2026-04-01", 0.0015)]
+TXN_D = {"NIFTY": [("2021-01-01", 0.00053), ("2023-04-01", 0.0005), ("2024-10-01", 0.0003503), ("2026-03-01", 0.000355299)], "SENSEX": [("2023-01-01", 0.000325)]}
+LOT_D = {"NIFTY": [("2021-07-01", 50), ("2024-04-26", 25), ("2024-12-20", 75), ("2025-12-31", 65)], "SENSEX": [("2023-01-01", 10), ("2025-01-04", 20)]}
+_at = lambda tab, d: [v for f, v in tab if f <= d][-1]
+
+
+def qty(sym, exp, lots=LOTS):
+    """units for `lots` of today's lot, as whole lots of the size in force at the contract's expiry (opt1y_lab.qty, dated)."""
+    lt = _at(LOT_D[sym], exp); return max(1, round(LOT[sym] * lots / lt)) * lt
+
+
+def cost(b, sl, sym, day, exp, lots=LOTS):
+    """round-trip charges x CM for one leg bought at b and sold at sl (per unit) at `lots` (opt1y_lab.cost, dated)."""
+    q = qty(sym, exp, lots); bt, st = b * q, sl * q; tx = _at(TXN_D[sym], day) * (bt + st); se = 1e-6 * (bt + st)
+    return CM * (40 + tx + se + 0.18 * (40 + tx + se) + 0.00003 * bt + _at(STT_SELL, day) * st)
+
+
+def leg(a, spot, sym, day, exp, e, tgt_x, stop_x=0.5, tstop=None, trail=True, cap=None, volx=VOLX, stress=0.0, chase=0.0):
+    """long one cheap OTM leg filled at bar e OPEN + HS (+ stress ticks, + chase x bar-e range for family B); exits on 1-min bars:
+    SL stop_x of entry intrabar (fill min(sl, open) - HS); target tgt_x x entry fills AT the target only if the bar high clears target + tick + HS
+    AND the bar traded >= volx x qty, else at that bar's close - HS (thin); trailing from 2x: SL = max(SL, 0.6 x running high); adverse spot cap
+    (steps) at the next open; time stop at bar e + tstop open; else the 15:15 (bar 360) open; a NaN bar = forced at the last close.
+    Returns P&L at 10 lots and at 1 lot, net of dated costs."""
+    o, h, l, c, vol = a[:, 0], a[:, 1], a[:, 2], a[:, 3], a[:, 6]
+    if not (np.isfinite(o[e]) and vol[e] > 0): return None
+    en = float(rnd(o[e] + HS + stress + chase * max(h[e] - l[e], 0))); tp = tgt_x * en; sl = sl0 = en * (1 - stop_x); hi = en
+    q10, q1 = qty(sym, exp, LOTS), qty(sym, exp, 1); s0 = spot[e]; xe = min(LAST, e + tstop) if tstop else LAST; x = why = None; thin = forced = False
+    for j in range(e + 1, xe):
+        if not np.isfinite(o[j]): x, why, forced = c[j - 1], "window", True; break
+        if l[j] <= sl: x, why = min(sl, o[j]) - HS - stress, "sl"; break
+        if h[j] >= tp + TICK + HS:
+            if vol[j] >= volx * q10: x, why = tp, "tgt"
+            else: x, why, thin = c[j] - HS - stress, "tgt_thin", True
+            break
+        hi = max(hi, h[j])
+        if trail and hi >= 2 * en: sl = max(sl, 0.6 * hi)
+        if cap and np.isfinite(spot[j]) and np.isfinite(s0) and -(spot[j] - s0) * (1 if a is not None else 1) >= 0 and False: pass
+        if cap and np.isfinite(spot[j]) and np.isfinite(s0) and cap[0] * (spot[j] - s0) <= -cap[1] * STEP[sym] and j + 1 < xe and np.isfinite(o[j + 1]):
+            x, why = o[j + 1] - HS - stress, "cap"; j += 1; break
+    if x is None:
+        j = xe; x, why = (o[j] - HS - stress if np.isfinite(o[j]) else c[j - 1]), ("tstop" if tstop and xe < LAST else "time")
+    x = max(float(rnd(x)), TICK)
+    return dict(en=en, x=x, why=why, held=j - e, thin=thin, forced=forced,
+                pnl=(x - en) * q10 - cost(en, x, sym, day, exp, LOTS), pnl1=(x - en) * q1 - cost(en, x, sym, day, exp, 1))
+
+
+def _pick(v, sym, side, t, pmax):
+    """critic 13: the qualifying strike nearest to spot: >= 1 step OTM, bar t traded, fill (next open + HS) in [1, pmax]. Returns (K, a) or None."""
+    spot = v["spot"]; st = STEP[sym]; sgn = 1 if side == "CE" else -1; best = None
+    for (sd, K), a in v["C"].items():
+        if sd != side: continue
+        d = sgn * (K - spot[t]) / st
+        if d < 1 or not (a[t, 6] > 0) or not np.isfinite(a[t + 1, 0]): continue
+        f = float(rnd(a[t + 1, 0] + HS))
+        if f < 1.0 or f > pmax: continue
+        if best is None or d < best[0]: best = (d, K, a)
+    return None if best is None else (best[1], best[2])
+
+
+def _level_cross(v, L, t, sgn):
+    """family C gate: within the last 15 min the spot crossed, in the strike's direction, one of prior-day H/L/C, OR high/low, week open, month open."""
+    spot = v["spot"]; orh, orl = np.nanmax(spot[:31]), np.nanmin(spot[:31]); lv = [L["pdh"], L["pdl"], L["pdc"], orh, orl, L["wk_open"], L["mo_open"]]
+    a, b = spot[t], spot[max(t - 15, 0)]
+    return any(np.isfinite(x) and sgn * (a - x) > 0 and sgn * (b - x) <= 0 for x in lv)
+
+
+GRID_A = [dict(fam="A", cr=cr, pmax=pm, k=k, add=ad) for cr in (0.5, 0.7) for pm in (5, 10) for k in (3, 5) for ad in (0, 1)]                      # 16
+GRID_B = [dict(fam=f, cls=cl, vm=vm, k=k, ts=ts) for f in ("B", "C") for cl in ("SHORT_COVER", "LONG_BUILD", "EITHER") for vm in (2, 3) for k in (2, 3) for ts in (30, 60)]  # 48
+GRID = GRID_A + GRID_B
+
+
+def trades(E, P, days, F, R, grid=GRID, stress=0.0, chase_b=0.0):
+    """all trades of every configuration on the expiry sym-days in E. F/R = features and candidate rows (phase 2 schema, every 5-min slot).
+    One position per side per sym-day per configuration: the first slot whose gate holds (placebos: `placebo_trades`)."""
+    out = []; FR = R.join(F); byday = {k: g for k, g in FR.groupby(["sym", "day"])}
+    for (sym, day), v in E.items():
+        L = _levels(P, sym, day, days[sym]); G = byday.get((sym, day))
+        if G is None: continue
+        for cfg in grid:
+            done = set()
+            for t in SLOTS:
+                if t + 2 >= LAST: break
+                for side in ("CE", "PE"):
+                    if side in done: continue
+                    sgn = 1 if side == "CE" else -1; rows = G[(G.t == t) & (G.side == side)]
+                    if cfg["fam"] == "A":
+                        if side == "PE" and "CE" not in done: continue                      # A enters both legs at the same slot (CE first)
+                        r = rows[rows.p0 <= cfg["pmax"]].sort_values("dist").head(1)
+                        if r.empty: continue
+                        r = r.iloc[0]; other = G[(G.t == t) & (G.side == "PE") & (G.p0 <= cfg["pmax"])].sort_values("dist").head(1)
+                        gate = (r.compress <= cfg["cr"]) and (r.cls in ("SHORT_BUILD", "LONG_BUILD") or (not other.empty and other.iloc[0].cls in ("SHORT_BUILD", "LONG_BUILD")))
+                        if not gate or other.empty: continue
+                        legs = [("CE", r), ("PE", other.iloc[0])]
+                    else:
+                        r = rows[rows.p0 <= 10].sort_values("dist").head(1)
+                        if r.empty: continue
+                        r = r.iloc[0]
+                        okc = r.cls == cfg["cls"] if cfg["cls"] != "EITHER" else r.cls in ("SHORT_COVER", "LONG_BUILD")
+                        gate = okc and (r.vsurge >= cfg["vm"]) and (r.r15 > 0)
+                        if cfg["fam"] == "C": gate = gate and _level_cross(v, L, t, sgn)
+                        if not gate: continue
+                        legs = [(side, r)]
+                    for sd, rr in legs:
+                        vv, tt, dd = v, t, day
+                        pk = _pick(vv, sym, sd, tt, cfg.get("pmax", 10))
+                        if pk is None: continue
+                        K, a = pk; exp = vv["exp"]; sg = 1 if sd == "CE" else -1
+                        tr = leg(a, vv["spot"], sym, dd, exp, tt + 1, cfg["k"], 0.5, cfg.get("ts"), trail=cfg["fam"] != "A", cap=None, stress=stress, chase=chase_b if cfg["fam"] != "A" else 0.0)
+                        if tr is None: continue
+                        tr.update(sym=sym, day=day, side=sd, K=K, t=tt, cfg=str(cfg), fam=cfg["fam"], n_legs=1)
+                        if cfg["fam"] == "A" and cfg["add"]:                                   # wait for the low: one add-on when the leg closes 10% below its running low
+                            c = a[:, 3]; lo = tr["en"]; e2 = None
+                            for j in range(tt + 2, min(LAST, tt + 1 + tr["held"])):
+                                if np.isfinite(c[j]) and c[j] <= lo - 0.10 * tr["en"] and j + 1 < LAST: e2 = j + 1; break
+                                if np.isfinite(c[j]): lo = min(lo, c[j])
+                            if e2 is not None:
+                                t2 = leg(a, vv["spot"], sym, dd, exp, e2, cfg["k"], 0.5, None, trail=False, stress=stress)
+                                if t2: tr["pnl"] += t2["pnl"]; tr["pnl1"] += t2["pnl1"]; tr["n_legs"] = 2; tr["thin"] = tr["thin"] or t2["thin"]; tr["forced"] = tr["forced"] or t2["forced"]
+                        out.append(tr)
+                    done.update(sd for sd, _ in legs)
+    return pd.DataFrame(out)
+
+
+def placebo_trades(T, cfg, E, rg, kind):
+    """critic 8: the same count of trades as T with identical exits, each replaced by (a) "minute": the same sym-day at a random slot,
+    (b) "day": a random other expiry sym-day of the same sym at the same minute, (c) "mirror": the other side at the same minute;
+    the strike is the pick rule's (nearest qualifying, same pmax), so premium bucket and distance are matched by construction."""
+    out = []; dl = {sym: [d for (s_, d) in E if s_ == sym] for sym in LOT}
+    for r in T.itertuples():
+        sd, tt, dd = r.side, int(r.t), r.day
+        if kind == "minute": tt = int(rg.choice([x for x in SLOTS if x + 2 < LAST]))
+        elif kind == "day": dd = str(rg.choice([d for d in dl[r.sym] if d != r.day]))
+        elif kind == "mirror": sd = "PE" if sd == "CE" else "CE"
+        v = E[(r.sym, dd)]; pk = _pick(v, r.sym, sd, tt, cfg.get("pmax", 10))
+        if pk is None: continue
+        K, a = pk; tr = leg(a, v["spot"], r.sym, dd, v["exp"], tt + 1, cfg["k"], 0.5, cfg.get("ts"), trail=cfg["fam"] != "A")
+        if tr: out.append(tr["pnl"])
+    return np.array(out)
+
+
+def dayboot_p(T, B=2000, seed=11):
+    """day-block bootstrap (both syms one block): P(mean <= 0)."""
+    if T.empty: return np.nan
+    d = T.groupby("day").pnl.sum(); n = T.groupby("day").pnl.size(); rg = np.random.default_rng(seed); dv, nv = d.values, n.values
+    m = [(dv[i].sum() / nv[i].sum()) for i in (rg.integers(len(dv), size=len(dv)) for _ in range(B))]
+    return float(np.mean(np.array(m) <= 0))
+
+
+def cell_stats(T, nm):
+    if T.empty: return dict(cell=nm, n=0)
+    d = T.groupby("day").pnl.sum().sort_values()
+    return dict(cell=nm, n=len(T), days=T.day.nunique(), win=(T.pnl > 0).mean(), mean=T.pnl.mean(), total=T.pnl.sum(), p=dayboot_p(T), mean1=T.pnl1.mean(), p1=dayboot_p(T.assign(pnl=T.pnl1)),
+                top5_share=T.pnl.nlargest(max(1, len(T) // 20)).sum() / T.pnl.sum() if T.pnl.sum() > 0 else np.nan, thin=T.thin.mean(), forced=T.forced.mean(),
+                maxdd=float((d.cumsum() - d.cumsum().cummax()).min()) if len(d) else np.nan, drop3=T.pnl.sum() - d.tail(3).sum(),
+                h1=T[T.day < HALF].pnl.mean() if (T.day < HALF).any() else np.nan, h2=T[T.day >= HALF].pnl.mean() if (T.day >= HALF).any() else np.nan)
+
+
+def loyo(TR, grid, metric="pnl"):
+    """critic 3: leave-one-year-out: for each held-out year, the configuration with the best mean on the other years prices that year."""
+    yrs = TR.day.str[:4].replace({"2021": "2022"}); parts = []; picks = {}
+    for h in sorted(yrs.unique()):
+        tr = TR[yrs != h]; m = tr.groupby("cfg")[metric].mean()
+        if m.empty: continue
+        best = m.idxmax(); picks[h] = best; parts.append(TR[(yrs == h) & (TR.cfg == best)])
+    return (pd.concat(parts) if parts else TR.iloc[0:0]), picks
+
+
+def study_cells():
+    """LEARN: every configuration priced; per family LOYO series, PBO, placebos, stress, 1 lot; the <= 12 final cells written to e43_cells_learn.csv.
+    TEST is NOT touched here (study_test does that once, after commit 2)."""
+    from honest_stats import pbo_cscv
+    P, days = load_full(); E = load(learn=True, P=P); E = {k: v for k, v in E.items() if not v["sensex_pre"]}
+    R = pd.read_pickle(f"{OUT}/playbook/e43_candidates_learn.pkl"); R = R[~R.sensex_pre & R.ratio_60.notna()]
+    try: F = pd.read_pickle(f"{OUT}/playbook/e43_features_all.pkl"); assert len(F) == len(R)
+    except Exception:
+        R["spot0"] = [P[(s, d)]["spot"][t] for s, d, t in zip(R.sym, R.day, R.t)]; F = features(R, P, days); F.to_pickle(f"{OUT}/playbook/e43_features_all.pkl")
+    print(f"phase 3 LEARN: {len(E)} expiry sym-days, {len(GRID)} configurations ({len(GRID_A)} A, {len(GRID_B)} B+C)", flush=True)
+    TR = trades(E, P, days, F, R); TR.to_pickle(f"{OUT}/playbook/e43_trades_learn.pkl"); print(f"trades {len(TR)}", flush=True)
+    rows = []; final = []
+    for fam in ("A", "B", "C"):
+        G = [c for c in GRID if c["fam"] == fam]; T = TR[TR.fam == fam]
+        if T.empty: print(f"family {fam}: no trades"); continue
+        M = T.pivot_table(index="day", columns="cfg", values="pnl", aggfunc="sum").fillna(0.0)
+        pbo = pbo_cscv(M.values, S=8) if M.shape[1] >= 2 and M.shape[0] >= 16 else np.nan
+        Lo, picks = loyo(T, G); st = cell_stats(Lo, f"{fam} LOYO"); st.update(pbo=pbo, configs=len(G), picks=str(picks)); rows.append(st)
+        print(f"\n== family {fam}: {len(G)} configs, {len(T)} trades; LOYO n {st['n']} mean {st['mean']:,.0f} p {st['p']:.4f} | 1 lot mean {st['mean1']:,.0f} p {st['p1']:.4f} | PBO {pbo:.2f} | picks {picks}", flush=True)
+        per = T.groupby("cfg").agg(n=("pnl", "size"), days=("day", "nunique"), mean=("pnl", "mean"), win=("pnl", lambda x: (x > 0).mean()), mean1=("pnl1", "mean")).sort_values("mean", ascending=False)
+        print(per.round(1).head(8).to_string())
+        for cfg in per.index[:3]: final.append(dict(fam=fam, cfg=cfg, learn_mean=per.loc[cfg, "mean"], learn_n=int(per.loc[cfg, "n"])))
+    pd.DataFrame(rows).to_csv(f"{OUT}/playbook/e43_families_learn.csv", index=False)
+    # final cells (<= 12): top 3 per family on full LEARN among configs; each gets the LEARN gates, the three placebos, stress and 1 lot
+    rg = np.random.default_rng(7); cells = []
+    for f in final:
+        cfg = eval(f["cfg"]); T = TR[TR.cfg == f["cfg"]]; st = cell_stats(T, f["cfg"])
+        PL = {}
+        for nm in ("minute", "day", "mirror"):
+            ms = [placebo_trades(T, cfg, E, rg, nm).mean() for _ in range(NPL)]
+            PL[f"pl_{nm}"] = float(np.mean(np.array(ms) >= st["mean"])) if ms else np.nan
+        S2 = trades(E, P, days, F, R, [cfg], stress=2 * TICK, chase_b=0.25); st.update(PL, stress_mean=S2.pnl.mean() if len(S2) else np.nan, stress_mean1=S2.pnl1.mean() if len(S2) else np.nan)
+        cells.append(st); print(f"cell {f['cfg']}: n {st['n']} mean {st['mean']:,.0f} p {st['p']:.4f} win {st['win']:.2f} 1lot {st['mean1']:,.0f} p1 {st['p1']:.4f} placebo(day) {st['pl_day']:.3f} stress {st['stress_mean']:,.0f} top5 {st['top5_share']:.2f} thin {st['thin']:.2f} forced {st['forced']:.3f} drop3 {st['drop3']:,.0f}", flush=True)
+    C = pd.DataFrame(cells); C.to_csv(f"{OUT}/playbook/e43_cells_learn.csv", index=False); print(f"\nwrote e43_cells_learn.csv ({len(C)} cells); alpha = 0.05 / {len(C)} = {0.05 / max(len(C), 1):.5f}")
+
+
 if __name__ == "__main__":
-    {"atlas": study_atlas, "precursors": study_precursors, "oicad": lambda: oi_cadence(load(learn=True)), "selftest": selftest}[sys.argv[1]]()
+    {"atlas": study_atlas, "precursors": study_precursors, "cells": study_cells, "oicad": lambda: oi_cadence(load(learn=True)), "selftest": selftest}[sys.argv[1]]()
