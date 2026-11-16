@@ -148,6 +148,8 @@ def _record(underlyings: tuple[str, ...], root: Path, tape_root: Path, day: date
         cache_dir=cache_dir,
         pin_root=root,
         near_atm_n=int(os.environ.get("MD_NEAR_ATM_N", "4")),  # every 50-pt NIFTY strike within +-200
+        # 2026-11-16: wider open ladder on a series' expiry day (cheap OTM strikes for scripts/lab5y/expiry_bot.py); 0 = off.
+        expiry_ladder_n=int(os.environ.get("MD_EXPIRY_LADDER_N", "8")),
         # Off switch for the 2026-10-21 recentre-pin fix: MD_PIN_EXTRA=0.
         pin_extra=os.environ.get("MD_PIN_EXTRA", "1") != "0",
         pin_cooldown_s=60.0 * float(os.environ.get("MD_PIN_COOLDOWN_MIN", "15")),

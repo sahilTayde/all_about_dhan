@@ -158,3 +158,14 @@ PYTHONPATH=packages/marketdata/tests python packages/marketdata/tests/md_soak.py
 ```
 
 Tests use an in-process websocket server on 127.0.0.1 and temporary directories only.
+
+## Expiry days (2026-11-16)
+
+- **Token first.** The recorder cannot start on an expired token (HTTP 401 at `/optionchain/expirylist`); that is why 2026-10-30..11-12 and
+  11-16 have no tape. `scripts/claude_daily.sh token-guard` (run by `morning` and `close`) prints one line, exits 3, posts a macOS notification
+  and appends to `data/recon/TOKEN_ALERT.txt` when the token will not outlive the next session's 15:30 close. Mint with `./scripts/desk.sh mint-token`.
+- **Wider ladder on the expiry day.** On the day a book's series expires, the open ladder is session-open ATM ± `MD_EXPIRY_LADDER_N` listed strikes
+  (default 8; 0 = off) instead of ± 5, so the cheap OTM strikes are on tape. Startup unique ids: 58 normally, 82 on an expiry day (cap 100).
+- **Research bot (paper, log-only).** `scripts/lab5y/expiry_bot.py live` (started by `claude_daily.sh bot-start`, from the lab venv with pandas)
+  tails today's `depth_quotes.jsonl` and logs every frozen E50 decision to `data/cache/expiry_bot/<day>_live.jsonl` the moment it is knowable;
+  `bot-score` after the close replays the day and matches it to that log (no look-ahead proof), then prices it. It never sends an order.
