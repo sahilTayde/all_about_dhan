@@ -86,9 +86,10 @@ def hsv(d, m, p):
     return HSA[SYMI[d], D0[d], np.searchsorted(L.TB, m, "right"), np.searchsorted(L.PB, p, "right")]
 
 
-def chg(d, b, s, fc=1.0):
-    """vector form of L.cost (round-trip charges x CM for one leg bought at b, sold at s, at the day's units and dated rates)."""
-    bt, st = b * Q[d], s * Q[d]; x = 40 + TXR[d] * (bt + st) + 1e-6 * (bt + st)
+def chg(d, b, s, fc=1.0, lf=1.0):
+    """vector form of L.cost (round-trip charges x CM for one leg bought at b, sold at s, at the day's units and dated rates).
+    lf = lots / 10 (E45: 5 lots -> 0.5); the Rs 40 brokerage does not scale."""
+    bt, st = b * Q[d] * lf, s * Q[d] * lf; x = 40 + TXR[d] * (bt + st) + 1e-6 * (bt + st)
     return fc * L.CM * (x + 0.18 * x + 0.00003 * bt + STT[d] * st)
 
 
@@ -405,6 +406,228 @@ def study_e44():
     print(T.round(dict(per_day=2, win=3, pts_prem=2, pts_idx=2, net=0, p=4, maxdd=0, net_2x=0, p_plac=3, plac_mean=0, rc_p=3, best_net=0, med_net=0)).to_string(index=False))
 
 
+# ================================================================ E45: ITM depth, intrabar fills, hit rates
+MENU45 = [(10, 10, 10), (15, 8, 15), (15, 10, 15), (15, 10, 30), (15, 15, 20), (20, 8, 20), (20, 10, 20), (20, 13, 30), (20, 20, 30), (25, 12, 30), (30, 15, 30), (30, 10, 30)]
+BASE45 = [(10, 10, 10), (15, 10, 15), (15, 15, 20), (20, 10, 20), (20, 15, 30), (30, 15, 30)]
+PMULT = np.where(SYMI == 0, 1.0, 3.0)  # SENSEX targets and stops x3 (frozen)
+
+
+def gather(d, e, depth, dirn):
+    """paths of the option `depth` strikes in the money at decision bar e-1 (CE for dirn > 0: ATM - depth steps; PE: ATM + depth steps).
+    ENT (N,) = open of bar e (NaN unless traded in bars e-1 and e); O/H/Lo/C (N, 31) = that strike's bars e..e+30;
+    X = open of the first traded bar at or after e+h+1; FX = bar e+h+1 itself untraded (a forced, delayed exit)."""
+    d, e, dirn = np.asarray(d), np.asarray(e), np.asarray(dirn); N = len(d); sw = np.lib.stride_tricks.sliding_window_view
+    G = dict(ENT=np.full(N, np.nan), **{n: np.full((N, NH), np.nan, np.float32) for n in ("O", "H", "Lo", "C", "X")}, FX=np.zeros((N, NH), bool))
+    pad = lambda x, n=NH + 1: np.concatenate([x, np.full(n, np.nan)])
+    o_ = np.lexsort((dirn, d)); bounds = np.flatnonzero(np.diff(d[o_], prepend=-1)); bounds = np.append(bounds, N)
+    for a_, b_ in zip(bounds[:-1], bounds[1:]):
+        rows = o_[a_:b_]; dd = d[rows[0]]; k = DAYK[dd]; p = P[k]; st = STEP[k[0]]
+        Kr = p["atm"][e[rows] - 1] - np.sign(dirn[rows]) * depth * st
+        for sg, sd in ((1, "CE"), (-1, "PE")):
+            ms = np.sign(dirn[rows]) == sg
+            for K in np.unique(Kr[ms & np.isfinite(Kr)]):
+                a = p["C"].get((sd, K))
+                if a is None: continue
+                r = rows[ms & (Kr == K)]; ee = e[r]; o, h, l, c, v = a[:, 0], a[:, 1], a[:, 2], a[:, 3], a[:, 6]; tr = np.isfinite(o) & (v > 0)
+                nto = pd.Series(np.where(tr, o, np.nan)).bfill().values
+                G["ENT"][r] = np.where(tr[ee] & tr[ee - 1], o[ee], np.nan)
+                for n, x in (("O", o), ("H", h), ("Lo", l), ("C", c)): G[n][r] = sw(pad(x), NH)[ee]
+                G["X"][r] = sw(pad(nto), NH)[ee + 1]; G["FX"][r] = sw(pad((~tr).astype(float)), NH)[ee + 1] != 0
+    return G
+
+
+def price45(G, d, e, T, S, H, conv="intrabar", fs=1.0, fc=1.0):
+    """one exit cell. T, S premium points (scalars or per-row arrays), H minutes. Returns pts (premium points after spread), pnl10 / pnl5
+    (Rs net at 10 / 5 lots), out (0 target, 1 stop, 2 time), xb (first bar a new entry may fill), forced, ok."""
+    d, e = np.asarray(d), np.asarray(e); N = len(d); r = np.arange(N); o = G["ENT"]; ok = np.isfinite(o)
+    ent = o + fs * hsv(d, M0 + e, np.nan_to_num(o, nan=1.0)); T = np.broadcast_to(np.asarray(T, float), (N,)); S = np.broadcast_to(np.asarray(S, float), (N,))
+    with np.errstate(invalid="ignore"):
+        if conv == "intrabar":
+            th = G["H"][:, :H] >= (ent + T + 0.05)[:, None]; sh = G["Lo"][:, :H] <= (ent - S)[:, None]
+            ti = np.where(th.any(1), th.argmax(1), 99); si = np.where(sh.any(1), sh.argmax(1), 99)
+            out = np.where((si <= ti) & (si < 99), 1, np.where(ti < 99, 0, 2)); hx = np.where(out == 1, si, np.where(out == 0, ti, H - 1))
+            stp = np.minimum(ent - S, G["O"][r, hx].astype(float)); xt = np.nan_to_num(G["X"][r, H - 1].astype(float), nan=0.05)
+            px = np.where(out == 1, stp, xt); hh = fs * hsv(d, M0 + e + hx + (out == 2), np.maximum(px, 0.05))
+            fill = np.where(out == 0, ent + T, np.maximum(px - hh, 0.05)); xb = e + hx + 1; forced = (out == 2) & G["FX"][r, H - 1]
+        else:
+            gain = G["C"][:, :H].astype(float) - ent[:, None]; hit = (gain >= T[:, None]) | (gain <= -S[:, None]); hit[:, H - 1] = True; hx = hit.argmax(1)
+            g = gain[r, hx]; out = np.where(g >= T, 0, np.where(g <= -S, 1, 2)); x = np.nan_to_num(G["X"][r, hx].astype(float), nan=0.05)
+            fill = np.maximum(x - fs * hsv(d, M0 + e + hx + 1, np.maximum(x, 0.05)), 0.05); xb = e + hx + 1; forced = G["FX"][r, hx]
+    pts = fill - ent
+    return dict(pts=pts, pnl10=pts * Q[d] - chg(d, ent, fill, fc), pnl5=pts * Q[d] * 0.5 - chg(d, ent, fill, fc, 0.5), out=out, xb=xb, forced=forced, ok=ok)
+
+
+def _delta45(G, d, e, dirn):
+    """LEARN slope of the 5-minute premium change on the 5-minute signed spot change (the option's index sensitivity at this depth)."""
+    y = G["C"][:, 5].astype(float) - G["C"][:, 0]; x = dirn * (SPOT[d, e + 5] - SPOT[d, e]); m = np.isfinite(x) & np.isfinite(y) & ~ISTEST[d]
+    return float(np.cov(x[m], y[m])[0, 1] / x[m].var())
+
+
+def study_e45base():
+    """E45-0 exit physics: unconditional entries every 5th bar 09:20-14:45, CE and PE, depth ATM / ITM2 / ITM3 / ITM4. Descriptive."""
+    bars = np.arange(5, 331, 5); dd, ii, sg = np.meshgrid(np.arange(ND), bars, [1, -1], indexing="ij"); d, e, dirn = dd.ravel(), ii.ravel() + 1, sg.ravel()
+    rows = []; dec = []; reg = {}; pm = PMULT[d]
+    for depth in (0, 2, 3, 4):
+        G = gather(d, e, depth, dirn); nm = "ATM" if depth == 0 else f"ITM{depth}"; ok = np.isfinite(G["ENT"])
+        for s, sym in enumerate(("NIFTY", "SENSEX")):
+            ms = (SYMI[d] == s) & ok; dl = _delta45({k: v[ms] for k, v in G.items()}, d[ms], e[ms], dirn[ms])
+            for d0 in (0, 1):
+                m = ms & (D0[d] == d0)
+                dec.append(dict(sym=sym, day="expiry" if d0 else "other", depth=nm, n=int(m.sum()), premium=float(np.nanmedian(G["ENT"][m])), delta=dl, untraded_entry_pct=100 * float(1 - ok[(SYMI[d] == s) & (D0[d] == d0)].mean()),
+                                chg15=float(np.nanmean(G["C"][m, 15] - G["ENT"][m])), chg30=float(np.nanmean(G["C"][m, 30] - G["ENT"][m]))))
+            cells = [(T, S, H, f"{T}/{S}/{H}") for T, S, H in BASE45] + [(dl * 30, dl * 20, 15, "idx30/20/15"), (dl * 40, dl * 20, 20, "idx40/20/20")]
+            for T, S, H, cn in cells:
+                for conv in ("intrabar", "close"):
+                    R = price45({k: v[ms] for k, v in G.items()}, d[ms], e[ms], T * PMULT[d[ms]], S * PMULT[d[ms]], H, conv)
+                    if cn == "idx30/20/15" and conv == "intrabar" and depth in (0, 3):
+                        t_ = ISTEST[d[ms]]; reg[(sym, depth)] = pd.Series(R["pnl10"][t_]).groupby(d[ms][t_]).mean()
+                    for split, tm in (("LEARN", ~ISTEST[d[ms]]), ("TEST", ISTEST[d[ms]])):
+                        for d0 in (0, 1):
+                            m = tm & (D0[d[ms]] == d0); o = R["out"][m]; pts = R["pts"][m]; q = Q[d[ms]][m]; Tm = (T * PMULT[d[ms]])[m].mean(); Sm = (S * PMULT[d[ms]])[m].mean()
+                            c10 = float(np.mean(pts - R["pnl10"][m] / q))
+                            rows.append(dict(sym=sym, day="expiry" if d0 else "other", depth=nm, cell=cn, conv=conv, split=split, n=int(m.sum()), T=Tm, S=Sm,
+                                             p_tgt=float((o == 0).mean()), p_stop=float((o == 1).mean()), p_time=float((o == 2).mean()),
+                                             driftless=Sm / (Tm + Sm), breakeven=(Sm + c10) / (Tm + Sm), loss_on_stop=float(pts[o == 1].mean()) if (o == 1).any() else np.nan,
+                                             pts_on_time=float(pts[o == 2].mean()) if (o == 2).any() else np.nan, exp_gross=float(pts.mean()),
+                                             exp_net10=float(np.mean(R["pnl10"][m] / q)), exp_net5=float(np.mean(R["pnl5"][m] / (q * 0.5))),
+                                             rs10=float(R["pnl10"][m].mean()), rs5=float(R["pnl5"][m].mean()), forced_pct=100 * float(R["forced"][m].mean())))
+        print("depth", nm, "done", flush=True)
+    T_ = pd.DataFrame(rows); T_.to_csv(f"{L.OUT}/scalp_e45base.csv", index=False); Dc = pd.DataFrame(dec); pd.set_option("display.width", 330); pd.set_option("display.max_columns", 40)
+    print("\nE45-0 decay / delta by depth (all days; chg15 / chg30 = mean premium change over 15 / 30 min, CE and PE averaged = direction-neutral)"); print(Dc.round(3).to_string(index=False))
+    for conv in ("intrabar", "close"):
+        print(f"\nE45-0 exit physics, TEST year, {conv} fills (premium points per unit; rs = Rs per trade)")
+        print(T_[(T_.split == "TEST") & (T_.conv == conv)].drop(columns=["conv", "split"]).round(dict(T=1, S=1, p_tgt=3, p_stop=3, p_time=3, driftless=3, breakeven=3, loss_on_stop=2, pts_on_time=2, exp_gross=2, exp_net10=2, exp_net5=2, rs10=0, rs5=0, forced_pct=2)).to_string(index=False))
+    g = T_[(T_.conv == "intrabar")]; lift = (g.p_tgt - g.driftless) * 100
+    print(f"\nstop condition 1: target-first share minus driftless S/(T+S), intrabar, all rows: min {lift.min():.1f} max {lift.max():.1f} median {lift.median():.1f} percentage points")
+    print("\nregistered test: TEST daily mean net Rs per trade (10 lots, intrabar, same index move 30/20/15), ITM3 minus ATM")
+    for sym in ("NIFTY", "SENSEX"):
+        x = (reg[(sym, 3)] - reg[(sym, 0)]).dropna().values; I = HST._stat_boot_idx(len(x), 4000, 0.2, np.random.default_rng(7)); bm = x[I].mean(1)
+        print(f"  {sym}: ITM3 {reg[(sym, 3)].mean():,.0f}  ATM {reg[(sym, 0)].mean():,.0f}  diff {x.mean():,.0f} Rs/trade over {len(x)} days, two-sided p {2 * min((bm <= 0).mean(), (bm >= 0).mean()):.4f}")
+
+
+def feats45(p, sym, prev):
+    """E45 features, all causal. prev = list of the prior days' F range-so-far arrays (same index)."""
+    f = day_feats(p, sym); F = f["F"]; dF = np.diff(F, prepend=np.nan); sF = pd.Series(dF).shift(1).rolling(30, min_periods=30).std().values
+    Fs = pd.Series(F); rng = (Fs.cummax() - Fs.cummin()).values
+    f.update(dF=dF, sF=sF, e20=Fs.ewm(span=20, adjust=False, ignore_na=True).mean().values, e60=Fs.ewm(span=60, adjust=False, ignore_na=True).mean().values, rng=rng,
+             prng=np.median(prev[-20:], 0) if len(prev) >= 20 else None)
+    return f
+
+
+def signals45(f):
+    """the 8 frozen E45 rules for one sym-day -> {name: [(decision bar i, direction)]}."""
+    F, sF, d0 = f["F"], f["sF"], f["d0"]; i_ = np.arange(NB); win = (i_ >= 30) & (i_ <= 330); out = {}; Fs = pd.Series(F); sh = lambda n: Fs.shift(n).values
+    with np.errstate(invalid="ignore", divide="ignore"):
+        m15 = F - sh(15); m = win & ((i_ - 30) % 15 == 0) & (np.abs(m15) >= sF * np.sqrt(15)); out["R1_tsmom"] = _cool(i_[m], np.sign(m15)[m], 1, 20)
+        up = (f["e20"] > f["e60"]) & (sh(1) < sh(2)) & (sh(2) < sh(3)) & (F > sh(1)) & (F > f["e60"])
+        dn = (f["e20"] < f["e60"]) & (sh(1) > sh(2)) & (sh(2) > sh(3)) & (F < sh(1)) & (F < f["e60"]); m = win & (up | dn)
+        out["R2_pullback"] = _cool(i_[m], np.where(up, 1, -1)[m], 10, 20)
+        dFs = pd.Series(f["dF"]); ratio = dFs.rolling(10, min_periods=10).std().values / dFs.rolling(60, min_periods=60).std().values; m5 = F - sh(5)
+        m = win & (ratio >= 1.5); out["R3_volexp"] = _cool(i_[m], np.sign(m5)[m], 10, 20)
+        F0 = F[np.isfinite(F)][0] if np.isfinite(F).any() else np.nan; day = F / F0 - 1
+        up = (day >= 0.004) & (F >= Fs.rolling(15, min_periods=15).max().values); dn = (day <= -0.004) & (F <= Fs.rolling(15, min_periods=15).min().values)
+        m = win & (up | dn); out["R4_donchian"] = _cool(i_[m], np.where(up, 1, -1)[m], 10, 20)
+        # R5: ITM2 CE at its own 20-bar closing high while ITM2 PE at its 20-bar low (strikes fixed by ATM at bar i), volume above its prior 30-bar median
+        M, ai, nK = f["M"], f["ai"], f["nK"]; jc, jp = ai - 2, ai + 2; g = f["aok"] & (jc >= 0) & (jp < nK); jc, jp = np.clip(jc, 0, nK - 1), np.clip(jp, 0, nK - 1)
+        def ext(sd, col, how, n, lag=0): return getattr(pd.DataFrame(M[sd][col].T).shift(lag).rolling(n, min_periods=n), how)().values
+        cC, cP = M["CE"][3].T, M["PE"][3].T; vC, vP = M["CE"][6].T, M["PE"][6].T; pk = lambda A, j: A[i_, j]
+        up = g & (pk(cC, jc) >= pk(ext("CE", 3, "max", 20), jc)) & (pk(cP, jp) <= pk(ext("PE", 3, "min", 20), jp)) & (pk(vC, jc) > pk(ext("CE", 6, "median", 30, 1), jc))
+        dn = g & (pk(cP, jp) >= pk(ext("PE", 3, "max", 20), jp)) & (pk(cC, jc) <= pk(ext("CE", 3, "min", 20), jc)) & (pk(vP, jp) > pk(ext("PE", 6, "median", 30, 1), jp))
+        m = win & (up | dn) & ~(up & dn); out["R5_prembreak"] = _cool(i_[m], np.where(up, 1, -1)[m], 10, 20)
+        # R6: straddle of the bar-i ATM strike above its own level 10 bars ago, and a 5-bar F move >= sF sqrt(5)
+        st_now = pk(cC, ai) + pk(cP, ai); st_old = pk(pd.DataFrame(cC).shift(10).values, ai) + pk(pd.DataFrame(cP).shift(10).values, ai)
+        m = win & f["aok"] & (st_now > st_old) & (np.abs(m5) >= sF * np.sqrt(5)); out["R6_volbid"] = _cool(i_[m], np.sign(m5)[m], 10, 20)
+        m3 = F - sh(3); m = (i_ >= 225) & (i_ <= 330) & (d0 == 1) & (np.abs(m3) >= 1.5 * sF * np.sqrt(3)); out["R7_expgamma"] = _cool(i_[m], np.sign(m3)[m], 5, 20)
+        r8 = []
+        if f["prng"] is not None and d0 == 0:
+            rl = Fs.shift(1).rolling(30, min_periods=30); z = (F - rl.mean().values) / rl.std().values
+            hi = F >= Fs.rolling(31, min_periods=31).max().values; lo = F <= Fs.rolling(31, min_periods=31).min().values
+            m = win & (f["rng"] <= 0.5 * f["prng"]) & ((hi & (z >= 2)) | (lo & (z <= -2))); r8 = _cool(i_[m], np.where(hi, -1, 1)[m], 10, 20)
+        out["R8_rangefade"] = r8
+    return out
+
+
+def all_signals45():
+    rows = []; prev = {"NIFTY": [], "SENSEX": []}
+    for d, k in enumerate(DAYK):
+        f = feats45(P[k], k[0], prev[k[0]])
+        for nm, lst in signals45(f).items(): rows += [(nm, d, i, s) for i, s in lst]
+        prev[k[0]].append(np.nan_to_num(f["rng"], nan=np.inf))
+    return pd.DataFrame(rows, columns=["sig", "d", "i", "dirn"])
+
+
+def study_lookahead45(n_days=24, seed=5):
+    """the E44 look-ahead scan on the E45 rules: scramble everything after bar i, every signal at or before i must be unchanged."""
+    rg = np.random.default_rng(seed); ks = [DAYK[j] for j in rg.choice(ND, n_days, replace=False)] + [k for k in DAYK if P[k]["d0"]][-6:]; bad = n = 0
+    for k in ks:
+        p = P[k]; prev = [np.full(NB, 1e9)] * 20; base = signals45(feats45(p, k[0], prev))
+        for i in (35, 47, 90, 150, 222, 290, 320):
+            q = dict(p, spot=p["spot"].copy(), atm=p["atm"].copy(), C={kk: a.copy() for kk, a in p["C"].items()})
+            m = NB - i - 1; q["spot"][i + 1:] *= rg.uniform(0.97, 1.03, m); q["atm"][i + 1:] = p["atm"][i] + 2 * STEP[k[0]]
+            for a in q["C"].values(): a[i + 1:] *= rg.uniform(0.5, 1.5, (m, 7))
+            got = signals45(feats45(q, k[0], prev))
+            for nm in base:
+                n += 1; x, y = [t for t in base[nm] if t[0] <= i], [t for t in got[nm] if t[0] <= i]
+                if x != y: bad += 1; print("LOOK-AHEAD", k, nm, i, x[-2:], y[-2:])
+    print(f"E45 look-ahead scan: {n} (rule, day, cut) checks on {len(ks)} sym-days, {bad} leaks; signals on the last day: { {a: len(b) for a, b in base.items()} }"); assert bad == 0
+
+
+def _eval45(G, d, e, dirn, cell, days, conv="intrabar", fs=1.0, fc=1.0):
+    """one cell with the one-at-a-time rule -> dict of taken-trade arrays + daily Rs."""
+    T, S, H = cell; R = price45(G, d, e, T * PMULT[d], S * PMULT[d], H, conv, fs, fc); tk = greedy(d, e, R["xb"][:, None], R["ok"])[:, 0]
+    return dict(tk=tk, R=R, x10=_daily(d[tk], R["pnl10"][tk], days), x5=_daily(d[tk], R["pnl5"][tk], days))
+
+
+def _stats45(name, sym, split, depth, cell, G, d, e, dirn, days, extra=None):
+    E = _eval45(G, d, e, dirn, cell, days); tk, R = E["tk"], E["R"]; o = R["out"][tk]; pts = R["pts"][tk]; n = int(tk.sum()); dd = d[tk]
+    idx = dirn[tk] * (SPOT[dd, np.minimum(R["xb"][tk], NB - 1) - 1] - SPOT[dd, e[tk] - 1]); E2 = _eval45(G, d, e, dirn, cell, days, fs=2.0, fc=2.0); Ec = _eval45(G, d, e, dirn, cell, days, "close")
+    qp = [E["x10"][q].sum() for q in np.array_split(np.arange(len(days)), 4)]; q = Q[dd]
+    return dict(strategy=name, sym=sym, split=split, depth="ATM" if depth == 0 else f"ITM{depth}", cell="/".join(map(str, cell)), trades=n, per_day=n / len(days),
+                win=float((R["pnl10"][tk] > 0).mean()) if n else np.nan, p_tgt=float((o == 0).mean()) if n else np.nan, p_stop=float((o == 1).mean()) if n else np.nan,
+                p_time=float((o == 2).mean()) if n else np.nan, loss_on_stop=float(pts[o == 1].mean()) if (o == 1).any() else np.nan,
+                pts_prem=float(pts.mean()) if n else np.nan, pts_net=float((R["pnl10"][tk] / q).mean()) if n else np.nan, pts_idx=float(np.nanmean(idx)) if n else np.nan,
+                net10=float(E["x10"].sum()), net5=float(E["x5"].sum()), p=_pboot(E["x10"]) if n else np.nan, maxdd=_maxdd(E["x10"]), net_2x=float(E2["x10"].sum()),
+                net_close=float(Ec["x10"].sum()), q_pos=int(sum(v > 0 for v in qp)), forced_pct=100 * float(R["forced"][tk].mean()) if n else np.nan, **(extra or {})), E
+
+
+def study_e45():
+    """E45: 8 rules x 2 indices; LEARN picks (depth in ITM2/3/4, cell) of 36 under intrabar fills; TEST scored once; ATM same cell = control."""
+    import pickle, os
+    cache = f"{L.OUT}/scalp_e45_sigs.pkl"
+    if os.path.exists(cache): G_ = pickle.load(open(cache, "rb"))
+    else: G_ = all_signals45(); pickle.dump(G_, open(cache, "wb"))
+    G_ = G_.sort_values(["d", "i"]).reset_index(drop=True); rows = []; alpha = 0.05 / 16; rg = np.random.default_rng(3)
+    print(f"E45: {len(G_)} signals; alpha {alpha:.4f}", flush=True)
+    for s, sym in enumerate(("NIFTY", "SENSEX")):
+        dl = np.flatnonzero((SYMI == s) & ~ISTEST); dt = np.flatnonzero((SYMI == s) & ISTEST)
+        for nm in sorted(G_.sig.unique()):
+            g = G_[(G_.sig == nm) & (SYMI[G_.d.values] == s)]; d, e, dirn = g.d.values, g.i.values + 1, g.dirn.values; lm = ~ISTEST[d]; sub = lambda G, m: {k: v[m] for k, v in G.items()}
+            GD = {dep: gather(d, e, dep, dirn) for dep in (0, 2, 3, 4)}; X = []; keys = []
+            for dep in (2, 3, 4):
+                for cell in MENU45:
+                    E = _eval45(sub(GD[dep], lm), d[lm], e[lm], dirn[lm], cell, dl); X.append(E["x10"] if E["tk"].sum() >= 100 else np.full(len(dl), np.nan)); keys.append((dep, cell))
+            X = np.stack(X, 1); val = np.isfinite(X[0])
+            if not val.any(): rows.append(dict(strategy=nm, sym=sym, split="LEARN", verdict="TOO FEW (< 100 LEARN trades)")); continue
+            Xv = X[:, val]; t = Xv.mean(0) / (Xv.std(0, ddof=1) / np.sqrt(len(dl)) + 1e-12); j = int(t.argmax()); dep, cell = [k for k, v in zip(keys, val) if v][j]
+            ex = dict(rc_p=_rc(Xv, j), cells_pos=int((Xv.sum(0) > 0).sum()), n_cells=int(val.sum()))
+            rl, _ = _stats45(nm, sym, "LEARN", dep, cell, sub(GD[dep], lm), d[lm], e[lm], dirn[lm], dl, ex)
+            rt, Et = _stats45(nm, sym, "TEST", dep, cell, sub(GD[dep], ~lm), d[~lm], e[~lm], dirn[~lm], dt)
+            rc, _ = _stats45(nm + " [ATM control]", sym, "TEST", 0, cell, sub(GD[0], ~lm), d[~lm], e[~lm], dirn[~lm], dt)
+            # placebo: same sym-days, same number of entries per day, random bars of the rule's window, random side
+            lo_, hi_ = (225, 330) if nm.startswith("R7") else (30, 330); dT = d[~lm]; tot = np.zeros(200)
+            for r_ in range(200):
+                ii = rg.integers(lo_, hi_ + 1, len(dT)); o_ = np.lexsort((ii, dT)); dd, ee = dT[o_], ii[o_] + 1; sg = rg.choice([-1, 1], len(dd))
+                tot[r_] = _eval45(gather(dd, ee, dep, sg), dd, ee, sg, cell, dt)["x10"].sum()
+            rt["p_plac"] = float(((tot >= rt["net10"]).sum() + 1) / 201); rt["plac_mean"] = float(tot.mean())
+            ok = (rt["net10"] > 0 and rt["net5"] > 0 and rl["net10"] > 0 and ex["rc_p"] < 0.10 and rt["p"] < alpha and rt["p_plac"] < 0.05 and rt["net_2x"] > 0 and rt["q_pos"] >= 3
+                  and rt["trades"] >= 500 and rt["per_day"] >= 3 and rt["net_close"] > 0 and (sym != "NIFTY" or rt["pts_net"] >= 1.0))
+            rt["verdict"] = "PASS" if ok else "FAIL"; rl["verdict"] = "-"; rc["verdict"] = "control"; rows += [rl, rt, rc]
+            print(nm, sym, dep, cell, f"LEARN {rl['net10']:,.0f} TEST {rt['net10']:,.0f} ATM {rc['net10']:,.0f}", flush=True)
+    T = pd.DataFrame(rows); T.to_csv(f"{L.OUT}/scalp_e45.csv", index=False); pd.set_option("display.width", 400); pd.set_option("display.max_columns", 50)
+    rd = {c: 0 for c in ("net10", "net5", "maxdd", "net_2x", "net_close", "plac_mean")}; rd.update({c: 3 for c in ("win", "p_tgt", "p_stop", "p_time", "p_plac", "rc_p")}); rd.update(per_day=2, loss_on_stop=2, pts_prem=2, pts_net=2, pts_idx=2, p=4, forced_pct=2)
+    print(T.round(rd).to_string(index=False))
+
+
 def study_selftest():
     """known answers on a synthetic day: hand-computed fills, charges equal L.cost, the greedy one-at-a-time rule, exits."""
     k = next(k for k in DAYK if k[1] >= HO and k[0] == "NIFTY"); d = DIX[k]; Z = pool(); keep = {n: Z[n][d].copy() for n in Z}
@@ -428,7 +651,25 @@ def study_selftest():
     # pool against the raw panel on a real day
     p = P[k]; e = 120; K = p["atm"][e - 1]; a = p["C"][("CE", K)]
     if a[e, 6] > 0 and a[e - 1, 6] > 0: assert Z["ENT"][d, e, 0] == np.float32(a[e, 0]) and Z["CP"][d, e, 0, 5] == np.float32(a[e + 5, 3])
-    print("scalp_lab selftest OK (hand-priced target / stop / time exits, charges == L.cost, half-spread == L.hs, no entry on an untraded bar, one position at a time, pool == panel)")
+    # E45 intrabar convention, hand-priced on a synthetic path: entry open 100; bar highs/lows decide
+    G = dict(ENT=np.array([100.0, 100.0, 100.0]), O=np.tile(np.float32([100, 101, 103, 99] + [99] * 27), (3, 1)), H=np.tile(np.float32([101, 104, 112, 100] + [100] * 27), (3, 1)),
+             Lo=np.tile(np.float32([99.5, 100.5, 96, 98] + [98] * 27), (3, 1)), C=np.tile(np.float32([100.5, 103, 97, 99] + [99] * 27), (3, 1)),
+             X=np.tile(np.float32([101, 103, 99, 99] + [99] * 27), (3, 1)), FX=np.zeros((3, NH), bool))
+    dd = np.array([d, d, d]); ee = np.array([100, 100, 100]); R = price45(G, dd, ee, np.array([3.0, 10.0, 50.0]), np.array([10.0, 3.0, 50.0]), 2); ent = 100 + h
+    # row 0: T=3 -> limit ent+3; bar 1 high 104 >= limit + 0.05 -> filled AT the limit: +3.00 points, no exit spread
+    assert R["out"][0] == 0 and abs(R["pts"][0] - 3.0) < 1e-9 and R["xb"][0] == 102
+    # row 1: T=10, S=3, H=2: no stop/target in bars 0-1 (low 99.5 > ent-3) -> time exit at X[1] = 103 - hs
+    assert R["out"][1] == 2 and abs(R["pts"][1] - (103 - L.hs("NIFTY", P[k]["d0"], M0 + 102, 103.0) - ent)) < 1e-6 and R["xb"][1] == 102
+    R = price45(G, dd, ee, np.array([11.0, 10.0, 50.0]), np.array([3.0, 3.0, 50.0]), 5)
+    # H=5, T=11, S=3: bar 2 has high 112 (target) AND low 96 (stop) -> the stop wins; fill = min(ent-3, open 103) - hs
+    stp = ent - 3; assert R["out"][0] == 1 and abs(R["pts"][0] - (stp - L.hs("NIFTY", P[k]["d0"], M0 + 102, stp) - ent)) < 1e-6
+    Rc = price45(G, dd, ee, 2.0, 2.0, 5, "close")  # close convention: bar 1 close 103 - ent >= 2 -> sell at X[1] = 103 - hs
+    assert Rc["out"][0] == 0 and abs(Rc["pts"][0] - (103 - L.hs("NIFTY", P[k]["d0"], M0 + 102, 103.0) - ent)) < 1e-6
+    assert abs(R["pnl5"][0] - (R["pts"][0] * Q[d] * 0.5 - (L.cost(ent, ent + R["pts"][0], "NIFTY", _kc(k)) - L.CM * 1.18 * 40) * 0.5 - L.CM * 1.18 * 40)) < 0.01  # 5 lots: only brokerage stays whole
+    # gather against the raw panel: ITM2 CE = ATM - 2 steps
+    e2 = 120; Gg = gather([d], [e2], 2, [1]); a2 = p["C"].get(("CE", p["atm"][e2 - 1] - 2 * STEP["NIFTY"]))
+    if a2 is not None and a2[e2, 6] > 0 and a2[e2 - 1, 6] > 0: assert Gg["ENT"][0] == a2[e2, 0] and Gg["H"][0, 3] == np.float32(a2[e2 + 3, 1]) and Gg["Lo"][0, 0] == np.float32(a2[e2, 2])
+    print("scalp_lab selftest OK (E45: limit target at the limit, stop wins a tie, time exit, close convention, 5-lot charges, ITM gather == panel; hand-priced target / stop / time exits, charges == L.cost, half-spread == L.hs, no entry on an untraded bar, one position at a time, pool == panel)")
 
 
 if __name__ == "__main__":
