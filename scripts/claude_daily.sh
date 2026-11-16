@@ -9,10 +9,15 @@
 #   scripts/claude_daily.sh heal      # 09:00-15:25 IST on trading days: start the v2 / cross recorder only if it is down
 #                                     # (the morning waiter runs it every 10 min after the 08:25 start)
 #   scripts/claude_daily.sh report    # end-of-day report -> data/recon/daily_report_<day>.txt (tape, FIN1/S2, honesty)
+#   scripts/claude_daily.sh token-guard # exit 3 + macOS notification + data/recon/TOKEN_ALERT.txt when the Dhan token will NOT cover the
+#                                     # next session's close (the token expired silently on 10-30..11-12 and 11-16; morning + close run this)
+#   scripts/claude_daily.sh bot-start # expiry-day research bot (scripts/lab5y/expiry_bot.py live, paper, log-only) if it is not running
+#   scripts/claude_daily.sh bot-score # post-market: replay the day and match it to the live log (no look-ahead proof); writes data/recon/expiry_bot_<day>.log
 # The wait is computed in IST, so the US DST change (Nov 1) cannot shift the IST time.
 set -u
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"; cd "$ROOT" || exit 1
 PY="$ROOT/.venv/bin/python"
+PANDAS_PY="${AAD_PANDAS_PY:-$HOME/paper_extra_venv/bin/python}"   # the lab venv (pandas + pyarrow): expiry_bot and the tick cache
 DAY="$("$PY" -c "from zoneinfo import ZoneInfo; from datetime import datetime; print(datetime.now(ZoneInfo('Asia/Kolkata')).date())")"
 LOG="data/recon/claude_daily_${DAY}.log"; mkdir -p data/recon
 
@@ -45,6 +50,47 @@ print(expiry_warning(tok))
 PY
 }
 
+token_guard() {  # does the token outlive the NEXT session's 15:30 IST close? prints one line; exit 3 (+ notification + alert file) when it does not
+  local tmp rc line; tmp="$(mktemp)"
+  PYTHONPATH="$ROOT/packages/dhan-client/src" "$PY" - "$ROOT/.env" <<'PY' > "$tmp"
+import os, sys, glob, pathlib
+from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
+from dhan_client.token_info import jwt_exp_unix
+tok = os.environ.get("DHAN_ACCESS_TOKEN", "")
+if not tok and os.path.exists(sys.argv[1]):
+    for l in open(sys.argv[1], encoding="utf-8"):
+        if l.startswith("DHAN_ACCESS_TOKEN="):
+            tok = l.split("=", 1)[1].strip().strip("'\"")
+hol = set()
+for f in glob.glob(str(pathlib.Path.home() / "paper_extra_rt/dhan/research/lab/lib/nse_holidays_20*.csv")):
+    hol |= {l[:10] for l in open(f) if l[:2] == "20"}
+IST = ZoneInfo("Asia/Kolkata"); now = datetime.now(IST); d = now.date()
+if now.hour * 60 + now.minute >= 15 * 60 + 30: d += timedelta(days=1)
+while d.weekday() >= 5 or d.isoformat() in hol: d += timedelta(days=1)
+close = datetime(d.year, d.month, d.day, 15, 30, tzinfo=IST); exp = jwt_exp_unix(tok)
+if not tok: print(f"Dhan token MISSING: the {d} session will not be taped; set DHAN_ACCESS_TOKEN in .env (./scripts/desk.sh mint-token)"); sys.exit(3)
+if exp is None: print(f"Dhan token: expiry unknown (no JWT exp); cannot promise the {d} session"); sys.exit(0)
+when = datetime.fromtimestamp(exp, IST)
+if when < close: print(f"Dhan token will NOT cover the {d} session (expires {when:%Y-%m-%d %H:%M} IST, close 15:30): mint a fresh one now: ./scripts/desk.sh mint-token"); sys.exit(3)
+print(f"Dhan token covers the {d} session (expires {when:%Y-%m-%d %H:%M} IST)")
+PY
+  rc=$?; line="$(cat "$tmp")"; rm -f "$tmp"
+  echo "$line"
+  if [[ $rc -eq 3 ]]; then
+    echo "$(date) $line" >> data/recon/TOKEN_ALERT.txt
+    command -v osascript >/dev/null && osascript -e "display notification \"$line\" with title \"all_about_dhan: Dhan token\"" 2>/dev/null
+  fi
+  return $rc
+}
+
+bot_start() {  # paper, log-only: tails today's tape, decides nothing on a non-expiry day, exits by itself at 15:31 IST
+  if pgrep -f 'expiry_bot.py live' >/dev/null; then echo "expiry bot already running"; return 0; fi
+  [[ -x "$PANDAS_PY" ]] || { echo "expiry bot: $PANDAS_PY missing (set AAD_PANDAS_PY)"; return 1; }
+  (cd scripts/lab5y && nohup "$PANDAS_PY" expiry_bot.py live >> "$ROOT/data/recon/expiry_bot_${DAY}.log" 2>&1 &)
+  echo "expiry bot STARTED (paper, log-only): data/recon/expiry_bot_${DAY}.log"
+}
+
 later() {  # later NAME HH:MM "cmd": detach so the scheduled Claude run can finish while we wait
   local q="data/recon/claude_daily_${DAY}.$1.pid" s
   if [[ -f "$q" ]] && kill -0 "$(cat "$q")" 2>/dev/null; then  # Run now + cron the same day: one waiter only
@@ -61,15 +107,18 @@ later() {  # later NAME HH:MM "cmd": detach so the scheduled Claude run can fini
 
 # Restart for the new day (so the 09:08 pre-open is taped). Run late (after 08:25) it never stops a running
 # recorder mid-session: it only starts one that is down.
-MORNING='if [[ "$(TZ=Asia/Kolkata date +%H%M)" > 0830 ]]; then ./scripts/desk.sh recorder-start || true; ./scripts/desk.sh cross-start || true; else ./scripts/desk.sh recorder-stop; ./scripts/desk.sh recorder-start; ./scripts/desk.sh cross-stop; ./scripts/desk.sh cross-start; fi; sleep 90; ./scripts/desk.sh recorder-status; for _ in $(seq 1 45); do sleep 600; ./scripts/claude_daily.sh heal; done'
+MORNING='./scripts/claude_daily.sh token-guard; if [[ "$(TZ=Asia/Kolkata date +%H%M)" > 0830 ]]; then ./scripts/desk.sh recorder-start || true; ./scripts/desk.sh cross-start || true; else ./scripts/desk.sh recorder-stop; ./scripts/desk.sh recorder-start; ./scripts/desk.sh cross-stop; ./scripts/desk.sh cross-start; fi; ./scripts/claude_daily.sh bot-start; sleep 90; ./scripts/desk.sh recorder-status; for _ in $(seq 1 45); do sleep 600; ./scripts/claude_daily.sh heal; done'
 
 # FIN1 is shadow-only (paper log from the tape, never an order): scripts/lab5y/fin1_shadow.py
-CLOSE='./scripts/desk.sh close; .venv/bin/python scripts/lab5y/fin1_shadow.py day; if [[ "$(TZ=Asia/Kolkata date +%u)" == 5 ]]; then .venv/bin/python scripts/lab5y/fin1_shadow.py week 5 > data/recon/fin1_shadow_week.txt; fi; ./scripts/claude_daily.sh report'
+CLOSE='./scripts/desk.sh close; ./scripts/claude_daily.sh bot-score; ./scripts/claude_daily.sh token-guard; .venv/bin/python scripts/lab5y/fin1_shadow.py day; if [[ "$(TZ=Asia/Kolkata date +%u)" == 5 ]]; then .venv/bin/python scripts/lab5y/fin1_shadow.py week 5 > data/recon/fin1_shadow_week.txt; fi; ./scripts/claude_daily.sh report'
 
 case "${1:-}" in
   morning) token_line | tee -a "$LOG"
            later morning 08:25 "$MORNING"; later close 15:31 "$CLOSE" ;;  # close too: the close task can stall on an approval prompt
   token)   token_line ;;
+  token-guard) token_guard ;;
+  bot-start)   bot_start ;;
+  bot-score)   [[ -x "$PANDAS_PY" ]] && (cd scripts/lab5y && "$PANDAS_PY" expiry_bot.py score "$DAY" >> "$ROOT/data/recon/expiry_bot_${DAY}.log" 2>&1); grep -h "verdicts\|live vs replay\|nothing to replay" "data/recon/expiry_bot_${DAY}.log" 2>/dev/null | tail -3 ;;
   close)   [[ "$(TZ=Asia/Kolkata date +%u)" == 1 && -f data/recon/fin1_shadow_week.txt ]] && cat data/recon/fin1_shadow_week.txt
            later close 15:31 "$CLOSE" ;;
   status)  tail -20 "$LOG" 2>/dev/null; ./scripts/desk.sh recorder-status 2>&1 | tail -4 ;;
@@ -77,6 +126,7 @@ case "${1:-}" in
            wait_s 09:00 >/dev/null || { echo "not a trading day ($DAY)"; exit 0; }
            hm="$(TZ=Asia/Kolkata date +%H%M)"; [[ "$hm" < 0900 || "$hm" > 1525 ]] && { echo "outside 09:00-15:25 IST ($hm)"; exit 0; }
            h="$(./scripts/desk.sh recorder-status 2>&1 | grep -i 'health:')"; c="$(pgrep -f 'python.*-m marketdata.cross_market' >/dev/null && echo up || echo down)"
+           bot_start >/dev/null || true
            if [[ "$h" == *HEALTHY* && "$c" == up ]]; then echo "healthy: $h; cross $c"
            else echo "=== $(date) heal: '$h' cross=$c -> start what is down" | tee -a "$LOG"
                 ./scripts/desk.sh recorder-start 2>&1 | tee -a "$LOG" | tail -2; ./scripts/desk.sh cross-start 2>&1 | tee -a "$LOG" | tail -2
@@ -94,6 +144,7 @@ case "${1:-}" in
              "$PY" scripts/lab5y/fin1_shadow.py forward "$DAY" | grep -E "^FWD|calibration" || echo "Forward view: no row"
              "$PY" -c "import json;r=json.load(open('data/recon/sod_exam_report.json'));d=[x for x in r['days'] if x['day']=='$DAY'];print('Paper desk honesty:',r.get('overall_honesty'),'| today:',(d[0].get('honesty') if d else 'no row'));[print(' ',s) for s in r.get('stories',[]) if s.startswith('$DAY')]" 2>/dev/null || echo "Paper desk honesty: no report"
              grep -h "heal:" "$LOG" 2>/dev/null | sed 's/^/Self-heal: /'
+             grep -h "verdicts\|live vs replay\|nothing to replay" "data/recon/expiry_bot_${DAY}.log" 2>/dev/null | tail -3 | sed 's/^/Expiry bot: /'
            } > "$R"; cat "$R" ;;
-  *) echo "usage: $0 morning|close|token|status|heal|report" >&2; exit 1 ;;
+  *) echo "usage: $0 morning|close|token|token-guard|bot-start|bot-score|status|heal|report" >&2; exit 1 ;;
 esac

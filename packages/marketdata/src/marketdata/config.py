@@ -29,6 +29,9 @@ class RecorderConfig:
     max_instruments: int = 100
     # Session-open ATM ± N listed strikes, both CE and PE, in addition to the moving ATM set.
     open_ladder_n: int = 5
+    # 2026-11-16: on the day a book's series expires, the open ladder is this wide instead (cheap OTM strikes for the expiry-day
+    # research bot, scripts/lab5y/expiry_bot.py). 0 = same as open_ladder_n. CLI env MD_EXPIRY_LADDER_N, default 8.
+    expiry_ladder_n: int = 0
     # Every listed strike within +-N steps of the moving ATM (NIFTY 50-pt). 0 keeps the 100/200 wings only.
     near_atm_n: int = 0  # CLI (python -m marketdata) sets 4; tests that omit it keep existing counts
     # Dhan 20-level depth feed (separate socket, marketdata.depth20). Off until verified on a live frame.
