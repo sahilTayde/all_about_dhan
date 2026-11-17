@@ -653,6 +653,97 @@ def study_x1(days=None):
 
 
 
+# ================================================================ rules from the observations (E56+): pure time-exit trades, scored honestly
+def wall_event(f, w, up):
+    """first bar (30..299) where F is within 0.10% of the OI wall (same wall for the last 30 bars), on its inner side, after 15 bars further away."""
+    for i in range(30, 300):
+        K = w[i]
+        if not np.isfinite(f[i]) or not (w[i - 30:i + 1] == K).all(): continue
+        if abs(f[i] - K) / K <= 0.001 and (np.abs(f[i - 15:i] - K) / K > 0.001).all() and ((f[i] < K) if up else (f[i] > K)): return i
+    return None
+
+
+def wall_events():
+    S_ = SL(); F = bar("F"); W = {True: bar("wallC"), False: bar("wallP")}; rows = []
+    for d in range(S_.ND):
+        for up in (True, False):
+            i = wall_event(F[d], W[up][d], up)
+            if i is not None: rows.append(("W_call" if up else "W_put", d, i, -1))
+    return pd.DataFrame(rows, columns=["type", "d", "i", "dirn"])
+
+
+def _price(d, i, sg, depth, short, H, fs=1.0, fc=1.0):
+    """net Rs at 10 lots per trade (NaN = no valid entry): buy / sell the option `depth` strikes in the money on side sg, time exit after H min."""
+    S_ = SL(); G = S_.gather(d, i + 1, depth, sg)
+    if short: R = S_.price52_short(G, d, i + 1, 1e9, 1e9, H, fs, fc); x = R["net"] * S_.Q[d]
+    else: R = S_.price45(G, d, i + 1, 1e9, 1e9, H, "intrabar", fs, fc); x = R["pnl10"]
+    return np.where(R["ok"], x, np.nan), np.where(R["ok"], R["pts"], np.nan)
+
+
+def score(name, d, i, sg, depth, short, H, runs=200, seed=56, extra_ok=None):
+    """LEARN and TEST rows for one (rule, index) cell. Trades = arrays (day index, decision bar, option side). Placebo: the same option kind
+    and side at the same minute on a random day of the same index, split and expiry flag."""
+    S_ = SL(); rows = []; rg = np.random.default_rng(seed); s = S_.SYMI[d[0]]
+    for split, tm in (("LEARN", ~S_.ISTEST), ("TEST", S_.ISTEST)):
+        k = tm[d]; dd, ii, gg = d[k], i[k], sg[k]; days = np.flatnonzero(tm & (S_.SYMI == s))
+        if not len(dd): continue
+        x, pts = _price(dd, ii, gg, depth, short, H); ok = np.isfinite(x); x2, _ = _price(dd, ii, gg, depth, short, H, 2.0, 2.0)
+        daily = S_._daily(dd[ok], x[ok], days); q = [daily[c].sum() for c in np.array_split(np.arange(len(days)), 4)]
+        pool = {e: days[S_.D0[days] == e] for e in (0, 1)}; pd_ = np.array([rg.choice(pool[S_.D0[a]], runs) for a in dd])      # (n, runs)
+        px, _ = _price(pd_.ravel(), np.repeat(ii, runs), np.repeat(gg, runs), depth, short, H); pl = np.nansum(px.reshape(len(dd), runs), 0) * (ok.sum() / np.maximum(np.isfinite(px.reshape(len(dd), runs)).sum(0), 1))
+        rows.append(dict(rule=name, sym=SYMN[s], split=split, trades=int(ok.sum()), days=len(set(dd[ok])), win=float((x[ok] > 0).mean()), pts=float(np.nanmean(pts)), per_trade=float(x[ok].mean()), net=float(x[ok].sum()),
+                         p=S_._pboot(daily), plac_mean=float(pl.mean() / max(ok.sum(), 1)), p_plac=float(((pl >= x[ok].sum()).sum() + 1) / (runs + 1)), net_2x=float(np.nansum(x2)), q_pos=int(sum(v > 0 for v in q)),
+                         worst=float(x[ok].min()), maxdd=S_._maxdd(daily)))
+    return rows
+
+
+def _show(T, alpha, title):
+    T = T.copy(); L_ = T[T.split == "LEARN"].set_index(["rule", "sym"]).net; T["learn_net"] = [L_.get((r, s_), np.nan) for r, s_ in zip(T.rule, T.sym)]
+    T["verdict"] = np.where(T.split != "TEST", "", np.where((T.net > 0) & (T.learn_net > 0) & (T.p < alpha) & (T.p_plac < 0.05) & (T.net_2x > 0) & (T.q_pos >= 3), "PASS", "FAIL"))
+    print(title); print(T.drop(columns="learn_net").round({"win": 3, "pts": 2, "per_trade": 0, "net": 0, "p": 4, "plac_mean": 0, "p_plac": 3, "net_2x": 0, "worst": 0, "maxdd": 0}).to_string(index=False)); return T
+
+
+def lookahead_events(n_days=30, seed=5):
+    """perturb every bar after an event's bar and re-detect: the events up to that bar must not change (levels and walls)."""
+    S_ = SL(); rg = np.random.default_rng(seed); bad = 0; chk = 0; F = bar("F"); W = {True: bar("wallC"), False: bar("wallP")}
+    for d in rg.choice(S_.ND, n_days, replace=False):
+        k = S_.DAYK[d]; p = S_.P[k]; f = S_.day_feats(p, k[0]); prev = (np.nanmax(p["spot"]) * 1.001, np.nanmin(p["spot"]) * 0.999, np.nanmean(p["spot"]))
+        A = (p["spot"].copy(), f["F"].copy(), f["VW"].copy()); ev = level_events(*A, f["V"], prev, k[0])
+        for t, i, sg in ev[::max(1, len(ev) // 6)]:
+            B = [a.copy() for a in A]
+            for a in B: a[i + 1:] *= rg.uniform(0.98, 1.02, len(a) - i - 1)
+            ev2 = level_events(*B, f["V"], prev, k[0]); chk += 1; bad += [e for e in ev if e[1] <= i] != [e for e in ev2 if e[1] <= i]
+        for up in (True, False):
+            i = wall_event(F[d], W[up][d], up)
+            if i is not None:
+                f2, w2 = F[d].copy(), W[up][d].copy(); f2[i + 1:] *= 1.01; w2[i + 1:] += 500; chk += 1; bad += wall_event(f2, w2, up) != i
+    print(f"look-ahead check on the event detectors: {chk} checks, {bad} changed"); return bad
+
+
+def e56_cells():
+    S_ = SL(); E = all_levels(); W = wall_events(); SYMI = S_.SYMI; cells = []
+    def ev(types, s, flip=1):
+        g = E[E.type.isin(types) & (SYMI[E.d.values] == s)]; return g.d.values, g.i.values, flip * g.dirn.values
+    def wv(types, s):
+        g = W[W.type.isin(types) & (SYMI[W.d.values] == s)].sort_values(["d", "i"]); return g.d.values, g.i.values, g.dirn.values
+    for s in (0, 1):
+        d, i, sg = ev(["L1_PDH", "L1_PDL"], s); cells += [("R1 PDX-BUY ITM2 15m", d, i, sg, 2, False, 15), ("R1c PDX-BUY ATM 15m (control)", d, i, sg, 0, False, 15), ("R2 PDX-SELL opp ATM 15m", d, i, -sg, 0, True, 15)]
+    d, i, sg = ev(["L2_round_major"], 0, -1); cells += [("R3 RND-BUY ITM2 15m", d, i, sg, 2, False, 15), ("R3c RND-BUY ATM 15m (control)", d, i, sg, 0, False, 15), ("R4 RND-SELL opp ATM 15m", d, i, -sg, 0, True, 15)]
+    for s in (0, 1):
+        d, i, sg = wv(["W_call", "W_put"], s); cells += [("R5 WALL-PE ITM2 30m", d, i, sg, 2, False, 30), ("R5c WALL-PE ATM 30m (control)", d, i, sg, 0, False, 30)]
+        d, i, sg = wv(["W_call", "W_put"] if s == 0 else ["W_put"], s); cells.append(("R6 WALL-SELL-CE ATM 30m", d, i, -sg, 0, True, 30))
+    return cells
+
+
+def study_e56():
+    assert lookahead_events() == 0
+    rows = []
+    for c in e56_cells(): rows += score(*c)
+    T = _show(pd.DataFrame(rows), 0.005, "\nE56: six rules from the E55 observations; Rs at 10 lots, dated costs x1.5; p = day-block bootstrap; alpha 0.005 (controls not counted)")
+    T.to_csv(f"{OBS}/e56.csv", index=False)
+
+
+
 # ================================================================ selftest
 def selftest():
     # Black-76 round trip and put-call parity
@@ -678,6 +769,9 @@ def selftest():
     S = 25000.0 + np.tile([0, 1, 0, 1, 0], 75).astype(float); S[195:200] = [25000, 24999, 24998, 24997, 24996]; S[200:205] = [24996, 25010, 25020, 25030, 25040]; S[205:] = 25040.0; S[225:230] = 24998.0
     ev = level_events(S, S, S - 1, np.ones(375), None, "NIFTY"); assert ("L7_order_block", 229, 1) in ev, ev
     assert _tclust([1.0, 1.0, 3.0, 3.0, 2.0, 2.0], [0, 0, 1, 1, 2, 2])[0] == 2.0
+    # OI wall approach: wall 25,100 all day; F sits 60 points below, then walks to 25,080 (within 0.10%) at bar 120 -> event at 120; a wall that changed 10 bars ago does not fire
+    f = np.full(375, 25040.0); f[120:] = 25080.0; w = np.full(375, 25100.0); assert wall_event(f, w, True) == 120 and wall_event(f, w, False) is None
+    w2 = w.copy(); w2[:110] = 25200.0; assert wall_event(f, w2, True) is None
     print("observe_lab selftest OK (Black-76 round trip, decomposition known answers, level / ICT detectors on hand-built days)")
 
 
