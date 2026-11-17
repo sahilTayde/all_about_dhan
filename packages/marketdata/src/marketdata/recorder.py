@@ -113,6 +113,13 @@ class _Book:
     index_tick_seen: bool = False
 
 
+def ladder_n_for(config: RecorderConfig, universe: Universe, day: date | None) -> int:
+    """Open-ladder width for a book: ``expiry_ladder_n`` on the day the book's series expires, else ``open_ladder_n``."""
+    if config.expiry_ladder_n > 0 and day is not None and universe.expiry == day.isoformat():
+        return config.expiry_ladder_n
+    return config.open_ladder_n
+
+
 class MarketDataRecorder:
     def __init__(
         self,
@@ -338,7 +345,7 @@ class MarketDataRecorder:
                     retention_s=self.config.retention_s,
                     max_instruments=self.config.max_instruments,
                     open_positions=open_positions,
-                    open_ladder_n=self.config.open_ladder_n,
+                    open_ladder_n=ladder_n_for(self.config, u, day),
                     near_atm_n=self.config.near_atm_n,
                     max_pinned=self.config.max_pinned if self.config.pin_extra else None,
                 ),
