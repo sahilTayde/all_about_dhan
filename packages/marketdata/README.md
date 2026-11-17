@@ -167,5 +167,5 @@ Tests use an in-process websocket server on 127.0.0.1 and temporary directories 
 - **Wider ladder on the expiry day.** On the day a book's series expires, the open ladder is session-open ATM ± `MD_EXPIRY_LADDER_N` listed strikes
   (default 8; 0 = off) instead of ± 5, so the cheap OTM strikes are on tape. Startup unique ids: 58 normally, 82 on an expiry day (cap 100).
 - **Research bot (paper, log-only).** `scripts/lab5y/expiry_bot.py live` (started by `claude_daily.sh bot-start`, from the lab venv with pandas)
-  tails today's `depth_quotes.jsonl` and logs every frozen E50 decision to `data/cache/expiry_bot/<day>_live.jsonl` the moment it is knowable;
+  tails today's `depth_quotes.jsonl` and logs every frozen E54 decision to `data/cache/expiry_bot/<day>_live.jsonl` the moment it is knowable;
   `bot-score` after the close replays the day and matches it to that log (no look-ahead proof), then prices it. It never sends an order.

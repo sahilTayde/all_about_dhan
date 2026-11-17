@@ -1,4 +1,4 @@
-"""Tick-tape library shared by scalp_lab (E46) and expiry_bot (E50): the per-day tick cache, 100 ms as-of grids, the frozen
+"""Tick-tape library shared by scalp_lab (E46) and expiry_bot (E54): the per-day tick cache, 100 ms as-of grids, the frozen
 E46 fill model (two-level market walk, resting target, stop + 500 ms latency, time-out, passive queue) and real charges.
 Paper research only; reads data/tape/v2, no broker calls. Extracted verbatim from scalp_lab.py on 2026-11-16 so that
 expiry_bot can import it without loading the 5-year panel that scalp_lab needs."""

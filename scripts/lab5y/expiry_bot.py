@@ -1,10 +1,10 @@
-"""Expiry-day event bot (registry E50). PAPER RESEARCH ONLY: reads data/tape/v2 (the marketdata recorder's tick tape), never a
+"""Expiry-day event bot (registry E54). PAPER RESEARCH ONLY: reads data/tape/v2 (the marketdata recorder's tick tape), never a
 broker call, never an order. Founder brief 2026-11-16: on NIFTY / SENSEX expiry days watch for a chain of events, decide in 1-5 s,
 buy an option (ATM / OTM1 / OTM2 or the option that moved), take a few points, get out; never hold to 15:15.
-FROZEN before any expiry-day number existed (E50 section of the shared note). Everything here is EXPLORATORY: a LEAD at most.
+FROZEN before any expiry-day number existed (E54 section of the shared note). Everything here is EXPLORATORY: a LEAD at most.
 Run (from scripts/lab5y, the pandas venv):
   ~/paper_extra_venv/bin/python expiry_bot.py selftest
-  ~/paper_extra_venv/bin/python expiry_bot.py replay [day ...]     # frozen detection + pricing on the cached expiry days -> OUT/e50_*.csv
+  ~/paper_extra_venv/bin/python expiry_bot.py replay [day ...]     # frozen detection + pricing on the cached expiry days -> OUT/e54_*.csv
   ~/paper_extra_venv/bin/python expiry_bot.py live [day]           # in the session: tail today's tape, log every decision BEFORE its outcome exists
   ~/paper_extra_venv/bin/python expiry_bot.py score <day>          # post-market: cache + replay the day, match it to the live log (no look-ahead proof), price it
 Fills, charges and the 100 ms as-of grid are tapelib's (E46, frozen): market entry at decision + 500 ms walking two book levels, resting
@@ -16,7 +16,7 @@ from tapelib import TAPE, TAPEC, T0MS, NSLOT, LAT, GCOLS, slot_of, TapeDay, stud
 OUT = os.environ.get("EBOT_OUT", os.path.join(os.path.dirname(os.path.abspath(__file__)), "../../data/cache/expiry_bot")); os.makedirs(OUT, exist_ok=True)
 # DISCOVERY expiry days on the tape (the day IS the nearest weekly expiry of that index). 10-27 was taped 13:14-15:30 only.
 EXPIRY_DAYS = {"NIFTY": ["2026-09-29", "2026-10-13", "2026-10-19", "2026-10-27"], "SENSEX": ["2026-10-15", "2026-10-22", "2026-10-29"]}
-# cap = max quote spread for a valid decision (E46 froze 0.20 for NIFTY and lost 85% of its moments; E50 freezes 1.00 up front).
+# cap = max quote spread for a valid decision (E46 froze 0.20 for NIFTY and lost 85% of its moments; E54 freezes 1.00 up front).
 # ig = ignition: index points in 10 s; cheap = max ask of a 'cheap' option (V5); m = premium multiplier for targets / stops / ticks.
 SYM = {"NIFTY": dict(pre="NSE_FNO:NIFTY", idx="NSE_IDX:NIFTY", step=50, q=650, m=1.0, cap=1.00, tx=0.000355299, ig=12.0, cheap=15.0),
        "SENSEX": dict(pre="BSE_FNO:SENSEX", idx="BSE_IDX:SENSEX", step=100, q=200, m=3.0, cap=3.00, tx=0.000325, ig=40.0, cheap=45.0)}
@@ -48,7 +48,7 @@ def _rearm(slots, gap=REARM):
 
 
 def detect(sym, exp, G, off, s_lo, s_hi, S_full):
-    """frozen E50 events for one index on absolute slots s_lo..s_hi (once per second, on slots that are multiples of STRIDE). Every input is as-of
+    """frozen E54 events for one index on absolute slots s_lo..s_hi (once per second, on slots that are multiples of STRIDE). Every input is as-of
     the slot (ticks received <= slot time). G = option / future grids on absolute slots off..; S_full = the index ltp on absolute slots 0..>=s_hi
     (the whole day so far: the day's range needs it). Returns rows (event, dir, iid, slot, atm): dir = +1 up / -1 down; iid = the option the event names (V3 / V5) else None."""
     c = SYM[sym]; m, step = c["m"], c["step"]; oid = lambda K, side: f"{c['pre']}:{exp}:{int(K)}:{side}"
@@ -185,7 +185,7 @@ def study_replay(days=None, tag=""):
         for sym, r in replay_day(day, rg=rg).items():
             P.append(r["prices"]); SP.append(r["spot"].assign(day=day)); B.append(r["base"]); EV += [dict(day=day, sym=sym, event=e, dir=d_, iid=i, slot=s, atm=K, hms=_hms(s)) for e, d_, i, s, K in r["events"]]
     if not P: print(f"no expiring series on {days}: nothing to replay"); return None, None, None
-    pd.DataFrame(EV).to_csv(f"{OUT}/e50_events{tag}.csv", index=False); P = pd.concat(P, ignore_index=True); P.to_csv(f"{OUT}/e50_trades{tag}.csv", index=False)
+    pd.DataFrame(EV).to_csv(f"{OUT}/e54_events{tag}.csv", index=False); P = pd.concat(P, ignore_index=True); P.to_csv(f"{OUT}/e54_trades{tag}.csv", index=False)
     SP = pd.concat(SP, ignore_index=True); B = pd.concat(B, ignore_index=True)
     report(P, SP, B, pd.DataFrame(EV), tag); return P, SP, B
 
@@ -195,7 +195,7 @@ def _hms(s): x = (T0MS + s * 100) // 1000; return f"{x // 3600:02d}:{x % 3600 //
 
 def report(P, SP, B, EV, tag=""):
     pd.set_option("display.width", 320); pd.set_option("display.max_columns", 40); pd.set_option("display.max_rows", 500); rg = np.random.default_rng(1)
-    print(f"\n== E50 events per day and time window (frozen definitions; {EV.day.nunique()} expiry days)")
+    print(f"\n== E54 events per day and time window (frozen definitions; {EV.day.nunique()} expiry days)")
     print(EV.assign(tod=EV.slot.map(tod)).groupby(["sym", "event", "day"]).size().unstack("day").fillna(0).astype(int).to_string())
     print(EV.assign(tod=EV.slot.map(tod)).groupby(["sym", "event", "tod"]).size().unstack("tod").fillna(0).astype(int).to_string())
     print("\n== detect-only: index points in the event's direction after 30 / 120 / 300 s, minus the same-bucket placebo (per event, all days)")
@@ -213,8 +213,8 @@ def report(P, SP, B, EV, tag=""):
                  ex0=float(ex0.mean()), ex500=float(ex.mean()), ex1000=float(ex10.mean()), ex3000=float(ex30.mean()))
         lead = r["n"] >= 30 and r["net10"] > 0 and r["days"] >= 3 and r["days_pos"] >= r["days"] - 1 and r["ex500"] > 0 and r["p_boot"] <= 0.10 and r["ex1000"] > 0 and r["ex3000"] > 0
         r["verdict"] = "LEAD" if lead else ("INFO" if r["net10"] > 0 and r["ex500"] > 0 else "nothing"); out.append(r)
-    T = pd.DataFrame(out); T.to_csv(f"{OUT}/e50_cells{tag}.csv", index=False)
-    print("\n== E50 cells (filled trades; net = premium points per unit after real charges at 10 lots; rs10 = Rs per trade; ex = 120-s mid-to-mid minus placebo at 0 / 500 / 1000 / 3000 ms)")
+    T = pd.DataFrame(out); T.to_csv(f"{OUT}/e54_cells{tag}.csv", index=False)
+    print("\n== E54 cells (filled trades; net = premium points per unit after real charges at 10 lots; rs10 = Rs per trade; ex = 120-s mid-to-mid minus placebo at 0 / 500 / 1000 / 3000 ms)")
     print(T.round(dict(p_tgt=2, p_stop=2, net10=3, rs10=0, p_boot=3, plc_net=3, ex0=3, ex500=3, ex1000=3, ex3000=3)).to_string(index=False) if len(T) else "no filled trades")
     print(f"\nverdicts: { T.verdict.value_counts().to_dict() if len(T) else {} }  (LEAD rule frozen: n>=30, net10>0, >=3 days with all but one positive, ex500>0 with bootstrap p<=0.10, ex1000>0 and ex3000>0)")
 
@@ -299,7 +299,7 @@ def study_score(day):
     """post-market: cache + replay the day, match the live log to the replay (no look-ahead proof), price it."""
     P, SP, B = study_replay([day], tag=f"_{day}"); log = f"{OUT}/{day}_live.jsonl"
     if P is None: return
-    EV = pd.read_csv(f"{OUT}/e50_events_{day}.csv")
+    EV = pd.read_csv(f"{OUT}/e54_events_{day}.csv")
     if not os.path.exists(log): print(f"\nno live log {log}: replay only"); return
     L = pd.DataFrame([json.loads(l) for l in open(log)]); rk = {(r.sym, r.event, r.dir, r.iid if isinstance(r.iid, str) else None, r.slot) for r in EV.itertuples()}
     lk = {(r.sym, r.event, r.dir, r.iid if isinstance(r.iid, str) else None, r.slot) for r in L.itertuples()}
