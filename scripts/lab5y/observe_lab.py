@@ -680,17 +680,23 @@ def _price(d, i, sg, depth, short, H, fs=1.0, fc=1.0):
     return np.where(R["ok"], x, np.nan), np.where(R["ok"], R["pts"], np.nan)
 
 
-def score(name, d, i, sg, depth, short, H, runs=200, seed=56, extra_ok=None):
+def score(name, d, i, sg, depth, short, H, runs=200, seed=56, legs2=False, plac="day", fs0=1.0):
     """LEARN and TEST rows for one (rule, index) cell. Trades = arrays (day index, decision bar, option side). Placebo: the same option kind
     and side at the same minute on a random day of the same index, split and expiry flag."""
     S_ = SL(); rows = []; rg = np.random.default_rng(seed); s = S_.SYMI[d[0]]
     for split, tm in (("LEARN", ~S_.ISTEST), ("TEST", S_.ISTEST)):
         k = tm[d]; dd, ii, gg = d[k], i[k], sg[k]; days = np.flatnonzero(tm & (S_.SYMI == s))
         if not len(dd): continue
-        x, pts = _price(dd, ii, gg, depth, short, H); ok = np.isfinite(x); x2, _ = _price(dd, ii, gg, depth, short, H, 2.0, 2.0)
+        def px_(a_, b_, c_, fs=fs0, fc=1.0):   # legs2: the same trade on both sides (a straddle), NaN unless both legs are valid
+            x_, p_ = _price(a_, b_, c_, depth, short, H, fs, fc)
+            if legs2: y_, q_ = _price(a_, b_, -c_, depth, short, H, fs, fc); x_, p_ = x_ + y_, p_ + q_
+            return x_, p_
+        x, pts = px_(dd, ii, gg); ok = np.isfinite(x); x2, _ = px_(dd, ii, gg, 2.0 * fs0, 2.0)
         daily = S_._daily(dd[ok], x[ok], days); q = [daily[c].sum() for c in np.array_split(np.arange(len(days)), 4)]
         pool = {e: days[S_.D0[days] == e] for e in (0, 1)}; pd_ = np.array([rg.choice(pool[S_.D0[a]], runs) for a in dd])      # (n, runs)
-        px, _ = _price(pd_.ravel(), np.repeat(ii, runs), np.repeat(gg, runs), depth, short, H); pl = np.nansum(px.reshape(len(dd), runs), 0) * (ok.sum() / np.maximum(np.isfinite(px.reshape(len(dd), runs)).sum(0), 1))
+        if plac == "minute": pd_ = np.repeat(dd[:, None], runs, 1); pi_ = rg.integers(30, 300, pd_.shape).ravel()   # same day, random minute 09:45-14:14
+        else: pi_ = np.repeat(ii, runs)
+        px, _ = px_(pd_.ravel(), pi_, np.repeat(gg, runs)); pl = np.nansum(px.reshape(len(dd), runs), 0) * (ok.sum() / np.maximum(np.isfinite(px.reshape(len(dd), runs)).sum(0), 1))
         rows.append(dict(rule=name, sym=SYMN[s], split=split, trades=int(ok.sum()), days=len(set(dd[ok])), win=float((x[ok] > 0).mean()), pts=float(np.nanmean(pts)), per_trade=float(x[ok].mean()), net=float(x[ok].sum()),
                          p=S_._pboot(daily), plac_mean=float(pl.mean() / max(ok.sum(), 1)), p_plac=float(((pl >= x[ok].sum()).sum() + 1) / (runs + 1)), net_2x=float(np.nansum(x2)), q_pos=int(sum(v > 0 for v in q)),
                          worst=float(x[ok].min()), maxdd=S_._maxdd(daily)))
@@ -741,6 +747,112 @@ def study_e56():
     for c in e56_cells(): rows += score(*c)
     T = _show(pd.DataFrame(rows), 0.005, "\nE56: six rules from the E55 observations; Rs at 10 lots, dated costs x1.5; p = day-block bootstrap; alpha 0.005 (controls not counted)")
     T.to_csv(f"{OBS}/e56.csv", index=False)
+
+
+
+# ================================================================ loop 2 (E57): deeper looks and their rules
+def study_d1():
+    """is the previous-day level special? the same first-cross detector on shifted pseudo-levels; ITM2 gross over 15 min, LEARN."""
+    S_ = SL(); Sp = bar("S"); LRN = ~S_.ISTEST; PH = np.full(S_.ND, np.nan); PL = PH.copy(); PC = PH.copy(); prev = {}; rows = []
+    for d, k in enumerate(S_.DAYK):
+        if k[0] in prev: PH[d], PL[d], PC[d] = prev[k[0]]
+        if np.isfinite(Sp[d]).any(): prev[k[0]] = (np.nanmax(Sp[d]), np.nanmin(Sp[d]), Sp[d][np.isfinite(Sp[d])][-1])
+    def fc(x, lv):
+        for i in range(30, 330):
+            if x[i] > lv and (x[i - 30:i] <= lv).all(): return i, 1
+            if x[i] < lv and (x[i - 30:i] >= lv).all(): return i, -1
+    L_ = {"REAL previous-day high / low": lambda d: [PH[d], PL[d]], "previous close": lambda d: [PC[d]], "first-30-min high / low": lambda d: [np.nanmax(Sp[d][:30]), np.nanmin(Sp[d][:30])]}
+    for sh in (0.0015, 0.003, 0.005): L_[f"pseudo: outside by {sh * 100:.2f}%"] = lambda d, sh=sh: [PH[d] * (1 + sh), PL[d] * (1 - sh)]; L_[f"pseudo: inside by {sh * 100:.2f}%"] = lambda d, sh=sh: [PH[d] * (1 - sh), PL[d] * (1 + sh)]
+    for sh in (0.004, 0.007): L_[f"open +-{sh * 100:.2f}%"] = lambda d, sh=sh: [Sp[d][0] * (1 + sh), Sp[d][0] * (1 - sh)]
+    for s in (0, 1):
+        for nm, fn in L_.items():
+            ev = np.array([(d, *c) for d in np.flatnonzero(LRN & (S_.SYMI == s) & np.isfinite(PH)) for lv in fn(d) for c in [fc(Sp[d], lv)] if c])
+            G = S_.gather(ev[:, 0], ev[:, 1] + 1, 2, ev[:, 2]); g = G["C"][:, 14].astype(float) - G["ENT"]; m, t, n, _ = _tclust(g, ev[:, 0])
+            rows.append(dict(sym=SYMN[s], level=nm, n=n, ITM2_gross15=m, t=t, win=float(np.nanmean(g[np.isfinite(g)] > 0))))
+    T = pd.DataFrame(rows); T.to_csv(f"{OBS}/d1_pseudo_levels.csv", index=False); print("\n(D1) real against pseudo levels, LEARN, ITM2 gross premium points over 15 min"); print(T.round(2).to_string(index=False))
+
+
+def study_d2():
+    """how much of the opening crush is left at a real open? seller's gross on a short ATM straddle by entry minute and hold, LEARN."""
+    S_ = SL(); LRN = ~S_.ISTEST; dte = _days()[3]; rows = []
+    for s in (0, 1):
+        for dt_ in (0, 1, 2):
+            d = np.flatnonzero(LRN & (S_.SYMI == s) & (dte == dt_))
+            for e in (1, 2, 3, 5, 10, 15, 30):
+                ee = np.full(len(d), e); Gc = S_.gather(d, ee, 0, np.ones(len(d))); Gp = S_.gather(d, ee, 0, -np.ones(len(d))); cr = Gc["ENT"] + Gp["ENT"]
+                r = dict(sym=SYMN[s], dte=dt_, entry=f"{9 + (15 + e) // 60:02d}:{(15 + e) % 60:02d}", n=int(np.isfinite(cr).sum()), credit=np.nanmean(cr))
+                for H in (5, 15, 30):
+                    g = cr - (Gc["C"][:, H - 1].astype(float) + Gp["C"][:, H - 1]); r[f"g{H}"], r[f"t{H}"] = _tclust(g, d)[:2]
+                    if H == 15: r["half1"], r["half2"] = np.nanmean(g[d < np.median(d)]), np.nanmean(g[d >= np.median(d)])
+                rows.append(r)
+    T = pd.DataFrame(rows); T.to_csv(f"{OBS}/d2_open_crush.csv", index=False); print("\n(D2) seller's gross on a short ATM straddle (premium points, both legs), by entry open and hold, LEARN"); print(T.round(2).to_string(index=False))
+
+
+BOX_CHG = 0.90   # ponytail: round-number charges for a four-leg box held to expiry (E57 row); replace with the contract-note figure if it ever goes forward
+
+
+def study_t6(days=None, tag="obs", sym="NIFTY", thr=1.5, fresh=300):
+    """(D3 / E57 T1) parity boxes with a full-size walk and latency. Per second: box = max_K synthetic bid - min_K synthetic ask over ATM+-2;
+    all cases (box >= thr) and the fresh ones (all four legs <= `fresh` ms old); value 500 / 1,000 ms later on the same two strikes."""
+    TL = TLm(); c = TL.TSYM[sym]; q = c["q"]; rows = []
+    for day in (days or T_OBS):
+        TD = TL.TapeDay(day); atm = TD.atm(sym); s = np.arange(S0, S1 - 20, 10); r = np.arange(len(s))
+        def legs(sl):
+            B = np.full((5, len(sl)), np.nan); A = B.copy(); AG = B.copy()
+            for o in range(-2, 3):
+                K = atm[s] + o * c["step"]                      # strikes fixed at the decision slot
+                for Ku in np.unique(K[np.isfinite(K)]):
+                    gc, gp = TD.grid(TD.oid(sym, Ku, "CE")), TD.grid(TD.oid(sym, Ku, "PE"))
+                    if gc is None or gp is None: continue
+                    k = K == Ku; sk = sl[k]; v = TL._valid(gc, sk, CAPV[sym]) & TL._valid(gp, sk, CAPV[sym])
+                    B[o + 2, k] = np.where(v, Ku + TL._walk(gc, sk, q, False) - TL._walk(gp, sk, q, True), np.nan); A[o + 2, k] = np.where(v, Ku + TL._walk(gc, sk, q, True) - TL._walk(gp, sk, q, False), np.nan)
+                    AG[o + 2, k] = np.where(v, np.maximum(gc["age"][sk], gp["age"][sk]), np.nan)
+            return B, A, AG
+        B0, A0, AG0 = legs(s); ok = np.isfinite(B0).sum(0) >= 2; ib = np.argmax(np.where(np.isfinite(B0), B0, -1e18), 0); ia = np.argmin(np.where(np.isfinite(A0), A0, 1e18), 0)
+        box0 = B0[ib, r] - A0[ia, r]; age = np.maximum(AG0[ib, r], AG0[ia, r]); after = {}
+        for lat in (5, 10): B1, A1, _ = legs(s + lat); after[lat] = B1[ib, r] - A1[ia, r]
+        for kind, m in (("all", ok & (box0 >= thr)), ("fresh", ok & (box0 >= thr) & (age <= fresh))):
+            m = m & np.isfinite(after[5]) & np.isfinite(after[10]); keep = []; last = -10 ** 9
+            for j in np.flatnonzero(m):
+                if j - last >= 30: keep.append(j); last = j
+            for j in keep: rows.append((day, kind, s[j], box0[j], after[5][j], after[10][j], age[j]))
+        print("t6", day, flush=True)
+    T = pd.DataFrame(rows, columns=["day", "kind", "slot", "box", "a500", "a1000", "age"]); T.to_csv(f"{OBS}/t6_box_{tag}.csv", index=False)
+    Z = T.groupby(["kind", "day"]).agg(n=("box", "size"), box=("box", "mean"), after_500ms=("a500", "mean"), after_1000ms=("a1000", "mean"), share_above_charges=("a500", lambda x: (x > BOX_CHG).mean()))
+    Z["net_500"] = Z.after_500ms - BOX_CHG; Z["net_1000"] = Z.after_1000ms - BOX_CHG
+    print(f"\n(E57 T1) {sym} parity box >= {thr} ({tag} days); charges taken as {BOX_CHG} per unit"); print(Z.round(3).to_string())
+    P_ = T.groupby("kind").agg(n=("box", "size"), box=("box", "mean"), after_500ms=("a500", "mean"), after_1000ms=("a1000", "mean"), share_above_charges=("a500", lambda x: (x > BOX_CHG).mean())); print(P_.round(3).to_string()); return T
+
+
+def open_cost(days=None):
+    """E57 tape action rule: measured entry cost per ATM leg at 09:16:00-09:16:05 (half-spread and the 10-lot walk for a SALE)."""
+    TL = TLm(); rows = []
+    for day in (days or T_OBS):
+        TD = TL.TapeDay(day)
+        for sym, c in TL.TSYM.items():
+            K = TD.atm(sym)[600]
+            for side in ("CE", "PE"):
+                G = TD.grid(TD.oid(sym, K, side)) if np.isfinite(K) else None
+                if G is None: continue
+                sl = np.arange(600, 651); v = TL._valid(G, sl, 1e9)
+                if v.sum() < 5: continue
+                rows.append(dict(day=day, sym=sym, d0=int(TD.exp[sym] == day), side=side, mid=float(np.nanmedian(G["mid"][sl][v])), half_spread=float(np.nanmedian((G["ask"] - G["bid"])[sl][v]) / 2),
+                                 walk_cost=float(np.nanmedian((G["mid"][sl] - TL._walk(G, sl, c["q"], False))[v]))))
+    return pd.DataFrame(rows)
+
+
+def study_e57():
+    S_ = SL(); dte = np.array([S_.P[k]["dte"] for k in S_.DAYK]); rows = []
+    C = open_cost(); print("\nE57 tape action rule: ATM legs at 09:16:00-09:16:05 on the OBSERVE days (premium points per leg)"); print(C.round(3).to_string(index=False))
+    for name, s, dm in (("S1 OPEN-CRUSH NIFTY dte<=1", 0, dte <= 1), ("S2 OPEN-CRUSH SENSEX dte>=2", 1, dte >= 2)):
+        d = np.flatnonzero((S_.SYMI == s) & dm); i = np.zeros(len(d), int); sg = np.ones(len(d), int)
+        Gc = S_.gather(d[S_.ISTEST[d]], np.ones(int(S_.ISTEST[d].sum()), int), 0, np.ones(int(S_.ISTEST[d].sum()))); model = float(np.nanmean(S_.hsv(d[S_.ISTEST[d]], S_.M0 + 1, np.nan_to_num(Gc["ENT"], nan=1.0))))
+        cs = C[(C.sym == SYMN[s]) & ((C.d0 == 1) if s == 0 else (C.d0 == 0))]; meas = float(cs.walk_cost.mean()) if len(cs) else np.nan; lim = 0.25 if s == 0 else 0.75
+        print(f"{name}: modelled p75 half-spread per leg at 09:16 (TEST year) {model:.2f}; measured 10-lot sale cost per leg on the tape {meas:.2f} ({len(cs)} legs); re-price if measured - model > {lim}")
+        rows += score(name, d, i, sg, 0, True, 15, legs2=True, plac="minute", seed=57)
+        if np.isfinite(meas) and meas - model > lim: rows += score(name + f" RE-PRICED x{meas / model:.1f} spread", d, i, sg, 0, True, 15, legs2=True, plac="minute", seed=57, fs0=meas / model)
+    T = _show(pd.DataFrame(rows), 0.025, "\nE57 S1 / S2: short ATM straddle at the 09:16 open, bought back after 15 min; Rs at 10 lots; placebo = the same straddle at a random minute of the same day")
+    T.to_csv(f"{OBS}/e57.csv", index=False)
 
 
 
