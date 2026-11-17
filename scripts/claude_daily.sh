@@ -127,7 +127,8 @@ case "${1:-}" in
            hm="$(TZ=Asia/Kolkata date +%H%M)"; [[ "$hm" < 0900 || "$hm" > 1525 ]] && { echo "outside 09:00-15:25 IST ($hm)"; exit 0; }
            h="$(./scripts/desk.sh recorder-status 2>&1 | grep -i 'health:')"; c="$(pgrep -f 'python.*-m marketdata.cross_market' >/dev/null && echo up || echo down)"
            bot_start >/dev/null || true
-           if [[ "$h" == *HEALTHY* && "$c" == up ]]; then echo "healthy: $h; cross $c"
+           # not *HEALTHY*: that pattern also matched UNHEALTHY (2026-11-17: 15 heal ticks never restarted a 401-dead recorder)
+           if [[ "$h" == *"health: HEALTHY"* && "$c" == up ]]; then echo "healthy: $h; cross $c"
            else echo "=== $(date) heal: '$h' cross=$c -> start what is down" | tee -a "$LOG"
                 ./scripts/desk.sh recorder-start 2>&1 | tee -a "$LOG" | tail -2; ./scripts/desk.sh cross-start 2>&1 | tee -a "$LOG" | tail -2
            fi ;;
