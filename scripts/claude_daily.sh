@@ -12,6 +12,7 @@
 #   scripts/claude_daily.sh token-guard # exit 3 + macOS notification + data/recon/TOKEN_ALERT.txt when the Dhan token will NOT cover the
 #                                     # next session's close (the token expired silently on 10-30..11-12 and 11-16; morning + close run this)
 #   scripts/claude_daily.sh bot-start # expiry-day research bot (scripts/lab5y/expiry_bot.py live, paper, log-only) if it is not running
+#   scripts/claude_daily.sh bench     # post-market: scripts/lab5y/fwd_bench.py day <today> (every frozen strategy on today's tape; the close runs it)
 #   scripts/claude_daily.sh bot-score # post-market: replay the day and match it to the live log (no look-ahead proof); writes data/recon/expiry_bot_<day>.log
 # The wait is computed in IST, so the US DST change (Nov 1) cannot shift the IST time.
 set -u
@@ -110,7 +111,7 @@ later() {  # later NAME HH:MM "cmd": detach so the scheduled Claude run can fini
 MORNING='./scripts/claude_daily.sh token-guard; if [[ "$(TZ=Asia/Kolkata date +%H%M)" > 0830 ]]; then ./scripts/desk.sh recorder-start || true; ./scripts/desk.sh cross-start || true; else ./scripts/desk.sh recorder-stop; ./scripts/desk.sh recorder-start; ./scripts/desk.sh cross-stop; ./scripts/desk.sh cross-start; fi; ./scripts/claude_daily.sh bot-start; sleep 90; ./scripts/desk.sh recorder-status; for _ in $(seq 1 45); do sleep 600; ./scripts/claude_daily.sh heal; done'
 
 # FIN1 is shadow-only (paper log from the tape, never an order): scripts/lab5y/fin1_shadow.py
-CLOSE='./scripts/desk.sh close; ./scripts/claude_daily.sh bot-score; ./scripts/claude_daily.sh token-guard; .venv/bin/python scripts/lab5y/fin1_shadow.py day; if [[ "$(TZ=Asia/Kolkata date +%u)" == 5 ]]; then .venv/bin/python scripts/lab5y/fin1_shadow.py week 5 > data/recon/fin1_shadow_week.txt; fi; ./scripts/claude_daily.sh report'
+CLOSE='./scripts/desk.sh close; ./scripts/claude_daily.sh bot-score; ./scripts/claude_daily.sh token-guard; .venv/bin/python scripts/lab5y/fin1_shadow.py day; ./scripts/claude_daily.sh bench; if [[ "$(TZ=Asia/Kolkata date +%u)" == 5 ]]; then .venv/bin/python scripts/lab5y/fin1_shadow.py week 5 > data/recon/fin1_shadow_week.txt; fi; ./scripts/claude_daily.sh report'
 
 case "${1:-}" in
   morning) token_line | tee -a "$LOG"
@@ -119,6 +120,13 @@ case "${1:-}" in
   token-guard) token_guard ;;
   bot-start)   bot_start ;;
   bot-score)   [[ -x "$PANDAS_PY" ]] && (cd scripts/lab5y && "$PANDAS_PY" expiry_bot.py score "$DAY" >> "$ROOT/data/recon/expiry_bot_${DAY}.log" 2>&1); grep -h "verdicts\|live vs replay\|nothing to replay" "data/recon/expiry_bot_${DAY}.log" 2>/dev/null | tail -3 ;;
+  bench)       # forward bench: every frozen strategy replayed on today's tape -> data/recon/fwd_bench.jsonl (paper, read-only on the tape)
+               # --again: appends only the rows still missing, so a day an engine failed on repairs itself on the next run. 20-minute cap
+               # (perl alarm: macOS has no timeout) so a hang cannot hold up the founder report. Full output: data/recon/fwd_bench_<day>.log
+               [[ -x "$PANDAS_PY" ]] || { echo "bench: $PANDAS_PY missing (set AAD_PANDAS_PY)"; exit 0; }
+               perl -e 'alarm shift; exec @ARGV' 1200 "$PANDAS_PY" scripts/lab5y/fwd_bench.py day "$DAY" --again >> "data/recon/fwd_bench_${DAY}.log" 2>&1 \
+                 || echo "fwd_bench $DAY: FAILED or timed out (rc $?), see data/recon/fwd_bench_${DAY}.log" >> "data/recon/fwd_bench_${DAY}.log"
+               grep "^fwd_bench\|labs FAILED" "data/recon/fwd_bench_${DAY}.log" | tail -8 ;;
   close)   [[ "$(TZ=Asia/Kolkata date +%u)" == 1 && -f data/recon/fin1_shadow_week.txt ]] && cat data/recon/fin1_shadow_week.txt
            later close 15:31 "$CLOSE" ;;
   status)  tail -20 "$LOG" 2>/dev/null; ./scripts/desk.sh recorder-status 2>&1 | tail -4 ;;
@@ -146,6 +154,7 @@ case "${1:-}" in
              "$PY" -c "import json;r=json.load(open('data/recon/sod_exam_report.json'));d=[x for x in r['days'] if x['day']=='$DAY'];print('Paper desk honesty:',r.get('overall_honesty'),'| today:',(d[0].get('honesty') if d else 'no row'));[print(' ',s) for s in r.get('stories',[]) if s.startswith('$DAY')]" 2>/dev/null || echo "Paper desk honesty: no report"
              grep -h "heal:" "$LOG" 2>/dev/null | sed 's/^/Self-heal: /'
              grep -h "verdicts\|live vs replay\|nothing to replay" "data/recon/expiry_bot_${DAY}.log" 2>/dev/null | tail -3 | sed 's/^/Expiry bot: /'
+             [[ -x "$PANDAS_PY" ]] && "$PANDAS_PY" scripts/lab5y/fwd_bench.py report --short 2>/dev/null | sed 's/^/Bench: /'
            } > "$R"; cat "$R" ;;
-  *) echo "usage: $0 morning|close|token|token-guard|bot-start|bot-score|status|heal|report" >&2; exit 1 ;;
+  *) echo "usage: $0 morning|close|token|token-guard|bot-start|bot-score|bench|status|heal|report" >&2; exit 1 ;;
 esac
